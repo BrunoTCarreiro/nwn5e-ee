@@ -28,6 +28,11 @@
 //
 // The engine answers threat 21 / multiplier x0 for a hand with nothing to
 // attack with (the empty off-hand, for the sheet); those stay as they are.
+//
+// The character sheet's main-hand multiplier is computed inside
+// UpdateCombatInformation from the base item, not asked from
+// GetCriticalHitMultiplier (EE; the off-hand one is asked), so with
+// crit_double_damage it is converted in the sheet's block afterwards.
 
 #include <intrin.h>
 
@@ -47,10 +52,12 @@ namespace {
 
 using CritFn = int (*)(void* stats, int offhand);
 using DifficultyOptionFn = int (*)(void* app, int option);
+using UpdateCombatInformationFn = void (*)(void* stats);
 
 CritFn g_get_critical_hit_roll = nullptr;
 CritFn g_get_critical_hit_multiplier = nullptr;
 DifficultyOptionFn g_get_difficulty_option = nullptr;
+UpdateCombatInformationFn g_update_combat_information = nullptr;
 int* g_combat_debugging = nullptr;
 
 // Crit values depend on the weapon, not the creature: each distinct one once.
@@ -79,7 +86,7 @@ int GetCriticalHitRoll(void* stats, int offhand) {
   int floor = vanilla;
   if (g_config.debug_every_hit_crits) {
     floor = vanilla > 20 ? vanilla : 1;  // every d20 threatens; 21 = nothing to attack with
-    if (g_config.log_attacks && g_threat_logged.First(LogOnce::Key(0, vanilla, 1))) {
+    if (g_config.log_attacks && floor != vanilla && g_threat_logged.First(LogOnce::Key(0, vanilla, 1))) {
       Log("debug every_hit_crits: threat %d-20 -> 1-20", vanilla);
     }
   } else if (g_config.crit_nat20_only) {
@@ -155,6 +162,19 @@ int GetCriticalHitMultiplier(void* stats, int offhand) {
   return converted;
 }
 
+void UpdateCombatInformation(void* stats) {
+  g_update_combat_information(stats);
+  if (!g_config.crit_double_damage || !stats) return;
+  uint8_t* info = *reinterpret_cast<uint8_t**>(static_cast<uint8_t*>(stats) + ee::kStatsCombatInformation);
+  if (!info) return;
+  const int vanilla = info[ee::kCombatInfoMainHandMultiplier];
+  const int converted = rules::CriticalMultiplierFor(rules::CritDamagePart::kDice, vanilla);
+  info[ee::kCombatInfoMainHandMultiplier] = static_cast<uint8_t>(converted);
+  if (g_config.log_attacks && converted != vanilla && g_multiplier_logged.First(LogOnce::Key(3, vanilla, converted))) {
+    Log("character sheet: main-hand crit multiplier x%d -> x%d (logged once per value)", vanilla, converted);
+  }
+}
+
 int GetDifficultyOption(void* app, int option) {
   const int vanilla = g_get_difficulty_option(app, option);
   if (g_config.crits_against_players && option == ee::kDifficultyNoCriticalOnPc && vanilla != 0) {
@@ -227,6 +247,9 @@ void InstallCritRules() {
     HookExport("CNWSCreatureStats::GetCriticalHitMultiplier", ee::kGetCriticalHitMultiplier,
                reinterpret_cast<void*>(&GetCriticalHitMultiplier),
                reinterpret_cast<void**>(&g_get_critical_hit_multiplier));
+    HookExport("CNWSCreatureStats::UpdateCombatInformation (sheet: main-hand crit multiplier)",
+               ee::kUpdateCombatInformation, reinterpret_cast<void*>(&UpdateCombatInformation),
+               reinterpret_cast<void**>(&g_update_combat_information));
   }
   if (g_config.debug_combat_breakdown) {
     g_combat_debugging = reinterpret_cast<int*>(EngineExport(ee::kCombatDebugging));

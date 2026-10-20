@@ -28,6 +28,8 @@ constexpr const char* kGetDamageRoll = "?GetDamageRoll@CNWSCreatureStats@@QEAAHP
 constexpr const char* kGetDamageBonus = "?GetDamageBonus@CNWSCreatureStats@@QEAAHPEAVCNWSCreature@@H@Z";
 // int CNWSCreature::GetTotalEffectBonus(unsigned char, CNWSObject*, int, int, unsigned char x4, int)
 constexpr const char* kGetTotalEffectBonus = "?GetTotalEffectBonus@CNWSCreature@@QEAAHEPEAVCNWSObject@@HHEEEEH@Z";
+// void CNWSCreatureStats::UpdateCombatInformation() — the character sheet's combat block
+constexpr const char* kUpdateCombatInformation = "?UpdateCombatInformation@CNWSCreatureStats@@QEAAXXZ";
 // int CServerExoApp::GetDifficultyOption(int option) — diffsettings.2da row
 constexpr const char* kGetDifficultyOption = "?GetDifficultyOption@CServerExoApp@@QEAAHH@Z";
 // int g_bEnableCombatDebugging — the engine's per-term combat breakdown
@@ -48,6 +50,16 @@ constexpr size_t kAttackThreatFlag = 0x70;   // int32, 1 after a threat (+0x3b3)
                                              // log prints "Threat Roll" when it is set
 constexpr size_t kAttackResult = 0x78;       // uint8: 1 hit, 2 parried, 3 critical, 4 miss, 7 auto hit
 constexpr uint8_t kAttackResultCritical = 3;
+
+// CNWSCreatureStats -> its CCombatInformation*, the sheet's combat block
+// (UpdateCombatInformation reads [this + 0xd70] throughout, e.g. +0x114a).
+constexpr size_t kStatsCombatInformation = 0xd70;
+// CCombatInformation (UpdateCombatInformation's tail, +0x12d3..+0x1324):
+// main-hand threat range +0x13 (21 - GetCriticalHitRoll(0)) and multiplier
+// +0x14 — the multiplier computed inline from the base item (+1 with the
+// increased-multiplier feat), not by GetCriticalHitMultiplier; off-hand
+// threat range +0x1c and multiplier +0x1d (GetCriticalHitMultiplier(1)).
+constexpr size_t kCombatInfoMainHandMultiplier = 0x14;
 
 // GetTotalEffectBonus keeps the current damage-bonus entry's dice count (0 =
 // a flat constant) in its frame at [rsp + 0x44] around each of its 12 calls
