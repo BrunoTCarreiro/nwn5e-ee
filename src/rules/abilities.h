@@ -3,6 +3,7 @@
 // Phase 3 CM4 / CM5 / CM7 / CM12 (PLAN.md): a character's 2024 ability
 // scores, as changes to the base scores NWN stores. SRD 5.2.
 
+#include <array>
 #include <optional>
 #include <vector>
 
@@ -36,6 +37,16 @@ std::vector<Ability> AsiPriority2024(CharacterClass character_class, int strengt
 std::vector<AbilityIncrease> AutomaticAsis(int count, const std::vector<Ability>& priority, const int scores[6]);
 
 // "Strength" ... and "str" ... ("" for an out-of-range index).
+// The 2024 point-buy cost of a score (8 -> 0 ... 13 -> 5, 14 -> 7, 15 -> 9);
+// -1 outside 8..15.
+int PointBuyCost2024(int score);
+
+// A legal 27-point set for the creation screen's Recommended button (CM4):
+// 15, 14, 13, 12, 10, 8 — the class's main abilities first (the order
+// AsiPriority2024 gives), then Constitution, Dexterity, Wisdom, Strength,
+// Charisma, Intelligence. Indexed Str .. Cha.
+std::array<int, 6> RecommendedScores2024(CharacterClass character_class);
+
 const char* AbilityName(Ability ability);
 const char* AbilityShortName(Ability ability);
 // "str", "Strength", "dex" ... (any case) -> the ability.

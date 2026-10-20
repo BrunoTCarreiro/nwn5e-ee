@@ -307,6 +307,17 @@ Each step ends with an in-game test matrix, as on 1.69.
    its export, the client two in the whole .text, all or none — all three
    found and applied on the first launch). nwn5e's strings go through the
    FetchInternal hook before the engine is asked (no "invalid strref").
+   *E4b built 0.5.1:* `rules_abilities` — after every load: race
+   adjustments 0, point-buy budget 27, each base class's Recommended scores a
+   legal 27-point set (rules::RecommendedScores2024, unit-tested);
+   CHARGEN_BASE_ABILITY_MAX 15 / CHARGEN_ABILITY_COST_INCREMENT2 13 by the
+   ruleset hook (one CNWRules: the creation screen reads the same tables);
+   the base-score sync per creature update and at LevelUp (post-hook),
+   through Set*Base (SetCONBase(v, 1)), polymorphed creatures skipped;
+   !asi, !background; background skills into rules_skills, Alert (Criminal)
+   as Improved Initiative by a HasFeat filter inside ResolveInitiative.
+   EP9 (b) waits for CM8 (the level-up screen would lose NWN's BAB-gated
+   feats); the sheet keeps the 3e line (a).
 6. *(plan)* **E4 — character model:** served data + strings, XP, multiclass,
    alignment, HP, feat cadence, point buy + backgrounds, class features,
    the Fighter (first tested in game here — it never was on 1.69).

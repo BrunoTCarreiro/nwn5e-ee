@@ -15,8 +15,8 @@
 // - SK3 (a): a skill rank a script asks for (GetSkillRank: the official
 //   campaigns' AutoDC conversation checks) is the 2024 value scaled to the 3e
 //   range (2 x), since those DCs are set for 3e totals.
-// Background skills (CM5) join the profile when the character model is
-// ported (E4); SK1's 2024 names come with the label hook.
+// A character's background skills (CM5, rules_abilities.cpp) join its
+// profile; SK1's 2024 names come with the label hook.
 
 #include <stdint.h>
 #include <string.h>
@@ -37,6 +37,8 @@
 #include "rules/nwn_conversion.h"
 #include "rules/skills.h"
 #include "skill_rank.h"
+
+rules::SkillSet BackgroundSkills(void* creature);  // rules_abilities.cpp (CM5)
 
 namespace {
 
@@ -207,6 +209,7 @@ bool SkillValue2024(void* stats, int skill, void* vs, int* value, SkillParts* pa
   Profile profile;
   if (character) {
     profile = CharacterProfile(creature, stats, facts.is_player);
+    profile.proficient |= BackgroundSkills(creature);  // CM5
   } else if (RanksFor(stats, *mapped) > 0) {
     profile.proficient = rules::SkillBit(*mapped);  // monsters: proficient where they have ranks
   }

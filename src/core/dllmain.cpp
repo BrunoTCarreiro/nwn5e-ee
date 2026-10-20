@@ -41,13 +41,14 @@ void InstallProgressionRules();
 void InstallAlignmentRules();
 void InstallHitPointRules();
 void InstallFeatCadenceRules();
+void InstallAbilityRules();
 #ifdef NWN5E_PRIVATE
 void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 #endif
 
 namespace {
 
-constexpr const char* kVersion = "0.5.0";
+constexpr const char* kVersion = "0.5.1";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -91,6 +92,7 @@ void Start(HMODULE self) {
   InstallAlignmentRules();
   InstallHitPointRules();
   InstallFeatCadenceRules();
+  InstallAbilityRules();
   InstallDebugSwitches();
 #ifdef NWN5E_PRIVATE
   InstallPrivateRules();

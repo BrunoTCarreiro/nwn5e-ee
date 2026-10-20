@@ -53,6 +53,24 @@ std::vector<Ability> AsiPriority2024(CharacterClass character_class, int strengt
   return {Ability::kConstitution};
 }
 
+int PointBuyCost2024(int score) {
+  static const int kCosts[8] = {0, 1, 2, 3, 4, 5, 7, 9};  // scores 8 .. 15
+  return score >= 8 && score <= 15 ? kCosts[score - 8] : -1;
+}
+
+std::array<int, 6> RecommendedScores2024(CharacterClass character_class) {
+  static const int kArray[6] = {15, 14, 13, 12, 10, 8};
+  static const Ability kRest[6] = {Ability::kConstitution, Ability::kDexterity, Ability::kWisdom,
+                                   Ability::kStrength,     Ability::kCharisma,  Ability::kIntelligence};
+  std::vector<Ability> order = AsiPriority2024(character_class, 10, 9);  // a Fighter: Strength
+  for (Ability ability : kRest) {
+    if (std::find(order.begin(), order.end(), ability) == order.end()) order.push_back(ability);
+  }
+  std::array<int, 6> scores{};
+  for (size_t i = 0; i < 6 && i < order.size(); ++i) scores[Index(order[i])] = kArray[i];
+  return scores;
+}
+
 std::vector<AbilityIncrease> AutomaticAsis(int count, const std::vector<Ability>& priority, const int scores[6]) {
   int current[6];
   for (int i = 0; i < 6; ++i) current[i] = scores[i];

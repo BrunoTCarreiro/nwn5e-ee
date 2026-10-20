@@ -46,3 +46,25 @@ TEST(HenchmenRaiseTheirMainAbilities) {
   CHECK_EQ(ParseAbility("wisdom") == Ability::kWisdom, true);
   CHECK_EQ(ParseAbility("luck").has_value(), false);
 }
+
+// Breaks caught: a Recommended set that isn't a legal 27-point buy, a class's
+// main ability not at 15, or a multiclass 13 missed (Paladin, Monk, Ranger).
+TEST(RecommendedScoresAreLegal27PointSets) {
+  for (int c = 0; c <= static_cast<int>(CharacterClass::kWizard); ++c) {
+    const std::array<int, 6> scores = RecommendedScores2024(static_cast<CharacterClass>(c));
+    int points = 0;
+    for (int s : scores) {
+      CHECK_EQ(PointBuyCost2024(s) >= 0, true);
+      points += PointBuyCost2024(s);
+    }
+    CHECK_EQ(points, 27);
+  }
+  const std::array<int, 6> paladin = RecommendedScores2024(CharacterClass::kPaladin);
+  CHECK_EQ(paladin[0], 15);  // Str
+  CHECK_EQ(paladin[5] >= 13, true);   // Cha
+  const std::array<int, 6> monk = RecommendedScores2024(CharacterClass::kMonk);
+  CHECK_EQ(monk[1], 15);  // Dex
+  CHECK_EQ(monk[4] >= 13, true);   // Wis
+  CHECK_EQ(RecommendedScores2024(CharacterClass::kWizard)[3], 15);  // Int
+  CHECK_EQ(PointBuyCost2024(16), -1);
+}

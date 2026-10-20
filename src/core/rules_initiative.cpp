@@ -8,8 +8,9 @@
 // read only there). The d20 has advantage while the creature is invisible
 // (2024's Invisible condition), disadvantage when it is poisoned or frightened
 // (SK11), and Halfling Luck rerolls a natural 1; hidden (SK5: hiding with a
-// hide that held) counts as invisible. Remarkable Athlete (Fighter) and Alert
-// from a background (CM5) come with their rules. NWN mode: NWN's.
+// hide that held) counts as invisible; Alert from a background (CM5: the
+// Criminal's Origin feat) is read as Improved Initiative while initiative is
+// rolled. Remarkable Athlete comes with the Fighter. NWN mode: NWN's.
 
 #include <stdint.h>
 
@@ -21,13 +22,15 @@
 #include "dice.h"
 #include "ee_layout.h"
 #include "engine.h"
+#include "feats.h"
 #include "hooks.h"
 #include "log.h"
 #include "log_once.h"
 #include "ruleset.h"
 #include "rules/skills.h"
 
-bool HiddenByStealth(void* creature);  // rules_perception.cpp (SK5)
+bool HiddenByStealth(void* creature);         // rules_perception.cpp (SK5)
+bool HasAlertFromBackground(void* creature);  // rules_abilities.cpp (CM5)
 
 namespace {
 
@@ -37,6 +40,7 @@ using GetInvisibleFn = int (*)(void* creature, void* object, int flag);
 ResolveInitiativeFn g_resolve_initiative = nullptr;
 GetInvisibleFn g_get_invisible = nullptr;
 uintptr_t g_d20_caller = 0;
+CodeRange g_initiative_code;
 thread_local void* t_creature = nullptr;  // whose initiative is being rolled
 LogOnce g_logged(300);
 int g_roll_lines = 0;
@@ -64,6 +68,17 @@ int AlertBonus(int engine_value) {
 }
 
 int NoBonus(int) { return 0; }
+
+// CM5: Alert from the Criminal background counts as Improved Initiative while
+// the creature's initiative is rolled.
+bool AlertFromBackground(void* stats, int feat, uintptr_t caller, int* answer) {
+  if (feat != ee::kFeatImprovedInitiative || !t_creature || StatsOf(t_creature) != stats ||
+      !g_initiative_code.Contains(caller) || !HasAlertFromBackground(t_creature)) {
+    return false;
+  }
+  *answer = 1;
+  return true;
+}
 
 void ResolveInitiative(void* creature) {
   void* outer = t_creature;
@@ -116,6 +131,7 @@ void InstallInitiativeRules() {
     return;
   }
   g_d20_caller = d20[0] + kCallLength;
+  g_initiative_code = FunctionAt(function);
   g_get_invisible = reinterpret_cast<GetInvisibleFn>(EngineExport(ee::kGetInvisible));
   if (!HookExport("CNWSCreature::ResolveInitiative (2024 initiative)", ee::kResolveInitiative,
                   reinterpret_cast<void*>(&ResolveInitiative), reinterpret_cast<void**>(&g_resolve_initiative))) {
@@ -127,4 +143,5 @@ void InstallInitiativeRules() {
   AnswerRulesetInt("BLOODED_INITIATIVE_BONUS", "initiative: no Blooded bonus (2024)", &NoBonus);
   AnswerRulesetInt("THUG_INITIATIVE_BONUS", "initiative: no Thug bonus (2024)", &NoBonus);
   AddDiceFilter(&InitiativeD20);
+  AddFeatFilter(&AlertFromBackground);
 }

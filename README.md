@@ -56,6 +56,7 @@ switchable in `nwn5e.ini`:
 | Alignment (CM14): no class or item alignment limits | `alignment` | built (0.5.0) |
 | Hit points (CM3): max die at level 1, then the average, 2024 dice | `hit_points` | built (0.5.0) |
 | Feat cadence (CM7): feats at 2024 levels, general feat at level 1 only, ASI rows, no ability page every 4 levels (EP15 b: three patches, all or none) | `feat_cadence` | built (0.5.0) |
+| Ability scores and backgrounds (CM4, CM5, CM12, CM13): no racial ability adjustments; point buy 27 to 15 (2 points from 13), Recommended scores legal; NWN's +1 every 4 levels taken back; !background (Acolyte, Criminal, Sage, Soldier: +2/+1 or +1/+1/+1, two skills, Origin feat); !asi; henchmen pick their own; legacy characters get their 2024 ASIs | `ability_scores` | built (0.5.1) |
 | Shove (SK6): Knockdown makes no attack roll and no damage; the target's better Str / Dex save vs 8 + Str + PB, at most one size larger; Disarm is an ordinary attack | `knockdown` | built (0.4.1) |
 
 Test switches (`[debug]`, off by default): `every_hit_crits=1` makes every
