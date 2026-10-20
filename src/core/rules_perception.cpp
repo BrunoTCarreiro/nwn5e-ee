@@ -1,0 +1,377 @@
+// SK5 (port of 1.69's rules_perception.cpp; docs/EE-PORT.md E3d), `perception`
+// faithful: Stealth against Perception the 2024 way. EE rolls a hider's Hide
+// / Move Silently d20 and every creature's Spot / Listen die each 6 s
+// (DoStealthDetection) and compares them in DoListenDetection / DoSpotDetection.
+// Faithful:
+// - the hider rolls Stealth once, when it starts hiding (SetStealthMode) —
+//   one d20 for Hide and Move Silently, both Stealth (SK1) — and keeps it until
+//   it stops hiding (the 6 s re-rolls answer the kept roll); with
+//   hiding_needs_15 a total below 15 is no hide (A);
+// - an observer uses passive Perception (10 + its modifier; 5 with
+//   disadvantage) unless it searches (detect mode, or in combat with
+//   alert_creatures_search: one d20 for Spot and Listen, both Perception);
+//   NWN gave an observer that isn't searching half its skill — the checks are
+//   told it searches, so the skill is whole;
+// - no size modifier (the term the engine adds to the observer's score is
+//   added to the hider's skill too), no -10 while in combat, no Favored Enemy
+//   bonus, and a Stealth total of 0 no longer means "can't hide";
+// - found_up_close (B): an observer whose Spot check got as far as its score
+//   finds a hider in front of it within 2 m with a clear line between them.
+// Distance, area, movement, facing and light terms stay (NWN's real-time
+// stealth needs them). A deafened observer can't hear and a blinded one can't
+// see: EE's own checks already fail them (SK11). NWN mode: NWN's.
+
+#include <math.h>
+#include <stdint.h>
+#include <stdio.h>
+
+#include <intrin.h>
+
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+
+#include "chat.h"
+#include "condition_effects.h"
+#include "config.h"
+#include "creature.h"
+#include "dice.h"
+#include "ee_layout.h"
+#include "engine.h"
+#include "hooks.h"
+#include "log.h"
+#include "rules/skills.h"
+#include "skill_rank.h"
+
+namespace {
+
+using SetStealthModeFn = void (*)(void* creature, uint8_t mode);
+using StealthDetectionFn = int (*)(void* creature, void* target, int spot, int* seen, int* heard, int flag);
+using DetectionFn = int (*)(void* observer, void* target, int flag);
+using DetectModeFn = uint8_t (*)(void* creature);
+using FavoredEnemyFn = int (*)(void* stats, void* creature);
+using SkillRankFn = char (*)(void* stats, uint8_t skill, void* vs, int base_only);
+using WalkableLineFn = int (*)(void* area, float x1, float y1, float x2, float y2);
+using StaticLineFn = int (*)(void* area, float x1, float y1, float x2, float y2, float z1, float z2, float radius,
+                             uint32_t exclude, uint32_t* blocker, int flag, void* exclude_list, int doors);
+
+SetStealthModeFn g_set_stealth_mode = nullptr;
+StealthDetectionFn g_stealth_detection = nullptr;
+DetectionFn g_listen_detection = nullptr;
+DetectionFn g_spot_detection = nullptr;
+DetectModeFn g_detect_mode = nullptr;
+FavoredEnemyFn g_favored_enemy = nullptr;
+
+struct Api {
+  SkillRankFn skill_rank = reinterpret_cast<SkillRankFn>(EngineExport(ee::kGetSkillRank));  // through the hooks
+  WalkableLineFn walkable_line = reinterpret_cast<WalkableLineFn>(EngineExport(ee::kTestLineWalkable));
+  StaticLineFn static_line = reinterpret_cast<StaticLineFn>(EngineExport(ee::kStaticObjectsOnLine));
+};
+
+const Api& E() {
+  static const Api api;
+  return api;
+}
+
+// The engine's call sites, found at load (D: 4 GetSkillRank calls, 2
+// GetDetectMode, 1 GetFavoredEnemyBonus in each detection check; 5 RollDice in
+// DoStealthDetection).
+CodeRange g_listen_code;
+CodeRange g_spot_code;
+uintptr_t g_listen_zero_test = 0;  // the hider's Move Silently: 0 = can't hide
+uintptr_t g_listen_hider_skill = 0;
+uintptr_t g_listen_skill[2] = {};
+uintptr_t g_spot_hider_skill = 0;
+uintptr_t g_spot_zero_test = 0;
+uintptr_t g_spot_skill[2] = {};
+uintptr_t g_stealth_dice[5] = {};  // Hide, Move Silently, Spot d10, Spot d20, Listen
+
+std::unordered_map<uint32_t, int> g_stealth_roll;  // hiding creature -> its d20 for this hide
+std::unordered_set<uint32_t> g_not_hidden;         // ... whose Stealth total missed 15
+std::unordered_map<uint64_t, int> g_noticed;       // (observer, hider, sense) -> last result, for the log
+int g_log_lines = 0;
+
+thread_local void* t_roller = nullptr;    // DoStealthDetection's creature
+thread_local int t_die = -1;              // its Spot / Listen die this 6 s
+thread_local void* t_observer = nullptr;  // the detection check's observer
+thread_local bool t_scored = false;       // that check got as far as its score
+
+bool LogSlot() { return g_config.log_attacks && g_log_lines < 400 && ++g_log_lines; }
+uint32_t IdOf(const void* object) { return Field<uint32_t>(object, ee::kObjectId); }
+bool IsPlayer(void* creature) {
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  return stats && ReadCreatureFacts(stats).is_player;
+}
+bool Hiding(const void* creature) { return Field<uint8_t>(creature, ee::kCreatureStealthMode) == 1; }
+bool InCombat(const void* creature) { return Field<int32_t>(creature, ee::kCreatureInCombat) != 0; }
+bool Searching(const void* creature) {
+  return Field<uint8_t>(creature, ee::kCreatureDetectMode) != 0 || (g_config.alert_creatures_search && InCombat(creature));
+}
+
+int RollStealth(void* creature, const char* when) {
+  const uint32_t id = IdOf(creature);
+  const int roll = RollEngineDice(1, 20);
+  SetField<uint8_t>(creature, ee::kCreatureHideRoll, static_cast<uint8_t>(roll));
+  SetField<uint8_t>(creature, ee::kCreatureMoveSilentlyRoll, static_cast<uint8_t>(roll));
+  g_stealth_roll[id] = roll;
+  void* stats = StatsOf(creature);
+  const int skill = stats && E().skill_rank ? static_cast<int8_t>(E().skill_rank(stats, ee::kSkillHide, nullptr, 0)) : 0;
+  const int total = roll + skill;
+  const bool hidden = !g_config.hiding_needs_15 || total >= 15;
+  if (hidden) {
+    g_not_hidden.erase(id);
+  } else {
+    g_not_hidden.insert(id);
+  }
+  if (IsPlayer(creature)) {
+    char line[160];
+    if (!g_config.hiding_needs_15) {
+      sprintf_s(line, "nwn5e: Stealth %d (d20 %d %+d), kept while you stay hidden", total, roll, skill);
+    } else if (hidden) {
+      sprintf_s(line, "nwn5e: Stealth %d (d20 %d %+d) - hidden; that roll holds while you stay hidden", total, roll,
+                skill);
+    } else {
+      sprintf_s(line, "nwn5e: Stealth %d (d20 %d %+d) - below 15, you are not hidden (stop and hide again to retry)",
+                total, roll, skill);
+    }
+    TellPlayer(id, line);
+    if (LogSlot()) {
+      Log("stealth: 0x%08X %s: Stealth d20 %d %+d = %d%s, kept until it stops hiding", id, when, roll, skill, total,
+          g_config.hiding_needs_15 ? (hidden ? " (hidden)" : " (below 15: not hidden)") : "");
+    }
+  }
+  return roll;
+}
+
+void SetStealthMode(void* creature, uint8_t mode) {
+  const bool starts = creature && mode == 1 && !Hiding(creature);
+  g_set_stealth_mode(creature, mode);
+  if (!creature) return;
+  const uint32_t id = IdOf(creature);
+  if (starts && engine::AreaOf(creature)) {
+    RollStealth(creature, "starts hiding");
+  } else if (starts || mode != 1) {
+    // Stopped hiding, or being placed (a loaded game restores the mode before
+    // the creature is in its area): the next 6 s update rolls if it hides.
+    g_stealth_roll.erase(id);
+    if (mode != 1) g_not_hidden.erase(id);
+  }
+}
+
+int StealthDetection(void* creature, void* target, int spot, int* seen, int* heard, int flag) {
+  void* outer_roller = t_roller;
+  const int outer_die = t_die;
+  t_roller = creature;
+  t_die = -1;
+  const int result = g_stealth_detection(creature, target, spot, seen, heard, flag);
+  t_roller = outer_roller;
+  t_die = outer_die;
+  return result;
+}
+
+// The 6 s dice: the kept Stealth roll; one Perception die for Spot and Listen.
+bool StealthDice(uintptr_t caller, int count, int sides, int* result) {
+  if (!t_roller || count != 1) return false;
+  int index = -1;
+  for (int i = 0; i < 5; ++i) {
+    if (g_stealth_dice[i] && caller == g_stealth_dice[i]) index = i;
+  }
+  if (index < 0) return false;
+  void* creature = t_roller;
+  if (index <= 1) {  // Hide / Move Silently
+    const auto kept = g_stealth_roll.find(IdOf(creature));
+    *result = kept != g_stealth_roll.end() ? kept->second : RollStealth(creature, "is hiding without a roll (loaded)");
+    return true;
+  }
+  if (t_die < 0) {
+    const bool worse = !CheckDisadvantage(creature).empty();  // SK11: passive 5, or the lower of two d20s
+    t_die = rules::PassiveCheckBase(worse);
+    if (Searching(creature)) {
+      const int first = RollEngineDice(1, 20);
+      t_die = rules::KeptCheckD20(first, worse ? RollEngineDice(1, 20) : 0, 0, worse ? 1 : 0);
+    }
+  }
+  (void)sides;
+  *result = t_die;
+  return true;
+}
+
+// The detection checks ask whether the observer searches only to halve its
+// skill when it doesn't: 2024's passive Perception is the whole modifier.
+uint8_t GetDetectMode(void* creature) {
+  const uintptr_t caller = reinterpret_cast<uintptr_t>(_ReturnAddress());
+  if (g_listen_code.Contains(caller) || g_spot_code.Contains(caller)) return 1;
+  return g_detect_mode(creature);
+}
+
+int GetFavoredEnemyBonus(void* stats, void* creature) {
+  const uintptr_t caller = reinterpret_cast<uintptr_t>(_ReturnAddress());
+  if (g_listen_code.Contains(caller) || g_spot_code.Contains(caller)) {
+    t_scored = true;  // the check got as far as its score
+    return 0;
+  }
+  return g_favored_enemy(stats, creature);
+}
+
+int ListenSizeTerm(int hider_size) {
+  switch (hider_size) {
+    case 1: return -8;
+    case 2: return -4;
+    case 4: return 4;
+    case 5: return 8;
+    default: return 0;
+  }
+}
+
+int SpotSizeTerm(int difference) {
+  if (difference <= -2) return -8;
+  if (difference == -1) return -4;
+  if (difference == 1) return 4;
+  if (difference >= 2) return 8;
+  return 0;
+}
+
+int PerceptionSkill(const SkillQuery& query, int value) {
+  const uintptr_t caller = query.caller;
+  if (!caller || query.base_only) return value;
+  void* creature = CreatureOf(query.stats);
+  if (!creature) return value;
+  if (caller == g_listen_zero_test || caller == g_spot_zero_test) {  // the hider's stealth
+    if (g_config.hiding_needs_15 && g_not_hidden.count(IdOf(creature))) return 0;  // no hide: noticed
+    return value == 0 ? 1 : value;  // a total of 0 can hide (a 3e ranks rule)
+  }
+  if (caller == g_listen_hider_skill) return value + ListenSizeTerm(Field<int32_t>(creature, ee::kCreatureSize));
+  if (caller == g_spot_hider_skill && t_observer) {
+    return value + SpotSizeTerm(Field<int32_t>(creature, ee::kCreatureSize) - Field<int32_t>(t_observer, ee::kCreatureSize));
+  }
+  if (caller == g_listen_skill[0] || caller == g_listen_skill[1] || caller == g_spot_skill[0] ||
+      caller == g_spot_skill[1]) {
+    return InCombat(creature) ? value + 10 : value;  // the engine takes 10 off in combat
+  }
+  return value;
+}
+
+// SK5 B: a hider in front of the observer within 2 m, nothing between them.
+constexpr float kUpCloseMetres = 2.0f;
+
+bool ClearLine(void* from, void* to) {
+  void* area = engine::AreaOf(from);
+  if (!area || engine::AreaOf(to) != area || !E().walkable_line || !E().static_line) return false;
+  const float ax = Field<float>(from, ee::kObjectPositionX);
+  const float ay = Field<float>(from, ee::kObjectPositionY);
+  const float az = Field<float>(from, ee::kObjectPositionZ);
+  const float bx = Field<float>(to, ee::kObjectPositionX);
+  const float by = Field<float>(to, ee::kObjectPositionY);
+  if (E().walkable_line(area, ax, ay, bx, by) != 1) return false;
+  uint32_t blocker = ee::kObjectInvalid;
+  return E().static_line(area, ax, ay, bx, by, az + 0.5f, az + 1.6f, 0.05f, ee::kObjectInvalid, &blocker, 1, nullptr,
+                         0) == 1;
+}
+
+bool FoundUpClose(void* observer, void* hider, float* metres) {
+  const float dx = Field<float>(hider, ee::kObjectPositionX) - Field<float>(observer, ee::kObjectPositionX);
+  const float dy = Field<float>(hider, ee::kObjectPositionY) - Field<float>(observer, ee::kObjectPositionY);
+  const float fx = Field<float>(observer, ee::kObjectOrientationX);
+  const float fy = Field<float>(observer, ee::kObjectOrientationY);
+  *metres = sqrtf(dx * dx + dy * dy);
+  return rules::InFrontWithin(dx, dy, fx, fy, kUpCloseMetres) && ClearLine(observer, hider);
+}
+
+int Detection(DetectionFn original, bool spot, void* observer, void* target, int flag) {
+  void* outer_observer = t_observer;
+  const bool outer_scored = t_scored;
+  t_observer = observer;
+  t_scored = false;
+  int result = original(observer, target, flag);
+  const bool scored = t_scored;
+  t_observer = outer_observer;
+  t_scored = outer_scored;
+  if (!observer || !target || !Hiding(target)) return result;
+  char up_close[64] = "";
+  float metres = 0.0f;
+  if (spot && !result && scored && g_config.found_up_close && FoundUpClose(observer, target, &metres)) {
+    result = 1;
+    sprintf_s(up_close, "; found up close: %.1f m in front, clear line", metres);
+  }
+  if (!g_config.log_attacks) return result;
+  const uint64_t key = (static_cast<uint64_t>(IdOf(observer)) << 32 | IdOf(target)) ^ (spot ? 1ull << 63 : 0);
+  const auto it = g_noticed.find(key);
+  if (it != g_noticed.end() && it->second == result) return result;
+  g_noticed[key] = result;
+  if ((IsPlayer(target) || IsPlayer(observer)) && LogSlot()) {
+    Log("perception: 0x%08X %s 0x%08X (%s; its Stealth d20 %d; observer %s, die %d%s)", IdOf(observer),
+        result ? (spot ? "sees" : "hears") : (spot ? "does not see" : "does not hear"), IdOf(target),
+        scored ? "scored" : "decided before the score", Field<uint8_t>(target, ee::kCreatureHideRoll),
+        Searching(observer) ? "searching" : "passive", Field<uint8_t>(observer, spot ? 0x7c6 : 0x7c7), up_close);
+  }
+  return result;
+}
+
+int DoListenDetection(void* observer, void* target, int flag) {
+  return Detection(g_listen_detection, false, observer, target, flag);
+}
+
+int DoSpotDetection(void* observer, void* target, int flag) {
+  return Detection(g_spot_detection, true, observer, target, flag);
+}
+
+std::vector<uintptr_t> Returns(const CodeRange& code, const char* target) {
+  std::vector<uintptr_t> calls = FindCallsTo(code, EngineExport(target));
+  for (uintptr_t& call : calls) call += kCallLength;
+  return calls;
+}
+
+}  // namespace
+
+void InstallPerceptionRules() {
+  if (g_config.perception != rules::RuleVariant::kFaithful) return;
+  g_listen_code = FunctionAt(EngineExport(ee::kDoListenDetection));
+  g_spot_code = FunctionAt(EngineExport(ee::kDoSpotDetection));
+  const std::vector<uintptr_t> listen = Returns(g_listen_code, ee::kGetSkillRank);
+  const std::vector<uintptr_t> spot = Returns(g_spot_code, ee::kGetSkillRank);
+  const std::vector<uintptr_t> dice = Returns(FunctionAt(EngineExport(ee::kDoStealthDetection)), ee::kRollDice);
+  if (listen.size() != 4 || spot.size() != 4 || dice.size() != 5) {
+    Log("SKIP perception: the checks' calls differ from this build's (%zu / %zu skill, %zu dice)", listen.size(),
+        spot.size(), dice.size());
+    return;
+  }
+  g_listen_zero_test = listen[0];
+  g_listen_hider_skill = listen[1];
+  g_listen_skill[0] = listen[2];
+  g_listen_skill[1] = listen[3];
+  g_spot_hider_skill = spot[0];
+  g_spot_zero_test = spot[1];
+  g_spot_skill[0] = spot[2];
+  g_spot_skill[1] = spot[3];
+  for (int i = 0; i < 5; ++i) g_stealth_dice[i] = dice[i];
+  HookExport("CNWSCreature::SetStealthMode (Stealth rolled when hiding starts)", ee::kSetStealthMode,
+             reinterpret_cast<void*>(&SetStealthMode), reinterpret_cast<void**>(&g_set_stealth_mode));
+  HookExport("CNWSCreature::DoStealthDetection (6 s rolls: kept Stealth, passive Perception)", ee::kDoStealthDetection,
+             reinterpret_cast<void*>(&StealthDetection), reinterpret_cast<void**>(&g_stealth_detection));
+  HookExport("CNWSCreature::DoListenDetection (log)", ee::kDoListenDetection, reinterpret_cast<void*>(&DoListenDetection),
+             reinterpret_cast<void**>(&g_listen_detection));
+  HookExport("CNWSCreature::DoSpotDetection (found up close, log)", ee::kDoSpotDetection,
+             reinterpret_cast<void*>(&DoSpotDetection), reinterpret_cast<void**>(&g_spot_detection));
+  HookExport("CNWSCreature::GetDetectMode (whole skill when not searching)", ee::kGetDetectMode,
+             reinterpret_cast<void*>(&GetDetectMode), reinterpret_cast<void**>(&g_detect_mode));
+  HookExport("CNWSCreatureStats::GetFavoredEnemyBonus (none on perception)", ee::kGetFavoredEnemyBonus,
+             reinterpret_cast<void*>(&GetFavoredEnemyBonus), reinterpret_cast<void**>(&g_favored_enemy));
+  AddSkillAdjuster(&PerceptionSkill);
+  AddDiceFilter(&StealthDice);
+  Log("perception: Stealth once per hide, passive Perception unless searching, no size / combat / Favored Enemy "
+      "terms (faithful)");
+}
+
+// SK9 (rules_initiative.cpp) and Search: hidden = hiding with a hide that held.
+bool HiddenByStealth(void* creature) {
+  if (g_config.perception != rules::RuleVariant::kFaithful || !creature || !Hiding(creature)) return false;
+  return !g_not_hidden.count(IdOf(creature));
+}
+
+// Search's die (rules_skill_dcs.cpp), the 2024 way: a d20 when searching, else passive.
+int SearchDie(void* searcher, bool worse) {
+  if (Field<uint8_t>(searcher, ee::kCreatureDetectMode) == 0) return rules::PassiveCheckBase(worse);
+  const int first = RollEngineDice(1, 20);
+  return rules::KeptCheckD20(first, worse ? RollEngineDice(1, 20) : 0, 0, worse ? 1 : 0);
+}

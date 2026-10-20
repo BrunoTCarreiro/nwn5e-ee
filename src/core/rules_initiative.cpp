@@ -7,9 +7,9 @@
 // ruleset values answered while a creature's initiative is rolled (each is
 // read only there). The d20 has advantage while the creature is invisible
 // (2024's Invisible condition), disadvantage when it is poisoned or frightened
-// (SK11), and Halfling Luck rerolls a natural 1. Advantage when hidden
-// (SK5), Remarkable Athlete (Fighter) and Alert from a background (CM5) come
-// with their rules. NWN mode: NWN's.
+// (SK11), and Halfling Luck rerolls a natural 1; hidden (SK5: hiding with a
+// hide that held) counts as invisible. Remarkable Athlete (Fighter) and Alert
+// from a background (CM5) come with their rules. NWN mode: NWN's.
 
 #include <stdint.h>
 
@@ -26,6 +26,8 @@
 #include "log_once.h"
 #include "ruleset.h"
 #include "rules/skills.h"
+
+bool HiddenByStealth(void* creature);  // rules_perception.cpp (SK5)
 
 namespace {
 
@@ -77,8 +79,9 @@ bool InitiativeD20(uintptr_t caller, int count, int sides, int* result) {
   if (caller != g_d20_caller || !t_creature || count != 1 || sides != 20) return false;
   void* creature = t_creature;
   const bool invisible = Invisible(creature);
+  const bool hidden = !invisible && HiddenByStealth(creature);
   const std::string worse = CheckDisadvantage(creature);  // SK11
-  const int advantage = invisible ? 1 : 0;
+  const int advantage = invisible || hidden ? 1 : 0;
   const int disadvantage = worse.empty() ? 0 : 1;
   const int first = RollEngineDice(1, 20);
   const int second = advantage || disadvantage ? RollEngineDice(1, 20) : 0;
@@ -91,7 +94,7 @@ bool InitiativeD20(uintptr_t caller, int count, int sides, int* result) {
   }
   if (g_config.log_attacks && (second || luck) && g_roll_lines < 200 && stats && ReadCreatureFacts(stats).is_player) {
     ++g_roll_lines;
-    std::string why = invisible ? "advantage: invisible" : "";
+    std::string why = invisible ? "advantage: invisible" : hidden ? "advantage: hidden" : "";
     if (disadvantage) why += (why.empty() ? "disadvantage: " : "; disadvantage: ") + worse;
     if (advantage && disadvantage) why += " - they cancel";
     if (luck) why += why.empty() ? "Halfling Luck rerolled a 1" : "; Halfling Luck rerolled a 1";

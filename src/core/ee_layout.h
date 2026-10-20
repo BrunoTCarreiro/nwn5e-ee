@@ -429,6 +429,30 @@ constexpr int kSkillSpellcraft = 16;
 constexpr int kSkillSpot = 17;
 constexpr int kSkillTumble = 21;
 
+// E3d2 — Stealth and Perception (SK5). SetStealthMode(uchar) acts on a change
+// of the stealth byte +0x6ed and rolls nothing. DoStealthDetection(target,
+// bSpot, int*, int*, flag): every 6 s the creature's Hide / Move Silently d20s
+// (+0x7c4 / +0x7c5, only while hiding), Spot die (d10 / d20, +0x7c6) and
+// Listen die (+0x7c7) — its 5 RollDice in that order; then DoListenDetection /
+// DoSpotDetection(target, flag). Each of those: 4 GetSkillRank calls (Listen:
+// the hider's Move Silently zero test, Move Silently, Listen halved / full;
+// Spot: the hider's Hide, the zero test, Spot halved / full), 2 GetDetectMode
+// (which path), GetFavoredEnemyBonus once, the size term (Listen: hider size
+// 1/2/4/5 -> -8/-4/+4/+8; Spot: hider - observer size -2..+2 -> -8..+8) added
+// to the observer's score, -10 when the observer is in combat (+0x700).
+constexpr const char* kSetStealthMode = "?SetStealthMode@CNWSCreature@@QEAAXE@Z";
+constexpr const char* kDoStealthDetection = "?DoStealthDetection@CNWSCreature@@IEAAHPEAV1@HPEAH1H@Z";
+constexpr const char* kDoListenDetection = "?DoListenDetection@CNWSCreature@@IEAAHPEAV1@H@Z";
+constexpr const char* kDoSpotDetection = "?DoSpotDetection@CNWSCreature@@IEAAHPEAV1@H@Z";
+constexpr const char* kGetDetectMode = "?GetDetectMode@CNWSCreature@@QEAAEXZ";
+constexpr const char* kGetFavoredEnemyBonus = "?GetFavoredEnemyBonus@CNWSCreatureStats@@QEAAHPEAVCNWSCreature@@@Z";
+constexpr size_t kCreatureDetectMode = 0x6ec;   // uint8: the Search action
+constexpr size_t kCreatureStealthMode = 0x6ed;  // uint8: 1 hiding
+constexpr size_t kCreatureInCombat = 0x700;     // int32
+constexpr size_t kCreatureHideRoll = 0x7c4;     // uint8 dice the checks use
+constexpr size_t kCreatureMoveSilentlyRoll = 0x7c5;
+constexpr int kSkillHide = 5;
+
 // E3b — skills, concentration, the 3e-only skills, initiative.
 // char CNWSCreatureStats::GetSkillRank(uchar skill, CNWSObject* vs, int bBaseRanksOnly):
 // every engine and script skill total (83 call sites); DMs get 127 (+0x2f).

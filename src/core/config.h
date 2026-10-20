@@ -65,6 +65,15 @@ struct Config {
   // SK5: faithful = Stealth rolled once per hide, passive Perception unless
   // searching, no size / in-combat / Favored Enemy terms; nwn / off = NWN's.
   rules::RuleVariant perception = rules::RuleVariant::kFaithful;
+  // SK5 A (with perception=faithful): hiding needs a Stealth total of 15 (the
+  // 2024 Hide action); below it the creature is not hidden.
+  bool hiding_needs_15 = true;
+  // SK5 B: an enemy finds a hidden creature in front of it within 2 m with a
+  // clear line between them (2024 hides you only out of sight).
+  bool found_up_close = true;
+  // SK5 C: a creature in combat searches (an active d20 Perception each 6 s)
+  // instead of using passive Perception.
+  bool alert_creatures_search = true;
   // SK10: faithful = spell attacks are PB + casting ability against full AC,
   // with advantage / disadvantage; nwn / off = NWN's touch attacks.
   rules::RuleVariant spell_attacks = rules::RuleVariant::kFaithful;

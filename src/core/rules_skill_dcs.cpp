@@ -51,6 +51,8 @@
 #include "rules/skills.h"
 #include "skill_rank.h"
 
+int SearchDie(void* searcher, bool worse);  // rules_perception.cpp (SK5)
+
 namespace {
 
 using ActionFn = uint32_t (*)(void* object, void* node);
@@ -445,41 +447,54 @@ int EmpathyDcBase(int engine_value) {
 
 bool Blind(void* creature) { return E().blind && E().blind(creature) != 0; }
 
+bool PerceptionFaithful() { return g_config.perception == rules::RuleVariant::kFaithful; }
+
+void LogCheck(void* creature, bool search, int sides, int first, int second, int kept, const std::string& why) {
+  if (!g_config.log_attacks || g_check_lines >= 200) return;
+  ++g_check_lines;
+  Log("skill check: 0x%08X %s: d%d %d%s%s -> %d (%s)", IdOf(creature), search ? "Search" : "GetIsSkillSuccessful",
+      sides, first, second ? " / " : "", second ? std::to_string(second).c_str() : "", kept, why.c_str());
+}
+
 bool CheckDice(uintptr_t caller, int count, int sides, int* result) {
-  if (!ConditionsFaithful()) return false;
-  void* creature = nullptr;
-  const char* sense = nullptr;
   bool search = false;
-  if (caller == g_skill_check_d20 && t_check.creature) {
-    creature = t_check.creature;
-    const bool deaf = effects::HasType(creature, ee::kEffectTypeDeaf);
-    if (t_check.skill == ee::kSkillListen && deaf) sense = "deafened";
-    if ((t_check.skill == ee::kSkillSpot || t_check.skill == ee::kSkillSearch) && Blind(creature)) sense = "blinded";
-  } else if (t_searcher && !g_search_dice.empty()) {
-    for (uintptr_t die : g_search_dice) search = search || die == caller;
-    if (!search) return false;
-    creature = t_searcher;
-    if (Blind(creature)) sense = "blinded";
-  } else {
-    return false;
+  for (uintptr_t die : g_search_dice) search = search || die == caller;
+  if (search && t_searcher) {
+    void* searcher = t_searcher;
+    if (ConditionsFaithful() && Blind(searcher)) {  // SK11: finding traps needs sight
+      LogCheck(searcher, true, sides, 0, 0, 0, "blinded: fails what needs that sense");
+      *result = 0;
+      return true;
+    }
+    const std::string worse = ConditionsFaithful() ? CheckDisadvantage(searcher) : std::string();
+    if (PerceptionFaithful()) {  // SK5: a d20 when searching, else passive Perception
+      *result = SearchDie(searcher, !worse.empty());
+      if (!worse.empty()) LogCheck(searcher, true, sides, *result, 0, *result, "disadvantage: " + worse);
+      return true;
+    }
+    if (worse.empty()) return false;
+    const int first = RollEngineDice(count, sides);
+    const int second = RollEngineDice(count, sides);
+    *result = second < first ? second : first;
+    LogCheck(searcher, true, sides, first, second, *result, "disadvantage: " + worse);
+    return true;
   }
+  if (caller != g_skill_check_d20 || !t_check.creature || !ConditionsFaithful()) return false;
+  void* creature = t_check.creature;
+  const char* sense = nullptr;
+  if (t_check.skill == ee::kSkillListen && effects::HasType(creature, ee::kEffectTypeDeaf)) sense = "deafened";
+  if ((t_check.skill == ee::kSkillSpot || t_check.skill == ee::kSkillSearch) && Blind(creature)) sense = "blinded";
   const std::string worse = CheckDisadvantage(creature);
   if (!sense && worse.empty()) return false;
   const int first = RollEngineDice(count, sides);
-  int kept = first;
   int second = 0;
-  if (sense) {
-    kept = search ? 0 : 1;
-  } else {
+  int kept = 1;
+  if (!sense) {
     second = RollEngineDice(count, sides);
     kept = second < first ? second : first;
   }
-  if (g_config.log_attacks && g_check_lines < 200) {
-    ++g_check_lines;
-    Log("skill check: 0x%08X %s: d%d %d%s%s -> %d (%s)", IdOf(creature), search ? "Search" : "GetIsSkillSuccessful",
-        sides, first, second ? " / " : "", second ? std::to_string(second).c_str() : "", kept,
-        sense ? (std::string(sense) + ": fails what needs that sense").c_str() : ("disadvantage: " + worse).c_str());
-  }
+  LogCheck(creature, false, sides, first, second, kept,
+           sense ? std::string(sense) + ": fails what needs that sense" : "disadvantage: " + worse);
   *result = kept;
   return true;
 }
@@ -557,7 +572,7 @@ void InstallSkillDcRules() {
   AnswerRulesetInt("MAX_NON_ROGUE_DETECT_LEVEL", "skills: no Rogue-only traps", &NoRogueOnlyTraps);
   AnswerRulesetInt("SKILL_DISABLE_TRAP_SYNERGY_BONUS", "skills: no trap synergy", &NoSynergy);
   AnswerRulesetInt("SKILL_SETTRAP_SYNERGY_BONUS", "skills: no trap synergy", &NoSynergy);
-  if (ConditionsFaithful()) AddDiceFilter(&CheckDice);
+  if (ConditionsFaithful() || PerceptionFaithful()) AddDiceFilter(&CheckDice);
   Log("skill DCs: %d hooks, %zu search dice, Lore %s, Set Trap %s (faithful)", hooks, g_search_dice.size(),
       g_lore_caller ? "found" : "missing", g_settrap_caller ? "found" : "missing");
 }

@@ -61,6 +61,9 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.saves = ReadVariant(ini, L"saves", g_config.mode);
   g_config.skills = ReadVariant(ini, L"skills", g_config.mode);
   g_config.perception = ReadVariant(ini, L"perception", g_config.mode);
+  g_config.hiding_needs_15 = ReadBool(ini, L"hiding_needs_15", g_config.hiding_needs_15);
+  g_config.found_up_close = ReadBool(ini, L"found_up_close", g_config.found_up_close);
+  g_config.alert_creatures_search = ReadBool(ini, L"alert_creatures_search", g_config.alert_creatures_search);
   g_config.spell_attacks = ReadVariant(ini, L"spell_attacks", g_config.mode);
   g_config.concentration = ReadVariant(ini, L"concentration", g_config.mode);
   g_config.knockdown = ReadVariant(ini, L"knockdown", g_config.mode);
@@ -96,6 +99,10 @@ void ConfigLoad(const wchar_t* directory) {
       VariantName(g_config.saves), VariantName(g_config.skills), VariantName(g_config.perception),
       VariantName(g_config.spell_attacks), VariantName(g_config.concentration), VariantName(g_config.knockdown),
       VariantName(g_config.initiative), VariantName(g_config.nwn_only_skills));
+  if (g_config.perception == rules::RuleVariant::kFaithful) {
+    Log("config: hiding_needs_15=%d found_up_close=%d alert_creatures_search=%d", g_config.hiding_needs_15,
+        g_config.found_up_close, g_config.alert_creatures_search);
+  }
   if (g_config.debug_players_poisoned) {
     Log("config: [debug] players_poisoned=1 - player characters count as poisoned for ability checks");
   }

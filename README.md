@@ -49,6 +49,7 @@ switchable in `nwn5e.ini`:
 | Initiative (SK9): d20 + Dex (+ PB with Improved Initiative = Alert), advantage when invisible, Halfling Luck | `initiative` | built (0.4.0) |
 | Spell attacks (SK10): PB + casting ability against full AC, advantage / disadvantage, a natural 20 crits without confirmation | `spell_attacks` | built (0.4.1) |
 | Skill DCs (SK3) and conditions on checks (SK11): NWN's fixed DCs converted to the 2024 scale (locks, traps, Search, scripts' checks, Tumble, Spellcraft, heal kits, Pick Pocket, Animal Empathy; the combat log shows the 2024 skill and DC); no trap synergy, no Rogue-only traps; poisoned / frightened checks have disadvantage, blinded / deafened ones fail what needs that sense | `skills`, `conditions` | built (0.4.2) |
+| Stealth and Perception (SK5): Stealth rolled once per hide (15 to hide), passive Perception unless searching (creatures in combat search), no size / in-combat / Favored Enemy terms, found up close (2 m in front, clear line); hidden = advantage on initiative | `perception`, `hiding_needs_15`, `found_up_close`, `alert_creatures_search` | built (0.4.3) |
 | Shove (SK6): Knockdown makes no attack roll and no damage; the target's better Str / Dex save vs 8 + Str + PB, at most one size larger; Disarm is an ordinary attack | `knockdown` | built (0.4.1) |
 
 Test switches (`[debug]`, off by default): `every_hit_crits=1` makes every

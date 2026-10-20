@@ -34,7 +34,7 @@ cl %CFLAGS% /LD /Ithird_party\minhook\include /Isrc %PRIVATE_DEF% ^
   src\core\rules_mastery.cpp src\core\rules_push.cpp src\core\creature_update.cpp ^
   src\core\skill_rank.cpp src\core\rules_skills.cpp src\core\rules_nwn_skills.cpp src\core\rules_casting.cpp ^
   src\core\rules_initiative.cpp src\core\rules_saves.cpp src\core\rules_save_roll.cpp src\core\rules_labels.cpp ^
-  src\core\rules_spell_attack.cpp src\core\rules_shove.cpp src\core\rules_skill_dcs.cpp ^
+  src\core\rules_spell_attack.cpp src\core\rules_shove.cpp src\core\rules_skill_dcs.cpp src\core\rules_perception.cpp ^
   src\rules\*.cpp ^
   %PRIVATE_SRC% third_party\minhook\src\buffer.c third_party\minhook\src\hook.c ^
   third_party\minhook\src\trampoline.c third_party\minhook\src\hde\hde64.c ^

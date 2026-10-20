@@ -279,6 +279,17 @@ Each step ends with an in-game test matrix, as on 1.69.
    ruleset values; SK11 by the dice filter at GetIsSkillSuccessful's d20 and
    Search's three dice. Found on the way: many EE functions are split into
    chained .pdata fragments; `FunctionAt` now returns all of them.
+   *E3d2 built 0.4.3 (SK5):* `rules_perception` — no byte patches: the
+   Stealth roll on SetStealthMode (post-hook) kept by the dice filter at
+   DoStealthDetection's Hide / Move Silently dice; its Spot / Listen dice
+   answered passive 10 (5) or a d20 when searching; GetDetectMode answers 1
+   inside the two checks (whole skill); GetFavoredEnemyBonus 0 there (and
+   marks "got to its score" for found up close); the skill adjuster cancels
+   the size term (added to the hider's skill), the -10 in combat, the
+   "Stealth 0 can't hide" test, and makes a hide below 15 no hide; found
+   up close by TestLineWalkable + the static-object test; Search's die
+   (rules_skill_dcs) passive or a d20; initiative's advantage when hidden.
+   E3 complete.
 5. **E4 — character model:** served data + strings, XP, multiclass,
    alignment, HP, feat cadence, point buy + backgrounds, class features,
    the Fighter (first tested in game here — it never was on 1.69).

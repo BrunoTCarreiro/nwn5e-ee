@@ -35,13 +35,14 @@ void InstallInitiativeRules();
 void InstallSpellAttackRules();
 void InstallShoveRules();
 void InstallSkillDcRules();
+void InstallPerceptionRules();
 #ifdef NWN5E_PRIVATE
 void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 #endif
 
 namespace {
 
-constexpr const char* kVersion = "0.4.2";
+constexpr const char* kVersion = "0.4.3";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -79,6 +80,7 @@ void Start(HMODULE self) {
   InstallSpellAttackRules();
   InstallShoveRules();
   InstallSkillDcRules();
+  InstallPerceptionRules();
   InstallDebugSwitches();
 #ifdef NWN5E_PRIVATE
   InstallPrivateRules();
