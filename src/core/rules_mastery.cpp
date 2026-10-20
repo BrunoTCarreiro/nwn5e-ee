@@ -19,7 +19,7 @@
 // proficiency bonus, or knocked down for a round), Cleave (a melee hit adds
 // NWN's cleave attack, once per round, at the nearest other enemy within 5 ft
 // of the target and in reach; its damage has no ability modifier unless
-// negative). Push comes with E2d. Rounds are counted at EndCombatRound;
+// negative), Push (faithful only: rules_push.cpp). Rounds are counted at EndCombatRound;
 // "deals damage" is seen at OnApplyDamage. Effects (Graze damage, Slow,
 // Topple's knockdown) are created through the script bridge, as the
 // attacker, a moment after the swing.
@@ -363,6 +363,7 @@ void EndCombatRound(void* round) {
     ++g_rounds_ended[IdOf(owner)];
   }
   g_end_combat_round(round);
+  if (owner) PushOnRoundEnd(owner);
 }
 
 // The attack's ability modifier (Graze, Topple).
@@ -371,17 +372,6 @@ int AttackAbility(void* stats, const uint8_t* attack, int base_item) {
   return rules::AttackAbilityModifier(ranged, HasFeat(stats, ee::kFeatWeaponFinesse),
                                       rules::IsFinesseNwnBaseItem(base_item), engine::StrengthModifier(stats),
                                       engine::DexterityModifier(stats));
-}
-
-// An NWScript effect on `target`, created as `attacker` (its creator) after `delay` s.
-void ApplyAsAttacker(uint32_t attacker_id, uint32_t target_id, const char* duration_type, const char* effect,
-                     float seconds, float delay) {
-  char script[512];
-  sprintf_s(script,
-            "object t = StringToObject(\"%x\"); if (!GetIsObjectValid(t)) return;"
-            "DelayCommand(%.2f, ApplyEffectToObject(%s, %s, t, %.1f));",
-            target_id, delay, duration_type, effect, seconds);
-  RunScriptChunk(script, attacker_id);
 }
 
 // The nearest other enemy within 5 ft of the first target and in the attacker's reach.
@@ -431,8 +421,11 @@ void AfterAttackRoll(AttackRoll& roll) {
   t_attack_weapon = -1;
   if (base_item < 0 || !roll.data) return;
   const rules::Mastery mastery = rules::MasteryForNwnBaseItem(base_item);
+  // Push: faithful only (D4: NWN mode is the same without Push).
+  const bool push = mastery == rules::Mastery::kPush && Faithful();
   if (mastery != rules::Mastery::kVex && mastery != rules::Mastery::kSap && mastery != rules::Mastery::kGraze &&
-      mastery != rules::Mastery::kSlow && mastery != rules::Mastery::kTopple && mastery != rules::Mastery::kCleave) {
+      mastery != rules::Mastery::kSlow && mastery != rules::Mastery::kTopple && mastery != rules::Mastery::kCleave &&
+      !push) {
     return;
   }
   void* attacker = roll.attacker;
@@ -484,7 +477,7 @@ void AfterAttackRoll(AttackRoll& roll) {
       if (damage <= 0) return;
       char effect[64];
       sprintf_s(effect, "EffectDamage(%d, DAMAGE_TYPE_SLASHING)", damage);
-      ApplyAsAttacker(attacker_id, rolled_at, "DURATION_TYPE_INSTANT", effect, 0.0f, kSwingDelay);
+      ApplyEffectAs(attacker_id, rolled_at, "DURATION_TYPE_INSTANT", effect, 0.0f, kSwingDelay);
       what = "Graze: " + std::to_string(damage) + " slashing damage on a miss";
       break;
     }
@@ -502,13 +495,17 @@ void AfterAttackRoll(AttackRoll& roll) {
                                                                         facts.challenge_rating));
       const uint8_t save = save_roll(target, ee::kSaveFortitude, static_cast<uint16_t>(dc), 0, attacker_id, 1, 0, 1);
       if (save == 0) {
-        ApplyAsAttacker(attacker_id, rolled_at, "DURATION_TYPE_TEMPORARY", "EffectKnockdown()", kRoundSeconds,
+        ApplyEffectAs(attacker_id, rolled_at, "DURATION_TYPE_TEMPORARY", "EffectKnockdown()", kRoundSeconds,
                         kSwingDelay);
       }
       what = "Topple: Constitution save DC " + std::to_string(dc) +
              (save == 0 ? " failed, knocked down for a round" : save == 2 ? " - immune" : " made");
       break;
     }
+    case rules::Mastery::kPush:
+      what = PushOnHit(attacker, target);  // rules_push.cpp
+      if (what.empty()) return;
+      break;
     case rules::Mastery::kCleave: {
       if (Field<int32_t>(roll.data, ee::kAttackRanged) != 0) return;  // melee attack rolls only
       const auto used = g_cleave_used.find(attacker_id);
@@ -557,7 +554,7 @@ void AfterDamage(uint32_t attacker_id, void* target, int damage) {
     const bool fresh = now - slow->second.tick <= kAwaitDamageMs;
     g_slow_awaiting.erase(slow);
     if (fresh && damage > 0 && !RecentlyApplied(&g_slowed, target_id, now)) {  // 2024: no more than 10 ft
-      ApplyAsAttacker(attacker_id, target_id, "DURATION_TYPE_TEMPORARY", "EffectMovementSpeedDecrease(33)",
+      ApplyEffectAs(attacker_id, target_id, "DURATION_TYPE_TEMPORARY", "EffectMovementSpeedDecrease(33)",
                       kRoundSeconds, 0.0f);
       if (EffectLogSlot()) Log("mastery: 0x%08X Slow on 0x%08X: speed -33%% for a round", attacker_id, target_id);
     } else if (fresh && damage <= 0 && EffectLogSlot()) {
@@ -577,14 +574,14 @@ void AfterDamage(uint32_t attacker_id, void* target, int damage) {
 }
 
 int OnApplyDamage(void* handler, void* object, void* effect, int loading) {
-  bool awaiting = false;
-  {
-    awaiting = !g_slow_awaiting.empty() || !g_vex_awaiting.empty();
-  }
+  const bool awaiting = !g_slow_awaiting.empty() || !g_vex_awaiting.empty() || PushAwaiting();
   void* target = object && awaiting ? CreatureById(Field<uint32_t>(object, ee::kObjectId)) : nullptr;
   const int before = target ? HitPointsOf(target) : 0;
   const int result = g_on_apply_damage(handler, object, effect, loading);
-  if (target && effect) AfterDamage(effects::Creator(effect), target, before - HitPointsOf(target));
+  if (target && effect) {
+    AfterDamage(effects::Creator(effect), target, before - HitPointsOf(target));
+    PushOnDamage(effects::Creator(effect), target);  // any hit pushes (2024), damage or not
+  }
   return result;
 }
 
@@ -667,9 +664,10 @@ void InstallMasteryRules() {
   if (!MasteryOn()) return;
   HookExport("CNWSCombatRound::EndCombatRound (mastery rounds)", ee::kEndCombatRound,
              reinterpret_cast<void*>(&EndCombatRound), reinterpret_cast<void**>(&g_end_combat_round));
-  HookExport("CNWSEffectListHandler::OnApplyDamage (Vex / Slow need the hit)", ee::kOnApplyDamage,
+  HookExport("CNWSEffectListHandler::OnApplyDamage (Vex / Slow / Push need the hit)", ee::kOnApplyDamage,
              reinterpret_cast<void*>(&OnApplyDamage), reinterpret_cast<void**>(&g_on_apply_damage));
   AddAttackRollListeners(&BeforeAttackRoll, &AfterAttackRoll);
   AddChatCommand("!mastery", &MasteryCommand);
   if (Faithful()) AddRestListener(&OnRest);
+  if (Faithful()) InstallPushRules();
 }

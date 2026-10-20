@@ -27,3 +27,17 @@ uint32_t CombatRoundsEnded(uint32_t id);
 // multiplier it used (0 when the attack was not two-handed); returns `bonus`
 // unchanged for every other attack.
 int MasteryCleaveDamage(void* stats, int bonus, float two_handed_multiplier);
+
+// D4 Push (rules_push.cpp; faithful only). A hit with a Push weapon the
+// attacker has mastery with: the line is planned and the attacker may turn to
+// a closer enemy; returns what was done for the mastery log line (empty when
+// Push is off).
+std::string PushOnHit(void* attacker, void* target);
+// A Push hit waits for its damage to land (OnApplyDamage).
+bool PushAwaiting();
+// A damage effect created by `attacker_id` landed on `target`: the push, if it waited for it.
+void PushOnDamage(uint32_t attacker_id, void* target);
+// The creature's combat round ended (after the engine's EndCombatRound).
+void PushOnRoundEnd(void* owner);
+// From InstallMasteryRules (faithful); false and logged when the engine lacks a piece.
+bool InstallPushRules();

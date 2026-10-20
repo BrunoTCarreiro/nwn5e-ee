@@ -1,5 +1,6 @@
 #include "effects.h"
 
+#include <stdio.h>
 #include <string.h>
 
 #include "hooks.h"
@@ -62,4 +63,14 @@ int RunScriptChunk(const char* code, uint32_t self) {
     Log("script bridge: RunScriptChunk returned %d (self 0x%08X, %zu chars)", result, self, strlen(code));
   }
   return result;
+}
+
+void ApplyEffectAs(uint32_t creator, uint32_t target, const char* duration_type, const char* effect, float seconds,
+                   float delay) {
+  char script[512];
+  sprintf_s(script,
+            "object t = StringToObject(\"%x\"); if (!GetIsObjectValid(t)) return;"
+            "DelayCommand(%.2f, ApplyEffectToObject(%s, %s, t, %.1f));",
+            target, delay, duration_type, effect, seconds);
+  RunScriptChunk(script, creator);
 }

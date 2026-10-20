@@ -186,6 +186,70 @@ constexpr size_t kObjectTemporaryHitPoints = 0xe8;  // int16, added by GetCurren
 constexpr int kSaveFortitude = 1;
 constexpr int kFeatWeaponFinesse = 42;
 
+// E2d — Push: the round pause, moving a creature, the line tests, the fall.
+// int CNWSCombatRound::CheckActionLength(unsigned int by, int ms): 0 when the
+// round is paused by another creature or `ms` no longer fits in it (+0x9, +0x34).
+constexpr const char* kCheckActionLength = "?CheckActionLength@CNWSCombatRound@@QEAAHIH@Z";
+// void SetRoundPaused(int paused, unsigned int by) writes +0x2f1c / +0x2f20 (+0x7, +0xd).
+constexpr const char* kSetRoundPaused = "?SetRoundPaused@CNWSCombatRound@@QEAAXHI@Z";
+// void SetPauseTimer(int ms, int hold): hold 0 adds ms to a running timer +0x2f24 (+0x21).
+constexpr const char* kSetPauseTimer = "?SetPauseTimer@CNWSCombatRound@@QEAAXHH@Z";
+// void DecrementRoundLength(int ms, int): only while the round runs (+0x2f04, +0xa).
+constexpr const char* kDecrementRoundLength = "?DecrementRoundLength@CNWSCombatRound@@QEAAXHH@Z";
+constexpr size_t kRoundPaused = 0x2f1c;     // int32
+constexpr size_t kRoundPausedBy = 0x2f20;   // uint32 object id
+constexpr size_t kRoundPauseTimer = 0x2f24; // int32 ms
+// float CNWSArea::ComputeHeight(Vector): -6.0 only off the tile grid (+0x14a);
+// inside it, a point on no face gets the tile's height — not a walkability test.
+constexpr const char* kComputeHeight = "?ComputeHeight@CNWSArea@@QEAAMVVector@@@Z";
+constexpr float kAreaOffGridHeight = -6.0f;
+// int CNWSArea::TestLineWalkable(x1, y1, x2, y2): 1 when every tile segment of
+// the line is walkable (ComputeSafeLocation +0x1bc, where 1.69 called
+// NoNonWalkPolysOnLine).
+constexpr const char* kTestLineWalkable = "?TestLineWalkable@CNWSArea@@QEAAHMMMM@Z";
+// The area's static objects (placeables' walkmesh boxes; doors are not in it):
+// int CNWArea::NoNonWalkPolysInDoors(x1, y1, x2, y2, zLow, zHigh, radius,
+// exclude id, unsigned int& blocker, int flag, CExoArrayList<CGameObject*>*
+// exclude list, int) -> 1 clear, 0 blocked (blocker written, +0x2e9); as
+// ComputeSafeLocation +0x262 calls it, on the CNWSArea pointer itself.
+constexpr const char* kStaticObjectsOnLine =
+    "?NoNonWalkPolysInDoors@CNWArea@@QEAAHMMMMMMMIAEAIHPEAV?$CExoArrayList@PEAVCGameObject@@@@H@Z";
+constexpr size_t kPathInfoRadius = 0x4;     // float (BumpFriends +0x22d's static-object radius)
+// As AIActionJumpToPoint moves within an area: SetPosition(v, 0) (+0x931),
+// then UpdateSubareasOnJumpPosition(v, area id) (+0x95d) with the area's
+// object id at CNWSArea +0x140 (+0x94c).
+constexpr const char* kSetPosition = "?SetPosition@CNWSObject@@QEAAXVVector@@H@Z";
+constexpr const char* kUpdateSubareasOnJump = "?UpdateSubareasOnJumpPosition@CNWSCreature@@QEAAHVVector@@I@Z";
+constexpr size_t kAreaObjectId = 0x140;
+constexpr size_t kObjectPositionZ = 0xac;
+// void CNWSCreature::SetAnimation(int) (virtual; stores +0xd8 at +0x108).
+constexpr const char* kSetAnimation = "?SetAnimation@CNWSCreature@@UEAAXH@Z";
+// OnApplyKnockdown: dot(direction to the attacker, facing) >= 0.707 (+0x38d)
+// falls with 7, else 5.
+constexpr int kAnimationFallFacing = 7;
+constexpr int kAnimationFallTurned = 5;
+constexpr float kFallFacingDot = 0.707f;
+// Creature size, int32: 1 tiny .. 4 large, 5 huge (ExecuteCommandGetCreatureSize +0x4c).
+constexpr size_t kCreatureSize = 0x718;
+constexpr int32_t kCreatureSizeLarge = 4;
+// The object's action queue: CExoLinkedListInternal* at +0x100 (head +0x0);
+// node: data +0x10 (GetAtPos +0x4a). CNWSObjectActionNode: action id int32
+// +0x0, first parameter in the 8-byte slot at +0x38 (AddActionNodeParameter
+// +0x47); attack object = 0xC (ComputeAIState +0x47). While RunActions runs
+// an action it takes the node off the queue and holds it as the current
+// action: uint16 +0x90 (0xFFFF none), its target uint32 +0x94 (+0x97f).
+constexpr size_t kObjectActionQueue = 0x100;
+constexpr size_t kListHead = 0x0;
+constexpr size_t kListNodeData = 0x10;
+constexpr size_t kActionId = 0x0;
+constexpr size_t kActionFirstParam = 0x38;
+constexpr int kActionAttackObject = 0xC;
+constexpr size_t kObjectCurrentAction = 0x90;
+constexpr size_t kObjectCurrentActionTarget = 0x94;
+constexpr uint16_t kActionNone = 0xFFFF;
+// The creature's attempted attack target, uint32 (AddAttackActions +0x30d).
+constexpr size_t kCreatureAttemptedAttackTarget = 0x728;
+
 // --- diffsettings.2da rows (EE data, D).
 constexpr int kDifficultyNoCriticalOnPc = 0;  // 1 at DM-Easy, Easy and Normal
 

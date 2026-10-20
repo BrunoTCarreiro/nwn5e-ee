@@ -220,7 +220,19 @@ Each step ends with an in-game test matrix, as on 1.69.
    so never inside an effect handler); the resume after a potion queues the
    attack behind the drink at UseItem instead of polling; Cleave's
    Strength removal reads which two-handed multiplier the engine asked
-   (ruleset hook) instead of re-deriving the weapon size. Push: E2d.
+   (ruleset hook) instead of re-deriving the weapon size.
+   *Push built 0.3.1 (2026-10-20):* `rules_push.cpp` (1.69's Push v2) and
+   `creature_update.cpp` (AIUpdate, hooked once; rules add listeners). EE
+   differences: ComputeHeight marks only off-grid points (-6.0), so
+   walkability is `TestLineWalkable` (no tolerance argument); the
+   placeable test is `CNWArea::NoNonWalkPolysInDoors` (1.69's static-object
+   line test, same 12 arguments, radius = path info +0x4); "can't move" is
+   NWScript's `EffectCutsceneImmobilize()` (type 94, whose child SET_AI_STATE
+   clears bit 0x2 as entangle does) through the script bridge; the slide is
+   timed by the clock, not the update's ms field; the attack order is read
+   from the action queue (+0x100) and, during RunActions, the current action
+   (+0x90 / +0x94), and the attempted attack target is +0x728 (after +0x724,
+   the reverse of 1.69).
 4. **E3 — saves and skills** (SK3 / SK5 last).
 5. **E4 — character model:** served data + strings, XP, multiclass,
    alignment, HP, feat cadence, point buy + backgrounds, class features,

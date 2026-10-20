@@ -41,3 +41,10 @@ bool HasState(const void* object, int state);
 // wrapped into a main()). Returns the engine's result (logged the first time
 // it is seen, its meaning not yet known), or -1 when the bridge is missing.
 int RunScriptChunk(const char* code, uint32_t self);
+
+// Applies an NWScript effect (e.g. "EffectKnockdown()") to `target`, created
+// by `creator` (the script runs as it), after `delay` seconds — always through
+// DelayCommand, so never inside the engine's own effect handling.
+// `duration_type` is an NWScript constant ("DURATION_TYPE_TEMPORARY").
+void ApplyEffectAs(uint32_t creator, uint32_t target, const char* duration_type, const char* effect, float seconds,
+                   float delay);
