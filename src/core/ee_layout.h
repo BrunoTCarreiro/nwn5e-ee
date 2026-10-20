@@ -250,6 +250,130 @@ constexpr uint16_t kActionNone = 0xFFFF;
 // The creature's attempted attack target, uint32 (AddAttackActions +0x30d).
 constexpr size_t kCreatureAttemptedAttackTarget = 0x728;
 
+// E3a — saving throws and spell DCs.
+// char CNWSCreatureStats::Get{Fort,Reflex,Will}SavingThrow(int bBaseOnly): the
+// answer is in al only. SavingThrowRoll asks with bBaseOnly = 1 (+0x4a) and
+// adds the effects itself; the sheet and scripts ask with 0.
+constexpr const char* kGetFortSavingThrow = "?GetFortSavingThrow@CNWSCreatureStats@@QEAADH@Z";
+constexpr const char* kGetReflexSavingThrow = "?GetReflexSavingThrow@CNWSCreatureStats@@QEAADH@Z";
+constexpr const char* kGetWillSavingThrow = "?GetWillSavingThrow@CNWSCreatureStats@@QEAADH@Z";
+// uchar CNWClass::Get{Fort,Ref,Will}SaveBonus(uchar level); classes at
+// [g_pRules + 0x110], 0x530 each (GetBaseFortSavingThrow +0x56).
+constexpr const char* kGetFortSaveBonus = "?GetFortSaveBonus@CNWClass@@QEAAEE@Z";
+constexpr const char* kGetRefSaveBonus = "?GetRefSaveBonus@CNWClass@@QEAAEE@Z";
+constexpr const char* kGetWillSaveBonus = "?GetWillSaveBonus@CNWClass@@QEAAEE@Z";
+constexpr size_t kRulesClasses = 0x110;
+constexpr size_t kClassStride = 0x530;
+// Blueprint save bonuses, int8 (the getters +0xd1 / +0xdb).
+constexpr size_t kStatsFortBlueprintBonus = 0xe2c;
+constexpr size_t kStatsWillBlueprintBonus = 0xe2d;
+constexpr size_t kStatsReflexBlueprintBonus = 0xe2e;
+constexpr int kFeatGreatFortitude = 14;
+constexpr int kFeatLightningReflexes = 24;
+constexpr int kFeatIronWill = 22;
+constexpr int kFeatDivineGrace = 217;
+constexpr int kFeatLucky = 248;
+constexpr int kFeatLuckOfHeroes = 382;
+constexpr int kFeatDarkBlessing = 473;
+// int CNWSCreature::CalculateSpellSaveDC(int spell): casting class slot uint8
+// +0x22c (0xFE innate: Cha; 0xFF none: the feat id uint16 +0x23c names a
+// class feat, 0xFFFF none), cast from an item int32 +0x820, polymorphed +0x97c;
+// spell innate level uint8 +0x6f, school uint8 +0x29 (its body, D).
+constexpr const char* kCalculateSpellSaveDC = "?CalculateSpellSaveDC@CNWSCreature@@QEAAHH@Z";
+constexpr const char* kGetSpellcastingMod = "?GetSpellcastingMod@CNWSCreatureStats@@QEAADE@Z";
+constexpr size_t kCreatureCastingSlot = 0x22c;
+constexpr size_t kCreatureCastingFeat = 0x23c;
+constexpr size_t kCreatureCastingFromItem = 0x820;
+constexpr size_t kCreaturePolymorphed = 0x97c;
+constexpr size_t kSpellInnateLevel = 0x6f;
+constexpr size_t kSpellSchool = 0x29;
+// SavingThrowRoll: kinds 1-3 only; its one RollDice is the d20 (+0xc60).
+constexpr int kSaveTypeMindSpells = 1;
+constexpr int kSaveTypePoison = 2;
+constexpr int kSaveTypeFear = 4;
+// Natural 20 (EP12): `cmp esi,20; je success` at SavingThrowRoll +0x1168, the
+// anchor unique in the whole binary; the je (74 4E) becomes two nops.
+constexpr uint8_t kSaveNatural20Anchor[] = {0x83, 0xFE, 0x14, 0x74, 0x4E, 0x42, 0x8D, 0x0C, 0x36, 0x41,
+                                            0x03, 0xCD, 0x0F, 0xB7, 0x45, 0x57, 0x3B, 0xC8, 0x7D, 0x3F};
+constexpr size_t kSaveNatural20JumpOffset = 3;
+// Natural 1: CServerInfo +0x148 (settings.tml ruleset.natural-ones-fail-saving-
+// throws), read at SavingThrowRoll +0x1120 and by the message writer.
+constexpr const char* kGetServerInfo = "?GetServerInfo@CServerExoApp@@UEAAPEAVCServerInfo@@XZ";
+constexpr size_t kServerInfoNaturalOnesFailSaves = 0x148;
+// The script save commands (FortitudeSave / ReflexSave / WillSave, one
+// handler) and GetReflexAdjustedDamage; OBJECT_SELF's id at commands +0xc.
+constexpr const char* kExecuteCommandSavingThrow = "?ExecuteCommandSavingThrow@CNWSVirtualMachineCommands@@QEAAHHH@Z";
+constexpr const char* kExecuteCommandGetReflexAdjustedDamage =
+    "?ExecuteCommandGetReflexAdjustedDamage@CNWSVirtualMachineCommands@@QEAAHHH@Z";
+constexpr size_t kVmCommandsObjectSelf = 0xc;
+// CGameObject* CServerExoApp::GetGameObject(uint id); vtable +0x20 = AsNWSObject;
+// the object's last spell id int32 +0x218 (GetSpellId; an area of effect keeps its own).
+constexpr const char* kGetGameObject = "?GetGameObject@CServerExoApp@@QEAAPEAVCGameObject@@I@Z";
+constexpr size_t kVtableAsNwsObject = 0x20;
+constexpr size_t kObjectLastSpellId = 0x218;
+
+// Strings (EP4): int CTlkTable::FetchInternal(uint strref, STR_RES& out, int);
+// STR_RES = {CExoString text +0x0, CResRef +0x10, uint32 +0x24} (its copy
+// operator ??4STR_RES; GetSimpleString +0x71 reads the text at +0).
+constexpr const char* kTlkFetchInternal = "?FetchInternal@CTlkTable@@IEAAHIAEAUSTR_RES@@H@Z";
+constexpr size_t kStrResText = 0x0;
+constexpr const char* kExoStringAssignChars = "??4CExoString@@QEAAAEAV0@PEBD@Z";
+
+// E3b — skills, concentration, the 3e-only skills, initiative.
+// char CNWSCreatureStats::GetSkillRank(uchar skill, CNWSObject* vs, int bBaseRanksOnly):
+// every engine and script skill total (83 call sites); DMs get 127 (+0x2f).
+constexpr const char* kGetSkillRank = "?GetSkillRank@CNWSCreatureStats@@QEAADEPEAVCNWSObject@@H@Z";
+constexpr const char* kGetIsDM = "?GetIsDM@CNWSCreatureStats@@QEAAHXZ";
+// char GetAbilityMod(uchar ability 0 Str .. 5 Cha): the cached modifier bytes GetSkillRank reads.
+constexpr const char* kGetAbilityMod = "?GetAbilityMod@CNWSCreatureStats@@QEAADE@Z";
+constexpr size_t kStatsSkillRanks = 0xdc8;  // int8* ranks per skills.2da row (GetSkillRank, 1.69 +0x478)
+constexpr int kEffectBonusTypeSkill = 5;    // GetTotalEffectBonus(5, vs, 0, 0, 0, 0, skill, 0xFF, 0) in GetSkillRank
+// The script command GetSkillRank: one GetSkillRank call (found at load).
+constexpr const char* kExecuteCommandGetSkillRank = "?ExecuteCommandGetSkillRank@CNWSVirtualMachineCommands@@QEAAHHH@Z";
+// void CNWSCreature::SetCombatMode(uchar mode, int force): the only writer of the
+// mode byte (+0x6ef); player toggles, SetActionMode, UseSkill and the AI all go through it.
+constexpr const char* kSetCombatMode = "?SetCombatMode@CNWSCreature@@QEAAXEH@Z";
+constexpr uint8_t kCombatModeParry = 1;
+constexpr uint8_t kCombatModeDefensiveCasting = 9;  // AIActionCastSpell +0x1bf0 rolls Concentration in it
+// uint AIActionTaunt(CNWSObjectActionNode*): first pass (+0x850 == 0) plays the
+// animation and re-queues; the second pass rolls (CRT rand), applies the
+// taunt, makes the target hostile, then SetCombatMode(0, 1), cooldown
+// [[creature+0x878]+0x48] = 6000, +0x850 = 0, returns 2 (done; 3 = failed).
+constexpr const char* kAIActionTaunt = "?AIActionTaunt@CNWSCreature@@QEAAIPEAVCNWSObjectActionNode@@@Z";
+constexpr size_t kCreatureTauntPass = 0x850;       // int32
+constexpr size_t kCreatureSkillCooldowns = 0x878;  // pointer; +0x48 = Taunt's cooldown, int32 ms
+constexpr size_t kSkillCooldownTaunt = 0x48;
+constexpr int kTauntCooldownMs = 6000;  // SKILL_TAUNT_COOLDOWN
+constexpr uint32_t kActionDone = 2;
+// void CNWSStore::AddCustomer(CNWSPlayer*, char markup, char markdown) (only caller: OpenStore).
+constexpr const char* kAddCustomer = "?AddCustomer@CNWSStore@@QEAAXPEAVCNWSPlayer@@DD@Z";
+// Use Magic Device: GetSkillRank(19) inside these three (signed compares).
+constexpr int kSkillUseMagicDevice = 19;
+constexpr const char* kCheckUseMagicDeviceSkill = "?CheckUseMagicDeviceSkill@CNWSCreature@@IEAAHPEAVCNWSItem@@H@Z";
+constexpr const char* kCheckItemAlignmentRestrictions =
+    "?CheckItemAlignmentRestrictions@CNWSCreature@@IEAAHPEAVCNWSItem@@@Z";
+constexpr const char* kApplyHolyAvenger =
+    "?ApplyHolyAvenger@CNWSItemPropertyHandler@@QEAAHPEAVCNWSItem@@PEAVCNWItemProperty@@PEAVCNWSCreature@@IH@Z";
+// Spells: CNWRules +0xD0 = CNWSpellArray* {int32 count +0x0, CNWSpell* +0x8};
+// UseConcentration int32 at spell +0x174 (Load +0x51f); read only by
+// OnApplyDamage (== 1: damage interrupts) and AIActionCastSpell (!= 0: entangled check).
+constexpr size_t kRulesSpells = 0xd0;
+constexpr size_t kSpellArrayCount = 0x0;
+constexpr const char* kGetSpell = "?GetSpell@CNWSpellArray@@QEBAPEAVCNWSpell@@H@Z";
+constexpr const char* kLoadSpellArray = "?Load@CNWSpellArray@@QEAAXXZ";
+constexpr size_t kSpellUseConcentration = 0x174;
+// void CNWSCreature::ResolveInitiative(): one RollDice(1, 20) (+0x43), then
+// GetDEXMod(0) and the feat keys EPIC_SUPERIOR / IMPROVED / BLOODED / THUG
+// _INITIATIVE_BONUS, each read only here.
+constexpr const char* kResolveInitiative = "?ResolveInitiative@CNWSCreature@@QEAAXXZ";
+constexpr const char* kGetInvisible = "?GetInvisible@CNWSCreature@@QEAAHPEAVCNWSObject@@H@Z";
+constexpr int kFeatImprovedInitiative = 377;
+// racialtypes.2da rows, as on 1.69.
+constexpr int kRaceDwarf = 0;
+constexpr int kRaceElf = 1;
+constexpr int kRaceGnome = 2;
+constexpr int kRaceHuman = 6;
+
 // --- diffsettings.2da rows (EE data, D).
 constexpr int kDifficultyNoCriticalOnPc = 0;  // 1 at DM-Easy, Easy and Normal
 

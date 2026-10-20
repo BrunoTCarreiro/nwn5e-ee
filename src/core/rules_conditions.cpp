@@ -262,6 +262,32 @@ ConditionRollSources ConditionAttackRollSources(void* attacker, void* target, bo
   return out;
 }
 
+ConditionSave ConditionsForSave(void* creature, rules::Ability ability) {
+  ConditionSave out;
+  if (g_config.conditions == rules::RuleVariant::kOff || !creature) return out;
+  const rules::Conditions conditions = ReadConditions(creature);
+  out.auto_fail = rules::ConditionSaveOutcome(conditions, ability, g_config.conditions) == rules::SaveOutcome::kAutoFail;
+  out.disadvantage = rules::ConditionSaveDisadvantage(conditions, ability, g_config.conditions);
+  if (out.auto_fail) {
+    out.note = conditions.stunned ? "stunned" : (conditions.paralyzed ? "paralysed" : "asleep");
+  } else if (out.disadvantage > 0) {
+    out.note = "restrained";
+  }
+  return out;
+}
+
+std::string CheckDisadvantage(void* creature) {
+  if (!creature || !Faithful()) return std::string();
+  if (g_config.debug_players_poisoned) {
+    void* stats = StatsOf(creature);
+    if (stats && ReadCreatureFacts(stats).is_player) return "poisoned (test switch)";
+  }
+  if (ReadConditions(creature).poisoned) return "poisoned";
+  const uint32_t source = FearSource(creature);
+  if (source != 0 && engine::Sees(creature, source)) return "frightened";
+  return std::string();
+}
+
 void InstallConditionRules() {
   if (!Faithful()) return;
   HookExport("CNWSEffectListHandler::OnApplySetState (CN5 2024 fear)", ee::kOnApplySetState,

@@ -41,6 +41,12 @@ switchable in `nwn5e.ini`:
 | Weapon mastery, who (D3): 2024 slots by class, `!mastery`, filled by use, one swap per long rest; Weapon Focus adds its weapon | `weapon_mastery` | built (0.3.0); a slot filled by use, with its chat message, seen in game (0.3.1) |
 | Weapon mastery effects (D4): Vex, Sap, Graze, Slow, Topple, Cleave | `weapon_mastery` | built (0.3.0) |
 | Push (D4, faithful only): a hit pushes a creature up to Large 10 ft straight away, stopped by walls and placeables; it falls and its round pauses; if another enemy is now closer, the attacker turns to it | `weapon_mastery` | verified in game (0.3.1, 2026-10-20, warhammer vs goblins: 3 m slides in the open, shorter at walls and a placeable, none against a wall; the fall held, no walking back; 10 turns to the closer goblin, all kept; an attack order the engine dropped mid-chase was reissued); Huge creatures (not pushed) await a test |
+| 2024 saves (C1–C3): Fortitude / Reflex / Will = Con / Dex / Wis saves (ability + PB when proficient + magic; Aura of Protection); `!saves` lists all six; the sheet and the combat log name them Constitution / Dexterity / Wisdom | `saves` | built (0.4.0) |
+| Save rolls (C4–C7): 2024 spell DCs (8 + PB + casting ability; scroll DCs), fixed DCs converted, no automatic natural 1 / 20, no feat "+2 vs X" save bonuses, species advantages and Halfling Luck, stunned / paralysed / asleep fail Str and Dex saves; a spell's own save ability (chat line) | `saves`, `conditions` | built (0.4.0) |
+| 2024 skills (SK1–SK2, SK3 a): proficiency / Expertise instead of ranks, `!skills`, 2024 names; scripts read 2 x | `skills` | built (0.4.0) |
+| Concentration (SK7): no interruption by damage, no check while entangled, no defensive casting mode | `concentration` | built (0.4.0) |
+| 3e-only skills (SK8): no parry mode, Taunt does nothing, no Appraise prices, Use Magic Device lifts no item limits | `nwn_only_skills` | built (0.4.0) |
+| Initiative (SK9): d20 + Dex (+ PB with Improved Initiative = Alert), advantage when invisible, Halfling Luck | `initiative` | built (0.4.0) |
 
 Test switches (`[debug]`, off by default): `every_hit_crits=1` makes every
 hit a critical; `combat_breakdown=1` turns on the engine's own per-term

@@ -26,3 +26,17 @@ struct ConditionRollSources {
   std::string note;
 };
 ConditionRollSources ConditionAttackRollSources(void* attacker, void* target, bool ranged);
+
+// CN1–CN3 on a saving throw on `ability`: stunned (both modes), paralysed and
+// asleep (faithful) creatures fail Strength and Dexterity saves; a restrained
+// one (faithful) has disadvantage on Dexterity saves.
+struct ConditionSave {
+  bool auto_fail = false;
+  int disadvantage = 0;
+  std::string note;
+};
+ConditionSave ConditionsForSave(void* creature, rules::Ability ability);
+
+// SK11 (faithful): why a creature has disadvantage on ability checks
+// (poisoned; frightened with its fear's source in sight) — "" when none.
+std::string CheckDisadvantage(void* creature);

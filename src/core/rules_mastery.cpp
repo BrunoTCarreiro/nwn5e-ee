@@ -50,6 +50,7 @@
 #include "rules/core.h"
 #include "rules/nwn_conversion.h"
 #include "rules/weapons.h"
+#include "saves.h"
 
 namespace {
 
@@ -493,6 +494,7 @@ void AfterAttackRoll(AttackRoll& roll) {
       const int dc = rules::ToppleDc(AttackAbility(stats, roll.data, base_item),
                                      rules::ProficiencyBonusForCreature(facts.character, facts.level,
                                                                         facts.challenge_rating));
+      RememberSaveDc2024(attacker_id, dc);  // already 2024: the save roll must not convert it (C6)
       const uint8_t save = save_roll(target, ee::kSaveFortitude, static_cast<uint16_t>(dc), 0, attacker_id, 1, 0, 1);
       if (save == 0) {
         ApplyEffectAs(attacker_id, rolled_at, "DURATION_TYPE_TEMPORARY", "EffectKnockdown()", kRoundSeconds,

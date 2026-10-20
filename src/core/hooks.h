@@ -46,3 +46,11 @@ std::vector<uintptr_t> FindCallsTo(CodeRange range, uintptr_t target);
 
 // Whether the bytes `pattern` occur anywhere in [from, to).
 bool ContainsBytes(uintptr_t from, uintptr_t to, const uint8_t* pattern, size_t size);
+
+// An anchored patch (docs/EE-PORT.md principle 1, EP2: the last resort): the
+// bytes `anchor` must occur exactly once inside the exported function
+// `export_name`; at `offset` into the anchor, `size` bytes equal to `expected`
+// are replaced by `replacement`. Skipped and logged otherwise (a different
+// game build), never applied blind.
+bool PatchAnchored(const char* what, const char* export_name, const uint8_t* anchor, size_t anchor_size,
+                   size_t offset, const uint8_t* expected, const uint8_t* replacement, size_t size);

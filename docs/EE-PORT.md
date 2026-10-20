@@ -234,6 +234,27 @@ Each step ends with an in-game test matrix, as on 1.69.
    (+0x90 / +0x94), and the attempted attack target is +0x728 (after +0x724,
    the reverse of 1.69).
 4. **E3 — saves and skills** (SK3 / SK5 last).
+   *Built 0.4.0 (2026-10-20), E3a + E3b:* `rules_saves` (the three save
+   getters; `!saves`), `rules_save_roll` (CalculateSpellSaveDC, the two script
+   save commands for the spell behind a save, the SavingThrowRoll wrapper;
+   its d20 by the dice filter at its one RollDice; C7 by a HasFeat filter on
+   the calls before that d20 — 1.69's 34 redirected calls; the natural 20 by
+   the anchored patch EP12, `PatchAnchored` in hooks; the natural 1 by EE's
+   server option CServerInfo +0x148, in memory), `rules_labels`
+   (CTlkTable::FetchInternal, EP4: STR_RES's text at +0), `skill_rank`
+   (GetSkillRank hooked once, adjusters by caller; callers found at load by
+   FindCallsTo), `rules_skills`, `rules_nwn_skills` (SetCombatMode refuses
+   parry and — with SK7 — defensive casting; AIActionTaunt's second pass
+   ended as the engine ends it; AddCustomer 0 / 0; Use Magic Device -127 at
+   its three checks, alignment and Holy Avenger included), `rules_casting`
+   (UseConcentration 0 after CNWSpellArray::Load), `rules_initiative`
+   (ResolveInitiative wrapper: its d20 by the dice filter, the four feat
+   keys by the ruleset hook). Differences from 1.69: Aura of Protection now
+   reaches real save rolls (1.69 added it only outside the roll's base-value
+   ask); EE's combat log can't name a 4th save kind, so a spell's own save
+   ability is a chat line (EP13); EE's spell DC has class-feat and polymorph
+   branches, handled with the engine's own modifier. Next: E3c (SK10, SK6,
+   SK11), E3d (SK3, SK5).
 5. **E4 — character model:** served data + strings, XP, multiclass,
    alignment, HP, feat cadence, point buy + backgrounds, class features,
    the Fighter (first tested in game here — it never was on 1.69).

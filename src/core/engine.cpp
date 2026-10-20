@@ -24,6 +24,8 @@ using ExoStringDestroyFn = void (*)(void* string);
 using StatFn = uint8_t (*)(void* stats);
 using CalcModifierFn = int8_t (*)(void* stats, uint8_t score);
 using DexModFn = int8_t (*)(void* stats, int armor_dex_cap);
+using AbilityModFn = int8_t (*)(void* stats, uint8_t ability);
+using IsDmFn = int (*)(void* stats);
 
 struct Api {
   HasFeatFn has_feat = reinterpret_cast<HasFeatFn>(EngineExport(ee::kHasFeat));
@@ -42,6 +44,8 @@ struct Api {
   StatFn strength = reinterpret_cast<StatFn>(EngineExport(ee::kGetSTRStat));
   CalcModifierFn calc_modifier = reinterpret_cast<CalcModifierFn>(EngineExport(ee::kCalcStatModifier));
   DexModFn dex_mod = reinterpret_cast<DexModFn>(EngineExport(ee::kGetDEXMod));
+  AbilityModFn ability_mod = reinterpret_cast<AbilityModFn>(EngineExport(ee::kGetAbilityMod));
+  IsDmFn is_dm = reinterpret_cast<IsDmFn>(EngineExport(ee::kGetIsDM));
 };
 
 const Api& E() {
@@ -130,6 +134,15 @@ int StrengthModifier(void* stats) {
 }
 
 int DexterityModifier(void* stats) { return stats && E().dex_mod ? E().dex_mod(stats, 0) : 0; }
+
+int AbilityModifier(void* stats, int ability) {
+  if (!stats || ability < 0 || ability > 5 || !E().ability_mod) return 0;
+  return E().ability_mod(stats, static_cast<uint8_t>(ability));
+}
+
+void* AreaOf(void* object) { return object && E().area ? E().area(object) : nullptr; }
+
+bool IsDungeonMaster(void* stats) { return stats && E().is_dm && E().is_dm(stats) != 0; }
 
 void ForEachOtherCreatureInArea(void* creature, CreatureVisitor visit, void* context) {
   if (!creature || !E().area) return;

@@ -25,13 +25,20 @@ void InstallOpportunityRules();
 void InstallPotionRules();
 void InstallConditionRules();
 void InstallMasteryRules();
+void InstallSaveRules();
+void InstallSaveRollRules();
+void InstallLabelRules();
+void InstallSkillRules();
+void InstallNwnOnlySkillRules();
+void InstallCastingRules();
+void InstallInitiativeRules();
 #ifdef NWN5E_PRIVATE
 void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 #endif
 
 namespace {
 
-constexpr const char* kVersion = "0.3.1";
+constexpr const char* kVersion = "0.4.0";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -59,6 +66,13 @@ void Start(HMODULE self) {
   InstallPotionRules();
   InstallConditionRules();
   InstallMasteryRules();
+  InstallSaveRules();
+  InstallSaveRollRules();
+  InstallLabelRules();
+  InstallSkillRules();
+  InstallNwnOnlySkillRules();
+  InstallCastingRules();
+  InstallInitiativeRules();
   InstallDebugSwitches();
 #ifdef NWN5E_PRIVATE
   InstallPrivateRules();

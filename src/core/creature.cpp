@@ -66,6 +66,13 @@ CreatureFacts ReadCreatureFacts(void* stats) {
   return facts;
 }
 
+bool CountsAsCharacter(void* stats, const CreatureFacts& facts) {
+  if (facts.character) return true;
+  const bool summon_like = facts.associate_type >= 2 && facts.associate_type <= 5;
+  const std::vector<rules::NwnClassSlot> slots = ReadClassSlots(stats);
+  return !slots.empty() && rules::ClassFromNwnId(slots[0].nwn_class_id).has_value() && !summon_like;
+}
+
 const char* KindOf(const CreatureFacts& facts) {
   if (facts.is_player) return "PC";
   return facts.character ? "henchman" : "creature";

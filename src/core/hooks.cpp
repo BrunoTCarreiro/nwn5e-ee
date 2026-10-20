@@ -98,3 +98,40 @@ bool ContainsBytes(uintptr_t from, uintptr_t to, const uint8_t* pattern, size_t 
   }
   return false;
 }
+
+bool PatchAnchored(const char* what, const char* export_name, const uint8_t* anchor, size_t anchor_size,
+                   size_t offset, const uint8_t* expected, const uint8_t* replacement, size_t size) {
+  const CodeRange code = FunctionAt(EngineExport(export_name));
+  if (!code.Valid() || offset + size > anchor_size) {
+    Log("SKIP %s: %s not found", what, export_name);
+    return false;
+  }
+  uintptr_t found = 0;
+  int matches = 0;
+  for (uintptr_t at = code.begin; at + anchor_size <= code.end; ++at) {
+    if (memcmp(reinterpret_cast<const void*>(at), anchor, anchor_size) == 0) {
+      found = at;
+      ++matches;
+    }
+  }
+  if (matches != 1) {
+    Log("SKIP %s: the anchor occurs %d times in %s (expected once)", what, matches, export_name);
+    return false;
+  }
+  const uintptr_t site = found + offset;
+  if (memcmp(reinterpret_cast<const void*>(site), expected, size) != 0) {
+    Log("SKIP %s: unexpected bytes at %s+0x%zx", what, export_name, site - code.begin);
+    return false;
+  }
+  DWORD old_protect = 0;
+  if (!VirtualProtect(reinterpret_cast<void*>(site), size, PAGE_EXECUTE_READWRITE, &old_protect)) {
+    Log("SKIP %s: VirtualProtect failed (%lu)", what, GetLastError());
+    return false;
+  }
+  memcpy(reinterpret_cast<void*>(site), replacement, size);
+  DWORD ignored = 0;
+  VirtualProtect(reinterpret_cast<void*>(site), size, old_protect, &ignored);
+  FlushInstructionCache(GetCurrentProcess(), reinterpret_cast<void*>(site), size);
+  Log("patch %s at %s+0x%zx (%zu bytes)", what, export_name, site - code.begin, size);
+  return true;
+}

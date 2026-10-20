@@ -39,6 +39,11 @@ void* CreatureById(uint32_t id);
 // Reads the facts; logs (once per creature) a challenge rating that is not plausible.
 CreatureFacts ReadCreatureFacts(void* stats);
 
+// Character rules for saves, skills and spell DCs (1.69's CountsAsCharacter):
+// player characters and henchmen, and class-built creatures that are not
+// summons, companions, familiars or dominated (associate types 2-5).
+bool CountsAsCharacter(void* stats, const CreatureFacts& facts);
+
 // "PC", "henchman" or "creature", for the log.
 const char* KindOf(const CreatureFacts& facts);
 

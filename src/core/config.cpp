@@ -58,6 +58,14 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.opportunity_attacks = ReadVariant(ini, L"opportunity_attacks", g_config.mode);
   g_config.conditions = ReadVariant(ini, L"conditions", g_config.mode);
   g_config.weapon_mastery = ReadVariant(ini, L"weapon_mastery", g_config.mode);
+  g_config.saves = ReadVariant(ini, L"saves", g_config.mode);
+  g_config.skills = ReadVariant(ini, L"skills", g_config.mode);
+  g_config.perception = ReadVariant(ini, L"perception", g_config.mode);
+  g_config.spell_attacks = ReadVariant(ini, L"spell_attacks", g_config.mode);
+  g_config.concentration = ReadVariant(ini, L"concentration", g_config.mode);
+  g_config.knockdown = ReadVariant(ini, L"knockdown", g_config.mode);
+  g_config.initiative = ReadVariant(ini, L"initiative", g_config.mode);
+  g_config.nwn_only_skills = ReadVariant(ini, L"nwn_only_skills", g_config.mode);
   g_config.resume_attack_after_potion =
       ReadBool(ini, L"resume_attack_after_potion", g_config.resume_attack_after_potion);
   g_config.debug_every_hit_crits = ReadBool(ini, L"every_hit_crits", g_config.debug_every_hit_crits, L"debug");
@@ -67,6 +75,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.debug_creature_hp_multiplier = GetPrivateProfileIntW(L"debug", L"creature_hp_multiplier", 0, ini);
   g_config.debug_creature_min_hp = GetPrivateProfileIntW(L"debug", L"creature_min_hp", 0, ini);
   g_config.debug_attack_trace = ReadBool(ini, L"attack_trace", g_config.debug_attack_trace, L"debug");
+  g_config.debug_players_poisoned = ReadBool(ini, L"players_poisoned", g_config.debug_players_poisoned, L"debug");
   Log("config: mode=%s crit_nat20_only=%d crit_no_confirmation=%d crit_double_damage=%d crit_dice_only=%d "
       "crits_against_players=%d log_attacks=%d",
       VariantName(g_config.mode), g_config.crit_nat20_only, g_config.crit_no_confirmation,
@@ -82,6 +91,14 @@ void ConfigLoad(const wchar_t* directory) {
   Log("config: racial_combat_bonuses=%s two_weapon_fighting=%s two_handed_strength=%s",
       VariantName(g_config.racial_combat_bonuses), VariantName(g_config.two_weapon_fighting),
       VariantName(g_config.two_handed_strength));
+  Log("config: saves=%s skills=%s perception=%s spell_attacks=%s concentration=%s knockdown=%s initiative=%s "
+      "nwn_only_skills=%s",
+      VariantName(g_config.saves), VariantName(g_config.skills), VariantName(g_config.perception),
+      VariantName(g_config.spell_attacks), VariantName(g_config.concentration), VariantName(g_config.knockdown),
+      VariantName(g_config.initiative), VariantName(g_config.nwn_only_skills));
+  if (g_config.debug_players_poisoned) {
+    Log("config: [debug] players_poisoned=1 - player characters count as poisoned for ability checks");
+  }
   if (g_config.debug_every_hit_crits) Log("config: [debug] every_hit_crits=1 - every hit is a critical");
   if (g_config.debug_combat_breakdown) Log("config: [debug] combat_breakdown=1 - the engine's own attack breakdown");
   if (g_config.debug_attacks_per_round > 0) {

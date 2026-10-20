@@ -52,6 +52,34 @@ struct Config {
   // Weapon Focus adds its weapon in both. off = no mastery.
   rules::RuleVariant weapon_mastery = rules::RuleVariant::kFaithful;
 
+  // E3 — saves, skills and checks.
+  // C1–C8: the three NWN saves as 2024 Con / Dex / Wis saves, 2024 spell DCs,
+  // fixed DCs converted; faithful = no monster save proficiency, no automatic
+  // 1 / 20, Aura of Protection; nwn = NWN's flat feat bonuses, natural 20s,
+  // Spell Focus +1/+2/+3; off = NWN's 3e saves and DCs.
+  rules::RuleVariant saves = rules::RuleVariant::kFaithful;
+  // SK1–SK3: faithful = the 2024 skills (proficiency and Expertise instead of
+  // ranks, !skills, 2024 names; scripts read the values scaled to the 3e
+  // range); nwn / off = NWN's.
+  rules::RuleVariant skills = rules::RuleVariant::kFaithful;
+  // SK5: faithful = Stealth rolled once per hide, passive Perception unless
+  // searching, no size / in-combat / Favored Enemy terms; nwn / off = NWN's.
+  rules::RuleVariant perception = rules::RuleVariant::kFaithful;
+  // SK10: faithful = spell attacks are PB + casting ability against full AC,
+  // with advantage / disadvantage; nwn / off = NWN's touch attacks.
+  rules::RuleVariant spell_attacks = rules::RuleVariant::kFaithful;
+  // SK7: faithful = casting is not interrupted by damage, no Concentration
+  // check while entangled, no defensive casting mode; nwn / off = NWN's.
+  rules::RuleVariant concentration = rules::RuleVariant::kFaithful;
+  // SK6: faithful = Knockdown is a 2024 Shove, Disarm an ordinary attack; nwn / off = NWN's.
+  rules::RuleVariant knockdown = rules::RuleVariant::kFaithful;
+  // SK9: faithful = d20 + Dex (+ PB with Improved Initiative = Alert),
+  // advantage when invisible; nwn / off = NWN's.
+  rules::RuleVariant initiative = rules::RuleVariant::kFaithful;
+  // SK8: faithful = no parry mode, Taunt does nothing, stores keep their
+  // prices, Use Magic Device lifts no item limits; nwn / off = NWN's.
+  rules::RuleVariant nwn_only_skills = rules::RuleVariant::kFaithful;
+
   // [debug] — test switches, not rules.
   bool debug_every_hit_crits = false;    // every hit is a critical (crit immunity still applies)
   bool debug_combat_breakdown = false;   // the engine's own per-term attack and damage breakdown
@@ -60,6 +88,7 @@ struct Config {
   int debug_creature_hp_multiplier = 0;  // >1: a creature's hit points x this when a character first attacks it
   int debug_creature_min_hp = 0;         // >0: ... and at least this many
   bool debug_attack_trace = false;       // log round setup and every PC attack roll
+  bool debug_players_poisoned = false;   // SK11 test: player characters count as poisoned for ability checks
 };
 
 extern Config g_config;

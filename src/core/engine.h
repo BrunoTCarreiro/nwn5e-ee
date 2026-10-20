@@ -33,6 +33,15 @@ void SetLocalInt(void* object, const char* name, int value);
 int StrengthModifier(void* stats);
 int DexterityModifier(void* stats);
 
+// Ability modifier 0 Str .. 5 Cha, as the engine caches it (GetAbilityMod).
+int AbilityModifier(void* stats, int ability);
+
+// The object's area (CNWSArea*), or null.
+void* AreaOf(void* object);
+
+// A Dungeon Master's creature (GetIsDM): its skills are always 127.
+bool IsDungeonMaster(void* stats);
+
 // Calls fn(id, creature) for each other creature in `creature`'s area.
 using CreatureVisitor = void (*)(void* context, uint32_t id, void* creature);
 void ForEachOtherCreatureInArea(void* creature, CreatureVisitor visit, void* context);
