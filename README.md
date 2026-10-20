@@ -21,19 +21,19 @@ switchable in `nwn5e.ini`:
 
 | Rule | Setting | State |
 |---|---|---|
-| Critical threat only on a natural 20 | `crit_nat20_only` | built (0.1.0); in game so far only with `every_hit_crits` (threat 1–20); the sheet's "20" and a 19 not critting await a normal fight |
+| Critical threat only on a natural 20 | `crit_nat20_only` | verified in game (0.2.0, 2026-10-20: sheet threat 19–20 → 20; a natural 19 was a hit, natural 20s crits) |
 | No critical confirmation roll; no "Threat Roll" in the combat log | `crit_no_confirmation` | verified in game (0.1.0 / 0.1.1, 2026-10-20: every crit "*critical hit*" with no Threat Roll, on rolls of 5, 7, 14) |
 | x2 critical multiplier for every weapon | `crit_double_damage` | verified in game (0.1.1, 2026-10-20: d8 ×3 weapon — crits 15 and 19 = 2d8 + 3, were up to 33; the sheet's main-hand ×3 → ×2, which EE computes apart). The weapon's own description still shows its base multiplier (the client's data) |
 | Crits roll the damage dice twice, flat bonuses (Strength, flat effect bonuses) once | `crit_dice_only` | verified in game for Strength (19 = 2 × 8 + 3; doubled Strength could reach 22); flat effect bonuses await a crit with such an effect |
 | Creatures can crit your party at every difficulty (B7) | `crits_against_players` | verified in game (0.1.0, 2026-10-20: goblins' crits on the player at Easy stayed critical hits) |
-| Attack rolls use the proficiency bonus instead of the 3e BAB; the sheet shows the same | `attack_proficiency` | built (0.2.0) |
-| Monsters use the 2024 expected AC for their CR; characters keep gear AC | `creature_ac_by_cr` | built (0.2.0) |
-| PCs and henchmen attack per 2024 Extra Attack; no 3e −5 on any attack (iterative, off-hand, opportunity, Haste, Flurry) | `extra_attack` | built (0.2.0) |
+| Attack rolls use the proficiency bonus instead of the 3e BAB; the sheet shows the same | `attack_proficiency` | verified in game (0.2.0, 2026-10-20: PC 3e +4 → +5 with PB 2, goblins −2 → +0; the sheet shows one less than the roll, as the engine's own 3e numbers do) |
+| Monsters use the 2024 expected AC for their CR; characters keep gear AC | `creature_ac_by_cr` | verified in game (0.2.0: goblin CR 1/8, AC 7 → 13) |
+| PCs and henchmen attack per 2024 Extra Attack; no 3e −5 on any attack (iterative, off-hand, opportunity, Haste, Flurry) | `extra_attack` | no −5 verified in game (0.2.0: 3 attacks a round and attacks of opportunity all at the same bonus, with `attacks_per_round=3`); the class-based count awaits a level-5 character |
 | Henchmen use the player-character rules (decision 11) | — (always) | built (0.2.0) |
-| Advantage / disadvantage replace NWN's situational bonuses; ranged attacks with an enemy within 5 ft have disadvantage (B1–B6) | `advantage_disadvantage` | built (0.2.0) |
-| After a kill, the round's remaining attacks go to the nearest enemy; ranged only to one already in the fight, within 40 m (decision 14) | `retarget_remaining_attacks`, `ranged_retarget_range` | built (0.2.0) |
+| Advantage / disadvantage replace NWN's situational bonuses; ranged attacks with an enemy within 5 ft have disadvantage (B1–B6) | `advantage_disadvantage` | verified in game (0.2.0: flanking +2 removed, normal roll; a bow shot with a goblin adjacent had disadvantage, lower d20 kept; a goblin not seeing its target had disadvantage) |
+| After a kill, the round's remaining attacks go to the nearest enemy; ranged only to one already in the fight, within 40 m (decision 14) | `retarget_remaining_attacks`, `ranged_retarget_range` | melee verified in game (0.2.0: 2 of 3 kills moved the round on; once the round's last two attacks were lost — watching); ranged awaits a test |
 | No racial bonuses vs specific enemies (R1) | `racial_combat_bonuses` | built (0.2.0) |
-| Two-weapon fighting: no penalties, one off-hand attack, off-hand damage without Strength (D1) | `two_weapon_fighting` | built (0.2.0) |
+| Two-weapon fighting: no penalties, one off-hand attack, off-hand damage without Strength (D1) | `two_weapon_fighting` | built (0.2.0); seen in game: longsword + battleaxe (no Light weapon) → no off-hand attack, the penalties answered 0 |
 | Two-handed weapons add Strength once (E1) | `two_handed_strength` | built (0.2.0) |
 
 Test switches (`[debug]`, off by default): `every_hit_crits=1` makes every

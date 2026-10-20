@@ -254,4 +254,4 @@ class *types* (classes.2da rows, e.g. the SRD Warlock) stay easy.
 | EP17 | Chat commands vs NUI windows | chat now, NUI later / NUI now | **Chat now** for parity; NUI with Phase 7 |
 | EP18 | How nwn5e creates effects | script bridge / engine constructors | **Script bridge** for Graze, Slow, Topple, icons; engine calls for Cleave and Push |
 | EP19 | Spring Attack (its only engine use is the AoO skip) | faithful HasFeat hook / data change | **Hook** |
-| EP20 | Resume after potion | test first / port now | **Test vanilla EE first** — it may already keep the attack |
+| EP20 | Resume after potion | test first / port now | **Test vanilla EE first** — it may already keep the attack. *Tested 2026-10-20: EE drops the attack after a potion (the character stood still), so the feature is ported in E2.* |
