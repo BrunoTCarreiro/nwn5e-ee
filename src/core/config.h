@@ -23,6 +23,8 @@ struct Config {
   bool creature_ac_by_cr = true;   // non-player creatures use the expected AC for their CR
   bool extra_attack = true;        // PCs attack per 2024 Extra Attack; no 3e -5 on later attacks
   bool advantage_disadvantage = true;  // situational modifiers become 2024 advantage/disadvantage
+  bool retarget_remaining_attacks = true;  // after a kill, the round's remaining attacks go to the nearest enemy
+  int ranged_retarget_range = 40;          // metres a ranged retarget looks (capped at the weapon's range)
   // R1: faithful removes NWN's racial attack/AC bonuses vs specific enemies.
   rules::RuleVariant racial_combat_bonuses = rules::RuleVariant::kFaithful;
   // D1: faithful = no off-hand penalties, one off-hand attack (Light weapons,

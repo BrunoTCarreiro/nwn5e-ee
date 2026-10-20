@@ -79,6 +79,17 @@ constexpr const char* kGetIsPCDying = "?GetIsPCDying@CNWSObject@@QEAAHXZ";
 constexpr const char* kGetVisibleListElement = "?GetVisibleListElement@CNWSCreature@@QEAAPEAVCNWVisibilityNode@@I@Z";
 constexpr int kReactionEnemy = 2;  // GetAIStateReaction (the AoO broadcast's enemy test)
 
+// E1c — the round's target after a kill.
+constexpr const char* kResolvePostMeleeDamage = "?ResolvePostMeleeDamage@CNWSCreature@@IEAAXPEAVCNWSObject@@@Z";
+constexpr const char* kResolvePostRangedDamage = "?ResolvePostRangedDamage@CNWSCreature@@IEAAXPEAVCNWSObject@@@Z";
+// CNWSCreature* CNWSCreature::GetNewCombatTarget(unsigned int exclude) — the engine's cleave search
+constexpr const char* kGetNewCombatTarget = "?GetNewCombatTarget@CNWSCreature@@QEAAPEAV1@I@Z";
+constexpr const char* kGetTotalAttacks = "?GetTotalAttacks@CNWSCombatRound@@QEAAEXZ";
+// float CNWSCreature::MaxAttackRange(unsigned int target, int, int): (invalid, 0, 0) = the weapon's range
+constexpr const char* kMaxAttackRange = "?MaxAttackRange@CNWSCreature@@QEAAMIHH@Z";
+constexpr const char* kGetFaction = "?GetFaction@CNWSCreature@@QEAAPEAVCNWSFaction@@XZ";
+constexpr uint32_t kObjectInvalid = 0x7f000000;
+
 // --- diffsettings.2da rows (EE data, D).
 constexpr int kDifficultyNoCriticalOnPc = 0;  // 1 at DM-Easy, Easy and Normal
 
@@ -128,6 +139,11 @@ constexpr size_t kRoundMainHandAttacks = 0x2f50;
 constexpr size_t kRoundOffHandAttacks = 0x2f54;
 constexpr size_t kRoundExtraAttacks = 0x2f60;
 constexpr size_t kRoundOwner = 0x2f78;  // CNWSCreature* (InitializeNumberOfAttacks +0x14: its inventory)
+constexpr size_t kRoundTarget = 0x2f4c;  // uint32, the round's target (ResolvePostMeleeDamage's cleave writes it)
+// CNWSCreature: set to 1 when the round's target moves on (the cleave, +0x712);
+// its current attack target, as NWScript's GetAttackTarget reads it.
+constexpr size_t kCreatureTargetSwitched = 0x708;
+constexpr size_t kCreatureAttackTarget = 0x724;
 
 // CNWSCreature -> its CNWSCombatRound* (ResolveAttackRoll +0x31).
 constexpr size_t kCreatureCombatRound = 0x880;
@@ -137,6 +153,7 @@ constexpr size_t kRoundCurrentAttack = 0x2f2c;
 constexpr size_t kAttackD20 = 0x0e;          // uint8, the attack d20 (+0x218)
 constexpr size_t kAttackModifier = 0x10;     // int32, the attack modifier (+0x201)
 constexpr size_t kAttackRanged = 0x5c;       // int32, non-zero for a ranged attack (+0x59)
+constexpr size_t kAttackKilledTarget = 0x68; // int32, 1 after the attack killed (ResolvePost{Melee,Ranged}Damage)
 constexpr size_t kAttackThreatRoll = 0x0f;   // uint8, the confirmation d20 (+0x3ba)
 constexpr size_t kAttackThreatFlag = 0x70;   // int32, 1 after a threat (+0x3b3); the combat
                                              // log prints "Threat Roll" when it is set

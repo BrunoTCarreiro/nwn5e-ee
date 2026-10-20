@@ -49,6 +49,9 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.creature_ac_by_cr = ReadBool(ini, L"creature_ac_by_cr", g_config.creature_ac_by_cr);
   g_config.extra_attack = ReadBool(ini, L"extra_attack", g_config.extra_attack);
   g_config.advantage_disadvantage = ReadBool(ini, L"advantage_disadvantage", g_config.advantage_disadvantage);
+  g_config.retarget_remaining_attacks =
+      ReadBool(ini, L"retarget_remaining_attacks", g_config.retarget_remaining_attacks);
+  g_config.ranged_retarget_range = GetPrivateProfileIntW(L"rules", L"ranged_retarget_range", 40, ini);
   g_config.racial_combat_bonuses = ReadVariant(ini, L"racial_combat_bonuses", g_config.mode);
   g_config.two_weapon_fighting = ReadVariant(ini, L"two_weapon_fighting", g_config.mode);
   g_config.two_handed_strength = ReadVariant(ini, L"two_handed_strength", g_config.mode);
@@ -66,6 +69,8 @@ void ConfigLoad(const wchar_t* directory) {
   Log("config: attack_proficiency=%d creature_ac_by_cr=%d extra_attack=%d advantage_disadvantage=%d",
       g_config.attack_proficiency, g_config.creature_ac_by_cr, g_config.extra_attack,
       g_config.advantage_disadvantage);
+  Log("config: retarget_remaining_attacks=%d ranged_retarget_range=%d m", g_config.retarget_remaining_attacks,
+      g_config.ranged_retarget_range);
   Log("config: racial_combat_bonuses=%s two_weapon_fighting=%s two_handed_strength=%s",
       VariantName(g_config.racial_combat_bonuses), VariantName(g_config.two_weapon_fighting),
       VariantName(g_config.two_handed_strength));

@@ -25,7 +25,7 @@ cl %CFLAGS% /LD /Ithird_party\minhook\include /Isrc %PRIVATE_DEF% ^
   src\core\dice.cpp src\core\attack_roll.cpp src\core\ruleset.cpp src\core\sheet.cpp src\core\creature.cpp ^
   src\core\rules_crit.cpp src\core\rules_attack.cpp src\core\rules_extra_attack.cpp src\core\rules_sheet.cpp ^
   src\core\rules_debug.cpp src\core\engine.cpp src\core\rules_racial.cpp src\core\rules_two_weapon.cpp ^
-  src\core\rules_advantage.cpp ^
+  src\core\rules_advantage.cpp src\core\rules_retarget.cpp ^
   src\rules\*.cpp ^
   %PRIVATE_SRC% third_party\minhook\src\buffer.c third_party\minhook\src\hook.c ^
   third_party\minhook\src\trampoline.c third_party\minhook\src\hde\hde64.c ^

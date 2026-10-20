@@ -26,10 +26,23 @@ switchable in `nwn5e.ini`:
 | x2 critical multiplier for every weapon | `crit_double_damage` | verified in game (0.1.1, 2026-10-20: d8 ×3 weapon — crits 15 and 19 = 2d8 + 3, were up to 33; the sheet's main-hand ×3 → ×2, which EE computes apart). The weapon's own description still shows its base multiplier (the client's data) |
 | Crits roll the damage dice twice, flat bonuses (Strength, flat effect bonuses) once | `crit_dice_only` | verified in game for Strength (19 = 2 × 8 + 3; doubled Strength could reach 22); flat effect bonuses await a crit with such an effect |
 | Creatures can crit your party at every difficulty (B7) | `crits_against_players` | verified in game (0.1.0, 2026-10-20: goblins' crits on the player at Easy stayed critical hits) |
+| Attack rolls use the proficiency bonus instead of the 3e BAB; the sheet shows the same | `attack_proficiency` | built (0.2.0) |
+| Monsters use the 2024 expected AC for their CR; characters keep gear AC | `creature_ac_by_cr` | built (0.2.0) |
+| PCs and henchmen attack per 2024 Extra Attack; no 3e −5 on any attack (iterative, off-hand, opportunity, Haste, Flurry) | `extra_attack` | built (0.2.0) |
+| Henchmen use the player-character rules (decision 11) | — (always) | built (0.2.0) |
+| Advantage / disadvantage replace NWN's situational bonuses; ranged attacks with an enemy within 5 ft have disadvantage (B1–B6) | `advantage_disadvantage` | built (0.2.0) |
+| After a kill, the round's remaining attacks go to the nearest enemy; ranged only to one already in the fight, within 40 m (decision 14) | `retarget_remaining_attacks`, `ranged_retarget_range` | built (0.2.0) |
+| No racial bonuses vs specific enemies (R1) | `racial_combat_bonuses` | built (0.2.0) |
+| Two-weapon fighting: no penalties, one off-hand attack, off-hand damage without Strength (D1) | `two_weapon_fighting` | built (0.2.0) |
+| Two-handed weapons add Strength once (E1) | `two_handed_strength` | built (0.2.0) |
 
 Test switches (`[debug]`, off by default): `every_hit_crits=1` makes every
 hit a critical; `combat_breakdown=1` turns on the engine's own per-term
-attack and damage breakdown.
+attack and damage breakdown; `attacks_per_round=N` gives player characters N
+main-hand attacks; `creature_ac=N` gives every monster AC N;
+`creature_hp_multiplier=N` / `creature_min_hp=N` give a monster N times / at
+least N hit points when your party first attacks it; `attack_trace=1` logs
+every PC attack roll with its round's attack counts.
 
 What is carried over from the 1.69 build, unchanged:
 

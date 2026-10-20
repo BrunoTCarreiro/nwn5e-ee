@@ -192,6 +192,20 @@ Each step ends with an in-game test matrix, as on 1.69.
    ruleset hook moves to E1, where its first users are.
 2. **E1 — the rest of combat:** PB + sheet, AC by CR, Extra Attack,
    henchmen, retarget, advantage, R1, D1, E1, debug switches.
+   *Built 0.2.0 (2026-10-20):* `ruleset.cpp` (the ruleset hook, keys by
+   rules::RulesetLabelKey — unit-tested against keys seen in EE's code),
+   `sheet.cpp` (UpdateCombatInformation listeners), `creature.cpp`,
+   `engine.cpp`, and the rules in `rules_attack`, `rules_extra_attack`,
+   `rules_sheet`, `rules_racial`, `rules_two_weapon`, `rules_advantage`,
+   `rules_retarget`, `rules_debug`. Differences from the routes above:
+   advantage asks the engine's own GetAttackModifierVersus before each attack
+   which situational ruleset values it reads (each only when its condition
+   holds) instead of re-implementing its checks; ranged retargeting's "in the
+   fight" reads each enemy's attack target (creature +0x724, NWScript's
+   GetAttackTarget) and compares factions by GetFaction; the area's
+   creatures are read from its own array, because Get{First,Next}
+   ObjectInArea move a position scripts share. B5's "can act" is dead /
+   dying only until conditions arrive (E2).
 3. **E2 — opportunity attacks, conditions, weapon mastery** (Push last).
 4. **E3 — saves and skills** (SK3 / SK5 last).
 5. **E4 — character model:** served data + strings, XP, multiclass,
