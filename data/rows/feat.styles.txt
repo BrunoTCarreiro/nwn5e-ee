@@ -1,0 +1,9 @@
+# feat.2da - Phase 3 Fighter F1: the four SRD 5.2 Fighting Style feats. Only
+# the Fighter's bonus list offers them (cls_feat_fight.txt; Paladin and Ranger
+# with their briefs): at Fighter 1, Champion 7 (Additional Fighting Style) and
+# any of its feat levels. Hidden in NWN mode (class_features).
+LABEL FEAT DESCRIPTION ICON GAINMULTIPLE EFFECTSSTACK ALLCLASSESCANUSE CRValue Constant TOOLSCATEGORIES PreReqEpic ReqAction
+1210 NWN5E_FS_ARCHERY 16000110 16000111 ife_rapidshot 0 0 0 1 FEAT_NWN5E_FS_ARCHERY 6 0 1
+1211 NWN5E_FS_DEFENSE 16000112 16000113 ife_dodge 0 0 0 1 FEAT_NWN5E_FS_DEFENSE 6 0 1
+1212 NWN5E_FS_GREAT_WEAPON 16000114 16000115 ife_X2WSGSwd 0 0 0 1 FEAT_NWN5E_FS_GREAT_WEAPON 6 0 1
+1213 NWN5E_FS_TWO_WEAPON 16000116 16000117 ife_ambidex 0 0 0 1 FEAT_NWN5E_FS_TWO_WEAPON 6 0 1

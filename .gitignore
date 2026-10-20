@@ -1,0 +1,7 @@
+build/
+re/out/
+*.log
+node_modules/
+backup/
+# The private layer (docs/PRIVATE-LAYER.md): personal-use rules, its own repo.
+private/

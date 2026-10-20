@@ -1,0 +1,40 @@
+# nwn5e data (served 2da rows and strings)
+
+Phase 3 CM0 (docs/PLAN.md, docs/RE-NOTES.md "Served data"). Everything here is
+nwn5e's own content (SRD 5.2 only — non-SRD material goes in the private layer,
+`private/data/`, docs/PRIVATE-LAYER.md). No game file is ever copied here.
+
+`build.bat` copies this folder next to the DLL (`build\data`). At start-up the
+DLL rebuilds every table that has rows here from the game's own copy (the
+override folder, then the key / BIF files in the engine's order) plus these
+rows, writes it to `build\served\<table>.2da`, and registers that folder with
+the engine's resource manager. The game install is not touched; launching
+NWN without nwn5e is vanilla.
+
+## rows/<table>.txt (or <table>.<part>.txt)
+
+One file per 2da table (`rows/feat.txt` → feat.2da), or several (`feat.asi.txt`, `feat.styles.txt`: the part before the first dot names the table). `#` starts a comment.
+The first other line names columns of the table; each following line is a
+row number and one value per named column:
+
+    # feat.2da: the Ability Score Improvement rows (CM7)
+    LABEL               FEAT      DESCRIPTION  ALLCLASSESCANUSE
+    1200  NWN5E_ASI_1   16000100  16000101     0
+
+- A row inside the table replaces only the named columns.
+- A row past the end of the table creates it (unnamed columns `****`, and
+  empty rows fill any gap). Pick new row numbers well past the game's last
+  row and keep them stable: feat ids and class ids are saved in characters.
+- `"quotes"` keep spaces in a value; `****` is an empty value.
+- Rows are shared by both modes; a rule hides its rows in the mode that
+  doesn't use them (in memory, once the rules load).
+
+## strings.txt
+
+Names and descriptions for the rows: `<id> <text>`, one per line, `#` for
+comments, `\n` for a line break. Ids are 16000000–16499999 (nwn5e's private
+range; the label hook serves them, dialog.tlk is not changed). Point a 2da
+cell (FEAT, DESCRIPTION, Name, ...) at the id.
+
+    16000100 Ability Score Improvement
+    16000101 Increase one ability score by 2, or two by 1 (at most 20). Choose with !asi.

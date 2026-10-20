@@ -1,0 +1,15 @@
+# feat.2da - Phase 3 CM7: Ability Score Improvement, one row per pick a
+# character can make (a Fighter has 7: levels 4, 6, 8, 12, 14, 16, 19). Each
+# needs the one before (PREREQFEAT1), so the level-up screen offers the next
+# one. Not a general feat (ALLCLASSESCANUSE 0): the classes' bonus lists offer
+# it (cls_feat_*.txt), in the 2024 feat slots. The abilities are chosen with
+# !asi. Level 4+ (MinLevel 4, the SRD feat's prerequisite). Hidden in NWN mode
+# (feat_cadence).
+LABEL FEAT DESCRIPTION ICON PREREQFEAT1 GAINMULTIPLE EFFECTSSTACK ALLCLASSESCANUSE CRValue Constant TOOLSCATEGORIES PreReqEpic ReqAction MinLevel
+1200 NWN5E_ASI_1 16000101 16000100 ife_X2GrStr1 **** 0 0 0 1 FEAT_NWN5E_ASI_1 6 0 1 4
+1201 NWN5E_ASI_2 16000102 16000100 ife_X2GrStr1 1200 0 0 0 1 FEAT_NWN5E_ASI_2 6 0 1 4
+1202 NWN5E_ASI_3 16000103 16000100 ife_X2GrStr1 1201 0 0 0 1 FEAT_NWN5E_ASI_3 6 0 1 4
+1203 NWN5E_ASI_4 16000104 16000100 ife_X2GrStr1 1202 0 0 0 1 FEAT_NWN5E_ASI_4 6 0 1 4
+1204 NWN5E_ASI_5 16000105 16000100 ife_X2GrStr1 1203 0 0 0 1 FEAT_NWN5E_ASI_5 6 0 1 4
+1205 NWN5E_ASI_6 16000106 16000100 ife_X2GrStr1 1204 0 0 0 1 FEAT_NWN5E_ASI_6 6 0 1 4
+1206 NWN5E_ASI_7 16000107 16000100 ife_X2GrStr1 1205 0 0 0 1 FEAT_NWN5E_ASI_7 6 0 1 4

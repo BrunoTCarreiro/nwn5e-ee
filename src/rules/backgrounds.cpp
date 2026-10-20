@@ -1,0 +1,84 @@
+#include "rules/backgrounds.h"
+
+#include <ctype.h>
+
+#include <algorithm>
+
+namespace rules {
+
+const std::vector<BackgroundInfo>& Backgrounds2024() {
+  static const std::vector<BackgroundInfo> kBackgrounds = {
+      {Background::kAcolyte, "Acolyte", {Ability::kIntelligence, Ability::kWisdom, Ability::kCharisma},
+       "Magic Initiate (Cleric)", SkillBit(Skill2024::kInsight) | SkillBit(Skill2024::kReligion),
+       "Calligrapher's Supplies"},
+      {Background::kCriminal, "Criminal", {Ability::kDexterity, Ability::kConstitution, Ability::kIntelligence},
+       "Alert",
+       SkillBit(Skill2024::kSleightOfHand) | SkillBit(Skill2024::kStealth) | SkillBit(Skill2024::kThievesTools),
+       "Thieves' Tools"},
+      {Background::kSage, "Sage", {Ability::kConstitution, Ability::kIntelligence, Ability::kWisdom},
+       "Magic Initiate (Wizard)", SkillBit(Skill2024::kArcana) | SkillBit(Skill2024::kHistory),
+       "Calligrapher's Supplies"},
+      {Background::kSoldier, "Soldier", {Ability::kStrength, Ability::kDexterity, Ability::kConstitution},
+       "Savage Attacker", SkillBit(Skill2024::kAthletics) | SkillBit(Skill2024::kIntimidation), "a Gaming Set"},
+  };
+  return kBackgrounds;
+}
+
+const BackgroundInfo* BackgroundData(Background background) {
+  for (const BackgroundInfo& info : Backgrounds2024()) {
+    if (info.background == background) return &info;
+  }
+  return nullptr;
+}
+
+std::optional<Background> ParseBackground(const std::string& text) {
+  std::string lower;
+  for (char c : text) lower += static_cast<char>(tolower(static_cast<unsigned char>(c)));
+  for (const BackgroundInfo& info : Backgrounds2024()) {
+    std::string name = info.name;
+    std::transform(name.begin(), name.end(), name.begin(), [](char c) { return static_cast<char>(tolower(c)); });
+    if (lower == name) return info.background;
+  }
+  return std::nullopt;
+}
+
+std::string BackgroundIncreases(Background background, const std::vector<Ability>& chosen, int amounts[6]) {
+  const BackgroundInfo* info = BackgroundData(background);
+  if (!info) return "no such background";
+  for (int i = 0; i < 6; ++i) amounts[i] = 0;
+  if (chosen.size() != 2 && chosen.size() != 3) return "name two abilities (+2 and +1) or all three (+1 each)";
+  for (size_t i = 0; i < chosen.size(); ++i) {
+    if (std::find(std::begin(info->abilities), std::end(info->abilities), chosen[i]) == std::end(info->abilities)) {
+      return std::string(AbilityName(chosen[i])) + " isn't one of the " + info->name + "'s abilities";
+    }
+    for (size_t j = 0; j < i; ++j) {
+      if (chosen[j] == chosen[i]) return "name each ability once";
+    }
+    amounts[static_cast<int>(chosen[i])] = chosen.size() == 2 && i == 0 ? 2 : 1;
+  }
+  return "";
+}
+
+int EncodeAmounts(const int amounts[6]) {
+  int encoded = 0;
+  for (int i = 0; i < 6; ++i) encoded |= (std::clamp(amounts[i], 0, 3) & 3) << (2 * i);
+  return encoded;
+}
+
+void DecodeAmounts(int encoded, int amounts[6]) {
+  for (int i = 0; i < 6; ++i) amounts[i] = (encoded >> (2 * i)) & 3;
+}
+
+int EncodeAsi(const AbilityIncrease& asi) {
+  return (static_cast<int>(asi.first) + 1) + (asi.second ? static_cast<int>(*asi.second) + 1 : 0) * 8;
+}
+
+std::optional<AbilityIncrease> DecodeAsi(int encoded) {
+  const int first = encoded % 8 - 1, second = encoded / 8 - 1;
+  if (first < 0 || first > 5 || second < -1 || second > 5) return std::nullopt;
+  AbilityIncrease asi{static_cast<Ability>(first), std::nullopt};
+  if (second >= 0) asi.second = static_cast<Ability>(second);
+  return asi;
+}
+
+}  // namespace rules

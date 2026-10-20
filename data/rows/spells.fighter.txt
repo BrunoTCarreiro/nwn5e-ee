@@ -1,0 +1,6 @@
+# spells.2da - Phase 3 Fighter F2: Second Wind, one row per feat row (FeatID),
+# modelled on Lay on Hands (313): a feat ability (UserType 3) on yourself.
+Label Name IconResRef School Range VS MetaMagic TargetType ImpactScript Innate ConjTime ConjAnim CastAnim CastTime Proj ItemImmunity Category UserType UseConcentration SpontaneouslyCast HostileSetting FeatID HasProjectile
+1000 nwn5e_SecondWind 16000120 ife_tough V P s 0x00 0x01 nwn5e_secwind 1 500 head out 500 0 1 5 3 0 0 0 1220 0
+1001 nwn5e_SecondWind 16000120 ife_tough V P s 0x00 0x01 nwn5e_secwind 1 500 head out 500 0 1 5 3 0 0 0 1221 0
+1002 nwn5e_SecondWind 16000120 ife_tough V P s 0x00 0x01 nwn5e_secwind 1 500 head out 500 0 1 5 3 0 0 0 1222 0

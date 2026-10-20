@@ -1,0 +1,23 @@
+# nwn5e's strings: <id> <text> (ids 16000000-16499999; data/README.md).
+# 16000000-16000099: reserved (16000000 / 16000001 = the served_data_probe test row).
+# 16000100-16000107: Ability Score Improvement (CM7).
+16000100 Ability Score Improvement (2024): increase one ability score by 2, or two ability scores by 1 each; none can go above 20.\n\nAfter taking it, choose the abilities with the chat command !asi - for example "!asi str" (+2 Strength) or "!asi str con" (+1 Strength, +1 Constitution). Type !asi alone to see your scores and what is still unspent.\n\nYou can take it at every feat level of your class (4, 8, 12, 16, 19; Fighters also 6 and 14, Rogues 10).
+16000101 Ability Score Improvement 1
+16000102 Ability Score Improvement 2
+16000103 Ability Score Improvement 3
+16000104 Ability Score Improvement 4
+16000105 Ability Score Improvement 5
+16000106 Ability Score Improvement 6
+16000107 Ability Score Improvement 7
+# 16000110-16000117: the Fighting Style feats (Fighter F1).
+16000110 Fighting Style: Archery
+16000111 Fighting Style (2024): you gain a +2 bonus to attack rolls you make with ranged weapons.
+16000112 Fighting Style: Defense
+16000113 Fighting Style (2024): while you're wearing armor (not clothing), you gain a +1 bonus to Armor Class.
+16000114 Fighting Style: Great Weapon Fighting
+16000115 Fighting Style (2024): when you roll damage for an attack with a melee weapon you're holding in two hands, you can treat any 1 or 2 on a damage die as a 3. The weapon must have the Two-Handed or Versatile property.
+16000116 Fighting Style: Two-Weapon Fighting
+16000117 Fighting Style (2024): when you make the extra attack of two-weapon fighting, you add your ability modifier to its damage (NWN's Two-Weapon Fighting feat does the same in the 2024 rules).
+# 16000120-16000121: Second Wind (Fighter F2).
+16000120 Second Wind
+16000121 Second Wind (Fighter, 2024): regain 1d10 + your Fighter level hit points. Uses: 2 (3 from Fighter 4, 4 from 10), back on a rest. In the 2024 rules this is a Bonus Action; until nwn5e has bonus actions (Phase 6) it takes your action.\n\nFrom Fighter 5 (Tactical Shift), for the rest of the round you can move without provoking opportunity attacks.

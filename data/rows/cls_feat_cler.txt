@@ -1,0 +1,10 @@
+# cls_feat_cler.2da - Phase 3 CM7: Ability Score Improvement in this class's bonus
+# feat list (List 2 = bonus feat slots only); same rows in every base class.
+FeatLabel FeatIndex List GrantedOnLevel OnMenu
++ NWN5E_ASI_1 1200 2 -1 0
++ NWN5E_ASI_2 1201 2 -1 0
++ NWN5E_ASI_3 1202 2 -1 0
++ NWN5E_ASI_4 1203 2 -1 0
++ NWN5E_ASI_5 1204 2 -1 0
++ NWN5E_ASI_6 1205 2 -1 0
++ NWN5E_ASI_7 1206 2 -1 0
