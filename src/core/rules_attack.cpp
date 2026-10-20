@@ -23,7 +23,10 @@
 #include "hooks.h"
 #include "log.h"
 #include "log_once.h"
+#include "attack_roll.h"
 #include "rules/nwn_conversion.h"
+
+int RacialSlingBonusToRemove(void* stats, bool ranged);  // rules_racial.cpp
 
 namespace {
 
@@ -38,8 +41,14 @@ ArmorClassFn g_get_armor_class_versus = nullptr;
 LogOnce g_attack_logged(2000);
 LogOnce g_armor_logged(2000);
 
+bool CurrentAttackIsRanged(void* stats) {
+  const uint8_t* data = CurrentAttackData(CreatureOf(stats));
+  return data && Field<int32_t>(data, ee::kAttackRanged) != 0;
+}
+
 int GetAttackModifierVersus(void* stats, void* target) {
-  const int engine_modifier = g_get_attack_modifier_versus(stats, target);
+  const int engine_modifier =
+      g_get_attack_modifier_versus(stats, target) - RacialSlingBonusToRemove(stats, CurrentAttackIsRanged(stats));
   if (!g_config.attack_proficiency) return engine_modifier;
   const CreatureFacts facts = ReadCreatureFacts(stats);
   if (!facts.plausible) return engine_modifier;
@@ -80,8 +89,17 @@ int16_t GetArmorClassVersus(void* stats, void* attacker, int touch) {
 
 }  // namespace
 
+// The engine's own attack modifier, without nwn5e's conversion (the hook's
+// trampoline, or the export when it isn't hooked) — rules_advantage.cpp asks
+// it which situational terms apply to an attack.
+int EngineAttackModifier(void* stats, void* target) {
+  static const auto unhooked = reinterpret_cast<AttackModifierFn>(EngineExport(ee::kGetAttackModifierVersus));
+  const AttackModifierFn fn = g_get_attack_modifier_versus ? g_get_attack_modifier_versus : unhooked;
+  return fn ? fn(stats, target) : 0;
+}
+
 void InstallAttackRules() {
-  if (g_config.attack_proficiency) {
+  if (g_config.attack_proficiency || g_config.racial_combat_bonuses == rules::RuleVariant::kFaithful) {
     HookExport("CNWSCreatureStats::GetAttackModifierVersus", ee::kGetAttackModifierVersus,
                reinterpret_cast<void*>(&GetAttackModifierVersus),
                reinterpret_cast<void**>(&g_get_attack_modifier_versus));

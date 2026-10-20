@@ -20,7 +20,7 @@ thread_local AttackRoll* t_current = nullptr;
 
 // The attack ResolveAttackRoll is about to resolve: it reads the same round
 // and index first thing (EE +0x31..+0x42).
-uint8_t* AttackDataOf(void* creature) {
+uint8_t* AttackDataFor(void* creature) {
   if (!g_get_attack || !creature) return nullptr;
   void* round = *reinterpret_cast<void**>(static_cast<uint8_t*>(creature) + ee::kCreatureCombatRound);
   if (!round) return nullptr;
@@ -36,7 +36,7 @@ void ResolveAttackRoll(void* creature, void* target) {
   AttackRoll roll;
   roll.attacker = creature;
   roll.target = target;
-  roll.data = AttackDataOf(creature);
+  roll.data = AttackDataFor(creature);
   AttackRoll* outer = t_current;
   t_current = &roll;
   for (AttackRollListener listener : g_before) listener(roll);
@@ -63,6 +63,11 @@ bool AddAttackRollListeners(AttackRollListener before, AttackRollListener after)
 }
 
 AttackRoll* CurrentAttackRoll() { return t_current; }
+
+uint8_t* CurrentAttackData(void* creature) {
+  if (!g_get_attack) g_get_attack = reinterpret_cast<GetAttackFn>(EngineExport(ee::kGetAttack));
+  return AttackDataFor(creature);
+}
 
 CodeRange ResolveAttackRollCode() {
   static const CodeRange code = FunctionAt(EngineExport(ee::kResolveAttackRoll));

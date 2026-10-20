@@ -24,5 +24,9 @@ bool AddAttackRollListeners(AttackRollListener before, AttackRollListener after)
 // The attack being resolved on this thread, or nullptr.
 AttackRoll* CurrentAttackRoll();
 
+// The CNWSCombatAttackData of the attack `creature`'s round is on (the one
+// ResolveAttackRoll resolves next or now), or nullptr.
+uint8_t* CurrentAttackData(void* creature);
+
 // ResolveAttackRoll's code, for telling its calls apart (empty if not listed).
 CodeRange ResolveAttackRollCode();

@@ -64,6 +64,20 @@ constexpr const char* kGetCreatureByGameObjectId = "?GetCreatureByGameObjectID@C
 // CAppManager* g_pAppManager; its CServerExoApp* is at +8 (ResolveAttackRoll +0x3d2)
 constexpr const char* kAppManager = "?g_pAppManager@@3PEAVCAppManager@@EA";
 constexpr size_t kAppManagerServerApp = 0x8;
+// CNWRules* g_pRules; its CNWBaseItemArray* is at +0x20 (UpdateCombatInformation +0x117e)
+constexpr const char* kRules = "?g_pRules@@3PEAVCNWRules@@EA";
+constexpr size_t kRulesBaseItems = 0x20;
+
+// E1b — engine queries for weapons, races, sight and the area.
+constexpr const char* kHasFeat = "?HasFeat@CNWSCreatureStats@@QEAAHG@Z";
+constexpr const char* kGetItemInSlot = "?GetItemInSlot@CNWSInventory@@QEAAPEAVCNWSItem@@I@Z";
+constexpr const char* kGetBaseItem = "?GetBaseItem@CNWBaseItemArray@@QEBAPEAVCNWBaseItem@@H@Z";
+constexpr const char* kGetArea = "?GetArea@CNWSObject@@QEAAPEAVCNWSArea@@XZ";
+constexpr const char* kGetAIStateReaction = "?GetAIStateReaction@CNWSObject@@QEAAEI@Z";
+constexpr const char* kGetDead = "?GetDead@CNWSObject@@QEAAHXZ";
+constexpr const char* kGetIsPCDying = "?GetIsPCDying@CNWSObject@@QEAAHXZ";
+constexpr const char* kGetVisibleListElement = "?GetVisibleListElement@CNWSCreature@@QEAAPEAVCNWVisibilityNode@@I@Z";
+constexpr int kReactionEnemy = 2;  // GetAIStateReaction (the AoO broadcast's enemy test)
 
 // --- diffsettings.2da rows (EE data, D).
 constexpr int kDifficultyNoCriticalOnPc = 0;  // 1 at DM-Easy, Easy and Normal
@@ -81,6 +95,28 @@ constexpr size_t kCreatureAssociateType = 0x908;      // uint16: 1 henchman, 2 c
 constexpr size_t kStatsChallengeRating = 0xd0;        // float
 constexpr size_t kStatsClassCount = 0xd8;             // uint8, at most 8 (GetClass / GetClassLevel bounds)
 constexpr int kMaxClassSlots = 8;                     // class block +0xE0, 0x188 each, next field at +0xD20
+constexpr size_t kStatsRace = 0xd20;                  // uint16 racialtypes row (GetAttackModifierVersus +0x1448)
+constexpr size_t kObjectPositionX = 0xa4;             // float x, y, z at +0xa4 / +0xa8 / +0xac (SetPosition)
+constexpr size_t kObjectPositionY = 0xa8;
+constexpr size_t kCreaturePathInfo = 0x530;           // CPathfindInformation* (UpdatePersonalSpace)
+constexpr size_t kPathInfoPersonalSpace = 0x8;        // float, appearance.2da CREPERSPACE (UpdatePersonalSpace)
+constexpr size_t kCreatureInventory = 0x950;          // CNWSInventory* (GetRangedAttackBonus +0x20)
+constexpr size_t kItemBaseItem = 0x40;                // int32 baseitems.2da row
+constexpr size_t kBaseItemWield = 0x08;               // uint8 WeaponWield: 7 shield, 8 double (InitializeNumberOfAttacks)
+constexpr uint8_t kWieldDouble = 8;
+constexpr size_t kVisibilityFlags = 0x4;              // CNWVisibilityNode, bit 0 = seen (GetAttackModifierVersus +0x25b4)
+// CNWSArea's object ids (uint32*) and count (int32), read by Get{First,Next}
+// ObjectInArea — which also move a shared position (+0x238) that scripts'
+// loops use, so nwn5e reads the array itself.
+constexpr size_t kAreaObjectIds = 0x228;
+constexpr size_t kAreaObjectCount = 0x230;
+constexpr int kSlotRightHand = 0x10;
+constexpr int kSlotLeftHand = 0x20;
+constexpr int kRaceHalfling = 3;      // the constant GetAttackModifierVersus compares (rdata 0xdc3e68)
+constexpr int kBaseItemSling = 61;    // 0x3d
+constexpr int kFeatImprovedTwoWeaponFighting = 20;  // InitializeNumberOfAttacks: 2 off-hand attacks
+constexpr int kFeatPointBlankShot = 27;
+constexpr int kFeatTwoWeaponFighting = 41;
 
 // The sheet's combat block (CCombatInformation at stats +0xd70): main-hand
 // attacks per round, uint8 at +0x00 — UpdateCombatInformation's own
@@ -91,6 +127,7 @@ constexpr size_t kCombatInfoAttacks = 0x00;
 constexpr size_t kRoundMainHandAttacks = 0x2f50;
 constexpr size_t kRoundOffHandAttacks = 0x2f54;
 constexpr size_t kRoundExtraAttacks = 0x2f60;
+constexpr size_t kRoundOwner = 0x2f78;  // CNWSCreature* (InitializeNumberOfAttacks +0x14: its inventory)
 
 // CNWSCreature -> its CNWSCombatRound* (ResolveAttackRoll +0x31).
 constexpr size_t kCreatureCombatRound = 0x880;
@@ -99,6 +136,7 @@ constexpr size_t kRoundCurrentAttack = 0x2f2c;
 // CNWSCombatAttackData (ResolveAttackRoll):
 constexpr size_t kAttackD20 = 0x0e;          // uint8, the attack d20 (+0x218)
 constexpr size_t kAttackModifier = 0x10;     // int32, the attack modifier (+0x201)
+constexpr size_t kAttackRanged = 0x5c;       // int32, non-zero for a ranged attack (+0x59)
 constexpr size_t kAttackThreatRoll = 0x0f;   // uint8, the confirmation d20 (+0x3ba)
 constexpr size_t kAttackThreatFlag = 0x70;   // int32, 1 after a threat (+0x3b3); the combat
                                              // log prints "Threat Roll" when it is set

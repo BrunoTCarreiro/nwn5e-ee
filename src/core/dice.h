@@ -12,3 +12,7 @@ using DiceFilter = bool (*)(uintptr_t caller, int count, int sides, int* result)
 
 // Hooks RollDice on first use; false (and logged) if it can't.
 bool AddDiceFilter(DiceFilter filter);
+
+// The engine's own roll, past every filter (e.g. the second die of an
+// advantage roll).
+int RollEngineDice(int count, int sides);

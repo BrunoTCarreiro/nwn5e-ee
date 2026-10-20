@@ -16,6 +16,8 @@
 #include "log.h"
 #include "log_once.h"
 
+int RacialSlingBonusToRemove(void* stats, bool ranged);  // rules_racial.cpp
+
 namespace {
 
 using MeleeAttackBonusFn = int (*)(void* stats, int offhand, int a, int b);
@@ -43,12 +45,20 @@ int GetMeleeAttackBonus(void* stats, int offhand, int a, int b) {
 }
 
 int GetRangedAttackBonus(void* stats, int a, int b) {
-  return ConvertSheetAttackBonus(stats, g_get_ranged_attack_bonus(stats, a, b), "ranged");
+  // The sheet asks (0, 0), with a ranged weapon in hand: the path that adds
+  // the halfling sling bonus.
+  const int engine_value = g_get_ranged_attack_bonus(stats, a, b) - RacialSlingBonusToRemove(stats, a == 0 && b == 0);
+  return g_config.attack_proficiency ? ConvertSheetAttackBonus(stats, engine_value, "ranged") : engine_value;
 }
 
 }  // namespace
 
 void InstallSheetRules() {
+  if (g_config.racial_combat_bonuses == rules::RuleVariant::kFaithful && !g_config.attack_proficiency) {
+    HookExport("CNWSCreatureStats::GetRangedAttackBonus (sheet: sling)", ee::kGetRangedAttackBonus,
+               reinterpret_cast<void*>(&GetRangedAttackBonus), reinterpret_cast<void**>(&g_get_ranged_attack_bonus));
+    return;
+  }
   if (!g_config.attack_proficiency) return;
   HookExport("CNWSCreatureStats::GetMeleeAttackBonus (sheet)", ee::kGetMeleeAttackBonus,
              reinterpret_cast<void*>(&GetMeleeAttackBonus), reinterpret_cast<void**>(&g_get_melee_attack_bonus));

@@ -48,6 +48,10 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.attack_proficiency = ReadBool(ini, L"attack_proficiency", g_config.attack_proficiency);
   g_config.creature_ac_by_cr = ReadBool(ini, L"creature_ac_by_cr", g_config.creature_ac_by_cr);
   g_config.extra_attack = ReadBool(ini, L"extra_attack", g_config.extra_attack);
+  g_config.advantage_disadvantage = ReadBool(ini, L"advantage_disadvantage", g_config.advantage_disadvantage);
+  g_config.racial_combat_bonuses = ReadVariant(ini, L"racial_combat_bonuses", g_config.mode);
+  g_config.two_weapon_fighting = ReadVariant(ini, L"two_weapon_fighting", g_config.mode);
+  g_config.two_handed_strength = ReadVariant(ini, L"two_handed_strength", g_config.mode);
   g_config.debug_every_hit_crits = ReadBool(ini, L"every_hit_crits", g_config.debug_every_hit_crits, L"debug");
   g_config.debug_combat_breakdown = ReadBool(ini, L"combat_breakdown", g_config.debug_combat_breakdown, L"debug");
   g_config.debug_attacks_per_round = GetPrivateProfileIntW(L"debug", L"attacks_per_round", 0, ini);
@@ -59,8 +63,12 @@ void ConfigLoad(const wchar_t* directory) {
       "crits_against_players=%d log_attacks=%d",
       VariantName(g_config.mode), g_config.crit_nat20_only, g_config.crit_no_confirmation,
       g_config.crit_double_damage, g_config.crit_dice_only, g_config.crits_against_players, g_config.log_attacks);
-  Log("config: attack_proficiency=%d creature_ac_by_cr=%d extra_attack=%d", g_config.attack_proficiency,
-      g_config.creature_ac_by_cr, g_config.extra_attack);
+  Log("config: attack_proficiency=%d creature_ac_by_cr=%d extra_attack=%d advantage_disadvantage=%d",
+      g_config.attack_proficiency, g_config.creature_ac_by_cr, g_config.extra_attack,
+      g_config.advantage_disadvantage);
+  Log("config: racial_combat_bonuses=%s two_weapon_fighting=%s two_handed_strength=%s",
+      VariantName(g_config.racial_combat_bonuses), VariantName(g_config.two_weapon_fighting),
+      VariantName(g_config.two_handed_strength));
   if (g_config.debug_every_hit_crits) Log("config: [debug] every_hit_crits=1 - every hit is a critical");
   if (g_config.debug_combat_breakdown) Log("config: [debug] combat_breakdown=1 - the engine's own attack breakdown");
   if (g_config.debug_attacks_per_round > 0) {

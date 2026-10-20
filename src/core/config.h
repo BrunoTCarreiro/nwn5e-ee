@@ -22,6 +22,15 @@ struct Config {
   bool attack_proficiency = true;  // attack rolls use the proficiency bonus instead of the 3e BAB
   bool creature_ac_by_cr = true;   // non-player creatures use the expected AC for their CR
   bool extra_attack = true;        // PCs attack per 2024 Extra Attack; no 3e -5 on later attacks
+  bool advantage_disadvantage = true;  // situational modifiers become 2024 advantage/disadvantage
+  // R1: faithful removes NWN's racial attack/AC bonuses vs specific enemies.
+  rules::RuleVariant racial_combat_bonuses = rules::RuleVariant::kFaithful;
+  // D1: faithful = no off-hand penalties, one off-hand attack (Light weapons,
+  // double weapon or Dual Wielder), no Strength on its damage unless negative
+  // or with the Two-Weapon Fighting style. nwn/off = NWN's rules.
+  rules::RuleVariant two_weapon_fighting = rules::RuleVariant::kFaithful;
+  // E1: faithful = two-handed melee adds Strength once; nwn/off = NWN's 1.5 x.
+  rules::RuleVariant two_handed_strength = rules::RuleVariant::kFaithful;
 
   // [debug] — test switches, not rules.
   bool debug_every_hit_crits = false;    // every hit is a critical (crit immunity still applies)
