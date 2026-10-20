@@ -1,6 +1,7 @@
 #include "hooks.h"
 
 #include <windows.h>
+#include <string.h>
 
 #include <algorithm>
 #include <mutex>
@@ -68,4 +69,32 @@ bool HooksCommit() {
   const MH_STATUS status = MH_ApplyQueued();
   if (status != MH_OK) Log("MinHook apply failed: %s", MH_StatusToString(status));
   return status == MH_OK;
+}
+
+CodeRange FunctionAt(uintptr_t address) {
+  DWORD64 image_base = 0;
+  const RUNTIME_FUNCTION* entry = RtlLookupFunctionEntry(address, &image_base, nullptr);
+  if (!entry) return {};
+  return {static_cast<uintptr_t>(image_base + entry->BeginAddress),
+          static_cast<uintptr_t>(image_base + entry->EndAddress)};
+}
+
+std::vector<uintptr_t> FindCallsTo(CodeRange range, uintptr_t target) {
+  std::vector<uintptr_t> sites;
+  if (!range.Valid()) return sites;
+  for (uintptr_t site = range.begin; site + kCallLength <= range.end; ++site) {
+    const auto* code = reinterpret_cast<const uint8_t*>(site);
+    if (code[0] != 0xe8) continue;
+    int32_t rel = 0;
+    memcpy(&rel, code + 1, sizeof(rel));
+    if (site + kCallLength + static_cast<intptr_t>(rel) == target) sites.push_back(site);
+  }
+  return sites;
+}
+
+bool ContainsBytes(uintptr_t from, uintptr_t to, const uint8_t* pattern, size_t size) {
+  for (uintptr_t at = from; at + size <= to; ++at) {
+    if (memcmp(reinterpret_cast<const void*>(at), pattern, size) == 0) return true;
+  }
+  return false;
 }

@@ -21,7 +21,9 @@ if /i not "%~1"=="public" if exist private\rules\*.cpp set PRIVATE_SRC=%PRIVATE_
 if defined PRIVATE_SRC set PRIVATE_DEF=/DNWN5E_PRIVATE /Iprivate
 
 cl %CFLAGS% /LD /Ithird_party\minhook\include /Isrc %PRIVATE_DEF% ^
-  src\core\dllmain.cpp src\core\log.cpp src\core\hooks.cpp ^
+  src\core\dllmain.cpp src\core\log.cpp src\core\config.cpp src\core\hooks.cpp ^
+  src\core\dice.cpp src\core\attack_roll.cpp src\core\rules_crit.cpp ^
+  src\rules\*.cpp ^
   %PRIVATE_SRC% third_party\minhook\src\buffer.c third_party\minhook\src\hook.c ^
   third_party\minhook\src\trampoline.c third_party\minhook\src\hde\hde64.c ^
   /Fe:build\nwn5e.dll /link /DLL user32.lib || exit /b 1

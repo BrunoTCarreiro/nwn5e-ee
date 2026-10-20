@@ -182,6 +182,14 @@ Each step ends with an in-game test matrix, as on 1.69.
    dice hook, attack-roll hook, difficulty hook; then the five crit rules
    (threat on 20, ×2, no confirmation, dice only, B7) — the smallest set that
    exercises every core piece.
+   *Built 0.1.0 (2026-10-20):* config (mode + the crit keys), `dice.cpp`
+   (RollDice filters), `attack_roll.cpp` (ResolveAttackRoll before / after +
+   the current attack per thread), code-reading helpers in `hooks.cpp`
+   (FunctionAt from .pdata, FindCallsTo, ContainsBytes), `ee_layout.h`,
+   `rules_crit.cpp`. On load (checked 2026-10-20): GetDamageRoll's flat-bonus
+   loop found at +0x16f9 / +0x170e, all 12 GetTotalEffectBonus multiplier
+   calls have the dice-count read, every hook active, main menu reached. The
+   ruleset hook moves to E1, where its first users are.
 2. **E1 — the rest of combat:** PB + sheet, AC by CR, Extra Attack,
    henchmen, retarget, advantage, R1, D1, E1, debug switches.
 3. **E2 — opportunity attacks, conditions, weapon mastery** (Push last).

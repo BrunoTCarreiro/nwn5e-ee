@@ -14,12 +14,22 @@ folder is modified: starting EE from Steam is the unmodified game.
 
 ## Status
 
-**Spike (0.0.2) — route B verified in game (2026-10-20).** The DLL hooks
-`CNWSCreatureStats::GetCriticalHitRoll` by its exported name so every hit
-threatens a critical hit, and logs each attack roll. In The Prelude, all 9
-hits logged a threat (rolls of 3 to 20, with a weapon that threatens on 20
-only); 6 of the player's 8 became critical hits after the confirmation roll.
-No 2024 rules yet.
+Route B was proven in game with a spike (0.0.2, 2026-10-20: a hook by
+exported name made every hit threaten). The port follows
+[docs/EE-PORT.md](docs/EE-PORT.md), step by step (E0–E4). Rules so far, each
+switchable in `nwn5e.ini`:
+
+| Rule | Setting | State |
+|---|---|---|
+| Critical threat only on a natural 20 | `crit_nat20_only` | built (0.1.0) |
+| No critical confirmation roll; no "Threat Roll" in the combat log | `crit_no_confirmation` | built (0.1.0) |
+| x2 critical multiplier for every weapon | `crit_double_damage` | built (0.1.0) |
+| Crits roll the damage dice twice, flat bonuses (Strength, flat effect bonuses) once | `crit_dice_only` | built (0.1.0) |
+| Creatures can crit your party at every difficulty (B7) | `crits_against_players` | built (0.1.0) |
+
+Test switches (`[debug]`, off by default): `every_hit_crits=1` makes every
+hit a critical; `combat_breakdown=1` turns on the engine's own per-term
+attack and damage breakdown.
 
 What is carried over from the 1.69 build, unchanged:
 

@@ -3,6 +3,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <vector>
+
 // EE's 64-bit nwmain.exe exports its engine functions by their decorated C++
 // names (docs/EE-RECON.md), so nwn5e finds them by name — not by fixed
 // addresses — and a Beamdog patch that keeps a name keeps the hook.
@@ -22,3 +24,25 @@ bool HooksBegin();
 // Logs and returns false when the export is missing (a different build).
 bool HookExport(const char* what, const char* decorated_name, void* detour, void** original);
 bool HooksCommit();
+
+// --- Reading engine code (for anchored checks, docs/EE-PORT.md principle 1).
+
+constexpr uintptr_t kCallLength = 5;  // E8 rel32
+
+// A function's code, from the executable's unwind table (.pdata).
+struct CodeRange {
+  uintptr_t begin = 0;
+  uintptr_t end = 0;
+  bool Valid() const { return end > begin; }
+  bool Contains(uintptr_t address) const { return address >= begin && address < end; }
+};
+
+// The function whose code contains `address` (empty if none is listed).
+CodeRange FunctionAt(uintptr_t address);
+
+// Every direct call (E8 rel32) inside `range` that lands on `target`, in
+// address order. Call sites are not changed by hooking their target.
+std::vector<uintptr_t> FindCallsTo(CodeRange range, uintptr_t target);
+
+// Whether the bytes `pattern` occur anywhere in [from, to).
+bool ContainsBytes(uintptr_t from, uintptr_t to, const uint8_t* pattern, size_t size);
