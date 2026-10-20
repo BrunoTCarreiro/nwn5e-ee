@@ -453,6 +453,112 @@ constexpr size_t kCreatureHideRoll = 0x7c4;     // uint8 dice the checks use
 constexpr size_t kCreatureMoveSilentlyRoll = 0x7c5;
 constexpr int kSkillHide = 5;
 
+// E4 — the character model. The rules object's constructor loads every table
+// (LoadFeatInfo, LoadClassInfo, LoadRaceInfo, spells, ...); ReloadAll again
+// (10 callers, module loads among them).
+constexpr const char* kRulesConstructor = "??0CNWRules@@QEAA@XZ";
+constexpr const char* kRulesReloadAll = "?ReloadAll@CNWRules@@QEAAXXZ";
+// CM0 served data. SetupDefaultSearchPath (client init, after the aliases and
+// the resource manager, before any 2da loads) is where nwn5e's folder joins:
+// an alias (CExoAliasList::Add(alias, path); the list at *(*g_pExoBase + 0x20))
+// and AddResourceDirectory("NWN5E:", priority, 0, nullptr). 15,000,000 is
+// free: above override (12M) and patch (13M), below module (23M) and haks
+// (30-31M) (EP5). CExoResMan::Get(resref, type) gives a resource's current
+// copy (shared_ptr<DataBlock>: data = **(char***)block, size =
+// *(size_t*)(*(char**)block + 8)).
+constexpr const char* kSetupDefaultSearchPath = "?SetupDefaultSearchPath@CExoResMan@@QEAAXXZ";
+constexpr const char* kExoBase = "?g_pExoBase@@3PEAVCExoBase@@EA";
+constexpr size_t kExoBaseAliasList = 0x20;  // inside *g_pExoBase (CExoBaseInternal*)
+constexpr const char* kAliasListAdd = "?Add@CExoAliasList@@QEAAXVCExoString@@0@Z";
+constexpr const char* kExoResMan = "?g_pExoResMan@@3PEAVCExoResMan@@EA";
+constexpr const char* kAddResourceDirectory =
+    "?AddResourceDirectory@CExoResMan@@QEAAHAEBVCExoString@@IHQ6A_NPEAVCExoKeyTable@@AEBVCResRef@@G@Z@Z";
+constexpr const char* kResManGet = "?Get@CExoResMan@@QEAA?AV?$shared_ptr@VDataBlock@@@std@@AEBVCResRef@@G@Z";
+constexpr const char* kResRefAssignChars = "??4CResRef@@QEAAAEAV0@PEBD@Z";
+constexpr const char* kDataBlockPtrDestructor = "??1?$shared_ptr@VDataBlock@@@std@@QEAA@XZ";
+constexpr uint32_t kServedPriority = 15000000;
+constexpr uint16_t kResourceType2da = 2017;
+// Loaded tables (CNWRules): XP table int32 x 41 +0x28; feats +0xD8 (0x74
+// each, count uint16 +0x100; CNWFeat name strref +0x0, MinLevel uint8 +0x59);
+// classes +0x110 (0x530 each, count uint8 +0x105).
+constexpr size_t kRulesXpTable = 0x28;
+constexpr size_t kRulesFeats = 0xd8;
+constexpr size_t kRulesFeatCount = 0x100;
+constexpr size_t kFeatStride = 0x74;
+constexpr size_t kFeatName = 0x0;
+constexpr size_t kFeatMinLevel = 0x59;
+constexpr size_t kRulesClassCount = 0x105;
+// CNWClass: hit die uint8 +0x74, bonus-feat slots uint8 +0x2B9 + level
+// (1..60, GetBonusFeats), alignment limits uint8 +0x4A1 / uint8 +0x4A2 /
+// int32 +0x4A4 (GetIsAlignmentAllowed), XPPenalty int32 +0x4E0 (AddExperience).
+constexpr size_t kClassHitDie = 0x74;
+constexpr size_t kClassBonusFeats = 0x2b9;
+constexpr size_t kClassAlignRestrict = 0x4a1;
+constexpr size_t kClassAlignRestrictType = 0x4a2;
+constexpr size_t kClassInvertRestrict = 0x4a4;
+constexpr size_t kClassXpPenalty = 0x4e0;
+// CNWRace: NormalFeatEveryNthLevel int32 +0x58 (0 = the general feat at level 1 only).
+constexpr size_t kRaceFeatEveryNthLevel = 0x58;
+// CM1: CanLevelUp (11 callers; PCs stop at 40, everyone at CServerInfo +0xf4);
+// SetExperience(xp, int), called once by the script command SetXP; stats XP
+// uint32 +0xa8, is a PC int32 +0xb0.
+constexpr const char* kCanLevelUp = "?CanLevelUp@CNWSCreatureStats@@QEAAHXZ";
+constexpr const char* kSetExperience = "?SetExperience@CNWSCreatureStats@@QEAAXIH@Z";
+constexpr const char* kExecuteCommandSetXP = "?ExecuteCommandSetXP@CNWSVirtualMachineCommands@@QEAAHHH@Z";
+constexpr size_t kStatsExperience = 0xa8;
+constexpr size_t kStatsIsPlayer = 0xb0;
+// CM2: GetIsClassAvailable(class) (LevelUpAutomatic, ValidateLevelUp, the
+// level-up screen's class list). EP16: MULTICLASS_LIMIT is read only by
+// ValidateCharacter (1..8) and the client's level-up panel (to 8).
+constexpr const char* kGetIsClassAvailable = "?GetIsClassAvailable@CNWSCreatureStats@@QEAAHE@Z";
+// CM3: short GetMaxHitPoints(int) (virtual; the export is the body).
+constexpr const char* kGetMaxHitPoints = "?GetMaxHitPoints@CNWSCreature@@UEAAFH@Z";
+// CM14: CheckItemAlignmentRestrictions(item) -> 1 usable (CanEquipItem, CanUseItem).
+
+// E4b — ability scores (CM4, CM5). One CNWRules serves the server and the
+// client's creation screen (both read g_pRules), so loaded-table changes reach both.
+// Races at rules +0x118, 0x68 each, count uint8 +0x106 (LoadRaceInfo):
+// adjustments int8 +0x18 Str, +0x19 Dex, +0x1A Int, +0x1B Cha, +0x1C Wis,
+// +0x1D Con; point-buy budget int32 +0x54 (AbilitiesPointBuyNumber, 30).
+constexpr size_t kRulesRaces = 0x118;
+constexpr size_t kRaceStride = 0x68;
+constexpr size_t kRulesRaceCount = 0x106;
+constexpr size_t kRaceAbilityAdjust = 0x18;
+constexpr size_t kRacePointBuyBudget = 0x54;
+// The class's Recommended scores, uint8 Str .. Cha at +0x49b (LoadClassInfo;
+// the creation screen's Recommended button copies them unchecked).
+constexpr size_t kClassRecommendedScores = 0x49b;
+// Base scores uint8 at stats +0xd38 + 2 x (Str .. Cha), each followed by its
+// cached modifier; Set*Base write both (SetCONBase(value, 1): current HP
+// follows the new maximum).
+constexpr size_t kStatsAbilityBase = 0xd38;
+constexpr const char* kSetAbilityBase[6] = {
+    "?SetSTRBase@CNWSCreatureStats@@QEAAXE@Z", "?SetDEXBase@CNWSCreatureStats@@QEAAXE@Z",
+    "?SetCONBase@CNWSCreatureStats@@QEAAXEH@Z", "?SetINTBase@CNWSCreatureStats@@QEAAXE@Z",
+    "?SetWISBase@CNWSCreatureStats@@QEAAXE@Z", "?SetCHABase@CNWSCreatureStats@@QEAAXE@Z"};
+constexpr const char* kGetAbilityStat[6] = {
+    "?GetSTRStat@CNWSCreatureStats@@QEAAEXZ", "?GetDEXStat@CNWSCreatureStats@@QEAAEXZ",
+    "?GetCONStat@CNWSCreatureStats@@QEAAEXZ", "?GetINTStat@CNWSCreatureStats@@QEAAEXZ",
+    "?GetWISStat@CNWSCreatureStats@@QEAAEXZ", "?GetCHAStat@CNWSCreatureStats@@QEAAEXZ"};
+// The level history: CNWLevelStats* GetLevelStats(uchar index); count int32
+// stats +0x40. CNWLevelStats: the ability raised +0x15a (6 = none), HP +0x15b,
+// class +0x15c.
+constexpr const char* kGetLevelStats = "?GetLevelStats@CNWSCreatureStats@@QEAAPEAVCNWLevelStats@@E@Z";
+constexpr size_t kStatsLevelHistoryCount = 0x40;
+constexpr size_t kLevelStatsAbility = 0x15a;
+constexpr size_t kLevelStatsClass = 0x15c;
+// void LevelUp(CNWLevelStats*, uchar, uchar, uchar, int): adds the level
+// (+0x5b) and raises +0x15a's ability (+0x299).
+constexpr const char* kLevelUp = "?LevelUp@CNWSCreatureStats@@QEAAXPEAVCNWLevelStats@@EEEH@Z";
+// EP15 (b): the ability page every 4 levels, all three or none. The server
+// reads the chosen ability (HandlePlayerToServerLevelUpMessage +0x181,
+// `test al,3; jne` -> jmp); the client's level-up writer and its class panel
+// (not exported) take the same branch on the level.
+constexpr const char* kHandleLevelUpMessage = "?HandlePlayerToServerLevelUpMessage@CNWSMessage@@QEAAHPEAVCNWSPlayer@@E@Z";
+constexpr const char* kLevelUpServerPattern = "ff c0 a8 03 75 ?? 45 8b c6 41 8d 56 07";
+constexpr const char* kLevelUpWriterPattern = "a8 03 75 ?? 41 0f b6 47 76 41 3a 45 76";
+constexpr const char* kLevelUpPanelPattern = "e8 ?? ?? ?? ?? a8 03 75 ?? b9 ?? ?? 00 00 e8 ?? ?? ?? ?? 48 89 44 24 ??";
+
 // E3b — skills, concentration, the 3e-only skills, initiative.
 // char CNWSCreatureStats::GetSkillRank(uchar skill, CNWSObject* vs, int bBaseRanksOnly):
 // every engine and script skill total (83 call sites); DMs get 127 (+0x2f).

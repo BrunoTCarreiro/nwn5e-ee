@@ -69,6 +69,14 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.knockdown = ReadVariant(ini, L"knockdown", g_config.mode);
   g_config.initiative = ReadVariant(ini, L"initiative", g_config.mode);
   g_config.nwn_only_skills = ReadVariant(ini, L"nwn_only_skills", g_config.mode);
+  g_config.progression = ReadVariant(ini, L"progression", g_config.mode);
+  g_config.multiclass = ReadVariant(ini, L"multiclass", g_config.mode);
+  g_config.alignment = ReadVariant(ini, L"alignment", g_config.mode);
+  g_config.hit_points = ReadVariant(ini, L"hit_points", g_config.mode);
+  g_config.feat_cadence = ReadVariant(ini, L"feat_cadence", g_config.mode);
+  g_config.ability_scores = ReadVariant(ini, L"ability_scores", g_config.mode);
+  g_config.class_features = ReadVariant(ini, L"class_features", g_config.mode);
+  g_config.served_data = ReadBool(ini, L"served_data", g_config.served_data);
   g_config.resume_attack_after_potion =
       ReadBool(ini, L"resume_attack_after_potion", g_config.resume_attack_after_potion);
   g_config.debug_every_hit_crits = ReadBool(ini, L"every_hit_crits", g_config.debug_every_hit_crits, L"debug");
@@ -79,6 +87,8 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.debug_creature_min_hp = GetPrivateProfileIntW(L"debug", L"creature_min_hp", 0, ini);
   g_config.debug_attack_trace = ReadBool(ini, L"attack_trace", g_config.debug_attack_trace, L"debug");
   g_config.debug_players_poisoned = ReadBool(ini, L"players_poisoned", g_config.debug_players_poisoned, L"debug");
+  g_config.debug_served_data_probe =
+      ReadBool(ini, L"served_data_probe", g_config.debug_served_data_probe, L"debug");
   Log("config: mode=%s crit_nat20_only=%d crit_no_confirmation=%d crit_double_damage=%d crit_dice_only=%d "
       "crits_against_players=%d log_attacks=%d",
       VariantName(g_config.mode), g_config.crit_nat20_only, g_config.crit_no_confirmation,
@@ -99,6 +109,11 @@ void ConfigLoad(const wchar_t* directory) {
       VariantName(g_config.saves), VariantName(g_config.skills), VariantName(g_config.perception),
       VariantName(g_config.spell_attacks), VariantName(g_config.concentration), VariantName(g_config.knockdown),
       VariantName(g_config.initiative), VariantName(g_config.nwn_only_skills));
+  Log("config: progression=%s multiclass=%s alignment=%s hit_points=%s feat_cadence=%s ability_scores=%s "
+      "class_features=%s served_data=%d",
+      VariantName(g_config.progression), VariantName(g_config.multiclass), VariantName(g_config.alignment),
+      VariantName(g_config.hit_points), VariantName(g_config.feat_cadence), VariantName(g_config.ability_scores),
+      VariantName(g_config.class_features), g_config.served_data);
   if (g_config.perception == rules::RuleVariant::kFaithful) {
     Log("config: hiding_needs_15=%d found_up_close=%d alert_creatures_search=%d", g_config.hiding_needs_15,
         g_config.found_up_close, g_config.alert_creatures_search);

@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <mutex>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -198,4 +199,91 @@ bool CallerContext(uintptr_t return_address, CONTEXT* out) {
     if (!context.Rip) return false;
   }
   return false;
+}
+
+namespace {
+
+struct ParsedPattern {
+  std::vector<uint8_t> bytes;
+  std::vector<bool> wild;
+};
+
+ParsedPattern ParsePattern(const char* text) {
+  ParsedPattern pattern;
+  for (const char* p = text; *p;) {
+    while (*p == ' ') ++p;
+    if (!*p) break;
+    if (p[0] == '?') {
+      pattern.bytes.push_back(0);
+      pattern.wild.push_back(true);
+      p += p[1] == '?' ? 2 : 1;
+      continue;
+    }
+    pattern.bytes.push_back(static_cast<uint8_t>(strtoul(std::string(p, 2).c_str(), nullptr, 16)));
+    pattern.wild.push_back(false);
+    p += 2;
+  }
+  return pattern;
+}
+
+// The executable's .text section.
+CodeRange TextSection() {
+  const auto base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+  const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
+  const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS64*>(base + dos->e_lfanew);
+  const IMAGE_SECTION_HEADER* section = IMAGE_FIRST_SECTION(nt);
+  for (int i = 0; i < nt->FileHeader.NumberOfSections; ++i, ++section) {
+    if (memcmp(section->Name, ".text", 5) == 0) {
+      return {base + section->VirtualAddress, base + section->VirtualAddress + section->Misc.VirtualSize, {}};
+    }
+  }
+  return {};
+}
+
+// The one place `pattern` occurs in `range` (0 when none or more than one).
+uintptr_t FindUnique(const CodeRange& range, const ParsedPattern& pattern, int* matches) {
+  *matches = 0;
+  uintptr_t found = 0;
+  const size_t n = pattern.bytes.size();
+  if (!n || !range.Valid()) return 0;
+  for (uintptr_t at = range.begin; at + n <= range.end; ++at) {
+    const auto* code = reinterpret_cast<const uint8_t*>(at);
+    if (code[0] != pattern.bytes[0] && !pattern.wild[0]) continue;
+    size_t i = 0;
+    while (i < n && (pattern.wild[i] || code[i] == pattern.bytes[i])) ++i;
+    if (i == n) {
+      found = at;
+      if (++*matches > 1) return 0;
+    }
+  }
+  return *matches == 1 ? found : 0;
+}
+
+}  // namespace
+
+bool ApplyPatternPatches(const char* what, const PatternPatch* patches, size_t count) {
+  std::vector<uintptr_t> sites(count, 0);
+  for (size_t i = 0; i < count; ++i) {
+    const PatternPatch& patch = patches[i];
+    const CodeRange range = patch.within_export ? FunctionAt(EngineExport(patch.within_export)) : TextSection();
+    int matches = 0;
+    const uintptr_t at = FindUnique(range, ParsePattern(patch.pattern), &matches);
+    if (!at || memcmp(reinterpret_cast<const void*>(at + patch.offset), patch.expected, patch.size) != 0) {
+      Log("SKIP %s: %s found %d times%s - none of its %zu patches applied", what, patch.what, matches,
+          at ? " (other bytes than expected)" : "", count);
+      return false;
+    }
+    sites[i] = at + patch.offset;
+  }
+  for (size_t i = 0; i < count; ++i) {
+    DWORD old_protect = 0;
+    VirtualProtect(reinterpret_cast<void*>(sites[i]), patches[i].size, PAGE_EXECUTE_READWRITE, &old_protect);
+    memcpy(reinterpret_cast<void*>(sites[i]), patches[i].replacement, patches[i].size);
+    DWORD ignored = 0;
+    VirtualProtect(reinterpret_cast<void*>(sites[i]), patches[i].size, old_protect, &ignored);
+    FlushInstructionCache(GetCurrentProcess(), reinterpret_cast<void*>(sites[i]), patches[i].size);
+    const auto base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+    Log("patch %s: %s at rva 0x%zx", what, patches[i].what, sites[i] - base);
+  }
+  return true;
 }

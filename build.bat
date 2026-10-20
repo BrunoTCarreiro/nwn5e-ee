@@ -35,12 +35,22 @@ cl %CFLAGS% /LD /Ithird_party\minhook\include /Isrc %PRIVATE_DEF% ^
   src\core\skill_rank.cpp src\core\rules_skills.cpp src\core\rules_nwn_skills.cpp src\core\rules_casting.cpp ^
   src\core\rules_initiative.cpp src\core\rules_saves.cpp src\core\rules_save_roll.cpp src\core\rules_labels.cpp ^
   src\core\rules_spell_attack.cpp src\core\rules_shove.cpp src\core\rules_skill_dcs.cpp src\core\rules_perception.cpp ^
+  src\core\rules_loaded.cpp src\core\data_serving.cpp src\core\rules_progression.cpp src\core\rules_alignment.cpp ^
+  src\core\rules_hit_points.cpp src\core\rules_feat_cadence.cpp src\data\twoda.cpp ^
   src\rules\*.cpp ^
   %PRIVATE_SRC% third_party\minhook\src\buffer.c third_party\minhook\src\hook.c ^
   third_party\minhook\src\trampoline.c third_party\minhook\src\hde\hde64.c ^
   /Fe:"%OUT%\nwn5e.dll" /link /DLL user32.lib || exit /b 1
 
 cl %CFLAGS% src\loader\main.cpp /Fe:"%OUT%\nwn5e.exe" /link /SUBSYSTEM:WINDOWS user32.lib shell32.lib || exit /b 1
+
+rem nwn5e's data (data\README.md), fresh next to the DLL; the private layer's
+rem data only in a private build. data\files holds compiled scripts served as
+rem they are (nwn5e_secwind.ncs: compiled by 1.69's clcompile from scripts\,
+rem the interim of EP6).
+if exist "%OUT%\data" rmdir /s /q "%OUT%\data"
+xcopy /e /i /q /y data "%OUT%\data" >nul || exit /b 1
+if defined PRIVATE_SRC if exist private\data xcopy /e /i /q /y private\data "%OUT%\data\private" >nul
 
 rem build\nwn5e.ini holds the player's settings: only create it, never overwrite it.
 if not exist "%OUT%\nwn5e.ini" copy nwn5e.ini "%OUT%\nwn5e.ini" >nul

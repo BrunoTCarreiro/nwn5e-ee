@@ -1,5 +1,6 @@
-// C8 and SK1 (port of 1.69's rules_labels.cpp; docs/EE-PORT.md E3a / E3b,
-// EP4): in faithful mode the game shows 2024 names — the three NWN saves as
+// C8, SK1 and CM0 (port of 1.69's rules_labels.cpp; docs/EE-PORT.md E3a /
+// E3b / E4a, EP4): nwn5e's own strings (data\strings.txt), and in faithful
+// mode the game shows 2024 names — the three NWN saves as
 // "Constitution / Dexterity / Wisdom" (character sheet, combat log "... Save",
 // effect and spell texts), the skills by their 2024 names — swapped in memory
 // as the game looks the strings up (CTlkTable::FetchInternal, which every
@@ -12,6 +13,7 @@
 #include "ee_layout.h"
 #include "hooks.h"
 #include "log.h"
+#include "data_serving.h"
 #include "rules/saves.h"
 #include "rules/skills.h"
 
@@ -33,6 +35,12 @@ const char* Label2024(uint32_t strref) {
 // STR_RES: the text is a CExoString at +0 (its copy operator and
 // GetSimpleString read it there).
 int FetchInternal(void* table, uint32_t strref, void* result, int flag) {
+  // nwn5e's own strings (CM0): ids 16000000+ are not in dialog.tlk (the engine
+  // would warn "invalid strref" and give nothing); served without asking it.
+  if (const char* text = result ? DataString(strref) : nullptr) {
+    g_assign(static_cast<uint8_t*>(result) + ee::kStrResText, text);
+    return 1;
+  }
   const int found = g_fetch_internal(table, strref, result, flag);
   if (!result) return found;
   const char* label = Label2024(strref);
@@ -48,12 +56,15 @@ int FetchInternal(void* table, uint32_t strref, void* result, int flag) {
 }  // namespace
 
 void InstallLabelRules() {
-  if (g_config.saves != rules::RuleVariant::kFaithful && g_config.skills != rules::RuleVariant::kFaithful) return;
+  if (g_config.saves != rules::RuleVariant::kFaithful && g_config.skills != rules::RuleVariant::kFaithful &&
+      !HaveDataStrings()) {
+    return;
+  }
   g_assign = reinterpret_cast<ExoStringAssignFn>(EngineExport(ee::kExoStringAssignChars));
   if (!g_assign) {
     Log("SKIP labels: CExoString::operator=(const char*) is not exported");
     return;
   }
-  HookExport("CTlkTable::FetchInternal (2024 save and skill labels)", ee::kTlkFetchInternal,
+  HookExport("CTlkTable::FetchInternal (2024 labels, nwn5e's strings)", ee::kTlkFetchInternal,
              reinterpret_cast<void*>(&FetchInternal), reinterpret_cast<void**>(&g_fetch_internal));
 }

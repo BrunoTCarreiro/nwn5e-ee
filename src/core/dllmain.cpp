@@ -36,13 +36,18 @@ void InstallSpellAttackRules();
 void InstallShoveRules();
 void InstallSkillDcRules();
 void InstallPerceptionRules();
+void InstallDataServing(const wchar_t* dll_directory);
+void InstallProgressionRules();
+void InstallAlignmentRules();
+void InstallHitPointRules();
+void InstallFeatCadenceRules();
 #ifdef NWN5E_PRIVATE
 void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 #endif
 
 namespace {
 
-constexpr const char* kVersion = "0.4.4";
+constexpr const char* kVersion = "0.5.0";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -58,6 +63,7 @@ void Start(HMODULE self) {
   Log("host: %ls", host);
   ConfigLoad(directory);
   if (!HooksBegin()) return;
+  InstallDataServing(directory);  // first: its strings feed the label hook
   InstallCritRules();
   InstallAttackRules();
   InstallExtraAttackRules();
@@ -81,6 +87,10 @@ void Start(HMODULE self) {
   InstallShoveRules();
   InstallSkillDcRules();
   InstallPerceptionRules();
+  InstallProgressionRules();
+  InstallAlignmentRules();
+  InstallHitPointRules();
+  InstallFeatCadenceRules();
   InstallDebugSwitches();
 #ifdef NWN5E_PRIVATE
   InstallPrivateRules();

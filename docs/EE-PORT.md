@@ -290,7 +290,24 @@ Each step ends with an in-game test matrix, as on 1.69.
    up close by TestLineWalkable + the static-object test; Search's die
    (rules_skill_dcs) passive or a d20; initiative's advantage when hidden.
    E3 complete.
-5. **E4 — character model:** served data + strings, XP, multiclass,
+5. **E4 — character model.**
+   *E4a built 0.5.0 (2026-10-20):* `rules_loaded` (post-hooks on the
+   CNWRules constructor and ReloadAll, plus a pre-step at the constructor's
+   entry), `data_serving` (at that entry: each table with rows is read with
+   CExoResMan::Get — the DataBlock's first field points at {data, size} —
+   merged, written to served\, then an alias and AddResourceDirectory at
+   15M; at SetupDefaultSearchPath's end, the first point tried, Get found no
+   base table), `rules_progression` (XP table +0x28; CanLevelUp post-hook cap
+   20; SetExperience converted only from ExecuteCommandSetXP's call;
+   XPPenalty 0; GetIsClassAvailable post-hook; MULTICLASS_LIMIT 8 — EP16 by
+   data), `rules_alignment` (class fields cleared; CheckItemAlignmentRestrictions
+   1), `rules_hit_points` (GetMaxHitPoints), `rules_feat_cadence` (race
+   NormalFeatEveryNthLevel 0, class bonus slots, ASI rows hidden in NWN mode;
+   EP15 b by `ApplyPatternPatches` — three patterns, the server one inside
+   its export, the client two in the whole .text, all or none — all three
+   found and applied on the first launch). nwn5e's strings go through the
+   FetchInternal hook before the engine is asked (no "invalid strref").
+6. *(plan)* **E4 — character model:** served data + strings, XP, multiclass,
    alignment, HP, feat cadence, point buy + backgrounds, class features,
    the Fighter (first tested in game here — it never was on 1.69).
 

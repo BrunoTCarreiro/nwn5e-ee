@@ -89,6 +89,32 @@ struct Config {
   // prices, Use Magic Device lifts no item limits; nwn / off = NWN's.
   rules::RuleVariant nwn_only_skills = rules::RuleVariant::kFaithful;
 
+  // E4 — the character model.
+  // CM1: faithful = 2024 XP table, level cap 20, script SetXP read in NWN's
+  // table; nwn / off = NWN's.
+  rules::RuleVariant progression = rules::RuleVariant::kFaithful;
+  // CM2: faithful = no multiclass XP penalty, a new class needs 13 in the
+  // primary abilities, up to 8 classes (EP16); nwn / off = NWN's (3 classes).
+  rules::RuleVariant multiclass = rules::RuleVariant::kFaithful;
+  // CM14: faithful = alignment is descriptive (no class or item alignment
+  // limits); nwn / off = NWN's.
+  rules::RuleVariant alignment = rules::RuleVariant::kFaithful;
+  // CM3: faithful = 2024 hit points (max die at level 1, then the fixed
+  // average, 2024 dice); nwn / off = NWN's.
+  rules::RuleVariant hit_points = rules::RuleVariant::kFaithful;
+  // CM7: faithful = feats at 2024's class levels, general feats only at level
+  // 1, Ability Score Improvement as a feat, no ability +1 every 4 levels;
+  // nwn / off = NWN's (the ASI rows hidden).
+  rules::RuleVariant feat_cadence = rules::RuleVariant::kFaithful;
+  // CM4 / CM5: faithful = no racial ability adjustments, 27-point buy to 15,
+  // NWN's level +1s not counted, !background and !asi; nwn / off = NWN's.
+  rules::RuleVariant ability_scores = rules::RuleVariant::kFaithful;
+  // CM9 / CM10: faithful = the 2024 class features, the SRD subclass at
+  // class level 3, no prestige classes; nwn / off = NWN's.
+  rules::RuleVariant class_features = rules::RuleVariant::kFaithful;
+  // CM0: serve nwn5e's 2da rows and strings (data\rows, data\strings.txt).
+  bool served_data = true;
+
   // [debug] — test switches, not rules.
   bool debug_every_hit_crits = false;    // every hit is a critical (crit immunity still applies)
   bool debug_combat_breakdown = false;   // the engine's own per-term attack and damage breakdown
@@ -98,6 +124,7 @@ struct Config {
   int debug_creature_min_hp = 0;         // >0: ... and at least this many
   bool debug_attack_trace = false;       // log round setup and every PC attack roll
   bool debug_players_poisoned = false;   // SK11 test: player characters count as poisoned for ability checks
+  bool debug_served_data_probe = false;  // CM0 test: a hidden probe row in feat.2da, checked after load
 };
 
 extern Config g_config;

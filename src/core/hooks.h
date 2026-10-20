@@ -74,3 +74,20 @@ bool PatchAnchored(const char* what, const char* export_name, const uint8_t* anc
 // engine had in them. False when that frame is not found.
 struct _CONTEXT;
 bool CallerContext(uintptr_t return_address, _CONTEXT* out);
+
+// Patches found by byte pattern ("ff c0 ?? 75", ?? = any byte), each exactly
+// once inside the exported function `within_export` — or, for code nothing
+// exports (the client's), in the whole executable's .text (EP2, extended by
+// EP15 for one all-or-nothing case). At `offset` into the match, `size`
+// bytes equal to `expected` become `replacement`. All of `patches` are
+// applied or none (logged).
+struct PatternPatch {
+  const char* what;
+  const char* within_export;  // nullptr: the whole .text
+  const char* pattern;
+  size_t offset;
+  const uint8_t* expected;
+  const uint8_t* replacement;
+  size_t size;
+};
+bool ApplyPatternPatches(const char* what, const PatternPatch* patches, size_t count);

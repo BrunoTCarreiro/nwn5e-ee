@@ -85,7 +85,7 @@ const Api& E() {
 
 constexpr float kPushMetres = 3.0f;          // 10 ft
 constexpr int kPushFallMs = 1200;            // the fall's round pause
-constexpr DWORD kPushSlideMs = 150;          // the move along the line (owner: 0.45 -> 0.25 -> 0.15 s on 1.69)
+constexpr DWORD kPushSlideMs = 100;          // the move along the line (owner: 0.45 -> 0.25 -> 0.15 s on 1.69, 0.1 s on EE)
 constexpr DWORD kPushWatchMs = 8000;
 constexpr DWORD kAwaitDamageMs = 5000;
 constexpr DWORD kRetargetMaxMs = 15000;
