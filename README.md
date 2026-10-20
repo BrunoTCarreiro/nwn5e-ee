@@ -38,9 +38,9 @@ switchable in `nwn5e.ini`:
 | Opportunity attacks: only moving away provokes (no casting, potion, ranged, unarmed or Disarm AoOs), only from creatures you run away from; Spring Attack no longer protects (D2) | `opportunity_attacks` | built (0.3.0) |
 | After drinking a potion mid-fight, a player character goes back to attacking (owner request; EE drops the order too) | `resume_attack_after_potion` | built (0.3.0) |
 | Conditions (CN1–CN8): restrained, helpless targets (advantage; crits from within 5 ft), poisoned, frightened without fleeing, concealment as disadvantage, deafness without spell failure, no coup de grace | `conditions` | built (0.3.0) |
-| Weapon mastery, who (D3): 2024 slots by class, `!mastery`, filled by use, one swap per long rest; Weapon Focus adds its weapon | `weapon_mastery` | built (0.3.0) |
+| Weapon mastery, who (D3): 2024 slots by class, `!mastery`, filled by use, one swap per long rest; Weapon Focus adds its weapon | `weapon_mastery` | built (0.3.0); a slot filled by use, with its chat message, seen in game (0.3.1) |
 | Weapon mastery effects (D4): Vex, Sap, Graze, Slow, Topple, Cleave | `weapon_mastery` | built (0.3.0) |
-| Push (D4, faithful only): a hit pushes a creature up to Large 10 ft straight away, stopped by walls and placeables; it falls and its round pauses; if another enemy is now closer, the attacker turns to it | `weapon_mastery` | built (0.3.1) |
+| Push (D4, faithful only): a hit pushes a creature up to Large 10 ft straight away, stopped by walls and placeables; it falls and its round pauses; if another enemy is now closer, the attacker turns to it | `weapon_mastery` | verified in game (0.3.1, 2026-10-20, warhammer vs goblins: 3 m slides in the open, shorter at walls and a placeable, none against a wall; the fall held, no walking back; 10 turns to the closer goblin, all kept; an attack order the engine dropped mid-chase was reissued); Huge creatures (not pushed) await a test |
 
 Test switches (`[debug]`, off by default): `every_hit_crits=1` makes every
 hit a critical; `combat_breakdown=1` turns on the engine's own per-term
