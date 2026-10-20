@@ -614,6 +614,32 @@ constexpr int kRaceElf = 1;
 constexpr int kRaceGnome = 2;
 constexpr int kRaceHuman = 6;
 
+// E4c — class features (CM9, CM10) and the Fighter.
+// void AddFeat(ushort): adds the feat once; a feat with uses per day gets a
+// uses entry at full uses (+0xf7). void RemoveFeat(ushort): removes the feat
+// and its uses entry. The player update compares the feat list and uses with
+// the player's last copy (ComputeLastUpdate_GuiFeats), so the client follows.
+constexpr const char* kAddFeat = "?AddFeat@CNWSCreatureStats@@QEAAXG@Z";
+constexpr const char* kRemoveFeat = "?RemoveFeat@CNWSCreatureStats@@QEAAXG@Z";
+// short CNWSCreature::GetArmorClass(): the sheet's AC (WriteGameObjUpdate_
+// CharacterSheet), NWScript GetAC; GetArmorClassVersus doesn't call it.
+constexpr const char* kCreatureGetArmorClass = "?GetArmorClass@CNWSCreature@@QEAAFXZ";
+// int CNWSItem::ComputeArmorClass(): the item's base AC. "In armour" is the
+// chest item's above 0 — GetDEXMod(1)'s own test (+0x2c slot 2, +0x45).
+constexpr const char* kItemComputeArmorClass = "?ComputeArmorClass@CNWSItem@@QEAAHXZ";
+constexpr int kSlotChest = 0x2;
+// CNWBaseItem: weapon size uint8 +0x19 (GetDamageBonus +0x272: size minus the
+// creature's size == 1, melee, not double = wielded two-handed); NumDice uint8
+// +0x1a and DieToRoll uint8 +0x1b (GetDamageRoll +0x1cc / +0x1e6).
+constexpr size_t kBaseItemSize = 0x19;
+constexpr size_t kBaseItemNumDice = 0x1a;
+constexpr size_t kBaseItemDieToRoll = 0x1b;
+// GetDamageRoll(target, offhand, critical, sneak, death, force_max): 12
+// RollDice calls; the weapon's own dice are the 1st (critical loop, +0x260)
+// and the 3rd (+0x34c), RollDice(NumDice, DieToRoll); the 2nd (+0x2f2) is
+// Overwhelming Critical, right after a GetRulesetIntEntry (+0x2df).
+constexpr size_t kDamageRollRollDiceCalls = 12;
+
 // --- diffsettings.2da rows (EE data, D).
 constexpr int kDifficultyNoCriticalOnPc = 0;  // 1 at DM-Easy, Easy and Normal
 

@@ -24,6 +24,9 @@
 //   save rolls on that ability (the save getters substitute it); EE's combat
 //   log can only name Fortitude / Reflex / Will, so the player is told the
 //   ability in a chat line (EP13).
+// - The Fighter's Indomitable (F5, class_features faithful): a failed save is
+//   rolled again with the Fighter level added (the DC lowered by it, so the
+//   engine's second save line shows the lower DC), uses in rules_fighter.cpp.
 
 #include <stdint.h>
 
@@ -47,6 +50,8 @@
 #include "rules/nwn_conversion.h"
 #include "rules/saves.h"
 #include "saves.h"
+
+int IndomitableReroll(void* creature);  // rules_fighter.cpp (Fighter F5)
 
 namespace {
 
@@ -280,6 +285,17 @@ uint8_t SavingThrowRoll(void* creature, uint8_t save, uint16_t dc, uint8_t type,
   const SaveContext context = g_save;
   uint8_t result = g_saving_throw_roll(creature, save, static_cast<uint16_t>(std::clamp(new_dc, 1, 0xFFFF)), type,
                                        versus, feedback, feat, from_combat);
+  // Fighter F5 Indomitable: a failed save is rolled again, + the Fighter level.
+  if (result == 0 && !context.condition.auto_fail) {
+    const int bonus = IndomitableReroll(creature);
+    if (bonus > 0) {
+      g_save = context;
+      TellIfPlayer(IdOf(creature),
+                   "nwn5e: Indomitable - the failed save is rolled again, +" + std::to_string(bonus) + ".");
+      result = g_saving_throw_roll(creature, save, static_cast<uint16_t>(std::clamp(new_dc - bonus, 1, 0xFFFF)),
+                                   type, versus, feedback, feat, from_combat);
+    }
+  }
   g_save = outer;
   const uint32_t creature_id = IdOf(creature);
   if (context.condition.auto_fail && result != 2) {

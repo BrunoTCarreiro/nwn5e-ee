@@ -11,6 +11,8 @@
 //   engine's (gear) AC; every other creature — monsters, summons, familiars,
 //   animal companions — uses the expected AC for its challenge rating
 //   (decision 11). [debug] creature_ac gives them all one AC instead.
+// - The Fighter's Archery (+2 to ranged attack rolls) and Defense (+1 AC in
+//   armour) with class_features faithful (rules_fighter.cpp).
 //
 // If the challenge rating read from memory is not plausible, the engine's
 // numbers are returned unchanged and the read is logged.
@@ -29,6 +31,9 @@
 int RacialSlingBonusToRemove(void* stats, bool ranged);  // rules_racial.cpp
 
 bool SpellAttackAgainstFullAc(void* target_stats, void* attacker);  // rules_spell_attack.cpp (SK10)
+
+int FightingStyleAttackBonus(void* stats);  // rules_fighter.cpp (Fighter F1 Archery)
+int DefenseArmorClassBonus(void* stats);    // rules_fighter.cpp (Fighter F1 Defense)
 
 namespace {
 
@@ -49,11 +54,12 @@ bool CurrentAttackIsRanged(void* stats) {
 }
 
 int GetAttackModifierVersus(void* stats, void* target) {
+  const int style = FightingStyleAttackBonus(stats);  // Archery
   const int engine_modifier =
       g_get_attack_modifier_versus(stats, target) - RacialSlingBonusToRemove(stats, CurrentAttackIsRanged(stats));
-  if (!g_config.attack_proficiency) return engine_modifier;
+  if (!g_config.attack_proficiency) return engine_modifier + style;
   const CreatureFacts facts = ReadCreatureFacts(stats);
-  if (!facts.plausible) return engine_modifier;
+  if (!facts.plausible) return engine_modifier + style;
   int base_attack_bonus = 0;
   int proficiency = 0;
   const int converted = ConvertEngineAttackBonus(stats, engine_modifier, facts, &base_attack_bonus, &proficiency);
@@ -62,15 +68,18 @@ int GetAttackModifierVersus(void* stats, void* target) {
         KindOf(facts), facts.level, facts.challenge_rating, engine_modifier, base_attack_bonus, converted,
         proficiency);
   }
-  return converted;
+  return converted + style;
 }
 
 int16_t GetArmorClassVersus(void* stats, void* attacker, int touch) {
   if (touch && SpellAttackAgainstFullAc(stats, attacker)) touch = 0;  // SK10: 2024 has no touch AC
   const int16_t engine_armor_class = g_get_armor_class_versus(stats, attacker, touch);
-  if (!g_config.creature_ac_by_cr && g_config.debug_creature_ac <= 0) return engine_armor_class;
+  // Defense: +1 in armour (not to a 3e touch AC, which leaves armour out).
+  const int16_t gear_armor_class =
+      static_cast<int16_t>(engine_armor_class + (touch ? 0 : DefenseArmorClassBonus(stats)));
+  if (!g_config.creature_ac_by_cr && g_config.debug_creature_ac <= 0) return gear_armor_class;
   const CreatureFacts facts = ReadCreatureFacts(stats);
-  if (facts.character) return engine_armor_class;  // players and henchmen keep their gear AC
+  if (facts.character) return gear_armor_class;  // players and henchmen keep their gear AC
   if (g_config.debug_creature_ac > 0) {
     // Test switch: attacks against creatures miss (except natural 20s), so a
     // round's attacks are all rolled instead of ending with the first kill.
@@ -102,13 +111,14 @@ int EngineAttackModifier(void* stats, void* target) {
 }
 
 void InstallAttackRules() {
-  if (g_config.attack_proficiency || g_config.racial_combat_bonuses == rules::RuleVariant::kFaithful) {
+  const bool fighter = g_config.class_features == rules::RuleVariant::kFaithful;  // Archery, Defense
+  if (g_config.attack_proficiency || g_config.racial_combat_bonuses == rules::RuleVariant::kFaithful || fighter) {
     HookExport("CNWSCreatureStats::GetAttackModifierVersus", ee::kGetAttackModifierVersus,
                reinterpret_cast<void*>(&GetAttackModifierVersus),
                reinterpret_cast<void**>(&g_get_attack_modifier_versus));
   }
   if (g_config.creature_ac_by_cr || g_config.debug_creature_ac > 0 ||
-      g_config.spell_attacks == rules::RuleVariant::kFaithful) {
+      g_config.spell_attacks == rules::RuleVariant::kFaithful || fighter) {
     HookExport("CNWSCreatureStats::GetArmorClassVersus", ee::kGetArmorClassVersus,
                reinterpret_cast<void*>(&GetArmorClassVersus), reinterpret_cast<void**>(&g_get_armor_class_versus));
   }

@@ -18,8 +18,11 @@ struct MasteryRollSources {
 };
 MasteryRollSources TakeMasteryRollSources(void* attacker, uint32_t target_id);
 
-// The creature's ended combat rounds (while weapon mastery is on).
+// The creature's ended combat rounds, counted once CountCombatRounds hooked
+// EndCombatRound (weapon mastery, the Fighter's Studied Attacks and Heroic
+// Rally); 0 before.
 uint32_t CombatRoundsEnded(uint32_t id);
+bool CountCombatRounds();
 
 // D4 Cleave: the extra attack Cleave adds deals its damage without the
 // ability modifier unless it is negative. Called from the damage bonus hook

@@ -14,6 +14,7 @@ void* ItemInSlot(void* creature, int slot);  // CNWSItem*, or null
 int BaseItemRow(const void* item);           // baseitems.2da row, -1 for no item
 int BaseItemRowInSlot(void* creature, int slot);
 bool IsDoubleWeapon(int base_item_row);      // baseitems.2da WeaponWield 8
+const void* BaseItem(int base_item_row);     // CNWBaseItem*, or null
 int RaceOf(void* stats);                     // racialtypes.2da row, -1 if unknown
 
 bool IsEnemy(void* creature, uint32_t other_id);  // GetAIStateReaction == enemy

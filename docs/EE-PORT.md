@@ -318,6 +318,32 @@ Each step ends with an in-game test matrix, as on 1.69.
    as Improved Initiative by a HasFeat filter inside ResolveInitiative.
    EP9 (b) waits for CM8 (the level-up screen would lose NWN's BAB-gated
    feats); the sheet keeps the 3e line (a).
+   *E4c built 0.5.2:* `rules_features` — !features; the granted feats
+   (Second Wind) through the AddFeat / RemoveFeat exports from the creature
+   update (EE's AddFeat gives full uses; the player update carries the
+   change), recorded in nwn5e_granted_feats, taken back in NWN mode and off.
+   `rules_fighter` — Champion in the GetCriticalHitRoll hook (now installed
+   with class_features too); Remarkable Athlete in the initiative d20;
+   Studied Attacks from an attack-roll listener into the advantage rule;
+   Archery in GetAttackModifierVersus and the sheet's ranged bonus (weapon
+   attacks only: not on a spell's touch call, b = 1); Defense in
+   GetArmorClassVersus (not touch AC) and a new hook on
+   CNWSCreature::GetArmorClass (sheet, GetAC), "in armour" = the chest
+   item's ComputeArmorClass > 0 as GetDEXMod(1) tests it; Great Weapon
+   Fighting by a GetDamageRoll hook (the weapon, its NumDice / DieToRoll)
+   and a dice filter at GetDamageRoll's two weapon-dice calls (+0x260 /
+   +0x34c, found at load: the 1st and 3rd RollDice, the 2nd preceded by a
+   ruleset read), held in two hands = EE's own two-handed test or nothing in
+   the off hand; the Two-Weapon Fighting style in the off-hand Strength
+   answer; Indomitable in the SavingThrowRoll wrapper (a second engine roll
+   at DC − Fighter level); Heroic Rally per round end from the creature
+   update, healed through the script bridge; Tactical Shift skips the
+   movement AoO broadcast (the hook now installed with class_features too,
+   in either AoO mode). The round counter (EndCombatRound) is shared and
+   hooked whenever mastery or the Fighter needs it. Second Wind runs 1.69's
+   compiled nwn5e_secwind.ncs (EP6's interim: its action indices are EE's;
+   the pinned nwn_script_comp waits for the first new script). NWN mode /
+   off hide the Fighting Style rows. Launch check: every hook installed.
 6. *(plan)* **E4 — character model:** served data + strings, XP, multiclass,
    alignment, HP, feat cadence, point buy + backgrounds, class features,
    the Fighter (first tested in game here — it never was on 1.69).

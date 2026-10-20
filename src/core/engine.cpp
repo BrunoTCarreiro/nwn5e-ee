@@ -71,10 +71,14 @@ int BaseItemRow(const void* item) { return item ? Field<int32_t>(item, ee::kItem
 
 int BaseItemRowInSlot(void* creature, int slot) { return BaseItemRow(ItemInSlot(creature, slot)); }
 
-bool IsDoubleWeapon(int base_item_row) {
-  if (base_item_row < 0 || !E().rules || !*E().rules || !E().base_item) return false;
+const void* BaseItem(int base_item_row) {
+  if (base_item_row < 0 || !E().rules || !*E().rules || !E().base_item) return nullptr;
   void* base_items = Field<void*>(*E().rules, ee::kRulesBaseItems);
-  const void* base_item = base_items ? E().base_item(base_items, base_item_row) : nullptr;
+  return base_items ? E().base_item(base_items, base_item_row) : nullptr;
+}
+
+bool IsDoubleWeapon(int base_item_row) {
+  const void* base_item = BaseItem(base_item_row);
   return base_item && Field<uint8_t>(base_item, ee::kBaseItemWield) == ee::kWieldDouble;
 }
 

@@ -662,10 +662,19 @@ int MasteryCleaveDamage(void* stats, int bonus, float two_handed_multiplier) {
   return bonus - nwn_term + term;
 }
 
+bool CountCombatRounds() {
+  static bool tried = false, hooked = false;
+  if (!tried) {
+    tried = true;
+    hooked = HookExport("CNWSCombatRound::EndCombatRound (combat rounds: mastery, Fighter)", ee::kEndCombatRound,
+                        reinterpret_cast<void*>(&EndCombatRound), reinterpret_cast<void**>(&g_end_combat_round));
+  }
+  return hooked;
+}
+
 void InstallMasteryRules() {
   if (!MasteryOn()) return;
-  HookExport("CNWSCombatRound::EndCombatRound (mastery rounds)", ee::kEndCombatRound,
-             reinterpret_cast<void*>(&EndCombatRound), reinterpret_cast<void**>(&g_end_combat_round));
+  CountCombatRounds();
   HookExport("CNWSEffectListHandler::OnApplyDamage (Vex / Slow / Push need the hit)", ee::kOnApplyDamage,
              reinterpret_cast<void*>(&OnApplyDamage), reinterpret_cast<void**>(&g_on_apply_damage));
   AddAttackRollListeners(&BeforeAttackRoll, &AfterAttackRoll);

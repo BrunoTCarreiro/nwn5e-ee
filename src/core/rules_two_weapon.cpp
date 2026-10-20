@@ -32,6 +32,8 @@
 #include "rules/weapons.h"
 #include "ruleset.h"
 
+bool HasTwoWeaponFightingStyle(void* stats);  // rules_fighter.cpp (Fighter F1, the 2024 style feat)
+
 namespace {
 
 using InitializeNumberOfAttacksFn = void (*)(void* round);
@@ -88,7 +90,8 @@ float TwoHandedStrength(float engine_value) {
 
 float OffHandStrength(float) {
   void* stats = t_damage_stats;
-  const bool style = stats && engine::HasFeat(stats, ee::kFeatTwoWeaponFighting);
+  const bool style =
+      stats && (engine::HasFeat(stats, ee::kFeatTwoWeaponFighting) || HasTwoWeaponFightingStyle(stats));
   if (style && g_config.log_attacks && g_logged_style.First(LogOnce::Key(ObjectIdOf(stats), 1, 1))) {
     Log("two-weapon: object 0x%08X off-hand damage keeps Strength (Two-Weapon Fighting style)", ObjectIdOf(stats));
   }

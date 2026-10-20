@@ -14,15 +14,24 @@
 //   GetAIStateReaction toward each candidate says "not an enemy" when the
 //   running provoker is not moving away from it (its facing points toward or
 //   past the candidate), so only those it runs away from take the AoO.
+//
+// The Fighter's Tactical Shift (F7, class_features faithful, in either AoO
+// mode): after Second Wind from Fighter 5, moving provokes nothing for the
+// rest of the round — the movement broadcast is skipped while the provoker
+// carries nwn5e_tactical_shift (nwn5e_secwind sets it for 6 s).
 
 #include <stdint.h>
 #include <string.h>
 
 #include <intrin.h>
+#include <windows.h>
+
+#include <unordered_map>
 
 #include "config.h"
 #include "creature.h"
 #include "ee_layout.h"
+#include "engine.h"
 #include "feats.h"
 #include "hooks.h"
 #include "log.h"
@@ -37,8 +46,25 @@ ReactionFn g_get_ai_state_reaction = nullptr;
 CodeRange g_ai_update_code;
 thread_local void* t_broadcasting = nullptr;  // the provoker, while the movement broadcast runs
 int g_log_lines = 0;
+std::unordered_map<uint32_t, DWORD> g_shift_logged;  // by provoker: last Tactical Shift line
 
 bool LogSlot() { return g_config.log_attacks && g_log_lines < 200 && ++g_log_lines; }
+
+bool Faithful() { return g_config.opportunity_attacks == rules::RuleVariant::kFaithful; }
+bool TacticalShiftOn() { return g_config.class_features == rules::RuleVariant::kFaithful; }
+
+// Fighter F7: the provoker used Second Wind this round (Fighter 5+).
+bool TacticalShift(void* creature) {
+  if (!TacticalShiftOn() || !engine::GetLocalInt(creature, "nwn5e_tactical_shift")) return false;
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  const DWORD now = GetTickCount();
+  DWORD& last = g_shift_logged[id];
+  if (g_config.log_attacks && now - last > 6000) {
+    last = now;
+    Log("opportunity attacks: 0x%08X Tactical Shift - moving provokes nothing this round", id);
+  }
+  return true;
+}
 
 bool Running(void* creature) {
   const int animation = Field<int32_t>(creature, ee::kCreatureAnimation);
@@ -57,7 +83,13 @@ const char* Provocation(uintptr_t caller) {
 
 void BroadcastAttackOfOpportunity(void* creature, uint32_t target, int flag) {
   const uintptr_t caller = reinterpret_cast<uintptr_t>(_ReturnAddress());
-  if (!g_ai_update_code.Contains(caller)) {
+  const bool movement = g_ai_update_code.Contains(caller);
+  if (movement && TacticalShift(creature)) return;
+  if (!Faithful()) {
+    g_broadcast(creature, target, flag);  // NWN's provocations
+    return;
+  }
+  if (!movement) {
     if (LogSlot()) {
       Log("opportunity attacks: 0x%08X provokes nothing by %s (faithful)", Field<uint32_t>(creature, ee::kObjectId),
           Provocation(caller));
@@ -95,15 +127,17 @@ bool SpringAttackInMovement(void*, int feat, uintptr_t caller, int* answer) {
 }  // namespace
 
 void InstallOpportunityRules() {
-  if (g_config.opportunity_attacks != rules::RuleVariant::kFaithful) return;
+  if (!Faithful() && !TacticalShiftOn()) return;
   g_ai_update_code = FunctionAt(EngineExport(ee::kAIUpdate));
   if (!g_ai_update_code.Valid()) {
     Log("SKIP opportunity attacks: CNWSCreature::AIUpdate's code range is unknown");
     return;
   }
-  HookExport("CNWSCreature::BroadcastAttackOfOpportunity (only moving away provokes)",
+  HookExport(Faithful() ? "CNWSCreature::BroadcastAttackOfOpportunity (only moving away provokes; Tactical Shift)"
+                        : "CNWSCreature::BroadcastAttackOfOpportunity (Fighter's Tactical Shift)",
              ee::kBroadcastAttackOfOpportunity, reinterpret_cast<void*>(&BroadcastAttackOfOpportunity),
              reinterpret_cast<void**>(&g_broadcast));
+  if (!Faithful()) return;
   HookExport("CNWSObject::GetAIStateReaction (AoO: only creatures run away from)", ee::kGetAIStateReaction,
              reinterpret_cast<void*>(&GetAIStateReaction), reinterpret_cast<void**>(&g_get_ai_state_reaction));
   AddFeatFilter(&SpringAttackInMovement);

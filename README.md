@@ -57,6 +57,8 @@ switchable in `nwn5e.ini`:
 | Hit points (CM3): max die at level 1, then the average, 2024 dice | `hit_points` | built (0.5.0) |
 | Feat cadence (CM7): feats at 2024 levels, general feat at level 1 only, ASI rows, no ability page every 4 levels (EP15 b: three patches, all or none) | `feat_cadence` | built (0.5.0) |
 | Ability scores and backgrounds (CM4, CM5, CM12, CM13): no racial ability adjustments; point buy 27 to 15 (2 points from 13), Recommended scores legal; NWN's +1 every 4 levels taken back; !background (Acolyte, Criminal, Sage, Soldier: +2/+1 or +1/+1/+1, two skills, Origin feat); !asi; henchmen pick their own; legacy characters get their 2024 ASIs | `ability_scores` | built (0.5.1) |
+| Class features frame (CM9, CM10): `!features` lists your 2024 class features and what nwn5e does with each; feats a class level gives (Second Wind) are added by nwn5e, also to characters made earlier, and taken back in NWN mode | `class_features` | built (0.5.2) |
+| Fighter (F0–F7, C1–C5): Fighting Styles (Archery +2 ranged, Defense +1 AC in armour, Great Weapon Fighting 1–2 count as 3, Two-Weapon Fighting); Second Wind 1d10 + level (2 / 3 / 4 uses); Champion crits on 19–20 (18–20 from 15); Remarkable Athlete (initiative advantage); Tactical Shift; Indomitable; Studied Attacks; Heroic Rally | `class_features` | built (0.5.2) |
 | Shove (SK6): Knockdown makes no attack roll and no damage; the target's better Str / Dex save vs 8 + Str + PB, at most one size larger; Disarm is an ordinary attack | `knockdown` | built (0.4.1) |
 
 Test switches (`[debug]`, off by default): `every_hit_crits=1` makes every

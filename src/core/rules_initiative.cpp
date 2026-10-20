@@ -10,7 +10,8 @@
 // (SK11), and Halfling Luck rerolls a natural 1; hidden (SK5: hiding with a
 // hide that held) counts as invisible; Alert from a background (CM5: the
 // Criminal's Origin feat) is read as Improved Initiative while initiative is
-// rolled. Remarkable Athlete comes with the Fighter. NWN mode: NWN's.
+// rolled; the Champion's Remarkable Athlete (Fighter 3, class_features
+// faithful) gives advantage too. NWN mode: NWN's.
 
 #include <stdint.h>
 
@@ -31,6 +32,7 @@
 
 bool HiddenByStealth(void* creature);         // rules_perception.cpp (SK5)
 bool HasAlertFromBackground(void* creature);  // rules_abilities.cpp (CM5)
+bool HasRemarkableAthleteAdvantage(void* creature);  // rules_fighter.cpp (Fighter C2)
 
 namespace {
 
@@ -95,8 +97,9 @@ bool InitiativeD20(uintptr_t caller, int count, int sides, int* result) {
   void* creature = t_creature;
   const bool invisible = Invisible(creature);
   const bool hidden = !invisible && HiddenByStealth(creature);
+  const bool athlete = !invisible && !hidden && HasRemarkableAthleteAdvantage(creature);
   const std::string worse = CheckDisadvantage(creature);  // SK11
-  const int advantage = invisible || hidden ? 1 : 0;
+  const int advantage = invisible || hidden || athlete ? 1 : 0;
   const int disadvantage = worse.empty() ? 0 : 1;
   const int first = RollEngineDice(1, 20);
   const int second = advantage || disadvantage ? RollEngineDice(1, 20) : 0;
@@ -109,7 +112,10 @@ bool InitiativeD20(uintptr_t caller, int count, int sides, int* result) {
   }
   if (g_config.log_attacks && (second || luck) && g_roll_lines < 200 && stats && ReadCreatureFacts(stats).is_player) {
     ++g_roll_lines;
-    std::string why = invisible ? "advantage: invisible" : hidden ? "advantage: hidden" : "";
+    std::string why = invisible ? "advantage: invisible"
+                      : hidden  ? "advantage: hidden"
+                      : athlete ? "advantage: Remarkable Athlete"
+                                : "";
     if (disadvantage) why += (why.empty() ? "disadvantage: " : "; disadvantage: ") + worse;
     if (advantage && disadvantage) why += " - they cancel";
     if (luck) why += why.empty() ? "Halfling Luck rerolled a 1" : "; Halfling Luck rerolled a 1";

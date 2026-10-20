@@ -15,8 +15,8 @@
 //   creature within 5 ft of a ranged attacker that sees it and is not dead or
 //   dying; Point Blank Shot cancels it, B3), and the first d20 the attack roll
 //   rolls is rolled twice when the mode says so (kept die in the log).
-// Conditions (CN), weapon mastery (Vex, Sap) and Halfling Luck add to the
-// mode when they are ported (E2-E4).
+// Conditions (CN), weapon mastery (Vex, Sap), the Fighter's Studied Attacks
+// and Halfling Luck add to the mode.
 
 #include <stdint.h>
 
@@ -35,6 +35,7 @@
 #include "ruleset.h"
 
 int EngineAttackModifier(void* stats, void* target);  // rules_attack.cpp
+MasteryRollSources TakeStudiedAttacks(void* attacker, uint32_t target_id);  // rules_fighter.cpp (Fighter F6)
 
 namespace {
 
@@ -127,13 +128,17 @@ void BeforeAttackRoll(AttackRoll& roll) {
   t_pending.threats = terms.ranged ? CountCloseCombatThreats(roll.attacker) : 0;
   const ConditionRollSources conditions = ConditionAttackRollSources(roll.attacker, target, terms.ranged);
   const MasteryRollSources mastery = TakeMasteryRollSources(roll.attacker, Field<uint32_t>(target, ee::kObjectId));
+  const MasteryRollSources studied = TakeStudiedAttacks(roll.attacker, Field<uint32_t>(target, ee::kObjectId));
   t_pending.conditions = conditions.note.empty() ? "" : "conditions: " + conditions.note;
   if (!mastery.note.empty()) {
     t_pending.conditions += (t_pending.conditions.empty() ? "mastery: " : "; mastery: ") + mastery.note;
   }
+  if (!studied.note.empty()) {
+    t_pending.conditions += (t_pending.conditions.empty() ? "fighter: " : "; fighter: ") + studied.note;
+  }
   t_pending.mode = rules::SituationalRollMode(
       terms, rules::RangedCloseCombat(terms.ranged, t_pending.point_blank_shot, t_pending.threats),
-      conditions.advantage + mastery.advantage, conditions.disadvantage + mastery.disadvantage);
+      conditions.advantage + mastery.advantage + studied.advantage, conditions.disadvantage + mastery.disadvantage);
   t_pending.attacker_id = Field<uint32_t>(roll.attacker, ee::kObjectId);
   t_pending.target_id = Field<uint32_t>(target, ee::kObjectId);
   t_pending.active = true;

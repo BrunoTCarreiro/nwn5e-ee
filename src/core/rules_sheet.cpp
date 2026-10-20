@@ -18,6 +18,7 @@
 
 int RacialSlingBonusToRemove(void* stats, bool ranged);  // rules_racial.cpp
 int TouchAttackBonus(void* stats, int value, bool ranged);  // rules_spell_attack.cpp (SK10)
+int FightingStyleSheetRangedBonus(void* stats);  // rules_fighter.cpp (Fighter F1 Archery)
 
 namespace {
 
@@ -55,7 +56,8 @@ int GetRangedAttackBonus(void* stats, int a, int b) {
   const int engine_value = g_get_ranged_attack_bonus(stats, a, b) - RacialSlingBonusToRemove(stats, a == 0 && b == 0);
   const int value =
       g_config.attack_proficiency ? ConvertSheetAttackBonus(stats, engine_value, "ranged") : engine_value;
-  return b ? TouchAttackBonus(stats, value, true) : value;  // (include BAB, touch)
+  // (include BAB, touch); Archery on weapon attacks only, not on a spell's.
+  return b ? TouchAttackBonus(stats, value, true) : value + FightingStyleSheetRangedBonus(stats);
 }
 
 }  // namespace
@@ -63,11 +65,12 @@ int GetRangedAttackBonus(void* stats, int a, int b) {
 void InstallSheetRules() {
   const bool touch = g_config.spell_attacks == rules::RuleVariant::kFaithful;  // SK10's bonus goes through these
   const bool sling = g_config.racial_combat_bonuses == rules::RuleVariant::kFaithful;
+  const bool archery = g_config.class_features == rules::RuleVariant::kFaithful;
   if (g_config.attack_proficiency || touch) {
     HookExport("CNWSCreatureStats::GetMeleeAttackBonus (sheet, spell attacks)", ee::kGetMeleeAttackBonus,
                reinterpret_cast<void*>(&GetMeleeAttackBonus), reinterpret_cast<void**>(&g_get_melee_attack_bonus));
   }
-  if (g_config.attack_proficiency || touch || sling) {
+  if (g_config.attack_proficiency || touch || sling || archery) {
     HookExport("CNWSCreatureStats::GetRangedAttackBonus (sheet, sling, spell attacks)", ee::kGetRangedAttackBonus,
                reinterpret_cast<void*>(&GetRangedAttackBonus), reinterpret_cast<void**>(&g_get_ranged_attack_bonus));
   }

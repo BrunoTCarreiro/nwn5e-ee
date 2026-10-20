@@ -49,6 +49,8 @@
 #include "rules/nwn_conversion.h"
 #include "sheet.h"
 
+int ChampionCriticalFloorFor(void* stats);  // rules_fighter.cpp (Fighter C1)
+
 namespace {
 
 using CritFn = int (*)(void* stats, int offhand);
@@ -94,6 +96,7 @@ int GetCriticalHitRoll(void* stats, int offhand) {
       Log("crit threat: 3e %d-20 -> 5e %d-20 (logged once per value)", vanilla, floor);
     }
   }
+  if (floor <= 20) floor = std::min(floor, ChampionCriticalFloorFor(stats));  // the Champion's 19-20 / 18-20
   // Inside an attack roll the next d20 it rolls is the confirmation (it rolls
   // it only when the hit threatens).
   if (RemovesConfirmation() && CurrentAttackRoll() &&
@@ -234,7 +237,8 @@ void InstallCritRules() {
     FindFlatBonusCalls(multiplier);
     FindEffectBonusCalls(multiplier);
   }
-  if (g_config.crit_nat20_only || RemovesConfirmation()) {
+  if (g_config.crit_nat20_only || RemovesConfirmation() ||
+      g_config.class_features == rules::RuleVariant::kFaithful) {  // + the Champion
     HookExport("CNWSCreatureStats::GetCriticalHitRoll", ee::kGetCriticalHitRoll,
                reinterpret_cast<void*>(&GetCriticalHitRoll), reinterpret_cast<void**>(&g_get_critical_hit_roll));
   }
