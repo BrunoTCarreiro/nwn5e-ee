@@ -24,6 +24,7 @@
 
 #include "attack_roll.h"
 #include "condition_effects.h"
+#include "mastery.h"
 #include "config.h"
 #include "creature.h"
 #include "dice.h"
@@ -125,10 +126,14 @@ void BeforeAttackRoll(AttackRoll& roll) {
   t_pending.point_blank_shot = terms.ranged && engine::HasFeat(stats, ee::kFeatPointBlankShot);
   t_pending.threats = terms.ranged ? CountCloseCombatThreats(roll.attacker) : 0;
   const ConditionRollSources conditions = ConditionAttackRollSources(roll.attacker, target, terms.ranged);
-  t_pending.conditions = conditions.note;
+  const MasteryRollSources mastery = TakeMasteryRollSources(roll.attacker, Field<uint32_t>(target, ee::kObjectId));
+  t_pending.conditions = conditions.note.empty() ? "" : "conditions: " + conditions.note;
+  if (!mastery.note.empty()) {
+    t_pending.conditions += (t_pending.conditions.empty() ? "mastery: " : "; mastery: ") + mastery.note;
+  }
   t_pending.mode = rules::SituationalRollMode(
       terms, rules::RangedCloseCombat(terms.ranged, t_pending.point_blank_shot, t_pending.threats),
-      conditions.advantage, conditions.disadvantage);
+      conditions.advantage + mastery.advantage, conditions.disadvantage + mastery.disadvantage);
   t_pending.attacker_id = Field<uint32_t>(roll.attacker, ee::kObjectId);
   t_pending.target_id = Field<uint32_t>(target, ee::kObjectId);
   t_pending.active = true;
@@ -152,7 +157,7 @@ bool RollAttackD20(uintptr_t caller, int count, int sides, int* result) {
         "d20 %d / %d -> %d",
         t_pending.attacker_id, t_pending.target_id, t_pending.terms.ranged ? "ranged" : "melee",
         ModeName(t_pending.mode), TermNames(t_pending.terms).c_str(), t_pending.threats,
-        t_pending.point_blank_shot ? " (Point Blank Shot)" : "", t_pending.conditions.empty() ? "" : "; conditions: ",
+        t_pending.point_blank_shot ? " (Point Blank Shot)" : "", t_pending.conditions.empty() ? "" : "; ",
         t_pending.conditions.c_str(), first, second, kept);
   }
   *result = kept;
@@ -167,7 +172,7 @@ void AfterAttackRoll(AttackRoll&) {
         "roll",
         t_pending.attacker_id, t_pending.target_id, t_pending.terms.ranged ? "ranged" : "melee",
         TermNames(t_pending.terms).c_str(), t_pending.threats, t_pending.point_blank_shot ? " (Point Blank Shot)" : "",
-        t_pending.conditions.empty() ? "" : "; conditions: ", t_pending.conditions.c_str());
+        t_pending.conditions.empty() ? "" : "; ", t_pending.conditions.c_str());
   }
   t_pending = PendingAttack();
 }

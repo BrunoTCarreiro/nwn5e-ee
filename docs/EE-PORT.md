@@ -207,6 +207,20 @@ Each step ends with an in-game test matrix, as on 1.69.
    ObjectInArea move a position scripts share. B5's "can act" is dead /
    dying only until conditions arrive (E2).
 3. **E2 — opportunity attacks, conditions, weapon mastery** (Push last).
+   *Built 0.3.0 (2026-10-20), all but Push:* `feats.cpp` (HasFeat filters by
+   caller), `effects.cpp` (the effect list; the script bridge:
+   RunScriptChunk with an engine-built CExoString), `chat.cpp` (commands from
+   SendServerToPlayerChatMessage when called by
+   HandlePlayerToServerChatMessage; answers by SendMessageToPC), `rest.cpp`,
+   local variables (the object's var table +0x108), and `rules_opportunity`,
+   `rules_potion`, `rules_conditions`, `rules_mastery`. Differences from the
+   routes above: CN6 needs no hook (the dice filter answers the d100s rolled
+   inside ResolveDefensiveEffects); the fear icon, Graze, Slow and Topple's
+   knockdown are applied by NWScript chunks run as the source (DelayCommand,
+   so never inside an effect handler); the resume after a potion queues the
+   attack behind the drink at UseItem instead of polling; Cleave's
+   Strength removal reads which two-handed multiplier the engine asked
+   (ruleset hook) instead of re-deriving the weapon size. Push: E2d.
 4. **E3 — saves and skills** (SK3 / SK5 last).
 5. **E4 — character model:** served data + strings, XP, multiclass,
    alignment, HP, feat cadence, point buy + backgrounds, class features,

@@ -28,6 +28,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "log_once.h"
+#include "mastery.h"
 #include "rules/weapons.h"
 #include "ruleset.h"
 
@@ -39,6 +40,7 @@ using GetDamageBonusFn = int (*)(void* stats, void* target, int off_hand);
 InitializeNumberOfAttacksFn g_initialize_number_of_attacks = nullptr;
 GetDamageBonusFn g_get_damage_bonus = nullptr;
 thread_local void* t_damage_stats = nullptr;  // the creature whose damage bonus is being computed
+thread_local float t_two_handed_multiplier = 0.0f;  // the two-handed Strength multiplier that bonus used (0: none)
 
 LogOnce g_logged_attacks(512);
 LogOnce g_logged_style(512);
@@ -70,9 +72,18 @@ void InitializeNumberOfAttacks(void* round) {
 int GetDamageBonus(void* stats, void* target, int off_hand) {
   void* outer = t_damage_stats;
   t_damage_stats = stats;
-  const int bonus = g_get_damage_bonus(stats, target, off_hand);
+  t_two_handed_multiplier = 0.0f;
+  int bonus = g_get_damage_bonus(stats, target, off_hand);
   t_damage_stats = outer;
+  if (!off_hand) bonus = MasteryCleaveDamage(stats, bonus, t_two_handed_multiplier);  // D4 Cleave's extra attack
   return bonus;
+}
+
+// The engine asks this only for a two-handed attack; E1 faithful answers 1.0.
+float TwoHandedStrength(float engine_value) {
+  const float value = g_config.two_handed_strength == rules::RuleVariant::kFaithful ? 1.0f : engine_value;
+  t_two_handed_multiplier = value;
+  return value;
 }
 
 float OffHandStrength(float) {
@@ -98,11 +109,14 @@ void InstallTwoWeaponRules() {
     HookExport("CNWSCombatRound::InitializeNumberOfAttacks (off-hand attacks)", ee::kInitializeNumberOfAttacks,
                reinterpret_cast<void*>(&InitializeNumberOfAttacks),
                reinterpret_cast<void**>(&g_initialize_number_of_attacks));
-    HookExport("CNWSCreatureStats::GetDamageBonus (who is dealing damage)", ee::kGetDamageBonus,
+  }
+  const bool mastery = g_config.weapon_mastery != rules::RuleVariant::kOff;  // D4 Cleave's damage
+  if (TwoWeaponFaithful() || mastery) {
+    HookExport("CNWSCreatureStats::GetDamageBonus (who deals damage; Cleave)", ee::kGetDamageBonus,
                reinterpret_cast<void*>(&GetDamageBonus), reinterpret_cast<void**>(&g_get_damage_bonus));
   }
-  if (g_config.two_handed_strength == rules::RuleVariant::kFaithful) {
+  if (g_config.two_handed_strength == rules::RuleVariant::kFaithful || mastery) {
     AnswerRulesetFloat("TWO_HANDED_WEAPON_STRENGTH_MODIFIER", "two_handed_strength: Strength once",
-                       [](float) { return 1.0f; });
+                       &TwoHandedStrength);
   }
 }

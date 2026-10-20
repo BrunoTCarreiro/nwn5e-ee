@@ -47,6 +47,10 @@ struct Config {
   // NWN's, plus the both-mode parts (stunned / paralysed / asleep targets give
   // advantage); off = NWN's.
   rules::RuleVariant conditions = rules::RuleVariant::kFaithful;
+  // D3 / D4: faithful = 2024 slots chosen with !mastery or filled by use, one
+  // swap per long rest; nwn = mastery classes master every proficient weapon;
+  // Weapon Focus adds its weapon in both. off = no mastery.
+  rules::RuleVariant weapon_mastery = rules::RuleVariant::kFaithful;
 
   // [debug] — test switches, not rules.
   bool debug_every_hit_crits = false;    // every hit is a critical (crit immunity still applies)

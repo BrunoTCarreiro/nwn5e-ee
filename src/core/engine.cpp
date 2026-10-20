@@ -17,6 +17,13 @@ using GetAreaFn = void* (*)(void* object);
 using ReactionFn = uint8_t (*)(void* object, uint32_t other_id);
 using ObjectCheckFn = int (*)(void* object);
 using VisibleElementFn = const void* (*)(void* creature, uint32_t other_id);
+using VarGetIntFn = int (*)(void* table, void* name);
+using VarSetIntFn = void (*)(void* table, void* name, int value, int flag);
+using ExoStringFn = void* (*)(void* string, const char* text);
+using ExoStringDestroyFn = void (*)(void* string);
+using StatFn = uint8_t (*)(void* stats);
+using CalcModifierFn = int8_t (*)(void* stats, uint8_t score);
+using DexModFn = int8_t (*)(void* stats, int armor_dex_cap);
 
 struct Api {
   HasFeatFn has_feat = reinterpret_cast<HasFeatFn>(EngineExport(ee::kHasFeat));
@@ -28,6 +35,13 @@ struct Api {
   ObjectCheckFn dead = reinterpret_cast<ObjectCheckFn>(EngineExport(ee::kGetDead));
   ObjectCheckFn pc_dying = reinterpret_cast<ObjectCheckFn>(EngineExport(ee::kGetIsPCDying));
   VisibleElementFn visible = reinterpret_cast<VisibleElementFn>(EngineExport(ee::kGetVisibleListElement));
+  VarGetIntFn var_get_int = reinterpret_cast<VarGetIntFn>(EngineExport(ee::kVarTableGetInt));
+  VarSetIntFn var_set_int = reinterpret_cast<VarSetIntFn>(EngineExport(ee::kVarTableSetInt));
+  ExoStringFn make_string = reinterpret_cast<ExoStringFn>(EngineExport(ee::kExoStringFromChars));
+  ExoStringDestroyFn destroy_string = reinterpret_cast<ExoStringDestroyFn>(EngineExport(ee::kExoStringDestructor));
+  StatFn strength = reinterpret_cast<StatFn>(EngineExport(ee::kGetSTRStat));
+  CalcModifierFn calc_modifier = reinterpret_cast<CalcModifierFn>(EngineExport(ee::kCalcStatModifier));
+  DexModFn dex_mod = reinterpret_cast<DexModFn>(EngineExport(ee::kGetDEXMod));
 };
 
 const Api& E() {
@@ -85,6 +99,37 @@ float CentreDistanceSquared(const void* a, const void* b) {
 float EdgeDistance(const void* a, const void* b) {
   return sqrtf(CentreDistanceSquared(a, b)) - PersonalSpace(a) - PersonalSpace(b);
 }
+
+// A CExoString the engine builds and frees (its buffer is the engine's).
+class EngineString {
+ public:
+  explicit EngineString(const char* text) { E().make_string(bytes_, text); }
+  ~EngineString() { E().destroy_string(bytes_); }
+  void* get() { return bytes_; }
+
+ private:
+  alignas(16) uint8_t bytes_[32] = {};
+};
+
+bool VarsAvailable() { return E().var_get_int && E().var_set_int && E().make_string && E().destroy_string; }
+
+int GetLocalInt(void* object, const char* name) {
+  if (!object || !VarsAvailable()) return 0;
+  EngineString text(name);
+  return E().var_get_int(static_cast<uint8_t*>(object) + ee::kObjectVarTable, text.get());
+}
+
+void SetLocalInt(void* object, const char* name, int value) {
+  if (!object || !VarsAvailable()) return;
+  EngineString text(name);
+  E().var_set_int(static_cast<uint8_t*>(object) + ee::kObjectVarTable, text.get(), value, 0);
+}
+
+int StrengthModifier(void* stats) {
+  return stats && E().strength && E().calc_modifier ? E().calc_modifier(stats, E().strength(stats)) : 0;
+}
+
+int DexterityModifier(void* stats) { return stats && E().dex_mod ? E().dex_mod(stats, 0) : 0; }
 
 void ForEachOtherCreatureInArea(void* creature, CreatureVisitor visit, void* context) {
   if (!creature || !E().area) return;

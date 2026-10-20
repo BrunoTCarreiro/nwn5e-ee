@@ -24,6 +24,15 @@ bool Sees(void* creature, uint32_t other_id);     // its visibility list, bit 0
 float CentreDistanceSquared(const void* a, const void* b);
 float EdgeDistance(const void* a, const void* b);
 
+// Script local variables on an object (saved with the game): its
+// CNWSScriptVarTable GetInt / SetInt. 0 when unset.
+int GetLocalInt(void* object, const char* name);
+void SetLocalInt(void* object, const char* name, int value);
+
+// Ability modifiers as the engine computes them.
+int StrengthModifier(void* stats);
+int DexterityModifier(void* stats);
+
 // Calls fn(id, creature) for each other creature in `creature`'s area.
 using CreatureVisitor = void (*)(void* context, uint32_t id, void* creature);
 void ForEachOtherCreatureInArea(void* creature, CreatureVisitor visit, void* context);

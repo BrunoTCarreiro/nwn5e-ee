@@ -57,6 +57,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.two_handed_strength = ReadVariant(ini, L"two_handed_strength", g_config.mode);
   g_config.opportunity_attacks = ReadVariant(ini, L"opportunity_attacks", g_config.mode);
   g_config.conditions = ReadVariant(ini, L"conditions", g_config.mode);
+  g_config.weapon_mastery = ReadVariant(ini, L"weapon_mastery", g_config.mode);
   g_config.resume_attack_after_potion =
       ReadBool(ini, L"resume_attack_after_potion", g_config.resume_attack_after_potion);
   g_config.debug_every_hit_crits = ReadBool(ini, L"every_hit_crits", g_config.debug_every_hit_crits, L"debug");
@@ -75,9 +76,9 @@ void ConfigLoad(const wchar_t* directory) {
       g_config.advantage_disadvantage);
   Log("config: retarget_remaining_attacks=%d ranged_retarget_range=%d m", g_config.retarget_remaining_attacks,
       g_config.ranged_retarget_range);
-  Log("config: opportunity_attacks=%s resume_attack_after_potion=%d conditions=%s",
+  Log("config: opportunity_attacks=%s resume_attack_after_potion=%d conditions=%s weapon_mastery=%s",
       VariantName(g_config.opportunity_attacks), g_config.resume_attack_after_potion,
-      VariantName(g_config.conditions));
+      VariantName(g_config.conditions), VariantName(g_config.weapon_mastery));
   Log("config: racial_combat_bonuses=%s two_weapon_fighting=%s two_handed_strength=%s",
       VariantName(g_config.racial_combat_bonuses), VariantName(g_config.two_weapon_fighting),
       VariantName(g_config.two_handed_strength));

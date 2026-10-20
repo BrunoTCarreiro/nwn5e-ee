@@ -161,6 +161,31 @@ constexpr const char* kRunScriptChunk = "?RunScriptChunk@CVirtualMachine@@QEAAHA
 constexpr const char* kExoStringFromChars = "??0CExoString@@QEAA@PEBD@Z";
 constexpr const char* kExoStringDestructor = "??1CExoString@@QEAA@XZ";
 
+// E2c — weapon mastery and its plumbing.
+constexpr size_t kObjectVarTable = 0x108;  // CNWSScriptVarTable (CopyScriptVars +0x1f)
+constexpr const char* kVarTableGetInt = "?GetInt@CNWSScriptVarTable@@QEAAHAEAVCExoString@@@Z";
+constexpr const char* kVarTableSetInt = "?SetInt@CNWSScriptVarTable@@QEAAXAEAVCExoString@@HH@Z";
+constexpr const char* kGetSTRStat = "?GetSTRStat@CNWSCreatureStats@@QEAAEXZ";
+constexpr const char* kCalcStatModifier = "?CalcStatModifier@CNWSCreatureStats@@QEAADE@Z";
+constexpr const char* kGetDEXMod = "?GetDEXMod@CNWSCreatureStats@@QEAADH@Z";
+// int CNWSMessage::SendServerToPlayerChatMessage(uchar channel, uint sender, CExoString text,
+// uint, const CExoString&) — a typed line arrives through it from HandlePlayerToServerChatMessage.
+constexpr const char* kSendServerToPlayerChatMessage = "?SendServerToPlayerChatMessage@CNWSMessage@@QEAAHEIVCExoString@@IAEBV2@@Z";
+constexpr const char* kHandlePlayerToServerChatMessage = "?HandlePlayerToServerChatMessage@CNWSMessage@@QEAAHPEAVCNWSPlayer@@E@Z";
+constexpr const char* kResetFeatRemainingUses = "?ResetFeatRemainingUses@CNWSCreatureStats@@QEAAXXZ";
+constexpr const char* kEndCombatRound = "?EndCombatRound@CNWSCombatRound@@QEAAXXZ";
+constexpr const char* kOnApplyDamage = "?OnApplyDamage@CNWSEffectListHandler@@QEAAHPEAVCNWSObject@@PEAVCGameEffect@@H@Z";
+// void CNWSCombatRound::AddCleaveAttack(unsigned int target, int bGreatCleave)
+constexpr const char* kAddCleaveAttack = "?AddCleaveAttack@CNWSCombatRound@@QEAAXIH@Z";
+// CNWSItem* CNWSCombatRound::GetCurrentAttackWeapon(int attack_type)
+constexpr const char* kGetCurrentAttackWeapon = "?GetCurrentAttackWeapon@CNWSCombatRound@@QEAAPEAVCNWSItem@@H@Z";
+// unsigned char CNWSCreature::SavingThrowRoll(uchar save, ushort dc, uchar type, uint versus,
+// int bFeedback, ushort feat, int bFromCombat): 0 failed, 1 made, 2 immune
+constexpr const char* kSavingThrowRoll = "?SavingThrowRoll@CNWSCreature@@QEAAEEGEIHGH@Z";
+constexpr size_t kObjectTemporaryHitPoints = 0xe8;  // int16, added by GetCurrentHitPoints(0)
+constexpr int kSaveFortitude = 1;
+constexpr int kFeatWeaponFinesse = 42;
+
 // --- diffsettings.2da rows (EE data, D).
 constexpr int kDifficultyNoCriticalOnPc = 0;  // 1 at DM-Easy, Easy and Normal
 
@@ -227,6 +252,7 @@ constexpr size_t kRoundCurrentAttack = 0x2f2c;
 constexpr size_t kAttackD20 = 0x0e;          // uint8, the attack d20 (+0x218)
 constexpr size_t kAttackModifier = 0x10;     // int32, the attack modifier (+0x201)
 constexpr size_t kAttackRanged = 0x5c;       // int32, non-zero for a ranged attack (+0x59)
+constexpr size_t kAttackType = 0x56;         // uint8, GetCurrentAttackWeapon's argument (GetDamageBonus +0x113)
 constexpr size_t kAttackKilledTarget = 0x68; // int32, 1 after the attack killed (ResolvePost{Melee,Ranged}Damage)
 constexpr size_t kAttackThreatRoll = 0x0f;   // uint8, the confirmation d20 (+0x3ba)
 constexpr size_t kAttackThreatFlag = 0x70;   // int32, 1 after a threat (+0x3b3); the combat

@@ -35,6 +35,11 @@ switchable in `nwn5e.ini`:
 | No racial bonuses vs specific enemies (R1) | `racial_combat_bonuses` | built (0.2.0) |
 | Two-weapon fighting: no penalties, one off-hand attack, off-hand damage without Strength (D1) | `two_weapon_fighting` | built (0.2.0); seen in game: longsword + battleaxe (no Light weapon) → no off-hand attack, the penalties answered 0 |
 | Two-handed weapons add Strength once (E1) | `two_handed_strength` | built (0.2.0) |
+| Opportunity attacks: only moving away provokes (no casting, potion, ranged, unarmed or Disarm AoOs), only from creatures you run away from; Spring Attack no longer protects (D2) | `opportunity_attacks` | built (0.3.0) |
+| After drinking a potion mid-fight, a player character goes back to attacking (owner request; EE drops the order too) | `resume_attack_after_potion` | built (0.3.0) |
+| Conditions (CN1–CN8): restrained, helpless targets (advantage; crits from within 5 ft), poisoned, frightened without fleeing, concealment as disadvantage, deafness without spell failure, no coup de grace | `conditions` | built (0.3.0) |
+| Weapon mastery, who (D3): 2024 slots by class, `!mastery`, filled by use, one swap per long rest; Weapon Focus adds its weapon | `weapon_mastery` | built (0.3.0) |
+| Weapon mastery effects (D4): Vex, Sap, Graze, Slow, Topple, Cleave (Push comes next) | `weapon_mastery` | built (0.3.0) |
 
 Test switches (`[debug]`, off by default): `every_hit_crits=1` makes every
 hit a critical; `combat_breakdown=1` turns on the engine's own per-term
