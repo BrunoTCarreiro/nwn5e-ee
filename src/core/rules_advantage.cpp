@@ -191,6 +191,51 @@ int ProneTarget(int) {
 
 }  // namespace
 
+// SK10 (rules_spell_attack.cpp): the d20 of a spell attack with the roll mode
+// an attack would have — NWN's situational terms as advantage /
+// disadvantage (asked of the engine as for weapon attacks; the melee / ranged
+// kind is the spell's, not the caster's current attack's), the 2024
+// close-combat check for ranged, conditions (concealment included) — and
+// Halfling Luck. `note` gets the reasons for the log.
+int RollSpellAttackD20(void* caster, void* target, bool ranged, std::string* note) {
+  rules::RollMode mode = rules::RollMode::kNormal;
+  void* stats = caster ? StatsOf(caster) : nullptr;
+  if (stats && target && g_config.advantage_disadvantage && Field<void*>(caster, ee::kCreatureCombatRound)) {
+    rules::NwnSituationalTerms terms;
+    terms.ranged = ranged;
+    t_probe = &terms;
+    EngineAttackModifier(stats, target);
+    t_probe = nullptr;
+    terms.ranged = ranged;
+    if (ranged) {
+      terms.target_flanked = false;
+    } else {
+      terms.ranged_in_melee = false;
+    }
+    const bool point_blank_shot = ranged && engine::HasFeat(stats, ee::kFeatPointBlankShot);
+    const int threats = ranged ? CountCloseCombatThreats(caster) : 0;
+    const ConditionRollSources conditions = ConditionAttackRollSources(caster, target, ranged);
+    mode = rules::SituationalRollMode(terms, rules::RangedCloseCombat(ranged, point_blank_shot, threats),
+                                      conditions.advantage, conditions.disadvantage);
+    if (note) {
+      *note = ModeName(mode);
+      if (rules::NwnSituationalTotal(terms) != 0) *note += std::string(" (") + TermNames(terms) + ")";
+      if (threats > 0) *note += "; close-combat enemies " + std::to_string(threats);
+      if (!conditions.note.empty()) *note += "; conditions: " + conditions.note;
+    }
+  }
+  int kept = RollEngineDice(1, 20);
+  if (mode != rules::RollMode::kNormal) {
+    const int second = RollEngineDice(1, 20);
+    if (mode == rules::RollMode::kAdvantage ? second > kept : second < kept) kept = second;
+  }
+  if (kept == 1 && engine::RaceOf(stats) == ee::kRaceHalfling) {
+    kept = RollEngineDice(1, 20);  // Halfling Luck
+    if (note) *note += "; Halfling Luck rerolled a 1";
+  }
+  return kept;
+}
+
 void InstallAdvantageRules() {
   if (!g_config.advantage_disadvantage) return;
   g_attack_roll_code = ResolveAttackRollCode();

@@ -1,5 +1,7 @@
 #include "attack_roll.h"
 
+#include <intrin.h>
+
 #include <vector>
 
 #include "ee_layout.h"
@@ -14,6 +16,7 @@ ResolveAttackRollFn g_resolve_attack_roll = nullptr;
 GetAttackFn g_get_attack = nullptr;
 std::vector<AttackRollListener> g_before;  // filled at install, then only read
 std::vector<AttackRollListener> g_after;
+std::vector<AttackRollSkipper> g_skippers;
 bool g_hooked = false;
 bool g_hook_failed = false;
 thread_local AttackRoll* t_current = nullptr;
@@ -37,6 +40,10 @@ void ResolveAttackRoll(void* creature, void* target) {
   roll.attacker = creature;
   roll.target = target;
   roll.data = AttackDataFor(creature);
+  const uintptr_t caller = reinterpret_cast<uintptr_t>(_ReturnAddress());
+  for (AttackRollSkipper skipper : g_skippers) {
+    if (skipper(roll, caller)) return;
+  }
   AttackRoll* outer = t_current;
   t_current = &roll;
   for (AttackRollListener listener : g_before) listener(roll);
@@ -59,6 +66,12 @@ bool AddAttackRollListeners(AttackRollListener before, AttackRollListener after)
   if (!g_hooked) return false;
   if (before) g_before.push_back(before);
   if (after) g_after.push_back(after);
+  return true;
+}
+
+bool AddAttackRollSkipper(AttackRollSkipper skipper) {
+  if (!AddAttackRollListeners(nullptr, nullptr)) return false;
+  g_skippers.push_back(skipper);
   return true;
 }
 

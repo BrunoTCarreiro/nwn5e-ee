@@ -319,6 +319,34 @@ constexpr const char* kTlkFetchInternal = "?FetchInternal@CTlkTable@@IEAAHIAEAUS
 constexpr size_t kStrResText = 0x0;
 constexpr const char* kExoStringAssignChars = "??4CExoString@@QEAAAEAV0@PEBD@Z";
 
+// E3c — spell attacks (SK10). int ExecuteCommandDoTouchAttack(int command, int params):
+// one handler for TouchAttackMelee (146) / TouchAttackRanged (147); a creature
+// caster's bonus from GetMeleeAttackBonus(0, 1, 1) / GetRangedAttackBonus(1, 1)
+// (+0x12b / +0x13a), AC from GetArmorClassVersus(target, caster, 1) (+0x184),
+// then RollDice: d20 (+0x199), confirmation (+0x23d); a non-creature caster's
+// d20 and confirmation follow (+0x327, +0x35f) — 4 RollDice in all.
+constexpr const char* kExecuteCommandDoTouchAttack = "?ExecuteCommandDoTouchAttack@CNWSVirtualMachineCommands@@QEAAHHH@Z";
+constexpr int kCommandTouchAttackRanged = 0x93;
+constexpr int kEffectBonusTypeTouchAttack = 6;
+// Shove (SK6). void CNWSCombatRound::AddSpecialAttack(ushort id): its only
+// callers are UseFeat's; the id lands at attack data +0x7a (1.69 +0x52).
+// void CNWSCreature::ResolveMeleeSpecialAttack(int, int, CNWSObject*, int): one
+// ResolveAttackRoll (+0x9a), ResolveDamage (+0xbd), ResolvePostMeleeDamage
+// (+0xc8); Knockdown allows one size larger (+0x2fd), Improved two (+0x38e);
+// then GetSkillRank(target, Discipline, attacker, 0) (+0x3f2) + CRT rand d20
+// against the attack total: >= resists (result 5), else the knockdown effect.
+constexpr const char* kAddSpecialAttack = "?AddSpecialAttack@CNWSCombatRound@@QEAAXG@Z";
+constexpr const char* kResolveMeleeSpecialAttack = "?ResolveMeleeSpecialAttack@CNWSCreature@@IEAAXHHPEAVCNWSObject@@H@Z";
+constexpr const char* kResolveDamage = "?ResolveDamage@CNWSCreature@@IEAAXPEAVCNWSObject@@@Z";
+constexpr size_t kAttackSpecial = 0x7a;  // uint16 special attack (feat) id
+constexpr uint16_t kFeatDisarm = 9;
+constexpr uint16_t kFeatImprovedDisarm = 16;
+constexpr uint16_t kFeatImprovedKnockdown = 17;
+constexpr uint16_t kFeatKnockdown = 23;
+constexpr uint8_t kAttackResultAutomaticHit = 7;
+constexpr int kSkillDiscipline = 3;
+constexpr int kSaveReflex = 2;
+
 // E3b — skills, concentration, the 3e-only skills, initiative.
 // char CNWSCreatureStats::GetSkillRank(uchar skill, CNWSObject* vs, int bBaseRanksOnly):
 // every engine and script skill total (83 call sites); DMs get 127 (+0x2f).

@@ -17,6 +17,7 @@
 #include "log_once.h"
 
 int RacialSlingBonusToRemove(void* stats, bool ranged);  // rules_racial.cpp
+int TouchAttackBonus(void* stats, int value, bool ranged);  // rules_spell_attack.cpp (SK10)
 
 namespace {
 
@@ -39,29 +40,35 @@ int ConvertSheetAttackBonus(void* stats, int engine_value, const char* which) {
   return converted;
 }
 
+// (offhand, include BAB, touch): only the script touch attack passes touch = 1.
 int GetMeleeAttackBonus(void* stats, int offhand, int a, int b) {
-  return ConvertSheetAttackBonus(stats, g_get_melee_attack_bonus(stats, offhand, a, b),
-                                 offhand ? "off-hand" : "melee");
+  const int engine_value = g_get_melee_attack_bonus(stats, offhand, a, b);
+  const int value = g_config.attack_proficiency
+                        ? ConvertSheetAttackBonus(stats, engine_value, offhand ? "off-hand" : "melee")
+                        : engine_value;
+  return b ? TouchAttackBonus(stats, value, false) : value;
 }
 
 int GetRangedAttackBonus(void* stats, int a, int b) {
   // The sheet asks (0, 0), with a ranged weapon in hand: the path that adds
   // the halfling sling bonus.
   const int engine_value = g_get_ranged_attack_bonus(stats, a, b) - RacialSlingBonusToRemove(stats, a == 0 && b == 0);
-  return g_config.attack_proficiency ? ConvertSheetAttackBonus(stats, engine_value, "ranged") : engine_value;
+  const int value =
+      g_config.attack_proficiency ? ConvertSheetAttackBonus(stats, engine_value, "ranged") : engine_value;
+  return b ? TouchAttackBonus(stats, value, true) : value;  // (include BAB, touch)
 }
 
 }  // namespace
 
 void InstallSheetRules() {
-  if (g_config.racial_combat_bonuses == rules::RuleVariant::kFaithful && !g_config.attack_proficiency) {
-    HookExport("CNWSCreatureStats::GetRangedAttackBonus (sheet: sling)", ee::kGetRangedAttackBonus,
-               reinterpret_cast<void*>(&GetRangedAttackBonus), reinterpret_cast<void**>(&g_get_ranged_attack_bonus));
-    return;
+  const bool touch = g_config.spell_attacks == rules::RuleVariant::kFaithful;  // SK10's bonus goes through these
+  const bool sling = g_config.racial_combat_bonuses == rules::RuleVariant::kFaithful;
+  if (g_config.attack_proficiency || touch) {
+    HookExport("CNWSCreatureStats::GetMeleeAttackBonus (sheet, spell attacks)", ee::kGetMeleeAttackBonus,
+               reinterpret_cast<void*>(&GetMeleeAttackBonus), reinterpret_cast<void**>(&g_get_melee_attack_bonus));
   }
-  if (!g_config.attack_proficiency) return;
-  HookExport("CNWSCreatureStats::GetMeleeAttackBonus (sheet)", ee::kGetMeleeAttackBonus,
-             reinterpret_cast<void*>(&GetMeleeAttackBonus), reinterpret_cast<void**>(&g_get_melee_attack_bonus));
-  HookExport("CNWSCreatureStats::GetRangedAttackBonus (sheet)", ee::kGetRangedAttackBonus,
-             reinterpret_cast<void*>(&GetRangedAttackBonus), reinterpret_cast<void**>(&g_get_ranged_attack_bonus));
+  if (g_config.attack_proficiency || touch || sling) {
+    HookExport("CNWSCreatureStats::GetRangedAttackBonus (sheet, sling, spell attacks)", ee::kGetRangedAttackBonus,
+               reinterpret_cast<void*>(&GetRangedAttackBonus), reinterpret_cast<void**>(&g_get_ranged_attack_bonus));
+  }
 }

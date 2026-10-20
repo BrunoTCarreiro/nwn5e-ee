@@ -47,6 +47,8 @@ switchable in `nwn5e.ini`:
 | Concentration (SK7): no interruption by damage, no check while entangled, no defensive casting mode | `concentration` | built (0.4.0) |
 | 3e-only skills (SK8): no parry mode, Taunt does nothing, no Appraise prices, Use Magic Device lifts no item limits | `nwn_only_skills` | built (0.4.0) |
 | Initiative (SK9): d20 + Dex (+ PB with Improved Initiative = Alert), advantage when invisible, Halfling Luck | `initiative` | built (0.4.0) |
+| Spell attacks (SK10): PB + casting ability against full AC, advantage / disadvantage, a natural 20 crits without confirmation | `spell_attacks` | built (0.4.1) |
+| Shove (SK6): Knockdown makes no attack roll and no damage; the target's better Str / Dex save vs 8 + Str + PB, at most one size larger; Disarm is an ordinary attack | `knockdown` | built (0.4.1) |
 
 Test switches (`[debug]`, off by default): `every_hit_crits=1` makes every
 hit a critical; `combat_breakdown=1` turns on the engine's own per-term

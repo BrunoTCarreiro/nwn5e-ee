@@ -16,6 +16,7 @@
 //   caged or sleeping enemy) — that the attacker sees, within [rules]
 //   ranged_retarget_range metres (default 40) capped at the weapon's range.
 
+#include <intrin.h>
 #include <stdint.h>
 
 #include <algorithm>
@@ -30,6 +31,8 @@
 #include "log.h"
 #include "log_once.h"
 #include "rules/nwn_conversion.h"
+
+bool ShoveSkipsDamage(void* creature, uintptr_t caller);  // rules_shove.cpp (SK6)
 
 namespace {
 
@@ -137,9 +140,10 @@ uint32_t RoundTarget(void* creature) {
 }
 
 void ResolvePostMeleeDamage(void* creature, void* target) {
+  if (ShoveSkipsDamage(creature, reinterpret_cast<uintptr_t>(_ReturnAddress()))) return;  // SK6
   const uint32_t before = RoundTarget(creature);
   g_resolve_post_melee_damage(creature, target);
-  AfterPostDamage(creature, target, false, before);
+  if (g_config.retarget_remaining_attacks) AfterPostDamage(creature, target, false, before);
 }
 
 void ResolvePostRangedDamage(void* creature, void* target) {
@@ -151,9 +155,15 @@ void ResolvePostRangedDamage(void* creature, void* target) {
 }  // namespace
 
 void InstallRetargetRules() {
+  // The melee post-damage hook also skips a Shove's (SK6, rules_shove.cpp).
+  const bool shove = g_config.knockdown == rules::RuleVariant::kFaithful;
+  if (g_config.retarget_remaining_attacks || shove) {
+    HookExport(g_config.retarget_remaining_attacks ? "CNWSCreature::ResolvePostMeleeDamage (remaining attacks move on)"
+                                                   : "CNWSCreature::ResolvePostMeleeDamage (no Shove damage)",
+               ee::kResolvePostMeleeDamage, reinterpret_cast<void*>(&ResolvePostMeleeDamage),
+               reinterpret_cast<void**>(&g_resolve_post_melee_damage));
+  }
   if (!g_config.retarget_remaining_attacks) return;
-  HookExport("CNWSCreature::ResolvePostMeleeDamage (remaining attacks move on)", ee::kResolvePostMeleeDamage,
-             reinterpret_cast<void*>(&ResolvePostMeleeDamage), reinterpret_cast<void**>(&g_resolve_post_melee_damage));
   HookExport("CNWSCreature::ResolvePostRangedDamage (remaining attacks move on)", ee::kResolvePostRangedDamage,
              reinterpret_cast<void*>(&ResolvePostRangedDamage),
              reinterpret_cast<void**>(&g_resolve_post_ranged_damage));

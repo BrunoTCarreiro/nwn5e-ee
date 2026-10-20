@@ -25,3 +25,8 @@ void SetForcedSaveAbility(std::optional<rules::Ability> ability);
 // rules_saves.cpp
 // A creature's 2024 save bonus for `ability`, as !saves shows it.
 int SaveBonusFor(void* stats, rules::Ability ability);
+
+// SK10: the casting part of a creature's 2024 spell attack bonus for the spell
+// it is casting (its last spell): PB + the casting ability of the class slot
+// or item it casts from — the C5 DC minus 8. False when not known.
+bool SpellAttackCasting(void* creature, int* bonus, const char** source);

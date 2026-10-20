@@ -21,6 +21,13 @@ using AttackRollListener = void (*)(AttackRoll& roll);
 // False (and logged) if the hook can't be made.
 bool AddAttackRollListeners(AttackRollListener before, AttackRollListener after);
 
+// A rule that resolves an attack itself (SK6: a Shove makes no attack roll)
+// returns true from a skipper, after writing the attack data's result: the
+// engine's roll is not called and no listener runs. `caller` = the engine call
+// site's return address.
+using AttackRollSkipper = bool (*)(AttackRoll& roll, uintptr_t caller);
+bool AddAttackRollSkipper(AttackRollSkipper skipper);
+
 // The attack being resolved on this thread, or nullptr.
 AttackRoll* CurrentAttackRoll();
 

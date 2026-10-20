@@ -172,43 +172,53 @@ int SpellFocusBonus(void* stats, int school) {
   return 0;
 }
 
-int CalculateSpellSaveDc(void* creature, int spell_id) {
-  const int engine_dc = g_calculate_spell_save_dc(creature, spell_id);
-  if (g_config.saves == rules::RuleVariant::kOff || !creature) return engine_dc;
-  void* stats = StatsOf(creature);
+// The 2024 save DC of `spell_id` cast by `creature` (C5), given the engine's
+// own DC; false when the creature's numbers are not known.
+bool SpellDc2024(void* creature, int spell_id, int engine_dc, int* dc, int* pb_out, const char** source) {
+  void* stats = creature ? StatsOf(creature) : nullptr;
   const void* spell = SpellRow(spell_id);
-  if (!stats || !spell) return engine_dc;
+  if (!stats || !spell) return false;
   const CreatureFacts facts = ReadCreatureFacts(stats);
-  if (!facts.plausible) return engine_dc;
+  if (!facts.plausible) return false;
   const int pb = rules::ProficiencyBonusForCreature(CountsAsCharacter(stats, facts), facts.level,
                                                     facts.challenge_rating);
   const int innate = Field<uint8_t>(spell, ee::kSpellInnateLevel);
   const int slot = Field<uint8_t>(creature, ee::kCreatureCastingSlot);
-  const char* source = "class";
-  int dc = 0;
+  *source = "class";
   if (Field<int32_t>(creature, ee::kCreatureCastingFromItem) != 0) {
-    dc = rules::SpellScrollDc(innate);
-    source = "item";
+    *dc = rules::SpellScrollDc(innate);
+    *source = "item";
   } else if (slot == 0xFE ||
              (slot == 0xFF && Field<uint16_t>(creature, ee::kCreatureCastingFeat) == 0xFFFF &&
               Field<int32_t>(creature, ee::kCreaturePolymorphed) == 0)) {
-    dc = rules::SaveDifficultyClass(engine::AbilityModifier(stats, static_cast<int>(rules::Ability::kCharisma)), pb);
-    source = "ability";  // class-less or innate ability: 8 + PB + Cha
+    *dc = rules::SaveDifficultyClass(engine::AbilityModifier(stats, static_cast<int>(rules::Ability::kCharisma)), pb);
+    *source = "ability";  // class-less or innate ability: 8 + PB + Cha
   } else if (slot == 0xFF) {
     // EE's class-feat and polymorph abilities: the engine's own modifier (its DC is 10 + modifier + innate level).
-    dc = rules::SaveDifficultyClass(engine_dc - 10 - innate, pb);
-    source = "feat / polymorph ability";
+    *dc = rules::SaveDifficultyClass(engine_dc - 10 - innate, pb);
+    *source = "feat / polymorph ability";
   } else {
     const int modifier = E().casting_mod ? E().casting_mod(stats, static_cast<uint8_t>(slot)) : 0;
-    dc = rules::SaveDifficultyClass(modifier, pb);
+    *dc = rules::SaveDifficultyClass(modifier, pb);
     if (g_config.saves == rules::RuleVariant::kNwn) {
-      dc += rules::NwnModeSpellFocusDcBonus(SpellFocusBonus(stats, Field<uint8_t>(spell, ee::kSpellSchool)));
+      *dc += rules::NwnModeSpellFocusDcBonus(SpellFocusBonus(stats, Field<uint8_t>(spell, ee::kSpellSchool)));
     }
   }
+  if (pb_out) *pb_out = pb;
+  return true;
+}
+
+int CalculateSpellSaveDc(void* creature, int spell_id) {
+  const int engine_dc = g_calculate_spell_save_dc(creature, spell_id);
+  if (g_config.saves == rules::RuleVariant::kOff || !creature) return engine_dc;
+  int dc = 0;
+  int pb = 0;
+  const char* source = "";
+  if (!SpellDc2024(creature, spell_id, engine_dc, &dc, &pb, &source)) return engine_dc;
   RememberSpellDc(IdOf(creature), dc);
   if (g_config.log_attacks && g_dc_logged.First(LogOnce::Key(IdOf(creature), engine_dc, dc))) {
-    Log("spell DC: object 0x%08X %s spell %d (%s): 3e %d -> 5e %d (PB %d)", IdOf(creature), KindOf(facts), spell_id,
-        source, engine_dc, dc, pb);
+    Log("spell DC: object 0x%08X %s spell %d (%s): 3e %d -> 5e %d (PB %d)", IdOf(creature),
+        KindOf(ReadCreatureFacts(StatsOf(creature))), spell_id, source, engine_dc, dc, pb);
   }
   return dc;
 }
@@ -357,6 +367,18 @@ std::optional<rules::Ability> SaveAbilityOverride(void* stats) {
 bool SaveRollInProgressFor(void* stats) { return g_save.active && g_save.creature && StatsOf(g_save.creature) == stats; }
 
 void SetForcedSaveAbility(std::optional<rules::Ability> ability) { g_forced_ability = ability; }
+
+bool SpellAttackCasting(void* creature, int* bonus, const char** source) {
+  if (!creature) return false;
+  const int spell_id = Field<int32_t>(creature, ee::kObjectLastSpellId);
+  static const auto unhooked = reinterpret_cast<SpellDcFn>(EngineExport(ee::kCalculateSpellSaveDC));
+  const SpellDcFn engine = g_calculate_spell_save_dc ? g_calculate_spell_save_dc : unhooked;
+  const int engine_dc = engine ? engine(creature, spell_id) : 10;
+  int dc = 0;
+  if (!SpellDc2024(creature, spell_id, engine_dc, &dc, nullptr, source)) return false;
+  *bonus = dc - 8;  // 2024: attack bonus = PB + ability, DC = 8 + the same (scrolls: their table, the same rule)
+  return true;
+}
 
 void InstallSaveRollRules() {
   if (g_config.saves == rules::RuleVariant::kOff) return;

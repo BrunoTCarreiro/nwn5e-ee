@@ -253,8 +253,18 @@ Each step ends with an in-game test matrix, as on 1.69.
    reaches real save rolls (1.69 added it only outside the roll's base-value
    ask); EE's combat log can't name a 4th save kind, so a spell's own save
    ability is a chat line (EP13); EE's spell DC has class-feat and polymorph
-   branches, handled with the engine's own modifier. Next: E3c (SK10, SK6,
-   SK11), E3d (SK3, SK5).
+   branches, handled with the engine's own modifier.
+   *E3c built 0.4.1:* `rules_spell_attack` (ExecuteCommandDoTouchAttack
+   wrapper: the bonus answered in the sheet's attack-bonus hooks when they
+   are asked with touch = 1, full AC in the AC hook, the d20 and the
+   confirmation by the dice filter at the handler's first two RollDice; the
+   roll mode from rules_advantage's probe with the spell's melee / ranged
+   kind; attack bonus = the C5 DC - 8), `rules_shove` (AddSpecialAttack drops
+   Disarm; an attack-roll skipper - new in attack_roll - makes a Knockdown an
+   automatic hit; ResolveDamage and the post-damage hook skip it; the
+   Discipline value the engine compares is answered +-127 by the Shove's
+   save; Improved Knockdown is handled as Knockdown for the size check). SK11
+   moves to E3d with the perception and skill-DC rolls it lives in on 1.69.
 5. **E4 — character model:** served data + strings, XP, multiclass,
    alignment, HP, feat cadence, point buy + backgrounds, class features,
    the Fighter (first tested in game here — it never was on 1.69).

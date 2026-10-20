@@ -28,6 +28,8 @@
 
 int RacialSlingBonusToRemove(void* stats, bool ranged);  // rules_racial.cpp
 
+bool SpellAttackAgainstFullAc(void* target_stats, void* attacker);  // rules_spell_attack.cpp (SK10)
+
 namespace {
 
 using AttackModifierFn = int (*)(void* stats, void* target);
@@ -64,6 +66,7 @@ int GetAttackModifierVersus(void* stats, void* target) {
 }
 
 int16_t GetArmorClassVersus(void* stats, void* attacker, int touch) {
+  if (touch && SpellAttackAgainstFullAc(stats, attacker)) touch = 0;  // SK10: 2024 has no touch AC
   const int16_t engine_armor_class = g_get_armor_class_versus(stats, attacker, touch);
   if (!g_config.creature_ac_by_cr && g_config.debug_creature_ac <= 0) return engine_armor_class;
   const CreatureFacts facts = ReadCreatureFacts(stats);
@@ -104,7 +107,8 @@ void InstallAttackRules() {
                reinterpret_cast<void*>(&GetAttackModifierVersus),
                reinterpret_cast<void**>(&g_get_attack_modifier_versus));
   }
-  if (g_config.creature_ac_by_cr || g_config.debug_creature_ac > 0) {
+  if (g_config.creature_ac_by_cr || g_config.debug_creature_ac > 0 ||
+      g_config.spell_attacks == rules::RuleVariant::kFaithful) {
     HookExport("CNWSCreatureStats::GetArmorClassVersus", ee::kGetArmorClassVersus,
                reinterpret_cast<void*>(&GetArmorClassVersus), reinterpret_cast<void**>(&g_get_armor_class_versus));
   }
