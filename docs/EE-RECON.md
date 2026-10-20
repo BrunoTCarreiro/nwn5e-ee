@@ -102,6 +102,9 @@ re-done against names.
 
 ## Per built feature (first guess, I)
 
+> Superseded by **docs/EE-PORT.md** (2026-10-20, checked in EE's code; it
+> lists the corrections to this section).
+
 Data only: crits at 20 and ×2 (baseitems), E1, R1, point buy, alignment
 limits, served data (native). Data + script: 2024 saves (cls_savthr = PB +
 ruleset), feat cadence (racialtypes + cls_bfeat; ASI in NUI), skills

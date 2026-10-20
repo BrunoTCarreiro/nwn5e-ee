@@ -11,6 +11,8 @@
 > only on hits, from ResolveAttackRoll; UpdateCombatInformation calls it too
 > (both hands, for the sheet). On Easy difficulty a creature's confirmed crit
 > on the player stayed a hit — EE keeps the rule B7 removes.
+> **Port brief: docs/EE-PORT.md** — every built feature's EE route, the
+> shared pieces, the order (E0–E4) and decisions EP1–EP20.
 
 Target: **NWN Diamond 1.69 (GOG), single-player**, `X:\GOG\NWN Diamond\nwmain.exe`
 (PE32 x86, linked 2008-07-03, unpacked, fixed base 0x400000, no relocations).
