@@ -47,17 +47,16 @@
 #include "log.h"
 #include "log_once.h"
 #include "rules/nwn_conversion.h"
+#include "sheet.h"
 
 namespace {
 
 using CritFn = int (*)(void* stats, int offhand);
 using DifficultyOptionFn = int (*)(void* app, int option);
-using UpdateCombatInformationFn = void (*)(void* stats);
 
 CritFn g_get_critical_hit_roll = nullptr;
 CritFn g_get_critical_hit_multiplier = nullptr;
 DifficultyOptionFn g_get_difficulty_option = nullptr;
-UpdateCombatInformationFn g_update_combat_information = nullptr;
 int* g_combat_debugging = nullptr;
 
 // Crit values depend on the weapon, not the creature: each distinct one once.
@@ -162,11 +161,7 @@ int GetCriticalHitMultiplier(void* stats, int offhand) {
   return converted;
 }
 
-void UpdateCombatInformation(void* stats) {
-  g_update_combat_information(stats);
-  if (!g_config.crit_double_damage || !stats) return;
-  uint8_t* info = *reinterpret_cast<uint8_t**>(static_cast<uint8_t*>(stats) + ee::kStatsCombatInformation);
-  if (!info) return;
+void FixSheetMultiplier(void*, uint8_t* info) {
   const int vanilla = info[ee::kCombatInfoMainHandMultiplier];
   const int converted = rules::CriticalMultiplierFor(rules::CritDamagePart::kDice, vanilla);
   info[ee::kCombatInfoMainHandMultiplier] = static_cast<uint8_t>(converted);
@@ -247,9 +242,7 @@ void InstallCritRules() {
     HookExport("CNWSCreatureStats::GetCriticalHitMultiplier", ee::kGetCriticalHitMultiplier,
                reinterpret_cast<void*>(&GetCriticalHitMultiplier),
                reinterpret_cast<void**>(&g_get_critical_hit_multiplier));
-    HookExport("CNWSCreatureStats::UpdateCombatInformation (sheet: main-hand crit multiplier)",
-               ee::kUpdateCombatInformation, reinterpret_cast<void*>(&UpdateCombatInformation),
-               reinterpret_cast<void**>(&g_update_combat_information));
+    AddCombatInformationListener(&FixSheetMultiplier);
   }
   if (g_config.debug_combat_breakdown) {
     g_combat_debugging = reinterpret_cast<int*>(EngineExport(ee::kCombatDebugging));

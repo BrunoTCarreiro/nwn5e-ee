@@ -13,13 +13,17 @@
 #pragma comment(lib, "shlwapi.lib")
 
 void InstallCritRules();
+void InstallAttackRules();
+void InstallExtraAttackRules();
+void InstallSheetRules();
+void InstallDebugSwitches();
 #ifdef NWN5E_PRIVATE
 void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 #endif
 
 namespace {
 
-constexpr const char* kVersion = "0.1.1";
+constexpr const char* kVersion = "0.2.0";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -36,6 +40,10 @@ void Start(HMODULE self) {
   ConfigLoad(directory);
   if (!HooksBegin()) return;
   InstallCritRules();
+  InstallAttackRules();
+  InstallExtraAttackRules();
+  InstallSheetRules();
+  InstallDebugSwitches();
 #ifdef NWN5E_PRIVATE
   InstallPrivateRules();
 #endif

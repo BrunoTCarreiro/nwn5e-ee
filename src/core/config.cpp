@@ -45,12 +45,34 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.crit_dice_only = ReadBool(ini, L"crit_dice_only", g_config.crit_dice_only);
   g_config.crits_against_players = ReadBool(ini, L"crits_against_players", g_config.crits_against_players);
   g_config.log_attacks = ReadBool(ini, L"log_attacks", g_config.log_attacks);
+  g_config.attack_proficiency = ReadBool(ini, L"attack_proficiency", g_config.attack_proficiency);
+  g_config.creature_ac_by_cr = ReadBool(ini, L"creature_ac_by_cr", g_config.creature_ac_by_cr);
+  g_config.extra_attack = ReadBool(ini, L"extra_attack", g_config.extra_attack);
   g_config.debug_every_hit_crits = ReadBool(ini, L"every_hit_crits", g_config.debug_every_hit_crits, L"debug");
   g_config.debug_combat_breakdown = ReadBool(ini, L"combat_breakdown", g_config.debug_combat_breakdown, L"debug");
+  g_config.debug_attacks_per_round = GetPrivateProfileIntW(L"debug", L"attacks_per_round", 0, ini);
+  g_config.debug_creature_ac = GetPrivateProfileIntW(L"debug", L"creature_ac", 0, ini);
+  g_config.debug_creature_hp_multiplier = GetPrivateProfileIntW(L"debug", L"creature_hp_multiplier", 0, ini);
+  g_config.debug_creature_min_hp = GetPrivateProfileIntW(L"debug", L"creature_min_hp", 0, ini);
+  g_config.debug_attack_trace = ReadBool(ini, L"attack_trace", g_config.debug_attack_trace, L"debug");
   Log("config: mode=%s crit_nat20_only=%d crit_no_confirmation=%d crit_double_damage=%d crit_dice_only=%d "
       "crits_against_players=%d log_attacks=%d",
       VariantName(g_config.mode), g_config.crit_nat20_only, g_config.crit_no_confirmation,
       g_config.crit_double_damage, g_config.crit_dice_only, g_config.crits_against_players, g_config.log_attacks);
+  Log("config: attack_proficiency=%d creature_ac_by_cr=%d extra_attack=%d", g_config.attack_proficiency,
+      g_config.creature_ac_by_cr, g_config.extra_attack);
   if (g_config.debug_every_hit_crits) Log("config: [debug] every_hit_crits=1 - every hit is a critical");
   if (g_config.debug_combat_breakdown) Log("config: [debug] combat_breakdown=1 - the engine's own attack breakdown");
+  if (g_config.debug_attacks_per_round > 0) {
+    Log("config: [debug] attacks_per_round=%d - player characters make this many main-hand attacks",
+        g_config.debug_attacks_per_round);
+  }
+  if (g_config.debug_creature_ac > 0) {
+    Log("config: [debug] creature_ac=%d - every non-player creature has this AC", g_config.debug_creature_ac);
+  }
+  if (g_config.debug_creature_hp_multiplier > 1 || g_config.debug_creature_min_hp > 0) {
+    Log("config: [debug] creature_hp_multiplier=%d creature_min_hp=%d - applied when your party first attacks a "
+        "creature", g_config.debug_creature_hp_multiplier, g_config.debug_creature_min_hp);
+  }
+  if (g_config.debug_attack_trace) Log("config: [debug] attack_trace=1 - round setup and PC attack rolls logged");
 }
