@@ -144,6 +144,13 @@ void* AreaOf(void* object) { return object && E().area ? E().area(object) : null
 
 bool IsDungeonMaster(void* stats) { return stats && E().is_dm && E().is_dm(stats) != 0; }
 
+bool HasNoOrders(void* creature) {
+  if (!creature) return false;
+  const void* list = Field<void*>(creature, ee::kObjectActionQueue);
+  const void* head = list ? Field<void*>(list, ee::kListHead) : nullptr;
+  return !head && Field<uint16_t>(creature, ee::kObjectCurrentAction) == ee::kActionNone;
+}
+
 void ForEachOtherCreatureInArea(void* creature, CreatureVisitor visit, void* context) {
   if (!creature || !E().area) return;
   void* area = E().area(creature);

@@ -42,6 +42,10 @@ void* AreaOf(void* object);
 // A Dungeon Master's creature (GetIsDM): its skills are always 127.
 bool IsDungeonMaster(void* stats);
 
+// No orders: its action queue is empty and it carries out none (outside the
+// engine's RunActions, an action in progress sits at the queue's head).
+bool HasNoOrders(void* creature);
+
 // Calls fn(id, creature) for each other creature in `creature`'s area.
 using CreatureVisitor = void (*)(void* context, uint32_t id, void* creature);
 void ForEachOtherCreatureInArea(void* creature, CreatureVisitor visit, void* context);
