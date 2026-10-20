@@ -194,6 +194,23 @@ Served data and strings move to E0 if an earlier step needs rows or labels.
 
 ## Decisions (EP1–EP20)
 
+**Decided 2026-10-20 (owner): every recommendation below accepted; EP16 =
+faithful 8 classes, NWN mode 3.** The E4 interface test (4th class: level-up
+screen, sheet, save + reload) confirms 8; if the interface breaks, faithful
+falls back to the most it handles.
+
+**More than 8 classes (asked 2026-10-20): no.** EE stores a character's
+classes in a fixed block of 8 entries (0x188 bytes each, with that class's
+spell slots and known spells) inside the creature's stats, with the next
+field right after it; the code reaches into it inline at ~240 places in ~100
+functions (counting one indexing pattern only), the save reader fills that
+block, and the client keeps its own copy for the sheet, the level-up screen
+and the examine window (not exported). Growing it is the most invasive
+change possible and would break with EE updates, for builds 2024 almost
+never produces (12 classes, level 20, 13 in each class's primary ability).
+**At most 8 classes is nwn5e's one deviation from 2024 multiclassing.** More
+class *types* (classes.2da rows, e.g. the SRD Warlock) stay easy.
+
 | # | Question | Options | Recommendation |
 |---|---|---|---|
 | EP1 | What NWN mode means where EE changed 1.69's behaviour (deafness fails any caster's verbal spells; Search always rolls; Spot / Listen dice; no crits on PCs at Normal) | EE's vanilla / emulate 1.69 | **EE's vanilla** — it's the game players have |

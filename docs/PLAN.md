@@ -12,7 +12,10 @@
 > (both hands, for the sheet). On Easy difficulty a creature's confirmed crit
 > on the player stayed a hit — EE keeps the rule B7 removes.
 > **Port brief: docs/EE-PORT.md** — every built feature's EE route, the
-> shared pieces, the order (E0–E4) and decisions EP1–EP20.
+> shared pieces, the order (E0–E4) and decisions EP1–EP20 (decided
+> 2026-10-20: all recommendations; faithful allows 8 classes — the engine's
+> limit and nwn5e's one deviation from 2024 multiclassing; this replaces
+> CM2's "3 classes" for EE).
 
 Target: **NWN Diamond 1.69 (GOG), single-player**, `X:\GOG\NWN Diamond\nwmain.exe`
 (PE32 x86, linked 2008-07-03, unpacked, fixed base 0x400000, no relocations).
@@ -356,6 +359,10 @@ the validator, so the screen greys the class out), XP penalty off (class
 penalty flag 0 in memory), later-class armour / weapon proficiencies limited
 to 2024's multiclass lists, 3 classes kept (the client's limit). NWN mode:
 NWN's (the penalty is NWN's multiclass brake; no 13 rule).
+*EE (2026-10-20, EP16 in docs/EE-PORT.md):* the limit is EE's ruleset value
+MULTICLASS_LIMIT (3) and EE stores up to 8 classes — faithful allows **8**
+(NWN mode 3); 8 is the engine's storage, nwn5e's one deviation from 2024's
+unlimited multiclassing. Confirmed by an interface test when ported (E4).
 *Built 0.9.46 (key `multiclass`):* no XP penalty (AddExperience always takes
 its one-class path); the 13s in CanLevelUpInClass, with the engine's ability
 scores (base + racial adjustment + effects — CM4 will change what they hold),
