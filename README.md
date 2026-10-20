@@ -14,9 +14,12 @@ folder is modified: starting EE from Steam is the unmodified game.
 
 ## Status
 
-**Spike (0.0.1).** Proves route B: the DLL hooks
-`CNWSCreatureStats::GetCriticalHitRoll` by its exported name so every attack
-roll threatens a critical hit, and logs each call. No 2024 rules yet.
+**Spike (0.0.2) — route B verified in game (2026-10-20).** The DLL hooks
+`CNWSCreatureStats::GetCriticalHitRoll` by its exported name so every hit
+threatens a critical hit, and logs each attack roll. In The Prelude, all 9
+hits logged a threat (rolls of 3 to 20, with a weapon that threatens on 20
+only); 6 of the player's 8 became critical hits after the confirmation roll.
+No 2024 rules yet.
 
 What is carried over from the 1.69 build, unchanged:
 

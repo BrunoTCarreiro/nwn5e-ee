@@ -6,7 +6,11 @@
 > functions by their exported names. Every decision below stands. The engine
 > addresses, byte patches and 1.69 file paths below are 1.69's; each rule is
 > re-found in EE when it is ported, and its "built" note is updated then.
-> Status: spike (0.0.1) — `GetCriticalHitRoll` hooked by name.
+> Status: spike (0.0.2) verified in game 2026-10-20 — `GetCriticalHitRoll`
+> hooked by name; every hit threatened (9 of 9 in The Prelude). EE calls it
+> only on hits, from ResolveAttackRoll; UpdateCombatInformation calls it too
+> (both hands, for the sheet). On Easy difficulty a creature's confirmed crit
+> on the player stayed a hit — EE keeps the rule B7 removes.
 
 Target: **NWN Diamond 1.69 (GOG), single-player**, `X:\GOG\NWN Diamond\nwmain.exe`
 (PE32 x86, linked 2008-07-03, unpacked, fixed base 0x400000, no relocations).
