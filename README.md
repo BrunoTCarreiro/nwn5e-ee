@@ -21,11 +21,11 @@ switchable in `nwn5e.ini`:
 
 | Rule | Setting | State |
 |---|---|---|
-| Critical threat only on a natural 20 | `crit_nat20_only` | built (0.1.0) |
-| No critical confirmation roll; no "Threat Roll" in the combat log | `crit_no_confirmation` | built (0.1.0) |
-| x2 critical multiplier for every weapon | `crit_double_damage` | damage verified in game (0.1.0, 2026-10-20: a crit for 15 vs 11 on a hit, was 31–33); the sheet's main-hand line fixed in 0.1.1 (EE computes it apart). The weapon's own description still shows its base multiplier (the client's data) |
-| Crits roll the damage dice twice, flat bonuses (Strength, flat effect bonuses) once | `crit_dice_only` | built (0.1.0) |
-| Creatures can crit your party at every difficulty (B7) | `crits_against_players` | built (0.1.0) |
+| Critical threat only on a natural 20 | `crit_nat20_only` | built (0.1.0); in game so far only with `every_hit_crits` (threat 1–20); the sheet's "20" and a 19 not critting await a normal fight |
+| No critical confirmation roll; no "Threat Roll" in the combat log | `crit_no_confirmation` | verified in game (0.1.0 / 0.1.1, 2026-10-20: every crit "*critical hit*" with no Threat Roll, on rolls of 5, 7, 14) |
+| x2 critical multiplier for every weapon | `crit_double_damage` | verified in game (0.1.1, 2026-10-20: d8 ×3 weapon — crits 15 and 19 = 2d8 + 3, were up to 33; the sheet's main-hand ×3 → ×2, which EE computes apart). The weapon's own description still shows its base multiplier (the client's data) |
+| Crits roll the damage dice twice, flat bonuses (Strength, flat effect bonuses) once | `crit_dice_only` | verified in game for Strength (19 = 2 × 8 + 3; doubled Strength could reach 22); flat effect bonuses await a crit with such an effect |
+| Creatures can crit your party at every difficulty (B7) | `crits_against_players` | verified in game (0.1.0, 2026-10-20: goblins' crits on the player at Easy stayed critical hits) |
 
 Test switches (`[debug]`, off by default): `every_hit_crits=1` makes every
 hit a critical; `combat_breakdown=1` turns on the engine's own per-term
