@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <utility>
 #include <vector>
 
 // EE's 64-bit nwmain.exe exports its engine functions by their decorated C++
@@ -30,14 +31,25 @@ bool HooksCommit();
 constexpr uintptr_t kCallLength = 5;  // E8 rel32
 
 // A function's code, from the executable's unwind table (.pdata).
+// The compiler splits many EE functions into chained fragments (shrink-
+// wrapped prologues, cold paths: 13,776 of 50,532 .pdata entries); a range
+// holds every fragment of one function. begin / end span them all.
 struct CodeRange {
   uintptr_t begin = 0;
   uintptr_t end = 0;
+  std::vector<std::pair<uintptr_t, uintptr_t>> parts;  // [begin, end) of each fragment
   bool Valid() const { return end > begin; }
-  bool Contains(uintptr_t address) const { return address >= begin && address < end; }
+  bool Contains(uintptr_t address) const {
+    if (parts.empty()) return address >= begin && address < end;
+    for (const auto& part : parts) {
+      if (address >= part.first && address < part.second) return true;
+    }
+    return false;
+  }
 };
 
-// The function whose code contains `address` (empty if none is listed).
+// The function whose code contains `address`, every fragment of it (empty if
+// none is listed).
 CodeRange FunctionAt(uintptr_t address);
 
 // Every direct call (E8 rel32) inside `range` that lands on `target`, in
@@ -54,3 +66,11 @@ bool ContainsBytes(uintptr_t from, uintptr_t to, const uint8_t* pattern, size_t 
 // game build), never applied blind.
 bool PatchAnchored(const char* what, const char* export_name, const uint8_t* anchor, size_t anchor_size,
                    size_t offset, const uint8_t* expected, const uint8_t* replacement, size_t size);
+
+// The registers of the engine code that called into a hook, at that call: the
+// stack is unwound from here up to the frame returning to `return_address`
+// (the call site's return address, as _ReturnAddress() gave it to the hook),
+// so its nonvolatile registers (rbx, rbp, rdi, rsi, r12-r15) hold what the
+// engine had in them. False when that frame is not found.
+struct _CONTEXT;
+bool CallerContext(uintptr_t return_address, _CONTEXT* out);

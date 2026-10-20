@@ -347,6 +347,88 @@ constexpr uint8_t kAttackResultAutomaticHit = 7;
 constexpr int kSkillDiscipline = 3;
 constexpr int kSaveReflex = 2;
 
+// E3d — skill DCs (SK3), conditions on checks (SK11).
+// Object kinds (CGameObject +0xc, byte): 7 trigger, 9 placeable, 10 door;
+// vtable casts +0x80 AsNWSTrigger, +0x30 AsNWSDoor, +0x98 AsNWSPlaceable.
+constexpr size_t kGameObjectType = 0xc;
+constexpr uint8_t kObjectTypeTrigger = 7;
+constexpr uint8_t kObjectTypePlaceable = 9;
+constexpr uint8_t kObjectTypeDoor = 10;
+constexpr size_t kVtableAsTrigger = 0x80;
+constexpr size_t kVtableAsDoor = 0x30;
+constexpr size_t kVtableAsPlaceable = 0x98;
+// Lock DCs (uint8): door unlock +0x41f / lock +0x420; placeable +0x3a8 / +0x3a9.
+// Trap DCs: trigger detect / disarm int32 +0x3f8 / +0x3fc; door uint8 +0x471 /
+// +0x470; placeable uint8 +0x3b0 / +0x3b8 (ExecuteCommandGetLockInfo / GetTrapInfo).
+constexpr size_t kDoorUnlockDc = 0x41f;
+constexpr size_t kDoorLockDc = 0x420;
+constexpr size_t kPlaceableUnlockDc = 0x3a8;
+constexpr size_t kPlaceableLockDc = 0x3a9;
+constexpr size_t kTriggerDetectDc = 0x3f8;
+constexpr size_t kTriggerDisarmDc = 0x3fc;
+constexpr size_t kDoorDetectDc = 0x471;
+constexpr size_t kDoorDisarmDc = 0x470;
+constexpr size_t kPlaceableDetectDc = 0x3b0;
+constexpr size_t kPlaceableDisarmDc = 0x3b8;
+// Engine skill actions, uint AIAction*(CNWSObjectActionNode*); the target id
+// is the node's first parameter (+0x38). Each makes one 2024-relevant
+// GetSkillRank call and logs through BroadcastSkillData.
+constexpr const char* kAIActionUnlockObject = "?AIActionUnlockObject@CNWSObject@@IEAAIPEAVCNWSObjectActionNode@@@Z";
+constexpr const char* kAIActionLockObject = "?AIActionLockObject@CNWSObject@@IEAAIPEAVCNWSObjectActionNode@@@Z";
+constexpr const char* kAIActionDisarmTrap = "?AIActionDisarmTrap@CNWSCreature@@QEAAIPEAVCNWSObjectActionNode@@@Z";
+constexpr const char* kAIActionFlagTrap = "?AIActionFlagTrap@CNWSCreature@@QEAAIPEAVCNWSObjectActionNode@@@Z";
+constexpr const char* kAIActionRecoverTrap = "?AIActionRecoverTrap@CNWSCreature@@QEAAIPEAVCNWSObjectActionNode@@@Z";
+constexpr const char* kAIActionExamineTrap = "?AIActionExamineTrap@CNWSCreature@@QEAAIPEAVCNWSObjectActionNode@@@Z";
+constexpr const char* kAIActionSetTrap = "?AIActionSetTrap@CNWSCreature@@QEAAIPEAVCNWSObjectActionNode@@@Z";
+constexpr const char* kAIActionAnimalEmpathy = "?AIActionAnimalEmpathy@CNWSCreature@@QEAAIPEAVCNWSObjectActionNode@@@Z";
+constexpr const char* kAIActionHeal = "?AIActionHeal@CNWSCreature@@QEAAIPEAVCNWSObjectActionNode@@@Z";
+// Search: UpdateTrapCheck (one caller, AIUpdate); 6 GetSkillRank calls with
+// the trap's detect DC in edi at each (D), 3 RollDice (d10 or d20).
+constexpr const char* kUpdateTrapCheck = "?UpdateTrapCheck@CNWSCreature@@IEAAXXZ";
+// Lore: UseLoreOnItem compares the total with SkillVsItemCost rows (a skill value, not a DC).
+constexpr const char* kUseLoreOnItem = "?UseLoreOnItem@CNWSCreature@@QEAAHI@Z";
+// Spellcraft: identify a spell (BroadcastSpellCast(spell id, uchar, ushort)), counterspell
+// (BroadcastCounterSpellData(CNWSpell*, msg)); DC = innate level + 15.
+constexpr const char* kBroadcastSpellCast = "?BroadcastSpellCast@CNWSCreature@@QEAAXIEG@Z";
+constexpr const char* kBroadcastCounterSpellData =
+    "?BroadcastCounterSpellData@CNWSObject@@QEAAXPEAVCNWSpell@@PEAVCNWCCMessageData@@@Z";
+// The Examine Trap window: (player, trap id, creature, int); Disable Trap + 20 vs DisarmDC.
+constexpr const char* kExamineGuiTrapData =
+    "?SendServerToPlayerExamineGui_TrapData@CNWSMessage@@QEAAHPEAVCNWSPlayer@@IPEAVCNWSCreature@@H@Z";
+// Script checks: GetIsSkillSuccessful (pops object, skill, DC; one GetSkillRank,
+// one RollDice), GetIsDoorActionPossible (pops object, action; skill + 20 vs the lock DC).
+constexpr const char* kExecuteCommandGetIsSkillSuccessful =
+    "?ExecuteCommandGetIsSkillSuccessful@CNWSVirtualMachineCommands@@QEAAHHH@Z";
+constexpr const char* kExecuteCommandGetIsDoorActionPossible =
+    "?ExecuteCommandGetIsDoorActionPossible@CNWSVirtualMachineCommands@@QEAAHHH@Z";
+constexpr const char* kStackPopInteger = "?StackPopInteger@CVirtualMachine@@QEAAHPEAH@Z";
+constexpr const char* kStackPopObject = "?StackPopObject@CVirtualMachine@@QEAAHPEAI@Z";
+constexpr const char* kStackPushInteger = "?StackPushInteger@CVirtualMachine@@QEAAHH@Z";
+constexpr const char* kStackPushObject = "?StackPushObject@CVirtualMachine@@QEAAHI@Z";
+// void CNWSCreature::BroadcastSkillData(CNWCCMessageData*): the combat log's
+// skill line (frees the message): ints [2] skill total, [3] DC.
+constexpr const char* kBroadcastSkillData = "?BroadcastSkillData@CNWSCreature@@QEAAXPEAVCNWCCMessageData@@@Z";
+constexpr const char* kMessageGetInteger = "?GetInteger@CNWCCMessageData@@QEAAHH@Z";
+constexpr const char* kMessageSetInteger = "?SetInteger@CNWCCMessageData@@QEAAXHH@Z";
+constexpr int kSkillMessageTotal = 2;
+constexpr int kSkillMessageDc = 3;
+// int C2DA::GetINTEntry(int row, const CExoString& column, int* out): Set Trap's
+// SetDC / DetectDCMod / DisarmDCMod, the heal kit's poison / disease DCs.
+constexpr const char* kTwoDaGetIntEntry = "?GetINTEntry@C2DA@@QEAAHHAEBVCExoString@@PEAH@Z";
+constexpr const char* kGetBlind = "?GetBlind@CNWSCreature@@QEAAHXZ";
+constexpr int kTumbleDc = 15;  // BroadcastAttackOfOpportunity's Tumble check (SetInteger(3, 15))
+// skills.2da rows.
+constexpr int kSkillAnimalEmpathy = 0;
+constexpr int kSkillDisableTrap = 2;
+constexpr int kSkillListen = 6;
+constexpr int kSkillLore = 7;
+constexpr int kSkillOpenLock = 9;
+constexpr int kSkillSearch = 14;
+constexpr int kSkillSetTrap = 15;
+constexpr int kSkillSpellcraft = 16;
+constexpr int kSkillSpot = 17;
+constexpr int kSkillTumble = 21;
+
 // E3b — skills, concentration, the 3e-only skills, initiative.
 // char CNWSCreatureStats::GetSkillRank(uchar skill, CNWSObject* vs, int bBaseRanksOnly):
 // every engine and script skill total (83 call sites); DMs get 127 (+0x2f).

@@ -265,6 +265,20 @@ Each step ends with an in-game test matrix, as on 1.69.
    Discipline value the engine compares is answered +-127 by the Shove's
    save; Improved Knockdown is handled as Knockdown for the size check). SK11
    moves to E3d with the perception and skill-DC rolls it lives in on 1.69.
+   *E3d1 built 0.4.2 (SK3 + SK11 on checks):* `rules_skill_dcs` — per check
+   family: the scripts' GetIsSkillSuccessful DC converted on the VM stack
+   (pop, convert, push back); the six lock / trap actions wrapped (target =
+   node +0x38, its DC from the door / placeable / trigger fields by object
+   type) and Search (the DC in edi at the skill call, read by unwinding to
+   the engine frame: `CallerContext` in hooks), Tumble (15), Spellcraft
+   identify (innate + 15), the Examine Trap window and the scripts' "can
+   pick" test shift the skill by DC - conv(DC), with BroadcastSkillData's
+   line set back (int 2 - shift, int 3 = conv); Set Trap's and heal kits'
+   DCs by a C2DA::GetINTEntry filter (caller + column); Pick Pocket, Animal
+   Empathy (target level from a wrapper), Rogue-only traps and synergy by
+   ruleset values; SK11 by the dice filter at GetIsSkillSuccessful's d20 and
+   Search's three dice. Found on the way: many EE functions are split into
+   chained .pdata fragments; `FunctionAt` now returns all of them.
 5. **E4 — character model:** served data + strings, XP, multiclass,
    alignment, HP, feat cadence, point buy + backgrounds, class features,
    the Fighter (first tested in game here — it never was on 1.69).
