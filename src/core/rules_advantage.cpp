@@ -23,6 +23,7 @@
 #include <string>
 
 #include "attack_roll.h"
+#include "condition_effects.h"
 #include "config.h"
 #include "creature.h"
 #include "dice.h"
@@ -47,6 +48,7 @@ struct PendingAttack {
   rules::RollMode mode = rules::RollMode::kNormal;
   int threats = 0;
   bool point_blank_shot = false;
+  std::string conditions;  // CN note for the log
   uint32_t attacker_id = 0;
   uint32_t target_id = 0;
 };
@@ -95,7 +97,9 @@ struct ThreatCount {
 
 void CountIfThreat(void* context, uint32_t id, void* creature) {
   auto* count = static_cast<ThreatCount*>(context);
-  if (!engine::IsEnemy(count->attacker, id) || engine::IsDeadOrDying(creature)) return;
+  if (!engine::IsEnemy(count->attacker, id) || engine::IsDeadOrDying(creature) || IncapacitatedByCondition(creature)) {
+    return;
+  }
   if (engine::EdgeDistance(count->attacker, creature) > kFiveFeet) return;
   if (!engine::Sees(creature, count->attacker_id)) return;
   ++count->threats;
@@ -120,8 +124,11 @@ void BeforeAttackRoll(AttackRoll& roll) {
   t_pending.terms = terms;
   t_pending.point_blank_shot = terms.ranged && engine::HasFeat(stats, ee::kFeatPointBlankShot);
   t_pending.threats = terms.ranged ? CountCloseCombatThreats(roll.attacker) : 0;
+  const ConditionRollSources conditions = ConditionAttackRollSources(roll.attacker, target, terms.ranged);
+  t_pending.conditions = conditions.note;
   t_pending.mode = rules::SituationalRollMode(
-      terms, rules::RangedCloseCombat(terms.ranged, t_pending.point_blank_shot, t_pending.threats));
+      terms, rules::RangedCloseCombat(terms.ranged, t_pending.point_blank_shot, t_pending.threats),
+      conditions.advantage, conditions.disadvantage);
   t_pending.attacker_id = Field<uint32_t>(roll.attacker, ee::kObjectId);
   t_pending.target_id = Field<uint32_t>(target, ee::kObjectId);
   t_pending.active = true;
@@ -141,11 +148,12 @@ bool RollAttackD20(uintptr_t caller, int count, int sides, int* result) {
   const bool keep_higher = t_pending.mode == rules::RollMode::kAdvantage;
   const int kept = keep_higher ? (first > second ? first : second) : (first < second ? first : second);
   if (LogSlotLeft()) {
-    Log("advantage: 0x%08X vs 0x%08X (%s): %s; 3e situational terms removed (%s); close-combat enemies %d%s; "
+    Log("advantage: 0x%08X vs 0x%08X (%s): %s; 3e situational terms removed (%s); close-combat enemies %d%s%s%s; "
         "d20 %d / %d -> %d",
         t_pending.attacker_id, t_pending.target_id, t_pending.terms.ranged ? "ranged" : "melee",
         ModeName(t_pending.mode), TermNames(t_pending.terms).c_str(), t_pending.threats,
-        t_pending.point_blank_shot ? " (Point Blank Shot)" : "", first, second, kept);
+        t_pending.point_blank_shot ? " (Point Blank Shot)" : "", t_pending.conditions.empty() ? "" : "; conditions: ",
+        t_pending.conditions.c_str(), first, second, kept);
   }
   *result = kept;
   return true;
@@ -153,10 +161,13 @@ bool RollAttackD20(uintptr_t caller, int count, int sides, int* result) {
 
 void AfterAttackRoll(AttackRoll&) {
   if (t_pending.active && t_pending.mode == rules::RollMode::kNormal &&
-      (rules::NwnSituationalTotal(t_pending.terms) != 0 || t_pending.threats > 0) && LogSlotLeft()) {
-    Log("advantage: 0x%08X vs 0x%08X (%s): 3e situational terms removed (%s); close-combat enemies %d%s; normal roll",
+      (rules::NwnSituationalTotal(t_pending.terms) != 0 || t_pending.threats > 0 || !t_pending.conditions.empty()) &&
+      LogSlotLeft()) {
+    Log("advantage: 0x%08X vs 0x%08X (%s): 3e situational terms removed (%s); close-combat enemies %d%s%s%s; normal "
+        "roll",
         t_pending.attacker_id, t_pending.target_id, t_pending.terms.ranged ? "ranged" : "melee",
-        TermNames(t_pending.terms).c_str(), t_pending.threats, t_pending.point_blank_shot ? " (Point Blank Shot)" : "");
+        TermNames(t_pending.terms).c_str(), t_pending.threats, t_pending.point_blank_shot ? " (Point Blank Shot)" : "",
+        t_pending.conditions.empty() ? "" : "; conditions: ", t_pending.conditions.c_str());
   }
   t_pending = PendingAttack();
 }

@@ -90,6 +90,77 @@ constexpr const char* kMaxAttackRange = "?MaxAttackRange@CNWSCreature@@QEAAMIHH@
 constexpr const char* kGetFaction = "?GetFaction@CNWSCreature@@QEAAPEAVCNWSFaction@@XZ";
 constexpr uint32_t kObjectInvalid = 0x7f000000;
 
+// E2a — opportunity attacks, potions.
+// void CNWSCreature::BroadcastAttackOfOpportunity(unsigned int target, int) — 5 callers:
+// AIUpdate +0xa8d (moving away), EventHandler +0xe3e (the AoO event that
+// SignalMeleeDamage / SignalRangedDamage queue: ranged, unarmed, Disarm),
+// AIActionCastSpell twice (casting), AIActionItemCastSpell +0xbec (potions).
+constexpr const char* kBroadcastAttackOfOpportunity = "?BroadcastAttackOfOpportunity@CNWSCreature@@QEAAXIH@Z";
+constexpr const char* kAIUpdate = "?AIUpdate@CNWSCreature@@UEAAXXZ";  // virtual; the export is the body
+constexpr const char* kUseItem = "?UseItem@CNWSCreature@@QEAAHIEEIVVector@@IH@Z";
+// int CNWSCreature::AddAttackActions(unsigned int target, int, int bClearAllActions?, int)
+constexpr const char* kAddAttackActions = "?AddAttackActions@CNWSCreature@@QEAAHIHHH@Z";
+// unsigned int CNWSCreature::GetNearestEnemy(float range, unsigned int exclude, int bMustBeSeen, int bCheckPath)
+constexpr const char* kGetNearestEnemy = "?GetNearestEnemy@CNWSCreature@@QEAAIMIHH@Z";
+constexpr const char* kGetItemByGameObjectId = "?GetItemByGameObjectID@CServerExoApp@@QEAAPEAVCNWSItem@@I@Z";
+constexpr int kFeatSpringAttack = 392;  // 0x188: AIUpdate +0xa6d, the only HasFeat(0x188) in the binary
+
+// E2b — effects and conditions.
+// CNWSObject's applied effects: CGameEffect** at +0x150, count int32 at +0x158
+// (HasSpellEffectApplied). CGameEffect: id uint64 +0x00, type uint16 +0x08
+// (GetFilteredEffectList), duration type / flags uint16 +0x0a, duration float
+// +0x0c (1.69's layout, unchanged before +0x18, I), creator uint32 +0x18
+// (SetCreator), spell id +0x1c, integer count int32 +0x40 and int32* +0x48
+// (SetNumIntegers / GetInteger).
+constexpr size_t kObjectEffects = 0x150;
+constexpr size_t kObjectEffectCount = 0x158;
+constexpr size_t kEffectType = 0x08;
+constexpr size_t kEffectFlags = 0x0a;
+constexpr size_t kEffectDuration = 0x0c;
+constexpr size_t kEffectCreator = 0x18;
+constexpr size_t kEffectIntegerCount = 0x40;
+constexpr size_t kEffectIntegers = 0x48;
+constexpr uint16_t kEffectDurationTemporary = 1;
+// Effect true types: EE kept 1.69's numbers (poison 35, concealment 76 seen
+// in EE's EffectPoison / EffectConcealment; the rest as 1.69, I).
+constexpr uint16_t kEffectTypeSetState = 8;
+constexpr uint16_t kEffectTypeEntangle = 18;
+constexpr uint16_t kEffectTypeDeaf = 21;
+constexpr uint16_t kEffectTypePoison = 35;
+constexpr uint16_t kEffectTypeIcon = 67;
+constexpr uint16_t kEffectTypeConcealment = 76;
+constexpr int kStateFrightened = 3;
+constexpr int kStateDazed = 5;
+constexpr int kStateStunned = 6;
+constexpr int kStateParalyzed = 8;
+constexpr int kStateAsleep = 9;
+constexpr int kStatePetrified = 15;
+constexpr int kIconFrightened = 14;
+constexpr int kRacialTypeAll = 28;  // a concealment effect's race filter: everyone
+// GetEffectImmunity(type, versus, 1): 1 also checks the immunity feats (its HasFeat calls).
+constexpr const char* kGetEffectImmunity = "?GetEffectImmunity@CNWSCreatureStats@@QEAAHEPEAVCNWSCreature@@H@Z";
+constexpr int kImmunityMindSpells = 1;
+constexpr int kImmunityFear = 4;
+constexpr int kImmunityCriticalHit = 31;  // ResolveAttackRoll passes 31 (rdata 0xde7d30)
+constexpr const char* kOnApplySetState = "?OnApplySetState@CNWSEffectListHandler@@QEAAHPEAVCNWSObject@@PEAVCGameEffect@@H@Z";
+constexpr const char* kOnApplyEntangled = "?OnApplyEntangled@CNWSEffectListHandler@@QEAAHPEAVCNWSObject@@PEAVCGameEffect@@H@Z";
+constexpr const char* kOnApplyAttackDecrease = "?OnApplyAttackDecrease@CNWSEffectListHandler@@QEAAHPEAVCNWSObject@@PEAVCGameEffect@@H@Z";
+constexpr const char* kOnApplyAbilityDecrease = "?OnApplyAbilityDecrease@CNWSEffectListHandler@@QEAAHPEAVCNWSObject@@PEAVCGameEffect@@H@Z";
+constexpr const char* kResolveDefensiveEffects = "?ResolveDefensiveEffects@CNWSCreature@@QEAAHPEAVCNWSObject@@H@Z";
+constexpr const char* kAIActionCastSpell = "?AIActionCastSpell@CNWSCreature@@QEAAIPEAVCNWSObjectActionNode@@@Z";
+// The creature's AI-state byte: bit 0x10 = can hear (OnApplyDeaf clears it;
+// AIActionCastSpell adds 20% spell failure to verbal spells without it).
+constexpr size_t kCreatureAiState = 0x8d4;
+constexpr uint8_t kAiStateCanHear = 0x10;
+
+// The script bridge: int CVirtualMachine::RunScriptChunk(const CExoString& code,
+// unsigned int self, int bSelfValid, int bWrapIntoMain) — as NWScript's
+// ExecuteScriptChunk calls it; CExoString built and freed by the engine.
+constexpr const char* kVirtualMachine = "?g_pVirtualMachine@@3PEAVCVirtualMachine@@EA";
+constexpr const char* kRunScriptChunk = "?RunScriptChunk@CVirtualMachine@@QEAAHAEBVCExoString@@IHH@Z";
+constexpr const char* kExoStringFromChars = "??0CExoString@@QEAA@PEBD@Z";
+constexpr const char* kExoStringDestructor = "??1CExoString@@QEAA@XZ";
+
 // --- diffsettings.2da rows (EE data, D).
 constexpr int kDifficultyNoCriticalOnPc = 0;  // 1 at DM-Easy, Easy and Normal
 
@@ -109,6 +180,9 @@ constexpr int kMaxClassSlots = 8;                     // class block +0xE0, 0x18
 constexpr size_t kStatsRace = 0xd20;                  // uint16 racialtypes row (GetAttackModifierVersus +0x1448)
 constexpr size_t kObjectPositionX = 0xa4;             // float x, y, z at +0xa4 / +0xa8 / +0xac (SetPosition)
 constexpr size_t kObjectPositionY = 0xa8;
+constexpr size_t kObjectOrientationX = 0xb0;          // float x, y (SetOrientation writes +0xb0)
+constexpr size_t kObjectOrientationY = 0xb4;
+constexpr size_t kCreatureAnimation = 0xd8;           // int32; 0x04 / 0x56 / 0x57 = running (AIUpdate's AoO check)
 constexpr size_t kCreaturePathInfo = 0x530;           // CPathfindInformation* (UpdatePersonalSpace)
 constexpr size_t kPathInfoPersonalSpace = 0x8;        // float, appearance.2da CREPERSPACE (UpdatePersonalSpace)
 constexpr size_t kCreatureInventory = 0x950;          // CNWSInventory* (GetRangedAttackBonus +0x20)

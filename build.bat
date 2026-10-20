@@ -1,15 +1,19 @@
 @echo off
 rem Builds build\nwn5e.exe and build\nwn5e.dll (64-bit, static CRT) for NWN:
 rem Enhanced Edition with VS 2019 Build Tools.
+rem NWN5E_OUT=<folder> builds there instead (e.g. to check a build while the
+rem game runs and build\nwn5e.dll is in use).
 setlocal
 set VCVARS=C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvars64.bat
 if not exist "%VCVARS%" goto :no_vcvars
 call "%VCVARS%" >nul || exit /b 1
 cd /d "%~dp0"
-if not exist build mkdir build
-if not exist build\obj mkdir build\obj
+set OUT=build
+if defined NWN5E_OUT set OUT=%NWN5E_OUT%
+if not exist "%OUT%" mkdir "%OUT%"
+if not exist "%OUT%\obj" mkdir "%OUT%\obj"
 
-set CFLAGS=/nologo /O2 /MT /W3 /EHsc /std:c++17 /DWIN32_LEAN_AND_MEAN /DNOMINMAX /DUNICODE /D_UNICODE /Fobuild\obj\
+set CFLAGS=/nologo /O2 /MT /W3 /EHsc /std:c++17 /DWIN32_LEAN_AND_MEAN /DNOMINMAX /DUNICODE /D_UNICODE /Fo"%OUT%\obj\\"
 
 rem The private layer (docs/PRIVATE-LAYER.md): personal-use rules kept out of
 rem this public repo, compiled in when private\ exists. "build.bat public"
@@ -25,18 +29,19 @@ cl %CFLAGS% /LD /Ithird_party\minhook\include /Isrc %PRIVATE_DEF% ^
   src\core\dice.cpp src\core\attack_roll.cpp src\core\ruleset.cpp src\core\sheet.cpp src\core\creature.cpp ^
   src\core\rules_crit.cpp src\core\rules_attack.cpp src\core\rules_extra_attack.cpp src\core\rules_sheet.cpp ^
   src\core\rules_debug.cpp src\core\engine.cpp src\core\rules_racial.cpp src\core\rules_two_weapon.cpp ^
-  src\core\rules_advantage.cpp src\core\rules_retarget.cpp ^
+  src\core\rules_advantage.cpp src\core\rules_retarget.cpp src\core\feats.cpp src\core\rules_opportunity.cpp ^
+  src\core\rules_potion.cpp src\core\effects.cpp src\core\rules_conditions.cpp ^
   src\rules\*.cpp ^
   %PRIVATE_SRC% third_party\minhook\src\buffer.c third_party\minhook\src\hook.c ^
   third_party\minhook\src\trampoline.c third_party\minhook\src\hde\hde64.c ^
-  /Fe:build\nwn5e.dll /link /DLL user32.lib || exit /b 1
+  /Fe:"%OUT%\nwn5e.dll" /link /DLL user32.lib || exit /b 1
 
-cl %CFLAGS% src\loader\main.cpp /Fe:build\nwn5e.exe /link /SUBSYSTEM:WINDOWS user32.lib shell32.lib || exit /b 1
+cl %CFLAGS% src\loader\main.cpp /Fe:"%OUT%\nwn5e.exe" /link /SUBSYSTEM:WINDOWS user32.lib shell32.lib || exit /b 1
 
 rem build\nwn5e.ini holds the player's settings: only create it, never overwrite it.
-if not exist build\nwn5e.ini copy nwn5e.ini build\nwn5e.ini >nul
-if defined PRIVATE_SRC echo built build\nwn5e.exe build\nwn5e.dll WITH the private layer (personal use only)
-if not defined PRIVATE_SRC echo built build\nwn5e.exe build\nwn5e.dll
+if not exist "%OUT%\nwn5e.ini" copy nwn5e.ini "%OUT%\nwn5e.ini" >nul
+if defined PRIVATE_SRC echo built %OUT%\nwn5e.exe %OUT%\nwn5e.dll WITH the private layer (personal use only)
+if not defined PRIVATE_SRC echo built %OUT%\nwn5e.exe %OUT%\nwn5e.dll
 exit /b 0
 
 :no_vcvars

@@ -34,6 +34,20 @@ struct Config {
   // E1: faithful = two-handed melee adds Strength once; nwn/off = NWN's 1.5 x.
   rules::RuleVariant two_handed_strength = rules::RuleVariant::kFaithful;
 
+  // E2 — opportunity attacks, potions.
+  // D2: faithful = only moving away provokes (no casting, potion, ranged,
+  // unarmed or Disarm AoOs; Spring Attack no longer protects; only creatures
+  // run away from take it). nwn/off = NWN's AoOs.
+  rules::RuleVariant opportunity_attacks = rules::RuleVariant::kFaithful;
+  // Owner request: after drinking a potion mid-fight, a player character goes
+  // back to attacking (NWN drops the attack order on item use).
+  bool resume_attack_after_potion = true;
+  // CN1–CN8: conditions. faithful = 2024 conditions (restrained, helpless,
+  // stunned, poisoned, frightened, concealment, deafened; PLAN.md); nwn =
+  // NWN's, plus the both-mode parts (stunned / paralysed / asleep targets give
+  // advantage); off = NWN's.
+  rules::RuleVariant conditions = rules::RuleVariant::kFaithful;
+
   // [debug] — test switches, not rules.
   bool debug_every_hit_crits = false;    // every hit is a critical (crit immunity still applies)
   bool debug_combat_breakdown = false;   // the engine's own per-term attack and damage breakdown

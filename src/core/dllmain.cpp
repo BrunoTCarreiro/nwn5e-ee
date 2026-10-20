@@ -21,6 +21,9 @@ void InstallRacialRules();
 void InstallTwoWeaponRules();
 void InstallAdvantageRules();
 void InstallRetargetRules();
+void InstallOpportunityRules();
+void InstallPotionRules();
+void InstallConditionRules();
 #ifdef NWN5E_PRIVATE
 void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 #endif
@@ -51,6 +54,9 @@ void Start(HMODULE self) {
   InstallTwoWeaponRules();
   InstallAdvantageRules();
   InstallRetargetRules();
+  InstallOpportunityRules();
+  InstallPotionRules();
+  InstallConditionRules();
   InstallDebugSwitches();
 #ifdef NWN5E_PRIVATE
   InstallPrivateRules();
