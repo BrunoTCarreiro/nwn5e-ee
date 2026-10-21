@@ -56,6 +56,8 @@
 #include "rules_loaded.h"
 #include "ruleset.h"
 
+void GiveBackgroundKit(uint32_t creature_id, rules::Background background);  // rules_equipment.cpp (C2)
+
 namespace {
 
 using SetBaseFn = void (*)(void* stats, uint8_t value);
@@ -152,6 +154,7 @@ void GiveCreationBackground(void* creature, void* stats, const CreatureFacts& fa
   }
   Log("abilities: 0x%08X background %s from the creation screen (feat %d)", Field<uint32_t>(creature, ee::kObjectId),
       rules::BackgroundData(choice->background)->name, feat);
+  GiveBackgroundKit(Field<uint32_t>(creature, ee::kObjectId), choice->background);
 }
 
 // NWN mode / off: the background feats aren't offered.

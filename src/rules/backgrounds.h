@@ -66,4 +66,19 @@ std::optional<BackgroundFeatChoice> BackgroundFromFeat(int feat);
 Background RecommendedBackground2024(CharacterClass character_class);
 int RecommendedBackgroundSplit2024(Background background, CharacterClass character_class);
 
+// C2 (docs/CHARGEN.md): the background's equipment (SRD 5.2 option A) as NWN
+// items, given when a character made on the creation screen enters. Items
+// with no NWN counterpart (holy symbol, books, parchment, calligrapher's
+// supplies, crowbar, pouches, a gaming set, clothes, the quiver) are left out.
+struct KitItem {
+  const char* blueprint;  // an NWN item blueprint (resref)
+  int count;              // how many (separate items, or one stack's size)
+  bool one_stack = false;  // ammunition: one stack of `count`
+};
+struct BackgroundKit {
+  std::vector<KitItem> items;
+  int gold;
+};
+BackgroundKit BackgroundKit2024(Background background);
+
 }  // namespace rules

@@ -145,4 +145,20 @@ int RecommendedBackgroundSplit2024(Background background, CharacterClass charact
   return 6;
 }
 
+BackgroundKit BackgroundKit2024(Background background) {
+  switch (background) {
+    case Background::kAcolyte:  // Calligrapher's Supplies, Book (prayers), Holy Symbol, Parchment, Robe, 8 GP
+      return {{{"nw_cloth005", 1}}, 8};
+    case Background::kCriminal:  // 2 Daggers, Thieves' Tools, Crowbar, 2 Pouches, Traveler's Clothes, 16 GP
+      return {{{"nw_wswdg001", 2}, {"nw_it_picks001", 1}}, 16};
+    case Background::kSage:  // Quarterstaff, Calligrapher's Supplies, Book (history), Parchment, Robe, 8 GP
+      return {{{"nw_wdbqs001", 1}, {"nw_cloth005", 1}}, 8};
+    case Background::kSoldier:  // Spear, Shortbow, 20 Arrows, Gaming Set, Healer's Kit, Quiver, Clothes, 14 GP
+      return {{{"nw_wplss001", 1}, {"nw_wbwsh001", 1}, {"nw_wamar001", 20, true}, {"nw_it_medkit001", 1}}, 14};
+    case Background::kNone:
+      break;
+  }
+  return {{}, 0};
+}
+
 }  // namespace rules

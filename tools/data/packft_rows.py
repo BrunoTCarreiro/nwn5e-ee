@@ -31,6 +31,8 @@ TABLES = (
     + [f'PackFTWiz{i}' for i in range(1, 10)]
 )
 DEX_FIGHTERS = {'PackFTFight2', 'PackFTFight6'}  # Fighter_Finesse, Fighter_WeaponMaster
+# Fighter_Pirate's table, also the 2024 greatsword package's (tools/data/kits.py).
+GREAT_WEAPON_FIGHTERS = {'PackFTFight3'}
 
 ASI = [(1200 + i, f'NWN5E_ASI_{i + 1}') for i in range(7)]
 STYLES = {
@@ -45,8 +47,12 @@ ALERT = (377, 'FEAT_IMPROVED_INITIATIVE')
 def rows_for(table):
     rows = list(ASI)
     if table.startswith('PackFTFight'):
-        order = ['archery', 'defense', 'two', 'great'] if table in DEX_FIGHTERS else ['defense', 'great', 'two',
-                                                                                         'archery']
+        if table in DEX_FIGHTERS:
+            order = ['archery', 'defense', 'two', 'great']
+        elif table in GREAT_WEAPON_FIGHTERS:
+            order = ['great', 'defense', 'two', 'archery']
+        else:
+            order = ['defense', 'great', 'two', 'archery']
         rows += [STYLES[name] for name in order]
     rows.append(ALERT)
     return rows

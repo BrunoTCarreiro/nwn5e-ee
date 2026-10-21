@@ -119,6 +119,9 @@ struct Config {
   // CM8: faithful = only the SRD 5.2 feats nwn5e has built can be chosen
   // (Alert, Ability Score Improvement, the Fighting Styles); nwn / off = NWN's.
   rules::RuleVariant feats = rules::RuleVariant::kFaithful;
+  // C2: faithful = the 2024 starting kits as the creation screen's packages,
+  // and the background's kit when a new character enters; nwn / off = NWN's.
+  rules::RuleVariant starting_equipment = rules::RuleVariant::kFaithful;
   // CM0: serve nwn5e's 2da rows and strings (data\rows, data\strings.txt).
   bool served_data = true;
 

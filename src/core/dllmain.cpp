@@ -49,13 +49,14 @@ void InstallClientUi();
 void InstallCreationPages();
 void InstallCreationSteps();
 void InstallFeatRules();
+void InstallStartingEquipment();
 #ifdef NWN5E_PRIVATE
 void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 #endif
 
 namespace {
 
-constexpr const char* kVersion = "0.8.0";
+constexpr const char* kVersion = "0.9.0";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -107,6 +108,7 @@ void Start(HMODULE self) {
   InstallCreationPages();
   InstallCreationSteps();
   InstallFeatRules();
+  InstallStartingEquipment();
   InstallDebugSwitches();
 #ifdef NWN5E_PRIVATE
   InstallPrivateRules();

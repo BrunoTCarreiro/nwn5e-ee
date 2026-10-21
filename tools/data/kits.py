@@ -1,0 +1,111 @@
+"""Writes the 2024 starting-equipment packages (docs/CHARGEN.md C2):
+
+- data/files/packeq5e_<kit>.2da: each package's items (NWN blueprints, served
+  as they are: tables the game doesn't have);
+- data/rows/packages.if_kits.txt: the 12 packages appended to packages.2da
+  (rows 140-151); packages.if_kits.hide.txt: NWN's base-class player
+  packages made non-player (PlayerClass 0: still there for henchmen and
+  NWN's own uses);
+- data/rows/classes.if_kits.txt: each class's default package (Recommended)
+  is its 2024 one.
+
+The ".if_kits" rows are served only with starting_equipment faithful
+(src/core/rules_equipment.cpp); NWN mode keeps NWN's packages.
+
+SRD 5.2 kits (option A), mapped to NWN items: packs become a Torch; flavour
+items with no NWN counterpart (instruments, holy symbols, arcane and druidic
+foci, spellbook, books, parchment) are left out; NWN has no javelin, so
+javelins are Throwing Axes (d6). A package item comes as its blueprint's
+stack (50 throwing axes, 99 arrows) — to revisit with the starting items'
+balance (owner, 2026-10-21).
+
+Run from the repo root:  python tools/data/kits.py
+"""
+
+import os
+
+ARMOR_LEATHER = 'nw_aarcl001'
+ARMOR_STUDDED = 'nw_aarcl002'
+ARMOR_CHAINMAIL = 'nw_aarcl004'
+ARMOR_CHAIN_SHIRT = 'nw_aarcl012'
+SHIELD = 'nw_ashlw001'  # Large Shield: +2 AC like the 2024 Shield
+TORCH = 'nw_it_torch001'
+
+# kit, package row, label, name strref, class id, attribute, gold, school,
+# domain1, domain2, associate, spell / feat / skill preference tables
+# (copied from the class's NWN default package; the Fighter's from its
+# default and Finesse packages), items.
+KITS = [
+    ('barb', 140, 'NWN5E_Barbarian', 16000300, 0, 'STR', 15, '****', '****', '****', '****',
+     '****', 'PackFTBarb1', 'PackSKBarb1', ['nw_waxgr001'] + ['nw_waxhn001'] * 4 + [TORCH]),
+    ('bard', 141, 'NWN5E_Bard', 16000302, 1, 'CHA', 19, '8', '****', '****', '****',
+     'PackSPBar1', 'PackFTBard1', 'PackSKBard1', [ARMOR_LEATHER] + ['nw_wswdg001'] * 2 + [TORCH]),
+    ('cler', 142, 'NWN5E_Cleric', 16000304, 2, 'WIS', 7, '****', '9', '17', '****',
+     'PackSPCleric1', 'PackFTCler1', 'PackSKCler1', [ARMOR_CHAIN_SHIRT, SHIELD, 'nw_wblml001', TORCH]),
+    ('druid', 143, 'NWN5E_Druid', 16000306, 3, 'WIS', 9, '****', '****', '****', '1',
+     'PackSPDruid1', 'PackFTDruid1', 'PackSKDruid1', [ARMOR_LEATHER, SHIELD, 'nw_wspsc001', 'nw_wdbqs001', TORCH]),
+    ('fighta', 144, 'NWN5E_Fighter_A', 16000308, 4, 'STR', 4, '****', '****', '****', '****',
+     '****', 'PackFTFight3', 'PackSKFight1', [ARMOR_CHAINMAIL, 'nw_wswgs001', 'nw_wblfl001', 'nw_wthax001', TORCH]),
+    ('fightb', 145, 'NWN5E_Fighter_B', 16000310, 4, 'DEX', 11, '****', '****', '****', '****',
+     '****', 'PackFTFight2', 'PackSKFight2',
+     [ARMOR_STUDDED, 'nw_wswsc001', 'nw_wswss001', 'nw_wbwln001', 'nw_wamar001', TORCH]),
+    ('monk', 146, 'NWN5E_Monk', 16000312, 5, 'WIS', 11, '****', '****', '****', '****',
+     '****', 'PackFTMonk1', 'PackSKMonk1', ['nw_wplss001'] + ['nw_wswdg001'] * 5 + [TORCH]),
+    ('pala', 147, 'NWN5E_Paladin', 16000314, 6, 'CHA', 9, '****', '****', '****', '****',
+     'PackSPPala1', 'PackFTPala1', 'PackSKPala1', [ARMOR_CHAINMAIL, SHIELD, 'nw_wswls001', 'nw_wthax001', TORCH]),
+    ('rang', 148, 'NWN5E_Ranger', 16000316, 7, 'DEX', 7, '****', '****', '****', '****',
+     'PackSPRang1', 'PackFTRang1', 'PackSKRang1',
+     [ARMOR_STUDDED, 'nw_wswsc001', 'nw_wswss001', 'nw_wbwln001', 'nw_wamar001', TORCH]),
+    ('rog', 149, 'NWN5E_Rogue', 16000318, 8, 'DEX', 8, '****', '****', '****', '****',
+     '****', 'PackFTRog1', 'PackSKRog1',
+     [ARMOR_LEATHER] + ['nw_wswdg001'] * 2 + ['nw_wswss001', 'nw_wbwsh001', 'nw_wamar001', 'nw_it_picks001', TORCH]),
+    ('sorc', 150, 'NWN5E_Sorcerer', 16000320, 9, 'CHA', 28, '0', '****', '****', '0',
+     'PackSPWiz1', 'PackFTSor1', 'PackSKWiz1', ['nw_wplss001'] + ['nw_wswdg001'] * 2 + [TORCH]),
+    ('wiz', 151, 'NWN5E_Wizard', 16000322, 10, 'INT', 5, '0', '****', '****', '0',
+     'PackSPWiz1', 'PackFTWiz1', 'PackSKWiz1', ['nw_wswdg001'] * 2 + ['nw_wdbqs001', 'nw_cloth005', TORCH]),
+]
+
+# The class's default package (classes.2da Package) in 2024 mode; the Fighter's is option A.
+DEFAULT_PACKAGE = {0: 140, 1: 141, 2: 142, 3: 143, 4: 144, 5: 146, 6: 147, 7: 148, 8: 149, 9: 150, 10: 151}
+
+# NWN's player packages of the base classes (packages.2da, ClassID 0-10, PlayerClass 1).
+NWN_PLAYER_PACKAGES = list(range(0, 63)) + [92, 93, 94, 96, 99, 100]
+
+
+def main():
+    files = os.path.join('data', 'files')
+    rows = os.path.join('data', 'rows')
+    for kit in KITS:
+        name, items = kit[0], kit[-1]
+        lines = ['2DA V2.0', '', '   Label'] + [f'{i}  {item.upper()}' for i, item in enumerate(items)]
+        with open(os.path.join(files, f'packeq5e_{name}.2da'), 'w', encoding='ascii', newline='\r\n') as f:
+            f.write('\n'.join(lines) + '\n')
+    header = [
+        '# packages.2da - C2 (docs/CHARGEN.md): the 2024 starting-equipment packages, served',
+        '# only with starting_equipment faithful (generated by tools/data/kits.py).',
+        'Label Name Description ClassID Attribute Gold School Domain1 Domain2 Associate SpellPref2DA FeatPref2DA '
+        'SkillPref2DA Equip2DA Soundset PlayerClass',
+    ]
+    body = []
+    for (name, row, label, strref, class_id, attribute, gold, school, domain1, domain2, associate, spells, feats,
+         skills, _items) in KITS:
+        body.append(f'{row} {label} {strref} {strref + 1} {class_id} {attribute} {gold} {school} {domain1} {domain2} '
+                    f'{associate} {spells} {feats} {skills} packeq5e_{name} 0 1')
+    hidden = ['# NWN\'s base-class player packages: kept, but not offered to players in 2024 mode.', 'PlayerClass']
+    hidden += [f'{row} 0' for row in NWN_PLAYER_PACKAGES]
+    with open(os.path.join(rows, 'packages.if_kits.txt'), 'w', encoding='utf-8', newline='\n') as f:
+        f.write('\n'.join(header + body) + '\n')
+    with open(os.path.join(rows, 'packages.if_kits.hide.txt'), 'w', encoding='utf-8', newline='\n') as f:
+        f.write('\n'.join(hidden) + '\n')
+    classes = [
+        '# classes.2da - C2 (docs/CHARGEN.md): each class\'s default package (Recommended) is',
+        '# its 2024 one, only with starting_equipment faithful (generated by tools/data/kits.py).',
+        'Package',
+    ] + [f'{class_id} {row}' for class_id, row in DEFAULT_PACKAGE.items()]
+    with open(os.path.join(rows, 'classes.if_kits.txt'), 'w', encoding='utf-8', newline='\n') as f:
+        f.write('\n'.join(classes) + '\n')
+    print(f'{len(KITS)} kits, packages and classes rows written')
+
+
+if __name__ == '__main__':
+    main()

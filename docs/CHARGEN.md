@@ -531,6 +531,30 @@ Feats page (the Skills page closing the chain as the Feats page), the
 filter in use, and a Soldier Fighter entering (Str 17, Con 15) and
 levelling to 4 (Champion at 3, Second Wind 3 uses at 4).
 
+*C2 (0.9.0, 2026-10-21): the Packages step as the 2024 starting kits.*
+Since the background has its own page, a package is the class's kit.
+Decided (owner, 2026-10-21: "go with the recommendations"): one 2024
+package per class — the Fighter two, SRD option A (Chainmail, Greatsword,
+Light Flail, Throwing Axes) and B (Studded Leather, Scimitar, Short Sword,
+Longbow, Arrows) — NWN's themed packages hidden in 2024 mode (kept for
+henchmen and NWN mode); kit only, no gold option; items with no NWN
+counterpart left out (packs become a Torch; instruments, holy symbols,
+foci, spellbook, books dropped; javelins become Throwing Axes); no NWN
+starting healing potions (the 2024 kits have none); the background's kit
+(rules::BackgroundKit2024) and gold given when the character enters, with
+the background. New key `starting_equipment`. The data (tools/data/kits.py):
+12 equipment tables served whole (data/files/packeq5e_*.2da), packages.2da
+rows 140-151 (their feat preferences: the class's, the greatsword Fighter's
+with Great Weapon Fighting first, the archer's with Archery), NWN's 69
+base-class player packages set PlayerClass 0, and classes.2da's Package
+(Recommended) pointing at the 2024 one — all as `.if_kits` rows, which the
+loader serves only when the rule asks (new: conditional rows), so NWN mode's
+tables stay NWN's. Skill preferences wait for C5.
+**To revisit (owner, 2026-10-21): the starting items, for game balance** —
+a package item comes as its blueprint's stack (50 Throwing Axes for 8
+javelins, 99 Arrows for 20), the 2024 gold is far below NWN's (4-28 gold
+against 20-100), and NWN's starting healing potions are gone.
+
 *Decided (owner, 2026-10-21): the Domain step stays until the Cleric
 conversion* — NWN's two domains are picked at creation until the Cleric's
 brief (Phase 4) drops what domains grant (powers, domain spells, the bonus

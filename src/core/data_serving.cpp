@@ -16,6 +16,7 @@
 #include <string.h>
 
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -66,6 +67,19 @@ std::string g_served;  // ANSI, for the engine
 bool g_registered = false;
 int g_probe_row = -1;  // feat.2da row of the probe (served_data_probe)
 bool g_serve_creation_layouts = false;  // ServeCreationLayouts()
+std::set<std::string> g_row_flags;       // ServeConditionalRows()
+
+// "packages.if_kits.hide" -> "kits"; "" when no part is conditional.
+std::string ConditionalFlag(const std::string& name) {
+  size_t at = name.find('.');
+  while (at != std::string::npos) {
+    const size_t next = name.find('.', at + 1);
+    const std::string part = name.substr(at + 1, next == std::string::npos ? std::string::npos : next - at - 1);
+    if (part.rfind("if_", 0) == 0) return part.substr(3);
+    at = next;
+  }
+  return "";
+}
 
 constexpr const char* kAlias = "NWN5E";
 constexpr uint32_t kProbeName = kDataStringFirst;
@@ -197,6 +211,9 @@ int BuildServedTables() {
   for (const auto& source : sources) {
     for (const std::wstring& name : FilesIn(source.first, L"*.txt")) {
       std::string table = Narrow(name.substr(0, name.size() - 4));
+      std::string flag = ConditionalFlag(table);
+      for (char& c : flag) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+      if (!flag.empty() && !g_row_flags.count(flag)) continue;  // the other mode's rows
       table = table.substr(0, table.find('.'));  // "feat.styles.txt" -> feat.2da
       for (char& c : table) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
       if (table == "readme") continue;
@@ -335,5 +352,7 @@ const char* DataString(uint32_t strref) {
 }
 
 void ServeCreationLayouts() { g_serve_creation_layouts = true; }
+
+void ServeConditionalRows(const char* flag) { g_row_flags.insert(flag); }
 
 bool HaveDataStrings() { return !g_strings.empty(); }

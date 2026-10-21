@@ -105,3 +105,23 @@ TEST(RecommendedBackgroundPerClass) {
   CHECK_EQ(amounts[3], 2);
   CHECK_EQ(amounts[2], 1);
 }
+
+// Breaks caught: a background's gold off its SRD 5.2 amount, the Soldier's
+// 20 arrows given as one, the Criminal's Thieves' Tools or two daggers lost,
+// no background handing out a kit.
+TEST(BackgroundKitsAre2024) {
+  CHECK_EQ(BackgroundKit2024(Background::kAcolyte).gold, 8);
+  CHECK_EQ(BackgroundKit2024(Background::kCriminal).gold, 16);
+  CHECK_EQ(BackgroundKit2024(Background::kSage).gold, 8);
+  CHECK_EQ(BackgroundKit2024(Background::kSoldier).gold, 14);
+  const BackgroundKit criminal = BackgroundKit2024(Background::kCriminal);
+  CHECK_EQ(criminal.items.size(), 2u);
+  CHECK_EQ(criminal.items[0].count, 2);
+  CHECK_EQ(std::string(criminal.items[1].blueprint) == "nw_it_picks001", true);
+  int arrows = 0;
+  for (const KitItem& item : BackgroundKit2024(Background::kSoldier).items) {
+    if (std::string(item.blueprint) == "nw_wamar001") arrows = item.count;
+  }
+  CHECK_EQ(arrows, 20);
+  CHECK_EQ(BackgroundKit2024(Background::kNone).items.empty(), true);
+}
