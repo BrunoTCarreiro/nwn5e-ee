@@ -463,4 +463,5 @@ while dead. The game's own inits set the title's flag 4 before importing it
 (the label then takes its text box from the layout's Obj_Label_Width /
 Height; without it the box has no size), and grey a disabled text button's
 caption themselves (SetColor 0.5 on button + 0xD0 next to SetEnabled(0)).
-Both pages now do the same (`ImportTitle`, `EnableTextButton`).
+Both pages now do the same (`ImportTitle`, `EnableTextButton`). **Accepted by the owner
+(2026-10-21, 0.6.2): the Background step (A2 + A2b) is done.**
