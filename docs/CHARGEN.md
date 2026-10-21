@@ -490,7 +490,12 @@ descriptions and the Background page's two helps showed their first line
 only); a unit test now reads the file (one string per line, ids in range,
 no repeats, every swap's string present).
 
-*Held for the owner (C1):* the Domain and Familiar steps. Skipped the same
+*Decided (owner, 2026-10-21): the Domain step stays until the Cleric
+conversion* — NWN's two domains are picked at creation until the Cleric's
+brief (Phase 4) drops what domains grant (powers, domain spells, the bonus
+slots) and gives the Life Domain at 3. The Familiar step follows the same
+reasoning and stays until the Wizard, Sorcerer and Druid briefs. Why both
+were held: the Domain and Familiar steps. Skipped the same
 way, a Cleric would keep the engine's default domains — Air and Animal
 (CNWSCreatureStats_ClassInfo's constructor: domain bytes 0 / 1) — with
 neither domain's powers, and their domain spells still castable; a Wizard,
