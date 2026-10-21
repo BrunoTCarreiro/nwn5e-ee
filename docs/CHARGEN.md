@@ -403,3 +403,15 @@ gold frames and button style — nwn5e's window reads as part of the main
 menu, not as an overlay. Clicks verified by the owner (13:46, 0.5.6): Background,
 Species, Class, Background, Close — each click (with its mousedown / mouseup)
 reached nwn5e, the window's text followed, Close closed it. **B1 passed.**
+
+*Decided (owner, 2026-10-21, after B2):* "the issue here is extending and
+changing the actual windows the game uses for character creation, not
+creating new ones on the side that just look like add-ons." **Route A is the
+target:** new steps are real pages of the classic creation UI (the hub's step
+list, the page frames, lists, description panes and buttons), and existing
+pages change from the inside. The client NUI windows (B1 / B2) stay as a
+tool, off by default (`client_nui_test`), for in-game windows if wanted;
+they are not used for creation or level-up. Next: map the classic GUI system
+(page construction through the engine's own allocator, layouts, control
+binding, the hub's steps) — then A1 (an existing page changed from the
+inside) and A2 (a new page + hub step).
