@@ -503,6 +503,18 @@ constexpr size_t kClassInvertRestrict = 0x4a4;
 constexpr size_t kClassXpPenalty = 0x4e0;
 // CNWRace: NormalFeatEveryNthLevel int32 +0x58 (0 = the general feat at level 1 only).
 constexpr size_t kRaceFeatEveryNthLevel = 0x58;
+// CNWRace: NumberNormalFeatsEveryNthLevel int32 +0x5C (the general feats at
+// level 1 and at each Nth level) and ExtraFeatsAtFirstLevel int32 +0x48 (the
+// human's bonus feat); both sides count level-1 general feats as their sum
+// (the client's CalcNumberFeats / AddDefaultPackageFeats, 0x7EB040 read).
+constexpr size_t kRaceNormalFeats = 0x5c;
+constexpr size_t kRaceExtraFeatsAtFirstLevel = 0x48;
+// CM8: the client's CNWCLevelUpStats::CanChooseFeat (0x7ED040; the one
+// function with its own "Invalid Feat" message): (stats, feat id, general
+// picks left, bonus picks left, CExoArrayList<uint16>* chosen) -> int. The
+// Feats page (BuildFeatList) and the packages' default picks
+// (AddDefaultPackageFeats) ask it for every feat.
+constexpr const char* kCanChooseFeatMessage = "CNWCLevelUpStats::CanChooseFeat() Invalid Feat";
 // CM1: CanLevelUp (11 callers; PCs stop at 40, everyone at CServerInfo +0xf4);
 // SetExperience(xp, int), called once by the script command SetXP; stats XP
 // uint32 +0xa8, is a PC int32 +0xb0.
@@ -752,6 +764,10 @@ constexpr size_t kClientStatsLawChaos = 0xc6;
 constexpr size_t kClientStatsGoodEvil = 0xc8;
 constexpr int kAlignmentNeutral = 50;
 constexpr int kExitAlignmentDone = 0x8001;
+// The Customize chain's exit codes: the hub marks the Packages step done on
+// the Feats page's (0x800E) and ignores the Skills page's (0x8010).
+constexpr int kExitSkillsPage = 0x8010;
+constexpr int kExitFeatsPage = 0x800e;
 // The Class page (0xE30 bytes; ctor (page, creature id, mode)): Title label
 // +0xF8 (flags +0x100, id +0x110, text +0x178, click +0x190), HelpBox +0x1A0
 // (body +0x220, title +0x628), list +0x658 (selection +0x6D8, selected index

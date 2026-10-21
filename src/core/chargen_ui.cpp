@@ -436,15 +436,24 @@ NextPageFn g_next_page = nullptr;
 void** g_rules = nullptr;
 bool g_told_school = false;
 
-// The Customize chain's next page (after Skills, Feats, Spells...): with
-// class_features faithful there is no School step — a 2024 wizard doesn't
-// specialise (the subclass comes at 3), so it stays a generalist (school 0),
-// at creation and when a character multiclasses into Wizard. PickSchool is
-// cleared for this call only: the server reads it too (a character's school
-// is saved only when it is set).
+// The Customize chain's next page (after Skills, Feats, Spells...):
+// - class_features faithful: no School step — a 2024 wizard doesn't
+//   specialise (the subclass comes at 3), so it stays a generalist (school
+//   0), at creation and when a character multiclasses into Wizard. PickSchool
+//   is cleared for this call only: the server reads it too (a character's
+//   school is saved only when it is set).
+// - feat_cadence faithful (C3): most level-1 characters have no feat to pick,
+//   so the Skills page ends the chain itself — but the hub marks the
+//   Packages step done only on the Feats page's exit code (it ignores Skills'),
+//   so the Skills page closes with that one.
 int NextPage(uint32_t creature, int level_up, void* panel, int exit_code, int reset) {
+  if (!level_up && exit_code == ee::kExitSkillsPage && g_config.feat_cadence == rules::RuleVariant::kFaithful) {
+    exit_code = ee::kExitFeatsPage;
+    Log("creation steps: no feat to pick - the Skills page closes the chain as the Feats page would");
+  }
+  const bool no_school = g_config.class_features == rules::RuleVariant::kFaithful;
   void* rules = g_rules ? *g_rules : nullptr;
-  uint8_t* classes = rules ? Field<uint8_t*>(rules, ee::kRulesClasses) : nullptr;
+  uint8_t* classes = rules && no_school ? Field<uint8_t*>(rules, ee::kRulesClasses) : nullptr;
   std::vector<int32_t> kept;
   if (classes) {
     const int count = Field<uint8_t>(rules, ee::kRulesClassCount);
@@ -457,7 +466,7 @@ int NextPage(uint32_t creature, int level_up, void* panel, int exit_code, int re
   }
   const int result = g_next_page(creature, level_up, panel, exit_code, reset);
   for (size_t i = 0; i < kept.size(); ++i) SetField<int32_t>(classes + i * ee::kClassStride, ee::kClassPickSchool, kept[i]);
-  if (!g_told_school) {
+  if (no_school && !g_told_school) {
     g_told_school = true;
     Log("creation steps: the Customize chain runs without the School step (class_features faithful)");
   }
@@ -584,10 +593,23 @@ void InstallCreationPages() {
   Log("creation pages: Background takes the Alignment step (ability_scores faithful)");
 }
 
-// C1: the creation steps 2024 doesn't have, by class_features (the School
-// step; the Domain and Familiar steps wait for their classes' briefs).
+namespace {
+bool g_chain_hooked = false;
+}  // namespace
+
+// Whether a creation without feat picks can still finish its Customize chain
+// (feat_cadence asks before taking the level-1 general feat away).
+bool CreationChainHandlesNoFeats() { return g_chain_hooked; }
+
+// C1 / C3: the creation steps 2024 doesn't have — the School step
+// (class_features; the Domain and Familiar steps wait for their classes'
+// briefs) — and a Customize chain that can end without a Feats page
+// (feat_cadence).
 void InstallCreationSteps() {
-  if (g_config.class_features != rules::RuleVariant::kFaithful) return;
+  if (g_config.class_features != rules::RuleVariant::kFaithful &&
+      g_config.feat_cadence != rules::RuleVariant::kFaithful) {
+    return;
+  }
   g_rules = reinterpret_cast<void**>(EngineExport(ee::kRules));
   const uintptr_t feats_vtable = FindVtable("creation steps: the Feats page", ee::kRttiFeatsPage);
   const uintptr_t schools_vtable = FindVtable("creation steps: the School page", ee::kRttiSchoolsPage);
@@ -601,9 +623,9 @@ void InstallCreationSteps() {
   Log("creation steps: Feats OK 0x%zx, School OK 0x%zx, next page 0x%zx", feats_ok ? feats_ok - base : 0,
       schools_ok ? schools_ok - base : 0, next_page ? next_page - base : 0);
   if (!g_rules || !next_page) {
-    Log("SKIP creation steps: an anchor is missing - the School step stays");
+    Log("SKIP creation steps: an anchor is missing - the School step and the level-1 general feat stay");
     return;
   }
-  HookAddress("the Customize chain's next page (creation: no School step, class_features faithful)", next_page,
-              reinterpret_cast<void*>(&NextPage), reinterpret_cast<void**>(&g_next_page));
+  g_chain_hooked = HookAddress("the Customize chain's next page (creation: no School step; a chain without feats)",
+                               next_page, reinterpret_cast<void*>(&NextPage), reinterpret_cast<void**>(&g_next_page));
 }

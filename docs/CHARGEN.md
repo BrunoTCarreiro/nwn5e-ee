@@ -495,6 +495,37 @@ floor answered (11 -> 8), a Wizard through Customize with no School step,
 and that Wizard entering with its background (Acolyte, Int 17 = 15 + 2, Wis
 13 = 12 + 1) and saving cleanly.
 
+*C3 (0.8.0, 2026-10-21): the Feats page's rules.* Since A2 the background
+and its split are chosen on their own page, so C3 is what the Feats page
+offers. (1) Which feats exist (CM8, new key `feats`): the client's
+CanChooseFeat (0x7ED040, anchored by its own "Invalid Feat" message) says
+no to every feat but the 2024 ones nwn5e has built
+(`rules::IsChoosableFeat2024`: Alert = NWN's Improved Initiative, Ability
+Score Improvement, the four Fighting Styles) — the Feats page and the
+packages' default picks both ask it, so NWN's ~210 feats leave the
+screens; characters keep the ones they have. (2) When feats come
+(feat_cadence): no general feat at level 1 — every race's
+NumberNormalFeatsEveryNthLevel (+0x5C) is 0 in memory — because the
+Origin feat comes with the background; a human keeps
+ExtraFeatsAtFirstLevel (+0x48), 2024's Versatile (an Origin feat: Alert
+until the others are built). A Fighter's level-1 bonus pick is its style
+(F1's slot; ASI waits for 4). (3) Most level-1 characters now have no feat
+to pick, so Skills ends the Customize chain itself — and the hub ignores
+Skills' exit code (0x8010), marking Packages done only on the Feats
+page's (0x800E): the next-page hook hands the hub 0x800E then. The race
+edit waits for that hook (no hook, no edit). (4) The packages: their
+default picks take a table's first choosable feats and stop at its end,
+so the 64 base-class tables get ASI, the Fighter's styles (Defense first
+for Strength packages, Archery for Dexterity ones) and Alert appended
+(data/rows/packft*.txt, `tools/data/packft_rows.py`); NWN mode reaches
+them only after its own. Anchors at launch: CanChooseFeat 0x7ED040.
+*Not yet:* the other Origin feats (Savage Attacker, Skilled; Magic
+Initiate with Phase 4) — a human's Versatile offers Alert alone, and a
+human Criminal (Alert from the background) gets nothing more from it;
+Origin feats in the level-4+ slots (2024 allows them: Alert isn't in the
+bonus lists yet); Weapon Mastery picks (C4); henchmen's automatic
+level-ups (the server's own CanChooseFeat) still take NWN feats.
+
 *Decided (owner, 2026-10-21): the Domain step stays until the Cleric
 conversion* — NWN's two domains are picked at creation until the Cleric's
 brief (Phase 4) drops what domains grant (powers, domain spells, the bonus

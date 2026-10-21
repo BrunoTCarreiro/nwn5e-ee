@@ -116,6 +116,9 @@ struct Config {
   // CM6: faithful = the 2024 species — their names (Half-Orc as Orc) and
   // texts, "Species" for Race; nwn / off = NWN's races.
   rules::RuleVariant species = rules::RuleVariant::kFaithful;
+  // CM8: faithful = only the SRD 5.2 feats nwn5e has built can be chosen
+  // (Alert, Ability Score Improvement, the Fighting Styles); nwn / off = NWN's.
+  rules::RuleVariant feats = rules::RuleVariant::kFaithful;
   // CM0: serve nwn5e's 2da rows and strings (data\rows, data\strings.txt).
   bool served_data = true;
 

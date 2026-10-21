@@ -77,6 +77,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.ability_scores = ReadVariant(ini, L"ability_scores", g_config.mode);
   g_config.class_features = ReadVariant(ini, L"class_features", g_config.mode);
   g_config.species = ReadVariant(ini, L"species", g_config.mode);
+  g_config.feats = ReadVariant(ini, L"feats", g_config.mode);
   g_config.served_data = ReadBool(ini, L"served_data", g_config.served_data);
   g_config.resume_attack_after_potion =
       ReadBool(ini, L"resume_attack_after_potion", g_config.resume_attack_after_potion);
@@ -113,10 +114,10 @@ void ConfigLoad(const wchar_t* directory) {
       VariantName(g_config.spell_attacks), VariantName(g_config.concentration), VariantName(g_config.knockdown),
       VariantName(g_config.initiative), VariantName(g_config.nwn_only_skills));
   Log("config: progression=%s multiclass=%s alignment=%s hit_points=%s feat_cadence=%s ability_scores=%s "
-      "class_features=%s species=%s served_data=%d",
+      "class_features=%s species=%s feats=%s served_data=%d",
       VariantName(g_config.progression), VariantName(g_config.multiclass), VariantName(g_config.alignment),
       VariantName(g_config.hit_points), VariantName(g_config.feat_cadence), VariantName(g_config.ability_scores),
-      VariantName(g_config.class_features), VariantName(g_config.species), g_config.served_data);
+      VariantName(g_config.class_features), VariantName(g_config.species), VariantName(g_config.feats), g_config.served_data);
   if (g_config.perception == rules::RuleVariant::kFaithful) {
     Log("config: hiding_needs_15=%d found_up_close=%d alert_creatures_search=%d", g_config.hiding_needs_15,
         g_config.found_up_close, g_config.alert_creatures_search);

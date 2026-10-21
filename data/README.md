@@ -29,6 +29,13 @@ row number and one value per named column:
 - Rows are shared by both modes; a rule hides its rows in the mode that
   doesn't use them (in memory, once the rules load).
 
+## The packages' feat tables (packft*.txt)
+
+The 64 feat tables of the base classes' player packages get the 2024 feats
+appended (`+` rows) so the packages' default picks take them in faithful
+mode (docs/CHARGEN.md C3). They are generated: edit
+`tools/data/packft_rows.py` and run it from the repo root.
+
 ## strings.txt
 
 Names and descriptions for the rows: `<id> <text>`, one per line, `#` for

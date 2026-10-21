@@ -1,8 +1,10 @@
 // CM7 (port of 1.69's rules_feat_cadence.cpp; docs/EE-PORT.md E4a, EP15),
 // faithful: feats come at 2024's levels:
-// - NWN's general feat only at level 1 (and the human bonus feat): every
-//   race's NormalFeatEveryNthLevel is 0 after load — the server's count
-//   (ValidateLevelUp, LevelUpAutomatic) and the client's read it;
+// - no NWN general feat (C3): every race's NormalFeatEveryNthLevel and
+//   NumberNormalFeatsEveryNthLevel are 0 after load — the server's count
+//   (ValidateLevelUp, LevelUpAutomatic) and the client's read them; the
+//   Origin feat comes with the background, and a human keeps its extra feat
+//   at level 1 (ExtraFeatsAtFirstLevel: 2024's Versatile);
 // - the class bonus-feat slots (CNWClass +0x2B9 + class level, read by both
 //   sides and by henchmen's automatic level-ups) become 2024's feat levels
 //   for the 11 base classes — 4, 8, 12, 16, 19, the Fighter also 6 and 14,
@@ -30,6 +32,8 @@
 #include "rules/progression.h"
 #include "rules_loaded.h"
 
+bool CreationChainHandlesNoFeats();  // chargen_ui.cpp
+
 namespace {
 
 constexpr int kMaxBonusFeatLevel = 60;  // GetBonusFeats reads levels 1..60
@@ -53,16 +57,25 @@ void SetFaithfulBonusFeatSlots(void* rules, bool reload) {
   }
   auto* races = Field<uint8_t*>(rules, ee::kRulesRaces);
   const int race_count = Field<uint8_t>(rules, ee::kRulesRaceCount);
-  int races_changed = 0;
+  int races_changed = 0, origin_races = 0;
   for (int r = 0; races && r < race_count; ++r) {
     uint8_t* race = races + r * ee::kRaceStride;
-    if (Field<int32_t>(race, ee::kRaceFeatEveryNthLevel) == 0) continue;
-    SetField<int32_t>(race, ee::kRaceFeatEveryNthLevel, 0);
-    ++races_changed;
+    if (Field<int32_t>(race, ee::kRaceFeatEveryNthLevel) != 0) {
+      SetField<int32_t>(race, ee::kRaceFeatEveryNthLevel, 0);
+      ++races_changed;
+    }
+    // C3 (docs/CHARGEN.md): no general feat at level 1 — the Origin feat comes
+    // with the background; a human keeps its extra one (2024's Versatile).
+    // Only when the creation's Customize chain can end without a Feats page
+    // (chargen_ui.cpp); otherwise those characters couldn't finish it.
+    if (CreationChainHandlesNoFeats() && Field<int32_t>(race, ee::kRaceNormalFeats) != 0) {
+      SetField<int32_t>(race, ee::kRaceNormalFeats, 0);
+      ++origin_races;
+    }
   }
-  Log("feat cadence: 2024 feat slots%s for %d base classes (4, 8, 12, 16, 19; Fighter 6, 14; Rogue 10); general "
-      "feat at level 1 only (%d races)",
-      reload ? " again after a rules load" : "", changed, races_changed);
+  Log("feat cadence: 2024 feat slots%s for %d base classes (4, 8, 12, 16, 19; Fighter 6, 14; Rogue 10); no "
+      "general feat (%d races) - the Origin feat comes with the background, a human keeps its extra feat (%d races)",
+      reload ? " again after a rules load" : "", changed, races_changed, origin_races);
 }
 
 void HideAsiRows(void* rules, bool reload) {
