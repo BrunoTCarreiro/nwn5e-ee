@@ -39,8 +39,9 @@ struct Config {
   // unarmed or Disarm AoOs; Spring Attack no longer protects; only creatures
   // run away from take it). nwn/off = NWN's AoOs.
   rules::RuleVariant opportunity_attacks = rules::RuleVariant::kFaithful;
-  // Owner request: after drinking a potion mid-fight, a player character goes
-  // back to attacking (NWN drops the attack order on item use).
+  // Owner request: after drinking a potion or using Second Wind mid-fight, a
+  // player character goes back to attacking (NWN drops the attack order on
+  // item and feat use).
   bool resume_attack_after_potion = true;
   // CN1–CN8: conditions. faithful = 2024 conditions (restrained, helpless,
   // stunned, poisoned, frightened, concealment, deafened; PLAN.md); nwn =

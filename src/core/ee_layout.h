@@ -98,6 +98,10 @@ constexpr uint32_t kObjectInvalid = 0x7f000000;
 constexpr const char* kBroadcastAttackOfOpportunity = "?BroadcastAttackOfOpportunity@CNWSCreature@@QEAAXIH@Z";
 constexpr const char* kAIUpdate = "?AIUpdate@CNWSCreature@@UEAAXXZ";  // virtual; the export is the body
 constexpr const char* kUseItem = "?UseItem@CNWSCreature@@QEAAHIEEIVVector@@IH@Z";
+// int CNWSCreature::UseFeat(ushort feat, ushort subfeat, uint target, uint area, Vector* location):
+// the player's feat use (HandlePlayerToServerInputMessage +0x32b) and ActionUseFeat;
+// 1 once the use is queued (+0x9c05, +0x9cd6), 0 otherwise.
+constexpr const char* kUseFeat = "?UseFeat@CNWSCreature@@QEAAHGGIIPEAVVector@@@Z";
 // int CNWSCreature::AddAttackActions(unsigned int target, int, int bClearAllActions?, int)
 constexpr const char* kAddAttackActions = "?AddAttackActions@CNWSCreature@@QEAAHIHHH@Z";
 // unsigned int CNWSCreature::GetNearestEnemy(float range, unsigned int exclude, int bMustBeSeen, int bCheckPath)

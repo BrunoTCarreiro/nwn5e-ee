@@ -13,6 +13,10 @@
 // drink at UseItem, and EE then dropped the drink — the potion was never
 // drunk mid-fight, and after the fight it only sent the character at a
 // nearby hostile.
+// 0.5.3 (owner's test of 0.5.2): the Fighter's Second Wind (a bonus action in
+// 2024) drops the attack order the same way — CNWSCreature::UseFeat queues
+// the cast and the attack is lost; the same resume follows a Second Wind
+// used mid-fight.
 
 #include <stdint.h>
 
@@ -28,6 +32,7 @@
 #include "engine.h"
 #include "hooks.h"
 #include "log.h"
+#include "rules/class_features.h"
 
 namespace {
 
@@ -40,8 +45,11 @@ using UseItemFn = int (*)(void* creature, uint32_t item, uint8_t active_property
 using AddAttackActionsFn = int (*)(void* creature, uint32_t target, int switched, int clear_first, int front);
 using NearestEnemyFn = uint32_t (*)(void* creature, float range, uint32_t exclude, int must_be_seen, int check_path);
 using ItemByIdFn = void* (*)(void* app, uint32_t id);
+using UseFeatFn = int (*)(void* creature, uint16_t feat, uint16_t subfeat, uint32_t target, uint32_t area,
+                          void* location);
 
 UseItemFn g_use_item = nullptr;
+UseFeatFn g_use_feat = nullptr;
 
 struct Api {
   AddAttackActionsFn add_attack_actions = reinterpret_cast<AddAttackActionsFn>(EngineExport(ee::kAddAttackActions));
@@ -58,6 +66,7 @@ const Api& E() {
 struct Noted {
   uint32_t target;
   DWORD tick;
+  const char* what = "";  // what interrupted the attack: "drinking", "Second Wind"
 };
 // The engine's server thread only.
 std::unordered_map<uint32_t, Noted> g_last_target;  // player character -> its last attack's target
@@ -85,6 +94,18 @@ bool IsPotion(uint32_t item_id) {
   return row == 49 || row == 54 || row == 104;
 }
 
+// A player character in combat starts something that drops its attack:
+// note the last target (if it attacked within 30 s) to go back to after it.
+void NoteResume(void* creature, const char* what) {
+  const uint32_t id = IdOf(creature);
+  const auto last = g_last_target.find(id);
+  if (last == g_last_target.end() || GetTickCount() - last->second.tick > kLastTargetMaxMs) return;
+  g_resume[id] = Noted{last->second.target, GetTickCount(), what};
+  if (LogSlot()) {
+    Log("resume: 0x%08X %s mid-fight; will go back to attacking 0x%08X after it", id, what, last->second.target);
+  }
+}
+
 int UseItem(void* creature, uint32_t item, uint8_t active_property, uint8_t sub_property, uint32_t target,
             Vec3 location, uint32_t area, int flag) {
   const int result = g_use_item(creature, item, active_property, sub_property, target, location, area, flag);
@@ -92,11 +113,18 @@ int UseItem(void* creature, uint32_t item, uint8_t active_property, uint8_t sub_
   if (!result || !stats || !ReadCreatureFacts(stats).is_player || !InCombat(creature) || !IsPotion(item)) {
     return result;
   }
-  const uint32_t id = IdOf(creature);
-  const auto last = g_last_target.find(id);
-  if (last == g_last_target.end() || GetTickCount() - last->second.tick > kLastTargetMaxMs) return result;
-  g_resume[id] = Noted{last->second.target, GetTickCount()};
-  if (LogSlot()) Log("potion: 0x%08X drinks mid-fight; will go back to attacking 0x%08X after it", id, last->second.target);
+  NoteResume(creature, "drinking");
+  return result;
+}
+
+// Second Wind (Fighter F2): the feat rows nwn5e grants.
+bool ResumesAfterFeat(int feat) { return feat >= rules::kFeatSecondWind2 && feat <= rules::kFeatSecondWind4; }
+
+int UseFeat(void* creature, uint16_t feat, uint16_t subfeat, uint32_t target, uint32_t area, void* location) {
+  const int result = g_use_feat(creature, feat, subfeat, target, area, location);
+  if (!result || !ResumesAfterFeat(feat)) return result;
+  void* stats = StatsOf(creature);
+  if (stats && ReadCreatureFacts(stats).is_player && InCombat(creature)) NoteResume(creature, "Second Wind");
   return result;
 }
 
@@ -113,9 +141,10 @@ void OnCreatureUpdate(void* creature) {
   if (!engine::HasNoOrders(creature)) return;  // still drinking (or given another order)
   const uint32_t id = it->first;
   uint32_t target = it->second.target;
+  const char* what = it->second.what;
   g_resume.erase(it);
   if (!InCombat(creature)) {
-    if (LogSlot()) Log("potion: 0x%08X done drinking; the fight is over, no attack", id);
+    if (LogSlot()) Log("resume: 0x%08X done %s; the fight is over, no attack", id, what);
     return;
   }
   void* last = CreatureById(target);
@@ -126,12 +155,12 @@ void OnCreatureUpdate(void* creature) {
                                : ee::kObjectInvalid;
   }
   if (target == ee::kObjectInvalid || !E().add_attack_actions) {
-    if (LogSlot()) Log("potion: 0x%08X done drinking; no enemy to go back to", id);
+    if (LogSlot()) Log("resume: 0x%08X done %s; no enemy to go back to", id, what);
     return;
   }
   E().add_attack_actions(creature, target, 0, 1, 0);  // as a click
   if (LogSlot()) {
-    Log("potion: 0x%08X done drinking; attacks 0x%08X again%s", id, target,
+    Log("resume: 0x%08X done %s; attacks 0x%08X again%s", id, what, target,
         last_stands ? "" : " (its last target fell: the nearest enemy it sees and can reach)");
   }
 }
@@ -144,4 +173,6 @@ void InstallPotionRules() {
   if (!AddCreatureUpdateListener(&OnCreatureUpdate)) return;
   HookExport("CNWSCreature::UseItem (back to attacking after a potion)", ee::kUseItem,
              reinterpret_cast<void*>(&UseItem), reinterpret_cast<void**>(&g_use_item));
+  HookExport("CNWSCreature::UseFeat (back to attacking after Second Wind)", ee::kUseFeat,
+             reinterpret_cast<void*>(&UseFeat), reinterpret_cast<void**>(&g_use_feat));
 }
