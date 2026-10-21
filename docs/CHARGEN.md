@@ -679,7 +679,18 @@ character's longsword hits on Prelude's mages dealt exactly the kept dice
 15) — no weighting, though the code path reads the same for any non-PC
 target. Not yet known whether the combat dummy or the greatsword (with
 Great Weapon Fighting) made the difference; next: the greatsword against
-an ordinary enemy, ideally with combat_breakdown=1.
+an ordinary enemy, ideally with combat_breakdown=1. *Then, at Normal
+(difficulty 2) with combat_breakdown=1:* the greatsword with Great Weapon
+Fighting and Savage Attacker dealt exactly nwn5e's roll + Strength — the
+engine's breakdown "9 + 3", "8 + 3", "7 + 3"; a critical hit 13 (4d6) + 3 =
+16, its breakdown text printing "6 (Strength Bonus) (Critical x2)" though
+crit_dice_only applied Strength once (the debug text asks the multiplier
+from its own call site). So nwn5e's weapon dice reach the damage unchanged,
+and the dummy fight's raise happened in the engine after nwn5e's roll
+(GetWeightedDamageAmount is the only step between; its percent defaults to
+100 and is replaced by MinPCDamagePercent only for a PC hitting a non-PC
+creature). Why the dummy got it at Easy and the mages didn't is not known;
+left as an engine quirk — test at Normal.
 
 *Decided (owner, 2026-10-21): the Domain step stays until the Cleric
 conversion* — NWN's two domains are picked at creation until the Cleric's
