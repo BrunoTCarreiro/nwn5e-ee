@@ -663,8 +663,8 @@ gives. The filter rolls every set at the hit's first weapon-dice ask
 (GetCriticalHitMultiplier through its export, so rules_crit's answer
 counts) and hands them out in order.
 
-*Found (2026-10-21): EE's Easy difficulty maximises a character's weapon
-dice.* GetDamageRoll passes each weapon-dice roll through
+*Suspected, not confirmed (2026-10-21): EE's Easy difficulty maximises a
+character's weapon dice.* GetDamageRoll passes each weapon-dice roll through
 CNWRules::GetWeightedDamageAmount with diffsettings.2da's
 MinPCDamagePercent (DMEasy 100, Easy 50, Normal and up none) when a PC hits
 a non-PC: the roll becomes min(maximum, roll + maximum x (p..99)%), so on
@@ -673,7 +673,13 @@ Easy a greatsword deals 12 nearly every hit (the test fight: 15, 15 and 27
 characters (Easy 50). Dice rules (Great Weapon Fighting, Savage Attacker)
 only show at Normal or harder. Not answered by nwn5e (crits_against_players
 already answers NoCriticalOnPC from the same table); a rule key for it is
-an open question.
+an open question. *2026-10-22, against it:* still at Easy, the same
+character's longsword hits on Prelude's mages dealt exactly the kept dice
++ Strength (Savage Attacker 5 -> 8, 8 -> 11, 2 -> 5; a 2d8 critical 12 ->
+15) — no weighting, though the code path reads the same for any non-PC
+target. Not yet known whether the combat dummy or the greatsword (with
+Great Weapon Fighting) made the difference; next: the greatsword against
+an ordinary enemy, ideally with combat_breakdown=1.
 
 *Decided (owner, 2026-10-21): the Domain step stays until the Cleric
 conversion* — NWN's two domains are picked at creation until the Cleric's
