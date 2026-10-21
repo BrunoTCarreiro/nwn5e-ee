@@ -12,3 +12,11 @@ FeatLabel FeatIndex List GrantedOnLevel OnMenu
 + NWN5E_FS_DEFENSE 1211 2 -1 0
 + NWN5E_FS_GREAT_WEAPON 1212 2 -1 0
 + NWN5E_FS_TWO_WEAPON 1213 2 -1 0
+# Second Wind (F2) on the radial menu: the client's class-abilities menu
+# (CGuiCreatureMenu::CalculateNeededClassAbilityMenuEntries) lists only the
+# feats of the character's class tables with OnMenu 1 that it has. List 3 and
+# GrantedOnLevel -1: never chosen or granted by the engine - nwn5e grants the
+# right row (rules_features.cpp).
++ NWN5E_SECOND_WIND_2 1220 3 -1 1
++ NWN5E_SECOND_WIND_3 1221 3 -1 1
++ NWN5E_SECOND_WIND_4 1222 3 -1 1
