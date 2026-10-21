@@ -525,6 +525,11 @@ human Criminal (Alert from the background) gets nothing more from it;
 Origin feats in the level-4+ slots (2024 allows them: Alert isn't in the
 bonus lists yet); Weapon Mastery picks (C4); henchmen's automatic
 level-ups (the server's own CanChooseFeat) still take NWN feats.
+**Verified in game (owner, 2026-10-21, 0.8.0):** "everything seems good";
+the logs show non-human Wizards and a Cleric finishing Customize with no
+Feats page (the Skills page closing the chain as the Feats page), the
+filter in use, and a Soldier Fighter entering (Str 17, Con 15) and
+levelling to 4 (Champion at 3, Second Wind 3 uses at 4).
 
 *Decided (owner, 2026-10-21): the Domain step stays until the Cleric
 conversion* — NWN's two domains are picked at creation until the Cleric's
