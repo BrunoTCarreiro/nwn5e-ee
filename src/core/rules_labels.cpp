@@ -6,6 +6,10 @@
 // as the game looks the strings up (CTlkTable::FetchInternal, which every
 // string lookup goes through, the combat log's save label included);
 // dialog.tlk is not changed. NWN mode keeps NWN's labels.
+//
+// C1 (docs/CHARGEN.md): the creation screen's 2024 words and the species
+// texts (rules/species.h) — the game's string answered with nwn5e's, each
+// under its own key (species, ability_scores).
 
 #include <stdint.h>
 
@@ -16,6 +20,7 @@
 #include "data_serving.h"
 #include "rules/saves.h"
 #include "rules/skills.h"
+#include "rules/species.h"
 
 namespace {
 
@@ -26,9 +31,23 @@ FetchInternalFn g_fetch_internal = nullptr;
 ExoStringAssignFn g_assign = nullptr;
 int g_logged = 0;
 
+bool Faithful(rules::StringRule rule) {
+  switch (rule) {
+    case rules::StringRule::kSpecies:
+      return g_config.species == rules::RuleVariant::kFaithful;
+    case rules::StringRule::kAbilityScores:
+      return g_config.ability_scores == rules::RuleVariant::kFaithful;
+  }
+  return false;
+}
+
 const char* Label2024(uint32_t strref) {
   const char* label = g_config.saves == rules::RuleVariant::kFaithful ? rules::Faithful2024SaveLabel(strref) : nullptr;
   if (!label && g_config.skills == rules::RuleVariant::kFaithful) label = rules::Faithful2024SkillLabelForStrref(strref);
+  if (!label) {
+    const auto swap = rules::CreationStringSwap2024(strref);
+    if (swap && Faithful(swap->rule)) label = DataString(swap->nwn5e);
+  }
   return label;
 }
 

@@ -719,6 +719,22 @@ constexpr const char* kRttiHub = ".?AVCCharacterGenerationPanel@@";
 constexpr const char* kRttiClassPage = ".?AVCCharacterClassPanel@@";
 constexpr const char* kRttiAlignmentPage = ".?AVCCharacterAlignmentPanel@@";
 constexpr const char* kRttiCharGenRadioButton = ".?AVCGuiCharGenRadioButton@@";
+// The Customize chain's next page (C1): one unexported function (0x9C69A0)
+// that every OK of Skills / Feats / Domain / School / Spells / Familiar calls
+// — (creature id, level-up, the calling page, its exit code, reset) -> int —
+// steps a static state through Domain (class PickDomains int +0x4F4), School
+// (PickSchool int +0x4F8), Spells and Familiar (MinAssociateLevel uint8
+// +0x524) for the class just taken (Domain and School at class level 1 only).
+// Anchored as the one call the Feats and School pages' OK handlers share
+// besides GetCreature, checked by its PickSchool test (cmp [rbx+4F8h], 0).
+// The server reads the same flags (SaveClassInfo writes School only when
+// PickSchool is set): change them only for the length of one call.
+constexpr const char* kRttiFeatsPage = ".?AVCCharacterFeatsPanel@@";
+constexpr const char* kRttiSchoolsPage = ".?AVCCharacterSchoolsPanel@@";
+constexpr const char* kNextPagePickSchoolTest = "83 BB F8 04 00 00 00";
+constexpr size_t kClassPickDomains = 0x4f4;
+constexpr size_t kClassPickSchool = 0x4f8;
+constexpr size_t kClassMinAssociateLevel = 0x524;
 constexpr int kVtablePageInit = 12;  // PostAttachmentInitialize
 constexpr int kPageVtableSlots = 41;
 constexpr size_t kPageExitObject = 0x80;

@@ -352,6 +352,8 @@ void ApplyLoadedTables(void* rules, bool reload) {
 
 int MaxBaseScore(int) { return 15; }
 int SecondPointFrom(int) { return 13; }
+// 2024 point buy: every score from 8, the class's main ability too (NWN keeps it at 11 or more).
+int MinPrimaryScore(int) { return 8; }
 
 std::string ScoresLine(void* stats) {
   std::ostringstream out;
@@ -509,5 +511,6 @@ void InstallAbilityRules() {
   OnRulesLoaded(&ApplyLoadedTables);
   AnswerRulesetInt("CHARGEN_BASE_ABILITY_MAX", "abilities: point buy to 15 (2024)", &MaxBaseScore);
   AnswerRulesetInt("CHARGEN_ABILITY_COST_INCREMENT2", "abilities: 2 points from 13 (2024)", &SecondPointFrom);
+  AnswerRulesetInt("CHARGEN_BASE_ABILITY_MIN_PRIMARY", "abilities: the main ability from 8 too (2024)", &MinPrimaryScore);
   Log("abilities: 2024 point buy, no racial adjustments, backgrounds and ASIs (faithful)");
 }

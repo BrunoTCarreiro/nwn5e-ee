@@ -465,3 +465,36 @@ Height; without it the box has no size), and grey a disabled text button's
 caption themselves (SetColor 0.5 on button + 0xD0 next to SetEnabled(0)).
 Both pages now do the same (`ImportTitle`, `EnableTextButton`). **Accepted by the owner
 (2026-10-21, 0.6.2): the Background step (A2 + A2b) is done.**
+
+*C1 (0.7.0, 2026-10-21): the small 2024 changes.* (1) Point buy: the
+class's main ability can go down to 8 like the others
+(CHARGEN_BASE_ABILITY_MIN_PRIMARY answered 8; NWN's is 11), ability_scores
+faithful. (2) The hub's Abilities button reads Ability Scores (string 143
+answered by the label hook, ability_scores). (3) Species, a new key
+`species` (CM6's frame): Race reads Species (148, the Race page's title
+162 and help 481 / 485), the Half-Orc is named Orc (32 / 33 / 4922), and
+each species' description (racialtypes Description 251-257) lists its SRD
+5.2 traits and what nwn5e does with them so far (the Half-Elf: legacy,
+SRD 5.1) — `rules::CreationStringSwap2024`, strings 16000260-16000280.
+(4) No School step (class_features faithful): the Customize chain's
+next-page function (0x9C69A0: anchored as the call the Feats and School
+pages' OK handlers share, checked by its PickSchool test) runs with every
+class's PickSchool cleared for that one call — the flag stays set
+everywhere else, because the server reads it too (SaveClassInfo writes a
+character's School only when it is set), so existing specialists keep
+their school and NWN mode is untouched. A wizard is a generalist (school
+0), at creation and when multiclassing in. The packages path still applies
+a specialist package's school (C2 replaces the packages). Also fixed: six
+strings in data/strings.txt had raw line breaks (the four background
+descriptions and the Background page's two helps showed their first line
+only); a unit test now reads the file (one string per line, ids in range,
+no repeats, every swap's string present).
+
+*Held for the owner (C1):* the Domain and Familiar steps. Skipped the same
+way, a Cleric would keep the engine's default domains — Air and Animal
+(CNWSCreatureStats_ClassInfo's constructor: domain bytes 0 / 1) — with
+neither domain's powers, and their domain spells still castable; a Wizard,
+Sorcerer or Druid would keep its Summon Familiar / Animal Companion feat
+with a creature nobody chose. Both are class features (CM9): proposed to
+go with the Cleric's and the arcane casters' / Druid's briefs (Phase 4),
+where the feature mask removes what the steps grant.

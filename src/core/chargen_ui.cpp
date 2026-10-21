@@ -29,6 +29,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -428,6 +429,78 @@ void CopyVtable(uintptr_t* copy, uintptr_t vtable, uintptr_t init) {
   copy[1 + ee::kVtablePageInit] = init;
 }
 
+// --- Steps NWN asks for that 2024 doesn't (C1) ---------------------------------
+
+using NextPageFn = int (*)(uint32_t creature, int level_up, void* panel, int exit_code, int reset);
+NextPageFn g_next_page = nullptr;
+void** g_rules = nullptr;
+bool g_told_school = false;
+
+// The Customize chain's next page (after Skills, Feats, Spells...): with
+// class_features faithful there is no School step — a 2024 wizard doesn't
+// specialise (the subclass comes at 3), so it stays a generalist (school 0),
+// at creation and when a character multiclasses into Wizard. PickSchool is
+// cleared for this call only: the server reads it too (a character's school
+// is saved only when it is set).
+int NextPage(uint32_t creature, int level_up, void* panel, int exit_code, int reset) {
+  void* rules = g_rules ? *g_rules : nullptr;
+  uint8_t* classes = rules ? Field<uint8_t*>(rules, ee::kRulesClasses) : nullptr;
+  std::vector<int32_t> kept;
+  if (classes) {
+    const int count = Field<uint8_t>(rules, ee::kRulesClassCount);
+    kept.reserve(count);
+    for (int i = 0; i < count; ++i) {
+      uint8_t* character_class = classes + i * ee::kClassStride;
+      kept.push_back(Field<int32_t>(character_class, ee::kClassPickSchool));
+      SetField<int32_t>(character_class, ee::kClassPickSchool, 0);
+    }
+  }
+  const int result = g_next_page(creature, level_up, panel, exit_code, reset);
+  for (size_t i = 0; i < kept.size(); ++i) SetField<int32_t>(classes + i * ee::kClassStride, ee::kClassPickSchool, kept[i]);
+  if (!g_told_school) {
+    g_told_school = true;
+    Log("creation steps: the Customize chain runs without the School step (class_features faithful)");
+  }
+  return result;
+}
+
+// The functions `function` calls directly (E8 rel32 to a function entry).
+std::vector<uintptr_t> CallsIn(uintptr_t function) {
+  std::vector<uintptr_t> targets;
+  const CodeRange range = FunctionAt(function);
+  for (const auto& part : range.parts.empty() ? decltype(range.parts){{range.begin, range.end}} : range.parts) {
+    for (uintptr_t at = part.first; at + kCallLength <= part.second; ++at) {
+      const uintptr_t target = CallTarget(at);
+      if (target && FunctionEntry(target) == target) targets.push_back(target);
+    }
+  }
+  return targets;
+}
+
+// The Customize chain's next-page function: of the calls the Feats and School
+// pages' OK handlers share, the one with the PickSchool test.
+uintptr_t FindNextPage(uintptr_t feats_ok, uintptr_t schools_ok) {
+  const std::vector<uintptr_t> feats_calls = CallsIn(feats_ok);
+  const std::vector<uintptr_t> schools_calls = CallsIn(schools_ok);
+  const uint8_t test[] = {0x83, 0xbb, 0xf8, 0x04, 0x00, 0x00, 0x00};  // ee::kNextPagePickSchoolTest
+  std::vector<uintptr_t> found;
+  for (uintptr_t target : feats_calls) {
+    if (std::find(schools_calls.begin(), schools_calls.end(), target) == schools_calls.end()) continue;
+    if (std::find(found.begin(), found.end(), target) != found.end()) continue;
+    const CodeRange range = FunctionAt(target);
+    if (range.Valid() && ContainsBytes(range.begin, range.end, test, sizeof(test))) found.push_back(target);
+  }
+  if (found.size() != 1) {
+    Log("SKIP creation steps: the Customize chain's next page - %zu candidates (expected 1)", found.size());
+    return 0;
+  }
+  // Checked: the test occurs exactly once in it.
+  return FindPatternIn("creation steps: the next page's PickSchool test", FunctionAt(found[0]),
+                       ee::kNextPagePickSchoolTest)
+             ? found[0]
+             : 0;
+}
+
 }  // namespace
 
 void InstallCreationPages() {
@@ -509,4 +582,28 @@ void InstallCreationPages() {
               reinterpret_cast<void*>(&ClassOk), reinterpret_cast<void**>(&g_class_ok));
   ServeCreationLayouts();
   Log("creation pages: Background takes the Alignment step (ability_scores faithful)");
+}
+
+// C1: the creation steps 2024 doesn't have, by class_features (the School
+// step; the Domain and Familiar steps wait for their classes' briefs).
+void InstallCreationSteps() {
+  if (g_config.class_features != rules::RuleVariant::kFaithful) return;
+  g_rules = reinterpret_cast<void**>(EngineExport(ee::kRules));
+  const uintptr_t feats_vtable = FindVtable("creation steps: the Feats page", ee::kRttiFeatsPage);
+  const uintptr_t schools_vtable = FindVtable("creation steps: the School page", ee::kRttiSchoolsPage);
+  const uintptr_t feats_init = VtableSlot(feats_vtable, ee::kVtablePageInit);
+  const uintptr_t schools_init = VtableSlot(schools_vtable, ee::kVtablePageInit);
+  const uintptr_t feats_ok = feats_init ? HandlerByTag("creation steps: the Feats page's OK", feats_init, "OkButton") : 0;
+  const uintptr_t schools_ok =
+      schools_init ? HandlerByTag("creation steps: the School page's OK", schools_init, "OkButton") : 0;
+  const uintptr_t next_page = feats_ok && schools_ok ? FindNextPage(feats_ok, schools_ok) : 0;
+  const auto base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+  Log("creation steps: Feats OK 0x%zx, School OK 0x%zx, next page 0x%zx", feats_ok ? feats_ok - base : 0,
+      schools_ok ? schools_ok - base : 0, next_page ? next_page - base : 0);
+  if (!g_rules || !next_page) {
+    Log("SKIP creation steps: an anchor is missing - the School step stays");
+    return;
+  }
+  HookAddress("the Customize chain's next page (creation: no School step, class_features faithful)", next_page,
+              reinterpret_cast<void*>(&NextPage), reinterpret_cast<void**>(&g_next_page));
 }

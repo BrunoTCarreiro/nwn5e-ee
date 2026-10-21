@@ -23,13 +23,7 @@
 16000121 Second Wind (Fighter, 2024): regain 1d10 + your Fighter level hit points. Uses: 2 (3 from Fighter 4, 4 from 10), back on a rest. In the 2024 rules this is a Bonus Action; until nwn5e has bonus actions (Phase 6) it takes your action.\n\nFrom Fighter 5 (Tactical Shift), for the rest of the round you can move without provoking opportunity attacks.
 # 16000200-16000237: the backgrounds chosen at creation (CM5, docs/CHARGEN.md).
 16000200 Background: Acolyte
-16000204 Background (2024): Acolyte. Choose one background at level 1, in the version with the ability increases you want.
-
-Ability scores: +2 to one and +1 to another of Intelligence, Wisdom and Charisma, or +1 to all three.
-Origin feat: Magic Initiate (Cleric) (recorded until Magic Initiate is built (Phase 4's spells)).
-Skill proficiencies: Insight, Religion. Tool: Calligrapher's Supplies.
-
-nwn5e applies the increases and the skills when you enter the game; !background shows or changes your background.
+16000204 Background (2024): Acolyte.\n\nAbility scores: +2 to one and +1 to another of Intelligence, Wisdom and Charisma, or +1 to all three.\nOrigin feat: Magic Initiate (Cleric) (recorded until Magic Initiate is built (Phase 4's spells)).\nSkill proficiencies: Insight, Religion. Tool: Calligrapher's Supplies.\n\nnwn5e applies the increases and the skills when you enter the game; !background shows or changes your background.
 16000210 Acolyte: Intelligence +2, Wisdom +1
 16000211 Acolyte: Intelligence +2, Charisma +1
 16000212 Acolyte: Wisdom +2, Intelligence +1
@@ -38,13 +32,7 @@ nwn5e applies the increases and the skills when you enter the game; !background 
 16000215 Acolyte: Charisma +2, Wisdom +1
 16000216 Acolyte: Intelligence, Wisdom and Charisma +1
 16000201 Background: Criminal
-16000205 Background (2024): Criminal. Choose one background at level 1, in the version with the ability increases you want.
-
-Ability scores: +2 to one and +1 to another of Dexterity, Constitution and Intelligence, or +1 to all three.
-Origin feat: Alert (works: your proficiency bonus is added to initiative).
-Skill proficiencies: Sleight of Hand, Stealth. Tool: Thieves' Tools.
-
-nwn5e applies the increases and the skills when you enter the game; !background shows or changes your background.
+16000205 Background (2024): Criminal.\n\nAbility scores: +2 to one and +1 to another of Dexterity, Constitution and Intelligence, or +1 to all three.\nOrigin feat: Alert (works: your proficiency bonus is added to initiative).\nSkill proficiencies: Sleight of Hand, Stealth. Tool: Thieves' Tools.\n\nnwn5e applies the increases and the skills when you enter the game; !background shows or changes your background.
 16000217 Criminal: Dexterity +2, Constitution +1
 16000218 Criminal: Dexterity +2, Intelligence +1
 16000219 Criminal: Constitution +2, Dexterity +1
@@ -53,13 +41,7 @@ nwn5e applies the increases and the skills when you enter the game; !background 
 16000222 Criminal: Intelligence +2, Constitution +1
 16000223 Criminal: Dexterity, Constitution and Intelligence +1
 16000202 Background: Sage
-16000206 Background (2024): Sage. Choose one background at level 1, in the version with the ability increases you want.
-
-Ability scores: +2 to one and +1 to another of Constitution, Intelligence and Wisdom, or +1 to all three.
-Origin feat: Magic Initiate (Wizard) (recorded until Magic Initiate is built (Phase 4's spells)).
-Skill proficiencies: Arcana, History. Tool: Calligrapher's Supplies.
-
-nwn5e applies the increases and the skills when you enter the game; !background shows or changes your background.
+16000206 Background (2024): Sage.\n\nAbility scores: +2 to one and +1 to another of Constitution, Intelligence and Wisdom, or +1 to all three.\nOrigin feat: Magic Initiate (Wizard) (recorded until Magic Initiate is built (Phase 4's spells)).\nSkill proficiencies: Arcana, History. Tool: Calligrapher's Supplies.\n\nnwn5e applies the increases and the skills when you enter the game; !background shows or changes your background.
 16000224 Sage: Constitution +2, Intelligence +1
 16000225 Sage: Constitution +2, Wisdom +1
 16000226 Sage: Intelligence +2, Constitution +1
@@ -68,13 +50,7 @@ nwn5e applies the increases and the skills when you enter the game; !background 
 16000229 Sage: Wisdom +2, Intelligence +1
 16000230 Sage: Constitution, Intelligence and Wisdom +1
 16000203 Background: Soldier
-16000207 Background (2024): Soldier. Choose one background at level 1, in the version with the ability increases you want.
-
-Ability scores: +2 to one and +1 to another of Strength, Dexterity and Constitution, or +1 to all three.
-Origin feat: Savage Attacker (recorded until Savage Attacker is built).
-Skill proficiencies: Athletics, Intimidation. Tool: a Gaming Set.
-
-nwn5e applies the increases and the skills when you enter the game; !background shows or changes your background.
+16000207 Background (2024): Soldier.\n\nAbility scores: +2 to one and +1 to another of Strength, Dexterity and Constitution, or +1 to all three.\nOrigin feat: Savage Attacker (recorded until Savage Attacker is built).\nSkill proficiencies: Athletics, Intimidation. Tool: a Gaming Set.\n\nnwn5e applies the increases and the skills when you enter the game; !background shows or changes your background.
 16000231 Soldier: Strength +2, Dexterity +1
 16000232 Soldier: Strength +2, Constitution +1
 16000233 Soldier: Dexterity +2, Strength +1
@@ -85,12 +61,8 @@ nwn5e applies the increases and the skills when you enter the game; !background 
 # 16000240-16000249: the Background page of character creation (docs/CHARGEN.md §10, A2).
 16000240 Background
 16000241 Ability Score Increases
-16000242 Choose your background - what you did before adventuring. It raises three of your ability scores (you choose how next), gives you two skills, a tool and an Origin feat.
-
-Select a background to read about it, then press OK.
-16000243 Choose how your background raises your ability scores: +2 to one and +1 to another of its three abilities, or +1 to all three. No score can go above 20.
-
-The increases are added when you enter the game.
+16000242 Choose your background - what you did before adventuring. It raises three of your ability scores (you choose how next), gives you two skills, a tool and an Origin feat.\n\nSelect a background to read about it, then press OK.
+16000243 Choose how your background raises your ability scores: with the arrows, +2 to one and +1 to another of its three abilities, or +1 to all three (the other three are greyed). No score can go above 20.\n\nThe increases are added when you enter the game.
 16000244 Acolyte
 16000245 Criminal
 16000246 Sage
@@ -105,3 +77,20 @@ The increases are added when you enter the game.
 16000255 1
 16000256 2
 16000257 3
+# 16000260-16000280: the creation screen's 2024 words and the species texts (docs/CHARGEN.md C1, CM6),
+# shown instead of the game's strings in faithful mode (src/rules/species.cpp lists which).
+16000260 Species
+16000261 Select a Species for your Character
+16000262 Species
+16000263 Choose your species: the people you were born among. In the 2024 rules a species gives you traits - keener senses, a resilience, a knack - but no ability score increases: those come from your background.\n\nEach description lists the species' 2024 traits and what nwn5e does with them so far; the rest come with the species rules.
+16000264 Orc
+16000265 Orcs
+16000266 orc
+16000270 Species (2024): Dwarf.\n\nDarkvision: 120 feet.\nDwarven Resilience: resistance to Poison damage, and advantage on saving throws to avoid or end the Poisoned condition.\nDwarven Toughness: your hit point maximum increases by 1 per level.\nStonecunning: as a Bonus Action, tremorsense (60 feet) for 10 minutes while you are on stone, a few times per Long Rest.\n\nIn nwn5e now: advantage on saving throws against poison. The other traits come with the species rules.
+16000271 Species (2024): Elf.\n\nDarkvision: 60 feet.\nElven Lineage: Drow, High Elf or Wood Elf, each with a cantrip at level 1 and a spell at levels 3 and 5 (Darkvision 120 feet for the Drow, Speed 35 feet for the Wood Elf).\nFey Ancestry: advantage on saving throws to avoid or end the Charmed condition.\nKeen Senses: proficiency in Insight, Perception or Survival.\nTrance: you don't need sleep; a Long Rest takes 4 hours of meditation.\n\nIn nwn5e now: advantage on saving throws against mind spells (Fey Ancestry), and Keen Senses (pick it with !skills). The lineages come with spells, Trance with rests.
+16000272 Species (2024): Gnome.\n\nDarkvision: 60 feet.\nGnomish Cunning: advantage on Intelligence, Wisdom and Charisma saving throws.\nGnomish Lineage: Forest Gnome (the Minor Illusion cantrip, and Speak with Animals a few times per Long Rest) or Rock Gnome (the Mending and Prestidigitation cantrips, and tiny clockwork devices).\n\nIn nwn5e now: advantage on Wisdom saving throws (the game's Will saves; it has no Intelligence or Charisma saves). The lineages come with spells.
+16000273 Species (2024): Halfling.\n\nBrave: advantage on saving throws to avoid or end the Frightened condition.\nHalfling Nimbleness: you can move through the space of a creature a size larger than you.\nLuck: when you roll a 1 on the d20 of an attack roll, ability check or saving throw, you reroll it and must use the new roll.\nNaturally Stealthy: you can hide even when only a creature at least one size larger than you obscures you.\n\nIn nwn5e now: Brave (advantage on saving throws against fear) and Luck (on attack rolls, saving throws and initiative).
+16000274 Legacy species: Half-Elf. The 2024 rules have no half-elves; nwn5e keeps them with their earlier SRD traits (SRD 5.1) and no ability score increases.\n\nDarkvision: 60 feet.\nFey Ancestry: advantage on saving throws against being charmed, and magic can't put you to sleep.\nSkill Versatility: proficiency in two skills of your choice.\n\nIn nwn5e now: none of these yet - they come with the species rules.
+16000275 Species (2024): Orc. In nwn5e the game's half-orcs are the SRD's orcs.\n\nAdrenaline Rush: as a Bonus Action, take the Dash action and gain temporary hit points equal to your Proficiency Bonus, a few times per Short or Long Rest.\nDarkvision: 120 feet.\nRelentless Endurance: when you drop to 0 hit points but aren't killed outright, you drop to 1 hit point instead, once per Long Rest.\n\nIn nwn5e now: none of these yet - they come with the species rules.
+16000276 Species (2024): Human.\n\nResourceful: you gain Heroic Inspiration whenever you finish a Long Rest.\nSkillful: proficiency in one skill of your choice.\nVersatile: an Origin feat of your choice.\n\nIn nwn5e now: Skillful (pick it with !skills); the extra feat the game gives humans at level 1 stands for Versatile (any general feat for now). Heroic Inspiration comes later.
+16000280 Ability Scores

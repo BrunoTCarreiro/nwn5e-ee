@@ -113,6 +113,9 @@ struct Config {
   // CM9 / CM10: faithful = the 2024 class features, the SRD subclass at
   // class level 3, no prestige classes; nwn / off = NWN's.
   rules::RuleVariant class_features = rules::RuleVariant::kFaithful;
+  // CM6: faithful = the 2024 species — their names (Half-Orc as Orc) and
+  // texts, "Species" for Race; nwn / off = NWN's races.
+  rules::RuleVariant species = rules::RuleVariant::kFaithful;
   // CM0: serve nwn5e's 2da rows and strings (data\rows, data\strings.txt).
   bool served_data = true;
 
