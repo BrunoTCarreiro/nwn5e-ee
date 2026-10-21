@@ -762,6 +762,54 @@ constexpr size_t kPageOkClick = 0xce8;
 constexpr size_t kPageRecommend = 0xd40;
 constexpr size_t kPageRecommendClick = 0xdd0;
 constexpr size_t kListTabSet = 0x80;  // the list's CGuiTabSet (SelectTab)
+// The Ability Scores page (0x1E30 bytes; ctor (page, creature id) = the call
+// after `new` in the hub's AbilitiesButton handler; init 0x8EA6A0 read):
+// per ability a name label and a value label (CGuiCharGenLabel 0xA8, text
+// +0x80) and down / up arrows (CGuiTimerButton 0xF0, click {object, fn} at
+// +0xD0); "Remaining Points" box +0x6E0 (text +0x760), "Cost To Increase"
+// box +0xAD0 (text +0xB50); HelpEdit +0xB78 (body +0xBF8, title +0x1000);
+// Title +0xF8 (text +0x178); Cancel +0x1B70 (click +0x1C00), OK +0x1C58
+// (click +0x1CE8), Recommended +0x1D40 (click +0x1DD0); creature id +0x1E28.
+// Its Cancel = Deactivate(2) + delete (the hub ignores 2).
+constexpr const char* kRttiAbilitiesPage = ".?AVCCharacterAbilitiesPanel@@";
+constexpr const char* kButtonSetEnabled = "?SetEnabled@CGuiButton@@QEAAXH@Z";
+constexpr const char* kSetColor = "?SetColor@CAuroraStringWrapper@@QEAAXMMMM@Z";
+constexpr size_t kAbilitiesPageSize = 0x1e30;
+constexpr size_t kAbilitiesPageCreature = 0x1e28;
+constexpr size_t kAbilitiesHelpBox = 0xb78;
+constexpr size_t kAbilitiesHelpBody = 0xbf8;
+constexpr size_t kAbilitiesHelpTitle = 0x1000;
+constexpr size_t kAbilitiesPoints = 0x6e0;
+constexpr size_t kAbilitiesPointsText = 0x760;
+constexpr size_t kAbilitiesCost = 0xad0;
+constexpr size_t kAbilitiesCostText = 0xb50;
+constexpr size_t kAbilitiesCancel = 0x1b70;
+constexpr size_t kAbilitiesCancelClick = 0x1c00;
+constexpr size_t kAbilitiesOk = 0x1c58;
+constexpr size_t kAbilitiesOkClick = 0x1ce8;
+constexpr size_t kAbilitiesRecommend = 0x1d40;
+constexpr size_t kAbilitiesRecommendClick = 0x1dd0;
+constexpr size_t kLabelText = 0x80;
+constexpr size_t kTimerButtonClick = 0xd0;
+struct AbilityRow {
+  const char* label;
+  const char* value;
+  const char* down;
+  const char* up;
+  size_t label_at, value_at, down_at, up_at;
+};
+// Str, Dex, Con, Int, Wis, Cha (rules::Ability order).
+constexpr AbilityRow kAbilityRows[6] = {
+    {"StrLabel", "StrEdit", "StrDownButton", "StrUpButton", 0x830, 0x8d8, 0x17b0, 0x18a0},
+    {"DexLabel", "DexEdit", "DexDownButton", "DexUpButton", 0x440, 0x4e8, 0x13f0, 0x14e0},
+    {"ConLabel", "ConEdit", "ConDownButton", "ConUpButton", 0x2f0, 0x398, 0x1210, 0x1300},
+    {"IntLabel", "IntEdit", "IntDownButton", "IntUpButton", 0x590, 0x638, 0x15d0, 0x16c0},
+    {"WisLabel", "WisEdit", "WisDownButton", "WisUpButton", 0x980, 0xa28, 0x1990, 0x1a80},
+    {"ChaLabel", "ChaEdit", "ChaDownButton", "ChaUpButton", 0x1a0, 0x248, 0x1030, 0x1120},
+};
+// nwn5e's own exit code between its two Background pages: the hub's switch
+// has no case for it (its default only refreshes the character sheet).
+constexpr int kExitBackgroundNext = 0x8100;
 // A list item: CGuiCharGenRadioButton, 0xC8 bytes, caption +0xB0.
 constexpr size_t kListItemSize = 0xc8;
 constexpr size_t kListItemCaption = 0xb0;

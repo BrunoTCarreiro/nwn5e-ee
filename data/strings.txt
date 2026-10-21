@@ -95,3 +95,13 @@ The increases are added when you enter the game.
 16000245 Criminal
 16000246 Sage
 16000247 Soldier
+16000248 Increases Left
+16000249 Highest Increase
+16000250 +0
+16000251 +1
+16000252 +2
+16000253 -
+16000254 0
+16000255 1
+16000256 2
+16000257 3

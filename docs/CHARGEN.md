@@ -440,3 +440,21 @@ resolved at launch to the research's addresses (new 0xC10324, Class ctor
 Class OK 0x8E36D0); if one is missing nothing is hooked and the layouts
 aren't served (the game's Alignment step stays). Layouts are built from JSON
 (`data/gui/src`) with `tools/gff/gffjson.py`.
+
+*A2b (0.6.1, 2026-10-21): the split on the game's Ability Scores page.* The
+split list was clunky (owner, A2 test). Background's OK now opens a second
+page: the game's own Ability Scores page (`CCharacterAbilitiesPanel`, built
+as the hub builds it — the engine's `operator new` + its constructor, found
+as the call after `new` in the hub's AbilitiesButton handler and checked by
+the vtable it writes) with nwn5e's vtable copy (init `IncreasesInit`) and
+layout `cg_bgincrease.gui` (the game's `cg_attributes.gui`, the title and
+two captions changed: "Increases Left", "Highest Increase"). Each row keeps
+its arrows (CGuiTimerButton, callback at +0xD0): the background's three
+abilities take +0 / +1 / +2, the other three are greyed and show "-"; the
+arrows allow +2 / +1 or +1 / +1 / +1 (three increases, none above +2), OK
+lights when all three are spent; Recommended fills the class's split. The
+Background page exits with 0x8100 (unknown to the hub: it only refreshes
+the sheet), the increases page inherits its exit delegate and exits with the
+Alignment page's 0x8001; its Cancel is the game's own (back to the hub,
+the step not done). Anchors at launch: Abilities ctor 0x8DB730, Abilities
+Cancel 0x8E1000.
