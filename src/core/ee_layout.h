@@ -686,6 +686,87 @@ constexpr uint8_t kNuiMinorCreate = 1;
 constexpr uint8_t kNuiMinorDestroy = 2;
 constexpr uint8_t kNuiMinorBinds = 4;
 
+// The game's own creation pages (docs/CHARGEN.md §10, route A; classic GUI,
+// none of it exported: vtables by RTTI, handlers by layout tag, constructors
+// by their vtable references). A page is a CGuiPanel whose controls are
+// members: exit delegate {object +0x80, fn(object, code) +0x88}, layout
+// CResRef +0xC1; CGuiPanel::Activate loads the layout, then calls the page's
+// init (vtable slot 12), which binds each member to its layout object with
+// ImportLayoutData(control, page, "Tag") and writes its callbacks — a click
+// {object, fn(object)} at button +0x90, a list's selection {object,
+// fn(object, index)} at list +0x80. OK / Cancel end with
+// CGuiModalPanel::Deactivate(code) (the exit delegate runs inside) and
+// vtable[0](page, 1).
+constexpr const char* kGuiModalPanelActivate = "?Activate@CGuiModalPanel@@QEAAXXZ";
+constexpr const char* kGuiModalPanelDeactivate = "?Deactivate@CGuiModalPanel@@QEAAXH@Z";
+constexpr const char* kGuiPanelActivate = "?Activate@CGuiPanel@@QEAAXXZ";
+constexpr const char* kImportLayoutData = "?ImportLayoutData@CGuiObject@@QEAAHPEAVCGuiPanel@@PEBD@Z";
+constexpr const char* kSetTextStrref = "?SetText@CAuroraStringWrapper@@QEAAXI@Z";
+constexpr const char* kSetReadOnly = "?SetReadOnly@CGuiEdit@@QEAAX_N@Z";
+constexpr const char* kRegisterUpdate = "?RegisterUpdate@CGuiObject@@QEAAXXZ";
+constexpr const char* kTextButtonSetEnabled = "?SetEnabled@CGuiTextButton@@QEAAXH@Z";
+constexpr const char* kSetModel = "?SetModel@CGuiObject@@QEAAXPEBD@Z";
+constexpr const char* kListAddButton = "?AddButton@CGuiButtonListbox@@QEAAHPEAVCGuiRadioButton@@H@Z";
+constexpr const char* kListDeleteButtons = "?DeleteButtons@CGuiButtonListbox@@QEAAXXZ";
+constexpr const char* kTabSetSelectTab = "?SelectTab@CGuiTabSet@@QEAAXH@Z";
+constexpr const char* kResRefAssign = "??4CResRef@@QEAAAEAV0@PEBD@Z";
+constexpr const char* kCheckboxConstructor = "??0CGuiCheckbox@@QEAA@XZ";
+// The engine's operator new: inside CGuiPanel::Activate, the scene view's
+// allocation (lea r14,[rbx+1C]; lea ecx,[rdi+58]; call new).
+constexpr const char* kOperatorNewPattern = "4C 8D 73 1C 8D 4F 58 E8 ?? ?? ?? ??";
+constexpr size_t kOperatorNewCall = 7;  // the E8 in the pattern
+constexpr const char* kRttiHub = ".?AVCCharacterGenerationPanel@@";
+constexpr const char* kRttiClassPage = ".?AVCCharacterClassPanel@@";
+constexpr const char* kRttiAlignmentPage = ".?AVCCharacterAlignmentPanel@@";
+constexpr const char* kRttiCharGenRadioButton = ".?AVCGuiCharGenRadioButton@@";
+constexpr int kVtablePageInit = 12;  // PostAttachmentInitialize
+constexpr int kPageVtableSlots = 41;
+constexpr size_t kPageExitObject = 0x80;
+constexpr size_t kPageExitFunction = 0x88;
+constexpr size_t kPageLayout = 0xc1;
+constexpr size_t kHubCustomizeMode = 0xf4;  // int: editing an existing character
+// The Alignment page (0x1050 bytes): its creature id +0x1018; its OK fetches
+// the client creature (the handler's first call) and writes uint16 law/chaos
+// +0xC6 and good/evil +0xC8 of the stats at creature +0x3B0 (15 / 50 / 85),
+// then exits with 0x8001 — the hub marks the step done and enables Abilities.
+constexpr size_t kAlignmentPageSize = 0x1050;
+constexpr size_t kAlignmentPageCreature = 0x1018;
+constexpr size_t kClientCreatureStats = 0x3b0;
+constexpr size_t kClientStatsLawChaos = 0xc6;
+constexpr size_t kClientStatsGoodEvil = 0xc8;
+constexpr int kAlignmentNeutral = 50;
+constexpr int kExitAlignmentDone = 0x8001;
+// The Class page (0xE30 bytes; ctor (page, creature id, mode)): Title label
+// +0xF8 (flags +0x100, id +0x110, text +0x178, click +0x190), HelpBox +0x1A0
+// (body +0x220, title +0x628), list +0x658 (selection +0x6D8, selected index
+// +0x6E8, ids int* +0xA78), Cancel +0xB70 (click +0xC00), OK +0xC58 (click
+// +0xCE8), Recommended +0xD40 (click +0xDD0).
+constexpr size_t kClassPageSize = 0xe30;
+constexpr size_t kClassPageCreature = 0xe28;  // uint32, the ctor's creature id
+constexpr size_t kPageTitle = 0xf8;
+constexpr size_t kPageTitleFlags = 0x100;
+constexpr size_t kPageTitleId = 0x110;
+constexpr size_t kPageTitleText = 0x178;
+constexpr size_t kPageTitleClick = 0x190;
+constexpr size_t kPageHelpBox = 0x1a0;
+constexpr size_t kPageHelpBody = 0x220;
+constexpr size_t kPageHelpTitle = 0x628;
+constexpr size_t kPageList = 0x658;
+constexpr size_t kPageListSelect = 0x6d8;
+constexpr size_t kPageListSelected = 0x6e8;
+constexpr size_t kPageListIds = 0xa78;
+constexpr size_t kPageCancel = 0xb70;
+constexpr size_t kPageCancelClick = 0xc00;
+constexpr size_t kPageOk = 0xc58;
+constexpr size_t kPageOkClick = 0xce8;
+constexpr size_t kPageRecommend = 0xd40;
+constexpr size_t kPageRecommendClick = 0xdd0;
+constexpr size_t kListTabSet = 0x80;  // the list's CGuiTabSet (SelectTab)
+// A list item: CGuiCharGenRadioButton, 0xC8 bytes, caption +0xB0.
+constexpr size_t kListItemSize = 0xc8;
+constexpr size_t kListItemCaption = 0xb0;
+constexpr const char* kListItemModel = "CTL_CG_BTN_CLASS";
+
 // NUI (EE's scriptable windows). HandlePlayerToServerNuiEvent reads each event
 // (token, type, element, array index, payload) and, for a window the player
 // has open, stores it with CNWSModule::SetCurrentNuiEvent (+0x82f) before

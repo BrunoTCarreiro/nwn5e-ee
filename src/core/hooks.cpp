@@ -384,6 +384,46 @@ uintptr_t HandlerByTag(const char* what, uintptr_t function, const char* tag) {
   return 0;
 }
 
+uintptr_t FindPatternIn(const char* what, const CodeRange& range, const char* pattern) {
+  int matches = 0;
+  uintptr_t found = 0;
+  std::vector<std::pair<uintptr_t, uintptr_t>> parts = range.parts;
+  if (parts.empty() && range.Valid()) parts.push_back({range.begin, range.end});
+  const ParsedPattern parsed = ParsePattern(pattern);
+  for (const auto& part : parts) {
+    int here = 0;
+    CodeRange piece;
+    piece.begin = part.first;
+    piece.end = part.second;
+    const uintptr_t at = FindUnique(piece, parsed, &here);
+    matches += here;
+    if (at) found = at;
+  }
+  if (matches != 1) {
+    Log("SKIP %s: its byte pattern matches %d times in the function (expected 1)", what, matches);
+    return 0;
+  }
+  return found;
+}
+
+uintptr_t CallTarget(uintptr_t call) {
+  const auto* code = reinterpret_cast<const uint8_t*>(call);
+  if (!call || code[0] != 0xe8) return 0;
+  int32_t displacement = 0;
+  memcpy(&displacement, code + 1, sizeof(displacement));
+  return call + kCallLength + displacement;
+}
+
+uintptr_t FirstCallIn(uintptr_t function) {
+  const CodeRange range = FunctionAt(function);
+  const CodeRange text_section = TextSection();
+  for (uintptr_t at = function; range.Contains(at) && at + kCallLength <= range.end; ++at) {
+    const uintptr_t target = CallTarget(at);
+    if (target && text_section.Contains(target) && FunctionEntry(target) == target) return target;
+  }
+  return 0;
+}
+
 uintptr_t FindPattern(const char* what, const char* pattern) {
   int matches = 0;
   const uintptr_t at = FindUnique(TextSection(), ParsePattern(pattern), &matches);

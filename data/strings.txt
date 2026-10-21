@@ -82,3 +82,16 @@ nwn5e applies the increases and the skills when you enter the game; !background 
 16000235 Soldier: Constitution +2, Strength +1
 16000236 Soldier: Constitution +2, Dexterity +1
 16000237 Soldier: Strength, Dexterity and Constitution +1
+# 16000240-16000249: the Background page of character creation (docs/CHARGEN.md §10, A2).
+16000240 Background
+16000241 Ability Score Increases
+16000242 Choose your background - what you did before adventuring. It raises three of your ability scores (you choose how next), gives you two skills, a tool and an Origin feat.
+
+Select a background to read about it, then press OK.
+16000243 Choose how your background raises your ability scores: +2 to one and +1 to another of its three abilities, or +1 to all three. No score can go above 20.
+
+The increases are added when you enter the game.
+16000244 Acolyte
+16000245 Criminal
+16000246 Sage
+16000247 Soldier

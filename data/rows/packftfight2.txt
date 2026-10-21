@@ -1,5 +1,0 @@
-# packftfight2.2da - a Fighter package's preferred feats: its background first (Soldier, Dexterity +2 and Constitution +1),
-# so "Recommended" picks it; the epic feat it replaces in row 0 moves to the end.
-FeatIndex Label
-0 1254 NWN5E_BG_SOLDIER_DEX2_CON1
-+ 657 FEAT_EPIC_WEAPON_SPECIALIZATION_CLUB

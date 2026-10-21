@@ -65,6 +65,7 @@ std::wstring g_dll;
 std::string g_served;  // ANSI, for the engine
 bool g_registered = false;
 int g_probe_row = -1;  // feat.2da row of the probe (served_data_probe)
+bool g_serve_creation_layouts = false;  // ServeCreationLayouts()
 
 constexpr const char* kAlias = "NWN5E";
 constexpr uint32_t kProbeName = kDataStringFirst;
@@ -213,6 +214,17 @@ int BuildServedTables() {
     }
   }
   if (files) Log("data: served %d files as they are (data\\files: compiled scripts ...)", files);
+  // The creation pages' layouts (data\gui), only when their code is in place
+  // (chargen_ui.cpp): a layout without it would show nwn5e's captions on the
+  // game's own pages.
+  if (g_serve_creation_layouts) {
+    int layouts = 0;
+    const std::wstring folder = g_dll + L"\\data\\gui";
+    for (const std::wstring& name : FilesIn(folder, L"*.gui")) {
+      if (CopyFileW((folder + L"\\" + name).c_str(), (served + L"\\" + name).c_str(), FALSE)) ++layouts;
+    }
+    Log("data: served %d creation page layouts (data\\gui)", layouts);
+  }
   int built = 0;
   for (const auto& entry : rows) {
     std::string bytes, error, why;
@@ -321,5 +333,7 @@ const char* DataString(uint32_t strref) {
   const auto found = g_strings.find(strref);
   return found == g_strings.end() ? nullptr : found->second.c_str();
 }
+
+void ServeCreationLayouts() { g_serve_creation_layouts = true; }
 
 bool HaveDataStrings() { return !g_strings.empty(); }

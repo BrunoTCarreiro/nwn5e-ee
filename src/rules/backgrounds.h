@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "rules/abilities.h"
+#include "rules/combat.h"
 #include "rules/skills.h"
 
 namespace rules {
@@ -57,5 +58,12 @@ struct BackgroundFeatChoice {
 };
 // The background and abilities a feat row stands for (nullopt: not one).
 std::optional<BackgroundFeatChoice> BackgroundFromFeat(int feat);
+
+// The creation page's Recommended choice: a background that suits the class
+// (its main abilities among the background's three), and the split giving +2
+// and +1 to the background's two abilities the class ranks highest
+// (RecommendedScores2024's order).
+Background RecommendedBackground2024(CharacterClass character_class);
+int RecommendedBackgroundSplit2024(Background background, CharacterClass character_class);
 
 }  // namespace rules

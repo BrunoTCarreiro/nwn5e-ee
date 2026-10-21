@@ -20,3 +20,7 @@ void InstallDataServing(const wchar_t* dll_directory);
 // The text for a private string id, or nullptr.
 const char* DataString(uint32_t strref);
 bool HaveDataStrings();
+
+// Serve the creation pages' layouts (data\gui\*.gui) too — called by
+// chargen_ui.cpp at install, once every hook those layouts need resolved.
+void ServeCreationLayouts();

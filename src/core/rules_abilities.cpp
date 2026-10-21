@@ -128,6 +128,32 @@ void SetBackground(void* creature, void* stats, rules::Background background, co
   engine::SetLocalInt(creature, kVarBackgroundBonus, rules::EncodeAmounts(amounts));
 }
 
+// The background chosen on the creation screen's Background page
+// (chargen_ui.cpp), waiting for the new character: given (as its feat) to the
+// first level-1 player character without a background that appears within
+// the hour.
+int g_creation_feat = -1;
+DWORD g_creation_tick = 0;
+constexpr DWORD kCreationWaitMs = 60 * 60 * 1000;
+
+void GiveCreationBackground(void* creature, void* stats, const CreatureFacts& facts) {
+  if (g_creation_feat < 0 || !facts.is_player || facts.level != 1) return;
+  if (GetTickCount() - g_creation_tick > kCreationWaitMs) {
+    g_creation_feat = -1;
+    return;
+  }
+  if (ReadBackground(creature, stats).background != rules::Background::kNone) return;
+  const int feat = g_creation_feat;
+  g_creation_feat = -1;
+  const auto choice = rules::BackgroundFromFeat(feat);
+  if (!choice || !engine::AddFeat(stats, feat)) {
+    Log("abilities: 0x%08X the background chosen at creation (feat %d) could not be given", Field<uint32_t>(creature, ee::kObjectId), feat);
+    return;
+  }
+  Log("abilities: 0x%08X background %s from the creation screen (feat %d)", Field<uint32_t>(creature, ee::kObjectId),
+      rules::BackgroundData(choice->background)->name, feat);
+}
+
 // NWN mode / off: the background feats aren't offered.
 void HideBackgroundRows(void* rules_object, bool reload) {
   auto* feats = Field<uint8_t*>(rules_object, ee::kRulesFeats);
@@ -237,6 +263,7 @@ void Sync(void* creature, bool force) {
       if (bumped >= 0 && bumped < 6) ++bumps[bumped];
     }
     if (facts.is_player) {
+      GiveCreationBackground(creature, stats, facts);
       const CurrentBackground current = ReadBackground(creature, stats);
       std::copy(current.amounts, current.amounts + 6, background);
       for (const AsiSlot& slot : PlayerAsis(creature, stats)) {
@@ -445,6 +472,14 @@ std::vector<std::string> BackgroundCommand(void* creature, const std::string& ar
 }
 
 }  // namespace
+
+// From the creation screen's Background page (chargen_ui.cpp): the chosen
+// background feat, given to the new character when it enters.
+void SetCreationBackground(int feat) {
+  g_creation_feat = feat;
+  g_creation_tick = GetTickCount();
+  Log("abilities: background feat %d chosen on the creation screen - given when the character enters", feat);
+}
 
 // The background's skills (and tool), for the skill values (rules_skills.cpp).
 rules::SkillSet BackgroundSkills(void* creature) {

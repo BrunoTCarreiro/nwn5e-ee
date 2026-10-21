@@ -75,3 +75,33 @@ TEST(BackgroundFeatsCoverEverySplit) {
   CHECK_EQ(BackgroundFeat(Background::kNone, 0), -1);
   CHECK_EQ(BackgroundFeat(Background::kSage, kBackgroundSplits), -1);
 }
+
+// Breaks caught (the creation page's Recommended button): a class without a
+// background, a split that isn't the class's two best abilities in the
+// background, a split index out of range.
+TEST(RecommendedBackgroundPerClass) {
+  CHECK_EQ(RecommendedBackground2024(CharacterClass::kFighter) == Background::kSoldier, true);
+  CHECK_EQ(RecommendedBackground2024(CharacterClass::kRogue) == Background::kCriminal, true);
+  CHECK_EQ(RecommendedBackground2024(CharacterClass::kWizard) == Background::kSage, true);
+  CHECK_EQ(RecommendedBackground2024(CharacterClass::kCleric) == Background::kAcolyte, true);
+  for (int c = 0; c < 12; ++c) {
+    const auto character_class = static_cast<CharacterClass>(c);
+    const Background background = RecommendedBackground2024(character_class);
+    CHECK_EQ(BackgroundData(background) != nullptr, true);
+    const int split = RecommendedBackgroundSplit2024(background, character_class);
+    CHECK_EQ(split >= 0 && split < kBackgroundSplits, true);
+  }
+  int amounts[6];
+  // Fighter / Soldier (Str, Dex, Con): Str +2, Con +1.
+  auto choice = BackgroundFromFeat(BackgroundFeat(
+      Background::kSoldier, RecommendedBackgroundSplit2024(Background::kSoldier, CharacterClass::kFighter)));
+  CHECK_EQ(BackgroundIncreases(choice->background, choice->chosen, amounts).empty(), true);
+  CHECK_EQ(amounts[0], 2);
+  CHECK_EQ(amounts[2], 1);
+  // Wizard / Sage (Con, Int, Wis): Int +2, Con +1.
+  choice = BackgroundFromFeat(
+      BackgroundFeat(Background::kSage, RecommendedBackgroundSplit2024(Background::kSage, CharacterClass::kWizard)));
+  CHECK_EQ(BackgroundIncreases(choice->background, choice->chosen, amounts).empty(), true);
+  CHECK_EQ(amounts[3], 2);
+  CHECK_EQ(amounts[2], 1);
+}

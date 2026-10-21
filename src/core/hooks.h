@@ -115,6 +115,16 @@ uintptr_t HandlerByTag(const char* what, uintptr_t function, const char* tag);
 // The one place in .text a byte pattern ("49 83 ?? 10") matches; 0 and logged otherwise.
 uintptr_t FindPattern(const char* what, const char* pattern);
 
+// The same, limited to one function's code (FunctionAt); 0 and logged unless exactly one match.
+uintptr_t FindPatternIn(const char* what, const CodeRange& range, const char* pattern);
+
+// The target of the E8 rel32 call at `call` (0 if it isn't one).
+uintptr_t CallTarget(uintptr_t call);
+
+// The first direct call from `function`'s entry whose target is a function
+// entry (e.g. the client GetCreature an OK handler starts with); 0 if none.
+uintptr_t FirstCallIn(uintptr_t function);
+
 // The one function that references `text` (e.g. its own debug message); 0 and
 // logged when none or several do.
 uintptr_t FunctionByString(const char* what, const char* text);

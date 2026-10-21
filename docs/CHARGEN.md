@@ -415,3 +415,28 @@ they are not used for creation or level-up. Next: map the classic GUI system
 (page construction through the engine's own allocator, layouts, control
 binding, the hub's steps) — then A1 (an existing page changed from the
 inside) and A2 (a new page + hub step).
+
+*A2 (0.6.0, 2026-10-21): the Background step, a real creation page.* The
+classic GUI mapped (scratch notes "classic_gui"): a page is a CGuiPanel whose
+controls are members; its init (vtable slot 12) binds them to the layout with
+ImportLayoutData and writes their {object, function} callbacks; OK / Cancel
+end with Deactivate(code) + the page deleting itself. nwn5e (`chargen_ui.cpp`,
+ability_scores faithful): the hub's Alignment step becomes **Background** —
+served `cg_main.gui` (the button's caption) and `cg_background.gui` (the page:
+the game's frame, list, help box, Recommended / OK / Cancel); when the hub
+opens the Alignment page it is rebuilt in place as a Class page (the engine's
+own constructor, through the engine's own `operator new` for its list items)
+with nwn5e's vtable copy whose init binds nwn5e's handlers. The page lists the
+four SRD backgrounds with their descriptions; OK asks for the ability split
+in the same page (Recommended: the class's background and its two best
+abilities, `rules::RecommendedBackground2024`, unit-tested); OK sets neutral
+alignment (the Alignment page's own write), keeps the background feat for the
+new character (given when it enters; the feat is the record) and exits with
+the Alignment page's code — the hub's own logic marks the step done and moves
+on to Ability Scores. The background feats left the feat picks
+(ALLCLASSESCANUSE 0); the Fighter package defaults went. All six anchors
+resolved at launch to the research's addresses (new 0xC10324, Class ctor
+0x8DBE70, list item 0x8DCBC0, GetCreature 0x800C90, Class Cancel 0x8E10C0,
+Class OK 0x8E36D0); if one is missing nothing is hooked and the layouts
+aren't served (the game's Alignment step stays). Layouts are built from JSON
+(`data/gui/src`) with `tools/gff/gffjson.py`.

@@ -3,6 +3,7 @@
 #include <ctype.h>
 
 #include <algorithm>
+#include <array>
 
 namespace rules {
 
@@ -106,6 +107,42 @@ std::optional<BackgroundFeatChoice> BackgroundFromFeat(int feat) {
     choice.chosen = {info->abilities[kSplitPairs[split][0]], info->abilities[kSplitPairs[split][1]]};
   }
   return choice;
+}
+
+Background RecommendedBackground2024(CharacterClass character_class) {
+  switch (character_class) {
+    case CharacterClass::kBarbarian:
+    case CharacterClass::kFighter:
+    case CharacterClass::kPaladin:
+    case CharacterClass::kRanger:
+      return Background::kSoldier;
+    case CharacterClass::kMonk:
+    case CharacterClass::kRogue:
+      return Background::kCriminal;
+    case CharacterClass::kDruid:
+    case CharacterClass::kWizard:
+      return Background::kSage;
+    case CharacterClass::kBard:
+    case CharacterClass::kCleric:
+    case CharacterClass::kSorcerer:
+    case CharacterClass::kWarlock:
+      return Background::kAcolyte;
+  }
+  return Background::kSoldier;
+}
+
+int RecommendedBackgroundSplit2024(Background background, CharacterClass character_class) {
+  const BackgroundInfo* info = BackgroundData(background);
+  if (!info) return -1;
+  const std::array<int, 6> rank = RecommendedScores2024(character_class);
+  int order[3] = {0, 1, 2};  // the background's abilities, the class's best first
+  std::stable_sort(std::begin(order), std::end(order), [&](int a, int b) {
+    return rank[static_cast<int>(info->abilities[a])] > rank[static_cast<int>(info->abilities[b])];
+  });
+  for (int split = 0; split < 6; ++split) {
+    if (kSplitPairs[split][0] == order[0] && kSplitPairs[split][1] == order[1]) return split;
+  }
+  return 6;
 }
 
 }  // namespace rules
