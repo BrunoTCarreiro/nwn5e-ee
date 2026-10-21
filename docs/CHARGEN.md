@@ -645,6 +645,36 @@ greatsword two-handed, its dagger light; Great Weapon Fighting's "two
 hands" test uses the same size. Shove, size modifiers and everything else
 keep the creature's own size.
 
+*Seen in game (owner, 2026-10-21, with 0.13.1's `!test`: a halfling
+Fighter 5 made from a level-1 character).* `!test` applied the profile
+twice (species, 4 levels through the engine's level-ups, scores, feats,
+items equipped). S2: the Tower Shield equips on a Small character. O6: the
+halfling's longsword is "equipped as a one-handed weapon" (the off-hand
+dagger not tried). O7: the greatsword fights two-handed (Great Weapon
+Fighting applies). O3: Savage Attacker once per turn (the second hit of a
+round without it). O1, O2, O4, O5 not yet seen.
+
+*0.13.2 (owner, 2026-10-21: "make it faithful").* Savage Attacker on a
+critical hit: the hit's dice — the weapon's dice once per multiplier,
+GetDamageRoll's critical loop — are one roll, rolled twice whole and the
+higher total kept (rules::KeepSecondSavageRoll, unit-tested); 0.13.0 rolled
+each set twice and kept the better of each, a little more than the rule
+gives. The filter rolls every set at the hit's first weapon-dice ask
+(GetCriticalHitMultiplier through its export, so rules_crit's answer
+counts) and hands them out in order.
+
+*Found (2026-10-21): EE's Easy difficulty maximises a character's weapon
+dice.* GetDamageRoll passes each weapon-dice roll through
+CNWRules::GetWeightedDamageAmount with diffsettings.2da's
+MinPCDamagePercent (DMEasy 100, Easy 50, Normal and up none) when a PC hits
+a non-PC: the roll becomes min(maximum, roll + maximum x (p..99)%), so on
+Easy a greatsword deals 12 nearly every hit (the test fight: 15, 15 and 27
+= 12 + 12 + 3). Its twin, MaxNPCDamagePercent, scales what monsters deal to
+characters (Easy 50). Dice rules (Great Weapon Fighting, Savage Attacker)
+only show at Normal or harder. Not answered by nwn5e (crits_against_players
+already answers NoCriticalOnPC from the same table); a rule key for it is
+an open question.
+
 *Decided (owner, 2026-10-21): the Domain step stays until the Cleric
 conversion* — NWN's two domains are picked at creation until the Cleric's
 brief (Phase 4) drops what domains grant (powers, domain spells, the bonus

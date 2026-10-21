@@ -37,4 +37,11 @@ bool FitsBonusPicks(const BonusPicks& taken, const BonusPicks& allowed) {
   return taken.style <= allowed.style + (allowed.general - taken.general);
 }
 
+bool KeepSecondSavageRoll(const std::vector<int>& first, const std::vector<int>& second) {
+  int first_total = 0, second_total = 0;
+  for (int roll : first) first_total += roll;
+  for (int roll : second) second_total += roll;
+  return second_total > first_total;
+}
+
 }  // namespace rules

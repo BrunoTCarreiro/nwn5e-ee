@@ -82,3 +82,13 @@ TEST(BonusPicksPerClassLevel) {
   two_asi.general = 2;
   CHECK_EQ(FitsBonusPicks(two_asi, fighter4), false);
 }
+
+// Breaks caught: Savage Attacker choosing set by set on a critical hit (each
+// half's better roll kept: 7 + 12 = 19 here, more than either real roll)
+// instead of one whole roll; a tie not keeping the first roll.
+TEST(SavageAttackerKeepsOneWholeRoll) {
+  CHECK_EQ(KeepSecondSavageRoll({2, 12}, {7, 6}), false);  // 14 against 13: the first roll, all of it
+  CHECK_EQ(KeepSecondSavageRoll({7, 6}, {2, 12}), true);
+  CHECK_EQ(KeepSecondSavageRoll({5}, {9}), true);           // a plain hit: one set
+  CHECK_EQ(KeepSecondSavageRoll({8}, {8}), false);          // a tie keeps the first
+}

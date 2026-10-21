@@ -8,6 +8,8 @@
 // any more (characters keep the ones they have). The rest of the SRD's 17
 // join as they are built.
 
+#include <vector>
+
 #include "rules/combat.h"
 
 namespace rules {
@@ -39,5 +41,12 @@ BonusPicks BonusPicks2024(CharacterClass character_class, int class_level, bool 
 // in its own picks, and a Fighting Style may take the general pick too (the
 // SRD's Fighting Style feats are general feats for a class that has them).
 bool FitsBonusPicks(const BonusPicks& taken, const BonusPicks& allowed);
+
+// Savage Attacker: the hit's weapon damage dice are rolled twice and one
+// whole roll is used. A critical hit's dice are all of its sets (the weapon's
+// dice once per multiplier), rolled together - not each set twice with its
+// better half kept. `first` / `second` are the two rolls, set by set; true
+// when the second is kept (the higher total; the first on a tie).
+bool KeepSecondSavageRoll(const std::vector<int>& first, const std::vector<int>& second);
 
 }  // namespace rules

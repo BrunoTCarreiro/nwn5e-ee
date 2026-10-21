@@ -23,8 +23,10 @@
 //
 // The weapon-dice filter also serves the Savage Attacker Origin feat (feats
 // faithful, rules_origin_feats.cpp: once per turn, the weapon's damage dice
-// rolled twice, the higher kept), so its GetDamageRoll hook is installed in
-// either mode.
+// rolled twice, the higher roll kept; a critical hit's sets - one per
+// multiplier, GetDamageRoll's critical loop - are one roll, rolled twice
+// whole at the first ask), so its GetDamageRoll hook is installed in either
+// mode.
 //
 // Studied Attacks and Heroic Rally count combat rounds (CountCombatRounds,
 // rules_mastery.cpp), hooked here too, so they work with weapon_mastery=off.
@@ -53,6 +55,7 @@
 #include "mastery.h"
 #include "rest.h"
 #include "rules/class_features.h"
+#include "rules/feats2024.h"
 #include "rules/weapons.h"
 #include "rules_loaded.h"
 #include "weapon_size.h"
@@ -157,12 +160,17 @@ int16_t CreatureArmorClass(void* creature) {
 // two-handed or versatile weapon held in two hands are rolled one by one, a 1
 // or 2 counting as 3 — GetDamageRoll's two weapon-dice RollDice calls
 // (ee_layout.h), while GetDamageRoll runs for such an attack.
+constexpr int kMaxSavageSets = 8;  // weapon-dice sets one hit can roll (a critical multiplier)
+
 struct GreatWeaponRoll {
   bool active = false;  // Great Weapon Fighting
-  bool savage = false;  // Savage Attacker: the dice twice, the higher kept
+  bool savage = false;  // Savage Attacker: the hit's dice twice, the higher roll kept
   uint32_t id = 0;
   int count = 0;
   int sides = 0;
+  int sets = 0;                     // Savage Attacker: the weapon-dice sets this hit rolls
+  int next = 0;                     // the next set the engine asks for
+  int kept[kMaxSavageSets] = {};    // the kept roll, set by set (rolled at the first ask)
 };
 thread_local GreatWeaponRoll t_great_weapon;
 std::vector<uintptr_t> g_weapon_dice_returns;
@@ -204,6 +212,15 @@ int GetDamageRoll(void* stats, void* target, int offhand, int critical, int snea
     t_great_weapon.id = ObjectIdOf(stats);
     t_great_weapon.count = Field<uint8_t>(weapon, ee::kBaseItemNumDice);
     t_great_weapon.sides = Field<uint8_t>(weapon, ee::kBaseItemDieToRoll);
+    // A critical hit rolls the weapon's dice once per multiplier (the engine's
+    // own count, asked through the export so rules_crit's answer applies).
+    int sets = 1;
+    if (critical) {
+      using MultiplierFn = int (*)(void* stats, int offhand);
+      static const auto multiplier = reinterpret_cast<MultiplierFn>(EngineExport(ee::kGetCriticalHitMultiplier));
+      sets = multiplier ? multiplier(stats, offhand) : 2;
+    }
+    t_great_weapon.sets = (std::max)(0, (std::min)(sets, kMaxSavageSets));
   }
   const int damage = g_get_damage_roll(stats, target, offhand, critical, sneak, death, force_max);
   t_great_weapon = outer;
@@ -229,15 +246,30 @@ bool GreatWeaponDice(uintptr_t caller, int count, int sides, int* result) {
     }
     return total;
   };
-  const int first = roll_once();
-  int total = first;
-  if (t_great_weapon.savage) {
-    const int second = roll_once();
-    total = second > first ? second : first;
-    if (g_config.log_attacks) {
-      Log("feats: 0x%08X Savage Attacker: %dd%d rolled twice, %d / %d -> %d", t_great_weapon.id, count, sides,
-          first, second, total);
+  int total = 0;
+  if (t_great_weapon.savage && t_great_weapon.next == 0 && t_great_weapon.sets > 0) {
+    // The first ask of the hit: its whole roll (every set), twice.
+    std::vector<int> first, second;
+    for (int i = 0; i < t_great_weapon.sets; ++i) first.push_back(roll_once());
+    for (int i = 0; i < t_great_weapon.sets; ++i) second.push_back(roll_once());
+    const bool keep_second = rules::KeepSecondSavageRoll(first, second);
+    const std::vector<int>& kept = keep_second ? second : first;
+    int first_total = 0, second_total = 0;
+    for (int i = 0; i < t_great_weapon.sets; ++i) {
+      t_great_weapon.kept[i] = kept[i];
+      first_total += first[i];
+      second_total += second[i];
     }
+    if (g_config.log_attacks) {
+      Log("feats: 0x%08X Savage Attacker: %dd%d%s rolled twice, %d / %d -> %d", t_great_weapon.id,
+          count * t_great_weapon.sets, sides, t_great_weapon.sets > 1 ? " (critical hit)" : "", first_total,
+          second_total, keep_second ? second_total : first_total);
+    }
+  }
+  if (t_great_weapon.savage && t_great_weapon.next < t_great_weapon.sets) {
+    total = t_great_weapon.kept[t_great_weapon.next++];
+  } else {
+    total = roll_once();  // not Savage Attacker's, or more sets asked than the hit was to roll
   }
   if (g_config.log_attacks && raised &&
       g_logged.First(LogOnce::Key(t_great_weapon.id, count * 100 + sides, 4))) {
