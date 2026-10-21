@@ -11,7 +11,9 @@
 // their handler at the next frame, from the CGuiMan::UpdateAndRender pre-hook
 // that also runs the queued requests.
 //
-// [debug] client_nui_test=1: a test window opens on the main menu (B1).
+// [debug] client_nui_test=1: a test window opens on the main menu (B1), and
+// in character creation the Skills page's OK opens a test step that the
+// creation waits for (B2).
 
 #include "client_ui.h"
 
@@ -269,6 +271,89 @@ void TestTick() {
   }
 }
 
+// --- B2: a test step inside character creation ------------------------------
+// The Skills page's OK (found by its layout tag in the page's init) opens
+// nwn5e's step; the page's own OK runs only when the step's Done is clicked,
+// and creation goes on to the Feats page as before. If the Skills page closes
+// meanwhile (Cancel), the step is dropped.
+
+using PanelFn = void (*)(void* panel);
+using DeactivateFn = void (*)(void* panel, int code);
+PanelFn g_skills_ok = nullptr;
+DeactivateFn g_deactivate = nullptr;
+void* g_waiting_panel = nullptr;  // the Skills page waiting for the step
+int g_step_token = 0;
+bool g_step_done = false;
+
+void StepEvent(const ClientNuiEvent& event) {
+  if (event.type == "close") {  // the window's X: the step isn't done; OK on the page opens it again
+    g_step_token = 0;
+    Log("client nui test: step closed with its X - the Skills page still waits");
+    return;
+  }
+  if (event.type != "click") return;
+  if (event.element == "done") {
+    ClientNuiClose(event.token);
+    g_step_token = 0;
+    g_step_done = true;  // the page's OK runs at the next frame (StepTick)
+    return;
+  }
+  ClientNuiSetText(event.token, "status", "Chosen: " + event.element + " (a test: nothing is saved). Press Done.");
+}
+
+void StepTick() {
+  if (!g_step_done) return;
+  g_step_done = false;
+  void* panel = g_waiting_panel;
+  g_waiting_panel = nullptr;
+  if (!panel) return;
+  Log("client nui test: step done - the Skills page's OK runs, creation goes on");
+  g_skills_ok(panel);
+}
+
+void SkillsOk(void* panel) {
+  if (g_waiting_panel == panel && g_step_token) return;  // the step is already open
+  g_waiting_panel = panel;
+  using namespace nui;
+  const std::string layout = Window(
+      Col(List({
+          Text(Str("A step added by nwn5e between Skills and Feats. Character creation waits until you press "
+                   "Done. (Spike B2: nothing is saved.)"),
+               60.0f),
+          Label(Bind("status"), 30.0f),
+          Row(List({Button("acolyte", Str("Acolyte")), Button("criminal", Str("Criminal")),
+                    Button("sage", Str("Sage")), Button("soldier", Str("Soldier"))})),
+          Row(List({Spacer(), Button("done", Str("Done"), 120.0f), Spacer()})),
+      })),
+      Str("Background (nwn5e test step)"), 60.0f, 60.0f, 600.0f, 300.0f);
+  g_step_token = ClientNuiOpen("nwn5ebgstep", layout, &StepEvent);
+  ClientNuiSetText(g_step_token, "status", "Pick a background.");
+  Log("client nui test: the Skills page's OK opened nwn5e's step - creation waits");
+}
+
+void Deactivate(void* panel, int code) {
+  if (panel && panel == g_waiting_panel) {  // the Skills page closed without the step (Cancel)
+    g_waiting_panel = nullptr;
+    g_step_done = false;
+    if (g_step_token) ClientNuiClose(g_step_token);
+    g_step_token = 0;
+    Log("client nui test: the Skills page closed (code 0x%x) - the step is dropped", code);
+  }
+  g_deactivate(panel, code);
+}
+
+void InstallStepTest() {
+  const uintptr_t init = VtableSlot(FindVtable("client: creation Skills page", ".?AVCCharacterSkillsPanel@@"), 12);
+  const uintptr_t ok = init ? HandlerByTag("client: the Skills page's OK", init, "OkButton") : 0;
+  if (!ok || !HookAddress("CCharacterSkillsPanel::HandleOkButton (B2: nwn5e's step before Feats)", ok,
+                          reinterpret_cast<void*>(&SkillsOk), reinterpret_cast<void**>(&g_skills_ok))) {
+    return;
+  }
+  HookExport("CGuiPanel::Deactivate (B2: a page closing drops nwn5e's step)", ee::kGuiPanelDeactivate,
+             reinterpret_cast<void*>(&Deactivate), reinterpret_cast<void**>(&g_deactivate));
+  AddClientTickListener(&StepTick);
+}
+
 }  // namespace
 
 bool ClientNuiReady() { return g_ready; }
@@ -327,5 +412,8 @@ void InstallClientUi() {
   const auto base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
   Log("client nui: ready (handler rva 0x%zx, QueueEvent rva 0x%zx)", reinterpret_cast<uintptr_t>(g_api.handler) - base,
       queue_event - base);
-  if (g_config.debug_client_nui_test) AddClientTickListener(&TestTick);
+  if (g_config.debug_client_nui_test) {
+    AddClientTickListener(&TestTick);
+    InstallStepTest();
+  }
 }

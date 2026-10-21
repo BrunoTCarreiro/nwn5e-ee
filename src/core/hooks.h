@@ -106,6 +106,12 @@ std::vector<uintptr_t> FindStringReferences(const char* text);
 // Every `lea r64, [rip + x]` in .text whose x is `target` (e.g. a vtable).
 std::vector<uintptr_t> FindRipReferences(uintptr_t target);
 
+// A GUI panel's button handler: in its init code (a panel's
+// PostAttachmentInitialize, vtable slot 12) each layout tag ("OkButton") is
+// followed by the handler stored for it — the first function entry loaded
+// after a `lea` of the tag. 0 and logged when not found.
+uintptr_t HandlerByTag(const char* what, uintptr_t function, const char* tag);
+
 // The one place in .text a byte pattern ("49 83 ?? 10") matches; 0 and logged otherwise.
 uintptr_t FindPattern(const char* what, const char* pattern);
 

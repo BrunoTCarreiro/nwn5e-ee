@@ -673,6 +673,8 @@ constexpr const char* kReadJSON =
     "allocator@D@2@@2@_N_J_KNVallocator@2@Uadl_serializer@nlohmann@@V?$vector@EV?$allocator@E@std@@@2@@nlohmann@@XZ";
 // void CGuiMan::UpdateAndRender(float): every frame, before the NUI windows render.
 constexpr const char* kGuiUpdateAndRender = "?UpdateAndRender@CGuiMan@@QEAAXM@Z";
+// void CGuiPanel::Deactivate(int exit_code): every GUI page closing (the creation pages too).
+constexpr const char* kGuiPanelDeactivate = "?Deactivate@CGuiPanel@@QEAAXH@Z";
 constexpr const char* kRttiEnableMakeJsonWindow = ".?AV?$enable_make@VJsonWindow@JSON@Nui@@@@";
 constexpr const char* kRttiJsonWindow = ".?AVJsonWindow@JSON@Nui@@";
 constexpr const char* kQueueEventPattern = "49 83 78 10 00 0F 84 ?? ?? ?? ?? C7 45 BF 00 00 00 7F 8B 81 30 02 00 00";

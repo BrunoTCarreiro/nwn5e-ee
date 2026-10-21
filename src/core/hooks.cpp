@@ -353,6 +353,37 @@ std::vector<uintptr_t> FindRipReferences(uintptr_t target) {
   return target ? LeaReferences({target}) : std::vector<uintptr_t>();
 }
 
+uintptr_t HandlerByTag(const char* what, uintptr_t function, const char* tag) {
+  const CodeRange range = FunctionAt(function);
+  std::vector<uintptr_t> tags;
+  for (const char* name : {".rdata", ".data"}) {
+    const std::vector<uintptr_t> found = FindAll(Section(name), tag, strlen(tag) + 1);
+    tags.insert(tags.end(), found.begin(), found.end());
+  }
+  const CodeRange text_section = TextSection();
+  std::vector<std::pair<uintptr_t, uintptr_t>> parts = range.parts;
+  if (parts.empty() && range.Valid()) parts.push_back({range.begin, range.end});
+  std::sort(parts.begin(), parts.end());
+  bool armed = false;
+  for (const auto& part : parts) {
+    for (uintptr_t at = part.first; at + 7 <= part.second; ++at) {
+      const auto* code = reinterpret_cast<const uint8_t*>(at);
+      if ((code[0] != 0x48 && code[0] != 0x4c) || code[1] != 0x8d || (code[2] & 0xc7) != 0x05) continue;
+      int32_t displacement = 0;
+      memcpy(&displacement, code + 3, sizeof(displacement));
+      const uintptr_t target = at + 7 + displacement;
+      if (std::find(tags.begin(), tags.end(), target) != tags.end()) {
+        armed = true;
+      } else if (armed && text_section.Contains(target)) {
+        if (FunctionEntry(target) == target) return target;
+        armed = false;
+      }
+    }
+  }
+  Log("SKIP %s: no handler stored after the tag \"%s\"", what, tag);
+  return 0;
+}
+
 uintptr_t FindPattern(const char* what, const char* pattern) {
   int matches = 0;
   const uintptr_t at = FindUnique(TextSection(), ParsePattern(pattern), &matches);
