@@ -559,7 +559,9 @@ two daggers): the background's kit skips an item the character already
 carries or wears (by blueprint), and the kits give one dagger or handaxe
 where the SRD gives several (spares to throw; the game can't throw them) —
 the Barbarian's 4 handaxes, the Monk's 5 daggers, everyone's 2, the
-Criminal's 2.
+Criminal's 2. **Verified in game (owner, 2026-10-21, 0.9.1):** "everything
+seems good"; the log shows a Sage Wizard entering with the Sage's kit given
+by the script (quarterstaff and robe skipped as already had, 8 gold).
 
 *Decided (owner, 2026-10-21): the Domain step stays until the Cleric
 conversion* — NWN's two domains are picked at creation until the Cleric's
