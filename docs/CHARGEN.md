@@ -400,4 +400,6 @@ object is built or freed by nwn5e. Seen at launch (screenshots): the window
 on the main menu, its text changed by a bind 3 s later, its "open" event
 back in the DLL. **The look:** EE's NUI skin draws with the game's own font,
 gold frames and button style — nwn5e's window reads as part of the main
-menu, not as an overlay. Clicks: the owner's test.
+menu, not as an overlay. Clicks verified by the owner (13:46, 0.5.6): Background,
+Species, Class, Background, Close — each click (with its mousedown / mouseup)
+reached nwn5e, the window's text followed, Close closed it. **B1 passed.**
