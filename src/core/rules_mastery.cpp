@@ -7,8 +7,14 @@
 // weapon can be swapped after each long rest. Weapon Focus gives mastery with
 // its weapon on top (2024 Weapon Master stand-in). NWN mode: Barbarians,
 // Fighters, Paladins, Rangers and Rogues have mastery with every weapon they
-// are proficient with, Weapon Focus the same. The choices are local
-// variables on the creature, so they live in the save game.
+// are proficient with, Weapon Focus the same.
+// C4 (docs/CHARGEN.md): the choices are Weapon Mastery feats, one per weapon
+// kind (rules::WeaponMasteryFeat) — picked on the creation and level-up
+// screens (feats faithful), and written by !mastery, its swap and the
+// fill-by-use — so they travel with the character, exports included.
+// Older characters' choices, local variables, still count (and a swap
+// that gives one up clears it). The feats don't show on the screens unless
+// masteries are chosen there (weapon_mastery and feats faithful).
 //
 // D4: what the masteries do. Vex (a hit that deals damage gives advantage on
 // your next attack at that target until the end of your next round), Sap (a
@@ -47,6 +53,7 @@
 #include "log_once.h"
 #include "mastery.h"
 #include "rest.h"
+#include "rules_loaded.h"
 #include "rules/core.h"
 #include "rules/nwn_conversion.h"
 #include "rules/weapons.h"
@@ -90,7 +97,8 @@ bool MasteryClass(void* stats) {
 
 struct Slots {
   int count = 0;
-  std::vector<int> chosen = std::vector<int>(kMaxSlots, -1);  // base items, -1 empty
+  std::vector<int> chosen;  // base items: the mastery feats, then older local variables; -1 empty
+  std::vector<int> local;   // per slot: the local variable holding it, -1 for a feat
   bool swap_ready = false;
 };
 
@@ -98,12 +106,38 @@ Slots ReadSlots(void* creature, void* stats) {
   Slots slots;
   slots.count = rules::WeaponMasterySlots(Classes(stats));
   if (slots.count > kMaxSlots) slots.count = kMaxSlots;
+  auto add = [&slots](int kind, int local) {
+    for (int held : slots.chosen) {
+      if (held == kind) return;
+    }
+    slots.chosen.push_back(kind);
+    slots.local.push_back(local);
+  };
+  for (int kind : rules::NwnMasteryWeapons()) {
+    if (HasFeat(stats, rules::WeaponMasteryFeat(kind))) add(kind, -1);
+  }
   for (int i = 0; i < kMaxSlots; ++i) {
     const int value = engine::GetLocalInt(creature, kSlotVars[i]);
-    slots.chosen[i] = value > 0 ? value - 1 : -1;
+    if (value > 0) add(value - 1, i);
+  }
+  while (static_cast<int>(slots.chosen.size()) < kMaxSlots) {
+    slots.chosen.push_back(-1);
+    slots.local.push_back(-1);
   }
   slots.swap_ready = engine::GetLocalInt(creature, kSwapVar) != 0;
   return slots;
+}
+
+// A mastery taken (C4: as its feat). False when the feat didn't take.
+bool TakeMastery(void* stats, int kind) { return engine::AddFeat(stats, rules::WeaponMasteryFeat(kind)); }
+
+// The mastery in `slot` given up: its feat, or an older local variable.
+void GiveUpMastery(void* creature, void* stats, const Slots& slots, int slot) {
+  if (slots.local[slot] >= 0) {
+    engine::SetLocalInt(creature, kSlotVars[slots.local[slot]], 0);
+  } else {
+    engine::RemoveFeat(stats, rules::WeaponMasteryFeat(slots.chosen[slot]));
+  }
 }
 
 int UsedSlots(const Slots& slots) {
@@ -185,8 +219,9 @@ std::vector<std::string> Status(void* creature, void* stats) {
   }
   lines.push_back("nwn5e: weapon mastery, " + std::to_string(UsedSlots(slots)) + " of " + std::to_string(slots.count) +
                   " slots: " + SlotList(slots) + "." + (focus.empty() ? "" : " Weapon Focus: " + focus + "."));
-  lines.push_back(std::string("nwn5e: !mastery <weapon> fills an empty slot (empty slots also fill with the weapons "
-                              "you fight with); !mastery <old> for <new> swaps one after each long rest (") +
+  lines.push_back(std::string("nwn5e: masteries are picked on the Feats page (creation, level-ups); !mastery "
+                              "<weapon> fills an empty slot (empty slots also fill with the weapons you fight "
+                              "with); !mastery <old> for <new> swaps one after each long rest (") +
                   (slots.swap_ready ? "swap ready)." : "no swap until you rest)."));
   return lines;
 }
@@ -224,7 +259,7 @@ std::string Choose(void* creature, void* stats, const std::string& args) {
       return "nwn5e: all " + std::to_string(slots.count) + " slots are used (" + SlotList(slots) +
              "). After a long rest you can swap one: !mastery <weapon> for " + rules::NwnWeaponName(first_item) + ".";
     }
-    engine::SetLocalInt(creature, kSlotVars[free_slot], first_item + 1);
+    if (!TakeMastery(stats, first_item)) return "nwn5e: weapon mastery with " + Label(first_item) + " didn't take.";
     if (g_config.log_attacks) Log("mastery: object 0x%08X slot %d = %s (chosen)", id, free_slot + 1, Label(first_item).c_str());
     return "nwn5e: weapon mastery with " + Label(first_item) + " - slot " + std::to_string(free_slot + 1) + " of " +
            std::to_string(slots.count) + ".";
@@ -240,7 +275,8 @@ std::string Choose(void* creature, void* stats, const std::string& args) {
   if (HasFocus(stats, swap.take)) return AlreadyMastered(stats, slots, swap.take);
   if (!slots.swap_ready) return "nwn5e: you can swap one weapon mastery after each long rest - rest first.";
   const int slot = rules::MasterySlotOf(slots.chosen, slots.count, swap.give_up);
-  engine::SetLocalInt(creature, kSlotVars[slot], swap.take + 1);
+  GiveUpMastery(creature, stats, slots, slot);
+  if (!TakeMastery(stats, swap.take)) return "nwn5e: weapon mastery with " + Label(swap.take) + " didn't take.";
   engine::SetLocalInt(creature, kSwapVar, 0);
   if (g_config.log_attacks) {
     Log("mastery: object 0x%08X slot %d = %s instead of %s (swap)", id, slot + 1, Label(swap.take).c_str(),
@@ -280,7 +316,7 @@ void NoteWeaponUsed(void* creature, int base_item) {
   if (slots.count == 0 || rules::MasterySlotOf(slots.chosen, slots.count, kind) >= 0 || HasFocus(stats, kind)) return;
   const int free_slot = rules::FreeMasterySlot(slots.chosen, slots.count);
   if (free_slot < 0 || !Proficient(stats, base_item)) return;
-  engine::SetLocalInt(creature, kSlotVars[free_slot], kind + 1);
+  if (!TakeMastery(stats, kind)) return;
   if (g_config.log_attacks) {
     Log("mastery: object 0x%08X slot %d = %s (used in a fight)", IdOf(creature), free_slot + 1, Label(kind).c_str());
   }
@@ -587,6 +623,24 @@ int OnApplyDamage(void* handler, void* object, void* effect, int loading) {
   return result;
 }
 
+// C4: the Weapon Mastery feats are offered on the screens only when
+// masteries are chosen there (weapon_mastery and feats faithful); otherwise
+// they are hidden (MinLevel 0xFF). Characters keep the ones they have.
+void HideMasteryRows(void* rules_object, bool reload) {
+  if (Faithful() && g_config.feats == rules::RuleVariant::kFaithful) return;
+  auto* feats = Field<uint8_t*>(rules_object, ee::kRulesFeats);
+  const int count = Field<uint16_t>(rules_object, ee::kRulesFeatCount);
+  if (!feats) return;
+  int hidden = 0;
+  for (int kind : rules::NwnMasteryWeapons()) {
+    const int id = rules::WeaponMasteryFeat(kind);
+    if (id < 0 || id >= count) continue;
+    SetField<uint8_t>(feats + id * ee::kFeatStride, ee::kFeatMinLevel, 0xFF);
+    ++hidden;
+  }
+  if (!reload) Log("mastery: the %d Weapon Mastery feats hidden (masteries aren't picked on the screens)", hidden);
+}
+
 }  // namespace
 
 bool HasWeaponMasteryWith(void* creature, int base_item) {
@@ -597,6 +651,7 @@ bool HasWeaponMasteryWith(void* creature, int base_item) {
   if (!rules::NwnWeaponName(kind)) return false;
   if (HasFocus(stats, kind)) return true;
   if (!Faithful()) return MasteryClass(stats) && Proficient(stats, base_item);
+  if (HasFeat(stats, rules::WeaponMasteryFeat(kind))) return true;  // C4: a mastery feat
   const Slots slots = ReadSlots(creature, stats);
   return rules::MasterySlotOf(slots.chosen, slots.count, kind) >= 0;
 }
@@ -673,6 +728,7 @@ bool CountCombatRounds() {
 }
 
 void InstallMasteryRules() {
+  OnRulesLoaded(&HideMasteryRows);
   if (!MasteryOn()) return;
   CountCombatRounds();
   HookExport("CNWSEffectListHandler::OnApplyDamage (Vex / Slow / Push need the hit)", ee::kOnApplyDamage,

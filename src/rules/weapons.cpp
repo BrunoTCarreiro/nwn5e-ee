@@ -201,6 +201,21 @@ const std::vector<int>& NwnMasteryWeapons() {
 
 int MasteryKindOfNwnBaseItem(int base_item) { return base_item == 45 ? 50 : base_item; }
 
+int WeaponMasteryFeat(int base_item) {
+  const int kind = MasteryKindOfNwnBaseItem(base_item);
+  const std::vector<int>& kinds = NwnMasteryWeapons();
+  for (size_t i = 0; i < kinds.size(); ++i) {
+    if (kinds[i] == kind) return kWeaponMasteryFeatFirst + static_cast<int>(i);
+  }
+  return -1;
+}
+
+int WeaponKindOfMasteryFeat(int feat) {
+  const std::vector<int>& kinds = NwnMasteryWeapons();
+  const int index = feat - kWeaponMasteryFeatFirst;
+  return index >= 0 && index < static_cast<int>(kinds.size()) ? kinds[index] : -1;
+}
+
 const char* NwnWeaponName(int base_item) {
   const NwnWeapon* weapon = FindWeapon(base_item);
   return weapon ? weapon->name : nullptr;

@@ -5,3 +5,5 @@ node_modules/
 backup/
 # The private layer (docs/PRIVATE-LAYER.md): personal-use rules, its own repo.
 private/
+# Python caches from the tools (tools/data, tools/gff).
+__pycache__/

@@ -57,6 +57,14 @@ int WeaponMasterySlots(const std::vector<ClassLevels>& classes);
 // display order. A magic staff (45) is a quarterstaff (50).
 const std::vector<int>& NwnMasteryWeapons();
 int MasteryKindOfNwnBaseItem(int base_item);
+
+// C4 (docs/CHARGEN.md): the Weapon Mastery feats, one per weapon kind:
+// feat.2da row kWeaponMasteryFeatFirst + the kind's place in
+// NwnMasteryWeapons() (data/rows/feat.mastery.txt, tools/data/mastery_feats.py;
+// append only — the ids are saved in characters).
+constexpr int kWeaponMasteryFeatFirst = 1260;
+int WeaponMasteryFeat(int base_item);        // -1 when not a mastery weapon kind
+int WeaponKindOfMasteryFeat(int feat);       // the base item, or -1
 // "Longsword"; nullptr when the base item is not a mastery weapon kind.
 const char* NwnWeaponName(int base_item);
 // Base item named by `text` (case, spaces and hyphens ignored; a few aliases

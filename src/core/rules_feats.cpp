@@ -1,13 +1,18 @@
-// CM8 (which feats exist) and C3 (docs/CHARGEN.md), `feats` faithful: the
+// CM8 (which feats exist) and C3 / C4 (docs/CHARGEN.md), `feats` faithful: the
 // creation and level-up screens offer only the SRD 5.2 feats nwn5e has built
 // (rules::IsChoosableFeat2024) — the client's CanChooseFeat, which the Feats
 // page asks for every feat it lists and the packages' default picks ask for
 // every feat they try, says no to the others. With feat_cadence's slots that
-// makes the level-1 Feats page 2024's: a Fighter's bonus pick is its Fighting
-// Style (ASI waits for level 4), a human's extra pick an Origin feat (Alert so
-// far). The packages' feat tables get the 2024 feats appended
-// (data/rows/packft*.txt), so Recommended picks them too; NWN mode reaches
-// them only after its own.
+// makes the Feats page 2024's: a Fighter's level-1 bonus picks are its
+// Fighting Style and 3 Weapon Masteries (ASI waits for level 4), a human's
+// extra pick an Origin feat (Alert so far). The packages' feat tables get the
+// 2024 feats appended (data/rows/packft*.txt), so Recommended picks them too;
+// NWN mode reaches them only after its own.
+//
+// C4: NWN's class bonus picks are one pool per level, so this keeps each group
+// to its count for the class level being taken (rules::BonusPicks2024): a
+// level-1 Fighter can't take four masteries and no style, nor two styles.
+// The class and its new level are the stats' class slot being levelled.
 //
 // Characters keep the NWN feats they have (the feature mask, CM9, decides
 // what those do). Henchmen's automatic level-ups (the server's own
@@ -18,10 +23,12 @@
 #include <stdint.h>
 
 #include "config.h"
+#include "creature.h"
 #include "ee_layout.h"
 #include "hooks.h"
 #include "log.h"
 #include "rules/feats2024.h"
+#include "rules/nwn_conversion.h"
 
 namespace {
 
@@ -30,12 +37,52 @@ using CanChooseFeatFn = int (*)(void* level_up_stats, uint16_t feat, uint8_t gen
 CanChooseFeatFn g_can_choose_feat = nullptr;
 bool g_told = false;
 
+bool MasteriesAsFeats() { return g_config.weapon_mastery == rules::RuleVariant::kFaithful; }
+
+void Count(rules::BonusPicks* taken, int feat) {
+  switch (rules::BonusFeatGroupOf(feat)) {
+    case rules::BonusFeatGroup::kGeneral: ++taken->general; break;
+    case rules::BonusFeatGroup::kFightingStyle: ++taken->style; break;
+    case rules::BonusFeatGroup::kWeaponMastery: ++taken->mastery; break;
+    case rules::BonusFeatGroup::kOther: break;
+  }
+}
+
+// Whether `feat` still fits this level's bonus picks, by group.
+bool FitsThisLevel(void* stats, uint16_t feat, const void* chosen) {
+  const uint8_t slot = Field<uint8_t>(stats, ee::kClientStatsClassBeingLevelled);
+  if (slot >= ee::kClientStatsClassSlots) return true;
+  const size_t at = slot * ee::kClientStatsClassSlotSize;
+  const auto character_class = rules::ClassFromNwnId(Field<uint8_t>(stats, at + ee::kClientStatsClassSlotClass));
+  const int class_level = Field<uint8_t>(stats, at + ee::kClientStatsClassSlotLevel);
+  if (!character_class) return true;  // not a base class: NWN's own rules
+  const rules::BonusPicks allowed = rules::BonusPicks2024(
+      *character_class, class_level, g_config.class_features == rules::RuleVariant::kFaithful, MasteriesAsFeats());
+  rules::BonusPicks taken;
+  bool listed = false;
+  if (chosen) {
+    const auto* feats = Field<const uint16_t*>(chosen, ee::kExoArrayListData);
+    const int count = Field<int32_t>(chosen, ee::kExoArrayListCount);
+    for (int i = 0; feats && i < count; ++i) {
+      Count(&taken, feats[i]);
+      listed |= feats[i] == feat;
+    }
+  }
+  if (!listed) Count(&taken, feat);
+  return rules::FitsBonusPicks(taken, allowed);
+}
+
 int CanChooseFeat(void* level_up_stats, uint16_t feat, uint8_t general_left, uint8_t bonus_left, void* chosen) {
   if (!g_told) {
     g_told = true;
-    Log("feats: the screens offer only the 2024 feats nwn5e has built (feats faithful)");
+    Log("feats: the screens offer only the 2024 feats nwn5e has built, each kind of bonus pick to its count "
+        "(feats faithful)");
   }
-  if (!rules::IsChoosableFeat2024(feat)) return 0;
+  if (!rules::IsChoosableFeat2024(feat, MasteriesAsFeats())) return 0;
+  if (rules::BonusFeatGroupOf(feat) != rules::BonusFeatGroup::kOther && level_up_stats &&
+      !FitsThisLevel(level_up_stats, feat, chosen)) {
+    return 0;
+  }
   return g_can_choose_feat(level_up_stats, feat, general_left, bonus_left, chosen);
 }
 

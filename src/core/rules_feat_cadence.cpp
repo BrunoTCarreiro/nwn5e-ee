@@ -28,6 +28,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "rules/class_features.h"
+#include "rules/feats2024.h"
 #include "rules/nwn_conversion.h"
 #include "rules/progression.h"
 #include "rules_loaded.h"
@@ -44,14 +45,17 @@ void SetFaithfulBonusFeatSlots(void* rules, bool reload) {
   const int count = Field<uint8_t>(rules, ee::kRulesClassCount);
   if (!classes) return;
   int changed = 0;
+  const bool styles = g_config.class_features == rules::RuleVariant::kFaithful;
+  const bool masteries =
+      g_config.weapon_mastery == rules::RuleVariant::kFaithful && g_config.feats == rules::RuleVariant::kFaithful;
   for (int id = 0; id < count && id <= kLastBaseClass; ++id) {
     const auto character_class = rules::ClassFromNwnId(id);
     if (!character_class) continue;
     uint8_t* slots = classes + id * ee::kClassStride + ee::kClassBonusFeats;
     for (int level = 1; level <= kMaxBonusFeatLevel; ++level) {
-      const bool style = g_config.class_features == rules::RuleVariant::kFaithful &&
-                         rules::IsFightingStyleLevel2024(*character_class, level);  // Fighter F1
-      slots[level] = rules::IsFeatLevel2024(*character_class, level) || style ? 1 : 0;
+      // The 2024 feat levels, plus the Fighting Style picks (Fighter F1) and the
+      // Weapon Mastery picks (C4: chosen as feats on the screens).
+      slots[level] = static_cast<uint8_t>(rules::BonusPicks2024(*character_class, level, styles, masteries).Total());
     }
     ++changed;
   }

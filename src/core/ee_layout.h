@@ -515,6 +515,20 @@ constexpr size_t kRaceExtraFeatsAtFirstLevel = 0x48;
 // Feats page (BuildFeatList) and the packages' default picks
 // (AddDefaultPackageFeats) ask it for every feat.
 constexpr const char* kCanChooseFeatMessage = "CNWCLevelUpStats::CanChooseFeat() Invalid Feat";
+// The client's creature stats (CanChooseFeat's first argument; GetClass
+// 0x7F10A0 and GetLevel 0x7F5D70 read): the class slot being levelled uint8
+// +0x6A, the class count uint8 +0x69; 8 class slots of 0x150 bytes, each
+// with its class id uint8 +0x295 and class level uint8 +0x296 (after the
+// level-up being made).
+constexpr size_t kClientStatsClassBeingLevelled = 0x6a;
+constexpr size_t kClientStatsClassCount = 0x69;
+constexpr int kClientStatsClassSlots = 8;
+constexpr size_t kClientStatsClassSlotSize = 0x150;
+constexpr size_t kClientStatsClassSlotClass = 0x295;
+constexpr size_t kClientStatsClassSlotLevel = 0x296;
+// CExoArrayList<T>: the elements' pointer +0, their count int32 +8.
+constexpr size_t kExoArrayListData = 0;
+constexpr size_t kExoArrayListCount = 8;
 // CM1: CanLevelUp (11 callers; PCs stop at 40, everyone at CServerInfo +0xf4);
 // SetExperience(xp, int), called once by the script command SetXP; stats XP
 // uint32 +0xa8, is a PC int32 +0xb0.

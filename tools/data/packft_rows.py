@@ -7,8 +7,10 @@ character can choose. In faithful mode only the 2024 feats can be chosen
 (src/core/rules_feats.cpp), so NWN's own rows are passed over and these are
 taken: Ability Score Improvement (from level 4), a Fighter's Fighting Style
 (Defense first for a Strength package, Archery first for a Dexterity one),
-Alert (a human's extra level-1 feat). Appended ("+" rows), so NWN mode
-reaches them only after its own.
+the Weapon Masteries of the kit's weapons (C4: the classes with Weapon
+Mastery; more after them for the masteries later levels add), Alert (a
+human's extra level-1 feat). Appended ("+" rows), so NWN mode reaches them
+only after its own.
 
 Run from the repo root:  python tools/data/packft_rows.py
 """
@@ -43,6 +45,25 @@ STYLES = {
 }
 ALERT = (377, 'FEAT_IMPROVED_INITIATIVE')
 
+# C4: the Weapon Masteries a package picks, in order (its kit's weapons first).
+MASTERIES = {
+    'PackFTBarb': ['Greataxe', 'Handaxe', 'Throwing Axe', 'Greatsword'],
+    'PackFTPala': ['Longsword', 'Throwing Axe', 'Greatsword'],
+    'PackFTRang': ['Scimitar', 'Longbow', 'Short Sword'],
+    'PackFTRog': ['Short Sword', 'Shortbow', 'Dagger', 'Rapier'],
+}
+FIGHTER_MASTERIES = {
+    'great': ['Greatsword', 'Light Flail', 'Throwing Axe', 'Longsword', 'Longbow', 'Halberd'],
+    'dex': ['Scimitar', 'Short Sword', 'Longbow', 'Rapier', 'Dagger', 'Light Crossbow'],
+    'str': ['Longsword', 'Greatsword', 'Longbow', 'Light Flail', 'Halberd', 'Throwing Axe'],
+}
+
+
+def mastery_rows(names):
+    import mastery_feats  # same folder
+    ids = {name: mastery_feats.FIRST_FEAT + i for i, (_, name, _, _, _) in enumerate(mastery_feats.WEAPONS)}
+    return [(ids[name], mastery_feats.label(name)) for name in names]
+
 
 def rows_for(table):
     rows = list(ASI)
@@ -54,6 +75,11 @@ def rows_for(table):
         else:
             order = ['defense', 'great', 'two', 'archery']
         rows += [STYLES[name] for name in order]
+        kind = 'dex' if table in DEX_FIGHTERS else 'great' if table in GREAT_WEAPON_FIGHTERS else 'str'
+        rows += mastery_rows(FIGHTER_MASTERIES[kind])
+    for prefix, names in MASTERIES.items():
+        if table.startswith(prefix):
+            rows += mastery_rows(names)
     rows.append(ALERT)
     return rows
 

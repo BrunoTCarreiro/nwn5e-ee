@@ -1,0 +1,3 @@
+# masterfeats.2da - C4: Weapon Mastery, the master of feat.mastery.txt (generated).
+LABEL STRREF DESCRIPTION ICON
+44 NWN5E_WEAPON_MASTERY 16000330 16000331 ife_wepfoc
