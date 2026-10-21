@@ -220,6 +220,16 @@ bool IsHeavyWeapon2024(int base_item) {
   }
 }
 
+int FinesseDamageAdjustment(int strength_modifier, int dexterity_modifier, bool off_hand,
+                            bool off_hand_keeps_ability) {
+  auto term = [&](int modifier) {
+    if (!off_hand) return modifier;
+    return modifier < 0 || off_hand_keeps_ability ? modifier : 0;
+  };
+  const int better = dexterity_modifier > strength_modifier ? dexterity_modifier : strength_modifier;
+  return term(better) - term(strength_modifier);
+}
+
 int WeaponMasteryFeat(int base_item) {
   const int kind = MasteryKindOfNwnBaseItem(base_item);
   const std::vector<int>& kinds = NwnMasteryWeapons();

@@ -246,6 +246,18 @@ constexpr int kRelativeWeaponSizeInvalid = -10;
 constexpr size_t kBaseItemWeaponSize = 0x19;
 constexpr const char* kClientRelativeWeaponSizePattern = "83 7A 40 6F 75";
 constexpr uintptr_t kClientRelativeWeaponSizeCheckMaxOffset = 0x40;
+// The same size questions asked inline, patched in faithful (one byte each,
+// all or none): CanEquipWeapon (weapon size - creature size > 1: "too
+// large"), CanUseItem (the same, for the inventory's unusable mark), and the
+// Tower Shield (base item 57) refused to Tiny and Small creatures in
+// CanEquipItem, CanEquipShield and CanUseItem.
+constexpr const char* kCanEquipWeapon = "?CanEquipWeapon@CNWSCreature@@IEAAEPEAVCNWSItem@@PEAIHHPEAVCNWSPlayer@@@Z";
+constexpr const char* kCanEquipItem = "?CanEquipItem@CNWSCreature@@QEAAEPEAVCNWSItem@@PEAIHHHPEAVCNWSPlayer@@@Z";
+constexpr const char* kCanEquipShield = "?CanEquipShield@CNWSCreature@@IEAAEPEAVCNWSItem@@HH@Z";
+constexpr const char* kCanUseItem = "?CanUseItem@CNWSCreature@@QEAAHPEAVCNWSItem@@H@Z";
+// Finesse: the engine asks GetWeaponFinesse (the feat, the weapon and the
+// creature's size) for an attack's ability.
+constexpr const char* kGetWeaponFinesse = "?GetWeaponFinesse@CNWSCreatureStats@@QEAAHPEAVCNWSItem@@@Z";
 // The object's action queue: CExoLinkedListInternal* at +0x100 (head +0x0);
 // node: data +0x10 (GetAtPos +0x4a). CNWSObjectActionNode: action id int32
 // +0x0, first parameter in the 8-byte slot at +0x38 (AddActionNodeParameter

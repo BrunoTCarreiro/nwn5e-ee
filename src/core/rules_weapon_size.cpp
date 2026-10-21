@@ -1,22 +1,34 @@
-// Weapon size (`weapon_size`). 2024 (SRD 5.2) lets any creature wield any
-// weapon — size plays no part — and gives the Heavy property its own rule:
-// Disadvantage with a Heavy melee weapon below Strength 13, a Heavy ranged
-// one below Dexterity 13. NWN lets a creature wield a weapon at most one size
-// larger than itself (two-handed); a Small creature can't hold a Large one
-// (a halfling's greatsword, spear, quarterstaff, longbow).
+// Creature size (`size`). 2024 (SRD 5.2) has no size rules for weapons,
+// shields, AC, attack rolls or unarmed damage — any creature wields any
+// weapon, and the Heavy property has its own rule: Disadvantage with a Heavy
+// melee weapon below Strength 13, a Heavy ranged one below Dexterity 13.
+// NWN (3e) lets a creature wield a weapon at most one size larger than itself
+// (two-handed), keeps the Tower Shield from Tiny and Small creatures, gives
+// Small +1 AC and +1 to attack (Tiny +2, Large -1, Huge -2), and smaller
+// unarmed dice to Small creatures (monks included). So a halfling or gnome
+// couldn't hold a greatsword, spear, quarterstaff or longbow.
 //
-// Faithful: a weapon two or more sizes larger counts as one size larger — the
-// creature wields it two-handed — in the server's GetRelativeWeaponSize
-// (equipping, the AI's weapon choice, attacks per round, the attack and
-// damage terms: every size question goes through it) and the client's own
-// copy (CNWCCreature::GetRelativeWeaponSize, anchored by its whip check; the
-// inventory's equip checks and the weapon's hold and animations). The Heavy
-// rule is a Disadvantage source in the attack roll's mode
-// (rules_advantage.cpp). NWN mode: NWN's size rule, no Heavy rule.
+// Faithful:
+// - a weapon two or more sizes larger counts as one size larger — wielded
+//   two-handed — in the server's GetRelativeWeaponSize (attacks per round,
+//   the attack and damage terms, the AI's weapon choice...) and the client's
+//   copy (CNWCCreature::GetRelativeWeaponSize, anchored by its whip check:
+//   the inventory's off-hand checks, the weapon's hold and animations);
+// - the checks the engine makes inline get one-byte patches (all or none):
+//   CanEquipWeapon's "too large", CanUseItem's (the inventory's unusable
+//   mark), the Tower Shield's size check in CanEquipItem, CanEquipShield and
+//   CanUseItem;
+// - the size modifiers (CREATURE_SIZE_*) are answered 0, and a Small
+//   creature's unarmed dice (UNARMED_SDAMAGE_DIE, the monk's
+//   MONK_DAMAGE_TIER_*_SDAMAGE_*) are the Medium ones;
+// - the Heavy rule is a Disadvantage source in the attack's roll mode
+//   (rules_advantage.cpp).
+// NWN mode: NWN's size rules, no Heavy rule.
 //
-// Not changed: NWN still has a Small creature hold a Medium weapon (a
-// longsword) two-handed, where 2024 has one hand; the weapon model isn't
-// scaled to the wielder.
+// Not changed: a Small creature still holds a Medium weapon (a longsword)
+// two-handed, where 2024 has one hand; weapon models aren't scaled to the
+// wielder. Knockdown / Disarm's size terms are the Shove rule's (SK6), Hide /
+// Spot's the perception rule's (SK5).
 
 #include <windows.h>
 
@@ -33,6 +45,7 @@
 #include "log_once.h"
 #include "mastery.h"
 #include "rules/weapons.h"
+#include "ruleset.h"
 #include "weapon_size.h"
 
 namespace {
@@ -42,7 +55,7 @@ RelativeSizeFn g_server_relative_size = nullptr;
 RelativeSizeFn g_client_relative_size = nullptr;
 LogOnce g_logged(64);
 
-bool Faithful() { return g_config.weapon_size == rules::RuleVariant::kFaithful; }
+bool Faithful() { return g_config.size == rules::RuleVariant::kFaithful; }
 
 // The server's: weapon size - creature size within -2..+1, else -10 ("no").
 int ServerRelativeWeaponSize(void* creature, void* item) {
@@ -53,7 +66,7 @@ int ServerRelativeWeaponSize(void* creature, void* item) {
   const int size = Field<uint8_t>(base_item, ee::kBaseItemWeaponSize) - Field<int32_t>(creature, ee::kCreatureSize);
   if (size <= 1) return relative;  // far smaller than the creature: NWN's answer
   if (g_config.log_attacks && g_logged.First(LogOnce::Key(Field<uint32_t>(creature, ee::kObjectId), size, 0))) {
-    Log("weapon size: object 0x%08X wields a weapon %d sizes larger two-handed (2024: size doesn't limit weapons)",
+    Log("size: object 0x%08X wields a weapon %d sizes larger two-handed (2024: size doesn't limit weapons)",
         Field<uint32_t>(creature, ee::kObjectId), size);
   }
   return 1;
@@ -63,6 +76,63 @@ int ServerRelativeWeaponSize(void* creature, void* item) {
 int ClientRelativeWeaponSize(void* creature, void* item) {
   const int relative = g_client_relative_size(creature, item);
   return relative > 1 ? 1 : relative;
+}
+
+void PatchInlineSizeChecks() {
+  static const uint8_t kJle[] = {0x7e}, kJa[] = {0x77}, kJmp[] = {0xeb};
+  static const uint8_t kThree[] = {0x03}, kAny[] = {0x7f};
+  static const uint8_t kCmovbe[] = {0x0f, 0x46, 0xf8}, kNop3[] = {0x0f, 0x1f, 0x00};
+  static const PatternPatch kPatches[] = {
+      {"CanEquipWeapon: no \"too large\"", ee::kCanEquipWeapon, "41 83 FF 01 7E ?? 83 FF 01", 4, kJle, kJmp, 1},
+      {"CanUseItem: no \"too large\"", ee::kCanUseItem, "2B CB 83 C1 02 83 F9 03 B8 00 00 00 00 0F 47 F8", 7, kThree,
+       kAny, 1},
+      {"CanUseItem: the Tower Shield for every size", ee::kCanUseItem, "FF C8 83 F8 01 B8 00 00 00 00 0F 46 F8", 10,
+       kCmovbe, kNop3, 3},
+      {"CanEquipItem: the Tower Shield for every size", ee::kCanEquipItem, "8B 87 18 07 00 00 FF C8 83 F8 01 77", 11,
+       kJa, kJmp, 1},
+      {"CanEquipShield: the Tower Shield for every size", ee::kCanEquipShield,
+       "8B 81 18 07 00 00 FF C8 83 F8 01 77", 11, kJa, kJmp, 1},
+  };
+  ApplyPatternPatches("size: equipping and usability (2024: size limits no weapon or shield)", kPatches,
+                      sizeof(kPatches) / sizeof(kPatches[0]));
+}
+
+int NoSizeModifier(int) { return 0; }
+
+template <const char* kMediumLabel>
+int MediumValue(int engine_value) {
+  return RulesetIntValue(kMediumLabel, engine_value);
+}
+
+// The Medium counterparts of a Small creature's unarmed dice.
+constexpr char kUnarmedDie[] = "UNARMED_DAMAGE_DIE";
+constexpr char kMonkDice[] = "MONK_DAMAGE_TIER_DICE";
+constexpr char kMonkDie0[] = "MONK_DAMAGE_TIER_ZERO_DAMAGE_DIE";
+constexpr char kMonkDie1[] = "MONK_DAMAGE_TIER_ONE_DAMAGE_DIE";
+constexpr char kMonkDie2[] = "MONK_DAMAGE_TIER_TWO_DAMAGE_DIE";
+constexpr char kMonkDie3[] = "MONK_DAMAGE_TIER_THREE_DAMAGE_DIE";
+constexpr char kMonkDie4[] = "MONK_DAMAGE_TIER_FOUR_DAMAGE_DIE";
+
+void AnswerSizeRuleset() {
+  const char* why = "size: no 3e size modifier (2024)";
+  for (const char* label : {"CREATURE_SIZE_TINY_AC_BONUS", "CREATURE_SIZE_SMALL_AC_BONUS",
+                            "CREATURE_SIZE_LARGE_AC_PENALTY", "CREATURE_SIZE_HUGE_AC_PENALTY",
+                            "CREATURE_SIZE_TINY_ATTACK_BONUS", "CREATURE_SIZE_SMALL_ATTACK_BONUS",
+                            "CREATURE_SIZE_LARGE_ATTACK_PENALTY", "CREATURE_SIZE_HUGE_ATTACK_PENALTY"}) {
+    AnswerRulesetInt(label, why, &NoSizeModifier);
+  }
+  const char* dice = "size: a Small creature's unarmed dice are the Medium ones (2024)";
+  AnswerRulesetInt("UNARMED_SDAMAGE_DIE", dice, &MediumValue<kUnarmedDie>);
+  AnswerRulesetInt("MONK_DAMAGE_TIER_ZERO_SDAMAGE_DIE", dice, &MediumValue<kMonkDie0>);
+  AnswerRulesetInt("MONK_DAMAGE_TIER_ONE_SDAMAGE_DIE", dice, &MediumValue<kMonkDie1>);
+  AnswerRulesetInt("MONK_DAMAGE_TIER_TWO_SDAMAGE_DIE", dice, &MediumValue<kMonkDie2>);
+  AnswerRulesetInt("MONK_DAMAGE_TIER_THREE_SDAMAGE_DIE", dice, &MediumValue<kMonkDie3>);
+  AnswerRulesetInt("MONK_DAMAGE_TIER_FOUR_SDAMAGE_DIE", dice, &MediumValue<kMonkDie4>);
+  for (const char* label : {"MONK_DAMAGE_TIER_ZERO_SDAMAGE_DICE", "MONK_DAMAGE_TIER_ONE_SDAMAGE_DICE",
+                            "MONK_DAMAGE_TIER_TWO_SDAMAGE_DICE", "MONK_DAMAGE_TIER_THREE_SDAMAGE_DICE",
+                            "MONK_DAMAGE_TIER_FOUR_SDAMAGE_DICE"}) {
+    AnswerRulesetInt(label, dice, &MediumValue<kMonkDice>);
+  }
 }
 
 }  // namespace
@@ -84,18 +154,20 @@ int HeavyWeaponDisadvantage(void* attacker, bool ranged, std::string* note) {
 
 void InstallWeaponSizeRules() {
   if (!Faithful()) return;
-  HookExport("CNWSCreature::GetRelativeWeaponSize (weapon size: any size wields any weapon, 2024)",
+  HookExport("CNWSCreature::GetRelativeWeaponSize (size: any size wields any weapon, 2024)",
              ee::kGetRelativeWeaponSize, reinterpret_cast<void*>(&ServerRelativeWeaponSize),
              reinterpret_cast<void**>(&g_server_relative_size));
-  const uintptr_t whip_check = FindPattern("weapon size: the client's GetRelativeWeaponSize (its whip check)",
+  PatchInlineSizeChecks();
+  AnswerSizeRuleset();
+  const uintptr_t whip_check = FindPattern("size: the client's GetRelativeWeaponSize (its whip check)",
                                            ee::kClientRelativeWeaponSizePattern);
   const uintptr_t client = whip_check ? FunctionEntry(whip_check) : 0;
   const auto base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
   if (!client || whip_check - client > ee::kClientRelativeWeaponSizeCheckMaxOffset) {
-    Log("SKIP weapon size (client): its GetRelativeWeaponSize not found - the inventory keeps NWN's size rule");
+    Log("SKIP size (client): its GetRelativeWeaponSize not found - the inventory keeps NWN's size rule");
     return;
   }
-  Log("weapon size: the client's GetRelativeWeaponSize at rva 0x%zx", client - base);
-  HookAddress("CNWCCreature::GetRelativeWeaponSize (weapon size, the client's)", client,
+  Log("size: the client's GetRelativeWeaponSize at rva 0x%zx", client - base);
+  HookAddress("CNWCCreature::GetRelativeWeaponSize (size, the client's)", client,
               reinterpret_cast<void*>(&ClientRelativeWeaponSize), reinterpret_cast<void**>(&g_client_relative_size));
 }

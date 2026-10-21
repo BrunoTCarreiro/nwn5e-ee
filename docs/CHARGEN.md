@@ -590,7 +590,7 @@ accepted for now (the slot table is per class).
 its kit and masteries offered — NWN won't let a creature hold a weapon two
 sizes larger. 2024 has no size limit (SRD 5.2: Heavy is Disadvantage below
 Str 13 melee / Dex 13 ranged; 2014's Small rule is gone). Decided (owner,
-2026-10-21): faithful — new key `weapon_size`: a weapon two or more sizes
+2026-10-21): faithful — new key `size` (0.11.0 named it weapon_size): a weapon two or more sizes
 larger counts as one size larger (two-handed) in the server's
 GetRelativeWeaponSize and the client's copy (0x8012D0, anchored by its
 whip check), and the Heavy rule is a Disadvantage source in the attack's
@@ -598,6 +598,24 @@ roll mode. Still NWN: a Small creature holds a Medium weapon (longsword)
 two-handed; weapon models aren't scaled to the wielder. Also: `!mastery A
 for B` with both already mastered now says so (the test's swap named two
 weapons the Fighter already had — Longsword came from its level-4 pick).
+0.12.0 (owner: "same issue with gnomes, check for other species /
+equipment incompatibilities"): the equip refusal was CanEquipWeapon's own
+inline size check (the hooked function is asked elsewhere). A sweep of every
+engine function reading the creature's size (+0x718) found, besides it:
+CanUseItem's (the inventory's unusable mark); the Tower Shield refused to
+Tiny / Small in CanEquipItem, CanEquipShield and CanUseItem; the 3e size
+modifiers to AC and attack (CREATURE_SIZE_*: Small +1 / +1, nwn5e had left
+them); a Small creature's smaller unarmed dice (UNARMED_SDAMAGE_DIE, the
+monk's *_SDAMAGE_*). All fixed in faithful (`size`: five one-byte patches,
+all or none; the ruleset answered 0 / with the Medium values). Already
+2024 elsewhere: Hide / Spot size terms (SK5), Knockdown / Disarm (SK6's
+Shove), the two-weapon Light test (D1's 2024 list), two-handed Strength
+(E1: once either way). Found on the way, not a size rule: NWN's Weapon
+Finesse feat — which CM8 no longer offers — was the only way to attack with
+Dexterity; new key `finesse`: the 2024 Finesse property (GetWeaponFinesse
+hooked; damage with the better of Str and Dex, rules::FinesseDamageAdjustment,
+unit-tested). Left: a Small creature holds a Medium weapon two-handed (NWN),
+weapon models aren't scaled, the sheet's damage line shows Strength.
 
 *Decided (owner, 2026-10-21): the Domain step stays until the Cleric
 conversion* — NWN's two domains are picked at creation until the Cleric's

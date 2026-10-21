@@ -212,3 +212,17 @@ TEST(HeavyWeaponsAre2024) {
   CHECK_EQ(IsHeavyWeapon2024(1), false);   // longsword
   CHECK_EQ(IsHeavyWeapon2024(11), false);  // shortbow
 }
+
+// Breaks caught: a Dexterity rogue's rapier damage left on Strength, the
+// adjustment applied when Strength is better, the off hand given Dexterity
+// without the style (2024: no ability modifier there unless negative), a
+// negative Strength off-hand penalty kept when Dexterity is chosen.
+TEST(FinesseDamageUsesTheBetterAbility) {
+  CHECK_EQ(FinesseDamageAdjustment(0, 3, false, false), 3);    // main hand: Dex +3 instead of Str +0
+  CHECK_EQ(FinesseDamageAdjustment(-1, 3, false, false), 4);   // instead of Str -1
+  CHECK_EQ(FinesseDamageAdjustment(3, 1, false, false), 0);    // Strength is better
+  CHECK_EQ(FinesseDamageAdjustment(0, 3, true, false), 0);     // off hand, no style: nothing either way
+  CHECK_EQ(FinesseDamageAdjustment(-1, 3, true, false), 1);    // off hand: the -1 penalty goes (Dex chosen)
+  CHECK_EQ(FinesseDamageAdjustment(1, 3, true, true), 2);      // off hand with the style: Dex +3 instead of +1
+  CHECK_EQ(FinesseDamageAdjustment(-2, -1, true, false), 1);   // both negative: the lesser penalty
+}

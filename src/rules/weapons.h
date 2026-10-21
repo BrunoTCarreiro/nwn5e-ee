@@ -70,6 +70,15 @@ constexpr int kWeaponMasteryFeatFirst = 1260;
 // Scythe (the glaive), Heavy Crossbow, Longbow, and NWN's double weapons
 // (two-bladed sword, dire mace, double axe: great weapons too).
 bool IsHeavyWeapon2024(int base_item);
+
+// The 2024 Finesse property for damage: the attack uses the better of
+// Strength and Dexterity, and so does its damage. NWN's damage bonus holds
+// Strength — in full in the main hand (faithful two-handed: 1x); in the off
+// hand (D1 faithful) only when negative, or with the Two-Weapon Fighting
+// style (`off_hand_keeps_ability`). What to add to NWN's bonus for the
+// better ability: 0 when Strength is at least as good.
+int FinesseDamageAdjustment(int strength_modifier, int dexterity_modifier, bool off_hand,
+                            bool off_hand_keeps_ability);
 int WeaponMasteryFeat(int base_item);        // -1 when not a mastery weapon kind
 int WeaponKindOfMasteryFeat(int feat);       // the base item, or -1
 // "Longsword"; nullptr when the base item is not a mastery weapon kind.

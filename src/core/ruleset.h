@@ -19,3 +19,8 @@ uint64_t RulesetKey(const char* label);
 // names the rule for the log (each label's first changed answer is logged).
 bool AnswerRulesetInt(const char* label, const char* why, RulesetIntAnswer answer);
 bool AnswerRulesetFloat(const char* label, const char* why, RulesetFloatAnswer answer);
+
+// The game's own value for `label` (the table's, not an answer), from inside
+// an answer — e.g. a Small creature's unarmed die answered with the Medium
+// one. `fallback` before the engine has asked anything.
+int RulesetIntValue(const char* label, int fallback);

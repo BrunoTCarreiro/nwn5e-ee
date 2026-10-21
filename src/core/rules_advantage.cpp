@@ -16,7 +16,7 @@
 //   dying; Point Blank Shot cancels it, B3), and the first d20 the attack roll
 //   rolls is rolled twice when the mode says so (kept die in the log).
 // Conditions (CN), weapon mastery (Vex, Sap), the Fighter's Studied Attacks,
-// the Heavy property (weapon_size) and Halfling Luck add to the mode.
+// the Heavy property (size) and Halfling Luck add to the mode.
 
 #include <stdint.h>
 

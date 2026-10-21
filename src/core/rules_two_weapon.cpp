@@ -33,6 +33,7 @@
 #include "ruleset.h"
 
 bool HasTwoWeaponFightingStyle(void* stats);  // rules_fighter.cpp (Fighter F1, the 2024 style feat)
+int FinesseDamageBonus(void* stats, int off_hand);  // rules_finesse.cpp
 
 namespace {
 
@@ -77,6 +78,7 @@ int GetDamageBonus(void* stats, void* target, int off_hand) {
   t_two_handed_multiplier = 0.0f;
   int bonus = g_get_damage_bonus(stats, target, off_hand);
   t_damage_stats = outer;
+  bonus += FinesseDamageBonus(stats, off_hand);  // 2024 Finesse: the better of Str and Dex
   if (!off_hand) bonus = MasteryCleaveDamage(stats, bonus, t_two_handed_multiplier);  // D4 Cleave's extra attack
   return bonus;
 }
@@ -114,8 +116,9 @@ void InstallTwoWeaponRules() {
                reinterpret_cast<void**>(&g_initialize_number_of_attacks));
   }
   const bool mastery = g_config.weapon_mastery != rules::RuleVariant::kOff;  // D4 Cleave's damage
-  if (TwoWeaponFaithful() || mastery) {
-    HookExport("CNWSCreatureStats::GetDamageBonus (who deals damage; Cleave)", ee::kGetDamageBonus,
+  const bool finesse = g_config.finesse == rules::RuleVariant::kFaithful;
+  if (TwoWeaponFaithful() || mastery || finesse) {
+    HookExport("CNWSCreatureStats::GetDamageBonus (who deals damage; Cleave; Finesse)", ee::kGetDamageBonus,
                reinterpret_cast<void*>(&GetDamageBonus), reinterpret_cast<void**>(&g_get_damage_bonus));
   }
   if (g_config.two_handed_strength == rules::RuleVariant::kFaithful || mastery) {

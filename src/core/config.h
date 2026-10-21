@@ -122,10 +122,15 @@ struct Config {
   // C2: faithful = the 2024 starting kits as the creation screen's packages,
   // and the background's kit when a new character enters; nwn / off = NWN's.
   rules::RuleVariant starting_equipment = rules::RuleVariant::kFaithful;
-  // Weapon size: faithful = any size wields any weapon (two or more sizes
-  // larger: two-handed), and the 2024 Heavy rule (Disadvantage below Str /
-  // Dex 13); nwn / off = NWN's size limit.
-  rules::RuleVariant weapon_size = rules::RuleVariant::kFaithful;
+  // Creature size: faithful = size limits no weapon or shield (two or more
+  // sizes larger: two-handed), no 3e size modifiers to AC, attack or
+  // unarmed damage, and the 2024 Heavy rule (Disadvantage below Str / Dex
+  // 13); nwn / off = NWN's size rules.
+  rules::RuleVariant size = rules::RuleVariant::kFaithful;
+  // Finesse: faithful = a Finesse weapon (dagger, rapier, scimitar, short
+  // sword...) uses the better of Str and Dex for attack and damage, no feat
+  // needed; nwn / off = NWN's Weapon Finesse feat (Dex to attack).
+  rules::RuleVariant finesse = rules::RuleVariant::kFaithful;
   // CM0: serve nwn5e's 2da rows and strings (data\rows, data\strings.txt).
   bool served_data = true;
 

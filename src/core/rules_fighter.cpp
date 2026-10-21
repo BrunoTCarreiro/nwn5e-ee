@@ -170,7 +170,7 @@ const void* GreatWeaponBase(void* stats, int offhand) {
   const void* base = engine::BaseItem(row);
   if (!base || Field<uint8_t>(base, ee::kBaseItemWield) == ee::kWieldDouble) return nullptr;
   const int larger_than_wielder = Field<uint8_t>(base, ee::kBaseItemSize) - Field<int32_t>(creature, ee::kCreatureSize);
-  if (larger_than_wielder == 1) return base;  // NWN wields it two-handed (GetDamageBonus's test)
+  if (larger_than_wielder >= 1) return base;  // wielded two-handed (any size larger: the size rule)
   // Otherwise in two hands = nothing in the off hand, and a two-handed weapon
   // or a versatile one of the wielder's own size.
   if (engine::ItemInSlot(creature, ee::kSlotLeftHand)) return nullptr;

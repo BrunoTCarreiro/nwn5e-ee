@@ -33,8 +33,10 @@ std::unordered_map<uint64_t, IntEntry> g_ints;
 std::unordered_map<uint64_t, FloatEntry> g_floats;
 bool g_int_hooked = false, g_int_failed = false;
 bool g_float_hooked = false, g_float_failed = false;
+void* g_rules_object = nullptr;  // the CNWRules the engine last asked
 
 int GetRulesetIntEntry(void* rules, uint64_t key, int fallback) {
+  g_rules_object = rules;
   const int engine_value = g_get_int(rules, key, fallback);
   const auto it = g_ints.find(key);
   if (it == g_ints.end()) return engine_value;
@@ -63,6 +65,11 @@ float GetRulesetFloatEntry(void* rules, uint64_t key, float fallback) {
 }  // namespace
 
 uint64_t RulesetKey(const char* label) { return rules::RulesetLabelKey(label); }
+
+int RulesetIntValue(const char* label, int fallback) {
+  if (!g_get_int || !g_rules_object) return fallback;
+  return g_get_int(g_rules_object, RulesetKey(label), fallback);
+}
 
 bool AnswerRulesetInt(const char* label, const char* why, RulesetIntAnswer answer) {
   if (!g_int_hooked && !g_int_failed) {
