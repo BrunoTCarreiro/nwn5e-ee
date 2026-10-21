@@ -6,6 +6,10 @@
 
 #include <string>
 
+// The base item of the weapon making the creature's current attack; -1
+// unarmed or unknown.
+int AttackWeaponBaseItem(void* creature);
+
 // Does `creature` have mastery with weapons of `base_item`? Characters only.
 bool HasWeaponMasteryWith(void* creature, int base_item);
 

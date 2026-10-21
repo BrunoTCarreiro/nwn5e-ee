@@ -47,6 +47,8 @@ int DexterityModifier(void* stats);
 
 // Ability modifier 0 Str .. 5 Cha, as the engine caches it (GetAbilityMod).
 int AbilityModifier(void* stats, int ability);
+// The current score (base + effects; GetSTRStat .. GetCHAStat), 0 if unknown.
+int AbilityScore(void* stats, int ability);
 
 // The object's area (CNWSArea*), or null.
 void* AreaOf(void* object);

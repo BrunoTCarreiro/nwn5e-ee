@@ -197,3 +197,18 @@ TEST(NwnMainHandStrength) {
   CHECK_EQ(NwnMainHandStrengthDamage(-1, true), -1);
   CHECK_EQ(NwnMainHandStrengthDamage(0, true), 0);
 }
+
+// Breaks caught: a Heavy weapon missed (no Disadvantage below 13), a weapon
+// NWN calls Large but 2024 doesn't call Heavy (spear, quarterstaff, trident)
+// made Heavy, the ranged ones (longbow, heavy crossbow) left out.
+TEST(HeavyWeaponsAre2024) {
+  CHECK_EQ(IsHeavyWeapon2024(13), true);   // greatsword
+  CHECK_EQ(IsHeavyWeapon2024(18), true);   // greataxe
+  CHECK_EQ(IsHeavyWeapon2024(8), true);    // longbow
+  CHECK_EQ(IsHeavyWeapon2024(6), true);    // heavy crossbow
+  CHECK_EQ(IsHeavyWeapon2024(58), false);  // spear
+  CHECK_EQ(IsHeavyWeapon2024(50), false);  // quarterstaff
+  CHECK_EQ(IsHeavyWeapon2024(95), false);  // trident
+  CHECK_EQ(IsHeavyWeapon2024(1), false);   // longsword
+  CHECK_EQ(IsHeavyWeapon2024(11), false);  // shortbow
+}

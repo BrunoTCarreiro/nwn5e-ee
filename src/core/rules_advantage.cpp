@@ -15,8 +15,8 @@
 //   creature within 5 ft of a ranged attacker that sees it and is not dead or
 //   dying; Point Blank Shot cancels it, B3), and the first d20 the attack roll
 //   rolls is rolled twice when the mode says so (kept die in the log).
-// Conditions (CN), weapon mastery (Vex, Sap), the Fighter's Studied Attacks
-// and Halfling Luck add to the mode.
+// Conditions (CN), weapon mastery (Vex, Sap), the Fighter's Studied Attacks,
+// the Heavy property (weapon_size) and Halfling Luck add to the mode.
 
 #include <stdint.h>
 
@@ -33,6 +33,7 @@
 #include "log.h"
 #include "rules/nwn_situational.h"
 #include "ruleset.h"
+#include "weapon_size.h"
 
 int EngineAttackModifier(void* stats, void* target);  // rules_attack.cpp
 MasteryRollSources TakeStudiedAttacks(void* attacker, uint32_t target_id);  // rules_fighter.cpp (Fighter F6)
@@ -136,9 +137,13 @@ void BeforeAttackRoll(AttackRoll& roll) {
   if (!studied.note.empty()) {
     t_pending.conditions += (t_pending.conditions.empty() ? "fighter: " : "; fighter: ") + studied.note;
   }
+  std::string heavy_note;
+  const int heavy = HeavyWeaponDisadvantage(roll.attacker, terms.ranged, &heavy_note);
+  if (heavy) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + heavy_note;
   t_pending.mode = rules::SituationalRollMode(
       terms, rules::RangedCloseCombat(terms.ranged, t_pending.point_blank_shot, t_pending.threats),
-      conditions.advantage + mastery.advantage + studied.advantage, conditions.disadvantage + mastery.disadvantage);
+      conditions.advantage + mastery.advantage + studied.advantage,
+      conditions.disadvantage + mastery.disadvantage + heavy);
   t_pending.attacker_id = Field<uint32_t>(roll.attacker, ee::kObjectId);
   t_pending.target_id = Field<uint32_t>(target, ee::kObjectId);
   t_pending.active = true;

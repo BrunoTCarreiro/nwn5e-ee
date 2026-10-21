@@ -43,6 +43,12 @@ struct Api {
   ExoStringFn make_string = reinterpret_cast<ExoStringFn>(EngineExport(ee::kExoStringFromChars));
   ExoStringDestroyFn destroy_string = reinterpret_cast<ExoStringDestroyFn>(EngineExport(ee::kExoStringDestructor));
   StatFn strength = reinterpret_cast<StatFn>(EngineExport(ee::kGetSTRStat));
+  StatFn scores[6] = {reinterpret_cast<StatFn>(EngineExport(ee::kGetAbilityStat[0])),
+                      reinterpret_cast<StatFn>(EngineExport(ee::kGetAbilityStat[1])),
+                      reinterpret_cast<StatFn>(EngineExport(ee::kGetAbilityStat[2])),
+                      reinterpret_cast<StatFn>(EngineExport(ee::kGetAbilityStat[3])),
+                      reinterpret_cast<StatFn>(EngineExport(ee::kGetAbilityStat[4])),
+                      reinterpret_cast<StatFn>(EngineExport(ee::kGetAbilityStat[5]))};
   CalcModifierFn calc_modifier = reinterpret_cast<CalcModifierFn>(EngineExport(ee::kCalcStatModifier));
   DexModFn dex_mod = reinterpret_cast<DexModFn>(EngineExport(ee::kGetDEXMod));
   AbilityModFn ability_mod = reinterpret_cast<AbilityModFn>(EngineExport(ee::kGetAbilityMod));
@@ -160,6 +166,11 @@ int StrengthModifier(void* stats) {
 }
 
 int DexterityModifier(void* stats) { return stats && E().dex_mod ? E().dex_mod(stats, 0) : 0; }
+
+int AbilityScore(void* stats, int ability) {
+  if (!stats || ability < 0 || ability > 5 || !E().scores[ability]) return 0;
+  return E().scores[ability](stats);
+}
 
 int AbilityModifier(void* stats, int ability) {
   if (!stats || ability < 0 || ability > 5 || !E().ability_mod) return 0;

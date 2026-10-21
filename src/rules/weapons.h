@@ -63,6 +63,13 @@ int MasteryKindOfNwnBaseItem(int base_item);
 // NwnMasteryWeapons() (data/rows/feat.mastery.txt, tools/data/mastery_feats.py;
 // append only — the ids are saved in characters).
 constexpr int kWeaponMasteryFeatFirst = 1260;
+
+// The 2024 Heavy property (SRD 5.2: Disadvantage with a Heavy melee weapon
+// below Strength 13, a Heavy ranged weapon below Dexterity 13; size plays
+// no part): Greataxe, Greatsword, Halberd, Lance, Heavy Flail (the maul),
+// Scythe (the glaive), Heavy Crossbow, Longbow, and NWN's double weapons
+// (two-bladed sword, dire mace, double axe: great weapons too).
+bool IsHeavyWeapon2024(int base_item);
 int WeaponMasteryFeat(int base_item);        // -1 when not a mastery weapon kind
 int WeaponKindOfMasteryFeat(int feat);       // the base item, or -1
 // "Longsword"; nullptr when the base item is not a mastery weapon kind.

@@ -269,6 +269,11 @@ std::string Choose(void* creature, void* stats, const std::string& args) {
   if (second_item < 0) return UnknownWeapon(second);
   rules::MasterySwap swap = {-1, -1};
   if (!rules::ResolveMasterySwap(slots.chosen, slots.count, first_item, second_item, &swap)) {
+    if (rules::MasterySlotOf(slots.chosen, slots.count, first_item) >= 0 &&
+        rules::MasterySlotOf(slots.chosen, slots.count, second_item) >= 0) {
+      return "nwn5e: you already have mastery with both " + Label(first_item) + " and " + Label(second_item) +
+             " - a swap gives up one you have for one you don't (your slots: " + SlotList(slots) + ").";
+    }
     return "nwn5e: to swap, name one weapon in your slots and one that is not (your slots: " + SlotList(slots) + ").";
   }
   if (!Proficient(stats, swap.take)) return "nwn5e: you are not proficient with " + Label(swap.take) + ".";
@@ -642,6 +647,8 @@ void HideMasteryRows(void* rules_object, bool reload) {
 }
 
 }  // namespace
+
+int AttackWeaponBaseItem(void* creature) { return CurrentAttackBaseItem(creature); }
 
 bool HasWeaponMasteryWith(void* creature, int base_item) {
   if (!MasteryOn() || !creature) return false;

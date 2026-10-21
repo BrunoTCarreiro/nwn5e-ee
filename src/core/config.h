@@ -122,6 +122,10 @@ struct Config {
   // C2: faithful = the 2024 starting kits as the creation screen's packages,
   // and the background's kit when a new character enters; nwn / off = NWN's.
   rules::RuleVariant starting_equipment = rules::RuleVariant::kFaithful;
+  // Weapon size: faithful = any size wields any weapon (two or more sizes
+  // larger: two-handed), and the 2024 Heavy rule (Disadvantage below Str /
+  // Dex 13); nwn / off = NWN's size limit.
+  rules::RuleVariant weapon_size = rules::RuleVariant::kFaithful;
   // CM0: serve nwn5e's 2da rows and strings (data\rows, data\strings.txt).
   bool served_data = true;
 

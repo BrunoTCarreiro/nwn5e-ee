@@ -236,6 +236,16 @@ constexpr float kFallFacingDot = 0.707f;
 // Creature size, int32: 1 tiny .. 4 large, 5 huge (ExecuteCommandGetCreatureSize +0x4c).
 constexpr size_t kCreatureSize = 0x718;
 constexpr int32_t kCreatureSizeLarge = 4;
+// Weapon size (rules_weapon_size.cpp): the server's GetRelativeWeaponSize
+// answers weapon size (CNWBaseItem uint8 +0x19) - creature size within
+// -2..+1, else -10; the client's copy (not exported; 0x8012D0) answers the
+// plain difference (the creature's appearance SIZECATEGORY) and starts with
+// a whip check (cmp [rdx+40h], 6Fh; jne) — its anchor, a few bytes in.
+constexpr const char* kGetRelativeWeaponSize = "?GetRelativeWeaponSize@CNWSCreature@@QEAAHPEAVCNWSItem@@@Z";
+constexpr int kRelativeWeaponSizeInvalid = -10;
+constexpr size_t kBaseItemWeaponSize = 0x19;
+constexpr const char* kClientRelativeWeaponSizePattern = "83 7A 40 6F 75";
+constexpr uintptr_t kClientRelativeWeaponSizeCheckMaxOffset = 0x40;
 // The object's action queue: CExoLinkedListInternal* at +0x100 (head +0x0);
 // node: data +0x10 (GetAtPos +0x4a). CNWSObjectActionNode: action id int32
 // +0x0, first parameter in the 8-byte slot at +0x38 (AddActionNodeParameter

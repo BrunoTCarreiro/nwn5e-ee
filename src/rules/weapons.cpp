@@ -201,6 +201,25 @@ const std::vector<int>& NwnMasteryWeapons() {
 
 int MasteryKindOfNwnBaseItem(int base_item) { return base_item == 45 ? 50 : base_item; }
 
+bool IsHeavyWeapon2024(int base_item) {
+  switch (base_item) {
+    case 6:    // heavy crossbow
+    case 8:    // longbow
+    case 10:   // halberd
+    case 12:   // two-bladed sword (NWN only)
+    case 13:   // greatsword
+    case 18:   // greataxe
+    case 32:   // dire mace (NWN only)
+    case 33:   // double axe (NWN only)
+    case 35:   // heavy flail (the maul)
+    case 55:   // scythe (the glaive)
+    case 92:   // lance
+      return true;
+    default:
+      return false;
+  }
+}
+
 int WeaponMasteryFeat(int base_item) {
   const int kind = MasteryKindOfNwnBaseItem(base_item);
   const std::vector<int>& kinds = NwnMasteryWeapons();

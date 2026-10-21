@@ -586,6 +586,18 @@ only weapons you're proficient with; multiclassing into a second mastery
 class gives that class's picks too, and every mastery feat counts — more
 than D3's slots (the most of any one class) for such a character; rare,
 accepted for now (the slot table is per class).
+0.11.0 (owner's C4 test): a halfling couldn't equip the spear or greatsword
+its kit and masteries offered — NWN won't let a creature hold a weapon two
+sizes larger. 2024 has no size limit (SRD 5.2: Heavy is Disadvantage below
+Str 13 melee / Dex 13 ranged; 2014's Small rule is gone). Decided (owner,
+2026-10-21): faithful — new key `weapon_size`: a weapon two or more sizes
+larger counts as one size larger (two-handed) in the server's
+GetRelativeWeaponSize and the client's copy (0x8012D0, anchored by its
+whip check), and the Heavy rule is a Disadvantage source in the attack's
+roll mode. Still NWN: a Small creature holds a Medium weapon (longsword)
+two-handed; weapon models aren't scaled to the wielder. Also: `!mastery A
+for B` with both already mastered now says so (the test's swap named two
+weapons the Fighter already had — Longsword came from its level-4 pick).
 
 *Decided (owner, 2026-10-21): the Domain step stays until the Cleric
 conversion* — NWN's two domains are picked at creation until the Cleric's
