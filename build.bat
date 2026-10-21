@@ -37,7 +37,8 @@ cl %CFLAGS% /LD /Ithird_party\minhook\include /Isrc %PRIVATE_DEF% ^
   src\core\rules_spell_attack.cpp src\core\rules_shove.cpp src\core\rules_skill_dcs.cpp src\core\rules_perception.cpp ^
   src\core\rules_loaded.cpp src\core\data_serving.cpp src\core\rules_progression.cpp src\core\rules_alignment.cpp ^
   src\core\rules_hit_points.cpp src\core\rules_feat_cadence.cpp src\core\rules_abilities.cpp ^
-  src\core\rules_features.cpp src\core\rules_fighter.cpp src\data\twoda.cpp ^
+  src\core\rules_features.cpp src\core\rules_fighter.cpp src\core\nui.cpp src\core\nui_test.cpp ^
+  src\data\twoda.cpp ^
   src\rules\*.cpp ^
   %PRIVATE_SRC% third_party\minhook\src\buffer.c third_party\minhook\src\hook.c ^
   third_party\minhook\src\trampoline.c third_party\minhook\src\hde\hde64.c ^

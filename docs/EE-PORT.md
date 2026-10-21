@@ -344,6 +344,23 @@ Each step ends with an in-game test matrix, as on 1.69.
    compiled nwn5e_secwind.ncs (EP6's interim: its action indices are EE's;
    the pinned nwn_script_comp waits for the first new script). NWN mode /
    off hide the Fighting Style rows. Launch check: every hook installed.
+   Owner's tests (2026-10-21): Second Wind reached the radial only once in
+   cls_feat_fight with OnMenu 1 (the client's class-ability menu,
+   CGuiCreatureMenu::CalculateNeededClassAbilityMenuEntries, read in the
+   Linux build), and used mid-fight it dropped the attack (0.5.3: UseFeat
+   noted like a potion; verified). The level-1 / 7 style slot is an ordinary
+   Fighter bonus pick (358 NWN feats + the styles), so most Fighters had no
+   style; **decided: option A with a NUI window** — the slots go, nwn5e
+   grants the chosen style, picked in nwn5e's own window.
+   *NUI (0.5.4, spike):* `nui` — windows built as nw_inc_nui.nss JSON, opened
+   by the script bridge (JsonParse + NuiCreate, token kept on the
+   character), events read at CNWSModule::SetCurrentNuiEvent (the event's
+   player / token / type / element; no compiled script); a window is closed a
+   tick later (the engine uses its state after the event). `nui_test` — `!nui`
+   (and [debug] nui_test on arrival): four style buttons answer in the window
+   (a bind) and in chat. EE's creation and level-up screens stay the game's
+   own (fixed page order; only their data is ours); NUI windows open once the
+   character is in the game.
 6. *(plan)* **E4 — character model:** served data + strings, XP, multiclass,
    alignment, HP, feat cadence, point buy + backgrounds, class features,
    the Fighter (first tested in game here — it never was on 1.69).

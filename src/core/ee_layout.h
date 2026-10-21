@@ -644,6 +644,22 @@ constexpr size_t kBaseItemDieToRoll = 0x1b;
 // Overwhelming Critical, right after a GetRulesetIntEntry (+0x2df).
 constexpr size_t kDamageRollRollDiceCalls = 12;
 
+// NUI (EE's scriptable windows). HandlePlayerToServerNuiEvent reads each event
+// (token, type, element, array index, payload) and, for a window the player
+// has open, stores it with CNWSModule::SetCurrentNuiEvent (+0x82f) before
+// running the window's or the module's event script (RunEventScript 0x15) —
+// then still uses the window's state, so a window must not be destroyed from
+// inside the event (nwn5e closes windows a tick later). Nui::JSON::Event:
+// player object id +0x00, window token +0x04, type std::string +0x08 ("click",
+// "close", ...; the handler tests its length for "close"), element id
+// std::string +0x28, array index int32 +0x48, payload json +0x50.
+constexpr const char* kSetCurrentNuiEvent = "?SetCurrentNuiEvent@CNWSModule@@QEAAXAEBUEvent@JSON@Nui@@@Z";
+constexpr size_t kNuiEventPlayer = 0x00;
+constexpr size_t kNuiEventToken = 0x04;
+constexpr size_t kNuiEventType = 0x08;
+constexpr size_t kNuiEventElement = 0x28;
+constexpr size_t kNuiEventArrayIndex = 0x48;
+
 // --- diffsettings.2da rows (EE data, D).
 constexpr int kDifficultyNoCriticalOnPc = 0;  // 1 at DM-Easy, Easy and Normal
 

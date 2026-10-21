@@ -126,6 +126,7 @@ struct Config {
   bool debug_attack_trace = false;       // log round setup and every PC attack roll
   bool debug_players_poisoned = false;   // SK11 test: player characters count as poisoned for ability checks
   bool debug_served_data_probe = false;  // CM0 test: a hidden probe row in feat.2da, checked after load
+  bool debug_nui_test = false;           // NUI test: the test window opens when a player character arrives
 };
 
 extern Config g_config;

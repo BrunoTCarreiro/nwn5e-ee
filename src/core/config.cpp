@@ -89,6 +89,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.debug_players_poisoned = ReadBool(ini, L"players_poisoned", g_config.debug_players_poisoned, L"debug");
   g_config.debug_served_data_probe =
       ReadBool(ini, L"served_data_probe", g_config.debug_served_data_probe, L"debug");
+  g_config.debug_nui_test = ReadBool(ini, L"nui_test", g_config.debug_nui_test, L"debug");
   Log("config: mode=%s crit_nat20_only=%d crit_no_confirmation=%d crit_double_damage=%d crit_dice_only=%d "
       "crits_against_players=%d log_attacks=%d",
       VariantName(g_config.mode), g_config.crit_nat20_only, g_config.crit_no_confirmation,
@@ -122,6 +123,7 @@ void ConfigLoad(const wchar_t* directory) {
     Log("config: [debug] players_poisoned=1 - player characters count as poisoned for ability checks");
   }
   if (g_config.debug_every_hit_crits) Log("config: [debug] every_hit_crits=1 - every hit is a critical");
+  if (g_config.debug_nui_test) Log("config: [debug] nui_test=1 - the NUI test window opens on arrival");
   if (g_config.debug_combat_breakdown) Log("config: [debug] combat_breakdown=1 - the engine's own attack breakdown");
   if (g_config.debug_attacks_per_round > 0) {
     Log("config: [debug] attacks_per_round=%d - player characters make this many main-hand attacks",

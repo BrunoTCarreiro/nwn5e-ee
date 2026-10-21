@@ -67,7 +67,9 @@ attack and damage breakdown; `attacks_per_round=N` gives player characters N
 main-hand attacks; `creature_ac=N` gives every monster AC N;
 `creature_hp_multiplier=N` / `creature_min_hp=N` give a monster N times / at
 least N hit points when your party first attacks it; `attack_trace=1` logs
-every PC attack roll with its round's attack counts.
+every PC attack roll with its round's attack counts; `nui_test=1` opens
+nwn5e's NUI test window when your character arrives (`!nui` opens it any
+time: nwn5e's own windows, the base for the Fighting Style picker).
 
 What is carried over from the 1.69 build, unchanged:
 
