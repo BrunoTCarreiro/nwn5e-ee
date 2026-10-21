@@ -1,0 +1,6 @@
+# feat.2da - CM8: the SRD 5.2 Origin feats nwn5e builds besides Alert (NWN's
+# Improved Initiative): src/core/rules_origin_feats.cpp. General feats (a human's
+# Versatile pick); hidden in NWN mode.
+LABEL FEAT DESCRIPTION ICON GAINMULTIPLE EFFECTSSTACK ALLCLASSESCANUSE CRValue Constant TOOLSCATEGORIES PreReqEpic ReqAction
+1300 NWN5E_SAVAGE_ATTACKER 16000390 16000391 ife_powhit 0 0 1 1 FEAT_NWN5E_SAVAGE_ATTACKER 6 0 1
+1301 NWN5E_SKILLED 16000392 16000393 ife_skfoc 0 0 1 1 FEAT_NWN5E_SKILLED 6 0 1

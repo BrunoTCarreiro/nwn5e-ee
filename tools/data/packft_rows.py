@@ -9,7 +9,8 @@ taken: Ability Score Improvement (from level 4), a Fighter's Fighting Style
 (Defense first for a Strength package, Archery first for a Dexterity one),
 the Weapon Masteries of the kit's weapons (C4: the classes with Weapon
 Mastery; more after them for the masteries later levels add), Alert (a
-human's extra level-1 feat). Appended ("+" rows), so NWN mode reaches them
+human's extra level-1 feat; Savage Attacker or Skilled first for the classes
+they suit). Appended ("+" rows), so NWN mode reaches them
 only after its own.
 
 Run from the repo root:  python tools/data/packft_rows.py
@@ -44,6 +45,15 @@ STYLES = {
     'two': (1213, 'NWN5E_FS_TWO_WEAPON'),
 }
 ALERT = (377, 'FEAT_IMPROVED_INITIATIVE')
+SAVAGE_ATTACKER = (1300, 'NWN5E_SAVAGE_ATTACKER')
+SKILLED = (1301, 'NWN5E_SKILLED')
+# A human's Versatile pick (an Origin feat), by class: the first the character
+# can still take (Alert last, the fallback).
+ORIGIN = {
+    'PackFTBarb': [SAVAGE_ATTACKER], 'PackFTFight': [SAVAGE_ATTACKER], 'PackFTPala': [SAVAGE_ATTACKER],
+    'PackFTRang': [SAVAGE_ATTACKER], 'PackFTMonk': [SAVAGE_ATTACKER],
+    'PackFTRog': [SKILLED], 'PackFTBard': [SKILLED],
+}
 
 # C4: the Weapon Masteries a package picks, in order (its kit's weapons first).
 MASTERIES = {
@@ -80,6 +90,9 @@ def rows_for(table):
     for prefix, names in MASTERIES.items():
         if table.startswith(prefix):
             rows += mastery_rows(names)
+    for prefix, feats in ORIGIN.items():
+        if table.startswith(prefix):
+            rows += feats
     rows.append(ALERT)
     return rows
 

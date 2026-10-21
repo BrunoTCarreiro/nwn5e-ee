@@ -242,11 +242,14 @@ int CountSkills(SkillSet set) {
 }
 
 int SkillAllowance::TotalSkills() const {
-  return class_skills + multiclass_skills + background_skills + (species_any_skill || species_list ? 1 : 0);
+  return class_skills + multiclass_skills + background_skills + (species_any_skill || species_list ? 1 : 0) +
+         feat_skills;
 }
 
-SkillAllowance SkillAllowanceFor(const std::vector<ClassLevels>& classes, Species2024 species) {
+SkillAllowance SkillAllowanceFor(const std::vector<ClassLevels>& classes, Species2024 species,
+                                 int skilled_feats) {
   SkillAllowance allowance;
+  allowance.feat_skills = 3 * skilled_feats;
   if (species == Species2024::kHuman) allowance.species_any_skill = true;
   if (species == Species2024::kElf) allowance.species_list = Set({S::kInsight, S::kPerception, S::kSurvival});
   bool any_expertise = false;
@@ -319,6 +322,7 @@ std::string CheckSkillChoice(const SkillAllowance& allowance, SkillSet chosen) {
   for (int i = 0; i < allowance.background_skills; ++i) slots.push_back(AllSkills());
   if (allowance.species_any_skill) slots.push_back(AllSkills());
   if (allowance.species_list) slots.push_back(allowance.species_list);
+  for (int i = 0; i < allowance.feat_skills; ++i) slots.push_back(AllSkills());
   std::vector<int> slot_of(slots.size(), -1);
   std::string unplaced;
   for (size_t k = 0; k < skills.size(); ++k) {

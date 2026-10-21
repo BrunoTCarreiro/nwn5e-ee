@@ -21,6 +21,11 @@
 //   nwn5e_tactical_shift, which rules_opportunity.cpp reads (F7).
 // NWN mode and off: the Fighting Style feats are hidden.
 //
+// The weapon-dice filter also serves the Savage Attacker Origin feat (feats
+// faithful, rules_origin_feats.cpp: once per turn, the weapon's damage dice
+// rolled twice, the higher kept), so its GetDamageRoll hook is installed in
+// either mode.
+//
 // Studied Attacks and Heroic Rally count combat rounds (CountCombatRounds,
 // rules_mastery.cpp), hooked here too, so they work with weapon_mastery=off.
 
@@ -50,6 +55,11 @@
 #include "rules/class_features.h"
 #include "rules/weapons.h"
 #include "rules_loaded.h"
+#include "weapon_size.h"
+
+// Savage Attacker (rules_origin_feats.cpp): true once per turn for a
+// character who has it and hits with a weapon now.
+bool TakeSavageAttacker(void* stats);
 
 namespace {
 
@@ -148,7 +158,8 @@ int16_t CreatureArmorClass(void* creature) {
 // or 2 counting as 3 — GetDamageRoll's two weapon-dice RollDice calls
 // (ee_layout.h), while GetDamageRoll runs for such an attack.
 struct GreatWeaponRoll {
-  bool active = false;
+  bool active = false;  // Great Weapon Fighting
+  bool savage = false;  // Savage Attacker: the dice twice, the higher kept
   uint32_t id = 0;
   int count = 0;
   int sides = 0;
@@ -169,7 +180,7 @@ const void* GreatWeaponBase(void* stats, int offhand) {
   if (!two_handed && !versatile) return nullptr;
   const void* base = engine::BaseItem(row);
   if (!base || Field<uint8_t>(base, ee::kBaseItemWield) == ee::kWieldDouble) return nullptr;
-  const int larger_than_wielder = Field<uint8_t>(base, ee::kBaseItemSize) - Field<int32_t>(creature, ee::kCreatureSize);
+  const int larger_than_wielder = Field<uint8_t>(base, ee::kBaseItemSize) - WeaponWielderSize(creature);
   if (larger_than_wielder >= 1) return base;  // wielded two-handed (any size larger: the size rule)
   // Otherwise in two hands = nothing in the off hand, and a two-handed weapon
   // or a versatile one of the wielder's own size.
@@ -180,11 +191,19 @@ const void* GreatWeaponBase(void* stats, int offhand) {
 int GetDamageRoll(void* stats, void* target, int offhand, int critical, int sneak, int death, int force_max) {
   const GreatWeaponRoll outer = t_great_weapon;
   t_great_weapon = GreatWeaponRoll();
-  if (const void* base = GreatWeaponBase(stats, offhand)) {
+  if (const void* base = Faithful() ? GreatWeaponBase(stats, offhand) : nullptr) {
     t_great_weapon.active = true;
     t_great_weapon.id = ObjectIdOf(stats);
     t_great_weapon.count = Field<uint8_t>(base, ee::kBaseItemNumDice);
     t_great_weapon.sides = Field<uint8_t>(base, ee::kBaseItemDieToRoll);
+  }
+  void* creature = CreatureOf(stats);
+  const void* weapon = engine::BaseItem(creature ? AttackWeaponBaseItem(creature) : -1);
+  if (weapon && TakeSavageAttacker(stats)) {
+    t_great_weapon.savage = true;
+    t_great_weapon.id = ObjectIdOf(stats);
+    t_great_weapon.count = Field<uint8_t>(weapon, ee::kBaseItemNumDice);
+    t_great_weapon.sides = Field<uint8_t>(weapon, ee::kBaseItemDieToRoll);
   }
   const int damage = g_get_damage_roll(stats, target, offhand, critical, sneak, death, force_max);
   t_great_weapon = outer;
@@ -192,15 +211,33 @@ int GetDamageRoll(void* stats, void* target, int offhand, int critical, int snea
 }
 
 bool GreatWeaponDice(uintptr_t caller, int count, int sides, int* result) {
-  if (!t_great_weapon.active || count != t_great_weapon.count || sides != t_great_weapon.sides) return false;
+  if ((!t_great_weapon.active && !t_great_weapon.savage) || count != t_great_weapon.count ||
+      sides != t_great_weapon.sides) {
+    return false;
+  }
   if (std::find(g_weapon_dice_returns.begin(), g_weapon_dice_returns.end(), caller) == g_weapon_dice_returns.end()) {
     return false;
   }
-  int total = 0, raised = 0;
-  for (int i = 0; i < count; ++i) {
-    const int roll = RollEngineDice(1, sides);
-    raised += roll < 3 ? 1 : 0;
-    total += rules::GreatWeaponFightingDie(roll);
+  int raised = 0;
+  auto roll_once = [&]() {
+    if (!t_great_weapon.active) return RollEngineDice(count, sides);
+    int total = 0;
+    for (int i = 0; i < count; ++i) {
+      const int roll = RollEngineDice(1, sides);
+      raised += roll < 3 ? 1 : 0;
+      total += rules::GreatWeaponFightingDie(roll);
+    }
+    return total;
+  };
+  const int first = roll_once();
+  int total = first;
+  if (t_great_weapon.savage) {
+    const int second = roll_once();
+    total = second > first ? second : first;
+    if (g_config.log_attacks) {
+      Log("feats: 0x%08X Savage Attacker: %dd%d rolled twice, %d / %d -> %d", t_great_weapon.id, count, sides,
+          first, second, total);
+    }
   }
   if (g_config.log_attacks && raised &&
       g_logged.First(LogOnce::Key(t_great_weapon.id, count * 100 + sides, 4))) {
@@ -361,24 +398,31 @@ int IndomitableReroll(void* creature) {
   return level;
 }
 
+// The weapon-damage dice (Great Weapon Fighting, Savage Attacker).
+void InstallWeaponDiceRules() {
+  g_current_attack_weapon = reinterpret_cast<CurrentAttackWeaponFn>(EngineExport(ee::kGetCurrentAttackWeapon));
+  if (g_current_attack_weapon && FindWeaponDiceCalls() &&
+      HookExport("CNWSCreatureStats::GetDamageRoll (Great Weapon Fighting, Savage Attacker)", ee::kGetDamageRoll,
+                 reinterpret_cast<void*>(&GetDamageRoll), reinterpret_cast<void**>(&g_get_damage_roll))) {
+    AddDiceFilter(&GreatWeaponDice);
+  }
+}
+
 void InstallFighterRules() {
+  const bool savage_attacker = g_config.feats == rules::RuleVariant::kFaithful;
   if (!Faithful()) {
     OnRulesLoaded(&HideFightingStyleRows);
+    if (savage_attacker) InstallWeaponDiceRules();
     return;
   }
   g_compute_armor_class = reinterpret_cast<ComputeArmorClassFn>(EngineExport(ee::kItemComputeArmorClass));
-  g_current_attack_weapon = reinterpret_cast<CurrentAttackWeaponFn>(EngineExport(ee::kGetCurrentAttackWeapon));
   g_get_max_hit_points = reinterpret_cast<MaxHitPointsFn>(EngineExport(ee::kGetMaxHitPoints));
   if (!g_compute_armor_class) Log("SKIP fighter: Defense - no export %s", ee::kItemComputeArmorClass);
   if (!g_get_max_hit_points) Log("SKIP fighter: Heroic Rally - no export %s", ee::kGetMaxHitPoints);
   if (!CountCombatRounds()) Log("SKIP fighter: Studied Attacks and Heroic Rally - combat rounds are not counted");
   HookExport("CNWSCreature::GetArmorClass (sheet and GetAC: Defense)", ee::kCreatureGetArmorClass,
              reinterpret_cast<void*>(&CreatureArmorClass), reinterpret_cast<void**>(&g_creature_armor_class));
-  if (g_current_attack_weapon && FindWeaponDiceCalls() &&
-      HookExport("CNWSCreatureStats::GetDamageRoll (Great Weapon Fighting)", ee::kGetDamageRoll,
-                 reinterpret_cast<void*>(&GetDamageRoll), reinterpret_cast<void**>(&g_get_damage_roll))) {
-    AddDiceFilter(&GreatWeaponDice);
-  }
+  InstallWeaponDiceRules();
   AddAttackRollListeners(nullptr, &StudiedAttacksAfterAttackRoll);
   AddCreatureUpdateListener(&HeroicRally);
   AddRestListener(&ResetIndomitable);

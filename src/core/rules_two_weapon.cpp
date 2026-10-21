@@ -31,6 +31,7 @@
 #include "mastery.h"
 #include "rules/weapons.h"
 #include "ruleset.h"
+#include "weapon_size.h"
 
 bool HasTwoWeaponFightingStyle(void* stats);  // rules_fighter.cpp (Fighter F1, the 2024 style feat)
 int FinesseDamageBonus(void* stats, int off_hand);  // rules_finesse.cpp
@@ -51,7 +52,11 @@ LogOnce g_logged_style(512);
 bool TwoWeaponFaithful() { return g_config.two_weapon_fighting == rules::RuleVariant::kFaithful; }
 
 void InitializeNumberOfAttacks(void* round) {
-  g_initialize_number_of_attacks(round);
+  {
+    WeaponSizeAsMedium as_medium(Field<void*>(round, ee::kRoundOwner));  // size faithful: Small as Medium
+    g_initialize_number_of_attacks(round);
+  }
+  if (!TwoWeaponFaithful()) return;
   const int nwn_attacks = Field<int32_t>(round, ee::kRoundOffHandAttacks);
   if (nwn_attacks <= 0) return;
   void* creature = Field<void*>(round, ee::kRoundOwner);
@@ -111,8 +116,10 @@ void InstallTwoWeaponRules() {
     AnswerRulesetFloat("OFFHAND_WEAPON_STRENGTH_MODIFIER",
                        "two_weapon_fighting: off-hand damage without Strength unless negative or with the style",
                        &OffHandStrength);
-    HookExport("CNWSCombatRound::InitializeNumberOfAttacks (off-hand attacks)", ee::kInitializeNumberOfAttacks,
-               reinterpret_cast<void*>(&InitializeNumberOfAttacks),
+  }
+  if (TwoWeaponFaithful() || g_config.size == rules::RuleVariant::kFaithful) {
+    HookExport("CNWSCombatRound::InitializeNumberOfAttacks (off-hand attacks; weapon size)",
+               ee::kInitializeNumberOfAttacks, reinterpret_cast<void*>(&InitializeNumberOfAttacks),
                reinterpret_cast<void**>(&g_initialize_number_of_attacks));
   }
   const bool mastery = g_config.weapon_mastery != rules::RuleVariant::kOff;  // D4 Cleave's damage

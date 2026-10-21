@@ -623,6 +623,28 @@ creatures' daggers, the Small unarmed dice answered with the Medium ones.
 Not yet seen in game: the Tower Shield on a Small character (nw_ashto001)
 and a Small monk's unarmed hit (their patches / answers are in the log).
 
+*0.13.0 (owner, 2026-10-21: "next go for missing origin feats and medium
+weapons for small characters").* (1) The Origin feats Savage Attacker and
+Skilled (feat rows 1300 / 1301, data/rows/feat.origin.txt,
+rules_origin_feats.cpp): Savage Attacker — once per turn (the creature's
+combat-round count), a weapon hit's damage dice are rolled twice and the
+higher roll kept, through the weapon-dice filter Great Weapon Fighting
+uses (rules_fighter.cpp: its GetDamageRoll hook now installs in either
+mode of class_features); the Soldier background counts as having it.
+Skilled — rules::SkillAllowance::feat_skills, three picks of any skill
+for !skills (unit-tested). Both are general feats (a human's Versatile
+pick); Recommended takes Savage Attacker for the martial classes, Skilled
+for Rogues and Bards, Alert otherwise (packft rows). Magic Initiate waits
+for spells. (2) A Small creature wields weapons as a Medium one (`size`):
+the server's and the client's GetRelativeWeaponSize answer with Medium for
+it, and where the engine computes the difference inline the creature's
+size reads Medium for the length of the call (CanEquipWeapon, wrapped;
+InitializeNumberOfAttacks, in rules_two_weapon.cpp's hook) — a halfling's
+longsword is one-handed (a shield or an off-hand weapon with it), its
+greatsword two-handed, its dagger light; Great Weapon Fighting's "two
+hands" test uses the same size. Shove, size modifiers and everything else
+keep the creature's own size.
+
 *Decided (owner, 2026-10-21): the Domain step stays until the Cleric
 conversion* — NWN's two domains are picked at creation until the Cleric's
 brief (Phase 4) drops what domains grant (powers, domain spells, the bonus

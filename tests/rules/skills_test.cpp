@@ -159,3 +159,18 @@ TEST(ChecksWithConditions) {
   CHECK_EQ(KeptCheckD20(7, 15, 1, 1), 7);   // both: they cancel, the first die
   CHECK_EQ(KeptCheckD20(12, 0, 0, 1), 12);  // one die rolled
 }
+
+// Breaks caught: the Skilled feat not adding its three picks, its picks
+// limited to a class list (Skilled takes any skill), too many still accepted.
+TEST(SkilledAddsThreeSkills) {
+  const SkillAllowance fighter = SkillAllowanceFor({{CharacterClass::kFighter, 1}}, Species2024::kOther, 1);
+  CHECK_EQ(fighter.feat_skills, 3);
+  CHECK_EQ(fighter.TotalSkills(), 2 + 2 + 3);
+  SkillSet seven = SkillBit(Skill2024::kAthletics) | SkillBit(Skill2024::kPerception) |  // class
+                   SkillBit(Skill2024::kStealth) | SkillBit(Skill2024::kArcana) |       // background
+                   SkillBit(Skill2024::kDeception) | SkillBit(Skill2024::kReligion) |   // Skilled
+                   SkillBit(Skill2024::kMedicine);
+  CHECK_EQ(CheckSkillChoice(fighter, seven).empty(), true);
+  CHECK_EQ(CheckSkillChoice(fighter, seven | SkillBit(Skill2024::kHistory)).empty(), false);
+  CHECK_EQ(SkillAllowanceFor({{CharacterClass::kFighter, 1}}, Species2024::kOther).feat_skills, 0);
+}

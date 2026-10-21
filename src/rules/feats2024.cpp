@@ -7,7 +7,7 @@
 namespace rules {
 
 bool IsChoosableFeat2024(int feat, bool masteries) {
-  if (feat == kFeatAlert) return true;
+  if (feat == kFeatAlert || feat == kFeatSavageAttacker || feat == kFeatSkilled) return true;  // Origin
   if (masteries && WeaponKindOfMasteryFeat(feat) >= 0) return true;
   const BonusFeatGroup group = BonusFeatGroupOf(feat);
   return group == BonusFeatGroup::kGeneral || group == BonusFeatGroup::kFightingStyle;

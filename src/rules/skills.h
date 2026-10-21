@@ -91,12 +91,14 @@ struct SkillAllowance {
   int background_tools = 1;
   bool species_any_skill = false;   // Human: Skillful
   SkillSet species_list = 0;        // Elf: Keen Senses
+  int feat_skills = 0;              // the Skilled feat: 3 skills of any kind each
   SkillSet granted = 0;             // always proficient (Rogue: Thieves' Tools)
   int expertise = 0;
   SkillSet expertise_list = 0;      // 0 = any proficient skill
   int TotalSkills() const;          // skill choices, tools excluded
 };
-SkillAllowance SkillAllowanceFor(const std::vector<ClassLevels>& classes, Species2024 species);
+SkillAllowance SkillAllowanceFor(const std::vector<ClassLevels>& classes, Species2024 species,
+                                 int skilled_feats = 0);
 
 // Can `chosen` (skills and tools, `granted` excluded or included) be split
 // into those choices? Returns an empty string when it can, else the reason.

@@ -494,6 +494,12 @@ rules::SkillSet BackgroundSkills(void* creature) {
 }
 
 // Alert from the Criminal background (rules_initiative.cpp).
+// Savage Attacker from the Soldier background (rules_fighter.cpp).
+bool HasSavageAttackerFromBackground(void* creature) {
+  return g_faithful && creature &&
+         ReadBackground(creature, StatsOf(creature)).background == rules::Background::kSoldier;
+}
+
 bool HasAlertFromBackground(void* creature) {
   return g_faithful && creature &&
          ReadBackground(creature, StatsOf(creature)).background == rules::Background::kCriminal;

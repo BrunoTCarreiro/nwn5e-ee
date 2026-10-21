@@ -236,6 +236,9 @@ constexpr float kFallFacingDot = 0.707f;
 // Creature size, int32: 1 tiny .. 4 large, 5 huge (ExecuteCommandGetCreatureSize +0x4c).
 constexpr size_t kCreatureSize = 0x718;
 constexpr int32_t kCreatureSizeLarge = 4;
+constexpr int32_t kCreatureSizeSmall = 2;
+constexpr int32_t kCreatureSizeMedium = 3;
+constexpr int kBaseItemWhip = 111;  // the client's size check answers 0 for it
 // Weapon size (rules_weapon_size.cpp): the server's GetRelativeWeaponSize
 // answers weapon size (CNWBaseItem uint8 +0x19) - creature size within
 // -2..+1, else -10; the client's copy (not exported; 0x8012D0) answers the

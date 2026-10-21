@@ -25,10 +25,14 @@
 //   (rules_advantage.cpp).
 // NWN mode: NWN's size rules, no Heavy rule.
 //
-// Not changed: a Small creature still holds a Medium weapon (a longsword)
-// two-handed, where 2024 has one hand; weapon models aren't scaled to the
-// wielder. Knockdown / Disarm's size terms are the Shove rule's (SK6), Hide /
-// Spot's the perception rule's (SK5).
+// - and a Small creature wields weapons as a Medium one (owner, 2026-10-21):
+//   a longsword in one hand, a greatsword in two, a dagger light — in the
+//   size functions above (server and client: the hold and animations) and,
+//   where the engine does the arithmetic inline, for the length of the call
+//   (CanEquipWeapon here, the round's off-hand attacks in rules_two_weapon.cpp).
+// Not changed: weapon models aren't scaled to the wielder. Knockdown /
+// Disarm's size terms are the Shove rule's (SK6), Hide / Spot's the
+// perception rule's (SK5).
 
 #include <windows.h>
 
@@ -51,8 +55,10 @@
 namespace {
 
 using RelativeSizeFn = int (*)(void* creature, void* item);
+using CanEquipWeaponFn = uint8_t (*)(void* creature, void* item, uint32_t* slot, int a, int b, void* player);
 RelativeSizeFn g_server_relative_size = nullptr;
 RelativeSizeFn g_client_relative_size = nullptr;
+CanEquipWeaponFn g_can_equip_weapon = nullptr;
 LogOnce g_logged(64);
 
 bool Faithful() { return g_config.size == rules::RuleVariant::kFaithful; }
@@ -60,11 +66,12 @@ bool Faithful() { return g_config.size == rules::RuleVariant::kFaithful; }
 // The server's: weapon size - creature size within -2..+1, else -10 ("no").
 int ServerRelativeWeaponSize(void* creature, void* item) {
   const int relative = g_server_relative_size(creature, item);
-  if (relative != ee::kRelativeWeaponSizeInvalid || !creature || !item) return relative;
+  if (!creature || !item) return relative;
   const void* base_item = engine::BaseItem(Field<int32_t>(item, ee::kItemBaseItem));
   if (!base_item) return relative;
-  const int size = Field<uint8_t>(base_item, ee::kBaseItemWeaponSize) - Field<int32_t>(creature, ee::kCreatureSize);
-  if (size <= 1) return relative;  // far smaller than the creature: NWN's answer
+  const int size = Field<uint8_t>(base_item, ee::kBaseItemWeaponSize) - WeaponWielderSize(creature);
+  if (size < -2) return relative;  // far smaller than the creature: NWN's answer
+  if (size <= 1) return size;
   if (g_config.log_attacks && g_logged.First(LogOnce::Key(Field<uint32_t>(creature, ee::kObjectId), size, 0))) {
     Log("size: object 0x%08X wields a weapon %d sizes larger two-handed (2024: size doesn't limit weapons)",
         Field<uint32_t>(creature, ee::kObjectId), size);
@@ -74,8 +81,18 @@ int ServerRelativeWeaponSize(void* creature, void* item) {
 
 // The client's: the plain difference.
 int ClientRelativeWeaponSize(void* creature, void* item) {
-  const int relative = g_client_relative_size(creature, item);
+  int relative = g_client_relative_size(creature, item);
+  const int row = item ? Field<int32_t>(item, ee::kItemBaseItem) : -1;
+  const void* base_item = row == ee::kBaseItemWhip ? nullptr : engine::BaseItem(row);
+  if (base_item && Field<uint8_t>(base_item, ee::kBaseItemWeaponSize) - relative == ee::kCreatureSizeSmall) {
+    relative -= 1;  // a Small creature wields as a Medium one
+  }
   return relative > 1 ? 1 : relative;
+}
+
+uint8_t CanEquipWeapon(void* creature, void* item, uint32_t* slot, int a, int b, void* player) {
+  WeaponSizeAsMedium as_medium(creature);
+  return g_can_equip_weapon(creature, item, slot, a, b, player);
 }
 
 void PatchInlineSizeChecks() {
@@ -137,6 +154,21 @@ void AnswerSizeRuleset() {
 
 }  // namespace
 
+int WeaponWielderSize(void* creature) {
+  const int size = creature ? Field<int32_t>(creature, ee::kCreatureSize) : ee::kCreatureSizeMedium;
+  return Faithful() && size == ee::kCreatureSizeSmall ? ee::kCreatureSizeMedium : size;
+}
+
+WeaponSizeAsMedium::WeaponSizeAsMedium(void* creature) {
+  if (!Faithful() || !creature || Field<int32_t>(creature, ee::kCreatureSize) != ee::kCreatureSizeSmall) return;
+  creature_ = creature;
+  SetField<int32_t>(creature, ee::kCreatureSize, ee::kCreatureSizeMedium);
+}
+
+WeaponSizeAsMedium::~WeaponSizeAsMedium() {
+  if (creature_) SetField<int32_t>(creature_, ee::kCreatureSize, ee::kCreatureSizeSmall);
+}
+
 int HeavyWeaponDisadvantage(void* attacker, bool ranged, std::string* note) {
   if (!Faithful() || !attacker) return 0;
   void* stats = StatsOf(attacker);
@@ -157,6 +189,8 @@ void InstallWeaponSizeRules() {
   HookExport("CNWSCreature::GetRelativeWeaponSize (size: any size wields any weapon, 2024)",
              ee::kGetRelativeWeaponSize, reinterpret_cast<void*>(&ServerRelativeWeaponSize),
              reinterpret_cast<void**>(&g_server_relative_size));
+  HookExport("CNWSCreature::CanEquipWeapon (size: a Small creature wields as a Medium one)", ee::kCanEquipWeapon,
+             reinterpret_cast<void*>(&CanEquipWeapon), reinterpret_cast<void**>(&g_can_equip_weapon));
   PatchInlineSizeChecks();
   AnswerSizeRuleset();
   const uintptr_t whip_check = FindPattern("size: the client's GetRelativeWeaponSize (its whip check)",

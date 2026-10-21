@@ -34,6 +34,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "log_once.h"
+#include "rules/feats2024.h"
 #include "rules/nwn_conversion.h"
 #include "rules/skills.h"
 #include "skill_rank.h"
@@ -92,6 +93,9 @@ rules::Species2024 SpeciesOf(void* stats) {
       return rules::Species2024::kOther;  // other NWN species: the character model (E4)
   }
 }
+
+// The Skilled feat (an Origin feat): 3 more skills of any kind.
+int SkilledFeats(void* stats) { return engine::HasFeat(stats, rules::kFeatSkilled) ? 1 : 0; }
 
 const int8_t* Ranks(void* stats) { return Field<const int8_t*>(stats, ee::kStatsSkillRanks); }
 
@@ -171,7 +175,8 @@ Profile CharacterProfile(void* creature, void* stats, bool is_player) {
   }
   const uint32_t ranks = RankFingerprint(stats);
   if (cached.ranks != ranks || ranks == 0) {
-    cached.profile = ProfileFromRanks(stats, rules::SkillAllowanceFor(ClassLevelsOf(stats), SpeciesOf(stats)));
+    cached.profile = ProfileFromRanks(stats, rules::SkillAllowanceFor(ClassLevelsOf(stats), SpeciesOf(stats),
+                                                                      SkilledFeats(stats)));
     cached.ranks = ranks;
   }
   if (!cached.told && is_player) {
@@ -276,7 +281,8 @@ std::vector<std::string> SkillsCommand(void* creature, const std::string& args) 
   void* stats = creature ? StatsOf(creature) : nullptr;
   if (!stats) return lines;
   const uint32_t id = IdOf(creature);
-  const rules::SkillAllowance allowance = rules::SkillAllowanceFor(ClassLevelsOf(stats), SpeciesOf(stats));
+  const rules::SkillAllowance allowance =
+      rules::SkillAllowanceFor(ClassLevelsOf(stats), SpeciesOf(stats), SkilledFeats(stats));
   Profile profile = CharacterProfile(creature, stats, true);
   std::string rest = args;
   const bool expertise = rest.size() >= 9 && _strnicmp(rest.c_str(), "expertise", 9) == 0;
@@ -297,6 +303,8 @@ std::vector<std::string> SkillsCommand(void* creature, const std::string& args) 
                     ", " + std::to_string(allowance.background_skills) + " more and 1 tool (background)" +
                     (allowance.species_any_skill ? ", 1 more (Human)" : std::string()) +
                     (allowance.species_list ? ", 1 of Insight, Perception or Survival (Elf)" : std::string()) +
+                    (allowance.feat_skills ? ", " + std::to_string(allowance.feat_skills) + " more (Skilled)"
+                                           : std::string()) +
                     (allowance.granted ? "; always: " + Names(allowance.granted) : std::string()) +
                     (allowance.expertise ? "; Expertise in " + std::to_string(allowance.expertise) : std::string()) +
                     ".");
