@@ -52,13 +52,14 @@ void InstallFeatRules();
 void InstallStartingEquipment();
 void InstallWeaponSizeRules();
 void InstallFinesseRules();
+void InstallGiveCommand();
 #ifdef NWN5E_PRIVATE
 void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 #endif
 
 namespace {
 
-constexpr const char* kVersion = "0.12.0";
+constexpr const char* kVersion = "0.12.1";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -113,6 +114,7 @@ void Start(HMODULE self) {
   InstallStartingEquipment();
   InstallWeaponSizeRules();
   InstallFinesseRules();
+  InstallGiveCommand();
   InstallDebugSwitches();
 #ifdef NWN5E_PRIVATE
   InstallPrivateRules();

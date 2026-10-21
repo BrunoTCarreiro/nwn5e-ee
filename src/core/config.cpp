@@ -96,6 +96,7 @@ void ConfigLoad(const wchar_t* directory) {
       ReadBool(ini, L"served_data_probe", g_config.debug_served_data_probe, L"debug");
   g_config.debug_nui_test = ReadBool(ini, L"nui_test", g_config.debug_nui_test, L"debug");
   g_config.debug_client_nui_test = ReadBool(ini, L"client_nui_test", g_config.debug_client_nui_test, L"debug");
+  g_config.debug_give_command = ReadBool(ini, L"give_command", g_config.debug_give_command, L"debug");
   Log("config: mode=%s crit_nat20_only=%d crit_no_confirmation=%d crit_double_damage=%d crit_dice_only=%d "
       "crits_against_players=%d log_attacks=%d",
       VariantName(g_config.mode), g_config.crit_nat20_only, g_config.crit_no_confirmation,
