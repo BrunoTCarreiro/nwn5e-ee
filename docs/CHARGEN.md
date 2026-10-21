@@ -220,3 +220,111 @@ bug); C4–C6 complete level 1; C7 carries it into level-ups.
 5. Equipment: the class's kit + the background's kit, mapped to NWN items
    (no gold alternative).
 6. No rolled scores (point buy and standard array only).
+
+## 9. Every choice the SRD asks for, and where it goes
+
+Owner (2026-10-21): "make sure the plan accounts for edge cases where extra
+screens are required (maybe warlock picking a patron?)". In 2024 the patron
+is the Warlock's **level-3 subclass**, and SRD 5.2 has one per class (the
+Fiend for the Warlock), so subclasses are granted, not chosen — a choice
+appears only if the private layer adds more (then: a choice group at level
+3, below). The Warlock's real level-1 extra is its first Eldritch Invocation.
+
+### 9.1 The mechanisms (no new screens)
+
+The edge cases fall into five mechanisms on pages the plan already uses:
+
+- **Choice groups on the Feats page.** Any "pick one (or N) of a list" is a
+  master feat (the group) with its options as sub-feats (the popup, as
+  Weapon Focus). A table in nwn5e (`rules::`, unit-tested) says who gets how
+  many picks of which group at which level (class level, species, an Origin
+  feat); the Feats page's pick counts come from it and the CanChooseFeat hook
+  (C3) lets each pick take only its group, one option each, with the group's
+  own conditions (e.g. Expertise only in a proficient skill). The Background
+  page's packages list a default for every group, so "OK" fills them too.
+- **Skill picks on the Skills page**, counted by the same table per class,
+  level and species (creation and level-up), 1 rank = proficient.
+- **The Spells page** for spells and cantrips (Phase 4).
+- **The Familiar page**, kept only for a Warlock with Pact of the Chain.
+- **"Skills again"**: a choice made on the Feats page that adds skill picks
+  (Skilled) re-opens the Skills page for those picks — the Configure chain's
+  next-page helper (0x9c69a0) is a small state machine nwn5e can step back
+  into (C8).
+
+### 9.2 Creation (level 1)
+
+| Who | Choice | Mechanism |
+|---|---|---|
+| every class | class skills (Fighter 2, Rogue 4, Bard any 3, Ranger 3, the rest 2) | Skills page |
+| every class | background, its ability split | Background page + the split group |
+| Fighter | Fighting Style (1), Weapon Mastery (3) | groups |
+| Barbarian, Paladin, Ranger, Rogue | Weapon Mastery (2) | group |
+| Rogue | Expertise (2) | group (proficient skills only) |
+| Cleric | Divine Order: Protector / Thaumaturge | group |
+| Druid | Primal Order: Magician / Warden | group |
+| Warlock | Eldritch Invocation (1; the Pacts are invocations) | group |
+| Warlock + Pact of the Chain | the familiar's form | Familiar page (2024 forms mapped to NWN familiars) |
+| Warlock + Pact of the Tome; every caster; Magic Initiate | cantrips and spells | Spells page (Phase 4) |
+| Human | Skillful (1 skill), Versatile (1 Origin feat) | Skills page (+1) and a group |
+| Elf | lineage (Drow / High / Wood) × spellcasting ability; Keen Senses (Insight / Perception / Survival) | groups (one pick each) |
+| Gnome | lineage (Forest / Rock) × ability | group |
+| Dragonborn | ancestry (10 dragons) | group (with the new-species work) |
+| Goliath | giant ancestry (6) | group (new species) |
+| Tiefling | legacy (Abyssal / Chthonic / Infernal) × ability | group (new species) |
+| Dwarf, Halfling, Orc | — | — |
+| Magic Initiate (Origin feat) | spell list (Acolyte: Cleric, Sage: Wizard; a Human's: any of 3) × ability | group; its spells Phase 4 |
+| Skilled (Origin feat) | 3 skills | "Skills again" |
+
+### 9.3 Level-ups
+
+| When | Choice | Mechanism |
+|---|---|---|
+| 3 (every class) | subclass: granted (one in the SRD); a group if the private layer adds more | — / group |
+| 4, 8, 12, 16, 19 (+ Fighter 6 / 14, Rogue 10) | Ability Score Improvement (split popup) or another feat (CM8); Epic Boon at 19 | groups |
+| Fighter 4 / 10 / 16; Barbarian 4 / 10 | one more Weapon Mastery | group |
+| Champion 7 | a second Fighting Style | group (styles only) |
+| Paladin 2, Ranger 2 | Fighting Style, or Blessed / Druidic Warrior (2 cantrips: Phase 4) | group |
+| Bard 2 / 9, Rogue 6, Ranger 2 / 9, Wizard 2 (Scholar: its 6 skills) | Expertise | group |
+| Barbarian 3 (Primal Knowledge), Bard 3 (Lore: 3) | skills | Skills page (counted by the table) |
+| multiclassing into Bard, Ranger or Rogue | 1 skill | Skills page |
+| Sorcerer 2 / 10 / 17 | Metamagic (2 each) | group (effects Phase 4) |
+| Warlock 2, 5, 7, 9, 12, 15, 18 | more invocations (and one swap per level) | group (+ swap) |
+| Hunter 3 / 7 | Hunter's Prey, Defensive Tactics | groups |
+| Land Druid 3 | the land (arid / polar / temperate / tropical) | group |
+| Cleric 7, Druid 7 | Blessed Strikes, Elemental Fury | groups |
+| Draconic Sorcerer 6 | Elemental Affinity (damage type) | group |
+| every caster | new spells | Spells page (Phase 4) |
+
+### 9.4 Changed outside a level-up
+
+2024 lets some choices change on a long rest (a Weapon Mastery, the Land
+Druid's land, the Hunter's choices) or swap at a level-up (a Fighting Style,
+an invocation): the level-up's Feats page offers the swap where it falls on a
+level-up; long-rest changes use chat commands (`!mastery` exists), later a
+window.
+
+### 9.5 Order edge cases
+
+- Background before Skills: its skills are pre-set, so a class pick can't
+  repeat them.
+- Expertise after Skills: only skills just made proficient count.
+- Skilled after Skills: "Skills again" (C8).
+- An invocation needing a cantrip, chosen before the Spells page: allowed,
+  checked when the game starts and re-asked if unmet.
+- Pact of the Chain → the Familiar page follows the Feats page (as NWN's
+  chain already does).
+
+### 9.6 Dropped as flavour
+
+Tools and instruments (beyond what NWN skills use: Thieves' Tools), languages
+(Thieves' Cant, Druidic, Deft Explorer's), size choices (the model decides),
+deity, age, alignment.
+
+### 9.7 Phases, revised
+
+C3 becomes the **choice-group table** + the CanChooseFeat hook (+ client
+CalcNumberFeats for the counts) — the Fighter's groups first, then the other
+classes as their briefs are written; **C3b** species groups (Elf, Gnome;
+Dragonborn / Goliath / Tiefling with their models); **C8** "Skills again";
+**C9** the Familiar page for Pact of the Chain (with the Warlock, CM11);
+spell choices stay Phase 4's (the Spells page).
