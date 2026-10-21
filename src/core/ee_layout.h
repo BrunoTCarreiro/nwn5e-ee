@@ -551,6 +551,9 @@ constexpr int kClientStatsClassSlots = 8;
 constexpr size_t kClientStatsClassSlotSize = 0x150;
 constexpr size_t kClientStatsClassSlotClass = 0x295;
 constexpr size_t kClientStatsClassSlotLevel = 0x296;
+// The server's twin (0x3F1830; same arguments), which the automatic level-ups
+// (LevelUpAutomatic, the script's LevelUpHenchman) ask for every feat they try.
+constexpr const char* kServerCanChooseFeat = "?CanChooseFeat@CNWSCreatureStats@@QEAAHGEEPEAV?$CExoArrayList@G@@@Z";
 // CExoArrayList<T>: the elements' pointer +0, their count int32 +8.
 constexpr size_t kExoArrayListData = 0;
 constexpr size_t kExoArrayListCount = 8;

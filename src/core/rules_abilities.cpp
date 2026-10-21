@@ -478,6 +478,16 @@ std::vector<std::string> BackgroundCommand(void* creature, const std::string& ar
 
 }  // namespace
 
+// !test (test_commands.cpp): the character's base scores become `scores`.
+// The sync runs first, then the engine's scores are set and its recorded
+// change kept — the next sync sees the same change and leaves them.
+void SetTestAbilityScores(void* creature, const int scores[6]) {
+  void* stats = StatsOf(creature);
+  if (!stats) return;
+  Sync(creature, true);
+  for (int i = 0; i < 6; ++i) SetBase(stats, i, scores[i]);
+}
+
 // From the creation screen's Background page (chargen_ui.cpp): the chosen
 // background feat, given to the new character when it enters.
 void SetCreationBackground(int feat) {

@@ -11,6 +11,9 @@ rows, writes it to `build\served\<table>.2da`, and registers that folder with
 the engine's resource manager. The game install is not touched; launching
 NWN without nwn5e is vanilla.
 
+`test.txt` is not served: it is the `!test` profile (`[debug] test_commands`,
+src/rules/test_profile.h), read from `build\data` each time `!test` is typed.
+
 ## rows/<table>.txt (or <table>.<part>.txt)
 
 One file per 2da table (`rows/feat.txt` → feat.2da), or several (`feat.asi.txt`, `feat.styles.txt`: the part before the first dot names the table). `#` starts a comment.
