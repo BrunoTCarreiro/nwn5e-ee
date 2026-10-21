@@ -226,18 +226,34 @@ ParsedPattern ParsePattern(const char* text) {
   return pattern;
 }
 
-// The executable's .text section.
-CodeRange TextSection() {
+// A section of the executable by name (".text", ".rdata", ".data").
+CodeRange Section(const char* name) {
   const auto base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
   const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
   const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS64*>(base + dos->e_lfanew);
   const IMAGE_SECTION_HEADER* section = IMAGE_FIRST_SECTION(nt);
+  const size_t length = strlen(name);
   for (int i = 0; i < nt->FileHeader.NumberOfSections; ++i, ++section) {
-    if (memcmp(section->Name, ".text", 5) == 0) {
+    if (length <= 8 && memcmp(section->Name, name, length) == 0 && (length == 8 || section->Name[length] == 0)) {
       return {base + section->VirtualAddress, base + section->VirtualAddress + section->Misc.VirtualSize, {}};
     }
   }
   return {};
+}
+
+CodeRange TextSection() { return Section(".text"); }
+
+// Every place the bytes occur in [range).
+std::vector<uintptr_t> FindAll(const CodeRange& range, const void* bytes, size_t size) {
+  std::vector<uintptr_t> found;
+  if (!range.Valid() || !size) return found;
+  const auto* first = static_cast<const uint8_t*>(bytes);
+  for (uintptr_t at = range.begin; at + size <= range.end; ++at) {
+    if (*reinterpret_cast<const uint8_t*>(at) == first[0] && memcmp(reinterpret_cast<const void*>(at), bytes, size) == 0) {
+      found.push_back(at);
+    }
+  }
+  return found;
 }
 
 // The one place `pattern` occurs in `range` (0 when none or more than one).
@@ -285,5 +301,112 @@ bool ApplyPatternPatches(const char* what, const PatternPatch* patches, size_t c
     const auto base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
     Log("patch %s: %s at rva 0x%zx", what, patches[i].what, sites[i] - base);
   }
+  return true;
+}
+
+// --- Anchors for code nothing exports --------------------------------------
+
+namespace {
+
+uintptr_t ImageBase() { return reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr)); }
+
+}  // namespace
+
+uintptr_t FunctionEntry(uintptr_t address) {
+  DWORD64 image_base = 0;
+  const RUNTIME_FUNCTION* entry = RtlLookupFunctionEntry(address, &image_base, nullptr);
+  return entry ? static_cast<uintptr_t>(image_base) + RootBegin(static_cast<uintptr_t>(image_base), entry) : 0;
+}
+
+std::vector<uintptr_t> FindStringReferences(const char* text) {
+  std::vector<uintptr_t> references;
+  const size_t size = strlen(text) + 1;  // with its terminating zero
+  std::vector<uintptr_t> strings;
+  for (const char* name : {".rdata", ".data"}) {
+    const std::vector<uintptr_t> found = FindAll(Section(name), text, size);
+    strings.insert(strings.end(), found.begin(), found.end());
+  }
+  if (strings.empty()) return references;
+  // lea r64, [rip + disp32]: REX.W (48 / 4c) 8d, ModRM mod 00 r/m 101.
+  const CodeRange text_section = TextSection();
+  for (uintptr_t at = text_section.begin; at + 7 <= text_section.end; ++at) {
+    const auto* code = reinterpret_cast<const uint8_t*>(at);
+    if ((code[0] != 0x48 && code[0] != 0x4c) || code[1] != 0x8d || (code[2] & 0xc7) != 0x05) continue;
+    int32_t displacement = 0;
+    memcpy(&displacement, code + 3, sizeof(displacement));
+    const uintptr_t target = at + 7 + displacement;
+    if (std::find(strings.begin(), strings.end(), target) != strings.end()) references.push_back(at);
+  }
+  return references;
+}
+
+uintptr_t FunctionByString(const char* what, const char* text) {
+  std::vector<uintptr_t> entries;
+  for (uintptr_t reference : FindStringReferences(text)) {
+    const uintptr_t entry = FunctionEntry(reference);
+    if (entry && std::find(entries.begin(), entries.end(), entry) == entries.end()) entries.push_back(entry);
+  }
+  if (entries.size() != 1) {
+    Log("SKIP %s: \"%s\" is referenced by %zu functions (expected 1)", what, text, entries.size());
+    return 0;
+  }
+  return entries[0];
+}
+
+uintptr_t FindVtable(const char* what, const char* rtti_name) {
+  const uintptr_t base = ImageBase();
+  // The TypeDescriptor: {vftable pointer, spare, name}, the name at +0x10.
+  std::vector<uintptr_t> descriptors;
+  for (const char* name : {".data", ".rdata"}) {
+    for (uintptr_t at : FindAll(Section(name), rtti_name, strlen(rtti_name) + 1)) descriptors.push_back(at - 0x10);
+  }
+  if (descriptors.size() != 1) {
+    Log("SKIP %s: type %s found %zu times", what, rtti_name, descriptors.size());
+    return 0;
+  }
+  // The CompleteObjectLocator (x64): signature 1, offset 0, cdOffset, then the
+  // type descriptor, class descriptor and itself as image-relative offsets.
+  const auto descriptor_rva = static_cast<uint32_t>(descriptors[0] - base);
+  const CodeRange rdata = Section(".rdata");
+  uintptr_t locator = 0;
+  int locators = 0;
+  for (uintptr_t at = rdata.begin; at + 24 <= rdata.end; at += 4) {
+    const auto* col = reinterpret_cast<const uint32_t*>(at);
+    if (col[0] == 1 && col[1] == 0 && col[3] == descriptor_rva && col[5] == static_cast<uint32_t>(at - base)) {
+      locator = at;
+      ++locators;
+    }
+  }
+  if (locators != 1) {
+    Log("SKIP %s: %d complete object locators for %s (expected 1)", what, locators, rtti_name);
+    return 0;
+  }
+  // The vtable follows a pointer to its locator.
+  const uint64_t pointer = locator;
+  const std::vector<uintptr_t> slots = FindAll(rdata, &pointer, sizeof(pointer));
+  if (slots.size() != 1) {
+    Log("SKIP %s: %zu vtables point at %s's locator (expected 1)", what, slots.size(), rtti_name);
+    return 0;
+  }
+  return slots[0] + sizeof(pointer);
+}
+
+uintptr_t VtableSlot(uintptr_t vtable, int slot) {
+  return vtable ? reinterpret_cast<const uintptr_t*>(vtable)[slot] : 0;
+}
+
+bool HookAddress(const char* what, uintptr_t address, void* detour, void** original) {
+  if (!address) {
+    Log("SKIP %s: its code was not found", what);
+    return false;
+  }
+  void* target = reinterpret_cast<void*>(address);
+  MH_STATUS status = MH_CreateHook(target, detour, original);
+  if (status == MH_OK) status = MH_QueueEnableHook(target);
+  if (status != MH_OK) {
+    Log("FAIL %s at %p: %s", what, target, MH_StatusToString(status));
+    return false;
+  }
+  Log("hook %s at rva 0x%zx", what, address - ImageBase());
   return true;
 }

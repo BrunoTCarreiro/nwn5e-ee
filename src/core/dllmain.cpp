@@ -45,6 +45,7 @@ void InstallAbilityRules();
 void InstallFeatureRules();
 void InstallFighterRules();
 void InstallNuiTest();
+void InstallClientUi();
 #ifdef NWN5E_PRIVATE
 void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 #endif
@@ -99,6 +100,7 @@ void Start(HMODULE self) {
   InstallFeatureRules();
   InstallFighterRules();
   InstallNuiTest();
+  InstallClientUi();
   InstallDebugSwitches();
 #ifdef NWN5E_PRIVATE
   InstallPrivateRules();

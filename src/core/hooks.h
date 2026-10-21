@@ -91,3 +91,27 @@ struct PatternPatch {
   size_t size;
 };
 bool ApplyPatternPatches(const char* what, const PatternPatch* patches, size_t count);
+
+// --- Code nothing exports (the client's GUI, docs/CHARGEN.md §10) ----------
+// Found by anchors that survive a rebuild of the same code, checked for
+// uniqueness, and skipped (logged) when they aren't: never hooked blind.
+
+// The entry of the function containing `address` (its .pdata chain's root), 0 if none.
+uintptr_t FunctionEntry(uintptr_t address);
+
+// Every `lea r64, [rip + x]` in .text whose x is the string `text` (with its
+// terminating zero) in .rdata / .data.
+std::vector<uintptr_t> FindStringReferences(const char* text);
+
+// The one function that references `text` (e.g. its own debug message); 0 and
+// logged when none or several do.
+uintptr_t FunctionByString(const char* what, const char* text);
+
+// A class's vtable from its MSVC RTTI name (".?AVJsonWindow@JSON@Nui@@"):
+// TypeDescriptor -> CompleteObjectLocator -> the vtable after a pointer to it.
+// 0 and logged unless each step is unique.
+uintptr_t FindVtable(const char* what, const char* rtti_name);
+uintptr_t VtableSlot(uintptr_t vtable, int slot);
+
+// HookExport for an address found by an anchor; skipped (logged) when 0.
+bool HookAddress(const char* what, uintptr_t address, void* detour, void** original);
