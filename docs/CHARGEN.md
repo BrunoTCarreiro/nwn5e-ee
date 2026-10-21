@@ -488,7 +488,12 @@ a specialist package's school (C2 replaces the packages). Also fixed: six
 strings in data/strings.txt had raw line breaks (the four background
 descriptions and the Background page's two helps showed their first line
 only); a unit test now reads the file (one string per line, ids in range,
-no repeats, every swap's string present).
+no repeats, every swap's string present). **Verified in game (2026-10-21,
+0.7.0):** the owner checked the hub captions, the background descriptions
+and the character sheet; the logs show the species texts, the main-ability
+floor answered (11 -> 8), a Wizard through Customize with no School step,
+and that Wizard entering with its background (Acolyte, Int 17 = 15 + 2, Wis
+13 = 12 + 1) and saving cleanly.
 
 *Decided (owner, 2026-10-21): the Domain step stays until the Cleric
 conversion* — NWN's two domains are picked at creation until the Cleric's
