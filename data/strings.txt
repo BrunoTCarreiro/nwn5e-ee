@@ -21,3 +21,64 @@
 # 16000120-16000121: Second Wind (Fighter F2).
 16000120 Second Wind
 16000121 Second Wind (Fighter, 2024): regain 1d10 + your Fighter level hit points. Uses: 2 (3 from Fighter 4, 4 from 10), back on a rest. In the 2024 rules this is a Bonus Action; until nwn5e has bonus actions (Phase 6) it takes your action.\n\nFrom Fighter 5 (Tactical Shift), for the rest of the round you can move without provoking opportunity attacks.
+# 16000200-16000237: the backgrounds chosen at creation (CM5, docs/CHARGEN.md).
+16000200 Background: Acolyte
+16000204 Background (2024): Acolyte. Choose one background at level 1, in the version with the ability increases you want.
+
+Ability scores: +2 to one and +1 to another of Intelligence, Wisdom and Charisma, or +1 to all three.
+Origin feat: Magic Initiate (Cleric) (recorded until Magic Initiate is built (Phase 4's spells)).
+Skill proficiencies: Insight, Religion. Tool: Calligrapher's Supplies.
+
+nwn5e applies the increases and the skills when you enter the game; !background shows or changes your background.
+16000210 Acolyte: Intelligence +2, Wisdom +1
+16000211 Acolyte: Intelligence +2, Charisma +1
+16000212 Acolyte: Wisdom +2, Intelligence +1
+16000213 Acolyte: Wisdom +2, Charisma +1
+16000214 Acolyte: Charisma +2, Intelligence +1
+16000215 Acolyte: Charisma +2, Wisdom +1
+16000216 Acolyte: Intelligence, Wisdom and Charisma +1
+16000201 Background: Criminal
+16000205 Background (2024): Criminal. Choose one background at level 1, in the version with the ability increases you want.
+
+Ability scores: +2 to one and +1 to another of Dexterity, Constitution and Intelligence, or +1 to all three.
+Origin feat: Alert (works: your proficiency bonus is added to initiative).
+Skill proficiencies: Sleight of Hand, Stealth. Tool: Thieves' Tools.
+
+nwn5e applies the increases and the skills when you enter the game; !background shows or changes your background.
+16000217 Criminal: Dexterity +2, Constitution +1
+16000218 Criminal: Dexterity +2, Intelligence +1
+16000219 Criminal: Constitution +2, Dexterity +1
+16000220 Criminal: Constitution +2, Intelligence +1
+16000221 Criminal: Intelligence +2, Dexterity +1
+16000222 Criminal: Intelligence +2, Constitution +1
+16000223 Criminal: Dexterity, Constitution and Intelligence +1
+16000202 Background: Sage
+16000206 Background (2024): Sage. Choose one background at level 1, in the version with the ability increases you want.
+
+Ability scores: +2 to one and +1 to another of Constitution, Intelligence and Wisdom, or +1 to all three.
+Origin feat: Magic Initiate (Wizard) (recorded until Magic Initiate is built (Phase 4's spells)).
+Skill proficiencies: Arcana, History. Tool: Calligrapher's Supplies.
+
+nwn5e applies the increases and the skills when you enter the game; !background shows or changes your background.
+16000224 Sage: Constitution +2, Intelligence +1
+16000225 Sage: Constitution +2, Wisdom +1
+16000226 Sage: Intelligence +2, Constitution +1
+16000227 Sage: Intelligence +2, Wisdom +1
+16000228 Sage: Wisdom +2, Constitution +1
+16000229 Sage: Wisdom +2, Intelligence +1
+16000230 Sage: Constitution, Intelligence and Wisdom +1
+16000203 Background: Soldier
+16000207 Background (2024): Soldier. Choose one background at level 1, in the version with the ability increases you want.
+
+Ability scores: +2 to one and +1 to another of Strength, Dexterity and Constitution, or +1 to all three.
+Origin feat: Savage Attacker (recorded until Savage Attacker is built).
+Skill proficiencies: Athletics, Intimidation. Tool: a Gaming Set.
+
+nwn5e applies the increases and the skills when you enter the game; !background shows or changes your background.
+16000231 Soldier: Strength +2, Dexterity +1
+16000232 Soldier: Strength +2, Constitution +1
+16000233 Soldier: Dexterity +2, Strength +1
+16000234 Soldier: Dexterity +2, Constitution +1
+16000235 Soldier: Constitution +2, Strength +1
+16000236 Soldier: Constitution +2, Dexterity +1
+16000237 Soldier: Strength, Dexterity and Constitution +1

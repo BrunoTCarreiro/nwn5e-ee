@@ -10,6 +10,10 @@
 namespace engine {
 
 bool HasFeat(void* stats, int feat);
+// The feat added to / removed from the character's own list (the client
+// follows on the next player update); AddFeat is false when it didn't take.
+bool AddFeat(void* stats, int feat);
+void RemoveFeat(void* stats, int feat);
 void* ItemInSlot(void* creature, int slot);  // CNWSItem*, or null
 int BaseItemRow(const void* item);           // baseitems.2da row, -1 for no item
 int BaseItemRowInSlot(void* creature, int slot);

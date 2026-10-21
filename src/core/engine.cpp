@@ -26,6 +26,7 @@ using CalcModifierFn = int8_t (*)(void* stats, uint8_t score);
 using DexModFn = int8_t (*)(void* stats, int armor_dex_cap);
 using AbilityModFn = int8_t (*)(void* stats, uint8_t ability);
 using IsDmFn = int (*)(void* stats);
+using FeatChangeFn = void (*)(void* stats, uint16_t feat);
 
 struct Api {
   HasFeatFn has_feat = reinterpret_cast<HasFeatFn>(EngineExport(ee::kHasFeat));
@@ -46,6 +47,8 @@ struct Api {
   DexModFn dex_mod = reinterpret_cast<DexModFn>(EngineExport(ee::kGetDEXMod));
   AbilityModFn ability_mod = reinterpret_cast<AbilityModFn>(EngineExport(ee::kGetAbilityMod));
   IsDmFn is_dm = reinterpret_cast<IsDmFn>(EngineExport(ee::kGetIsDM));
+  FeatChangeFn add_feat = reinterpret_cast<FeatChangeFn>(EngineExport(ee::kAddFeat));
+  FeatChangeFn remove_feat = reinterpret_cast<FeatChangeFn>(EngineExport(ee::kRemoveFeat));
 };
 
 const Api& E() {
@@ -61,6 +64,16 @@ float PersonalSpace(const void* creature) {
 }  // namespace
 
 bool HasFeat(void* stats, int feat) { return stats && E().has_feat && E().has_feat(stats, static_cast<uint16_t>(feat)); }
+
+bool AddFeat(void* stats, int feat) {
+  if (!stats || !E().add_feat) return false;
+  E().add_feat(stats, static_cast<uint16_t>(feat));
+  return HasFeat(stats, feat);  // the engine refuses a row its feat table lacks
+}
+
+void RemoveFeat(void* stats, int feat) {
+  if (stats && E().remove_feat) E().remove_feat(stats, static_cast<uint16_t>(feat));
+}
 
 void* ItemInSlot(void* creature, int slot) {
   void* inventory = creature ? Field<void*>(creature, ee::kCreatureInventory) : nullptr;

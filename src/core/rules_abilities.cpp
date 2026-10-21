@@ -19,6 +19,11 @@
 // - EP15 (a): if the level-up screen still offers its +1 every 4 levels (the
 //   feat-cadence patches missing), the +1 is taken back at once and the player
 //   is pointed to the Ability Score Improvement feat.
+// - the background is chosen on the creation screen (docs/CHARGEN.md): the
+//   level-1 general pick lists the four SRD backgrounds, each with its seven
+//   ability splits (feat.background.txt; the Fighter packages default to
+//   Soldier); that feat is the record. !background shows or changes it (the
+//   feat swapped); an older !background record in local variables still counts.
 // The Origin feat: Alert (Criminal) works (initiative); Savage Attacker and
 // Magic Initiate are recorded, and work when those feats are built.
 // NWN mode: NWN's (and any recorded change undone).
@@ -67,6 +72,74 @@ constexpr const char* kVarLegacy = "nwn5e_asi_legacy";         // legacy ASIs + 
 constexpr int kMaxLegacy = 7;
 constexpr DWORD kSyncEveryMs = 2000;
 constexpr int kLastBaseClass = 10;
+
+// The character's background: its background feat (chosen at creation's
+// level-1 general pick, or set by !background — saved with the character,
+// exports included), else the record an older !background left in local
+// variables.
+struct CurrentBackground {
+  rules::Background background = rules::Background::kNone;
+  int amounts[6] = {0, 0, 0, 0, 0, 0};
+  int feat = -1;  // the background feat; -1 when read from the old record
+};
+
+CurrentBackground ReadBackground(void* creature, void* stats) {
+  CurrentBackground current;
+  const int last = rules::kBackgroundFeatFirst + rules::kBackgroundFeatCount;
+  for (int feat = rules::kBackgroundFeatFirst; stats && feat < last; ++feat) {
+    if (!engine::HasFeat(stats, feat)) continue;
+    const auto choice = rules::BackgroundFromFeat(feat);
+    if (!choice || !rules::BackgroundIncreases(choice->background, choice->chosen, current.amounts).empty()) continue;
+    current.background = choice->background;
+    current.feat = feat;
+    return current;
+  }
+  for (int& amount : current.amounts) amount = 0;
+  if (!creature) return current;
+  current.background = static_cast<rules::Background>(engine::GetLocalInt(creature, kVarBackground));
+  rules::DecodeAmounts(engine::GetLocalInt(creature, kVarBackgroundBonus), current.amounts);
+  return current;
+}
+
+// Records a background as its feat (any other background feat removed, the
+// old local record cleared); the local record stays the fallback when the
+// feat can't be added (served data off).
+void SetBackground(void* creature, void* stats, rules::Background background, const int amounts[6]) {
+  int feat = -1;
+  for (int split = 0; split < rules::kBackgroundSplits && feat < 0; ++split) {
+    const int row = rules::BackgroundFeat(background, split);
+    const auto choice = rules::BackgroundFromFeat(row);
+    int split_amounts[6];
+    if (choice && rules::BackgroundIncreases(background, choice->chosen, split_amounts).empty() &&
+        std::equal(split_amounts, split_amounts + 6, amounts)) {
+      feat = row;
+    }
+  }
+  const int last = rules::kBackgroundFeatFirst + rules::kBackgroundFeatCount;
+  for (int row = rules::kBackgroundFeatFirst; row < last; ++row) {
+    if (row != feat && engine::HasFeat(stats, row)) engine::RemoveFeat(stats, row);
+  }
+  if (feat >= 0 && (engine::HasFeat(stats, feat) || engine::AddFeat(stats, feat))) {
+    engine::SetLocalInt(creature, kVarBackground, 0);
+    engine::SetLocalInt(creature, kVarBackgroundBonus, 0);
+    return;
+  }
+  engine::SetLocalInt(creature, kVarBackground, static_cast<int>(background));
+  engine::SetLocalInt(creature, kVarBackgroundBonus, rules::EncodeAmounts(amounts));
+}
+
+// NWN mode / off: the background feats aren't offered.
+void HideBackgroundRows(void* rules_object, bool reload) {
+  auto* feats = Field<uint8_t*>(rules_object, ee::kRulesFeats);
+  const int count = Field<uint16_t>(rules_object, ee::kRulesFeatCount);
+  if (!feats) return;
+  int hidden = 0;
+  const int last = rules::kBackgroundFeatFirst + rules::kBackgroundFeatCount;
+  for (int id = rules::kBackgroundFeatFirst; id < last && id < count; ++id, ++hidden) {
+    SetField<uint8_t>(feats + id * ee::kFeatStride, ee::kFeatMinLevel, 0xFF);
+  }
+  if (!reload) Log("abilities: NWN's - %d background feats hidden", hidden);
+}
 
 LevelUpFn g_level_up = nullptr;
 bool g_faithful = false;
@@ -164,7 +237,8 @@ void Sync(void* creature, bool force) {
       if (bumped >= 0 && bumped < 6) ++bumps[bumped];
     }
     if (facts.is_player) {
-      rules::DecodeAmounts(engine::GetLocalInt(creature, kVarBackgroundBonus), background);
+      const CurrentBackground current = ReadBackground(creature, stats);
+      std::copy(current.amounts, current.amounts + 6, background);
       for (const AsiSlot& slot : PlayerAsis(creature, stats)) {
         if (const auto asi = rules::DecodeAsi(slot.choice)) asis.push_back(*asi);
       }
@@ -195,7 +269,8 @@ void Sync(void* creature, bool force) {
     Log("abilities: %s 0x%08X base scores %s: %s (level +1s %d, background %s, %d ASIs)", KindOf(facts), id,
         g_faithful ? "2024" : "back to NWN's", changes.c_str(),
         bumps[0] + bumps[1] + bumps[2] + bumps[3] + bumps[4] + bumps[5],
-        engine::GetLocalInt(creature, kVarBackground) ? "yes" : "no", static_cast<int>(asis.size()));
+        ReadBackground(creature, stats).background != rules::Background::kNone ? "yes" : "no",
+        static_cast<int>(asis.size()));
   }
 }
 
@@ -329,9 +404,10 @@ std::vector<std::string> BackgroundCommand(void* creature, const std::string& ar
   const std::vector<std::string> words = Words(args);
   if (words.empty()) {
     std::vector<std::string> lines;
-    const rules::BackgroundInfo* current =
-        rules::BackgroundData(static_cast<rules::Background>(engine::GetLocalInt(creature, kVarBackground)));
-    lines.push_back(current ? "nwn5e: your background is " + std::string(current->name) + "."
+    const CurrentBackground chosen = ReadBackground(creature, stats);
+    const rules::BackgroundInfo* current = rules::BackgroundData(chosen.background);
+    lines.push_back(current ? "nwn5e: your background is " + std::string(current->name) +
+                                  (chosen.feat >= 0 ? " (its feat is on your character sheet)." : ".")
                             : "nwn5e: choose your background (2024): !background <name> <+2 ability> <+1 ability>, "
                               "or three abilities for +1 each.");
     for (const rules::BackgroundInfo& b : rules::Backgrounds2024()) {
@@ -352,8 +428,7 @@ std::vector<std::string> BackgroundCommand(void* creature, const std::string& ar
   int amounts[6];
   const std::string error = rules::BackgroundIncreases(*background, chosen, amounts);
   if (!error.empty()) return {"nwn5e: " + error + "."};
-  engine::SetLocalInt(creature, kVarBackground, static_cast<int>(*background));
-  engine::SetLocalInt(creature, kVarBackgroundBonus, rules::EncodeAmounts(amounts));
+  SetBackground(creature, stats, *background, amounts);
   Sync(creature, true);
   const rules::BackgroundInfo* info = rules::BackgroundData(*background);
   std::string increases;
@@ -374,15 +449,14 @@ std::vector<std::string> BackgroundCommand(void* creature, const std::string& ar
 // The background's skills (and tool), for the skill values (rules_skills.cpp).
 rules::SkillSet BackgroundSkills(void* creature) {
   if (!g_faithful || !creature) return 0;
-  const rules::BackgroundInfo* info =
-      rules::BackgroundData(static_cast<rules::Background>(engine::GetLocalInt(creature, kVarBackground)));
+  const rules::BackgroundInfo* info = rules::BackgroundData(ReadBackground(creature, StatsOf(creature)).background);
   return info ? info->skills : 0;
 }
 
 // Alert from the Criminal background (rules_initiative.cpp).
 bool HasAlertFromBackground(void* creature) {
   return g_faithful && creature &&
-         engine::GetLocalInt(creature, kVarBackground) == static_cast<int>(rules::Background::kCriminal);
+         ReadBackground(creature, StatsOf(creature)).background == rules::Background::kCriminal;
 }
 
 void InstallAbilityRules() {
@@ -393,7 +467,10 @@ void InstallAbilityRules() {
              reinterpret_cast<void*>(&LevelUp), reinterpret_cast<void**>(&g_level_up));
   AddChatCommand("!asi", &AsiCommand);
   AddChatCommand("!background", &BackgroundCommand);
-  if (!g_faithful) return;
+  if (!g_faithful) {
+    OnRulesLoaded(&HideBackgroundRows);
+    return;
+  }
   OnRulesLoaded(&ApplyLoadedTables);
   AnswerRulesetInt("CHARGEN_BASE_ABILITY_MAX", "abilities: point buy to 15 (2024)", &MaxBaseScore);
   AnswerRulesetInt("CHARGEN_ABILITY_COST_INCREMENT2", "abilities: 2 points from 13 (2024)", &SecondPointFrom);

@@ -119,3 +119,21 @@ class and appearance would be written by hand.
 - **CM8 coupling:** with only the styles and ASI flagged as Fighter bonus
   feats, NWN's fighter feats (Power Attack, Weapon Focus...) leave the
   Fighter's feat slots — consistent with 2024, but it is CM8's decision.
+
+## 6. Decided and built
+
+**Decided (owner, 2026-10-21): fully native** — every 2024 choice on the
+creation screens, so the character is complete when the game starts; the
+background prototype first.
+
+*Background prototype (0.5.5):* the level-1 general pick lists the four SRD
+backgrounds as master feats (masterfeats rows 40–43), each opening its seven
+ability splits (feat rows 1230–1257, `rules::BackgroundFromFeat`; general for
+every class, level 1 only — MaxLevel 1, as NWN's own background feats). The
+Fighter packages put Soldier first (Str +2 / Con +1; the finesse package Dex
++2 / Con +1), so Recommended takes it. nwn5e reads the background from that
+feat (the record travels with the character, exports included); `!background`
+shows it and changes it by swapping the feat; an older `!background` record in
+local variables still counts. NWN's general feats stay in that pick for now
+(trade-off 1 not settled); a Human's second level-1 pick could take a second
+background (the first one counts). NWN mode hides the rows.

@@ -1,0 +1,7 @@
+# masterfeats.2da - the four SRD 5.2 backgrounds, each the master of its seven ability
+# splits (feat.background.txt). Rows well past the game's last (17).
+LABEL STRREF DESCRIPTION ICON
+40 NWN5E_BG_ACOLYTE 16000200 16000204 ife_X1Strong
+41 NWN5E_BG_CRIMINAL 16000201 16000205 ife_X1Stealth
+42 NWN5E_BG_SAGE 16000202 16000206 ife_X1Art
+43 NWN5E_BG_SOLDIER 16000203 16000207 ife_X1Blood

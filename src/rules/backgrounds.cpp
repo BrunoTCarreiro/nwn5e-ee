@@ -81,4 +81,31 @@ std::optional<AbilityIncrease> DecodeAsi(int encoded) {
   return asi;
 }
 
+namespace {
+// The +2 / +1 pairs over a background's abilities (indices 0-2), splits 0-5.
+constexpr int kSplitPairs[6][2] = {{0, 1}, {0, 2}, {1, 0}, {1, 2}, {2, 0}, {2, 1}};
+}  // namespace
+
+int BackgroundFeat(Background background, int split) {
+  const int index = static_cast<int>(background) - 1;  // Acolyte 0 .. Soldier 3
+  if (index < 0 || index >= 4 || split < 0 || split >= kBackgroundSplits) return -1;
+  return kBackgroundFeatFirst + index * kBackgroundSplits + split;
+}
+
+std::optional<BackgroundFeatChoice> BackgroundFromFeat(int feat) {
+  const int row = feat - kBackgroundFeatFirst;
+  if (row < 0 || row >= kBackgroundFeatCount) return std::nullopt;
+  const auto background = static_cast<Background>(row / kBackgroundSplits + 1);
+  const BackgroundInfo* info = BackgroundData(background);
+  if (!info) return std::nullopt;
+  const int split = row % kBackgroundSplits;
+  BackgroundFeatChoice choice{background, {}};
+  if (split == 6) {
+    choice.chosen.assign(std::begin(info->abilities), std::end(info->abilities));
+  } else {
+    choice.chosen = {info->abilities[kSplitPairs[split][0]], info->abilities[kSplitPairs[split][1]]};
+  }
+  return choice;
+}
+
 }  // namespace rules

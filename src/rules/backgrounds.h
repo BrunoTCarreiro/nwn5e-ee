@@ -38,4 +38,24 @@ void DecodeAmounts(int encoded, int amounts[6]);
 int EncodeAsi(const AbilityIncrease& asi);
 std::optional<AbilityIncrease> DecodeAsi(int encoded);
 
+// Background feats (docs/CHARGEN.md): the creation screen's level-1 general
+// pick offers each background as a master feat whose sub-feats are its seven
+// ability splits — feat.2da row kBackgroundFeatFirst + 7 x (background - 1)
+// + split, where splits 0-5 are +2 / +1 over the background's three
+// abilities in the order (1,2) (1,3) (2,1) (2,3) (3,1) (3,2), and 6 is +1
+// each. The feat is the record: saved with the character, exports included.
+constexpr int kBackgroundFeatFirst = 1230;
+constexpr int kBackgroundSplits = 7;
+constexpr int kBackgroundFeatCount = 4 * kBackgroundSplits;
+
+// The feat row for a background and split, or -1.
+int BackgroundFeat(Background background, int split);
+
+struct BackgroundFeatChoice {
+  Background background;
+  std::vector<Ability> chosen;  // as BackgroundIncreases takes them
+};
+// The background and abilities a feat row stands for (nullopt: not one).
+std::optional<BackgroundFeatChoice> BackgroundFromFeat(int feat);
+
 }  // namespace rules
