@@ -97,26 +97,26 @@
 # 16000300-16000323: the 2024 starting-equipment packages (docs/CHARGEN.md C2; tools/data/kits.py),
 # name then description.
 16000300 Barbarian
-16000301 Starting equipment (2024): a Greataxe, 4 Handaxes, a Torch (for the Explorer's Pack) and 15 gold.\n\nYour background adds its own equipment when you enter the game.
+16000301 Starting equipment (2024): a Greataxe, a Handaxe, a Torch (for the Explorer's Pack) and 15 gold.\n\nYour background adds its own equipment when you enter the game (nothing you already have).
 16000302 Bard
-16000303 Starting equipment (2024): Leather Armor, 2 Daggers, a Torch (for the Entertainer's Pack) and 19 gold. The game has no musical instruments.\n\nYour background adds its own equipment when you enter the game.
+16000303 Starting equipment (2024): Leather Armor, a Dagger, a Torch (for the Entertainer's Pack) and 19 gold. The game has no musical instruments.\n\nYour background adds its own equipment when you enter the game (nothing you already have).
 16000304 Cleric
-16000305 Starting equipment (2024): a Chain Shirt, a Large Shield, a Mace, a Torch (for the Priest's Pack) and 7 gold. The game has no holy symbols.\n\nYour background adds its own equipment when you enter the game.
+16000305 Starting equipment (2024): a Chain Shirt, a Large Shield, a Mace, a Torch (for the Priest's Pack) and 7 gold. The game has no holy symbols.\n\nYour background adds its own equipment when you enter the game (nothing you already have).
 16000306 Druid
-16000307 Starting equipment (2024): Leather Armor, a Large Shield, a Sickle, a Quarterstaff (your druidic focus), a Torch (for the Explorer's Pack) and 9 gold.\n\nYour background adds its own equipment when you enter the game.
+16000307 Starting equipment (2024): Leather Armor, a Large Shield, a Sickle, a Quarterstaff (your druidic focus), a Torch (for the Explorer's Pack) and 9 gold.\n\nYour background adds its own equipment when you enter the game (nothing you already have).
 16000308 Fighter: Great Weapon
-16000309 Starting equipment (2024, option A): Chainmail, a Greatsword, a Light Flail, Throwing Axes (for the 8 Javelins: the game has no javelins), a Torch (for the Dungeoneer's Pack) and 4 gold.\n\nFighting Style: Great Weapon Fighting.\n\nYour background adds its own equipment when you enter the game.
+16000309 Starting equipment (2024, option A): Chainmail, a Greatsword, a Light Flail, Throwing Axes (for the 8 Javelins: the game has no javelins), a Torch (for the Dungeoneer's Pack) and 4 gold.\n\nFighting Style: Great Weapon Fighting.\n\nYour background adds its own equipment when you enter the game (nothing you already have).
 16000310 Fighter: Archer
-16000311 Starting equipment (2024, option B): Studded Leather Armor, a Scimitar, a Short Sword, a Longbow, Arrows, a Torch (for the Dungeoneer's Pack) and 11 gold.\n\nFighting Style: Archery.\n\nYour background adds its own equipment when you enter the game.
+16000311 Starting equipment (2024, option B): Studded Leather Armor, a Scimitar, a Short Sword, a Longbow, Arrows, a Torch (for the Dungeoneer's Pack) and 11 gold.\n\nFighting Style: Archery.\n\nYour background adds its own equipment when you enter the game (nothing you already have).
 16000312 Monk
-16000313 Starting equipment (2024): a Spear, 5 Daggers, a Torch (for the Explorer's Pack) and 11 gold.\n\nYour background adds its own equipment when you enter the game.
+16000313 Starting equipment (2024): a Spear, a Dagger, a Torch (for the Explorer's Pack) and 11 gold.\n\nYour background adds its own equipment when you enter the game (nothing you already have).
 16000314 Paladin
-16000315 Starting equipment (2024): Chainmail, a Large Shield, a Longsword, Throwing Axes (for the 6 Javelins: the game has no javelins), a Torch (for the Priest's Pack) and 9 gold.\n\nYour background adds its own equipment when you enter the game.
+16000315 Starting equipment (2024): Chainmail, a Large Shield, a Longsword, Throwing Axes (for the 6 Javelins: the game has no javelins), a Torch (for the Priest's Pack) and 9 gold.\n\nYour background adds its own equipment when you enter the game (nothing you already have).
 16000316 Ranger
-16000317 Starting equipment (2024): Studded Leather Armor, a Scimitar, a Short Sword, a Longbow, Arrows, a Torch (for the Explorer's Pack) and 7 gold.\n\nYour background adds its own equipment when you enter the game.
+16000317 Starting equipment (2024): Studded Leather Armor, a Scimitar, a Short Sword, a Longbow, Arrows, a Torch (for the Explorer's Pack) and 7 gold.\n\nYour background adds its own equipment when you enter the game (nothing you already have).
 16000318 Rogue
-16000319 Starting equipment (2024): Leather Armor, 2 Daggers, a Short Sword, a Shortbow, Arrows, Thieves' Tools, a Torch (for the Burglar's Pack) and 8 gold.\n\nYour background adds its own equipment when you enter the game.
+16000319 Starting equipment (2024): Leather Armor, a Dagger, a Short Sword, a Shortbow, Arrows, Thieves' Tools, a Torch (for the Burglar's Pack) and 8 gold.\n\nYour background adds its own equipment when you enter the game (nothing you already have).
 16000320 Sorcerer
-16000321 Starting equipment (2024): a Spear, 2 Daggers, a Torch (for the Dungeoneer's Pack) and 28 gold.\n\nYour background adds its own equipment when you enter the game.
+16000321 Starting equipment (2024): a Spear, a Dagger, a Torch (for the Dungeoneer's Pack) and 28 gold.\n\nYour background adds its own equipment when you enter the game (nothing you already have).
 16000322 Wizard
-16000323 Starting equipment (2024): 2 Daggers, a Quarterstaff (your arcane focus), a Wizard's Robe, a Torch (for the Scholar's Pack) and 5 gold. Wizards in the game need no spellbook.\n\nYour background adds its own equipment when you enter the game.
+16000323 Starting equipment (2024): a Dagger, a Quarterstaff (your arcane focus), a Wizard's Robe, a Torch (for the Scholar's Pack) and 5 gold. Wizards in the game need no spellbook.\n\nYour background adds its own equipment when you enter the game (nothing you already have).

@@ -30,25 +30,35 @@ void InstallStartingEquipment() {
 }
 
 // The background's kit for a character made on the creation screen (called
-// once, as it enters with its background).
+// once, as it enters with its background). An item the character already
+// has (carried or worn: the class kit's robe, quarterstaff, dagger, spear) is
+// not given twice (owner, 2026-10-21).
 void GiveBackgroundKit(uint32_t creature_id, rules::Background background) {
   if (g_config.starting_equipment != rules::RuleVariant::kFaithful) return;
   const rules::BackgroundKit kit = rules::BackgroundKit2024(background);
   if (kit.items.empty() && kit.gold == 0) return;
-  std::string code = "object o = OBJECT_SELF;";
+  std::string code = "object o = OBJECT_SELF; object it; int has; int slot;";
   std::string given;
   for (const rules::KitItem& item : kit.items) {
-    char line[160];
+    char line[512];
+    sprintf_s(line,
+              " has = 0; it = GetFirstItemInInventory(o);"
+              " while (GetIsObjectValid(it)) { if (GetResRef(it) == \"%s\") has = 1; it = GetNextItemInInventory(o); }"
+              " for (slot = 0; slot < NUM_INVENTORY_SLOTS; slot++) if (GetResRef(GetItemInSlot(slot, o)) == \"%s\") has = 1;"
+              " if (!has) {",
+              item.blueprint, item.blueprint);
+    code += line;
     const int creates = item.one_stack ? 1 : item.count;
     for (int i = 0; i < creates; ++i) {
       sprintf_s(line, " CreateItemOnObject(\"%s\", o, %d);", item.blueprint, item.one_stack ? item.count : 1);
       code += line;
     }
+    code += " }";
     sprintf_s(line, "%s%s x%d", given.empty() ? "" : ", ", item.blueprint, item.count);
     given += line;
   }
   if (kit.gold > 0) code += " GiveGoldToCreature(o, " + std::to_string(kit.gold) + ");";
   const int result = RunScriptChunk(code.c_str(), creature_id);
-  Log("starting equipment: 0x%08X the %s background's kit - %s, %d gold (script %d)", creature_id,
-      rules::BackgroundData(background)->name, given.c_str(), kit.gold, result);
+  Log("starting equipment: 0x%08X the %s background's kit - %s (each unless already had), %d gold (script %d)",
+      creature_id, rules::BackgroundData(background)->name, given.c_str(), kit.gold, result);
 }

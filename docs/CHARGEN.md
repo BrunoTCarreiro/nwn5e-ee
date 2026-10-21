@@ -554,6 +554,12 @@ tables stay NWN's. Skill preferences wait for C5.
 a package item comes as its blueprint's stack (50 Throwing Axes for 8
 javelins, 99 Arrows for 20), the 2024 gold is far below NWN's (4-28 gold
 against 20-100), and NWN's starting healing potions are gone.
+0.9.1 (owner's C2 test: a Sage Wizard had two robes, two quarterstaves and
+two daggers): the background's kit skips an item the character already
+carries or wears (by blueprint), and the kits give one dagger or handaxe
+where the SRD gives several (spares to throw; the game can't throw them) —
+the Barbarian's 4 handaxes, the Monk's 5 daggers, everyone's 2, the
+Criminal's 2.
 
 *Decided (owner, 2026-10-21): the Domain step stays until the Cleric
 conversion* — NWN's two domains are picked at creation until the Cleric's

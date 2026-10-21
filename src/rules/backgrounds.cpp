@@ -149,8 +149,8 @@ BackgroundKit BackgroundKit2024(Background background) {
   switch (background) {
     case Background::kAcolyte:  // Calligrapher's Supplies, Book (prayers), Holy Symbol, Parchment, Robe, 8 GP
       return {{{"nw_cloth005", 1}}, 8};
-    case Background::kCriminal:  // 2 Daggers, Thieves' Tools, Crowbar, 2 Pouches, Traveler's Clothes, 16 GP
-      return {{{"nw_wswdg001", 2}, {"nw_it_picks001", 1}}, 16};
+    case Background::kCriminal:  // 2 Daggers (one: a spare to throw), Thieves' Tools, Crowbar, Pouches, Clothes, 16 GP
+      return {{{"nw_wswdg001", 1}, {"nw_it_picks001", 1}}, 16};
     case Background::kSage:  // Quarterstaff, Calligrapher's Supplies, Book (history), Parchment, Robe, 8 GP
       return {{{"nw_wdbqs001", 1}, {"nw_cloth005", 1}}, 8};
     case Background::kSoldier:  // Spear, Shortbow, 20 Arrows, Gaming Set, Healer's Kit, Quiver, Clothes, 14 GP

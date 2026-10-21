@@ -15,9 +15,10 @@ The ".if_kits" rows are served only with starting_equipment faithful
 SRD 5.2 kits (option A), mapped to NWN items: packs become a Torch; flavour
 items with no NWN counterpart (instruments, holy symbols, arcane and druidic
 foci, spellbook, books, parchment) are left out; NWN has no javelin, so
-javelins are Throwing Axes (d6). A package item comes as its blueprint's
-stack (50 throwing axes, 99 arrows) — to revisit with the starting items'
-balance (owner, 2026-10-21).
+javelins are Throwing Axes (d6); the kits' several daggers or handaxes
+(spares to throw: the game can't throw them) are one (owner, 2026-10-21). A
+package item comes as its blueprint's stack (50 throwing axes, 99 arrows) —
+to revisit with the starting items' balance (owner, 2026-10-21).
 
 Run from the repo root:  python tools/data/kits.py
 """
@@ -37,9 +38,9 @@ TORCH = 'nw_it_torch001'
 # default and Finesse packages), items.
 KITS = [
     ('barb', 140, 'NWN5E_Barbarian', 16000300, 0, 'STR', 15, '****', '****', '****', '****',
-     '****', 'PackFTBarb1', 'PackSKBarb1', ['nw_waxgr001'] + ['nw_waxhn001'] * 4 + [TORCH]),
+     '****', 'PackFTBarb1', 'PackSKBarb1', ['nw_waxgr001'] + ['nw_waxhn001'] + [TORCH]),
     ('bard', 141, 'NWN5E_Bard', 16000302, 1, 'CHA', 19, '8', '****', '****', '****',
-     'PackSPBar1', 'PackFTBard1', 'PackSKBard1', [ARMOR_LEATHER] + ['nw_wswdg001'] * 2 + [TORCH]),
+     'PackSPBar1', 'PackFTBard1', 'PackSKBard1', [ARMOR_LEATHER] + ['nw_wswdg001'] + [TORCH]),
     ('cler', 142, 'NWN5E_Cleric', 16000304, 2, 'WIS', 7, '****', '9', '17', '****',
      'PackSPCleric1', 'PackFTCler1', 'PackSKCler1', [ARMOR_CHAIN_SHIRT, SHIELD, 'nw_wblml001', TORCH]),
     ('druid', 143, 'NWN5E_Druid', 16000306, 3, 'WIS', 9, '****', '****', '****', '1',
@@ -50,7 +51,7 @@ KITS = [
      '****', 'PackFTFight2', 'PackSKFight2',
      [ARMOR_STUDDED, 'nw_wswsc001', 'nw_wswss001', 'nw_wbwln001', 'nw_wamar001', TORCH]),
     ('monk', 146, 'NWN5E_Monk', 16000312, 5, 'WIS', 11, '****', '****', '****', '****',
-     '****', 'PackFTMonk1', 'PackSKMonk1', ['nw_wplss001'] + ['nw_wswdg001'] * 5 + [TORCH]),
+     '****', 'PackFTMonk1', 'PackSKMonk1', ['nw_wplss001'] + ['nw_wswdg001'] + [TORCH]),
     ('pala', 147, 'NWN5E_Paladin', 16000314, 6, 'CHA', 9, '****', '****', '****', '****',
      'PackSPPala1', 'PackFTPala1', 'PackSKPala1', [ARMOR_CHAINMAIL, SHIELD, 'nw_wswls001', 'nw_wthax001', TORCH]),
     ('rang', 148, 'NWN5E_Ranger', 16000316, 7, 'DEX', 7, '****', '****', '****', '****',
@@ -58,11 +59,11 @@ KITS = [
      [ARMOR_STUDDED, 'nw_wswsc001', 'nw_wswss001', 'nw_wbwln001', 'nw_wamar001', TORCH]),
     ('rog', 149, 'NWN5E_Rogue', 16000318, 8, 'DEX', 8, '****', '****', '****', '****',
      '****', 'PackFTRog1', 'PackSKRog1',
-     [ARMOR_LEATHER] + ['nw_wswdg001'] * 2 + ['nw_wswss001', 'nw_wbwsh001', 'nw_wamar001', 'nw_it_picks001', TORCH]),
+     [ARMOR_LEATHER] + ['nw_wswdg001'] + ['nw_wswss001', 'nw_wbwsh001', 'nw_wamar001', 'nw_it_picks001', TORCH]),
     ('sorc', 150, 'NWN5E_Sorcerer', 16000320, 9, 'CHA', 28, '0', '****', '****', '0',
-     'PackSPWiz1', 'PackFTSor1', 'PackSKWiz1', ['nw_wplss001'] + ['nw_wswdg001'] * 2 + [TORCH]),
+     'PackSPWiz1', 'PackFTSor1', 'PackSKWiz1', ['nw_wplss001'] + ['nw_wswdg001'] + [TORCH]),
     ('wiz', 151, 'NWN5E_Wizard', 16000322, 10, 'INT', 5, '0', '****', '****', '0',
-     'PackSPWiz1', 'PackFTWiz1', 'PackSKWiz1', ['nw_wswdg001'] * 2 + ['nw_wdbqs001', 'nw_cloth005', TORCH]),
+     'PackSPWiz1', 'PackFTWiz1', 'PackSKWiz1', ['nw_wswdg001'] + ['nw_wdbqs001', 'nw_cloth005', TORCH]),
 ]
 
 # The class's default package (classes.2da Package) in 2024 mode; the Fighter's is option A.
