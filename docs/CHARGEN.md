@@ -137,3 +137,86 @@ shows it and changes it by swapping the feat; an older `!background` record in
 local variables still counts. NWN's general feats stay in that pick for now
 (trade-off 1 not settled); a Human's second level-1 pick could take a second
 background (the first one counts). NWN mode hides the rows.
+
+Owner's test of 0.5.5: two backgrounds can be picked (any character with two
+general picks) — the screen has no "one of these" rule; fixed by the plan
+below (C3).
+
+## 7. The ideal 2024 creation (SRD 5.2)
+
+What a complete level-1 character needs, in the order a good builder asks:
+
+1. **Class** — and what it gives at level 1: hit points, saving throws,
+   armour and weapon training.
+2. **Background** — +2 / +1 or +1 / +1 / +1 among its three abilities, its
+   Origin feat, 2 skills, a tool, its equipment.
+3. **Species** — traits, size, speed; its choices (Human: Skillful = 1 skill,
+   Versatile = 1 Origin feat; Elf: Keen Senses = Insight, Perception or
+   Survival; lineages = spells, Phase 4).
+4. **Ability scores** — standard array (15 14 13 12 10 8) or 27-point buy
+   (8–15), then the background's increases (20 at most).
+5. **Class choices** — skill proficiencies from the class list (Fighter 2,
+   Rogue 4, Bard / Ranger 3, the rest 2; a skill already given by background
+   or species is replaced by another), Fighting Style (Fighter), Weapon
+   Mastery (Fighter 3, Barbarian / Paladin / Ranger / Rogue 2), Expertise
+   (Rogue 2), spells (casters, Phase 4).
+6. **Equipment** — the class's kit and the background's kit.
+7. **Looks and name** — model, portrait, voice, name.
+
+Flavour with no rule behind it in nwn5e, dropped: alignment, languages,
+personality, deity, age.
+
+## 8. The plan: NWN's screens as the 2024 creation
+
+NWN's page order is fixed (§1), so the 2024 steps are placed on the pages
+that can carry them. After the change:
+
+| # | NWN page | Becomes | What it carries |
+|---|---|---|---|
+| 1 | Gender | Gender | the model (kept) |
+| 2 | Race | **Species** | 2024 names and texts (Half-Orc plays as Orc, Half-Elf legacy); no ability changes (built) |
+| 3 | Portrait | Portrait | kept |
+| 4 | Class | Class | kept |
+| — | Alignment | **removed** | skipped by a patch; everyone True Neutral |
+| 5 | Abilities | **Ability Scores** | 27-point buy to 15, Recommended = standard array; primary floor 8 (fix) |
+| 6 | Packages | **Background** | each class's list = the 4 backgrounds; a package = the background's skills, its default split, the class's default picks and both kits; OK takes the defaults, Customize goes on |
+| 7 | Skills (Customize) | **Skills** | the class's picks only (1 rank = proficient); background and species skills already set and locked; 0 points at later levels |
+| 8 | Feats (Customize) | **Feats** | the background's ability split (its 7, as a popup), a Human's Origin feat, the Fighter's Fighting Style, Weapon Masteries |
+| — | Domains, School, Familiar | **removed** in faithful | 2024: the subclass comes at 3; familiars are a spell |
+| 9 | Spells | Spells | casters, with Phase 4 |
+| 10 | Appearance | Appearance | kept |
+| 11 | Info | Name | kept (deity / age / description stay optional) |
+
+When the game starts nwn5e applies what follows from those choices with no
+window: the increases (ability sync), the Origin feat, the tool, the class
+features (built). Everything is stored the engine's way — feats and skill
+ranks — so it travels with saves and exports.
+
+### Phases
+
+| Phase | Work | Levers | Cost |
+|---|---|---|---|
+| C0 | Client hooks by address: found by anchors (unique strings, vtable slots), skipped and logged if a game update moves them; creation vs level-up detection (the exported CGuiModalPanel::Activate / CGuiPanel::Deactivate + the panels' vtables) | hooks | moderate |
+| C1 | Alignment skipped; Domains / School / Familiar off in faithful (classes PickDomains, PickSchool, MinAssociateLevel in memory); primary floor 8; Species texts; page captions (Background, Ability Scores...) | patch, memory, strings, `.gui` | cheap |
+| C2 | Background packages: 12 classes × 4 rows, generated with their feat, skill and equipment tables (2024 class kit + background kit as NWN items); NWN's player packages hidden (kept for henchmen) | data | moderate (data volume) |
+| C3 | The Feats page's rules: at level 1 the general pick = the chosen background's 7 splits (the package read from the creation character), a Human's second = an Origin feat; class picks: Fighter 1 style + 3 masteries, the other masters their masteries; one of each — the double-background bug fixed | hook CanChooseFeat | moderate |
+| C4 | Weapon Mastery as feats (one per weapon kind with a mastery property); nwn5e reads them; `!mastery` swaps one after a long rest | data + rules_mastery | moderate |
+| C5 | Skills page as the 2024 pick: points = the class's picks (+ Human Skillful), max rank 1, background skills pre-set and locked, 0 points after level 1; nwn5e's proficiency read from the ranks (`!skills` stays for changes) | memory switched per screen + page-init hook + rules_skills | moderate |
+| C6 | Game start: Origin feats granted, tool recorded, older characters' records (local variables) moved to feats / ranks, the chapter-export check | server hooks | cheap |
+| C7 | Level-ups the same way: ASI as a feat with its splits (popup) instead of `!asi`, the Fighter's style at 7 and masteries at 4 / 10 / 16, 0 skill points | hook + data | moderate |
+
+C1 and C2 are visible on the screens at once; C3 is the core (and fixes the
+bug); C4–C6 complete level 1; C7 carries it into level-ups.
+
+### Decisions for the owner
+
+1. Alignment removed → every character True Neutral. Campaign dialogs that
+   check good / evil see neutral (dialog shifts still move it).
+2. Cleric domains, Wizard school, familiars and animal companions off in
+   faithful.
+3. The Packages page becomes Background; NWN's own packages stay for
+   henchmen.
+4. Weapon masteries chosen at creation (feats), instead of filled by use.
+5. Equipment: the class's kit + the background's kit, mapped to NWN items
+   (no gold alternative).
+6. No rolled scores (point buy and standard array only).
