@@ -616,6 +616,12 @@ Dexterity; new key `finesse`: the 2024 Finesse property (GetWeaponFinesse
 hooked; damage with the better of Str and Dex, rules::FinesseDamageAdjustment,
 unit-tested). Left: a Small creature holds a Medium weapon two-handed (NWN),
 weapon models aren't scaled, the sheet's damage line shows Strength.
+**Verified in game (owner, 2026-10-21, 0.12.0):** "everything looks good" —
+gnomes and halflings equip Large weapons, the Small attack bonus answered 0,
+Finesse damage on the owner's short sword (Dex +3 for Str +1) and on
+creatures' daggers, the Small unarmed dice answered with the Medium ones.
+Not yet seen in game: the Tower Shield on a Small character (nw_ashto001)
+and a Small monk's unarmed hit (their patches / answers are in the log).
 
 *Decided (owner, 2026-10-21): the Domain step stays until the Cleric
 conversion* — NWN's two domains are picked at creation until the Cleric's
