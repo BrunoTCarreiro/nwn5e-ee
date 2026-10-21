@@ -791,6 +791,15 @@ constexpr size_t kAbilitiesRecommend = 0x1d40;
 constexpr size_t kAbilitiesRecommendClick = 0x1dd0;
 constexpr size_t kLabelText = 0x80;
 constexpr size_t kTimerButtonClick = 0xd0;
+// A page title's flags: 4 = take the text box from the layout (Obj_Label_Width
+// / Height, read by the label's layout import 0x1FE260); without it the box has
+// no size and the centred caption lands off its place. Set before the import.
+constexpr uint32_t kLabelSizeFromLayout = 4;
+// A CGuiTextButton's caption (CAuroraStringWrapper). Disabling one takes two
+// calls, as the pages do: SetEnabled(0) stops the clicks, SetColor(0.5, 0.5,
+// 0.5, 1) greys the caption (1, 1, 1, 1 when enabled).
+constexpr size_t kTextButtonCaption = 0xd0;
+constexpr float kDisabledShade = 0.5f;
 struct AbilityRow {
   const char* label;
   const char* value;

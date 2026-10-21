@@ -117,6 +117,19 @@ void Bind(void* page, size_t callback, void* object, const void* fn) {
   SetField<const void*>(page, callback + 8, fn);
 }
 
+// A text button on or off, as the pages do it: clickable, and its caption white or grey.
+void EnableTextButton(void* button, bool enabled) {
+  g.set_text_button_enabled(button, enabled ? 1 : 0);
+  const float shade = enabled ? 1.0f : ee::kDisabledShade;
+  g.set_color(At(button, ee::kTextButtonCaption), shade, shade, shade, 1.0f);
+}
+
+// A page's Title, imported as the pages do: its text box from the layout.
+void ImportTitle(void* page) {
+  SetField<uint32_t>(page, ee::kPageTitleFlags, Field<uint32_t>(page, ee::kPageTitleFlags) | ee::kLabelSizeFromLayout);
+  g.import(At(page, ee::kPageTitle), page, "Title");
+}
+
 rules::Background BackgroundAt(int index) { return static_cast<rules::Background>(index + 1); }
 
 rules::CharacterClass CreationClass() {
@@ -167,7 +180,7 @@ void ShowIncreases(void* page) {
   }
   g.set_text(At(page, ee::kAbilitiesPointsText), kStrDigitZero + (left < 0 ? 0 : left));
   g.set_text(At(page, ee::kAbilitiesCostText), kStrPlusZero + 2);  // "Highest Increase: +2"
-  g.set_text_button_enabled(At(page, ee::kAbilitiesOk), left == 0 ? 1 : 0);
+  EnableTextButton(At(page, ee::kAbilitiesOk), left == 0);
 }
 
 template <int kAbility, int kStep>
@@ -230,7 +243,7 @@ void IncreasesInit(void* page) {
   g.set_read_only(At(page, ee::kAbilitiesHelpBox), true);
   g.register_update(At(page, ee::kAbilitiesHelpBox));
   IncreasesHelp(page);
-  g.import(At(page, ee::kPageTitle), page, "Title");
+  ImportTitle(page);
   Bind(page, ee::kPageTitleClick, page, reinterpret_cast<const void*>(&IncreasesHelp));
   g.set_text(At(page, ee::kPageTitleText), kStrIncreases);
   for (int i = 0; i < 6; ++i) {
@@ -271,7 +284,7 @@ void ShowBackground(void* page) {
     g.set_text(At(page, ee::kPageHelpTitle), kStrBackground);
     g.set_text(At(page, ee::kPageHelpBody), kStrBackgroundHelp);
   }
-  g.set_text_button_enabled(At(page, ee::kPageOk), g_background >= 0 ? 1 : 0);
+  EnableTextButton(At(page, ee::kPageOk), g_background >= 0);
 }
 
 void BgSelect(void* page, int index) {
@@ -313,8 +326,7 @@ void BgInit(void* page) {
   g.import(At(page, ee::kPageHelpBox), page, "HelpBox");
   g.set_read_only(At(page, ee::kPageHelpBox), true);
   g.register_update(At(page, ee::kPageHelpBox));
-  SetField<uint32_t>(page, ee::kPageTitleFlags, Field<uint32_t>(page, ee::kPageTitleFlags) | 4);
-  g.import(At(page, ee::kPageTitle), page, "Title");
+  ImportTitle(page);
   SetField<int32_t>(page, ee::kPageTitleId, 0);
   Bind(page, ee::kPageTitleClick, page, reinterpret_cast<const void*>(&BgTitleHelp));
   g.set_text(At(page, ee::kPageTitleText), kStrBackground);

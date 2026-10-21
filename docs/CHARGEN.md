@@ -458,3 +458,9 @@ the sheet), the increases page inherits its exit delegate and exits with the
 Alignment page's 0x8001; its Cancel is the game's own (back to the hub,
 the step not done). Anchors at launch: Abilities ctor 0x8DB730, Abilities
 Cancel 0x8E1000.
+0.6.2 (owner's A2b test): the title sat off its place and OK looked lit
+while dead. The game's own inits set the title's flag 4 before importing it
+(the label then takes its text box from the layout's Obj_Label_Width /
+Height; without it the box has no size), and grey a disabled text button's
+caption themselves (SetColor 0.5 on button + 0xD0 next to SetEnabled(0)).
+Both pages now do the same (`ImportTitle`, `EnableTextButton`).
