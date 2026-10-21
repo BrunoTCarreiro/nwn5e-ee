@@ -360,7 +360,10 @@ Each step ends with an in-game test matrix, as on 1.69.
    (and [debug] nui_test on arrival): four style buttons answer in the window
    (a bind) and in chat. EE's creation and level-up screens stay the game's
    own (fixed page order; only their data is ours); NUI windows open once the
-   character is in the game.
+   character is in the game. Verified in game (0.5.4, 2026-10-21): `!nui`
+   opens it, style clicks answered in the window and in chat; with nui_test
+   it opened by itself after arrival (token 1), and the log read each event's
+   type and element (open _window_, mousescroll greatweapon, click close).
 6. *(plan)* **E4 — character model:** served data + strings, XP, multiclass,
    alignment, HP, feat cadence, point buy + backgrounds, class features,
    the Fighter (first tested in game here — it never was on 1.69).
