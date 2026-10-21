@@ -328,3 +328,54 @@ classes as their briefs are written; **C3b** species groups (Elf, Gnome;
 Dragonborn / Goliath / Tiefling with their models); **C8** "Skills again";
 **C9** the Familiar page for Pact of the Chain (with the Warlock, CM11);
 spell choices stay Phase 4's (the Spells page).
+
+## 10. Rethink: nwn5e's UI system (owner, 2026-10-21)
+
+"This basically requires a rethink of how to customize the character creation
+and level up screens ... we should build a UI system on top of what exists.
+This is also an experiment to see how far one can customize an existing game
+using these tools, so I want to do things right — as if the game had been
+designed for this, not merely an adaptation."
+
+### Design principles
+
+1. **One visual language.** New steps look and behave like the game's own
+   (fonts, frames, buttons, the hub's step list with its done marks, the
+   description pane, Recommended), not like a bolted-on window.
+2. **New steps are real steps.** They sit in the creation hub and the
+   level-up sequence as their own pages (Back / Next / Cancel, Recommended,
+   done state), not squeezed into an existing page under the wrong name.
+3. **Data-driven.** Steps, choice groups, options, texts and layouts are data
+   (2da / JSON / .gui / strings); code provides mechanisms, not content.
+4. **The engine's own storage.** Results are feats, skill ranks and
+   character fields — saved, exported and validated like NWN's own.
+5. **One system everywhere.** The same pages and choice groups serve
+   creation, level-up and in-game changes (rest swaps).
+6. **Localisable.** Every visible text is a string reference.
+7. **Robust.** Every hook is found by anchors and checked; if a game update
+   breaks one, that step falls back (chat command) and says so — never a
+   crash or a half-made character.
+8. **Limits are findings.** Where the engine can't be extended cleanly, the
+   limit is documented with its evidence, not hidden by a hack.
+
+### The two candidate technologies (to settle by a spike)
+
+- **A. Classic panels extended:** a new hub step ("Background") as a real
+  chargen page — its layout a served `.gui` (data), its panel built from the
+  engine's own GUI classes (CGuiPanel / CGuiModalPanel and the button and
+  list controls are exported; the chargen-styled controls are not), wired into
+  the hub's step list and exit switch. Matches the look exactly; the hardest.
+- **B. EE's client NUI:** EE's own windows (Options, dialogs) are client-side
+  `Nui::Window` / `Nui::JSON::JsonWindow` objects (RTTI present on Windows:
+  `.?AVJsonWindow@JSON@Nui@@`, `.?AVWindow@Nui@@`); nwn5e would create one
+  from its JSON at any time (menu, creation, level-up) and read its events
+  before they would go to a server. Flexible and data-driven; its look is
+  EE's NUI skin, not the classic chargen frames.
+- Either way the flow layer is the same: the hub's exit switch and the
+  Customize chain's next-page helper (§1) decide when a step opens.
+
+Spike plan: B1 a client NUI window on the main menu (no game), its clicks
+and binds in the DLL; B2 the same inside the creation screen, the native
+chain waiting for it; A1 a served `cg_*.gui` layout as a new panel opened
+from the hub; A2 a new step button in the hub (cg_main) with a done mark.
+Screenshots of each, compared with the native pages; then the choice.
