@@ -127,6 +127,7 @@ struct Config {
   bool debug_players_poisoned = false;   // SK11 test: player characters count as poisoned for ability checks
   bool debug_served_data_probe = false;  // CM0 test: a hidden probe row in feat.2da, checked after load
   bool debug_nui_test = false;           // NUI test: the test window opens when a player character arrives
+  bool debug_client_nui_test = false;    // B1: nwn5e's client test window opens on the main menu
 };
 
 extern Config g_config;

@@ -379,3 +379,25 @@ and binds in the DLL; B2 the same inside the creation screen, the native
 chain waiting for it; A1 a served `cg_*.gui` layout as a new panel opened
 from the hub; A2 a new step button in the hub (cg_main) with a done mark.
 Screenshots of each, compared with the native pages; then the choice.
+
+### Spike results
+
+*C0 (f285b7f):* anchors for code nothing exports — a function by the one
+`lea` of its own debug string, a vtable by its RTTI name, a function by a
+unique byte pattern, hooks by address. Checked at launch against the
+research: CanChooseFeat 0x7ed040, the creation hub 0xe64678, the feats page
+0xe7b040.
+
+*B1 (0.5.6, 2026-10-21):* nwn5e opens EE's own client NUI windows from its
+JSON with no game loaded. The client's NUI message handler (anchored as the
+one function with a `lea` of the `enable_make<JsonWindow>` vtable, checked by
+its three ReadJSON calls: rva 0x7a5f20) builds the window from a message
+nwn5e writes with the engine's own CNWMessage writers (layouts and binds as
+UBJSON, `data/ubjson.h`, unit-tested); events are taken at
+JsonWindow::QueueEvent (pattern, checked against OnOpened: 0x746130) and
+handled a frame later from a CGuiMan::UpdateAndRender pre-hook. No engine
+object is built or freed by nwn5e. Seen at launch (screenshots): the window
+on the main menu, its text changed by a bind 3 s later, its "open" event
+back in the DLL. **The look:** EE's NUI skin draws with the game's own font,
+gold frames and button style — nwn5e's window reads as part of the main
+menu, not as an overlay. Clicks: the owner's test.

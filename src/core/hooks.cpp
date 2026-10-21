@@ -318,16 +318,13 @@ uintptr_t FunctionEntry(uintptr_t address) {
   return entry ? static_cast<uintptr_t>(image_base) + RootBegin(static_cast<uintptr_t>(image_base), entry) : 0;
 }
 
-std::vector<uintptr_t> FindStringReferences(const char* text) {
+namespace {
+
+// Every `lea r64, [rip + disp32]` in .text (REX.W 48 / 4c, 8d, ModRM mod 00
+// r/m 101) whose address is one of `targets`.
+std::vector<uintptr_t> LeaReferences(const std::vector<uintptr_t>& targets) {
   std::vector<uintptr_t> references;
-  const size_t size = strlen(text) + 1;  // with its terminating zero
-  std::vector<uintptr_t> strings;
-  for (const char* name : {".rdata", ".data"}) {
-    const std::vector<uintptr_t> found = FindAll(Section(name), text, size);
-    strings.insert(strings.end(), found.begin(), found.end());
-  }
-  if (strings.empty()) return references;
-  // lea r64, [rip + disp32]: REX.W (48 / 4c) 8d, ModRM mod 00 r/m 101.
+  if (targets.empty()) return references;
   const CodeRange text_section = TextSection();
   for (uintptr_t at = text_section.begin; at + 7 <= text_section.end; ++at) {
     const auto* code = reinterpret_cast<const uint8_t*>(at);
@@ -335,9 +332,32 @@ std::vector<uintptr_t> FindStringReferences(const char* text) {
     int32_t displacement = 0;
     memcpy(&displacement, code + 3, sizeof(displacement));
     const uintptr_t target = at + 7 + displacement;
-    if (std::find(strings.begin(), strings.end(), target) != strings.end()) references.push_back(at);
+    if (std::find(targets.begin(), targets.end(), target) != targets.end()) references.push_back(at);
   }
   return references;
+}
+
+}  // namespace
+
+std::vector<uintptr_t> FindStringReferences(const char* text) {
+  const size_t size = strlen(text) + 1;  // with its terminating zero
+  std::vector<uintptr_t> strings;
+  for (const char* name : {".rdata", ".data"}) {
+    const std::vector<uintptr_t> found = FindAll(Section(name), text, size);
+    strings.insert(strings.end(), found.begin(), found.end());
+  }
+  return LeaReferences(strings);
+}
+
+std::vector<uintptr_t> FindRipReferences(uintptr_t target) {
+  return target ? LeaReferences({target}) : std::vector<uintptr_t>();
+}
+
+uintptr_t FindPattern(const char* what, const char* pattern) {
+  int matches = 0;
+  const uintptr_t at = FindUnique(TextSection(), ParsePattern(pattern), &matches);
+  if (!at) Log("SKIP %s: its byte pattern matches %d times (expected 1)", what, matches);
+  return at;
 }
 
 uintptr_t FunctionByString(const char* what, const char* text) {

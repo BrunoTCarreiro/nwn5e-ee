@@ -7,7 +7,14 @@
 
 #include <stdint.h>
 
+#include <string>
+
 namespace engine {
+
+// A copy of an engine std::string (MSVC layout: the characters inline below
+// capacity 16, else behind a pointer at +0; size +0x10, capacity +0x18) — read
+// only, never freed by nwn5e; "" when it doesn't look like one.
+std::string StdString(const void* engine_string);
 
 bool HasFeat(void* stats, int feat);
 // The feat added to / removed from the character's own list (the client

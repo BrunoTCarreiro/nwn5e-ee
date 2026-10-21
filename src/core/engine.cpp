@@ -63,6 +63,15 @@ float PersonalSpace(const void* creature) {
 
 }  // namespace
 
+std::string StdString(const void* engine_string) {
+  if (!engine_string) return std::string();
+  const size_t size = Field<size_t>(engine_string, 0x10), capacity = Field<size_t>(engine_string, 0x18);
+  if (size > 65536 || capacity < size) return std::string();
+  const char* data =
+      capacity >= 16 ? Field<const char*>(engine_string, 0) : static_cast<const char*>(engine_string);
+  return data ? std::string(data, size) : std::string();
+}
+
 bool HasFeat(void* stats, int feat) { return stats && E().has_feat && E().has_feat(stats, static_cast<uint16_t>(feat)); }
 
 bool AddFeat(void* stats, int feat) {

@@ -69,7 +69,10 @@ main-hand attacks; `creature_ac=N` gives every monster AC N;
 least N hit points when your party first attacks it; `attack_trace=1` logs
 every PC attack roll with its round's attack counts; `nui_test=1` opens
 nwn5e's NUI test window when your character arrives (`!nui` opens it any
-time: nwn5e's own windows, the base for the Fighting Style picker).
+time: nwn5e's own windows, the base for the Fighting Style picker);
+`client_nui_test=1` opens nwn5e's client window test on the main menu (EE's
+own NUI with no game loaded: the base of nwn5e's creation and level-up
+steps).
 
 What is carried over from the 1.69 build, unchanged:
 

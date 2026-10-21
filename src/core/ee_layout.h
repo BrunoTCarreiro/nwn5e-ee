@@ -644,6 +644,46 @@ constexpr size_t kBaseItemDieToRoll = 0x1b;
 // Overwhelming Critical, right after a GetRulesetIntEntry (+0x2df).
 constexpr size_t kDamageRollRollDiceCalls = 12;
 
+// Client NUI (nwn5e's own windows anywhere: main menu, creation, level-up —
+// docs/CHARGEN.md §10, B1). The client builds a script window in
+// CNWCMessage::HandleServerToPlayerNuiEvent(minor) (not exported: anchored as
+// the one function holding a `lea` of the enable_make<JsonWindow> vtable; it
+// calls ReadJSON 3 times), which needs only the in-game GUI object (alive
+// from start-up, the main menu included) — no server, player or module. nwn5e
+// writes the message with the engine's own CNWMessage writers into its own
+// CNWMessage and hands it over (the handler only reads through it). Major
+// 0x37 minors: 1 create (INT token, CExoString id, INT mode 1, JSON),
+// 2 destroy (INT token), 4 binds (INT count, then INT token, CExoString
+// name, JSON value), 5 set layout. JSON = UBJSON (data/ubjson.h): type 0x10,
+// DWORD length, VOIDPtr bytes. Every client window event passes
+// JsonWindow::QueueEvent(window, type*, element*, index, payload*) (void;
+// anchored by a byte pattern that includes the token offset), the token at
+// JsonWindow +0x230.
+constexpr const char* kCNWMessageConstructor = "??0CNWMessage@@QEAA@XZ";
+constexpr const char* kCreateWriteMessage = "?CreateWriteMessage@CNWMessage@@QEAAXIIH@Z";
+constexpr const char* kWriteINT = "?WriteINT@CNWMessage@@QEAAXHH@Z";
+constexpr const char* kWriteBYTE = "?WriteBYTE@CNWMessage@@QEAAXEHH@Z";
+constexpr const char* kWriteType = "?WriteType@CNWMessage@@IEAAXW4MessageType@1@@Z";
+constexpr const char* kWriteDWORD = "?WriteDWORD@CNWMessage@@QEAAXIH@Z";
+constexpr const char* kWriteVOIDPtr = "?WriteVOIDPtr@CNWMessage@@QEAAXPEAXH@Z";
+constexpr const char* kGetWriteMessage = "?GetWriteMessage@CNWMessage@@QEAAHPEAPEAEPEAI@Z";
+constexpr const char* kSetReadMessage = "?SetReadMessage@CNWMessage@@QEAAHPEAEIIH@Z";
+constexpr const char* kReadJSON =
+    "?ReadJSON@CNWMessage@@QEAA?AV?$basic_json@Vmap@std@@Vvector@2@V?$basic_string@DU?$char_traits@D@std@@V?$"
+    "allocator@D@2@@2@_N_J_KNVallocator@2@Uadl_serializer@nlohmann@@V?$vector@EV?$allocator@E@std@@@2@@nlohmann@@XZ";
+// void CGuiMan::UpdateAndRender(float): every frame, before the NUI windows render.
+constexpr const char* kGuiUpdateAndRender = "?UpdateAndRender@CGuiMan@@QEAAXM@Z";
+constexpr const char* kRttiEnableMakeJsonWindow = ".?AV?$enable_make@VJsonWindow@JSON@Nui@@@@";
+constexpr const char* kRttiJsonWindow = ".?AVJsonWindow@JSON@Nui@@";
+constexpr const char* kQueueEventPattern = "49 83 78 10 00 0F 84 ?? ?? ?? ?? C7 45 BF 00 00 00 7F 8B 81 30 02 00 00";
+constexpr int kClientNuiHandlerReadJsonCalls = 3;
+constexpr size_t kJsonWindowToken = 0x230;
+constexpr int kMessageTypeExoString = 0x0e;
+constexpr int kMessageTypeJson = 0x10;
+constexpr uint8_t kNuiMinorCreate = 1;
+constexpr uint8_t kNuiMinorDestroy = 2;
+constexpr uint8_t kNuiMinorBinds = 4;
+
 // NUI (EE's scriptable windows). HandlePlayerToServerNuiEvent reads each event
 // (token, type, element, array index, payload) and, for a window the player
 // has open, stores it with CNWSModule::SetCurrentNuiEvent (+0x82f) before

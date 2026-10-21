@@ -23,14 +23,6 @@ int g_log_lines = 0;
 
 bool LogSlot() { return g_log_lines < 300 && ++g_log_lines; }
 
-// The engine's std::string (MSVC): the characters inline (capacity below 16)
-// or behind a pointer at +0, the size at +0x10, the capacity at +0x18.
-std::string EngineString(const uint8_t* s) {
-  const size_t size = Field<size_t>(s, 0x10), capacity = Field<size_t>(s, 0x18);
-  if (size > 4096 || capacity < size) return std::string();
-  const char* data = capacity >= 16 ? Field<const char*>(s, 0) : reinterpret_cast<const char*>(s);
-  return data ? std::string(data, size) : std::string();
-}
 
 std::string TokenVar(const char* window_id) { return std::string("nwn5e_nui_") + window_id; }
 
@@ -56,8 +48,8 @@ void SetCurrentNuiEvent(void* module, const void* event) {
   for (const auto& window : g_windows) {
     const std::string var = TokenVar(window.first.c_str());
     if (engine::GetLocalInt(creature, var.c_str()) != ev.token) continue;
-    ev.type = EngineString(e + ee::kNuiEventType);
-    ev.element = EngineString(e + ee::kNuiEventElement);
+    ev.type = engine::StdString(e + ee::kNuiEventType);
+    ev.element = engine::StdString(e + ee::kNuiEventElement);
     ev.array_index = Field<int32_t>(e, ee::kNuiEventArrayIndex);
     if (LogSlot()) {
       Log("nui: 0x%08X window %s (token %d): %s %s", ev.player, window.first.c_str(), ev.token, ev.type.c_str(),

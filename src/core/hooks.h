@@ -103,6 +103,12 @@ uintptr_t FunctionEntry(uintptr_t address);
 // terminating zero) in .rdata / .data.
 std::vector<uintptr_t> FindStringReferences(const char* text);
 
+// Every `lea r64, [rip + x]` in .text whose x is `target` (e.g. a vtable).
+std::vector<uintptr_t> FindRipReferences(uintptr_t target);
+
+// The one place in .text a byte pattern ("49 83 ?? 10") matches; 0 and logged otherwise.
+uintptr_t FindPattern(const char* what, const char* pattern);
+
 // The one function that references `text` (e.g. its own debug message); 0 and
 // logged when none or several do.
 uintptr_t FunctionByString(const char* what, const char* text);
