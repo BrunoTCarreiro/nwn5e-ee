@@ -797,6 +797,15 @@ Grappler (the SRD's other General feat), Epic Boons at 19, Magic Initiate,
 Paladin and Ranger Fighting Styles (their briefs), Skilled's picks on a page
 (C8: its Feats page comes after the Skills page).
 
+*0.16.7 (owner, 2026-10-22: "For each step, have the text change to explain
+what the user is doing. where the skill description is have the default
+text change with each step").* The help box, until a skill is clicked,
+explains the step: "Step 1 of 3: Rogue skills" with how many and from which
+list (at a level-up why: multiclassing in, Primal Knowledge, College of
+Lore's Bonus Proficiencies), what proficiency does, the background's skills
+already had; Human Skillful / Elf Keen Senses; Expertise (the Wizard's
+Scholar list); then what OK, Recommended, Reset and - do.
+
 *0.16.6 (owner, 2026-10-22: "can we make it so the user needs to press "OK"
 to move to the next step and the recommended button only applies to the
 current choice and doesn't pick all skills at once?").* The page keeps its

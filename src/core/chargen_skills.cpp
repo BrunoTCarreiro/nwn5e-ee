@@ -115,6 +115,7 @@ struct Level {
   uint64_t key = 0;  // character level, class, its level, race, background: a new key, a new floor
   bool active = false;
   int level = 0;
+  int class_level = 0;  // the class's level after this level-up
   rules::CharacterClass character_class = rules::CharacterClass::kFighter;
   rules::SkillAllowance skills;  // this level's new skills (level 1: the page's allowance)
   rules::LevelSkillPicks expertise;
@@ -169,6 +170,7 @@ void Begin(void* stats) {
   next.stats = stats;
   next.key = key;
   next.level = level;
+  next.class_level = class_level;
   int8_t* ranks = Ranks(stats);
   if (!character_class || !ranks || level < 1) {
     g_level = next;
@@ -488,8 +490,86 @@ std::string SpeciesLine() {
   return "";
 }
 
+std::string Count(int n, const char* what) { return std::to_string(n) + " " + what + (n == 1 ? "" : "s"); }
+
+std::string CreationBackgroundName() {
+  if (const auto choice = rules::BackgroundFromFeat(CreationBackgroundFeat())) {
+    if (const rules::BackgroundInfo* info = rules::BackgroundData(choice->background)) return info->name;
+  }
+  return "";
+}
+
+// Where a level-up's new skills come from (rules::LevelSkillPicks2024).
+std::string LevelSkillsReason(int total) {
+  const std::string cls = ClassName(g_level.character_class);
+  const auto c = g_level.character_class;
+  if (g_level.class_level == 1) {
+    return "Multiclassing into " + cls + " gives you " + Count(total, "skill") +
+           (c == rules::CharacterClass::kBard ? " of any kind." : " from its list.");
+  }
+  if (c == rules::CharacterClass::kBarbarian && g_level.class_level == 3) {
+    return "Primal Knowledge: choose 1 more skill from the Barbarian's list.";
+  }
+  if (c == rules::CharacterClass::kBard && g_level.class_level == 3) {
+    return "College of Lore, Bonus Proficiencies: choose 3 skills of any kind.";
+  }
+  return "Choose the " + Count(total, "skill") + " this level gives you.";
+}
+
+// The help box's text for a step - what is being chosen and why, until a
+// skill is clicked (owner, 2026-10-22: "where the skill description is have
+// the default text change with each step").
+std::string StepHelp(Step step) {
+  int number = 0;
+  int steps = 0;
+  for (Step at = FirstStep(); at != Step::kDone; at = NextStep(at)) {
+    ++steps;
+    if (at == step) number = steps;
+  }
+  const std::string cls = ClassName(g_level.character_class);
+  const int total = StepTotal(step);
+  std::string help = number ? "Step " + std::to_string(number) + " of " + std::to_string(steps) + ": " : "";
+  switch (step) {
+    case Step::kClass:
+      help += cls + " skills\n\n";
+      help += g_level.level == 1 ? "Choose " + Count(total, "skill") + " from the " + cls + "'s list."
+                                 : LevelSkillsReason(total);
+      help += total == 1 ? " You become proficient in it: your proficiency bonus is added to its checks."
+                         : " You become proficient in each: your proficiency bonus is added to its checks.";
+      if (g_level.background) {
+        help += "\n\nYour " + CreationBackgroundName() + " background gives you " + Names(g_level.background) +
+                " already, so they are not listed.";
+      }
+      break;
+    case Step::kSpecies:
+      help += g_level.skills.species_any_skill
+                  ? "Human - Skillful\n\nChoose 1 more skill of any kind. You become proficient in it."
+                  : "Elf - Keen Senses\n\nChoose Insight, Perception or Survival. You become proficient in it.";
+      help += " The skills you have already are not listed.";
+      break;
+    case Step::kExpertise:
+      help += "Expertise\n\n";
+      help += g_level.expertise.expertise_list
+                  ? "Scholar: choose 1 of Arcana, History, Investigation, Medicine, Nature or Religion that you are "
+                    "proficient in."
+                  : "Choose " + Count(total, "skill") + " you are proficient in.";
+      help += total == 1 ? " Your proficiency bonus counts twice for its checks."
+                         : " Your proficiency bonus counts twice for their checks.";
+      help += " A greyed skill is chosen already, or can't take Expertise.";
+      break;
+    case Step::kDone:
+      help += "This level gives no skill choices.";
+      break;
+  }
+  help += NextStep(step) == Step::kDone ? "\n\nOK finishes once this step's choices are made."
+                                        : "\n\nOK goes on to the next step once this step's choices are made.";
+  help += " Recommended chooses for this step, Reset goes back to the first step, and - takes back a choice of "
+          "this step.";
+  return help;
+}
+
 // The header (the step, what is left, OK once it's done), the help box (the
-// steps), the points box (the step's choices left).
+// step's explanation), the points box (the step's choices left).
 void ShowTexts(void* page, void* stats, Step step, bool help_too) {
   const std::string cls = ClassName(g_level.character_class);
   const int left = StepLeft(stats, step);
@@ -512,23 +592,7 @@ void ShowTexts(void* page, void* stats, Step step, bool help_too) {
   }
   if (StepDone(stats, step)) header += NextStep(step) == Step::kDone ? " - OK to finish" : " - OK for the next step";
   SetWrapperText(static_cast<uint8_t*>(page) + ee::kSkillsPageHeader, header);
-  std::string help = "2024 skills, one step at a time:";
-  int n = 0;
-  if (g_level.skills.class_skills) {
-    help += "\n" + std::to_string(++n) + ". " + cls + " skills: " + std::to_string(g_level.skills.class_skills) +
-            (g_level.level == 1 ? " from your class's list." : " for this level.");
-  }
-  if (!SpeciesLine().empty()) help += "\n" + std::to_string(++n) + ". " + SpeciesLine() + ".";
-  if (g_level.expertise.expertise) {
-    help += "\n" + std::to_string(++n) + ". Expertise: " + std::to_string(g_level.expertise.expertise) +
-            " - your proficiency bonus counts twice in a skill you already have" +
-            (g_level.expertise.expertise_list ? " (Arcana, History, Investigation, Medicine, Nature or Religion)." : ".");
-  }
-  if (g_level.background) help += "\nYour background's skills are yours already: " + Names(g_level.background) + ".";
-  help += "\nEach step lists what it can take; a choice made, or one at its most, shows greyed. OK goes on to "
-          "the next step once this one's choices are made. Recommended makes this step's choices, Reset starts over, "
-          "- takes back a choice of this step.";
-  if (help_too) SetWrapperText(static_cast<uint8_t*>(page) + ee::kSkillsPageHelp, help);  // not over a skill's text
+  if (help_too) SetWrapperText(static_cast<uint8_t*>(page) + ee::kSkillsPageHelp, StepHelp(step));  // not over a skill's text
   SetWrapperText(static_cast<uint8_t*>(page) + ee::kSkillsPagePoints, std::to_string(left));
 }
 
