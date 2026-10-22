@@ -797,6 +797,10 @@ Grappler (the SRD's other General feat), Epic Boons at 19, Magic Initiate,
 Paladin and Ranger Fighting Styles (their briefs), Skilled's picks on a page
 (C8: its Feats page comes after the Skills page).
 
+*Accepted (owner, 2026-10-22, after testing 0.16.8: "ok, I think it's
+good"): the Skills page in steps - OK to move on, Recommended and Reset,
+each step's texts (0.16.4-0.16.7) - and the Builds step (0.16.8).*
+
 *0.16.8 (owner, 2026-10-22: "the name "Packages" it's weird" ... "go with
 "Builds"").* With starting_equipment faithful the Packages step reads
 Builds: the hub's button and the page's help title (146, 483) "Builds",
