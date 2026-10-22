@@ -321,47 +321,190 @@ void* PageStats(void* page) {
   return creature ? Field<void*>(creature, ee::kClientCreatureStats) : nullptr;
 }
 
-// Every row greyed or not for the current step (this level's picks stay
-// live, so "-" can take them back).
-void Regrey(void* page) {
-  void* stats = PageStats(page);
-  if (!ActiveFor(stats) || !g_set_enabled || !g_set_color) return;
+// --- The page in steps (owner, 2026-10-22: "In each step only pickable feats
+// are displayed and feats that reach their maximum level get greyed out. There
+// should also be text in the window that explains what kind of points are
+// being used") ----------------------------------------------------------------
+
+using DeleteButtonsFn = void (*)(void* listbox);
+using SetTextFn = void (*)(void* wrapper, const void* exo_string);
+using ExoStringFn = void (*)(void* exo_string, const char* text);
+using ExoStringDestroyFn = void (*)(void* exo_string);
+DeleteButtonsFn g_delete_buttons = nullptr;
+SetTextFn g_set_text = nullptr;
+ExoStringFn g_make_string = nullptr;
+ExoStringDestroyFn g_destroy_string = nullptr;
+
+// A row the step lists: one it can take (live), or one of this level's picks
+// (greyed: at its maximum for the step; still there for "-").
+bool Listed(void* stats, int row, Step step) {
   const int8_t* ranks = Ranks(stats);
+  if (!ranks || row >= Rows() || !rules::IsSkillsPageRow(row) || !Useable(stats, row)) return false;
+  return ranks[row] > g_level.floor[row] || Pickable(stats, row, step);
+}
+
+void* RulesObject() {
+  const auto rules_pointer = reinterpret_cast<void**>(EngineExport(ee::kRules));
+  return rules_pointer ? *rules_pointer : nullptr;
+}
+
+void SetWrapperText(void* wrapper, const std::string& text) {
+  if (!g_set_text || !g_make_string || !g_destroy_string) return;
+  alignas(16) uint8_t exo[32] = {};  // CExoString: the engine owns its buffer
+  g_make_string(exo, text.c_str());
+  g_set_text(wrapper, exo);
+  g_destroy_string(exo);
+}
+
+const char* ClassName(rules::CharacterClass c) {
+  static const char* const kNames[] = {"Barbarian", "Bard",    "Cleric", "Druid",    "Fighter", "Monk",
+                                       "Paladin",   "Ranger",  "Rogue",  "Sorcerer", "Warlock", "Wizard"};
+  return kNames[static_cast<int>(c)];
+}
+
+int StepLeft(void* stats, Step step) {
+  const int picked = rules::CountSkills(NewSkills(stats));
+  switch (step) {
+    case Step::kClass: return g_level.skills.class_skills - picked;
+    case Step::kSpecies: return g_level.skills.class_skills + 1 - picked;
+    case Step::kExpertise: return g_level.expertise.expertise - NewExpertise(stats);
+    default: return 0;
+  }
+}
+
+std::string SpeciesLine() {
+  if (g_level.skills.species_any_skill) return "Human (Skillful): 1 skill of any kind";
+  if (g_level.skills.species_list) return "Elf (Keen Senses): Insight, Perception or Survival";
+  return "";
+}
+
+// The header (the step and what is left), the help box (the steps), the points box (the step's picks left).
+void ShowTexts(void* page, void* stats, Step step, bool help_too) {
+  const std::string cls = ClassName(g_level.character_class);
+  const int left = StepLeft(stats, step);
+  std::string header;
+  switch (step) {
+    case Step::kClass:
+      header = cls + " skills: choose " + std::to_string(left) + " more of " + std::to_string(g_level.skills.class_skills);
+      break;
+    case Step::kSpecies:
+      header = SpeciesLine() + ": choose it";
+      break;
+    case Step::kExpertise:
+      header = "Expertise: choose " + std::to_string(left) + " more of " + std::to_string(g_level.expertise.expertise);
+      break;
+    case Step::kDone:
+      header = g_level.skills.class_skills || g_level.expertise.expertise ? "All skill choices are made"
+                                                                         : "No skill choices at this level";
+      break;
+  }
+  SetWrapperText(static_cast<uint8_t*>(page) + ee::kSkillsPageHeader, header);
+  std::string help = "2024 skills, one step at a time:";
+  int n = 0;
+  if (g_level.skills.class_skills) {
+    help += "\n" + std::to_string(++n) + ". " + cls + " skills: " + std::to_string(g_level.skills.class_skills) +
+            (g_level.level == 1 ? " from your class's list." : " for this level.");
+  }
+  if (!SpeciesLine().empty()) help += "\n" + std::to_string(++n) + ". " + SpeciesLine() + ".";
+  if (g_level.expertise.expertise) {
+    help += "\n" + std::to_string(++n) + ". Expertise: " + std::to_string(g_level.expertise.expertise) +
+            " - your proficiency bonus counts twice in a skill you already have" +
+            (g_level.expertise.expertise_list ? " (Arcana, History, Investigation, Medicine, Nature or Religion)." : ".");
+  }
+  if (g_level.background) help += "\nYour background's skills are yours already: " + Names(g_level.background) + ".";
+  help += "\nOnly what this step can take is listed; a choice made shows greyed, and - takes it back.";
+  if (help_too) SetWrapperText(static_cast<uint8_t*>(page) + ee::kSkillsPageHelp, help);  // not over a skill's text
+  SetWrapperText(static_cast<uint8_t*>(page) + ee::kSkillsPagePoints, std::to_string(left));
+}
+
+// Every listed row live or greyed for the step.
+void Grey(void* page, void* stats, Step step) {
+  if (!g_set_enabled || !g_set_color) return;
   auto* rows = Field<void**>(page, ee::kSkillsPageRows);
   const int count = Field<int32_t>(page, ee::kSkillsPageRowCount);
   const auto* skills = Field<const int32_t*>(page, ee::kSkillsPageRowSkills);
-  if (!ranks || !rows || !skills) return;
-  const Step step = CurrentStep(stats);
+  if (!rows || !skills) return;
   for (int i = 0; i < count; ++i) {
     const int row = skills[i];
     if (!rows[i] || row < 0 || row >= Rows()) continue;
-    const bool live = ranks[row] > g_level.floor[row] || Pickable(stats, row, step);
+    const bool live = Pickable(stats, row, step);
     g_set_enabled(rows[i], live ? 1 : 0);
     const float shade = live ? 1.0f : 0.5f;
     g_set_color(static_cast<uint8_t*>(rows[i]) + ee::kSkillsRowName, shade, shade, shade, 1.0f);
   }
 }
 
+// Whether the list shows exactly the step's rows.
+bool ListMatches(void* page, void* stats, Step step) {
+  const int count = Field<int32_t>(page, ee::kSkillsPageRowCount);
+  const auto* skills = Field<const int32_t*>(page, ee::kSkillsPageRowSkills);
+  int listed = 0;
+  for (int row = 0; row < Rows(); ++row) listed += Listed(stats, row, step) ? 1 : 0;
+  if (count != listed) return false;
+  for (int i = 0; skills && i < count; ++i) {
+    if (skills[i] < 0 || skills[i] >= Rows() || !Listed(stats, skills[i], step)) return false;
+  }
+  return true;
+}
+
+// The game's builder, showing only the step's rows: the others hidden from
+// it (HideFromLevelUp) for the length of the call.
+void BuildStepList(void* page, void* stats, Step step, void* a2, void* a3, void* a4) {
+  auto* skills = Field<uint8_t*>(RulesObject(), ee::kRulesSkills);
+  int32_t hidden[rules::kNwnSkillCount] = {};
+  const int rows = Rows();
+  for (int row = 0; skills && row < rows; ++row) {
+    int32_t& flag = *reinterpret_cast<int32_t*>(skills + row * ee::kSkillStride + ee::kSkillHideFromLevelUp);
+    hidden[row] = flag;
+    if (!Listed(stats, row, step)) flag = 1;
+  }
+  g_build_list(page, a2, a3, a4);
+  for (int row = 0; skills && row < rows; ++row) {
+    *reinterpret_cast<int32_t*>(skills + row * ee::kSkillStride + ee::kSkillHideFromLevelUp) = hidden[row];
+  }
+}
+
+// After the list is built or a pick changes: the step's rows (rebuilt only
+// when the step's rows changed), their greying, the texts (the help box only
+// with a new list: a click leaves the clicked skill's description there).
+void ShowStep(void* page, bool help_too) {
+  void* stats = PageStats(page);
+  if (!ActiveFor(stats)) return;
+  const Step step = CurrentStep(stats);
+  if (!ListMatches(page, stats, step) && g_delete_buttons) {
+    help_too = true;
+    g_delete_buttons(static_cast<uint8_t*>(page) + ee::kSkillsPageList);
+    BuildStepList(page, stats, step, nullptr, nullptr, nullptr);
+    SetField<int32_t>(page, ee::kSkillsPageSelected, Field<int32_t>(page, ee::kSkillsPageRowCount) > 0 ? 0 : -1);
+  }
+  Grey(page, stats, step);
+  ShowTexts(page, stats, step, help_too);
+}
+
 void BuildList(void* page, void* a2, void* a3, void* a4) {
   void* stats = PageStats(page);
-  if (ActiveFor(stats) && g_level.level == 1) SetBackgroundRanks(stats, g_level.background);  // after the hub's clear
-  g_build_list(page, a2, a3, a4);
-  Regrey(page);
+  if (!ActiveFor(stats)) {
+    g_build_list(page, a2, a3, a4);
+    return;
+  }
+  if (g_level.level == 1) SetBackgroundRanks(stats, g_level.background);  // after the hub's clear
+  BuildStepList(page, stats, CurrentStep(stats), a2, a3, a4);
+  ShowStep(page, true);
 }
 
 void Plus(void* page, void* a2, void* a3, void* a4) {
   g_plus(page, a2, a3, a4);
-  Regrey(page);
+  ShowStep(page, false);
 }
 
 void Minus(void* page, void* a2, void* a3, void* a4) {
   g_minus(page, a2, a3, a4);
-  Regrey(page);
+  ShowStep(page, false);
 }
 
 void Recommend(void* page, void* a2, void* a3, void* a4) {
   g_recommend(page, a2, a3, a4);
-  Regrey(page);
+  ShowStep(page, false);
 }
 
 // "-": this level's picks only (never below the floor: earlier levels, the background).
@@ -446,8 +589,13 @@ void InstallSkillsPage() {
   g_set_enabled = reinterpret_cast<SetEnabledFn>(EngineExport(ee::kCheckboxSetEnabled));
   g_set_color = reinterpret_cast<SetColorFn>(EngineExport(ee::kStringWrapperSetColor));
   g_skill_useable = reinterpret_cast<SkillUseableFn>(EngineExport(ee::kClassIsSkillUseable));
+  g_delete_buttons = reinterpret_cast<DeleteButtonsFn>(EngineExport(ee::kListboxDeleteButtons));
+  g_set_text = reinterpret_cast<SetTextFn>(EngineExport(ee::kStringWrapperSetText));
+  g_make_string = reinterpret_cast<ExoStringFn>(EngineExport(ee::kExoStringFromChars));
+  g_destroy_string = reinterpret_cast<ExoStringDestroyFn>(EngineExport(ee::kExoStringDestructor));
   if (!points || !add || !remove || !package || !g_get_class || !g_get_level || !g_set_rank || !build || !plus ||
-      !minus || !g_get_creature || !recommend || !g_set_enabled || !g_set_color || !g_skill_useable) {
+      !minus || !g_get_creature || !recommend || !g_set_enabled || !g_set_color || !g_skill_useable || !g_delete_buttons || !g_set_text || !g_make_string ||
+      !g_destroy_string) {
     Log("SKIP skills page: a client function not found - the Skills page stays NWN's");
     return;
   }

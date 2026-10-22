@@ -797,6 +797,23 @@ Grappler (the SRD's other General feat), Epic Boons at 19, Magic Initiate,
 Paladin and Ranger Fighting Styles (their briefs), Skilled's picks on a page
 (C8: its Feats page comes after the Skills page).
 
+*0.16.3 (owner, 2026-10-22: "Unpickable feats just clutter the selection
+process, pickable feats at their max level that aren't greyed out don't make
+sense ... In each step only pickable feats are displayed and feats that
+reach their maximum level get greyed out. There should also be text in the
+window that explains what kind of points are being used").* The Skills page
+lists only the current step's rows: the ones it can take (live) and this
+level's picks (greyed — at their maximum for the step — and still there for
+"-"). The game's own builder makes the list, the other rows hidden from it
+(HideFromLevelUp) for the length of the call; when a pick changes the step's
+rows the list is emptied (CGuiButtonListbox::DeleteButtons — the page's row
+arrays are the list box's) and built again. The header line (once "Allocate
+skill points.") names the step and what is left ("Rogue skills: choose 2
+more of 4", "Human (Skillful): 1 skill of any kind: choose it", "Expertise:
+choose 2 more of 2"); the points box shows the step's picks left; the help
+box explains the steps and the background's skills when the list is new (a
+click leaves the clicked skill's description).
+
 *0.16.2 (owner's first C5-C7 test, 2026-10-22).* Fixes:
 - **The background's skills at 0** on the Skills page (K1): the level-up
   reset (0x7edcc0) clears the ranks after the points call that set them, and

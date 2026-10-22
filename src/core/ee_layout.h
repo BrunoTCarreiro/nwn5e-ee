@@ -582,6 +582,21 @@ constexpr size_t kSkillsPageRows = 0x6f8;
 constexpr size_t kSkillsPageRowCount = 0x700;
 constexpr size_t kSkillsPageRowSkills = 0xa80;
 constexpr size_t kSkillsRowName = 0xb0;
+// Its list box (CGuiButtonListbox +0x660: the rows above are its own arrays,
+// +0x98 / +0xa0 / +0x420; its selected row int32 +0x90 = page +0x6f0), its
+// header line (text wrapper +0x630, "Allocate skill points."), its help box
+// (text +0x228), its points box (text +0xbf8). CNWRules' skills (0x38 each,
+// +0x120), HideFromLevelUp int32 +0x34: the only thing the builder skips by.
+constexpr size_t kSkillsPageList = 0x660;
+constexpr size_t kSkillsPageSelected = 0x6f0;
+constexpr size_t kSkillsPageHeader = 0x630;
+constexpr size_t kSkillsPageHelp = 0x228;
+constexpr size_t kSkillsPagePoints = 0xbf8;
+constexpr size_t kRulesSkills = 0x120;
+constexpr size_t kSkillStride = 0x38;
+constexpr size_t kSkillHideFromLevelUp = 0x34;
+constexpr const char* kListboxDeleteButtons = "?DeleteButtons@CGuiButtonListbox@@QEAAXXZ";
+constexpr const char* kStringWrapperSetText = "?SetText@CAuroraStringWrapper@@QEAAXAEBVCExoString@@@Z";
 constexpr const char* kCheckboxSetEnabled = "?SetEnabled@CGuiCheckbox@@QEAAXH@Z";
 constexpr const char* kStringWrapperSetColor = "?SetColor@CAuroraStringWrapper@@QEAAXMMMM@Z";
 constexpr const char* kClassIsSkillUseable = "?IsSkillUseable@CNWClass@@QEAAHG@Z";
