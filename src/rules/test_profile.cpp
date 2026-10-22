@@ -104,6 +104,9 @@ TestProfile ParseTestProfile(const std::string& text) {
     } else if (key == "class") {
       profile.nwn_class = ClassFromName(Lower(value));
       if (profile.nwn_class < 0) profile.errors.push_back(where + "unknown class \"" + value + "\"");
+    } else if (key == "xp") {
+      profile.xp = atoi(value.c_str());
+      if (profile.xp < 1 || profile.xp > 10000000) profile.errors.push_back(where + "xp is 1..10000000");
     } else if (key == "level") {
       profile.level = atoi(value.c_str());
       if (profile.level < 1 || profile.level > 20) profile.errors.push_back(where + "a level is 1..20");

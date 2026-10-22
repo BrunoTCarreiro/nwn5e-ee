@@ -8,6 +8,8 @@
 //   class     = barbarian | bard | cleric | druid | fighter | monk | paladin |
 //               ranger | rogue | sorcerer | wizard
 //   level     = the level to reach in that class (levels are only added)
+//   xp        = experience points to have (only raised; no level-ups made —
+//               the level-up screen makes them, for testing it)
 //   abilities = six scores, Str Dex Con Int Wis Cha
 //   feats     = a comma list of names !feat knows (alert, savage attacker,
 //               mastery longsword, ...) or feat numbers
@@ -30,6 +32,7 @@ struct TestProfile {
   int race = -1;       // racialtypes.2da row (the base races 0..6)
   int nwn_class = -1;  // classes.2da row (the base classes 0..10)
   int level = 0;
+  int xp = 0;
   bool has_abilities = false;
   int abilities[6] = {0, 0, 0, 0, 0, 0};
   std::vector<std::string> feats;

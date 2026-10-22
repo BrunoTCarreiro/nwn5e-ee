@@ -250,6 +250,13 @@ std::vector<std::string> TestCommand(void* creature, const std::string&) {
                      : had == 0 && TotalLevel(stats) > profile.level ? " (a new class: multiclassed)"
                                                                      : " (" + std::to_string(add) + " levels added)"));
   }
+  // 2b. Experience only: the level-up screen makes the levels.
+  if (profile.xp > 0) {
+    char code[200];
+    sprintf_s(code, "if (GetXP(OBJECT_SELF) < %d) SetXP(OBJECT_SELF, %d);", profile.xp, profile.xp);
+    RunScriptChunk(code, id);
+    lines.push_back("  xp: " + std::to_string(profile.xp) + " (level up on the level-up screen)");
+  }
   // 3. Ability scores (through the ability sync).
   if (profile.has_abilities) {
     SetTestAbilityScores(creature, profile.abilities);

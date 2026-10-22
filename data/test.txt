@@ -3,6 +3,6 @@
 # file is read each time, so no rebuild or restart is needed. The keys are in
 # src/rules/test_profile.h.
 
-name = O5 - Skilled: a human with the Skilled feat; then type !skills
-species = human
-feats = skilled
+# 2024 XP (faithful): level 2 at 300, 3 at 900, 4 at 2700, 5 at 6500, 6 at 14000.
+name = level-ups on the screens (L1-L5): XP for level 4 - press Level Up three times
+xp = 2700
