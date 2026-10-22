@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 
+#include <string>
 #include <vector>
 
 #include "rules/combat.h"
@@ -61,5 +62,13 @@ const char* PrimaryAbilityText(CharacterClass character_class);
 // refusal `failing` (when given) is the first class that does not.
 bool CanMulticlassInto(CharacterClass next, const std::vector<CharacterClass>& current, const int scores[6],
                        CharacterClass* failing);
+
+// The abilities a class's multiclassing test reads, in order (the Fighter's
+// Strength or Dexterity, the Monk's Dexterity and Wisdom).
+std::vector<Ability> PrimaryAbilities(CharacterClass character_class);
+
+// Why a level in `next` is refused (`failing` as CanMulticlassInto gives it),
+// for the class's description: what it needs and the character's scores.
+std::string MulticlassRefusalText(CharacterClass next, CharacterClass failing, const int scores[6]);
 
 }  // namespace rules

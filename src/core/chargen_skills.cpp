@@ -76,6 +76,8 @@ PageFn g_build_list = nullptr;       // BuildSkillList (the page's rows, once)
 PageFn g_plus = nullptr;             // the rows' "+" and "-", the Recommended button
 PageFn g_minus = nullptr;
 PageFn g_recommend = nullptr;
+PageFn g_ok = nullptr;         // the OK button
+PageFn g_row_click = nullptr;  // a row's click (its description)
 GetCreatureFn g_get_creature = nullptr;
 SetEnabledFn g_set_enabled = nullptr;
 SetColorFn g_set_color = nullptr;
@@ -686,6 +688,32 @@ ImportFn g_import = nullptr;
 DeletingDtorFn g_page_dtor = nullptr;
 void* g_reset_page = nullptr;    // the page the button belongs to
 void* g_reset_button = nullptr;
+void* g_open_page = nullptr;     // the page up now (its init ran, its destructor not yet)
+
+// A level-up with nothing to pick skips the page (owner, 2026-10-22: "if
+// there are no skills to pick, you can skip that screen"): its OK, pressed
+// once the page is up - by a thread timer, which the game's message loop runs
+// between frames, not inside the page's own opening.
+void* g_skip_page = nullptr;
+const char* g_skip_why = "";
+
+void CALLBACK SkipTimer(HWND, UINT, UINT_PTR id, DWORD) {
+  KillTimer(nullptr, id);
+  void* page = g_skip_page;
+  g_skip_page = nullptr;
+  if (!page || page != g_open_page || !g_ok) return;  // closed already
+  Log("skills page: skipped - %s", g_skip_why);
+  g_ok(page, nullptr, nullptr, nullptr);
+}
+
+void SkipPage(void* page, const char* why) {
+  g_skip_page = page;
+  g_skip_why = why;
+  if (!SetTimer(nullptr, 0, USER_TIMER_MINIMUM, &SkipTimer)) {
+    g_skip_page = nullptr;
+    Log("skills page: not skipped (%s) - no timer", why);
+  }
+}
 
 // This level's picks taken back (the background's and earlier levels' kept),
 // their points returned, the first step shown.
@@ -728,6 +756,7 @@ void MakeResetButton(void* page, bool active) {
 // under the page's frame).
 void* PageDeletingDtor(void* page, int free_it) {
   if (page == g_step_page) g_step_page = nullptr;
+  if (page == g_open_page) g_open_page = nullptr;
   if (page == g_reset_page && g_reset_button) {
     void* button = g_reset_button;
     g_reset_button = nullptr;
@@ -739,10 +768,14 @@ void* PageDeletingDtor(void* page, int free_it) {
 
 void BuildList(void* page, void* a2, void* a3, void* a4) {
   void* stats = PageStats(page);
+  g_open_page = page;
   MakeResetButton(page, ActiveFor(stats));
   if (!ActiveFor(stats)) {
     g_step_page = nullptr;
     g_build_list(page, a2, a3, a4);
+    if (Active() && stats && g_level.stats == stats && !g_level.active && g_level.level > 1 && PointsLeft(stats) == 0) {
+      SkipPage(page, "an older character's level-up: no points (its skills stay with !skills)");
+    }
     return;
   }
   if (g_level.level == 1) SetBackgroundRanks(stats, g_level.background);  // after the hub's clear
@@ -753,6 +786,26 @@ void BuildList(void* page, void* a2, void* a3, void* a4) {
   g_page_step = FirstStep();
   BuildStepList(page, stats, g_page_step, a2, a3, a4);
   ShowStep(page, true);
+  if (g_page_step == Step::kDone && g_level.level > 1) SkipPage(page, "no skill choices at this level");
+}
+
+// A row's click: a greyed row shows "Unavailable Skill / You may not learn
+// this skill." (its disabled bit) - on the stepped page every listed skill is
+// one the step can take (owner, 2026-10-22: a skill greyed at its most
+// "should not say that they cannot learn that skill"), so it shows the
+// skill's description as a live row does: the bit off for the call.
+void RowClick(void* page, void* a2, void* a3, void* a4) {
+  const int index = static_cast<int>(reinterpret_cast<intptr_t>(a2));
+  auto* rows = Field<void**>(page, ee::kSkillsPageRows);
+  const int count = Field<int32_t>(page, ee::kSkillsPageRowCount);
+  uint32_t* flags = nullptr;
+  if (page == g_step_page && ActiveFor(PageStats(page)) && rows && index >= 0 && index < count && rows[index]) {
+    flags = reinterpret_cast<uint32_t*>(static_cast<uint8_t*>(rows[index]) + ee::kGuiControlFlags);
+  }
+  const uint32_t disabled = flags ? (*flags & ee::kGuiControlDisabled) : 0;
+  if (disabled) *flags &= ~ee::kGuiControlDisabled;
+  g_row_click(page, a2, a3, a4);
+  if (disabled) *flags |= disabled;
 }
 
 void Plus(void* page, void* a2, void* a3, void* a4) {
@@ -785,7 +838,6 @@ void Recommend(void* page, void* a2, void* a3, void* a4) {
 // OK (owner, 2026-10-22: "the user needs to press "OK" to move to the next
 // step"): once the step's choices are made, the next step; on the last, the
 // game's OK (the page closes).
-PageFn g_ok = nullptr;
 void Ok(void* page, void* a2, void* a3, void* a4) {
   void* stats = PageStats(page);
   if (!ActiveFor(stats) || page != g_step_page) {
@@ -905,6 +957,10 @@ void InstallSkillsPage() {
   const uintptr_t init = FunctionByString("skills page: its init", "SkillsButtonBox");
   const uintptr_t recommend = init ? HandlerByTag("skills page: Recommended", init, "RecommendButton") : 0;
   const uintptr_t ok = init ? HandlerByTag("skills page: OK", init, "OkButton") : 0;
+  // A row's click (the list's select callback), checked by its disabled-row test.
+  const uintptr_t row_click = init ? HandlerByTag("skills page: a row's click", init, "SkillsButtonBox") : 0;
+  const bool row_click_found =
+      row_click && FindPatternIn("skills page: a row's disabled test", FunctionAt(row_click), ee::kSkillsRowDisabledTest);
   g_set_enabled = reinterpret_cast<SetEnabledFn>(EngineExport(ee::kCheckboxSetEnabled));
   g_set_color = reinterpret_cast<SetColorFn>(EngineExport(ee::kStringWrapperSetColor));
   g_skill_useable = reinterpret_cast<SkillUseableFn>(EngineExport(ee::kClassIsSkillUseable));
@@ -955,6 +1011,11 @@ void InstallSkillsPage() {
       HookAddress("client Skills page deleting destructor (its Reset button first)", page_dtor,
                   reinterpret_cast<void*>(&PageDeletingDtor), reinterpret_cast<void**>(&g_page_dtor));
   if (!hooked) return;
+  if (!row_click_found ||
+      !HookAddress("client Skills page row click (a greyed skill's own description)", row_click,
+                   reinterpret_cast<void*>(&RowClick), reinterpret_cast<void**>(&g_row_click))) {
+    Log("SKIP skills page: a greyed row still says \"You may not learn this skill\" (its click not found)");
+  }
   g_installed = true;
   ServeConditionalRows("skills2024");
   ServeSkillsPageLayout();  // the Reset button's place (data/gui/skills/cg_skills.gui)

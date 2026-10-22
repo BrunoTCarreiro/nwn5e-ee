@@ -14,13 +14,21 @@
 // - CM10 (class_features faithful): no prestige classes.
 // NWN mode: NWN's.
 
+#include <windows.h>
+
 #include <stdint.h>
+#include <stdlib.h>
 
 #include <intrin.h>
 
+#include <atomic>
+#include <map>
+#include <mutex>
+#include <string>
 #include <vector>
 
 #include "config.h"
+#include "data_serving.h"
 #include "creature.h"
 #include "ee_layout.h"
 #include "engine.h"
@@ -121,7 +129,58 @@ void ReadScores(void* stats, int scores[6]) {
   }
 }
 
-int GetIsClassAvailable(void* stats, uint8_t nwn_class) {
+// Why the Class page refuses a class, for its description (owner,
+// 2026-10-22: "add the reason to the class descriptions"): the player's
+// characters' checks only (ids from 0x7FFFFFFF down), each round of them (the
+// page's list, 2 s apart from the last) afresh, all gone when the Class page
+// closes; rules_labels.cpp appends a class's note to its description
+// (classes.2da Description) as the string is looked up.
+std::mutex g_notes_lock;
+std::atomic<bool> g_have_notes{false};
+std::map<uint8_t, std::string> g_class_notes;
+uint64_t g_notes_at = 0;
+std::map<uint32_t, uint8_t> g_description_class;  // Description strref -> classes.2da row
+
+void NoteClass(void* stats, uint8_t nwn_class, const std::string& note) {
+  if (!stats || ObjectIdOf(stats) <= 0x7F000000u) return;
+  std::lock_guard<std::mutex> lock(g_notes_lock);
+  const uint64_t now = GetTickCount64();
+  if (now - g_notes_at > 2000) g_class_notes.clear();
+  g_notes_at = now;
+  if (note.empty()) {
+    g_class_notes.erase(nwn_class);
+  } else {
+    g_class_notes[nwn_class] = note;
+  }
+  g_have_notes = !g_class_notes.empty();
+}
+
+void ForgetClassNotes() {
+  std::lock_guard<std::mutex> lock(g_notes_lock);
+  g_class_notes.clear();
+  g_have_notes = false;
+}
+
+void MapClassDescriptions(void*, bool) {
+  const std::vector<std::string> descriptions = GameTableColumn("classes", "Description");
+  std::lock_guard<std::mutex> lock(g_notes_lock);
+  g_description_class.clear();
+  for (size_t row = 0; row < descriptions.size() && row < 256; ++row) {
+    if (descriptions[row].empty()) continue;
+    const unsigned long strref = strtoul(descriptions[row].c_str(), nullptr, 10);
+    if (strref && !g_description_class.count(strref)) g_description_class[strref] = static_cast<uint8_t>(row);
+  }
+  Log("classes: %zu class descriptions mapped (a refused class's says why)", g_description_class.size());
+}
+
+using DestroyFn = void* (*)(void* object, int free_it);
+DestroyFn g_class_page_dtor = nullptr;
+void* ClassPageDtor(void* page, int free_it) {
+  ForgetClassNotes();
+  return g_class_page_dtor(page, free_it);
+}
+
+int ClassAvailable(void* stats, uint8_t nwn_class, std::string* note) {
   const int allowed = g_class_available(stats, nwn_class);
   if (!allowed || !stats) return allowed;
   // CM10: no prestige classes in faithful (their 2024 counterparts are the SRD
@@ -132,6 +191,7 @@ int GetIsClassAvailable(void* stats, uint8_t nwn_class) {
       Log("classes: 0x%08X can't take class %u - prestige classes are off (2024: subclasses)", ObjectIdOf(stats),
           nwn_class);
     }
+    *note = "2024 rules: no prestige classes - your class's subclass, at class level 3, takes their place.";
     return 0;
   }
   if (g_config.multiclass != rules::RuleVariant::kFaithful) return allowed;
@@ -150,7 +210,15 @@ int GetIsClassAvailable(void* stats, uint8_t nwn_class) {
         ClassName(*next), ClassName(failing), rules::PrimaryAbilityText(failing), scores[0], scores[1], scores[2],
         scores[3], scores[4], scores[5]);
   }
+  *note = rules::MulticlassRefusalText(*next, failing, scores);
   return 0;
+}
+
+int GetIsClassAvailable(void* stats, uint8_t nwn_class) {
+  std::string note;
+  const int allowed = ClassAvailable(stats, nwn_class, &note);
+  NoteClass(stats, nwn_class, note);
+  return allowed;
 }
 
 int ClassLimit(int) { return kClassLimit2024; }
@@ -182,5 +250,30 @@ void InstallProgressionRules() {
     HookExport("CNWSCreatureStats::GetIsClassAvailable (2024 multiclassing, no prestige classes)",
                ee::kGetIsClassAvailable, reinterpret_cast<void*>(&GetIsClassAvailable),
                reinterpret_cast<void**>(&g_class_available));
+    // The refused classes' descriptions say why: the descriptions' strings,
+    // the notes cleared as the Class page closes.
+    OnRulesLoaded(&MapClassDescriptions);
+    const uintptr_t class_page = FindVtable("classes: the Class page's vtable", ee::kRttiClassPage);
+    const uintptr_t class_page_dtor = class_page ? VtableSlot(class_page, 0) : 0;
+    if (!class_page_dtor ||
+        !HookAddress("client Class page deleting destructor (the refused classes' notes cleared)", class_page_dtor,
+                     reinterpret_cast<void*>(&ClassPageDtor), reinterpret_cast<void**>(&g_class_page_dtor))) {
+      Log("SKIP classes: the refused classes' notes - no Class page destructor");
+      return;
+    }
   }
+}
+
+// The note for a class description's string (rules_labels.cpp), if its class
+// was refused on the open Class page.
+bool ClassDescriptionNote(uint32_t strref, std::string* note) {
+  if (!g_have_notes) return false;
+  std::lock_guard<std::mutex> lock(g_notes_lock);
+  if (!g_class_page_dtor) return false;  // nothing would clear them
+  const auto row = g_description_class.find(strref);
+  if (row == g_description_class.end()) return false;
+  const auto found = g_class_notes.find(row->second);
+  if (found == g_class_notes.end()) return false;
+  *note = found->second;
+  return true;
 }

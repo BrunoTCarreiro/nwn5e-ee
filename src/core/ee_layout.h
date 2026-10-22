@@ -594,6 +594,13 @@ constexpr size_t kSkillsPageHelp = 0x228;
 constexpr size_t kSkillsPagePoints = 0xbf8;
 // The page's OK text button (its click {object +0x90, fn +0x98} at +0xe40 / +0xe48).
 constexpr size_t kSkillsPageOk = 0xdb0;
+// A list row's flags (+0x8): bit 0 set by SetEnabled(0). The page's row click
+// (the list's select callback, 0x9cb730, stored after "SkillsButtonBox")
+// tests it (mov eax,[rdx+8]; not eax; test al,1; jnz) and for a disabled row
+// shows "Unavailable Skill" / "You may not learn this skill." (5847 / 5848).
+constexpr size_t kGuiControlFlags = 0x8;
+constexpr uint32_t kGuiControlDisabled = 0x1;
+constexpr const char* kSkillsRowDisabledTest = "8B 42 08 F7 D0 A8 01 75";
 constexpr size_t kRulesSkills = 0x120;
 constexpr size_t kSkillStride = 0x38;
 constexpr size_t kSkillHideFromLevelUp = 0x34;

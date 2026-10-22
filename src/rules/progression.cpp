@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "rules/abilities.h"
+
 namespace rules {
 
 namespace {
@@ -96,6 +98,38 @@ const char* PrimaryAbilityText(CharacterClass character_class) {
     case CharacterClass::kWizard: return "Intelligence 13";
   }
   return "";
+}
+
+std::vector<Ability> PrimaryAbilities(CharacterClass character_class) {
+  switch (character_class) {
+    case CharacterClass::kBarbarian: return {Ability::kStrength};
+    case CharacterClass::kBard: return {Ability::kCharisma};
+    case CharacterClass::kCleric: return {Ability::kWisdom};
+    case CharacterClass::kDruid: return {Ability::kWisdom};
+    case CharacterClass::kFighter: return {Ability::kStrength, Ability::kDexterity};
+    case CharacterClass::kMonk: return {Ability::kDexterity, Ability::kWisdom};
+    case CharacterClass::kPaladin: return {Ability::kStrength, Ability::kCharisma};
+    case CharacterClass::kRanger: return {Ability::kDexterity, Ability::kWisdom};
+    case CharacterClass::kRogue: return {Ability::kDexterity};
+    case CharacterClass::kSorcerer: return {Ability::kCharisma};
+    case CharacterClass::kWarlock: return {Ability::kCharisma};
+    case CharacterClass::kWizard: return {Ability::kIntelligence};
+  }
+  return {};
+}
+
+std::string MulticlassRefusalText(CharacterClass next, CharacterClass failing, const int scores[6]) {
+  static const char* const kNames[] = {"Barbarian", "Bard",    "Cleric", "Druid",    "Fighter", "Monk",
+                                       "Paladin",   "Ranger",  "Rogue",  "Sorcerer", "Warlock", "Wizard"};
+  std::string have;
+  for (Ability ability : PrimaryAbilities(failing)) {
+    have += (have.empty() ? "" : ", ") + std::string(AbilityName(ability)) + " " + std::to_string(Score(scores, ability));
+  }
+  const std::string head = std::string("Multiclassing (2024): you can't take a level in ") +
+                           kNames[static_cast<int>(next)] + " now - ";
+  if (failing == next) return head + "it needs " + PrimaryAbilityText(failing) + ", and you have " + have + ".";
+  return head + "every class you have needs its score too, and " + kNames[static_cast<int>(failing)] + " needs " +
+         PrimaryAbilityText(failing) + ": you have " + have + ".";
 }
 
 bool CanMulticlassInto(CharacterClass next, const std::vector<CharacterClass>& current, const int scores[6],

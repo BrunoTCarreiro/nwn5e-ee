@@ -13,6 +13,8 @@
 
 #include <stdint.h>
 
+#include <string>
+
 #include "config.h"
 #include "ee_layout.h"
 #include "hooks.h"
@@ -21,6 +23,8 @@
 #include "rules/saves.h"
 #include "rules/skills.h"
 #include "rules/species.h"
+
+bool ClassDescriptionNote(uint32_t strref, std::string* note);  // rules_progression.cpp
 
 namespace {
 
@@ -64,6 +68,14 @@ int FetchInternal(void* table, uint32_t strref, void* result, int flag) {
   }
   const int found = g_fetch_internal(table, strref, result, flag);
   if (!result) return found;
+  // A class the Class page refuses: its description says why (rules_progression.cpp).
+  std::string note;
+  if (ClassDescriptionNote(strref, &note)) {
+    const char* text = *reinterpret_cast<const char* const*>(static_cast<uint8_t*>(result) + ee::kStrResText);
+    const std::string described = std::string(text ? text : "") + "\n\n" + note;
+    g_assign(static_cast<uint8_t*>(result) + ee::kStrResText, described.c_str());
+    return found;
+  }
   const char* label = Label2024(strref);
   if (!label) return found;
   g_assign(static_cast<uint8_t*>(result) + ee::kStrResText, label);

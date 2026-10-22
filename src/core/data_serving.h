@@ -2,6 +2,9 @@
 
 #include <stdint.h>
 
+#include <string>
+#include <vector>
+
 // CM0 (port of 1.69's data_serving; docs/EE-PORT.md E4a, EP4, EP5): nwn5e's
 // own 2da rows and strings. Each table with rows in <dll>\data\rows (and the
 // private layer's <dll>\data\private\rows) is rebuilt from the game's own copy
@@ -16,6 +19,11 @@ constexpr uint32_t kDataStringFirst = 16000000;
 constexpr uint32_t kDataStringEnd = 16500000;
 
 void InstallDataServing(const wchar_t* dll_directory);
+
+// One column of the engine's copy of `table`.2da (served by nwn5e or the
+// game's own), by row ("" for "****"); empty when it can't be read (no
+// resource manager yet, no such table or column).
+std::vector<std::string> GameTableColumn(const char* table, const char* column);
 
 // The text for a private string id, or nullptr.
 const char* DataString(uint32_t strref);

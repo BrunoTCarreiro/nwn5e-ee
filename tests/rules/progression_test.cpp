@@ -88,3 +88,22 @@ TEST(MulticlassingNeeds13s) {
   const int paladin[6] = {13, 10, 12, 8, 10, 13};
   CHECK_EQ(MeetsPrimaryAbility(CharacterClass::kPaladin, paladin), true);
 }
+
+TEST(MulticlassRefusalSaysWhy) {
+  //                Str Dex Con Int Wis Cha
+  const int fighter[6] = {17, 13, 15, 8, 12, 10};  // the owner's Part 3 Fighter
+  CHECK_EQ(MulticlassRefusalText(CharacterClass::kMonk, CharacterClass::kMonk, fighter) ==
+               "Multiclassing (2024): you can't take a level in Monk now - it needs Dexterity and Wisdom 13, and you "
+               "have Dexterity 13, Wisdom 12.",
+           true);
+  CHECK_EQ(MulticlassRefusalText(CharacterClass::kWizard, CharacterClass::kWizard, fighter) ==
+               "Multiclassing (2024): you can't take a level in Wizard now - it needs Intelligence 13, and you have "
+               "Intelligence 8.",
+           true);
+  const int weak_wizard[6] = {8, 14, 12, 12, 10, 10};
+  CHECK_EQ(MulticlassRefusalText(CharacterClass::kRogue, CharacterClass::kWizard, weak_wizard) ==
+               "Multiclassing (2024): you can't take a level in Rogue now - every class you have needs its score too, "
+               "and Wizard needs Intelligence 13: you have Intelligence 12.",
+           true);
+  CHECK_EQ(PrimaryAbilities(CharacterClass::kFighter).size(), 2u);
+}

@@ -797,6 +797,25 @@ Grappler (the SRD's other General feat), Epic Boons at 19, Magic Initiate,
 Paladin and Ranger Fighting Styles (their briefs), Skilled's picks on a page
 (C8: its Feats page comes after the Skills page).
 
+*0.16.9 (owner's Part 3, 2026-10-22: "add the reason to the class
+descriptions, also if there are no skills to pick, you can skip that
+screen. if a player presses a skill that's greyed out due to having reached
+the max increase they could the text should not say that they cannot learn
+that skill").* (1) A class the level-up's Class page refuses says why in its
+description: "Multiclassing (2024): you can't take a level in Monk now - it
+needs Dexterity and Wisdom 13, and you have Dexterity 13, Wisdom 12" (or the
+current class that fails; prestige classes: their 2024 place, the subclass
+at 3). The GetIsClassAvailable hook keeps each refused class's reason (the
+player's characters only, each round of checks afresh), rules_labels.cpp
+appends it as classes.2da's Description string is looked up, and the Class
+page's deleting destructor drops them. (2) A level-up whose Skills page has
+nothing to pick (no step; an older character's level-up with no points) is
+skipped: the page's OK pressed by a thread timer once the page is up. (3) A
+greyed row's click (the list's select callback, 0x9cb730) showed
+"Unavailable Skill / You may not learn this skill." for any disabled row;
+on the stepped page every listed skill is one the step can take, so the
+row's disabled bit is off for the call and the skill's description shows.
+
 *Accepted (owner, 2026-10-22, after testing 0.16.8: "ok, I think it's
 good"): the Skills page in steps - OK to move on, Recommended and Reset,
 each step's texts (0.16.4-0.16.7) - and the Builds step (0.16.8).*

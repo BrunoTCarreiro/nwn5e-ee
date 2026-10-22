@@ -356,6 +356,24 @@ void InstallDataServing(const wchar_t* dll_directory) {
   if (g_config.debug_served_data_probe) OnRulesLoaded(&CheckProbe);
 }
 
+std::vector<std::string> GameTableColumn(const char* table, const char* column) {
+  std::vector<std::string> values;
+  std::string bytes;
+  std::string why;
+  std::string error;
+  data::TwoDA parsed;
+  if (!ReadGameTable(table, &bytes, &why) || !data::ParseTwoDA(bytes, &parsed, &error)) return values;
+  size_t index = parsed.columns.size();
+  for (size_t i = 0; i < parsed.columns.size(); ++i) {
+    if (_stricmp(parsed.columns[i].c_str(), column) == 0) index = i;
+  }
+  if (index == parsed.columns.size()) return values;
+  for (const std::vector<std::string>& row : parsed.rows) {
+    values.push_back(index < row.size() && row[index] != data::kEmpty ? row[index] : std::string());
+  }
+  return values;
+}
+
 const char* DataString(uint32_t strref) {
   if (strref < kDataStringFirst || strref >= kDataStringEnd) return nullptr;
   const auto found = g_strings.find(strref);
