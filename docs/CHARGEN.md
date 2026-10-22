@@ -745,6 +745,39 @@ served only when all four hooks are in. tests/data/class_skills_test.cpp
 checks the tables against the rules. Not built: Performance on the page for a
 non-Bard (Perform is a Bard's only, AllClassesCanUse 0 — !skills for it).
 
+*C6 (0.15.0, owner 2026-10-22: "Go for C6").* Game start and the
+chapter-export check. Verified in the code: EE saves each object's own
+SQLite database with it — CNWSCreature::SaveCreature calls
+CNWSObject::SaveSqliteDatabase unconditionally (beside its material,
+texture and animation overrides and its UUID), and a vault character's load
+(CNWSPlayer::LoadCreatureData, LoadCharacterFromIFO) calls
+LoadSqliteDatabase — while local variables aren't in SaveCreature (§5). So
+(src/core/records.cpp) nwn5e's per-character records stay in local
+variables (fast to read) and a player character's are also written to its
+database (table nwn5e_records, through the script bridge: SqlPrepareQueryObject
+on the character). Once per character object (marker nwn5e_records) the
+first reader restores them from the database — an exported character
+entering a new chapter, a vault character in a new game — or, the database
+being empty, copies an older character's local records into it. Records:
+the ability sync's applied deltas (without them an exported character's
+background increases and level +1 removals would be applied twice), ASI
+choices and the legacy count, an older !background, the !skills profile,
+the class features nwn5e granted, mastery swaps, the background's Origin
+feat. Moved to engine data on the way: an older !background record to its
+background feat, older local masteries (before C4) to their feats. Origin
+feats: the background's, as a real feat (Soldier: Savage Attacker, Criminal:
+Alert; Acolyte and Sage's Magic Initiate waits for spells) — on the sheet,
+kept by exports — taken back if the background changes or outside faithful,
+never one the character chose itself. Tools: Thieves' Tools (Criminal) is a
+proficiency already (the background's skills); the others (Calligrapher's
+Supplies, a Gaming Set) have no NWN use — nothing to record. The check:
+`!export` ([debug] test_commands) exports the character as a chapter change
+does; a new game with it should keep its scores, skills and choices. Not
+verified offline: EE ships no script compiler and the script bridge only
+works with a module loaded, so the database scripts are first compiled in
+game — a failure is logged once ("records: the restore / write / copy
+script failed"), and the records then stay in local variables as before.
+
 *Decided (owner, 2026-10-21): the Domain step stays until the Cleric
 conversion* — NWN's two domains are picked at creation until the Cleric's
 brief (Phase 4) drops what domains grant (powers, domain spells, the bonus

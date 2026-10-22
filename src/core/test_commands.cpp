@@ -14,6 +14,8 @@
 //   2024 feats), ability scores, feats and items. The file is read each time,
 //   so a new test needs only a new file, not a rebuild. Species features that
 //   come as feats at creation stay those of the character's first species.
+// - "!export" saves the character to the vault as a campaign's chapter change
+//   does (C6's check: its records come back from its own database).
 
 #include <windows.h>
 
@@ -147,6 +149,19 @@ std::vector<std::string> FeatCommand(void* creature, const std::string& args) {
   const uint32_t id = ObjectIdOf(stats);
   RunScriptChunk(code, id);
   Log("feat command: 0x%08X %s feat %d - %s", id, add ? "add" : "remove", feat, result);
+  return {};
+}
+
+// --- !export --------------------------------------------------------------------
+// C6's chapter-export check: the character saved to the vault the way a
+// campaign's chapter change does (ExportSingleCharacter); start a new game
+// with it and its records come back from its own database.
+std::vector<std::string> ExportCommand(void* creature, const std::string&) {
+  const uint32_t id = ObjectIdOf(StatsOf(creature));
+  RunScriptChunk("ExportSingleCharacter(OBJECT_SELF); SendMessageToPC(OBJECT_SELF, \"nwn5e: exported to the vault as "
+                 "a chapter change does - start a new game with this character to check what it keeps.\");",
+                 id);
+  Log("export: 0x%08X exported (ExportSingleCharacter)", id);
   return {};
 }
 
@@ -304,7 +319,9 @@ void InstallTestCommands() {
   AddChatCommand("!give", &GiveCommand);
   AddChatCommand("!feat", &FeatCommand);
   AddChatCommand("!test", &TestCommand);
+  AddChatCommand("!export", &ExportCommand);
   HookExport("CNWSCreatureStats::CanChooseFeat (!test's level-ups: the 2024 feats only)", ee::kServerCanChooseFeat,
              reinterpret_cast<void*>(&ServerCanChooseFeat), reinterpret_cast<void**>(&g_server_can_choose_feat));
-  Log("config: [debug] test_commands=1 - !test (data\\test.txt), !give <blueprint>, !feat add / remove <feat>");
+  Log("config: [debug] test_commands=1 - !test (data\\test.txt), !give <blueprint>, !feat add / remove <feat>, "
+      "!export");
 }

@@ -48,6 +48,7 @@
 #include "engine.h"
 #include "hooks.h"
 #include "log.h"
+#include "records.h"
 #include "rules/abilities.h"
 #include "rules/backgrounds.h"
 #include "rules/nwn_conversion.h"
@@ -71,6 +72,7 @@ const char* const kDeltaVars[6] = {"nwn5e_delta_str", "nwn5e_delta_dex", "nwn5e_
 constexpr const char* kVarBackground = "nwn5e_background";     // rules::Background
 constexpr const char* kVarBackgroundBonus = "nwn5e_bg_bonus";  // rules::EncodeAmounts
 constexpr const char* kVarLegacy = "nwn5e_asi_legacy";         // legacy ASIs + 1 (0 = not decided yet)
+constexpr const char* kVarOrigin = "nwn5e_origin_feat";        // the Origin feat nwn5e gave for the background + 1
 constexpr int kMaxLegacy = 7;
 constexpr DWORD kSyncEveryMs = 2000;
 constexpr int kLastBaseClass = 10;
@@ -122,12 +124,12 @@ void SetBackground(void* creature, void* stats, rules::Background background, co
     if (row != feat && engine::HasFeat(stats, row)) engine::RemoveFeat(stats, row);
   }
   if (feat >= 0 && (engine::HasFeat(stats, feat) || engine::AddFeat(stats, feat))) {
-    engine::SetLocalInt(creature, kVarBackground, 0);
-    engine::SetLocalInt(creature, kVarBackgroundBonus, 0);
+    SetRecord(creature, kVarBackground, 0);
+    SetRecord(creature, kVarBackgroundBonus, 0);
     return;
   }
-  engine::SetLocalInt(creature, kVarBackground, static_cast<int>(background));
-  engine::SetLocalInt(creature, kVarBackgroundBonus, rules::EncodeAmounts(amounts));
+  SetRecord(creature, kVarBackground, static_cast<int>(background));
+  SetRecord(creature, kVarBackgroundBonus, rules::EncodeAmounts(amounts));
 }
 
 // The background chosen on the creation screen's Background page
@@ -221,7 +223,7 @@ std::vector<AsiSlot> PlayerAsis(void* creature, void* stats) {
   int legacy = engine::GetLocalInt(creature, kVarLegacy) - 1;
   if (legacy < 0) {
     legacy = std::min(kMaxLegacy, std::max(0, TotalFeatLevels(stats) - owned));
-    engine::SetLocalInt(creature, kVarLegacy, legacy + 1);
+    SetRecord(creature, kVarLegacy, legacy + 1);
     if (legacy > 0) {
       Log("abilities: 0x%08X leveled under NWN's rules - %d ASIs to choose for its 2024 feat levels so far",
           IdOf(creature), legacy);
@@ -234,6 +236,25 @@ std::vector<AsiSlot> PlayerAsis(void* creature, void* stats) {
     slots.push_back({false, k, engine::GetLocalInt(creature, AsiVar(false, k).c_str())});
   }
   return slots;
+}
+
+// C6: the background's Origin feat as a real feat (Soldier: Savage Attacker,
+// Criminal: Alert) — on the sheet, and kept by exports — taken back when the
+// background changes or outside faithful. A feat the character chose itself
+// (a Human's Versatile pick) is never taken.
+void SyncOriginFeat(void* creature, void* stats, rules::Background background) {
+  const int given = engine::GetLocalInt(creature, kVarOrigin) - 1;
+  const int wanted = background == rules::Background::kNone ? -1 : rules::OriginFeatId(background);
+  const uint32_t id = IdOf(creature);
+  if (given >= 0 && given != wanted) {
+    if (engine::HasFeat(stats, given)) engine::RemoveFeat(stats, given);
+    SetRecord(creature, kVarOrigin, 0);
+    Log("abilities: 0x%08X Origin feat %d (from its background) taken back", id, given);
+  }
+  if (wanted >= 0 && given != wanted && !engine::HasFeat(stats, wanted) && engine::AddFeat(stats, wanted)) {
+    SetRecord(creature, kVarOrigin, wanted + 1);
+    Log("abilities: 0x%08X Origin feat %d given (its background's)", id, wanted);
+  }
 }
 
 // Brings the character's base scores to its faithful (or NWN) values.
@@ -249,6 +270,7 @@ void Sync(void* creature, bool force) {
   g_last_sync[id] = now;
   const CreatureFacts facts = ReadCreatureFacts(stats);
   if (!facts.character || !facts.plausible) return;
+  if (facts.is_player) EnsureRecords(creature);  // C6: an exported character's records, back first
 
   int applied[6], nwn_base[6], delta[6] = {0, 0, 0, 0, 0, 0};
   for (int i = 0; i < 6; ++i) {
@@ -267,7 +289,14 @@ void Sync(void* creature, bool force) {
     }
     if (facts.is_player) {
       GiveCreationBackground(creature, stats, facts);
-      const CurrentBackground current = ReadBackground(creature, stats);
+      CurrentBackground current = ReadBackground(creature, stats);
+      if (current.feat < 0 && current.background != rules::Background::kNone) {
+        // C6: an older !background record (local variables) moved to its feat.
+        SetBackground(creature, stats, current.background, current.amounts);
+        current = ReadBackground(creature, stats);
+        if (current.feat >= 0) Log("abilities: 0x%08X its older background record moved to feat %d", id, current.feat);
+      }
+      SyncOriginFeat(creature, stats, current.background);
       std::copy(current.amounts, current.amounts + 6, background);
       for (const AsiSlot& slot : PlayerAsis(creature, stats)) {
         if (const auto asi = rules::DecodeAsi(slot.choice)) asis.push_back(*asi);
@@ -283,13 +312,15 @@ void Sync(void* creature, bool force) {
       }
     }
     rules::FaithfulAbilityDelta(nwn_base, bumps, background, asis, delta);
+  } else if (facts.is_player) {
+    SyncOriginFeat(creature, stats, rules::Background::kNone);  // NWN mode: no background feats
   }
   std::string changes;
   for (int i = 0; i < 6; ++i) {
     if (delta[i] == applied[i]) continue;
     const int value = std::max(3, std::min(255, nwn_base[i] + delta[i]));
     SetBase(stats, i, value);
-    engine::SetLocalInt(creature, kDeltaVars[i], delta[i]);
+    SetRecord(creature, kDeltaVars[i], delta[i]);
     char part[64];
     sprintf_s(part, "%s%s %d (NWN %d, %+d)", changes.empty() ? "" : ", ",
               rules::AbilityName(static_cast<rules::Ability>(i)), value, nwn_base[i], delta[i]);
@@ -399,7 +430,7 @@ std::vector<std::string> AsiCommand(void* creature, const std::string& args) {
   if (words[0] == "undo") {
     for (auto it = slots.rbegin(); it != slots.rend(); ++it) {
       if (!it->choice) continue;
-      engine::SetLocalInt(creature, AsiVar(it->legacy, it->k).c_str(), 0);
+      SetRecord(creature, AsiVar(it->legacy, it->k).c_str(), 0);
       it->choice = 0;
       ++unspent;
       Sync(creature, true);
@@ -415,7 +446,7 @@ std::vector<std::string> AsiCommand(void* creature, const std::string& args) {
   for (AsiSlot& slot : slots) {
     if (slot.choice) continue;
     slot.choice = rules::EncodeAsi({*first, second});
-    engine::SetLocalInt(creature, AsiVar(slot.legacy, slot.k).c_str(), slot.choice);
+    SetRecord(creature, AsiVar(slot.legacy, slot.k).c_str(), slot.choice);
     --unspent;
     Sync(creature, true);
     Log("abilities: 0x%08X ASI %s%d = %s%s%s", IdOf(creature), slot.legacy ? "legacy " : "", slot.k,
@@ -521,6 +552,10 @@ bool HasAlertFromBackground(void* creature) {
 
 void InstallAbilityRules() {
   g_faithful = g_config.ability_scores == rules::RuleVariant::kFaithful;
+  RegisterRecords({kDeltaVars[0], kDeltaVars[1], kDeltaVars[2], kDeltaVars[3], kDeltaVars[4], kDeltaVars[5],
+                   kVarBackground, kVarBackgroundBonus, kVarLegacy, kVarOrigin});
+  for (int k = 1; k <= kMaxLegacy; ++k) RegisterRecord(AsiVar(true, k));
+  for (int k = 1; k <= rules::kAsiFeatCount; ++k) RegisterRecord(AsiVar(false, k));
   // The sync runs in every mode: nwn and off put any recorded change back.
   g_active = AddCreatureUpdateListener(&OnCreatureUpdate);
   HookExport("CNWSCreatureStats::LevelUp (base scores synced at a level-up)", ee::kLevelUp,

@@ -34,6 +34,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "log_once.h"
+#include "records.h"
 #include "rules/feats2024.h"
 #include "rules/nwn_conversion.h"
 #include "rules/skills.h"
@@ -154,9 +155,9 @@ uint32_t RankFingerprint(void* stats) {
 }
 
 void StoreProfile(void* creature, uint32_t id, const Profile& profile) {
-  engine::SetLocalInt(creature, kVarProficient, static_cast<int>(profile.proficient));
-  engine::SetLocalInt(creature, kVarExpertise, static_cast<int>(profile.expertise));
-  engine::SetLocalInt(creature, kVarSet, 1);
+  SetRecord(creature, kVarProficient, static_cast<int>(profile.proficient));
+  SetRecord(creature, kVarExpertise, static_cast<int>(profile.expertise));
+  SetRecord(creature, kVarSet, 1);
   CachedProfile& cached = g_profiles[id];
   cached.profile = profile;
   cached.chosen = true;
@@ -169,6 +170,7 @@ Profile CharacterProfile(void* creature, void* stats, bool is_player) {
   const uint32_t id = IdOf(creature);
   CachedProfile& cached = g_profiles[id];
   if (cached.chosen) return cached.profile;
+  EnsureRecords(creature);  // C6: an exported character's profile, from its database
   if (engine::GetLocalInt(creature, kVarSet) == 1) {  // chosen (its variables may load after its ranks)
     cached.profile.proficient = static_cast<rules::SkillSet>(engine::GetLocalInt(creature, kVarProficient));
     cached.profile.expertise = static_cast<rules::SkillSet>(engine::GetLocalInt(creature, kVarExpertise));
@@ -354,6 +356,7 @@ std::vector<std::string> SkillsCommand(void* creature, const std::string& args) 
 
 void InstallSkillRules() {
   if (!Faithful()) return;
+  RegisterRecords({kVarProficient, kVarExpertise, kVarSet});
   g_total_effect_bonus = reinterpret_cast<TotalEffectBonusFn>(EngineExport(ee::kGetTotalEffectBonus));
   if (!g_total_effect_bonus) Log("skills: GetTotalEffectBonus missing; 2024 skills have no item / spell bonuses");
   if (!AddSkillAdjuster(&SkillValue)) return;

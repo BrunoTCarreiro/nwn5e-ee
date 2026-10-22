@@ -30,6 +30,7 @@
 #include "engine.h"
 #include "hooks.h"
 #include "log.h"
+#include "records.h"
 #include "rules/class_features.h"
 #include "rules/nwn_conversion.h"
 
@@ -88,6 +89,7 @@ void FeaturesCreatureUpdate(void* creature) {
   if (!stats || !engine::AreaOf(creature)) return;
   const CreatureFacts facts = ReadCreatureFacts(stats);
   if (!facts.character || !facts.plausible) return;
+  if (facts.is_player) EnsureRecords(creature);  // C6
   const bool faithful = g_config.class_features == rules::RuleVariant::kFaithful;
   const int recorded = engine::GetLocalInt(creature, kVarGranted);
   if (!faithful && !recorded) return;  // nothing to take back
@@ -109,7 +111,7 @@ void FeaturesCreatureUpdate(void* creature) {
       Log("features: %s 0x%08X removed feat %d", KindOf(facts), id, feat);
     }
   }
-  if (now_recorded != recorded) engine::SetLocalInt(creature, kVarGranted, now_recorded);
+  if (now_recorded != recorded) SetRecord(creature, kVarGranted, now_recorded);
 }
 
 }  // namespace
@@ -123,5 +125,6 @@ void InstallFeatureRules() {
     Log("SKIP features: granted class feats - no AddFeat / RemoveFeat export");
     return;
   }
+  RegisterRecords({kVarGranted});
   AddCreatureUpdateListener(&FeaturesCreatureUpdate);
 }

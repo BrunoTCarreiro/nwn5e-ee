@@ -1,5 +1,7 @@
 #include "rules/backgrounds.h"
 
+#include "rules/feats2024.h"
+
 #include <ctype.h>
 
 #include <algorithm>
@@ -159,6 +161,14 @@ BackgroundKit BackgroundKit2024(Background background) {
       break;
   }
   return {{}, 0};
+}
+
+int OriginFeatId(Background background) {
+  switch (background) {
+    case Background::kCriminal: return kFeatAlert;
+    case Background::kSoldier: return kFeatSavageAttacker;
+    default: return -1;  // Acolyte, Sage: Magic Initiate
+  }
 }
 
 }  // namespace rules

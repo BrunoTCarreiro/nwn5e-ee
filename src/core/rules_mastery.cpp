@@ -50,6 +50,7 @@
 #include "engine.h"
 #include "hooks.h"
 #include "log.h"
+#include "records.h"
 #include "log_once.h"
 #include "mastery.h"
 #include "rest.h"
@@ -102,7 +103,22 @@ struct Slots {
   bool swap_ready = false;
 };
 
+// C6: an older character's masteries kept in local variables (before C4)
+// moved to their feats, which exports keep.
+void MoveLocalMasteries(void* creature, void* stats) {
+  for (int i = 0; i < kMaxSlots; ++i) {
+    const int value = engine::GetLocalInt(creature, kSlotVars[i]);
+    if (value <= 0) continue;
+    const int feat = rules::WeaponMasteryFeat(value - 1);
+    if (feat < 0 || !(HasFeat(stats, feat) || engine::AddFeat(stats, feat))) continue;
+    SetRecord(creature, kSlotVars[i], 0);
+    Log("mastery: 0x%08X an older mastery record moved to feat %d", ObjectIdOf(stats), feat);
+  }
+}
+
 Slots ReadSlots(void* creature, void* stats) {
+  EnsureRecords(creature);
+  MoveLocalMasteries(creature, stats);
   Slots slots;
   slots.count = rules::WeaponMasterySlots(Classes(stats));
   if (slots.count > kMaxSlots) slots.count = kMaxSlots;
@@ -134,7 +150,7 @@ bool TakeMastery(void* stats, int kind) { return engine::AddFeat(stats, rules::W
 // The mastery in `slot` given up: its feat, or an older local variable.
 void GiveUpMastery(void* creature, void* stats, const Slots& slots, int slot) {
   if (slots.local[slot] >= 0) {
-    engine::SetLocalInt(creature, kSlotVars[slots.local[slot]], 0);
+    SetRecord(creature, kSlotVars[slots.local[slot]], 0);
   } else {
     engine::RemoveFeat(stats, rules::WeaponMasteryFeat(slots.chosen[slot]));
   }
@@ -201,7 +217,7 @@ void OnRest(void* stats) {
   if (!facts.character) return;
   const Slots slots = ReadSlots(creature, stats);
   if (slots.count == 0 || slots.swap_ready) return;
-  engine::SetLocalInt(creature, kSwapVar, 1);
+  SetRecord(creature, kSwapVar, 1);
   if (g_config.log_attacks) Log("mastery: object 0x%08X rested: one swap available", IdOf(creature));
   if (facts.is_player && rules::FreeMasterySlot(slots.chosen, slots.count) < 0) {
     TellPlayer(IdOf(creature), "nwn5e: rested - you can swap one weapon mastery: !mastery <old weapon> for <new weapon>");
@@ -282,7 +298,7 @@ std::string Choose(void* creature, void* stats, const std::string& args) {
   const int slot = rules::MasterySlotOf(slots.chosen, slots.count, swap.give_up);
   GiveUpMastery(creature, stats, slots, slot);
   if (!TakeMastery(stats, swap.take)) return "nwn5e: weapon mastery with " + Label(swap.take) + " didn't take.";
-  engine::SetLocalInt(creature, kSwapVar, 0);
+  SetRecord(creature, kSwapVar, 0);
   if (g_config.log_attacks) {
     Log("mastery: object 0x%08X slot %d = %s instead of %s (swap)", id, slot + 1, Label(swap.take).c_str(),
         Label(swap.give_up).c_str());
@@ -735,6 +751,7 @@ bool CountCombatRounds() {
 }
 
 void InstallMasteryRules() {
+  RegisterRecords({kSlotVars[0], kSlotVars[1], kSlotVars[2], kSlotVars[3], kSlotVars[4], kSlotVars[5], kSwapVar});
   OnRulesLoaded(&HideMasteryRows);
   if (!MasteryOn()) return;
   CountCombatRounds();

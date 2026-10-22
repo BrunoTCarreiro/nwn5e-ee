@@ -1,5 +1,8 @@
 #include "check.h"
 #include "rules/backgrounds.h"
+#include "rules/feats2024.h"
+
+#include <string>
 
 using namespace rules;
 
@@ -124,4 +127,21 @@ TEST(BackgroundKitsAre2024) {
   }
   CHECK_EQ(arrows, 20);
   CHECK_EQ(BackgroundKit2024(Background::kNone).items.empty(), true);
+}
+
+// C6. Breaks caught: a background giving the wrong Origin feat as a real
+// feat; one nwn5e hasn't built (Magic Initiate) given as some other feat.
+TEST(BackgroundOriginFeatsAreTheirs) {
+  CHECK_EQ(OriginFeatId(Background::kSoldier), kFeatSavageAttacker);
+  CHECK_EQ(OriginFeatId(Background::kCriminal), kFeatAlert);
+  CHECK_EQ(OriginFeatId(Background::kAcolyte), -1);
+  CHECK_EQ(OriginFeatId(Background::kSage), -1);
+  CHECK_EQ(OriginFeatId(Background::kNone), -1);
+  for (const BackgroundInfo& info : Backgrounds2024()) {
+    const int feat = OriginFeatId(info.background);
+    const std::string name = info.origin_feat;
+    if (feat == kFeatAlert) CHECK_EQ(name == "Alert", true);
+    if (feat == kFeatSavageAttacker) CHECK_EQ(name == "Savage Attacker", true);
+    if (feat < 0) CHECK_EQ(name.rfind("Magic Initiate", 0) == 0, true);
+  }
 }

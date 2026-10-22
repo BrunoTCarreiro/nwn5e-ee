@@ -27,6 +27,9 @@ struct BackgroundInfo {
 const std::vector<BackgroundInfo>& Backgrounds2024();
 const BackgroundInfo* BackgroundData(Background background);
 std::optional<Background> ParseBackground(const std::string& text);
+// C6: the feat row of a background's Origin feat, -1 when nwn5e hasn't built
+// it (Magic Initiate waits for spells).
+int OriginFeatId(Background background);
 
 // The increases from `chosen` (two abilities: +2 / +1; three: +1 each), all
 // from the background's three. "" when valid (amounts filled), else why not.
