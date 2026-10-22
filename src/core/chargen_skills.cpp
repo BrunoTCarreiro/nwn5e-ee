@@ -55,6 +55,11 @@ using RemoveRankFn = void (*)(void* stats, uint16_t skill, uint8_t min_rank);
 using PackageSkillsFn = void (*)(void* stats, const void* table_name);
 using SetRankFn = void (*)(void* stats, uint16_t skill, int8_t rank);
 using ClientByteFn = uint8_t (*)(void* stats);
+using PageFn = void (*)(void* page, void* a2, void* a3, void* a4);
+using GetCreatureFn = void* (*)(uint32_t id);
+using SetEnabledFn = void (*)(void* checkbox, int enabled);
+using SetColorFn = void (*)(void* wrapper, float r, float g, float b, float a);
+using SkillUseableFn = int (*)(void* character_class, uint16_t skill);
 
 PointsFn g_points = nullptr;
 AddRankFn g_add_rank = nullptr;
@@ -63,6 +68,14 @@ PackageSkillsFn g_package_skills = nullptr;
 SetRankFn g_set_rank = nullptr;
 ClientByteFn g_get_level = nullptr;  // the level after the level-up being made
 ClientByteFn g_get_class = nullptr;  // the class being levelled
+PageFn g_build_list = nullptr;       // BuildSkillList (the page's rows, once)
+PageFn g_plus = nullptr;             // the rows' "+" and "-", the Recommended button
+PageFn g_minus = nullptr;
+PageFn g_recommend = nullptr;
+GetCreatureFn g_get_creature = nullptr;
+SetEnabledFn g_set_enabled = nullptr;
+SetColorFn g_set_color = nullptr;
+SkillUseableFn g_skill_useable = nullptr;
 bool g_installed = false;
 LogOnce g_logged(64);
 
@@ -223,33 +236,132 @@ void Points(void* stats) {
   SetPointsLeft(stats, PointsLeft(stats) + g_level.points);
 }
 
+// The page's steps (owner, 2026-10-22: "each in their step"): the class's
+// skills, then a Human's or Elf's pick, then Expertise — a pick is taken only
+// in its step, and the page greys every row the step can't take.
+enum class Step { kClass, kSpecies, kExpertise, kDone };
+
+Step CurrentStep(void* stats) {
+  const int picked = rules::CountSkills(NewSkills(stats));
+  const int class_picks = g_level.skills.class_skills;
+  const int species_picks = g_level.skills.species_any_skill || g_level.skills.species_list ? 1 : 0;
+  if (picked < class_picks) return Step::kClass;
+  if (picked < class_picks + species_picks) return Step::kSpecies;
+  if (NewExpertise(stats) < g_level.expertise.expertise) return Step::kExpertise;
+  return Step::kDone;
+}
+
+// Whether the class can use a skill at all (the page greys the others too).
+bool Useable(void* stats, int row) {
+  const void* rules_object = nullptr;
+  if (const auto rules_pointer = reinterpret_cast<void**>(EngineExport(ee::kRules))) rules_object = *rules_pointer;
+  if (!rules_object || !g_skill_useable) return true;
+  auto* classes = Field<uint8_t*>(rules_object, ee::kRulesClasses);
+  if (!classes) return true;
+  return g_skill_useable(classes + g_get_class(stats) * ee::kClassStride, static_cast<uint16_t>(row)) != 0;
+}
+
+// Whether "+" may take `row` now.
+bool Pickable(void* stats, int row, Step step) {
+  const int8_t* ranks = Ranks(stats);
+  const auto skill = rules::Skill2024ForNwnSkill(row);
+  if (!ranks || row >= Rows() || !skill || !rules::IsSkillsPageRow(row) || !Useable(stats, row)) return false;
+  const rules::SkillSet taken = g_level.known | g_level.background;
+  switch (step) {
+    case Step::kClass:
+      if (ranks[row] != 0 || !rules::Has(g_level.skills.class_list, *skill)) return false;
+      break;
+    case Step::kSpecies:
+      if (ranks[row] != 0) return false;
+      if (!g_level.skills.species_any_skill && !rules::Has(g_level.skills.species_list, *skill)) return false;
+      break;
+    case Step::kExpertise:
+      return ranks[row] == 1 && rules::CanPickExpertise(g_level.expertise, NewExpertise(stats), *skill);
+    case Step::kDone:
+      return false;
+  }
+  return rules::CanPickOnSkillsPage(g_level.skills, taken, NewSkills(stats), *skill);
+}
+
+const char* StepName(Step step) {
+  switch (step) {
+    case Step::kClass: return "the class's skills";
+    case Step::kSpecies: return "the species pick";
+    case Step::kExpertise: return "Expertise";
+    default: return "done";
+  }
+}
+
 // The 2024 pick "+" makes: a new skill (rank 0 -> 1) or Expertise (1 -> 2).
-int AddRank(void* stats, uint16_t skill) {
-  if (!ActiveFor(stats)) return g_level.stats == stats && Active() ? 0 : g_add_rank(stats, skill);
+int AddRankAs(void* stats, uint16_t skill, bool quiet) {
   int8_t* ranks = Ranks(stats);
-  const auto skill2024 = rules::Skill2024ForNwnSkill(skill);
-  if (!ranks || skill >= Rows() || !skill2024 || !rules::IsSkillsPageRow(skill) || PointsLeft(stats) < 1) return 0;
-  if (ranks[skill] == 0) {
-    const rules::SkillSet picked = NewSkills(stats);
-    if (!rules::CanPickOnSkillsPage(g_level.skills, g_level.known | g_level.background, picked, *skill2024)) {
-      Log("skills page: %s not taken - this level's picks so far: %s", rules::Skill2024Name(*skill2024),
-          Names(picked).c_str());
-      return 0;
+  if (!ranks || skill >= Rows() || PointsLeft(stats) < 1) return 0;
+  const Step step = CurrentStep(stats);
+  if (!Pickable(stats, skill, step)) {
+    if (!quiet) {
+      const auto skill2024 = rules::Skill2024ForNwnSkill(skill);
+      Log("skills page: %s not taken now (step: %s)", skill2024 ? rules::Skill2024Name(*skill2024) : "?",
+          StepName(step));
     }
-  } else if (ranks[skill] == 1) {
-    if (!rules::CanPickExpertise(g_level.expertise, NewExpertise(stats), *skill2024)) {
-      if (g_level.expertise.expertise > 0) {
-        Log("skills page: Expertise in %s not taken (%d of %d this level)", rules::Skill2024Name(*skill2024),
-            NewExpertise(stats), g_level.expertise.expertise);
-      }
-      return 0;
-    }
-  } else {
     return 0;
   }
   g_set_rank(stats, skill, static_cast<int8_t>(ranks[skill] + 1));
   SetPointsLeft(stats, PointsLeft(stats) - 1);
   return 1;
+}
+
+int AddRank(void* stats, uint16_t skill) {
+  if (!ActiveFor(stats)) return g_level.stats == stats && Active() ? 0 : g_add_rank(stats, skill);
+  return AddRankAs(stats, skill, false);
+}
+
+// The page's creature's client stats.
+void* PageStats(void* page) {
+  void* creature = page && g_get_creature ? g_get_creature(Field<uint32_t>(page, ee::kSkillsPageCreature)) : nullptr;
+  return creature ? Field<void*>(creature, ee::kClientCreatureStats) : nullptr;
+}
+
+// Every row greyed or not for the current step (this level's picks stay
+// live, so "-" can take them back).
+void Regrey(void* page) {
+  void* stats = PageStats(page);
+  if (!ActiveFor(stats) || !g_set_enabled || !g_set_color) return;
+  const int8_t* ranks = Ranks(stats);
+  auto* rows = Field<void**>(page, ee::kSkillsPageRows);
+  const int count = Field<int32_t>(page, ee::kSkillsPageRowCount);
+  const auto* skills = Field<const int32_t*>(page, ee::kSkillsPageRowSkills);
+  if (!ranks || !rows || !skills) return;
+  const Step step = CurrentStep(stats);
+  for (int i = 0; i < count; ++i) {
+    const int row = skills[i];
+    if (!rows[i] || row < 0 || row >= Rows()) continue;
+    const bool live = ranks[row] > g_level.floor[row] || Pickable(stats, row, step);
+    g_set_enabled(rows[i], live ? 1 : 0);
+    const float shade = live ? 1.0f : 0.5f;
+    g_set_color(static_cast<uint8_t*>(rows[i]) + ee::kSkillsRowName, shade, shade, shade, 1.0f);
+  }
+}
+
+void BuildList(void* page, void* a2, void* a3, void* a4) {
+  void* stats = PageStats(page);
+  if (ActiveFor(stats) && g_level.level == 1) SetBackgroundRanks(stats, g_level.background);  // after the hub's clear
+  g_build_list(page, a2, a3, a4);
+  Regrey(page);
+}
+
+void Plus(void* page, void* a2, void* a3, void* a4) {
+  g_plus(page, a2, a3, a4);
+  Regrey(page);
+}
+
+void Minus(void* page, void* a2, void* a3, void* a4) {
+  g_minus(page, a2, a3, a4);
+  Regrey(page);
+}
+
+void Recommend(void* page, void* a2, void* a3, void* a4) {
+  g_recommend(page, a2, a3, a4);
+  Regrey(page);
 }
 
 // "-": this level's picks only (never below the floor: earlier levels, the background).
@@ -280,7 +392,9 @@ void PackageSkills(void* stats, const void* table_name) {
     for (rules::Skill2024 skill : preference) {
       const int row = rules::SkillsPageRow(skill);
       if (row < 0 || row >= Rows() || PointsLeft(stats) < 1) continue;
-      if ((pass == 0 && ranks[row] == 0) || (pass == 1 && ranks[row] == 1)) AddRank(stats, static_cast<uint16_t>(row));
+      if ((pass == 0 && ranks[row] == 0) || (pass == 1 && ranks[row] == 1)) {
+        AddRankAs(stats, static_cast<uint16_t>(row), true);
+      }
     }
   }
   Log("skills page: Recommended - new %s; Expertise %d (background %s)", Names(NewSkills(stats)).c_str(),
@@ -314,13 +428,33 @@ void InstallSkillsPage() {
   g_get_class = reinterpret_cast<ClientByteFn>(get_class_call ? CallTarget(get_class_call + 3) : 0);
   g_get_level = reinterpret_cast<ClientByteFn>(get_level_call ? CallTarget(get_level_call + 5) : 0);
   g_set_rank = reinterpret_cast<SetRankFn>(set_rank_call ? CallTarget(set_rank_call + 9) : 0);
-  if (!points || !add || !remove || !package || !g_get_class || !g_get_level || !g_set_rank) {
+  // The page: its list builder (the one function with the row model's name),
+  // its rows' "+" / "-" (stored by the builder), the client's GetCreature (its
+  // first call), the Recommended button (registered by the page's init).
+  const uintptr_t build = FunctionByString("skills page: the list", "CTL_CG_BTN_SKILL");
+  const CodeRange build_code = build ? FunctionAt(build) : CodeRange();
+  auto stored_handler = [&](const char* what, const char* pattern) -> uintptr_t {
+    const uintptr_t lea = build ? FindPatternIn(what, build_code, pattern) : 0;
+    return lea ? lea + 7 + *reinterpret_cast<const int32_t*>(lea + 3) : 0;
+  };
+  const uintptr_t plus = stored_handler("skills page: the + handler", "48 8D 05 ?? ?? ?? ?? 48 89 86 A0 01 00 00");
+  const uintptr_t minus = stored_handler("skills page: the - handler", "48 8D 05 ?? ?? ?? ?? 48 89 86 90 02 00 00");
+  const uintptr_t creature_call = build ? FindPatternIn("skills page: GetCreature", build_code, "8B 89 80 0F 00 00 E8") : 0;
+  g_get_creature = reinterpret_cast<GetCreatureFn>(creature_call ? CallTarget(creature_call + 6) : 0);
+  const uintptr_t init = FunctionByString("skills page: its init", "SkillsButtonBox");
+  const uintptr_t recommend = init ? HandlerByTag("skills page: Recommended", init, "RecommendButton") : 0;
+  g_set_enabled = reinterpret_cast<SetEnabledFn>(EngineExport(ee::kCheckboxSetEnabled));
+  g_set_color = reinterpret_cast<SetColorFn>(EngineExport(ee::kStringWrapperSetColor));
+  g_skill_useable = reinterpret_cast<SkillUseableFn>(EngineExport(ee::kClassIsSkillUseable));
+  if (!points || !add || !remove || !package || !g_get_class || !g_get_level || !g_set_rank || !build || !plus ||
+      !minus || !g_get_creature || !recommend || !g_set_enabled || !g_set_color || !g_skill_useable) {
     Log("SKIP skills page: a client function not found - the Skills page stays NWN's");
     return;
   }
   const auto base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
-  Log("skills page: points rva 0x%zx, + 0x%zx, - 0x%zx, package 0x%zx, rank setter 0x%zx", points - base, add - base,
-      remove - base, package - base, reinterpret_cast<uintptr_t>(g_set_rank) - base);
+  Log("skills page: points rva 0x%zx, + 0x%zx, - 0x%zx, package 0x%zx, rank setter 0x%zx, list 0x%zx, + button 0x%zx, "
+      "- button 0x%zx, Recommended 0x%zx", points - base, add - base, remove - base, package - base,
+      reinterpret_cast<uintptr_t>(g_set_rank) - base, build - base, plus - base, minus - base, recommend - base);
   const bool hooked =
       HookAddress("client skill points (C5: the 2024 picks at level 1, none later)", points,
                   reinterpret_cast<void*>(&Points), reinterpret_cast<void**>(&g_points)) &&
@@ -329,7 +463,15 @@ void InstallSkillsPage() {
       HookAddress("client Skills page - (C5)", remove, reinterpret_cast<void*>(&RemoveRank),
                   reinterpret_cast<void**>(&g_remove_rank)) &&
       HookAddress("client package skills (C5: Recommended)", package, reinterpret_cast<void*>(&PackageSkills),
-                  reinterpret_cast<void**>(&g_package_skills));
+                  reinterpret_cast<void**>(&g_package_skills)) &&
+      HookAddress("client Skills page list (the background's ranks, the steps' greying)", build,
+                  reinterpret_cast<void*>(&BuildList), reinterpret_cast<void**>(&g_build_list)) &&
+      HookAddress("client Skills page + button (the steps' greying)", plus, reinterpret_cast<void*>(&Plus),
+                  reinterpret_cast<void**>(&g_plus)) &&
+      HookAddress("client Skills page - button (the steps' greying)", minus, reinterpret_cast<void*>(&Minus),
+                  reinterpret_cast<void**>(&g_minus)) &&
+      HookAddress("client Skills page Recommended (the steps' greying)", recommend, reinterpret_cast<void*>(&Recommend),
+                  reinterpret_cast<void**>(&g_recommend));
   if (!hooked) return;
   g_installed = true;
   ServeConditionalRows("skills2024");

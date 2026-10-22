@@ -23,6 +23,7 @@
 #include <stdint.h>
 
 #include <algorithm>
+#include <vector>
 
 #include "config.h"
 #include "creature.h"
@@ -31,6 +32,8 @@
 #include "engine.h"
 #include "hooks.h"
 #include "log.h"
+#include "rules_loaded.h"
+#include "rules/backgrounds.h"
 #include "rules/feats2024.h"
 #include "rules/nwn_conversion.h"
 
@@ -50,6 +53,39 @@ void Count(rules::BonusPicks* taken, int feat) {
     case rules::BonusFeatGroup::kWeaponMastery: ++taken->mastery; break;
     case rules::BonusFeatGroup::kOrigin: ++taken->origin; break;
     case rules::BonusFeatGroup::kOther: break;
+  }
+}
+
+}  // namespace
+
+int CreationBackgroundFeat();  // rules_abilities.cpp
+
+namespace {
+
+// The Feats page groups a master's sub-feats only while they come one after
+// another in the feat list's order (by name): the seven ASIs' choices share
+// their names ("+2 Strength" ...), so they interleave and each would show as
+// its own "Ability Score Improvement". After every rules load the block they
+// hold is reordered ASI by ASI (names in order within each).
+void GroupAsiChoices(void* rules, bool reload) {
+  auto* order = Field<uint16_t*>(rules, ee::kRulesFeatsSorted);
+  const int count = Field<uint16_t>(rules, ee::kRulesFeatsSortedCount);
+  if (!order) return;
+  std::vector<int> positions;
+  std::vector<uint16_t> choices;
+  for (int i = 0; i < count; ++i) {
+    if (!rules::AsiFeatFromId(order[i])) continue;
+    positions.push_back(i);
+    choices.push_back(order[i]);
+  }
+  std::stable_sort(choices.begin(), choices.end(), [](uint16_t a, uint16_t b) {
+    return rules::AsiFeatFromId(a)->slot < rules::AsiFeatFromId(b)->slot;
+  });
+  for (size_t k = 0; k < positions.size(); ++k) order[positions[k]] = choices[k];
+  const bool together = positions.empty() || positions.back() - positions.front() + 1 == static_cast<int>(positions.size());
+  if (!reload) {
+    Log("feats: the %zu ASI choices grouped by ASI in the feat list%s", choices.size(),
+        together ? "" : " - NOT together (another feat's name falls among theirs): the Feats page may split them");
   }
 }
 
@@ -133,6 +169,13 @@ int CanChooseFeat(void* level_up_stats, uint16_t feat, uint8_t general_left, uin
   }
   if (!rules::IsChoosableFeat2024(feat, MasteriesAsFeats())) return 0;
   if (level_up_stats && !AsiChoiceOffered(level_up_stats, feat)) return 0;
+  // The background's Origin feat (Criminal: Alert, Soldier: Savage Attacker)
+  // comes with it when the character enters: not a pick at creation too.
+  if (level_up_stats && rules::IsOriginFeat2024(feat) && ClientTotalLevel(level_up_stats) == 1) {
+    if (const auto choice = rules::BackgroundFromFeat(CreationBackgroundFeat())) {
+      if (rules::OriginFeatId(choice->background) == feat) return 0;
+    }
+  }
   if (rules::BonusFeatGroupOf(feat) != rules::BonusFeatGroup::kOther && level_up_stats &&
       !FitsThisLevel(level_up_stats, feat, chosen)) {
     return 0;
@@ -159,6 +202,7 @@ int ServerCanChooseFeat(void* stats, uint16_t feat, uint8_t general_left, uint8_
 void InstallFeatRules() {
   if (g_config.feats != rules::RuleVariant::kFaithful) return;
   ServeConditionalRows("feats2024");  // C7a: the ASI choices and Origin feats in the classes' feat slots
+  OnRulesLoaded(&GroupAsiChoices);
   HookExport("CNWSCreatureStats::CanChooseFeat (feats: automatic level-ups - henchmen - take the 2024 feats)",
              ee::kServerCanChooseFeat, reinterpret_cast<void*>(&ServerCanChooseFeat),
              reinterpret_cast<void**>(&g_server_can_choose_feat));

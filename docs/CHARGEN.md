@@ -797,6 +797,32 @@ Grappler (the SRD's other General feat), Epic Boons at 19, Magic Initiate,
 Paladin and Ranger Fighting Styles (their briefs), Skilled's picks on a page
 (C8: its Feats page comes after the Skills page).
 
+*0.16.2 (owner's first C5-C7 test, 2026-10-22).* Fixes:
+- **The background's skills at 0** on the Skills page (K1): the level-up
+  reset (0x7edcc0) clears the ranks after the points call that set them, and
+  the page's constructor skips its own points call; they are set again just
+  before the page builds its rows (BuildSkillList 0x9c4fd0, hooked).
+- **The page in steps** (owner: "Ideally these would be done each in their
+  step (Rogue skills, Species skills, Expertise). Right now how points can be
+  distributed is seemingly unknowable."): the class's skills, then a Human's
+  or Elf's pick, then Expertise; "+" takes a pick only in its step, and every
+  row the step can't take is greyed as the game greys one (CGuiCheckbox::
+  SetEnabled 0, its name SetColor 0.5) — after the list is built and after
+  every "+", "-" and Recommended (their handlers hooked: the builder stores
+  "+" / "-", the page's init registers RecommendButton). This level's picks
+  stay live for "-".
+- **A skill the class can't use** (Performance for a Rogue: greyed, "You may
+  not learn this skill") is never taken (CNWClass::IsSkillUseable).
+- **The background's Origin feat** (Criminal: Alert, Soldier: Savage
+  Attacker) isn't offered on the Feats page at creation — it comes with the
+  background.
+- **"Ability Score Improvement" listed 21 times** (L9): the Feats page groups
+  a master's sub-feats only while they follow one another in the feat list's
+  order (CNWRules +0xf8, by name); the seven ASIs' choices share names, so
+  they interleaved. After every rules load their block is reordered ASI by
+  ASI.
+- Recommended's tries no longer log each refusal.
+
 *C6 (0.15.0, owner 2026-10-22: "Go for C6").* Game start and the
 chapter-export check. Verified in the code: EE saves each object's own
 SQLite database with it — CNWSCreature::SaveCreature calls

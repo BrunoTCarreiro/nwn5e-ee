@@ -565,6 +565,26 @@ constexpr size_t kClientStatsRace = 0x50;
 // level's skill points read them) and the feats it has (uint16* +0x118, count
 // uint16 +0x120: CanChooseFeat's "already known" scan).
 constexpr size_t kClientStatsAbilities = 0x70;
+// The feat list's order (the Feats page's: BuildFeatList 0x9c6540 walks it and
+// groups a master's sub-feats only while they come one after another): the
+// feat ids uint16* CNWRules +0xf8, their count uint16 +0x102.
+constexpr size_t kRulesFeatsSorted = 0xf8;
+constexpr size_t kRulesFeatsSortedCount = 0x102;
+// The Skills page (CCharacterSkillsPanel; its init 0x9cce50 registers
+// RecommendButton -> 0x9c9a30, SkillsButtonBox -> 0x9cb730; BuildSkillList
+// 0x9c4fd0): the creature's id uint32 +0xf80 (the client's GetCreature ->
+// its stats +0x3b0); its rows (display order) void** +0x6f8, their count
+// int32 +0x700, each row's skills.2da row int32* +0xa80. A row is greyed as
+// the builder does it: CGuiCheckbox::SetEnabled(row, 0) and its name
+// (row +0xb0) SetColor(0.5, 0.5, 0.5, 1).
+constexpr size_t kSkillsPageCreature = 0xf80;
+constexpr size_t kSkillsPageRows = 0x6f8;
+constexpr size_t kSkillsPageRowCount = 0x700;
+constexpr size_t kSkillsPageRowSkills = 0xa80;
+constexpr size_t kSkillsRowName = 0xb0;
+constexpr const char* kCheckboxSetEnabled = "?SetEnabled@CGuiCheckbox@@QEAAXH@Z";
+constexpr const char* kStringWrapperSetColor = "?SetColor@CAuroraStringWrapper@@QEAAXMMMM@Z";
+constexpr const char* kClassIsSkillUseable = "?IsSkillUseable@CNWClass@@QEAAHG@Z";
 constexpr size_t kClientStatsFeats = 0x118;
 constexpr size_t kClientStatsFeatCount = 0x120;
 constexpr size_t kClientStatsSkillRanks = 0xd8;
