@@ -17,6 +17,8 @@ TEST(CreationStringsAre2024) {
   CHECK_EQ(CreationStringSwap2024(32)->nwn5e, 16000264u);  // Half-Orc -> Orc
   CHECK_EQ(CreationStringSwap2024(148)->rule == StringRule::kSpecies, true);
   CHECK_EQ(CreationStringSwap2024(143)->rule == StringRule::kAbilityScores, true);
+  CHECK_EQ(CreationStringSwap2024(146)->nwn5e, 16000434u);  // "Packages" -> "Builds"
+  CHECK_EQ(CreationStringSwap2024(160)->rule == StringRule::kStartingEquipment, true);
   CHECK_EQ(CreationStringSwap2024(22).has_value(), false);  // "Dwarf" stays
   CHECK_EQ(CreationStringSwap2024(30).has_value(), false);  // "Half-Elf" stays (legacy)
   CHECK_EQ(CreationStringSwap2024(0).has_value(), false);

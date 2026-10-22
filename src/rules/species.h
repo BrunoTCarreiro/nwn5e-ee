@@ -4,7 +4,8 @@
 // faithful mode some of the game's own strings are shown as nwn5e's
 // (data/strings.txt) — Race reads Species, the Half-Orc is the SRD's Orc, each
 // species' description lists its 2024 traits and what nwn5e does with them,
-// the hub's Abilities step reads Ability Scores. dialog.tlk is not changed.
+// the hub's Abilities step reads Ability Scores, its Packages step Builds (the
+// 2024 starting kits and Recommended's picks). dialog.tlk is not changed.
 
 #include <stdint.h>
 
@@ -13,7 +14,7 @@
 namespace rules {
 
 // The rule a swap belongs to (each follows its own config key).
-enum class StringRule { kSpecies, kAbilityScores };
+enum class StringRule { kSpecies, kAbilityScores, kStartingEquipment };
 
 struct StringSwap {
   uint32_t nwn5e;  // the nwn5e string shown instead (16000000+)

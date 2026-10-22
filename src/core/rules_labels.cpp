@@ -37,6 +37,8 @@ bool Faithful(rules::StringRule rule) {
       return g_config.species == rules::RuleVariant::kFaithful;
     case rules::StringRule::kAbilityScores:
       return g_config.ability_scores == rules::RuleVariant::kFaithful;
+    case rules::StringRule::kStartingEquipment:  // nwn5e's builds (C2) in the list: the step reads Builds
+      return g_config.starting_equipment == rules::RuleVariant::kFaithful;
   }
   return false;
 }

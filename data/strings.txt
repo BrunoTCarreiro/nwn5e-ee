@@ -223,3 +223,9 @@
 # END C7a ASI choices
 # C5: the Skills page's Reset button (data/gui/src/cg_skills.json).
 16000433 Reset
+# C2: the Packages step reads Builds (owner, 2026-10-22: "go with "Builds""), with starting_equipment
+# faithful (rules::CreationStringSwap2024).
+16000434 Builds
+16000435 Configure Build
+16000436 Select a Build for your Character
+16000437 Choose a build, or click Configure Build to make your skill and feat choices yourself.\n\nA build is a set of ready choices for your class: its 2024 starting equipment, and the skills and feats Recommended picks for you - now and when you level up. The Fighter has two: Great Weapon (Great Weapon Fighting) and Archer (Archery).\n\nA build gives your character no special abilities; it only makes choices you could make yourself. Your background adds its own equipment when you enter the game.

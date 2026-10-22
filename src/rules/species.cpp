@@ -29,6 +29,11 @@ constexpr Entry kSwaps[] = {
     {256, 16000275, StringRule::kSpecies},         // Half-Orc (Orc)
     {257, 16000276, StringRule::kSpecies},         // Human
     {143, 16000280, StringRule::kAbilityScores},   // "Abilities" (the hub's button)
+    {146, 16000434, StringRule::kStartingEquipment},  // "Packages" (the hub's button)
+    {483, 16000434, StringRule::kStartingEquipment},  // "Description of Packages" (help title)
+    {159, 16000435, StringRule::kStartingEquipment},  // "Configure Packages"
+    {160, 16000436, StringRule::kStartingEquipment},  // "Select a Package for your Character"
+    {487, 16000437, StringRule::kStartingEquipment},  // the Packages page's help
 };
 
 }  // namespace

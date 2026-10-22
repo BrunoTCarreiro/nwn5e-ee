@@ -33,7 +33,8 @@ TEST(StringsFileHasOneStringPerLine) {
   }
   CHECK_EQ(bad_lines, 0);
   CHECK_EQ(repeated, 0);
-  for (uint32_t strref : {148u, 162u, 481u, 485u, 32u, 33u, 4922u, 251u, 252u, 253u, 254u, 255u, 256u, 257u, 143u}) {
+  for (uint32_t strref : {148u, 162u, 481u, 485u, 32u, 33u, 4922u, 251u, 252u, 253u, 254u, 255u, 256u, 257u, 143u,
+                          146u, 483u, 159u, 160u, 487u}) {
     const auto swap = rules::CreationStringSwap2024(strref);
     CHECK_EQ(swap.has_value() && ids.count(swap->nwn5e) == 1, true);
   }

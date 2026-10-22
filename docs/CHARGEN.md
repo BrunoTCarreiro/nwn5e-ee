@@ -797,6 +797,17 @@ Grappler (the SRD's other General feat), Epic Boons at 19, Magic Initiate,
 Paladin and Ranger Fighting Styles (their briefs), Skilled's picks on a page
 (C8: its Feats page comes after the Skills page).
 
+*0.16.8 (owner, 2026-10-22: "the name "Packages" it's weird" ... "go with
+"Builds"").* With starting_equipment faithful the Packages step reads
+Builds: the hub's button and the page's help title (146, 483) "Builds",
+"Configure Packages" (159) "Configure Build", the title (160) "Select a
+Build for your Character", and the page's help (487) explains a build as
+the class's ready choices - its 2024 starting equipment and the skills and
+feats Recommended picks, now and at level-ups - no special abilities.
+Swapped as the strings are looked up (rules::CreationStringSwap2024, rule
+kStartingEquipment), as Race reads Species. NWN mode keeps "Packages": its
+own packages' descriptions all say "These packages ...".
+
 *0.16.7 (owner, 2026-10-22: "For each step, have the text change to explain
 what the user is doing. where the skill description is have the default
 text change with each step").* The help box, until a skill is clicked,
