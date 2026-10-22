@@ -755,6 +755,48 @@ increases come from its feat levels anyway (CM12). Not checked server-side:
 the kinds of bonus pick per level (C3's client filter) — a package's order
 (Ability Score Improvement, styles, masteries) decides.
 
+*C7 (0.16.0, owner 2026-10-22: "Go for it", after "Are your recommendations
+the closest to faithful?").* Level-ups, as SRD 5.2 has them.
+**C7a — the feat levels.** Ability Score Improvement (General feat, Level 4+,
+Repeatable: +2 to one score or +1 to two, none above 20) is taken on the
+Feats page with its choice: the k-th ASI is a master feat (masterfeats rows
+45-51) whose 21 sub-feats are its choices (feat rows 1400 + 21 (k - 1) +
+split; rules::AsiSplit / AsiFeatFromId; tools/data/asi_feats.py). nwn5e's
+feat filter offers only the next ASI's choices (the client stats' feats,
++0x118 / count +0x120) and none that changes nothing (its abilities already
+20; the client stats' scores +0x70); the server's check (henchmen) keeps the
+same order. The ability sync reads the choices from the feats — exports keep
+them. Older characters' ASIs (rows 1200-1206, abilities from !asi) still
+count; !asi lists every ASI and `!asi change str [con]` swaps the last one
+(the feat, or the older record). "Another feat for which you qualify": the
+Origin feats (Alert, Savage Attacker, Skilled — Repeatable, rows 1302-1307,
+each needing the one before) in the classes' bonus lists
+(cls_feat_*.if_feats2024.txt, served with feats faithful) and the Fighting
+Style feats for a Fighter (already allowed in the general pick); an Origin
+feat counts against the general pick (rules::FitsBonusPicks; a Human's
+Versatile pick at level 1 is its own). Recommended takes the package's main
+ability first (+2 main, +1 main / +1 second, +2 second, +1 second / +1
+third; tools/data/packft_rows.py). `!style <old> for <new>`: "whenever you
+gain a Fighter level, you can replace the feat you chose with a different
+Fighting Style feat" — once per Fighter level gained (record
+nwn5e_style_swap_level).
+**C7b — the Skills page at level-ups** (chargen_skills.cpp, C5's hooks): a
+level's floor is the ranks it starts from (taken when the character, level,
+class, race or background changes — the game asks for the points more than
+once per level, Recommended before its own reset); rank 0 -> 1 above it is
+a new skill, 1 -> 2 Expertise. Points = rules::LevelSkillPicks2024:
+multiclassing into a Bard (any), Ranger or Rogue (one of its list),
+Barbarian 3 (Primal Knowledge: one of its list), Bard 3 (College of Lore:
+three of any), plus Expertise — Rogue 1 (at creation too) and 6 (2), Bard 2
+and 9 (2), Ranger 2 (1) and 9 (2), Wizard 2 (1 of its six: Scholar).
+rules::SkillAllowanceFor now holds Primal Knowledge and College of Lore,
+so the profile keeps them. A !skills profile takes what the page adds when
+the ranks are 2024's (rules::RanksAre2024: only page rows, 1 or 2); a
+character with NWN ranks gets no points after level 1 (!skills). Not built:
+Grappler (the SRD's other General feat), Epic Boons at 19, Magic Initiate,
+Paladin and Ranger Fighting Styles (their briefs), Skilled's picks on a page
+(C8: its Feats page comes after the Skills page).
+
 *C6 (0.15.0, owner 2026-10-22: "Go for C6").* Game start and the
 chapter-export check. Verified in the code: EE saves each object's own
 SQLite database with it — CNWSCreature::SaveCreature calls

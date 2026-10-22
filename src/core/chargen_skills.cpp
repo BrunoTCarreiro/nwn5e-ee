@@ -1,25 +1,29 @@
-// C5 (docs/CHARGEN.md): the creation screen's Skills page as the 2024 pick,
-// with `skills` faithful. The page shows one row per 2024 skill (served
-// skills.2da rows: rules::SkillsPageRow; nwn5e's rows 28-34 for the skills NWN
-// has none for) and the class tables mark the 2024 class lists
-// (tools/data/class_skills.py); four client functions, found by anchors,
-// play the 2024 rules:
-// - the level's skill points (client 0x7ec0c0, the page's constructor and
-//   Recommended, the level-up's start): at level 1 the page's picks — the
-//   class's count, +1 for a Human (Skillful) or an Elf (Keen Senses) — and the
+// C5 / C7b (docs/CHARGEN.md): the Skills page as the 2024 pick, with `skills`
+// faithful — at creation and at every level-up. The page shows one row per
+// 2024 skill (served skills.2da rows: rules::SkillsPageRow; nwn5e's rows
+// 28-34 for the skills NWN has none for) and the class tables mark the 2024
+// class lists (tools/data/class_skills.py). A level's floor is the ranks it
+// starts from; rank 0 -> 1 above it is a new skill, 1 -> 2 Expertise. Four
+// client functions, found by anchors, play the 2024 rules:
+// - the level's skill points (client 0x7ec0c0: the level-up's start, the
+//   page's constructor, Recommended): the level's picks — at level 1 the
+//   class's count +1 for a Human (Skillful) or an Elf (Keen Senses), and the
 //   background's skills set to rank 1 before the page copies its starting
-//   ranks, so "-" can't take them back; at later levels none (2024 gives no
-//   skill points; later choices stay with !skills until C7);
-// - "+" (0x7f7a00): 1 point and rank 1 for any skill, taken only if
-//   rules::CanPickOnSkillsPage says the picks still fit;
-// - "-" (0x7ee3e0): 1 point back, never below the background's rank;
+//   ranks (so "-" can't take them back); after it what the level adds
+//   (rules::LevelSkillPicks2024: multiclassing into a Bard, Ranger or Rogue,
+//   Barbarian 3, Bard 3) — plus its Expertise (Rogue 1 and 6, Bard 2 and 9,
+//   Ranger 2 and 9, Wizard 2);
+// - "+" (0x7f7a00): 1 point; a new skill only if rules::CanPickOnSkillsPage
+//   says the picks still fit, Expertise only by rules::CanPickExpertise;
+// - "-" (0x7ee3e0): 1 point back, never below the floor;
 // - the package's picks (0x7eb300: Recommended, and OK without Customize):
-//   rules::RecommendedSkillsPagePicks.
-// A rank on a page row is the proficiency: rules_skills.cpp reads a new
-// character's 2024 skills from its ranks. Skilled (chosen on the Feats page,
-// after this one), Expertise and multiclass picks stay with !skills.
-// Any anchor missing: nothing is hooked, the rows stay NWN's, and the page is
-// the game's own.
+//   the class's usual skills, then Expertise in them.
+// A character whose ranks aren't the 2024 record (an older character's NWN
+// ranks: rules::RanksAre2024) gets no points after level 1 — !skills.
+// The ranks are the record: rules_skills.cpp reads proficiency (1) and
+// Expertise (2) from them. Skilled (its Feats page comes after this one)
+// stays with !skills until C8. Any anchor missing: nothing is hooked, the
+// rows stay NWN's, and the page is the game's own.
 
 #include <windows.h>
 
@@ -27,6 +31,7 @@
 
 #include <algorithm>
 #include <string>
+#include <vector>
 
 #include "config.h"
 #include "creature.h"
@@ -69,60 +74,8 @@ rules::Species2024 SpeciesOfRace(int race) {
   return rules::Species2024::kOther;
 }
 
-// The page's choices for this character at level 1.
-struct Page {
-  rules::CharacterClass character_class = rules::CharacterClass::kFighter;
-  rules::Species2024 species = rules::Species2024::kOther;
-  rules::SkillAllowance allowance;
-  rules::SkillSet background = 0;  // the background's skills (tools left out)
-  bool valid = false;
-};
-
-Page PageFor(void* stats) {
-  Page page;
-  const auto character_class = rules::ClassFromNwnId(g_get_class(stats));
-  if (!character_class) return page;
-  page.character_class = *character_class;
-  page.species = SpeciesOfRace(Field<uint16_t>(stats, ee::kClientStatsRace));
-  page.allowance = rules::SkillsPageAllowance(page.character_class, page.species);
-  if (const auto choice = rules::BackgroundFromFeat(CreationBackgroundFeat())) {
-    if (const rules::BackgroundInfo* info = rules::BackgroundData(choice->background)) {
-      for (int i = 0; i < rules::kSkill2024Count; ++i) {
-        const auto skill = static_cast<rules::Skill2024>(i);
-        if (rules::Has(info->skills, skill) && !rules::IsTool(skill)) page.background |= rules::SkillBit(skill);
-      }
-    }
-  }
-  page.valid = true;
-  return page;
-}
-
-// The creation screen at level 1 (the level-up screen at 1 is the same).
-bool AtLevelOne(void* stats) { return Active() && stats && g_get_level(stats) == 1; }
-
 int8_t* Ranks(void* stats) { return Field<int8_t*>(stats, ee::kClientStatsSkillRanks); }
 int Rows() { return std::min<int>(rules::kNwnSkillCount, engine::SkillRowCount()); }
-
-// The page's picks so far: its rows with a rank, the background's left out.
-rules::SkillSet Picked(void* stats, rules::SkillSet background) {
-  const int8_t* ranks = Ranks(stats);
-  rules::SkillSet picked = 0;
-  if (!ranks) return picked;
-  for (int row = 0; row < Rows(); ++row) {
-    if (ranks[row] <= 0 || !rules::IsSkillsPageRow(row)) continue;
-    picked |= rules::SkillBit(*rules::Skill2024ForNwnSkill(row));
-  }
-  return picked & ~background;
-}
-
-void SetBackgroundRanks(void* stats, rules::SkillSet background) {
-  for (int i = 0; i < rules::kSkill2024Count; ++i) {
-    const auto skill = static_cast<rules::Skill2024>(i);
-    const int row = rules::SkillsPageRow(skill);
-    if (rules::Has(background, skill) && row >= 0 && row < Rows()) g_set_rank(stats, static_cast<uint16_t>(row), 1);
-  }
-}
-
 uint16_t PointsLeft(void* stats) { return Field<uint16_t>(stats, ee::kClientStatsSkillPoints); }
 void SetPointsLeft(void* stats, int points) {
   SetField<uint16_t>(stats, ee::kClientStatsSkillPoints, static_cast<uint16_t>(points < 0 ? 0 : points));
@@ -137,84 +90,201 @@ std::string Names(rules::SkillSet set) {
   return names.empty() ? "none" : names;
 }
 
+// The level being made on the page (creation or a level-up): its picks and
+// the ranks it started from (its floor) — anything above the floor is this
+// level's pick, rank 0 -> 1 a new skill, 1 -> 2 Expertise.
+struct Level {
+  void* stats = nullptr;
+  uint64_t key = 0;  // character level, class, its level, race, background: a new key, a new floor
+  bool active = false;
+  int level = 0;
+  rules::CharacterClass character_class = rules::CharacterClass::kFighter;
+  rules::SkillAllowance skills;  // this level's new skills (level 1: the page's allowance)
+  rules::LevelSkillPicks expertise;
+  rules::SkillSet background = 0;  // level 1: the background's skills, taken and locked
+  rules::SkillSet known = 0;       // proficient before this level
+  int8_t floor[rules::kNwnSkillCount] = {};
+  int points = 0;
+};
+Level g_level;
+
+rules::SkillSet BackgroundSkillsAtCreation() {
+  rules::SkillSet skills = 0;
+  if (const auto choice = rules::BackgroundFromFeat(CreationBackgroundFeat())) {
+    if (const rules::BackgroundInfo* info = rules::BackgroundData(choice->background)) {
+      for (int i = 0; i < rules::kSkill2024Count; ++i) {
+        const auto skill = static_cast<rules::Skill2024>(i);
+        if (rules::Has(info->skills, skill) && !rules::IsTool(skill)) skills |= rules::SkillBit(skill);
+      }
+    }
+  }
+  return skills;
+}
+
+void SetBackgroundRanks(void* stats, rules::SkillSet background) {
+  const int8_t* ranks = Ranks(stats);
+  for (int i = 0; ranks && i < rules::kSkill2024Count; ++i) {
+    const auto skill = static_cast<rules::Skill2024>(i);
+    const int row = rules::SkillsPageRow(skill);
+    if (rules::Has(background, skill) && row >= 0 && row < Rows() && ranks[row] < 1) {
+      g_set_rank(stats, static_cast<uint16_t>(row), 1);
+    }
+  }
+}
+
+// The level the page makes, worked out again when anything defining it changes.
+void Begin(void* stats) {
+  const int level = g_get_level(stats);
+  const uint8_t slot = Field<uint8_t>(stats, ee::kClientStatsClassBeingLevelled);
+  const auto character_class = rules::ClassFromNwnId(g_get_class(stats));
+  const int class_level =
+      slot < ee::kClientStatsClassSlots
+          ? Field<uint8_t>(stats, slot * ee::kClientStatsClassSlotSize + ee::kClientStatsClassSlotLevel)
+          : 0;
+  const int race = Field<uint16_t>(stats, ee::kClientStatsRace);
+  const rules::SkillSet background = level == 1 ? BackgroundSkillsAtCreation() : 0;
+  const uint64_t key = (static_cast<uint64_t>(level) << 48) | (static_cast<uint64_t>(g_get_class(stats)) << 40) |
+                       (static_cast<uint64_t>(class_level) << 32) | (static_cast<uint64_t>(race) << 24) |
+                       static_cast<uint64_t>(background);
+  if (g_level.stats == stats && g_level.key == key) return;
+  Level next;
+  next.stats = stats;
+  next.key = key;
+  next.level = level;
+  int8_t* ranks = Ranks(stats);
+  if (!character_class || !ranks || level < 1) {
+    g_level = next;
+    return;
+  }
+  next.character_class = *character_class;
+  const bool first_class = level == 1;
+  next.expertise = rules::LevelSkillPicks2024(*character_class, class_level, first_class);
+  if (level == 1) {
+    next.skills = rules::SkillsPageAllowance(*character_class, SpeciesOfRace(race));
+    next.background = background;
+    SetBackgroundRanks(stats, background);
+  } else {
+    if (!rules::RanksAre2024(ranks, Rows())) {  // an older character's NWN ranks: !skills
+      g_level = next;
+      if (g_logged.First(LogOnce::Key(3, 0, 0))) {
+        Log("skills page: a character with NWN ranks levels up - its 2024 picks stay with !skills");
+      }
+      return;
+    }
+    next.skills.class_skills = next.expertise.skills;
+    next.skills.class_list = next.expertise.skill_list;
+    next.skills.background_skills = 0;
+    next.skills.background_tools = 0;
+  }
+  for (int row = 0; row < Rows(); ++row) {
+    next.floor[row] = ranks[row];
+    if (ranks[row] >= 1 && rules::IsSkillsPageRow(row)) next.known |= rules::SkillBit(*rules::Skill2024ForNwnSkill(row));
+  }
+  next.points = rules::SkillsPagePoints(next.skills) + next.expertise.expertise;
+  next.active = true;
+  g_level = next;
+  Log("skills page: level %d (class %d at its level %d) - %d skill pick(s), %d Expertise; the background's %s "
+      "taken", level, static_cast<int>(*character_class), class_level, rules::SkillsPagePoints(next.skills),
+      next.expertise.expertise, Names(next.background).c_str());
+}
+
+bool ActiveFor(void* stats) { return Active() && stats && g_level.active && g_level.stats == stats; }
+
+// This level's new skills (rank above a floor of 0) and its Expertise (rank 2 above a floor below 2).
+rules::SkillSet NewSkills(void* stats) {
+  const int8_t* ranks = Ranks(stats);
+  rules::SkillSet picked = 0;
+  for (int row = 0; ranks && row < Rows(); ++row) {
+    if (ranks[row] >= 1 && g_level.floor[row] == 0 && rules::IsSkillsPageRow(row)) {
+      picked |= rules::SkillBit(*rules::Skill2024ForNwnSkill(row));
+    }
+  }
+  return picked;
+}
+
+int NewExpertise(void* stats) {
+  const int8_t* ranks = Ranks(stats);
+  int taken = 0;
+  for (int row = 0; ranks && row < Rows(); ++row) taken += ranks[row] >= 2 && g_level.floor[row] < 2 ? 1 : 0;
+  return taken;
+}
+
 void Points(void* stats) {
   if (!Active() || !stats) {
     g_points(stats);
     return;
   }
-  const int level = g_get_level(stats);
-  if (level > 1) {
-    if (g_logged.First(LogOnce::Key(1, 0, 0))) Log("skills page: no skill points after level 1 (2024; !skills for later picks)");
-    return;
+  Begin(stats);
+  if (!g_level.active) {
+    if (g_get_level(stats) == 1) g_points(stats);  // not a base class: NWN's
+    return;                                        // later levels: none (2024), or !skills
   }
-  const Page page = PageFor(stats);
-  if (level != 1 || !page.valid) {
-    g_points(stats);
-    return;
-  }
-  const int points = rules::SkillsPagePoints(page.allowance);
-  SetPointsLeft(stats, PointsLeft(stats) + points);
-  SetBackgroundRanks(stats, page.background);
-  if (g_logged.First(LogOnce::Key(2, static_cast<uint32_t>(page.background), points))) {
-    Log("skills page: %d pick(s) (class %d, species %d); the background's %s taken", points,
-        static_cast<int>(page.character_class), static_cast<int>(page.species), Names(page.background).c_str());
-  }
+  if (g_level.level == 1) SetBackgroundRanks(stats, g_level.background);
+  SetPointsLeft(stats, PointsLeft(stats) + g_level.points);
 }
 
+// The 2024 pick "+" makes: a new skill (rank 0 -> 1) or Expertise (1 -> 2).
 int AddRank(void* stats, uint16_t skill) {
-  if (!AtLevelOne(stats)) return g_add_rank(stats, skill);
-  const Page page = PageFor(stats);
+  if (!ActiveFor(stats)) return g_level.stats == stats && Active() ? 0 : g_add_rank(stats, skill);
   int8_t* ranks = Ranks(stats);
   const auto skill2024 = rules::Skill2024ForNwnSkill(skill);
-  if (!page.valid || !ranks || skill >= Rows() || !skill2024 || ranks[skill] >= 1 || PointsLeft(stats) < 1) return 0;
-  const rules::SkillSet picked = Picked(stats, page.background);
-  if (!rules::CanPickOnSkillsPage(page.allowance, page.background, picked, *skill2024)) {
-    Log("skills page: %s not taken - picks so far: %s (the class's list, then a species pick)",
-        rules::Skill2024Name(*skill2024), Names(picked).c_str());
+  if (!ranks || skill >= Rows() || !skill2024 || !rules::IsSkillsPageRow(skill) || PointsLeft(stats) < 1) return 0;
+  if (ranks[skill] == 0) {
+    const rules::SkillSet picked = NewSkills(stats);
+    if (!rules::CanPickOnSkillsPage(g_level.skills, g_level.known | g_level.background, picked, *skill2024)) {
+      Log("skills page: %s not taken - this level's picks so far: %s", rules::Skill2024Name(*skill2024),
+          Names(picked).c_str());
+      return 0;
+    }
+  } else if (ranks[skill] == 1) {
+    if (!rules::CanPickExpertise(g_level.expertise, NewExpertise(stats), *skill2024)) {
+      if (g_level.expertise.expertise > 0) {
+        Log("skills page: Expertise in %s not taken (%d of %d this level)", rules::Skill2024Name(*skill2024),
+            NewExpertise(stats), g_level.expertise.expertise);
+      }
+      return 0;
+    }
+  } else {
     return 0;
   }
-  g_set_rank(stats, skill, 1);
+  g_set_rank(stats, skill, static_cast<int8_t>(ranks[skill] + 1));
   SetPointsLeft(stats, PointsLeft(stats) - 1);
   return 1;
 }
 
+// "-": this level's picks only (never below the floor: earlier levels, the background).
 void RemoveRank(void* stats, uint16_t skill, uint8_t min_rank) {
-  if (!AtLevelOne(stats)) {
-    g_remove_rank(stats, skill, min_rank);
+  if (!ActiveFor(stats)) {
+    if (!(g_level.stats == stats && Active())) g_remove_rank(stats, skill, min_rank);
     return;
   }
-  const Page page = PageFor(stats);
   int8_t* ranks = Ranks(stats);
-  const auto skill2024 = rules::Skill2024ForNwnSkill(skill);
-  if (!ranks || skill >= Rows() || ranks[skill] <= static_cast<int8_t>(min_rank) || ranks[skill] <= 0) return;
-  if (skill2024 && rules::Has(page.background, *skill2024)) return;  // the background's: locked
+  if (!ranks || skill >= Rows() || ranks[skill] <= g_level.floor[skill] || ranks[skill] <= static_cast<int8_t>(min_rank)) {
+    return;
+  }
   g_set_rank(stats, skill, static_cast<int8_t>(ranks[skill] - 1));
   SetPointsLeft(stats, PointsLeft(stats) + 1);
 }
 
+// Recommended (and the hub's OK without Customize): the class's usual skills,
+// then Expertise in its usual skills the character is proficient in.
 void PackageSkills(void* stats, const void* table_name) {
-  if (!AtLevelOne(stats)) {
-    g_package_skills(stats, table_name);
+  if (!ActiveFor(stats)) {
+    if (!(g_level.stats == stats && Active())) g_package_skills(stats, table_name);
     return;
   }
-  const Page page = PageFor(stats);
-  if (!page.valid) return;
-  SetBackgroundRanks(stats, page.background);
-  const rules::SkillSet recommended =
-      rules::RecommendedSkillsPagePicks(page.character_class, page.species, page.background);
-  int8_t* ranks = Ranks(stats);
-  for (int i = 0; i < rules::kSkill2024Count && ranks; ++i) {
-    const auto skill = static_cast<rules::Skill2024>(i);
-    const int row = rules::SkillsPageRow(skill);
-    if (!rules::Has(recommended, skill) || row < 0 || row >= Rows() || ranks[row] >= 1 || PointsLeft(stats) < 1) {
-      continue;
+  if (g_level.level == 1) SetBackgroundRanks(stats, g_level.background);
+  const std::vector<rules::Skill2024> preference = rules::SkillPreference2024(g_level.character_class);
+  const int8_t* ranks = Ranks(stats);
+  for (int pass = 0; pass < 2 && ranks; ++pass) {  // new skills, then Expertise
+    for (rules::Skill2024 skill : preference) {
+      const int row = rules::SkillsPageRow(skill);
+      if (row < 0 || row >= Rows() || PointsLeft(stats) < 1) continue;
+      if ((pass == 0 && ranks[row] == 0) || (pass == 1 && ranks[row] == 1)) AddRank(stats, static_cast<uint16_t>(row));
     }
-    if (!rules::CanPickOnSkillsPage(page.allowance, page.background, Picked(stats, page.background), skill)) continue;
-    g_set_rank(stats, static_cast<uint16_t>(row), 1);
-    SetPointsLeft(stats, PointsLeft(stats) - 1);
   }
-  Log("skills page: Recommended - %s (with the background's %s)", Names(Picked(stats, page.background)).c_str(),
-      Names(page.background).c_str());
+  Log("skills page: Recommended - new %s; Expertise %d (background %s)", Names(NewSkills(stats)).c_str(),
+      NewExpertise(stats), Names(g_level.background).c_str());
 }
 
 // The function containing the one match of `pattern` in .text, 0 (logged) if none.

@@ -561,6 +561,12 @@ constexpr size_t kClientStatsClassSlotLevel = 0x296;
 // refreshes the totals beside them), skill points left uint16 +0x10e.
 // CNWRules' skills.2da row count uint8 +0x107.
 constexpr size_t kClientStatsRace = 0x50;
+// C7a: the client stats' ability scores (Str .. Cha, uint8 +0x70..+0x75, as the
+// level's skill points read them) and the feats it has (uint16* +0x118, count
+// uint16 +0x120: CanChooseFeat's "already known" scan).
+constexpr size_t kClientStatsAbilities = 0x70;
+constexpr size_t kClientStatsFeats = 0x118;
+constexpr size_t kClientStatsFeatCount = 0x120;
 constexpr size_t kClientStatsSkillRanks = 0xd8;
 constexpr size_t kClientStatsSkillPoints = 0x10e;
 constexpr size_t kRulesSkillCount = 0x107;

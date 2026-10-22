@@ -22,9 +22,13 @@
 
 #include <stdint.h>
 
+#include <algorithm>
+
 #include "config.h"
 #include "creature.h"
+#include "data_serving.h"
 #include "ee_layout.h"
+#include "engine.h"
 #include "hooks.h"
 #include "log.h"
 #include "rules/feats2024.h"
@@ -44,8 +48,55 @@ void Count(rules::BonusPicks* taken, int feat) {
     case rules::BonusFeatGroup::kGeneral: ++taken->general; break;
     case rules::BonusFeatGroup::kFightingStyle: ++taken->style; break;
     case rules::BonusFeatGroup::kWeaponMastery: ++taken->mastery; break;
+    case rules::BonusFeatGroup::kOrigin: ++taken->origin; break;
     case rules::BonusFeatGroup::kOther: break;
   }
+}
+
+// The client stats' feats (the character's, before this level's picks).
+bool ClientHasFeat(void* stats, int feat) {
+  const auto* feats = Field<const uint16_t*>(stats, ee::kClientStatsFeats);
+  const int count = Field<uint16_t>(stats, ee::kClientStatsFeatCount);
+  for (int i = 0; feats && i < count; ++i) {
+    if (feats[i] == feat) return true;
+  }
+  return false;
+}
+
+// C7a: the ASIs a character has made — older ASI rows and the ASI choices.
+template <typename HasFeatFn>
+int OwnedAsis(HasFeatFn has) {
+  int owned = 0;
+  for (int k = 0; k < rules::kAsiFeatCount; ++k) owned += has(rules::kAsiFeatFirst + k) ? 1 : 0;
+  for (int slot = 1; slot <= rules::kAsiFeatCount; ++slot) {
+    for (int split = 0; split < rules::kAsiSplits; ++split) {
+      if (has(rules::AsiSplitFeat(slot, split))) {
+        ++owned;
+        break;
+      }
+    }
+  }
+  return owned;
+}
+
+int ClientTotalLevel(void* stats) {
+  const int classes = std::min<int>(Field<uint8_t>(stats, ee::kClientStatsClassCount), ee::kClientStatsClassSlots);
+  int total = 0;
+  for (int i = 0; i < classes; ++i) {
+    total += Field<uint8_t>(stats, i * ee::kClientStatsClassSlotSize + ee::kClientStatsClassSlotLevel);
+  }
+  return total;
+}
+
+// C7a: an ASI choice is offered only as the next ASI, and not when it would
+// change nothing (its abilities at 20).
+bool AsiChoiceOffered(void* stats, int feat) {
+  const auto choice = rules::AsiFeatFromId(feat);
+  if (!choice) return true;
+  if (!rules::IsNextAsiChoice(feat, OwnedAsis([stats](int f) { return ClientHasFeat(stats, f); }))) return false;
+  int scores[6];
+  for (int i = 0; i < 6; ++i) scores[i] = Field<uint8_t>(stats, ee::kClientStatsAbilities + i);
+  return rules::AsiChangesSomething(choice->increase, scores);
 }
 
 // Whether `feat` still fits this level's bonus picks, by group.
@@ -56,8 +107,10 @@ bool FitsThisLevel(void* stats, uint16_t feat, const void* chosen) {
   const auto character_class = rules::ClassFromNwnId(Field<uint8_t>(stats, at + ee::kClientStatsClassSlotClass));
   const int class_level = Field<uint8_t>(stats, at + ee::kClientStatsClassSlotLevel);
   if (!character_class) return true;  // not a base class: NWN's own rules
-  const rules::BonusPicks allowed = rules::BonusPicks2024(
+  rules::BonusPicks allowed = rules::BonusPicks2024(
       *character_class, class_level, g_config.class_features == rules::RuleVariant::kFaithful, MasteriesAsFeats());
+  // A Human's Versatile pick at level 1 takes an Origin feat (C7a: Origin feats count).
+  if (ClientTotalLevel(stats) == 1 && Field<uint16_t>(stats, ee::kClientStatsRace) == ee::kRaceHuman) allowed.origin = 1;
   rules::BonusPicks taken;
   bool listed = false;
   if (chosen) {
@@ -79,6 +132,7 @@ int CanChooseFeat(void* level_up_stats, uint16_t feat, uint8_t general_left, uin
         "(feats faithful)");
   }
   if (!rules::IsChoosableFeat2024(feat, MasteriesAsFeats())) return 0;
+  if (level_up_stats && !AsiChoiceOffered(level_up_stats, feat)) return 0;
   if (rules::BonusFeatGroupOf(feat) != rules::BonusFeatGroup::kOther && level_up_stats &&
       !FitsThisLevel(level_up_stats, feat, chosen)) {
     return 0;
@@ -93,6 +147,10 @@ CanChooseFeatFn g_server_can_choose_feat = nullptr;
 
 int ServerCanChooseFeat(void* stats, uint16_t feat, uint8_t general_left, uint8_t bonus_left, void* chosen) {
   if (!rules::IsChoosableFeat2024(feat, MasteriesAsFeats())) return 0;
+  if (rules::AsiFeatFromId(feat) &&
+      !rules::IsNextAsiChoice(feat, OwnedAsis([stats](int f) { return engine::HasFeat(stats, f); }))) {
+    return 0;  // C7a: the next ASI's choices only
+  }
   return g_server_can_choose_feat(stats, feat, general_left, bonus_left, chosen);
 }
 
@@ -100,6 +158,7 @@ int ServerCanChooseFeat(void* stats, uint16_t feat, uint8_t general_left, uint8_
 
 void InstallFeatRules() {
   if (g_config.feats != rules::RuleVariant::kFaithful) return;
+  ServeConditionalRows("feats2024");  // C7a: the ASI choices and Origin feats in the classes' feat slots
   HookExport("CNWSCreatureStats::CanChooseFeat (feats: automatic level-ups - henchmen - take the 2024 feats)",
              ee::kServerCanChooseFeat, reinterpret_cast<void*>(&ServerCanChooseFeat),
              reinterpret_cast<void**>(&g_server_can_choose_feat));

@@ -91,6 +91,11 @@ void HideAsiRows(void* rules, bool reload) {
     SetField<uint8_t>(feats + id * ee::kFeatStride, ee::kFeatMinLevel, 0xFF);
     ++hidden;
   }
+  const int last_choice = rules::AsiSplitFeat(rules::kAsiFeatCount, rules::kAsiSplits - 1);  // C7a's choices
+  for (int id = rules::kAsiSplitFeatFirst; id <= last_choice && id < count; ++id) {
+    SetField<uint8_t>(feats + id * ee::kFeatStride, ee::kFeatMinLevel, 0xFF);
+    ++hidden;
+  }
   if (!reload) Log("feat cadence: NWN's - %d Ability Score Improvement rows hidden", hidden);
 }
 

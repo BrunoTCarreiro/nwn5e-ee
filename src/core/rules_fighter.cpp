@@ -57,6 +57,7 @@
 #include "rules/class_features.h"
 #include "rules/feats2024.h"
 #include "rules/weapons.h"
+#include "records.h"
 #include "rules_loaded.h"
 #include "weapon_size.h"
 
@@ -440,6 +441,68 @@ void InstallWeaponDiceRules() {
   }
 }
 
+// --- C7a: !style ------------------------------------------------------------------
+// "Whenever you gain a Fighter level, you can replace the [Fighting Style]
+// feat you chose with a different Fighting Style feat" (SRD 5.2): once per
+// Fighter level gained, the Fighter level of the last swap kept as a record.
+constexpr const char* kVarStyleSwap = "nwn5e_style_swap_level";
+
+int StyleFeatByName(std::string name) {
+  for (char& c : name) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+  if (name == "archery") return rules::kFeatFightingStyleArchery;
+  if (name == "defense" || name == "defence") return rules::kFeatFightingStyleDefense;
+  if (name.rfind("great", 0) == 0) return rules::kFeatFightingStyleGreatWeapon;
+  if (name.rfind("two", 0) == 0) return rules::kFeatFightingStyleTwoWeapon;
+  return -1;
+}
+
+const char* StyleName(int feat) {
+  switch (feat) {
+    case rules::kFeatFightingStyleArchery: return "Archery";
+    case rules::kFeatFightingStyleDefense: return "Defense";
+    case rules::kFeatFightingStyleGreatWeapon: return "Great Weapon Fighting";
+    case rules::kFeatFightingStyleTwoWeapon: return "Two-Weapon Fighting";
+    default: return "?";
+  }
+}
+
+// !style [<old> for <new>]
+std::vector<std::string> StyleCommand(void* creature, const std::string& args) {
+  void* stats = StatsOf(creature);
+  const int level = FighterLevelOf(stats);
+  if (level < 1) return {"nwn5e: !style swaps a Fighter's Fighting Style (class_features faithful)."};
+  EnsureRecords(creature);
+  const int last = engine::GetLocalInt(creature, kVarStyleSwap);
+  const bool ready = level > last;
+  std::string held;
+  for (int feat = rules::kFeatFightingStyleArchery; feat <= rules::kFeatFightingStyleTwoWeapon; ++feat) {
+    if (engine::HasFeat(stats, feat)) held += (held.empty() ? "" : ", ") + std::string(StyleName(feat));
+  }
+  const std::string status = "nwn5e: Fighting Style: " + (held.empty() ? std::string("none") : held) + ". " +
+                             (ready ? "You can swap one (a Fighter level gained): !style defense for archery."
+                                    : "Swapped at this Fighter level already - the next swap comes with your next "
+                                      "Fighter level.");
+  const size_t at = args.find(" for ");
+  if (args.empty() || at == std::string::npos) return {status};
+  const int old_style = StyleFeatByName(args.substr(0, at));
+  const int new_style = StyleFeatByName(args.substr(at + 5));
+  if (old_style < 0 || new_style < 0) {
+    return {"nwn5e: styles are archery, defense, great weapon fighting, two-weapon fighting.", status};
+  }
+  if (!ready) return {status};
+  if (!engine::HasFeat(stats, old_style)) return {std::string("nwn5e: you don't have ") + StyleName(old_style) + ".", status};
+  if (engine::HasFeat(stats, new_style)) return {std::string("nwn5e: you have ") + StyleName(new_style) + " already.", status};
+  engine::RemoveFeat(stats, old_style);
+  if (!engine::AddFeat(stats, new_style)) {
+    engine::AddFeat(stats, old_style);
+    return {"nwn5e: the swap didn't take.", status};
+  }
+  SetRecord(creature, kVarStyleSwap, level);
+  Log("fighter: 0x%08X Fighting Style %s swapped for %s at Fighter %d", IdOf(creature), StyleName(old_style),
+      StyleName(new_style), level);
+  return {std::string("nwn5e: ") + StyleName(old_style) + " swapped for " + StyleName(new_style) + "."};
+}
+
 void InstallFighterRules() {
   const bool savage_attacker = g_config.feats == rules::RuleVariant::kFaithful;
   if (!Faithful()) {
@@ -458,6 +521,8 @@ void InstallFighterRules() {
   AddAttackRollListeners(nullptr, &StudiedAttacksAfterAttackRoll);
   AddCreatureUpdateListener(&HeroicRally);
   AddRestListener(&ResetIndomitable);
+  RegisterRecords({kVarStyleSwap});
+  AddChatCommand("!style", &StyleCommand);
   Log("fighter: Champion, Remarkable Athlete, Studied Attacks, Fighting Styles, Indomitable, Heroic Rally "
       "(faithful)");
 }

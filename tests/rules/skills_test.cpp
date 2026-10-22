@@ -250,3 +250,55 @@ TEST(SkillsPageRecommendedFitsEveryone) {
   }
   CHECK_EQ(cases, 12 * 3 * 5);
 }
+
+// C7b. Breaks caught: a multiclass into Bard / Ranger / Rogue given none (or
+// a non-list skill), Primal Knowledge or College of Lore missing, Expertise
+// at the wrong levels or counts, Scholar not limited to its six, a Fighter
+// given picks; the allowance not holding the level-3 skills (the profile
+// would drop them).
+TEST(LevelUpSkillPicksAre2024) {
+  const LevelSkillPicks rogue1 = LevelSkillPicks2024(CharacterClass::kRogue, 1, true);
+  CHECK_EQ(rogue1.skills, 4);
+  CHECK_EQ(rogue1.expertise, 2);
+  const LevelSkillPicks into_rogue = LevelSkillPicks2024(CharacterClass::kRogue, 1, false);
+  CHECK_EQ(into_rogue.skills, 1);
+  CHECK_EQ(Has(into_rogue.skill_list, Skill2024::kStealth), true);
+  CHECK_EQ(Has(into_rogue.skill_list, Skill2024::kArcana), false);
+  CHECK_EQ(LevelSkillPicks2024(CharacterClass::kFighter, 1, false).skills, 0);
+  CHECK_EQ(LevelSkillPicks2024(CharacterClass::kBard, 1, false).skill_list, SkillsPageAllowance(CharacterClass::kBard, Species2024::kOther).class_list);
+  CHECK_EQ(LevelSkillPicks2024(CharacterClass::kBarbarian, 3, false).skills, 1);
+  CHECK_EQ(LevelSkillPicks2024(CharacterClass::kBard, 3, true).skills, 3);
+  CHECK_EQ(LevelSkillPicks2024(CharacterClass::kFighter, 4, true).skills + LevelSkillPicks2024(CharacterClass::kFighter, 4, true).expertise, 0);
+  CHECK_EQ(LevelSkillPicks2024(CharacterClass::kRogue, 6, true).expertise, 2);
+  CHECK_EQ(LevelSkillPicks2024(CharacterClass::kRogue, 5, true).expertise, 0);
+  CHECK_EQ(LevelSkillPicks2024(CharacterClass::kBard, 2, true).expertise, 2);
+  CHECK_EQ(LevelSkillPicks2024(CharacterClass::kRanger, 2, true).expertise, 1);
+  CHECK_EQ(LevelSkillPicks2024(CharacterClass::kRanger, 9, true).expertise, 2);
+  const LevelSkillPicks wizard2 = LevelSkillPicks2024(CharacterClass::kWizard, 2, true);
+  CHECK_EQ(CanPickExpertise(wizard2, 0, Skill2024::kArcana), true);
+  CHECK_EQ(CanPickExpertise(wizard2, 0, Skill2024::kStealth), false);
+  CHECK_EQ(CanPickExpertise(wizard2, 1, Skill2024::kArcana), false);
+  CHECK_EQ(CanPickExpertise(rogue1, 0, Skill2024::kThievesTools), false);
+  const SkillAllowance bard3 = SkillAllowanceFor({{CharacterClass::kBard, 3}}, Species2024::kOther);
+  CHECK_EQ(bard3.TotalSkills(), 2 + 3 + 3);  // class 3, background 2, Lore 3
+  const SkillAllowance barb3 = SkillAllowanceFor({{CharacterClass::kBarbarian, 3}}, Species2024::kOther);
+  CHECK_EQ(barb3.TotalSkills(), 2 + 2 + 1);
+  const SkillSet five = SkillBit(Skill2024::kAnimalHandling) | SkillBit(Skill2024::kAthletics) |
+                        SkillBit(Skill2024::kIntimidation) | SkillBit(Skill2024::kPerception) | SkillBit(Skill2024::kStealth);
+  CHECK_EQ(CheckSkillChoice(barb3, five).empty(), true);  // Stealth on a background slot, Perception on Primal Knowledge
+}
+
+// C7b. Breaks caught: an older character's NWN ranks (8 in Hide, a rank on
+// a hidden row) taken as the 2024 record.
+TEST(RanksAre2024OnlyOnPageRows) {
+  int8_t ranks[kNwnSkillCount] = {};
+  CHECK_EQ(RanksAre2024(ranks, kNwnSkillCount), true);
+  ranks[kNwnHide] = 1;
+  ranks[kNwnSpot] = 2;
+  CHECK_EQ(RanksAre2024(ranks, kNwnSkillCount), true);
+  ranks[kNwnHide] = 8;
+  CHECK_EQ(RanksAre2024(ranks, kNwnSkillCount), false);
+  ranks[kNwnHide] = 1;
+  ranks[kNwnMoveSilently] = 1;  // a hidden row
+  CHECK_EQ(RanksAre2024(ranks, kNwnSkillCount), false);
+}

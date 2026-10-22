@@ -51,6 +51,7 @@
 #include "records.h"
 #include "rules/abilities.h"
 #include "rules/backgrounds.h"
+#include "rules/feats2024.h"
 #include "rules/nwn_conversion.h"
 #include "rules/progression.h"
 #include "rules/skills.h"
@@ -201,9 +202,24 @@ uint32_t IdOf(const void* object) { return Field<uint32_t>(object, ee::kObjectId
 // One of a character's ASIs: from a feat row it owns or a legacy level.
 struct AsiSlot {
   bool legacy;
-  int k;       // 1-based
-  int choice;  // rules::EncodeAsi, 0 = unspent
+  int k;          // 1-based
+  int choice;     // rules::EncodeAsi, 0 = unspent
+  int feat = -1;  // C7a: the ASI's choice feat (its abilities), -1 for an older ASI (choice from !asi)
 };
+
+// C7a: the ASI choice feats a character has (one per ASI), by ASI.
+std::vector<AsiSlot> ChoiceFeatAsis(void* stats) {
+  std::vector<AsiSlot> slots;
+  for (int slot = 1; slot <= rules::kAsiFeatCount; ++slot) {
+    for (int split = 0; split < rules::kAsiSplits; ++split) {
+      const int feat = rules::AsiSplitFeat(slot, split);
+      if (!engine::HasFeat(stats, feat)) continue;
+      slots.push_back({false, slot, rules::EncodeAsi(rules::AsiSplit(split)), feat});
+      break;
+    }
+  }
+  return slots;
+}
 
 int TotalFeatLevels(void* stats) {
   int total = 0;
@@ -216,7 +232,8 @@ int TotalFeatLevels(void* stats) {
 // A player character's ASIs, legacy first (deciding the legacy count the
 // first time faithful sees it).
 std::vector<AsiSlot> PlayerAsis(void* creature, void* stats) {
-  int owned = 0;
+  const std::vector<AsiSlot> choice_feats = ChoiceFeatAsis(stats);
+  int owned = static_cast<int>(choice_feats.size());
   for (int k = 1; k <= rules::kAsiFeatCount; ++k) {
     if (engine::HasFeat(stats, rules::kAsiFeatFirst + k - 1)) ++owned;
   }
@@ -235,6 +252,7 @@ std::vector<AsiSlot> PlayerAsis(void* creature, void* stats) {
     if (!engine::HasFeat(stats, rules::kAsiFeatFirst + k - 1)) continue;
     slots.push_back({false, k, engine::GetLocalInt(creature, AsiVar(false, k).c_str())});
   }
+  slots.insert(slots.end(), choice_feats.begin(), choice_feats.end());
   return slots;
 }
 
@@ -418,18 +436,52 @@ std::vector<std::string> AsiCommand(void* creature, const std::string& args) {
     std::string line = "nwn5e: " + ScoresLine(stats) + ". Ability Score Improvements: " + std::to_string(slots.size()) +
                        " (" + std::to_string(unspent) + " unspent).";
     if (unspent) line += " Choose with !asi str (+2) or !asi str con (+1 each).";
+    line += " !asi change str [con] changes the last one.";
     return line;
   };
   if (words.empty()) {
     if (slots.empty()) {
       return {describe(), "nwn5e: you get one at each feat level of your class (4, 8, 12, 16, 19; Fighter 6, 14; "
-                          "Rogue 10) - take \"Ability Score Improvement\" in the feat slot."};
+                          "Rogue 10) - take \"Ability Score Improvement\" in the feat slot and pick its abilities "
+                          "there."};
     }
     return {describe()};
   }
-  if (words[0] == "undo") {
+  if (words[0] == "change") {  // C7a: the last ASI's abilities, swapped
+    if (words.size() < 2 || words.size() > 3) return {"nwn5e: !asi change str (+2) or !asi change str con (+1 each)."};
+    const auto first = rules::ParseAbility(words[1].c_str());
+    const auto second = words.size() == 3 ? rules::ParseAbility(words[2].c_str()) : std::nullopt;
+    if (!first || (words.size() == 3 && (!second || *second == *first))) {
+      return {"nwn5e: abilities are str, dex, con, int, wis, cha (two different ones for +1 each)."};
+    }
     for (auto it = slots.rbegin(); it != slots.rend(); ++it) {
       if (!it->choice) continue;
+      if (it->feat >= 0) {
+        const int split = rules::AsiSplitIndex({*first, second});
+        const int feat = rules::AsiSplitFeat(it->k, split);
+        if (feat < 0) return {"nwn5e: that isn't an Ability Score Improvement."};
+        if (feat != it->feat) {
+          engine::RemoveFeat(stats, it->feat);
+          if (!engine::AddFeat(stats, feat)) {
+            engine::AddFeat(stats, it->feat);
+            return {"nwn5e: the change didn't take."};
+          }
+        }
+      } else {
+        SetRecord(creature, AsiVar(it->legacy, it->k).c_str(), rules::EncodeAsi({*first, second}));
+      }
+      Sync(creature, true);
+      Log("abilities: 0x%08X ASI changed to %s%s%s", IdOf(creature), rules::AbilityName(*first), second ? " + " : "",
+          second ? rules::AbilityName(*second) : "");
+      return {"nwn5e: your last Ability Score Improvement is now " + std::string(rules::AbilityName(*first)) +
+                  (second ? std::string(" +1, ") + rules::AbilityName(*second) + " +1." : " +2."),
+              describe()};
+    }
+    return {"nwn5e: no Ability Score Improvement to change.", describe()};
+  }
+  if (words[0] == "undo") {
+    for (auto it = slots.rbegin(); it != slots.rend(); ++it) {
+      if (!it->choice || it->feat >= 0) continue;  // a choice feat stays: !asi change swaps it
       SetRecord(creature, AsiVar(it->legacy, it->k).c_str(), 0);
       it->choice = 0;
       ++unspent;

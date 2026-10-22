@@ -5,7 +5,8 @@ The packages' default picks (the creation screen's Recommended / OK, the
 level-up screen's Recommended) take the first feats of their table that the
 character can choose. In faithful mode only the 2024 feats can be chosen
 (src/core/rules_feats.cpp), so NWN's own rows are passed over and these are
-taken: Ability Score Improvement (from level 4), a Fighter's Fighting Style
+taken: Ability Score Improvement's choices (C7a: from level 4, the package's
+main ability first), a Fighter's Fighting Style
 (Defense first for a Strength package, Archery first for a Dexterity one),
 the Weapon Masteries of the kit's weapons (C4: the classes with Weapon
 Mastery; more after them for the masteries later levels add), Alert (a
@@ -37,7 +38,40 @@ DEX_FIGHTERS = {'PackFTFight2', 'PackFTFight6'}  # Fighter_Finesse, Fighter_Weap
 # Fighter_Pirate's table, also the 2024 greatsword package's (tools/data/kits.py).
 GREAT_WEAPON_FIGHTERS = {'PackFTFight3'}
 
-ASI = [(1200 + i, f'NWN5E_ASI_{i + 1}') for i in range(7)]
+# C7a: each ASI's choices (tools/data/asi_feats.py: row 1400 + 21 (k - 1) +
+# split), the package's in order: +2 to its main ability, +1 main / +1
+# second, +2 second, +1 second / +1 third. nwn5e offers only the next ASI's
+# choices and none that changes nothing (its abilities at 20), so the first
+# that fits is taken.
+SHORT = ['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA']
+ABILITY_ORDER = {  # main, second, third — as rules::AsiPriority2024
+    'PackFTBarb': (0, 2, 1), 'PackFTBard': (5, 1, 2), 'PackFTCler': (4, 2, 0), 'PackFTDruid': (4, 2, 1),
+    'PackFTFight': (0, 2, 1), 'PackFTMonk': (1, 4, 2), 'PackFTPala': (0, 5, 2), 'PackFTRang': (1, 4, 2),
+    'PackFTRog': (1, 2, 4), 'PackFTSor': (5, 2, 1), 'PackFTWiz': (3, 2, 1),
+}
+
+
+def split_index(a, b=None):
+    if b is None:
+        return a
+    a, b = min(a, b), max(a, b)
+    pairs = [(x, y) for x in range(6) for y in range(x + 1, 6)]
+    return 6 + pairs.index((a, b))
+
+
+def asi_rows(table):
+    order = next(v for k, v in ABILITY_ORDER.items() if table.startswith(k))
+    if table in DEX_FIGHTERS:
+        order = (1, 2, 0)
+    main, second, third = order
+    picks = [(main, None), (main, second), (second, None), (second, third)]
+    rows = []
+    for slot in range(1, 8):
+        for a, b in picks:
+            split = split_index(a, b)
+            label = SHORT[a] if b is None else '_'.join(SHORT[x] for x in sorted((a, b)))
+            rows.append((1400 + 21 * (slot - 1) + split, f'NWN5E_ASI_{slot}_{label}'))
+    return rows
 STYLES = {
     'archery': (1210, 'NWN5E_FS_ARCHERY'),
     'defense': (1211, 'NWN5E_FS_DEFENSE'),
@@ -76,7 +110,7 @@ def mastery_rows(names):
 
 
 def rows_for(table):
-    rows = list(ASI)
+    rows = asi_rows(table)
     if table.startswith('PackFTFight'):
         if table in DEX_FIGHTERS:
             order = ['archery', 'defense', 'two', 'great']

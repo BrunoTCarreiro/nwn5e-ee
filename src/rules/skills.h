@@ -96,6 +96,9 @@ struct SkillAllowance {
   bool species_any_skill = false;   // Human: Skillful
   SkillSet species_list = 0;        // Elf: Keen Senses
   int feat_skills = 0;              // the Skilled feat: 3 skills of any kind each
+  int lore_skills = 0;              // C7b: Bard 3, College of Lore's Bonus Proficiencies (any)
+  int primal_skills = 0;            // C7b: Barbarian 3, Primal Knowledge (the Barbarian's list)
+  SkillSet primal_list = 0;
   SkillSet granted = 0;             // always proficient (Rogue: Thieves' Tools)
   int expertise = 0;
   SkillSet expertise_list = 0;      // 0 = any proficient skill
@@ -139,6 +142,31 @@ bool CanPickOnSkillsPage(const SkillAllowance& page, SkillSet background, SkillS
 // skills in order, then common ones for the species pick, each taken while it
 // still fits.
 SkillSet RecommendedSkillsPagePicks(CharacterClass first_class, Species2024 species, SkillSet background);
+// A class's usual skills in order, then common ones (Recommended's order).
+std::vector<Skill2024> SkillPreference2024(CharacterClass character_class);
+
+// C7b: what a level adds on the Skills page — new skills (from `skill_list`)
+// and Expertise (in a skill the character is proficient in, from
+// `expertise_list`, 0 = any). A class's level 1 as the first class: its
+// skills (the page adds the species pick); multiclassing into a Bard (any),
+// Ranger or Rogue: one of its list; Barbarian 3 (Primal Knowledge): one of
+// its list; Bard 3 (College of Lore): three of any. Expertise: Rogue 1 and 6
+// (2 each), Bard 2 and 9 (2), Ranger 2 (1, Deft Explorer) and 9 (2), Wizard 2
+// (1 of Arcana, History, Investigation, Medicine, Nature, Religion: Scholar).
+struct LevelSkillPicks {
+  int skills = 0;
+  SkillSet skill_list = 0;
+  int expertise = 0;
+  SkillSet expertise_list = 0;
+};
+LevelSkillPicks LevelSkillPicks2024(CharacterClass character_class, int class_level, bool first_class);
+// Whether one more Expertise may go to `skill` (the caller checks it is
+// proficient), `taken` already chosen at this level.
+bool CanPickExpertise(const LevelSkillPicks& picks, int taken, Skill2024 skill);
+// Whether a character's ranks are the 2024 record (C5 / C7b): ranks only on
+// the Skills page's rows, 1 (proficient) or 2 (Expertise). An older
+// character's NWN ranks aren't.
+bool RanksAre2024(const int8_t* ranks, int rows);
 
 // SK9 (faithful): the 2024 initiative modifier — Dexterity, + the proficiency
 // bonus with Alert (NWN's Improved Initiative).

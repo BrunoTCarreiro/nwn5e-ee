@@ -38,6 +38,10 @@ void HideOriginRows(void* rules_object, bool reload) {
   for (int id : {rules::kFeatSavageAttacker, rules::kFeatSkilled}) {
     if (id < count) SetField<uint8_t>(feats + id * ee::kFeatStride, ee::kFeatMinLevel, 0xFF);
   }
+  for (int i = 0; i < rules::kSkilledRepeats; ++i) {  // C7a: Skilled again
+    const int id = rules::kFeatSkilledAgainFirst + i;
+    if (id < count) SetField<uint8_t>(feats + id * ee::kFeatStride, ee::kFeatMinLevel, 0xFF);
+  }
   if (!reload) Log("feats: NWN's - Savage Attacker and Skilled hidden");
 }
 

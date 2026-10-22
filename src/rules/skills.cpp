@@ -2,6 +2,7 @@
 
 #include <ctype.h>
 
+#include <algorithm>
 #include <initializer_list>
 #include <vector>
 
@@ -252,7 +253,7 @@ int CountSkills(SkillSet set) {
 
 int SkillAllowance::TotalSkills() const {
   return class_skills + multiclass_skills + background_skills + (species_any_skill || species_list ? 1 : 0) +
-         feat_skills;
+         feat_skills + lore_skills + primal_skills;
 }
 
 SkillAllowance SkillAllowanceFor(const std::vector<ClassLevels>& classes, Species2024 species,
@@ -275,6 +276,11 @@ SkillAllowance SkillAllowanceFor(const std::vector<ClassLevels>& classes, Specie
       allowance.multiclass_list |= skills.list;
     }
     if (c == CharacterClass::kRogue) allowance.granted |= SkillBit(S::kThievesTools);
+    if (c == CharacterClass::kBard && level >= 3) allowance.lore_skills += 3;  // C7b: College of Lore
+    if (c == CharacterClass::kBarbarian && level >= 3) {                     // C7b: Primal Knowledge
+      allowance.primal_skills += 1;
+      allowance.primal_list |= skills.list;
+    }
     switch (c) {
       case CharacterClass::kRogue:
         allowance.expertise += (level >= 1 ? 2 : 0) + (level >= 6 ? 2 : 0);
@@ -332,6 +338,8 @@ std::string CheckSkillChoice(const SkillAllowance& allowance, SkillSet chosen) {
   if (allowance.species_any_skill) slots.push_back(AllSkills());
   if (allowance.species_list) slots.push_back(allowance.species_list);
   for (int i = 0; i < allowance.feat_skills; ++i) slots.push_back(AllSkills());
+  for (int i = 0; i < allowance.lore_skills; ++i) slots.push_back(AllSkills());
+  for (int i = 0; i < allowance.primal_skills; ++i) slots.push_back(allowance.primal_list);
   std::vector<int> slot_of(slots.size(), -1);
   std::string unplaced;
   for (size_t k = 0; k < skills.size(); ++k) {
@@ -396,7 +404,7 @@ bool CanPickOnSkillsPage(const SkillAllowance& page, SkillSet background, SkillS
   return CheckSkillChoice(page, picked | bit).empty();
 }
 
-SkillSet RecommendedSkillsPagePicks(CharacterClass first_class, Species2024 species, SkillSet background) {
+std::vector<Skill2024> SkillPreference2024(CharacterClass first_class) {
   static const std::vector<Skill2024> kCommon = {
       S::kPerception, S::kInsight, S::kStealth, S::kPersuasion, S::kAthletics, S::kAcrobatics, S::kSurvival,
       S::kMedicine, S::kArcana, S::kIntimidation, S::kHistory, S::kInvestigation, S::kNature, S::kReligion,
@@ -445,15 +453,73 @@ SkillSet RecommendedSkillsPagePicks(CharacterClass first_class, Species2024 spec
       order = {S::kArcana, S::kInvestigation, S::kHistory, S::kInsight, S::kMedicine, S::kNature, S::kReligion};
       break;
   }
+  std::vector<Skill2024> preference = order;
+  for (Skill2024 skill : kCommon) {
+    if (std::find(preference.begin(), preference.end(), skill) == preference.end()) preference.push_back(skill);
+  }
+  return preference;
+}
+
+SkillSet RecommendedSkillsPagePicks(CharacterClass first_class, Species2024 species, SkillSet background) {
   const SkillAllowance page = SkillsPageAllowance(first_class, species);
   SkillSet picked = 0;
-  const std::vector<Skill2024>* const lists[] = {&order, &kCommon};
-  for (const std::vector<Skill2024>* list : lists) {
-    for (Skill2024 skill : *list) {
-      if (CanPickOnSkillsPage(page, background, picked, skill)) picked |= SkillBit(skill);
-    }
+  for (Skill2024 skill : SkillPreference2024(first_class)) {
+    if (CanPickOnSkillsPage(page, background, picked, skill)) picked |= SkillBit(skill);
   }
   return picked;
+}
+
+LevelSkillPicks LevelSkillPicks2024(CharacterClass c, int class_level, bool first_class) {
+  LevelSkillPicks picks;
+  const ClassSkills skills = ClassSkillsFor(c);
+  if (class_level == 1 && first_class) {
+    picks.skills = skills.count;
+    picks.skill_list = skills.list;
+  } else if (class_level == 1 && (c == CharacterClass::kBard || c == CharacterClass::kRanger || c == CharacterClass::kRogue)) {
+    picks.skills = 1;  // 2024 multiclassing: one skill of the class's list (a Bard's: any)
+    picks.skill_list = skills.list;
+  }
+  if (c == CharacterClass::kBarbarian && class_level == 3) {
+    picks.skills += 1;
+    picks.skill_list |= skills.list;
+  }
+  if (c == CharacterClass::kBard && class_level == 3) {
+    picks.skills += 3;
+    picks.skill_list = AllSkills();
+  }
+  switch (c) {
+    case CharacterClass::kRogue:
+      picks.expertise = class_level == 1 || class_level == 6 ? 2 : 0;
+      break;
+    case CharacterClass::kBard:
+      picks.expertise = class_level == 2 || class_level == 9 ? 2 : 0;
+      break;
+    case CharacterClass::kRanger:
+      picks.expertise = class_level == 2 ? 1 : class_level == 9 ? 2 : 0;
+      break;
+    case CharacterClass::kWizard:
+      if (class_level == 2) {
+        picks.expertise = 1;
+        picks.expertise_list = Set({S::kArcana, S::kHistory, S::kInvestigation, S::kMedicine, S::kNature, S::kReligion});
+      }
+      break;
+    default:
+      break;
+  }
+  return picks;
+}
+
+bool CanPickExpertise(const LevelSkillPicks& picks, int taken, Skill2024 skill) {
+  if (IsTool(skill) || taken >= picks.expertise) return false;
+  return !picks.expertise_list || Has(picks.expertise_list, skill);
+}
+
+bool RanksAre2024(const int8_t* ranks, int rows) {
+  for (int row = 0; ranks && row < rows; ++row) {
+    if (ranks[row] == 0) continue;
+    if (ranks[row] < 0 || ranks[row] > 2 || !IsSkillsPageRow(row)) return false;
+  }
+  return true;
 }
 
 std::string CheckExpertiseChoice(const SkillAllowance& allowance, SkillSet proficient, SkillSet expertise) {

@@ -96,7 +96,11 @@ rules::Species2024 SpeciesOf(void* stats) {
 }
 
 // The Skilled feat (an Origin feat): 3 more skills of any kind.
-int SkilledFeats(void* stats) { return engine::HasFeat(stats, rules::kFeatSkilled) ? 1 : 0; }
+int SkilledFeats(void* stats) {
+  int count = engine::HasFeat(stats, rules::kFeatSkilled) ? 1 : 0;
+  for (int i = 0; i < rules::kSkilledRepeats; ++i) count += engine::HasFeat(stats, rules::kFeatSkilledAgainFirst + i) ? 1 : 0;
+  return count;  // C7a: Skilled is Repeatable
+}
 
 const int8_t* Ranks(void* stats) { return Field<const int8_t*>(stats, ee::kStatsSkillRanks); }
 
@@ -169,15 +173,40 @@ void StoreProfile(void* creature, uint32_t id, const Profile& profile) {
 Profile CharacterProfile(void* creature, void* stats, bool is_player) {
   const uint32_t id = IdOf(creature);
   CachedProfile& cached = g_profiles[id];
-  if (cached.chosen) return cached.profile;
+  const uint32_t ranks = RankFingerprint(stats);
+  if (cached.chosen && cached.ranks == ranks && ranks != 0) return cached.profile;
   EnsureRecords(creature);  // C6: an exported character's profile, from its database
   if (engine::GetLocalInt(creature, kVarSet) == 1) {  // chosen (its variables may load after its ranks)
-    cached.profile.proficient = static_cast<rules::SkillSet>(engine::GetLocalInt(creature, kVarProficient));
-    cached.profile.expertise = static_cast<rules::SkillSet>(engine::GetLocalInt(creature, kVarExpertise));
+    Profile chosen;
+    chosen.proficient = static_cast<rules::SkillSet>(engine::GetLocalInt(creature, kVarProficient));
+    chosen.expertise = static_cast<rules::SkillSet>(engine::GetLocalInt(creature, kVarExpertise));
+    // C7b: what the Skills page added at a level-up (2024 ranks) joins what
+    // !skills chose, as long as it fits the character's choices.
+    const int8_t* rank_array = Ranks(stats);
+    if (rank_array && rules::RanksAre2024(rank_array, std::min<int>(rules::kNwnSkillCount, engine::SkillRowCount()))) {
+      const rules::SkillAllowance allowance =
+          rules::SkillAllowanceFor(ClassLevelsOf(stats), SpeciesOf(stats), SkilledFeats(stats));
+      const Profile ranked = ProfileFromRanks(stats, allowance);
+      for (int i = 0; i < rules::kSkill2024Count; ++i) {
+        const rules::SkillSet bit = 1u << i;
+        if ((ranked.proficient & bit) && !(chosen.proficient & bit) &&
+            rules::CheckSkillChoice(allowance, chosen.proficient | bit).empty()) {
+          chosen.proficient |= bit;
+        }
+      }
+      for (int i = 0; i < rules::kSkill2024Count; ++i) {
+        const rules::SkillSet bit = 1u << i;
+        if ((ranked.expertise & bit) && !(chosen.expertise & bit) &&
+            rules::CheckExpertiseChoice(allowance, chosen.proficient, chosen.expertise | bit).empty()) {
+          chosen.expertise |= bit;
+        }
+      }
+    }
+    cached.profile = chosen;
     cached.chosen = true;
+    cached.ranks = ranks;
     return cached.profile;
   }
-  const uint32_t ranks = RankFingerprint(stats);
   if (cached.ranks != ranks || ranks == 0) {
     cached.profile = ProfileFromRanks(stats, rules::SkillAllowanceFor(ClassLevelsOf(stats), SpeciesOf(stats),
                                                                       SkilledFeats(stats)));
