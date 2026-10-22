@@ -797,6 +797,12 @@ Grappler (the SRD's other General feat), Epic Boons at 19, Magic Initiate,
 Paladin and Ranger Fighting Styles (their briefs), Skilled's picks on a page
 (C8: its Feats page comes after the Skills page).
 
+*The 2026-10-22 test matrix done (owner: "the !style works, i've tested it
+before, and loading an !exported character also works"): !style swapped
+Archery for Great Weapon Fighting at Fighter 4 (the new help); E3 - a
+character exported with !export and taken into a new game had its 3 records
+restored from its own database. C5-C7 and 0.16.x verified.*
+
 *Part 4 passed (owner, 2026-10-22, 0.16.10: "Part 4 seems like it passes
 fine"): an Elf Wizard (Sage) - Wizard skills then Keen Senses (3 picks, Arcana
 and History the background's), Reset and OK between the steps; at Wizard 2
