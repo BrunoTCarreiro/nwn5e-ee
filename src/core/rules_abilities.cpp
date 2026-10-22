@@ -496,6 +496,10 @@ void SetCreationBackground(int feat) {
   Log("abilities: background feat %d chosen on the creation screen - given when the character enters", feat);
 }
 
+// The background chosen on the creation screen's Background page, until the
+// character enters (-1: none) — C5's Skills page shows its skills taken.
+int CreationBackgroundFeat() { return g_creation_feat; }
+
 // The background's skills (and tool), for the skill values (rules_skills.cpp).
 rules::SkillSet BackgroundSkills(void* creature) {
   if (!g_faithful || !creature) return 0;

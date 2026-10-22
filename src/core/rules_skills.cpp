@@ -104,7 +104,8 @@ int RanksFor(void* stats, rules::Skill2024 skill) {
   const int8_t* ranks = Ranks(stats);
   if (!ranks) return 0;
   int most = 0;
-  for (int row = 0; row < rules::kNwnSkillCount; ++row) {
+  const int rows = std::min<int>(rules::kNwnSkillCount, engine::SkillRowCount());  // the rank array's length
+  for (int row = 0; row < rows; ++row) {
     if (rules::Skill2024ForNwnSkill(row) == skill) most = std::max<int>(most, ranks[row]);
   }
   return most;
@@ -147,7 +148,8 @@ uint32_t RankFingerprint(void* stats) {
   const int8_t* ranks = Ranks(stats);
   if (!ranks) return 0;
   uint32_t hash = 2166136261u;
-  for (int row = 0; row < rules::kNwnSkillCount; ++row) hash = (hash ^ static_cast<uint8_t>(ranks[row])) * 16777619u;
+  const int rows = std::min<int>(rules::kNwnSkillCount, engine::SkillRowCount());
+  for (int row = 0; row < rows; ++row) hash = (hash ^ static_cast<uint8_t>(ranks[row])) * 16777619u;
   return hash;
 }
 

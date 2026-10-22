@@ -703,6 +703,48 @@ and O5 (Skilled's three picks in !skills, set up with !test) — with O2, O3,
 O4, O6, O7 and S2 before, all of 0.13's rows. Still unseen: the off-hand
 dagger with a halfling's longsword (O6) and a Small monk's unarmed hit (S4).
 
+*C5 (0.14.0, owner 2026-10-22: "go with the recommendations").* The Skills
+page as the 2024 pick, with `skills` faithful. Decided: (1) the seven 2024
+skills NWN has no row for become skills.2da rows 28-34 (Athletics, History,
+Insight, Investigation, Nature, Religion, Survival; EE keeps a creature's
+ranks in an array sized by the table — GetSkillRank bounds-checks against
+CNWRules +0x107 — so rows can be added); they exist in both modes so saves
+load either way, unusable and off the page in NWN mode (on the character
+sheet there with rank 0). (2) One row per 2024 skill on the page
+(rules::SkillsPageRow: Stealth = Hide, Perception = Spot, Arcana = Lore,
+Animal Handling = Ride — Animal Empathy is only a Druid's / Ranger's), the
+skill's other rows hidden from it (HideFromLevelUp, read only by the
+page's list builder 0x9c4fd0, not by the sheet). (3) Rows without a 2024
+skill and the tool rows hidden from the page. (4) The 2024 rules decide each
+pick: points = the class's count + 1 for a Human (Skillful, any) or an Elf
+(Keen Senses: Insight, Perception, Survival); every pick 1 point, rank 1;
+rules::CanPickOnSkillsPage (CheckSkillChoice on a page-only allowance)
+accepts a pick only if the picks still fit; the background's skills set to
+rank 1 and locked. (5) No skill points after level 1; Skilled (its Feats
+page comes after this one), Expertise, multiclass and level-3 picks stay
+with !skills until C7. (6) The page's ranks are the record: rules_skills
+reads a new character's proficiencies from them.
+How (src/core/chargen_skills.cpp; the client's CNWCLevelUpStats functions,
+each found by one instruction unique in .text): the level's skill points
+(0x7ec0c0: (class base + ability, at least 1) x race multiplier + extra at
+level 1, else base + ability + extra — called by the level-up reset 0x7edcc0,
+the page's constructor 0x9c3040 before it copies the starting ranks into the
+page's floor array +0xf88, and Recommended 0x9c9a30); "+" (0x7f7a00: class
+skill 1 point, cross-class 2; max rank level + CHARGEN_SKILL_MAX_LEVEL_1_BONUS,
+halved cross-class); "-" (0x7ee3e0: down to the page's floor, 1 or 2 points
+back); the package's picks (0x7eb300, Recommended and the hub's OK without
+Customize). Client stats: race uint16 +0x50, ranks int8* +0xd8 (set through
+0x7fa8b0, which refreshes the totals), points uint16 +0x10e. Recommended =
+rules::RecommendedSkillsPagePicks (each class's usual skills, then common
+ones for the species pick; unit-tested over every class x species x
+background). Data (tools/data/class_skills.py): skills.added.txt (the rows),
+skills.if_skills2024*.txt (usable, page rows shown), cls_sk5e_*.2da (the
+2024 class lists as class skills, NWN's usability and its flags for rows
+without a 2024 skill), classes.if_skills2024.txt; the `skills2024` rows are
+served only when all four hooks are in. tests/data/class_skills_test.cpp
+checks the tables against the rules. Not built: Performance on the page for a
+non-Bard (Perform is a Bard's only, AllClassesCanUse 0 — !skills for it).
+
 *Decided (owner, 2026-10-21): the Domain step stays until the Cleric
 conversion* — NWN's two domains are picked at creation until the Cleric's
 brief (Phase 4) drops what domains grant (powers, domain spells, the bonus

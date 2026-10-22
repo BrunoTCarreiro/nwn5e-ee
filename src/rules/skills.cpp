@@ -3,6 +3,7 @@
 #include <ctype.h>
 
 #include <initializer_list>
+#include <vector>
 
 namespace rules {
 
@@ -63,6 +64,14 @@ const NwnRow kNwnRows[kNwnSkillCount] = {
     {kNwnCraftArmor, Skill2024::kSmithsTools, "Smith's Tools (Armor)", 8787},
     {kNwnCraftWeapon, Skill2024::kSmithsTools, "Smith's Tools (Weapons)", 8789},
     {kNwnRide, Skill2024::kAnimalHandling, "Animal Handling (Ride)", 111889},
+    // C5: nwn5e's rows, named by data/strings.txt.
+    {kNwnAthletics, Skill2024::kAthletics, "Athletics", 16000396},
+    {kNwnHistory, Skill2024::kHistory, "History", 16000398},
+    {kNwnInsight, Skill2024::kInsight, "Insight", 16000400},
+    {kNwnInvestigation, Skill2024::kInvestigation, "Investigation", 16000402},
+    {kNwnNature, Skill2024::kNature, "Nature", 16000404},
+    {kNwnReligion, Skill2024::kReligion, "Religion", 16000406},
+    {kNwnSurvival, Skill2024::kSurvival, "Survival", 16000408},
 };
 
 SkillSet Set(std::initializer_list<Skill2024> skills) {
@@ -334,6 +343,117 @@ std::string CheckSkillChoice(const SkillAllowance& allowance, SkillSet chosen) {
   }
   if (!unplaced.empty()) return "not from your class's list (background and species picks are used up): " + unplaced;
   return std::string();
+}
+
+int SkillsPageRow(Skill2024 skill) {
+  switch (skill) {
+    case S::kAcrobatics: return kNwnTumble;
+    case S::kAnimalHandling: return kNwnRide;  // Animal Empathy is only a Druid's, Ranger's (AllClassesCanUse 0)
+    case S::kArcana: return kNwnLore;
+    case S::kAthletics: return kNwnAthletics;
+    case S::kDeception: return kNwnBluff;
+    case S::kHistory: return kNwnHistory;
+    case S::kInsight: return kNwnInsight;
+    case S::kIntimidation: return kNwnIntimidate;
+    case S::kInvestigation: return kNwnInvestigation;
+    case S::kMedicine: return kNwnHeal;
+    case S::kNature: return kNwnNature;
+    case S::kPerception: return kNwnSpot;
+    case S::kPerformance: return kNwnPerform;
+    case S::kPersuasion: return kNwnPersuade;
+    case S::kReligion: return kNwnReligion;
+    case S::kSleightOfHand: return kNwnPickPocket;
+    case S::kStealth: return kNwnHide;
+    case S::kSurvival: return kNwnSurvival;
+    default: return -1;  // the tools
+  }
+}
+
+bool IsSkillsPageRow(int nwn_skill) {
+  const std::optional<Skill2024> skill = Skill2024ForNwnSkill(nwn_skill);
+  return skill && SkillsPageRow(*skill) == nwn_skill;
+}
+
+SkillAllowance SkillsPageAllowance(CharacterClass first_class, Species2024 species) {
+  SkillAllowance page;
+  const ClassSkills skills = ClassSkillsFor(first_class);
+  page.class_skills = skills.count;
+  page.class_list = skills.list;
+  page.background_skills = 0;
+  page.background_tools = 0;
+  if (species == Species2024::kHuman) page.species_any_skill = true;
+  if (species == Species2024::kElf) page.species_list = Set({S::kInsight, S::kPerception, S::kSurvival});
+  return page;
+}
+
+int SkillsPagePoints(const SkillAllowance& page) { return page.TotalSkills(); }
+
+bool CanPickOnSkillsPage(const SkillAllowance& page, SkillSet background, SkillSet picked, Skill2024 skill) {
+  if (IsTool(skill)) return false;
+  const SkillSet bit = SkillBit(skill);
+  if ((background | picked) & bit) return false;
+  if (CountSkills(picked) + 1 > SkillsPagePoints(page)) return false;
+  return CheckSkillChoice(page, picked | bit).empty();
+}
+
+SkillSet RecommendedSkillsPagePicks(CharacterClass first_class, Species2024 species, SkillSet background) {
+  static const std::vector<Skill2024> kCommon = {
+      S::kPerception, S::kInsight, S::kStealth, S::kPersuasion, S::kAthletics, S::kAcrobatics, S::kSurvival,
+      S::kMedicine, S::kArcana, S::kIntimidation, S::kHistory, S::kInvestigation, S::kNature, S::kReligion,
+      S::kDeception, S::kSleightOfHand, S::kAnimalHandling};
+  std::vector<Skill2024> order;
+  switch (first_class) {
+    case CharacterClass::kBarbarian:
+      order = {S::kPerception, S::kAthletics, S::kIntimidation, S::kSurvival, S::kAnimalHandling, S::kNature};
+      break;
+    case CharacterClass::kBard:
+      order = {S::kPerformance, S::kPersuasion, S::kDeception, S::kInsight, S::kPerception};
+      break;
+    case CharacterClass::kCleric:
+      order = {S::kInsight, S::kMedicine, S::kReligion, S::kPersuasion, S::kHistory};
+      break;
+    case CharacterClass::kDruid:
+      order = {S::kPerception, S::kNature, S::kAnimalHandling, S::kMedicine, S::kInsight, S::kSurvival,
+               S::kArcana, S::kReligion};
+      break;
+    case CharacterClass::kFighter:
+      order = {S::kPerception, S::kAthletics, S::kIntimidation, S::kAcrobatics, S::kSurvival, S::kInsight,
+               S::kPersuasion, S::kHistory, S::kAnimalHandling};
+      break;
+    case CharacterClass::kMonk:
+      order = {S::kAcrobatics, S::kStealth, S::kInsight, S::kAthletics, S::kHistory, S::kReligion};
+      break;
+    case CharacterClass::kPaladin:
+      order = {S::kPersuasion, S::kAthletics, S::kInsight, S::kIntimidation, S::kMedicine, S::kReligion};
+      break;
+    case CharacterClass::kRanger:
+      order = {S::kPerception, S::kStealth, S::kSurvival, S::kNature, S::kAnimalHandling, S::kAthletics,
+               S::kInsight, S::kInvestigation};
+      break;
+    case CharacterClass::kRogue:
+      order = {S::kStealth, S::kPerception, S::kSleightOfHand, S::kAcrobatics, S::kDeception, S::kInvestigation,
+               S::kInsight, S::kPersuasion, S::kIntimidation, S::kAthletics};
+      break;
+    case CharacterClass::kSorcerer:
+      order = {S::kArcana, S::kPersuasion, S::kDeception, S::kInsight, S::kIntimidation, S::kReligion};
+      break;
+    case CharacterClass::kWarlock:
+      order = {S::kArcana, S::kDeception, S::kIntimidation, S::kInvestigation, S::kHistory, S::kNature,
+               S::kReligion};
+      break;
+    case CharacterClass::kWizard:
+      order = {S::kArcana, S::kInvestigation, S::kHistory, S::kInsight, S::kMedicine, S::kNature, S::kReligion};
+      break;
+  }
+  const SkillAllowance page = SkillsPageAllowance(first_class, species);
+  SkillSet picked = 0;
+  const std::vector<Skill2024>* const lists[] = {&order, &kCommon};
+  for (const std::vector<Skill2024>* list : lists) {
+    for (Skill2024 skill : *list) {
+      if (CanPickOnSkillsPage(page, background, picked, skill)) picked |= SkillBit(skill);
+    }
+  }
+  return picked;
 }
 
 std::string CheckExpertiseChoice(const SkillAllowance& allowance, SkillSet proficient, SkillSet expertise) {

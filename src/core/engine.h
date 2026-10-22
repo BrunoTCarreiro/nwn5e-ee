@@ -27,6 +27,7 @@ int BaseItemRowInSlot(void* creature, int slot);
 bool IsDoubleWeapon(int base_item_row);      // baseitems.2da WeaponWield 8
 const void* BaseItem(int base_item_row);     // CNWBaseItem*, or null
 int RaceOf(void* stats);                     // racialtypes.2da row, -1 if unknown
+int SkillRowCount();                         // skills.2da rows the engine loaded (0 if unknown)
 
 bool IsEnemy(void* creature, uint32_t other_id);  // GetAIStateReaction == enemy
 bool IsDeadOrDying(void* creature);

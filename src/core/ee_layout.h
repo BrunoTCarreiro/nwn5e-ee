@@ -553,6 +553,16 @@ constexpr size_t kClientStatsClassSlotClass = 0x295;
 constexpr size_t kClientStatsClassSlotLevel = 0x296;
 // The server's twin (0x3F1830; same arguments), which the automatic level-ups
 // (LevelUpAutomatic, the script's LevelUpHenchman) ask for every feat they try.
+// C5: the client stats' skill fields, as the Skills page's + and - (client
+// 0x7f7a00 / 0x7ee3e0), its points (0x7ec0c0) and the package's picks
+// (0x7eb300) read them: race uint16 +0x50 (racialtypes row), skill ranks
+// int8* +0xd8 (one per skills.2da row; set through 0x7fa8b0, which also
+// refreshes the totals beside them), skill points left uint16 +0x10e.
+// CNWRules' skills.2da row count uint8 +0x107.
+constexpr size_t kClientStatsRace = 0x50;
+constexpr size_t kClientStatsSkillRanks = 0xd8;
+constexpr size_t kClientStatsSkillPoints = 0x10e;
+constexpr size_t kRulesSkillCount = 0x107;
 constexpr const char* kServerCanChooseFeat = "?CanChooseFeat@CNWSCreatureStats@@QEAAHGEEPEAV?$CExoArrayList@G@@@Z";
 // CExoArrayList<T>: the elements' pointer +0, their count int32 +8.
 constexpr size_t kExoArrayListData = 0;

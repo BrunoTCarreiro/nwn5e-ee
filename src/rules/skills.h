@@ -28,14 +28,18 @@ bool IsTool(Skill2024 skill);
 const char* Skill2024Name(Skill2024 skill);
 Ability AbilityFor(Skill2024 skill);  // 2024 key ability (Smith's Tools: Strength)
 
-// NWN 1.69 skills.2da rows.
+// skills.2da rows: NWN's 28 (0-27), then the seven nwn5e adds for the 2024
+// skills NWN has no row for (C5, data/rows/skills.added.txt; no use in NWN, the
+// Skills page and the sheet show them).
 enum NwnSkill {
   kNwnAnimalEmpathy = 0, kNwnConcentration, kNwnDisableTrap, kNwnDiscipline, kNwnHeal, kNwnHide, kNwnListen,
   kNwnLore, kNwnMoveSilently, kNwnOpenLock, kNwnParry, kNwnPerform, kNwnPersuade, kNwnPickPocket, kNwnSearch,
   kNwnSetTrap, kNwnSpellcraft, kNwnSpot, kNwnTaunt, kNwnUseMagicDevice, kNwnAppraise, kNwnTumble, kNwnCraftTrap,
   kNwnBluff, kNwnIntimidate, kNwnCraftArmor, kNwnCraftWeapon, kNwnRide,
+  kNwnAthletics, kNwnHistory, kNwnInsight, kNwnInvestigation, kNwnNature, kNwnReligion, kNwnSurvival,
   kNwnSkillCount
 };
+constexpr int kNwnOwnSkillCount = kNwnAthletics;  // NWN's own rows (0-27)
 
 // SK1: the 2024 skill or tool an NWN skill row stands for in faithful mode;
 // none for Concentration, Discipline, Parry, Taunt, Appraise, Use Magic Device
@@ -115,6 +119,26 @@ int PassiveCheckBase(bool disadvantage);
 // SK11: the d20 kept from a check's dice — `second` is 0 when only one was
 // rolled; advantage and disadvantage cancel.
 int KeptCheckD20(int first, int second, int advantage, int disadvantage);
+
+// C5 (docs/CHARGEN.md, faithful): the creation screen's Skills page as the
+// 2024 pick. The page shows one skills.2da row per 2024 skill (below) and
+// hides the others; a rank there is the proficiency. -1 for the tools (a
+// class or background gives them, not the page).
+int SkillsPageRow(Skill2024 skill);
+bool IsSkillsPageRow(int nwn_skill);
+// The level-1 picks the page takes: the class's count from its list, a
+// Human's Skillful (any skill) or an Elf's Keen Senses (Insight, Perception
+// or Survival). The background's skills are given already; Skilled, Expertise
+// and later levels' picks stay with !skills.
+SkillAllowance SkillsPageAllowance(CharacterClass first_class, Species2024 species);
+int SkillsPagePoints(const SkillAllowance& page);
+// Whether the page may add `skill` to its picks so far (`picked`), the
+// background's skills (`background`) being taken already.
+bool CanPickOnSkillsPage(const SkillAllowance& page, SkillSet background, SkillSet picked, Skill2024 skill);
+// The page's Recommended (and the Background page's OK): the class's usual
+// skills in order, then common ones for the species pick, each taken while it
+// still fits.
+SkillSet RecommendedSkillsPagePicks(CharacterClass first_class, Species2024 species, SkillSet background);
 
 // SK9 (faithful): the 2024 initiative modifier — Dexterity, + the proficiency
 // bonus with Alert (NWN's Improved Initiative).

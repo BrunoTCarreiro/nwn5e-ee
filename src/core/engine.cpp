@@ -110,6 +110,11 @@ bool IsDoubleWeapon(int base_item_row) {
   return base_item && Field<uint8_t>(base_item, ee::kBaseItemWield) == ee::kWieldDouble;
 }
 
+int SkillRowCount() {
+  const void* rules = E().rules ? *E().rules : nullptr;
+  return rules ? Field<uint8_t>(rules, ee::kRulesSkillCount) : 0;
+}
+
 int RaceOf(void* stats) { return stats ? Field<uint16_t>(stats, ee::kStatsRace) : -1; }
 
 bool IsEnemy(void* creature, uint32_t other_id) {

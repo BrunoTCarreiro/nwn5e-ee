@@ -2,6 +2,7 @@
 #include <vector>
 
 #include "check.h"
+#include "rules/backgrounds.h"
 #include "rules/skills.h"
 
 using namespace rules;
@@ -173,4 +174,79 @@ TEST(SkilledAddsThreeSkills) {
   CHECK_EQ(CheckSkillChoice(fighter, seven).empty(), true);
   CHECK_EQ(CheckSkillChoice(fighter, seven | SkillBit(Skill2024::kHistory)).empty(), false);
   CHECK_EQ(SkillAllowanceFor({{CharacterClass::kFighter, 1}}, Species2024::kOther).feat_skills, 0);
+}
+
+// C5. Breaks caught: a 2024 skill with no row on the Skills page, or one row
+// standing for two skills; nwn5e's new rows not mapped back to their skills;
+// Animal Handling on Animal Empathy (a row a Fighter can't use).
+TEST(SkillsPageShowsOneRowPerSkill) {
+  int skills = 0;
+  for (int i = 0; i < kSkill2024Count; ++i) {
+    const Skill2024 skill = static_cast<Skill2024>(i);
+    const int row = SkillsPageRow(skill);
+    if (IsTool(skill)) {
+      CHECK_EQ(row, -1);
+      continue;
+    }
+    CHECK_EQ(Skill2024ForNwnSkill(row) == skill, true);
+    CHECK_EQ(IsSkillsPageRow(row), true);
+    ++skills;
+  }
+  CHECK_EQ(skills, 18);
+  int page_rows = 0;
+  for (int row = 0; row < kNwnSkillCount; ++row) page_rows += IsSkillsPageRow(row) ? 1 : 0;
+  CHECK_EQ(page_rows, 18);
+  CHECK_EQ(SkillsPageRow(Skill2024::kAnimalHandling), static_cast<int>(kNwnRide));
+  CHECK_EQ(Skill2024ForNwnSkill(kNwnSurvival) == Skill2024::kSurvival, true);
+  CHECK_EQ(Skill2024ForNwnSkill(kNwnAthletics) == Skill2024::kAthletics, true);
+  CHECK_EQ(IsSkillsPageRow(kNwnMoveSilently), false);
+}
+
+// C5. Breaks caught: a skill off the class's list taken with a class pick; a
+// Human's any-skill pick missing or counted twice; an Elf's Keen Senses
+// outside its three; a background skill picked again; picks past the points.
+TEST(SkillsPagePicksAre2024) {
+  const SkillAllowance fighter = SkillsPageAllowance(CharacterClass::kFighter, Species2024::kOther);
+  CHECK_EQ(SkillsPagePoints(fighter), 2);
+  CHECK_EQ(CanPickOnSkillsPage(fighter, 0, 0, Skill2024::kStealth), false);
+  CHECK_EQ(CanPickOnSkillsPage(fighter, 0, 0, Skill2024::kPerception), true);
+  const SkillSet two = SkillBit(Skill2024::kPerception) | SkillBit(Skill2024::kAthletics);
+  CHECK_EQ(CanPickOnSkillsPage(fighter, 0, two, Skill2024::kIntimidation), false);  // no points left
+  const SkillAllowance human = SkillsPageAllowance(CharacterClass::kFighter, Species2024::kHuman);
+  CHECK_EQ(SkillsPagePoints(human), 3);
+  CHECK_EQ(CanPickOnSkillsPage(human, 0, two, Skill2024::kStealth), true);  // Skillful: any skill
+  CHECK_EQ(CanPickOnSkillsPage(human, 0, SkillBit(Skill2024::kStealth), Skill2024::kArcana), false);
+  const SkillSet soldier = SkillBit(Skill2024::kAthletics) | SkillBit(Skill2024::kIntimidation);
+  CHECK_EQ(CanPickOnSkillsPage(human, soldier, 0, Skill2024::kAthletics), false);  // the background's already
+  const SkillAllowance elf = SkillsPageAllowance(CharacterClass::kWizard, Species2024::kElf);
+  CHECK_EQ(SkillsPagePoints(elf), 3);
+  CHECK_EQ(CanPickOnSkillsPage(elf, 0, 0, Skill2024::kSurvival), true);  // Keen Senses
+  CHECK_EQ(CanPickOnSkillsPage(elf, 0, SkillBit(Skill2024::kSurvival), Skill2024::kStealth), false);
+  CHECK_EQ(CanPickOnSkillsPage(elf, 0, 0, Skill2024::kThievesTools), false);
+}
+
+// C5, every class x species x background. Breaks caught: Recommended taking
+// fewer picks than the page has points, a background's skill, a set the 2024
+// choices can't hold, or Performance for a class that can't use Perform.
+TEST(SkillsPageRecommendedFitsEveryone) {
+  std::vector<SkillSet> backgrounds = {0};
+  for (const BackgroundInfo& info : Backgrounds2024()) {
+    backgrounds.push_back(info.skills & ~(SkillBit(Skill2024::kThievesTools) | SkillBit(Skill2024::kSmithsTools)));
+  }
+  int cases = 0;
+  for (int c = 0; c <= static_cast<int>(CharacterClass::kWizard); ++c) {
+    const CharacterClass character_class = static_cast<CharacterClass>(c);
+    for (Species2024 species : {Species2024::kOther, Species2024::kHuman, Species2024::kElf}) {
+      for (SkillSet background : backgrounds) {
+        const SkillAllowance page = SkillsPageAllowance(character_class, species);
+        const SkillSet picks = RecommendedSkillsPagePicks(character_class, species, background);
+        CHECK_EQ(CountSkills(picks), SkillsPagePoints(page));
+        CHECK_EQ((picks & background) == 0u, true);
+        CHECK_EQ(CheckSkillChoice(page, picks).empty(), true);
+        CHECK_EQ(!Has(picks, Skill2024::kPerformance) || character_class == CharacterClass::kBard, true);
+        ++cases;
+      }
+    }
+  }
+  CHECK_EQ(cases, 12 * 3 * 5);
 }

@@ -49,6 +49,7 @@ void InstallClientUi();
 void InstallCreationPages();
 void InstallCreationSteps();
 void InstallFeatRules();
+void InstallSkillsPage();
 void InstallStartingEquipment();
 void InstallWeaponSizeRules();
 void InstallFinesseRules();
@@ -60,7 +61,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.13.3";
+constexpr const char* kVersion = "0.14.0";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -112,6 +113,7 @@ void Start(HMODULE self) {
   InstallCreationPages();
   InstallCreationSteps();
   InstallFeatRules();
+  InstallSkillsPage();
   InstallStartingEquipment();
   InstallWeaponSizeRules();
   InstallFinesseRules();
