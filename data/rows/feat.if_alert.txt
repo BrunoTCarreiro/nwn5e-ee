@@ -1,0 +1,6 @@
+# feat.2da - CM8: feat 377, NWN's Improved Initiative, is 2024's Alert while
+# `initiative` is faithful (src/core/rules_initiative.cpp: the proficiency
+# bonus instead of +4), so it carries Alert's name and description then.
+# NWN mode keeps Improved Initiative's own.
+FEAT DESCRIPTION
+377 16000394 16000395

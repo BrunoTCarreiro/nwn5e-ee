@@ -20,6 +20,7 @@
 #include "condition_effects.h"
 #include "config.h"
 #include "creature.h"
+#include "data_serving.h"
 #include "dice.h"
 #include "ee_layout.h"
 #include "engine.h"
@@ -150,4 +151,5 @@ void InstallInitiativeRules() {
   AnswerRulesetInt("THUG_INITIATIVE_BONUS", "initiative: no Thug bonus (2024)", &NoBonus);
   AddDiceFilter(&InitiativeD20);
   AddFeatFilter(&AlertFromBackground);
+  ServeConditionalRows("alert");  // feat 377 named and described as Alert (data/rows/feat.if_alert.txt)
 }

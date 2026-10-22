@@ -692,6 +692,13 @@ and the dummy fight's raise happened in the engine after nwn5e's roll
 creature). Why the dummy got it at Easy and the mages didn't is not known;
 left as an engine quirk — test at Normal.
 
+*0.13.3 (owner, 2026-10-22: O1 "I think Alert is being shown as Improved
+Initiative"; O2, O4 correct).* Feat 377 kept NWN's name and +4 description
+though nwn5e plays it as Alert (rules_initiative.cpp: the proficiency
+bonus instead). With `initiative` faithful it is now served as Alert
+(data/rows/feat.if_alert.txt, strings 16000394-16000395: the SRD 5.2 text,
+Initiative Swap noted as not built); NWN mode keeps Improved Initiative.
+
 *Decided (owner, 2026-10-21): the Domain step stays until the Cleric
 conversion* — NWN's two domains are picked at creation until the Cleric's
 brief (Phase 4) drops what domains grant (powers, domain spells, the bonus

@@ -3,12 +3,6 @@
 # file is read each time, so no rebuild or restart is needed. The keys are in
 # src/rules/test_profile.h.
 
-name = halfling Fighter 5 - Savage Attacker, Small weapons, Tower Shield (O3, O6, O7, S2)
-species = halfling
-class = fighter
-level = 5
-abilities = 16 14 14 8 12 10
-feats = savage attacker, mastery longsword, mastery greatsword
-# Chain mail, a longsword and the Tower Shield on; a greatsword and a dagger
-# in the pack to swap in (the greatsword two-handed, the dagger off-hand).
-items = nw_aarcl004 equip, nw_wswls001 equip, nw_ashto001 equip, nw_wswgs001, nw_wswdg001
+name = O5 - Skilled: a human with the Skilled feat; then type !skills
+species = human
+feats = skilled
