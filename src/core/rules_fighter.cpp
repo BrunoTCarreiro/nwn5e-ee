@@ -466,7 +466,20 @@ const char* StyleName(int feat) {
   }
 }
 
-// !style [<old> for <new>]
+// The name the command takes ("great weapon" and "two-weapon" as typed).
+const char* StyleCommandName(int feat) {
+  switch (feat) {
+    case rules::kFeatFightingStyleArchery: return "archery";
+    case rules::kFeatFightingStyleDefense: return "defense";
+    case rules::kFeatFightingStyleGreatWeapon: return "great weapon";
+    case rules::kFeatFightingStyleTwoWeapon: return "two-weapon";
+    default: return "?";
+  }
+}
+
+// !style [<old> for <new>] - the new one a style the Fighter doesn't have
+// (owner, 2026-10-22: with Archery and Defense both taken, "it always says
+// "You already have archery"": the help named a swap between the two).
 std::vector<std::string> StyleCommand(void* creature, const std::string& args) {
   void* stats = StatsOf(creature);
   const int level = FighterLevelOf(stats);
@@ -475,23 +488,43 @@ std::vector<std::string> StyleCommand(void* creature, const std::string& args) {
   const int last = engine::GetLocalInt(creature, kVarStyleSwap);
   const bool ready = level > last;
   std::string held;
+  std::string free;  // the styles a swap can go to, as the command takes them
+  int first_held = -1;
+  int first_free = -1;
   for (int feat = rules::kFeatFightingStyleArchery; feat <= rules::kFeatFightingStyleTwoWeapon; ++feat) {
-    if (engine::HasFeat(stats, feat)) held += (held.empty() ? "" : ", ") + std::string(StyleName(feat));
+    if (engine::HasFeat(stats, feat)) {
+      held += (held.empty() ? "" : ", ") + std::string(StyleName(feat));
+      if (first_held < 0) first_held = feat;
+    } else {
+      free += (free.empty() ? "" : ", ") + std::string(StyleCommandName(feat));
+      if (first_free < 0) first_free = feat;
+    }
   }
-  const std::string status = "nwn5e: Fighting Style: " + (held.empty() ? std::string("none") : held) + ". " +
-                             (ready ? "You can swap one (a Fighter level gained): !style defense for archery."
-                                    : "Swapped at this Fighter level already - the next swap comes with your next "
-                                      "Fighter level.");
+  std::string swap;
+  if (!ready) {
+    swap = "Swapped at this Fighter level already - the next swap comes with your next Fighter level.";
+  } else if (first_held < 0) {
+    swap = "No Fighting Style to swap.";
+  } else if (first_free < 0) {
+    swap = "Every style is yours already - nothing to swap to.";
+  } else {
+    swap = std::string("You can swap one for a style you don't have (") + free + "), once per Fighter level: !style " +
+           StyleCommandName(first_held) + " for " + StyleCommandName(first_free) + ".";
+  }
+  const std::string status = "nwn5e: Fighting Style: " + (held.empty() ? std::string("none") : held) + ". " + swap;
   const size_t at = args.find(" for ");
   if (args.empty() || at == std::string::npos) return {status};
   const int old_style = StyleFeatByName(args.substr(0, at));
   const int new_style = StyleFeatByName(args.substr(at + 5));
   if (old_style < 0 || new_style < 0) {
-    return {"nwn5e: styles are archery, defense, great weapon fighting, two-weapon fighting.", status};
+    return {"nwn5e: styles are archery, defense, great weapon, two-weapon.", status};
   }
   if (!ready) return {status};
   if (!engine::HasFeat(stats, old_style)) return {std::string("nwn5e: you don't have ") + StyleName(old_style) + ".", status};
-  if (engine::HasFeat(stats, new_style)) return {std::string("nwn5e: you have ") + StyleName(new_style) + " already.", status};
+  if (engine::HasFeat(stats, new_style)) {
+    return {std::string("nwn5e: you have ") + StyleName(new_style) + " already - a swap goes to a style you don't have.",
+            status};
+  }
   engine::RemoveFeat(stats, old_style);
   if (!engine::AddFeat(stats, new_style)) {
     engine::AddFeat(stats, old_style);

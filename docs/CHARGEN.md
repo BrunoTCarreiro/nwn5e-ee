@@ -797,6 +797,16 @@ Grappler (the SRD's other General feat), Epic Boons at 19, Magic Initiate,
 Paladin and Ranger Fighting Styles (their briefs), Skilled's picks on a page
 (C8: its Feats page comes after the Skills page).
 
+*0.16.10 (owner's retest, 2026-10-22: "the style manual switch it always
+says "You already have archery"").* The Fighter had Archery and Defense both
+(a Fighting Style feat at 4), and !style's help always named "!style defense
+for archery" - a swap between two styles held, refused each way. The help
+now lists the styles a swap can go to and names one that works ("!style
+defense for great weapon"); the refusal says a swap goes to a style you
+don't have. The same retest passed: a Halfling Fighter's Skills page has no
+species step (2 picks), the empty level-up Skills pages are skipped, the
+refused classes say why, and a greyed skill shows its description.
+
 *0.16.9 (owner's Part 3, 2026-10-22: "add the reason to the class
 descriptions, also if there are no skills to pick, you can skip that
 screen. if a player presses a skill that's greyed out due to having reached
