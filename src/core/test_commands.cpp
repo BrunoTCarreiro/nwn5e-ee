@@ -10,8 +10,8 @@
 //   No prerequisites or slots are checked: it is for testing.
 // - "!test" applies the profile in data	est.txt (next to nwn5e.dll; the
 //   format is in rules/test_profile.h) to the speaker: species (race, model,
-//   size), levels in a class (the engine's own level-ups, offered only the
-//   2024 feats), ability scores, feats and items. The file is read each time,
+//   size), levels in a class (the engine's own level-ups; with feats faithful
+//   they take the 2024 feats, rules_feats.cpp), ability scores, feats and items. The file is read each time,
 //   so a new test needs only a new file, not a rebuild. Species features that
 //   come as feats at creation stay those of the character's first species.
 // - "!export" saves the character to the vault as a campaign's chapter change
@@ -167,18 +167,6 @@ std::vector<std::string> ExportCommand(void* creature, const std::string&) {
 
 // --- !test --------------------------------------------------------------------
 
-using CanChooseFeatFn = int (*)(void* stats, uint16_t feat, uint8_t general_left, uint8_t bonus_left, void* chosen);
-CanChooseFeatFn g_server_can_choose_feat = nullptr;
-bool g_test_levelling = false;  // !test is levelling a character: the server offers the 2024 feats only
-
-int ServerCanChooseFeat(void* stats, uint16_t feat, uint8_t general_left, uint8_t bonus_left, void* chosen) {
-  if (g_test_levelling && g_config.feats == rules::RuleVariant::kFaithful &&
-      !rules::IsChoosableFeat2024(feat, g_config.weapon_mastery == rules::RuleVariant::kFaithful)) {
-    return 0;
-  }
-  return g_server_can_choose_feat(stats, feat, general_left, bonus_left, chosen);
-}
-
 std::wstring DllDirectory() {
   HMODULE module = nullptr;
   GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
@@ -254,9 +242,7 @@ std::vector<std::string> TestCommand(void* creature, const std::string&) {
                 "if (GetXP(OBJECT_SELF) < %u) SetXP(OBJECT_SELF, %u); int i;"
                 " for (i = 0; i < %d; i++) if (!LevelUpHenchman(OBJECT_SELF, %d, TRUE)) break;",
                 xp, xp, add, profile.nwn_class);
-      g_test_levelling = true;
-      RunScriptChunk(code, id);
-      g_test_levelling = false;
+      RunScriptChunk(code, id);  // the automatic level-ups take the 2024 feats (rules_feats.cpp)
     }
     lines.push_back(std::string("  class: ") + kClassNames[profile.nwn_class] + " " +
                     std::to_string(ClassLevel(stats, profile.nwn_class)) +
@@ -320,8 +306,6 @@ void InstallTestCommands() {
   AddChatCommand("!feat", &FeatCommand);
   AddChatCommand("!test", &TestCommand);
   AddChatCommand("!export", &ExportCommand);
-  HookExport("CNWSCreatureStats::CanChooseFeat (!test's level-ups: the 2024 feats only)", ee::kServerCanChooseFeat,
-             reinterpret_cast<void*>(&ServerCanChooseFeat), reinterpret_cast<void**>(&g_server_can_choose_feat));
   Log("config: [debug] test_commands=1 - !test (data\\test.txt), !give <blueprint>, !feat add / remove <feat>, "
       "!export");
 }

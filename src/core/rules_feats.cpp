@@ -86,10 +86,23 @@ int CanChooseFeat(void* level_up_stats, uint16_t feat, uint8_t general_left, uin
   return g_can_choose_feat(level_up_stats, feat, general_left, bonus_left, chosen);
 }
 
+// The server's CanChooseFeat, whose one caller is the automatic level-up
+// (CNWSCreatureStats::LevelUpAutomatic: henchmen, the script's
+// LevelUpHenchman, !test): the 2024 feats only, as the screens offer.
+CanChooseFeatFn g_server_can_choose_feat = nullptr;
+
+int ServerCanChooseFeat(void* stats, uint16_t feat, uint8_t general_left, uint8_t bonus_left, void* chosen) {
+  if (!rules::IsChoosableFeat2024(feat, MasteriesAsFeats())) return 0;
+  return g_server_can_choose_feat(stats, feat, general_left, bonus_left, chosen);
+}
+
 }  // namespace
 
 void InstallFeatRules() {
   if (g_config.feats != rules::RuleVariant::kFaithful) return;
+  HookExport("CNWSCreatureStats::CanChooseFeat (feats: automatic level-ups - henchmen - take the 2024 feats)",
+             ee::kServerCanChooseFeat, reinterpret_cast<void*>(&ServerCanChooseFeat),
+             reinterpret_cast<void**>(&g_server_can_choose_feat));
   const uintptr_t can_choose = FunctionByString("feats: the client's CanChooseFeat", ee::kCanChooseFeatMessage);
   if (!can_choose || FunctionEntry(can_choose) != can_choose) {
     Log("SKIP feats: the client's CanChooseFeat not found - NWN's feats stay on the screens");

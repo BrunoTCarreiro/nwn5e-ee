@@ -524,7 +524,7 @@ Initiate with Phase 4) — a human's Versatile offers Alert alone, and a
 human Criminal (Alert from the background) gets nothing more from it;
 Origin feats in the level-4+ slots (2024 allows them: Alert isn't in the
 bonus lists yet); Weapon Mastery picks (C4); henchmen's automatic
-level-ups (the server's own CanChooseFeat) still take NWN feats.
+level-ups (the server's own CanChooseFeat) still take NWN feats. *(Fixed in 0.15.1.)*
 **Verified in game (owner, 2026-10-21, 0.8.0):** "everything seems good";
 the logs show non-human Wizards and a Cleric finishing Customize with no
 Feats page (the Skills page closing the chain as the Feats page), the
@@ -744,6 +744,16 @@ without a 2024 skill), classes.if_skills2024.txt; the `skills2024` rows are
 served only when all four hooks are in. tests/data/class_skills_test.cpp
 checks the tables against the rules. Not built: Performance on the page for a
 non-Bard (Perform is a Bard's only, AllClassesCanUse 0 — !skills for it).
+
+*0.15.1 (owner 2026-10-22: "Go for the henchman issue").* Henchmen's
+automatic level-ups take the 2024 feats: the server's CanChooseFeat
+(0x3F1830), whose one caller is CNWSCreatureStats::LevelUpAutomatic
+(henchmen, the script's LevelUpHenchman, !test), says no to the others with
+`feats` faithful (rules_feats.cpp; it was !test's alone). A package whose
+feat table has no 2024 row leaves that pick empty; a henchman's ability
+increases come from its feat levels anyway (CM12). Not checked server-side:
+the kinds of bonus pick per level (C3's client filter) — a package's order
+(Ability Score Improvement, styles, masteries) decides.
 
 *C6 (0.15.0, owner 2026-10-22: "Go for C6").* Game start and the
 chapter-export check. Verified in the code: EE saves each object's own

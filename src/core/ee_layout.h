@@ -552,7 +552,8 @@ constexpr size_t kClientStatsClassSlotSize = 0x150;
 constexpr size_t kClientStatsClassSlotClass = 0x295;
 constexpr size_t kClientStatsClassSlotLevel = 0x296;
 // The server's twin (0x3F1830; same arguments), which the automatic level-ups
-// (LevelUpAutomatic, the script's LevelUpHenchman) ask for every feat they try.
+// (LevelUpAutomatic — henchmen, the script's LevelUpHenchman, its one caller)
+// ask for every feat they try (rules_feats.cpp).
 // C5: the client stats' skill fields, as the Skills page's + and - (client
 // 0x7f7a00 / 0x7ee3e0), its points (0x7ec0c0) and the package's picks
 // (0x7eb300) read them: race uint16 +0x50 (racialtypes row), skill ranks
