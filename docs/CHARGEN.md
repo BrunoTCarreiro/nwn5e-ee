@@ -797,6 +797,20 @@ Grappler (the SRD's other General feat), Epic Boons at 19, Magic Initiate,
 Paladin and Ranger Fighting Styles (their briefs), Skilled's picks on a page
 (C8: its Feats page comes after the Skills page).
 
+*0.16.4 (owner, 2026-10-22: "skills chosen in the first step should not
+appear in the second step. On the third step, no skills should be removed
+they should only be greyed out if they cannot be added to ... Skill should
+only be added or removed to the list between steps").* Each step's list is
+fixed for the whole step (chargen_skills.cpp Candidate): the class step —
+the class's skills the character didn't have; the species step — the skills
+it can take, not the class step's picks (each pick remembers the step it was
+taken in: a Human may take a class skill as its any-skill pick); the
+Expertise step — every skill the character has that Expertise can go to.
+Within a step a row only turns live or greyed; once every pick is made the
+last step's list stays, all greyed. "-" works only within the step — one
+that would take the page back a step (a skill pick while choosing
+Expertise) is refused; Cancel starts the page over.
+
 *0.16.3 (owner, 2026-10-22: "Unpickable feats just clutter the selection
 process, pickable feats at their max level that aren't greyed out don't make
 sense ... In each step only pickable feats are displayed and feats that

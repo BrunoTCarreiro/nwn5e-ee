@@ -117,6 +117,7 @@ struct Level {
   rules::SkillSet background = 0;  // level 1: the background's skills, taken and locked
   rules::SkillSet known = 0;       // proficient before this level
   int8_t floor[rules::kNwnSkillCount] = {};
+  int8_t pick_step[rules::kNwnSkillCount] = {};  // the step a new skill (rank 0 -> 1) was taken in, -1 none
   int points = 0;
 };
 Level g_level;
@@ -189,6 +190,7 @@ void Begin(void* stats) {
     next.skills.background_skills = 0;
     next.skills.background_tools = 0;
   }
+  for (int row = 0; row < rules::kNwnSkillCount; ++row) next.pick_step[row] = -1;
   for (int row = 0; row < Rows(); ++row) {
     next.floor[row] = ranks[row];
     if (ranks[row] >= 1 && rules::IsSkillsPageRow(row)) next.known |= rules::SkillBit(*rules::Skill2024ForNwnSkill(row));
@@ -283,6 +285,42 @@ bool Pickable(void* stats, int row, Step step) {
   return rules::CanPickOnSkillsPage(g_level.skills, taken, NewSkills(stats), *skill);
 }
 
+// The step whose list the page shows: the current one, or once every pick is
+// made the last step there was (its list stays, all greyed).
+Step DisplayStep(void* stats) {
+  const Step step = CurrentStep(stats);
+  if (step != Step::kDone) return step;
+  if (g_level.expertise.expertise > 0) return Step::kExpertise;
+  if (g_level.skills.species_any_skill || g_level.skills.species_list) return Step::kSpecies;
+  if (g_level.skills.class_skills > 0) return Step::kClass;
+  return Step::kDone;
+}
+
+// The rows a step lists, fixed for the whole step (owner, 2026-10-22: "Skill
+// should only be added or removed to the list between steps"): the class
+// step — the class's skills the character didn't have; the species step —
+// the skills that step can take, not the class step's picks; the Expertise
+// step — every skill the character has that Expertise can go to (those it
+// can't take more of greyed, not removed).
+bool Candidate(void* stats, int row, Step step) {
+  const int8_t* ranks = Ranks(stats);
+  const auto skill = rules::Skill2024ForNwnSkill(row);
+  if (!ranks || row >= Rows() || !skill || !rules::IsSkillsPageRow(row) || !Useable(stats, row)) return false;
+  const bool before = g_level.floor[row] > 0 || rules::Has(g_level.background, *skill);
+  switch (step) {
+    case Step::kClass:
+      return !before && rules::Has(g_level.skills.class_list, *skill);
+    case Step::kSpecies:
+      if (before || g_level.pick_step[row] == static_cast<int8_t>(Step::kClass)) return false;
+      return g_level.skills.species_any_skill ? !rules::IsTool(*skill) : rules::Has(g_level.skills.species_list, *skill);
+    case Step::kExpertise:
+      return ranks[row] >= 1 && !rules::IsTool(*skill) &&
+             (!g_level.expertise.expertise_list || rules::Has(g_level.expertise.expertise_list, *skill));
+    default:
+      return false;
+  }
+}
+
 const char* StepName(Step step) {
   switch (step) {
     case Step::kClass: return "the class's skills";
@@ -305,6 +343,7 @@ int AddRankAs(void* stats, uint16_t skill, bool quiet) {
     }
     return 0;
   }
+  if (ranks[skill] == 0) g_level.pick_step[skill] = static_cast<int8_t>(step);
   g_set_rank(stats, skill, static_cast<int8_t>(ranks[skill] + 1));
   SetPointsLeft(stats, PointsLeft(stats) - 1);
   return 1;
@@ -335,13 +374,9 @@ SetTextFn g_set_text = nullptr;
 ExoStringFn g_make_string = nullptr;
 ExoStringDestroyFn g_destroy_string = nullptr;
 
-// A row the step lists: one it can take (live), or one of this level's picks
-// (greyed: at its maximum for the step; still there for "-").
-bool Listed(void* stats, int row, Step step) {
-  const int8_t* ranks = Ranks(stats);
-  if (!ranks || row >= Rows() || !rules::IsSkillsPageRow(row) || !Useable(stats, row)) return false;
-  return ranks[row] > g_level.floor[row] || Pickable(stats, row, step);
-}
+// A row the page lists: the shown step's candidates (live when "+" can take
+// them now, else greyed).
+bool Listed(void* stats, int row, Step display) { return Candidate(stats, row, display); }
 
 void* RulesObject() {
   const auto rules_pointer = reinterpret_cast<void**>(EngineExport(ee::kRules));
@@ -412,7 +447,8 @@ void ShowTexts(void* page, void* stats, Step step, bool help_too) {
             (g_level.expertise.expertise_list ? " (Arcana, History, Investigation, Medicine, Nature or Religion)." : ".");
   }
   if (g_level.background) help += "\nYour background's skills are yours already: " + Names(g_level.background) + ".";
-  help += "\nOnly what this step can take is listed; a choice made shows greyed, and - takes it back.";
+  help += "\nEach step lists what it can take; a choice made, or one at its most, shows greyed. - takes back a "
+          "choice of the step you are in.";
   if (help_too) SetWrapperText(static_cast<uint8_t*>(page) + ee::kSkillsPageHelp, help);  // not over a skill's text
   SetWrapperText(static_cast<uint8_t*>(page) + ee::kSkillsPagePoints, std::to_string(left));
 }
@@ -471,10 +507,11 @@ void ShowStep(void* page, bool help_too) {
   void* stats = PageStats(page);
   if (!ActiveFor(stats)) return;
   const Step step = CurrentStep(stats);
-  if (!ListMatches(page, stats, step) && g_delete_buttons) {
+  const Step display = DisplayStep(stats);
+  if (!ListMatches(page, stats, display) && g_delete_buttons) {
     help_too = true;
     g_delete_buttons(static_cast<uint8_t*>(page) + ee::kSkillsPageList);
-    BuildStepList(page, stats, step, nullptr, nullptr, nullptr);
+    BuildStepList(page, stats, display, nullptr, nullptr, nullptr);
     SetField<int32_t>(page, ee::kSkillsPageSelected, Field<int32_t>(page, ee::kSkillsPageRowCount) > 0 ? 0 : -1);
   }
   Grey(page, stats, step);
@@ -488,7 +525,7 @@ void BuildList(void* page, void* a2, void* a3, void* a4) {
     return;
   }
   if (g_level.level == 1) SetBackgroundRanks(stats, g_level.background);  // after the hub's clear
-  BuildStepList(page, stats, CurrentStep(stats), a2, a3, a4);
+  BuildStepList(page, stats, DisplayStep(stats), a2, a3, a4);
   ShowStep(page, true);
 }
 
@@ -517,7 +554,18 @@ void RemoveRank(void* stats, uint16_t skill, uint8_t min_rank) {
   if (!ranks || skill >= Rows() || ranks[skill] <= g_level.floor[skill] || ranks[skill] <= static_cast<int8_t>(min_rank)) {
     return;
   }
+  // Only within the step: a "-" that would take the page back a step (a
+  // class pick while choosing Expertise) is refused.
+  const Step showing = DisplayStep(stats);
+  ranks[skill] = static_cast<int8_t>(ranks[skill] - 1);
+  const bool same_step = DisplayStep(stats) == showing;
+  ranks[skill] = static_cast<int8_t>(ranks[skill] + 1);
+  if (!same_step) {
+    Log("skills page: - kept (it would take the page back a step)");
+    return;
+  }
   g_set_rank(stats, skill, static_cast<int8_t>(ranks[skill] - 1));
+  if (ranks[skill] == 0) g_level.pick_step[skill] = -1;
   SetPointsLeft(stats, PointsLeft(stats) + 1);
 }
 
@@ -531,6 +579,9 @@ void PackageSkills(void* stats, const void* table_name) {
   if (g_level.level == 1) SetBackgroundRanks(stats, g_level.background);
   const std::vector<rules::Skill2024> preference = rules::SkillPreference2024(g_level.character_class);
   const int8_t* ranks = Ranks(stats);
+  for (int row = 0; ranks && row < Rows(); ++row) {  // the button reset the picks: their steps too
+    if (ranks[row] <= g_level.floor[row]) g_level.pick_step[row] = -1;
+  }
   for (int pass = 0; pass < 2 && ranks; ++pass) {  // new skills, then Expertise
     for (rules::Skill2024 skill : preference) {
       const int row = rules::SkillsPageRow(skill);
