@@ -698,6 +698,10 @@ though nwn5e plays it as Alert (rules_initiative.cpp: the proficiency
 bonus instead). With `initiative` faithful it is now served as Alert
 (data/rows/feat.if_alert.txt, strings 16000394-16000395: the SRD 5.2 text,
 Initiative Swap noted as not built); NWN mode keeps Improved Initiative.
+*Verified in game (owner, 2026-10-22: "all good"):* O1 (Alert by its name)
+and O5 (Skilled's three picks in !skills, set up with !test) — with O2, O3,
+O4, O6, O7 and S2 before, all of 0.13's rows. Still unseen: the off-hand
+dagger with a halfling's longsword (O6) and a Small monk's unarmed hit (S4).
 
 *Decided (owner, 2026-10-21): the Domain step stays until the Cleric
 conversion* — NWN's two domains are picked at creation until the Cleric's
