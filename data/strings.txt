@@ -221,3 +221,5 @@
 16000431 Ability Score Improvement (2024): increase one ability score by 2, or two ability scores by 1 each - choose it from this list; a score can't go above 20 (what doesn't fit is lost).\n\nYou take one at each feat level of your class (4, 8, 12, 16, 19; Fighter 6, 14; Rogue 10), or another feat you qualify for (an Origin feat, a Fighter's Fighting Style). Older characters' Ability Score Improvements are still chosen with !asi; !asi change swaps your last one.
 16000432 Ability Score Improvement
 # END C7a ASI choices
+# C5: the Skills page's Reset button (data/gui/src/cg_skills.json).
+16000433 Reset

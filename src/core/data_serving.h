@@ -24,6 +24,8 @@ bool HaveDataStrings();
 // Serve the creation pages' layouts (data\gui\*.gui) too — called by
 // chargen_ui.cpp at install, once every hook those layouts need resolved.
 void ServeCreationLayouts();
+// C5: the Skills page's layout (data\gui\skills: its Reset button).
+void ServeSkillsPageLayout();
 
 // Rows for one mode: a rows file with a part "if_<flag>"
 // (packages.if_kits.txt) is served only once a rule has called this with

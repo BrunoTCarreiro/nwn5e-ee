@@ -28,6 +28,7 @@
 #include <windows.h>
 
 #include <stdint.h>
+#include <string.h>
 
 #include <algorithm>
 #include <string>
@@ -518,8 +519,84 @@ void ShowStep(void* page, bool help_too) {
   ShowTexts(page, stats, step, help_too);
 }
 
+// --- The Reset button (owner, 2026-10-22: "a "reset" button between the
+// recommended and OK buttons that resets the point allocation and returns to
+// user to the first step") ---------------------------------------------------
+
+using NewFn = void* (*)(size_t size);
+using ObjectFn = void (*)(void* object);
+using ImportFn = int (*)(void* control, void* panel, const char* tag);
+using TextButtonEnabledFn = void (*)(void* button, int enabled);
+using DeletingDtorFn = void* (*)(void* object, int free_it);
+NewFn g_new = nullptr;
+ObjectFn g_text_button_ctor = nullptr;
+ImportFn g_import = nullptr;
+TextButtonEnabledFn g_text_button_enabled = nullptr;
+DeletingDtorFn g_page_dtor = nullptr;
+void* g_reset_page = nullptr;    // the page the button belongs to
+void* g_reset_button = nullptr;
+
+// This level's picks taken back (the background's and earlier levels' kept),
+// their points returned, the first step shown.
+void ResetClicked(void* page) {
+  void* stats = PageStats(page);
+  if (!ActiveFor(stats)) return;
+  int8_t* ranks = Ranks(stats);
+  int refund = 0;
+  for (int row = 0; ranks && row < Rows(); ++row) {
+    if (ranks[row] > g_level.floor[row]) {
+      refund += ranks[row] - g_level.floor[row];
+      g_set_rank(stats, static_cast<uint16_t>(row), g_level.floor[row]);
+    }
+    g_level.pick_step[row] = -1;
+  }
+  if (g_level.level == 1) SetBackgroundRanks(stats, g_level.background);
+  SetPointsLeft(stats, PointsLeft(stats) + refund);
+  ShowStep(page, true);
+  Log("skills page: Reset - %d pick(s) taken back, the first step again", refund);
+}
+
+// Made and bound inside the page's init (the layout file still open).
+void MakeResetButton(void* page, bool active) {
+  if (!g_new || !g_text_button_ctor || !g_import) return;
+  if (g_reset_button) {  // one page at a time; another's means its destructor was missed
+    if (g_reset_page != page) Log("skills page: SKIP the Reset button - the last page's is still there");
+    return;
+  }
+  void* button = g_new(ee::kTextButtonSize);
+  if (!button) return;
+  memset(button, 0, ee::kTextButtonSize);
+  g_text_button_ctor(button);
+  if (!g_import(button, page, "ResetButton")) {
+    reinterpret_cast<DeletingDtorFn>((*reinterpret_cast<void***>(button))[0])(button, 1);
+    Log("skills page: SKIP the Reset button - no \"ResetButton\" in the layout");
+    return;
+  }
+  SetField<void*>(button, ee::kButtonClickObject, page);
+  SetField<void*>(button, ee::kButtonClickFunction, reinterpret_cast<void*>(&ResetClicked));
+  if (!active && g_text_button_enabled) {  // an older character's level-up: the game's page, no steps
+    g_text_button_enabled(button, 0);
+    if (g_set_color) g_set_color(static_cast<uint8_t*>(button) + ee::kTextButtonCaption, 0.5f, 0.5f, 0.5f, 1.0f);
+  }
+  g_reset_page = page;
+  g_reset_button = button;
+}
+
+// The page's deleting destructor: the Reset button first (its model hangs
+// under the page's frame).
+void* PageDeletingDtor(void* page, int free_it) {
+  if (page == g_reset_page && g_reset_button) {
+    void* button = g_reset_button;
+    g_reset_button = nullptr;
+    g_reset_page = nullptr;
+    reinterpret_cast<DeletingDtorFn>((*reinterpret_cast<void***>(button))[0])(button, 1);
+  }
+  return g_page_dtor(page, free_it);
+}
+
 void BuildList(void* page, void* a2, void* a3, void* a4) {
   void* stats = PageStats(page);
+  MakeResetButton(page, ActiveFor(stats));
   if (!ActiveFor(stats)) {
     g_build_list(page, a2, a3, a4);
     return;
@@ -539,8 +616,30 @@ void Minus(void* page, void* a2, void* a3, void* a4) {
   ShowStep(page, false);
 }
 
+// The game's Recommended updates the row of every skill not hidden, found
+// through the list (0x9c9d20: an index from the list's ids, then its rows):
+// a skill the step's list doesn't hold has no row there (owner's crash,
+// 2026-10-22). Those are hidden from it for the length of the call.
 void Recommend(void* page, void* a2, void* a3, void* a4) {
+  auto* skills = Field<uint8_t*>(RulesObject(), ee::kRulesSkills);
+  const int count = Field<int32_t>(page, ee::kSkillsPageRowCount);
+  const auto* listed = Field<const int32_t*>(page, ee::kSkillsPageRowSkills);
+  int32_t hidden[rules::kNwnSkillCount] = {};
+  bool in_list[rules::kNwnSkillCount] = {};
+  for (int i = 0; listed && i < count; ++i) {
+    if (listed[i] >= 0 && listed[i] < rules::kNwnSkillCount) in_list[listed[i]] = true;
+  }
+  const int rows = Rows();
+  const bool guard = skills && ActiveFor(PageStats(page));
+  for (int row = 0; guard && row < rows; ++row) {
+    int32_t& flag = *reinterpret_cast<int32_t*>(skills + row * ee::kSkillStride + ee::kSkillHideFromLevelUp);
+    hidden[row] = flag;
+    if (!in_list[row]) flag = 1;
+  }
   g_recommend(page, a2, a3, a4);
+  for (int row = 0; guard && row < rows; ++row) {
+    *reinterpret_cast<int32_t*>(skills + row * ee::kSkillStride + ee::kSkillHideFromLevelUp) = hidden[row];
+  }
   ShowStep(page, false);
 }
 
@@ -641,12 +740,22 @@ void InstallSkillsPage() {
   g_set_color = reinterpret_cast<SetColorFn>(EngineExport(ee::kStringWrapperSetColor));
   g_skill_useable = reinterpret_cast<SkillUseableFn>(EngineExport(ee::kClassIsSkillUseable));
   g_delete_buttons = reinterpret_cast<DeleteButtonsFn>(EngineExport(ee::kListboxDeleteButtons));
+  // The Reset button: the engine's allocator (an anchor inside CGuiPanel::Activate, as chargen_ui.cpp
+  // finds it), the text button's constructor, the layout import, the page's deleting destructor.
+  const uintptr_t new_site = FindPatternIn("skills page: operator new", FunctionAt(EngineExport(ee::kGuiPanelActivate)),
+                                           ee::kOperatorNewPattern);
+  g_new = reinterpret_cast<NewFn>(new_site ? CallTarget(new_site + ee::kOperatorNewCall) : 0);
+  g_text_button_ctor = reinterpret_cast<ObjectFn>(EngineExport(ee::kTextButtonConstructor));
+  g_import = reinterpret_cast<ImportFn>(EngineExport(ee::kImportLayoutData));
+  g_text_button_enabled = reinterpret_cast<TextButtonEnabledFn>(EngineExport(ee::kTextButtonSetEnabled));
+  const uintptr_t page_vtable = FindVtable("skills page: its vtable", ee::kRttiSkillsPage);
+  const uintptr_t page_dtor = page_vtable ? VtableSlot(page_vtable, 0) : 0;
   g_set_text = reinterpret_cast<SetTextFn>(EngineExport(ee::kStringWrapperSetText));
   g_make_string = reinterpret_cast<ExoStringFn>(EngineExport(ee::kExoStringFromChars));
   g_destroy_string = reinterpret_cast<ExoStringDestroyFn>(EngineExport(ee::kExoStringDestructor));
   if (!points || !add || !remove || !package || !g_get_class || !g_get_level || !g_set_rank || !build || !plus ||
       !minus || !g_get_creature || !recommend || !g_set_enabled || !g_set_color || !g_skill_useable || !g_delete_buttons || !g_set_text || !g_make_string ||
-      !g_destroy_string) {
+      !g_destroy_string || !g_new || !g_text_button_ctor || !g_import || !g_text_button_enabled || !page_dtor) {
     Log("SKIP skills page: a client function not found - the Skills page stays NWN's");
     return;
   }
@@ -670,9 +779,12 @@ void InstallSkillsPage() {
       HookAddress("client Skills page - button (the steps' greying)", minus, reinterpret_cast<void*>(&Minus),
                   reinterpret_cast<void**>(&g_minus)) &&
       HookAddress("client Skills page Recommended (the steps' greying)", recommend, reinterpret_cast<void*>(&Recommend),
-                  reinterpret_cast<void**>(&g_recommend));
+                  reinterpret_cast<void**>(&g_recommend)) &&
+      HookAddress("client Skills page deleting destructor (its Reset button first)", page_dtor,
+                  reinterpret_cast<void*>(&PageDeletingDtor), reinterpret_cast<void**>(&g_page_dtor));
   if (!hooked) return;
   g_installed = true;
   ServeConditionalRows("skills2024");
+  ServeSkillsPageLayout();  // the Reset button's place (data/gui/skills/cg_skills.gui)
   Log("skills page: the 2024 pick - the class's skills, a species pick, the background's taken (skills faithful)");
 }

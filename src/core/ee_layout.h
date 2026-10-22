@@ -596,6 +596,16 @@ constexpr size_t kRulesSkills = 0x120;
 constexpr size_t kSkillStride = 0x38;
 constexpr size_t kSkillHideFromLevelUp = 0x34;
 constexpr const char* kListboxDeleteButtons = "?DeleteButtons@CGuiButtonListbox@@QEAAXXZ";
+// The Skills page's Reset button (C5): a CGuiTextButton (0xE8, as the page's
+// own: Cancel +0xCC8, OK +0xDB0, Recommend +0xE98) nwn5e makes and binds to
+// the served layout's "ResetButton" inside the page's init; a click calls
+// {object +0x90, fn(object) +0x98}; it is destroyed (vtable[0](b, 1)) before
+// the page's own deleting destructor (vtable slot 0) frees the page.
+constexpr const char* kTextButtonConstructor = "??0CGuiTextButton@@QEAA@XZ";
+constexpr size_t kTextButtonSize = 0xe8;
+constexpr size_t kButtonClickObject = 0x90;
+constexpr size_t kButtonClickFunction = 0x98;
+constexpr const char* kRttiSkillsPage = ".?AVCCharacterSkillsPanel@@";
 constexpr const char* kStringWrapperSetText = "?SetText@CAuroraStringWrapper@@QEAAXAEBVCExoString@@@Z";
 constexpr const char* kCheckboxSetEnabled = "?SetEnabled@CGuiCheckbox@@QEAAXH@Z";
 constexpr const char* kStringWrapperSetColor = "?SetColor@CAuroraStringWrapper@@QEAAXMMMM@Z";

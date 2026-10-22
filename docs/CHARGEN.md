@@ -797,6 +797,25 @@ Grappler (the SRD's other General feat), Epic Boons at 19, Magic Initiate,
 Paladin and Ranger Fighting Styles (their briefs), Skilled's picks on a page
 (C8: its Feats page comes after the Skills page).
 
+*0.16.5 (owner, 2026-10-22: "a "reset" button between the recommended and
+OK buttons that resets the point allocation and returns to user to the
+first step. Also, pressing the "recommended" button crashes the game").*
+Recommended: the game's handler updates the list row of every skill not
+hidden (HideFromLevelUp), finding it through the list's ids — with only a
+step's rows listed, a skill outside the list has no row (index -1) and the
+handler read past the list (crash at 0x9c9d67). The skills the list doesn't
+hold are now hidden from it for the length of the call, as the list builder
+already does. Reset: a fourth button between Recommended and OK, from a
+served copy of the game's cg_skills.gui (data/gui/src/cg_skills.json ->
+data/gui/skills/cg_skills.gui, served only when the Skills page's hooks are
+in: ServeSkillsPageLayout). nwn5e makes the CGuiTextButton inside the
+page's init (the list builder is reached only from there, layout open),
+binds it to the layout's "ResetButton", and destroys it in a pre-hook of the
+page's deleting destructor. A click takes back this level's picks (the
+background's skills and earlier levels' ranks stay), returns their points
+and shows the first step. On a page nwn5e leaves to the game (an older
+character's level-up) the button is there but greyed.
+
 *0.16.4 (owner, 2026-10-22: "skills chosen in the first step should not
 appear in the second step. On the third step, no skills should be removed
 they should only be greyed out if they cannot be added to ... Skill should

@@ -67,6 +67,7 @@ std::string g_served;  // ANSI, for the engine
 bool g_registered = false;
 int g_probe_row = -1;  // feat.2da row of the probe (served_data_probe)
 bool g_serve_creation_layouts = false;  // ServeCreationLayouts()
+bool g_serve_skills_layout = false;     // ServeSkillsPageLayout()
 std::set<std::string> g_row_flags;       // ServeConditionalRows()
 
 // "packages.if_kits.hide" -> "kits"; "" when no part is conditional.
@@ -242,6 +243,16 @@ int BuildServedTables() {
     }
     Log("data: served %d creation page layouts (data\\gui)", layouts);
   }
+  // The Skills page's layout (its Reset button), only with its code in place
+  // (chargen_skills.cpp): otherwise a button with nothing behind it.
+  if (g_serve_skills_layout) {
+    const std::wstring folder = g_dll + L"\\data\\gui\\skills";
+    int layouts = 0;
+    for (const std::wstring& name : FilesIn(folder, L"*.gui")) {
+      if (CopyFileW((folder + L"\\" + name).c_str(), (served + L"\\" + name).c_str(), FALSE)) ++layouts;
+    }
+    Log("data: served the Skills page's layout (data\\gui\\skills: %d)", layouts);
+  }
   int built = 0;
   for (const auto& entry : rows) {
     std::string bytes, error, why;
@@ -352,6 +363,7 @@ const char* DataString(uint32_t strref) {
 }
 
 void ServeCreationLayouts() { g_serve_creation_layouts = true; }
+void ServeSkillsPageLayout() { g_serve_skills_layout = true; }
 
 void ServeConditionalRows(const char* flag) { g_row_flags.insert(flag); }
 

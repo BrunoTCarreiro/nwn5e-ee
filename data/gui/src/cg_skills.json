@@ -1,0 +1,1138 @@
+{
+ "file_type": "GUI ",
+ "file_version": "V3.2",
+ "root": {
+  "__struct_id": 4294967295,
+  "Obj_Y": [
+   8,
+   0.4499976634979248
+  ],
+  "Obj_ChildList": [
+   15,
+   [
+    {
+     "__struct_id": 2,
+     "Obj_Layer": [
+      5,
+      24
+     ],
+     "Obj_Label_Width": [
+      8,
+      0.30000001192092896
+     ],
+     "Obj_Caption": [
+      14,
+      {
+       "__struct_id": 3,
+       "AurString_ColorR": [
+        8,
+        1.0
+       ],
+       "AurString_AlignV": [
+        8,
+        0.0
+       ],
+       "AurString_ColorG": [
+        8,
+        1.0
+       ],
+       "AurString_ColorA": [
+        8,
+        1.0
+       ],
+       "AurString_AlignH": [
+        8,
+        0.0
+       ],
+       "Obj_StrRef": [
+        4,
+        4294967295
+       ],
+       "AurString_ColorB": [
+        8,
+        1.0
+       ],
+       "AurString_Font": [
+        11,
+        "fnt_galahad14"
+       ]
+      }
+     ],
+     "Obj_Locked": [
+      0,
+      0
+     ],
+     "Obj_Label_Height": [
+      8,
+      0.17000000178813934
+     ],
+     "Obj_Label_X": [
+      8,
+      -0.4300000071525574
+     ],
+     "Obj_Tag": [
+      10,
+      "CostBox"
+     ],
+     "Obj_Label_Y": [
+      8,
+      1.7899999618530273
+     ],
+     "Obj_Type": [
+      5,
+      5
+     ],
+     "Obj_Label_Z": [
+      8,
+      1.0
+     ],
+     "Obj_Parent": [
+      10,
+      "PNL_CHR_SK"
+     ],
+     "Obj_Parent_Hook": [
+      10,
+      "PNL_CHR_GENM"
+     ]
+    },
+    {
+     "__struct_id": 2,
+     "Obj_Layer": [
+      5,
+      22
+     ],
+     "Obj_Label_Width": [
+      8,
+      0.8299999833106995
+     ],
+     "Obj_Caption": [
+      14,
+      {
+       "__struct_id": 3,
+       "AurString_ColorR": [
+        8,
+        1.0
+       ],
+       "AurString_AlignV": [
+        8,
+        0.0
+       ],
+       "AurString_ColorG": [
+        8,
+        1.0
+       ],
+       "AurString_ColorA": [
+        8,
+        1.0
+       ],
+       "AurString_AlignH": [
+        8,
+        0.0
+       ],
+       "Obj_StrRef": [
+        4,
+        4294967295
+       ],
+       "AurString_ColorB": [
+        8,
+        1.0
+       ],
+       "AurString_Font": [
+        11,
+        "fnt_galahad14"
+       ]
+      }
+     ],
+     "Obj_Locked": [
+      0,
+      0
+     ],
+     "Obj_Label_Height": [
+      8,
+      0.17000000178813934
+     ],
+     "Obj_Label_X": [
+      8,
+      6.53000020980835
+     ],
+     "Obj_Tag": [
+      10,
+      "TGuiLabel4"
+     ],
+     "Obj_Label_Y": [
+      8,
+      3.450000047683716
+     ],
+     "Obj_Type": [
+      5,
+      5
+     ],
+     "Obj_Label_Z": [
+      8,
+      0.9200000166893005
+     ],
+     "Obj_Parent": [
+      10,
+      "PNL_CHR_SK"
+     ],
+     "Obj_Parent_Hook": [
+      10,
+      "PNL_CHR_GENM"
+     ]
+    },
+    {
+     "__struct_id": 2,
+     "Obj_Layer": [
+      5,
+      20
+     ],
+     "Obj_Label_Width": [
+      8,
+      0.8299999833106995
+     ],
+     "Obj_Caption": [
+      14,
+      {
+       "__struct_id": 3,
+       "AurString_ColorR": [
+        8,
+        1.0
+       ],
+       "AurString_AlignV": [
+        8,
+        0.0
+       ],
+       "AurString_ColorG": [
+        8,
+        1.0
+       ],
+       "AurString_ColorA": [
+        8,
+        1.0
+       ],
+       "AurString_AlignH": [
+        8,
+        0.0
+       ],
+       "Obj_StrRef": [
+        4,
+        5566
+       ],
+       "AurString_ColorB": [
+        8,
+        1.0
+       ],
+       "AurString_Font": [
+        11,
+        "fnt_galahad14"
+       ]
+      }
+     ],
+     "Obj_Locked": [
+      0,
+      0
+     ],
+     "Obj_Label_Height": [
+      8,
+      0.17000000178813934
+     ],
+     "Obj_Label_X": [
+      8,
+      -0.8100000023841858
+     ],
+     "Obj_Tag": [
+      10,
+      "TGuiLabel3"
+     ],
+     "Obj_Label_Y": [
+      8,
+      1.7899999618530273
+     ],
+     "Obj_Type": [
+      5,
+      5
+     ],
+     "Obj_Label_Z": [
+      8,
+      0.8299999833106995
+     ],
+     "Obj_Parent": [
+      10,
+      "PNL_CHR_SK"
+     ],
+     "Obj_Parent_Hook": [
+      10,
+      "PNL_CHR_GENM"
+     ]
+    },
+    {
+     "__struct_id": 2,
+     "Obj_Layer": [
+      5,
+      18
+     ],
+     "Obj_Label_Width": [
+      8,
+      0.30000001192092896
+     ],
+     "Obj_Caption": [
+      14,
+      {
+       "__struct_id": 3,
+       "AurString_ColorR": [
+        8,
+        1.0
+       ],
+       "AurString_AlignV": [
+        8,
+        0.0
+       ],
+       "AurString_ColorG": [
+        8,
+        1.0
+       ],
+       "AurString_ColorA": [
+        8,
+        1.0
+       ],
+       "AurString_AlignH": [
+        8,
+        0.0
+       ],
+       "Obj_StrRef": [
+        4,
+        4294967295
+       ],
+       "AurString_ColorB": [
+        8,
+        1.0
+       ],
+       "AurString_Font": [
+        11,
+        "fnt_galahad14"
+       ]
+      }
+     ],
+     "Obj_Locked": [
+      0,
+      0
+     ],
+     "Obj_Label_Height": [
+      8,
+      0.17000000178813934
+     ],
+     "Obj_Label_X": [
+      8,
+      -3.5299999713897705
+     ],
+     "Obj_Tag": [
+      10,
+      "PtsRemainingBox"
+     ],
+     "Obj_Label_Y": [
+      8,
+      1.7999999523162842
+     ],
+     "Obj_Type": [
+      5,
+      5
+     ],
+     "Obj_Label_Z": [
+      8,
+      0.75
+     ],
+     "Obj_Parent": [
+      10,
+      "PNL_CHR_SK"
+     ],
+     "Obj_Parent_Hook": [
+      10,
+      "PNL_CHR_GENM"
+     ]
+    },
+    {
+     "__struct_id": 2,
+     "Obj_Layer": [
+      5,
+      16
+     ],
+     "Obj_Label_Width": [
+      8,
+      0.8299999833106995
+     ],
+     "Obj_Caption": [
+      14,
+      {
+       "__struct_id": 3,
+       "AurString_ColorR": [
+        8,
+        1.0
+       ],
+       "AurString_AlignV": [
+        8,
+        0.0
+       ],
+       "AurString_ColorG": [
+        8,
+        1.0
+       ],
+       "AurString_ColorA": [
+        8,
+        1.0
+       ],
+       "AurString_AlignH": [
+        8,
+        0.0
+       ],
+       "Obj_StrRef": [
+        4,
+        395
+       ],
+       "AurString_ColorB": [
+        8,
+        1.0
+       ],
+       "AurString_Font": [
+        11,
+        "fnt_galahad14"
+       ]
+      }
+     ],
+     "Obj_Locked": [
+      0,
+      0
+     ],
+     "Obj_Label_Height": [
+      8,
+      0.17000000178813934
+     ],
+     "Obj_Label_X": [
+      8,
+      -3.190000057220459
+     ],
+     "Obj_Tag": [
+      10,
+      "TGuiLabel2"
+     ],
+     "Obj_Label_Y": [
+      8,
+      1.7899999618530273
+     ],
+     "Obj_Type": [
+      5,
+      5
+     ],
+     "Obj_Label_Z": [
+      8,
+      0.6700000166893005
+     ],
+     "Obj_Parent": [
+      10,
+      "PNL_CHR_SK"
+     ],
+     "Obj_Parent_Hook": [
+      10,
+      "PNL_CHR_GENM"
+     ]
+    },
+    {
+     "__struct_id": 2,
+     "Obj_Layer": [
+      5,
+      14
+     ],
+     "Obj_Label_Width": [
+      8,
+      7.400000095367432
+     ],
+     "Obj_Caption": [
+      14,
+      {
+       "__struct_id": 3,
+       "AurString_ColorR": [
+        8,
+        1.0
+       ],
+       "AurString_AlignV": [
+        8,
+        0.5
+       ],
+       "AurString_ColorG": [
+        8,
+        1.0
+       ],
+       "AurString_ColorA": [
+        8,
+        1.0
+       ],
+       "AurString_AlignH": [
+        8,
+        0.5
+       ],
+       "Obj_StrRef": [
+        4,
+        396
+       ],
+       "AurString_ColorB": [
+        8,
+        1.0
+       ],
+       "AurString_Font": [
+        11,
+        "fnt_galahad14"
+       ]
+      }
+     ],
+     "Obj_Locked": [
+      0,
+      0
+     ],
+     "Obj_Label_Height": [
+      8,
+      0.30000001192092896
+     ],
+     "Obj_Label_X": [
+      8,
+      -3.690000057220459
+     ],
+     "Obj_Tag": [
+      10,
+      "Title"
+     ],
+     "Obj_Label_Y": [
+      8,
+      2.5999999046325684
+     ],
+     "Obj_Type": [
+      5,
+      5
+     ],
+     "Obj_Label_Z": [
+      8,
+      0.5799999833106995
+     ],
+     "Obj_Parent": [
+      10,
+      "PNL_CHR_SK"
+     ],
+     "Obj_Parent_Hook": [
+      10,
+      "PNL_CHR_GENM"
+     ]
+    },
+    {
+     "__struct_id": 2,
+     "Obj_Layer": [
+      5,
+      2
+     ],
+     "Obj_X": [
+      8,
+      -3.5999999046325684
+     ],
+     "Obj_ResRef": [
+      11,
+      "ctl_cg_lstbxsk"
+     ],
+     "Obj_Locked": [
+      0,
+      0
+     ],
+     "Obj_Caption": [
+      14,
+      {
+       "__struct_id": 3,
+       "AurString_ColorR": [
+        8,
+        1.0
+       ],
+       "AurString_AlignV": [
+        8,
+        0.0
+       ],
+       "AurString_ColorG": [
+        8,
+        1.0
+       ],
+       "AurString_ColorA": [
+        8,
+        1.0
+       ],
+       "AurString_AlignH": [
+        8,
+        0.0
+       ],
+       "Obj_StrRef": [
+        4,
+        4294967295
+       ],
+       "AurString_ColorB": [
+        8,
+        1.0
+       ],
+       "AurString_Font": [
+        11,
+        "fnt_galahad14"
+       ]
+      }
+     ],
+     "Obj_Z": [
+      8,
+      0.07999999821186066
+     ],
+     "Obj_Y": [
+      8,
+      -1.989999771118164
+     ],
+     "Obj_Tag": [
+      10,
+      "SkillsButtonBox"
+     ],
+     "Obj_Type": [
+      5,
+      8
+     ],
+     "Obj_Parent": [
+      10,
+      "PNL_CHR_SK"
+     ],
+     "Obj_Parent_Hook": [
+      10,
+      "PNL_CHR_GENM"
+     ],
+     "Obj_ChildList": [
+      15,
+      [
+       {
+        "__struct_id": 2,
+        "Obj_Layer": [
+         5,
+         4
+        ],
+        "Obj_Label_Width": [
+         8,
+         0.8299999833106995
+        ],
+        "Obj_Caption": [
+         14,
+         {
+          "__struct_id": 3,
+          "AurString_ColorR": [
+           8,
+           1.0
+          ],
+          "AurString_AlignV": [
+           8,
+           0.0
+          ],
+          "AurString_ColorG": [
+           8,
+           1.0
+          ],
+          "AurString_ColorA": [
+           8,
+           1.0
+          ],
+          "AurString_AlignH": [
+           8,
+           0.0
+          ],
+          "Obj_StrRef": [
+           4,
+           58249
+          ],
+          "AurString_ColorB": [
+           8,
+           1.0
+          ],
+          "AurString_Font": [
+           11,
+           "fnt_galahad14"
+          ]
+         }
+        ],
+        "Obj_Locked": [
+         0,
+         0
+        ],
+        "Obj_Label_Height": [
+         8,
+         0.17000000178813934
+        ],
+        "Obj_Label_X": [
+         8,
+         0.07000000029802322
+        ],
+        "Obj_Tag": [
+         10,
+         "TGuiLabel"
+        ],
+        "Obj_Label_Y": [
+         8,
+         4.079999923706055
+        ],
+        "Obj_Type": [
+         5,
+         5
+        ],
+        "Obj_Label_Z": [
+         8,
+         0.17000000178813934
+        ],
+        "Obj_Parent": [
+         10,
+         "SkillsButtonBox"
+        ],
+        "Obj_Parent_Hook": [
+         10,
+         "CTL_CG_LSTBXSK"
+        ]
+       }
+      ]
+     ]
+    },
+    {
+     "__struct_id": 2,
+     "Obj_Y": [
+      8,
+      -1.989999771118164
+     ],
+     "Obj_Tag": [
+      10,
+      "HelpBox"
+     ],
+     "Obj_Layer": [
+      5,
+      6
+     ],
+     "Obj_Type": [
+      5,
+      8
+     ],
+     "Obj_ResRef": [
+      11,
+      "ctl_cg_help"
+     ],
+     "Obj_Parent_Hook": [
+      10,
+      "PNL_CHR_GENM"
+     ],
+     "Obj_Caption": [
+      14,
+      {
+       "__struct_id": 3,
+       "AurString_ColorR": [
+        8,
+        1.0
+       ],
+       "AurString_AlignV": [
+        8,
+        0.0
+       ],
+       "AurString_ColorG": [
+        8,
+        1.0
+       ],
+       "AurString_ColorA": [
+        8,
+        1.0
+       ],
+       "AurString_AlignH": [
+        8,
+        0.0
+       ],
+       "Obj_StrRef": [
+        4,
+        4294967295
+       ],
+       "AurString_ColorB": [
+        8,
+        1.0
+       ],
+       "AurString_Font": [
+        11,
+        "fnt_galahad14"
+       ]
+      }
+     ],
+     "Obj_Locked": [
+      0,
+      0
+     ],
+     "Obj_Z": [
+      8,
+      0.25
+     ],
+     "Obj_Parent": [
+      10,
+      "PNL_CHR_SK"
+     ],
+     "Obj_X": [
+      8,
+      0.07999999821186066
+     ]
+    },
+    {
+     "__struct_id": 2,
+     "Obj_Y": [
+      8,
+      -2.5399999618530273
+     ],
+     "Obj_Tag": [
+      10,
+      "OkButton"
+     ],
+     "Obj_Layer": [
+      5,
+      8
+     ],
+     "Obj_Type": [
+      5,
+      9
+     ],
+     "Obj_ResRef": [
+      11,
+      "ctl_btn_pre_176"
+     ],
+     "Obj_Parent_Hook": [
+      10,
+      "PNL_CHR_GENM"
+     ],
+     "Obj_Caption": [
+      14,
+      {
+       "__struct_id": 3,
+       "AurString_ColorR": [
+        8,
+        1.0
+       ],
+       "AurString_AlignV": [
+        8,
+        0.5
+       ],
+       "AurString_ColorG": [
+        8,
+        1.0
+       ],
+       "AurString_ColorA": [
+        8,
+        1.0
+       ],
+       "AurString_AlignH": [
+        8,
+        0.5
+       ],
+       "Obj_StrRef": [
+        4,
+        66
+       ],
+       "AurString_ColorB": [
+        8,
+        1.0
+       ],
+       "AurString_Font": [
+        11,
+        "fnt_galahad14"
+       ]
+      }
+     ],
+     "Obj_Locked": [
+      0,
+      0
+     ],
+     "Obj_Z": [
+      8,
+      0.33000001311302185
+     ],
+     "Obj_Parent": [
+      10,
+      "PNL_CHR_SK"
+     ],
+     "Obj_X": [
+      8,
+      0.07999999821186066
+     ]
+    },
+    {
+     "__struct_id": 2,
+     "Obj_Y": [
+      8,
+      -2.5399999618530273
+     ],
+     "Obj_Tag": [
+      10,
+      "CancelButton"
+     ],
+     "Obj_Layer": [
+      5,
+      10
+     ],
+     "Obj_Type": [
+      5,
+      9
+     ],
+     "Obj_ResRef": [
+      11,
+      "ctl_btn_pre_176"
+     ],
+     "Obj_Parent_Hook": [
+      10,
+      "PNL_CHR_GENM"
+     ],
+     "Obj_Caption": [
+      14,
+      {
+       "__struct_id": 3,
+       "AurString_ColorR": [
+        8,
+        1.0
+       ],
+       "AurString_AlignV": [
+        8,
+        0.5
+       ],
+       "AurString_ColorG": [
+        8,
+        1.0
+       ],
+       "AurString_ColorA": [
+        8,
+        1.0
+       ],
+       "AurString_AlignH": [
+        8,
+        0.5
+       ],
+       "Obj_StrRef": [
+        4,
+        67
+       ],
+       "AurString_ColorB": [
+        8,
+        1.0
+       ],
+       "AurString_Font": [
+        11,
+        "fnt_galahad14"
+       ]
+      }
+     ],
+     "Obj_Locked": [
+      0,
+      0
+     ],
+     "Obj_Z": [
+      8,
+      0.41999998688697815
+     ],
+     "Obj_Parent": [
+      10,
+      "PNL_CHR_SK"
+     ],
+     "Obj_X": [
+      8,
+      1.8600000143051147
+     ]
+    },
+    {
+     "__struct_id": 2,
+     "Obj_Y": [
+      8,
+      -2.5399999618530273
+     ],
+     "Obj_Tag": [
+      10,
+      "RecommendButton"
+     ],
+     "Obj_Layer": [
+      5,
+      12
+     ],
+     "Obj_Type": [
+      5,
+      9
+     ],
+     "Obj_ResRef": [
+      11,
+      "ctl_btn_pre_176"
+     ],
+     "Obj_Parent_Hook": [
+      10,
+      "PNL_CHR_GENM"
+     ],
+     "Obj_Caption": [
+      14,
+      {
+       "__struct_id": 3,
+       "AurString_ColorR": [
+        8,
+        1.0
+       ],
+       "AurString_AlignV": [
+        8,
+        0.5
+       ],
+       "AurString_ColorG": [
+        8,
+        1.0
+       ],
+       "AurString_ColorA": [
+        8,
+        1.0
+       ],
+       "AurString_AlignH": [
+        8,
+        0.5
+       ],
+       "Obj_StrRef": [
+        4,
+        127
+       ],
+       "AurString_ColorB": [
+        8,
+        1.0
+       ],
+       "AurString_Font": [
+        11,
+        "fnt_galahad14"
+       ]
+      }
+     ],
+     "Obj_Locked": [
+      0,
+      0
+     ],
+     "Obj_Z": [
+      8,
+      0.5
+     ],
+     "Obj_Parent": [
+      10,
+      "PNL_CHR_SK"
+     ],
+     "Obj_X": [
+      8,
+      -3.5999999046325684
+     ]
+    },
+    {
+     "__struct_id": 2,
+     "Obj_Y": [
+      8,
+      -2.5399999618530273
+     ],
+     "Obj_Tag": [
+      10,
+      "ResetButton"
+     ],
+     "Obj_Layer": [
+      5,
+      12
+     ],
+     "Obj_Type": [
+      5,
+      9
+     ],
+     "Obj_ResRef": [
+      11,
+      "ctl_btn_pre_176"
+     ],
+     "Obj_Parent_Hook": [
+      10,
+      "PNL_CHR_GENM"
+     ],
+     "Obj_Caption": [
+      14,
+      {
+       "__struct_id": 3,
+       "AurString_ColorR": [
+        8,
+        1.0
+       ],
+       "AurString_AlignV": [
+        8,
+        0.5
+       ],
+       "AurString_ColorG": [
+        8,
+        1.0
+       ],
+       "AurString_ColorA": [
+        8,
+        1.0
+       ],
+       "AurString_AlignH": [
+        8,
+        0.5
+       ],
+       "Obj_StrRef": [
+        4,
+        16000433
+       ],
+       "AurString_ColorB": [
+        8,
+        1.0
+       ],
+       "AurString_Font": [
+        11,
+        "fnt_galahad14"
+       ]
+      }
+     ],
+     "Obj_Locked": [
+      0,
+      0
+     ],
+     "Obj_Z": [
+      8,
+      0.46
+     ],
+     "Obj_Parent": [
+      10,
+      "PNL_CHR_SK"
+     ],
+     "Obj_X": [
+      8,
+      -1.76
+     ]
+    }
+   ]
+  ],
+  "Obj_NumTags": [
+   5,
+   14
+  ],
+  "Obj_Tag": [
+   10,
+   "PNL_CHR_SK"
+  ],
+  "Obj_Layer": [
+   5,
+   0
+  ],
+  "Obj_Type": [
+   5,
+   3
+  ],
+  "Obj_ResRef": [
+   11,
+   "pnl_chr_genm"
+  ],
+  "Obj_Parent_Hook": [
+   10,
+   ""
+  ],
+  "Obj_Locked": [
+   0,
+   0
+  ],
+  "Obj_Z": [
+   8,
+   0.0
+  ],
+  "Obj_X": [
+   8,
+   8.239999771118164
+  ]
+ }
+}
