@@ -797,6 +797,12 @@ Grappler (the SRD's other General feat), Epic Boons at 19, Magic Initiate,
 Paladin and Ranger Fighting Styles (their briefs), Skilled's picks on a page
 (C8: its Feats page comes after the Skills page).
 
+*Part 4 passed (owner, 2026-10-22, 0.16.10: "Part 4 seems like it passes
+fine"): an Elf Wizard (Sage) - Wizard skills then Keen Senses (3 picks, Arcana
+and History the background's), Reset and OK between the steps; at Wizard 2
+the Scholar Expertise step (Recommended: Arcana); !skills: proficient in
+Arcana, History, Insight, Perception, Religion, Expertise in Arcana.*
+
 *0.16.10 (owner's retest, 2026-10-22: "the style manual switch it always
 says "You already have archery"").* The Fighter had Archery and Defense both
 (a Fighting Style feat at 4), and !style's help always named "!style defense
