@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "chat.h"
+#include "creature_update.h"
 #include "config.h"
 #include "creature.h"
 #include "ee_layout.h"
@@ -381,6 +382,88 @@ std::vector<std::string> SkillsCommand(void* creature, const std::string& args) 
   return lines;
 }
 
+// --- C8 (docs/CHARGEN.md): Skilled on the server ------------------------------------
+
+// The server's level-up check (ValidateLevelUp) prices each new rank in NWN
+// skill points against NWN's budget for the level - banked points (+0xDC6) +
+// the class's base + Int, a cross-class rank twice - and refuses more
+// ("Character applied invalid number of skillpoints", 66155): Skilled's three
+// picks, a Performance pick, are often more than NWN gives (a Fighter with Int
+// 8 at 4: 3 against 1). A player character whose ranks are the 2024 record
+// gets the budget topped up for the call; the client's Skills page keeps the
+// 2024 count, and the check's other parts (unusable skills, ranks, feats, hit
+// points) all run. On success LevelUp banks the client's points left anyway.
+using ValidateLevelUpFn = uint32_t (*)(void* stats, void* level, uint8_t domain1, uint8_t domain2, uint8_t school);
+ValidateLevelUpFn g_validate_level_up = nullptr;
+
+bool RanksAre2024(void* stats) {
+  const int8_t* ranks = Ranks(stats);
+  return ranks && rules::RanksAre2024(ranks, std::min<int>(rules::kNwnSkillCount, engine::SkillRowCount()));
+}
+
+uint32_t ValidateLevelUp(void* stats, void* level, uint8_t domain1, uint8_t domain2, uint8_t school) {
+  if (!stats || Field<int32_t>(stats, ee::kStatsIsPlayer) == 0 || !RanksAre2024(stats)) {
+    return g_validate_level_up(stats, level, domain1, domain2, school);
+  }
+  auto* banked = reinterpret_cast<uint16_t*>(static_cast<uint8_t*>(stats) + ee::kStatsBankedSkillPoints);
+  const uint16_t kept = *banked;
+  *banked = 0xff;  // the engine's cost is an 8-bit sum
+  const uint32_t refused = g_validate_level_up(stats, level, domain1, domain2, school);
+  if (refused) {
+    *banked = kept;
+    Log("skills: 0x%08X level-up refused by the game (string %u) - not for its skill points", ObjectIdOf(stats),
+        refused);
+  }
+  return refused;
+}
+
+// Skilled taken without the Skills page (a build's Recommended, the level-up's
+// Recommended): its picks made as Recommended would - the class's usual
+// skills, as server ranks - and the player told; !skills changes them.
+// Characters whose skills are NWN ranks or chosen with !skills keep them.
+using SetSkillRankFn = void (*)(void* stats, uint8_t skill, int8_t rank);
+SetSkillRankFn g_set_skill_rank = nullptr;
+std::unordered_map<uint32_t, uint32_t> g_skilled_seen;  // id -> the ranks and Skilled count last looked at
+
+void FillSkilledPicks(void* creature) {
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  if (!stats || Field<int32_t>(stats, ee::kStatsIsPlayer) == 0) return;
+  if (!engine::AreaOf(creature) || IdOf(creature) == ee::kObjectInvalid) return;  // still being built
+  const int skilled = SkilledFeats(stats);
+  if (skilled == 0) return;
+  const uint32_t id = IdOf(creature);
+  const uint32_t seen = RankFingerprint(stats) ^ (static_cast<uint32_t>(skilled) * 2654435761u);
+  uint32_t& last = g_skilled_seen[id];
+  if (last == seen) return;
+  last = seen;
+  if (!RanksAre2024(stats)) return;
+  EnsureRecords(creature);
+  if (engine::GetLocalInt(creature, kVarSet) == 1) return;  // chosen with !skills
+  const std::vector<rules::ClassLevels> classes = ClassLevelsOf(stats);
+  if (classes.empty()) return;
+  const rules::SkillAllowance allowance = rules::SkillAllowanceFor(classes, SpeciesOf(stats), skilled);
+  rules::SkillSet proficient = 0;
+  const int8_t* ranks = Ranks(stats);
+  const int rows = std::min<int>(rules::kNwnSkillCount, engine::SkillRowCount());
+  for (int row = 0; row < rows; ++row) {
+    if (ranks[row] >= 1 && rules::IsSkillsPageRow(row)) proficient |= rules::SkillBit(*rules::Skill2024ForNwnSkill(row));
+  }
+  const std::vector<rules::Skill2024> filled = rules::FillSkillChoices(
+      allowance, proficient, rules::SkillPreference2024(classes.front().character_class), 3 * skilled);
+  if (filled.empty()) return;
+  rules::SkillSet added = 0;
+  for (rules::Skill2024 skill : filled) {
+    const int row = rules::SkillsPageRow(skill);
+    if (row < 0 || row >= rows) continue;
+    g_set_skill_rank(stats, static_cast<uint8_t>(row), 1);
+    added |= rules::SkillBit(skill);
+  }
+  last = RankFingerprint(stats) ^ (static_cast<uint32_t>(skilled) * 2654435761u);
+  Log("skills: 0x%08X Skilled's picks made for it (not chosen on the Skills page): %s", id, Names(added).c_str());
+  TellPlayer(id, "nwn5e: Skilled - its skills weren't chosen on the Skills page, so you have the usual ones: " +
+                     Names(added) + ". Change them with !skills.");
+}
+
 }  // namespace
 
 void InstallSkillRules() {
@@ -392,4 +475,13 @@ void InstallSkillRules() {
   g_script_caller = SkillRankCallerIn(ee::kExecuteCommandGetSkillRank);
   if (g_script_caller) AddSkillAdjuster(&ScriptScale);
   AddChatCommand("!skills", &SkillsCommand);
+  // C8: Skilled's picks - the server's level-up check, and Skilled taken without the page.
+  HookExport("CNWSCreatureStats::ValidateLevelUp (C8: the 2024 picks over NWN's skill points)", ee::kValidateLevelUp,
+             reinterpret_cast<void*>(&ValidateLevelUp), reinterpret_cast<void**>(&g_validate_level_up));
+  g_set_skill_rank = reinterpret_cast<SetSkillRankFn>(EngineExport(ee::kStatsSetSkillRank));
+  if (g_set_skill_rank) {
+    AddCreatureUpdateListener(&FillSkilledPicks);
+  } else {
+    Log("SKIP skills: Skilled taken without the Skills page - no export %s", ee::kStatsSetSkillRank);
+  }
 }

@@ -1,0 +1,5 @@
+# skills.2da - C8 (owner, 2026-10-23: "go with recommendations"): Perform (row 11,
+# the 2024 Performance) usable by every class - 2024 has no Bard-only skill, and
+# Skilled and a Human's Skillful pick any skill. NWN mode keeps it the Bard's.
+AllClassesCanUse
+11 1

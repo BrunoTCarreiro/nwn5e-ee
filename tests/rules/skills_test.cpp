@@ -302,3 +302,27 @@ TEST(RanksAre2024OnlyOnPageRows) {
   ranks[kNwnMoveSilently] = 1;  // a hidden row
   CHECK_EQ(RanksAre2024(ranks, kNwnSkillCount), false);
 }
+
+TEST(SkilledPicksFillTheRoomLeft) {
+  // A Human Fighter (Soldier) with Skilled: 2 Fighter skills + Skillful + the
+  // background's two, and Skilled's three still open.
+  const SkillAllowance allowance = SkillAllowanceFor({{CharacterClass::kFighter, 1}}, Species2024::kHuman, 1);
+  const SkillSet had = SkillBit(Skill2024::kAthletics) | SkillBit(Skill2024::kIntimidation) |
+                       SkillBit(Skill2024::kAcrobatics) | SkillBit(Skill2024::kPerception) |
+                       SkillBit(Skill2024::kSurvival);
+  const std::vector<Skill2024> filled =
+      FillSkillChoices(allowance, had, SkillPreference2024(CharacterClass::kFighter), 3);
+  CHECK_EQ(filled.size(), 3u);
+  SkillSet all = had;
+  for (Skill2024 skill : filled) {
+    CHECK_EQ(Has(had, skill), false);
+    CHECK_EQ(IsTool(skill), false);
+    all |= SkillBit(skill);
+  }
+  CHECK_EQ(CheckSkillChoice(allowance, all).empty(), true);
+  // No room left: nothing more.
+  CHECK_EQ(FillSkillChoices(allowance, all, SkillPreference2024(CharacterClass::kFighter), 3).size(), 0u);
+  // Without Skilled the same five fill the choices already.
+  const SkillAllowance without = SkillAllowanceFor({{CharacterClass::kFighter, 1}}, Species2024::kHuman, 0);
+  CHECK_EQ(FillSkillChoices(without, had, SkillPreference2024(CharacterClass::kFighter), 3).size(), 0u);
+}

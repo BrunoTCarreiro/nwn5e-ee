@@ -24,8 +24,8 @@
 // A character whose ranks aren't the 2024 record (an older character's NWN
 // ranks: rules::RanksAre2024) gets no points after level 1 — !skills.
 // The ranks are the record: rules_skills.cpp reads proficiency (1) and
-// Expertise (2) from them. Skilled (its Feats page comes after this one)
-// stays with !skills until C8. Any anchor missing: nothing is hooked, the
+// Expertise (2) from them. Skilled (its Feats page comes after this one):
+// C8, the Skills page again (SkillsAgainOpened). Any anchor missing: nothing is hooked, the
 // rows stay NWN's, and the page is the game's own.
 
 #include <windows.h>
@@ -46,6 +46,7 @@
 #include "log.h"
 #include "log_once.h"
 #include "rules/backgrounds.h"
+#include "rules/feats2024.h"
 #include "rules/nwn_conversion.h"
 #include "rules/skills.h"
 
@@ -126,8 +127,57 @@ struct Level {
   int8_t floor[rules::kNwnSkillCount] = {};
   int8_t pick_step[rules::kNwnSkillCount] = {};  // the step a new skill (rank 0 -> 1) was taken in, -1 none
   int points = 0;
+  int skilled_picks = 0;  // C8: the again page's one step - 3 per Skilled feat taken this level
 };
 Level g_level;
+
+// --- C8: "Skills again" (owner, 2026-10-23: "go with recommendations") -------
+// Skilled taken on the Feats page (it follows the Skills page) opens the
+// Skills page again for its picks: built and activated as the Skills page's
+// OK builds a Feats page; its OK goes on as the Feats page's would (no Feats
+// page again: CalcNumberFeats answers 0 for it). See SkillsAgainOpened.
+using SkillsCtorFn = void (*)(void* page, uint32_t creature, int level_up);
+using PanelFn = void (*)(void* panel);
+using DeactivateFn = void (*)(void* panel, int exit_code);
+using GetLevelUpFn = void* (*)(void* app);
+using FeatCountFn = uintptr_t (*)(void* stats, uint8_t* normal, uint8_t* bonus);
+SkillsCtorFn g_skills_ctor = nullptr;
+PanelFn g_activate_modal = nullptr;
+DeactivateFn g_deactivate_modal = nullptr;
+GetLevelUpFn g_get_level_up = nullptr;
+uintptr_t g_app_global = 0;  // the global GetLevelUp's argument comes through (**it)
+FeatCountFn g_feat_count = nullptr;
+uintptr_t g_feats_vtable = 0;
+bool g_skills_again = false;     // all of the above found
+bool g_in_again_ctor = false;    // the again page's constructor: no points from the level
+bool g_no_feat_count = false;    // the again page's OK: no Feats page after it
+void* g_again_page = nullptr;
+Level g_level_before_again;      // restored when the again page closes
+int g_skilled_before = 0;        // Skilled feats when this level's first Skills page opened
+void* g_skilled_stats = nullptr;  // ... for these stats
+
+int CountSkilled(void* stats) {
+  const auto* feats = Field<const uint16_t*>(stats, ee::kClientStatsFeats);
+  const int count = Field<int32_t>(stats, ee::kClientStatsFeatCount);
+  int skilled = 0;
+  for (int i = 0; feats && i < count && i < 4096; ++i) {
+    const int feat = feats[i];
+    if (feat == rules::kFeatSkilled ||
+        (feat >= rules::kFeatSkilledAgainFirst && feat < rules::kFeatSkilledAgainFirst + rules::kSkilledRepeats)) {
+      ++skilled;
+    }
+  }
+  return skilled;
+}
+
+uintptr_t FeatCount(void* stats, uint8_t* normal, uint8_t* bonus) {
+  const uintptr_t result = g_feat_count(stats, normal, bonus);
+  if (g_no_feat_count) {
+    if (normal) *normal = 0;
+    if (bonus) *bonus = 0;
+  }
+  return result;
+}
 
 rules::SkillSet BackgroundSkillsAtCreation() {
   rules::SkillSet skills = 0;
@@ -233,6 +283,7 @@ int NewExpertise(void* stats) {
 }
 
 void Points(void* stats) {
+  if (g_in_again_ctor) return;  // C8: the again page's picks are Skilled's (SkillsAgainOpened sets them)
   if (!Active() || !stats) {
     g_points(stats);
     return;
@@ -249,7 +300,7 @@ void Points(void* stats) {
 // The page's steps (owner, 2026-10-22: "each in their step"): the class's
 // skills, then a Human's or Elf's pick, then Expertise — a pick is taken only
 // in its step, and the page greys every row the step can't take.
-enum class Step { kClass, kSpecies, kExpertise, kDone };
+enum class Step { kClass, kSpecies, kExpertise, kSkilled, kDone };
 
 // A step's choices: how many it makes, how many are made (a new skill counts
 // in the step it was taken in), how many are left.
@@ -258,6 +309,7 @@ int StepTotal(Step step) {
     case Step::kClass: return g_level.skills.class_skills;
     case Step::kSpecies: return g_level.skills.species_any_skill || g_level.skills.species_list ? 1 : 0;
     case Step::kExpertise: return g_level.expertise.expertise;
+    case Step::kSkilled: return g_level.skilled_picks;
     default: return 0;
   }
 }
@@ -330,6 +382,8 @@ bool Pickable(void* stats, int row, Step step) {
       break;
     case Step::kExpertise:
       return ranks[row] == 1 && rules::CanPickExpertise(g_level.expertise, NewExpertise(stats), *skill);
+    case Step::kSkilled:
+      return ranks[row] == 0 && !rules::IsTool(*skill);
     case Step::kDone:
       return false;
   }
@@ -356,6 +410,8 @@ bool Candidate(void* stats, int row, Step step) {
     case Step::kExpertise:
       return ranks[row] >= 1 && !rules::IsTool(*skill) &&
              (!g_level.expertise.expertise_list || rules::Has(g_level.expertise.expertise_list, *skill));
+    case Step::kSkilled:  // any skill the character didn't have when the step began
+      return g_level.floor[row] == 0 && !rules::IsTool(*skill);
     default:
       return false;
   }
@@ -366,6 +422,7 @@ const char* StepName(Step step) {
     case Step::kClass: return "the class's skills";
     case Step::kSpecies: return "the species pick";
     case Step::kExpertise: return "Expertise";
+    case Step::kSkilled: return "Skilled";
     default: return "done";
   }
 }
@@ -559,6 +616,11 @@ std::string StepHelp(Step step) {
                          : " Your proficiency bonus counts twice for their checks.";
       help += " A greyed skill is chosen already, or can't take Expertise.";
       break;
+    case Step::kSkilled:
+      help += "Skilled\n\nChoose " + Count(total, "skill") + " of any kind (the Skilled feat" +
+              (total > 3 ? ", taken more than once" : "") +
+              "). You become proficient in each. The skills you have already are not listed.";
+      break;
     case Step::kDone:
       help += "This level gives no skill choices.";
       break;
@@ -587,6 +649,9 @@ void ShowTexts(void* page, void* stats, Step step, bool help_too) {
       break;
     case Step::kExpertise:
       header = "Expertise: " + more;
+      break;
+    case Step::kSkilled:
+      header = "Skilled: " + more;
       break;
     case Step::kDone:
       header = "No skill choices at this level";
@@ -757,6 +822,10 @@ void MakeResetButton(void* page, bool active) {
 void* PageDeletingDtor(void* page, int free_it) {
   if (page == g_step_page) g_step_page = nullptr;
   if (page == g_open_page) g_open_page = nullptr;
+  if (page == g_again_page) {  // C8: the level as before the Skilled page (its picks stay this level's)
+    g_again_page = nullptr;
+    g_level = g_level_before_again;
+  }
   if (page == g_reset_page && g_reset_button) {
     void* button = g_reset_button;
     g_reset_button = nullptr;
@@ -777,6 +846,10 @@ void BuildList(void* page, void* a2, void* a3, void* a4) {
       SkipPage(page, "an older character's level-up: no points (its skills stay with !skills)");
     }
     return;
+  }
+  if (page != g_again_page) {  // C8: the Skilled feats this level starts from
+    g_skilled_before = CountSkilled(stats);
+    g_skilled_stats = stats;
   }
   if (g_level.level == 1) SetBackgroundRanks(stats, g_level.background);  // after the hub's clear
   if (const int back = TakeBack(stats, Step::kDone)) {  // the page opens on its first step, nothing chosen
@@ -852,7 +925,9 @@ void Ok(void* page, void* a2, void* a3, void* a4) {
   }
   const Step next = NextStep(step);
   if (next == Step::kDone) {
-    g_ok(page, a2, a3, a4);  // last: the page may be gone after this
+    g_no_feat_count = page == g_again_page;  // C8: on as the Feats page's OK, not to a Feats page again
+    g_ok(page, a2, a3, a4);                  // last: the page may be gone after this
+    g_no_feat_count = false;
     return;
   }
   g_page_step = next;
@@ -922,6 +997,59 @@ uintptr_t FunctionOf(const char* what, const char* pattern) {
 
 }  // namespace
 
+// C8: the Feats page's OK (NextPage with its exit code) when it added Skilled:
+// the Skills page again for Skilled's picks, built as the Skills page's OK
+// builds a Feats page - the Feats page deactivated with the Skills page's
+// code, the exit delegate copied, the page activated, the level-up pointed at
+// it - and true: NextPage stops there (the Feats page's OK deletes its page).
+bool SkillsAgainOpened(uint32_t creature, int level_up, void* panel, int exit_code) {
+  if (!g_skills_again || exit_code != ee::kExitFeatsPage || !panel || Field<uintptr_t>(panel, 0) != g_feats_vtable) {
+    return false;
+  }
+  void* client_creature = g_get_creature ? g_get_creature(creature) : nullptr;
+  void* stats = client_creature ? Field<void*>(client_creature, ee::kClientCreatureStats) : nullptr;
+  if (!ActiveFor(stats) || stats != g_skilled_stats) return false;
+  const int added = CountSkilled(stats) - g_skilled_before;
+  if (added <= 0) return false;
+  void* page = g_new(ee::kSkillsPageSize);
+  if (!page) return false;
+  g_level_before_again = g_level;
+  g_in_again_ctor = true;
+  g_skills_ctor(page, creature, level_up ? 1 : 0);
+  g_in_again_ctor = false;
+  // The page's one step: Skilled's picks, above the ranks as they are now.
+  g_level.skills.class_skills = 0;
+  g_level.skills.species_any_skill = false;
+  g_level.skills.species_list = 0;
+  g_level.expertise.expertise = 0;
+  g_level.skilled_picks = 3 * added;
+  const int8_t* ranks = Ranks(stats);
+  for (int row = 0; row < rules::kNwnSkillCount; ++row) {
+    g_level.floor[row] = ranks && row < Rows() ? ranks[row] : 0;
+    g_level.pick_step[row] = -1;
+  }
+  g_level.points = g_level.skilled_picks;
+  SetPointsLeft(stats, g_level.skilled_picks);
+  if (level_up) SetField<uint16_t>(page, ee::kSkillsPagePointsAtOpen, static_cast<uint16_t>(g_level.skilled_picks));
+  g_again_page = page;
+  g_deactivate_modal(panel, ee::kExitSkillsPage);
+  memcpy(static_cast<uint8_t*>(page) + ee::kPageExitObject, static_cast<uint8_t*>(panel) + ee::kPageExitObject, 16);
+  g_activate_modal(page);
+  if (level_up) {
+    const auto* holder = *reinterpret_cast<void* const* const*>(g_app_global);
+    void* app = holder ? *holder : nullptr;
+    if (void* level_up_object = app ? g_get_level_up(app) : nullptr) SetField<void*>(level_up_object, ee::kLevelUpPage, page);
+  }
+  Log("skills again: %d Skilled feat(s) taken - the Skills page again for %d pick(s)", added, g_level.skilled_picks);
+  return true;
+}
+
+// The again page's OK: NextPage goes on as after the Feats page.
+int SkillsAgainExitCode(void* panel, int exit_code) {
+  if (panel && panel == g_again_page && exit_code == ee::kExitSkillsPage) return ee::kExitFeatsPage;
+  return exit_code;
+}
+
 void InstallSkillsPage() {
   if (g_config.skills != rules::RuleVariant::kFaithful) return;
   // The four functions, each by an instruction found once in the client's code.
@@ -961,6 +1089,9 @@ void InstallSkillsPage() {
   const uintptr_t row_click = init ? HandlerByTag("skills page: a row's click", init, "SkillsButtonBox") : 0;
   const bool row_click_found =
       row_click && FindPatternIn("skills page: a row's disabled test", FunctionAt(row_click), ee::kSkillsRowDisabledTest);
+  // C8: the Skills page's constructor (the one function referencing its vtable),
+  // the Feats page's vtable, the modal panel's Activate / Deactivate, the OK's
+  // CalcNumberFeats and GetLevelUp calls.
   g_set_enabled = reinterpret_cast<SetEnabledFn>(EngineExport(ee::kCheckboxSetEnabled));
   g_set_color = reinterpret_cast<SetColorFn>(EngineExport(ee::kStringWrapperSetColor));
   g_skill_useable = reinterpret_cast<SkillUseableFn>(EngineExport(ee::kClassIsSkillUseable));
@@ -1011,6 +1142,37 @@ void InstallSkillsPage() {
       HookAddress("client Skills page deleting destructor (its Reset button first)", page_dtor,
                   reinterpret_cast<void*>(&PageDeletingDtor), reinterpret_cast<void**>(&g_page_dtor));
   if (!hooked) return;
+  {
+    const std::vector<uintptr_t> vtable_refs = page_vtable ? FindRipReferences(page_vtable) : std::vector<uintptr_t>();
+    g_skills_ctor = reinterpret_cast<SkillsCtorFn>(vtable_refs.size() == 1 ? FunctionEntry(vtable_refs[0]) : 0);
+    g_feats_vtable = FindVtable("skills again: the Feats page's vtable", ee::kRttiFeatsPageC8);
+    g_activate_modal = reinterpret_cast<PanelFn>(EngineExport(ee::kGuiModalPanelActivate));
+    g_deactivate_modal = reinterpret_cast<DeactivateFn>(EngineExport(ee::kGuiModalPanelDeactivate));
+    const CodeRange ok_code = FunctionAt(ok);
+    const uintptr_t count_site =
+        FindPatternIn("skills again: the OK's CalcNumberFeats", ok_code, ee::kSkillsOkFeatCountCall);
+    const uintptr_t feat_count = count_site ? CallTarget(count_site + ee::kSkillsOkFeatCountCallAt) : 0;
+    const uintptr_t level_up_site = FindPatternIn("skills again: the OK's GetLevelUp", ok_code, ee::kSkillsOkLevelUpPage);
+    if (level_up_site) {
+      g_app_global = level_up_site + 7 + *reinterpret_cast<const int32_t*>(level_up_site + 3);
+      g_get_level_up = reinterpret_cast<GetLevelUpFn>(CallTarget(level_up_site + ee::kSkillsOkLevelUpCallAt));
+    }
+    g_skills_again = g_skills_ctor && g_feats_vtable && g_activate_modal && g_deactivate_modal && feat_count &&
+                     g_app_global && g_get_level_up &&
+                     HookAddress("client CalcNumberFeats (C8: no Feats page after the Skills page again)", feat_count,
+                                 reinterpret_cast<void*>(&FeatCount), reinterpret_cast<void**>(&g_feat_count));
+    const auto base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+    if (g_skills_again) {
+      Log("skills again (C8): the Skills page's constructor rva 0x%zx, CalcNumberFeats 0x%zx, GetLevelUp 0x%zx - "
+          "Skilled taken on the Feats page opens the Skills page again",
+          reinterpret_cast<uintptr_t>(g_skills_ctor) - base, feat_count - base,
+          reinterpret_cast<uintptr_t>(g_get_level_up) - base);
+    } else {
+      Log("SKIP skills again (C8): an anchor is missing (%zu constructor reference(s)) - Skilled's picks are made for "
+          "the character when it enters (!skills changes them)",
+          vtable_refs.size());
+    }
+  }
   if (!row_click_found ||
       !HookAddress("client Skills page row click (a greyed skill's own description)", row_click,
                    reinterpret_cast<void*>(&RowClick), reinterpret_cast<void**>(&g_row_click))) {

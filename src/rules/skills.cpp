@@ -396,6 +396,20 @@ SkillAllowance SkillsPageAllowance(CharacterClass first_class, Species2024 speci
 
 int SkillsPagePoints(const SkillAllowance& page) { return page.TotalSkills(); }
 
+std::vector<Skill2024> FillSkillChoices(const SkillAllowance& allowance, SkillSet proficient,
+                                        const std::vector<Skill2024>& preference, int most) {
+  std::vector<Skill2024> added;
+  auto take = [&](Skill2024 skill) {
+    if (static_cast<int>(added.size()) >= most || IsTool(skill) || Has(proficient, skill)) return;
+    if (!CheckSkillChoice(allowance, proficient | SkillBit(skill)).empty()) return;
+    proficient |= SkillBit(skill);
+    added.push_back(skill);
+  };
+  for (Skill2024 skill : preference) take(skill);
+  for (int i = 0; i < kSkill2024Count; ++i) take(static_cast<Skill2024>(i));
+  return added;
+}
+
 bool CanPickOnSkillsPage(const SkillAllowance& page, SkillSet background, SkillSet picked, Skill2024 skill) {
   if (IsTool(skill)) return false;
   const SkillSet bit = SkillBit(skill);

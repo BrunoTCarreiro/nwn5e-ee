@@ -601,6 +601,27 @@ constexpr size_t kSkillsPageOk = 0xdb0;
 constexpr size_t kGuiControlFlags = 0x8;
 constexpr uint32_t kGuiControlDisabled = 0x1;
 constexpr const char* kSkillsRowDisabledTest = "8B 42 08 F7 D0 A8 01 75";
+// C8, "Skills again" (the chain: docs/CHARGEN.md C8): a Skills page is
+// operator new(0xF98) + its constructor (this, creature id, level_up) - the
+// one function referencing the page's vtable - then the exit delegate
+// (+0x80, 16 bytes) copied and CGuiModalPanel::Activate; at a level-up the
+// constructor adds the level's points (the points function) and keeps them
+// at +0xF90 (the game's Recommended restores them). Its OK (0x9c8d10) asks
+// CalcNumberFeats (stats, uint8* normal, uint8* bonus) whether a Feats page
+// follows (the call below, unique in it), and after activating one points
+// the level-up's page (+0x18 of GetLevelUp(*app)) at it (the pattern below:
+// the app global's mov, the GetLevelUp call). The Feats page's OK appends its
+// feats to the stats, then NextPage(creature, level_up, page, 0x800E, 0),
+// then deletes its page (NextPage deactivates it).
+constexpr size_t kSkillsPageSize = 0xf98;
+constexpr size_t kSkillsPagePointsAtOpen = 0xf90;
+constexpr const char* kRttiFeatsPageC8 = ".?AVCCharacterFeatsPanel@@";
+constexpr const char* kSkillsOkFeatCountCall =
+    "4C 8D 84 24 C0 00 00 00 48 8D 94 24 C8 00 00 00 48 8B 8D B0 03 00 00 E8";
+constexpr size_t kSkillsOkFeatCountCallAt = 23;  // the E8
+constexpr const char* kSkillsOkLevelUpPage = "48 8B 05 ?? ?? ?? ?? 48 8B 08 E8 ?? ?? ?? ?? 48 85 C0 74 04 4C 89 78 18";
+constexpr size_t kSkillsOkLevelUpCallAt = 10;  // the E8 (GetLevelUp)
+constexpr size_t kLevelUpPage = 0x18;          // the level-up's page now
 constexpr size_t kRulesSkills = 0x120;
 constexpr size_t kSkillStride = 0x38;
 constexpr size_t kSkillHideFromLevelUp = 0x34;
@@ -695,6 +716,12 @@ constexpr const char* kGetSkillRank = "?GetSkillRank@CNWSCreatureStats@@QEAADEPE
 constexpr const char* kGetIsDM = "?GetIsDM@CNWSCreatureStats@@QEAAHXZ";
 // char GetAbilityMod(uchar ability 0 Str .. 5 Cha): the cached modifier bytes GetSkillRank reads.
 constexpr const char* kGetAbilityMod = "?GetAbilityMod@CNWSCreatureStats@@QEAADE@Z";
+// C8: the skill points a level-up banks (uint16, just before the ranks):
+// ValidateLevelUp starts the level's budget from it, LevelUp stores the
+// client's points left there.
+constexpr size_t kStatsBankedSkillPoints = 0xdc6;
+constexpr const char* kStatsSetSkillRank = "?SetSkillRank@CNWSCreatureStats@@QEAAXED@Z";
+constexpr const char* kValidateLevelUp = "?ValidateLevelUp@CNWSCreatureStats@@QEAAIPEAVCNWLevelStats@@EEE@Z";
 constexpr size_t kStatsSkillRanks = 0xdc8;  // int8* ranks per skills.2da row (GetSkillRank, 1.69 +0x478)
 constexpr int kEffectBonusTypeSkill = 5;    // GetTotalEffectBonus(5, vs, 0, 0, 0, 0, skill, 0xFF, 0) in GetSkillRank
 // The script command GetSkillRank: one GetSkillRank call (found at load).

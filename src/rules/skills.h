@@ -110,6 +110,13 @@ SkillAllowance SkillAllowanceFor(const std::vector<ClassLevels>& classes, Specie
 // Can `chosen` (skills and tools, `granted` excluded or included) be split
 // into those choices? Returns an empty string when it can, else the reason.
 std::string CheckSkillChoice(const SkillAllowance& allowance, SkillSet chosen);
+
+// C8: skills `proficient` still has room for in `allowance`, taken in
+// `preference` order (Recommended's) and then any other (tools excluded), at
+// most `most` of them - the Skilled feat's picks for a character that took it
+// without the Skills page (a build's Recommended).
+std::vector<Skill2024> FillSkillChoices(const SkillAllowance& allowance, SkillSet proficient,
+                                        const std::vector<Skill2024>& preference, int most);
 std::string CheckExpertiseChoice(const SkillAllowance& allowance, SkillSet proficient, SkillSet expertise);
 
 // SK5 (faithful): an observer's Perception die — the d20 it rolled when it

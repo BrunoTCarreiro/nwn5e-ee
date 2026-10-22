@@ -44,6 +44,9 @@
 
 void SetCreationBackground(int feat);  // rules_abilities.cpp
 
+bool SkillsAgainOpened(uint32_t creature, int level_up, void* panel, int exit_code);  // chargen_skills.cpp (C8)
+int SkillsAgainExitCode(void* panel, int exit_code);                                  // chargen_skills.cpp (C8)
+
 namespace {
 
 using NewFn = void* (*)(size_t size);
@@ -447,6 +450,10 @@ bool g_told_school = false;
 //   Packages step done only on the Feats page's exit code (it ignores Skills'),
 //   so the Skills page closes with that one.
 int NextPage(uint32_t creature, int level_up, void* panel, int exit_code, int reset) {
+  // C8: Skilled taken on the Feats page - the Skills page again first; that
+  // page's OK goes on as the Feats page's would (chargen_skills.cpp).
+  if (!reset && SkillsAgainOpened(creature, level_up, panel, exit_code)) return 1;
+  exit_code = SkillsAgainExitCode(panel, exit_code);
   if (!level_up && exit_code == ee::kExitSkillsPage && g_config.feat_cadence == rules::RuleVariant::kFaithful) {
     exit_code = ee::kExitFeatsPage;
     Log("creation steps: no feat to pick - the Skills page closes the chain as the Feats page would");

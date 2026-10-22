@@ -797,6 +797,55 @@ Grappler (the SRD's other General feat), Epic Boons at 19, Magic Initiate,
 Paladin and Ranger Fighting Styles (their briefs), Skilled's picks on a page
 (C8: its Feats page comes after the Skills page).
 
+**C8 — "Skills again" (0.17.0, 2026-10-23; owner: "go for C8", then "Go with
+recommendations").** Skilled is an Origin feat (rows 1301, repeats 1302-1307):
+a Human's Versatile pick at level 1, any feat level after. Its three picks
+now come on the Skills page, opened again after the Feats page:
+- **The chain** (recon: the Skills / Feats pages' OK handlers and NextPage
+  0x9c69a0, read in the disassembly). The Feats page's OK appends its feats,
+  then NextPage(…, 0x800E), then deletes its page. nwn5e's NextPage hook
+  (chargen_ui.cpp) asks chargen_skills.cpp first: when the Feats page added
+  Skilled (the client stats' feats against a count taken when the level's
+  first Skills page opened), a Skills page is built as the Skills page's OK
+  builds a Feats page - operator new(0xF98), the page's constructor (the one
+  function referencing its vtable), the Feats page deactivated with the
+  Skills page's code (0x8010: the hub only refreshes its sheet, the level-up
+  ignores it), the exit delegate copied, CGuiModalPanel::Activate, the
+  level-up's page (+0x18 of GetLevelUp, the call the Skills OK makes) set to
+  it - and NextPage returns. That page's OK is the game's: CalcNumberFeats
+  answers 0 for it (else a Feats page again: a loop), and its
+  NextPage(0x8010) goes on as 0x800E - Domain, Spells, the end - as the
+  Feats page's would have; the hub marks the Builds step done on it.
+- **The page**: one step, "Skilled: choose 3 skills of any kind" (6 when
+  taken twice...), every skill the character didn't have listed; the level's
+  floor is the ranks as the page opens, so "-", Reset and Recommended (the
+  class's usual skills) touch only Skilled's picks. No points from the
+  constructor (it adds the level's at a level-up); the level as before the
+  page comes back when it closes.
+- **Cancel** is the game's (owner's pick): creation - back to the hub, the
+  Builds step undone; a level-up - abandoned.
+- **Expertise** at the same level comes before Skilled (a level-1 Human
+  Rogue): it can't go to a Skilled pick there; !skills can move it.
+- **The server**: ValidateLevelUp prices each new rank in NWN skill points
+  against NWN's budget for the level (banked +0xDC6 + class base + Int; a
+  cross-class rank twice) and refuses more (66155, "Character applied
+  invalid number of skillpoints") - Skilled's three often are (a Fighter
+  with Int 8 at 4: 3 against 1). For a player character whose ranks are the
+  2024 record the budget is topped up for the call (rules_skills.cpp); the
+  page keeps the 2024 count, the other checks run. Creation isn't checked in
+  single player (Enforce Legal Characters off).
+- **Performance** is usable by every class with skills faithful
+  (skills.if_skills2024.perform.txt: AllClassesCanUse 1) - 2024 has no
+  Bard-only skill, and Skilled and Skillful take any skill (a non-Bard's is
+  cross-class to the server: the top-up covers it).
+- **Skilled without the page** (a build taken without Configure, whose
+  Recommended feat is Skilled; the level-up's Recommended): a creature
+  update fills its picks on the server as Recommended would - the class's
+  usual skills, rank 1 (rules::FillSkillChoices, unit-tested) - and tells the
+  player; skills chosen with !skills or NWN ranks are left alone. Henchmen
+  need nothing: their 2024 skills are read from their ranks within their
+  choices (Skilled counted).
+
 *The 2026-10-22 test matrix done (owner: "the !style works, i've tested it
 before, and loading an !exported character also works"): !style swapped
 Archery for Great Weapon Fighting at Fighter 4 (the new help); E3 - a
