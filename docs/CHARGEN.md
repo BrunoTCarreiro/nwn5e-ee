@@ -797,6 +797,21 @@ Grappler (the SRD's other General feat), Epic Boons at 19, Magic Initiate,
 Paladin and Ranger Fighting Styles (their briefs), Skilled's picks on a page
 (C8: its Feats page comes after the Skills page).
 
+*0.16.6 (owner, 2026-10-22: "can we make it so the user needs to press "OK"
+to move to the next step and the recommended button only applies to the
+current choice and doesn't pick all skills at once?").* The page keeps its
+own step: the first when it opens (any choices already there taken back),
+the next only by OK, the first again by Reset. A step's choices are counted
+by the step each was made in. OK is greyed until the step's choices are
+made (or it can take no more); on a step before the last it shows the next
+step's list, on the last it is the game's OK. The header ends "- OK for the
+next step" / "- OK to finish" once the step is done. Recommended takes back
+the step's choices and makes them again (the class's usual skills in order,
+then any the step can take) - the game's own handler, every step at once,
+now runs only on a page nwn5e leaves to the game. "-" takes back only a
+choice of the step shown. Recommended, Reset and OK build the list again,
+so every row's number is the rank now.
+
 *0.16.5 (owner, 2026-10-22: "a "reset" button between the recommended and
 OK buttons that resets the point allocation and returns to user to the
 first step. Also, pressing the "recommended" button crashes the game").*

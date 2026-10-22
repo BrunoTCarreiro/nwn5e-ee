@@ -592,6 +592,8 @@ constexpr size_t kSkillsPageSelected = 0x6f0;
 constexpr size_t kSkillsPageHeader = 0x630;
 constexpr size_t kSkillsPageHelp = 0x228;
 constexpr size_t kSkillsPagePoints = 0xbf8;
+// The page's OK text button (its click {object +0x90, fn +0x98} at +0xe40 / +0xe48).
+constexpr size_t kSkillsPageOk = 0xdb0;
 constexpr size_t kRulesSkills = 0x120;
 constexpr size_t kSkillStride = 0x38;
 constexpr size_t kSkillHideFromLevelUp = 0x34;
