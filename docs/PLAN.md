@@ -863,6 +863,36 @@ able to check H8 and H9"): the button, Short Rests (refused mid-fight, Hit
 Dice running out), Second Wind back, the Long Rest (every Hit Die back, all
 or nothing). Not checked: a henchman resting along (H8), the button greyed
 with Rest (H9).*
+*5b built (0.19.0, key `dying`):* rules/death_saves.{h,cpp} (unit-tested: the
+saves, the Exhaustion penalty on them, Defy Death, damage at 0 HP, massive
+damage, the speed penalty); rules_dying.cpp -
+CNWSCreature::DoDamage hooked (HP read before and after: a player character
+with a henchman standing is held at 0 HP in the engine's dying state, a
+player's henchman at 1 HP; damage at 0 HP adds failures, a critical hit -
+seen by the attack-roll listener - two; a death is HP -10, so OnApplyDamage
+kills through the engine's own path), CNWSModule::RunEventScript hooked
+(OnPlayerDying skipped for a player in death saves, or dropped into them in
+the last 5 s - the event is queued; OnPlayerRespawn: the henchmen summoned
+4 s later, once the campaign's own jump is done), the creature update (every
+100 ms: a death save every 6 s of unpaused time, waking, dying; down
+henchmen laid down - plot, ANIMATION_LOOPING_DEAD_FRONT, uncommandable, their
+own plot flag kept in a local - and got up), the rest listener (a Long Rest
+removes Exhaustion; in a temple's area - NW_DEATH_TEMPLE, NW_DEATH_PLACE,
+X1_TPORT_LOC, SoU's X0_RESPAWN_LOC, the last respawn's area - it summons the
+henchmen down, dead or left behind). Exhaustion is one linked supernatural
+effect (attack, save and skill decreases - kept by the 2024 rolls - and
+movement speed), tagged by level and checked every 6 s. The down states are
+locals too (nwn5e_down), so a saved game picks them up again. `!dying` shows
+the state; with test_commands, `!dying roll <d20>`, `!dying hurt <HP>
+[henchman]`, `!dying exhaustion <level>`. Calls made while building:
+- "The fight is over" = no living enemy within 30 m that can see the player
+  or one of its henchmen (the Short Rest's "in combat"), so an unaware
+  monster behind a wall doesn't keep a player down.
+- A respawn removes Exhaustion like a Long Rest (else a death at level 6
+  would come back at 6).
+- Henchmen don't gain Exhaustion (the player character only).
+- Death magic (EffectDeath) still kills a henchman for real: the campaign's
+  OnDeath, as before.
 
 ## Phase 2 — skills and checks: decided by the owner (2026-10-19)
 

@@ -10,6 +10,7 @@
 //   length - an interrupted rest gives nothing, the end still restores
 //   everything. At its end (the rest listener, after ResetFeatRemainingUses)
 //   every Hit Die comes back; with rest_clock the clock moves 8 hours.
+//   A Long Rest also removes every level of Exhaustion (rules_dying.cpp).
 // - The Short Rest (a HUD button next to Rest; `!shortrest` too): instant,
 //   out of combat - no enemy that can see the character within 30 m, no
 //   damage taken or spell cast in the last 10 s (the engine's "exerted" timer,
@@ -42,6 +43,8 @@
 #include "rules/class_features.h"
 #include "rules/nwn_conversion.h"
 #include "rules/hit_dice.h"
+
+int ExhaustionLevel(void* creature);  // rules_dying.cpp (Phase 5b)
 
 namespace {
 
@@ -226,14 +229,19 @@ void ShortRestRequested(void* creature) {
   for (const std::string& line : TakeShortRest(creature)) TellPlayer(IdOf(creature), line);
 }
 
-// !rest: the Hit Dice left.
+// !rest: the Hit Dice left, and Exhaustion (Phase 5b).
 std::vector<std::string> RestCommand(void* creature, const std::string&) {
   void* stats = StatsOf(creature);
   if (!stats) return {};
   const rules::HitDice all = rules::HitDiceOf(ClassLevelsOf(stats));
-  return {"nwn5e: Hit Dice " + DiceText(rules::Remaining(all, SpentHitDice(creature))) + " left of " + DiceText(all) +
-          ". A Short Rest (the button next to Rest, or !shortrest) spends at least one, out of combat; a Long Rest "
-          "(Rest) gives them all back."};
+  std::vector<std::string> lines = {
+      "nwn5e: Hit Dice " + DiceText(rules::Remaining(all, SpentHitDice(creature))) + " left of " + DiceText(all) +
+      ". A Short Rest (the button next to Rest, or !shortrest) spends at least one, out of combat; a Long Rest "
+      "(Rest) gives them all back."};
+  if (const int exhaustion = ExhaustionLevel(creature)) {
+    lines.push_back("nwn5e: Exhaustion " + std::to_string(exhaustion) + " - a Long Rest removes it (!dying).");
+  }
+  return lines;
 }
 
 }  // namespace

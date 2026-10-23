@@ -138,6 +138,12 @@ struct Config {
   // Rests move the clock: a Long Rest 8 hours, a Short Rest 1 (to test; the
   // owner keeps it still for now).
   bool rest_clock = false;
+  // Phase 5b: faithful = a player character with a henchman standing makes
+  // death saves at 0 HP (else the module's dying: the campaigns' instant
+  // death), henchmen lie at 1 HP until healed or the fight is over (SoU's
+  // handling), the temple summons them, Exhaustion from coming back from 0 HP;
+  // nwn / off = NWN's (the module's scripts).
+  rules::RuleVariant dying = rules::RuleVariant::kFaithful;
   // The Short Rest's visual on each resting character (owner, 2026-10-23: "I
   // like the look the health potion effect has"; then "Use
   // VFX_IMP_RESTORATION_LESSER, it looks like a good placeholder"): a

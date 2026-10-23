@@ -1049,6 +1049,23 @@ constexpr size_t kCreatureExcitedTimer = 0x574;
 constexpr size_t kCreatureActivities = 0x8e0;
 constexpr uint32_t kActivityResting = 0x10;
 constexpr int kAssociateTypeHenchman = 1;
+// Phase 5b: dying (docs/PLAN.md Phase 5 recon). CNWSCreature::DoDamage applies
+// a hit's damage (temporary HP first, the immortal floor at 1) and writes HP
+// (+0xE0, int32); its one caller, OnApplyDamage, then lays a player character
+// between -10 and 0 down (dying, uncommandable) and signals OnPlayerDying, or
+// applies death at -10 or below. The module's event handler stores the
+// event's player (+0x388 OnPlayerDeath, +0x38C OnPlayerDying, +0x390
+// OnPlayerRespawn) and runs the script: RunEventScript(9 / 10 / 11), its
+// result unused (D, 0x47CF74..0x47D0C1).
+constexpr const char* kCreatureDoDamage = "?DoDamage@CNWSCreature@@UEAAXH@Z";
+constexpr const char* kModuleRunEventScript = "?RunEventScript@CNWSModule@@QEAAHHPEAVCExoString@@@Z";
+constexpr int kModuleEventPlayerDeath = 9;
+constexpr int kModuleEventPlayerDying = 10;
+constexpr int kModuleEventPlayerRespawn = 11;
+constexpr size_t kModuleLastPlayerDied = 0x388;
+constexpr size_t kModuleLastPlayerDying = 0x38c;
+constexpr size_t kModuleLastRespawner = 0x390;
+constexpr int kHitPointsDead = -10;
 // Phase 5a: the HUD's Short Rest button (hud_rest.cpp). The buttons under the
 // portrait belong to CPanelPartyBar (vtable slot 11 = its per-frame Update;
 // built in code: SetModel + AddToPanel on pnl_party_bar.mdl's hooks); each is

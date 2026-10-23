@@ -83,6 +83,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.finesse = ReadVariant(ini, L"finesse", g_config.mode);
   g_config.rests = ReadVariant(ini, L"rests", g_config.mode);
   g_config.rest_clock = ReadBool(ini, L"rest_clock", g_config.rest_clock);
+  g_config.dying = ReadVariant(ini, L"dying", g_config.mode);
   g_config.short_rest_vfx = GetPrivateProfileIntW(L"rules", L"short_rest_vfx", g_config.short_rest_vfx, ini);
   g_config.short_rest_vfx_scale =
       GetPrivateProfileIntW(L"rules", L"short_rest_vfx_scale", g_config.short_rest_vfx_scale, ini);
@@ -126,12 +127,12 @@ void ConfigLoad(const wchar_t* directory) {
       VariantName(g_config.initiative), VariantName(g_config.nwn_only_skills));
   Log("config: progression=%s multiclass=%s alignment=%s hit_points=%s feat_cadence=%s ability_scores=%s "
       "class_features=%s species=%s feats=%s starting_equipment=%s size=%s finesse=%s rests=%s rest_clock=%d "
-      "served_data=%d",
+      "dying=%s served_data=%d",
       VariantName(g_config.progression), VariantName(g_config.multiclass), VariantName(g_config.alignment),
       VariantName(g_config.hit_points), VariantName(g_config.feat_cadence), VariantName(g_config.ability_scores),
       VariantName(g_config.class_features), VariantName(g_config.species), VariantName(g_config.feats),
       VariantName(g_config.starting_equipment), VariantName(g_config.size), VariantName(g_config.finesse),
-      VariantName(g_config.rests), g_config.rest_clock, g_config.served_data);
+      VariantName(g_config.rests), g_config.rest_clock, VariantName(g_config.dying), g_config.served_data);
   if (g_config.perception == rules::RuleVariant::kFaithful) {
     Log("config: hiding_needs_15=%d found_up_close=%d alert_creatures_search=%d", g_config.hiding_needs_15,
         g_config.found_up_close, g_config.alert_creatures_search);
