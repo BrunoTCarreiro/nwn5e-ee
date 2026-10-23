@@ -856,7 +856,13 @@ Short Rest (the Rest model and art for now, tooltip 16000438) and Spellbook
 moves to the dead Player List place (its art via the model's ReplaceTexture,
 tooltip 7038, click), converted in CPanelPartyBar::Update (slot 11) once
 per bar, greyed with Rest. A click is taken at the player's next server
-update. Not built yet: an original Short Rest icon.
+update. The icon: the owner's own n5_but_srest.tga (private layer, 0.18.1); the
+visual: short_rest_vfx (0.18.2; 221 Lesser Restoration's by default, 0.18.4).
+*5a verified (owner, 2026-10-23: "5a is all checked and correct, just wasn't
+able to check H8 and H9"): the button, Short Rests (refused mid-fight, Hit
+Dice running out), Second Wind back, the Long Rest (every Hit Die back, all
+or nothing). Not checked: a henchman resting along (H8), the button greyed
+with Rest (H9).*
 
 ## Phase 2 — skills and checks: decided by the owner (2026-10-19)
 
