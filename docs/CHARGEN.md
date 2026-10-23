@@ -550,10 +550,17 @@ base-class player packages set PlayerClass 0, and classes.2da's Package
 (Recommended) pointing at the 2024 one — all as `.if_kits` rows, which the
 loader serves only when the rule asks (new: conditional rows), so NWN mode's
 tables stay NWN's. Skill preferences wait for C5.
-**To revisit (owner, 2026-10-21): the starting items, for game balance** —
-a package item comes as its blueprint's stack (50 Throwing Axes for 8
-javelins, 99 Arrows for 20), the 2024 gold is far below NWN's (4-28 gold
-against 20-100), and NWN's starting healing potions are gone.
+**Revisited (owner, 2026-10-23; 0.17.4) for game balance**: "for a videogame
+with no ammo recovery, I think just give full stacks" (50 Throwing Axes, 99
+Arrows - the Soldier background's arrows too); "keep NWN's gold" - each
+build's gold is its class's default NWN package's (Barbarian and Monk 20;
+Druid, Fighter, Paladin, Ranger 50; Cleric, Sorcerer, Wizard 75; Bard,
+Rogue 100) and the background adds none (rules::BackgroundKit2024 keeps the
+2024 GP, not given); and every kit has NWN's three Potions of Cure Light
+Wounds ("the tutorial having some combat healing potions are required as
+there's no place to buy them before combat happens"). The builds'
+descriptions and the Builds page's help say so. The 2024 alternative of gold
+instead of the kit (50-155 GP) was offered and not taken.
 0.9.1 (owner's C2 test: a Sage Wizard had two robes, two quarterstaves and
 two daggers): the background's kit skips an item the character already
 carries or wears (by blueprint), and the kits give one dagger or handaxe

@@ -16,9 +16,13 @@ SRD 5.2 kits (option A), mapped to NWN items: packs become a Torch; flavour
 items with no NWN counterpart (instruments, holy symbols, arcane and druidic
 foci, spellbook, books, parchment) are left out; NWN has no javelin, so
 javelins are Throwing Axes (d6); the kits' several daggers or handaxes
-(spares to throw: the game can't throw them) are one (owner, 2026-10-21). A
-package item comes as its blueprint's stack (50 throwing axes, 99 arrows) —
-to revisit with the starting items' balance (owner, 2026-10-21).
+(spares to throw: the game can't throw them) are one (owner, 2026-10-21).
+Balance (owner, 2026-10-23): a package item comes as its blueprint's full
+stack (50 throwing axes, 99 arrows: "for a videogame with no ammo recovery,
+I think just give full stacks"); the gold is NWN's - the class's default NWN
+package's ("keep NWN's gold"); and each kit has NWN's three Potions of Cure
+Light Wounds ("the tutorial having some combat healing potions are required
+as there's no place to buy them before combat happens").
 
 Run from the repo root:  python tools/data/kits.py
 """
@@ -31,6 +35,9 @@ ARMOR_CHAINMAIL = 'nw_aarcl004'
 ARMOR_CHAIN_SHIRT = 'nw_aarcl012'
 SHIELD = 'nw_ashlw001'  # Large Shield: +2 AC like the 2024 Shield
 TORCH = 'nw_it_torch001'
+POTIONS = ['nw_it_mpotion001'] * 3  # NWN's starting Potions of Cure Light Wounds (every class)
+# The gold of each class's default NWN package (packages.2da Gold), by class id.
+NWN_GOLD = {0: 20, 1: 100, 2: 75, 3: 50, 4: 50, 5: 20, 6: 50, 7: 50, 8: 100, 9: 75, 10: 75}
 
 # kit, package row, label, name strref, class id, attribute, gold, school,
 # domain1, domain2, associate, spell / feat / skill preference tables
@@ -77,7 +84,7 @@ def main():
     files = os.path.join('data', 'files')
     rows = os.path.join('data', 'rows')
     for kit in KITS:
-        name, items = kit[0], kit[-1]
+        name, items = kit[0], kit[-1] + POTIONS
         lines = ['2DA V2.0', '', '   Label'] + [f'{i}  {item.upper()}' for i, item in enumerate(items)]
         with open(os.path.join(files, f'packeq5e_{name}.2da'), 'w', encoding='ascii', newline='\r\n') as f:
             f.write('\n'.join(lines) + '\n')
@@ -88,8 +95,9 @@ def main():
         'SkillPref2DA Equip2DA Soundset PlayerClass',
     ]
     body = []
-    for (name, row, label, strref, class_id, attribute, gold, school, domain1, domain2, associate, spells, feats,
-         skills, _items) in KITS:
+    for (name, row, label, strref, class_id, attribute, _gold_2024, school, domain1, domain2, associate, spells,
+         feats, skills, _items) in KITS:
+        gold = NWN_GOLD[class_id]  # the owner's balance: NWN's gold, not the kit's 2024 GP (kept above for reference)
         body.append(f'{row} {label} {strref} {strref + 1} {class_id} {attribute} {gold} {school} {domain1} {domain2} '
                     f'{associate} {spells} {feats} {skills} packeq5e_{name} 0 1')
     hidden = ['# NWN\'s base-class player packages: kept, but not offered to players in 2024 mode.', 'PlayerClass']

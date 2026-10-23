@@ -8,9 +8,14 @@
 // enters, its background's kit is added (rules::BackgroundKit2024), with the
 // background (rules_abilities.cpp).
 //
-// Owner (2026-10-21): revisit the starting items later for game balance
-// (stack sizes — 50 throwing axes for 8 javelins, 99 arrows for 20 — and
-// NWN's starting healing potions, left out as the 2024 kits have none).
+// Balance (owner, 2026-10-23), the 2024 kits kept but: full stacks ("for a
+// videogame with no ammo recovery, I think just give full stacks"), NWN's
+// gold - the class build's, the class's default NWN package's; the
+// background adds none ("keep NWN's gold") - and NWN's three Potions of Cure
+// Light Wounds in every class kit ("the tutorial having some combat healing
+// potions are required as there's no place to buy them before combat
+// happens"). rules::BackgroundKit2024 stays the 2024 data.
+constexpr int kFullAmmunitionStack = 99;  // arrows, bolts, bullets: the base items' stack
 
 #include <stdio.h>
 
@@ -36,7 +41,7 @@ void InstallStartingEquipment() {
 void GiveBackgroundKit(uint32_t creature_id, rules::Background background) {
   if (g_config.starting_equipment != rules::RuleVariant::kFaithful) return;
   const rules::BackgroundKit kit = rules::BackgroundKit2024(background);
-  if (kit.items.empty() && kit.gold == 0) return;
+  if (kit.items.empty()) return;
   std::string code = "object o = OBJECT_SELF; object it; int has; int slot;";
   std::string given;
   for (const rules::KitItem& item : kit.items) {
@@ -49,16 +54,18 @@ void GiveBackgroundKit(uint32_t creature_id, rules::Background background) {
               item.blueprint, item.blueprint);
     code += line;
     const int creates = item.one_stack ? 1 : item.count;
+    const int stack = item.one_stack ? kFullAmmunitionStack : 1;  // full stacks (no ammunition recovery)
     for (int i = 0; i < creates; ++i) {
-      sprintf_s(line, " CreateItemOnObject(\"%s\", o, %d);", item.blueprint, item.one_stack ? item.count : 1);
+      sprintf_s(line, " CreateItemOnObject(\"%s\", o, %d);", item.blueprint, stack);
       code += line;
     }
     code += " }";
-    sprintf_s(line, "%s%s x%d", given.empty() ? "" : ", ", item.blueprint, item.count);
+    sprintf_s(line, "%s%s x%d", given.empty() ? "" : ", ", item.blueprint, item.one_stack ? stack : item.count);
     given += line;
   }
-  if (kit.gold > 0) code += " GiveGoldToCreature(o, " + std::to_string(kit.gold) + ");";
+  // No gold: the starting gold is NWN's, the class build's (the kit's 2024 GP: kit.gold, not given).
   const int result = RunScriptChunk(code.c_str(), creature_id);
-  Log("starting equipment: 0x%08X the %s background's kit - %s (each unless already had), %d gold (script %d)",
+  Log("starting equipment: 0x%08X the %s background's kit - %s (each unless already had; its %d GP not given: NWN's "
+      "gold) (script %d)",
       creature_id, rules::BackgroundData(background)->name, given.c_str(), kit.gold, result);
 }
