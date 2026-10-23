@@ -44,6 +44,9 @@ int NuiToken(uint32_t player, const char* window_id);
 // Sets a string bind of an open window.
 void NuiSetText(uint32_t player, const char* window_id, const char* bind, const std::string& text);
 
+// Sets a bind of an open window to a JSON value (an array, a number...).
+void NuiSetJson(uint32_t player, const char* window_id, const char* bind, const std::string& json);
+
 // Closes the window a tick later (safe from inside its own events).
 void NuiClose(uint32_t player, const char* window_id);
 
@@ -59,6 +62,11 @@ std::string Label(const std::string& value, float height = 0.0f);
 std::string Text(const std::string& value, float height = 0.0f);
 std::string Button(const char* id, const std::string& label, float width = 0.0f);
 std::string Spacer();
+// A list view (nw_inc_nui's NuiList): `cells` the row template's cells (Cell,
+// joined with commas), each element's binds arrays of `row_count` entries; a
+// click on a row's element reports its array_index.
+std::string ListView(const std::string& cells, const std::string& row_count, float row_height);
+std::string Cell(const std::string& element, float width, bool variable);
 std::string Window(const std::string& root, const std::string& title, float x, float y, float w, float h,
                    bool closable = true);
 }  // namespace nui

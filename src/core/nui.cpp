@@ -106,6 +106,14 @@ void NuiSetText(uint32_t player, const char* window_id, const char* bind, const 
   RunScriptChunk(code.c_str(), player);
 }
 
+void NuiSetJson(uint32_t player, const char* window_id, const char* bind, const std::string& json) {
+  const int token = NuiToken(player, window_id);
+  if (!token) return;
+  const std::string code = "NuiSetBind(OBJECT_SELF, " + std::to_string(token) + ", " + ScriptString(bind) +
+                           ", JsonParse(" + ScriptString(json) + "));";
+  RunScriptChunk(code.c_str(), player);
+}
+
 void NuiClose(uint32_t player, const char* window_id) {
   void* creature = CreatureById(player);
   const int token = NuiToken(player, window_id);
@@ -174,6 +182,20 @@ std::string Button(const char* id, const std::string& label, float width) {
 }
 
 std::string Spacer() { return Element("spacer", "null", "null", ""); }
+
+std::string ListView(const std::string& cells, const std::string& row_count, float row_height) {
+  char height[48];
+  sprintf_s(height, ",\"row_height\":%.1f", row_height);
+  return Element("list", "null", "null",
+                 ",\"row_template\":[" + cells + "],\"row_count\":" + row_count + height +
+                     ",\"border\":true,\"scrollbars\":2");
+}
+
+std::string Cell(const std::string& element, float width, bool variable) {
+  char rest[48];
+  sprintf_s(rest, ",%.1f,%s]", width, variable ? "true" : "false");
+  return "[" + element + rest;
+}
 
 std::string Window(const std::string& root, const std::string& title, float x, float y, float w, float h,
                    bool closable) {
