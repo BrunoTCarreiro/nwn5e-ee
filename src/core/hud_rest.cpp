@@ -14,6 +14,11 @@
 // has bound the bar's clicks), once per bar - the marker is our click on the
 // Spellbook's place. A click hands the Short Rest to the server side
 // (rules_rest.cpp) for the player's next update.
+// The icon: the owner's own art when nwn5e serves n5_but_srest.tga (64 x 64,
+// the Rest button's three plates - normal, highlighted, disabled - in the
+// same places; data\files, or the private layer's if it reuses the game's
+// art), put on the button's model in place of PB_BUT_REST; else the Rest
+// button's eye.
 
 #include <windows.h>
 
@@ -74,11 +79,14 @@ void Convert(void* bar) {
   // The Spellbook's place becomes Short Rest.
   g_set_model(spell, "PB_BUT_REST");
   g_add_to_panel(spell, bar, "SpellButton");
+  const bool own_icon = ServedFileExists(L"n5_but_srest.tga") || ServedFileExists(L"n5_but_srest.dds");
+  if (own_icon) ReplaceTexture(spell, "PB_BUT_REST", "N5_BUT_SREST");
   SetField<uint32_t>(spell, ee::kButtonTooltip, kStrShortRest);
   SetField<uint16_t>(spell, ee::kPartyBarButtonFeedback, ee::kFeedbackCantRest);
   SetField<void*>(spell, ee::kButtonClickObject, bar);
   SetField<void*>(spell, ee::kButtonClickFunction, reinterpret_cast<void*>(&ShortRestClicked));
-  Log("hud: the Short Rest button is right of Rest (Spellbook moved to the Player List's place)");
+  Log("hud: the Short Rest button is right of Rest (Spellbook moved to the Player List's place; icon: %s)",
+      own_icon ? "n5_but_srest" : "the Rest button's");
 }
 
 void PartyBarUpdate(void* bar, float seconds) {

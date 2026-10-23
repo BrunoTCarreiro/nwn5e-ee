@@ -25,6 +25,10 @@ void InstallDataServing(const wchar_t* dll_directory);
 // resource manager yet, no such table or column).
 std::vector<std::string> GameTableColumn(const char* table, const char* column);
 
+// Whether nwn5e serves a file of this name (data\files, the private layer's
+// files: copied whole into <dll>\served at start).
+bool ServedFileExists(const wchar_t* name);
+
 // The text for a private string id, or nullptr.
 const char* DataString(uint32_t strref);
 bool HaveDataStrings();

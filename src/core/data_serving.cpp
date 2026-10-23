@@ -386,3 +386,9 @@ void ServeSkillsPageLayout() { g_serve_skills_layout = true; }
 void ServeConditionalRows(const char* flag) { g_row_flags.insert(flag); }
 
 bool HaveDataStrings() { return !g_strings.empty(); }
+
+bool ServedFileExists(const wchar_t* name) {
+  if (g_dll.empty() || !name) return false;
+  const DWORD attributes = GetFileAttributesW((g_dll + L"\\served\\" + name).c_str());
+  return attributes != INVALID_FILE_ATTRIBUTES && !(attributes & FILE_ATTRIBUTE_DIRECTORY);
+}
