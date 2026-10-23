@@ -9,9 +9,9 @@
 //   3 failures dead (the module's death panel and respawn). Damage at 0 HP is a
 //   failure, two from a critical hit; damage past 0 - or taken at 0 - of at
 //   least the HP maximum kills outright. It wakes at 1 HP when the fight is
-//   over - no living enemy within 30 m that can see it or one of its henchmen
-//   (the Short Rest's "in combat") - and dies when no henchman is left
-//   standing, Stable or not. Any healing wakes it (the engine's own revive).
+//   over (FightWatch: no living enemy within 30 m for a round, 6 s) and dies
+//   when no henchman is left standing, Stable or not. Any healing wakes it
+//   (the engine's own revive).
 //   Without a henchman: NWN's (the module's OnPlayerDying).
 // - D2 Henchmen, SoU's handling in every campaign: at 0 HP a player's
 //   henchman lies at 1 HP - plot, the looping dead animation, uncommandable -
@@ -78,6 +78,8 @@ constexpr uint64_t kRetryMs = 3000;             // a heal or a death on its way 
 constexpr uint64_t kSummonDelayMs = 4000;       // after a respawn: the campaign's own jump (HotU's: 2 s) first
 constexpr uint64_t kSummonGiveUpMs = 60000;
 constexpr uint64_t kUpkeepMs = 2000;
+constexpr uint64_t kFightOverMs = 6000;    // no enemy within 30 m for a round
+constexpr uint64_t kUnengagedMs = 12000;   // enemies near, none in touch with the party
 constexpr int kUpkeepsPerExhaustionCheck = 3;
 constexpr int kMaxHenchmen = 16;
 
@@ -91,8 +93,24 @@ RunEventScriptFn g_run_event_script = nullptr;
 AssociateIdFn g_associate_id = nullptr;
 MaxHitPointsFn g_max_hit_points = nullptr;
 
+// The fight around someone down (owner, 2026-10-23: "no living hostile within
+// 30 m"). It goes on while a living enemy is within 30 m, and is over after a
+// round (6 s) with none - so one still closing in, or not yet spotted, keeps it
+// going (0.19.1 woke a player 36 ms after the drop: the enemy coming had not
+// seen anyone yet). Enemies near that never touch the party - none sees one of
+// it or is seen - end it after 12 s, so a caged or sleeping monster nearby
+// can't keep anyone down for good. And it goes on while someone of the party
+// still up is attacking a living creature, however far (owner, 2026-10-23: "a
+// good check is 'if the henchman is actively fighting' as well").
+struct FightWatch {
+  uint64_t last_near = 0;
+  uint64_t last_engaged = 0;
+  void Start(uint64_t now) { last_near = last_engaged = now; }
+};
+
 struct DownPlayer {
   rules::DeathSaves saves;
+  FightWatch fight;
   void* area = nullptr;
   uint64_t last_tick = 0;
   uint64_t elapsed_ms = 0;
@@ -101,6 +119,7 @@ struct DownPlayer {
 };
 struct DownHenchman {
   bool laid_down = false;
+  FightWatch fight;
 };
 struct PlayerUpkeep {
   uint64_t next = 0;
@@ -167,33 +186,94 @@ int StandingHenchmen(void* player) {
   return standing;
 }
 
-// The fight goes on around `center` while a living enemy within 30 m of it can
-// see the player or one of the player's henchmen.
+// The living enemies within 30 m of `center`, and whether one of them is in
+// touch with the party (the player and its henchmen): it sees one, or one sees it.
+struct FightScan {
+  int enemies = 0;  // living enemies within 30 m
+  bool engaged = false;
+  uint32_t nearest = 0;
+  float nearest_distance = 0.0f;
+  uint32_t fighter = 0;  // a party member still up attacking a living creature
+  uint32_t fighting = 0; // its target
+};
+
+// Someone of the party (not `center`) up and attacking a living creature: its
+// attack target (GetAttackTarget's field), alive and in its sight. Down
+// henchmen and the dead keep a stale target, so they don't count; nor does a
+// target that fled out of sight (the field may outlive the attack).
+void LookForFighter(FightScan& scan, uint32_t center_id, uint32_t id, void* member) {
+  if (scan.fighter || id == center_id || !member || engine::IsDeadOrDying(member) || HitPoints(member) < 1) return;
+  if (!IsPlayer(member) && IsDownHenchman(id, member)) return;
+  const uint32_t target_id = Field<uint32_t>(member, ee::kCreatureAttackTarget);
+  if (!target_id || target_id == ee::kObjectInvalid) return;
+  void* target = CreatureById(target_id);
+  if (!target || engine::IsDeadOrDying(target) || !engine::Sees(member, target_id)) return;
+  scan.fighter = id;
+  scan.fighting = target_id;
+}
+
 struct FightSearch {
   void* center;
-  const std::vector<uint32_t>* party;
-  uint32_t found;
+  uint32_t center_id;
+  std::vector<std::pair<uint32_t, void*>> party;
+  FightScan scan;
 };
 
 void LookForFight(void* context, uint32_t id, void* other) {
   auto* search = static_cast<FightSearch*>(context);
-  if (search->found || !other || engine::IsDeadOrDying(other)) return;
-  if (!engine::IsEnemy(search->center, id)) return;
-  if (engine::EdgeDistance(search->center, other) > kFightRange) return;
-  for (uint32_t member : *search->party) {
-    if (engine::Sees(other, member)) {
-      search->found = id;
+  if (!other || engine::IsDeadOrDying(other)) return;
+  if (!engine::IsEnemy(search->center, id) && !engine::IsEnemy(other, search->center_id)) return;
+  const float distance = engine::EdgeDistance(search->center, other);
+  if (distance > kFightRange) return;
+  FightScan& scan = search->scan;
+  if (!scan.enemies || distance < scan.nearest_distance) {
+    scan.nearest = id;
+    scan.nearest_distance = distance;
+  }
+  ++scan.enemies;
+  if (scan.engaged) return;
+  for (const auto& member : search->party) {
+    if (engine::Sees(other, member.first) || (member.second && engine::Sees(member.second, id))) {
+      scan.engaged = true;
       return;
     }
   }
 }
 
-bool FightGoesOn(void* center, void* player) {
-  std::vector<uint32_t> party = HenchmenOf(player);
-  party.push_back(IdOf(player));
-  FightSearch search{center, &party, 0};
+FightScan ScanFight(void* center, void* player) {
+  FightSearch search{center, IdOf(center), {}, {}};
+  for (uint32_t id : HenchmenOf(player)) search.party.emplace_back(id, CreatureById(id));
+  search.party.emplace_back(IdOf(player), player);
   engine::ForEachOtherCreatureInArea(center, &LookForFight, &search);
-  return search.found != 0;
+  for (const auto& member : search.party) LookForFighter(search.scan, search.center_id, member.first, member.second);
+  return search.scan;
+}
+
+std::string ScanText(const FightScan& scan) {
+  char text[240];
+  if (!scan.enemies) {
+    sprintf_s(text, "no enemy within 30 m");
+  } else {
+    sprintf_s(text, "%d enemies within 30 m (nearest 0x%08X at %.1f m), %s", scan.enemies, scan.nearest,
+              scan.nearest_distance, scan.engaged ? "in touch with the party" : "none in touch with the party");
+  }
+  std::string line = text;
+  if (scan.fighter) {
+    sprintf_s(text, "; 0x%08X is attacking 0x%08X", scan.fighter, scan.fighting);
+    line += text;
+  }
+  return line;
+}
+
+// Watches the fight around `center`; why it is over, or nullptr while it goes on.
+const char* FightOver(void* center, void* player, FightWatch& watch, uint64_t now, FightScan* scan_out) {
+  const FightScan scan = ScanFight(center, player);
+  if (scan.enemies || scan.fighter) watch.last_near = now;
+  if (scan.engaged || scan.fighter) watch.last_engaged = now;
+  if (scan_out) *scan_out = scan;
+  if (now - watch.last_near >= kFightOverMs) return "no enemy within 30 m for 6 s";
+  if (now - watch.last_engaged >= kUnengagedMs) return "the enemies near haven't been in touch with the party for 12 s";
+  return nullptr;
 }
 
 void Kill(uint32_t id) { ApplyEffectAs(id, id, "DURATION_TYPE_INSTANT", "EffectDeath()", 0.0f, 0.0f); }
@@ -370,9 +450,10 @@ bool UpdateDownPlayer(uint32_t id, DownPlayer& state, uint64_t now) {
     state.pending_death = true;
     return true;
   }
-  if (!FightGoesOn(player, player)) {
+  FightScan scan;
+  if (const char* over = FightOver(player, player, state.fight, now, &scan)) {
     Tell(id, "The fight is over - you come to at 1 HP.");
-    Log("dying: 0x%08X the fight is over - wakes", id);
+    Log("dying: 0x%08X the fight is over (%s; now %s) - wakes", id, over, ScanText(scan).c_str());
     Heal(id, 1);
     state.pending_at = now;
     return true;
@@ -434,10 +515,9 @@ bool UpdateDownHenchman(uint32_t id, DownHenchman& state) {
   }
   const uint32_t master_id = PlayerMasterOf(henchman);
   void* master = master_id ? CreatureById(master_id) : nullptr;
-  const char* why = !master                     ? "no longer a player's henchman"
-                    : HitPoints(henchman) > 1   ? "healed"
-                    : !FightGoesOn(henchman, master) ? "the fight is over"
-                                                : nullptr;
+  const char* why = !master                   ? "no longer a player's henchman"
+                    : HitPoints(henchman) > 1 ? "healed"
+                                              : FightOver(henchman, master, state.fight, GetTickCount64(), nullptr);
   if (!why) return true;
   RunScriptChunk(kGetUpScript, id);
   Log("dying: henchman 0x%08X up at %d HP (%s)", id, HitPoints(henchman), why);
@@ -533,10 +613,12 @@ void PlayerDamaged(void* player, int before, int after) {
   DownPlayer state;
   state.area = engine::AreaOf(player);
   state.last_tick = GetTickCount64();
+  state.fight.Start(state.last_tick);
   g_down_players[id] = state;
   g_recent_drops[id] = state.last_tick;
   engine::SetLocalInt(player, kVarDown, 1);
-  Log("dying: 0x%08X drops to 0 HP (%d past 0) - death saves", id, -after);
+  Log("dying: 0x%08X drops to 0 HP (%d past 0) - death saves; %s", id, -after,
+      ScanText(ScanFight(player, player)).c_str());
   Later(id, "You drop to 0 HP and fall unconscious. While a henchman fights on you make a death saving throw every "
             "6 seconds (3 successes: Stable; 3 failures: dead); healing, or the fight's end, wakes you.");
 }
@@ -547,7 +629,9 @@ void HenchmanDamaged(void* henchman) {
   SetHitPoints(henchman, 1);
   const uint32_t id = IdOf(henchman);
   if (g_down_henchmen.count(id)) return;
-  g_down_henchmen[id] = DownHenchman{};
+  DownHenchman state;
+  state.fight.Start(GetTickCount64());
+  g_down_henchmen[id] = state;
   Log("dying: henchman 0x%08X of 0x%08X down at 1 HP", id, master);
 }
 
@@ -609,6 +693,7 @@ void UpkeepPlayer(void* player, uint64_t now) {
       DownPlayer state;
       state.area = engine::AreaOf(player);
       state.last_tick = now;
+      state.fight.Start(now);
       g_down_players[id] = state;
       Log("dying: 0x%08X down (a saved game) - death saves again", id);
     } else {
@@ -618,7 +703,10 @@ void UpkeepPlayer(void* player, uint64_t now) {
   for (uint32_t henchman_id : HenchmenOf(player)) {
     void* henchman = CreatureById(henchman_id);
     if (henchman && !g_down_henchmen.count(henchman_id) && engine::GetLocalInt(henchman, kVarDown)) {
-      g_down_henchmen[henchman_id] = DownHenchman{true};
+      DownHenchman state;
+      state.laid_down = true;
+      state.fight.Start(now);
+      g_down_henchmen[henchman_id] = state;
       Log("dying: henchman 0x%08X down (a saved game)", henchman_id);
     }
   }

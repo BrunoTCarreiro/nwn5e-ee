@@ -885,9 +885,16 @@ movement speed), tagged by level and checked every 6 s. The down states are
 locals too (nwn5e_down), so a saved game picks them up again. `!dying` shows
 the state; with test_commands, `!dying roll <d20>`, `!dying hurt <HP>
 [henchman]`, `!dying exhaustion <level>`. Calls made while building:
-- "The fight is over" = no living enemy within 30 m that can see the player
-  or one of its henchmen (the Short Rest's "in combat"), so an unaware
-  monster behind a wall doesn't keep a player down.
+- "The fight is over" = no living enemy within 30 m for a round (6 s), as
+  decided; enemies near that never touch the party (none sees one of it or
+  is seen) end it after 12 s, so a caged or sleeping monster can't keep
+  anyone down for good. *0.19.2:* 0.19.0 asked for an enemy that could see
+  the party, at once - it woke a player 36 ms after the drop while the enemy
+  coming had not spotted anyone yet (owner, 2026-10-23: "a PC dying during
+  combat gets up immediately"). *0.19.3:* it also goes on while someone of the
+  party still up attacks a living creature, however far (its attack target,
+  GetAttackTarget's field; owner: "a good check is 'if the henchman is
+  actively fighting' as well").
 - A respawn removes Exhaustion like a Long Rest (else a death at level 6
   would come back at 6).
 - Henchmen don't gain Exhaustion (the player character only).
