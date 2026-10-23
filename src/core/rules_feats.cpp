@@ -23,6 +23,7 @@
 #include <stdint.h>
 
 #include <algorithm>
+#include <string>
 #include <vector>
 
 #include "config.h"
@@ -161,6 +162,101 @@ bool FitsThisLevel(void* stats, uint16_t feat, const void* chosen) {
   return rules::FitsBonusPicks(taken, allowed);
 }
 
+// --- The Feats page's title (owner, 2026-10-23: "go with option 1"): this
+// level's picks by kind and what is left - "Origin feat (Human): choose 1;
+// Fighting Style: chosen; Weapon Masteries: 2 more" - as the Skills page's
+// header names its step. The page has no description box (a feat's
+// description is its "?" popup); its title line is the one full-width text.
+std::string FeatPicksLine(void* stats, const void* chosen) {
+  const uint8_t slot = Field<uint8_t>(stats, ee::kClientStatsClassBeingLevelled);
+  if (slot >= ee::kClientStatsClassSlots) return "";
+  const size_t at = slot * ee::kClientStatsClassSlotSize;
+  const auto character_class = rules::ClassFromNwnId(Field<uint8_t>(stats, at + ee::kClientStatsClassSlotClass));
+  const int class_level = Field<uint8_t>(stats, at + ee::kClientStatsClassSlotLevel);
+  if (!character_class) return "";
+  rules::BonusPicks allowed = rules::BonusPicks2024(
+      *character_class, class_level, g_config.class_features == rules::RuleVariant::kFaithful, MasteriesAsFeats());
+  const bool human_first = ClientTotalLevel(stats) == 1 && Field<uint16_t>(stats, ee::kClientStatsRace) == ee::kRaceHuman;
+  if (human_first) allowed.origin = 1;
+  rules::BonusPicks taken;
+  if (chosen) {
+    const auto* feats = Field<const uint16_t*>(chosen, ee::kExoArrayListData);
+    const int count = Field<int32_t>(chosen, ee::kExoArrayListCount);
+    for (int i = 0; feats && i < count && i < 512; ++i) Count(&taken, feats[i]);
+  }
+  // Styles and Origin feats past their own picks took the general one(s).
+  const int overflow = std::max(0, taken.style - allowed.style) + std::max(0, taken.origin - allowed.origin);
+  std::string line;
+  auto part = [&line](const std::string& what, int left, int total) {
+    if (total <= 0) return;
+    line += (line.empty() ? "" : "; ") + what + ": ";
+    if (left <= 0) {
+      line += "chosen";
+    } else if (total == 1) {
+      line += "choose 1";
+    } else {
+      line += std::to_string(left) + (left == total ? " to choose" : " more");
+    }
+  };
+  part(human_first ? "Origin feat (Human)" : "Origin feat", allowed.origin - taken.origin, allowed.origin);
+  part("Fighting Style", allowed.style - taken.style, allowed.style);
+  part("Weapon Masteries", allowed.mastery - taken.mastery, allowed.mastery);
+  part("Ability Score Improvement or a feat", allowed.general - taken.general - overflow, allowed.general);
+  return line.empty() ? "No feat choices at this level" : line;
+}
+
+using FeatsPageFn = void (*)(void* page, void* a2, void* a3, void* a4);
+using GetCreatureFn = void* (*)(uint32_t id);
+using SetTextFn = void (*)(void* wrapper, const void* exo_string);
+using ExoStringFn = void (*)(void* exo_string, const char* text);
+using ExoStringDestroyFn = void (*)(void* exo_string);
+FeatsPageFn g_build_feat_list = nullptr;
+GetCreatureFn g_get_client_creature = nullptr;
+SetTextFn g_set_wrapper_text = nullptr;
+ExoStringFn g_make_exo_string = nullptr;
+ExoStringDestroyFn g_destroy_exo_string = nullptr;
+
+void BuildFeatList(void* page, void* a2, void* a3, void* a4) {
+  g_build_feat_list(page, a2, a3, a4);
+  void* creature = g_get_client_creature(Field<uint32_t>(page, ee::kFeatsPageCreature));
+  void* stats = creature ? Field<void*>(creature, ee::kClientCreatureStats) : nullptr;
+  if (!stats) return;
+  const std::string line = FeatPicksLine(stats, static_cast<uint8_t*>(page) + ee::kFeatsPageChosen);
+  if (line.empty()) return;
+  alignas(16) uint8_t exo[32] = {};  // CExoString: the engine owns its buffer
+  g_make_exo_string(exo, line.c_str());
+  g_set_wrapper_text(static_cast<uint8_t*>(page) + ee::kFeatsPageTitleText, exo);
+  g_destroy_exo_string(exo);
+}
+
+// The list builder: the Feats page's init (vtable slot 12) jumps to it last.
+void InstallFeatsPageTitle() {
+  const uintptr_t vtable = FindVtable("feats page: its vtable", ee::kRttiFeatsPage);
+  const uintptr_t init = vtable ? VtableSlot(vtable, ee::kVtablePageInit) : 0;
+  const CodeRange init_code = init ? FunctionAt(init) : CodeRange();
+  const uintptr_t jump = init ? FindPatternIn("feats page: its init's last jump", init_code, ee::kFeatsInitTailJump) : 0;
+  const uintptr_t at = jump ? jump + ee::kFeatsInitTailJumpAt : 0;
+  const uintptr_t build = at && *reinterpret_cast<const uint8_t*>(at) == 0xe9
+                              ? at + 5 + *reinterpret_cast<const int32_t*>(at + 1)
+                              : 0;
+  const uintptr_t creature_call =
+      init ? FindPatternIn("feats page: its init's GetCreature", init_code, ee::kFeatsInitGetCreature) : 0;
+  g_get_client_creature =
+      reinterpret_cast<GetCreatureFn>(creature_call ? CallTarget(creature_call + ee::kFeatsInitGetCreatureAt) : 0);
+  g_set_wrapper_text = reinterpret_cast<SetTextFn>(EngineExport(ee::kStringWrapperSetText));
+  g_make_exo_string = reinterpret_cast<ExoStringFn>(EngineExport(ee::kExoStringFromChars));
+  g_destroy_exo_string = reinterpret_cast<ExoStringDestroyFn>(EngineExport(ee::kExoStringDestructor));
+  if (!build || FunctionEntry(build) != build || !g_get_client_creature || !g_set_wrapper_text || !g_make_exo_string ||
+      !g_destroy_exo_string) {
+    Log("SKIP feats: the Feats page's title line - an anchor is missing (it stays \"Select Feats\")");
+    return;
+  }
+  const auto base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+  Log("feats: the Feats page's list builder at rva 0x%zx - its title names this level's picks", build - base);
+  HookAddress("client Feats page list (its title: this level's picks)", build, reinterpret_cast<void*>(&BuildFeatList),
+              reinterpret_cast<void**>(&g_build_feat_list));
+}
+
 int CanChooseFeat(void* level_up_stats, uint16_t feat, uint8_t general_left, uint8_t bonus_left, void* chosen) {
   if (!g_told) {
     g_told = true;
@@ -215,4 +311,5 @@ void InstallFeatRules() {
   Log("feats: the client's CanChooseFeat at rva 0x%zx", can_choose - base);
   HookAddress("CNWCLevelUpStats::CanChooseFeat (feats: only the 2024 feats offered)", can_choose,
               reinterpret_cast<void*>(&CanChooseFeat), reinterpret_cast<void**>(&g_can_choose_feat));
+  InstallFeatsPageTitle();
 }

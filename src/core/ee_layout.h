@@ -882,6 +882,19 @@ constexpr const char* kRttiCharGenRadioButton = ".?AVCGuiCharGenRadioButton@@";
 // The server reads the same flags (SaveClassInfo writes School only when
 // PickSchool is set): change them only for the length of one call.
 constexpr const char* kRttiFeatsPage = ".?AVCCharacterFeatsPanel@@";
+// The Feats page (0x1240 bytes): its creature id +0xF8, the feats chosen at
+// this level (the CExoArrayList<uint16> its list builder hands CanChooseFeat)
+// +0x1230, its Title label +0xB30 (text +0x80: +0xBB0). Its init (vtable
+// slot 12) ends in a jump to the list builder (BuildFeatList, 0x9c6540), which
+// every add, remove, Recommended and Reset calls again; the init's
+// GetCreature call is the one after `mov ecx,[rdi+0xF8]`.
+constexpr size_t kFeatsPageCreature = 0xf8;
+constexpr size_t kFeatsPageChosen = 0x1230;
+constexpr size_t kFeatsPageTitleText = 0xbb0;
+constexpr const char* kFeatsInitTailJump = "48 8B CF 48 8B 5C 24 60 48 8B 74 24 68 48 83 C4 50 5F E9";
+constexpr size_t kFeatsInitTailJumpAt = 18;  // the E9
+constexpr const char* kFeatsInitGetCreature = "8B 8F F8 00 00 00 E8";
+constexpr size_t kFeatsInitGetCreatureAt = 6;  // the E8
 constexpr const char* kRttiSchoolsPage = ".?AVCCharacterSchoolsPanel@@";
 constexpr const char* kNextPagePickSchoolTest = "83 BB F8 04 00 00 00";
 constexpr size_t kClassPickDomains = 0x4f4;

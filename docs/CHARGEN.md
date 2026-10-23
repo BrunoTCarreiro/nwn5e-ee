@@ -846,6 +846,20 @@ now come on the Skills page, opened again after the Feats page:
   need nothing: their 2024 skills are read from their ranks within their
   choices (Skilled counted).
 
+*0.17.2 (owner, 2026-10-23: "go with option 1 for the Feats page").* The
+Feats page has no description box (a feat's description is its "?" popup)
+and its buttons fill their row, so its title line names this level's picks
+by kind and what is left, as the Skills page's header names its step:
+"Origin feat (Human): choose 1; Fighting Style: chosen; Weapon Masteries: 2
+more" - Origin feat (a Human's Versatile pick at level 1), Fighting Style,
+Weapon Masteries, "Ability Score Improvement or a feat" (the general pick;
+an Origin feat or a style past its own pick counts there), "No feat choices
+at this level". It is written after every run of the page's list builder
+(0x9c6540: the page's init ends by jumping to it; add, remove, Recommended
+and Reset call it), from the client's 2024 bonus picks (rules::BonusPicks2024,
+as the feat filter counts them) and the feats chosen at this level (the
+page's +0x1230). Taking Skilled now reads "Origin feat (Human): chosen".
+
 *0.17.1 (owner's C8 tests, 2026-10-23: "S6 / Feats page has an empty list to
 choose from", "S7 / No chat message").* The Origin feats (Alert, Savage
 Attacker, Skilled and its repeats) sat in every class's feat list as List 2
