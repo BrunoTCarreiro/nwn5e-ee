@@ -828,6 +828,11 @@ Decisions (faithful; NWN mode keeps NWN's rest and the module's dying):
   outright. When the fight ends (no living hostile within 30 m) it wakes at
   1 HP, saves done or Stable; when every henchman with it is down or dead, it
   dies. **Without a henchman**: NWN's (the campaigns' instant death).
+  *Confirmed (owner, 2026-10-23), asked whether a standing henchman should
+  hold off massive damage or the death panel: "option 1, there have to be
+  some failure states" - massive damage and a third failure kill at once,
+  the panel straight away; only "no henchman left standing" waits for the
+  fight.*
 - **D2 Henchmen**: SoU's handling in every campaign - at 0 HP a henchman lies
   at 1 HP, uncommandable, and gets up when healed or when the fight ends.
   *Revised (owner, 2026-10-23, 0.19.4): "do not use that for henchmen, the
