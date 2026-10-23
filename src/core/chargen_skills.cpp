@@ -543,10 +543,14 @@ const char* ClassName(rules::CharacterClass c) {
   return kNames[static_cast<int>(c)];
 }
 
-std::string SpeciesLine() {
-  if (g_level.skills.species_any_skill) return "Human (Skillful): 1 skill of any kind";
-  if (g_level.skills.species_list) return "Elf (Keen Senses): Insight, Perception or Survival";
-  return "";
+// The species step's header, as the class step's names its picks (owner,
+// 2026-10-23: "Human (Skillful): 1 skill of any kind: choose it" read oddly).
+std::string SpeciesHeader(bool left) {
+  const bool human = g_level.skills.species_any_skill;
+  if (!human && !g_level.skills.species_list) return "";
+  const std::string header = human ? "Human (Skillful): " : "Elf (Keen Senses): ";
+  if (!left) return header + "chosen";
+  return header + (human ? "choose 1 skill of any kind" : "choose Insight, Perception or Survival");
 }
 
 std::string Count(int n, const char* what) { return std::to_string(n) + " " + what + (n == 1 ? "" : "s"); }
@@ -645,7 +649,7 @@ void ShowTexts(void* page, void* stats, Step step, bool help_too) {
       header = cls + " skills: " + more;
       break;
     case Step::kSpecies:
-      header = SpeciesLine() + (left ? ": choose it" : ": chosen");
+      header = SpeciesHeader(left > 0);
       break;
     case Step::kExpertise:
       header = "Expertise: " + more;

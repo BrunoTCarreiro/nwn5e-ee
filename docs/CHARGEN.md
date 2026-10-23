@@ -846,6 +846,12 @@ now come on the Skills page, opened again after the Feats page:
   need nothing: their 2024 skills are read from their ranks within their
   choices (Skilled counted).
 
+*0.17.3 (owner's F1, 2026-10-23: the Skills page's "Human (Skillful): 1
+skill of any kind: choose it" read oddly).* The species step's header reads as
+the class step's: "Human (Skillful): choose 1 skill of any kind", "Elf (Keen
+Senses): choose Insight, Perception or Survival", then "...: chosen". The
+Feats page's title line (0.17.2) passed.
+
 *0.17.2 (owner, 2026-10-23: "go with option 1 for the Feats page").* The
 Feats page has no description box (a feat's description is its "?" popup)
 and its buttons fill their row, so its title line names this level's picks
