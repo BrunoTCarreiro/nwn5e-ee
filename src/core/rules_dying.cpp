@@ -15,9 +15,11 @@
 //   Without a henchman: NWN's (the module's OnPlayerDying).
 // - D2 Henchmen, SoU's handling in every campaign: at 0 HP a player's
 //   henchman lies at 1 HP - plot, the looping dead animation, uncommandable -
-//   and gets up when healed above 1 HP or when its fight is over. The
-//   campaign's OnDeath (OC's temple, HotU's corpse) no longer runs for damage;
-//   death magic still kills.
+//   and gets up only when healed above 1 HP: a spell, a healer's kit, a Short
+//   Rest (its Hit Dice) - the player gets it up after the fight (owner,
+//   2026-10-23: "the player needs to get them up manually after the fight").
+//   The campaign's OnDeath (OC's temple, HotU's corpse) no longer runs for
+//   damage; death magic still kills.
 // - Temple: on respawn (the module's OnPlayerRespawn) every henchman joins the
 //   player at full health once it has landed; a Long Rest in a temple's area
 //   (the campaigns' respawn points NW_DEATH_TEMPLE, NW_DEATH_PLACE,
@@ -99,7 +101,8 @@ MaxHitPointsFn g_max_hit_points = nullptr;
 // going (0.19.1 woke a player 36 ms after the drop: the enemy coming had not
 // seen anyone yet). Enemies near that never touch the party - none sees one of
 // it or is seen - end it after 12 s, so a caged or sleeping monster nearby
-// can't keep anyone down for good. And it goes on while someone of the party
+// can't keep anyone down for good. Players only: a down henchman waits to be
+// healed. And it goes on while someone of the party
 // still up is attacking a living creature, however far (owner, 2026-10-23: "a
 // good check is 'if the henchman is actively fighting' as well").
 struct FightWatch {
@@ -119,7 +122,6 @@ struct DownPlayer {
 };
 struct DownHenchman {
   bool laid_down = false;
-  FightWatch fight;
 };
 struct PlayerUpkeep {
   uint64_t next = 0;
@@ -477,7 +479,7 @@ constexpr const char* kLayDownScript =
     "PlayVoiceChat(VOICE_CHAT_HEALME, OBJECT_SELF);"
     "ActionPlayAnimation(ANIMATION_LOOPING_DEAD_FRONT, 1.0, 100000.0); SetCommandable(FALSE, OBJECT_SELF);"
     "object m = GetMaster(OBJECT_SELF); if (GetIsPC(m)) SendMessageToPC(m, \"nwn5e: \" + GetName(OBJECT_SELF) + "
-    "\" is down - heal them, or they get up when the fight is over.\");";
+    "\" is down - heal them (a spell, a healer's kit) or take a Short Rest after the fight to get them up.\");";
 
 constexpr const char* kGetUpScript =
     "SetCommandable(TRUE, OBJECT_SELF);"
@@ -500,7 +502,8 @@ constexpr const char* kSummonScript =
     "if (GetArea(OBJECT_SELF) != GetArea(pc) || GetDistanceBetween(OBJECT_SELF, pc) > 10.0) JumpToObject(pc);"
     "SendMessageToPC(pc, \"nwn5e: \" + GetName(OBJECT_SELF) + \" joins you at full health.\");";
 
-// One down henchman's pass. False when it is up (or gone).
+// One down henchman's pass. False when it is up (or gone): healed above 1 HP
+// only - the fight's end doesn't get it up.
 bool UpdateDownHenchman(uint32_t id, DownHenchman& state) {
   void* henchman = CreatureById(id);
   if (!henchman) return false;
@@ -515,9 +518,7 @@ bool UpdateDownHenchman(uint32_t id, DownHenchman& state) {
   }
   const uint32_t master_id = PlayerMasterOf(henchman);
   void* master = master_id ? CreatureById(master_id) : nullptr;
-  const char* why = !master                   ? "no longer a player's henchman"
-                    : HitPoints(henchman) > 1 ? "healed"
-                                              : FightOver(henchman, master, state.fight, GetTickCount64(), nullptr);
+  const char* why = !master ? "no longer a player's henchman" : HitPoints(henchman) > 1 ? "healed" : nullptr;
   if (!why) return true;
   RunScriptChunk(kGetUpScript, id);
   Log("dying: henchman 0x%08X up at %d HP (%s)", id, HitPoints(henchman), why);
@@ -629,9 +630,7 @@ void HenchmanDamaged(void* henchman) {
   SetHitPoints(henchman, 1);
   const uint32_t id = IdOf(henchman);
   if (g_down_henchmen.count(id)) return;
-  DownHenchman state;
-  state.fight.Start(GetTickCount64());
-  g_down_henchmen[id] = state;
+  g_down_henchmen[id] = DownHenchman{};
   Log("dying: henchman 0x%08X of 0x%08X down at 1 HP", id, master);
 }
 
@@ -703,10 +702,7 @@ void UpkeepPlayer(void* player, uint64_t now) {
   for (uint32_t henchman_id : HenchmenOf(player)) {
     void* henchman = CreatureById(henchman_id);
     if (henchman && !g_down_henchmen.count(henchman_id) && engine::GetLocalInt(henchman, kVarDown)) {
-      DownHenchman state;
-      state.laid_down = true;
-      state.fight.Start(now);
-      g_down_henchmen[henchman_id] = state;
+      g_down_henchmen[henchman_id] = DownHenchman{true};
       Log("dying: henchman 0x%08X down (a saved game)", henchman_id);
     }
   }

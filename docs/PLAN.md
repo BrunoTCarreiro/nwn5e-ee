@@ -830,6 +830,9 @@ Decisions (faithful; NWN mode keeps NWN's rest and the module's dying):
   dies. **Without a henchman**: NWN's (the campaigns' instant death).
 - **D2 Henchmen**: SoU's handling in every campaign - at 0 HP a henchman lies
   at 1 HP, uncommandable, and gets up when healed or when the fight ends.
+  *Revised (owner, 2026-10-23, 0.19.4): "do not use that for henchmen, the
+  player needs to get them up manually after the fight" - only healing gets
+  them up (a spell, a healer's kit, a Short Rest's Hit Dice).*
 - **Temple**: on respawn the henchmen join the player at the temple at full
   health; and a Long Rest in the temple's area (the campaign's respawn
   waypoint's) summons every henchman who is down or left behind, at full
