@@ -846,6 +846,22 @@ now come on the Skills page, opened again after the Feats page:
   need nothing: their 2024 skills are read from their ranks within their
   choices (Skilled counted).
 
+*0.17.1 (owner's C8 tests, 2026-10-23: "S6 / Feats page has an empty list to
+choose from", "S7 / No chat message").* The Origin feats (Alert, Savage
+Attacker, Skilled and its repeats) sat in every class's feat list as List 2
+(bonus only), and CNWClass::IsNormalFeat answers from a class's list when the
+feat is in it (ALLCLASSESCANUSE only otherwise): a Human's Versatile pick -
+the game's general (normal) pick at level 1 - could take none of them. A
+Human Wizard (no bonus picks at 1) had an empty list (S6); a build taken
+without Configure gave the Human no Origin feat at all, so no Skilled and
+nothing to fill (S7). A Human Fighter's Origin feat took one of its four
+bonus picks instead, leaving room for two of its three Weapon Masteries: the
+game's CanChooseFeat (client 0x7ed040) fits a level's feats in two passes -
+those one kind of pick only first (bonus ones while bonus picks last), then
+the ones either may take. The Origin feats are List 1 now (a bonus or a
+general pick; tools/data/asi_feats.py), so the general pick takes them and
+the bonus picks stay the style's and the masteries'.
+
 *The 2026-10-22 test matrix done (owner: "the !style works, i've tested it
 before, and loading an !exported character also works"): !style swapped
 Archery for Great Weapon Fighting at Fighter 4 (the new help); E3 - a
