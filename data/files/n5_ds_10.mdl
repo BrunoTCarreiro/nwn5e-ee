@@ -82,12 +82,12 @@ node emitter n5_ds_10_pips
   parent n5_ds_10
   sizeStartkey 3
     0 0
-    0.2 0.6
-    0.3 0.6
+    0.2 0.8
+    0.3 0.8
   sizeEndkey 3
     0 0
-    0.2 0.6
-    0.3 0.6
+    0.2 0.8
+    0.3 0.8
 endnode
 doneanim impact n5_ds_10
 
@@ -101,11 +101,11 @@ endnode
 node emitter n5_ds_10_pips
   parent n5_ds_10
   sizeStartkey 2
-    0 0.6
-    1 0.6
+    0 0.8
+    1 0.8
   sizeEndkey 2
-    0 0.6
-    1 0.6
+    0 0.8
+    1 0.8
 endnode
 doneanim duration n5_ds_10
 
@@ -119,10 +119,10 @@ endnode
 node emitter n5_ds_10_pips
   parent n5_ds_10
   sizeStartkey 2
-    0 0.6
+    0 0.8
     0.2 0
   sizeEndkey 2
-    0 0.6
+    0 0.8
     0.2 0
 endnode
 doneanim cessation n5_ds_10

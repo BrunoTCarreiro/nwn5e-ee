@@ -149,7 +149,7 @@ struct Config {
   // while Stable (513 ..._BLUE_WHITE), a flash per roll (199
   // VFX_IMP_HEAD_HOLY a success, 203 VFX_IMP_HEAD_EVIL a failure, 217
   // VFX_IMP_DEATH_L a natural 1, 68 VFX_IMP_HEALING_M a natural 20); and the
-  // death-save marker over it (successes over failures).
+  // death-save marker over it (success bars left, failure bars right).
   int death_save_aura_vfx = 512;
   int death_save_stable_vfx = 513;
   int death_save_success_vfx = 199;

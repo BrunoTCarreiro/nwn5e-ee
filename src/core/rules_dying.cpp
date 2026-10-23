@@ -35,8 +35,10 @@
 // - What the player sees (0.20.0, owner: "some on screen indicator of how many
 //   failures and successes have happened, a vfx while the PC is doing the rolls
 //   and a status icon indicating how many levels of exhaustion"): a marker
-//   over the down player - success pips over failure pips, blue when Stable -
-//   always facing the camera (visualeffects 1560-1569, nwn5e's own models,
+//   over the down player, always facing the camera - an icon with three thin
+//   bars each side, successes left (green, blue when Stable), failures right
+//   (red); the owner's icon is the Pale Master's Bone Skin, half face half
+//   skull, in the private layer (visualeffects 1560-1569, nwn5e's own models,
 //   tools/data/death_save_marker.py); an aura while rolling (red) or Stable
 //   (blue); a flash per roll (success, failure, natural 1, natural 20); and
 //   Exhaustion as one effect-bar icon with its level (effecticons 200-204,

@@ -1,19 +1,31 @@
-"""The death-save marker (Phase 5b, 0.20.0): a sprite over a down player
-character, always facing the camera, showing its death saves - a row of three
-success pips over a row of three failure pips; Stable shows three blue pips.
+"""The death-save marker (Phase 5b): a sprite over a down player character,
+always facing the camera, showing its death saves.
 
-Writes, from nothing of the game's (nwn5e's own art and model text):
-- data/files/n5_ds_<s><f>.mdl and .tga (s successes, f failures, 0-2 each) and
-  n5_ds_st.mdl / .tga (Stable): ASCII effect models with one emitter
-  (update Single, render Normal: one camera-facing particle that lives as long
-  as the effect, like the game's vdr_seen), 1.4 m over the creature's root,
-  growing in, holding, shrinking out;
-- data/rows/visualeffects.txt: rows 1560-1568 (1560 + 3 x successes +
-  failures) and 1569 (Stable), duration effects on the root node.
+Layout (owner, 2026-10-24: "three thin vertical segments on each side, green
+or blue on one side and red on the other ... icon in the middle"): an icon in
+the middle, three thin bars on its left for successes (green; all blue when
+Stable) and three on its right for failures (red), filled from the icon out.
+The owner's icon is the Pale Master's Bone Skin (ife_x2bonesk1: a face on the
+left half, a skull on the right - so successes by the face, failures by the
+skull). It is the game's art, so it goes in the private layer only:
 
-Run from the repo root: python tools/data/death_save_marker.py
+  python tools/data/death_save_marker.py
+      the public build: models, rows and textures with a plain emblem in the
+      middle (nwn5e's own art), in data/files and data/rows;
+  python tools/data/death_save_marker.py --center <icon.tga> --out private/data/files
+      textures only, with that icon in the middle (its near-black background
+      faded out); served after data/files, they replace the public ones.
+
+The models: ASCII effect models with one emitter (update Single, render
+Normal: one camera-facing particle that lives as long as the effect, like the
+game's vdr_seen), 1.4 m over the creature's root, growing in, holding,
+shrinking out. Rows: visualeffects 1560-1568 (1560 + 3 x successes +
+failures) and 1569 (Stable), duration effects on the root node.
+
+Run from the repo root.
 """
 
+import argparse
 import math
 import os
 import struct
@@ -22,20 +34,17 @@ FILES = os.path.join("data", "files")
 ROWS = os.path.join("data", "rows", "visualeffects.txt")
 FIRST_ROW = 1560
 STABLE_ROW = 1569
-SIZE = 64            # texture pixels
-SPRITE_M = 0.6       # sprite width in metres
+SIZE = 128           # texture pixels
+ICON = 64            # the icon's size in the texture (a 32 px icon at 2x)
+SPRITE_M = 0.8       # sprite width in metres
 HEIGHT_M = 1.4       # over the creature's root
 
-BACK = (16, 16, 20, 150)
 SUCCESS = (70, 220, 100)
-FAILURE = (235, 60, 45)
 STABLE = (90, 160, 255)
-EMPTY = (150, 150, 150)
-
-
-def coverage(d, r):
-    """Anti-aliased coverage of a pixel at distance d from a circle's edge r."""
-    return max(0.0, min(1.0, r - d + 0.5))
+FAILURE = (235, 60, 45)
+EMPTY = (55, 55, 62)
+OUTLINE = (0, 0, 0, 210)
+BAR_W, BAR_H, BAR_GAP = 6, 40, 4
 
 
 def over(dst, rgb, a):
@@ -50,27 +59,84 @@ def over(dst, rgb, a):
     return out + (int(round(oa * 255)),)
 
 
-def texture(top, bottom):
-    """top / bottom: three (rgb, filled) pips each."""
+def read_tga(path):
+    """An uncompressed or RLE true-colour TGA as rows of RGBA, top row first."""
+    b = open(path, "rb").read()
+    idlen, cmap, itype = b[0], b[1], b[2]
+    w, h, bpp, desc = struct.unpack_from("<HHBB", b, 12)
+    assert not cmap and itype in (2, 10) and bpp in (24, 32), "a true-colour TGA"
+    px, data, raw = bpp // 8, b[18 + idlen:], bytearray()
+    if itype == 2:
+        raw = data[:w * h * px]
+    else:
+        i = 0
+        while len(raw) < w * h * px:
+            c, i = data[i], i + 1
+            n = (c & 0x7F) + 1
+            if c & 0x80:
+                raw, i = raw + data[i:i + px] * n, i + px
+            else:
+                raw, i = raw + data[i:i + px * n], i + px * n
+    rows = [[(raw[(y * w + x) * px + 2], raw[(y * w + x) * px + 1], raw[(y * w + x) * px],
+              raw[(y * w + x) * px + 3] if px == 4 else 255) for x in range(w)] for y in range(h)]
+    if not desc & 0x20:
+        rows.reverse()
+    return w, h, rows
+
+
+def icon_pixels(path):
+    """The icon at ICON x ICON (nearest), its near-black background faded out."""
+    w, h, rows = read_tga(path)
+    out = []
+    for y in range(ICON):
+        row = []
+        for x in range(ICON):
+            r, g, b, a = rows[y * h // ICON][x * w // ICON]
+            lum = max(r, g, b)
+            fade = min(1.0, max(0.0, (lum - 12) / 40.0))  # black -> clear, soft over 12-52
+            row.append((r, g, b, int(a * fade)))
+        out.append(row)
+    return out
+
+
+def emblem_pixels():
+    """The public build's middle: a pale disc, nwn5e's own."""
+    out = []
+    c, r = ICON / 2.0, ICON * 0.36
+    for y in range(ICON):
+        row = []
+        for x in range(ICON):
+            d = math.hypot(x + 0.5 - c, y + 0.5 - c)
+            a = max(0.0, min(1.0, r - d + 0.5))
+            edge = max(0.0, min(1.0, d - (r - 3) + 0.5))
+            shade = int(200 - 90 * edge)
+            row.append((shade, shade, shade + 10, int(230 * a)))
+        out.append(row)
+    return out
+
+
+def bar(px, x0, rgb):
+    y0 = (SIZE - BAR_H) // 2
+    for y in range(y0 - 1, y0 + BAR_H + 1):
+        for x in range(x0 - 1, x0 + BAR_W + 1):
+            px[y][x] = over(px[y][x], OUTLINE[:3], OUTLINE[3] / 255.0)
+    for y in range(y0, y0 + BAR_H):
+        for x in range(x0, x0 + BAR_W):
+            px[y][x] = (rgb[0], rgb[1], rgb[2], 255)
+
+
+def texture(middle, successes, failures, stable):
     px = [[(0, 0, 0, 0) for _ in range(SIZE)] for _ in range(SIZE)]
-    # A dark rounded backing so the pips read on any ground.
-    for y in range(SIZE):
-        for x in range(SIZE):
-            cx = min(max(x + 0.5, 10), SIZE - 10)
-            cy = min(max(y + 0.5, 10), SIZE - 10)
-            a = coverage(math.hypot(x + 0.5 - cx, y + 0.5 - cy), 9.5) * BACK[3] / 255.0
-            px[y][x] = over(px[y][x], BACK[:3], a)
-    for row_y, pips in ((21, top), (43, bottom)):
-        for i, (rgb, filled) in enumerate(pips):
-            cx, cy = 14 + 18 * i, row_y
-            for y in range(SIZE):
-                for x in range(SIZE):
-                    d = math.hypot(x + 0.5 - cx, y + 0.5 - cy)
-                    if filled:
-                        a = coverage(d, 7.0)
-                    else:  # a ring
-                        a = min(coverage(d, 7.0), 1 - coverage(d, 5.0))
-                    px[y][x] = over(px[y][x], rgb, a)
+    o = (SIZE - ICON) // 2
+    for y in range(ICON):
+        for x in range(ICON):
+            r, g, b, a = middle[y][x]
+            px[o + y][o + x] = over(px[o + y][o + x], (r, g, b), a / 255.0)
+    for i in range(3):  # from the icon out
+        left = o - (BAR_GAP + BAR_W) * (i + 1)
+        right = o + ICON + BAR_GAP + (BAR_GAP + BAR_W) * i
+        bar(px, left, STABLE if stable else (SUCCESS if i < successes else EMPTY))
+        bar(px, right, FAILURE if i < failures else EMPTY)
     return px
 
 
@@ -153,31 +219,36 @@ def write_model(name):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--center", help="a TGA icon for the middle (textures only; the private layer)")
+    parser.add_argument("--out", default=FILES, help="where the textures go")
+    args = parser.parse_args()
+    middle = icon_pixels(args.center) if args.center else emblem_pixels()
     rows = [
-        "# visualeffects.2da - Phase 5b (0.20.0): the death-save marker over a down player",
-        "# character (rules_dying.cpp), generated by tools/data/death_save_marker.py: rows",
-        "# 1560-1568 = 1560 + 3 x successes + failures, 1569 = Stable; nwn5e's own models",
-        "# and art (data\\files\\n5_ds_*), on the creature's root node, all sizes.",
+        "# visualeffects.2da - Phase 5b: the death-save marker over a down player character",
+        "# (rules_dying.cpp), generated by tools/data/death_save_marker.py: rows 1560-1568 =",
+        "# 1560 + 3 x successes + failures, 1569 = Stable; nwn5e's own models and art",
+        "# (data\\files\\n5_ds_*; the private layer's textures replace them), on the root node.",
         "Label Type_FD OrientWithGround Imp_Root_S_Node Imp_Root_M_Node Imp_Root_L_Node Imp_Root_H_Node OrientWithObject",
     ]
     states = [(s, f) for s in range(3) for f in range(3)] + [None]
+    os.makedirs(args.out, exist_ok=True)
     for state in states:
         if state is None:
-            name, row, label = "n5_ds_st", STABLE_ROW, "NWN5E_DEATH_SAVES_STABLE"
-            top = [(STABLE, True)] * 3
-            bottom = [(EMPTY, False)] * 3
+            name, row, label, s, f, stable = "n5_ds_st", STABLE_ROW, "NWN5E_DEATH_SAVES_STABLE", 3, 0, True
         else:
             s, f = state
-            name, row = "n5_ds_%d%d" % (s, f), FIRST_ROW + 3 * s + f
+            name, row, stable = "n5_ds_%d%d" % (s, f), FIRST_ROW + 3 * s + f, False
             label = "NWN5E_DEATH_SAVES_%d_%d" % (s, f)
-            top = [(SUCCESS, True)] * s + [(EMPTY, False)] * (3 - s)
-            bottom = [(FAILURE, True)] * f + [(EMPTY, False)] * (3 - f)
-        write_tga(os.path.join(FILES, name + ".tga"), texture(top, bottom))
-        write_model(name)
-        rows.append("%d %s D 0 %s %s %s %s 0" % (row, label, name, name, name, name))
-    with open(ROWS, "w", encoding="ascii", newline="\n") as f:
-        f.write("\n".join(rows) + "\n")
-    print("wrote %d marker models and textures, %s" % (len(states), ROWS))
+        write_tga(os.path.join(args.out, name + ".tga"), texture(middle, s, f, stable))
+        if not args.center:
+            write_model(name)
+            rows.append("%d %s D 0 %s %s %s %s 0" % (row, label, name, name, name, name))
+    if not args.center:
+        with open(ROWS, "w", encoding="ascii", newline="\n") as f:
+            f.write("\n".join(rows) + "\n")
+    print("wrote %d marker textures to %s%s" % (len(states), args.out,
+                                                "" if args.center else ", their models and " + ROWS))
 
 
 if __name__ == "__main__":
