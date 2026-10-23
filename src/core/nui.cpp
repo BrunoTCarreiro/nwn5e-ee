@@ -183,6 +183,13 @@ std::string Button(const char* id, const std::string& label, float width) {
 
 std::string Spacer() { return Element("spacer", "null", "null", ""); }
 
+std::string TextEdit(const char* id, const std::string& placeholder, const char* value_bind, int max_length,
+                     float height) {
+  return Element("textedit", Str(placeholder), Bind(value_bind),
+                 ",\"id\":" + Str(id) + ",\"max\":" + std::to_string(max_length) +
+                     ",\"multiline\":false,\"wordwrap\":false" + Size("height", height));
+}
+
 std::string ListView(const std::string& cells, const std::string& row_count, float row_height) {
   char height[48];
   sprintf_s(height, ",\"row_height\":%.1f", row_height);

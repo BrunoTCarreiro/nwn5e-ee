@@ -32,6 +32,16 @@
 //   does a respawn. The level is the record nwn5e_exhaustion.
 // - D4 Defy Death (Champion 18, class_features faithful): advantage on death
 //   saves, an 18-20 counts as a 20.
+// - What the player sees (0.20.0, owner: "some on screen indicator of how many
+//   failures and successes have happened, a vfx while the PC is doing the rolls
+//   and a status icon indicating how many levels of exhaustion"): a marker
+//   over the down player - success pips over failure pips, blue when Stable -
+//   always facing the camera (visualeffects 1560-1569, nwn5e's own models,
+//   tools/data/death_save_marker.py); an aura while rolling (red) or Stable
+//   (blue); a flash per roll (success, failure, natural 1, natural 20); and
+//   Exhaustion as one effect-bar icon with its level (effecticons 200-204,
+//   or 210-214 with the owner's numbered art), the generic penalty icons
+//   hidden. Each visual is an ini setting (death_save_*_vfx, 0 = none).
 // `!dying` shows the state; with [debug] test_commands, `!dying roll <d20>`,
 // `!dying hurt <HP> [henchman]`, `!dying exhaustion <level>` and
 // `!dying henchman [blueprint]` (one joins the party - e.g. in the Prelude,
@@ -62,6 +72,7 @@
 #include "engine.h"
 #include "hooks.h"
 #include "log.h"
+#include "data_serving.h"
 #include "records.h"
 #include "rest.h"
 #include "rules/death_saves.h"
@@ -82,6 +93,13 @@ constexpr uint64_t kUpkeepMs = 2000;
 constexpr uint64_t kFightOverMs = 3000;    // no one fighting: a moment for the next target
 constexpr int kUpkeepsPerExhaustionCheck = 3;
 constexpr int kMaxHenchmen = 16;
+// The visuals (data/rows/visualeffects.txt, effecticons.txt).
+constexpr int kMarkerRow = 1560;        // + 3 x successes + failures
+constexpr int kMarkerStableRow = 1569;
+constexpr int kExhaustionIconRow = 200;     // + level - 1: the game's Fatigue icon
+constexpr int kExhaustionArtIconRow = 210;  // + level - 1: the owner's numbered art
+constexpr const char* kTagDownAura = "nwn5e_down_aura";
+constexpr const char* kTagDownMarker = "nwn5e_down_marker";
 
 using DoDamageFn = void (*)(void* creature, int damage);
 using RunEventScriptFn = int (*)(void* module, int script, void* name);
@@ -121,6 +139,8 @@ struct DownPlayer {
   int animation = -1;
   int changes_logged = 0;
   bool pending_death = false;
+  int aura_shown = 0;    // the visualeffects row on now (0 none)
+  int marker_shown = 0;
 };
 struct DownHenchman {
   bool laid_down = false;
@@ -289,6 +309,12 @@ const char* FightOver(void* center, void* player, FightWatch& watch, uint64_t no
 }
 
 void Kill(uint32_t id) { ApplyEffectAs(id, id, "DURATION_TYPE_INSTANT", "EffectDeath()", 0.0f, 0.0f); }
+void Flash(uint32_t id, int row) {
+  if (row > 0) {
+    ApplyEffectAs(id, id, "DURATION_TYPE_INSTANT", ("EffectVisualEffect(" + std::to_string(row) + ")").c_str(), 0.0f,
+                  0.0f);
+  }
+}
 void Heal(uint32_t id, int hit_points) {
   ApplyEffectAs(id, id, "DURATION_TYPE_INSTANT", ("EffectHeal(" + std::to_string(hit_points) + ")").c_str(), 0.0f,
                 0.0f);
@@ -309,11 +335,24 @@ std::string ExhaustionText(int level) {
 // The one effect that carries a level (tagged nwn5e_exhaustion_<level>): any
 // other level's removed, this one applied if missing - so a script or a spell
 // that strips it only takes it away until the next check.
+// The effect-bar icon of a level: the owner's numbered art (n5_ief_exhN.tga,
+// effecticons 210-214) when served, else the game's Fatigue icon (200-204).
+int ExhaustionIconRow(int level) {
+  static int rows[6] = {};
+  if (level < 1 || level > 5) return 0;
+  if (!rows[level]) {
+    const std::wstring art = L"n5_ief_exh" + std::to_wstring(level) + L".tga";
+    rows[level] = (ServedFileExists(art.c_str()) ? kExhaustionArtIconRow : kExhaustionIconRow) + level - 1;
+  }
+  return rows[level];
+}
+
 void SyncExhaustionEffect(uint32_t id, int level) {
   const int penalty = -rules::ExhaustionD20Penalty(level);
-  char code[1400];
+  const int icon = ExhaustionIconRow(level);
+  char code[1600];
   sprintf_s(code,
-            "string want = \"nwn5e_exhaustion_%d\"; effect e = GetFirstEffect(OBJECT_SELF);"
+            "string want = \"nwn5e_exhaustion_%d_%d\"; effect e = GetFirstEffect(OBJECT_SELF);"
             "while (GetIsEffectValid(e)) { string t = GetEffectTag(e);"
             " if (GetStringLeft(t, 16) == \"nwn5e_exhaustion\" && t != want) RemoveEffect(OBJECT_SELF, e);"
             " e = GetNextEffect(OBJECT_SELF); }"
@@ -323,8 +362,9 @@ void SyncExhaustionEffect(uint32_t id, int level) {
             "effect x = EffectLinkEffects(EffectAttackDecrease(%d), EffectSavingThrowDecrease(SAVING_THROW_ALL, %d));"
             "x = EffectLinkEffects(x, EffectSkillDecrease(SKILL_ALL_SKILLS, %d));"
             "x = EffectLinkEffects(x, EffectMovementSpeedDecrease(%d));"
+            "if (%d > 0) x = EffectLinkEffects(EffectIcon(%d), HideEffectIcon(x));"
             "ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(SupernaturalEffect(x), want), OBJECT_SELF);",
-            level, level, penalty, penalty, penalty, rules::ExhaustionSpeedDecreasePercent(level));
+            level, icon, level, penalty, penalty, penalty, rules::ExhaustionSpeedDecreasePercent(level), icon, icon);
   RunScriptChunk(code, id);
 }
 
@@ -421,6 +461,54 @@ void RollSave(void* player, uint32_t id, DownPlayer& state, uint64_t now, const 
   Log("dying: 0x%08X death save %d%s (total %d) -> %s; %s", id, save.roll.kept, defy ? " (advantage)" : "",
       save.total, Counts(state.saves).c_str(), fight.c_str());
   Tell(id, line);
+  int flash = g_config.death_save_failure_vfx;
+  if (save.result == rules::DeathSaveResult::kSuccess || save.result == rules::DeathSaveResult::kStable) {
+    flash = g_config.death_save_success_vfx;
+  } else if (save.result == rules::DeathSaveResult::kWake) {
+    flash = g_config.death_save_nat20_vfx;
+  } else if (save.roll.kept == 1) {
+    flash = g_config.death_save_nat1_vfx;
+  }
+  Flash(id, flash);
+}
+
+// --- What the player sees while down ------------------------------------------------
+
+// A permanent visual effect tagged `tag` on the creature, replaced by `row`
+// (0: just removed).
+void ReplaceTaggedVisual(uint32_t id, const char* tag, int row) {
+  char code[600];
+  sprintf_s(code,
+            "effect e = GetFirstEffect(OBJECT_SELF); while (GetIsEffectValid(e)) { if (GetEffectTag(e) == \"%s\") "
+            "RemoveEffect(OBJECT_SELF, e); e = GetNextEffect(OBJECT_SELF); }"
+            "if (%d > 0) ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(SupernaturalEffect("
+            "EffectVisualEffect(%d)), \"%s\"), OBJECT_SELF);",
+            tag, row, row, tag);
+  RunScriptChunk(code, id);
+}
+
+int MarkerRow(const rules::DeathSaves& saves) {
+  if (saves.stable) return kMarkerStableRow;
+  return kMarkerRow + 3 * std::min(saves.successes, 2) + std::min(saves.failures, 2);
+}
+
+// The aura (rolling or Stable) and the death-save marker, as the saves stand.
+void SyncDownVisuals(uint32_t id, DownPlayer& state) {
+  const int aura = state.saves.stable ? g_config.death_save_stable_vfx : g_config.death_save_aura_vfx;
+  if (aura != state.aura_shown) {
+    ReplaceTaggedVisual(id, kTagDownAura, aura);
+    state.aura_shown = aura;
+  }
+  const int marker = g_config.death_save_marker ? MarkerRow(state.saves) : 0;
+  if (marker != state.marker_shown) {
+    ReplaceTaggedVisual(id, kTagDownMarker, marker);
+    state.marker_shown = marker;
+  }
+}
+
+void ClearDownVisuals(uint32_t id) {
+  ReplaceTaggedVisual(id, kTagDownAura, 0);
+  ReplaceTaggedVisual(id, kTagDownMarker, 0);
 }
 
 // A down player keeps lying: its posture and animation logged when they change
@@ -448,23 +536,29 @@ void WatchPosture(void* player, uint32_t id, DownPlayer& state) {
 bool UpdateDownPlayer(uint32_t id, DownPlayer& state, uint64_t now) {
   void* player = CreatureById(id);
   if (!player || engine::AreaOf(player) != state.area) {  // gone, or a saved game loaded
-    if (player) engine::SetLocalInt(player, kVarDown, 0);
+    if (player) {
+      engine::SetLocalInt(player, kVarDown, 0);
+      ClearDownVisuals(id);
+    }
     return false;
   }
   const int hit_points = HitPoints(player);
   if (hit_points <= ee::kHitPointsDead) {  // dead (a third failure, the last henchman, massive damage)
     engine::SetLocalInt(player, kVarDown, 0);
+    ClearDownVisuals(id);
     Log("dying: 0x%08X dead", id);
     return false;
   }
   if (hit_points > 0) {  // healed, a natural 20, the fight's end
     engine::SetLocalInt(player, kVarDown, 0);
+    ClearDownVisuals(id);
     Log("dying: 0x%08X back up at %d HP", id, hit_points);
     Tell(id, "You're back up at " + std::to_string(hit_points) + " HP.");
     GainExhaustion(player);
     return false;
   }
   WatchPosture(player, id, state);
+  SyncDownVisuals(id, state);
   if (state.pending_at) {
     if (now - state.pending_at < kRetryMs) return true;
     state.pending_at = 0;  // it didn't land: decide again

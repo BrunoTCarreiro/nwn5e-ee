@@ -231,3 +231,9 @@
 16000437 Choose a build, or click Configure Build to make your skill and feat choices yourself.\n\nA build is a set of ready choices for your class: its starting equipment (the 2024 kit, with NWN's potions and gold), and the skills and feats Recommended picks for you - now and when you level up. The Fighter has two: Great Weapon (Great Weapon Fighting) and Archer (Archery).\n\nA build gives your character no special abilities; it only makes choices you could make yourself. Your background adds its own equipment when you enter the game.
 # Phase 5a: the HUD's Short Rest button's tooltip (hud_rest.cpp).
 16000438 Short Rest
+# Phase 5b (0.20.0): Exhaustion's effect-bar icon, by level (data/rows/effecticons.txt).
+16000439 Exhaustion 1: -2 to attack rolls, saving throws and checks; -5 ft speed. A Long Rest removes it.
+16000440 Exhaustion 2: -4 to attack rolls, saving throws and checks; -10 ft speed. A Long Rest removes it.
+16000441 Exhaustion 3: -6 to attack rolls, saving throws and checks; -15 ft speed. A Long Rest removes it.
+16000442 Exhaustion 4: -8 to attack rolls, saving throws and checks; -20 ft speed. A Long Rest removes it.
+16000443 Exhaustion 5: -10 to attack rolls, saving throws and checks; -25 ft speed; one more level is death. A Long Rest removes it.

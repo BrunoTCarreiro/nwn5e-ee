@@ -62,6 +62,10 @@ std::string Label(const std::string& value, float height = 0.0f);
 std::string Text(const std::string& value, float height = 0.0f);
 std::string Button(const char* id, const std::string& label, float width = 0.0f);
 std::string Spacer();
+// A one-line text field (nw_inc_nui's NuiTextEdit) whose text is the bind
+// `value_bind`; watch the bind (NuiSetBindWatch) for a "watch" event per edit.
+std::string TextEdit(const char* id, const std::string& placeholder, const char* value_bind, int max_length,
+                     float height = 0.0f);
 // A list view (nw_inc_nui's NuiList): `cells` the row template's cells (Cell,
 // joined with commas), each element's binds arrays of `row_count` entries; a
 // click on a row's element reports its array_index.

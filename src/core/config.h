@@ -144,6 +144,19 @@ struct Config {
   // (SoU's handling), the temple summons them, Exhaustion from coming back from 0 HP;
   // nwn / off = NWN's (the module's scripts).
   rules::RuleVariant dying = rules::RuleVariant::kFaithful;
+  // What a down player looks like (0.20.0): visualeffects.2da rows, 0 none -
+  // an aura while making death saves (512 VFX_DUR_AURA_PULSE_RED_WHITE) and
+  // while Stable (513 ..._BLUE_WHITE), a flash per roll (199
+  // VFX_IMP_HEAD_HOLY a success, 203 VFX_IMP_HEAD_EVIL a failure, 217
+  // VFX_IMP_DEATH_L a natural 1, 68 VFX_IMP_HEALING_M a natural 20); and the
+  // death-save marker over it (successes over failures).
+  int death_save_aura_vfx = 512;
+  int death_save_stable_vfx = 513;
+  int death_save_success_vfx = 199;
+  int death_save_failure_vfx = 203;
+  int death_save_nat1_vfx = 217;
+  int death_save_nat20_vfx = 68;
+  bool death_save_marker = true;
   // The Short Rest's visual on each resting character (owner, 2026-10-23: "I
   // like the look the health potion effect has"; then "Use
   // VFX_IMP_RESTORATION_LESSER, it looks like a good placeholder"): a
