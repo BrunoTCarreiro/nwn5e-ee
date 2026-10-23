@@ -31,7 +31,9 @@
 // - D4 Defy Death (Champion 18, class_features faithful): advantage on death
 //   saves, an 18-20 counts as a 20.
 // `!dying` shows the state; with [debug] test_commands, `!dying roll <d20>`,
-// `!dying hurt <HP> [henchman]` and `!dying exhaustion <level>` set up tests.
+// `!dying hurt <HP> [henchman]`, `!dying exhaustion <level>` and
+// `!dying henchman [blueprint]` (one joins the party - e.g. in the Prelude,
+// which has none) set up tests.
 // NWN mode: NWN's dying (the module's scripts), no exhaustion.
 
 #include <windows.h>
@@ -711,6 +713,31 @@ std::vector<std::string> DyingCommand(void* creature, const std::string& args) {
                   ("EffectDamage(" + std::to_string(number) + ", DAMAGE_TYPE_MAGICAL)").c_str(), 0.0f, 0.0f);
     return {"nwn5e: " + std::to_string(number) + " damage to " + (target == id ? "you." : "your first henchman.")};
   }
+  if (tests && verb == "henchman") {  // a henchman where the campaign has none yet (the Prelude)
+    std::string resref = Lower(args);
+    resref.erase(0, resref.find("henchman") + 8);
+    resref.erase(0, resref.find_first_not_of(' '));
+    resref.erase(resref.find_last_not_of(' ') + 1);
+    if (resref.empty()) resref = "nw_hen_dae_01";  // Daelan, Barbarian 4 (nw_hen_lin_01: Linu, Cleric 4)
+    const bool valid = resref.size() <= 16 && std::all_of(resref.begin(), resref.end(), [](char c) {
+                         return isalnum(static_cast<unsigned char>(c)) || c == '_';
+                       });
+    if (!valid) return {"nwn5e: \"" + resref + "\" is not a blueprint name (letters, digits, _; at most 16)."};
+    char code[900];
+    sprintf_s(code,
+              "object h = CreateObject(OBJECT_TYPE_CREATURE, \"%s\", GetLocation(OBJECT_SELF));"
+              "if (!GetIsObjectValid(h)) { SendMessageToPC(OBJECT_SELF, \"nwn5e: no creature blueprint %s.\"); "
+              "return; }"
+              "int n = 1; while (GetIsObjectValid(GetHenchman(OBJECT_SELF, n))) n++;"
+              "if (GetMaxHenchmen() < n) SetMaxHenchmen(n);"
+              "AddHenchman(OBJECT_SELF, h);"
+              "if (GetMaster(h) == OBJECT_SELF) SendMessageToPC(OBJECT_SELF, \"nwn5e: \" + GetName(h) + "
+              "\" joins you as a henchman (a test).\");"
+              "else SendMessageToPC(OBJECT_SELF, \"nwn5e: \" + GetName(h) + \" could not join you.\");",
+              resref.c_str(), resref.c_str());
+    RunScriptChunk(code, id);
+    return {};
+  }
   if (tests && verb == "exhaustion" && fields >= 2) {
     const int level = std::clamp(number, 0, 6);
     SetExhaustion(creature, level);
@@ -741,7 +768,8 @@ std::vector<std::string> DyingCommand(void* creature, const std::string& args) {
                   (HasDefyDeath(creature) ? "Defy Death: advantage, 18-20 counts as 20." : "without one, NWN's death."));
   if (tests) {
     lines.push_back("nwn5e: tests - !dying roll <1-20> (the next death save's d20), !dying hurt <HP> [henchman], "
-                    "!dying exhaustion <0-6>.");
+                    "!dying exhaustion <0-6>, !dying henchman [blueprint] (default nw_hen_dae_01 Daelan; "
+                    "nw_hen_lin_01 Linu, a healer).");
   }
   return lines;
 }
