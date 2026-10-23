@@ -909,7 +909,10 @@ the state; with test_commands, `!dying roll <d20>`, `!dying hurt <HP>
   party as its attack target, and is over 2 s after neither. Distance is no
   test - in the Prelude 10 hostiles within 30 m that weren't in the fight
   kept a Stable player down for good (owner, 2026-10-23: "fight over trigger
-  doesn't happen").
+  doesn't happen"). *0.19.7:* a henchman counts as fighting only with a
+  living attack target (the engine keeps "in combat" 8 s past the last
+  blow, so 0.19.6 woke the player ~10 s after the last enemy fell); over 3 s
+  after no one fights.
 - The death saves, the fight watch and their retries run on game time: the
   passes' steps while CServerExoApp::GetActivePauseState is 0. *0.19.5:* the
   engine keeps updating creatures while paused, and 0.19.4 (wall clock) went

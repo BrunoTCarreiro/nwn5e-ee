@@ -79,7 +79,7 @@ constexpr uint64_t kRetryMs = 3000;             // a heal or a death on its way 
 constexpr uint64_t kSummonDelayMs = 4000;       // after a respawn: the campaign's own jump (HotU's: 2 s) first
 constexpr uint64_t kSummonGiveUpMs = 60000;
 constexpr uint64_t kUpkeepMs = 2000;
-constexpr uint64_t kFightOverMs = 2000;    // no one fighting (past the engine's own 8 s in combat)
+constexpr uint64_t kFightOverMs = 3000;    // no one fighting: a moment for the next target
 constexpr int kUpkeepsPerExhaustionCheck = 3;
 constexpr int kMaxHenchmen = 16;
 
@@ -95,12 +95,14 @@ MaxHitPointsFn g_max_hit_points = nullptr;
 
 // The fight around a down player is the engine's own "in combat" (owner,
 // 2026-10-23: "a good check is 'if the henchman is actively fighting'"): it
-// goes on while a henchman still up is in combat (GetIsInCombat, +0x700 - the
-// engine keeps it 8 s past the last blow), or while a creature in combat has
-// someone of the party as its attack target (one that struck the player
-// before the henchman joined in); it is over 2 s after neither. Distance is
-// no test: 0.19.3-0.19.5 ("a living enemy within 30 m") never ended a fight in
-// the Prelude, with 10 hostiles in range that weren't in it.
+// goes on while a henchman still up is in combat (GetIsInCombat, +0x700) with
+// a living attack target, or while a creature in combat has someone of the
+// party as its attack target (one that struck the player before the henchman
+// joined in); it is over 3 s after neither. Distance is no test: 0.19.3-0.19.5
+// ("a living enemy within 30 m") never ended a fight in the Prelude, with 10
+// hostiles in range that weren't in it. The living target: the engine keeps a
+// creature "in combat" 8 s past its last blow, which kept 0.19.6's player down
+// ~10 s after the last enemy fell.
 struct FightWatch {
   uint64_t last_fight = 0;
   void Start(uint64_t now) { last_fight = now; }
@@ -208,7 +210,8 @@ int StandingHenchmen(void* player) {
 // Who is still fighting around a down player: a party member up and in
 // combat, or a creature in combat whose attack target is one of the party.
 struct FightScan {
-  uint32_t fighter = 0;   // the party member in combat
+  uint32_t fighter = 0;   // the party member in combat ...
+  uint32_t fighting = 0;  // ... with this living target
   uint32_t attacker = 0;  // the creature attacking the party ...
   uint32_t attacked = 0;  // ... and its target
 };
@@ -248,8 +251,12 @@ FightScan ScanFight(void* center, void* player) {
       continue;
     }
     if (!IsPlayer(creature) && IsDownHenchman(member.first, creature)) continue;
-    if (InCombat(creature)) {
+    if (!InCombat(creature)) continue;
+    const uint32_t target_id = Field<uint32_t>(creature, ee::kCreatureAttackTarget);
+    void* target = target_id && target_id != ee::kObjectInvalid ? CreatureById(target_id) : nullptr;
+    if (target && !engine::IsDeadOrDying(target)) {
       search.scan.fighter = member.first;
+      search.scan.fighting = target_id;
       break;
     }
   }
@@ -262,7 +269,7 @@ std::string ScanText(const FightScan& scan) {
   char text[160];
   std::string line;
   if (scan.fighter) {
-    sprintf_s(text, "0x%08X in combat", scan.fighter);
+    sprintf_s(text, "0x%08X fighting 0x%08X", scan.fighter, scan.fighting);
     line = text;
   }
   if (scan.attacker) {
@@ -277,7 +284,7 @@ const char* FightOver(void* center, void* player, FightWatch& watch, uint64_t no
   const FightScan scan = ScanFight(center, player);
   if (scan.fighter || scan.attacker) watch.last_fight = now;
   if (scan_out) *scan_out = scan;
-  if (now - watch.last_fight >= kFightOverMs) return "no one in the party in combat, no one attacking it, for 2 s";
+  if (now - watch.last_fight >= kFightOverMs) return "no one of the party fighting, no one attacking it, for 3 s";
   return nullptr;
 }
 
