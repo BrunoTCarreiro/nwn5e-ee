@@ -903,6 +903,13 @@ the state; with test_commands, `!dying roll <d20>`, `!dying hurt <HP>
   party still up attacks a living creature, however far (its attack target,
   GetAttackTarget's field; owner: "a good check is 'if the henchman is
   actively fighting' as well").
+- *0.19.6, replacing the above:* the fight is the engine's own "in combat":
+  it goes on while a henchman still up is in combat (GetIsInCombat, +0x700,
+  kept 8 s past the last blow) or a creature in combat has someone of the
+  party as its attack target, and is over 2 s after neither. Distance is no
+  test - in the Prelude 10 hostiles within 30 m that weren't in the fight
+  kept a Stable player down for good (owner, 2026-10-23: "fight over trigger
+  doesn't happen").
 - The death saves, the fight watch and their retries run on game time: the
   passes' steps while CServerExoApp::GetActivePauseState is 0. *0.19.5:* the
   engine keeps updating creatures while paused, and 0.19.4 (wall clock) went
