@@ -765,6 +765,86 @@ D4) when Bloodied and above 0 HP: + 5 + Con modifier, current HP written
 directly. The Fighter brief is done but for Action Surge (Phase 6), Tactical
 Mind / Master (later) and Heroic Warrior (with CM6).
 
+## Phase 5 — rests, healing, death: decided by the owner (2026-10-23)
+
+Recon (EE 89.8193.37-17, disassembly; facts the decisions rest on):
+- **Rest**: every rest but ForceRest is CNWSCreature::Rest (0x39F360,
+  `Rest(bAssociate, bEnemyLOS)`): refused when dead or dying, in a no-rest
+  area, with an enemy within ruleset REST_ENEMY_CHECK_DISTANCE (30 m, seen or
+  not) or exerted (+0x574: damage or a spell cast in the last 10 s); then
+  AIActionRest (0x3CA890) over restduration.2da's 10 s + 0.5 s per level of
+  real time, cancelled by exertion, a seen enemy within 30 m or any new
+  order (CancelRest 0x386940). HP and spell levels come back gradually during
+  it (a cancelled rest keeps part); at the end: RemoveBadEffects (every
+  temporary effect), HP to max, spells, item properties,
+  ResetFeatRemainingUses (nwn5e's rest listener). The clock doesn't move, and
+  nothing limits how often one rests. Module OnPlayerRest: STARTED, FINISHED,
+  CANCELLED.
+- **Dying**: the official campaigns' OnPlayerDying (nw_o0_dying, all 13
+  modules) applies EffectDeath at once - a PC dies at 0 HP today. The engine
+  has a PC dying state (GetIsPCDying 0x495620: -10 < HP < 1; lying down, not
+  commandable); CNWSCreature::DoDamage (0x38A930) applies the damage,
+  OnApplyDamage signals OnPlayerDying on entering it, OnApplyDeath (0x42AA40)
+  signals OnPlayerDeath (the respawn panel). Healing a dying PC above 0
+  revives it (OnApplyHeal -> resurrection). Henchmen die at 0; each
+  campaign's OnDeath decides: OC raised at the temple (nw_ch_ac7), SoU lying
+  at 1 HP until healed (x0_ch_hen_death), HotU a corpse to raise
+  (x2_hen_death).
+- **Clock**: scheduled events (DelayCommand, heartbeats) are keyed to the
+  world clock that SetTime advances (CWorldTimer at server +0x10098); after a
+  jump every event due runs in one update, oldest first - a burst, in order,
+  not lost. 87 of 19,064 official scripts read the clock: ~55 ambient
+  (lights, NPC routines), ~25 conversation lines, ~6 gameplay (a night-only
+  encounter in Chapter 2, HotU's hour-gated doors and once-a-day throne
+  search, HotU's rest system's wandering-monster odds); SoU sets it itself.
+- **SRD 5.2** (D&D Beyond free rules, checked 2026-10-23): Long Rest (8 h)
+  regains all HP and **all** Hit Point Dice, removes 1 Exhaustion, 16 h before
+  another; Short Rest (1 h): spend Hit Dice (die + Con, minimum 1); death
+  saves as below; massive damage; Stable regains 1 HP after 1d4 h; monsters
+  die at 0.
+
+Decisions (faithful; NWN mode keeps NWN's rest and the module's dying):
+- **R1 Long Rest** = NWN's Rest as it is (no enemies within 30 m, no limit),
+  and it restores every Hit Die. **R3** an interrupted one gives nothing (no
+  partial HP or spells).
+- **R1/R4 Short Rest**: a **dedicated button in the HUD next to Rest**
+  (owner). Instant, anywhere out of combat - no enemy that can see you within
+  30 m, no damage taken or spell cast in the last 10 s; it **spends at least 1
+  Hit Die** (as many as needed to full HP, the biggest first), so short rests
+  between long rests are at most the character's level; short-rest features
+  recharge (Second Wind's one use, Action Surge). The party's henchmen take
+  it too.
+- **R2 Clock**: stays still for now; an ini switch moves it (Long Rest +8 h,
+  Short Rest +1 h) to test later (owner: "we'll have to test with the clock
+  moving").
+- **R5 Hit Dice**: one per level, the class's die (rules::HitDie2024), all
+  back on a Long Rest; shown by `!rest`.
+- **D1 Death saves**, for a player character with a henchman (in the party,
+  in the area, standing): at 0 HP it lies unconscious (the engine's dying
+  state, HP never below 0) and rolls every 6 s: d20 10+ a success, a natural 1
+  two failures, a natural 20 wakes it at 1 HP; damage at 0 HP a failure (a
+  critical hit two); 3 successes Stable, 3 failures dead (the module's death
+  panel and respawn); damage left after 0 at least the HP maximum kills
+  outright. When the fight ends (no living hostile within 30 m) it wakes at
+  1 HP, saves done or Stable; when every henchman with it is down or dead, it
+  dies. **Without a henchman**: NWN's (the campaigns' instant death).
+- **D2 Henchmen**: SoU's handling in every campaign - at 0 HP a henchman lies
+  at 1 HP, uncommandable, and gets up when healed or when the fight ends.
+- **Temple**: on respawn the henchmen join the player at the temple at full
+  health; and a Long Rest in the temple's area (the campaign's respawn
+  waypoint's) summons every henchman who is down or left behind, at full
+  health.
+- **D3 Waking**: any healing wakes (NWN's potions, spells, healer's kits);
+  no 1d4-hour rule (the fight's end wakes).
+- **D4 Defy Death** (Champion 18): advantage on death saves; 18-20 counts as
+  a 20.
+- **D5 Exhaustion**: 1 level on coming back from 0 HP; each level -2 to d20
+  tests (attacks, saves, checks) and -5 ft speed; level 6 is death; a Long
+  Rest removes every level, a Short Rest none (owner, 2026-10-23).
+- Build: **5a** rests, Hit Dice, the Short Rest button, short-rest
+  recharges; **5b** death saves, henchmen, the temple, exhaustion, Defy
+  Death.
+
 ## Phase 2 — skills and checks: decided by the owner (2026-10-19)
 
 **Decision (owner, 2026-10-19): the recommendations below, as revised.**
