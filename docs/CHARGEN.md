@@ -846,6 +846,12 @@ now come on the Skills page, opened again after the Feats page:
   need nothing: their 2024 skills are read from their ranks within their
   choices (Skilled counted).
 
+*C8 verified (owner, 2026-10-23: "S1, S6 and S7 passed"): a Human
+Fighter's Skilled opens the Skills page again and all three Weapon Masteries
+stay; a Human Wizard's Feats page lists the Origin feats and the chain goes
+on to Spells after the Skilled page; a build taken without Configure gets its
+Skilled picks made, and the player told.*
+
 *0.17.3 (owner's F1, 2026-10-23: the Skills page's "Human (Skillful): 1
 skill of any kind: choose it" read oddly).* The species step's header reads as
 the class step's: "Human (Skillful): choose 1 skill of any kind", "Elf (Keen
