@@ -229,3 +229,5 @@
 16000435 Configure Build
 16000436 Select a Build for your Character
 16000437 Choose a build, or click Configure Build to make your skill and feat choices yourself.\n\nA build is a set of ready choices for your class: its starting equipment (the 2024 kit, with NWN's potions and gold), and the skills and feats Recommended picks for you - now and when you level up. The Fighter has two: Great Weapon (Great Weapon Fighting) and Archer (Archery).\n\nA build gives your character no special abilities; it only makes choices you could make yourself. Your background adds its own equipment when you enter the game.
+# Phase 5a: the HUD's Short Rest button's tooltip (hud_rest.cpp).
+16000438 Short Rest

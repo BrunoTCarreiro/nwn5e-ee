@@ -131,6 +131,13 @@ struct Config {
   // sword...) uses the better of Str and Dex for attack and damage, no feat
   // needed; nwn / off = NWN's Weapon Finesse feat (Dex to attack).
   rules::RuleVariant finesse = rules::RuleVariant::kFaithful;
+  // Phase 5a: faithful = Hit Dice, a Short Rest (HUD button, !shortrest)
+  // spending them out of combat, NWN's Rest as the Long Rest (all or nothing,
+  // the Hit Dice back); nwn / off = NWN's rest.
+  rules::RuleVariant rests = rules::RuleVariant::kFaithful;
+  // Rests move the clock: a Long Rest 8 hours, a Short Rest 1 (to test; the
+  // owner keeps it still for now).
+  bool rest_clock = false;
   // CM0: serve nwn5e's 2da rows and strings (data\rows, data\strings.txt).
   bool served_data = true;
 

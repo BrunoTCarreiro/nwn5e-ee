@@ -844,6 +844,19 @@ Decisions (faithful; NWN mode keeps NWN's rest and the module's dying):
 - Build: **5a** rests, Hit Dice, the Short Rest button, short-rest
   recharges; **5b** death saves, henchmen, the temple, exhaustion, Defy
   Death.
+*5a built (0.18.0, key `rests`, `rest_clock`):* rules/hit_dice.{h,cpp}
+(unit-tested: the pool, the record's packing, a Short Rest's dice);
+rules_rest.cpp - CNWSCreature::Rest hooked (all or nothing: +0x854 / +0x85C
+past any rest), the rest listener gives every Hit Die back (record
+nwn5e_hit_dice_spent), `!shortrest` and `!rest`, the Short Rest (out of
+combat: no enemy that sees you within 30 m, not exerted; the party's
+henchmen; Second Wind a use back through IncrementFeatRemainingUses);
+hud_rest.cpp - in single player the party bar's Spellbook place becomes
+Short Rest (the Rest model and art for now, tooltip 16000438) and Spellbook
+moves to the dead Player List place (its art via the model's ReplaceTexture,
+tooltip 7038, click), converted in CPanelPartyBar::Update (slot 11) once
+per bar, greyed with Rest. A click is taken at the player's next server
+update. Not built yet: an original Short Rest icon.
 
 ## Phase 2 — skills and checks: decided by the owner (2026-10-19)
 

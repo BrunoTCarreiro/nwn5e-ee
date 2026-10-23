@@ -44,6 +44,8 @@ void InstallFeatCadenceRules();
 void InstallAbilityRules();
 void InstallFeatureRules();
 void InstallFighterRules();
+void InstallRestRules();
+void InstallShortRestButton();
 void InstallNuiTest();
 void InstallClientUi();
 void InstallCreationPages();
@@ -61,7 +63,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.17.4";
+constexpr const char* kVersion = "0.18.0";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -108,6 +110,8 @@ void Start(HMODULE self) {
   InstallAbilityRules();
   InstallFeatureRules();
   InstallFighterRules();
+  InstallRestRules();
+  InstallShortRestButton();
   InstallNuiTest();
   InstallClientUi();
   InstallCreationPages();

@@ -1035,6 +1035,44 @@ constexpr size_t kObjectId = 0x8;                     // uint32 (ResolveAttackRo
 constexpr size_t kObjectCurrentHitPoints = 0xe0;      // int16 read, int32 written (GetCurrentHitPoints, SetCurrentHitPoints)
 constexpr size_t kCreatureStats = 0xad0;              // CNWSCreature -> CNWSCreatureStats* (ResolveAttackRoll +0x85)
 constexpr size_t kStatsCreature = 0x30;               // CNWSCreatureStats -> CNWSCreature* (GetLevel +0x79)
+// Phase 5a: rests (docs/PLAN.md Phase 5 recon). CNWSCreature::Rest(bAssociate,
+// bEnemyLOS) starts every rest but ForceRest; AIActionRest restores HP and
+// spell levels along the way at +0x854 / +0x85C ms each (computed only when
+// 0); +0x574 is the "exerted" timer (damage, a spell cast: ExcitedDuration.2da,
+// 10 s), +0x8E0 the activity bits (0x10 resting).
+constexpr const char* kCreatureRest = "?Rest@CNWSCreature@@QEAAXHH@Z";
+constexpr const char* kIncrementFeatRemainingUses = "?IncrementFeatRemainingUses@CNWSCreatureStats@@QEAAXG@Z";
+constexpr const char* kGetAssociateId = "?GetAssociateId@CNWSCreature@@QEAAIGH@Z";
+constexpr size_t kCreatureRestHpRate = 0x854;
+constexpr size_t kCreatureRestSpellRate = 0x85c;
+constexpr size_t kCreatureExcitedTimer = 0x574;
+constexpr size_t kCreatureActivities = 0x8e0;
+constexpr uint32_t kActivityResting = 0x10;
+constexpr int kAssociateTypeHenchman = 1;
+// Phase 5a: the HUD's Short Rest button (hud_rest.cpp). The buttons under the
+// portrait belong to CPanelPartyBar (vtable slot 11 = its per-frame Update;
+// built in code: SetModel + AddToPanel on pnl_party_bar.mdl's hooks); each is
+// a CGuiButton (flags +0x8, bit 0 disabled; its model +0x10; tooltip strref
+// +0x70; click {object +0x90, fn +0x98}; the party bar's subclass shows the
+// feedback id at +0xD0 when clicked disabled). Rest +0x788, Spellbook +0x6B0,
+// Player List +0x860 (disabled in single player: *g_pAppManager +0x28 = 0).
+// A model's ReplaceTexture(old, new) is its vtable slot 12 (Gob).
+constexpr const char* kRttiPartyBar = ".?AVCPanelPartyBar@@";
+constexpr int kGuiPanelVtableUpdate = 11;
+constexpr size_t kPartyBarSpellButton = 0x6b0;
+constexpr size_t kPartyBarRestButton = 0x788;
+constexpr size_t kPartyBarPlayerListButton = 0x860;
+constexpr size_t kGuiObjectModel = 0x10;
+constexpr size_t kButtonTooltip = 0x70;
+constexpr size_t kPartyBarButtonFeedback = 0xd0;
+constexpr uint16_t kFeedbackCantRest = 0xd6;
+constexpr uint32_t kStrSpellbook = 7038;
+constexpr int kGobVtableReplaceTexture = 12;
+constexpr size_t kAppManagerMultiplayer = 0x28;
+constexpr const char* kAppManagerGlobal = "?g_pAppManager@@3PEAVCAppManager@@EA";
+constexpr const char* kGuiObjectSetModel = "?SetModel@CGuiObject@@QEAAXPEBD@Z";
+constexpr const char* kGuiObjectAddToPanel = "?AddToPanel@CGuiObject@@QEAAXPEAV1@PEBD@Z";
+constexpr const char* kGuiButtonSetEnabled = "?SetEnabled@CGuiButton@@QEAAXH@Z";
 constexpr size_t kCreatureIsPlayerCharacter = 0x89c;  // int32; ResolveAttackRoll's NoCriticalOnPC check (+0x3e9)
 constexpr size_t kCreatureMaster = 0x8fc;             // uint32 object id (ExecuteCommandGetAssociateType)
 constexpr size_t kCreatureAssociateType = 0x908;      // uint16: 1 henchman, 2 companion, 3 familiar, 4 summon, 5 dominated
