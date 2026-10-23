@@ -166,6 +166,12 @@ std::string ShortRestOf(void* creature, const std::string& who) {
     ApplyEffectAs(IdOf(creature), IdOf(creature), "DURATION_TYPE_INSTANT",
                   ("EffectHeal(" + std::to_string(rest.healed) + ")").c_str(), 0.0f, 0);
   }
+  if (g_config.short_rest_vfx > 0) {  // the potion's look (short_rest_vfx, _scale)
+    char visual[96];
+    sprintf_s(visual, "EffectVisualEffect(%d, FALSE, %.2f)", g_config.short_rest_vfx,
+              g_config.short_rest_vfx_scale / 100.0);
+    ApplyEffectAs(IdOf(creature), IdOf(creature), "DURATION_TYPE_INSTANT", visual, 0.0f, 0);
+  }
   std::string rolls;
   for (size_t i = 0; i < rest.sides.size(); ++i) {
     rolls += (i ? ", " : "") + std::string("d") + std::to_string(rest.sides[i]) + " " + std::to_string(rest.rolls[i]);

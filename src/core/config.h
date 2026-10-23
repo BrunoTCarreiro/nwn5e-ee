@@ -138,6 +138,12 @@ struct Config {
   // Rests move the clock: a Long Rest 8 hours, a Short Rest 1 (to test; the
   // owner keeps it still for now).
   bool rest_clock = false;
+  // The Short Rest's visual on each resting character (owner, 2026-10-23: "I
+  // like the look the health potion effect has"): a visualeffects.2da row (69
+  // VFX_IMP_HEALING_S, the Cure Light Wounds potion's; 0 none) at a scale in
+  // percent.
+  int short_rest_vfx = 69;
+  int short_rest_vfx_scale = 100;
   // CM0: serve nwn5e's 2da rows and strings (data\rows, data\strings.txt).
   bool served_data = true;
 

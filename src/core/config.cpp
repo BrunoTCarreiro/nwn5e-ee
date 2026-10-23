@@ -83,6 +83,9 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.finesse = ReadVariant(ini, L"finesse", g_config.mode);
   g_config.rests = ReadVariant(ini, L"rests", g_config.mode);
   g_config.rest_clock = ReadBool(ini, L"rest_clock", g_config.rest_clock);
+  g_config.short_rest_vfx = GetPrivateProfileIntW(L"rules", L"short_rest_vfx", g_config.short_rest_vfx, ini);
+  g_config.short_rest_vfx_scale =
+      GetPrivateProfileIntW(L"rules", L"short_rest_vfx_scale", g_config.short_rest_vfx_scale, ini);
   g_config.served_data = ReadBool(ini, L"served_data", g_config.served_data);
   g_config.resume_attack_after_potion =
       ReadBool(ini, L"resume_attack_after_potion", g_config.resume_attack_after_potion);
