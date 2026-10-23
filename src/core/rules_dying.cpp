@@ -74,7 +74,7 @@ constexpr const char* kVarInTemple = "nwn5e_in_temple";
 constexpr float kFightRange = 30.0f;            // the Rest button's REST_ENEMY_CHECK_DISTANCE
 constexpr uint64_t kDeathSaveMs = 6000;         // one round
 constexpr uint64_t kPassMs = 100;
-constexpr uint64_t kLongestStepMs = 1000;       // a longer gap is a pause or a load: not counted
+constexpr uint64_t kLongestStepMs = 1000;       // a longer gap (a load, a hitch) is not counted
 constexpr uint64_t kCriticalWindowMs = 3000;    // an attack's critical roll to its damage
 constexpr uint64_t kRetryMs = 3000;             // a heal or a death on its way that didn't land
 constexpr uint64_t kSummonDelayMs = 4000;       // after a respawn: the campaign's own jump (HotU's: 2 s) first
@@ -115,9 +115,14 @@ struct DownPlayer {
   rules::DeathSaves saves;
   FightWatch fight;
   void* area = nullptr;
-  uint64_t last_tick = 0;
-  uint64_t elapsed_ms = 0;
-  uint64_t pending_at = 0;  // a heal (waking) or a death on its way
+  uint64_t next_save = 0;   // game time (GameMs)
+  uint64_t pending_at = 0;  // game time: a heal (waking) or a death on its way
+  // What the engine shows (owner, 2026-10-23: the player "got up after the 15
+  // roll" while still at 0 HP): posture and animation logged on each change,
+  // the posture put back to lying if anything stands it up.
+  int posture = -1;
+  int animation = -1;
+  int changes_logged = 0;
   bool pending_death = false;
 };
 struct DownHenchman {
@@ -139,6 +144,23 @@ constexpr uint64_t kRecentDropMs = 5000;
 std::unordered_map<uint32_t, PlayerUpkeep> g_upkeep;
 std::vector<std::pair<uint32_t, std::string>> g_lines;   // told at the next pass (not inside the damage)
 uint64_t g_last_pass = 0;
+// Game time: what the passes saw the game run, unpaused (GetActivePauseState)
+// - the clock of the death saves, the fight watch and their retries. The
+// engine keeps updating creatures while paused (0.19.4 rolled death saves
+// through a pause: owner, 2026-10-23).
+uint64_t g_game_ms = 0;
+bool g_was_paused = false;
+using PauseStateFn = uint8_t (*)(void* app);
+PauseStateFn g_pause_state = nullptr;
+void** g_app_manager = nullptr;
+using SetAnimationFn = void (*)(void* creature, int animation);
+SetAnimationFn g_set_animation = nullptr;
+
+bool Paused() {
+  if (!g_pause_state || !g_app_manager || !*g_app_manager) return false;
+  void* app = Field<void*>(*g_app_manager, ee::kAppManagerServerApp);
+  return app && g_pause_state(app) != 0;
+}
 int g_forced_roll = 0;  // !dying roll
 
 bool Faithful() { return g_config.dying == rules::RuleVariant::kFaithful; }
@@ -413,6 +435,27 @@ void RollSave(void* player, uint32_t id, DownPlayer& state, uint64_t now) {
   Tell(id, line);
 }
 
+// A down player keeps lying: its posture and animation logged when they change
+// (the first 20 per drop), the posture put back if something stands it up.
+void WatchPosture(void* player, uint32_t id, DownPlayer& state) {
+  const int posture = Field<uint8_t>(player, ee::kCreaturePosture);
+  const int animation = Field<int32_t>(player, ee::kObjectAnimation);
+  if (posture != state.posture || animation != state.animation) {
+    if (state.changes_logged < 20) {
+      ++state.changes_logged;
+      Log("dying: 0x%08X down - posture %d -> %d, animation %d -> %d", id, state.posture, posture, state.animation,
+          animation);
+    }
+    state.posture = posture;
+    state.animation = animation;
+  }
+  if (posture == ee::kPostureLyingBack || posture == ee::kPostureLyingFront) return;
+  SetField<uint8_t>(player, ee::kCreaturePosture, ee::kPostureLyingFront);
+  if (g_set_animation) g_set_animation(player, 0);  // "stand" = the posture's lying animation
+  Log("dying: 0x%08X down but posture %d - put back to lying (animation now %d)", id, posture,
+      Field<int32_t>(player, ee::kObjectAnimation));
+}
+
 // One down player's pass. False when its time at 0 HP is over.
 bool UpdateDownPlayer(uint32_t id, DownPlayer& state, uint64_t now) {
   void* player = CreatureById(id);
@@ -433,6 +476,7 @@ bool UpdateDownPlayer(uint32_t id, DownPlayer& state, uint64_t now) {
     GainExhaustion(player);
     return false;
   }
+  WatchPosture(player, id, state);
   if (state.pending_at) {
     if (now - state.pending_at < kRetryMs) return true;
     state.pending_at = 0;  // it didn't land: decide again
@@ -460,11 +504,8 @@ bool UpdateDownPlayer(uint32_t id, DownPlayer& state, uint64_t now) {
     state.pending_at = now;
     return true;
   }
-  const uint64_t step = now - state.last_tick;
-  state.last_tick = now;
-  if (step <= kLongestStepMs) state.elapsed_ms += step;
-  if (state.saves.stable || state.elapsed_ms < kDeathSaveMs) return true;
-  state.elapsed_ms -= kDeathSaveMs;
+  if (state.saves.stable || now < state.next_save) return true;
+  state.next_save = now + kDeathSaveMs;
   RollSave(player, id, state, now);
   return true;
 }
@@ -613,10 +654,10 @@ void PlayerDamaged(void* player, int before, int after) {
   SetHitPoints(player, 0);
   DownPlayer state;
   state.area = engine::AreaOf(player);
-  state.last_tick = GetTickCount64();
-  state.fight.Start(state.last_tick);
+  state.next_save = g_game_ms + kDeathSaveMs;
+  state.fight.Start(g_game_ms);
   g_down_players[id] = state;
-  g_recent_drops[id] = state.last_tick;
+  g_recent_drops[id] = GetTickCount64();
   engine::SetLocalInt(player, kVarDown, 1);
   Log("dying: 0x%08X drops to 0 HP (%d past 0) - death saves; %s", id, -after,
       ScanText(ScanFight(player, player)).c_str());
@@ -691,8 +732,8 @@ void UpkeepPlayer(void* player, uint64_t now) {
     if (hit_points <= 0 && hit_points > ee::kHitPointsDead) {
       DownPlayer state;
       state.area = engine::AreaOf(player);
-      state.last_tick = now;
-      state.fight.Start(now);
+      state.next_save = g_game_ms + kDeathSaveMs;
+      state.fight.Start(g_game_ms);
       g_down_players[id] = state;
       Log("dying: 0x%08X down (a saved game) - death saves again", id);
     } else {
@@ -712,7 +753,8 @@ void UpkeepPlayer(void* player, uint64_t now) {
   }
 }
 
-void Pass(uint64_t now) {
+// `now` is game time (the down players' clocks), `real_now` the wall clock.
+void Pass(uint64_t now, uint64_t real_now) {
   std::vector<std::pair<uint32_t, std::string>> lines;
   lines.swap(g_lines);
   for (const auto& line : lines) TellPlayer(line.first, line.second);
@@ -734,11 +776,11 @@ void Pass(uint64_t now) {
   for (uint32_t id : ids) {
     const uint64_t since = g_respawned[id];
     void* player = CreatureById(id);
-    if (!player || now - since > kSummonGiveUpMs) {
+    if (!player || real_now - since > kSummonGiveUpMs) {
       g_respawned.erase(id);
       continue;
     }
-    if (now - since < kSummonDelayMs || HitPoints(player) < 1 || !engine::AreaOf(player)) continue;
+    if (real_now - since < kSummonDelayMs || HitPoints(player) < 1 || !engine::AreaOf(player)) continue;
     g_respawned.erase(id);
     RunScriptChunk("SetLocalObject(OBJECT_SELF, \"nwn5e_respawn_area\", GetArea(OBJECT_SELF));", id);
     SummonHenchmen(player, true);
@@ -750,8 +792,15 @@ void Update(void* creature) {
   const uint64_t now = GetTickCount64();
   if (IsPlayer(creature)) UpkeepPlayer(creature, now);
   if (now - g_last_pass < kPassMs) return;
+  const uint64_t step = now - g_last_pass;
   g_last_pass = now;
-  Pass(now);
+  const bool paused = Paused();
+  if (paused != g_was_paused) {
+    g_was_paused = paused;
+    if (!g_down_players.empty()) Log("dying: the game %s", paused ? "is paused - the death saves wait" : "runs again");
+  }
+  if (!paused && step <= kLongestStepMs) g_game_ms += step;
+  Pass(g_game_ms, now);
 }
 
 // The end of a Long Rest: every level of Exhaustion gone; in a temple's area,
@@ -868,6 +917,10 @@ void InstallDyingRules() {
   RegisterRecords({kVarExhaustion});
   g_associate_id = reinterpret_cast<AssociateIdFn>(EngineExport(ee::kGetAssociateId));
   g_max_hit_points = reinterpret_cast<MaxHitPointsFn>(EngineExport(ee::kGetMaxHitPoints));
+  g_pause_state = reinterpret_cast<PauseStateFn>(EngineExport(ee::kGetActivePauseState));
+  g_set_animation = reinterpret_cast<SetAnimationFn>(EngineExport(ee::kCreatureSetAnimation));
+  g_app_manager = reinterpret_cast<void**>(EngineExport(ee::kAppManager));
+  if (!g_pause_state || !g_app_manager) Log("dying: the pause state is unknown - death saves go on through a pause");
   if (!g_associate_id) {
     Log("SKIP dying: GetAssociateId missing - NWN's dying stays");
     return;

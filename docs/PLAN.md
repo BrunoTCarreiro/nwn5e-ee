@@ -898,6 +898,15 @@ the state; with test_commands, `!dying roll <d20>`, `!dying hurt <HP>
   party still up attacks a living creature, however far (its attack target,
   GetAttackTarget's field; owner: "a good check is 'if the henchman is
   actively fighting' as well").
+- The death saves, the fight watch and their retries run on game time: the
+  passes' steps while CServerExoApp::GetActivePauseState is 0. *0.19.5:* the
+  engine keeps updating creatures while paused, and 0.19.4 (wall clock) went
+  on rolling death saves through a pause (owner, 2026-10-23).
+- A down player keeps lying: its posture (+0x6B4: 3 / 4 lying) and animation
+  (+0xD8) are logged when they change and the posture is put back if
+  something stands it up (0.19.5; owner: the player "got up after the 15
+  roll" at 0 HP - the engine's own writes keep a dying creature lying, so
+  the logs are to show what did).
 - A respawn removes Exhaustion like a Long Rest (else a death at level 6
   would come back at 6).
 - Henchmen don't gain Exhaustion (the player character only).

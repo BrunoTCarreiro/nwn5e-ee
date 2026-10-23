@@ -1066,6 +1066,23 @@ constexpr size_t kModuleLastPlayerDied = 0x388;
 constexpr size_t kModuleLastPlayerDying = 0x38c;
 constexpr size_t kModuleLastRespawner = 0x390;
 constexpr int kHitPointsDead = -10;
+// CServerExoApp::GetActivePauseState(): 0 running, 1 paused, 2 paused by a DM
+// (the pause byte, CServerExoAppInternal +0x10108, D). Creature updates go on
+// while the game is paused (0.19.4's death saves kept rolling), so rules that
+// count time ask it.
+constexpr const char* kGetActivePauseState = "?GetActivePauseState@CServerExoApp@@QEAAEXZ";
+// A creature's posture (uint8 +0x6B4): 3 / 4 lying dead or dying (OnApplyDamage
+// and OnApplyDeath set it by the blow's direction), 5 / 6 knocked down, else
+// standing or sitting. CNWSCreature::SetAnimation(0 or 1) turns "stand" into
+// the posture's own animation (4 -> 6 or 8, 3 -> 8); the animation is int32
+// +0xD8 (CNWSObject::SetAnimation). Only ClearAction and
+// RecomputeAmbientAnimationState set a standing posture - both keep a dead or
+// dying creature lying (D, every write to +0x6B4 in the .text).
+constexpr size_t kCreaturePosture = 0x6b4;
+constexpr uint8_t kPostureLyingBack = 3;
+constexpr uint8_t kPostureLyingFront = 4;
+constexpr size_t kObjectAnimation = 0xd8;
+constexpr const char* kCreatureSetAnimation = "?SetAnimation@CNWSCreature@@UEAAXH@Z";
 // Phase 5a: the HUD's Short Rest button (hud_rest.cpp). The buttons under the
 // portrait belong to CPanelPartyBar (vtable slot 11 = its per-frame Update;
 // built in code: SetModel + AddToPanel on pnl_party_bar.mdl's hooks); each is
