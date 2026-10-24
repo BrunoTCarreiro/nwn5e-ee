@@ -834,6 +834,21 @@ re-checked their exports). Shared between them — one piece of code each:
   points spent or Bloodied; M9 NWN's Stunning Fist attack at 1 point, refunded
   on a miss; M13's reroll automatic; OH1 picked through X8, Topple by
   default).
+- OH2-OH4 A (OH4 one step: the save at once, 10d12, no instant death). R1 a-c
+  A (the 2024 trigger, once per round, the dice doubled on a crit); R1 d A
+  (faithful drops sneak-attack immunity only; crit immunity unchanged until
+  Phase 8). R2 A, and onto the RP list. R4 A (Phase 6; stealth in combat for
+  Rogue 2+ now if it is one server-side check). R5 A (Phase 6).
+
+**RP list (owner, 2026-10-24: "Note down 48 in a RP list, we can look into
+these RP skills and maybe try to find a way to make them useful").** Features
+with no NWN use today, to look at for a role-play use (dialog checks,
+scripted moments, ambient effects):
+- Thieves' Cant (Rogue 1, R2).
+- Candidates of the same kind found by the briefs (not yet added by the
+  owner): Second-Story Work (Thief 3, T2: climbing, jumping), Slow Fall and
+  Acrobatic Movement (Monk 4 / 9, M6), the Monk's artisan's tool or musical
+  instrument (M17), Survival (Primal Knowledge, B7), languages.
 
 ### Phase 3 — Barbarian (CM9): recommendations (for the owner's decision)
 
