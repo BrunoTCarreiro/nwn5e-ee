@@ -3,3 +3,4 @@
 # root node, nwn5e's own model (data\files\n5_bleed.mdl).
 Label Type_FD OrientWithGround Imp_Root_S_Node Imp_Root_M_Node Imp_Root_L_Node Imp_Root_H_Node
 1570 NWN5E_BLEED D 0 n5_bleed n5_bleed n5_bleed n5_bleed
+1571 NWN5E_SPLAT_TEST F 0 n5_splat_t n5_splat_t n5_splat_t n5_splat_t

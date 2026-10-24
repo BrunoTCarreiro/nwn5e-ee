@@ -28,6 +28,7 @@ ROWS = os.path.join("data", "rows", "visualeffects.bleed.txt")
 
 DARK_RED = (0.42, 0.02, 0.02)
 DEEP_RED = (0.25, 0.0, 0.0)
+SPLAT_RED = (0.33, 0.0, 0.0)  # the game's blood splats (vwp_l_blood_red)
 WAIST_M = 0.95
 
 
@@ -37,18 +38,25 @@ def drops(rate, size, area_cm):
                 color=(DARK_RED, DEEP_RED), alpha=(1.0, 0.9), area=area_cm, blur=7, height=WAIST_M)
 
 
-def puddle(rate, size_to, life, area_cm):
+def puddle(rate, size_to, life, area_cm, velocity=0.6, name="puddle"):
     # Sticky drops: they fall from the waist, splat flat where they land and
-    # spread to size_to as they fade (the size grows over the whole life).
-    return dict(name="puddle", texture="blood", render="Normal", birthrate=rate, life=life,
-                velocity=0.15, randvel=0.15, spread=0.5, mass=2.4, size=(0.02, size_to),
-                color=(DEEP_RED, DEEP_RED), alpha=(1.0, 0.0), area=area_cm, blur=0, height=WAIST_M,
+    # spread to size_to as they fade (the size grows over the whole life). A
+    # little outward speed lands them around the feet, not hidden under them.
+    return dict(name=name, texture="blood", render="Normal", birthrate=rate, life=life,
+                velocity=velocity, randvel=velocity, spread=1.2, mass=2.4, size=(0.02, size_to),
+                color=(SPLAT_RED, SPLAT_RED), alpha=(1.0, 0.0), area=area_cm, blur=0.1, height=WAIST_M,
                 flags=("bounce", "random", "splat"), grid=2, frames=3)
 
 
 EFFECTS = [
-    ("n5_bleed", 1570, "NWN5E_BLEED", [drops(1.5, 0.03, 18), puddle(0.9, 0.4, 6.0, 12)]),
+    ("n5_bleed", 1570, "NWN5E_BLEED", [drops(1.5, 0.03, 18), puddle(2.0, 0.8, 6.0, 12)]),
 ]
+
+# A check, not a look: 491's own puddle settings (its M_Red_Sticky emitter) in
+# nwn5e's own model - a one-shot burst. If !vfx 1571 leaves a puddle and 1570
+# doesn't, it's tuning; if neither does, an ASCII model's splat isn't working.
+TEST = ("n5_splat_t", 1571, "NWN5E_SPLAT_TEST",
+        [puddle(150.0, 1.0, 5.0, 0, velocity=2.0, name="sticky")], 0.15, 5.5)
 
 
 def emitter_lines(model, e):
@@ -108,6 +116,30 @@ def anim(model, name, length, emitters, birthrate_keys):
     return lines
 
 
+def write_burst(model, emitters, emit, length):
+    """A fire-and-forget model: every emitter on for `emit` seconds of its impact."""
+    lines = [
+        "#MAXMODEL ASCII",
+        "# nwn5e (tools/data/bleed_vfx.py): a check - the game's blood-splat settings in an ASCII model.",
+        "newmodel " + model,
+        "setsupermodel %s NULL" % model,
+        "classification effect",
+        "setanimationscale 1",
+        "beginmodelgeom " + model,
+        "node dummy " + model,
+        "  parent NULL",
+        "endnode",
+    ]
+    for e in emitters:
+        lines += emitter_lines(model, dict(e, birthrate=0))
+    lines.append("endmodelgeom " + model)
+    lines += anim(model, "impact", length, emitters,
+                  lambda e: [(0, e["birthrate"]), (emit, e["birthrate"]), (emit + 0.01, 0)])
+    lines += ["", "donemodel " + model, ""]
+    with open(os.path.join(FILES, model + ".mdl"), "w", encoding="ascii", newline="\n") as f:
+        f.write("\n".join(lines))
+
+
 def write_model(model, emitters):
     lines = [
         "#MAXMODEL ASCII",
@@ -146,6 +178,9 @@ def main():
     for model, row, label, emitters in EFFECTS:
         write_model(model, emitters)
         rows.append("%d %s D 0 %s %s %s %s" % (row, label, model, model, model, model))
+    model, row, label, emitters, emit, length = TEST
+    write_burst(model, emitters, emit, length)
+    rows.append("%d %s F 0 %s %s %s %s" % (row, label, model, model, model, model))
     with open(ROWS, "w", encoding="ascii", newline="\n") as f:
         f.write("\n".join(rows) + "\n")
     print("wrote %d bleeding model(s) to %s and %s" % (len(EFFECTS), FILES, ROWS))

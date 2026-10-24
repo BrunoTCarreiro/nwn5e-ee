@@ -1593,6 +1593,12 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   random frame, flags bounce + random + splat, size 0.018 -> 1 over 5 s) -
   sticky drops that flatten where they land and spread (ours to 0.4 m over
   6 s, under one a second); the flat Aligned_to_World_z quad never showed.
+  0.22.6 (owner: "still no puddle"): two a second, 491's red, spreading to
+  0.8 m, thrown a little outward so they land around the feet instead of
+  hidden under them; and a check row, 1571 NWN5E_SPLAT_TEST - 491's own
+  sticky settings (150 a second for 0.15 s, velocity 2, to 1 m over 5 s) in an
+  ASCII model of ours: a puddle from it and not from 1570 = tuning; none from
+  either = an ASCII model's splat doesn't work, another way needed.
   low_hp_look.cpp puts it on the player character under 10% of its hit points
   (checked each second, put back every 6 s if stripped), none at 0 HP.
   `low_hp_bleed`, `bleed_percent`.

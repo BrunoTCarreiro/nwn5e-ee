@@ -97,28 +97,28 @@ node emitter n5_bleed_puddle
   blastLength 0
   position 0 0 0.95
   orientation 0 0 0 0
-  colorStart 0.25 0 0
-  colorEnd 0.25 0 0
+  colorStart 0.33 0 0
+  colorEnd 0.33 0 0
   alphaStart 1
   alphaEnd 0
   sizeStart 0.02
-  sizeEnd 0.4
+  sizeEnd 0.8
   sizeStart_y 0
   sizeEnd_y 0
   frameStart 0
   frameEnd 3
-  birthrate 0.9
+  birthrate 2
   lifeExp 6
   mass 2.4
-  spread 0.5
+  spread 1.2
   particleRot 0
-  velocity 0.15
-  randvel 0.15
+  velocity 0.6
+  randvel 0.6
   fps 0
   xsize 12
   ysize 12
   bounce_co 0
-  blurlength 0
+  blurlength 0.1
   lightningDelay 0
   lightningRadius 0
   lightningScale 0
