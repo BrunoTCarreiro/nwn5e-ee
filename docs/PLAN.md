@@ -1574,6 +1574,20 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   penalties' own icons hidden (HideEffectIcon). EffectIcon takes rows 1-255.
 - `!vfx` has a search field (owner: "can you add a search bar to the vfx
   window?"): the list narrows as you type, by name or row number.
+- `!anim` (0.22.1; owner, 2026-10-24: "is there a way to preview walking
+  animations?" - "build the !anim window"): a window of the humanoid model's
+  84 animations (a_ba / a_fa), movement first, with the same search. A click
+  plays one in place, looping (EE's ReplaceObjectAnimation swaps the look-far
+  loop for it, then ActionPlayAnimation); "Walk / Run a loop" walks 5 m out
+  and back twice with the selection as the walk / run (none: the game's own);
+  speed 0.25x-2x; "Play typed" plays the search text as a name; Stop or
+  closing restores everything. Engine facts (nwmain's animation switch, table
+  RVA 0x963E88, ids 0-140): 1 ready, 2 walk, 3 walk backwards, 4 run, 5-8
+  knockdown / dead, 14 damage, 15-20 conjure / cast, 24-27 combat steps
+  (cwalkf/b/r/l), 28 taunt, 32 meditate, 33 worship, 35 bow, 36 sit, 37 steal,
+  44-46 victory, 53-58 turns and idles, 70 drink, 71 read, 86-87 runfl/runfr,
+  97-140 Custom1-40 (a_ba has none of them); walkinj (the limp) and walkdead
+  have no id - the walk case picks them by state.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:
