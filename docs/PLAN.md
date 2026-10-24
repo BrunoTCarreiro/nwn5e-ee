@@ -1651,6 +1651,10 @@ stayed lying - OnApplyDamage set the lying posture (+0x6B4 = 3 / 4) when the
 blow took him below 1 HP, and only ClearAction / RecomputeAmbientAnimationState
 write standing (1). Getting up (healed, or summoned) now sets the standing
 posture and the stand animation (SetAnimation 0).
+*Tested in game (owner, 2026-10-24):* the death-save visuals (V1-V6), the
+Exhaustion icon (E5, E6), the `!vfx` search (S2), death magic, the unseen and
+the healed downed henchman (D1-D3), the henchmen's Short Rest and its button
+(H8, H9) all pass; the low-HP bleeding settled as the puddle alone (0.22.8).
 
 ## Phase 2 — skills and checks: decided by the owner (2026-10-19)
 
