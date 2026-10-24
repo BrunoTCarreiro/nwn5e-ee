@@ -1,0 +1,183 @@
+#MAXMODEL ASCII
+# nwn5e (tools/data/bleed_vfx.py): low hit points - a character bleeding;
+# the game's textures by name.
+newmodel n5_bleed_2
+setsupermodel n5_bleed_2 NULL
+classification effect
+setanimationscale 1
+beginmodelgeom n5_bleed_2
+node dummy n5_bleed_2
+  parent NULL
+endnode
+node emitter n5_bleed_2_drops
+  parent n5_bleed_2
+  p2p 0
+  p2p_sel 1
+  affectedByWind 0
+  m_isTinted 0
+  bounce 0
+  random 0
+  inherit 0
+  inheritvel 0
+  inherit_local 0
+  splat 0
+  inherit_part 0
+  renderorder 0
+  spawntype 0
+  update Fountain
+  render Motion_Blur
+  blend Normal
+  texture fxpa_sphere
+  xgrid 1
+  ygrid 1
+  loop 0
+  deadspace 0
+  twosidedtex 0
+  blastRadius 0
+  blastLength 0
+  position 0 0 0.95
+  orientation 0 0 0 0
+  colorStart 0.42 0.02 0.02
+  colorEnd 0.25 0 0
+  alphaStart 1
+  alphaEnd 0.9
+  sizeStart 0.035
+  sizeEnd 0.028
+  sizeStart_y 0
+  sizeEnd_y 0
+  frameStart 0
+  frameEnd 0
+  birthrate 2.5
+  lifeExp 0.55
+  mass 1.8
+  spread 0.3
+  particleRot 0
+  velocity 0
+  randvel 0.05
+  fps 0
+  xsize 20
+  ysize 20
+  bounce_co 0
+  blurlength 7
+  lightningDelay 0
+  lightningRadius 0
+  lightningScale 0
+  p2p_bezier2 0
+  p2p_bezier3 0
+  combinetime 0
+  drag 0
+  grav 0
+  threshold 0
+endnode
+node emitter n5_bleed_2_puddle
+  parent n5_bleed_2
+  p2p 0
+  p2p_sel 1
+  affectedByWind 0
+  m_isTinted 0
+  bounce 0
+  random 0
+  inherit 0
+  inheritvel 0
+  inherit_local 0
+  splat 0
+  inherit_part 0
+  renderorder 0
+  spawntype 0
+  update Fountain
+  render Aligned_to_World_z
+  blend Normal
+  texture blood
+  xgrid 1
+  ygrid 1
+  loop 0
+  deadspace 0
+  twosidedtex 0
+  blastRadius 0
+  blastLength 0
+  position 0 0 0.02
+  orientation 0 0 0 0
+  colorStart 0.25 0 0
+  colorEnd 0.25 0 0
+  alphaStart 0.85
+  alphaEnd 0
+  sizeStart 0.12
+  sizeEnd 0.3
+  sizeStart_y 0
+  sizeEnd_y 0
+  frameStart 0
+  frameEnd 0
+  birthrate 0.5
+  lifeExp 6
+  mass 0
+  spread 0
+  particleRot 0
+  velocity 0
+  randvel 0
+  fps 0
+  xsize 15
+  ysize 15
+  bounce_co 0
+  blurlength 0
+  lightningDelay 0
+  lightningRadius 0
+  lightningScale 0
+  p2p_bezier2 0
+  p2p_bezier3 0
+  combinetime 0
+  drag 0
+  grav 0
+  threshold 0
+endnode
+endmodelgeom n5_bleed_2
+
+newanim impact n5_bleed_2
+  length 0.2
+  transtime 0.25
+  animroot n5_bleed_2
+node dummy n5_bleed_2
+  parent NULL
+endnode
+node emitter n5_bleed_2_drops
+  parent n5_bleed_2
+endnode
+node emitter n5_bleed_2_puddle
+  parent n5_bleed_2
+endnode
+doneanim impact n5_bleed_2
+
+newanim duration n5_bleed_2
+  length 2
+  transtime 0.25
+  animroot n5_bleed_2
+node dummy n5_bleed_2
+  parent NULL
+endnode
+node emitter n5_bleed_2_drops
+  parent n5_bleed_2
+endnode
+node emitter n5_bleed_2_puddle
+  parent n5_bleed_2
+endnode
+doneanim duration n5_bleed_2
+
+newanim cessation n5_bleed_2
+  length 1
+  transtime 0.25
+  animroot n5_bleed_2
+node dummy n5_bleed_2
+  parent NULL
+endnode
+node emitter n5_bleed_2_drops
+  parent n5_bleed_2
+  birthratekey 1
+    0 0
+endnode
+node emitter n5_bleed_2_puddle
+  parent n5_bleed_2
+  birthratekey 1
+    0 0
+endnode
+doneanim cessation n5_bleed_2
+
+donemodel n5_bleed_2

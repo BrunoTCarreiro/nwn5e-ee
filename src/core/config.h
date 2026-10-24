@@ -161,6 +161,14 @@ struct Config {
   // (pausetrd), 3-5 also the injured walk (walkinj) - EE's
   // ReplaceObjectAnimation on the player character.
   bool exhaustion_look = true;
+  // A wounded player character bleeds (owner, 2026-10-24): mild dripping at
+  // bleed_mild_percent of its hit points or less, dripping and a small puddle
+  // at bleed_puddle_percent, more bleeding at bleed_heavy_percent
+  // (visualeffects 1570-1572, low_hp_look.cpp); 0 turns a tier off.
+  bool low_hp_bleed = true;
+  int bleed_mild_percent = 50;
+  int bleed_puddle_percent = 25;
+  int bleed_heavy_percent = 10;
   // The Short Rest's visual on each resting character (owner, 2026-10-23: "I
   // like the look the health potion effect has"; then "Use
   // VFX_IMP_RESTORATION_LESSER, it looks like a good placeholder"): a
