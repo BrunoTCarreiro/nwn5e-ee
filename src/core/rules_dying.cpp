@@ -18,8 +18,12 @@
 //   and gets up only when healed above 1 HP: a spell, a healer's kit, a Short
 //   Rest (its Hit Dice) - the player gets it up after the fight (owner,
 //   2026-10-23: "the player needs to get them up manually after the fight").
-//   The campaign's OnDeath (OC's temple, HotU's corpse) no longer runs for
-//   damage; death magic still kills.
+//   While down, enemies don't see it (an ethereal effect), so they turn on the
+//   rest of the party. Death magic from an enemy (Finger of Death, Wail of the
+//   Banshee, Power Word Kill...) lays it down the same way (OnApplyDeath, as
+//   the engine treats an immortal creature); a death from anything else - a
+//   script's, a trap's - still kills, and the campaign's OnDeath has it
+//   (owner, 2026-10-24: the 5b recommendations accepted).
 // - Temple: on respawn (the module's OnPlayerRespawn) every henchman joins the
 //   player at full health once it has landed; a Long Rest in a temple's area
 //   (the campaigns' respawn points NW_DEATH_TEMPLE, NW_DEATH_PLACE,
@@ -104,6 +108,8 @@ constexpr const char* kTagDownAura = "nwn5e_down_aura";
 constexpr const char* kTagDownMarker = "nwn5e_down_marker";
 
 using DoDamageFn = void (*)(void* creature, int damage);
+using OnApplyDeathFn = int (*)(void* handler, void* object, void* effect, int load_game);
+OnApplyDeathFn g_on_apply_death = nullptr;
 using RunEventScriptFn = int (*)(void* module, int script, void* name);
 using AssociateIdFn = uint32_t (*)(void* creature, uint16_t type, int nth);
 using MaxHitPointsFn = int16_t (*)(void* creature, int include_temporary);
@@ -602,12 +608,16 @@ constexpr const char* kLayDownScript =
     "SetLocalInt(OBJECT_SELF, \"nwn5e_down_plot\", GetPlotFlag(OBJECT_SELF));"
     "SetPlotFlag(OBJECT_SELF, TRUE); SetCommandable(TRUE, OBJECT_SELF); ClearAllActions(TRUE);"
     "PlayVoiceChat(VOICE_CHAT_HEALME, OBJECT_SELF);"
+    "ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(SupernaturalEffect(EffectEthereal()), "
+    "\"nwn5e_down_unseen\"), OBJECT_SELF);"
     "ActionPlayAnimation(ANIMATION_LOOPING_DEAD_FRONT, 1.0, 100000.0); SetCommandable(FALSE, OBJECT_SELF);"
     "object m = GetMaster(OBJECT_SELF); if (GetIsPC(m)) SendMessageToPC(m, \"nwn5e: \" + GetName(OBJECT_SELF) + "
     "\" is down - heal them (a spell, a healer's kit) or take a Short Rest after the fight to get them up.\");";
 
 constexpr const char* kGetUpScript =
     "SetCommandable(TRUE, OBJECT_SELF);"
+    "effect e = GetFirstEffect(OBJECT_SELF); while (GetIsEffectValid(e)) { if (GetEffectTag(e) == "
+    "\"nwn5e_down_unseen\") RemoveEffect(OBJECT_SELF, e); e = GetNextEffect(OBJECT_SELF); }"
     "SetPlotFlag(OBJECT_SELF, GetLocalInt(OBJECT_SELF, \"nwn5e_down_plot\"));"
     "DeleteLocalInt(OBJECT_SELF, \"nwn5e_down\"); DeleteLocalInt(OBJECT_SELF, \"nwn5e_down_plot\");"
     "ClearAllActions(TRUE);"
@@ -618,6 +628,8 @@ constexpr const char* kGetUpScript =
 constexpr const char* kSummonScript =
     "object pc = StringToObject(\"%x\");"
     "SetCommandable(TRUE, OBJECT_SELF);"
+    "effect e = GetFirstEffect(OBJECT_SELF); while (GetIsEffectValid(e)) { if (GetEffectTag(e) == "
+    "\"nwn5e_down_unseen\") RemoveEffect(OBJECT_SELF, e); e = GetNextEffect(OBJECT_SELF); }"
     "if (GetLocalInt(OBJECT_SELF, \"nwn5e_down\")) { SetPlotFlag(OBJECT_SELF, GetLocalInt(OBJECT_SELF, "
     "\"nwn5e_down_plot\")); DeleteLocalInt(OBJECT_SELF, \"nwn5e_down\"); DeleteLocalInt(OBJECT_SELF, "
     "\"nwn5e_down_plot\"); }"
@@ -757,6 +769,23 @@ void HenchmanDamaged(void* henchman) {
   if (g_down_henchmen.count(id)) return;
   g_down_henchmen[id] = DownHenchman{};
   Log("dying: henchman 0x%08X of 0x%08X down at 1 HP", id, master);
+}
+
+// Death magic from an enemy on a player's henchman: down at 1 HP, as damage
+// would leave it; the handler's own immortal path returns 1 (done, no death).
+int OnApplyDeath(void* handler, void* object, void* effect, int load_game) {
+  if (Faithful() && object && effect && !load_game) {
+    void* creature = CreatureById(IdOf(object));
+    if (creature && !engine::IsDeadOrDying(creature) && PlayerMasterOf(creature)) {
+      const uint32_t creator = effects::Creator(effect);
+      if (creator && creator != ee::kObjectInvalid && engine::IsEnemy(creature, creator)) {
+        Log("dying: henchman 0x%08X - death magic from 0x%08X lays it down instead", IdOf(creature), creator);
+        HenchmanDamaged(creature);
+        return 1;
+      }
+    }
+  }
+  return g_on_apply_death(handler, object, effect, load_game);
 }
 
 void DoDamage(void* creature, int damage) {
@@ -1013,6 +1042,10 @@ void InstallDyingRules() {
                   reinterpret_cast<void*>(&DoDamage), reinterpret_cast<void**>(&g_do_damage))) {
     Log("SKIP dying: CNWSCreature::DoDamage not hooked - NWN's dying stays");
     return;
+  }
+  if (!HookExport("CNWSEffectListHandler::OnApplyDeath (dying: death magic lays a henchman down)", ee::kOnApplyDeath,
+                  reinterpret_cast<void*>(&OnApplyDeath), reinterpret_cast<void**>(&g_on_apply_death))) {
+    Log("dying: OnApplyDeath not hooked - death magic still kills henchmen");
   }
   if (!HookExport("CNWSModule::RunEventScript (dying: OnPlayerDying, OnPlayerRespawn)", ee::kModuleRunEventScript,
                   reinterpret_cast<void*>(&RunEventScript), reinterpret_cast<void**>(&g_run_event_script))) {

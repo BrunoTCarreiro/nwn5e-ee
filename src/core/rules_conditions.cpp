@@ -214,7 +214,8 @@ void ForceCriticalOnHelpless(AttackRoll& roll) {
   }
   roll.data[ee::kAttackResult] = ee::kAttackResultCritical;
   if (LogSlot()) {
-    Log("conditions: 0x%08X hit 0x%08X (paralysed or asleep) from within 5 ft: critical hit", attacker_id, target_id);
+    Log("conditions: 0x%08X hit 0x%08X (paralysed, asleep or down) from within 5 ft: critical hit", attacker_id,
+        target_id);
   }
 }
 
@@ -225,7 +226,14 @@ rules::Conditions ReadConditions(void* creature) {
   if (!creature) return conditions;
   conditions.stunned = effects::HasState(creature, ee::kStateStunned);
   conditions.paralyzed = effects::HasState(creature, ee::kStateParalyzed);
-  conditions.asleep = effects::HasState(creature, ee::kStateAsleep);
+  // A player character down at 0 HP (the engine's dying state: death saves,
+  // rules_dying.cpp) is Unconscious too: attacks against it have advantage
+  // and a hit from within 5 ft is a critical hit - two failed death saves
+  // (owner, 2026-10-24: the 5b recommendations accepted).
+  const int hit_points = Field<int16_t>(creature, ee::kObjectCurrentHitPoints);
+  const bool player_down =
+      Field<int32_t>(creature, ee::kCreatureIsPlayerCharacter) != 0 && hit_points < 1 && hit_points > ee::kHitPointsDead;
+  conditions.asleep = effects::HasState(creature, ee::kStateAsleep) || player_down;
   conditions.restrained = effects::HasType(creature, ee::kEffectTypeEntangle);
   conditions.poisoned = effects::HasType(creature, ee::kEffectTypePoison);
   return conditions;

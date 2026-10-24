@@ -1066,6 +1066,10 @@ constexpr size_t kModuleLastPlayerDied = 0x388;
 constexpr size_t kModuleLastPlayerDying = 0x38c;
 constexpr size_t kModuleLastRespawner = 0x390;
 constexpr int kHitPointsDead = -10;
+// CNWSEffectListHandler::OnApplyDeath: an immortal creature (+0x8B8) is set to
+// 1 HP and the handler returns 1 (the effect done, no death) - the path nwn5e
+// takes for death magic on a player's henchman (D, 0x42AAAE).
+constexpr const char* kOnApplyDeath = "?OnApplyDeath@CNWSEffectListHandler@@QEAAHPEAVCNWSObject@@PEAVCGameEffect@@H@Z";
 // CServerExoApp::GetActivePauseState(): 0 running, 1 paused, 2 paused by a DM
 // (the pause byte, CServerExoAppInternal +0x10108, D). Creature updates go on
 // while the game is paused (0.19.4's death saves kept rolling), so rules that

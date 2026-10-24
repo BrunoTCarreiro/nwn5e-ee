@@ -951,6 +951,18 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   penalties' own icons hidden (HideEffectIcon). EffectIcon takes rows 1-255.
 - `!vfx` has a search field (owner: "can you add a search bar to the vfx
   window?"): the list narrows as you type, by name or row number.
+*Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
+1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
+built). 3. Death magic from an enemy (EffectDeath with an enemy creator:
+Finger of Death, Wail of the Banshee, Power Word Kill...) lays a player's
+henchman down at 1 HP like damage - OnApplyDeath hooked, taking the engine's
+own immortal path; any other death (a script's, a trap's) still kills, so
+story deaths stay. 4. A down henchman is ethereal (enemies don't see it and
+turn on the party), removed when it gets up or is summoned. 5. A down player
+character is Unconscious for the conditions (ReadConditions: asleep):
+advantage against it, and a hit from within 5 ft is a critical hit - two
+failed death saves. 6. No floating text or tracker window: the marker and the
+chat lines are the indicator.
 
 ## Phase 2 — skills and checks: decided by the owner (2026-10-19)
 
