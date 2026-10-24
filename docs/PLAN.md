@@ -765,6 +765,480 @@ D4) when Bloodied and above 0 HP: + 5 + Con modifier, current HP written
 directly. The Fighter brief is done but for Action Surge (Phase 6), Tactical
 Mind / Master (later) and Heroic Warrior (with CM6).
 
+## Phase 3 — the non-caster classes (CM9): briefs for the owner's decision (2026-10-24)
+
+Owner, 2026-10-24: "start work on non caster classes" — the Barbarian, the
+Monk and the Rogue (the Ranger and the Paladin are half-casters: with Phase 4).
+Three briefs below, each checked against the SRD 5.2.1 PDF and EE's engine
+(read-only recon; the engine facts, with RVAs, close each brief; the session
+re-checked their exports). Shared between them — one piece of code each:
+- **X1. The feature mask** (B0 = M0 = R0): one faithful HasFeat filter (feats.cpp
+  already filters CNWSCreatureStats::HasFeat) answering NWN's class feats by
+  their 2024 counterparts — NWN-only ones 0, kept ones by the 2024 level — for
+  the engine, the scripts' GetHasFeat and the AI alike; the character keeps its
+  feats (one save, both modes). Masked feats stay on the sheet, labelled "no
+  effect in 2024 rules", until Phase 7.
+- **X2. Evasion** (M11 = R8): NWN's Improved Evasion means 2024 Evasion (Rogue 7,
+  Monk 7): Dexterity saves only, not while Incapacitated; NWN's Evasion absent.
+- **X3. Flat-footed** (R1 e; B0's Uncanny Dodge 1): faithful hooks GetFlatFooted
+  to "never" — 2024 has no flat-footed; helpless targets give advantage
+  instead (the conditions decision left it "until Sneak Attack is converted").
+- **X4. Resistance** (B2, M14): one DoDamageImmunity hook — a 2024 Resistance
+  halves (rounded down) and doesn't stack; the same route for Petrified (CN8),
+  species and spells later.
+- **X5. Unarmored Defense** (B4, M2): Barbarian (Con) or Monk (Wis), the higher,
+  not both.
+- **X6. Feature uses and rests** (B1, M3, OH2): hooks on GetFeatTotalUses /
+  GetFeatRemainingUses / DecrementFeatRemainingUses (exported) for Rage's 2024
+  counts and the Monk's Focus pool; a short-rest listener list (the Short Rest
+  hard-codes Second Wind today).
+- **X7. Weapon proficiencies** (M17, R3, B14's mastery list, CM2's multiclass
+  lists): one CheckProficiencies pass for all classes — its own item, after
+  these briefs.
+
+### Phase 3 — Barbarian (CM9): recommendations (for the owner's decision)
+
+SRD 5.2 Barbarian, every feature below checked in the SRD 5.2.1 PDF (pp. 28–30, read 2026-10-24); its one subclass is **Path of the Berserker** (Wild Heart, World Tree, Zealot are PHB-only — private layer). NWN's Barbarian (EE `cls_feat_barb`, List 3, automatic): **Rage** 293 at 1 with successors 326/327/328/329/330/331 at 4/8/12/15/16/20 (uses 1→6/day, +1 per 4 levels past 20; spell 307 nw_s1_barbrage: +4 Str/Con, +2 Will, −2 AC for 3 + Con rounds, +6/+3 with Greater Rage at 15), **Barbarian Fast Movement** 194 at 1 (+10% speed), **Uncanny Dodge 1–6** (195, 251–255) at 2/5/10/13/16/19, **Damage Reduction 1–4** (196, 332–334) at 11/14/17/20 (+ epic 1067 at 23); proficiencies as 2024 (simple + martial weapons, light + medium armour, shields); epic Mighty / Thundering / Terrifying Rage. **Faithful today masks nothing**: a faithful Barbarian plays NWN's Rage, keeps Uncanny Dodge, DR and +10% speed, plus what is built — d12 fixed-average HP (CM3), Str/Con saves, 2024 skills + Primal Knowledge's skill at 3 (C7b), Weapon Mastery 2/3/4 (D3), Extra Attack at 5 (1a), ASIs (CM7), the 2024 kit (C2), no alignment limit (CM14); `!features` names the Berserker at 3, no features. Henchmen: OC/HotU Daelan and SoU's Xanos are Barbarians (decision 11); their AI and dialogs use feat 293.
+
+| Lvl | 2024 feature | Status |
+|---|---|---|
+| 1 | Rage (2 uses / 3 at 3 / 4 at 6 / 5 at 12 / 6 at 17; damage +2 / +3 at 9 / +4 at 16) | B1, B2, B3 |
+| 1 | Unarmored Defense | B4 |
+| 1 | Weapon Mastery (2 / 3 at 4 / 4 at 10) | built (D3); B14 |
+| 2 | Danger Sense | B5 |
+| 2 | Reckless Attack | B6 |
+| 3 | Path of the Berserker | automatic (CM10) |
+| 3 | Primal Knowledge | skill built (C7b); Strength while raging B7 |
+| 4, 8, 12, 16 | Ability Score Improvement | built (CM7) |
+| 5 | Extra Attack | built (1a) |
+| 5 | Fast Movement | B8 |
+| 7 | Feral Instinct | B9 |
+| 7 | Instinctive Pounce | B9 |
+| 9 | Brutal Strike | B10 |
+| 11 | Relentless Rage | B11 |
+| 13 | Improved Brutal Strike (Staggering, Sundering) | B10 |
+| 15 | Persistent Rage | B12 |
+| 17 | Improved Brutal Strike (2d10, two effects) | B10 |
+| 18 | Indomitable Might | B13 |
+| 19 | Epic Boon | with CM8 |
+| 20 | Primal Champion | B13 |
+| Berserker 3 | Frenzy | BZ1 |
+| Berserker 6 | Mindless Rage | BZ2 |
+| Berserker 10 | Retaliation | BZ3 |
+| Berserker 14 | Intimidating Presence | BZ4 |
+| — | NWN only: Uncanny Dodge 1–6, Damage Reduction 1–4 + epic, Fast Movement +10% | drop (B0) |
+
+**B0. NWN's Barbarian features in faithful (the feature mask — the Barbarian is the first class that needs it).** CM9: NWN-only features absent. They are engine rules, not effects: Fast Movement 194 is one HasFeat in CNWSCreature::GetMovementRateFactor (+0x4A, adds ruleset BARBARIAN_ENDURANCE_BONUS 0.1); Damage Reduction is five HasFeat calls in CNWSObject::DoDamageReduction (1067/334/333/332/196; amounts ruleset BARBARIAN_DAMAGE_REDUCTION_LEVEL_1–4, EPIC_BARBARIAN_DAMAGE_REDUCTION); Uncanny Dodge 2–6's trap Reflex bonus is HasFeat calls in SavingThrowRoll before its d20 (C7 already drops it with `saves` faithful), and Uncanny Dodge 2 (251) also guards sneak / death attacks (HasFeat in ResolveSneakAttack, ResolveDeathAttack). Uncanny Dodge 1 (195, Dex when flat-footed) is **not** HasFeat: GetArmorClassVersus (+0x988/+0x999) looks it up directly in the two feat lists, as Defensive Awareness 949. Options: (a) **a HasFeat filter** (AddFeatFilter, key `class_features`) answering 0 for these feats in faithful — read time, the character keeps the feats (one save, both modes), script GetHasFeat goes through HasFeat too, so campaign checks read the mask (none of the 4,144 base-game scripts tests these feats); (b) RemoveFeat with a record — the sheet follows, but it writes into the character and NWN's level-ups grant them again. **Recommendation:** (a), the general CM9 mask for the next classes. Uncanny Dodge 1's direct lookup is moot if faithful drops flat-footed (2024 has none — the Rogue brief's call, with Sneak Attack); if it stays, patch those two lookups. The sheet still lists the feats: their descriptions can say "no effect in 2024 rules" (conditional served feat rows → private strings); removing them from the list is Phase 7.
+
+**B1. Rage: the feat, its uses, rests.** 2024: 2 uses (3 at 3, 4 at 6, 5 at 12, 6 at 17); one back on a Short Rest, all on a Long Rest. NWN: UseFeat / the script commands map 293 to the highest Rage feat the character has (GetHighestLevelOfFeat); uses are per feat id (a "spent" byte on the creature's list entry; remaining = total − byte); the AI rages with ActionUseFeat(FEAT_BARBARIAN_RAGE) (nw_i0_generic: Xanos, HotU Daelan; dialog x0_d1_userage) and stops casting while GetHasFeatEffect(FEAT_BARBARIAN_RAGE). Options: (a) **keep NWN's Rage feats as the 2024 Rage** — hook GetFeatRemainingUses (behind UseFeat, the radial update, AI talents, scripts) and GetFeatTotalUses (SetFeatRemainingUses, loading) for the Rage chain to answer the 2024 count by Barbarian level; in faithful, spell 307's ImpactScript becomes `nwn5e_rage` (a conditional served spells row, as the kits), NWN mode keeps nw_s1_barbrage; named "Rage" by served strings; (b) new nwn5e feat rows per uses tier (as Second Wind) with NWN's Rage masked — breaks the henchman AI and dialogs. **Recommendation:** (a). Short Rest: one use back (IncrementFeatRemainingUses on GetHighestLevelOfFeat(293), next to Second Wind in rules_rest); Long Rest: the engine's reset, as now. Entering Rage is NWN's feat use (an action, as Second Wind) until Phase 6's Bonus Action.
+
+**B2. Rage: what it gives while active.** 2024: Resistance to Bludgeoning, Piercing and Slashing; Rage Damage on attacks using Strength (weapon or Unarmed Strike); Advantage on Strength checks and saves; no spells, no Concentration. NWN's +4/+4/+2 Will/−2 AC are dropped (2024 has none of them). *Resistance:* OnApplyDamage asks, per damage type, DoDamageImmunity (a %), then DoDamageResistance (flat), then DoDamageReduction (physical only). EffectDamageImmunityIncrease(50) removes max(1, damage × 50 / 100) — the larger half stays (7 → 4, 2024: 3) and it stacks with items. Options: (a) the script links 50% immunity (one point off on odd damage, stacks); (b) **hook DoDamageImmunity**: a raging creature's B/P/S damage halved, rounded down, once (2024 resistances don't stack) — the shared 2024 Resistance that Petrified (CN8), species and spells can use later. **Recommendation:** (b). *Rage Damage:* in the existing GetDamageBonus hook (rules_two_weapon.cpp) when the attack's ability is Strength; flat, so not doubled on a crit (decision 13). *Strength advantage:* Str saves (C1's Str-mapped spell saves, SK6's Shove save) get an advantage source in the save d20 (SaveD20); Str checks have no NWN use yet — GetIsSkillSuccessful's d20 (SK11's place) takes it for Athletics / Smith's Tools. *No spells:* AIActionCastSpell refuses spells (spells.2da UserType 1) while raging — feat abilities (UserType 3: Rage itself, Second Wind) pass, feat uses also run through AIActionCastSpell; AIActionItemCastSpell refuses scrolls and wands but allows potions (drinking isn't casting — a design call for you); Concentration comes with Phase 4 (Rage ends it). **Recommendation:** all four, with B1.
+
+**B3. Rage: start, duration, end.** 2024: lasts until the end of your next turn; extended each turn by an attack roll against an enemy, forcing an enemy to save, or a Bonus Action, up to 10 minutes; ends early on donning Heavy armour or being Incapacitated; can't be entered in Heavy armour. NWN: 3 + Con rounds. **Recommendation:** `nwn5e_rage` applies one extraordinary linked effect (icon, visual) for 10 minutes; the DLL ends it (script bridge) when 6 s of unpaused game time pass without an attack roll at an enemy (the attack-roll listener) or a save it forced on an enemy (the save wrapper's `versus`), when it is Incapacitated (IncapacitatedByCondition, dead or dying), or when it wears Heavy armour (a chest item with base AC 6+, NWN's heavy range; entering Rage in it ends at once, with a message). Extending by a Bonus Action waits for Phase 6; a rage started before a fight lapses after a round without attacking, as in 2024.
+
+**B4. Unarmored Defense.** 2024: no armour → base AC 10 + Dex + Con; a shield is allowed. **Recommendation:** build now on the Defense style's two hooks (GetArmorClassVersus for attacks, CNWSCreature::GetArmorClass for the sheet): no armour (chest base AC 0, the engine's own test) → + Con modifier, never below 0 (a negative Con keeps the normal AC; 2024 lets you take the better). A Barbarian/Monk gets the better of the two Unarmored Defenses, not both (Monk brief).
+
+**B5. Danger Sense.** 2024: Advantage on Dex saves unless Incapacitated. Replaces NWN's Uncanny Dodge (B0). **Recommendation:** build now in the save d20 next to the species advantages, when the save's ability is Dex (NWN's Reflex, or a C1 spell mapped to Dex) and the creature isn't Incapacitated.
+
+**B6. Reckless Attack.** 2024: at your first attack roll on your turn, you may take Advantage on Strength attack rolls until your next turn; attacks against you have Advantage then. NWN can't ask. Options: (a) **a radial toggle** — a served feat with unlimited uses (F0's route: feat → spell row → script) switching `nwn5e_reckless` and an icon; while on and in combat, each round from its first attack, its Strength attacks and attacks against it get Advantage (advantage sources in rules_advantage.cpp, as Studied Attacks); (b) automatic while raging; (c) Phase 7. **Recommendation:** (a), off by default. Design call for you: henchmen have no AI for it — suggested: they are reckless whenever they rage (Frenzy needs it).
+
+**B7. Primal Knowledge.** The skill is built (C7b). 2024 also: while raging, Acrobatics, Intimidation, Perception, Stealth and Survival checks can be made as Strength checks. **Recommendation:** with Rage — the 2024 skill bonus (SK2, rules_skills.cpp) takes the better of Strength and the skill's ability while raging (NWN: Tumble, Intimidate, Spot / Listen, Hide / Move Silently; Survival has no NWN use).
+
+**B8. Fast Movement.** 2024: from Barbarian 5, +10 ft while not in Heavy armour. NWN: +10% from level 1, any armour (EE's GetMovementRateFactor has no armour test). **Recommendation:** build now — the HasFeat filter at that one call answers "Barbarian 5+ and not in Heavy armour"; the ruleset float BARBARIAN_ENDURANCE_BONUS answers 0.333 instead of 0.1 (10 ft of a 30 ft speed; the convention of Exhaustion's 5 ft = 1/6, death_saves.h), under the engine's 1.5 cap.
+
+**B9. Feral Instinct (Advantage on Initiative) and Instinctive Pounce (move up to half your speed as part of entering Rage).** Feral Instinct goes in the initiative d20 (rules_initiative.cpp, next to Remarkable Athlete). NWN movement has no per-turn budget, so Pounce gives nothing. **Recommendation:** Feral Instinct now; Pounce recorded, back with Phase 6 if moves get a budget.
+
+**B10. Brutal Strike (9; Improved at 13 and 17).** 2024: using Reckless Attack, give up Advantage on one Strength attack that has no Disadvantage; on a hit +1d10 of the weapon's type (2d10 at 17) and one effect — Forceful Blow (push 15 ft, then move half speed toward it without opportunity attacks), Hamstring Blow (−15 ft speed until your next turn); from 13 Staggering Blow (Disadvantage on its next save, no opportunity attacks until your next turn) and Sundering Blow (+5 on the next attack roll by another creature against it); from 17 two different effects. Two choices every turn. Options: (a) **automatic**: the first Strength attack each round that has Advantage and no Disadvantage while reckless gives up the Advantage; the effect chosen beforehand (`!brutal <effect> [<effect>]`, default Hamstring; `!brutal off`). Every piece exists: Forceful = Push (D4, 4.6 m); Hamstring = Slow's speed decrease at 50%; the dice through GetDamageRoll (rolled twice on a crit); Staggering = the AoO broadcast drops a staggered candidate + the save d20; Sundering = +5 once on the attack modifier. (b) Phase 7 (a per-attack choice). **Recommendation:** (a), after B6.
+
+**B11. Relentless Rage.** 2024: dropping to 0 HP while raging without dying outright → DC 10 Con save; success sets HP to 2 × Barbarian level; DC +5 per use, back to 10 on a Short or Long Rest. **Recommendation:** with Rage, in the existing DoDamage hook (rules_dying.cpp, before the death saves — it reads HP before and after and already decides massive damage): the save through the engine's own roll (Fortitude = Con, shown in the combat log); HP set as Heroic Rally does; the DC a record both rests clear. The Orc's Relentless Endurance (CM6) can share the hook.
+
+**B12. Persistent Rage.** 2024: on rolling Initiative, regain all Rage uses (once per Long Rest); Rage lasts 10 minutes without extending and ends only on Unconscious or Heavy armour. **Recommendation:** with Rage — in the ResolveInitiative hook, clear the spent byte (SetFeatRemainingUses) with a record the rest listener clears; from Barbarian 15, B3's watcher skips the extension and Incapacitated checks (Unconscious = asleep or dying).
+
+**B13. Indomitable Might (18) and Primal Champion (20).** Might: a Strength check or save whose total is below the Strength score uses the score — in the save wrapper, a failed Str save becomes a success when the score ≥ DC (the player told; the engine's line still shows a failure, as Indomitable). Champion: +4 Strength and Constitution, maximum 25, through CM4's ability sync (rules::FaithfulAbilityDelta: recorded, undone in NWN mode). **Recommendation:** both (Champion is existing code; Might in the save wrapper with B2's Str advantage). Only HotU reaches these levels.
+
+**B14. Weapon Mastery (built; one gap).** D3's 2 / 3 / 4 at 1 / 4 / 10 is right, but SRD 5.2.1 limits the Barbarian to **Simple or Martial Melee** weapons and D3 offers any proficient weapon (cls_feat_barb.mastery lists bows, crossbows, sling, dart, shuriken). **Recommendation:** the Barbarian's list becomes melee only (a multiclass character: its classes' lists combined).
+
+**BZ1. Frenzy (Berserker 3).** 2024: raging and using Reckless Attack, the first target you hit each turn with a Strength attack takes extra d6s equal to your Rage Damage, of the weapon's type. **Recommendation:** with B6 — the dice in the GetDamageRoll hook (rules_fighter.cpp, where Great Weapon Fighting and Savage Attacker roll), doubled on a crit; once per turn by the combat-round counter.
+
+**BZ2. Mindless Rage (6).** 2024: immune to Charmed and Frightened while raging; entering Rage ends both. **Recommendation:** with Rage, script only — `nwn5e_rage` links immunity to charm, domination and fear and removes those effects on starting (CN5's frightened respects NWN immunities, as decided; the DLL also drops its fear record for the creature).
+
+**BZ3. Retaliation (10).** 2024: a Reaction when a creature within 5 ft damages you — one melee attack against it. Options: (a) **a stand-in now**: when a creature within 5 ft damages the Berserker, queue the engine's attack of opportunity at it (CNWSCombatRound::AddAttackOfOpportunity) if the round's AoO is unused — the one reaction per round nwn5e already models with the AoO (D2); (b) Phase 6. **Recommendation:** (a) after a short RE of whether the AoO can be queued that way and spends the round's AoO; else Phase 6.
+
+**BZ4. Intimidating Presence (14).** 2024: Bonus Action; creatures of your choice in a 30 ft emanation make a Wisdom save (DC 8 + Str + PB) or are Frightened for 1 minute (repeat the save at the end of each of their turns); once per Long Rest, or spend a Rage use to restore it. **Recommendation:** after Rage, through F0 — a served feat (unlimited uses) runs `nwn5e_intimpres`: every hostile within 9.1 m ("of your choice" = enemies) makes a Will (= Wisdom) save; failure → EffectFrightened 10 rounds (CN5 turns it into the 2024 Frightened); the save is one the Berserker forced (extends Rage, B3); the first use per Long Rest free (a record), later uses spend a Rage use (refused with a message when none left); the DLL rolls the repeat save every 6 s (creature update) and ends the fear on a success; an action until Phase 6.
+
+**NWN mode:** NWN's Barbarian — its Rage (nw_s1_barbrage, NWN's uses), Uncanny Dodge, Damage Reduction, +10% Fast Movement, the epic rage feats; none of the 2024 features. The rest of the 2024 frame stays (Extra Attack, proficiency bonus, Weapon Mastery as D3's NWN mode).
+
+**Build order (proposed).** 1. Existing hooks, no new RE: B0 (the HasFeat filter; DR could also be its ruleset values at 0), B8, B4, B5, B9 Feral Instinct, B13 Primal Champion, B14. 2. Rage: B1 (hook GetFeatRemainingUses / GetFeatTotalUses — exports known; the conditional spells row and `nwn5e_rage.nss`; the Short Rest use back), B2 (the DoDamageImmunity hook — export known; GetDamageBonus; the save d20; the cast refusals), B3 (the watcher), then B7, B11, B12, B13 Might, BZ2. 3. B6 (the F0 toggle), then BZ1, then B10. 4. BZ4. 5. BZ3 after its RE, or with Phase 6 (with Rage, Reckless and Intimidating Presence as Bonus Actions, extending Rage by a Bonus Action, Instinctive Pounce). The Epic Boon with CM8.
+
+*Recon facts (EE 89.8193.37-17; RVA):* GetMovementRateFactor 0x391FE0 — HasFeat(194) at 0x39202A (checked again by the session: `mov edx,0C2h; call HasFeat 0x40B900`), ruleset BARBARIAN_ENDURANCE_BONUS 0.1 (row 307), caps MOVEMENT_SPEED_PENALTY_CAP 0.125, BONUS_DEFAULT_CAP 1.5, MONK_CAP 3.0. DoDamageReduction 0x491950 — HasFeat for 1067/334/333/332/196 at +0x177/+0x219/+0x291/+0x309/+0x37E. SavingThrowRoll 0x3EC600 — HasFeat 255…251 at 0x3ED046/0x3ED115/0x3ED150/0x3ED188/0x3ED1C0, its only d20 at 0x3ED260 (ruleset UNCANNY_DODGE_LEVEL_2–6 = 1–5). Uncanny Dodge 2 (251) in ResolveSneakAttack +0x536 and ResolveDeathAttack +0x32A. GetArmorClassVersus 0x3F47F0 — 195 at +0x988/+0x999 and 949 at +0x9AB/+0x9BC via CExoArrayList::Contains (0x296910) on stats+0 / +0x20. GetFlatFooted 0x3E3910 — HasFeat(226 Uncanny Reflex) = never flat-footed. Script GetHasFeat (0x525410): GetHighestLevelOfFeat +0xBD, HasFeat +0xD3, GetFeatRemainingUses +0xF5. GetHighestLevelOfFeat 0x4029B0 (UseFeat +0x3C, the script feat commands). GetFeatRemainingUses 0x4012F0 (total inline, minus the entry's byte +2, clamped 0–100; callers UseFeat, AIActionCastSpell, PlayerUpdate, talents, ResolveDamage, ResolveMeleeSpecialAttack, SetCombatMode, SaveClassInfo, scripts). GetFeatTotalUses 0x401C70 (ReadStatsFromGff, SetFeatRemainingUses 0x415960; feat 331: + (level − 20) / 4). Increment / DecrementFeatRemainingUses 0x40B9D0 / 0x3F2750 change exactly that feat id's byte. Feat 293: SPELLID 307, USESPERDAY 1, TARGETSELF 1; spell 307 NW_S1_BarbRage, UserType 3. DoDamageImmunity 0x491690 (virtual +0x160; % from +0x170; removes max(1, dmg × % / 100)). OnApplyDamage 0x428740: immunity +0x160, DoDamageResistance +0x150 (0x492620), DoDamageReduction +0x148 for flags & 0x1007. AIActionCastSpell 0x3ADA70, AIActionItemCastSpell 0x3C07B0, AddAttackOfOpportunity 0x374320, GetHasFeatEffectApplied 0x495480. Scripts with feat 293: nw_i0_generic, x0_d1_userage / x0_d2_hasrage, x2_i0_spells.
+*Open / unverified:* a feat use and the Short Rest's +1 landing on the same entry (the highest Rage feat); ResetFeatRemainingUses just zeroing the byte; GetHasFeatEffectApplied = the script's GetHasFeatEffect; BZ3's AoO queueing; OnApplyDamage's second loop (+0x1238) not examined; flat-footed in faithful (Rogue brief); Rage Damage on thrown weapons (ranged = Dex in rules::AttackAbilityModifier); served feats with USESPERDAY `****` unlimited; design calls — Heavy = chest base AC 6+ (2024's Half Plate is Medium), potions allowed while raging, henchmen reckless whenever raging, "of your choice" = all enemies; renaming tlk strings (1062 …) by conditional served rows → private ids (assumed).
+
+### Phase 3 — Monk (CM9): recommendations (for the owner's decision)
+
+SRD 5.2.1 Monk (pp. 49–52, checked 2026-10-24); every 2024 feature below and the one subclass, **Warrior of the Open Hand**, are in the SRD (Mercy, Shadow, the Elements are PHB-only — private layer). Built already: d8 (CM3), Str/Dex saves (C2), 2024 skills, Dex and Wis 13 to multiclass (CM2), the kit (spear, 5 daggers; C2), no Weapon Mastery (D3), Extra Attack at 5 (1a), ASIs (CM7), Open Hand at 3 (CM10). NWN's Monk (EE `cls_feat_monk`): 1 Monk weapon proficiency (club, crossbows, dagger, handaxe, kama, quarterstaff, shuriken, sling), Improved Unarmed Strike, Flurry of Blows (a combat mode), Evasion, Stunning Fist, Monk AC Bonus, Cleave; 2 Deflect Arrows; 3 Fast Movement ("MonkEndurance"), Still Mind; 5 Purity of Body; 6 Knockdown, Improved Knockdown; 7 Wholeness of Body; 9 Improved Evasion; 10/13/16 Ki Strike +1/+2/+3; 11 Diamond Body; 12 Diamond Soul (spell resistance); 15 Quivering Palm; 18 Empty Body; 20 Perfect Self. The engine computes: unarmed die d6/d8/d10/d12/d20 from Monk 1/4/8/12/16; AC + Wis + Monk level / 5 (no armour, no shield); speed +10% per 3 Monk levels; Stunning Fist uses = Monk level per day. **Faithful today:** changed by built rules — attacks use PB, no iterative −3, 1 attack (2 from Monk 5) instead of NWN's monk table, unarmed attacks use Strength (Weapon Finesse isn't offered, CM8), Small monks roll Medium dice (`size`), Still Mind's +2 dropped (C7); still NWN's — Flurry (+1 attack, −2 to all), Stunning Fist's DC (C6 rescaling it: unverified), Monk AC Wis + level / 5, the die progression, Fast Movement, Ki Strike, spell resistance, the immunities, Empty Body, Quivering Palm's instant death.
+
+| Lvl | 2024 feature | Status |
+|---|---|---|
+| 1 | Martial Arts (die d6 / d8 at 5 / d10 at 11 / d12 at 17; Dexterous Attacks; Bonus Unarmed Strike) | M1 |
+| 1 | Unarmored Defense | M2 |
+| 2 | Monk's Focus (Focus Points = Monk level) | M3 |
+| 2 | Flurry of Blows | M4 |
+| 2 | Patient Defense, Step of the Wind | M5 |
+| 2 | Unarmored Movement (+10 ft; +15 at 6, +20 at 10, +25 at 14, +30 at 18) | M6 |
+| 2 | Uncanny Metabolism | M7 |
+| 3 | Deflect Attacks | M8 |
+| 3 | Warrior of the Open Hand | automatic (CM10) |
+| 4, 8, 12, 16 | Ability Score Improvement | built (CM7) |
+| 4 | Slow Fall | M6 (no NWN use) |
+| 5 | Extra Attack | built (1a) |
+| 5 | Stunning Strike | M9 |
+| 6 | Empowered Strikes | M10 |
+| 7 | Evasion | M11 (with the Rogue's) |
+| 9 | Acrobatic Movement | M6 (no NWN use) |
+| 10 | Heightened Focus | M4, M5 |
+| 10 | Self-Restoration | M12 |
+| 13 | Deflect Energy | M8 |
+| 14 | Disciplined Survivor | M13 |
+| 15 | Perfect Focus | M7 |
+| 18 | Superior Defense | M14 |
+| 19 | Epic Boon | with CM8 |
+| 20 | Body and Mind | M15 |
+| Open Hand 3 | Open Hand Technique | OH1 |
+| Open Hand 6 | Wholeness of Body | OH2 |
+| Open Hand 11 | Fleet Step | OH3 (Phase 6) |
+| Open Hand 17 | Quivering Palm | OH4 |
+| — | NWN-only Monk feats | M16 |
+| — | Proficiencies | M17 |
+
+**M0. The feature mask (with the Barbarian's B0: the same HasFeat filter).** CNWSCreatureStats::HasFeat (exported, 674 call sites) answers the Monk's NWN feats as their 2024 counterparts' levels: Monk AC Bonus (260) → Unarmored Defense from 1; Fast Movement (207) → Unarmored Movement from 2; Stunning Fist (39) → Stunning Strike from 5; Ki Strike (213) → Empowered Strikes from 6 (343, 344 false); Improved Evasion (212) → Evasion from 7 (Evasion 206 false); Wholeness of Body (211) at Open Hand 6; Quivering Palm (296) at Open Hand 17; Deflect Arrows (8) and the M16 feats false. Passive features answer true before NWN would grant them (Unarmored Movement at 2, Empowered Strikes at 6) even without the feat; usable ones come through rules_features' granted feats (as Second Wind: recorded, removed in NWN mode), e.g. Wholeness at Open Hand 6. Names and descriptions by the label hook (2024 name, SRD text); masked feats stay on the sheet described "not used (2024 rules)" until Phase 7 hides them. Engine reads that bypass HasFeat get their own hook (GetACNaturalBase reads the list directly, M2). The hook must be cheap (a small feat-id set first). Campaign GetHasFeat checks read the mask (e.g. x0_i0_match's FEAT_STUNNING_FIST, used by the AI). **Recommendation:** build first, with the Monk's table; the other classes add theirs.
+
+**M1. Martial Arts.** 2024, while unarmed or wielding only Monk weapons (Simple Melee + Martial Melee with Light: scimitar, shortsword) with no armour and no shield: (a) Dexterous Attacks — Dex for attack and damage of Unarmed Strikes and Monk weapons, and for the Grapple / Shove DC; (b) the Martial Arts die (1d6 / 1d8 / 1d10 / 1d12 at 1 / 5 / 11 / 17) in place of the normal damage; (c) Bonus Unarmed Strike (Bonus Action). NWN: the gate is GetUseMonkAbilities (Monk levels, chest AC 0, no small / large / tower shield; it ignores the weapon); "Monk weapon" is the base item's IsMonkWeapon (kama, torch); unarmed dice from GetUnarmedDamageDie / Dice (ruleset MONK_DAMAGE_TIER_* under GetUseMonkAbilities, else 1d3). Route: (a) faithful's GetWeaponFinesse hook (`finesse`) answers 1 for unarmed attacks and Monk weapons while Martial Arts holds; FinesseDamageBonus extended to them; SK6's Shove DC takes the better of Str and Dex for a Monk. (b) Unarmed: hook GetUnarmedDamageDie / Dice for characters only (as Extra Attack; monsters keep NWN's), or globally by ruleset answers (thresholds 4/8/12/16 → 5/11/17/21, dies → 6/8/10/12); Monk weapons: the weapon-dice filter (GetDamageRoll's two weapon RollDice calls, as Great Weapon Fighting) rolls the Martial Arts die when it is larger; rules::IsMonkWeapon2024 (club, dagger, handaxe, light hammer, light mace, quarterstaff / magic staff, short spear, sickle, scimitar, short sword; kama as sickle, kukri as dagger), also written into the base items' IsMonkWeapon after every rules load (CM0 overlay) so NWN's Flurry and monk tables accept them. (c) A stand-in until Phase 6: one more attack each round while Martial Arts holds, on the round's additional-attack count after InitializeNumberOfAttacks (Haste and Flurry use it) — not in a round with an off-hand attack (2024: the Light extra attack takes the same Bonus Action); it uses the weapon in hand, not strictly an unarmed strike. Options for (c): (i) always; (ii) only in Flurry mode, as NWN. **Recommendation:** (a), (b), (c)(i), now.
+
+**M2. Unarmored Defense.** 2024: no armour, no shield → base AC 10 + Dex + Wis. NWN: GetACNaturalBase adds Wis (when positive, feat 260 in the list) + Monk level / 5 under GetUseMonkAbilities. **Recommendation:** build now — hook GetACNaturalBase, drop the level / 5 in faithful (Wis as it is: a negative Wis gives plain 10 + Dex either way); with the Barbarian's (Con) the higher one counts, not both.
+
+**M3. Monk's Focus (Focus Points).** 2024: points = Monk level from 2; all back on a Short or Long Rest; Focus DC = 8 + Wis + PB. Route: one pool per character — the spent count in a local (`nwn5e_focus_spent`) cleared by the rest listener and the Short Rest (rules_rest hard-codes Second Wind today: a short-rest listener list); each Focus feat — Stunning Strike (1), Patient Defense (1), Step of the Wind (1), Superior Defense (3), Quivering Palm (4) — shows the pool on the radial and quickbar: GetFeatTotalUses / GetFeatRemainingUses answer pool ÷ cost, DecrementFeatRemainingUses spends from the pool (all three exported; the first two already special-case Stunning Fist); `!focus` shows it. (One use-row per feat, Second Wind's way, can't share a pool.) **Recommendation:** the pool, now — M4, M5, M7, M9, M13, M14, OH4 need it.
+
+**M4. Flurry of Blows (2; three strikes at 10, Heightened Focus).** 2024: 1 FP for two Unarmed Strikes as a Bonus Action (replacing M1(c)'s one). NWN: combat mode 5 — InitializeNumberOfAttacks gives +1 additional attack when unarmed or with a monk weapon (else switches the mode off); every attack at −2 (FLURRY_OF_BLOWS_TO_HIT_MODIFIER). Route: the mode is the 2024 switch — each round with Martial Arts and a point left spends 1 FP: M1(c)'s strike + 1 more (+ 2 more from Monk 10), no off-hand attack; out of points, M1(c) alone; the −2 answered 0. Options: (a) spend per round (a Monk 5: 5 Flurry rounds per rest — 2024's economy); (b) once per fight (cheaper than 2024). **Recommendation:** (a).
+
+**M5. Patient Defense and Step of the Wind (2; Heightened Focus at 10).** 2024: Bonus Action, free: Disengage (PD) or Dash (SotW); for 1 FP: Disengage + Dodge (PD) or Disengage + Dash, jumps doubled (SotW); from 10, PD's FP use also gives temp HP = 2 Martial Arts dice and SotW can carry a willing ally. NWN: nothing (Tumble is D2's Disengage stand-in). Route: F0 (Second Wind's pattern) — served feats (1 FP) → spells.2da rows → nwn5e scripts. PD: no opportunity attacks this round (the Tactical Shift flag, F7), Dodge until the Monk's next round (disadvantage on attacks against it — a source in rules_advantage; advantage on Dex saves; lost when Incapacitated), the temp HP from 10. SotW: no opportunity attacks this round, EffectMovementSpeedIncrease(100) for the round (Monk cap 3.0). Both an action until Phase 6 (as Second Wind); the free versions with Phase 6; the ally carry and jumps have no NWN use. **Recommendation:** the FP versions now.
+
+**M6. Unarmored Movement (2), Slow Fall (4), Acrobatic Movement (9).** 2024: speed +10 / 15 / 20 / 25 / 30 ft at 2 / 6 / 10 / 14 / 18 with no armour and no shield (of 30 ft, Exhaustion's convention: +33 / 50 / 67 / 83 / 100%). NWN: Fast Movement (207, Monk 3) adds 10% per 3 Monk levels in GetMovementRateFactor (0.1 a literal, not a ruleset value; caps ruleset 1.5, monk 3.0). Route: hook GetMovementRateFactor, the 2024 monk part instead of NWN's. Slow Fall (a Reaction against falling damage) and Acrobatic Movement (walls, liquids): NWN has no falls or climbing. **Recommendation:** Unarmored Movement now; the other two "no NWN use".
+
+**M7. Uncanny Metabolism (2) and Perfect Focus (15).** 2024: on rolling Initiative you may regain all FP and heal Martial Arts die + Monk level, once per Long Rest; from 15, if you don't use it, FP rise to 4 when at 3 or fewer. Route: the ResolveInitiative hook (SK9's), with a "new fight" guard (D4's round counter; how often ResolveInitiative runs is unverified). Options for Uncanny Metabolism: (a) automatic at the first initiative where at least half the points are spent, or the Monk is Bloodied; (b) whenever any point is spent; (c) Phase 7, as a choice. **Recommendation:** (a); Perfect Focus automatic.
+
+**M8. Deflect Attacks (3) and Deflect Energy (13).** 2024: a Reaction when hit by an attack whose damage includes B/P/S (any type from 13): reduce its damage by 1d10 + Dex + Monk level; if that brings it to 0, 1 FP redirects it (the creature saves Dex against the Focus DC or takes 2 Martial Arts dice + Dex). NWN: Deflect Arrows (8, Monk 2) in ResolveDefensiveEffects — once per round, a ranged hit, a free hand, not flat-footed, Reflex DC 20 → the shot misses. Route: mask Deflect Arrows; the reduction automatic on the first qualifying hit each round (the round's Reaction) in the OnApplyDamage hook, lowering the damage effect's per-type amounts, physical first (RE: telling an attack's damage effect from other damage); Phase 6 makes it share the Reaction with opportunity attacks; the redirect (a choice to spend) Phase 6 / 7. **Recommendation:** the reduction now, the redirect later.
+
+**M9. Stunning Strike (5).** 2024: once per turn on a hit with a Monk weapon or an Unarmed Strike, 1 FP: the target saves Con against the Focus DC — failure: Stunned until the start of the Monk's next turn; success: speed halved and the next attack roll against it before then has advantage. NWN: Stunning Fist (39, Monk 1), a special attack chosen before the roll: −4 to hit, the use spent before the hit test (a miss wastes it); on a hit dealing damage, if not stun-immune: Fort DC 10 + level / 2 + Wis (+ Epic Improved Stunning Fist) or stunned 6 s; Monk level uses per day. Route: Stunning Fist becomes Stunning Strike from 5, unarmed attacks and Monk weapons only, 1 FP from the pool, refunded on a miss (2024 spends only on a hit), the −4 answered 0; the save wrapper rolls Con against 8 + Wis + PB (identified by its call site in ResolveMeleeSpecialAttack — the feat id isn't passed); the 6 s stun stays (one NWN round = until the Monk's next round); on a success EffectMovementSpeedDecrease(50) for the round and a mark giving the next attack against it advantage (as Vex). Options: (a) the special attack, declared before the hit, refunded on a miss; (b) automatic on the first hit each round while a `!stun` toggle is on. **Recommendation:** (a).
+
+**M10. Empowered Strikes (6).** 2024: Unarmed Strikes can deal Force damage. NWN: Ki Strike (10 / 13 / 16) makes unarmed attacks +1 / +2 / +3 against DR (CalculateDamagePower reads KI_STRIKE_LEVEL_1..5 by feat 213, 343, 344, epic 697 / 698 for unarmed attacks under monk tables); NWN's DR X/+N plays 2024's "resistance to nonmagical B/P/S", which Force ignores. Route: mask Ki Strike into Empowered Strikes from 6 (213 true, 343 / 344 false), KI_STRIKE_LEVEL_1 answered 20 (the top damage power): unarmed strikes pierce every DR X/+N; per-type resistances (X/-) stay. (A real Force damage type would mean rewriting the damage split — not proposed.) **Recommendation:** build now.
+
+**M11. Evasion (7).** 2024 Evasion = 3e's Improved Evasion (nothing on a success, half on a failure; Dex saves only; not while Incapacitated). NWN: Evasion at 1, Improved Evasion at 9; the reflex-damage handlers ask HasFeat 212, then 206. Route: the mask (212 true from 7, 206 false) plus Incapacitated and Dex-only tests in the handlers (the C1 follow-up: Cone of Cold and the like now roll Con but still apply Evasion). **Recommendation:** with the Rogue's Evasion (Rogue 7) — one piece of code for both.
+
+**M12. Self-Restoration (10).** 2024: at the end of each turn, remove one of Charmed, Frightened, Poisoned; no Exhaustion from going without food. Route: once per round (the round counter) one of charm / domination, nwn5e's fear (CN5) or a poison effect (CN4) is removed through the script bridge; hunger has no NWN use. **Recommendation:** build now.
+
+**M13. Disciplined Survivor (14).** 2024: proficiency in all saving throws; a failed save can be rerolled for 1 FP. NWN: Diamond Soul (12) is spell resistance (M16). Route: rules_saves gives all six from Monk 14 (a class feature, multiclass too); the reroll in the save wrapper as Indomitable — automatic while a point is left, after Indomitable. **Recommendation:** with M3.
+
+**M14. Superior Defense (18).** 2024: at the start of the turn, 3 FP: Resistance to all damage except Force for 1 minute or until Incapacitated. Route: a Focus feat (3) whose script applies EffectDamageImmunityIncrease(type, 50) for every type but Magical (50% immunity = 2024 Resistance; or the Barbarian's B2 DoDamageImmunity route), 60 s, removed early when Incapacitated (creature update); from the radial like Second Wind, its action cost Phase 6's. **Recommendation:** with M3.
+
+**M15. Body and Mind (20).** 2024: Dex and Wis +4, maximum 25. Route: CM4's ability delta (rules::FaithfulAbilityDelta), the cap 25 for these two. **Recommendation:** build now.
+
+**M16. NWN-only Monk features: absent in faithful (the mask).** Still Mind (already dropped by C7), Purity of Body (disease immunity), Diamond Body (poison immunity), Diamond Soul (SR 10 + level), Empty Body (50% concealment), Perfect Self, Improved Unarmed Strike (nothing left for it: unarmed attacks no longer provoke, D2), Cleave, the epic monk feats. Knockdown / Improved Knockdown (6) are SK6's Shove (every 2024 character has it): they stay as NWN grants them — Shove for everyone is SK6 / CM8's. **Recommendation:** as listed.
+
+**M17. Proficiencies.** 2024: Simple weapons + Martial weapons with Light (scimitar, short sword); no armour; one artisan's tool or musical instrument. NWN: Monk proficiency (feat 49: club, crossbows, dagger, handaxe, kama, quarterstaff, shuriken, sling). Route: one hook on CNWSCreature::CheckProficiencies (exported) driven by each class's 2024 list — shared with every brief and CM2's limited multiclass lists; kama, kukri, shuriken count as sickle, dagger, dart (simple); the tool only recorded. **Recommendation:** with the all-class proficiency item (the Monk's list first if that lands now).
+
+**OH1. Open Hand Technique (Open Hand 3).** 2024: each hit from a Flurry of Blows attack imposes one of Addle (no opportunity attacks until its next turn), Push (Str save against the Focus DC or pushed 15 ft), Topple (Dex save or Prone). Route: D4's Push (rules_push, 4.5 m) and the engine's knockdown with the Focus DC and the right abilities; Addle a "no opportunity attacks" mark (rules_opportunity); needs which attacks are M4's Flurry attacks (RE: their index in the round); the choice a setting, `!technique topple|push|addle` (default Topple), like `!mastery`. **Recommendation:** after M4.
+
+**OH2. Wholeness of Body (Open Hand 6).** 2024: Bonus Action, heal Martial Arts die + Wis (at least 1); uses = Wis modifier (at least 1) per Long Rest. NWN: feat 211 (Monk 7, once a day) → spell 309 nw_s2_wholeness, heals 2 × Monk level. Route: feat 211 granted at Open Hand 6 (rules_features), spell row 309's script a served nwn5e script, uses max(1, Wis) through GetFeatTotalUses, not restored by a Short Rest, an action until Phase 6. **Recommendation:** build now.
+
+**OH3. Fleet Step (Open Hand 11).** Step of the Wind right after another Bonus Action. **Recommendation:** Phase 6.
+
+**OH4. Quivering Palm (Open Hand 17).** 2024: on an Unarmed Strike hit, 4 FP start vibrations lasting Monk-level days (one creature at a time); ending them takes an action or forgoes one attack of the Attack action: Con save against the Focus DC, 10d12 Force, half on a success. NWN: feat 296 (Monk 15, once a day), a special attack: on a hit Fort DC 10 + level / 2 + Wis or death (QUIVERING_PALM_BASE_DC, ResolvePostMeleeDamage). Options: (a) one step — the special attack (unarmed, 4 FP); on a hit the Con save at once for 10d12 Magical (NWN's Force), half on a success (the save wrapper tells the engine "success", so its death never happens; nwn5e applies the damage); (b) two steps — the hit marks the target, `!palm` or a second use ends it later (closer to 2024, more interface). **Recommendation:** (a) now; (b) with Phase 6 / 7 if wanted.
+
+**NWN mode:** NWN's Monk as it is (its feats and engine numbers, Flurry's −2, Stunning Fist, Quivering Palm's death, prestige classes); the both-mode rules stay (PB, Extra Attack's count, no iterative penalty, 2024 saves). No Focus Points, no Open Hand.
+
+**Build order (proposed).** 1. M0 (the mask, the Monk's table and labels), then M2, M6, M10, M15, M16 (known hooks: HasFeat, GetACNaturalBase, GetMovementRateFactor, the ruleset). 2. M1 (the finesse hook, GetUnarmedDamageDie / Dice, the weapon-dice filter, the base items' IsMonkWeapon, the extra attack after InitializeNumberOfAttacks). 3. M3 (the pool, the feat-use hooks, the short-rest listener), then M4, M9, M7, M13, M14, M5. 4. OH2, OH4, OH1. 5. M8 (RE: an attack's damage effect at OnApplyDamage), M12, M11 with the Rogue's. 6. M17 with the all-class proficiency item. Later: Phase 6 (the free Patient Defense / Step of the Wind, Fleet Step, Deflect's redirect, Bonus Unarmed Strike as a Bonus Action), CM8 (Epic Boon).
+
+*Recon facts (EE 89.8193.37-17; RVA; read by disassembly):* ruleset label sites (the call sites reference the label minus its first character — the compiler folds it into the FNV seed): MONK_DAMAGE_TIER_* in GetUnarmedDamageDie / Dice; FLURRY_OF_BLOWS_TO_HIT_MODIFIER GetAttackModifierVersus 0x3F6693; STUNNING_FIST_BASE_SAVE_DC 0x3E6D1D and _EFFECT_DURATION 0x3E7049 (ResolveMeleeSpecialAttack); STUNNING_FIST_TO_HIT_MODIFIER 0x412F1E; QUIVERING_PALM_BASE_DC 0x3E938A; DEFLECT_ARROWS_DC 0x3E5EAF; DIAMOND_SOUL_SPELL_RESISTANCE_BASE 0x408E0F; KI_STRIKE_LEVEL_* 0x385825; STILL_MIND_COMPETANCE_BONUS 0x3EC9FC; FEAT_EXTRA_STUNNING_ATTACK_USES in GetFeatTotalUses / GetFeatRemainingUses; MOVEMENT_SPEED_BONUS_MONK_CAP in GetMovementRateFactor. GetUseMonkAbilities 0x396370 (class 5 or 40 levels, chest ComputeArmorClass 0 — class 40 also 1–3 — no left-hand base item 14 / 56 / 57; ignores the weapon; callers GetACNaturalBase, GetArmorClassVersus, GetUnarmedDamageDie / Dice, GetUseMonkAttackTables, movement, EquipMostDamagingMeleeWeapon, UpdateCombatInformation). GetUnarmedDamageDie / Dice 0x40AD60 / 0x40AA70 (tier by Monk level < 4 / 8 / 12 / 16; Medium dies 6 / 8 / 10 / 12 / 20, dice 1; Small *_SDAMAGE_*; else UNARMED_DAMAGE_DIE 3; callers GetDamageRoll +0x67D / +0x68B / +0xA08 / +0xA16, GetUnarmedDamageRoll 0x40B3E0, UpdateCombatInformation). GetACNaturalBase 0x3F3E90 (+ Wis at stats +0xD41 when > 0 if the list Contains 260; + Monk level / 5; argument 1 returns that part only). GetMovementRateFactor 0x391FE0 (Monk 207 under GetUseMonkAbilities: + (level / 3) × 0.1 literal at .rdata 0x140D83B74; caps 1.5, 3.0 for Monks). InitializeNumberOfAttacks 0x3773A0 (combat mode byte creature +0x6EF: 5 Flurry, 6 Rapid Shot; Flurry: round +0x2F60 = 1 when unarmed or the right-hand base item's +0xC0 IsMonkWeapon; else Shou Disciple feats 866 / 899 then SetCombatMode(0, 1); HASTED_BONUS_ATTACKS into +0x2F60; total = +0x2F50 + 0x2F54 + 0x2F60 + 0x2F64). GetIsDefaultMonkWeapon 0x29DD40 (base items 15, 40). GetUseMonkAttackTables 0x40B510. Stunning Fist in ResolveMeleeSpecialAttack 0x3E6660 (special attack id at attack data +0x7A; DecrementFeatRemainingUses(39) at 0x3E6CAC before the hit test; needs a hit with damage, no stun immunity; DC 10 + level / 2 + Wis + EPIC_IMPROVED_STUNNING_FIST_DC_BONUS; Fort save 0x3E6FDD; 6.0 s). GetFeatTotalUses 0x401C70 (Stunning Fist = Monk level, else (level + 3) / 4; +3 with feat 410; cap 100). Deflect Arrows in ResolveDefensiveEffects 0x3E5630 (ranged attack data +0x5C; round flag +0x2F30, SetDeflectArrow 0x379C20; not flat-footed; feat 8; free hand or non-ranged main weapon of relative size ≤ 0; Reflex DC 20). Ki Strike in CalculateDamagePower 0x385610 (698 / 697 / 344 / 343 / 213 → KI_STRIKE_LEVEL_5..1). Evasion in ExecuteCommandGetReflexAdjustedDamage 0x52F790 (HasFeat 212 then 206). Exports: HasFeat 0x40B900, DecrementFeatRemainingUses 0x3F2750, IncrementFeatRemainingUses 0x40B9D0, SetFeatRemainingUses 0x415960, CheckProficiencies 0x3D2D90, ResolveInitiative 0x39F100 (callers AddAttackActions, EventHandler ×3, AIActionCounterSpell, OnApplyDamage ×2), SetCombatMode 0x3D8C50, GetSpellResistance 0x408DD0, DoDamageResistance 0x492620. (Session spot-check: the exports' RVAs match.)
+*Open / unverified:* how often ResolveInitiative runs (M7's guard); base item +0xC0 = the loaded IsMonkWeapon and whether writing it suffices for Flurry / monk tables, and whether SetCombatMode(5) checks feat 204 or armour; whether +0x2F60 attacks are main-hand or unarmed, their place in the round (OH1), the round's attack limit; SavingThrowRoll's feat argument at the Stunning Fist / Quivering Palm sites (0 — identified by call site); whether C6 rescales Stunning Fist's DC today; whether NWN limits Stunning Fist to unarmed; telling an attack's damage effect at OnApplyDamage and editing its amounts (M8); whether the radial / quickbar refresh pool-backed uses; whether using a feat costs the round's attacks; henchman / monster AI use of Flurry and Stunning Fist (melee talents, category 22; OC's Grimgnaw as the monk henchman is from memory); whether damage power 20 is the ceiling (M10); the class 39 constant in GetACNaturalBase; masked feats on the sheet until Phase 7; whether +100% speed at Monk 18 feels right.
+
+### Phase 3 — Rogue (CM9): recommendations (for the owner's decision)
+
+SRD 5.2 Rogue, one subclass: **Thief** (Arcane
+Trickster, Assassin and Soulknife are PHB-only — private layer). Every feature
+below was checked in the SRD 5.2.1 PDF (pp. 61–64) on 2026-10-24; none is
+PHB-only (Cunning Strike's Poisoner's Kit is an SRD tool). The core traits are
+built: d8 (CM3), Dexterity and Intelligence saves (C2), 4 skills, Thieves'
+Tools and Expertise (SK2), Light armour (NWN's too); weapons are R3.
+
+NWN's Rogue (EE's cls_feat_rog): Sneak Attack 1d6 at 1, +1d6 at every odd
+level (10d6 at 19; feats 221, 345–353); Evasion at 2; Uncanny Dodge 1 at 3
+(keeps Dexterity to AC when flat-footed), 2 at 6 (can't be flanked by a rogue
+less than 4 levels higher; +1 Reflex against traps), 3–6 at 11 / 14 / 17 / 20
+(+2 … +5 against traps); bonus picks at 10 / 13 / 16 / 19 among Crippling
+Strike, Defensive Roll, Opportunist, Skill Mastery, Improved Evasion and
+Slippery Mind; Epic Rogue at 21. **Faithful today:** the built rules replace
+the hit die, saves, skills (Expertise at 1 and 6), the feat levels (ASI at 4 /
+8 / 10 / 12 / 16 instead of NWN's picks, which the screens no longer offer —
+CM7, CM8), Weapon Mastery (2), the Rogue-only traps (SK3) and Uncanny Dodge's
+trap bonuses (C7 drops them: they come before the save's d20). Everything else
+is still NWN's: sneak attack by NWN's rules on every hit, Evasion at 2,
+Uncanny Dodge 1–2, and any NWN rogue feat a character took before. Status per
+level, then the decisions (R0–R12, T1–T5).
+
+| Lvl | 2024 feature | Status |
+|---|---|---|
+| 1 | Expertise (2) | built (SK2: `!skills`, the Skills pages) |
+| 1 | Sneak Attack (1d6 … 10d6 at 19) | R0, R1 (today NWN's) |
+| 1 | Thieves' Cant | R2 |
+| 1 | Weapon Mastery (2) | built (D3, C4) |
+| 2 | Cunning Action | R4 (Phase 6) |
+| 3 | Thief | automatic (CM10) |
+| 3 | Steady Aim | R5 (Phase 6) |
+| 4, 8, 10, 12, 16 | Ability Score Improvement | built (CM7) |
+| 5 | Cunning Strike | R6 |
+| 5 | Uncanny Dodge | R7 |
+| 6 | Expertise (2 more) | built (SK2, level-up Skills page) |
+| 7 | Evasion | R8 |
+| 7 | Reliable Talent | R9 |
+| 11 | Improved Cunning Strike | R6 |
+| 14 | Devious Strikes | R6 |
+| 15 | Slippery Mind | R10 |
+| 18 | Elusive | R11 |
+| 19 | Epic Boon | with CM8 |
+| 20 | Stroke of Luck | R12 |
+| Thief 3 | Fast Hands | T1 |
+| Thief 3 | Second-Story Work | T2 |
+| Thief 9 | Supreme Sneak | T3 |
+| Thief 13 | Use Magic Device | T4 |
+| Thief 17 | Thief's Reflexes | T5 (Phase 6) |
+
+**R0. NWN's Rogue feats in faithful (the feature mask).** The Rogue is the
+first class with NWN features to take away (the Fighter had none, so CM9's
+mask waited for it). EE needs no new RE for the mechanism: feats.cpp already
+filters CNWSCreatureStats::HasFeat. Recommendation: one faithful filter that
+answers for these feats at **every** caller — the engine's rules, the scripts'
+GetHasFeat (the stock dragon breaths, fire traps, nw_i0_spells … test Evasion
+themselves), henchmen's automatic level-ups — so each NWN rule falls silent
+and the 2024 feature decides in its own hook:
+
+| NWN feat | what EE does with it | faithful |
+|---|---|---|
+| Sneak Attack 1–10 (221, 345–353) | ResolveSneakAttack, GetDamageRoll's dice | kept (the AI's flanking talent asks for it), decides nothing: R1 |
+| Evasion (206, at 2) | the GetReflexAdjustedDamage command; scripts | absent |
+| Improved Evasion (212, a pick) | the same | means 2024 Evasion: R8 |
+| Uncanny Dodge 1 (195) | Dexterity to AC when flat-footed | absent (flat-footed goes: R1 e) |
+| Uncanny Dodge 2–6 (251–255) | no flanking for sneak / death attacks; +1 … +5 vs traps | absent (2024's is R7) |
+| Crippling Strike (222) | 2 Strength damage on a sneak hit | absent |
+| Defensive Roll (223) | Reflex save halves a lethal hit, once a day | absent |
+| Opportunist (224) | +4 on opportunity attacks | absent |
+| Skill Mastery (225) | take 20 on traps and locks, in combat too | absent (Reliable Talent is R9) |
+| Slippery Mind (259) | a failed Will save rolled again (after the d20, so C7 misses it) | absent (2024's is R10) |
+| Epic Improved Sneak Attack (834–843), Epic Rogue (974) | more sneak dice; level 21 | absent (cap 20) |
+
+The feats stay on the sheet; in faithful the label hook names them for what
+they now are (Improved Evasion "Evasion", Uncanny Dodge "Uncanny Dodge", the
+rest "NWN feature — no effect in 2024 rules"); `!features` lists the 2024
+truth. NWN mode: all NWN's.
+
+**R1. Sneak Attack.** 2024: once per turn, extra damage (1d6 at 1, +1d6 at
+every odd level, 10d6 at 19, the weapon's damage type) to one creature hit by
+an attack with a Finesse or Ranged weapon that has Advantage — or, without
+Advantage, when an ally of the attacker that isn't Incapacitated is within 5
+ft of the target and the attack doesn't have Disadvantage. A critical hit
+rolls its dice twice (2024 crits double every damage die of the attack). No
+range limit, no immunity by creature type. NWN (decoded: Engine facts):
+ResolveSneakAttack decides before the hit, for every attack, with any weapon:
+the target can't see the attacker, or it is flat-footed, or it is "flanked"
+(busy with someone else — no distance, no ally test); ranged only within 10 m;
+Uncanny Dodge 2 blocks flanking; no sneak attack on a sneak- or crit-immune
+target. It sets a flag in the attack's data that ResolveDamage hands to
+GetDamageRoll, which rolls the dice once — their count from the feats —
+outside its critical loop: never doubled. So NWN's dice match 2024 level for
+level; trigger, frequency, weapons, range, immunity and crits don't. Route:
+hook ResolveSneakAttack (exported, one caller: inside ResolveAttackRoll, after
+rules_advantage's before-listener has the roll mode); in faithful it writes
+the flag by the 2024 test. The dice: a filter at GetDamageRoll's sneak
+RollDice (the 10th of its 12, +0x12df, found by shape at load) inside the
+GetDamageRoll hook rules_fighter already has; "used this turn" is marked when
+that roll happens (only on a hit) and read by the next ResolveSneakAttack.
+Sub-decisions:
+- (a) The test: Advantage = rules_advantage's final roll mode (an unseen
+  attacker — hiding included —, blinded / stunned / restrained / paralysed /
+  asleep targets, prone in melee, Vex, Studied Attacks: the Rogue's Vex
+  weapons — rapier, shortsword, shortbow — set up the next Sneak Attack); the
+  ally = a creature friendly to the attacker (party, henchmen, summons) within
+  5 ft edge to edge of the target, not dead, dying or Incapacitated
+  (IncapacitatedByCondition), the mode not disadvantage; the weapon a Finesse
+  one (rules::IsFinesseNwnBaseItem) or a ranged attack (bows, crossbows,
+  slings, darts, shuriken, throwing axes) — not unarmed strikes or creature
+  weapons; no 10 m limit. Recommendation: as written.
+- (b) Once per turn: an NWN round is a 2024 turn (D4). Recommendation: once
+  per the attacker's combat round (an opportunity attack on another creature's
+  turn could add one in 2024: open question).
+- (c) Dice: ⌈Rogue level / 2⌉ d6, Rogue levels as ClassLevel2024 (Assassin and
+  Shadowdancer count, decision 10), twice as many on a critical hit; the
+  engine's epic and Blackguard dice ignored. Creatures with sneak feats and no
+  Rogue levels (NWN blueprints) keep their NWN dice under the 2024 test until
+  Phase 8. Recommendation: as written.
+- (d) Immunity: NWN's sneak-immune creatures (immunity type 30; every
+  crit-immune one, type 31, too — undead, constructs, oozes …). Options: (a)
+  keep it, with crit immunity, until Phase 8 converts creatures; (b) faithful
+  drops it (2024 has none). Recommendation: (b) — Sneak Attack is the Rogue's
+  damage, and much of the campaigns' fighting is undead and constructs; crit
+  immunity is the same question (kept today by E0's design).
+- (e) Flat-footed: the conditions decision left NWN's flat-footed Dexterity
+  loss (stunned, paralysed, asleep, petrified, blind) "until Sneak Attack is
+  converted". With (a) helpless targets give advantage instead.
+  Recommendation: faithful hooks GetFlatFooted to "never" (no Dexterity loss
+  to AC; its other users — Defensive Roll, Death Attack,
+  ResolveDefensiveEffects — are masked or minor); NWN mode NWN's.
+The combat log's "Sneak Attack" follows the flag (the engine's own text).
+
+**R2. Thieves' Cant.** A language; NWN has no language rules. Recommendation:
+listed, no effect.
+
+**R3. Weapon proficiencies.** 2024: Simple weapons, and Martial weapons with
+Finesse or Light (rapier, scimitar, shortsword, whip). NWN's rogue proficiency
+(feat 50): club, dagger, dart, light and heavy crossbow, light mace,
+morningstar, quarterstaff, sling, shortbow, short sword, rapier, handaxe — it
+lacks spear, sickle, light hammer, scimitar, whip, kama and kukri, and has the
+heavy crossbow (Martial, neither Finesse nor Light). Every class has the same
+question (CM2's later-class lists wait for it too). Recommendation: one
+proficiency pass for all classes (CheckProficiencies is exported; the mastery
+picks follow proficiency), not in this brief.
+
+**R4. Cunning Action (2).** Bonus action: Dash, Disengage or Hide. NWN:
+stealth mode is a free toggle but refused in combat (1.69 test, SK5); Tumble
+stands in for Disengage (D2); no Dash. Options: (a) Phase 6; (b) the Hide part
+now — a Rogue 2+ may enter stealth mode in combat (the DC 15 Stealth and the
+perception rules still decide whether it hides). Recommendation: (a), with (b)
+if the in-combat refusal turns out to be one server-side check (not found in
+SetStealthMode / SetActivity: RE).
+
+**R5. Steady Aim (3).** Bonus action, only if you haven't moved this turn:
+Advantage on your next attack this turn, then Speed 0 until the turn ends.
+Options: (a) Phase 6; (b) a toggle now (`!steadyaim`): each round in which the
+Rogue hasn't moved since the round began, its first attack has advantage and
+it can't move until the round ends. Recommendation: (a) — a henchman beside
+the target already gives most Sneak Attacks (R1 a), hidden attacks have
+advantage, and (b) would be redone with bonus actions.
+
+**R6. Cunning Strike (5), Improved Cunning Strike (11), Devious Strikes
+(14).** When dealing Sneak Attack damage, give up dice (removed before
+rolling) for an effect after the damage; the save DC is 8 + PB + Dexterity
+modifier. Poison (1d6, needs a Poisoner's Kit): Constitution save or Poisoned
+1 minute, repeating the save each turn; Trip (1d6): Large or smaller,
+Dexterity save or Prone; Withdraw (1d6): move half Speed without opportunity
+attacks; from 11 two effects per Sneak Attack; from 14 Daze (2d6):
+Constitution save or next turn only a move, an action or a bonus action; Knock
+Out (6d6): Constitution save or Unconscious for 1 minute or until damaged,
+repeating the save each turn; Obscure (3d6): Dexterity save or Blinded until
+the end of its next turn. A per-attack choice the engine can't ask for.
+Recommendation: build after R1 as a standing choice — `!cunning <effect>
+[<effect>]`, `!cunning off` (NUI with Phase 7) — applied to every Sneak Attack
+with dice enough; the target's save through the save wrapper's forced ability;
+henchmen none (full dice). In NWN terms: Trip = the knockdown Topple uses
+(D4); Poison = nwn5e's own Poisoned (CN4's disadvantage, an icon, no ability
+damage), a save each round; the kit waived (NWN has no Poisoner's Kit item —
+Phase 8 may serve one); Withdraw = no movement opportunity attacks for the
+rest of the round (Tactical Shift's local, F7); Obscure = blindness for a
+round; Knock Out = sleep (Unconscious, CN2: advantage, crits from 5 ft) ended
+by any damage (the DoDamage hook) or a Constitution save each round, 1 minute
+at most; Daze = one round of NWN's Slow (NWN's Dazed is 2024's Incapacitated:
+too strong).
+
+**R7. Uncanny Dodge (5).** Reaction: when an attacker you can see hits you
+with an attack roll, halve that attack's damage (rounded down). NWN's Uncanny
+Dodge is unrelated (R0). Options: (a) automatic: the first hit each round from
+an attacker the Rogue sees (engine::Sees), unless it is Incapacitated; (b) as
+(a), spending the round's opportunity attack — NWN's one per round, refilled
+each round, as 2024's one reaction — and none when it already made one. Route:
+a post-hook on CNWSCreature::ResolveDamage halves the attack's damage entries
+(int16 per damage type in the attack data) before
+ResolvePost{Melee,Ranged}Damage applies them — before resistances, as 2024
+orders it. Recommendation: (b) if the round's AoO count is found (RE), else
+(a); Phase 6 makes it a real reaction.
+
+**R8. Evasion (7).** 2024's Evasion is NWN's Improved Evasion — no damage on a
+successful save, half on a failed one — for Dexterity saves only, and not
+while Incapacitated. Route: R0's filter: Improved Evasion (212) answers "Rogue
+7+ (Monk 7+ with the Monk brief), not Incapacitated, and the save rolls
+Dexterity" — 0 when C1's table moved the spell's save (Cone of Cold, Sunbeam,
+Sunburst roll Constitution: the 1.69 follow-up) — and Evasion (206) answers 0,
+for the engine's command and the scripts alike. An item's Improved Evasion
+property stays (Phase 8). Recommendation: build now.
+
+**R9. Reliable Talent (7).** An ability check with a skill or tool proficiency
+treats a d20 of 9 or lower as 10. Route: the dice filter at the d20s nwn5e
+already owns — the scripts' GetIsSkillSuccessful (SK11), the Stealth roll when
+hiding (SK5: the DC 15 Hide), Search and a searching observer's Perception;
+not the engine's own lock / trap / heal-kit d20s (CRT rand: SK11's gap).
+Recommendation: build now at those sites; locks and traps with that gap.
+
+**R10. Slippery Mind (15).** Proficiency in Wisdom and Charisma saves (NWN's
+reroll: R0). Route: rules::HasSaveProficiency gains class-feature
+proficiencies (Rogue 15; Monk 14 with its brief), read by the three save
+getters and C1's substituted abilities (Charisma saves: Banishment, Bane …).
+Recommendation: build now.
+
+**R11. Elusive (18).** No attack roll against you has Advantage unless you're
+Incapacitated. Route: rules_advantage (weapon attacks) and SK10's spell-attack
+roll ignore advantage sources against such a target; disadvantage stays.
+Recommendation: build now.
+
+**R12. Stroke of Luck (20).** Turn a failed D20 Test into a 20; once per Short
+or Long Rest. Options: (a) automatic: the first failed saving throw (like
+Indomitable, after it); (b) the first failed save or attack roll; (c) a prompt
+with Phase 7. Recommendation: (a), restored by the rest listener (the Short
+Rest's too, 5a).
+
+**T1. Fast Hands (3).** Bonus action: a Dexterity (Sleight of Hand) check to
+pick a lock, disarm a trap with Thieves' Tools or pick a pocket, or Utilize,
+or a magic item's Magic action. Recommendation: the speed with Phase 6 (in
+2024 a potion is already a bonus action); now the Thief's lock and trap checks
+use the better of Thieves' Tools and Sleight of Hand (so Expertise in Sleight
+of Hand counts) — a skill adjuster while the six lock / trap actions run
+(rules_skill_dcs knows them).
+
+**T2. Second-Story Work (3).** Climb Speed; jump distance by Dexterity. NWN
+has no climbing or jumping. Recommendation: listed, no effect.
+
+**T3. Supreme Sneak (9).** The Stealth Attack Cunning Strike (1d6): an attack
+doesn't end the Hide action's Invisible condition if you end the turn behind
+three-quarters or total cover. nwn5e doesn't end hiding on an attack (2024's
+Hide does), and NWN has no cover data. Recommendation: later, with an
+"attacking ends hiding" rule (a perception decision of its own); until then it
+has nothing to keep.
+
+**T4. Use Magic Device (13).** Attune up to four items (NWN has no
+attunement); a property that spends charges spends none on a 6 on 1d6; any
+Spell Scroll, with Intelligence — cantrips and level 1 surely, higher an
+Intelligence (Arcana) check against 10 + the spell's level or the scroll
+crumbles. NWN: class limits on scrolls (279 of 287 stock scrolls) and in
+faithful no skill lifts them (SK8, which waited for this). Route: the Use
+Magic Device skill answer inside CheckUseMagicDeviceSkill (rules_nwn_skills'
+adjuster) lifts a scroll's class limit for a Thief 13 after nwn5e's Arcana
+roll for level 2+ (Arcana = Lore and Spellcraft, SK1; the scroll destroyed on
+a failure); charges by a pre-hook on CNWSItem::SetNumCharges when an item use
+spends them. Recommendation: scrolls now, charges once their path is read
+(RE).
+
+**T5. Thief's Reflexes (17).** Two turns in the first round of a combat (the
+second at Initiative − 10). Recommendation: Phase 6, with Action Surge (one
+machinery: an extra action).
+
+**NWN mode:** NWN's Rogue (sneak attack by flanking, flat-footed or unseen on
+every hit, NWN's dice and immunities, Evasion, Uncanny Dodge, the level-10+
+picks; Assassin and Shadowdancer).
+
+**Build order (proposed).** 1. R0 + R1 (the mask filter; ResolveSneakAttack,
+the sneak dice, once per round, crits, immunity, GetFlatFooted) — the class's
+identity. 2. R8, R10, R11 (a filter, the save getters, the advantage rule). 3.
+R7 (ResolveDamage post-hook). 4. R9, R12. 5. R6 (needs R1; effects through the
+script bridge). 6. T4, T1. Later: R4, R5, T5 (Phase 6), T3 (an
+attacking-ends-hiding rule), R3 (the proficiency pass for all classes); R2 and
+T2 have nothing to build.
+
 ## Phase 5 — rests, healing, death: decided by the owner (2026-10-23)
 
 Recon (EE 89.8193.37-17, disassembly; facts the decisions rest on):
