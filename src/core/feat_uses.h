@@ -1,0 +1,26 @@
+#pragma once
+
+// X6 (docs/PLAN.md "Phase 3", shared by the non-caster classes): feature
+// uses nwn5e counts itself. The engine keeps a feat's uses per feat id (its
+// total from feat.2da and the class tables, a spent byte on the creature's
+// feat list); a provider takes a set of feats over - their total by its own
+// rule, and one pool of spent uses shared by every feat it claims (Rage's
+// chain 293, 326-331 is one pool), kept in a record on the creature (records.h:
+// a saved game and a character export keep it). The engine's
+// GetFeatRemainingUses / GetFeatTotalUses / Decrement- /
+// IncrementFeatRemainingUses answer from the pool - the radial, UseFeat, the
+// AI's talents and the scripts alike - and the end of a Long Rest
+// (ResetFeatRemainingUses) empties it.
+
+// The total uses of `feat` for `stats` (true), or false: the feat is the
+// engine's. Asked often (the radial's refresh), so it tests the feat first.
+using FeatUsesTotal = bool (*)(void* stats, int feat, int* total);
+
+// `record` names the pool's record (registered here). Hooks on first use;
+// false (and logged) if a hook can't be made.
+bool AddFeatUsesProvider(const char* record, FeatUsesTotal total);
+
+// The pool's spent uses on a creature, and setting them (never below 0) -
+// for a rule that gives uses back (a Short Rest, Persistent Rage).
+int SpentFeatUses(void* creature, const char* record);
+void SetSpentFeatUses(void* creature, const char* record, int spent);

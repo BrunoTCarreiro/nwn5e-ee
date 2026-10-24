@@ -52,7 +52,9 @@
 #include "saves.h"
 
 int IndomitableReroll(void* creature);  // rules_fighter.cpp (Fighter F5)
-int ClassSaveAdvantage(void* creature, rules::Ability ability);  // rules_barbarian.cpp (B5 Danger Sense)
+int ClassSaveAdvantage(void* creature, rules::Ability ability);  // rules_barbarian.cpp (B5 Danger Sense, B2 Rage)
+bool IndomitableMightSucceeds(void* creature, int dc);           // rules_barbarian.cpp (B13)
+void NoteSaveForced(uint32_t by, void* creature);                // rules_barbarian.cpp (B3: keeps a Rage going)
 
 namespace {
 
@@ -263,6 +265,7 @@ uint8_t SavingThrowRoll(void* creature, uint8_t save, uint16_t dc, uint8_t type,
     return g_saving_throw_roll(creature, save, dc, type, versus, feedback, feat, from_combat);
   }
   if (Faithful()) NaturalOnesNotAutomatic();
+  NoteSaveForced(versus, creature);
   const int engine_dc = dc;
   // A save asked for by a spell's script uses that spell's DC (GetSpellSaveDC,
   // already 2024 — persistent areas of effect pass themselves as the
@@ -296,6 +299,14 @@ uint8_t SavingThrowRoll(void* creature, uint8_t save, uint16_t dc, uint8_t type,
       result = g_saving_throw_roll(creature, save, static_cast<uint16_t>(std::clamp(new_dc - bonus, 1, 0xFFFF)),
                                    type, versus, feedback, feat, from_combat);
     }
+  }
+  // Barbarian B13 Indomitable Might: a failed Strength save succeeds when the Strength score meets the DC.
+  if (result == 0 && !context.condition.auto_fail && save >= 1 && save <= 3 &&
+      context.ability.value_or(rules::AbilityForNwnSave(static_cast<rules::NwnSave>(save - 1))) ==
+          rules::Ability::kStrength &&
+      IndomitableMightSucceeds(creature, new_dc)) {
+    result = 1;
+    TellIfPlayer(IdOf(creature), "nwn5e: Indomitable Might - your Strength score meets the DC: the save succeeds.");
   }
   g_save = outer;
   const uint32_t creature_id = IdOf(creature);
@@ -359,7 +370,7 @@ bool SaveD20(uintptr_t caller, int count, int sides, int* result) {
   if ((species || class_feature || disadvantage || lucky) && g_config.log_attacks && g_save_log_lines < 300) {
     ++g_save_log_lines;
     Log("save d20: object 0x%08X save %d type %d:%s%s%s%s%s -> %d", IdOf(g_save.creature), g_save.save, g_save.type,
-        species ? " species advantage" : "", class_feature ? " class advantage (Danger Sense)" : "",
+        species ? " species advantage" : "", class_feature ? " class advantage (Danger Sense / Rage)" : "",
         g_save.condition.disadvantage > 0 ? " disadvantage (" : "",
         g_save.condition.disadvantage > 0 ? (g_save.condition.note + ")").c_str() : "",
         lucky ? " Halfling Luck reroll" : "", kept);

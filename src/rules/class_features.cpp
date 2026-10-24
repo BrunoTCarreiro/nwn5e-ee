@@ -44,31 +44,31 @@ const std::vector<ClassFeature>& Fighter() {
 // SRD 5.2 Barbarian and Path of the Berserker (PLAN.md "Phase 3 — Barbarian").
 const std::vector<ClassFeature>& Barbarian() {
   static const std::vector<ClassFeature> kFeatures = {
-      {1, "Rage", false, "next (Rage): NWN's Rage until then"},
+      {1, "Rage", false, "built: resistance, Rage Damage, Strength advantage, no spells; uses by level"},
       {1, "Unarmored Defense", false, "built: 10 + Dex + Con with no armour (a shield allowed)"},
       {1, "Weapon Mastery", false, "built (!mastery): melee weapons"},
       {2, "Danger Sense", false, "built: advantage on Dexterity saves unless incapacitated"},
       {2, "Reckless Attack", false, "later: a radial toggle"},
       {3, "Path of the Berserker", false, "built: granted at 3"},
-      {3, "Primal Knowledge", false, "built: a skill; Strength for some checks while raging with Rage"},
+      {3, "Primal Knowledge", false, "built: a skill; Strength for some checks while raging"},
       {3, "Frenzy", true, "later: with Reckless Attack"},
       {4, "Ability Score Improvement", false, "built (!asi)"},
       {5, "Extra Attack", false, "built"},
       {5, "Fast Movement", false, "built: +10 ft (a third faster) out of heavy armour"},
-      {6, "Mindless Rage", true, "next: with Rage"},
+      {6, "Mindless Rage", true, "built: immune to charm and fear while raging"},
       {7, "Feral Instinct", false, "built: advantage on initiative"},
-      {7, "Instinctive Pounce", false, "next: with Rage (a charge: half again as fast for a round)"},
+      {7, "Instinctive Pounce", false, "built: a charge - half again as fast for a round on raging"},
       {8, "Ability Score Improvement", false, "built (!asi)"},
       {9, "Brutal Strike", false, "later: effects picked on the radial"},
       {10, "Retaliation", true, "later"},
-      {11, "Relentless Rage", false, "next: with Rage"},
+      {11, "Relentless Rage", false, "built: at 0 HP while raging, a Con save (DC 10, +5 a use)"},
       {12, "Ability Score Improvement", false, "built (!asi)"},
       {13, "Improved Brutal Strike", false, "later"},
       {14, "Intimidating Presence", true, "later"},
-      {15, "Persistent Rage", false, "next: with Rage"},
+      {15, "Persistent Rage", false, "built: uses back on initiative once; lasts 10 minutes"},
       {16, "Ability Score Improvement", false, "built (!asi)"},
       {17, "Improved Brutal Strike (2d10, two effects)", false, "later"},
-      {18, "Indomitable Might", false, "next: with Rage"},
+      {18, "Indomitable Might", false, "built: a failed Strength save at or under the score succeeds"},
       {19, "Epic Boon", false, "CM8"},
       {20, "Primal Champion", false, "built: Strength and Constitution +4 (at most 25)"},
   };
@@ -106,6 +106,37 @@ bool HasBarbarianFastMovement(int barbarian_level) { return barbarian_level >= 5
 bool HasFeralInstinct(int barbarian_level) { return barbarian_level >= 7; }
 
 bool HasPrimalChampion(int barbarian_level) { return barbarian_level >= 20; }
+
+bool IsRageFeat(int feat) { return feat == kFeatRage || (feat >= 326 && feat <= 331); }
+
+int RageUses2024(int barbarian_level) {
+  if (barbarian_level < 1) return 0;
+  if (barbarian_level >= 17) return 6;
+  if (barbarian_level >= 12) return 5;
+  if (barbarian_level >= 6) return 4;
+  if (barbarian_level >= 3) return 3;
+  return 2;
+}
+
+int RageDamage2024(int barbarian_level) {
+  if (barbarian_level < 1) return 0;
+  if (barbarian_level >= 16) return 4;
+  if (barbarian_level >= 9) return 3;
+  return 2;
+}
+
+bool HasPrimalKnowledge(int barbarian_level) { return barbarian_level >= 3; }
+bool HasMindlessRage(int barbarian_level) { return barbarian_level >= 6; }
+bool HasInstinctivePounce(int barbarian_level) { return barbarian_level >= 7; }
+bool HasRelentlessRage(int barbarian_level) { return barbarian_level >= 11; }
+bool HasPersistentRage(int barbarian_level) { return barbarian_level >= 15; }
+bool HasIndomitableMight(int barbarian_level) { return barbarian_level >= 18; }
+
+int RelentlessRageDc(int uses_since_rest) { return 10 + 5 * (uses_since_rest > 0 ? uses_since_rest : 0); }
+
+int RelentlessRageHitPoints(int barbarian_level) { return 2 * barbarian_level; }
+
+int IndomitableMightTotal(int total, int strength_score) { return total < strength_score ? strength_score : total; }
 
 int UnarmoredDefenseConBonus(int con_modifier, int monk_wis_bonus) {
   const int bonus = con_modifier - (monk_wis_bonus > 0 ? monk_wis_bonus : 0);

@@ -35,6 +35,7 @@
 
 bool HasTwoWeaponFightingStyle(void* stats);  // rules_fighter.cpp (Fighter F1, the 2024 style feat)
 int FinesseDamageBonus(void* stats, int off_hand);  // rules_finesse.cpp
+int RageDamageBonus(void* stats, int off_hand);     // rules_barbarian.cpp (Barbarian B2)
 
 namespace {
 
@@ -84,6 +85,7 @@ int GetDamageBonus(void* stats, void* target, int off_hand) {
   int bonus = g_get_damage_bonus(stats, target, off_hand);
   t_damage_stats = outer;
   bonus += FinesseDamageBonus(stats, off_hand);  // 2024 Finesse: the better of Str and Dex
+  bonus += RageDamageBonus(stats, off_hand);     // Barbarian B2: Rage Damage
   if (!off_hand) bonus = MasteryCleaveDamage(stats, bonus, t_two_handed_multiplier);  // D4 Cleave's extra attack
   return bonus;
 }
@@ -124,8 +126,9 @@ void InstallTwoWeaponRules() {
   }
   const bool mastery = g_config.weapon_mastery != rules::RuleVariant::kOff;  // D4 Cleave's damage
   const bool finesse = g_config.finesse == rules::RuleVariant::kFaithful;
-  if (TwoWeaponFaithful() || mastery || finesse) {
-    HookExport("CNWSCreatureStats::GetDamageBonus (who deals damage; Cleave; Finesse)", ee::kGetDamageBonus,
+  const bool rage = g_config.class_features == rules::RuleVariant::kFaithful;  // Barbarian B2 Rage Damage
+  if (TwoWeaponFaithful() || mastery || finesse || rage) {
+    HookExport("CNWSCreatureStats::GetDamageBonus (who deals damage; Cleave; Finesse; Rage)", ee::kGetDamageBonus,
                reinterpret_cast<void*>(&GetDamageBonus), reinterpret_cast<void**>(&g_get_damage_bonus));
   }
   if (g_config.two_handed_strength == rules::RuleVariant::kFaithful || mastery) {

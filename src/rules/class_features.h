@@ -90,6 +90,39 @@ int UnarmoredDefenseConBonus(int con_modifier, int monk_wis_bonus);
 // NWN heavy armour: a chest item of base AC 6 or more (NWN's own heavy range).
 constexpr int kHeavyArmorBaseAc = 6;
 
+// B1-B3 Rage: NWN's Rage feats (293 at 1, its successors 326-331, which the
+// engine maps to the highest one a character has) stay the Rage - one pool of
+// uses; spell 307 is its spell ability (served in faithful with nwn5e_rage).
+constexpr int kFeatRage = 293;
+constexpr int kSpellRage = 307;
+bool IsRageFeat(int feat);
+// Uses per Long Rest: 2; 3 at 3; 4 at 6; 5 at 12; 6 at 17 (0 below level 1).
+int RageUses2024(int barbarian_level);
+// Rage Damage on Strength attacks: +2; +3 at 9; +4 at 16.
+int RageDamage2024(int barbarian_level);
+// A Rage lasts up to 10 minutes; it lapses after a round (6 s) with no attack
+// roll at an enemy, no save forced on one and no chase (B3).
+constexpr int kRageMaxSeconds = 600;
+constexpr int kRageLapseSeconds = 6;
+// By Barbarian level: B7 Primal Knowledge (3: Strength for some skills while
+// raging), BZ2 Mindless Rage (Berserker 6), B9 Instinctive Pounce (7), B11
+// Relentless Rage (11), B12 Persistent Rage (15), B13 Indomitable Might (18).
+bool HasPrimalKnowledge(int barbarian_level);
+bool HasMindlessRage(int barbarian_level);
+bool HasInstinctivePounce(int barbarian_level);
+bool HasRelentlessRage(int barbarian_level);
+bool HasPersistentRage(int barbarian_level);
+bool HasIndomitableMight(int barbarian_level);
+// B9: entering Rage gives half the speed again for one round (a charge).
+constexpr int kInstinctivePounceSpeedPercent = 50;
+// B11: the Constitution save's DC (10, +5 per use since the last Short or
+// Long Rest) and the hit points a success leaves (twice the Barbarian level).
+int RelentlessRageDc(int uses_since_rest);
+int RelentlessRageHitPoints(int barbarian_level);
+// B13 Indomitable Might: a Strength check or save totalling less than the
+// Strength score uses the score instead.
+int IndomitableMightTotal(int total, int strength_score);
+
 // X1 (owner, 2026-10-24: "remove them completely"): NWN class feats with no
 // 2024 counterpart, taken off characters in faithful and no longer granted
 // (the classes' feat tables, data/rows/cls_feat_*.if_classfeat2024.txt).

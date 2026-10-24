@@ -83,6 +83,8 @@
 #include "rest.h"
 #include "rules/death_saves.h"
 
+int RelentlessRage(void* creature);  // rules_barbarian.cpp (Barbarian B11)
+
 namespace {
 
 constexpr const char* kVarExhaustion = "nwn5e_exhaustion";
@@ -797,6 +799,14 @@ void DoDamage(void* creature, int damage) {
   g_do_damage(creature, damage);
   const int after = HitPoints(creature);
   if (after >= before) return;
+  // Barbarian B11 Relentless Rage: dropped to 0 (not killed outright) while raging.
+  if (before >= 1 && after < 1 && !rules::IsMassiveDamage(-after, MaxHitPoints(creature))) {
+    const int relentless = RelentlessRage(creature);
+    if (relentless > 0) {
+      SetHitPoints(creature, relentless);
+      return;
+    }
+  }
   if (IsPlayer(creature)) {
     PlayerDamaged(creature, before, after);
   } else if (after < 1) {

@@ -20,6 +20,18 @@ void ResetFeatRemainingUses(void* stats) {
 
 }  // namespace
 
+namespace {
+std::vector<ShortRestListener> g_short_rest_listeners;  // filled at install, then only read
+}  // namespace
+
+void AddShortRestListener(ShortRestListener listener) { g_short_rest_listeners.push_back(listener); }
+
+std::string AfterShortRest(void* creature) {
+  std::string words;
+  for (ShortRestListener listener : g_short_rest_listeners) words += listener(creature);
+  return words;
+}
+
 bool AddRestListener(RestListener listener) {
   if (!g_hooked && !g_hook_failed) {
     g_hooked = HookExport("CNWSCreatureStats::ResetFeatRemainingUses (after a rest)", ee::kResetFeatRemainingUses,

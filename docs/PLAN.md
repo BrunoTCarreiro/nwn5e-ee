@@ -976,6 +976,43 @@ the 2024 ability sync); B14 the Barbarian's mastery rows melee only
 with a word. `!features` lists the Barbarian. Unit tests: the levels, Unarmored
 Defense with a Monk, X1's list, Primal Champion's cap, MasteryAllowed.
 Launch-checked (hooks in, the rows served).
+*Built 0.22.0 (part 2, Rage; key `class_features`):* the feat stays NWN's (293
++ successors - the AI's and the dialogs'); spell 307's served row
+(spells.if_classfeat2024.txt) runs `nwn5e_rage` - a marker effect of the spell
+(GetHasFeatEffect still reads it) and a local the DLL picks up - and
+rules_barbarian.cpp keeps the 2024 Rage. Shared pieces built for the next
+classes: X6 feat_uses.cpp (a provider takes feats over: total by its rule, one
+spent pool in a record; GetFeatRemainingUses / GetFeatTotalUses / Decrement /
+Increment hooked; a Long Rest empties it) and the short-rest listener list
+(rest.h); X4 resistance.cpp (DoDamageImmunity hooked: a resisted type halved,
+rounded down, once); feat_use.cpp (one UseFeat hook: guards + listeners - the
+potion resume moved onto it and now follows a Rage too); game_clock.cpp
+(unpaused game time). B1 uses 2/3/4/5/6, one back on a Short Rest, a
+player's Rage refused in Heavy armour or while raging (nothing spent; an AI's
+Rage in Heavy armour gives nothing and keeps its marker, so the AI doesn't
+retry). B2 resistance to B/P/S; Rage Damage in GetDamageBonus (melee or a
+thrown Throwing Axe, not a finesse weapon used with a better Dex); advantage
+on Strength saves; AddCastSpellActions refuses UserType 1 spells,
+AddItemCastSpellActions scrolls / wands / rods / staffs (potions allowed). B3
+the end checked every 250 ms: a round (6 s game time) without an attack roll
+at an enemy, a save forced on one (the save wrapper's `versus`) or a chase
+(the attack target alive, an enemy, seen); incapacitated, unconscious (0 HP,
+down, asleep), Heavy armour, 10 minutes; a rest ends it. B7 the better of
+Strength for Acrobatics / Intimidation / Perception / Stealth / Survival while
+raging (SkillValue2024). BZ2 Mindless Rage: charm / domination / fear removed
+(CN5's fear icon by CNWSObject::RemoveEffect) and immunity linked. B9
+Instinctive Pounce: +50% speed for 6 s. B11 Relentless Rage in rules_dying's
+DoDamage (dying faithful), d20 + the hooked GetFortSavingThrow vs DC 10 + 5 per
+use, a record both rests clear. B12 Persistent Rage after ResolveInitiative
+(initiative faithful), once per Long Rest; lasts 10 minutes. B13 Indomitable
+Might after Indomitable in the save wrapper. Rage icon: effecticons row 220
+(ife_rage, string 16000444). Any creature that rages gets the 2024 Rage at its
+Barbarian level; the uses pool is characters' only. `!rage` (status; `!rage
+reset`). Unit tests: uses, damage, the chain, the level gates, Relentless's DC
+and HP, Might. Open: whether the engine clears the attack target on a move
+order (the chase), AddCastSpellActions' first argument being the spell id (the
+log line names it), Rage across a saved game (the DLL's state isn't saved: the
+marker stays, the benefits don't).
 
 *Recon facts (EE 89.8193.37-17; RVA):* GetMovementRateFactor 0x391FE0 — HasFeat(194) at 0x39202A (checked again by the session: `mov edx,0C2h; call HasFeat 0x40B900`), ruleset BARBARIAN_ENDURANCE_BONUS 0.1 (row 307), caps MOVEMENT_SPEED_PENALTY_CAP 0.125, BONUS_DEFAULT_CAP 1.5, MONK_CAP 3.0. DoDamageReduction 0x491950 — HasFeat for 1067/334/333/332/196 at +0x177/+0x219/+0x291/+0x309/+0x37E. SavingThrowRoll 0x3EC600 — HasFeat 255…251 at 0x3ED046/0x3ED115/0x3ED150/0x3ED188/0x3ED1C0, its only d20 at 0x3ED260 (ruleset UNCANNY_DODGE_LEVEL_2–6 = 1–5). Uncanny Dodge 2 (251) in ResolveSneakAttack +0x536 and ResolveDeathAttack +0x32A. GetArmorClassVersus 0x3F47F0 — 195 at +0x988/+0x999 and 949 at +0x9AB/+0x9BC via CExoArrayList::Contains (0x296910) on stats+0 / +0x20. GetFlatFooted 0x3E3910 — HasFeat(226 Uncanny Reflex) = never flat-footed. Script GetHasFeat (0x525410): GetHighestLevelOfFeat +0xBD, HasFeat +0xD3, GetFeatRemainingUses +0xF5. GetHighestLevelOfFeat 0x4029B0 (UseFeat +0x3C, the script feat commands). GetFeatRemainingUses 0x4012F0 (total inline, minus the entry's byte +2, clamped 0–100; callers UseFeat, AIActionCastSpell, PlayerUpdate, talents, ResolveDamage, ResolveMeleeSpecialAttack, SetCombatMode, SaveClassInfo, scripts). GetFeatTotalUses 0x401C70 (ReadStatsFromGff, SetFeatRemainingUses 0x415960; feat 331: + (level − 20) / 4). Increment / DecrementFeatRemainingUses 0x40B9D0 / 0x3F2750 change exactly that feat id's byte. Feat 293: SPELLID 307, USESPERDAY 1, TARGETSELF 1; spell 307 NW_S1_BarbRage, UserType 3. DoDamageImmunity 0x491690 (virtual +0x160; % from +0x170; removes max(1, dmg × % / 100)). OnApplyDamage 0x428740: immunity +0x160, DoDamageResistance +0x150 (0x492620), DoDamageReduction +0x148 for flags & 0x1007. AIActionCastSpell 0x3ADA70, AIActionItemCastSpell 0x3C07B0, AddAttackOfOpportunity 0x374320, GetHasFeatEffectApplied 0x495480. Scripts with feat 293: nw_i0_generic, x0_d1_userage / x0_d2_hasrage, x2_i0_spells.
 *Open / unverified:* a feat use and the Short Rest's +1 landing on the same entry (the highest Rage feat); ResetFeatRemainingUses just zeroing the byte; GetHasFeatEffectApplied = the script's GetHasFeatEffect; BZ3's AoO queueing; OnApplyDamage's second loop (+0x1238) not examined; flat-footed in faithful (Rogue brief); Rage Damage on thrown weapons (ranged = Dex in rules::AttackAbilityModifier); served feats with USESPERDAY `****` unlimited; design calls — Heavy = chest base AC 6+ (2024's Half Plate is Medium), potions allowed while raging, henchmen reckless whenever raging, "of your choice" = all enemies; renaming tlk strings (1062 …) by conditional served rows → private ids (assumed).

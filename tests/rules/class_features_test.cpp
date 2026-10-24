@@ -122,3 +122,51 @@ TEST(NwnOnlyClassFeatsAreTheOnesWithoutCounterparts) {
   CHECK_EQ(has(293), false);  // Rage: kept as the 2024 Rage
   CHECK_EQ(has(194), false);  // Fast Movement: kept, from Barbarian 5
 }
+
+// Breaks caught: Rage's uses or damage at the wrong level (2 / 3 / 4 / 5 / 6
+// at 1 / 3 / 6 / 12 / 17; +2 / +3 / +4 at 1 / 9 / 16), a feat of the Rage
+// chain missed or another feat taken for one, a part 2 feature at the wrong
+// level, Relentless Rage's DC climbing by other than 5 or its hit points other
+// than twice the level, Indomitable Might lowering a total.
+TEST(BarbarianRage) {
+  CHECK_EQ(RageUses2024(0), 0);
+  CHECK_EQ(RageUses2024(1), 2);
+  CHECK_EQ(RageUses2024(2), 2);
+  CHECK_EQ(RageUses2024(3), 3);
+  CHECK_EQ(RageUses2024(5), 3);
+  CHECK_EQ(RageUses2024(6), 4);
+  CHECK_EQ(RageUses2024(11), 4);
+  CHECK_EQ(RageUses2024(12), 5);
+  CHECK_EQ(RageUses2024(16), 5);
+  CHECK_EQ(RageUses2024(17), 6);
+  CHECK_EQ(RageUses2024(20), 6);
+  CHECK_EQ(RageDamage2024(1), 2);
+  CHECK_EQ(RageDamage2024(8), 2);
+  CHECK_EQ(RageDamage2024(9), 3);
+  CHECK_EQ(RageDamage2024(15), 3);
+  CHECK_EQ(RageDamage2024(16), 4);
+  CHECK_EQ(IsRageFeat(293), true);
+  CHECK_EQ(IsRageFeat(326), true);
+  CHECK_EQ(IsRageFeat(331), true);
+  CHECK_EQ(IsRageFeat(325), false);
+  CHECK_EQ(IsRageFeat(332), false);  // Damage Reduction 2
+  CHECK_EQ(IsRageFeat(194), false);  // Fast Movement
+  CHECK_EQ(HasPrimalKnowledge(2), false);
+  CHECK_EQ(HasPrimalKnowledge(3), true);
+  CHECK_EQ(HasMindlessRage(5), false);
+  CHECK_EQ(HasMindlessRage(6), true);
+  CHECK_EQ(HasInstinctivePounce(6), false);
+  CHECK_EQ(HasInstinctivePounce(7), true);
+  CHECK_EQ(HasRelentlessRage(10), false);
+  CHECK_EQ(HasRelentlessRage(11), true);
+  CHECK_EQ(HasPersistentRage(14), false);
+  CHECK_EQ(HasPersistentRage(15), true);
+  CHECK_EQ(HasIndomitableMight(17), false);
+  CHECK_EQ(HasIndomitableMight(18), true);
+  CHECK_EQ(RelentlessRageDc(0), 10);
+  CHECK_EQ(RelentlessRageDc(1), 15);
+  CHECK_EQ(RelentlessRageDc(2), 20);
+  CHECK_EQ(RelentlessRageHitPoints(11), 22);
+  CHECK_EQ(IndomitableMightTotal(12, 18), 18);
+  CHECK_EQ(IndomitableMightTotal(21, 18), 21);
+}

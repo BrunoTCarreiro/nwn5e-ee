@@ -177,6 +177,30 @@ constexpr const char* kGetDEXMod = "?GetDEXMod@CNWSCreatureStats@@QEAADH@Z";
 constexpr const char* kSendServerToPlayerChatMessage = "?SendServerToPlayerChatMessage@CNWSMessage@@QEAAHEIVCExoString@@IAEBV2@@Z";
 constexpr const char* kHandlePlayerToServerChatMessage = "?HandlePlayerToServerChatMessage@CNWSMessage@@QEAAHPEAVCNWSPlayer@@E@Z";
 constexpr const char* kResetFeatRemainingUses = "?ResetFeatRemainingUses@CNWSCreatureStats@@QEAAXXZ";
+// X6 feature uses (Barbarian brief recon): uchar GetFeatRemainingUses(ushort
+// feat) 0x4012F0 - the total inline, minus the feat entry's spent byte,
+// clamped 0-100 (callers UseFeat, AIActionCastSpell, PlayerUpdate, talents,
+// scripts); uchar GetFeatTotalUses(ushort) 0x401C70; Decrement / Increment
+// change that feat id's byte (0x3F2750 / 0x40B9D0).
+constexpr const char* kGetFeatRemainingUses = "?GetFeatRemainingUses@CNWSCreatureStats@@QEAAEG@Z";
+constexpr const char* kGetFeatTotalUses = "?GetFeatTotalUses@CNWSCreatureStats@@QEAAEG@Z";
+constexpr const char* kDecrementFeatRemainingUses = "?DecrementFeatRemainingUses@CNWSCreatureStats@@QEAAXG@Z";
+// X4 2024 Resistance: int CNWSObject::DoDamageImmunity(CNWSCreature* attacker,
+// int damage, uint damage-type flags, int simulate, int feedback) 0x491690 -
+// the damage left after the object's % immunity to that type (it removes
+// max(1, damage x % / 100)); OnApplyDamage asks it first, per type (vtable +0x160).
+constexpr const char* kDoDamageImmunity = "?DoDamageImmunity@CNWSObject@@UEAAHPEAVCNWSCreature@@HIHH@Z";
+// B2 no spells while raging: int CNWSCreature::AddCastSpellActions(uint spell,
+// int class slot, int domain level, int metamagic, int spontaneous, Vector
+// target location, uint target, int area target, int add to front, int fake,
+// uchar projectile path, int instant, int, int feat, uchar) - a cast from the
+// radial and ActionCastSpell*; int AddItemCastSpellActions(uint item, int
+// property, int sub-property, Vector location, uint target, int area, int) -
+// UseItem's item powers.
+constexpr const char* kAddCastSpellActions = "?AddCastSpellActions@CNWSCreature@@QEAAHIHHHHVVector@@IHHHEHHHE@Z";
+constexpr const char* kAddItemCastSpellActions = "?AddItemCastSpellActions@CNWSCreature@@QEAAHIHHVVector@@IHH@Z";
+// void CNWSObject::RemoveEffect(CGameEffect*) - BZ2 Mindless Rage drops CN5's fear icon.
+constexpr const char* kObjectRemoveEffect = "?RemoveEffect@CNWSObject@@QEAAXPEAVCGameEffect@@@Z";
 constexpr const char* kEndCombatRound = "?EndCombatRound@CNWSCombatRound@@QEAAXXZ";
 constexpr const char* kOnApplyDamage = "?OnApplyDamage@CNWSEffectListHandler@@QEAAHPEAVCNWSObject@@PEAVCGameEffect@@H@Z";
 // void CNWSCombatRound::AddCleaveAttack(unsigned int target, int bGreatCleave)

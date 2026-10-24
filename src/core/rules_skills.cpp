@@ -42,6 +42,7 @@
 #include "skill_rank.h"
 
 rules::SkillSet BackgroundSkills(void* creature);  // rules_abilities.cpp (CM5)
+int RageSkillAbility(void* creature, rules::Skill2024 skill, int modifier);  // rules_barbarian.cpp (B7)
 
 namespace {
 
@@ -258,6 +259,7 @@ bool SkillValue2024(void* stats, int skill, void* vs, int* value, SkillParts* pa
                                                   static_cast<uint8_t>(skill), 0xFF, 0)
                            : 0;
   parts->ability = engine::AbilityModifier(stats, static_cast<int>(rules::AbilityFor(*mapped)));
+  parts->ability = RageSkillAbility(creature, *mapped, parts->ability);  // Barbarian B7: Strength while raging
   parts->proficiency_bonus = pb;
   parts->proficient = rules::Has(profile.proficient, *mapped);
   parts->expertise = rules::Has(profile.expertise, *mapped);

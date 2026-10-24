@@ -188,6 +188,7 @@ std::string ShortRestOf(void* creature, const std::string& who) {
       break;
     }
   }
+  features += AfterShortRest(creature);  // X6: the other short-rest features (Rage)
   Log("rests: 0x%08X Short Rest - %s (Con %+d): +%d HP; Hit Dice left %s", IdOf(creature), rolls.c_str(),
       engine::AbilityModifier(stats, kAbilityConstitution), rest.healed,
       DiceText(rules::Remaining(all, now_spent)).c_str());
