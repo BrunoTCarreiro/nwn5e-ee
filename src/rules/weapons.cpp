@@ -134,6 +134,23 @@ int WeaponMasterySlots(const std::vector<ClassLevels>& classes) {
   return slots;
 }
 
+bool MasteryAllowed(const std::vector<ClassLevels>& classes, int base_item) {
+  for (const ClassLevels& entry : classes) {
+    if (WeaponMasterySlots(entry.character_class, entry.levels) == 0) continue;
+    if (entry.character_class != CharacterClass::kBarbarian) return true;
+    switch (base_item) {
+      case 6: case 7:    // heavy, light crossbow
+      case 8: case 11:   // longbow, shortbow
+      case 31: case 59:  // dart, shuriken
+      case 61:           // sling
+        break;
+      default:
+        return true;
+    }
+  }
+  return false;
+}
+
 namespace {
 
 struct NwnWeapon {

@@ -253,6 +253,27 @@ std::string AlreadyMastered(void* stats, const Slots& slots, int base_item) {
   return std::string();
 }
 
+std::string NotAllowed(int base_item) {
+  return "nwn5e: a Barbarian's Weapon Mastery takes melee weapons only - not " + Label(base_item) + ".";
+}
+
+// B14: masteries the character's classes no longer allow (a Barbarian's
+// ranged pick, before the rule) given up, with a word to re-pick.
+void DropDisallowed(void* creature, void* stats, const CreatureFacts& facts) {
+  const Slots slots = ReadSlots(creature, stats);
+  const std::vector<rules::ClassLevels> classes = Classes(stats);
+  for (int i = 0; i < kMaxSlots; ++i) {
+    const int kind = slots.chosen[i];
+    if (kind < 0 || rules::MasteryAllowed(classes, kind)) continue;
+    GiveUpMastery(creature, stats, slots, i);
+    Log("mastery: 0x%08X %s given up (a Barbarian's mastery is melee only)", IdOf(creature), Label(kind).c_str());
+    Announce(creature, facts,
+             "nwn5e: a Barbarian's Weapon Mastery takes melee weapons only - " + Label(kind) +
+                 " given up; choose another with !mastery <weapon>.",
+             "nwn5e: your henchman's Weapon Mastery with " + Label(kind) + " was given up (melee only).");
+  }
+}
+
 // "!mastery <weapon>" fills an empty slot; "!mastery <A> for <B>" swaps one
 // slot after a long rest, in either word order (the one already in a slot is
 // given up).
@@ -268,6 +289,7 @@ std::string Choose(void* creature, void* stats, const std::string& args) {
   const uint32_t id = IdOf(creature);
   if (split == std::string::npos) {
     if (!Proficient(stats, first_item)) return "nwn5e: you are not proficient with " + Label(first_item) + ".";
+    if (!rules::MasteryAllowed(Classes(stats), first_item)) return NotAllowed(first_item);
     const std::string already = AlreadyMastered(stats, slots, first_item);
     if (!already.empty()) return already;
     const int free_slot = rules::FreeMasterySlot(slots.chosen, slots.count);
@@ -293,6 +315,7 @@ std::string Choose(void* creature, void* stats, const std::string& args) {
     return "nwn5e: to swap, name one weapon in your slots and one that is not (your slots: " + SlotList(slots) + ").";
   }
   if (!Proficient(stats, swap.take)) return "nwn5e: you are not proficient with " + Label(swap.take) + ".";
+  if (!rules::MasteryAllowed(Classes(stats), swap.take)) return NotAllowed(swap.take);
   if (HasFocus(stats, swap.take)) return AlreadyMastered(stats, slots, swap.take);
   if (!slots.swap_ready) return "nwn5e: you can swap one weapon mastery after each long rest - rest first.";
   const int slot = rules::MasterySlotOf(slots.chosen, slots.count, swap.give_up);
@@ -316,6 +339,7 @@ std::vector<std::string> MasteryCommand(void* creature, const std::string& args)
             (MasteryClass(stats) ? "every weapon you are proficient with." : "your classes have none.") +
             (focus.empty() ? "" : " Weapon Focus: " + focus + ".")};
   }
+  DropDisallowed(creature, stats, ReadCreatureFacts(stats));
   if (args.empty()) return Status(creature, stats);
   return {Choose(creature, stats, args)};
 }
@@ -330,13 +354,14 @@ void NoteWeaponUsed(void* creature, int base_item) {
   if (!facts.character) return;
   const int kind = base_item < 0 ? -1 : rules::MasteryKindOfNwnBaseItem(base_item);
   if (kind < 0 || !rules::NwnWeaponName(kind)) return;
+  DropDisallowed(creature, stats, facts);
   const Slots slots = ReadSlots(creature, stats);
   if (g_config.log_attacks && g_logged_slots.First(LogOnce::Key(IdOf(creature), slots.count, UsedSlots(slots)))) {
     Log("mastery: object 0x%08X %s: %d slots: %s", IdOf(creature), KindOf(facts), slots.count, SlotList(slots).c_str());
   }
   if (slots.count == 0 || rules::MasterySlotOf(slots.chosen, slots.count, kind) >= 0 || HasFocus(stats, kind)) return;
   const int free_slot = rules::FreeMasterySlot(slots.chosen, slots.count);
-  if (free_slot < 0 || !Proficient(stats, base_item)) return;
+  if (free_slot < 0 || !Proficient(stats, base_item) || !rules::MasteryAllowed(Classes(stats), kind)) return;
   if (!TakeMastery(stats, kind)) return;
   if (g_config.log_attacks) {
     Log("mastery: object 0x%08X slot %d = %s (used in a fight)", IdOf(creature), free_slot + 1, Label(kind).c_str());

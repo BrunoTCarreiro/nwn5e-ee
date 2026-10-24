@@ -139,6 +139,8 @@ bool WearingArmor(void* creature) {
 
 }  // namespace
 
+int UnarmoredDefenseBonus(void* stats);  // rules_barbarian.cpp (Barbarian B4), on the sheet too
+
 // Defense: +1 AC in armour (GetArmorClassVersus, rules_attack.cpp, and the sheet).
 int DefenseArmorClassBonus(void* stats) {
   if (!HasStyle(stats, rules::kFeatFightingStyleDefense)) return 0;
@@ -154,7 +156,8 @@ namespace {
 
 int16_t CreatureArmorClass(void* creature) {
   const int16_t armor_class = g_creature_armor_class(creature);
-  return static_cast<int16_t>(armor_class + DefenseArmorClassBonus(StatsOf(creature)));
+  void* stats = StatsOf(creature);
+  return static_cast<int16_t>(armor_class + DefenseArmorClassBonus(stats) + UnarmoredDefenseBonus(stats));
 }
 
 // Great Weapon Fighting: the weapon's damage dice for a melee attack with a

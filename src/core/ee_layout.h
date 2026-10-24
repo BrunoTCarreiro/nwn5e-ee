@@ -783,6 +783,10 @@ constexpr const char* kCreatureGetArmorClass = "?GetArmorClass@CNWSCreature@@QEA
 // int CNWSItem::ComputeArmorClass(): the item's base AC. "In armour" is the
 // chest item's above 0 — GetDEXMod(1)'s own test (+0x2c slot 2, +0x45).
 constexpr const char* kItemComputeArmorClass = "?ComputeArmorClass@CNWSItem@@QEAAHXZ";
+// float CNWSCreature::GetMovementRateFactor(): + ruleset BARBARIAN_ENDURANCE_BONUS
+// when HasFeat(194) (+0x4A), the Monk's + (level / 3) x 0.1 (a literal), caps
+// 1.5 / 3.0 for monks (D, the Barbarian brief).
+constexpr const char* kGetMovementRateFactor = "?GetMovementRateFactor@CNWSCreature@@QEAAMXZ";
 constexpr int kSlotChest = 0x2;
 // CNWBaseItem: weapon size uint8 +0x19 (GetDamageBonus +0x272: size minus the
 // creature's size == 1, melee, not double = wielded two-handed); NumDice uint8

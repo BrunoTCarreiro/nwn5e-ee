@@ -330,6 +330,9 @@ void Sync(void* creature, bool force) {
       }
     }
     rules::FaithfulAbilityDelta(nwn_base, bumps, background, asis, delta);
+    if (g_config.class_features == rules::RuleVariant::kFaithful) {  // B13 Primal Champion
+      rules::ClassFeatureAbilityIncreases(rules::GroupClassLevels(ReadClassSlots(stats)), nwn_base, delta);
+    }
   } else if (facts.is_player) {
     SyncOriginFeat(creature, stats, rules::Background::kNone);  // NWN mode: no background feats
   }

@@ -12,6 +12,12 @@
 // (nwn5e_granted_feats: a bit per rules::GrantableFeats2024 entry); NWN mode
 // and off remove what was recorded. EE's AddFeat gives a feat with uses per
 // day its full uses; the next player update shows the change.
+//
+// X1 (owner, 2026-10-24: "remove them completely, we don't need to keep NWN
+// compatibility"): in faithful the NWN class feats with no 2024 counterpart
+// (rules::NwnOnlyClassFeats: the Barbarian's Uncanny Dodge and Damage
+// Reduction so far) are taken off characters by the same sync - the classes'
+// feat tables served in faithful no longer grant them.
 
 #include <windows.h>
 
@@ -78,6 +84,23 @@ std::vector<std::string> FeaturesCommand(void* creature, const std::string& /*ar
   return lines;
 }
 
+// X1: the NWN-only class feats off a character (faithful).
+void RemoveNwnOnlyFeats(void* stats, const CreatureFacts& facts, uint32_t id) {
+  bool uncanny = false, reduction = false;
+  for (int feat : rules::NwnOnlyClassFeats()) {
+    if (!engine::HasFeat(stats, feat)) continue;
+    g_remove_feat(stats, static_cast<uint16_t>(feat));
+    Log("features: %s 0x%08X removed NWN feat %d (no 2024 counterpart, X1)", KindOf(facts), id, feat);
+    (feat == 196 || feat == 332 || feat == 333 || feat == 334 || feat == 1067 ? reduction : uncanny) = true;
+  }
+  if ((uncanny || reduction) && facts.is_player) {
+    std::string what = uncanny && reduction ? "Uncanny Dodge and Damage Reduction" : uncanny ? "Uncanny Dodge"
+                                                                                            : "Damage Reduction";
+    TellPlayer(id, "nwn5e: NWN's " + what + " aren't 2024 class features - removed (2024 rules). !features lists "
+                   "yours.");
+  }
+}
+
 void FeaturesCreatureUpdate(void* creature) {
   const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
   if (id == ee::kObjectInvalid) return;
@@ -92,6 +115,7 @@ void FeaturesCreatureUpdate(void* creature) {
   if (facts.is_player) EnsureRecords(creature);  // C6
   const bool faithful = g_config.class_features == rules::RuleVariant::kFaithful;
   const int recorded = engine::GetLocalInt(creature, kVarGranted);
+  if (faithful) RemoveNwnOnlyFeats(stats, facts, id);
   if (!faithful && !recorded) return;  // nothing to take back
   const std::vector<int> wanted =
       faithful ? rules::GrantedFeats2024(rules::GroupClassLevels(ReadClassSlots(stats))) : std::vector<int>();

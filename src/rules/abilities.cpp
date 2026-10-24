@@ -34,6 +34,17 @@ void FaithfulAbilityDelta(const int nwn_base[6], const int level_bumps[6], const
   }
 }
 
+void ClassFeatureAbilityIncreases(const std::vector<ClassLevels>& classes, const int nwn_base[6], int delta[6]) {
+  for (const ClassLevels& entry : classes) {
+    if (entry.character_class != CharacterClass::kBarbarian || entry.levels < 20) continue;
+    for (Ability ability : {Ability::kStrength, Ability::kConstitution}) {
+      const int i = static_cast<int>(ability);
+      const int room = kClassFeatureAbilityCap - (nwn_base[i] + delta[i]);
+      delta[i] += room < 4 ? (room > 0 ? room : 0) : 4;
+    }
+  }
+}
+
 std::vector<Ability> AsiPriority2024(CharacterClass character_class, int strength, int dexterity) {
   switch (character_class) {
     case CharacterClass::kBarbarian: return {Ability::kStrength, Ability::kConstitution};

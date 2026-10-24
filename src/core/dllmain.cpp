@@ -44,6 +44,7 @@ void InstallFeatCadenceRules();
 void InstallAbilityRules();
 void InstallFeatureRules();
 void InstallFighterRules();
+void InstallBarbarianRules();
 void InstallRestRules();
 void InstallDyingRules();
 void InstallShortRestButton();
@@ -65,7 +66,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.20.2";
+constexpr const char* kVersion = "0.21.0";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -112,6 +113,7 @@ void Start(HMODULE self) {
   InstallAbilityRules();
   InstallFeatureRules();
   InstallFighterRules();
+  InstallBarbarianRules();
   InstallRestRules();
   InstallDyingRules();
   InstallShortRestButton();

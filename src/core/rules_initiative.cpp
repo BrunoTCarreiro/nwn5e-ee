@@ -34,6 +34,7 @@
 bool HiddenByStealth(void* creature);         // rules_perception.cpp (SK5)
 bool HasAlertFromBackground(void* creature);  // rules_abilities.cpp (CM5)
 bool HasRemarkableAthleteAdvantage(void* creature);  // rules_fighter.cpp (Fighter C2)
+bool HasFeralInstinctAdvantage(void* creature);      // rules_barbarian.cpp (Barbarian B9)
 
 namespace {
 
@@ -99,8 +100,9 @@ bool InitiativeD20(uintptr_t caller, int count, int sides, int* result) {
   const bool invisible = Invisible(creature);
   const bool hidden = !invisible && HiddenByStealth(creature);
   const bool athlete = !invisible && !hidden && HasRemarkableAthleteAdvantage(creature);
+  const bool feral = !invisible && !hidden && !athlete && HasFeralInstinctAdvantage(creature);
   const std::string worse = CheckDisadvantage(creature);  // SK11
-  const int advantage = invisible || hidden || athlete ? 1 : 0;
+  const int advantage = invisible || hidden || athlete || feral ? 1 : 0;
   const int disadvantage = worse.empty() ? 0 : 1;
   const int first = RollEngineDice(1, 20);
   const int second = advantage || disadvantage ? RollEngineDice(1, 20) : 0;
@@ -116,6 +118,7 @@ bool InitiativeD20(uintptr_t caller, int count, int sides, int* result) {
     std::string why = invisible ? "advantage: invisible"
                       : hidden  ? "advantage: hidden"
                       : athlete ? "advantage: Remarkable Athlete"
+                      : feral   ? "advantage: Feral Instinct"
                                 : "";
     if (disadvantage) why += (why.empty() ? "disadvantage: " : "; disadvantage: ") + worse;
     if (advantage && disadvantage) why += " - they cancel";

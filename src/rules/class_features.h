@@ -72,6 +72,30 @@ constexpr int kFeatSecondWind2 = 1220;  // Fighter 1
 constexpr int kFeatSecondWind3 = 1221;  // Fighter 4
 constexpr int kFeatSecondWind4 = 1222;  // Fighter 10
 
+// Barbarian (PLAN.md "Phase 3 — Barbarian", decided 2026-10-24), by
+// Barbarian level: B5 Danger Sense (2: advantage on Dexterity saves unless
+// Incapacitated), B8 Fast Movement (5: +10 ft out of Heavy armour), B9 Feral
+// Instinct (7: advantage on initiative), B13 Primal Champion (20: Strength
+// and Constitution +4, at most 25).
+bool HasDangerSense(int barbarian_level);
+bool HasBarbarianFastMovement(int barbarian_level);
+bool HasFeralInstinct(int barbarian_level);
+bool HasPrimalChampion(int barbarian_level);
+// B8: +10 ft of a 30 ft speed (NWN's movement-rate factor).
+constexpr float kBarbarianFastMovementFactor = 1.0f / 3.0f;
+// B4 Unarmored Defense: the AC an unarmoured Barbarian adds - its Constitution
+// modifier (nothing when negative) - less a Monk's Wisdom bonus the engine
+// already gives it (X5: the higher of the two Unarmored Defenses, not both).
+int UnarmoredDefenseConBonus(int con_modifier, int monk_wis_bonus);
+// NWN heavy armour: a chest item of base AC 6 or more (NWN's own heavy range).
+constexpr int kHeavyArmorBaseAc = 6;
+
+// X1 (owner, 2026-10-24: "remove them completely"): NWN class feats with no
+// 2024 counterpart, taken off characters in faithful and no longer granted
+// (the classes' feat tables, data/rows/cls_feat_*.if_classfeat2024.txt).
+// So far the Barbarian's: Uncanny Dodge 1-6, Damage Reduction 1-4 and epic.
+const std::vector<int>& NwnOnlyClassFeats();
+
 // The feats nwn5e grants a character for its class levels (the DLL adds them —
 // so characters made earlier get them too — and removes them in NWN mode).
 std::vector<int> GrantedFeats2024(const std::vector<ClassLevels>& classes);

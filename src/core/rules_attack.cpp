@@ -34,6 +34,7 @@ bool SpellAttackAgainstFullAc(void* target_stats, void* attacker);  // rules_spe
 
 int FightingStyleAttackBonus(void* stats);  // rules_fighter.cpp (Fighter F1 Archery)
 int DefenseArmorClassBonus(void* stats);    // rules_fighter.cpp (Fighter F1 Defense)
+int UnarmoredDefenseBonus(void* stats);     // rules_barbarian.cpp (Barbarian B4)
 
 namespace {
 
@@ -75,8 +76,8 @@ int16_t GetArmorClassVersus(void* stats, void* attacker, int touch) {
   if (touch && SpellAttackAgainstFullAc(stats, attacker)) touch = 0;  // SK10: 2024 has no touch AC
   const int16_t engine_armor_class = g_get_armor_class_versus(stats, attacker, touch);
   // Defense: +1 in armour (not to a 3e touch AC, which leaves armour out).
-  const int16_t gear_armor_class =
-      static_cast<int16_t>(engine_armor_class + (touch ? 0 : DefenseArmorClassBonus(stats)));
+  const int16_t gear_armor_class = static_cast<int16_t>(
+      engine_armor_class + (touch ? 0 : DefenseArmorClassBonus(stats)) + UnarmoredDefenseBonus(stats));
   if (!g_config.creature_ac_by_cr && g_config.debug_creature_ac <= 0) return gear_armor_class;
   const CreatureFacts facts = ReadCreatureFacts(stats);
   if (facts.character) return gear_armor_class;  // players and henchmen keep their gear AC

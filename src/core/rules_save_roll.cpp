@@ -52,6 +52,7 @@
 #include "saves.h"
 
 int IndomitableReroll(void* creature);  // rules_fighter.cpp (Fighter F5)
+int ClassSaveAdvantage(void* creature, rules::Ability ability);  // rules_barbarian.cpp (B5 Danger Sense)
 
 namespace {
 
@@ -338,7 +339,12 @@ bool SaveD20(uintptr_t caller, int count, int sides, int* result) {
   void* stats = StatsOf(g_save.creature);
   int kept = RollEngineDice(1, 20);
   const bool species = stats && SpeciesAdvantage(stats, g_save.save, g_save.type);
-  const rules::RollMode mode = rules::ResolveRollMode(species ? 1 : 0, g_save.condition.disadvantage);
+  const bool class_feature =
+      g_save.save >= 1 && g_save.save <= 3 &&
+      ClassSaveAdvantage(g_save.creature, g_save.ability.value_or(rules::AbilityForNwnSave(
+                                              static_cast<rules::NwnSave>(g_save.save - 1)))) > 0;
+  const rules::RollMode mode =
+      rules::ResolveRollMode((species ? 1 : 0) + (class_feature ? 1 : 0), g_save.condition.disadvantage);
   const bool advantage = mode == rules::RollMode::kAdvantage;
   const bool disadvantage = mode == rules::RollMode::kDisadvantage;
   if (advantage || disadvantage) {
@@ -350,10 +356,11 @@ bool SaveD20(uintptr_t caller, int count, int sides, int* result) {
     kept = RollEngineDice(1, 20);  // Halfling Luck: reroll a natural 1
     lucky = true;
   }
-  if ((species || disadvantage || lucky) && g_config.log_attacks && g_save_log_lines < 300) {
+  if ((species || class_feature || disadvantage || lucky) && g_config.log_attacks && g_save_log_lines < 300) {
     ++g_save_log_lines;
-    Log("save d20: object 0x%08X save %d type %d:%s%s%s%s -> %d", IdOf(g_save.creature), g_save.save, g_save.type,
-        species ? " species advantage" : "", g_save.condition.disadvantage > 0 ? " disadvantage (" : "",
+    Log("save d20: object 0x%08X save %d type %d:%s%s%s%s%s -> %d", IdOf(g_save.creature), g_save.save, g_save.type,
+        species ? " species advantage" : "", class_feature ? " class advantage (Danger Sense)" : "",
+        g_save.condition.disadvantage > 0 ? " disadvantage (" : "",
         g_save.condition.disadvantage > 0 ? (g_save.condition.note + ")").c_str() : "",
         lucky ? " Halfling Luck reroll" : "", kept);
   }

@@ -1,0 +1,16 @@
+# cls_feat_barb.2da - faithful class features (rules_barbarian.cpp; PLAN.md "Phase 3 — Barbarian",
+# decided by the owner 2026-10-24). X1: NWN's Uncanny Dodge and Damage Reduction have no 2024
+# counterpart and are no longer granted (GrantedOnLevel -1); B8: Fast Movement comes at level 5.
+FeatLabel FeatIndex List GrantedOnLevel OnMenu
+0 BarbEndurance 194 3 5 0
+1 UncannyDodge1 195 3 -1 0
+2 UncannyDodge2 251 3 -1 0
+3 UncannyDodge3 252 3 -1 0
+4 UncannyDodge4 253 3 -1 0
+5 UncannyDodge5 254 3 -1 0
+6 UncannyDodge6 255 3 -1 0
+7 DamageReduction 196 3 -1 0
+21 DamageReduction2 332 3 -1 0
+22 DamageReduction3 333 3 -1 0
+23 DamageReduction4 334 3 -1 0
+27 FEAT_EPIC_BARBARIAN_DAMAGE_REDUCTION 1067 3 -1 0

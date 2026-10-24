@@ -27,6 +27,12 @@ struct AbilityIncrease {
 void FaithfulAbilityDelta(const int nwn_base[6], const int level_bumps[6], const int background[6],
                           const std::vector<AbilityIncrease>& asis, int delta[6]);
 
+// Class features that raise scores past 20 (B13 Primal Champion, Barbarian
+// 20: Strength and Constitution +4, at most 25), added to `delta` after
+// FaithfulAbilityDelta.
+constexpr int kClassFeatureAbilityCap = 25;
+void ClassFeatureAbilityIncreases(const std::vector<ClassLevels>& classes, const int nwn_base[6], int delta[6]);
+
 // The abilities a henchman raises with its own ASIs (CM12): the class's main
 // abilities, then Constitution; the Fighter takes Strength or Dexterity,
 // whichever is higher.

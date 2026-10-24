@@ -52,6 +52,11 @@ int WeaponMasterySlots(CharacterClass character_class, int levels);
 // Several classes: the most slots any one of them gives (they do not add up,
 // like Extra Attack).
 int WeaponMasterySlots(const std::vector<ClassLevels>& classes);
+// B14: may this character's Weapon Mastery take `base_item`? Yes when one of
+// its classes with Weapon Mastery allows it: the Barbarian only melee weapons
+// (SRD 5.2.1: Simple or Martial Melee - NWN's Throwing Axe is 2024's thrown
+// Handaxe, a melee weapon), the others any weapon they're proficient with.
+bool MasteryAllowed(const std::vector<ClassLevels>& classes, int base_item);
 
 // D3: the weapon kinds a mastery can be chosen for, as NWN base items, in
 // display order. A magic staff (45) is a quarterstaff (50).

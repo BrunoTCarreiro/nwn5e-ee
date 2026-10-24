@@ -226,3 +226,17 @@ TEST(FinesseDamageUsesTheBetterAbility) {
   CHECK_EQ(FinesseDamageAdjustment(1, 3, true, true), 2);      // off hand with the style: Dex +3 instead of +1
   CHECK_EQ(FinesseDamageAdjustment(-2, -1, true, false), 1);   // both negative: the lesser penalty
 }
+
+// Breaks caught (B14): a Barbarian mastering a bow, crossbow, sling, dart or
+// shuriken; the Throwing Axe (2024's thrown Handaxe) refused; a multiclass
+// Barbarian/Fighter limited to melee; a class without mastery allowed.
+TEST(BarbarianMasteryIsMeleeOnly) {
+  const std::vector<ClassLevels> barbarian = {{CharacterClass::kBarbarian, 4}};
+  CHECK_EQ(MasteryAllowed(barbarian, 13), true);   // greatsword
+  CHECK_EQ(MasteryAllowed(barbarian, 63), true);   // throwing axe
+  CHECK_EQ(MasteryAllowed(barbarian, 8), false);   // longbow
+  CHECK_EQ(MasteryAllowed(barbarian, 6), false);   // heavy crossbow
+  CHECK_EQ(MasteryAllowed(barbarian, 61), false);  // sling
+  CHECK_EQ(MasteryAllowed({{CharacterClass::kBarbarian, 4}, {CharacterClass::kFighter, 1}}, 8), true);
+  CHECK_EQ(MasteryAllowed({{CharacterClass::kWizard, 5}}, 13), false);
+}

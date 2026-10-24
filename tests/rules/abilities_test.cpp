@@ -68,3 +68,21 @@ TEST(RecommendedScoresAreLegal27PointSets) {
   CHECK_EQ(RecommendedScores2024(CharacterClass::kWizard)[3], 15);  // Int
   CHECK_EQ(PointBuyCost2024(16), -1);
 }
+
+// Breaks caught: Primal Champion below Barbarian 20, past 25, on the wrong
+// abilities, or for another class.
+TEST(PrimalChampionRaisesStrengthAndConstitutionToTwentyFive) {
+  const int base[6] = {18, 14, 16, 10, 12, 8};
+  int delta[6] = {2, 0, 0, 0, 0, 0};  // Strength already 20
+  ClassFeatureAbilityIncreases({{CharacterClass::kBarbarian, 20}}, base, delta);
+  CHECK_EQ(base[0] + delta[0], 24);
+  CHECK_EQ(base[2] + delta[2], 20);
+  CHECK_EQ(delta[1], 0);
+  int capped[6] = {5, 0, 8, 0, 0, 0};  // Strength 23, Constitution 24
+  ClassFeatureAbilityIncreases({{CharacterClass::kBarbarian, 20}}, base, capped);
+  CHECK_EQ(base[0] + capped[0], 25);
+  CHECK_EQ(base[2] + capped[2], 25);
+  int none[6] = {0, 0, 0, 0, 0, 0};
+  ClassFeatureAbilityIncreases({{CharacterClass::kBarbarian, 19}, {CharacterClass::kFighter, 1}}, base, none);
+  CHECK_EQ(none[0] + none[2], 0);
+}

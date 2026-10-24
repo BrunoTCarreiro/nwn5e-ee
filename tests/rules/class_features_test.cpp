@@ -83,3 +83,42 @@ TEST(GrantedFeatsFollowClassLevels) {
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 3}, {CharacterClass::kFighter, 2}})[0], kFeatSecondWind2);
   CHECK_EQ(GrantableFeats2024().size(), 3u);
 }
+
+// Breaks caught: a Barbarian feature at the wrong level (Danger Sense 2, Fast
+// Movement 5, Feral Instinct 7, Primal Champion 20), the Barbarian's table
+// missing, Unarmored Defense lowering AC on a negative Con or stacking with a
+// Monk's Wisdom (X5: the higher one).
+TEST(BarbarianFeaturesByLevel) {
+  CHECK_EQ(HasDangerSense(1), false);
+  CHECK_EQ(HasDangerSense(2), true);
+  CHECK_EQ(HasBarbarianFastMovement(4), false);
+  CHECK_EQ(HasBarbarianFastMovement(5), true);
+  CHECK_EQ(HasFeralInstinct(6), false);
+  CHECK_EQ(HasFeralInstinct(7), true);
+  CHECK_EQ(HasPrimalChampion(19), false);
+  CHECK_EQ(HasPrimalChampion(20), true);
+  CHECK_EQ(HasFeatureList(CharacterClass::kBarbarian), true);
+  CHECK_EQ(ClassFeatures2024(CharacterClass::kBarbarian, 1).size(), 3u);  // Rage, Unarmored Defense, Weapon Mastery
+  CHECK_EQ(UnarmoredDefenseConBonus(3, 0), 3);
+  CHECK_EQ(UnarmoredDefenseConBonus(-1, 0), 0);
+  CHECK_EQ(UnarmoredDefenseConBonus(3, 2), 1);   // a Barbarian/Monk: Wis +2 already given, Con +3 the higher
+  CHECK_EQ(UnarmoredDefenseConBonus(2, 4), 0);   // Wis the higher: nothing more
+}
+
+// Breaks caught: X1 removing a feat with a 2024 counterpart (Rage, Fast
+// Movement) or missing an NWN-only one.
+TEST(NwnOnlyClassFeatsAreTheOnesWithoutCounterparts) {
+  const std::vector<int>& feats = NwnOnlyClassFeats();
+  auto has = [&feats](int feat) {
+    for (int f : feats) {
+      if (f == feat) return true;
+    }
+    return false;
+  };
+  CHECK_EQ(has(195), true);   // Uncanny Dodge 1
+  CHECK_EQ(has(255), true);   // Uncanny Dodge 6
+  CHECK_EQ(has(196), true);   // Damage Reduction
+  CHECK_EQ(has(1067), true);  // epic Damage Reduction
+  CHECK_EQ(has(293), false);  // Rage: kept as the 2024 Rage
+  CHECK_EQ(has(194), false);  // Fast Movement: kept, from Barbarian 5
+}
