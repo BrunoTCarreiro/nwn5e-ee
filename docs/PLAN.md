@@ -975,7 +975,11 @@ the 2024 ability sync); B14 the Barbarian's mastery rows melee only
 `!mastery`, its swap and the fill-by-use - an earlier ranged pick given up
 with a word. `!features` lists the Barbarian. Unit tests: the levels, Unarmored
 Defense with a Monk, X1's list, Primal Champion's cap, MasteryAllowed.
-Launch-checked (hooks in, the rows served).
+Launch-checked (hooks in, the rows served). *Tested in game (owner,
+2026-10-24, a Fighter 5 made a Barbarian by `!test`'s swap_class, levelled to
+7):* B1-B5 pass - the log shows Fast Movement's third, Unarmored Defense +2
+(Con), Feral Instinct's advantage on initiative, three melee mastery slots;
+Danger Sense's save advantage wasn't rolled that session.
 *Built 0.22.0 (part 2, Rage; key `class_features`):* the feat stays NWN's (293
 + successors - the AI's and the dialogs'); spell 307's served row
 (spells.if_classfeat2024.txt) runs `nwn5e_rage` - a marker effect of the spell
