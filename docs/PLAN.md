@@ -845,10 +845,26 @@ these RP skills and maybe try to find a way to make them useful").** Features
 with no NWN use today, to look at for a role-play use (dialog checks,
 scripted moments, ambient effects):
 - Thieves' Cant (Rogue 1, R2).
-- Candidates of the same kind found by the briefs (not yet added by the
-  owner): Second-Story Work (Thief 3, T2: climbing, jumping), Slow Fall and
-  Acrobatic Movement (Monk 4 / 9, M6), the Monk's artisan's tool or musical
-  instrument (M17), Survival (Primal Knowledge, B7), languages.
+- Second-Story Work (Thief 3, T2: climbing, jumping).
+- Slow Fall and Acrobatic Movement (Monk 4 / 9, M6).
+- The Monk's artisan's tool or musical instrument (M17).
+- Survival (Primal Knowledge, B7).
+- Languages.
+(All added by the owner, 2026-10-24: "add 58 to the RP list along with all
+the other recommendations you listed".)
+
+- R6, R7, R9-R12, T1-T4 A (R6 picked through X8, the Poisoner's Kit waived;
+  R7 automatic on the first seen hit each round, using the round's
+  opportunity attack if it can be tracked; R9 at nwn5e's own d20s first; R12
+  automatic on the first failed save - to be revisited with X9; T3 with an
+  "attacking ends hiding" rule; T4 scrolls first).
+- **X9. Choosing to spend a feature on a roll (owner, 2026-10-24):** "We'll
+  need to come up with an interface for rolls such as this. The player might
+  not want to use Stroke of Luck on an inconsequential roll. Some sort of
+  interface that would pause the game and pop up a window asking if you'd
+  like to use this applicable skill on this failed roll. This could also
+  work for other rolls. For example to add guidance bonus before a roll
+  where it can apply." - options in chat, to decide.
 
 ### Phase 3 — Barbarian (CM9): recommendations (for the owner's decision)
 
