@@ -864,7 +864,17 @@ the other recommendations you listed".)
   interface that would pause the game and pop up a window asking if you'd
   like to use this applicable skill on this failed roll. This could also
   work for other rolls. For example to add guidance bonus before a roll
-  where it can apply." - options in chat, to decide.
+  where it can apply." - options in chat, to decide. Then: "take a look at
+  how baldur's gate 3 handles rolls. it's a bit hamfisted for use in a combat
+  situation in an active battle type game such as NWN, but it works for
+  story interactions." Engine limit found: a roll and its consequence are one
+  uninterruptible step (a script's `if (!MySavingThrow(...)) ApplyEffect...`),
+  so a prompt after a failed engine / script roll can't wait for an answer.
+- T5 A (Phase 6, with Action Surge). NWN mode's sneak dice stay undoubled on a
+  crit (A). Sneak Attack on an opportunity attack: B - one more Sneak Attack
+  on an opportunity attack made outside the Rogue's round (2024's once per
+  turn), after a short RE to tell opportunity attacks apart in the attack
+  data.
 
 ### Phase 3 — Barbarian (CM9): recommendations (for the owner's decision)
 
