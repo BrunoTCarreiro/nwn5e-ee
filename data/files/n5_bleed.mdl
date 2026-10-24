@@ -1,16 +1,16 @@
 #MAXMODEL ASCII
 # nwn5e (tools/data/bleed_vfx.py): low hit points - a character bleeding;
 # the game's textures by name.
-newmodel n5_bleed_2
-setsupermodel n5_bleed_2 NULL
+newmodel n5_bleed
+setsupermodel n5_bleed NULL
 classification effect
 setanimationscale 1
-beginmodelgeom n5_bleed_2
-node dummy n5_bleed_2
+beginmodelgeom n5_bleed
+node dummy n5_bleed
   parent NULL
 endnode
-node emitter n5_bleed_2_drops
-  parent n5_bleed_2
+node emitter n5_bleed_drops
+  parent n5_bleed
   p2p 0
   p2p_sel 1
   affectedByWind 0
@@ -41,13 +41,13 @@ node emitter n5_bleed_2_drops
   colorEnd 0.25 0 0
   alphaStart 1
   alphaEnd 0.9
-  sizeStart 0.035
-  sizeEnd 0.028
+  sizeStart 0.03
+  sizeEnd 0.024
   sizeStart_y 0
   sizeEnd_y 0
   frameStart 0
   frameEnd 0
-  birthrate 2.5
+  birthrate 1.5
   lifeExp 0.55
   mass 1.8
   spread 0.3
@@ -55,8 +55,8 @@ node emitter n5_bleed_2_drops
   velocity 0
   randvel 0.05
   fps 0
-  xsize 20
-  ysize 20
+  xsize 18
+  ysize 18
   bounce_co 0
   blurlength 7
   lightningDelay 0
@@ -69,8 +69,8 @@ node emitter n5_bleed_2_drops
   grav 0
   threshold 0
 endnode
-node emitter n5_bleed_2_puddle
-  parent n5_bleed_2
+node emitter n5_bleed_puddle
+  parent n5_bleed
   p2p 0
   p2p_sel 1
   affectedByWind 0
@@ -102,12 +102,12 @@ node emitter n5_bleed_2_puddle
   alphaStart 0.85
   alphaEnd 0
   sizeStart 0.12
-  sizeEnd 0.3
+  sizeEnd 0.28
   sizeStart_y 0
   sizeEnd_y 0
   frameStart 0
   frameEnd 0
-  birthrate 0.5
+  birthrate 0.4
   lifeExp 6
   mass 0
   spread 0
@@ -129,55 +129,55 @@ node emitter n5_bleed_2_puddle
   grav 0
   threshold 0
 endnode
-endmodelgeom n5_bleed_2
+endmodelgeom n5_bleed
 
-newanim impact n5_bleed_2
+newanim impact n5_bleed
   length 0.2
   transtime 0.25
-  animroot n5_bleed_2
-node dummy n5_bleed_2
+  animroot n5_bleed
+node dummy n5_bleed
   parent NULL
 endnode
-node emitter n5_bleed_2_drops
-  parent n5_bleed_2
+node emitter n5_bleed_drops
+  parent n5_bleed
 endnode
-node emitter n5_bleed_2_puddle
-  parent n5_bleed_2
+node emitter n5_bleed_puddle
+  parent n5_bleed
 endnode
-doneanim impact n5_bleed_2
+doneanim impact n5_bleed
 
-newanim duration n5_bleed_2
+newanim duration n5_bleed
   length 2
   transtime 0.25
-  animroot n5_bleed_2
-node dummy n5_bleed_2
+  animroot n5_bleed
+node dummy n5_bleed
   parent NULL
 endnode
-node emitter n5_bleed_2_drops
-  parent n5_bleed_2
+node emitter n5_bleed_drops
+  parent n5_bleed
 endnode
-node emitter n5_bleed_2_puddle
-  parent n5_bleed_2
+node emitter n5_bleed_puddle
+  parent n5_bleed
 endnode
-doneanim duration n5_bleed_2
+doneanim duration n5_bleed
 
-newanim cessation n5_bleed_2
+newanim cessation n5_bleed
   length 1
   transtime 0.25
-  animroot n5_bleed_2
-node dummy n5_bleed_2
+  animroot n5_bleed
+node dummy n5_bleed
   parent NULL
 endnode
-node emitter n5_bleed_2_drops
-  parent n5_bleed_2
+node emitter n5_bleed_drops
+  parent n5_bleed
   birthratekey 1
     0 0
 endnode
-node emitter n5_bleed_2_puddle
-  parent n5_bleed_2
+node emitter n5_bleed_puddle
+  parent n5_bleed
   birthratekey 1
     0 0
 endnode
-doneanim cessation n5_bleed_2
+doneanim cessation n5_bleed
 
-donemodel n5_bleed_2
+donemodel n5_bleed

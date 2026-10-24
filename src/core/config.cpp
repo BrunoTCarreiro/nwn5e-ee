@@ -99,10 +99,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.death_save_marker = ReadBool(ini, L"death_save_marker", g_config.death_save_marker);
   g_config.exhaustion_look = ReadBool(ini, L"exhaustion_look", g_config.exhaustion_look);
   g_config.low_hp_bleed = ReadBool(ini, L"low_hp_bleed", g_config.low_hp_bleed);
-  g_config.bleed_mild_percent = GetPrivateProfileIntW(L"rules", L"bleed_mild_percent", g_config.bleed_mild_percent, ini);
-  g_config.bleed_puddle_percent =
-      GetPrivateProfileIntW(L"rules", L"bleed_puddle_percent", g_config.bleed_puddle_percent, ini);
-  g_config.bleed_heavy_percent = GetPrivateProfileIntW(L"rules", L"bleed_heavy_percent", g_config.bleed_heavy_percent, ini);
+  g_config.bleed_percent = GetPrivateProfileIntW(L"rules", L"bleed_percent", g_config.bleed_percent, ini);
   g_config.short_rest_vfx = GetPrivateProfileIntW(L"rules", L"short_rest_vfx", g_config.short_rest_vfx, ini);
   g_config.short_rest_vfx_scale =
       GetPrivateProfileIntW(L"rules", L"short_rest_vfx_scale", g_config.short_rest_vfx_scale, ini);

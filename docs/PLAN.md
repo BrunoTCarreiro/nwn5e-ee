@@ -1581,15 +1581,15 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   undone; `!anim`'s Stop has it sent again. `exhaustion_look`.
 - **Bleeding at low hit points** (0.22.3; owner, 2026-10-24: vfx 491, the
   critical head spray, "too severe" - "just some mild dripping, then dripping
-  with a small puddle, then more bleeding"): three duration effects of
-  nwn5e's own (tools/data/bleed_vfx.py; visualeffects 1570-1572, root node,
-  the game's fxpa_sphere and blood textures by name) - drops falling from
-  waist height, then also blood splats on the ground that spread and fade
-  where they fell (a walking character leaves a short trail), then a steady
-  drip and a bigger puddle. low_hp_look.cpp puts one on the player character
-  at 50% / 25% / 10% of its hit points or less (tagged per tier, checked each
-  second, put back every 6 s if stripped), none at 0 HP. `low_hp_bleed`,
-  `bleed_mild_percent`, `bleed_puddle_percent`, `bleed_heavy_percent`.
+  with a small puddle, then more bleeding"; 0.22.4: "just do 1 bleeding
+  effect, mild, with a small puddle when the PC is under 10%"): one duration
+  effect of nwn5e's own (tools/data/bleed_vfx.py; visualeffects 1570
+  NWN5E_BLEED, root node, the game's fxpa_sphere and blood textures by name) -
+  drops falling from waist height and blood splats on the ground that spread
+  and fade where they fell (a walking character leaves a short trail).
+  low_hp_look.cpp puts it on the player character under 10% of its hit points
+  (checked each second, put back every 6 s if stripped), none at 0 HP.
+  `low_hp_bleed`, `bleed_percent`.
 - `!vfx` has a search field (owner: "can you add a search bar to the vfx
   window?"): the list narrows as you type, by name or row number.
 - `!anim` (0.22.1; owner, 2026-10-24: "is there a way to preview walking

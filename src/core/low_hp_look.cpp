@@ -1,14 +1,13 @@
 // The look of a wounded player character (owner, 2026-10-24: "I want to make
 // some additions to the look of the PC when they are exhausted and low on
-// health" ... "just some mild dripping, then dripping with a small puddle,
-// then more bleeding"): a bleeding effect by hit points - mild dripping at
-// half or less, dripping and a small puddle at a quarter, more bleeding at a
-// tenth (visualeffects 1570-1572, nwn5e's own models: tools/data/bleed_vfx.py).
-// One duration effect tagged nwn5e_bleed, swapped as the hit points change and
-// put back if something strips it; none at 0 HP (the down visuals show then).
-// Checked once a second from the creature update; after a load the whole
-// state is sent. Ini: low_hp_bleed, bleed_mild_percent, bleed_puddle_percent,
-// bleed_heavy_percent. The exhausted look is rules_dying.cpp's.
+// health" ... then "just do 1 bleeding effect, mild, with a small puddle when
+// the PC is under 10%"): under bleed_percent of its hit points the player
+// character bleeds - mild dripping and a small puddle (visualeffects 1570,
+// nwn5e's own model: tools/data/bleed_vfx.py), a duration effect tagged
+// nwn5e_bleed, put back if something strips it; none at 0 HP (the down visuals
+// show then). Checked once a second from the creature update; after a load the
+// whole state is sent. Ini: low_hp_bleed, bleed_percent. The exhausted look is
+// rules_dying.cpp's.
 
 #include <windows.h>
 
@@ -29,7 +28,7 @@
 
 namespace {
 
-constexpr int kBleedRows[] = {0, 1570, 1571, 1572};  // none, mild, puddle, heavy
+constexpr int kBleedRow = 1570;  // NWN5E_BLEED
 constexpr const char* kTag = "nwn5e_bleed";
 constexpr uint64_t kCheckMs = 1000;
 constexpr int kChecksPerRepair = 6;  // put a stripped effect back every 6 s
@@ -37,35 +36,32 @@ constexpr int kChecksPerRepair = 6;  // put a stripped effect back every 6 s
 using MaxHitPointsFn = int16_t (*)(void* creature, int flag);
 
 struct Bleed {
-  int tier = -1;  // -1: nothing sent yet (a new session or a load)
+  int tier = -1;  // 1 bleeding, 0 not; -1: nothing sent yet (a new session or a load)
   uint64_t next = 0;
   int checks = 0;
 };
 MaxHitPointsFn g_max_hit_points = nullptr;
 std::unordered_map<uint32_t, Bleed> g_bleeds;  // by player character, the engine's thread only
 
+// 1 under bleed_percent of the hit points (above 0), else 0.
 int TierFor(int hit_points, int max_hit_points) {
-  if (hit_points < 1 || max_hit_points <= 0) return 0;
-  const auto at_most = [&](int percent) { return percent > 0 && hit_points * 100 <= max_hit_points * percent; };
-  if (at_most(g_config.bleed_heavy_percent)) return 3;
-  if (at_most(g_config.bleed_puddle_percent)) return 2;
-  if (at_most(g_config.bleed_mild_percent)) return 1;
-  return 0;
+  if (hit_points < 1 || max_hit_points <= 0 || g_config.bleed_percent <= 0) return 0;
+  return hit_points * 100 < max_hit_points * g_config.bleed_percent ? 1 : 0;
 }
 
-// The tier's effect on, any other tier's off (and nothing at tier 0).
+// The effect on (one, applied if missing) or off. Any older nwn5e_bleed_*
+// tag (0.22.3's three tiers) goes too.
 void Sync(uint32_t id, int tier) {
-  // Tagged per tier (nwn5e_bleed_<tier>), as the Exhaustion effect.
   char code[700];
   sprintf_s(code,
-            "int row = %d; string want = \"%s_%d\"; int have = FALSE; effect e = GetFirstEffect(OBJECT_SELF);"
+            "int on = %d; int have = FALSE; effect e = GetFirstEffect(OBJECT_SELF);"
             "while (GetIsEffectValid(e)) { string t = GetEffectTag(e);"
-            " if (t == want && row > 0) have = TRUE;"
+            " if (t == \"%s\" && on) have = TRUE;"
             " else if (GetStringLeft(t, %d) == \"%s\") RemoveEffect(OBJECT_SELF, e);"
             " e = GetNextEffect(OBJECT_SELF); }"
-            "if (row > 0 && !have) ApplyEffectToObject(DURATION_TYPE_PERMANENT,"
-            " TagEffect(SupernaturalEffect(EffectVisualEffect(row)), want), OBJECT_SELF);",
-            kBleedRows[tier], kTag, tier, static_cast<int>(strlen(kTag)), kTag);
+            "if (on && !have) ApplyEffectToObject(DURATION_TYPE_PERMANENT,"
+            " TagEffect(SupernaturalEffect(EffectVisualEffect(%d)), \"%s\"), OBJECT_SELF);",
+            tier, kTag, static_cast<int>(strlen(kTag)), kTag, kBleedRow, kTag);
   RunScriptChunk(code, id);
 }
 
@@ -81,8 +77,7 @@ void Update(void* creature) {
   const int tier = TierFor(hit_points, max_hit_points);
   if (tier != bleed.tier) {
     if (bleed.tier >= 0 || tier > 0) {
-      Log("look: 0x%08X %d / %d HP - bleeding %s", id, hit_points, max_hit_points,
-          tier == 0 ? "stops" : tier == 1 ? "mild" : tier == 2 ? "with a puddle" : "heavy");
+      Log("look: 0x%08X %d / %d HP - bleeding %s", id, hit_points, max_hit_points, tier ? "starts" : "stops");
     }
     bleed.tier = tier;
     bleed.checks = 0;
@@ -102,6 +97,5 @@ void InstallLowHpLook() {
     return;
   }
   if (!AddCreatureUpdateListener(&Update)) return;
-  Log("look: a player character bleeds at %d%% / %d%% / %d%% hit points (low_hp_bleed)", g_config.bleed_mild_percent,
-      g_config.bleed_puddle_percent, g_config.bleed_heavy_percent);
+  Log("look: a player character bleeds under %d%% of its hit points (low_hp_bleed)", g_config.bleed_percent);
 }
