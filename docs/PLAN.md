@@ -825,7 +825,15 @@ re-checked their exports). Shared between them — one piece of code each:
   **"Combat options" NUI window** (every class choice with descriptions and
   checkboxes, no five-option limit) when Cunning Strike comes.
 - BZ1-BZ4 A; M1 A with (c)(i) (the bonus unarmed strike every round), M2-M5
-  A. B14: asked how a Barbarian can pick a bow or crossbow mastery today.
+  A.
+- B14 A: the Barbarian's mastery list (built from proficiency, so it offered
+  ranged weapons) drops Longbow, Shortbow, Light / Heavy Crossbow, Sling, Dart
+  and Shuriken; Throwing Axe stays (2024's thrown handaxe, a melee weapon). A
+  Barbarian who took one of them re-picks (`!mastery`).
+- M6-M10, M12-M15, OH1 A (M7 automatic at the first fight with half the
+  points spent or Bloodied; M9 NWN's Stunning Fist attack at 1 point, refunded
+  on a miss; M13's reroll automatic; OH1 picked through X8, Topple by
+  default).
 
 ### Phase 3 — Barbarian (CM9): recommendations (for the owner's decision)
 
