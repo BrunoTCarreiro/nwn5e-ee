@@ -1602,7 +1602,9 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   puddles (owner: "they both have puddles, the low health effect is good
   now"); 0.22.7: the falling drips move with the character (the emitter's
   inherit flag - "can the dripping blood follow the character model"), the
-  splats stay where they land; the check row 1571 removed.
+  splats stay where they land; the check row 1571 removed. 0.22.8 (owner: "the
+  dripping effect is no good, remove it just leave the puddle"): the drips are
+  gone - the effect is the puddle alone.
   low_hp_look.cpp puts it on the player character under 10% of its hit points
   (checked each second, put back every 6 s if stripped), none at 0 HP.
   `low_hp_bleed`, `bleed_percent`.

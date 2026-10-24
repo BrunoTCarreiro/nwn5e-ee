@@ -2,7 +2,7 @@
 // some additions to the look of the PC when they are exhausted and low on
 // health" ... then "just do 1 bleeding effect, mild, with a small puddle when
 // the PC is under 10%"): under bleed_percent of its hit points the player
-// character bleeds - mild dripping and a small puddle (visualeffects 1570,
+// character bleeds - a small puddle (0.22.8: no dripping; visualeffects 1570,
 // nwn5e's own model: tools/data/bleed_vfx.py), a duration effect tagged
 // nwn5e_bleed, put back if something strips it; none at 0 HP (the down visuals
 // show then). Checked once a second from the creature update; after a load the

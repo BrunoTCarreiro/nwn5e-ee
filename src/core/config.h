@@ -162,9 +162,9 @@ struct Config {
   // ReplaceObjectAnimation on the player character.
   bool exhaustion_look = true;
   // A wounded player character bleeds (owner, 2026-10-24: "just do 1 bleeding
-  // effect, mild, with a small puddle when the PC is under 10%"): mild
-  // dripping and a small puddle under bleed_percent of its hit points
-  // (visualeffects 1570, low_hp_look.cpp).
+  // effect, mild, with a small puddle when the PC is under 10%"; no dripping
+  // since 0.22.8): a small puddle of blood under bleed_percent of its hit
+  // points (visualeffects 1570, low_hp_look.cpp).
   bool low_hp_bleed = true;
   int bleed_percent = 10;
   // The Short Rest's visual on each resting character (owner, 2026-10-23: "I
