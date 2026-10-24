@@ -1,6 +1,7 @@
 #MAXMODEL ASCII
-# nwn5e (tools/data/death_save_marker.py): the death-save marker - one
-# camera-facing sprite over a down player character.
+# nwn5e (tools/data/death_save_marker.py): the death-save marker - two
+# camera-facing sprites over a down player character: nwn5e's bars and the
+# game's own ife_x2bonesk1 icon (by name, from the player's install).
 newmodel n5_ds_21
 setsupermodel n5_ds_21 NULL
 classification effect
@@ -69,6 +70,66 @@ node emitter n5_ds_21_pips
   grav 0
   threshold 0
 endnode
+node emitter n5_ds_21_icon
+  parent n5_ds_21
+  p2p 0
+  p2p_sel 1
+  affectedByWind 0
+  m_isTinted 0
+  bounce 0
+  random 0
+  inherit 1
+  inheritvel 0
+  inherit_local 0
+  splat 0
+  inherit_part 0
+  renderorder 1
+  spawntype 0
+  update Single
+  render Normal
+  blend Normal
+  texture ife_x2bonesk1
+  xgrid 1
+  ygrid 1
+  loop 0
+  deadspace 0
+  twosidedtex 0
+  blastRadius 0
+  blastLength 0
+  position 0 0 1.4
+  orientation 0 0 0 0
+  colorStart 1 1 1
+  colorEnd 1 1 1
+  alphaStart 1
+  alphaEnd 1
+  sizeStart 0
+  sizeEnd 0
+  sizeStart_y 0
+  sizeEnd_y 0
+  frameStart 0
+  frameEnd 0
+  birthrate 1
+  lifeExp -1
+  mass 0
+  spread 0
+  particleRot 0
+  velocity 0
+  randvel 0
+  fps 0
+  xsize 0
+  ysize 0
+  bounce_co 0
+  blurlength 10
+  lightningDelay 0
+  lightningRadius 0
+  lightningScale 0
+  p2p_bezier2 0
+  p2p_bezier3 0
+  combinetime 0
+  drag 0
+  grav 0
+  threshold 0
+endnode
 endmodelgeom n5_ds_21
 
 newanim impact n5_ds_21
@@ -89,6 +150,17 @@ node emitter n5_ds_21_pips
     0.2 0.8
     0.3 0.8
 endnode
+node emitter n5_ds_21_icon
+  parent n5_ds_21
+  sizeStartkey 3
+    0 0
+    0.2 0.4
+    0.3 0.4
+  sizeEndkey 3
+    0 0
+    0.2 0.4
+    0.3 0.4
+endnode
 doneanim impact n5_ds_21
 
 newanim duration n5_ds_21
@@ -107,6 +179,15 @@ node emitter n5_ds_21_pips
     0 0.8
     1 0.8
 endnode
+node emitter n5_ds_21_icon
+  parent n5_ds_21
+  sizeStartkey 2
+    0 0.4
+    1 0.4
+  sizeEndkey 2
+    0 0.4
+    1 0.4
+endnode
 doneanim duration n5_ds_21
 
 newanim cessation n5_ds_21
@@ -123,6 +204,15 @@ node emitter n5_ds_21_pips
     0.2 0
   sizeEndkey 2
     0 0.8
+    0.2 0
+endnode
+node emitter n5_ds_21_icon
+  parent n5_ds_21
+  sizeStartkey 2
+    0 0.4
+    0.2 0
+  sizeEndkey 2
+    0 0.4
     0.2 0
 endnode
 doneanim cessation n5_ds_21
