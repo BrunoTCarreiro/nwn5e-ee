@@ -1121,6 +1121,11 @@ constexpr const char* kGetActivePauseState = "?GetActivePauseState@CServerExoApp
 constexpr size_t kCreaturePosture = 0x6b4;
 constexpr uint8_t kPostureLyingBack = 3;
 constexpr uint8_t kPostureLyingFront = 4;
+// Standing: what ClearAction (+0x4B8) and RecomputeAmbientAnimationState
+// (+0x2A) write for a creature that is neither dead nor dying (0 only in the
+// constructor; AIActionSit writes 1 too). 0.22.10: a henchman healed while
+// down kept OnApplyDamage's lying posture - nothing wrote standing again.
+constexpr uint8_t kPostureStanding = 1;
 constexpr size_t kObjectAnimation = 0xd8;
 constexpr const char* kCreatureSetAnimation = "?SetAnimation@CNWSCreature@@UEAAXH@Z";
 // Phase 5a: the HUD's Short Rest button (hud_rest.cpp). The buttons under the

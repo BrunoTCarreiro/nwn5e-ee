@@ -1645,6 +1645,12 @@ queue) are hooked: a down henchman's actions are refused, except while
 nwn5e's own scripts run for it (down, held down, up, summoned); and each pass
 a down henchman not in a lying pose (animation 5-8: its AI cleared the dead
 animation) is laid down again, quietly, at most once a second.
+*0.22.10 (owner: "healing a henchman who goes down during a fight doesn't
+cause him to get up"):* the heal was seen (the log's "up at 23 HP") but he
+stayed lying - OnApplyDamage set the lying posture (+0x6B4 = 3 / 4) when the
+blow took him below 1 HP, and only ClearAction / RecomputeAmbientAnimationState
+write standing (1). Getting up (healed, or summoned) now sets the standing
+posture and the stand animation (SetAnimation 0).
 
 ## Phase 2 — skills and checks: decided by the owner (2026-10-19)
 

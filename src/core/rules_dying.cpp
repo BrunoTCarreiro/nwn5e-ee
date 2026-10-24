@@ -699,6 +699,17 @@ void RunHenchmanScript(const char* code, uint32_t id) {
   RunScriptChunk(code, id);
 }
 
+// Up from down: the standing posture (OnApplyDamage left it lying when the
+// blow took it below 1 HP) and the standing animation.
+void StandUp(void* henchman, uint32_t id) {
+  const int posture = Field<uint8_t>(henchman, ee::kCreaturePosture);
+  const int animation = Field<int32_t>(henchman, ee::kObjectAnimation);
+  SetField<uint8_t>(henchman, ee::kCreaturePosture, ee::kPostureStanding);
+  if (g_set_animation) g_set_animation(henchman, 0);
+  Log("dying: henchman 0x%08X stands - posture %d -> %d, animation %d -> %d", id, posture,
+      Field<uint8_t>(henchman, ee::kCreaturePosture), animation, Field<int32_t>(henchman, ee::kObjectAnimation));
+}
+
 // Lying: the knockdown and dead poses (the engine's animation ids 5-8).
 bool LyingPose(void* creature) {
   const int animation = Field<int32_t>(creature, ee::kObjectAnimation);
@@ -734,6 +745,7 @@ bool UpdateDownHenchman(uint32_t id, DownHenchman& state) {
     return true;
   }
   RunHenchmanScript(kGetUpScript, id);
+  StandUp(henchman, id);
   Log("dying: henchman 0x%08X up at %d HP (%s)", id, HitPoints(henchman), why);
   return false;
 }
@@ -751,11 +763,13 @@ int SummonHenchmen(void* player, bool all) {
         engine::AreaOf(henchman) == area) {
       continue;
     }
+    const bool was_down = IsDownHenchman(id, henchman) && !engine::IsDeadOrDying(henchman);
     g_down_henchmen.erase(id);
     char code[1400];
     sprintf_s(code, kSummonScript, player_id);
     AllowDownActions allow;  // JumpToObject is an action
     RunScriptChunk(code, id);
+    if (was_down) StandUp(henchman, id);  // a raised one stands by the resurrection
     Log("dying: henchman 0x%08X summoned to 0x%08X at full health", id, player_id);
     ++summoned;
   }
