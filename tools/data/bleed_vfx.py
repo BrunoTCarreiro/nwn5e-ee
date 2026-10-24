@@ -9,9 +9,13 @@ One duration effect model of nwn5e's own (ASCII), on the creature's root node,
 using the game's particle textures by name (nothing of the game's copied):
   n5_bleed - mild dripping from waist height and a small puddle: blood splats on
              the ground that spread slowly and fade (row 1570).
-The splats stay where they fall (world space), so a character who walks leaves
-a short trail instead of dragging a puddle. low_hp_look.cpp puts it on the
-player character under bleed_percent of its hit points (nwn5e.ini).
+The puddle is made the way the game's own blood effects make theirs (0.22.5,
+owner: "there isn't a puddle on the floor like in 491"): sticky drops with
+the game's `blood` splat texture (a 2x2 sheet, a random frame each) and the
+emitter's splat flag - each falls, flattens where it lands and spreads as it
+fades. They stay where they fall (world space), so a character who walks
+leaves a short trail instead of dragging a puddle. low_hp_look.cpp puts it on
+the player character under bleed_percent of its hit points (nwn5e.ini).
 
   python tools/data/bleed_vfx.py    (from the repo root)
 writes data/files/n5_bleed_*.mdl and data/rows/visualeffects.bleed.txt.
@@ -33,31 +37,36 @@ def drops(rate, size, area_cm):
                 color=(DARK_RED, DEEP_RED), alpha=(1.0, 0.9), area=area_cm, blur=7, height=WAIST_M)
 
 
-def puddle(rate, size_from, size_to, life, area_cm):
-    # Flat on the ground, spreading and fading where it fell.
-    return dict(name="puddle", texture="blood", render="Aligned_to_World_z", birthrate=rate, life=life,
-                velocity=0.0, randvel=0.0, spread=0.0, mass=0.0, size=(size_from, size_to),
-                color=(DEEP_RED, DEEP_RED), alpha=(0.85, 0.0), area=area_cm, blur=0, height=0.02)
+def puddle(rate, size_to, life, area_cm):
+    # Sticky drops: they fall from the waist, splat flat where they land and
+    # spread to size_to as they fade (the size grows over the whole life).
+    return dict(name="puddle", texture="blood", render="Normal", birthrate=rate, life=life,
+                velocity=0.15, randvel=0.15, spread=0.5, mass=2.4, size=(0.02, size_to),
+                color=(DEEP_RED, DEEP_RED), alpha=(1.0, 0.0), area=area_cm, blur=0, height=WAIST_M,
+                flags=("bounce", "random", "splat"), grid=2, frames=3)
 
 
 EFFECTS = [
-    ("n5_bleed", 1570, "NWN5E_BLEED", [drops(1.5, 0.03, 18), puddle(0.4, 0.12, 0.28, 6.0, 15)]),
+    ("n5_bleed", 1570, "NWN5E_BLEED", [drops(1.5, 0.03, 18), puddle(0.9, 0.4, 6.0, 12)]),
 ]
 
 
 def emitter_lines(model, e):
     (r1, g1, b1), (r2, g2, b2) = e["color"]
+    flags = e.get("flags", ())
+    flag = lambda name: "  %s %d" % (name, 1 if name in flags else 0)
+    grid = e.get("grid", 1)
     return [
         "node emitter %s_%s" % (model, e["name"]),
         "  parent " + model,
-        "  p2p 0", "  p2p_sel 1", "  affectedByWind 0", "  m_isTinted 0", "  bounce 0", "  random 0",
-        "  inherit 0", "  inheritvel 0", "  inherit_local 0", "  splat 0", "  inherit_part 0",
+        "  p2p 0", "  p2p_sel 1", "  affectedByWind 0", "  m_isTinted 0", flag("bounce"), flag("random"),
+        "  inherit 0", "  inheritvel 0", "  inherit_local 0", flag("splat"), "  inherit_part 0",
         "  renderorder 0", "  spawntype 0",
         "  update Fountain",
         "  render " + e["render"],
         "  blend Normal",
         "  texture " + e["texture"],
-        "  xgrid 1", "  ygrid 1", "  loop 0", "  deadspace 0", "  twosidedtex 0",
+        "  xgrid %d" % grid, "  ygrid %d" % grid, "  loop 0", "  deadspace 0", "  twosidedtex 0",
         "  blastRadius 0", "  blastLength 0",
         "  position 0 0 %g" % e["height"],
         "  orientation 0 0 0 0",
@@ -65,7 +74,7 @@ def emitter_lines(model, e):
         "  alphaStart %g" % e["alpha"][0], "  alphaEnd %g" % e["alpha"][1],
         "  sizeStart %g" % e["size"][0], "  sizeEnd %g" % e["size"][1],
         "  sizeStart_y 0", "  sizeEnd_y 0",
-        "  frameStart 0", "  frameEnd 0",
+        "  frameStart 0", "  frameEnd %d" % e.get("frames", 0),
         "  birthrate %g" % e["birthrate"],
         "  lifeExp %g" % e["life"],
         "  mass %g" % e["mass"], "  spread %g" % e["spread"], "  particleRot 0",

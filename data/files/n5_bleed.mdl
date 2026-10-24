@@ -75,48 +75,48 @@ node emitter n5_bleed_puddle
   p2p_sel 1
   affectedByWind 0
   m_isTinted 0
-  bounce 0
-  random 0
+  bounce 1
+  random 1
   inherit 0
   inheritvel 0
   inherit_local 0
-  splat 0
+  splat 1
   inherit_part 0
   renderorder 0
   spawntype 0
   update Fountain
-  render Aligned_to_World_z
+  render Normal
   blend Normal
   texture blood
-  xgrid 1
-  ygrid 1
+  xgrid 2
+  ygrid 2
   loop 0
   deadspace 0
   twosidedtex 0
   blastRadius 0
   blastLength 0
-  position 0 0 0.02
+  position 0 0 0.95
   orientation 0 0 0 0
   colorStart 0.25 0 0
   colorEnd 0.25 0 0
-  alphaStart 0.85
+  alphaStart 1
   alphaEnd 0
-  sizeStart 0.12
-  sizeEnd 0.28
+  sizeStart 0.02
+  sizeEnd 0.4
   sizeStart_y 0
   sizeEnd_y 0
   frameStart 0
-  frameEnd 0
-  birthrate 0.4
+  frameEnd 3
+  birthrate 0.9
   lifeExp 6
-  mass 0
-  spread 0
+  mass 2.4
+  spread 0.5
   particleRot 0
-  velocity 0
-  randvel 0
+  velocity 0.15
+  randvel 0.15
   fps 0
-  xsize 15
-  ysize 15
+  xsize 12
+  ysize 12
   bounce_co 0
   blurlength 0
   lightningDelay 0

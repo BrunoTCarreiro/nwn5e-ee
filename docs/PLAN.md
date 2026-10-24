@@ -1586,7 +1586,13 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   effect of nwn5e's own (tools/data/bleed_vfx.py; visualeffects 1570
   NWN5E_BLEED, root node, the game's fxpa_sphere and blood textures by name) -
   drops falling from waist height and blood splats on the ground that spread
-  and fade where they fell (a walking character leaves a short trail).
+  and fade where they fell (a walking character leaves a short trail). 0.22.5
+  (owner: "there isn't a puddle on the floor like in 491"): the puddle is made
+  as the game's VFX_COM_BLOOD_CRT_RED_HEAD makes its own (its M_Red_Sticky
+  emitter, read from vwp_l_blood_red: Fountain, texture `blood` on a 2x2 sheet,
+  random frame, flags bounce + random + splat, size 0.018 -> 1 over 5 s) -
+  sticky drops that flatten where they land and spread (ours to 0.4 m over
+  6 s, under one a second); the flat Aligned_to_World_z quad never showed.
   low_hp_look.cpp puts it on the player character under 10% of its hit points
   (checked each second, put back every 6 s if stripped), none at 0 HP.
   `low_hp_bleed`, `bleed_percent`.
