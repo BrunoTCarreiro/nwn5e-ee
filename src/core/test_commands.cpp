@@ -18,8 +18,9 @@
 //   test this"): the first class becomes another, its level kept, through the
 //   engine's SetClass; the old class's automatic feats (its feat table's List 3
 //   up to that level) give way to the new one's - a Barbarian's Rage chain.
-//   For test characters: the level history and an old caster's spell lists
-//   aren't rewritten.
+//   The level history follows (0.22.12: each level's class; the level-up
+//   refused "invalid number of multiclasses" without it). For test
+//   characters: an old caster's spell lists aren't rewritten.
 // - "!export" saves the character to the vault as a campaign's chapter change
 //   does (C6's check: its records come back from its own database).
 
@@ -237,6 +238,27 @@ const char* ClassName(int nwn_class) {
              : "another class";
 }
 
+// The level history: a level taken in a class the character no longer has
+// becomes `to`'s. Returns how many levels changed.
+int RewriteLevelHistory(void* stats, int to) {
+  using GetLevelStatsFn = void* (*)(void* stats, uint8_t index);
+  static const auto get_level_stats = reinterpret_cast<GetLevelStatsFn>(EngineExport(ee::kGetLevelStats));
+  if (!get_level_stats) return 0;
+  const std::vector<rules::NwnClassSlot> slots = ReadClassSlots(stats);
+  int changed = 0;
+  for (int i = 0; i < 60; ++i) {
+    void* level = get_level_stats(stats, static_cast<uint8_t>(i));
+    if (!level) break;
+    const int nwn_class = Field<uint8_t>(level, ee::kLevelStatsClass);
+    bool held = false;
+    for (const rules::NwnClassSlot& slot : slots) held = held || slot.nwn_class_id == nwn_class;
+    if (held) continue;
+    SetField<uint8_t>(level, ee::kLevelStatsClass, static_cast<uint8_t>(to));
+    ++changed;
+  }
+  return changed;
+}
+
 // swap_class: the first class becomes `to`, its level kept; the automatic feats follow.
 std::string SwapFirstClass(void* stats, int to) {
   using SetClassFn = void (*)(void* stats, uint8_t slot, uint8_t nwn_class);
@@ -244,7 +266,12 @@ std::string SwapFirstClass(void* stats, int to) {
   const std::vector<rules::NwnClassSlot> slots = ReadClassSlots(stats);
   if (slots.empty() || !set_class) return "  swap_class: no class to swap (or no SetClass in this build)";
   const int from = slots[0].nwn_class_id, level = slots[0].levels;
-  if (from == to) return std::string("  swap_class: already a ") + ClassName(to);
+  if (from == to) {  // swapped before: the level history may still be the old class's (0.22.11)
+    const int repaired = RewriteLevelHistory(stats, to);
+    if (repaired) Log("test: 0x%08X level history: %d levels now %d", ObjectIdOf(stats), repaired, to);
+    return std::string("  swap_class: already a ") + ClassName(to) +
+           (repaired ? " - its level history repaired (" + std::to_string(repaired) + " levels)" : "");
+  }
   const std::vector<int> old_feats = AutomaticClassFeats(from, level);
   const std::vector<int> new_feats = AutomaticClassFeats(to, level);
   set_class(stats, 0, static_cast<uint8_t>(to));
@@ -260,8 +287,9 @@ std::string SwapFirstClass(void* stats, int to) {
   for (int feat : new_feats) {
     if (!engine::HasFeat(stats, feat) && engine::AddFeat(stats, feat)) ++added;
   }
-  Log("test: 0x%08X first class %d -> %d at level %d (automatic feats -%d +%d)", ObjectIdOf(stats), from, to, level,
-      removed, added);
+  const int history = RewriteLevelHistory(stats, to);
+  Log("test: 0x%08X first class %d -> %d at level %d (automatic feats -%d +%d, %d levels of history)",
+      ObjectIdOf(stats), from, to, level, removed, added, history);
   return std::string("  class swapped: ") + ClassName(from) + " " + std::to_string(level) + " -> " + ClassName(to) +
          " " + std::to_string(level) + " (automatic feats: " + std::to_string(removed) + " removed, " +
          std::to_string(added) + " added" + (slots.size() > 1 ? "; only the first class" : "") + ")";

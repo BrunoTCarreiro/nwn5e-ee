@@ -55,6 +55,11 @@ constexpr const char* kGetClass = "?GetClass@CNWSCreatureStats@@QEAAEE@Z";
 // void CNWSCreatureStats::SetClass(uchar slot, uchar class) - the slot's class
 // byte (stats + slot x 0x188 + 0x25C, GetClass); `!test`'s swap_class.
 constexpr const char* kSetClass = "?SetClass@CNWSCreatureStats@@QEAAXEE@Z";
+// The level history (kGetLevelStats, kLevelStatsClass above): GetLevelStats is
+// 0-based (the list at stats +0x38, its count at +0x40, null past it); the
+// class byte is what ReadStatsFromGff / SaveStats call "LvlStatClass". The
+// level-up's check counts the classes in it ("invalid number of multiclasses"
+// after a swap that left it on the old class, 0.22.11).
 // unsigned char CNWSCreatureStats::GetClassLevel(unsigned char slot, int bSubtractNegative, int bScaled)
 constexpr const char* kGetClassLevel = "?GetClassLevel@CNWSCreatureStats@@QEAAEEHH@Z";
 // void CNWSCombatRound::InitializeNumberOfAttacks()
