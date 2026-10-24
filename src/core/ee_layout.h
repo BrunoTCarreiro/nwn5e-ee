@@ -201,6 +201,14 @@ constexpr const char* kAddCastSpellActions = "?AddCastSpellActions@CNWSCreature@
 constexpr const char* kAddItemCastSpellActions = "?AddItemCastSpellActions@CNWSCreature@@QEAAHIHHVVector@@IHH@Z";
 // void CNWSObject::RemoveEffect(CGameEffect*) - BZ2 Mindless Rage drops CN5's fear icon.
 constexpr const char* kObjectRemoveEffect = "?RemoveEffect@CNWSObject@@QEAAXPEAVCGameEffect@@@Z";
+// void CNWSObject::AddAction / AddActionToFront(uint action, ushort group, then 12
+// (uint type, void* value) parameter pairs): every action reaches the queue
+// through these (the scripts' Action*, the AI's, a player's orders). Phase 5b:
+// a down henchman's are refused - the henchman AI scripts turn it commandable
+// again (nw_ch_ac5 attacked, nw_ch_acb a harmful spell, nw_ch_ac4 its master's
+// shouts) and it drank potions while down.
+constexpr const char* kObjectAddAction = "?AddAction@CNWSObject@@QEAAXIGIPEAXI0I0I0I0I0I0I0I0I0I0I0@Z";
+constexpr const char* kObjectAddActionToFront = "?AddActionToFront@CNWSObject@@QEAAXIGIPEAXI0I0I0I0I0I0I0I0I0I0I0@Z";
 constexpr const char* kEndCombatRound = "?EndCombatRound@CNWSCombatRound@@QEAAXXZ";
 constexpr const char* kOnApplyDamage = "?OnApplyDamage@CNWSEffectListHandler@@QEAAHPEAVCNWSObject@@PEAVCGameEffect@@H@Z";
 // void CNWSCombatRound::AddCleaveAttack(unsigned int target, int bGreatCleave)

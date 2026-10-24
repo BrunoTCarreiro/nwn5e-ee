@@ -154,7 +154,9 @@ struct DownPlayer {
 };
 struct DownHenchman {
   bool laid_down = false;
+  uint64_t next_hold = 0;  // real time: the next check that it still lies
 };
+constexpr uint64_t kHoldDownMs = 1000;
 struct PlayerUpkeep {
   uint64_t next = 0;
   int count = 0;
@@ -655,6 +657,11 @@ constexpr const char* kLayDownScript =
     "object m = GetMaster(OBJECT_SELF); if (GetIsPC(m)) SendMessageToPC(m, \"nwn5e: \" + GetName(OBJECT_SELF) + "
     "\" is down - heal them (a spell, a healer's kit) or take a Short Rest after the fight to get them up.\");";
 
+// Down again without a word (the AI cleared its actions and it stood up).
+constexpr const char* kHoldDownScript =
+    "SetCommandable(TRUE, OBJECT_SELF); ClearAllActions(TRUE);"
+    "ActionPlayAnimation(ANIMATION_LOOPING_DEAD_FRONT, 1.0, 100000.0); SetCommandable(FALSE, OBJECT_SELF);";
+
 constexpr const char* kGetUpScript =
     "SetCommandable(TRUE, OBJECT_SELF);"
     "effect e = GetFirstEffect(OBJECT_SELF); while (GetIsEffectValid(e)) { if (GetEffectTag(e) == "
@@ -680,6 +687,24 @@ constexpr const char* kSummonScript =
     "if (GetArea(OBJECT_SELF) != GetArea(pc) || GetDistanceBetween(OBJECT_SELF, pc) > 10.0) JumpToObject(pc);"
     "SendMessageToPC(pc, \"nwn5e: \" + GetName(OBJECT_SELF) + \" joins you at full health.\");";
 
+// A down henchman's actions are refused (AddAction / AddActionToFront) except
+// while nwn5e's own scripts run for it (down, held down, up, summoned).
+bool g_allow_down_actions = false;
+struct AllowDownActions {
+  AllowDownActions() { g_allow_down_actions = true; }
+  ~AllowDownActions() { g_allow_down_actions = false; }
+};
+void RunHenchmanScript(const char* code, uint32_t id) {
+  AllowDownActions allow;
+  RunScriptChunk(code, id);
+}
+
+// Lying: the knockdown and dead poses (the engine's animation ids 5-8).
+bool LyingPose(void* creature) {
+  const int animation = Field<int32_t>(creature, ee::kObjectAnimation);
+  return animation >= 5 && animation <= 8;
+}
+
 // One down henchman's pass. False when it is up (or gone): healed above 1 HP
 // only - the fight's end doesn't get it up.
 bool UpdateDownHenchman(uint32_t id, DownHenchman& state) {
@@ -690,15 +715,25 @@ bool UpdateDownHenchman(uint32_t id, DownHenchman& state) {
     return false;
   }
   if (!state.laid_down) {
-    RunScriptChunk(kLayDownScript, id);
+    RunHenchmanScript(kLayDownScript, id);
     state.laid_down = true;
+    state.next_hold = GetTickCount64() + kHoldDownMs;
     return true;
   }
   const uint32_t master_id = PlayerMasterOf(henchman);
   void* master = master_id ? CreatureById(master_id) : nullptr;
   const char* why = !master ? "no longer a player's henchman" : HitPoints(henchman) > 1 ? "healed" : nullptr;
-  if (!why) return true;
-  RunScriptChunk(kGetUpScript, id);
+  if (!why) {
+    const uint64_t now = GetTickCount64();
+    if (now >= state.next_hold && !LyingPose(henchman)) {  // its AI cleared the pose
+      Log("dying: henchman 0x%08X stood up while down (animation %d) - down again", id,
+          Field<int32_t>(henchman, ee::kObjectAnimation));
+      RunHenchmanScript(kHoldDownScript, id);
+      state.next_hold = now + kHoldDownMs;
+    }
+    return true;
+  }
+  RunHenchmanScript(kGetUpScript, id);
   Log("dying: henchman 0x%08X up at %d HP (%s)", id, HitPoints(henchman), why);
   return false;
 }
@@ -719,6 +754,7 @@ int SummonHenchmen(void* player, bool all) {
     g_down_henchmen.erase(id);
     char code[1400];
     sprintf_s(code, kSummonScript, player_id);
+    AllowDownActions allow;  // JumpToObject is an action
     RunScriptChunk(code, id);
     Log("dying: henchman 0x%08X summoned to 0x%08X at full health", id, player_id);
     ++summoned;
@@ -1075,6 +1111,38 @@ std::vector<std::string> DyingCommand(void* creature, const std::string& args) {
 // Exhaustion's level, for !rest (0 with dying off).
 int ExhaustionLevel(void* creature) { return creature && Faithful() ? ExhaustionOf(creature) : 0; }
 
+namespace {
+
+// A down henchman's actions refused (see g_allow_down_actions).
+using AddActionFn = void (*)(void* object, uint32_t action, uint16_t group, uint32_t t1, void* p1, uint32_t t2, void* p2, uint32_t t3, void* p3, uint32_t t4, void* p4, uint32_t t5, void* p5, uint32_t t6, void* p6, uint32_t t7, void* p7, uint32_t t8, void* p8, uint32_t t9, void* p9, uint32_t t10, void* p10, uint32_t t11, void* p11, uint32_t t12, void* p12);
+AddActionFn g_add_action = nullptr;
+AddActionFn g_add_action_to_front = nullptr;
+uint64_t g_last_refusal_log = 0;
+
+bool RefusesActions(void* object, uint32_t action) {
+  if (g_allow_down_actions || g_down_henchmen.empty() || !object) return false;
+  const uint32_t id = IdOf(object);
+  if (!g_down_henchmen.count(id)) return false;
+  const uint64_t now = GetTickCount64();
+  if (now - g_last_refusal_log > 2000) {
+    g_last_refusal_log = now;
+    Log("dying: henchman 0x%08X is down - action %u refused (its AI)", id, action);
+  }
+  return true;
+}
+
+void AddAction(void* object, uint32_t action, uint16_t group, uint32_t t1, void* p1, uint32_t t2, void* p2, uint32_t t3, void* p3, uint32_t t4, void* p4, uint32_t t5, void* p5, uint32_t t6, void* p6, uint32_t t7, void* p7, uint32_t t8, void* p8, uint32_t t9, void* p9, uint32_t t10, void* p10, uint32_t t11, void* p11, uint32_t t12, void* p12) {
+  if (RefusesActions(object, action)) return;
+  g_add_action(object, action, group, t1, p1, t2, p2, t3, p3, t4, p4, t5, p5, t6, p6, t7, p7, t8, p8, t9, p9, t10, p10, t11, p11, t12, p12);
+}
+
+void AddActionToFront(void* object, uint32_t action, uint16_t group, uint32_t t1, void* p1, uint32_t t2, void* p2, uint32_t t3, void* p3, uint32_t t4, void* p4, uint32_t t5, void* p5, uint32_t t6, void* p6, uint32_t t7, void* p7, uint32_t t8, void* p8, uint32_t t9, void* p9, uint32_t t10, void* p10, uint32_t t11, void* p11, uint32_t t12, void* p12) {
+  if (RefusesActions(object, action)) return;
+  g_add_action_to_front(object, action, group, t1, p1, t2, p2, t3, p3, t4, p4, t5, p5, t6, p6, t7, p7, t8, p8, t9, p9, t10, p10, t11, p11, t12, p12);
+}
+
+}  // namespace
+
 // !anim's Stop puts the walk back: the exhausted look is sent again at the next upkeep.
 void ResendExhaustionLook(uint32_t id) { g_looks.erase(id); }
 
@@ -1095,6 +1163,12 @@ void InstallDyingRules() {
                   reinterpret_cast<void*>(&DoDamage), reinterpret_cast<void**>(&g_do_damage))) {
     Log("SKIP dying: CNWSCreature::DoDamage not hooked - NWN's dying stays");
     return;
+  }
+  if (!HookExport("CNWSObject::AddAction (dying: a down henchman does nothing)", ee::kObjectAddAction,
+                  reinterpret_cast<void*>(&AddAction), reinterpret_cast<void**>(&g_add_action)) ||
+      !HookExport("CNWSObject::AddActionToFront (dying: a down henchman does nothing)", ee::kObjectAddActionToFront,
+                  reinterpret_cast<void*>(&AddActionToFront), reinterpret_cast<void**>(&g_add_action_to_front))) {
+    Log("dying: the action queue is not hooked - a down henchman's AI can still act (potions)");
   }
   if (!HookExport("CNWSEffectListHandler::OnApplyDeath (dying: death magic lays a henchman down)", ee::kOnApplyDeath,
                   reinterpret_cast<void*>(&OnApplyDeath), reinterpret_cast<void**>(&g_on_apply_death))) {

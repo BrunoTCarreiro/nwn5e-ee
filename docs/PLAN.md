@@ -1636,6 +1636,15 @@ character is Unconscious for the conditions (ReadConditions: asleep):
 advantage against it, and a hit from within 5 ft is a critical hit - two
 failed death saves. 6. No floating text or tracker window: the marker and the
 chat lines are the indicator.
+*0.22.9 (owner's test: "the henchman keeps getting up and taking a potion
+when he's supposed to be dead"):* the henchman AI scripts make it commandable
+again (nw_ch_ac5 when attacked, nw_ch_acb on a harmful spell, nw_ch_ac4 at its
+master's shouts) and its combat round drank a potion - healed above 1 HP, up.
+Now CNWSObject::AddAction / AddActionToFront (every action's way into the
+queue) are hooked: a down henchman's actions are refused, except while
+nwn5e's own scripts run for it (down, held down, up, summoned); and each pass
+a down henchman not in a lying pose (animation 5-8: its AI cleared the dead
+animation) is laid down again, quietly, at most once a second.
 
 ## Phase 2 — skills and checks: decided by the owner (2026-10-19)
 
