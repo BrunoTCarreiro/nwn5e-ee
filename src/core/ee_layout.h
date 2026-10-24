@@ -52,6 +52,9 @@ constexpr const char* kGetBaseAttackBonus = "?GetBaseAttackBonus@CNWSCreatureSta
 constexpr const char* kGetLevel = "?GetLevel@CNWSCreatureStats@@QEAAEH@Z";
 // unsigned char CNWSCreatureStats::GetClass(unsigned char slot) — classes.2da row, 0xFF past the last
 constexpr const char* kGetClass = "?GetClass@CNWSCreatureStats@@QEAAEE@Z";
+// void CNWSCreatureStats::SetClass(uchar slot, uchar class) - the slot's class
+// byte (stats + slot x 0x188 + 0x25C, GetClass); `!test`'s swap_class.
+constexpr const char* kSetClass = "?SetClass@CNWSCreatureStats@@QEAAXEE@Z";
 // unsigned char CNWSCreatureStats::GetClassLevel(unsigned char slot, int bSubtractNegative, int bScaled)
 constexpr const char* kGetClassLevel = "?GetClassLevel@CNWSCreatureStats@@QEAAEEHH@Z";
 // void CNWSCombatRound::InitializeNumberOfAttacks()

@@ -3,6 +3,10 @@
 # file is read each time, so no rebuild or restart is needed. The keys are in
 # src/rules/test_profile.h.
 
-# 2024 XP (faithful): level 2 at 300, 3 at 900, 4 at 2700, 5 at 6500, 6 at 14000, 7 at 23000.
-name = level-ups on the screens (L1-L9): XP for level 7 - use Level Up as the test matrix says
-xp = 23000
+# Barbarian part 1 (B1-B5) and Rage (R rows): your first class becomes Barbarian (its level
+# kept, the Rage feats given), then Barbarian levels up to 7 if you're below it (B3 needs 5,
+# Feral Instinct and Pounce 7). Change level for Relentless (11) or Persistent Rage (15).
+name = Barbarian tests: your class swapped to Barbarian, at least level 7
+swap_class = barbarian
+class = barbarian
+level = 7

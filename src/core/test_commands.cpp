@@ -14,6 +14,12 @@
 //   they take the 2024 feats, rules_feats.cpp), ability scores, feats and items. The file is read each time,
 //   so a new test needs only a new file, not a rebuild. Species features that
 //   come as feats at creation stay those of the character's first species.
+//   swap_class (owner, 2026-10-24: "change my PC's class to barbarian so I can
+//   test this"): the first class becomes another, its level kept, through the
+//   engine's SetClass; the old class's automatic feats (its feat table's List 3
+//   up to that level) give way to the new one's - a Barbarian's Rage chain.
+//   For test characters: the level history and an old caster's spell lists
+//   aren't rewritten.
 // - "!export" saves the character to the vault as a campaign's chapter change
 //   does (C6's check: its records come back from its own database).
 
@@ -29,6 +35,7 @@
 #include "chat.h"
 #include "config.h"
 #include "creature.h"
+#include "data_serving.h"
 #include "ee_layout.h"
 #include "effects.h"
 #include "engine.h"
@@ -206,6 +213,60 @@ const char* const kClassNames[] = {"Barbarian", "Bard",    "Cleric", "Druid",   
                                    "Paladin",   "Ranger",  "Rogue",  "Sorcerer", "Wizard"};
 const char* const kRaceNames[] = {"Dwarf", "Elf", "Gnome", "Halfling", "Half-Elf", "Half-Orc", "Human"};
 
+// The automatic feats (List 3) of a class's feat table (classes.2da
+// FeatsTable; the served table, so faithful's changes count) up to `level`.
+std::vector<int> AutomaticClassFeats(int nwn_class, int level) {
+  const std::vector<std::string> tables = GameTableColumn("classes", "FeatsTable");
+  if (nwn_class < 0 || nwn_class >= static_cast<int>(tables.size()) || tables[nwn_class].empty()) return {};
+  const std::string table = Lower(tables[nwn_class]);
+  const std::vector<std::string> feats = GameTableColumn(table.c_str(), "FeatIndex");
+  const std::vector<std::string> lists = GameTableColumn(table.c_str(), "List");
+  const std::vector<std::string> levels = GameTableColumn(table.c_str(), "GrantedOnLevel");
+  std::vector<int> out;
+  for (size_t i = 0; i < feats.size() && i < lists.size() && i < levels.size(); ++i) {
+    if (feats[i].empty() || lists[i] != "3") continue;
+    const int granted = atoi(levels[i].c_str());
+    if (granted >= 1 && granted <= level) out.push_back(atoi(feats[i].c_str()));
+  }
+  return out;
+}
+
+const char* ClassName(int nwn_class) {
+  return nwn_class >= 0 && nwn_class < static_cast<int>(sizeof(kClassNames) / sizeof(kClassNames[0]))
+             ? kClassNames[nwn_class]
+             : "another class";
+}
+
+// swap_class: the first class becomes `to`, its level kept; the automatic feats follow.
+std::string SwapFirstClass(void* stats, int to) {
+  using SetClassFn = void (*)(void* stats, uint8_t slot, uint8_t nwn_class);
+  static const auto set_class = reinterpret_cast<SetClassFn>(EngineExport(ee::kSetClass));
+  const std::vector<rules::NwnClassSlot> slots = ReadClassSlots(stats);
+  if (slots.empty() || !set_class) return "  swap_class: no class to swap (or no SetClass in this build)";
+  const int from = slots[0].nwn_class_id, level = slots[0].levels;
+  if (from == to) return std::string("  swap_class: already a ") + ClassName(to);
+  const std::vector<int> old_feats = AutomaticClassFeats(from, level);
+  const std::vector<int> new_feats = AutomaticClassFeats(to, level);
+  set_class(stats, 0, static_cast<uint8_t>(to));
+  int removed = 0, added = 0;
+  for (int feat : old_feats) {
+    bool kept = false;
+    for (int f : new_feats) kept = kept || f == feat;
+    if (!kept && engine::HasFeat(stats, feat)) {
+      engine::RemoveFeat(stats, feat);
+      ++removed;
+    }
+  }
+  for (int feat : new_feats) {
+    if (!engine::HasFeat(stats, feat) && engine::AddFeat(stats, feat)) ++added;
+  }
+  Log("test: 0x%08X first class %d -> %d at level %d (automatic feats -%d +%d)", ObjectIdOf(stats), from, to, level,
+      removed, added);
+  return std::string("  class swapped: ") + ClassName(from) + " " + std::to_string(level) + " -> " + ClassName(to) +
+         " " + std::to_string(level) + " (automatic feats: " + std::to_string(removed) + " removed, " +
+         std::to_string(added) + " added" + (slots.size() > 1 ? "; only the first class" : "") + ")";
+}
+
 std::vector<std::string> TestCommand(void* creature, const std::string&) {
   void* stats = StatsOf(creature);
   if (!stats) return {};
@@ -229,6 +290,8 @@ std::vector<std::string> TestCommand(void* creature, const std::string&) {
                       profile.race == 2 || profile.race == 3 ? ee::kCreatureSizeSmall : ee::kCreatureSizeMedium);
     lines.push_back(std::string("  species: ") + kRaceNames[profile.race]);
   }
+  // 1b. The first class swapped (before the levels, which may then add some in it).
+  if (profile.swap_class >= 0) lines.push_back(SwapFirstClass(stats, profile.swap_class));
   // 2. Level: the XP for it, then the engine's own level-ups in the class.
   if (profile.nwn_class >= 0 && profile.level > 0) {
     const int had = ClassLevel(stats, profile.nwn_class);

@@ -33,6 +33,9 @@ TEST(TestProfilesParse) {
   const TestProfile bad = ParseTestProfile("species = goblin\nlevel = 3\nabilities = 10 10\nitems = bad item!\n");
   CHECK_EQ(bad.errors.size(), 4u);  // the species, the abilities, the item, a level without a class
   CHECK_EQ(ParseTestProfile("species = orc\n").race, 5);
+  CHECK_EQ(ParseTestProfile("swap_class = barbarian\n").swap_class, 0);  // the first class swapped
+  CHECK_EQ(ParseTestProfile("swap_class = barbarian\n").errors.empty(), true);
+  CHECK_EQ(ParseTestProfile("swap_class = goblin\n").errors.size(), 1u);
   CHECK_EQ(ParseTestProfile("xp = 2700\n").xp, 2700);  // experience only: no class needed
   CHECK_EQ(ParseTestProfile("xp = 2700\n").errors.empty(), true);
   CHECK_EQ(ParseTestProfile("xp = -5\n").errors.size(), 1u);

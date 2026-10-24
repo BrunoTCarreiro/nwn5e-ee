@@ -7,6 +7,10 @@
 //   species   = dwarf | elf | gnome | halfling | half-elf | half-orc (orc) | human
 //   class     = barbarian | bard | cleric | druid | fighter | monk | paladin |
 //               ranger | rogue | sorcerer | wizard
+//   swap_class = one of those: the character's first class becomes it, its
+//               level kept, the old class's automatic feats swapped for the
+//               new one's (applied before class / level, which can then add
+//               levels in it)
 //   level     = the level to reach in that class (levels are only added)
 //   xp        = experience points to have (only raised; no level-ups made —
 //               the level-up screen makes them, for testing it)
@@ -31,6 +35,7 @@ struct TestProfile {
   std::string name;
   int race = -1;       // racialtypes.2da row (the base races 0..6)
   int nwn_class = -1;  // classes.2da row (the base classes 0..10)
+  int swap_class = -1;  // classes.2da row: the first class becomes it
   int level = 0;
   int xp = 0;
   bool has_abilities = false;
