@@ -1598,7 +1598,11 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   hidden under them; and a check row, 1571 NWN5E_SPLAT_TEST - 491's own
   sticky settings (150 a second for 0.15 s, velocity 2, to 1 m over 5 s) in an
   ASCII model of ours: a puddle from it and not from 1570 = tuning; none from
-  either = an ASCII model's splat doesn't work, another way needed.
+  either = an ASCII model's splat doesn't work, another way needed. Both left
+  puddles (owner: "they both have puddles, the low health effect is good
+  now"); 0.22.7: the falling drips move with the character (the emitter's
+  inherit flag - "can the dripping blood follow the character model"), the
+  splats stay where they land; the check row 1571 removed.
   low_hp_look.cpp puts it on the player character under 10% of its hit points
   (checked each second, put back every 6 s if stripped), none at 0 HP.
   `low_hp_bleed`, `bleed_percent`.

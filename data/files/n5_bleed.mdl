@@ -17,7 +17,7 @@ node emitter n5_bleed_drops
   m_isTinted 0
   bounce 0
   random 0
-  inherit 0
+  inherit 1
   inheritvel 0
   inherit_local 0
   splat 0
