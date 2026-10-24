@@ -1572,6 +1572,13 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   Fatigue icon) or 210-214 (the owner's numbered art, n5_ief_exh1..5.tga in
   the private layer, used per level once served), tooltips 16000439-443; the
   penalties' own icons hidden (HideEffectIcon). EffectIcon takes rows 1-255.
+- **The exhausted look** (0.22.2; owner, 2026-10-24: "exhausted levels 1 and 2
+  the PC should have the pausetrd animation when idle. exhaustion levels 3,4
+  and 5 should add the injured walk"): EE's ReplaceObjectAnimation on the
+  player character - pause1 / pause2 -> pausetrd from Exhaustion 1, walk ->
+  walkinj from 3 (run unchanged); sent on a change (the player's upkeep, and
+  at once on a level change), the whole state after a load so a kept swap is
+  undone; `!anim`'s Stop has it sent again. `exhaustion_look`.
 - `!vfx` has a search field (owner: "can you add a search bar to the vfx
   window?"): the list narrows as you type, by name or row number.
 - `!anim` (0.22.1; owner, 2026-10-24: "is there a way to preview walking

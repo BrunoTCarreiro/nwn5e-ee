@@ -97,6 +97,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.death_save_nat20_vfx =
       GetPrivateProfileIntW(L"rules", L"death_save_nat20_vfx", g_config.death_save_nat20_vfx, ini);
   g_config.death_save_marker = ReadBool(ini, L"death_save_marker", g_config.death_save_marker);
+  g_config.exhaustion_look = ReadBool(ini, L"exhaustion_look", g_config.exhaustion_look);
   g_config.short_rest_vfx = GetPrivateProfileIntW(L"rules", L"short_rest_vfx", g_config.short_rest_vfx, ini);
   g_config.short_rest_vfx_scale =
       GetPrivateProfileIntW(L"rules", L"short_rest_vfx_scale", g_config.short_rest_vfx_scale, ini);

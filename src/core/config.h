@@ -157,6 +157,10 @@ struct Config {
   int death_save_nat1_vfx = 217;
   int death_save_nat20_vfx = 68;
   bool death_save_marker = true;
+  // The exhausted look (owner, 2026-10-24): Exhaustion 1-2 the tired idle
+  // (pausetrd), 3-5 also the injured walk (walkinj) - EE's
+  // ReplaceObjectAnimation on the player character.
+  bool exhaustion_look = true;
   // The Short Rest's visual on each resting character (owner, 2026-10-23: "I
   // like the look the health potion effect has"; then "Use
   // VFX_IMP_RESTORATION_LESSER, it looks like a good placeholder"): a

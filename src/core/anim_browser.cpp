@@ -30,6 +30,8 @@
 #include "log.h"
 #include "nui.h"
 
+void ResendExhaustionLook(uint32_t id);  // rules_dying.cpp (the exhausted look)
+
 namespace {
 
 constexpr const char* kWindow = "nwn5eanim";
@@ -241,6 +243,7 @@ void Restore(uint32_t player, bool clear_actions) {
   }
   code += "SetObjectVisualTransform(OBJECT_SELF, OBJECT_VISUAL_TRANSFORM_ANIMATION_SPEED, 1.0);";
   RunScriptChunk(code.c_str(), player);
+  ResendExhaustionLook(player);  // an exhausted character's limp comes back
 }
 
 void Open(uint32_t player) {

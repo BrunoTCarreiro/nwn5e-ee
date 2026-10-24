@@ -378,9 +378,48 @@ void SyncExhaustionEffect(uint32_t id, int level) {
   RunScriptChunk(code, id);
 }
 
+// The exhausted look (owner, 2026-10-24: "exhausted levels 1 and 2 the PC
+// should have the pausetrd animation when idle. exhaustion levels 3,4 and 5
+// should add the injured walk"): EE's ReplaceObjectAnimation swaps the idle
+// (pause1, pause2) for the tired one and, from 3, the walk for the limp. Sent
+// only on a change; after a load (nothing sent yet) the whole state goes, so
+// a swap the saved game kept is undone too. `exhaustion_look`.
+struct Look {
+  int idle = -1;  // -1: not sent yet
+  int walk = -1;
+};
+std::unordered_map<uint32_t, Look> g_looks;
+
+void SyncExhaustionLook(uint32_t id, int level) {
+  if (!g_config.exhaustion_look || rules::IsDeadFromExhaustion(level)) level = 0;
+  const int idle = level >= 1 ? 1 : 0;
+  const int walk = level >= 3 ? 1 : 0;
+  Look& look = g_looks[id];
+  if (look.idle == idle && look.walk == walk) return;
+  std::string code;
+  if (look.idle != idle) {
+    code += idle ? "ReplaceObjectAnimation(OBJECT_SELF, \"pause1\", \"pausetrd\");"
+                   "ReplaceObjectAnimation(OBJECT_SELF, \"pause2\", \"pausetrd\");"
+                 : "ReplaceObjectAnimation(OBJECT_SELF, \"pause1\"); ReplaceObjectAnimation(OBJECT_SELF, \"pause2\");";
+  }
+  if (look.walk != walk) {
+    code += walk ? "ReplaceObjectAnimation(OBJECT_SELF, \"walk\", \"walkinj\");"
+                 : "ReplaceObjectAnimation(OBJECT_SELF, \"walk\");";
+  }
+  const bool first = look.idle < 0;
+  look.idle = idle;
+  look.walk = walk;
+  RunScriptChunk(code.c_str(), id);
+  if (!first || idle || walk) {
+    Log("dying: 0x%08X exhausted look - %s idle, %s walk (Exhaustion %d)", id, idle ? "tired" : "normal",
+        walk ? "injured" : "normal", level);
+  }
+}
+
 void SetExhaustion(void* player, int level) {
   SetRecord(player, kVarExhaustion, level);
   SyncExhaustionEffect(IdOf(player), rules::IsDeadFromExhaustion(level) ? 0 : level);
+  SyncExhaustionLook(IdOf(player), level);
 }
 
 void ClearExhaustion(void* player, const char* why) {
@@ -870,8 +909,9 @@ void UpkeepPlayer(void* player, uint64_t now) {
       Log("dying: henchman 0x%08X down (a saved game)", henchman_id);
     }
   }
+  const int level = ExhaustionOf(player);
+  SyncExhaustionLook(id, level);
   if (++upkeep.count % kUpkeepsPerExhaustionCheck == 0 && HitPoints(player) > 0) {
-    const int level = ExhaustionOf(player);
     if (level > 0 && !rules::IsDeadFromExhaustion(level)) SyncExhaustionEffect(id, level);
   }
 }
@@ -1034,6 +1074,9 @@ std::vector<std::string> DyingCommand(void* creature, const std::string& args) {
 
 // Exhaustion's level, for !rest (0 with dying off).
 int ExhaustionLevel(void* creature) { return creature && Faithful() ? ExhaustionOf(creature) : 0; }
+
+// !anim's Stop puts the walk back: the exhausted look is sent again at the next upkeep.
+void ResendExhaustionLook(uint32_t id) { g_looks.erase(id); }
 
 void InstallDyingRules() {
   if (!Faithful()) return;
