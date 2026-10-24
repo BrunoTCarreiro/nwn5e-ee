@@ -810,11 +810,22 @@ re-checked their exports). Shared between them — one piece of code each:
   attack target, set while it runs at the enemy) - 2024's Bonus Action
   extension until Phase 6; a move order, a round with no attack order,
   Incapacitated, Heavy armour or the 10 minutes end it.
-- B4-B13 A (B6 henchmen reckless whenever they rage). B9 Instinctive Pounce:
-  asked how it would work. B10: the owner wants the effects picked in the
-  interface or a custom element ("we need to figure out a way for the player
-  to pick effects like this via the UI or a custom UI element somewhere") -
-  X8.
+- B4-B13 A (B6 henchmen reckless whenever they rage). B10: the owner wants
+  the effects picked in the interface or a custom element ("we need to figure
+  out a way for the player to pick effects like this via the UI or a custom
+  UI element somewhere") - X8.
+- B9 Instinctive Pounce, A (a charge): from Barbarian 7, entering Rage gives
+  +50% speed for one round (half its speed again; the move still provokes
+  opportunity attacks, as in 2024).
+- **X8. Picking class options** (Brutal Strike's effects, later Cunning
+  Strike, Open Hand Technique ...), C - both: **radial sub-options** (the
+  engine's sub-radial, as Wild Shape's: spells.2da SubRadSpell1-5, five per
+  menu) set the standing choice - on / off, quickbar-able, an icon on the
+  character and a chat line show it - first with Brutal Strike; and a
+  **"Combat options" NUI window** (every class choice with descriptions and
+  checkboxes, no five-option limit) when Cunning Strike comes.
+- BZ1-BZ4 A; M1 A with (c)(i) (the bonus unarmed strike every round), M2-M5
+  A. B14: asked how a Barbarian can pick a bow or crossbow mastery today.
 
 ### Phase 3 — Barbarian (CM9): recommendations (for the owner's decision)
 
