@@ -796,6 +796,13 @@ re-checked their exports). Shared between them — one piece of code each:
   lists): one CheckProficiencies pass for all classes — its own item, after
   these briefs.
 
+**Decisions so far (owner, 2026-10-24, taken ten at a time):** X2 A, X3 A,
+X4 A, X5 A, X6 A, X7 A; B2 A with potions allowed while raging. Asked about
+before deciding: X1 (are masked feats visible on the sheet in faithful?), B1
+(NWN's Rage against 2024's), B3 (A, with a caveat proposed by the owner: "the
+rage doesn't end if the character is targetting and actively moving to
+attack").
+
 ### Phase 3 — Barbarian (CM9): recommendations (for the owner's decision)
 
 SRD 5.2 Barbarian, every feature below checked in the SRD 5.2.1 PDF (pp. 28–30, read 2026-10-24); its one subclass is **Path of the Berserker** (Wild Heart, World Tree, Zealot are PHB-only — private layer). NWN's Barbarian (EE `cls_feat_barb`, List 3, automatic): **Rage** 293 at 1 with successors 326/327/328/329/330/331 at 4/8/12/15/16/20 (uses 1→6/day, +1 per 4 levels past 20; spell 307 nw_s1_barbrage: +4 Str/Con, +2 Will, −2 AC for 3 + Con rounds, +6/+3 with Greater Rage at 15), **Barbarian Fast Movement** 194 at 1 (+10% speed), **Uncanny Dodge 1–6** (195, 251–255) at 2/5/10/13/16/19, **Damage Reduction 1–4** (196, 332–334) at 11/14/17/20 (+ epic 1067 at 23); proficiencies as 2024 (simple + martial weapons, light + medium armour, shields); epic Mighty / Thundering / Terrifying Rage. **Faithful today masks nothing**: a faithful Barbarian plays NWN's Rage, keeps Uncanny Dodge, DR and +10% speed, plus what is built — d12 fixed-average HP (CM3), Str/Con saves, 2024 skills + Primal Knowledge's skill at 3 (C7b), Weapon Mastery 2/3/4 (D3), Extra Attack at 5 (1a), ASIs (CM7), the 2024 kit (C2), no alignment limit (CM14); `!features` names the Berserker at 3, no features. Henchmen: OC/HotU Daelan and SoU's Xanos are Barbarians (decision 11); their AI and dialogs use feat 293.
