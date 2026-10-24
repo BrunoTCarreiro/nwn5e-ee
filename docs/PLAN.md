@@ -796,12 +796,25 @@ re-checked their exports). Shared between them — one piece of code each:
   lists): one CheckProficiencies pass for all classes — its own item, after
   these briefs.
 
-**Decisions so far (owner, 2026-10-24, taken ten at a time):** X2 A, X3 A,
-X4 A, X5 A, X6 A, X7 A; B2 A with potions allowed while raging. Asked about
-before deciding: X1 (are masked feats visible on the sheet in faithful?), B1
-(NWN's Rage against 2024's), B3 (A, with a caveat proposed by the owner: "the
-rage doesn't end if the character is targetting and actively moving to
-attack").
+**Decisions (owner, 2026-10-24, taken ten at a time):**
+- X1: **removed completely** in faithful (owner: "remove them completely, we
+  don't need to keep NWN compatibility") - the NWN-only class feats are taken
+  off the character (gone from the sheet and the radial; existing characters
+  and henchmen at load) and the class feat tables served in faithful no
+  longer grant them; the HasFeat filter stays for the counterparts answered
+  by 2024 level. A character played in faithful doesn't get them back in NWN
+  mode (accepted); characters made in NWN mode keep them.
+- X2-X7 A. B1 A. B2 A, potions allowed while raging.
+- B3 A with the owner's caveat, as defined: the Rage also goes on while the
+  Barbarian has an attack order on a living enemy it can see (the engine's
+  attack target, set while it runs at the enemy) - 2024's Bonus Action
+  extension until Phase 6; a move order, a round with no attack order,
+  Incapacitated, Heavy armour or the 10 minutes end it.
+- B4-B13 A (B6 henchmen reckless whenever they rage). B9 Instinctive Pounce:
+  asked how it would work. B10: the owner wants the effects picked in the
+  interface or a custom element ("we need to figure out a way for the player
+  to pick effects like this via the UI or a custom UI element somewhere") -
+  X8.
 
 ### Phase 3 — Barbarian (CM9): recommendations (for the owner's decision)
 
