@@ -870,6 +870,16 @@ the other recommendations you listed".)
   story interactions." Engine limit found: a roll and its consequence are one
   uninterruptible step (a script's `if (!MySavingThrow(...)) ApplyEffect...`),
   so a prompt after a failed engine / script roll can't wait for an answer.
+  **Decided (owner, 2026-10-24: "X9 as recommended"):** combat - each
+  roll-spending feature (Stroke of Luck, Indomitable, Disciplined Survivor,
+  ...) gets Always / Smart (only against deadly or disabling effects) / Never
+  in the X8 options window, plus arming before a dangerous moment; story
+  checks - a BG3-style roll window, step 1 (the d20, modifiers, DC and
+  outcome shown; bonuses set up beforehand applied) with the class work or
+  Phase 7, step 2 (rolling in the window and rerolling a failure, the
+  conversation held meanwhile) only if a spike shows the engine can hold the
+  conversation step. No damage-per-round numbers needed (owner: "no need to
+  run the damage numbers, go for barbarian").
 - T5 A (Phase 6, with Action Surge). NWN mode's sneak dice stay undoubled on a
   crit (A). Sneak Attack on an opportunity attack: B - one more Sneak Attack
   on an opportunity attack made outside the Rogue's round (2024's once per
