@@ -313,6 +313,14 @@ TEST(TileFillLightsFollowTheLightsRoundThem) {
   lights[1].lit = false;
   CHECK_EQ(static_cast<int>(TileFillLightsOff(6, 5, lights)[2 * 6 + 3]), 1);  // both out now
   CHECK_EQ(TileFillLightsOff(0, 5, lights).empty(), true);
+  // Strict (indoors): no lit light near, no fill - near a lit one, kept.
+  lights[1].lit = true;
+  const std::vector<uint8_t> strict = TileFillLightsOff(6, 5, lights, true);
+  CHECK_EQ(static_cast<int>(strict[0 * 6 + 5]), 1);  // no light near at all: off now
+  CHECK_EQ(static_cast<int>(strict[4 * 6 + 0]), 1);
+  CHECK_EQ(static_cast<int>(strict[0 * 6 + 0]), 1);  // only the doused one near
+  CHECK_EQ(static_cast<int>(strict[2 * 6 + 3]), 0);  // the lit one near
+  CHECK_EQ(static_cast<int>(strict[4 * 6 + 5]), 0);
 }
 
 // Breaks caught: an emitter keyed on at 0 and off at the next key (the game's

@@ -697,7 +697,7 @@ int PatchEmitter(std::string* bytes, const std::string& emitter_name, const std:
   return changed;
 }
 
-std::vector<uint8_t> TileFillLightsOff(int width, int height, const std::vector<TileLight>& lights) {
+std::vector<uint8_t> TileFillLightsOff(int width, int height, const std::vector<TileLight>& lights, bool strict) {
   if (width <= 0 || height <= 0 || width > 64 || height > 64) return {};
   const size_t tiles = static_cast<size_t>(width) * height;
   std::vector<int> near(tiles, 0), lit(tiles, 0);
@@ -712,7 +712,7 @@ std::vector<uint8_t> TileFillLightsOff(int width, int height, const std::vector<
     }
   }
   std::vector<uint8_t> off(tiles, 0);
-  for (size_t i = 0; i < tiles; ++i) off[i] = near[i] > 0 && lit[i] == 0 ? 1 : 0;
+  for (size_t i = 0; i < tiles; ++i) off[i] = (strict || near[i] > 0) && lit[i] == 0 ? 1 : 0;
   return off;
 }
 

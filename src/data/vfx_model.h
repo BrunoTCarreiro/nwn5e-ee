@@ -102,11 +102,15 @@ void TilePointInArea(const float local[3], int tile_x, int tile_y, int orientati
 // shadow being cast by my character" - "let's try B"): off when every light on
 // the tile and the 8 round it is out and there is one at all - a tile with no
 // light near keeps the module's. One byte per tile, row by row (y x width + x).
+// With `strict` (indoors / underground; owner: "I see there are more of these
+// invisible lights that cast shadows in the corridors" - "Let's try A"): off
+// unless a lit light is on the tile or the 8 round it - no light near, no fill.
 struct TileLight {
   int x = 0, y = 0;  // the tile it stands on
   bool lit = false;
 };
-std::vector<uint8_t> TileFillLightsOff(int width, int height, const std::vector<TileLight>& lights);
+std::vector<uint8_t> TileFillLightsOff(int width, int height, const std::vector<TileLight>& lights,
+                                       bool strict = false);
 
 // A compiled model's emitter changed in place (owner, 2026-10-25: "a torch held
 // sideways will spew flames sideways as well, is that something that can be

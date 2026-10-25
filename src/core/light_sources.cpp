@@ -91,7 +91,14 @@
 // m2 + 1), the decision is made here, and a second script switches the tiles
 // and recomputes the static lighting once. On entering an area the dark ones
 // are set dark again (a saved game may not keep tile lights), and the map
-// darkening keeps them dark. `fill_follows_lights`.
+// darkening keeps them dark. `fill_follows_lights`. 0.37.6 (owner: "I see there
+// are more of these invisible lights that cast shadows in the corridors, and
+// possibly in other places?" - "Let's try A"): indoors and underground a tile
+// keeps its fill lights only while a lit light is on it or the 8 round it - a
+// room with no visible light goes dark but for the area's ambient, as the
+// stealth light rule already counts it; outdoors as before. The switching runs
+// in batches of 80 tiles (an interior's first entry can darken most of them),
+// with one recompute at the end.
 //
 // Torch flames rise (0.37.4; owner: "I'm using a torch and I see that the fire
 // animation is set to the orientation of the torch, so a torch held sideways
@@ -254,7 +261,8 @@ void* ObjectById(uint32_t id) {
 
 constexpr const char* kFillList =
     "object a = GetArea(OBJECT_SELF); int w = GetAreaSize(AREA_WIDTH, a); int h = GetAreaSize(AREA_HEIGHT, a);"
-    "string out = IntToString(w) + \" \" + IntToString(h) + \"|\";"
+    "string out = IntToString(w) + \" \" + IntToString(h) + \" \""
+    " + IntToString(GetIsAreaInterior(a) || !GetIsAreaAboveGround(a)) + \"|\";"
     "object o = GetFirstObjectInArea(a, OBJECT_TYPE_PLACEABLE);"
     "while (GetIsObjectValid(o)) {"
     " if (GetStringLeft(GetTag(o), 11) == \"nwn5e_flame\")"
@@ -284,8 +292,8 @@ void FillLights(uint32_t self, bool all) {
   void* object = ObjectById(self);
   const std::string list = object ? engine::GetLocalString(object, "nwn5e_fill_list") : "";
   const size_t bar1 = list.find('|'), bar2 = bar1 == std::string::npos ? std::string::npos : list.find('|', bar1 + 1);
-  int w = 0, h = 0;
-  if (bar2 == std::string::npos || sscanf_s(list.c_str(), "%d %d", &w, &h) != 2 || w <= 0 || h <= 0) {
+  int w = 0, h = 0, strict = 0;
+  if (bar2 == std::string::npos || sscanf_s(list.c_str(), "%d %d %d", &w, &h, &strict) != 3 || w <= 0 || h <= 0) {
     Run("RecomputeStaticLighting(GetArea(OBJECT_SELF));", self, "lighting");
     return;
   }
@@ -311,8 +319,8 @@ void FillLights(uint32_t self, bool all) {
     }
     at = end + 1;
   }
-  const std::vector<uint8_t> dark = data::TileFillLightsOff(w, h, lights);
-  std::string code = "object a = GetArea(OBJECT_SELF); location l; string k; int v;";
+  const std::vector<uint8_t> dark = data::TileFillLightsOff(w, h, lights, strict != 0);
+  std::vector<std::string> batches(1);
   int offs = 0, ons = 0;
   for (int y = 0; y < h; ++y) {
     for (int x = 0; x < w; ++x) {
@@ -320,20 +328,29 @@ void FillLights(uint32_t self, bool all) {
       if (i >= dark.size()) continue;
       const std::string key = "\"nwn5e_fill_" + std::to_string(x) + "_" + std::to_string(y) + "\"";
       const std::string at = "l = Location(a, Vector(" + std::to_string(x) + ".0, " + std::to_string(y) + ".0, 0.0), 0.0);";
+      std::string tile;
       if (dark[i] && (all || !dark_now[i])) {
-        code += at + "if (!GetLocalInt(a, " + key + ")) SetLocalInt(a, " + key +
-                ", (GetTileMainLight1Color(l) + 1) * 100 + GetTileMainLight2Color(l) + 1); SetTileMainLightColor(l, 0, 0);";
+        tile = at + "if (!GetLocalInt(a, " + key + ")) SetLocalInt(a, " + key +
+               ", (GetTileMainLight1Color(l) + 1) * 100 + GetTileMainLight2Color(l) + 1); SetTileMainLightColor(l, 0, 0);";
         ++offs;
       } else if (!dark[i] && dark_now[i]) {
-        code += at + "v = GetLocalInt(a, " + key + "); if (v) { SetTileMainLightColor(l, v / 100 - 1, v % 100 - 1); DeleteLocalInt(a, " +
-                key + "); }";
+        tile = at + "v = GetLocalInt(a, " + key + "); if (v) { SetTileMainLightColor(l, v / 100 - 1, v % 100 - 1); DeleteLocalInt(a, " +
+               key + "); }";
         ++ons;
       }
+      if (tile.empty()) continue;
+      batches.back() += tile;
+      if ((offs + ons) % 80 == 0) batches.emplace_back();
     }
   }
-  code += "RecomputeStaticLighting(a);";
-  Run(code, self, "fill lights");
-  if (offs || ons) Log("lights: fill lights - %d tiles dark, %d lit again (%zu lights in the area)", offs, ons, lights.size());
+  batches.back() += "RecomputeStaticLighting(a);";
+  for (const std::string& batch : batches) {
+    if (!batch.empty()) Run("object a = GetArea(OBJECT_SELF); location l; string k; int v;" + batch, self, "fill lights");
+  }
+  if (offs || ons) {
+    Log("lights: fill lights - %d tiles dark, %d lit again (%zu lights in the area%s)", offs, ons, lights.size(),
+        strict ? "; indoors: no lit light near, no fill" : "");
+  }
 }
 
 void Used(uint32_t lamp) {
