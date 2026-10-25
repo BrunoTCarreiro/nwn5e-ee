@@ -94,6 +94,9 @@
 #include "skill_rank.h"
 
 bool StealthParts(void* creature, int* extra, bool* proficient);  // rules_skills.cpp
+extern "C" __declspec(dllimport) unsigned short __stdcall RtlCaptureStackBackTrace(unsigned long skip, unsigned long count,
+                                                                                 void** frames, unsigned long* hash);
+extern "C" __declspec(dllimport) unsigned long long __stdcall GetTickCount64();
 
 namespace {
 
@@ -223,13 +226,35 @@ int RollStealth(void* creature, const char* when) {
   return roll;
 }
 
+// Whether this stealth change comes through CNWSCreature::ToggleMode - the
+// player's stealth button, or a script's SetActionMode (a find, F) - looked for
+// in the frames above SetActivity.
+bool FromToggleMode() {
+  static const CodeRange toggle = FunctionAt(EngineExport("?ToggleMode@CNWSCreature@@QEAAHE@Z"));
+  void* frames[5] = {};
+  const unsigned short count = RtlCaptureStackBackTrace(0, 5, frames, nullptr);
+  for (unsigned short i = 1; i < count; ++i) {
+    if (toggle.Valid() && toggle.Contains(reinterpret_cast<uintptr_t>(frames[i]))) return true;
+  }
+  return false;
+}
+
+// A ranged Snuff's mark (light_sources.cpp: the second it was set): good for 30 s.
+bool Snuffing(void* creature) {
+  const int mark = engine::GetLocalInt(creature, "nwn5e_snuffing");
+  const long long now = static_cast<long long>((GetTickCount64() / 1000) & 0x7FFFFFFF);
+  return mark > 0 && mark <= now && now - mark <= 30;
+}
+
 void SetStealthMode(void* creature, uint8_t mode) {
   // A ranged Snuff (light_sources.cpp, 0.39.1; owner: "would it be possible with
   // 'snuff' to maintain stealth if it is performed while in stealth?"): its
-  // attack doesn't take the hider out of stealth mode - a find (nwn5e_found_out)
-  // still does. Who tried is logged (the first few).
-  if (creature && mode != 1 && Hiding(creature) && engine::GetLocalInt(creature, "nwn5e_snuffing") &&
-      !engine::GetLocalInt(creature, "nwn5e_found_out")) {
+  // attack doesn't take the hider out of stealth mode. 0.39.2 (owner: "I can't
+  // turn off stealth mode now" - a mark kept in a saved game held every stealth
+  // change back): only the engine's own attack path is held back - never one
+  // through ToggleMode (the player's button, a script's find) - and the mark
+  // lasts 30 s. Who tried is logged (the first few).
+  if (creature && mode != 1 && Hiding(creature) && Snuffing(creature) && !FromToggleMode()) {
     static int told = 0;
     if (told < 6) {
       ++told;
@@ -240,7 +265,10 @@ void SetStealthMode(void* creature, uint8_t mode) {
     }
     return;
   }
-  if (creature && mode == 1 && !Hiding(creature)) engine::SetLocalInt(creature, "nwn5e_found_out", 0);  // a new hide
+  if (creature && mode == 1 && !Hiding(creature)) {  // a new hide: no find, no snuff mark yet
+    engine::SetLocalInt(creature, "nwn5e_found_out", 0);
+    engine::SetLocalInt(creature, "nwn5e_snuffing", 0);
+  }
   const bool starts = creature && mode == 1 && !Hiding(creature);
   g_set_stealth_mode(creature, mode);
   if (!creature) return;

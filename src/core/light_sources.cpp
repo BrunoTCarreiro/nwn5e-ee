@@ -152,7 +152,17 @@
 // marked, rules_perception.cpp's SetStealthMode hook keeps it hidden through the
 // attack (a real find - nwn5e_found_out - still reveals it); a hit that puts the
 // light out stops the attack and clears the mark, and the stealth watch clears
-// it when it stops attacking.
+// it when it stops attacking. 0.39.2 (owner: "there has to be a maximum
+// distance for snuff, and maybe even not a 100% hit rate. failure would create
+// noise and maybe alert guards? can't just toggle lights off in the distance
+// without consequences for failure"): the ranged Snuff reaches 20 m (farther,
+// the entry is greyed out), and each shot (on melee attacked: every attack,
+// hit or miss, ranged too) is its own roll - d20 + Dexterity + proficiency
+// against DC 13 within 10 m, 18 beyond; a 20 always puts it out, a 1 always
+// misses - the engine's own hit no longer puts a snuffed light out. A miss
+// clatters: hostiles within 15 m of the light come to look (2024 perception,
+// heard_investigates), and the shooting goes on until a shot puts it out. The
+// mark is the second it was set (lasts 30 s).
 //
 // Bash is snuff (0.37.0; owner: "the radial menu on light sources should also
 // have an option beyond 'bash', I'm thinking 'snuff' where the character attacks
@@ -309,11 +319,12 @@ bool Investigates() {
   return g_config.heard_investigates && g_config.perception == rules::RuleVariant::kFaithful;
 }
 
-// L3: hostiles to `u` within 20 m with a line to the light come to look.
-std::string NoticeCode() {
+// L3: hostiles to `u` within `radius` m (with a line to the light when `sight`) come to look.
+std::string NoticeCode(float radius = 20.0f, bool sight = true, const char* why = "saw the light go out") {
   if (!Investigates()) return "";
+  const std::string r = std::to_string(radius), los = sight ? "TRUE" : "FALSE";
   return "location at = GetLocation(OBJECT_SELF); int came = 0;"
-         "object o = GetFirstObjectInShape(SHAPE_SPHERE, 20.0, at, TRUE, OBJECT_TYPE_CREATURE);"
+         "object o = GetFirstObjectInShape(SHAPE_SPHERE, " + r + ", at, " + los + ", OBJECT_TYPE_CREATURE);"
          "while (GetIsObjectValid(o)) {"
          " if (GetIsObjectValid(u) && GetIsEnemy(u, o) && !GetIsDead(o) && !GetIsInCombat(o) && GetCommandable(o)"
          "     && !IsInConversation(o) && !GetPlotFlag(o) && !GetIsObjectValid(GetMaster(o))"
@@ -329,9 +340,9 @@ std::string NoticeCode() {
          "  AssignCommand(o, ActionMoveToLocation(home));"
          "  AssignCommand(o, ActionDoCommand(SetActionMode(OBJECT_SELF, ACTION_MODE_DETECT, FALSE)));"
          "  AssignCommand(o, ActionDoCommand(DeleteLocalInt(OBJECT_SELF, \"nwn5e_seek\")));"
-         "  if (GetIsPC(u)) SendMessageToPC(u, \"nwn5e: \" + GetName(o) + \" saw the light go out and comes to look\");"
+         "  if (GetIsPC(u)) SendMessageToPC(u, \"nwn5e: \" + GetName(o) + \" " + std::string(why) + " and comes to look\");"
          " }"
-         " o = GetNextObjectInShape(SHAPE_SPHERE, 20.0, at, TRUE, OBJECT_TYPE_CREATURE);"
+         " o = GetNextObjectInShape(SHAPE_SPHERE, " + r + ", at, " + los + ", OBJECT_TYPE_CREATURE);"
          "}"
          "SetLocalInt(OBJECT_SELF, \"nwn5e_lamp_came\", came);";
 }
@@ -470,7 +481,7 @@ void Damaged(uint32_t lamp) {
       "if (fire < 0) fire = 0;"
       "if (GetCurrentHitPoints(OBJECT_SELF) < GetMaxHitPoints(OBJECT_SELF))"
       " ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectHeal(GetMaxHitPoints(OBJECT_SELF)), OBJECT_SELF);"
-      "if (GetPlaceableIllumination(OBJECT_SELF) && (all <= 0 || all > fire)) {" +
+      "if (GetPlaceableIllumination(OBJECT_SELF) && (all <= 0 || all > fire) && !GetLocalInt(u, \"nwn5e_snuffing\")) {" +
           std::string(kDouse) +
           " if (GetIsPC(u)) SendMessageToPC(u, \"nwn5e: you hit \" + GetName(OBJECT_SELF) + \" and put it out\");"
           " AssignCommand(u, ClearAllActions()); DeleteLocalInt(u, \"nwn5e_snuffing\");" +
@@ -520,7 +531,7 @@ void FlameUsed(uint32_t flame) {
 void FlameHit(uint32_t flame) {
   Run(std::string("object u = GetLastDamager(); int all = GetTotalDamageDealt();"
                   "int fire = GetDamageDealtByType(DAMAGE_TYPE_FIRE); if (fire < 0) fire = 0;") +
-          kFlameState + "if (c > 0 && (all <= 0 || all > fire)) {" + kFlameOut +
+          kFlameState + "if (c > 0 && (all <= 0 || all > fire) && !GetLocalInt(u, \"nwn5e_snuffing\")) {" + kFlameOut +
           " if (GetIsPC(u)) SendMessageToPC(u, \"nwn5e: you hit the flame and put it out\");"
           " AssignCommand(u, ClearAllActions()); DeleteLocalInt(u, \"nwn5e_snuffing\");" + NoticeCode() + "}",
       flame, "flame hit");
@@ -539,12 +550,33 @@ void FlameSpell(uint32_t flame) {
   Log("lights: tile flame 0x%08X a spell cast at it", flame);
 }
 
-// An attack on a light or flame already out: the attacker stops (Bash is snuff).
+// An attack on a light or flame: one already out stops the attacker (Bash is
+// snuff); a ranged Snuff's shot is its own roll (see the top).
 void AttackedOut(uint32_t target, bool flame) {
-  Run(std::string("object u = GetLastAttacker();") +
-          (flame ? std::string(kFlameState) + "if (c <= 0) { AssignCommand(u, ClearAllActions()); DeleteLocalInt(u, \"nwn5e_snuffing\"); }"
-                 : "if (!GetPlaceableIllumination(OBJECT_SELF)) { AssignCommand(u, ClearAllActions()); DeleteLocalInt(u, \"nwn5e_snuffing\"); }"),
+  const std::string lit = flame ? "c > 0" : "GetPlaceableIllumination(OBJECT_SELF)";
+  Run(std::string("object u = GetLastAttacker();") + (flame ? kFlameState : "") +
+          "if (!(" + lit + ")) { AssignCommand(u, ClearAllActions()); DeleteLocalInt(u, \"nwn5e_snuffing\"); }"
+          "else if (GetLocalInt(u, \"nwn5e_snuffing\")) {"
+          " float sd = GetDistanceBetween(u, OBJECT_SELF); int dc = sd <= 10.0 ? 13 : 18;"
+          " int r = d20(); int b = GetAbilityModifier(ABILITY_DEXTERITY, u) + 2 + (GetHitDice(u) - 1) / 4; int t = r + b;"
+          " string how = \" (d20 \" + IntToString(r) + (b >= 0 ? \" +\" : \" \") + IntToString(b) + \" = \" + IntToString(t)"
+          "  + \" vs DC \" + IntToString(dc) + \")\";"
+          " if (r == 20 || (r != 1 && t >= dc)) {" +
+          (flame ? std::string(kFlameOut) : std::string(kDouse)) +
+          "  if (GetIsPC(u)) SendMessageToPC(u, \"nwn5e: your shot puts out \" + GetName(OBJECT_SELF) + how);"
+          "  AssignCommand(u, ClearAllActions()); DeleteLocalInt(u, \"nwn5e_snuffing\");" +
+          NoticeCode() +
+          " } else {"
+          "  if (GetIsPC(u)) SendMessageToPC(u, \"nwn5e: your shot misses \" + GetName(OBJECT_SELF) + how + \" - the clatter carries\");" +
+          NoticeCode(15.0f, false, "heard the clatter") +
+          " }"
+          "}",
       target, "light attacked");
+  void* object = ObjectById(target);
+  if (object && engine::GetLocalInt(object, "nwn5e_light_changed")) {
+    engine::SetLocalInt(object, "nwn5e_light_changed", 0);
+    FillLights(target, false);
+  }
 }
 
 // A CExoString (char* +0, length +8) naming `script`, resrefs being case-blind.
@@ -933,7 +965,7 @@ bool HoldsRangedWeapon(void* creature) {
 // The ranged Snuff: the player character marked (kept hidden while it shoots), then Bash's own callback.
 void SnuffRanged(void* handler, int64_t param) {
   if (void* pc = g_last_pc ? CreatureById(g_last_pc) : nullptr) {
-    engine::SetLocalInt(pc, "nwn5e_snuffing", 1);
+    engine::SetLocalInt(pc, "nwn5e_snuffing", static_cast<int>((GetTickCount64() / 1000) & 0x7FFFFFFF));
     Log("lights: 0x%08X snuffs a light from range - kept hidden while it shoots", g_last_pc);
   }
   if (g_bash_callback) g_bash_callback(handler, param);
@@ -959,7 +991,13 @@ void AddLightEntry(void* menu) {
     param = Field<int64_t>(menu, kMenuParams + kSlotBash * 8);
   }
   g_set_entry(menu, kSlotFree, lit ? "is_darkness" : "is_light", lit ? kStrSnuff : kStrLight, handler, callback, param);
-  if ((Field<uint32_t>(menu, kMenuFlags + kSlotUse * 4) & 1) && g_disable_entry) g_disable_entry(menu, kSlotFree);
+  bool disabled = (Field<uint32_t>(menu, kMenuFlags + kSlotUse * 4) & 1) != 0;
+  if (callback == reinterpret_cast<void*>(&SnuffRanged) && pc) {  // a ranged Snuff reaches 20 m
+    const float dx = Field<float>(object, ee::kObjectPositionX) - Field<float>(pc, ee::kObjectPositionX);
+    const float dy = Field<float>(object, ee::kObjectPositionY) - Field<float>(pc, ee::kObjectPositionY);
+    disabled = dx * dx + dy * dy > 20.0f * 20.0f;
+  }
+  if (disabled && g_disable_entry) g_disable_entry(menu, kSlotFree);
 }
 
 void RadialActivate(void* menu) {

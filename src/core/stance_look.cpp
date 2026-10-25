@@ -39,7 +39,13 @@
 // afterwards is incorrect" - after it stops, the old idle stood, WASD or click
 // to move, a weapon held): an idle change skipped while moving waits, and the
 // idle is restarted (the same pause2 kick) as soon as the creature stands still
-// with nothing to do - within 10 s.
+// with nothing to do - within 10 s. 0.39.2 (owner: "Walking backwards with WASD
+// with this new pose doesn't quite work, there's a lot of stuttering" - "normal
+// backwards also stutters"): walking backwards plays the walk in reverse, and
+// a walk mapped to itself may lose the game's own smooth reverse - so the walk
+// and its weapon layers go back by removing their swaps (an empty name), while
+// the idles stay mapped to themselves: the list is never empty, which is what
+// kept a removal from reaching the client before.
 
 #include <windows.h>
 
@@ -129,6 +135,10 @@ void Send(uint32_t id, Look& look) {
   const auto slot = [&](const char* name, const std::string& with) {
     code += std::string("ReplaceObjectAnimation(OBJECT_SELF, \"") + name + "\", \"" + (with.empty() ? name : with) + "\");";
   };
+  // The walk's: removed when it's the game's own (see the top).
+  const auto walk_slot = [&](const char* name, const std::string& with) {
+    code += std::string("ReplaceObjectAnimation(OBJECT_SELF, \"") + name + "\", \"" + with + "\");";
+  };
   void* creature = CreatureById(id);
   const int playing = Playing(creature);
   const bool moving = !Stationary(creature);
@@ -143,12 +153,12 @@ void Send(uint32_t id, Look& look) {
     }
   }
   if (!look.sent || walk != look.walk) {
-    slot("walk", walk);
+    walk_slot("walk", walk);
     // The weapon layers follow the crouch walk (a limp or the game's walk: theirs).
     for (const char* hold : kHolds) {
       const std::string layer = walk == kCrouchWalk ? std::string(kCrouchWalk) + "_" + hold : "";
       std::string text;
-      slot(("walk_" + std::string(hold)).c_str(), !layer.empty() && AnimationRecipeBuilt(layer, &text) ? layer : "");
+      walk_slot(("walk_" + std::string(hold)).c_str(), !layer.empty() && AnimationRecipeBuilt(layer, &text) ? layer : "");
     }
   }
   const bool first = !look.sent;
