@@ -98,7 +98,11 @@
 // room with no visible light goes dark but for the area's ambient, as the
 // stealth light rule already counts it; outdoors as before. The switching runs
 // in batches of 80 tiles (an interior's first entry can darken most of them),
-// with one recompute at the end.
+// with one recompute at the end. 0.37.7 (owner: "I still see the shadow from
+// the invisible tile lights" - those next to a lit torch, kept by A - "let's
+// try A+"): indoors and underground every tile's fill lights are off; light and
+// shadows come only from what can be seen (wall flames' own 7 m lights,
+// braziers, lamps, light spells, carried torches).
 //
 // Torch flames rise (0.37.4; owner: "I'm using a torch and I see that the fire
 // animation is set to the orientation of the torch, so a torch held sideways
@@ -131,6 +135,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <algorithm>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -319,7 +324,8 @@ void FillLights(uint32_t self, bool all) {
     }
     at = end + 1;
   }
-  const std::vector<uint8_t> dark = data::TileFillLightsOff(w, h, lights, strict != 0);
+  std::vector<uint8_t> dark = data::TileFillLightsOff(w, h, lights, strict != 0);
+  if (strict) std::fill(dark.begin(), dark.end(), static_cast<uint8_t>(1));  // indoors: no fill lights at all (A+)
   std::vector<std::string> batches(1);
   int offs = 0, ons = 0;
   for (int y = 0; y < h; ++y) {
@@ -349,7 +355,7 @@ void FillLights(uint32_t self, bool all) {
   }
   if (offs || ons) {
     Log("lights: fill lights - %d tiles dark, %d lit again (%zu lights in the area%s)", offs, ons, lights.size(),
-        strict ? "; indoors: no lit light near, no fill" : "");
+        strict ? "; indoors: no fill lights" : "");
   }
 }
 
