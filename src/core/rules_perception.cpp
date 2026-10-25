@@ -453,6 +453,79 @@ bool HiddenByStealth(void* creature) {
   return !g_not_hidden.count(IdOf(creature));
 }
 
+// The wedge's colour (stealth_watch.cpp; owner, 2026-10-25: "would it be possible
+// for the wedge to have different colors depending on how easy it would be for
+// the enemy to spot the PC"): a calm observer's passive look at a hider, added up
+// as the engine's spot check does (read from DoSpotDetection) - its passive
+// Perception (10, 5 with disadvantage, + its Perception), the area's Spot
+// modifier (+0x21c), +5 when it stands still, -5 when the hider does, and only at
+// night (module +0x3d4 == 2, what GetIsNight reads) -5 without a light (visuals
+// 153-180) or darkvision (182) on it and +10 when the hider carries a light -
+// minus the hider's kept Stealth total and the size term. Over 0: inside its
+// cone it sees the hider. False when there's nothing to weigh.
+namespace {
+
+constexpr size_t kAreaSpotModifier = 0x21c;  // int32, the area's Spot modifier
+constexpr size_t kModuleTimeOfDay = 0x3d4;    // uint8, 2 = night (GetIsNight)
+constexpr size_t kObjectAnimation = 0xd8;     // uint16, what AnimationStationary is asked about
+constexpr size_t kVisuals = 0x160;            // the visual effects on an object (0x20 bytes each, id first)
+constexpr size_t kVisualCount = 0x168;
+
+using StationaryFn = int (*)(void* object, uint16_t animation);
+using GetModuleFn = void* (*)(void* server_app);
+
+bool Still(void* object) {
+  static const auto stationary =
+      reinterpret_cast<StationaryFn>(EngineExport("?AnimationStationary@CNWSObject@@QEAAHG@Z"));
+  return stationary && stationary(object, Field<uint16_t>(object, kObjectAnimation)) != 0;
+}
+
+bool Night() {
+  static void** app_manager = reinterpret_cast<void**>(EngineExport(ee::kAppManager));
+  static const auto get_module =
+      reinterpret_cast<GetModuleFn>(EngineExport("?GetModule@CServerExoApp@@QEAAPEAVCNWSModule@@XZ"));
+  if (!app_manager || !*app_manager || !get_module) return false;
+  void* app = Field<void*>(*app_manager, ee::kAppManagerServerApp);
+  void* module = app ? get_module(app) : nullptr;
+  return module && Field<uint8_t>(module, kModuleTimeOfDay) == 2;
+}
+
+// A light visual on it (153-180); with `darkvision`, the darkvision one (182) counts too.
+bool Lit(void* object, bool darkvision) {
+  const int count = Field<int32_t>(object, kVisualCount);
+  const uint8_t* list = Field<const uint8_t*>(object, kVisuals);
+  if (!list || count <= 0 || count > 256) return false;
+  for (int i = 0; i < count; ++i) {
+    const int id = *reinterpret_cast<const uint16_t*>(list + 0x20 * i);
+    if ((id >= 153 && id <= 180) || (darkvision && id == 182)) return true;
+  }
+  return false;
+}
+
+}  // namespace
+
+bool SpotMargin(void* observer, void* hider, int* margin) {
+  if (g_config.perception != rules::RuleVariant::kFaithful || !observer || !hider || !Hiding(hider)) return false;
+  const auto kept = g_stealth_roll.find(IdOf(hider));
+  if (kept == g_stealth_roll.end() || !E().skill_rank) return false;
+  void* seer = StatsOf(observer);
+  void* hid = StatsOf(hider);
+  if (!seer || !hid) return false;
+  const bool worse = !CheckDisadvantage(observer).empty();
+  int score = rules::PassiveCheckBase(worse) + static_cast<int8_t>(E().skill_rank(seer, ee::kSkillSpot, nullptr, 0));
+  if (void* area = engine::AreaOf(observer)) score += Field<int32_t>(area, kAreaSpotModifier);
+  if (Still(observer)) score += 5;
+  if (Still(hider)) score -= 5;
+  if (Night()) {
+    if (!Lit(observer, true)) score -= 5;
+    if (Lit(hider, false)) score += 10;
+  }
+  const int stealth = kept->second + static_cast<int8_t>(E().skill_rank(hid, ee::kSkillHide, nullptr, 0)) +
+                      SpotSizeTerm(Field<int32_t>(hider, ee::kCreatureSize) - Field<int32_t>(observer, ee::kCreatureSize));
+  *margin = score - stealth;
+  return true;
+}
+
 // Search's die (rules_skill_dcs.cpp), the 2024 way: a d20 when searching, else passive.
 int SearchDie(void* searcher, bool worse) {
   if (Field<uint8_t>(searcher, ee::kCreatureDetectMode) == 0) return rules::PassiveCheckBase(worse);

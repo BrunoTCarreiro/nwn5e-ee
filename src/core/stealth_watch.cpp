@@ -21,6 +21,14 @@
 //   or in combat with alert_creatures_search) as the full ring: it sees all
 //   round. A hostile that finds the character takes it out of stealth mode
 //   (rules_perception.cpp, found_ends_hiding), so all of it goes then.
+//   The cone's colour (owner: "different colors depending on how easy it would
+//   be for the enemy to spot the PC ... from 50% alpha red for very likely to 20%
+//   alpha yellow for very unlikely"): a calm enemy's look isn't a roll but its
+//   passive Perception, so the colour is its margin over the hider's Stealth as
+//   the engine adds it up (rules_perception.cpp SpotMargin, once a second): red
+//   6+ (it sees you in its cone, still or not), orange-red 1-5 (it sees you; a
+//   still hider's -5 may save you), orange -4-0 (it doesn't; moving may change
+//   that), yellow-orange -9 to -5, yellow -10 or less.
 // - Heard, not seen (0.27.0; owner: "for the hearing detection, do option 2"):
 //   2024 rules (perception=faithful) - finding a hider by hearing is finding it,
 //   so a hostile that hears it but doesn't see it investigates: it walks to where
@@ -54,13 +62,15 @@
 #include "engine.h"
 #include "log.h"
 
+bool SpotMargin(void* observer, void* hider, int* margin);  // rules_perception.cpp
+
 namespace {
 
 constexpr int kSeenRow = 1571;   // NWN5E_STEALTH_SEEN: an eye
 constexpr int kHeardRow = 1572;  // NWN5E_STEALTH_HEARD: an ear
 constexpr int kSightRingRow = 1573;
 constexpr int kHearRingRow = 1583;
-constexpr int kConeRow = 1610;  // + 10 x the angle's index + the radius' index
+constexpr int kConeRow = 1610;  // + 40 x the colour + 10 x the angle's index + the radius' index
 constexpr float kConeAngles[] = {60, 90, 120, 150};  // tools/data/stealth_rings.py
 constexpr float kRingRadii[] = {5, 10, 15, 20, 25, 28, 30, 35, 40, 50};  // tools/data/stealth_rings.py
 constexpr size_t kSightRange = 0x7b0;  // float, metres; +4 in combat (DoSpotDetection)
@@ -78,6 +88,8 @@ struct Watch {
 std::unordered_map<uint32_t, Watch> g_watches;  // by player character
 std::unordered_map<uint32_t, int64_t> g_rings;  // by creature: the rows written on it (sight, hearing, cone)
 bool g_investigate = false;
+uint32_t g_hider = 0;                            // the hiding player character the cones are coloured against
+std::unordered_map<uint32_t, uint64_t> g_next_colour;  // by creature: when its colour is weighed again
 
 int Nearest(const float* values, int count, float value) {
   int best = 0;
@@ -95,7 +107,16 @@ int RingRow(int first, float range) {
 // A calm creature's sight: its vision cone's row, 0 when it sees all round (no
 // cones: the 2024 hiders_need_search off, NWN rules, or 360), -1 when it sees
 // no hider (vision_cone 0).
-int ConeRow(float range) {
+// 0 (yellow: very unlikely) - 4 (red: very likely) from a calm look's margin.
+int ColourOf(int margin) {
+  if (margin >= 6) return 4;
+  if (margin >= 1) return 3;
+  if (margin >= -4) return 2;
+  if (margin >= -9) return 1;
+  return 0;
+}
+
+int ConeRow(float range, int colour) {
   if (!(range > 0.0f) || g_config.perception != rules::RuleVariant::kFaithful || !g_config.hiders_need_search ||
       g_config.vision_cone >= 360) {
     return 0;
@@ -103,7 +124,7 @@ int ConeRow(float range) {
   if (g_config.vision_cone <= 0) return -1;
   const int angle = Nearest(kConeAngles, static_cast<int>(sizeof(kConeAngles) / sizeof(kConeAngles[0])),
                             static_cast<float>(g_config.vision_cone));
-  return kConeRow + 10 * angle + (RingRow(0, range));
+  return kConeRow + 40 * colour + 10 * angle + RingRow(0, range);
 }
 
 void Run(const std::string& code, uint32_t pc, const char* what) {
@@ -217,7 +238,17 @@ void WriteRanges(void* creature, uint32_t id) {
   const float sight = Field<float>(creature, kSightRange + (fighting ? 4 : 0));
   const float hear = Field<float>(creature, kHearRange + (fighting ? 4 : 0));
   const int sight_row = RingRow(kSightRingRow, sight), hear_row = RingRow(kHearRingRow, hear);
-  const int cone_row = ConeRow(sight);
+  // The cone's colour: this creature's look against the hiding character, once a second.
+  static std::unordered_map<uint32_t, int> colours;
+  int& colour = colours.emplace(id, 2).first->second;
+  const uint64_t now = GetTickCount64();
+  uint64_t& next = g_next_colour[id];
+  if (g_hider && g_hider != id && now >= next) {
+    next = now + 1000;
+    int margin = 0;
+    if (SpotMargin(creature, CreatureById(g_hider), &margin)) colour = ColourOf(margin);
+  }
+  const int cone_row = ConeRow(sight, colour);
   const int64_t key = (static_cast<int64_t>(sight_row) * 10000 + hear_row) * 10000 + (cone_row + 1);
   auto it = g_rings.find(id);
   if (it != g_rings.end() && it->second == key) return;
@@ -244,6 +275,11 @@ void Update(void* creature) {
   void* area = engine::AreaOf(creature);
   if (!area) return;
   const bool hiding = Field<uint8_t>(creature, ee::kCreatureStealthMode) == 1;
+  if (hiding) {
+    g_hider = id;
+  } else if (g_hider == id) {
+    g_hider = 0;
+  }
   if (area != watch.area) {
     // A new area (or a loaded game): markers and rings left in it from before go.
     watch.area = area;

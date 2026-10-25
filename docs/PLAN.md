@@ -1857,6 +1857,18 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   lighter near the creature, soft sides and end), drawn for 60 / 90 / 120 /
   150 degrees (rows 1610-1649 reused; the 180 outlines dropped). Searching
   enemies keep the ring outline.
+  0.31.0 (owner: "would it be possible for the wedge to have different colors
+  depending on how easy it would be for the enemy to spot the PC? from 50%
+  alpha red for very likely to 20% alpha yellow for very unlikely"): a calm
+  look is passive Perception, not a roll, so the colour is its margin over the
+  hider's Stealth as DoSpotDetection adds it up (rules_perception.cpp
+  SpotMargin, weighed once a second): passive base (10 / 5) + Perception, the
+  area's Spot modifier (+0x21c), +5 observer still / -5 hider still
+  (AnimationStationary), at night -5 without a light or darkvision visual and
+  +10 for a hider's light, minus the kept Stealth total and the size term.
+  Colours 0-4 (yellow 20% ... red 50%): 6+ red, 1-5 orange-red, -4-0 orange,
+  -9 to -5 yellow-orange, -10 or less yellow. 200 cone models (5 colours x
+  60/90/120/150 x 10 radii, rows 1610-1809).
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:
