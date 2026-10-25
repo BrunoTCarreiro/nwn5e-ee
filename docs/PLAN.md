@@ -1952,6 +1952,25 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   under a moving character; the walk restart (0.32.1) waits up to 1.5 s for
   the walk (stealth turns a run into a walk on a later update). The look log
   names the animation playing at each swap.
+  Outline research (owner, 2026-10-25: "there might be an issue with the
+  transparency levels where the player might not see their own character in
+  high levels of stealth. Is it possible to add any kind of outline to
+  characters?"), not built: EE's mouse-over / Tab highlight is a glow drawn
+  round a model's silhouette. The scene keeps a list of highlighted models and
+  their colours (Scene +0x80 models, count +0x88; +0x90 colours, count +0x98;
+  exported virtuals Scene::AddHighlightGob(model, colour) slot 35 - updates the
+  colour or appends - RemoveHighlightGob slot 36, DoHighlightGob slot 54; global
+  look: AurSetHighlightGobSize / Intensity / Frequency / Amplitude). A client
+  object's animation object (+0x78) has 5 colour slots (flags +0x9c, colours
+  +0x60 + 12 x slot, highlight flags +0xb0): 0x965cf0 sets one (colour, slot,
+  highlight; the highlight is kept only when a global - likely
+  graphics.hilite.glow - is on), 0x968590 clears one, and 0x966170 applies the
+  first active slot: SetColorShifting with its colour (white = no tint) and, if
+  it highlights, scene (client app -> area +0xf8 -> +0x248) AddHighlightGob.
+  The game uses all 5 slots (4: a creature routine, 3: no highlight, others
+  through CNWCObject vtable slot 43 / 0x801e00), so an outline for a hider
+  would add the model to the scene list directly and put it back when the
+  mouse-over code removes it.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:
