@@ -56,9 +56,10 @@ TEX_U, TEX_V = 64, 16
 DASH_M = 1.6        # one dash + gap along the hearing ring
 CONE_INNER_M = 0.5  # the cone starts this far out (clear of the creature's feet)
 # The cone's colours (owner: "from 50% alpha red for very likely to 20% alpha yellow
-# for very unlikely"): 0 yellow ... 4 red, as stealth_watch.cpp's ColourOf.
-CONE_COLOURS = [((255, 222, 60), 0.20), ((255, 176, 48), 0.275), ((250, 128, 40), 0.35),
-                ((238, 78, 32), 0.425), ((225, 36, 28), 0.50)]
+# for very unlikely", then "make the wedges more transparent": 30% ... 12%): 0
+# yellow ... 4 red, as stealth_watch.cpp's ColourOf.
+CONE_COLOURS = [((255, 222, 60), 0.12), ((255, 176, 48), 0.165), ((250, 128, 40), 0.21),
+                ((238, 78, 32), 0.255), ((225, 36, 28), 0.30)]
 
 
 def write_tga(path, width, height, pixels):

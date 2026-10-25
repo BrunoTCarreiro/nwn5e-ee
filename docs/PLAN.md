@@ -1922,6 +1922,20 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   underground the area's own light no longer counts (the Training Halls' moon
   ambient 58 made every room dim): dark unless a source is near. Tile-built
   torches stay unreadable (-1), so a room lit only by them reads dark.
+  0.33.0 (owner: "make the wedges more transparent and lets change the stealth
+  vfx, make it dependent on the light level, 90% visible on light, 70% in dim
+  and 50% in dark" - "do not make the ghostly effect pulse, have it maintain
+  the transparency level"): cones 12-30% opaque (were 20-50%). The see-through
+  look: no ruleset entry or exported client stealth function; an object's
+  alpha is its Gob's +0x108, written by Gob::SetColorShifting(colour, alpha,
+  propagate) (the other writers: the sky, the area loader). stealth_ghost.cpp
+  hooks it: while a player character hides, see-through requests (alpha < 1)
+  get its light's opacity (0.9 / 0.7 / 0.5); stealth_watch puts EE's steady
+  ghost (VFX_DUR_GHOST_TRANSPARENT 424, progfx 420; not the pulsing 401/404) on
+  it and re-applies it when the light changes so the new value is set. The
+  first 40 requests are logged (caller, asked, set) - unverified in play: what
+  alpha 420 and the game's own stealth look ask for, and whether anything else
+  see-through nearby is caught while hiding. stealth_ghost.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

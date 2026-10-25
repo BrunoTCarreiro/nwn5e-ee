@@ -83,6 +83,8 @@
 
 bool SpotMargin(void* observer, void* hider, int* margin);  // rules_perception.cpp
 bool CarriesLight(void* creature);                           // rules_perception.cpp
+void SetStealthOpacity(float opacity);                       // stealth_ghost.cpp
+bool StealthGhostOn();                                       // stealth_ghost.cpp
 
 namespace {
 
@@ -233,6 +235,13 @@ std::string LightPart(bool carried) {
          "}"
          "if (light + 1 != GetLocalInt(pc, \"nwn5e_light_level\")) {"
          " SetLocalInt(pc, \"nwn5e_light_level\", light + 1);"
+         // The steady ghost look, put on again so the new light's opacity is set (stealth_ghost.cpp).
+         " if (" + std::string(StealthGhostOn() ? "TRUE" : "FALSE") + ") {"
+         "  effect g = GetFirstEffect(pc);"
+         "  while (GetIsEffectValid(g)) { if (GetEffectTag(g) == \"nwn5e_ghost\") RemoveEffect(pc, g); g = GetNextEffect(pc); }"
+         "  ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(SupernaturalEffect(EffectVisualEffect(VFX_DUR_GHOST_TRANSPARENT)),"
+         "   \"nwn5e_ghost\"), pc);"
+         " }"
          " SendMessageToPC(pc, light == 2 ? \"nwn5e: you are in light - enemies see you normally\""
          "  : (light == 1 ? \"nwn5e: you are in dim light - enemies spot you at -5\""
          "  : \"nwn5e: you are in darkness - only darkvision can see you\"));"
@@ -337,8 +346,11 @@ void Clear(uint32_t pc) {
       " }"
       " o = GetNextObjectInArea(area, OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE);"
       "}"
-      "DeleteLocalInt(OBJECT_SELF, \"nwn5e_light_level\");",
+      "DeleteLocalInt(OBJECT_SELF, \"nwn5e_light_level\");"
+      "effect g = GetFirstEffect(OBJECT_SELF);"
+      "while (GetIsEffectValid(g)) { if (GetEffectTag(g) == \"nwn5e_ghost\") RemoveEffect(OBJECT_SELF, g); g = GetNextEffect(OBJECT_SELF); }",
       pc, "clearing");
+  SetStealthOpacity(0.0f);
 }
 
 // Every creature, each AI pass: its ring rows as locals, written when they change.
@@ -399,6 +411,11 @@ void Update(void* creature) {
   if (hiding) {
     if (!watch.on) Log("stealth watch: 0x%08X hides - watching who notices it", id);
     Pass(id, CarriesLight(creature));
+    // The see-through look's opacity for the light it stands in (stealth_ghost.cpp).
+    if (StealthGhostOn()) {
+      const int level = engine::GetLocalInt(creature, "nwn5e_light_level") - 1;
+      SetStealthOpacity(level >= 2 ? 0.9f : level == 1 ? 0.7f : level == 0 ? 0.5f : 0.0f);
+    }
     watch.on = true;
   } else if (watch.on) {
     Clear(id);

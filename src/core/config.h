@@ -98,6 +98,11 @@ struct Config {
   // carrying a light, or a bright area; dim: within 9 m of one, or an area of
   // moderate light; else dark (stealth_watch.cpp). Replaces EE's night terms.
   bool stealth_light = true;
+  // With stealth_light (owner, 2026-10-25: "change the stealth vfx, make it
+  // dependent on the light level, 90% visible on light, 70% in dim and 50% in
+  // dark" - "do not make the ghostly effect pulse"): a hiding player character
+  // is see-through by its light, steadily (stealth_ghost.cpp).
+  bool stealth_ghost = true;
   // SK10: faithful = spell attacks are PB + casting ability against full AC,
   // with advantage / disadvantage; nwn / off = NWN's touch attacks.
   rules::RuleVariant spell_attacks = rules::RuleVariant::kFaithful;
