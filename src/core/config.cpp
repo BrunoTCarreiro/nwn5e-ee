@@ -65,6 +65,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.found_up_close = ReadBool(ini, L"found_up_close", g_config.found_up_close);
   g_config.alert_creatures_search = ReadBool(ini, L"alert_creatures_search", g_config.alert_creatures_search);
   g_config.hiders_need_search = ReadBool(ini, L"hiders_need_search", g_config.hiders_need_search);
+  g_config.vision_cone = GetPrivateProfileIntW(L"rules", L"vision_cone", g_config.vision_cone, ini);
   g_config.spell_attacks = ReadVariant(ini, L"spell_attacks", g_config.mode);
   g_config.concentration = ReadVariant(ini, L"concentration", g_config.mode);
   g_config.knockdown = ReadVariant(ini, L"knockdown", g_config.mode);
@@ -156,8 +157,9 @@ void ConfigLoad(const wchar_t* directory) {
       VariantName(g_config.starting_equipment), VariantName(g_config.size), VariantName(g_config.finesse),
       VariantName(g_config.rests), g_config.rest_clock, VariantName(g_config.dying), g_config.served_data);
   if (g_config.perception == rules::RuleVariant::kFaithful) {
-    Log("config: hiding_needs_15=%d found_up_close=%d alert_creatures_search=%d hiders_need_search=%d",
-        g_config.hiding_needs_15, g_config.found_up_close, g_config.alert_creatures_search, g_config.hiders_need_search);
+    Log("config: hiding_needs_15=%d found_up_close=%d alert_creatures_search=%d hiders_need_search=%d vision_cone=%d",
+        g_config.hiding_needs_15, g_config.found_up_close, g_config.alert_creatures_search, g_config.hiders_need_search,
+        g_config.vision_cone);
   }
   if (g_config.debug_players_poisoned) {
     Log("config: [debug] players_poisoned=1 - player characters count as poisoned for ability checks");

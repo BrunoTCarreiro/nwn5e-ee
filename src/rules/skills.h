@@ -185,4 +185,10 @@ int InitiativeModifier2024(int dexterity_modifier, int proficiency_bonus, bool a
 // sight).
 bool InFrontWithin(float dx, float dy, float fx, float fy, float metres);
 
+// SK5 E (faithful; owner, 2026-10-25: vision cones, "Go with option 2"): is a
+// hider at (dx, dy) from an observer facing (fx, fy) inside its vision cone,
+// `degrees` wide centred on its facing? A calm observer sees a hider only
+// there; 360 = all round, 0 = nowhere. On top of it, or with no facing: yes.
+bool WithinVisionCone(float dx, float dy, float fx, float fy, float degrees);
+
 }  // namespace rules

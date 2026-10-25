@@ -12,6 +12,12 @@
 //   what DoSpotDetection / DoListenDetection use), written on it as locals by the
 //   creature update and shown by the nearest of the ring models
 //   (tools/data/stealth_rings.py; visualeffects 1573-1592). `stealth_rings`.
+//   Vision cones (0.29.0; owner: "Go with option 2"): with the 2024 rules'
+//   hiders_need_search, a calm hostile sees a hider only inside its vision cone
+//   (rules_perception.cpp, vision_cone degrees), so its sight shows as that cone
+//   - an outline turning with its facing (visualeffects 1610-1649: 90 / 120 /
+//   150 / 180 degrees x the radii) - and a searching one's (detect mode, or in
+//   combat with alert_creatures_search) as the full ring: it sees all round.
 // - Heard, not seen (0.27.0; owner: "for the hearing detection, do option 2"):
 //   2024 rules (perception=faithful) - finding a hider by hearing is finding it,
 //   so a hostile that hears it but doesn't see it investigates: it walks to where
@@ -51,12 +57,15 @@ constexpr int kSeenRow = 1571;   // NWN5E_STEALTH_SEEN: an eye
 constexpr int kHeardRow = 1572;  // NWN5E_STEALTH_HEARD: an ear
 constexpr int kSightRingRow = 1573;
 constexpr int kHearRingRow = 1583;
+constexpr int kConeRow = 1610;  // + 10 x the angle's index + the radius' index
+constexpr float kConeAngles[] = {90, 120, 150, 180};  // tools/data/stealth_rings.py
 constexpr float kRingRadii[] = {5, 10, 15, 20, 25, 28, 30, 35, 40, 50};  // tools/data/stealth_rings.py
 constexpr size_t kSightRange = 0x7b0;  // float, metres; +4 in combat (DoSpotDetection)
 constexpr size_t kHearRange = 0x7b8;   // float, metres; +4 in combat (DoListenDetection)
 constexpr uint64_t kCheckMs = 1000;
 constexpr const char* kVarSightRing = "nwn5e_sight_ring";
 constexpr const char* kVarHearRing = "nwn5e_hear_ring";
+constexpr const char* kVarConeRing = "nwn5e_cone_ring";  // > 0 a cone row; 0 calm sees all round; -1 calm sees nothing
 
 struct Watch {
   bool on = false;  // markers or rings may be up in the area
@@ -64,16 +73,34 @@ struct Watch {
   uint64_t next = 0;
 };
 std::unordered_map<uint32_t, Watch> g_watches;  // by player character
-std::unordered_map<uint32_t, int> g_rings;      // by creature: the ring rows written on it (sight * 1000 + hearing)
+std::unordered_map<uint32_t, int64_t> g_rings;  // by creature: the rows written on it (sight, hearing, cone)
 bool g_investigate = false;
+
+int Nearest(const float* values, int count, float value) {
+  int best = 0;
+  for (int i = 1; i < count; ++i) {
+    if (fabsf(values[i] - value) < fabsf(values[best] - value)) best = i;
+  }
+  return best;
+}
 
 int RingRow(int first, float range) {
   if (!(range > 0.0f)) return 0;
-  int best = 0;
-  for (int i = 1; i < static_cast<int>(sizeof(kRingRadii) / sizeof(kRingRadii[0])); ++i) {
-    if (fabsf(kRingRadii[i] - range) < fabsf(kRingRadii[best] - range)) best = i;
+  return first + Nearest(kRingRadii, static_cast<int>(sizeof(kRingRadii) / sizeof(kRingRadii[0])), range);
+}
+
+// A calm creature's sight: its vision cone's row, 0 when it sees all round (no
+// cones: the 2024 hiders_need_search off, NWN rules, or 360), -1 when it sees
+// no hider (vision_cone 0).
+int ConeRow(float range) {
+  if (!(range > 0.0f) || g_config.perception != rules::RuleVariant::kFaithful || !g_config.hiders_need_search ||
+      g_config.vision_cone >= 360) {
+    return 0;
   }
-  return first + best;
+  if (g_config.vision_cone <= 0) return -1;
+  const int angle = Nearest(kConeAngles, static_cast<int>(sizeof(kConeAngles) / sizeof(kConeAngles[0])),
+                            static_cast<float>(g_config.vision_cone));
+  return kConeRow + 10 * angle + (RingRow(0, range));
 }
 
 void Run(const std::string& code, uint32_t pc, const char* what) {
@@ -119,13 +146,18 @@ void Pass(uint32_t pc) {
     code +=
         "  int sight = GetLocalInt(o, \"" + std::string(kVarSightRing) + "\");"
         "  int hear = GetLocalInt(o, \"" + std::string(kVarHearRing) + "\");"
+        "  int cone = GetLocalInt(o, \"" + std::string(kVarConeRing) + "\");"
+        // Calm: its vision cone; searching: the full ring - it sees all round.
+        "  int searching = GetActionMode(o, ACTION_MODE_DETECT) || (" + Num(g_config.alert_creatures_search ? 1 : 0) +
+        " && GetIsInCombat(o));"
+        "  int look = searching || cone == 0 ? sight : (cone > 0 ? cone : 0);"
         "  int ring = 0;"
-        "  if (GetLocalInt(o, \"nwn5e_ring_pass\") == pass && sight > 0 && hear > 0) ring = sight * 1000 + hear;"
+        "  if (GetLocalInt(o, \"nwn5e_ring_pass\") == pass && hear > 0) ring = look * 10000 + hear;"
         "  if (ring != GetLocalInt(o, \"nwn5e_ring\")) {"
         "   effect e = GetFirstEffect(o);"
         "   while (GetIsEffectValid(e)) { if (GetEffectTag(e) == \"nwn5e_ring\") RemoveEffect(o, e); e = GetNextEffect(o); }"
         "   if (ring) {"
-        "    ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(SupernaturalEffect(EffectVisualEffect(sight)), \"nwn5e_ring\"), o);"
+        "    if (look) ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(SupernaturalEffect(EffectVisualEffect(look)), \"nwn5e_ring\"), o);"
         "    ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(SupernaturalEffect(EffectVisualEffect(hear)), \"nwn5e_ring\"), o);"
         "   }"
         "   SetLocalInt(o, \"nwn5e_ring\", ring);"
@@ -182,12 +214,14 @@ void WriteRanges(void* creature, uint32_t id) {
   const float sight = Field<float>(creature, kSightRange + (fighting ? 4 : 0));
   const float hear = Field<float>(creature, kHearRange + (fighting ? 4 : 0));
   const int sight_row = RingRow(kSightRingRow, sight), hear_row = RingRow(kHearRingRow, hear);
-  const int key = sight_row * 1000 + hear_row;
+  const int cone_row = ConeRow(sight);
+  const int64_t key = (static_cast<int64_t>(sight_row) * 10000 + hear_row) * 10000 + (cone_row + 1);
   auto it = g_rings.find(id);
   if (it != g_rings.end() && it->second == key) return;
   g_rings[id] = key;
   engine::SetLocalInt(creature, kVarSightRing, sight_row);
   engine::SetLocalInt(creature, kVarHearRing, hear_row);
+  engine::SetLocalInt(creature, kVarConeRing, cone_row);
   static int logged = 0;
   if (logged < 8) {
     ++logged;

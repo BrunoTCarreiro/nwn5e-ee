@@ -23,7 +23,15 @@
 //   to look (stealth_watch.cpp), searching: its Perception rolls (a d20) are
 //   what find the hider. A searcher's roll against a hiding player character is
 //   told to it (once, and again when the result changes). With it, hiding needs
-//   no 15 (hiding_needs_15 is off by default).
+//   no 15 (hiding_needs_15 is off by default);
+// - vision cones (E; owner, 2026-10-25: "Go with option 2"): a calm observer
+//   does see a hider inside its vision cone - vision_cone degrees centred on its
+//   facing (120), rules::WithinVisionCone - its passive Perception against the
+//   Stealth total (EE's own terms still apply: -5 when the hider is 135 degrees
+//   or more off a computer observer's facing, -5 for a still hider, +5 for a
+//   still observer); outside the cone, not at all. Searching observers see all
+//   round. A calm look that sees or misses a hiding player character is told
+//   to it too. vision_cone=0 is D as it was (calm observers see no hider).
 // Distance, area, movement, facing and light terms stay (NWN's real-time
 // stealth needs them). A deafened observer can't hear and a blinded one can't
 // see: EE's own checks already fail them (SK11). NWN mode: NWN's.
@@ -293,20 +301,34 @@ bool FoundUpClose(void* observer, void* hider, float* metres) {
   return rules::InFrontWithin(dx, dy, fx, fy, kUpCloseMetres) && ClearLine(observer, hider);
 }
 
-// A searcher's sight roll against a hiding player character, told to the player
-// (once, and again when the result changes): its Spot die (+0x7c6) and Perception.
-void TellSearch(void* observer, void* hider, int found) {
+// E: is the hider inside the observer's vision cone?
+bool InVisionCone(void* observer, void* hider) {
+  const float dx = Field<float>(hider, ee::kObjectPositionX) - Field<float>(observer, ee::kObjectPositionX);
+  const float dy = Field<float>(hider, ee::kObjectPositionY) - Field<float>(observer, ee::kObjectPositionY);
+  return rules::WithinVisionCone(dx, dy, Field<float>(observer, ee::kObjectOrientationX),
+                                 Field<float>(observer, ee::kObjectOrientationY), static_cast<float>(g_config.vision_cone));
+}
+
+// A sight check against a hiding player character, told to the player (once,
+// and again when the result changes): a searcher's d20 or a calm look's passive
+// score (its Spot die +0x7c6: the d20, or 10 / 5) and its Perception.
+void TellCheck(void* observer, void* hider, int found, bool searching) {
   const uint64_t key = static_cast<uint64_t>(IdOf(observer)) << 32 | IdOf(hider);
   const auto it = g_told.find(key);
   if (it != g_told.end() && it->second == found) return;
   g_told[key] = found;
   void* stats = StatsOf(observer);
   const int skill = stats && E().skill_rank ? static_cast<int8_t>(E().skill_rank(stats, ee::kSkillSpot, nullptr, 0)) : 0;
+  const int die = Field<uint8_t>(observer, 0x7c6);
+  char how[64];
+  if (searching) {
+    sprintf_s(how, "searches (Perception d20 %d %+d)", die, skill);
+  } else {
+    sprintf_s(how, "looks your way (passive Perception %d)", die + skill);
+  }
   char code[400];
-  sprintf_s(code,
-            "object o = StringToObject(\"%x\");"
-            "SendMessageToPC(OBJECT_SELF, \"nwn5e: \" + GetName(o) + \" searches (Perception d20 %d %+d): %s\");",
-            IdOf(observer), Field<uint8_t>(observer, 0x7c6), skill, found ? "you are found" : "you stay hidden");
+  sprintf_s(code, "object o = StringToObject(\"%x\");SendMessageToPC(OBJECT_SELF, \"nwn5e: \" + GetName(o) + \" %s: %s\");",
+            IdOf(observer), how, found ? (searching ? "you are found" : "you are seen") : "you stay hidden");
   RunScriptChunk(code, IdOf(hider));
 }
 
@@ -322,16 +344,21 @@ int Detection(DetectionFn original, bool spot, void* observer, void* target, int
   if (!observer || !target || !Hiding(target)) return result;
   char up_close[64] = "";
   float metres = 0.0f;
-  // D: not searching, it can't pick a hider out by sight (it can hear one).
-  if (spot && result && g_config.hiders_need_search && !Searching(observer)) {
+  // D / E: a calm observer sees a hider only inside its vision cone (it can
+  // hear one anywhere); searching ones see all round.
+  const bool searching = Searching(observer);
+  const bool in_cone = !searching && g_config.hiders_need_search && InVisionCone(observer, target);
+  if (spot && result && g_config.hiders_need_search && !searching && !in_cone) {
     result = 0;
-    sprintf_s(up_close, "; not searching: unseen");
+    sprintf_s(up_close, "; calm, outside its %d-degree cone: unseen", g_config.vision_cone);
   }
   if (spot && !result && scored && g_config.found_up_close && FoundUpClose(observer, target, &metres)) {
     result = 1;
     sprintf_s(up_close, "; found up close: %.1f m in front, clear line", metres);
   }
-  if (spot && g_config.hiders_need_search && Searching(observer) && IsPlayer(target)) TellSearch(observer, target, result);
+  if (spot && g_config.hiders_need_search && (searching || in_cone) && IsPlayer(target)) {
+    TellCheck(observer, target, result, searching);
+  }
   if (!g_config.log_attacks) return result;
   const uint64_t key = (static_cast<uint64_t>(IdOf(observer)) << 32 | IdOf(target)) ^ (spot ? 1ull << 63 : 0);
   const auto it = g_noticed.find(key);

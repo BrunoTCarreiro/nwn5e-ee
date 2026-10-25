@@ -1,6 +1,5 @@
 #MAXMODEL ASCII
-# nwn5e (tools/data/stealth_rings.py): a 40 m ring on the ground - how far a
-# hostile creature hears (stealth_watch.cpp). nwn5e's own art.
+# nwn5e (tools/data/stealth_rings.py): a 40 m ring on the ground - how far a hostile creature hears (stealth_watch.cpp). nwn5e's own art.
 newmodel n5_rh40
 setsupermodel n5_rh40 NULL
 classification effect

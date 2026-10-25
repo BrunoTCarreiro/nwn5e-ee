@@ -1,4 +1,7 @@
+#include <math.h>
+
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "check.h"
@@ -140,6 +143,29 @@ TEST(FoundOnlyInFrontUpClose) {
   CHECK_EQ(InFrontWithin(-1.0f, 0.0f, 1.0f, 0.0f, 2.0f), false);  // behind
   CHECK_EQ(InFrontWithin(0.0f, 1.0f, 1.0f, 0.0f, 2.0f), false);   // beside
   CHECK_EQ(InFrontWithin(1.0f, 1.0f, 1.0f, 0.0f, 2.0f), true);    // ahead and to the side, 1.4 m
+}
+
+// SK5 E. Breaks caught: the cone measured as its full angle off the facing (a
+// 120 cone seeing 100 degrees aside), or as a half cone each way twice; behind
+// seen; the 0 / 360 ends inverted; a hider on top of the observer missed.
+TEST(VisionConeIsCentredOnTheFacing) {
+  const float pi = 3.14159265f;
+  const auto at = [&](float degrees) { return std::make_pair(cosf(degrees * pi / 180.0f), sinf(degrees * pi / 180.0f)); };
+  const auto in = [&](float degrees, float cone) {
+    const auto p = at(degrees);
+    return WithinVisionCone(5.0f * p.first, 5.0f * p.second, 1.0f, 0.0f, cone);
+  };
+  CHECK_EQ(in(0.0f, 120.0f), true);     // straight ahead
+  CHECK_EQ(in(59.0f, 120.0f), true);    // just inside the edge
+  CHECK_EQ(in(-59.0f, 120.0f), true);
+  CHECK_EQ(in(61.0f, 120.0f), false);   // just outside
+  CHECK_EQ(in(90.0f, 120.0f), false);   // beside
+  CHECK_EQ(in(180.0f, 120.0f), false);  // behind
+  CHECK_EQ(in(89.0f, 180.0f), true);    // a half circle: beside, just ahead
+  CHECK_EQ(in(91.0f, 180.0f), false);
+  CHECK_EQ(in(180.0f, 360.0f), true);   // all round
+  CHECK_EQ(in(0.0f, 0.0f), false);      // nowhere
+  CHECK_EQ(WithinVisionCone(0.0f, 0.0f, 1.0f, 0.0f, 120.0f), true);  // on top of it
 }
 
 // SK9. Breaks caught: NWN's +4 for Improved Initiative kept instead of PB; PB

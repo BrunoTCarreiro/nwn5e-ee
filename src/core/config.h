@@ -81,6 +81,13 @@ struct Config {
   // only searching ones (investigating, detect mode, alert in combat) roll
   // Perception to find it. Up close (B) still finds it.
   bool hiders_need_search = true;
+  // SK5 E (owner, 2026-10-25: vision cones, "Go with option 2"): with
+  // hiders_need_search, a calm creature does see a hider inside its vision cone
+  // (shown as a cone while hiding - stealth_watch.cpp; 90 / 120 / 150 / 180 models),
+  // this many degrees centred on its facing (its passive Perception against the
+  // Stealth total); outside, not at all; searching ones see all round. 0 = calm
+  // creatures see no hider (D as it was); 360 = all round.
+  int vision_cone = 120;
   // SK10: faithful = spell attacks are PB + casting ability against full AC,
   // with advantage / disadvantage; nwn / off = NWN's touch attacks.
   rules::RuleVariant spell_attacks = rules::RuleVariant::kFaithful;

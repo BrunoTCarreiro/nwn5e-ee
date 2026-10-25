@@ -1829,6 +1829,23 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   detection pass falls there. Note: a calm enemy watching you hide loses you
   (2024 says you can't hide from a creature that sees you clearly) - the light
   level, when built, can give passive sight back in bright light.
+- **Vision cones** (0.29.0; owner: "how hard would it be to develop a system
+  where facing direction would matter? So we can implement vision cones" -
+  "Go with option 2"). Read from nwmain first: EE's DoSpotDetection already
+  has a facing term - a computer observer looking for a player hider gets -5
+  when the hider is 135 degrees or more off its facing (dot < -0.707), plus -5
+  for a still hider and +5 for a still observer. SK5 E (vision_cone, 120): with
+  hiders_need_search, a calm observer sees a hider inside its cone
+  (rules::WithinVisionCone, tested) - its passive Perception against the
+  Stealth total - and not outside; searching observers see all round; a calm
+  look's result is told to the player too. Shown while hiding
+  (stealth_watch.cpp): a calm hostile's cone outline turning with its facing
+  (OrientWithObject; tools/data/stealth_rings.py, rows 1610-1649: 90 / 120 /
+  150 / 180 degrees x 10 radii), a searching one's full ring. The drawings are
+  flat and ignore walls (the rule doesn't: sight needs a clear line); a stepped
+  cone cut at walls (slices, each its length from line-of-sight tests once a
+  second) is the possible next step. Not done: idle guards turning to look
+  about.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

@@ -1,6 +1,7 @@
 #include "rules/skills.h"
 
 #include <ctype.h>
+#include <math.h>
 
 #include <algorithm>
 #include <initializer_list>
@@ -569,6 +570,14 @@ int InitiativeModifier2024(int dexterity_modifier, int proficiency_bonus, bool a
 
 bool InFrontWithin(float dx, float dy, float fx, float fy, float metres) {
   return dx * dx + dy * dy <= metres * metres && fx * dx + fy * dy > 0.0f;
+}
+
+bool WithinVisionCone(float dx, float dy, float fx, float fy, float degrees) {
+  if (degrees >= 360.0f) return true;
+  if (degrees <= 0.0f) return false;
+  const float d = sqrtf(dx * dx + dy * dy), f = sqrtf(fx * fx + fy * fy);
+  if (d < 1e-4f || f < 1e-4f) return true;
+  return (dx * fx + dy * fy) / (d * f) >= cosf(degrees * 0.5f * 3.14159265f / 180.0f);
 }
 
 }  // namespace rules
