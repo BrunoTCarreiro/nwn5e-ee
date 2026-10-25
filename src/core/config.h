@@ -177,8 +177,17 @@ struct Config {
   bool stealth_crouch = true;
   // Who has noticed a hiding player character (owner, 2026-10-25: "build your
   // recommendation" for showing enemies' sight): an eye over each hostile that
-  // sees it, an ear over one that only hears it (stealth_marker.cpp).
+  // sees it, an ear over one that only hears it (stealth_watch.cpp).
   bool stealth_marker = true;
+  // The range rings (owner, 2026-10-25: "next up we'll add the range
+  // indicators"): while a player character hides, the nearest stealth_rings
+  // hostiles get a ring at how far they see and one at how far they hear
+  // (stealth_watch.cpp). 0: none.
+  int stealth_rings = 6;
+  // 2024 rules (perception=faithful; owner: "for the hearing detection, do
+  // option 2"): a hostile that hears a hiding player character but doesn't see
+  // it walks over to where the sound came from and searches (stealth_watch.cpp).
+  bool heard_investigates = true;
   // The Short Rest's visual on each resting character (owner, 2026-10-23: "I
   // like the look the health potion effect has"; then "Use
   // VFX_IMP_RESTORATION_LESSER, it looks like a good placeholder"): a

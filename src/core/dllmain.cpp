@@ -54,7 +54,7 @@ void InstallVfxEditor();
 void InstallAnimEditor();
 void InstallLowHpLook();
 void InstallStanceLook();
-void InstallStealthMarker();
+void InstallStealthWatch();
 void InstallNuiTest();
 void InstallClientUi();
 void InstallCreationPages();
@@ -72,7 +72,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.26.0";
+constexpr const char* kVersion = "0.27.0";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -124,7 +124,7 @@ void Start(HMODULE self) {
   InstallDyingRules();
   InstallLowHpLook();
   InstallStanceLook();
-  InstallStealthMarker();
+  InstallStealthWatch();
   InstallShortRestButton();
   InstallVfxBrowser();
   InstallAnimBrowser();

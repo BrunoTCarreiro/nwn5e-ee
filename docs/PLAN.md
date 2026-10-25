@@ -1781,6 +1781,24 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   way (darkness heavily obscured: hide anywhere; dim light: disadvantage on
   sight Perception, -5 passive) would need a light level per spot - a
   decision for later.
+- **Range rings and investigating noises** (0.27.0; owner: "next up we'll add
+  the range indicators ... for the hearing detection, do option 2"):
+  stealth_marker.cpp became stealth_watch.cpp, one pass a second over the
+  hostiles near a hiding player character. Rings: the nearest stealth_rings (6)
+  within 45 m get an amber ring at how far they see and a dashed blue one at how
+  far they hear - each creature's own distances, read from the engine
+  (DoSpotDetection uses +0x7b0, +0x7b4 in combat; DoListenDetection +0x7b8 /
+  +0x7bc; DoPerceptionUpdateOnCreature cuts off at the larger), written on it as
+  locals by the creature update, shown by the nearest of 10 radii
+  (tools/data/stealth_rings.py: flat self-lit bands, nwn5e's own textures,
+  visualeffects 1573-1592, tilted to the ground under the creature). Heard, not
+  seen (2024, perception=faithful): NWN's AI never acts on hearing
+  (nw_c2_default2: "DO NOT RELY ON HEARING FOR ENEMY DETECTION"; x0_i0_enemy's
+  heard-enemy search is commented out); now such a hostile walks to where the
+  sound came from in detect mode (a rolled Perception under SK5), looks about,
+  waits 4 s and walks back - not one fighting, talking, plot, an associate or
+  uncommandable; at most every 25 s. WalkWayPoints leaves a moving / waiting
+  creature alone, so the heartbeat doesn't cut it short. heard_investigates.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

@@ -103,6 +103,8 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.animation_recipes = ReadBool(ini, L"animation_recipes", g_config.animation_recipes);
   g_config.stealth_crouch = ReadBool(ini, L"stealth_crouch", g_config.stealth_crouch);
   g_config.stealth_marker = ReadBool(ini, L"stealth_marker", g_config.stealth_marker);
+  g_config.stealth_rings = GetPrivateProfileIntW(L"rules", L"stealth_rings", g_config.stealth_rings, ini);
+  g_config.heard_investigates = ReadBool(ini, L"heard_investigates", g_config.heard_investigates);
   g_config.short_rest_vfx = GetPrivateProfileIntW(L"rules", L"short_rest_vfx", g_config.short_rest_vfx, ini);
   g_config.short_rest_vfx_scale =
       GetPrivateProfileIntW(L"rules", L"short_rest_vfx_scale", g_config.short_rest_vfx_scale, ini);
