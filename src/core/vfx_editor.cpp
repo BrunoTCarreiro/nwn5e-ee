@@ -1,0 +1,743 @@
+// The VFX editor (owner, 2026-10-25: "is there a way that you can make a small
+// vfx editor where I can make new or edit existing VFX to make new ones?" -
+// "Something that can be used in game would be ideal"): `!vfxedit` opens a
+// window with one effect - its emitters and each emitter's parameters (the
+// ASCII model emitter's: update, render, blend, texture, position, rate,
+// emission time, life, speed, spread, gravity, size, colour, alpha, spawn
+// area, texture sheet, blur, bounce, the inherit / splat / bounce / random
+// flags) - and plays it on the player character, the game's own renderer.
+//
+// How a preview works: the effect is written as an ASCII effect model
+// (data/vfx_model.cpp) under a new name each time (n5vx0001, ...) into
+// build\vfxedit, a folder registered with the resource manager watching for
+// changes (re-read when the new file isn't found); visualeffects row 1600
+// (data/rows/visualeffects.editor.txt, empty) is pointed at it in the loaded
+// table (C2DA::SetCExoStringEntry - the client reads a visual effect's model
+// columns from it each time it shows one), and the row is applied. A new name
+// each time, so no cached model is shown.
+//
+// Save writes the draft (build\vfxedit\saved\<name>.vfx, key = value text) and
+// its model (<name>.mdl) - to be added to the mod as a permanent row. Load
+// lists the drafts and nwn5e's own effect models (n5_*.mdl, ASCII); the
+// game's own (binary) models come next.
+
+#include <windows.h>
+
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <algorithm>
+#include <fstream>
+#include <functional>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+#include "chat.h"
+#include "creature.h"
+#include "data/vfx_model.h"
+#include "ee_layout.h"
+#include "effects.h"
+#include "engine.h"
+#include "hooks.h"
+#include "log.h"
+#include "nui.h"
+
+namespace {
+
+constexpr const char* kWindow = "nwn5evfxed";
+constexpr const char* kLoadWindow = "nwn5evfxld";
+constexpr int kPreviewRow = 1600;  // data/rows/visualeffects.editor.txt
+constexpr const char* kAlias = "NWN5EVFX";
+constexpr const char* kVarValue = "nwn5e_vfxed_value";
+constexpr const char* kVarPick = "nwn5e_vfxed_pick";
+constexpr const char* kPreviewTag = "nwn5e_vfxed";
+
+using ExoStringCtorFn = void* (*)(void* string, const char* text);
+using ExoStringDtorFn = void (*)(void* string);
+using AliasAddFn = void (*)(void* list, void* alias, void* path);
+using AddDirectoryFn = int (*)(void* resman, const void* name, uint32_t priority, int detect_changes, void* filter);
+using RemoveDirectoryFn = int (*)(void* resman, const void* name);
+using ExistsFn = int (*)(void* resman, const void* resref, uint16_t type, uint32_t* size);
+using ResRefAssignFn = void* (*)(void* resref, const char* text);
+using SetStringEntryFn = int (*)(void* table, int row, void* column, void* value);
+using SetBlankEntryFn = int (*)(void* table, int row, void* column);
+
+struct Api {
+  ExoStringCtorFn string_ctor = reinterpret_cast<ExoStringCtorFn>(EngineExport(ee::kExoStringFromChars));
+  ExoStringDtorFn string_dtor = reinterpret_cast<ExoStringDtorFn>(EngineExport(ee::kExoStringDestructor));
+  AliasAddFn alias_add = reinterpret_cast<AliasAddFn>(EngineExport(ee::kAliasListAdd));
+  AddDirectoryFn add_directory = reinterpret_cast<AddDirectoryFn>(EngineExport(ee::kAddResourceDirectory));
+  RemoveDirectoryFn remove_directory = reinterpret_cast<RemoveDirectoryFn>(EngineExport(ee::kRemoveResourceDirectory));
+  ExistsFn exists = reinterpret_cast<ExistsFn>(EngineExport(ee::kResManExists));
+  ResRefAssignFn resref_assign = reinterpret_cast<ResRefAssignFn>(EngineExport(ee::kResRefAssignChars));
+  SetStringEntryFn set_string = reinterpret_cast<SetStringEntryFn>(EngineExport(ee::kC2DASetStringEntry));
+  SetBlankEntryFn set_blank = reinterpret_cast<SetBlankEntryFn>(EngineExport(ee::kC2DASetBlankEntry));
+  void** exo_base = reinterpret_cast<void**>(EngineExport(ee::kExoBase));
+  void** resman = reinterpret_cast<void**>(EngineExport(ee::kExoResMan));
+  void** rules = reinterpret_cast<void**>(EngineExport(ee::kRules));
+
+  bool Complete() const {
+    return string_ctor && string_dtor && alias_add && add_directory && remove_directory && exists && resref_assign &&
+           set_string && set_blank && exo_base && resman && rules;
+  }
+};
+
+const Api& E() {
+  static const Api api;
+  return api;
+}
+
+struct Session {
+  data::VfxEffect effect;
+  int selected = 0;
+};
+std::unordered_map<uint32_t, Session> g_sessions;  // by player, the engine's thread only
+int g_models_written = 0;
+bool g_registered = false;
+std::vector<std::string> g_load_entries;  // the load window's rows: "draft:<path>" / "model:<path>"
+
+// --- Files ---------------------------------------------------------------------
+
+std::wstring DllDirectory() {
+  HMODULE module = nullptr;
+  GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                     reinterpret_cast<LPCWSTR>(&DllDirectory), &module);
+  wchar_t path[MAX_PATH] = {};
+  GetModuleFileNameW(module, path, MAX_PATH);
+  std::wstring directory = path;
+  return directory.substr(0, directory.find_last_of(L"\\/"));
+}
+
+std::wstring Wide(const std::string& text) { return std::wstring(text.begin(), text.end()); }
+std::string Narrow(const std::wstring& text) {
+  std::string out;
+  for (wchar_t c : text) out += c < 128 ? static_cast<char>(c) : '?';
+  return out;
+}
+
+std::wstring EditorDirectory() { return DllDirectory() + L"\\vfxedit"; }
+std::wstring SavedDirectory() { return EditorDirectory() + L"\\saved"; }
+
+bool WriteFile(const std::wstring& path, const std::string& text) {
+  std::ofstream file(path.c_str(), std::ios::binary | std::ios::trunc);
+  if (!file) return false;
+  file << text;
+  return static_cast<bool>(file);
+}
+
+bool ReadFile(const std::wstring& path, std::string* text) {
+  std::ifstream file(path.c_str(), std::ios::binary);
+  if (!file) return false;
+  std::stringstream buffer;
+  buffer << file.rdbuf();
+  *text = buffer.str();
+  return true;
+}
+
+std::vector<std::wstring> FilesIn(const std::wstring& directory, const wchar_t* pattern) {
+  std::vector<std::wstring> names;
+  WIN32_FIND_DATAW found;
+  HANDLE handle = FindFirstFileW((directory + L"\\" + pattern).c_str(), &found);
+  if (handle == INVALID_HANDLE_VALUE) return names;
+  do {
+    if (!(found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) names.push_back(found.cFileName);
+  } while (FindNextFileW(handle, &found));
+  FindClose(handle);
+  std::sort(names.begin(), names.end());
+  return names;
+}
+
+// --- The engine: the watched folder, the row ------------------------------------
+
+void MakeString(void* buffer, const char* text) { E().string_ctor(buffer, text); }
+
+bool RegisterFolder() {
+  if (g_registered) return true;
+  if (!E().Complete() || !*E().resman || !*E().exo_base) return false;
+  CreateDirectoryW(EditorDirectory().c_str(), nullptr);
+  CreateDirectoryW(SavedDirectory().c_str(), nullptr);
+  void* aliases = Field<void*>(*E().exo_base, ee::kExoBaseAliasList);
+  if (!aliases) return false;
+  alignas(16) uint8_t alias[16] = {};
+  alignas(16) uint8_t path[16] = {};
+  MakeString(alias, kAlias);
+  MakeString(path, Narrow(EditorDirectory()).c_str());
+  E().alias_add(aliases, alias, path);  // frees both
+  alignas(16) uint8_t name[16] = {};
+  MakeString(name, (std::string(kAlias) + ":").c_str());
+  const int added = E().add_directory(*E().resman, name, ee::kVfxEditorPriority, 1, nullptr);
+  E().string_dtor(name);
+  g_registered = true;
+  Log("vfx editor: %s: = %s registered, watching for changes (%d)", kAlias, Narrow(EditorDirectory()).c_str(), added);
+  return true;
+}
+
+bool ModelExists(const std::string& model) {
+  alignas(16) uint8_t resref[32] = {};
+  E().resref_assign(resref, model.c_str());
+  uint32_t size = 0;
+  return E().exists(*E().resman, resref, ee::kResTypeMdl, &size) != 0;
+}
+
+// The folder read again (a file written after it was registered and not seen).
+void RefreshFolder() {
+  alignas(16) uint8_t name[16] = {};
+  MakeString(name, (std::string(kAlias) + ":").c_str());
+  E().remove_directory(*E().resman, name);
+  E().string_dtor(name);
+  alignas(16) uint8_t again[16] = {};
+  MakeString(again, (std::string(kAlias) + ":").c_str());
+  E().add_directory(*E().resman, again, ee::kVfxEditorPriority, 1, nullptr);
+  E().string_dtor(again);
+}
+
+void* VisualEffectsTable() {
+  void* rules = *E().rules;
+  void* arrays = rules ? Field<void*>(rules, ee::kRulesTwoDimArrays) : nullptr;
+  return arrays ? Field<void*>(arrays, ee::kTwoDimArraysVisualEffects) : nullptr;
+}
+
+bool SetEntry(void* table, const char* column, const char* value) {
+  alignas(16) uint8_t c[16] = {};
+  alignas(16) uint8_t v[16] = {};
+  MakeString(c, column);
+  MakeString(v, value);
+  return E().set_string(table, kPreviewRow, c, v) != 0;  // the strings are the callee's now
+}
+
+void BlankEntry(void* table, const char* column) {
+  alignas(16) uint8_t c[16] = {};
+  MakeString(c, column);
+  E().set_blank(table, kPreviewRow, c);
+}
+
+// Row 1600 shows `model`: on the chosen node, as the effect's type.
+bool PointPreviewRow(const std::string& model, const data::VfxEffect& effect) {
+  void* table = VisualEffectsTable();
+  if (!table) return false;
+  static const char* const kRoot[] = {"Imp_Root_S_Node", "Imp_Root_M_Node", "Imp_Root_L_Node", "Imp_Root_H_Node"};
+  bool ok = SetEntry(table, "Type_FD", effect.duration ? "D" : "F");
+  for (const char* column : kRoot) {
+    if (effect.attach == "root") ok = SetEntry(table, column, model.c_str()) && ok;
+    else BlankEntry(table, column);
+  }
+  if (effect.attach == "head") ok = SetEntry(table, "Imp_HeadCon_Node", model.c_str()) && ok;
+  else BlankEntry(table, "Imp_HeadCon_Node");
+  if (effect.attach == "impact") ok = SetEntry(table, "Imp_Impact_Node", model.c_str()) && ok;
+  else BlankEntry(table, "Imp_Impact_Node");
+  return ok;
+}
+
+// --- The window ----------------------------------------------------------------------
+
+std::string Num(float value) {
+  char text[32];
+  sprintf_s(text, "%g", value);
+  return text;
+}
+
+float ToFloat(const std::string& text, float fallback) {
+  char* end = nullptr;
+  const float value = strtof(text.c_str(), &end);
+  return end && end != text.c_str() ? value : fallback;
+}
+
+// The text fields of an emitter: bind, getter, setter.
+struct TextField {
+  const char* bind;
+  std::function<std::string(const data::VfxEmitter&)> get;
+  std::function<void(data::VfxEmitter&, const std::string&)> set;
+};
+
+TextField FloatField(const char* bind, float data::VfxEmitter::*member) {
+  return {bind, [member](const data::VfxEmitter& e) { return Num(e.*member); },
+          [member](data::VfxEmitter& e, const std::string& v) { e.*member = ToFloat(v, e.*member); }};
+}
+
+TextField ArrayField(const char* bind, float (data::VfxEmitter::*member)[3], int index) {
+  return {bind, [member, index](const data::VfxEmitter& e) { return Num((e.*member)[index]); },
+          [member, index](data::VfxEmitter& e, const std::string& v) {
+            (e.*member)[index] = ToFloat(v, (e.*member)[index]);
+          }};
+}
+
+const std::vector<TextField>& EmitterFields() {
+  static const std::vector<TextField> kFields = {
+      {"f_name", [](const data::VfxEmitter& e) { return e.name; },
+       [](data::VfxEmitter& e, const std::string& v) { e.name = v.empty() ? "emitter" : v; }},
+      {"f_texture", [](const data::VfxEmitter& e) { return e.texture; },
+       [](data::VfxEmitter& e, const std::string& v) {
+         const std::string clean = data::VfxResRef(v);
+         if (!clean.empty()) e.texture = clean;
+       }},
+      ArrayField("f_px", &data::VfxEmitter::position, 0),
+      ArrayField("f_py", &data::VfxEmitter::position, 1),
+      ArrayField("f_pz", &data::VfxEmitter::position, 2),
+      FloatField("f_rate", &data::VfxEmitter::birthrate),
+      FloatField("f_emit", &data::VfxEmitter::emit_seconds),
+      FloatField("f_life", &data::VfxEmitter::life),
+      FloatField("f_mass", &data::VfxEmitter::mass),
+      FloatField("f_vel", &data::VfxEmitter::velocity),
+      FloatField("f_rvel", &data::VfxEmitter::randvel),
+      FloatField("f_spread", &data::VfxEmitter::spread),
+      FloatField("f_ax", &data::VfxEmitter::xsize),
+      FloatField("f_ay", &data::VfxEmitter::ysize),
+      FloatField("f_s0", &data::VfxEmitter::size_start),
+      FloatField("f_s1", &data::VfxEmitter::size_end),
+      ArrayField("f_c0r", &data::VfxEmitter::color_start, 0),
+      ArrayField("f_c0g", &data::VfxEmitter::color_start, 1),
+      ArrayField("f_c0b", &data::VfxEmitter::color_start, 2),
+      ArrayField("f_c1r", &data::VfxEmitter::color_end, 0),
+      ArrayField("f_c1g", &data::VfxEmitter::color_end, 1),
+      ArrayField("f_c1b", &data::VfxEmitter::color_end, 2),
+      FloatField("f_a0", &data::VfxEmitter::alpha_start),
+      FloatField("f_a1", &data::VfxEmitter::alpha_end),
+      {"f_grid", [](const data::VfxEmitter& e) { return std::to_string(e.grid); },
+       [](data::VfxEmitter& e, const std::string& v) { e.grid = std::max(1, atoi(v.c_str())); }},
+      {"f_frames", [](const data::VfxEmitter& e) { return std::to_string(e.frame_end); },
+       [](data::VfxEmitter& e, const std::string& v) { e.frame_end = std::max(0, atoi(v.c_str())); }},
+      FloatField("f_blur", &data::VfxEmitter::blur_length),
+      FloatField("f_bco", &data::VfxEmitter::bounce_co),
+  };
+  return kFields;
+}
+
+const std::vector<std::string> kUpdates = {"Fountain", "Single", "Explosion"};
+const std::vector<std::string> kRenders = {"Normal", "Motion_Blur", "Aligned_to_World_z", "Billboard_to_World_Z",
+                                           "Billboard_to_Local_Z", "Aligned_to_Particle_Dir", "Linked"};
+const std::vector<std::string> kBlends = {"Normal", "Lighten", "Punch-Through"};
+const std::vector<std::string> kAttaches = {"root", "head", "impact"};
+
+std::string Next(const std::vector<std::string>& values, const std::string& current) {
+  for (size_t i = 0; i < values.size(); ++i) {
+    if (values[i] == current) return values[(i + 1) % values.size()];
+  }
+  return values[0];
+}
+
+data::VfxEmitter DefaultEmitter() {
+  data::VfxEmitter e;
+  e.name = "sparks";
+  e.texture = "fxpa_sphere";
+  e.render = "Normal";
+  e.blend = "Lighten";
+  e.position[2] = 1.0f;
+  e.birthrate = 20.0f;
+  e.life = 1.0f;
+  e.velocity = 1.5f;
+  e.randvel = 0.5f;
+  e.spread = 0.8f;
+  e.mass = 0.5f;
+  e.size_start = 0.08f;
+  e.size_end = 0.02f;
+  e.color_start[0] = 1.0f;
+  e.color_start[1] = 0.8f;
+  e.color_start[2] = 0.3f;
+  e.color_end[0] = 1.0f;
+  e.color_end[1] = 0.3f;
+  e.color_end[2] = 0.1f;
+  return e;
+}
+
+data::VfxEffect DefaultEffect() {
+  data::VfxEffect effect;
+  effect.name = "n5_new";
+  effect.emitters.push_back(DefaultEmitter());
+  return effect;
+}
+
+std::string Layout() {
+  using namespace nui;
+  const auto label = [](const char* text, float width) { return Sized(Label(Str(text)), width); };
+  const auto field = [](const char* bind, float width) { return Sized(TextEdit(bind, "", bind, 40), width, 30.0f); };
+  const std::string fields = Col(List({
+      Row(List({label("Emitter name", 120.0f), field("f_name", 200.0f), Spacer()})),
+      Row(List({Button("b_update", Bind("l_update")), Button("b_render", Bind("l_render")),
+                Button("b_blend", Bind("l_blend"))})),
+      Row(List({label("Texture", 120.0f), field("f_texture", 200.0f), Spacer()})),
+      Row(List({label("Position x y z (m)", 150.0f), field("f_px", 70.0f), field("f_py", 70.0f), field("f_pz", 70.0f),
+                Spacer()})),
+      Row(List({label("Rate / s", 110.0f), field("f_rate", 70.0f), label("On for s (0 = always)", 170.0f),
+                field("f_emit", 70.0f), Spacer()})),
+      Row(List({label("Life (s)", 110.0f), field("f_life", 70.0f), label("Gravity (mass)", 170.0f),
+                field("f_mass", 70.0f), Spacer()})),
+      Row(List({label("Speed", 110.0f), field("f_vel", 70.0f), label("Random speed", 170.0f), field("f_rvel", 70.0f),
+                Spacer()})),
+      Row(List({label("Spread (rad)", 110.0f), field("f_spread", 70.0f), label("Area x y (cm)", 120.0f),
+                field("f_ax", 60.0f), field("f_ay", 60.0f), Spacer()})),
+      Row(List({label("Size start", 110.0f), field("f_s0", 70.0f), label("Size end", 170.0f), field("f_s1", 70.0f),
+                Spacer()})),
+      Row(List({label("Colour start r g b", 150.0f), field("f_c0r", 60.0f), field("f_c0g", 60.0f),
+                field("f_c0b", 60.0f), Spacer()})),
+      Row(List({label("Colour end r g b", 150.0f), field("f_c1r", 60.0f), field("f_c1g", 60.0f), field("f_c1b", 60.0f),
+                Spacer()})),
+      Row(List({label("Alpha start", 110.0f), field("f_a0", 70.0f), label("Alpha end", 170.0f), field("f_a1", 70.0f),
+                Spacer()})),
+      Row(List({label("Sheet grid", 110.0f), field("f_grid", 70.0f), label("Last frame", 170.0f),
+                field("f_frames", 70.0f), Spacer()})),
+      Row(List({label("Blur length", 110.0f), field("f_blur", 70.0f), label("Bounce", 170.0f), field("f_bco", 70.0f),
+                Spacer()})),
+      Row(List({Button("t_inherit", Bind("l_inherit")), Button("t_splat", Bind("l_splat")),
+                Button("t_bounce", Bind("l_bounce")), Button("t_random", Bind("l_random"))})),
+  }));
+  return Window(
+      Col(List({
+          Label(Bind("status"), 44.0f),
+          Row(List({label("Effect", 60.0f), Sized(TextEdit("e_name", "name", "e_name", 16), 180.0f, 30.0f),
+                    Button("new", Str("New")), Button("load", Str("Load...")), Button("save", Str("Save"))})),
+          Row(List({Button("type", Bind("l_type")), label("Seconds", 70.0f),
+                    Sized(TextEdit("e_seconds", "", "e_seconds", 8), 70.0f, 30.0f), Button("attach", Bind("l_attach"))})),
+          Row(List({Button("preview", Str("Preview on me")), Button("stop", Str("Stop")), Spacer()})),
+          Row(List({label("Emitters", 80.0f), Button("em_add", Str("Add")), Button("em_copy", Str("Copy")),
+                    Button("em_del", Str("Remove")), Spacer()})),
+          Sized(ListView(Cell(Button("em", Bind("em_labels")), 0.0f, true), Bind("em_count"), 26.0f), 0.0f, 110.0f),
+          Group(fields),
+          Row(List({Spacer(), Button("close", Str("Close"), 100.0f)})),
+      })),
+      Str("nwn5e - VFX editor"), 40.0f, 40.0f, 620.0f, 880.0f);
+}
+
+// Many binds in one script (each NuiSetText would be one).
+void SetBinds(uint32_t player, const std::vector<std::pair<std::string, std::string>>& binds) {
+  const int token = NuiToken(player, kWindow);
+  if (!token) return;
+  std::string code;
+  const auto flush = [&]() {
+    if (!code.empty()) RunScriptChunk(code.c_str(), player);
+    code.clear();
+  };
+  for (const auto& bind : binds) {
+    std::string literal = "\"";
+    for (char c : bind.second) {
+      if (c == '"' || c == '\\') literal += '\\';
+      literal += c;
+    }
+    literal += "\"";
+    code += "NuiSetBind(OBJECT_SELF, " + std::to_string(token) + ", \"" + bind.first + "\", JsonString(" + literal +
+            "));";
+    if (code.size() > 3000) flush();
+  }
+  flush();
+}
+
+void SetStatus(uint32_t player, const std::string& line) { SetBinds(player, {{"status", line}}); }
+
+std::string FlagLabel(const char* name, bool on) { return std::string(on ? "[x] " : "[ ] ") + name; }
+
+void PushEmitterList(uint32_t player, const Session& session) {
+  std::string labels = "[";
+  for (size_t i = 0; i < session.effect.emitters.size(); ++i) {
+    const data::VfxEmitter& e = session.effect.emitters[i];
+    const std::string line = std::string(static_cast<int>(i) == session.selected ? "> " : "  ") +
+                             std::to_string(i + 1) + "  " + e.name + "  (" + e.update + ", " + e.texture + ")";
+    labels += (i ? "," : "") + nui::Str(line);
+  }
+  labels += "]";
+  NuiSetJson(player, kWindow, "em_labels", labels);
+  NuiSetJson(player, kWindow, "em_count", std::to_string(session.effect.emitters.size()));
+}
+
+void PushAll(uint32_t player, const Session& session) {
+  const data::VfxEffect& effect = session.effect;
+  std::vector<std::pair<std::string, std::string>> binds = {
+      {"e_name", effect.name},
+      {"e_seconds", Num(effect.seconds)},
+      {"l_type", effect.duration ? "Type: stays (D)" : "Type: plays once (F)"},
+      {"l_attach", "On: " + effect.attach},
+  };
+  if (session.selected >= 0 && session.selected < static_cast<int>(effect.emitters.size())) {
+    const data::VfxEmitter& e = effect.emitters[session.selected];
+    for (const TextField& field : EmitterFields()) binds.emplace_back(field.bind, field.get(e));
+    binds.emplace_back("l_update", "Update: " + e.update);
+    binds.emplace_back("l_render", "Render: " + e.render);
+    binds.emplace_back("l_blend", "Blend: " + e.blend);
+    binds.emplace_back("l_inherit", FlagLabel("follows the creature", e.inherit));
+    binds.emplace_back("l_splat", FlagLabel("splats on the ground", e.splat));
+    binds.emplace_back("l_bounce", FlagLabel("bounces", e.bounce));
+    binds.emplace_back("l_random", FlagLabel("random frame", e.random));
+  }
+  SetBinds(player, binds);
+  PushEmitterList(player, session);
+}
+
+// A text field's value, read from the window through a local.
+std::string BindValue(uint32_t player, const std::string& bind) {
+  void* creature = CreatureById(player);
+  const int token = NuiToken(player, kWindow);
+  if (!creature || !token) return "";
+  const std::string code = "SetLocalString(OBJECT_SELF, \"" + std::string(kVarValue) +
+                           "\", JsonGetString(NuiGetBind(OBJECT_SELF, " + std::to_string(token) + ", \"" + bind +
+                           "\")));";
+  RunScriptChunk(code.c_str(), player);
+  return engine::GetLocalString(creature, kVarValue);
+}
+
+void WatchFields(uint32_t player) {
+  const int token = NuiToken(player, kWindow);
+  if (!token) return;
+  std::string code;
+  const auto watch = [&](const char* bind) {
+    code += "NuiSetBindWatch(OBJECT_SELF, " + std::to_string(token) + ", \"" + bind + "\", TRUE);";
+  };
+  watch("e_name");
+  watch("e_seconds");
+  for (const TextField& field : EmitterFields()) watch(field.bind);
+  RunScriptChunk(code.c_str(), player);
+}
+
+void Open(uint32_t player) {
+  Session& session = g_sessions[player];
+  if (session.effect.emitters.empty()) session.effect = DefaultEffect();
+  if (!NuiOpen(player, kWindow, Layout(),
+               {{"status", "Edit the effect, then Preview on me. Fields take effect as you type."}})) {
+    return;
+  }
+  PushAll(player, session);
+  WatchFields(player);
+}
+
+data::VfxEmitter* Selected(Session& session) {
+  if (session.selected < 0 || session.selected >= static_cast<int>(session.effect.emitters.size())) return nullptr;
+  return &session.effect.emitters[session.selected];
+}
+
+// --- Preview, save, load ------------------------------------------------------------
+
+void Preview(uint32_t player, Session& session) {
+  if (session.effect.emitters.empty()) {
+    SetStatus(player, "Add an emitter first.");
+    return;
+  }
+  if (!RegisterFolder()) {
+    SetStatus(player, "The editor's folder could not be registered with the game (see nwn5e.log).");
+    return;
+  }
+  char model[16];
+  sprintf_s(model, "n5vx%04d", ++g_models_written % 10000);
+  const std::wstring path = EditorDirectory() + L"\\" + Wide(model) + L".mdl";
+  if (!WriteFile(path, data::WriteVfxModel(session.effect, model))) {
+    SetStatus(player, "Could not write " + Narrow(path) + ".");
+    return;
+  }
+  bool found = ModelExists(model);
+  if (!found) {
+    RefreshFolder();
+    found = ModelExists(model);
+    Log("vfx editor: %s not seen at once - folder read again: %s", model, found ? "found" : "still not found");
+  }
+  const bool pointed = PointPreviewRow(model, session.effect);
+  if (!found || !pointed) {
+    SetStatus(player, std::string("Preview failed: ") + (!found ? "the game doesn't see the new model" :
+                                                                  "row 1600 could not be changed") +
+                          " (see nwn5e.log).");
+    Log("vfx editor: preview %s - found %d, row pointed %d", model, found, pointed);
+    return;
+  }
+  char code[600];
+  if (session.effect.duration) {
+    sprintf_s(code,
+              "effect e = GetFirstEffect(OBJECT_SELF); while (GetIsEffectValid(e)) { if (GetEffectTag(e) == \"%s\") "
+              "RemoveEffect(OBJECT_SELF, e); e = GetNextEffect(OBJECT_SELF); }"
+              "ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(EffectVisualEffect(%d), \"%s\"), OBJECT_SELF, %.1f);",
+              kPreviewTag, kPreviewRow, kPreviewTag, std::max(1.0f, session.effect.seconds));
+  } else {
+    sprintf_s(code, "ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(%d), OBJECT_SELF);", kPreviewRow);
+  }
+  RunScriptChunk(code, player);
+  Log("vfx editor: 0x%08X previews %s (%s, %zu emitters, on %s)", player, model,
+      session.effect.duration ? "D" : "F", session.effect.emitters.size(), session.effect.attach.c_str());
+  SetStatus(player, std::string("Playing on you (model ") + model + ")" +
+                        (session.effect.duration ? " for " + Num(session.effect.seconds) + " s." : ".") +
+                        " Change a field and press Preview again.");
+}
+
+void StopPreview(uint32_t player) {
+  char code[300];
+  sprintf_s(code,
+            "effect e = GetFirstEffect(OBJECT_SELF); while (GetIsEffectValid(e)) { if (GetEffectTag(e) == \"%s\") "
+            "RemoveEffect(OBJECT_SELF, e); e = GetNextEffect(OBJECT_SELF); }",
+            kPreviewTag);
+  RunScriptChunk(code, player);
+  SetStatus(player, "Stopped.");
+}
+
+void Save(uint32_t player, Session& session) {
+  std::string name = data::VfxResRef(session.effect.name);
+  if (name.empty()) name = "n5_new";
+  CreateDirectoryW(EditorDirectory().c_str(), nullptr);
+  CreateDirectoryW(SavedDirectory().c_str(), nullptr);
+  const std::wstring base = SavedDirectory() + L"\\" + Wide(name);
+  const bool draft = WriteFile(base + L".vfx", data::WriteVfxDraft(session.effect));
+  const bool model = WriteFile(base + L".mdl", data::WriteVfxModel(session.effect, name));
+  Log("vfx editor: 0x%08X saved %s (draft %d, model %d)", player, name.c_str(), draft, model);
+  SetStatus(player, draft && model ? "Saved as " + name + " (vfxedit\\saved\\" + name +
+                                         ".vfx and .mdl). Ask Claude to add it to the mod as an effect."
+                                   : "Could not save " + name + ".");
+}
+
+std::string LoadLayout() {
+  using namespace nui;
+  return Window(Col(List({
+                    Label(Bind("ld_status"), 40.0f),
+                    ListView(Cell(Button("ld", Bind("ld_labels")), 0.0f, true), Bind("ld_count"), 26.0f),
+                    Row(List({Spacer(), Button("ld_close", Str("Close"), 100.0f)})),
+                })),
+                Str("nwn5e - load an effect"), 680.0f, 40.0f, 420.0f, 560.0f);
+}
+
+void OpenLoad(uint32_t player) {
+  g_load_entries.clear();
+  std::string labels = "[";
+  const auto add = [&](const std::string& entry, const std::string& label) {
+    labels += (g_load_entries.empty() ? "" : ",") + nui::Str(label);
+    g_load_entries.push_back(entry);
+  };
+  for (const std::wstring& file : FilesIn(SavedDirectory(), L"*.vfx")) {
+    add("draft:" + Narrow(SavedDirectory() + L"\\" + file), "draft   " + Narrow(file.substr(0, file.size() - 4)));
+  }
+  const std::wstring served = DllDirectory() + L"\\served";
+  for (const std::wstring& file : FilesIn(served, L"n5_*.mdl")) {
+    add("model:" + Narrow(served + L"\\" + file), "nwn5e   " + Narrow(file.substr(0, file.size() - 4)));
+  }
+  labels += "]";
+  if (!NuiOpen(player, kLoadWindow, LoadLayout(),
+               {{"ld_status", std::to_string(g_load_entries.size()) +
+                                  " effects: your saved drafts, then nwn5e's own. Click one to load it."}})) {
+    return;
+  }
+  NuiSetJson(player, kLoadWindow, "ld_labels", labels);
+  NuiSetJson(player, kLoadWindow, "ld_count", std::to_string(g_load_entries.size()));
+}
+
+void LoadEntry(uint32_t player, int index) {
+  if (index < 0 || index >= static_cast<int>(g_load_entries.size())) return;
+  const std::string& entry = g_load_entries[index];
+  const bool draft = entry.rfind("draft:", 0) == 0;
+  const std::string path = entry.substr(6);
+  std::string text, error;
+  data::VfxEffect effect;
+  const bool ok = ReadFile(Wide(path), &text) &&
+                  (draft ? data::ReadVfxDraft(text, &effect, &error) : data::ReadVfxAsciiModel(text, &effect, &error));
+  Session& session = g_sessions[player];
+  if (!ok) {
+    SetStatus(player, "Could not load it: " + (error.empty() ? std::string("unreadable") : error));
+    return;
+  }
+  if (!draft) effect.name += "_copy";  // a copy of nwn5e's: saving doesn't replace the original
+  session.effect = effect;
+  session.selected = 0;
+  NuiClose(player, kLoadWindow);
+  PushAll(player, session);
+  SetStatus(player, "Loaded " + effect.name + " (" + std::to_string(effect.emitters.size()) +
+                        " emitters). Preview on me to see it.");
+  Log("vfx editor: 0x%08X loaded %s", player, path.c_str());
+}
+
+// --- Events -----------------------------------------------------------------------------
+
+void OnEvent(const NuiEvent& event) {
+  const uint32_t player = event.player;
+  Session& session = g_sessions[player];
+  if (session.effect.emitters.empty() && session.effect.name.empty()) session.effect = DefaultEffect();
+  data::VfxEmitter* e = Selected(session);
+  if (event.type == "watch") {
+    const std::string value = BindValue(player, event.element);
+    if (event.element == "e_name") {
+      session.effect.name = value;
+      return;
+    }
+    if (event.element == "e_seconds") {
+      session.effect.seconds = std::max(0.1f, ToFloat(value, session.effect.seconds));
+      return;
+    }
+    if (!e) return;
+    for (const TextField& field : EmitterFields()) {
+      if (event.element != field.bind) continue;
+      field.set(*e, value);
+      if (event.element == "f_name" || event.element == "f_texture") PushEmitterList(player, session);
+      return;
+    }
+    return;
+  }
+  if (event.type != "click") return;
+  const std::string& id = event.element;
+  if (id == "close") {
+    NuiClose(player, kWindow);
+  } else if (id == "new") {
+    session.effect = DefaultEffect();
+    session.selected = 0;
+    PushAll(player, session);
+    SetStatus(player, "A new effect with one emitter.");
+  } else if (id == "load") {
+    OpenLoad(player);
+  } else if (id == "save") {
+    Save(player, session);
+  } else if (id == "preview") {
+    Preview(player, session);
+  } else if (id == "stop") {
+    StopPreview(player);
+  } else if (id == "type") {
+    session.effect.duration = !session.effect.duration;
+    PushAll(player, session);
+  } else if (id == "attach") {
+    session.effect.attach = Next(kAttaches, session.effect.attach);
+    PushAll(player, session);
+  } else if (id == "em" && event.array_index >= 0 &&
+             event.array_index < static_cast<int>(session.effect.emitters.size())) {
+    session.selected = event.array_index;
+    PushAll(player, session);
+  } else if (id == "em_add") {
+    session.effect.emitters.push_back(DefaultEmitter());
+    session.selected = static_cast<int>(session.effect.emitters.size()) - 1;
+    PushAll(player, session);
+  } else if (id == "em_copy" && e) {
+    data::VfxEmitter copy = *e;
+    copy.name += "2";
+    session.effect.emitters.push_back(copy);
+    session.selected = static_cast<int>(session.effect.emitters.size()) - 1;
+    PushAll(player, session);
+  } else if (id == "em_del" && e) {
+    session.effect.emitters.erase(session.effect.emitters.begin() + session.selected);
+    session.selected = std::max(0, std::min(session.selected, static_cast<int>(session.effect.emitters.size()) - 1));
+    PushAll(player, session);
+  } else if (e && id == "b_update") {
+    e->update = Next(kUpdates, e->update);
+    PushAll(player, session);
+  } else if (e && id == "b_render") {
+    e->render = Next(kRenders, e->render);
+    PushAll(player, session);
+  } else if (e && id == "b_blend") {
+    e->blend = Next(kBlends, e->blend);
+    PushAll(player, session);
+  } else if (e && (id == "t_inherit" || id == "t_splat" || id == "t_bounce" || id == "t_random")) {
+    bool& flag = id == "t_inherit" ? e->inherit : id == "t_splat" ? e->splat : id == "t_bounce" ? e->bounce : e->random;
+    flag = !flag;
+    PushAll(player, session);
+  }
+}
+
+void OnLoadEvent(const NuiEvent& event) {
+  if (event.type != "click") return;
+  if (event.element == "ld_close") NuiClose(event.player, kLoadWindow);
+  else if (event.element == "ld") LoadEntry(event.player, event.array_index);
+}
+
+std::vector<std::string> VfxEditCommand(void* creature, const std::string&) {
+  Open(Field<uint32_t>(creature, ee::kObjectId));
+  return {};
+}
+
+}  // namespace
+
+void InstallVfxEditor() {
+  if (!E().Complete()) {
+    Log("SKIP vfx editor: an engine export is missing (resource folders, the 2DA setter, the rules)");
+    return;
+  }
+  if (!AddNuiWindow(kWindow, &OnEvent) || !AddNuiWindow(kLoadWindow, &OnLoadEvent)) return;
+  AddChatCommand("!vfxedit", &VfxEditCommand);
+  Log("vfx editor: !vfxedit (preview row %d, models in vfxedit\\)", kPreviewRow);
+}

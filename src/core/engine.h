@@ -41,6 +41,8 @@ float EdgeDistance(const void* a, const void* b);
 // CNWSScriptVarTable GetInt / SetInt. 0 when unset.
 int GetLocalInt(void* object, const char* name);
 void SetLocalInt(void* object, const char* name, int value);
+// Its GetString: "" when unset.
+std::string GetLocalString(void* object, const char* name);
 
 // Ability modifiers as the engine computes them.
 int StrengthModifier(void* stats);

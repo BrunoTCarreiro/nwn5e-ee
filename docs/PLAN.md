@@ -1628,6 +1628,27 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   44-46 victory, 53-58 turns and idles, 70 drink, 71 read, 86-87 runfl/runfr,
   97-140 Custom1-40 (a_ba has none of them); walkinj (the limp) and walkdead
   have no id - the walk case picks them by state.
+- `!vfxedit` (0.23.0; owner, 2026-10-25: "a small vfx editor where I can make
+  new or edit existing VFX to make new ones" - "Something that can be used in
+  game would be ideal"): a window with one effect (name, stays / plays once,
+  seconds, on root / head / impact) and its emitters, each with the ASCII
+  emitter's parameters (update, render, blend, texture, position, rate, on-for
+  seconds, life, speed, random speed, spread, gravity, spawn area, size,
+  colour, alpha, sheet grid and last frame, blur, bounce; follows the creature,
+  splats, bounces, random frame); Preview on me plays it with the game's own
+  renderer. How: data/vfx_model.cpp writes an ASCII effect model under a new
+  name each time (n5vx0001...) into build\vfxedit, registered with the
+  resource manager watching for changes (RemoveResourceDirectory +
+  AddResourceDirectory when the new file isn't found); visualeffects row 1600
+  (visualeffects.editor.txt, empty) is pointed at it in the loaded table -
+  the client reads a visual effect's model columns from g_pRules +0x130
+  (CTwoDimArrays) +0x280 (the visualeffects C2DA) each time it shows one
+  (0x96D37F, 0x8729D0: the column names inline), so C2DA::SetCExoStringEntry
+  changes what row 1600 shows; a new name each time, so no cached model. Save
+  writes build\vfxedit\saved\<name>.vfx (the draft) and <name>.mdl; Load
+  lists the drafts and nwn5e's own n5_*.mdl. Next: the game's own (binary)
+  effects in Load; then a look at editing animations (owner: "After that maybe
+  look into it is possible to edit animations").
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

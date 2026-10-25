@@ -19,6 +19,7 @@ using ObjectCheckFn = int (*)(void* object);
 using VisibleElementFn = const void* (*)(void* creature, uint32_t other_id);
 using VarGetIntFn = int (*)(void* table, void* name);
 using VarSetIntFn = void (*)(void* table, void* name, int value, int flag);
+using VarGetStringFn = void* (*)(void* table, void* result, void* name);
 using ExoStringFn = void* (*)(void* string, const char* text);
 using ExoStringDestroyFn = void (*)(void* string);
 using StatFn = uint8_t (*)(void* stats);
@@ -40,6 +41,7 @@ struct Api {
   VisibleElementFn visible = reinterpret_cast<VisibleElementFn>(EngineExport(ee::kGetVisibleListElement));
   VarGetIntFn var_get_int = reinterpret_cast<VarGetIntFn>(EngineExport(ee::kVarTableGetInt));
   VarSetIntFn var_set_int = reinterpret_cast<VarSetIntFn>(EngineExport(ee::kVarTableSetInt));
+  VarGetStringFn var_get_string = reinterpret_cast<VarGetStringFn>(EngineExport(ee::kVarTableGetString));
   ExoStringFn make_string = reinterpret_cast<ExoStringFn>(EngineExport(ee::kExoStringFromChars));
   ExoStringDestroyFn destroy_string = reinterpret_cast<ExoStringDestroyFn>(EngineExport(ee::kExoStringDestructor));
   StatFn strength = reinterpret_cast<StatFn>(EngineExport(ee::kGetSTRStat));
@@ -164,6 +166,17 @@ void SetLocalInt(void* object, const char* name, int value) {
   if (!object || !VarsAvailable()) return;
   EngineString text(name);
   E().var_set_int(static_cast<uint8_t*>(object) + ee::kObjectVarTable, text.get(), value, 0);
+}
+
+std::string GetLocalString(void* object, const char* name) {
+  if (!object || !VarsAvailable() || !E().var_get_string) return "";
+  EngineString text(name);
+  alignas(16) uint8_t result[32] = {};
+  E().var_get_string(static_cast<uint8_t*>(object) + ee::kObjectVarTable, result, text.get());
+  const char* chars = Field<const char*>(result, 0);
+  std::string value = chars ? chars : "";
+  E().destroy_string(result);
+  return value;
 }
 
 int StrengthModifier(void* stats) {

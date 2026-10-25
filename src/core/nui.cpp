@@ -204,6 +204,16 @@ std::string Cell(const std::string& element, float width, bool variable) {
   return "[" + element + rest;
 }
 
+std::string Group(const std::string& child, bool border) {
+  return Element("group", "null", "null",
+                 ",\"children\":[" + child + "],\"border\":" + (border ? "true" : "false") + ",\"scrollbars\":4");
+}
+
+std::string Sized(const std::string& element, float width, float height) {
+  if (element.empty() || element.back() != '}') return element;
+  return element.substr(0, element.size() - 1) + Size("width", width) + Size("height", height) + "}";
+}
+
 std::string Window(const std::string& root, const std::string& title, float x, float y, float w, float h,
                    bool closable) {
   char geometry[128];

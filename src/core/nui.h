@@ -73,4 +73,9 @@ std::string ListView(const std::string& cells, const std::string& row_count, flo
 std::string Cell(const std::string& element, float width, bool variable);
 std::string Window(const std::string& root, const std::string& title, float x, float y, float w, float h,
                    bool closable = true);
+// A scrolling group around one element (nw_inc_nui's NuiGroup).
+std::string Group(const std::string& child, bool border = true);
+// Any element with a fixed width and / or height in pixels (NuiWidth /
+// NuiHeight; 0 leaves it to the layout).
+std::string Sized(const std::string& element, float width, float height = 0.0f);
 }  // namespace nui

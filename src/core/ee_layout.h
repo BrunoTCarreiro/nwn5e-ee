@@ -177,6 +177,8 @@ constexpr const char* kExoStringDestructor = "??1CExoString@@QEAA@XZ";
 constexpr size_t kObjectVarTable = 0x108;  // CNWSScriptVarTable (CopyScriptVars +0x1f)
 constexpr const char* kVarTableGetInt = "?GetInt@CNWSScriptVarTable@@QEAAHAEAVCExoString@@@Z";
 constexpr const char* kVarTableSetInt = "?SetInt@CNWSScriptVarTable@@QEAAXAEAVCExoString@@HH@Z";
+// CExoString CNWSScriptVarTable::GetString(CExoString& name) - returned by value (hidden result pointer).
+constexpr const char* kVarTableGetString = "?GetString@CNWSScriptVarTable@@QEAA?AVCExoString@@AEAV2@@Z";
 constexpr const char* kGetSTRStat = "?GetSTRStat@CNWSCreatureStats@@QEAAEXZ";
 constexpr const char* kCalcStatModifier = "?CalcStatModifier@CNWSCreatureStats@@QEAADE@Z";
 constexpr const char* kGetDEXMod = "?GetDEXMod@CNWSCreatureStats@@QEAADH@Z";
@@ -546,6 +548,26 @@ constexpr const char* kResManGet = "?Get@CExoResMan@@QEAA?AV?$shared_ptr@VDataBl
 constexpr const char* kResRefAssignChars = "??4CResRef@@QEAAAEAV0@PEBD@Z";
 constexpr const char* kDataBlockPtrDestructor = "??1?$shared_ptr@VDataBlock@@@std@@QEAA@XZ";
 constexpr uint32_t kServedPriority = 15000000;
+// The VFX editor (vfx_editor.cpp): its own folder (build\vfxedit), registered
+// with detect_changes so a model written while the game runs is found;
+// RemoveResourceDirectory + AddResourceDirectory re-reads it if not;
+// Exists(resref, type, size*) checks. The editor's models are found before the
+// served folder's.
+constexpr uint32_t kVfxEditorPriority = 15000010;
+constexpr const char* kRemoveResourceDirectory = "?RemoveResourceDirectory@CExoResMan@@QEAAHAEBVCExoString@@@Z";
+constexpr const char* kResManExists = "?Exists@CExoResMan@@QEAAHAEBVCResRef@@GPEAI@Z";
+constexpr uint16_t kResTypeMdl = 2002;
+// The client reads a visual effect's models from the loaded visualeffects
+// table each time it shows one (g_pRules +0x130 CTwoDimArrays, +0x280 the
+// visualeffects C2DA - Load2DArrays +0x552; read at e.g. 0x96D37F with the
+// column names inline), so the editor points its reserved row at a newly
+// written model with C2DA::SetCExoStringEntry(int row, CExoString column,
+// CExoString value) - strings by value: built with the engine's constructor,
+// the callee owns them. SetBlankEntry(int row, CExoString column) clears one.
+constexpr size_t kRulesTwoDimArrays = 0x130;
+constexpr size_t kTwoDimArraysVisualEffects = 0x280;
+constexpr const char* kC2DASetStringEntry = "?SetCExoStringEntry@C2DA@@QEAAHHVCExoString@@0@Z";
+constexpr const char* kC2DASetBlankEntry = "?SetBlankEntry@C2DA@@QEAAHHVCExoString@@@Z";
 constexpr uint16_t kResourceType2da = 2017;
 // Loaded tables (CNWRules): XP table int32 x 41 +0x28; feats +0xD8 (0x74
 // each, count uint16 +0x100; CNWFeat name strref +0x0, MinLevel uint8 +0x59);
