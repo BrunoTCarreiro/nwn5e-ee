@@ -1888,6 +1888,10 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   is how the crouch got there) - in stance_look, !anim and !animedit - and the
   idle restart is 0.5 s; the look log says whether it ran or the creature was
   busy (its action).
+  Known, accepted for now (owner, 2026-10-25: "they interfere with some
+  environment objects, but I guess that's fine for now"): the wedges are flat
+  models, so placeables, walls and uneven ground cut through them or hide
+  parts; a stepped cone cut at walls (line-of-sight slices) stays the option.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:
