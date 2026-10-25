@@ -18,6 +18,11 @@
 //   Light spell) and the darkvision visual (182) - and so EE's own light terms
 //   now (only at night: a watcher without a light or darkvision spots at -5, a
 //   hider carrying a light at +10).
+// - 0.38.1 (owner: "candles don't seem to have a light at all"): the lights
+//   within 10 m as the stealth light rule sees them - nwn5e's tile flame
+//   stand-ins (colour, out) and placeables lit or named like a light (candle,
+//   torch, lamp, brazier, fire: lit or not, their reach by brightness in cm) -
+//   with their distance and whether the line to you is clear.
 
 #include <stdint.h>
 
@@ -98,7 +103,28 @@ std::vector<std::string> LightCommand(void* creature, const std::string&) {
       " }"
       " o = GetNextObjectInShape(SHAPE_SPHERE, 20.0, at, FALSE, OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE);"
       "}"
-      "ln = (\"[light] light effects within 20 m: \" + IntToString(m) + seen); SendMessageToPC(pc, ln); rep += ln + \" || \"; SetLocalString(pc, \"nwn5e_light\", rep);";
+      "ln = (\"[light] light effects within 20 m: \" + IntToString(m) + seen); SendMessageToPC(pc, ln); rep += ln + \" || \";"
+      // The lights near you as the light rule sees them.
+      "int nf = 0; string near = \"\"; vector me = p + Vector(0.0, 0.0, 1.0);"
+      "o = GetFirstObjectInShape(SHAPE_SPHERE, 10.0, at, FALSE, OBJECT_TYPE_PLACEABLE);"
+      "while (GetIsObjectValid(o) && nf < 8) {"
+      " string nm = GetStringLowerCase(GetName(o) + \" \" + GetTag(o));"
+      " int flame = GetStringLeft(GetTag(o), 11) == \"nwn5e_flame\";"
+      " if (flame || GetPlaceableIllumination(o) || FindSubString(nm, \"candle\") >= 0 || FindSubString(nm, \"torch\") >= 0"
+      "     || FindSubString(nm, \"lamp\") >= 0 || FindSubString(nm, \"brazier\") >= 0 || FindSubString(nm, \"fire\") >= 0) {"
+      "  vector lp = GetPosition(o); if (!flame) lp.z = lp.z + 1.0;"
+      "  int los = LineOfSightVector(lp + VectorNormalize(me - lp) * 0.5, me);"
+      "  near += \" \" + (flame ? \"flame\" : GetName(o)) + \" \" + FloatToString(GetDistanceBetween(pc, o), 0, 1) + \"m\""
+      "   + (flame ? \" colour \" + IntToString(GetLocalInt(o, \"nwn5e_torch_colour\")) + (GetLocalInt(o, \"nwn5e_torch_out\") ? \" out\" : \"\")"
+      "            : (GetPlaceableIllumination(o) ? \" lit\" : \" unlit\") + \" reach \" + IntToString(GetLocalInt(o, \"nwn5e_light_bright\"))"
+      "              + \"/\" + IntToString(GetLocalInt(o, \"nwn5e_light_dim\")))"
+      "   + (los ? \" clear\" : \" BLOCKED\") + \";\";"
+      "  nf++;"
+      " }"
+      " o = GetNextObjectInShape(SHAPE_SPHERE, 10.0, at, FALSE, OBJECT_TYPE_PLACEABLE);"
+      "}"
+      "ln = (\"[light] lights within 10 m:\" + (nf ? near : \" none\")); SendMessageToPC(pc, ln); rep += ln + \" || \";"
+      "SetLocalString(pc, \"nwn5e_light\", rep);";
   const int result = RunScriptChunk(code.c_str(), id);
   if (result != 0) Log("light probe: the script failed (%d)", result);
   Log("light probe: 0x%08X %s", id, engine::GetLocalString(creature, "nwn5e_light").c_str());

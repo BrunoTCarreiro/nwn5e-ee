@@ -71,7 +71,9 @@
 //   its own, by its light colour's brightness (light_sources.cpp keeps it on it:
 //   nwn5e_light_bright / _dim in cm, -1 none; a brazier 4 / 9 m, a candle 2 /
 //   4.5 m), and its zone rings match; one without them (loaded before 0.38.0)
-//   keeps 4 / 9 m.
+//   keeps 4 / 9 m. (Owner, 2026-10-25, on candles not lighting: "I don't mind
+//   single candles being just there, but not counting as actual sources of
+//   light" - left so.)
 //   `stealth_light` (2024 perception). Light zones (0.32.1; owner: "Light
 //   sources should have a circle indicator so the player can see where they
 //   take effect"): while hiding, unless the area is bright everywhere, each lit
