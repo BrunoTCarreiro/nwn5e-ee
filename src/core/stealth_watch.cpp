@@ -60,7 +60,13 @@
 //   where the tile model's flame is - a bright colour (odd: white, pale) bright
 //   within 4 m and dim within 7.5 m, a pale dark one (even: half as bright) dim
 //   within 4 m; a doused one nothing. Their light zones show as rings too,
-//   drawn on the floor below the flame.
+//   drawn on the floor below the flame. 0.37.2 (owner: "I'm seeing some light
+//   sources affecting my character through a wall"): a light counts only with a
+//   clear line from it to the hider's chest (LineOfSightVector, from half a
+//   metre out of the light toward the hider so its own model or wall doesn't
+//   block it) - lit placeables, light effects and tile flames alike. The
+//   game's own lighting may still shine through walls on screen. Its light
+//   zone rings show only for a light with that clear line too.
 //   `stealth_light` (2024 perception). Light zones (0.32.1; owner: "Light
 //   sources should have a circle indicator so the player can see where they
 //   take effect"): while hiding, unless the area is bright everywhere, each lit
@@ -203,6 +209,8 @@ std::string LightPart(int carried, bool zones) {
     return "(((" + s + " >> 16) & 255) * 299 + ((" + s + " >> 8) & 255) * 587 + (" + s + " & 255) * 114) / 1000";
   };
   std::string code = "int light = 0; object area = GetArea(pc); int night = GetIsNight();"
+         // A light counts only with a clear line from it to the hider's chest (not through a wall).
+         "vector me = GetPosition(pc) + Vector(0.0, 0.0, 1.0); vector lp;"
          "int amb = GetAreaLightColor(night ? AREA_LIGHT_COLOR_MOON_AMBIENT : AREA_LIGHT_COLOR_SUN_AMBIENT, area);"
          "int dif = GetAreaLightColor(night ? AREA_LIGHT_COLOR_MOON_DIFFUSE : AREA_LIGHT_COLOR_SUN_DIFFUSE, area);"
          "int lum = " + lum("amb") + " + (" + lum("dif") + ") / 2;"
@@ -215,13 +223,18 @@ std::string LightPart(int carried, bool zones) {
          std::to_string(rules::CarriedLightLevel(carried)) + ";"
          "object q = GetFirstObjectInShape(SHAPE_SPHERE, 9.0, at, FALSE, OBJECT_TYPE_PLACEABLE);"
          "while (light < 2 && GetIsObjectValid(q)) {"
-         " if (GetPlaceableIllumination(q)) { if (GetDistanceBetween(pc, q) <= 4.0) light = 2; else if (light < 1) light = 1; }"
+         " lp = GetPosition(q) + Vector(0.0, 0.0, 1.0);"
+         " if (GetPlaceableIllumination(q) && LineOfSightVector(lp + VectorNormalize(me - lp) * 0.5, me)) {"
+         "  if (GetDistanceBetween(pc, q) <= 4.0) light = 2; else if (light < 1) light = 1;"
+         " }"
          " q = GetNextObjectInShape(SHAPE_SPHERE, 9.0, at, FALSE, OBJECT_TYPE_PLACEABLE);"
          "}"
          // Tile flames (their stand-ins): a bright colour bright within 4 m, dim within 7.5 m; a pale dark one dim within 4 m.
          "object tf = GetFirstObjectInShape(SHAPE_SPHERE, 8.0, at, FALSE, OBJECT_TYPE_PLACEABLE);"
          "while (light < 2 && GetIsObjectValid(tf)) {"
-         " if (GetStringLeft(GetTag(tf), 11) == \"nwn5e_flame\" && !GetLocalInt(tf, \"nwn5e_torch_out\")) {"
+         " lp = GetPosition(tf);"
+         " if (GetStringLeft(GetTag(tf), 11) == \"nwn5e_flame\" && !GetLocalInt(tf, \"nwn5e_torch_out\")"
+         "     && LineOfSightVector(lp + VectorNormalize(me - lp) * 0.5, me)) {"
          "  float fd = GetDistanceBetween(pc, tf);"
          "  if (GetLocalInt(tf, \"nwn5e_torch_colour\") % 2 == 1) { if (fd <= 4.0) light = 2; else if (fd <= 7.5 && light < 1) light = 1; }"
          "  else if (fd <= 4.0 && light < 1) light = 1;"
@@ -236,6 +249,8 @@ std::string LightPart(int carried, bool zones) {
          "   int v = GetEffectInteger(e, 0);"
          "   if (v >= 153 && v <= 180) {"
          "    float r = 5.0 * IntToFloat(1 + (v - 153) % 4); float d = GetDistanceBetween(pc, q);"
+         "    lp = GetPosition(q) + Vector(0.0, 0.0, 1.0);"
+         "    if (q != pc && !LineOfSightVector(lp + VectorNormalize(me - lp) * 0.5, me)) d = 999.0;"
          "    if (d <= r / 2.0) light = 2; else if (d <= r && light < 1) light = 1;"
          "   }"
          "  }"
@@ -269,6 +284,11 @@ std::string LightPart(int carried, bool zones) {
          "    le = GetNextEffect(s);"
          "   }"
          "  }"
+         " }"
+         // Only a light with a clear line to the hider shows its zone (not one in the next room).
+         " if (zone) {"
+         "  lp = GetPosition(s); if (GetStringLeft(GetTag(s), 11) != \"nwn5e_flame\") lp.z = lp.z + 1.0;"
+         "  if (!LineOfSightVector(lp + VectorNormalize(me - lp) * 0.5, me)) zone = 0;"
          " }"
          " if (zone != GetLocalInt(s, \"nwn5e_lring\")) {"
          "  effect le = GetFirstEffect(s);"
