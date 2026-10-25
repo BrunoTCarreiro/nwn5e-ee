@@ -254,11 +254,15 @@
     const find = (name) => bones.findIndex((b, i) => lower(b.name) === name && inClip[i] >= 0);
     const under = (bone, ancestor) => { for (let at = bone; at >= 0; at = bones[at].parent) if (at === ancestor) return true; return false; };
     const root = find("rootdummy"), torso = find("torso_g");
-    let head = find("head_g");
+    let head = find("head_g"), pelvis = find("pelvis_g");
     if (head >= 0 && (torso < 0 || !under(head, torso))) head = -1;
+    if (pelvis >= 0 && (torso < 0 || under(pelvis, torso) || under(torso, pelvis))) pelvis = -1;
     const crouching = crouch !== 0 && root >= 0;
     const leaning = leanDegrees !== 0 && torso >= 0;
     if (!crouching && !leaning) return false;
+    const hinging = leaning && pelvis >= 0;  // a hip hinge: the pelvis tips 35% of the lean, the legs solved again
+    // The arms hang from the torso: turned back to swing as they did in the world, not trailing back.
+    const arms = leaning ? ["lbicep_g", "rbicep_g"].map(find).filter((a) => a >= 0 && a !== torso && under(a, torso)) : [];
     const legs = [];
     for (const side of ["l", "r"]) {
       const leg = { thigh: find(side + "thigh_g"), shin: find(side + "shin_g"), foot: find(side + "foot_g") };
@@ -272,10 +276,11 @@
     const lean = (leanDegrees * Math.PI) / 180;
     const leanTurn = axisAngle([1, 0, 0], -lean);  // +Z toward +Y: forward
     const headTurn = axisAngle([1, 0, 0], -lean * 0.3);
+    const hipTurn = axisAngle([1, 0, 0], -lean * 0.35);
     const moved = [];
     if (crouching) moved.push(root);
-    if (leaning) { moved.push(torso); if (head >= 0) moved.push(head); }
-    if (crouching) for (const leg of legs) moved.push(leg.thigh, leg.shin, leg.foot);
+    if (leaning) { moved.push(torso); if (head >= 0) moved.push(head); if (hinging) moved.push(pelvis); moved.push(...arms); }
+    if (crouching || hinging) for (const leg of legs) moved.push(leg.thigh, leg.shin, leg.foot);
     const keys = new Map(moved.map((b) => [b, { times: [], values: [] }]));
     for (const t of times) {
       const before = poseAt(clip, inClip, bones, t);
@@ -283,14 +288,19 @@
       if (leaning) {
         const up = bones[torso].parent;
         now.lq[torso] = qnorm(qmul(qconj(up >= 0 ? before.wq[up] : IDENTITY), qmul(leanTurn, before.wq[torso])));
-        if (head >= 0) {
-          forward(bones, now);
-          now.lq[head] = qnorm(qmul(qconj(now.wq[bones[head].parent]), qmul(headTurn, before.wq[head])));
+        if (hinging) {
+          const hipUp = bones[pelvis].parent;
+          now.lq[pelvis] = qnorm(qmul(qconj(hipUp >= 0 ? before.wq[hipUp] : IDENTITY), qmul(hipTurn, before.wq[pelvis])));
         }
+        forward(bones, now);
+        if (head >= 0) now.lq[head] = qnorm(qmul(qconj(now.wq[bones[head].parent]), qmul(headTurn, before.wq[head])));
+        for (const arm of arms) now.lq[arm] = qnorm(qmul(qconj(now.wq[bones[arm].parent]), before.wq[arm]));
       }
       if (crouching) {
         const up = bones[root].parent;
         now.lp[root] = add(now.lp[root], rotate(qconj(up >= 0 ? before.wq[up] : IDENTITY), [0, 0, -crouch]));
+      }
+      if (crouching || hinging) {
         forward(bones, now);
         for (const leg of legs) solveLeg(bones, before, now, leg);
       }

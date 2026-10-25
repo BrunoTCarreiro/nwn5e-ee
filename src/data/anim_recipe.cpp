@@ -450,11 +450,18 @@ bool ApplyCrouch(AnimClip* clip, const std::vector<AnimNode>& bones, float crouc
     return -1;
   };
   const int root = find("rootdummy"), torso = find("torso_g");
-  int head = find("head_g");
+  int head = find("head_g"), pelvis = find("pelvis_g");
   if (head >= 0 && (torso < 0 || !Under(bones, head, torso))) head = -1;
+  if (pelvis >= 0 && (torso < 0 || Under(bones, pelvis, torso) || Under(bones, torso, pelvis))) pelvis = -1;
   const bool crouching = crouch != 0.0f && root >= 0;
   const bool leaning = lean_degrees != 0.0f && torso >= 0;
   if (!crouching && !leaning) return false;
+  const bool hinging = leaning && pelvis >= 0;  // the legs hang from the pelvis: solved again too
+  std::vector<int> arms;  // they hang from the torso: turned back to swing as they did in the world
+  for (const char* name : {"lbicep_g", "rbicep_g"}) {
+    const int arm = find(name);
+    if (leaning && arm >= 0 && arm != torso && Under(bones, arm, torso)) arms.push_back(arm);
+  }
   std::vector<Leg> legs;
   for (const char* side : {"l", "r"}) {
     const Leg leg = {find((std::string(side) + "thigh_g").c_str()), find((std::string(side) + "shin_g").c_str()),
@@ -472,13 +479,16 @@ bool ApplyCrouch(AnimClip* clip, const std::vector<AnimNode>& bones, float crouc
   const float lean = lean_degrees * kPi / 180.0f;
   const Quat lean_turn = AxisAngleQ({1.0f, 0.0f, 0.0f}, -lean);  // +Z toward +Y: forward
   const Quat head_turn = AxisAngleQ({1.0f, 0.0f, 0.0f}, -lean * 0.3f);
+  const Quat hip_turn = AxisAngleQ({1.0f, 0.0f, 0.0f}, -lean * 0.35f);
   std::vector<int> moved;
   if (crouching) moved.push_back(root);
   if (leaning) {
     moved.push_back(torso);
     if (head >= 0) moved.push_back(head);
+    if (hinging) moved.push_back(pelvis);
+    moved.insert(moved.end(), arms.begin(), arms.end());
   }
-  if (crouching) {
+  if (crouching || hinging) {
     for (const Leg& leg : legs) moved.insert(moved.end(), {leg.thigh, leg.shin, leg.foot});
   }
   std::vector<AnimKeys> keys(bones.size());
@@ -488,14 +498,22 @@ bool ApplyCrouch(AnimClip* clip, const std::vector<AnimNode>& bones, float crouc
     if (leaning) {
       const int up = bones[torso].parent;
       now.lq[torso] = QNormalized(QMul(QConj(up >= 0 ? before.wq[up] : kIdentity), QMul(lean_turn, before.wq[torso])));
+      if (hinging) {
+        const int hip_up = bones[pelvis].parent;
+        now.lq[pelvis] =
+            QNormalized(QMul(QConj(hip_up >= 0 ? before.wq[hip_up] : kIdentity), QMul(hip_turn, before.wq[pelvis])));
+      }
+      Forward(bones, &now);
       if (head >= 0) {
-        Forward(bones, &now);
         now.lq[head] = QNormalized(QMul(QConj(now.wq[bones[head].parent]), QMul(head_turn, before.wq[head])));
       }
+      for (int arm : arms) now.lq[arm] = QNormalized(QMul(QConj(now.wq[bones[arm].parent]), before.wq[arm]));
     }
     if (crouching) {
       const int up = bones[root].parent;
       now.lp[root] = Add(now.lp[root], Rotate(QConj(up >= 0 ? before.wq[up] : kIdentity), {0.0f, 0.0f, -crouch}));
+    }
+    if (crouching || hinging) {
       Forward(bones, &now);
       for (const Leg& leg : legs) SolveLeg(bones, before, &now, leg);
     }

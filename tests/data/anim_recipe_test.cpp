@@ -17,7 +17,8 @@
 // tested on a library built here, nothing of the game's. The crouch step: hips
 // that don't drop by the crouch, an ankle that leaves the walk's footfall
 // (sinks or floats), a knee that doesn't come forward, a lean that tips the
-// wrong way or drags the head with it, legs moved by a lean.
+// wrong way or drags the head with it, a pelvis that doesn't hinge, feet moved
+// by the hinge, arms that trail back with the torso.
 
 using namespace data;
 
@@ -58,13 +59,15 @@ AnimNode Bone(const char* name, int parent, float x, float y, float z) {
   return b;
 }
 
-// A body: the hips 1 m up, one leg (45 cm thigh, 42 cm shin), the torso to the neck.
+// A body: the hips 1 m up, one leg (45 cm thigh, 42 cm shin), the torso to the
+// neck, one arm (30 cm upper arm) from the shoulder.
 std::vector<AnimNode> Body() {
   return {Bone("a_test", -1, 0.0f, 0.0f, 0.0f),   Bone("rootdummy", 0, 0.0f, 0.0f, 1.0f),
           Bone("pelvis_g", 1, 0.0f, 0.0f, 0.0f),  Bone("lthigh_g", 2, -0.1f, 0.0f, -0.05f),
           Bone("lshin_g", 3, 0.0f, 0.0f, -0.45f), Bone("lfoot_g", 4, 0.0f, 0.0f, -0.42f),
           Bone("torso_g", 1, 0.0f, 0.0f, 0.0f),   Bone("neck_g", 6, 0.0f, 0.0f, 0.45f),
-          Bone("head_g", 7, 0.0f, 0.0f, 0.08f)};
+          Bone("head_g", 7, 0.0f, 0.0f, 0.08f),   Bone("lbicep_g", 6, -0.2f, 0.0f, 0.42f),
+          Bone("lforearm_g", 9, 0.0f, 0.0f, -0.3f)};
 }
 
 std::array<float, 4> TurnX(float degrees) {
@@ -174,8 +177,20 @@ TEST(AnimRecipeLeanTiltsTheUpperBody) {
   CHECK_EQ(Milli(b[7][1]), 154);            // the neck, 45 cm up, 20 degrees forward: 0.45 sin 20
   CHECK_EQ(Milli(b[7][2] - a[7][2]), -27);  // and 0.45 (cos 20 - 1) lower
   CHECK_EQ(Milli(leaning.nodes[8].orientation.values[0][0]), 122);  // the head back 14 degrees: sin 7
-  CHECK_EQ(Milli(b[5][1] - a[5][1]), 0);    // the legs untouched
-  CHECK_EQ(Milli(b[1][2] - a[1][2]), 0);    // and the hips
+  const AnimKeys& hips = leaning.nodes[2].orientation;  // the pelvis tipped 35%, 7 degrees: sin -3.5
+  CHECK_EQ(hips.values.empty() ? 0 : Milli(hips.values[0][0]), -61);
+  CHECK_EQ(Milli(b[1][2] - a[1][2]), 0);    // the hips at their height
+  CHECK_EQ(b[9][1] > a[9][1] + 0.1f, true);  // the shoulder forward with the torso
+  for (int c = 0; c < 3; ++c) {                // but the arm hanging as it did, not trailing back
+    CHECK_EQ(Milli((b[10][c] - b[9][c]) - (a[10][c] - a[9][c])), 0);
+  }
+  // The feet stay put though the pelvis they hang from tipped, between keys too.
+  int worst = 0;
+  for (int k = 0; k <= 60; ++k) {
+    const auto w0 = AnimWorldPositions(walk, body, k / 60.0f), w1 = AnimWorldPositions(leaning, body, k / 60.0f);
+    for (int c = 0; c < 3; ++c) worst = std::max(worst, abs(Milli(w0[5][c] - w1[5][c])));
+  }
+  CHECK_EQ(worst <= 10, true);
 }
 
 TEST(AnimRecipeMixesTrimsAndSpeeds) {

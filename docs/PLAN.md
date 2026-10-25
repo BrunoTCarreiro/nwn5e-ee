@@ -1733,6 +1733,14 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   walk: the crouch wins over the exhausted look (rules_dying.cpp passes the
   level in). The bench has Crouch and Lean sliders. Not yet checked in game:
   whether stealth mode moves at a speed the walk's stride matches (foot slide).
+  0.25.1 (owner: "it's an improvement, the main issue is that the pose still
+  keeps a straight back, instead of leaning forward"): measured, lean 15 from
+  the waist only gave a spine 12-16 degrees forward - too little to read from
+  the game's camera. Lean is now a hip hinge (the pelvis tips 35% of it, the
+  legs solved again so the feet stay put - lean works without a crouch too),
+  the arms are turned back to hang as the animation swings them (a side profile
+  showed them trailing back with the torso, a skier's tuck), and n5_crwalk /
+  n5_cridle lean 30 (spine 31 / 27 degrees forward, plus the hip tip).
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

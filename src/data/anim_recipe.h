@@ -12,8 +12,11 @@
 // the trigger"), after the mix, speed and trim: the hips drop `crouch` metres
 // and each leg is solved again (thigh and shin, the knee in its own bend
 // plane) so the ankle stays where the animation had it - same footfalls, same
-// stride, knees bending deeper; `lean` tilts the upper body forward from the
-// waist, the head tilting 70% of it back to look ahead. A plain mix toward a
+// stride, knees bending deeper; `lean` tilts the upper body forward - a hip
+// hinge: the pelvis tips 35% of it, the torso all of it, the legs solved again
+// so the feet stay put - the head tilting 70% of it back to look ahead and the
+// arms hanging as the animation swings them, not trailing back with the torso
+// (owner, on 15 degrees from the waist only: "the pose still keeps a straight back"). A plain mix toward a
 // crouched pose can't do it (measured: walk -> getlowlp 0.3 sinks the planted
 // foot 14 cm into the floor, never lifts the other, shortens the stride). The
 // legs are solved on the library's bones; the skeletons are uniform scales of
