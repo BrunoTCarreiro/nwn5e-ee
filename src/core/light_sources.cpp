@@ -15,7 +15,16 @@
 // placeable (most stock blueprints without a Static field load so) is scenery
 // to the client - sent once with the area, no updates, not clickable, and
 // SetUseableFlag refuses it - so it is left alone (found by the useable flag
-// not taking). Those scripts don't exist as
+// not taking). 0.36.1 (owner: "I can't click any lights" - the log: "0 light
+// sources here can be put out (12 static ...)"): every light in the areas tried
+// was static, so a lit one without inventory is made a normal placeable as it
+// loads - CNWSPlaceable::LoadPlaceable is hooked, and after it its Static
+// (+0x5a0; a blueprint without the field is static unless Useable) is cleared
+// when LightState (+0x594) is on and HasInventory (+0x4f8) off. That is before
+// the area is sent to the client (PackAreaIntoMessage reads it), so the client
+// gets it as an object it can click and update. It stays plot (LoadPlaceable
+// makes a static placeable plot): a hit does no damage, but OnDamaged still
+// fires (OnApplyDamage posts it before its plot test), so it can't be smashed. Those scripts don't exist as
 // files: a hook on CVirtualMachine::RunScript (every event script goes through
 // it: CNWSObject::RunEventScript -> RunScript(name, self, 1, type x 1000 +
 // event)) runs nwn5e's code for the names n5_lamp_use / n5_lamp_hit /
@@ -67,7 +76,29 @@
 namespace {
 
 using RunScriptFn = int (*)(void* vm, void* name, uint32_t self, int self_valid, int event);
+using LoadPlaceableFn = int (*)(void* placeable, void* gff, void* gff_struct, int flag, void* tag);
 RunScriptFn g_run_script = nullptr;
+LoadPlaceableFn g_load_placeable = nullptr;
+
+constexpr const char* kLoadPlaceable = "?LoadPlaceable@CNWSPlaceable@@QEAAHPEAVCResGFF@@PEAVCResStruct@@HPEAVCExoString@@@Z";
+constexpr size_t kPlaceableStatic = 0x5a0;        // int32 (LoadPlaceable: "Static")
+constexpr size_t kPlaceableLightState = 0x594;    // int32 ("LightState": lit)
+constexpr size_t kPlaceableHasInventory = 0x4f8;  // int32 ("HasInventory")
+constexpr size_t kPlaceableAppearance = 0x32c;    // uint16 ("Appearance": placeables.2da)
+int g_unstatic = 0;                               // static lights made normal placeables
+
+int LoadPlaceable(void* placeable, void* gff, void* gff_struct, int flag, void* tag) {
+  const int result = g_load_placeable(placeable, gff, gff_struct, flag, tag);
+  if (result && placeable && Field<int32_t>(placeable, kPlaceableStatic) == 1 &&
+      Field<int32_t>(placeable, kPlaceableLightState) != 0 && Field<int32_t>(placeable, kPlaceableHasInventory) == 0) {
+    SetField<int32_t>(placeable, kPlaceableStatic, 0);
+    if (++g_unstatic <= 5 || g_unstatic % 50 == 0) {
+      Log("lights: a static light (placeables.2da row %d) loaded as a normal placeable, so it can be put out (%d so far)",
+          Field<uint16_t>(placeable, kPlaceableAppearance), g_unstatic);
+    }
+  }
+  return result;
+}
 
 constexpr const char* kRunScript = "?RunScript@CVirtualMachine@@QEAAHPEAVCExoString@@IHH@Z";
 constexpr const char* kUseScript = "n5_lamp_use";
@@ -322,6 +353,8 @@ void InstallLightSources() {
   if (g_config.light_sources) {
     HookExport("CVirtualMachine::RunScript (nwn5e's light scripts: put out, attacked, spells)", kRunScript,
                reinterpret_cast<void*>(&RunScript), reinterpret_cast<void**>(&g_run_script));
+    HookExport("CNWSPlaceable::LoadPlaceable (a static light loads as a normal placeable)", kLoadPlaceable,
+               reinterpret_cast<void*>(&LoadPlaceable), reinterpret_cast<void**>(&g_load_placeable));
   }
   if (!g_config.light_sources && g_map_light >= 100) return;
   if (AddCreatureUpdateListener(&Update)) {
