@@ -1971,6 +1971,18 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   through CNWCObject vtable slot 43 / 0x801e00), so an outline for a hider
   would add the model to the scene list directly and put it back when the
   mouse-over code removes it.
+  0.34.0 (owner: "go with A"): built so. stealth_ghost.cpp hooks the client
+  creature's per-frame update (CNWCCreature vtable slot 29, rva 0x7fbd10, entry
+  bytes checked); after it, a creature registered as hiding has its model
+  (+0x78 -> +0xc8) put on the scene's list (client app +0x8 -> +0x30 -> area
+  +0xf8 -> scene +0x248) in pale white-cyan (0.80, 0.95, 1.0) whenever it isn't
+  on it - so a hover's own colour shows while the pointer is on it, then ours
+  comes back - and taken off when it stops hiding; models and scenes seen
+  before are only compared (a new area forgets them). The scene's slots 35 / 36
+  are checked against the exports first. Unverified in play: how the glow
+  looks on a see-through model, whether it pulses, and whether the client
+  object id matches the server's (0x7FFFFFFF) - "stealth outline: 0x... outlined
+  while it hides" in the log says it did. `stealth_outline`.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

@@ -103,6 +103,12 @@ struct Config {
   // dark" - "do not make the ghostly effect pulse"): a hiding player character
   // is see-through by its light, steadily (stealth_ghost.cpp).
   bool stealth_ghost = true;
+  // With stealth_ghost (owner, 2026-10-25: "there might be an issue with the
+  // transparency levels where the player might not see their own character in
+  // high levels of stealth. Is it possible to add any kind of outline to
+  // characters?" - "go with A"): a hiding character is outlined in EE's own
+  // highlight glow (stealth_ghost.cpp).
+  bool stealth_outline = true;
   // SK10: faithful = spell attacks are PB + casting ability against full AC,
   // with advantage / disadvantage; nwn / off = NWN's touch attacks.
   rules::RuleVariant spell_attacks = rules::RuleVariant::kFaithful;

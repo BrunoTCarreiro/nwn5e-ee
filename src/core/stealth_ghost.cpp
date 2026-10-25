@@ -18,6 +18,23 @@
 // its entry bytes, checked to be one function's entry that reads an effect's
 // alpha, and skipped (logged) otherwise. `stealth_ghost` (2024 perception,
 // stealth_light).
+//
+// The outline (0.34.0; owner, 2026-10-25: "there might be an issue with the
+// transparency levels where the player might not see their own character in
+// high levels of stealth. Is it possible to add any kind of outline to
+// characters?" - "go with A"): a hider gets EE's own highlight glow, the one
+// the mouse-over and Tab draw round a silhouette, in a pale white-cyan. The
+// scene keeps a list of highlighted models and colours (Scene::AddHighlightGob /
+// RemoveHighlightGob, vtable slots 35 / 36, checked against their exports); the
+// engine reaches the scene as client app (*g_pAppManager) +0x8 -> +0x30 -> its
+// area +0xf8 -> +0x248, and a creature's model as its animation object (+0x78)
+// +0xc8, checked with the model's own vtable slot 67 first - all as its
+// highlight code (0x966170) does. Each frame, after a client creature's update
+// (CNWCCreature vtable slot 29, entry bytes checked), a hiding creature's model
+// is put on the list when it isn't on it (the mouse-over takes it off when the
+// pointer leaves; a hover's colour shows while hovering), and taken off when it
+// stops hiding. A model or scene seen before is only compared, never followed:
+// after a new area the old ones are just forgotten. `stealth_outline`.
 
 #include <stdint.h>
 
@@ -25,6 +42,7 @@
 
 #include "config.h"
 #include "creature.h"
+#include "engine.h"
 #include "ee_layout.h"
 #include "hooks.h"
 #include "log.h"
@@ -40,6 +58,33 @@ constexpr const char* kEffectAlphaEntry =
     "48 89 5c 24 10 48 89 74 24 18 57 48 83 ec 30 48 8b 81 80 00 00 00 48 8b f1 0f 29 74 24 20 40 b7 ff";
 // Inside it: movss xmm6, [rbx+100h] (an effect's alpha).
 constexpr uint8_t kReadsEffectAlpha[] = {0xf3, 0x0f, 0x10, 0xb3, 0x00, 0x01, 0x00, 0x00};
+
+// The outline (see above).
+constexpr const char* kRttiClientCreature = ".?AVCNWCCreature@@";
+constexpr int kCreatureUpdateSlot = 29;
+// Its entry: mov rax,rsp; push rbp; push r12; push r13; push r14; push r15; lea rbp,[rax-5Fh].
+constexpr uint8_t kCreatureUpdateEntry[] = {0x48, 0x8b, 0xc4, 0x55, 0x41, 0x54, 0x41, 0x55,
+                                            0x41, 0x56, 0x41, 0x57, 0x48, 0x8d, 0x68, 0xa1};
+constexpr const char* kSceneAddHighlight = "?AddHighlightGob@Scene@@UEAAXPEAVCAurObject@@AEAVVector@@@Z";
+constexpr const char* kSceneRemoveHighlight = "?RemoveHighlightGob@Scene@@UEAAXPEAVCAurObject@@@Z";
+constexpr int kSceneAddSlot = 35, kSceneRemoveSlot = 36;
+constexpr size_t kClientAppInternal = 0x8;      // CClientExoApp -> its internal object
+constexpr size_t kInternalGame = 0x30;          // -> what holds the area shown
+constexpr size_t kGameArea = 0xf8;              // -> the client area
+constexpr size_t kAreaScene = 0x248;            // -> its Scene
+constexpr size_t kSceneHighlights = 0x80;       // CAurObject** (count int32 +0x88)
+constexpr size_t kSceneHighlightCount = 0x88;
+constexpr size_t kClientObjectAnim = 0x78;      // CNWCObject -> its animation object
+constexpr size_t kAnimModel = 0xc8;             // -> its model (Gob)
+constexpr int kModelReadySlot = 0x218 / 8;      // the model's check before a highlight (0x96628c)
+constexpr float kOutlineColour[3] = {0.80f, 0.95f, 1.0f};  // pale white-cyan
+
+using CreatureUpdateFn = int64_t (*)(void* creature);
+using AddHighlightFn = void (*)(void* scene, void* model, const float* colour);
+using RemoveHighlightFn = void (*)(void* scene, void* model);
+using ModelReadyFn = void* (*)(void* model);
+CreatureUpdateFn g_creature_update = nullptr;
+uintptr_t g_add_export = 0, g_remove_export = 0;
 
 // Who hides now and how see-through each is (0: the slot is free).
 struct Hider {
@@ -88,6 +133,109 @@ float EffectAlpha(void* object) {
   return want;
 }
 
+// The outline's bookkeeping, the client's thread only.
+struct Outline {
+  uint32_t id = 0;
+  void* model = nullptr;  // compared only
+  void* scene = nullptr;  // compared only
+};
+Outline g_outlines[kHiders];
+int g_outlined = 0;
+int g_scene_slots_ok = -1;  // the scene's vtable slots are the exported highlight functions: -1 not checked yet
+
+void* SceneNow() {
+  static void** app_manager = reinterpret_cast<void**>(EngineExport(ee::kAppManager));
+  if (!app_manager || !*app_manager) return nullptr;
+  void* client = Field<void*>(*app_manager, 0);
+  void* internal = client ? Field<void*>(client, kClientAppInternal) : nullptr;
+  void* game = internal ? Field<void*>(internal, kInternalGame) : nullptr;
+  void* area = game ? Field<void*>(game, kGameArea) : nullptr;
+  return area ? Field<void*>(area, kAreaScene) : nullptr;
+}
+
+bool Listed(void* scene, void* model) {
+  void* const* models = Field<void* const*>(scene, kSceneHighlights);
+  const int count = Field<int32_t>(scene, kSceneHighlightCount);
+  if (!models || count <= 0 || count > 4096) return false;
+  for (int i = 0; i < count; ++i) {
+    if (models[i] == model) return true;
+  }
+  return false;
+}
+
+void* VirtualAt(void* object, int slot) { return reinterpret_cast<void* const*>(Field<void*>(object, 0))[slot]; }
+
+bool SceneSlotsOk(void* scene) {
+  if (g_scene_slots_ok < 0) {
+    const uintptr_t add = reinterpret_cast<uintptr_t>(VirtualAt(scene, kSceneAddSlot));
+    const uintptr_t remove = reinterpret_cast<uintptr_t>(VirtualAt(scene, kSceneRemoveSlot));
+    g_scene_slots_ok = add == g_add_export && remove == g_remove_export ? 1 : 0;
+    if (!g_scene_slots_ok) Log("SKIP stealth outline: the scene's highlight slots aren't the exported functions");
+  }
+  return g_scene_slots_ok == 1;
+}
+
+void Forget(Outline* o) {
+  *o = Outline{};
+  --g_outlined;
+}
+
+// One client creature, after its update: its outline on while it hides, off after.
+void OutlineStep(void* creature) {
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  if (!id) return;
+  Hider* slot = nullptr;
+  const bool hiding = OpacityOf(id, &slot) > 0.0f;
+  Outline* o = nullptr;
+  Outline* free_slot = nullptr;
+  for (Outline& x : g_outlines) {
+    if (x.id == id) o = &x;
+    if (!x.id && !free_slot) free_slot = &x;
+  }
+  if (!hiding && !o) return;
+  void* anim = Field<void*>(creature, kClientObjectAnim);
+  void* model = anim ? Field<void*>(anim, kAnimModel) : nullptr;
+  void* scene = SceneNow();
+  if (!hiding) {
+    // Off - only from the model and scene it was put on (a new area took them away).
+    if (model && scene && o->model == model && o->scene == scene && SceneSlotsOk(scene) && Listed(scene, model)) {
+      reinterpret_cast<RemoveHighlightFn>(VirtualAt(scene, kSceneRemoveSlot))(scene, model);
+    }
+    Log("stealth outline: 0x%08X outline off", id);
+    Forget(o);
+    return;
+  }
+  if (!model || !scene || !SceneSlotsOk(scene)) return;
+  if (o && (o->model != model || o->scene != scene)) {
+    Forget(o);  // a new area or body: the old ones went with it
+    o = nullptr;
+    for (Outline& x : g_outlines) {
+      if (!x.id) {
+        free_slot = &x;
+        break;
+      }
+    }
+  }
+  if (!o) {
+    if (!free_slot) return;
+    o = free_slot;
+    o->id = id;
+    o->model = model;
+    o->scene = scene;
+    ++g_outlined;
+    Log("stealth outline: 0x%08X outlined while it hides", id);
+  }
+  if (Listed(scene, model)) return;  // on (ours, or a hover's while the pointer is on it)
+  if (!reinterpret_cast<ModelReadyFn>(VirtualAt(model, kModelReadySlot))(model)) return;
+  reinterpret_cast<AddHighlightFn>(VirtualAt(scene, kSceneAddSlot))(scene, model, kOutlineColour);
+}
+
+int64_t CreatureUpdate(void* creature) {
+  const int64_t result = g_creature_update(creature);
+  if (creature && (g_outlined > 0 || AnyoneHides())) OutlineStep(creature);
+  return result;
+}
+
 }  // namespace
 
 // stealth_watch.cpp: the opacity a hider's light calls for (0.9 light, 0.7 dim, 0.5
@@ -133,5 +281,19 @@ void InstallStealthGhost() {
   if (HookAddress("client see-through alpha of an object (a hiding character's look by its light)", entry,
                   reinterpret_cast<void*>(&EffectAlpha), reinterpret_cast<void**>(&g_effect_alpha))) {
     Log("stealth ghost: a hiding character is 90%% visible in light, 70%% in dim, 50%% in dark (stealth_ghost)");
+  }
+  if (!g_config.stealth_outline) return;
+  g_add_export = EngineExport(kSceneAddHighlight);
+  g_remove_export = EngineExport(kSceneRemoveHighlight);
+  const uintptr_t vtable = FindVtable("client creature: its vtable (stealth outline)", kRttiClientCreature);
+  const uintptr_t update = VtableSlot(vtable, kCreatureUpdateSlot);
+  if (!g_add_export || !g_remove_export || !update || FunctionEntry(update) != update ||
+      !ContainsBytes(update, update + sizeof(kCreatureUpdateEntry), kCreatureUpdateEntry, sizeof(kCreatureUpdateEntry))) {
+    Log("SKIP stealth outline: the client creature update or the scene's highlight functions weren't found");
+    return;
+  }
+  if (HookAddress("client creature update (a hiding character's outline)", update,
+                  reinterpret_cast<void*>(&CreatureUpdate), reinterpret_cast<void**>(&g_creature_update))) {
+    Log("stealth outline: a hiding character is outlined in EE's highlight glow (stealth_outline)");
   }
 }

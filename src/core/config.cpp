@@ -69,6 +69,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.found_ends_hiding = ReadBool(ini, L"found_ends_hiding", g_config.found_ends_hiding);
   g_config.stealth_light = ReadBool(ini, L"stealth_light", g_config.stealth_light);
   g_config.stealth_ghost = ReadBool(ini, L"stealth_ghost", g_config.stealth_ghost);
+  g_config.stealth_outline = ReadBool(ini, L"stealth_outline", g_config.stealth_outline);
   g_config.spell_attacks = ReadVariant(ini, L"spell_attacks", g_config.mode);
   g_config.concentration = ReadVariant(ini, L"concentration", g_config.mode);
   g_config.knockdown = ReadVariant(ini, L"knockdown", g_config.mode);
