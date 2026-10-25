@@ -37,6 +37,10 @@ const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; ch
 const NAME = /^[a-z0-9_]{1,32}$/;
 const RECIPE_FILE = /\.recipe$|\.recipe.*\.txt$/i;  // as nwn5e reads them (anim_packs.cpp)
 const URL_BASE = `http://127.0.0.1:${PORT}/`;
+// The code this server runs, from when it started: a bench updated since needs a restart
+// (owner, 2026-10-25: two recipes saved through a server older than crouch and lean lost both).
+const STARTED = Date.now();
+const CODE = [__filename, path.join(PUBLIC, "core.js")];
 
 function list(folder, test) {
   try {
@@ -64,8 +68,13 @@ function recipesIn(folder, source) {
   return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
+function stale() {
+  return CODE.some((file) => { try { return fs.statSync(file).mtimeMs > STARTED; } catch (e) { return false; } });
+}
+
 function state() {
   return {
+    stale: stale(),
     build: BUILD,
     librariesFolder: LIBRARIES,
     recipesFolder: RECIPES,
@@ -128,18 +137,23 @@ async function handle(req, res) {
     const origin = String(req.headers.origin || "");
     if (origin !== `http://127.0.0.1:${PORT}` && origin !== `http://localhost:${PORT}`) return send(res, 403, { error: "saves come from the bench's own page" });
     if (!String(req.headers["content-type"] || "").startsWith("text/plain")) return send(res, 415, { error: "send the recipe as text/plain" });
-    let recipe;
+    let recipe, text;
     try {
-      recipe = core.readRecipe(await readBody(req, 16384));
+      text = await readBody(req, 16384);
+      recipe = core.readRecipe(text);
     } catch (e) {
       return send(res, 400, { error: e.message });
     }
     recipe.name = recipe.name.toLowerCase();
-    if (!NAME.test(recipe.name)) return send(res, 400, { error: "a name is 1-32 letters, digits or _" });
+    if (!NAME.test(recipe.name) || !text.split(/\r?\n/).some((l) => /^\s*name\s*=\s*[a-z0-9_]{1,32}\s*$/.test(l))) {
+      return send(res, 400, { error: "a name is 1-32 lower-case letters, digits or _" });
+    }
     fs.mkdirSync(RECIPES, { recursive: true });
     const file = recipe.name + ".recipe";
     const replaced = fs.existsSync(path.join(RECIPES, file));
-    fs.writeFileSync(path.join(RECIPES, file), core.writeRecipe(recipe));
+    // The page's text as it is: this server's own copy of the recipe code may be older
+    // than the page's and would drop settings it doesn't know.
+    fs.writeFileSync(path.join(RECIPES, file), text.replace(/\r?\n/g, "\n"));
     const overridesNwn5e = recipesIn(NWN5E_RECIPES, "nwn5e").some((r) => r.name === recipe.name);
     console.log(`saved ${path.join(RECIPES, file)}${replaced ? " (replaced)" : ""}`);
     return send(res, 200, { file, path: path.join(RECIPES, file), replaced, overridesNwn5e, state: state() });

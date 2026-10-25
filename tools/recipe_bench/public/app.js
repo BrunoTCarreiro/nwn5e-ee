@@ -35,6 +35,7 @@
       return;
     }
     applyServerState(s);
+    if (s.stale) setStatus("The bench was updated since its window started: close that window and start recipe_bench.bat again, then reload this page.", "bad");
     libs.clear();
     const failed = [];
     await Promise.all(s.libraries.map(async (name) => {
@@ -207,6 +208,14 @@
       const done = await getJson("/api/recipe", { method: "POST", headers: { "Content-Type": "text/plain; charset=utf-8" }, body: A.writeRecipe(r) });
       applyServerState(done.state);
       $("open").value = "yours|" + done.file;
+      // Read it back: every setting must have arrived.
+      const back = A.readRecipe(await (await fetch("/api/recipe?source=yours&file=" + encodeURIComponent(done.file))).text());
+      const lost = ["base", "mix", "amount", "speed", "start", "end", "crouch", "lean"].filter((k) =>
+        typeof r[k] === "number" ? Math.abs((back[k] || 0) - r[k]) > 1e-4 : String(back[k] || "").toLowerCase() !== String(r[k] || "").toLowerCase());
+      if (lost.length) {
+        setStatus("Saved " + done.path + ", but " + lost.join(", ") + " didn't arrive: the bench's server is out of date. Close its window, start recipe_bench.bat again, then Save again.", "bad");
+        return;
+      }
       setStatus((done.replaced ? "Saved over " : "Saved ") + done.path + ". Start the game to build it.", "good");
     } catch (e) {
       setStatus("Not saved: " + e.message, "bad");

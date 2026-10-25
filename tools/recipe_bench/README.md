@@ -11,7 +11,8 @@ game start builds it, and `!animedit` or `!anim` plays it.
 
 Double-click `recipe_bench.bat` (or `node tools/recipe_bench/server.js`). It opens
 http://127.0.0.1:8765/ in the browser; close the window to stop it. It needs
-Node.js 18 or later and nothing else.
+Node.js 18 or later and nothing else. After an update to the bench, close its window
+and start it again (the page says so when its window is older than its files).
 
 The game has to have been started once with nwn5e 0.24.2 or later: at each start
 nwn5e copies the animation libraries it reads (from your own game files) to
