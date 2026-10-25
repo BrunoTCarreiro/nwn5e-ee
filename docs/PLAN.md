@@ -1936,6 +1936,22 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   first 40 requests are logged (caller, asked, set) - unverified in play: what
   alpha 420 and the game's own stealth look ask for, and whether anything else
   see-through nearby is caught while hiding. stealth_ghost.
+  0.33.1: it was - the 0.33.0 log shows creatures fading in (alpha 0) and
+  other models (0.8, 0.26) all asking through the same model-level call, so a
+  hider's opacity would have reached them. Now the client routine that picks
+  an object's see-through alpha from its visual effects (rva 0x763420 in
+  89.8193.37: the effect's +0x100, -1 when none; found by its entry bytes and
+  checked) is hooked instead, and only an object registered as hiding (by id,
+  client object +0x8) with a see-through effect on gets its light's opacity;
+  see-through objects left alone are logged while someone hides (12 at most).
+  Per id, so hiding henchmen can have their own. Stealth toggled while moving
+  (owner: "there's still an issue with the animations and the lean the
+  character has when entering or leaving stealth mode while walking"): the
+  idle restart (0.31.1) now needs a still creature (AnimationStationary) -
+  keyboard movement has no action, so it played pause2 for half a second
+  under a moving character; the walk restart (0.32.1) waits up to 1.5 s for
+  the walk (stealth turns a run into a walk on a later update). The look log
+  names the animation playing at each swap.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

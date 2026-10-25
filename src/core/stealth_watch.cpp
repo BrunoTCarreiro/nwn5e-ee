@@ -83,7 +83,7 @@
 
 bool SpotMargin(void* observer, void* hider, int* margin);  // rules_perception.cpp
 bool CarriesLight(void* creature);                           // rules_perception.cpp
-void SetStealthOpacity(float opacity);                       // stealth_ghost.cpp
+void SetStealthOpacity(uint32_t id, float opacity);          // stealth_ghost.cpp
 bool StealthGhostOn();                                       // stealth_ghost.cpp
 
 namespace {
@@ -350,7 +350,7 @@ void Clear(uint32_t pc) {
       "effect g = GetFirstEffect(OBJECT_SELF);"
       "while (GetIsEffectValid(g)) { if (GetEffectTag(g) == \"nwn5e_ghost\") RemoveEffect(OBJECT_SELF, g); g = GetNextEffect(OBJECT_SELF); }",
       pc, "clearing");
-  SetStealthOpacity(0.0f);
+  SetStealthOpacity(pc, 0.0f);
 }
 
 // Every creature, each AI pass: its ring rows as locals, written when they change.
@@ -414,7 +414,7 @@ void Update(void* creature) {
     // The see-through look's opacity for the light it stands in (stealth_ghost.cpp).
     if (StealthGhostOn()) {
       const int level = engine::GetLocalInt(creature, "nwn5e_light_level") - 1;
-      SetStealthOpacity(level >= 2 ? 0.9f : level == 1 ? 0.7f : level == 0 ? 0.5f : 0.0f);
+      SetStealthOpacity(id, level >= 2 ? 0.9f : level == 1 ? 0.7f : level == 0 ? 0.5f : 0.0f);
     }
     watch.on = true;
   } else if (watch.on) {

@@ -27,6 +27,16 @@
 // walk's swap changes on a walking creature, its animation is set to the idle
 // for one tick (CNWSCreature::SetAnimation(0), after the engine's own update) -
 // the next update's movement sets the walk again, now through the new swap.
+// Toggling while moving (owner, 2026-10-25: "there's still an issue with the
+// animations and the lean the character has when entering or leaving stealth
+// mode while walking"), 0.33.1: the idle restart is only for a creature
+// standing still - keyboard movement has no action, so 0.31.1's "no action"
+// test played the idle for half a second under a moving character; and the
+// walk restart waits up to 1.5 s for the walk - stealth turns a run into a
+// walk on a later update, which the one check at the swap missed (the run, not
+// yet the walk, was playing), so the new walk started before its swap arrived.
+
+#include <windows.h>
 
 #include <stdint.h>
 
@@ -47,16 +57,18 @@ bool AnimationRecipeBuilt(const std::string& name, std::string* text);  // anim_
 namespace {
 
 using SetAnimationFn = void (*)(void* creature, int animation);
+using StationaryFn = int (*)(void* object, uint16_t animation);
 constexpr size_t kObjectAnimation = 0xd8;  // uint16: the animation playing (CNWSObject)
 constexpr int kAnimWalk = 2, kAnimWalkBack = 3;
+constexpr uint64_t kRestartWindowMs = 1500;  // how long a changed walk waits for the walk to restart it
 
-// A walking creature's walk restarted (see above).
-void RestartWalk(uint32_t id) {
-  static const auto set_animation = reinterpret_cast<SetAnimationFn>(EngineExport(ee::kCreatureSetAnimation));
-  void* creature = CreatureById(id);
-  if (!set_animation || !creature) return;
-  const int playing = Field<uint16_t>(creature, kObjectAnimation);
-  if (playing == kAnimWalk || playing == kAnimWalkBack) set_animation(creature, 0);
+int Playing(void* creature) { return creature ? Field<uint16_t>(creature, kObjectAnimation) : -1; }
+
+// Whether the creature's animation is one it plays standing still (the engine's own test).
+bool Stationary(void* creature) {
+  static const auto stationary =
+      reinterpret_cast<StationaryFn>(EngineExport("?AnimationStationary@CNWSObject@@QEAAHG@Z"));
+  return !creature || !stationary || stationary(creature, static_cast<uint16_t>(Playing(creature))) != 0;
 }
 
 constexpr const char* kCrouchIdle = "n5_cridle";
@@ -68,7 +80,26 @@ struct Look {
   bool hiding = false;
   bool sent = false;  // false: nothing sent yet - the next send restores what isn't swapped too
   std::string idle, walk;
+  uint64_t restart_until = 0;  // the walk's swap changed: restart a walk seen before this (ms)
 };
+
+// A walking creature's walk restarted once through its new swap (see above);
+// false while it isn't walking yet.
+bool RestartWalk(uint32_t id, Look& look) {
+  static const auto set_animation = reinterpret_cast<SetAnimationFn>(EngineExport(ee::kCreatureSetAnimation));
+  if (!look.restart_until) return false;
+  if (GetTickCount64() > look.restart_until) {
+    look.restart_until = 0;
+    return false;
+  }
+  void* creature = CreatureById(id);
+  const int playing = Playing(creature);
+  if (!set_animation || (playing != kAnimWalk && playing != kAnimWalkBack)) return false;
+  set_animation(creature, 0);
+  look.restart_until = 0;
+  Log("look: 0x%08X walk restarted through the new swap (walk %s)", id, look.walk.empty() ? "normal" : look.walk.c_str());
+  return true;
+}
 std::unordered_map<uint32_t, Look> g_looks;  // by creature, the engine's thread only
 int g_crouch = -1;                           // the crouch recipes were built: -1 not asked yet
 
@@ -92,10 +123,14 @@ void Send(uint32_t id, Look& look) {
   const auto slot = [&](const char* name, const std::string& with) {
     code += std::string("ReplaceObjectAnimation(OBJECT_SELF, \"") + name + "\", \"" + (with.empty() ? name : with) + "\");";
   };
+  void* creature = CreatureById(id);
+  const int playing = Playing(creature);
+  const bool moving = !Stationary(creature);
+  const bool kick = look.sent && idle != look.idle && !moving;
   if (!look.sent || idle != look.idle) {
     slot("pause1", idle);
     slot("pause2", idle);
-    if (look.sent) {
+    if (kick) {
       code += "int busy = GetCurrentAction(OBJECT_SELF); SetLocalInt(OBJECT_SELF, \"nwn5e_look_kick\", busy);"
               "if (busy == ACTION_INVALID) PlayAnimation(ANIMATION_LOOPING_PAUSE2, 1.0, 0.5);";
     }
@@ -117,16 +152,25 @@ void Send(uint32_t id, Look& look) {
   RunScriptChunk(("if (Get2DAString(\"appearance\", \"MODELTYPE\", GetAppearanceType(OBJECT_SELF)) == \"P\") {" + code + "}")
                      .c_str(),
                  id);
-  if (walk_changed) RestartWalk(id);
+  if (walk_changed) {
+    look.restart_until = GetTickCount64() + kRestartWindowMs;
+    RestartWalk(id, look);
+  }
   if (!first || !idle.empty() || !walk.empty()) {
-    void* creature = CreatureById(id);
-    const int busy = creature ? engine::GetLocalInt(creature, "nwn5e_look_kick") : -1;
-    char kick[64] = "";
+    char note[96] = "";
     if (!first && creature) {
-      sprintf_s(kick, busy == 65535 ? "; idle restarted" : "; busy (action %d), idle not restarted", busy);
+      const int busy = kick ? engine::GetLocalInt(creature, "nwn5e_look_kick") : -1;
+      if (moving) {
+        sprintf_s(note, "; moving (animation %d), idle not restarted", playing);
+      } else if (kick) {
+        sprintf_s(note, busy == 65535 ? "; idle restarted (animation %d)" : "; busy (action %d), idle not restarted",
+                  busy == 65535 ? playing : busy);
+      } else {
+        sprintf_s(note, "; animation %d", playing);
+      }
     }
     Log("look: 0x%08X idle %s, walk %s (%s, Exhaustion %d)%s", id, idle.empty() ? "normal" : idle.c_str(),
-        walk.empty() ? "normal" : walk.c_str(), look.hiding ? "hiding" : "not hiding", look.exhaustion, kick);
+        walk.empty() ? "normal" : walk.c_str(), look.hiding ? "hiding" : "not hiding", look.exhaustion, note);
   }
 }
 
@@ -140,6 +184,7 @@ void Update(void* creature) {
     it = g_looks.emplace(id, Look{}).first;
   }
   Look& look = it->second;
+  if (look.restart_until) RestartWalk(id, look);
   if (look.hiding == hiding && look.sent) return;
   look.hiding = hiding;
   Send(id, look);
