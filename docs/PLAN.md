@@ -2095,6 +2095,14 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   smoke's way (velocity 0, mass -0.1, inherit off; data::PatchEmitter) and
   served (BuildServedTables, before registration): built on the player's
   machine from the game's own models. torch_flame_up.
+  0.37.5: the torch flame's particles live 0.5 s (game 2 s), rise at mass -0.14
+  (torch_flame_life_ms / torch_flame_rise, read at start). 0.37.6 (owner: more
+  invisible lights casting shadows in corridors - "Let's try A"): indoors a
+  tile's fill lights only while a lit light is on it or the 8 round it. 0.37.7
+  (owner: "I still see the shadow from the invisible tile lights" - those next
+  to lit torches - "let's try A+"): indoors and underground no fill lights at
+  all; light and shadows only from visible sources. Accepted (owner,
+  2026-10-25: "I think this is good actually, let's keep it for now").
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:
