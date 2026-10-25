@@ -1744,6 +1744,11 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   0.25.2 (owner: "increase the lean range"): lean goes to 90 degrees (the torso
   level; the game's own pick-up squat leans ~70), in the recipe files and the
   bench's slider (-45 - 90, was -20 - 45 on the slider, -45 - 60 in files).
+  The owner then tuned the crouch in the bench (n5_lowcrwalk / n5_lowcridle:
+  crouch 0.4, lean 70 - "as lowcrwalk and idle not normal crwalk and idle"):
+  nwn5e's n5_crwalk / n5_cridle take those values (checked on a_ba, a_fa,
+  a_da, a_dfa: feet within 3 mm of the footfalls, never below the floor; the
+  torso near level, the back knee ~17 cm off the floor at heel strike).
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:
