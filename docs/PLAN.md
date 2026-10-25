@@ -2111,7 +2111,41 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   4 / 9 m, candle 0.94 -> 2 / 4.5 m; rules::LightReachByIntensity, tested),
   kept on it at load (LoadPlaceable hook: nwn5e_light_bright / _dim / _rings;
   -1 for a "lit" one whose appearance gives no light); the light rule and its
-  zone rings read them. Radial menu "Snuff" / "Light" entries: recon running.
+  zone rings read them.
+  Radial menu recon (owner, 2026-10-25: "send an agent to recon the radial
+  menu for 'snuff' and 'light', this might also open future avenues for other
+  interactions using the radial menu"), static analysis of 89.8193.37, not built:
+  CRadialMenu is exported (guimenu.cpp): 8 slots a ring; SetEntryx(slot, icon
+  resref, strref, handler, callback, int64 param) 0x1fa3a0 (label through
+  CTlkTable::FetchInternal - nwn5e's 16,000,000+ strings work), a text variant
+  0x1fa250, DisableEntry 0x1f8b30, SetSubMenuCreatorx 0x1faa40, Activate
+  0x1f7e80; HandleMenuAction 0x1f9350 calls [m+0x140+s*16](handler
+  [+0x138+s*16], param [+0x1b8+s*8]); a free slot's callback is
+  HandleUninitializedCallback, its icon (+0x6e0+s*8) null. One builder class a
+  kind (RTTI): CGuiPlaceableMenu (CNWCPlaceable vtable 41 0x8703d0 -> ctor
+  0x9b1950, target client id at +0x7f8 -> builder 0x9b19d0), CGuiDoorMenu,
+  CGuiCreatureMenu (also self; ~20 submenus), CGuiItemMenu,
+  CGuiQuickbarMenu, CClientSpellMenu / CClientTrapMenu. A placeable's ring
+  (clockwise from N): 0 Examine, 1 Cast submenu, 2 Use, 3 Trap submenu, 4 FREE,
+  5 Bash (player creature [+0x37C] & 0x80: "may attack"), 6 Lock / Unlock, 7 DM
+  lock (DM only). Choices send Input_* messages (Bash Input_Attack 6/2, Use
+  Input_UseObject 6/0xB ...). A custom choice's transport: GuiEvent_Notify
+  (0x35/1; client sender 0x7bdf30, found by the bytes 41 B0 01 4C 8B 4C 24 38
+  B2 35 at 0x7be026; pass a zero Vector) -> CNWSMessage::
+  HandlePlayerToServerGuiEvent (exported 0x451b30: type, int, object stored on
+  the module, RunEventScript(19) OnPlayerGuiEvent, the type not checked) -> a
+  shared CNWSModule::RunEventScript dispatcher (rules_dying.cpp hooks it only
+  for dying faithful today). Per object: menu+0x7f8 & 0x7FFFFFFF = the server
+  id (single player: read the server placeable - +0x594 lit, nwn5e's locals);
+  on a remote server CNWCPlaceable+0x1f0 non-null while lit. Icons: 32x32 TGAs
+  (aurora_gui.bif), loaded by resref - a served ir_snuff.tga would do; stock
+  is_darkness / is_light. Plan: hook CRadialMenu::Activate; when the menu is
+  a CGuiPlaceableMenu on a light, slot 4 = Snuff (lit; a copy of slot 5's
+  Bash callback, only if slot 5 is set) or Light (unlit; a copy of slot 2's
+  Use) - no server change, light_sources.cpp does the rest; later a GuiEvent
+  transport + registry (AddRadialAction) for other interactions - also what
+  Barbarian 3's X8 radial options would use. Dumps: the job's
+  tmpecon_radial (NOTES.txt).
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:
