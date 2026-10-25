@@ -221,7 +221,7 @@ void Loop(uint32_t player, Preview& preview, bool run) {
   const int token = NuiToken(player, kWindow);
   char code[1500];
   sprintf_s(code,
-            "string s = GetLocalString(OBJECT_SELF, \"%s\"); ReplaceObjectAnimation(OBJECT_SELF, \"%s\");"
+            "string s = GetLocalString(OBJECT_SELF, \"%s\"); ReplaceObjectAnimation(OBJECT_SELF, \"%s\", \"%s\");"
             "if (s != \"\") ReplaceObjectAnimation(OBJECT_SELF, \"%s\", s);"
             "SetObjectVisualTransform(OBJECT_SELF, OBJECT_VISUAL_TRANSFORM_ANIMATION_SPEED, %.2f);"
             "ClearAllActions(); vector p = GetPosition(OBJECT_SELF); float f = GetFacing(OBJECT_SELF);"
@@ -230,7 +230,7 @@ void Loop(uint32_t player, Preview& preview, bool run) {
             "for (i = 0; i < 2; i++) { ActionMoveToLocation(there, %s); ActionMoveToLocation(back, %s); }"
             "NuiSetBind(OBJECT_SELF, %d, \"status\", JsonString(\"%s 5 m out and back twice at %s - \" + "
             "(s == \"\" ? \"the game's own %s (a hurt character limps).\" : s + \" as the %s.\")));",
-            kVarSelected, kHoldSlot, slot, preview.speed, run ? "TRUE" : "FALSE", run ? "TRUE" : "FALSE", token,
+            kVarSelected, kHoldSlot, kHoldSlot, slot, preview.speed, run ? "TRUE" : "FALSE", run ? "TRUE" : "FALSE", token,
             run ? "Running" : "Walking", SpeedText(preview.speed).c_str(), slot, slot);
   RunScriptChunk(code, player);
 }
@@ -239,7 +239,7 @@ void Loop(uint32_t player, Preview& preview, bool run) {
 void Restore(uint32_t player, bool clear_actions) {
   std::string code = clear_actions ? "ClearAllActions();" : "";
   for (const char* slot : {kHoldSlot, "walk", "run"}) {
-    code += "ReplaceObjectAnimation(OBJECT_SELF, \"" + std::string(slot) + "\");";
+    code += "ReplaceObjectAnimation(OBJECT_SELF, \"" + std::string(slot) + "\", \"" + slot + "\");";  // to itself: stance_look.cpp
   }
   code += "SetObjectVisualTransform(OBJECT_SELF, OBJECT_VISUAL_TRANSFORM_ANIMATION_SPEED, 1.0);";
   RunScriptChunk(code.c_str(), player);

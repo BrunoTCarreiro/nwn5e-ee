@@ -153,7 +153,8 @@ void Hold(uint32_t player, const std::string& name) {
 }
 
 void Stop(uint32_t player) {
-  RunScriptChunk(("ClearAllActions(); ReplaceObjectAnimation(OBJECT_SELF, \"" + std::string(kHoldSlot) + "\");").c_str(),
+  RunScriptChunk(("ClearAllActions(); ReplaceObjectAnimation(OBJECT_SELF, \"" + std::string(kHoldSlot) + "\", \"" +
+                  std::string(kHoldSlot) + "\");").c_str(),
                  player);
 }
 

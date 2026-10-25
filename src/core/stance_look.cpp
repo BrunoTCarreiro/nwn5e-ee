@@ -16,7 +16,12 @@
 // A swap doesn't restart the idle already playing (owner, 2026-10-25: "on being
 // discovered the stance should return to standard, right now the PC remains
 // crouched"), so when the idle changes on a creature doing nothing, its idle is
-// restarted (pause2 for an instant, then pause1: both through the new swap).
+// restarted (pause2 for half a second, then pause1: both through the new swap).
+// And a swap is undone by mapping the animation to itself, not by removing it
+// (owner, again: "when discovered the PC still doesn't return to the normal
+// stance"): the server sends the whole list on any change (WriteGameObjUpdate,
+// bit 0x18), but the crouch never went away on screen - an emptied list may not
+// clear the client's; a changed entry always reaches it (that's how it went on).
 
 #include <stdint.h>
 
@@ -28,6 +33,7 @@
 #include "creature_update.h"
 #include "ee_layout.h"
 #include "effects.h"
+#include "engine.h"
 #include "log.h"
 
 bool AnimationRecipeBuilt(const std::string& name, std::string* text);  // anim_packs.cpp
@@ -65,13 +71,15 @@ void Send(uint32_t id, Look& look) {
   if (look.sent && idle == look.idle && walk == look.walk) return;
   std::string code;
   const auto slot = [&](const char* name, const std::string& with) {
-    code += with.empty() ? std::string("ReplaceObjectAnimation(OBJECT_SELF, \"") + name + "\");"
-                         : std::string("ReplaceObjectAnimation(OBJECT_SELF, \"") + name + "\", \"" + with + "\");";
+    code += std::string("ReplaceObjectAnimation(OBJECT_SELF, \"") + name + "\", \"" + (with.empty() ? name : with) + "\");";
   };
   if (!look.sent || idle != look.idle) {
     slot("pause1", idle);
     slot("pause2", idle);
-    if (look.sent) code += "if (GetCurrentAction(OBJECT_SELF) == ACTION_INVALID) PlayAnimation(ANIMATION_LOOPING_PAUSE2, 1.0, 0.1);";
+    if (look.sent) {
+      code += "int busy = GetCurrentAction(OBJECT_SELF); SetLocalInt(OBJECT_SELF, \"nwn5e_look_kick\", busy);"
+              "if (busy == ACTION_INVALID) PlayAnimation(ANIMATION_LOOPING_PAUSE2, 1.0, 0.5);";
+    }
   }
   if (!look.sent || walk != look.walk) {
     slot("walk", walk);
@@ -90,8 +98,14 @@ void Send(uint32_t id, Look& look) {
                      .c_str(),
                  id);
   if (!first || !idle.empty() || !walk.empty()) {
-    Log("look: 0x%08X idle %s, walk %s (%s, Exhaustion %d)", id, idle.empty() ? "normal" : idle.c_str(),
-        walk.empty() ? "normal" : walk.c_str(), look.hiding ? "hiding" : "not hiding", look.exhaustion);
+    void* creature = CreatureById(id);
+    const int busy = creature ? engine::GetLocalInt(creature, "nwn5e_look_kick") : -1;
+    char kick[64] = "";
+    if (!first && creature) {
+      sprintf_s(kick, busy == 65535 ? "; idle restarted" : "; busy (action %d), idle not restarted", busy);
+    }
+    Log("look: 0x%08X idle %s, walk %s (%s, Exhaustion %d)%s", id, idle.empty() ? "normal" : idle.c_str(),
+        walk.empty() ? "normal" : walk.c_str(), look.hiding ? "hiding" : "not hiding", look.exhaustion, kick);
   }
 }
 

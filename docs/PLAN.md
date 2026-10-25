@@ -1879,6 +1879,15 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   ring +1 cm) so overlapping ones never share a height. The found log now says
   whether the finder was hostile (a non-hostile's sight doesn't end hiding;
   the 15:59:33 "out of stealth" line was one that isn't).
+  0.31.2 (owner: "when discovered the PC still doesn't return to the normal
+  stance"): read from nwmain - SetAnimationReplace removes an entry for an
+  empty new name; ComputeUpdateRequired flags any change to the list (bit
+  0x18) and WriteGameObjUpdate_UpdateObject sends the whole list (count +
+  CResRef pairs). The crouch still didn't go on screen, so a swap is now undone
+  by mapping the animation to itself (pause1 -> pause1: a changed entry, which
+  is how the crouch got there) - in stance_look, !anim and !animedit - and the
+  idle restart is 0.5 s; the look log says whether it ran or the creature was
+  busy (its action).
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:
