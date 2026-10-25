@@ -124,6 +124,9 @@ struct Config {
   // the areas' sun and moon light at map_light % of the module's (100 = its
   // own; !maplight sets it in game), and with map_tile_dim each tile's main
   // lights one step darker (light_sources.cpp).
+  // With light_sources: a tile's fill (main) lights go off when every light on
+  // it and the 8 tiles round it is out (owner: "let's try B").
+  bool fill_follows_lights = true;
   int map_light = 70;
   bool map_tile_dim = true;
   // SK10: faithful = spell attacks are PB + casting ability against full AC,

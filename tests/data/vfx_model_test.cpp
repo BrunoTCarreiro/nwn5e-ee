@@ -244,6 +244,30 @@ TEST(TileTorchInTheArea) {
   CHECK_EQ(Milli(p[1]), 2000);
 }
 
+// Fill lights follow the lights round them. Breaks caught: a tile with no
+// light near turned off; one lit light 1 tile away not keeping it on; the
+// neighbourhood wider or narrower than the 8 round it; x and y swapped in the
+// row layout; a light off the area's edge counted.
+TEST(TileFillLightsFollowTheLightsRoundThem) {
+  std::vector<TileLight> lights;
+  lights.push_back({1, 1, false});  // out
+  lights.push_back({4, 3, true});   // lit
+  const std::vector<uint8_t> off = TileFillLightsOff(6, 5, lights);
+  const auto at = [&](int x, int y) { return static_cast<int>(off[static_cast<size_t>(y) * 6 + x]); };
+  CHECK_EQ(off.size(), 30u);
+  CHECK_EQ(at(0, 0), 1);  // only the doused light near
+  CHECK_EQ(at(2, 2), 1);  // (1,1) out is near, (4,3) is 2 away
+  CHECK_EQ(at(3, 2), 0);  // the lit one is near
+  CHECK_EQ(at(5, 4), 0);
+  CHECK_EQ(at(5, 0), 0);  // no light near: the module's
+  CHECK_EQ(at(0, 4), 0);
+  CHECK_EQ(at(2, 0), 1);
+  CHECK_EQ(at(3, 0), 0);  // nothing within 1
+  lights[1].lit = false;
+  CHECK_EQ(static_cast<int>(TileFillLightsOff(6, 5, lights)[2 * 6 + 3]), 1);  // both out now
+  CHECK_EQ(TileFillLightsOff(0, 5, lights).empty(), true);
+}
+
 // Breaks caught: an emitter keyed on at 0 and off at the next key (the game's
 // short bursts) read as always on - a loaded copy would emit for the whole
 // effect.

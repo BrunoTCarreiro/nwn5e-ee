@@ -78,6 +78,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.henchmen_follow_stealth = ReadBool(ini, L"henchmen_follow_stealth", g_config.henchmen_follow_stealth);
   g_config.light_sources = ReadBool(ini, L"light_sources", g_config.light_sources);
   g_config.map_light = GetPrivateProfileIntW(L"rules", L"map_light", g_config.map_light, ini);
+  g_config.fill_follows_lights = ReadBool(ini, L"fill_follows_lights", g_config.fill_follows_lights);
   g_config.map_tile_dim = ReadBool(ini, L"map_tile_dim", g_config.map_tile_dim);
   g_config.spell_attacks = ReadVariant(ini, L"spell_attacks", g_config.mode);
   g_config.concentration = ReadVariant(ini, L"concentration", g_config.mode);

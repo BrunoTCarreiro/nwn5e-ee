@@ -96,4 +96,16 @@ float TilesetTransition(const std::string& set_text);
 void TilePointInArea(const float local[3], int tile_x, int tile_y, int orientation, int height, float transition,
                      float out[3]);
 
+// A tile's fill lights (its two main lights: real lights in the tile model,
+// often over a door or an arch) follow the lights round it (owner, 2026-10-25:
+// "I've extinguished all the lights in this one corridor, but there's still a
+// shadow being cast by my character" - "let's try B"): off when every light on
+// the tile and the 8 round it is out and there is one at all - a tile with no
+// light near keeps the module's. One byte per tile, row by row (y x width + x).
+struct TileLight {
+  int x = 0, y = 0;  // the tile it stands on
+  bool lit = false;
+};
+std::vector<uint8_t> TileFillLightsOff(int width, int height, const std::vector<TileLight>& lights);
+
 }  // namespace data

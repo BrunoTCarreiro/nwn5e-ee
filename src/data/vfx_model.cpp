@@ -658,6 +658,25 @@ float TilesetTransition(const std::string& set_text) {
   return value.empty() ? 0.0f : static_cast<float>(atof(value.c_str()));
 }
 
+std::vector<uint8_t> TileFillLightsOff(int width, int height, const std::vector<TileLight>& lights) {
+  if (width <= 0 || height <= 0 || width > 64 || height > 64) return {};
+  const size_t tiles = static_cast<size_t>(width) * height;
+  std::vector<int> near(tiles, 0), lit(tiles, 0);
+  for (const TileLight& light : lights) {
+    for (int dy = -1; dy <= 1; ++dy) {
+      for (int dx = -1; dx <= 1; ++dx) {
+        const int x = light.x + dx, y = light.y + dy;
+        if (x < 0 || y < 0 || x >= width || y >= height) continue;
+        ++near[static_cast<size_t>(y) * width + x];
+        if (light.lit) ++lit[static_cast<size_t>(y) * width + x];
+      }
+    }
+  }
+  std::vector<uint8_t> off(tiles, 0);
+  for (size_t i = 0; i < tiles; ++i) off[i] = near[i] > 0 && lit[i] == 0 ? 1 : 0;
+  return off;
+}
+
 void TilePointInArea(const float local[3], int tile_x, int tile_y, int orientation, int height, float transition,
                      float out[3]) {
   float x = local[0], y = local[1];
