@@ -389,38 +389,58 @@ float OpacityFor(void* creature) {
 }
 
 // HS1: the player character's henchmen follow it into stealth mode and out
-// (see the top); `first`: its first pass hiding, `early`: its first 2.
+// (see the top); `first`: its first pass hiding, `early`: its first 2. Why each
+// one did or didn't is logged when it changes (0.35.1: in play none followed,
+// and nothing said why).
+std::unordered_map<uint32_t, std::string> g_follow_why;  // by player character
+
 void Follow(uint32_t pc, bool hiding, bool first, bool early) {
   std::string code =
-      "int moved = 0; int n = 1; object h = GetHenchman(OBJECT_SELF, n);"
+      "int moved = 0; string why = \"\"; int n = 1; object h = GetHenchman(OBJECT_SELF, n);"
       "while (GetIsObjectValid(h)) {"
       " int stand = (GetLocalInt(h, \"NW_ASSOCIATE_MASTER\") & 134217728) != 0;"  // NW_ASC_MODE_STAND_GROUND
-      " int hid = GetActionMode(h, ACTION_MODE_STEALTH);";
+      " int hid = GetActionMode(h, ACTION_MODE_STEALTH);"
+      " string r = \"\";";
   if (hiding) {
     if (first) code += " DeleteLocalInt(h, \"nwn5e_found_out\");";
     code +=
-        " if (stand) {" +
-        std::string(early ? "  if (hid) { SetActionMode(h, ACTION_MODE_STEALTH, FALSE); moved -= 1; }" : "") +
-        " } else if (!hid && !GetLocalInt(h, \"nwn5e_found_out\") && !GetIsDead(h) && !GetLocalInt(h, \"nwn5e_down\")"
-        "            && !GetIsInCombat(h) && GetArea(h) == GetArea(OBJECT_SELF)) {"
+        " if (stand) {"
+        "  r = \"stands its ground\";" +
+        std::string(early ? "  if (hid) { SetActionMode(h, ACTION_MODE_STEALTH, FALSE); moved -= 1; r += \" - taken out\"; }"
+                          : "") +
+        " }"
+        " else if (hid) r = \"hiding\";"
+        " else if (GetLocalInt(h, \"nwn5e_found_out\")) r = \"found - out until you hide again\";"
+        " else if (GetIsDead(h)) r = \"dead\";"
+        " else if (GetLocalInt(h, \"nwn5e_down\")) r = \"down\";"
+        " else if (GetIsInCombat(h)) r = \"fighting\";"
+        " else if (GetArea(h) != GetArea(OBJECT_SELF)) r = \"elsewhere\";"
+        " else {"
         "  SetActionMode(h, ACTION_MODE_STEALTH, TRUE); moved += 1;"
+        "  r = GetActionMode(h, ACTION_MODE_STEALTH) ? \"follows into stealth mode\" : \"told to hide - the game refused\";"
         " }";
   } else {
     code +=
-        " if (!stand && hid) { SetActionMode(h, ACTION_MODE_STEALTH, FALSE); moved -= 1; }"
+        " if (!stand && hid) { SetActionMode(h, ACTION_MODE_STEALTH, FALSE); moved -= 1; r = \"out with you\"; }"
+        " else r = stand ? \"stands its ground\" : \"not hiding\";"
         " DeleteLocalInt(h, \"nwn5e_found_out\");";
   }
   code +=
+      " why += (why == \"\" ? \"\" : \"; \") + GetName(h) + \": \" + r;"
       " n++; h = GetHenchman(OBJECT_SELF, n);"
       "}"
-      "SetLocalInt(OBJECT_SELF, \"nwn5e_follow_moved\", moved);";
+      "SetLocalInt(OBJECT_SELF, \"nwn5e_follow_moved\", moved);"
+      "SetLocalString(OBJECT_SELF, \"nwn5e_follow_why\", why == \"\" ? \"no henchmen\" : why);";
   Run(code, pc, "henchmen follow");
   void* creature = CreatureById(pc);
-  const int moved = creature ? engine::GetLocalInt(creature, "nwn5e_follow_moved") : 0;
-  if (moved > 0) Log("stealth watch: 0x%08X hides - %d henchm%s follow it into stealth mode", pc, moved, moved == 1 ? "an" : "en");
-  if (moved < 0) {
-    Log("stealth watch: 0x%08X - %d henchm%s out of stealth mode (%s)", pc, -moved, moved == -1 ? "an" : "en",
-        hiding ? "standing their ground" : "it stopped hiding");
+  if (!creature) return;
+  const int moved = engine::GetLocalInt(creature, "nwn5e_follow_moved");
+  const std::string why = engine::GetLocalString(creature, "nwn5e_follow_why");
+  std::string& last = g_follow_why[pc];
+  if (why != last || moved != 0) {
+    last = why;
+    Log("stealth watch: 0x%08X %s - henchmen: %s (%+d into stealth mode)", pc, hiding ? "hides" : "stopped hiding",
+        why.c_str(), moved);
   }
 }
 

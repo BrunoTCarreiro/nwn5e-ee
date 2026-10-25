@@ -2012,6 +2012,15 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   rules::ReliableTalentD20) - the rest of R9 (other skill checks) still with
   the Rogue work. RB3: SpotMargin has no size term (the check cancels the
   engine's; 0.34.0 was 4-8 off against smaller / larger watchers).
+  0.35.1 (owner: "the cyan glow is too strong and should only appear when
+  opacity is over 45%" - "when visibility is under 55% ... so in darkness,
+  visibility is set to 50%, the glow should appear"): the outline only while a
+  hider is drawn under 55% visible, at a third of the colour (0.27, 0.32,
+  0.34); off again (logged) when it is drawn 55%+. In play 0.35.0 drew 90% in
+  light and outlined as built (client object FFFFFFFF matched), but no
+  henchman followed and nothing said why: the follow pass now logs, when it
+  changes, each henchman's reason (stands its ground, hiding, found, dead,
+  down, fighting, elsewhere, follows, or the game refused).
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

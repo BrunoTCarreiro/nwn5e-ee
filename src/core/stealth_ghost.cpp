@@ -38,7 +38,12 @@
 // on the list when it isn't on it (the mouse-over takes it off when the pointer
 // leaves; a hover's colour shows while hovering), and taken off when it stops
 // hiding. A model or scene seen before is only compared, never followed: after
-// a new area the old ones are just forgotten. `stealth_outline`.
+// a new area the old ones are just forgotten. `stealth_outline`. 0.35.1 (owner:
+// "the cyan glow is too strong and should only appear when opacity is over 45%"
+// - "when visibility is under 55% ... so in darkness, visibility is set to 50%,
+// the glow should appear"): only while the hider is drawn under 55% visible, at
+// about a third of 0.34.0's colour (the glow takes its strength from it; EE's
+// own hover highlight is left as it is).
 //
 // Ids (0.35.0): the client knows an object by the server's id with bit 31 set
 // (CNWSMessage::WriteOBJECTIDServer ORs 0x80000000 into every id but
@@ -123,7 +128,8 @@ constexpr size_t kClientObjectAnim = 0x78;  // CNWCObject -> its animation objec
 constexpr size_t kAnimModel = 0xc8;         // -> its model (Gob)
 constexpr size_t kGobAlpha = 0x108;         // float (Gob::SetColorShifting)
 constexpr int kModelReadySlot = 0x218 / 8;  // the model's check before a highlight (0x96628c)
-constexpr float kOutlineColour[3] = {0.80f, 0.95f, 1.0f};  // pale white-cyan
+constexpr float kOutlineColour[3] = {0.27f, 0.32f, 0.34f};  // pale white-cyan, a third of 0.34.0's
+constexpr float kOutlineBelow = 0.55f;                        // drawn under 55% visible
 
 // One hider as the client sees it; the client's thread only.
 struct ClientHider {
@@ -292,16 +298,25 @@ void ClientStep(void* creature) {
     c->set = want;
     ++c->sets;
   }
-  // Its outline.
+  // Its outline: only while it is drawn faint.
   if (!g_config.stealth_outline || !g_add_export || !scene || !SceneSlotsOk(scene)) return;
   if (c->scene != scene) {
     c->scene = scene;
     c->outlined = false;
   }
+  if (want >= kOutlineBelow) {
+    if (c->outlined) {
+      if (Listed(scene, model)) reinterpret_cast<RemoveHighlightFn>(VirtualAt(scene, kSceneRemoveSlot))(scene, model);
+      c->outlined = false;
+      Log("stealth outline: 0x%08X off - drawn %.0f%% visible, the glow is for under %.0f%%", id, want * 100.0f,
+          kOutlineBelow * 100.0f);
+    }
+    return;
+  }
   if (Listed(scene, model)) return;  // on (ours, or a hover's while the pointer is on it)
   if (!reinterpret_cast<ModelReadyFn>(VirtualAt(model, kModelReadySlot))(model)) return;
   reinterpret_cast<AddHighlightFn>(VirtualAt(scene, kSceneAddSlot))(scene, model, kOutlineColour);
-  if (!c->outlined) Log("stealth outline: 0x%08X outlined while it hides", id);
+  if (!c->outlined) Log("stealth outline: 0x%08X outlined - drawn %.0f%% visible", id, want * 100.0f);
   c->outlined = true;
 }
 
@@ -372,6 +387,6 @@ void InstallStealthGhost() {
                   reinterpret_cast<void*>(&CreatureUpdate), reinterpret_cast<void**>(&g_creature_update))) {
     Log("stealth ghost: a hiding character is 90%% visible in light, 70%% in dim, 50%% in dark, less 2%% per "
         "point of Stealth bonus (30%% at least)%s",
-        g_config.stealth_outline && g_add_export ? "; outlined in EE's highlight glow (stealth_outline)" : "");
+        g_config.stealth_outline && g_add_export ? "; outlined in EE's highlight glow under 55%% (stealth_outline)" : "");
   }
 }
