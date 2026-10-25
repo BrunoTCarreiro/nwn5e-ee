@@ -46,7 +46,7 @@ struct AnimRecipe {
   float start = 0.0f;        // the part of the base kept, in its seconds
   float end = 0.0f;          // 0: to its end
   float crouch = 0.0f;       // metres the hips drop, the legs bent to keep the footfalls (0 - 0.6)
-  float lean = 0.0f;         // degrees the upper body leans forward, the head looking ahead (-45 - 60)
+  float lean = 0.0f;         // degrees the upper body leans forward, the head looking ahead (-45 - 90)
 };
 
 std::string WriteAnimRecipe(const AnimRecipe& recipe);

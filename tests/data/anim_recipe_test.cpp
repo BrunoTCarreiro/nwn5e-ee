@@ -129,9 +129,9 @@ TEST(AnimRecipeRoundTrip) {
   CHECK_EQ(Milli(back.crouch), 250);
   CHECK_EQ(Milli(back.lean), 15000);
   CHECK_EQ(ReadAnimRecipe("base = pause1\n", &back, &error), false);  // no name
-  CHECK_EQ(ReadAnimRecipe("name = x\nbase = walk\ncrouch = 2\nlean = 90\n", &back, &error), true);
+  CHECK_EQ(ReadAnimRecipe("name = x\nbase = walk\ncrouch = 2\nlean = 120\n", &back, &error), true);
   CHECK_EQ(Milli(back.crouch), 600);  // kept to 0 - 0.6 m
-  CHECK_EQ(Milli(back.lean), 60000);  // and -45 - 60 degrees
+  CHECK_EQ(Milli(back.lean), 90000);  // and -45 - 90 degrees (owner: "increase the lean range")
 }
 
 TEST(AnimRecipeCrouchKeepsTheFootfalls) {

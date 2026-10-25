@@ -357,7 +357,7 @@
     if (!r.name || !r.base) throw new Error("a recipe needs a name and a base");
     if (r.speed <= 0) r.speed = 1;
     r.crouch = Math.max(0, Math.min(0.6, r.crouch));  // as anim_recipe.cpp keeps them
-    r.lean = Math.max(-45, Math.min(60, r.lean));
+    r.lean = Math.max(-45, Math.min(90, r.lean));
     return r;
   }
 

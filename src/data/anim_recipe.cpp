@@ -340,7 +340,7 @@ bool ReadAnimRecipe(const std::string& text, AnimRecipe* recipe, std::string* er
     else if (key == "start") r.start = static_cast<float>(atof(value.c_str()));
     else if (key == "end") r.end = static_cast<float>(atof(value.c_str()));
     else if (key == "crouch") r.crouch = std::max(0.0f, std::min(0.6f, static_cast<float>(atof(value.c_str()))));
-    else if (key == "lean") r.lean = std::max(-45.0f, std::min(60.0f, static_cast<float>(atof(value.c_str()))));
+    else if (key == "lean") r.lean = std::max(-45.0f, std::min(90.0f, static_cast<float>(atof(value.c_str()))));
   }
   if (r.name.empty() || r.base.empty()) {
     if (error) *error = "a recipe needs a name and a base";

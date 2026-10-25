@@ -1741,6 +1741,9 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   the arms are turned back to hang as the animation swings them (a side profile
   showed them trailing back with the torso, a skier's tuck), and n5_crwalk /
   n5_cridle lean 30 (spine 31 / 27 degrees forward, plus the hip tip).
+  0.25.2 (owner: "increase the lean range"): lean goes to 90 degrees (the torso
+  level; the game's own pick-up squat leans ~70), in the recipe files and the
+  bench's slider (-45 - 90, was -20 - 45 on the slider, -45 - 60 in files).
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:
