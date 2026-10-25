@@ -115,6 +115,17 @@ struct Config {
   // too, unless set to Stand your ground; they leave when it stops
   // (stealth_watch.cpp). Both rule modes.
   bool henchmen_follow_stealth = true;
+  // Light sources (owner, 2026-10-25: "putting off a light source is a good
+  // one"): a lit brazier, lamp or torch bracket can be put out - used, attacked,
+  // or hit by a cold / water / wind spell - and lit again by using it; hostiles
+  // that see it go out come to look (light_sources.cpp).
+  bool light_sources = true;
+  // Darker maps (owner: "the maps ... seem to be a bit too bright right now"):
+  // the areas' sun and moon light at map_light % of the module's (100 = its
+  // own; !maplight sets it in game), and with map_tile_dim each tile's main
+  // lights one step darker (light_sources.cpp).
+  int map_light = 70;
+  bool map_tile_dim = true;
   // SK10: faithful = spell attacks are PB + casting ability against full AC,
   // with advantage / disadvantage; nwn / off = NWN's touch attacks.
   rules::RuleVariant spell_attacks = rules::RuleVariant::kFaithful;
@@ -255,3 +266,4 @@ struct Config {
 
 extern Config g_config;
 void ConfigLoad(const wchar_t* directory);
+const wchar_t* ConfigPath();  // nwn5e.ini's full path (for a setting changed in game)

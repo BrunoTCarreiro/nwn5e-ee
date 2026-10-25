@@ -7,7 +7,8 @@
 //   (ambient, diffuse; brightness 0-255);
 // - the tile underfoot: its main lights (the tile's coloured ambient) and source
 //   lights (its torches, braziers ...: 0 = off), and how many of the 3 x 3 tiles
-//   around have a source light on;
+//   around have a source light on (0.36.0: by the tile's grid coordinate - the
+//   getters' location vector is x / 10, y / 10; metres read -1);
 // - placeables lit within 15 m (GetPlaceableIllumination: lamps, braziers ...),
 //   the nearest one;
 // - creatures and placeables within 20 m with a light visual effect (153-180,
@@ -65,12 +66,14 @@ std::vector<std::string> LightCommand(void* creature, const std::string&) {
       "int md = GetAreaLightColor(AREA_LIGHT_COLOR_MOON_DIFFUSE, area);"
       "ln = (\"[light] area light (0-255): sun ambient \" + " + Lum("sa") + " + \", sun diffuse \" + " +
       Lum("sd") + " + \", moon ambient \" + " + Lum("ma") + " + \", moon diffuse \" + " + Lum("md") + "); SendMessageToPC(pc, ln); rep += ln + \" || \";"
-      "ln = (\"[light] this tile: main lights \" + IntToString(GetTileMainLight1Color(at)) + \"/\""
-      " + IntToString(GetTileMainLight2Color(at)) + \", source lights \" + IntToString(GetTileSourceLight1Color(at))"
-      " + \"/\" + IntToString(GetTileSourceLight2Color(at)) + \" (0 = off, -1 = not readable here)\"); SendMessageToPC(pc, ln); rep += ln + \" || \";"
+      "int tx = FloatToInt(p.x / 10.0); int ty = FloatToInt(p.y / 10.0);"
+      "location tile = Location(area, Vector(IntToFloat(tx), IntToFloat(ty), 0.0), 0.0);"
+      "ln = (\"[light] tile \" + IntToString(tx) + \",\" + IntToString(ty) + \": main lights \" + IntToString(GetTileMainLight1Color(tile)) + \"/\""
+      " + IntToString(GetTileMainLight2Color(tile)) + \", source lights \" + IntToString(GetTileSourceLight1Color(tile))"
+      " + \"/\" + IntToString(GetTileSourceLight2Color(tile)) + \" (0 = off)\"); SendMessageToPC(pc, ln); rep += ln + \" || \";"
       "int lit = 0; int dx; int dy;"
       "for (dx = -1; dx <= 1; dx++) for (dy = -1; dy <= 1; dy++) {"
-      " location l = Location(area, Vector(p.x + 10.0 * IntToFloat(dx), p.y + 10.0 * IntToFloat(dy), p.z), 0.0);"
+      " location l = Location(area, Vector(IntToFloat(tx + dx), IntToFloat(ty + dy), 0.0), 0.0);"
       " if (GetTileSourceLight1Color(l) > 0 || GetTileSourceLight2Color(l) > 0) lit++;"
       "}"
       "ln = (\"[light] tiles with a source light on, 3 x 3 around: \" + IntToString(lit)); SendMessageToPC(pc, ln); rep += ln + \" || \";"

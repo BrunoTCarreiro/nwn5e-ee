@@ -205,4 +205,13 @@ int ReliableTalentD20(int d20, int rogue_level, bool proficient);
 // spell bonuses; none counted below 0), never under 0.3. 0 for an unknown light.
 float StealthOpacity(int light_level, int extra_bonus);
 
+// A light a hider carries itself (owner, 2026-10-25: light-giving weapons and
+// equipment "will work against the stealth option, the brighter the
+// weapon & equipment the greater penalty"), by its reach in metres (the item
+// property Light / a light effect: 5, 10, 15, 20; 0 none): the light it stands
+// in - 5 m at least dim (1), 10 m+ bright (2), none -1 - and the bonus a
+// watcher gets to spot it: +2 per 5 m (+2 / +4 / +6 / +8).
+int CarriedLightLevel(int radius_m);
+int CarriedLightSpotBonus(int radius_m);
+
 }  // namespace rules

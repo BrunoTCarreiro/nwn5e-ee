@@ -57,6 +57,12 @@
 // - Reliable Talent (0.35.0, RB2; SRD 5.2 Rogue 7): a rogue of level 7+
 //   proficient in Stealth treats a Stealth d20 of 9 or lower as a 10
 //   (class_features faithful).
+// - a light the hider carries (0.36.0; owner, 2026-10-25: "the brighter the
+//   weapon & equipment the greater penalty"): by its reach (the item property
+//   Light puts a light effect 153-180 on the wearer: 5 / 10 / 15 / 20 m) a
+//   watcher spots it at +2 / +4 / +6 / +8 - the brightest one counts - and it
+//   stands in dim light (5 m) or bright (10 m+; stealth_watch.cpp). This
+//   replaces EE's flat +10 for a lit hider at night (zeroed with stealth_light).
 // Distance, area, movement, facing and light terms stay (NWN's real-time
 // stealth needs them). A deafened observer can't hear and a blinded one can't
 // see: EE's own checks already fail them (SK11). NWN mode: NWN's.
@@ -67,6 +73,7 @@
 
 #include <intrin.h>
 
+#include <algorithm>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -338,6 +345,26 @@ bool SeesInDark(void* observer, void* hider) {
   return dx * dx + dy * dy <= kDarkvisionMetres * kDarkvisionMetres;
 }
 
+// The reach of the brightest light it carries itself (its light effects 153-180:
+// 5 x (1 + (row - 153) % 4) m), 0 if none.
+int CarriedLightRadiusOf(void* object) {
+  const int count = Field<int32_t>(object, 0x168);
+  const uint8_t* list = Field<const uint8_t*>(object, 0x160);
+  if (!list || count <= 0 || count > 256) return 0;
+  int radius = 0;
+  for (int i = 0; i < count; ++i) {
+    const int id = *reinterpret_cast<const uint16_t*>(list + 0x20 * i);
+    if (id >= 153 && id <= 180) radius = (std::max)(radius, 5 * (1 + (id - 153) % 4));
+  }
+  return radius;
+}
+
+// What the hider's carried light gives a watcher: +2 per 5 m of its reach.
+int CarriedLightTerm(void* hider) {
+  if (!LightRule() || !hider || !Hiding(hider)) return 0;
+  return rules::CarriedLightSpotBonus(CarriedLightRadiusOf(hider));
+}
+
 // What the hider's light does to this observer's sight: 0, -5 (dim), or unseen.
 constexpr int kUnseen = -1000;
 int LightTerm(void* observer, void* hider) {
@@ -363,7 +390,8 @@ int PerceptionSkill(const SkillQuery& query, int value) {
   }
   if (caller == g_spot_skill[0] || caller == g_spot_skill[1]) {
     const int light = t_target ? LightTerm(creature, t_target) : 0;  // G: dim light, -5
-    return (InCombat(creature) ? value + 10 : value) + (light == kUnseen ? 0 : light);
+    const int carried = t_target ? CarriedLightTerm(t_target) : 0;   // its own light: +2 per 5 m
+    return (InCombat(creature) ? value + 10 : value) + (light == kUnseen ? 0 : light) + carried;
   }
   if (caller == g_listen_skill[0] || caller == g_listen_skill[1]) {
     return InCombat(creature) ? value + 10 : value;  // the engine takes 10 off in combat
@@ -649,7 +677,7 @@ bool SpotMargin(void* observer, void* hider, int* margin) {
       *margin = -100;
       return true;
     }
-    score += light;
+    score += light + CarriedLightTerm(hider);
   } else if (Night()) {
     if (!Lit(observer, true)) score -= 5;
     if (Lit(hider, false)) score += 10;
@@ -661,6 +689,7 @@ bool SpotMargin(void* observer, void* hider, int* margin) {
 
 // G (stealth_watch.cpp): a light it carries itself - a torch, a light item, the Light spell.
 bool CarriesLight(void* creature) { return creature && Lit(creature, false); }
+int CarriedLightRadius(void* creature) { return creature ? CarriedLightRadiusOf(creature) : 0; }
 
 // Search's die (rules_skill_dcs.cpp), the 2024 way: a d20 when searching, else passive.
 int SearchDie(void* searcher, bool worse) {

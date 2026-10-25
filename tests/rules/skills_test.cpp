@@ -195,6 +195,21 @@ TEST(StealthOpacityIsTheLightLessTheBonus) {
   CHECK_EQ(near(StealthOpacity(-1, 0), 0.0f), true);   // unknown: not drawn see-through
 }
 
+// Carried light. Breaks caught: a 5 m light made bright or ignored; 10 m+ not
+// bright; the bonus flat (NWN's +10) or not growing with the reach; a bonus
+// with no light.
+TEST(CarriedLightGrowsWithItsReach) {
+  CHECK_EQ(CarriedLightLevel(0), -1);
+  CHECK_EQ(CarriedLightLevel(5), 1);
+  CHECK_EQ(CarriedLightLevel(10), 2);
+  CHECK_EQ(CarriedLightLevel(20), 2);
+  CHECK_EQ(CarriedLightSpotBonus(0), 0);
+  CHECK_EQ(CarriedLightSpotBonus(5), 2);
+  CHECK_EQ(CarriedLightSpotBonus(10), 4);
+  CHECK_EQ(CarriedLightSpotBonus(15), 6);
+  CHECK_EQ(CarriedLightSpotBonus(20), 8);
+}
+
 // SK9. Breaks caught: NWN's +4 for Improved Initiative kept instead of PB; PB
 // added without the feat.
 TEST(InitiativeIs2024) {

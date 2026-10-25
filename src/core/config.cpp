@@ -35,9 +35,14 @@ const char* VariantName(rules::RuleVariant variant) {
 
 }  // namespace
 
+wchar_t g_ini_path[MAX_PATH] = L"";
+
+const wchar_t* ConfigPath() { return g_ini_path; }
+
 void ConfigLoad(const wchar_t* directory) {
   wchar_t ini[MAX_PATH];
   swprintf_s(ini, L"%s\\nwn5e.ini", directory);
+  wcscpy_s(g_ini_path, ini);
   g_config.mode = ReadVariant(ini, L"mode", g_config.mode);
   g_config.crit_nat20_only = ReadBool(ini, L"crit_nat20_only", g_config.crit_nat20_only);
   g_config.crit_no_confirmation = ReadBool(ini, L"crit_no_confirmation", g_config.crit_no_confirmation);
@@ -71,6 +76,9 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.stealth_ghost = ReadBool(ini, L"stealth_ghost", g_config.stealth_ghost);
   g_config.stealth_outline = ReadBool(ini, L"stealth_outline", g_config.stealth_outline);
   g_config.henchmen_follow_stealth = ReadBool(ini, L"henchmen_follow_stealth", g_config.henchmen_follow_stealth);
+  g_config.light_sources = ReadBool(ini, L"light_sources", g_config.light_sources);
+  g_config.map_light = GetPrivateProfileIntW(L"rules", L"map_light", g_config.map_light, ini);
+  g_config.map_tile_dim = ReadBool(ini, L"map_tile_dim", g_config.map_tile_dim);
   g_config.spell_attacks = ReadVariant(ini, L"spell_attacks", g_config.mode);
   g_config.concentration = ReadVariant(ini, L"concentration", g_config.mode);
   g_config.knockdown = ReadVariant(ini, L"knockdown", g_config.mode);

@@ -51,6 +51,11 @@
 //   ambient 58 had made the whole area dim). Measured on the
 //   Training Halls at night: moon ambient 58 (dim), braziers and torch brackets
 //   found lit at 3.9 - 7.8 m. The character is told when it changes.
+//   Torches built into the tiles (0.36.0, M3): on a tile with a source light on,
+//   bright; on the 8 tiles round it, dim - NWN doesn't say where on its 10 m tile
+//   a torch stands. The tile light getters take the tile's GRID coordinate (x / 10,
+//   y / 10) as the location's vector; 0.32.0 passed metres, so they read -1 and
+//   tile torches never counted.
 //   `stealth_light` (2024 perception). Light zones (0.32.1; owner: "Light
 //   sources should have a circle indicator so the player can see where they
 //   take effect"): while hiding, unless the area is bright everywhere, each lit
@@ -101,7 +106,7 @@
 
 bool SpotMargin(void* observer, void* hider, int* margin);  // rules_perception.cpp
 bool StealthParts(void* creature, int* extra, bool* proficient);  // rules_skills.cpp
-bool CarriesLight(void* creature);                           // rules_perception.cpp
+int CarriedLightRadius(void* creature);                      // rules_perception.cpp
 void SetStealthOpacity(uint32_t id, float opacity);          // stealth_ghost.cpp
 bool StealthGhostOn();                                       // stealth_ghost.cpp
 
@@ -187,7 +192,7 @@ std::string Num(int value) { return std::to_string(value); }
 
 // The light where the hider stands (G): 0 dark, 1 dim, 2 bright, stored + 1;
 // with `zones`, the light zones round the sources near it too (the player's).
-std::string LightPart(bool carried, bool zones) {
+std::string LightPart(int carried, bool zones) {
   const auto lum = [](const char* v) {
     const std::string s(v);
     return "(((" + s + " >> 16) & 255) * 299 + ((" + s + " >> 8) & 255) * 587 + (" + s + " & 255) * 114) / 1000";
@@ -200,11 +205,21 @@ std::string LightPart(bool carried, bool zones) {
          // empty room with no light sources showed dim): dark unless a source is near.
          "if (GetIsAreaInterior(area) || !GetIsAreaAboveGround(area)) lum = 0;"
          "if (lum >= 110) light = 2; else if (lum >= 30) light = 1;"
-         "if (" + std::string(carried ? "TRUE" : "FALSE") + ") light = 2;"
+         // A light it carries: 5 m at least dim, 10 m+ bright (rules::CarriedLightLevel).
+         "if (" + std::to_string(rules::CarriedLightLevel(carried)) + " > light) light = " +
+         std::to_string(rules::CarriedLightLevel(carried)) + ";"
          "object q = GetFirstObjectInShape(SHAPE_SPHERE, 9.0, at, FALSE, OBJECT_TYPE_PLACEABLE);"
          "while (light < 2 && GetIsObjectValid(q)) {"
          " if (GetPlaceableIllumination(q)) { if (GetDistanceBetween(pc, q) <= 4.0) light = 2; else if (light < 1) light = 1; }"
          " q = GetNextObjectInShape(SHAPE_SPHERE, 9.0, at, FALSE, OBJECT_TYPE_PLACEABLE);"
+         "}"
+         // Torches in the tiles: its tile bright, the 8 round it dim (grid coordinates).
+         "int tx = FloatToInt(GetPosition(pc).x / 10.0); int ty = FloatToInt(GetPosition(pc).y / 10.0); int ix; int iy;"
+         "for (ix = -1; ix <= 1 && light < 2; ix++) for (iy = -1; iy <= 1 && light < 2; iy++) {"
+         " location tl = Location(area, Vector(IntToFloat(tx + ix), IntToFloat(ty + iy), 0.0), 0.0);"
+         " if (GetTileSourceLight1Color(tl) > 0 || GetTileSourceLight2Color(tl) > 0) {"
+         "  if (ix == 0 && iy == 0) light = 2; else if (light < 1) light = 1;"
+         " }"
          "}"
          "q = GetFirstObjectInShape(SHAPE_SPHERE, 20.0, at, FALSE, OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE);"
          "while (light < 2 && GetIsObjectValid(q)) {"
@@ -270,12 +285,18 @@ std::string LightPart(bool carried, bool zones) {
          " if (GetIsPC(pc)) SendMessageToPC(pc, light == 2 ? \"nwn5e: you are in light - enemies see you normally\""
          "  : (light == 1 ? \"nwn5e: you are in dim light - enemies spot you at -5\""
          "  : \"nwn5e: you are in darkness - only darkvision can see you\"));"
+         "}"
+         "if (" + std::to_string(carried) + " != GetLocalInt(pc, \"nwn5e_light_carried\")) {"
+         " SetLocalInt(pc, \"nwn5e_light_carried\", " + std::to_string(carried) + ");"
+         " if (GetIsPC(pc) && " + std::to_string(carried) + " > 0)"
+         "  SendMessageToPC(pc, \"nwn5e: you carry a light (" + std::to_string(carried) + " m) - enemies spot you at +" +
+         std::to_string(rules::CarriedLightSpotBonus(carried)) + "\");"
          "}";
   return code;
 }
 
 // The pass, on the hiding character.
-void Pass(uint32_t pc, bool carried) {
+void Pass(uint32_t pc, int carried) {
   const int rings = g_config.stealth_rings;
   std::string code =
       "object pc = OBJECT_SELF; location at = GetLocation(pc);"
@@ -372,7 +393,7 @@ void Clear(uint32_t pc) {
       " }"
       " o = GetNextObjectInArea(area, OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE);"
       "}"
-      "DeleteLocalInt(OBJECT_SELF, \"nwn5e_light_level\");"
+      "DeleteLocalInt(OBJECT_SELF, \"nwn5e_light_level\"); DeleteLocalInt(OBJECT_SELF, \"nwn5e_light_carried\");"
       "effect g = GetFirstEffect(OBJECT_SELF);"
       "while (GetIsEffectValid(g)) { if (GetEffectTag(g) == \"nwn5e_ghost\") RemoveEffect(OBJECT_SELF, g); g = GetNextEffect(OBJECT_SELF); }",
       pc, "clearing");
@@ -454,7 +475,7 @@ bool PlayersHenchman(void* creature) {
 
 // A henchman's own ghost look and light level off.
 void ClearHider(uint32_t id) {
-  Run("DeleteLocalInt(OBJECT_SELF, \"nwn5e_light_level\");"
+  Run("DeleteLocalInt(OBJECT_SELF, \"nwn5e_light_level\"); DeleteLocalInt(OBJECT_SELF, \"nwn5e_light_carried\");"
       "effect g = GetFirstEffect(OBJECT_SELF);"
       "while (GetIsEffectValid(g)) { if (GetEffectTag(g) == \"nwn5e_ghost\") RemoveEffect(OBJECT_SELF, g); g = GetNextEffect(OBJECT_SELF); }",
       id, "clearing a henchman");
@@ -478,7 +499,7 @@ void HenchmanPass(void* creature, uint32_t id) {
   if (hiding) {
     if (!watch.on) Log("stealth watch: henchman 0x%08X hides", id);
     if (g_config.stealth_light && g_config.perception == rules::RuleVariant::kFaithful) {
-      Run("object pc = OBJECT_SELF; location at = GetLocation(pc);" + LightPart(CarriesLight(creature), false), id,
+      Run("object pc = OBJECT_SELF; location at = GetLocation(pc);" + LightPart(CarriedLightRadius(creature), false), id,
           "henchman light");
     }
     if (StealthGhostOn()) SetStealthOpacity(id, OpacityFor(creature));
@@ -554,7 +575,7 @@ void Update(void* creature) {
       watch.passes = 0;
     }
     ++watch.passes;
-    Pass(id, CarriesLight(creature));
+    Pass(id, CarriedLightRadius(creature));
     // The see-through look's opacity for its light and Stealth bonus (stealth_ghost.cpp).
     if (StealthGhostOn()) SetStealthOpacity(id, OpacityFor(creature));
     if (g_config.henchmen_follow_stealth) Follow(id, true, watch.passes == 1, watch.passes <= 2);

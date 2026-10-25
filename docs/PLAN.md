@@ -2021,6 +2021,39 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   henchman followed and nothing said why: the follow pass now logs, when it
   changes, each henchman's reason (stands its ground, hiding, found, dead,
   down, fighting, elsewhere, follows, or the game refused).
+  0.36.0 lights (owner: "putting off a light source is a good one" - L1:
+  attacking, interacting directly, "or via another spell like mage hand or
+  prestidigitation"; L2: "would it be possible eventually to add an
+  interactible element where wall torches exist?"; L3 / M1-M3 as recommended;
+  then light-giving gear: "the brighter the weapon & equipment the greater
+  penalty"). light_sources.cpp: a hook on CVirtualMachine::RunScript runs
+  nwn5e's code for the event script names n5_lamp_use / n5_lamp_hit /
+  n5_lamp_spl (every event script goes through it: RunEventScript ->
+  RunScript(name, self, 1, type x 1000 + event)). On entering an area each lit,
+  non-static, inventory-less light placeable gets them where its own are empty
+  (on used - also replacing the stock switches nw_02_onoff, which never turned
+  the light off, and x2_am_lampuse - and made usable; on damaged = a hit; on
+  spell cast at). Static placeables (stock blueprints without a Static field
+  load so) are scenery the client can't click and SetUseableFlag refuses:
+  skipped. Used toggles; a hit (non-fire) or Ray of Frost / Ice Dagger / Gust
+  of Wind / Cone of Cold / Ice Storm puts it out (damage mended); the Light
+  spell relights. Out = deactivate animation, illumination off,
+  RecomputeStaticLighting. L3: hostiles within 20 m with a line to it come to
+  look (2024, heard_investigates). Mage Hand / Prestidigitation: with the
+  spells (not NWN spells). L2: feasible later - tile source lights are dummy
+  nodes <tile>sl1/sl2 in the tile models, and the client spawns fx_flame01
+  there only while the colour isn't 0, so SetTileSourceLightColor 0 removes
+  flame and light; a clickable stand-in can sit at the node (GetTileID -> .set
+  model -> node position, rotated by GetTileOrientation).
+  Darker maps: each area once a session - sun / moon ambient and diffuse at
+  map_light % (70) of the originals kept on the area, tiles' main lights one
+  step darker (lightcolor.2da steps are ~x0.5; never to black), recompute;
+  `!maplight <10-100>` re-applies here and saves it. M3: tile torches in the
+  light rule by grid coordinate (its tile bright, the 8 round dim) - 0.32.0
+  read them by metres and got -1; `!light` likewise. Carried light: by reach
+  (5/10/15/20 m) a watcher spots the hider at +2/+4/+6/+8 and it stands in dim
+  (5 m) or bright (10 m+) light (rules::CarriedLightLevel / SpotBonus), told
+  when it hides with one; also in the wedge colour.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

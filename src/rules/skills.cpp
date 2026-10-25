@@ -583,6 +583,13 @@ float StealthOpacity(int light_level, int extra_bonus) {
   return opacity < 0.3f ? 0.3f : opacity;
 }
 
+int CarriedLightLevel(int radius_m) {
+  if (radius_m <= 0) return -1;
+  return radius_m >= 10 ? 2 : 1;
+}
+
+int CarriedLightSpotBonus(int radius_m) { return radius_m > 0 ? (radius_m + 4) / 5 * 2 : 0; }
+
 bool WithinVisionCone(float dx, float dy, float fx, float fy, float degrees) {
   if (degrees >= 360.0f) return true;
   if (degrees <= 0.0f) return false;
