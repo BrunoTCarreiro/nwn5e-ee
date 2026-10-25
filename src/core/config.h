@@ -68,13 +68,19 @@ struct Config {
   rules::RuleVariant perception = rules::RuleVariant::kFaithful;
   // SK5 A (with perception=faithful): hiding needs a Stealth total of 15 (the
   // 2024 Hide action); below it the creature is not hidden.
-  bool hiding_needs_15 = true;
+  bool hiding_needs_15 = false;  // off since 0.28.0 (owner: "hiding should succeed by default")
   // SK5 B: an enemy finds a hidden creature in front of it within 2 m with a
   // clear line between them (2024 hides you only out of sight).
   bool found_up_close = true;
   // SK5 C: a creature in combat searches (an active d20 Perception each 6 s)
   // instead of using passive Perception.
   bool alert_creatures_search = true;
+  // SK5 D (owner, 2026-10-25: "hiding should succeed by default, enemy
+  // investigation rolls should test it"): a creature that isn't searching
+  // can't see a hider (it can hear one, and comes to look - stealth_watch.cpp);
+  // only searching ones (investigating, detect mode, alert in combat) roll
+  // Perception to find it. Up close (B) still finds it.
+  bool hiders_need_search = true;
   // SK10: faithful = spell attacks are PB + casting ability against full AC,
   // with advantage / disadvantage; nwn / off = NWN's touch attacks.
   rules::RuleVariant spell_attacks = rules::RuleVariant::kFaithful;

@@ -16,7 +16,14 @@
 //   added to the hider's skill too), no -10 while in combat, no Favored Enemy
 //   bonus, and a Stealth total of 0 no longer means "can't hide";
 // - found_up_close (B): an observer whose Spot check got as far as its score
-//   finds a hider in front of it within 2 m with a clear line between them.
+//   finds a hider in front of it within 2 m with a clear line between them;
+// - hiders_need_search (D; owner, 2026-10-25: "hiding should succeed by
+//   default, enemy investigation rolls should test it"): an observer that isn't
+//   searching can't pick a hider out by sight - it can hear one, and then comes
+//   to look (stealth_watch.cpp), searching: its Perception rolls (a d20) are
+//   what find the hider. A searcher's roll against a hiding player character is
+//   told to it (once, and again when the result changes). With it, hiding needs
+//   no 15 (hiding_needs_15 is off by default).
 // Distance, area, movement, facing and light terms stay (NWN's real-time
 // stealth needs them). A deafened observer can't hear and a blinded one can't
 // see: EE's own checks already fail them (SK11). NWN mode: NWN's.
@@ -38,6 +45,7 @@
 #include "creature.h"
 #include "dice.h"
 #include "ee_layout.h"
+#include "effects.h"
 #include "engine.h"
 #include "hooks.h"
 #include "log.h"
@@ -90,6 +98,7 @@ uintptr_t g_stealth_dice[5] = {};  // Hide, Move Silently, Spot d10, Spot d20, L
 std::unordered_map<uint32_t, int> g_stealth_roll;  // hiding creature -> its d20 for this hide
 std::unordered_set<uint32_t> g_not_hidden;         // ... whose Stealth total missed 15
 std::unordered_map<uint64_t, int> g_noticed;       // (observer, hider, sense) -> last result, for the log
+std::unordered_map<uint64_t, int> g_told;          // (searcher, hiding player) -> last result told to the player
 int g_log_lines = 0;
 
 thread_local void* t_roller = nullptr;    // DoStealthDetection's creature
@@ -126,7 +135,10 @@ int RollStealth(void* creature, const char* when) {
   }
   if (IsPlayer(creature)) {
     char line[160];
-    if (!g_config.hiding_needs_15) {
+    if (!g_config.hiding_needs_15 && g_config.hiders_need_search) {
+      sprintf_s(line, "nwn5e: hidden - Stealth %d (d20 %d %+d); enemies that search roll Perception against it", total,
+                roll, skill);
+    } else if (!g_config.hiding_needs_15) {
       sprintf_s(line, "nwn5e: Stealth %d (d20 %d %+d), kept while you stay hidden", total, roll, skill);
     } else if (hidden) {
       sprintf_s(line, "nwn5e: Stealth %d (d20 %d %+d) - hidden; that roll holds while you stay hidden", total, roll,
@@ -156,6 +168,9 @@ void SetStealthMode(void* creature, uint8_t mode) {
     // the creature is in its area): the next 6 s update rolls if it hides.
     g_stealth_roll.erase(id);
     if (mode != 1) g_not_hidden.erase(id);
+  }
+  if (mode != 1) {
+    for (auto it = g_told.begin(); it != g_told.end();) it = static_cast<uint32_t>(it->first) == id ? g_told.erase(it) : ++it;
   }
 }
 
@@ -278,6 +293,23 @@ bool FoundUpClose(void* observer, void* hider, float* metres) {
   return rules::InFrontWithin(dx, dy, fx, fy, kUpCloseMetres) && ClearLine(observer, hider);
 }
 
+// A searcher's sight roll against a hiding player character, told to the player
+// (once, and again when the result changes): its Spot die (+0x7c6) and Perception.
+void TellSearch(void* observer, void* hider, int found) {
+  const uint64_t key = static_cast<uint64_t>(IdOf(observer)) << 32 | IdOf(hider);
+  const auto it = g_told.find(key);
+  if (it != g_told.end() && it->second == found) return;
+  g_told[key] = found;
+  void* stats = StatsOf(observer);
+  const int skill = stats && E().skill_rank ? static_cast<int8_t>(E().skill_rank(stats, ee::kSkillSpot, nullptr, 0)) : 0;
+  char code[400];
+  sprintf_s(code,
+            "object o = StringToObject(\"%x\");"
+            "SendMessageToPC(OBJECT_SELF, \"nwn5e: \" + GetName(o) + \" searches (Perception d20 %d %+d): %s\");",
+            IdOf(observer), Field<uint8_t>(observer, 0x7c6), skill, found ? "you are found" : "you stay hidden");
+  RunScriptChunk(code, IdOf(hider));
+}
+
 int Detection(DetectionFn original, bool spot, void* observer, void* target, int flag) {
   void* outer_observer = t_observer;
   const bool outer_scored = t_scored;
@@ -290,10 +322,16 @@ int Detection(DetectionFn original, bool spot, void* observer, void* target, int
   if (!observer || !target || !Hiding(target)) return result;
   char up_close[64] = "";
   float metres = 0.0f;
+  // D: not searching, it can't pick a hider out by sight (it can hear one).
+  if (spot && result && g_config.hiders_need_search && !Searching(observer)) {
+    result = 0;
+    sprintf_s(up_close, "; not searching: unseen");
+  }
   if (spot && !result && scored && g_config.found_up_close && FoundUpClose(observer, target, &metres)) {
     result = 1;
     sprintf_s(up_close, "; found up close: %.1f m in front, clear line", metres);
   }
+  if (spot && g_config.hiders_need_search && Searching(observer) && IsPlayer(target)) TellSearch(observer, target, result);
   if (!g_config.log_attacks) return result;
   const uint64_t key = (static_cast<uint64_t>(IdOf(observer)) << 32 | IdOf(target)) ^ (spot ? 1ull << 63 : 0);
   const auto it = g_noticed.find(key);

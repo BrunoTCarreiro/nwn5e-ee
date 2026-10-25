@@ -1815,6 +1815,20 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   carrying one (+10 to spot, EE's own term); 2024 mode - bright normal, dim
   disadvantage on sight Perception (-5 passive), dark heavily obscured (only
   darkvision sees, as dim); and a light gem on the character.
+- **Hiding succeeds; searches test it** (0.28.0; owner: "we need to fix the
+  hiding, hiding should succeed by default, enemy investigation rolls should
+  test it"). Was: a Stealth total below 15 didn't hide (hiding_needs_15) and
+  every enemy's passive Perception (10 + mod) beat a low total every 6 s. Now
+  (SK5 D, hiders_need_search): hiding always works (hiding_needs_15 off by
+  default); an observer that isn't searching can't see a hider - it can hear
+  one (passive Perception still), which sends it to investigate; searching
+  observers (investigating = detect mode, detect mode, alert in combat) roll a
+  d20 Perception against the kept Stealth total, and a searcher's roll against
+  a hiding player character is told to it (once, again when it changes). Up
+  close (B) still finds a hider. The investigation waits 6 s at the noise so a
+  detection pass falls there. Note: a calm enemy watching you hide loses you
+  (2024 says you can't hide from a creature that sees you clearly) - the light
+  level, when built, can give passive sight back in bright light.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

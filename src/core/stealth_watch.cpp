@@ -16,7 +16,8 @@
 //   2024 rules (perception=faithful) - finding a hider by hearing is finding it,
 //   so a hostile that hears it but doesn't see it investigates: it walks to where
 //   the sound came from in search mode (detect: a rolled Perception, SK5), looks
-//   about, waits, walks back. Not one in combat, in conversation, plot, someone's
+//   about, waits 6 s (a 6 s detection pass always falls there: its rolls are what
+//   find the hider - hiders_need_search), walks back. Not one in combat, in conversation, plot, someone's
 //   associate or not commandable; again after 25 s at most. NWN's own AI never
 //   acts on hearing ("DO NOT RELY ON HEARING FOR ENEMY DETECTION",
 //   nw_c2_default2) beyond a head scratch within 7 m. `heard_investigates`.
@@ -144,7 +145,7 @@ void Pass(uint32_t pc) {
         "   AssignCommand(o, ActionMoveToLocation(at));"
         "   AssignCommand(o, ActionPlayAnimation(ANIMATION_FIREFORGET_HEAD_TURN_LEFT));"
         "   AssignCommand(o, ActionPlayAnimation(ANIMATION_FIREFORGET_HEAD_TURN_RIGHT));"
-        "   AssignCommand(o, ActionWait(4.0));"
+        "   AssignCommand(o, ActionWait(6.0));"
         "   AssignCommand(o, ActionMoveToLocation(home));"
         "   AssignCommand(o, ActionDoCommand(SetActionMode(OBJECT_SELF, ACTION_MODE_DETECT, FALSE)));"
         "   AssignCommand(o, ActionDoCommand(DeleteLocalInt(OBJECT_SELF, \"nwn5e_seek\")));"
