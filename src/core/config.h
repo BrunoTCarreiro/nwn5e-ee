@@ -130,6 +130,8 @@ struct Config {
   // A held torch's flame rises whatever the torch's angle (owner: "a torch held
   // sideways will spew flames sideways as well"; light_sources.cpp).
   bool torch_flame_up = true;
+  int torch_flame_life_ms = 500;  // its particles' life (the game's: 2000)
+  int torch_flame_rise = 14;      // how fast they rise: mass -rise / 100
   int map_light = 70;
   bool map_tile_dim = true;
   // SK10: faithful = spell attacks are PB + casting ability against full AC,

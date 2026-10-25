@@ -103,7 +103,10 @@
 // mass so it floats up in the world, not carried in the torch's frame - and
 // written there under their own names: on the player's machine, nothing of the
 // game's kept in nwn5e. The candle holder's flame (it_torch_002) doesn't move.
-// `torch_flame_up`.
+// `torch_flame_up`. 0.37.5 (owner: "the lifetime of the particles needs to be
+// greatly reduced and the speed slightly increased"): the particles live
+// torch_flame_life_ms (500; the game's 2000) and rise at mass
+// -torch_flame_rise / 100 (14; was 10) - in nwn5e.ini, read at start.
 //
 // Bash is snuff (0.37.0; owner: "the radial menu on light sources should also
 // have an option beyond 'bash', I'm thinking 'snuff' where the character attacks
@@ -755,7 +758,9 @@ void GenerateTorchFlames(const std::wstring& served) {
       Log("lights: the torch model %s couldn't be read (%s)", model, why.c_str());
       continue;
     }
-    const int nodes = data::PatchEmitter(&bytes, "Flame02", {{192, 0.0f}, {148, -0.1f}}, 0x40);
+    const float life = static_cast<float>(g_config.torch_flame_life_ms) / 1000.0f;   // 144: life (s)
+    const float mass = -static_cast<float>(g_config.torch_flame_rise) / 100.0f;      // 148: mass (< 0 rises)
+    const int nodes = data::PatchEmitter(&bytes, "Flame02", {{192, 0.0f}, {148, mass}, {144, life}}, 0x40);
     if (nodes == 0) {
       Log("lights: no Flame02 emitter in %s - left as it is", model);
       continue;
@@ -768,7 +773,10 @@ void GenerateTorchFlames(const std::wstring& served) {
       ++written;
     }
   }
-  if (written) Log("lights: %d torch models served with their flame rising, whatever the torch's angle", written);
+  if (written) {
+    Log("lights: %d torch models served with their flame rising, whatever the torch's angle (life %d ms, rise %d)",
+        written, g_config.torch_flame_life_ms, g_config.torch_flame_rise);
+  }
 }
 
 void InstallLightSources() {
