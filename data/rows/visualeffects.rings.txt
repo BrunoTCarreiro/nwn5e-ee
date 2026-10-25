@@ -4,6 +4,7 @@
 # 5/10/15/20/25/28/30/35/40/50 m; 1610-1809: its filled vision cone when calm, 5 colours (yellow: very unlikely
 # to see the hider - red: very likely) x 60/90/120/150 degrees x the radii,
 # turned with its facing. nwn5e's own models and textures (data\files\n5_r*), on the root.
+# 1820-1835: light zones round a lit light source (pale; bright edge solid, dim edge dashed), radii 2.5/4/5/7.5/9/10/15/20 m.
 Label Type_FD OrientWithGround Imp_Root_S_Node Imp_Root_M_Node Imp_Root_L_Node Imp_Root_H_Node OrientWithObject
 1573 NWN5E_RING_SIGHT_5 D 1 n5_rs5 n5_rs5 n5_rs5 n5_rs5 0
 1574 NWN5E_RING_SIGHT_10 D 1 n5_rs10 n5_rs10 n5_rs10 n5_rs10 0
@@ -225,3 +226,19 @@ Label Type_FD OrientWithGround Imp_Root_S_Node Imp_Root_M_Node Imp_Root_L_Node I
 1807 NWN5E_CONE_4_150_35 D 1 n5_rc4_150_35 n5_rc4_150_35 n5_rc4_150_35 n5_rc4_150_35 1
 1808 NWN5E_CONE_4_150_40 D 1 n5_rc4_150_40 n5_rc4_150_40 n5_rc4_150_40 n5_rc4_150_40 1
 1809 NWN5E_CONE_4_150_50 D 1 n5_rc4_150_50 n5_rc4_150_50 n5_rc4_150_50 n5_rc4_150_50 1
+1820 NWN5E_LIGHT_BRIGHT_2_5 D 1 n5_lb2_5 n5_lb2_5 n5_lb2_5 n5_lb2_5 0
+1821 NWN5E_LIGHT_BRIGHT_4 D 1 n5_lb4 n5_lb4 n5_lb4 n5_lb4 0
+1822 NWN5E_LIGHT_BRIGHT_5 D 1 n5_lb5 n5_lb5 n5_lb5 n5_lb5 0
+1823 NWN5E_LIGHT_BRIGHT_7_5 D 1 n5_lb7_5 n5_lb7_5 n5_lb7_5 n5_lb7_5 0
+1824 NWN5E_LIGHT_BRIGHT_9 D 1 n5_lb9 n5_lb9 n5_lb9 n5_lb9 0
+1825 NWN5E_LIGHT_BRIGHT_10 D 1 n5_lb10 n5_lb10 n5_lb10 n5_lb10 0
+1826 NWN5E_LIGHT_BRIGHT_15 D 1 n5_lb15 n5_lb15 n5_lb15 n5_lb15 0
+1827 NWN5E_LIGHT_BRIGHT_20 D 1 n5_lb20 n5_lb20 n5_lb20 n5_lb20 0
+1828 NWN5E_LIGHT_DIM_2_5 D 1 n5_ld2_5 n5_ld2_5 n5_ld2_5 n5_ld2_5 0
+1829 NWN5E_LIGHT_DIM_4 D 1 n5_ld4 n5_ld4 n5_ld4 n5_ld4 0
+1830 NWN5E_LIGHT_DIM_5 D 1 n5_ld5 n5_ld5 n5_ld5 n5_ld5 0
+1831 NWN5E_LIGHT_DIM_7_5 D 1 n5_ld7_5 n5_ld7_5 n5_ld7_5 n5_ld7_5 0
+1832 NWN5E_LIGHT_DIM_9 D 1 n5_ld9 n5_ld9 n5_ld9 n5_ld9 0
+1833 NWN5E_LIGHT_DIM_10 D 1 n5_ld10 n5_ld10 n5_ld10 n5_ld10 0
+1834 NWN5E_LIGHT_DIM_15 D 1 n5_ld15 n5_ld15 n5_ld15 n5_ld15 0
+1835 NWN5E_LIGHT_DIM_20 D 1 n5_ld20 n5_ld20 n5_ld20 n5_ld20 0

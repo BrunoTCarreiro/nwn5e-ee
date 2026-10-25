@@ -22,6 +22,11 @@
 // stance"): the server sends the whole list on any change (WriteGameObjUpdate,
 // bit 0x18), but the crouch never went away on screen - an emptied list may not
 // clear the client's; a changed entry always reaches it (that's how it went on).
+// A walk already under way doesn't restart either (owner: "if I leave stealth
+// mode while moving the PC doesn't return to normal vertical stance"): when the
+// walk's swap changes on a walking creature, its animation is set to the idle
+// for one tick (CNWSCreature::SetAnimation(0), after the engine's own update) -
+// the next update's movement sets the walk again, now through the new swap.
 
 #include <stdint.h>
 
@@ -34,11 +39,25 @@
 #include "ee_layout.h"
 #include "effects.h"
 #include "engine.h"
+#include "hooks.h"
 #include "log.h"
 
 bool AnimationRecipeBuilt(const std::string& name, std::string* text);  // anim_packs.cpp
 
 namespace {
+
+using SetAnimationFn = void (*)(void* creature, int animation);
+constexpr size_t kObjectAnimation = 0xd8;  // uint16: the animation playing (CNWSObject)
+constexpr int kAnimWalk = 2, kAnimWalkBack = 3;
+
+// A walking creature's walk restarted (see above).
+void RestartWalk(uint32_t id) {
+  static const auto set_animation = reinterpret_cast<SetAnimationFn>(EngineExport(ee::kCreatureSetAnimation));
+  void* creature = CreatureById(id);
+  if (!set_animation || !creature) return;
+  const int playing = Field<uint16_t>(creature, kObjectAnimation);
+  if (playing == kAnimWalk || playing == kAnimWalkBack) set_animation(creature, 0);
+}
 
 constexpr const char* kCrouchIdle = "n5_cridle";
 constexpr const char* kCrouchWalk = "n5_crwalk";
@@ -91,12 +110,14 @@ void Send(uint32_t id, Look& look) {
     }
   }
   const bool first = !look.sent;
+  const bool walk_changed = look.sent && walk != look.walk;
   look.sent = true;
   look.idle = idle;
   look.walk = walk;
   RunScriptChunk(("if (Get2DAString(\"appearance\", \"MODELTYPE\", GetAppearanceType(OBJECT_SELF)) == \"P\") {" + code + "}")
                      .c_str(),
                  id);
+  if (walk_changed) RestartWalk(id);
   if (!first || !idle.empty() || !walk.empty()) {
     void* creature = CreatureById(id);
     const int busy = creature ? engine::GetLocalInt(creature, "nwn5e_look_kick") : -1;

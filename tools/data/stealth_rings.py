@@ -21,6 +21,13 @@ cones turned with its facing (OrientWithObject; the creature faces +Y). nwn5e's
 own art; nothing of the game's. Rows: 1573-1582 sight rings, 1583-1592 hearing
 rings (RADII's order); 1610 + 10 x CONE_ANGLES index + RADII index: cones.
 
+Light zones (owner: "Light sources should have a circle indicator so the player
+can see where they take effect"): around a lit light source, a pale ring where
+its bright light ends (solid) and one where its dim light ends (dashed) - the
+distances stealth_watch.cpp's light rule uses (a lit placeable: 4 / 9 m; a light
+effect of radius r: r/2 / r). Rows 1820 + 8 x kind (0 bright, 1 dim) + LIGHT_RADII
+index.
+
 Run from the repo root.
 """
 
@@ -37,6 +44,13 @@ KINDS = [
     # (prefix, first row, label, texture, band width m, height m, color, dashed)
     ("n5_rs", SIGHT_ROW, "NWN5E_RING_SIGHT", "n5_ring_s", 0.22, 0.06, (255, 186, 60), False),
     ("n5_rh", HEAR_ROW, "NWN5E_RING_HEAR", "n5_ring_h", 0.16, 0.05, (110, 185, 255), True),
+]
+LIGHT_RADII = [2.5, 4, 5, 7.5, 9, 10, 15, 20]   # stealth_watch.cpp has the same list
+LIGHT_ROW = 1820
+LIGHT_KINDS = [
+    # (prefix, texture, band width m, height m, color, dashed)
+    ("n5_lb", "n5_lring_b", 0.14, 0.04, (255, 236, 170), False),
+    ("n5_ld", "n5_lring_d", 0.12, 0.035, (255, 236, 170), True),
 ]
 TEX_U, TEX_V = 64, 16
 DASH_M = 1.6        # one dash + gap along the hearing ring
@@ -218,9 +232,23 @@ def main():
                 rows.append("%d NWN5E_CONE_%d_%d_%d D 1 %s %s %s %s 1" % (row, c, angle, radius, name, name, name,
                                                                           name))
                 count += 1
+    for k, (prefix, tex, width, height, color, dashed) in enumerate(LIGHT_KINDS):
+        write_tga(os.path.join(FILES, tex + ".tga"), TEX_U, TEX_V, texture(color, dashed))
+        for i, radius in enumerate(LIGHT_RADII):
+            name = "%s%s" % (prefix, ("%g" % radius).replace(".", "_"))
+            mesh = Mesh()
+            mesh.arc(radius, width, 0.0, 2 * math.pi, repeats_per_m=dashed)
+            write_model(name, tex, height, mesh, "a %g m ring round a light source - where its %s light ends" % (
+                radius, "dim" if dashed else "bright"))
+            label = "NWN5E_LIGHT_%s_%s" % ("DIM" if dashed else "BRIGHT", ("%g" % radius).replace(".", "_"))
+            rows.append("%d %s D 1 %s %s %s %s 0" % (LIGHT_ROW + 8 * k + i, label, name, name, name, name))
+            count += 1
+    header = next(i for i, r in enumerate(rows) if r.startswith("Label "))
+    rows.insert(header, "# 1820-1835: light zones round a lit light source (pale; bright edge solid, dim edge"
+                        " dashed), radii %s m." % "/".join("%g" % r for r in LIGHT_RADII))
     with open(ROWS, "w", encoding="ascii", newline="\n") as f:
         f.write("\n".join(rows) + "\n")
-    print("wrote %d models, %d textures to %s, and %s" % (count, 2 + len(CONE_COLOURS), FILES, ROWS))
+    print("wrote %d models, %d textures to %s, and %s" % (count, 4 + len(CONE_COLOURS), FILES, ROWS))
 
 
 if __name__ == "__main__":

@@ -43,12 +43,20 @@
 //   (local nwn5e_light_level, + 1): bright - within 4 m of a lit placeable
 //   (GetPlaceableIllumination: braziers, torch brackets ...), or the inner half
 //   of a light effect's radius (VFX_DUR_LIGHT_*: 5 / 10 / 15 / 20 m), or
-//   carrying a light, or an area lit 110+ (its sun or moon ambient + half its
-//   diffuse, by the time of day; 0-255); dim - within 9 m of a lit placeable or
-//   a light effect's radius, or an area lit 30+; else dark. Measured on the
+//   carrying a light, or an outdoor area lit 110+ (its sun or moon ambient +
+//   half its diffuse, by the time of day; 0-255); dim - within 9 m of a lit
+//   placeable or a light effect's radius, or an outdoor area lit 30+; else dark.
+//   Indoors / underground the area's own light doesn't count (0.32.1; owner: a
+//   small empty room with no light near showed dim - the Training Halls' moon
+//   ambient 58 had made the whole area dim). Measured on the
 //   Training Halls at night: moon ambient 58 (dim), braziers and torch brackets
 //   found lit at 3.9 - 7.8 m. The character is told when it changes.
-//   `stealth_light` (2024 perception).
+//   `stealth_light` (2024 perception). Light zones (0.32.1; owner: "Light
+//   sources should have a circle indicator so the player can see where they
+//   take effect"): while hiding, unless the area is bright everywhere, each lit
+//   placeable within 30 m shows a pale solid ring at 4 m (bright ends) and a
+//   dashed one at 9 m (dim ends), a light effect of radius r at r/2 and r
+//   (tools/data/stealth_rings.py rows 1820-1835).
 // All from the engine's own perception (GetObjectSeen / GetObjectHeard), so what
 // decides it shows: the 2024 Stealth against passive Perception, line of sight,
 // EE's night light terms (at night a watcher without a light or darkvision
@@ -165,6 +173,9 @@ std::string LightPart(bool carried) {
          "int amb = GetAreaLightColor(night ? AREA_LIGHT_COLOR_MOON_AMBIENT : AREA_LIGHT_COLOR_SUN_AMBIENT, area);"
          "int dif = GetAreaLightColor(night ? AREA_LIGHT_COLOR_MOON_DIFFUSE : AREA_LIGHT_COLOR_SUN_DIFFUSE, area);"
          "int lum = " + lum("amb") + " + (" + lum("dif") + ") / 2;"
+         // Indoors or underground the area's own light is a tint, not light in every room (owner: a small
+         // empty room with no light sources showed dim): dark unless a source is near.
+         "if (GetIsAreaInterior(area) || !GetIsAreaAboveGround(area)) lum = 0;"
          "if (lum >= 110) light = 2; else if (lum >= 30) light = 1;"
          "if (" + std::string(carried ? "TRUE" : "FALSE") + ") light = 2;"
          "object q = GetFirstObjectInShape(SHAPE_SPHERE, 9.0, at, FALSE, OBJECT_TYPE_PLACEABLE);"
@@ -186,6 +197,39 @@ std::string LightPart(bool carried) {
          "  e = GetNextEffect(q);"
          " }"
          " q = GetNextObjectInShape(SHAPE_SPHERE, 20.0, at, FALSE, OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE);"
+         "}"
+         // Light zones: rings round lit sources within 30 m (none in an area bright everywhere).
+         "object s = GetFirstObjectInShape(SHAPE_SPHERE, 40.0, at, FALSE, OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE);"
+         "while (GetIsObjectValid(s)) {"
+         " int zone = 0;"
+         " if (lum < 110 && s != pc && GetDistanceBetween(pc, s) <= 30.0) {"
+         "  if (GetObjectType(s) == OBJECT_TYPE_PLACEABLE && GetPlaceableIllumination(s)) zone = 1821 * 10000 + 1832;"
+         "  else {"
+         "   effect le = GetFirstEffect(s);"
+         "   while (GetIsEffectValid(le) && !zone) {"
+         "    if (GetEffectType(le, TRUE) == EFFECT_TYPE_VISUALEFFECT) {"
+         "     int lv = GetEffectInteger(le, 0);"
+         "     if (lv >= 153 && lv <= 180) {"
+         "      int k = (lv - 153) % 4;"
+         "      int b = k == 0 ? 1820 : (k == 1 ? 1822 : (k == 2 ? 1823 : 1825));"
+         "      int dm = k == 0 ? 1830 : (k == 1 ? 1833 : (k == 2 ? 1834 : 1835));"
+         "      zone = b * 10000 + dm;"
+         "     }"
+         "    }"
+         "    le = GetNextEffect(s);"
+         "   }"
+         "  }"
+         " }"
+         " if (zone != GetLocalInt(s, \"nwn5e_lring\")) {"
+         "  effect le = GetFirstEffect(s);"
+         "  while (GetIsEffectValid(le)) { if (GetEffectTag(le) == \"nwn5e_lring\") RemoveEffect(s, le); le = GetNextEffect(s); }"
+         "  if (zone) {"
+         "   ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(SupernaturalEffect(EffectVisualEffect(zone / 10000)), \"nwn5e_lring\"), s);"
+         "   ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(SupernaturalEffect(EffectVisualEffect(zone % 10000)), \"nwn5e_lring\"), s);"
+         "  }"
+         "  SetLocalInt(s, \"nwn5e_lring\", zone);"
+         " }"
+         " s = GetNextObjectInShape(SHAPE_SPHERE, 40.0, at, FALSE, OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE);"
          "}"
          "if (light + 1 != GetLocalInt(pc, \"nwn5e_light_level\")) {"
          " SetLocalInt(pc, \"nwn5e_light_level\", light + 1);"
@@ -279,17 +323,19 @@ void Pass(uint32_t pc, bool carried) {
 
 // Every marker and ring in the character's area off.
 void Clear(uint32_t pc) {
-  Run("object area = GetArea(OBJECT_SELF); object o = GetFirstObjectInArea(area, OBJECT_TYPE_CREATURE);"
+  Run("object area = GetArea(OBJECT_SELF);"
+      "object o = GetFirstObjectInArea(area, OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE);"
       "while (GetIsObjectValid(o)) {"
-      " if (GetLocalInt(o, \"nwn5e_noticed\") || GetLocalInt(o, \"nwn5e_ring\")) {"
+      " if (GetLocalInt(o, \"nwn5e_noticed\") || GetLocalInt(o, \"nwn5e_ring\") || GetLocalInt(o, \"nwn5e_lring\")) {"
       "  effect e = GetFirstEffect(o);"
       "  while (GetIsEffectValid(e)) {"
-      "   string t = GetEffectTag(e); if (t == \"nwn5e_noticed\" || t == \"nwn5e_ring\") RemoveEffect(o, e);"
+      "   string t = GetEffectTag(e);"
+      "   if (t == \"nwn5e_noticed\" || t == \"nwn5e_ring\" || t == \"nwn5e_lring\") RemoveEffect(o, e);"
       "   e = GetNextEffect(o);"
       "  }"
-      "  DeleteLocalInt(o, \"nwn5e_noticed\"); DeleteLocalInt(o, \"nwn5e_ring\");"
+      "  DeleteLocalInt(o, \"nwn5e_noticed\"); DeleteLocalInt(o, \"nwn5e_ring\"); DeleteLocalInt(o, \"nwn5e_lring\");"
       " }"
-      " o = GetNextObjectInArea(area, OBJECT_TYPE_CREATURE);"
+      " o = GetNextObjectInArea(area, OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE);"
       "}"
       "DeleteLocalInt(OBJECT_SELF, \"nwn5e_light_level\");",
       pc, "clearing");

@@ -1910,6 +1910,18 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   terms zeroed in 2024 mode (ruleset.if_light2024.txt: rows 89 / 90 = 0, served
   only when stealth_light). Outdoors not measured yet; thresholds to tune with
   the owner's light queries.
+  0.32.1 (owner: "if I leave stealth mode while moving the PC doesn't return
+  to normal vertical stance. Light sources should have a circle indicator so
+  the player can see where they take effect" - and "a small room with nothing
+  in it ... still showed up as dim"): a walking creature whose walk swap
+  changes gets CNWSCreature::SetAnimation(0) for one tick, after the engine's
+  update, so the next update's movement restarts the walk through the new swap
+  (no interruption). Light zones while hiding: each lit placeable within 30 m a
+  pale solid ring at 4 m and a dashed one at 9 m, a light effect r/2 and r
+  (rows 1820-1835), none when the area is bright everywhere. Indoors /
+  underground the area's own light no longer counts (the Training Halls' moon
+  ambient 58 made every room dim): dark unless a source is near. Tile-built
+  torches stay unreadable (-1), so a room lit only by them reads dark.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:
