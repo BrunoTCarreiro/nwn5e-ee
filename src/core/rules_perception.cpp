@@ -31,7 +31,12 @@
 //   or more off a computer observer's facing, -5 for a still hider, +5 for a
 //   still observer); outside the cone, not at all. Searching observers see all
 //   round. A calm look that sees or misses a hiding player character is told
-//   to it too. vision_cone=0 is D as it was (calm observers see no hider).
+//   to it too. vision_cone=0 is D as it was (calm observers see no hider);
+// - found ends hiding (F; owner, 2026-10-25: "once discovered the PC leaves
+//   stealth mode"): a hostile that sees a hiding player character - a search,
+//   a look inside its cone, or up close - takes it out of stealth mode (on the
+//   next script tick, not inside the engine's detection), told why; its
+//   markers, rings and cones go with it (stealth_watch.cpp). found_ends_hiding.
 // Distance, area, movement, facing and light terms stay (NWN's real-time
 // stealth needs them). A deafened observer can't hear and a blinded one can't
 // see: EE's own checks already fail them (SK11). NWN mode: NWN's.
@@ -311,8 +316,9 @@ bool InVisionCone(void* observer, void* hider) {
 
 // A sight check against a hiding player character, told to the player (once,
 // and again when the result changes): a searcher's d20 or a calm look's passive
-// score (its Spot die +0x7c6: the d20, or 10 / 5) and its Perception.
-void TellCheck(void* observer, void* hider, int found, bool searching) {
+// score (its Spot die +0x7c6: the d20, or 10 / 5) and its Perception. Only a
+// hostile's; one that finds the character takes it out of stealth mode (F).
+void TellCheck(void* observer, void* hider, int found, bool searching, bool up_close) {
   const uint64_t key = static_cast<uint64_t>(IdOf(observer)) << 32 | IdOf(hider);
   const auto it = g_told.find(key);
   if (it != g_told.end() && it->second == found) return;
@@ -321,15 +327,26 @@ void TellCheck(void* observer, void* hider, int found, bool searching) {
   const int skill = stats && E().skill_rank ? static_cast<int8_t>(E().skill_rank(stats, ee::kSkillSpot, nullptr, 0)) : 0;
   const int die = Field<uint8_t>(observer, 0x7c6);
   char how[64];
-  if (searching) {
+  if (up_close) {
+    sprintf_s(how, "is right in front of you");
+  } else if (searching) {
     sprintf_s(how, "searches (Perception d20 %d %+d)", die, skill);
   } else {
     sprintf_s(how, "looks your way (passive Perception %d)", die + skill);
   }
-  char code[400];
-  sprintf_s(code, "object o = StringToObject(\"%x\");SendMessageToPC(OBJECT_SELF, \"nwn5e: \" + GetName(o) + \" %s: %s\");",
-            IdOf(observer), how, found ? (searching ? "you are found" : "you are seen") : "you stay hidden");
+  const bool ends = found && g_config.found_ends_hiding;
+  char code[600];
+  sprintf_s(code,
+            "object o = StringToObject(\"%x\");"
+            "if (GetIsEnemy(o)) {"
+            " SendMessageToPC(OBJECT_SELF, \"nwn5e: \" + GetName(o) + \" %s: %s\");"
+            " %s"
+            "}",
+            IdOf(observer), how,
+            found ? (ends ? "you are found - you are no longer hidden" : "you are found") : "you stay hidden",
+            ends ? "DelayCommand(0.0, SetActionMode(OBJECT_SELF, ACTION_MODE_STEALTH, FALSE));" : "");
   RunScriptChunk(code, IdOf(hider));
+  if (ends && LogSlot()) Log("stealth: 0x%08X found by 0x%08X - out of stealth mode (found_ends_hiding)", IdOf(hider), IdOf(observer));
 }
 
 int Detection(DetectionFn original, bool spot, void* observer, void* target, int flag) {
@@ -352,12 +369,14 @@ int Detection(DetectionFn original, bool spot, void* observer, void* target, int
     result = 0;
     sprintf_s(up_close, "; calm, outside its %d-degree cone: unseen", g_config.vision_cone);
   }
+  bool close = false;
   if (spot && !result && scored && g_config.found_up_close && FoundUpClose(observer, target, &metres)) {
     result = 1;
+    close = true;
     sprintf_s(up_close, "; found up close: %.1f m in front, clear line", metres);
   }
-  if (spot && g_config.hiders_need_search && (searching || in_cone) && IsPlayer(target)) {
-    TellCheck(observer, target, result, searching);
+  if (spot && g_config.hiders_need_search && (searching || in_cone || result) && IsPlayer(target)) {
+    TellCheck(observer, target, result, searching, close);
   }
   if (!g_config.log_attacks) return result;
   const uint64_t key = (static_cast<uint64_t>(IdOf(observer)) << 32 | IdOf(target)) ^ (spot ? 1ull << 63 : 0);

@@ -1846,6 +1846,17 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   cone cut at walls (slices, each its length from line-of-sight tests once a
   second) is the possible next step. Not done: idle guards turning to look
   about.
+  0.30.0 (owner: "once discovered the PC leaves stealth mode, this means all
+  vision cones, circles, icons, etc, disappear. Vision cones should be 90
+  degrees, and they should be filled, not outlined"): SK5 F
+  (found_ends_hiding) - a hostile that sees a hiding player character (a
+  search, a look in its cone, or up close) takes it out of stealth mode
+  (DelayCommand 0: the next script tick, not inside the engine's detection),
+  told "<name> ...: you are found - you are no longer hidden"; the watch then
+  clears everything. vision_cone 90. Cones filled and translucent (n5_cone_f:
+  lighter near the creature, soft sides and end), drawn for 60 / 90 / 120 /
+  150 degrees (rows 1610-1649 reused; the 180 outlines dropped). Searching
+  enemies keep the ring outline.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

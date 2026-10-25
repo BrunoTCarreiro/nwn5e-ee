@@ -15,9 +15,12 @@
 //   Vision cones (0.29.0; owner: "Go with option 2"): with the 2024 rules'
 //   hiders_need_search, a calm hostile sees a hider only inside its vision cone
 //   (rules_perception.cpp, vision_cone degrees), so its sight shows as that cone
-//   - an outline turning with its facing (visualeffects 1610-1649: 90 / 120 /
-//   150 / 180 degrees x the radii) - and a searching one's (detect mode, or in
-//   combat with alert_creatures_search) as the full ring: it sees all round.
+//   - filled, translucent, turning with its facing (visualeffects 1610-1649:
+//   60 / 90 / 120 / 150 degrees x the radii; owner: "Vision cones should be 90
+//   degrees, and they should be filled") - and a searching one's (detect mode,
+//   or in combat with alert_creatures_search) as the full ring: it sees all
+//   round. A hostile that finds the character takes it out of stealth mode
+//   (rules_perception.cpp, found_ends_hiding), so all of it goes then.
 // - Heard, not seen (0.27.0; owner: "for the hearing detection, do option 2"):
 //   2024 rules (perception=faithful) - finding a hider by hearing is finding it,
 //   so a hostile that hears it but doesn't see it investigates: it walks to where
@@ -58,7 +61,7 @@ constexpr int kHeardRow = 1572;  // NWN5E_STEALTH_HEARD: an ear
 constexpr int kSightRingRow = 1573;
 constexpr int kHearRingRow = 1583;
 constexpr int kConeRow = 1610;  // + 10 x the angle's index + the radius' index
-constexpr float kConeAngles[] = {90, 120, 150, 180};  // tools/data/stealth_rings.py
+constexpr float kConeAngles[] = {60, 90, 120, 150};  // tools/data/stealth_rings.py
 constexpr float kRingRadii[] = {5, 10, 15, 20, 25, 28, 30, 35, 40, 50};  // tools/data/stealth_rings.py
 constexpr size_t kSightRange = 0x7b0;  // float, metres; +4 in combat (DoSpotDetection)
 constexpr size_t kHearRange = 0x7b8;   // float, metres; +4 in combat (DoListenDetection)
