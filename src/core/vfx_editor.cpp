@@ -403,27 +403,9 @@ std::string Layout() {
       Str("nwn5e - VFX editor"), 40.0f, 40.0f, 620.0f, 880.0f);
 }
 
-// Many binds in one script (each NuiSetText would be one).
+// Many binds in one script.
 void SetBinds(uint32_t player, const std::vector<std::pair<std::string, std::string>>& binds) {
-  const int token = NuiToken(player, kWindow);
-  if (!token) return;
-  std::string code;
-  const auto flush = [&]() {
-    if (!code.empty()) RunScriptChunk(code.c_str(), player);
-    code.clear();
-  };
-  for (const auto& bind : binds) {
-    std::string literal = "\"";
-    for (char c : bind.second) {
-      if (c == '"' || c == '\\') literal += '\\';
-      literal += c;
-    }
-    literal += "\"";
-    code += "NuiSetBind(OBJECT_SELF, " + std::to_string(token) + ", \"" + bind.first + "\", JsonString(" + literal +
-            "));";
-    if (code.size() > 3000) flush();
-  }
-  flush();
+  NuiSetTexts(player, kWindow, binds);
 }
 
 void SetStatus(uint32_t player, const std::string& line) { SetBinds(player, {{"status", line}}); }
@@ -466,29 +448,15 @@ void PushAll(uint32_t player, const Session& session) {
   PushEmitterList(player, session);
 }
 
-// A text field's value, read from the window through a local.
+// A text field's value.
 std::string BindValue(uint32_t player, const std::string& bind, const char* window = kWindow) {
-  void* creature = CreatureById(player);
-  const int token = NuiToken(player, window);
-  if (!creature || !token) return "";
-  const std::string code = "SetLocalString(OBJECT_SELF, \"" + std::string(kVarValue) +
-                           "\", JsonGetString(NuiGetBind(OBJECT_SELF, " + std::to_string(token) + ", \"" + bind +
-                           "\")));";
-  RunScriptChunk(code.c_str(), player);
-  return engine::GetLocalString(creature, kVarValue);
+  return NuiGetText(player, window, bind);
 }
 
 void WatchFields(uint32_t player) {
-  const int token = NuiToken(player, kWindow);
-  if (!token) return;
-  std::string code;
-  const auto watch = [&](const char* bind) {
-    code += "NuiSetBindWatch(OBJECT_SELF, " + std::to_string(token) + ", \"" + bind + "\", TRUE);";
-  };
-  watch("e_name");
-  watch("e_seconds");
-  for (const TextField& field : EmitterFields()) watch(field.bind);
-  RunScriptChunk(code.c_str(), player);
+  std::vector<std::string> binds = {"e_name", "e_seconds"};
+  for (const TextField& field : EmitterFields()) binds.push_back(field.bind);
+  NuiWatch(player, kWindow, binds);
 }
 
 void Open(uint32_t player) {

@@ -114,6 +114,43 @@ void NuiSetJson(uint32_t player, const char* window_id, const char* bind, const 
   RunScriptChunk(code.c_str(), player);
 }
 
+void NuiSetTexts(uint32_t player, const char* window_id,
+                 const std::vector<std::pair<std::string, std::string>>& binds) {
+  const int token = NuiToken(player, window_id);
+  if (!token) return;
+  std::string code;
+  for (const auto& bind : binds) {
+    code += "NuiSetBind(OBJECT_SELF, " + std::to_string(token) + ", " + ScriptString(bind.first.c_str()) +
+            ", JsonString(" + ScriptString(bind.second) + "));";
+    if (code.size() > 3000) {
+      RunScriptChunk(code.c_str(), player);
+      code.clear();
+    }
+  }
+  if (!code.empty()) RunScriptChunk(code.c_str(), player);
+}
+
+std::string NuiGetText(uint32_t player, const char* window_id, const std::string& bind) {
+  void* creature = CreatureById(player);
+  const int token = NuiToken(player, window_id);
+  if (!creature || !token) return "";
+  static const char* const kVar = "nwn5e_nui_text";
+  const std::string code = "SetLocalString(OBJECT_SELF, \"" + std::string(kVar) + "\", JsonGetString(NuiGetBind(OBJECT_SELF, " +
+                           std::to_string(token) + ", " + ScriptString(bind.c_str()) + ")));";
+  RunScriptChunk(code.c_str(), player);
+  return engine::GetLocalString(creature, kVar);
+}
+
+void NuiWatch(uint32_t player, const char* window_id, const std::vector<std::string>& binds) {
+  const int token = NuiToken(player, window_id);
+  if (!token) return;
+  std::string code;
+  for (const std::string& bind : binds) {
+    code += "NuiSetBindWatch(OBJECT_SELF, " + std::to_string(token) + ", " + ScriptString(bind.c_str()) + ", TRUE);";
+  }
+  if (!code.empty()) RunScriptChunk(code.c_str(), player);
+}
+
 void NuiClose(uint32_t player, const char* window_id) {
   void* creature = CreatureById(player);
   const int token = NuiToken(player, window_id);

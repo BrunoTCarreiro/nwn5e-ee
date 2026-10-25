@@ -1660,8 +1660,33 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   491 (vwp_l_blood_red: sticky, spray, cloud) and vwp_s_low_red; nothing of the
   game's in the repo - a unit test builds its own compiled model. Written
   models now carry the impact's detonate event (Explosion emitters burst on
-  it). Next: a look at editing animations (owner: "After that maybe look into
-  it is possible to edit animations").
+  it).
+- **Animation recipes** (0.24.0; owner, 2026-10-25: "After that maybe look into
+  it is possible to edit animations" - "Let's try recipe" - "Confirm the
+  recipes"): the body skeletons (p + m/f + a/d/e/g/h/o + 0/2, ASCII) take their
+  animations from libraries - a_ba (human, elf, halfling male), a_fa (their
+  females), a_da (dwarf, gnome, half-orc male), a_dfa (dwarf, half-orc female)
+  and the large-build '2's, a_ba itself -> a_ba_non_combat -> a_ba_med_weap.
+  At startup core/anim_packs.cpp builds each recipe (data\anims\*.recipe;
+  animedit\recipes\*.recipe, the owner's) into an "animation pack" per
+  library (n5_ba ... n5_dfa2: the library's bones as dummies, the recipes'
+  animations; supermodel -> the library) and serves copies of the skeletons
+  pointing at the packs (pmh0 -> n5_ba -> a_ba) - all from the player's own
+  game files, nothing of the game's in nwn5e. A recipe: a base animation mixed
+  toward another by an amount (0 the base, 1 the mix, below 0 exaggerated),
+  a speed, the part kept (data/anim_recipe.cpp: the compiled library reader -
+  model root +0x48, animations +0x78, supermodel +0xA8; animation length +0x70,
+  animroot +0x78; node 0x70 bytes, name +0x20, children +0x48, keys +0x54,
+  values +0x60; position 8, orientation 20 as quaternions - quaternion
+  blending, ASCII axis-angle out). Tested first from a script through the
+  game's development folder (owner: "n5test works"); the C++ output matches
+  it. `!animedit`: name, base, mix toward, amount, speed, kept part; Save
+  (animedit\recipes), Load, Play base / mix / recipe (a new or changed recipe
+  plays after a restart - a character's model stays loaded). First recipe:
+  n5_psnmild (the poisoned idle, half way toward the normal one).
+  `animation_recipes`. Not yet: a live preview (a mannequin with a freshly
+  named skeleton is the idea to try); custom content that overrides the
+  skeletons in a hak would be overridden by the served copies.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

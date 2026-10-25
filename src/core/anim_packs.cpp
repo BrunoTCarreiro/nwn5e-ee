@@ -1,0 +1,213 @@
+// Animation recipes at startup (owner, 2026-10-25: "Let's try recipe" - "n5test
+// works"): each recipe (data\anims\*.recipe, nwn5e's; animedit\recipes\*.recipe,
+// the owner's drafts from !animedit, a draft winning over a same-named one)
+// becomes an animation in the "animation packs" written into the served folder
+// before it is registered:
+// - every body skeleton (p + m/f + a/d/e/g/h/o + 0/2, ASCII models: pmh0 ...)
+//   is served as a copy whose supermodel is its library's pack (pmh0 -> n5_ba);
+// - each pack (n5_ba, n5_fa, n5_da, n5_dfa and the large-build '2's) holds its
+//   library's bone tree and the recipes' animations, built from that library's
+//   own animations (or its supermodel chain's: a_fa falls back on a_ba ...),
+//   and points on at the library - so every other animation still plays.
+// All of it is built from the player's own game files at startup; nothing of
+// the game's is in nwn5e. data/anim_recipe.cpp does the reading and the maths.
+// The first test (owner: "n5test works") was this, from a script, through the
+// game's development folder. `animation_recipes`.
+
+#include <windows.h>
+
+#include <stdint.h>
+
+#include <algorithm>
+#include <fstream>
+#include <map>
+#include <sstream>
+#include <string>
+#include <vector>
+
+#include "config.h"
+#include "data/anim_recipe.h"
+#include "data/vfx_model.h"
+#include "data_serving.h"
+#include "ee_layout.h"
+#include "log.h"
+
+namespace {
+
+std::map<std::string, std::string> g_built;  // recipe name -> its text as built at startup
+
+std::wstring DllDirectory() {
+  HMODULE module = nullptr;
+  GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                     reinterpret_cast<LPCWSTR>(&DllDirectory), &module);
+  wchar_t path[MAX_PATH] = {};
+  GetModuleFileNameW(module, path, MAX_PATH);
+  std::wstring directory = path;
+  return directory.substr(0, directory.find_last_of(L"\\/"));
+}
+
+std::string Narrow(const std::wstring& text) {
+  std::string out;
+  for (wchar_t c : text) out += c < 128 ? static_cast<char>(c) : '?';
+  return out;
+}
+
+std::string Lower(std::string text) {
+  for (char& c : text) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+  return text;
+}
+
+bool ReadFile(const std::wstring& path, std::string* text) {
+  std::ifstream file(path.c_str(), std::ios::binary);
+  if (!file) return false;
+  std::stringstream buffer;
+  buffer << file.rdbuf();
+  *text = buffer.str();
+  return true;
+}
+
+bool WriteFile(const std::wstring& path, const std::string& text) {
+  std::ofstream file(path.c_str(), std::ios::binary | std::ios::trunc);
+  if (!file) return false;
+  file << text;
+  return static_cast<bool>(file);
+}
+
+std::vector<std::wstring> FilesIn(const std::wstring& directory, const wchar_t* pattern) {
+  std::vector<std::wstring> names;
+  WIN32_FIND_DATAW found;
+  HANDLE handle = FindFirstFileW((directory + L"\\" + pattern).c_str(), &found);
+  if (handle == INVALID_HANDLE_VALUE) return names;
+  do {
+    if (!(found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) names.push_back(found.cFileName);
+  } while (FindNextFileW(handle, &found));
+  FindClose(handle);
+  std::sort(names.begin(), names.end());
+  return names;
+}
+
+// The recipes, by name: nwn5e's, then the owner's drafts over them.
+std::map<std::string, data::AnimRecipe> ReadRecipes() {
+  std::map<std::string, data::AnimRecipe> recipes;
+  for (const std::wstring& directory : {DllDirectory() + L"\\data\\anims", DllDirectory() + L"\\animedit\\recipes"}) {
+    for (const std::wstring& file : FilesIn(directory, L"*.recipe")) {
+      std::string text, error;
+      data::AnimRecipe recipe;
+      if (!ReadFile(directory + L"\\" + file, &text) || !data::ReadAnimRecipe(text, &recipe, &error)) {
+        Log("anim packs: SKIP %s: %s", Narrow(file).c_str(), error.c_str());
+        continue;
+      }
+      recipe.name = data::VfxResRef(recipe.name, 32);
+      if (recipe.name.empty()) continue;
+      recipes[recipe.name] = recipe;
+    }
+  }
+  return recipes;
+}
+
+// The libraries, read once each.
+struct Library {
+  std::string bytes;
+  data::AnimLibrary info;
+  bool ok = false;
+};
+std::map<std::string, Library> g_libraries;
+
+const Library& LoadLibrary(const std::string& name) {
+  auto it = g_libraries.find(name);
+  if (it != g_libraries.end()) return it->second;
+  Library& library = g_libraries[name];
+  std::string why, error;
+  library.ok = ReadGameResource(name, ee::kResTypeMdl, &library.bytes, &why) &&
+               data::ReadAnimLibrary(library.bytes, &library.info, &error);
+  if (!library.ok) Log("anim packs: library %s not read (%s%s)", name.c_str(), why.c_str(), error.c_str());
+  return library;
+}
+
+// An animation as `library` plays it: its own, else its supermodel chain's.
+bool FindClip(const std::string& library, const std::string& name, data::AnimClip* clip) {
+  std::string current = Lower(library);
+  for (int depth = 0; depth < 8 && !current.empty(); ++depth) {
+    const Library& lib = LoadLibrary(current);
+    if (!lib.ok) return false;
+    if (std::find(lib.info.clip_names.begin(), lib.info.clip_names.end(), Lower(name)) != lib.info.clip_names.end()) {
+      return data::ReadAnimClip(lib.bytes, name, clip);
+    }
+    current = Lower(lib.info.supermodel);
+  }
+  return false;
+}
+
+std::string PackName(const std::string& library) {
+  return "n5_" + (library.rfind("a_", 0) == 0 ? library.substr(2) : library);
+}
+
+}  // namespace
+
+// data_serving's BuildServedTables, into the served folder before it is registered.
+void GenerateAnimationPacks(const std::wstring& served) {
+  g_built.clear();
+  if (!g_config.animation_recipes) return;
+  const std::map<std::string, data::AnimRecipe> recipes = ReadRecipes();
+  if (recipes.empty()) return;
+  // The skeletons and their libraries.
+  std::map<std::string, std::string> packs;  // library -> pack
+  int skeletons = 0;
+  static const char kRaces[] = {'a', 'd', 'e', 'g', 'h', 'o'};
+  for (char gender : {'m', 'f'}) {
+    for (char race : kRaces) {
+      for (char build : {'0', '2'}) {
+        const std::string name = std::string("p") + gender + race + build;
+        std::string text, why;
+        if (!ReadGameResource(name, ee::kResTypeMdl, &text, &why) || text.size() < 16 || text[0] == '\0') continue;
+        const size_t at = Lower(text).find("setsupermodel");
+        if (at == std::string::npos) continue;
+        std::istringstream line(text.substr(at, text.find('\n', at) - at));
+        std::string keyword, self, library;
+        line >> keyword >> self >> library;
+        library = Lower(library);
+        if (library.empty() || library == "null" || !LoadLibrary(library).ok) continue;
+        const std::string pack = PackName(library);
+        const size_t end = text.find_first_of("\r\n", at);
+        text.replace(at, (end == std::string::npos ? text.size() : end) - at, "setsupermodel " + self + " " + pack);
+        if (WriteFile(served + L"\\" + std::wstring(name.begin(), name.end()) + L".mdl", text)) {
+          packs[library] = pack;
+          ++skeletons;
+        }
+      }
+    }
+  }
+  // The packs.
+  int animations = 0;
+  for (const auto& entry : packs) {
+    const Library& library = LoadLibrary(entry.first);
+    std::vector<data::AnimClip> clips;
+    for (const auto& recipe : recipes) {
+      data::AnimClip base, mix;
+      if (!FindClip(entry.first, recipe.second.base, &base)) {
+        Log("anim packs: %s - %s has no %s", recipe.first.c_str(), entry.first.c_str(), recipe.second.base.c_str());
+        continue;
+      }
+      const bool has_mix = !recipe.second.mix.empty() && FindClip(entry.first, recipe.second.mix, &mix);
+      clips.push_back(data::DeriveAnimClip(recipe.second, base, has_mix ? &mix : nullptr));
+    }
+    if (clips.empty()) continue;
+    const std::string pack = entry.second;
+    if (WriteFile(served + L"\\" + std::wstring(pack.begin(), pack.end()) + L".mdl",
+                  data::WriteAnimPack(pack, entry.first, library.info.bones, clips))) {
+      animations += static_cast<int>(clips.size());
+    }
+  }
+  for (const auto& recipe : recipes) g_built[recipe.first] = data::WriteAnimRecipe(recipe.second);
+  g_libraries.clear();  // the libraries' bytes aren't kept
+  Log("anim packs: %zu recipes -> %zu packs (%d animations), %d skeletons pointed at them (animation_recipes)",
+      recipes.size(), packs.size(), animations, skeletons);
+}
+
+// !animedit: was `name` built at startup, and from which recipe text?
+bool AnimationRecipeBuilt(const std::string& name, std::string* text) {
+  const auto it = g_built.find(name);
+  if (it == g_built.end()) return false;
+  if (text) *text = it->second;
+  return true;
+}

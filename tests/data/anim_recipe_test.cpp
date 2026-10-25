@@ -1,0 +1,174 @@
+#include <math.h>
+#include <string.h>
+
+#include <string>
+
+#include "check.h"
+#include "data/anim_recipe.h"
+
+// Animation recipes (data/anim_recipe.h). Breaks caught: a recipe that loses
+// a field on the way back; a mix that isn't halfway at 0.5 (or slerps the long
+// way round); trim and speed that move keys to the wrong time; a pack whose
+// root isn't the pack or that doesn't point at its library; the compiled
+// library's layout (bone tree, animation list, a clip's keys) read wrong -
+// tested on a library built here, nothing of the game's.
+
+using namespace data;
+
+namespace {
+
+int Milli(float v) { return static_cast<int>(v * 1000.0f + (v < 0 ? -0.5f : 0.5f)); }
+bool Has(const std::string& text, const std::string& part) { return text.find(part) != std::string::npos; }
+
+AnimClip Turning(const char* name, float length, float end_z_degrees) {
+  AnimClip clip;
+  clip.name = name;
+  clip.length = length;
+  clip.animroot = "rootdummy";
+  AnimNode root;
+  root.name = "a_ba";
+  clip.nodes.push_back(root);
+  AnimNode bone;
+  bone.name = "torso_g";
+  bone.parent = 0;
+  bone.has_orientation = true;
+  const float half = end_z_degrees * 3.14159265f / 360.0f;
+  bone.orientation.times = {0.0f, length};
+  bone.orientation.values = {{0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, sinf(half), cosf(half)}};
+  clip.nodes.push_back(bone);
+  return clip;
+}
+
+}  // namespace
+
+TEST(AnimRecipeRoundTrip) {
+  AnimRecipe r;
+  r.name = "n5_psnmild";
+  r.base = "pausepsn";
+  r.mix = "pause1";
+  r.amount = 0.4f;
+  r.speed = 0.8f;
+  r.start = 0.5f;
+  r.end = 3.0f;
+  AnimRecipe back;
+  std::string error;
+  CHECK_EQ(ReadAnimRecipe(WriteAnimRecipe(r), &back, &error), true);
+  CHECK_EQ(back.name == "n5_psnmild", true);
+  CHECK_EQ(back.base == "pausepsn", true);
+  CHECK_EQ(back.mix == "pause1", true);
+  CHECK_EQ(Milli(back.amount), 400);
+  CHECK_EQ(Milli(back.speed), 800);
+  CHECK_EQ(Milli(back.start), 500);
+  CHECK_EQ(Milli(back.end), 3000);
+  CHECK_EQ(ReadAnimRecipe("base = pause1\n", &back, &error), false);  // no name
+}
+
+TEST(AnimRecipeMixesTrimsAndSpeeds) {
+  const AnimClip base = Turning("pausepsn", 1.0f, 90.0f);  // ends turned 90 degrees
+  const AnimClip still = Turning("pause1", 2.0f, 0.0f);    // stays straight
+  AnimRecipe r;
+  r.name = "n5_half";
+  r.base = "pausepsn";
+  r.mix = "pause1";
+  r.amount = 0.5f;
+  AnimClip half = DeriveAnimClip(r, base, &still);
+  CHECK_EQ(half.nodes.size(), 2u);
+  const AnimKeys& keys = half.nodes[1].orientation;
+  CHECK_EQ(keys.times.size(), 2u);
+  CHECK_EQ(Milli(keys.values[1][2]), 383);  // 45 degrees: sin(22.5)
+  CHECK_EQ(Milli(keys.values[1][3]), 924);
+  // Twice as fast, the first half only: keys at 0 and 0.25 s, length 0.25.
+  r.amount = 0.0f;
+  r.speed = 2.0f;
+  r.end = 0.5f;
+  const AnimClip quick = DeriveAnimClip(r, base, &still);
+  CHECK_EQ(Milli(quick.length), 250);
+  CHECK_EQ(Milli(quick.nodes[1].orientation.times.back()), 250);
+  CHECK_EQ(Milli(quick.nodes[1].orientation.values.back()[2]), 383);  // halfway through the turn
+  // The pack.
+  const std::string pack = WriteAnimPack("n5_ba", "a_ba", base.nodes, {half});
+  CHECK_EQ(Has(pack, "setsupermodel n5_ba a_ba"), true);
+  CHECK_EQ(Has(pack, "node dummy n5_ba\n  parent NULL"), true);
+  CHECK_EQ(Has(pack, "newanim n5_half n5_ba"), true);
+  CHECK_EQ(Has(pack, "  orientationkey 2"), true);
+  CHECK_EQ(Has(pack, "  parent n5_ba"), true);
+}
+
+TEST(AnimRecipeReadsACompiledLibrary) {
+  std::string b(0x800, '\0');
+  const size_t base = 12;
+  const auto put32 = [&](size_t at, uint32_t v) { memcpy(&b[at], &v, 4); };
+  const auto put16 = [&](size_t at, uint16_t v) { memcpy(&b[at], &v, 2); };
+  const auto putf = [&](size_t at, float v) { memcpy(&b[at], &v, 4); };
+  const auto puts = [&](size_t at, const char* text) { memcpy(&b[at], text, strlen(text)); };
+  const auto rel = [&](size_t file_offset) { return static_cast<uint32_t>(file_offset - base); };
+  puts(base + 8, "a_test");
+  puts(base + 0xA8, "NULL");
+  // Geometry: a_test -> rootdummy (a position).
+  put32(base + 0x48, rel(0x200));
+  puts(0x200 + 0x20, "a_test");
+  put32(0x200 + 0x48, rel(0x278));
+  put32(0x200 + 0x4C, 1);
+  put32(0x278, rel(0x280));
+  puts(0x280 + 0x20, "rootdummy");
+  put32(0x280 + 0x54, rel(0x600));
+  put32(0x280 + 0x58, 1);
+  put32(0x280 + 0x60, rel(0x640));
+  put32(0x280 + 0x64, 4);
+  put32(0x600, 8);
+  put16(0x604, 1);
+  put16(0x606, 0);
+  put16(0x608, 1);
+  b[0x60A] = 3;
+  putf(0x640, 0.0f);
+  putf(0x644, 0.1f);
+  putf(0x648, 0.2f);
+  putf(0x64C, 1.2f);
+  // One animation, "idle": a_test -> rootdummy turning 90 degrees over 2 s.
+  put32(base + 0x78, rel(0x300));
+  put32(base + 0x7C, 1);
+  put32(0x300, rel(0x400));
+  puts(0x400 + 8, "idle");
+  put32(0x400 + 0x48, rel(0x500));
+  putf(0x400 + 0x70, 2.0f);
+  putf(0x400 + 0x74, 0.25f);
+  puts(0x400 + 0x78, "rootdummy");
+  puts(0x500 + 0x20, "a_test");
+  put32(0x500 + 0x48, rel(0x578));
+  put32(0x500 + 0x4C, 1);
+  put32(0x578, rel(0x580));
+  puts(0x580 + 0x20, "rootdummy");
+  put32(0x580 + 0x54, rel(0x700));
+  put32(0x580 + 0x58, 1);
+  put32(0x580 + 0x60, rel(0x740));
+  put32(0x580 + 0x64, 10);
+  put32(0x700, 20);
+  put16(0x704, 2);
+  put16(0x706, 0);
+  put16(0x708, 2);
+  b[0x70A] = 4;
+  putf(0x740, 0.0f);
+  putf(0x744, 2.0f);
+  const float q[8] = {0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.7071f, 0.7071f};
+  for (int i = 0; i < 8; ++i) putf(0x748 + 4 * i, q[i]);
+
+  AnimLibrary library;
+  std::string error;
+  CHECK_EQ(ReadAnimLibrary(b, &library, &error), true);
+  CHECK_EQ(library.name == "a_test", true);
+  CHECK_EQ(library.supermodel.empty(), true);  // "NULL"
+  CHECK_EQ(library.bones.size(), 2u);
+  CHECK_EQ(library.bones[1].name == "rootdummy", true);
+  CHECK_EQ(library.bones[1].parent, 0);
+  CHECK_EQ(Milli(library.bones[1].position.values[0][2]), 1200);
+  CHECK_EQ(library.clip_names.size(), 1u);
+  CHECK_EQ(library.clip_names[0] == "idle", true);
+  AnimClip clip;
+  CHECK_EQ(ReadAnimClip(b, "IDLE", &clip), true);
+  CHECK_EQ(Milli(clip.length), 2000);
+  CHECK_EQ(clip.animroot == "rootdummy", true);
+  CHECK_EQ(clip.nodes.size(), 2u);
+  CHECK_EQ(clip.nodes[1].orientation.times.size(), 2u);
+  CHECK_EQ(Milli(clip.nodes[1].orientation.values[1][3]), 707);
+  CHECK_EQ(ReadAnimClip(b, "walk", &clip), false);
+}

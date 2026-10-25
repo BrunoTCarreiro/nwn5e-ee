@@ -28,6 +28,8 @@
 #include "log.h"
 #include "rules_loaded.h"
 
+void GenerateAnimationPacks(const std::wstring& served);  // anim_packs.cpp
+
 namespace {
 
 using ExoStringCtorFn = void* (*)(void* string, const char* text);
@@ -236,6 +238,7 @@ int BuildServedTables() {
     }
   }
   if (files) Log("data: served %d files as they are (data\\files: compiled scripts ...)", files);
+  GenerateAnimationPacks(served);  // animation recipes (anim_packs.cpp), before the folder is registered
   // The creation pages' layouts (data\gui), only when their code is in place
   // (chargen_ui.cpp): a layout without it would show nwn5e's captions on the
   // game's own pages.

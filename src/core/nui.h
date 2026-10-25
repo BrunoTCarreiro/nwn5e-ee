@@ -49,6 +49,14 @@ void NuiSetJson(uint32_t player, const char* window_id, const char* bind, const 
 
 // Closes the window a tick later (safe from inside its own events).
 void NuiClose(uint32_t player, const char* window_id);
+// Many string binds in one script (the editors' forms).
+void NuiSetTexts(uint32_t player, const char* window_id,
+                 const std::vector<std::pair<std::string, std::string>>& binds);
+// A string bind's current value (a text field the player typed in), read
+// through a local on the player.
+std::string NuiGetText(uint32_t player, const char* window_id, const std::string& bind);
+// Watch these binds: each change sends a "watch" event naming the bind.
+void NuiWatch(uint32_t player, const char* window_id, const std::vector<std::string>& binds);
 
 // Layout builders (nw_inc_nui.nss's JSON). Children lists are JSON arrays'
 // contents: elements joined with commas (nui::List).
