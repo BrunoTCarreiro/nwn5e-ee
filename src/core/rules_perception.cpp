@@ -36,7 +36,17 @@
 //   stealth mode"): a hostile that sees a hiding player character - a search,
 //   a look inside its cone, or up close - takes it out of stealth mode (on the
 //   next script tick, not inside the engine's detection), told why; its
-//   markers, rings and cones go with it (stealth_watch.cpp). found_ends_hiding.
+//   markers, rings and cones go with it (stealth_watch.cpp). found_ends_hiding;
+// - light (G; owner, 2026-10-25: "explore if we can make it so that
+//   environmental light sources can increase detection" - "do the sensible
+//   distances"): the light where a hiding player character stands - bright, dim
+//   or dark, worked out once a second by stealth_watch.cpp (local
+//   nwn5e_light_level, +1) - is 2024's: bright, nothing; dim (lightly obscured),
+//   -5 to an observer's sight; dark (heavily obscured), unseen - but an observer
+//   with darkvision (feat 228, or the darkvision visual) within 18 m sees it as
+//   dim. Up close still finds. EE's own night terms (SPOT_NO_LIGHT_MODIFIER,
+//   HIDING_LIGHT_MODIFIER) are zeroed then (data/rows/ruleset.if_light2024.txt):
+//   this replaces them. stealth_light.
 // Distance, area, movement, facing and light terms stay (NWN's real-time
 // stealth needs them). A deafened observer can't hear and a blinded one can't
 // see: EE's own checks already fail them (SK11). NWN mode: NWN's.
@@ -56,6 +66,7 @@
 #include "condition_effects.h"
 #include "config.h"
 #include "creature.h"
+#include "data_serving.h"
 #include "dice.h"
 #include "ee_layout.h"
 #include "effects.h"
@@ -117,6 +128,7 @@ int g_log_lines = 0;
 thread_local void* t_roller = nullptr;    // DoStealthDetection's creature
 thread_local int t_die = -1;              // its Spot / Listen die this 6 s
 thread_local void* t_observer = nullptr;  // the detection check's observer
+thread_local void* t_target = nullptr;    // ... and its target
 thread_local bool t_scored = false;       // that check got as far as its score
 
 bool LogSlot() { return g_config.log_attacks && g_log_lines < 400 && ++g_log_lines; }
@@ -260,6 +272,47 @@ int SpotSizeTerm(int difference) {
   return 0;
 }
 
+// G: the light where a hider stands - 0 dark, 1 dim, 2 bright (also: unknown).
+constexpr const char* kVarLightLevel = "nwn5e_light_level";  // stealth_watch.cpp writes it, + 1
+constexpr int kFeatDarkvision = 228;
+constexpr float kDarkvisionMetres = 18.0f;  // 60 feet
+
+bool LightRule() { return g_config.stealth_light; }
+
+int HiderLight(void* hider) {
+  const int stored = engine::GetLocalInt(hider, kVarLightLevel) - 1;
+  return stored < 0 ? 2 : stored;
+}
+
+bool HasDarkvisionVisual(void* object) {
+  const int count = Field<int32_t>(object, 0x168);
+  const uint8_t* list = Field<const uint8_t*>(object, 0x160);
+  if (!list || count <= 0 || count > 256) return false;
+  for (int i = 0; i < count; ++i) {
+    if (*reinterpret_cast<const uint16_t*>(list + 0x20 * i) == 182) return true;
+  }
+  return false;
+}
+
+// Darkvision reaching the hider: it sees the dark as dim.
+bool SeesInDark(void* observer, void* hider) {
+  void* stats = StatsOf(observer);
+  if (!(stats && engine::HasFeat(stats, kFeatDarkvision)) && !HasDarkvisionVisual(observer)) return false;
+  const float dx = Field<float>(hider, ee::kObjectPositionX) - Field<float>(observer, ee::kObjectPositionX);
+  const float dy = Field<float>(hider, ee::kObjectPositionY) - Field<float>(observer, ee::kObjectPositionY);
+  return dx * dx + dy * dy <= kDarkvisionMetres * kDarkvisionMetres;
+}
+
+// What the hider's light does to this observer's sight: 0, -5 (dim), or unseen.
+constexpr int kUnseen = -1000;
+int LightTerm(void* observer, void* hider) {
+  if (!LightRule() || !hider || !Hiding(hider)) return 0;
+  const int level = HiderLight(hider);
+  if (level >= 2) return 0;
+  if (level == 1) return -5;
+  return SeesInDark(observer, hider) ? -5 : kUnseen;
+}
+
 int PerceptionSkill(const SkillQuery& query, int value) {
   const uintptr_t caller = query.caller;
   if (!caller || query.base_only) return value;
@@ -273,8 +326,11 @@ int PerceptionSkill(const SkillQuery& query, int value) {
   if (caller == g_spot_hider_skill && t_observer) {
     return value + SpotSizeTerm(Field<int32_t>(creature, ee::kCreatureSize) - Field<int32_t>(t_observer, ee::kCreatureSize));
   }
-  if (caller == g_listen_skill[0] || caller == g_listen_skill[1] || caller == g_spot_skill[0] ||
-      caller == g_spot_skill[1]) {
+  if (caller == g_spot_skill[0] || caller == g_spot_skill[1]) {
+    const int light = t_target ? LightTerm(creature, t_target) : 0;  // G: dim light, -5
+    return (InCombat(creature) ? value + 10 : value) + (light == kUnseen ? 0 : light);
+  }
+  if (caller == g_listen_skill[0] || caller == g_listen_skill[1]) {
     return InCombat(creature) ? value + 10 : value;  // the engine takes 10 off in combat
   }
   return value;
@@ -360,12 +416,15 @@ void TellCheck(void* observer, void* hider, int found, bool searching, bool up_c
 
 int Detection(DetectionFn original, bool spot, void* observer, void* target, int flag) {
   void* outer_observer = t_observer;
+  void* outer_target = t_target;
   const bool outer_scored = t_scored;
   t_observer = observer;
+  t_target = target;
   t_scored = false;
   int result = original(observer, target, flag);
   const bool scored = t_scored;
   t_observer = outer_observer;
+  t_target = outer_target;
   t_scored = outer_scored;
   if (!observer || !target || !Hiding(target)) return result;
   char up_close[64] = "";
@@ -377,6 +436,10 @@ int Detection(DetectionFn original, bool spot, void* observer, void* target, int
   if (spot && result && g_config.hiders_need_search && !searching && !in_cone) {
     result = 0;
     sprintf_s(up_close, "; calm, outside its %d-degree cone: unseen", g_config.vision_cone);
+  }
+  if (spot && result && LightTerm(observer, target) == kUnseen) {  // G: darkness, no darkvision
+    result = 0;
+    sprintf_s(up_close, "; in darkness: unseen");
   }
   bool close = false;
   if (spot && !result && scored && g_config.found_up_close && FoundUpClose(observer, target, &metres)) {
@@ -419,6 +482,7 @@ std::vector<uintptr_t> Returns(const CodeRange& code, const char* target) {
 
 void InstallPerceptionRules() {
   if (g_config.perception != rules::RuleVariant::kFaithful) return;
+  if (g_config.stealth_light) ServeConditionalRows("light2024");  // EE's night terms zeroed: G replaces them
   g_listen_code = FunctionAt(EngineExport(ee::kDoListenDetection));
   g_spot_code = FunctionAt(EngineExport(ee::kDoSpotDetection));
   const std::vector<uintptr_t> listen = Returns(g_listen_code, ee::kGetSkillRank);
@@ -525,7 +589,14 @@ bool SpotMargin(void* observer, void* hider, int* margin) {
   if (void* area = engine::AreaOf(observer)) score += Field<int32_t>(area, kAreaSpotModifier);
   if (Still(observer)) score += 5;
   if (Still(hider)) score -= 5;
-  if (Night()) {
+  if (LightRule()) {
+    const int light = LightTerm(observer, hider);  // G replaces EE's night terms (zeroed in ruleset.2da)
+    if (light == kUnseen) {
+      *margin = -100;
+      return true;
+    }
+    score += light;
+  } else if (Night()) {
     if (!Lit(observer, true)) score -= 5;
     if (Lit(hider, false)) score += 10;
   }
@@ -534,6 +605,9 @@ bool SpotMargin(void* observer, void* hider, int* margin) {
   *margin = score - stealth;
   return true;
 }
+
+// G (stealth_watch.cpp): a light it carries itself - a torch, a light item, the Light spell.
+bool CarriesLight(void* creature) { return creature && Lit(creature, false); }
 
 // Search's die (rules_skill_dcs.cpp), the 2024 way: a d20 when searching, else passive.
 int SearchDie(void* searcher, bool worse) {

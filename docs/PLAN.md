@@ -1892,6 +1892,24 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   environment objects, but I guess that's fine for now"): the wedges are flat
   models, so placeables, walls and uneven ground cut through them or hide
   parts; a stepped cone cut at walls (line-of-sight slices) stays the option.
+- **Light where you hide** (0.32.0; owner: "do the sensible distances, I'll add
+  light queries down the line"). The !light readings (Training Halls, night,
+  interior): moon ambient 58 (dim), braziers / torch brackets found lit by
+  GetPlaceableIllumination at 3.9-7.8 m, no light effects; the tile light
+  getters return -1 there (not readable; the probe had counted that as lit -
+  fixed, and tile lights aren't used). SK5 G (stealth_light): stealth_watch.cpp
+  rates the hider's spot once a second - bright: within 4 m of a lit placeable,
+  the inner half of a light effect's radius (VFX_DUR_LIGHT_*: 5/10/15/20 m),
+  carrying a light (the engine's visual list), or an area lit 110+ (ambient +
+  half diffuse, sun or moon by the time, 0-255); dim: within 9 m of a lit
+  placeable or inside a light effect's radius, or an area lit 30+; else dark -
+  and tells the character when it changes. rules_perception.cpp applies 2024's:
+  dim -5 to an observer's sight (its Spot skill call while that hider is the
+  target), dark unseen unless darkvision (feat 228 or visual 182) within 18 m
+  (then dim); up close still finds; the cone colours include it. EE's night
+  terms zeroed in 2024 mode (ruleset.if_light2024.txt: rows 89 / 90 = 0, served
+  only when stealth_light). Outdoors not measured yet; thresholds to tune with
+  the owner's light queries.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

@@ -91,6 +91,13 @@ struct Config {
   // SK5 F (owner, 2026-10-25: "once discovered the PC leaves stealth mode"): a
   // hostile that sees a hiding player character takes it out of stealth mode.
   bool found_ends_hiding = true;
+  // SK5 G (owner, 2026-10-25: environmental light - "do the sensible
+  // distances"): the light where a hiding player character stands, the 2024
+  // way - dim -5 to be seen, dark unseen (darkvision within 18 m: dim). Bright:
+  // within 4 m of a lit placeable, or the inner half of a light effect, or
+  // carrying a light, or a bright area; dim: within 9 m of one, or an area of
+  // moderate light; else dark (stealth_watch.cpp). Replaces EE's night terms.
+  bool stealth_light = true;
   // SK10: faithful = spell attacks are PB + casting ability against full AC,
   // with advantage / disadvantage; nwn / off = NWN's touch attacks.
   rules::RuleVariant spell_attacks = rules::RuleVariant::kFaithful;

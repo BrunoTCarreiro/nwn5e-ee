@@ -1,0 +1,7 @@
+# ruleset.2da - SK5 G (src/core/rules_perception.cpp, stealth_light): with the 2024
+# perception rules the light where a hider stands counts (bright / dim / dark, the
+# 2024 way), so EE's own night terms in DoSpotDetection - a watcher with no light at
+# night -5, a hider carrying one +10 - are zeroed instead of counted twice.
+Label Value
+89 SPOT_NO_LIGHT_MODIFIER 0
+90 HIDING_LIGHT_MODIFIER 0

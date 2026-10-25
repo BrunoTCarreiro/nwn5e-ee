@@ -67,6 +67,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.hiders_need_search = ReadBool(ini, L"hiders_need_search", g_config.hiders_need_search);
   g_config.vision_cone = GetPrivateProfileIntW(L"rules", L"vision_cone", g_config.vision_cone, ini);
   g_config.found_ends_hiding = ReadBool(ini, L"found_ends_hiding", g_config.found_ends_hiding);
+  g_config.stealth_light = ReadBool(ini, L"stealth_light", g_config.stealth_light);
   g_config.spell_attacks = ReadVariant(ini, L"spell_attacks", g_config.mode);
   g_config.concentration = ReadVariant(ini, L"concentration", g_config.mode);
   g_config.knockdown = ReadVariant(ini, L"knockdown", g_config.mode);

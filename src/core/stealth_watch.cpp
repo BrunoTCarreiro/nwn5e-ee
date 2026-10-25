@@ -38,6 +38,17 @@
 //   associate or not commandable; again after 25 s at most. NWN's own AI never
 //   acts on hearing ("DO NOT RELY ON HEARING FOR ENEMY DETECTION",
 //   nw_c2_default2) beyond a head scratch within 7 m. `heard_investigates`.
+// - Light (0.32.0; owner: environmental light, "do the sensible distances"):
+//   the light where the hiding character stands, for rules_perception.cpp's G
+//   (local nwn5e_light_level, + 1): bright - within 4 m of a lit placeable
+//   (GetPlaceableIllumination: braziers, torch brackets ...), or the inner half
+//   of a light effect's radius (VFX_DUR_LIGHT_*: 5 / 10 / 15 / 20 m), or
+//   carrying a light, or an area lit 110+ (its sun or moon ambient + half its
+//   diffuse, by the time of day; 0-255); dim - within 9 m of a lit placeable or
+//   a light effect's radius, or an area lit 30+; else dark. Measured on the
+//   Training Halls at night: moon ambient 58 (dim), braziers and torch brackets
+//   found lit at 3.9 - 7.8 m. The character is told when it changes.
+//   `stealth_light` (2024 perception).
 // All from the engine's own perception (GetObjectSeen / GetObjectHeard), so what
 // decides it shows: the 2024 Stealth against passive Perception, line of sight,
 // EE's night light terms (at night a watcher without a light or darkvision
@@ -63,6 +74,7 @@
 #include "log.h"
 
 bool SpotMargin(void* observer, void* hider, int* margin);  // rules_perception.cpp
+bool CarriesLight(void* creature);                           // rules_perception.cpp
 
 namespace {
 
@@ -143,12 +155,54 @@ void Run(const std::string& code, uint32_t pc, const char* what) {
 
 std::string Num(int value) { return std::to_string(value); }
 
+// The light where the hider stands (G): 0 dark, 1 dim, 2 bright, stored + 1.
+std::string LightPart(bool carried) {
+  const auto lum = [](const char* v) {
+    const std::string s(v);
+    return "(((" + s + " >> 16) & 255) * 299 + ((" + s + " >> 8) & 255) * 587 + (" + s + " & 255) * 114) / 1000";
+  };
+  return "int light = 0; object area = GetArea(pc); int night = GetIsNight();"
+         "int amb = GetAreaLightColor(night ? AREA_LIGHT_COLOR_MOON_AMBIENT : AREA_LIGHT_COLOR_SUN_AMBIENT, area);"
+         "int dif = GetAreaLightColor(night ? AREA_LIGHT_COLOR_MOON_DIFFUSE : AREA_LIGHT_COLOR_SUN_DIFFUSE, area);"
+         "int lum = " + lum("amb") + " + (" + lum("dif") + ") / 2;"
+         "if (lum >= 110) light = 2; else if (lum >= 30) light = 1;"
+         "if (" + std::string(carried ? "TRUE" : "FALSE") + ") light = 2;"
+         "object q = GetFirstObjectInShape(SHAPE_SPHERE, 9.0, at, FALSE, OBJECT_TYPE_PLACEABLE);"
+         "while (light < 2 && GetIsObjectValid(q)) {"
+         " if (GetPlaceableIllumination(q)) { if (GetDistanceBetween(pc, q) <= 4.0) light = 2; else if (light < 1) light = 1; }"
+         " q = GetNextObjectInShape(SHAPE_SPHERE, 9.0, at, FALSE, OBJECT_TYPE_PLACEABLE);"
+         "}"
+         "q = GetFirstObjectInShape(SHAPE_SPHERE, 20.0, at, FALSE, OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE);"
+         "while (light < 2 && GetIsObjectValid(q)) {"
+         " effect e = GetFirstEffect(q);"
+         " while (GetIsEffectValid(e)) {"
+         "  if (GetEffectType(e, TRUE) == EFFECT_TYPE_VISUALEFFECT) {"
+         "   int v = GetEffectInteger(e, 0);"
+         "   if (v >= 153 && v <= 180) {"
+         "    float r = 5.0 * IntToFloat(1 + (v - 153) % 4); float d = GetDistanceBetween(pc, q);"
+         "    if (d <= r / 2.0) light = 2; else if (d <= r && light < 1) light = 1;"
+         "   }"
+         "  }"
+         "  e = GetNextEffect(q);"
+         " }"
+         " q = GetNextObjectInShape(SHAPE_SPHERE, 20.0, at, FALSE, OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE);"
+         "}"
+         "if (light + 1 != GetLocalInt(pc, \"nwn5e_light_level\")) {"
+         " SetLocalInt(pc, \"nwn5e_light_level\", light + 1);"
+         " SendMessageToPC(pc, light == 2 ? \"nwn5e: you are in light - enemies see you normally\""
+         "  : (light == 1 ? \"nwn5e: you are in dim light - enemies spot you at -5\""
+         "  : \"nwn5e: you are in darkness - only darkvision can see you\"));"
+         "}";
+}
+
 // The pass, on the hiding character.
-void Pass(uint32_t pc) {
+void Pass(uint32_t pc, bool carried) {
   const int rings = g_config.stealth_rings;
   std::string code =
       "object pc = OBJECT_SELF; location at = GetLocation(pc);"
-      "int pass = GetLocalInt(pc, \"nwn5e_watch_pass\") + 1; SetLocalInt(pc, \"nwn5e_watch_pass\", pass);"
+      "int pass = GetLocalInt(pc, \"nwn5e_watch_pass\") + 1; SetLocalInt(pc, \"nwn5e_watch_pass\", pass);";
+  if (g_config.stealth_light && g_config.perception == rules::RuleVariant::kFaithful) code += LightPart(carried);
+  code +=
       // The nearest hostiles get rings.
       "int n = 1; object o = GetNearestCreature(CREATURE_TYPE_REPUTATION, REPUTATION_TYPE_ENEMY, pc, n);"
       "while (n <= " + Num(rings) + " && GetIsObjectValid(o) && GetDistanceBetween(pc, o) <= 45.0) {"
@@ -236,7 +290,8 @@ void Clear(uint32_t pc) {
       "  DeleteLocalInt(o, \"nwn5e_noticed\"); DeleteLocalInt(o, \"nwn5e_ring\");"
       " }"
       " o = GetNextObjectInArea(area, OBJECT_TYPE_CREATURE);"
-      "}",
+      "}"
+      "DeleteLocalInt(OBJECT_SELF, \"nwn5e_light_level\");",
       pc, "clearing");
 }
 
@@ -297,7 +352,7 @@ void Update(void* creature) {
   }
   if (hiding) {
     if (!watch.on) Log("stealth watch: 0x%08X hides - watching who notices it", id);
-    Pass(id);
+    Pass(id, CarriesLight(creature));
     watch.on = true;
   } else if (watch.on) {
     Clear(id);
