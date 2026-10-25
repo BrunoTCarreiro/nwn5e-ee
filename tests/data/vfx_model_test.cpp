@@ -175,6 +175,75 @@ TEST(VfxReadsACompiledModel) {
   CHECK_EQ(ReadVfxBinaryModel("newmodel x", &effect, &error), false);
 }
 
+// Tile torches: a dummy node's position by name in a compiled model laid out as
+// the game's (built here). Breaks caught: the name's case mattering; a longer
+// name containing it ("...sl10") matched; the node's base (name - 0x10) or the
+// controllers' base drifting; a node without a position read as one; a name
+// that only ends in the wanted one matched.
+TEST(TileTorchNodePosition) {
+  std::string b(0x400, '\0');
+  const auto put32 = [&](size_t at, uint32_t v) { memcpy(&b[at], &v, 4); };
+  const auto putf = [&](size_t at, float v) { memcpy(&b[at], &v, 4); };
+  const auto puts = [&](size_t at, const char* text) { memcpy(&b[at], text, strlen(text)); };
+  const size_t base = 12;
+  puts(0x60, "tin01_a01_01sl10");  // a longer name, no controllers
+  const size_t node = 0x100;
+  puts(node + 0x10, "TIN01_A01_01sl1");
+  const size_t keys = 0x300, data = 0x340;
+  put32(node + 0x44, static_cast<uint32_t>(keys - base));
+  put32(node + 0x48, 1);
+  put32(node + 0x50, static_cast<uint32_t>(data - base));
+  put32(node + 0x54, 4);
+  put32(keys, 8);  // position: 1 row, time at 0, value at 1, 3 columns
+  b[keys + 4] = 1; b[keys + 6] = 0; b[keys + 8] = 1; b[keys + 10] = 3;
+  putf(data, 0.0f);
+  putf(data + 4, 3.38f);
+  putf(data + 8, -0.01f);
+  putf(data + 12, 1.76f);
+  float p[3] = {};
+  CHECK_EQ(ReadModelNodePosition(b, "tin01_a01_01sl1", p), true);
+  CHECK_EQ(Milli(p[0]), 3380);
+  CHECK_EQ(Milli(p[1]), -10);
+  CHECK_EQ(Milli(p[2]), 1760);
+  CHECK_EQ(ReadModelNodePosition(b, "tin01_a01_01sl2", p), false);
+  // A node whose name only ends in the wanted one, with a position: not it.
+  const size_t other = 0x200;
+  puts(other + 0x10 - 1, "xtin01_a01_01sl3");  // the wanted part where a node's name sits
+  put32(other + 0x44, static_cast<uint32_t>(keys - base));
+  put32(other + 0x48, 1);
+  put32(other + 0x50, static_cast<uint32_t>(data - base));
+  put32(other + 0x54, 4);
+  CHECK_EQ(ReadModelNodePosition(b, "tin01_a01_01sl3", p), false);
+  CHECK_EQ(ReadModelNodePosition(b, "tin01_a01_01sl10", p), false);  // no controllers there
+}
+
+// Breaks caught: the section or key matched by prefix ([TILE1] for [TILE10]),
+// case mattering, spaces or a CR left in the value; Transition missing read as
+// garbage; the turn going clockwise; the tile corner used for its centre.
+TEST(TileTorchInTheArea) {
+  const std::string set =
+      "; tileset\r\n[GENERAL]\r\nName=TIN01\r\ntransition = 3\r\n\r\n[TILE10]\r\nModel=tin01_x10\r\n"
+      "[TILE1]\r\nModel = tin01_a01_01 \r\nWalkMesh=msb01\r\n";
+  CHECK_EQ(TilesetTileModel(set, 1) == "tin01_a01_01", true);
+  CHECK_EQ(TilesetTileModel(set, 10) == "tin01_x10", true);
+  CHECK_EQ(TilesetTileModel(set, 2).empty(), true);
+  CHECK_EQ(Milli(TilesetTransition(set)), 3000);
+  CHECK_EQ(Milli(TilesetTransition("[GENERAL]\nName=X\n")), 0);
+  const float local[3] = {3.0f, 1.0f, 1.5f};
+  float p[3] = {};
+  TilePointInArea(local, 2, 4, 0, 0, 3.0f, p);
+  CHECK_EQ(Milli(p[0]), 28000);  // 25 + 3
+  CHECK_EQ(Milli(p[1]), 46000);  // 45 + 1
+  CHECK_EQ(Milli(p[2]), 1500);
+  TilePointInArea(local, 2, 4, 1, 2, 3.0f, p);  // 90 degrees counter-clockwise: (3, 1) -> (-1, 3); 2 levels up
+  CHECK_EQ(Milli(p[0]), 24000);
+  CHECK_EQ(Milli(p[1]), 48000);
+  CHECK_EQ(Milli(p[2]), 7500);
+  TilePointInArea(local, 0, 0, 3, 0, 0.0f, p);  // 270: (3, 1) -> (1, -3)
+  CHECK_EQ(Milli(p[0]), 6000);
+  CHECK_EQ(Milli(p[1]), 2000);
+}
+
 // Breaks caught: an emitter keyed on at 0 and off at the next key (the game's
 // short bursts) read as always on - a loaded copy would emit for the whole
 // effect.

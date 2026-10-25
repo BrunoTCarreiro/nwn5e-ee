@@ -591,4 +591,85 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
   return true;
 }
 
+bool ReadModelNodePosition(const std::string& bytes, const std::string& node_name, float position[3]) {
+  if (node_name.empty() || bytes.size() < 0x200 || bytes[0] != 0) return false;
+  const Bytes m{bytes};
+  std::string lower(bytes.size(), '\0');
+  std::transform(bytes.begin(), bytes.end(), lower.begin(), [](char c) { return static_cast<char>(tolower(c)); });
+  std::string needle = node_name + std::string(1, '\0');
+  std::transform(needle.begin(), needle.end(), needle.begin(), [](char c) { return static_cast<char>(tolower(c)); });
+  for (size_t at = lower.find(needle); at != std::string::npos; at = lower.find(needle, at + 1)) {
+    if (at < 0x10 + kModelBase || (at > 0 && lower[at - 1] != 0)) continue;  // a whole name, where a node's would be
+    std::vector<Controller> controllers;
+    if (!ReadControllers(m, at - 0x10, &controllers)) continue;
+    for (const Controller& c : controllers) {
+      if (c.type != 8 || c.columns < 3 || c.values.size() < 3) continue;
+      position[0] = c.values[0];
+      position[1] = c.values[1];
+      position[2] = c.values[2];
+      return true;
+    }
+  }
+  return false;
+}
+
+namespace {
+
+// The value of `key` in `[section]` of an INI-like text ("" if none).
+std::string IniValue(const std::string& text, const std::string& section, const std::string& key) {
+  std::istringstream in(text);
+  std::string line;
+  bool inside = false;
+  const auto lower = [](std::string s) {
+    for (char& c : s) c = static_cast<char>(tolower(c));
+    return s;
+  };
+  const std::string want_section = "[" + lower(section) + "]", want_key = lower(key);
+  while (std::getline(in, line)) {
+    while (!line.empty() && (line.back() == '\r' || line.back() == ' ' || line.back() == '\t')) line.pop_back();
+    const size_t first = line.find_first_not_of(" \t");
+    if (first == std::string::npos) continue;
+    line = line.substr(first);
+    if (line[0] == '[') {
+      inside = lower(line) == want_section;
+      continue;
+    }
+    if (!inside) continue;
+    const size_t eq = line.find('=');
+    if (eq == std::string::npos) continue;
+    std::string name = line.substr(0, eq);
+    while (!name.empty() && (name.back() == ' ' || name.back() == '\t')) name.pop_back();
+    if (lower(name) != want_key) continue;
+    std::string value = line.substr(eq + 1);
+    const size_t v = value.find_first_not_of(" \t");
+    return v == std::string::npos ? "" : value.substr(v);
+  }
+  return "";
+}
+
+}  // namespace
+
+std::string TilesetTileModel(const std::string& set_text, int id) {
+  return id < 0 ? "" : IniValue(set_text, "TILE" + std::to_string(id), "Model");
+}
+
+float TilesetTransition(const std::string& set_text) {
+  const std::string value = IniValue(set_text, "GENERAL", "Transition");
+  return value.empty() ? 0.0f : static_cast<float>(atof(value.c_str()));
+}
+
+void TilePointInArea(const float local[3], int tile_x, int tile_y, int orientation, int height, float transition,
+                     float out[3]) {
+  float x = local[0], y = local[1];
+  switch (((orientation % 4) + 4) % 4) {
+    case 1: { const float t = x; x = -y; y = t; break; }
+    case 2: x = -x; y = -y; break;
+    case 3: { const float t = x; x = y; y = -t; break; }
+    default: break;
+  }
+  out[0] = (static_cast<float>(tile_x) + 0.5f) * 10.0f + x;
+  out[1] = (static_cast<float>(tile_y) + 0.5f) * 10.0f + y;
+  out[2] = static_cast<float>(height) * transition + local[2];
+}
+
 }  // namespace data

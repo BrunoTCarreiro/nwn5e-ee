@@ -52,10 +52,15 @@
 //   Training Halls at night: moon ambient 58 (dim), braziers and torch brackets
 //   found lit at 3.9 - 7.8 m. The character is told when it changes.
 //   Torches built into the tiles (0.36.0, M3): on a tile with a source light on,
-//   bright; on the 8 tiles round it, dim - NWN doesn't say where on its 10 m tile
-//   a torch stands. The tile light getters take the tile's GRID coordinate (x / 10,
-//   y / 10) as the location's vector; 0.32.0 passed metres, so they read -1 and
-//   tile torches never counted.
+//   bright; on the 8 tiles round it, dim. The tile light getters take the tile's
+//   GRID coordinate (x / 10, y / 10) as the location's vector; 0.32.0 passed
+//   metres, so they read -1 and tile torches never counted. 0.37.0 (owner: a
+//   room lit only by small candles still showed "in light"): by each flame's
+//   own place instead - light_sources.cpp puts a stand-in (tag nwn5e_flame_...)
+//   where the tile model's flame is - a bright colour (odd: white, pale) bright
+//   within 4 m and dim within 7.5 m, a pale dark one (even: half as bright) dim
+//   within 4 m; a doused one nothing. Their light zones show as rings too,
+//   drawn on the floor below the flame.
 //   `stealth_light` (2024 perception). Light zones (0.32.1; owner: "Light
 //   sources should have a circle indicator so the player can see where they
 //   take effect"): while hiding, unless the area is bright everywhere, each lit
@@ -213,13 +218,15 @@ std::string LightPart(int carried, bool zones) {
          " if (GetPlaceableIllumination(q)) { if (GetDistanceBetween(pc, q) <= 4.0) light = 2; else if (light < 1) light = 1; }"
          " q = GetNextObjectInShape(SHAPE_SPHERE, 9.0, at, FALSE, OBJECT_TYPE_PLACEABLE);"
          "}"
-         // Torches in the tiles: its tile bright, the 8 round it dim (grid coordinates).
-         "int tx = FloatToInt(GetPosition(pc).x / 10.0); int ty = FloatToInt(GetPosition(pc).y / 10.0); int ix; int iy;"
-         "for (ix = -1; ix <= 1 && light < 2; ix++) for (iy = -1; iy <= 1 && light < 2; iy++) {"
-         " location tl = Location(area, Vector(IntToFloat(tx + ix), IntToFloat(ty + iy), 0.0), 0.0);"
-         " if (GetTileSourceLight1Color(tl) > 0 || GetTileSourceLight2Color(tl) > 0) {"
-         "  if (ix == 0 && iy == 0) light = 2; else if (light < 1) light = 1;"
+         // Tile flames (their stand-ins): a bright colour bright within 4 m, dim within 7.5 m; a pale dark one dim within 4 m.
+         "object tf = GetFirstObjectInShape(SHAPE_SPHERE, 8.0, at, FALSE, OBJECT_TYPE_PLACEABLE);"
+         "while (light < 2 && GetIsObjectValid(tf)) {"
+         " if (GetStringLeft(GetTag(tf), 11) == \"nwn5e_flame\" && !GetLocalInt(tf, \"nwn5e_torch_out\")) {"
+         "  float fd = GetDistanceBetween(pc, tf);"
+         "  if (GetLocalInt(tf, \"nwn5e_torch_colour\") % 2 == 1) { if (fd <= 4.0) light = 2; else if (fd <= 7.5 && light < 1) light = 1; }"
+         "  else if (fd <= 4.0 && light < 1) light = 1;"
          " }"
+         " tf = GetNextObjectInShape(SHAPE_SPHERE, 8.0, at, FALSE, OBJECT_TYPE_PLACEABLE);"
          "}"
          "q = GetFirstObjectInShape(SHAPE_SPHERE, 20.0, at, FALSE, OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE);"
          "while (light < 2 && GetIsObjectValid(q)) {"
@@ -243,7 +250,10 @@ std::string LightPart(int carried, bool zones) {
          "while (GetIsObjectValid(s)) {"
          " int zone = 0;"
          " if (lum < 110 && s != pc && GetDistanceBetween(pc, s) <= 30.0) {"
-         "  if (GetObjectType(s) == OBJECT_TYPE_PLACEABLE && GetPlaceableIllumination(s)) zone = 1821 * 10000 + 1832;"
+         "  if (GetStringLeft(GetTag(s), 11) == \"nwn5e_flame\") {"
+         "   if (!GetLocalInt(s, \"nwn5e_torch_out\")) zone = GetLocalInt(s, \"nwn5e_torch_colour\") % 2 == 1 ? 1821 * 10000 + 1831 : 1829;"
+         "  }"
+         "  else if (GetObjectType(s) == OBJECT_TYPE_PLACEABLE && GetPlaceableIllumination(s)) zone = 1821 * 10000 + 1832;"
          "  else {"
          "   effect le = GetFirstEffect(s);"
          "   while (GetIsEffectValid(le) && !zone) {"
@@ -264,8 +274,10 @@ std::string LightPart(int carried, bool zones) {
          "  effect le = GetFirstEffect(s);"
          "  while (GetIsEffectValid(le)) { if (GetEffectTag(le) == \"nwn5e_lring\") RemoveEffect(s, le); le = GetNextEffect(s); }"
          "  if (zone) {"
-         "   ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(SupernaturalEffect(EffectVisualEffect(zone / 10000)), \"nwn5e_lring\"), s);"
-         "   ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(SupernaturalEffect(EffectVisualEffect(zone % 10000)), \"nwn5e_lring\"), s);"
+         // A tile flame's rings on the floor below it.
+         "   vector down = Vector(0.0, 0.0, -GetLocalFloat(s, \"nwn5e_torch_h\"));"
+         "   if (zone / 10000) ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(SupernaturalEffect(EffectVisualEffect(zone / 10000, FALSE, 1.0, down)), \"nwn5e_lring\"), s);"
+         "   if (zone % 10000) ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(SupernaturalEffect(EffectVisualEffect(zone % 10000, FALSE, 1.0, down)), \"nwn5e_lring\"), s);"
          "  }"
          "  SetLocalInt(s, \"nwn5e_lring\", zone);"
          " }"

@@ -2054,6 +2054,29 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   (5/10/15/20 m) a watcher spots the hider at +2/+4/+6/+8 and it stands in dim
   (5 m) or bright (10 m+) light (rules::CarriedLightLevel / SpotBonus), told
   when it hides with one; also in the wedge colour.
+  0.36.1: in play every light was static scenery ("0 light sources here can
+  be put out (12 static)"): LoadPlaceable hooked - a lit static placeable
+  without inventory has Static (+0x5a0) cleared before the area is sent; stays
+  plot (OnApplyDamage posts OnDamaged before its plot test). Then 12 lights
+  clickable, one used 3 times.
+  0.37.0 (owner: "there are smaller torches that should also be interactive" -
+  a room lit only by small candles still read "in light" - "the radial menu
+  on light sources should also have an option beyond 'bash' ... 'snuff' ...
+  once that's done they should stop attacking"): tile flames - per lit tile
+  source light, its node <model>sl1/sl2 read from the tile model (.set
+  [TILE<id>] Model=; data::ReadModelNodePosition / TilesetTileModel /
+  TilesetTransition / TilePointInArea, tested), placed in the area, and a
+  plc_invisobj stand-in (tag nwn5e_flame_x_y_slot, name "Flame") put there,
+  made a normal usable plot placeable as it loads (LoadPlaceable hook while
+  nwn5e creates them). Use / hit / cold-wind spell / Light toggle that slot
+  (colour 0, the other kept) + RecomputeStaticLighting; doused ones put out
+  again on entry. fx_flame01's light is 7 m: the light rule reads the stand-ins
+  - a bright colour (odd) bright within 4 m and dim within 7.5 m, a pale dark
+  one (even: half as bright) dim within 4 m (replaces the whole-tile rule);
+  their zone rings drawn on the floor below. Bash is snuff: a hit that puts a
+  light out stops the attacker; an attack on one already out stops it (on
+  melee attacked). A real "Snuff" radial entry needs the client radial builder
+  (0x9b19d0; fixed entries) patched - not done.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

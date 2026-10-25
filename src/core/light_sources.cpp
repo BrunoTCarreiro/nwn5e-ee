@@ -51,6 +51,38 @@
 // originals, kept on the area as locals (saved with the game), so nothing is
 // darkened twice. `!maplight <percent>` sets it again in the current area and
 // saves it to nwn5e.ini. `map_light` (100 = the module's own), `map_tile_dim`.
+//
+// Tile flames (0.37.0; owner: "there are smaller torches that should also be
+// interactive, I can see they emit light as my character is casting shadows
+// that match their position" - and "a large room with two braziers I put out,
+// the only illumination left were 6 (I think) small candles ... but my
+// character still showed as being 'in light'"): the torches and candles built
+// into the tiles are the tiles' source lights - dummy nodes <model>sl1 / sl2 in
+// the tile model, where the client spawns fx_flame01 (a flame and a 7 m light)
+// while the light's colour isn't 0. On entering an area, for each tile with a
+// source light on, its model (the tileset's .set: [TILE<id>] Model=) is read
+// for the node's position, turned and moved into the area (GetTileOrientation /
+// GetTileHeight x [GENERAL] Transition; data::TilePointInArea), and an
+// invisible object (plc_invisobj) is placed there, tagged nwn5e_flame_x_y_slot:
+// made a normal, usable, plot placeable as it loads (the LoadPlaceable hook,
+// while nwn5e creates them), named "Flame". Used: the flame goes out (that slot's
+// colour 0, the other kept; static lighting recomputed) or is lit again (its
+// colour back); hit or a cold / wind spell: out; Light: lit. Doused flames are
+// put out again on entering if a saved game brought their tile light back. The
+// stealth light rule reads them by distance (stealth_watch.cpp) - a bright
+// colour (white or pale: odd) bright within 4 m and dim within 7.5 m, a pale
+// dark one (even: half as bright) dim within 4 m - in place of 0.36.0's
+// "its whole tile bright, the 8 round dim".
+//
+// Bash is snuff (0.37.0; owner: "the radial menu on light sources should also
+// have an option beyond 'bash', I'm thinking 'snuff' where the character attacks
+// the object until hitting it and turning off the light source. once that's
+// done they should stop attacking"): a hit that puts a light or flame out also
+// stops the attacker (ClearAllActions), and an attack on one already out stops
+// it at once (on melee attacked: every swing, hit or miss, melee or ranged) -
+// a plot light never breaks, so a Bash would otherwise go on for ever. A
+// "Snuff" entry of its own needs the client's radial menu builder patched
+// (its entries are fixed: Examine, Cast, Use, Trap, Bash, Lock).
 
 #include <windows.h>
 
@@ -65,6 +97,8 @@
 
 #include "chat.h"
 #include "config.h"
+#include "data/vfx_model.h"
+#include "data_serving.h"
 #include "creature.h"
 #include "creature_update.h"
 #include "ee_layout.h"
@@ -86,10 +120,19 @@ constexpr size_t kPlaceableLightState = 0x594;    // int32 ("LightState": lit)
 constexpr size_t kPlaceableHasInventory = 0x4f8;  // int32 ("HasInventory")
 constexpr size_t kPlaceableAppearance = 0x32c;    // uint16 ("Appearance": placeables.2da)
 int g_unstatic = 0;                               // static lights made normal placeables
+constexpr size_t kPlaceableUseable = 0x264;       // int32 ("Useable")
+constexpr size_t kObjectPlot = 0xfc;              // int32 (GetPlotFlag)
+bool g_creating_flames = false;                   // nwn5e is placing tile flames' stand-ins now
 
 int LoadPlaceable(void* placeable, void* gff, void* gff_struct, int flag, void* tag) {
   const int result = g_load_placeable(placeable, gff, gff_struct, flag, tag);
-  if (result && placeable && Field<int32_t>(placeable, kPlaceableStatic) == 1 &&
+  if (result && placeable && g_creating_flames) {  // a tile flame's stand-in: clickable, never broken
+    SetField<int32_t>(placeable, kPlaceableStatic, 0);
+    SetField<int32_t>(placeable, kPlaceableUseable, 1);
+    SetField<int32_t>(placeable, kObjectPlot, 1);
+    return result;
+  }
+  if (result && placeable && g_config.light_sources && Field<int32_t>(placeable, kPlaceableStatic) == 1 &&
       Field<int32_t>(placeable, kPlaceableLightState) != 0 && Field<int32_t>(placeable, kPlaceableHasInventory) == 0) {
     SetField<int32_t>(placeable, kPlaceableStatic, 0);
     if (++g_unstatic <= 5 || g_unstatic % 50 == 0) {
@@ -104,6 +147,11 @@ constexpr const char* kRunScript = "?RunScript@CVirtualMachine@@QEAAHPEAVCExoStr
 constexpr const char* kUseScript = "n5_lamp_use";
 constexpr const char* kHitScript = "n5_lamp_hit";
 constexpr const char* kSpellScript = "n5_lamp_spl";
+constexpr const char* kAttackScript = "n5_lamp_atk";
+constexpr const char* kFlameAttackScript = "n5_flame_atk";
+constexpr const char* kFlameUseScript = "n5_flame_use";
+constexpr const char* kFlameHitScript = "n5_flame_hit";
+constexpr const char* kFlameSpellScript = "n5_flame_spl";
 
 // The light out / lit again, on OBJECT_SELF (the placeable).
 constexpr const char* kDouse =
@@ -173,7 +221,8 @@ void Damaged(uint32_t lamp) {
       " ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectHeal(GetMaxHitPoints(OBJECT_SELF)), OBJECT_SELF);"
       "if (GetPlaceableIllumination(OBJECT_SELF) && (all <= 0 || all > fire)) {" +
           std::string(kDouse) +
-          " if (GetIsPC(u)) SendMessageToPC(u, \"nwn5e: you hit \" + GetName(OBJECT_SELF) + \" and put it out\");" +
+          " if (GetIsPC(u)) SendMessageToPC(u, \"nwn5e: you hit \" + GetName(OBJECT_SELF) + \" and put it out\");"
+          " AssignCommand(u, ClearAllActions());" +
           NoticeCode() + "}",
       lamp, "light hit");
   Log("lights: 0x%08X hit", lamp);
@@ -189,6 +238,57 @@ void SpellAt(uint32_t lamp) {
           "}",
       lamp, "spell at a light");
   Log("lights: 0x%08X a spell cast at it", lamp);
+}
+
+// A tile flame's stand-in (OBJECT_SELF): its tile slot put out or lit again.
+constexpr const char* kFlameState =
+    "object a = GetArea(OBJECT_SELF);"
+    "location tl = Location(a, Vector(IntToFloat(GetLocalInt(OBJECT_SELF, \"nwn5e_torch_x\")),"
+    " IntToFloat(GetLocalInt(OBJECT_SELF, \"nwn5e_torch_y\")), 0.0), 0.0);"
+    "int k = GetLocalInt(OBJECT_SELF, \"nwn5e_torch_slot\");"
+    "int c1 = GetTileSourceLight1Color(tl); int c2 = GetTileSourceLight2Color(tl); int c = k == 1 ? c1 : c2;";
+constexpr const char* kFlameOut =
+    "SetLocalInt(OBJECT_SELF, \"nwn5e_torch_colour\", c); SetLocalInt(OBJECT_SELF, \"nwn5e_torch_out\", 1);"
+    "SetTileSourceLightColor(tl, k == 1 ? 0 : c1, k == 2 ? 0 : c2); RecomputeStaticLighting(a);";
+constexpr const char* kFlameLit =
+    "int r = GetLocalInt(OBJECT_SELF, \"nwn5e_torch_colour\"); if (r <= 0) r = 1;"
+    "DeleteLocalInt(OBJECT_SELF, \"nwn5e_torch_out\");"
+    "SetTileSourceLightColor(tl, k == 1 ? r : c1, k == 2 ? r : c2); RecomputeStaticLighting(a);";
+
+void FlameUsed(uint32_t flame) {
+  Run(std::string("object u = GetLastUsedBy();") + kFlameState +
+          "if (c > 0) {" + kFlameOut + " if (GetIsPC(u)) SendMessageToPC(u, \"nwn5e: you put out the flame\");" +
+          NoticeCode() + "} else {" + kFlameLit + " if (GetIsPC(u)) SendMessageToPC(u, \"nwn5e: you light the flame\"); }",
+      flame, "flame used");
+  Log("lights: tile flame 0x%08X used", flame);
+}
+
+void FlameHit(uint32_t flame) {
+  Run(std::string("object u = GetLastDamager(); int all = GetTotalDamageDealt();"
+                  "int fire = GetDamageDealtByType(DAMAGE_TYPE_FIRE); if (fire < 0) fire = 0;") +
+          kFlameState + "if (c > 0 && (all <= 0 || all > fire)) {" + kFlameOut +
+          " if (GetIsPC(u)) SendMessageToPC(u, \"nwn5e: you hit the flame and put it out\");"
+          " AssignCommand(u, ClearAllActions());" + NoticeCode() + "}",
+      flame, "flame hit");
+  Log("lights: tile flame 0x%08X hit", flame);
+}
+
+void FlameSpell(uint32_t flame) {
+  Run(std::string("object u = GetLastSpellCaster(); int sp = GetLastSpell();") + kFlameState + "if (c > 0 && (" +
+          kDousingSpells + ")) {" + kFlameOut +
+          " if (GetIsPC(u)) SendMessageToPC(u, \"nwn5e: your spell puts out the flame\");" + NoticeCode() +
+          "} else if (c <= 0 && sp == SPELL_LIGHT) {" + kFlameLit +
+          " if (GetIsPC(u)) SendMessageToPC(u, \"nwn5e: your spell lights the flame\"); }",
+      flame, "spell at a flame");
+  Log("lights: tile flame 0x%08X a spell cast at it", flame);
+}
+
+// An attack on a light or flame already out: the attacker stops (Bash is snuff).
+void AttackedOut(uint32_t target, bool flame) {
+  Run(std::string("object u = GetLastAttacker();") +
+          (flame ? std::string(kFlameState) + "if (c <= 0) AssignCommand(u, ClearAllActions());"
+                 : "if (!GetPlaceableIllumination(OBJECT_SELF)) AssignCommand(u, ClearAllActions());"),
+      target, "light attacked");
 }
 
 // A CExoString (char* +0, length +8) naming `script`, resrefs being case-blind.
@@ -213,6 +313,26 @@ int RunScript(void* vm, void* name, uint32_t self, int self_valid, int event) {
       }
       if (Names(name, kSpellScript)) {
         SpellAt(self);
+        return 1;
+      }
+      if (Names(name, kAttackScript)) {
+        AttackedOut(self, false);
+        return 1;
+      }
+      if (Names(name, kFlameAttackScript)) {
+        AttackedOut(self, true);
+        return 1;
+      }
+      if (Names(name, kFlameUseScript)) {
+        FlameUsed(self);
+        return 1;
+      }
+      if (Names(name, kFlameHitScript)) {
+        FlameHit(self);
+        return 1;
+      }
+      if (Names(name, kFlameSpellScript)) {
+        FlameSpell(self);
         return 1;
       }
     }
@@ -289,6 +409,8 @@ constexpr const char* kLampSetup =
     "   if (ours) SetEventScript(o, EVENT_SCRIPT_PLACEABLE_ON_USED, \"n5_lamp_use\");"
     "   if (GetEventScript(o, EVENT_SCRIPT_PLACEABLE_ON_DAMAGED) == \"\")"
     "    SetEventScript(o, EVENT_SCRIPT_PLACEABLE_ON_DAMAGED, \"n5_lamp_hit\");"
+    "   if (GetEventScript(o, EVENT_SCRIPT_PLACEABLE_ON_MELEEATTACKED) == \"\")"
+    "    SetEventScript(o, EVENT_SCRIPT_PLACEABLE_ON_MELEEATTACKED, \"n5_lamp_atk\");"
     "   if (GetEventScript(o, EVENT_SCRIPT_PLACEABLE_ON_SPELLCASTAT) == \"\")"
     "    SetEventScript(o, EVENT_SCRIPT_PLACEABLE_ON_SPELLCASTAT, \"n5_lamp_spl\");"
     "  }"
@@ -296,6 +418,132 @@ constexpr const char* kLampSetup =
     " o = GetNextObjectInArea(a, OBJECT_TYPE_PLACEABLE);"
     "}"
     "SetLocalInt(OBJECT_SELF, \"nwn5e_lamps\", n); SetLocalInt(OBJECT_SELF, \"nwn5e_lamps_static\", st);";
+
+// --- Tile flames: where they are (see the top).
+constexpr uint16_t kResTypeSet = 2013;
+struct ModelFlames {
+  bool has[2] = {false, false};
+  float local[2][3] = {};
+};
+std::unordered_map<std::string, std::string> g_set_texts;  // tileset -> its .set ("" when unreadable)
+std::unordered_map<std::string, ModelFlames> g_model_flames;  // tile model -> its source light nodes
+
+const std::string& SetText(const std::string& tileset) {
+  auto it = g_set_texts.find(tileset);
+  if (it != g_set_texts.end()) return it->second;
+  std::string bytes, why;
+  if (!ReadGameResource(tileset, kResTypeSet, &bytes, &why)) {
+    Log("lights: the tileset %s couldn't be read (%s) - its tile flames aren't placed", tileset.c_str(), why.c_str());
+    bytes.clear();
+  }
+  return g_set_texts.emplace(tileset, bytes).first->second;
+}
+
+const ModelFlames& FlamesOf(const std::string& model) {
+  auto it = g_model_flames.find(model);
+  if (it != g_model_flames.end()) return it->second;
+  ModelFlames flames;
+  std::string bytes, why;
+  if (!model.empty() && ReadGameResource(model, ee::kResTypeMdl, &bytes, &why)) {
+    for (int k = 0; k < 2; ++k) {
+      flames.has[k] = data::ReadModelNodePosition(bytes, model + "sl" + std::to_string(k + 1), flames.local[k]);
+    }
+  }
+  return g_model_flames.emplace(model, flames).first->second;
+}
+
+std::string Num(float value) {
+  char text[32];
+  sprintf_s(text, "%.3f", value);
+  return text;
+}
+
+bool FlamesWanted() {
+  return g_config.light_sources ||
+         (g_config.stealth_light && g_config.perception == rules::RuleVariant::kFaithful);
+}
+
+// The area's tile flames found (lit tiles listed by a script), stand-ins placed for the new ones.
+void PlaceFlames(void* creature, uint32_t pc) {
+  Run("object a = GetArea(OBJECT_SELF); int w = GetAreaSize(AREA_WIDTH, a); int h = GetAreaSize(AREA_HEIGHT, a);"
+      // Doused flames stay out (a saved game may not keep the tiles' lights).
+      "int fix = 0; object o = GetFirstObjectInArea(a, OBJECT_TYPE_PLACEABLE);"
+      "while (GetIsObjectValid(o)) {"
+      " if (GetStringLeft(GetTag(o), 11) == \"nwn5e_flame\" && GetLocalInt(o, \"nwn5e_torch_out\")) {"
+      "  location fl = Location(a, Vector(IntToFloat(GetLocalInt(o, \"nwn5e_torch_x\")), IntToFloat(GetLocalInt(o, \"nwn5e_torch_y\")), 0.0), 0.0);"
+      "  int fk = GetLocalInt(o, \"nwn5e_torch_slot\"); int f1 = GetTileSourceLight1Color(fl); int f2 = GetTileSourceLight2Color(fl);"
+      "  if ((fk == 1 ? f1 : f2) > 0) { SetTileSourceLightColor(fl, fk == 1 ? 0 : f1, fk == 2 ? 0 : f2); fix++; }"
+      " }"
+      " o = GetNextObjectInArea(a, OBJECT_TYPE_PLACEABLE);"
+      "}"
+      "if (fix) RecomputeStaticLighting(a);"
+      "string out = GetTilesetResRef(a) + \"|\"; int x; int y;"
+      "for (y = 0; y < h; y++) for (x = 0; x < w; x++) {"
+      " location l = Location(a, Vector(IntToFloat(x), IntToFloat(y), 0.0), 0.0);"
+      " int s1 = GetTileSourceLight1Color(l); int s2 = GetTileSourceLight2Color(l);"
+      " if (s1 > 0 || s2 > 0) out += IntToString(x) + \" \" + IntToString(y) + \" \" + IntToString(GetTileID(l)) + \" \""
+      "  + IntToString(GetTileOrientation(l)) + \" \" + IntToString(GetTileHeight(l)) + \" \" + IntToString(s1) + \" \" + IntToString(s2) + \";\";"
+      "}"
+      "SetLocalString(OBJECT_SELF, \"nwn5e_flame_tiles\", out);",
+      pc, "tile flames listed");
+  const std::string list = engine::GetLocalString(creature, "nwn5e_flame_tiles");
+  const size_t bar = list.find('|');
+  if (bar == std::string::npos) return;
+  const std::string tileset = list.substr(0, bar);
+  const std::string& set = SetText(tileset);
+  if (set.empty()) return;
+  const float transition = data::TilesetTransition(set);
+  std::vector<std::string> batches(1);
+  int count = 0, missing = 0;
+  size_t at = bar + 1;
+  while (at < list.size()) {
+    const size_t end = list.find(';', at);
+    if (end == std::string::npos) break;
+    int x = 0, y = 0, id = 0, turn = 0, height = 0, colour[2] = {0, 0};
+    if (sscanf_s(list.c_str() + at, "%d %d %d %d %d %d %d", &x, &y, &id, &turn, &height, &colour[0], &colour[1]) == 7) {
+      const ModelFlames& flames = FlamesOf(data::TilesetTileModel(set, id));
+      for (int k = 0; k < 2; ++k) {
+        if (colour[k] <= 0) continue;
+        if (!flames.has[k]) {
+          ++missing;
+          continue;
+        }
+        float p[3];
+        data::TilePointInArea(flames.local[k], x, y, turn, height, transition, p);
+        const std::string tag = "nwn5e_flame_" + std::to_string(x) + "_" + std::to_string(y) + "_" + std::to_string(k + 1);
+        std::string& code = batches.back();
+        code += "if (!GetIsObjectValid(GetNearestObjectByTag(\"" + tag + "\", OBJECT_SELF))) {"
+                " o = CreateObject(OBJECT_TYPE_PLACEABLE, \"plc_invisobj\", Location(a, Vector(" + Num(p[0]) + ", " +
+                Num(p[1]) + ", " + Num(p[2]) + "), 0.0), FALSE, \"" + tag + "\");"
+                " SetLocalInt(o, \"nwn5e_torch_x\", " + std::to_string(x) + "); SetLocalInt(o, \"nwn5e_torch_y\", " +
+                std::to_string(y) + "); SetLocalInt(o, \"nwn5e_torch_slot\", " + std::to_string(k + 1) + ");"
+                " SetLocalInt(o, \"nwn5e_torch_colour\", " + std::to_string(colour[k]) + ");"
+                " SetLocalFloat(o, \"nwn5e_torch_h\", " + Num(flames.local[k][2]) + "); SetName(o, \"Flame\");";
+        if (g_config.light_sources) {
+          code += " SetEventScript(o, EVENT_SCRIPT_PLACEABLE_ON_USED, \"n5_flame_use\");"
+                  " SetEventScript(o, EVENT_SCRIPT_PLACEABLE_ON_DAMAGED, \"n5_flame_hit\");"
+                  " SetEventScript(o, EVENT_SCRIPT_PLACEABLE_ON_MELEEATTACKED, \"n5_flame_atk\");"
+                  " SetEventScript(o, EVENT_SCRIPT_PLACEABLE_ON_SPELLCASTAT, \"n5_flame_spl\");";
+        }
+        code += " n++; }";
+        ++count;
+        if (count % 16 == 0) batches.emplace_back();
+      }
+    }
+    at = end + 1;
+  }
+  int placed = 0;
+  for (const std::string& batch : batches) {
+    if (batch.empty()) continue;
+    g_creating_flames = true;
+    Run("object a = GetArea(OBJECT_SELF); object o; int n = 0;" + batch + "SetLocalInt(OBJECT_SELF, \"nwn5e_flames_new\", n);",
+        pc, "tile flames placed");
+    g_creating_flames = false;
+    placed += engine::GetLocalInt(creature, "nwn5e_flames_new");
+  }
+  Log("lights: %d tile flames here (%s), %d new stand-ins placed%s", count, tileset.c_str(), placed,
+      missing ? (" - " + std::to_string(missing) + " lit slots with no flame node in their model").c_str() : "");
+}
 
 struct Arrival {
   void* area = nullptr;
@@ -306,6 +554,7 @@ std::unordered_map<uint32_t, Arrival> g_arrivals;  // by player character
 void SetUpArea(void* creature, uint32_t id, void* area, bool force) {
   if (!force && g_lit_areas.count(area)) return;
   g_lit_areas.insert(area);
+  if (FlamesWanted()) PlaceFlames(creature, id);
   if (g_config.light_sources) {
     Run(kLampSetup, id, "light setup");
     Log("lights: %d light sources here can be put out (%d static: scenery, left alone)",
@@ -353,10 +602,12 @@ void InstallLightSources() {
   if (g_config.light_sources) {
     HookExport("CVirtualMachine::RunScript (nwn5e's light scripts: put out, attacked, spells)", kRunScript,
                reinterpret_cast<void*>(&RunScript), reinterpret_cast<void**>(&g_run_script));
-    HookExport("CNWSPlaceable::LoadPlaceable (a static light loads as a normal placeable)", kLoadPlaceable,
+  }
+  if (FlamesWanted()) {
+    HookExport("CNWSPlaceable::LoadPlaceable (static lights, tile flames' stand-ins: normal placeables)", kLoadPlaceable,
                reinterpret_cast<void*>(&LoadPlaceable), reinterpret_cast<void**>(&g_load_placeable));
   }
-  if (!g_config.light_sources && g_map_light >= 100) return;
+  if (!FlamesWanted() && g_map_light >= 100) return;
   if (AddCreatureUpdateListener(&Update)) {
     Log("lights: light sources %s; the areas' light at %d%% of the module's%s", g_config.light_sources ? "can be put out" : "as they are",
         g_map_light, g_config.map_tile_dim && g_map_light < 100 ? ", tiles' main lights a step darker" : "");

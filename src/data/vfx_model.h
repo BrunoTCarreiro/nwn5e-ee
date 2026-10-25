@@ -76,4 +76,24 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
 // at most `max` characters ("" when nothing is left).
 std::string VfxResRef(const std::string& text, size_t max = 16);
 
+// --- Tile torches (light_sources.cpp; owner, 2026-10-25: "there are smaller
+// torches that should also be interactive"). A tile's source lights - its wall
+// torches - are dummy nodes <model>sl1 / <model>sl2 straight under the tile
+// model's root, their flame spawned there by the client while the light is on.
+
+// A node's position (its position controller's first key) in a compiled model,
+// found by name (case-blind); false if there's no such node with one.
+bool ReadModelNodePosition(const std::string& bytes, const std::string& node_name, float position[3]);
+
+// From a tileset's .set text: the model of [TILE<id>] ("" if none), and the
+// height of one level ([GENERAL] Transition, metres; 0 if none).
+std::string TilesetTileModel(const std::string& set_text, int id);
+float TilesetTransition(const std::string& set_text);
+
+// A point of a tile's model in the area: turned by the tile's orientation (x
+// 90 degrees counter-clockwise), moved to its tile's centre ((x + 0.5) and
+// (y + 0.5) x 10 m) and up by its height (levels x transition).
+void TilePointInArea(const float local[3], int tile_x, int tile_y, int orientation, int height, float transition,
+                     float out[3]);
+
 }  // namespace data
