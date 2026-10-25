@@ -253,8 +253,14 @@
     const inClip = clipIndex(clip, bones);
     const find = (name) => bones.findIndex((b, i) => lower(b.name) === name && inClip[i] >= 0);
     const under = (bone, ancestor) => { for (let at = bone; at >= 0; at = bones[at].parent) if (at === ancestor) return true; return false; };
-    const root = find("rootdummy"), torso = find("torso_g");
+    // Only what hangs from the animroot (a weapon's walk layer: the torso up).
+    const top = find(lower(clip.animroot || ""));
+    const inside = (bone) => bone >= 0 && (top < 0 || under(bone, top));
+    let root = find("rootdummy"), torso = find("torso_g");
     let head = find("head_g"), pelvis = find("pelvis_g");
+    if (!inside(root)) root = -1;
+    if (!inside(torso)) torso = -1;
+    if (!inside(pelvis)) pelvis = -1;
     if (head >= 0 && (torso < 0 || !under(head, torso))) head = -1;
     if (pelvis >= 0 && (torso < 0 || under(pelvis, torso) || under(torso, pelvis))) pelvis = -1;
     const crouching = crouch !== 0 && root >= 0;
@@ -267,7 +273,7 @@
     for (const side of ["l", "r"]) {
       const leg = { thigh: find(side + "thigh_g"), shin: find(side + "shin_g"), foot: find(side + "foot_g") };
       if (leg.thigh > 0 && leg.shin > 0 && leg.foot > 0 && bones[leg.shin].parent === leg.thigh &&
-          bones[leg.foot].parent === leg.shin && bones[leg.thigh].parent >= 0) legs.push(leg);
+          bones[leg.foot].parent === leg.shin && bones[leg.thigh].parent >= 0 && inside(leg.thigh)) legs.push(leg);
     }
     const times = [];
     const step = 1 / 30;

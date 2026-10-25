@@ -1749,6 +1749,18 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   nwn5e's n5_crwalk / n5_cridle take those values (checked on a_ba, a_fa,
   a_da, a_dfa: feet within 3 mm of the footfalls, never below the floor; the
   torso near level, the back knee ~17 cm off the floor at heel strike).
+  0.25.3 (owner: "the crouch walking isn't correct though, the PC doesn't lean
+  forward" - the idle did): holding a weapon, the engine layers walk_swordr /
+  walk_swordl / walk_shieldl / walk_bowl (literal names in nwmain; animroot
+  torso_g, keying the torso, neck, head and arms) over the walk, standing the
+  torso back up - measured, the crouch walk under the game's layer: spine 1
+  degree forward. A recipe on an animation with those layers now also builds
+  <name>_<hold> from <base>_<hold> with the same settings, and the crouch step
+  keys only what hangs from a clip's animroot (the layer: torso, head, arms);
+  stealth mode swaps walk_<hold> -> n5_crwalk_<hold> with the walk (spine 71
+  degrees armed). Unverified: that ReplaceObjectAnimation reaches the layers
+  (the engine plays them by name; the walk swap works). The bench previews the
+  layer (Holding).
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

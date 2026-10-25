@@ -16,7 +16,10 @@
 // hinge: the pelvis tips 35% of it, the torso all of it, the legs solved again
 // so the feet stay put - the head tilting 70% of it back to look ahead and the
 // arms hanging as the animation swings them, not trailing back with the torso
-// (owner, on 15 degrees from the waist only: "the pose still keeps a straight back"). A plain mix toward a
+// (owner, on 15 degrees from the waist only: "the pose still keeps a straight back").
+// Only what hangs from the clip's animroot is keyed: a weapon's walk layer
+// (walk_swordr ...: animroot torso_g, played over the walk while a weapon is
+// held) gets the lean of the torso, head and arms, nothing of the hips or legs. A plain mix toward a
 // crouched pose can't do it (measured: walk -> getlowlp 0.3 sinks the planted
 // foot 14 cm into the floor, never lifts the other, shortens the stride). The
 // legs are solved on the library's bones; the skeletons are uniform scales of

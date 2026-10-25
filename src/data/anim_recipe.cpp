@@ -449,8 +449,14 @@ bool ApplyCrouch(AnimClip* clip, const std::vector<AnimNode>& bones, float crouc
     }
     return -1;
   };
-  const int root = find("rootdummy"), torso = find("torso_g");
+  // Only what hangs from the animroot (a weapon's walk layer: the torso up).
+  const int top = find(Lower(clip->animroot).c_str());
+  const auto inside = [&](int bone) { return bone >= 0 && (top < 0 || Under(bones, bone, top)); };
+  int root = find("rootdummy"), torso = find("torso_g");
   int head = find("head_g"), pelvis = find("pelvis_g");
+  if (!inside(root)) root = -1;
+  if (!inside(torso)) torso = -1;
+  if (!inside(pelvis)) pelvis = -1;
   if (head >= 0 && (torso < 0 || !Under(bones, head, torso))) head = -1;
   if (pelvis >= 0 && (torso < 0 || Under(bones, pelvis, torso) || Under(bones, torso, pelvis))) pelvis = -1;
   const bool crouching = crouch != 0.0f && root >= 0;
@@ -467,7 +473,7 @@ bool ApplyCrouch(AnimClip* clip, const std::vector<AnimNode>& bones, float crouc
     const Leg leg = {find((std::string(side) + "thigh_g").c_str()), find((std::string(side) + "shin_g").c_str()),
                      find((std::string(side) + "foot_g").c_str())};
     if (leg.thigh > 0 && leg.shin > 0 && leg.foot > 0 && bones[leg.shin].parent == leg.thigh &&
-        bones[leg.foot].parent == leg.shin && bones[leg.thigh].parent >= 0) {
+        bones[leg.foot].parent == leg.shin && bones[leg.thigh].parent >= 0 && inside(leg.thigh)) {
       legs.push_back(leg);
     }
   }

@@ -4,7 +4,9 @@
 //   mode as the trigger"): a crouch - nwn5e's n5_cridle / n5_crwalk recipes
 //   (data\anims; the crouch step of data/anim_recipe.cpp: the hips down, the
 //   legs solved to keep the footfalls, a lean), on any creature hiding, player
-//   or not. `stealth_crouch`; both rule modes (it's a look);
+//   or not; with the weapon walk layers (walk_swordr ... -> n5_crwalk_swordr ...,
+//   built by anim_packs.cpp), which would otherwise stand the torso back up.
+//   `stealth_crouch`; both rule modes (it's a look);
 // - Exhaustion (rules_dying.cpp, faithful): 1-2 the tired idle (pausetrd), 3-5
 //   also the injured walk (walkinj). `exhaustion_look`.
 // Hiding wins. The new animations exist only on part-based bodies (appearance.2da
@@ -30,6 +32,7 @@ namespace {
 
 constexpr const char* kCrouchIdle = "n5_cridle";
 constexpr const char* kCrouchWalk = "n5_crwalk";
+constexpr const char* kHolds[] = {"swordr", "swordl", "shieldl", "bowl"};  // walk_<hold>: anim_packs.cpp
 
 struct Look {
   int exhaustion = 0;
@@ -65,7 +68,15 @@ void Send(uint32_t id, Look& look) {
     slot("pause1", idle);
     slot("pause2", idle);
   }
-  if (!look.sent || walk != look.walk) slot("walk", walk);
+  if (!look.sent || walk != look.walk) {
+    slot("walk", walk);
+    // The weapon layers follow the crouch walk (a limp or the game's walk: theirs).
+    for (const char* hold : kHolds) {
+      const std::string layer = walk == kCrouchWalk ? std::string(kCrouchWalk) + "_" + hold : "";
+      std::string text;
+      slot(("walk_" + std::string(hold)).c_str(), !layer.empty() && AnimationRecipeBuilt(layer, &text) ? layer : "");
+    }
+  }
   const bool first = !look.sent;
   look.sent = true;
   look.idle = idle;

@@ -13,6 +13,8 @@
     body: "",
     recipe: { name: "n5_myidle", base: "pausepsn", mix: "pause1", amount: 0.5, speed: 1, start: 0, end: 0, crouch: 0, lean: 0 },
     clips: { base: null, mix: null, result: null },
+    hold: "",                                       // a weapon's walk layer to preview: swordr, swordl, shieldl, bowl
+    layers: { base: null, mix: null, result: null },
     playing: true,
     time: 0,
   };
@@ -162,6 +164,16 @@
     state.clips.mix = nodeMap(mix);
     const lib = libs.get(state.body);  // the crouch solves the legs on this body's bones, as the game's pack does
     state.clips.result = nodeMap(base ? A.deriveClip(r, base, mix, lib ? lib.bones : null) : null);
+    // Holding a weapon: the game plays <walk>_<hold> over the walk, the torso up; nwn5e builds
+    // the recipe's own layer the same way (anim_packs.cpp) - previewed here as the game layers it.
+    const hold = state.hold;
+    const layerOf = (name) => (hold && name && state.body ? findClip(state.body, name + "_" + hold) : null);
+    state.layers.base = nodeMap(base ? layerOf(r.base) : null);
+    state.layers.mix = nodeMap(mix ? layerOf(r.mix) : null);
+    state.layers.result = state.layers.base && lib
+      ? nodeMap(A.deriveClip(Object.assign({}, r, { name: r.name + "_" + hold, mix: state.layers.mix ? r.mix + "_" + hold : "" }),
+          layerOf(r.base), state.layers.mix ? layerOf(r.mix) : null, lib.bones))
+      : null;
     const length = base ? base.length : 4;
     $("start").max = $("end").max = length.toFixed(2);
     $("end").value = r.end > 0 && r.end < length ? r.end : length;
@@ -176,10 +188,12 @@
     $("lean-v").textContent = Math.round(r.lean || 0) + "°";
     $("start-v").textContent = r.start.toFixed(2) + " s";
     $("end-v").textContent = r.end > 0 && r.end < length ? r.end.toFixed(2) + " s" : "end";
-    $("lab-base").textContent = base ? r.base + " · " + base.length.toFixed(2) + " s" : "–";
+    const held = (layer) => (layer ? " + " + layer.name : "");
+    $("lab-base").textContent = base ? r.base + held(state.layers.base) + " · " + base.length.toFixed(2) + " s" : "–";
     $("lab-mix").textContent = mix ? r.mix + " · " + mix.length.toFixed(2) + " s" : "(none)";
     const result = state.clips.result;
-    $("lab-result").textContent = result ? (r.name || "?") + " · " + result.length.toFixed(2) + " s" : "–";
+    $("lab-result").textContent = result ? (r.name || "?") + (state.layers.result ? " + " + state.layers.result.name : "") + " · " + result.length.toFixed(2) + " s" : "–";
+    $("hold-note").textContent = hold && base && !state.layers.base ? r.base + " has no " + hold + " layer: the game plays it as it is." : "";
     $("out").textContent = A.writeRecipe(r);
   }
 
@@ -246,6 +260,7 @@
     $("name").addEventListener("change", () => { $("name").value = r().name; });
     $("base").addEventListener("change", () => { r().base = $("base").value; r().start = 0; r().end = 0; recompute(); });
     $("mix").addEventListener("change", () => { r().mix = $("mix").value; recompute(); });
+    $("hold").addEventListener("change", () => { state.hold = $("hold").value; recompute(); });
     $("amount").addEventListener("input", () => { r().amount = parseFloat($("amount").value); recompute(); });
     $("speed").addEventListener("input", () => { r().speed = parseFloat($("speed").value); recompute(); });
     $("crouch").addEventListener("input", () => { r().crouch = parseFloat($("crouch").value); recompute(); });
@@ -339,10 +354,21 @@
     return [p[0], p[1], p[2]];
   }
 
-  // World positions of every bone: the rest pose, the clip's keys over it.
-  function pose(clip, t, x) {
+  // Which bones a layer drives: those hanging from its animroot.
+  function layerMask(layer) {
+    if (layer.mask && layer.mask.rig === rig) return layer.mask.inside;
+    const bones = rig.lib.bones;
+    const top = bones.findIndex((b) => b.name.toLowerCase() === String(layer.animroot || "").toLowerCase());
+    const inside = bones.map((b, i) => { for (let at = i; at >= 0; at = bones[at].parent) if (at === top) return true; return false; });
+    layer.mask = { rig, inside };
+    return inside;
+  }
+
+  // World positions of every bone: the rest pose, the clip's keys over it, a layer's over those.
+  function pose(clip, t, x, layer) {
     const bones = rig.lib.bones;
     const world = new Array(bones.length);
+    const inLayer = layer ? layerMask(layer) : null;
     for (let i = 0; i < bones.length; i++) {
       const b = bones[i];
       let p = b.position ? b.position.values[0] : [0, 0, 0];
@@ -350,6 +376,9 @@
       const node = clip && clip.byName.get(b.name.toLowerCase());
       if (node && node.orientation) q = A.sample(node.orientation, t, true);
       if (node && node.position) p = A.sample(node.position, t, false);
+      const over = inLayer && inLayer[i] ? layer.byName.get(b.name.toLowerCase()) : null;
+      if (over && over.orientation && over.orientation.times.length) q = A.sample(over.orientation, t, true);
+      if (over && over.position && over.position.times.length) p = A.sample(over.position, t, false);
       if (b.parent < 0) world[i] = { p: [p[0] + x, p[1], p[2]], q };
       else {
         const up = world[b.parent];
@@ -435,14 +464,14 @@
     const { base, mix, result } = state.clips;
     const at = (clip) => (clip && clip.length > 0 ? state.time % clip.length : 0);
     const figures = [
-      { clip: base, color: colors.side, x: SPOTS[0], show: true },
-      { clip: result, color: colors.accent, x: SPOTS[1], show: true },
-      { clip: mix, color: colors.side, x: SPOTS[2], show: !!mix },
+      { clip: base, layer: state.layers.base, color: colors.side, x: SPOTS[0], show: true },
+      { clip: result, layer: state.layers.result, color: colors.accent, x: SPOTS[1], show: true },
+      { clip: mix, layer: state.layers.mix, color: colors.side, x: SPOTS[2], show: !!mix },
     ];
     const items = [];
     for (const fig of figures) {
       if (!fig.show) continue;
-      const points = pose(fig.clip, at(fig.clip), fig.x);
+      const points = pose(fig.clip, at(fig.clip), fig.x, fig.layer);
       const cam = points.map(toCamera);
       if (cam.some((c) => c[2] < NEAR)) continue;
       const screen = cam.map(toScreen);

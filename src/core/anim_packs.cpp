@@ -40,6 +40,12 @@
 namespace {
 
 std::map<std::string, std::string> g_built;  // recipe name -> its text as built at startup
+// The layers the engine plays over a walk while a weapon is held (literal names in
+// nwmain: walk_swordr ...; animroot torso_g, keying the torso, neck, head and arms).
+// A recipe on an animation that has them also builds <name>_<hold> from
+// <base>_<hold> - the same lean, so a crouch walk leans armed too (owner,
+// 2026-10-25: "the PC doesn't lean forward" - the layer put the torso back up).
+constexpr const char* kHolds[] = {"swordr", "swordl", "shieldl", "bowl"};
 std::vector<std::string> g_animation_names;  // a_ba's chain's animations, for !animedit's dropdowns
 
 std::wstring DllDirectory() {
@@ -256,6 +262,16 @@ void GenerateAnimationPacks(const std::wstring& served) {
       }
       const bool has_mix = !recipe.second.mix.empty() && FindClip(entry.first, recipe.second.mix, &mix);
       clips.push_back(data::DeriveAnimClip(recipe.second, base, has_mix ? &mix : nullptr, &library.info.bones));
+      for (const char* hold : kHolds) {
+        data::AnimClip layer, layer_mix;
+        if (!FindClip(entry.first, recipe.second.base + "_" + hold, &layer)) continue;
+        data::AnimRecipe companion = recipe.second;
+        companion.name = recipe.second.name + "_" + hold;
+        const bool layer_has_mix = has_mix && FindClip(entry.first, recipe.second.mix + "_" + hold, &layer_mix);
+        if (!layer_has_mix) companion.mix.clear();
+        clips.push_back(data::DeriveAnimClip(companion, layer, layer_has_mix ? &layer_mix : nullptr, &library.info.bones));
+        g_built[companion.name] = data::WriteAnimRecipe(companion);
+      }
     }
     if (clips.empty()) continue;
     const std::string pack = entry.second;

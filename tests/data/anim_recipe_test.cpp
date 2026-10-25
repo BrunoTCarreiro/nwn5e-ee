@@ -165,6 +165,30 @@ TEST(AnimRecipeCrouchKeepsTheFootfalls) {
   CHECK_EQ(ApplyCrouch(&copy, body, 0.0f, 0.0f), false);
 }
 
+// A weapon's walk layer (animroot torso_g): the lean reaches the torso, head and
+// arms; nothing of the hips or legs is keyed, crouch or not.
+TEST(AnimRecipeCrouchKeepsToTheAnimroot) {
+  const std::vector<AnimNode> body = Body();
+  AnimClip layer = Stride(body);
+  layer.animroot = "torso_g";
+  layer.nodes[6].has_orientation = true;  // the layer's torso key
+  layer.nodes[6].orientation.times = {0.0f, 1.0f};
+  layer.nodes[6].orientation.values = {TurnX(0.0f), TurnX(0.0f)};
+  AnimRecipe r;
+  r.name = "n5_crwalk_swordr";
+  r.base = "walk_swordr";
+  r.crouch = 0.2f;
+  r.lean = 20.0f;
+  const AnimClip low = DeriveAnimClip(r, layer, nullptr, &body);
+  CHECK_EQ(low.nodes[1].position.times.size(), 2u);     // rootdummy: the layer's own keys, not 31
+  CHECK_EQ(low.nodes[2].has_orientation, false);         // the pelvis untouched
+  CHECK_EQ(low.nodes[3].orientation.times.size(), 3u);  // the thigh: its own keys
+  CHECK_EQ(low.nodes[6].orientation.times.size(), 31u); // the torso leans
+  CHECK_EQ(low.nodes[9].orientation.times.size(), 31u); // and the arm is turned back
+  const auto b = AnimWorldPositions(low, body, 0.0f);
+  CHECK_EQ(Milli(b[7][1]), 154);  // the neck 20 degrees forward
+}
+
 TEST(AnimRecipeLeanTiltsTheUpperBody) {
   const std::vector<AnimNode> body = Body();
   const AnimClip walk = Stride(body);
