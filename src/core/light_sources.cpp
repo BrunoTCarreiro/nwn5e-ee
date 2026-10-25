@@ -72,7 +72,12 @@
 // stealth light rule reads them by distance (stealth_watch.cpp) - a bright
 // colour (white or pale: odd) bright within 4 m and dim within 7.5 m, a pale
 // dark one (even: half as bright) dim within 4 m - in place of 0.36.0's
-// "its whole tile bright, the 8 round dim".
+// "its whole tile bright, the 8 round dim". 0.37.1 (in play: "0 tile flames
+// here (tic01) ... 200 lit slots with no flame node in their model"): the light
+// getters take the tile's grid coordinate, but GetTileID / GetTileOrientation /
+// GetTileHeight go through CNWSArea::GetTile(Vector), which finds the tile by
+// metres (i x 10 <= v < (i + 1) x 10) - given grid coordinates every lookup was
+// tile 0,0's. They are asked at the tile's centre in metres now.
 //
 // Bash is snuff (0.37.0; owner: "the radial menu on light sources should also
 // have an option beyond 'bash', I'm thinking 'snuff' where the character attacks
@@ -394,17 +399,20 @@ std::string DarkenCode(int percent) {
 
 // The area's lights made puttable-out (see the top).
 constexpr const char* kLampSetup =
-    "object a = GetArea(OBJECT_SELF); int n = 0; int st = 0;"
+    "object a = GetArea(OBJECT_SELF); int n = 0; int st = 0; string skip = \"\";"
     "object o = GetFirstObjectInArea(a, OBJECT_TYPE_PLACEABLE);"
     "while (GetIsObjectValid(o)) {"
+    " if ((GetPlaceableIllumination(o) || GetLocalInt(o, \"nwn5e_lamp\")) && GetHasInventory(o) && GetStringLength(skip) < 600)"
+    "  skip += GetName(o) + \" (has an inventory); \";"
     " if ((GetPlaceableIllumination(o) || GetLocalInt(o, \"nwn5e_lamp\")) && !GetHasInventory(o)) {"
     "  string used = GetStringLowerCase(GetEventScript(o, EVENT_SCRIPT_PLACEABLE_ON_USED));"
     "  int ours = used == \"\" || used == \"nw_02_onoff\" || used == \"x2_am_lampuse\" || used == \"n5_lamp_use\";"
     // A static placeable doesn't take the useable flag: scenery, left alone.
     "  int was = GetUseableFlag(o); SetUseableFlag(o, TRUE);"
-    "  if (!GetUseableFlag(o)) st++;"
+    "  if (!GetUseableFlag(o)) { st++; if (GetStringLength(skip) < 600) skip += GetName(o) + \" (static); \"; }"
     "  else {"
     "   if (!ours && !was) SetUseableFlag(o, FALSE);"
+    "   if (!ours && GetStringLength(skip) < 600) skip += GetName(o) + \" (its own on-used script \" + used + \": hits and spells only); \";"
     "   SetLocalInt(o, \"nwn5e_lamp\", 1); n++;"
     "   if (ours) SetEventScript(o, EVENT_SCRIPT_PLACEABLE_ON_USED, \"n5_lamp_use\");"
     "   if (GetEventScript(o, EVENT_SCRIPT_PLACEABLE_ON_DAMAGED) == \"\")"
@@ -417,7 +425,8 @@ constexpr const char* kLampSetup =
     " }"
     " o = GetNextObjectInArea(a, OBJECT_TYPE_PLACEABLE);"
     "}"
-    "SetLocalInt(OBJECT_SELF, \"nwn5e_lamps\", n); SetLocalInt(OBJECT_SELF, \"nwn5e_lamps_static\", st);";
+    "SetLocalInt(OBJECT_SELF, \"nwn5e_lamps\", n); SetLocalInt(OBJECT_SELF, \"nwn5e_lamps_static\", st);"
+    "SetLocalString(OBJECT_SELF, \"nwn5e_lamps_skipped\", skip);";
 
 // --- Tile flames: where they are (see the top).
 constexpr uint16_t kResTypeSet = 2013;
@@ -481,8 +490,10 @@ void PlaceFlames(void* creature, uint32_t pc) {
       "for (y = 0; y < h; y++) for (x = 0; x < w; x++) {"
       " location l = Location(a, Vector(IntToFloat(x), IntToFloat(y), 0.0), 0.0);"
       " int s1 = GetTileSourceLight1Color(l); int s2 = GetTileSourceLight2Color(l);"
-      " if (s1 > 0 || s2 > 0) out += IntToString(x) + \" \" + IntToString(y) + \" \" + IntToString(GetTileID(l)) + \" \""
-      "  + IntToString(GetTileOrientation(l)) + \" \" + IntToString(GetTileHeight(l)) + \" \" + IntToString(s1) + \" \" + IntToString(s2) + \";\";"
+      // The tile's model, turn and height: by metres (its centre), unlike the light getters' grid coordinate.
+      " location wl = Location(a, Vector(IntToFloat(x) * 10.0 + 5.0, IntToFloat(y) * 10.0 + 5.0, 0.0), 0.0);"
+      " if (s1 > 0 || s2 > 0) out += IntToString(x) + \" \" + IntToString(y) + \" \" + IntToString(GetTileID(wl)) + \" \""
+      "  + IntToString(GetTileOrientation(wl)) + \" \" + IntToString(GetTileHeight(wl)) + \" \" + IntToString(s1) + \" \" + IntToString(s2) + \";\";"
       "}"
       "SetLocalString(OBJECT_SELF, \"nwn5e_flame_tiles\", out);",
       pc, "tile flames listed");
@@ -559,6 +570,8 @@ void SetUpArea(void* creature, uint32_t id, void* area, bool force) {
     Run(kLampSetup, id, "light setup");
     Log("lights: %d light sources here can be put out (%d static: scenery, left alone)",
         engine::GetLocalInt(creature, "nwn5e_lamps"), engine::GetLocalInt(creature, "nwn5e_lamps_static"));
+    const std::string skipped = engine::GetLocalString(creature, "nwn5e_lamps_skipped");
+    if (!skipped.empty()) Log("lights: not clickable here: %s", skipped.c_str());
   }
   Run(DarkenCode(g_map_light), id, "map light");
   if (engine::GetLocalInt(creature, "nwn5e_map_lit")) {
