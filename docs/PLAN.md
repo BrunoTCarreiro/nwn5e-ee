@@ -1761,6 +1761,26 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   degrees armed). Unverified: that ReplaceObjectAnimation reaches the layers
   (the engine plays them by name; the walk swap works). The bench previews the
   layer (Holding).
+- **Stealth marker** (0.26.0; owner: "how possible is it to show enemys' sight
+  ranges?" - recommended an eye/ear marker first, rings after - "build your
+  recommendation"): while a player character hides, an eye over each hostile
+  within 40 m that sees it, an ear over one that only hears it (the game's
+  isk_spot / isk_listen by name; tools/data/stealth_marker.py; visualeffects
+  1571 / 1572 on the head; stealth_marker.cpp, once a second, from
+  GetObjectSeen / GetObjectHeard). Cleared when it stops hiding, and an area's
+  leftovers when it is entered. `stealth_marker`, both modes.
+  Light (owner: "are light sources and general light level taken into
+  account"): read from nwmain - DoSpotDetection adds the area's Spot modifier
+  ([area+0x21c]) and, only at night (module+0x3d4 == 2, what GetIsNight reads):
+  a watcher with no light visual on itself (visualeffects 153-180,
+  VFX_DUR_LIGHT_*) and no darkvision visual (182) spots at -5
+  (SPOT_NO_LIGHT_MODIFIER), a hider with a light visual is spotted at +10
+  (HIDING_LIGHT_MODIFIER). Not taken into account: lamps and braziers placed in
+  the area, the area's own lighting, dark interiors by day, racial darkvision
+  (a feat, not the 182 visual). SK5 leaves these terms as they are. The 2024
+  way (darkness heavily obscured: hide anywhere; dim light: disadvantage on
+  sight Perception, -5 passive) would need a light level per spot - a
+  decision for later.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

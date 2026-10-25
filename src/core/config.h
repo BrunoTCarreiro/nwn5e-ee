@@ -175,6 +175,10 @@ struct Config {
   // nwn5e's n5_cridle / n5_crwalk recipes (stance_look.cpp). Needs
   // animation_recipes.
   bool stealth_crouch = true;
+  // Who has noticed a hiding player character (owner, 2026-10-25: "build your
+  // recommendation" for showing enemies' sight): an eye over each hostile that
+  // sees it, an ear over one that only hears it (stealth_marker.cpp).
+  bool stealth_marker = true;
   // The Short Rest's visual on each resting character (owner, 2026-10-23: "I
   // like the look the health potion effect has"; then "Use
   // VFX_IMP_RESTORATION_LESSER, it looks like a good placeholder"): a
