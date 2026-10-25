@@ -468,6 +468,23 @@ void FillSkilledPicks(void* creature) {
 
 }  // namespace
 
+// The Stealth parts a hider's look and Reliable Talent need (RB1 / RB2;
+// stealth_watch.cpp, rules_perception.cpp): the bonus beyond ability +
+// proficiency - Expertise's second proficiency bonus, item and spell skill
+// bonuses - and whether it is proficient. False when the 2024 skills are off or
+// there's no 2024 value for it (NWN's stands).
+bool StealthParts(void* creature, int* extra, bool* proficient) {
+  void* stats = creature && Faithful() ? StatsOf(creature) : nullptr;
+  if (!stats) return false;
+  int value = 0;
+  SkillParts parts;
+  bool is_player = false;
+  if (!SkillValue2024(stats, ee::kSkillHide, nullptr, &value, &parts, &is_player)) return false;
+  *extra = (parts.expertise ? parts.proficiency_bonus : 0) + parts.effects;
+  *proficient = parts.proficient;
+  return true;
+}
+
 void InstallSkillRules() {
   if (!Faithful()) return;
   RegisterRecords({kVarProficient, kVarExpertise, kVarSet});

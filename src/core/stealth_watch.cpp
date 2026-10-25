@@ -63,6 +63,23 @@
 // visual spots at -5, a hider carrying a light at +10) and the area's Spot
 // modifier. Markers and rings go when it stops hiding, and an area's leftovers
 // when it is entered.
+// - Henchmen (0.35.0; owner, 2026-10-25: "If they're following the PC they
+//   should also enter stealth mode. If they have been asked to stand their
+//   ground they should not" - "go with all your recommendations"): once a
+//   second while the player character hides, its henchmen enter stealth mode -
+//   not one set to Stand your ground (NW_ASSOCIATE_MASTER bit 0x08000000, what
+//   the radial menu sets), down, dead, fighting, elsewhere, or found since the
+//   player hid (rules_perception.cpp F: local nwn5e_found_out). For the first 2
+//   s a stand-ground one in stealth mode is taken out (the SoU / HotU henchman
+//   scripts copy the master's mode whatever the order); after that the player's
+//   own order stands. When the player stops hiding, following henchmen leave
+//   stealth mode with it. `henchmen_follow_stealth`, both rule modes. A hiding
+//   henchman gets its own light level and see-through look (and outline,
+//   stealth_ghost.cpp) - HS3 - while the markers, rings and cones stay the
+//   player character's (HS4).
+// - The see-through look's opacity (0.35.0, RB1): the light's step less 2% per
+//   point of Stealth bonus beyond ability + proficiency (Expertise, items,
+//   spells), 30% at least (rules::StealthOpacity).
 
 #include <windows.h>
 
@@ -80,8 +97,10 @@
 #include "effects.h"
 #include "engine.h"
 #include "log.h"
+#include "rules/skills.h"
 
 bool SpotMargin(void* observer, void* hider, int* margin);  // rules_perception.cpp
+bool StealthParts(void* creature, int* extra, bool* proficient);  // rules_skills.cpp
 bool CarriesLight(void* creature);                           // rules_perception.cpp
 void SetStealthOpacity(uint32_t id, float opacity);          // stealth_ghost.cpp
 bool StealthGhostOn();                                       // stealth_ghost.cpp
@@ -111,6 +130,7 @@ struct Watch {
   bool on = false;  // markers or rings may be up in the area
   void* area = nullptr;
   uint64_t next = 0;
+  int passes = 0;   // passes since it started hiding
 };
 std::unordered_map<uint32_t, Watch> g_watches;  // by player character
 std::unordered_map<uint32_t, int64_t> g_rings;  // by creature: the rows written on it (sight, hearing, cone)
@@ -165,13 +185,14 @@ void Run(const std::string& code, uint32_t pc, const char* what) {
 
 std::string Num(int value) { return std::to_string(value); }
 
-// The light where the hider stands (G): 0 dark, 1 dim, 2 bright, stored + 1.
-std::string LightPart(bool carried) {
+// The light where the hider stands (G): 0 dark, 1 dim, 2 bright, stored + 1;
+// with `zones`, the light zones round the sources near it too (the player's).
+std::string LightPart(bool carried, bool zones) {
   const auto lum = [](const char* v) {
     const std::string s(v);
     return "(((" + s + " >> 16) & 255) * 299 + ((" + s + " >> 8) & 255) * 587 + (" + s + " & 255) * 114) / 1000";
   };
-  return "int light = 0; object area = GetArea(pc); int night = GetIsNight();"
+  std::string code = "int light = 0; object area = GetArea(pc); int night = GetIsNight();"
          "int amb = GetAreaLightColor(night ? AREA_LIGHT_COLOR_MOON_AMBIENT : AREA_LIGHT_COLOR_SUN_AMBIENT, area);"
          "int dif = GetAreaLightColor(night ? AREA_LIGHT_COLOR_MOON_DIFFUSE : AREA_LIGHT_COLOR_SUN_DIFFUSE, area);"
          "int lum = " + lum("amb") + " + (" + lum("dif") + ") / 2;"
@@ -199,8 +220,10 @@ std::string LightPart(bool carried) {
          "  e = GetNextEffect(q);"
          " }"
          " q = GetNextObjectInShape(SHAPE_SPHERE, 20.0, at, FALSE, OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE);"
-         "}"
-         // Light zones: rings round lit sources within 30 m (none in an area bright everywhere).
+         "}";
+  // Light zones: rings round lit sources within 30 m (none in an area bright everywhere).
+  if (zones) {
+    code +=
          "object s = GetFirstObjectInShape(SHAPE_SPHERE, 40.0, at, FALSE, OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE);"
          "while (GetIsObjectValid(s)) {"
          " int zone = 0;"
@@ -232,7 +255,9 @@ std::string LightPart(bool carried) {
          "  SetLocalInt(s, \"nwn5e_lring\", zone);"
          " }"
          " s = GetNextObjectInShape(SHAPE_SPHERE, 40.0, at, FALSE, OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE);"
-         "}"
+         "}";
+  }
+  code +=
          "if (light + 1 != GetLocalInt(pc, \"nwn5e_light_level\")) {"
          " SetLocalInt(pc, \"nwn5e_light_level\", light + 1);"
          // The steady ghost look, put on again so the new light's opacity is set (stealth_ghost.cpp).
@@ -242,10 +267,11 @@ std::string LightPart(bool carried) {
          "  ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(SupernaturalEffect(EffectVisualEffect(VFX_DUR_GHOST_TRANSPARENT)),"
          "   \"nwn5e_ghost\"), pc);"
          " }"
-         " SendMessageToPC(pc, light == 2 ? \"nwn5e: you are in light - enemies see you normally\""
+         " if (GetIsPC(pc)) SendMessageToPC(pc, light == 2 ? \"nwn5e: you are in light - enemies see you normally\""
          "  : (light == 1 ? \"nwn5e: you are in dim light - enemies spot you at -5\""
          "  : \"nwn5e: you are in darkness - only darkvision can see you\"));"
          "}";
+  return code;
 }
 
 // The pass, on the hiding character.
@@ -254,7 +280,7 @@ void Pass(uint32_t pc, bool carried) {
   std::string code =
       "object pc = OBJECT_SELF; location at = GetLocation(pc);"
       "int pass = GetLocalInt(pc, \"nwn5e_watch_pass\") + 1; SetLocalInt(pc, \"nwn5e_watch_pass\", pass);";
-  if (g_config.stealth_light && g_config.perception == rules::RuleVariant::kFaithful) code += LightPart(carried);
+  if (g_config.stealth_light && g_config.perception == rules::RuleVariant::kFaithful) code += LightPart(carried, true);
   code +=
       // The nearest hostiles get rings.
       "int n = 1; object o = GetNearestCreature(CREATURE_TYPE_REPUTATION, REPUTATION_TYPE_ENEMY, pc, n);"
@@ -353,6 +379,97 @@ void Clear(uint32_t pc) {
   SetStealthOpacity(pc, 0.0f);
 }
 
+// How visible a hider is drawn: its light, less its Stealth bonus (RB1).
+float OpacityFor(void* creature) {
+  const int level = engine::GetLocalInt(creature, "nwn5e_light_level") - 1;
+  int extra = 0;
+  bool proficient = false;
+  if (!StealthParts(creature, &extra, &proficient)) extra = 0;
+  return rules::StealthOpacity(level, extra);
+}
+
+// HS1: the player character's henchmen follow it into stealth mode and out
+// (see the top); `first`: its first pass hiding, `early`: its first 2.
+void Follow(uint32_t pc, bool hiding, bool first, bool early) {
+  std::string code =
+      "int moved = 0; int n = 1; object h = GetHenchman(OBJECT_SELF, n);"
+      "while (GetIsObjectValid(h)) {"
+      " int stand = (GetLocalInt(h, \"NW_ASSOCIATE_MASTER\") & 134217728) != 0;"  // NW_ASC_MODE_STAND_GROUND
+      " int hid = GetActionMode(h, ACTION_MODE_STEALTH);";
+  if (hiding) {
+    if (first) code += " DeleteLocalInt(h, \"nwn5e_found_out\");";
+    code +=
+        " if (stand) {" +
+        std::string(early ? "  if (hid) { SetActionMode(h, ACTION_MODE_STEALTH, FALSE); moved -= 1; }" : "") +
+        " } else if (!hid && !GetLocalInt(h, \"nwn5e_found_out\") && !GetIsDead(h) && !GetLocalInt(h, \"nwn5e_down\")"
+        "            && !GetIsInCombat(h) && GetArea(h) == GetArea(OBJECT_SELF)) {"
+        "  SetActionMode(h, ACTION_MODE_STEALTH, TRUE); moved += 1;"
+        " }";
+  } else {
+    code +=
+        " if (!stand && hid) { SetActionMode(h, ACTION_MODE_STEALTH, FALSE); moved -= 1; }"
+        " DeleteLocalInt(h, \"nwn5e_found_out\");";
+  }
+  code +=
+      " n++; h = GetHenchman(OBJECT_SELF, n);"
+      "}"
+      "SetLocalInt(OBJECT_SELF, \"nwn5e_follow_moved\", moved);";
+  Run(code, pc, "henchmen follow");
+  void* creature = CreatureById(pc);
+  const int moved = creature ? engine::GetLocalInt(creature, "nwn5e_follow_moved") : 0;
+  if (moved > 0) Log("stealth watch: 0x%08X hides - %d henchm%s follow it into stealth mode", pc, moved, moved == 1 ? "an" : "en");
+  if (moved < 0) {
+    Log("stealth watch: 0x%08X - %d henchm%s out of stealth mode (%s)", pc, -moved, moved == -1 ? "an" : "en",
+        hiding ? "standing their ground" : "it stopped hiding");
+  }
+}
+
+// A player's henchman: its master is a player character.
+bool PlayersHenchman(void* creature) {
+  if (Field<uint16_t>(creature, ee::kCreatureAssociateType) != ee::kAssociateTypeHenchman) return false;
+  const uint32_t master = Field<uint32_t>(creature, ee::kCreatureMaster);
+  void* owner = master && master != ee::kObjectInvalid ? CreatureById(master) : nullptr;
+  return owner && Field<int32_t>(owner, ee::kCreatureIsPlayerCharacter) != 0;
+}
+
+// A henchman's own ghost look and light level off.
+void ClearHider(uint32_t id) {
+  Run("DeleteLocalInt(OBJECT_SELF, \"nwn5e_light_level\");"
+      "effect g = GetFirstEffect(OBJECT_SELF);"
+      "while (GetIsEffectValid(g)) { if (GetEffectTag(g) == \"nwn5e_ghost\") RemoveEffect(OBJECT_SELF, g); g = GetNextEffect(OBJECT_SELF); }",
+      id, "clearing a henchman");
+  SetStealthOpacity(id, 0.0f);
+}
+
+// HS3: a player's henchman hiding, once a second - its light and see-through look.
+void HenchmanPass(void* creature, uint32_t id) {
+  Watch& watch = g_watches[id];
+  const uint64_t now = GetTickCount64();
+  if (now < watch.next) return;
+  watch.next = now + kCheckMs;
+  void* area = engine::AreaOf(creature);
+  if (!area) return;
+  const bool hiding = Field<uint8_t>(creature, ee::kCreatureStealthMode) == 1;
+  if (area != watch.area) {
+    watch.area = area;
+    if (watch.on) ClearHider(id);
+    watch.on = false;
+  }
+  if (hiding) {
+    if (!watch.on) Log("stealth watch: henchman 0x%08X hides", id);
+    if (g_config.stealth_light && g_config.perception == rules::RuleVariant::kFaithful) {
+      Run("object pc = OBJECT_SELF; location at = GetLocation(pc);" + LightPart(CarriesLight(creature), false), id,
+          "henchman light");
+    }
+    if (StealthGhostOn()) SetStealthOpacity(id, OpacityFor(creature));
+    watch.on = true;
+  } else if (watch.on) {
+    ClearHider(id);
+    watch.on = false;
+    Log("stealth watch: henchman 0x%08X stopped hiding", id);
+  }
+}
+
 // Every creature, each AI pass: its ring rows as locals, written when they change.
 void WriteRanges(void* creature, uint32_t id) {
   const bool fighting = Field<int32_t>(creature, ee::kCreatureInCombat) != 0;
@@ -389,7 +506,10 @@ void Update(void* creature) {
   if (!creature) return;
   const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
   if (g_config.stealth_rings > 0) WriteRanges(creature, id);
-  if (Field<int32_t>(creature, ee::kCreatureIsPlayerCharacter) == 0) return;
+  if (Field<int32_t>(creature, ee::kCreatureIsPlayerCharacter) == 0) {
+    if (PlayersHenchman(creature)) HenchmanPass(creature, id);
+    return;
+  }
   Watch& watch = g_watches[id];
   const uint64_t now = GetTickCount64();
   if (now < watch.next) return;
@@ -409,17 +529,20 @@ void Update(void* creature) {
     watch.on = false;
   }
   if (hiding) {
-    if (!watch.on) Log("stealth watch: 0x%08X hides - watching who notices it", id);
-    Pass(id, CarriesLight(creature));
-    // The see-through look's opacity for the light it stands in (stealth_ghost.cpp).
-    if (StealthGhostOn()) {
-      const int level = engine::GetLocalInt(creature, "nwn5e_light_level") - 1;
-      SetStealthOpacity(id, level >= 2 ? 0.9f : level == 1 ? 0.7f : level == 0 ? 0.5f : 0.0f);
+    if (!watch.on) {
+      Log("stealth watch: 0x%08X hides - watching who notices it", id);
+      watch.passes = 0;
     }
+    ++watch.passes;
+    Pass(id, CarriesLight(creature));
+    // The see-through look's opacity for its light and Stealth bonus (stealth_ghost.cpp).
+    if (StealthGhostOn()) SetStealthOpacity(id, OpacityFor(creature));
+    if (g_config.henchmen_follow_stealth) Follow(id, true, watch.passes == 1, watch.passes <= 2);
     watch.on = true;
   } else if (watch.on) {
     Clear(id);
     watch.on = false;
+    if (g_config.henchmen_follow_stealth) Follow(id, false, false, false);
     const int started = engine::GetLocalInt(creature, "nwn5e_seek_started");
     Log("stealth watch: 0x%08X stopped hiding - markers and rings off (%d investigations so far)", id, started);
   }

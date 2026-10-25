@@ -572,6 +572,17 @@ bool InFrontWithin(float dx, float dy, float fx, float fy, float metres) {
   return dx * dx + dy * dy <= metres * metres && fx * dx + fy * dy > 0.0f;
 }
 
+int ReliableTalentD20(int d20, int rogue_level, bool proficient) {
+  return rogue_level >= 7 && proficient && d20 < 10 ? 10 : d20;
+}
+
+float StealthOpacity(int light_level, int extra_bonus) {
+  if (light_level < 0) return 0.0f;
+  const float step = light_level >= 2 ? 0.9f : light_level == 1 ? 0.7f : 0.5f;
+  const float opacity = step - 0.02f * static_cast<float>(extra_bonus > 0 ? extra_bonus : 0);
+  return opacity < 0.3f ? 0.3f : opacity;
+}
+
 bool WithinVisionCone(float dx, float dy, float fx, float fy, float degrees) {
   if (degrees >= 360.0f) return true;
   if (degrees <= 0.0f) return false;

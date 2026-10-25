@@ -191,4 +191,18 @@ bool InFrontWithin(float dx, float dy, float fx, float fy, float metres);
 // there; 360 = all round, 0 = nowhere. On top of it, or with no facing: yes.
 bool WithinVisionCone(float dx, float dy, float fx, float fy, float degrees);
 
+// Reliable Talent (SRD 5.2 Rogue 7; owner, 2026-10-25: "go with all your
+// recommendations" - RB2, for the Stealth roll): a rogue of level 7 or more
+// proficient in the skill treats a d20 of 9 or lower as a 10.
+int ReliableTalentD20(int d20, int rogue_level, bool proficient);
+
+// How visible a hiding character is drawn (stealth_ghost.cpp; owner, 2026-10-25:
+// "90% visible on light, 70% in dim and 50% in dark", then RB1: "rogue abilities
+// that give extra stealth bonus should stack on top of the normal stealth and
+// affect the wedge color and the character transparency"): the light's step
+// (2 bright 0.9, 1 dim 0.7, 0 dark 0.5) less 0.02 per point of Stealth bonus
+// beyond ability + proficiency (Expertise's second proficiency bonus, item and
+// spell bonuses; none counted below 0), never under 0.3. 0 for an unknown light.
+float StealthOpacity(int light_level, int extra_bonus);
+
 }  // namespace rules

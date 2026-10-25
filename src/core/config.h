@@ -109,6 +109,12 @@ struct Config {
   // characters?" - "go with A"): a hiding character is outlined in EE's own
   // highlight glow (stealth_ghost.cpp).
   bool stealth_outline = true;
+  // Henchmen and stealth (owner, 2026-10-25: "If they're following the PC they
+  // should also enter stealth mode. If they have been asked to stand their
+  // ground they should not"): while the player character hides its henchmen do
+  // too, unless set to Stand your ground; they leave when it stops
+  // (stealth_watch.cpp). Both rule modes.
+  bool henchmen_follow_stealth = true;
   // SK10: faithful = spell attacks are PB + casting ability against full AC,
   // with advantage / disadvantage; nwn / off = NWN's touch attacks.
   rules::RuleVariant spell_attacks = rules::RuleVariant::kFaithful;

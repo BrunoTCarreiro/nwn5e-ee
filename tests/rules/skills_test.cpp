@@ -168,6 +168,33 @@ TEST(VisionConeIsCentredOnTheFacing) {
   CHECK_EQ(WithinVisionCone(0.0f, 0.0f, 1.0f, 0.0f, 120.0f), true);  // on top of it
 }
 
+// RB2. Breaks caught: the floor before level 7 or without proficiency; a 10+
+// roll lowered; 9 or lower left alone (an off-by-one at the edge).
+TEST(ReliableTalentFloorsTheD20AtTen) {
+  CHECK_EQ(ReliableTalentD20(3, 7, true), 10);
+  CHECK_EQ(ReliableTalentD20(9, 20, true), 10);
+  CHECK_EQ(ReliableTalentD20(10, 7, true), 10);
+  CHECK_EQ(ReliableTalentD20(17, 7, true), 17);
+  CHECK_EQ(ReliableTalentD20(3, 6, true), 3);    // not yet
+  CHECK_EQ(ReliableTalentD20(3, 7, false), 3);   // not proficient
+  CHECK_EQ(ReliableTalentD20(1, 0, false), 1);
+}
+
+// RB1. Breaks caught: the light steps swapped; the bonus ignored or added; a
+// penalty making a hider more visible than its light; the 30% floor missing;
+// an unknown light drawn.
+TEST(StealthOpacityIsTheLightLessTheBonus) {
+  const auto near = [](float a, float b) { return a > b - 0.001f && a < b + 0.001f; };
+  CHECK_EQ(near(StealthOpacity(2, 0), 0.9f), true);
+  CHECK_EQ(near(StealthOpacity(1, 0), 0.7f), true);
+  CHECK_EQ(near(StealthOpacity(0, 0), 0.5f), true);
+  CHECK_EQ(near(StealthOpacity(2, 3), 0.84f), true);   // Expertise +3
+  CHECK_EQ(near(StealthOpacity(0, 3), 0.44f), true);
+  CHECK_EQ(near(StealthOpacity(0, 13), 0.3f), true);   // floored
+  CHECK_EQ(near(StealthOpacity(2, -4), 0.9f), true);   // a penalty: the light's own
+  CHECK_EQ(near(StealthOpacity(-1, 0), 0.0f), true);   // unknown: not drawn see-through
+}
+
 // SK9. Breaks caught: NWN's +4 for Improved Initiative kept instead of PB; PB
 // added without the feat.
 TEST(InitiativeIs2024) {

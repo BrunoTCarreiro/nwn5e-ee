@@ -46,7 +46,17 @@
 //   with darkvision (feat 228, or the darkvision visual) within 18 m sees it as
 //   dim. Up close still finds. EE's own night terms (SPOT_NO_LIGHT_MODIFIER,
 //   HIDING_LIGHT_MODIFIER) are zeroed then (data/rows/ruleset.if_light2024.txt):
-//   this replaces them. stealth_light.
+//   this replaces them. stealth_light. A player's henchman hiding counts too
+//   (0.35.0, HS3): stealth_watch.cpp works out its light as well;
+// - henchmen (0.35.0; owner, 2026-10-25: "how do henchmen deal with stealth
+//   mode? If they're following the PC they should also enter stealth mode" -
+//   "go with all your recommendations"): a player's henchman found while hiding
+//   (F) is taken out of stealth mode on its own - the player is told - and stays
+//   out until the player hides again (local nwn5e_found_out; stealth_watch.cpp's
+//   follow); the player character found takes its followers out with it;
+// - Reliable Talent (0.35.0, RB2; SRD 5.2 Rogue 7): a rogue of level 7+
+//   proficient in Stealth treats a Stealth d20 of 9 or lower as a 10
+//   (class_features faithful).
 // Distance, area, movement, facing and light terms stay (NWN's real-time
 // stealth needs them). A deafened observer can't hear and a blinded one can't
 // see: EE's own checks already fail them (SK11). NWN mode: NWN's.
@@ -75,6 +85,8 @@
 #include "log.h"
 #include "rules/skills.h"
 #include "skill_rank.h"
+
+bool StealthParts(void* creature, int* extra, bool* proficient);  // rules_skills.cpp
 
 namespace {
 
@@ -138,6 +150,14 @@ bool IsPlayer(void* creature) {
   return stats && ReadCreatureFacts(stats).is_player;
 }
 bool Hiding(const void* creature) { return Field<uint8_t>(creature, ee::kCreatureStealthMode) == 1; }
+// A player character's henchman.
+bool PlayersHenchman(void* creature) {
+  if (!creature || Field<uint16_t>(creature, ee::kCreatureAssociateType) != ee::kAssociateTypeHenchman) return false;
+  const uint32_t master = Field<uint32_t>(creature, ee::kCreatureMaster);
+  return master && master != ee::kObjectInvalid && IsPlayer(CreatureById(master));
+}
+// A hider whose finding is told and ends its hiding (F): a player character or a player's henchman.
+bool PartyHider(void* creature) { return IsPlayer(creature) || PlayersHenchman(creature); }
 bool InCombat(const void* creature) { return Field<int32_t>(creature, ee::kCreatureInCombat) != 0; }
 bool Searching(const void* creature) {
   return Field<uint8_t>(creature, ee::kCreatureDetectMode) != 0 || (g_config.alert_creatures_search && InCombat(creature));
@@ -145,7 +165,16 @@ bool Searching(const void* creature) {
 
 int RollStealth(void* creature, const char* when) {
   const uint32_t id = IdOf(creature);
-  const int roll = RollEngineDice(1, 20);
+  // RB2 Reliable Talent: a rogue 7+ proficient in Stealth treats 9 or lower as 10.
+  const int rolled = RollEngineDice(1, 20);
+  void* rogue_stats = StatsOf(creature);
+  const int rogue = rogue_stats && g_config.class_features == rules::RuleVariant::kFaithful
+                        ? ClassLevel2024(rogue_stats, rules::CharacterClass::kRogue)
+                        : 0;
+  int extra = 0;
+  bool proficient = false;
+  const bool parts = StealthParts(creature, &extra, &proficient);
+  const int roll = rules::ReliableTalentD20(rolled, rogue, parts && proficient);
   SetField<uint8_t>(creature, ee::kCreatureHideRoll, static_cast<uint8_t>(roll));
   SetField<uint8_t>(creature, ee::kCreatureMoveSilentlyRoll, static_cast<uint8_t>(roll));
   g_stealth_roll[id] = roll;
@@ -159,7 +188,7 @@ int RollStealth(void* creature, const char* when) {
     g_not_hidden.insert(id);
   }
   if (IsPlayer(creature)) {
-    char line[160];
+    char line[256];
     if (!g_config.hiding_needs_15 && g_config.hiders_need_search) {
       sprintf_s(line, "nwn5e: hidden - Stealth %d (d20 %d %+d); enemies that search roll Perception against it", total,
                 roll, skill);
@@ -172,11 +201,17 @@ int RollStealth(void* creature, const char* when) {
       sprintf_s(line, "nwn5e: Stealth %d (d20 %d %+d) - below 15, you are not hidden (stop and hide again to retry)",
                 total, roll, skill);
     }
-    TellPlayer(id, line);
-    if (LogSlot()) {
-      Log("stealth: 0x%08X %s: Stealth d20 %d %+d = %d%s, kept until it stops hiding", id, when, roll, skill, total,
-          g_config.hiding_needs_15 ? (hidden ? " (hidden)" : " (below 15: not hidden)") : "");
+    if (roll != rolled) {
+      char reliable[80];
+      sprintf_s(reliable, " - Reliable Talent: your d20 of %d counts as 10", rolled);
+      strcat_s(line, reliable);
     }
+    TellPlayer(id, line);
+  }
+  if (LogSlot() && PartyHider(creature)) {
+    Log("stealth: 0x%08X %s: Stealth d20 %d%s %+d = %d%s, kept until it stops hiding", id, when, roll,
+        roll != rolled ? " (Reliable Talent)" : "", skill, total,
+        g_config.hiding_needs_15 ? (hidden ? " (hidden)" : " (below 15: not hidden)") : "");
   }
   return roll;
 }
@@ -379,30 +414,46 @@ void TellCheck(void* observer, void* hider, int found, bool searching, bool up_c
   const auto it = g_told.find(key);
   if (it != g_told.end() && it->second == found) return;
   g_told[key] = found;
+  const bool player = IsPlayer(hider);
+  if (!player && !found) return;  // a henchman: told only when it is found
   void* stats = StatsOf(observer);
   const int skill = stats && E().skill_rank ? static_cast<int8_t>(E().skill_rank(stats, ee::kSkillSpot, nullptr, 0)) : 0;
   const int die = Field<uint8_t>(observer, 0x7c6);
   char how[64];
   if (up_close) {
-    sprintf_s(how, "is right in front of you");
+    sprintf_s(how, player ? "is right in front of you" : "is right in front of it");
   } else if (searching) {
     sprintf_s(how, "searches (Perception d20 %d %+d)", die, skill);
   } else {
-    sprintf_s(how, "looks your way (passive Perception %d)", die + skill);
+    sprintf_s(how, player ? "looks your way (passive Perception %d)" : "looks its way (passive Perception %d)",
+              die + skill);
   }
   const bool ends = found && g_config.found_ends_hiding;
-  char code[600];
-  sprintf_s(code,
-            "object o = StringToObject(\"%x\");"
-            "if (GetIsEnemy(o)) {"
-            " SendMessageToPC(OBJECT_SELF, \"nwn5e: \" + GetName(o) + \" %s: %s\");"
-            " %s"
-            "}",
-            IdOf(observer), how,
-            found ? (ends ? "you are found - you are no longer hidden" : "you are found") : "you stay hidden",
-            ends ? "DelayCommand(0.0, SetActionMode(OBJECT_SELF, ACTION_MODE_STEALTH, FALSE));"
-                   " SetLocalInt(OBJECT_SELF, \"nwn5e_found_exit\", 1);"
-                 : "");
+  const char* leave = ends ? "DelayCommand(0.0, SetActionMode(OBJECT_SELF, ACTION_MODE_STEALTH, FALSE));"
+                            " SetLocalInt(OBJECT_SELF, \"nwn5e_found_exit\", 1);"
+                            " SetLocalInt(OBJECT_SELF, \"nwn5e_found_out\", 1);"
+                          : "";
+  char code[700];
+  if (player) {
+    sprintf_s(code,
+              "object o = StringToObject(\"%x\");"
+              "if (GetIsEnemy(o)) {"
+              " SendMessageToPC(OBJECT_SELF, \"nwn5e: \" + GetName(o) + \" %s: %s\");"
+              " %s"
+              "}",
+              IdOf(observer), how,
+              found ? (ends ? "you are found - you are no longer hidden" : "you are found") : "you stay hidden", leave);
+  } else {
+    // HS2: a henchman found on its own - out of stealth until the player hides again.
+    sprintf_s(code,
+              "object o = StringToObject(\"%x\");"
+              "if (GetIsEnemy(o)) {"
+              " SendMessageToPC(GetMaster(OBJECT_SELF), \"nwn5e: \" + GetName(o) + \" %s: \" + GetName(OBJECT_SELF)"
+              "  + \"%s\");"
+              " %s"
+              "}",
+              IdOf(observer), how, ends ? " is found - out of hiding" : " is found", leave);
+  }
   RunScriptChunk(code, IdOf(hider));
   if (ends) {
     const bool hostile = engine::GetLocalInt(hider, "nwn5e_found_exit") != 0;
@@ -447,7 +498,7 @@ int Detection(DetectionFn original, bool spot, void* observer, void* target, int
     close = true;
     sprintf_s(up_close, "; found up close: %.1f m in front, clear line", metres);
   }
-  if (spot && g_config.hiders_need_search && (searching || in_cone || result) && IsPlayer(target)) {
+  if (spot && g_config.hiders_need_search && (searching || in_cone || result) && PartyHider(target)) {
     TellCheck(observer, target, result, searching, close);
   }
   if (!g_config.log_attacks) return result;
@@ -534,8 +585,11 @@ bool HiddenByStealth(void* creature) {
 // modifier (+0x21c), +5 when it stands still, -5 when the hider does, and only at
 // night (module +0x3d4 == 2, what GetIsNight reads) -5 without a light (visuals
 // 153-180) or darkvision (182) on it and +10 when the hider carries a light -
-// minus the hider's kept Stealth total and the size term. Over 0: inside its
-// cone it sees the hider. False when there's nothing to weigh.
+// minus the hider's kept Stealth total. No size term (0.35.0, RB3): the engine
+// adds one to the observer's score and PerceptionSkill cancels it on the
+// hider's side, so the check weighs none - 0.34.0 added it on the hider's side
+// only, 4 or 8 points off against a smaller or larger observer. Over 0: inside
+// its cone it sees the hider. False when there's nothing to weigh.
 namespace {
 
 constexpr size_t kAreaSpotModifier = 0x21c;  // int32, the area's Spot modifier
@@ -600,8 +654,7 @@ bool SpotMargin(void* observer, void* hider, int* margin) {
     if (!Lit(observer, true)) score -= 5;
     if (Lit(hider, false)) score += 10;
   }
-  const int stealth = kept->second + static_cast<int8_t>(E().skill_rank(hid, ee::kSkillHide, nullptr, 0)) +
-                      SpotSizeTerm(Field<int32_t>(hider, ee::kCreatureSize) - Field<int32_t>(observer, ee::kCreatureSize));
+  const int stealth = kept->second + static_cast<int8_t>(E().skill_rank(hid, ee::kSkillHide, nullptr, 0));
   *margin = score - stealth;
   return true;
 }

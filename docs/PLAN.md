@@ -1983,6 +1983,35 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   looks on a see-through model, whether it pulses, and whether the client
   object id matches the server's (0x7FFFFFFF) - "stealth outline: 0x... outlined
   while it hides" in the log says it did. `stealth_outline`.
+  0.35.0 (owner: "go with all your recommendations for henchman and rogue
+  questions" - and "right now my character, in light, is very translucent when
+  it should be at 90% visible"): the log had no "drawn" line at all - 0.33.1's
+  routine (0x763420) isn't on the ghost effect's path, so the PC showed 424's
+  own alpha - and no "outlined" line: the client knows an object by the
+  server's id | 0x80000000 (WriteOBJECTIDServer; 0x7FFFFFFF is 0xFFFFFFFF
+  there), so 0.34.0 never matched the PC. Now: client ids have bit 31 cleared
+  before the match; Gob::SetColorShifting is hooked again, but only a hider's
+  own model gets its opacity; and each frame a hider's model alpha (+0x108) is
+  set through its animation object's slot 29 (0x966a40, entry bytes checked)
+  when it isn't the opacity - back to solid when it stops, if nothing else
+  changed it. Logged: the client object matched, the first caught request
+  (caller), "drawn N% visible", and on stopping how often the alpha was set.
+  The decisions, as recommended:
+  HS1 henchmen follow into stealth mode (not Stand your ground - bit
+  0x08000000 of NW_ASSOCIATE_MASTER; not down, dead, fighting, elsewhere or
+  found since), out with the player; a stand-ground one in stealth mode is
+  taken out in the first 2 s (the SoU / HotU scripts copy the master's mode).
+  `henchmen_follow_stealth`. HS2 A: a henchman found leaves stealth on its own,
+  the player told, and stays out until the player hides again
+  (nwn5e_found_out). HS3: a hiding henchman gets its own light level, ghost
+  opacity and outline. HS4: the cones stay coloured for the player.
+  RB1: opacity = the light's step less 2% per point of Stealth bonus beyond
+  ability + proficiency (Expertise's second PB, item and spell bonuses), 30% at
+  least (rules::StealthOpacity). RB2: Reliable Talent on the Stealth d20 (rogue
+  7+, proficient: 9 or lower is 10; class_features faithful;
+  rules::ReliableTalentD20) - the rest of R9 (other skill checks) still with
+  the Rogue work. RB3: SpotMargin has no size term (the check cancels the
+  engine's; 0.34.0 was 4-8 off against smaller / larger watchers).
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:
