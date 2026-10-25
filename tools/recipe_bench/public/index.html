@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Animation Recipe Bench</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='3' r='2.2' fill='%23f2a03d'/%3E%3Cpath d='M8 5.5v5M8 7l-4 2M8 7l4-2M8 10.5l-3 4.5M8 10.5l3 4.5' stroke='%23f2a03d' stroke-width='1.6' stroke-linecap='round' fill='none'/%3E%3C/svg%3E">
+</head>
+<body>
+<header>
+  <h1>Animation Recipe Bench</h1>
+  <p>Mix, tone, speed up and trim nwn5e's animation recipes with a live preview. Save puts the recipe in your game's recipes folder; the next game start builds it.</p>
+</header>
+
+<main class="bench">
+  <div class="rail">
+    <section class="card" aria-labelledby="lib-h">
+      <h2 id="lib-h">Game files</h2>
+      <p class="note" id="lib-status">Reading…</p>
+      <div class="chips" id="chips"></div>
+      <label>Body
+        <select id="body"></select>
+      </label>
+      <div class="row"><button type="button" id="reload">Reload</button></div>
+    </section>
+
+    <section class="card" aria-labelledby="recipe-h">
+      <h2 id="recipe-h">Recipe</h2>
+      <label>Open a saved recipe
+        <select id="open"></select>
+      </label>
+      <label>Name (the new animation)
+        <input type="text" id="name" maxlength="32" value="n5_myidle" spellcheck="false" autocomplete="off">
+      </label>
+      <p class="note" id="name-note"></p>
+      <label>Base
+        <select id="base"></select>
+      </label>
+      <label>Mix toward
+        <select id="mix"></select>
+      </label>
+      <label><span class="slider-head"><span>Amount</span><span class="value" id="amount-v">0.50</span></span>
+        <input type="range" id="amount" min="-1" max="1" step="0.05" value="0.5">
+      </label>
+      <p class="note">0 = the base as it is, 1 = the mix, below 0 pushes the base further away from the mix.</p>
+      <label><span class="slider-head"><span>Speed</span><span class="value" id="speed-v">1.00×</span></span>
+        <input type="range" id="speed" min="0.1" max="3" step="0.05" value="1">
+      </label>
+      <div class="row">
+        <label><span class="slider-head"><span>Keep from</span><span class="value" id="start-v">0.00 s</span></span>
+          <input type="range" id="start" min="0" max="4" step="0.01" value="0">
+        </label>
+        <label><span class="slider-head"><span>to</span><span class="value" id="end-v">end</span></span>
+          <input type="range" id="end" min="0" max="4" step="0.01" value="4">
+        </label>
+      </div>
+      <div class="row">
+        <button type="button" class="primary" id="save">Save</button>
+        <button type="button" id="copy">Copy text</button>
+      </div>
+      <p class="status" id="status" role="status"></p>
+      <details>
+        <summary>The recipe file</summary>
+        <pre id="out"></pre>
+      </details>
+    </section>
+  </div>
+
+  <div class="stage-wrap">
+    <div class="stage" id="stage">
+      <canvas id="canvas" aria-label="Base, recipe and mix played side by side"></canvas>
+      <div class="labels" aria-hidden="true">
+        <span>Base<small id="lab-base">–</small></span>
+        <span class="result">Recipe<small id="lab-result">–</small></span>
+        <span>Mix<small id="lab-mix">–</small></span>
+      </div>
+      <div class="empty" id="empty" hidden>
+        <div>
+          <h3>No animation libraries yet</h3>
+          <ol>
+            <li>Start the game once with nwn5e 0.24.2 or later: it copies its animation libraries to <code id="lib-folder">build\animedit\libraries\</code>.</li>
+            <li>Press <strong>Reload</strong>.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+    <div class="transport">
+      <button type="button" id="play" aria-pressed="true">Pause</button>
+      <input type="range" id="scrub" min="0" max="1" step="0.001" value="0" aria-label="Recipe time">
+      <span class="clock" id="clock">0.00 / 0.00 s</span>
+      <button type="button" id="view">Front view</button>
+    </div>
+    <p class="note">Drag to turn the figures, scroll to zoom. Play the recipe in game with <code>!animedit</code> or <code>!anim</code> after a restart.</p>
+  </div>
+</main>
+<script src="/core.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

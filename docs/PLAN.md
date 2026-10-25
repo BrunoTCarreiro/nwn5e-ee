@@ -1698,19 +1698,20 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   all 459 effect models the table names: 380 with emitters, 1652 emitters, no
   failure, 3.6 s from disk).
   0.24.2 (owner: "the saving closing and openning the game just to get a
-  preview is not great. could we get a webapp working"): the live preview is
-  a web page, the Animation Recipe Bench (source in `tools/recipe_bench/`,
-  published privately at https://claude.ai/artifact/Kj6Em8zPdrnd3VYwMWZUwm).
-  At startup nwn5e copies the 10 animation libraries it reads (a_ba and its
-  chain, a_fa, a_da, a_dfa and the large-build '2's) to
-  `build\animedit\libraries\`; the page opens them from disk (kept in that
-  browser only, never uploaded), and three stick figures play the base, the
-  recipe and the mix with the same maths as `anim_recipe.cpp` (a line-for-line
-  port, checked against the C++ on a_ba). Its Save gives `<name>.recipe.txt`
-  (a page may not download `.recipe`); nwn5e reads `*.recipe` and
-  `*.recipe*.txt` in `animedit\recipes\` (a browser's " (1)" copies too), the
-  newest file of a name winning, and `!animedit`'s Load lists them - so one
-  restart when the recipe is done.
+  preview is not great. could we get a webapp working" - "don't make it an
+  artifact, create an actual webapp I can run locally"): the live preview is
+  the Animation Recipe Bench, a local web app in `tools/recipe_bench/`
+  (`recipe_bench.bat`: a Node server on 127.0.0.1:8765, no dependencies, that
+  opens the page). At startup nwn5e copies the 10 animation libraries it reads
+  (a_ba and its chain, a_fa, a_da, a_dfa and the large-build '2's) to
+  `build\animedit\libraries\`; the bench reads them from there, and three
+  stick figures on a canvas play the base, the recipe and the mix with the
+  same maths as `anim_recipe.cpp` (`public/core.js`, a line-for-line port,
+  checked against the C++ on a_ba). Save writes `<name>.recipe` straight into
+  `build\animedit\recipes\`; Open lists those and nwn5e's own. One restart
+  when the recipe is done. nwn5e also reads `*.recipe*.txt` there (what Notepad
+  or a browser download makes of a recipe), the newest file of a name winning,
+  and `!animedit`'s Load lists them.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

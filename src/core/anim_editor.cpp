@@ -6,8 +6,8 @@
 // game starts (anim_packs.cpp), so a new or changed one plays after a restart.
 // Play base / Play mix / Play recipe play them on the player character in
 // place, looping (as !anim: the look-far loop swapped for it); Load lists the
-// drafts (with the .recipe.txt files the Animation Recipe Bench web page saves)
-// and nwn5e's own recipes. Base and Mix toward are dropdowns of the
+// drafts (the Animation Recipe Bench's too, and *.recipe.txt) and nwn5e's own
+// recipes. Base and Mix toward are dropdowns of the
 // humanoid library's animations (read at startup; !anim's descriptions).
 
 #include <windows.h>

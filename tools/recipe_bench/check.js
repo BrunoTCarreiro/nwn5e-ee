@@ -1,7 +1,7 @@
 // Runs the page's library logic (bodies, chains, clip lookup, bones) on the real libraries.
 const fs = require("fs");
 const path = require("path");
-const A = require("./core.js");
+const A = require("./public/core.js");
 const dir = process.argv[2];
 const libs = new Map();
 for (const f of fs.readdirSync(dir)) {

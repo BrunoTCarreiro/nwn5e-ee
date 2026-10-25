@@ -1,7 +1,7 @@
 // Animation recipes at startup (owner, 2026-10-25: "Let's try recipe" - "n5test
 // works"): each recipe (data\anims\*.recipe, nwn5e's; animedit\recipes\*.recipe,
-// the owner's drafts from !animedit, and *.recipe.txt from the web page, a draft
-// winning over a same-named one)
+// the owner's drafts from !animedit or the Animation Recipe Bench, and
+// *.recipe.txt, a draft winning over a same-named one)
 // becomes an animation in the "animation packs" written into the served folder
 // before it is registered:
 // - every body skeleton (p + m/f + a/d/e/g/h/o + 0/2, ASCII models: pmh0 ...)
@@ -16,8 +16,8 @@
 // game's development folder. `animation_recipes`.
 // The libraries read are also copied to animedit\libraries\ (0.24.2; owner:
 // "the saving closing and opening the game just to get a preview is not great.
-// could we get a webapp working"): the Animation Recipes web page reads them
-// from there, on the player's own machine, and previews a recipe at once.
+// could we get a webapp working"): the Animation Recipe Bench, a local web app
+// (tools/recipe_bench/), reads them from there and previews a recipe at once.
 
 #include <windows.h>
 
@@ -101,9 +101,9 @@ uint64_t WriteTime(const std::wstring& path) {
 
 }  // namespace
 
-// The recipe files in a folder: <name>.recipe (nwn5e's, !animedit's) and
-// <name>.recipe.txt - the Animation Recipe Bench web page saves those (a browser
-// may only download .txt), and a browser may add " (1)" to a second copy.
+// The recipe files in a folder: <name>.recipe (nwn5e's, !animedit's, the
+// Animation Recipe Bench's) and <name>.recipe.txt - what Notepad or a browser
+// download makes of one (with " (1)" on a second copy).
 std::vector<std::wstring> RecipeFiles(const std::wstring& directory) {
   std::vector<std::wstring> files = FilesIn(directory, L"*.recipe");
   for (const std::wstring& file : FilesIn(directory, L"*.recipe*.txt")) files.push_back(file);
