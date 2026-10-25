@@ -93,6 +93,18 @@
 // are set dark again (a saved game may not keep tile lights), and the map
 // darkening keeps them dark. `fill_follows_lights`.
 //
+// Torch flames rise (0.37.4; owner: "I'm using a torch and I see that the fire
+// animation is set to the orientation of the torch, so a torch held sideways
+// will spew flames sideways as well"): the held torch's flame (it_torch_000 /
+// 001: emitter Flame02) shoots its particles along the torch at 0.15 m/s,
+// carried in its frame (inherit), with no mass - so it follows the torch. As
+// the served folder is built (before it is registered), those models are read
+// from the game, the flame given the smoke's way - speed 0, a small negative
+// mass so it floats up in the world, not carried in the torch's frame - and
+// written there under their own names: on the player's machine, nothing of the
+// game's kept in nwn5e. The candle holder's flame (it_torch_002) doesn't move.
+// `torch_flame_up`.
+//
 // Bash is snuff (0.37.0; owner: "the radial menu on light sources should also
 // have an option beyond 'bash', I'm thinking 'snuff' where the character attacks
 // the object until hitting it and turning off the light source. once that's
@@ -732,6 +744,32 @@ std::vector<std::string> MapLightCommand(void* creature, const std::string& args
 }
 
 }  // namespace
+
+// data_serving's BuildServedTables, before the served folder is registered (see the top).
+void GenerateTorchFlames(const std::wstring& served) {
+  if (!g_config.torch_flame_up) return;
+  int written = 0;
+  for (const char* model : {"it_torch_000", "it_torch_001"}) {
+    std::string bytes, why;
+    if (!ReadGameResource(model, ee::kResTypeMdl, &bytes, &why)) {
+      Log("lights: the torch model %s couldn't be read (%s)", model, why.c_str());
+      continue;
+    }
+    const int nodes = data::PatchEmitter(&bytes, "Flame02", {{192, 0.0f}, {148, -0.1f}}, 0x40);
+    if (nodes == 0) {
+      Log("lights: no Flame02 emitter in %s - left as it is", model);
+      continue;
+    }
+    const std::wstring path = served + L"\\" + std::wstring(model, model + strlen(model)) + L".mdl";
+    FILE* file = nullptr;
+    if (_wfopen_s(&file, path.c_str(), L"wb") == 0 && file) {
+      fwrite(bytes.data(), 1, bytes.size(), file);
+      fclose(file);
+      ++written;
+    }
+  }
+  if (written) Log("lights: %d torch models served with their flame rising, whatever the torch's angle", written);
+}
 
 void InstallLightSources() {
   g_map_light = g_config.map_light < 10 ? 10 : g_config.map_light > 100 ? 100 : g_config.map_light;

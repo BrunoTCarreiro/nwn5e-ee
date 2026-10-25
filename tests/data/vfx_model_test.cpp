@@ -244,6 +244,53 @@ TEST(TileTorchInTheArea) {
   CHECK_EQ(Milli(p[1]), 2000);
 }
 
+// The torch flame made to rise (built here, laid out as the game's). Breaks
+// caught: a controller of another type changed; a 3-column one (a colour)
+// written as one; the inherit flag left on, or other flags cleared; an
+// animation's copy (no emitter header) skipped; a name that only ends in it hit.
+TEST(TorchFlamePatchedToRise) {
+  std::string b(0x600, '\0');
+  const auto put32 = [&](size_t at, uint32_t v) { memcpy(&b[at], &v, 4); };
+  const auto putf = [&](size_t at, float v) { memcpy(&b[at], &v, 4); };
+  const auto getf = [&](size_t at) { float v; memcpy(&v, &b[at], 4); return v; };
+  const auto get32 = [&](size_t at) { uint32_t v; memcpy(&v, &b[at], 4); return v; };
+  const auto puts = [&](size_t at, const char* text) { memcpy(&b[at], text, strlen(text)); };
+  const size_t base = 12, node = 0x100, emitter = node + 0x60;
+  puts(node + 0x10, "Flame02");
+  puts(emitter + 0x18, "Fountain");
+  put32(emitter + 0xD4, 0x42);  // inherit + p2p_sel
+  const size_t keys = 0x300, data = 0x340;
+  put32(node + 0x44, static_cast<uint32_t>(keys - base));
+  put32(node + 0x48, 3);
+  put32(node + 0x50, static_cast<uint32_t>(data - base));
+  put32(node + 0x54, 7);
+  // velocity (1 col, value 1), mass (1 col, value 2), colorStart (3 cols, values 3-5)
+  put32(keys, 192); b[keys + 4] = 1; b[keys + 6] = 0; b[keys + 8] = 1; b[keys + 10] = 1;
+  put32(keys + 12, 148); b[keys + 16] = 1; b[keys + 18] = 0; b[keys + 20] = 2; b[keys + 22] = 1;
+  put32(keys + 24, 192 + 1); b[keys + 28] = 1; b[keys + 30] = 0; b[keys + 32] = 3; b[keys + 34] = 3;
+  putf(data + 4, 0.15f);
+  putf(data + 8, 0.0f);
+  putf(data + 12, 0.5f);
+  // An animation's copy: the same name, its own controllers, no emitter header.
+  const size_t copy = 0x400;
+  puts(copy + 0x10, "Flame02");
+  const size_t keys2 = 0x500, data2 = 0x540;
+  put32(copy + 0x44, static_cast<uint32_t>(keys2 - base));
+  put32(copy + 0x48, 1);
+  put32(copy + 0x50, static_cast<uint32_t>(data2 - base));
+  put32(copy + 0x54, 2);
+  put32(keys2, 192); b[keys2 + 4] = 1; b[keys2 + 6] = 0; b[keys2 + 8] = 1; b[keys2 + 10] = 1;
+  putf(data2 + 4, 0.3f);
+  const int changed = PatchEmitter(&b, "Flame02", {{192, 0.0f}, {148, -0.1f}}, 0x40);
+  CHECK_EQ(changed, 2);
+  CHECK_EQ(Milli(getf(data + 4)), 0);        // velocity
+  CHECK_EQ(Milli(getf(data + 8)), -100);     // mass
+  CHECK_EQ(Milli(getf(data + 12)), 500);     // the 3-column one untouched
+  CHECK_EQ(static_cast<int>(get32(emitter + 0xD4)), 0x02);  // inherit off, the rest kept
+  CHECK_EQ(Milli(getf(data2 + 4)), 0);       // the animation's copy too
+  CHECK_EQ(PatchEmitter(&b, "ame02", {{192, 1.0f}}, 0), 0);
+}
+
 // Fill lights follow the lights round them. Breaks caught: a tile with no
 // light near turned off; one lit light 1 tile away not keeping it on; the
 // neighbourhood wider or narrower than the 8 round it; x and y swapped in the

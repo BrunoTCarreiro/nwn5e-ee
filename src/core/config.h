@@ -127,6 +127,9 @@ struct Config {
   // With light_sources: a tile's fill (main) lights go off when every light on
   // it and the 8 tiles round it is out (owner: "let's try B").
   bool fill_follows_lights = true;
+  // A held torch's flame rises whatever the torch's angle (owner: "a torch held
+  // sideways will spew flames sideways as well"; light_sources.cpp).
+  bool torch_flame_up = true;
   int map_light = 70;
   bool map_tile_dim = true;
   // SK10: faithful = spell attacks are PB + casting ability against full AC,

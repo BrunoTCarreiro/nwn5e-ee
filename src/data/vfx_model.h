@@ -108,4 +108,14 @@ struct TileLight {
 };
 std::vector<uint8_t> TileFillLightsOff(int width, int height, const std::vector<TileLight>& lights);
 
+// A compiled model's emitter changed in place (owner, 2026-10-25: "a torch held
+// sideways will spew flames sideways as well, is that something that can be
+// fixed?"): every node of that name (its animations' copies too) gets the
+// controllers listed set to the value (each key; a controller it lacks is left
+// out), and the emitter's flags lose `clear_flags`. The number of nodes changed.
+// Controller types: 148 mass, 192 velocity; flag 0x40 = inherit (particles
+// carried in the emitter's frame).
+int PatchEmitter(std::string* bytes, const std::string& emitter_name, const std::vector<std::pair<uint32_t, float>>& values,
+                 uint32_t clear_flags);
+
 }  // namespace data

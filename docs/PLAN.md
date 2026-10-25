@@ -2077,6 +2077,24 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   light out stops the attacker; an attack on one already out stops it (on
   melee attacked). A real "Snuff" radial entry needs the client radial builder
   (0x9b19d0; fixed entries) patched - not done.
+  0.37.1: in play "0 tile flames ... 200 lit slots with no flame node": the
+  new tile getters (GetTileID / Orientation / Height) go through
+  CNWSArea::GetTile(Vector), by metres, while the light getters take the grid
+  coordinate - asked at the tile's centre in metres now (37 flames placed, 2
+  used). Skipped lights logged with why. 0.37.2 (owner: a light circle from the
+  next room showed through the wall and standing on it read dim): a light
+  counts, and shows its zone ring, only with LineOfSightVector from half a
+  metre out of it to the hider's chest. 0.37.3 (owner: a shadow stayed in a
+  corridor with every light out - the tile's main light 4/0 over the door;
+  "let's try B"): a tile's main lights go off when every light on it and the 8
+  round it is out (data::TileFillLightsOff), back when one is relit; one
+  recompute per change; kept dark through the map darkening, re-applied on
+  entry (area locals nwn5e_fill_x_y). fill_follows_lights. 0.37.4 (owner: a
+  torch held sideways spews flames sideways): it_torch_000 / 001's Flame02 -
+  velocity 0.15 along the torch, inherit, no mass - patched at start to the
+  smoke's way (velocity 0, mass -0.1, inherit off; data::PatchEmitter) and
+  served (BuildServedTables, before registration): built on the player's
+  machine from the game's own models. torch_flame_up.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

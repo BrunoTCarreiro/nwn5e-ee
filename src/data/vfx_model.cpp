@@ -658,6 +658,45 @@ float TilesetTransition(const std::string& set_text) {
   return value.empty() ? 0.0f : static_cast<float>(atof(value.c_str()));
 }
 
+int PatchEmitter(std::string* bytes, const std::string& emitter_name, const std::vector<std::pair<uint32_t, float>>& values,
+                 uint32_t clear_flags) {
+  if (!bytes || emitter_name.empty() || bytes->size() < 0x200 || (*bytes)[0] != 0) return 0;
+  const Bytes m{*bytes};
+  const std::string needle = emitter_name + std::string(1, '\0');
+  int changed = 0;
+  for (size_t at = bytes->find(needle); at != std::string::npos; at = bytes->find(needle, at + 1)) {
+    if (at < 0x10 + kModelBase || (*bytes)[at - 1] != 0) continue;
+    const size_t node = at - 0x10;
+    std::vector<Controller> controllers;
+    if (!ReadControllers(m, node, &controllers)) continue;
+    const uint32_t keys = m.U32(node + 0x44), key_count = m.U32(node + 0x48), data = m.U32(node + 0x50);
+    bool touched = false;
+    for (uint32_t k = 0; k < key_count; ++k) {
+      const size_t key = kModelBase + keys + 12ull * k;
+      const uint32_t type = m.U32(key);
+      const int rows = m.U16(key + 4), value_at = m.U16(key + 8), columns = m.U8(key + 10) & 0x0F;
+      for (const auto& value : values) {
+        if (value.first != type || columns != 1) continue;
+        for (int r = 0; r < rows; ++r) {
+          const size_t where = kModelBase + data + 4ull * (value_at + r);
+          if (where + 4 <= bytes->size()) memcpy(&(*bytes)[where], &value.second, 4);
+        }
+        touched = true;
+      }
+    }
+    // The geometry node's emitter header follows it (update name at +0x18): its flags.
+    const size_t emitter = node + 0x60;
+    const std::string update = m.Str(emitter + 0x18, 32);
+    if (clear_flags && (update == "Fountain" || update == "Single" || update == "Explosion" || update == "Lightning")) {
+      const uint32_t flags = m.U32(emitter + 0xD4) & ~clear_flags;
+      memcpy(&(*bytes)[emitter + 0xD4], &flags, 4);
+      touched = true;
+    }
+    if (touched) ++changed;
+  }
+  return changed;
+}
+
 std::vector<uint8_t> TileFillLightsOff(int width, int height, const std::vector<TileLight>& lights) {
   if (width <= 0 || height <= 0 || width > 64 || height > 64) return {};
   const size_t tiles = static_cast<size_t>(width) * height;
