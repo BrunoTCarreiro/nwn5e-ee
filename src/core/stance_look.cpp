@@ -35,6 +35,11 @@
 // walk restart waits up to 1.5 s for the walk - stealth turns a run into a
 // walk on a later update, which the one check at the swap missed (the run, not
 // yet the walk, was playing), so the new walk started before its swap arrived.
+// 0.39.1 (owner: "if hiding/unhiding is triggered while moving, the pose
+// afterwards is incorrect" - after it stops, the old idle stood, WASD or click
+// to move, a weapon held): an idle change skipped while moving waits, and the
+// idle is restarted (the same pause2 kick) as soon as the creature stands still
+// with nothing to do - within 10 s.
 
 #include <windows.h>
 
@@ -81,6 +86,7 @@ struct Look {
   bool sent = false;  // false: nothing sent yet - the next send restores what isn't swapped too
   std::string idle, walk;
   uint64_t restart_until = 0;  // the walk's swap changed: restart a walk seen before this (ms)
+  uint64_t idle_until = 0;     // the idle's swap changed while it moved: restart its idle when it stops (ms)
 };
 
 // A walking creature's walk restarted once through its new swap (see above);
@@ -127,6 +133,7 @@ void Send(uint32_t id, Look& look) {
   const int playing = Playing(creature);
   const bool moving = !Stationary(creature);
   const bool kick = look.sent && idle != look.idle && !moving;
+  if (look.sent && idle != look.idle) look.idle_until = moving ? GetTickCount64() + 10000 : 0;
   if (!look.sent || idle != look.idle) {
     slot("pause1", idle);
     slot("pause2", idle);
@@ -185,6 +192,21 @@ void Update(void* creature) {
   }
   Look& look = it->second;
   if (look.restart_until) RestartWalk(id, look);
+  if (look.idle_until) {
+    // It moved when its idle changed: restart the idle once it stands still with nothing to do.
+    if (GetTickCount64() > look.idle_until) {
+      look.idle_until = 0;
+    } else if (Stationary(creature)) {
+      RunScriptChunk("if (GetCurrentAction(OBJECT_SELF) == ACTION_INVALID) {"
+                     " PlayAnimation(ANIMATION_LOOPING_PAUSE2, 1.0, 0.5); SetLocalInt(OBJECT_SELF, \"nwn5e_look_kick\", 1); }",
+                     id);
+      if (engine::GetLocalInt(creature, "nwn5e_look_kick") == 1) {
+        engine::SetLocalInt(creature, "nwn5e_look_kick", 0);
+        look.idle_until = 0;
+        Log("look: 0x%08X stopped - idle restarted (idle %s)", id, look.idle.empty() ? "normal" : look.idle.c_str());
+      }
+    }
+  }
   if (look.hiding == hiding && look.sent) return;
   look.hiding = hiding;
   Send(id, look);

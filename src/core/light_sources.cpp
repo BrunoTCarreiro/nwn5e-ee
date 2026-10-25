@@ -144,6 +144,15 @@
 // attack: it reveals). The server object is read directly (client id & 0x7FFFFFFF:
 // a single-player game); without it, no entry. The general radial actions
 // (a server transport for new choices) wait for Barbarian part 3 (R2).
+// 0.39.1 (owner: "snuff doesn't work with a ranged weapon, the PC will always
+// try to walk over to the light"): with a ranged weapon in hand (baseitems.2da
+// RangedWeapon), Snuff takes Bash's place instead - it shoots the light from
+// where it stands - through nwn5e's own callback, which marks the player
+// character (local nwn5e_snuffing) before handing over to Bash's: while it is
+// marked, rules_perception.cpp's SetStealthMode hook keeps it hidden through the
+// attack (a real find - nwn5e_found_out - still reveals it); a hit that puts the
+// light out stops the attack and clears the mark, and the stealth watch clears
+// it when it stops attacking.
 //
 // Bash is snuff (0.37.0; owner: "the radial menu on light sources should also
 // have an option beyond 'bash', I'm thinking 'snuff' where the character attacks
@@ -464,7 +473,7 @@ void Damaged(uint32_t lamp) {
       "if (GetPlaceableIllumination(OBJECT_SELF) && (all <= 0 || all > fire)) {" +
           std::string(kDouse) +
           " if (GetIsPC(u)) SendMessageToPC(u, \"nwn5e: you hit \" + GetName(OBJECT_SELF) + \" and put it out\");"
-          " AssignCommand(u, ClearAllActions());" +
+          " AssignCommand(u, ClearAllActions()); DeleteLocalInt(u, \"nwn5e_snuffing\");" +
           NoticeCode() + "}",
       lamp, "light hit");
   FillLights(lamp, false);
@@ -513,7 +522,7 @@ void FlameHit(uint32_t flame) {
                   "int fire = GetDamageDealtByType(DAMAGE_TYPE_FIRE); if (fire < 0) fire = 0;") +
           kFlameState + "if (c > 0 && (all <= 0 || all > fire)) {" + kFlameOut +
           " if (GetIsPC(u)) SendMessageToPC(u, \"nwn5e: you hit the flame and put it out\");"
-          " AssignCommand(u, ClearAllActions());" + NoticeCode() + "}",
+          " AssignCommand(u, ClearAllActions()); DeleteLocalInt(u, \"nwn5e_snuffing\");" + NoticeCode() + "}",
       flame, "flame hit");
   FillLights(flame, false);
   Log("lights: tile flame 0x%08X hit", flame);
@@ -533,8 +542,8 @@ void FlameSpell(uint32_t flame) {
 // An attack on a light or flame already out: the attacker stops (Bash is snuff).
 void AttackedOut(uint32_t target, bool flame) {
   Run(std::string("object u = GetLastAttacker();") +
-          (flame ? std::string(kFlameState) + "if (c <= 0) AssignCommand(u, ClearAllActions());"
-                 : "if (!GetPlaceableIllumination(OBJECT_SELF)) AssignCommand(u, ClearAllActions());"),
+          (flame ? std::string(kFlameState) + "if (c <= 0) { AssignCommand(u, ClearAllActions()); DeleteLocalInt(u, \"nwn5e_snuffing\"); }"
+                 : "if (!GetPlaceableIllumination(OBJECT_SELF)) { AssignCommand(u, ClearAllActions()); DeleteLocalInt(u, \"nwn5e_snuffing\"); }"),
       target, "light attacked");
 }
 
@@ -800,6 +809,8 @@ void PlaceFlames(void* creature, uint32_t pc) {
       missing ? (" - " + std::to_string(missing) + " lit slots with no flame node in their model").c_str() : "");
 }
 
+uint32_t g_last_pc = 0;  // the player character (a single-player game)
+
 struct Arrival {
   void* area = nullptr;
   uint64_t next = 0;
@@ -828,6 +839,7 @@ void SetUpArea(void* creature, uint32_t id, void* area, bool force) {
 void Update(void* creature) {
   if (!creature || Field<int32_t>(creature, ee::kCreatureIsPlayerCharacter) == 0) return;
   const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  g_last_pc = id;
   Arrival& arrival = g_arrivals[id];
   const uint64_t now = GetTickCount64();
   if (now < arrival.next) return;
@@ -907,6 +919,26 @@ constexpr size_t kMenuTarget = 0x7f8;     // the placeable's client id
 constexpr int kSlotUse = 2, kSlotFree = 4;
 constexpr uint32_t kStrSnuff = 16000450, kStrLight = 16000451;
 
+constexpr int kSlotBash = 5;
+using CallbackFn = void (*)(void* handler, int64_t param);
+CallbackFn g_bash_callback = nullptr;  // the menu's Bash callback, for the ranged Snuff
+
+// Whether the creature holds a ranged weapon (baseitems.2da RangedWeapon).
+bool HoldsRangedWeapon(void* creature) {
+  static const std::vector<std::string> ranged = GameTableColumn("baseitems", "RangedWeapon");
+  const int row = creature ? engine::BaseItemRowInSlot(creature, ee::kSlotRightHand) : -1;
+  return row >= 0 && static_cast<size_t>(row) < ranged.size() && !ranged[row].empty();
+}
+
+// The ranged Snuff: the player character marked (kept hidden while it shoots), then Bash's own callback.
+void SnuffRanged(void* handler, int64_t param) {
+  if (void* pc = g_last_pc ? CreatureById(g_last_pc) : nullptr) {
+    engine::SetLocalInt(pc, "nwn5e_snuffing", 1);
+    Log("lights: 0x%08X snuffs a light from range - kept hidden while it shoots", g_last_pc);
+  }
+  if (g_bash_callback) g_bash_callback(handler, param);
+}
+
 void AddLightEntry(void* menu) {
   if (Field<void*>(menu, kMenuIcons + kSlotFree * 8) || !Field<void*>(menu, kMenuIcons + kSlotUse * 8)) return;
   void* object = ObjectById(Field<uint32_t>(menu, kMenuTarget) & 0x7FFFFFFFu);
@@ -917,7 +949,15 @@ void AddLightEntry(void* menu) {
                          : Field<int32_t>(object, kPlaceableLightState) != 0;
   void* handler = Field<void*>(menu, kMenuCallbacks + kSlotUse * 16);
   void* callback = Field<void*>(menu, kMenuCallbacks + kSlotUse * 16 + 8);
-  const int64_t param = Field<int64_t>(menu, kMenuParams + kSlotUse * 8);
+  int64_t param = Field<int64_t>(menu, kMenuParams + kSlotUse * 8);
+  // With a ranged weapon, Snuff shoots it (Bash's action, through SnuffRanged) instead of walking over.
+  void* pc = g_last_pc ? CreatureById(g_last_pc) : nullptr;
+  if (lit && Field<void*>(menu, kMenuIcons + kSlotBash * 8) && HoldsRangedWeapon(pc)) {
+    handler = Field<void*>(menu, kMenuCallbacks + kSlotBash * 16);
+    g_bash_callback = reinterpret_cast<CallbackFn>(Field<void*>(menu, kMenuCallbacks + kSlotBash * 16 + 8));
+    callback = reinterpret_cast<void*>(&SnuffRanged);
+    param = Field<int64_t>(menu, kMenuParams + kSlotBash * 8);
+  }
   g_set_entry(menu, kSlotFree, lit ? "is_darkness" : "is_light", lit ? kStrSnuff : kStrLight, handler, callback, param);
   if ((Field<uint32_t>(menu, kMenuFlags + kSlotUse * 4) & 1) && g_disable_entry) g_disable_entry(menu, kSlotFree);
 }

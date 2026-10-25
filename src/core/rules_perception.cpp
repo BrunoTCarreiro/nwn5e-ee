@@ -224,6 +224,23 @@ int RollStealth(void* creature, const char* when) {
 }
 
 void SetStealthMode(void* creature, uint8_t mode) {
+  // A ranged Snuff (light_sources.cpp, 0.39.1; owner: "would it be possible with
+  // 'snuff' to maintain stealth if it is performed while in stealth?"): its
+  // attack doesn't take the hider out of stealth mode - a find (nwn5e_found_out)
+  // still does. Who tried is logged (the first few).
+  if (creature && mode != 1 && Hiding(creature) && engine::GetLocalInt(creature, "nwn5e_snuffing") &&
+      !engine::GetLocalInt(creature, "nwn5e_found_out")) {
+    static int told = 0;
+    if (told < 6) {
+      ++told;
+      uintptr_t offset = 0;
+      const char* where = ExportContaining(reinterpret_cast<uintptr_t>(_ReturnAddress()), &offset);
+      Log("stealth: 0x%08X snuffing a light - kept hidden (stealth off asked from %s+0x%llx)", IdOf(creature),
+          where ? where : "?", static_cast<unsigned long long>(offset));
+    }
+    return;
+  }
+  if (creature && mode == 1 && !Hiding(creature)) engine::SetLocalInt(creature, "nwn5e_found_out", 0);  // a new hide
   const bool starts = creature && mode == 1 && !Hiding(creature);
   g_set_stealth_mode(creature, mode);
   if (!creature) return;

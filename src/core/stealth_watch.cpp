@@ -345,7 +345,9 @@ void Pass(uint32_t pc, int carried) {
   const int rings = g_config.stealth_rings;
   std::string code =
       "object pc = OBJECT_SELF; location at = GetLocation(pc);"
-      "int pass = GetLocalInt(pc, \"nwn5e_watch_pass\") + 1; SetLocalInt(pc, \"nwn5e_watch_pass\", pass);";
+      "int pass = GetLocalInt(pc, \"nwn5e_watch_pass\") + 1; SetLocalInt(pc, \"nwn5e_watch_pass\", pass);"
+      // A ranged Snuff's mark (light_sources.cpp) goes when it stops attacking.
+      "if (GetLocalInt(pc, \"nwn5e_snuffing\") && GetCurrentAction(pc) != ACTION_ATTACKOBJECT) DeleteLocalInt(pc, \"nwn5e_snuffing\");";
   if (g_config.stealth_light && g_config.perception == rules::RuleVariant::kFaithful) code += LightPart(carried, true);
   code +=
       // The nearest hostiles get rings.
