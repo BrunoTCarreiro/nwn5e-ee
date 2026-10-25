@@ -79,6 +79,11 @@ constexpr uint64_t kCheckMs = 1000;
 constexpr const char* kVarSightRing = "nwn5e_sight_ring";
 constexpr const char* kVarHearRing = "nwn5e_hear_ring";
 constexpr const char* kVarConeRing = "nwn5e_cone_ring";  // > 0 a cone row; 0 calm sees all round; -1 calm sees nothing
+// Each creature's own lift for its cone and rings, centimetres (owner, 2026-10-25:
+// "some z-fighting on the cones ... weird interference patterns when they
+// overlap"): overlapping ones never share a height. Fixed per creature (its id),
+// put on with EffectVisualEffect's vTranslate.
+constexpr const char* kVarRingLift = "nwn5e_ring_lift";
 
 struct Watch {
   bool on = false;  // markers or rings may be up in the area
@@ -181,8 +186,11 @@ void Pass(uint32_t pc) {
         "   effect e = GetFirstEffect(o);"
         "   while (GetIsEffectValid(e)) { if (GetEffectTag(e) == \"nwn5e_ring\") RemoveEffect(o, e); e = GetNextEffect(o); }"
         "   if (ring) {"
-        "    if (look) ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(SupernaturalEffect(EffectVisualEffect(look)), \"nwn5e_ring\"), o);"
-        "    ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(SupernaturalEffect(EffectVisualEffect(hear)), \"nwn5e_ring\"), o);"
+        "    float lift = IntToFloat(GetLocalInt(o, \"" + std::string(kVarRingLift) + "\")) / 100.0;"
+        "    if (look) ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(SupernaturalEffect("
+        "     EffectVisualEffect(look, FALSE, 1.0, Vector(0.0, 0.0, lift))), \"nwn5e_ring\"), o);"
+        "    ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(SupernaturalEffect("
+        "     EffectVisualEffect(hear, FALSE, 1.0, Vector(0.0, 0.0, lift + 0.01))), \"nwn5e_ring\"), o);"
         "   }"
         "   SetLocalInt(o, \"nwn5e_ring\", ring);"
         "  }";
@@ -256,6 +264,7 @@ void WriteRanges(void* creature, uint32_t id) {
   engine::SetLocalInt(creature, kVarSightRing, sight_row);
   engine::SetLocalInt(creature, kVarHearRing, hear_row);
   engine::SetLocalInt(creature, kVarConeRing, cone_row);
+  engine::SetLocalInt(creature, kVarRingLift, static_cast<int>(id % 11) * 2);
   static int logged = 0;
   if (logged < 8) {
     ++logged;

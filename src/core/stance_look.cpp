@@ -13,6 +13,10 @@
 // MODELTYPE P: the skeletons the animation packs serve), so the swap script
 // checks that first; nothing is touched on other bodies. After a load (nothing
 // sent yet) the whole state goes, so a swap the saved game kept is undone too.
+// A swap doesn't restart the idle already playing (owner, 2026-10-25: "on being
+// discovered the stance should return to standard, right now the PC remains
+// crouched"), so when the idle changes on a creature doing nothing, its idle is
+// restarted (pause2 for an instant, then pause1: both through the new swap).
 
 #include <stdint.h>
 
@@ -67,6 +71,7 @@ void Send(uint32_t id, Look& look) {
   if (!look.sent || idle != look.idle) {
     slot("pause1", idle);
     slot("pause2", idle);
+    if (look.sent) code += "if (GetCurrentAction(OBJECT_SELF) == ACTION_INVALID) PlayAnimation(ANIMATION_LOOPING_PAUSE2, 1.0, 0.1);";
   }
   if (!look.sent || walk != look.walk) {
     slot("walk", walk);

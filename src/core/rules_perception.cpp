@@ -344,9 +344,18 @@ void TellCheck(void* observer, void* hider, int found, bool searching, bool up_c
             "}",
             IdOf(observer), how,
             found ? (ends ? "you are found - you are no longer hidden" : "you are found") : "you stay hidden",
-            ends ? "DelayCommand(0.0, SetActionMode(OBJECT_SELF, ACTION_MODE_STEALTH, FALSE));" : "");
+            ends ? "DelayCommand(0.0, SetActionMode(OBJECT_SELF, ACTION_MODE_STEALTH, FALSE));"
+                   " SetLocalInt(OBJECT_SELF, \"nwn5e_found_exit\", 1);"
+                 : "");
   RunScriptChunk(code, IdOf(hider));
-  if (ends && LogSlot()) Log("stealth: 0x%08X found by 0x%08X - out of stealth mode (found_ends_hiding)", IdOf(hider), IdOf(observer));
+  if (ends) {
+    const bool hostile = engine::GetLocalInt(hider, "nwn5e_found_exit") != 0;
+    engine::SetLocalInt(hider, "nwn5e_found_exit", 0);
+    if (LogSlot()) {
+      Log("stealth: 0x%08X seen by 0x%08X - %s", IdOf(hider), IdOf(observer),
+          hostile ? "a hostile: out of stealth mode (found_ends_hiding)" : "not hostile to it: stays hidden");
+    }
+  }
 }
 
 int Detection(DetectionFn original, bool spot, void* observer, void* target, int flag) {

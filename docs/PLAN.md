@@ -1869,6 +1869,16 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   Colours 0-4 (yellow 20% ... red 50%): 6+ red, 1-5 orange-red, -4-0 orange,
   -9 to -5 yellow-orange, -10 or less yellow. 200 cone models (5 colours x
   60/90/120/150 x 10 radii, rows 1610-1809).
+  0.31.1 (owner: "on being discovered the stance should return to standard,
+  right now the PC remains crouched. There's also some z-fighting on the cones
+  ... weird interference patterns when they overlap"): the log showed the
+  restore sent 50 ms after the exit - ReplaceObjectAnimation doesn't restart
+  the idle already playing; stance_look now restarts it (pause2 for 0.1 s) when
+  the idle changes on a creature doing nothing. Each creature's cone and rings
+  get their own lift (id % 11 x 2 cm, EffectVisualEffect vTranslate; hearing
+  ring +1 cm) so overlapping ones never share a height. The found log now says
+  whether the finder was hostile (a non-hostile's sight doesn't end hiding;
+  the 15:59:33 "out of stealth" line was one that isn't).
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:
