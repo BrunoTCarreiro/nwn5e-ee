@@ -85,6 +85,8 @@
 
 int RelentlessRage(void* creature);  // rules_barbarian.cpp (Barbarian B11)
 
+void SetExhaustionLook(uint32_t id, int level);  // stance_look.cpp
+
 namespace {
 
 constexpr const char* kVarExhaustion = "nwn5e_exhaustion";
@@ -382,40 +384,12 @@ void SyncExhaustionEffect(uint32_t id, int level) {
 
 // The exhausted look (owner, 2026-10-24: "exhausted levels 1 and 2 the PC
 // should have the pausetrd animation when idle. exhaustion levels 3,4 and 5
-// should add the injured walk"): EE's ReplaceObjectAnimation swaps the idle
-// (pause1, pause2) for the tired one and, from 3, the walk for the limp. Sent
-// only on a change; after a load (nothing sent yet) the whole state goes, so
-// a swap the saved game kept is undone too. `exhaustion_look`.
-struct Look {
-  int idle = -1;  // -1: not sent yet
-  int walk = -1;
-};
-std::unordered_map<uint32_t, Look> g_looks;
-
+// should add the injured walk"): the tired idle from 1, the limp from 3 -
+// swapped by stance_look.cpp, which also crouches a hiding creature (that
+// wins). `exhaustion_look`.
 void SyncExhaustionLook(uint32_t id, int level) {
   if (!g_config.exhaustion_look || rules::IsDeadFromExhaustion(level)) level = 0;
-  const int idle = level >= 1 ? 1 : 0;
-  const int walk = level >= 3 ? 1 : 0;
-  Look& look = g_looks[id];
-  if (look.idle == idle && look.walk == walk) return;
-  std::string code;
-  if (look.idle != idle) {
-    code += idle ? "ReplaceObjectAnimation(OBJECT_SELF, \"pause1\", \"pausetrd\");"
-                   "ReplaceObjectAnimation(OBJECT_SELF, \"pause2\", \"pausetrd\");"
-                 : "ReplaceObjectAnimation(OBJECT_SELF, \"pause1\"); ReplaceObjectAnimation(OBJECT_SELF, \"pause2\");";
-  }
-  if (look.walk != walk) {
-    code += walk ? "ReplaceObjectAnimation(OBJECT_SELF, \"walk\", \"walkinj\");"
-                 : "ReplaceObjectAnimation(OBJECT_SELF, \"walk\");";
-  }
-  const bool first = look.idle < 0;
-  look.idle = idle;
-  look.walk = walk;
-  RunScriptChunk(code.c_str(), id);
-  if (!first || idle || walk) {
-    Log("dying: 0x%08X exhausted look - %s idle, %s walk (Exhaustion %d)", id, idle ? "tired" : "normal",
-        walk ? "injured" : "normal", level);
-  }
+  SetExhaustionLook(id, level);
 }
 
 void SetExhaustion(void* player, int level) {
@@ -1156,9 +1130,6 @@ void AddActionToFront(void* object, uint32_t action, uint16_t group, uint32_t t1
 }
 
 }  // namespace
-
-// !anim's Stop puts the walk back: the exhausted look is sent again at the next upkeep.
-void ResendExhaustionLook(uint32_t id) { g_looks.erase(id); }
 
 void InstallDyingRules() {
   if (!Faithful()) return;

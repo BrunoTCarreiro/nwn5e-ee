@@ -255,7 +255,7 @@ void GenerateAnimationPacks(const std::wstring& served) {
         continue;
       }
       const bool has_mix = !recipe.second.mix.empty() && FindClip(entry.first, recipe.second.mix, &mix);
-      clips.push_back(data::DeriveAnimClip(recipe.second, base, has_mix ? &mix : nullptr));
+      clips.push_back(data::DeriveAnimClip(recipe.second, base, has_mix ? &mix : nullptr, &library.info.bones));
     }
     if (clips.empty()) continue;
     const std::string pack = entry.second;

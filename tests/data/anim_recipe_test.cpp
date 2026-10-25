@@ -1,7 +1,10 @@
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
+#include <algorithm>
 #include <string>
+#include <vector>
 
 #include "check.h"
 #include "data/anim_recipe.h"
@@ -11,7 +14,10 @@
 // way round); trim and speed that move keys to the wrong time; a pack whose
 // root isn't the pack or that doesn't point at its library; the compiled
 // library's layout (bone tree, animation list, a clip's keys) read wrong -
-// tested on a library built here, nothing of the game's.
+// tested on a library built here, nothing of the game's. The crouch step: hips
+// that don't drop by the crouch, an ankle that leaves the walk's footfall
+// (sinks or floats), a knee that doesn't come forward, a lean that tips the
+// wrong way or drags the head with it, legs moved by a lean.
 
 using namespace data;
 
@@ -39,6 +45,61 @@ AnimClip Turning(const char* name, float length, float end_z_degrees) {
   return clip;
 }
 
+AnimNode Bone(const char* name, int parent, float x, float y, float z) {
+  AnimNode b;
+  b.name = name;
+  b.parent = parent;
+  b.has_position = true;
+  b.position.times = {0.0f};
+  b.position.values = {{x, y, z, 1.0f}};
+  b.has_orientation = true;
+  b.orientation.times = {0.0f};
+  b.orientation.values = {{0.0f, 0.0f, 0.0f, 1.0f}};
+  return b;
+}
+
+// A body: the hips 1 m up, one leg (45 cm thigh, 42 cm shin), the torso to the neck.
+std::vector<AnimNode> Body() {
+  return {Bone("a_test", -1, 0.0f, 0.0f, 0.0f),   Bone("rootdummy", 0, 0.0f, 0.0f, 1.0f),
+          Bone("pelvis_g", 1, 0.0f, 0.0f, 0.0f),  Bone("lthigh_g", 2, -0.1f, 0.0f, -0.05f),
+          Bone("lshin_g", 3, 0.0f, 0.0f, -0.45f), Bone("lfoot_g", 4, 0.0f, 0.0f, -0.42f),
+          Bone("torso_g", 1, 0.0f, 0.0f, 0.0f),   Bone("neck_g", 6, 0.0f, 0.0f, 0.45f),
+          Bone("head_g", 7, 0.0f, 0.0f, 0.08f)};
+}
+
+std::array<float, 4> TurnX(float degrees) {
+  const float half = degrees * 3.14159265f / 360.0f;
+  return {sinf(half), 0.0f, 0.0f, cosf(half)};
+}
+
+// A stride: the thigh swings 25 degrees forward, back, forward; the knee nearly
+// straight on the front leg (where a careless solve flips it backward), bent behind.
+AnimClip Stride(const std::vector<AnimNode>& body) {
+  AnimClip clip;
+  clip.name = "walk";
+  clip.length = 1.0f;
+  clip.animroot = "rootdummy";
+  for (const AnimNode& b : body) {
+    AnimNode n;
+    n.name = b.name;
+    n.parent = b.parent;
+    clip.nodes.push_back(n);
+  }
+  AnimNode& root = clip.nodes[1];
+  root.has_position = true;
+  root.position.times = {0.0f, 1.0f};
+  root.position.values = {{0.0f, 0.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 1.0f, 1.0f}};
+  AnimNode& thigh = clip.nodes[3];
+  thigh.has_orientation = true;
+  thigh.orientation.times = {0.0f, 0.5f, 1.0f};
+  thigh.orientation.values = {TurnX(25.0f), TurnX(-25.0f), TurnX(25.0f)};
+  AnimNode& shin = clip.nodes[4];
+  shin.has_orientation = true;
+  shin.orientation.times = {0.0f, 0.5f, 1.0f};
+  shin.orientation.values = {TurnX(-1.0f), TurnX(-12.0f), TurnX(-1.0f)};
+  return clip;
+}
+
 }  // namespace
 
 TEST(AnimRecipeRoundTrip) {
@@ -50,6 +111,8 @@ TEST(AnimRecipeRoundTrip) {
   r.speed = 0.8f;
   r.start = 0.5f;
   r.end = 3.0f;
+  r.crouch = 0.25f;
+  r.lean = 15.0f;
   AnimRecipe back;
   std::string error;
   CHECK_EQ(ReadAnimRecipe(WriteAnimRecipe(r), &back, &error), true);
@@ -60,7 +123,59 @@ TEST(AnimRecipeRoundTrip) {
   CHECK_EQ(Milli(back.speed), 800);
   CHECK_EQ(Milli(back.start), 500);
   CHECK_EQ(Milli(back.end), 3000);
+  CHECK_EQ(Milli(back.crouch), 250);
+  CHECK_EQ(Milli(back.lean), 15000);
   CHECK_EQ(ReadAnimRecipe("base = pause1\n", &back, &error), false);  // no name
+  CHECK_EQ(ReadAnimRecipe("name = x\nbase = walk\ncrouch = 2\nlean = 90\n", &back, &error), true);
+  CHECK_EQ(Milli(back.crouch), 600);  // kept to 0 - 0.6 m
+  CHECK_EQ(Milli(back.lean), 60000);  // and -45 - 60 degrees
+}
+
+TEST(AnimRecipeCrouchKeepsTheFootfalls) {
+  const std::vector<AnimNode> body = Body();
+  const AnimClip walk = Stride(body);
+  AnimRecipe r;
+  r.name = "n5_crwalk";
+  r.base = "walk";
+  r.crouch = 0.2f;
+  const AnimClip low = DeriveAnimClip(r, walk, nullptr, &body);
+  CHECK_EQ(low.nodes[1].position.times.size(), 31u);  // keys every 1/30 s over 1 s
+  int worst = 0, forward = 0, ahead = 0, samples = 0;
+  for (int k = 0; k <= 60; ++k) {  // between the keys too: a flipped knee shows there
+    const float t = k / 60.0f;
+    const auto a = AnimWorldPositions(walk, body, t), b = AnimWorldPositions(low, body, t);
+    if (k % 12 == 0) CHECK_EQ(Milli(a[1][2] - b[1][2]), 200);  // the hips 20 cm lower
+    for (int c = 0; c < 3; ++c) worst = std::max(worst, abs(Milli(a[5][c] - b[5][c])));
+    if (b[4][1] > a[4][1] + 0.01f) ++forward;  // the knee further forward than it was
+    // and ahead of the hip-ankle line (bent the right way)
+    const float line_y = b[5][1] - b[3][1], line_z = b[5][2] - b[3][2];
+    const float knee_y = b[4][1] - b[3][1], knee_z = b[4][2] - b[3][2];
+    if (knee_y * line_z - knee_z * line_y < 0.0f) ++ahead;
+    ++samples;
+  }
+  CHECK_EQ(worst <= 10, true);  // the ankle within 1 cm of the walk's
+  CHECK_EQ(forward, samples);
+  CHECK_EQ(ahead, samples);
+  // Without the bones it's skipped; without a crouch or lean there's nothing to do.
+  CHECK_EQ(DeriveAnimClip(r, walk, nullptr).nodes[1].position.times.size(), 2u);
+  AnimClip copy = walk;
+  CHECK_EQ(ApplyCrouch(&copy, body, 0.0f, 0.0f), false);
+}
+
+TEST(AnimRecipeLeanTiltsTheUpperBody) {
+  const std::vector<AnimNode> body = Body();
+  const AnimClip walk = Stride(body);
+  AnimRecipe r;
+  r.name = "n5_lean";
+  r.base = "walk";
+  r.lean = 20.0f;
+  const AnimClip leaning = DeriveAnimClip(r, walk, nullptr, &body);
+  const auto a = AnimWorldPositions(walk, body, 0.3f), b = AnimWorldPositions(leaning, body, 0.3f);
+  CHECK_EQ(Milli(b[7][1]), 154);            // the neck, 45 cm up, 20 degrees forward: 0.45 sin 20
+  CHECK_EQ(Milli(b[7][2] - a[7][2]), -27);  // and 0.45 (cos 20 - 1) lower
+  CHECK_EQ(Milli(leaning.nodes[8].orientation.values[0][0]), 122);  // the head back 14 degrees: sin 7
+  CHECK_EQ(Milli(b[5][1] - a[5][1]), 0);    // the legs untouched
+  CHECK_EQ(Milli(b[1][2] - a[1][2]), 0);    // and the hips
 }
 
 TEST(AnimRecipeMixesTrimsAndSpeeds) {

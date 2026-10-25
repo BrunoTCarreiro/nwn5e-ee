@@ -8,6 +8,18 @@
 // into "animation packs" (n5_ba ...) that the body skeletons' copies point at,
 // each pack pointing on at its library - nothing of the game's in nwn5e.
 //
+// The crouch step (owner, 2026-10-25: a crouch walk - "go, use stealth mode as
+// the trigger"), after the mix, speed and trim: the hips drop `crouch` metres
+// and each leg is solved again (thigh and shin, the knee in its own bend
+// plane) so the ankle stays where the animation had it - same footfalls, same
+// stride, knees bending deeper; `lean` tilts the upper body forward from the
+// waist, the head tilting 70% of it back to look ahead. A plain mix toward a
+// crouched pose can't do it (measured: walk -> getlowlp 0.3 sinks the planted
+// foot 14 cm into the floor, never lifts the other, shortens the stride). The
+// legs are solved on the library's bones; the skeletons are uniform scales of
+// them (animationscale) except the halflings' shins, ~10% shorter - the same
+// mismatch the game's own walk has on them.
+//
 // The compiled library layout read here (offsets from byte 12, the end of the
 // file header): model - root node +0x48, animations +0x78 (pointer, count),
 // supermodel name +0xA8; animation - name +8, root node +0x48, length +0x70,
@@ -30,6 +42,8 @@ struct AnimRecipe {
   float speed = 1.0f;        // playback speed (2 = twice as fast)
   float start = 0.0f;        // the part of the base kept, in its seconds
   float end = 0.0f;          // 0: to its end
+  float crouch = 0.0f;       // metres the hips drop, the legs bent to keep the footfalls (0 - 0.6)
+  float lean = 0.0f;         // degrees the upper body leans forward, the head looking ahead (-45 - 60)
 };
 
 std::string WriteAnimRecipe(const AnimRecipe& recipe);
@@ -69,8 +83,18 @@ bool ReadAnimLibrary(const std::string& bytes, AnimLibrary* library, std::string
 // One of its animations by name (any case); false when it hasn't it.
 bool ReadAnimClip(const std::string& bytes, const std::string& name, AnimClip* clip);
 
-// The recipe's animation, from its base clip and (when it names one) its mix clip.
-AnimClip DeriveAnimClip(const AnimRecipe& recipe, const AnimClip& base, const AnimClip* mix);
+// The recipe's animation, from its base clip and (when it names one) its mix
+// clip; the crouch step needs the library's bones (without them it's skipped).
+AnimClip DeriveAnimClip(const AnimRecipe& recipe, const AnimClip& base, const AnimClip* mix,
+                        const std::vector<AnimNode>* bones = nullptr);
+
+// The crouch step on a clip, with the library's bones: false when it has
+// nothing to do (no crouch or lean, or no rootdummy / torso_g to do it on).
+bool ApplyCrouch(AnimClip* clip, const std::vector<AnimNode>& bones, float crouch, float lean_degrees);
+
+// Where each bone is at `t` in the clip (its keys over the bones' rest pose),
+// in the model's space: one position per bone, in the bones' order.
+std::vector<std::array<float, 3>> AnimWorldPositions(const AnimClip& clip, const std::vector<AnimNode>& bones, float t);
 
 // An ASCII animation pack: the library's bones as dummies and the clips;
 // supermodel -> the library.

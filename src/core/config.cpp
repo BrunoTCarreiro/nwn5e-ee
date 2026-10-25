@@ -101,6 +101,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.low_hp_bleed = ReadBool(ini, L"low_hp_bleed", g_config.low_hp_bleed);
   g_config.bleed_percent = GetPrivateProfileIntW(L"rules", L"bleed_percent", g_config.bleed_percent, ini);
   g_config.animation_recipes = ReadBool(ini, L"animation_recipes", g_config.animation_recipes);
+  g_config.stealth_crouch = ReadBool(ini, L"stealth_crouch", g_config.stealth_crouch);
   g_config.short_rest_vfx = GetPrivateProfileIntW(L"rules", L"short_rest_vfx", g_config.short_rest_vfx, ini);
   g_config.short_rest_vfx_scale =
       GetPrivateProfileIntW(L"rules", L"short_rest_vfx_scale", g_config.short_rest_vfx_scale, ini);

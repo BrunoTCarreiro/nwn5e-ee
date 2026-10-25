@@ -30,7 +30,7 @@
 #include "log.h"
 #include "nui.h"
 
-void ResendExhaustionLook(uint32_t id);  // rules_dying.cpp (the exhausted look)
+void ResendLook(uint32_t id);  // stance_look.cpp (the exhausted look, the crouch when hiding)
 
 namespace {
 
@@ -243,7 +243,7 @@ void Restore(uint32_t player, bool clear_actions) {
   }
   code += "SetObjectVisualTransform(OBJECT_SELF, OBJECT_VISUAL_TRANSFORM_ANIMATION_SPEED, 1.0);";
   RunScriptChunk(code.c_str(), player);
-  ResendExhaustionLook(player);  // an exhausted character's limp comes back
+  ResendLook(player);  // an exhausted character's limp, a hiding one's crouch, come back
 }
 
 void Open(uint32_t player) {

@@ -2,7 +2,9 @@
 
 A local web app to make nwn5e animation recipes with a live preview: three figures
 play the base animation, the recipe and the animation it mixes toward, and change as
-you move the sliders. Save writes the recipe into the game's recipes folder; the next
+you move the sliders. Crouch drops the hips and re-bends the legs so the feet keep
+their steps, Lean tips the upper body (nwn5e's own crouch walk and crouched idle,
+`n5_crwalk` / `n5_cridle`, are made this way - open them to tune them). Save writes the recipe into the game's recipes folder; the next
 game start builds it, and `!animedit` or `!anim` plays it.
 
 ## Run it

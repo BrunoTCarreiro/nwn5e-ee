@@ -1712,6 +1712,27 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   when the recipe is done. nwn5e also reads `*.recipe*.txt` there (what Notepad
   or a browser download makes of a recipe), the newest file of a name winning,
   and `!animedit`'s Load lists them.
+  0.25.0 (owner: "I want to make a crouch walk animation" - "go, use stealth
+  mode as the trigger"): recipes get a crouch step after the mix, speed and
+  trim - `crouch` (metres the hips drop, 0-0.6) and `lean` (degrees forward,
+  -45-60). The legs are solved again on the library's bones (thigh and shin,
+  the knee in the plane it bent in, measured off the old hip-ankle line; a
+  nearly straight leg bends the way its thigh faces) so each ankle stays where
+  the animation had it: same footfalls and stride, deeper knees; the head tilts
+  70% of the lean back. Why not a mix toward a crouched pose: measured, walk ->
+  getlowlp 0.3 sinks the planted foot 14 cm into the floor, never lifts the
+  other and shortens the stride 25% (0.5: stride halved). Checked on the real
+  a_ba walk: ankles within 2.6 mm between keys (exact at keys), lowest ankle
+  0.128 (the walk's 0.13); C++ and the bench's core.js agree to 4 decimals.
+  The skeletons are uniform scales of their library (animationscale) except the
+  halflings' shins (~10% shorter: the game's own walk has the same mismatch on
+  them). nwn5e's `n5_crwalk` (walk) and `n5_cridle` (pause1), crouch 0.25 m,
+  lean 15, are swapped in while a creature is in stealth mode - any creature
+  with a part-based body (appearance.2da MODELTYPE P), both rule modes
+  (`stealth_crouch`). `stance_look.cpp` is now the one place that swaps idle and
+  walk: the crouch wins over the exhausted look (rules_dying.cpp passes the
+  level in). The bench has Crouch and Lean sliders. Not yet checked in game:
+  whether stealth mode moves at a speed the walk's stride matches (foot slide).
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

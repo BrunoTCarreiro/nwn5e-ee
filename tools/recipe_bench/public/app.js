@@ -11,7 +11,7 @@
     folders: { libraries: "", recipes: "" },
     saved: [],              // [{name, file, source}] from the server
     body: "",
-    recipe: { name: "n5_myidle", base: "pausepsn", mix: "pause1", amount: 0.5, speed: 1, start: 0, end: 0 },
+    recipe: { name: "n5_myidle", base: "pausepsn", mix: "pause1", amount: 0.5, speed: 1, start: 0, end: 0, crouch: 0, lean: 0 },
     clips: { base: null, mix: null, result: null },
     playing: true,
     time: 0,
@@ -159,7 +159,8 @@
     const mix = state.body && r.mix ? findClip(state.body, r.mix) : null;
     state.clips.base = nodeMap(base);
     state.clips.mix = nodeMap(mix);
-    state.clips.result = nodeMap(base ? A.deriveClip(r, base, mix) : null);
+    const lib = libs.get(state.body);  // the crouch solves the legs on this body's bones, as the game's pack does
+    state.clips.result = nodeMap(base ? A.deriveClip(r, base, mix, lib ? lib.bones : null) : null);
     const length = base ? base.length : 4;
     $("start").max = $("end").max = length.toFixed(2);
     $("end").value = r.end > 0 && r.end < length ? r.end : length;
@@ -168,6 +169,10 @@
     $("speed").value = r.speed;
     $("amount-v").textContent = r.amount.toFixed(2);
     $("speed-v").textContent = r.speed.toFixed(2) + "×";
+    $("crouch").value = r.crouch || 0;
+    $("lean").value = r.lean || 0;
+    $("crouch-v").textContent = (r.crouch || 0).toFixed(2) + " m";
+    $("lean-v").textContent = Math.round(r.lean || 0) + "°";
     $("start-v").textContent = r.start.toFixed(2) + " s";
     $("end-v").textContent = r.end > 0 && r.end < length ? r.end.toFixed(2) + " s" : "end";
     $("lab-base").textContent = base ? r.base + " · " + base.length.toFixed(2) + " s" : "–";
@@ -234,6 +239,8 @@
     $("mix").addEventListener("change", () => { r().mix = $("mix").value; recompute(); });
     $("amount").addEventListener("input", () => { r().amount = parseFloat($("amount").value); recompute(); });
     $("speed").addEventListener("input", () => { r().speed = parseFloat($("speed").value); recompute(); });
+    $("crouch").addEventListener("input", () => { r().crouch = parseFloat($("crouch").value); recompute(); });
+    $("lean").addEventListener("input", () => { r().lean = parseFloat($("lean").value); recompute(); });
     $("start").addEventListener("input", () => {
       const end = r().end > 0 ? r().end : parseFloat($("end").max);
       r().start = Math.max(0, Math.min(parseFloat($("start").value), end - 0.05));

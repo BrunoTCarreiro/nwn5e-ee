@@ -1,0 +1,14 @@
+# nwn5e animation recipe (core/anim_packs.cpp builds it at startup, for every body) -
+# the crouched idle a hiding creature uses (stance_look.cpp): the idle, the hips 25 cm
+# down - the feet kept where they stand - leaning 15 degrees forward.
+# Owner, 2026-10-25: "go, use stealth mode as the trigger". Tune it in the Animation
+# Recipe Bench (tools/recipe_bench); a copy saved there overrides this one.
+name = n5_cridle
+base = pause1
+mix = 
+amount = 0
+speed = 1
+start = 0
+end = 0
+crouch = 0.25
+lean = 15

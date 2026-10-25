@@ -170,6 +170,11 @@ struct Config {
   // Animation recipes (anim_packs.cpp, !animedit): new animations built at
   // startup from the game's own, served as packs the body skeletons point at.
   bool animation_recipes = true;
+  // A hiding creature crouches (owner, 2026-10-25: a crouch walk - "go, use
+  // stealth mode as the trigger"): in stealth mode the idle and the walk are
+  // nwn5e's n5_cridle / n5_crwalk recipes (stance_look.cpp). Needs
+  // animation_recipes.
+  bool stealth_crouch = true;
   // The Short Rest's visual on each resting character (owner, 2026-10-23: "I
   // like the look the health potion effect has"; then "Use
   // VFX_IMP_RESTORATION_LESSER, it looks like a good placeholder"): a

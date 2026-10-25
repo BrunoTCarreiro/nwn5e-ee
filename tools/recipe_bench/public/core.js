@@ -125,8 +125,8 @@
     return clip.nodes.find((n) => lower(n.name) === want) || null;
   }
 
-  // The recipe's clip from its base (and mix) - DeriveAnimClip.
-  function deriveClip(recipe, base, mixClip) {
+  // The recipe's clip from its base (and mix) - DeriveAnimClip; the crouch step needs the library's bones.
+  function deriveClip(recipe, base, mixClip, bones) {
     const length = Math.max(base.length, 0.001);
     const start = Math.max(0, Math.min(recipe.start, length));
     let end = recipe.end > start ? Math.min(recipe.end, length) : length;
@@ -157,7 +157,165 @@
       }
       out.nodes.push(n);
     }
+    if (bones) applyCrouch(out, bones, recipe.crouch || 0, recipe.lean || 0);
     return out;
+  }
+
+  // --- The crouch step (ApplyCrouch in anim_recipe.cpp): the hips drop, each leg
+  // solved again so the ankle keeps the animation's footfall, the upper body leans.
+  const IDENTITY = [0, 0, 0, 1];
+  const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const scale = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
+  const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const len3 = (a) => Math.sqrt(dot3(a, a));
+  const norm3 = (a) => { const l = len3(a); return l > 1e-9 ? scale(a, 1 / l) : [0, 0, 0]; };
+  const qmul = (a, b) => [
+    a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1], a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
+    a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3], a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]];
+  const qconj = (q) => [-q[0], -q[1], -q[2], q[3]];
+  const qnorm = (q) => { const n = Math.hypot(q[0], q[1], q[2], q[3]); return n > 1e-9 ? q.map((v) => v / n) : IDENTITY.slice(); };
+  function rotate(q, v) {
+    const u = [q[0], q[1], q[2]];
+    const t = scale(cross(u, v), 2);
+    return add(add(v, scale(t, q[3])), cross(u, t));
+  }
+  const axisAngle = (axis, angle) => { const s = Math.sin(angle / 2); return [axis[0] * s, axis[1] * s, axis[2] * s, Math.cos(angle / 2)]; };
+  function fromTo(from, to) {
+    const a = norm3(from), b = norm3(to);
+    const d = dot3(a, b);
+    if (d < -0.999999) {
+      let axis = cross([1, 0, 0], a);
+      if (len3(axis) < 1e-6) axis = cross([0, 1, 0], a);
+      return axisAngle(norm3(axis), Math.PI);
+    }
+    const c = cross(a, b);
+    return qnorm([c[0], c[1], c[2], 1 + d]);
+  }
+
+  function clipIndex(clip, bones) {
+    return bones.map((b) => { const name = lower(b.name); return clip.nodes.findIndex((n) => lower(n.name) === name); });
+  }
+  function forward(bones, pose) {
+    for (let i = 0; i < bones.length; i++) {
+      const up = bones[i].parent;
+      if (up < 0) { pose.wp[i] = pose.lp[i]; pose.wq[i] = pose.lq[i]; }
+      else { pose.wq[i] = qnorm(qmul(pose.wq[up], pose.lq[i])); pose.wp[i] = add(pose.wp[up], rotate(pose.wq[up], pose.lp[i])); }
+    }
+  }
+  function poseAt(clip, inClip, bones, t) {
+    const pose = { lp: [], lq: [], wp: [], wq: [] };
+    bones.forEach((b, i) => {
+      const node = inClip[i] >= 0 ? clip.nodes[inClip[i]] : null;
+      let p = b.position && b.position.values.length ? b.position.values[0] : [0, 0, 0];
+      let q = b.orientation && b.orientation.values.length ? b.orientation.values[0] : IDENTITY;
+      if (node && node.position && node.position.times.length) p = sample(node.position, t, false);
+      if (node && node.orientation && node.orientation.times.length) q = sample(node.orientation, t, true);
+      pose.lp[i] = [p[0], p[1], p[2]];
+      pose.lq[i] = qnorm(q);
+    });
+    forward(bones, pose);
+    return pose;
+  }
+  const copyPose = (p) => ({ lp: p.lp.slice(), lq: p.lq.slice(), wp: p.wp.slice(), wq: p.wq.slice() });
+
+  function solveLeg(bones, before, now, leg) {
+    const hip = now.wp[leg.thigh], target = before.wp[leg.foot];
+    const l1 = len3(now.lp[leg.shin]), l2 = len3(now.lp[leg.foot]);
+    const to = sub(target, hip);
+    const reach = len3(to);
+    if (reach < 1e-5 || l1 < 1e-5 || l2 < 1e-5) return;
+    const u = scale(to, 1 / reach);
+    const d = Math.max(Math.abs(l1 - l2) + 1e-4, Math.min(l1 + l2 - 1e-4, reach));
+    // The knee bends the way it did, off the old hip-ankle line; a nearly straight leg the way its thigh faces.
+    const oldLine = norm3(sub(before.wp[leg.foot], before.wp[leg.thigh]));
+    let bend = sub(before.wp[leg.shin], before.wp[leg.thigh]);
+    bend = sub(bend, scale(oldLine, dot3(bend, oldLine)));
+    const facing = norm3(rotate(before.wq[leg.thigh], [0, 1, 0]));
+    let pole = add(bend, scale(facing, 0.05));
+    pole = sub(pole, scale(u, dot3(pole, u)));
+    if (len3(pole) < 1e-6) return;
+    pole = norm3(pole);
+    const a = (l1 * l1 - l2 * l2 + d * d) / (2 * d);
+    const h = Math.sqrt(Math.max(0, l1 * l1 - a * a));
+    const knee = add(hip, add(scale(u, a), scale(pole, h)));
+    const up = now.wq[bones[leg.thigh].parent];
+    const thigh = qnorm(qmul(fromTo(rotate(now.wq[leg.thigh], now.lp[leg.shin]), sub(knee, hip)), now.wq[leg.thigh]));
+    let shin = qnorm(qmul(thigh, now.lq[leg.shin]));
+    shin = qnorm(qmul(fromTo(rotate(shin, now.lp[leg.foot]), sub(target, knee)), shin));
+    now.lq[leg.thigh] = qnorm(qmul(qconj(up), thigh));
+    now.lq[leg.shin] = qnorm(qmul(qconj(thigh), shin));
+    now.lq[leg.foot] = qnorm(qmul(qconj(shin), before.wq[leg.foot]));
+  }
+
+  function applyCrouch(clip, bones, crouch, leanDegrees) {
+    const inClip = clipIndex(clip, bones);
+    const find = (name) => bones.findIndex((b, i) => lower(b.name) === name && inClip[i] >= 0);
+    const under = (bone, ancestor) => { for (let at = bone; at >= 0; at = bones[at].parent) if (at === ancestor) return true; return false; };
+    const root = find("rootdummy"), torso = find("torso_g");
+    let head = find("head_g");
+    if (head >= 0 && (torso < 0 || !under(head, torso))) head = -1;
+    const crouching = crouch !== 0 && root >= 0;
+    const leaning = leanDegrees !== 0 && torso >= 0;
+    if (!crouching && !leaning) return false;
+    const legs = [];
+    for (const side of ["l", "r"]) {
+      const leg = { thigh: find(side + "thigh_g"), shin: find(side + "shin_g"), foot: find(side + "foot_g") };
+      if (leg.thigh > 0 && leg.shin > 0 && leg.foot > 0 && bones[leg.shin].parent === leg.thigh &&
+          bones[leg.foot].parent === leg.shin && bones[leg.thigh].parent >= 0) legs.push(leg);
+    }
+    const times = [];
+    const step = 1 / 30;
+    for (let k = 0; k * step < clip.length - 1e-4; k++) times.push(k * step);
+    times.push(Math.max(0, clip.length));
+    const lean = (leanDegrees * Math.PI) / 180;
+    const leanTurn = axisAngle([1, 0, 0], -lean);  // +Z toward +Y: forward
+    const headTurn = axisAngle([1, 0, 0], -lean * 0.3);
+    const moved = [];
+    if (crouching) moved.push(root);
+    if (leaning) { moved.push(torso); if (head >= 0) moved.push(head); }
+    if (crouching) for (const leg of legs) moved.push(leg.thigh, leg.shin, leg.foot);
+    const keys = new Map(moved.map((b) => [b, { times: [], values: [] }]));
+    for (const t of times) {
+      const before = poseAt(clip, inClip, bones, t);
+      const now = copyPose(before);
+      if (leaning) {
+        const up = bones[torso].parent;
+        now.lq[torso] = qnorm(qmul(qconj(up >= 0 ? before.wq[up] : IDENTITY), qmul(leanTurn, before.wq[torso])));
+        if (head >= 0) {
+          forward(bones, now);
+          now.lq[head] = qnorm(qmul(qconj(now.wq[bones[head].parent]), qmul(headTurn, before.wq[head])));
+        }
+      }
+      if (crouching) {
+        const up = bones[root].parent;
+        now.lp[root] = add(now.lp[root], rotate(qconj(up >= 0 ? before.wq[up] : IDENTITY), [0, 0, -crouch]));
+        forward(bones, now);
+        for (const leg of legs) solveLeg(bones, before, now, leg);
+      }
+      for (const b of moved) {
+        const k = keys.get(b);
+        k.times.push(t);
+        if (b === root && crouching) k.values.push([now.lp[b][0], now.lp[b][1], now.lp[b][2], 1]);
+        else {
+          let q = now.lq[b];
+          const last = k.values[k.values.length - 1];
+          if (last && last[0] * q[0] + last[1] * q[1] + last[2] * q[2] + last[3] * q[3] < 0) q = q.map((v) => -v);
+          k.values.push(q);
+        }
+      }
+    }
+    for (const b of moved) {
+      const node = clip.nodes[inClip[b]];
+      if (b === root && crouching) node.position = keys.get(b); else node.orientation = keys.get(b);
+    }
+    return true;
+  }
+
+  // Where each bone is at t in the clip, in the model's space (AnimWorldPositions).
+  function worldPositions(clip, bones, t) {
+    return poseAt(clip, clipIndex(clip, bones), bones, t).wp;
   }
 
   function num(v) {
@@ -169,11 +327,12 @@
   function writeRecipe(r) {
     return "# nwn5e animation recipe (!animedit, Animation Recipe Bench) - key = value\n" +
       "name = " + r.name + "\nbase = " + r.base + "\nmix = " + (r.mix || "") + "\namount = " + num(r.amount) +
-      "\nspeed = " + num(r.speed) + "\nstart = " + num(r.start) + "\nend = " + num(r.end) + "\n";
+      "\nspeed = " + num(r.speed) + "\nstart = " + num(r.start) + "\nend = " + num(r.end) +
+      "\ncrouch = " + num(r.crouch || 0) + "\nlean = " + num(r.lean || 0) + "\n";
   }
 
   function readRecipe(text) {
-    const r = { name: "", base: "pause1", mix: "", amount: 0.5, speed: 1, start: 0, end: 0 };
+    const r = { name: "", base: "pause1", mix: "", amount: 0.5, speed: 1, start: 0, end: 0, crouch: 0, lean: 0 };
     for (const raw of String(text).split(/\r?\n/)) {
       const line = raw.replace(/#.*/, "").trim();
       if (!line) continue;
@@ -183,14 +342,16 @@
       if (key === "name") r.name = value;
       else if (key === "base") r.base = value;
       else if (key === "mix") r.mix = value;
-      else if (["amount", "speed", "start", "end"].includes(key)) r[key] = parseFloat(value) || 0;
+      else if (["amount", "speed", "start", "end", "crouch", "lean"].includes(key)) r[key] = parseFloat(value) || 0;
     }
     if (!r.name || !r.base) throw new Error("a recipe needs a name and a base");
     if (r.speed <= 0) r.speed = 1;
+    r.crouch = Math.max(0, Math.min(0.6, r.crouch));  // as anim_recipe.cpp keeps them
+    r.lean = Math.max(-45, Math.min(60, r.lean));
     return r;
   }
 
-  const api = { readLibrary, readClip, deriveClip, sample, writeRecipe, readRecipe };
+  const api = { readLibrary, readClip, deriveClip, applyCrouch, worldPositions, sample, writeRecipe, readRecipe };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.AnimRecipes = api;
 })(typeof window !== "undefined" ? window : globalThis);
