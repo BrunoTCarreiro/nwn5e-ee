@@ -6,7 +6,8 @@
 // game starts (anim_packs.cpp), so a new or changed one plays after a restart.
 // Play base / Play mix / Play recipe play them on the player character in
 // place, looping (as !anim: the look-far loop swapped for it); Load lists the
-// drafts and nwn5e's own recipes. Base and Mix toward are dropdowns of the
+// drafts (with the .recipe.txt files the Animation Recipe Bench web page saves)
+// and nwn5e's own recipes. Base and Mix toward are dropdowns of the
 // humanoid library's animations (read at startup; !anim's descriptions).
 
 #include <windows.h>
@@ -32,6 +33,7 @@
 
 bool AnimationRecipeBuilt(const std::string& name, std::string* text);  // anim_packs.cpp
 const std::vector<std::string>& AnimationNames();                       // anim_packs.cpp
+std::vector<std::wstring> RecipeFiles(const std::wstring& directory);   // anim_packs.cpp: .recipe, .recipe.txt
 const char* AnimationNote(const std::string& name);                     // anim_browser.cpp
 
 namespace {
@@ -59,19 +61,6 @@ std::string Narrow(const std::wstring& text) {
   std::string out;
   for (wchar_t c : text) out += c < 128 ? static_cast<char>(c) : '?';
   return out;
-}
-
-std::vector<std::wstring> FilesIn(const std::wstring& directory, const wchar_t* pattern) {
-  std::vector<std::wstring> names;
-  WIN32_FIND_DATAW found;
-  HANDLE handle = FindFirstFileW((directory + L"\\" + pattern).c_str(), &found);
-  if (handle == INVALID_HANDLE_VALUE) return names;
-  do {
-    if (!(found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) names.push_back(found.cFileName);
-  } while (FindNextFileW(handle, &found));
-  FindClose(handle);
-  std::sort(names.begin(), names.end());
-  return names;
 }
 
 std::string Num(float value) {
@@ -222,9 +211,9 @@ void OpenLoad(uint32_t player) {
   g_load_paths.clear();
   std::string labels = "[";
   const auto add = [&](const std::wstring& directory, const char* kind) {
-    for (const std::wstring& file : FilesIn(directory, L"*.recipe")) {
+    for (const std::wstring& file : RecipeFiles(directory)) {
       labels += (g_load_paths.empty() ? "" : ",") +
-                nui::Str(std::string(kind) + "   " + Narrow(file.substr(0, file.size() - 7)));
+                nui::Str(std::string(kind) + "   " + Narrow(file.substr(0, file.rfind(L".recipe"))));
       g_load_paths.push_back(directory + L"\\" + file);
     }
   };

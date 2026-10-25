@@ -1,6 +1,7 @@
 // Animation recipes at startup (owner, 2026-10-25: "Let's try recipe" - "n5test
 // works"): each recipe (data\anims\*.recipe, nwn5e's; animedit\recipes\*.recipe,
-// the owner's drafts from !animedit, a draft winning over a same-named one)
+// the owner's drafts from !animedit, and *.recipe.txt from the web page, a draft
+// winning over a same-named one)
 // becomes an animation in the "animation packs" written into the served folder
 // before it is registered:
 // - every body skeleton (p + m/f + a/d/e/g/h/o + 0/2, ASCII models: pmh0 ...)
@@ -13,6 +14,10 @@
 // the game's is in nwn5e. data/anim_recipe.cpp does the reading and the maths.
 // The first test (owner: "n5test works") was this, from a script, through the
 // game's development folder. `animation_recipes`.
+// The libraries read are also copied to animedit\libraries\ (0.24.2; owner:
+// "the saving closing and opening the game just to get a preview is not great.
+// could we get a webapp working"): the Animation Recipes web page reads them
+// from there, on the player's own machine, and previews a recipe at once.
 
 #include <windows.h>
 
@@ -87,11 +92,34 @@ std::vector<std::wstring> FilesIn(const std::wstring& directory, const wchar_t* 
   return names;
 }
 
-// The recipes, by name: nwn5e's, then the owner's drafts over them.
+// A file's last write time, for "the newest copy of a recipe wins".
+uint64_t WriteTime(const std::wstring& path) {
+  WIN32_FILE_ATTRIBUTE_DATA data;
+  if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &data)) return 0;
+  return (static_cast<uint64_t>(data.ftLastWriteTime.dwHighDateTime) << 32) | data.ftLastWriteTime.dwLowDateTime;
+}
+
+}  // namespace
+
+// The recipe files in a folder: <name>.recipe (nwn5e's, !animedit's) and
+// <name>.recipe.txt - the Animation Recipe Bench web page saves those (a browser
+// may only download .txt), and a browser may add " (1)" to a second copy.
+std::vector<std::wstring> RecipeFiles(const std::wstring& directory) {
+  std::vector<std::wstring> files = FilesIn(directory, L"*.recipe");
+  for (const std::wstring& file : FilesIn(directory, L"*.recipe*.txt")) files.push_back(file);
+  return files;
+}
+
+namespace {
+
+// The recipes, by name: nwn5e's, then the owner's drafts over them. Within a
+// folder the newest file with a name wins (the page's .recipe.txt or
+// !animedit's .recipe, whichever was saved last).
 std::map<std::string, data::AnimRecipe> ReadRecipes() {
   std::map<std::string, data::AnimRecipe> recipes;
   for (const std::wstring& directory : {DllDirectory() + L"\\data\\anims", DllDirectory() + L"\\animedit\\recipes"}) {
-    for (const std::wstring& file : FilesIn(directory, L"*.recipe")) {
+    std::map<std::string, uint64_t> newest;
+    for (const std::wstring& file : RecipeFiles(directory)) {
       std::string text, error;
       data::AnimRecipe recipe;
       if (!ReadFile(directory + L"\\" + file, &text) || !data::ReadAnimRecipe(text, &recipe, &error)) {
@@ -100,6 +128,10 @@ std::map<std::string, data::AnimRecipe> ReadRecipes() {
       }
       recipe.name = data::VfxResRef(recipe.name, 32);
       if (recipe.name.empty()) continue;
+      const uint64_t written = WriteTime(directory + L"\\" + file);
+      const auto seen = newest.find(recipe.name);
+      if (seen != newest.end() && seen->second > written) continue;
+      newest[recipe.name] = written;
       recipes[recipe.name] = recipe;
     }
   }
@@ -145,6 +177,20 @@ std::string PackName(const std::string& library) {
 
 }  // namespace
 
+// The libraries read this start, for the web page: animedit\libraries\<name>.mdl.
+void ExportLibraries() {
+  const std::wstring directory = DllDirectory() + L"\\animedit\\libraries";
+  CreateDirectoryW((DllDirectory() + L"\\animedit").c_str(), nullptr);
+  CreateDirectoryW(directory.c_str(), nullptr);
+  int written = 0;
+  for (const auto& entry : g_libraries) {
+    if (!entry.second.ok) continue;
+    const std::wstring path = directory + L"\\" + std::wstring(entry.first.begin(), entry.first.end()) + L".mdl";
+    if (WriteFile(path, entry.second.bytes)) ++written;
+  }
+  if (written) Log("anim packs: %d animation libraries copied to animedit\\libraries (for the web page)", written);
+}
+
 // data_serving's BuildServedTables, into the served folder before it is registered.
 void GenerateAnimationPacks(const std::wstring& served) {
   g_built.clear();
@@ -165,6 +211,8 @@ void GenerateAnimationPacks(const std::wstring& served) {
   std::sort(g_animation_names.begin(), g_animation_names.end());
   const std::map<std::string, data::AnimRecipe> recipes = ReadRecipes();
   if (recipes.empty()) {
+    for (const char* library : {"a_fa", "a_da", "a_dfa", "a_ba2", "a_fa2", "a_da2", "a_dfa2"}) LoadLibrary(library);
+    ExportLibraries();
     g_libraries.clear();
     return;
   }
@@ -217,6 +265,7 @@ void GenerateAnimationPacks(const std::wstring& served) {
     }
   }
   for (const auto& recipe : recipes) g_built[recipe.first] = data::WriteAnimRecipe(recipe.second);
+  ExportLibraries();
   g_libraries.clear();  // the libraries' bytes aren't kept
   Log("anim packs: %zu recipes -> %zu packs (%d animations), %d skeletons pointed at them (animation_recipes)",
       recipes.size(), packs.size(), animations, skeletons);
