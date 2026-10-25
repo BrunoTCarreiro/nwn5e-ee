@@ -1799,6 +1799,22 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   waits 4 s and walks back - not one fighting, talking, plot, an associate or
   uncommandable; at most every 25 s. WalkWayPoints leaves a moving / waiting
   creature alone, so the heartbeat doesn't cut it short. heard_investigates.
+- **Light in detection - exploring** (0.27.1; owner: "explore if we can make it
+  so that environmental light sources can increase detection"). What nwn5e can
+  read: the area (interior, above ground, natural; day/night; sun and moon
+  ambient/diffuse colours - GetAreaLightColor), each 10 m tile's main lights
+  (its coloured ambient) and source lights (its torches / braziers; 0 = off -
+  GetTileSourceLight1/2Color), placeables lit (GetPlaceableIllumination: lamps,
+  braziers - position known, light radius not), light visual effects on objects
+  (153-180, the radius in the name: 5/10/15/20), and a creature's own visual
+  list (+0x160, what EE's spot check reads: a carried torch or light item). Not
+  readable: the rendered light itself (a model light's real radius, shadows).
+  So a light level per spot (bright / dim / dark) is an estimate, to calibrate:
+  !light (light_probe.cpp) prints all of it where the character stands, and
+  logs it. Proposed, not built: NWN mode - standing in light at night counts as
+  carrying one (+10 to spot, EE's own term); 2024 mode - bright normal, dim
+  disadvantage on sight Perception (-5 passive), dark heavily obscured (only
+  darkvision sees, as dim); and a light gem on the character.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:
