@@ -1646,9 +1646,22 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   (0x96D37F, 0x8729D0: the column names inline), so C2DA::SetCExoStringEntry
   changes what row 1600 shows; a new name each time, so no cached model. Save
   writes build\vfxedit\saved\<name>.vfx (the draft) and <name>.mdl; Load
-  lists the drafts and nwn5e's own n5_*.mdl. Next: the game's own (binary)
-  effects in Load; then a look at editing animations (owner: "After that maybe
-  look into it is possible to edit animations").
+  lists the drafts and nwn5e's own n5_*.mdl. 0.23.1: Load takes a game
+  effect by its visualeffects row - its compiled model (root, impact or head
+  node) read where the player's game has it (ReadGameResource) and
+  data/vfx_model.cpp's binary reader: emitter nodes by their header (node
+  header 0x60, update +0x18, render +0x38, blend +0x58, texture +0x78, x grid
+  +0x0C, flags +0xD4: bounce 0x10, random 0x20, inherit 0x40, splat 0x200),
+  controllers from node +0x44 / +0x50 (offsets from byte 12), the emission
+  time from the animations' copies of the node - the game keys birthrate down
+  to a negative value (491's sticky 150 -> -150 over 0.033-0.3 s: off at
+  0.17 s, its spray off at 0.167 s) - and a one-shot effect's length from its
+  impact animation (header length at +0x70: 491, 4.97 s). Checked locally on
+  491 (vwp_l_blood_red: sticky, spray, cloud) and vwp_s_low_red; nothing of the
+  game's in the repo - a unit test builds its own compiled model. Written
+  models now carry the impact's detonate event (Explosion emitters burst on
+  it). Next: a look at editing animations (owner: "After that maybe look into
+  it is possible to edit animations").
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

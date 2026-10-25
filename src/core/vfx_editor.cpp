@@ -18,8 +18,10 @@
 //
 // Save writes the draft (build\vfxedit\saved\<name>.vfx, key = value text) and
 // its model (<name>.mdl) - to be added to the mod as a permanent row. Load
-// lists the drafts and nwn5e's own effect models (n5_*.mdl, ASCII); the
-// game's own (binary) models come next.
+// lists the drafts and nwn5e's own effect models (n5_*.mdl, ASCII), and loads
+// a game effect by its visualeffects row (its compiled model read where the
+// player's game has it, data/vfx_model.cpp's binary reader - nothing of it
+// kept in nwn5e but what the owner saves as a draft).
 
 #include <windows.h>
 
@@ -38,6 +40,7 @@
 #include "chat.h"
 #include "creature.h"
 #include "data/vfx_model.h"
+#include "data_serving.h"
 #include "ee_layout.h"
 #include "effects.h"
 #include "engine.h"
@@ -464,9 +467,9 @@ void PushAll(uint32_t player, const Session& session) {
 }
 
 // A text field's value, read from the window through a local.
-std::string BindValue(uint32_t player, const std::string& bind) {
+std::string BindValue(uint32_t player, const std::string& bind, const char* window = kWindow) {
   void* creature = CreatureById(player);
-  const int token = NuiToken(player, kWindow);
+  const int token = NuiToken(player, window);
   if (!creature || !token) return "";
   const std::string code = "SetLocalString(OBJECT_SELF, \"" + std::string(kVarValue) +
                            "\", JsonGetString(NuiGetBind(OBJECT_SELF, " + std::to_string(token) + ", \"" + bind +
@@ -582,6 +585,9 @@ std::string LoadLayout() {
   using namespace nui;
   return Window(Col(List({
                     Label(Bind("ld_status"), 40.0f),
+                    Row(List({Sized(Label(Str("Game effect row")), 130.0f),
+                              Sized(TextEdit("ld_row", "e.g. 491", "ld_row", 6), 90.0f, 30.0f),
+                              Button("ld_game", Str("Load it")), Spacer()})),
                     ListView(Cell(Button("ld", Bind("ld_labels")), 0.0f, true), Bind("ld_count"), 26.0f),
                     Row(List({Spacer(), Button("ld_close", Str("Close"), 100.0f)})),
                 })),
@@ -605,7 +611,8 @@ void OpenLoad(uint32_t player) {
   labels += "]";
   if (!NuiOpen(player, kLoadWindow, LoadLayout(),
                {{"ld_status", std::to_string(g_load_entries.size()) +
-                                  " effects: your saved drafts, then nwn5e's own. Click one to load it."}})) {
+                                  " effects: your saved drafts, then nwn5e's own - or a game effect by its row (!vfx)."},
+                {"ld_row", ""}})) {
     return;
   }
   NuiSetJson(player, kLoadWindow, "ld_labels", labels);
@@ -719,9 +726,62 @@ void OnEvent(const NuiEvent& event) {
   }
 }
 
+// A game effect, by its visualeffects row: its model (the root, impact or head
+// node's), read where the player's game has it.
+void LoadGameRow(uint32_t player) {
+  void* creature = CreatureById(player);
+  const std::string row_text = BindValue(player, "ld_row", kLoadWindow);
+  const int row = atoi(row_text.c_str());
+  if (!creature || row <= 0) {
+    SetBinds(player, {});
+    NuiSetText(player, kLoadWindow, "ld_status", "Type a visualeffects row number (the numbers !vfx shows).");
+    return;
+  }
+  char code[700];
+  sprintf_s(code,
+            "int r = %d; string a = \"root\"; string m = Get2DAString(\"visualeffects\", \"Imp_Root_M_Node\", r);"
+            "if (m == \"\") { m = Get2DAString(\"visualeffects\", \"Imp_Impact_Node\", r); a = \"impact\"; }"
+            "if (m == \"\") { m = Get2DAString(\"visualeffects\", \"Imp_HeadCon_Node\", r); a = \"head\"; }"
+            "SetLocalString(OBJECT_SELF, \"%s\", a + \":\" + Get2DAString(\"visualeffects\", \"Type_FD\", r) + \":\" + m);",
+            row, kVarValue);
+  RunScriptChunk(code, player);
+  const std::string answer = engine::GetLocalString(creature, kVarValue);  // attach:type:model
+  const size_t first = answer.find(':'), second = answer.find(':', first + 1);
+  const std::string attach = answer.substr(0, first);
+  const std::string type = first == std::string::npos ? "" : answer.substr(first + 1, second - first - 1);
+  const std::string model = second == std::string::npos ? "" : answer.substr(second + 1);
+  if (model.empty()) {
+    NuiSetText(player, kLoadWindow, "ld_status", "Row " + std::to_string(row) + " has no model on its root, impact or head node.");
+    return;
+  }
+  std::string bytes, why, error;
+  data::VfxEffect effect;
+  const bool read = ReadGameResource(model, ee::kResTypeMdl, &bytes, &why);
+  const bool parsed = read && (data::ReadVfxBinaryModel(bytes, &effect, &error) ||
+                               data::ReadVfxAsciiModel(bytes, &effect, &error));
+  if (!parsed) {
+    NuiSetText(player, kLoadWindow, "ld_status",
+               "Couldn't load " + model + ": " + (read ? error : "the game doesn't have it (" + why + ")") + ".");
+    return;
+  }
+  effect.name = "fx" + std::to_string(row);
+  effect.attach = attach.empty() ? "root" : attach;
+  effect.duration = type == "D";
+  Session& session = g_sessions[player];
+  session.effect = effect;
+  session.selected = 0;
+  NuiClose(player, kLoadWindow);
+  PushAll(player, session);
+  SetStatus(player, "Loaded game effect " + std::to_string(row) + " (" + model + ", " +
+                        std::to_string(effect.emitters.size()) + " emitters) as " + effect.name +
+                        ". Preview on me, change it, Save it under a new name.");
+  Log("vfx editor: 0x%08X loaded game row %d (%s, %zu emitters)", player, row, model.c_str(), effect.emitters.size());
+}
+
 void OnLoadEvent(const NuiEvent& event) {
   if (event.type != "click") return;
   if (event.element == "ld_close") NuiClose(event.player, kLoadWindow);
+  else if (event.element == "ld_game") LoadGameRow(event.player);
   else if (event.element == "ld") LoadEntry(event.player, event.array_index);
 }
 

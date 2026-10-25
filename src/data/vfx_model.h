@@ -64,6 +64,14 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
 // emit_seconds; a size keyed from 0 gives the size it reaches).
 bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* error);
 
+// A compiled (binary) model's emitters - the game's own effects, read where
+// the player's game has them, nothing of them kept in nwn5e: each emitter node
+// (node header 0x60 bytes, then the emitter header: update +0x18, render
+// +0x38, blend +0x58, texture +0x78, x grid +0x0C, flags +0xD4) and its
+// controllers (keys at node +0x44, values at +0x50, offsets from byte 12); an
+// animation's copy of the node with a birthrate keyed to 0 gives emit_seconds.
+bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string* error);
+
 // A name usable as a resref and file name: letters, digits, '_', lower case,
 // at most `max` characters ("" when nothing is left).
 std::string VfxResRef(const std::string& text, size_t max = 16);

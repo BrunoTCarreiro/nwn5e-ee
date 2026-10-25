@@ -29,6 +29,10 @@ std::vector<std::string> GameTableColumn(const char* table, const char* column);
 // files: copied whole into <dll>\served at start).
 bool ServedFileExists(const wchar_t* name);
 
+// A game resource's bytes, as the resource manager finds it (served and
+// override folders first): `type` is the resource type (2002 a model).
+bool ReadGameResource(const std::string& resref, uint16_t type, std::string* bytes, std::string* why);
+
 // The text for a private string id, or nullptr.
 const char* DataString(uint32_t strref);
 bool HaveDataStrings();

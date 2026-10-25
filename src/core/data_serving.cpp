@@ -171,16 +171,16 @@ void AddProbe(data::TwoDA* feat) {
 }
 
 // The engine's current copy of `table`.2da (override, patches, base keys).
-bool ReadGameTable(const std::string& table, std::string* bytes, std::string* why) {
+bool ReadResource(const std::string& resref_text, uint16_t type, std::string* bytes, std::string* why) {
   void* resman = *E().resman;
   if (!resman) {
     *why = "no resource manager yet";
     return false;
   }
   alignas(16) uint8_t resref[32] = {};
-  E().resref_assign(resref, table.c_str());
+  E().resref_assign(resref, resref_text.c_str());
   alignas(16) uint8_t block[16] = {};  // shared_ptr<DataBlock>
-  E().get(resman, block, resref, ee::kResourceType2da);
+  E().get(resman, block, resref, type);
   // As ReadScriptFile reads it (+0xdd): the DataBlock's first field points at
   // {char* data, size_t size}.
   const auto* data_block = *reinterpret_cast<const uint8_t* const*>(block);
@@ -201,6 +201,10 @@ bool ReadGameTable(const std::string& table, std::string* bytes, std::string* wh
   }
   E().release(block);
   return found;
+}
+
+bool ReadGameTable(const std::string& table, std::string* bytes, std::string* why) {
+  return ReadResource(table, ee::kResourceType2da, bytes, why);
 }
 
 // Builds <dll>\served\<table>.2da for every table with rows. Returns the count.
@@ -354,6 +358,10 @@ void InstallDataServing(const wchar_t* dll_directory) {
   g_served = Narrow(g_dll + L"\\served");
   BeforeRulesLoad(&ServeBeforeRulesLoad);
   if (g_config.debug_served_data_probe) OnRulesLoaded(&CheckProbe);
+}
+
+bool ReadGameResource(const std::string& resref, uint16_t type, std::string* bytes, std::string* why) {
+  return ReadResource(resref, type, bytes, why);
 }
 
 std::vector<std::string> GameTableColumn(const char* table, const char* column) {

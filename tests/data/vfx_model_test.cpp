@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -117,4 +119,80 @@ TEST(VfxReadsOurBleedModel) {
   CHECK_EQ(Milli(effect.emitters[0].birthrate), 2000);
   CHECK_EQ(VfxResRef("My Effect-2!") == "myeffect2", true);
   CHECK_EQ(VfxResRef("abcdefghijklmnopqrstuvwxyz").size(), 16u);
+}
+
+// A compiled model laid out as the game's are (built here, nothing of the
+// game's): one emitter node with its header, flags and two controllers.
+// Breaks caught: the emitter header's offsets, the flag bits, the controller
+// arrays' base (byte 12) or layout drifting from what the game's models use.
+TEST(VfxReadsACompiledModel) {
+  std::string b(0x400, '\0');
+  const auto put32 = [&](size_t at, uint32_t v) { memcpy(&b[at], &v, 4); };
+  const auto putf = [&](size_t at, float v) { memcpy(&b[at], &v, 4); };
+  const auto puts = [&](size_t at, const char* text) { memcpy(&b[at], text, strlen(text)); };
+  const size_t base = 12, node = 0x100, emitter = node + 0x60;
+  puts(base + 8, "test_fx");
+  puts(node + 0x10, "spray");
+  put32(emitter + 0x0C, 2);  // x grid
+  puts(emitter + 0x18, "Fountain");
+  puts(emitter + 0x38, "Motion_Blur");
+  puts(emitter + 0x58, "Lighten");
+  puts(emitter + 0x78, "fxpa_sphere");
+  put32(emitter + 0xD4, 0x200 | 0x040);  // splat, inherit
+  const size_t keys = 0x300, data = 0x340;
+  put32(node + 0x44, static_cast<uint32_t>(keys - base));
+  put32(node + 0x48, 2);
+  put32(node + 0x50, static_cast<uint32_t>(data - base));
+  put32(node + 0x54, 5);
+  // birthrate: 1 row, time at 0, value at 1, 1 column; colorStart: 1 row, value at 2, 3 columns.
+  put32(keys, 88);
+  b[keys + 4] = 1; b[keys + 6] = 0; b[keys + 8] = 1; b[keys + 10] = 1;
+  put32(keys + 12, 108);
+  b[keys + 16] = 1; b[keys + 18] = 0; b[keys + 20] = 2; b[keys + 22] = 3;
+  putf(data, 0.0f);
+  putf(data + 4, 150.0f);
+  putf(data + 8, 0.3f);
+  putf(data + 12, 0.1f);
+  putf(data + 16, 0.0f);
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxBinaryModel(b, &effect, &error), true);
+  CHECK_EQ(effect.name == "test_fx", true);
+  CHECK_EQ(effect.emitters.size(), 1u);
+  const VfxEmitter& e = effect.emitters[0];
+  CHECK_EQ(e.name == "spray", true);
+  CHECK_EQ(e.update == "Fountain", true);
+  CHECK_EQ(e.render == "Motion_Blur", true);
+  CHECK_EQ(e.blend == "Lighten", true);
+  CHECK_EQ(e.texture == "fxpa_sphere", true);
+  CHECK_EQ(e.grid, 2);
+  CHECK_EQ(e.splat, true);
+  CHECK_EQ(e.inherit, true);
+  CHECK_EQ(e.bounce, false);
+  CHECK_EQ(Milli(e.birthrate), 150000);
+  CHECK_EQ(Milli(e.color_start[0]), 300);
+  CHECK_EQ(Milli(e.color_start[1]), 100);
+  CHECK_EQ(ReadVfxBinaryModel("newmodel x", &effect, &error), false);
+}
+
+// Breaks caught: an emitter keyed on at 0 and off at the next key (the game's
+// short bursts) read as always on - a loaded copy would emit for the whole
+// effect.
+TEST(VfxBirthrateKeyedOffAtTheNextKey) {
+  const std::string model =
+      "newmodel t\nbeginmodelgeom t\nnode emitter e\n  update Fountain\n  birthrate 0\nendnode\nendmodelgeom t\n"
+      "newanim impact t\n  length 1\nnode emitter e\n  birthratekey 2\n    0 600\n    0.1 0\nendnode\n"
+      "doneanim impact t\n";
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxAsciiModel(model, &effect, &error), true);
+  CHECK_EQ(Milli(effect.emitters[0].birthrate), 600000);
+  CHECK_EQ(Milli(effect.emitters[0].emit_seconds), 100);
+  // Keyed down to a negative value, as the game's models do: off where it crosses 0.
+  const std::string negative =
+      "newmodel t\nbeginmodelgeom t\nnode emitter e\n  update Fountain\n  birthrate 100\nendnode\nendmodelgeom t\n"
+      "newanim impact t\n  length 1\nnode emitter e\n  birthratekey 3\n    0 100\n    0.1 100\n    0.3 -100\n"
+      "endnode\ndoneanim impact t\n";
+  CHECK_EQ(ReadVfxAsciiModel(negative, &effect, &error), true);
+  CHECK_EQ(Milli(effect.emitters[0].emit_seconds), 200);
 }

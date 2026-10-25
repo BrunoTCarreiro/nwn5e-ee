@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <string.h>
+
 #include <algorithm>
 #include <sstream>
 
@@ -76,6 +78,29 @@ std::vector<std::string> EmitterLines(const VfxEmitter& e, const std::string& no
   };
 }
 
+// Birthrate keys (time, value): the most it reaches, and when it switches off
+// for good - where it reaches 0 after its last positive key (the game's models
+// key it down to a negative value: 491's sticky drops 150 -> -150 from 0.033 s
+// to 0.3 s, off at 0.17 s); a drop to 0 within 0.011 s is nwn5e's own "off"
+// key (on until `emit`, 0 at emit + 0.01), read as `emit`. 0 when it stays on.
+void ReadBirthrateKeys(const std::vector<std::pair<float, float>>& keys, float* top, float* off) {
+  *top = 0.0f;
+  *off = 0.0f;
+  int last_on = -1;
+  for (size_t i = 0; i < keys.size(); ++i) {
+    if (keys[i].second > 0.0f) last_on = static_cast<int>(i);
+    *top = std::max(*top, keys[i].second);
+  }
+  if (last_on < 0 || last_on + 1 >= static_cast<int>(keys.size())) return;  // never on, or on to the end
+  const auto& on = keys[last_on];
+  const auto& next = keys[last_on + 1];
+  if (next.second == 0.0f) {
+    *off = next.first - on.first <= 0.011f ? on.first : next.first;
+  } else {
+    *off = on.first + (next.first - on.first) * on.second / (on.second - next.second);
+  }
+}
+
 std::string NodeName(const std::string& model, const VfxEmitter& e, size_t index) {
   std::string clean = VfxResRef(e.name, 20);
   if (clean.empty()) clean = "e";
@@ -126,6 +151,8 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
     lines.push_back("  length " + Num(length));
     lines.push_back("  transtime 0.25");
     lines.push_back("  animroot " + model);
+    // Explosion emitters burst on the impact's detonate event (the game's own models have it).
+    if (std::string(name) == "impact") lines.push_back("  event 0 detonate");
     lines.push_back("node dummy " + model);
     lines.push_back("  parent NULL");
     lines.push_back("endnode");
@@ -290,13 +317,10 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
   const auto finish_keys = [&]() {
     if (!keyed || keys.empty()) return;
     if (key_name == "birthratekey" && anim == "impact") {
-      float top = 0.0f, last_on = 0.0f;
-      for (const auto& k : keys) {
-        if (k.second > 0.0f) last_on = k.first;
-        top = std::max(top, k.second);
-      }
+      float top = 0.0f, off = 0.0f;
+      ReadBirthrateKeys(keys, &top, &off);
       if (top > 0.0f) keyed->birthrate = std::max(keyed->birthrate, top);
-      if (keys.back().second == 0.0f && last_on > 0.0f) keyed->emit_seconds = last_on;
+      if (off > 0.0f) keyed->emit_seconds = off;
     } else if ((key_name == "sizestartkey" || key_name == "sizeendkey") && keyed->size_start == 0.0f) {
       float top = 0.0f;
       for (const auto& k : keys) top = std::max(top, k.second);
@@ -389,6 +413,180 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
     return false;
   }
   result.duration = has_duration;
+  *effect = result;
+  return true;
+}
+
+namespace {
+
+// Binary model reading, bounds-checked.
+struct Bytes {
+  const std::string& b;
+  uint32_t U32(size_t at) const {
+    if (at + 4 > b.size()) return 0;
+    uint32_t v;
+    memcpy(&v, b.data() + at, 4);
+    return v;
+  }
+  uint16_t U16(size_t at) const {
+    if (at + 2 > b.size()) return 0;
+    uint16_t v;
+    memcpy(&v, b.data() + at, 2);
+    return v;
+  }
+  uint8_t U8(size_t at) const { return at < b.size() ? static_cast<uint8_t>(b[at]) : 0; }
+  float F32(size_t at) const {
+    if (at + 4 > b.size()) return 0.0f;
+    float v;
+    memcpy(&v, b.data() + at, 4);
+    return v;
+  }
+  // A NUL-terminated printable string of at most `max` bytes ("" if not one).
+  std::string Str(size_t at, size_t max) const {
+    std::string out;
+    for (size_t i = 0; i < max && at + i < b.size(); ++i) {
+      const char c = b[at + i];
+      if (c == 0) return out;
+      if (static_cast<unsigned char>(c) < 32 || static_cast<unsigned char>(c) > 126) return "";
+      out += c;
+    }
+    return "";
+  }
+};
+
+constexpr size_t kModelBase = 12;  // offsets in a model are from the end of the 12-byte file header
+
+struct Controller {
+  uint32_t type;
+  std::vector<float> times;
+  std::vector<float> values;  // rows x columns
+  int columns;
+};
+
+// A node's controllers; false when the arrays don't make sense there (not a node).
+bool ReadControllers(const Bytes& m, size_t node, std::vector<Controller>* out) {
+  const uint32_t keys = m.U32(node + 0x44), key_count = m.U32(node + 0x48);
+  const uint32_t data = m.U32(node + 0x50), data_count = m.U32(node + 0x54);
+  if (key_count == 0 || key_count > 96 || data_count > 8192) return false;
+  if (kModelBase + keys + 12ull * key_count > m.b.size() || kModelBase + data + 4ull * data_count > m.b.size()) return false;
+  for (uint32_t k = 0; k < key_count; ++k) {
+    const size_t at = kModelBase + keys + 12ull * k;
+    Controller c;
+    c.type = m.U32(at);
+    const int rows = m.U16(at + 4), time_at = m.U16(at + 6), value_at = m.U16(at + 8);
+    c.columns = m.U8(at + 10) & 0x0F;
+    if (c.type > 600 || rows <= 0 || rows > 512 || c.columns <= 0 || c.columns > 4) return false;
+    if (time_at + rows > static_cast<int>(data_count) || value_at + rows * c.columns > static_cast<int>(data_count)) {
+      return false;
+    }
+    for (int r = 0; r < rows; ++r) c.times.push_back(m.F32(kModelBase + data + 4ull * (time_at + r)));
+    for (int v = 0; v < rows * c.columns; ++v) c.values.push_back(m.F32(kModelBase + data + 4ull * (value_at + v)));
+    out->push_back(c);
+  }
+  return true;
+}
+
+void ApplyController(const Controller& c, VfxEmitter* e) {
+  const auto v = [&](int i) { return i < static_cast<int>(c.values.size()) ? c.values[i] : 0.0f; };
+  switch (c.type) {
+    case 8: e->position[0] = v(0); e->position[1] = v(1); e->position[2] = v(2); break;
+    case 80: e->alpha_end = v(0); break;
+    case 84: e->alpha_start = v(0); break;
+    case 88: e->birthrate = v(0); break;
+    case 92: e->bounce_co = v(0); break;
+    case 96: e->color_end[0] = v(0); e->color_end[1] = v(1); e->color_end[2] = v(2); break;
+    case 108: e->color_start[0] = v(0); e->color_start[1] = v(1); e->color_start[2] = v(2); break;
+    case 132: e->frame_end = static_cast<int>(v(0)); break;
+    case 144: e->life = v(0); break;
+    case 148: e->mass = v(0); break;
+    case 164: e->randvel = v(0); break;
+    case 168: e->size_start = v(0); break;
+    case 172: e->size_end = v(0); break;
+    case 184: e->spread = v(0); break;
+    case 192: e->velocity = v(0); break;
+    case 196: e->xsize = v(0); break;
+    case 200: e->ysize = v(0); break;
+    case 204: e->blur_length = v(0); break;
+    default: break;
+  }
+}
+
+}  // namespace
+
+bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string* error) {
+  const Bytes m{bytes};
+  if (bytes.size() < 0x200 || m.U32(0) != 0) {
+    if (error) *error = "not a compiled model";
+    return false;
+  }
+  VfxEffect result;
+  result.name = m.Str(kModelBase + 8, 64);
+  std::vector<size_t> nodes;  // each emitter's geometry node, parallel to result.emitters
+  for (const char* word : {"Fountain", "Single", "Explosion", "Lightning"}) {
+    const std::string needle(word, strlen(word) + 1);
+    for (size_t at = bytes.find(needle); at != std::string::npos; at = bytes.find(needle, at + 1)) {
+      if (at < 0x18 + 0x60 + kModelBase) continue;
+      const size_t emitter = at - 0x18, node = emitter - 0x60;
+      const std::string name = m.Str(node + 0x10, 32);
+      const std::string render = m.Str(emitter + 0x38, 32);
+      if (name.empty() || render.empty()) continue;
+      bool seen = false;
+      for (const VfxEmitter& e : result.emitters) seen = seen || e.name == name;
+      std::vector<Controller> controllers;
+      if (seen || !ReadControllers(m, node, &controllers)) continue;
+      VfxEmitter e;
+      e.name = name;
+      e.update = word;
+      e.render = render;
+      e.blend = m.Str(emitter + 0x58, 32);
+      if (e.blend.empty()) e.blend = "Normal";
+      e.texture = m.Str(emitter + 0x78, 64);
+      e.grid = std::max<int>(1, static_cast<int>(m.U32(emitter + 0x0C)));
+      const uint32_t flags = m.U32(emitter + 0xD4);
+      e.bounce = (flags & 0x010) != 0;
+      e.random = (flags & 0x020) != 0;
+      e.inherit = (flags & 0x040) != 0;
+      e.splat = (flags & 0x200) != 0;
+      for (const Controller& c : controllers) ApplyController(c, &e);
+      result.emitters.push_back(e);
+      nodes.push_back(node);
+    }
+  }
+  if (result.emitters.empty()) {
+    if (error) *error = "no emitters found in that model";
+    return false;
+  }
+  // The animations' copies of each emitter node: a birthrate keyed off.
+  for (size_t i = 0; i < result.emitters.size(); ++i) {
+    VfxEmitter& e = result.emitters[i];
+    const std::string needle = e.name + std::string(1, '\0');
+    for (size_t at = bytes.find(needle); at != std::string::npos; at = bytes.find(needle, at + 1)) {
+      if (at < 0x10 + kModelBase || at - 0x10 == nodes[i]) continue;
+      std::vector<Controller> controllers;
+      if (!ReadControllers(m, at - 0x10, &controllers)) continue;
+      for (const Controller& c : controllers) {
+        if (c.type != 88 || c.times.size() < 2) continue;
+        std::vector<std::pair<float, float>> keys;
+        for (size_t r = 0; r < c.times.size(); ++r) keys.emplace_back(c.times[r], c.values[r]);
+        float top = 0.0f, off = 0.0f;
+        ReadBirthrateKeys(keys, &top, &off);
+        if (top > 0.0f) e.birthrate = std::max(e.birthrate, top);
+        if (off > 0.0f) e.emit_seconds = off;
+      }
+    }
+  }
+  result.duration = bytes.find(std::string("duration", 9)) != std::string::npos;
+  // The impact animation's length (its header: the 64-byte name at +8, the
+  // length at +0x70): how long an always-on emitter of a one-shot effect runs.
+  const std::string impact("impact", 7);
+  for (size_t at = bytes.find(impact); at != std::string::npos; at = bytes.find(impact, at + 1)) {
+    if (at < 8 + kModelBase || bytes[at - 1] != 0) continue;
+    const float length = m.F32(at - 8 + 0x70);
+    if (length > 0.0f && length < 60.0f) {
+      if (!result.duration) result.seconds = length;
+      break;
+    }
+  }
   *effect = result;
   return true;
 }
