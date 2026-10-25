@@ -129,6 +129,22 @@
 // torch_flame_life_ms (500; the game's 2000) and rise at mass
 // -torch_flame_rise / 100 (14; was 10) - in nwn5e.ini, read at start.
 //
+// Snuff / Light on the radial menu (0.39.0; owner: "go with R1, save R2 for
+// barbarian part 3" - and "would it be possible with 'snuff' to maintain
+// stealth if it is performed while in stealth?"): the client's radial menu is
+// CRadialMenu (exported; 8 slots a ring); a placeable's (CGuiPlaceableMenu,
+// its target's client id at +0x7f8) never fills slot 4, the bottom. Activate is
+// hooked: when the menu is a placeable's on one of nwn5e's lights - a lamp with
+// nwn5e's own use script (local nwn5e_lamp_use) or a tile flame's stand-in -
+// slot 4 gets "Snuff" while it is lit, "Light" while it is out (strings
+// 16000450 / 16000451; the game's is_darkness / is_light icons), with the menu's
+// own Use callback copied from slot 2 (+0x138 + s x 16 handler / callback, +0x1b8
+// + s x 8 param; disabled with it): the character walks over and uses it, and
+// nwn5e's use script toggles it - no attack, so hiding isn't broken (Bash is an
+// attack: it reveals). The server object is read directly (client id & 0x7FFFFFFF:
+// a single-player game); without it, no entry. The general radial actions
+// (a server transport for new choices) wait for Barbarian part 3 (R2).
+//
 // Bash is snuff (0.37.0; owner: "the radial menu on light sources should also
 // have an option beyond 'bash', I'm thinking 'snuff' where the character attacks
 // the object until hitting it and turning off the light source. once that's
@@ -642,7 +658,7 @@ constexpr const char* kLampSetup =
     "   if (!ours && !was) SetUseableFlag(o, FALSE);"
     "   if (!ours && GetStringLength(skip) < 600) skip += GetName(o) + \" (its own on-used script \" + used + \": hits and spells only); \";"
     "   SetLocalInt(o, \"nwn5e_lamp\", 1); n++;"
-    "   if (ours) SetEventScript(o, EVENT_SCRIPT_PLACEABLE_ON_USED, \"n5_lamp_use\");"
+    "   if (ours) { SetEventScript(o, EVENT_SCRIPT_PLACEABLE_ON_USED, \"n5_lamp_use\"); SetLocalInt(o, \"nwn5e_lamp_use\", 1); }"
     "   if (GetEventScript(o, EVENT_SCRIPT_PLACEABLE_ON_DAMAGED) == \"\")"
     "    SetEventScript(o, EVENT_SCRIPT_PLACEABLE_ON_DAMAGED, \"n5_lamp_hit\");"
     "   if (GetEventScript(o, EVENT_SCRIPT_PLACEABLE_ON_MELEEATTACKED) == \"\")"
@@ -870,6 +886,47 @@ void GenerateTorchFlames(const std::wstring& served) {
   }
 }
 
+// --- Snuff / Light on the radial menu (see the top).
+using ActivateFn = void (*)(void* menu);
+using SetEntryFn = void (*)(void* menu, int slot, const char* icon, uint32_t strref, void* handler, void* callback,
+                            int64_t param);
+using DisableEntryFn = void (*)(void* menu, int slot);
+ActivateFn g_activate = nullptr;
+SetEntryFn g_set_entry = nullptr;
+DisableEntryFn g_disable_entry = nullptr;
+uintptr_t g_placeable_menu_vtable = 0;
+constexpr const char* kRadialActivate = "?Activate@CRadialMenu@@QEAAXXZ";
+constexpr const char* kRadialSetEntry = "?SetEntryx@CRadialMenu@@QEAAXHPEBDIPEAXP8CCallbackHandlerBase@@EAAX_J@Z2@Z";
+constexpr const char* kRadialDisableEntry = "?DisableEntry@CRadialMenu@@QEAAXH@Z";
+constexpr const char* kRttiPlaceableMenu = ".?AVCGuiPlaceableMenu@@";
+constexpr size_t kMenuCallbacks = 0x138;  // {handler, callback} x 16 a slot
+constexpr size_t kMenuParams = 0x1b8;     // int64 a slot
+constexpr size_t kMenuFlags = 0x1f8;      // uint32 a slot: bit 0 disabled
+constexpr size_t kMenuIcons = 0x6e0;      // CGuiIcon* a slot (null: free)
+constexpr size_t kMenuTarget = 0x7f8;     // the placeable's client id
+constexpr int kSlotUse = 2, kSlotFree = 4;
+constexpr uint32_t kStrSnuff = 16000450, kStrLight = 16000451;
+
+void AddLightEntry(void* menu) {
+  if (Field<void*>(menu, kMenuIcons + kSlotFree * 8) || !Field<void*>(menu, kMenuIcons + kSlotUse * 8)) return;
+  void* object = ObjectById(Field<uint32_t>(menu, kMenuTarget) & 0x7FFFFFFFu);
+  if (!object) return;
+  const bool flame = engine::GetLocalInt(object, "nwn5e_torch_slot") > 0;
+  if (!flame && !engine::GetLocalInt(object, "nwn5e_lamp_use")) return;  // not one nwn5e's use script toggles
+  const bool lit = flame ? engine::GetLocalInt(object, "nwn5e_torch_out") == 0
+                         : Field<int32_t>(object, kPlaceableLightState) != 0;
+  void* handler = Field<void*>(menu, kMenuCallbacks + kSlotUse * 16);
+  void* callback = Field<void*>(menu, kMenuCallbacks + kSlotUse * 16 + 8);
+  const int64_t param = Field<int64_t>(menu, kMenuParams + kSlotUse * 8);
+  g_set_entry(menu, kSlotFree, lit ? "is_darkness" : "is_light", lit ? kStrSnuff : kStrLight, handler, callback, param);
+  if ((Field<uint32_t>(menu, kMenuFlags + kSlotUse * 4) & 1) && g_disable_entry) g_disable_entry(menu, kSlotFree);
+}
+
+void RadialActivate(void* menu) {
+  if (menu && g_placeable_menu_vtable && Field<uintptr_t>(menu, 0) == g_placeable_menu_vtable) AddLightEntry(menu);
+  g_activate(menu);
+}
+
 void InstallLightSources() {
   g_map_light = g_config.map_light < 10 ? 10 : g_config.map_light > 100 ? 100 : g_config.map_light;
   if (g_config.light_sources) {
@@ -879,6 +936,18 @@ void InstallLightSources() {
   if (FlamesWanted()) {
     HookExport("CNWSPlaceable::LoadPlaceable (static lights, tile flames' stand-ins: normal placeables)", kLoadPlaceable,
                reinterpret_cast<void*>(&LoadPlaceable), reinterpret_cast<void**>(&g_load_placeable));
+  }
+  if (g_config.light_sources) {
+    g_set_entry = reinterpret_cast<SetEntryFn>(EngineExport(kRadialSetEntry));
+    g_disable_entry = reinterpret_cast<DisableEntryFn>(EngineExport(kRadialDisableEntry));
+    g_placeable_menu_vtable = FindVtable("placeable radial menu: its vtable (Snuff / Light)", kRttiPlaceableMenu);
+    if (g_set_entry && g_placeable_menu_vtable &&
+        HookExport("CRadialMenu::Activate (Snuff / Light on a light's radial menu)", kRadialActivate,
+                   reinterpret_cast<void*>(&RadialActivate), reinterpret_cast<void**>(&g_activate))) {
+      Log("lights: a light's radial menu has Snuff / Light (its bottom slot)");
+    } else {
+      Log("SKIP lights: no radial Snuff / Light - the radial menu's functions weren't found");
+    }
   }
   if (!FlamesWanted() && g_map_light >= 100) return;
   if (AddCreatureUpdateListener(&Update)) {

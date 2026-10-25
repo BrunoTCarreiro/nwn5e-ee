@@ -238,3 +238,6 @@
 16000442 Exhaustion 4: -8 to attack rolls, saving throws and checks; -20 ft speed. A Long Rest removes it.
 16000443 Exhaustion 5: -10 to attack rolls, saving throws and checks; -25 ft speed; one more level is death. A Long Rest removes it.
 16000444 Rage: resistance to bludgeoning, piercing and slashing damage, Rage Damage on Strength attacks, advantage on Strength saves; no spells. Attack or chase an enemy every round to keep it.
+# 16000450-16000451: the radial menu's light entries (light_sources.cpp).
+16000450 Snuff
+16000451 Light
