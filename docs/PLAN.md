@@ -1687,6 +1687,16 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   `animation_recipes`. Not yet: a live preview (a mannequin with a freshly
   named skeleton is the idea to try); custom content that overrides the
   skeletons in a hak would be overridden by the served copies.
+  0.24.1 (owner: "make it so the base and mix toward animations are
+  selectable from a dropdown" - "same for the vfxedit, I can't remember all the
+  vfx and particle names"): `!animedit`'s Base and Mix toward are dropdowns of
+  the human library chain's animations (read at startup, !anim's descriptions
+  as labels; a_ba_custom, an ASCII library at the chain's end, isn't read);
+  `!vfxedit`'s texture is a dropdown of the particle textures the game's
+  effects use and its Load takes a game effect from a dropdown of the rows
+  whose model has emitters - read once at the first open (checked locally on
+  all 459 effect models the table names: 380 with emitters, 1652 emitters, no
+  failure, 3.6 s from disk).
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

@@ -6,7 +6,8 @@
 // game starts (anim_packs.cpp), so a new or changed one plays after a restart.
 // Play base / Play mix / Play recipe play them on the player character in
 // place, looping (as !anim: the look-far loop swapped for it); Load lists the
-// drafts and nwn5e's own recipes. The animation names are !anim's.
+// drafts and nwn5e's own recipes. Base and Mix toward are dropdowns of the
+// humanoid library's animations (read at startup; !anim's descriptions).
 
 #include <windows.h>
 
@@ -30,6 +31,8 @@
 #include "nui.h"
 
 bool AnimationRecipeBuilt(const std::string& name, std::string* text);  // anim_packs.cpp
+const std::vector<std::string>& AnimationNames();                       // anim_packs.cpp
+const char* AnimationNote(const std::string& name);                     // anim_browser.cpp
 
 namespace {
 
@@ -94,6 +97,29 @@ data::AnimRecipe DefaultRecipe() {
 
 void SetStatus(uint32_t player, const std::string& line) { NuiSetTexts(player, kWindow, {{"status", line}}); }
 
+// The dropdowns' entries: [label, value], the value an index into AnimationNames
+// (the mix's list starts with "(none)" as 0, so its values are shifted by one).
+std::string ComboEntries(bool with_none) {
+  std::string out = "[";
+  int value = 0;
+  if (with_none) out += "[" + nui::Str("(none)") + "," + std::to_string(value++) + "]";
+  for (const std::string& name : AnimationNames()) {
+    const char* note = AnimationNote(name);
+    out += std::string(value ? "," : "") + "[" + nui::Str(note ? name + "  -  " + note : name) + "," +
+           std::to_string(value) + "]";
+    ++value;
+  }
+  return out + "]";
+}
+
+int IndexOf(const std::string& name) {
+  const std::vector<std::string>& names = AnimationNames();
+  for (size_t i = 0; i < names.size(); ++i) {
+    if (names[i] == name) return static_cast<int>(i);
+  }
+  return -1;
+}
+
 std::string Layout() {
   using namespace nui;
   const auto label = [](const char* text, float width) { return Sized(Label(Str(text)), width); };
@@ -102,15 +128,17 @@ std::string Layout() {
                     Label(Bind("status"), 52.0f),
                     Row(List({label("Name", 90.0f), field("a_name", 180.0f), Button("new", Str("New")),
                               Button("load", Str("Load...")), Button("save", Str("Save"))})),
-                    Row(List({label("Base", 90.0f), field("a_base", 140.0f), label("Mix toward", 90.0f),
-                              field("a_mix", 140.0f), Spacer()})),
+                    Row(List({label("Base", 90.0f), Sized(Combo(ComboEntries(false), Bind("a_base_sel")), 400.0f, 30.0f),
+                              Spacer()})),
+                    Row(List({label("Mix toward", 90.0f),
+                              Sized(Combo(ComboEntries(true), Bind("a_mix_sel")), 400.0f, 30.0f), Spacer()})),
                     Row(List({label("Amount", 90.0f), field("a_amount", 80.0f), label("Speed", 90.0f),
                               field("a_speed", 80.0f), Spacer()})),
                     Row(List({label("Keep from s", 90.0f), field("a_start", 80.0f), label("to s (0 = end)", 110.0f),
                               field("a_end", 80.0f), Spacer()})),
                     Text(Str("Amount: 0 = the base as it is, 1 = the mix, 0.5 halfway; below 0 exaggerates the base "
-                             "away from the mix. Speed 2 = twice as fast. Names are the ones !anim lists. Recipes "
-                             "are built when the game starts: Save, then restart to play a new or changed one."),
+                             "away from the mix. Speed 2 = twice as fast. Recipes are built when the game starts: "
+                             "Save, then restart to play a new or changed one."),
                          76.0f),
                     Row(List({Button("play_base", Str("Play base")), Button("play_mix", Str("Play mix")),
                               Button("play", Str("Play recipe")), Button("stop", Str("Stop"))})),
@@ -121,8 +149,10 @@ std::string Layout() {
 
 void PushAll(uint32_t player, const data::AnimRecipe& r) {
   NuiSetTexts(player, kWindow,
-              {{"a_name", r.name}, {"a_base", r.base}, {"a_mix", r.mix}, {"a_amount", Num(r.amount)},
-               {"a_speed", Num(r.speed)}, {"a_start", Num(r.start)}, {"a_end", Num(r.end)}});
+              {{"a_name", r.name}, {"a_amount", Num(r.amount)}, {"a_speed", Num(r.speed)}, {"a_start", Num(r.start)},
+               {"a_end", Num(r.end)}});
+  NuiSetJson(player, kWindow, "a_base_sel", std::to_string(std::max(0, IndexOf(r.base))));
+  NuiSetJson(player, kWindow, "a_mix_sel", std::to_string(r.mix.empty() ? 0 : IndexOf(r.mix) + 1));
 }
 
 void Hold(uint32_t player, const std::string& name) {
@@ -146,7 +176,10 @@ void Open(uint32_t player) {
     return;
   }
   PushAll(player, r);
-  NuiWatch(player, kWindow, {"a_name", "a_base", "a_mix", "a_amount", "a_speed", "a_start", "a_end"});
+  NuiWatch(player, kWindow, {"a_name", "a_base_sel", "a_mix_sel", "a_amount", "a_speed", "a_start", "a_end"});
+  if (AnimationNames().empty()) {
+    SetStatus(player, "The animation list is empty: animation_recipes is off, or the game's libraries weren't read.");
+  }
 }
 
 void Save(uint32_t player, data::AnimRecipe& r) {
@@ -232,10 +265,18 @@ void OnEvent(const NuiEvent& event) {
     return;
   }
   if (event.type == "watch") {
+    const std::vector<std::string>& names = AnimationNames();
+    if (event.element == "a_base_sel" || event.element == "a_mix_sel") {
+      const int value = NuiGetInt(player, kWindow, event.element);
+      if (event.element == "a_base_sel" && value >= 0 && value < static_cast<int>(names.size())) {
+        r.base = names[value];
+      } else if (event.element == "a_mix_sel") {
+        r.mix = value >= 1 && value <= static_cast<int>(names.size()) ? names[value - 1] : "";
+      }
+      return;
+    }
     const std::string value = NuiGetText(player, kWindow, event.element);
     if (event.element == "a_name") r.name = value;
-    else if (event.element == "a_base") r.base = value;
-    else if (event.element == "a_mix") r.mix = value;
     else if (event.element == "a_amount") r.amount = ToFloat(value, r.amount);
     else if (event.element == "a_speed") r.speed = std::max(0.05f, ToFloat(value, r.speed));
     else if (event.element == "a_start") r.start = std::max(0.0f, ToFloat(value, r.start));

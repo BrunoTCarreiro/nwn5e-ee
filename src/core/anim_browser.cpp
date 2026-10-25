@@ -350,6 +350,18 @@ void OnEvent(const NuiEvent& event) {
   }
 }
 
+}  // namespace
+
+// !animedit's dropdowns: !anim's description of an animation, or nullptr.
+const char* AnimationNote(const std::string& name) {
+  for (const Animation& animation : kAnimations) {
+    if (name == animation.name) return animation.note;
+  }
+  return nullptr;
+}
+
+namespace {
+
 std::vector<std::string> AnimCommand(void* creature, const std::string&) {
   Open(Field<uint32_t>(creature, ee::kObjectId));
   return {};

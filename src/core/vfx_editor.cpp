@@ -21,7 +21,11 @@
 // lists the drafts and nwn5e's own effect models (n5_*.mdl, ASCII), and loads
 // a game effect by its visualeffects row (its compiled model read where the
 // player's game has it, data/vfx_model.cpp's binary reader - nothing of it
-// kept in nwn5e but what the owner saves as a draft).
+// kept in nwn5e but what the owner saves as a draft). The texture and the game
+// effect are picked from dropdowns (owner: "I can't remember all the vfx and
+// particle names"): the first !vfxedit reads every effect model the effects
+// table names, once - the rows whose model has emitters, and the textures
+// those emitters use.
 
 #include <windows.h>
 
@@ -32,6 +36,8 @@
 #include <algorithm>
 #include <fstream>
 #include <functional>
+#include <map>
+#include <set>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -96,6 +102,7 @@ const Api& E() {
 struct Session {
   data::VfxEffect effect;
   int selected = 0;
+  std::vector<std::string> textures;  // the texture dropdown's entries, as last shown
 };
 std::unordered_map<uint32_t, Session> g_sessions;  // by player, the engine's thread only
 int g_models_written = 0;
@@ -234,6 +241,79 @@ bool PointPreviewRow(const std::string& model, const data::VfxEffect& effect) {
   return ok;
 }
 
+// --- The game's effects: the rows with emitters, the textures they use --------------
+
+struct GameEffect {
+  int row;
+  std::string label;
+  std::string model;
+  std::string attach;
+  bool duration;
+};
+struct GameScan {
+  bool done = false;
+  std::vector<GameEffect> effects;
+  std::vector<std::string> textures;
+};
+GameScan g_scan;
+
+std::string Lower(std::string text) {
+  for (char& c : text) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+  return text;
+}
+
+bool ReadEffectModel(const std::string& model, data::VfxEffect* effect, std::string* why) {
+  std::string bytes, error;
+  if (!ReadGameResource(model, ee::kResTypeMdl, &bytes, why)) return false;
+  if (data::ReadVfxBinaryModel(bytes, effect, &error) || data::ReadVfxAsciiModel(bytes, effect, &error)) return true;
+  *why = error;
+  return false;
+}
+
+void ScanGameEffects() {
+  if (g_scan.done) return;
+  g_scan.done = true;
+  const std::vector<std::string> labels = GameTableColumn("visualeffects", "Label");
+  const std::vector<std::string> types = GameTableColumn("visualeffects", "Type_FD");
+  const std::vector<std::string> root = GameTableColumn("visualeffects", "Imp_Root_M_Node");
+  const std::vector<std::string> impact = GameTableColumn("visualeffects", "Imp_Impact_Node");
+  const std::vector<std::string> head = GameTableColumn("visualeffects", "Imp_HeadCon_Node");
+  const auto at = [](const std::vector<std::string>& column, size_t row) {
+    return row < column.size() ? column[row] : std::string();
+  };
+  std::map<std::string, bool> has_emitters;  // by model
+  std::set<std::string> textures;
+  for (size_t row = 0; row < labels.size(); ++row) {
+    if (static_cast<int>(row) == kPreviewRow || labels[row].empty()) continue;
+    std::string attach = "root", model = at(root, row);
+    if (model.empty()) {
+      model = at(impact, row);
+      attach = "impact";
+    }
+    if (model.empty()) {
+      model = at(head, row);
+      attach = "head";
+    }
+    if (model.empty()) continue;
+    auto known = has_emitters.find(Lower(model));
+    if (known == has_emitters.end()) {
+      data::VfxEffect effect;
+      std::string why;
+      const bool ok = ReadEffectModel(model, &effect, &why);
+      if (ok) {
+        for (const data::VfxEmitter& e : effect.emitters) {
+          if (!e.texture.empty() && Lower(e.texture) != "null") textures.insert(Lower(e.texture));
+        }
+      }
+      known = has_emitters.emplace(Lower(model), ok && !effect.emitters.empty()).first;
+    }
+    if (known->second) g_scan.effects.push_back({static_cast<int>(row), labels[row], model, attach, at(types, row) == "D"});
+  }
+  g_scan.textures.assign(textures.begin(), textures.end());
+  Log("vfx editor: %zu game effects with emitters, %zu particle textures (read once)", g_scan.effects.size(),
+      g_scan.textures.size());
+}
+
 // --- The window ----------------------------------------------------------------------
 
 std::string Num(float value) {
@@ -271,11 +351,6 @@ const std::vector<TextField>& EmitterFields() {
   static const std::vector<TextField> kFields = {
       {"f_name", [](const data::VfxEmitter& e) { return e.name; },
        [](data::VfxEmitter& e, const std::string& v) { e.name = v.empty() ? "emitter" : v; }},
-      {"f_texture", [](const data::VfxEmitter& e) { return e.texture; },
-       [](data::VfxEmitter& e, const std::string& v) {
-         const std::string clean = data::VfxResRef(v);
-         if (!clean.empty()) e.texture = clean;
-       }},
       ArrayField("f_px", &data::VfxEmitter::position, 0),
       ArrayField("f_py", &data::VfxEmitter::position, 1),
       ArrayField("f_pz", &data::VfxEmitter::position, 2),
@@ -360,7 +435,8 @@ std::string Layout() {
       Row(List({label("Emitter name", 120.0f), field("f_name", 200.0f), Spacer()})),
       Row(List({Button("b_update", Bind("l_update")), Button("b_render", Bind("l_render")),
                 Button("b_blend", Bind("l_blend"))})),
-      Row(List({label("Texture", 120.0f), field("f_texture", 200.0f), Spacer()})),
+      Row(List({label("Texture", 120.0f), Sized(Combo(Bind("tex_list"), Bind("f_tex_sel")), 300.0f, 30.0f),
+                Spacer()})),
       Row(List({label("Position x y z (m)", 150.0f), field("f_px", 70.0f), field("f_py", 70.0f), field("f_pz", 70.0f),
                 Spacer()})),
       Row(List({label("Rate / s", 110.0f), field("f_rate", 70.0f), label("On for s (0 = always)", 170.0f),
@@ -425,6 +501,28 @@ void PushEmitterList(uint32_t player, const Session& session) {
   NuiSetJson(player, kWindow, "em_count", std::to_string(session.effect.emitters.size()));
 }
 
+// The texture dropdown: the game's particle textures, the selected emitter's
+// own added when it isn't among them.
+void PushTextures(uint32_t player, Session& session) {
+  session.textures = g_scan.textures;
+  int selected = 0;
+  if (session.selected >= 0 && session.selected < static_cast<int>(session.effect.emitters.size())) {
+    const std::string texture = Lower(session.effect.emitters[session.selected].texture);
+    auto it = std::find(session.textures.begin(), session.textures.end(), texture);
+    if (it == session.textures.end() && !texture.empty()) {
+      session.textures.insert(session.textures.begin(), texture);
+      it = session.textures.begin();
+    }
+    selected = it == session.textures.end() ? 0 : static_cast<int>(it - session.textures.begin());
+  }
+  std::string entries = "[";
+  for (size_t i = 0; i < session.textures.size(); ++i) {
+    entries += std::string(i ? "," : "") + "[" + nui::Str(session.textures[i]) + "," + std::to_string(i) + "]";
+  }
+  NuiSetJson(player, kWindow, "tex_list", entries + "]");
+  NuiSetJson(player, kWindow, "f_tex_sel", std::to_string(selected));
+}
+
 void PushAll(uint32_t player, const Session& session) {
   const data::VfxEffect& effect = session.effect;
   std::vector<std::pair<std::string, std::string>> binds = {
@@ -446,6 +544,7 @@ void PushAll(uint32_t player, const Session& session) {
   }
   SetBinds(player, binds);
   PushEmitterList(player, session);
+  PushTextures(player, const_cast<Session&>(session));
 }
 
 // A text field's value.
@@ -454,12 +553,13 @@ std::string BindValue(uint32_t player, const std::string& bind, const char* wind
 }
 
 void WatchFields(uint32_t player) {
-  std::vector<std::string> binds = {"e_name", "e_seconds"};
+  std::vector<std::string> binds = {"e_name", "e_seconds", "f_tex_sel"};
   for (const TextField& field : EmitterFields()) binds.push_back(field.bind);
   NuiWatch(player, kWindow, binds);
 }
 
 void Open(uint32_t player) {
+  ScanGameEffects();
   Session& session = g_sessions[player];
   if (session.effect.emitters.empty()) session.effect = DefaultEffect();
   if (!NuiOpen(player, kWindow, Layout(),
@@ -553,16 +653,17 @@ std::string LoadLayout() {
   using namespace nui;
   return Window(Col(List({
                     Label(Bind("ld_status"), 40.0f),
-                    Row(List({Sized(Label(Str("Game effect row")), 130.0f),
-                              Sized(TextEdit("ld_row", "e.g. 491", "ld_row", 6), 90.0f, 30.0f),
-                              Button("ld_game", Str("Load it")), Spacer()})),
+                    Row(List({Sized(Label(Str("Game effect")), 100.0f),
+                              Sized(Combo(Bind("ld_rows"), Bind("ld_row_sel")), 400.0f, 30.0f),
+                              Button("ld_game", Str("Load it"))})),
                     ListView(Cell(Button("ld", Bind("ld_labels")), 0.0f, true), Bind("ld_count"), 26.0f),
                     Row(List({Spacer(), Button("ld_close", Str("Close"), 100.0f)})),
                 })),
-                Str("nwn5e - load an effect"), 680.0f, 40.0f, 420.0f, 560.0f);
+                Str("nwn5e - load an effect"), 670.0f, 40.0f, 640.0f, 560.0f);
 }
 
 void OpenLoad(uint32_t player) {
+  ScanGameEffects();
   g_load_entries.clear();
   std::string labels = "[";
   const auto add = [&](const std::string& entry, const std::string& label) {
@@ -578,11 +679,17 @@ void OpenLoad(uint32_t player) {
   }
   labels += "]";
   if (!NuiOpen(player, kLoadWindow, LoadLayout(),
-               {{"ld_status", std::to_string(g_load_entries.size()) +
-                                  " effects: your saved drafts, then nwn5e's own - or a game effect by its row (!vfx)."},
-                {"ld_row", ""}})) {
+               {{"ld_status", std::to_string(g_load_entries.size()) + " of yours and nwn5e's below - or pick one of " +
+                                  std::to_string(g_scan.effects.size()) + " game effects and Load it."}})) {
     return;
   }
+  std::string rows = "[";
+  for (size_t i = 0; i < g_scan.effects.size(); ++i) {
+    rows += std::string(i ? "," : "") + "[" +
+            nui::Str(std::to_string(g_scan.effects[i].row) + "  " + g_scan.effects[i].label) + "," + std::to_string(i) + "]";
+  }
+  NuiSetJson(player, kLoadWindow, "ld_rows", rows + "]");
+  NuiSetJson(player, kLoadWindow, "ld_row_sel", "0");
   NuiSetJson(player, kLoadWindow, "ld_labels", labels);
   NuiSetJson(player, kLoadWindow, "ld_count", std::to_string(g_load_entries.size()));
 }
@@ -618,6 +725,14 @@ void OnEvent(const NuiEvent& event) {
   Session& session = g_sessions[player];
   if (session.effect.emitters.empty() && session.effect.name.empty()) session.effect = DefaultEffect();
   data::VfxEmitter* e = Selected(session);
+  if (event.type == "watch" && event.element == "f_tex_sel") {
+    const int index = NuiGetInt(player, kWindow, "f_tex_sel");
+    if (e && index >= 0 && index < static_cast<int>(session.textures.size())) {
+      e->texture = session.textures[index];
+      PushEmitterList(player, session);
+    }
+    return;
+  }
   if (event.type == "watch") {
     const std::string value = BindValue(player, event.element);
     if (event.element == "e_name") {
@@ -632,7 +747,7 @@ void OnEvent(const NuiEvent& event) {
     for (const TextField& field : EmitterFields()) {
       if (event.element != field.bind) continue;
       field.set(*e, value);
-      if (event.element == "f_name" || event.element == "f_texture") PushEmitterList(player, session);
+      if (event.element == "f_name") PushEmitterList(player, session);
       return;
     }
     return;
@@ -694,47 +809,27 @@ void OnEvent(const NuiEvent& event) {
   }
 }
 
-// A game effect, by its visualeffects row: its model (the root, impact or head
+// A game effect picked from the dropdown: its model (the root, impact or head
 // node's), read where the player's game has it.
 void LoadGameRow(uint32_t player) {
-  void* creature = CreatureById(player);
-  const std::string row_text = BindValue(player, "ld_row", kLoadWindow);
-  const int row = atoi(row_text.c_str());
-  if (!creature || row <= 0) {
-    SetBinds(player, {});
-    NuiSetText(player, kLoadWindow, "ld_status", "Type a visualeffects row number (the numbers !vfx shows).");
+  const int index = NuiGetInt(player, kLoadWindow, "ld_row_sel");
+  if (index < 0 || index >= static_cast<int>(g_scan.effects.size())) {
+    NuiSetText(player, kLoadWindow, "ld_status", "Pick a game effect first.");
     return;
   }
-  char code[700];
-  sprintf_s(code,
-            "int r = %d; string a = \"root\"; string m = Get2DAString(\"visualeffects\", \"Imp_Root_M_Node\", r);"
-            "if (m == \"\") { m = Get2DAString(\"visualeffects\", \"Imp_Impact_Node\", r); a = \"impact\"; }"
-            "if (m == \"\") { m = Get2DAString(\"visualeffects\", \"Imp_HeadCon_Node\", r); a = \"head\"; }"
-            "SetLocalString(OBJECT_SELF, \"%s\", a + \":\" + Get2DAString(\"visualeffects\", \"Type_FD\", r) + \":\" + m);",
-            row, kVarValue);
-  RunScriptChunk(code, player);
-  const std::string answer = engine::GetLocalString(creature, kVarValue);  // attach:type:model
-  const size_t first = answer.find(':'), second = answer.find(':', first + 1);
-  const std::string attach = answer.substr(0, first);
-  const std::string type = first == std::string::npos ? "" : answer.substr(first + 1, second - first - 1);
-  const std::string model = second == std::string::npos ? "" : answer.substr(second + 1);
-  if (model.empty()) {
-    NuiSetText(player, kLoadWindow, "ld_status", "Row " + std::to_string(row) + " has no model on its root, impact or head node.");
-    return;
-  }
-  std::string bytes, why, error;
+  const GameEffect& game = g_scan.effects[index];
+  const int row = game.row;
+  const std::string& model = game.model;
+  const std::string& attach = game.attach;
   data::VfxEffect effect;
-  const bool read = ReadGameResource(model, ee::kResTypeMdl, &bytes, &why);
-  const bool parsed = read && (data::ReadVfxBinaryModel(bytes, &effect, &error) ||
-                               data::ReadVfxAsciiModel(bytes, &effect, &error));
-  if (!parsed) {
-    NuiSetText(player, kLoadWindow, "ld_status",
-               "Couldn't load " + model + ": " + (read ? error : "the game doesn't have it (" + why + ")") + ".");
+  std::string why;
+  if (!ReadEffectModel(model, &effect, &why)) {
+    NuiSetText(player, kLoadWindow, "ld_status", "Couldn't load " + model + ": " + why + ".");
     return;
   }
   effect.name = "fx" + std::to_string(row);
   effect.attach = attach.empty() ? "root" : attach;
-  effect.duration = type == "D";
+  effect.duration = game.duration;
   Session& session = g_sessions[player];
   session.effect = effect;
   session.selected = 0;

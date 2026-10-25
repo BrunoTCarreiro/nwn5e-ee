@@ -141,6 +141,17 @@ std::string NuiGetText(uint32_t player, const char* window_id, const std::string
   return engine::GetLocalString(creature, kVar);
 }
 
+int NuiGetInt(uint32_t player, const char* window_id, const std::string& bind) {
+  void* creature = CreatureById(player);
+  const int token = NuiToken(player, window_id);
+  if (!creature || !token) return 0;
+  static const char* const kVar = "nwn5e_nui_int";
+  const std::string code = "SetLocalInt(OBJECT_SELF, \"" + std::string(kVar) + "\", JsonGetInt(NuiGetBind(OBJECT_SELF, " +
+                           std::to_string(token) + ", " + ScriptString(bind.c_str()) + ")));";
+  RunScriptChunk(code.c_str(), player);
+  return engine::GetLocalInt(creature, kVar);
+}
+
 void NuiWatch(uint32_t player, const char* window_id, const std::vector<std::string>& binds) {
   const int token = NuiToken(player, window_id);
   if (!token) return;
@@ -239,6 +250,10 @@ std::string Cell(const std::string& element, float width, bool variable) {
   char rest[48];
   sprintf_s(rest, ",%.1f,%s]", width, variable ? "true" : "false");
   return "[" + element + rest;
+}
+
+std::string Combo(const std::string& elements, const std::string& selected) {
+  return Element("combo", "null", selected, ",\"elements\":" + elements);
 }
 
 std::string Group(const std::string& child, bool border) {

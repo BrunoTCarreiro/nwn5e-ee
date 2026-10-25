@@ -55,6 +55,8 @@ void NuiSetTexts(uint32_t player, const char* window_id,
 // A string bind's current value (a text field the player typed in), read
 // through a local on the player.
 std::string NuiGetText(uint32_t player, const char* window_id, const std::string& bind);
+// An integer bind's current value (a dropdown's selection).
+int NuiGetInt(uint32_t player, const char* window_id, const std::string& bind);
 // Watch these binds: each change sends a "watch" event naming the bind.
 void NuiWatch(uint32_t player, const char* window_id, const std::vector<std::string>& binds);
 
@@ -81,6 +83,9 @@ std::string ListView(const std::string& cells, const std::string& row_count, flo
 std::string Cell(const std::string& element, float width, bool variable);
 std::string Window(const std::string& root, const std::string& title, float x, float y, float w, float h,
                    bool closable = true);
+// A dropdown (nw_inc_nui's NuiCombo): `elements` a JSON array (or a bind) of
+// [label, value] entries, `selected` the bind holding the chosen value.
+std::string Combo(const std::string& elements, const std::string& selected);
 // A scrolling group around one element (nw_inc_nui's NuiGroup).
 std::string Group(const std::string& child, bool border = true);
 // Any element with a fixed width and / or height in pixels (NuiWidth /

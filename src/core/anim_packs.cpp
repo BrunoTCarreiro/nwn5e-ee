@@ -35,6 +35,7 @@
 namespace {
 
 std::map<std::string, std::string> g_built;  // recipe name -> its text as built at startup
+std::vector<std::string> g_animation_names;  // a_ba's chain's animations, for !animedit's dropdowns
 
 std::wstring DllDirectory() {
   HMODULE module = nullptr;
@@ -147,9 +148,26 @@ std::string PackName(const std::string& library) {
 // data_serving's BuildServedTables, into the served folder before it is registered.
 void GenerateAnimationPacks(const std::wstring& served) {
   g_built.clear();
+  g_animation_names.clear();
   if (!g_config.animation_recipes) return;
+  // The humanoid animations (a_ba and its supermodels), for !animedit.
+  std::string library = "a_ba";
+  for (int depth = 0; depth < 8 && !library.empty(); ++depth) {
+    const Library& lib = LoadLibrary(library);
+    if (!lib.ok) break;
+    for (const std::string& name : lib.info.clip_names) {
+      if (std::find(g_animation_names.begin(), g_animation_names.end(), name) == g_animation_names.end()) {
+        g_animation_names.push_back(name);
+      }
+    }
+    library = Lower(lib.info.supermodel);
+  }
+  std::sort(g_animation_names.begin(), g_animation_names.end());
   const std::map<std::string, data::AnimRecipe> recipes = ReadRecipes();
-  if (recipes.empty()) return;
+  if (recipes.empty()) {
+    g_libraries.clear();
+    return;
+  }
   // The skeletons and their libraries.
   std::map<std::string, std::string> packs;  // library -> pack
   int skeletons = 0;
@@ -203,6 +221,9 @@ void GenerateAnimationPacks(const std::wstring& served) {
   Log("anim packs: %zu recipes -> %zu packs (%d animations), %d skeletons pointed at them (animation_recipes)",
       recipes.size(), packs.size(), animations, skeletons);
 }
+
+// !animedit's dropdowns: the humanoid animations a recipe can use.
+const std::vector<std::string>& AnimationNames() { return g_animation_names; }
 
 // !animedit: was `name` built at startup, and from which recipe text?
 bool AnimationRecipeBuilt(const std::string& name, std::string* text) {
