@@ -104,6 +104,16 @@
 // shadows come only from what can be seen (wall flames' own 7 m lights,
 // braziers, lamps, light spells, carried torches).
 //
+// Light reach by brightness (0.38.0; owner: "we can also try the light reach
+// by brightness"): as a placeable loads, its appearance's light colour
+// (placeables.2da LightColor -> lightcolor.2da RED / GREEN / BLUE, the strongest)
+// gives its reach (rules::LightReachByIntensity: a brazier 4 / 9 m, a candle 2 /
+// 4.5 m), kept on it as locals nwn5e_light_bright / nwn5e_light_dim
+// (centimetres; -1 for an appearance with no light: it lights nothing even
+// "illuminated") and its zone rings' rows (nwn5e_light_rings); the stealth
+// light rule reads them (stealth_watch.cpp). Scripts can't read a
+// placeable's appearance, so it is done here.
+//
 // Torch flames rise (0.37.4; owner: "I'm using a torch and I see that the fire
 // animation is set to the orientation of the torch, so a torch held sideways
 // will spew flames sideways as well"): the held torch's flame (it_torch_000 /
@@ -131,6 +141,7 @@
 
 #include <windows.h>
 
+#include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -145,6 +156,7 @@
 #include "config.h"
 #include "data/vfx_model.h"
 #include "data_serving.h"
+#include "rules/skills.h"
 #include "creature.h"
 #include "creature_update.h"
 #include "ee_layout.h"
@@ -170,8 +182,64 @@ constexpr size_t kPlaceableUseable = 0x264;       // int32 ("Useable")
 constexpr size_t kObjectPlot = 0xfc;              // int32 (GetPlotFlag)
 bool g_creating_flames = false;                   // nwn5e is placing tile flames' stand-ins now
 
+// Light reach per placeables.2da row: bright / dim in cm (-1: no light), loaded once.
+struct Reach {
+  int bright = -1, dim = -1, rings = 0;
+};
+std::vector<Reach> g_reach_by_row;
+bool g_reach_loaded = false;
+
+constexpr float kLightRingRadii[] = {2.5f, 4.0f, 5.0f, 7.5f, 9.0f, 10.0f, 15.0f, 20.0f};  // tools/data/stealth_rings.py
+int NearestLightRing(float metres) {
+  int best = 0;
+  for (int i = 1; i < 8; ++i) {
+    if (fabsf(kLightRingRadii[i] - metres) < fabsf(kLightRingRadii[best] - metres)) best = i;
+  }
+  return best;
+}
+
+const std::vector<Reach>& ReachByRow() {
+  if (g_reach_loaded) return g_reach_by_row;
+  g_reach_loaded = true;
+  const std::vector<std::string> colour = GameTableColumn("placeables", "LightColor");
+  const std::vector<std::string> red = GameTableColumn("lightcolor", "RED");
+  const std::vector<std::string> green = GameTableColumn("lightcolor", "GREEN");
+  const std::vector<std::string> blue = GameTableColumn("lightcolor", "BLUE");
+  g_reach_by_row.resize(colour.size());
+  int lights = 0;
+  for (size_t row = 0; row < colour.size(); ++row) {
+    if (colour[row].empty()) continue;
+    const size_t c = static_cast<size_t>(atoi(colour[row].c_str()));
+    if (c >= red.size() || c >= green.size() || c >= blue.size()) continue;
+    const float intensity = (std::max)({static_cast<float>(atof(red[c].c_str())), static_cast<float>(atof(green[c].c_str())),
+                                        static_cast<float>(atof(blue[c].c_str()))});
+    float bright = 0.0f, dim = 0.0f;
+    if (!rules::LightReachByIntensity(intensity, &bright, &dim)) continue;
+    Reach& r = g_reach_by_row[row];
+    r.bright = static_cast<int>(bright * 100.0f + 0.5f);
+    r.dim = static_cast<int>(dim * 100.0f + 0.5f);
+    r.rings = (1820 + NearestLightRing(bright)) * 10000 + 1828 + NearestLightRing(dim);
+    ++lights;
+  }
+  Log("lights: %d placeable appearances give light; their reach by their colour's brightness (%zu lightcolor rows)", lights,
+      red.size());
+  return g_reach_by_row;
+}
+
 int LoadPlaceable(void* placeable, void* gff, void* gff_struct, int flag, void* tag) {
   const int result = g_load_placeable(placeable, gff, gff_struct, flag, tag);
+  if (result && placeable && !g_creating_flames) {
+    const std::vector<Reach>& reach = ReachByRow();
+    const size_t row = Field<uint16_t>(placeable, kPlaceableAppearance);
+    const Reach r = row < reach.size() ? reach[row] : Reach{};
+    if (r.bright > 0) {  // only on lights: no locals on the rest
+      engine::SetLocalInt(placeable, "nwn5e_light_bright", r.bright);
+      engine::SetLocalInt(placeable, "nwn5e_light_dim", r.dim);
+      engine::SetLocalInt(placeable, "nwn5e_light_rings", r.rings);
+    } else if (Field<int32_t>(placeable, kPlaceableLightState) != 0) {
+      engine::SetLocalInt(placeable, "nwn5e_light_bright", -1);  // "lit" but its appearance gives no light
+    }
+  }
   if (result && placeable && g_creating_flames) {  // a tile flame's stand-in: clickable, never broken
     SetField<int32_t>(placeable, kPlaceableStatic, 0);
     SetField<int32_t>(placeable, kPlaceableUseable, 1);

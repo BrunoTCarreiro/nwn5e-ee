@@ -590,6 +590,14 @@ int CarriedLightLevel(int radius_m) {
 
 int CarriedLightSpotBonus(int radius_m) { return radius_m > 0 ? (radius_m + 4) / 5 * 2 : 0; }
 
+bool LightReachByIntensity(float intensity, float* bright_m, float* dim_m) {
+  if (!(intensity > 0.0f)) return false;
+  const float scale = intensity / 1.9f;  // the brazier's
+  *bright_m = 4.0f * scale < 1.0f ? 1.0f : 4.0f * scale;
+  *dim_m = 9.0f * scale < 2.0f ? 2.0f : 9.0f * scale;
+  return true;
+}
+
 bool WithinVisionCone(float dx, float dy, float fx, float fy, float degrees) {
   if (degrees >= 360.0f) return true;
   if (degrees <= 0.0f) return false;

@@ -214,4 +214,11 @@ float StealthOpacity(int light_level, int extra_bonus);
 int CarriedLightLevel(int radius_m);
 int CarriedLightSpotBonus(int radius_m);
 
+// A light placeable's reach by how bright its light is (owner, 2026-10-25: "we
+// can also try the light reach by brightness"): its colour's strongest channel
+// in lightcolor.2da (a brazier's pale yellow 1.9, a candle's pale dark yellow
+// 0.94, bright white 2.0) scales the brazier's 4 m bright / 9 m dim; at least 1
+// m bright and 2 m dim. False (no reach) for no light (0 or less).
+bool LightReachByIntensity(float intensity, float* bright_m, float* dim_m);
+
 }  // namespace rules

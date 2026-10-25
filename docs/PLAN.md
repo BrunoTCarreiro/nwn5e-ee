@@ -2103,6 +2103,15 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   to lit torches - "let's try A+"): indoors and underground no fill lights at
   all; light and shadows only from visible sources. Accepted (owner,
   2026-10-25: "I think this is good actually, let's keep it for now").
+  Torch flame accepted (owner, 2026-10-25: "the torch flame looks fine").
+  Reliable Talent (RB2, 0.35.0) to be tested later, maybe during the rogue pass
+  (owner, 2026-10-25). 0.38.0 (owner: "we can also try the light reach by
+  brightness"): a light placeable's reach scales with its light colour's
+  strongest channel (placeables.2da LightColor -> lightcolor.2da; brazier 1.9 ->
+  4 / 9 m, candle 0.94 -> 2 / 4.5 m; rules::LightReachByIntensity, tested),
+  kept on it at load (LoadPlaceable hook: nwn5e_light_bright / _dim / _rings;
+  -1 for a "lit" one whose appearance gives no light); the light rule and its
+  zone rings read them. Radial menu "Snuff" / "Light" entries: recon running.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

@@ -210,6 +210,24 @@ TEST(CarriedLightGrowsWithItsReach) {
   CHECK_EQ(CarriedLightSpotBonus(20), 8);
 }
 
+// Light reach by brightness. Breaks caught: the brazier no longer 4 / 9 m; a
+// candle as far as a brazier; the floors missing; no light given a reach.
+TEST(LightReachFollowsItsBrightness) {
+  float b = 0.0f, d = 0.0f;
+  CHECK_EQ(LightReachByIntensity(1.9f, &b, &d), true);
+  CHECK_EQ(static_cast<int>(b * 100 + 0.5f), 400);
+  CHECK_EQ(static_cast<int>(d * 100 + 0.5f), 900);
+  CHECK_EQ(LightReachByIntensity(0.94f, &b, &d), true);  // a candle
+  CHECK_EQ(static_cast<int>(b * 100 + 0.5f), 198);
+  CHECK_EQ(static_cast<int>(d * 100 + 0.5f), 445);
+  CHECK_EQ(LightReachByIntensity(2.0f, &b, &d), true);   // bright white
+  CHECK_EQ(static_cast<int>(d * 100 + 0.5f), 947);
+  CHECK_EQ(LightReachByIntensity(0.2f, &b, &d), true);   // floored
+  CHECK_EQ(static_cast<int>(b * 100 + 0.5f), 100);
+  CHECK_EQ(static_cast<int>(d * 100 + 0.5f), 200);
+  CHECK_EQ(LightReachByIntensity(0.0f, &b, &d), false);
+}
+
 // SK9. Breaks caught: NWN's +4 for Improved Initiative kept instead of PB; PB
 // added without the feat.
 TEST(InitiativeIs2024) {

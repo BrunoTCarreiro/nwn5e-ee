@@ -66,7 +66,12 @@
 //   metre out of the light toward the hider so its own model or wall doesn't
 //   block it) - lit placeables, light effects and tile flames alike. The
 //   game's own lighting may still shine through walls on screen. Its light
-//   zone rings show only for a light with that clear line too.
+//   zone rings show only for a light with that clear line too. 0.38.0 (owner:
+//   "we can also try the light reach by brightness"): a lit placeable's reach is
+//   its own, by its light colour's brightness (light_sources.cpp keeps it on it:
+//   nwn5e_light_bright / _dim in cm, -1 none; a brazier 4 / 9 m, a candle 2 /
+//   4.5 m), and its zone rings match; one without them (loaded before 0.38.0)
+//   keeps 4 / 9 m.
 //   `stealth_light` (2024 perception). Light zones (0.32.1; owner: "Light
 //   sources should have a circle indicator so the player can see where they
 //   take effect"): while hiding, unless the area is bright everywhere, each lit
@@ -221,13 +226,17 @@ std::string LightPart(int carried, bool zones) {
          // A light it carries: 5 m at least dim, 10 m+ bright (rules::CarriedLightLevel).
          "if (" + std::to_string(rules::CarriedLightLevel(carried)) + " > light) light = " +
          std::to_string(rules::CarriedLightLevel(carried)) + ";"
-         "object q = GetFirstObjectInShape(SHAPE_SPHERE, 9.0, at, FALSE, OBJECT_TYPE_PLACEABLE);"
+         "object q = GetFirstObjectInShape(SHAPE_SPHERE, 10.0, at, FALSE, OBJECT_TYPE_PLACEABLE);"
          "while (light < 2 && GetIsObjectValid(q)) {"
          " lp = GetPosition(q) + Vector(0.0, 0.0, 1.0);"
-         " if (GetPlaceableIllumination(q) && LineOfSightVector(lp + VectorNormalize(me - lp) * 0.5, me)) {"
-         "  if (GetDistanceBetween(pc, q) <= 4.0) light = 2; else if (light < 1) light = 1;"
+         // Its own reach by its light's brightness (light_sources.cpp; -1: it gives none), else 4 / 9 m.
+         " int rb = GetLocalInt(q, \"nwn5e_light_bright\"); int rd = GetLocalInt(q, \"nwn5e_light_dim\");"
+         " float qb = rb > 0 ? IntToFloat(rb) / 100.0 : 4.0; float qd = rd > 0 ? IntToFloat(rd) / 100.0 : 9.0;"
+         " if (rb >= 0 && GetPlaceableIllumination(q) && LineOfSightVector(lp + VectorNormalize(me - lp) * 0.5, me)) {"
+         "  float qq = GetDistanceBetween(pc, q);"
+         "  if (qq <= qb) light = 2; else if (qq <= qd && light < 1) light = 1;"
          " }"
-         " q = GetNextObjectInShape(SHAPE_SPHERE, 9.0, at, FALSE, OBJECT_TYPE_PLACEABLE);"
+         " q = GetNextObjectInShape(SHAPE_SPHERE, 10.0, at, FALSE, OBJECT_TYPE_PLACEABLE);"
          "}"
          // Tile flames (their stand-ins): a bright colour bright within 4 m, dim within 7.5 m; a pale dark one dim within 4 m.
          "object tf = GetFirstObjectInShape(SHAPE_SPHERE, 8.0, at, FALSE, OBJECT_TYPE_PLACEABLE);"
@@ -268,7 +277,9 @@ std::string LightPart(int carried, bool zones) {
          "  if (GetStringLeft(GetTag(s), 11) == \"nwn5e_flame\") {"
          "   if (!GetLocalInt(s, \"nwn5e_torch_out\")) zone = GetLocalInt(s, \"nwn5e_torch_colour\") % 2 == 1 ? 1821 * 10000 + 1831 : 1829;"
          "  }"
-         "  else if (GetObjectType(s) == OBJECT_TYPE_PLACEABLE && GetPlaceableIllumination(s)) zone = 1821 * 10000 + 1832;"
+         "  else if (GetObjectType(s) == OBJECT_TYPE_PLACEABLE && GetPlaceableIllumination(s) && GetLocalInt(s, \"nwn5e_light_bright\") >= 0) {"
+         "   zone = GetLocalInt(s, \"nwn5e_light_rings\"); if (!zone) zone = 1821 * 10000 + 1832;"
+         "  }"
          "  else {"
          "   effect le = GetFirstEffect(s);"
          "   while (GetIsEffectValid(le) && !zone) {"
