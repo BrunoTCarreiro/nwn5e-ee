@@ -239,6 +239,9 @@ struct Config {
   // dropped the backward key for it, so the server never stepped it back while
   // its client did - the position pulled back, a stutter (the unmodded game too).
   bool drive_backward_fix = true;
+  // A held weapon's walk / run arm layer left playing over an idle (its stop
+  // lost, e.g. turning while backing up) is stopped (anim_layers.cpp).
+  bool stuck_layer_fix = true;
   // Who has noticed a hiding player character (owner, 2026-10-25: "build your
   // recommendation" for showing enemies' sight): an eye over each hostile that
   // sees it, an ear over one that only hears it (stealth_watch.cpp).

@@ -66,7 +66,8 @@
 #include "hooks.h"
 #include "log.h"
 
-void AnimTraceClient(void* client_creature);  // anim_trace.cpp
+void AnimTraceClient(void* client_creature);   // anim_trace.cpp
+void AnimLayersClient(void* client_creature);  // anim_layers.cpp
 
 namespace {
 
@@ -324,7 +325,8 @@ void ClientStep(void* creature) {
 
 int64_t CreatureUpdate(void* creature) {
   const int64_t result = g_creature_update(creature);
-  AnimTraceClient(creature);  // !animtrace: the traced creature's model
+  AnimTraceClient(creature);   // !animtrace: the traced creature's model
+  AnimLayersClient(creature);  // a stuck weapon arm layer over an idle stopped
   if (creature && (g_client_count > 0 || AnyoneHides())) ClientStep(creature);
   return result;
 }

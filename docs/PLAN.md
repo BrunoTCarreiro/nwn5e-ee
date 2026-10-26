@@ -2208,6 +2208,19 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   encumbrance (the trace had it on while upright too - cause to read in the
   log). stance_look: moving = a moving animation or a position change in
   the last 500 ms; the toggle's stand hold starts on the first walking update.
+  0.39.10's log: the walk limit was on while upright because the character
+  is heavily encumbered (+0x970 = 1 throughout, Str 16) - by NWN's
+  encumbrance.2da it can never run; 2024 carrying capacity is Str x 15 (240
+  lb). Open decision for the owner (faithful: the 2024 capacity; NWN mode:
+  NWN's table). 0.39.11 (owner: "walking backwards while turning still
+  triggers the torso lean and walking motion when stopped issue
+  sometimes"): the client starts a weapon's walk / run arm layer with
+  Gob::PlayAnimation(layer, 1, 8, 0) and stops it (layer, 1, 128, x) when the
+  walk ends; the turn clips (pauseturn, cwalkf) between the walk and the idle
+  can lose the stop. anim_layers.cpp (stuck_layer_fix): a model whose base
+  has been an idle for 300 ms with such a layer still started gets the stop;
+  logged. Gob::PlayAnimation is hooked there now (!animtrace records
+  through it).
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

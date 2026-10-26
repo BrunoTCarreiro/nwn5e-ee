@@ -5,7 +5,7 @@
 // records in memory - nothing is written while it runs:
 // - on the client, every animation its models are asked to play
 //   (Gob::PlayAnimation(name, speed, int, float), the call that starts a clip
-//   on a model); its model is the one the client creature update shows
+//   on a model - hooked in anim_layers.cpp, which calls AnimTracePlay); its model is the one the client creature update shows
 //   (stealth_ghost.cpp calls AnimTraceClient), and any model that plays an
 //   n5_ animation counts as its too;
 // - on the server, its animation (CNWSObject +0xd8) and whether it hides, at
@@ -41,13 +41,12 @@
 #include "hooks.h"
 #include "log.h"
 
+bool AnimLayersHooked();  // anim_layers.cpp
+
 namespace {
 
-using PlayAnimationFn = int (*)(void* gob, const char* name, float speed, int flag, float value);
 using SetAnimationFn = void (*)(void* creature, int animation);
-PlayAnimationFn g_play = nullptr;
 SetAnimationFn g_set_animation = nullptr;
-constexpr const char* kGobPlayAnimation = "?PlayAnimation@Gob@@UEAAHPEBDMHM@Z";
 constexpr size_t kClientObjectAnim = 0x78;  // CNWCObject -> its animation object (stealth_ghost.cpp)
 constexpr size_t kAnimModel = 0xc8;         // -> its model (Gob)
 constexpr size_t kObjectAnimation = 0xd8;   // uint16: the animation playing (CNWSObject, stance_look.cpp)
@@ -98,19 +97,6 @@ bool Traced(void* creature) {
   return g_active.load(std::memory_order_relaxed) && creature && Field<uint32_t>(creature, ee::kObjectId) == g_id;
 }
 
-int PlayAnimation(void* gob, const char* name, float speed, int flag, float value) {
-  if (g_active.load(std::memory_order_relaxed) && name) {
-    Event e;
-    e.ms = Now();
-    e.gob = gob;
-    strncpy_s(e.name, name, _TRUNCATE);
-    e.speed = speed;
-    e.flag = flag;
-    e.value = value;
-    Add(e);
-  }
-  return g_play(gob, name, speed, flag, value);
-}
 
 void SetAnimation(void* creature, int animation) {
   if (Traced(creature)) {
@@ -317,7 +303,7 @@ void ServerStep(void* creature) {
 }
 
 std::vector<std::string> TraceCommand(void* creature, const std::string& args) {
-  if (!g_play) return {"nwn5e: !animtrace isn't available (Gob::PlayAnimation wasn't hooked - see nwn5e.log)"};
+  if (!AnimLayersHooked()) return {"nwn5e: !animtrace isn't available (Gob::PlayAnimation wasn't hooked - see nwn5e.log)"};
   if (g_active.load()) return {"nwn5e: !animtrace is already running"};
   int seconds = atoi(args.c_str());
   if (seconds <= 0) seconds = 15;
@@ -341,6 +327,19 @@ std::vector<std::string> TraceCommand(void* creature, const std::string& args) {
 }
 
 }  // namespace
+
+// anim_layers.cpp's Gob::PlayAnimation: an animation a model is asked to play.
+void AnimTracePlay(void* gob, const char* name, float speed, int flag, float value) {
+  if (!g_active.load(std::memory_order_relaxed) || !name) return;
+  Event e;
+  e.ms = Now();
+  e.gob = gob;
+  strncpy_s(e.name, name, _TRUNCATE);
+  e.speed = speed;
+  e.flag = flag;
+  e.value = value;
+  Add(e);
+}
 
 // drive_fix.cpp's CNWSCreature::AddDriveAction: a drive action for the traced creature.
 void AnimTraceDrive(void* creature, const float* target, int facing, int a, int keys, int c) {
@@ -371,11 +370,6 @@ void AnimTraceClient(void* client_creature) {
 }
 
 void InstallAnimTrace() {
-  if (!HookExport("Gob::PlayAnimation (!animtrace)", kGobPlayAnimation, reinterpret_cast<void*>(&PlayAnimation),
-                  reinterpret_cast<void**>(&g_play))) {
-    g_play = nullptr;
-    return;
-  }
   HookExport("CNWSCreature::SetAnimation (!animtrace: who sets the traced creature's)", ee::kCreatureSetAnimation,
              reinterpret_cast<void*>(&SetAnimation), reinterpret_cast<void**>(&g_set_animation));
   AddCreatureUpdateListener(&ServerStep);
