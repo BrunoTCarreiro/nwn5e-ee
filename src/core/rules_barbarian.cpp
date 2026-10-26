@@ -249,12 +249,37 @@ bool Unconscious(void* creature) {
          engine::GetLocalInt(creature, kVarDown) != 0 || effects::HasState(creature, kStateAsleep);
 }
 
-// B3's chase (the owner's caveat): an attack order on a living enemy it sees.
-bool Chasing(void* creature) {
-  const uint32_t target = Field<uint32_t>(creature, ee::kCreatureAttackTarget);
+// The target of the attack order at the head of its action queue (outside
+// RunActions the running action is back at the head), or invalid.
+uint32_t AttackOrderTarget(void* creature) {
+  const void* list = Field<void*>(creature, ee::kObjectActionQueue);
+  const void* head = list ? Field<void*>(list, ee::kListHead) : nullptr;
+  const void* action = head ? Field<void*>(head, ee::kListNodeData) : nullptr;
+  if (!action || Field<int32_t>(action, ee::kActionId) != ee::kActionAttackObject) return ee::kObjectInvalid;
+  return Field<uint32_t>(action, ee::kActionFirstParam);
+}
+
+int HeadActionId(void* creature) {
+  const void* list = Field<void*>(creature, ee::kObjectActionQueue);
+  const void* head = list ? Field<void*>(list, ee::kListHead) : nullptr;
+  const void* action = head ? Field<void*>(head, ee::kListNodeData) : nullptr;
+  return action ? Field<int32_t>(action, ee::kActionId) : -1;
+}
+
+bool ChasingTarget(void* creature, uint32_t target) {
   if (target == 0 || target == ee::kObjectInvalid) return false;
   void* other = CreatureById(target);
   return other && !engine::IsDeadOrDying(other) && engine::IsEnemy(creature, target) && engine::Sees(creature, target);
+}
+
+// B3's chase (the owner's caveat): an attack order on a living enemy it sees -
+// the engine's attack target, or (0.41.1; owner: "rage always ends before the
+// PC can attack an enemy, even if they have an enemy targeted") the attack
+// order at the head of its queue: running at the enemy, the attack target
+// field isn't set yet.
+bool Chasing(void* creature) {
+  return ChasingTarget(creature, Field<uint32_t>(creature, ee::kCreatureAttackTarget)) ||
+         ChasingTarget(creature, AttackOrderTarget(creature));
 }
 
 void EndRage(void* creature, const char* why) {
@@ -283,6 +308,8 @@ const char* RageEnds(void* creature, Rage& rage) {
   if (IncapacitatedByCondition(creature)) return "incapacitated";
   if (Chasing(creature)) rage.last_active = now;
   if (now - rage.last_active >= static_cast<uint64_t>(rules::kRageLapseSeconds) * 1000) {
+    Log("barbarian: 0x%08X Rage lapses - attack target 0x%08X, head action %d (its target 0x%08X)", IdOf(creature),
+        Field<uint32_t>(creature, ee::kCreatureAttackTarget), HeadActionId(creature), AttackOrderTarget(creature));
     return "a round without attacking or chasing an enemy";
   }
   return nullptr;
