@@ -54,8 +54,16 @@
 // player (0x99fc40) only when the creature's animation changes; a stand of one
 // server tick never reached the client, so the walk's swap changed (the legs
 // follow it) but the arm layer playing went on - upright arms on a crouch walk,
-// or the crouch's lean on a normal one. The walk is now held at the stand for
-// 150 ms, long enough for the client to see it stop and start again.
+// or the crouch's lean on a normal one. (0.39.4 held the walk at the stand for
+// 150 ms; it didn't help - taken out in 0.39.5.) 0.39.5 (owner: "when the PC
+// stopped, their torso would not be using the correct stance ... upright and
+// swaying as if the character was walking" - and the crouch's lean the other
+// way - "removing weapons fixes both issues"): the client stops a walk's arm
+// layer by its name through the swap list, so a layer swapped while it played
+// was never stopped - it asked for the new one, the old went on swaying on the
+// stand. While the creature moves, only the walk's own swap changes now; the
+// arm layers' wait (nwn5e_look layers pending) until it stands still, then
+// change - the client has stopped the old layer by its own name by then.
 
 #include <windows.h>
 
@@ -103,10 +111,9 @@ struct Look {
   std::string idle, walk;
   uint64_t restart_until = 0;  // the walk's swap changed: restart a walk seen before this (ms)
   uint64_t idle_until = 0;     // the idle's swap changed while it moved: restart its idle when it stops (ms)
-  uint64_t hold_until = 0;     // the walk held at the stand till then, for the client to restart it (ms)
+  bool layers_pending = false;  // the walk's arm layers wait till it stands still (see the top)
+  uint64_t still_since = 0;     // ... for 300 ms (its stop has reached the client)
 };
-constexpr uint64_t kWalkHoldMs = 150;
-constexpr int kAnimRun = 4;
 
 // A walking creature's walk restarted once through its new swap (see above);
 // false while it isn't walking yet.
@@ -122,7 +129,6 @@ bool RestartWalk(uint32_t id, Look& look) {
   if (!set_animation || (playing != kAnimWalk && playing != kAnimWalkBack)) return false;
   set_animation(creature, 0);
   look.restart_until = 0;
-  look.hold_until = GetTickCount64() + kWalkHoldMs;  // held for the client to see it (see the top)
   Log("look: 0x%08X walk restarted through the new swap (walk %s)", id, look.walk.empty() ? "normal" : look.walk.c_str());
   return true;
 }
@@ -138,6 +144,19 @@ bool CrouchBuilt() {
         kCrouchIdle, kCrouchWalk);
   }
   return g_crouch == 1;
+}
+
+// The weapon arm layers' swaps for a walk: the crouch walk's own (built by
+// anim_packs.cpp), else removed (a limp or the game's walk: theirs).
+std::string LayerCode(const std::string& walk) {
+  std::string code;
+  for (const char* hold : kHolds) {
+    const std::string layer = walk == kCrouchWalk ? std::string(kCrouchWalk) + "_" + hold : "";
+    std::string text;
+    code += std::string("ReplaceObjectAnimation(OBJECT_SELF, \"walk_") + hold + "\", \"" +
+            (!layer.empty() && AnimationRecipeBuilt(layer, &text) ? layer : "") + "\");";
+  }
+  return code;
 }
 
 void Send(uint32_t id, Look& look) {
@@ -168,11 +187,12 @@ void Send(uint32_t id, Look& look) {
   }
   if (!look.sent || walk != look.walk) {
     walk_slot("walk", walk);
-    // The weapon layers follow the crouch walk (a limp or the game's walk: theirs).
-    for (const char* hold : kHolds) {
-      const std::string layer = walk == kCrouchWalk ? std::string(kCrouchWalk) + "_" + hold : "";
-      std::string text;
-      walk_slot(("walk_" + std::string(hold)).c_str(), !layer.empty() && AnimationRecipeBuilt(layer, &text) ? layer : "");
+    // The weapon arm layers follow - while it moves, once it stands still (see the top).
+    if (look.sent && moving) {
+      look.layers_pending = true;
+    } else {
+      code += LayerCode(walk);
+      look.layers_pending = false;
     }
   }
   const bool first = !look.sent;
@@ -223,15 +243,17 @@ void Update(void* creature) {
   }
   Look& look = it->second;
   if (look.restart_until) RestartWalk(id, look);
-  if (look.hold_until) {
-    // Held at the stand till the client has seen it stop (the movement sets the walk again each update).
-    static const auto set_animation = reinterpret_cast<SetAnimationFn>(EngineExport(ee::kCreatureSetAnimation));
-    const int playing = Playing(creature);
-    if (GetTickCount64() >= look.hold_until) {
-      look.hold_until = 0;
-    } else if (set_animation && (playing == kAnimWalk || playing == kAnimWalkBack || playing == kAnimRun)) {
-      set_animation(creature, 0);
-    }
+  if (look.layers_pending && !Stationary(creature)) look.still_since = 0;
+  if (look.layers_pending && Stationary(creature) &&
+      (look.still_since ? GetTickCount64() - look.still_since >= 300 : (look.still_since = GetTickCount64(), false))) {
+    // It stands still: its arm layers follow the walk now (see the top).
+    look.layers_pending = false;
+    look.still_since = 0;
+    RunScriptChunk(("if (Get2DAString(\"appearance\", \"MODELTYPE\", GetAppearanceType(OBJECT_SELF)) == \"P\") {" +
+                    LayerCode(look.walk) + "}")
+                       .c_str(),
+                   id);
+    Log("look: 0x%08X stopped - arm layers follow the walk (%s)", id, look.walk.empty() ? "normal" : look.walk.c_str());
   }
   if (look.idle_until) {
     // It moved when its idle changed: restart the idle once it stands still with nothing to do.
