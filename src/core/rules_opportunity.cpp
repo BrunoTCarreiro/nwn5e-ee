@@ -36,6 +36,8 @@
 #include "hooks.h"
 #include "log.h"
 
+bool StaggeredNoOpportunityAttack(uint32_t id);  // rules_barbarian_strikes.cpp (B10 Staggering Blow)
+
 namespace {
 
 using BroadcastFn = void (*)(void* creature, uint32_t target, int flag);
@@ -104,7 +106,9 @@ void BroadcastAttackOfOpportunity(void* creature, uint32_t target, int flag) {
 
 uint8_t GetAIStateReaction(void* object, uint32_t other_id) {
   const uint8_t reaction = g_get_ai_state_reaction(object, other_id);
-  if (object != t_broadcasting || reaction != ee::kReactionEnemy || !Running(object)) return reaction;
+  if (object != t_broadcasting || reaction != ee::kReactionEnemy) return reaction;
+  if (StaggeredNoOpportunityAttack(other_id)) return 1;  // Brutal Strike's Staggering Blow: no reaction
+  if (!Running(object)) return reaction;
   void* candidate = CreatureById(other_id);
   if (!candidate) return reaction;
   const float dx = Field<float>(object, ee::kObjectPositionX) - Field<float>(candidate, ee::kObjectPositionX);

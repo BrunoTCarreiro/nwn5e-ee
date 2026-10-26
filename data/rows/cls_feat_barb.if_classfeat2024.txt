@@ -14,3 +14,6 @@ FeatLabel FeatIndex List GrantedOnLevel OnMenu
 22 DamageReduction3 333 3 -1 0
 23 DamageReduction4 334 3 -1 0
 27 FEAT_EPIC_BARBARIAN_DAMAGE_REDUCTION 1067 3 -1 0
+# Part 3: Reckless Attack and Brutal Strike on the radial menu (granted by nwn5e, never by the engine).
++ NWN5E_RECKLESS_ATTACK 1310 3 -1 1
++ NWN5E_BRUTAL_STRIKE 1311 3 -1 1

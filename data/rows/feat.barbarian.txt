@@ -1,0 +1,9 @@
+# feat.2da - Phase 3 Barbarian part 3 (B6, B10, X8; rules_barbarian.cpp). nwn5e
+# grants them to a Barbarian (Reckless Attack at 2, Brutal Strike at 9; characters
+# made earlier too) and removes them in NWN mode; cls_feat_barb lists them only so
+# the radial menu shows them. Unlimited uses (USESPERDAY ****, as the game's
+# horse menu). Reckless Attack's spell row runs n5_reckless (a toggle); Brutal
+# Strike's is a master row whose sub-radial picks its effects (spells.barbarian.txt).
+LABEL FEAT DESCRIPTION ICON GAINMULTIPLE EFFECTSSTACK ALLCLASSESCANUSE CATEGORY MAXCR SPELLID CRValue USESPERDAY TARGETSELF Constant TOOLSCATEGORIES PreReqEpic ReqAction
+1310 NWN5E_RECKLESS_ATTACK 16000460 16000461 ife_powhit 0 0 0 7 1 1010 0.5 **** 1 FEAT_NWN5E_RECKLESS_ATTACK 6 0 1
+1311 NWN5E_BRUTAL_STRIKE 16000462 16000463 ife_X2CritOGAxe 0 0 0 7 1 1011 0.5 **** 1 FEAT_NWN5E_BRUTAL_STRIKE 6 0 1

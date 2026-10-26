@@ -3,10 +3,16 @@
 # file is read each time, so no rebuild or restart is needed. The keys are in
 # src/rules/test_profile.h.
 
-# Barbarian part 1 (B1-B5) and Rage (R rows): your first class becomes Barbarian (its level
-# kept, the Rage feats given), then Barbarian levels up to 7 if you're below it (B3 needs 5,
-# Feral Instinct and Pounce 7). Change level for Relentless (11) or Persistent Rage (15).
-name = Barbarian tests: your class swapped to Barbarian, at least level 7
+# Barbarian part 3 (Reckless Attack, Frenzy, Brutal Strike - the BS rows): your first class
+# becomes Barbarian (Path of the Berserker from 3, so Frenzy), up to level 9 - Brutal Strike
+# with Forceful and Hamstring Blow. Levels are only added: for Staggering and Sundering Blow
+# change level to 13 and type !test again; for 2d10 and two effects, 17.
+# Strength 18 (Strength attacks), Dexterity 14; a greataxe in hand; a battleaxe and a large
+# shield, throwing axes (thrown: Strength attacks too), a shortbow and arrows (ranged: no
+# Reckless Advantage) in the pack.
+name = Barbarian part 3: Berserker 9 (then 13, 17), a greataxe
 swap_class = barbarian
 class = barbarian
-level = 7
+level = 9
+abilities = 18 14 16 10 12 8
+items = nw_waxgr001 equip, nw_waxbt001, nw_ashlw001, nw_wthax001 x20, nw_wbwsh001, nw_wamar001 x99

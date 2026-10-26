@@ -115,7 +115,7 @@ void* AreaOf(void* object) { return object ? E().get_area(object) : nullptr; }
 
 // The line straight away from the attacker, as far as walkable ground and
 // placeables allow (in 0.5 m steps, 3 m first).
-PushPlan PlanPush(void* target, void* attacker) {
+PushPlan PlanPush(void* target, void* attacker, float distance) {
   PushPlan plan;
   if (engine::IsDeadOrDying(target)) {
     plan.refused = "dead";
@@ -149,7 +149,7 @@ PushPlan PlanPush(void* target, void* attacker) {
   const void* path = Field<void*>(target, ee::kCreaturePathInfo);
   float radius = path ? Field<float>(path, ee::kPathInfoRadius) : 0.5f;
   if (!(radius > 0.05f && radius < 3.0f)) radius = 0.5f;
-  for (float metres = kPushMetres; metres >= 0.49f; metres -= 0.5f) {
+  for (float metres = distance; metres >= 0.49f; metres -= 0.5f) {
     const Vec3 to{plan.from.x + plan.away.x * metres, plan.from.y + plan.away.y * metres, plan.from.z};
     const float end_x = to.x + plan.away.x * kBodyMetres;
     const float end_y = to.y + plan.away.y * kBodyMetres;
@@ -305,6 +305,7 @@ int RewriteAttackOrder(void* attacker, uint32_t pushed, uint32_t next) {
 struct Awaiting {
   uint32_t target;
   DWORD tick;
+  float metres;  // how far (Push 3 m; Brutal Strike's Forceful Blow 4.6 m)
 };
 struct Slide {
   Vec3 from;
@@ -381,8 +382,8 @@ uint32_t RetargetAfterPush(void* attacker, uint32_t attacker_id, uint32_t pushed
 }
 
 // The hit's damage landed: plan the line again, then fall and slide.
-void Push(void* attacker, uint32_t attacker_id, void* target, uint32_t target_id) {
-  const PushPlan plan = PlanPush(target, attacker);
+void Push(void* attacker, uint32_t attacker_id, void* target, uint32_t target_id, float metres) {
+  const PushPlan plan = PlanPush(target, attacker, metres);
   if (plan.refused) {
     if (LogSlot()) {
       if (plan.blocker != ee::kObjectInvalid) {
@@ -500,13 +501,13 @@ bool g_on = false;
 
 }  // namespace
 
-std::string PushOnHit(void* attacker, void* target) {
+std::string PushOnHit(void* attacker, void* target, float metres) {
   if (!g_on || !attacker || !target) return std::string();
   const uint32_t attacker_id = IdOf(attacker);
   const uint32_t target_id = IdOf(target);
-  g_awaiting[attacker_id] = Awaiting{target_id, GetTickCount()};
+  g_awaiting[attacker_id] = Awaiting{target_id, GetTickCount(), metres};
   std::string what = "Push: when the hit lands";
-  const PushPlan plan = PlanPush(target, attacker);
+  const PushPlan plan = PlanPush(target, attacker, metres);
   if (plan.refused) return what + " (now: " + plan.refused + ")";
   const uint32_t next =
       RetargetAfterPush(attacker, attacker_id, target_id, engine::EdgeDistance(attacker, target) + plan.metres);
@@ -528,9 +529,10 @@ void PushOnDamage(uint32_t attacker_id, void* target) {
   const uint32_t target_id = IdOf(target);
   if (it->second.target != target_id) return;
   const bool fresh = GetTickCount() - it->second.tick <= kAwaitDamageMs;
+  const float metres = it->second.metres;
   g_awaiting.erase(it);
   void* attacker = fresh ? CreatureById(attacker_id) : nullptr;
-  if (attacker) Push(attacker, attacker_id, target, target_id);
+  if (attacker) Push(attacker, attacker_id, target, target_id, metres);
 }
 
 // At the end of the attacker's round: the turn made in place holds when its

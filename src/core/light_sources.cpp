@@ -199,12 +199,11 @@
 #include "engine.h"
 #include "hooks.h"
 #include "log.h"
+#include "script_hooks.h"
 
 namespace {
 
-using RunScriptFn = int (*)(void* vm, void* name, uint32_t self, int self_valid, int event);
 using LoadPlaceableFn = int (*)(void* placeable, void* gff, void* gff_struct, int flag, void* tag);
-RunScriptFn g_run_script = nullptr;
 LoadPlaceableFn g_load_placeable = nullptr;
 
 constexpr const char* kLoadPlaceable = "?LoadPlaceable@CNWSPlaceable@@QEAAHPEAVCResGFF@@PEAVCResStruct@@HPEAVCExoString@@@Z";
@@ -292,7 +291,6 @@ int LoadPlaceable(void* placeable, void* gff, void* gff_struct, int flag, void* 
   return result;
 }
 
-constexpr const char* kRunScript = "?RunScript@CVirtualMachine@@QEAAHPEAVCExoString@@IHH@Z";
 constexpr const char* kUseScript = "n5_lamp_use";
 constexpr const char* kHitScript = "n5_lamp_hit";
 constexpr const char* kSpellScript = "n5_lamp_spl";
@@ -579,54 +577,6 @@ void AttackedOut(uint32_t target, bool flame) {
   }
 }
 
-// A CExoString (char* +0, length +8) naming `script`, resrefs being case-blind.
-bool Names(void* name, const char* script) {
-  if (!name) return false;
-  const char* chars = Field<const char*>(name, 0);
-  const uint32_t length = Field<uint32_t>(name, 8);
-  return chars && length == strlen(script) && _strnicmp(chars, script, length) == 0;
-}
-
-int RunScript(void* vm, void* name, uint32_t self, int self_valid, int event) {
-  if (name) {
-    const char* chars = Field<const char*>(name, 0);
-    if (chars && (chars[0] == 'n' || chars[0] == 'N') && (chars[1] == '5')) {
-      if (Names(name, kUseScript)) {
-        Used(self);
-        return 1;
-      }
-      if (Names(name, kHitScript)) {
-        Damaged(self);
-        return 1;
-      }
-      if (Names(name, kSpellScript)) {
-        SpellAt(self);
-        return 1;
-      }
-      if (Names(name, kAttackScript)) {
-        AttackedOut(self, false);
-        return 1;
-      }
-      if (Names(name, kFlameAttackScript)) {
-        AttackedOut(self, true);
-        return 1;
-      }
-      if (Names(name, kFlameUseScript)) {
-        FlameUsed(self);
-        return 1;
-      }
-      if (Names(name, kFlameHitScript)) {
-        FlameHit(self);
-        return 1;
-      }
-      if (Names(name, kFlameSpellScript)) {
-        FlameSpell(self);
-        return 1;
-      }
-    }
-  }
-  return g_run_script(vm, name, self, self_valid, event);
-}
 
 // --- Per area, when a player character arrives.
 int g_map_light = 100;  // percent of the module's area light
@@ -1008,8 +958,15 @@ void RadialActivate(void* menu) {
 void InstallLightSources() {
   g_map_light = g_config.map_light < 10 ? 10 : g_config.map_light > 100 ? 100 : g_config.map_light;
   if (g_config.light_sources) {
-    HookExport("CVirtualMachine::RunScript (nwn5e's light scripts: put out, attacked, spells)", kRunScript,
-               reinterpret_cast<void*>(&RunScript), reinterpret_cast<void**>(&g_run_script));
+    // The placeables' scripts nwn5e names (script_hooks.cpp runs them).
+    AddScriptHandler(kUseScript, [](uint32_t self) { Used(self); });
+    AddScriptHandler(kHitScript, [](uint32_t self) { Damaged(self); });
+    AddScriptHandler(kSpellScript, [](uint32_t self) { SpellAt(self); });
+    AddScriptHandler(kAttackScript, [](uint32_t self) { AttackedOut(self, false); });
+    AddScriptHandler(kFlameAttackScript, [](uint32_t self) { AttackedOut(self, true); });
+    AddScriptHandler(kFlameUseScript, [](uint32_t self) { FlameUsed(self); });
+    AddScriptHandler(kFlameHitScript, [](uint32_t self) { FlameHit(self); });
+    AddScriptHandler(kFlameSpellScript, [](uint32_t self) { FlameSpell(self); });
   }
   if (FlamesWanted()) {
     HookExport("CNWSPlaceable::LoadPlaceable (static lights, tile flames' stand-ins: normal placeables)", kLoadPlaceable,

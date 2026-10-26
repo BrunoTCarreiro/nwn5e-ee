@@ -53,6 +53,7 @@
 
 int IndomitableReroll(void* creature);  // rules_fighter.cpp (Fighter F5)
 int ClassSaveAdvantage(void* creature, rules::Ability ability);  // rules_barbarian.cpp (B5 Danger Sense, B2 Rage)
+int TakeStaggeredSave(void* creature);  // rules_barbarian_strikes.cpp (B10 Staggering Blow: its next save)
 bool IndomitableMightSucceeds(void* creature, int dc);           // rules_barbarian.cpp (B13)
 void NoteSaveForced(uint32_t by, void* creature);                // rules_barbarian.cpp (B3: keeps a Rage going)
 
@@ -354,8 +355,9 @@ bool SaveD20(uintptr_t caller, int count, int sides, int* result) {
       g_save.save >= 1 && g_save.save <= 3 &&
       ClassSaveAdvantage(g_save.creature, g_save.ability.value_or(rules::AbilityForNwnSave(
                                               static_cast<rules::NwnSave>(g_save.save - 1)))) > 0;
-  const rules::RollMode mode =
-      rules::ResolveRollMode((species ? 1 : 0) + (class_feature ? 1 : 0), g_save.condition.disadvantage);
+  const int staggered = TakeStaggeredSave(g_save.creature);  // Brutal Strike's Staggering Blow
+  const rules::RollMode mode = rules::ResolveRollMode((species ? 1 : 0) + (class_feature ? 1 : 0),
+                                                      g_save.condition.disadvantage + staggered);
   const bool advantage = mode == rules::RollMode::kAdvantage;
   const bool disadvantage = mode == rules::RollMode::kDisadvantage;
   if (advantage || disadvantage) {
@@ -369,11 +371,11 @@ bool SaveD20(uintptr_t caller, int count, int sides, int* result) {
   }
   if ((species || class_feature || disadvantage || lucky) && g_config.log_attacks && g_save_log_lines < 300) {
     ++g_save_log_lines;
-    Log("save d20: object 0x%08X save %d type %d:%s%s%s%s%s -> %d", IdOf(g_save.creature), g_save.save, g_save.type,
-        species ? " species advantage" : "", class_feature ? " class advantage (Danger Sense / Rage)" : "",
+    Log("save d20: object 0x%08X save %d type %d:%s%s%s%s%s%s -> %d", IdOf(g_save.creature), g_save.save,
+        g_save.type, species ? " species advantage" : "", class_feature ? " class advantage (Danger Sense / Rage)" : "",
         g_save.condition.disadvantage > 0 ? " disadvantage (" : "",
         g_save.condition.disadvantage > 0 ? (g_save.condition.note + ")").c_str() : "",
-        lucky ? " Halfling Luck reroll" : "", kept);
+        staggered ? " disadvantage (Staggering Blow)" : "", lucky ? " Halfling Luck reroll" : "", kept);
   }
   *result = kept;
   return true;

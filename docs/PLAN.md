@@ -1018,6 +1018,37 @@ order (the chase), AddCastSpellActions' first argument being the spell id (the
 log line names it), Rage across a saved game (the DLL's state isn't saved: the
 marker stays, the benefits don't).
 
+*Built 0.41.0 (part 3: B6, BZ1, B10, X8; owner, 2026-10-26: "let's go with barbarian part 3, set the
+!test command to alter the PC in a way that makes it able to run the matrix"):*
+rules_barbarian_strikes.cpp. B6 Reckless Attack - nwn5e's feat 1310 (granted from Barbarian 2,
+rules::GrantedFeats2024; on the radial through cls_feat_barb) -> spell 1010 (instant, self) ->
+n5_reckless, run in C++ by the new script_hooks.cpp (CVirtualMachine::RunScript, moved out of
+light_sources.cpp, which now registers its n5_lamp / n5_flame names there): a toggle kept on the
+character (nwn5e_reckless), icon 221, a chat line. While on, its Strength attacks (melee, a thrown
+Throwing Axe; not a finesse weapon with a better Dex) get Advantage and from its first attack on,
+attacks at it get Advantage until a round after its last (two sources in rules_advantage.cpp's roll).
+Other creatures (henchmen) are reckless while raging. BZ1 Frenzy (Barbarian 3 = Berserker 3):
+raging + reckless, the first creature it hits each round with a Strength attack takes Rage-Damage d6
+(2 / 3 / 4), added in rules_fighter's GetDamageRoll (the weapon's type), doubled on a crit. B10
+Brutal Strike (9) - feat 1311 -> master spell 1011 with a sub-radial (X8: rows 1012-1016, Master
+1011, FeatID = 16000-16004 * 65536 + 1311, as the game's Wild Shape / horse menu encode theirs; the
+feat USESPERDAY **** = unlimited, as the horse menu): Forceful, Hamstring, Staggering, Sundering,
+Off -> n5_bs_*; a pick again removes it; one effect below 17, the newer two from 17 (rules::
+PickBrutalEffect, kept as nwn5e_brutal; never chosen = Hamstring Blow, every other creature's too);
+icon 222. Reckless, the first Strength attack each round whose roll mode is Advantage gives it up
+(rules_advantage after the mode); on a hit +1d10 (2d10 at 17; crit doubled) in GetDamageRoll and the
+effects: Forceful = PushOnHit at 4.572 m (rules_push.cpp's distance now a parameter; needs weapon
+mastery's Push), Hamstring = EffectMovementSpeedDecrease(50) for 6 s, Staggering (13) = Disadvantage
+on its next save (rules_save_roll's SaveD20) and no opportunity attacks for a round (rules_opportunity's
+GetAIStateReaction during the movement broadcast), Sundering (13) = +5 on another creature's next
+attack roll at it within a round (rules_attack's GetAttackModifierVersus, inside an attack roll).
+`!reckless`, `!brutal [effect | off]`. Rows: feat.barbarian.txt, spells.barbarian.txt,
+cls_feat_barb.if_classfeat2024.txt (+2), effecticons 221 / 222, strings 16000460-16000471. !test:
+Berserker 9 (then 13, 17), Str 18, a greataxe, battleaxe, large shield, throwing axes, shortbow.
+Unit tests: the levels, Frenzy's dice, the picks (locked, removed, two at 17, the oldest dropped),
+the stored choice, the granted feats. Launch-checked: rows served, RunScript hooked.
+Open: whether a feat use with ConjTime 0 interrupts the attack round; the sub-radial's FeatID
+high word only assumed arbitrary-unique (the game's own are 1004-1093 / 5001-5030).
 *Recon facts (EE 89.8193.37-17; RVA):* GetMovementRateFactor 0x391FE0 — HasFeat(194) at 0x39202A (checked again by the session: `mov edx,0C2h; call HasFeat 0x40B900`), ruleset BARBARIAN_ENDURANCE_BONUS 0.1 (row 307), caps MOVEMENT_SPEED_PENALTY_CAP 0.125, BONUS_DEFAULT_CAP 1.5, MONK_CAP 3.0. DoDamageReduction 0x491950 — HasFeat for 1067/334/333/332/196 at +0x177/+0x219/+0x291/+0x309/+0x37E. SavingThrowRoll 0x3EC600 — HasFeat 255…251 at 0x3ED046/0x3ED115/0x3ED150/0x3ED188/0x3ED1C0, its only d20 at 0x3ED260 (ruleset UNCANNY_DODGE_LEVEL_2–6 = 1–5). Uncanny Dodge 2 (251) in ResolveSneakAttack +0x536 and ResolveDeathAttack +0x32A. GetArmorClassVersus 0x3F47F0 — 195 at +0x988/+0x999 and 949 at +0x9AB/+0x9BC via CExoArrayList::Contains (0x296910) on stats+0 / +0x20. GetFlatFooted 0x3E3910 — HasFeat(226 Uncanny Reflex) = never flat-footed. Script GetHasFeat (0x525410): GetHighestLevelOfFeat +0xBD, HasFeat +0xD3, GetFeatRemainingUses +0xF5. GetHighestLevelOfFeat 0x4029B0 (UseFeat +0x3C, the script feat commands). GetFeatRemainingUses 0x4012F0 (total inline, minus the entry's byte +2, clamped 0–100; callers UseFeat, AIActionCastSpell, PlayerUpdate, talents, ResolveDamage, ResolveMeleeSpecialAttack, SetCombatMode, SaveClassInfo, scripts). GetFeatTotalUses 0x401C70 (ReadStatsFromGff, SetFeatRemainingUses 0x415960; feat 331: + (level − 20) / 4). Increment / DecrementFeatRemainingUses 0x40B9D0 / 0x3F2750 change exactly that feat id's byte. Feat 293: SPELLID 307, USESPERDAY 1, TARGETSELF 1; spell 307 NW_S1_BarbRage, UserType 3. DoDamageImmunity 0x491690 (virtual +0x160; % from +0x170; removes max(1, dmg × % / 100)). OnApplyDamage 0x428740: immunity +0x160, DoDamageResistance +0x150 (0x492620), DoDamageReduction +0x148 for flags & 0x1007. AIActionCastSpell 0x3ADA70, AIActionItemCastSpell 0x3C07B0, AddAttackOfOpportunity 0x374320, GetHasFeatEffectApplied 0x495480. Scripts with feat 293: nw_i0_generic, x0_d1_userage / x0_d2_hasrage, x2_i0_spells.
 *Open / unverified:* a feat use and the Short Rest's +1 landing on the same entry (the highest Rage feat); ResetFeatRemainingUses just zeroing the byte; GetHasFeatEffectApplied = the script's GetHasFeatEffect; BZ3's AoO queueing; OnApplyDamage's second loop (+0x1238) not examined; flat-footed in faithful (Rogue brief); Rage Damage on thrown weapons (ranged = Dex in rules::AttackAbilityModifier); served feats with USESPERDAY `****` unlimited; design calls — Heavy = chest base AC 6+ (2024's Half Plate is Medium), potions allowed while raging, henchmen reckless whenever raging, "of your choice" = all enemies; renaming tlk strings (1062 …) by conditional served rows → private ids (assumed).
 

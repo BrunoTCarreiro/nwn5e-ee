@@ -81,7 +81,65 @@ TEST(GrantedFeatsFollowClassLevels) {
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kFighter, 9}}).size(), 1u);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 5}}).empty(), true);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 3}, {CharacterClass::kFighter, 2}})[0], kFeatSecondWind2);
-  CHECK_EQ(GrantableFeats2024().size(), 3u);
+  CHECK_EQ(GrantableFeats2024().size(), 5u);
+  CHECK_EQ(GrantableFeats2024()[0], kFeatSecondWind2);  // the record's order never changes
+  CHECK_EQ(GrantedFeats2024({{CharacterClass::kBarbarian, 1}}).empty(), true);
+  CHECK_EQ(GrantedFeats2024({{CharacterClass::kBarbarian, 2}}).size(), 1u);
+  CHECK_EQ(GrantedFeats2024({{CharacterClass::kBarbarian, 2}})[0], kFeatRecklessAttack);
+  CHECK_EQ(GrantedFeats2024({{CharacterClass::kBarbarian, 9}}).size(), 2u);
+  CHECK_EQ(GrantedFeats2024({{CharacterClass::kBarbarian, 9}})[1], kFeatBrutalStrike);
+}
+
+// Breaks caught: part 3 at the wrong level (Reckless 2, Frenzy 3, Brutal
+// Strike 9, Staggering / Sundering 13, 2d10 and two effects 17), Frenzy's dice
+// not the Rage Damage bonus, a pick of a locked effect taking, a third effect
+// kept at 17 instead of the oldest dropped, two effects below 17, the stored
+// choice not coming back as it went in, "never chosen" not Hamstring Blow.
+TEST(BarbarianPart3) {
+  CHECK_EQ(HasRecklessAttack(1), false);
+  CHECK_EQ(HasRecklessAttack(2), true);
+  CHECK_EQ(HasFrenzy(2), false);
+  CHECK_EQ(HasFrenzy(3), true);
+  CHECK_EQ(FrenzyDice(2), 0);
+  CHECK_EQ(FrenzyDice(3), 2);
+  CHECK_EQ(FrenzyDice(9), 3);
+  CHECK_EQ(FrenzyDice(16), 4);
+  CHECK_EQ(HasBrutalStrike(8), false);
+  CHECK_EQ(BrutalStrikeDice(9), 1);
+  CHECK_EQ(BrutalStrikeDice(16), 1);
+  CHECK_EQ(BrutalStrikeDice(17), 2);
+  CHECK_EQ(BrutalStrikeEffectCount(16), 1);
+  CHECK_EQ(BrutalStrikeEffectCount(17), 2);
+  CHECK_EQ(BrutalEffectAvailable(BrutalEffect::kHamstring, 9), true);
+  CHECK_EQ(BrutalEffectAvailable(BrutalEffect::kStaggering, 12), false);
+  CHECK_EQ(BrutalEffectAvailable(BrutalEffect::kSundering, 13), true);
+  // Never chosen: Hamstring Blow.
+  BrutalChoice choice = DecodeBrutalChoice(0);
+  CHECK_EQ(choice.first == BrutalEffect::kHamstring, true);
+  // Below 17: one effect; a locked one refused.
+  CHECK_EQ(PickBrutalEffect(&choice, BrutalEffect::kStaggering, 9) == BrutalPick::kLocked, true);
+  CHECK_EQ(PickBrutalEffect(&choice, BrutalEffect::kForceful, 9) == BrutalPick::kChosen, true);
+  CHECK_EQ(choice.first == BrutalEffect::kForceful && choice.second == BrutalEffect::kNone, true);
+  CHECK_EQ(PickBrutalEffect(&choice, BrutalEffect::kForceful, 9) == BrutalPick::kRemoved, true);
+  CHECK_EQ(choice.first == BrutalEffect::kNone, true);
+  CHECK_EQ(ActiveBrutalEffects(choice, 9).empty(), true);  // off, not the default
+  // 17: two, the oldest dropped for a third.
+  PickBrutalEffect(&choice, BrutalEffect::kForceful, 17);
+  PickBrutalEffect(&choice, BrutalEffect::kStaggering, 17);
+  CHECK_EQ(ActiveBrutalEffects(choice, 17).size(), 2u);
+  PickBrutalEffect(&choice, BrutalEffect::kSundering, 17);
+  CHECK_EQ(choice.first == BrutalEffect::kStaggering && choice.second == BrutalEffect::kSundering, true);
+  // Stored and read back; off stays off.
+  const BrutalChoice back = DecodeBrutalChoice(EncodeBrutalChoice(choice));
+  CHECK_EQ(back.first == choice.first && back.second == choice.second, true);
+  CHECK_EQ(PickBrutalEffect(&choice, BrutalEffect::kNone, 17) == BrutalPick::kOff, true);
+  CHECK_EQ(DecodeBrutalChoice(EncodeBrutalChoice(choice)).first == BrutalEffect::kNone, true);
+  // Two chosen at 17, played at 13: only the newer.
+  BrutalChoice two;
+  two.first = BrutalEffect::kForceful;
+  two.second = BrutalEffect::kSundering;
+  CHECK_EQ(ActiveBrutalEffects(two, 13).size(), 1u);
+  CHECK_EQ(ActiveBrutalEffects(two, 13)[0] == BrutalEffect::kSundering, true);
 }
 
 // Breaks caught: a Barbarian feature at the wrong level (Danger Sense 2, Fast

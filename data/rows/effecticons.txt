@@ -3,6 +3,7 @@
 # 200-204: the game's Fatigue icon. 210-214: the owner's numbered icons
 # (n5_ief_exh1..5.tga, private layer), used per level when that file is served.
 # 220: Rage (rules_barbarian.cpp, 0.22.0), the Rage feat's own icon by name.
+# 221 / 222: Reckless Attack on, a Brutal Strike effect picked (0.41.0) - the feats' icons.
 Label Icon StrRef
 200 NWN5E_EXHAUSTION_1 ief_fatigue 16000439
 201 NWN5E_EXHAUSTION_2 ief_fatigue 16000440
@@ -15,3 +16,5 @@ Label Icon StrRef
 213 NWN5E_EXHAUSTION_4_ART n5_ief_exh4 16000442
 214 NWN5E_EXHAUSTION_5_ART n5_ief_exh5 16000443
 220 NWN5E_RAGE ife_rage 16000444
+221 NWN5E_RECKLESS_ATTACK ife_powhit 16000470
+222 NWN5E_BRUTAL_STRIKE ife_X2CritOGAxe 16000471

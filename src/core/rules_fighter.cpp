@@ -64,6 +64,8 @@
 // Savage Attacker (rules_origin_feats.cpp): true once per turn for a
 // character who has it and hits with a weapon now.
 bool TakeSavageAttacker(void* stats);
+// Brutal Strike's d10s and Frenzy's d6s (rules_barbarian_strikes.cpp, Barbarian B10 / BZ1).
+int BarbarianExtraDamage(void* stats, void* target, int offhand, int critical);
 
 namespace {
 
@@ -228,7 +230,7 @@ int GetDamageRoll(void* stats, void* target, int offhand, int critical, int snea
   }
   const int damage = g_get_damage_roll(stats, target, offhand, critical, sneak, death, force_max);
   t_great_weapon = outer;
-  return damage;
+  return damage + BarbarianExtraDamage(stats, target, offhand, critical);
 }
 
 bool GreatWeaponDice(uintptr_t caller, int count, int sides, int* result) {

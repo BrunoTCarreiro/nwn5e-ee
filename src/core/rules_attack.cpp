@@ -35,6 +35,7 @@ bool SpellAttackAgainstFullAc(void* target_stats, void* attacker);  // rules_spe
 int FightingStyleAttackBonus(void* stats);  // rules_fighter.cpp (Fighter F1 Archery)
 int DefenseArmorClassBonus(void* stats);    // rules_fighter.cpp (Fighter F1 Defense)
 int UnarmoredDefenseBonus(void* stats);     // rules_barbarian.cpp (Barbarian B4)
+int SunderingAttackBonus(void* stats, void* target);  // rules_barbarian_strikes.cpp (B10 Sundering Blow)
 
 namespace {
 
@@ -55,7 +56,7 @@ bool CurrentAttackIsRanged(void* stats) {
 }
 
 int GetAttackModifierVersus(void* stats, void* target) {
-  const int style = FightingStyleAttackBonus(stats);  // Archery
+  const int style = FightingStyleAttackBonus(stats) + SunderingAttackBonus(stats, target);  // Archery; Sundering Blow
   const int engine_modifier =
       g_get_attack_modifier_versus(stats, target) - RacialSlingBonusToRemove(stats, CurrentAttackIsRanged(stats));
   if (!g_config.attack_proficiency) return engine_modifier + style;

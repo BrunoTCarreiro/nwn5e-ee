@@ -48,10 +48,10 @@ const std::vector<ClassFeature>& Barbarian() {
       {1, "Unarmored Defense", false, "built: 10 + Dex + Con with no armour (a shield allowed)"},
       {1, "Weapon Mastery", false, "built (!mastery): melee weapons"},
       {2, "Danger Sense", false, "built: advantage on Dexterity saves unless incapacitated"},
-      {2, "Reckless Attack", false, "later: a radial toggle"},
+      {2, "Reckless Attack", false, "built: a radial toggle (henchmen: while raging)"},
       {3, "Path of the Berserker", false, "built: granted at 3"},
       {3, "Primal Knowledge", false, "built: a skill; Strength for some checks while raging"},
-      {3, "Frenzy", true, "later: with Reckless Attack"},
+      {3, "Frenzy", true, "built: raging and reckless, the first hit each round +d6s"},
       {4, "Ability Score Improvement", false, "built (!asi)"},
       {5, "Extra Attack", false, "built"},
       {5, "Fast Movement", false, "built: +10 ft (a third faster) out of heavy armour"},
@@ -59,15 +59,15 @@ const std::vector<ClassFeature>& Barbarian() {
       {7, "Feral Instinct", false, "built: advantage on initiative"},
       {7, "Instinctive Pounce", false, "built: a charge - half again as fast for a round on raging"},
       {8, "Ability Score Improvement", false, "built (!asi)"},
-      {9, "Brutal Strike", false, "later: effects picked on the radial"},
+      {9, "Brutal Strike", false, "built: once a round, advantage given up for +1d10 and an effect (radial)"},
       {10, "Retaliation", true, "later"},
       {11, "Relentless Rage", false, "built: at 0 HP while raging, a Con save (DC 10, +5 a use)"},
       {12, "Ability Score Improvement", false, "built (!asi)"},
-      {13, "Improved Brutal Strike", false, "later"},
+      {13, "Improved Brutal Strike", false, "built: Staggering and Sundering Blow"},
       {14, "Intimidating Presence", true, "later"},
       {15, "Persistent Rage", false, "built: uses back on initiative once; lasts 10 minutes"},
       {16, "Ability Score Improvement", false, "built (!asi)"},
-      {17, "Improved Brutal Strike (2d10, two effects)", false, "later"},
+      {17, "Improved Brutal Strike (2d10, two effects)", false, "built"},
       {18, "Indomitable Might", false, "built: a failed Strength save at or under the score succeeds"},
       {19, "Epic Boon", false, "CM8"},
       {20, "Primal Champion", false, "built: Strength and Constitution +4 (at most 25)"},
@@ -138,6 +138,92 @@ int RelentlessRageHitPoints(int barbarian_level) { return 2 * barbarian_level; }
 
 int IndomitableMightTotal(int total, int strength_score) { return total < strength_score ? strength_score : total; }
 
+bool HasRecklessAttack(int barbarian_level) { return barbarian_level >= 2; }
+bool HasFrenzy(int barbarian_level) { return barbarian_level >= 3; }
+int FrenzyDice(int barbarian_level) { return HasFrenzy(barbarian_level) ? RageDamage2024(barbarian_level) : 0; }
+bool HasBrutalStrike(int barbarian_level) { return barbarian_level >= 9; }
+int BrutalStrikeDice(int barbarian_level) { return barbarian_level >= 17 ? 2 : HasBrutalStrike(barbarian_level) ? 1 : 0; }
+int BrutalStrikeEffectCount(int barbarian_level) {
+  return barbarian_level >= 17 ? 2 : HasBrutalStrike(barbarian_level) ? 1 : 0;
+}
+
+bool BrutalEffectAvailable(BrutalEffect effect, int barbarian_level) {
+  switch (effect) {
+    case BrutalEffect::kForceful:
+    case BrutalEffect::kHamstring:
+      return barbarian_level >= 9;
+    case BrutalEffect::kStaggering:
+    case BrutalEffect::kSundering:
+      return barbarian_level >= 13;
+    default:
+      return false;
+  }
+}
+
+const char* BrutalEffectName(BrutalEffect effect) {
+  switch (effect) {
+    case BrutalEffect::kForceful: return "Forceful Blow";
+    case BrutalEffect::kHamstring: return "Hamstring Blow";
+    case BrutalEffect::kStaggering: return "Staggering Blow";
+    case BrutalEffect::kSundering: return "Sundering Blow";
+    default: return "none";
+  }
+}
+
+int EncodeBrutalChoice(const BrutalChoice& choice) {
+  return 1 + static_cast<int>(choice.first) + 8 * static_cast<int>(choice.second);
+}
+
+BrutalChoice DecodeBrutalChoice(int stored) {
+  BrutalChoice choice;
+  if (stored <= 0) {  // never chosen: Hamstring Blow
+    choice.first = BrutalEffect::kHamstring;
+    return choice;
+  }
+  const int value = stored - 1;
+  const int first = value % 8, second = value / 8;
+  choice.first = first >= 1 && first <= 4 ? static_cast<BrutalEffect>(first) : BrutalEffect::kNone;
+  choice.second = second >= 1 && second <= 4 ? static_cast<BrutalEffect>(second) : BrutalEffect::kNone;
+  if (choice.first == BrutalEffect::kNone) std::swap(choice.first, choice.second);
+  return choice;
+}
+
+BrutalPick PickBrutalEffect(BrutalChoice* choice, BrutalEffect picked, int barbarian_level) {
+  if (picked == BrutalEffect::kNone) {
+    *choice = BrutalChoice();
+    return BrutalPick::kOff;
+  }
+  if (!BrutalEffectAvailable(picked, barbarian_level)) return BrutalPick::kLocked;
+  if (choice->first == picked || choice->second == picked) {
+    if (choice->first == picked) choice->first = choice->second;
+    choice->second = BrutalEffect::kNone;
+    return BrutalPick::kRemoved;
+  }
+  if (BrutalStrikeEffectCount(barbarian_level) < 2) {
+    *choice = BrutalChoice();
+    choice->first = picked;
+  } else if (choice->first == BrutalEffect::kNone) {
+    choice->first = picked;
+  } else if (choice->second == BrutalEffect::kNone) {
+    choice->second = picked;
+  } else {
+    choice->first = choice->second;  // the older one goes
+    choice->second = picked;
+  }
+  return BrutalPick::kChosen;
+}
+
+std::vector<BrutalEffect> ActiveBrutalEffects(const BrutalChoice& choice, int barbarian_level) {
+  std::vector<BrutalEffect> active;
+  for (BrutalEffect effect : {choice.second, choice.first}) {  // the newer first: kept when only one fits
+    if (effect != BrutalEffect::kNone && BrutalEffectAvailable(effect, barbarian_level) &&
+        static_cast<int>(active.size()) < BrutalStrikeEffectCount(barbarian_level)) {
+      active.push_back(effect);
+    }
+  }
+  return active;
+}
+
 int UnarmoredDefenseConBonus(int con_modifier, int monk_wis_bonus) {
   const int bonus = con_modifier - (monk_wis_bonus > 0 ? monk_wis_bonus : 0);
   return bonus > 0 ? bonus : 0;
@@ -160,14 +246,21 @@ bool HasStudiedAttacks(int fighter_level) { return fighter_level >= 13; }
 std::vector<int> GrantedFeats2024(const std::vector<ClassLevels>& classes) {
   std::vector<int> feats;
   for (const ClassLevels& c : classes) {
-    if (c.character_class != CharacterClass::kFighter || c.levels < 1) continue;
-    feats.push_back(c.levels >= 10 ? kFeatSecondWind4 : c.levels >= 4 ? kFeatSecondWind3 : kFeatSecondWind2);
+    if (c.character_class == CharacterClass::kFighter && c.levels >= 1) {
+      feats.push_back(c.levels >= 10 ? kFeatSecondWind4 : c.levels >= 4 ? kFeatSecondWind3 : kFeatSecondWind2);
+    }
+    if (c.character_class == CharacterClass::kBarbarian) {
+      if (HasRecklessAttack(c.levels)) feats.push_back(kFeatRecklessAttack);
+      if (HasBrutalStrike(c.levels)) feats.push_back(kFeatBrutalStrike);
+    }
   }
   return feats;
 }
 
+// Appended only: a character's record is a bit per entry, in this order.
 const std::vector<int>& GrantableFeats2024() {
-  static const std::vector<int> kFeats = {kFeatSecondWind2, kFeatSecondWind3, kFeatSecondWind4};
+  static const std::vector<int> kFeats = {kFeatSecondWind2, kFeatSecondWind3, kFeatSecondWind4, kFeatRecklessAttack,
+                                          kFeatBrutalStrike};
   return kFeats;
 }
 

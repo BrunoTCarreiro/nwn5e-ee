@@ -56,8 +56,9 @@
 //   Strength score meets the DC (rules_save_roll.cpp).
 // Any creature that rages gets the 2024 Rage (spell 307's script is
 // everyone's), at its Barbarian level; the uses pool is characters' only.
-// `!rage`: the uses, the Rage, Relentless Rage's DC. Parts 3-4: Reckless
-// Attack, Frenzy, Brutal Strike, Intimidating Presence, Retaliation.
+// `!rage`: the uses, the Rage, Relentless Rage's DC. Part 3 (Reckless Attack,
+// Frenzy, Brutal Strike): rules_barbarian_strikes.cpp. Part 4: Intimidating
+// Presence, Retaliation.
 // NWN mode: NWN's Barbarian.
 
 #include <windows.h>
@@ -563,6 +564,9 @@ int ClassSaveAdvantage(void* creature, rules::Ability ability) {
 bool HasFeralInstinctAdvantage(void* creature) {
   return creature && rules::HasFeralInstinct(BarbarianLevelOf(StatsOf(creature)));
 }
+
+// Part 3 (rules_barbarian_strikes.cpp): Reckless Attack and Frenzy while raging.
+bool BarbarianRaging(void* creature) { return RageOf(creature) != nullptr; }
 
 // B2 Rage Damage (rules_two_weapon's GetDamageBonus): a raging creature's
 // Strength attacks - melee, or a thrown Throwing Axe; not a finesse weapon

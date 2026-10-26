@@ -39,7 +39,8 @@ int MasteryCleaveDamage(void* stats, int bonus, float two_handed_multiplier);
 // attacker has mastery with: the line is planned and the attacker may turn to
 // a closer enemy; returns what was done for the mastery log line (empty when
 // Push is off).
-std::string PushOnHit(void* attacker, void* target);
+// `metres`: 3 (10 ft) for the mastery; Brutal Strike's Forceful Blow 4.572 (15 ft).
+std::string PushOnHit(void* attacker, void* target, float metres = 3.0f);
 // A Push hit waits for its damage to land (OnApplyDamage).
 bool PushAwaiting();
 // A damage effect created by `attacker_id` landed on `target`: the push, if it waited for it.

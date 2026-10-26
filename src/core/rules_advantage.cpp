@@ -37,6 +37,9 @@
 
 int EngineAttackModifier(void* stats, void* target);  // rules_attack.cpp
 MasteryRollSources TakeStudiedAttacks(void* attacker, uint32_t target_id);  // rules_fighter.cpp (Fighter F6)
+// rules_barbarian_strikes.cpp (Barbarian B6, B10): Reckless Attack's Advantage; Brutal Strike giving it up.
+MasteryRollSources RecklessRollSources(void* attacker, void* target, const uint8_t* data);
+bool BrutalStrikeOnRoll(void* attacker, void* target, const uint8_t* data, rules::RollMode* mode, std::string* note);
 
 namespace {
 
@@ -130,6 +133,7 @@ void BeforeAttackRoll(AttackRoll& roll) {
   const ConditionRollSources conditions = ConditionAttackRollSources(roll.attacker, target, terms.ranged);
   const MasteryRollSources mastery = TakeMasteryRollSources(roll.attacker, Field<uint32_t>(target, ee::kObjectId));
   const MasteryRollSources studied = TakeStudiedAttacks(roll.attacker, Field<uint32_t>(target, ee::kObjectId));
+  const MasteryRollSources reckless = RecklessRollSources(roll.attacker, target, roll.data);
   t_pending.conditions = conditions.note.empty() ? "" : "conditions: " + conditions.note;
   if (!mastery.note.empty()) {
     t_pending.conditions += (t_pending.conditions.empty() ? "mastery: " : "; mastery: ") + mastery.note;
@@ -137,13 +141,22 @@ void BeforeAttackRoll(AttackRoll& roll) {
   if (!studied.note.empty()) {
     t_pending.conditions += (t_pending.conditions.empty() ? "fighter: " : "; fighter: ") + studied.note;
   }
+  if (!reckless.note.empty()) {
+    t_pending.conditions += (t_pending.conditions.empty() ? "barbarian: " : "; barbarian: ") + reckless.note;
+  }
   std::string heavy_note;
   const int heavy = HeavyWeaponDisadvantage(roll.attacker, terms.ranged, &heavy_note);
   if (heavy) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + heavy_note;
   t_pending.mode = rules::SituationalRollMode(
       terms, rules::RangedCloseCombat(terms.ranged, t_pending.point_blank_shot, t_pending.threats),
-      conditions.advantage + mastery.advantage + studied.advantage,
+      conditions.advantage + mastery.advantage + studied.advantage + reckless.advantage,
       conditions.disadvantage + mastery.disadvantage + heavy);
+  {
+    std::string brutal;
+    if (BrutalStrikeOnRoll(roll.attacker, target, roll.data, &t_pending.mode, &brutal)) {
+      t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + brutal;
+    }
+  }
   t_pending.attacker_id = Field<uint32_t>(roll.attacker, ee::kObjectId);
   t_pending.target_id = Field<uint32_t>(target, ee::kObjectId);
   t_pending.active = true;

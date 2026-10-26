@@ -241,3 +241,15 @@
 # 16000450-16000451: the radial menu's light entries (light_sources.cpp).
 16000450 Snuff
 16000451 Light
+# 16000460-16000471: Barbarian part 3 - Reckless Attack, Frenzy, Brutal Strike (rules_barbarian.cpp).
+16000460 Reckless Attack
+16000461 Reckless Attack (Barbarian 2). Turn it on or off from the radial menu; it stays as you set it. While it is on, your attack rolls that use Strength have Advantage - and attack rolls against you have Advantage, from your first attack until a round after your last one. Henchmen and other Barbarians fight recklessly whenever they rage.\n\nFrenzy (Path of the Berserker, Barbarian 3): while you rage with Reckless Attack on, the first creature you hit each round with a Strength attack takes extra damage of your weapon's type - as many d6 as your Rage Damage bonus (2, 3 at Barbarian 9, 4 at 16), doubled on a critical hit.
+16000462 Brutal Strike
+16000463 Brutal Strike (Barbarian 9). While Reckless Attack is on, once a round your first Strength attack that has Advantage and no Disadvantage gives up the Advantage; if it hits, it deals an extra 1d10 of your weapon's type (2d10 from Barbarian 17; doubled on a critical hit) and the effect you picked on this feat's radial menu:\n- Forceful Blow: pushed 15 feet straight away from you.\n- Hamstring Blow: its speed drops by 15 feet for a round.\n- Staggering Blow (Barbarian 13): Disadvantage on its next saving throw, and no opportunity attacks for a round.\n- Sundering Blow (Barbarian 13): the next attack roll another creature makes against it within a round gets +5.\nFrom Barbarian 17 two different effects at once. Picking an effect again removes it; Off turns Brutal Strike off. Until you pick, it uses Hamstring Blow.
+16000464 Forceful Blow
+16000465 Hamstring Blow
+16000466 Staggering Blow
+16000467 Sundering Blow
+16000468 Brutal Strike: off
+16000470 Reckless Attack: Advantage on your Strength attacks; attack rolls against you have Advantage.
+16000471 Brutal Strike: once a round, the Advantage on a Strength attack given up for extra damage and an effect.

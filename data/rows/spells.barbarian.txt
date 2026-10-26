@@ -1,0 +1,16 @@
+# spells.2da - Phase 3 Barbarian part 3 (B6, B10, X8; rules_barbarian.cpp). Feat
+# abilities on yourself (UserType 3), instant (no conjure / cast time or animation).
+# 1010: Reckless Attack (feat 1310) - n5_reckless toggles it.
+# 1011: Brutal Strike (feat 1311) - a master row, as the game's Wild Shape and horse
+#       menu: its SubRadSpell rows 1012-1016 are the radial's sub-options (X8), each
+#       with Master 1011 and FeatID = a unique number * 65536 + the feat (16000-16004:
+#       clear of the game's 1004-1093 and 5001-5030). n5_bs_* pick the effect.
+# The n5_ scripts are run in C++ (script_hooks.cpp); no .ncs exists for them.
+Label Name IconResRef School Range VS MetaMagic TargetType ImpactScript Innate ConjTime ConjAnim CastAnim CastTime Proj ItemImmunity SubRadSpell1 SubRadSpell2 SubRadSpell3 SubRadSpell4 SubRadSpell5 Category Master UserType SpellDesc UseConcentration SpontaneouslyCast HostileSetting FeatID HasProjectile
+1010 nwn5e_RecklessAttack 16000460 ife_powhit V P s 0x00 0x01 n5_reckless 1 0 **** **** 0 0 1 **** **** **** **** **** 5 **** 3 16000461 0 0 0 1310 0
+1011 nwn5e_BrutalStrike 16000462 ife_X2CritOGAxe V P s 0x00 0x01 **** 1 0 **** **** 0 0 1 1012 1013 1014 1015 1016 5 **** 3 16000463 0 0 0 1311 0
+1012 nwn5e_BrutalForceful 16000464 ife_knockdow V P s 0x00 0x01 n5_bs_force 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1011 3 16000463 0 0 0 1048577311 0
+1013 nwn5e_BrutalHamstring 16000465 ife_sap V P s 0x00 0x01 n5_bs_ham 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1011 3 16000463 0 0 0 1048642847 0
+1014 nwn5e_BrutalStaggering 16000466 ife_X1ExStun V P s 0x00 0x01 n5_bs_stag 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1011 3 16000463 0 0 0 1048708383 0
+1015 nwn5e_BrutalSundering 16000467 ife_disarm V P s 0x00 0x01 n5_bs_sund 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1011 3 16000463 0 0 0 1048773919 0
+1016 nwn5e_BrutalOff 16000468 ife_X2CritOGAxe V P s 0x00 0x01 n5_bs_off 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1011 3 16000463 0 0 0 1048839455 0

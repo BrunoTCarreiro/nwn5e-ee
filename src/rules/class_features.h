@@ -123,6 +123,45 @@ int RelentlessRageHitPoints(int barbarian_level);
 // Strength score uses the score instead.
 int IndomitableMightTotal(int total, int strength_score);
 
+// Part 3 (B6, BZ1, B10, X8): Reckless Attack (2) - a radial toggle, nwn5e's
+// feat 1310; Frenzy (Berserker 3 - the subclass comes at 3); Brutal Strike (9;
+// Staggering and Sundering at 13; 2d10 and two effects at 17) - nwn5e's feat
+// 1311, its effects picked on its sub-radial.
+constexpr int kFeatRecklessAttack = 1310;
+constexpr int kFeatBrutalStrike = 1311;
+bool HasRecklessAttack(int barbarian_level);
+bool HasFrenzy(int barbarian_level);
+// Frenzy's d6s: as many as the Rage Damage bonus (2 / 3 / 4).
+int FrenzyDice(int barbarian_level);
+bool HasBrutalStrike(int barbarian_level);
+// Brutal Strike's d10s: 1; 2 at 17. Its effects at once: 1; 2 at 17.
+int BrutalStrikeDice(int barbarian_level);
+int BrutalStrikeEffectCount(int barbarian_level);
+enum class BrutalEffect { kNone = 0, kForceful = 1, kHamstring = 2, kStaggering = 3, kSundering = 4 };
+// Forceful and Hamstring from 9, Staggering and Sundering from 13.
+bool BrutalEffectAvailable(BrutalEffect effect, int barbarian_level);
+const char* BrutalEffectName(BrutalEffect effect);  // "Forceful Blow" ...
+// Forceful Blow: pushed 15 ft; Hamstring Blow: -15 ft speed (half of 30);
+// Sundering Blow: +5 on the next attack roll another creature makes at it.
+constexpr float kForcefulBlowMetres = 4.572f;
+constexpr int kHamstringSpeedPercent = 50;
+constexpr int kSunderingAttackBonus = 5;
+// X8: the standing choice - up to two effects, the older first. Kept on the
+// character as one number (0: never chosen - Hamstring Blow, the default).
+struct BrutalChoice {
+  BrutalEffect first = BrutalEffect::kNone;
+  BrutalEffect second = BrutalEffect::kNone;
+};
+int EncodeBrutalChoice(const BrutalChoice& choice);
+BrutalChoice DecodeBrutalChoice(int stored);
+enum class BrutalPick { kChosen, kRemoved, kLocked, kOff };
+// A sub-radial pick: kNone turns Brutal Strike off; an effect not yet
+// available is refused; a chosen one is removed; else it's chosen - alone
+// below 17, from 17 with the newer of the two kept.
+BrutalPick PickBrutalEffect(BrutalChoice* choice, BrutalEffect picked, int barbarian_level);
+// The effects a Brutal Strike applies now (available ones, at most the count).
+std::vector<BrutalEffect> ActiveBrutalEffects(const BrutalChoice& choice, int barbarian_level);
+
 // X1 (owner, 2026-10-24: "remove them completely"): NWN class feats with no
 // 2024 counterpart, taken off characters in faithful and no longer granted
 // (the classes' feat tables, data/rows/cls_feat_*.if_classfeat2024.txt).
