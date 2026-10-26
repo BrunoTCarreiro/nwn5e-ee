@@ -2170,7 +2170,20 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   (the game has no walk-back clip: animation 3 plays "walk"). 0.39.7 adds
   `!animtrace [seconds]` (anim_trace.cpp): what the character's models are
   asked to play (Gob::PlayAnimation) and its server animation, logged at the
-  end - to see what the stutter is before fixing it.
+  end - to see what the stutter is before fixing it. First traces (hidden,
+  S held): the client plays its own guess - n5_crwalk at speed -1 (walking
+  back) - while the server's animation flips between run (4) and stand (0)
+  about every 20 ms (never walk-back, 3), and each flip reaches the client:
+  run (upright, not swapped) and n5_cridle between the steps - the stutter.
+  Each keyboard-movement message makes the server SetCombatMode(0),
+  ClearAllSpecialAttacks, ClearAllActions, ActionManager(8) and
+  AddDriveAction (CNWSMessage::HandlePlayerToServerInputDriveControl);
+  AIActionDrive moves by the keys' bits (1 forward, 2 back, 3 run) and
+  AddDriveAction drops bit 2 while +0x76c (limited movement speed) is set.
+  0.39.8: the trace also records each SetAnimation on the character with
+  its caller and each drive action's bits and +0x76c; the timeline goes to
+  animtrace.txt next to nwn5e.log (no line cap), a summary per hiding
+  state to nwn5e.log.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:
