@@ -201,7 +201,7 @@ precision mediump float; varying vec4 v_color; void main() { gl_FragColor = v_co
       gl.disableVertexAttribArray(p.attrib.a_color);
     }
 
-    groundAndFigure(figure, mvp) {
+    groundAndFigure(figure, mvp, nodes) {
       const v = [];
       const line = (a, b, c) => v.push(a[0], a[1], a[2], c[0], c[1], c[2], c[3], b[0], b[1], b[2], c[0], c[1], c[2], c[3]);
       const grid = [0.5, 0.6, 0.68, 0.16], axis = [0.5, 0.6, 0.68, 0.35];
@@ -237,6 +237,17 @@ precision mediump float; varying vec4 v_color; void main() { gl_FragColor = v_co
           line(at(-r, 0, z), at(r, 0, z), color);
           line(at(0, -r, z), at(0, r, z), color);
           line(at(0, 0, z - r), at(0, 0, z + r), color);
+        }
+      }
+      // The effect's nodes where they are now (a small cross each, its x axis longer).
+      if (this.showFigure) {
+        const qrot = window.VfxSim.qrot, mark = [0.45, 0.75, 0.95, 0.85];
+        for (const n of nodes) {
+          const x = qrot(n.q, [0.12, 0, 0]), y = qrot(n.q, [0, 0.06, 0]), z = qrot(n.q, [0, 0, 0.06]);
+          const at = (d, s) => [n.pos[0] + d[0] * s, n.pos[1] + d[1] * s, n.pos[2] + d[2] * s];
+          line(at(x, -0.5), at(x, 1), mark);
+          line(at(y, -1), at(y, 1), mark);
+          line(at(z, -1), at(z, 1), mark);
         }
       }
       this.lines(v, mvp);
@@ -287,9 +298,9 @@ precision mediump float; varying vec4 v_color; void main() { gl_FragColor = v_co
         }
         return out;
       }
-      const o = e.orientation;
-      const turn = window.VfxSim.turn;
-      const eX = turn(o, [1, 0, 0]), eY = turn(o, [0, 1, 0]), eZ = turn(o, [0, 0, 1]);
+      // The emitter's turn now (its keys and its parents' - 0.42.3).
+      const qrot = window.VfxSim.qrot, q = entry.place ? entry.place.q : [0, 0, 0, 1];
+      const eX = qrot(q, [1, 0, 0]), eY = qrot(q, [0, 1, 0]), eZ = qrot(q, [0, 0, 1]);
       for (const p of ps) {
         if (p.color[3] <= 0 || p.w <= 0) continue;
         const uv = uvOf(p.frame);
@@ -321,7 +332,7 @@ precision mediump float; varying vec4 v_color; void main() { gl_FragColor = v_co
       return out;
     }
 
-    draw(snapshot, figure) {
+    draw(snapshot, figure, nodes) {
       const gl = this.gl;
       const cam = this.frame();
       gl.clearColor(this.backdrop[0], this.backdrop[1], this.backdrop[2], 1);
@@ -330,7 +341,7 @@ precision mediump float; varying vec4 v_color; void main() { gl_FragColor = v_co
       gl.depthMask(true);
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-      this.groundAndFigure(figure, cam.mvp);
+      this.groundAndFigure(figure, cam.mvp, nodes || []);
       // The emitters in their order (all on one character: the game leaves their order to its
       // sort), each one's particles oldest first.
       const entries = snapshot.filter((s) => s.particles.length && String(s.emitter.update).toLowerCase() !== "lightning");

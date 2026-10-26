@@ -43,11 +43,18 @@ The preview runs and draws particles by the game's own rules, read from its code
 the game does), spread, speed, gravity, area, life, bounce and splat, the seven render
 modes and three blends as the game builds them (back faces hidden), start -> end size,
 colour and alpha (the "mid" values do nothing in the game), sheet frames at fps, spin.
-An emitter's turn (orientation) is in the draft, and a game effect's emitters are placed
-in the model with their parents. Not here: Lightning emitters, the game's soft-particle
-fade and fog, and an emitter node's own motion in the game's models (their rings that
-circle the character stand still - in Play in game and Save too). When in doubt, Play in
-game.
+An emitter's turn (orientation) is in the draft. Motion (0.42.3): an effect keeps the
+nodes its emitters hang under (the game's dummies - and meshes or lights, kept as dummies)
+and the keys that move and turn them and the emitters in its three animations - the start
+(impact) once, the loop (duration) while applied, the end (cessation) as it's removed -
+so a game effect's circling rings and wandering eyes play here, in Play in game and in
+what Save makes. Particles leave from where the emitter is at that moment, and follow it
+(inherit), the character's move (inherit_local) or the emitter's move (inherit_part).
+The Nodes card lists them (Add, Remove, what each hangs under, its place and turn, Make it
+spin); an emitter's "Its own motion" has Make it orbit (a new node turning round z with the
+emitter out at a radius). Not here: Lightning emitters, the game's soft-particle fade and
+fog, and the meshes of a game effect (Mage Armor's shields) - only its particles. When in
+doubt, Play in game.
 
 Mouse on the stage: drag to turn, right-drag (or shift-drag) to move, wheel to zoom,
 double-click to reset. Space pauses, R restarts. `?open=game:<model>&warm=<s>` opens

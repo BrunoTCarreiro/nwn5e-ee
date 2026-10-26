@@ -21,12 +21,44 @@
       randvel: 0.5, spread: 0.8,
       mass: 0, size_start: 0.1, size_end: 0.1, color_start: [1, 1, 1], color_end: [1, 1, 1], alpha_start: 1,
       alpha_end: 0, xsize: 0, ysize: 0, grid: 1, frame_end: 0, blur_length: 0, bounce_co: 0, fps: 0, particle_rot: 0,
-      inherit: false, splat: false, bounce: false, random: false,
+      inherit: false, splat: false, bounce: false, random: false, inherit_local: false, inherit_part: false,
+      parent: "", keys: [],
     }, overrides || {});
   }
 
+  // data::VfxNode's: a node an emitter hangs under (0.42.3), with its keys.
+  function node(overrides) {
+    return Object.assign({ name: "node", parent: "", position: [0, 0, 0], orientation: [0, 0, 0, 0], keys: [] }, overrides || {});
+  }
+
   function effect(overrides) {
-    return Object.assign({ name: "n5_new", duration: true, seconds: 8, attach: "root", emitters: [] }, overrides || {});
+    return Object.assign({ name: "n5_new", duration: true, seconds: 8, attach: "root", lengths: [0, 2, 1], nodes: [], emitters: [] },
+      overrides || {});
+  }
+
+  // The animations, in the order a draft lists them; a node's / emitter's keys of one.
+  const ANIMS = ["impact", "duration", "cessation"];
+  function findKeys(list, anim, create) {
+    let k = list.find((x) => x.anim === anim);
+    if (!k && create) { k = { anim, position: [], orientation: [] }; list.push(k); }
+    return k || null;
+  }
+  function draftKeys(keys) {
+    let out = "";
+    for (const anim of ANIMS) {
+      for (const k of keys || []) {
+        if (k.anim !== anim) continue;
+        if (k.position.length) out += anim + "_position = " + k.position.map(num).join(" ") + "\n";
+        if (k.orientation.length) out += anim + "_orientation = " + k.orientation.map(num).join(" ") + "\n";
+      }
+    }
+    return out;
+  }
+  function draftKeyLine(key, words, keys) {
+    const m = /^(impact|duration|cessation)_(position|orientation)$/.exec(key);
+    if (!m) return false;
+    findKeys(keys, m[1], true)[m[2]] = words.map(toFloat);
+    return true;
   }
 
   // vfx_editor.cpp's DefaultEmitter / DefaultEffect: orange sparks.
@@ -85,12 +117,23 @@
     out += "type = " + (fx.duration ? "D" : "F") + "\n";
     out += "seconds = " + num(fx.seconds) + "\n";
     out += "attach = " + fx.attach + "\n";
+    const l = fx.lengths || [0, 2, 1];
+    out += "lengths = " + num(l[0]) + " " + num(l[1]) + " " + num(l[2]) + "\n";
+    for (const n of fx.nodes || []) {
+      out += "\n[node " + n.name + "]\n";
+      if (n.parent) out += "parent = " + n.parent + "\n";
+      out += "position = " + num(n.position[0]) + " " + num(n.position[1]) + " " + num(n.position[2]) + "\n";
+      out += "orientation = " + num(n.orientation[0]) + " " + num(n.orientation[1]) + " " + num(n.orientation[2]) + " " +
+        num(n.orientation[3]) + "\n";
+      out += draftKeys(n.keys);
+    }
     for (const e of fx.emitters) {
       out += "\n[emitter " + e.name + "]\n";
       out += "update = " + e.update + "\nrender = " + e.render + "\nblend = " + e.blend + "\ntexture = " + e.texture + "\n";
       out += "position = " + num(e.position[0]) + " " + num(e.position[1]) + " " + num(e.position[2]) + "\n";
       const o = e.orientation || [0, 0, 0, 0];
       out += "orientation = " + num(o[0]) + " " + num(o[1]) + " " + num(o[2]) + " " + num(o[3]) + "\n";
+      if (e.parent) out += "parent = " + e.parent + "\n";
       out += "birthrate = " + num(e.birthrate) + "\nemit_seconds = " + num(e.emit_seconds) + "\nlife = " + num(e.life) + "\n";
       out += "velocity = " + num(e.velocity) + "\nrandvel = " + num(e.randvel) + "\nspread = " + num(e.spread) + "\n";
       out += "mass = " + num(e.mass) + "\nsize = " + num(e.size_start) + " " + num(e.size_end) + "\n";
@@ -106,7 +149,10 @@
       if (e.splat) flags += " splat";
       if (e.bounce) flags += " bounce";
       if (e.random) flags += " random";
+      if (e.inherit_local) flags += " inherit_local";
+      if (e.inherit_part) flags += " inherit_part";
       out += "flags =" + flags + "\n";
+      out += draftKeys(e.keys);
     }
     return out;
   }
@@ -118,7 +164,7 @@
   // The draft back; throws (with the line) where the game would refuse it.
   function readDraft(text) {
     const fx = effect();
-    let e = null;
+    let e = null, nd = null;  // the section being read
     const lines = String(text).split("\n");
     for (let n = 0; n < lines.length; n++) {
       const raw = lines[n];
@@ -128,10 +174,19 @@
       if (line[0] === "[") {
         const close = line.indexOf("]");
         const inner = (close < 0 ? line.slice(1) : line.slice(1, close)).trim();
-        if (!inner.toLowerCase().startsWith("emitter")) throw new Error("line " + (n + 1) + ": unknown section [" + inner + "]");
-        e = emitter();
-        e.name = inner.slice(7).trim() || "emitter";
-        fx.emitters.push(e);
+        if (inner.toLowerCase().startsWith("emitter")) {
+          e = emitter();
+          nd = null;
+          e.name = inner.slice(7).trim() || "emitter";
+          fx.emitters.push(e);
+        } else if (inner.toLowerCase().startsWith("node")) {
+          nd = node();
+          e = null;
+          nd.name = inner.slice(4).trim() || "node";
+          fx.nodes.push(nd);
+        } else {
+          throw new Error("line " + (n + 1) + ": unknown section [" + inner + "]");
+        }
         continue;
       }
       const eq = line.indexOf("=");
@@ -139,17 +194,26 @@
       const key = line.slice(0, eq).trim().toLowerCase();
       const value = line.slice(eq + 1).trim();
       const words = value.split(/\s+/).filter(Boolean);
+      if (nd) {
+        if (key === "parent") nd.parent = value;
+        else if (key === "position") readFloats(words, nd.position, 3);
+        else if (key === "orientation") readFloats(words, nd.orientation, 4);
+        else draftKeyLine(key, words, nd.keys);
+        continue;
+      }
       if (!e) {
         if (key === "name") fx.name = value;
         else if (key === "type") fx.duration = value.toLowerCase() !== "f";
         else if (key === "seconds") fx.seconds = toFloat(value);
         else if (key === "attach") fx.attach = value.toLowerCase();
+        else if (key === "lengths") readFloats(words, fx.lengths, 3);
         continue;
       }
       if (key === "update") e.update = value;
       else if (key === "render") e.render = value;
       else if (key === "blend") e.blend = value;
       else if (key === "texture") e.texture = value;
+      else if (key === "parent") e.parent = value;
       else if (key === "position") readFloats(words, e.position, 3);
       else if (key === "orientation") readFloats(words, e.orientation, 4);
       else if (key === "birthrate") e.birthrate = toFloat(value);
@@ -186,8 +250,10 @@
           e.splat = e.splat || f === "splat";
           e.bounce = e.bounce || f === "bounce";
           e.random = e.random || f === "random";
+          e.inherit_local = e.inherit_local || f === "inherit_local";
+          e.inherit_part = e.inherit_part || f === "inherit_part";
         }
-      }
+      } else draftKeyLine(key, words, e.keys);
     }
     return fx;
   }
@@ -251,7 +317,7 @@
     return { width, height, data: flipped };
   }
 
-  const api = { UPDATES, RENDERS, BLENDS, ATTACHES, emitter, effect, sparks, newEffect, clone, num, resref,
+  const api = { UPDATES, RENDERS, BLENDS, ATTACHES, ANIMS, emitter, node, effect, findKeys, sparks, newEffect, clone, num, resref,
     writeDraft, readDraft, decodeTga };
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.VfxCore = api;

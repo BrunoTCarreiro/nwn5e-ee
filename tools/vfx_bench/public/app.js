@@ -13,6 +13,7 @@
     tab: "game",
     fx: core.newEffect(),
     selected: 0,
+    node: -1,         // the node being edited (-1: none)
     loadedText: "",   // the draft as last opened or saved: anything else is unsaved
     current: null,    // "<source>:<name>" of the opened effect, for the list's highlight
     paused: false,
@@ -141,8 +142,8 @@
     renderLibrary();
   }
 
-  async function open(entry) {
-    if (dirty() && !confirm(`Drop the unsaved changes to ${state.fx.name}?`)) return;
+  async function open(entry, quiet) {
+    if (!quiet && dirty() && !confirm(`Drop the unsaved changes to ${state.fx.name}?`)) return;
     let fx;
     try {
       fx = core.readDraft(await getText(`/api/draft?source=${entry.source}&name=${encodeURIComponent(entry.name)}`));
@@ -167,6 +168,7 @@
   function setEffect(fx, baseline) {
     state.fx = fx;
     state.selected = 0;
+    state.node = fx.nodes && fx.nodes.length ? 0 : -1;
     if (baseline) state.loadedText = draftText();
     sim.hidden.clear();
     sim.setEffect(fx);
@@ -174,6 +176,7 @@
     renderEffect();
     renderEmitters();
     renderFields();
+    renderNodes();
     changed(true);
   }
 
@@ -199,6 +202,8 @@
     $("fx-type").value = fx.duration ? "D" : "F";
     $("fx-seconds").value = core.num(fx.seconds);
     $("fx-attach").value = core.ATTACHES.includes(fx.attach) ? fx.attach : "root";
+    const l = fx.lengths || (fx.lengths = [0, 2, 1]);
+    [0, 1, 2].forEach((k) => { $("fx-len" + k).value = core.num(l[k]); });
     $("fx-note").textContent = (fx.duration
       ? "Stays on the character while applied; the preview (and Play in game) runs it for Seconds."
       : "Plays once; an emitter without its own On for stays on for Seconds.") +
@@ -228,6 +233,7 @@
   const GROUPS = [
     { title: "Kind", fields: [
       { key: "name", type: "text", label: "Name" },
+      { key: "parent", type: "parent", label: "Hangs under (its position and turn are from there)" },
       { key: "update", type: "select", options: core.UPDATES, label: "Update",
         help: "Fountain: a stream. Single: one particle that stays. Explosion: all at once when it starts. Lightning: a bolt (only in game)." },
       { key: "render", type: "select", options: core.RENDERS, label: "Render",
@@ -256,12 +262,17 @@
       { key: "randvel", type: "num", min: 0, max: 20, step: 0.05, label: "Extra random speed (up to)" },
       { key: "spread", type: "num", min: 0, max: 6.2832, step: 0.01, label: "Spread (radians: 0 straight up, 3.14 half a sphere, 6.28 all round)" },
       { key: "mass", type: "num", min: -3, max: 3, step: 0.05, label: "Gravity (mass; below 0 rises)" },
-      { key: "inherit", type: "bool", label: "Follows the character (try Walk)" },
+      { key: "inherit", type: "bool", label: "Carried and turned with the emitter (inherit)" },
+      { key: "inherit_local", type: "bool", label: "Follows the character's move (inherit_local; try Walk)" },
+      { key: "inherit_part", type: "bool", label: "Follows the emitter's move (inherit_part)" },
       { key: "bounce", type: "bool", label: "Bounces on the ground" },
       { key: "bounce_co", type: "num", min: 0, max: 1, step: 0.05, label: "Bounce: speed kept" },
       { key: "splat", type: "bool", label: "Lies flat where it lands" },
       { key: "blur_length", type: "num", min: 0, max: 10, step: 0.05, label: "Blur length (Motion_Blur: how many seconds its tail lags)" },
       { key: "particle_rot", type: "num", min: -10, max: 10, step: 0.1, label: "Spin (radians a second)" },
+    ] },
+    { title: "Its own motion", fields: [
+      { key: "keys", type: "motion", label: "Keys" },
     ] },
     { title: "Look", fields: [
       { key: "size_start", type: "num", min: 0, max: 5, step: 0.01, label: "Size at birth (m)" },
@@ -344,6 +355,8 @@
       } });
       return wrap([el("span", { text: f.label + " (red green blue, 0-1)" }), el("div", { class: "colour" }, [picker, ...numbers])]);
     }
+    if (f.type === "parent") return parentField(e, f.label, () => { renderEmitters(); changed(true); });
+    if (f.type === "motion") return motionField(e, true);
     if (f.type === "texture") {
       const box = el("span", { class: "thumb" });
       showThumb(box, e.texture);
@@ -362,6 +375,114 @@
     }
     $("emf-h").textContent = "Emitter: " + e.name;
     box.replaceChildren(...GROUPS.map((g) => el("div", { class: "group" }, [el("h3", { text: g.title }), ...g.fields.map((f) => field(e, f))])));
+  }
+
+  // --- nodes and motion (0.42.3) -------------------------------------------------------------
+  // What a node or an emitter can hang under: the character's point, the nodes, the other
+  // emitters - not itself or anything under it.
+  function under(name) {
+    const fx = state.fx, items = [...(fx.nodes || []), ...fx.emitters];
+    const parentOf = (n) => (items.find((x) => x.name === n) || {}).parent || "";
+    const below = (n) => { for (let up = n, k = 0; up && k < 64; up = parentOf(up), k++) if (up === name) return true; return false; };
+    return items.map((x) => x.name).filter((n, i, all) => n && all.indexOf(n) === i && !below(n));
+  }
+
+  function parentField(item, label, onChange) {
+    const options = ["", ...under(item.name)];
+    if (item.parent && !options.includes(item.parent)) options.push(item.parent);
+    return el("div", { class: "field" }, [el("span", { text: label }), el("select", { "aria-label": label, onchange: (ev) => {
+      item.parent = ev.target.value;
+      onChange();
+    } }, options.map((o) => el("option", { value: o, selected: o === (item.parent || ""), text: o || "the character's point" })))]);
+  }
+
+  function keysLine(keys) {
+    const names = { impact: "start", duration: "loop", cessation: "end" };
+    const parts = (keys || []).filter((k) => k.position.length || k.orientation.length).map((k) =>
+      names[k.anim] + ": " + [k.position.length ? Math.floor(k.position.length / 4) + " move keys" : "", k.orientation.length ? Math.floor(k.orientation.length / 5) + " turn keys" : ""].filter(Boolean).join(", "));
+    return parts.length ? parts.join(" · ") : "none - it stays where it is";
+  }
+
+  // Keys that turn round z through `turns` whole turns over `length` seconds (quarter-turn
+  // steps, so the short-way slerp goes the right way).
+  function turnKeys(length, turns) {
+    const rows = [], steps = Math.max(4, Math.round(Math.abs(turns)) * 4);
+    for (let i = 0; i <= steps; i++) {
+      const angle = (i / steps) * turns * 2 * Math.PI;
+      rows.push(Math.fround((i / steps) * length), 0, 0, angle < 0 ? -1 : 1, Math.abs(angle));
+    }
+    return rows;
+  }
+
+  function loopAnim() { return state.fx.duration ? "duration" : "impact"; }
+  function loopLength() {
+    const fx = state.fx;
+    return fx.duration ? (fx.lengths[1] > 0 ? fx.lengths[1] : 2) : Math.max(0.2, sim.anims().impact);
+  }
+
+  // The motion of a node or an emitter: its keys, and quick ways to make some.
+  function motionField(item, isEmitter) {
+    const radius = el("input", { type: "number", step: "0.1", value: "1", "aria-label": "Orbit radius (m)" });
+    const rate = el("input", { type: "number", step: "0.1", value: "0.5", "aria-label": "Turns a second" });
+    const height = el("input", { type: "number", step: "0.1", value: isEmitter ? core.num(item.position[2]) : "0", "aria-label": "Height (m)" });
+    const apply = () => {
+      const r = parseFloat(rate.value) || 0.5, length = loopLength(), turns = Math.max(1, Math.round(r * length)) * Math.sign(r || 1);
+      if (state.fx.duration && Math.abs(r * length - Math.round(r * length)) > 0.01) setStatus(`The loop is ${core.num(length)} s: it makes ${Math.abs(turns)} whole turn${Math.abs(turns) === 1 ? "" : "s"} in it.`);
+      if (isEmitter) {
+        // A node under the emitter's parent turns; the emitter hangs under it, out at the radius.
+        const fx = state.fx;
+        let name = core.resref(item.name + "_orbit", 20) || "orbit";
+        for (let k = 2; [...fx.nodes, ...fx.emitters].some((x) => x.name === name); k++) name = core.resref(item.name + "_orbit" + k, 20);
+        fx.nodes.push(core.node({ name, parent: item.parent || "", position: [0, 0, parseFloat(height.value) || 0],
+          keys: [{ anim: loopAnim(), position: [], orientation: turnKeys(length, turns) }] }));
+        item.parent = name;
+        item.position = [parseFloat(radius.value) || 0, 0, 0];
+        state.node = fx.nodes.length - 1;
+      } else {
+        const keys = core.findKeys(item.keys, loopAnim(), true);
+        keys.orientation = turnKeys(length, turns);
+      }
+      renderEmitters(); renderFields(); renderNodes(); changed(true); sim.restart();
+    };
+    const clear = () => { item.keys = []; renderFields(); renderNodes(); changed(true); };
+    return el("div", { class: "field" }, [
+      el("span", { class: "note", text: "Keys: " + keysLine(item.keys) }),
+      el("div", { class: "row tight" }, isEmitter
+        ? [el("label", null, ["Orbit radius (m)", radius]), el("label", null, ["Turns a second", rate]), el("label", null, ["Height (m)", height])]
+        : [el("label", null, ["Turns a second (round its z)", rate])]),
+      el("div", { class: "row tight" }, [
+        el("button", { type: "button", onclick: apply, title: isEmitter ? "Hangs it under a new node that turns round z while the effect loops" : "Turns it round its z while the effect loops" }, isEmitter ? "Make it orbit" : "Make it spin"),
+        el("button", { type: "button", onclick: clear }, isEmitter ? "Clear its motion" : "Clear its keys"),
+      ]),
+    ]);
+  }
+
+  function renderNodes() {
+    const fx = state.fx;
+    fx.nodes = fx.nodes || [];
+    if (state.node >= fx.nodes.length) state.node = fx.nodes.length - 1;
+    $("nodes").replaceChildren(...fx.nodes.map((n, i) => el("li", { class: i === state.node ? "current" : "" }, [
+      el("button", { type: "button", class: "pick", onclick: () => { state.node = i; renderNodes(); } },
+        [document.createTextNode(n.name), el("span", { class: "sub", text: (n.parent ? "under " + n.parent : "on the character") + " · " + keysLine(n.keys) })]),
+    ])));
+    if (!fx.nodes.length) $("nodes").append(el("li", null, el("span", { class: "note", text: "None: the emitters hang on the character's point. Add one, or Make it orbit on an emitter." })));
+    $("nd-del").disabled = state.node < 0;
+    const n = fx.nodes[state.node];
+    if (!n) { $("node-fields").replaceChildren(); return; }
+    const rename = (value) => {
+      const clean = value.trim() || "node";
+      for (const x of [...fx.nodes, ...fx.emitters]) if (x.parent === n.name) x.parent = clean;
+      n.name = clean;
+      renderEmitters(); renderFields(); changed(true);
+    };
+    $("node-fields").replaceChildren(el("div", { class: "group" }, [
+      el("div", { class: "field" }, [el("span", { text: "Name" }), el("input", { type: "text", value: n.name, spellcheck: "false", "aria-label": "Node name",
+        onchange: (ev) => { rename(ev.target.value); renderNodes(); } })]),
+      parentField(n, "Hangs under", () => { renderNodes(); changed(true); }),
+      field(n, { key: "position", type: "vec3", step: 0.05, label: "Position x y z (metres, under its parent)" }),
+      field(n, { key: "orientation", type: "vec4", step: 0.05, label: "Turn: axis x y z, then angle in radians" }),
+      motionField(n, false),
+    ]));
   }
 
   // --- the texture picker --------------------------------------------------------------------
@@ -421,7 +542,7 @@
       if (sim.time < length) sim.step(dt);
       if (sim.time >= length && state.loop) sim.restart();
     }
-    if (view) view.draw(sim.snapshot(), sim.figure(sim.time));
+    if (view) view.draw(sim.snapshot(), sim.figure(sim.time), sim.nodePlaces());
     $("clock").textContent = `${sim.time.toFixed(1)} / ${sim.length().toFixed(1)} s · ${sim.count()} particles`;
     requestAnimationFrame(tick);
   }
@@ -533,6 +654,29 @@
       if (!Number.isNaN(v) && v > 0) { state.fx.seconds = Math.fround(v); changed(false); }
     });
     $("fx-attach").addEventListener("change", (ev) => { state.fx.attach = ev.target.value; changed(false); sim.restart(); });
+    [0, 1, 2].forEach((k) => $("fx-len" + k).addEventListener("input", (ev) => {
+      const v = parseFloat(ev.target.value);
+      if (Number.isNaN(v) || v < 0) return;
+      state.fx.lengths[k] = Math.fround(v);
+      changed(false);
+    }));
+    $("nd-add").addEventListener("click", () => {
+      const fx = state.fx;
+      let name = "node";
+      for (let k = 2; [...fx.nodes, ...fx.emitters].some((x) => x.name === name); k++) name = "node" + k;
+      fx.nodes.push(core.node({ name }));
+      state.node = fx.nodes.length - 1;
+      renderNodes(); renderFields(); changed(true);
+    });
+    $("nd-del").addEventListener("click", () => {
+      const fx = state.fx, n = fx.nodes[state.node];
+      if (!n) return;
+      // What hung under it hangs under its parent now.
+      for (const x of [...fx.nodes, ...fx.emitters]) if (x.parent === n.name) x.parent = n.parent || "";
+      fx.nodes.splice(state.node, 1);
+      state.node = Math.min(state.node, fx.nodes.length - 1);
+      renderNodes(); renderEmitters(); renderFields(); changed(true);
+    });
 
     $("em-add").addEventListener("click", () => {
       state.fx.emitters.push(core.sparks());
@@ -654,7 +798,7 @@
     if (wanted && state.server) {
       const meta = state.server.game.find((g) => g.model === wanted[2]);
       state.tab = wanted[1];
-      await open({ source: wanted[1], name: wanted[2], meta, title: wanted[2] });
+      await open({ source: wanted[1], name: wanted[2], meta, title: wanted[2] }, true);
       const warm = Math.min(30, Math.max(0, parseFloat(params.get("warm")) || 0));
       for (let t = 0; t < warm; t += 1 / 60) sim.step(1 / 60);
       if (params.has("pause")) { state.paused = true; $("pause").textContent = "Play"; }

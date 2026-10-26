@@ -12,8 +12,29 @@
 
 namespace data {
 
+// One node's keys in one of the effect's animations (0.42.3; owner, 2026-10-26: "Go for A" -
+// the game's effects move and turn the dummies their emitters hang under): rows of
+// t x y z (position) and t ax ay az angle (orientation, axis-angle as an ASCII model
+// writes it), linear between keys.
+struct VfxKeys {
+  std::string anim;  // impact | duration | cessation
+  std::vector<float> position;
+  std::vector<float> orientation;
+};
+
+// A node an emitter hangs under (a dummy in the model; in the game's models also a mesh
+// or a light, kept as a dummy): where it sits under its parent, and its keys.
+struct VfxNode {
+  std::string name = "node";
+  std::string parent;  // "" = the model's root
+  float position[3] = {0.0f, 0.0f, 0.0f};
+  float orientation[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+  std::vector<VfxKeys> keys;
+};
+
 struct VfxEmitter {
   std::string name = "emitter";
+  std::string parent;  // the node it hangs under ("" = the model's root); position / orientation are under it
   std::string update = "Fountain";  // Fountain | Single | Explosion
   std::string render = "Normal";    // Normal | Motion_Blur | Aligned_to_World_z | Billboard_to_World_Z | ...
   std::string blend = "Normal";     // Normal | Lighten | Punch-Through
@@ -45,10 +66,14 @@ struct VfxEmitter {
   float fps = 0.0f;
   float particle_rot = 0.0f;
   float bounce_co = 0.0f;
-  bool inherit = false;  // particles move with the creature
+  bool inherit = false;  // particles move (and turn) with the emitter
   bool splat = false;    // flatten where they land
   bool bounce = false;
   bool random = false;  // a random frame each
+  // 0.42.3: particles follow the creature's move (inherit_local) or the emitter's (inherit_part).
+  bool inherit_local = false;
+  bool inherit_part = false;
+  std::vector<VfxKeys> keys;  // its own move / turn in the animations
 };
 
 struct VfxEffect {
@@ -56,8 +81,15 @@ struct VfxEffect {
   bool duration = true;         // D: stays while applied; F: plays once
   float seconds = 8.0f;         // the preview's length (D), the emission of an always-on emitter (F)
   std::string attach = "root";  // root | head | impact
+  // The animations' lengths: impact (0: as long as its emitters need), duration (loops while
+  // applied), cessation (as it's removed). 0.42.3.
+  float lengths[3] = {0.0f, 2.0f, 1.0f};
+  std::vector<VfxNode> nodes;  // parents before children
   std::vector<VfxEmitter> emitters;
 };
+
+// The keys of `anim` in a list (created when `create`; nullptr when absent).
+VfxKeys* FindKeys(std::vector<VfxKeys>* list, const std::string& anim, bool create);
 
 // The ASCII effect model, named `model` (its file's resref).
 std::string WriteVfxModel(const VfxEffect& effect, const std::string& model);

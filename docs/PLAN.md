@@ -2409,6 +2409,39 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   the round trip with the new keys; check.js: 409 drafts byte for byte; node
   checks of the birth / burst / splat / frame rules. Not here: node motion
   (circling rings), Lightning, soft particles, fog.
+  0.42.3 (owner: "how can we fix the gaps?" - the gap scan: of 255 compiled
+  game effect models, 119 move or turn nodes, 114 inherit_local, 63 deadspace,
+  35 twosidedtex, 27 chunky particles, 26 p2p, 5 Lightning - "Go for A in
+  whichever order you think is best": keep the game's motion): the effect gains
+  nodes (VfxNode: the dummies - or meshes, lights - its emitters hang under,
+  with parent, position, orientation), a parent for each emitter (its position /
+  turn now under it, not baked into one place as 0.42.2 did), keys per node and
+  emitter per animation (position t x y z, orientation t + axis-angle; the
+  binary quaternions converted with angle 2 acos w, which comes back to the same
+  quaternion with its sign), the three animations' lengths, and the
+  inherit_local / inherit_part flags. Draft: [node <name>] sections, parent =,
+  <anim>_position / <anim>_orientation, lengths =. Model writer: the nodes as
+  dummies, parents first (a loop or a missing parent: under the root), every
+  node renamed per model, counted positionkey / orientationkey lists, the
+  lengths (at least the keys' last time). Binary reader: the geometry tree with
+  parents (the node header is 0x70 bytes, the name at +0x20 - the reader's
+  "node" is +0x10 into it; children at +0x38 / +0x3C), the emitters' ancestors
+  kept, each animation's tree for keys (no bezier or compressed keys in the
+  game's effects - scanned). ASCII reader (125 of the game's effects are ASCII):
+  every node kind, keys counted or to "endlist" (the game's own ASCII), the
+  lengths. The game's slerp (0x231cd0) turns the first quaternion round when
+  they're more than half apart - the bench does too. Bench: the timeline (impact,
+  duration looping until removed, cessation), each node's and emitter's place
+  composed down to the character's node and facing, spawn from the emitter's
+  place now, the three follow modes as moveParticleStandard has them; the Nodes
+  card, Hangs under, Make it orbit / spin, the lengths. Library format 6: 99 of
+  the game's effects keep nodes, 127 have keys; check.js 409 drafts byte for
+  byte. Tests: VfxEmitterUnderAMovedDummy (keys, local place, length),
+  VfxMotionThroughDraftAndModel, VfxReadsTheGamesAsciiKeys; mutations of the
+  ancestor keeping, the parent renaming and the binary keys each fail them (the
+  explicit "endlist" case is covered by the list's own end - an equivalent
+  mutant). Found: Mage Armor's shields are meshes (trimesh) - the effect has no
+  meshes; counted next.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

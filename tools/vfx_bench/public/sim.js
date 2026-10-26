@@ -1,10 +1,11 @@
 // VFX Bench - the preview's particles, run the way the game's own code runs them (0.42.2;
 // owner, 2026-10-26: "reading the game's code would be the most straightforward way" - read
 // in nwmain EE 89.8193.37: FountainEmitter / ExplosionEmitter / SingleEmitter::Update,
-// PartEmitter::chkParticleLife / chkRandom / moveParticleStandard, Particle::initialize /
-// randomDirection / randomPosition; RVAs in README.md). Metres, z up, the character at the
-// origin. What the draft doesn't hold (an emitter's tilt, its node's motion, particle spin,
-// mid colours) isn't here either - and isn't in what Play in game makes.
+// PartEmitter::AnimateParticles / chkParticleLife / chkRandom / moveParticleStandard,
+// Particle::initialize / randomDirection / randomPosition; PARTICLES.md). Metres, z up, the
+// character at the origin. 0.42.3 ("Go for A"): the effect's nodes and emitters move and turn
+// by their keys - the impact once, the duration looping while applied, the cessation as it's
+// removed (MdlNode::InternalControl: linear positions, short-way slerped turns).
 (function (root) {
   "use strict";
   const GRAVITY = 9.81;          // moveParticleStandard: vel.z -= mass * 9.81 * dt
@@ -14,17 +15,55 @@
   const ATTACH_HEIGHT = { root: 0, impact: 1.47, head: 2.4 };
   const rand = () => Math.floor(Math.random() * 32768);  // the C runtime's rand(), 0..32767
 
-  // An emitter's turn (axis x y z, angle) applied to a vector - its particles leave along its
-  // z, its area lies in its x / y (Particle::initialize: the emitter's orientation).
-  function turn(o, v) {
-    const len = o ? Math.hypot(o[0], o[1], o[2]) : 0;
-    if (!len || !o[3]) return v;
-    const s = Math.sin(o[3] / 2) / len;
-    const q = [o[0] * s, o[1] * s, o[2] * s, Math.cos(o[3] / 2)];
-    // v + 2w (q x v) + 2 q x (q x v)
+  // --- quaternions (x y z w) ------------------------------------------------------------
+  function qmul(a, b) {
+    return [a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1], a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
+      a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3], a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]];
+  }
+  function qrot(q, v) {
     const c1 = [q[1] * v[2] - q[2] * v[1], q[2] * v[0] - q[0] * v[2], q[0] * v[1] - q[1] * v[0]];
     const c2 = [q[1] * c1[2] - q[2] * c1[1], q[2] * c1[0] - q[0] * c1[2], q[0] * c1[1] - q[1] * c1[0]];
     return [v[0] + 2 * (q[3] * c1[0] + c2[0]), v[1] + 2 * (q[3] * c1[1] + c2[1]), v[2] + 2 * (q[3] * c1[2] + c2[2])];
+  }
+  const qconj = (q) => [-q[0], -q[1], -q[2], q[3]];
+  // Axis-angle (as the drafts and ASCII models keep it) to a quaternion; a zero axis is a turn
+  // of 0 or a whole turn round (w -1: the same turn, its sign kept).
+  function quat(o) {
+    if (!o) return [0, 0, 0, 1];
+    const len = Math.hypot(o[0], o[1], o[2]), half = (o[3] || 0) / 2;
+    if (!len) return [0, 0, 0, Math.cos(half) < 0 ? -1 : 1];
+    const s = Math.sin(half) / len;
+    return [o[0] * s, o[1] * s, o[2] * s, Math.cos(half)];
+  }
+  // The game's slerp: the first quaternion turned round when they're more than a half apart.
+  function slerp(a, b, t) {
+    let d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+    if (d < 0) { a = [-a[0], -a[1], -a[2], -a[3]]; d = -d; }
+    if (d > 0.9995) {
+      const r = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t];
+      const l = Math.hypot(...r) || 1;
+      return r.map((x) => x / l);
+    }
+    const th = Math.acos(d), s = Math.sin(th), wa = Math.sin((1 - t) * th) / s, wb = Math.sin(t * th) / s;
+    return [a[0] * wa + b[0] * wb, a[1] * wa + b[1] * wb, a[2] * wa + b[2] * wb, a[3] * wa + b[3] * wb];
+  }
+  // An emitter's own turn applied to a vector (kept for callers of 0.42.2).
+  function turn(o, v) { return qrot(quat(o), v); }
+
+  // A key list's value at time t: rows of `width` (t + values); held before the first key and
+  // after the last; positions linear, turns slerped.
+  function sample(rows, width, t, turns) {
+    const n = Math.floor(rows.length / width);
+    if (!n) return null;
+    const at = (i) => rows.slice(i * width + 1, i * width + width);
+    if (n === 1 || t <= rows[0]) return turns ? quat(at(0)) : at(0);
+    if (t >= rows[(n - 1) * width]) return turns ? quat(at(n - 1)) : at(n - 1);
+    let i = 0;
+    while (i + 1 < n && rows[(i + 1) * width] < t) i++;
+    const t0 = rows[i * width], t1 = rows[(i + 1) * width], k = t1 > t0 ? (t - t0) / (t1 - t0) : 1;
+    if (turns) return slerp(quat(at(i)), quat(at(i + 1)), k);
+    const a = at(i), b = at(i + 1);
+    return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
   }
 
   class Sim {
@@ -35,17 +74,21 @@
       this.walk = false;
       this.hidden = new Set();
       this.serial = 0;
+      this.places = null;      // this frame's world place of every node and emitter, by name
+      this.prevPlaces = null;  // the frame before's
     }
 
     setEffect(fx) {
       this.fx = fx;
       while (this.states.length < fx.emitters.length) this.states.push({ particles: [], acc: 0, burst: false });
       this.states.length = fx.emitters.length;
+      this.places = this.prevPlaces = null;
     }
 
     restart() {
       this.time = 0;
       for (const s of this.states) { s.particles = []; s.acc = 0; s.burst = false; }
+      this.places = this.prevPlaces = null;
     }
 
     // The character's position (it walks a slow figure of eight with `walk`).
@@ -55,11 +98,6 @@
       return { x: 2.2 * Math.sin(t * w), y: 1.2 * Math.sin(2 * t * w), heading: Math.atan2(2.4 * w * Math.cos(2 * t * w), 2.2 * w * Math.cos(t * w)) };
     }
 
-    node(t) {
-      const f = this.figure(t);
-      return [f.x, f.y, ATTACH_HEIGHT[this.fx.attach] || 0];
-    }
-
     // How long an emitter is on - as nwn5e writes the model: its emit_seconds (the impact keys
     // its birthrate off after it), else the effect's seconds (D: while applied; F: keyed too).
     onFor(e) { return e.emit_seconds > 0 ? e.emit_seconds : Math.max(0.1, this.fx.seconds); }
@@ -67,17 +105,86 @@
     // The emitter's birthrate at time t (its keyed value: 0 once it's off).
     birthrate(e, t) { return t <= this.onFor(e) ? e.birthrate : 0; }
 
-    // One play: until every emitter is off and its particles gone (or a cap).
+    lastKey(anim) {
+      let last = 0;
+      const scan = (keys) => {
+        for (const k of keys || []) {
+          if (k.anim !== anim) continue;
+          for (let i = 0; i + 3 < k.position.length; i += 4) last = Math.max(last, k.position[i]);
+          for (let i = 0; i + 4 < k.orientation.length; i += 5) last = Math.max(last, k.orientation[i]);
+        }
+      };
+      for (const n of this.fx.nodes || []) scan(n.keys);
+      for (const e of this.fx.emitters) scan(e.keys);
+      return last;
+    }
+
+    // The animations' lengths as nwn5e writes the model (WriteVfxModel).
+    anims() {
+      const fx = this.fx, l = fx.lengths || [0, 2, 1];
+      let impact = 0.2;
+      for (const e of fx.emitters) {
+        const on = e.emit_seconds > 0 ? e.emit_seconds : (fx.duration ? 0 : fx.seconds);
+        impact = Math.max(impact, on + 0.01 + (fx.duration ? 0 : e.life));
+      }
+      impact = Math.max(impact, l[0], this.lastKey("impact"));
+      return { impact, duration: Math.max(l[1] > 0 ? l[1] : 2, this.lastKey("duration")),
+        cessation: Math.max(l[2] > 0 ? l[2] : 1, this.lastKey("cessation")) };
+    }
+
+    // Which animation plays at time t, and how far into it: the impact, then (D) the duration
+    // looping until it's removed (`seconds`), then the cessation.
+    animAt(t) {
+      const a = this.anims();
+      if (!this.fx.duration) return { anim: "impact", time: Math.min(t, a.impact) };
+      if (t < Math.min(a.impact, this.fx.seconds)) return { anim: "impact", time: t };
+      if (t < this.fx.seconds) return { anim: "duration", time: (t - a.impact) % a.duration };
+      return { anim: "cessation", time: Math.min(t - this.fx.seconds, a.cessation) };
+    }
+
+    // One play: until it's removed and every emitter's particles are gone (or a cap).
     length() {
       if (!this.fx) return 1;
-      let end = 0.5;
+      const a = this.anims();
+      let end = this.fx.duration ? this.fx.seconds + a.cessation : a.impact;
       for (const e of this.fx.emitters) end = Math.max(end, this.onFor(e) + (e.life > 0 ? e.life : 0));
       return Math.min(end + 0.6, 60);
     }
 
-    // Particle::initialize (+ randomPosition, randomDirection, PartEmitter::chkRandom).
-    spawn(e, state, node) {
+    // Where every node and emitter is at time t (world position and turn): its keys in the
+    // animation playing, else the place the model gives it, under its parent's, under the
+    // character's node (and facing).
+    placesAt(t) {
+      const fx = this.fx, f = this.figure(t), { anim, time } = this.animAt(t);
+      const base = { pos: [f.x, f.y, ATTACH_HEIGHT[fx.attach] || 0], q: [0, 0, Math.sin(f.heading / 2), Math.cos(f.heading / 2)] };
+      const items = new Map();
+      for (const n of fx.nodes || []) if (!items.has(n.name)) items.set(n.name, n);
+      for (const e of fx.emitters) if (!items.has(e.name)) items.set(e.name, e);
+      const places = new Map();
+      const place = (item, depth) => {
+        if (places.has(item.name)) return places.get(item.name);
+        const keys = (item.keys || []).find((k) => k.anim === anim);
+        const local = (keys && sample(keys.position, 4, time, false)) || item.position;
+        const turnNow = (keys && sample(keys.orientation, 5, time, true)) || quat(item.orientation);
+        const parent = item.parent && depth < 32 && items.has(item.parent) && item.parent !== item.name
+          ? place(items.get(item.parent), depth + 1) : base;
+        const moved = qrot(parent.q, local);
+        const p = { pos: [parent.pos[0] + moved[0], parent.pos[1] + moved[1], parent.pos[2] + moved[2]], q: qmul(parent.q, turnNow) };
+        places.set(item.name, p);
+        return p;
+      };
+      for (const item of items.values()) place(item, 0);
+      places.set("", base);
+      return places;
+    }
+
+    emitterPlace(e) { return (this.places && this.places.get(e.name)) || { pos: [0, 0, 0], q: [0, 0, 0, 1] }; }
+
+    // Particle::initialize (+ randomPosition, randomDirection, PartEmitter::chkRandom), from the
+    // emitter where it is now: its z the way out, its x / y the area.
+    spawn(e, state) {
       if (state.particles.length >= MAX_PARTICLES) return;
+      const at = this.emitterPlace(e);
       // Speed: velocity plus up to randvel either way, in 0.01 steps.
       let delta = 0;
       if (e.randvel > 0.01) {
@@ -86,16 +193,17 @@
         if (rand() % 2) delta = -delta;
       }
       // Where: the emitter, or a point of its xsize x ysize (cm) area.
-      const local = [e.position[0], e.position[1], e.position[2]];
+      const offset = [0, 0, 0];
       const xs = Math.trunc(e.xsize * 100), ys = Math.trunc(e.ysize * 100);
       if (xs || ys) {
         let a = xs > 3 ? rand() % Math.trunc(xs * 0.5) : 0;
         let b = ys > 3 ? rand() % Math.trunc(ys * 0.5) : 0;
         if (rand() % 2) a = -a;
         if (rand() % 2) b = -b;
-        const offset = turn(e.orientation, [a * 0.0001, b * 0.0001, 0]);
-        for (let i = 0; i < 3; i++) local[i] += offset[i];
+        offset[0] = a * 0.0001;
+        offset[1] = b * 0.0001;
       }
+      const moved = qrot(at.q, offset);
       // Which way: the emitter's z, tilted by up to half the spread (an even ANGLE, 0.01 steps)
       // and turned round it (0 - 6.27).
       let dir = [0, 0, 1], xaxis = [1, 0, 0];
@@ -107,15 +215,15 @@
       }
       // Its own frame (Particle +0x34): z = the way it left, x = its spawn turn's x - what
       // Aligned_to_Particle_Dir draws on.
-      dir = turn(e.orientation, dir);
-      xaxis = turn(e.orientation, xaxis);
+      dir = qrot(at.q, dir);
+      xaxis = qrot(at.q, xaxis);
       const speed = e.velocity + delta * 0.01;
       let frame = 0;
       if (e.random) {
         const span = Math.abs(Math.trunc(e.frame_end) + 1) || 1;
         frame = rand() % span;
       }
-      const pos = e.inherit ? local : [node[0] + local[0], node[1] + local[1], node[2] + local[2]];
+      const pos = [at.pos[0] + moved[0], at.pos[1] + moved[1], at.pos[2] + moved[2]];
       state.particles.push({
         pos, trail: pos.slice(), vel: [dir[0] * speed, dir[1] * speed, dir[2] * speed],
         age: 0, frame, lastFrameAge: 0, spin: 0, dir, xaxis, stopped: false, id: ++this.serial,
@@ -155,22 +263,36 @@
       }
     }
 
-    // PartEmitter::moveParticleStandard: dt x velocity, gravity mass x 9.81; with bounce, the
-    // ground (z 0) stops it (bounce_co 0) or throws it back (x 0.75, its rise x bounce_co) and
-    // it rests once slow (|v|^2 < 0.5), 2 cm over the ground (splat: lying flat on it).
-    move(e, state, dt, node) {
-      const ground = e.inherit ? -node[2] : 0;
+    // PartEmitter::moveParticleStandard. First what the particle follows: inherit - the
+    // emitter, carried and turned with it; inherit_local - the character's move; inherit_part
+    // - the emitter's move. Then dt x velocity, gravity mass x 9.81; with bounce, the ground
+    // (z 0) stops it (bounce_co 0) or throws it back (x 0.75, its rise x bounce_co) and it
+    // rests once slow (|v|^2 < 0.5), 2 cm over the ground (splat: lying flat on it).
+    move(e, state, dt) {
+      const now = this.emitterPlace(e);
+      const before = (this.prevPlaces && this.prevPlaces.get(e.name)) || now;
+      const turnBy = qmul(now.q, qconj(before.q));
+      const fNow = this.places ? this.places.get("") : null, fBefore = this.prevPlaces ? this.prevPlaces.get("") : fNow;
+      const shift = (p, d) => { for (let i = 0; i < 3; i++) { p.pos[i] += d[i]; p.trail[i] += d[i]; } };
       for (const p of state.particles) {
         if (p.stopped) continue;
-        const before = p.pos[2];
+        if (e.inherit) {
+          const rel = qrot(turnBy, [p.pos[0] - before.pos[0], p.pos[1] - before.pos[1], p.pos[2] - before.pos[2]]);
+          p.pos = [now.pos[0] + rel[0], now.pos[1] + rel[1], now.pos[2] + rel[2]];
+          p.vel = qrot(turnBy, p.vel);
+        } else if (e.inherit_local && fNow && fBefore) {
+          shift(p, [fNow.pos[0] - fBefore.pos[0], fNow.pos[1] - fBefore.pos[1], fNow.pos[2] - fBefore.pos[2]]);
+        }
+        if (e.inherit_part) shift(p, [now.pos[0] - before.pos[0], now.pos[1] - before.pos[1], now.pos[2] - before.pos[2]]);
+        const above = p.pos[2];
         p.pos[0] += p.vel[0] * dt;
         p.pos[1] += p.vel[1] * dt;
         p.pos[2] += p.vel[2] * dt;
         p.vel[2] -= e.mass * GRAVITY * dt;
-        if (!e.bounce || !(p.pos[2] < ground && before >= ground)) continue;
-        const k = (before - ground) / (before - p.pos[2] || 1);
+        if (!e.bounce || !(p.pos[2] < 0 && above >= 0)) continue;
+        const k = above / (above - p.pos[2] || 1);
         for (let i = 0; i < 2; i++) p.pos[i] -= p.vel[i] * dt * (1 - k);
-        p.pos[2] = ground;
+        p.pos[2] = 0;
         if (e.bounce_co === 0) {
           p.vel = [0, 0, 0];
         } else {
@@ -179,20 +301,22 @@
         }
         if (p.vel[0] ** 2 + p.vel[1] ** 2 + p.vel[2] ** 2 < 0.5) {
           p.stopped = true;
-          p.pos[2] = ground + 0.02;
+          p.pos[2] = 0.02;
           p.dir = [0, 0, 1];   // turned to the ground's normal (RotationArc(z, n))
           p.xaxis = [1, 0, 0];
         }
       }
     }
 
-    // One frame (the game runs its emitters once a frame; dt at most 0.5 s).
+    // One frame (the game runs its emitters once a frame; dt at most 0.5 s): the nodes moved
+    // to now (PartEmitter::AnimateParticles), then each emitter's update.
     step(dt) {
       if (!this.fx) return;
       dt = Math.min(dt, 0.5);
       this.time += dt;
       const t = this.time;
-      const node = this.node(t);
+      this.prevPlaces = this.places || this.placesAt(Math.max(0, t - dt));
+      this.places = this.placesAt(t);
       this.fx.emitters.forEach((e, i) => {
         const state = this.states[i];
         if (!state) return;
@@ -200,24 +324,24 @@
         const birth = this.birthrate(e, t);
         if (update === "single") {
           if (Math.trunc(birth) === 0) { state.particles = []; return; }
-          if (!state.particles.length) { this.spawn(e, state, node); return; }
+          if (!state.particles.length) { this.spawn(e, state); return; }
           state.particles[0].age += dt;  // never dies by age; loop isn't written (0)
           this.spin(e, state, dt);
           this.trail(e, state, dt);
-          this.move(e, state, dt, node);
+          this.move(e, state, dt);
           return;
         }
         if (update !== "fountain" && update !== "explosion") return;  // Lightning: not drawn here
         this.ageParticles(e, state, dt);
         this.trail(e, state, dt);
         this.spin(e, state, dt);
-        this.move(e, state, dt, node);
+        this.move(e, state, dt);
         const n = Math.trunc(birth);
         if (update === "explosion") {
           // The impact's detonate event at the start: int(birthrate) at once.
           if (!state.burst) {
             state.burst = true;
-            for (let k = 0; k < n; k++) this.spawn(e, state, node);
+            for (let k = 0; k < n; k++) this.spawn(e, state);
           }
           return;
         }
@@ -227,7 +351,7 @@
         state.acc += dt;
         if (state.acc >= 1 / birth) {
           const count = Math.trunc(state.acc * birth) % (n + 1);
-          for (let k = 0; k < count; k++) this.spawn(e, state, node);
+          for (let k = 0; k < count; k++) this.spawn(e, state);
           state.acc = 0;
         }
       });
@@ -238,15 +362,17 @@
     // a straight start -> end (the mid values and percents do nothing); lifeExp 0: nothing
     // drawn, below 0: the start values. Splat: sizeStart in flight, sizeEnd once it rests.
     // The frame steps by whole frames at fps while drawn (the rest of the time dropped) and
-    // wraps to the first; fps 0 (or a one-frame range): it stays.
+    // wraps to the first; fps 0 (or a one-frame range): it stays. Also where the emitter is
+    // and how it's turned (Billboard_to_Local_Z lies in its x / y).
     snapshot() {
       if (!this.fx) return [];
-      const node = this.node(this.time);
+      if (!this.places) this.places = this.placesAt(this.time);
       const clamp01 = (v) => Math.max(0, Math.min(1, v));
       return this.fx.emitters.map((e, i) => {
         const state = this.states[i];
         const grid = Math.max(1, e.grid | 0);
-        if (!state || this.hidden.has(i) || e.life === 0) return { emitter: e, particles: [], grid };
+        const at = this.emitterPlace(e);
+        if (!state || this.hidden.has(i) || e.life === 0) return { emitter: e, particles: [], grid, place: at };
         const life = e.life;
         const hs0 = e.size_start * 0.5, hs1 = e.size_end * 0.5;
         const sizeVaries = life > 0 && e.size_start !== e.size_end && !e.splat;
@@ -256,7 +382,6 @@
         const alphaVaries = life > 0 && e.alpha_start !== e.alpha_end;
         const spf = e.fps > 0 ? 1 / e.fps : 0;
         const frameEnd = Math.trunc(e.frame_end);
-        const world = (v) => (e.inherit ? [node[0] + v[0], node[1] + v[1], node[2] + v[2]] : v);
         const particles = state.particles.map((p) => {
           const t = life > 0 ? Math.min(1, p.age / life) : 0;
           let w = sizeVaries ? hs0 + (hs1 - hs0) * t : hs0;
@@ -272,18 +397,25 @@
           const rgb = [0, 1, 2].map((k) => Math.trunc(colorVaries ? t * cE[k] + (1 - t) * cS[k] : cS[k]) / 255);
           const alpha = alphaVaries ? t * aE + (1 - t) * aS : aS;
           return {
-            pos: world(p.pos), trail: world(p.trail), w, h: w, color: [...rgb, Math.trunc(alpha) / 255], alpha255: alpha,
+            pos: p.pos, trail: p.trail, w, h: w, color: [...rgb, Math.trunc(alpha) / 255], alpha255: alpha,
             frame: grid > 1 ? p.frame : -1, spin: p.spin, dir: p.dir, xaxis: p.xaxis, stopped: p.stopped,
           };
         });
-        return { emitter: e, particles, grid };
+        return { emitter: e, particles, grid, place: at };
       });
+    }
+
+    // Where the nodes are now (the stage marks them).
+    nodePlaces() {
+      if (!this.fx) return [];
+      if (!this.places) this.places = this.placesAt(this.time);
+      return (this.fx.nodes || []).map((n) => ({ name: n.name, ...(this.places.get(n.name) || { pos: [0, 0, 0], q: [0, 0, 0, 1] }) }));
     }
 
     count() { return this.states.reduce((n, s, i) => n + (this.hidden.has(i) ? 0 : s.particles.length), 0); }
   }
 
-  const api = { Sim, ATTACH_HEIGHT, turn };
+  const api = { Sim, ATTACH_HEIGHT, turn, quat, qrot, qmul, slerp, sample };
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.VfxSim = api;
 })(typeof self !== "undefined" ? self : this);

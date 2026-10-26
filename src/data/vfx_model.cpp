@@ -53,8 +53,8 @@ std::vector<std::string> EmitterLines(const VfxEmitter& e, const std::string& no
       "node emitter " + node,
       "  parent " + parent,
       "  p2p 0", "  p2p_sel 1", "  affectedByWind 0", "  m_isTinted 0", flag("bounce", e.bounce),
-      flag("random", e.random), flag("inherit", e.inherit), "  inheritvel 0", "  inherit_local 0",
-      flag("splat", e.splat), "  inherit_part 0", "  renderorder 0", "  spawntype 0",
+      flag("random", e.random), flag("inherit", e.inherit), "  inheritvel 0", flag("inherit_local", e.inherit_local),
+      flag("splat", e.splat), flag("inherit_part", e.inherit_part), "  renderorder 0", "  spawntype 0",
       "  update " + e.update,
       "  render " + e.render,
       "  blend " + e.blend,
@@ -111,7 +111,74 @@ std::string NodeName(const std::string& model, const VfxEmitter& e, size_t index
   return model + "_" + std::to_string(index) + "_" + clean;
 }
 
+const char* const kAnims[] = {"impact", "duration", "cessation"};
+
+std::string Row(const std::vector<float>& values) {
+  std::string out;
+  for (size_t i = 0; i < values.size(); ++i) out += (i ? " " : "") + Num(values[i]);
+  return out;
+}
+
+void ReadAll(const std::vector<std::string>& words, std::vector<float>* out) {
+  out->clear();
+  for (const std::string& w : words) out->push_back(ToFloat(w));
+}
+
+// A node's or an emitter's key lines in a draft: the animations that key it, in order.
+std::string DraftKeys(const std::vector<VfxKeys>& keys) {
+  std::string out;
+  for (const char* anim : kAnims) {
+    for (const VfxKeys& k : keys) {
+      if (k.anim != anim) continue;
+      if (!k.position.empty()) out += std::string(anim) + "_position = " + Row(k.position) + "\n";
+      if (!k.orientation.empty()) out += std::string(anim) + "_orientation = " + Row(k.orientation) + "\n";
+    }
+  }
+  return out;
+}
+
+// A draft line that is a key list ("<anim>_position" / "<anim>_orientation").
+bool DraftKeyLine(const std::string& key, const std::vector<std::string>& words, std::vector<VfxKeys>* keys) {
+  for (const char* anim : kAnims) {
+    const std::string a(anim);
+    if (key == a + "_position") {
+      ReadAll(words, &FindKeys(keys, a, true)->position);
+      return true;
+    }
+    if (key == a + "_orientation") {
+      ReadAll(words, &FindKeys(keys, a, true)->orientation);
+      return true;
+    }
+  }
+  return false;
+}
+
+// The last key's time in one animation, over the effect's nodes and emitters.
+float LastKeyTime(const VfxEffect& effect, const std::string& anim) {
+  float last = 0.0f;
+  const auto scan = [&](const std::vector<VfxKeys>& keys) {
+    for (const VfxKeys& k : keys) {
+      if (k.anim != anim) continue;
+      for (size_t i = 0; i + 3 < k.position.size(); i += 4) last = std::max(last, k.position[i]);
+      for (size_t i = 0; i + 4 < k.orientation.size(); i += 5) last = std::max(last, k.orientation[i]);
+    }
+  };
+  for (const VfxNode& n : effect.nodes) scan(n.keys);
+  for (const VfxEmitter& e : effect.emitters) scan(e.keys);
+  return last;
+}
+
 }  // namespace
+
+VfxKeys* FindKeys(std::vector<VfxKeys>* list, const std::string& anim, bool create) {
+  for (VfxKeys& k : *list) {
+    if (k.anim == anim) return &k;
+  }
+  if (!create) return nullptr;
+  list->emplace_back();
+  list->back().anim = anim;
+  return &list->back();
+}
 
 std::string VfxResRef(const std::string& text, size_t max) {
   std::string out;
@@ -124,6 +191,51 @@ std::string VfxResRef(const std::string& text, size_t max) {
 }
 
 std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
+  // The model's own names for the effect's nodes and emitters (unique to it), and its parents
+  // before its children: the order a model is written in (a parent never written - a loop,
+  // a missing one - leaves its child under the root).
+  const size_t node_count = effect.nodes.size(), total = node_count + effect.emitters.size();
+  std::vector<std::string> names(total);
+  std::map<std::string, std::string> by_name;
+  for (size_t k = 0; k < total; ++k) {
+    if (k < node_count) {
+      std::string clean = VfxResRef(effect.nodes[k].name, 20);
+      names[k] = model + "_n" + std::to_string(k) + "_" + (clean.empty() ? std::string("n") : clean);
+      by_name.emplace(effect.nodes[k].name, names[k]);
+    } else {
+      names[k] = NodeName(model, effect.emitters[k - node_count], k - node_count);
+      by_name.emplace(effect.emitters[k - node_count].name, names[k]);
+    }
+  }
+  const auto parent_of = [&](size_t k) {
+    const std::string& parent = k < node_count ? effect.nodes[k].parent : effect.emitters[k - node_count].parent;
+    const auto it = parent.empty() ? by_name.end() : by_name.find(parent);
+    return it == by_name.end() ? model : it->second;
+  };
+  std::vector<size_t> order;
+  std::vector<bool> placed(total, false);
+  std::set<std::string> written = {model};
+  for (bool progress = true; progress && order.size() < total;) {
+    progress = false;
+    for (size_t k = 0; k < total; ++k) {
+      if (placed[k] || !written.count(parent_of(k))) continue;
+      placed[k] = progress = true;
+      order.push_back(k);
+      written.insert(names[k]);
+    }
+  }
+  std::set<size_t> orphans;
+  for (size_t k = 0; k < total; ++k) {
+    if (!placed[k]) {
+      order.push_back(k);
+      orphans.insert(k);
+    }
+  }
+  const auto parent_line = [&](size_t k) { return orphans.count(k) ? model : parent_of(k); };
+  const auto turn = [](const float o[4]) {
+    return Num(o[0]) + " " + Num(o[1]) + " " + Num(o[2]) + " " + Num(o[3]);
+  };
+
   std::vector<std::string> lines = {
       "#MAXMODEL ASCII",
       "# nwn5e VFX editor (!vfxedit): " + effect.name,
@@ -136,19 +248,52 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
       "  parent NULL",
       "endnode",
   };
-  for (size_t i = 0; i < effect.emitters.size(); ++i) {
-    const VfxEmitter& e = effect.emitters[i];
+  for (size_t k : order) {
+    if (k < node_count) {
+      const VfxNode& n = effect.nodes[k];
+      lines.push_back("node dummy " + names[k]);
+      lines.push_back("  parent " + parent_line(k));
+      lines.push_back("  position " + Num(n.position[0]) + " " + Num(n.position[1]) + " " + Num(n.position[2]));
+      lines.push_back("  orientation " + turn(n.orientation));
+      lines.push_back("endnode");
+      continue;
+    }
+    const VfxEmitter& e = effect.emitters[k - node_count];
     // An emitter that switches off is keyed in the impact; F's always-on ones are too.
     const bool keyed = e.emit_seconds > 0.0f || !effect.duration;
-    for (const std::string& line : EmitterLines(e, NodeName(model, e, i), model, keyed)) lines.push_back(line);
+    for (const std::string& line : EmitterLines(e, names[k], parent_line(k), keyed)) lines.push_back(line);
   }
   lines.push_back("endmodelgeom " + model);
-  // The impact: long enough for every emitter's emission (and, F, what it emitted to fade).
+  // The impact: long enough for every emitter's emission (and, F, what it emitted to fade),
+  // for the effect's own length and for its keys; the duration and cessation as long as the
+  // effect has them (2 s / 1 s if not given) and their keys.
   float impact = 0.2f;
   for (const VfxEmitter& e : effect.emitters) {
     const float on = e.emit_seconds > 0.0f ? e.emit_seconds : (effect.duration ? 0.0f : effect.seconds);
     impact = std::max(impact, on + 0.01f + (effect.duration ? 0.0f : e.life));
   }
+  impact = std::max({impact, effect.lengths[0], LastKeyTime(effect, "impact")});
+  const float duration = std::max(effect.lengths[1] > 0.0f ? effect.lengths[1] : 2.0f, LastKeyTime(effect, "duration"));
+  const float cessation =
+      std::max(effect.lengths[2] > 0.0f ? effect.lengths[2] : 1.0f, LastKeyTime(effect, "cessation"));
+  const auto key_lines = [&](const std::vector<VfxKeys>& keys, const char* anim) {
+    for (const VfxKeys& k : keys) {
+      if (k.anim != anim) continue;
+      if (k.position.size() >= 4) {
+        lines.push_back("  positionkey " + std::to_string(k.position.size() / 4));
+        for (size_t i = 0; i + 3 < k.position.size(); i += 4) {
+          lines.push_back("    " + Num(k.position[i]) + " " + Num(k.position[i + 1]) + " " + Num(k.position[i + 2]) + " " +
+                          Num(k.position[i + 3]));
+        }
+      }
+      if (k.orientation.size() >= 5) {
+        lines.push_back("  orientationkey " + std::to_string(k.orientation.size() / 5));
+        for (size_t i = 0; i + 4 < k.orientation.size(); i += 5) {
+          lines.push_back("    " + Num(k.orientation[i]) + " " + turn(&k.orientation[i + 1]));
+        }
+      }
+    }
+  };
   const auto anim = [&](const char* name, float length, bool keys_on, bool keys_off) {
     lines.push_back("");
     lines.push_back(std::string("newanim ") + name + " " + model);
@@ -160,10 +305,17 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
     lines.push_back("node dummy " + model);
     lines.push_back("  parent NULL");
     lines.push_back("endnode");
-    for (size_t i = 0; i < effect.emitters.size(); ++i) {
-      const VfxEmitter& e = effect.emitters[i];
-      lines.push_back("node emitter " + NodeName(model, e, i));
-      lines.push_back("  parent " + model);
+    for (size_t k : order) {
+      if (k < node_count) {
+        lines.push_back("node dummy " + names[k]);
+        lines.push_back("  parent " + parent_line(k));
+        key_lines(effect.nodes[k].keys, name);
+        lines.push_back("endnode");
+        continue;
+      }
+      const VfxEmitter& e = effect.emitters[k - node_count];
+      lines.push_back("node emitter " + names[k]);
+      lines.push_back("  parent " + parent_line(k));
       if (keys_off) {
         lines.push_back("  birthratekey 1");
         lines.push_back("    0 0");
@@ -174,14 +326,15 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
         lines.push_back("    " + Num(on) + " " + Num(e.birthrate));
         lines.push_back("    " + Num(on + 0.01f) + " 0");
       }
+      key_lines(e.keys, name);
       lines.push_back("endnode");
     }
     lines.push_back(std::string("doneanim ") + name + " " + model);
   };
   anim("impact", impact, true, false);
   if (effect.duration) {
-    anim("duration", 2.0f, false, false);
-    anim("cessation", 1.0f, false, true);
+    anim("duration", duration, false, false);
+    anim("cessation", cessation, false, true);
   }
   lines.push_back("");
   lines.push_back("donemodel " + model);
@@ -196,12 +349,22 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
   out += std::string("type = ") + (effect.duration ? "D" : "F") + "\n";
   out += "seconds = " + Num(effect.seconds) + "\n";
   out += "attach = " + effect.attach + "\n";
+  out += "lengths = " + Num(effect.lengths[0]) + " " + Num(effect.lengths[1]) + " " + Num(effect.lengths[2]) + "\n";
+  for (const VfxNode& n : effect.nodes) {
+    out += "\n[node " + n.name + "]\n";
+    if (!n.parent.empty()) out += "parent = " + n.parent + "\n";
+    out += "position = " + Num(n.position[0]) + " " + Num(n.position[1]) + " " + Num(n.position[2]) + "\n";
+    out += "orientation = " + Num(n.orientation[0]) + " " + Num(n.orientation[1]) + " " + Num(n.orientation[2]) + " " +
+           Num(n.orientation[3]) + "\n";
+    out += DraftKeys(n.keys);
+  }
   for (const VfxEmitter& e : effect.emitters) {
     out += "\n[emitter " + e.name + "]\n";
     out += "update = " + e.update + "\nrender = " + e.render + "\nblend = " + e.blend + "\ntexture = " + e.texture + "\n";
     out += "position = " + Num(e.position[0]) + " " + Num(e.position[1]) + " " + Num(e.position[2]) + "\n";
     out += "orientation = " + Num(e.orientation[0]) + " " + Num(e.orientation[1]) + " " + Num(e.orientation[2]) + " " +
            Num(e.orientation[3]) + "\n";
+    if (!e.parent.empty()) out += "parent = " + e.parent + "\n";
     out += "birthrate = " + Num(e.birthrate) + "\nemit_seconds = " + Num(e.emit_seconds) + "\nlife = " + Num(e.life) + "\n";
     out += "velocity = " + Num(e.velocity) + "\nrandvel = " + Num(e.randvel) + "\nspread = " + Num(e.spread) + "\n";
     out += "mass = " + Num(e.mass) + "\nsize = " + Num(e.size_start) + " " + Num(e.size_end) + "\n";
@@ -217,14 +380,17 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
     if (e.splat) flags += " splat";
     if (e.bounce) flags += " bounce";
     if (e.random) flags += " random";
+    if (e.inherit_local) flags += " inherit_local";
+    if (e.inherit_part) flags += " inherit_part";
     out += "flags =" + flags + "\n";
+    out += DraftKeys(e.keys);
   }
   return out;
 }
 
 bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error) {
   VfxEffect result;
-  VfxEmitter* e = nullptr;
+  int emitter = -1, node = -1;  // the section being read (indices: the lists grow)
   std::istringstream in(text);
   std::string raw;
   int line_number = 0;
@@ -235,14 +401,22 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
     if (line.front() == '[') {
       const std::string inner = Trim(line.substr(1, line.find(']') == std::string::npos ? std::string::npos
                                                                                           : line.find(']') - 1));
-      if (Lower(inner).rfind("emitter", 0) != 0) {
+      if (Lower(inner).rfind("emitter", 0) == 0) {
+        result.emitters.emplace_back();
+        emitter = static_cast<int>(result.emitters.size()) - 1;
+        node = -1;
+        result.emitters.back().name = Trim(inner.substr(7));
+        if (result.emitters.back().name.empty()) result.emitters.back().name = "emitter";
+      } else if (Lower(inner).rfind("node", 0) == 0) {
+        result.nodes.emplace_back();
+        node = static_cast<int>(result.nodes.size()) - 1;
+        emitter = -1;
+        result.nodes.back().name = Trim(inner.substr(4));
+        if (result.nodes.back().name.empty()) result.nodes.back().name = "node";
+      } else {
         if (error) *error = "line " + std::to_string(line_number) + ": unknown section [" + inner + "]";
         return false;
       }
-      result.emitters.emplace_back();
-      e = &result.emitters.back();
-      e->name = Trim(inner.substr(7));
-      if (e->name.empty()) e->name = "emitter";
       continue;
     }
     const size_t eq = line.find('=');
@@ -253,17 +427,28 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
     const std::string key = Lower(Trim(line.substr(0, eq)));
     const std::string value = Trim(line.substr(eq + 1));
     const std::vector<std::string> words = Words(value);
-    if (!e) {
+    if (node >= 0) {
+      VfxNode& n = result.nodes[node];
+      if (key == "parent") n.parent = value;
+      else if (key == "position") ReadFloats(words, 0, n.position, 3);
+      else if (key == "orientation") ReadFloats(words, 0, n.orientation, 4);
+      else DraftKeyLine(key, words, &n.keys);
+      continue;
+    }
+    if (emitter < 0) {
       if (key == "name") result.name = value;
       else if (key == "type") result.duration = Lower(value) != "f";
       else if (key == "seconds") result.seconds = ToFloat(value);
       else if (key == "attach") result.attach = Lower(value);
+      else if (key == "lengths") ReadFloats(words, 0, result.lengths, 3);
       continue;
     }
+    VfxEmitter* e = &result.emitters[emitter];
     if (key == "update") e->update = value;
     else if (key == "render") e->render = value;
     else if (key == "blend") e->blend = value;
     else if (key == "texture") e->texture = value;
+    else if (key == "parent") e->parent = value;
     else if (key == "position") ReadFloats(words, 0, e->position, 3);
     else if (key == "orientation") ReadFloats(words, 0, e->orientation, 4);
     else if (key == "birthrate") e->birthrate = ToFloat(value);
@@ -303,8 +488,10 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
         e->splat = e->splat || f == "splat";
         e->bounce = e->bounce || f == "bounce";
         e->random = e->random || f == "random";
+        e->inherit_local = e->inherit_local || f == "inherit_local";
+        e->inherit_part = e->inherit_part || f == "inherit_part";
       }
-    }
+    } else DraftKeyLine(key, words, &e->keys);
   }
   *effect = result;
   return true;
@@ -317,41 +504,77 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
   std::string raw;
   enum class Where { kOutside, kGeometry, kAnim } where = Where::kOutside;
   std::string anim;
-  VfxEmitter* e = nullptr;          // geometry: the emitter being read
-  VfxEmitter* keyed = nullptr;      // an animation's emitter node
-  std::vector<std::string> names;   // node names, parallel to emitters
+  // The geometry's nodes (any kind: the emitters hang under dummies, meshes, lights...).
+  struct Geo {
+    std::string name, parent;
+    float position[3] = {0, 0, 0};
+    float orientation[4] = {0, 0, 0, 0};
+    bool emitter = false;
+    std::vector<VfxKeys> keys;
+  };
+  std::vector<Geo> geo;
+  std::map<std::string, size_t> geo_at;  // lower-case name -> index
+  int current = -1;                      // the geometry node being read / keyed
+  int emitter = -1;                      // its emitter, if it is one
   std::string key_name;
-  int key_rows = 0;
-  std::vector<std::pair<float, float>> keys;
+  int key_rows = 0;                      // rows still to come; -1: until "endlist"
+  std::vector<std::vector<float>> rows;
   bool has_duration = false;
   const auto finish_keys = [&]() {
-    if (!keyed || keys.empty()) return;
-    if (key_name == "birthratekey" && anim == "impact") {
-      float top = 0.0f, off = 0.0f;
-      ReadBirthrateKeys(keys, &top, &off);
-      if (top > 0.0f) keyed->birthrate = std::max(keyed->birthrate, top);
-      if (off > 0.0f) keyed->emit_seconds = off;
-    } else if ((key_name == "sizestartkey" || key_name == "sizeendkey") && keyed->size_start == 0.0f) {
-      float top = 0.0f;
-      for (const auto& k : keys) top = std::max(top, k.second);
-      if (top > 0.0f) {
-        keyed->size_start = top;
-        keyed->size_end = top;
+    if (current >= 0 && !rows.empty()) {
+      VfxEmitter* keyed = emitter >= 0 ? &result.emitters[emitter] : nullptr;
+      if (key_name == "positionkey" || key_name == "orientationkey") {
+        const size_t width = key_name == "positionkey" ? 4 : 5;
+        VfxKeys* k = FindKeys(&geo[current].keys, anim, true);
+        std::vector<float>& out = key_name == "positionkey" ? k->position : k->orientation;
+        for (const auto& row : rows) {
+          if (row.size() < width) continue;
+          out.insert(out.end(), row.begin(), row.begin() + width);
+        }
+      } else if (keyed) {
+        std::vector<std::pair<float, float>> keys;
+        for (const auto& row : rows) {
+          if (row.size() >= 2) keys.emplace_back(row[0], row[1]);
+        }
+        if (key_name == "birthratekey" && anim == "impact") {
+          float top = 0.0f, off = 0.0f;
+          ReadBirthrateKeys(keys, &top, &off);
+          if (top > 0.0f) keyed->birthrate = std::max(keyed->birthrate, top);
+          if (off > 0.0f) keyed->emit_seconds = off;
+        } else if ((key_name == "sizestartkey" || key_name == "sizeendkey") && keyed->size_start == 0.0f) {
+          float top = 0.0f;
+          for (const auto& k : keys) top = std::max(top, k.second);
+          if (top > 0.0f) {
+            keyed->size_start = top;
+            keyed->size_end = top;
+          }
+        }
       }
     }
-    keys.clear();
+    rows.clear();
     key_name.clear();
     key_rows = 0;
+  };
+  const auto numeric = [](const std::string& word) {
+    return !word.empty() && (isdigit(static_cast<unsigned char>(word[0])) || word[0] == '-' || word[0] == '.');
   };
   while (std::getline(in, raw)) {
     const std::vector<std::string> w = Words(raw.substr(0, raw.find('#')));
     if (w.empty()) continue;
     const std::string first = Lower(w[0]);
-    if (key_rows > 0 && w.size() >= 2 && (isdigit(static_cast<unsigned char>(w[0][0])) || w[0][0] == '-' ||
-                                           w[0][0] == '.')) {
-      keys.emplace_back(ToFloat(w[0]), ToFloat(w[1]));
-      if (--key_rows == 0) finish_keys();
-      continue;
+    if (key_rows != 0) {
+      if (first == "endlist") {
+        finish_keys();
+        continue;
+      }
+      if (numeric(w[0])) {
+        std::vector<float> row;
+        for (const std::string& word : w) row.push_back(ToFloat(word));
+        rows.push_back(row);
+        if (key_rows > 0 && --key_rows == 0) finish_keys();
+        continue;
+      }
+      finish_keys();  // a list that ends without its rows or an endlist
     }
     if (first == "newmodel" && w.size() >= 2) result.name = w[1];
     else if (first == "beginmodelgeom") where = Where::kGeometry;
@@ -362,32 +585,50 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       if (anim == "duration") has_duration = true;
     } else if (first == "doneanim") {
       where = Where::kOutside;
-      keyed = nullptr;
+      current = emitter = -1;
+    } else if (where == Where::kAnim && first == "length" && w.size() >= 2) {
+      const int slot = anim == "impact" ? 0 : anim == "duration" ? 1 : anim == "cessation" ? 2 : -1;
+      if (slot >= 0) result.lengths[slot] = ToFloat(w[1]);
     } else if (first == "node" && w.size() >= 3) {
-      e = nullptr;
-      keyed = nullptr;
-      if (Lower(w[1]) != "emitter") continue;
+      current = emitter = -1;
+      const auto found = geo_at.find(Lower(w[2]));
       if (where == Where::kGeometry) {
-        result.emitters.emplace_back();
-        e = &result.emitters.back();
-        names.push_back(w[2]);
-        e->name = w[2];
-        e->birthrate = 0.0f;
-        e->size_start = e->size_end = 0.0f;
-      } else if (where == Where::kAnim) {
-        for (size_t i = 0; i < names.size(); ++i) {
-          if (Lower(names[i]) == Lower(w[2])) keyed = &result.emitters[i];
+        geo.emplace_back();
+        geo.back().name = w[2];
+        current = static_cast<int>(geo.size()) - 1;
+        geo_at.emplace(Lower(w[2]), geo.size() - 1);
+        if (Lower(w[1]) == "emitter") {
+          geo.back().emitter = true;
+          result.emitters.emplace_back();
+          emitter = static_cast<int>(result.emitters.size()) - 1;
+          VfxEmitter& e = result.emitters.back();
+          e.name = w[2];
+          e.birthrate = 0.0f;
+          e.size_start = e.size_end = 0.0f;
+        }
+      } else if (where == Where::kAnim && found != geo_at.end()) {
+        current = static_cast<int>(found->second);
+        if (geo[current].emitter) {
+          for (size_t i = 0; i < result.emitters.size(); ++i) {
+            if (Lower(result.emitters[i].name) == Lower(w[2])) emitter = static_cast<int>(i);
+          }
         }
       }
     } else if (first == "endnode") {
-      e = nullptr;
-      keyed = nullptr;
-    } else if (where == Where::kAnim && keyed && w.size() >= 2 && first.size() > 3 &&
+      current = emitter = -1;
+    } else if (where == Where::kAnim && current >= 0 && first.size() > 3 &&
                first.compare(first.size() - 3, 3, "key") == 0) {
       key_name = first;
-      key_rows = atoi(w[1].c_str());
-      keys.clear();
-    } else if (where == Where::kGeometry && e && w.size() >= 2) {
+      rows.clear();
+      key_rows = w.size() >= 2 && numeric(w[1]) ? atoi(w[1].c_str()) : -1;
+      if (key_rows == 0) key_name.clear();
+    } else if (where == Where::kGeometry && current >= 0 && w.size() >= 2) {
+      Geo& g = geo[current];
+      if (first == "parent") g.parent = w[1];
+      else if (first == "position") ReadFloats(w, 1, g.position, 3);
+      else if (first == "orientation") ReadFloats(w, 1, g.orientation, 4);
+      if (emitter < 0) continue;
+      VfxEmitter* e = &result.emitters[emitter];
       const std::string& v = w[1];
       if (first == "update") e->update = v;
       else if (first == "render") e->render = v;
@@ -419,11 +660,48 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       else if (first == "splat") e->splat = v != "0";
       else if (first == "bounce") e->bounce = v != "0";
       else if (first == "random") e->random = v != "0";
+      else if (first == "inherit_local") e->inherit_local = v != "0";
+      else if (first == "inherit_part") e->inherit_part = v != "0";
     }
   }
+  if (key_rows != 0) finish_keys();
   if (result.emitters.empty()) {
     if (error) *error = "no emitters in that model (an ASCII effect model of nwn5e's is needed)";
     return false;
+  }
+  // The root (the node whose parent is NULL - the effect's own) is the model; the nodes kept
+  // are the emitters' ancestors under it, parents first, with their keys (0.42.3).
+  const auto is_root = [&](const std::string& name) {
+    const auto it = geo_at.find(Lower(name));
+    return name.empty() || Lower(name) == "null" || (it != geo_at.end() && Lower(geo[it->second].parent) == "null");
+  };
+  std::set<std::string> keep;
+  for (const Geo& g : geo) {
+    if (!g.emitter) continue;
+    std::string up = g.parent;
+    for (int depth = 0; depth < 64 && !is_root(up) && geo_at.count(Lower(up)); ++depth) {
+      const Geo& parent = geo[geo_at[Lower(up)]];
+      if (!parent.emitter) keep.insert(Lower(parent.name));
+      up = parent.parent;
+    }
+  }
+  for (const Geo& g : geo) {
+    if (g.emitter) {
+      for (VfxEmitter& e : result.emitters) {
+        if (Lower(e.name) != Lower(g.name)) continue;
+        e.parent = is_root(g.parent) ? std::string() : g.parent;
+        e.keys = g.keys;
+      }
+      continue;
+    }
+    if (!keep.count(Lower(g.name))) continue;
+    VfxNode n;
+    n.name = g.name;
+    n.parent = is_root(g.parent) ? std::string() : g.parent;
+    memcpy(n.position, g.position, sizeof(n.position));
+    memcpy(n.orientation, g.orientation, sizeof(n.orientation));
+    n.keys = g.keys;
+    result.nodes.push_back(n);
   }
   result.duration = has_duration;
   *effect = result;
@@ -538,44 +816,54 @@ void QRotate(const float q[4], const float v[3], float out[3]) {
   memcpy(out, r, 3 * sizeof(float));
 }
 
-// Where each node of a tree sits in the model: its parents' positions (controller 8) and
-// orientations (20, x y z w) composed down from the root (0.42.2: the game's Premonition
-// hangs its eye emitters under dummies 1.3 m up - read on their own they sat at the feet).
-std::map<size_t, std::vector<float>> PlacedNodes(const Bytes& m, uint32_t root) {
-  std::map<size_t, std::vector<float>> placed;  // node -> x y z, qx qy qz qw
-  if (root == 0) return placed;
-  struct Item {
-    size_t node;
-    float pos[3];
-    float rot[4];
-  };
-  std::vector<Item> stack = {{kModelBase + root + 0x10, {0, 0, 0}, {0, 0, 0, 1}}};
-  while (!stack.empty() && placed.size() < 4096) {
-    Item item = stack.back();
+// A geometry node: its name, its parent (0: none - the root), where it sits under the parent
+// (controller 8) and how it's turned (20, x y z w). Parents before children (0.42.3; 0.42.2
+// composed them into one place - now the effect keeps the nodes, the game's motion is theirs).
+struct GeoNode {
+  size_t node = 0;
+  size_t parent = 0;
+  std::string name;
+  float pos[3] = {0, 0, 0};
+  float rot[4] = {0, 0, 0, 1};
+};
+
+std::vector<GeoNode> GeometryNodes(const Bytes& m, uint32_t root) {
+  std::vector<GeoNode> out;
+  if (root == 0) return out;
+  std::set<size_t> seen;
+  std::vector<std::pair<size_t, size_t>> stack = {{kModelBase + root + 0x10, 0}};  // node, parent
+  while (!stack.empty() && out.size() < 4096) {
+    const auto item = stack.back();
     stack.pop_back();
-    if (item.node + 0x60 > m.b.size() || placed.count(item.node)) continue;
-    float local[3] = {0, 0, 0}, turn[4] = {0, 0, 0, 1};
+    if (item.first + 0x60 > m.b.size() || !seen.insert(item.first).second) continue;
+    GeoNode g;
+    g.node = item.first;
+    g.parent = item.second;
+    g.name = m.Str(item.first + 0x10, 32);
     std::vector<Controller> controllers;
-    if (ReadControllers(m, item.node, &controllers)) {
+    if (ReadControllers(m, item.first, &controllers)) {
       for (const Controller& c : controllers) {
-        if (c.type == 8 && c.columns == 3 && c.values.size() >= 3) memcpy(local, c.values.data(), sizeof(local));
-        if (c.type == 20 && c.columns == 4 && c.values.size() >= 4) memcpy(turn, c.values.data(), sizeof(turn));
+        if (c.type == 8 && c.columns == 3 && c.values.size() >= 3) memcpy(g.pos, c.values.data(), sizeof(g.pos));
+        if (c.type == 20 && c.columns == 4 && c.values.size() >= 4) memcpy(g.rot, c.values.data(), sizeof(g.rot));
       }
     }
-    float moved[3], pos[3], rot[4];
-    QRotate(item.rot, local, moved);
-    for (int i = 0; i < 3; ++i) pos[i] = item.pos[i] + moved[i];
-    QMul(item.rot, turn, rot);
-    placed[item.node] = {pos[0], pos[1], pos[2], rot[0], rot[1], rot[2], rot[3]};
-    const uint32_t children = m.U32(item.node + 0x38), count = m.U32(item.node + 0x3C);
+    out.push_back(g);
+    const uint32_t children = m.U32(item.first + 0x38), count = m.U32(item.first + 0x3C);
     if (count > 1024 || kModelBase + children + 4ull * count > m.b.size()) continue;
-    for (uint32_t i = 0; i < count; ++i) {
-      Item child{kModelBase + m.U32(kModelBase + children + 4ull * i) + 0x10, {pos[0], pos[1], pos[2]},
-                 {rot[0], rot[1], rot[2], rot[3]}};
-      stack.push_back(child);
+    for (uint32_t i = count; i-- > 0;) {
+      stack.emplace_back(kModelBase + m.U32(kModelBase + children + 4ull * i) + 0x10, item.first);
     }
   }
-  return placed;
+  return out;
+}
+
+// A quaternion (x y z w) as axis and angle (angle 2 acos w in 0..2 pi: back to exactly the
+// same quaternion, its sign too - the game slerps keys the short way round from there).
+void AxisAngle(const float q[4], float out[4]) {
+  const float w = std::max(-1.0f, std::min(1.0f, q[3]));
+  const float s = std::sqrt(std::max(0.0f, 1.0f - w * w));
+  out[3] = 2.0f * std::acos(w);
+  for (int k = 0; k < 3; ++k) out[k] = s > 1e-6f ? q[k] / s : 0.0f;
 }
 
 void ApplyController(const Controller& c, VfxEmitter* e) {
@@ -620,9 +908,13 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
   // emitter header but only the controllers that animation keys (0.42.0: the
   // first copy in the file was taken - vcm_hitsonc's cloud came out 1 m up with
   // default values, vdr_darkness's emitter all defaults).
-  const std::vector<size_t> geometry = TreeNodes(m, m.U32(kModelBase + 0x48));
-  const std::map<size_t, std::vector<float>> placed = PlacedNodes(m, m.U32(kModelBase + 0x48));
-  const std::set<size_t> in_geometry(geometry.begin(), geometry.end());
+  const std::vector<GeoNode> geometry = GeometryNodes(m, m.U32(kModelBase + 0x48));
+  std::map<size_t, size_t> geo_at;  // node -> its index in `geometry`
+  for (size_t i = 0; i < geometry.size(); ++i) geo_at[geometry[i].node] = i;
+  const size_t root_node = geometry.empty() ? 0 : geometry[0].node;
+  const auto parent_name = [&](const GeoNode& g) {
+    return g.parent && g.parent != root_node && geo_at.count(g.parent) ? geometry[geo_at[g.parent]].name : std::string();
+  };
   std::vector<size_t> nodes;  // each emitter's geometry node, parallel to result.emitters
   for (int pass = 0; pass < 2 && result.emitters.empty(); ++pass) {  // 2nd: any node (no tree read)
   for (const char* word : {"Fountain", "Single", "Explosion", "Lightning"}) {
@@ -630,7 +922,7 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
     for (size_t at = bytes.find(needle); at != std::string::npos; at = bytes.find(needle, at + 1)) {
       if (at < 0x18 + 0x60 + kModelBase) continue;
       const size_t emitter = at - 0x18, node = emitter - 0x60;
-      if (pass == 0 && !in_geometry.count(node)) continue;
+      if (pass == 0 && !geo_at.count(node)) continue;
       const std::string name = m.Str(node + 0x10, 32);
       const std::string render = m.Str(emitter + 0x38, 32);
       if (name.empty() || render.empty()) continue;
@@ -652,18 +944,15 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
       e.inherit = (flags & 0x040) != 0;
       e.splat = (flags & 0x200) != 0;
       for (const Controller& c : controllers) ApplyController(c, &e);
-      const auto where = placed.find(node);  // its place in the model, not just under its parent
-      if (pass == 0 && where != placed.end()) {
-        memcpy(e.position, where->second.data(), sizeof(e.position));
-        // Its turn there (which way its particles go), as axis and angle.
-        const float* q = where->second.data() + 3;
-        const float w = std::max(-1.0f, std::min(1.0f, q[3]));
-        const float s = std::sqrt(std::max(0.0f, 1.0f - w * w));
-        const float angle = 2.0f * std::acos(w);
-        if (s > 1e-4f && angle > 1e-4f) {
-          for (int k = 0; k < 3; ++k) e.orientation[k] = q[k] / s;
-          e.orientation[3] = angle;
-        }
+      e.inherit_local = (flags & 0x100) != 0;
+      e.inherit_part = (flags & 0x400) != 0;
+      if (pass == 0) {  // under its parent, as the model has it
+        const GeoNode& g = geometry[geo_at[node]];
+        memcpy(e.position, g.pos, sizeof(e.position));
+        float turn[4];
+        AxisAngle(g.rot, turn);
+        if (turn[3] > 1e-4f && (turn[0] || turn[1] || turn[2])) memcpy(e.orientation, turn, sizeof(turn));
+        e.parent = parent_name(g);
       }
       result.emitters.push_back(e);
       nodes.push_back(node);
@@ -675,6 +964,28 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
     return false;
   }
   result.duration = bytes.find(std::string("duration", 9)) != std::string::npos;
+  // The nodes the emitters hang under (their ancestors up to the root, which is the effect's
+  // own node), parents first - the game moves and turns them (0.42.3).
+  std::set<size_t> emitter_nodes(nodes.begin(), nodes.end()), ancestors;
+  for (size_t node : nodes) {
+    if (!geo_at.count(node)) continue;
+    for (size_t up = geometry[geo_at[node]].parent; up && up != root_node && geo_at.count(up) && ancestors.insert(up).second;
+         up = geometry[geo_at[up]].parent) {
+    }
+  }
+  std::map<std::string, size_t> geo_by_name;  // lower-case name -> index in `geometry`
+  for (size_t i = 0; i < geometry.size(); ++i) geo_by_name.emplace(Lower(geometry[i].name), i);
+  for (const GeoNode& g : geometry) {
+    if (!ancestors.count(g.node) || emitter_nodes.count(g.node)) continue;
+    VfxNode n;
+    n.name = g.name;
+    n.parent = parent_name(g);
+    memcpy(n.position, g.pos, sizeof(n.position));
+    float turn[4];
+    AxisAngle(g.rot, turn);
+    if (turn[3] > 1e-4f && (turn[0] || turn[1] || turn[2])) memcpy(n.orientation, turn, sizeof(turn));
+    result.nodes.push_back(n);
+  }
   // The animations (their 64-byte name at the header's +8, the root node at
   // +0x48 as the geometry's, the length at +0x70) and the nodes of each.
   std::vector<std::pair<std::string, std::vector<size_t>>> anims;
@@ -684,7 +995,55 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
       if (at + 1 < 8 + kModelBase) continue;
       const size_t header = at + 1 - 8;
       const float length = m.F32(header + 0x70);
-      if (length > 0.0f && length < 60.0f) anims.emplace_back(name, TreeNodes(m, m.U32(header + 0x48)));
+      if (length > 0.0f && length < 60.0f) {
+        anims.emplace_back(name, TreeNodes(m, m.U32(header + 0x48)));
+        result.lengths[std::string(name) == "impact" ? 0 : std::string(name) == "duration" ? 1 : 2] = length;
+        break;
+      }
+    }
+  }
+  // Each animation's keys of those nodes and of the emitters: where they move (8: t x y z)
+  // and how they turn (20: t + x y z w, kept as axis-angle). A single key equal to the
+  // geometry's is no motion and isn't kept.
+  for (const auto& a : anims) {
+    for (const size_t copy : a.second) {
+      const std::string name = Lower(m.Str(copy + 0x10, 32));
+      const auto g = geo_by_name.find(name);
+      if (g == geo_by_name.end()) continue;
+      std::vector<VfxKeys>* keys = nullptr;
+      for (VfxNode& n : result.nodes) {
+        if (Lower(n.name) == name) keys = &n.keys;
+      }
+      for (VfxEmitter& e : result.emitters) {
+        if (Lower(e.name) == name) keys = &e.keys;
+      }
+      std::vector<Controller> controllers;
+      if (!keys || !ReadControllers(m, copy, &controllers)) continue;
+      const GeoNode& base = geometry[g->second];
+      for (const Controller& c : controllers) {
+        const size_t rows = c.times.size();
+        if (c.type == 8 && c.columns == 3 && c.values.size() >= rows * 3) {
+          bool moves = rows >= 2;
+          for (int k = 0; k < 3 && !moves; ++k) moves = std::fabs(c.values[k] - base.pos[k]) > 1e-4f;
+          if (!moves) continue;
+          std::vector<float>& out = FindKeys(keys, a.first, true)->position;
+          for (size_t r = 0; r < rows; ++r) {
+            out.push_back(c.times[r]);
+            for (int k = 0; k < 3; ++k) out.push_back(c.values[r * 3 + k]);
+          }
+        } else if (c.type == 20 && c.columns == 4 && c.values.size() >= rows * 4) {
+          bool turns = rows >= 2;
+          for (int k = 0; k < 4 && !turns; ++k) turns = std::fabs(c.values[k] - base.rot[k]) > 1e-4f;
+          if (!turns) continue;
+          std::vector<float>& out = FindKeys(keys, a.first, true)->orientation;
+          for (size_t r = 0; r < rows; ++r) {
+            float turn[4];
+            AxisAngle(&c.values[r * 4], turn);
+            out.push_back(c.times[r]);
+            for (int k = 0; k < 4; ++k) out.push_back(turn[k]);
+          }
+        }
+      }
     }
   }
   // The animations' copies of each emitter node: a birthrate keyed off. Not the

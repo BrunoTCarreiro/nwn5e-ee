@@ -742,8 +742,8 @@ void LoadEntry(uint32_t player, int index) {
 
 // 2: lasting effects' emitters no longer cut short (0.42.0); 3: emitters read
 // from the geometry, not an animation's copy (0.42.1); 4: placed in the model with
-// their parents, and turned (orientation), with fps and particle_rot (0.42.2).
-constexpr int kLibraryFormat = 5;
+// their parents, and turned (orientation), with fps and particle_rot (0.42.2); 6: the nodes they hang under and the motion keys (0.42.3).
+constexpr int kLibraryFormat = 6;
 constexpr uint16_t kResTypeTga = 3;
 constexpr uint16_t kResTypeDds = 2033;
 constexpr uint64_t kBenchCheckMs = 250;

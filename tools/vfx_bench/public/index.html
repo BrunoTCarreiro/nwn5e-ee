@@ -86,7 +86,24 @@
       <label>On the character's
         <select id="fx-attach"><option value="root">feet (root)</option><option value="impact">chest (impact)</option><option value="head">over the head (head conjure)</option></select>
       </label>
+      <label>Animation lengths, seconds: start / loop / end (start 0 = as long as the emitters need)
+        <span class="field"><span class="triple">
+          <input type="number" id="fx-len0" min="0" step="0.1" aria-label="The start (impact) animation's length">
+          <input type="number" id="fx-len1" min="0.1" step="0.1" aria-label="The loop (duration) animation's length">
+          <input type="number" id="fx-len2" min="0.1" step="0.1" aria-label="The end (cessation) animation's length">
+        </span></span>
+      </label>
       <p class="note" id="fx-note"></p>
+    </section>
+
+    <section class="card" aria-labelledby="nd-h">
+      <h2 id="nd-h">Nodes (what emitters hang under)</h2>
+      <ul class="emitters" id="nodes" aria-label="The effect's nodes"></ul>
+      <div class="row tight">
+        <button type="button" id="nd-add">Add</button>
+        <button type="button" id="nd-del">Remove</button>
+      </div>
+      <div id="node-fields"></div>
     </section>
 
     <section class="card" aria-labelledby="em-h">

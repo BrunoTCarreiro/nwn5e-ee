@@ -290,68 +290,221 @@ TEST(VfxLastingEffectKeepsEmitting) {
   CHECK_EQ(Milli(flash->emit_seconds), 200);
 }
 
-// An emitter under a dummy that is moved and turned (0.42.2; the game's Premonition
-// hangs its eye emitters under dummies 1.3 m up): its draft position is its place in the
-// model. Breaks caught: the emitter's own position read alone (at the feet); the parent's
-// turn ignored or applied the wrong way round.
+// An emitter under a dummy that is moved, turned and keyed (0.42.2 / 0.42.3; the game's
+// Premonition hangs its eye emitters under dummies 1.3 m up, its Dummy01 spins in the
+// duration): the dummy is kept as a node with its keys, the emitter under it as the model
+// has it. Breaks caught: the emitter's own position read alone with no parent (at the
+// feet); the parent's place baked in and its motion lost; keys of a node or an emitter not
+// read; a quaternion key turned into the wrong axis-angle; the animation's length lost.
 TEST(VfxEmitterUnderAMovedDummy) {
-  std::string b(0x1000, '\0');
+  std::string b(0x1400, '\0');
   const auto put32 = [&](size_t at, uint32_t v) { memcpy(&b[at], &v, 4); };
   const auto put16 = [&](size_t at, uint16_t v) { memcpy(&b[at], &v, 2); };
   const auto putf = [&](size_t at, float v) { memcpy(&b[at], &v, 4); };
   const auto puts = [&](size_t at, const char* text) { memcpy(&b[at], text, strlen(text)); };
   const size_t base = 12;
-  // A node with a position (and, if `turn`, an orientation) controller.
-  const auto node = [&](size_t at, const char* name, size_t keys, const float pos[3], const float* turn) {
+  struct Ctrl {
+    uint32_t type;
+    int columns;
+    std::vector<float> times, values;
+  };
+  // A node (the reader's terms: its header + 0x10) with controllers, keys at `keys`.
+  const auto node = [&](size_t at, const char* name, size_t keys, const std::vector<Ctrl>& ctrls) {
     puts(at + 0x10, name);
-    const size_t data = keys + 0x20;
+    const size_t data = keys + 0x40;
+    uint16_t used = 0;
     put32(at + 0x44, static_cast<uint32_t>(keys - base));
-    put32(at + 0x48, turn ? 2 : 1);
+    put32(at + 0x48, static_cast<uint32_t>(ctrls.size()));
     put32(at + 0x50, static_cast<uint32_t>(data - base));
-    put32(at + 0x54, turn ? 9 : 4);
-    put32(keys, 8);
-    put16(keys + 4, 1);
-    put16(keys + 6, 0);
-    put16(keys + 8, 1);
-    b[keys + 10] = 3;
-    for (int i = 0; i < 3; ++i) putf(data + 4 + 4 * i, pos[i]);
-    if (turn) {
-      put32(keys + 12, 20);
-      put16(keys + 16, 1);
-      put16(keys + 18, 0);
-      put16(keys + 20, 4);
-      b[keys + 22] = 4;
-      for (int i = 0; i < 4; ++i) putf(data + 16 + 4 * i, turn[i]);
+    for (size_t i = 0; i < ctrls.size(); ++i) {
+      const Ctrl& c = ctrls[i];
+      const size_t k = keys + 12 * i;
+      put32(k, c.type);
+      put16(k + 4, static_cast<uint16_t>(c.times.size()));
+      put16(k + 6, used);
+      for (float t : c.times) putf(data + 4 * used++, t);
+      put16(k + 8, used);
+      for (float v : c.values) putf(data + 4 * used++, v);
+      b[k + 10] = static_cast<char>(c.columns);
     }
+    put32(at + 0x54, used);
   };
   const auto children = [&](size_t at, size_t array, size_t kid) {
     put32(at + 0x38, static_cast<uint32_t>(array - base));
     put32(at + 0x3C, 1);
     put32(array, static_cast<uint32_t>(kid - 0x10 - base));
   };
+  const float r = 0.70710678f;
   puts(base + 8, "test_omen");
+  // The geometry: root -> Group01 (1.3 m up, a quarter turn round z) -> eyes (1 m along x).
   put32(base + 0x48, static_cast<uint32_t>(0x100 - 0x10 - base));
-  const float zero[3] = {0, 0, 0}, up[3] = {0.5f, 0, 1.3f}, aside[3] = {1, 0, 0};
-  const float quarter[4] = {0, 0, 0.70710678f, 0.70710678f};  // 90 degrees round z
-  node(0x100, "test_omen", 0x800, zero, nullptr);
-  children(0x100, 0xF00, 0x200);
-  node(0x200, "Group01", 0x840, up, quarter);  // 1.3 m up, turned a quarter
-  children(0x200, 0xF10, 0x300);
-  node(0x300, "eyes", 0x880, aside, nullptr);  // 1 m along its parent's x: the model's y
+  node(0x100, "test_omen", 0x900, {{8, 3, {0}, {0, 0, 0}}});
+  children(0x100, 0x1300, 0x200);
+  node(0x200, "Group01", 0x980, {{8, 3, {0}, {0.5f, 0, 1.3f}}, {20, 4, {0}, {0, 0, r, r}}});
+  children(0x200, 0x1310, 0x300);
+  node(0x300, "eyes", 0xA00, {{8, 3, {0}, {1, 0, 0}}});
   puts(0x300 + 0x60 + 0x18, "Fountain");
   puts(0x300 + 0x60 + 0x38, "Normal");
   puts(0x300 + 0x60 + 0x78, "fxpa_eye1");
+  // The duration (1.5 s): Group01 turns a half round z; the eyes move along x; the root's
+  // single key is no motion.
+  puts(0x500 + 8, "duration");
+  put32(0x500 + 0x48, static_cast<uint32_t>(0x600 - 0x10 - base));
+  putf(0x500 + 0x70, 1.5f);
+  node(0x600, "test_omen", 0xA80, {{8, 3, {0}, {0, 0, 0}}});
+  children(0x600, 0x1320, 0x700);
+  node(0x700, "Group01", 0xB00, {{20, 4, {0, 1.5f}, {0, 0, 0, 1, 0, 0, 1, 0}}});
+  children(0x700, 0x1330, 0x800);
+  node(0x800, "eyes", 0xB80, {{8, 3, {0, 0.75f}, {1, 0, 0, 2, 0, 0}}});
   VfxEffect effect;
   std::string error;
   CHECK_EQ(ReadVfxBinaryModel(b, &effect, &error), true);
   CHECK_EQ(effect.emitters.size(), 1u);
-  if (effect.emitters.empty()) return;
-  CHECK_EQ(Milli(effect.emitters[0].position[0]), 500);
-  CHECK_EQ(Milli(effect.emitters[0].position[1]), 1000);
-  CHECK_EQ(Milli(effect.emitters[0].position[2]), 1300);
-  // Its parent's quarter turn round z is its own (it isn't turned under it).
-  CHECK_EQ(Milli(effect.emitters[0].orientation[2]), 1000);
-  CHECK_EQ(Milli(effect.emitters[0].orientation[3]), 1571);
+  CHECK_EQ(effect.nodes.size(), 1u);
+  if (effect.emitters.empty() || effect.nodes.empty()) return;
+  const VfxEmitter& e = effect.emitters[0];
+  const VfxNode& n = effect.nodes[0];
+  CHECK_EQ(e.parent == "Group01", true);
+  CHECK_EQ(Milli(e.position[0]), 1000);
+  CHECK_EQ(Milli(e.position[2]), 0);
+  CHECK_EQ(n.name == "Group01", true);
+  CHECK_EQ(n.parent.empty(), true);
+  CHECK_EQ(Milli(n.position[0]), 500);
+  CHECK_EQ(Milli(n.position[2]), 1300);
+  CHECK_EQ(Milli(n.orientation[2]), 1000);  // a quarter round z
+  CHECK_EQ(Milli(n.orientation[3]), 1571);
+  CHECK_EQ(Milli(effect.lengths[1]), 1500);
+  const VfxKeys* turn = FindKeys(const_cast<std::vector<VfxKeys>*>(&n.keys), "duration", false);
+  CHECK_EQ(turn != nullptr, true);
+  if (turn) {
+    CHECK_EQ(turn->orientation.size(), 10u);  // 2 keys: t + axis-angle
+    CHECK_EQ(turn->position.empty(), true);
+    if (turn->orientation.size() == 10) {
+      CHECK_EQ(Milli(turn->orientation[5]), 1500);  // the 2nd key's time
+      CHECK_EQ(Milli(turn->orientation[8]), 1000);  // round z
+      CHECK_EQ(Milli(turn->orientation[9]), 3142);  // a half turn
+    }
+  }
+  const VfxKeys* move = FindKeys(const_cast<std::vector<VfxKeys>*>(&e.keys), "duration", false);
+  CHECK_EQ(move != nullptr, true);
+  if (move) {
+    CHECK_EQ(move->position.size(), 8u);
+    if (move->position.size() == 8) CHECK_EQ(Milli(move->position[5]), 2000);
+  }
+}
+
+// An effect with motion (0.42.3): a node that turns in the duration and an emitter under it
+// that moves - through the draft, and through the model nwn5e writes and reads back.
+// Breaks caught: a node, a parent, a key list, the lengths or the follow flags lost on the
+// way (the bench and Play in game would lose the motion); the model's parent names not the
+// renamed nodes' (the emitter falls off its parent); a key list written uncounted or half.
+namespace {
+VfxEffect Moving() {
+  VfxEffect effect;
+  effect.name = "test_orbit";
+  effect.lengths[1] = 1.5f;
+  VfxNode n;
+  n.name = "spinner";
+  n.position[2] = 1.2f;
+  VfxKeys turn;
+  turn.anim = "duration";
+  turn.orientation = {0, 0, 0, 1, 0, 1.5f, 0, 0, 1, 6.2831853f};
+  n.keys.push_back(turn);
+  effect.nodes.push_back(n);
+  VfxEmitter e;
+  e.name = "spark";
+  e.parent = "spinner";
+  e.position[0] = 0.8f;
+  e.inherit_local = true;
+  e.inherit_part = true;
+  VfxKeys move;
+  move.anim = "impact";
+  move.position = {0, 0.8f, 0, 0, 0.5f, 1.2f, 0, 0.3f};
+  e.keys.push_back(move);
+  effect.emitters.push_back(e);
+  return effect;
+}
+}  // namespace
+
+TEST(VfxMotionThroughDraftAndModel) {
+  VfxEffect back;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(WriteVfxDraft(Moving()), &back, &error), true);
+  CHECK_EQ(back.nodes.size(), 1u);
+  CHECK_EQ(back.emitters.size(), 1u);
+  if (back.nodes.empty() || back.emitters.empty()) return;
+  CHECK_EQ(Milli(back.lengths[1]), 1500);
+  CHECK_EQ(back.nodes[0].name == "spinner", true);
+  CHECK_EQ(Milli(back.nodes[0].position[2]), 1200);
+  CHECK_EQ(back.nodes[0].keys.size(), 1u);
+  if (!back.nodes[0].keys.empty()) CHECK_EQ(back.nodes[0].keys[0].orientation.size(), 10u);
+  CHECK_EQ(back.emitters[0].parent == "spinner", true);
+  CHECK_EQ(back.emitters[0].inherit_local, true);
+  CHECK_EQ(back.emitters[0].inherit_part, true);
+  CHECK_EQ(back.emitters[0].keys.size(), 1u);
+  if (!back.emitters[0].keys.empty()) {
+    CHECK_EQ(back.emitters[0].keys[0].anim == "impact", true);
+    CHECK_EQ(Milli(back.emitters[0].keys[0].position[5]), 1200);
+  }
+  const std::string model = WriteVfxModel(Moving(), "n5vx0007");
+  CHECK_EQ(Contains(model, "node dummy n5vx0007_n0_spinner"), true);
+  CHECK_EQ(Contains(model, "  parent n5vx0007_n0_spinner"), true);
+  CHECK_EQ(Contains(model, "  orientationkey 2\n    0 0 0 1 0\n    1.5 0 0 1 6.28319"), true);
+  CHECK_EQ(Contains(model, "  positionkey 2\n    0 0.8 0 0\n    0.5 1.2 0 0.3"), true);
+  CHECK_EQ(Contains(model, "  inherit_local 1"), true);
+  CHECK_EQ(Contains(model, "newanim duration n5vx0007\n  length 1.5"), true);
+  VfxEffect read;
+  CHECK_EQ(ReadVfxAsciiModel(model, &read, &error), true);
+  CHECK_EQ(read.nodes.size(), 1u);
+  CHECK_EQ(read.emitters.size(), 1u);
+  if (read.nodes.empty() || read.emitters.empty()) return;
+  CHECK_EQ(read.emitters[0].parent == read.nodes[0].name, true);
+  CHECK_EQ(Milli(read.lengths[1]), 1500);
+  const VfxKeys* turn = FindKeys(&read.nodes[0].keys, "duration", false);
+  CHECK_EQ(turn != nullptr && turn->orientation.size() == 10, true);
+  const VfxKeys* move = FindKeys(&read.emitters[0].keys, "impact", false);
+  CHECK_EQ(move != nullptr && move->position.size() == 8, true);
+}
+
+// The game's own ASCII effects key without a count, to "endlist" (vdr_magearmor), and hang
+// emitters under meshes. Breaks caught: an uncounted list read as nothing or swallowing the
+// next lines; a mesh ancestor dropped (the emitter loses its place); a node that no emitter
+// hangs under kept; the root taken for a node.
+TEST(VfxReadsTheGamesAsciiKeys) {
+  const std::string text =
+      "newmodel vdr_test\nbeginmodelgeom vdr_test\n"
+      "node dummy vdr_test\n  parent NULL\nendnode\n"
+      "node dummy Dummy01\n  parent vdr_test\n  position 0.0 0.0 0.0\n  orientation  0.0 0.0 0.0  0.0\nendnode\n"
+      "node trimesh shield\n  parent Dummy01\n  position 0 -1.4 1.4\nendnode\n"
+      "node trimesh lonely\n  parent vdr_test\nendnode\n"
+      "node emitter Omen\n  parent shield\n  position 0 0 0.2\n  update Fountain\n  birthrate 5\nendnode\n"
+      "endmodelgeom vdr_test\n"
+      "newanim duration vdr_test\n length 0.966667\n transtime 0.25\nanimroot vdr_test\n"
+      "node dummy Dummy01\n  parent vdr_test\n    orientationkey \n"
+      "      0.0   0.0 0.0 0.0  0.0\n      0.966667   0.0 0.0 1.0  1.5708\n    endlist \n"
+      "    alphakey\n      0.0 0.0\n      0.5 1.0\n    endlist\nendnode\n"
+      "node emitter Omen\n  parent shield\n    positionkey \n      0.0  0 0 0.2\n      0.5  0 0 0.4\n    endlist\nendnode\n"
+      "doneanim duration vdr_test\ndonemodel vdr_test\n";
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxAsciiModel(text, &effect, &error), true);
+  CHECK_EQ(effect.nodes.size(), 2u);  // Dummy01 and shield, not "lonely", not the root
+  CHECK_EQ(effect.emitters.size(), 1u);
+  if (effect.nodes.size() != 2 || effect.emitters.empty()) return;
+  CHECK_EQ(effect.nodes[0].name == "Dummy01", true);
+  CHECK_EQ(effect.nodes[0].parent.empty(), true);
+  CHECK_EQ(effect.nodes[1].parent == "Dummy01", true);
+  CHECK_EQ(effect.emitters[0].parent == "shield", true);
+  CHECK_EQ(Milli(effect.lengths[1]), 967);
+  const VfxKeys* turn = FindKeys(&effect.nodes[0].keys, "duration", false);
+  CHECK_EQ(turn != nullptr, true);
+  if (turn) {
+    CHECK_EQ(turn->orientation.size(), 10u);
+    if (turn->orientation.size() == 10) CHECK_EQ(Milli(turn->orientation[9]), 1571);
+  }
+  const VfxKeys* move = FindKeys(&effect.emitters[0].keys, "duration", false);
+  CHECK_EQ(move != nullptr && move->position.size() == 8, true);
+  if (move && move->position.size() == 8) CHECK_EQ(Milli(move->position[7]), 400);
 }
 
 // Tile torches: a dummy node's position by name in a compiled model laid out as
