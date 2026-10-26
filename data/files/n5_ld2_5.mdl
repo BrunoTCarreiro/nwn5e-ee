@@ -152,10 +152,20 @@ doneanim duration n5_ld2_5
 
 newanim cessation n5_ld2_5
   length 0.1
-  transtime 0.25
+  transtime 0.05
   animroot n5_ld2_5
 node dummy n5_ld2_5
   parent NULL
+endnode
+node trimesh n5_ld2_5_band
+  parent n5_ld2_5
+  alphakey 2
+    0 1
+    0.1 0
+  scalekey 3
+    0 1
+    0.09 1
+    0.1 0.001
 endnode
 doneanim cessation n5_ld2_5
 

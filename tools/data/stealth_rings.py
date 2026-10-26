@@ -184,10 +184,20 @@ def write_model(name, texture_name, height, mesh, about):
     lines.append("  tverts %d" % len(mesh.tverts))
     lines += ["    %.4f %.4f 0" % t for t in mesh.tverts]
     lines += ["endnode", "endmodelgeom " + name]
-    for anim, length in (("impact", 0.1), ("duration", 1.0), ("cessation", 0.1)):
-        lines += ["", "newanim %s %s" % (anim, name), "  length %g" % length, "  transtime 0.25",
-                  "  animroot " + name, "node dummy " + name, "  parent NULL", "endnode",
-                  "doneanim %s %s" % (anim, name)]
+    # cessation: the band fades out at once and shrinks away at its end (owner, 2026-10-26: "when
+    # turning off stealth mode it takes a while for the light markers, vision cones and hearing
+    # markers to disappear"). The client keeps a removed effect's model for its cessation plus 3 s
+    # (0x97162b: + 0xbb8 ms) on the cessation's last frame - the game's own effects fade there;
+    # a cessation keying nothing left the band drawn for those 3 s.
+    for anim, length, transtime in (("impact", 0.1, 0.25), ("duration", 1.0, 0.25), ("cessation", 0.1, 0.05)):
+        lines += ["", "newanim %s %s" % (anim, name), "  length %g" % length, "  transtime %g" % transtime,
+                  "  animroot " + name, "node dummy " + name, "  parent NULL", "endnode"]
+        if anim == "cessation":
+            lines += ["node trimesh " + name + "_band", "  parent " + name,
+                      "  alphakey 2", "    0 1", "    %g 0" % length,
+                      "  scalekey 3", "    0 1", "    %g 1" % (length * 0.9), "    %g 0.001" % length,
+                      "endnode"]
+        lines.append("doneanim %s %s" % (anim, name))
     lines += ["", "donemodel " + name, ""]
     with open(os.path.join(FILES, name + ".mdl"), "w", encoding="ascii", newline="\n") as f:
         f.write("\n".join(lines))

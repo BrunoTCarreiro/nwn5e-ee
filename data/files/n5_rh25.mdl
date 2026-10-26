@@ -998,10 +998,20 @@ doneanim duration n5_rh25
 
 newanim cessation n5_rh25
   length 0.1
-  transtime 0.25
+  transtime 0.05
   animroot n5_rh25
 node dummy n5_rh25
   parent NULL
+endnode
+node trimesh n5_rh25_band
+  parent n5_rh25
+  alphakey 2
+    0 1
+    0.1 0
+  scalekey 3
+    0 1
+    0.09 1
+    0.1 0.001
 endnode
 doneanim cessation n5_rh25
 

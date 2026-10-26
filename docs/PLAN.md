@@ -2247,6 +2247,19 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   speed - no weapon arms on the crouch walk; ~60 / s at the crawl). The run
   layers are never swapped now (removed, also from saves); the base run
   still is. Likely the earlier torso / arm stutter while crouch-walking too.
+  0.40.3 / 0.40.4 (owner: "when turning off stealth mode it takes a while
+  for the light markers, vision cones and hearing markers to disappear"):
+  0.40.3 handled a hiding change at once instead of at the once-a-second
+  check ("behaviour is unchanged" - the server cleared them 15-50 ms after
+  the toggle already). The wait was the client's: a removed duration
+  effect plays its model's cessation and is kept for its length + 3 s
+  (0x97162b: + 0xbb8 ms) on the cessation's last frame - the game's own
+  effects fade there; nwn5e's rings, cones and light zone rings keyed
+  nothing in cessation, so they stayed drawn ~3 s (and a ring or cone that
+  changed size or colour overlapped its old self for 3 s). 0.40.4:
+  tools/data/stealth_rings.py's cessation fades the band out over 0.1 s
+  (alphakey) and shrinks it away at the end (scalekey); the eye / ear
+  markers already shrank to nothing in theirs.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:
