@@ -20,7 +20,11 @@
 //   up to that level) give way to the new one's - a Barbarian's Rage chain.
 //   The level history follows (0.22.12: each level's class; the level-up
 //   refused "invalid number of multiclasses" without it). For test
-//   characters: an old caster's spell lists aren't rewritten.
+//   characters: an old caster's spell lists aren't rewritten. A Fighting
+//   Style feat needs a class with the Fighting Style feature (Fighter 1,
+//   Paladin / Ranger 2); with none, !test takes it away (0.41.3; owner: "make
+//   it clear the fighting style") - one left from a swapped Fighter. One named
+//   under `feats` is still given.
 // - "!export" saves the character to the vault as a campaign's chapter change
 //   does (C6's check: its records come back from its own database).
 
@@ -259,6 +263,26 @@ int RewriteLevelHistory(void* stats, int to) {
   return changed;
 }
 
+// The Fighting Style feats taken away when no class has the Fighting Style
+// feature; "" when none was there or one is allowed.
+std::string DropFightingStyles(void* stats) {
+  for (const rules::NwnClassSlot& slot : ReadClassSlots(stats)) {
+    const auto character_class = rules::ClassFromNwnId(slot.nwn_class_id);
+    if (character_class && rules::HasFightingStyleFeature2024(*character_class, slot.levels)) return {};
+  }
+  static const char* const kStyleNames[] = {"Archery", "Defense", "Great Weapon Fighting", "Two-Weapon Fighting"};
+  std::string removed;
+  for (int feat = rules::kFeatFightingStyleArchery; feat <= rules::kFeatFightingStyleTwoWeapon; ++feat) {
+    if (!engine::HasFeat(stats, feat)) continue;
+    engine::RemoveFeat(stats, feat);
+    removed += (removed.empty() ? "" : ", ") + std::string(kStyleNames[feat - rules::kFeatFightingStyleArchery]);
+  }
+  if (removed.empty()) return {};
+  Log("test: 0x%08X Fighting Style removed (no class with the Fighting Style feature): %s", ObjectIdOf(stats),
+      removed.c_str());
+  return "  fighting style removed (no Fighter, Paladin 2 or Ranger 2): " + removed;
+}
+
 // swap_class: the first class becomes `to`, its level kept; the automatic feats follow.
 std::string SwapFirstClass(void* stats, int to) {
   using SetClassFn = void (*)(void* stats, uint8_t slot, uint8_t nwn_class);
@@ -348,6 +372,9 @@ std::vector<std::string> TestCommand(void* creature, const std::string&) {
     RunScriptChunk(code, id);
     lines.push_back("  xp: " + std::to_string(profile.xp) + " (level up on the level-up screen)");
   }
+  // 2c. A Fighting Style without a class that has the feature (one left from a swapped Fighter) goes.
+  const std::string styles = DropFightingStyles(stats);
+  if (!styles.empty()) lines.push_back(styles);
   // 3. Ability scores (through the ability sync).
   if (profile.has_abilities) {
     SetTestAbilityScores(creature, profile.abilities);

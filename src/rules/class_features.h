@@ -56,6 +56,9 @@ constexpr int kFeatFightingStyleTwoWeapon = 1213;
 // The class levels with a Fighting Style feat slot: Fighter 1, and 7 (the
 // Champion's Additional Fighting Style). Paladin / Ranger 2 with their briefs.
 bool IsFightingStyleLevel2024(CharacterClass character_class, int class_level);
+// The Fighting Style feature (SRD 5.2): Fighter 1, Paladin 2, Ranger 2 - the
+// prerequisite of a Fighting Style feat.
+bool HasFightingStyleFeature2024(CharacterClass character_class, int class_level);
 constexpr int kArcheryAttackBonus = 2;
 constexpr int kDefenseArmorClassBonus = 1;
 // Great Weapon Fighting: a damage die of 1 or 2 counts as 3.

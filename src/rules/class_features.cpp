@@ -294,6 +294,15 @@ bool IsFightingStyleLevel2024(CharacterClass character_class, int class_level) {
   return character_class == CharacterClass::kFighter && (class_level == 1 || class_level == 7);
 }
 
+bool HasFightingStyleFeature2024(CharacterClass character_class, int class_level) {
+  switch (character_class) {
+    case CharacterClass::kFighter: return class_level >= 1;
+    case CharacterClass::kPaladin:
+    case CharacterClass::kRanger: return class_level >= 2;
+    default: return false;
+  }
+}
+
 std::vector<ClassFeature> ClassFeatures2024(CharacterClass character_class, int level) {
   std::vector<ClassFeature> features;
   const std::vector<ClassFeature>* table = character_class == CharacterClass::kFighter     ? &Fighter()

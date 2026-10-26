@@ -41,6 +41,11 @@ TEST(FighterFeatureLevels) {
   CHECK_EQ(IsFightingStyleLevel2024(CharacterClass::kFighter, 7), true);
   CHECK_EQ(IsFightingStyleLevel2024(CharacterClass::kFighter, 4), false);
   CHECK_EQ(IsFightingStyleLevel2024(CharacterClass::kPaladin, 2), false);  // with the Paladin's brief
+  CHECK_EQ(HasFightingStyleFeature2024(CharacterClass::kFighter, 1), true);
+  CHECK_EQ(HasFightingStyleFeature2024(CharacterClass::kPaladin, 1), false);
+  CHECK_EQ(HasFightingStyleFeature2024(CharacterClass::kPaladin, 2), true);
+  CHECK_EQ(HasFightingStyleFeature2024(CharacterClass::kRanger, 2), true);
+  CHECK_EQ(HasFightingStyleFeature2024(CharacterClass::kBarbarian, 20), false);
 }
 
 // Breaks caught: Indomitable's uses at the wrong levels, Bloodied off by one
