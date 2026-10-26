@@ -147,6 +147,83 @@ const near = (a, b, tol) => Math.abs(a - b) <= (tol || 1e-3);
   console.log("lightning: render", e.render, "points", e.birthrate, "target", t && t.position.join(","));
   if (e.render !== "Linked" || e.birthrate !== 17 || !t || !near(t.position[0], 2)) fail("lightning");
 }
+// The motions of 0.43.1, measured over the loop (2 s; sampled every 0.05 s).
+const over = (fx, name, f) => { const out = []; for (let t = 0; t <= 1.96; t += 0.05) out.push(f(placeAt(fx, name, t).pos, t)); return out; };
+const range = (xs) => [Math.min(...xs), Math.max(...xs)];
+{
+  const fx = layerFor("tilted", { height: 1.2, radius: 1, tilt: 60, turns: 0.5, count: 3 });
+  const names = fx.emitters.map((e) => e.name);
+  const dist = names.flatMap((n) => over(fx, n, (p) => Math.hypot(p[0], p[1], p[2] - 1.2)));
+  const top = range(over(fx, names[0], (p) => p[2]));
+  const starts = names.map((n) => placeAt(fx, n, 0.5).pos.map((v) => v.toFixed(2)).join(","));
+  console.log("tilted orbit: 3 rings, distance from the middle", range(dist).map((v) => v.toFixed(3)).join("-"), "heights", top.map((v) => v.toFixed(2)).join("-"), "places", starts.join(" | "));
+  if (!near(range(dist)[0], 1, 0.002) || !near(range(dist)[1], 1, 0.002) || !near(top[1], 1.2 + Math.sin(Math.PI / 3), 0.03) || new Set(starts).size !== 3) fail("tilted orbit");
+}
+{
+  const fx = layerFor("tornado", { from: 0, to: 2.5, bottom: 0.2, top: 1.4, turns: 1 });
+  const n = fx.emitters[0].name, a = placeAt(fx, n, 0).pos, b = placeAt(fx, n, 1).pos, c = placeAt(fx, n, 1.95).pos;
+  const r = (p) => Math.hypot(p[0], p[1]);
+  console.log("tornado: radius", r(a).toFixed(2), r(b).toFixed(2), r(c).toFixed(2), "height", a[2].toFixed(2), b[2].toFixed(2), c[2].toFixed(2));
+  if (!near(r(a), 0.2, 0.01) || !near(r(b), 0.8, 0.01) || !near(b[2], 1.25, 0.01) || !(r(c) > 1.35)) fail("tornado");
+}
+{
+  const fx = layerFor("pendulum", { pivot: 2.2, length: 1.2, angle: 45, rate: 0.5, turned: 90 });
+  const n = fx.emitters[0].name;
+  const len = range(over(fx, n, (p) => Math.hypot(p[0], p[1], p[2] - 2.2))), q = placeAt(fx, n, 0.5).pos;
+  console.log("pendulum: length", len.map((v) => v.toFixed(3)).join("-"), "at the swing's end", q.map((v) => v.toFixed(2)).join(","));
+  if (!near(len[0], 1.2, 0.002) || !near(len[1], 1.2, 0.002) || !near(Math.abs(q[1]), 1.2 * Math.sin(Math.PI / 4), 0.01) || !near(q[0], 0, 0.01)) fail("pendulum");
+}
+{
+  const fx = layerFor("wheel", { height: 1.2, radius: 0.8, out: 1, turns: 0.5 });
+  const n = fx.emitters[0].name;
+  const r = range(over(fx, n, (p) => Math.hypot(p[1], p[2] - 1.2))), x = range(over(fx, n, (p) => p[0]));
+  console.log("wheel: radius", r.map((v) => v.toFixed(3)).join("-"), "x", x.map((v) => v.toFixed(3)).join("-"));
+  if (!near(r[0], 0.8, 0.002) || !near(r[1], 0.8, 0.002) || !near(x[0], 1, 0.002) || !near(x[1], 1, 0.002)) fail("wheel");
+}
+{
+  const fx = layerFor("corkscrew", { height: 1.2, length: 3, radius: 0.3, turns: 2 });
+  const n = fx.emitters[0].name;
+  const r = range(over(fx, n, (p) => Math.hypot(p[1], p[2] - 1.2))), x1 = placeAt(fx, n, 1).pos[0];
+  console.log("corkscrew: radius", r.map((v) => v.toFixed(3)).join("-"), "x at 1 s", x1.toFixed(2));
+  if (!near(r[0], 0.3, 0.002) || !near(r[1], 0.3, 0.002) || !near(x1, 1.5, 0.01)) fail("corkscrew");
+}
+{
+  const fx = layerFor("boomerang", { height: 1.2, distance: 2.5, curve: 0.8, rate: 0.5, turned: 90 });
+  const n = fx.emitters[0].name, a = placeAt(fx, n, 0).pos, b = placeAt(fx, n, 1).pos, c = placeAt(fx, n, 0.5).pos;
+  console.log("boomerang (turned 90): start", a.map((v) => v.toFixed(2)).join(","), "far end", b.map((v) => v.toFixed(2)).join(","), "on the way", c.map((v) => v.toFixed(2)).join(","));
+  if (!near(Math.hypot(a[0], a[1]), 0, 0.01) || !near(b[1], 2.5, 0.02) || !near(b[0], 0, 0.02) || !near(Math.abs(c[0]), 0.8, 0.02)) fail("boomerang");
+}
+{
+  const fx = layerFor("breathe", { height: 1, inner: 0.3, outer: 1.5, rate: 0.5, count: 6 });
+  const r = fx.emitters.flatMap((e) => over(fx, e.name, (p) => Math.hypot(p[0], p[1])));
+  const mid = Math.hypot(...placeAt(fx, fx.emitters[0].name, 1).pos.slice(0, 2));
+  console.log("breathe: 6 on a ring from", range(r).map((v) => v.toFixed(2)).join(" to "), "widest at 1 s", mid.toFixed(2));
+  if (fx.emitters.length !== 6 || !near(range(r)[0], 0.3, 0.02) || !near(mid, 1.5, 0.01)) fail("breathe");
+}
+{
+  const fx = layerFor("bounce", { base: 0, hop: 1, rate: 1 });
+  const z = over(fx, fx.emitters[0].name, (p) => p[2]);
+  console.log("bounce: heights", range(z).map((v) => v.toFixed(2)).join(" to "), "at 0 / 0.5 / 1 s", [0, 0.5, 1].map((t) => placeAt(fx, fx.emitters[0].name, t).pos[2].toFixed(2)).join(" "));
+  if (!near(range(z)[0], 0, 0.01) || !near(range(z)[1], 1, 0.01) || !near(placeAt(fx, fx.emitters[0].name, 0.5).pos[2], 1, 0.01)) fail("bounce");
+}
+{
+  const fx = layerFor("jitter", { height: 1.2, amount: 0.12, rate: 12 });
+  const off = over(fx, fx.emitters[0].name, (p) => Math.max(Math.abs(p[0]), Math.abs(p[1]), Math.abs(p[2] - 1.2)));
+  console.log("jitter: furthest", Math.max(...off).toFixed(3), "keys", fx.emitters[0].keys[0].position.length / 4);
+  if (!(Math.max(...off) <= 0.12 + 1e-6) || !(Math.max(...off) > 0.03)) fail("jitter");
+}
+{
+  const fx = layerFor("flower", { height: 1, radius: 1.2, petals: 5, depth: 0.6, turns: 0.5 });
+  const r = range(over(fx, fx.emitters[0].name, (p) => Math.hypot(p[0], p[1])));
+  console.log("flower: radius", r.map((v) => v.toFixed(2)).join(" to "));
+  if (!near(r[1], 1.2, 0.01) || !(r[0] < 0.6) || !(r[0] >= 1.2 * 0.4 - 0.01)) fail("flower");
+}
+{
+  const fx = layerFor("blink", { height: 1.2, radius: 1.5, rate: 2 });
+  const n = fx.emitters[0].name, at = (t) => placeAt(fx, n, t).pos.map((v) => v.toFixed(3)).join(",");
+  console.log("blink: held", at(0.1) === at(0.4), "jumped", at(0.4) !== at(0.6), "spots", [0.2, 0.7, 1.2, 1.7].map(at).join(" | "));
+  if (at(0.1) !== at(0.4) || at(0.4) === at(0.6)) fail("blink");
+}
 // A one-shot effect's keys go in its impact, over its seconds.
 {
   const fx = core.effect({ emitters: [], duration: false, seconds: 3 });

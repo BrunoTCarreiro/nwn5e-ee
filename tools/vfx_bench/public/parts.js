@@ -173,6 +173,27 @@
     const w = Math.max(-1, Math.min(1, q[3])), s = Math.sqrt(Math.max(0, 1 - w * w));
     return s > 1e-6 ? [q[0] / s, q[1] / s, q[2] / s, 2 * Math.acos(w)] : [0, 0, 0, 0];
   }
+  const yaw = (degrees) => axisAngle(qaxis([0, 0, 1], (degrees * Math.PI) / 180));
+  // Turn keys round one axis, the angle f(u) for u 0..1 over the length (below 0: the axis the
+  // other way round - the same turn); enough steps for the game's short-way slerp.
+  function axisKeys(length, steps, axis, f) {
+    const rows = [];
+    for (let i = 0; i <= steps; i++) {
+      const a = f(i / steps), s = a < 0 ? -1 : 1;
+      rows.push(Math.fround((i / steps) * length), axis[0] * s, axis[1] * s, axis[2] * s, Math.abs(a));
+    }
+    return rows;
+  }
+  // A repeatable random stream (the same seed, the same pattern).
+  function rng(value) {
+    let s = (Math.max(1, Math.round(value)) * 2654435761) % 4294967296;
+    return () => { s = (s * 1664525 + 1013904223) % 4294967296; return s / 4294967296; };
+  }
+  // Whole cycles of something in the loop (so it loops without a jump), at least one.
+  const cycles = (rateValue, length) => Math.max(1, Math.round(rateValue * length));
+  const rateOf = (key, label, value, max) => ({ key, label, min: 0.05, max: max || 5, step: 0.05, value });
+  const turned = (value) => ({ key: "turned", label: "Turned round (degrees; 0 = along x)", min: -180, max: 180, step: 5, value });
+  const seed = (value, what) => ({ key: "seed", label: `${what} (another number, another one)`, min: 1, max: 99, step: 1, value });
 
   // A motion's emitters: `n` copies of the base, named name, name2, ...
   function spaced(ctx, base, n, place) {
@@ -289,11 +310,9 @@
         e.orientation = axisAngle(qmul(qaxis([0, 0, 1], (TAU * k) / p.count), qaxis([0, 1, 0], Math.PI / 2)));
       }) };
     }),
-    motion("wander", "Wander", "Drifts round a loose path near the character.", [height(1.2), radius(1.2),
-      { key: "seed", label: "Path (another number, another path)", min: 1, max: 99, step: 1, value: 7 }], (ctx, base, p) => {
+    motion("wander", "Wander", "Drifts round a loose path near the character.", [height(1.2), radius(1.2), seed(7, "Path")], (ctx, base, p) => {
       // Eight points from the seed (the same seed, the same path), joined smoothly and closed.
-      let s = Math.max(1, Math.round(p.seed)) * 2654435761 % 4294967296;
-      const next = () => { s = (s * 1664525 + 1013904223) % 4294967296; return s / 4294967296; };
+      const next = rng(p.seed);
       const pts = [];
       for (let i = 0; i < 8; i++) {
         const a = (TAU * i) / 8 + (next() - 0.5) * 0.6, r = p.radius * (0.4 + 0.6 * next());
@@ -309,6 +328,155 @@
         e.parent = "";
         e.position = at(0);
         e.keys = [{ anim: ctx.anim, orientation: [], position: moveKeys(ctx.length, 48, at) }];
+      }) };
+    }),
+    // 0.43.1 (owner: "can you come up with a few more movement types?").
+    motion("tilted", "Tilted orbit", "Circles on a tilted ring (several rings, turned apart: an atom).",
+      [height(1.2), radius(1), { key: "tilt", label: "Tilt (degrees)", min: 0, max: 90, step: 5, value: 60 }, turns(0.75),
+        { key: "count", label: "How many rings", min: 1, max: 6, step: 1, value: 1 }], (ctx, base, p) => {
+      const nodes = [], n = wholeTurns(p.turns, ctx.length), tilt = (p.tilt * Math.PI) / 180;
+      const emitters = spaced(ctx, base, p.count, (e, k) => {
+        // A still node tilting the ring (each ring turned round z from the one before), a node
+        // under it turning in the ring's plane, the emitter out on the ring.
+        const ring = core.node({ name: ctx.unique(ctx.base + "_ring"), position: [0, 0, p.height],
+          orientation: axisAngle(qmul(qaxis([0, 0, 1], (Math.PI * k) / p.count), qaxis([1, 0, 0], tilt))) });
+        const spin = core.node({ name: ctx.unique(ctx.base + "_ringspin"), parent: ring.name,
+          keys: [{ anim: ctx.anim, position: [], orientation: turnKeys(ctx.length, n) }] });
+        nodes.push(ring, spin);
+        e.parent = spin.name;
+        e.position = [p.radius, 0, 0];
+      });
+      return { nodes, emitters };
+    }),
+    motion("tornado", "Tornado", "Spirals up, widening as it rises (a top narrower than the bottom: a funnel).",
+      [from(0), to(2.5), { key: "bottom", label: "Radius at the bottom (m)", min: 0, max: 8, step: 0.05, value: 0.2 },
+        { key: "top", label: "Radius at the top (m)", min: 0, max: 8, step: 0.05, value: 1.4 }, turns(1.5), copies(1)], (ctx, base, p) => {
+      const node = spinner(ctx, "tornado", p.from, wholeTurns(p.turns, ctx.length));
+      node.keys[0].position = moveKeys(ctx.length, 1, (u) => [0, 0, p.from + (p.to - p.from) * u]);
+      return { nodes: [node], emitters: spaced(ctx, base, p.count, (e, k) => {
+        const d = around(p.count, 1, k), at = (u) => { const r = p.bottom + (p.top - p.bottom) * u; return [d[0] * r, d[1] * r, 0]; };
+        e.parent = node.name;
+        e.position = at(0);
+        e.keys = [{ anim: ctx.anim, orientation: [], position: moveKeys(ctx.length, 1, at) }];
+      }) };
+    }),
+    motion("pendulum", "Pendulum", "Swings from a point above, like a pendulum (along x).",
+      [{ key: "pivot", label: "Hangs from (m up)", min: 0, max: 6, step: 0.05, value: 2.2 },
+        { key: "length", label: "Length (m)", min: 0.1, max: 5, step: 0.05, value: 1.2 },
+        { key: "angle", label: "Swing (degrees each way)", min: 5, max: 90, step: 5, value: 45 }, rateOf("rate", "Swings a second", 0.5), turned(0)], (ctx, base, p) => {
+      const m = cycles(p.rate, ctx.length), a = (p.angle * Math.PI) / 180;
+      const pivot = core.node({ name: ctx.unique(ctx.base + "_pivot"), position: [0, 0, p.pivot], orientation: yaw(p.turned) });
+      const swing = core.node({ name: ctx.unique(ctx.base + "_swing"), parent: pivot.name,
+        keys: [{ anim: ctx.anim, position: [], orientation: axisKeys(ctx.length, m * 16, [0, 1, 0], (u) => a * Math.sin(TAU * m * u)) }] });
+      return { nodes: [pivot, swing], emitters: spaced(ctx, base, 1, (e) => { e.parent = swing.name; e.position = [0, 0, -p.length]; }) };
+    }),
+    motion("wheel", "Wheel", "A standing circle out along x, facing the character.",
+      [height(1.2), radius(0.8), { key: "out", label: "Out from the character (m)", min: 0, max: 8, step: 0.05, value: 1 }, turns(0.5), copies(1), turned(0)], (ctx, base, p) => {
+      const n = wholeTurns(p.turns, ctx.length);
+      const aim = core.node({ name: ctx.unique(ctx.base + "_aim"), position: [0, 0, p.height], orientation: yaw(p.turned) });
+      const wheel = core.node({ name: ctx.unique(ctx.base + "_wheel"), parent: aim.name, position: [p.out, 0, 0],
+        keys: [{ anim: ctx.anim, position: [], orientation: axisKeys(ctx.length, Math.max(4, Math.abs(n) * 4), [1, 0, 0], (u) => n * TAU * u) }] });
+      return { nodes: [aim, wheel], emitters: spaced(ctx, base, p.count, (e, k) => {
+        const d = around(p.count, p.radius, k);
+        e.parent = wheel.name;
+        e.position = [0, d[0], d[1]];
+      }) };
+    }),
+    motion("corkscrew", "Corkscrew", "Spirals out along x, then starts again.",
+      [height(1.2), { key: "length", label: "How far (m)", min: 0.1, max: 15, step: 0.1, value: 3 }, radius(0.3), turns(2), copies(1), turned(0)], (ctx, base, p) => {
+      const n = wholeTurns(p.turns, ctx.length);
+      const aim = core.node({ name: ctx.unique(ctx.base + "_aim"), position: [0, 0, p.height], orientation: yaw(p.turned) });
+      const screw = core.node({ name: ctx.unique(ctx.base + "_screw"), parent: aim.name, keys: [{ anim: ctx.anim,
+        position: moveKeys(ctx.length, 1, (u) => [p.length * u, 0, 0]),
+        orientation: axisKeys(ctx.length, Math.max(4, Math.abs(n) * 4), [1, 0, 0], (u) => n * TAU * u) }] });
+      return { nodes: [aim, screw], emitters: spaced(ctx, base, p.count, (e, k) => {
+        const d = around(p.count, p.radius, k);
+        e.parent = screw.name;
+        e.position = [0, d[0], d[1]];
+      }) };
+    }),
+    motion("boomerang", "Boomerang", "Flies out along x, curves round and comes back (several: thrown all round).",
+      [height(1.2), { key: "distance", label: "How far out (m)", min: 0.1, max: 15, step: 0.1, value: 2.5 },
+        { key: "curve", label: "Curve (m to the side)", min: -5, max: 5, step: 0.05, value: 0.8 }, rateOf("rate", "Throws a second", 0.5), copies(1), turned(0)], (ctx, base, p) => {
+      const m = cycles(p.rate, ctx.length);
+      return { nodes: [], emitters: spaced(ctx, base, p.count, (e, k) => {
+        const a = (p.turned * Math.PI) / 180 + (TAU * k) / p.count, c = Math.cos(a), s = Math.sin(a);
+        const at = (u) => {
+          const x = (p.distance * (1 - Math.cos(TAU * m * u))) / 2, y = p.curve * Math.sin(TAU * m * u);
+          return [x * c - y * s, x * s + y * c, p.height];
+        };
+        e.parent = "";
+        e.position = at(0);
+        e.keys = [{ anim: ctx.anim, orientation: [], position: moveKeys(ctx.length, m * 24, at) }];
+      }) };
+    }),
+    motion("breathe", "Breathe", "A ring that swells out and draws in again (it can turn as it does).",
+      [height(1), { key: "inner", label: "Smallest (m)", min: 0, max: 8, step: 0.05, value: 0.3 },
+        { key: "outer", label: "Widest (m)", min: 0, max: 8, step: 0.05, value: 1.5 }, rateOf("rate", "Breaths a second", 0.5), turns(0), copies(6)], (ctx, base, p) => {
+      const m = cycles(p.rate, ctx.length);
+      const node = Math.abs(p.turns) > 0.001 ? spinner(ctx, "breath", p.height, wholeTurns(p.turns, ctx.length))
+        : core.node({ name: ctx.unique(ctx.base + "_breath"), position: [0, 0, p.height] });
+      return { nodes: [node], emitters: spaced(ctx, base, p.count, (e, k) => {
+        const d = around(p.count, 1, k);
+        const at = (u) => { const r = p.inner + ((p.outer - p.inner) * (1 - Math.cos(TAU * m * u))) / 2; return [d[0] * r, d[1] * r, 0]; };
+        e.parent = node.name;
+        e.position = at(0);
+        e.keys = [{ anim: ctx.anim, orientation: [], position: moveKeys(ctx.length, m * 16, at) }];
+      }) };
+    }),
+    motion("bounce", "Bounce", "Hops like a ball (several: a ring of them, taking turns).",
+      [{ key: "base", label: "Ground (m)", min: -1, max: 6, step: 0.05, value: 0 }, { key: "hop", label: "Hop height (m)", min: 0, max: 6, step: 0.05, value: 1 },
+        rateOf("rate", "Hops a second", 1), radius(0), copies(1)], (ctx, base, p) => {
+      const m = cycles(p.rate, ctx.length);
+      return { nodes: [], emitters: spaced(ctx, base, p.count, (e, k) => {
+        const d = around(p.count, p.radius, k), phase = k / p.count;
+        const at = (u) => [d[0], d[1], p.base + p.hop * Math.abs(Math.sin(Math.PI * (m * u + phase)))];
+        e.parent = "";
+        e.position = at(0);
+        e.keys = [{ anim: ctx.anim, orientation: [], position: moveKeys(ctx.length, m * 16, at) }];
+      }) };
+    }),
+    motion("jitter", "Jitter", "Shakes on the spot.",
+      [height(1.2), { key: "amount", label: "How far it shakes (m)", min: 0, max: 2, step: 0.01, value: 0.12 }, rateOf("rate", "Shakes a second", 12, 30), seed(3, "Pattern")], (ctx, base, p) => {
+      const next = rng(p.seed), K = Math.max(4, Math.round(p.rate * ctx.length)), pts = [];
+      for (let i = 0; i < K; i++) pts.push([(next() - 0.5) * 2 * p.amount, (next() - 0.5) * 2 * p.amount, p.height + (next() - 0.5) * 2 * p.amount]);
+      const rows = [];
+      for (let i = 0; i <= K; i++) rows.push(Math.fround((i / K) * ctx.length), ...pts[i % K]);
+      return { nodes: [], emitters: spaced(ctx, base, 1, (e) => {
+        e.parent = "";
+        e.position = pts[0].slice();
+        e.keys = [{ anim: ctx.anim, orientation: [], position: rows }];
+      }) };
+    }),
+    motion("flower", "Flower", "Circles in a petal pattern, in and out.",
+      [height(1), radius(1.2), { key: "petals", label: "Petals", min: 2, max: 12, step: 1, value: 5 },
+        { key: "depth", label: "How deep the petals (0 - 1)", min: 0, max: 1, step: 0.05, value: 0.6 }, turns(0.25)], (ctx, base, p) => {
+      const n = wholeTurns(p.turns, ctx.length), petals = Math.round(p.petals);
+      const at = (u) => {
+        const th = TAU * n * u, r = p.radius * (1 - (p.depth * (1 - Math.cos(petals * th))) / 2);
+        return [r * Math.cos(th), r * Math.sin(th), p.height];
+      };
+      return { nodes: [], emitters: spaced(ctx, base, 1, (e) => {
+        e.parent = "";
+        e.position = at(0);
+        e.keys = [{ anim: ctx.anim, orientation: [], position: moveKeys(ctx.length, Math.abs(n) * petals * 12, at) }];
+      }) };
+    }),
+    motion("blink", "Blink", "Sits at a spot near the character, then jumps to another.",
+      [height(1.2), radius(1.5), rateOf("rate", "Jumps a second", 2, 10), seed(5, "Spots")], (ctx, base, p) => {
+      const next = rng(p.seed), K = Math.max(2, Math.round(p.rate * ctx.length)), pts = [];
+      for (let i = 0; i < K; i++) {
+        const a = next() * TAU, r = p.radius * Math.sqrt(next());
+        pts.push([r * Math.cos(a), r * Math.sin(a), p.height + (next() - 0.5) * 0.5]);
+      }
+      // Held at each spot, then a 0.02 s move to the next (keys are straight lines between).
+      const rows = [], step = ctx.length / K, jump = Math.min(0.02, step / 4);
+      for (let i = 0; i < K; i++) rows.push(Math.fround(i * step), ...pts[i], Math.fround((i + 1) * step - jump), ...pts[i]);
+      rows.push(Math.fround(ctx.length), ...pts[0]);
+      return { nodes: [], emitters: spaced(ctx, base, 1, (e) => {
+        e.parent = "";
+        e.position = pts[0].slice();
+        e.keys = [{ anim: ctx.anim, orientation: [], position: rows }];
       }) };
     }),
   ];

@@ -2528,6 +2528,22 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   the draft, 20 run, the motions measured (orbit radius / turn, spiral
   heights, spiral in, sprinkler jets level, bob, ring), settings, a motion
   on an emitter, your parts. No DLL change (the version marks the bench).
+  0.43.1 (owner: "can you come up with a few more movement types?"): 11 more
+  motions - Tilted orbit (a still node tilting the ring, each ring turned
+  180/n round z, a spinner under it: rings 3 = an atom), Tornado (spinner
+  rising, the emitters' radius keyed bottom -> top), Pendulum (a swing node
+  turning round y under a pivot), Wheel (a node out along x spinning round
+  x), Corkscrew (out along x while spinning round x), Boomerang (out and
+  back on a curve, copies thrown all round), Breathe (a ring's radius keyed
+  in and out, optionally turning), Bounce (|sin| hops, copies taking
+  turns), Jitter (seeded random points), Flower (r = R(1 - depth(1 - cos
+  petals th)/2)) and Blink (held at seeded spots, a 0.02 s jump between).
+  Whole cycles in the loop; "Turned round" aims the one-way ones. Helpers:
+  axisKeys (turn keys round any axis), rng, yaw. check_parts.js: 14,400 mixes,
+  and each new motion measured (ring distance and tilt height, tornado
+  radius by height, pendulum length and swing, wheel and corkscrew radius,
+  boomerang reach and curve, breathe in / out, bounce heights, jitter bound,
+  petal radii, blink held then jumped).
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

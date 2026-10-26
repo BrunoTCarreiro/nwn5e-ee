@@ -52,9 +52,14 @@ The card under the stage makes effects out of presets. An emitter is three parts
   (how many, how fast, how long; the area; the target's distance...). The ones with a target
   make it, a node under the emitter you can move or key in the Nodes card.
 - **Motion** - how the emitter moves round the character: Still (several: a ring), Orbit,
-  Spiral up / down / in / out, Rise, Fall, Bob, Sweep, Figure eight, Sprinkler, Wander - with
-  its height, radius, speed and how many copies spaced round. It loops with the effect (whole
-  turns, so there's no jump); a one-shot effect gets it once, over its seconds.
+  Spiral up / down / in / out, Rise, Fall, Bob, Sweep, Figure eight, Sprinkler, Wander, and
+  (0.43.1) Tilted orbit (several rings turned apart: an atom), Tornado (a spiral widening as it
+  rises), Pendulum, Wheel (a standing circle facing the character), Corkscrew (spiralling out
+  along x), Boomerang (out and curving back), Breathe (a ring swelling and drawing in), Bounce,
+  Jitter, Flower (a petal path) and Blink (jumping from spot to spot) - with its height, radius,
+  speed and how many copies spaced round, and for the ones that go one way, how far round
+  they're turned (0 = along x). It loops with the effect (whole turns and cycles, so there's no
+  jump); a one-shot effect gets it once, over its seconds.
 
 Click a part of each to try the mix: it plays in the preview as an extra layer (Try it in the
 preview) but isn't in the effect, the draft or Save until **Add to the effect** - then it's
@@ -130,7 +135,7 @@ an effect already run that far.
 - `check.js` - reads and writes back every draft nwn5e wrote (they must come out byte for
   byte) and decodes every texture: `node tools/vfx_bench/check.js build/vfxedit`.
 - `public/parts.js` - the parts to build from (presets, mixing them into a layer, putting one
-  on an emitter, checking your own); `check_parts.js` checks them all - every mix (7,800, on a
+  on an emitter, checking your own); `check_parts.js` checks them all - every mix (14,400, on a
   lasting and a one-shot effect) makes a sound layer the draft keeps, a sample runs, the
   motions go where they say, the textures are there and the covering looks have transparency:
   `node tools/vfx_bench/check_parts.js build/vfxedit`.
