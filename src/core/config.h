@@ -248,6 +248,9 @@ struct Config {
   // A held weapon's walk / run arm layer left playing over an idle (its stop
   // lost, e.g. turning while backing up) is stopped (anim_layers.cpp).
   bool stuck_layer_fix = true;
+  // Another creature's radial menu leaves out your self-only class feats
+  // (Rage, Reckless Attack ...) instead of greying them (radial_class_feats.cpp).
+  bool radial_hide_self_feats = true;
   // Who has noticed a hiding player character (owner, 2026-10-25: "build your
   // recommendation" for showing enemies' sight): an eye over each hostile that
   // sees it, an ear over one that only hears it (stealth_watch.cpp).

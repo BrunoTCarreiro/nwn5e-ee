@@ -124,6 +124,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.stealth_crouch = ReadBool(ini, L"stealth_crouch", g_config.stealth_crouch);
   g_config.drive_backward_fix = ReadBool(ini, L"drive_backward_fix", g_config.drive_backward_fix);
   g_config.stuck_layer_fix = ReadBool(ini, L"stuck_layer_fix", g_config.stuck_layer_fix);
+  g_config.radial_hide_self_feats = ReadBool(ini, L"radial_hide_self_feats", g_config.radial_hide_self_feats);
   g_config.stealth_marker = ReadBool(ini, L"stealth_marker", g_config.stealth_marker);
   g_config.stealth_rings = GetPrivateProfileIntW(L"rules", L"stealth_rings", g_config.stealth_rings, ini);
   g_config.heard_investigates = ReadBool(ini, L"heard_investigates", g_config.heard_investigates);
