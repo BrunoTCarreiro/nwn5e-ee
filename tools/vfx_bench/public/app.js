@@ -285,6 +285,12 @@
       { key: "drag", type: "num", min: 0, max: 1, step: 0.01, when: (e) => e.p2p === "gravity", label: "Speed kept each second (1 = all, 0 = none)" },
       { key: "threshold", type: "num", min: 0, max: 5, step: 0.01, when: (e) => e.p2p === "gravity", label: "Gone within (m of it)" },
     ] },
+    { title: "Lightning", fields: [
+      { key: "lightning_delay", type: "num", min: 0, max: 5, step: 0.01, when: (e) => String(e.update).toLowerCase() === "lightning", label: "A new bolt every (seconds; 0 = each frame)" },
+      { key: "lightning_radius", type: "num", min: 0, max: 2, step: 0.01, when: (e) => String(e.update).toLowerCase() === "lightning", label: "Jag across (m; under 0.01 = straight)" },
+      { key: "lightning_scale", type: "num", min: 0, max: 2, step: 0.01, when: (e) => String(e.update).toLowerCase() === "lightning", label: "Jitter along it (x half a step)",
+        help: "The bolt has Rate points (3, 5, 9, 17, 33 shape it fully - the game splits it in halves; an even count makes it read past its last point) from the emitter to its target, the first node under it. Drawn as Render says - the game's use Linked." },
+    ] },
     { title: "Its own motion", fields: [
       { key: "keys", type: "motion", label: "Keys" },
     ] },
@@ -313,6 +319,8 @@
       // A renamed emitter keeps what hangs under it (its p2p target, 0.42.5).
       if (f.key === "name") for (const x of [...(state.fx.nodes || []), ...state.fx.emitters]) if (x !== e && x.parent === e.name) x.parent = value;
       e[f.key] = value;
+      if (f.key === "update" && String(value).toLowerCase() === "lightning" && ensureTarget(e)) { renderFields(); renderNodes(); renderOverlay(); }
+      if (f.key === "update") renderFields();
       if (f.key === "name" || f.key === "update" || f.key === "render" || f.key === "texture") renderEmitters();
       changed(false);
     };
@@ -401,8 +409,22 @@
       return;
     }
     $("emf-h").textContent = "Emitter: " + e.name;
-    box.replaceChildren(...GROUPS.map((g) => el("div", { class: "group" }, [el("h3", { text: g.title }),
-      ...g.fields.filter((f) => !f.when || f.when(e)).map((f) => field(e, f))])));
+    box.replaceChildren(...GROUPS.map((g) => [g, g.fields.filter((f) => !f.when || f.when(e))]).filter(([, shown]) => shown.length)
+      .map(([g, shown]) => el("div", { class: "group" }, [el("h3", { text: g.title }), ...shown.map((f) => field(e, f))])));
+  }
+
+  // An emitter's target (point to point, Lightning): the first node under it - made here, 1.5 m
+  // along its x, when there is none. True when one was made.
+  function ensureTarget(e) {
+    const fx = state.fx;
+    fx.nodes = fx.nodes || [];
+    if (fx.nodes.some((n) => n.parent === e.name)) return false;
+    let name = core.resref(e.name + "_target", 20) || "target";
+    for (let k = 2; [...fx.nodes, ...fx.emitters].some((x) => x.name === name); k++) name = core.resref(e.name + "_target" + k, 20);
+    fx.nodes.push(core.node({ name, parent: e.name, position: [1.5, 0, 0] }));
+    state.node = fx.nodes.length - 1;
+    setStatus(`Its target is the node ${name}, 1.5 m along the emitter's x: move it in the Nodes card.`);
+    return true;
   }
 
   // Point to point (0.42.5): the kind, and the target - the first node under the emitter (made
@@ -413,14 +435,7 @@
     const kinds = [["", "No - as usual"], ["bezier", "Bezier: along a curve to it, arriving as they age out"], ["gravity", "Gravity: pulled to it, gone when they reach it"]];
     const select = el("select", { "aria-label": f.label, onchange: (ev) => {
       e.p2p = ev.target.value;
-      if (e.p2p && !(fx.nodes || []).some((n) => n.parent === e.name)) {
-        fx.nodes = fx.nodes || [];
-        let name = core.resref(e.name + "_target", 20) || "target";
-        for (let k = 2; [...fx.nodes, ...fx.emitters].some((x) => x.name === name); k++) name = core.resref(e.name + "_target" + k, 20);
-        fx.nodes.push(core.node({ name, parent: e.name, position: [1.5, 0, 0] }));
-        state.node = fx.nodes.length - 1;
-        setStatus(`Its target is the node ${name}, 1.5 m along the emitter's x: move it in the Nodes card.`);
-      }
+      if (e.p2p) ensureTarget(e);
       renderFields(); renderNodes(); changed(true); sim.restart();
     } }, kinds.map(([value, text]) => el("option", { value, selected: value === (e.p2p || ""), text })));
     const note = !e.p2p ? "Its particles fly as usual."
@@ -577,8 +592,9 @@
     const notes = [];
     const s = state.server;
     if (s && !s.exported) notes.push("No game library yet: start the game once with nwn5e 0.42.0 or later (vfx_bench=1), then Reload.");
-    const lightning = state.fx.emitters.filter((e) => String(e.update).toLowerCase() === "lightning");
-    if (lightning.length) notes.push("Lightning isn't drawn here (" + lightning.map((e) => e.name).join(", ") + ") - Play in game shows it.");
+    const fx = state.fx;
+    const aimless = fx.emitters.filter((e) => String(e.update).toLowerCase() === "lightning" && !(fx.nodes || []).some((n) => n.parent === e.name));
+    if (aimless.length) notes.push("Lightning needs a target - a node under the emitter: " + aimless.map((e) => e.name).join(", ") + " draws nothing.");
     const chunks = state.fx.emitters.filter((e) => e.chunk);
     if (chunks.length) notes.push("Chunk models aren't drawn here: grey squares mark " + [...new Set(chunks.map((e) => e.chunk))].join(", ") + " - Play in game shows them.");
     const missing = [...new Set(state.fx.emitters.filter((e) => !e.chunk).map((e) => e.texture.toLowerCase()))].filter((t) => s && s.exported && !inLibrary(t));

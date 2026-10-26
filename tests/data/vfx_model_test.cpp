@@ -538,6 +538,89 @@ TEST(VfxPointToPoint) {
   CHECK_EQ(Contains(WriteVfxModel(lonely, "n5vx0010"), "  p2p 0\n"), true);
 }
 
+// Lightning (0.42.7; the game's Doom, Death Armor and Power Word: Kill bolts): a compiled
+// model's Lightning emitter with its bolt settings and its reference child kept as its
+// target; the same through the draft and the model nwn5e writes (read back). Breaks caught:
+// a bolt setting's controller not read, or lost in the draft or the model; the target of a
+// Lightning emitter (not p2p) not kept - the bolt would have nowhere to go.
+TEST(VfxLightning) {
+  std::string b(0x1800, '\0');
+  const auto put32 = [&](size_t at, uint32_t v) { memcpy(&b[at], &v, 4); };
+  const auto put16 = [&](size_t at, uint16_t v) { memcpy(&b[at], &v, 2); };
+  const auto putf = [&](size_t at, float v) { memcpy(&b[at], &v, 4); };
+  const auto puts = [&](size_t at, const char* text) { memcpy(&b[at], text, strlen(text)); };
+  const size_t base = 12;
+  struct Ctrl {
+    uint32_t type;
+    std::vector<float> values;
+  };
+  const auto node = [&](size_t at, const char* name, size_t keys, const std::vector<Ctrl>& ctrls) {
+    puts(at + 0x10, name);
+    const size_t data = keys + 0x80;
+    uint16_t used = 0;
+    put32(at + 0x44, static_cast<uint32_t>(keys - base));
+    put32(at + 0x48, static_cast<uint32_t>(ctrls.size()));
+    put32(at + 0x50, static_cast<uint32_t>(data - base));
+    for (size_t i = 0; i < ctrls.size(); ++i) {
+      const size_t k = keys + 12 * i;
+      put32(k, ctrls[i].type);
+      put16(k + 4, 1);
+      put16(k + 6, used);
+      putf(data + 4 * used++, 0.0f);
+      put16(k + 8, used);
+      for (float v : ctrls[i].values) putf(data + 4 * used++, v);
+      b[k + 10] = static_cast<char>(ctrls[i].values.size());
+    }
+    put32(at + 0x54, used);
+  };
+  const auto children = [&](size_t at, size_t array, size_t kid) {
+    put32(at + 0x38, static_cast<uint32_t>(array - base));
+    put32(at + 0x3C, 1);
+    put32(array, static_cast<uint32_t>(kid - 0x10 - base));
+  };
+  puts(base + 8, "test_bolt");
+  put32(base + 0x48, static_cast<uint32_t>(0x100 - 0x10 - base));
+  node(0x100, "test_bolt", 0x800, {{8, {0, 0, 0}}});
+  children(0x100, 0x1700, 0x200);
+  node(0x200, "bolt", 0x900, {{8, {0, 0, 1}}, {88, {9}}, {208, {0.1f}}, {212, {0.15f}}, {216, {0.2f}}});
+  puts(0x200 + 0x60 + 0x18, "Lightning");
+  puts(0x200 + 0x60 + 0x38, "Linked");
+  puts(0x200 + 0x60 + 0x78, "fxpa_lbolt2l");
+  put32(0x200 + 0x60 + 0xD4, 0x102);
+  children(0x200, 0x1710, 0x300);
+  node(0x300, "bolt_ref", 0xA00, {{8, {0, 1, 1}}});
+  put32(0x300 + 0x5C, 0x11);
+  puts(0x300 + 0x60, "fx_ref");
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxBinaryModel(b, &effect, &error), true);
+  CHECK_EQ(effect.emitters.size(), 1u);
+  if (effect.emitters.empty()) return;
+  const VfxEmitter& e = effect.emitters[0];
+  CHECK_EQ(e.update == "Lightning", true);
+  CHECK_EQ(e.p2p.empty(), true);
+  CHECK_EQ(Milli(e.birthrate), 9000);
+  CHECK_EQ(Milli(e.lightning_delay), 100);
+  CHECK_EQ(Milli(e.lightning_radius), 150);
+  CHECK_EQ(Milli(e.lightning_scale), 200);
+  CHECK_EQ(effect.nodes.size() == 1 && effect.nodes[0].parent == "bolt", true);
+  VfxEffect back;
+  CHECK_EQ(ReadVfxDraft(WriteVfxDraft(effect), &back, &error), true);
+  CHECK_EQ(back.emitters.size() == 1 && back.nodes.size() == 1, true);
+  if (back.emitters.empty()) return;
+  CHECK_EQ(Milli(back.emitters[0].lightning_radius), 150);
+  CHECK_EQ(Milli(back.emitters[0].lightning_scale), 200);
+  const std::string model = WriteVfxModel(back, "n5vx0011");
+  CHECK_EQ(Contains(model, "  lightningDelay 0.1\n  lightningRadius 0.15\n  lightningScale 0.2"), true);
+  CHECK_EQ(Contains(model, "node reference n5vx0011_n0_bolt_ref"), true);
+  VfxEffect read;
+  CHECK_EQ(ReadVfxAsciiModel(model, &read, &error), true);
+  CHECK_EQ(read.emitters.size() == 1 && read.nodes.size() == 1, true);
+  if (read.emitters.empty() || read.nodes.empty()) return;
+  CHECK_EQ(Milli(read.emitters[0].lightning_delay), 100);
+  CHECK_EQ(read.nodes[0].parent == read.emitters[0].name, true);
+}
+
 // An effect with motion (0.42.3): a node that turns in the duration and an emitter under it
 // that moves - through the draft, and through the model nwn5e writes and reads back.
 // Breaks caught: a node, a parent, a key list, the lengths or the follow flags lost on the

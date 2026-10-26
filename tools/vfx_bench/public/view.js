@@ -360,7 +360,7 @@ precision mediump float; varying vec4 v_color; void main() { gl_FragColor = v_co
       this.groundAndFigure(figure, cam.mvp, nodes || []);
       // The emitters in their order (all on one character: the game leaves their order to its
       // sort), each one's particles oldest first.
-      const entries = snapshot.filter((s) => s.particles.length && String(s.emitter.update).toLowerCase() !== "lightning");
+      const entries = snapshot.filter((s) => s.particles.length);
       const p = this.particleProgram;
       gl.useProgram(p.program);
       gl.uniformMatrix4fv(p.uniform.u_mvp, false, cam.mvp);

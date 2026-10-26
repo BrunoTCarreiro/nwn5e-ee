@@ -117,6 +117,31 @@ grav 0, sizeMid 0, sizeMid_y 0. MdlNodeEmitter ctor 0x875a0: node+0x98 = 5 (?), 
 - Each particle is a ChunkyParticle (ctor 0x602b0): NewCAurObject(chunkName) at +0x78, added to
   the scene; ChunkyParticle::initialize (0x663d0) scales it by the gob's scale and plays its
   "impact" animation. Resting (bounce): pushed sizeStart off the surface, not 0.02.
+## Lightning (read 0.42.7)
+- LightningEmitter::Initialize (0x61d30): PartEmitter::Initialize, then lifeExp (+0xac) = 1 and
+  the "_EmitterTarget" callback, p2p or not - the target is the emitter's first reference child
+  (every one of the game's has one). Controllers: lightningDelay 208 (+0xec), lightningRadius
+  212 (+0xf0), lightningScale 216 (+0xf4).
+- LightningEmitter::Update (0x65290): n = int(birthrate) points; no target or n 0: all points go
+  to a free list (+0x130; kept as they are, ages too) and nothing more. Else the list is made n
+  long - from the free list's end, or a new Particle::initialize (+ the random frame) - or cut
+  from its end. Each point: if age == lastFrameAge (+0x48) both 0; age += dt (no
+  chkParticleLife - t = min(1, age / 1) goes on rising). Motion_Blur trails as usual.
+- timer (+0x1c8) += dt; **timer > lightningDelay**: a new bolt - point 0 at the emitter (or
+  randomPosition in its xsize x ysize), point n-1 at the target; D = P0 - Pn-1 (zero: stop);
+  timer = 0; d = normalize(D); a1 = (-d.y, d.z, -d.x); a2 = cross(d, a1);
+  RecursiveFractal(c = int(n / 2), h = c, a1, a2, gob scale); then step = |D| / n / 2 and for
+  each inner point (while step >= 0.01): P += (rand odd ? d : -d) * (rand % int(step*100)) *
+  0.01 * lightningScale * (Part+0x2c, the part's scale: 1).
+  **Else**: the bolt turns with the emitter -> target line - q = RotationArc(last D, T - E)
+  (0x22e1c0: both normalised, Melax; opposite: a half turn round x), each P = E + q (P - last
+  E); then last D / last E = these (they're only kept on these frames).
+- RecursiveFractal (0x62460, this, c, h, depth, a1, a2, scale): s1 = rand odd ? 1 : -1;
+  m = (P[c+h] + P[c-h]) / 2; radius >= 0.01 (double compare): m += s1 a1 (rand % int(radius
+  100)) 0.01 scale; s2 = rand odd ? 1 : -1 (drawn either way); the same along a2; P[c] = m;
+  h != 0: recurse (c - h/2, h/2) and (c + h/2, h/2) - h 0 pushes P[c] again. Counts of 2^k + 1
+  (3, 5, 9, 17, 33 - all the game's) fill every point; an even n reads P[n], past the end.
+- Drawn by RenderEmitter like any emitter - the game's are all Linked (a segment per pair).
 
 ---
 

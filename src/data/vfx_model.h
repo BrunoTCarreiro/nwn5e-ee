@@ -98,6 +98,13 @@ struct VfxEmitter {
   float grav = 0.0f;
   float drag = 0.0f;
   float threshold = 0.0f;
+  // 0.42.7: a Lightning emitter's bolt to its target (the first node under it, as for point to
+  // point - without one it draws nothing): a new bolt every lightning_delay seconds, its points
+  // (birthrate of them) jagged up to lightning_radius metres across and lightning_scale of a
+  // step along (LightningEmitter::Update, PartEmitter::RecursiveFractal).
+  float lightning_delay = 0.0f;
+  float lightning_radius = 0.0f;
+  float lightning_scale = 0.0f;
   std::vector<VfxKeys> keys;  // its own move / turn in the animations
 };
 

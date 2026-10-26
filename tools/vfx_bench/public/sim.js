@@ -76,6 +76,17 @@
     return out;
   }
 
+  // RotationArc (0x22e1c0): the shortest turn taking direction u to direction v (both made unit;
+  // opposite: a half turn round x).
+  function arc(u, v) {
+    const lu = Math.hypot(u[0], u[1], u[2]), lv = Math.hypot(v[0], v[1], v[2]);
+    const a = [u[0] / lu, u[1] / lu, u[2] / lu], b = [v[0] / lv, v[1] / lv, v[2] / lv];
+    const d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    if (d <= -1) return [1, 0, 0, 0];
+    const s = Math.sqrt((d + 1) * 2);
+    return [(a[1] * b[2] - a[2] * b[1]) / s, (a[2] * b[0] - a[0] * b[2]) / s, (a[0] * b[1] - a[1] * b[0]) / s, s / 2];
+  }
+
   // An emitter's own turn applied to a vector (kept for callers of 0.42.2).
   function turn(o, v) { return qrot(quat(o), v); }
 
@@ -216,6 +227,111 @@
       return n && this.places ? this.places.get(n.name) || null : null;
     }
 
+    // Particle::randomPosition: a point of the emitter's xsize x ysize (cm) area, in its x / y.
+    areaOffset(e) {
+      const offset = [0, 0, 0];
+      const xs = Math.trunc(e.xsize * 100), ys = Math.trunc(e.ysize * 100);
+      if (xs || ys) {
+        let a = xs > 3 ? rand() % Math.trunc(xs * 0.5) : 0;
+        let b = ys > 3 ? rand() % Math.trunc(ys * 0.5) : 0;
+        if (rand() % 2) a = -a;
+        if (rand() % 2) b = -b;
+        offset[0] = a * 0.0001;
+        offset[1] = b * 0.0001;
+      }
+      return offset;
+    }
+
+    // LightningEmitter::Update (0x65290, read 0.42.7): birthrate (whole) points from the emitter
+    // to its target - none without one. A new bolt when more than lightning_delay seconds have
+    // passed: the first point at the emitter (or a point of its area), the last at the target,
+    // the middle by RecursiveFractal, then each inner point pushed along the bolt by up to
+    // lightning_scale x half a step. In between, the bolt turns with the emitter -> target line
+    // (RotationArc) about the emitter. The points age by dt (life 1 s - the game sets it) and
+    // are kept on a spare list when not needed (ages and all); Motion_Blur trails as usual.
+    lightning(e, state, dt, t) {
+      const n = Math.trunc(this.birthrate(e, t));
+      state.timer = (state.timer || 0) + dt;
+      state.spare = state.spare || [];
+      const target = this.targetPlace(e);
+      if (!n || !target) {
+        while (state.particles.length) state.spare.push(state.particles.pop());
+        return;
+      }
+      while (state.particles.length < n) {
+        if (state.spare.length) state.particles.push(state.spare.pop());
+        else this.spawn(e, state);
+        if (state.particles.length >= MAX_PARTICLES) break;
+      }
+      while (state.particles.length > n) state.spare.push(state.particles.pop());
+      for (const p of state.particles) {
+        if (p.age === p.lastFrameAge) { p.lastFrameAge = 0; p.age = 0; }
+        p.age += dt;
+      }
+      this.trail(e, state, dt);
+      const P = state.particles, E = this.emitterPlace(e), count = P.length;
+      const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+      if (state.timer > e.lightning_delay) {
+        const start = e.xsize === 0 && e.ysize === 0 ? E.pos.slice()
+          : (() => { const o = qrot(E.q, this.areaOffset(e)); return [E.pos[0] + o[0], E.pos[1] + o[1], E.pos[2] + o[2]]; })();
+        P[0].pos = start;
+        P[count - 1].pos = target.pos.slice();
+        const D = sub(P[0].pos, P[count - 1].pos), len = Math.hypot(D[0], D[1], D[2]);
+        if (!len) return;
+        state.timer = 0;
+        const d = [D[0] / len, D[1] / len, D[2] / len];
+        const v = [-d[1], d[2], -d[0]];
+        const w = [d[1] * v[2] - d[2] * v[1], d[2] * v[0] - d[0] * v[2], d[0] * v[1] - d[1] * v[0]];
+        const mid = Math.trunc(count * 0.5);
+        this.fractal(e, P, mid, mid, v, w, 0);
+        const step = (len / count) * 0.5;
+        for (let i = 1; i < count - 1; i++) {
+          if (step < 0.01) break;
+          const s = rand() & 1 ? 1 : -1;
+          const k = (rand() % Math.max(1, Math.trunc(step * 100))) * 0.01;
+          for (let c = 0; c < 3; c++) P[i].pos[c] += s * d[c] * k * (e.lightning_scale || 0);
+        }
+        return;
+      }
+      const D2 = sub(target.pos, E.pos);
+      if (state.prevD && Math.hypot(...state.prevD) && Math.hypot(...D2)) {
+        const q = arc(state.prevD, D2);
+        for (const p of P) {
+          const r = qrot(q, sub(p.pos, state.prevE));
+          p.pos = [E.pos[0] + r[0], E.pos[1] + r[1], E.pos[2] + r[2]];
+        }
+      }
+      state.prevD = D2;
+      state.prevE = E.pos.slice();
+    }
+
+    // PartEmitter::RecursiveFractal (0x62460): point c becomes the middle of points c - h and
+    // c + h, pushed up to lightning_radius along +-a1 and +-a2 (0.01 steps; under 0.01: not
+    // pushed), then the same for the halves (h / 2) - down to h 0, which pushes c again. The
+    // game reads past the last point when there are an even number; here the last stands in.
+    fractal(e, P, c, h, a1, a2, depth) {
+      if (depth > 40) return;
+      const n = P.length, at = (i) => P[Math.max(0, Math.min(n - 1, i))];
+      const r = e.lightning_radius || 0, reach = Math.max(1, Math.trunc(Math.fround(r * 100)));
+      const s1 = rand() & 1 ? 1 : -1;
+      const A = at(c + h).pos, B = at(c - h).pos;
+      const m = [(A[0] + B[0]) * 0.5, (A[1] + B[1]) * 0.5, (A[2] + B[2]) * 0.5];
+      if (r >= 0.01) {
+        const k = (rand() % reach) * 0.01;
+        for (let i = 0; i < 3; i++) m[i] += s1 * a1[i] * k;
+      }
+      const s2 = rand() & 1 ? 1 : -1;
+      if (r >= 0.01) {
+        const k = (rand() % reach) * 0.01;
+        for (let i = 0; i < 3; i++) m[i] += s2 * a2[i] * k;
+      }
+      at(c).pos = m;
+      if (h === 0) return;
+      const h2 = Math.trunc(h * 0.5);
+      this.fractal(e, P, c - h2, h2, a1, a2, depth + 1);
+      this.fractal(e, P, c + h2, h2, a1, a2, depth + 1);
+    }
+
     // Particle::initialize (+ randomPosition, randomDirection, PartEmitter::chkRandom), from the
     // emitter where it is now: its z the way out, its x / y the area.
     spawn(e, state) {
@@ -229,17 +345,7 @@
         if (rand() % 2) delta = -delta;
       }
       // Where: the emitter, or a point of its xsize x ysize (cm) area.
-      const offset = [0, 0, 0];
-      const xs = Math.trunc(e.xsize * 100), ys = Math.trunc(e.ysize * 100);
-      if (xs || ys) {
-        let a = xs > 3 ? rand() % Math.trunc(xs * 0.5) : 0;
-        let b = ys > 3 ? rand() % Math.trunc(ys * 0.5) : 0;
-        if (rand() % 2) a = -a;
-        if (rand() % 2) b = -b;
-        offset[0] = a * 0.0001;
-        offset[1] = b * 0.0001;
-      }
-      const moved = qrot(at.q, offset);
+      const moved = qrot(at.q, this.areaOffset(e));
       // Which way: the emitter's z, tilted by up to half the spread (an even ANGLE, 0.01 steps)
       // and turned round it (0 - 6.27).
       let dir = [0, 0, 1], xaxis = [1, 0, 0];
@@ -456,7 +562,8 @@
           this.move(e, state, dt);
           return;
         }
-        if (update !== "fountain" && update !== "explosion") return;  // Lightning: not drawn here
+        if (update === "lightning") { this.lightning(e, state, dt, t); return; }
+        if (update !== "fountain" && update !== "explosion") return;
         this.ageParticles(e, state, dt);
         this.trail(e, state, dt);
         this.spin(e, state, dt);
@@ -497,8 +604,9 @@
         const state = this.states[i];
         const grid = Math.max(1, e.grid | 0);
         const at = this.emitterPlace(e);
-        if (!state || this.hidden.has(i) || e.life === 0) return { emitter: e, particles: [], grid, place: at };
-        const life = e.life;
+        const lightning = String(e.update).toLowerCase() === "lightning";
+        if (!state || this.hidden.has(i) || (e.life === 0 && !lightning)) return { emitter: e, particles: [], grid, place: at };
+        const life = lightning ? 1 : e.life;  // LightningEmitter::Initialize sets lifeExp 1
         const hs0 = e.size_start * 0.5, hs1 = e.size_end * 0.5;
         const sizeVaries = life > 0 && e.size_start !== e.size_end && !e.splat;
         const cS = e.color_start.map((v) => clamp01(v) * 255.99), cE = e.color_end.map((v) => clamp01(v) * 255.99);

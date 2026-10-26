@@ -2489,6 +2489,23 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   (NewCAurObject) playing "impact". Bench: the field, grey squares for the
   chunks, a note. 95 chunk emitters in the library (format 9); check.js 408
   byte for byte; six mutations each fail a test.
+  0.42.7: Lightning, read in the game (PARTICLES.md): LightningEmitter keeps
+  int(birthrate) points (a free list keeps the spare ones, ages and all; life
+  fixed at 1), a new bolt each lightningDelay - the ends at the emitter (or
+  its area) and the first reference child, RecursiveFractal's midpoints pushed
+  up to lightningRadius along two sideways axes, the inner points jittered
+  along by lightningScale x half a step - and between bolts turned with the
+  emitter -> target line (RotationArc). Kept: lightning_delay / radius / scale
+  (binary controllers 208 212 216, ASCII lightningDelay..., the draft's
+  "lightning = d r s" for a Lightning emitter, the writer), and a Lightning
+  emitter's target (both readers, as for p2p). Bench: the update ported (the
+  game's past-the-end read on an even count clamped), the Lightning fields,
+  choosing Lightning makes a target, a note when it has none; Lightning is
+  drawn now (Doom's and Death Armor's bolts). Library format 10: 23 Lightning
+  emitters; check.js 408 byte for byte; test VfxLightning, six mutations.
+  The gap list from "how can we fix the gaps?" is done but for the meshes
+  (25 spell effects; not started - the owner's call) and the soft-particle
+  fade / fog.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

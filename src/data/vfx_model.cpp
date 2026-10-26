@@ -79,7 +79,8 @@ std::vector<std::string> EmitterLines(const VfxEmitter& e, const std::string& no
       "  velocity " + Num(e.velocity), "  randvel " + Num(e.randvel), "  fps " + Num(e.fps),
       "  xsize " + Num(e.xsize), "  ysize " + Num(e.ysize), "  bounce_co " + Num(e.bounce_co),
       "  blurlength " + Num(e.blur_length),
-      "  lightningDelay 0", "  lightningRadius 0", "  lightningScale 0",
+      "  lightningDelay " + Num(e.lightning_delay), "  lightningRadius " + Num(e.lightning_radius),
+      "  lightningScale " + Num(e.lightning_scale),
       "  p2p_bezier2 " + Num(e.p2p_bezier2), "  p2p_bezier3 " + Num(e.p2p_bezier3),
       "  combinetime " + Num(e.combinetime), "  drag " + Num(e.drag), "  grav " + Num(e.grav),
       "  threshold " + Num(e.threshold),
@@ -407,6 +408,9 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
       out += "combinetime = " + Num(e.combinetime) + "\ngrav = " + Num(e.grav) + "\ndrag = " + Num(e.drag) + "\n";
       out += "threshold = " + Num(e.threshold) + "\n";
     }
+    if (Lower(e.update) == "lightning") {
+      out += "lightning = " + Num(e.lightning_delay) + " " + Num(e.lightning_radius) + " " + Num(e.lightning_scale) + "\n";
+    }
     std::string flags;
     if (e.inherit) flags += " inherit";
     if (e.splat) flags += " splat";
@@ -527,6 +531,13 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
     else if (key == "grav") e->grav = ToFloat(value);
     else if (key == "drag") e->drag = ToFloat(value);
     else if (key == "threshold") e->threshold = ToFloat(value);
+    else if (key == "lightning") {
+      float bolt[3] = {e->lightning_delay, e->lightning_radius, e->lightning_scale};
+      ReadFloats(words, 0, bolt, 3);
+      e->lightning_delay = bolt[0];
+      e->lightning_radius = bolt[1];
+      e->lightning_scale = bolt[2];
+    }
     else if (key == "flags") {
       for (const std::string& word : words) {
         const std::string f = Lower(word);
@@ -724,6 +735,9 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       else if (first == "grav") e->grav = ToFloat(v);
       else if (first == "drag") e->drag = ToFloat(v);
       else if (first == "threshold") e->threshold = ToFloat(v);
+      else if (first == "lightningdelay") e->lightning_delay = ToFloat(v);
+      else if (first == "lightningradius") e->lightning_radius = ToFloat(v);
+      else if (first == "lightningscale") e->lightning_scale = ToFloat(v);
     }
   }
   if (key_rows != 0) finish_keys();
@@ -747,10 +761,15 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       up = parent.parent;
     }
   }
-  // A point-to-point emitter's target: its first reference child (0.42.5), kept under it.
+  // A point-to-point or Lightning emitter's target: its first reference child (0.42.5 / 0.42.7),
+  // kept under it.
   std::set<std::string> targets;
   for (const Geo& g : geo) {
-    if (!g.emitter || !g.p2p) continue;
+    bool lightning = false;
+    for (const VfxEmitter& e : result.emitters) {
+      if (Lower(e.name) == Lower(g.name)) lightning = Lower(e.update) == "lightning";
+    }
+    if (!g.emitter || (!g.p2p && !lightning)) continue;
     for (const Geo& child : geo) {
       if (child.kind == "reference" && Lower(child.parent) == Lower(g.name)) {
         targets.insert(Lower(child.name));
@@ -971,6 +990,9 @@ void ApplyController(const Controller& c, VfxEmitter* e) {
     case 152: e->p2p_bezier2 = v(0); break;  // +0xb4
     case 156: e->p2p_bezier3 = v(0); break;  // +0xb8
     case 188: e->threshold = v(0); break;    // +0xd8
+    case 208: e->lightning_delay = v(0); break;   // +0xec (0.42.7)
+    case 212: e->lightning_radius = v(0); break;  // +0xf0
+    case 216: e->lightning_scale = v(0); break;   // +0xf4
     default: break;
   }
 }
@@ -1076,7 +1098,8 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
   // 0x10; the game's SetEmitterTarget takes the first child with a reference object), kept
   // under the emitter with its reference model (0.42.5).
   for (size_t i = 0; i < result.emitters.size() && i < nodes.size(); ++i) {
-    if (result.emitters[i].p2p.empty() || !geo_at.count(nodes[i])) continue;
+    const bool lightning = Lower(result.emitters[i].update) == "lightning";
+    if ((result.emitters[i].p2p.empty() && !lightning) || !geo_at.count(nodes[i])) continue;
     for (const GeoNode& g : geometry) {
       if (g.parent != nodes[i] || !(m.U32(g.node + 0x5C) & 0x10)) continue;
       VfxNode n;

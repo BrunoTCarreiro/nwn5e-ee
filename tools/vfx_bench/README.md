@@ -52,9 +52,9 @@ what Save makes. Particles leave from where the emitter is at that moment, and f
 (inherit), the character's move (inherit_local) or the emitter's move (inherit_part).
 The Nodes card lists them (Add, Remove, what each hangs under, its place and turn, Make it
 spin); an emitter's "Its own motion" has Make it orbit (a new node turning round z with the
-emitter out at a radius). Not here: Lightning emitters, the game's soft-particle fade and
-fog, and the meshes of a game effect (Mage Armor's shields, Bigby's hands - 25 of the game's
-spell effects have some) - only its particles. When in doubt, Play in game.
+emitter out at a radius). Not here: the game's soft-particle fade and fog, and the meshes
+of a game effect (Mage Armor's shields, Bigby's hands - 25 of the game's spell effects have
+some) - only its particles. When in doubt, Play in game.
 
 Two more of the game's emitter settings (0.42.4): "Seen from both sides" (twosidedtex - the
 flat and particle-direction kinds otherwise show one side; 37 of the game's effects use it)
@@ -77,6 +77,12 @@ Chunks (0.42.6): "Chunk model" makes each particle a model of the game's instead
 (rocks, bones, meteors, cards - 95 of the game's emitters); the game then draws no sprites for
 that emitter. The bench can't draw models: a grey square marks each chunk, and Play in game
 shows them.
+
+Lightning (0.42.7): an emitter whose Update is Lightning draws a bolt of Rate points from it to
+its target (the first node under it - choosing Lightning makes one, as point to point does),
+redrawn every "A new bolt every" seconds, jagged across by "Jag across" and along by "Jitter
+along it" - read from the game's code (LightningEmitter, RecursiveFractal) and drawn as Render
+says (the game's own use Linked). Doom, Death Armor, Power Word Kill and the blade chains do it.
 
 Mouse on the stage: drag to turn, right-drag (or shift-drag) to move, wheel to zoom,
 double-click to reset. Space pauses, R restarts. `?open=game:<model>&warm=<s>` opens

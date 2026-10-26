@@ -744,8 +744,8 @@ void LoadEntry(uint32_t player, int index) {
 // from the geometry, not an animation's copy (0.42.1); 4: placed in the model with
 // their parents, and turned (orientation), with fps and particle_rot (0.42.2); 6: the nodes they hang under and the motion keys (0.42.3);
 // 7: twosidedtex and deadspace (0.42.4); 8: point to point and its targets (0.42.5); 9: chunk
-// models (0.42.6).
-constexpr int kLibraryFormat = 9;
+// models (0.42.6); 10: Lightning's bolt settings and targets (0.42.7).
+constexpr int kLibraryFormat = 10;
 constexpr uint16_t kResTypeTga = 3;
 constexpr uint16_t kResTypeDds = 2033;
 constexpr uint64_t kBenchCheckMs = 250;

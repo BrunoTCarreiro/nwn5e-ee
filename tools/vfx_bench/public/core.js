@@ -26,6 +26,7 @@
       alpha_end: 0, xsize: 0, ysize: 0, grid: 1, frame_end: 0, blur_length: 0, bounce_co: 0, fps: 0, particle_rot: 0,
       inherit: false, splat: false, bounce: false, random: false, inherit_local: false, inherit_part: false,
       twosidedtex: false, deadspace: 0, parent: "", keys: [],
+      lightning_delay: 0, lightning_radius: 0, lightning_scale: 0,
       chunk: "", p2p: "", p2p_bezier2: 0, p2p_bezier3: 0, combinetime: 0, grav: 0, drag: 0, threshold: 0,
     }, overrides || {});
   }
@@ -157,6 +158,9 @@
         out += "combinetime = " + num(e.combinetime || 0) + "\ngrav = " + num(e.grav || 0) + "\ndrag = " + num(e.drag || 0) + "\n";
         out += "threshold = " + num(e.threshold || 0) + "\n";
       }
+      if (String(e.update).toLowerCase() === "lightning") {
+        out += "lightning = " + num(e.lightning_delay || 0) + " " + num(e.lightning_radius || 0) + " " + num(e.lightning_scale || 0) + "\n";
+      }
       let flags = "";
       if (e.inherit) flags += " inherit";
       if (e.splat) flags += " splat";
@@ -269,6 +273,11 @@
       else if (key === "grav") e.grav = toFloat(value);
       else if (key === "drag") e.drag = toFloat(value);
       else if (key === "threshold") e.threshold = toFloat(value);
+      else if (key === "lightning") {
+        const bolt = [e.lightning_delay, e.lightning_radius, e.lightning_scale];
+        readFloats(words, bolt, 3);
+        [e.lightning_delay, e.lightning_radius, e.lightning_scale] = bolt;
+      }
       else if (key === "flags") {
         for (const word of words) {
           const f = word.toLowerCase();
