@@ -12,9 +12,9 @@
 //   each AI update; each CNWSCreature::SetAnimation on it and who called it
 //   (0.39.8 - the first traces showed the server switching between run (4)
 //   and stand (0) while S walked a hider backwards); each drive action the
-//   keyboard movement adds for it (CNWSCreature::AddDriveAction: the keys'
-//   bits, the two flags after, the direction, and +0x76c - the limited
-//   movement speed flag, which makes AddDriveAction drop the bits' 2).
+//   keyboard movement adds for it (CNWSCreature::AddDriveAction, hooked in
+//   drive_fix.cpp, which calls AnimTraceDrive: the facing, the counter, the
+//   keys, the caller's flag, the position, and +0x76c - the walk limit).
 // Then it writes the timeline to animtrace.txt next to nwn5e.log in one go
 // (repeats folded: "x12 over 190 ms") and a summary per hiding state to
 // nwn5e.log. The hooks pass straight through when no trace runs.
@@ -45,12 +45,9 @@ namespace {
 
 using PlayAnimationFn = int (*)(void* gob, const char* name, float speed, int flag, float value);
 using SetAnimationFn = void (*)(void* creature, int animation);
-using AddDriveActionFn = int (*)(void* creature, uint16_t group, const float* target, int bits, int a, int b, int c);
 PlayAnimationFn g_play = nullptr;
 SetAnimationFn g_set_animation = nullptr;
-AddDriveActionFn g_add_drive = nullptr;
 constexpr const char* kGobPlayAnimation = "?PlayAnimation@Gob@@UEAAHPEBDMHM@Z";
-constexpr const char* kAddDriveAction = "?AddDriveAction@CNWSCreature@@QEAAHGAEBVVector@@HHHH@Z";
 constexpr size_t kClientObjectAnim = 0x78;  // CNWCObject -> its animation object (stealth_ghost.cpp)
 constexpr size_t kAnimModel = 0xc8;         // -> its model (Gob)
 constexpr size_t kObjectAnimation = 0xd8;   // uint16: the animation playing (CNWSObject, stance_look.cpp)
@@ -137,23 +134,6 @@ void SetAnimation(void* creature, int animation) {
   g_set_animation(creature, animation);
 }
 
-int AddDriveAction(void* creature, uint16_t group, const float* target, int bits, int a, int b, int c) {
-  if (Traced(creature)) {
-    Event e;
-    e.kind = Kind::kDrive;
-    e.ms = Now();
-    e.bits = bits;
-    e.a = a;
-    e.b = b;
-    e.c = c;
-    e.limit = Field<int32_t>(creature, kCreatureLimitSpeed);
-    e.x = target ? target[0] : 0;
-    e.y = target ? target[1] : 0;
-    e.hiding = g_hiding;
-    Add(e);
-  }
-  return g_add_drive(creature, group, target, bits, a, b, c);
-}
 
 bool Same(const Event& a, const Event& b) {
   if (a.kind != b.kind) return false;
@@ -233,8 +213,8 @@ void Dump() {
         sprintf_s(line, "%9.1f SetAnimation %d from %s%s\n", first, run->anim, run->name, repeat);
         break;
       case Kind::kDrive:
-        sprintf_s(line, "%9.1f DRIVE bits 0x%x, %d, %d, %d, limit %d, to (%.2f, %.2f)%s\n", first, run->bits, run->a,
-                  run->b, run->c, run->limit, run->x, run->y, repeat);
+        sprintf_s(line, "%9.1f DRIVE keys %d (facing 0x%x, #%d, from %d), limit %d, at (%.2f, %.2f)%s\n", first,
+                  run->b, run->bits, run->a, run->c, run->limit, run->x, run->y, repeat);
         break;
       case Kind::kPlay:
         sprintf_s(line, "%9.1f   [%c] play \"%s\" speed %.2f, %d, %.2f%s\n", first, label(run->gob), run->name,
@@ -297,9 +277,7 @@ void Dump() {
           ++sets[std::to_string(e.anim) + " from " + e.name];
           break;
         case Kind::kDrive:
-          ++drives["bits 0x" + [&] { char h[16]; sprintf_s(h, "%x", e.bits); return std::string(h); }() + " " +
-                   std::to_string(e.a) + "/" + std::to_string(e.b) + "/" + std::to_string(e.c) + " limit " +
-                   std::to_string(e.limit)];
+          ++drives["keys " + std::to_string(e.b) + " from " + std::to_string(e.c) + ", limit " + std::to_string(e.limit)];
           break;
         case Kind::kPlay:
           if (label(e.gob) == 'A') ++plays[std::string(e.name) + (e.speed < 0 ? " backwards" : "")];
@@ -364,6 +342,23 @@ std::vector<std::string> TraceCommand(void* creature, const std::string& args) {
 
 }  // namespace
 
+// drive_fix.cpp's CNWSCreature::AddDriveAction: a drive action for the traced creature.
+void AnimTraceDrive(void* creature, const float* target, int facing, int a, int keys, int c) {
+  if (!Traced(creature)) return;
+  Event e;
+  e.kind = Kind::kDrive;
+  e.ms = Now();
+  e.bits = facing;
+  e.a = a;
+  e.b = keys;
+  e.c = c;
+  e.limit = Field<int32_t>(creature, kCreatureLimitSpeed);
+  e.x = target ? target[0] : 0;
+  e.y = target ? target[1] : 0;
+  e.hiding = g_hiding;
+  Add(e);
+}
+
 // stealth_ghost.cpp's client creature update: the traced creature's model.
 void AnimTraceClient(void* client_creature) {
   if (!g_active.load(std::memory_order_relaxed) || !client_creature) return;
@@ -383,8 +378,6 @@ void InstallAnimTrace() {
   }
   HookExport("CNWSCreature::SetAnimation (!animtrace: who sets the traced creature's)", ee::kCreatureSetAnimation,
              reinterpret_cast<void*>(&SetAnimation), reinterpret_cast<void**>(&g_set_animation));
-  HookExport("CNWSCreature::AddDriveAction (!animtrace: the keyboard movement's keys)", kAddDriveAction,
-             reinterpret_cast<void*>(&AddDriveAction), reinterpret_cast<void**>(&g_add_drive));
   AddCreatureUpdateListener(&ServerStep);
   AddChatCommand("!animtrace", &TraceCommand);
 }

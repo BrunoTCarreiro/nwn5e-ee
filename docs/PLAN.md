@@ -2193,7 +2193,21 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   49% in n5_crwalk backwards. Click-to-move backwards: 99% n5_crwalk. The
   limited-speed flag (+0x76c) was 1 throughout, hidden or not - not it.
   0.39.9: while crouching, run and run_<hold> are swapped to the crouch
-  walk too (a hider never runs).
+  walk too (a hider never runs). 0.39.10 (owner: "walking back while
+  crouched or standing still has issues ... the character doesn't seem to be
+  able to move much it just stutters the position"; and the wrong lean when
+  hiding / unhiding "while walking backwards"): the run (4) came from
+  AIActionDrive finding no key - AddDriveAction clears the keys' 2 (backward)
+  for a walk-limited creature (+0x76c, OnApplyLimitMovementSpeed - applied by
+  ComputeModifiedMovementRate for any ruleset MOVEMENT_STAGE_PENALTY: stealth
+  mode, detect mode, heavy encumbrance), so the server never stepped it back
+  while its client did: position pulled back, run animation - the unmodded
+  game's stealth too (AIActionDrive itself only turns a limited run into a
+  walk). drive_fix.cpp: backward-only keys keep the key (drive_backward_fix);
+  each change of a player's walk limit is logged with detect / stealth /
+  encumbrance (the trace had it on while upright too - cause to read in the
+  log). stance_look: moving = a moving animation or a position change in
+  the last 500 ms; the toggle's stand hold starts on the first walking update.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

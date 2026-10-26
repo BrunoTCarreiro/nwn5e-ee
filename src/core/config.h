@@ -234,6 +234,11 @@ struct Config {
   // nwn5e's n5_cridle / n5_crwalk recipes (stance_look.cpp). Needs
   // animation_recipes.
   bool stealth_crouch = true;
+  // A walk-limited character (stealth / detect mode, heavy load) walks
+  // backwards with the keyboard (drive_fix.cpp): the engine's AddDriveAction
+  // dropped the backward key for it, so the server never stepped it back while
+  // its client did - the position pulled back, a stutter (the unmodded game too).
+  bool drive_backward_fix = true;
   // Who has noticed a hiding player character (owner, 2026-10-25: "build your
   // recommendation" for showing enemies' sight): an eye over each hostile that
   // sees it, an ear over one that only hears it (stealth_watch.cpp).

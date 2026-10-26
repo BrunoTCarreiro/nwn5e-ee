@@ -121,6 +121,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.bleed_percent = GetPrivateProfileIntW(L"rules", L"bleed_percent", g_config.bleed_percent, ini);
   g_config.animation_recipes = ReadBool(ini, L"animation_recipes", g_config.animation_recipes);
   g_config.stealth_crouch = ReadBool(ini, L"stealth_crouch", g_config.stealth_crouch);
+  g_config.drive_backward_fix = ReadBool(ini, L"drive_backward_fix", g_config.drive_backward_fix);
   g_config.stealth_marker = ReadBool(ini, L"stealth_marker", g_config.stealth_marker);
   g_config.stealth_rings = GetPrivateProfileIntW(L"rules", L"stealth_rings", g_config.stealth_rings, ini);
   g_config.heard_investigates = ReadBool(ini, L"heard_investigates", g_config.heard_investigates);

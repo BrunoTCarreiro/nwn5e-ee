@@ -77,9 +77,16 @@
 // pause1 doesn't show, but a hider's run wasn't swapped, so a third of the
 // frames stood it up. While it crouches, run (and run_<hold>) is the crouch
 // walk too - a hider never runs (stealth mode walks it).
+// 0.39.10 (owner: the wrong lean is back "if hiding or unhiding is triggered
+// while walking backwards"): S walking backwards is the keyboard movement -
+// the server's animation goes to the stand (0) between its drive actions, so
+// a creature backing up looked still: the arm layers changed (and the idle
+// restarted) under its walk. Moving is now its position too (moved in the last
+// 500 ms); the stand hold starts on the first update it's seen walking.
 
 #include <windows.h>
 
+#include <math.h>
 #include <stdint.h>
 
 #include <string>
@@ -128,6 +135,9 @@ struct Look {
   uint64_t still_since = 0;     // ... for 300 ms (its stop has reached the client)
   uint64_t hold_until = 0;      // mid-move: held at the stand till then, the old arm layers kept (ms)
   int hold_checks = 0, hold_resets = 0;  // ... updates seen in the hold, and how many found it walking again (the log)
+  uint64_t hold_wait_until = 0;  // the layers wait for a walk to hold till then (ms; see the top)
+  float x = 0, y = 0;            // its position at the last update
+  uint64_t moved_at = 0;         // when it last moved (ms)
 };
 
 // A walking creature's walk restarted once through its new swap (see above);
@@ -157,6 +167,11 @@ bool Stand(void* creature) {
   if (!set_animation || (playing != kAnimWalk && playing != kAnimWalkBack && playing != kAnimRun)) return false;
   set_animation(creature, 0);
   return true;
+}
+
+// Moving: a moving animation, or its position changed in the last 500 ms (see the top).
+bool Moving(void* creature, const Look& look) {
+  return !Stationary(creature) || (look.moved_at && GetTickCount64() - look.moved_at < 500);
 }
 
 std::unordered_map<uint32_t, Look> g_looks;  // by creature, the engine's thread only
@@ -204,7 +219,7 @@ void Send(uint32_t id, Look& look) {
   };
   void* creature = CreatureById(id);
   const int playing = Playing(creature);
-  const bool moving = !Stationary(creature);
+  const bool moving = Moving(creature, look);
   const bool kick = look.sent && idle != look.idle && !moving;
   if (look.sent && idle != look.idle) look.idle_until = moving ? GetTickCount64() + 10000 : 0;
   if (!look.sent || idle != look.idle) {
@@ -234,9 +249,12 @@ void Send(uint32_t id, Look& look) {
   RunScriptChunk(("if (Get2DAString(\"appearance\", \"MODELTYPE\", GetAppearanceType(OBJECT_SELF)) == \"P\") {" + code + "}")
                      .c_str(),
                  id);
-  if (walk_changed && look.layers_pending && Stand(creature)) {
-    look.hold_until = GetTickCount64() + kHoldMs;  // mid-move: the old arm layers stop first (see the top)
+  if (walk_changed && look.layers_pending) {
+    // Mid-move: the old arm layers stop first (see the top) - held now, or at its next walking update.
     look.hold_checks = look.hold_resets = 0;
+    look.hold_until = 0;
+    look.hold_wait_until = GetTickCount64() + 1000;
+    if (Stand(creature)) look.hold_until = GetTickCount64() + kHoldMs;
   } else if (walk_changed) {
     look.restart_until = GetTickCount64() + kRestartWindowMs;
     RestartWalk(id, look);
@@ -276,7 +294,19 @@ void Update(void* creature) {
     }
   }
   Look& look = it->second;
+  const float x = Field<float>(creature, ee::kObjectPositionX), y = Field<float>(creature, ee::kObjectPositionY);
+  if (fabsf(x - look.x) + fabsf(y - look.y) > 0.01f) look.moved_at = GetTickCount64();
+  look.x = x;
+  look.y = y;
   if (look.restart_until) RestartWalk(id, look);
+  if (look.layers_pending && !look.hold_until && look.hold_wait_until) {
+    // Waiting for a walk to hold (it was between two drive actions at the change).
+    if (GetTickCount64() > look.hold_wait_until) {
+      look.hold_wait_until = 0;  // none came: the layers change once it stands still
+    } else if (Moving(creature, look) && Stand(creature)) {
+      look.hold_until = GetTickCount64() + kHoldMs;
+    }
+  }
   if (look.hold_until) {
     // Held at the stand with the old arm layers, then the new ones and the walk let go (see the top).
     if (GetTickCount64() < look.hold_until) {
@@ -284,6 +314,7 @@ void Update(void* creature) {
       if (Stand(creature)) ++look.hold_resets;
     } else {
       look.hold_until = 0;
+      look.hold_wait_until = 0;
       if (look.layers_pending) {
         look.layers_pending = false;
         look.still_since = 0;
@@ -296,8 +327,8 @@ void Update(void* creature) {
       }
     }
   }
-  if (look.layers_pending && !Stationary(creature)) look.still_since = 0;
-  if (look.layers_pending && Stationary(creature) &&
+  if (look.layers_pending && Moving(creature, look)) look.still_since = 0;
+  if (look.layers_pending && !look.hold_until && !Moving(creature, look) &&
       (look.still_since ? GetTickCount64() - look.still_since >= 300 : (look.still_since = GetTickCount64(), false))) {
     // It stands still: its arm layers follow the walk now (see the top).
     look.layers_pending = false;
@@ -312,7 +343,7 @@ void Update(void* creature) {
     // It moved when its idle changed: restart the idle once it stands still with nothing to do.
     if (GetTickCount64() > look.idle_until) {
       look.idle_until = 0;
-    } else if (Stationary(creature)) {
+    } else if (!Moving(creature, look)) {
       RunScriptChunk("if (GetCurrentAction(OBJECT_SELF) == ACTION_INVALID) {"
                      " PlayAnimation(ANIMATION_LOOPING_PAUSE2, 1.0, 0.5); SetLocalInt(OBJECT_SELF, \"nwn5e_look_kick\", 1); }",
                      id);
