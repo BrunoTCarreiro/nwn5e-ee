@@ -43,6 +43,9 @@ struct VfxEmitter {
   std::string render = "Normal";    // Normal | Motion_Blur | Aligned_to_World_z | Billboard_to_World_Z | ...
   std::string blend = "Normal";     // Normal | Lighten | Punch-Through
   std::string texture = "fxpa_sphere";
+  // 0.42.6: a chunk model - each particle is that model (ChunkyParticle: the game makes one per
+  // particle and plays its "impact"), and the emitter draws no sprites ("" = sprites).
+  std::string chunk;
   float position[3] = {0.0f, 0.0f, 0.0f};  // metres from the node (a model's emitter without one: on it)
   // Its turn, axis x y z and angle (radians) as a model writes it: particles leave along the
   // emitter's z, its area lies in its x / y (0 0 0 0: not turned - straight up). 0.42.2.

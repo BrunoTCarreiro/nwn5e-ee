@@ -73,6 +73,11 @@ game's emitters do it (Bigby's hands, Greater Dispelling's streaks). Save writes
 the reference node the game looks for; an emitter left without one is saved as not point to
 point (the game would crash).
 
+Chunks (0.42.6): "Chunk model" makes each particle a model of the game's instead of a sprite
+(rocks, bones, meteors, cards - 95 of the game's emitters); the game then draws no sprites for
+that emitter. The bench can't draw models: a grey square marks each chunk, and Play in game
+shows them.
+
 Mouse on the stage: drag to turn, right-drag (or shift-drag) to move, wheel to zoom,
 double-click to reset. Space pauses, R restarts. `?open=game:<model>&warm=<s>` opens
 an effect already run that far.

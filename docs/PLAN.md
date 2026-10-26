@@ -2480,6 +2480,15 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   own fields, a renamed emitter keeps its target. Library format 8: 119 p2p
   emitters (41 bezier, 78 gravity) with their targets; check.js 408 byte for
   byte. Test VfxPointToPoint; nine mutations each fail it.
+  0.42.6: chunk models kept - VfxEmitter chunk (binary emitter +0xB8, ASCII
+  chunkName, lower-cased: a resref; the game's own write them in any case,
+  which check.js caught), the draft's "chunk =", the writer's chunkName (only
+  when set: the game reads any value as a model name - no line otherwise, and
+  no blank line in its place). Read in the game: a chunk name makes the
+  emitter RenderNothing; each particle a ChunkyParticle with its own model
+  (NewCAurObject) playing "impact". Bench: the field, grey squares for the
+  chunks, a note. 95 chunk emitters in the library (format 9); check.js 408
+  byte for byte; six mutations each fail a test.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

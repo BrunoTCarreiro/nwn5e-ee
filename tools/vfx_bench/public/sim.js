@@ -351,6 +351,7 @@
         p.dir = [0, 0, 1];   // turned to the ground's normal (RotationArc(z, n))
         p.xaxis = [1, 0, 0];
       }
+      if (e.chunk) p.pos[2] += e.size_start;  // a chunk: pushed its sizeStart off the ground (0.42.6)
     }
 
     // The emitter's turn since the frame before applied to a particle (inherit): carried and

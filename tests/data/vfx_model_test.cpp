@@ -49,6 +49,7 @@ VfxEffect Sample() {
   e.random = true;
   e.twosidedtex = true;
   e.deadspace = 0.2f;
+  e.chunk = "fx_meteor";
   effect.emitters.push_back(e);
   return effect;
 }
@@ -89,6 +90,7 @@ TEST(VfxDraftRoundTrip) {
   CHECK_EQ(e.inherit, false);
   CHECK_EQ(e.twosidedtex, true);
   CHECK_EQ(Milli(e.deadspace), 200);
+  CHECK_EQ(e.chunk == "fx_meteor", true);
   CHECK_EQ(ReadVfxDraft("name = x\n[weird]\n", &back, &error), false);
   // Deadspace past the most the game's loop survives is held there (0.42.4).
   CHECK_EQ(ReadVfxDraft("name = x\n[emitter a]\ndeadspace = 0.6\n", &back, &error), true);
@@ -105,6 +107,12 @@ TEST(VfxModelKeysEmission) {
   CHECK_EQ(Contains(model, "    0.51 0"), true);
   CHECK_EQ(Contains(model, "newanim duration n5vx0001"), true);
   CHECK_EQ(Contains(model, "  twosidedtex 1"), true);
+  CHECK_EQ(Contains(model, "  chunkName fx_meteor\n"), true);
+  VfxEffect sprites = Sample();
+  sprites.emitters[0].chunk.clear();
+  const std::string plain = WriteVfxModel(sprites, "n5vx0004");
+  CHECK_EQ(Contains(plain, "chunkName"), false);  // none: no line (the game would read "NULL" as a model)
+  CHECK_EQ(Contains(plain, "\n\nendnode"), false);  // and no blank line left in its place
   CHECK_EQ(Contains(model, "  deadspace 0.2\n"), true);
   VfxEffect wild = Sample();
   wild.emitters[0].deadspace = 0.8f;  // the game would hang on it: written as the most it takes
@@ -124,6 +132,7 @@ TEST(VfxModelKeysEmission) {
   CHECK_EQ(Milli(back.emitters[0].emit_seconds), 500);
   CHECK_EQ(back.emitters[0].twosidedtex, true);
   CHECK_EQ(Milli(back.emitters[0].deadspace), 200);
+  CHECK_EQ(back.emitters[0].chunk == "fx_meteor", true);
   CHECK_EQ(back.duration, true);
 }
 
@@ -162,6 +171,7 @@ TEST(VfxReadsACompiledModel) {
   puts(emitter + 0x78, "fxpa_sphere");
   put32(emitter + 0xD4, 0x200 | 0x040);  // splat, inherit
   putf(emitter, 0.2094f);                // deadspace
+  puts(emitter + 0xB8, "Fx_RockChunkSml");  // chunkName (the game's own case)
   put32(emitter + 0xC8, 1);              // twosidedtex
   const size_t keys = 0x300, data = 0x340;
   put32(node + 0x44, static_cast<uint32_t>(keys - base));
@@ -195,6 +205,7 @@ TEST(VfxReadsACompiledModel) {
   CHECK_EQ(e.bounce, false);
   CHECK_EQ(Milli(e.deadspace), 209);
   CHECK_EQ(e.twosidedtex, true);
+  CHECK_EQ(e.chunk == "fx_rockchunksml", true);
   CHECK_EQ(Milli(e.birthrate), 150000);
   CHECK_EQ(Milli(e.color_start[0]), 300);
   CHECK_EQ(Milli(e.color_start[1]), 100);

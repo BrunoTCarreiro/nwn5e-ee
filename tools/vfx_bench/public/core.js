@@ -26,7 +26,7 @@
       alpha_end: 0, xsize: 0, ysize: 0, grid: 1, frame_end: 0, blur_length: 0, bounce_co: 0, fps: 0, particle_rot: 0,
       inherit: false, splat: false, bounce: false, random: false, inherit_local: false, inherit_part: false,
       twosidedtex: false, deadspace: 0, parent: "", keys: [],
-      p2p: "", p2p_bezier2: 0, p2p_bezier3: 0, combinetime: 0, grav: 0, drag: 0, threshold: 0,
+      chunk: "", p2p: "", p2p_bezier2: 0, p2p_bezier3: 0, combinetime: 0, grav: 0, drag: 0, threshold: 0,
     }, overrides || {});
   }
 
@@ -136,6 +136,7 @@
     for (const e of fx.emitters) {
       out += "\n[emitter " + e.name + "]\n";
       out += "update = " + e.update + "\nrender = " + e.render + "\nblend = " + e.blend + "\ntexture = " + e.texture + "\n";
+      if (e.chunk) out += "chunk = " + e.chunk + "\n";
       out += "position = " + num(e.position[0]) + " " + num(e.position[1]) + " " + num(e.position[2]) + "\n";
       const o = e.orientation || [0, 0, 0, 0];
       out += "orientation = " + num(o[0]) + " " + num(o[1]) + " " + num(o[2]) + " " + num(o[3]) + "\n";
@@ -227,6 +228,7 @@
       else if (key === "render") e.render = value;
       else if (key === "blend") e.blend = value;
       else if (key === "texture") e.texture = value;
+      else if (key === "chunk") e.chunk = resref(value, 16);
       else if (key === "parent") e.parent = value;
       else if (key === "position") readFloats(words, e.position, 3);
       else if (key === "orientation") readFloats(words, e.orientation, 4);

@@ -243,6 +243,8 @@
     ] },
     { title: "Texture", fields: [
       { key: "texture", type: "texture", label: "Texture" },
+      { key: "chunk", type: "chunk", label: "Chunk model (each particle is this model, no sprite; empty = sprites)",
+        help: "A model of the game's - its own effects use fx_rockchunksml, fx_chunkm, fx_meteor, fx_rainice, fx_card, fx_skull, red_s_bone and more. The game makes one per particle and plays its impact animation; the bench marks each with a grey square." },
       { key: "grid", type: "int", min: 1, max: 8, label: "Sheet: frames across and down" },
       { key: "frame_end", type: "int", min: 0, max: 63, label: "Last frame used (0 = the first only)" },
       { key: "fps", type: "num", min: 0, max: 60, step: 1, label: "Frames a second (0 = the frame stays; they loop)" },
@@ -376,6 +378,11 @@
     }
     if (f.type === "parent") return parentField(e, f.label, () => { renderEmitters(); changed(true); });
     if (f.type === "p2p") return p2pField(e, f);
+    if (f.type === "chunk") {
+      return wrap([el("span", { text: f.label }), el("input", { type: "text", value: e.chunk || "", spellcheck: "false", "aria-label": f.label,
+        oninput: (ev) => { e.chunk = core.resref(ev.target.value, 16); renderOverlay(); changed(false); } }),
+      el("span", { class: "note", text: f.help })]);
+    }
     if (f.type === "motion") return motionField(e, true);
     if (f.type === "texture") {
       const box = el("span", { class: "thumb" });
@@ -572,7 +579,9 @@
     if (s && !s.exported) notes.push("No game library yet: start the game once with nwn5e 0.42.0 or later (vfx_bench=1), then Reload.");
     const lightning = state.fx.emitters.filter((e) => String(e.update).toLowerCase() === "lightning");
     if (lightning.length) notes.push("Lightning isn't drawn here (" + lightning.map((e) => e.name).join(", ") + ") - Play in game shows it.");
-    const missing = [...new Set(state.fx.emitters.map((e) => e.texture.toLowerCase()))].filter((t) => s && s.exported && !inLibrary(t));
+    const chunks = state.fx.emitters.filter((e) => e.chunk);
+    if (chunks.length) notes.push("Chunk models aren't drawn here: grey squares mark " + [...new Set(chunks.map((e) => e.chunk))].join(", ") + " - Play in game shows them.");
+    const missing = [...new Set(state.fx.emitters.filter((e) => !e.chunk).map((e) => e.texture.toLowerCase()))].filter((t) => s && s.exported && !inLibrary(t));
     if (missing.length) notes.push(missing.join(", ") + (missing.length > 1 ? " aren't" : " isn't") + " in the library: a soft dot stands in.");
     $("overlay").replaceChildren(...notes.map((text) => el("li", { text })));
   }

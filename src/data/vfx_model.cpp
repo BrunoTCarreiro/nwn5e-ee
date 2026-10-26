@@ -83,6 +83,7 @@ std::vector<std::string> EmitterLines(const VfxEmitter& e, const std::string& no
       "  p2p_bezier2 " + Num(e.p2p_bezier2), "  p2p_bezier3 " + Num(e.p2p_bezier3),
       "  combinetime " + Num(e.combinetime), "  drag " + Num(e.drag), "  grav " + Num(e.grav),
       "  threshold " + Num(e.threshold),
+      e.chunk.empty() ? std::string() : "  chunkName " + e.chunk,
       "endnode",
   };
 }
@@ -283,7 +284,7 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
     // An emitter that switches off is keyed in the impact; F's always-on ones are too.
     const bool keyed = e.emit_seconds > 0.0f || !effect.duration;
     for (const std::string& line : EmitterLines(e, names[k], parent_line(k), keyed, has_target(e))) {
-      lines.push_back(line);
+      if (!line.empty()) lines.push_back(line);
     }
   }
   lines.push_back("endmodelgeom " + model);
@@ -385,6 +386,7 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
   for (const VfxEmitter& e : effect.emitters) {
     out += "\n[emitter " + e.name + "]\n";
     out += "update = " + e.update + "\nrender = " + e.render + "\nblend = " + e.blend + "\ntexture = " + e.texture + "\n";
+    if (!e.chunk.empty()) out += "chunk = " + e.chunk + "\n";
     out += "position = " + Num(e.position[0]) + " " + Num(e.position[1]) + " " + Num(e.position[2]) + "\n";
     out += "orientation = " + Num(e.orientation[0]) + " " + Num(e.orientation[1]) + " " + Num(e.orientation[2]) + " " +
            Num(e.orientation[3]) + "\n";
@@ -480,6 +482,7 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
     else if (key == "render") e->render = value;
     else if (key == "blend") e->blend = value;
     else if (key == "texture") e->texture = value;
+    else if (key == "chunk") e->chunk = VfxResRef(value, 16);
     else if (key == "parent") e->parent = value;
     else if (key == "position") ReadFloats(words, 0, e->position, 3);
     else if (key == "orientation") ReadFloats(words, 0, e->orientation, 4);
@@ -684,6 +687,7 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       else if (first == "render") e->render = v;
       else if (first == "blend") e->blend = v;
       else if (first == "texture") e->texture = v;
+      else if (first == "chunkname") e->chunk = Lower(v) == "null" ? std::string() : VfxResRef(v, 16);
       else if (first == "position") ReadFloats(w, 1, e->position, 3);
       else if (first == "orientation") ReadFloats(w, 1, e->orientation, 4);
       else if (first == "colorstart") ReadFloats(w, 1, e->color_start, 3);
@@ -1015,6 +1019,7 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
       e.blend = m.Str(emitter + 0x58, 32);
       if (e.blend.empty()) e.blend = "Normal";
       e.texture = m.Str(emitter + 0x78, 64);
+      e.chunk = VfxResRef(m.Str(emitter + 0xB8, 16), 16);  // node +0x158 (0.42.6); a resref: any case
       e.grid = std::max<int>(1, static_cast<int>(m.U32(emitter + 0x0C)));
       const uint32_t flags = m.U32(emitter + 0xD4);
       e.bounce = (flags & 0x010) != 0;

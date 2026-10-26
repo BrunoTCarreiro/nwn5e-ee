@@ -65,6 +65,7 @@ precision mediump float; varying vec4 v_color; void main() { gl_FragColor = v_co
       this.buffer = gl.createBuffer();
       this.lineBuffer = gl.createBuffer();
       this.dot = this.makeDot();
+      this.solid = this.upload({ width: 2, height: 2, data: new Uint8ClampedArray(16).fill(255) });
       this.camera = { yaw: -0.9, pitch: 0.3, distance: 5, target: [0, 0, 1] };
       this.backdrop = [0.047, 0.067, 0.082];
       this.showFigure = true;
@@ -190,6 +191,16 @@ precision mediump float; varying vec4 v_color; void main() { gl_FragColor = v_co
       const mvp = multiply(perspective(Math.PI / 4, w / h, 0.05, 300), view);
       // The camera's right, up and back (towards the viewer) - the game's camera X, Y, Z.
       return { mvp, eye, right: [view[0], view[4], view[8]], up: [view[1], view[5], view[9]], back: [view[2], view[6], view[10]] };
+    }
+
+    chunkMarks(entry, cam) {
+      const out = [], h = 0.06, grey = [0.62, 0.58, 0.52, 1];
+      for (const p of entry.particles) {
+        const c = p.pos, r = cam.right, u = cam.up;
+        const at = (a, b) => [c[0] + (r[0] * a + u[0] * b) * h, c[1] + (r[1] * a + u[1] * b) * h, c[2] + (r[2] * a + u[2] * b) * h];
+        for (const [a, b] of [[1, 1], [-1, 1], [1, -1], [1, -1], [-1, 1], [-1, -1]]) out.push(...at(a, b), 0.5, 0.5, ...grey);
+      }
+      return out;
     }
 
     lines(vertices, mvp) {
@@ -357,11 +368,14 @@ precision mediump float; varying vec4 v_color; void main() { gl_FragColor = v_co
       gl.activeTexture(gl.TEXTURE0);
       gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
       for (const entry of entries) {
-        const vertices = this.quads(entry, cam);
+        // A chunk emitter draws no sprites in the game (RenderNothing): each particle is its
+        // chunk model - marked here by a small grey square facing the camera (0.42.6).
+        const chunk = !!entry.emitter.chunk;
+        const vertices = chunk ? this.chunkMarks(entry, cam) : this.quads(entry, cam);
         if (!vertices.length) continue;
         // Blend by the exact name: "Normal" covers, "Punch-Through" cuts out (no blending, depth
         // written, gone at alpha 0.2 or less), anything else ("Lighten") adds light.
-        const blend = entry.emitter.blend;
+        const blend = chunk ? "Punch-Through" : entry.emitter.blend;
         if (blend === "Punch-Through") {
           gl.disable(gl.BLEND); gl.depthMask(true); gl.uniform1f(p.uniform.u_cut, 0.2);
         } else if (blend === "Normal") {
@@ -369,7 +383,7 @@ precision mediump float; varying vec4 v_color; void main() { gl_FragColor = v_co
         } else {
           gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE); gl.depthMask(false); gl.uniform1f(p.uniform.u_cut, -1);
         }
-        gl.bindTexture(gl.TEXTURE_2D, this.texture(entry.emitter.texture));
+        gl.bindTexture(gl.TEXTURE_2D, chunk ? this.solid : this.texture(entry.emitter.texture));
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STREAM_DRAW);
         gl.enableVertexAttribArray(p.attrib.a_pos);
         gl.vertexAttribPointer(p.attrib.a_pos, 3, gl.FLOAT, false, 36, 0);

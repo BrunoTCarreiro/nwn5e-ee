@@ -109,6 +109,14 @@ grav 0, sizeMid 0, sizeMid_y 0. MdlNodeEmitter ctor 0x875a0: node+0x98 = 5 (?), 
   within threshold: age = lifeExp; pos = next (+ the inherited decay); vel.z -= mass 9.81 dt;
   bounce.
 - Neither checks the stopped flag (+0x70): a particle at rest is still moved.
+## Chunks (read 0.42.6)
+- `chunkName` -> node+0x158 (ASCII: %s, no NULL check - an empty value leaves it empty;
+  compiled: emitter header +0xB8, 16 bytes; 95 of the game's emitters, 31 effects: rocks,
+  bones, giblets, cards, meteors, ice, caltrops, skulls - names in any case).
+- PartEmitter::Initialize: a chunk name -> the render function is RenderNothing (no sprites).
+- Each particle is a ChunkyParticle (ctor 0x602b0): NewCAurObject(chunkName) at +0x78, added to
+  the scene; ChunkyParticle::initialize (0x663d0) scales it by the gob's scale and plays its
+  "impact" animation. Resting (bounce): pushed sizeStart off the surface, not 0.02.
 
 ---
 
