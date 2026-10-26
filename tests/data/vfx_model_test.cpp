@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include <fstream>
+#include <set>
 #include <sstream>
 #include <string>
 
@@ -429,6 +430,71 @@ TEST(VfxEmitterUnderAMovedDummy) {
 // lost; a setting's controller not read; the target not kept, or kept off its emitter, or its
 // reference model lost; the written target a dummy (the game finds none - and crashes) or
 // written before its emitter; a p2p emitter with no target written as p2p (a crash).
+// Names the game can find (0.43.3): every node a written model has is named in at most 31
+// characters (the game keeps 31 and finds a parent by the whole name), the names are unique,
+// and every "parent" line - the geometry's and the animations' - names a node defined before
+// it. A long effect name (16), long node and emitter names and many of them (two-digit tags)
+// at once. Breaks caught: the 2026-10-26 crash - Build from parts' tilted rings wrote
+// 32-33-character node names; the game cut them, didn't find the parent, and read through null.
+TEST(VfxModelNodeNamesFit) {
+  VfxEffect effect;
+  effect.name = "n5_long_effect01";
+  for (int i = 0; i < 24; ++i) {
+    VfxNode n;
+    n.name = "flare_gather_ringspin_" + std::to_string(i);
+    if (i % 2) n.parent = "flare_gather_ringspin_" + std::to_string(i - 1);
+    effect.nodes.push_back(n);
+  }
+  for (int i = 0; i < 24; ++i) {
+    VfxEmitter e;
+    e.name = "a_very_long_emitter_name_" + std::to_string(i);
+    e.parent = "flare_gather_ringspin_" + std::to_string(i);
+    if (i < 3) e.p2p = "gravity";
+    VfxKeys move;
+    move.anim = "duration";
+    move.position = {0, 0, 0, 0, 1, 1, 0, 0};
+    e.keys.push_back(move);
+    effect.emitters.push_back(e);
+  }
+  for (int i = 0; i < 3; ++i) {
+    VfxNode t;
+    t.name = "a_very_long_emitter_name_" + std::to_string(i) + "_target";
+    t.parent = "a_very_long_emitter_name_" + std::to_string(i);
+    effect.nodes.push_back(t);
+  }
+  const std::string model = WriteVfxModel(effect, effect.name);
+  std::istringstream in(model);
+  std::string line;
+  std::set<std::string> geometry;
+  std::set<std::string> seen;  // the nodes defined so far in the section being read
+  bool in_geometry = false, ok_lengths = true, ok_unique = true, ok_parents = true;
+  std::string bad;
+  while (std::getline(in, line)) {
+    std::istringstream words(line);
+    std::string first, second, third;
+    words >> first >> second >> third;
+    if (first == "beginmodelgeom") in_geometry = true;
+    if (first == "endmodelgeom") in_geometry = false;
+    if (first == "newanim") seen.clear();
+    if (first == "node") {
+      if (third.size() > 31) { ok_lengths = false; bad = third; }
+      if (in_geometry && !geometry.insert(third).second) { ok_unique = false; bad = third; }
+      seen.insert(third);
+    }
+    if (first == "parent" && second != "NULL" && !seen.count(second)) { ok_parents = false; bad = second; }
+  }
+  CHECK_EQ(ok_lengths, true);
+  CHECK_EQ(ok_unique, true);
+  CHECK_EQ(ok_parents, true);
+  if (!ok_lengths || !ok_unique || !ok_parents) printf("    the name: %s\n", bad.c_str());
+  CHECK_EQ(geometry.size(), 1u + 27u + 24u);  // the model's own node, the nodes, the emitters
+  // The model still reads back with its tree.
+  VfxEffect read;
+  std::string error;
+  CHECK_EQ(ReadVfxAsciiModel(model, &read, &error), true);
+  CHECK_EQ(read.emitters.size(), 24u);
+}
+
 TEST(VfxPointToPoint) {
   std::string b(0x1800, '\0');
   const auto put32 = [&](size_t at, uint32_t v) { memcpy(&b[at], &v, 4); };

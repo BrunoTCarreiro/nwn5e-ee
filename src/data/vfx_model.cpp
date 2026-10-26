@@ -112,10 +112,23 @@ void ReadBirthrateKeys(const std::vector<std::pair<float, float>>& keys, float* 
   }
 }
 
+// A node's name in a model nwn5e writes: <model>_<tag>_<the effect's name for it>, at most 31
+// characters - the game keeps 31 of a node's name (MdlNode: strncpy 31 into a 32-byte field) and
+// finds a "parent" by the whole name; one longer is cut, its children's parent isn't found and
+// the game reads through a null pointer (MdlNode::InternalParseField+0x528 - the crash of
+// 2026-10-26, Build from parts' "flare_gather_ringspin" nodes at 32-33 characters). The tag
+// keeps it unique; the readable part gives way.
+constexpr size_t kModelNodeNameMax = 31;
+std::string ModelNodeName(const std::string& model, const std::string& tag, const std::string& readable) {
+  const std::string prefix = model + "_" + tag + "_";
+  const size_t room = prefix.size() < kModelNodeNameMax ? kModelNodeNameMax - prefix.size() : 0;
+  std::string clean = VfxResRef(readable, room);
+  if (clean.empty() && room) clean = "x";
+  return (prefix + clean).substr(0, kModelNodeNameMax);
+}
+
 std::string NodeName(const std::string& model, const VfxEmitter& e, size_t index) {
-  std::string clean = VfxResRef(e.name, 20);
-  if (clean.empty()) clean = "e";
-  return model + "_" + std::to_string(index) + "_" + clean;
+  return ModelNodeName(model, std::to_string(index), e.name);
 }
 
 const char* const kAnims[] = {"impact", "duration", "cessation"};
@@ -206,8 +219,7 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
   std::map<std::string, std::string> by_name;
   for (size_t k = 0; k < total; ++k) {
     if (k < node_count) {
-      std::string clean = VfxResRef(effect.nodes[k].name, 20);
-      names[k] = model + "_n" + std::to_string(k) + "_" + (clean.empty() ? std::string("n") : clean);
+      names[k] = ModelNodeName(model, "n" + std::to_string(k), effect.nodes[k].name);
       by_name.emplace(effect.nodes[k].name, names[k]);
     } else {
       names[k] = NodeName(model, effect.emitters[k - node_count], k - node_count);

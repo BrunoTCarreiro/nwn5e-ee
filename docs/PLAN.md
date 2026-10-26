@@ -2554,6 +2554,23 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   Spin field says what it does to chunks; the bench draws chunks as small
   cubes turned by the same rule (a rested one keeps its last turn) instead of
   flat squares. check_parts.js: the Spin setting, the rocks spin.
+  0.43.3 (owner: "Can you have a look at the latest crash report? I think I
+  overdid it with the particle effects"): the crash (23:41, 1 s after a Play
+  in game) was not the particles - the minidump: an access violation reading
+  0x70 at MdlNode::InternalParseField+0x528, under the ASCII model loader
+  (ParseNode <- Model::InternalParseField <- ImportMaxTree). The game keeps 31
+  characters of a node's name (MdlNode ctor: strncpy 31 into a 32-byte field)
+  and finds a "parent" by the whole name; the model's tilted-orbit nodes were
+  named n5vx0022_n2_flare_gather_ringspi (32 - 33 with two digits), so the
+  emitters' parent wasn't found and the null was read. The writer now names
+  every node and emitter <model>_<tag>_<name> in at most 31 characters (the
+  readable part gives way; the tag keeps it unique) - a saved effect with a
+  16-character name was 9 characters closer to it. Test VfxModelNodeNamesFit
+  (a 16-character model, 27 nodes, 24 emitters with long names: every name
+  fits, is unique, every parent line - geometry and animations - names a node
+  defined before it); the old naming and a 32 limit each fail it. The effect
+  had ~1,300 particles alive at once - the game's own reach ~1,670 (Hellball),
+  ~1,600 (blood bursts), ~1,440 (Death Armor): within what the game does.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:
