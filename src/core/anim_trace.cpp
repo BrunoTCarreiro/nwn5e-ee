@@ -15,6 +15,10 @@
 //   keyboard movement adds for it (CNWSCreature::AddDriveAction, hooked in
 //   drive_fix.cpp, which calls AnimTraceDrive: the facing, the counter, the
 //   keys, the caller's flag, the position, and +0x76c - the walk limit).
+// 0.40.1: for its root model's arm layer stops (flag 128) and walks started
+// at speed 1 (the restarts the encumbered hider's crawl showed ~60 times a
+// second), the call stack too - nwmain's return addresses (RVAs), to find the
+// client code that restarts the walk.
 // Then it writes the timeline to animtrace.txt next to nwn5e.log in one go
 // (repeats folded: "x12 over 190 ms") and a summary per hiding state to
 // nwn5e.log. The hooks pass straight through when no trace runs.
@@ -66,7 +70,37 @@ struct Event {
   int anim = -1;  // kServer / kSetAnimation: the animation
   int bits = 0, a = 0, b = 0, c = 0, limit = 0;
   bool hiding = false;
+  uint32_t stack[8] = {};  // kPlay, flagged ones: nwmain's return addresses (RVAs), innermost first
+  int depth = 0;
 };
+
+// nwmain's return addresses on the stack (RVAs), innermost first, nwn5e's own skipped.
+int CaptureGameStack(uint32_t* out, int max) {
+  static const uintptr_t base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+  static const uintptr_t size = [] {
+    const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
+    const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
+    return static_cast<uintptr_t>(nt->OptionalHeader.SizeOfImage);
+  }();
+  void* frames[24] = {};
+  const USHORT n = RtlCaptureStackBackTrace(1, 24, frames, nullptr);
+  int depth = 0;
+  for (USHORT i = 0; i < n && depth < max; ++i) {
+    const uintptr_t a = reinterpret_cast<uintptr_t>(frames[i]);
+    if (a >= base && a < base + size) out[depth++] = static_cast<uint32_t>(a - base);
+  }
+  return depth;
+}
+
+std::string StackText(const Event& e) {
+  std::string s;
+  char part[16];
+  for (int i = 0; i < e.depth; ++i) {
+    sprintf_s(part, "%s%x", i ? "<" : "", e.stack[i]);
+    s += part;
+  }
+  return s;
+}
 
 std::atomic<bool> g_active{false};
 std::mutex g_lock;
@@ -126,7 +160,7 @@ bool Same(const Event& a, const Event& b) {
   switch (a.kind) {
     case Kind::kPlay:
       return a.gob == b.gob && strcmp(a.name, b.name) == 0 && a.speed == b.speed && a.flag == b.flag &&
-             a.value == b.value;
+             a.value == b.value && a.depth == b.depth && memcmp(a.stack, b.stack, sizeof(a.stack)) == 0;
     case Kind::kServer:
       return a.anim == b.anim && a.hiding == b.hiding;
     case Kind::kSetAnimation:
@@ -203,8 +237,8 @@ void Dump() {
                   run->b, run->bits, run->a, run->c, run->limit, run->x, run->y, repeat);
         break;
       case Kind::kPlay:
-        sprintf_s(line, "%9.1f   [%c] play \"%s\" speed %.2f, %d, %.2f%s\n", first, label(run->gob), run->name,
-                  run->speed, run->flag, run->value, repeat);
+        sprintf_s(line, "%9.1f   [%c] play \"%s\" speed %.2f, %d, %.2f%s%s%s\n", first, label(run->gob), run->name,
+                  run->speed, run->flag, run->value, repeat, run->depth ? " from " : "", StackText(*run).c_str());
         break;
     }
     text += line;
@@ -252,7 +286,7 @@ void Dump() {
   // The summary, per hiding state, to nwn5e.log.
   for (int hid = 1; hid >= 0; --hid) {
     std::map<int, int> server;
-    std::map<std::string, int> sets, drives, plays;
+    std::map<std::string, int> sets, drives, plays, stacks;
     for (const Event& e : events) {
       if (e.hiding != (hid == 1)) continue;
       switch (e.kind) {
@@ -267,6 +301,7 @@ void Dump() {
           break;
         case Kind::kPlay:
           if (label(e.gob) == 'A') ++plays[std::string(e.name) + (e.speed < 0 ? " backwards" : "")];
+          if (e.depth) ++stacks[std::string(e.flag & 128 ? "stop " : "start ") + e.name + " from " + StackText(e)];
           break;
       }
     }
@@ -280,6 +315,12 @@ void Dump() {
     std::sort(top.rbegin(), top.rend());
     for (size_t i = 0; i < top.size() && i < 10; ++i) {
       Log("animtrace:   [A] plays \"%s\" x%d", top[i].second.c_str(), top[i].first);
+    }
+    std::vector<std::pair<int, std::string>> callers;
+    for (const auto& x : stacks) callers.push_back({x.second, x.first});
+    std::sort(callers.rbegin(), callers.rend());
+    for (size_t i = 0; i < callers.size() && i < 8; ++i) {
+      Log("animtrace:   %s x%d", callers[i].second.c_str(), callers[i].first);
     }
   }
   Log("animtrace: end - the timeline %s animtrace.txt (%zu bytes)", written ? "is in" : "could NOT be written to",
@@ -338,6 +379,15 @@ void AnimTracePlay(void* gob, const char* name, float speed, int flag, float val
   e.speed = speed;
   e.flag = flag;
   e.value = value;
+  // The root model's layer stops and walks started at speed 1: who called (see the top).
+  if ((flag & 128) || (speed == 1.0f && flag == 0 && strstr(name, "walk") != nullptr)) {
+    bool root = false;
+    {
+      std::lock_guard<std::mutex> hold(g_lock);
+      root = !g_models.empty() && g_models.front() == gob;
+    }
+    if (root) e.depth = CaptureGameStack(e.stack, 8);
+  }
   Add(e);
 }
 
