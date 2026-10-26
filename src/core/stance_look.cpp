@@ -64,6 +64,12 @@
 // stand. While the creature moves, only the walk's own swap changes now; the
 // arm layers' wait (nwn5e_look layers pending) until it stands still, then
 // change - the client has stopped the old layer by its own name by then.
+// 0.39.6 (owner: "during the original move, after toggling stealth on or off
+// the torso lean is wrong"): mid-move the order is kept too - the walk's swap
+// changes and the creature is held at the stand for 150 ms with the old arm
+// layers (the client stops the old layer by its own name), then the arm layers
+// change and the walk is let go (it starts again with the new layer): a short
+// hitch in the stride instead of the old arms for the rest of the walk.
 
 #include <windows.h>
 
@@ -113,6 +119,8 @@ struct Look {
   uint64_t idle_until = 0;     // the idle's swap changed while it moved: restart its idle when it stops (ms)
   bool layers_pending = false;  // the walk's arm layers wait till it stands still (see the top)
   uint64_t still_since = 0;     // ... for 300 ms (its stop has reached the client)
+  uint64_t hold_until = 0;      // mid-move: held at the stand till then, the old arm layers kept (ms)
+  int hold_checks = 0, hold_resets = 0;  // ... updates seen in the hold, and how many found it walking again (the log)
 };
 
 // A walking creature's walk restarted once through its new swap (see above);
@@ -132,6 +140,18 @@ bool RestartWalk(uint32_t id, Look& look) {
   Log("look: 0x%08X walk restarted through the new swap (walk %s)", id, look.walk.empty() ? "normal" : look.walk.c_str());
   return true;
 }
+constexpr uint64_t kHoldMs = 150;
+constexpr int kAnimRun = 4;
+
+// A moving creature set to the stand (its movement sets the walk again next update).
+bool Stand(void* creature) {
+  static const auto set_animation = reinterpret_cast<SetAnimationFn>(EngineExport(ee::kCreatureSetAnimation));
+  const int playing = Playing(creature);
+  if (!set_animation || (playing != kAnimWalk && playing != kAnimWalkBack && playing != kAnimRun)) return false;
+  set_animation(creature, 0);
+  return true;
+}
+
 std::unordered_map<uint32_t, Look> g_looks;  // by creature, the engine's thread only
 int g_crouch = -1;                           // the crouch recipes were built: -1 not asked yet
 
@@ -203,7 +223,10 @@ void Send(uint32_t id, Look& look) {
   RunScriptChunk(("if (Get2DAString(\"appearance\", \"MODELTYPE\", GetAppearanceType(OBJECT_SELF)) == \"P\") {" + code + "}")
                      .c_str(),
                  id);
-  if (walk_changed) {
+  if (walk_changed && look.layers_pending && Stand(creature)) {
+    look.hold_until = GetTickCount64() + kHoldMs;  // mid-move: the old arm layers stop first (see the top)
+    look.hold_checks = look.hold_resets = 0;
+  } else if (walk_changed) {
     look.restart_until = GetTickCount64() + kRestartWindowMs;
     RestartWalk(id, look);
   }
@@ -243,6 +266,25 @@ void Update(void* creature) {
   }
   Look& look = it->second;
   if (look.restart_until) RestartWalk(id, look);
+  if (look.hold_until) {
+    // Held at the stand with the old arm layers, then the new ones and the walk let go (see the top).
+    if (GetTickCount64() < look.hold_until) {
+      ++look.hold_checks;
+      if (Stand(creature)) ++look.hold_resets;
+    } else {
+      look.hold_until = 0;
+      if (look.layers_pending) {
+        look.layers_pending = false;
+        look.still_since = 0;
+        RunScriptChunk(("if (Get2DAString(\"appearance\", \"MODELTYPE\", GetAppearanceType(OBJECT_SELF)) == \"P\") {" +
+                        LayerCode(look.walk) + "}")
+                           .c_str(),
+                       id);
+        Log("look: 0x%08X arm layers follow the walk mid-move (%s; held %d updates, walking again in %d)", id,
+            look.walk.empty() ? "normal" : look.walk.c_str(), look.hold_checks, look.hold_resets);
+      }
+    }
+  }
   if (look.layers_pending && !Stationary(creature)) look.still_since = 0;
   if (look.layers_pending && Stationary(creature) &&
       (look.still_since ? GetTickCount64() - look.still_since >= 300 : (look.still_since = GetTickCount64(), false))) {

@@ -2146,6 +2146,22 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   transport + registry (AddRadialAction) for other interactions - also what
   Barbarian 3's X8 radial options would use. Dumps: the job's
   tmpecon_radial (NOTES.txt).
+  0.39.0-0.39.6 (owner, 2026-10-25/26): R1 built (radial Snuff / Light, R2
+  saved for Barbarian 3). Snuff while hidden keeps the hide (a 30 s mark;
+  the SetStealthMode hook refuses only engine calls, never ToggleMode, and
+  sets the stealth activity bit +0x8e0 back - SetActivity clears it first,
+  which left the stealth button stuck in 0.39.2). Snuff with a ranged weapon
+  shoots from where the hider stands, 20 m at most, d20 + Dex + PB vs DC 13
+  (18 beyond 10 m); a miss is heard ("the clatter"). Stance after toggling
+  stealth while moving with a weapon: the client stops a walk's arm layer
+  (walk_swordr ...) by its name through the swap list, so a layer swapped
+  while it played kept playing. 0.39.5 changed the arm layers only once the
+  creature stood still (fixed the stop pose); 0.39.6 (owner: "during the
+  original move, after toggling stealth on or off the torso lean is wrong")
+  holds a moving creature at the stand for 150 ms with the old layers, then
+  swaps them and lets the walk go (the log counts the hold's updates).
+  Backward-walk stutter while crouched: the owner sees it in unmodded NWN
+  sneaking too - engine behaviour, parked.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:
