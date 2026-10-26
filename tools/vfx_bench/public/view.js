@@ -1,6 +1,6 @@
-// VFX Bench - the stage: WebGL, an orbiting camera, the ground, a 1.8 m figure with its
-// three effect nodes, and the particles as textured quads in the emitter's render mode
-// and blend. No libraries.
+// VFX Bench - the stage: WebGL, an orbiting camera, the ground, the game's 2 m human with
+// its three effect nodes, and the particles as the game draws them (quads per render mode,
+// blends, culling - PartEmitter::RenderEmitter, read 0.42.2). No libraries.
 (function (root) {
   "use strict";
   const { ATTACH_HEIGHT } = root.VfxSim;
@@ -16,6 +16,14 @@
   function len(a) { return Math.hypot(a[0], a[1], a[2]); }
   function norm(a) { const l = len(a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; }
   function scale(a, s) { return [a[0] * s, a[1] * s, a[2] * s]; }
+  // v turned by `angle` about the unit vector k (Rodrigues).
+  function rotateAbout(v, k, angle) {
+    const c = Math.cos(angle), s = Math.sin(angle), kv = cross(k, v), d = dot(k, v) * (1 - c);
+    return [v[0] * c + kv[0] * s + k[0] * d, v[1] * c + kv[1] * s + k[1] * d, v[2] * c + kv[2] * s + k[2] * d];
+  }
+  // The game's render modes (PartEmitter::Initialize: exact names; anything else draws as 0).
+  const RENDER_MODES = { Normal: 0, Billboard_to_Local_Z: 1, Billboard_to_World_Z: 2, Linked: 3, Aligned_to_World_Z: 4,
+    Aligned_to_Particle_Dir: 5, Motion_Blur: 6 };
   function lookAt(eye, target, up) {
     const z = norm(sub(eye, target)), x = norm(cross(up, z)), y = cross(z, x);
     return [x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0, -dot(x, eye), -dot(y, eye), -dot(z, eye), 1];
@@ -37,7 +45,7 @@ void main() { v_uv = a_uv; v_color = a_color; gl_Position = u_mvp * vec4(a_pos, 
   const PARTICLE_FS = `
 precision mediump float;
 uniform sampler2D u_tex; uniform float u_cut; varying vec2 v_uv; varying vec4 v_color;
-void main() { vec4 c = texture2D(u_tex, v_uv) * v_color; if (c.a < u_cut) discard; gl_FragColor = c; }`;
+void main() { vec4 c = texture2D(u_tex, v_uv) * v_color; if (c.a <= u_cut) discard; gl_FragColor = c; }`;
   const LINE_VS = `
 attribute vec3 a_pos; attribute vec4 a_color; uniform mat4 u_mvp; varying vec4 v_color;
 void main() { v_color = a_color; gl_Position = u_mvp * vec4(a_pos, 1.0); }`;
@@ -175,7 +183,8 @@ precision mediump float; varying vec4 v_color; void main() { gl_FragColor = v_co
       ];
       const view = lookAt(eye, cam.target, [0, 0, 1]);
       const mvp = multiply(perspective(Math.PI / 4, w / h, 0.05, 300), view);
-      return { mvp, eye, right: [view[0], view[4], view[8]], up: [view[1], view[5], view[9]] };
+      // The camera's right, up and back (towards the viewer) - the game's camera X, Y, Z.
+      return { mvp, eye, right: [view[0], view[4], view[8]], up: [view[1], view[5], view[9]], back: [view[2], view[6], view[10]] };
     }
 
     lines(vertices, mvp) {
@@ -233,60 +242,81 @@ precision mediump float; varying vec4 v_color; void main() { gl_FragColor = v_co
       this.lines(v, mvp);
     }
 
-    // One emitter's particles as quads: x y z u v r g b a, six vertices each.
+    // One emitter's particles as quads (x y z u v r g b a, six vertices each), built as the
+    // game's PartEmitter::RenderEmitter builds them (0.42.2): corners C +- A.W +- B.H (tail P2
+    // for Motion_Blur / Linked), +A to the cell's right, +B to its top; the front is A x B and
+    // the back isn't drawn (twosidedtex is never on in the drafts). Modes by their exact
+    // names: Normal 0 faces the screen; Billboard_to_Local_Z 1 lies flat in the emitter's
+    // turn; Billboard_to_World_Z 2 lies flat facing up; Linked 3 joins each particle to the
+    // next; Aligned_to_World_Z 4 stands upright; Aligned_to_Particle_Dir 5 lies along the
+    // particle's own frame; Motion_Blur 6 streaks from its trail point; anything else: 0.
     quads(entry, cam) {
       const e = entry.emitter;
-      const render = String(e.render).toLowerCase();
-      const grid = Math.max(1, e.grid | 0);
+      const mode = Object.prototype.hasOwnProperty.call(RENDER_MODES, e.render) ? RENDER_MODES[e.render] : 0;
+      const grid = entry.grid;
       const out = [];
-      const toCamera = (p) => norm(sub(cam.eye, p));
-      const push = (center, right, up, uv, color) => {
-        const corners = [[-1, -1], [1, -1], [1, 1], [-1, -1], [1, 1], [-1, 1]];
-        for (const [sx, sy] of corners) {
-          out.push(center[0] + right[0] * sx + up[0] * sy, center[1] + right[1] * sx + up[1] * sy,
-            center[2] + right[2] * sx + up[2] * sy,
-            sx < 0 ? uv[0] : uv[2], sy < 0 ? uv[3] : uv[1], color[0], color[1], color[2], color[3]);
-        }
-      };
+      const vertex = (v, u, w, c) => out.push(v[0], v[1], v[2], u, w, c[0], c[1], c[2], c[3]);
+      // The cell of a sheet frame: u left / right, v top / bottom (the TGA's top row is v 0 here).
       const uvOf = (frame) => {
-        const f = Math.max(0, Math.min(grid * grid - 1, frame | 0));
-        const col = f % grid, row = Math.floor(f / grid);
-        return [col / grid, row / grid, (col + 1) / grid, (row + 1) / grid];  // left, top, right, bottom
+        if (frame < 0) return [0, 0, 1, 1];
+        const row = Math.floor(frame / grid), col = frame - row * grid;
+        return [col / grid, row / grid, (col + 1) / grid, (row + 1) / grid];
       };
-      let particles = entry.particles;
-      if (render === "linked") {
-        particles = particles.slice().sort((a, b) => a.id - b.id);
-        for (let i = 0; i + 1 < particles.length; i++) {
-          const a = particles[i], b = particles[i + 1];
-          const along = sub(b.pos, a.pos);
-          if (len(along) < 1e-5) continue;
-          const mid = scale([a.pos[0] + b.pos[0], a.pos[1] + b.pos[1], a.pos[2] + b.pos[2]], 0.5);
-          const side = norm(cross(along, toCamera(mid)));
-          push(mid, scale(side, Math.max(a.size, b.size) / 2), scale(along, 0.5), uvOf(a.frame), a.color);
+      const quad = (C, P2, A, B, W, H, uv, head, tail) => {
+        if (dot(cross(A, B), sub(cam.eye, C)) <= 0) return;  // its back: culled
+        const Aw = scale(A, W), Bh = scale(B, H);
+        const v0 = [C[0] + Aw[0] + Bh[0], C[1] + Aw[1] + Bh[1], C[2] + Aw[2] + Bh[2]];
+        const v1 = [C[0] - Aw[0] + Bh[0], C[1] - Aw[1] + Bh[1], C[2] - Aw[2] + Bh[2]];
+        const v2 = [P2[0] + Aw[0] - Bh[0], P2[1] + Aw[1] - Bh[1], P2[2] + Aw[2] - Bh[2]];
+        const v5 = [P2[0] - Aw[0] - Bh[0], P2[1] - Aw[1] - Bh[1], P2[2] - Aw[2] - Bh[2]];
+        vertex(v0, uv[2], uv[1], head); vertex(v1, uv[0], uv[1], head); vertex(v2, uv[2], uv[3], tail);
+        vertex(v2, uv[2], uv[3], tail); vertex(v1, uv[0], uv[1], head); vertex(v5, uv[0], uv[3], tail);
+      };
+      // A streak's axes in the view plane: B along it, A across (Motion_Blur and Linked).
+      const streak = (d) => {
+        const u = dot(cam.right, d), v = dot(cam.up, d), l = Math.hypot(u, v);
+        if (!l) return null;
+        return { B: [cam.right[0] * u / l + cam.up[0] * v / l, cam.right[1] * u / l + cam.up[1] * v / l, cam.right[2] * u / l + cam.up[2] * v / l],
+          A: [cam.right[0] * v / l - cam.up[0] * u / l, cam.right[1] * v / l - cam.up[1] * u / l, cam.right[2] * v / l - cam.up[2] * u / l], l };
+      };
+      const ps = entry.particles;  // oldest first, not sorted (the game doesn't)
+      if (mode === 3) {
+        for (let i = 0; i + 1 < ps.length; i++) {
+          const a = ps[i], b = ps[i + 1], s2 = streak(sub(b.pos, a.pos));
+          if (s2) quad(b.pos, a.pos, s2.A, s2.B, 2 * a.w, a.h / 2, uvOf(a.frame), a.color, a.color);
         }
         return out;
       }
-      if (String(e.blend).toLowerCase() === "normal") {  // back to front
-        particles = particles.slice().sort((a, b) => dot(sub(b.pos, cam.eye), sub(b.pos, cam.eye)) - dot(sub(a.pos, cam.eye), sub(a.pos, cam.eye)));
-      }
-      for (const p of particles) {
-        if (p.size <= 0 || p.color[3] <= 0) continue;
-        const half = p.size / 2;
-        let right, up;
-        const speed = len(p.vel);
-        if (p.flat || render === "aligned_to_world_z") {
-          right = [half, 0, 0]; up = [0, half, 0];
-        } else if (render === "billboard_to_world_z" || render === "billboard_to_local_z") {
-          const toCam = toCamera(p.pos);
-          right = scale(norm([-toCam[1], toCam[0], 0]), half); up = [0, 0, half];
-        } else if ((render === "aligned_to_particle_dir" || render === "motion_blur") && speed > 1e-4) {
-          const dir = scale(p.vel, 1 / speed);
-          const stretch = render === "motion_blur" ? half + speed * Math.max(0, e.blur_length) / 2 : half;
-          right = scale(norm(cross(dir, toCamera(p.pos))), half); up = scale(dir, stretch);
-        } else {
-          right = scale(cam.right, half); up = scale(cam.up, half);
+      const o = e.orientation;
+      const turn = window.VfxSim.turn;
+      const eX = turn(o, [1, 0, 0]), eY = turn(o, [0, 1, 0]), eZ = turn(o, [0, 0, 1]);
+      for (const p of ps) {
+        if (p.color[3] <= 0 || p.w <= 0) continue;
+        const uv = uvOf(p.frame);
+        if (mode === 6) {
+          const s2 = streak(sub(p.pos, p.trail));
+          if (!s2) continue;  // no streak yet: nothing to see
+          const W = 2 * p.w;
+          const tail = [p.color[0], p.color[1], p.color[2], Math.trunc(p.alpha255 * Math.min(1, W / s2.l)) / 255];
+          quad(p.pos, p.trail, s2.A, s2.B, W, p.h / 2, uv, p.color, tail);
+          continue;
         }
-        push(p.pos, right, up, uvOf(p.frame), p.color);
+        if (mode === 5) {
+          quad(p.pos, p.pos, p.xaxis, p.dir, p.w, p.h, uv, p.color, p.color);
+          continue;
+        }
+        // 0, 1, 2, 4: spun by the particle's spin about the frame's normal.
+        const c = Math.cos(p.spin), s = Math.sin(p.spin);
+        let A;
+        if (p.stopped) A = rotateAbout(p.xaxis, p.dir, p.spin);  // resting: in its own (ground) frame
+        else if (mode === 1) A = [eX[0] * c + eY[0] * s, eX[1] * c + eY[1] * s, eX[2] * c + eY[2] * s];
+        else if (mode === 2) A = [c, s, 0];
+        else A = [cam.right[0] * c + cam.up[0] * s, cam.right[1] * c + cam.up[1] * s, cam.right[2] * c + cam.up[2] * s];
+        let B;
+        if (mode === 4) B = [0, 0, cam.up[2] < 0 ? -1 : 1];
+        else if (e.splat) B = cross(p.dir, A);
+        else B = cross(mode === 1 ? eZ : mode === 2 ? [0, 0, 1] : cam.back, A);
+        quad(p.pos, p.pos, A, B, p.w, p.h, uv, p.color, p.color);
       }
       return out;
     }
@@ -301,10 +331,9 @@ precision mediump float; varying vec4 v_color; void main() { gl_FragColor = v_co
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       this.groundAndFigure(figure, cam.mvp);
-      // Punch-through first (it writes depth), then the see-through ones, then the added light.
-      const order = (blend) => (blend === "punch-through" ? 0 : blend === "lighten" ? 2 : 1);
-      const entries = snapshot.filter((s) => s.particles.length && String(s.emitter.update).toLowerCase() !== "lightning")
-        .sort((a, b) => order(String(a.emitter.blend).toLowerCase()) - order(String(b.emitter.blend).toLowerCase()));
+      // The emitters in their order (all on one character: the game leaves their order to its
+      // sort), each one's particles oldest first.
+      const entries = snapshot.filter((s) => s.particles.length && String(s.emitter.update).toLowerCase() !== "lightning");
       const p = this.particleProgram;
       gl.useProgram(p.program);
       gl.uniformMatrix4fv(p.uniform.u_mvp, false, cam.mvp);
@@ -314,13 +343,15 @@ precision mediump float; varying vec4 v_color; void main() { gl_FragColor = v_co
       for (const entry of entries) {
         const vertices = this.quads(entry, cam);
         if (!vertices.length) continue;
-        const blend = String(entry.emitter.blend).toLowerCase();
-        if (blend === "punch-through") {
-          gl.disable(gl.BLEND); gl.depthMask(true); gl.uniform1f(p.uniform.u_cut, 0.5);
-        } else if (blend === "lighten") {
-          gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE); gl.depthMask(false); gl.uniform1f(p.uniform.u_cut, 0.002);
+        // Blend by the exact name: "Normal" covers, "Punch-Through" cuts out (no blending, depth
+        // written, gone at alpha 0.2 or less), anything else ("Lighten") adds light.
+        const blend = entry.emitter.blend;
+        if (blend === "Punch-Through") {
+          gl.disable(gl.BLEND); gl.depthMask(true); gl.uniform1f(p.uniform.u_cut, 0.2);
+        } else if (blend === "Normal") {
+          gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); gl.uniform1f(p.uniform.u_cut, -1);
         } else {
-          gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); gl.uniform1f(p.uniform.u_cut, 0.002);
+          gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE); gl.depthMask(false); gl.uniform1f(p.uniform.u_cut, -1);
         }
         gl.bindTexture(gl.TEXTURE_2D, this.texture(entry.emitter.texture));
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STREAM_DRAW);
@@ -335,6 +366,7 @@ precision mediump float; varying vec4 v_color; void main() { gl_FragColor = v_co
         gl.disableVertexAttribArray(p.attrib.a_color);
       }
       gl.depthMask(true);
+      gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     }
   }

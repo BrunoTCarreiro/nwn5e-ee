@@ -113,6 +113,7 @@ textarea { min-height: 260px; resize: vertical; white-space: pre; }
 .field { display: flex; flex-direction: column; gap: 3px; font-size: 0.82rem; color: var(--muted); }
 .field .pair { display: grid; grid-template-columns: minmax(0, 1fr) 84px; gap: 8px; align-items: center; }
 .field .triple { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.field .quad { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .field .colour { display: grid; grid-template-columns: 44px repeat(3, minmax(0, 1fr)); gap: 6px; align-items: center; }
 .field input[type="color"] { width: 44px; height: 32px; padding: 0; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); }
 .field input[type="number"] { padding: 4px 6px; }

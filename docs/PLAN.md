@@ -2379,6 +2379,36 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   the page's Effects card (Yours / nwn5e / Game, with search) was empty
   because the page opened before the game's export; it now reads the lists
   again when the export appears (the 2 s link poll carries index.txt's time).
+  0.42.2 (owner: "the interpretation of the effects in the bench and the ones
+  that play in-game are different" - "I think reading the game's code would be
+  the most straightforward way"): the game's particle code read (its exported
+  classes: FountainEmitter / ExplosionEmitter / SingleEmitter::Update,
+  PartEmitter::chkParticleLife / moveParticleStandard / RenderEmitter,
+  Particle::initialize / randomDirection / randomPosition, the emitter field
+  parser) and written up in tools/vfx_bench/PARTICLES.md; the preview now runs
+  and draws by it. What was off: births (time adds up to 1 / birthrate, then
+  int(time x birthrate) born and the rest DROPPED - rate 100 at 60 fps makes
+  60 a second; below 1 none); spread (an even angle up to half of it, 0.01
+  steps); speed (velocity +- randvel, not + 0..randvel); motion blur (the tail
+  is a trail point lagging ~blurlength SECONDS, not a length - the heal's
+  streaks were metres long); render modes (Billboard_to_World_Z lies flat
+  facing up, Aligned_to_World_Z stands upright - the preview had them the other
+  way; Aligned_to_Particle_Dir lies in the particle's spawn frame; back faces
+  are culled; Motion_Blur / Linked are 2 x size wide); sizes / colours / alpha
+  start -> end only (alphaMid, colorMid, sizeMid, percent* are never read);
+  frames step at fps while drawn and loop - nwn5e wrote fps 0, so in game they
+  never moved while the preview played them over the life; Punch-Through cuts
+  at 0.2; no sorting; names matched exactly ("Aligned_to_World_z", in
+  !vfxedit's list, drew nothing defined - fixed). The format gains an emitter's
+  `orientation` (axis, angle - particles leave along its z, the area lies in its
+  x / y), `fps` and `particle_rot` (spin): the game's own effects use them (fps
+  on ~30% of sheet emitters, spin on ~25%); the binary reader reads them
+  (controllers 128 / 160 = field offset - 28) and places each emitter in the
+  model with its parents (Premonition's eyes at 1.3 / 2.5 m, not the feet).
+  Library format 5. Tests: VfxEmitterUnderAMovedDummy (mutation-checked),
+  the round trip with the new keys; check.js: 409 drafts byte for byte; node
+  checks of the birth / burst / splat / frame rules. Not here: node motion
+  (circling rings), Lightning, soft particles, fog.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

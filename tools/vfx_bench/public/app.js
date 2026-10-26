@@ -231,18 +231,20 @@
       { key: "update", type: "select", options: core.UPDATES, label: "Update",
         help: "Fountain: a stream. Single: one particle that stays. Explosion: all at once when it starts. Lightning: a bolt (only in game)." },
       { key: "render", type: "select", options: core.RENDERS, label: "Render",
-        help: "Normal faces you; Billboard_to_*_Z stands upright; Aligned_to_World_Z lies flat; Aligned_to_Particle_Dir and Motion_Blur point where it goes; Linked joins them in a ribbon." },
+        help: "Normal faces the screen. Billboard_to_World_Z lies flat facing up (seen from above only); Billboard_to_Local_Z lies flat in the emitter's turn. Aligned_to_World_Z stands upright. Aligned_to_Particle_Dir lies along the way it left (seen from one side). Motion_Blur streaks along its path; Linked joins each particle to the next." },
       { key: "blend", type: "select", options: core.BLENDS, label: "Blend",
-        help: "Lighten adds light (fire, magic); Normal covers (smoke, dust); Punch-Through cuts the texture's see-through parts out." },
+        help: "Lighten adds light (fire, magic); Normal covers (smoke, dust); Punch-Through cuts out what's 20% opaque or less, no blending." },
     ] },
     { title: "Texture", fields: [
       { key: "texture", type: "texture", label: "Texture" },
       { key: "grid", type: "int", min: 1, max: 8, label: "Sheet: frames across and down" },
       { key: "frame_end", type: "int", min: 0, max: 63, label: "Last frame used (0 = the first only)" },
-      { key: "random", type: "bool", label: "A random frame for each particle (else they play through)" },
+      { key: "fps", type: "num", min: 0, max: 60, step: 1, label: "Frames a second (0 = the frame stays; they loop)" },
+      { key: "random", type: "bool", label: "A random first frame for each particle" },
     ] },
     { title: "Emission", fields: [
       { key: "position", type: "vec3", step: 0.05, label: "Position x y z (metres from the node)" },
+      { key: "orientation", type: "vec4", step: 0.05, label: "Turn: axis x y z, then angle in radians (0 = straight up, 3.14 = straight down)" },
       { key: "birthrate", type: "num", min: 0, max: 400, step: 1, label: "Rate (a second; Explosion: how many)" },
       { key: "emit_seconds", type: "num", min: 0, max: 10, step: 0.05, label: "On for (seconds; 0 = while the effect plays)" },
       { key: "xsize", type: "num", min: 0, max: 600, step: 1, label: "Area across (cm)" },
@@ -258,7 +260,8 @@
       { key: "bounce", type: "bool", label: "Bounces on the ground" },
       { key: "bounce_co", type: "num", min: 0, max: 1, step: 0.05, label: "Bounce: speed kept" },
       { key: "splat", type: "bool", label: "Lies flat where it lands" },
-      { key: "blur_length", type: "num", min: 0, max: 2, step: 0.01, label: "Blur length (Motion_Blur)" },
+      { key: "blur_length", type: "num", min: 0, max: 10, step: 0.05, label: "Blur length (Motion_Blur: how many seconds its tail lags)" },
+      { key: "particle_rot", type: "num", min: -10, max: 10, step: 0.1, label: "Spin (radians a second)" },
     ] },
     { title: "Look", fields: [
       { key: "size_start", type: "num", min: 0, max: 5, step: 0.01, label: "Size at birth (m)" },
@@ -294,8 +297,10 @@
       const value = String(e[f.key]);
       const match = f.options.find((o) => o.toLowerCase() === value.toLowerCase());
       const options = match ? f.options : [...f.options, value];
+      const exact = f.options.includes(value);
       return wrap([el("span", { text: f.label }), el("select", { "aria-label": f.label, onchange: (ev) => set(ev.target.value) },
-        options.map((o) => el("option", { value: o, selected: o === (match || value), text: o === value && !match ? o + " (as the model has it)" : o }))),
+        options.map((o) => el("option", { value: o, selected: o === (exact ? value : match || value),
+          text: o === value && !exact ? o + " (the model's spelling - the game reads only " + (match || "the listed names") + ")" : o }))),
       f.help ? el("span", { class: "note", text: f.help }) : null]);
     }
     if (f.type === "bool") {
@@ -320,9 +325,11 @@
       });
       return wrap([el("span", { text: f.label }), el("div", { class: "pair" }, [range, number])]);
     }
-    if (f.type === "vec3") {
-      return wrap([el("span", { text: f.label }), el("div", { class: "triple" }, [0, 1, 2].map((k) =>
-        numberInput(e[f.key][k], f.step, (v) => { e[f.key][k] = v; changed(false); }, f.label + " " + "xyz"[k])))]);
+    if (f.type === "vec3" || f.type === "vec4") {
+      const n = f.type === "vec4" ? 4 : 3;
+      if (!e[f.key]) e[f.key] = new Array(n).fill(0);
+      return wrap([el("span", { text: f.label }), el("div", { class: n === 4 ? "quad" : "triple" }, [...Array(n).keys()].map((k) =>
+        numberInput(e[f.key][k], f.step, (v) => { e[f.key][k] = v; changed(false); }, f.label + " " + "xyzw"[k])))]);
     }
     if (f.type === "colour") {
       const values = e[f.key];
@@ -407,14 +414,11 @@
   function tick(now) {
     const dt = Math.min(0.1, last ? (now - last) / 1000 : 0) * state.speed;
     last = now;
-    if (!state.paused && state.fx) {
+    if (!state.paused && state.fx && dt > 0) {
+      // Once a frame with the frame's time, as the game runs its emitters (its birth count
+      // depends on the frame's length).
       const length = sim.length();
-      let left = dt;
-      while (left > 0) {
-        const step = Math.min(left, 1 / 60);
-        if (sim.time < length) sim.step(step);
-        left -= step;
-      }
+      if (sim.time < length) sim.step(dt);
       if (sim.time >= length && state.loop) sim.restart();
     }
     if (view) view.draw(sim.snapshot(), sim.figure(sim.time));

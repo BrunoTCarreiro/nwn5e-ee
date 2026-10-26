@@ -405,7 +405,8 @@ const std::vector<TextField>& EmitterFields() {
 }
 
 const std::vector<std::string> kUpdates = {"Fountain", "Single", "Explosion"};
-const std::vector<std::string> kRenders = {"Normal", "Motion_Blur", "Aligned_to_World_z", "Billboard_to_World_Z",
+// The game matches these names exactly (PartEmitter::Initialize; "Aligned_to_World_z" drew nothing defined).
+const std::vector<std::string> kRenders = {"Normal", "Motion_Blur", "Aligned_to_World_Z", "Billboard_to_World_Z",
                                            "Billboard_to_Local_Z", "Aligned_to_Particle_Dir", "Linked"};
 const std::vector<std::string> kBlends = {"Normal", "Lighten", "Punch-Through"};
 const std::vector<std::string> kAttaches = {"root", "head", "impact"};
@@ -740,8 +741,9 @@ void LoadEntry(uint32_t player, int index) {
 // --- The VFX Bench (tools/vfx_bench) -----------------------------------------------------
 
 // 2: lasting effects' emitters no longer cut short (0.42.0); 3: emitters read
-// from the geometry, not an animation's copy (0.42.1).
-constexpr int kLibraryFormat = 3;
+// from the geometry, not an animation's copy (0.42.1); 4: placed in the model with
+// their parents, and turned (orientation), with fps and particle_rot (0.42.2).
+constexpr int kLibraryFormat = 5;
 constexpr uint16_t kResTypeTga = 3;
 constexpr uint16_t kResTypeDds = 2033;
 constexpr uint64_t kBenchCheckMs = 250;

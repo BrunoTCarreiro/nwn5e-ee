@@ -38,12 +38,16 @@ emitter starts on it (0 0 0).
 Options: `--build <folder>` (nwn5e's build folder; default `../../build`, or the
 `NWN5E_BUILD` variable), `--port <n>` (default 8766), `--no-open`.
 
-The preview is an approximation of the game's emitters (update, render and blend
-modes, spread, gravity, spawn area, life, size / colour / opacity over life, texture
-sheets, bounce, splat, particles that follow the character). Not drawn: Lightning
-emitters. Not in the effect at all (the in-game editor's too): an emitter node's own
-movement in the game's models - their rings that circle the character stand still
-here and in what Play in game and Save make. When in doubt, Play in game.
+The preview runs and draws particles by the game's own rules, read from its code
+(PARTICLES.md, 0.42.2): births per frame (the fraction of a frame's births dropped, as
+the game does), spread, speed, gravity, area, life, bounce and splat, the seven render
+modes and three blends as the game builds them (back faces hidden), start -> end size,
+colour and alpha (the "mid" values do nothing in the game), sheet frames at fps, spin.
+An emitter's turn (orientation) is in the draft, and a game effect's emitters are placed
+in the model with their parents. Not here: Lightning emitters, the game's soft-particle
+fade and fog, and an emitter node's own motion in the game's models (their rings that
+circle the character stand still - in Play in game and Save too). When in doubt, Play in
+game.
 
 Mouse on the stage: drag to turn, right-drag (or shift-drag) to move, wheel to zoom,
 double-click to reset. Space pauses, R restarts. `?open=game:<model>&warm=<s>` opens
@@ -54,7 +58,8 @@ an effect already run that far.
 - `server.js` - serves the page and the build folder's `vfxedit\` parts, on 127.0.0.1 only.
 - `public/core.js` - the draft format, a line-for-line port of `src/data/vfx_model.cpp`'s
   WriteVfxDraft / ReadVfxDraft (keep the two in step), and the TGA reader.
-- `public/sim.js` - the particles; `public/view.js` - the WebGL stage; `public/app.js`,
-  `index.html`, `style.css` - the page.
+- `public/sim.js` - the particles as the game runs them; `public/view.js` - the WebGL stage,
+  drawing them as the game does; `public/app.js`, `index.html`, `style.css` - the page.
+- `PARTICLES.md` - what the game's particle code does (spawn, movement, drawing), with addresses.
 - `check.js` - reads and writes back every draft nwn5e wrote (they must come out byte for
   byte) and decodes every texture: `node tools/vfx_bench/check.js build/vfxedit`.

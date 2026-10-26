@@ -7,6 +7,8 @@
 #include <string.h>
 
 #include <algorithm>
+#include <cmath>
+#include <map>
 #include <set>
 #include <sstream>
 
@@ -60,7 +62,8 @@ std::vector<std::string> EmitterLines(const VfxEmitter& e, const std::string& no
       "  xgrid " + std::to_string(e.grid), "  ygrid " + std::to_string(e.grid), "  loop 0", "  deadspace 0",
       "  twosidedtex 0", "  blastRadius 0", "  blastLength 0",
       "  position " + Num(e.position[0]) + " " + Num(e.position[1]) + " " + Num(e.position[2]),
-      "  orientation 0 0 0 0",
+      "  orientation " + Num(e.orientation[0]) + " " + Num(e.orientation[1]) + " " + Num(e.orientation[2]) + " " +
+          Num(e.orientation[3]),
       "  colorStart " + Num(e.color_start[0]) + " " + Num(e.color_start[1]) + " " + Num(e.color_start[2]),
       "  colorEnd " + Num(e.color_end[0]) + " " + Num(e.color_end[1]) + " " + Num(e.color_end[2]),
       "  alphaStart " + Num(e.alpha_start), "  alphaEnd " + Num(e.alpha_end),
@@ -69,8 +72,8 @@ std::vector<std::string> EmitterLines(const VfxEmitter& e, const std::string& no
       "  frameStart 0", "  frameEnd " + std::to_string(e.frame_end),
       "  birthrate " + Num(keyed_birthrate ? 0.0f : e.birthrate),
       "  lifeExp " + Num(e.life),
-      "  mass " + Num(e.mass), "  spread " + Num(e.spread), "  particleRot 0",
-      "  velocity " + Num(e.velocity), "  randvel " + Num(e.randvel), "  fps 0",
+      "  mass " + Num(e.mass), "  spread " + Num(e.spread), "  particleRot " + Num(e.particle_rot),
+      "  velocity " + Num(e.velocity), "  randvel " + Num(e.randvel), "  fps " + Num(e.fps),
       "  xsize " + Num(e.xsize), "  ysize " + Num(e.ysize), "  bounce_co " + Num(e.bounce_co),
       "  blurlength " + Num(e.blur_length),
       "  lightningDelay 0", "  lightningRadius 0", "  lightningScale 0",
@@ -197,6 +200,8 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
     out += "\n[emitter " + e.name + "]\n";
     out += "update = " + e.update + "\nrender = " + e.render + "\nblend = " + e.blend + "\ntexture = " + e.texture + "\n";
     out += "position = " + Num(e.position[0]) + " " + Num(e.position[1]) + " " + Num(e.position[2]) + "\n";
+    out += "orientation = " + Num(e.orientation[0]) + " " + Num(e.orientation[1]) + " " + Num(e.orientation[2]) + " " +
+           Num(e.orientation[3]) + "\n";
     out += "birthrate = " + Num(e.birthrate) + "\nemit_seconds = " + Num(e.emit_seconds) + "\nlife = " + Num(e.life) + "\n";
     out += "velocity = " + Num(e.velocity) + "\nrandvel = " + Num(e.randvel) + "\nspread = " + Num(e.spread) + "\n";
     out += "mass = " + Num(e.mass) + "\nsize = " + Num(e.size_start) + " " + Num(e.size_end) + "\n";
@@ -205,6 +210,7 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
     out += "alpha = " + Num(e.alpha_start) + " " + Num(e.alpha_end) + "\n";
     out += "area = " + Num(e.xsize) + " " + Num(e.ysize) + "\n";
     out += "grid = " + std::to_string(e.grid) + "\nframe_end = " + std::to_string(e.frame_end) + "\n";
+    out += "fps = " + Num(e.fps) + "\nparticle_rot = " + Num(e.particle_rot) + "\n";
     out += "blur_length = " + Num(e.blur_length) + "\nbounce_co = " + Num(e.bounce_co) + "\n";
     std::string flags;
     if (e.inherit) flags += " inherit";
@@ -259,6 +265,7 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
     else if (key == "blend") e->blend = value;
     else if (key == "texture") e->texture = value;
     else if (key == "position") ReadFloats(words, 0, e->position, 3);
+    else if (key == "orientation") ReadFloats(words, 0, e->orientation, 4);
     else if (key == "birthrate") e->birthrate = ToFloat(value);
     else if (key == "emit_seconds") e->emit_seconds = ToFloat(value);
     else if (key == "life") e->life = ToFloat(value);
@@ -285,6 +292,8 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
       e->ysize = area[1];
     } else if (key == "grid") e->grid = std::max(1, atoi(value.c_str()));
     else if (key == "frame_end") e->frame_end = std::max(0, atoi(value.c_str()));
+    else if (key == "fps") e->fps = ToFloat(value);
+    else if (key == "particle_rot") e->particle_rot = ToFloat(value);
     else if (key == "blur_length") e->blur_length = ToFloat(value);
     else if (key == "bounce_co") e->bounce_co = ToFloat(value);
     else if (key == "flags") {
@@ -385,6 +394,7 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       else if (first == "blend") e->blend = v;
       else if (first == "texture") e->texture = v;
       else if (first == "position") ReadFloats(w, 1, e->position, 3);
+      else if (first == "orientation") ReadFloats(w, 1, e->orientation, 4);
       else if (first == "colorstart") ReadFloats(w, 1, e->color_start, 3);
       else if (first == "colorend") ReadFloats(w, 1, e->color_end, 3);
       else if (first == "alphastart") e->alpha_start = ToFloat(v);
@@ -401,6 +411,8 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       else if (first == "ysize") e->ysize = ToFloat(v);
       else if (first == "xgrid") e->grid = std::max(1, atoi(v.c_str()));
       else if (first == "frameend") e->frame_end = std::max(0, atoi(v.c_str()));
+      else if (first == "fps") e->fps = ToFloat(v);
+      else if (first == "particlerot") e->particle_rot = ToFloat(v);
       else if (first == "blurlength") e->blur_length = ToFloat(v);
       else if (first == "bounce_co") e->bounce_co = ToFloat(v);
       else if (first == "inherit") e->inherit = v != "0";
@@ -508,6 +520,64 @@ std::vector<size_t> TreeNodes(const Bytes& m, uint32_t root) {
   return nodes;
 }
 
+// Quaternions (x, y, z, w): a product and a vector turned by one.
+void QMul(const float a[4], const float b[4], float out[4]) {
+  const float r[4] = {a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1],
+                      a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
+                      a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3],
+                      a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]};
+  memcpy(out, r, sizeof(r));
+}
+
+void QRotate(const float q[4], const float v[3], float out[3]) {
+  const float p[4] = {v[0], v[1], v[2], 0.0f};
+  const float conj[4] = {-q[0], -q[1], -q[2], q[3]};
+  float t[4], r[4];
+  QMul(q, p, t);
+  QMul(t, conj, r);
+  memcpy(out, r, 3 * sizeof(float));
+}
+
+// Where each node of a tree sits in the model: its parents' positions (controller 8) and
+// orientations (20, x y z w) composed down from the root (0.42.2: the game's Premonition
+// hangs its eye emitters under dummies 1.3 m up - read on their own they sat at the feet).
+std::map<size_t, std::vector<float>> PlacedNodes(const Bytes& m, uint32_t root) {
+  std::map<size_t, std::vector<float>> placed;  // node -> x y z, qx qy qz qw
+  if (root == 0) return placed;
+  struct Item {
+    size_t node;
+    float pos[3];
+    float rot[4];
+  };
+  std::vector<Item> stack = {{kModelBase + root + 0x10, {0, 0, 0}, {0, 0, 0, 1}}};
+  while (!stack.empty() && placed.size() < 4096) {
+    Item item = stack.back();
+    stack.pop_back();
+    if (item.node + 0x60 > m.b.size() || placed.count(item.node)) continue;
+    float local[3] = {0, 0, 0}, turn[4] = {0, 0, 0, 1};
+    std::vector<Controller> controllers;
+    if (ReadControllers(m, item.node, &controllers)) {
+      for (const Controller& c : controllers) {
+        if (c.type == 8 && c.columns == 3 && c.values.size() >= 3) memcpy(local, c.values.data(), sizeof(local));
+        if (c.type == 20 && c.columns == 4 && c.values.size() >= 4) memcpy(turn, c.values.data(), sizeof(turn));
+      }
+    }
+    float moved[3], pos[3], rot[4];
+    QRotate(item.rot, local, moved);
+    for (int i = 0; i < 3; ++i) pos[i] = item.pos[i] + moved[i];
+    QMul(item.rot, turn, rot);
+    placed[item.node] = {pos[0], pos[1], pos[2], rot[0], rot[1], rot[2], rot[3]};
+    const uint32_t children = m.U32(item.node + 0x38), count = m.U32(item.node + 0x3C);
+    if (count > 1024 || kModelBase + children + 4ull * count > m.b.size()) continue;
+    for (uint32_t i = 0; i < count; ++i) {
+      Item child{kModelBase + m.U32(kModelBase + children + 4ull * i) + 0x10, {pos[0], pos[1], pos[2]},
+                 {rot[0], rot[1], rot[2], rot[3]}};
+      stack.push_back(child);
+    }
+  }
+  return placed;
+}
+
 void ApplyController(const Controller& c, VfxEmitter* e) {
   const auto v = [&](int i) { return i < static_cast<int>(c.values.size()) ? c.values[i] : 0.0f; };
   switch (c.type) {
@@ -518,7 +588,9 @@ void ApplyController(const Controller& c, VfxEmitter* e) {
     case 92: e->bounce_co = v(0); break;
     case 96: e->color_end[0] = v(0); e->color_end[1] = v(1); e->color_end[2] = v(2); break;
     case 108: e->color_start[0] = v(0); e->color_start[1] = v(1); e->color_start[2] = v(2); break;
+    case 128: e->fps = v(0); break;  // PartEmitter +0x9c (controller = field offset - 28)
     case 132: e->frame_end = static_cast<int>(v(0)); break;
+    case 160: e->particle_rot = v(0); break;  // +0xbc
     case 144: e->life = v(0); break;
     case 148: e->mass = v(0); break;
     case 164: e->randvel = v(0); break;
@@ -549,6 +621,7 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
   // first copy in the file was taken - vcm_hitsonc's cloud came out 1 m up with
   // default values, vdr_darkness's emitter all defaults).
   const std::vector<size_t> geometry = TreeNodes(m, m.U32(kModelBase + 0x48));
+  const std::map<size_t, std::vector<float>> placed = PlacedNodes(m, m.U32(kModelBase + 0x48));
   const std::set<size_t> in_geometry(geometry.begin(), geometry.end());
   std::vector<size_t> nodes;  // each emitter's geometry node, parallel to result.emitters
   for (int pass = 0; pass < 2 && result.emitters.empty(); ++pass) {  // 2nd: any node (no tree read)
@@ -579,6 +652,19 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
       e.inherit = (flags & 0x040) != 0;
       e.splat = (flags & 0x200) != 0;
       for (const Controller& c : controllers) ApplyController(c, &e);
+      const auto where = placed.find(node);  // its place in the model, not just under its parent
+      if (pass == 0 && where != placed.end()) {
+        memcpy(e.position, where->second.data(), sizeof(e.position));
+        // Its turn there (which way its particles go), as axis and angle.
+        const float* q = where->second.data() + 3;
+        const float w = std::max(-1.0f, std::min(1.0f, q[3]));
+        const float s = std::sqrt(std::max(0.0f, 1.0f - w * w));
+        const float angle = 2.0f * std::acos(w);
+        if (s > 1e-4f && angle > 1e-4f) {
+          for (int k = 0; k < 3; ++k) e.orientation[k] = q[k] / s;
+          e.orientation[3] = angle;
+        }
+      }
       result.emitters.push_back(e);
       nodes.push_back(node);
     }

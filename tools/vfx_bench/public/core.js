@@ -17,9 +17,10 @@
   function emitter(overrides) {
     return Object.assign({
       name: "emitter", update: "Fountain", render: "Normal", blend: "Normal", texture: "fxpa_sphere",
-      position: [0, 0, 0], birthrate: 10, emit_seconds: 0, life: 1, velocity: 1, randvel: 0.5, spread: 0.8,
+      position: [0, 0, 0], orientation: [0, 0, 0, 0], birthrate: 10, emit_seconds: 0, life: 1, velocity: 1,
+      randvel: 0.5, spread: 0.8,
       mass: 0, size_start: 0.1, size_end: 0.1, color_start: [1, 1, 1], color_end: [1, 1, 1], alpha_start: 1,
-      alpha_end: 0, xsize: 0, ysize: 0, grid: 1, frame_end: 0, blur_length: 0, bounce_co: 0,
+      alpha_end: 0, xsize: 0, ysize: 0, grid: 1, frame_end: 0, blur_length: 0, bounce_co: 0, fps: 0, particle_rot: 0,
       inherit: false, splat: false, bounce: false, random: false,
     }, overrides || {});
   }
@@ -88,6 +89,8 @@
       out += "\n[emitter " + e.name + "]\n";
       out += "update = " + e.update + "\nrender = " + e.render + "\nblend = " + e.blend + "\ntexture = " + e.texture + "\n";
       out += "position = " + num(e.position[0]) + " " + num(e.position[1]) + " " + num(e.position[2]) + "\n";
+      const o = e.orientation || [0, 0, 0, 0];
+      out += "orientation = " + num(o[0]) + " " + num(o[1]) + " " + num(o[2]) + " " + num(o[3]) + "\n";
       out += "birthrate = " + num(e.birthrate) + "\nemit_seconds = " + num(e.emit_seconds) + "\nlife = " + num(e.life) + "\n";
       out += "velocity = " + num(e.velocity) + "\nrandvel = " + num(e.randvel) + "\nspread = " + num(e.spread) + "\n";
       out += "mass = " + num(e.mass) + "\nsize = " + num(e.size_start) + " " + num(e.size_end) + "\n";
@@ -96,6 +99,7 @@
       out += "alpha = " + num(e.alpha_start) + " " + num(e.alpha_end) + "\n";
       out += "area = " + num(e.xsize) + " " + num(e.ysize) + "\n";
       out += "grid = " + e.grid + "\nframe_end = " + e.frame_end + "\n";
+      out += "fps = " + num(e.fps || 0) + "\nparticle_rot = " + num(e.particle_rot || 0) + "\n";
       out += "blur_length = " + num(e.blur_length) + "\nbounce_co = " + num(e.bounce_co) + "\n";
       let flags = "";
       if (e.inherit) flags += " inherit";
@@ -147,6 +151,7 @@
       else if (key === "blend") e.blend = value;
       else if (key === "texture") e.texture = value;
       else if (key === "position") readFloats(words, e.position, 3);
+      else if (key === "orientation") readFloats(words, e.orientation, 4);
       else if (key === "birthrate") e.birthrate = toFloat(value);
       else if (key === "emit_seconds") e.emit_seconds = toFloat(value);
       else if (key === "life") e.life = toFloat(value);
@@ -170,6 +175,8 @@
         [e.xsize, e.ysize] = area;
       } else if (key === "grid") e.grid = Math.max(1, toInt(value));
       else if (key === "frame_end") e.frame_end = Math.max(0, toInt(value));
+      else if (key === "fps") e.fps = toFloat(value);
+      else if (key === "particle_rot") e.particle_rot = toFloat(value);
       else if (key === "blur_length") e.blur_length = toFloat(value);
       else if (key === "bounce_co") e.bounce_co = toFloat(value);
       else if (key === "flags") {

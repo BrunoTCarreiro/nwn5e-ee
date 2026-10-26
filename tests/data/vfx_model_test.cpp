@@ -30,6 +30,10 @@ VfxEffect Sample() {
   e.render = "Motion_Blur";
   e.texture = "blood";
   e.position[2] = 0.95f;
+  e.orientation[0] = 1.0f;
+  e.orientation[3] = 2.5f;
+  e.fps = 16.0f;
+  e.particle_rot = 0.5f;
   e.birthrate = 2.0f;
   e.emit_seconds = 0.5f;
   e.life = 6.0f;
@@ -68,6 +72,10 @@ TEST(VfxDraftRoundTrip) {
   CHECK_EQ(e.render == "Motion_Blur", true);
   CHECK_EQ(e.texture == "blood", true);
   CHECK_EQ(Milli(e.position[2]), 950);
+  CHECK_EQ(Milli(e.orientation[0]), 1000);
+  CHECK_EQ(Milli(e.orientation[3]), 2500);
+  CHECK_EQ(Milli(e.fps), 16000);
+  CHECK_EQ(Milli(e.particle_rot), 500);
   CHECK_EQ(Milli(e.emit_seconds), 500);
   CHECK_EQ(Milli(e.size_end), 800);
   CHECK_EQ(Milli(e.color_start[0]), 330);
@@ -280,6 +288,70 @@ TEST(VfxLastingEffectKeepsEmitting) {
   CHECK_EQ(Milli(flash->position[2]), 0);
   CHECK_EQ(Milli(flash->birthrate), 30000);
   CHECK_EQ(Milli(flash->emit_seconds), 200);
+}
+
+// An emitter under a dummy that is moved and turned (0.42.2; the game's Premonition
+// hangs its eye emitters under dummies 1.3 m up): its draft position is its place in the
+// model. Breaks caught: the emitter's own position read alone (at the feet); the parent's
+// turn ignored or applied the wrong way round.
+TEST(VfxEmitterUnderAMovedDummy) {
+  std::string b(0x1000, '\0');
+  const auto put32 = [&](size_t at, uint32_t v) { memcpy(&b[at], &v, 4); };
+  const auto put16 = [&](size_t at, uint16_t v) { memcpy(&b[at], &v, 2); };
+  const auto putf = [&](size_t at, float v) { memcpy(&b[at], &v, 4); };
+  const auto puts = [&](size_t at, const char* text) { memcpy(&b[at], text, strlen(text)); };
+  const size_t base = 12;
+  // A node with a position (and, if `turn`, an orientation) controller.
+  const auto node = [&](size_t at, const char* name, size_t keys, const float pos[3], const float* turn) {
+    puts(at + 0x10, name);
+    const size_t data = keys + 0x20;
+    put32(at + 0x44, static_cast<uint32_t>(keys - base));
+    put32(at + 0x48, turn ? 2 : 1);
+    put32(at + 0x50, static_cast<uint32_t>(data - base));
+    put32(at + 0x54, turn ? 9 : 4);
+    put32(keys, 8);
+    put16(keys + 4, 1);
+    put16(keys + 6, 0);
+    put16(keys + 8, 1);
+    b[keys + 10] = 3;
+    for (int i = 0; i < 3; ++i) putf(data + 4 + 4 * i, pos[i]);
+    if (turn) {
+      put32(keys + 12, 20);
+      put16(keys + 16, 1);
+      put16(keys + 18, 0);
+      put16(keys + 20, 4);
+      b[keys + 22] = 4;
+      for (int i = 0; i < 4; ++i) putf(data + 16 + 4 * i, turn[i]);
+    }
+  };
+  const auto children = [&](size_t at, size_t array, size_t kid) {
+    put32(at + 0x38, static_cast<uint32_t>(array - base));
+    put32(at + 0x3C, 1);
+    put32(array, static_cast<uint32_t>(kid - 0x10 - base));
+  };
+  puts(base + 8, "test_omen");
+  put32(base + 0x48, static_cast<uint32_t>(0x100 - 0x10 - base));
+  const float zero[3] = {0, 0, 0}, up[3] = {0.5f, 0, 1.3f}, aside[3] = {1, 0, 0};
+  const float quarter[4] = {0, 0, 0.70710678f, 0.70710678f};  // 90 degrees round z
+  node(0x100, "test_omen", 0x800, zero, nullptr);
+  children(0x100, 0xF00, 0x200);
+  node(0x200, "Group01", 0x840, up, quarter);  // 1.3 m up, turned a quarter
+  children(0x200, 0xF10, 0x300);
+  node(0x300, "eyes", 0x880, aside, nullptr);  // 1 m along its parent's x: the model's y
+  puts(0x300 + 0x60 + 0x18, "Fountain");
+  puts(0x300 + 0x60 + 0x38, "Normal");
+  puts(0x300 + 0x60 + 0x78, "fxpa_eye1");
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxBinaryModel(b, &effect, &error), true);
+  CHECK_EQ(effect.emitters.size(), 1u);
+  if (effect.emitters.empty()) return;
+  CHECK_EQ(Milli(effect.emitters[0].position[0]), 500);
+  CHECK_EQ(Milli(effect.emitters[0].position[1]), 1000);
+  CHECK_EQ(Milli(effect.emitters[0].position[2]), 1300);
+  // Its parent's quarter turn round z is its own (it isn't turned under it).
+  CHECK_EQ(Milli(effect.emitters[0].orientation[2]), 1000);
+  CHECK_EQ(Milli(effect.emitters[0].orientation[3]), 1571);
 }
 
 // Tile torches: a dummy node's position by name in a compiled model laid out as

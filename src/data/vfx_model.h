@@ -19,6 +19,9 @@ struct VfxEmitter {
   std::string blend = "Normal";     // Normal | Lighten | Punch-Through
   std::string texture = "fxpa_sphere";
   float position[3] = {0.0f, 0.0f, 0.0f};  // metres from the node (a model's emitter without one: on it)
+  // Its turn, axis x y z and angle (radians) as a model writes it: particles leave along the
+  // emitter's z, its area lies in its x / y (0 0 0 0: not turned - straight up). 0.42.2.
+  float orientation[4] = {0.0f, 0.0f, 0.0f, 0.0f};
   float birthrate = 10.0f;                 // particles a second
   float emit_seconds = 0.0f;               // on this long, then off (0: all the time)
   float life = 1.0f;                       // seconds
@@ -37,6 +40,10 @@ struct VfxEmitter {
   int grid = 1;       // a texture sheet of grid x grid frames
   int frame_end = 0;  // frames 0..frame_end
   float blur_length = 0.0f;
+  // 0.42.2, as the game draws them (PartEmitter::RenderEmitter): the sheet's frames a second
+  // (0: the frame stays - what nwn5e wrote before) and the particles' spin, radians a second.
+  float fps = 0.0f;
+  float particle_rot = 0.0f;
   float bounce_co = 0.0f;
   bool inherit = false;  // particles move with the creature
   bool splat = false;    // flatten where they land
