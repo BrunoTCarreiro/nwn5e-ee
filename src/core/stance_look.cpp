@@ -83,6 +83,17 @@
 // a creature backing up looked still: the arm layers changed (and the idle
 // restarted) under its walk. Moving is now its position too (moved in the last
 // 500 ms); the stand hold starts on the first update it's seen walking.
+// 0.40.2 (owner: "the arm stuttering is very noticeable when walking (forward
+// or backwards) encumbered and in stealth mode"; !animtrace with call stacks):
+// each time the client (re)starts a walk it turns the walk arm layers on and
+// the run arm layers off (0x961080, gait 0 then 1), by their names through
+// the swap list - with run_<hold> swapped to the crouch walk's layer too
+// (0.39.9), turning the run layers off stopped the walk layer just started.
+// Walking normally that happened once per walk (no weapon arms on the crouch
+// walk); an overloaded crawl restarts the walk every frame (vanilla too - the
+// upright crawl did ~50 / s, harmless), so the arms stopped and started ~60
+// times a second. The run layers are never swapped now (removed, also from
+// saves made with 0.39.9-0.40.1); the run itself still is (a hider walks).
 
 #include <windows.h>
 
@@ -190,16 +201,15 @@ bool CrouchBuilt() {
 
 // The weapon arm layers' swaps for a walk: the crouch walk's own (built by
 // anim_packs.cpp), else removed (a limp or the game's walk: theirs). The
-// run's layers too: a crouching creature's run is its crouch walk (see the top).
+// run's layers are always removed - never the walk's layer (see the top).
 std::string LayerCode(const std::string& walk) {
   std::string code;
   for (const char* hold : kHolds) {
     const std::string layer = walk == kCrouchWalk ? std::string(kCrouchWalk) + "_" + hold : "";
     std::string text;
     const std::string with = !layer.empty() && AnimationRecipeBuilt(layer, &text) ? layer : "";
-    for (const char* gait : {"walk_", "run_"}) {
-      code += std::string("ReplaceObjectAnimation(OBJECT_SELF, \"") + gait + hold + "\", \"" + with + "\");";
-    }
+    code += std::string("ReplaceObjectAnimation(OBJECT_SELF, \"walk_") + hold + "\", \"" + with + "\");";
+    code += std::string("ReplaceObjectAnimation(OBJECT_SELF, \"run_") + hold + "\", \"\");";
   }
   return code;
 }

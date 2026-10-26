@@ -2236,6 +2236,17 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   under them bends and sways the pelvis, and the engine plays the layer
   forward at speed 1 even while the walk runs backward at -0.96; a trace of
   the current build asked for before changing the layers.
+  0.40.2 (owner: "the arm stuttering is very noticeable when walking ...
+  encumbered and in stealth mode"; CA1-3 approved): traces with call
+  stacks - an overloaded crawl (walk played at +-0.24) makes the client
+  restart the walk every frame (vanilla too: the upright crawl did ~50 / s,
+  unseen), and each walk start runs 0x961080 twice: the walk arm layers on,
+  then the run arm layers off - by name through the swap list; 0.39.9 had
+  swapped run_<hold> to the crouch walk's layer too, so turning the run
+  layers off stopped the walk layer just started (once per walk at normal
+  speed - no weapon arms on the crouch walk; ~60 / s at the crawl). The run
+  layers are never swapped now (removed, also from saves); the base run
+  still is. Likely the earlier torso / arm stutter while crouch-walking too.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:
