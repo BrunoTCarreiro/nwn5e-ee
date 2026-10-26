@@ -2260,6 +2260,14 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   tools/data/stealth_rings.py's cessation fades the band out over 0.1 s
   (alphakey) and shrinks it away at the end (scalekey); the eye / ear
   markers already shrank to nothing in theirs.
+  *Tested in game (owner, 2026-10-26: "everything seems good, untested: RB1,
+  GL3 and a few others but I think most are good"):* the 0.33-0.40
+  backlog - visibility (GH1 dim / dark, GH2, GL1, GL2, LS8), enemies (RB3,
+  LS5), henchmen (HS1-4, HS2-1, HS2-2, HS3-1, HS3-2, HS4), lights (LR1, LR2,
+  FL3-FL7, LS4, LW1-LW3, RS3, RS4), MK1-MK4 and the earlier CA1-CA3, ST,
+  SR, animation sets (WT / PA / LN / BW / DB / SL / AS). Left for the rogue
+  pass: RB1 (Expertise more see-through), GL3 (the glow for such a rogue
+  in the dark) and RB2 (Reliable Talent). CA4 / LN9 optional, not reported.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:
