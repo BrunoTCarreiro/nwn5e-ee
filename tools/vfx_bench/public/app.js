@@ -254,7 +254,7 @@
     { title: "Texture", fields: [
       { key: "texture", type: "texture", label: "Texture" },
       { key: "chunk", type: "chunk", label: "Chunk model (each particle is this model, no sprite; empty = sprites)",
-        help: "A model of the game's - its own effects use fx_rockchunksml, fx_chunkm, fx_meteor, fx_rainice, fx_card, fx_skull, red_s_bone and more. The game makes one per particle and plays its impact animation; the bench marks each with a grey square." },
+        help: "A model of the game's - its own effects use fx_rockchunksml, fx_chunkm, fx_meteor, fx_rainice, fx_card, fx_skull, red_s_bone and more. The game makes one per particle and plays its impact animation, and turns it by Spin (Motion) about the way it was thrown - with Spin 0 they never turn and all look alike. The bench marks each with a small cube that turns the same way." },
       { key: "grid", type: "int", min: 1, max: 8, label: "Sheet: frames across and down" },
       { key: "frame_end", type: "int", min: 0, max: 63, label: "Last frame used (0 = the first only)" },
       { key: "fps", type: "num", min: 0, max: 60, step: 1, label: "Frames a second (0 = the frame stays; they loop)" },
@@ -283,7 +283,7 @@
       { key: "bounce_co", type: "num", min: 0, max: 1, step: 0.05, label: "Bounce: speed kept" },
       { key: "splat", type: "bool", label: "Lies flat where it lands" },
       { key: "blur_length", type: "num", min: 0, max: 10, step: 0.05, label: "Blur length (Motion_Blur: how many seconds its tail lags)" },
-      { key: "particle_rot", type: "num", min: -10, max: 10, step: 0.1, label: "Spin (radians a second)" },
+      { key: "particle_rot", type: "num", min: -20, max: 20, step: 0.1, label: "Spin (radians a second; a chunk model turns about the way it was thrown - 0: never)" },
     ] },
     { title: "Point to point", fields: [
       { key: "p2p", type: "p2p", label: "Goes to a target" },
@@ -746,7 +746,7 @@
     const aimless = fx.emitters.filter((e) => String(e.update).toLowerCase() === "lightning" && !(fx.nodes || []).some((n) => n.parent === e.name));
     if (aimless.length) notes.push("Lightning needs a target - a node under the emitter: " + aimless.map((e) => e.name).join(", ") + " draws nothing.");
     const chunks = state.fx.emitters.filter((e) => e.chunk);
-    if (chunks.length) notes.push("Chunk models aren't drawn here: grey squares mark " + [...new Set(chunks.map((e) => e.chunk))].join(", ") + " - Play in game shows them.");
+    if (chunks.length) notes.push("Chunk models aren't drawn here: small cubes mark " + [...new Set(chunks.map((e) => e.chunk))].join(", ") + ", turning as the game turns them (by Spin) - Play in game shows the models.");
     const missing = [...new Set(state.fx.emitters.filter((e) => !e.chunk).map((e) => e.texture.toLowerCase()))].filter((t) => s && s.exported && !inLibrary(t));
     if (missing.length) notes.push(missing.join(", ") + (missing.length > 1 ? " aren't" : " isn't") + " in the library: a soft dot stands in.");
     $("overlay").replaceChildren(...notes.map((text) => el("li", { text })));

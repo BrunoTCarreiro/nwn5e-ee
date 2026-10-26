@@ -34,6 +34,7 @@
     { key: "fade", kind: "colour", label: "Fades to" },
     { key: "size", label: "Size (m)", min: 0.01, max: 6, step: 0.01 },
     { key: "opacity", label: "Opacity", min: 0, max: 1, step: 0.05 },
+    { key: "spin", label: "Spin (radians a second; chunks turn about the way they were thrown)", min: -20, max: 20, step: 0.5 },
   ];
   const look = (id, name, note, fields) => ({ id, name, note, fields });
   const PARTICLES = [
@@ -75,8 +76,8 @@
       { texture: "fxpa_lbolt2l", render: "Linked", blend: "Lighten", size_start: 0.12, size_end: 0.08, color_start: [0.75, 0.85, 1], color_end: [0.4, 0.6, 1], alpha_start: 1, alpha_end: 1 }),
     look("rain", "Raindrop", "A falling streak: with Falling from an area.",
       { texture: "fxpa_rain01", render: "Aligned_to_World_Z", blend: "Lighten", size_start: 0.18, size_end: 0.15, color_start: [0.7, 0.8, 0.95], color_end: [0.7, 0.8, 0.95], alpha_start: 0.8, alpha_end: 0.5 }),
-    look("rock", "Rock chunks", "Each particle a small rock model of the game's, no sprite (grey squares in the bench).",
-      { chunk: "fx_rockchunksml", texture: "fxpa_dot01", size_start: 0.1, size_end: 0.1, color_start: [1, 1, 1], color_end: [1, 1, 1], alpha_start: 1, alpha_end: 1 }),
+    look("rock", "Rock chunks", "Each particle a small rock model of the game's, no sprite, tumbling by Spin about the way it was thrown (cubes in the bench).",
+      { chunk: "fx_rockchunksml", texture: "fxpa_dot01", particle_rot: 6, size_start: 0.1, size_end: 0.1, color_start: [1, 1, 1], color_end: [1, 1, 1], alpha_start: 1, alpha_end: 1 }),
   ];
 
   // --- emissions ---------------------------------------------------------------------------
@@ -509,6 +510,7 @@
     return PARTICLE_PARAMS.map((d) => Object.assign({}, d, { value: {
       colour: (f.color_start || [1, 1, 1]).slice(), fade: (f.color_end || f.color_start || [1, 1, 1]).slice(),
       size: f.size_start !== undefined ? f.size_start : 0.1, opacity: f.alpha_start !== undefined ? f.alpha_start : 1,
+      spin: f.particle_rot || 0,
     }[d.key] }));
   }
   // Your own emissions: how many, how fast, how long, from what they were kept with.
@@ -541,6 +543,7 @@
     const o = f.alpha_start > 0 ? p.opacity / f.alpha_start : 1;
     e.alpha_start = p.opacity;
     e.alpha_end = Math.max(0, Math.min(1, (f.alpha_end !== undefined ? f.alpha_end : 0) * o));
+    e.particle_rot = p.spin;
     if (String(e.update).toLowerCase() === "lightning") e.render = "Linked";
     return e;
   }

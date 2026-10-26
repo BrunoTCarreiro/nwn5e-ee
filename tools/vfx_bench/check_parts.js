@@ -236,10 +236,14 @@ const range = (xs) => [Math.min(...xs), Math.max(...xs)];
 // 5. Settings: a particle's colour / size / opacity, an emission's rate, clamped to range.
 {
   const e = core.emitter();
-  parts.applyParticle(e, parts.find("particle", "flame"), { colour: [0, 1, 0], size: 0.9, opacity: 0.5 });
+  parts.applyParticle(e, parts.find("particle", "flame"), { colour: [0, 1, 0], size: 0.9, opacity: 0.5, spin: -3 });
   const f = parts.find("particle", "flame").fields;
   console.log("particle settings: colour", e.color_start.join(","), "size", e.size_start, "->", e.size_end.toFixed(3), "opacity", e.alpha_start);
-  if (e.color_start[1] !== 1 || e.size_start !== 0.9 || !near(e.size_end, f.size_end * 2) || e.alpha_start !== 0.5 || e.grid !== 4) fail("particle settings");
+  if (e.color_start[1] !== 1 || e.size_start !== 0.9 || !near(e.size_end, f.size_end * 2) || e.alpha_start !== 0.5 || e.grid !== 4 || e.particle_rot !== -3) fail("particle settings");
+  // The rock chunks tumble by default (Spin): with 0 the game never turns a chunk model.
+  const rock = core.emitter();
+  parts.applyParticle(rock, parts.find("particle", "rock"), {});
+  if (!rock.chunk || !(rock.particle_rot > 0)) fail("rock chunks don't spin");
   parts.applyParticle(e, parts.find("particle", "spark"), {});
   if (e.grid !== 1 || e.fps !== 0 || e.random !== false) fail("a look left behind (grid / fps / random)");
   const target = parts.applyEmission(e, parts.find("emission", "beam"), { rate: 9999, distance: 4 });

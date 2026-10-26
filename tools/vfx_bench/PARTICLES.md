@@ -117,6 +117,16 @@ grav 0, sizeMid 0, sizeMid_y 0. MdlNodeEmitter ctor 0x875a0: node+0x98 = 5 (?), 
 - Each particle is a ChunkyParticle (ctor 0x602b0): NewCAurObject(chunkName) at +0x78, added to
   the scene; ChunkyParticle::initialize (0x663d0) scales it by the gob's scale and plays its
   "impact" animation. Resting (bounce): pushed sizeStart off the surface, not 0.02.
+- **How a chunk turns** (read 0.43.2): RenderNothing (0x64190) is the chunk emitters' draw - for
+  each particle with a model: model->vf 0xb0 SetPosition(p.pos); then, only if particleRot
+  (+0xbc) != 0 and the particle isn't at rest (+0x70): model->vf 0xb8 SetOrientation(q), q =
+  the turn by p.spin (+0x1c: += dt particleRot each frame, kept within a turn) about
+  normalize(+0x4c) - the particle's direction (the way it was thrown; the gravity p2p move
+  updates it to its travel; at rest it's the surface normal but no longer used). particleRot
+  0: the orientation is never set - every chunk in the model's own pose. Particle::initialize
+  starts p.spin at 0 for all (0x66471): chunks thrown the same way turn alike; a spread
+  (different directions) is what makes them tumble differently. A chunk at rest keeps its last
+  turn.
 ## Lightning (read 0.42.7)
 - LightningEmitter::Initialize (0x61d30): PartEmitter::Initialize, then lifeExp (+0xac) = 1 and
   the "_EmitterTarget" callback, p2p or not - the target is the emitter's first reference child

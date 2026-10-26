@@ -2544,6 +2544,16 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   radius by height, pendulum length and swing, wheel and corkscrew radius,
   boomerang reach and curve, breathe in / out, bounce heights, jitter bound,
   petal radii, blink held then jumped).
+  0.43.2 (owner: "is there a way to control 3d meshes' rotation? ... rock
+  chunks ... no rotation"): read in the game - the chunk emitters' draw
+  (RenderNothing 0x64190) sets each chunk model's position, and its turn only
+  when particleRot != 0 and it isn't at rest: p.spin (starts 0, += dt
+  particleRot) about the particle's direction (+0x4c, the way it was thrown).
+  So Spin is the control; 0 (as the Rock chunks preset had) never turns them.
+  Rock chunks now spin 6 rad/s; every particle part has a Spin setting; the
+  Spin field says what it does to chunks; the bench draws chunks as small
+  cubes turned by the same rule (a rested one keeps its last turn) instead of
+  flat squares. check_parts.js: the Spin setting, the rocks spin.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

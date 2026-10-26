@@ -111,8 +111,11 @@ point (the game would crash).
 
 Chunks (0.42.6): "Chunk model" makes each particle a model of the game's instead of a sprite
 (rocks, bones, meteors, cards - 95 of the game's emitters); the game then draws no sprites for
-that emitter. The bench can't draw models: a grey square marks each chunk, and Play in game
-shows them.
+that emitter. The bench can't draw models: a small cube marks each chunk, and Play in game
+shows them. A chunk turns by **Spin** (Motion; radians a second) about the way it was thrown
+(0.43.2, from the game's code): with Spin 0 the game never turns them - every chunk sits in the
+model's own pose - and with a spread they tumble each their own way; one that lands and comes
+to rest keeps its last turn. The cubes turn the same way.
 
 Lightning (0.42.7): an emitter whose Update is Lightning draws a bolt of Rate points from it to
 its target (the first node under it - choosing Lightning makes one, as point to point does),

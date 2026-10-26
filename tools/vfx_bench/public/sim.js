@@ -453,6 +453,8 @@
       }
       if (p.vel[0] ** 2 + p.vel[1] ** 2 + p.vel[2] ** 2 < 0.5) {
         p.stopped = true;
+        p.restDir = p.dir;    // a chunk keeps the turn it had (RenderNothing skips a stopped one)
+        p.restSpin = p.spin;
         p.pos[2] = 0.02;
         p.dir = [0, 0, 1];   // turned to the ground's normal (RotationArc(z, n))
         p.xaxis = [1, 0, 0];
@@ -632,6 +634,7 @@
           return {
             pos: p.pos, trail: p.trail, w, h: w, color: [...rgb, Math.trunc(alpha) / 255], alpha255: alpha,
             frame: grid > 1 ? p.frame : -1, spin: p.spin, dir: p.dir, xaxis: p.xaxis, stopped: p.stopped,
+            restDir: p.restDir, restSpin: p.restSpin,
           };
         });
         return { emitter: e, particles, grid, place: at };
