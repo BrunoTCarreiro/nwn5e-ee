@@ -556,12 +556,45 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
     if (error) *error = "no emitters found in that model";
     return false;
   }
-  // The animations' copies of each emitter node: a birthrate keyed off.
+  result.duration = bytes.find(std::string("duration", 9)) != std::string::npos;
+  // The animations (their 64-byte name at the header's +8, the length at +0x70),
+  // by where they start: an animation's copies of the nodes follow its header
+  // (0.42.0, the game's vdr_eleshield: impact 0x100, duration 0xa6c, cessation
+  // 0x1344, Ring01's copies at 0x55c / 0xec0 / 0x1798).
+  std::vector<std::pair<size_t, std::string>> anims;
+  for (const char* name : {"impact", "duration", "cessation"}) {
+    const std::string needle = std::string(1, '\0') + name + std::string(1, '\0');
+    for (size_t at = bytes.find(needle); at != std::string::npos; at = bytes.find(needle, at + 1)) {
+      if (at + 1 < 8 + kModelBase) continue;
+      const size_t header = at + 1 - 8;
+      const float length = m.F32(header + 0x70);
+      if (length > 0.0f && length < 60.0f) anims.emplace_back(header, name);
+    }
+  }
+  const auto anim_of = [&](size_t node) {
+    size_t best = 0;
+    std::string name;
+    for (const auto& a : anims) {
+      if (a.first < node && a.first >= best) {
+        best = a.first;
+        name = a.second;
+      }
+    }
+    return name;
+  };
+  // The animations' copies of each emitter node: a birthrate keyed off. Not the
+  // cessation's (how a lasting effect ends - the game's own key every emitter off
+  // there, which read as "on for 0.03 s") nor the looping duration's; the
+  // impact's for a one-shot effect, or for a lasting one's emitter that is
+  // otherwise off (birthrate 0: a burst at the start).
   for (size_t i = 0; i < result.emitters.size(); ++i) {
     VfxEmitter& e = result.emitters[i];
+    const float geometry_rate = e.birthrate;
     const std::string needle = e.name + std::string(1, '\0');
     for (size_t at = bytes.find(needle); at != std::string::npos; at = bytes.find(needle, at + 1)) {
       if (at < 0x10 + kModelBase || at - 0x10 == nodes[i]) continue;
+      const std::string anim = anim_of(at - 0x10);
+      if (anim == "cessation") continue;
       std::vector<Controller> controllers;
       if (!ReadControllers(m, at - 0x10, &controllers)) continue;
       for (const Controller& c : controllers) {
@@ -571,11 +604,10 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
         float top = 0.0f, off = 0.0f;
         ReadBirthrateKeys(keys, &top, &off);
         if (top > 0.0f) e.birthrate = std::max(e.birthrate, top);
-        if (off > 0.0f) e.emit_seconds = off;
+        if (off > 0.0f && anim != "duration" && (!result.duration || geometry_rate == 0.0f)) e.emit_seconds = off;
       }
     }
   }
-  result.duration = bytes.find(std::string("duration", 9)) != std::string::npos;
   // The impact animation's length (its header: the 64-byte name at +8, the
   // length at +0x70): how long an always-on emitter of a one-shot effect runs.
   const std::string impact("impact", 7);

@@ -175,6 +175,75 @@ TEST(VfxReadsACompiledModel) {
   CHECK_EQ(ReadVfxBinaryModel("newmodel x", &effect, &error), false);
 }
 
+// A lasting effect read from a compiled model laid out as the game's (0.42.0;
+// vdr_eleshield): its animations' headers, then their copies of the emitter
+// nodes. Breaks caught: the cessation's switch-off (every lasting game effect
+// has one) read as "on for 0.03 s" - the VFX Bench showed the elemental shield
+// dying after 2.6 s; a lasting effect's impact burst (an emitter otherwise off)
+// losing its on-time; a copy given to the wrong animation.
+TEST(VfxLastingEffectKeepsEmitting) {
+  std::string b(0x1000, '\0');
+  const auto put32 = [&](size_t at, uint32_t v) { memcpy(&b[at], &v, 4); };
+  const auto put16 = [&](size_t at, uint16_t v) { memcpy(&b[at], &v, 2); };
+  const auto putf = [&](size_t at, float v) { memcpy(&b[at], &v, 4); };
+  const auto puts = [&](size_t at, const char* text) { memcpy(&b[at], text, strlen(text)); };
+  const size_t base = 12;
+  // A node named `name` with one birthrate controller (one column).
+  const auto node = [&](size_t at, const char* name, size_t keys, size_t data, const std::vector<float>& times,
+                        const std::vector<float>& values) {
+    puts(at + 0x10, name);
+    put32(at + 0x44, static_cast<uint32_t>(keys - base));
+    put32(at + 0x48, 1);
+    put32(at + 0x50, static_cast<uint32_t>(data - base));
+    put32(at + 0x54, static_cast<uint32_t>(times.size() * 2));
+    put32(keys, 88);
+    put16(keys + 4, static_cast<uint16_t>(times.size()));
+    put16(keys + 6, 0);
+    put16(keys + 8, static_cast<uint16_t>(times.size()));
+    b[keys + 10] = 1;
+    for (size_t i = 0; i < times.size(); ++i) {
+      putf(data + 4 * i, times[i]);
+      putf(data + 4 * (times.size() + i), values[i]);
+    }
+  };
+  const auto anim = [&](size_t header, const char* name) {
+    puts(header + 8, name);
+    putf(header + 0x70, 1.0f);
+  };
+  const auto emitter = [&](size_t at) {
+    puts(at + 0x60 + 0x18, "Fountain");
+    puts(at + 0x60 + 0x38, "Normal");
+    puts(at + 0x60 + 0x78, "fxpa_sphere");
+  };
+  puts(base + 8, "test_shield");
+  anim(0x100, "impact");
+  node(0x200, "flash", 0xC00, 0xC10, {0.0f, 0.2f, 0.21f}, {30.0f, 30.0f, 0.0f});  // a burst at the start
+  node(0x300, "ring", 0xC40, 0xC50, {0.0f, 0.5f, 0.51f}, {50.0f, 50.0f, 0.0f});  // on again in the duration
+  anim(0x400, "duration");
+  node(0x480, "ring", 0xC80, 0xC90, {0.0f, 1.0f}, {50.0f, 50.0f});
+  anim(0x500, "cessation");
+  node(0x600, "ring", 0xCC0, 0xCD0, {0.0f, 0.033f}, {50.0f, 0.0f});  // how it ends
+  node(0x700, "flash", 0xD00, 0xD10, {0.0f, 0.033f}, {30.0f, 0.0f});
+  node(0x800, "ring", 0xD40, 0xD50, {0.0f}, {50.0f});  // the geometry: on
+  emitter(0x800);
+  node(0xA00, "flash", 0xD80, 0xD90, {0.0f}, {0.0f});  // the geometry: off
+  emitter(0xA00);
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxBinaryModel(b, &effect, &error), true);
+  CHECK_EQ(effect.duration, true);
+  CHECK_EQ(effect.emitters.size(), 2u);
+  const VfxEmitter* ring = nullptr;
+  const VfxEmitter* flash = nullptr;
+  for (const VfxEmitter& e : effect.emitters) (e.name == "ring" ? ring : flash) = &e;
+  CHECK_EQ(ring != nullptr && flash != nullptr, true);
+  if (!ring || !flash) return;
+  CHECK_EQ(Milli(ring->birthrate), 50000);
+  CHECK_EQ(Milli(ring->emit_seconds), 0);
+  CHECK_EQ(Milli(flash->birthrate), 30000);
+  CHECK_EQ(Milli(flash->emit_seconds), 200);
+}
+
 // Tile torches: a dummy node's position by name in a compiled model laid out as
 // the game's (built here). Breaks caught: the name's case mattering; a longer
 // name containing it ("...sl10") matched; the node's base (name - 0x10) or the

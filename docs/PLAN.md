@@ -2321,6 +2321,41 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   SR, animation sets (WT / PA / LN / BW / DB / SL / AS). Left for the rogue
   pass: RB1 (Expertise more see-through), GL3 (the glow for such a rogue
   in the dark) and RB2 (Reliable Talent). CA4 / LN9 optional, not reported.
+  0.42.0 (owner, 2026-10-26: "can you come up with a webapp to edit and
+  create new vfx? Kind of like the one for animations"): the VFX Bench, a
+  local web app in `tools/vfx_bench/` (`vfx_bench.bat`: Node on
+  127.0.0.1:8766, no dependencies). nwn5e (`vfx_bench`) copies the game's
+  effects out for it once, 3 s into a start (`!vfxexport` again):
+  `build\vfxedit\library\` - index.txt (421 rows with emitters), 394 models
+  as drafts (vfx_model.cpp's binary reader, the same as !vfxedit's Load), the
+  64 particle textures (TGA, the player's own files; fxpa_cloud02 not found)
+  and nwn5e's 14 effects; 2.7 s, once. The page: the effects to open (yours,
+  nwn5e's as a copy, the game's as fx<row>), a WebGL stage (an approximation of
+  the emitters: Fountain / Single / Explosion, the render and blend modes,
+  cone spread, gravity, spawn area, life, size / colour / opacity over life,
+  texture sheets, bounce, splat, inherit with a walking figure; Lightning not
+  drawn), every emitter field with sliders, colour pickers and a texture
+  picker with thumbnails, the draft text. Save writes the draft into
+  `vfxedit\saved\` (the game writes its model there - WriteVfxModel stays the
+  one writer; !vfxedit's Load lists it). Play in game / Stop in game: the
+  page writes `vfxedit\bench\request.vfx`, the game (the player's update, 4 a
+  second) plays it on the character as Preview on me does and answers in
+  `bench\status.txt`; `bench\alive.txt` (every 2 s) says the game is in play.
+  `public/core.js` ports WriteVfxDraft / ReadVfxDraft; `check.js` reads and
+  writes back all 408 exported drafts (1702 emitters) byte for byte. Found on
+  the way: the binary reader took every lasting game effect's cessation (its
+  emitters keyed off as it ends) for "on for 0.03 s" - the elemental shield
+  died after 2.6 s, in !vfxedit's Load too. Now an animation's copies of the
+  nodes belong to the header before them (vdr_eleshield: impact 0x100,
+  duration 0xa6c, cessation 0x1344; Ring01's copies 0x55c / 0xec0 / 0x1798),
+  the cessation's and the duration's switch-offs are ignored, and a lasting
+  effect's impact switch-off counts only for an emitter otherwise off
+  (VfxLastingEffectKeepsEmitting, both guards mutation-checked); the library
+  format is 2 so an old export is redone. Not in the effect model at all (the
+  in-game editor's too): an emitter node's own motion (the shield's circling
+  rings stand still). Checked: page controls driven in headless Edge, the
+  server's guards (Origin, Host), screenshots of game effects. Not yet: Play
+  in game with a character in play.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

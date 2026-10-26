@@ -251,6 +251,9 @@ struct Config {
   // Another creature's radial menu leaves out your self-only class feats
   // (Rage, Reckless Attack ...) instead of greying them (radial_class_feats.cpp).
   bool radial_hide_self_feats = true;
+  // The VFX Bench (tools/vfx_bench): the game's effects exported for it once,
+  // its Play in game / Stop requests played (vfx_editor.cpp).
+  bool vfx_bench = true;
   // Who has noticed a hiding player character (owner, 2026-10-25: "build your
   // recommendation" for showing enemies' sight): an eye over each hostile that
   // sees it, an ear over one that only hears it (stealth_watch.cpp).

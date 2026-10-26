@@ -26,6 +26,22 @@
 // particle names"): the first !vfxedit reads every effect model the effects
 // table names, once - the rows whose model has emitters, and the textures
 // those emitters use.
+//
+// The VFX Bench (tools/vfx_bench, 0.42.0; owner, 2026-10-26: "can you come up
+// with a webapp to edit and create new vfx? Kind of like the one for
+// animations"), with `vfx_bench`: 3 s into a start (the client's frame; the
+// first player update if there's no client), the game's effects with emitters
+// are exported once to vfxedit\library\ (index.txt:
+// row, label, model, node, type; game\<model>.vfx: each model's emitters as a
+// draft; textures\<name>.tga / .dds: the particle textures, the player's own
+// files, never in the repo) - again with `!vfxexport` - and nwn5e's own effect
+// models (served\n5_*.mdl) as drafts in library\nwn5e\. The page asks the game
+// to play or stop an effect through vfxedit\bench\request.vfx (a draft, its
+// first line `request = play <n>` / `request = stop <n>`; looked at four times a
+// second on the player's update), played as Preview on me does; the answer is
+// bench\status.txt (`<n>` tab the status line), and bench\alive.txt says the
+// game is running (every 2 s). A draft saved in saved\ (the page writes only
+// drafts) gets its model there by WriteVfxModel - one writer.
 
 #include <windows.h>
 
@@ -44,7 +60,10 @@
 #include <vector>
 
 #include "chat.h"
+#include "client_ui.h"
+#include "config.h"
 #include "creature.h"
+#include "creature_update.h"
 #include "data/vfx_model.h"
 #include "data_serving.h"
 #include "ee_layout.h"
@@ -254,6 +273,7 @@ struct GameScan {
   bool done = false;
   std::vector<GameEffect> effects;
   std::vector<std::string> textures;
+  std::map<std::string, data::VfxEffect> models;  // by lower-case model: those with emitters (the bench's export)
 };
 GameScan g_scan;
 
@@ -306,6 +326,7 @@ void ScanGameEffects() {
         }
       }
       known = has_emitters.emplace(Lower(model), ok && !effect.emitters.empty()).first;
+      if (known->second) g_scan.models[Lower(model)] = effect;
     }
     if (known->second) g_scan.effects.push_back({static_cast<int>(row), labels[row], model, attach, at(types, row) == "D"});
   }
@@ -577,61 +598,59 @@ data::VfxEmitter* Selected(Session& session) {
 
 // --- Preview, save, load ------------------------------------------------------------
 
-void Preview(uint32_t player, Session& session) {
-  if (session.effect.emitters.empty()) {
-    SetStatus(player, "Add an emitter first.");
-    return;
-  }
-  if (!RegisterFolder()) {
-    SetStatus(player, "The editor's folder could not be registered with the game (see nwn5e.log).");
-    return;
-  }
+// Plays `effect` on `player` (Preview on me, the bench's Play in game): the status line.
+std::string PlayEffect(uint32_t player, const data::VfxEffect& effect) {
+  if (effect.emitters.empty()) return "Add an emitter first.";
+  if (!RegisterFolder()) return "The editor's folder could not be registered with the game (see nwn5e.log).";
   char model[16];
   sprintf_s(model, "n5vx%04d", ++g_models_written % 10000);
   const std::wstring path = EditorDirectory() + L"\\" + Wide(model) + L".mdl";
-  if (!WriteFile(path, data::WriteVfxModel(session.effect, model))) {
-    SetStatus(player, "Could not write " + Narrow(path) + ".");
-    return;
-  }
+  if (!WriteFile(path, data::WriteVfxModel(effect, model))) return "Could not write " + Narrow(path) + ".";
   bool found = ModelExists(model);
   if (!found) {
     RefreshFolder();
     found = ModelExists(model);
     Log("vfx editor: %s not seen at once - folder read again: %s", model, found ? "found" : "still not found");
   }
-  const bool pointed = PointPreviewRow(model, session.effect);
+  const bool pointed = PointPreviewRow(model, effect);
   if (!found || !pointed) {
-    SetStatus(player, std::string("Preview failed: ") + (!found ? "the game doesn't see the new model" :
-                                                                  "row 1600 could not be changed") +
-                          " (see nwn5e.log).");
     Log("vfx editor: preview %s - found %d, row pointed %d", model, found, pointed);
-    return;
+    return std::string("Preview failed: ") +
+           (!found ? "the game doesn't see the new model" : "row 1600 could not be changed") + " (see nwn5e.log).";
   }
   char code[600];
-  if (session.effect.duration) {
+  if (effect.duration) {
     sprintf_s(code,
               "effect e = GetFirstEffect(OBJECT_SELF); while (GetIsEffectValid(e)) { if (GetEffectTag(e) == \"%s\") "
               "RemoveEffect(OBJECT_SELF, e); e = GetNextEffect(OBJECT_SELF); }"
               "ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(EffectVisualEffect(%d), \"%s\"), OBJECT_SELF, %.1f);",
-              kPreviewTag, kPreviewRow, kPreviewTag, std::max(1.0f, session.effect.seconds));
+              kPreviewTag, kPreviewRow, kPreviewTag, std::max(1.0f, effect.seconds));
   } else {
     sprintf_s(code, "ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(%d), OBJECT_SELF);", kPreviewRow);
   }
   RunScriptChunk(code, player);
-  Log("vfx editor: 0x%08X previews %s (%s, %zu emitters, on %s)", player, model,
-      session.effect.duration ? "D" : "F", session.effect.emitters.size(), session.effect.attach.c_str());
-  SetStatus(player, std::string("Playing on you (model ") + model + ")" +
-                        (session.effect.duration ? " for " + Num(session.effect.seconds) + " s." : ".") +
-                        " Change a field and press Preview again.");
+  Log("vfx editor: 0x%08X previews %s (%s, %zu emitters, on %s)", player, model, effect.duration ? "D" : "F",
+      effect.emitters.size(), effect.attach.c_str());
+  return std::string("Playing on you (model ") + model + ")" +
+         (effect.duration ? " for " + Num(effect.seconds) + " s." : ".");
 }
 
-void StopPreview(uint32_t player) {
+void StopEffect(uint32_t player) {
   char code[300];
   sprintf_s(code,
             "effect e = GetFirstEffect(OBJECT_SELF); while (GetIsEffectValid(e)) { if (GetEffectTag(e) == \"%s\") "
             "RemoveEffect(OBJECT_SELF, e); e = GetNextEffect(OBJECT_SELF); }",
             kPreviewTag);
   RunScriptChunk(code, player);
+}
+
+void Preview(uint32_t player, Session& session) {
+  const std::string status = PlayEffect(player, session.effect);
+  SetStatus(player, status.rfind("Playing", 0) == 0 ? status + " Change a field and press Preview again." : status);
+}
+
+void StopPreview(uint32_t player) {
+  StopEffect(player);
   SetStatus(player, "Stopped.");
 }
 
@@ -716,6 +735,201 @@ void LoadEntry(uint32_t player, int index) {
   SetStatus(player, "Loaded " + effect.name + " (" + std::to_string(effect.emitters.size()) +
                         " emitters). Preview on me to see it.");
   Log("vfx editor: 0x%08X loaded %s", player, path.c_str());
+}
+
+// --- The VFX Bench (tools/vfx_bench) -----------------------------------------------------
+
+constexpr int kLibraryFormat = 2;  // 2: lasting effects' emitters no longer cut short (the reader, 0.42.0)
+constexpr uint16_t kResTypeTga = 3;
+constexpr uint16_t kResTypeDds = 2033;
+constexpr uint64_t kBenchCheckMs = 250;
+constexpr uint64_t kAliveMs = 2000;
+
+std::wstring LibraryDirectory() { return EditorDirectory() + L"\\library"; }
+std::wstring BenchDirectory() { return EditorDirectory() + L"\\bench"; }
+
+bool FileStamp(const std::wstring& path, uint64_t* stamp) {
+  WIN32_FILE_ATTRIBUTE_DATA info;
+  if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &info)) return false;
+  *stamp = (static_cast<uint64_t>(info.ftLastWriteTime.dwHighDateTime) << 32) | info.ftLastWriteTime.dwLowDateTime;
+  return true;
+}
+
+// The game's effects for the page: its effects table's rows with emitters, each
+// model's emitters as a draft, the particle textures (the player's own files).
+// Once (index.txt of this format there), or again when `force`d.
+std::string ExportLibrary(bool force) {
+  const std::wstring library = LibraryDirectory();
+  const std::wstring index_path = library + L"\\index.txt";
+  const std::string header = "# nwn5e vfx library " + std::to_string(kLibraryFormat);
+  std::string existing;
+  if (!force && ReadFile(index_path, &existing) && existing.rfind(header, 0) == 0) return {};
+  const uint64_t started = GetTickCount64();
+  ScanGameEffects();
+  CreateDirectoryW(EditorDirectory().c_str(), nullptr);
+  CreateDirectoryW(library.c_str(), nullptr);
+  CreateDirectoryW((library + L"\\game").c_str(), nullptr);
+  CreateDirectoryW((library + L"\\textures").c_str(), nullptr);
+  int drafts = 0;
+  for (const auto& entry : g_scan.models) {
+    data::VfxEffect effect = entry.second;
+    effect.name = entry.first;
+    if (WriteFile(library + L"\\game\\" + Wide(entry.first) + L".vfx", data::WriteVfxDraft(effect))) ++drafts;
+  }
+  int textures = 0;
+  std::string missing;
+  for (const std::string& texture : g_scan.textures) {
+    std::string bytes, why;
+    const bool tga = ReadGameResource(texture, kResTypeTga, &bytes, &why);
+    if (!tga && !ReadGameResource(texture, kResTypeDds, &bytes, &why)) {
+      missing += (missing.empty() ? "" : ", ") + texture;
+      continue;
+    }
+    if (WriteFile(library + L"\\textures\\" + Wide(texture) + (tga ? L".tga" : L".dds"), bytes)) ++textures;
+  }
+  std::string index = header + " - the game's effects with emitters: row, label, model, node, type (written by nwn5e)\n";
+  for (const GameEffect& effect : g_scan.effects) {
+    index += std::to_string(effect.row) + "\t" + effect.label + "\t" + Lower(effect.model) + "\t" + effect.attach + "\t" +
+             (effect.duration ? "D" : "F") + "\n";
+  }
+  WriteFile(index_path, index);  // last: an export cut short is done again
+  Log("vfx bench: exported %zu game effects (%d models as drafts), %d of %zu particle textures to vfxedit\\library "
+      "in %llu ms%s%s",
+      g_scan.effects.size(), drafts, textures, g_scan.textures.size(),
+      static_cast<unsigned long long>(GetTickCount64() - started), missing.empty() ? "" : " - not found: ",
+      missing.c_str());
+  return std::to_string(g_scan.effects.size()) + " game effects, " + std::to_string(textures) + " textures";
+}
+
+// nwn5e's own effect models (served\n5_*.mdl, ASCII) as drafts: library\nwn5e\.
+int ExportNwn5eModels() {
+  const std::wstring served = DllDirectory() + L"\\served";
+  const std::wstring out = LibraryDirectory() + L"\\nwn5e";
+  CreateDirectoryW(EditorDirectory().c_str(), nullptr);
+  CreateDirectoryW(LibraryDirectory().c_str(), nullptr);
+  CreateDirectoryW(out.c_str(), nullptr);
+  int written = 0;
+  for (const std::wstring& file : FilesIn(served, L"n5_*.mdl")) {
+    std::string text, error, old;
+    data::VfxEffect effect;
+    if (!ReadFile(served + L"\\" + file, &text) || !data::ReadVfxAsciiModel(text, &effect, &error) ||
+        effect.emitters.empty()) {
+      continue;
+    }
+    effect.name = Narrow(file.substr(0, file.size() - 4));
+    const std::string draft = data::WriteVfxDraft(effect);
+    const std::wstring path = out + L"\\" + file.substr(0, file.size() - 4) + L".vfx";
+    if (ReadFile(path, &old) && old == draft) continue;
+    if (WriteFile(path, draft)) ++written;
+  }
+  return written;
+}
+
+// A draft saved by the page gets its model (saved\<name>.mdl) when it has none or an older one.
+void WriteSavedModels() {
+  for (const std::wstring& file : FilesIn(SavedDirectory(), L"*.vfx")) {
+    const std::wstring base = SavedDirectory() + L"\\" + file.substr(0, file.size() - 4);
+    uint64_t draft_stamp = 0, model_stamp = 0;
+    if (!FileStamp(base + L".vfx", &draft_stamp)) continue;
+    if (FileStamp(base + L".mdl", &model_stamp) && model_stamp >= draft_stamp) continue;
+    std::string text, error;
+    data::VfxEffect effect;
+    const std::string name = data::VfxResRef(Narrow(file.substr(0, file.size() - 4)));
+    if (name.empty() || !ReadFile(base + L".vfx", &text) || !data::ReadVfxDraft(text, &effect, &error)) continue;
+    if (WriteFile(base + L".mdl", data::WriteVfxModel(effect, name))) {
+      Log("vfx bench: saved\\%s.mdl written from its draft", name.c_str());
+    }
+  }
+}
+
+struct BenchLink {
+  bool exported = false;
+  bool primed = false;
+  uint64_t next = 0;
+  uint64_t alive = 0;
+  uint64_t seen = 0;  // the request file's write time last handled
+};
+BenchLink g_bench;
+
+// The page's request: `request = play <n>` / `request = stop <n>` on its first lines.
+void HandleRequest(uint32_t player, const std::string& text) {
+  std::string kind, serial;
+  std::istringstream in(text);
+  std::string line;
+  for (int i = 0; i < 5 && std::getline(in, line); ++i) {
+    const size_t at = line.find("request");
+    const size_t eq = line.find('=');
+    if (at == std::string::npos || eq == std::string::npos || eq < at) continue;
+    std::istringstream words(line.substr(eq + 1));
+    words >> kind >> serial;
+    break;
+  }
+  std::string status;
+  if (kind == "stop") {
+    StopEffect(player);
+    status = "Stopped.";
+  } else if (kind == "play") {
+    data::VfxEffect effect;
+    std::string error;
+    status = data::ReadVfxDraft(text, &effect, &error) ? PlayEffect(player, effect) : "The draft didn't read: " + error;
+  } else {
+    status = "Unknown request.";
+  }
+  CreateDirectoryW(BenchDirectory().c_str(), nullptr);
+  WriteFile(BenchDirectory() + L"\\status.txt", serial + "\t" + status + "\n");
+  Log("vfx bench: request %s %s - %s", kind.c_str(), serial.c_str(), status.c_str());
+}
+
+void ExportOnce() {
+  if (g_bench.exported) return;
+  g_bench.exported = true;
+  ExportLibrary(false);
+  const int drafts = ExportNwn5eModels();
+  if (drafts) Log("vfx bench: %d of nwn5e's effect models as drafts in vfxedit\\library\\nwn5e", drafts);
+}
+
+// The client's frame: the export 3 s into a start (at the main menu, before a game).
+void ExportTick() {
+  static uint64_t first = 0;
+  if (g_bench.exported) return;
+  const uint64_t now = GetTickCount64();
+  if (!first) first = now;
+  if (now - first >= 3000) ExportOnce();
+}
+
+void BenchUpdate(void* creature) {
+  if (!creature || Field<int32_t>(creature, ee::kCreatureIsPlayerCharacter) == 0) return;
+  const uint64_t now = GetTickCount64();
+  if (now < g_bench.next) return;
+  g_bench.next = now + kBenchCheckMs;
+  const uint32_t player = Field<uint32_t>(creature, ee::kObjectId);
+  ExportOnce();
+  if (now >= g_bench.alive) {
+    g_bench.alive = now + kAliveMs;
+    CreateDirectoryW(EditorDirectory().c_str(), nullptr);
+    CreateDirectoryW(BenchDirectory().c_str(), nullptr);
+    WriteFile(BenchDirectory() + L"\\alive.txt", "nwn5e is running\n");
+    WriteSavedModels();
+  }
+  uint64_t stamp = 0;
+  const std::wstring request = BenchDirectory() + L"\\request.vfx";
+  const bool there = FileStamp(request, &stamp);
+  if (!g_bench.primed) {  // a request from before this start isn't played
+    g_bench.primed = true;
+    g_bench.seen = there ? stamp : 0;
+    return;
+  }
+  if (!there || stamp == g_bench.seen) return;
+  g_bench.seen = stamp;
+  std::string text;
+  if (ReadFile(request, &text)) HandleRequest(player, text);
+}
+
+std::vector<std::string> VfxExportCommand(void*, const std::string&) {
+  const std::string done = ExportLibrary(true);
+  const int drafts = ExportNwn5eModels();
+  return {"nwn5e: VFX Bench library written again (" + done + "; " + std::to_string(drafts) +
+          " of nwn5e's effects changed) - press Reload in the bench."};
 }
 
 // --- Events -----------------------------------------------------------------------------
@@ -863,4 +1077,10 @@ void InstallVfxEditor() {
   if (!AddNuiWindow(kWindow, &OnEvent) || !AddNuiWindow(kLoadWindow, &OnLoadEvent)) return;
   AddChatCommand("!vfxedit", &VfxEditCommand);
   Log("vfx editor: !vfxedit (preview row %d, models in vfxedit\\)", kPreviewRow);
+  if (g_config.vfx_bench && AddCreatureUpdateListener(&BenchUpdate)) {
+    AddClientTickListener(&ExportTick);
+    AddChatCommand("!vfxexport", &VfxExportCommand);
+    Log("vfx bench: the game's effects exported to vfxedit\\library once; plays the bench's requests "
+        "(vfxedit\\bench); !vfxexport (vfx_bench)");
+  }
 }
