@@ -186,6 +186,12 @@ struct Config {
   // unarmed damage, and the 2024 Heavy rule (Disadvantage below Str / Dex
   // 13); nwn / off = NWN's size rules.
   rules::RuleVariant size = rules::RuleVariant::kFaithful;
+  // Carrying (owner, 2026-10-26: "use the 2024 encumberance"): faithful = the
+  // 2024 carrying capacity - Strength x 15 lb. with no penalty (NWN slows from
+  // about Str x 9.5 and stops the run), more overloaded: Speed about 5 feet
+  // (data/rows/encumbrance.if_carry2024.txt, ruleset.if_carry2024.txt);
+  // nwn / off = NWN's encumbrance table.
+  rules::RuleVariant carrying = rules::RuleVariant::kFaithful;
   // Finesse: faithful = a Finesse weapon (dagger, rapier, scimitar, short
   // sword...) uses the better of Str and Dex for attack and damage, no feat
   // needed; nwn / off = NWN's Weapon Finesse feat (Dex to attack).

@@ -2221,6 +2221,21 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   has been an idle for 300 ms with such a layer still started gets the stop;
   logged. Gob::PlayAnimation is hooked there now (!animtrace records
   through it).
+  0.40.0 (owner, 2026-10-26: "use the 2024 encumberance"): `carrying`
+  faithful serves SRD 5.2's carrying capacity (Rules Glossary): NWN's
+  encumbrance.2da (Strength rows, tenths of a pound; over Normal heavily
+  encumbered - walks, can't run; over Heavy overloaded) gets Normal = Heavy
+  = Str x 150 (x 15 lb.; tools/data/carrying_capacity.py), so anything over
+  the capacity is overloaded, and ruleset MOVEMENT_STAGE_PENALTY_ENCUMBRANCE_
+  OVERLOADED 2 -> 4: ComputeModifiedMovementRate slows by 100 - 100 /
+  2^(stages - 1)% at most to x 0.125 - about 4 ft of 30 (2024: at most 5
+  ft). No Goliath in nwn5e (Powerful Build: one size larger). NWN mode:
+  NWN's table. Open: the torso stutter while crouch-walking (owner: forward
+  mostly the arms, backward the whole torso) - the crouch arm layers key
+  the torso with a lean computed against a pelvis at rest, while the walk
+  under them bends and sways the pelvis, and the engine plays the layer
+  forward at speed 1 even while the walk runs backward at -0.96; a trace of
+  the current build asked for before changing the layers.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

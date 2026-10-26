@@ -1,0 +1,7 @@
+# ruleset.2da - the 2024 carrying capacity (`carrying` faithful, src/core/rules_equipment.cpp):
+# moving more than Strength x 15 lb. (overloaded, encumbrance.if_carry2024.txt) leaves a Speed of at
+# most 5 feet (SRD 5.2, Rules Glossary "Carrying Capacity"). The engine slows an overloaded creature
+# by 100 - 100 / 2^(stages - 1) percent (ComputeModifiedMovementRate), at most to x 0.125
+# (MOVEMENT_SPEED_PENALTY_CAP): 4 stages - about 4 ft of 30. NWN's own: 2 (half speed).
+Label Value
+325 MOVEMENT_STAGE_PENALTY_ENCUMBRANCE_OVERLOADED 4

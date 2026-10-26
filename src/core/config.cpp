@@ -99,6 +99,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.feats = ReadVariant(ini, L"feats", g_config.mode);
   g_config.starting_equipment = ReadVariant(ini, L"starting_equipment", g_config.mode);
   g_config.size = ReadVariant(ini, L"size", g_config.mode);
+  g_config.carrying = ReadVariant(ini, L"carrying", g_config.mode);
   g_config.finesse = ReadVariant(ini, L"finesse", g_config.mode);
   g_config.rests = ReadVariant(ini, L"rests", g_config.mode);
   g_config.rest_clock = ReadBool(ini, L"rest_clock", g_config.rest_clock);

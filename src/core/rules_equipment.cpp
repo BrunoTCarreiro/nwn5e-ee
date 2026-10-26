@@ -34,6 +34,17 @@ void InstallStartingEquipment() {
       "character enters (starting_equipment faithful)");
 }
 
+// The 2024 carrying capacity (`carrying` faithful): NWN's encumbrance table and
+// overload penalty served as SRD 5.2's (tools/data/carrying_capacity.py).
+void InstallCarrying() {
+  if (g_config.carrying != rules::RuleVariant::kFaithful) {
+    Log("carrying: NWN's encumbrance table (carrying nwn)");
+    return;
+  }
+  ServeConditionalRows("carry2024");
+  Log("carrying: Strength x 15 lb. carried with no penalty, more overloaded - Speed about 5 ft (carrying faithful)");
+}
+
 // The background's kit for a character made on the creation screen (called
 // once, as it enters with its background). An item the character already
 // has (carried or worn: the class kit's robe, quarterstaff, dagger, spear) is
