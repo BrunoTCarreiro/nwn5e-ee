@@ -2160,8 +2160,17 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   original move, after toggling stealth on or off the torso lean is wrong")
   holds a moving creature at the stand for 150 ms with the old layers, then
   swaps them and lets the walk go (the log counts the hold's updates).
-  Backward-walk stutter while crouched: the owner sees it in unmodded NWN
-  sneaking too - engine behaviour, parked.
+  Backward-walk stutter while crouched (S key; click-to-move backwards is
+  smooth): ours, not the game's - 0.39.6's note had misread the owner. Checked
+  2026-10-26 (owner: "Check if our alterations really didn't touch the
+  original code"): an unmodded launch gets nothing of nwn5e (no NWN5E key
+  table, override / development / hak empty, the localvault characters and
+  the newest save hold no animation swaps - only save 000023 does), but with
+  nwn5e a hider's walk swap (walk -> n5_crwalk) covers walking backwards too
+  (the game has no walk-back clip: animation 3 plays "walk"). 0.39.7 adds
+  `!animtrace [seconds]` (anim_trace.cpp): what the character's models are
+  asked to play (Gob::PlayAnimation) and its server animation, logged at the
+  end - to see what the stutter is before fixing it.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

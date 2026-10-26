@@ -66,6 +66,8 @@
 #include "hooks.h"
 #include "log.h"
 
+void AnimTraceClient(void* client_creature);  // anim_trace.cpp
+
 namespace {
 
 // --- What the server side registers: who hides now, and how see-through.
@@ -322,6 +324,7 @@ void ClientStep(void* creature) {
 
 int64_t CreatureUpdate(void* creature) {
   const int64_t result = g_creature_update(creature);
+  AnimTraceClient(creature);  // !animtrace: the traced creature's model
   if (creature && (g_client_count > 0 || AnyoneHides())) ClientStep(creature);
   return result;
 }

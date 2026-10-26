@@ -58,6 +58,7 @@ void InstallStealthWatch();
 void InstallLightProbe();
 void InstallStealthGhost();
 void InstallLightSources();
+void InstallAnimTrace();
 void InstallNuiTest();
 void InstallClientUi();
 void InstallCreationPages();
@@ -75,7 +76,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.39.6";
+constexpr const char* kVersion = "0.39.7";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -131,6 +132,7 @@ void Start(HMODULE self) {
   InstallLightProbe();
   InstallStealthGhost();
   InstallLightSources();
+  InstallAnimTrace();
   InstallShortRestButton();
   InstallVfxBrowser();
   InstallAnimBrowser();
