@@ -48,6 +48,14 @@
 // kept a removal from reaching the client before. 0.39.3: a player character
 // gets that clean-up once a session even if it never hides - a saved game
 // from before kept the walk mapped to itself.
+// 0.39.4 (owner: the lean after hiding / unhiding while moving - "(a) and (b)"
+// - "it doesn't happen if I have no weapons equipped"): the arm layer a held
+// weapon adds (walk_swordr, run_swordr ...) is picked by the client's animation
+// player (0x99fc40) only when the creature's animation changes; a stand of one
+// server tick never reached the client, so the walk's swap changed (the legs
+// follow it) but the arm layer playing went on - upright arms on a crouch walk,
+// or the crouch's lean on a normal one. The walk is now held at the stand for
+// 150 ms, long enough for the client to see it stop and start again.
 
 #include <windows.h>
 
@@ -95,7 +103,10 @@ struct Look {
   std::string idle, walk;
   uint64_t restart_until = 0;  // the walk's swap changed: restart a walk seen before this (ms)
   uint64_t idle_until = 0;     // the idle's swap changed while it moved: restart its idle when it stops (ms)
+  uint64_t hold_until = 0;     // the walk held at the stand till then, for the client to restart it (ms)
 };
+constexpr uint64_t kWalkHoldMs = 150;
+constexpr int kAnimRun = 4;
 
 // A walking creature's walk restarted once through its new swap (see above);
 // false while it isn't walking yet.
@@ -111,6 +122,7 @@ bool RestartWalk(uint32_t id, Look& look) {
   if (!set_animation || (playing != kAnimWalk && playing != kAnimWalkBack)) return false;
   set_animation(creature, 0);
   look.restart_until = 0;
+  look.hold_until = GetTickCount64() + kWalkHoldMs;  // held for the client to see it (see the top)
   Log("look: 0x%08X walk restarted through the new swap (walk %s)", id, look.walk.empty() ? "normal" : look.walk.c_str());
   return true;
 }
@@ -211,6 +223,16 @@ void Update(void* creature) {
   }
   Look& look = it->second;
   if (look.restart_until) RestartWalk(id, look);
+  if (look.hold_until) {
+    // Held at the stand till the client has seen it stop (the movement sets the walk again each update).
+    static const auto set_animation = reinterpret_cast<SetAnimationFn>(EngineExport(ee::kCreatureSetAnimation));
+    const int playing = Playing(creature);
+    if (GetTickCount64() >= look.hold_until) {
+      look.hold_until = 0;
+    } else if (set_animation && (playing == kAnimWalk || playing == kAnimWalkBack || playing == kAnimRun)) {
+      set_animation(creature, 0);
+    }
+  }
   if (look.idle_until) {
     // It moved when its idle changed: restart the idle once it stands still with nothing to do.
     if (GetTickCount64() > look.idle_until) {
