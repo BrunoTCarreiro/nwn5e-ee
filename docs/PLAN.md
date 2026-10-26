@@ -2183,7 +2183,17 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   0.39.8: the trace also records each SetAnimation on the character with
   its caller and each drive action's bits and +0x76c; the timeline goes to
   animtrace.txt next to nwn5e.log (no line cap), a summary per hiding
-  state to nwn5e.log.
+  state to nwn5e.log. 0.39.8's trace (hidden S, hidden click, upright S,
+  hidden W): the keyboard movement's AIActionDrive sets run (4, +0x15b2) for
+  a backward step - hidden or not - and stand (0, +0x1664) after it; forward
+  while hidden it sets walk (2). The client plays each: upright the churn
+  between walk-back, run and pause1 doesn't show (one upright pose), but a
+  hider's run wasn't swapped - its root model spent 20% of the time in the
+  upright run (+10% in cwalkf, the turn while moving), 18% in n5_cridle,
+  49% in n5_crwalk backwards. Click-to-move backwards: 99% n5_crwalk. The
+  limited-speed flag (+0x76c) was 1 throughout, hidden or not - not it.
+  0.39.9: while crouching, run and run_<hold> are swapped to the crouch
+  walk too (a hider never runs).
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

@@ -70,6 +70,13 @@
 // layers (the client stops the old layer by its own name), then the arm layers
 // change and the walk is let go (it starts again with the new layer): a short
 // hitch in the stride instead of the old arms for the rest of the walk.
+// 0.39.9 (owner: walking backwards with S while hiding stutters; !animtrace):
+// the keyboard movement's server side (AIActionDrive) sets run (4) for a
+// backward step, hidden or not, and stand (0) after it, every few frames;
+// the client plays each - upright that churn between walk-back, run and
+// pause1 doesn't show, but a hider's run wasn't swapped, so a third of the
+// frames stood it up. While it crouches, run (and run_<hold>) is the crouch
+// walk too - a hider never runs (stealth mode walks it).
 
 #include <windows.h>
 
@@ -167,14 +174,17 @@ bool CrouchBuilt() {
 }
 
 // The weapon arm layers' swaps for a walk: the crouch walk's own (built by
-// anim_packs.cpp), else removed (a limp or the game's walk: theirs).
+// anim_packs.cpp), else removed (a limp or the game's walk: theirs). The
+// run's layers too: a crouching creature's run is its crouch walk (see the top).
 std::string LayerCode(const std::string& walk) {
   std::string code;
   for (const char* hold : kHolds) {
     const std::string layer = walk == kCrouchWalk ? std::string(kCrouchWalk) + "_" + hold : "";
     std::string text;
-    code += std::string("ReplaceObjectAnimation(OBJECT_SELF, \"walk_") + hold + "\", \"" +
-            (!layer.empty() && AnimationRecipeBuilt(layer, &text) ? layer : "") + "\");";
+    const std::string with = !layer.empty() && AnimationRecipeBuilt(layer, &text) ? layer : "";
+    for (const char* gait : {"walk_", "run_"}) {
+      code += std::string("ReplaceObjectAnimation(OBJECT_SELF, \"") + gait + hold + "\", \"" + with + "\");";
+    }
   }
   return code;
 }
@@ -207,6 +217,7 @@ void Send(uint32_t id, Look& look) {
   }
   if (!look.sent || walk != look.walk) {
     walk_slot("walk", walk);
+    walk_slot("run", walk == kCrouchWalk ? walk : "");  // a hider's run is its crouch walk (see the top)
     // The weapon arm layers follow - while it moves, once it stands still (see the top).
     if (look.sent && moving) {
       look.layers_pending = true;
