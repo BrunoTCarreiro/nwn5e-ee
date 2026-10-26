@@ -8,6 +8,9 @@
 
   // The values the game's own models use (a model's own spelling is kept as it is).
   const UPDATES = ["Fountain", "Single", "Explosion", "Lightning"];
+  // data::kVfxDeadspaceMax: above about 0.39 the game's deadspace loop never ends for some
+  // particles (it would hang), so a draft holds it there (0.42.4).
+  const DEADSPACE_MAX = 0.39;
   const RENDERS = ["Normal", "Linked", "Billboard_to_Local_Z", "Billboard_to_World_Z", "Aligned_to_World_Z",
     "Aligned_to_Particle_Dir", "Motion_Blur"];
   const BLENDS = ["Normal", "Lighten", "Punch-Through"];
@@ -22,7 +25,7 @@
       mass: 0, size_start: 0.1, size_end: 0.1, color_start: [1, 1, 1], color_end: [1, 1, 1], alpha_start: 1,
       alpha_end: 0, xsize: 0, ysize: 0, grid: 1, frame_end: 0, blur_length: 0, bounce_co: 0, fps: 0, particle_rot: 0,
       inherit: false, splat: false, bounce: false, random: false, inherit_local: false, inherit_part: false,
-      parent: "", keys: [],
+      twosidedtex: false, deadspace: 0, parent: "", keys: [],
     }, overrides || {});
   }
 
@@ -144,6 +147,7 @@
       out += "grid = " + e.grid + "\nframe_end = " + e.frame_end + "\n";
       out += "fps = " + num(e.fps || 0) + "\nparticle_rot = " + num(e.particle_rot || 0) + "\n";
       out += "blur_length = " + num(e.blur_length) + "\nbounce_co = " + num(e.bounce_co) + "\n";
+      out += "deadspace = " + num(e.deadspace || 0) + "\n";
       let flags = "";
       if (e.inherit) flags += " inherit";
       if (e.splat) flags += " splat";
@@ -151,6 +155,7 @@
       if (e.random) flags += " random";
       if (e.inherit_local) flags += " inherit_local";
       if (e.inherit_part) flags += " inherit_part";
+      if (e.twosidedtex) flags += " twosidedtex";
       out += "flags =" + flags + "\n";
       out += draftKeys(e.keys);
     }
@@ -243,6 +248,7 @@
       else if (key === "particle_rot") e.particle_rot = toFloat(value);
       else if (key === "blur_length") e.blur_length = toFloat(value);
       else if (key === "bounce_co") e.bounce_co = toFloat(value);
+      else if (key === "deadspace") e.deadspace = Math.min(Math.max(toFloat(value), 0), DEADSPACE_MAX);
       else if (key === "flags") {
         for (const word of words) {
           const f = word.toLowerCase();
@@ -252,6 +258,7 @@
           e.random = e.random || f === "random";
           e.inherit_local = e.inherit_local || f === "inherit_local";
           e.inherit_part = e.inherit_part || f === "inherit_part";
+          e.twosidedtex = e.twosidedtex || f === "twosidedtex";
         }
       } else draftKeyLine(key, words, e.keys);
     }
@@ -317,7 +324,7 @@
     return { width, height, data: flipped };
   }
 
-  const api = { UPDATES, RENDERS, BLENDS, ATTACHES, ANIMS, emitter, node, effect, findKeys, sparks, newEffect, clone, num, resref,
+  const api = { UPDATES, RENDERS, BLENDS, ATTACHES, ANIMS, DEADSPACE_MAX, emitter, node, effect, findKeys, sparks, newEffect, clone, num, resref,
     writeDraft, readDraft, decodeTga };
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.VfxCore = api;

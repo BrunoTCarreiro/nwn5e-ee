@@ -21,7 +21,27 @@ Controllers (MdlNode::InternalControl 0x51c50): list at node+0x78 (12-byte entri
 half = spread * 0.5; theta = (rand() % (1 + int(half*100))) * 0.01  -> uniform ANGLE in [0, spread/2]
   (steps 0.01), rotation about emitter axis at PartEmitter+0x140 (vec3);
 phi = (rand() % 628) * 0.01 about axis PartEmitter+0x158; q = q_phi * q_theta -> particle+0x34.
-If [[emitter+8]+0xa0] != 0 (threshold?): loop pulls the direction vs the camera vector (rare; skipped).
+**deadspace** (node+0xa0, radians; 0x68a25-0x68d0f, read 0.42.4): if != 0, with
+V = normalize(particle position - camera position (cam+0xb0)) and Y = the particle's own y
+(axisY(q); the quaternions here are laid out w x y z - Quaternion::operator* 0x22ab00 is the
+Hamilton product, the axis-angle constructor puts cos(half) first):
+```
+limit = cos(pi/2 - D)                       // = sin D; cos is the double CRT cos 0xc79d30
+d = dot(V, Y)
+if (limit > |d|):                           // Y within D of square to the camera line
+  n = normalize(cross(V, Y))                // cross 0x22fba0 = a x b
+  loop:
+    a = d < 0 ? D + pi/2 - d : d - pi/2 + D
+    q' = Quaternion(n, a) * q               // always from the ORIGINAL q
+    d = |dot(V, axisY(q'))|                 // later passes: always the d >= 0 branch
+  while (limit > d)
+  q = q'
+```
+The direction (axisZ) turns with it. The loop has no cap: simulated, for D up to 0.39 it always
+ends after one pass; from 0.40 some particles never leave it (the game would hang). The game's
+effects use 0.0037 (1 emitter), 0.1745 (19) and 0.2094 (78); ASCII models read it with `%f`
+(radians too). The VFX Bench does the same (at most 64 passes) and holds drafts and written
+models at 0.39.
 ## Particle::initialize 0x66450 (this, float, float scale)
 dir quaternion = emitter orientation (+0x1d0); frame = int(frameStart) (+0x44)
 speed = velocity + (randvel > 0.01 ? +-(rand() % int(randvel*100)) * 0.01 : 0)  -> UNIFORM IN (-randvel, +randvel)

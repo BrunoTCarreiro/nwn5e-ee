@@ -169,18 +169,23 @@ precision mediump float; varying vec4 v_color; void main() { gl_FragColor = v_co
 
     resetCamera() { this.camera = { yaw: -0.9, pitch: 0.3, distance: 5, target: [0, 0, 1] }; }
 
+    // Where the camera is - what deadspace turns new particles toward (0.42.4).
+    eye() {
+      const cam = this.camera;
+      return [
+        cam.target[0] + cam.distance * Math.cos(cam.pitch) * Math.cos(cam.yaw - Math.PI / 2),
+        cam.target[1] + cam.distance * Math.cos(cam.pitch) * Math.sin(cam.yaw - Math.PI / 2),
+        cam.target[2] + cam.distance * Math.sin(cam.pitch),
+      ];
+    }
+
     frame() {
       const gl = this.gl, c = this.canvas;
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       const w = Math.max(1, Math.round(c.clientWidth * dpr)), h = Math.max(1, Math.round(c.clientHeight * dpr));
       if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
       gl.viewport(0, 0, w, h);
-      const cam = this.camera;
-      const eye = [
-        cam.target[0] + cam.distance * Math.cos(cam.pitch) * Math.cos(cam.yaw - Math.PI / 2),
-        cam.target[1] + cam.distance * Math.cos(cam.pitch) * Math.sin(cam.yaw - Math.PI / 2),
-        cam.target[2] + cam.distance * Math.sin(cam.pitch),
-      ];
+      const cam = this.camera, eye = this.eye();
       const view = lookAt(eye, cam.target, [0, 0, 1]);
       const mvp = multiply(perspective(Math.PI / 4, w / h, 0.05, 300), view);
       // The camera's right, up and back (towards the viewer) - the game's camera X, Y, Z.
@@ -256,7 +261,7 @@ precision mediump float; varying vec4 v_color; void main() { gl_FragColor = v_co
     // One emitter's particles as quads (x y z u v r g b a, six vertices each), built as the
     // game's PartEmitter::RenderEmitter builds them (0.42.2): corners C +- A.W +- B.H (tail P2
     // for Motion_Blur / Linked), +A to the cell's right, +B to its top; the front is A x B and
-    // the back isn't drawn (twosidedtex is never on in the drafts). Modes by their exact
+    // the back isn't drawn unless the emitter is twosidedtex (0.42.4). Modes by their exact
     // names: Normal 0 faces the screen; Billboard_to_Local_Z 1 lies flat in the emitter's
     // turn; Billboard_to_World_Z 2 lies flat facing up; Linked 3 joins each particle to the
     // next; Aligned_to_World_Z 4 stands upright; Aligned_to_Particle_Dir 5 lies along the
@@ -274,7 +279,7 @@ precision mediump float; varying vec4 v_color; void main() { gl_FragColor = v_co
         return [col / grid, row / grid, (col + 1) / grid, (row + 1) / grid];
       };
       const quad = (C, P2, A, B, W, H, uv, head, tail) => {
-        if (dot(cross(A, B), sub(cam.eye, C)) <= 0) return;  // its back: culled
+        if (!e.twosidedtex && dot(cross(A, B), sub(cam.eye, C)) <= 0) return;  // its back: culled
         const Aw = scale(A, W), Bh = scale(B, H);
         const v0 = [C[0] + Aw[0] + Bh[0], C[1] + Aw[1] + Bh[1], C[2] + Aw[2] + Bh[2]];
         const v1 = [C[0] - Aw[0] + Bh[0], C[1] - Aw[1] + Bh[1], C[2] - Aw[2] + Bh[2]];

@@ -47,6 +47,35 @@
     const th = Math.acos(d), s = Math.sin(th), wa = Math.sin((1 - t) * th) / s, wb = Math.sin(t * th) / s;
     return [a[0] * wa + b[0] * wb, a[1] * wa + b[1] * wb, a[2] * wa + b[2] * wb, a[3] * wa + b[3] * wb];
   }
+  // Particle::randomDirection's deadspace (0x68a25-0x68d0f, read 0.42.4): a particle whose own y
+  // (the normal of an Aligned_to_Particle_Dir sheet) is within D of square to the line from the
+  // camera is turned round the axis square to both: by cos - pi/2 + D the first time (cos + pi/2
+  // + D when the cos is below 0), and while it's still within, again from where it started by
+  // |cos| - pi/2 + D. Its z (the way it leaves) turns with it. The game loops until that ends -
+  // above about 0.39 it never does for some (drafts hold it there); here at most 64 passes.
+  function deadspace(D, dir, xaxis, pos, eye) {
+    const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    const unit = (v) => { const l = Math.hypot(v[0], v[1], v[2]); return l ? [v[0] / l, v[1] / l, v[2] / l] : null; };
+    const V = eye && unit([pos[0] - eye[0], pos[1] - eye[1], pos[2] - eye[2]]);
+    if (!V) return [dir, xaxis];
+    const Y = cross(dir, xaxis);
+    const limit = Math.cos(Math.PI / 2 - D);
+    let d = dot(V, Y);
+    if (!(limit > Math.abs(d))) return [dir, xaxis];
+    const n = unit(cross(V, Y));
+    if (!n) return [dir, xaxis];
+    let out = [dir, xaxis];
+    for (let pass = 0; pass < 64; pass++) {
+      const a = d < 0 ? D + Math.PI / 2 - d : d - Math.PI / 2 + D, s = Math.sin(a / 2);
+      const r = [n[0] * s, n[1] * s, n[2] * s, Math.cos(a / 2)];
+      out = [qrot(r, dir), qrot(r, xaxis)];
+      d = Math.abs(dot(V, qrot(r, Y)));
+      if (!(limit > d)) break;
+    }
+    return out;
+  }
+
   // An emitter's own turn applied to a vector (kept for callers of 0.42.2).
   function turn(o, v) { return qrot(quat(o), v); }
 
@@ -217,13 +246,14 @@
       // Aligned_to_Particle_Dir draws on.
       dir = qrot(at.q, dir);
       xaxis = qrot(at.q, xaxis);
+      const pos = [at.pos[0] + moved[0], at.pos[1] + moved[1], at.pos[2] + moved[2]];
+      if (e.spread !== 0 && e.deadspace) [dir, xaxis] = deadspace(e.deadspace, dir, xaxis, pos, this.eye);
       const speed = e.velocity + delta * 0.01;
       let frame = 0;
       if (e.random) {
         const span = Math.abs(Math.trunc(e.frame_end) + 1) || 1;
         frame = rand() % span;
       }
-      const pos = [at.pos[0] + moved[0], at.pos[1] + moved[1], at.pos[2] + moved[2]];
       state.particles.push({
         pos, trail: pos.slice(), vel: [dir[0] * speed, dir[1] * speed, dir[2] * speed],
         age: 0, frame, lastFrameAge: 0, spin: 0, dir, xaxis, stopped: false, id: ++this.serial,

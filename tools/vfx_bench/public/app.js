@@ -237,7 +237,7 @@
       { key: "update", type: "select", options: core.UPDATES, label: "Update",
         help: "Fountain: a stream. Single: one particle that stays. Explosion: all at once when it starts. Lightning: a bolt (only in game)." },
       { key: "render", type: "select", options: core.RENDERS, label: "Render",
-        help: "Normal faces the screen. Billboard_to_World_Z lies flat facing up (seen from above only); Billboard_to_Local_Z lies flat in the emitter's turn. Aligned_to_World_Z stands upright. Aligned_to_Particle_Dir lies along the way it left (seen from one side). Motion_Blur streaks along its path; Linked joins each particle to the next." },
+        help: "Normal faces the screen. Billboard_to_World_Z lies flat facing up (seen from above only); Billboard_to_Local_Z lies flat in the emitter's turn (seen from one side). Aligned_to_World_Z stands upright. Aligned_to_Particle_Dir lies along the way it left (seen from one side). Twosidedtex (under Look) shows both sides. Motion_Blur streaks along its path; Linked joins each particle to the next." },
       { key: "blend", type: "select", options: core.BLENDS, label: "Blend",
         help: "Lighten adds light (fire, magic); Normal covers (smoke, dust); Punch-Through cuts out what's 20% opaque or less, no blending." },
     ] },
@@ -261,6 +261,8 @@
       { key: "velocity", type: "num", min: 0, max: 20, step: 0.05, label: "Speed (m/s)" },
       { key: "randvel", type: "num", min: 0, max: 20, step: 0.05, label: "Extra random speed (up to)" },
       { key: "spread", type: "num", min: 0, max: 6.2832, step: 0.01, label: "Spread (radians: 0 straight up, 3.14 half a sphere, 6.28 all round)" },
+      { key: "deadspace", type: "num", min: 0, max: core.DEADSPACE_MAX, step: 0.01, limit: true, label: "Dead space (radians, up to 0.39)",
+        help: "With a spread: a particle that would leave with its sheet almost edge-on to the camera is turned toward it as it's born (the game's own effects use 0.17 - 0.21). Above 0.39 the game can hang, so it stops there." },
       { key: "mass", type: "num", min: -3, max: 3, step: 0.05, label: "Gravity (mass; below 0 rises)" },
       { key: "inherit", type: "bool", label: "Carried and turned with the emitter (inherit)" },
       { key: "inherit_local", type: "bool", label: "Follows the character's move (inherit_local; try Walk)" },
@@ -281,6 +283,7 @@
       { key: "color_end", type: "colour", label: "Colour at the end" },
       { key: "alpha_start", type: "num", min: 0, max: 1, step: 0.01, label: "Opacity at birth" },
       { key: "alpha_end", type: "num", min: 0, max: 1, step: 0.01, label: "Opacity at the end" },
+      { key: "twosidedtex", type: "bool", label: "Seen from both sides (twosidedtex: the flat and particle-direction kinds otherwise show one side)" },
     ] },
   ];
 
@@ -330,7 +333,11 @@
       number.addEventListener("input", () => {
         const raw = integer ? parseInt(number.value, 10) : parseFloat(number.value);
         if (Number.isNaN(raw)) return;
-        const v = integer ? Math.max(f.key === "grid" ? 1 : 0, raw) : Math.fround(raw);
+        let v = integer ? Math.max(f.key === "grid" ? 1 : 0, raw) : Math.fround(raw);
+        if (f.limit && (v > f.max || v < f.min)) {  // a hard limit (deadspace): held there
+          v = Math.fround(Math.min(f.max, Math.max(f.min, v)));
+          number.value = core.num(v);
+        }
         range.value = v;
         set(v);
       });
@@ -539,6 +546,7 @@
       // Once a frame with the frame's time, as the game runs its emitters (its birth count
       // depends on the frame's length).
       const length = sim.length();
+      if (view) sim.eye = view.eye();
       if (sim.time < length) sim.step(dt);
       if (sim.time >= length && state.loop) sim.restart();
     }
@@ -800,6 +808,7 @@
       state.tab = wanted[1];
       await open({ source: wanted[1], name: wanted[2], meta, title: wanted[2] }, true);
       const warm = Math.min(30, Math.max(0, parseFloat(params.get("warm")) || 0));
+      if (view) sim.eye = view.eye();
       for (let t = 0; t < warm; t += 1 / 60) sim.step(1 / 60);
       if (params.has("pause")) { state.paused = true; $("pause").textContent = "Play"; }
     }

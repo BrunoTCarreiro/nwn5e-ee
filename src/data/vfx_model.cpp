@@ -59,8 +59,9 @@ std::vector<std::string> EmitterLines(const VfxEmitter& e, const std::string& no
       "  render " + e.render,
       "  blend " + e.blend,
       "  texture " + e.texture,
-      "  xgrid " + std::to_string(e.grid), "  ygrid " + std::to_string(e.grid), "  loop 0", "  deadspace 0",
-      "  twosidedtex 0", "  blastRadius 0", "  blastLength 0",
+      "  xgrid " + std::to_string(e.grid), "  ygrid " + std::to_string(e.grid), "  loop 0",
+      "  deadspace " + Num(std::min(std::max(e.deadspace, 0.0f), kVfxDeadspaceMax)), flag("twosidedtex", e.twosidedtex),
+      "  blastRadius 0", "  blastLength 0",
       "  position " + Num(e.position[0]) + " " + Num(e.position[1]) + " " + Num(e.position[2]),
       "  orientation " + Num(e.orientation[0]) + " " + Num(e.orientation[1]) + " " + Num(e.orientation[2]) + " " +
           Num(e.orientation[3]),
@@ -375,6 +376,7 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
     out += "grid = " + std::to_string(e.grid) + "\nframe_end = " + std::to_string(e.frame_end) + "\n";
     out += "fps = " + Num(e.fps) + "\nparticle_rot = " + Num(e.particle_rot) + "\n";
     out += "blur_length = " + Num(e.blur_length) + "\nbounce_co = " + Num(e.bounce_co) + "\n";
+    out += "deadspace = " + Num(e.deadspace) + "\n";
     std::string flags;
     if (e.inherit) flags += " inherit";
     if (e.splat) flags += " splat";
@@ -382,6 +384,7 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
     if (e.random) flags += " random";
     if (e.inherit_local) flags += " inherit_local";
     if (e.inherit_part) flags += " inherit_part";
+    if (e.twosidedtex) flags += " twosidedtex";
     out += "flags =" + flags + "\n";
     out += DraftKeys(e.keys);
   }
@@ -481,6 +484,7 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
     else if (key == "particle_rot") e->particle_rot = ToFloat(value);
     else if (key == "blur_length") e->blur_length = ToFloat(value);
     else if (key == "bounce_co") e->bounce_co = ToFloat(value);
+    else if (key == "deadspace") e->deadspace = std::min(std::max(ToFloat(value), 0.0f), kVfxDeadspaceMax);
     else if (key == "flags") {
       for (const std::string& word : words) {
         const std::string f = Lower(word);
@@ -490,6 +494,7 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
         e->random = e->random || f == "random";
         e->inherit_local = e->inherit_local || f == "inherit_local";
         e->inherit_part = e->inherit_part || f == "inherit_part";
+        e->twosidedtex = e->twosidedtex || f == "twosidedtex";
       }
     } else DraftKeyLine(key, words, &e->keys);
   }
@@ -662,6 +667,8 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       else if (first == "random") e->random = v != "0";
       else if (first == "inherit_local") e->inherit_local = v != "0";
       else if (first == "inherit_part") e->inherit_part = v != "0";
+      else if (first == "twosidedtex") e->twosidedtex = v != "0";
+      else if (first == "deadspace") e->deadspace = ToFloat(v);  // radians, as the game reads it (%f)
     }
   }
   if (key_rows != 0) finish_keys();
@@ -946,6 +953,8 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
       for (const Controller& c : controllers) ApplyController(c, &e);
       e.inherit_local = (flags & 0x100) != 0;
       e.inherit_part = (flags & 0x400) != 0;
+      e.deadspace = m.F32(emitter);                   // node +0xa0 in the game
+      e.twosidedtex = m.U32(emitter + 0xC8) != 0;    // node +0x168
       if (pass == 0) {  // under its parent, as the model has it
         const GeoNode& g = geometry[geo_at[node]];
         memcpy(e.position, g.pos, sizeof(e.position));

@@ -53,8 +53,16 @@ what Save makes. Particles leave from where the emitter is at that moment, and f
 The Nodes card lists them (Add, Remove, what each hangs under, its place and turn, Make it
 spin); an emitter's "Its own motion" has Make it orbit (a new node turning round z with the
 emitter out at a radius). Not here: Lightning emitters, the game's soft-particle fade and
-fog, and the meshes of a game effect (Mage Armor's shields) - only its particles. When in
-doubt, Play in game.
+fog, and the meshes of a game effect (Mage Armor's shields, Bigby's hands - 25 of the game's
+spell effects have some) - only its particles. When in doubt, Play in game.
+
+Two more of the game's emitter settings (0.42.4): "Seen from both sides" (twosidedtex - the
+flat and particle-direction kinds otherwise show one side; 37 of the game's effects use it)
+and "Dead space" (deadspace, radians: with a spread, a particle that would leave with its sheet
+almost edge-on to the camera is turned toward it as it's born - so in the preview it depends on
+where you look from, as in the game; 98 of the game's emitters use 0.17 or 0.21). The game
+loops until that turn is done and above about 0.39 it can loop for ever, so the bench holds it
+at 0.39.
 
 Mouse on the stage: drag to turn, right-drag (or shift-drag) to move, wheel to zoom,
 double-click to reset. Space pauses, R restarts. `?open=game:<model>&warm=<s>` opens

@@ -2442,6 +2442,24 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   explicit "endlist" case is covered by the list's own end - an equivalent
   mutant). Found: Mage Armor's shields are meshes (trimesh) - the effect has no
   meshes; counted next.
+  0.42.4 (the next gaps, in the order delegated): twosidedtex and deadspace
+  kept - the binary reader (emitter header +0xC8 / +0, node +0x168 / +0xa0 in
+  the game), the ASCII reader (deadspace read %f: radians), the draft
+  ("deadspace =", the "twosidedtex" flag), the model writer. twosidedtex: the
+  bench draws both sides (the game turns GL_CULL_FACE off). deadspace, read in
+  Particle::randomDirection (0x68a25-0x68d0f; PARTICLES.md): the particle's y
+  within D of square to the camera line -> turned round cross(V, y), by
+  cos - pi/2 + D (cos + pi/2 + D below 0), again from the start by |cos| - pi/2
+  + D while still within; no cap in the game - simulated: one pass for D up to
+  0.39, from 0.40 some never end (a hang), so drafts and written models hold
+  it at 0.39 (kVfxDeadspaceMax; the game's own: 0.0037 / 0.1745 / 0.2094). The
+  bench feeds the sim its camera position. Library format 7 (37 drafts
+  two-sided, 98 emitters with deadspace; check.js 408 byte for byte). Tests:
+  the draft (and its 0.39 hold), the writer (and its), the ASCII and binary
+  readers; eight mutations each fail one. Meshes counted: 25 spell effects
+  (22 compiled, 3 ASCII - Bigby's hands 11 each, Mage Armor 8 / 10, Weird 43,
+  Wail of the Banshee 15, Meteor Swarm 12, Wilting 28, Revive Dragon 64, Raise Dead 17, ...)
+  and 13 tile / placeable models listed as effects; not drawn (owner's call).
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

@@ -73,8 +73,18 @@ struct VfxEmitter {
   // 0.42.3: particles follow the creature's move (inherit_local) or the emitter's (inherit_part).
   bool inherit_local = false;
   bool inherit_part = false;
+  // 0.42.4: drawn from both sides (twosidedtex - the game turns back-face culling off for it),
+  // and deadspace (radians): a particle whose sheet would leave within this of edge-on to the
+  // camera is turned toward it at birth (Particle::randomDirection; only with a spread).
+  bool twosidedtex = false;
+  float deadspace = 0.0f;
   std::vector<VfxKeys> keys;  // its own move / turn in the animations
 };
+
+// The most deadspace a draft or a written model gets: above about 0.39 the game's turning loop
+// (randomDirection) never ends for some particles - the game would hang (simulated, 0.42.4; the
+// game's own effects use 0.0037, 0.1745 and 0.2094).
+constexpr float kVfxDeadspaceMax = 0.39f;
 
 struct VfxEffect {
   std::string name = "n5_new";
