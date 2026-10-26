@@ -98,6 +98,24 @@ label.check { flex-direction: row; align-items: center; gap: 6px; color: var(--i
 details.card summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
 textarea { min-height: 260px; resize: vertical; white-space: pre; }
 
+/* Build from parts */
+.mix-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.mix-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 980px) { .mix-cols { grid-template-columns: minmax(0, 1fr); } }
+.mix-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.mix-col h3 { font-family: var(--display); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0; }
+.mix-col h3 span { text-transform: none; letter-spacing: 0; font-family: var(--body); font-weight: normal; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { padding: 3px 10px; font-size: 0.8rem; font-family: var(--body); border-radius: 999px; }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.chip.own { border-style: dashed; }
+.chips-label { font-size: 0.75rem; color: var(--muted); align-self: center; margin-left: 2px; }
+.mix-params { display: flex; flex-direction: column; gap: 6px; }
+.mix-param input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); }
+label.mix-param { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.82rem; }
+button.small { padding: 3px 10px; font-size: 0.8rem; align-self: flex-start; }
+.mix-own > label { flex: 2 1 240px; }
+
 /* The emitters */
 .emitters { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .emitters li { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; background: var(--bg); }

@@ -2506,6 +2506,28 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   The gap list from "how can we fix the gaps?" is done but for the meshes
   (25 spell effects; not started - the owner's call) and the soft-particle
   fade / fog.
+  0.43.0 (owner: "build a system that allows to mix and match different
+  presets of the various parts of a vfx to create a new one"): the VFX Bench's
+  Build from parts - public/parts.js, three kinds of part: 20 particles (the
+  look's fields: texture, render, blend, sheet, sizes, colours, alpha, spin),
+  15 emissions (the emission's fields: update, rate, life, speed, spread,
+  gravity, area, bounce, follow flags, p2p, Lightning; a target where it needs
+  one) and 13 motions (nodes and keys in the loop: still / ring, orbit,
+  spirals up down in out, rise, fall, bob, sweep, figure eight, sprinkler,
+  wander; copies spaced round). A part's fields are reset to the defaults
+  before it's put on, so nothing of the one before stays. The card tries the
+  mix in the preview only (a layer appended to what the preview runs, never
+  to the effect / draft / Save), adds it as emitters + nodes, or puts the
+  ticked parts on the selected emitter; your own particles and emissions are
+  kept from an emitter (server: /api/parts, build\vfxedit\parts\, checked by
+  cleanPart - only the part's fields, of the emitter's types). Values from
+  how the game's effects use each texture; Shadow wisp first used
+  fxpa_smoke01a with Normal blend - squares (it has no alpha): now smoke01,
+  and a rule (check_parts.js) that a covering look's texture has transparency
+  (fx_bubble neither: Lighten). check_parts.js: 7,800 mixes sound and kept by
+  the draft, 20 run, the motions measured (orbit radius / turn, spiral
+  heights, spiral in, sprinkler jets level, bob, ring), settings, a motion
+  on an emitter, your parts. No DLL change (the version marks the bench).
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

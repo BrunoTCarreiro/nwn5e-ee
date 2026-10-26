@@ -14,12 +14,15 @@
 // options: --build <folder>  nwn5e's build folder (default: ../../build, or NWN5E_BUILD)
 //          --port <n>        (default 8766)
 //          --no-open         don't open the browser
+// 0.43.0: your own particles and emissions (parts to build effects from) are kept in
+// build\vfxedit\parts\, one file each.
 "use strict";
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { exec } = require("child_process");
 const core = require("./public/core.js");
+const parts = require("./public/parts.js");
 
 const args = process.argv.slice(2);
 const option = (name, fallback) => {
@@ -33,8 +36,9 @@ const EDITOR = path.join(BUILD, "vfxedit");
 const LIBRARY = path.join(EDITOR, "library");
 const SAVED = path.join(EDITOR, "saved");
 const BENCH = path.join(EDITOR, "bench");
+const PARTS = path.join(EDITOR, "parts");
 const PUBLIC = path.join(__dirname, "public");
-const FILES = ["index.html", "app.js", "core.js", "sim.js", "view.js", "style.css"];
+const FILES = ["index.html", "app.js", "core.js", "parts.js", "sim.js", "view.js", "style.css"];
 const STATIC = Object.fromEntries([["/", "index.html"], ...FILES.map((f) => ["/" + f, f])]);
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8" };
 const NAME = /^[a-z0-9_]{1,16}$/;  // a resref: the model's file name
@@ -43,7 +47,7 @@ const URL_BASE = `http://127.0.0.1:${PORT}/`;
 const ALIVE_MS = 6000;  // the game writes bench\alive.txt every 2 s while a character is in play
 // The code this server runs, from when it started: a bench updated since needs a restart.
 const STARTED = Date.now();
-const CODE = [__filename, path.join(PUBLIC, "core.js")];
+const CODE = [__filename, path.join(PUBLIC, "core.js"), path.join(PUBLIC, "parts.js")];
 let serial = Date.now() % 100000;
 
 function list(folder, test) {
@@ -107,6 +111,18 @@ function state() {
     textures: list(path.join(LIBRARY, "textures"), (n) => /\.tga$/i.test(n)).map(stem),
     link: game(),
   };
+}
+
+// Your own parts, each as the page kept it (a file that doesn't read as a part is left out).
+function ownParts() {
+  return list(PARTS, (n) => /\.json$/i.test(n)).map((f) => {
+    try { return parts.cleanPart(JSON.parse(fs.readFileSync(path.join(PARTS, f), "utf8"))); } catch (e) { return null; }
+  }).filter(Boolean);
+}
+
+async function jsonBody(req) {
+  if (!String(req.headers["content-type"] || "").startsWith("application/json")) throw new Error("send it as application/json");
+  return JSON.parse(await readBody(req, 65536));
 }
 
 function send(res, status, body, type) {
@@ -196,6 +212,27 @@ async function handle(req, res) {
     writeWhole(file, draft.text);
     console.log(`saved ${file}${replaced ? " (replaced)" : ""}`);
     return send(res, 200, { name, path: file, replaced, state: state() });
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/parts") return send(res, 200, { parts: ownParts() });
+  if (req.method === "POST" && url.pathname === "/api/parts") {
+    if (!fromPage(req)) return send(res, 403, { error: "parts come from the bench's own page" });
+    let part;
+    try { part = parts.cleanPart(await jsonBody(req)); } catch (e) { return send(res, 400, { error: e.message }); }
+    const file = path.join(PARTS, `${part.kind}_${part.name}.json`);
+    writeWhole(file, JSON.stringify(part, null, 2) + "\n");
+    console.log(`kept ${file}`);
+    return send(res, 200, { part, parts: ownParts() });
+  }
+  if (req.method === "POST" && url.pathname === "/api/parts/remove") {
+    if (!fromPage(req)) return send(res, 403, { error: "requests come from the bench's own page" });
+    let body;
+    try { body = await jsonBody(req); } catch (e) { return send(res, 400, { error: e.message }); }
+    const name = core.resref(String(body.name || ""), 24);
+    if (!["particle", "emission"].includes(body.kind) || !name) return send(res, 400, { error: "bad part" });
+    const file = path.join(PARTS, `${body.kind}_${name}.json`);
+    if (fs.existsSync(file)) fs.unlinkSync(file);
+    return send(res, 200, { parts: ownParts() });
   }
 
   if (req.method === "POST" && (url.pathname === "/api/play" || url.pathname === "/api/stop")) {

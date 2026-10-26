@@ -3,6 +3,7 @@
 (function () {
   "use strict";
   const core = window.VfxCore;
+  const parts = window.VfxParts;
   const { Sim } = window.VfxSim;
   const $ = (id) => document.getElementById(id);
   const STORE = "vfxbench.v1";
@@ -20,6 +21,9 @@
     speed: 1,
     loop: true,
     link: { alive: false, status: null },
+    mix: null,        // the parts being mixed (Build from parts): { particle, emission, motion }
+    mixAdded: false,  // the mix as it is was just added: not tried again until it changes
+    own: [],          // your own particles and emissions (the server keeps them)
   };
   const sim = new Sim();
   let view = null;
@@ -50,6 +54,12 @@
     const res = await fetch(url, { cache: "no-store" });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
     return res.text();
+  }
+  async function postJson(url, value) {
+    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || res.statusText);
+    return body;
   }
   async function postText(url, text) {
     const res = await fetch(url, { method: "POST", headers: { "Content-Type": "text/plain; charset=utf-8" }, body: text });
@@ -183,7 +193,7 @@
   // After any change: the preview reads the effect as it goes; the rest follows.
   let storeTimer = 0;
   function changed(structure) {
-    if (structure) sim.setEffect(state.fx);
+    updateTrial(false);  // the preview runs the effect and the mix being tried (it follows every change)
     if (view) view.attach = state.fx.attach;
     if (!$("draft").matches(":focus")) $("draft").value = draftText();
     renderOverlay();
@@ -470,16 +480,8 @@
     return parts.length ? parts.join(" · ") : "none - it stays where it is";
   }
 
-  // Keys that turn round z through `turns` whole turns over `length` seconds (quarter-turn
-  // steps, so the short-way slerp goes the right way).
-  function turnKeys(length, turns) {
-    const rows = [], steps = Math.max(4, Math.round(Math.abs(turns)) * 4);
-    for (let i = 0; i <= steps; i++) {
-      const angle = (i / steps) * turns * 2 * Math.PI;
-      rows.push(Math.fround((i / steps) * length), 0, 0, angle < 0 ? -1 : 1, Math.abs(angle));
-    }
-    return rows;
-  }
+  // Keys that turn round z through `turns` whole turns over `length` seconds (parts.js).
+  const turnKeys = (length, turns) => parts.turnKeys(length, turns);
 
   function loopAnim() { return state.fx.duration ? "duration" : "impact"; }
   function loopLength() {
@@ -551,6 +553,154 @@
       field(n, { key: "orientation", type: "vec4", step: 0.05, label: "Turn: axis x y z, then angle in radians" }),
       motionField(n, false),
     ]));
+  }
+
+  // --- build from parts (0.43.0) ------------------------------------------------------------
+  // Pick a particle, an emission and a motion, each with its settings: the mix plays in the
+  // preview as an extra layer (never in the effect, the draft or Save) until it's added to the
+  // effect or put on the selected emitter. Your own particles and emissions are kept from an
+  // emitter (the server keeps them in vfxedit\parts\).
+  const MIX_STORE = "vfxbench.mix.v1";
+  const KINDS = [["particle", parts.PARTICLES], ["emission", parts.EMISSIONS], ["motion", parts.MOTIONS]];
+  let trial = null;  // the mix as a layer, in the preview only
+
+  function defaultMix() {
+    return { particle: { id: "spark", params: {} }, emission: { id: "stream", params: {} }, motion: { id: "orbit", params: {} } };
+  }
+  function loadMix() {
+    try {
+      const m = JSON.parse(localStorage.getItem(MIX_STORE));
+      if (m && ["particle", "emission", "motion"].every((k) => m[k] && typeof m[k].id === "string" && m[k].params && typeof m[k].params === "object")) return m;
+    } catch (e) { /* none kept */ }
+    return defaultMix();
+  }
+  function storeMix() { try { localStorage.setItem(MIX_STORE, JSON.stringify(state.mix)); } catch (e) { /* storage off */ } }
+  function partOf(kind) { return parts.find(kind, state.mix[kind].id, state.own); }
+  function mixName() { return ["particle", "emission", "motion"].map((k) => (partOf(k) || { name: "?" }).name).join(" + "); }
+
+  // What the preview runs: the effect, then the mix being tried.
+  function simEffect() {
+    const fx = state.fx;
+    if (!trial) return fx;
+    return Object.assign({}, fx, { nodes: [...(fx.nodes || []), ...trial.nodes], emitters: [...fx.emitters, ...trial.emitters] });
+  }
+  function updateTrial(restart) {
+    trial = null;
+    let problem = "";
+    if (state.mix && $("mix-try").checked && !state.mixAdded) {
+      try { trial = parts.compose(state.fx, state.mix, state.own); } catch (e) { problem = e.message; }
+    }
+    sim.setEffect(simEffect());
+    if (restart) sim.restart();
+    renderMixNote(problem);
+  }
+  function renderMixNote(problem) {
+    $("mix-note").textContent = problem ? "That mix doesn't work: " + problem
+      : state.mixAdded ? "Added. Change a part (or a setting) to try another mix."
+        : $("mix-try").checked ? `Trying ${mixName()} in the preview - not in the effect until you add it.` : "";
+  }
+
+  function renderMix() {
+    for (const [kind, list] of KINDS) {
+      const chosen = state.mix[kind].id;
+      const own = state.own.filter((x) => x.kind === kind);
+      const chip = (id, text, title, own) => el("button", { type: "button", class: "chip" + (own ? " own" : ""), "aria-pressed": String(id === chosen), title,
+        onclick: () => pickPart(kind, id) }, text);
+      $("mix-" + kind).replaceChildren(...list.map((x) => chip(x.id, x.name, x.note)),
+        ...(own.length ? [el("span", { class: "chips-label", text: "Yours:" }), ...own.map((x) => chip("yours:" + x.name, x.name, "Yours, kept from an emitter", true))] : []));
+      const part = partOf(kind);
+      $("mix-" + kind + "-note").textContent = part ? (part.note || "Yours, kept from an emitter.") : "That part isn't there any more: pick another.";
+      $("mix-" + kind + "-params").replaceChildren(...(part ? mixParams(kind, part) : []),
+        ...(part && String(chosen).startsWith("yours:") ? [el("button", { type: "button", class: "small", onclick: () => removeOwn(kind, part.name) }, "Remove it from yours")] : []));
+    }
+  }
+  function pickPart(kind, id) {
+    state.mix[kind] = { id, params: {} };
+    state.mixAdded = false;
+    storeMix();
+    renderMix();
+    updateTrial(true);
+  }
+  function mixParams(kind, part) {
+    const defs = parts.paramsOf(kind, part), values = parts.settings(defs, state.mix[kind].params);
+    const set = (key, v) => { state.mix[kind].params[key] = v; state.mixAdded = false; storeMix(); updateTrial(false); };
+    return defs.map((d) => {
+      if (d.kind === "colour") {
+        return el("label", { class: "mix-param" }, [d.label, el("input", { type: "color", value: hex(values[d.key]), "aria-label": d.label,
+          oninput: (ev) => { const h = ev.target.value; set(d.key, [1, 3, 5].map((i) => Math.fround(parseInt(h.slice(i, i + 2), 16) / 255))); } })]);
+      }
+      const range = el("input", { type: "range", min: d.min, max: d.max, step: d.step, value: values[d.key], "aria-label": d.label });
+      const number = el("input", { type: "number", min: d.min, max: d.max, step: d.step, value: core.num(values[d.key]), "aria-label": d.label });
+      range.addEventListener("input", () => { number.value = range.value; set(d.key, parseFloat(range.value)); });
+      number.addEventListener("input", () => { const v = parseFloat(number.value); if (!Number.isNaN(v)) { range.value = v; set(d.key, v); } });
+      return el("div", { class: "field mix-param" }, [el("span", { text: d.label }), el("div", { class: "pair" }, [range, number])]);
+    });
+  }
+
+  function addMix() {
+    let layer;
+    try { layer = parts.compose(state.fx, state.mix, state.own); } catch (e) { setStatus(e.message, "bad"); return; }
+    const fx = state.fx;
+    fx.nodes = [...(fx.nodes || []), ...layer.nodes];
+    fx.emitters.push(...layer.emitters);
+    state.selected = fx.emitters.length - layer.emitters.length;
+    state.mixAdded = true;
+    sim.hidden.clear();
+    renderEmitters(); renderFields(); renderNodes(); changed(true); sim.restart();
+    setStatus(`Added ${mixName()}: ${layer.emitters.map((e) => e.name).join(", ")}` +
+      (layer.nodes.length ? ` (moved by ${layer.nodes.map((n) => n.name).join(", ")})` : "") + ".", "good");
+  }
+  function useMix() {
+    const e = emitterNow();
+    if (!e) { setStatus("Pick an emitter in the Emitters card first.", "bad"); return; }
+    const which = ["particle", "emission", "motion"].filter((k) => $("mix-use-" + k).checked);
+    if (!which.length) { setStatus("Tick what to put on it: its particle, its emission or its motion.", "bad"); return; }
+    const fx = state.fx;
+    fx.nodes = fx.nodes || [];
+    try {
+      if (which.includes("particle")) parts.applyParticle(e, partOf("particle"), state.mix.particle.params);
+      if (which.includes("emission")) {
+        const target = parts.applyEmission(e, partOf("emission"), state.mix.emission.params);
+        if (target && !fx.nodes.some((n) => n.parent === e.name)) fx.nodes.push(core.node({ name: parts.namer(fx)(e.name + "_target"), parent: e.name, position: target }));
+      }
+      if (which.includes("motion")) fx.nodes.push(...parts.applyMotion(fx, e, partOf("motion"), state.mix.motion.params));
+    } catch (err) { setStatus(err.message, "bad"); return; }
+    state.mixAdded = true;
+    renderEmitters(); renderFields(); renderNodes(); changed(true); sim.restart();
+    setStatus(`Put the mix's ${which.join(", ")} on ${e.name}.`, "good");
+  }
+
+  async function loadOwn() {
+    try { state.own = (await getJson("/api/parts")).parts; } catch (e) { /* the server's offline: none */ }
+    renderMix();
+    updateTrial(false);
+  }
+  async function keepOwn(kind) {
+    const e = emitterNow();
+    if (!e) { setStatus("Pick the emitter to keep it from in the Emitters card first.", "bad"); return; }
+    const part = parts.partFrom(kind, e, $("mix-own-name").value.trim() || e.name, state.fx);
+    if (!part.name) { setStatus("A part's name is letters, digits and _.", "bad"); return; }
+    if (state.own.some((x) => x.kind === kind && x.name === part.name) && !confirm(`Replace your ${kind} ${part.name}?`)) return;
+    try {
+      state.own = (await postJson("/api/parts", part)).parts;
+      state.mix[kind] = { id: "yours:" + part.name, params: {} };
+      state.mixAdded = false;
+      storeMix(); renderMix(); updateTrial(true);
+      setStatus(`Kept ${e.name}'s ${kind} as yours: ${part.name} (under Yours in Build from parts).`, "good");
+    } catch (err) {
+      setStatus(err.message === "Failed to fetch" ? offline : "Not kept: " + err.message, "bad");
+    }
+  }
+  async function removeOwn(kind, name) {
+    if (!confirm(`Remove your ${kind} ${name}? (Effects already made with it keep it.)`)) return;
+    try {
+      state.own = (await postJson("/api/parts/remove", { kind, name })).parts;
+      if (state.mix[kind].id === "yours:" + name) state.mix[kind] = defaultMix()[kind];
+      storeMix(); renderMix(); updateTrial(true);
+      setStatus(`Removed your ${kind} ${name}.`);
+    } catch (err) {
+      setStatus(err.message === "Failed to fetch" ? offline : "Not removed: " + err.message, "bad");
+    }
   }
 
   // --- the texture picker --------------------------------------------------------------------
@@ -702,7 +852,12 @@
       button.addEventListener("click", () => { state.tab = tab; renderLibrary(); changed(false); });
     }
     $("search").addEventListener("input", renderLibrary);
-    $("reload").addEventListener("click", () => refresh().then(() => setStatus("Reloaded.")));
+    $("reload").addEventListener("click", () => refresh().then(loadOwn).then(() => setStatus("Reloaded.")));
+    $("mix-try").addEventListener("change", () => { state.mixAdded = false; updateTrial(true); });
+    $("mix-add").addEventListener("click", addMix);
+    $("mix-use").addEventListener("click", useMix);
+    $("mix-keep-particle").addEventListener("click", () => keepOwn("particle"));
+    $("mix-keep-emission").addEventListener("click", () => keepOwn("emission"));
     $("new").addEventListener("click", () => {
       if (dirty() && !confirm(`Drop the unsaved changes to ${state.fx.name}?`)) return;
       state.current = null;
@@ -771,7 +926,6 @@
       state.fx.emitters.splice(state.selected, 1);
       state.selected = Math.max(0, Math.min(state.selected, state.fx.emitters.length - 1));
       sim.hidden.clear();
-      sim.setEffect(state.fx);
       sim.restart();
       renderEmitters(); renderFields(); changed(true);
     });
@@ -856,10 +1010,13 @@
     } catch (e) {
       $("no-gl").hidden = false;
     }
+    state.mix = loadMix();
+    renderMix();
     wire();
     const restored = restore();
     if (!restored) setEffect(core.newEffect(), true);
     await refresh();
+    await loadOwn();
     if (state.server && !restored && state.server.saved.length) state.tab = "saved";
     renderLibrary();
     if (view) view.attach = state.fx.attach;
@@ -867,6 +1024,21 @@
     // (for a look without waiting; the bench's own checks use it).
     const params = new URLSearchParams(location.search);
     const wanted = /^(saved|nwn5e|game):([a-z0-9_]{1,32})$/.exec(params.get("open") || "");
+    // ?mix=<particle>,<emission>,<motion>: tries that mix (for a look; the bench's checks use it).
+    const mix = /^([a-z0-9_:]+),([a-z0-9_:]+),([a-z0-9_:]+)$/.exec(params.get("mix") || "");
+    if (mix) {
+      state.mix = { particle: { id: mix[1], params: {} }, emission: { id: mix[2], params: {} }, motion: { id: mix[3], params: {} } };
+      state.mixAdded = false;
+      $("mix-try").checked = true;
+      renderMix();
+      updateTrial(true);
+      if (!wanted) {
+        const warm = Math.min(30, Math.max(0, parseFloat(params.get("warm")) || 0));
+        if (view) sim.eye = view.eye();
+        for (let t = 0; t < warm; t += 1 / 60) sim.step(1 / 60);
+        if (params.has("pause")) { state.paused = true; $("pause").textContent = "Play"; }
+      }
+    }
     if (wanted && state.server) {
       const meta = state.server.game.find((g) => g.model === wanted[2]);
       state.tab = wanted[1];

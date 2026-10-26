@@ -38,6 +38,37 @@ emitter starts on it (0 0 0).
 Options: `--build <folder>` (nwn5e's build folder; default `../../build`, or the
 `NWN5E_BUILD` variable), `--port <n>` (default 8766), `--no-open`.
 
+## Build from parts (0.43.0)
+
+The card under the stage makes effects out of presets. An emitter is three parts:
+
+- **Particle** - how each one looks: Spark, Soft glow, Star flare, Twinkling star, Magic
+  sparkle, Flame, Fire puff, Smoke, Mist, Shadow wisp, Streak, Holy light, Snowflake, Leaves,
+  Bubbles, Ground ring, Magic circle, Lightning, Raindrop, Rock chunks. Settings: its colour,
+  the colour it fades to, its size, its opacity.
+- **Emission** - how they come out and go: Stream, Fountain spray, Burst, One flash, Hover,
+  Aura, Trail, Drifting motes, Rising from an area, Falling from an area, Bouncing sparks,
+  Gather in, Beam to a target, Arc to a target, Lightning bolt - each with its own settings
+  (how many, how fast, how long; the area; the target's distance...). The ones with a target
+  make it, a node under the emitter you can move or key in the Nodes card.
+- **Motion** - how the emitter moves round the character: Still (several: a ring), Orbit,
+  Spiral up / down / in / out, Rise, Fall, Bob, Sweep, Figure eight, Sprinkler, Wander - with
+  its height, radius, speed and how many copies spaced round. It loops with the effect (whole
+  turns, so there's no jump); a one-shot effect gets it once, over its seconds.
+
+Click a part of each to try the mix: it plays in the preview as an extra layer (Try it in the
+preview) but isn't in the effect, the draft or Save until **Add to the effect** - then it's
+ordinary emitters and nodes to edit as any other. Add more mixes to stack layers (a spiral of
+flames over a ground ring with rising smoke). **Put on the selected emitter** swaps just the
+ticked parts of an emitter that's there (its look, its emission, its motion) and keeps the rest.
+**Keep its particle / Keep its emission** keeps the selected emitter's look or emission as one
+of yours (`build\vfxedit\parts\`), under Yours in the card; Remove it from yours deletes it.
+`?mix=<particle>,<emission>,<motion>&warm=<s>` tries a mix by its ids (the checks use it).
+
+The presets start from how the game's own effects use each texture (its sheet, render, blend,
+sizes). A look that covers (Normal blend) uses a texture with transparency - the game's
+smoke01a, bubble and flame sheets have none (they'd draw squares), so those are Lighten.
+
 The preview runs and draws particles by the game's own rules, read from its code
 (PARTICLES.md, 0.42.2): births per frame (the fraction of a frame's births dropped, as
 the game does), spread, speed, gravity, area, life, bounce and splat, the seven render
@@ -98,3 +129,8 @@ an effect already run that far.
 - `PARTICLES.md` - what the game's particle code does (spawn, movement, drawing), with addresses.
 - `check.js` - reads and writes back every draft nwn5e wrote (they must come out byte for
   byte) and decodes every texture: `node tools/vfx_bench/check.js build/vfxedit`.
+- `public/parts.js` - the parts to build from (presets, mixing them into a layer, putting one
+  on an emitter, checking your own); `check_parts.js` checks them all - every mix (7,800, on a
+  lasting and a one-shot effect) makes a sound layer the draft keeps, a sample runs, the
+  motions go where they say, the textures are there and the covering looks have transparency:
+  `node tools/vfx_bench/check_parts.js build/vfxedit`.

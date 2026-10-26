@@ -62,6 +62,47 @@
       <button type="button" id="save" title="Writes vfxedit\saved\<name>.vfx; the game writes its model">Save</button>
       <p class="status" id="status" role="status"></p>
     </div>
+    <section class="card mix" id="mix" aria-labelledby="mix-h">
+      <div class="mix-head">
+        <h2 id="mix-h">Build from parts</h2>
+        <label class="check" title="The mix plays in the preview as an extra layer - it isn't in the effect (or the draft) until you add it"><input type="checkbox" id="mix-try" checked> Try it in the preview</label>
+      </div>
+      <div class="mix-cols">
+        <div class="mix-col">
+          <h3>Particle <span>- how each one looks</span></h3>
+          <div class="chips" id="mix-particle" aria-label="Particles"></div>
+          <p class="note" id="mix-particle-note"></p>
+          <div class="mix-params" id="mix-particle-params"></div>
+        </div>
+        <div class="mix-col">
+          <h3>Emission <span>- how they come out and go</span></h3>
+          <div class="chips" id="mix-emission" aria-label="Emissions"></div>
+          <p class="note" id="mix-emission-note"></p>
+          <div class="mix-params" id="mix-emission-params"></div>
+        </div>
+        <div class="mix-col">
+          <h3>Motion <span>- how the emitter moves</span></h3>
+          <div class="chips" id="mix-motion" aria-label="Motions"></div>
+          <p class="note" id="mix-motion-note"></p>
+          <div class="mix-params" id="mix-motion-params"></div>
+        </div>
+      </div>
+      <p class="note" id="mix-note" aria-live="polite"></p>
+      <div class="row tight">
+        <button type="button" class="primary" id="mix-add" title="Adds the mix to the effect as new emitters (and the nodes it moves them with)">Add to the effect</button>
+        <button type="button" id="mix-use" title="Puts the ticked parts of the mix on the emitter selected in the Emitters card">Put on the selected emitter:</button>
+        <label class="check"><input type="checkbox" id="mix-use-particle" checked> its particle</label>
+        <label class="check"><input type="checkbox" id="mix-use-emission" checked> its emission</label>
+        <label class="check"><input type="checkbox" id="mix-use-motion"> its motion</label>
+      </div>
+      <div class="row tight mix-own">
+        <label>Keep the selected emitter's look or emission as yours, named
+          <input type="text" id="mix-own-name" maxlength="24" spellcheck="false" autocomplete="off" placeholder="its name">
+        </label>
+        <button type="button" id="mix-keep-particle">Keep its particle</button>
+        <button type="button" id="mix-keep-emission">Keep its emission</button>
+      </div>
+    </section>
     <details class="card" id="draft-box">
       <summary>Draft text (what Save writes)</summary>
       <textarea id="draft" spellcheck="false" aria-label="The draft text"></textarea>
@@ -140,6 +181,7 @@
 </div>
 
 <script src="/core.js"></script>
+<script src="/parts.js"></script>
 <script src="/sim.js"></script>
 <script src="/view.js"></script>
 <script src="/app.js"></script>
