@@ -18,7 +18,7 @@ struct VfxEmitter {
   std::string render = "Normal";    // Normal | Motion_Blur | Aligned_to_World_z | Billboard_to_World_Z | ...
   std::string blend = "Normal";     // Normal | Lighten | Punch-Through
   std::string texture = "fxpa_sphere";
-  float position[3] = {0.0f, 0.0f, 1.0f};  // metres from the node
+  float position[3] = {0.0f, 0.0f, 0.0f};  // metres from the node (a model's emitter without one: on it)
   float birthrate = 10.0f;                 // particles a second
   float emit_seconds = 0.0f;               // on this long, then off (0: all the time)
   float life = 1.0f;                       // seconds

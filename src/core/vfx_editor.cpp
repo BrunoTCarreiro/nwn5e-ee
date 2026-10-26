@@ -423,7 +423,7 @@ data::VfxEmitter DefaultEmitter() {
   e.texture = "fxpa_sphere";
   e.render = "Normal";
   e.blend = "Lighten";
-  e.position[2] = 1.0f;
+  e.position[2] = 0.0f;  // on the node: the feet, the chest or over the head (0.42.1)
   e.birthrate = 20.0f;
   e.life = 1.0f;
   e.velocity = 1.5f;
@@ -739,7 +739,9 @@ void LoadEntry(uint32_t player, int index) {
 
 // --- The VFX Bench (tools/vfx_bench) -----------------------------------------------------
 
-constexpr int kLibraryFormat = 2;  // 2: lasting effects' emitters no longer cut short (the reader, 0.42.0)
+// 2: lasting effects' emitters no longer cut short (0.42.0); 3: emitters read
+// from the geometry, not an animation's copy (0.42.1).
+constexpr int kLibraryFormat = 3;
 constexpr uint16_t kResTypeTga = 3;
 constexpr uint16_t kResTypeDds = 2033;
 constexpr uint64_t kBenchCheckMs = 250;

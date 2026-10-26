@@ -74,14 +74,15 @@ function readIndex() {
 function stem(file) { return file.replace(/\.[^.]+$/, "").toLowerCase(); }
 
 function game() {
-  let alive = false;
+  let alive = false, library = 0;
   try { alive = Date.now() - fs.statSync(path.join(BENCH, "alive.txt")).mtimeMs < ALIVE_MS; } catch (e) { /* not yet */ }
+  try { library = Math.round(fs.statSync(path.join(LIBRARY, "index.txt")).mtimeMs); } catch (e) { /* not exported yet */ }
   let status = null;
   try {
     const [n, ...rest] = fs.readFileSync(path.join(BENCH, "status.txt"), "utf8").trim().split("\t");
     status = { serial: Number(n), text: rest.join("\t") };
   } catch (e) { /* none yet */ }
-  return { alive, status };
+  return { alive, status, library };  // library: when the game last copied its effects out
 }
 
 function state() {

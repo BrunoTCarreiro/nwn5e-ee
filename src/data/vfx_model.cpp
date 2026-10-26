@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include <algorithm>
+#include <set>
 #include <sstream>
 
 namespace data {
@@ -486,6 +487,27 @@ bool ReadControllers(const Bytes& m, size_t node, std::vector<Controller>* out) 
   return true;
 }
 
+// A node tree from its root (a header's offset from the model base): its nodes
+// in this reader's terms (the header + 0x10: the name at +0x10, the children - an
+// array of header offsets - at +0x38 with their count at +0x3C). Empty when there
+// is no root.
+std::vector<size_t> TreeNodes(const Bytes& m, uint32_t root) {
+  std::vector<size_t> nodes;
+  if (root == 0) return nodes;
+  std::vector<size_t> stack = {kModelBase + root + 0x10};
+  std::set<size_t> seen;
+  while (!stack.empty() && nodes.size() < 4096) {
+    const size_t node = stack.back();
+    stack.pop_back();
+    if (node + 0x60 > m.b.size() || !seen.insert(node).second) continue;
+    nodes.push_back(node);
+    const uint32_t children = m.U32(node + 0x38), count = m.U32(node + 0x3C);
+    if (count > 1024 || kModelBase + children + 4ull * count > m.b.size()) continue;
+    for (uint32_t i = 0; i < count; ++i) stack.push_back(kModelBase + m.U32(kModelBase + children + 4ull * i) + 0x10);
+  }
+  return nodes;
+}
+
 void ApplyController(const Controller& c, VfxEmitter* e) {
   const auto v = [&](int i) { return i < static_cast<int>(c.values.size()) ? c.values[i] : 0.0f; };
   switch (c.type) {
@@ -521,12 +543,21 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
   }
   VfxEffect result;
   result.name = m.Str(kModelBase + 8, 64);
+  // The geometry's nodes (its header's root at +0x48): the emitters are read
+  // there, not from an animation's copy of the node - which carries the same
+  // emitter header but only the controllers that animation keys (0.42.0: the
+  // first copy in the file was taken - vcm_hitsonc's cloud came out 1 m up with
+  // default values, vdr_darkness's emitter all defaults).
+  const std::vector<size_t> geometry = TreeNodes(m, m.U32(kModelBase + 0x48));
+  const std::set<size_t> in_geometry(geometry.begin(), geometry.end());
   std::vector<size_t> nodes;  // each emitter's geometry node, parallel to result.emitters
+  for (int pass = 0; pass < 2 && result.emitters.empty(); ++pass) {  // 2nd: any node (no tree read)
   for (const char* word : {"Fountain", "Single", "Explosion", "Lightning"}) {
     const std::string needle(word, strlen(word) + 1);
     for (size_t at = bytes.find(needle); at != std::string::npos; at = bytes.find(needle, at + 1)) {
       if (at < 0x18 + 0x60 + kModelBase) continue;
       const size_t emitter = at - 0x18, node = emitter - 0x60;
+      if (pass == 0 && !in_geometry.count(node)) continue;
       const std::string name = m.Str(node + 0x10, 32);
       const std::string render = m.Str(emitter + 0x38, 32);
       if (name.empty() || render.empty()) continue;
@@ -552,36 +583,24 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
       nodes.push_back(node);
     }
   }
+  }
   if (result.emitters.empty()) {
     if (error) *error = "no emitters found in that model";
     return false;
   }
   result.duration = bytes.find(std::string("duration", 9)) != std::string::npos;
-  // The animations (their 64-byte name at the header's +8, the length at +0x70),
-  // by where they start: an animation's copies of the nodes follow its header
-  // (0.42.0, the game's vdr_eleshield: impact 0x100, duration 0xa6c, cessation
-  // 0x1344, Ring01's copies at 0x55c / 0xec0 / 0x1798).
-  std::vector<std::pair<size_t, std::string>> anims;
+  // The animations (their 64-byte name at the header's +8, the root node at
+  // +0x48 as the geometry's, the length at +0x70) and the nodes of each.
+  std::vector<std::pair<std::string, std::vector<size_t>>> anims;
   for (const char* name : {"impact", "duration", "cessation"}) {
     const std::string needle = std::string(1, '\0') + name + std::string(1, '\0');
     for (size_t at = bytes.find(needle); at != std::string::npos; at = bytes.find(needle, at + 1)) {
       if (at + 1 < 8 + kModelBase) continue;
       const size_t header = at + 1 - 8;
       const float length = m.F32(header + 0x70);
-      if (length > 0.0f && length < 60.0f) anims.emplace_back(header, name);
+      if (length > 0.0f && length < 60.0f) anims.emplace_back(name, TreeNodes(m, m.U32(header + 0x48)));
     }
   }
-  const auto anim_of = [&](size_t node) {
-    size_t best = 0;
-    std::string name;
-    for (const auto& a : anims) {
-      if (a.first < node && a.first >= best) {
-        best = a.first;
-        name = a.second;
-      }
-    }
-    return name;
-  };
   // The animations' copies of each emitter node: a birthrate keyed off. Not the
   // cessation's (how a lasting effect ends - the game's own key every emitter off
   // there, which read as "on for 0.03 s") nor the looping duration's; the
@@ -590,13 +609,13 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
   for (size_t i = 0; i < result.emitters.size(); ++i) {
     VfxEmitter& e = result.emitters[i];
     const float geometry_rate = e.birthrate;
-    const std::string needle = e.name + std::string(1, '\0');
-    for (size_t at = bytes.find(needle); at != std::string::npos; at = bytes.find(needle, at + 1)) {
-      if (at < 0x10 + kModelBase || at - 0x10 == nodes[i]) continue;
-      const std::string anim = anim_of(at - 0x10);
-      if (anim == "cessation") continue;
+    for (const auto& a : anims) {
+    const std::string& anim = a.first;
+    if (anim == "cessation") continue;
+    for (const size_t copy : a.second) {
+      if (copy == nodes[i] || Lower(m.Str(copy + 0x10, 32)) != Lower(e.name)) continue;
       std::vector<Controller> controllers;
-      if (!ReadControllers(m, at - 0x10, &controllers)) continue;
+      if (!ReadControllers(m, copy, &controllers)) continue;
       for (const Controller& c : controllers) {
         if (c.type != 88 || c.times.size() < 2) continue;
         std::vector<std::pair<float, float>> keys;
@@ -606,6 +625,7 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
         if (top > 0.0f) e.birthrate = std::max(e.birthrate, top);
         if (off > 0.0f && anim != "duration" && (!result.duration || geometry_rate == 0.0f)) e.emit_seconds = off;
       }
+    }
     }
   }
   // The impact animation's length (its header: the 64-byte name at +8, the

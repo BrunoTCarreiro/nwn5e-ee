@@ -175,59 +175,95 @@ TEST(VfxReadsACompiledModel) {
   CHECK_EQ(ReadVfxBinaryModel("newmodel x", &effect, &error), false);
 }
 
-// A lasting effect read from a compiled model laid out as the game's (0.42.0;
-// vdr_eleshield): its animations' headers, then their copies of the emitter
-// nodes. Breaks caught: the cessation's switch-off (every lasting game effect
-// has one) read as "on for 0.03 s" - the VFX Bench showed the elemental shield
-// dying after 2.6 s; a lasting effect's impact burst (an emitter otherwise off)
-// losing its on-time; a copy given to the wrong animation.
+// A lasting effect read from a compiled model laid out as the game's (0.42.0 /
+// 0.42.1; vdr_eleshield, vcm_hitsonc): the geometry's node tree and each
+// animation's (impact, duration, cessation), whose copies of the emitter nodes
+// carry the same emitter header but only what that animation keys - and come
+// first in the file. Breaks caught: an animation's copy read as the emitter
+// (vcm_hitsonc's cloud 1 m up with default values, the VFX Bench's preview
+// too high); the cessation's switch-off (every lasting game effect has one)
+// read as "on for 0.03 s" - the elemental shield died after 2.6 s; a lasting
+// effect's impact switch-off cutting an emitter short that the duration keeps
+// on; an impact burst (an emitter otherwise off) losing its on-time.
 TEST(VfxLastingEffectKeepsEmitting) {
-  std::string b(0x1000, '\0');
+  std::string b(0x2000, '\0');
   const auto put32 = [&](size_t at, uint32_t v) { memcpy(&b[at], &v, 4); };
   const auto put16 = [&](size_t at, uint16_t v) { memcpy(&b[at], &v, 2); };
   const auto putf = [&](size_t at, float v) { memcpy(&b[at], &v, 4); };
   const auto puts = [&](size_t at, const char* text) { memcpy(&b[at], text, strlen(text)); };
   const size_t base = 12;
-  // A node named `name` with one birthrate controller (one column).
-  const auto node = [&](size_t at, const char* name, size_t keys, size_t data, const std::vector<float>& times,
-                        const std::vector<float>& values) {
+  // A node (the reader's terms: its header + 0x10) named `name`, with a birthrate
+  // controller and, if `z` isn't negative, a position (0, 0, z).
+  const auto node = [&](size_t at, const char* name, size_t keys, const std::vector<float>& times,
+                        const std::vector<float>& values, float z) {
     puts(at + 0x10, name);
+    const uint16_t rows = static_cast<uint16_t>(times.size());
+    const size_t data = keys + 0x20;
     put32(at + 0x44, static_cast<uint32_t>(keys - base));
-    put32(at + 0x48, 1);
+    put32(at + 0x48, z < 0.0f ? 1 : 2);
     put32(at + 0x50, static_cast<uint32_t>(data - base));
-    put32(at + 0x54, static_cast<uint32_t>(times.size() * 2));
+    put32(at + 0x54, rows * 2u + (z < 0.0f ? 0u : 4u));
     put32(keys, 88);
-    put16(keys + 4, static_cast<uint16_t>(times.size()));
+    put16(keys + 4, rows);
     put16(keys + 6, 0);
-    put16(keys + 8, static_cast<uint16_t>(times.size()));
+    put16(keys + 8, rows);
     b[keys + 10] = 1;
-    for (size_t i = 0; i < times.size(); ++i) {
+    for (size_t i = 0; i < rows; ++i) {
       putf(data + 4 * i, times[i]);
-      putf(data + 4 * (times.size() + i), values[i]);
+      putf(data + 4 * (rows + i), values[i]);
     }
-  };
-  const auto anim = [&](size_t header, const char* name) {
-    puts(header + 8, name);
-    putf(header + 0x70, 1.0f);
+    if (z >= 0.0f) {
+      put32(keys + 12, 8);
+      put16(keys + 16, 1);
+      put16(keys + 18, static_cast<uint16_t>(2 * rows));
+      put16(keys + 20, static_cast<uint16_t>(2 * rows + 1));
+      b[keys + 22] = 3;
+      putf(data + 4 * (2 * rows + 3), z);
+    }
   };
   const auto emitter = [&](size_t at) {
     puts(at + 0x60 + 0x18, "Fountain");
     puts(at + 0x60 + 0x38, "Normal");
     puts(at + 0x60 + 0x78, "fxpa_sphere");
   };
+  // A tree: `at`'s children (an array of header offsets at `array`).
+  const auto children = [&](size_t at, size_t array, const std::vector<size_t>& kids) {
+    put32(at + 0x38, static_cast<uint32_t>(array - base));
+    put32(at + 0x3C, static_cast<uint32_t>(kids.size()));
+    for (size_t i = 0; i < kids.size(); ++i) put32(array + 4 * i, static_cast<uint32_t>(kids[i] - 0x10 - base));
+  };
+  const auto anim = [&](size_t header, const char* name, size_t root) {
+    puts(header + 8, name);
+    put32(header + 0x48, static_cast<uint32_t>(root - 0x10 - base));
+    putf(header + 0x70, 1.0f);
+  };
   puts(base + 8, "test_shield");
-  anim(0x100, "impact");
-  node(0x200, "flash", 0xC00, 0xC10, {0.0f, 0.2f, 0.21f}, {30.0f, 30.0f, 0.0f});  // a burst at the start
-  node(0x300, "ring", 0xC40, 0xC50, {0.0f, 0.5f, 0.51f}, {50.0f, 50.0f, 0.0f});  // on again in the duration
-  anim(0x400, "duration");
-  node(0x480, "ring", 0xC80, 0xC90, {0.0f, 1.0f}, {50.0f, 50.0f});
-  anim(0x500, "cessation");
-  node(0x600, "ring", 0xCC0, 0xCD0, {0.0f, 0.033f}, {50.0f, 0.0f});  // how it ends
-  node(0x700, "flash", 0xD00, 0xD10, {0.0f, 0.033f}, {30.0f, 0.0f});
-  node(0x800, "ring", 0xD40, 0xD50, {0.0f}, {50.0f});  // the geometry: on
+  // The impact: a dummy with the two emitters' copies (before the geometry in the file).
+  anim(0x100, "impact", 0x190);
+  puts(0x190 + 0x10, "test_shield");
+  children(0x190, 0x1F00, {0x200, 0x300});
+  node(0x200, "flash", 0x1800, {0.0f, 0.2f, 0.21f}, {30.0f, 30.0f, 0.0f}, -1.0f);  // a burst at the start
+  emitter(0x200);
+  node(0x300, "ring", 0x1840, {0.0f, 0.5f, 0.51f}, {50.0f, 50.0f, 0.0f}, -1.0f);  // on again in the duration
+  emitter(0x300);
+  anim(0x400, "duration", 0x480);
+  node(0x480, "ring", 0x1880, {0.0f, 1.0f}, {50.0f, 50.0f}, -1.0f);
+  emitter(0x480);
+  anim(0x600, "cessation", 0x690);
+  puts(0x690 + 0x10, "test_shield");
+  children(0x690, 0x1F10, {0x700, 0x800});
+  node(0x700, "ring", 0x18C0, {0.0f, 0.033f}, {50.0f, 0.0f}, -1.0f);  // how it ends
+  emitter(0x700);
+  node(0x800, "flash", 0x1900, {0.0f, 0.033f}, {30.0f, 0.0f}, -1.0f);
   emitter(0x800);
-  node(0xA00, "flash", 0xD80, 0xD90, {0.0f}, {0.0f});  // the geometry: off
-  emitter(0xA00);
+  // The geometry: a dummy, the ring (on, half a metre up) and the flash (off).
+  put32(base + 0x48, static_cast<uint32_t>(0x1000 - 0x10 - base));
+  puts(0x1000 + 0x10, "test_shield");
+  children(0x1000, 0x1F20, {0x1100, 0x1300});
+  node(0x1100, "ring", 0x1940, {0.0f}, {50.0f}, 0.5f);
+  emitter(0x1100);
+  node(0x1300, "flash", 0x1980, {0.0f}, {0.0f}, 0.0f);
+  emitter(0x1300);
   VfxEffect effect;
   std::string error;
   CHECK_EQ(ReadVfxBinaryModel(b, &effect, &error), true);
@@ -238,8 +274,10 @@ TEST(VfxLastingEffectKeepsEmitting) {
   for (const VfxEmitter& e : effect.emitters) (e.name == "ring" ? ring : flash) = &e;
   CHECK_EQ(ring != nullptr && flash != nullptr, true);
   if (!ring || !flash) return;
+  CHECK_EQ(Milli(ring->position[2]), 500);
   CHECK_EQ(Milli(ring->birthrate), 50000);
   CHECK_EQ(Milli(ring->emit_seconds), 0);
+  CHECK_EQ(Milli(flash->position[2]), 0);
   CHECK_EQ(Milli(flash->birthrate), 30000);
   CHECK_EQ(Milli(flash->emit_seconds), 200);
 }

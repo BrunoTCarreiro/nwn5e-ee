@@ -2356,6 +2356,29 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   rings stand still). Checked: page controls driven in headless Edge, the
   server's guards (Origin, Host), screenshots of game effects. Not yet: Play
   in game with a character in play.
+  0.42.1 (owner: "the effect in the preview is not at the correct height.
+  set to foot the effect appears at the character's belly, chest, appears
+  above the head and head appears way above the head"; "can we get a dropdown
+  list of available effects?"): the preview's nodes are the game's, measured on
+  the human male (pmh0, ASCII): root 0, Impact 1.474, headconjure 2.398 (the
+  visualeffects head column - 0.4 m over the head; the game's head effects put
+  their emitters at 0 to -0.11, their impact ones at 0); the figure is pmh0's
+  joints (2 m). It looked a metre off because a new emitter started at 0 0 1
+  (!vfxedit's default too): now 0 0 0, on the point; VfxEmitter's default
+  position is 0 (a model's emitter without one sits on its node). And the
+  binary reader took the first copy of an emitter node in the file - an
+  animation's, which carries the same emitter header but only what that
+  animation keys (vcm_hitsonc's cloud came out 1 m up with default values,
+  vdr_darkness all defaults; 46 game emitters read 0 0 1): emitters now come
+  from the geometry's node tree and each animation's copies from its own tree
+  (headers +0x48; children at node +0x38 / +0x3C; the node header is 0x70 with
+  the name at +0x20 - the reader's "node" is +0x10 into it), replacing
+  0.42.0's "the header before it" guess. Test VfxLastingEffectKeepsEmitting
+  rebuilt with real trees and the copies first in the file; three mutations
+  (tree, cessation, geometry rate) each fail it. Library format 3. The list:
+  the page's Effects card (Yours / nwn5e / Game, with search) was empty
+  because the page opened before the game's export; it now reads the lists
+  again when the export appears (the 2 s link poll carries index.txt's time).
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

@@ -17,7 +17,7 @@
   function emitter(overrides) {
     return Object.assign({
       name: "emitter", update: "Fountain", render: "Normal", blend: "Normal", texture: "fxpa_sphere",
-      position: [0, 0, 1], birthrate: 10, emit_seconds: 0, life: 1, velocity: 1, randvel: 0.5, spread: 0.8,
+      position: [0, 0, 0], birthrate: 10, emit_seconds: 0, life: 1, velocity: 1, randvel: 0.5, spread: 0.8,
       mass: 0, size_start: 0.1, size_end: 0.1, color_start: [1, 1, 1], color_end: [1, 1, 1], alpha_start: 1,
       alpha_end: 0, xsize: 0, ysize: 0, grid: 1, frame_end: 0, blur_length: 0, bounce_co: 0,
       inherit: false, splat: false, bounce: false, random: false,
@@ -31,7 +31,7 @@
   // vfx_editor.cpp's DefaultEmitter / DefaultEffect: orange sparks.
   function sparks() {
     return emitter({
-      name: "sparks", texture: "fxpa_sphere", render: "Normal", blend: "Lighten", position: [0, 0, 1], birthrate: 20,
+      name: "sparks", texture: "fxpa_sphere", render: "Normal", blend: "Lighten", position: [0, 0, 0], birthrate: 20,
       life: 1, velocity: 1.5, randvel: 0.5, spread: 0.8, mass: 0.5, size_start: 0.08, size_end: 0.02,
       color_start: [1, 0.8, 0.3], color_end: [1, 0.3, 0.1],
     });
@@ -125,7 +125,7 @@
         const close = line.indexOf("]");
         const inner = (close < 0 ? line.slice(1) : line.slice(1, close)).trim();
         if (!inner.toLowerCase().startsWith("emitter")) throw new Error("line " + (n + 1) + ": unknown section [" + inner + "]");
-        e = emitter({ position: [0, 0, 1], color_start: [1, 1, 1], color_end: [1, 1, 1] });
+        e = emitter();
         e.name = inner.slice(7).trim() || "emitter";
         fx.emitters.push(e);
         continue;

@@ -18,7 +18,14 @@ nwn5e.ini, the default): 3 s into a start nwn5e copies the game's effects out fo
 bench, once - `build\vfxedit\library\`: `index.txt` (the effects table's rows that have
 emitters), `game\<model>.vfx` (each model's emitters as a draft), `textures\` (the
 particle textures, from your own game files) and `nwn5e\` (nwn5e's own effects).
-`!vfxexport` in the game's chat writes it again.
+`!vfxexport` in the game's chat writes it again. An open page fills its lists in by
+itself when the copy arrives.
+
+Where an effect sits: the figure is the game's human male (pmh0, about 2 m), and an
+effect is on one of three points - the feet (root), the chest (impact, 1.47 m) or
+over the head (the head conjure point, 2.4 m: where the game's spell glows sit, about
+40 cm above the head). An emitter's position is measured from that point; a new
+emitter starts on it (0 0 0).
 
 - **Play in game / Stop in game** work while a character is in play (the dot at the
   top says "Game: running"): the bench writes `build\vfxedit\bench\request.vfx`, the

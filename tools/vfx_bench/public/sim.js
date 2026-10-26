@@ -14,7 +14,10 @@
   "use strict";
   const GRAVITY = 9.8;
   const MAX_PARTICLES = 6000;  // an emitter's, in the preview
-  const ATTACH_HEIGHT = { root: 0, head: 1.75, impact: 1.1 };
+  // The effect nodes on the game's human male (pmh0, measured 0.42.1): the root at
+  // the feet, impact on the chest, headconjure (the visualeffects head column) some
+  // 0.4 m over the head - where the game's own head effects sit (their emitters at 0).
+  const ATTACH_HEIGHT = { root: 0, impact: 1.47, head: 2.4 };
 
   function lerp(a, b, t) { return a + (b - a) * t; }
 

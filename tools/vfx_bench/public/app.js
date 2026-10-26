@@ -122,7 +122,7 @@
       onclick: () => open(e),
     }, [document.createTextNode(e.title), el("span", { class: "sub", text: e.sub })]))));
     if (!shown.length) list.append(el("li", { class: "empty-row", text: s && !s.exported && state.tab !== "saved"
-      ? "Nothing yet: start the game once with nwn5e 0.42.0 or later (vfx_bench=1), then Reload."
+      ? "Nothing yet: start the game with nwn5e 0.42.0 or later (vfx_bench=1) - it copies its effects out 3 s in, and this list fills in by itself."
       : state.tab === "saved" && !query ? "Nothing saved yet." : "Nothing matches." }));
     $("lib-note").textContent = state.tab === "game" ? "The game's effects with emitters (its own files, copied out by nwn5e). They open as fx<row>: Save keeps your copy." : "";
     renderOverlay();
@@ -199,9 +199,10 @@
     $("fx-type").value = fx.duration ? "D" : "F";
     $("fx-seconds").value = core.num(fx.seconds);
     $("fx-attach").value = core.ATTACHES.includes(fx.attach) ? fx.attach : "root";
-    $("fx-note").textContent = fx.duration
+    $("fx-note").textContent = (fx.duration
       ? "Stays on the character while applied; the preview (and Play in game) runs it for Seconds."
-      : "Plays once; an emitter without its own On for stays on for Seconds.";
+      : "Plays once; an emitter without its own On for stays on for Seconds.") +
+      " An emitter's position is from that point: on a human the feet, the chest (1.5 m) or over the head (2.4 m, where the game's spell glows sit).";
   }
 
   function emitterLine(e) { return `${e.update} · ${e.render} · ${e.texture}`; }
@@ -435,6 +436,12 @@
       state.link = { alive: false, status: null };
     }
     renderLink();
+    // The game copied its effects out (again) since the lists were read: read them again.
+    if (state.server && state.link.library && state.link.library !== state.server.link.library) {
+      const first = !state.server.exported;
+      await refresh();
+      if (first) setStatus(`The game's effects are here: ${state.server.game.length} in the Game list on the left.`, "good");
+    }
   }
 
   async function request(kind) {

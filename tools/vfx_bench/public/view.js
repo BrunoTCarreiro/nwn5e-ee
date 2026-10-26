@@ -201,18 +201,25 @@ precision mediump float; varying vec4 v_color; void main() { gl_FragColor = v_co
         line([-6, i, 0], [6, i, 0], i === 0 ? axis : grid);
       }
       if (this.showFigure) {
+        // The game's human male (pmh0) in its rest pose, about 2 m: its joints' heights.
         const body = [0.75, 0.8, 0.86, 0.75];
         const c = Math.cos(figure.heading), s = Math.sin(figure.heading);
         const at = (x, y, z) => [figure.x + x * c - y * s, figure.y + x * s + y * c, z];
-        line(at(0, 0, 0.95), at(0.12, 0, 0.0), body);  // legs
-        line(at(0, 0, 0.95), at(-0.12, 0, 0.0), body);
-        line(at(0, 0, 0.95), at(0, 0, 1.5), body);      // body
-        line(at(0, 0, 1.45), at(0.32, 0, 1.0), body);   // arms
-        line(at(0, 0, 1.45), at(-0.32, 0, 1.0), body);
-        line(at(0, 0, 1.5), at(0, 0, 1.58), body);      // neck
-        for (let k = 0; k < 14; k++) {                    // head
-          const a0 = (k / 14) * 2 * Math.PI, a1 = ((k + 1) / 14) * 2 * Math.PI;
-          line(at(0.11 * Math.cos(a0), 0, 1.69 + 0.11 * Math.sin(a0)), at(0.11 * Math.cos(a1), 0, 1.69 + 0.11 * Math.sin(a1)), body);
+        for (const side of [-1, 1]) {
+          line(at(side * 0.108, 0, 1.025), at(side * 0.077, 0, 0.564), body);  // thigh
+          line(at(side * 0.077, 0, 0.564), at(side * 0.057, 0, 0.137), body);  // shin
+          line(at(side * 0.057, 0, 0.137), at(side * 0.06, 0, 0.0), body);     // foot
+          line(at(side * 0.201, 0, 1.557), at(side * 0.24, 0, 1.255), body);   // upper arm
+          line(at(side * 0.24, 0, 1.255), at(side * 0.273, 0, 0.964), body);   // forearm
+          line(at(side * 0.273, 0, 0.964), at(side * 0.284, 0, 0.868), body);  // hand
+        }
+        line(at(-0.108, 0, 1.025), at(0.108, 0, 1.025), body);  // hips
+        line(at(0, 0, 1.025), at(0, 0, 1.676), body);           // spine
+        line(at(-0.201, 0, 1.557), at(0.201, 0, 1.557), body);  // shoulders
+        line(at(0, 0, 1.676), at(0, 0, 1.753), body);           // neck
+        for (let k = 0; k < 16; k++) {                           // head, its top at 2 m
+          const a0 = (k / 16) * 2 * Math.PI, a1 = ((k + 1) / 16) * 2 * Math.PI;
+          line(at(0.115 * Math.cos(a0), 0, 1.875 + 0.125 * Math.sin(a0)), at(0.115 * Math.cos(a1), 0, 1.875 + 0.125 * Math.sin(a1)), body);
         }
         for (const name of Object.keys(ATTACH_HEIGHT)) {  // the three nodes; the effect's own lit
           const z = ATTACH_HEIGHT[name];
