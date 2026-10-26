@@ -45,7 +45,9 @@
 // a walk mapped to itself may lose the game's own smooth reverse - so the walk
 // and its weapon layers go back by removing their swaps (an empty name), while
 // the idles stay mapped to themselves: the list is never empty, which is what
-// kept a removal from reaching the client before.
+// kept a removal from reaching the client before. 0.39.3: a player character
+// gets that clean-up once a session even if it never hides - a saved game
+// from before kept the walk mapped to itself.
 
 #include <windows.h>
 
@@ -197,8 +199,15 @@ void Update(void* creature) {
   const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
   auto it = g_looks.find(id);
   if (it == g_looks.end()) {
-    if (!hiding) return;  // the common case: nothing to do
+    // A player character: its saved swaps cleaned once (the walk's removed, idles its own).
+    const bool player = Field<int32_t>(creature, ee::kCreatureIsPlayerCharacter) != 0;
+    if (!hiding && !player) return;  // the common case: nothing to do
     it = g_looks.emplace(id, Look{}).first;
+    if (!hiding) {
+      Send(id, it->second);
+      Log("look: 0x%08X its walk swaps cleared (a new session: the game's walk, its idles its own)", id);
+      return;
+    }
   }
   Look& look = it->second;
   if (look.restart_until) RestartWalk(id, look);

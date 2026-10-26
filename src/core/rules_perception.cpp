@@ -253,8 +253,15 @@ void SetStealthMode(void* creature, uint8_t mode) {
   // turn off stealth mode now" - a mark kept in a saved game held every stealth
   // change back): only the engine's own attack path is held back - never one
   // through ToggleMode (the player's button, a script's find) - and the mark
-  // lasts 30 s. Who tried is logged (the first few).
+  // lasts 30 s. Who tried is logged (the first few). 0.39.3 (owner: "once a
+  // light source is snuffed while in stealth I can no longer toggle off the
+  // stealth"): CNWSCreature::SetActivity clears the stealth activity bit (+0x8e0
+  // bit 0) before it asks for stealth off, so a kept hider was hiding with the
+  // activity off - and the stealth button, finding it off, had nothing to turn
+  // off. The bit is set back with it.
   if (creature && mode != 1 && Hiding(creature) && Snuffing(creature) && !FromToggleMode()) {
+    constexpr size_t kCreatureActivities = 0x8e0;  // uint32: bit 0 stealth (SetActivity / ActivityManager)
+    SetField<uint32_t>(creature, kCreatureActivities, Field<uint32_t>(creature, kCreatureActivities) | 1u);
     static int told = 0;
     if (told < 6) {
       ++told;
