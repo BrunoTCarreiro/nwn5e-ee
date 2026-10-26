@@ -139,6 +139,10 @@ constexpr float kConeAngles[] = {60, 90, 120, 150};  // tools/data/stealth_rings
 constexpr float kRingRadii[] = {5, 10, 15, 20, 25, 28, 30, 35, 40, 50};  // tools/data/stealth_rings.py
 constexpr size_t kSightRange = 0x7b0;  // float, metres; +4 in combat (DoSpotDetection)
 constexpr size_t kHearRange = 0x7b8;   // float, metres; +4 in combat (DoListenDetection)
+// Once a second - but a creature that starts or stops hiding is handled at
+// once (0.40.3; owner: "when turning off stealth mode it takes a while for the
+// light markers, vision cones and hearing markers to disappear, can these be
+// expedited?" - up to a second's wait for the next check).
 constexpr uint64_t kCheckMs = 1000;
 constexpr const char* kVarSightRing = "nwn5e_sight_ring";
 constexpr const char* kVarHearRing = "nwn5e_hear_ring";
@@ -533,11 +537,11 @@ void ClearHider(uint32_t id) {
 void HenchmanPass(void* creature, uint32_t id) {
   Watch& watch = g_watches[id];
   const uint64_t now = GetTickCount64();
-  if (now < watch.next) return;
+  const bool hiding = Field<uint8_t>(creature, ee::kCreatureStealthMode) == 1;
+  if (now < watch.next && hiding == watch.on) return;  // a change: at once (see kCheckMs)
   watch.next = now + kCheckMs;
   void* area = engine::AreaOf(creature);
   if (!area) return;
-  const bool hiding = Field<uint8_t>(creature, ee::kCreatureStealthMode) == 1;
   if (area != watch.area) {
     watch.area = area;
     if (watch.on) ClearHider(id);
@@ -600,11 +604,11 @@ void Update(void* creature) {
   }
   Watch& watch = g_watches[id];
   const uint64_t now = GetTickCount64();
-  if (now < watch.next) return;
+  const bool hiding = Field<uint8_t>(creature, ee::kCreatureStealthMode) == 1;
+  if (now < watch.next && hiding == watch.on) return;  // a change: at once (see kCheckMs)
   watch.next = now + kCheckMs;
   void* area = engine::AreaOf(creature);
   if (!area) return;
-  const bool hiding = Field<uint8_t>(creature, ee::kCreatureStealthMode) == 1;
   if (hiding) {
     g_hider = id;
   } else if (g_hider == id) {
