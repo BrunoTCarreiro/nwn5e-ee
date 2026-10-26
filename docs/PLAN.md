@@ -2460,6 +2460,26 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   (22 compiled, 3 ASCII - Bigby's hands 11 each, Mage Armor 8 / 10, Weird 43,
   Wail of the Banshee 15, Meteor Swarm 12, Wilting 28, Revive Dragon 64, Raise Dead 17, ...)
   and 13 tile / placeable models listed as effects; not drawn (owner's call).
+  0.42.5: point to point, read in the game's code (PARTICLES.md): the target is
+  the emitter's first reference child (SetEmitterTarget via "_EmitterTarget";
+  all 117 compiled p2p emitters have one, refModel fx_ref; none -> a null
+  call, a crash); p2p_sel picks moveParticleP2PBezier (the free flight blended
+  into the cubic emitter -> emitter + p2p_bezier2 z -> target + p2p_bezier3 z
+  -> target by (t^3)^combinetime) or moveParticleP2PGrav (pulled at grav,
+  speed x drag^dt, aged out within threshold - with the game's early return
+  when one starts the frame inside it; inherit_local / _part there also turn
+  with the character). Kept: VfxEmitter p2p / p2p_bezier2 / 3 / combinetime /
+  grav / drag / threshold, a node under an emitter is its target (VfxNode
+  ref_model) - binary (flags, controllers 120 124 140 152 156 188, the first
+  header-0x10 child), ASCII (p2p / p2p_sel, the first `node reference` child),
+  draft (p2p =, p2p_bezier = b2 b3, combinetime, grav, drag, threshold;
+  ref_model =), writer (the target a `node reference` after its emitter with
+  refModel / reattachable 0, `node dummy` in the animations as the game's own;
+  p2p written off without a target). Bench: both moves ported, the target's
+  place each frame, "Goes to a target" (makes <emitter>_target), the kind's
+  own fields, a renamed emitter keeps its target. Library format 8: 119 p2p
+  emitters (41 bezier, 78 gravity) with their targets; check.js 408 byte for
+  byte. Test VfxPointToPoint; nine mutations each fail it.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

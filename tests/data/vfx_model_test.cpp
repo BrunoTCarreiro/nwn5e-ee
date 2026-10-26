@@ -411,6 +411,122 @@ TEST(VfxEmitterUnderAMovedDummy) {
   }
 }
 
+// Point to point (0.42.5; the game's Bigby's hands fly to a reference node under each emitter,
+// Greater Dispelling pulls its streaks to one): a compiled model's p2p emitter with its
+// settings and its reference child kept as its target; the same through an ASCII model, the
+// draft, and the model nwn5e writes. Breaks caught: the p2p flags or their kind (p2p_sel)
+// lost; a setting's controller not read; the target not kept, or kept off its emitter, or its
+// reference model lost; the written target a dummy (the game finds none - and crashes) or
+// written before its emitter; a p2p emitter with no target written as p2p (a crash).
+TEST(VfxPointToPoint) {
+  std::string b(0x1800, '\0');
+  const auto put32 = [&](size_t at, uint32_t v) { memcpy(&b[at], &v, 4); };
+  const auto put16 = [&](size_t at, uint16_t v) { memcpy(&b[at], &v, 2); };
+  const auto putf = [&](size_t at, float v) { memcpy(&b[at], &v, 4); };
+  const auto puts = [&](size_t at, const char* text) { memcpy(&b[at], text, strlen(text)); };
+  const size_t base = 12;
+  struct Ctrl {
+    uint32_t type;
+    std::vector<float> values;
+  };
+  const auto node = [&](size_t at, const char* name, size_t keys, const std::vector<Ctrl>& ctrls) {
+    puts(at + 0x10, name);
+    const size_t data = keys + 0x80;
+    uint16_t used = 0;
+    put32(at + 0x44, static_cast<uint32_t>(keys - base));
+    put32(at + 0x48, static_cast<uint32_t>(ctrls.size()));
+    put32(at + 0x50, static_cast<uint32_t>(data - base));
+    for (size_t i = 0; i < ctrls.size(); ++i) {
+      const size_t k = keys + 12 * i;
+      put32(k, ctrls[i].type);
+      put16(k + 4, 1);
+      put16(k + 6, used);
+      putf(data + 4 * used++, 0.0f);
+      put16(k + 8, used);
+      for (float v : ctrls[i].values) putf(data + 4 * used++, v);
+      b[k + 10] = static_cast<char>(ctrls[i].values.size());
+    }
+    put32(at + 0x54, used);
+  };
+  const auto children = [&](size_t at, size_t array, std::vector<size_t> kids) {
+    put32(at + 0x38, static_cast<uint32_t>(array - base));
+    put32(at + 0x3C, static_cast<uint32_t>(kids.size()));
+    for (size_t i = 0; i < kids.size(); ++i) put32(array + 4 * i, static_cast<uint32_t>(kids[i] - 0x10 - base));
+  };
+  puts(base + 8, "test_beam");
+  put32(base + 0x48, static_cast<uint32_t>(0x100 - 0x10 - base));
+  node(0x100, "test_beam", 0x800, {{8, {0, 0, 0}}});
+  children(0x100, 0x1700, {0x200});
+  // The emitter (bezier) and, under it, a dummy first and then its reference node.
+  node(0x200, "spray", 0x900, {{8, {0, 0, 1}}, {140, {2.5f}}, {188, {0.1f}}, {152, {1.5f}}, {156, {0.75f}},
+                               {124, {0.5f}}, {120, {0.25f}}});
+  puts(0x200 + 0x60 + 0x18, "Fountain");
+  puts(0x200 + 0x60 + 0x38, "Normal");
+  puts(0x200 + 0x60 + 0x78, "fxpa_spark");
+  put32(0x200 + 0x60 + 0xD4, 0x1 | 0x2);
+  children(0x200, 0x1710, {0x300, 0x400});
+  node(0x300, "spray_dummy", 0xA00, {{8, {0, 0, 5}}});
+  put32(0x300 + 0x5C, 0x1);
+  node(0x400, "spray_ref", 0xB00, {{8, {0, 0.5f, 2}}});
+  put32(0x400 + 0x5C, 0x11);
+  puts(0x400 + 0x60, "fx_ref_cold");
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxBinaryModel(b, &effect, &error), true);
+  CHECK_EQ(effect.emitters.size(), 1u);
+  if (effect.emitters.empty()) return;
+  const VfxEmitter& e = effect.emitters[0];
+  CHECK_EQ(e.p2p == "bezier", true);
+  CHECK_EQ(Milli(e.grav), 2500);
+  CHECK_EQ(Milli(e.threshold), 100);
+  CHECK_EQ(Milli(e.p2p_bezier2), 1500);
+  CHECK_EQ(Milli(e.p2p_bezier3), 750);
+  CHECK_EQ(Milli(e.drag), 500);
+  CHECK_EQ(Milli(e.combinetime), 250);
+  CHECK_EQ(effect.nodes.size(), 1u);  // the target, not the dummy beside it
+  if (effect.nodes.empty()) return;
+  CHECK_EQ(effect.nodes[0].name == "spray_ref", true);
+  CHECK_EQ(effect.nodes[0].parent == "spray", true);
+  CHECK_EQ(effect.nodes[0].ref_model == "fx_ref_cold", true);
+  CHECK_EQ(Milli(effect.nodes[0].position[1]), 500);
+  CHECK_EQ(Milli(effect.nodes[0].position[2]), 2000);
+  // Through the draft.
+  VfxEffect back;
+  CHECK_EQ(ReadVfxDraft(WriteVfxDraft(effect), &back, &error), true);
+  CHECK_EQ(back.emitters.size() == 1 && back.nodes.size() == 1, true);
+  if (back.emitters.empty() || back.nodes.empty()) return;
+  CHECK_EQ(back.emitters[0].p2p == "bezier", true);
+  CHECK_EQ(Milli(back.emitters[0].p2p_bezier3), 750);
+  CHECK_EQ(Milli(back.emitters[0].combinetime), 250);
+  CHECK_EQ(Milli(back.emitters[0].threshold), 100);
+  CHECK_EQ(back.nodes[0].parent == "spray", true);
+  CHECK_EQ(back.nodes[0].ref_model == "fx_ref_cold", true);
+  // The model nwn5e writes: the target a reference node after its emitter; gravity's p2p_sel 0.
+  back.emitters[0].p2p = "gravity";
+  const std::string model = WriteVfxModel(back, "n5vx0009");
+  const size_t emitter_at = model.find("node emitter n5vx0009_0_spray");
+  const size_t target_at = model.find("node reference n5vx0009_n0_spray_ref");
+  CHECK_EQ(emitter_at != std::string::npos && target_at != std::string::npos && emitter_at < target_at, true);
+  CHECK_EQ(Contains(model, "  parent n5vx0009_0_spray\n  position 0 0.5 2"), true);
+  CHECK_EQ(Contains(model, "  refModel fx_ref_cold\n  reattachable 0"), true);
+  CHECK_EQ(Contains(model, "  p2p 1\n  p2p_sel 0"), true);
+  CHECK_EQ(Contains(model, "  grav 2.5"), true);
+  CHECK_EQ(Contains(model, "node dummy n5vx0009_n0_spray_ref"), true);  // in the animations, as the game's
+  // ... and read back from it.
+  VfxEffect read;
+  CHECK_EQ(ReadVfxAsciiModel(model, &read, &error), true);
+  CHECK_EQ(read.emitters.size() == 1 && read.nodes.size() == 1, true);
+  if (read.emitters.empty() || read.nodes.empty()) return;
+  CHECK_EQ(read.emitters[0].p2p == "gravity", true);
+  CHECK_EQ(Milli(read.emitters[0].grav), 2500);
+  CHECK_EQ(read.nodes[0].parent == read.emitters[0].name, true);
+  CHECK_EQ(read.nodes[0].ref_model == "fx_ref_cold", true);
+  // No target: written as off.
+  VfxEffect lonely = back;
+  lonely.nodes.clear();
+  CHECK_EQ(Contains(WriteVfxModel(lonely, "n5vx0010"), "  p2p 0\n"), true);
+}
+
 // An effect with motion (0.42.3): a node that turns in the duration and an emitter under it
 // that moves - through the draft, and through the model nwn5e writes and reads back.
 // Breaks caught: a node, a parent, a key list, the lengths or the follow flags lost on the

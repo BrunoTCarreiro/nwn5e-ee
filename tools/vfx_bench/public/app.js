@@ -273,6 +273,16 @@
       { key: "blur_length", type: "num", min: 0, max: 10, step: 0.05, label: "Blur length (Motion_Blur: how many seconds its tail lags)" },
       { key: "particle_rot", type: "num", min: -10, max: 10, step: 0.1, label: "Spin (radians a second)" },
     ] },
+    { title: "Point to point", fields: [
+      { key: "p2p", type: "p2p", label: "Goes to a target" },
+      { key: "p2p_bezier2", type: "num", min: -10, max: 10, step: 0.1, when: (e) => e.p2p === "bezier", label: "Curve: out along the emitter's z first (m)" },
+      { key: "p2p_bezier3", type: "num", min: -10, max: 10, step: 0.1, when: (e) => e.p2p === "bezier", label: "Curve: comes in along the target's z (m)" },
+      { key: "combinetime", type: "num", min: 0, max: 10, step: 0.05, when: (e) => e.p2p === "bezier", label: "Curve: how late it takes them (0 = on it all the way)",
+        help: "Each frame a particle flies on as usual, then is drawn onto the curve by (age / life) to the power 3 x this: 0 keeps it on the curve; higher lets it fly free longer." },
+      { key: "grav", type: "num", min: -50, max: 50, step: 0.1, when: (e) => e.p2p === "gravity", label: "Pull toward it (m/s²; below 0 pushes)" },
+      { key: "drag", type: "num", min: 0, max: 1, step: 0.01, when: (e) => e.p2p === "gravity", label: "Speed kept each second (1 = all, 0 = none)" },
+      { key: "threshold", type: "num", min: 0, max: 5, step: 0.01, when: (e) => e.p2p === "gravity", label: "Gone within (m of it)" },
+    ] },
     { title: "Its own motion", fields: [
       { key: "keys", type: "motion", label: "Keys" },
     ] },
@@ -298,6 +308,8 @@
 
   function field(e, f) {
     const set = (value) => {
+      // A renamed emitter keeps what hangs under it (its p2p target, 0.42.5).
+      if (f.key === "name") for (const x of [...(state.fx.nodes || []), ...state.fx.emitters]) if (x !== e && x.parent === e.name) x.parent = value;
       e[f.key] = value;
       if (f.key === "name" || f.key === "update" || f.key === "render" || f.key === "texture") renderEmitters();
       changed(false);
@@ -363,6 +375,7 @@
       return wrap([el("span", { text: f.label + " (red green blue, 0-1)" }), el("div", { class: "colour" }, [picker, ...numbers])]);
     }
     if (f.type === "parent") return parentField(e, f.label, () => { renderEmitters(); changed(true); });
+    if (f.type === "p2p") return p2pField(e, f);
     if (f.type === "motion") return motionField(e, true);
     if (f.type === "texture") {
       const box = el("span", { class: "thumb" });
@@ -381,7 +394,32 @@
       return;
     }
     $("emf-h").textContent = "Emitter: " + e.name;
-    box.replaceChildren(...GROUPS.map((g) => el("div", { class: "group" }, [el("h3", { text: g.title }), ...g.fields.map((f) => field(e, f))])));
+    box.replaceChildren(...GROUPS.map((g) => el("div", { class: "group" }, [el("h3", { text: g.title }),
+      ...g.fields.filter((f) => !f.when || f.when(e)).map((f) => field(e, f))])));
+  }
+
+  // Point to point (0.42.5): the kind, and the target - the first node under the emitter (made
+  // here when there is none: the game crashes on a p2p emitter without one).
+  function p2pField(e, f) {
+    const fx = state.fx;
+    const target = (fx.nodes || []).find((n) => n.parent === e.name);
+    const kinds = [["", "No - as usual"], ["bezier", "Bezier: along a curve to it, arriving as they age out"], ["gravity", "Gravity: pulled to it, gone when they reach it"]];
+    const select = el("select", { "aria-label": f.label, onchange: (ev) => {
+      e.p2p = ev.target.value;
+      if (e.p2p && !(fx.nodes || []).some((n) => n.parent === e.name)) {
+        fx.nodes = fx.nodes || [];
+        let name = core.resref(e.name + "_target", 20) || "target";
+        for (let k = 2; [...fx.nodes, ...fx.emitters].some((x) => x.name === name); k++) name = core.resref(e.name + "_target" + k, 20);
+        fx.nodes.push(core.node({ name, parent: e.name, position: [1.5, 0, 0] }));
+        state.node = fx.nodes.length - 1;
+        setStatus(`Its target is the node ${name}, 1.5 m along the emitter's x: move it in the Nodes card.`);
+      }
+      renderFields(); renderNodes(); changed(true); sim.restart();
+    } }, kinds.map(([value, text]) => el("option", { value, selected: value === (e.p2p || ""), text })));
+    const note = !e.p2p ? "Its particles fly as usual."
+      : target ? `To the node ${target.name} (in Nodes: where it is, and its motion). The game finds it as a reference node under the emitter - Save writes it so.`
+        : "No target under it: add a node under this emitter (Save writes it as not point to point - the game would crash).";
+    return el("div", { class: "field" }, [el("span", { text: f.label }), select, el("span", { class: "note", text: note })]);
   }
 
   // --- nodes and motion (0.42.3) -------------------------------------------------------------
@@ -470,7 +508,8 @@
     if (state.node >= fx.nodes.length) state.node = fx.nodes.length - 1;
     $("nodes").replaceChildren(...fx.nodes.map((n, i) => el("li", { class: i === state.node ? "current" : "" }, [
       el("button", { type: "button", class: "pick", onclick: () => { state.node = i; renderNodes(); } },
-        [document.createTextNode(n.name), el("span", { class: "sub", text: (n.parent ? "under " + n.parent : "on the character") + " · " + keysLine(n.keys) })]),
+        [document.createTextNode(n.name), el("span", { class: "sub", text: (fx.emitters.some((e) => e.name === n.parent) ? "target of " + n.parent
+          : n.parent ? "under " + n.parent : "on the character") + " · " + keysLine(n.keys) })]),
     ])));
     if (!fx.nodes.length) $("nodes").append(el("li", null, el("span", { class: "note", text: "None: the emitters hang on the character's point. Add one, or Make it orbit on an emitter." })));
     $("nd-del").disabled = state.node < 0;

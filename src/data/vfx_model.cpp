@@ -47,12 +47,14 @@ void ReadFloats(const std::vector<std::string>& words, size_t from, float* out, 
 }
 
 std::vector<std::string> EmitterLines(const VfxEmitter& e, const std::string& node, const std::string& parent,
-                                      bool keyed_birthrate) {
+                                      bool keyed_birthrate, bool has_target) {
   const auto flag = [](const char* name, bool on) { return std::string("  ") + name + (on ? " 1" : " 0"); };
+  // Point to point only with a target (the game calls into a missing one); p2p_sel 1: bezier.
+  const bool p2p = has_target && (e.p2p == "bezier" || e.p2p == "gravity");
   return {
       "node emitter " + node,
       "  parent " + parent,
-      "  p2p 0", "  p2p_sel 1", "  affectedByWind 0", "  m_isTinted 0", flag("bounce", e.bounce),
+      flag("p2p", p2p), flag("p2p_sel", !p2p || e.p2p == "bezier"), "  affectedByWind 0", "  m_isTinted 0", flag("bounce", e.bounce),
       flag("random", e.random), flag("inherit", e.inherit), "  inheritvel 0", flag("inherit_local", e.inherit_local),
       flag("splat", e.splat), flag("inherit_part", e.inherit_part), "  renderorder 0", "  spawntype 0",
       "  update " + e.update,
@@ -78,7 +80,9 @@ std::vector<std::string> EmitterLines(const VfxEmitter& e, const std::string& no
       "  xsize " + Num(e.xsize), "  ysize " + Num(e.ysize), "  bounce_co " + Num(e.bounce_co),
       "  blurlength " + Num(e.blur_length),
       "  lightningDelay 0", "  lightningRadius 0", "  lightningScale 0",
-      "  p2p_bezier2 0", "  p2p_bezier3 0", "  combinetime 0", "  drag 0", "  grav 0", "  threshold 0",
+      "  p2p_bezier2 " + Num(e.p2p_bezier2), "  p2p_bezier3 " + Num(e.p2p_bezier3),
+      "  combinetime " + Num(e.combinetime), "  drag " + Num(e.drag), "  grav " + Num(e.grav),
+      "  threshold " + Num(e.threshold),
       "endnode",
   };
 }
@@ -233,6 +237,18 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
     }
   }
   const auto parent_line = [&](size_t k) { return orphans.count(k) ? model : parent_of(k); };
+  // A node under an emitter is its point-to-point target: a reference node (0.42.5).
+  std::set<std::string> emitter_names;
+  for (const VfxEmitter& e : effect.emitters) emitter_names.insert(e.name);
+  const auto is_target = [&](size_t k) {
+    return k < node_count && !orphans.count(k) && emitter_names.count(effect.nodes[k].parent) > 0;
+  };
+  const auto has_target = [&](const VfxEmitter& e) {
+    for (size_t k = 0; k < node_count; ++k) {
+      if (effect.nodes[k].parent == e.name && is_target(k)) return true;
+    }
+    return false;
+  };
   const auto turn = [](const float o[4]) {
     return Num(o[0]) + " " + Num(o[1]) + " " + Num(o[2]) + " " + Num(o[3]);
   };
@@ -252,17 +268,23 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
   for (size_t k : order) {
     if (k < node_count) {
       const VfxNode& n = effect.nodes[k];
-      lines.push_back("node dummy " + names[k]);
+      lines.push_back((is_target(k) ? "node reference " : "node dummy ") + names[k]);
       lines.push_back("  parent " + parent_line(k));
       lines.push_back("  position " + Num(n.position[0]) + " " + Num(n.position[1]) + " " + Num(n.position[2]));
       lines.push_back("  orientation " + turn(n.orientation));
+      if (is_target(k)) {
+        lines.push_back("  refModel " + (n.ref_model.empty() ? std::string("fx_ref") : n.ref_model));
+        lines.push_back("  reattachable 0");
+      }
       lines.push_back("endnode");
       continue;
     }
     const VfxEmitter& e = effect.emitters[k - node_count];
     // An emitter that switches off is keyed in the impact; F's always-on ones are too.
     const bool keyed = e.emit_seconds > 0.0f || !effect.duration;
-    for (const std::string& line : EmitterLines(e, names[k], parent_line(k), keyed)) lines.push_back(line);
+    for (const std::string& line : EmitterLines(e, names[k], parent_line(k), keyed, has_target(e))) {
+      lines.push_back(line);
+    }
   }
   lines.push_back("endmodelgeom " + model);
   // The impact: long enough for every emitter's emission (and, F, what it emitted to fade),
@@ -357,6 +379,7 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
     out += "position = " + Num(n.position[0]) + " " + Num(n.position[1]) + " " + Num(n.position[2]) + "\n";
     out += "orientation = " + Num(n.orientation[0]) + " " + Num(n.orientation[1]) + " " + Num(n.orientation[2]) + " " +
            Num(n.orientation[3]) + "\n";
+    if (!n.ref_model.empty()) out += "ref_model = " + n.ref_model + "\n";
     out += DraftKeys(n.keys);
   }
   for (const VfxEmitter& e : effect.emitters) {
@@ -377,6 +400,11 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
     out += "fps = " + Num(e.fps) + "\nparticle_rot = " + Num(e.particle_rot) + "\n";
     out += "blur_length = " + Num(e.blur_length) + "\nbounce_co = " + Num(e.bounce_co) + "\n";
     out += "deadspace = " + Num(e.deadspace) + "\n";
+    if (!e.p2p.empty()) {
+      out += "p2p = " + e.p2p + "\np2p_bezier = " + Num(e.p2p_bezier2) + " " + Num(e.p2p_bezier3) + "\n";
+      out += "combinetime = " + Num(e.combinetime) + "\ngrav = " + Num(e.grav) + "\ndrag = " + Num(e.drag) + "\n";
+      out += "threshold = " + Num(e.threshold) + "\n";
+    }
     std::string flags;
     if (e.inherit) flags += " inherit";
     if (e.splat) flags += " splat";
@@ -435,6 +463,7 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
       if (key == "parent") n.parent = value;
       else if (key == "position") ReadFloats(words, 0, n.position, 3);
       else if (key == "orientation") ReadFloats(words, 0, n.orientation, 4);
+      else if (key == "ref_model") n.ref_model = VfxResRef(value, 16);
       else DraftKeyLine(key, words, &n.keys);
       continue;
     }
@@ -485,6 +514,16 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
     else if (key == "blur_length") e->blur_length = ToFloat(value);
     else if (key == "bounce_co") e->bounce_co = ToFloat(value);
     else if (key == "deadspace") e->deadspace = std::min(std::max(ToFloat(value), 0.0f), kVfxDeadspaceMax);
+    else if (key == "p2p") e->p2p = Lower(value) == "bezier" || Lower(value) == "gravity" ? Lower(value) : std::string();
+    else if (key == "p2p_bezier") {
+      float bezier[2] = {e->p2p_bezier2, e->p2p_bezier3};
+      ReadFloats(words, 0, bezier, 2);
+      e->p2p_bezier2 = bezier[0];
+      e->p2p_bezier3 = bezier[1];
+    } else if (key == "combinetime") e->combinetime = ToFloat(value);
+    else if (key == "grav") e->grav = ToFloat(value);
+    else if (key == "drag") e->drag = ToFloat(value);
+    else if (key == "threshold") e->threshold = ToFloat(value);
     else if (key == "flags") {
       for (const std::string& word : words) {
         const std::string f = Lower(word);
@@ -511,10 +550,11 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
   std::string anim;
   // The geometry's nodes (any kind: the emitters hang under dummies, meshes, lights...).
   struct Geo {
-    std::string name, parent;
+    std::string name, parent, kind, ref_model;
     float position[3] = {0, 0, 0};
     float orientation[4] = {0, 0, 0, 0};
     bool emitter = false;
+    bool p2p = false, p2p_sel = false;  // an emitter's flags (read in any order)
     std::vector<VfxKeys> keys;
   };
   std::vector<Geo> geo;
@@ -600,6 +640,7 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       if (where == Where::kGeometry) {
         geo.emplace_back();
         geo.back().name = w[2];
+        geo.back().kind = Lower(w[1]);
         current = static_cast<int>(geo.size()) - 1;
         geo_at.emplace(Lower(w[2]), geo.size() - 1);
         if (Lower(w[1]) == "emitter") {
@@ -632,7 +673,11 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       if (first == "parent") g.parent = w[1];
       else if (first == "position") ReadFloats(w, 1, g.position, 3);
       else if (first == "orientation") ReadFloats(w, 1, g.orientation, 4);
+      else if (first == "refmodel") g.ref_model = w[1];
       if (emitter < 0) continue;
+      const auto on = [](const std::string& v) { return v != "0" && Lower(v) != "false"; };
+      if (first == "p2p") g.p2p = on(w[1]);
+      else if (first == "p2p_sel") g.p2p_sel = on(w[1]);
       VfxEmitter* e = &result.emitters[emitter];
       const std::string& v = w[1];
       if (first == "update") e->update = v;
@@ -669,6 +714,12 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       else if (first == "inherit_part") e->inherit_part = v != "0";
       else if (first == "twosidedtex") e->twosidedtex = v != "0";
       else if (first == "deadspace") e->deadspace = ToFloat(v);  // radians, as the game reads it (%f)
+      else if (first == "p2p_bezier2") e->p2p_bezier2 = ToFloat(v);
+      else if (first == "p2p_bezier3") e->p2p_bezier3 = ToFloat(v);
+      else if (first == "combinetime") e->combinetime = ToFloat(v);
+      else if (first == "grav") e->grav = ToFloat(v);
+      else if (first == "drag") e->drag = ToFloat(v);
+      else if (first == "threshold") e->threshold = ToFloat(v);
     }
   }
   if (key_rows != 0) finish_keys();
@@ -692,19 +743,33 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       up = parent.parent;
     }
   }
+  // A point-to-point emitter's target: its first reference child (0.42.5), kept under it.
+  std::set<std::string> targets;
+  for (const Geo& g : geo) {
+    if (!g.emitter || !g.p2p) continue;
+    for (const Geo& child : geo) {
+      if (child.kind == "reference" && Lower(child.parent) == Lower(g.name)) {
+        targets.insert(Lower(child.name));
+        break;
+      }
+    }
+  }
   for (const Geo& g : geo) {
     if (g.emitter) {
       for (VfxEmitter& e : result.emitters) {
         if (Lower(e.name) != Lower(g.name)) continue;
         e.parent = is_root(g.parent) ? std::string() : g.parent;
         e.keys = g.keys;
+        if (g.p2p) e.p2p = g.p2p_sel ? "bezier" : "gravity";
       }
       continue;
     }
-    if (!keep.count(Lower(g.name))) continue;
+    const bool target = targets.count(Lower(g.name)) > 0;
+    if (!keep.count(Lower(g.name)) && !target) continue;
     VfxNode n;
     n.name = g.name;
     n.parent = is_root(g.parent) ? std::string() : g.parent;
+    if (target) n.ref_model = g.ref_model.empty() ? "fx_ref" : g.ref_model;
     memcpy(n.position, g.position, sizeof(n.position));
     memcpy(n.orientation, g.orientation, sizeof(n.orientation));
     n.keys = g.keys;
@@ -896,6 +961,12 @@ void ApplyController(const Controller& c, VfxEmitter* e) {
     case 196: e->xsize = v(0); break;
     case 200: e->ysize = v(0); break;
     case 204: e->blur_length = v(0); break;
+    case 120: e->combinetime = v(0); break;  // +0x94 (0.42.5: point to point)
+    case 124: e->drag = v(0); break;         // +0x98
+    case 140: e->grav = v(0); break;         // +0xa8
+    case 152: e->p2p_bezier2 = v(0); break;  // +0xb4
+    case 156: e->p2p_bezier3 = v(0); break;  // +0xb8
+    case 188: e->threshold = v(0); break;    // +0xd8
     default: break;
   }
 }
@@ -955,6 +1026,7 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
       e.inherit_part = (flags & 0x400) != 0;
       e.deadspace = m.F32(emitter);                   // node +0xa0 in the game
       e.twosidedtex = m.U32(emitter + 0xC8) != 0;    // node +0x168
+      if (flags & 0x1) e.p2p = (flags & 0x2) ? "bezier" : "gravity";  // p2p, p2p_sel
       if (pass == 0) {  // under its parent, as the model has it
         const GeoNode& g = geometry[geo_at[node]];
         memcpy(e.position, g.pos, sizeof(e.position));
@@ -994,6 +1066,26 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
     AxisAngle(g.rot, turn);
     if (turn[3] > 1e-4f && (turn[0] || turn[1] || turn[2])) memcpy(n.orientation, turn, sizeof(turn));
     result.nodes.push_back(n);
+  }
+  // A point-to-point emitter's target: its first child that is a reference node (header flags
+  // 0x10; the game's SetEmitterTarget takes the first child with a reference object), kept
+  // under the emitter with its reference model (0.42.5).
+  for (size_t i = 0; i < result.emitters.size() && i < nodes.size(); ++i) {
+    if (result.emitters[i].p2p.empty() || !geo_at.count(nodes[i])) continue;
+    for (const GeoNode& g : geometry) {
+      if (g.parent != nodes[i] || !(m.U32(g.node + 0x5C) & 0x10)) continue;
+      VfxNode n;
+      n.name = g.name;
+      n.parent = result.emitters[i].name;
+      memcpy(n.position, g.pos, sizeof(n.position));
+      float turn[4];
+      AxisAngle(g.rot, turn);
+      if (turn[3] > 1e-4f && (turn[0] || turn[1] || turn[2])) memcpy(n.orientation, turn, sizeof(turn));
+      n.ref_model = m.Str(g.node + 0x60, 64);
+      if (n.ref_model.empty()) n.ref_model = "fx_ref";
+      result.nodes.push_back(n);
+      break;
+    }
   }
   // The animations (their 64-byte name at the header's +8, the root node at
   // +0x48 as the geometry's, the length at +0x70) and the nodes of each.

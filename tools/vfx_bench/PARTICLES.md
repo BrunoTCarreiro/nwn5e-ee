@@ -81,6 +81,34 @@ random frame); else age += dt; lifeExp > 0 && age > lifeExp && node loop (+0x16c
 int(birthrate) == 0 -> the particle is removed. (No chkParticleLife: it never dies by age.)
 ## PartEmitter ctor 0x60420 defaults: colorMid 0, percentStart/Mid/End = 0xff, fps 0, frameEnd 0, frameStart 0,
 grav 0, sizeMid 0, sizeMid_y 0. MdlNodeEmitter ctor 0x875a0: node+0x98 = 5 (?), flags 0.
+## Point to point (read 0.42.5)
+- **Target.** PartEmitter::Initialize (0x61f1c): node flag 0x1 (p2p) registers SetEmitterTarget
+  (0x643c0) on the gob as "_EmitterTarget"; Gob::Append fires it after CreateReferenceObjects. It
+  takes the emitter's first child whose vf 0x70 (its reference object) isn't null: that object
+  (+0x68) goes to PartEmitter+0x1c0 (vf 0xc0 its position, vf 0xc8 its rotation). Every p2p
+  emitter of the game's (117 compiled) has exactly one child, a reference node (header flags 0x11)
+  of model fx_ref; ASCII: `node reference` with `refModel` / `reattachable`, and in the
+  animations `node dummy` (the game's own ASCII effects). No target: +0x1c0 stays null and the
+  move calls into it - a crash. ASCII flags: `p2p` and `p2p_sel` read as %s (true / false / 1 / 0).
+- Flag 0x2 (p2p_sel): **moveParticleP2PBezier** (0x66940); else **moveParticleP2PGrav** (0x67340;
+  +0x210 = grav).
+- Controllers: combinetime 120 (+0x94), drag 124 (+0x98), grav 140 (+0xa8), p2p_bezier2 152
+  (+0xb4), p2p_bezier3 156 (+0xb8), threshold 188 (+0xd8).
+- **Bezier**, per particle: inherit (0x40) only; free = pos + dt vel (+ wind);
+  t = min(1, age / lifeExp); P0 = the emitter (+0x1e0), P1 = P0 + p2p_bezier2 * emitter z
+  (+0x158), P3 = the target, P2 = P3 + p2p_bezier3 * axisZ(target rotation);
+  s = powf(t^3, combinetime) (0xc7c810); pos = (1 - s) free + s (u^3 P0 + 3tu^2 P1 + 3t^2u P2 + t^3 P3),
+  u = 1 - t; then the decaying inherited velocity, vel.z -= mass 9.81 dt, bounce.
+- **Gravity**, per particle: inherit, or inherit_local, and inherit_part - the last two also turn
+  the position (about the previous gob / emitter position) and the velocity by the gob's turn
+  since the frame before (the standard move only shifts); next = pos + dt vel (+ wind);
+  d = target - pos; threshold^2 >= |d|^2: age = lifeExp and the function RETURNS (the
+  particles after it don't move this frame, the inherit bookkeeping is skipped); else
+  vel *= powf(drag, dt); g = normalize(d) grav dt; next += g dt; vel += g; +0x4c =
+  normalize(next - pos); segmentproject(pos, next, target) (0x231aa0, clamped to the step)
+  within threshold: age = lifeExp; pos = next (+ the inherited decay); vel.z -= mass 9.81 dt;
+  bounce.
+- Neither checks the stopped flag (+0x70): a particle at rest is still moved.
 
 ---
 

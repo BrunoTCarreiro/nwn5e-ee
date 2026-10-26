@@ -30,6 +30,10 @@ struct VfxNode {
   float position[3] = {0.0f, 0.0f, 0.0f};
   float orientation[4] = {0.0f, 0.0f, 0.0f, 0.0f};
   std::vector<VfxKeys> keys;
+  // 0.42.5: a node under an emitter is where its point-to-point particles go - written as a
+  // reference node (the game's p2p target: the emitter's first reference child) of this
+  // model ("" = fx_ref, what all the game's compiled effects use).
+  std::string ref_model;
 };
 
 struct VfxEmitter {
@@ -78,6 +82,19 @@ struct VfxEmitter {
   // camera is turned toward it at birth (Particle::randomDirection; only with a spread).
   bool twosidedtex = false;
   float deadspace = 0.0f;
+  // 0.42.5: point to point - its particles go to its target, the first node under it
+  // ("" = off). "bezier": along a curve from the emitter to the target, p2p_bezier2 metres
+  // out along the emitter's z and p2p_bezier3 back along the target's; how much of the way
+  // the curve holds them is (age / life)^3 to the power combinetime (0: on it all the way).
+  // "gravity": pulled toward it at grav m/s^2, drag of their speed kept a second, gone
+  // within threshold metres. Without a target the game would crash: written as off.
+  std::string p2p;
+  float p2p_bezier2 = 0.0f;
+  float p2p_bezier3 = 0.0f;
+  float combinetime = 0.0f;
+  float grav = 0.0f;
+  float drag = 0.0f;
+  float threshold = 0.0f;
   std::vector<VfxKeys> keys;  // its own move / turn in the animations
 };
 

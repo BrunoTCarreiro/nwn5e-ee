@@ -26,12 +26,14 @@
       alpha_end: 0, xsize: 0, ysize: 0, grid: 1, frame_end: 0, blur_length: 0, bounce_co: 0, fps: 0, particle_rot: 0,
       inherit: false, splat: false, bounce: false, random: false, inherit_local: false, inherit_part: false,
       twosidedtex: false, deadspace: 0, parent: "", keys: [],
+      p2p: "", p2p_bezier2: 0, p2p_bezier3: 0, combinetime: 0, grav: 0, drag: 0, threshold: 0,
     }, overrides || {});
   }
 
   // data::VfxNode's: a node an emitter hangs under (0.42.3), with its keys.
   function node(overrides) {
-    return Object.assign({ name: "node", parent: "", position: [0, 0, 0], orientation: [0, 0, 0, 0], keys: [] }, overrides || {});
+    return Object.assign({ name: "node", parent: "", position: [0, 0, 0], orientation: [0, 0, 0, 0], keys: [], ref_model: "" },
+      overrides || {});
   }
 
   function effect(overrides) {
@@ -128,6 +130,7 @@
       out += "position = " + num(n.position[0]) + " " + num(n.position[1]) + " " + num(n.position[2]) + "\n";
       out += "orientation = " + num(n.orientation[0]) + " " + num(n.orientation[1]) + " " + num(n.orientation[2]) + " " +
         num(n.orientation[3]) + "\n";
+      if (n.ref_model) out += "ref_model = " + n.ref_model + "\n";
       out += draftKeys(n.keys);
     }
     for (const e of fx.emitters) {
@@ -148,6 +151,11 @@
       out += "fps = " + num(e.fps || 0) + "\nparticle_rot = " + num(e.particle_rot || 0) + "\n";
       out += "blur_length = " + num(e.blur_length) + "\nbounce_co = " + num(e.bounce_co) + "\n";
       out += "deadspace = " + num(e.deadspace || 0) + "\n";
+      if (e.p2p) {
+        out += "p2p = " + e.p2p + "\np2p_bezier = " + num(e.p2p_bezier2 || 0) + " " + num(e.p2p_bezier3 || 0) + "\n";
+        out += "combinetime = " + num(e.combinetime || 0) + "\ngrav = " + num(e.grav || 0) + "\ndrag = " + num(e.drag || 0) + "\n";
+        out += "threshold = " + num(e.threshold || 0) + "\n";
+      }
       let flags = "";
       if (e.inherit) flags += " inherit";
       if (e.splat) flags += " splat";
@@ -203,6 +211,7 @@
         if (key === "parent") nd.parent = value;
         else if (key === "position") readFloats(words, nd.position, 3);
         else if (key === "orientation") readFloats(words, nd.orientation, 4);
+        else if (key === "ref_model") nd.ref_model = resref(value, 16);
         else draftKeyLine(key, words, nd.keys);
         continue;
       }
@@ -249,6 +258,15 @@
       else if (key === "blur_length") e.blur_length = toFloat(value);
       else if (key === "bounce_co") e.bounce_co = toFloat(value);
       else if (key === "deadspace") e.deadspace = Math.min(Math.max(toFloat(value), 0), DEADSPACE_MAX);
+      else if (key === "p2p") e.p2p = ["bezier", "gravity"].includes(value.toLowerCase()) ? value.toLowerCase() : "";
+      else if (key === "p2p_bezier") {
+        const bezier = [e.p2p_bezier2, e.p2p_bezier3];
+        readFloats(words, bezier, 2);
+        [e.p2p_bezier2, e.p2p_bezier3] = bezier;
+      } else if (key === "combinetime") e.combinetime = toFloat(value);
+      else if (key === "grav") e.grav = toFloat(value);
+      else if (key === "drag") e.drag = toFloat(value);
+      else if (key === "threshold") e.threshold = toFloat(value);
       else if (key === "flags") {
         for (const word of words) {
           const f = word.toLowerCase();

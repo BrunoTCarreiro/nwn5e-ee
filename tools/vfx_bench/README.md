@@ -64,6 +64,15 @@ where you look from, as in the game; 98 of the game's emitters use 0.17 or 0.21)
 loops until that turn is done and above about 0.39 it can loop for ever, so the bench holds it
 at 0.39.
 
+Point to point (0.42.5): an emitter's "Goes to a target" sends its particles to a node under
+it - Bezier along a curve from the emitter, arriving as they age out (the curve's two middle
+points out along the emitter's z and back along the target's), or Gravity, pulled to it and
+gone when they reach it. Choosing one makes the target (<emitter>_target, 1.5 m along the
+emitter's x) if there isn't one; move it, or give it keys, in the Nodes card. 119 of the
+game's emitters do it (Bigby's hands, Greater Dispelling's streaks). Save writes the target as
+the reference node the game looks for; an emitter left without one is saved as not point to
+point (the game would crash).
+
 Mouse on the stage: drag to turn, right-drag (or shift-drag) to move, wheel to zoom,
 double-click to reset. Space pauses, R restarts. `?open=game:<model>&warm=<s>` opens
 an effect already run that far.

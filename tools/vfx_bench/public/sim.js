@@ -209,6 +209,13 @@
 
     emitterPlace(e) { return (this.places && this.places.get(e.name)) || { pos: [0, 0, 0], q: [0, 0, 0, 1] }; }
 
+    // A point-to-point emitter's target (0.42.5): the first node under it, where it is now
+    // (the game: the emitter's first reference child). None: null (the game would crash).
+    targetPlace(e) {
+      const n = (this.fx.nodes || []).find((x) => x.parent === e.name);
+      return n && this.places ? this.places.get(n.name) || null : null;
+    }
+
     // Particle::initialize (+ randomPosition, randomDirection, PartEmitter::chkRandom), from the
     // emitter where it is now: its z the way out, its x / y the area.
     spawn(e, state) {
@@ -299,6 +306,8 @@
     // (z 0) stops it (bounce_co 0) or throws it back (x 0.75, its rise x bounce_co) and it
     // rests once slow (|v|^2 < 0.5), 2 cm over the ground (splat: lying flat on it).
     move(e, state, dt) {
+      const target = e.p2p === "bezier" || e.p2p === "gravity" ? this.targetPlace(e) : null;
+      if (target) return e.p2p === "bezier" ? this.moveBezier(e, state, dt, target) : this.moveGravity(e, state, dt, target);
       const now = this.emitterPlace(e);
       const before = (this.prevPlaces && this.prevPlaces.get(e.name)) || now;
       const turnBy = qmul(now.q, qconj(before.q));
@@ -319,22 +328,107 @@
         p.pos[1] += p.vel[1] * dt;
         p.pos[2] += p.vel[2] * dt;
         p.vel[2] -= e.mass * GRAVITY * dt;
-        if (!e.bounce || !(p.pos[2] < 0 && above >= 0)) continue;
-        const k = above / (above - p.pos[2] || 1);
-        for (let i = 0; i < 2; i++) p.pos[i] -= p.vel[i] * dt * (1 - k);
-        p.pos[2] = 0;
-        if (e.bounce_co === 0) {
-          p.vel = [0, 0, 0];
-        } else {
-          p.vel = [p.vel[0] * 0.75, p.vel[1] * 0.75, -p.vel[2] * 0.75];
-          p.vel[2] *= e.bounce_co * Math.max(0.5, Math.min(1, 0.033 / dt));
+        this.land(e, p, above, dt);
+      }
+    }
+
+    // A bouncing particle that reaches the ground this frame (the game tests the scene; here
+    // the ground at z 0): stopped (bounce_co 0) or thrown back, and at rest when slow.
+    land(e, p, above, dt) {
+      if (!e.bounce || !(p.pos[2] < 0 && above >= 0)) return;
+      const k = above / (above - p.pos[2] || 1);
+      for (let i = 0; i < 2; i++) p.pos[i] -= p.vel[i] * dt * (1 - k);
+      p.pos[2] = 0;
+      if (e.bounce_co === 0) {
+        p.vel = [0, 0, 0];
+      } else {
+        p.vel = [p.vel[0] * 0.75, p.vel[1] * 0.75, -p.vel[2] * 0.75];
+        p.vel[2] *= e.bounce_co * Math.max(0.5, Math.min(1, 0.033 / dt));
+      }
+      if (p.vel[0] ** 2 + p.vel[1] ** 2 + p.vel[2] ** 2 < 0.5) {
+        p.stopped = true;
+        p.pos[2] = 0.02;
+        p.dir = [0, 0, 1];   // turned to the ground's normal (RotationArc(z, n))
+        p.xaxis = [1, 0, 0];
+      }
+    }
+
+    // The emitter's turn since the frame before applied to a particle (inherit): carried and
+    // turned with it.
+    carry(e, p) {
+      const now = this.emitterPlace(e);
+      const before = (this.prevPlaces && this.prevPlaces.get(e.name)) || now;
+      const turnBy = qmul(now.q, qconj(before.q));
+      const rel = qrot(turnBy, [p.pos[0] - before.pos[0], p.pos[1] - before.pos[1], p.pos[2] - before.pos[2]]);
+      p.pos = [now.pos[0] + rel[0], now.pos[1] + rel[1], now.pos[2] + rel[2]];
+      p.vel = qrot(turnBy, p.vel);
+    }
+
+    // PartEmitter::moveParticleP2PBezier (0x66940, read 0.42.5): each particle flies on as usual,
+    // then is drawn onto the curve from the emitter to the target - B(t), t = age / life (at most
+    // 1), its middle points the emitter + p2p_bezier2 along its z and the target + p2p_bezier3
+    // along the target's z - by s = (t^3)^combinetime (0: on it all the way). Only inherit of
+    // the follow flags; gravity (mass) and bouncing as usual; stopped particles are moved too.
+    moveBezier(e, state, dt, T) {
+      const E = this.emitterPlace(e);
+      const ez = qrot(E.q, [0, 0, 1]), tz = qrot(T.q, [0, 0, 1]);
+      const P1 = [0, 1, 2].map((i) => E.pos[i] + (e.p2p_bezier2 || 0) * ez[i]);
+      const P2 = [0, 1, 2].map((i) => T.pos[i] + (e.p2p_bezier3 || 0) * tz[i]);
+      for (const p of state.particles) {
+        if (e.inherit) this.carry(e, p);
+        const above = p.pos[2];
+        const t = Math.min(1, p.age / e.life), u = 1 - t;
+        const b0 = u * u * u, b1 = 3 * t * u * u, b2 = 3 * t * t * u, b3 = t * t * t;
+        const s = Math.pow(t * t * t, e.combinetime || 0);
+        for (let i = 0; i < 3; i++) {
+          const free = p.pos[i] + dt * p.vel[i];
+          const curve = b0 * E.pos[i] + b1 * P1[i] + b2 * P2[i] + b3 * T.pos[i];
+          p.pos[i] = free * (1 - s) + curve * s;
         }
-        if (p.vel[0] ** 2 + p.vel[1] ** 2 + p.vel[2] ** 2 < 0.5) {
-          p.stopped = true;
-          p.pos[2] = 0.02;
-          p.dir = [0, 0, 1];   // turned to the ground's normal (RotationArc(z, n))
-          p.xaxis = [1, 0, 0];
+        p.vel[2] -= e.mass * GRAVITY * dt;
+        this.land(e, p, above, dt);
+      }
+    }
+
+    // PartEmitter::moveParticleP2PGrav (0x67340, read 0.42.5): pulled toward the target at grav
+    // m/s^2, the speed kept drag^dt; gone (aged out) within threshold of it - checked from where
+    // it starts the frame (the game then leaves its loop: the rest don't move this frame) and
+    // along the frame's step. inherit_local / inherit_part also turn the particles with the
+    // character here (the standard move only shifts them).
+    moveGravity(e, state, dt, T) {
+      const now = this.emitterPlace(e);
+      const before = (this.prevPlaces && this.prevPlaces.get(e.name)) || now;
+      const fNow = this.places ? this.places.get("") : null, fBefore = (this.prevPlaces && this.prevPlaces.get("")) || fNow;
+      const fTurn = fNow && fBefore ? qmul(fNow.q, qconj(fBefore.q)) : [0, 0, 0, 1];
+      const follow = (p, from, to) => {
+        const rel = qrot(fTurn, [p.pos[0] - from.pos[0], p.pos[1] - from.pos[1], p.pos[2] - from.pos[2]]);
+        for (let i = 0; i < 3; i++) { p.trail[i] += to.pos[i] - from.pos[i]; p.pos[i] = to.pos[i] + rel[i]; }
+        p.vel = qrot(fTurn, p.vel);
+      };
+      const near = e.threshold * e.threshold;
+      for (const p of state.particles) {
+        if (e.inherit) this.carry(e, p);
+        else if (e.inherit_local && fNow && fBefore) follow(p, fBefore, fNow);
+        if (e.inherit_part) follow(p, before, now);
+        const old = p.pos.slice();
+        const next = [0, 1, 2].map((i) => old[i] + dt * p.vel[i]);
+        const d = [0, 1, 2].map((i) => T.pos[i] - old[i]);
+        const d2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+        if (near >= d2) { p.age = e.life; return; }
+        const keep = Math.pow(e.drag, dt), pull = (e.grav * dt) / Math.sqrt(d2);
+        for (let i = 0; i < 3; i++) {
+          p.vel[i] *= keep;
+          next[i] += pull * d[i] * dt;
+          p.vel[i] += pull * d[i];
         }
+        // The point of this frame's step nearest the target (segmentproject).
+        const step = [0, 1, 2].map((i) => next[i] - old[i]), len2 = step[0] ** 2 + step[1] ** 2 + step[2] ** 2;
+        const k = len2 ? Math.max(0, Math.min(1, (d[0] * step[0] + d[1] * step[1] + d[2] * step[2]) / len2)) : 0;
+        const miss = [0, 1, 2].map((i) => T.pos[i] - (old[i] + k * step[i]));
+        if (near >= miss[0] ** 2 + miss[1] ** 2 + miss[2] ** 2) p.age = e.life;
+        p.pos = next;
+        p.vel[2] -= e.mass * GRAVITY * dt;
+        this.land(e, p, old[2], dt);
       }
     }
 
