@@ -54,3 +54,10 @@ void PushOnRoundEnd(void* owner);
 // From InstallMasteryRules and InstallShoveRules (faithful; once); false and
 // logged when the engine lacks a piece.
 bool InstallPushRules();
+
+// G2 (the Grapple's drag): moves `creature` to (x, y) as a push slides it, if the
+// straight line there is walkable and clear of placeables; false (it stays) if not.
+bool DragCreatureTo(void* creature, float x, float y);
+// G2 (GT3: an escape try in place of its attacks): the creature's combat round
+// paused for `ms`, as a knockdown pauses it (false: no round, or no time left).
+bool PauseCombatRound(void* creature, uint32_t by, int ms);

@@ -81,6 +81,7 @@ struct Option {
   uint16_t feat;
   const char* name;
   UnarmedOptionResolver resolve;
+  UnarmedOptionStart start;  // or null
 };
 std::vector<Option> g_options;  // filled at install, then only read
 
@@ -211,6 +212,10 @@ int UseUnarmedOption(void* creature, int feat, uint32_t target) {
     TellUnarmed(creature, std::string("nwn5e: ") + option->name + " - not with a ranged weapon in hand.");
     return 0;
   }
+  if (option->start) {
+    const int started = option->start(creature, target);
+    if (started >= 0) return started;
+  }
   if (!add_attack_actions(creature, target, 0, 0, 0)) return 0;
   g_add_special_attack(round, option->feat);
   if (LogSlot()) Log("shove: 0x%08X queued %s on 0x%08X", IdOf(creature), option->name, target);
@@ -263,12 +268,12 @@ uintptr_t SingleCallReturn(const char* target_export, const char* what) {
 
 }  // namespace
 
-bool AddUnarmedOption(uint16_t feat, const char* name, UnarmedOptionResolver resolve) {
+bool AddUnarmedOption(uint16_t feat, const char* name, UnarmedOptionResolver resolve, UnarmedOptionStart start) {
   if (!g_on || !resolve) {
     Log("SKIP %s: the Shove's hooks are off", name);
     return false;
   }
-  g_options.push_back(Option{feat, name, resolve});
+  g_options.push_back(Option{feat, name, resolve, start});
   return true;
 }
 

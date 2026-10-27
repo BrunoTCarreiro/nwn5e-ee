@@ -47,7 +47,7 @@ const std::vector<int>& QuickbarActionFeats2024();
 // The actions the character has now, in the order they're placed: Second
 // Wind; Rage, Reckless Attack, Brutal Strike's options (Forceful and Hamstring
 // Blow from 9, Staggering and Sundering from 13, Off), Intimidating Presence;
-// then everyone's Shove and Shove: push.
+// then everyone's Shove, Shove: push and Grapple.
 std::vector<QuickbarAction> QuickbarActions2024(const QuickbarFacts& facts);
 
 // Second Wind is three feats (its uses grow with Fighter level): a button

@@ -78,6 +78,7 @@
 #include "config.h"
 #include "creature.h"
 #include "creature_update.h"
+#include "movement_rate.h"
 #include "damage_listeners.h"
 #include "data_serving.h"
 #include "dice.h"
@@ -111,11 +112,8 @@ constexpr int kAbilityConstitution = 2;
 constexpr int kAbilityWisdom = 4;
 
 using ComputeArmorClassFn = int (*)(void* item);
-using MovementRateFn = float (*)(void* creature);
 
 ComputeArmorClassFn g_compute_armor_class = nullptr;
-MovementRateFn g_movement_rate = nullptr;
-thread_local void* t_moving = nullptr;  // the creature whose movement rate the engine is computing
 LogOnce g_logged(500);
 
 bool Faithful() { return g_config.class_features == rules::RuleVariant::kFaithful; }
@@ -154,17 +152,12 @@ bool FastMovementFilter(void* stats, int feat, uintptr_t /*caller*/, int* answer
   return true;
 }
 
-float GetMovementRateFactor(void* creature) {
-  void* outer = t_moving;
-  t_moving = creature;
-  const float factor = g_movement_rate(creature);
-  t_moving = outer;
-  return factor;
-}
-
+// The ruleset value GetMovementRateFactor reads for the creature it computes
+// (movement_rate.cpp says which).
 float EnduranceBonus(float engine_value) {
-  if (!t_moving || !Faithful()) return engine_value;
-  void* stats = StatsOf(t_moving);
+  void* moving = MovingCreature();
+  if (!moving || !Faithful()) return engine_value;
+  void* stats = StatsOf(moving);
   if (!stats || !ReadCreatureFacts(stats).character) return engine_value;
   return rules::kBarbarianFastMovementFactor;
 }
@@ -928,8 +921,7 @@ void InstallBarbarianRules() {
   if (!g_compute_armor_class) Log("barbarian: no %s - Unarmored Defense and Fast Movement see no armour",
                                   ee::kItemComputeArmorClass);
   if (!AddFeatFilter(&FastMovementFilter)) Log("SKIP barbarian: Fast Movement - HasFeat not hooked");
-  if (!HookExport("CNWSCreature::GetMovementRateFactor (Fast Movement: whose rate)", ee::kGetMovementRateFactor,
-                  reinterpret_cast<void*>(&GetMovementRateFactor), reinterpret_cast<void**>(&g_movement_rate)) ||
+  if (!HookMovementRate() ||
       !AnswerRulesetFloat("BARBARIAN_ENDURANCE_BONUS", "Fast Movement: +10 ft (a third) for characters",
                           &EnduranceBonus)) {
     Log("barbarian: Fast Movement keeps NWN's +10%%");

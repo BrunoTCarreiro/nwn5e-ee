@@ -28,6 +28,7 @@ enum Bit {
   kBitIntimidatingPresence = 8,
   kBitShove = 9,
   kBitShovePush = 10,
+  kBitGrapple = 11,
 };
 
 bool IsSecondWind(int value) {
@@ -39,7 +40,8 @@ bool IsSecondWind(int value) {
 const std::vector<int>& QuickbarActionFeats2024() {
   static const std::vector<int> kFeats = {kFeatSecondWind2,    kFeatSecondWind3,  kFeatSecondWind4,
                                           kFeatRage,           kFeatRecklessAttack, kFeatBrutalStrike,
-                                          kFeatIntimidatingPresence, kFeatKnockdownShove, kFeatShovePush};
+                                          kFeatIntimidatingPresence, kFeatKnockdownShove, kFeatShovePush,
+                                          kFeatGrapple};
   return kFeats;
 }
 
@@ -79,6 +81,7 @@ std::vector<QuickbarAction> QuickbarActions2024(const QuickbarFacts& facts) {
   }
   if (has(kFeatKnockdownShove)) actions.push_back({kBitShove, kFeatKnockdownShove, "Shove"});
   if (has(kFeatShovePush)) actions.push_back({kBitShovePush, kFeatShovePush, "Shove: push"});
+  if (has(kFeatGrapple)) actions.push_back({kBitGrapple, kFeatGrapple, "Grapple"});
   return actions;
 }
 

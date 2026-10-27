@@ -27,6 +27,21 @@ int EscapeCheckBonus(int athletics_bonus, int acrobatics_bonus) {
   return athletics_bonus > acrobatics_bonus ? athletics_bonus : acrobatics_bonus;
 }
 
+bool EscapeSucceeds(int d20, int bonus, int dc) { return d20 + bonus >= dc; }
+
+bool GrappleHandFree(bool main_hand_item, bool main_hand_two_handed, bool off_hand_item) {
+  return !main_hand_item || (!main_hand_two_handed && !off_hand_item);
+}
+
+float GrappleHoldMetres(float distance_at_grab) {
+  if (!(distance_at_grab > kGrappleHoldMinMetres)) return kGrappleHoldMinMetres;
+  return distance_at_grab < kGrappleHoldMaxMetres ? distance_at_grab : kGrappleHoldMaxMetres;
+}
+
+bool GrappleOutOfReach(float distance, float hold_metres) {
+  return distance > hold_metres + kGrappleBreakSlackMetres;
+}
+
 bool ThrowSizeAllowed(int thrower_size, int target_size) { return target_size < thrower_size; }
 
 int ThrowFeet(int strength_modifier) { return strength_modifier > 1 ? 5 * strength_modifier : 5; }

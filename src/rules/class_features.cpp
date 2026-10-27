@@ -270,7 +270,7 @@ std::vector<int> GrantedFeats2024(const std::vector<ClassLevels>& classes) {
 const std::vector<int>& GrantableFeats2024() {
   static const std::vector<int> kFeats = {kFeatSecondWind2,    kFeatSecondWind3,  kFeatSecondWind4,
                                           kFeatRecklessAttack, kFeatBrutalStrike, kFeatKnockdownShove,
-                                          kFeatShovePush,      kFeatIntimidatingPresence};
+                                          kFeatShovePush,      kFeatIntimidatingPresence, kFeatGrapple};
   return kFeats;
 }
 
@@ -279,6 +279,7 @@ std::vector<int> FeatsEveryoneHas2024(bool shove_faithful) {
   if (shove_faithful) {
     feats.push_back(kFeatKnockdownShove);
     feats.push_back(kFeatShovePush);
+    feats.push_back(kFeatGrapple);  // G2: Grapple, the Unarmed Strike's third option
   }
   return feats;
 }

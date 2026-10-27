@@ -86,12 +86,13 @@ TEST(GrantedFeatsFollowClassLevels) {
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kFighter, 9}}).size(), 1u);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 5}}).empty(), true);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 3}, {CharacterClass::kFighter, 2}})[0], kFeatSecondWind2);
-  CHECK_EQ(GrantableFeats2024().size(), 8u);
+  CHECK_EQ(GrantableFeats2024().size(), 9u);
   CHECK_EQ(GrantableFeats2024()[0], kFeatSecondWind2);  // the record's order never changes
   CHECK_EQ(GrantableFeats2024()[4], kFeatBrutalStrike);
   CHECK_EQ(GrantableFeats2024()[5], kFeatKnockdownShove);
   CHECK_EQ(GrantableFeats2024()[6], kFeatShovePush);
   CHECK_EQ(GrantableFeats2024()[7], kFeatIntimidatingPresence);
+  CHECK_EQ(GrantableFeats2024()[8], kFeatGrapple);
   // BZ4: Intimidating Presence at Barbarian 14 (the Berserker, the SRD's one subclass).
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kBarbarian, 13}}).size(), 2u);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kBarbarian, 14}}).size(), 3u);
@@ -113,9 +114,10 @@ TEST(GrantedFeatsFollowClassLevels) {
 // its own in NWN mode). Breaks caught: granted in NWN mode, a class feat
 // marked only-when-missing (NWN mode would then keep a stray nwn5e feat).
 TEST(EveryoneCanShove) {
-  CHECK_EQ(FeatsEveryoneHas2024(true).size(), 2u);
+  CHECK_EQ(FeatsEveryoneHas2024(true).size(), 3u);
   CHECK_EQ(FeatsEveryoneHas2024(true)[0], kFeatKnockdownShove);
   CHECK_EQ(FeatsEveryoneHas2024(true)[1], kFeatShovePush);
+  CHECK_EQ(FeatsEveryoneHas2024(true)[2], kFeatGrapple);
   CHECK_EQ(GrantedOnlyWhenMissing(kFeatShovePush), false);
   CHECK_EQ(FeatsEveryoneHas2024(false).empty(), true);
   CHECK_EQ(GrantedOnlyWhenMissing(kFeatKnockdownShove), true);

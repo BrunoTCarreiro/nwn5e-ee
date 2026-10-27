@@ -18,9 +18,15 @@
 // target (any object - the resolver checks it is a creature).
 using UnarmedOptionResolver = void (*)(void* attacker, void* target);
 
+// G2: an option's own step when it is used, before it is queued (the Grapple:
+// no free hand, or used on the creature it holds - let go): -1 queues it, 0 / 1
+// is the use's result without queueing (0 refused - the step told the player).
+using UnarmedOptionStart = int (*)(void* creature, uint32_t target);
+
 // From an Install (faithful): `feat` used on a creature becomes this option.
 // False (and logged) when the Shove's hooks are off.
-bool AddUnarmedOption(uint16_t feat, const char* name, UnarmedOptionResolver resolve);
+bool AddUnarmedOption(uint16_t feat, const char* name, UnarmedOptionResolver resolve,
+                      UnarmedOptionStart start = nullptr);
 
 // The target's save against an Unarmed Strike option: the better of its
 // Strength and Dexterity saves (its choice) against 8 + the attacker's Strength

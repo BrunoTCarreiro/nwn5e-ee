@@ -22,6 +22,31 @@ TEST(GrappleDcAndSizeAre2024) {
   CHECK_EQ(Milli(kShovePushMetres), 1524);  // 5 ft
 }
 
+// G2 D1: a free hand - empty main hand, or a one-handed weapon and an empty off
+// hand. Breaks caught: a shield-and-sword fighter allowed, a greataxe allowed,
+// empty hands refused, a shield alone (main hand free) refused.
+TEST(GrappleNeedsAFreeHand) {
+  CHECK_EQ(GrappleHandFree(false, false, false), true);   // unarmed
+  CHECK_EQ(GrappleHandFree(true, false, false), true);    // a longsword, nothing else
+  CHECK_EQ(GrappleHandFree(true, true, false), false);    // a greataxe
+  CHECK_EQ(GrappleHandFree(true, false, true), false);    // sword and shield
+  CHECK_EQ(GrappleHandFree(false, false, true), true);    // a shield alone: the main hand is free
+}
+
+// G2 D5 / D6: held at the grab distance (1-2 m), out of reach past it + 1.5 m;
+// the escape check meets or beats the DC. Breaks caught: no clamp (a grab at 3 m
+// kept), the slack lost (ends on the first step), "beats" instead of "meets".
+TEST(GrappleHoldAndEscape) {
+  CHECK_EQ(Milli(GrappleHoldMetres(0.4f)), 1000);
+  CHECK_EQ(Milli(GrappleHoldMetres(1.6f)), 1600);
+  CHECK_EQ(Milli(GrappleHoldMetres(3.0f)), 2000);
+  CHECK_EQ(GrappleOutOfReach(3.0f, 1.6f), false);
+  CHECK_EQ(GrappleOutOfReach(3.2f, 1.6f), true);
+  CHECK_EQ(EscapeSucceeds(10, 3, 13), true);
+  CHECK_EQ(EscapeSucceeds(9, 3, 13), false);
+  CHECK_EQ(EscapeCheckBonus(5, 7), 7);
+}
+
 // p. 182: dragging costs 1 extra foot (half speed) unless it is Tiny or two or
 // more sizes smaller; the Grappler feat (p. 87): no extra for your size or
 // smaller. Breaks caught: one size smaller counted free, Tiny charged, the feat

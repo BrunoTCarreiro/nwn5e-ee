@@ -33,11 +33,11 @@ TEST(QuickbarOptionValueIsTheFeatId) {
 // before the class actions, an action the character doesn't have.
 TEST(QuickbarActionsByLevel) {
   QuickbarFacts facts;
-  facts.feats = {kFeatKnockdownShove, kFeatShovePush, kFeatRage, kFeatRecklessAttack, kFeatBrutalStrike,
-                 kFeatIntimidatingPresence};
+  facts.feats = {kFeatGrapple, kFeatKnockdownShove, kFeatShovePush, kFeatRage, kFeatRecklessAttack,
+                 kFeatBrutalStrike, kFeatIntimidatingPresence};
   facts.barbarian_level = 17;
   std::vector<int> want = {kFeatRage,  kFeatRecklessAttack, kForceful, kHamstring, kStaggering, kSundering,
-                           kBrutalOff, kFeatIntimidatingPresence, kFeatKnockdownShove, kFeatShovePush};
+                           kBrutalOff, kFeatIntimidatingPresence, kFeatKnockdownShove, kFeatShovePush, kFeatGrapple};
   CHECK_EQ(Values(QuickbarActions2024(facts)) == want, true);
 
   facts.feats = {kFeatRage, kFeatRecklessAttack, kFeatBrutalStrike};

@@ -3254,6 +3254,53 @@ layer). Unverified: that the client starts the swing after the server resolves i
 before, the swap would land on the next swing (!animtrace shows the order). Bespoke shove /
 grapple animations: G5.
 
+**G2 decisions** (owner, 2026-10-27: "go with the recommendations"):
+D1 a free hand is required (an empty main hand, or a one-handed weapon and an
+empty off hand; refused with a word otherwise); D2 the radial's Special Attacks
+page next to the Shoves (its eight slots are full: Called Shot: Leg's slot 3 -
+Called Shot has no 2024 counterpart), the quickbar (auto-placed), `!grapple`;
+D3 one creature at a time; D4 Grappled: can't move, Disadvantage on attacks
+against anyone but its grappler, an icon, GT3's AI; D5 the drag: it comes along,
+at half speed unless Tiny or two sizes smaller - a slide for now; D6 it ends on
+letting go (Grapple on it again, `!grapple release`), an escape, the grappler
+Incapacitated, out of reach, or the free hand filled; D7 the Shove's nwstab swing
+for the grab until G5; D8 a player's own Escape comes with G3 (only monsters
+grapple players).
+
+*Built 0.49.0 (G2):* nwn5e's feat 1312 "Grapple" (Bigby's Grasping Hand's
+icon; data/rows/feat.unarmed.txt), every player character's while the Shove is
+faithful (FeatsEveryoneHas2024, GrantableFeats2024's record bit 8), on the
+Special Attacks page's slot 3 (radial_special_attacks.cpp, now a list of
+entries) and the quickbar's actions (bit 11). rules_grapple.cpp: queued and
+resolved as the Shove's push (unarmed.h gained an option's own start step:
+Grapple used on the creature it holds lets go, a full hand or a second grapple
+is refused - before anything is queued); the resolver re-checks the hand, the
+size (one larger at most), that neither is already in a grapple, and rolls the
+Shove's save; on a failure the target is Grappled, the escape DC the same.
+Grappled: EffectCutsceneImmobilize + the icon (effecticons 223), temporary
+(3 s) and refreshed every 2 s from the grappler's update, so a loaded game
+loses them in seconds (the grapples live in memory); its attacks on anyone but
+its grappler have Disadvantage (rules_advantage.cpp). The drag: held at the
+grab distance (1-2 m); past it (+0.2 m) it is placed back at that distance on
+the line between them (rules_push.cpp's new DragCreatureTo: walkable and clear
+of placeables, else it stays); past it + 1.5 m it is out of reach and the
+grapple ends. The grappler's movement rate is halved while it drags something
+bigger than Tiny / two sizes smaller - GetMovementRateFactor now lives in
+movement_rate.cpp (Fast Movement's hook moved there, the drag an adjuster).
+GT3: a grappled creature the game moves that isn't fighting its grappler tries
+once a round (6 s): d20 + the better of Athletics (skills.2da row 28) and
+Acrobatics (Tumble, 21) - the engine's skill ranks, 2024 values with `skills`
+faithful - against the DC; a failed try pauses its round 3 s with the flinch
+(rules_push.cpp's new PauseCombatRound: in place of its attacks). It ends on
+letting go, an escape, the grappler down or Incapacitated (IncapacitatedByCondition),
+the grappler's hand filled, out of reach, death, another area; the players
+among the two are told (names through the script bridge: StringToObject).
+`!grapple` grapples the creature you attack, says whom you hold, `!grapple
+release` lets go. Tests: GrappleNeedsAFreeHand, GrappleHoldAndEscape,
+EveryoneCanShove and the quickbar's (mutations: the off hand ignored, a shield
+alone refused, no hold clamp, no slack, beats-not-meets, no grant, no quickbar
+entry - all caught).
+
 **GT-L1. Later: throwing an enemy into another** (owner: "How possible would it
 be to implement throwing an enemy into another as a way to damage both? We're
 not implementing this now, just note it down for later"). Feasible, and GT2

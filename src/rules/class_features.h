@@ -187,7 +187,7 @@ const std::vector<int>& GrantableFeats2024();
 
 // G1 (docs/PLAN.md "Grapple and Throw"): 2024 lets anyone Shove, so while the
 // Shove is faithful every player character has feat 23 (NWN's Knockdown, the
-// Shove then) and nwn5e's Shove: push. Feat 23 NWN also lets characters take:
+// Shove then) and nwn5e's Shove: push - and (G2) nwn5e's Grapple. Feat 23 NWN also lets characters take:
 // granted only when missing, and only a grant nwn5e made is taken back in NWN mode.
 constexpr int kFeatKnockdownShove = 23;  // kFeatShovePush: rules/grapple.h
 std::vector<int> FeatsEveryoneHas2024(bool shove_faithful);

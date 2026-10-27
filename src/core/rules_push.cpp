@@ -675,6 +675,37 @@ void PushOnRoundEnd(void* owner) {
   }
 }
 
+bool DragCreatureTo(void* creature, float x, float y) {
+  if (!creature || !E().Complete()) return false;
+  void* area = AreaOf(creature);
+  if (!area) return false;
+  const Vec3 from = PositionOf(creature);
+  const float dx = x - from.x, dy = y - from.y;
+  if (dx * dx + dy * dy < 0.0001f) return true;
+  if (E().compute_height(area, Vec3{x, y, from.z}) <= ee::kAreaOffGridHeight + 0.01f) return false;
+  if (E().walkable_line(area, from.x, from.y, x, y) != 1) return false;
+  const void* path = Field<void*>(creature, ee::kCreaturePathInfo);
+  float radius = path ? Field<float>(path, ee::kPathInfoRadius) : 0.5f;
+  if (!(radius > 0.05f && radius < 3.0f)) radius = 0.5f;
+  uint32_t blocker = ee::kObjectInvalid;
+  if (E().static_line(area, from.x, from.y, x, y, from.z - 0.1f, from.z + 1.8f, radius, ee::kObjectInvalid, &blocker,
+                      1, nullptr, 0) != 1) {
+    return false;
+  }
+  return PlaceOnGround(creature, x, y);
+}
+
+bool PauseCombatRound(void* creature, uint32_t by, int ms) {
+  void* round = creature && E().Complete() ? Field<void*>(creature, ee::kCreatureCombatRound) : nullptr;
+  if (!round || Field<int32_t>(round, ee::kRoundPaused) == 1) return false;
+  if (E().check_action_length(round, by, ms) == 0) return false;
+  E().set_round_paused(round, 1, by);
+  E().set_pause_timer(round, ms, 0);
+  E().decrement_round_length(round, ms, 0);
+  E().set_animation(creature, kAnimationDamage);
+  return true;
+}
+
 bool InstallPushRules() {
   if (g_on) return true;  // the mastery's install and the Shove's
   if (!E().Complete()) {

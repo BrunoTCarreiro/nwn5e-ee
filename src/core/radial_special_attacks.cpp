@@ -18,13 +18,21 @@
 // RadialMenuUseFeat sends 1313 like Knockdown (target select, then the use).
 // Faithful only (the feat is granted then); the quickbar's assign menu uses the
 // same builder, so the push can go on the quickbar too.
+// G2 (0.49.0; owner's D2): the page's eight slots are all taken - 0 Parry, 1
+// Called Shot: Arm, 2 Improved Power Attack, 3 Called Shot: Leg, 4 Knockdown,
+// 5 Power Attack, 6 Disarm, 7 More Special Attacks (the builder's SetEntry and
+// AddFeatEntry calls) - so nwn5e's Grapple (1312) takes Called Shot: Leg's slot
+// 3, next to the Shove (Called Shot has no 2024 counterpart); the arm stays.
 
 #include <stdint.h>
+
+#include <string>
 
 #include "config.h"
 #include "creature.h"
 #include "hooks.h"
 #include "log.h"
+#include "rules/class_features.h"
 #include "rules/grapple.h"
 
 namespace {
@@ -56,7 +64,17 @@ constexpr const char* kBuilderStartPattern =
     "?? ?? ?? F6 80 7C 03 00 00 80";
 constexpr size_t kPlayerCall = 23;         // the E8
 
-constexpr int kDisarmSlot = 6;
+// nwn5e's entries: the feat, its slot, what it goes over.
+struct Entry {
+  int feat;
+  int slot;
+  const char* name;
+  const char* over;
+};
+constexpr Entry kEntries[] = {
+    {rules::kFeatShovePush, 6, "Shove: push", "Disarm"},
+    {rules::kFeatGrapple, 3, "Grapple", "Called Shot: Leg"},
+};
 constexpr size_t kPlayerMayAttack = 0x37c;  // bit 0x80: the page is built at all
 constexpr size_t kClientCreatureStats = 0x3b0;
 constexpr size_t kStatsFeatLists[] = {0x118, 0x128};  // CExoArrayList<uint16>: data, count at +8
@@ -89,20 +107,23 @@ void BuildSpecialAttacks(void* creature_menu, void* page) {
   void* app = g_app_manager && *g_app_manager ? *static_cast<void**>(*g_app_manager) : nullptr;
   void* player = app && menu ? g_player_creature(app) : nullptr;
   if (!player || !(Field<uint8_t>(player, kPlayerMayAttack) & 0x80)) return;
-  const uint16_t feat = static_cast<uint16_t>(rules::kFeatShovePush);
-  if (!PlayerHasFeat(player, feat)) return;
-  const bool had_label = Field<void*>(menu, kPageLabels + kDisarmSlot * 8) != nullptr;
-  auto* disabled = reinterpret_cast<uint32_t*>(static_cast<uint8_t*>(menu) + kPageDisabled + kDisarmSlot * 4);
-  *disabled &= ~1u;
-  const Handler handler{g_use_feat_handler, 0, 0};
-  g_add_entry(creature_menu, feat, menu, kDisarmSlot, &handler, 0xff);
-  if (had_label) {
-    auto* labels = reinterpret_cast<int32_t*>(static_cast<uint8_t*>(menu) + kPageLabelCount);
-    if (*labels > 0) --*labels;
-  }
-  if (g_logged < 3) {
-    ++g_logged;
-    Log("radial: Shove: push in the Special Attacks page's slot 6%s", had_label ? " (over Disarm)" : "");
+  for (const Entry& entry : kEntries) {
+    const uint16_t feat = static_cast<uint16_t>(entry.feat);
+    if (!PlayerHasFeat(player, feat)) continue;
+    const bool had_label = Field<void*>(menu, kPageLabels + entry.slot * 8) != nullptr;
+    auto* disabled = reinterpret_cast<uint32_t*>(static_cast<uint8_t*>(menu) + kPageDisabled + entry.slot * 4);
+    *disabled &= ~1u;
+    const Handler handler{g_use_feat_handler, 0, 0};
+    g_add_entry(creature_menu, feat, menu, entry.slot, &handler, 0xff);
+    if (had_label) {
+      auto* labels = reinterpret_cast<int32_t*>(static_cast<uint8_t*>(menu) + kPageLabelCount);
+      if (*labels > 0) --*labels;
+    }
+    if (g_logged < 6) {
+      ++g_logged;
+      Log("radial: %s in the Special Attacks page's slot %d%s%s", entry.name, entry.slot, had_label ? " (over " : "",
+          had_label ? (std::string(entry.over) + ")").c_str() : "");
+    }
   }
 }
 
@@ -124,6 +145,7 @@ void InstallRadialSpecialAttacks() {
   }
   if (HookAddress("radial Special Attacks page (Shove: push in Disarm's slot)", builder,
                   reinterpret_cast<void*>(&BuildSpecialAttacks), reinterpret_cast<void**>(&g_build))) {
-    Log("radial: Shove: push on the Special Attacks page, slot 6 (Disarm's - nothing in faithful)");
+    Log("radial: Shove: push on the Special Attacks page, slot 6 (Disarm's - nothing in faithful); Grapple in slot 3 "
+        "(Called Shot: Leg's)");
   }
 }

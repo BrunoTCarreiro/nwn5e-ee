@@ -37,6 +37,24 @@ bool GrappledAttackHasDisadvantage(bool target_is_grappler);
 bool GrappledCreatureTriesToEscape(bool fighting_grappler);
 // The escape check: the better of Athletics and Acrobatics against the escape DC.
 int EscapeCheckBonus(int athletics_bonus, int acrobatics_bonus);
+// A check meets or beats its DC.
+bool EscapeSucceeds(int d20, int bonus, int dc);
+
+// G2 (owner, 2026-10-27: "go with the recommendations" - D1-D8):
+// D1: grappling takes a free hand - an empty main hand, or a one-handed weapon
+// with nothing in the off hand (a two-handed weapon or a full off hand: none).
+bool GrappleHandFree(bool main_hand_item, bool main_hand_two_handed, bool off_hand_item);
+// D5: the grappled creature is held at the distance it was grabbed at (1 to 2 m
+// between them); when the grappler moves farther, it is dragged back to that
+// distance. Farther than that plus kGrappleBreakSlackMetres (pushed, stuck
+// behind a wall, teleported): out of reach - the grapple ends (D6).
+constexpr float kGrappleHoldMinMetres = 1.0f;
+constexpr float kGrappleHoldMaxMetres = 2.0f;
+constexpr float kGrappleBreakSlackMetres = 1.5f;
+float GrappleHoldMetres(float distance_at_grab);
+bool GrappleOutOfReach(float distance, float hold_metres);
+// GT3: a grappled creature's escape try comes once a round (6 s).
+constexpr int kGrappleEscapeEveryMs = 6000;
 
 // Throw (GT2): only a creature you grapple, at least one size smaller than you.
 bool ThrowSizeAllowed(int thrower_size, int target_size);
