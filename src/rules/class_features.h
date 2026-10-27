@@ -92,7 +92,7 @@ constexpr float kBarbarianFastMovementFactor = 1.0f / 3.0f;
 // already gives it (X5: the higher of the two Unarmored Defenses, not both).
 int UnarmoredDefenseConBonus(int con_modifier, int monk_wis_bonus);
 // NWN heavy armour: a chest item of base AC 6 or more (NWN's own heavy range).
-constexpr int kHeavyArmorBaseAc = 6;
+// Heavy armour: rules/armor.h (IsHeavyArmor2024 - chain mail, splint, plate).
 
 // B1-B3 Rage: NWN's Rage feats (293 at 1, its successors 326-331, which the
 // engine maps to the highest one a character has) stay the Rage - one pool of

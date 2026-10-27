@@ -192,6 +192,11 @@ struct Config {
   // (data/rows/encumbrance.if_carry2024.txt, ruleset.if_carry2024.txt);
   // nwn / off = NWN's encumbrance table.
   rules::RuleVariant carrying = rules::RuleVariant::kFaithful;
+  // Armour (owner, 2026-10-27: "make sure the NWN armor AC matches 2024"):
+  // faithful = NWN's armour tiers read as the 2024 armour they name (padded ...
+  // plate) - the 2024 AC and Dexterity cap for players and henchmen
+  // (rules_armor.cpp); nwn / off = NWN's armour AC.
+  rules::RuleVariant armor = rules::RuleVariant::kFaithful;
   // Finesse: faithful = a Finesse weapon (dagger, rapier, scimitar, short
   // sword...) uses the better of Str and Dex for attack and damage, no feat
   // needed; nwn / off = NWN's Weapon Finesse feat (Dex to attack).

@@ -142,6 +142,7 @@ bool WearingArmor(void* creature) {
 }  // namespace
 
 int UnarmoredDefenseBonus(void* stats);  // rules_barbarian.cpp (Barbarian B4), on the sheet too
+int ArmorBaseAdjustment(void* stats);    // rules_armor.cpp (2024 armour), on the sheet too
 
 // Defense: +1 AC in armour (GetArmorClassVersus, rules_attack.cpp, and the sheet).
 int DefenseArmorClassBonus(void* stats) {
@@ -159,7 +160,13 @@ namespace {
 int16_t CreatureArmorClass(void* creature) {
   const int16_t armor_class = g_creature_armor_class(creature);
   void* stats = StatsOf(creature);
-  return static_cast<int16_t>(armor_class + DefenseArmorClassBonus(stats) + UnarmoredDefenseBonus(stats));
+  return static_cast<int16_t>(armor_class + DefenseArmorClassBonus(stats) + UnarmoredDefenseBonus(stats) +
+                              ArmorBaseAdjustment(stats));
+}
+
+// The sheet with class features in NWN mode and 2024 armour on: the armour only.
+int16_t CreatureArmorClassArmorOnly(void* creature) {
+  return static_cast<int16_t>(g_creature_armor_class(creature) + ArmorBaseAdjustment(StatsOf(creature)));
 }
 
 // Great Weapon Fighting: the weapon's damage dice for a melee attack with a
@@ -546,6 +553,11 @@ void InstallFighterRules() {
   if (!Faithful()) {
     OnRulesLoaded(&HideFightingStyleRows);
     if (savage_attacker) InstallWeaponDiceRules();
+    if (g_config.armor == rules::RuleVariant::kFaithful) {  // 2024 armour on the sheet (rules_armor.cpp)
+      HookExport("CNWSCreature::GetArmorClass (sheet and GetAC: 2024 armour)", ee::kCreatureGetArmorClass,
+                 reinterpret_cast<void*>(&CreatureArmorClassArmorOnly),
+                 reinterpret_cast<void**>(&g_creature_armor_class));
+    }
     return;
   }
   g_compute_armor_class = reinterpret_cast<ComputeArmorClassFn>(EngineExport(ee::kItemComputeArmorClass));
@@ -553,7 +565,7 @@ void InstallFighterRules() {
   if (!g_compute_armor_class) Log("SKIP fighter: Defense - no export %s", ee::kItemComputeArmorClass);
   if (!g_get_max_hit_points) Log("SKIP fighter: Heroic Rally - no export %s", ee::kGetMaxHitPoints);
   if (!CountCombatRounds()) Log("SKIP fighter: Studied Attacks and Heroic Rally - combat rounds are not counted");
-  HookExport("CNWSCreature::GetArmorClass (sheet and GetAC: Defense)", ee::kCreatureGetArmorClass,
+  HookExport("CNWSCreature::GetArmorClass (sheet and GetAC: Defense, 2024 armour)", ee::kCreatureGetArmorClass,
              reinterpret_cast<void*>(&CreatureArmorClass), reinterpret_cast<void**>(&g_creature_armor_class));
   InstallWeaponDiceRules();
   AddAttackRollListeners(nullptr, &StudiedAttacksAfterAttackRoll);

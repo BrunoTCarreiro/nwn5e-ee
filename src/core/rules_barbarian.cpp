@@ -94,6 +94,7 @@
 #include "resistance.h"
 #include "rest.h"
 #include "ruleset.h"
+#include "rules/armor.h"
 #include "rules/class_features.h"
 #include "rules/saves.h"
 #include "rules/skills.h"
@@ -145,7 +146,7 @@ bool FastMovementFilter(void* stats, int feat, uintptr_t /*caller*/, int* answer
   if (!facts.character) return false;  // monsters: NWN's
   void* creature = CreatureOf(stats);
   *answer = creature && rules::HasBarbarianFastMovement(ClassLevel2024(stats, rules::CharacterClass::kBarbarian)) &&
-            ChestArmorClass(creature) < rules::kHeavyArmorBaseAc;
+            !rules::IsHeavyArmor2024(ChestArmorClass(creature));
   return true;
 }
 
@@ -227,7 +228,9 @@ void Tell(void* creature, const std::string& line) {
 // The level a Rage runs at: any raging creature's Barbarian level (spell 307 is everyone's).
 int RageLevel(void* stats) { return std::max(1, stats ? ClassLevel2024(stats, rules::CharacterClass::kBarbarian) : 0); }
 
-bool InHeavyArmour(void* creature) { return ChestArmorClass(creature) >= rules::kHeavyArmorBaseAc; }
+// 2024 Heavy armour: chain mail, splint, plate (rules/armor.h; 0.46.0 - before, NWN's AC 6+,
+// which left chain mail out and put half plate in).
+bool InHeavyArmour(void* creature) { return rules::IsHeavyArmor2024(ChestArmorClass(creature)); }
 
 bool HasRageIcon(const void* creature) {
   bool found = false;

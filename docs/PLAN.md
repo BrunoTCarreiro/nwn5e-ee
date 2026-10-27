@@ -1083,6 +1083,23 @@ listeners' order stays, so Forceful Blow's 15 ft still wins over the Push master
 hit. Testing aid (owner: "increase the enemy's hp to 50"): `creature_min_hp=50` in build
 wn5e.ini
 ([debug], existing); the !test profile is level 13.
+*0.46.0 (owner's R6 test: a Rage started in chain mail - "make sure the NWN armor AC matches 2024
+and go with A"; key `armor`):* heavy armour was NWN's AC 6+ (the 3e line), so chain mail (NWN's AC 5)
+counted as medium and half plate (AC 7) as heavy. NWN's tiers are named by the game's own
+descriptions (dialog.tlk 1727-1736: 1 padded, 2 leather, 3 studded leather or hide, 4 scale mail,
+5 chainmail, 6 banded or splint, 7 half-plate, 8 full plate) and each is now read as that 2024
+armour (rules/armor.h, SRD p. 92): Padded 11 + Dex, Leather 11 + Dex, Studded 12 + Dex (light);
+Scale Mail 14 + Dex (max 2), Half Plate 15 + Dex (max 2) (medium); Chain Mail 16, Splint 17,
+Plate 18 (heavy, no Dex). For players and henchmen (a monster's AC is its CR's): the AC's
+Dexterity - CNWSCreatureStats::GetDEXMod(1) (0x3fd280: armor.2da DEXBONUS by tier, a cap of 0
+meaning none, so no table can make heavy armour Dex-free; its callers with 1 are the AC ones:
+GetArmorClass, GetArmorClassVersus, the sheet) - answers the 2024 Dexterity; the base difference
+(leather / studded -1, chain mail / splint +1, half plate -2) is added where nwn5e adds to the AC
+(GetArmorClassVersus, the sheet's GetArmorClass - hooked for it in NWN class mode too). Heavy =
+chain mail, splint, plate for Rage and Fast Movement. Tests ArmorTiersAre2024 / ArmorBaseAdjustment
+/ ArmorDexterity (mutations: chain mail medium, half plate at 17, heavy's Dex penalty kept - caught).
+Not yet: the Strength an armour asks for (Speed -10 ft) and its Stealth Disadvantage; shields (NWN
++1 / +2 / +3, 2024 one Shield +2).
 *Recon facts (EE 89.8193.37-17; RVA):* GetMovementRateFactor 0x391FE0 — HasFeat(194) at 0x39202A (checked again by the session: `mov edx,0C2h; call HasFeat 0x40B900`), ruleset BARBARIAN_ENDURANCE_BONUS 0.1 (row 307), caps MOVEMENT_SPEED_PENALTY_CAP 0.125, BONUS_DEFAULT_CAP 1.5, MONK_CAP 3.0. DoDamageReduction 0x491950 — HasFeat for 1067/334/333/332/196 at +0x177/+0x219/+0x291/+0x309/+0x37E. SavingThrowRoll 0x3EC600 — HasFeat 255…251 at 0x3ED046/0x3ED115/0x3ED150/0x3ED188/0x3ED1C0, its only d20 at 0x3ED260 (ruleset UNCANNY_DODGE_LEVEL_2–6 = 1–5). Uncanny Dodge 2 (251) in ResolveSneakAttack +0x536 and ResolveDeathAttack +0x32A. GetArmorClassVersus 0x3F47F0 — 195 at +0x988/+0x999 and 949 at +0x9AB/+0x9BC via CExoArrayList::Contains (0x296910) on stats+0 / +0x20. GetFlatFooted 0x3E3910 — HasFeat(226 Uncanny Reflex) = never flat-footed. Script GetHasFeat (0x525410): GetHighestLevelOfFeat +0xBD, HasFeat +0xD3, GetFeatRemainingUses +0xF5. GetHighestLevelOfFeat 0x4029B0 (UseFeat +0x3C, the script feat commands). GetFeatRemainingUses 0x4012F0 (total inline, minus the entry's byte +2, clamped 0–100; callers UseFeat, AIActionCastSpell, PlayerUpdate, talents, ResolveDamage, ResolveMeleeSpecialAttack, SetCombatMode, SaveClassInfo, scripts). GetFeatTotalUses 0x401C70 (ReadStatsFromGff, SetFeatRemainingUses 0x415960; feat 331: + (level − 20) / 4). Increment / DecrementFeatRemainingUses 0x40B9D0 / 0x3F2750 change exactly that feat id's byte. Feat 293: SPELLID 307, USESPERDAY 1, TARGETSELF 1; spell 307 NW_S1_BarbRage, UserType 3. DoDamageImmunity 0x491690 (virtual +0x160; % from +0x170; removes max(1, dmg × % / 100)). OnApplyDamage 0x428740: immunity +0x160, DoDamageResistance +0x150 (0x492620), DoDamageReduction +0x148 for flags & 0x1007. AIActionCastSpell 0x3ADA70, AIActionItemCastSpell 0x3C07B0, AddAttackOfOpportunity 0x374320, GetHasFeatEffectApplied 0x495480. Scripts with feat 293: nw_i0_generic, x0_d1_userage / x0_d2_hasrage, x2_i0_spells.
 *Open / unverified:* a feat use and the Short Rest's +1 landing on the same entry (the highest Rage feat); ResetFeatRemainingUses just zeroing the byte; GetHasFeatEffectApplied = the script's GetHasFeatEffect; BZ3's AoO queueing; OnApplyDamage's second loop (+0x1238) not examined; flat-footed in faithful (Rogue brief); Rage Damage on thrown weapons (ranged = Dex in rules::AttackAbilityModifier); served feats with USESPERDAY `****` unlimited; design calls — Heavy = chest base AC 6+ (2024's Half Plate is Medium), potions allowed while raging, henchmen reckless whenever raging, "of your choice" = all enemies; renaming tlk strings (1062 …) by conditional served rows → private ids (assumed).
 
