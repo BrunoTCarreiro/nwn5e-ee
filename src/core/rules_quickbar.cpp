@@ -19,6 +19,7 @@
 #include <windows.h>
 
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include <string>
@@ -297,105 +298,97 @@ void InstallQuickbarKeys() {
 
 // --- The key labels (the client) ----------------------------------------------
 // Owner, 2026-10-27: "the quickbar needs to have the numbers always visible
-// otherwise it's not that useful". Static analysis of 89.8193.37 (0.48.1): the
-// quickbar panel's constructor (CPanelQuickBar, 0x8584a0 - the only code
-// using "F%d") gives each of its 36 buttons (CGuiQuickButton, 0x2c8 bytes from
-// panel +0xf0; a CGuiTextButton) a key label in the button's text (+0xe0, a
-// CAurString from NewCAurString): "F1".."F12", "Shift-F1".., "Ctrl-F1"..,
-// white at 60%. But every setter that fills a button (SetButtonFeat 0x867070
-// and some 40 more) then sets the label's colour to 0,0,0,0, and clearing it
-// back to white 60% (0x85c240): only an empty slot shows its key.
-// Two hooks: the label's SetColor (CAurString vtable slot 15, 0x4a3a0: the
-// RGBA floats at *(label +0x58)) keeps a quickbar label white and opaque when
-// the game would hide it - only the current panel's labels (the in-game GUI's
-// +0x60); and the panel's constructor, after it ran, renames the labels with
-// their SetText (slot 26): rules::QuickbarSlotLabel - "1".."9" and
-// "F10".."F12" on the first two rows with the number keys, "F1".."F12" on the
-// Ctrl row (Ctrl+1-4 are EE's Quick Groups).
-// 0.48.2 (owner: "F10,F11 and F12's labels only show up as \"F1\""): a label
-// draws only what fits its box - the width at label +0x74 (a float, set when
-// the text is attached to the button model's text0 / text1 hookpoints;
-// SetText's CAurFont::CalculateVisibleStringLengthAndWidth cuts the rest) -
-// about two characters, so "F10" showed "F1" and "Shift-F1" / "Ctrl-F1" a
-// stub. Each label is widened 1.6x (SetWidth, slot 24) before its text is set
-// again, and the rows lose their prefixes: a row shows only while its key is
-// held.
-// 0.48.3 (owner: "the label is being hidden by the icon"): the GUI draws by
-// depth, and the button model (qb_but67) puts its hookpoints at text z 0.40,
-// icon 0.55, the counts (count0 / count1) 0.75 - the icon covers the label.
-// Each label's node is moved 0.25 forward (0.65: over the icon, under the
-// counts), as the label's own SetPosition (CAurString vtable slot 4, 0x4a900)
-// reaches it: StringGob = label - 0x4c0, its node = Gob vtable +0x228 (-1),
-// a string node (type 0x3ea, node vtable +0x28), position floats at +0x70.
-// SetPosition's code is checked byte for byte at install, so those offsets
-// hold.
+// otherwise it's not that useful". Static analysis of 89.8193.37:
+// - The labels: the quickbar panel's constructor (CPanelQuickBar, 0x8584a0 -
+//   the only code using "F%d") gives each of its 36 buttons (CGuiQuickButton,
+//   0x2c8 bytes from panel +0xf0; a CGuiTextButton) its key in the button's
+//   text (+0xe0, a CAurString from NewCAurString): "F1".., "Shift-F1"..,
+//   "Ctrl-F1".. After the constructor ran, nwn5e renames them (SetText,
+//   CAurString vtable slot 26) to rules::QuickbarSlotLabel - no row prefixes
+//   (0.48.2: a row shows only while its key is held).
+// - Shown on filled slots (0.48.1): every setter that fills a button
+//   (SetButtonFeat 0x867070 and some 40 more) sets the label's colour to
+//   0,0,0,0; only clearing (0x85c240) gives back white at 60%. The label's
+//   SetColor (slot 15, 0x4a3a0) is hooked: a label of the current panel (the
+//   in-game GUI +0x60) stays white and opaque.
+// - Over the icon (0.48.4; owner, twice: "the label is being hidden by the
+//   icon"): the GUI draws by depth, and the button model (qb_but67) has its
+//   text hookpoint at z 0.40, the icon's at 0.55, the counts' at 0.75.
+//   CGuiTextButton::InitializeModel (0x1ea890, called by CGuiObject::SetModel)
+//   attaches the label to the "text" hookpoint with Gob::AttachToObject mode 0
+//   - a behaviour that only follows the hookpoint; SetPosition (slot 4) moves
+//   only an offset behaviour (type 0x3ea), so 0.48.3's move found nothing
+//   ("0 moved" in the owner's log). The counts on icons
+//   (CGuiIcon::AttachCountLabel 0x1e3310) attach with mode 1 - that offset
+//   behaviour (0x53d70, its offset at +0x70) - then SetPosition(x, y, 0.1).
+//   So once InitializeModel ran on a quickbar button, its label is attached
+//   again with mode 1 (Gob::SetBehavior frees the old behaviour; SetScene is a
+//   no-op for the same scene) and SetPosition(0, 0, 0.25): z 0.65, over the
+//   icon, under the counts.
+// - 0.48.2's 1.6x width did nothing (a label on one hookpoint has width 0 -
+//   "no limit" in CAurFont::CalculateVisibleStringLengthAndWidth) and is gone.
+//   Slot 10's text is logged when a panel is made, should "F10" still read
+//   "F1".
 namespace {
 
 using PanelCtorFn = void* (*)(void* self, void* a2, void* a3, void* a4);
+using InitializeModelFn = void (*)(void* button);
 using SetColorFn = void (*)(void* label, float r, float g, float b, float a);
 using SetTextFn = void (*)(void* label, const char* text);
-using SetWidthFn = void (*)(void* label, float width);
-using GobNodeFn = void* (*)(void* gob, int index);
-using NodeTypeFn = int (*)(void* node);
+using AttachFn = void* (*)(void* label, void* object, const char* hookpoint, int mode);
+struct LabelOffset {
+  float x, y, z;
+};
+using SetPositionFn = int (*)(void* label, const LabelOffset* offset);
 
 constexpr const char* kNewCAurString = "?NewCAurString@@YAPEAVCAurString@@H@Z";
+constexpr const char* kTextButtonInitializeModel = "?InitializeModel@CGuiTextButton@@UEAAXXZ";
+constexpr const char* kGobAttachToObject = "?AttachToObject@Gob@@UEAAPEAXPEAVCAurObject@@PEBDH@Z";
+constexpr const char* kRttiQuickButton = ".?AVCGuiQuickButton@@";
 // In NewCAurString: the CAurString part of the new StringGob gets its vtable
 // (lea rax, [rip + vtable]; mov [rbx + 0x4c0], rax).
 constexpr const char* kStringVtableStore = "48 8d 05 ?? ?? ?? ?? 48 89 83 c0 04 00 00";
 // SetColor's own code: mov rax, [rcx + 0x58]; movss xmm0, [rsp + 0x28].
 constexpr uint8_t kSetColorBody[] = {0x48, 0x8b, 0x41, 0x58, 0xf3, 0x0f, 0x10, 0x44, 0x24, 0x28};
-constexpr int kSetColorSlot = 15;
-constexpr int kSetTextSlot = 26;
-constexpr int kSetWidthSlot = 24;
-// SetWidth's own code: movss [rcx + 0x74], xmm1; ret.
-constexpr uint8_t kSetWidthBody[] = {0xf3, 0x0f, 0x11, 0x49, 0x74, 0xc3};
-constexpr size_t kLabelWidth = 0x74;      // float: the label's box width; text past it isn't drawn
-constexpr float kLabelWidthFactor = 1.6f;  // "F1" fitted, "F10" didn't
-constexpr int kSetPositionSlot = 4;
-// SetPosition's code (0x4a900), whose steps LabelForward repeats: the Gob (label
-// - 0x4c0), its node (Gob vtable +0x228, index -1), a string node (node vtable
-// +0x28 == 0x3ea), the position at node +0x70 / +0x78.
+// SetPosition's code (0x4a900): the Gob (label - 0x4c0), its behaviour
+// (GetBehavior(-1), Gob vtable +0x228), an offset one (type 0x3ea), the offset
+// at +0x70 - checked so slot 4 is what it was read as.
 constexpr uint8_t kSetPositionBody[] = {
     0x48, 0x89, 0x5c, 0x24, 0x08, 0x57, 0x48, 0x83, 0xec, 0x20, 0x48, 0x81, 0xc1, 0x40, 0xfb, 0xff, 0xff,
     0x48, 0x8b, 0xfa, 0xba, 0xff, 0xff, 0xff, 0xff, 0x48, 0x8b, 0x01, 0xff, 0x90, 0x28, 0x02, 0x00, 0x00,
     0x48, 0x8b, 0xd8, 0x48, 0x85, 0xc0, 0x74, 0x30, 0x4c, 0x8b, 0x00, 0x48, 0x8b, 0xc8, 0x41, 0xff, 0x50,
     0x28, 0x3d, 0xea, 0x03, 0x00, 0x00, 0x75, 0x1f, 0x8b, 0x47, 0x08, 0xf2, 0x0f, 0x10, 0x07, 0xf2, 0x0f,
     0x11, 0x43, 0x70, 0x89, 0x43, 0x78};
-constexpr size_t kStringGobInterface = 0x4c0;  // StringGob: its CAurString part (the label)
-constexpr size_t kGobNodeSlot = 0x228 / 8;
-constexpr size_t kNodeTypeSlot = 0x28 / 8;
-constexpr int kNodeTypeString = 0x3ea;
-constexpr size_t kNodePosition = 0x70;  // float x, y, z
-constexpr float kLabelForward = 0.25f;  // text 0.40 -> 0.65: over the icon (0.55), under the counts (0.75)
+// Slot 1's thunk: sub rcx, 0x4c0; jmp -> jmp Gob::AttachToObject.
+constexpr uint8_t kAttachThunk[] = {0x48, 0x81, 0xe9, 0xc0, 0x04, 0x00, 0x00, 0xe9};
+constexpr int kAttachSlot = 1;
+constexpr int kSetPositionSlot = 4;
+constexpr int kSetColorSlot = 15;
+constexpr int kSetTextSlot = 26;
 constexpr size_t kClientAppInternal = 0x8;  // CClientExoApp -> CClientExoAppInternal
 constexpr size_t kGuiQuickbar = 0x60;       // the in-game GUI: CPanelQuickBar
 constexpr size_t kPanelButtons = 0xf0;      // CPanelQuickBar: CGuiQuickButton[36]
 constexpr size_t kQuickButtonSize = 0x2c8;
 constexpr size_t kQuickButtonLabel = 0xe0;  // CGuiTextButton: its text, the key label
+constexpr size_t kGuiObjectModel = 0x10;    // CGuiObject: its model (SetModel)
+constexpr size_t kLabelLines = 0x40;        // CAurString: its lines (pointers), +0x48 the count
+constexpr int kAttachWithOffset = 1;        // AttachToObject mode 1: the offset behaviour
+constexpr float kLabelForward = 0.25f;      // text 0.40 -> 0.65: over the icon (0.55), under the counts (0.75)
 constexpr float kLabelAlpha = 1.0f;
 
 PanelCtorFn g_panel_ctor = nullptr;
+InitializeModelFn g_text_button_init = nullptr;
 SetColorFn g_set_color = nullptr;
 SetTextFn g_set_text = nullptr;
-SetWidthFn g_set_width = nullptr;
+AttachFn g_attach = nullptr;
+SetPositionFn g_set_position = nullptr;
+uintptr_t g_quick_button_vtable = 0;
 void** g_client_app_manager = nullptr;
 void* g_panel = nullptr;  // the last quickbar panel made
 void* g_labels[rules::kQuickbarSlots] = {};
-bool g_labels_on = false;
+int g_over_icon = 0;         // labels attached over the icon
+int g_over_icon_failed = 0;  // ... and not
 int g_label_logs = 0;
-
-// The label's node moved kLabelForward toward the viewer (z), as SetPosition reaches it.
-bool LabelForward(void* label) {
-  uint8_t* gob = static_cast<uint8_t*>(label) - kStringGobInterface;
-  void** gob_vtable = *reinterpret_cast<void***>(gob);
-  void* node = reinterpret_cast<GobNodeFn>(gob_vtable[kGobNodeSlot])(gob, -1);
-  if (!node) return false;
-  void** node_vtable = *reinterpret_cast<void***>(node);
-  if (reinterpret_cast<NodeTypeFn>(node_vtable[kNodeTypeSlot])(node) != kNodeTypeString) return false;
-  float* position = reinterpret_cast<float*>(static_cast<uint8_t*>(node) + kNodePosition);
-  position[2] += kLabelForward;
-  return true;
-}
 
 void* CurrentQuickbarPanel() {
   if (!g_client_app_manager || !*g_client_app_manager) return nullptr;
@@ -419,31 +412,63 @@ void SetColor(void* label, float r, float g, float b, float a) {
   g_set_color(label, r, g, b, a);
 }
 
+// A quickbar button's label attached again to its "text" hookpoint, with an
+// offset toward the viewer (over the icon).
+void LabelOverIcon(void* button) {
+  void* label = Field<void*>(button, kQuickButtonLabel);
+  void* model = Field<void*>(button, kGuiObjectModel);
+  void* behaviour = label && model ? g_attach(label, model, "text", kAttachWithOffset) : nullptr;
+  const LabelOffset forward{0.0f, 0.0f, kLabelForward};
+  if (behaviour && g_set_position(label, &forward)) {
+    ++g_over_icon;
+  } else {
+    ++g_over_icon_failed;
+  }
+}
+
+void TextButtonInitializeModel(void* button) {
+  g_text_button_init(button);
+  if (button && *static_cast<uintptr_t*>(button) == g_quick_button_vtable) LabelOverIcon(button);
+}
+
+// Slot 10's label as laid out (should "F10" read "F1"): its lines, the first
+// line's text and the two numbers CalculateVisibleStringLengthAndWidth sets.
+std::string DescribeLabel(void* label) {
+  if (!label) return "no label";
+  const int lines = Field<int32_t>(label, kLabelLines + 8);
+  void** items = Field<void**>(label, kLabelLines);
+  if (lines <= 0 || lines > 64 || !items || !items[0]) return "lines " + std::to_string(lines);
+  const char* text = Field<const char*>(items[0], 8);
+  char buffer[160];
+  snprintf(buffer, sizeof(buffer), "lines %d, \"%.12s\", +0x1c %d, +0x20 %.3f, +0x24 %.3f", lines,
+           text ? text : "", Field<int32_t>(items[0], 0x1c), Field<float>(items[0], 0x20),
+           Field<float>(items[0], 0x24));
+  return buffer;
+}
+
 void* QuickbarPanelCtor(void* self, void* a2, void* a3, void* a4) {
-  void* result = g_panel_ctor(self, a2, a3, a4);
+  const int over_before = g_over_icon, failed_before = g_over_icon_failed;
+  void* result = g_panel_ctor(self, a2, a3, a4);  // its SetModel calls run InitializeModel on each button
   if (!self) return result;
   g_panel = self;
   uint8_t* buttons = static_cast<uint8_t*>(self) + kPanelButtons;
-  for (int i = 0; i < rules::kQuickbarSlots; ++i) g_labels[i] = Field<void*>(buttons + i * kQuickButtonSize, kQuickButtonLabel);
-  int named = 0, forward = 0;
-  float width_before = 0.0f;
   for (int i = 0; i < rules::kQuickbarSlots; ++i) {
-    void* label = g_labels[i];
-    if (!label) continue;
-    const float width = Field<float>(label, kLabelWidth);
-    if (i == 0) width_before = width;
-    if (width > 0.0f && width < 10000.0f) g_set_width(label, width * kLabelWidthFactor);
-    g_set_text(label, rules::QuickbarSlotLabel(i, QuickbarNumberKeysOn()).c_str());
-    ++named;
-    if (LabelForward(label)) ++forward;
+    g_labels[i] = Field<void*>(buttons + i * kQuickButtonSize, kQuickButtonLabel);
+    if (g_labels[i]) g_set_text(g_labels[i], rules::QuickbarSlotLabel(i, QuickbarNumberKeysOn()).c_str());
   }
   if (g_label_logs < 5) {
     ++g_label_logs;
-    Log("quickbar: a quickbar panel made - %d key labels renamed (1-9 / F10-F12; F1-F12 on the Ctrl row), widened "
-        "%.2f -> %.2f, %d moved over the icon, shown on filled slots",
-        named, width_before, width_before * kLabelWidthFactor, forward);
+    Log("quickbar: a quickbar panel made - key labels renamed (1-9 / F10-F12; F1-F12 on the Ctrl row), %d attached "
+        "over the icon (%d not), shown on filled slots; slot 10: %s",
+        g_over_icon - over_before, g_over_icon_failed - failed_before, DescribeLabel(g_labels[9]).c_str());
   }
   return result;
+}
+
+// The target of a jmp rel32 at `at` (0 if it isn't one).
+uintptr_t JumpTarget(uintptr_t at) {
+  if (!at || *reinterpret_cast<const uint8_t*>(at) != 0xe9) return 0;
+  return at + 5 + *reinterpret_cast<const int32_t*>(at + 1);
 }
 
 }  // namespace
@@ -453,26 +478,34 @@ void InstallQuickbarLabels() {
   const uintptr_t new_string = EngineExport(kNewCAurString);
   const uintptr_t store =
       new_string ? FindPatternIn("NewCAurString's vtable store", FunctionAt(new_string), kStringVtableStore) : 0;
-  const uintptr_t vtable = store ? store + 7 + *reinterpret_cast<const int32_t*>(store + 3) : 0;
-  const uintptr_t set_color = vtable ? reinterpret_cast<const uintptr_t*>(vtable)[kSetColorSlot] : 0;
-  g_set_text = reinterpret_cast<SetTextFn>(vtable ? reinterpret_cast<const uintptr_t*>(vtable)[kSetTextSlot] : 0);
-  g_set_width = reinterpret_cast<SetWidthFn>(vtable ? reinterpret_cast<const uintptr_t*>(vtable)[kSetWidthSlot] : 0);
-  const bool width_ok =
-      g_set_width && memcmp(reinterpret_cast<const void*>(g_set_width), kSetWidthBody, sizeof(kSetWidthBody)) == 0;
-  const uintptr_t set_position = vtable ? reinterpret_cast<const uintptr_t*>(vtable)[kSetPositionSlot] : 0;
-  const bool position_ok =
-      set_position &&
-      memcmp(reinterpret_cast<const void*>(set_position), kSetPositionBody, sizeof(kSetPositionBody)) == 0;
+  const uintptr_t* vtable = store ? reinterpret_cast<const uintptr_t*>(store + 7 + *reinterpret_cast<const int32_t*>(store + 3))
+                                  : nullptr;
+  const uintptr_t set_color = vtable ? vtable[kSetColorSlot] : 0;
+  const uintptr_t attach = vtable ? vtable[kAttachSlot] : 0;
+  g_set_text = reinterpret_cast<SetTextFn>(vtable ? vtable[kSetTextSlot] : 0);
+  g_set_position = reinterpret_cast<SetPositionFn>(vtable ? vtable[kSetPositionSlot] : 0);
+  g_attach = reinterpret_cast<AttachFn>(attach);
+  g_quick_button_vtable = FindVtable("the quickbar button's vtable", kRttiQuickButton);
   g_client_app_manager = reinterpret_cast<void**>(EngineExport(ee::kAppManager));
+  const uintptr_t init_model = EngineExport(kTextButtonInitializeModel);
   const bool color_ok =
       set_color && memcmp(reinterpret_cast<const void*>(set_color), kSetColorBody, sizeof(kSetColorBody)) == 0;
-  if (!ctor || !color_ok || !width_ok || !position_ok || !g_set_text || !g_client_app_manager) {
+  const bool position_ok =
+      g_set_position &&
+      memcmp(reinterpret_cast<const void*>(g_set_position), kSetPositionBody, sizeof(kSetPositionBody)) == 0;
+  const bool attach_ok = attach && memcmp(reinterpret_cast<const void*>(attach), kAttachThunk, sizeof(kAttachThunk)) == 0 &&
+                         JumpTarget(JumpTarget(attach + sizeof(kAttachThunk) - 1)) == EngineExport(kGobAttachToObject);
+  if (!ctor || !color_ok || !position_ok || !attach_ok || !g_set_text || !g_quick_button_vtable ||
+      !g_client_app_manager || !init_model) {
     Log("SKIP quickbar: key labels - a piece wasn't found where expected (labels show on empty slots only)");
     return;
   }
-  g_labels_on = HookAddress("CAurString::SetColor (a quickbar key label stays shown)", set_color,
-                            reinterpret_cast<void*>(&SetColor), reinterpret_cast<void**>(&g_set_color)) &&
-                HookAddress("CPanelQuickBar::CPanelQuickBar (key labels named after the number keys)", ctor,
-                            reinterpret_cast<void*>(&QuickbarPanelCtor), reinterpret_cast<void**>(&g_panel_ctor));
-  if (g_labels_on) Log("quickbar: key labels always shown and widened (1-9 with the number keys)");
+  const bool hooked =
+      HookAddress("CAurString::SetColor (a quickbar key label stays shown)", set_color,
+                  reinterpret_cast<void*>(&SetColor), reinterpret_cast<void**>(&g_set_color)) &&
+      HookAddress("CGuiTextButton::InitializeModel (a quickbar key label over the icon)", init_model,
+                  reinterpret_cast<void*>(&TextButtonInitializeModel), reinterpret_cast<void**>(&g_text_button_init)) &&
+      HookAddress("CPanelQuickBar::CPanelQuickBar (key labels named after the number keys)", ctor,
+                  reinterpret_cast<void*>(&QuickbarPanelCtor), reinterpret_cast<void**>(&g_panel_ctor));
+  if (hooked) Log("quickbar: key labels always shown, over the icon (1-9 with the number keys)");
 }

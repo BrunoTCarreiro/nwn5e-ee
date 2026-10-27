@@ -2259,7 +2259,7 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   Use) - no server change, light_sources.cpp does the rest; later a GuiEvent
   transport + registry (AddRadialAction) for other interactions - also what
   Barbarian 3's X8 radial options would use. Dumps: the job's
-  tmpecon_radial (NOTES.txt).
+  tmp/recon_radial (NOTES.txt).
   0.39.0-0.39.6 (owner, 2026-10-25/26): R1 built (radial Snuff / Light, R2
   saved for Barbarian 3). Snuff while hidden keeps the hide (a 30 s mark;
   the SetStealthMode hook refuses only engine calls, never ToggleMode, and
@@ -3337,6 +3337,24 @@ the label's own SetPosition (CAurString vtable slot 4, 0x4a900) reaches it:
 StringGob = label - 0x4c0, its node through Gob vtable +0x228 (index -1), a
 string node (type 0x3ea), position at node +0x70. SetPosition's bytes are
 checked at install.
+
+*0.48.4 (owner, again: "still nothing, the labels are still being covered by
+the button icon"; the log: "widened 0.00 -> 0.00, 0 moved over the icon"):*
+both 0.48.2 and 0.48.3 missed. CGuiTextButton::InitializeModel (0x1ea890, run
+by CGuiObject::SetModel inside the panel's constructor) attaches the label to
+the "text" hookpoint with Gob::AttachToObject mode 0 - a behaviour that only
+follows the hookpoint; SetPosition moves only an offset behaviour (type 0x3ea,
+what Gob::GetBehavior(-1) - the "node" of 0.48.3 - must be), so nothing moved.
+And a label on one hookpoint has width 0 - "no limit" to
+CAurFont::CalculateVisibleStringLengthAndWidth - so the 1.6x widening did
+nothing (removed; why "F10" read "F1" is still open: slot 10's laid-out text is
+logged when a panel is made). The counts on icons (CGuiIcon::AttachCountLabel
+0x1e3310) attach with mode 1 - the offset behaviour (0x53d70, offset at +0x70)
+- then SetPosition(x, y, 0.1). Now InitializeModel is hooked: on a
+CGuiQuickButton (its vtable) the label is attached again, mode 1
+(Gob::SetBehavior frees the old behaviour; Gob::SetScene is a no-op for the
+same scene), and SetPosition(0, 0, 0.25). The log says how many labels went
+over the icon.
 
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
