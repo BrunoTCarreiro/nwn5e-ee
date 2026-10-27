@@ -117,8 +117,13 @@ void FeaturesCreatureUpdate(void* creature) {
   const int recorded = engine::GetLocalInt(creature, kVarGranted);
   if (faithful) RemoveNwnOnlyFeats(stats, facts, id);
   if (!faithful && !recorded) return;  // nothing to take back
-  const std::vector<int> wanted =
+  std::vector<int> wanted =
       faithful ? rules::GrantedFeats2024(rules::GroupClassLevels(ReadClassSlots(stats))) : std::vector<int>();
+  if (faithful && facts.is_player) {  // G1: the Shove (players only - the AI of others would use it far more)
+    for (int feat : rules::FeatsEveryoneHas2024(g_config.knockdown == rules::RuleVariant::kFaithful)) {
+      wanted.push_back(feat);
+    }
+  }
   int now_recorded = recorded;
   const std::vector<int>& grantable = rules::GrantableFeats2024();
   for (size_t i = 0; i < grantable.size() && i < 31; ++i) {
@@ -126,7 +131,11 @@ void FeaturesCreatureUpdate(void* creature) {
     const bool want = std::find(wanted.begin(), wanted.end(), feat) != wanted.end();
     const bool had = (recorded >> i) & 1;
     if (want && !had) {
-      if (!engine::HasFeat(stats, feat)) g_add_feat(stats, static_cast<uint16_t>(feat));
+      if (!engine::HasFeat(stats, feat)) {
+        g_add_feat(stats, static_cast<uint16_t>(feat));
+      } else if (rules::GrantedOnlyWhenMissing(feat)) {
+        continue;  // the character's own (taken): not nwn5e's to take back
+      }
       now_recorded |= 1 << i;
       Log("features: %s 0x%08X granted feat %d", KindOf(facts), id, feat);
     } else if (!want && had) {

@@ -16,6 +16,10 @@
 //   its round's end a turn made in place is made to stick.
 // The line stops before unwalkable ground and placeables (the area's static
 // objects); doors are not in that test.
+//
+// G1 (docs/PLAN.md "Grapple and Throw"): a Shove's push choice (ShovePush) uses
+// the same line and slide, 5 ft, with no fall - the creature flinches and is
+// held in place for a moment so its own walking doesn't fight the slide.
 
 #include <math.h>
 #include <stdint.h>
@@ -90,6 +94,8 @@ constexpr DWORD kPushWatchMs = 8000;
 constexpr DWORD kAwaitDamageMs = 5000;
 constexpr DWORD kRetargetMaxMs = 15000;
 constexpr float kBodyMetres = 0.5f;          // walkable line kept behind the new spot
+constexpr int kAnimationDamage = 14;         // the flinch a hit plays (nwmain's animation switch)
+constexpr float kShoveHoldSeconds = 0.5f;    // a shoved creature held in place while it slides
 
 uint32_t IdOf(const void* object) { return Field<uint32_t>(object, ee::kObjectId); }
 Vec3 PositionOf(const void* object) {
@@ -501,6 +507,27 @@ bool g_on = false;
 
 }  // namespace
 
+std::string ShovePush(void* attacker, void* target, float metres) {
+  if (!g_on) return "the push is off";
+  if (!attacker || !target) return "no creature";
+  const uint32_t attacker_id = IdOf(attacker);
+  const uint32_t target_id = IdOf(target);
+  const PushPlan plan = PlanPush(target, attacker, metres);
+  if (plan.refused) {
+    if (LogSlot()) Log("push: shove 0x%08X on 0x%08X: not pushed (%s)", attacker_id, target_id, plan.refused);
+    return plan.refused;
+  }
+  ApplyEffectAs(attacker_id, target_id, "DURATION_TYPE_TEMPORARY", "EffectCutsceneImmobilize()", kShoveHoldSeconds,
+                0.0f);
+  if (!LyingDown(Field<int32_t>(target, ee::kCreatureAnimation))) E().set_animation(target, kAnimationDamage);
+  g_slides[target_id] = Slide{plan.from, plan.to, plan.metres, AreaOf(target), GetTickCount()};
+  if (LogSlot()) {
+    Log("push: shove 0x%08X on 0x%08X: slides %.1f m away, on its feet%s", attacker_id, target_id, plan.metres,
+        plan.blocker != ee::kObjectInvalid ? " (cut short by a placeable)" : "");
+  }
+  return std::string();
+}
+
 std::string PushOnHit(void* attacker, void* target, float metres) {
   if (!g_on || !attacker || !target) return std::string();
   const uint32_t attacker_id = IdOf(attacker);
@@ -566,11 +593,12 @@ void PushOnRoundEnd(void* owner) {
 }
 
 bool InstallPushRules() {
+  if (g_on) return true;  // the mastery's install and the Shove's
   if (!E().Complete()) {
     Log("push: an engine function is missing in this game build; Push is off");
     return false;
   }
   g_on = AddCreatureUpdateListener(&OnCreatureUpdate);
-  if (g_on) Log("push: on (faithful weapon mastery)");
+  if (g_on) Log("push: on (faithful weapon mastery, Forceful Blow, the Shove's push)");
   return g_on;
 }

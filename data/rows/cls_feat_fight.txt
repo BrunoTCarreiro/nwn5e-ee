@@ -20,3 +20,5 @@ FeatLabel FeatIndex List GrantedOnLevel OnMenu
 + NWN5E_SECOND_WIND_2 1220 3 -1 1
 + NWN5E_SECOND_WIND_3 1221 3 -1 1
 + NWN5E_SECOND_WIND_4 1222 3 -1 1
+# G1: Shove: push on the radial menu (granted by nwn5e in faithful, never by the engine).
++ NWN5E_SHOVE_PUSH 1313 3 -1 1

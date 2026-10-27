@@ -15,6 +15,7 @@ using UseFeatFn = int (*)(void* creature, uint16_t feat, uint16_t subfeat, uint3
 UseFeatFn g_use_feat = nullptr;
 std::vector<FeatUseGuard> g_guards;        // filled at install, then only read
 std::vector<FeatUseListener> g_listeners;  // the same
+std::vector<FeatUseHandler> g_handlers;    // the same
 bool g_hooked = false;
 bool g_hook_failed = false;
 
@@ -22,6 +23,15 @@ int UseFeat(void* creature, uint16_t feat, uint16_t subfeat, uint32_t target, ui
   if (creature) {
     for (FeatUseGuard guard : g_guards) {
       if (!guard(creature, feat)) return 0;
+    }
+    for (FeatUseHandler handler : g_handlers) {
+      const int handled = handler(creature, feat, subfeat, target);
+      if (handled >= 0) {
+        if (handled) {
+          for (FeatUseListener listener : g_listeners) listener(creature, feat);
+        }
+        return handled;
+      }
     }
   }
   const int result = g_use_feat(creature, feat, subfeat, target, area, location);
@@ -51,5 +61,11 @@ bool AddFeatUseGuard(FeatUseGuard guard) {
 bool AddFeatUseListener(FeatUseListener listener) {
   if (!Hook()) return false;
   g_listeners.push_back(listener);
+  return true;
+}
+
+bool AddFeatUseHandler(FeatUseHandler handler) {
+  if (!Hook()) return false;
+  g_handlers.push_back(handler);
   return true;
 }

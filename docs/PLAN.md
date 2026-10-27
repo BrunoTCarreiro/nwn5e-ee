@@ -3107,6 +3107,28 @@ Throw (a flight arc - SetObjectVisualTransform lerps over a longer slide - and
 the landing: the knockdown fall, dust, a camera bump) -> G5 animations (a pose
 step for the animation recipes: grip, held, drag, lift-and-throw).
 
+*Built 0.45.0 (G1; owner: "might as well keep going with the shove push"):*
+Shove's push is its own radial action, nwn5e's feat 1313 "Shove: push"
+(Bigby's Forceful Hand icon), next to Knockdown, which faithful now names
+"Shove" (feat.if_shove.txt) - one click on a creature, no mode to set. Engine
+facts (RE of UseFeat 0x3a91d0): for Knockdown / Disarm / Called Shot etc. it
+calls AddAttackActions(target) then CombatRound::AddSpecialAttack(feat) (none
+with a ranged weapon); the id lands in an attack's +0x7a and
+ResolveMeleeSpecialAttack resolves it; ids past the game's rows (>= 1116)
+skip its uses check (+0x6d) and resolve as an ordinary attack. So feat_use.cpp
+gained handlers (a feat nwn5e carries out itself): 1313 is queued exactly so,
+and rules_shove.cpp resolves it - no attack roll, no damage (the Shove's own
+hooks), the size limit (one larger), the Shove's save (the better of Str /
+Dex vs 8 + Str + PB, shared as unarmed.h's RollUnarmedSave for the Grapple),
+and on a failure rules_push.cpp's ShovePush: the push line (walls,
+placeables, unwalkable ground stop it), no fall - the hit flinch, 0.5 s held,
+the 0.1 s slide. Every player character has both Shoves while the Shove is
+faithful (rules_features.cpp; feat 23 granted only when missing, so one a
+character took stays in NWN mode; players only - other creatures' AI would
+use Knockdown far more). `!shove [push]` shoves the creature you are
+attacking (the radial's fallback). Tests: EveryoneCanShove (mutations: the
+own Knockdown taken back, granted in NWN mode - both caught).
+
 **GT-L1. Later: throwing an enemy into another** (owner: "How possible would it
 be to implement throwing an enemy into another as a way to damage both? We're
 not implementing this now, just note it down for later"). Feasible, and GT2

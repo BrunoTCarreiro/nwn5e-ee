@@ -1,0 +1,11 @@
+# feat.2da - the 2024 Unarmed Strike options nwn5e adds (docs/PLAN.md "Grapple and
+# Throw"; faithful only - src/core/rules_features.cpp gives them to every player
+# character then, and takes them back in NWN mode). Used like Knockdown: on a
+# creature, the character closes in and the option is one of its attacks
+# (src/core/unarmed.h: queued as the engine queues Knockdown, as a special attack
+# past the game's rows, and resolved by nwn5e with the 2024 save). Knockdown's
+# columns (an active combat feat, hostile); not for every class to pick
+# (ALLCLASSESCANUSE 0) - the classes' feat tables list them for the radial menu.
+# 1313: Shove: push (G1). 1312 is kept for the Grapple (G2).
+LABEL FEAT DESCRIPTION ICON GAINMULTIPLE EFFECTSSTACK ALLCLASSESCANUSE CATEGORY MAXCR SPELLID SUCCESSOR CRValue USESPERDAY TARGETSELF Constant TOOLSCATEGORIES HostileFeat PreReqEpic ReqAction
+1313 NWN5E_SHOVE_PUSH 16000482 16000483 is_X1Bigby2 0 0 0 22 1 **** **** 1 **** **** FEAT_NWN5E_SHOVE_PUSH 2 1 0 1

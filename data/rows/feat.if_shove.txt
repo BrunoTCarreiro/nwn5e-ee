@@ -1,0 +1,6 @@
+# feat.2da - SK6 / G1 (docs/PLAN.md "Grapple and Throw"): feat 23, NWN's Knockdown,
+# is 2024's Shove while `knockdown` is faithful (src/core/rules_shove.cpp), so it
+# carries the Shove's name and description then; nwn5e gives it to every player
+# character (src/core/rules_features.cpp). NWN mode keeps Knockdown's own.
+FEAT DESCRIPTION
+23 16000480 16000481

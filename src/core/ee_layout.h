@@ -112,6 +112,8 @@ constexpr const char* kUseItem = "?UseItem@CNWSCreature@@QEAAHIEEIVVector@@IH@Z"
 constexpr const char* kUseFeat = "?UseFeat@CNWSCreature@@QEAAHGGIIPEAVVector@@@Z";
 // int CNWSCreature::AddAttackActions(unsigned int target, int, int bClearAllActions?, int)
 constexpr const char* kAddAttackActions = "?AddAttackActions@CNWSCreature@@QEAAHIHHH@Z";
+// UseFeat's Knockdown path asks it: no special attack with a ranged weapon (G1).
+constexpr const char* kGetRangeWeaponEquipped = "?GetRangeWeaponEquipped@CNWSCreature@@QEAAHXZ";
 // unsigned int CNWSCreature::GetNearestEnemy(float range, unsigned int exclude, int bMustBeSeen, int bCheckPath)
 constexpr const char* kGetNearestEnemy = "?GetNearestEnemy@CNWSCreature@@QEAAIMIHH@Z";
 constexpr const char* kGetItemByGameObjectId = "?GetItemByGameObjectID@CServerExoApp@@QEAAPEAVCNWSItem@@I@Z";

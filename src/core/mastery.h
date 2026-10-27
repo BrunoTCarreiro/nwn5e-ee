@@ -41,11 +41,16 @@ int MasteryCleaveDamage(void* stats, int bonus, float two_handed_multiplier);
 // Push is off).
 // `metres`: 3 (10 ft) for the mastery; Brutal Strike's Forceful Blow 4.572 (15 ft).
 std::string PushOnHit(void* attacker, void* target, float metres = 3.0f);
+// G1: a Shove's push choice - straight away from the shover, on its feet (a
+// flinch, no fall), now. Empty when pushed, else why not ("no walkable ground
+// behind it", ...).
+std::string ShovePush(void* attacker, void* target, float metres);
 // A Push hit waits for its damage to land (OnApplyDamage).
 bool PushAwaiting();
 // A damage effect created by `attacker_id` landed on `target`: the push, if it waited for it.
 void PushOnDamage(uint32_t attacker_id, void* target);
 // The creature's combat round ended (after the engine's EndCombatRound).
 void PushOnRoundEnd(void* owner);
-// From InstallMasteryRules (faithful); false and logged when the engine lacks a piece.
+// From InstallMasteryRules and InstallShoveRules (faithful; once); false and
+// logged when the engine lacks a piece.
 bool InstallPushRules();

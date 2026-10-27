@@ -86,13 +86,31 @@ TEST(GrantedFeatsFollowClassLevels) {
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kFighter, 9}}).size(), 1u);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 5}}).empty(), true);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 3}, {CharacterClass::kFighter, 2}})[0], kFeatSecondWind2);
-  CHECK_EQ(GrantableFeats2024().size(), 5u);
+  CHECK_EQ(GrantableFeats2024().size(), 7u);
   CHECK_EQ(GrantableFeats2024()[0], kFeatSecondWind2);  // the record's order never changes
+  CHECK_EQ(GrantableFeats2024()[4], kFeatBrutalStrike);
+  CHECK_EQ(GrantableFeats2024()[5], kFeatKnockdownShove);
+  CHECK_EQ(GrantableFeats2024()[6], kFeatShovePush);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kBarbarian, 1}}).empty(), true);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kBarbarian, 2}}).size(), 1u);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kBarbarian, 2}})[0], kFeatRecklessAttack);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kBarbarian, 9}}).size(), 2u);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kBarbarian, 9}})[1], kFeatBrutalStrike);
+}
+
+// G1: everyone can Shove in 2024 - feat 23 for every player character while the
+// Shove is faithful, granted only when missing (one a character took stays
+// its own in NWN mode). Breaks caught: granted in NWN mode, a class feat
+// marked only-when-missing (NWN mode would then keep a stray nwn5e feat).
+TEST(EveryoneCanShove) {
+  CHECK_EQ(FeatsEveryoneHas2024(true).size(), 2u);
+  CHECK_EQ(FeatsEveryoneHas2024(true)[0], kFeatKnockdownShove);
+  CHECK_EQ(FeatsEveryoneHas2024(true)[1], kFeatShovePush);
+  CHECK_EQ(GrantedOnlyWhenMissing(kFeatShovePush), false);
+  CHECK_EQ(FeatsEveryoneHas2024(false).empty(), true);
+  CHECK_EQ(GrantedOnlyWhenMissing(kFeatKnockdownShove), true);
+  CHECK_EQ(GrantedOnlyWhenMissing(kFeatSecondWind2), false);
+  CHECK_EQ(GrantedOnlyWhenMissing(kFeatBrutalStrike), false);
 }
 
 // Breaks caught: part 3 at the wrong level (Reckless 2, Frenzy 3, Brutal

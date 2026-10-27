@@ -259,10 +259,22 @@ std::vector<int> GrantedFeats2024(const std::vector<ClassLevels>& classes) {
 
 // Appended only: a character's record is a bit per entry, in this order.
 const std::vector<int>& GrantableFeats2024() {
-  static const std::vector<int> kFeats = {kFeatSecondWind2, kFeatSecondWind3, kFeatSecondWind4, kFeatRecklessAttack,
-                                          kFeatBrutalStrike};
+  static const std::vector<int> kFeats = {kFeatSecondWind2,    kFeatSecondWind3,  kFeatSecondWind4,
+                                          kFeatRecklessAttack, kFeatBrutalStrike, kFeatKnockdownShove,
+                                          kFeatShovePush};
   return kFeats;
 }
+
+std::vector<int> FeatsEveryoneHas2024(bool shove_faithful) {
+  std::vector<int> feats;
+  if (shove_faithful) {
+    feats.push_back(kFeatKnockdownShove);
+    feats.push_back(kFeatShovePush);
+  }
+  return feats;
+}
+
+bool GrantedOnlyWhenMissing(int feat) { return feat == kFeatKnockdownShove; }
 
 int IndomitableUses(int fighter_level) { return fighter_level >= 17 ? 3 : fighter_level >= 13 ? 2 : fighter_level >= 9 ? 1 : 0; }
 
