@@ -27,6 +27,11 @@
 //   under `feats` is still given.
 // - "!export" saves the character to the vault as a campaign's chapter change
 //   does (C6's check: its records come back from its own database).
+// - "!spawn <blueprint> [ally]" (0.49.1, for the Grapple's and the Shove's size
+//   rows - "a Huge creature wasn't available"): a creature from its blueprint 5 m
+//   in front of the speaker, facing it, hostile - or with "ally" its henchman
+//   (one that fights the others). E.g. nw_gntfrost (Frost Giant, Huge),
+//   nw_gnthill (Hill Giant, Large), nw_orcb (Orc, Medium).
 
 #include <windows.h>
 
@@ -99,6 +104,34 @@ std::vector<std::string> GiveCommand(void* creature, const std::string& args) {
                            blueprint + "\\\".\");";
   RunScriptChunk(code.c_str(), id);
   Log("give: 0x%08X asked for %s x%d", id, blueprint.c_str(), count);
+  return {};
+}
+
+// !spawn <blueprint> [ally]
+std::vector<std::string> SpawnCommand(void* creature, const std::string& args) {
+  std::string blueprint = args, rest;
+  const size_t space = args.find(' ');
+  if (space != std::string::npos) {
+    blueprint = args.substr(0, space);
+    rest = args.substr(space + 1);
+  }
+  blueprint = Lower(blueprint);
+  if (!IsResRef(blueprint)) {
+    return {"nwn5e: !spawn <creature blueprint> [ally] - e.g. !spawn nw_gntfrost (Frost Giant, Huge), nw_gnthill "
+            "(Hill Giant, Large), nw_orcb (Orc); ally: as your henchman."};
+  }
+  const bool ally = Lower(rest).find("ally") != std::string::npos;
+  const uint32_t id = ObjectIdOf(StatsOf(creature));
+  const std::string join = ally ? "ChangeFaction(o, OBJECT_SELF); AddHenchman(OBJECT_SELF, o); "
+                                : "ChangeToStandardFaction(o, STANDARD_FACTION_HOSTILE); ";
+  const std::string code =
+      "float f = GetFacing(OBJECT_SELF); vector p = GetPosition(OBJECT_SELF) + AngleToVector(f) * 5.0; "
+      "object o = CreateObject(OBJECT_TYPE_CREATURE, \"" + blueprint + "\", Location(GetArea(OBJECT_SELF), p, f + 180.0)); "
+      "if (GetIsObjectValid(o)) { " + join + "SendMessageToPC(OBJECT_SELF, \"nwn5e: spawned \" + GetName(o) + \"" +
+      (ally ? " (your henchman)" : " (hostile)") + ".\"); } else SendMessageToPC(OBJECT_SELF, \"nwn5e: no creature "
+      "blueprint \\\"" + blueprint + "\\\".\");";
+  RunScriptChunk(code.c_str(), id);
+  Log("spawn: 0x%08X asked for %s%s", id, blueprint.c_str(), ally ? " (ally)" : "");
   return {};
 }
 
@@ -431,6 +464,7 @@ void InstallTestCommands() {
   AddChatCommand("!feat", &FeatCommand);
   AddChatCommand("!test", &TestCommand);
   AddChatCommand("!export", &ExportCommand);
+  AddChatCommand("!spawn", &SpawnCommand);
   Log("config: [debug] test_commands=1 - !test (data\\test.txt), !give <blueprint>, !feat add / remove <feat>, "
-      "!export");
+      "!export, !spawn <blueprint> [ally]");
 }

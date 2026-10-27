@@ -10,7 +10,12 @@
 # Strength 18 (Strength attacks), Dexterity 14; a battleaxe in hand (Topple: !mastery battleaxe); a greataxe and a large
 # shield, throwing axes (thrown: Strength attacks too), a shortbow and arrows (ranged: no
 # Reckless Advantage) in the pack.
-name = Barbarian parts 3-4: Berserker 17 (Retaliation 10, Intimidating Presence 14), a battleaxe (Topple)
+# 0.49.1 (G2 Grapple; owner: "give me a normal sized species PC, a halfling might not be the
+# best to test the grapple"): a human (Medium). The battleaxe in one hand leaves a hand free;
+# the greataxe and the large shield fill it (GR5). !spawn nw_gntfrost (Huge: too big),
+# !spawn nw_gnthill (Large: allowed), !spawn nw_orcb ally (a henchman to fight, GR6).
+name = Grapple (G2) + Barbarian parts 3-4: human Berserker 17, a battleaxe (one hand free)
+species = human
 swap_class = barbarian
 class = barbarian
 level = 17
