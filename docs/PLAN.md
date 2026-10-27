@@ -3300,6 +3300,21 @@ core/rules_quickbar.cpp (the engine).
   its assign menu does (HandleServerToPlayerGuiQuickbar_SetButton wasn't read)
   - its icon and label, and that clicking it picks the option.
 
+*0.48.1 (owner: "the quickbar needs to have the numbers always visible
+otherwise it-s not that useful"):* the game names each slot's key - "F1"..,
+"Shift-F1"..,  "Ctrl-F1".., white at 60% (CPanelQuickBar's constructor
+0x8584a0, the only code using "F%d"; the label is the button's text, a
+CAurString at CGuiQuickButton +0xe0) - but hides it as soon as the slot is
+filled: every setter (SetButtonFeat 0x867070 and some 40 more) sets the
+label's colour to 0,0,0,0 and only clearing the slot (0x85c240) brings it
+back. So only empty slots showed their key. Now a quickbar key label stays
+shown, white and opaque (a hook on the label's SetColor, CAurString vtable slot
+15, 0x4a3a0 - the RGBA at *(label +0x58); only the current panel's 36
+labels), and slots 1-9 of the first two rows read "1".."9" and
+"Shift-1".."Shift-9" (the constructor, then the label's SetText, slot 26;
+only while the number keys are hooked). The Ctrl row keeps "Ctrl-F1"..
+Unverified (the test): readable over every icon (white text, no outline).
+
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
 Walked through one by one (issue, what NWN does, what 2024 does, what to

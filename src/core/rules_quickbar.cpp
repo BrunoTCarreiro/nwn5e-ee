@@ -13,11 +13,13 @@
 //   player takes off stays off. `!quickbar` lists them, `!quickbar reset`
 //   forgets the record (the missing ones come back on empty slots).
 // - The number keys (the client): keys 1-9 press quickbar slots 1-9, as F1-F9
-//   (see InstallQuickbarKeys below).
+//   (see InstallQuickbarKeys below); the slots' key labels stay shown and read
+//   1-9 (InstallQuickbarLabels).
 
 #include <windows.h>
 
 #include <stdint.h>
+#include <string.h>
 
 #include <string>
 #include <unordered_map>
@@ -183,12 +185,14 @@ std::vector<std::string> QuickbarCommand(void* creature, const std::string& args
 
 }  // namespace
 
-void InstallQuickbarKeys();  // below
+void InstallQuickbarKeys();    // below
+void InstallQuickbarLabels();  // below
 
 void InstallQuickbar() {
   if (g_config.quickbar != rules::RuleVariant::kFaithful) return;
   AddChatCommand("!quickbar", &QuickbarCommand);
   InstallQuickbarKeys();
+  InstallQuickbarLabels();
   g_set_int_param = reinterpret_cast<SetIntParamFn>(EngineExport(kSetIntParam));
   g_send_button = reinterpret_cast<SendButtonFn>(EngineExport(kSendButton));
   g_get_message = reinterpret_cast<GetMessageFn>(EngineExport(kGetNWSMessage));
@@ -289,4 +293,123 @@ void InstallQuickbarKeys() {
   g_keys_on = HookAddress("CClientExoAppInternal::HandleInputEvent (keys 1-9 press quickbar slots 1-9)", entry,
                           reinterpret_cast<void*>(&HandleInputEvent), reinterpret_cast<void**>(&g_handle_input));
   if (g_keys_on) Log("quickbar: keys 1-9 press quickbar slots 1-9 (as F1-F9; Shift+1-9 the Shift row)");
+}
+
+// --- The key labels (the client) ----------------------------------------------
+// Owner, 2026-10-27: "the quickbar needs to have the numbers always visible
+// otherwise it's not that useful". Static analysis of 89.8193.37 (0.48.1): the
+// quickbar panel's constructor (CPanelQuickBar, 0x8584a0 - the only code
+// using "F%d") gives each of its 36 buttons (CGuiQuickButton, 0x2c8 bytes from
+// panel +0xf0; a CGuiTextButton) a key label in the button's text (+0xe0, a
+// CAurString from NewCAurString): "F1".."F12", "Shift-F1".., "Ctrl-F1"..,
+// white at 60%. But every setter that fills a button (SetButtonFeat 0x867070
+// and some 40 more) then sets the label's colour to 0,0,0,0, and clearing it
+// back to white 60% (0x85c240): only an empty slot shows its key.
+// Two hooks: the label's SetColor (CAurString vtable slot 15, 0x4a3a0: the
+// RGBA floats at *(label +0x58)) keeps a quickbar label white and opaque when
+// the game would hide it - only the current panel's labels (the in-game GUI's
+// +0x60); and the panel's constructor, after it ran, names slots 1-9 of the
+// first two rows after the number keys ("1".."9", "Shift-1".."Shift-9") with
+// the label's SetText (slot 26) - only when the number keys are hooked. The
+// Ctrl row keeps "Ctrl-F1".. (Ctrl+1-4 are EE's Quick Groups).
+namespace {
+
+using PanelCtorFn = void* (*)(void* self, void* a2, void* a3, void* a4);
+using SetColorFn = void (*)(void* label, float r, float g, float b, float a);
+using SetTextFn = void (*)(void* label, const char* text);
+
+constexpr const char* kNewCAurString = "?NewCAurString@@YAPEAVCAurString@@H@Z";
+// In NewCAurString: the CAurString part of the new StringGob gets its vtable
+// (lea rax, [rip + vtable]; mov [rbx + 0x4c0], rax).
+constexpr const char* kStringVtableStore = "48 8d 05 ?? ?? ?? ?? 48 89 83 c0 04 00 00";
+// SetColor's own code: mov rax, [rcx + 0x58]; movss xmm0, [rsp + 0x28].
+constexpr uint8_t kSetColorBody[] = {0x48, 0x8b, 0x41, 0x58, 0xf3, 0x0f, 0x10, 0x44, 0x24, 0x28};
+constexpr int kSetColorSlot = 15;
+constexpr int kSetTextSlot = 26;
+constexpr size_t kClientAppInternal = 0x8;  // CClientExoApp -> CClientExoAppInternal
+constexpr size_t kGuiQuickbar = 0x60;       // the in-game GUI: CPanelQuickBar
+constexpr size_t kPanelButtons = 0xf0;      // CPanelQuickBar: CGuiQuickButton[36]
+constexpr size_t kQuickButtonSize = 0x2c8;
+constexpr size_t kQuickButtonLabel = 0xe0;  // CGuiTextButton: its text, the key label
+constexpr float kLabelAlpha = 1.0f;
+
+PanelCtorFn g_panel_ctor = nullptr;
+SetColorFn g_set_color = nullptr;
+SetTextFn g_set_text = nullptr;
+void** g_client_app_manager = nullptr;
+void* g_panel = nullptr;  // the last quickbar panel made
+void* g_labels[rules::kQuickbarSlots] = {};
+bool g_labels_on = false;
+int g_label_logs = 0;
+
+void* CurrentQuickbarPanel() {
+  if (!g_client_app_manager || !*g_client_app_manager) return nullptr;
+  void* client = *static_cast<void**>(*g_client_app_manager);  // CAppManager +0: CClientExoApp
+  void* app = client ? Field<void*>(client, kClientAppInternal) : nullptr;
+  void* gui = app ? Field<void*>(app, kAppGui) : nullptr;
+  return gui ? Field<void*>(gui, kGuiQuickbar) : nullptr;
+}
+
+void SetColor(void* label, float r, float g, float b, float a) {
+  if (a < 0.01f && label && g_panel) {
+    for (void* known : g_labels) {
+      if (known != label) continue;
+      if (CurrentQuickbarPanel() == g_panel) {  // a filled slot: its key stays shown
+        r = g = b = 1.0f;
+        a = kLabelAlpha;
+      }
+      break;
+    }
+  }
+  g_set_color(label, r, g, b, a);
+}
+
+void* QuickbarPanelCtor(void* self, void* a2, void* a3, void* a4) {
+  void* result = g_panel_ctor(self, a2, a3, a4);
+  if (!self) return result;
+  g_panel = self;
+  uint8_t* buttons = static_cast<uint8_t*>(self) + kPanelButtons;
+  for (int i = 0; i < rules::kQuickbarSlots; ++i) g_labels[i] = Field<void*>(buttons + i * kQuickButtonSize, kQuickButtonLabel);
+  int named = 0;
+  if (QuickbarNumberKeysOn() && g_set_text) {
+    for (int row = 0; row < 2; ++row) {
+      for (int key = 1; key <= rules::kQuickbarNumberKeys; ++key) {
+        void* label = g_labels[row * 12 + key - 1];
+        if (!label) continue;
+        const std::string text = (row == 1 ? "Shift-" : "") + std::to_string(key);
+        g_set_text(label, text.c_str());
+        ++named;
+      }
+    }
+  }
+  if (g_label_logs < 5) {
+    ++g_label_logs;
+    Log("quickbar: a quickbar panel made - its key labels stay shown on filled slots, %d named after the number keys",
+        named);
+  }
+  return result;
+}
+
+}  // namespace
+
+void InstallQuickbarLabels() {
+  const uintptr_t ctor = FunctionByString("the quickbar panel's constructor (its \"F%d\" key labels)", "F%d");
+  const uintptr_t new_string = EngineExport(kNewCAurString);
+  const uintptr_t store =
+      new_string ? FindPatternIn("NewCAurString's vtable store", FunctionAt(new_string), kStringVtableStore) : 0;
+  const uintptr_t vtable = store ? store + 7 + *reinterpret_cast<const int32_t*>(store + 3) : 0;
+  const uintptr_t set_color = vtable ? reinterpret_cast<const uintptr_t*>(vtable)[kSetColorSlot] : 0;
+  g_set_text = reinterpret_cast<SetTextFn>(vtable ? reinterpret_cast<const uintptr_t*>(vtable)[kSetTextSlot] : 0);
+  g_client_app_manager = reinterpret_cast<void**>(EngineExport(ee::kAppManager));
+  const bool color_ok =
+      set_color && memcmp(reinterpret_cast<const void*>(set_color), kSetColorBody, sizeof(kSetColorBody)) == 0;
+  if (!ctor || !color_ok || !g_set_text || !g_client_app_manager) {
+    Log("SKIP quickbar: key labels - a piece wasn't found where expected (labels show on empty slots only)");
+    return;
+  }
+  g_labels_on = HookAddress("CAurString::SetColor (a quickbar key label stays shown)", set_color,
+                            reinterpret_cast<void*>(&SetColor), reinterpret_cast<void**>(&g_set_color)) &&
+                HookAddress("CPanelQuickBar::CPanelQuickBar (key labels named after the number keys)", ctor,
+                            reinterpret_cast<void*>(&QuickbarPanelCtor), reinterpret_cast<void**>(&g_panel_ctor));
+  if (g_labels_on) Log("quickbar: key labels always shown (1-9 with the number keys)");
 }
