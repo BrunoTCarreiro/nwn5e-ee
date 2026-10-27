@@ -3185,6 +3185,15 @@ slide stopped when its creature died - now one that dies mid-slide goes on.
 Cosmetic: a corpse is no creature to push by the rules. A dead creature may get
 no AIUpdate, so body slides are moved from any creature's update.
 
+*0.45.5 (owner: "for shove the PC should use the nwstab animation for now"):* a player's Shove
+(Knockdown) and Shove: push swing "nwstab", the unarmed thrust, whatever is in hand. The server
+notes the Shove as rules_shove resolves it (ShoveSwing: 1.5 s); anim_layers.cpp's client creature
+update ties that to the creature's model, and Gob::PlayAnimation (hooked there) plays nwstab for
+the model's next melee swing (<hold> slash / stab / close / reach / cleave; not a parry, a walk, a
+layer). Unverified: that the client starts the swing after the server resolves it - if it starts
+before, the swap would land on the next swing (!animtrace shows the order). Bespoke shove /
+grapple animations: G5.
+
 **GT-L1. Later: throwing an enemy into another** (owner: "How possible would it
 be to implement throwing an enemy into another as a way to damage both? We're
 not implementing this now, just note it down for later"). Feasible, and GT2

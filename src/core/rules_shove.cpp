@@ -52,6 +52,8 @@
 #include "saves.h"
 #include "skill_rank.h"
 
+void ShoveSwing(uint32_t server_id);  // anim_layers.cpp: the player's next swing is nwstab (0.45.5)
+
 namespace {
 
 using AddSpecialAttackFn = void (*)(void* round, uint16_t id);
@@ -134,6 +136,7 @@ bool ShoveInsteadOfAttackRoll(AttackRoll& roll, uintptr_t caller) {
   roll.data[ee::kAttackD20] = 0;
   SetField<int32_t>(roll.data, ee::kAttackModifier, 0);
   roll.data[ee::kAttackResult] = ee::kAttackResultAutomaticHit;
+  if (roll.attacker && IsPlayer(roll.attacker)) ShoveSwing(IdOf(roll.attacker));  // swung as nwstab
   if (option && roll.attacker && roll.target) option->resolve(roll.attacker, roll.target);
   return true;
 }

@@ -16,11 +16,20 @@
 //
 // Gob::PlayAnimation is hooked here (one hook per function): !animtrace
 // records through it too (AnimTracePlay).
+//
+// A player's Shove swings "nwstab" (0.45.5; owner: "for shove the PC should use
+// the nwstab animation for now"): the server notes a Shove as it resolves it
+// (rules_shove.cpp: ShoveSwing), the client creature update ties that to the
+// creature's model, and the model's next melee swing (<hold> slash / stab /
+// close / reach / cleave - not a parry, a walk or a layer) within 1.5 s plays
+// nwstab, the unarmed thrust, instead.
 
 #include <windows.h>
 
 #include <stdint.h>
 #include <string.h>
+
+#include <atomic>
 
 #include <string>
 #include <unordered_map>
@@ -55,6 +64,23 @@ struct Layers {
 std::unordered_map<void*, Layers> g_models;  // creatures' models seen by the client creature update
 SRWLOCK g_lock = SRWLOCK_INIT;
 int g_logged = 0;
+
+constexpr uint64_t kShoveSwingMs = 1500;
+constexpr const char* kShoveSwing = "nwstab";
+std::unordered_map<uint32_t, uint64_t> g_shove_ids;     // server creature id -> until (ms): a Shove just resolved
+std::unordered_map<void*, uint64_t> g_shove_models;     // its model -> until: the next swing is the Shove's
+int g_shove_logged = 0;
+std::atomic<bool> g_shove_active{false};  // either map not empty (read without the lock)
+
+// A melee swing: <hold><move> - 1hslashl, 2hstab, nwcloseh, dwreach ... (not a parry or a dodge).
+bool IsMeleeSwing(const char* name) {
+  const size_t n = strlen(name);
+  if (n < 6 || n > 12 || strstr(name, "parry") || strstr(name, "dodge")) return false;
+  for (const char* move : {"slash", "stab", "close", "reach", "cleave", "smash"}) {
+    if (strstr(name + 2, move)) return true;
+  }
+  return false;
+}
 
 bool EndsWith(const char* s, const char* end) {
   const size_t n = strlen(s), m = strlen(end);
@@ -100,6 +126,25 @@ void Note(void* gob, const char* name, int flag) {
 }
 
 int PlayAnimation(void* gob, const char* name, float speed, int flag, float value) {
+  if (name && g_shove_active.load(std::memory_order_relaxed) && (flag & (kLayerStart | kLayerStop)) == 0 &&
+      IsMeleeSwing(name)) {
+    bool shove = false;
+    AcquireSRWLockExclusive(&g_lock);
+    const auto it = g_shove_models.find(gob);
+    if (it != g_shove_models.end()) {
+      shove = GetTickCount64() <= it->second;
+      g_shove_models.erase(it);
+    }
+    g_shove_active = !g_shove_ids.empty() || !g_shove_models.empty();
+    ReleaseSRWLockExclusive(&g_lock);
+    if (shove) {
+      if (g_shove_logged < kMaxLogged) {
+        ++g_shove_logged;
+        Log("look: a Shove's swing %s played as %s", name, kShoveSwing);
+      }
+      name = kShoveSwing;
+    }
+  }
   if (name) {
     AnimTracePlay(gob, name, speed, flag, value);
     if (g_config.stuck_layer_fix) Note(gob, name, flag);
@@ -111,13 +156,36 @@ int PlayAnimation(void* gob, const char* name, float speed, int flag, float valu
 
 bool AnimLayersHooked() { return g_play != nullptr; }
 
+// rules_shove.cpp: a player's Shove resolved - its next swing is nwstab (see the top).
+void ShoveSwing(uint32_t server_id) {
+  if (!g_play) return;
+  AcquireSRWLockExclusive(&g_lock);
+  if (g_shove_ids.size() > 64) g_shove_ids.clear();
+  if (g_shove_models.size() > 64) g_shove_models.clear();
+  g_shove_ids[server_id] = GetTickCount64() + kShoveSwingMs;
+  g_shove_active = true;
+  ReleaseSRWLockExclusive(&g_lock);
+}
+
 // stealth_ghost.cpp's client creature update, each creature each frame: its model is followed, and a stuck
 // arm layer over an idle stopped (see the top).
 void AnimLayersClient(void* client_creature) {
-  if (!g_play || !g_config.stuck_layer_fix || !client_creature) return;
+  if (!g_play || !client_creature) return;
   void* anim = Field<void*>(client_creature, kClientObjectAnim);
   void* model = anim ? Field<void*>(anim, kAnimModel) : nullptr;
   if (!model) return;
+  if (g_shove_active.load(std::memory_order_relaxed)) {  // a Shove resolved for it: its model's next swing is the Shove's
+    const uint32_t id = Field<uint32_t>(client_creature, ee::kObjectId) & ~kClientIdBit;
+    AcquireSRWLockExclusive(&g_lock);
+    const auto shove = g_shove_ids.find(id);
+    if (shove != g_shove_ids.end()) {
+      if (GetTickCount64() <= shove->second) g_shove_models[model] = shove->second;
+      g_shove_ids.erase(shove);
+    }
+    g_shove_active = !g_shove_ids.empty() || !g_shove_models.empty();
+    ReleaseSRWLockExclusive(&g_lock);
+  }
+  if (!g_config.stuck_layer_fix) return;
   std::vector<std::string> stuck;
   std::string idle;
   uint64_t idle_ms = 0;
