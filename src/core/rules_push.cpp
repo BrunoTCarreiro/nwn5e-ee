@@ -27,6 +27,15 @@
 // G1 (docs/PLAN.md "Grapple and Throw"): a Shove's push choice (ShovePush) uses
 // the same line and slide, 5 ft, with no fall - the creature flinches and is
 // held in place for a moment so its own walking doesn't fight the slide.
+//
+// 0.48.5 (owner, Brutal Strike with two effects: "one of the attacks that moved
+// the enemy was sometimes just blinking it away instead of even sliding it"): a
+// slide took 0.1 s whatever its length - Forceful Blow's 15 ft at 45 m/s - and
+// moved only in the pushed creature's own updates, which a busy area may not
+// give it every frame: a long push could reach the client as one or two jumps.
+// Now a slide keeps the owner's tuned speed (10 ft in 0.1 s, 30 m/s: 15 ft takes
+// 0.15 s, at least 0.1 s) and every slide is moved from any creature's update,
+// by time, as the bodies' were.
 
 #include <math.h>
 #include <stdint.h>
@@ -34,6 +43,7 @@
 
 #include <windows.h>
 
+#include <iterator>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -98,6 +108,7 @@ const Api& E() {
 constexpr float kPushMetres = 3.0f;          // 10 ft
 constexpr int kPushFallMs = 1200;            // the fall's round pause
 constexpr DWORD kPushSlideMs = 100;          // the move along the line (owner: 0.45 -> 0.25 -> 0.15 s on 1.69, 0.1 s on EE)
+constexpr float kPushSlideMetresPerSecond = 30.0f;  // that 0.1 s was tuned on the 10 ft Push: 3 m / 0.1 s
 constexpr DWORD kPushWatchMs = 8000;
 constexpr DWORD kAwaitDamageMs = 5000;
 constexpr DWORD kRetargetMaxMs = 15000;
@@ -327,6 +338,7 @@ struct Slide {
   float metres;
   void* area;
   DWORD start;
+  DWORD ms;  // its length (SlideMs)
 };
 struct CorpseSlide {
   uint32_t id;
@@ -334,7 +346,14 @@ struct CorpseSlide {
   Vec3 to;
   void* area;
   DWORD start;
+  DWORD ms;
 };
+
+// How long a slide of `metres` takes: the tuned speed, at least kPushSlideMs.
+DWORD SlideMs(float metres) {
+  const float ms = metres / kPushSlideMetresPerSecond * 1000.0f;
+  return ms > static_cast<float>(kPushSlideMs) ? static_cast<DWORD>(ms + 0.5f) : kPushSlideMs;
+}
 struct Retarget {
   uint32_t pushed;
   uint32_t next;
@@ -421,7 +440,8 @@ void Push(void* attacker, uint32_t attacker_id, void* target, uint32_t target_id
   // 0.45.3: the killing blow's push moves the body - no fall, no hold, no
   // retarget (the kill's own retarget, rules_retarget.cpp, picks the next one).
   if (corpse) {
-    g_corpse_slides.push_back(CorpseSlide{target_id, plan.from, plan.to, AreaOf(target), GetTickCount()});
+    g_corpse_slides.push_back(
+        CorpseSlide{target_id, plan.from, plan.to, AreaOf(target), GetTickCount(), SlideMs(plan.metres)});
     if (LogSlot()) {
       Log("push: 0x%08X on 0x%08X: the body slides %.1f m away (killing blow)%s", attacker_id, target_id, plan.metres,
           plan.blocker != ee::kObjectInvalid ? " (cut short by a placeable)" : "");
@@ -449,7 +469,7 @@ void Push(void* attacker, uint32_t attacker_id, void* target, uint32_t target_id
     g_falls[target_id] = HeldFall{Field<int32_t>(target, ee::kCreatureAnimation), GetTickCount() + kPushFallMs - 150,
                                   false};
   }
-  g_slides[target_id] = Slide{plan.from, plan.to, plan.metres, AreaOf(target), GetTickCount()};
+  g_slides[target_id] = Slide{plan.from, plan.to, plan.metres, AreaOf(target), GetTickCount(), SlideMs(plan.metres)};
   if (LogSlot()) {
     char blocker[48] = "";
     if (plan.blocker != ee::kObjectInvalid) sprintf_s(blocker, " (cut short by placeable 0x%08X)", plan.blocker);
@@ -463,7 +483,8 @@ void Push(void* attacker, uint32_t attacker_id, void* target, uint32_t target_id
     } else {
       sprintf_s(fall_note, " (no fall: already lying down)");
     }
-    Log("push: 0x%08X on 0x%08X: slides %.1f m away%s%s", attacker_id, target_id, plan.metres, blocker, fall_note);
+    Log("push: 0x%08X on 0x%08X: slides %.1f m away in %lu ms%s%s", attacker_id, target_id, plan.metres,
+        static_cast<unsigned long>(SlideMs(plan.metres)), blocker, fall_note);
   }
 }
 
@@ -508,23 +529,29 @@ void HoldFall(void* creature, uint32_t id) {
   }
 }
 
-void SlideAlong(void* creature, uint32_t id) {
-  const auto it = g_slides.find(id);
-  if (it == g_slides.end()) return;
-  const Slide& slide = it->second;
-  if (AreaOf(creature) != slide.area) {
-    g_slides.erase(it);
-    return;
+// Every slide, from any creature's update (0.48.5); by time, so several
+// updates in a pass just repeat a spot.
+void SlideAll() {
+  const DWORD now = GetTickCount();
+  for (auto it = g_slides.begin(); it != g_slides.end();) {
+    const uint32_t id = it->first;
+    const Slide& slide = it->second;
+    void* creature = CreatureById(id);
+    if (!creature || AreaOf(creature) != slide.area) {
+      it = g_slides.erase(it);
+      continue;
+    }
+    if (engine::IsDeadOrDying(creature)) {  // died mid-slide: the body goes on (0.45.3)
+      g_corpse_slides.push_back(CorpseSlide{id, slide.from, slide.to, slide.area, slide.start, slide.ms});
+      it = g_slides.erase(it);
+      continue;
+    }
+    const DWORD elapsed = now - slide.start;
+    const float t = elapsed >= slide.ms ? 1.0f : static_cast<float>(elapsed) / static_cast<float>(slide.ms);
+    PlaceOnGround(creature, slide.from.x + (slide.to.x - slide.from.x) * t,
+                  slide.from.y + (slide.to.y - slide.from.y) * t);
+    it = t >= 1.0f ? g_slides.erase(it) : std::next(it);
   }
-  if (engine::IsDeadOrDying(creature)) {  // died mid-slide: the body goes on (0.45.3)
-    g_corpse_slides.push_back(CorpseSlide{id, slide.from, slide.to, slide.area, slide.start});
-    g_slides.erase(it);
-    return;
-  }
-  const DWORD elapsed = GetTickCount() - slide.start;
-  const float t = elapsed >= kPushSlideMs ? 1.0f : static_cast<float>(elapsed) / static_cast<float>(kPushSlideMs);
-  PlaceOnGround(creature, slide.from.x + (slide.to.x - slide.from.x) * t, slide.from.y + (slide.to.y - slide.from.y) * t);
-  if (t >= 1.0f) g_slides.erase(it);
 }
 
 // Bodies a killing push moves, from any creature's update (a dead one may get
@@ -535,7 +562,7 @@ void SlideCorpses() {
     const CorpseSlide& slide = g_corpse_slides[i];
     void* body = CreatureById(slide.id);
     const DWORD elapsed = now - slide.start;
-    const float t = elapsed >= kPushSlideMs ? 1.0f : static_cast<float>(elapsed) / static_cast<float>(kPushSlideMs);
+    const float t = elapsed >= slide.ms ? 1.0f : static_cast<float>(elapsed) / static_cast<float>(slide.ms);
     if (body && AreaOf(body) == slide.area) {
       PlaceOnGround(body, slide.from.x + (slide.to.x - slide.from.x) * t, slide.from.y + (slide.to.y - slide.from.y) * t);
     }
@@ -550,11 +577,11 @@ void SlideCorpses() {
 
 void OnCreatureUpdate(void* creature) {
   if (!g_corpse_slides.empty()) SlideCorpses();
-  if (g_watches.empty() && g_falls.empty() && g_slides.empty()) return;
+  if (!g_slides.empty()) SlideAll();
+  if (g_watches.empty() && g_falls.empty()) return;
   const uint32_t id = IdOf(creature);
   if (!g_watches.empty()) WatchAttacker(creature, id);
   if (!g_falls.empty()) HoldFall(creature, id);
-  if (!g_slides.empty()) SlideAlong(creature, id);
 }
 
 bool g_on = false;
@@ -575,7 +602,7 @@ std::string ShovePush(void* attacker, void* target, float metres, float* pushed)
   ApplyEffectAs(attacker_id, target_id, "DURATION_TYPE_TEMPORARY", "EffectCutsceneImmobilize()", kShoveHoldSeconds,
                 0.0f);
   if (!LyingDown(Field<int32_t>(target, ee::kCreatureAnimation))) E().set_animation(target, kAnimationDamage);
-  g_slides[target_id] = Slide{plan.from, plan.to, plan.metres, AreaOf(target), GetTickCount()};
+  g_slides[target_id] = Slide{plan.from, plan.to, plan.metres, AreaOf(target), GetTickCount(), SlideMs(plan.metres)};
   if (pushed) *pushed = plan.metres;
   if (LogSlot()) {
     Log("push: shove 0x%08X on 0x%08X: slides %.1f m away, on its feet%s", attacker_id, target_id, plan.metres,

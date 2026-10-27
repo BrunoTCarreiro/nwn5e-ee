@@ -3234,6 +3234,17 @@ slide stopped when its creature died - now one that dies mid-slide goes on.
 Cosmetic: a corpse is no creature to push by the rules. A dead creature may get
 no AIUpdate, so body slides are moved from any creature's update.
 
+*0.48.5 (owner, Brutal Strike with two effects: "one of the attacks that moved
+the enemy was sometimes just blinking it away instead of even sliding it"):* a
+slide took 0.1 s whatever its length - Forceful Blow's 15 ft at 45 m/s, half
+again the speed the 10 ft Push was tuned at - and moved only in the pushed
+creature's own updates, which a busy area may not give it every frame: a long
+push could reach the client as one or two jumps. Now a slide keeps the tuned
+speed (10 ft in 0.1 s, 30 m/s: 15 ft in 0.15 s, never under 0.1 s) and every
+slide moves from any creature's update, by time, as the bodies' do. The log's
+push line says how long the slide takes. Unverified: that the client never
+snaps a 0.15 s slide (its position smoothing wasn't read).
+
 *0.45.5 (owner: "for shove the PC should use the nwstab animation for now"):* a player's Shove
 (Knockdown) and Shove: push swing "nwstab", the unarmed thrust, whatever is in hand. The server
 notes the Shove as rules_shove resolves it (ShoveSwing: 1.5 s); anim_layers.cpp's client creature
