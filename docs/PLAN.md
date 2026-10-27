@@ -3044,6 +3044,81 @@ damage resistance — later decision), Dazed (= 2024 Incapacitated), Confused
 (random AI), Grappled (no grapple in NWN; Phase 6). *Revised 2026-10-19:*
 Deafened — faithful drops the 20% arcane spell failure; NWN mode keeps it.
 
+## Grapple and Throw — decided by the owner (2026-10-27)
+
+Owner: "can you think about ways to implement some dnd staple actions such as
+grapple or throw (enemies especially)", then, of the shortlist (Dodge, Dash,
+Disengage, Help, Ready, Net, NWN's grenades as 2024 gear, dragging a downed
+ally, dropping prone, Jump - all left for later): "let's go just with the
+grapple and throw for now". It replaces CN8's "Grappled (no grapple in NWN;
+Phase 6)".
+
+*SRD 5.2.1 (checked 2026-10-27):* Unarmed Strike (p. 190) - Damage, Grapple or
+Shove, each in place of one attack; Grapple and Shove: the target, at most
+one size larger (Grapple: and you have a hand free), makes a Strength or
+Dexterity save (its choice) against 8 + Str + PB. Grappled (p. 182): Speed 0;
+Disadvantage on attacks against anyone but the grappler; the grappler can drag
+or carry it, each foot costing 1 extra unless it is Tiny or two or more sizes
+smaller. Grappling (p. 182): one grapple per hand; escape: its action, a
+Strength (Athletics) or Dexterity (Acrobatics) check against the escape DC;
+it also ends if the grappler is Incapacitated or the two end up farther apart
+than the grapple's reach, and the grappler can let go at any time. Grappler
+feat (p. 87; level 4+, Str or Dex 13+): Punch and Grab, Advantage against the one you grapple, no
+extra cost to drag your size or smaller. **No rule lets a character throw a
+creature**: the only throw is the Kraken's Fling (p. 303) - a Large or smaller
+creature it grapples, to a space it can see within 60 ft not in the air; the
+thrown creature and each creature in that space make a Dexterity save (DC 25):
+failure 4d8 Bludgeoning and Prone, success half. Falling (p. 182): 1d6 per
+10 ft, Prone on landing.
+
+*Engine pieces already there:* Shove (SK6: NWN's Knockdown, knock prone only;
+rules_shove.cpp), the push (rules_push.cpp: PlanPush - a straight line that
+stops before unwalkable ground and placeables, not creatures; a fall and a
+0.1 s slide; used by the Push mastery and Forceful Blow), saves against a 2024
+DC (rules_save_roll), the advantage hook (rules_advantage BeforeAttackRoll),
+the movement-rate hook (GetMovementRateFactor), feat -> spell -> C++ handler
+rows with sub-radials (Brutal Strike), creature updates (AddCreatureUpdateListener).
+Not there: a Grappled condition, speed 0 other than CutsceneImmobilize,
+dragging, a size-comparison helper, action economy (Phase 6).
+
+**GT1. Modes.** Grapple and Throw are faithful only; NWN mode has neither
+(owner: "we're not adding new features to base NWN"). Throw is a house rule
+(the SRD has none for characters), built on the Kraken's Fling.
+
+**GT2. Throw's numbers** (owner: "numbers seem fine"). Only a creature you
+grapple, at least one size smaller than you; in place of one attack; it ends
+the grapple. Distance: 5 ft x your Strength modifier, at least 5 ft (Str 18:
+20 ft). The thrown creature and any creature it lands on make a Dexterity
+save against your grapple DC (8 + Str + PB): failure 1d6 Bludgeoning per
+10 ft thrown (at least 1d6; the Falling rule) and Prone; success half damage,
+no Prone.
+
+**GT3. A grappled NPC** (owner: "sure"): one fighting its grappler keeps
+attacking it (no Disadvantage there); one that was after someone else tries to
+escape each round (the better of Athletics / Acrobatics against the escape DC,
+in place of its round's attacks).
+
+**GT4. Order** (owner: "yeah"): G1 Shove's other choice, push 5 ft (rules_push)
+-> G2 Grapple (the condition; the grappler drags it at half speed unless it is
+Tiny or two sizes smaller; Release; Escape; ends on Incapacitated or out of
+reach) -> G3 monsters that grab (the SRD stat blocks' "the target has the
+Grappled condition (escape DC X)" hits, on the matching NWN creatures) -> G4
+Throw (a flight arc - SetObjectVisualTransform lerps over a longer slide - and
+the landing: the knockdown fall, dust, a camera bump) -> G5 animations (a pose
+step for the animation recipes: grip, held, drag, lift-and-throw).
+
+**GT-L1. Later: throwing an enemy into another** (owner: "How possible would it
+be to implement throwing an enemy into another as a way to damage both? We're
+not implementing this now, just note it down for later"). Feasible, and GT2
+already has the rule (the Kraken's "each creature in the destination space"
+saves and takes the damage too). In NWN terms: Throw aims at a creature (or a
+spot) as a targeted ability rather than only "away from you"; the flight is
+planned as PlanPush plans a push, but also stops at the first creature on the
+line (creatures don't overlap) - that one is struck; both save and take the
+damage, both fall Prone on a failure (a struck one might also be pushed back
+5 ft - to decide then). Any creature in the way is struck, ally or enemy, as
+the rule reads.
+
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
 Walked through one by one (issue, what NWN does, what 2024 does, what to
