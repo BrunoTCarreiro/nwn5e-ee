@@ -308,15 +308,24 @@ void InstallQuickbarKeys() {
 // Two hooks: the label's SetColor (CAurString vtable slot 15, 0x4a3a0: the
 // RGBA floats at *(label +0x58)) keeps a quickbar label white and opaque when
 // the game would hide it - only the current panel's labels (the in-game GUI's
-// +0x60); and the panel's constructor, after it ran, names slots 1-9 of the
-// first two rows after the number keys ("1".."9", "Shift-1".."Shift-9") with
-// the label's SetText (slot 26) - only when the number keys are hooked. The
-// Ctrl row keeps "Ctrl-F1".. (Ctrl+1-4 are EE's Quick Groups).
+// +0x60); and the panel's constructor, after it ran, renames the labels with
+// their SetText (slot 26): rules::QuickbarSlotLabel - "1".."9" and
+// "F10".."F12" on the first two rows with the number keys, "F1".."F12" on the
+// Ctrl row (Ctrl+1-4 are EE's Quick Groups).
+// 0.48.2 (owner: "F10,F11 and F12's labels only show up as \"F1\""): a label
+// draws only what fits its box - the width at label +0x74 (a float, set when
+// the text is attached to the button model's text0 / text1 hookpoints;
+// SetText's CAurFont::CalculateVisibleStringLengthAndWidth cuts the rest) -
+// about two characters, so "F10" showed "F1" and "Shift-F1" / "Ctrl-F1" a
+// stub. Each label is widened 1.6x (SetWidth, slot 24) before its text is set
+// again, and the rows lose their prefixes: a row shows only while its key is
+// held.
 namespace {
 
 using PanelCtorFn = void* (*)(void* self, void* a2, void* a3, void* a4);
 using SetColorFn = void (*)(void* label, float r, float g, float b, float a);
 using SetTextFn = void (*)(void* label, const char* text);
+using SetWidthFn = void (*)(void* label, float width);
 
 constexpr const char* kNewCAurString = "?NewCAurString@@YAPEAVCAurString@@H@Z";
 // In NewCAurString: the CAurString part of the new StringGob gets its vtable
@@ -326,6 +335,11 @@ constexpr const char* kStringVtableStore = "48 8d 05 ?? ?? ?? ?? 48 89 83 c0 04 
 constexpr uint8_t kSetColorBody[] = {0x48, 0x8b, 0x41, 0x58, 0xf3, 0x0f, 0x10, 0x44, 0x24, 0x28};
 constexpr int kSetColorSlot = 15;
 constexpr int kSetTextSlot = 26;
+constexpr int kSetWidthSlot = 24;
+// SetWidth's own code: movss [rcx + 0x74], xmm1; ret.
+constexpr uint8_t kSetWidthBody[] = {0xf3, 0x0f, 0x11, 0x49, 0x74, 0xc3};
+constexpr size_t kLabelWidth = 0x74;      // float: the label's box width; text past it isn't drawn
+constexpr float kLabelWidthFactor = 1.6f;  // "F1" fitted, "F10" didn't
 constexpr size_t kClientAppInternal = 0x8;  // CClientExoApp -> CClientExoAppInternal
 constexpr size_t kGuiQuickbar = 0x60;       // the in-game GUI: CPanelQuickBar
 constexpr size_t kPanelButtons = 0xf0;      // CPanelQuickBar: CGuiQuickButton[36]
@@ -336,6 +350,7 @@ constexpr float kLabelAlpha = 1.0f;
 PanelCtorFn g_panel_ctor = nullptr;
 SetColorFn g_set_color = nullptr;
 SetTextFn g_set_text = nullptr;
+SetWidthFn g_set_width = nullptr;
 void** g_client_app_manager = nullptr;
 void* g_panel = nullptr;  // the last quickbar panel made
 void* g_labels[rules::kQuickbarSlots] = {};
@@ -371,21 +386,21 @@ void* QuickbarPanelCtor(void* self, void* a2, void* a3, void* a4) {
   uint8_t* buttons = static_cast<uint8_t*>(self) + kPanelButtons;
   for (int i = 0; i < rules::kQuickbarSlots; ++i) g_labels[i] = Field<void*>(buttons + i * kQuickButtonSize, kQuickButtonLabel);
   int named = 0;
-  if (QuickbarNumberKeysOn() && g_set_text) {
-    for (int row = 0; row < 2; ++row) {
-      for (int key = 1; key <= rules::kQuickbarNumberKeys; ++key) {
-        void* label = g_labels[row * 12 + key - 1];
-        if (!label) continue;
-        const std::string text = (row == 1 ? "Shift-" : "") + std::to_string(key);
-        g_set_text(label, text.c_str());
-        ++named;
-      }
-    }
+  float width_before = 0.0f;
+  for (int i = 0; i < rules::kQuickbarSlots; ++i) {
+    void* label = g_labels[i];
+    if (!label) continue;
+    const float width = Field<float>(label, kLabelWidth);
+    if (i == 0) width_before = width;
+    if (width > 0.0f && width < 10000.0f) g_set_width(label, width * kLabelWidthFactor);
+    g_set_text(label, rules::QuickbarSlotLabel(i, QuickbarNumberKeysOn()).c_str());
+    ++named;
   }
   if (g_label_logs < 5) {
     ++g_label_logs;
-    Log("quickbar: a quickbar panel made - its key labels stay shown on filled slots, %d named after the number keys",
-        named);
+    Log("quickbar: a quickbar panel made - %d key labels renamed (1-9 / F10-F12; F1-F12 on the Ctrl row), widened "
+        "%.2f -> %.2f, shown on filled slots",
+        named, width_before, width_before * kLabelWidthFactor);
   }
   return result;
 }
@@ -400,10 +415,13 @@ void InstallQuickbarLabels() {
   const uintptr_t vtable = store ? store + 7 + *reinterpret_cast<const int32_t*>(store + 3) : 0;
   const uintptr_t set_color = vtable ? reinterpret_cast<const uintptr_t*>(vtable)[kSetColorSlot] : 0;
   g_set_text = reinterpret_cast<SetTextFn>(vtable ? reinterpret_cast<const uintptr_t*>(vtable)[kSetTextSlot] : 0);
+  g_set_width = reinterpret_cast<SetWidthFn>(vtable ? reinterpret_cast<const uintptr_t*>(vtable)[kSetWidthSlot] : 0);
+  const bool width_ok =
+      g_set_width && memcmp(reinterpret_cast<const void*>(g_set_width), kSetWidthBody, sizeof(kSetWidthBody)) == 0;
   g_client_app_manager = reinterpret_cast<void**>(EngineExport(ee::kAppManager));
   const bool color_ok =
       set_color && memcmp(reinterpret_cast<const void*>(set_color), kSetColorBody, sizeof(kSetColorBody)) == 0;
-  if (!ctor || !color_ok || !g_set_text || !g_client_app_manager) {
+  if (!ctor || !color_ok || !width_ok || !g_set_text || !g_client_app_manager) {
     Log("SKIP quickbar: key labels - a piece wasn't found where expected (labels show on empty slots only)");
     return;
   }
@@ -411,5 +429,5 @@ void InstallQuickbarLabels() {
                             reinterpret_cast<void*>(&SetColor), reinterpret_cast<void**>(&g_set_color)) &&
                 HookAddress("CPanelQuickBar::CPanelQuickBar (key labels named after the number keys)", ctor,
                             reinterpret_cast<void*>(&QuickbarPanelCtor), reinterpret_cast<void**>(&g_panel_ctor));
-  if (g_labels_on) Log("quickbar: key labels always shown (1-9 with the number keys)");
+  if (g_labels_on) Log("quickbar: key labels always shown and widened (1-9 with the number keys)");
 }

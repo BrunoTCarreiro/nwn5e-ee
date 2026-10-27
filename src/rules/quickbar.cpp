@@ -120,6 +120,13 @@ std::vector<QuickbarChange> PlanQuickbar(const std::vector<QuickbarSlot>& slots,
   return changes;
 }
 
+std::string QuickbarSlotLabel(int slot, bool number_keys) {
+  if (slot < 0 || slot >= kQuickbarSlots) return "";
+  const int key = slot % 12 + 1;
+  if (number_keys && slot < 24 && key <= kQuickbarNumberKeys) return std::to_string(key);
+  return "F" + std::to_string(key);
+}
+
 std::string QuickbarSlotKeys(int slot, bool number_keys) {
   if (slot < 0 || slot >= kQuickbarSlots) return "";
   const int key = slot % 12 + 1;

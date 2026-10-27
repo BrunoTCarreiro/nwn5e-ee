@@ -128,6 +128,23 @@ TEST(QuickbarSecondWindButtonFollowsTheFeat) {
   CHECK_EQ(changes[0].refresh, true);
 }
 
+// The labels on the slots (0.48.2, owner: "F10,F11 and F12's labels only show
+// up as \"F1\"" - the box fits about three characters, so no row prefix).
+// Breaks caught: a prefix back, the number past 9, the Ctrl row numbered.
+TEST(QuickbarSlotLabelsFitTheBox) {
+  CHECK_EQ(QuickbarSlotLabel(0, true) == "1", true);
+  CHECK_EQ(QuickbarSlotLabel(8, true) == "9", true);
+  CHECK_EQ(QuickbarSlotLabel(9, true) == "F10", true);
+  CHECK_EQ(QuickbarSlotLabel(11, true) == "F12", true);
+  CHECK_EQ(QuickbarSlotLabel(12, true) == "1", true);
+  CHECK_EQ(QuickbarSlotLabel(21, true) == "F10", true);
+  CHECK_EQ(QuickbarSlotLabel(24, true) == "F1", true);
+  CHECK_EQ(QuickbarSlotLabel(35, true) == "F12", true);
+  CHECK_EQ(QuickbarSlotLabel(0, false) == "F1", true);
+  CHECK_EQ(QuickbarSlotLabel(12, false) == "F1", true);
+  for (int slot = 0; slot < kQuickbarSlots; ++slot) CHECK_EQ(QuickbarSlotLabel(slot, true).size() <= 3, true);
+}
+
 // The keys named in the chat line. Breaks caught: the banks off by one, the
 // number key named past 9.
 TEST(QuickbarSlotKeysNamed) {

@@ -3315,6 +3315,19 @@ labels), and slots 1-9 of the first two rows read "1".."9" and
 only while the number keys are hooked). The Ctrl row keeps "Ctrl-F1"..
 Unverified (the test): readable over every icon (white text, no outline).
 
+*0.48.2 (owner's test of 0.48.1: "the only issue is F10,F11 and F12's labels
+only show up as \"F1\""):* a label draws only what fits its box - the width
+at label +0x74 (a float set when the text is attached to the button model's
+text0 / text1 hookpoints; SetText's CAurFont::
+CalculateVisibleStringLengthAndWidth cuts the rest) - about two characters:
+"F10" showed "F1", and the rows' "Shift-" / "Ctrl-" labels were stubs (the
+game's own, on empty slots, too). Each quickbar label is widened 1.6x
+(CAurString::SetWidth, vtable slot 24, 0x4a8c0) before its text is set again,
+and the labels lose the row prefixes - a row shows only while its key is held:
+"1".."9", "F10".."F12" on the first two rows, "F1".."F12" on the Ctrl row
+(rules::QuickbarSlotLabel). Unverified: a label re-attached later (a GUI
+rescale) might go back to the narrow box.
+
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
 Walked through one by one (issue, what NWN does, what 2024 does, what to

@@ -76,6 +76,12 @@ struct QuickbarChange {
 std::vector<QuickbarChange> PlanQuickbar(const std::vector<QuickbarSlot>& slots, int placed,
                                          const std::vector<QuickbarAction>& actions, int* new_placed);
 
+// The label drawn on a slot (0.48.2): "1".."9" then "F10".."F12" on the first
+// two rows with the number keys (else "F1".."F12"), "F1".."F12" on the Ctrl
+// row - no "Shift-" / "Ctrl-": a row shows only while its key is held, and the
+// label's box fits about three characters.
+std::string QuickbarSlotLabel(int slot, bool number_keys);
+
 // The keys that press a slot: "1 / F1" ... "9 / F9" with the number keys
 // (else "F1"), "F10" - "F12", "Shift+1 / Shift+F1" ... "Shift+F12" (Shift
 // shows the second row), "Ctrl+F1" - "Ctrl+F12".
