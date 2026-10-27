@@ -3355,6 +3355,8 @@ CGuiQuickButton (its vtable) the label is attached again, mode 1
 (Gob::SetBehavior frees the old behaviour; Gob::SetScene is a no-op for the
 same scene), and SetPosition(0, 0, 0.25). The log says how many labels went
 over the icon.
+Accepted (owner's test of 0.48.4: "ok, it-s good"): the key labels show over
+the icons; the log: 36 attached over the icon, slot 10's text "F10" whole.
 
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
