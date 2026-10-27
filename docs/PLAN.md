@@ -3129,6 +3129,23 @@ use Knockdown far more). `!shove [push]` shoves the creature you are
 attacking (the radial's fallback). Tests: EveryoneCanShove (mutations: the
 own Knockdown taken back, granted in NWN mode - both caught).
 
+*0.45.1 (owner's test of 0.45.0: "shove with a ranged weapon targets and
+fires a ranged attack" - "push and shove should be in the same common action
+section of the radial menu, right? right now push is in the class actions"):*
+(1) A player's Shove (Knockdown) with a ranged weapon in hand is refused with
+a word (a UseFeat guard) - UseFeat queues the attack and adds the special only
+without one, so the engine shot instead; other creatures keep the engine's
+way (their AI might stand idle if refused). (2) The radial's Special Attacks
+page is a fixed list in the client (RE: its builder 995090 adds Parry, Called
+Shot, Power Attack, Knockdown slot 4, Improved Power Attack, Disarm slot 6,
+More Special Attacks through one entry helper 9957a0; no feat.2da column
+decides - only a cls_feat OnMenu 1 entry puts a feat anywhere, in the class
+section, which 0.45.0's rows did). radial_special_attacks.cpp hooks the
+builder and puts Shove: push in slot 6, Disarm's (Disarm does nothing in
+faithful, SK6): the setter reuses the label and deletes the old icon; the
+slot's disabled bit is cleared first and the label count put back. The cls_feat
+rows are gone. The quickbar's assign menu uses the same builder.
+
 **GT-L1. Later: throwing an enemy into another** (owner: "How possible would it
 be to implement throwing an enemy into another as a way to damage both? We're
 not implementing this now, just note it down for later"). Feasible, and GT2

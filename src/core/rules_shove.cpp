@@ -209,6 +209,20 @@ int UseFeatHandler(void* creature, int feat, int /*subfeat*/, uint32_t target) {
   return UseUnarmedOption(creature, feat, target);
 }
 
+// A player's Shove (Knockdown) with a ranged weapon in hand: the engine would
+// queue a plain ranged attack (UseFeat adds no special attack then - owner's
+// test of 0.45.0: "shove with a ranged weapon targets and fires a ranged
+// attack"); refused with a word instead. Other creatures keep the engine's way
+// (an AI refused here might stand idle).
+bool RangedShoveGuard(void* creature, int feat) {
+  if (!IsKnockdown(feat) || !IsPlayer(creature)) return true;
+  static const auto ranged = reinterpret_cast<CreatureCheckFn>(EngineExport(ee::kGetRangeWeaponEquipped));
+  if (!ranged || !ranged(creature)) return true;
+  TellUnarmed(creature, "nwn5e: Shove - not with a ranged weapon in hand (a melee weapon or empty hands).");
+  if (LogSlot()) Log("shove: 0x%08X Shove refused: a ranged weapon in hand", IdOf(creature));
+  return false;
+}
+
 // !shove [push]: a Shove on the creature you are attacking (the radial's
 // fallback): Knockdown's own use, or Shove: push.
 std::vector<std::string> ShoveCommand(void* creature, const std::string& args) {
@@ -320,6 +334,7 @@ void InstallShoveRules() {
   ServeConditionalRows("shove");  // feat 23 named and described as the Shove (data/rows/feat.if_shove.txt)
   AddChatCommand("!shove", &ShoveCommand);
   // G1: Shove: push - nwn5e's own option, queued from UseFeat.
+  if (!AddFeatUseGuard(&RangedShoveGuard)) Log("SKIP knockdown: a Shove with a ranged weapon fires it (no UseFeat hook)");
   const bool push = InstallPushRules() && AddFeatUseHandler(&UseFeatHandler) &&
                     AddUnarmedOption(static_cast<uint16_t>(rules::kFeatShovePush), "Shove: push", &ResolveShovePush);
   Log(push ? "knockdown: Knockdown is a 2024 Shove (faithful); Shove: push (feat 1313) pushes 5 ft"

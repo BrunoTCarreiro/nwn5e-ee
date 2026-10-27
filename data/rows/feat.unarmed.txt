@@ -5,7 +5,9 @@
 # (src/core/unarmed.h: queued as the engine queues Knockdown, as a special attack
 # past the game's rows, and resolved by nwn5e with the 2024 save). Knockdown's
 # columns (an active combat feat, hostile); not for every class to pick
-# (ALLCLASSESCANUSE 0) - the classes' feat tables list them for the radial menu.
+# (ALLCLASSESCANUSE 0). The radial shows them on its Special Attacks page, a
+# fixed list in the client - src/core/radial_special_attacks.cpp adds them there
+# (a cls_feat OnMenu entry would put them in the class section instead).
 # 1313: Shove: push (G1). 1312 is kept for the Grapple (G2).
 LABEL FEAT DESCRIPTION ICON GAINMULTIPLE EFFECTSSTACK ALLCLASSESCANUSE CATEGORY MAXCR SPELLID SUCCESSOR CRValue USESPERDAY TARGETSELF Constant TOOLSCATEGORIES HostileFeat PreReqEpic ReqAction
 1313 NWN5E_SHOVE_PUSH 16000482 16000483 is_X1Bigby2 0 0 0 22 1 **** **** 1 **** **** FEAT_NWN5E_SHOVE_PUSH 2 1 0 1

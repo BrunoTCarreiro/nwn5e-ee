@@ -63,6 +63,7 @@ void InstallAnimTrace();
 void InstallDriveFix();
 void InstallAnimLayers();
 void InstallRadialClassFeats();
+void InstallRadialSpecialAttacks();
 void InstallNuiTest();
 void InstallClientUi();
 void InstallCreationPages();
@@ -81,7 +82,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.45.0";
+constexpr const char* kVersion = "0.45.1";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -140,6 +141,7 @@ void Start(HMODULE self) {
   InstallLightSources();
   InstallAnimLayers();
   InstallRadialClassFeats();
+  InstallRadialSpecialAttacks();
   InstallAnimTrace();
   InstallDriveFix();
   InstallShortRestButton();
