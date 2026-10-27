@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <algorithm>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -134,6 +135,7 @@ struct BrutalPending {
   bool hit = false;
   uint64_t tick = 0;  // real time
   std::vector<rules::BrutalEffect> effects;
+  bool staggered_early = false;  // Staggering Blow already set, before Topple's save (0.45.4)
 };
 struct Mark {
   uint32_t by = 0;
@@ -276,8 +278,11 @@ void ApplyBrutalEffects(void* attacker, void* target, const BrutalPending& pendi
         break;
       }
       case rules::BrutalEffect::kStaggering:
-        g_staggered[target_id] = Mark{attacker_id, GameMs() + kRoundMs, true};
-        part += " (Disadvantage on its next save, no opportunity attacks for a round)";
+        // Set before this hit's Topple save already (its Disadvantage spent there): not again.
+        if (!pending.staggered_early) g_staggered[target_id] = Mark{attacker_id, GameMs() + kRoundMs, true};
+        part += pending.staggered_early
+                    ? " (before Topple's save - Disadvantage on it; no opportunity attacks for a round)"
+                    : " (Disadvantage on its next save, no opportunity attacks for a round)";
         break;
       case rules::BrutalEffect::kSundering:
         g_sundered[target_id] = Mark{attacker_id, GameMs() + kRoundMs, false};
@@ -407,6 +412,29 @@ int BarbarianExtraDamage(void* stats, void* target, int /*offhand*/, int critica
     }
   }
   return extra;
+}
+
+// rules_mastery.cpp's Topple, just before its save (0.45.4; owner's BS10 test:
+// "staggering first"): this hit's Staggering Blow goes first - 2024 lets the
+// attacker order its own effects of one hit, and Staggering then Topple is the
+// pick - so Topple's save is the staggered one. Brutal Strike's own step after
+// the roll then leaves the mark alone (that save spent its Disadvantage).
+void BrutalStaggerBeforeSave(void* attacker, void* target, const uint8_t* data) {
+  if (g_brutal.empty() || !attacker || !target || !data) return;
+  const auto it = g_brutal.find(IdOf(attacker));
+  if (it == g_brutal.end()) return;
+  BrutalPending& pending = it->second;
+  if (pending.data != data || pending.target != IdOf(target) || pending.hit || pending.staggered_early) return;
+  if (!rules::MasteryAttackHit(data[ee::kAttackResult])) return;
+  if (std::find(pending.effects.begin(), pending.effects.end(), rules::BrutalEffect::kStaggering) ==
+      pending.effects.end()) {
+    return;
+  }
+  pending.staggered_early = true;
+  g_staggered[IdOf(target)] = Mark{IdOf(attacker), GameMs() + kRoundMs, true};
+  if (LogSlot()) {
+    Log("barbarian: 0x%08X Staggering Blow on 0x%08X before Topple's save", IdOf(attacker), IdOf(target));
+  }
 }
 
 // rules_save_roll.cpp's save d20: Staggering Blow's Disadvantage, on its next save only.

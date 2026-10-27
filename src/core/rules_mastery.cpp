@@ -60,6 +60,10 @@
 #include "rules/weapons.h"
 #include "saves.h"
 
+// rules_barbarian_strikes.cpp (B10 Staggering Blow, 0.45.4): this hit's Staggering
+// Blow set before Topple's save.
+void BrutalStaggerBeforeSave(void* attacker, void* target, const uint8_t* data);
+
 namespace {
 
 // --- D3 ---------------------------------------------------------------------
@@ -577,6 +581,7 @@ void AfterAttackRoll(AttackRoll& roll) {
                                      rules::ProficiencyBonusForCreature(facts.character, facts.level,
                                                                         facts.challenge_rating));
       RememberSaveDc2024(attacker_id, dc);  // already 2024: the save roll must not convert it (C6)
+      BrutalStaggerBeforeSave(attacker, target, roll.data);  // this hit's Staggering Blow first (0.45.4)
       const uint8_t save = save_roll(target, ee::kSaveFortitude, static_cast<uint16_t>(dc), 0, attacker_id, 1, 0, 1);
       if (save == 0) {
         ApplyEffectAs(attacker_id, rolled_at, "DURATION_TYPE_TEMPORARY", "EffectKnockdown()", kRoundSeconds,
