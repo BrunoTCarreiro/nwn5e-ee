@@ -3163,6 +3163,16 @@ free again, drag it once more. Also: the push's chat line says how far when the
 line is cut short ("pushed only 0.5 m (something close behind it)"; 0.45.1
 said "pushed 5 ft" for a 0.5 m slide).
 
+*0.45.3 (owner: "can enemy corpses still be pushed back if the killing blow
+has a push effect?" - option B, "go with B, 0.1 s"):* a killing blow's push
+(the Push mastery, Forceful Blow) moves the body: the same planned line (walls,
+placeables, unwalkable ground stop it), the same 0.1 s slide, no fall and no
+hold (its death animation plays), no retarget (the kill's own picks the next
+enemy). Before, the planner refused a dead target ("not pushed (dead)") and a
+slide stopped when its creature died - now one that dies mid-slide goes on.
+Cosmetic: a corpse is no creature to push by the rules. A dead creature may get
+no AIUpdate, so body slides are moved from any creature's update.
+
 **GT-L1. Later: throwing an enemy into another** (owner: "How possible would it
 be to implement throwing an enemy into another as a way to damage both? We're
 not implementing this now, just note it down for later"). Feasible, and GT2

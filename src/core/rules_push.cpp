@@ -17,6 +17,13 @@
 // The line stops before unwalkable ground and placeables (the area's static
 // objects); doors are not in that test.
 //
+// 0.45.3 (owner: "can enemy corpses still be pushed back if the killing blow
+// has a push effect?" - "go with B, 0.1 s"): a hit that kills still pushes - the
+// body slides back along the same line (the same planner, the same 0.1 s), with
+// no fall and no hold (its death animation plays). Cosmetic: a corpse is no
+// creature to push by the rules. A dead creature may get no AIUpdate of its own,
+// so its slide is moved from any creature's update (the attacker's at least).
+//
 // G1 (docs/PLAN.md "Grapple and Throw"): a Shove's push choice (ShovePush) uses
 // the same line and slide, 5 ft, with no fall - the creature flinches and is
 // held in place for a moment so its own walking doesn't fight the slide.
@@ -29,6 +36,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "config.h"
 #include "creature.h"
@@ -121,9 +129,9 @@ void* AreaOf(void* object) { return object ? E().get_area(object) : nullptr; }
 
 // The line straight away from the attacker, as far as walkable ground and
 // placeables allow (in 0.5 m steps, 3 m first).
-PushPlan PlanPush(void* target, void* attacker, float distance) {
+PushPlan PlanPush(void* target, void* attacker, float distance, bool corpse_ok = false) {
   PushPlan plan;
-  if (engine::IsDeadOrDying(target)) {
+  if (!corpse_ok && engine::IsDeadOrDying(target)) {
     plan.refused = "dead";
     return plan;
   }
@@ -320,6 +328,13 @@ struct Slide {
   void* area;
   DWORD start;
 };
+struct CorpseSlide {
+  uint32_t id;
+  Vec3 from;
+  Vec3 to;
+  void* area;
+  DWORD start;
+};
 struct Retarget {
   uint32_t pushed;
   uint32_t next;
@@ -340,6 +355,7 @@ struct HeldFall {
 // All on the engine's server thread.
 std::unordered_map<uint32_t, Awaiting> g_awaiting;    // attacker -> the target its Push hit waits to land on
 std::unordered_map<uint32_t, Slide> g_slides;         // pushed creature ->
+std::vector<CorpseSlide> g_corpse_slides;             // bodies a killing push moves
 std::unordered_map<uint32_t, Retarget> g_retargets;   // attacker -> the closer enemy it turned to
 std::unordered_map<uint32_t, Watch> g_watches;        // attacker ->
 std::unordered_map<uint32_t, HeldFall> g_falls;       // pushed creature ->
@@ -389,7 +405,8 @@ uint32_t RetargetAfterPush(void* attacker, uint32_t attacker_id, uint32_t pushed
 
 // The hit's damage landed: plan the line again, then fall and slide.
 void Push(void* attacker, uint32_t attacker_id, void* target, uint32_t target_id, float metres) {
-  const PushPlan plan = PlanPush(target, attacker, metres);
+  const bool corpse = engine::IsDeadOrDying(target);
+  const PushPlan plan = PlanPush(target, attacker, metres, corpse);
   if (plan.refused) {
     if (LogSlot()) {
       if (plan.blocker != ee::kObjectInvalid) {
@@ -398,6 +415,16 @@ void Push(void* attacker, uint32_t attacker_id, void* target, uint32_t target_id
       } else {
         Log("push: 0x%08X on 0x%08X: not pushed (%s)", attacker_id, target_id, plan.refused);
       }
+    }
+    return;
+  }
+  // 0.45.3: the killing blow's push moves the body - no fall, no hold, no
+  // retarget (the kill's own retarget, rules_retarget.cpp, picks the next one).
+  if (corpse) {
+    g_corpse_slides.push_back(CorpseSlide{target_id, plan.from, plan.to, AreaOf(target), GetTickCount()});
+    if (LogSlot()) {
+      Log("push: 0x%08X on 0x%08X: the body slides %.1f m away (killing blow)%s", attacker_id, target_id, plan.metres,
+          plan.blocker != ee::kObjectInvalid ? " (cut short by a placeable)" : "");
     }
     return;
   }
@@ -485,7 +512,12 @@ void SlideAlong(void* creature, uint32_t id) {
   const auto it = g_slides.find(id);
   if (it == g_slides.end()) return;
   const Slide& slide = it->second;
-  if (engine::IsDeadOrDying(creature) || AreaOf(creature) != slide.area) {
+  if (AreaOf(creature) != slide.area) {
+    g_slides.erase(it);
+    return;
+  }
+  if (engine::IsDeadOrDying(creature)) {  // died mid-slide: the body goes on (0.45.3)
+    g_corpse_slides.push_back(CorpseSlide{id, slide.from, slide.to, slide.area, slide.start});
     g_slides.erase(it);
     return;
   }
@@ -495,7 +527,29 @@ void SlideAlong(void* creature, uint32_t id) {
   if (t >= 1.0f) g_slides.erase(it);
 }
 
+// Bodies a killing push moves, from any creature's update (a dead one may get
+// none of its own); by time, so several updates in a pass just repeat a spot.
+void SlideCorpses() {
+  const DWORD now = GetTickCount();
+  for (size_t i = 0; i < g_corpse_slides.size();) {
+    const CorpseSlide& slide = g_corpse_slides[i];
+    void* body = CreatureById(slide.id);
+    const DWORD elapsed = now - slide.start;
+    const float t = elapsed >= kPushSlideMs ? 1.0f : static_cast<float>(elapsed) / static_cast<float>(kPushSlideMs);
+    if (body && AreaOf(body) == slide.area) {
+      PlaceOnGround(body, slide.from.x + (slide.to.x - slide.from.x) * t, slide.from.y + (slide.to.y - slide.from.y) * t);
+    }
+    if (!body || AreaOf(body) != slide.area || t >= 1.0f) {
+      g_corpse_slides[i] = g_corpse_slides.back();
+      g_corpse_slides.pop_back();
+    } else {
+      ++i;
+    }
+  }
+}
+
 void OnCreatureUpdate(void* creature) {
+  if (!g_corpse_slides.empty()) SlideCorpses();
   if (g_watches.empty() && g_falls.empty() && g_slides.empty()) return;
   const uint32_t id = IdOf(creature);
   if (!g_watches.empty()) WatchAttacker(creature, id);
