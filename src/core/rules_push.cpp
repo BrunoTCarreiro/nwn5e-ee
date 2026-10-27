@@ -36,6 +36,13 @@
 // Now a slide keeps the owner's tuned speed (10 ft in 0.1 s, 30 m/s: 15 ft takes
 // 0.15 s, at least 0.1 s) and every slide is moved from any creature's update,
 // by time, as the bodies' were.
+//
+// 0.49.2 (owner: "forceful blow still looks weird"; the log: every Forceful Blow
+// came with the battleaxe's Topple): Topple's knockdown (EffectKnockdown, 0.5 s
+// after the roll) and the push's own fall started at the same moment - two falls,
+// the push holding its fall 1.2 s and getting up while the knockdown wants the
+// creature down for a round. A push on a creature Topple just knocked down
+// (ToppledRecently) now only slides it: the knockdown's fall and round stand.
 
 #include <math.h>
 #include <stdint.h>
@@ -215,7 +222,7 @@ bool LyingDown(int animation) {
          animation == 0x21 || animation == 0x24;
 }
 
-enum class Fall { kFell, kFellUnpaused, kLyingDown };
+enum class Fall { kFell, kFellUnpaused, kLyingDown, kToppled };
 
 // The knockdown's fall, and the creature's round paused for its length (as
 // the engine pauses a round for a knockdown).
@@ -464,8 +471,8 @@ void Push(void* attacker, uint32_t attacker_id, void* target, uint32_t target_id
   ApplyEffectAs(attacker_id, target_id, "DURATION_TYPE_TEMPORARY", "EffectCutsceneImmobilize()",
                 static_cast<float>(kPushFallMs) / 1000.0f, 0.0f);
   uint32_t paused_by = ee::kObjectInvalid;
-  const Fall fall = PlayFall(target, attacker_id, plan.away, &paused_by);
-  if (fall != Fall::kLyingDown) {
+  const Fall fall = ToppledRecently(target_id) ? Fall::kToppled : PlayFall(target, attacker_id, plan.away, &paused_by);
+  if (fall == Fall::kFell || fall == Fall::kFellUnpaused) {
     g_falls[target_id] = HeldFall{Field<int32_t>(target, ee::kCreatureAnimation), GetTickCount() + kPushFallMs - 150,
                                   false};
   }
@@ -480,6 +487,8 @@ void Push(void* attacker, uint32_t attacker_id, void* target, uint32_t target_id
       sprintf_s(fall_note, ", falls without a round pause (its round is paused by 0x%08X)", paused_by);
     } else if (fall == Fall::kFellUnpaused) {
       sprintf_s(fall_note, ", falls without a round pause (its round has no time left)");
+    } else if (fall == Fall::kToppled) {
+      sprintf_s(fall_note, " (no fall of its own: Topple's knockdown has it)");
     } else {
       sprintf_s(fall_note, " (no fall: already lying down)");
     }

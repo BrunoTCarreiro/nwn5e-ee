@@ -3245,6 +3245,16 @@ slide moves from any creature's update, by time, as the bodies' do. The log's
 push line says how long the slide takes. Unverified: that the client never
 snaps a 0.15 s slide (its position smoothing wasn't read).
 
+*0.49.2 (owner's test of 0.48.5: "forceful blow still looks weird"; the log:
+every Forceful Blow came with the battleaxe's Topple, "falls without a round
+pause (its round is paused by" itself):* Topple's knockdown (EffectKnockdown, 0.5
+s after the roll) and the push's own fall started together - two falls, the push
+holding its fall 1.2 s and then getting up while the knockdown wants a round on
+the ground. A push on a creature whose Topple save just failed
+(ToppledRecently, rules_mastery.cpp: 2 s) now only slides it - the knockdown's
+fall and round stand ("no fall of its own: Topple's knockdown has it" in the
+log). Unverified that this was what looked weird - asked.
+
 *0.45.5 (owner: "for shove the PC should use the nwstab animation for now"):* a player's Shove
 (Knockdown) and Shove: push swing "nwstab", the unarmed thrust, whatever is in hand. The server
 notes the Shove as rules_shove resolves it (ShoveSwing: 1.5 s); anim_layers.cpp's client creature

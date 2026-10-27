@@ -55,6 +55,10 @@ void PushOnRoundEnd(void* owner);
 // logged when the engine lacks a piece.
 bool InstallPushRules();
 
+// 0.49.2: a Topple that knocked `target_id` down in the last 2 s (its save
+// failed) - a push landing with it leaves the fall to the knockdown.
+bool ToppledRecently(uint32_t target_id);
+
 // G2 (the Grapple's drag): moves `creature` to (x, y) as a push slides it, if the
 // straight line there is walkable and clear of placeables; false (it stays) if not.
 bool DragCreatureTo(void* creature, float x, float y);

@@ -415,6 +415,7 @@ std::unordered_map<uint32_t, VexMark> g_vex;                // by attacker id
 std::unordered_map<uint32_t, SapMark> g_sap;                // by sapped creature id
 std::unordered_map<uint32_t, DWORD> g_slowed;               // Slow / Topple: last applied, by target id
 std::unordered_map<uint32_t, DWORD> g_toppled;
+std::unordered_map<uint32_t, DWORD> g_toppled_down;  // 0.49.2: a failed Topple save, by target id
 std::unordered_map<uint32_t, AwaitDamage> g_slow_awaiting;  // Slow applies once the damage lands
 std::unordered_map<uint32_t, AwaitDamage> g_vex_awaiting;   // Vex's mark is withdrawn if it dealt none
 std::unordered_map<uint32_t, uint32_t> g_cleave_used;       // attacker -> its ended rounds + 1 when it cleaved
@@ -585,6 +586,7 @@ void AfterAttackRoll(AttackRoll& roll) {
       if (save == 0) {
         ApplyEffectAs(attacker_id, rolled_at, "DURATION_TYPE_TEMPORARY", "EffectKnockdown()", kRoundSeconds,
                         kSwingDelay);
+        g_toppled_down[rolled_at] = now;
       }
       what = "Topple: Constitution save DC " + std::to_string(dc) +
              (save == 0 ? " failed, knocked down for a round" : save == 2 ? " - immune" : " made");
@@ -683,6 +685,11 @@ void HideMasteryRows(void* rules_object, bool reload) {
 }
 
 }  // namespace
+
+bool ToppledRecently(uint32_t target_id) {
+  const auto it = g_toppled_down.find(target_id);
+  return it != g_toppled_down.end() && GetTickCount() - it->second < 2000;
+}
 
 int AttackWeaponBaseItem(void* creature) { return CurrentAttackBaseItem(creature); }
 
