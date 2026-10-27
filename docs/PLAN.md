@@ -3255,6 +3255,51 @@ damage, both fall Prone on a failure (a struck one might also be pushed back
 5 ft - to decide then). Any creature in the way is struck, ally or enemy, as
 the rule reads.
 
+## Quickbar — decided by the owner (2026-10-27)
+
+Owner: "I was only asking to figure out if having abilities and actions the PC
+can perform assigned to number keys (1-9) would be feasible. at least for the
+most common actions. so the player wouldn't have to dig through 4 layers of
+radial menus to set the strike they want to use" - "do the 1-9 hook plus
+auto-placing new actions". `quickbar` (faithful; nwn / off = NWN's quickbar - a
+new feature, so faithful only). rules/quickbar.cpp (the plan, tested),
+core/rules_quickbar.cpp (the engine).
+
+*0.48.0:*
+- **Keys 1-9 press quickbar slots 1-9**, as F1-F9 do. The client turns each
+  key into an input event (fixed ids set up at 0x6df630, not keymap.2da's) and
+  CClientExoAppInternal::HandleInputEvent (0x6ed720, not exported) acts on it:
+  F1-F12 are events 5-16 - CPanelQuickBar::ClickButton (0x85c3b0) on the row on
+  screen (Shift / Ctrl held show the second / third row, SetBank 0x859a60);
+  keys 1-9 are 0x19-0x21 - a conversation's replies, else 1-4 select EE's Quick
+  Groups (Ctrl+1-4, events 0x4b-0x4e, set them) and 5-9 nothing. The hook
+  hands 1-9 on as F1-F9, so the engine's checks and rows apply (Shift+1 =
+  Shift+F1); a conversation, Ctrl held or app +0x630 (a restricted-input state
+  of unknown meaning) leave them alone. Typing never reaches it (CExoInput
+  drops keys while a text box has the keyboard). Trade: plain 1-4 no longer
+  select a Quick Group.
+- **nwn5e's class actions go on empty slots** the first time a player
+  character has them, in this order: Second Wind; Rage, Reckless Attack, Brutal
+  Strike's options (Forceful and Hamstring Blow from 9, Staggering and
+  Sundering from 13, Off), Intimidating Presence; Shove, Shove: push. The first
+  empty slot (keys 1-9 first, then F10-F12, the Shift row, the Ctrl row);
+  never over a button; an action already on the bar is only recorded; one the
+  player took off stays off (nwn5e_quickbar_placed, a bit per action); a full
+  bar waits for a free slot; Second Wind's button follows its feat (1220 ->
+  1221 -> 1222) in place. A chat line names each new button and its keys. A
+  Brutal Strike option's button is a feat button holding the option's
+  spells.2da FeatID (option * 65536 + 1311) - what the quickbar's assign menu
+  stores (RadialMenuUseFeat 0x998520 -> CGuiQuickButton::SetButtonFeat 0x867070)
+  and clicks with (0x85cb60, the radial's call). Engine: CNWSCreature +0x4e0 ->
+  36 CNWSQuickbarButton of 0x60 bytes (+0x08 type, 4 = feat; +0x50 the number),
+  SetQuickbarButton_GeneralINTParam, SendServerToPlayerGuiQuickbar_SetButton
+  (one slot); saved with the character. `!quickbar` lists the actions and
+  where they are; `!quickbar reset` forgets the record and puts the missing
+  ones back on empty slots.
+- Unverified (the test): that the client takes a server-sent option button as
+  its assign menu does (HandleServerToPlayerGuiQuickbar_SetButton wasn't read)
+  - its icon and label, and that clicking it picks the option.
+
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
 Walked through one by one (issue, what NWN does, what 2024 does, what to

@@ -197,6 +197,12 @@ struct Config {
   // plate) - the 2024 AC and Dexterity cap for players and henchmen
   // (rules_armor.cpp); nwn / off = NWN's armour AC.
   rules::RuleVariant armor = rules::RuleVariant::kFaithful;
+  // The quickbar (owner, 2026-10-27: "do the 1-9 hook plus auto-placing new
+  // actions"): faithful = keys 1-9 press quickbar slots 1-9 as F1-F9 do, and
+  // nwn5e's class actions (Rage, Brutal Strike's options, Second Wind, the
+  // Shoves ...) go on empty slots when a character gains them (rules_quickbar.cpp);
+  // nwn / off = NWN's quickbar (a new feature: faithful only).
+  rules::RuleVariant quickbar = rules::RuleVariant::kFaithful;
   // Finesse: faithful = a Finesse weapon (dagger, rapier, scimitar, short
   // sword...) uses the better of Str and Dex for attack and damage, no feat
   // needed; nwn / off = NWN's Weapon Finesse feat (Dex to attack).
