@@ -10,9 +10,9 @@
 # Strength 18 (Strength attacks), Dexterity 14; a battleaxe in hand (Topple: !mastery battleaxe); a greataxe and a large
 # shield, throwing axes (thrown: Strength attacks too), a shortbow and arrows (ranged: no
 # Reckless Advantage) in the pack.
-name = Barbarian part 3: Berserker 13 (then 17), a greataxe and a battleaxe (Topple)
+name = Barbarian parts 3-4: Berserker 17 (Retaliation 10, Intimidating Presence 14), a battleaxe (Topple)
 swap_class = barbarian
 class = barbarian
-level = 13
+level = 17
 abilities = 18 14 16 10 12 8
 items = nw_waxgr001, nw_waxbt001 equip, nw_ashlw001, nw_wthax001 x20, nw_wbwsh001, nw_wamar001 x99
