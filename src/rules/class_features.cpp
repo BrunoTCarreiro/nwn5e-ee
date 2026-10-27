@@ -130,6 +130,12 @@ bool HasMindlessRage(int barbarian_level) { return barbarian_level >= 6; }
 bool HasInstinctivePounce(int barbarian_level) { return barbarian_level >= 7; }
 bool HasRelentlessRage(int barbarian_level) { return barbarian_level >= 11; }
 bool HasPersistentRage(int barbarian_level) { return barbarian_level >= 15; }
+
+bool HasIntimidatingPresence(int barbarian_level) { return barbarian_level >= 14; }
+
+int IntimidatingPresenceDc(int strength_modifier, int proficiency_bonus) {
+  return 8 + strength_modifier + proficiency_bonus;
+}
 bool HasIndomitableMight(int barbarian_level) { return barbarian_level >= 18; }
 
 int RelentlessRageDc(int uses_since_rest) { return 10 + 5 * (uses_since_rest > 0 ? uses_since_rest : 0); }
@@ -252,6 +258,7 @@ std::vector<int> GrantedFeats2024(const std::vector<ClassLevels>& classes) {
     if (c.character_class == CharacterClass::kBarbarian) {
       if (HasRecklessAttack(c.levels)) feats.push_back(kFeatRecklessAttack);
       if (HasBrutalStrike(c.levels)) feats.push_back(kFeatBrutalStrike);
+      if (HasIntimidatingPresence(c.levels)) feats.push_back(kFeatIntimidatingPresence);
     }
   }
   return feats;
@@ -261,7 +268,7 @@ std::vector<int> GrantedFeats2024(const std::vector<ClassLevels>& classes) {
 const std::vector<int>& GrantableFeats2024() {
   static const std::vector<int> kFeats = {kFeatSecondWind2,    kFeatSecondWind3,  kFeatSecondWind4,
                                           kFeatRecklessAttack, kFeatBrutalStrike, kFeatKnockdownShove,
-                                          kFeatShovePush};
+                                          kFeatShovePush,      kFeatIntimidatingPresence};
   return kFeats;
 }
 

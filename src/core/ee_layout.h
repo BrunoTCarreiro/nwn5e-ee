@@ -419,6 +419,7 @@ constexpr uint16_t kFeatKnockdown = 23;
 constexpr uint8_t kAttackResultAutomaticHit = 7;
 constexpr int kSkillDiscipline = 3;
 constexpr int kSaveReflex = 2;
+constexpr int kSaveWill = 3;
 
 // E3d — skill DCs (SK3), conditions on checks (SK11).
 // Object kinds (CGameObject +0xc, byte): 7 trigger, 9 placeable, 10 door;

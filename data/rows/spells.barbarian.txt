@@ -14,3 +14,5 @@ Label Name IconResRef School Range VS MetaMagic TargetType ImpactScript Innate C
 1014 nwn5e_BrutalStaggering 16000466 ife_X1ExStun V P s 0x00 0x01 n5_bs_stag 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1011 3 16000463 0 0 0 1048708383 0
 1015 nwn5e_BrutalSundering 16000467 ife_disarm V P s 0x00 0x01 n5_bs_sund 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1011 3 16000463 0 0 0 1048773919 0
 1016 nwn5e_BrutalOff 16000468 ife_X2CritOGAxe V P s 0x00 0x01 n5_bs_off 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1011 3 16000463 0 0 0 1048839455 0
+# 1017: Intimidating Presence (feat 1314, BZ4) - n5_intimpres frightens the enemies around you.
+1017 nwn5e_IntimidatingPresence 16000484 ife_x3_pdkfear V P s 0x00 0x01 n5_intimpres 1 0 **** **** 0 0 1 **** **** **** **** **** 5 **** 3 16000485 0 0 0 1314 0

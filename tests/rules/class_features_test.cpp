@@ -86,11 +86,19 @@ TEST(GrantedFeatsFollowClassLevels) {
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kFighter, 9}}).size(), 1u);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 5}}).empty(), true);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 3}, {CharacterClass::kFighter, 2}})[0], kFeatSecondWind2);
-  CHECK_EQ(GrantableFeats2024().size(), 7u);
+  CHECK_EQ(GrantableFeats2024().size(), 8u);
   CHECK_EQ(GrantableFeats2024()[0], kFeatSecondWind2);  // the record's order never changes
   CHECK_EQ(GrantableFeats2024()[4], kFeatBrutalStrike);
   CHECK_EQ(GrantableFeats2024()[5], kFeatKnockdownShove);
   CHECK_EQ(GrantableFeats2024()[6], kFeatShovePush);
+  CHECK_EQ(GrantableFeats2024()[7], kFeatIntimidatingPresence);
+  // BZ4: Intimidating Presence at Barbarian 14 (the Berserker, the SRD's one subclass).
+  CHECK_EQ(GrantedFeats2024({{CharacterClass::kBarbarian, 13}}).size(), 2u);
+  CHECK_EQ(GrantedFeats2024({{CharacterClass::kBarbarian, 14}}).size(), 3u);
+  CHECK_EQ(GrantedFeats2024({{CharacterClass::kBarbarian, 14}})[2], kFeatIntimidatingPresence);
+  CHECK_EQ(HasIntimidatingPresence(13), false);
+  CHECK_EQ(HasIntimidatingPresence(14), true);
+  CHECK_EQ(IntimidatingPresenceDc(4, 5), 17);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kBarbarian, 1}}).empty(), true);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kBarbarian, 2}}).size(), 1u);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kBarbarian, 2}})[0], kFeatRecklessAttack);

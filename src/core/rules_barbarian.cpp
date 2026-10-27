@@ -97,7 +97,10 @@
 #include "rules/armor.h"
 #include "rules/class_features.h"
 #include "rules/saves.h"
+#include "rules/nwn_conversion.h"
 #include "rules/skills.h"
+#include "saves.h"
+#include "script_hooks.h"
 #include "rules/weapons.h"
 
 namespace {
@@ -517,6 +520,8 @@ std::string RageShortRest(void* creature) {
 }
 
 // The end of a Long Rest (the pool itself: feat_uses.cpp).
+constexpr const char* kVarPresenceUsed = "nwn5e_intimidating_presence";  // BZ4: used since a Long Rest (record)
+
 void RageLongRest(void* stats) {
   void* creature = CreatureOf(stats);
   if (!creature) return;
@@ -524,6 +529,7 @@ void RageLongRest(void* stats) {
   EnsureRecords(creature);
   ClearRecord(creature, kVarRelentless);
   ClearRecord(creature, kVarPersistentUsed);
+  ClearRecord(creature, kVarPresenceUsed);
 }
 
 std::vector<std::string> RageCommand(void* creature, const std::string& args) {
@@ -691,6 +697,137 @@ void PersistentRageOnInitiative(void* creature) {
   Tell(creature, "Persistent Rage - every Rage use comes back (once per Long Rest).");
 }
 
+// --- BZ4 Intimidating Presence (Berserker 14; owner's decision A) ------------------------
+// The radial's feat (1314, spell 1017, n5_intimpres): every enemy within 30 ft makes a
+// Wisdom (NWN's Will) save of the fear type - so a fear immunity or a halfling's Brave
+// counts - against 8 + Str + PB; on a failure EffectFrightened for a minute, which CN5
+// turns into the 2024 Frightened (rules_conditions.cpp: the fear icon credited to the
+// Berserker, Disadvantage on attacks while it sees it). Each round (the end of its turn)
+// it saves again; a success removes the fear (the icon and the effect the Berserker put).
+// The save is one the Berserker forced, so a Rage goes on (B3). The first use after a Long
+// Rest is free (a record); later ones spend a Rage use, refused when none is left. An
+// action until Phase 6 (2024: a Bonus Action).
+constexpr float kPresenceMetres = 9.144f;     // 30 ft
+constexpr uint64_t kPresenceMs = 60000;       // 1 minute
+constexpr uint64_t kPresenceRoundMs = 6000;   // a round: the end of its turn
+struct Presence {
+  uint32_t by = 0;
+  int dc = 0;
+  uint64_t until = 0;      // game time
+  uint64_t next_save = 0;  // game time
+};
+std::unordered_map<uint32_t, Presence> g_presence;  // frightened creature -> (engine thread)
+
+using SaveRollFn = uint8_t (*)(void* creature, uint8_t save, uint16_t dc, uint8_t type, uint32_t versus, int feedback,
+                               uint16_t feat, int from_combat);
+
+uint8_t PresenceSave(void* target, uint32_t by, int dc) {
+  static const auto save_roll = reinterpret_cast<SaveRollFn>(EngineExport(ee::kSavingThrowRoll));  // through the hook
+  if (!save_roll) return 1;
+  RememberSaveDc2024(by, dc);  // already 2024: not converted
+  return save_roll(target, ee::kSaveWill, static_cast<uint16_t>(dc), ee::kSaveTypeFear, by, 1, 0, 0);
+}
+
+struct PresenceSearch {
+  void* barbarian;
+  std::vector<uint32_t> targets;
+};
+
+void ConsiderPresenceTarget(void* context, uint32_t id, void* creature) {
+  auto* search = static_cast<PresenceSearch*>(context);
+  if (!engine::IsEnemy(search->barbarian, id) || engine::IsDeadOrDying(creature)) return;
+  if (engine::EdgeDistance(search->barbarian, creature) > kPresenceMetres) return;
+  search->targets.push_back(id);
+}
+
+void UseIntimidatingPresence(uint32_t self) {
+  void* creature = CreatureById(self);
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  if (!stats) return;
+  const int level = BarbarianLevelOf(stats);
+  if (!Faithful() || !rules::HasIntimidatingPresence(level)) {
+    Tell(creature, "Intimidating Presence comes at Barbarian 14 (Path of the Berserker).");
+    return;
+  }
+  EnsureRecords(creature);
+  std::string cost = "free once per Long Rest";
+  if (engine::GetLocalInt(creature, kVarPresenceUsed) != 0) {
+    const int spent = SpentFeatUses(creature, kVarRageSpent);
+    if (spent >= rules::RageUses2024(level)) {
+      Tell(creature, "Intimidating Presence - used since your last Long Rest: it takes a Rage use, and none is left.");
+      return;
+    }
+    SetSpentFeatUses(creature, kVarRageSpent, spent + 1);
+    cost = "a Rage use spent";
+  } else {
+    SetRecord(creature, kVarPresenceUsed, 1);
+  }
+  const CreatureFacts facts = ReadCreatureFacts(stats);
+  const int pb = rules::ProficiencyBonusForCreature(facts.character, facts.level, facts.challenge_rating);
+  const int dc = rules::IntimidatingPresenceDc(engine::AbilityModifier(stats, kAbilityStrength), pb);
+  PresenceSearch search{creature, {}};
+  engine::ForEachOtherCreatureInArea(creature, &ConsiderPresenceTarget, &search);
+  int frightened = 0, immune = 0;
+  const uint64_t now = GameMs();
+  for (const uint32_t id : search.targets) {
+    void* target = CreatureById(id);
+    if (!target) continue;
+    const uint8_t save = PresenceSave(target, self, dc);
+    if (save == 2) ++immune;
+    if (save != 0) continue;
+    ApplyEffectAs(self, id, "DURATION_TYPE_TEMPORARY", "EffectFrightened()", kPresenceMs / 1000.0f, 0.0f);
+    g_presence[id] = Presence{self, dc, now + kPresenceMs, now + kPresenceRoundMs};
+    ++frightened;
+  }
+  RunScriptChunk("int v = VFX_FNF_HOWL_WAR_CRY; if (GetGender(OBJECT_SELF) == GENDER_FEMALE) v = VFX_FNF_HOWL_WAR_CRY_FEMALE;"
+                 " ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(v), OBJECT_SELF);"
+                 " PlayAnimation(ANIMATION_FIREFORGET_TAUNT, 1.0);",
+                 self);
+  Log("barbarian: 0x%08X Intimidating Presence (%s): DC %d Wisdom save - %zu enemies within 30 ft, %d frightened%s",
+      self, cost.c_str(), dc, search.targets.size(), frightened,
+      immune ? (", " + std::to_string(immune) + " immune").c_str() : "");
+  Tell(creature, "Intimidating Presence (" + cost + "): DC " + std::to_string(dc) + " Wisdom save - " +
+                     std::to_string(frightened) + " of " + std::to_string(search.targets.size()) +
+                     " enemies within 30 ft frightened for a minute (each saves again every round).");
+}
+
+void IntimidatingPresenceScript(uint32_t self) { UseIntimidatingPresence(self); }
+
+// The repeat save at the end of each of the frightened creature's turns (every 6 s).
+void PresenceUpdate(void* creature) {
+  if (g_presence.empty() || !creature) return;
+  const uint32_t id = IdOf(creature);
+  const auto it = g_presence.find(id);
+  if (it == g_presence.end()) return;
+  Presence& presence = it->second;
+  const uint64_t now = GameMs();
+  if (now >= presence.until || engine::IsDeadOrDying(creature)) {
+    g_presence.erase(it);
+    return;
+  }
+  if (now < presence.next_save) return;
+  presence.next_save = now + kPresenceRoundMs;
+  if (FearSourceOf(creature) != presence.by) {  // its fear ended another way (dispelled, rested)
+    g_presence.erase(it);
+    return;
+  }
+  if (PresenceSave(creature, presence.by, presence.dc) == 0) return;
+  // A success: the fear the Berserker put ends (CN5's icon and the effect).
+  char script[600];
+  sprintf_s(script,
+            "object by = StringToObject(\"%x\"); effect e = GetFirstEffect(OBJECT_SELF);"
+            " while (GetIsEffectValid(e)) {"
+            " if (GetEffectCreator(e) == by && (GetEffectType(e, TRUE) == EFFECT_TYPE_FRIGHTENED ||"
+            " (GetEffectType(e, TRUE) == EFFECT_TYPE_ICON && GetEffectInteger(e, 0) == %d))) {"
+            " RemoveEffect(OBJECT_SELF, e); e = GetFirstEffect(OBJECT_SELF); }"
+            " else e = GetNextEffect(OBJECT_SELF); }"
+            " if (GetIsPC(OBJECT_SELF)) SendMessageToPC(OBJECT_SELF, \"nwn5e: you shake off the fear.\");",
+            presence.by, ee::kIconFrightened);
+  RunScriptChunk(script, id);
+  Log("barbarian: 0x%08X saved against 0x%08X's Intimidating Presence - no longer frightened", id, presence.by);
+  g_presence.erase(it);
+}
+
 // A henchman with Rage rages as a fight starts (0.46.1; owner's BS13 test - the OC's Daelan
 // never raged - "go with B"). The game's AI (nw_i0_generic, DetermineClassToUse) lets only
 // Xanos and HotU's Daelan rage on their own (tags x0_hen_xan, x2_hen_daelan); here any player's
@@ -727,7 +864,11 @@ void InstallBarbarianRules() {
       "Feral Instinct, Primal Champion, melee Weapon Mastery (class_features faithful)");
 
   // Part 2: Rage (spell 307's served row runs nwn5e_rage: spells.if_classfeat2024.txt).
-  RegisterRecords({kVarRelentless, kVarPersistentUsed});
+  RegisterRecords({kVarRelentless, kVarPersistentUsed, kVarPresenceUsed});
+  // BZ4 Intimidating Presence (the radial's feat 1314; its repeat saves in the creature updates).
+  if (!AddScriptHandler("n5_intimpres", &IntimidatingPresenceScript) || !AddCreatureUpdateListener(&PresenceUpdate)) {
+    Log("SKIP barbarian: Intimidating Presence - the script or the creature updates are not hooked");
+  }
   g_item_by_id = reinterpret_cast<ItemByIdFn>(EngineExport(ee::kGetItemByGameObjectId));
   g_app_manager = reinterpret_cast<void**>(EngineExport(ee::kAppManager));
   g_remove_effect = reinterpret_cast<RemoveEffectFn>(EngineExport(ee::kObjectRemoveEffect));

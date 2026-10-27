@@ -221,6 +221,8 @@ void ForceCriticalOnHelpless(AttackRoll& roll) {
 
 }  // namespace
 
+uint32_t FearSourceOf(const void* creature) { return FearSource(creature); }
+
 rules::Conditions ReadConditions(void* creature) {
   rules::Conditions conditions;
   if (!creature) return conditions;

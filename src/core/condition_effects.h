@@ -40,3 +40,7 @@ ConditionSave ConditionsForSave(void* creature, rules::Ability ability);
 // SK11 (faithful): why a creature has disadvantage on ability checks
 // (poisoned; frightened with its fear's source in sight) — "" when none.
 std::string CheckDisadvantage(void* creature);
+
+// CN5: the source of the fear nwn5e put on `creature` (its fear icon's creator), or 0
+// (BZ4 Intimidating Presence: is it still that Berserker's fear).
+uint32_t FearSourceOf(const void* creature);

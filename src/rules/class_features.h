@@ -116,6 +116,11 @@ bool HasMindlessRage(int barbarian_level);
 bool HasInstinctivePounce(int barbarian_level);
 bool HasRelentlessRage(int barbarian_level);
 bool HasPersistentRage(int barbarian_level);
+// BZ4 Intimidating Presence (Berserker 14): nwn5e's feat 1314 on the radial.
+constexpr int kFeatIntimidatingPresence = 1314;
+bool HasIntimidatingPresence(int barbarian_level);
+// Its save: Wisdom against 8 + Strength modifier + PB; 30 ft; 1 minute, a new save each round.
+int IntimidatingPresenceDc(int strength_modifier, int proficiency_bonus);
 bool HasIndomitableMight(int barbarian_level);
 // B9: entering Rage gives half the speed again for one round (a charge).
 constexpr int kInstinctivePounceSpeedPercent = 50;

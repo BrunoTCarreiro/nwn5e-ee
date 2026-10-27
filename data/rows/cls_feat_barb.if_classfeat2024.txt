@@ -17,3 +17,5 @@ FeatLabel FeatIndex List GrantedOnLevel OnMenu
 # Part 3: Reckless Attack and Brutal Strike on the radial menu (granted by nwn5e, never by the engine).
 + NWN5E_RECKLESS_ATTACK 1310 3 -1 1
 + NWN5E_BRUTAL_STRIKE 1311 3 -1 1
+# Part 4: Intimidating Presence on the radial menu (granted by nwn5e at Barbarian 14).
++ NWN5E_INTIMIDATING_PRESENCE 1314 3 -1 1
