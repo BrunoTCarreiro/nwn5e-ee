@@ -121,6 +121,12 @@ struct VfxEffect {
   // The animations' lengths: impact (0: as long as its emitters need), duration (loops while
   // applied), cessation (as it's removed). 0.42.3.
   float lengths[3] = {0.0f, 2.0f, 1.0f};
+  // 0.44.0: the camera shake (visualeffects.2da ShakeType / ShakeDelay / ShakeDuration - the
+  // effect's row, not its model): 0 none; 1 a bump (up 25 cm and back in 0.1 s, after the
+  // delay); 2 a shake (bobbing 10 cm, 7 times a second, after the delay for the duration).
+  int shake_type = 0;
+  float shake_delay = 0.0f;
+  float shake_duration = 0.0f;
   std::vector<VfxNode> nodes;  // parents before children
   std::vector<VfxEmitter> emitters;
 };

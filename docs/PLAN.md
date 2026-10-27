@@ -2571,6 +2571,22 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   defined before it); the old naming and a 32 limit each fail it. The effect
   had ~1,300 particles alive at once - the game's own reach ~1,670 (Hellball),
   ~1,600 (blood bursts), ~1,440 (Death Armor): within what the game does.
+  0.44.0 (owner: "there are also some effects that create some rumbling
+  movement of the camera, I think?" - then "add them both": the shake and a
+  guide for how many particles): read in the game - the camera shake is the
+  effects table row's ShakeType / ShakeDelay / ShakeDuration (0x872770; 1 a
+  bump 0x7cbfa0, 2 a shake 0x7cfd00; the camera update 0x7d0470 lifts it:
+  a bump 25 cm and back in 0.1 s, a shake 10 cm up and down every 0.14 s for
+  its duration; up and down only). The bench's Effect card has Camera shake /
+  After / For; the preview's camera moves so; the draft keeps it (shake =
+  T D S, both writers and readers, test VfxDraftRoundTrip); Play in game puts
+  it on the preview row; the library (format 11) carries each row's shake, so
+  the game's 35 shaking effects are marked and open with theirs. And a
+  "Particles alive at once" line: about how many at the fullest (the mix
+  being tried included), against the game's own (half under 25, 9 in 10
+  under 250, Hellball ~1,700): heavy over 250, over 1,700 more than any. A
+  little over the preview's peak - at most. check_effect.js: the bump and
+  shake curves, the draft line, the count for every kind of emitter.
 *Accepted (owner, 2026-10-24: "Accept 5b recommendations"), 0.20.2:*
 1. Henchmen don't gain Exhaustion (as built). 2. A respawn clears it (as
 built). 3. Death magic from an enemy (EffectDeath with an enemy creator:

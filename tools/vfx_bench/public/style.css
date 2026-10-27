@@ -65,6 +65,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .note:empty { display: none; }
 .status { font-size: 0.85rem; min-height: 1.2em; margin: 0; overflow-wrap: anywhere; flex: 1 1 220px; }
 .status.bad { color: var(--danger); }
+.note.budget.heavy { color: var(--ink); }
+.note.budget.over { color: var(--danger); }
 .status.good { color: var(--ok); }
 code { font-family: var(--mono); font-size: 0.85em; }
 

@@ -123,6 +123,26 @@ redrawn every "A new bolt every" seconds, jagged across by "Jag across" and alon
 along it" - read from the game's code (LightningEmitter, RecursiveFractal) and drawn as Render
 says (the game's own use Linked). Doom, Death Armor, Power Word Kill and the blade chains do it.
 
+Camera shake (0.44.0): the Effect card's **Camera shake** - none, a bump or a shake, **After**
+so many seconds and (a shake) **For** so many - is the game's own: the effects table's
+ShakeType, ShakeDelay and ShakeDuration, which move the camera when the effect is applied.
+A bump lifts the camera 25 cm and back in 0.1 s; a shake bobs it 10 cm up and down, 7 times a
+second, for its duration. Straight up and down only - the game's sideways part is 0. The
+preview moves its camera the same way, from when the effect starts; Play in game puts it on
+the preview row; the draft keeps it (`shake = <type> <after> <for>`). The game's list marks
+the 35 effects that do it ("shakes" / "bumps") and opens them with theirs - Fireball shakes
+for 0.3 s, Power Word Kill bumps, Hellball shakes for 3.4 s after 0.1 s. It belongs to the
+effect's row, not its model: an effect made one of the mod's gets it in its row.
+
+Particles alive at once (0.44.0): under the Effect card, about how many particles the effect
+has alive at its fullest (and with the parts mix you're trying), against the game's own
+effects - half of them under 25, 9 in 10 under 250, the heaviest (Hellball) about 1,700. Over
+250 it says heavy; over 1,700, more than anything the game does. The count is a stream's Rate
+x its Life (less if it switches off sooner; one that never dies, all its time lets build
+up), a burst's Rate, a bolt's points, 1 for a Single; chunk models are counted apart. It's a
+little over what the preview shows at its peak (Hellball 1,669 to 1,276): read it as at most.
+The clock under the stage counts what is alive this moment, mix included.
+
 Mouse on the stage: drag to turn, right-drag (or shift-drag) to move, wheel to zoom,
 double-click to reset. Space pauses, R restarts. `?open=game:<model>&warm=<s>` opens
 an effect already run that far.

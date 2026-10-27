@@ -32,7 +32,7 @@
 // animations"), with `vfx_bench`: 3 s into a start (the client's frame; the
 // first player update if there's no client), the game's effects with emitters
 // are exported once to vfxedit\library\ (index.txt:
-// row, label, model, node, type; game\<model>.vfx: each model's emitters as a
+// row, label, model, node, type, camera shake; game\<model>.vfx: each model's emitters as a
 // draft; textures\<name>.tga / .dds: the particle textures, the player's own
 // files, never in the repo) - again with `!vfxexport` - and nwn5e's own effect
 // models (served\n5_*.mdl) as drafts in library\nwn5e\. The page asks the game
@@ -257,6 +257,19 @@ bool PointPreviewRow(const std::string& model, const data::VfxEffect& effect) {
   else BlankEntry(table, "Imp_HeadCon_Node");
   if (effect.attach == "impact") ok = SetEntry(table, "Imp_Impact_Node", model.c_str()) && ok;
   else BlankEntry(table, "Imp_Impact_Node");
+  // The camera shake (0.44.0): the client reads the row's ShakeType (1 bump, 2 shake), ShakeDelay
+  // and ShakeDuration when it applies the effect (0x872770 -> 0x7cbfa0 / 0x7cfd00).
+  if (effect.shake_type == 1 || effect.shake_type == 2) {
+    char number[32];
+    ok = SetEntry(table, "ShakeType", effect.shake_type == 1 ? "1" : "2") && ok;
+    sprintf_s(number, "%g", effect.shake_delay);
+    ok = SetEntry(table, "ShakeDelay", number) && ok;
+    sprintf_s(number, "%g", effect.shake_duration);
+    if (effect.shake_type == 2) ok = SetEntry(table, "ShakeDuration", number) && ok;
+    else BlankEntry(table, "ShakeDuration");
+  } else {
+    for (const char* column : {"ShakeType", "ShakeDelay", "ShakeDuration"}) BlankEntry(table, column);
+  }
   return ok;
 }
 
@@ -268,6 +281,7 @@ struct GameEffect {
   std::string model;
   std::string attach;
   bool duration;
+  std::string shake_type, shake_delay, shake_duration;  // the row's (0.44.0); "" for ****
 };
 struct GameScan {
   bool done = false;
@@ -298,6 +312,9 @@ void ScanGameEffects() {
   const std::vector<std::string> root = GameTableColumn("visualeffects", "Imp_Root_M_Node");
   const std::vector<std::string> impact = GameTableColumn("visualeffects", "Imp_Impact_Node");
   const std::vector<std::string> head = GameTableColumn("visualeffects", "Imp_HeadCon_Node");
+  const std::vector<std::string> shake_type = GameTableColumn("visualeffects", "ShakeType");
+  const std::vector<std::string> shake_delay = GameTableColumn("visualeffects", "ShakeDelay");
+  const std::vector<std::string> shake_duration = GameTableColumn("visualeffects", "ShakeDuration");
   const auto at = [](const std::vector<std::string>& column, size_t row) {
     return row < column.size() ? column[row] : std::string();
   };
@@ -328,7 +345,10 @@ void ScanGameEffects() {
       known = has_emitters.emplace(Lower(model), ok && !effect.emitters.empty()).first;
       if (known->second) g_scan.models[Lower(model)] = effect;
     }
-    if (known->second) g_scan.effects.push_back({static_cast<int>(row), labels[row], model, attach, at(types, row) == "D"});
+    if (known->second) {
+      g_scan.effects.push_back({static_cast<int>(row), labels[row], model, attach, at(types, row) == "D",
+                                at(shake_type, row), at(shake_delay, row), at(shake_duration, row)});
+    }
   }
   g_scan.textures.assign(textures.begin(), textures.end());
   Log("vfx editor: %zu game effects with emitters, %zu particle textures (read once)", g_scan.effects.size(),
@@ -744,8 +764,9 @@ void LoadEntry(uint32_t player, int index) {
 // from the geometry, not an animation's copy (0.42.1); 4: placed in the model with
 // their parents, and turned (orientation), with fps and particle_rot (0.42.2); 6: the nodes they hang under and the motion keys (0.42.3);
 // 7: twosidedtex and deadspace (0.42.4); 8: point to point and its targets (0.42.5); 9: chunk
-// models (0.42.6); 10: Lightning's bolt settings and targets (0.42.7).
-constexpr int kLibraryFormat = 10;
+// models (0.42.6); 10: Lightning's bolt settings and targets (0.42.7); 11: each row's camera
+// shake in the index (0.44.0).
+constexpr int kLibraryFormat = 11;
 constexpr uint16_t kResTypeTga = 3;
 constexpr uint16_t kResTypeDds = 2033;
 constexpr uint64_t kBenchCheckMs = 250;
@@ -793,10 +814,13 @@ std::string ExportLibrary(bool force) {
     }
     if (WriteFile(library + L"\\textures\\" + Wide(texture) + (tga ? L".tga" : L".dds"), bytes)) ++textures;
   }
-  std::string index = header + " - the game's effects with emitters: row, label, model, node, type (written by nwn5e)\n";
+  std::string index = header +
+      " - the game's effects with emitters: row, label, model, node, type, shake type, shake delay, shake duration"
+      " (written by nwn5e)\n";
   for (const GameEffect& effect : g_scan.effects) {
     index += std::to_string(effect.row) + "\t" + effect.label + "\t" + Lower(effect.model) + "\t" + effect.attach + "\t" +
-             (effect.duration ? "D" : "F") + "\n";
+             (effect.duration ? "D" : "F") + "\t" + effect.shake_type + "\t" + effect.shake_delay + "\t" +
+             effect.shake_duration + "\n";
   }
   WriteFile(index_path, index);  // last: an export cut short is done again
   Log("vfx bench: exported %zu game effects (%d models as drafts), %d of %zu particle textures to vfxedit\\library "

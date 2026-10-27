@@ -651,7 +651,47 @@
     count() { return this.states.reduce((n, s, i) => n + (this.hidden.has(i) ? 0 : s.particles.length), 0); }
   }
 
-  const api = { Sim, ATTACH_HEIGHT, turn, quat, qrot, qmul, slerp, sample };
+  // The camera shake as the game moves its camera (0.44.0, read in nwmain: the client's camera
+  // update 0x7d0470, set by 0x7cbfa0 / 0x7cfd00 from the effect's row): how far up, t seconds after
+  // the effect is applied. A bump (1): from the delay, up 0.25 m over 0.05 s and back over 0.05 s.
+  // A shake (2): from the delay for its duration, 0 -> 0.1 m -> 0 every 0.14 s (0.07 s up, 0.07 s
+  // down; the sideways part is 0 in this build); one of no duration doesn't happen.
+  function shakeAt(fx, t) {
+    const type = fx.shake_type | 0, u = t - (fx.shake_delay || 0);
+    if (!type || u < 0) return 0;
+    if (type === 1) return u < 0.05 ? (0.25 * u) / 0.05 : u < 0.1 ? 0.25 * (1 - (u - 0.05) / 0.05) : 0;
+    if (type === 2 && u < (fx.shake_duration || 0)) {
+      const k = (u % 0.07) / 0.07;
+      return Math.floor(u / 0.07) % 2 ? 0.1 * (1 - k) : 0.1 * k;
+    }
+    return 0;
+  }
+
+  // About how many particles an effect has alive at once at most (0.44.0): a stream's rate x its
+  // life (shorter if it switches off sooner; never-dying ones: what its time lets build up), a
+  // burst's count, a Single's one, a bolt's points; and how many of them are chunk models. The
+  // game's own effects, counted so: half under 25, 9 in 10 under 250, the heaviest (Hellball)
+  // about 1,700.
+  const BUDGET = { typical: 250, heaviest: 1700 };
+  function particleBudget(fx) {
+    let total = 0, chunks = 0;
+    const length = fx.duration ? Math.max(fx.seconds || 0, 1) : Math.max(fx.seconds || 0, 0.2);
+    for (const e of fx.emitters) {
+      const u = String(e.update).toLowerCase(), r = Math.max(0, e.birthrate || 0);
+      let n;
+      if (u === "single") n = Math.trunc(r) ? 1 : 0;
+      else if (u === "lightning" || u === "explosion") n = Math.trunc(r);
+      else {
+        const on = e.emit_seconds > 0 ? Math.min(e.emit_seconds, length) : length;
+        n = r * (e.life < 0 ? on : Math.min(e.life, on));
+      }
+      total += n;
+      if (e.chunk) chunks += n;
+    }
+    return { total: Math.round(total), chunks: Math.round(chunks) };
+  }
+
+  const api = { Sim, ATTACH_HEIGHT, turn, quat, qrot, qmul, slerp, sample, shakeAt, particleBudget, BUDGET };
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.VfxSim = api;
 })(typeof self !== "undefined" ? self : this);

@@ -134,7 +134,19 @@
           <input type="number" id="fx-len2" min="0.1" step="0.1" aria-label="The end (cessation) animation's length">
         </span></span>
       </label>
+      <div class="row">
+        <label title="The game's camera shake (its effects table's ShakeType, ShakeDelay, ShakeDuration): a bump lifts the camera 25 cm and back in 0.1 s; a shake bobs it 10 cm up and down, 7 times a second">Camera shake
+          <select id="fx-shake"><option value="0">none</option><option value="1">a bump</option><option value="2">a shake</option></select>
+        </label>
+        <label>After (seconds)
+          <input type="number" id="fx-shake-delay" min="0" step="0.1">
+        </label>
+        <label>For (seconds)
+          <input type="number" id="fx-shake-duration" min="0" step="0.1">
+        </label>
+      </div>
       <p class="note" id="fx-note"></p>
+      <p class="note budget" id="fx-budget" aria-live="polite"></p>
     </section>
 
     <section class="card" aria-labelledby="nd-h">

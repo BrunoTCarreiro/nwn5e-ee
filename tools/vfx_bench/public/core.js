@@ -38,7 +38,8 @@
   }
 
   function effect(overrides) {
-    return Object.assign({ name: "n5_new", duration: true, seconds: 8, attach: "root", lengths: [0, 2, 1], nodes: [], emitters: [] },
+    return Object.assign({ name: "n5_new", duration: true, seconds: 8, attach: "root", lengths: [0, 2, 1],
+      shake_type: 0, shake_delay: 0, shake_duration: 0, nodes: [], emitters: [] },
       overrides || {});
   }
 
@@ -125,6 +126,7 @@
     out += "attach = " + fx.attach + "\n";
     const l = fx.lengths || [0, 2, 1];
     out += "lengths = " + num(l[0]) + " " + num(l[1]) + " " + num(l[2]) + "\n";
+    if (fx.shake_type) out += "shake = " + fx.shake_type + " " + num(fx.shake_delay || 0) + " " + num(fx.shake_duration || 0) + "\n";
     for (const n of fx.nodes || []) {
       out += "\n[node " + n.name + "]\n";
       if (n.parent) out += "parent = " + n.parent + "\n";
@@ -226,6 +228,13 @@
         else if (key === "seconds") fx.seconds = toFloat(value);
         else if (key === "attach") fx.attach = value.toLowerCase();
         else if (key === "lengths") readFloats(words, fx.lengths, 3);
+        else if (key === "shake") {
+          const shake = [0, 0, 0];
+          readFloats(words, shake, 3);
+          fx.shake_type = shake[0] === 1 || shake[0] === 2 ? shake[0] : 0;
+          fx.shake_delay = Math.max(0, shake[1]);
+          fx.shake_duration = Math.max(0, shake[2]);
+        }
         continue;
       }
       if (key === "update") e.update = value;

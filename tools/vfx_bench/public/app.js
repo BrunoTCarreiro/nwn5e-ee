@@ -4,7 +4,7 @@
   "use strict";
   const core = window.VfxCore;
   const parts = window.VfxParts;
-  const { Sim } = window.VfxSim;
+  const { Sim, shakeAt, particleBudget, BUDGET } = window.VfxSim;
   const $ = (id) => document.getElementById(id);
   const STORE = "vfxbench.v1";
   const BACKDROPS = { dark: [0.047, 0.067, 0.082], grey: [0.3, 0.33, 0.36], light: [0.8, 0.83, 0.86] };
@@ -114,7 +114,7 @@
       sub: d.model === "written" ? "model written" : d.model === "older" ? "model older than the draft: the game rewrites it" : "the game writes its model when it runs" }));
     if (state.tab === "nwn5e") return s.nwn5e.map((name) => ({ source: "nwn5e", name, title: name, sub: "nwn5e's own (opens as a copy)" }));
     return s.game.map((g) => ({ source: "game", name: g.model, meta: g, title: g.row + "  " + g.label,
-      sub: `${g.model} · ${g.attach} · ${g.type === "F" ? "plays once" : "stays"}` }));
+      sub: `${g.model} · ${g.attach} · ${g.type === "F" ? "plays once" : "stays"}${g.shake_type ? (g.shake_type === 1 ? " · bumps" : " · shakes") : ""}` }));
   }
 
   function renderLibrary() {
@@ -165,6 +165,10 @@
       fx.name = "fx" + entry.meta.row;
       fx.attach = entry.meta.attach;
       fx.duration = entry.meta.type !== "F";
+      // Its camera shake is the row's, not the model's (the index has it, 0.44.0).
+      fx.shake_type = entry.meta.shake_type || 0;
+      fx.shake_delay = entry.meta.shake_delay || 0;
+      fx.shake_duration = entry.meta.shake_duration || 0;
     } else if (entry.source === "nwn5e") {
       fx.name = core.resref(fx.name + "_copy", 16);
     }
@@ -214,6 +218,11 @@
     $("fx-attach").value = core.ATTACHES.includes(fx.attach) ? fx.attach : "root";
     const l = fx.lengths || (fx.lengths = [0, 2, 1]);
     [0, 1, 2].forEach((k) => { $("fx-len" + k).value = core.num(l[k]); });
+    $("fx-shake").value = String(fx.shake_type || 0);
+    $("fx-shake-delay").value = core.num(fx.shake_delay || 0);
+    $("fx-shake-duration").value = core.num(fx.shake_duration || 0);
+    $("fx-shake-delay").disabled = !fx.shake_type;
+    $("fx-shake-duration").disabled = fx.shake_type !== 2;  // a bump's length is the game's: 0.1 s
     $("fx-note").textContent = (fx.duration
       ? "Stays on the character while applied; the preview (and Play in game) runs it for Seconds."
       : "Plays once; an emitter without its own On for stays on for Seconds.") +
@@ -593,7 +602,24 @@
     sim.setEffect(simEffect());
     if (restart) sim.restart();
     renderMixNote(problem);
+    renderBudget();
   }
+  // How many particles the effect has alive at once at most, against the game's own (0.44.0).
+  function renderBudget() {
+    const own = particleBudget(state.fx), all = trial ? particleBudget(simEffect()) : null;
+    const worst = Math.max(own.total, all ? all.total : 0);
+    const say = (b) => `about ${b.total.toLocaleString("en")}` + (b.chunks ? ` (${b.chunks.toLocaleString("en")} of them chunk models)` : "");
+    let text = `Particles alive at once: ${say(own)}` + (all && all.total !== own.total ? `; with the mix you're trying, ${say(all)}` : "") + ". ";
+    text += worst > BUDGET.heaviest
+      ? `That's more than any of the game's own effects (its heaviest, Hellball, has about ${BUDGET.heaviest.toLocaleString("en")}): it may slow the game down - fewer, bigger particles often look the same.`
+      : worst > BUDGET.typical
+        ? `Heavy, like the game's big spells (9 in 10 of its effects stay under ${BUDGET.typical}; Hellball, its heaviest, about ${BUDGET.heaviest.toLocaleString("en")}).`
+        : `Like most of the game's effects (9 in 10 stay under ${BUDGET.typical}).`;
+    const note = $("fx-budget");
+    note.textContent = text;
+    note.className = "note budget" + (worst > BUDGET.heaviest ? " over" : worst > BUDGET.typical ? " heavy" : "");
+  }
+
   function renderMixNote(problem) {
     $("mix-note").textContent = problem ? "That mix doesn't work: " + problem
       : state.mixAdded ? "Added. Change a part (or a setting) to try another mix."
@@ -764,7 +790,10 @@
       if (sim.time < length) sim.step(dt);
       if (sim.time >= length && state.loop) sim.restart();
     }
-    if (view) view.draw(sim.snapshot(), sim.figure(sim.time), sim.nodePlaces());
+    if (view) {
+      view.lift = shakeAt(state.fx, sim.time);  // the camera shake, from when the effect starts
+      view.draw(sim.snapshot(), sim.figure(sim.time), sim.nodePlaces());
+    }
     $("clock").textContent = `${sim.time.toFixed(1)} / ${sim.length().toFixed(1)} s · ${sim.count()} particles`;
     requestAnimationFrame(tick);
   }
@@ -881,6 +910,19 @@
       if (!Number.isNaN(v) && v > 0) { state.fx.seconds = Math.fround(v); changed(false); }
     });
     $("fx-attach").addEventListener("change", (ev) => { state.fx.attach = ev.target.value; changed(false); sim.restart(); });
+    $("fx-shake").addEventListener("change", (ev) => {
+      state.fx.shake_type = Number(ev.target.value) || 0;
+      if (state.fx.shake_type === 2 && !(state.fx.shake_duration > 0)) state.fx.shake_duration = 1;
+      renderEffect(); changed(false); sim.restart();
+    });
+    $("fx-shake-delay").addEventListener("input", (ev) => {
+      const v = parseFloat(ev.target.value);
+      if (!Number.isNaN(v) && v >= 0) { state.fx.shake_delay = Math.fround(v); changed(false); }
+    });
+    $("fx-shake-duration").addEventListener("input", (ev) => {
+      const v = parseFloat(ev.target.value);
+      if (!Number.isNaN(v) && v >= 0) { state.fx.shake_duration = Math.fround(v); changed(false); }
+    });
     [0, 1, 2].forEach((k) => $("fx-len" + k).addEventListener("input", (ev) => {
       const v = parseFloat(ev.target.value);
       if (Number.isNaN(v) || v < 0) return;

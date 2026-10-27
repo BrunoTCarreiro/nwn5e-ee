@@ -152,6 +152,28 @@ grav 0, sizeMid 0, sizeMid_y 0. MdlNodeEmitter ctor 0x875a0: node+0x98 = 5 (?), 
   h != 0: recurse (c - h/2, h/2) and (c + h/2, h/2) - h 0 pushes P[c] again. Counts of 2^k + 1
   (3, 5, 9, 17, 33 - all the game's) fill every point; an even n reads P[n], past the end.
 - Drawn by RenderEmitter like any emitter - the game's are all Linked (a segment per pair).
+## Camera shake (read 0.44.0)
+Not the model's: the effects table's row. When the client applies an effect (0x872770) it
+reads visualeffects.2da's ShakeType (int), ShakeDelay and ShakeDuration (floats, seconds;
+passed on in ms):
+- **1, a bump** -> 0x7cbfa0(client, delay): unless a bump is already on, +0x270 = 50 (ms),
+  +0x274 = delay, +0x278 = 1.
+- **2, a shake** -> 0x7cfd00(client, delay, duration): only if duration != 0 and not shorter
+  than what's left of the one on - +0x260 = duration, +0x268 = delay, +0x264 = 70 (ms),
+  +0x26c = 1.
+- The camera's per-frame update (0x7d0470) counts the delay down, then moves the camera up:
+  a bump 0 -> 0.25 m over 50 ms and back over 50 ms, once; a shake
+  0 -> 0.1 m over 70 ms and back over 70 ms, again and again for its duration. The sideways
+  amplitude (xmm7) is 0 in this build: up and down only.
+- 39 of the table's rows shake, 35 of them with emitter models (the bench's list): Fireball
+  2 / 0 / 0.3, Power Word Kill 1, Hellball 2 / 0.1 / 3.4.
+## Particles alive at once (0.44.0)
+Counted from the drafts, per emitter: Fountain (and the rest that stream) Rate x min(Life,
+on) - on = its emit seconds or the effect's length; Life < 0 (never dies) Rate x on;
+Explosion and Lightning int(Rate); Single 1. The game's effects with emitters: median 22, 9 in 10
+under 232, 99 in 100 under 1,366, the most Hellball's ~1,669 (blood bursts ~1,600, Death
+Armor ~1,440). Against the preview's own peak: Fireball 16 / 11, Power Word Kill 271 / 274,
+Death Armor 1,436 / 1,168, Hellball 1,669 / 1,276 - an upper bound, close.
 
 ---
 

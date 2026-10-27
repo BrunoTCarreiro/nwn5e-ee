@@ -25,6 +25,9 @@ VfxEffect Sample() {
   effect.duration = true;
   effect.seconds = 6.5f;
   effect.attach = "head";
+  effect.shake_type = 2;
+  effect.shake_delay = 0.5f;
+  effect.shake_duration = 1.25f;
   VfxEmitter e;
   e.name = "drops";
   e.update = "Fountain";
@@ -70,6 +73,12 @@ TEST(VfxDraftRoundTrip) {
   CHECK_EQ(back.duration, true);
   CHECK_EQ(Milli(back.seconds), 6500);
   CHECK_EQ(back.attach == "head", true);
+  CHECK_EQ(back.shake_type, 2);
+  CHECK_EQ(Milli(back.shake_delay), 500);
+  CHECK_EQ(Milli(back.shake_duration), 1250);
+  VfxEffect calm;  // no shake: no line (and an odd type reads as none)
+  CHECK_EQ(WriteVfxDraft(calm).find("shake") == std::string::npos, true);
+  CHECK_EQ(ReadVfxDraft("name = x\nshake = 7 1 1\n", &calm, &error) && calm.shake_type == 0, true);
   CHECK_EQ(back.emitters.size(), 1u);
   const VfxEmitter& e = back.emitters[0];
   CHECK_EQ(e.name == "drops", true);

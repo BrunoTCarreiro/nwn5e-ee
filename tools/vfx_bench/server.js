@@ -68,9 +68,11 @@ function readIndex() {
   const rows = [];
   for (const line of text.split(/\r?\n/)) {
     if (!line || line.startsWith("#")) continue;
-    const [row, label, model, attach, type] = line.split("\t");
+    const [row, label, model, attach, type, shakeType, shakeDelay, shakeDuration] = line.split("\t");
     if (!model || !LIBRARY_NAME.test(model)) continue;
-    rows.push({ row: Number(row), label, model, attach: attach || "root", type: type === "F" ? "F" : "D" });
+    const shake = Number(shakeType);  // the row's camera shake (index format 11, 0.44.0); blank: none
+    rows.push({ row: Number(row), label, model, attach: attach || "root", type: type === "F" ? "F" : "D",
+      shake_type: shake === 1 || shake === 2 ? shake : 0, shake_delay: parseFloat(shakeDelay) || 0, shake_duration: parseFloat(shakeDuration) || 0 });
   }
   return rows;
 }

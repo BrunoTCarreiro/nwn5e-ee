@@ -194,8 +194,10 @@ precision mediump float; varying vec4 v_color; void main() { gl_FragColor = v_co
       const w = Math.max(1, Math.round(c.clientWidth * dpr)), h = Math.max(1, Math.round(c.clientHeight * dpr));
       if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
       gl.viewport(0, 0, w, h);
-      const cam = this.camera, eye = this.eye();
-      const view = lookAt(eye, cam.target, [0, 0, 1]);
+      // The camera shake (0.44.0): the whole view lifted as the game lifts its camera.
+      const cam = this.camera, eye = this.eye(), lift = this.lift || 0;
+      eye[2] += lift;
+      const view = lookAt(eye, [cam.target[0], cam.target[1], cam.target[2] + lift], [0, 0, 1]);
       const mvp = multiply(perspective(Math.PI / 4, w / h, 0.05, 300), view);
       // The camera's right, up and back (towards the viewer) - the game's camera X, Y, Z.
       return { mvp, eye, right: [view[0], view[4], view[8]], up: [view[1], view[5], view[9]], back: [view[2], view[6], view[10]] };

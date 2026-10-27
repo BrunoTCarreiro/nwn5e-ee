@@ -387,6 +387,9 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
   out += "seconds = " + Num(effect.seconds) + "\n";
   out += "attach = " + effect.attach + "\n";
   out += "lengths = " + Num(effect.lengths[0]) + " " + Num(effect.lengths[1]) + " " + Num(effect.lengths[2]) + "\n";
+  if (effect.shake_type) {
+    out += "shake = " + std::to_string(effect.shake_type) + " " + Num(effect.shake_delay) + " " + Num(effect.shake_duration) + "\n";
+  }
   for (const VfxNode& n : effect.nodes) {
     out += "\n[node " + n.name + "]\n";
     if (!n.parent.empty()) out += "parent = " + n.parent + "\n";
@@ -491,6 +494,13 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
       else if (key == "seconds") result.seconds = ToFloat(value);
       else if (key == "attach") result.attach = Lower(value);
       else if (key == "lengths") ReadFloats(words, 0, result.lengths, 3);
+      else if (key == "shake") {
+        float shake[3] = {0.0f, 0.0f, 0.0f};
+        ReadFloats(words, 0, shake, 3);
+        result.shake_type = shake[0] == 1.0f || shake[0] == 2.0f ? static_cast<int>(shake[0]) : 0;
+        result.shake_delay = std::max(0.0f, shake[1]);
+        result.shake_duration = std::max(0.0f, shake[2]);
+      }
       continue;
     }
     VfxEmitter* e = &result.emitters[emitter];
