@@ -320,12 +320,23 @@ void InstallQuickbarKeys() {
 // stub. Each label is widened 1.6x (SetWidth, slot 24) before its text is set
 // again, and the rows lose their prefixes: a row shows only while its key is
 // held.
+// 0.48.3 (owner: "the label is being hidden by the icon"): the GUI draws by
+// depth, and the button model (qb_but67) puts its hookpoints at text z 0.40,
+// icon 0.55, the counts (count0 / count1) 0.75 - the icon covers the label.
+// Each label's node is moved 0.25 forward (0.65: over the icon, under the
+// counts), as the label's own SetPosition (CAurString vtable slot 4, 0x4a900)
+// reaches it: StringGob = label - 0x4c0, its node = Gob vtable +0x228 (-1),
+// a string node (type 0x3ea, node vtable +0x28), position floats at +0x70.
+// SetPosition's code is checked byte for byte at install, so those offsets
+// hold.
 namespace {
 
 using PanelCtorFn = void* (*)(void* self, void* a2, void* a3, void* a4);
 using SetColorFn = void (*)(void* label, float r, float g, float b, float a);
 using SetTextFn = void (*)(void* label, const char* text);
 using SetWidthFn = void (*)(void* label, float width);
+using GobNodeFn = void* (*)(void* gob, int index);
+using NodeTypeFn = int (*)(void* node);
 
 constexpr const char* kNewCAurString = "?NewCAurString@@YAPEAVCAurString@@H@Z";
 // In NewCAurString: the CAurString part of the new StringGob gets its vtable
@@ -340,6 +351,22 @@ constexpr int kSetWidthSlot = 24;
 constexpr uint8_t kSetWidthBody[] = {0xf3, 0x0f, 0x11, 0x49, 0x74, 0xc3};
 constexpr size_t kLabelWidth = 0x74;      // float: the label's box width; text past it isn't drawn
 constexpr float kLabelWidthFactor = 1.6f;  // "F1" fitted, "F10" didn't
+constexpr int kSetPositionSlot = 4;
+// SetPosition's code (0x4a900), whose steps LabelForward repeats: the Gob (label
+// - 0x4c0), its node (Gob vtable +0x228, index -1), a string node (node vtable
+// +0x28 == 0x3ea), the position at node +0x70 / +0x78.
+constexpr uint8_t kSetPositionBody[] = {
+    0x48, 0x89, 0x5c, 0x24, 0x08, 0x57, 0x48, 0x83, 0xec, 0x20, 0x48, 0x81, 0xc1, 0x40, 0xfb, 0xff, 0xff,
+    0x48, 0x8b, 0xfa, 0xba, 0xff, 0xff, 0xff, 0xff, 0x48, 0x8b, 0x01, 0xff, 0x90, 0x28, 0x02, 0x00, 0x00,
+    0x48, 0x8b, 0xd8, 0x48, 0x85, 0xc0, 0x74, 0x30, 0x4c, 0x8b, 0x00, 0x48, 0x8b, 0xc8, 0x41, 0xff, 0x50,
+    0x28, 0x3d, 0xea, 0x03, 0x00, 0x00, 0x75, 0x1f, 0x8b, 0x47, 0x08, 0xf2, 0x0f, 0x10, 0x07, 0xf2, 0x0f,
+    0x11, 0x43, 0x70, 0x89, 0x43, 0x78};
+constexpr size_t kStringGobInterface = 0x4c0;  // StringGob: its CAurString part (the label)
+constexpr size_t kGobNodeSlot = 0x228 / 8;
+constexpr size_t kNodeTypeSlot = 0x28 / 8;
+constexpr int kNodeTypeString = 0x3ea;
+constexpr size_t kNodePosition = 0x70;  // float x, y, z
+constexpr float kLabelForward = 0.25f;  // text 0.40 -> 0.65: over the icon (0.55), under the counts (0.75)
 constexpr size_t kClientAppInternal = 0x8;  // CClientExoApp -> CClientExoAppInternal
 constexpr size_t kGuiQuickbar = 0x60;       // the in-game GUI: CPanelQuickBar
 constexpr size_t kPanelButtons = 0xf0;      // CPanelQuickBar: CGuiQuickButton[36]
@@ -356,6 +383,19 @@ void* g_panel = nullptr;  // the last quickbar panel made
 void* g_labels[rules::kQuickbarSlots] = {};
 bool g_labels_on = false;
 int g_label_logs = 0;
+
+// The label's node moved kLabelForward toward the viewer (z), as SetPosition reaches it.
+bool LabelForward(void* label) {
+  uint8_t* gob = static_cast<uint8_t*>(label) - kStringGobInterface;
+  void** gob_vtable = *reinterpret_cast<void***>(gob);
+  void* node = reinterpret_cast<GobNodeFn>(gob_vtable[kGobNodeSlot])(gob, -1);
+  if (!node) return false;
+  void** node_vtable = *reinterpret_cast<void***>(node);
+  if (reinterpret_cast<NodeTypeFn>(node_vtable[kNodeTypeSlot])(node) != kNodeTypeString) return false;
+  float* position = reinterpret_cast<float*>(static_cast<uint8_t*>(node) + kNodePosition);
+  position[2] += kLabelForward;
+  return true;
+}
 
 void* CurrentQuickbarPanel() {
   if (!g_client_app_manager || !*g_client_app_manager) return nullptr;
@@ -385,7 +425,7 @@ void* QuickbarPanelCtor(void* self, void* a2, void* a3, void* a4) {
   g_panel = self;
   uint8_t* buttons = static_cast<uint8_t*>(self) + kPanelButtons;
   for (int i = 0; i < rules::kQuickbarSlots; ++i) g_labels[i] = Field<void*>(buttons + i * kQuickButtonSize, kQuickButtonLabel);
-  int named = 0;
+  int named = 0, forward = 0;
   float width_before = 0.0f;
   for (int i = 0; i < rules::kQuickbarSlots; ++i) {
     void* label = g_labels[i];
@@ -395,12 +435,13 @@ void* QuickbarPanelCtor(void* self, void* a2, void* a3, void* a4) {
     if (width > 0.0f && width < 10000.0f) g_set_width(label, width * kLabelWidthFactor);
     g_set_text(label, rules::QuickbarSlotLabel(i, QuickbarNumberKeysOn()).c_str());
     ++named;
+    if (LabelForward(label)) ++forward;
   }
   if (g_label_logs < 5) {
     ++g_label_logs;
     Log("quickbar: a quickbar panel made - %d key labels renamed (1-9 / F10-F12; F1-F12 on the Ctrl row), widened "
-        "%.2f -> %.2f, shown on filled slots",
-        named, width_before, width_before * kLabelWidthFactor);
+        "%.2f -> %.2f, %d moved over the icon, shown on filled slots",
+        named, width_before, width_before * kLabelWidthFactor, forward);
   }
   return result;
 }
@@ -418,10 +459,14 @@ void InstallQuickbarLabels() {
   g_set_width = reinterpret_cast<SetWidthFn>(vtable ? reinterpret_cast<const uintptr_t*>(vtable)[kSetWidthSlot] : 0);
   const bool width_ok =
       g_set_width && memcmp(reinterpret_cast<const void*>(g_set_width), kSetWidthBody, sizeof(kSetWidthBody)) == 0;
+  const uintptr_t set_position = vtable ? reinterpret_cast<const uintptr_t*>(vtable)[kSetPositionSlot] : 0;
+  const bool position_ok =
+      set_position &&
+      memcmp(reinterpret_cast<const void*>(set_position), kSetPositionBody, sizeof(kSetPositionBody)) == 0;
   g_client_app_manager = reinterpret_cast<void**>(EngineExport(ee::kAppManager));
   const bool color_ok =
       set_color && memcmp(reinterpret_cast<const void*>(set_color), kSetColorBody, sizeof(kSetColorBody)) == 0;
-  if (!ctor || !color_ok || !width_ok || !g_set_text || !g_client_app_manager) {
+  if (!ctor || !color_ok || !width_ok || !position_ok || !g_set_text || !g_client_app_manager) {
     Log("SKIP quickbar: key labels - a piece wasn't found where expected (labels show on empty slots only)");
     return;
   }

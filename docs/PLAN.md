@@ -3328,6 +3328,16 @@ and the labels lose the row prefixes - a row shows only while its key is held:
 (rules::QuickbarSlotLabel). Unverified: a label re-attached later (a GUI
 rescale) might go back to the narrow box.
 
+*0.48.3 (owner: "oh, the label is being hidden by the icon"):* the GUI draws
+by depth, and the quickbar button model (qb_but67) puts its hookpoints at text
+z 0.40, icon 0.55, the counts (count0 / count1) 0.75 - so the icon covered the
+key label (the game hid it on filled slots anyway). Each quickbar label's node
+moves 0.25 toward the viewer (0.65: over the icon, under the counts), the way
+the label's own SetPosition (CAurString vtable slot 4, 0x4a900) reaches it:
+StringGob = label - 0x4c0, its node through Gob vtable +0x228 (index -1), a
+string node (type 0x3ea), position at node +0x70. SetPosition's bytes are
+checked at install.
+
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
 Walked through one by one (issue, what NWN does, what 2024 does, what to
