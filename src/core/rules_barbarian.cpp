@@ -78,6 +78,7 @@
 #include "config.h"
 #include "creature.h"
 #include "creature_update.h"
+#include "damage_listeners.h"
 #include "data_serving.h"
 #include "dice.h"
 #include "ee_layout.h"
@@ -373,6 +374,9 @@ void StartRage(void* creature) {
               std::string(kRageTag) + "\"), OBJECT_SELF, " + seconds + ");";
     DropFear(creature);
   }
+  // The Rage's flourish (owner, 2026-10-27: "use victorymg animation for the rage"): VICTORY2 is
+  // the mage's victory, victorymg.
+  script += "PlayAnimation(ANIMATION_FIREFORGET_VICTORY2, 1.0);";
   RunScriptChunk(script.c_str(), id);
   const int damage = rules::RageDamage2024(rage.level);
   Log("barbarian: 0x%08X Rage starts (level %d: +%d damage, resistance%s%s%s)", id, rage.level, damage,
@@ -828,6 +832,76 @@ void PresenceUpdate(void* creature) {
   g_presence.erase(it);
 }
 
+// --- BZ3 Retaliation (Berserker 10; owner's decision A: a stand-in until Phase 6) ------------
+// 2024: a Reaction when a creature within 5 ft damages you - one melee attack against it. NWN
+// gives each creature one attack of opportunity a round, which nwn5e already treats as its one
+// Reaction (D2); here, when a creature in reach damages the Berserker, the Berserker takes that
+// AoO at it - with the checks and steps of the engine's own AoO broadcast
+// (CNWSCreature::BroadcastAttackOfOpportunity 0x382eb0, read 0.47.1): an AoO left this round
+// (round +0x2f40 > 0), the round's states (+0x2f28, +0x2f08 clear), in combat (+0x700), not
+// dead, the same area, the attacker within MaxAttackRange, no ranged weapon, no spell or heal
+// queued, the attacker hostile; then CNWSCombatRound::AddAttackOfOpportunity(attacker) (an AoO
+// attack at the front of the round), round +0x2f40 - 1 and +0x750 = 1. Only while it is already
+// attacking someone (the broadcast would add attack actions first; not done here).
+using AddAttackOfOpportunityFn = void (*)(void* round, uint32_t target);
+using MaxAttackRangeFn = float (*)(void* creature, uint32_t target, int a, int b);
+using CreatureTestFn = int (*)(void* creature);
+constexpr size_t kRoundOpportunityLeft = 0x2f40;   // int32: AoOs left this round
+constexpr size_t kRoundStateA = 0x2f28;            // int32: the broadcast wants 0
+constexpr size_t kRoundStateB = 0x2f08;            // int32: the broadcast wants 0
+constexpr size_t kCreatureStateByteA = 0x6ed;      // byte: the broadcast wants != 1
+constexpr size_t kCreatureStateByteB = 0x6ef;      // byte: the broadcast wants != 1
+constexpr size_t kCreatureStateC = 0xfc;           // int32: the broadcast wants 0
+constexpr size_t kCreatureOpportunityMade = 0x750; // int32: set to 1 after an AoO
+constexpr uint32_t kRetaliationLogMax = 40;
+uint32_t g_retaliation_logged = 0;
+
+void RetaliationOnDamage(uint32_t creator, void* target, int damage) {
+  if (!Faithful() || damage <= 0 || !target || creator == ee::kObjectInvalid || creator == IdOf(target)) return;
+  void* stats = StatsOf(target);
+  if (!stats || !rules::HasRetaliation(BarbarianLevelOf(stats))) return;
+  void* attacker = CreatureById(creator);
+  if (!attacker || engine::IsDeadOrDying(target) || !engine::IsEnemy(target, creator)) return;
+  static const auto add_aoo = reinterpret_cast<AddAttackOfOpportunityFn>(
+      EngineExport("?AddAttackOfOpportunity@CNWSCombatRound@@QEAAXI@Z"));
+  static const auto reach = reinterpret_cast<MaxAttackRangeFn>(EngineExport(ee::kMaxAttackRange));
+  static const auto ranged = reinterpret_cast<CreatureTestFn>(EngineExport(ee::kGetRangeWeaponEquipped));
+  static const auto casting = reinterpret_cast<CreatureTestFn>(
+      EngineExport("?GetSpellOrHealActionQueued@CNWSCreature@@QEAAHXZ"));
+  void* round = Field<void*>(target, ee::kCreatureCombatRound);
+  if (!add_aoo || !reach || !ranged || !casting || !round) return;
+  const char* why = nullptr;
+  if (Field<int32_t>(round, kRoundOpportunityLeft) <= 0) why = "its reaction is spent this round";
+  else if (Field<int32_t>(round, kRoundStateA) != 0 || Field<int32_t>(round, kRoundStateB) != 0) why = "its round can't take it";
+  else if (Field<int32_t>(target, ee::kCreatureInCombat) != 1) why = "not in combat";
+  else if (Field<uint8_t>(target, kCreatureStateByteA) == 1 || Field<uint8_t>(target, kCreatureStateByteB) == 1 ||
+           Field<int32_t>(target, kCreatureStateC) != 0) why = "busy";
+  else if (engine::AreaOf(target) != engine::AreaOf(attacker)) why = "another area";
+  else if (ranged(target)) why = "a ranged weapon in hand";
+  else if (casting(target)) why = "a spell or heal queued";
+  else if (Field<uint32_t>(target, ee::kCreatureAttackTarget) == ee::kObjectInvalid) why = "not attacking anyone";
+  else {
+    const float dx = Field<float>(target, ee::kObjectPositionX) - Field<float>(attacker, ee::kObjectPositionX);
+    const float dy = Field<float>(target, ee::kObjectPositionX + 4) - Field<float>(attacker, ee::kObjectPositionX + 4);
+    const float dz = Field<float>(target, ee::kObjectPositionX + 8) - Field<float>(attacker, ee::kObjectPositionX + 8);
+    const float range = reach(target, creator, 0, 0);
+    if (dx * dx + dy * dy + dz * dz > range * range) why = "out of reach";
+  }
+  const uint32_t id = IdOf(target);
+  if (why) {
+    if (g_retaliation_logged < kRetaliationLogMax) {
+      ++g_retaliation_logged;
+      Log("barbarian: 0x%08X hurt by 0x%08X (%d) - no Retaliation: %s", id, creator, damage, why);
+    }
+    return;
+  }
+  add_aoo(round, creator);
+  SetField<int32_t>(round, kRoundOpportunityLeft, Field<int32_t>(round, kRoundOpportunityLeft) - 1);
+  SetField<int32_t>(target, kCreatureOpportunityMade, 1);
+  Log("barbarian: 0x%08X Retaliation - hurt by 0x%08X (%d), strikes back (its reaction)", id, creator, damage);
+  Tell(target, "Retaliation - you strike back (your reaction this round).");
+}
+
 // A henchman with Rage rages as a fight starts (0.46.1; owner's BS13 test - the OC's Daelan
 // never raged - "go with B"). The game's AI (nw_i0_generic, DetermineClassToUse) lets only
 // Xanos and HotU's Daelan rage on their own (tags x0_hen_xan, x2_hen_daelan); here any player's
@@ -865,6 +939,7 @@ void InstallBarbarianRules() {
 
   // Part 2: Rage (spell 307's served row runs nwn5e_rage: spells.if_classfeat2024.txt).
   RegisterRecords({kVarRelentless, kVarPersistentUsed, kVarPresenceUsed});
+  if (!AddDamageListener(&RetaliationOnDamage)) Log("SKIP barbarian: Retaliation - OnApplyDamage not hooked");
   // BZ4 Intimidating Presence (the radial's feat 1314; its repeat saves in the creature updates).
   if (!AddScriptHandler("n5_intimpres", &IntimidatingPresenceScript) || !AddCreatureUpdateListener(&PresenceUpdate)) {
     Log("SKIP barbarian: Intimidating Presence - the script or the creature updates are not hooked");

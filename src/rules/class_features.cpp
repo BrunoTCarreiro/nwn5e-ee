@@ -131,6 +131,8 @@ bool HasInstinctivePounce(int barbarian_level) { return barbarian_level >= 7; }
 bool HasRelentlessRage(int barbarian_level) { return barbarian_level >= 11; }
 bool HasPersistentRage(int barbarian_level) { return barbarian_level >= 15; }
 
+bool HasRetaliation(int barbarian_level) { return barbarian_level >= 10; }
+
 bool HasIntimidatingPresence(int barbarian_level) { return barbarian_level >= 14; }
 
 int IntimidatingPresenceDc(int strength_modifier, int proficiency_bonus) {

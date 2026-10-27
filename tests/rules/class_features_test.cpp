@@ -96,6 +96,8 @@ TEST(GrantedFeatsFollowClassLevels) {
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kBarbarian, 13}}).size(), 2u);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kBarbarian, 14}}).size(), 3u);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kBarbarian, 14}})[2], kFeatIntimidatingPresence);
+  CHECK_EQ(HasRetaliation(9), false);
+  CHECK_EQ(HasRetaliation(10), true);
   CHECK_EQ(HasIntimidatingPresence(13), false);
   CHECK_EQ(HasIntimidatingPresence(14), true);
   CHECK_EQ(IntimidatingPresenceDc(4, 5), 17);

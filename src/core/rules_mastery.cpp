@@ -46,6 +46,7 @@
 #include "config.h"
 #include "creature.h"
 #include "ee_layout.h"
+#include "damage_listeners.h"
 #include "effects.h"
 #include "engine.h"
 #include "hooks.h"
@@ -378,14 +379,12 @@ void NoteWeaponUsed(void* creature, int base_item) {
 // --- D4 ---------------------------------------------------------------------
 
 using EndCombatRoundFn = void (*)(void* round);
-using OnApplyDamageFn = int (*)(void* handler, void* object, void* effect, int loading);
 using AddCleaveAttackFn = void (*)(void* round, uint32_t target, int great_cleave);
 using MaxAttackRangeFn = float (*)(void* creature, uint32_t target, int a, int b);
 using SaveRollFn = uint8_t (*)(void* creature, uint8_t save, uint16_t dc, uint8_t type, uint32_t versus, int feedback,
                                uint16_t feat, int from_combat);
 
 EndCombatRoundFn g_end_combat_round = nullptr;
-OnApplyDamageFn g_on_apply_damage = nullptr;
 
 struct VexMark {
   uint32_t target;
@@ -629,10 +628,6 @@ void AfterAttackRoll(AttackRoll& roll) {
   }
 }
 
-int HitPointsOf(const void* object) {
-  return Field<int16_t>(object, ee::kObjectCurrentHitPoints) + Field<int16_t>(object, ee::kObjectTemporaryHitPoints);
-}
-
 // A damage effect landed: Slow takes hold if it dealt damage, Vex's mark is
 // withdrawn if it dealt none.
 void AfterDamage(uint32_t attacker_id, void* target, int damage) {
@@ -662,16 +657,11 @@ void AfterDamage(uint32_t attacker_id, void* target, int damage) {
   }
 }
 
-int OnApplyDamage(void* handler, void* object, void* effect, int loading) {
-  const bool awaiting = !g_slow_awaiting.empty() || !g_vex_awaiting.empty() || PushAwaiting();
-  void* target = object && awaiting ? CreatureById(Field<uint32_t>(object, ee::kObjectId)) : nullptr;
-  const int before = target ? HitPointsOf(target) : 0;
-  const int result = g_on_apply_damage(handler, object, effect, loading);
-  if (target && effect) {
-    AfterDamage(effects::Creator(effect), target, before - HitPointsOf(target));
-    PushOnDamage(effects::Creator(effect), target);  // any hit pushes (2024), damage or not
-  }
-  return result;
+// A damage effect landed (damage_listeners.cpp): Slow and Vex, and a Push waiting for its hit.
+void MasteryOnDamage(uint32_t creator, void* target, int damage) {
+  if (g_slow_awaiting.empty() && g_vex_awaiting.empty() && !PushAwaiting()) return;
+  AfterDamage(creator, target, damage);
+  PushOnDamage(creator, target);  // any hit pushes (2024), damage or not
 }
 
 // C4: the Weapon Mastery feats are offered on the screens only when
@@ -785,8 +775,7 @@ void InstallMasteryRules() {
   OnRulesLoaded(&HideMasteryRows);
   if (!MasteryOn()) return;
   CountCombatRounds();
-  HookExport("CNWSEffectListHandler::OnApplyDamage (Vex / Slow / Push need the hit)", ee::kOnApplyDamage,
-             reinterpret_cast<void*>(&OnApplyDamage), reinterpret_cast<void**>(&g_on_apply_damage));
+  if (!AddDamageListener(&MasteryOnDamage)) Log("SKIP mastery: Vex / Slow / Push - OnApplyDamage not hooked");
   AddAttackRollListeners(&BeforeAttackRoll, &AfterAttackRoll);
   AddChatCommand("!mastery", &MasteryCommand);
   if (Faithful()) AddRestListener(&OnRest);

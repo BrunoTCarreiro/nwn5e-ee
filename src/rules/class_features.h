@@ -116,6 +116,8 @@ bool HasMindlessRage(int barbarian_level);
 bool HasInstinctivePounce(int barbarian_level);
 bool HasRelentlessRage(int barbarian_level);
 bool HasPersistentRage(int barbarian_level);
+// BZ3 Retaliation (Berserker 10): a creature within reach that damages you takes your reaction attack.
+bool HasRetaliation(int barbarian_level);
 // BZ4 Intimidating Presence (Berserker 14): nwn5e's feat 1314 on the radial.
 constexpr int kFeatIntimidatingPresence = 1314;
 bool HasIntimidatingPresence(int barbarian_level);
