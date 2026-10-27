@@ -507,7 +507,8 @@ bool g_on = false;
 
 }  // namespace
 
-std::string ShovePush(void* attacker, void* target, float metres) {
+std::string ShovePush(void* attacker, void* target, float metres, float* pushed) {
+  if (pushed) *pushed = 0.0f;
   if (!g_on) return "the push is off";
   if (!attacker || !target) return "no creature";
   const uint32_t attacker_id = IdOf(attacker);
@@ -521,6 +522,7 @@ std::string ShovePush(void* attacker, void* target, float metres) {
                 0.0f);
   if (!LyingDown(Field<int32_t>(target, ee::kCreatureAnimation))) E().set_animation(target, kAnimationDamage);
   g_slides[target_id] = Slide{plan.from, plan.to, plan.metres, AreaOf(target), GetTickCount()};
+  if (pushed) *pushed = plan.metres;
   if (LogSlot()) {
     Log("push: shove 0x%08X on 0x%08X: slides %.1f m away, on its feet%s", attacker_id, target_id, plan.metres,
         plan.blocker != ee::kObjectInvalid ? " (cut short by a placeable)" : "");

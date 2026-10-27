@@ -3146,6 +3146,23 @@ faithful, SK6): the setter reuses the label and deletes the old icon; the
 slot's disabled bit is cleared first and the label count put back. The cls_feat
 rows are gone. The quickbar's assign menu uses the same builder.
 
+*0.45.2 (owner's test of 0.45.1, Barbarian 3 with a halfling: after the bow,
+the greataxe "wouldn't even let me grab the axe" - not red):* an engine bug,
+both modes, not the halfling's size. In combat a player's equip / unequip is
+queued on the combat round (AddEquipAction: type-6 action, item +0x14, slot
++0x1c; AddUnequipAction type 7) and replayed at the round's end
+(ProcessPendingCombatActions); CNWSCombatRound::RemoveAllActions - the combat
+ending (SetCombatState 0), the combat timer, a new attack target,
+PacifyCreature - frees the list without a reply, and the client keeps the item
+marked as waiting (CNWCItem +0x240), refusing to pick it up for the session
+(RE: the grab gate CGuiInvRepository::HandleLMouseDown 0x881dc5; cleared only
+by HandleServerToPlayerInventory). equip_cancel.cpp hooks RemoveAllActions
+and answers each queued equip / unequip of a player's item with EquipCancel /
+UnequipCancel first, as AddEquipAction answers one it replaces: the item is
+free again, drag it once more. Also: the push's chat line says how far when the
+line is cut short ("pushed only 0.5 m (something close behind it)"; 0.45.1
+said "pushed 5 ft" for a 0.5 m slide).
+
 **GT-L1. Later: throwing an enemy into another** (owner: "How possible would it
 be to implement throwing an enemy into another as a way to damage both? We're
 not implementing this now, just note it down for later"). Feasible, and GT2

@@ -176,8 +176,17 @@ void ResolveShovePush(void* attacker, void* target) {
   if (!save.rolled) return;
   std::string outcome = save.immune ? "immune" : "made - stays put";
   if (save.failed) {
-    const std::string why = ShovePush(attacker, creature, rules::kShovePushMetres);
-    outcome = why.empty() ? "failed - pushed 5 ft" : "failed - but it can't be pushed (" + why + ")";
+    float pushed = 0.0f;
+    const std::string why = ShovePush(attacker, creature, rules::kShovePushMetres, &pushed);
+    if (!why.empty()) {
+      outcome = "failed - but it can't be pushed (" + why + ")";
+    } else if (pushed >= rules::kShovePushMetres - 0.01f) {
+      outcome = "failed - pushed 5 ft";
+    } else {  // the line was cut short (0.5 m steps): something close behind it
+      char text[96];
+      sprintf_s(text, "failed - pushed only %.1f m (something close behind it)", pushed);
+      outcome = text;
+    }
   }
   ReportUnarmed(attacker, creature, "Shove: push", save, outcome);
 }
