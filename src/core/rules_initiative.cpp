@@ -36,6 +36,7 @@ bool HasAlertFromBackground(void* creature);  // rules_abilities.cpp (CM5)
 bool HasRemarkableAthleteAdvantage(void* creature);  // rules_fighter.cpp (Fighter C2)
 bool HasFeralInstinctAdvantage(void* creature);      // rules_barbarian.cpp (Barbarian B9)
 void PersistentRageOnInitiative(void* creature);     // rules_barbarian.cpp (Barbarian B12)
+void HenchmanRageOnInitiative(void* creature);       // rules_barbarian.cpp (a henchman rages, 0.46.1)
 
 namespace {
 
@@ -91,6 +92,7 @@ void ResolveInitiative(void* creature) {
   g_resolve_initiative(creature);
   t_creature = outer;
   PersistentRageOnInitiative(creature);
+  HenchmanRageOnInitiative(creature);
 }
 
 bool Invisible(void* creature) { return g_get_invisible && g_get_invisible(creature, creature, 0) != 0; }

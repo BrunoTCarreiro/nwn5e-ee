@@ -691,6 +691,25 @@ void PersistentRageOnInitiative(void* creature) {
   Tell(creature, "Persistent Rage - every Rage use comes back (once per Long Rest).");
 }
 
+// A henchman with Rage rages as a fight starts (0.46.1; owner's BS13 test - the OC's Daelan
+// never raged - "go with B"). The game's AI (nw_i0_generic, DetermineClassToUse) lets only
+// Xanos and HotU's Daelan rage on their own (tags x0_hen_xan, x2_hen_daelan); here any player's
+// henchman with the feat does, as that AI does it (ClearAllActions, then the feat; GetHasFeat:
+// a use left), when it rolls initiative - not in Heavy armour (a Rage there gives nothing), not
+// while raging. Its AI then goes back to fighting.
+void HenchmanRageOnInitiative(void* creature) {
+  if (!Faithful() || !creature || IsPlayerCreature(creature)) return;
+  void* stats = StatsOf(creature);
+  if (!stats || BarbarianLevelOf(stats) < 1 || !ReadCreatureFacts(stats).character) return;
+  if (InHeavyArmour(creature) || (RageOf(creature) && HasRageIcon(creature))) return;
+  const uint32_t id = IdOf(creature);
+  RunScriptChunk("if (GetAssociateType(OBJECT_SELF) == ASSOCIATE_TYPE_HENCHMAN && GetIsPC(GetMaster(OBJECT_SELF))"
+                 " && GetHasFeat(FEAT_BARBARIAN_RAGE) && !GetHasFeatEffect(FEAT_BARBARIAN_RAGE)) {"
+                 " ClearAllActions(); ActionUseFeat(FEAT_BARBARIAN_RAGE, OBJECT_SELF); }",
+                 id);
+  Log("barbarian: 0x%08X a henchman's initiative - Rage asked for (if it can)", id);
+}
+
 void InstallBarbarianRules() {
   if (!Faithful()) return;
   ServeConditionalRows("classfeat2024");  // X1 + B8: cls_feat_barb.if_classfeat2024.txt
