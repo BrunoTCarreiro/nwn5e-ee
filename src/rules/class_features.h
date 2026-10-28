@@ -112,6 +112,12 @@ int RageDamage2024(int barbarian_level);
 // roll at an enemy, no save forced on one and no chase (B3).
 constexpr int kRageMaxSeconds = 600;
 constexpr int kRageLapseSeconds = 6;
+// B3's chase (0.50.1; owner: "I think my henchman is raging twice in a row" -
+// its AI walks to the next enemy with a plain move, and the Rage lapsed): a
+// creature moving in a fight keeps its Rage while an enemy it sees is ahead -
+// within 45 degrees of its facing, and within 40 m.
+constexpr float kRageChaseMetres = 40.0f;
+bool HeadingToward(float facing_x, float facing_y, float to_x, float to_y);
 // By Barbarian level: B7 Primal Knowledge (3: Strength for some skills while
 // raging), BZ2 Mindless Rage (Berserker 6), B9 Instinctive Pounce (7), B11
 // Relentless Rage (11), B12 Persistent Rage (15), B13 Indomitable Might (18).

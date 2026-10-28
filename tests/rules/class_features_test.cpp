@@ -379,6 +379,20 @@ TEST(RogueThief) {
 // chain missed or another feat taken for one, a part 2 feature at the wrong
 // level, Relentless Rage's DC climbing by other than 5 or its hit points other
 // than twice the level, Indomitable Might lowering a total.
+// 0.50.1 (B3's chase): an enemy ahead keeps a moving Rage - within 45 degrees
+// of the facing and 40 m. Breaks caught: behind or beside counted, the cone
+// wider or narrower than 45 degrees, no range limit, a zero facing counted.
+TEST(RageChaseHeading) {
+  CHECK_EQ(HeadingToward(1.0f, 0.0f, 10.0f, 0.0f), true);    // straight ahead
+  CHECK_EQ(HeadingToward(1.0f, 0.0f, 10.0f, 9.0f), true);    // 42 degrees
+  CHECK_EQ(HeadingToward(1.0f, 0.0f, 10.0f, 11.0f), false);  // 48 degrees
+  CHECK_EQ(HeadingToward(1.0f, 0.0f, 0.0f, 10.0f), false);   // beside
+  CHECK_EQ(HeadingToward(1.0f, 0.0f, -10.0f, 0.0f), false);  // behind
+  CHECK_EQ(HeadingToward(0.0f, 1.0f, 0.5f, 39.0f), true);
+  CHECK_EQ(HeadingToward(0.0f, 1.0f, 0.0f, 41.0f), false);   // past 40 m
+  CHECK_EQ(HeadingToward(0.0f, 0.0f, 5.0f, 0.0f), false);
+}
+
 TEST(BarbarianRage) {
   CHECK_EQ(RageUses2024(0), 0);
   CHECK_EQ(RageUses2024(1), 2);

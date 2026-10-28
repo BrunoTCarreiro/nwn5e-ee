@@ -58,6 +58,7 @@
 #include "rules/feats2024.h"
 #include "rules/weapons.h"
 #include "records.h"
+#include "resolve_damage.h"
 #include "rules_loaded.h"
 #include "weapon_size.h"
 
@@ -213,6 +214,13 @@ thread_local void* t_damage_stats = nullptr;  // the damage roll in progress (ru
 thread_local int t_damage_critical = 0;
 
 int GetDamageRoll(void* stats, void* target, int offhand, int critical, int sneak, int death, int force_max) {
+  // 0.50.1: the AI's damage estimates (choosing a weapon or ammunition) aren't
+  // hits - nothing of nwn5e's runs: no Savage Attacker or Frenzy spent for the
+  // turn, no Brutal Strike, sneak or Cunning Strike dice (a henchman's Frenzy
+  // fired on them and its real hit got none).
+  if (DamageRollIsEstimate(CreatureOf(stats))) {
+    return g_get_damage_roll(stats, target, offhand, critical, sneak, death, force_max);
+  }
   void* const outer_stats = t_damage_stats;
   const int outer_critical = t_damage_critical;
   t_damage_stats = stats;

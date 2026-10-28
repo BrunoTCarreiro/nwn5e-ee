@@ -54,6 +54,8 @@ bool ResolvingDamage(void** attacker, void** target) {
   return true;
 }
 
+bool DamageRollIsEstimate(void* attacker) { return g_hooked && attacker && t_attacker != attacker; }
+
 bool AddResolveDamageSkip(ResolveDamageSkip skip) {
   if (!Hook()) return false;
   g_skips.push_back(skip);

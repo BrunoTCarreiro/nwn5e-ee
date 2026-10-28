@@ -1054,6 +1054,18 @@ targeted"):* B3's chase read only the engine's attack target (+0x724), which isn
 creature runs at the enemy; it now also counts an ATTACK_OBJECT action at the head of its action
 queue (outside RunActions the running action is back at the head). A lapse logs the attack target,
 the head action and its target.
+*0.50.1 (owner: "I think my henchman is raging twice in a row"):* the log showed Daelan's Rage
+lapsing while its AI walked to the next kobold - a plain MoveToPoint (action 1), no attack order and
+no attack target - and the AI (and nwn5e's rage-on-initiative) raging again at once: a second use,
+then a third. B3's chase now also counts any of the first 8 queued actions naming a living enemy it
+sees (an attack order, a move to the enemy), and moving in a fight with such an enemy ahead (within
+45 degrees of its facing, 40 m: rules::HeadingToward); a lapse logs the queue's action ids, the
+combat state and the facing. The same log showed a henchman Frenzy with no attack behind it: the
+engine's AI estimates a weapon's damage (EquipMostDamagingMeleeWeapon / Ammunition,
+GetIsWeaponEffective - GetDamageRoll at maximum) and nwn5e's damage additions ran on those, spending
+the turn's Frenzy before the real hit. A damage roll outside the attacker's ResolveDamage
+(resolve_damage's DamageRollIsEstimate) is now the engine's alone - no Savage Attacker, Frenzy,
+Brutal Strike, sneak or Cunning Strike dice. Tests: RageChaseHeading.
 *0.41.2 (owner: "why do enemies have in their radial menu, a barbarian section that is filled with
 greyed out options?"):* radial_class_feats.cpp (`radial_hide_self_feats`, client). The game puts every
 class feat with OnMenu 1 (cls_feat_*) that the character has on any creature's radial and greys a

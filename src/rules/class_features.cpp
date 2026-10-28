@@ -161,6 +161,16 @@ int RageUses2024(int barbarian_level) {
   return 2;
 }
 
+bool HeadingToward(float facing_x, float facing_y, float to_x, float to_y) {
+  const float distance_squared = to_x * to_x + to_y * to_y;
+  if (distance_squared < 0.01f || distance_squared > kRageChaseMetres * kRageChaseMetres) return false;
+  const float facing_squared = facing_x * facing_x + facing_y * facing_y;
+  if (facing_squared < 0.01f) return false;
+  const float dot = facing_x * to_x + facing_y * to_y;
+  // cos(45 degrees)^2 = 0.5: dot / (|f| |t|) >= cos 45, squared (dot positive)
+  return dot > 0.0f && dot * dot >= 0.5f * facing_squared * distance_squared;
+}
+
 int RageDamage2024(int barbarian_level) {
   if (barbarian_level < 1) return 0;
   if (barbarian_level >= 16) return 4;

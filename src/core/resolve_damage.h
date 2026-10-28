@@ -16,6 +16,12 @@ using ResolveDamageListener = void (*)(void* attacker, void* target);
 // target. False outside it.
 bool ResolvingDamage(void** attacker, void** target);
 
+// 0.50.1: a damage roll `attacker` makes outside its ResolveDamage - the
+// engine's estimates (the AI's EquipMostDamagingMeleeWeapon / Ammunition,
+// GetIsWeaponEffective: the most damage a weapon could do), not a hit. False
+// when ResolveDamage isn't hooked (then every roll counts, as before).
+bool DamageRollIsEstimate(void* attacker);
+
 // Hook ResolveDamage on first use; false (and logged) if it can't.
 bool AddResolveDamageSkip(ResolveDamageSkip skip);
 bool AddResolveDamageListener(ResolveDamageListener listener);
