@@ -17,3 +17,8 @@ bool AddMovementRateBonus(MovementRateAdjuster bonus);
 // The creature whose movement rate the engine is computing right now (for a
 // ruleset value read inside it, as Fast Movement's), or null.
 void* MovingCreature();
+
+// 2024 carrying (`carrying` faithful): an overloaded creature's Speed is at
+// most 5 ft, so class speed bonuses (Fast Movement, Unarmored Movement) don't
+// lift it (0.52.1).
+bool OverloadedSpeedCap(void* creature);

@@ -50,7 +50,7 @@ ComputeMovementRateFn g_compute_rate = nullptr;
 constexpr const char* kAddDriveAction = "?AddDriveAction@CNWSCreature@@QEAAHGAEBVVector@@HHHH@Z";
 constexpr const char* kComputeMovementRate = "?ComputeModifiedMovementRate@CNWSCreature@@QEAAXXZ";
 constexpr size_t kCreatureLimitSpeed = 0x76c;  // int32: walk-limited (OnApply / OnRemoveLimitMovementSpeed)
-constexpr size_t kCreatureEncumbrance = 0x970;  // int32: 0 none, 1 heavy, 2 overloaded (ComputeModifiedMovementRate)
+constexpr size_t kCreatureEncumbrance = ee::kCreatureEncumbrance;  // 0 none, 1 heavy, 2 overloaded
 constexpr int kKeyForward = 1, kKeyBackward = 2;
 LogOnce g_fixed_logged(64);  // the first fix per creature
 

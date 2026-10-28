@@ -1291,6 +1291,11 @@ SRD 5.2.1 Monk (pp. 49–52, checked 2026-10-24); every 2024 feature below and t
   and rules_features grants 212 at Monk 7 (GrantedFeats2024 now lists each feat once).
 - *M15:* rules::ClassFeatureAbilityIncreases - Monk 20: Dexterity and Wisdom +4, at most 25.
 - Test aid: `!spawn <blueprint> dr` gives the creature damage reduction 10/+5.
+*0.52.1 (owner's MK2 / MK3 log, 2026-10-28):* right after `!test` the Monk was briefly overloaded
+(encumbrance 2) and Unarmored Movement lifted its 0.12 rate to 0.62 - past 2024's "Speed at most
+5 ft". With `carrying` faithful an overloaded creature (+0x970 = 2) now gets no class speed bonus:
+not Unarmored Movement, and not the Barbarian's Fast Movement (its ruleset answer 0 then - the
+same hole since B8). The Monk test profile carries a small shield and leather armour.
 
 ### Phase 3 — Rogue (CM9): recommendations (for the owner's decision)
 

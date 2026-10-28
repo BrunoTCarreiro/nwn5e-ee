@@ -21,7 +21,9 @@
 //   added before the other adjusters (the grapple's drag halves it too): +10 ft (a
 //   third of 30 ft) at Monk 2, +15 at 6, +20 at 10, +25 at 14, +30 (double) at
 //   18; at most NWN's Monk cap (3.0); not while the engine's fixed rate is set
-//   (+0x788 = 1: it returns +0x78c, no class bonus).
+//   (+0x788 = 1: it returns +0x78c, no class bonus); not while overloaded with
+//   2024 carrying (0.52.1: Speed at most 5 ft - the owner's MK3 log showed an
+//   overloaded Monk's 0.12 lifted to 0.62).
 // - M10 Empowered Strikes: CNWSCreature::CalculateDamagePower (0x385610) raises
 //   an unarmed Monk attack's power (GetUseMonkAttackTables) to the ruleset's
 //   KI_STRIKE_LEVEL_5..1 by feats 698, 697, 344, 343, 213. For characters
@@ -113,6 +115,7 @@ bool MonkSpeedFeat(void* stats, int feat, uintptr_t caller, int* answer) {
 
 float UnarmoredMovement(void* creature, float factor) {
   if (!creature || !Faithful() || Field<int32_t>(creature, ee::kCreatureFixedMovementRate) == 1) return factor;
+  if (OverloadedSpeedCap(creature)) return factor;
   void* stats = StatsOf(creature);
   const int level = MonkLevelOf(stats);
   const float bonus = rules::UnarmoredMovementFactor(level);

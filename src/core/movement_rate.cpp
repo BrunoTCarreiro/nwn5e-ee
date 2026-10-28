@@ -2,6 +2,8 @@
 
 #include <vector>
 
+#include "config.h"
+#include "creature.h"
 #include "ee_layout.h"
 #include "hooks.h"
 #include "log.h"
@@ -52,3 +54,8 @@ bool AddMovementRateBonus(MovementRateAdjuster bonus) {
 }
 
 void* MovingCreature() { return t_moving; }
+
+bool OverloadedSpeedCap(void* creature) {
+  return creature && g_config.carrying == rules::RuleVariant::kFaithful &&
+         Field<int32_t>(creature, ee::kCreatureEncumbrance) == 2;
+}

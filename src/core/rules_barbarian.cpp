@@ -162,6 +162,7 @@ float EnduranceBonus(float engine_value) {
   if (!moving || !Faithful()) return engine_value;
   void* stats = StatsOf(moving);
   if (!stats || !ReadCreatureFacts(stats).character) return engine_value;
+  if (OverloadedSpeedCap(moving)) return 0.0f;  // 0.52.1: an overloaded Speed stays at most 5 ft
   return rules::kBarbarianFastMovementFactor;
 }
 

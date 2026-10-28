@@ -9,11 +9,13 @@
 # no shield). For Body and Mind change level to 20 and type !test again (levels are only added;
 # a character of another class keeps its level when it becomes a Monk).
 # A human; Dexterity 16, Wisdom 16. A quarterstaff (not held: fists first). !spawn nw_orcb dr
-# (an orc with damage reduction 10/+5: fists get through, the quarterstaff doesn't).
-name = Monk part 1: human Monk 7, no armour, a quarterstaff
+# (an orc with damage reduction 10/+5: fists get through, the quarterstaff doesn't). A small
+# shield and leather armour in the pack (MK2 / MK3: either one turns off Unarmored Defense and
+# Movement).
+name = Monk part 1: human Monk 7, no armour, a quarterstaff, a shield and leather armour
 species = human
 swap_class = monk
 class = monk
 level = 7
 abilities = 10 16 14 10 16 8
-items = nw_wdbqs001
+items = nw_wdbqs001, nw_ashsw001, nw_aarcl001

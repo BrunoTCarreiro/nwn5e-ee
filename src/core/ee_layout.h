@@ -868,6 +868,9 @@ constexpr const char* kGetMovementRateFactor = "?GetMovementRateFactor@CNWSCreat
 // as it is (a fixed rate - no class bonus, no caps); the Monk's Unarmored
 // Movement (rules_monk.cpp) leaves it alone too.
 constexpr size_t kCreatureFixedMovementRate = 0x788;
+// int32: 0 none, 1 heavy, 2 overloaded (ComputeModifiedMovementRate, which
+// slows by the stage penalty into the rate GetMovementRateFactor starts from).
+constexpr size_t kCreatureEncumbrance = 0x970;
 // int CNWSCreature::GetUseMonkAbilities() (0x396370): Monk (class 5) levels -
 // or class 40's 1-3 - no armour (the chest item's ComputeArmorClass 0) and no
 // shield (left hand base item 14 / 56 / 57); the weapon isn't checked.
