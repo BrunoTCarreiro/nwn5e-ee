@@ -340,7 +340,63 @@
     return s;
   }
 
+  // Mocap mode's keys recipes (anim_recipe.cpp AnimKeyTrack): a line per track,
+  // keys <library> <bone> o <time x y z w> ... | p <time x y z> ...; per library.
+  // Times and values at the precision the engine keeps (a 0.0001 s, 0.00001, 0.1 mm).
+  function writeKeysRecipe(r) {
+    const lines = ["# nwn5e animation recipe (Animation Recipe Bench: Mocap mode) - key = value",
+      "name = " + r.name, "kind = keys", "length = " + num(r.length), "transtime = " + num(r.transtime),
+      "source = " + String(r.source || "").replace(/[\r\n]+/g, " "),
+      "# keys <library> <bone> o <time x y z w> ... | p <time x y z> ..."];
+    const fixed = (v, d) => { const s = v.toFixed(d); return s === "-0." + "0".repeat(d) ? "0" : s.replace(/\.?0+$/, "") || "0"; };
+    for (const library of Object.keys(r.keys).sort()) {
+      for (const track of r.keys[library]) {
+        let line = "keys " + library + " " + track.bone + (track.position ? " p" : " o");
+        for (let k = 0; k < track.times.length; k++) {
+          line += " " + fixed(track.times[k], 4);
+          const v = track.values[k];
+          for (let c = 0; c < (track.position ? 3 : 4); c++) line += " " + fixed(v[c], track.position ? 4 : 5);
+        }
+        lines.push(line);
+      }
+    }
+    return lines.join("\n") + "\n";
+  }
+
+  function readKeysLine(line, r) {
+    const words = line.trim().split(/\s+/);
+    const [, library, bone, kind] = words;
+    if (!library || !bone || (kind !== "o" && kind !== "p")) throw new Error("a keys line is 'keys <library> <bone> o|p ...'");
+    const columns = kind === "p" ? 3 : 4;
+    const track = { bone, position: kind === "p", times: [], values: [] };
+    for (let i = 4; i < words.length; i += columns + 1) {
+      const t = parseFloat(words[i]);
+      const v = words.slice(i + 1, i + 1 + columns).map(parseFloat);
+      if (v.length < columns || v.some((x) => !Number.isFinite(x)) || !Number.isFinite(t)) throw new Error("a key cut short");
+      if (track.times.length && t < track.times[track.times.length - 1]) throw new Error("keys out of time order");
+      track.times.push(t);
+      track.values.push(v);
+    }
+    if (track.times.length) (r.keys[lower(library)] = r.keys[lower(library)] || []).push(track);
+  }
+
+  // A keys recipe's clip for one library (KeyedAnimClip): its keyed bones; null when it has none for it.
+  function keyedClip(r, library, bones) {
+    const tracks = r.keys && r.keys[lower(library)];
+    if (!r.keyed || !tracks) return null;
+    const nodes = [];
+    for (const track of tracks) {
+      const i = bones.findIndex((b) => lower(b.name) === lower(track.bone));
+      if (i < 0) continue;
+      let node = nodes.find((n) => lower(n.name) === lower(track.bone));
+      if (!node) { node = { name: bones[i].name, parent: bones[i].parent }; nodes.push(node); }
+      node[track.position ? "position" : "orientation"] = { times: track.times.slice(), values: track.values.map((v) => v.slice()) };
+    }
+    return nodes.length ? { name: r.name, length: r.length, transtime: r.transtime, animroot: "rootdummy", nodes } : null;
+  }
+
   function writeRecipe(r) {
+    if (r.keyed) return writeKeysRecipe(r);
     return "# nwn5e animation recipe (!animedit, Animation Recipe Bench) - key = value\n" +
       "name = " + r.name + "\nbase = " + r.base + "\nmix = " + (r.mix || "") + "\namount = " + num(r.amount) +
       "\nspeed = " + num(r.speed) + "\nstart = " + num(r.start) + "\nend = " + num(r.end) +
@@ -348,10 +404,12 @@
   }
 
   function readRecipe(text) {
-    const r = { name: "", base: "pause1", mix: "", amount: 0.5, speed: 1, start: 0, end: 0, crouch: 0, lean: 0 };
+    const r = { name: "", base: "pause1", mix: "", amount: 0.5, speed: 1, start: 0, end: 0, crouch: 0, lean: 0,
+                keyed: false, length: 0, transtime: 0.25, source: "", keys: {} };
     for (const raw of String(text).split(/\r?\n/)) {
       const line = raw.replace(/#.*/, "").trim();
       if (!line) continue;
+      if (line.startsWith("keys ")) { readKeysLine(line, r); continue; }
       const eq = line.indexOf("=");
       if (eq < 0) continue;
       const key = lower(line.slice(0, eq).trim()), value = line.slice(eq + 1).trim();
@@ -359,6 +417,15 @@
       else if (key === "base") r.base = value;
       else if (key === "mix") r.mix = value;
       else if (["amount", "speed", "start", "end", "crouch", "lean"].includes(key)) r[key] = parseFloat(value) || 0;
+      else if (key === "kind") r.keyed = lower(value) === "keys";
+      else if (key === "length") r.length = parseFloat(value) || 0;
+      else if (key === "transtime") r.transtime = Math.max(0, parseFloat(value) || 0);
+      else if (key === "source") r.source = value;
+    }
+    if (r.keyed) {
+      if (!r.name || !Object.keys(r.keys).length || !(r.length > 0)) throw new Error("a keys recipe needs a name, a length and keys");
+      r.base = "";
+      return r;
     }
     if (!r.name || !r.base) throw new Error("a recipe needs a name and a base");
     if (r.speed <= 0) r.speed = 1;
@@ -367,7 +434,7 @@
     return r;
   }
 
-  const api = { readLibrary, readClip, deriveClip, applyCrouch, worldPositions, sample, writeRecipe, readRecipe };
+  const api = { readLibrary, readClip, deriveClip, applyCrouch, worldPositions, sample, writeRecipe, readRecipe, keyedClip };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.AnimRecipes = api;
 })(typeof window !== "undefined" ? window : globalThis);

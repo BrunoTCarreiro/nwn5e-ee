@@ -10,7 +10,7 @@
 <body>
 <header>
   <h1>Animation Recipe Bench</h1>
-  <p>Mix, tone, speed up and trim nwn5e's animation recipes with a live preview. Save puts the recipe in your game's recipes folder; the next game start builds it.</p>
+  <p>Mix, tone, speed up and trim nwn5e's animation recipes - or turn a motion capture into one - with a live preview. Save puts the recipe in your game's recipes folder; the next game start builds it.</p>
 </header>
 
 <main class="bench">
@@ -25,7 +25,12 @@
       <div class="row"><button type="button" id="reload">Reload</button></div>
     </section>
 
-    <section class="card" aria-labelledby="recipe-h">
+    <div class="tabs" role="tablist" aria-label="What to make">
+      <button type="button" role="tab" id="tab-recipe" aria-selected="true" aria-controls="recipe-card">Recipe</button>
+      <button type="button" role="tab" id="tab-mocap" aria-selected="false" aria-controls="mocap-card">Mocap</button>
+    </div>
+
+    <section class="card" id="recipe-card" role="tabpanel" aria-labelledby="recipe-h">
       <h2 id="recipe-h">Recipe</h2>
       <label>Open a saved recipe
         <select id="open"></select>
@@ -84,12 +89,94 @@
         <pre id="out"></pre>
       </details>
     </section>
+
+    <section class="card" id="mocap-card" role="tabpanel" aria-labelledby="mocap-h" hidden>
+      <h2 id="mocap-h">Motion capture</h2>
+      <label class="drop" id="drop">
+        <span>Drop FreeMoCap's <code>output_data/mediapipe_body_3d_xyz.csv</code> here - with <code>recording_parameters.json</code> for its frame rate - or click to pick them.</span>
+        <input type="file" id="mc-files" accept=".csv,.json" multiple>
+      </label>
+      <p class="note" id="mc-info"></p>
+      <label>Make
+        <select id="mc-slot">
+          <option value="n5_rage">n5_rage - played as a Rage starts</option>
+          <option value="n5_cridle">n5_cridle - the crouched idle while hiding</option>
+          <option value="n5_shove">n5_shove - a player's Shove swing</option>
+          <option value="">another animation (a name of your own)</option>
+        </select>
+      </label>
+      <label id="mc-name-l" hidden>Name
+        <input type="text" id="mc-name" maxlength="32" value="n5_mocap" spellcheck="false" autocomplete="off">
+      </label>
+      <div class="row">
+        <label>Frames a second
+          <input type="number" id="mc-fps" min="1" max="1000" step="1" value="30">
+        </label>
+        <label><span class="slider-head"><span>Smoothing</span><span class="value" id="mc-smooth-v">0</span></span>
+          <input type="range" id="mc-smooth" min="0" max="4" step="0.25" value="0">
+        </label>
+      </div>
+      <div class="row">
+        <label><span class="slider-head"><span>Standing (T-pose) from</span><span class="value" id="mc-ref0-v">0.00 s</span></span>
+          <input type="range" id="mc-ref0" min="0" max="5" step="0.01" value="0">
+        </label>
+        <label><span class="slider-head"><span>to</span><span class="value" id="mc-ref1-v">0.33 s</span></span>
+          <input type="range" id="mc-ref1" min="0" max="5" step="0.01" value="0.33">
+        </label>
+      </div>
+      <p class="note">The performer standing straight, facing forward: the body's turns are measured from there, and the floor and the facing are found there.</p>
+      <div class="row">
+        <label><span class="slider-head"><span>Keep from</span><span class="value" id="mc-start-v">0.00 s</span></span>
+          <input type="range" id="mc-start" min="0" max="5" step="0.01" value="0">
+        </label>
+        <label><span class="slider-head"><span>to</span><span class="value" id="mc-end-v">end</span></span>
+          <input type="range" id="mc-end" min="0" max="5" step="0.01" value="5">
+        </label>
+      </div>
+      <div class="row">
+        <label><span class="slider-head"><span>Blend in</span><span class="value" id="mc-in-v">0.00 s</span></span>
+          <input type="range" id="mc-in" min="0" max="1" step="0.05" value="0.2">
+        </label>
+        <label><span class="slider-head"><span>Blend out</span><span class="value" id="mc-out-v">0.00 s</span></span>
+          <input type="range" id="mc-out" min="0" max="1" step="0.05" value="0.3">
+        </label>
+      </div>
+      <p class="note">Blends start and end in the body's standing stance (pause1).</p>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="mc-loop"> Loop (cut where the pose comes back closest, then crossfade)</label>
+      </div>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="mc-sway" checked> Keep the hips' sway over the feet</label>
+      </div>
+      <div class="row">
+        <label>Fit to a length (s, 0 keeps it)
+          <input type="number" id="mc-fit" min="0" max="20" step="0.05" value="0">
+        </label>
+        <label>Contact at (s in it)
+          <input type="number" id="mc-at" min="0" max="20" step="0.05" value="0">
+        </label>
+      </div>
+      <div class="row">
+        <label><span class="slider-head"><span>Contact in the take</span><span class="value" id="mc-contact-v">-</span></span>
+          <input type="range" id="mc-contact" min="0" max="5" step="0.01" value="0">
+        </label>
+        <button type="button" id="mc-suggest">Fastest hands</button>
+      </div>
+      <p class="note">For a swing: the moment it lands (the hands' fastest, or where you clapped) put at "contact at" in an animation of that length.</p>
+      <label><span class="slider-head"><span>Key tolerance</span><span class="value" id="mc-tol-v">0.75°</span></span>
+        <input type="range" id="mc-tol" min="0.1" max="3" step="0.05" value="0.75">
+      </label>
+      <div class="row">
+        <button type="button" class="primary" id="mc-save">Save for every body</button>
+      </div>
+      <p class="status" id="mc-status" role="status"></p>
+    </section>
   </div>
 
   <div class="stage-wrap">
     <div class="stage" id="stage">
       <canvas id="canvas" aria-label="Base, recipe and mix played side by side"></canvas>
-      <div class="labels" aria-hidden="true">
+      <div class="labels" id="labels" aria-hidden="true">
         <span>Base<small id="lab-base">–</small></span>
         <span class="result">Recipe<small id="lab-result">–</small></span>
         <span>Mix<small id="lab-mix">–</small></span>
@@ -114,6 +201,7 @@
   </div>
 </main>
 <script src="/core.js"></script>
+<script src="/mocap.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

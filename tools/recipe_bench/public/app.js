@@ -17,6 +17,7 @@
     layers: { base: null, mix: null, result: null },
     playing: true,
     time: 0,
+    mode: "recipe",  // or "mocap"
   };
 
   // --- The server ---------------------------------------------------------------
@@ -157,6 +158,7 @@
   }
 
   function recompute() {
+    if (state.mode === "mocap") { recomputeMocap(); return; }
     const r = state.recipe;
     const base = state.body ? findClip(state.body, r.base) : null;
     const mix = state.body && r.mix ? findClip(state.body, r.mix) : null;
@@ -244,6 +246,11 @@
       const res = await fetch("/api/recipe?source=" + encodeURIComponent(source) + "&file=" + encodeURIComponent(file));
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status + "");
       const r = A.readRecipe(await res.text());
+      if (r.keyed) {  // Mocap mode's: its keys, shown in that mode
+        openKeysRecipe(r);
+        setStatus("Opened " + r.name + " - a capture's keys: in the Mocap tab.");
+        return;
+      }
       state.recipe = Object.assign(state.recipe, r, { name: sanitizeName(r.name) });
       $("name").value = state.recipe.name;
       nameNote();
@@ -295,11 +302,282 @@
     document.addEventListener("keydown", (e) => {
       if (e.key === " " && e.target === document.body) { e.preventDefault(); setPlaying(!state.playing); }
     });
+    bindMocap();
   }
   function setPlaying(on) {
     state.playing = on;
     $("play").textContent = on ? "Pause" : "Play";
     $("play").setAttribute("aria-pressed", String(on));
+  }
+
+
+  // --- Mocap mode (mocap.js; docs/PLAN.md "Mocap mode") ------------------------------------
+  // A FreeMoCap capture retargeted to the body shown, played with its points over it; Save
+  // retargets it to every body and writes a keys recipe (anim_recipe.cpp builds it per library).
+  const MC = window.Mocap;
+  const mc = {
+    capture: null, take: null, fileName: "", fps: 30, fpsFromFile: false,
+    slot: "n5_rage", name: "n5_mocap", smoothing: 0, ref: [0, 0.33], start: 0, end: 0,
+    blendIn: 0.2, blendOut: 0.3, loop: false, sway: true, fitLength: 0, contactAt: 0, contact: null, tolerance: 0.75,
+    saved: null,  // a keys recipe opened without its capture: its own keys, shown as they are
+  };
+  const SLOTS = {
+    n5_rage: { blendIn: 0.2, blendOut: 0.3, loop: false, fit: false, note: "plays when a Rage starts, in place of the victory flourish." },
+    n5_cridle: { blendIn: 0, blendOut: 0, loop: true, fit: false, note: "plays as the crouched idle while hiding (a loop)." },
+    n5_shove: { blendIn: 0.1, blendOut: 0.15, loop: false, fit: true, note: "plays as a player's Shove swing, in place of nwstab - fitted to its length." },
+  };
+  const mcName = () => (mc.slot || sanitizeName(mc.name));
+
+  function setMcStatus(text, kind) {
+    $("mc-status").textContent = text;
+    $("mc-status").className = "status" + (kind ? " " + kind : "");
+  }
+
+  function setMode(mode) {
+    state.mode = mode;
+    $("tab-recipe").setAttribute("aria-selected", String(mode === "recipe"));
+    $("tab-mocap").setAttribute("aria-selected", String(mode === "mocap"));
+    $("recipe-card").hidden = mode !== "recipe";
+    $("mocap-card").hidden = mode !== "mocap";
+    const spans = $("labels").querySelectorAll("span");
+    spans[0].hidden = spans[2].hidden = mode === "mocap";
+    spans[1].firstChild.textContent = mode === "mocap" ? "Mocap" : "Recipe";
+    $("labels").classList.toggle("one", mode === "mocap");
+    recompute();
+  }
+
+  function applySlot(slot) {
+    mc.slot = slot;
+    $("mc-name-l").hidden = !!slot;
+    const preset = SLOTS[slot];
+    if (preset) {
+      mc.blendIn = preset.blendIn;
+      mc.blendOut = preset.blendOut;
+      mc.loop = preset.loop;
+      if (preset.fit) {
+        const swing = state.body ? findClip(state.body, "nwstab") : null;
+        mc.fitLength = swing ? Math.round(swing.length * 100) / 100 : 1;
+        mc.contactAt = Math.round(mc.fitLength * 0.5 * 100) / 100;
+      } else {
+        mc.fitLength = 0;
+      }
+    }
+    syncMocapInputs();
+    recompute();
+  }
+
+  function syncMocapInputs() {
+    $("mc-slot").value = mc.slot;
+    $("mc-name").value = mc.name;
+    $("mc-fps").value = mc.fps;
+    $("mc-smooth").value = mc.smoothing;
+    $("mc-ref0").value = mc.ref[0];
+    $("mc-ref1").value = mc.ref[1];
+    $("mc-start").value = mc.start;
+    $("mc-end").value = mc.end > 0 ? mc.end : $("mc-end").max;
+    $("mc-in").value = mc.blendIn;
+    $("mc-out").value = mc.blendOut;
+    $("mc-loop").checked = mc.loop;
+    $("mc-sway").checked = mc.sway;
+    $("mc-fit").value = mc.fitLength;
+    $("mc-at").value = mc.contactAt;
+    $("mc-contact").value = mc.contact || 0;
+    $("mc-tol").value = mc.tolerance;
+  }
+
+  function mocapOptions(body) {
+    const fit = mc.fitLength > 0;
+    return { name: mcName(), start: mc.start, end: mc.end, sway: mc.sway, stance: findClip(body, "pause1"),
+      blendIn: mc.blendIn, blendOut: mc.blendOut, loop: mc.loop, loopBlend: 0.25, fitLength: mc.fitLength,
+      contact: fit && mc.contact !== null ? mc.contact : null, contactAt: fit && mc.contactAt > 0 ? mc.contactAt : null,
+      tolerance: mc.tolerance };
+  }
+
+  async function loadMocapFiles(files) {
+    let csv = null, json = null;
+    for (const f of files) {
+      if (/\.json$/i.test(f.name)) json = f;
+      else if (/\.csv$/i.test(f.name) || /\.txt$/i.test(f.name)) csv = f;
+    }
+    try {
+      if (json) {
+        const rate = MC.frameRateFrom(await json.text());
+        if (rate) { mc.fps = rate; mc.fpsFromFile = true; }
+      }
+      if (csv) {
+        mc.capture = MC.parseCapture(await csv.text());
+        mc.fileName = csv.name;
+        mc.saved = null;
+        mc.start = 0;
+        mc.end = 0;
+        mc.contact = null;
+      }
+      if (!mc.capture) {
+        setMcStatus(json ? "Frame rate " + mc.fps + " read: now drop the capture's CSV." : "Drop the capture's CSV (FreeMoCap's mediapipe_body_3d_xyz.csv).", json ? "" : "bad");
+        syncMocapInputs();
+        return;
+      }
+      prepareTake();
+      setMcStatus("");
+    } catch (e) {
+      setMcStatus("Couldn't read it: " + e.message, "bad");
+    }
+  }
+
+  function prepareTake() {
+    if (!mc.capture) return;
+    mc.take = MC.prepare(mc.capture, { fps: mc.fps, smoothing: mc.smoothing, reference: mc.ref });
+    const d = mc.take.duration;
+    for (const id of ["mc-ref0", "mc-ref1", "mc-start", "mc-end", "mc-contact"]) $(id).max = d.toFixed(2);
+    if (mc.contact === null) mc.contact = MC.suggestContact(mc.take, mc.start, mc.end);
+    const unit = mc.take.unit === 0.001 ? "millimetres" : mc.take.unit === 0.01 ? "centimetres" : "metres";
+    $("mc-info").textContent = mc.fileName + ": " + mc.capture.frames.length + " frames, " + d.toFixed(2) + " s at " + mc.fps +
+      " a second" + (mc.fpsFromFile ? " (from recording_parameters.json)" : "") + ", in " + unit + "; standing hips " +
+      mc.take.hipHeight.toFixed(2) + " m. " + mc.take.notes.join("; ") + (mc.take.notes.length ? "." : "");
+    syncMocapInputs();
+    recompute();
+  }
+
+  function recomputeMocap() {
+    const lib = libs.get(state.body);
+    let result = null;
+    if (lib && mc.take) result = MC.retarget(mc.take, lib.bones, mocapOptions(state.body));
+    else if (lib && mc.saved) result = A.keyedClip(mc.saved, state.body, lib.bones);
+    state.clips.base = state.clips.mix = null;
+    state.layers = { base: null, mix: null, result: null };
+    state.clips.result = nodeMap(result);
+    const end = mc.take ? mc.take.duration : 5;
+    $("mc-smooth-v").textContent = mc.smoothing.toFixed(2);
+    $("mc-ref0-v").textContent = mc.ref[0].toFixed(2) + " s";
+    $("mc-ref1-v").textContent = mc.ref[1].toFixed(2) + " s";
+    $("mc-start-v").textContent = mc.start.toFixed(2) + " s";
+    $("mc-end-v").textContent = mc.end > 0 && mc.end < end ? mc.end.toFixed(2) + " s" : "end";
+    $("mc-in-v").textContent = mc.blendIn.toFixed(2) + " s";
+    $("mc-out-v").textContent = mc.blendOut.toFixed(2) + " s";
+    $("mc-contact-v").textContent = mc.contact !== null ? mc.contact.toFixed(2) + " s" : "-";
+    $("mc-tol-v").textContent = mc.tolerance.toFixed(2) + "°";
+    let keys = 0;
+    if (result) for (const n of result.nodes) keys += (n.orientation ? n.orientation.times.length : 0) + (n.position ? n.position.times.length : 0);
+    $("lab-result").textContent = result
+      ? mcName() + " on " + state.body + " · " + result.length.toFixed(2) + " s · " + keys + " keys" + (mc.saved ? " (saved keys)" : "")
+      : mc.saved ? mcName() + ": no keys for " + state.body : "drop a capture";
+  }
+
+  async function saveMocap() {
+    const name = mcName();
+    if (!name) { setMcStatus("Give it a name first.", "bad"); return; }
+    if (!mc.take) { setMcStatus(mc.saved ? "Drop the capture again to change and save it." : "Drop a capture first.", "bad"); return; }
+    const keys = {};
+    let length = 0, count = 0;
+    const missing = [];
+    for (const body of BODY_ORDER) {
+      const lib = libs.get(body);
+      if (!lib) { missing.push(body); continue; }
+      const clip = MC.retarget(mc.take, lib.bones, mocapOptions(body));
+      length = clip.length;
+      keys[body] = [];
+      for (const n of clip.nodes) {
+        if (n.position) keys[body].push({ bone: n.name, position: true, times: n.position.times, values: n.position.values });
+        if (n.orientation) keys[body].push({ bone: n.name, position: false, times: n.orientation.times, values: n.orientation.values });
+        count += (n.position ? n.position.times.length : 0) + (n.orientation ? n.orientation.times.length : 0);
+      }
+    }
+    if (!Object.keys(keys).length) { setMcStatus("No body libraries to retarget to: reload the game files.", "bad"); return; }
+    const recipe = { name, keyed: true, length, transtime: 0.25, keys,
+      source: mc.fileName + " " + mc.start.toFixed(2) + "-" + (mc.end > 0 ? mc.end.toFixed(2) : mc.take.duration.toFixed(2)) + " s of " +
+        mc.take.duration.toFixed(2) + ", " + mc.fps + " fps, smoothing " + mc.smoothing + (mc.loop ? ", looped" : "") +
+        (mc.fitLength > 0 ? ", fitted to " + mc.fitLength + " s" : "") };
+    const text = A.writeRecipe(recipe);
+    try {
+      const done = await getJson("/api/recipe", { method: "POST", headers: { "Content-Type": "text/plain; charset=utf-8" }, body: text });
+      applyServerState(done.state);
+      const back = A.readRecipe(await (await fetch("/api/recipe?source=yours&file=" + encodeURIComponent(done.file))).text());
+      const bodies = Object.keys(back.keys || {});
+      if (!back.keyed || bodies.length !== Object.keys(keys).length) {
+        setMcStatus("Saved " + done.path + ", but it doesn't read back whole: the bench's server is out of date. Close its window, start recipe_bench.bat again, then Save again.", "bad");
+        return;
+      }
+      setMcStatus((done.replaced ? "Saved over " : "Saved ") + done.path + " - " + bodies.length + " bodies, " + count + " keys, " +
+        Math.round(text.length / 1024) + " KB. Start the game to build it: " + name + " " + (SLOTS[name] ? SLOTS[name].note : "plays with !anim " + name + ".") +
+        (missing.length ? " No keys for " + missing.join(", ") + " (not in the game files read)." : ""), "good");
+    } catch (e) {
+      setMcStatus("Not saved: " + e.message, "bad");
+    }
+  }
+
+  function openKeysRecipe(r) {
+    mc.saved = r;
+    mc.capture = mc.take = null;
+    mc.slot = SLOTS[r.name] ? r.name : "";
+    mc.name = r.name;
+    $("mc-info").textContent = r.name + ": keys for " + Object.keys(r.keys).join(", ") + (r.source ? " - made from " + r.source : "") + ". Drop its capture again to change it.";
+    syncMocapInputs();
+    $("mc-name-l").hidden = !!mc.slot;
+    setMode("mocap");
+  }
+
+  function bindMocap() {
+    $("tab-recipe").addEventListener("click", () => setMode("recipe"));
+    $("tab-mocap").addEventListener("click", () => setMode("mocap"));
+    $("mc-files").addEventListener("change", () => loadMocapFiles([...$("mc-files").files]));
+    const drop = $("drop");
+    for (const type of ["dragenter", "dragover"]) drop.addEventListener(type, (e) => { e.preventDefault(); drop.classList.add("over"); });
+    for (const type of ["dragleave", "drop"]) drop.addEventListener(type, () => drop.classList.remove("over"));
+    drop.addEventListener("drop", (e) => { e.preventDefault(); loadMocapFiles([...e.dataTransfer.files]); });
+    // A file dropped beside the zone mustn't open in the tab.
+    for (const type of ["dragover", "drop"]) window.addEventListener(type, (e) => { if (!drop.contains(e.target)) e.preventDefault(); });
+    $("mc-slot").addEventListener("change", () => applySlot($("mc-slot").value));
+    $("mc-name").addEventListener("input", () => { mc.name = sanitizeName($("mc-name").value); recompute(); });
+    $("mc-name").addEventListener("change", () => { $("mc-name").value = mc.name; });
+    $("mc-fps").addEventListener("change", () => { const v = parseFloat($("mc-fps").value); if (v > 0) { mc.fps = v; mc.fpsFromFile = false; prepareTake(); } });
+    $("mc-smooth").addEventListener("change", () => { mc.smoothing = parseFloat($("mc-smooth").value); prepareTake(); });
+    $("mc-smooth").addEventListener("input", () => { $("mc-smooth-v").textContent = parseFloat($("mc-smooth").value).toFixed(2); });
+    $("mc-ref0").addEventListener("change", () => { mc.ref[0] = Math.min(parseFloat($("mc-ref0").value), mc.ref[1] - 0.05); prepareTake(); });
+    $("mc-ref1").addEventListener("change", () => { mc.ref[1] = Math.max(parseFloat($("mc-ref1").value), mc.ref[0] + 0.05); prepareTake(); });
+    $("mc-start").addEventListener("input", () => {
+      const end = mc.end > 0 ? mc.end : parseFloat($("mc-end").max);
+      mc.start = Math.max(0, Math.min(parseFloat($("mc-start").value), end - 0.1));
+      recompute();
+    });
+    $("mc-end").addEventListener("input", () => {
+      const max = parseFloat($("mc-end").max);
+      const v = Math.max(parseFloat($("mc-end").value), mc.start + 0.1);
+      mc.end = v >= max - 0.005 ? 0 : v;
+      recompute();
+    });
+    $("mc-in").addEventListener("input", () => { mc.blendIn = parseFloat($("mc-in").value); recompute(); });
+    $("mc-out").addEventListener("input", () => { mc.blendOut = parseFloat($("mc-out").value); recompute(); });
+    $("mc-loop").addEventListener("change", () => { mc.loop = $("mc-loop").checked; recompute(); });
+    $("mc-sway").addEventListener("change", () => { mc.sway = $("mc-sway").checked; recompute(); });
+    $("mc-fit").addEventListener("change", () => { mc.fitLength = Math.max(0, parseFloat($("mc-fit").value) || 0); recompute(); });
+    $("mc-at").addEventListener("change", () => { mc.contactAt = Math.max(0, parseFloat($("mc-at").value) || 0); recompute(); });
+    $("mc-contact").addEventListener("input", () => { mc.contact = parseFloat($("mc-contact").value); recompute(); });
+    $("mc-suggest").addEventListener("click", () => {
+      if (!mc.take) return;
+      mc.contact = MC.suggestContact(mc.take, mc.start, mc.end);
+      syncMocapInputs();
+      recompute();
+    });
+    $("mc-tol").addEventListener("change", () => { mc.tolerance = parseFloat($("mc-tol").value); recompute(); });
+    $("mc-tol").addEventListener("input", () => { $("mc-tol-v").textContent = parseFloat($("mc-tol").value).toFixed(2) + "°"; });
+    $("mc-save").addEventListener("click", saveMocap);
+    syncMocapInputs();
+  }
+
+  // The capture's points over the figure at time t: scaled to the body, the hips put
+  // over the figure's root (the take's travel left out).
+  function capturePoints(result, t, points) {
+    if (!mc.take || !rig || !result.takeTime) return null;
+    const lib = rig.lib;
+    if (!rig.mocapHip) rig.mocapHip = MC.rig(lib.bones).hipHeight;
+    const s = mc.take.hipHeight > 0.1 ? rig.mocapHip / mc.take.hipHeight : 1;
+    const pts = MC.pointsAt(mc.take, result.takeTime(t));
+    const L = MC.LANDMARKS;
+    const lh = pts[L.indexOf("left_hip")], rh = pts[L.indexOf("right_hip")];
+    const hips = [(lh[0] + rh[0]) / 2, (lh[1] + rh[1]) / 2];
+    const rootIndex = lib.bones.findIndex((b) => b.name.toLowerCase() === "rootdummy");
+    const root = rootIndex >= 0 ? points[rootIndex] : [0, 0, 0];
+    return pts.map((p) => [root[0] + (p[0] - hips[0]) * s, root[1] + (p[1] - hips[1]) * s, p[2] * s]);
   }
 
   // --- The figures ------------------------------------------------------------------
@@ -393,7 +671,8 @@
   function readColors() {
     const css = getComputedStyle(document.documentElement);
     const get = (n) => css.getPropertyValue(n).trim();
-    colors = { side: hex(get("--figure-side")), accent: hex(get("--accent")), stage: hex(get("--stage")), line: get("--line"), shadow: get("--shadow") };
+    colors = { side: hex(get("--figure-side")), accent: hex(get("--accent")), stage: hex(get("--stage")), line: get("--line"), shadow: get("--shadow"),
+               capture: get("--capture") || "#2563eb" };
   }
   function hex(text) {
     const m = /^#([0-9a-f]{6})$/i.exec(text);
@@ -463,10 +742,11 @@
 
     const { base, mix, result } = state.clips;
     const at = (clip) => (clip && clip.length > 0 ? state.time % clip.length : 0);
+    const mocap = state.mode === "mocap";
     const figures = [
-      { clip: base, layer: state.layers.base, color: colors.side, x: SPOTS[0], show: true },
-      { clip: result, layer: state.layers.result, color: colors.accent, x: SPOTS[1], show: true },
-      { clip: mix, layer: state.layers.mix, color: colors.side, x: SPOTS[2], show: !!mix },
+      { clip: base, layer: state.layers.base, color: colors.side, x: SPOTS[0], show: !mocap },
+      { clip: result, layer: state.layers.result, color: colors.accent, x: SPOTS[1], show: !mocap || !!result, capture: mocap },
+      { clip: mix, layer: state.layers.mix, color: colors.side, x: SPOTS[2], show: !mocap && !!mix },
     ];
     const items = [];
     for (const fig of figures) {
@@ -491,6 +771,19 @@
       for (const j of rig.joints) {
         const z = cam[j][2];
         items.push({ z: z - 0.01, kind: 1, a: screen[j], w: (F * 0.05) / z, color: shade(fig.color, depthShade(z) + 0.12, [0, 0, 0]) });
+      }
+      const cap = fig.capture && fig.clip ? capturePoints(fig.clip, at(fig.clip), points) : null;
+      if (cap) {  // the capture's points and lines, a little in front of the bones they match
+        const capCam = cap.map(toCamera);
+        if (!capCam.some((c) => c[2] < NEAR)) {
+          const capScreen = capCam.map(toScreen);
+          for (const [a, b] of MC.CONNECTIONS) {
+            items.push({ z: (capCam[a][2] + capCam[b][2]) / 2 - 0.05, kind: 0, a: capScreen[a], b: capScreen[b], w: 1.5, color: colors.capture });
+          }
+          for (let k = 0; k < capScreen.length; k++) {
+            items.push({ z: capCam[k][2] - 0.06, kind: 1, a: capScreen[k], w: (F * 0.012) / capCam[k][2], color: colors.capture });
+          }
+        }
       }
       if (rig.head) {
         const [g, h] = rig.head;

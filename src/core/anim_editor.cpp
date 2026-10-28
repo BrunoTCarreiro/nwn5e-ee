@@ -240,6 +240,10 @@ void LoadEntry(uint32_t player, int index) {
     SetStatus(player, "Could not load it: " + error);
     return;
   }
+  if (recipe.keyed) {  // 0.51.0: a capture's keys - this window edits only base / mix recipes
+    SetStatus(player, recipe.name + " was made from a motion capture: edit it in the Animation Recipe Bench's Mocap mode.");
+    return;
+  }
   g_recipes[player] = recipe;
   NuiClose(player, kLoadWindow);
   PushAll(player, recipe);

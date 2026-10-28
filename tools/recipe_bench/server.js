@@ -32,7 +32,7 @@ const LIBRARIES = path.join(BUILD, "animedit", "libraries");
 const RECIPES = path.join(BUILD, "animedit", "recipes");
 const NWN5E_RECIPES = path.join(BUILD, "data", "anims");
 const PUBLIC = path.join(__dirname, "public");
-const STATIC = { "/": "index.html", "/index.html": "index.html", "/app.js": "app.js", "/core.js": "core.js", "/style.css": "style.css" };
+const STATIC = { "/": "index.html", "/index.html": "index.html", "/app.js": "app.js", "/core.js": "core.js", "/mocap.js": "mocap.js", "/style.css": "style.css" };
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8" };
 const NAME = /^[a-z0-9_]{1,32}$/;
 const RECIPE_FILE = /\.recipe$|\.recipe.*\.txt$/i;  // as nwn5e reads them (anim_packs.cpp)
@@ -139,7 +139,7 @@ async function handle(req, res) {
     if (!String(req.headers["content-type"] || "").startsWith("text/plain")) return send(res, 415, { error: "send the recipe as text/plain" });
     let recipe, text;
     try {
-      text = await readBody(req, 16384);
+      text = await readBody(req, 32 * 1024 * 1024);  // Mocap mode's keys recipes: a set of keys per body
       recipe = core.readRecipe(text);
     } catch (e) {
       return send(res, 400, { error: e.message });

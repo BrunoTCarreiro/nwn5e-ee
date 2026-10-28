@@ -310,6 +310,24 @@ bool Under(const std::vector<AnimNode>& bones, int bone, int ancestor) {
 }  // namespace
 
 std::string WriteAnimRecipe(const AnimRecipe& r) {
+  if (r.keyed) {
+    std::string text = "# nwn5e animation recipe (Animation Recipe Bench: Mocap mode) - key = value\n"
+                       "name = " + r.name + "\nkind = keys\nlength = " + Num(r.length) + "\ntranstime = " +
+                       Num(r.transtime) + "\nsource = " + r.source +
+                       "\n# keys <library> <bone> o <time x y z w> ... | p <time x y z> ...\n";
+    for (const auto& library : r.keys) {
+      for (const AnimKeyTrack& track : library.second) {
+        text += "keys " + library.first + " " + track.bone + (track.position ? " p" : " o");
+        for (size_t k = 0; k < track.keys.times.size(); ++k) {
+          const auto& v = track.keys.values[k];
+          text += " " + Num(track.keys.times[k]) + " " + Num(v[0]) + " " + Num(v[1]) + " " + Num(v[2]);
+          if (!track.position) text += " " + Num(v[3]);
+        }
+        text += "\n";
+      }
+    }
+    return text;
+  }
   return "# nwn5e animation recipe (!animedit) - key = value\n"
          "name = " + r.name + "\nbase = " + r.base + "\nmix = " + r.mix + "\namount = " + Num(r.amount) +
          "\nspeed = " + Num(r.speed) + "\nstart = " + Num(r.start) + "\nend = " + Num(r.end) +
@@ -325,6 +343,37 @@ bool ReadAnimRecipe(const std::string& text, AnimRecipe* recipe, std::string* er
     ++line_number;
     const std::string line = Trim(raw.substr(0, raw.find('#')));
     if (line.empty()) continue;
+    if (line.compare(0, 5, "keys ") == 0) {  // keys <library> <bone> o|p <time values> ...
+      std::istringstream words(line.substr(5));
+      std::string library, bone, kind;
+      words >> library >> bone >> kind;
+      if (library.empty() || bone.empty() || (kind != "o" && kind != "p")) {
+        if (error) *error = "line " + std::to_string(line_number) + ": a keys line is 'keys <library> <bone> o|p ...'";
+        return false;
+      }
+      AnimKeyTrack track;
+      track.bone = bone;
+      track.position = kind == "p";
+      const int columns = track.position ? 3 : 4;
+      float time = 0.0f;
+      while (words >> time) {
+        std::array<float, 4> v = {0.0f, 0.0f, 0.0f, 1.0f};
+        for (int c = 0; c < columns; ++c) {
+          if (!(words >> v[c])) {
+            if (error) *error = "line " + std::to_string(line_number) + ": a key cut short";
+            return false;
+          }
+        }
+        if (!track.keys.times.empty() && time < track.keys.times.back()) {
+          if (error) *error = "line " + std::to_string(line_number) + ": keys out of time order";
+          return false;
+        }
+        track.keys.times.push_back(time);
+        track.keys.values.push_back(v);
+      }
+      if (!track.keys.times.empty()) r.keys[Lower(library)].push_back(track);
+      continue;
+    }
     const size_t eq = line.find('=');
     if (eq == std::string::npos) {
       if (error) *error = "line " + std::to_string(line_number) + ": no '='";
@@ -341,6 +390,19 @@ bool ReadAnimRecipe(const std::string& text, AnimRecipe* recipe, std::string* er
     else if (key == "end") r.end = static_cast<float>(atof(value.c_str()));
     else if (key == "crouch") r.crouch = std::max(0.0f, std::min(0.6f, static_cast<float>(atof(value.c_str()))));
     else if (key == "lean") r.lean = std::max(-45.0f, std::min(90.0f, static_cast<float>(atof(value.c_str()))));
+    else if (key == "kind") r.keyed = Lower(value) == "keys";
+    else if (key == "length") r.length = static_cast<float>(atof(value.c_str()));
+    else if (key == "transtime") r.transtime = std::max(0.0f, static_cast<float>(atof(value.c_str())));
+    else if (key == "source") r.source = value;
+  }
+  if (r.keyed) {
+    if (r.name.empty() || r.keys.empty() || r.length <= 0.0f) {
+      if (error) *error = "a keys recipe needs a name, a length and keys";
+      return false;
+    }
+    r.base.clear();
+    *recipe = r;
+    return true;
   }
   if (r.name.empty() || r.base.empty()) {
     if (error) *error = "a recipe needs a name and a base";
@@ -615,6 +677,41 @@ std::string WriteAnimPack(const std::string& pack, const std::string& library, c
   std::string text;
   for (const std::string& line : lines) text += line + "\n";
   return text;
+}
+
+bool KeyedAnimClip(const AnimRecipe& recipe, const std::string& library, const std::vector<AnimNode>& bones,
+                   AnimClip* clip) {
+  const auto found = recipe.keys.find(Lower(library));
+  if (!recipe.keyed || found == recipe.keys.end() || bones.empty()) return false;
+  AnimClip out;
+  out.name = recipe.name;
+  out.length = recipe.length;
+  out.transtime = recipe.transtime;
+  out.animroot = "rootdummy";
+  out.nodes = bones;  // the library's tree, unkeyed: bones the recipe doesn't key stay at rest
+  for (AnimNode& node : out.nodes) {
+    node.has_position = node.has_orientation = false;
+    node.position = AnimKeys();
+    node.orientation = AnimKeys();
+  }
+  int keyed = 0;
+  for (const AnimKeyTrack& track : found->second) {
+    for (AnimNode& node : out.nodes) {
+      if (Lower(node.name) != Lower(track.bone)) continue;
+      if (track.position) {
+        node.has_position = true;
+        node.position = track.keys;
+      } else {
+        node.has_orientation = true;
+        node.orientation = track.keys;
+      }
+      ++keyed;
+      break;
+    }
+  }
+  if (!keyed) return false;
+  *clip = out;
+  return true;
 }
 
 }  // namespace data

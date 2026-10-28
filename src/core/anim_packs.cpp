@@ -1,5 +1,6 @@
 // Animation recipes at startup (owner, 2026-10-25: "Let's try recipe" - "n5test
-// works"): each recipe (data\anims\*.recipe, nwn5e's; animedit\recipes\*.recipe,
+// works"; 0.51.0: Mocap mode's keys recipes, built from their own keys per
+// library - data::KeyedAnimClip): each recipe (data\anims\*.recipe, nwn5e's; animedit\recipes\*.recipe,
 // the owner's drafts from !animedit or the Animation Recipe Bench, and
 // *.recipe.txt, a draft winning over a same-named one)
 // becomes an animation in the "animation packs" written into the served folder
@@ -255,6 +256,15 @@ void GenerateAnimationPacks(const std::wstring& served) {
     const Library& library = LoadLibrary(entry.first);
     std::vector<data::AnimClip> clips;
     for (const auto& recipe : recipes) {
+      if (recipe.second.keyed) {  // Mocap mode: the library's own keys (no weapon layers)
+        data::AnimClip keyed;
+        if (data::KeyedAnimClip(recipe.second, entry.first, library.info.bones, &keyed)) {
+          clips.push_back(keyed);
+        } else {
+          Log("anim packs: %s - no keys for %s (save it again in the bench)", recipe.first.c_str(), entry.first.c_str());
+        }
+        continue;
+      }
       data::AnimClip base, mix;
       if (!FindClip(entry.first, recipe.second.base, &base)) {
         Log("anim packs: %s - %s has no %s", recipe.first.c_str(), entry.first.c_str(), recipe.second.base.c_str());

@@ -35,10 +35,28 @@
 // orientation 20: a quaternion x y z w).
 
 #include <array>
+#include <map>
 #include <string>
 #include <vector>
 
 namespace data {
+
+struct AnimKeys {
+  std::vector<float> times;
+  std::vector<std::array<float, 4>> values;  // positions use the first three
+};
+
+// Mocap mode (0.51.0; tools/recipe_bench/public/mocap.js): a recipe carrying its
+// own keys - a capture retargeted to each body library by the Animation Recipe
+// Bench, one set per library (their bones' rest poses differ). `kind = keys`;
+// no base or mix; its own length and transtime. A line per track:
+//   keys <library> <bone> o <time x y z w> ...   (orientations)
+//   keys <library> <bone> p <time x y z> ...     (positions: the root's)
+struct AnimKeyTrack {
+  std::string bone;
+  bool position = false;
+  AnimKeys keys;
+};
 
 struct AnimRecipe {
   std::string name;          // the new animation's name (a resref: letters, digits, '_')
@@ -50,15 +68,16 @@ struct AnimRecipe {
   float end = 0.0f;          // 0: to its end
   float crouch = 0.0f;       // metres the hips drop, the legs bent to keep the footfalls (0 - 0.6)
   float lean = 0.0f;         // degrees the upper body leans forward, the head looking ahead (-45 - 90)
+  // kind = keys (Mocap mode):
+  bool keyed = false;
+  float length = 0.0f;
+  float transtime = 0.25f;
+  std::string source;                                         // what it was made from (shown, kept)
+  std::map<std::string, std::vector<AnimKeyTrack>> keys;      // library (lower case) -> its tracks
 };
 
 std::string WriteAnimRecipe(const AnimRecipe& recipe);
 bool ReadAnimRecipe(const std::string& text, AnimRecipe* recipe, std::string* error);
-
-struct AnimKeys {
-  std::vector<float> times;
-  std::vector<std::array<float, 4>> values;  // positions use the first three
-};
 
 struct AnimNode {
   std::string name;
@@ -93,6 +112,12 @@ bool ReadAnimClip(const std::string& bytes, const std::string& name, AnimClip* c
 // clip; the crouch step needs the library's bones (without them it's skipped).
 AnimClip DeriveAnimClip(const AnimRecipe& recipe, const AnimClip& base, const AnimClip* mix,
                         const std::vector<AnimNode>* bones = nullptr);
+
+// A keys recipe's animation for one library: its bones with the recipe's keys
+// for that library (bones it doesn't key stay at rest); false when the recipe
+// has no keys for that library.
+bool KeyedAnimClip(const AnimRecipe& recipe, const std::string& library, const std::vector<AnimNode>& bones,
+                   AnimClip* clip);
 
 // The crouch step on a clip, with the library's bones: false when it has
 // nothing to do (no crouch or lean, or no rootdummy / torso_g to do it on).

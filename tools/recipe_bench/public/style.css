@@ -12,6 +12,7 @@
   --shadow: rgba(20, 30, 40, 0.18);
   --danger: #b42318;
   --ok: #1f7a3a;
+  --capture: #2563eb;
   --display: "Segoe UI Semibold", "Segoe UI", system-ui, sans-serif;
   --body: "Segoe UI", system-ui, -apple-system, sans-serif;
   --mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
@@ -21,7 +22,7 @@
   :root {
     --bg: #10151a; --panel: #161d23; --ink: #e3e8ec; --muted: #8a96a1; --line: #26313a;
     --accent: #f2a03d; --accent-ink: #1a1206; --figure-side: #8193a2; --stage: #0c1115;
-    --shadow: rgba(0, 0, 0, 0.45); --danger: #f97066; --ok: #5fd08a;
+    --shadow: rgba(0, 0, 0, 0.45); --danger: #f97066; --ok: #5fd08a; --capture: #60a5fa;
     color-scheme: dark;
   }
 }
@@ -44,6 +45,19 @@ input[type="text"], select {
   font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; width: 100%; min-width: 0;
 }
 input[type="text"] { font-family: var(--mono); font-size: 0.9rem; }
+input[type="number"] {
+  font: inherit; font-family: var(--mono); font-size: 0.9rem; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; width: 100%; min-width: 0;
+}
+label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); }
+label.check input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; flex: none; }
+.tabs { display: flex; gap: 0; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--panel); }
+.tabs button { flex: 1 1 0; border: 0; border-radius: 0; padding: 8px 12px; background: transparent; color: var(--muted); }
+.tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+.drop { border: 1.5px dashed var(--line); border-radius: 6px; padding: 14px; text-align: center; cursor: pointer; color: var(--muted); }
+.drop.over, .drop:hover { border-color: var(--accent); color: var(--ink); }
+.drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.labels.one { grid-template-columns: 1fr; }
 input[type="range"] { width: 100%; accent-color: var(--accent); }
 .value { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); font-size: 0.85rem; }
 .slider-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }

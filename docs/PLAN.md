@@ -3649,6 +3649,56 @@ clap or stomp at the contact moment. Rage: 2-3 s, relaxed to a fighting stance.
 Crouch stance: 5-10 s held with small natural movement. Shove: ~1 s from a
 combat stance, both hands forward, back to stance.
 
+*Built 0.51.0 (owner, 2026-10-28: "go ahead with mocap mode").* tools/recipe_bench:
+`public/mocap.js` (the maths), a Mocap tab in the page, `mocap_check.js`; nwn5e reads
+the result as a new recipe kind (src/data/anim_recipe.cpp: `kind = keys`, KeyedAnimClip;
+anim_packs builds it per library). What it does, and where it differs from the plan:
+- *Reading:* FreeMoCap 1.8's `output_data/mediapipe_body_3d_xyz.csv` (header
+  `body_<point>_x/_y/_z`, a row a frame, millimetres - read from FreeMoCap's own
+  processed test recording, v1.8.0), its saved_data `body_trajectories.csv`
+  (`# nose_x ...`) or any file with the 33 body points by name; the frame rate from
+  `recording_parameters.json` (FreeMoCap has already filtered at 7 Hz and filled
+  gaps up to 10 frames, so clean-up here is light: gaps, a Gaussian smoothing).
+- *Axes:* found in the standing window (the T-pose at the take's start): up is the
+  floor's - the plane through both heels and toes - when it agrees with the
+  body's ankles-to-shoulders line within 25 degrees (the body's line leans a few
+  degrees: centimetres at the hands); right the shoulder and hip lines; forward
+  up x right, checked against the nose (a mirrored recording turned the right way).
+- *Bone lengths aren't held* (the plan's clean-up step): the retarget uses only
+  directions, so they change nothing.
+- *Retarget, per library* (the libraries' bind poses differ - a_dfa's pelvis binds
+  turned 22 degrees - so one set of rotations can't serve all; the bench retargets
+  to each and the recipe carries a set per library): arms and legs aimed absolutely
+  (shoulder > elbow > wrist > knuckles, the hand's turn from index / pinky; hip >
+  knee > ankle; heel > toes); pelvis, torso, neck and head turned by the performer's
+  turn since the standing window, from the body's idle stance (pause1 at 0 - the
+  bind pose would twist a_dfa); the torso about the waist (the rig's pelvis pivot,
+  above the hip joints - aimed from the hips, the pelvis's turn leaked into the
+  shoulders); the pelvis tips 35% of the torso's lean (its forward tilt isn't in
+  the 33 points); the root follows the hips' height (as a share of the hip joints'
+  standing height) and their sway over the feet, travel stripped.
+- *Then:* trim; blends in / out to the stance; the loop cut where the pose comes
+  closest to the first (last 40%) and crossfaded 0.25 s; fit to a length with the
+  contact moment (suggested: the hands' fastest) put at a chosen time; keys
+  reduced where nlerp (as the engine plays them) stays within a tolerance (0.75
+  degrees, 4 mm by default).
+- *Checked:* NWN animations made into captures (turned, moved, Y-up, mirrored) and
+  retargeted back land within 1-3 cm on average on every body (the pelvis tilt the
+  points can't give); axes found exactly; FreeMoCap's own test recording retargets
+  to all eight bodies (finite, every bone keyed, feet near the floor); mutations
+  of the aiming, the neutral and the mirror check fail the check.
+- *In game:* `n5_rage` - the Rage's flourish (victorymg swapped for it with EE's
+  ReplaceObjectAnimation on part-based bodies, mapped back after); `n5_shove` - the
+  Shove's swing (anim_layers' swap, in place of nwstab; the slot fits it to
+  nwstab's length); `n5_cridle` - the crouched idle (the owner's recipe already wins
+  over nwn5e's). Others play with `!anim <name>`. `!animedit` refuses keys recipes
+  (the bench edits them).
+- *Size:* keys for eight bodies - a 7.4 s noisy take ~0.9 MB; the bench's save limit
+  is 32 MB.
+Later (as planned): foot pinning and stride matching, mirror, several takes per
+recording, the weapon hand kept from an NWN attack; a woman's own take (a_fa's own
+idle and walks differ - most combat animations are a_ba's).
+
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
 Walked through one by one (issue, what NWN does, what 2024 does, what to

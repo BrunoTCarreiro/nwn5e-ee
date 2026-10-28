@@ -134,6 +134,68 @@ TEST(AnimRecipeRoundTrip) {
   CHECK_EQ(Milli(back.lean), 90000);  // and -45 - 90 degrees (owner: "increase the lean range")
 }
 
+// Mocap mode (0.51.0): a keys recipe round-trips (per library, orientations and
+// the root's positions), needs no base, and builds a clip of the library's tree
+// with only the keyed bones keyed - none for a library it has no keys for.
+// Breaks caught: keys lines read as key = value (refused), a library's keys
+// applied to another, the position columns read as four, keys out of order kept,
+// unkeyed bones left with the library's rest keys.
+TEST(AnimRecipeKeysRecipe) {
+  const std::string text =
+      "# a capture\nname = n5_rage\nkind = keys\nlength = 2.5\ntranstime = 0.3\nsource = take1.csv 0-2.5 s\n"
+      "keys a_ba rootdummy p 0 0 0.02 1.2 2.5 0 0.02 1.1\n"
+      "keys a_ba torso_g o 0 0 0 0 1 1.25 0.1 0 0 0.995 2.5 0 0 0 1\n"
+      "keys a_fa torso_g o 0 0 0 0.1 0.995\n";
+  AnimRecipe r;
+  std::string error;
+  CHECK_EQ(ReadAnimRecipe(text, &r, &error), true);
+  CHECK_EQ(r.keyed, true);
+  CHECK_EQ(r.base.empty(), true);
+  CHECK_EQ(Milli(r.length), 2500);
+  CHECK_EQ(Milli(r.transtime), 300);
+  CHECK_EQ(r.keys.size() == 2, true);
+  CHECK_EQ(r.keys["a_ba"].size() == 2, true);
+  CHECK_EQ(r.keys["a_ba"][0].position, true);
+  CHECK_EQ(r.keys["a_ba"][0].keys.times.size() == 2, true);
+  CHECK_EQ(Milli(r.keys["a_ba"][0].keys.values[1][2]), 1100);
+  CHECK_EQ(r.keys["a_ba"][1].keys.times.size() == 3, true);
+  CHECK_EQ(Milli(r.keys["a_ba"][1].keys.values[1][0]), 100);
+  AnimRecipe back;
+  CHECK_EQ(ReadAnimRecipe(WriteAnimRecipe(r), &back, &error), true);
+  CHECK_EQ(back.keyed && back.source == r.source && back.keys.size() == 2, true);
+  CHECK_EQ(Milli(back.keys["a_ba"][1].keys.values[1][3]), 995);
+  CHECK_EQ(ReadAnimRecipe("name = x\nkind = keys\nlength = 1\n", &back, &error), false);  // no keys
+  CHECK_EQ(ReadAnimRecipe("name = x\nkind = keys\nlength = 1\nkeys a_ba torso_g o 1 0 0 0 1 0.5 0 0 0 1\n", &back,
+                          &error), false);  // out of order
+
+  std::vector<AnimNode> bones(3);
+  bones[0].name = "a_ba";
+  bones[1].name = "rootdummy";
+  bones[1].parent = 0;
+  bones[1].has_position = true;
+  bones[1].position.times = {0.0f};
+  bones[1].position.values = {{0.0f, 0.0f, 1.2f, 0.0f}};
+  bones[2].name = "Torso_g";
+  bones[2].parent = 1;
+  bones[2].has_orientation = true;
+  bones[2].orientation.times = {0.0f};
+  bones[2].orientation.values = {{0.0f, 0.0f, 0.0f, 1.0f}};
+  AnimClip clip;
+  CHECK_EQ(KeyedAnimClip(r, "A_BA", bones, &clip), true);
+  CHECK_EQ(clip.name == "n5_rage", true);
+  CHECK_EQ(Milli(clip.length), 2500);
+  CHECK_EQ(clip.nodes.size() == 3, true);
+  CHECK_EQ(clip.nodes[0].has_position || clip.nodes[0].has_orientation, false);
+  CHECK_EQ(clip.nodes[1].has_position && !clip.nodes[1].has_orientation, true);
+  CHECK_EQ(clip.nodes[2].has_orientation && clip.nodes[2].orientation.times.size() == 3, true);
+  CHECK_EQ(clip.nodes[2].parent, 1);
+  CHECK_EQ(KeyedAnimClip(r, "a_da", bones, &clip), false);
+  AnimClip fa;
+  CHECK_EQ(KeyedAnimClip(r, "a_fa", bones, &fa), true);
+  CHECK_EQ(fa.nodes[1].has_position, false);  // a_fa's keys only: no root keys from a_ba's
+  CHECK_EQ(Milli(fa.nodes[2].orientation.values[0][2]), 100);
+}
+
 TEST(AnimRecipeCrouchKeepsTheFootfalls) {
   const std::vector<AnimNode> body = Body();
   const AnimClip walk = Stride(body);

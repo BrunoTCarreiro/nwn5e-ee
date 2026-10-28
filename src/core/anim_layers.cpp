@@ -18,7 +18,8 @@
 // records through it too (AnimTracePlay).
 //
 // A player's Shove swings "nwstab" (0.45.5; owner: "for shove the PC should use
-// the nwstab animation for now"): the server notes a Shove as it resolves it
+// the nwstab animation for now") - or the owner's captured n5_shove once built
+// (Mocap mode, 0.51.0): the server notes a Shove as it resolves it
 // (rules_shove.cpp: ShoveSwing), the client creature update ties that to the
 // creature's model, and the model's next melee swing (<hold> slash / stab /
 // close / reach / cleave - not a parry, a walk or a layer) within 1.5 s plays
@@ -42,6 +43,7 @@
 #include "log.h"
 
 void AnimTracePlay(void* gob, const char* name, float speed, int flag, float value);  // anim_trace.cpp
+bool AnimationRecipeBuilt(const std::string& name, std::string* text);              // anim_packs.cpp
 
 namespace {
 
@@ -67,6 +69,7 @@ int g_logged = 0;
 
 constexpr uint64_t kShoveSwingMs = 1500;
 constexpr const char* kShoveSwing = "nwstab";
+constexpr const char* kCapturedShove = "n5_shove";
 std::unordered_map<uint32_t, uint64_t> g_shove_ids;     // server creature id -> until (ms): a Shove just resolved
 std::unordered_map<void*, uint64_t> g_shove_models;     // its model -> until: the next swing is the Shove's
 int g_shove_logged = 0;
@@ -138,11 +141,14 @@ int PlayAnimation(void* gob, const char* name, float speed, int flag, float valu
     g_shove_active = !g_shove_ids.empty() || !g_shove_models.empty();
     ReleaseSRWLockExclusive(&g_lock);
     if (shove) {
+      // The packs are built at the start, before any Shove: asked once.
+      static const bool captured = AnimationRecipeBuilt(kCapturedShove, nullptr);
+      const char* swing = captured ? kCapturedShove : kShoveSwing;
       if (g_shove_logged < kMaxLogged) {
         ++g_shove_logged;
-        Log("look: a Shove's swing %s played as %s", name, kShoveSwing);
+        Log("look: a Shove's swing %s played as %s", name, swing);
       }
-      name = kShoveSwing;
+      name = swing;
     }
   }
   if (name) {
