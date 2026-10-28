@@ -3813,7 +3813,8 @@ never set it, so its clicks were dropped; it sets it now. A player's use of an i
 take every use it has left (rules::ItemPowerUsesLeft: single use - the stack; N charges a use - charges /
 N; uses per day - those left today; others no limit), read by script from its Cast Spell property
 (item_use.cpp now tells guards which active property is used). A move clearing the queue is NWN's own
-(a new order replaces it) - left as it is for now; the owner asked whether moves should queue instead.
+(a new order replaces it) - kept (owner, 2026-10-28: "sure, let's keep the same NWN behaviour for the
+move").
 
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
