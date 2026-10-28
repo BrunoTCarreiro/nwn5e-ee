@@ -1663,6 +1663,21 @@ and DC (2024: the Thief's Intelligence); attunement and charges later. Tests:
 RogueThief. data/test.txt: a human Thief 17 with a rapier, a shortbow and
 wizard / cleric scrolls of levels 1-3.
 
+*Accepted (owner, 2026-10-28: "I assume CS4b and CS6 work, CS1 is good and EL1 and SL1 are
+confirmed"), 0.50.0-0.50.5.* Confirmed in the owner's logs: Sneak Attack with an ally next to the
+target (melee and ranged), with Advantage (a prone or knocked-out target) and none without either;
+crits double the dice left after Cunning Strike's; Uncanny Dodge (the first seen hit a round
+halved, then "reaction spent"); Slippery Mind (!saves); Evasion (!reflex: 0 on a made save, half on
+a failed one); Elusive (!prone at Rogue 20: "Elusive: no Advantage"); Stroke of Luck (a failed save
+rolled as a 20, then spent); Cunning Strike's Trip, Poison, Withdraw (also after a kill, 0.50.3),
+Knock Out (woken by damage), Obscure, Trip skipped on a Huge target, two effects at 11+ with the
+older dropped, Off and !cunning; the Combat options window; Use Magic Device (a level 1 scroll read,
+a Fireball crumbling on Arcana 3 and read on 16); Fast Hands (Open Lock +10 -> Sleight of Hand +16);
+the potion resume on the shared item-use hook. Taken on the owner's word: Poison's repeat save ending
+it, Daze's Slow, the radial menus and quickbar buttons, Stroke of Luck back after a Short Rest (the
+log shows it spent, not restored). Henchman fixes found while testing: 0.50.1-0.50.4 (Barbarian B3
+notes).
+
 ## Phase 5 — rests, healing, death: decided by the owner (2026-10-23)
 
 Recon (EE 89.8193.37-17, disassembly; facts the decisions rest on):
