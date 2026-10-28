@@ -1674,8 +1674,8 @@ Knock Out (woken by damage), Obscure, Trip skipped on a Huge target, two effects
 older dropped, Off and !cunning; the Combat options window; Use Magic Device (a level 1 scroll read,
 a Fireball crumbling on Arcana 3 and read on 16); Fast Hands (Open Lock +10 -> Sleight of Hand +16);
 the potion resume on the shared item-use hook. Taken on the owner's word: Poison's repeat save ending
-it, Daze's Slow, the radial menus and quickbar buttons, Stroke of Luck back after a Short Rest (the
-log shows it spent, not restored). Henchman fixes found while testing: 0.50.1-0.50.4 (Barbarian B3
+it, Daze's Slow, the radial menus and quickbar buttons. Stroke of Luck back after a Short Rest:
+confirmed by the owner after ("just did the short rest and stroke of luck triggered"). Henchman fixes found while testing: 0.50.1-0.50.4 (Barbarian B3
 notes).
 
 ## Phase 5 — rests, healing, death: decided by the owner (2026-10-23)
