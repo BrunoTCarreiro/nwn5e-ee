@@ -26,12 +26,24 @@ bool Paused() {
   return app && g_pause_state(app) != 0;
 }
 
+bool g_was_paused = false;
+int g_pause_lines = 0;
+
 void Tick(void*) {
   const uint64_t now = GetTickCount64();
   if (now == g_last_tick) return;
   const uint64_t step = g_last_tick ? now - g_last_tick : 0;
   g_last_tick = now;
-  if (step <= kLongestStepMs && !Paused()) g_game_ms += step;
+  const bool paused = Paused();
+  // 0.50.4: the pauses, so the rules timed by this clock (Rage, Withdraw, the
+  // repeat saves) can be read against them in the log.
+  if (paused != g_was_paused) {
+    g_was_paused = paused;
+    if (g_pause_lines < 400 && ++g_pause_lines) {
+      Log("game clock: %s at game %.1f s", paused ? "paused" : "running", g_game_ms / 1000.0);
+    }
+  }
+  if (step <= kLongestStepMs && !paused) g_game_ms += step;
 }
 
 }  // namespace

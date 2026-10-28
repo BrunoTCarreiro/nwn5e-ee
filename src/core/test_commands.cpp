@@ -196,12 +196,15 @@ std::vector<std::string> ReflexCommand(void* creature, const std::string& args) 
   char code[600];
   sprintf_s(code,
             "int d = GetReflexAdjustedDamage(%d, OBJECT_SELF, %d, SAVING_THROW_TYPE_FIRE, OBJECT_SELF);"
+            " SetLocalInt(OBJECT_SELF, \"nwn5e_test_reflex\", d);"
             " SendMessageToPC(OBJECT_SELF, \"nwn5e: test Reflex hit - %d fire damage, DC %d: you take \" +"
             " IntToString(d) + \".\");"
             " if (d > 0) ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectDamage(d, DAMAGE_TYPE_FIRE), OBJECT_SELF);",
             damage, dc, damage, dc);
+  engine::SetLocalInt(creature, "nwn5e_test_reflex", -1);
   RunScriptChunk(code, id);
-  Log("test: 0x%08X a Reflex-halved hit, %d damage DC %d (!reflex)", id, damage, dc);
+  Log("test: 0x%08X a Reflex-halved hit, %d damage DC %d (!reflex): %d taken", id, damage, dc,
+      engine::GetLocalInt(creature, "nwn5e_test_reflex"));
   return {};
 }
 

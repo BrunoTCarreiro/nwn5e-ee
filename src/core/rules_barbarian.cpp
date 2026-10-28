@@ -210,6 +210,11 @@ struct RageWanted {
 };
 std::unordered_map<uint32_t, RageWanted> g_rage_wanted;
 constexpr uint64_t kRageWantedMs = 60000;
+// 0.50.4: when its Rage was last asked for (real time). The request's attack order
+// rolls initiative again at once, which marked it again, and the next ask cleared
+// the queued Rage - a loop (~30-200 asks, a voice line each) until one got through.
+std::unordered_map<uint32_t, uint64_t> g_rage_asked;
+constexpr uint64_t kRageAskCooldownMs = 6000;
 AddCastSpellActionsFn g_add_cast_spell_actions = nullptr;
 AddItemCastSpellActionsFn g_add_item_cast_spell_actions = nullptr;
 ItemByIdFn g_item_by_id = nullptr;
@@ -446,6 +451,7 @@ void AskHenchmanRage(uint32_t id, uint32_t enemy) {
             " object e = StringToObject(\"%x\"); ClearAllActions();"
             " ActionUseFeat(FEAT_BARBARIAN_RAGE, OBJECT_SELF); if (GetIsObjectValid(e)) ActionAttack(e); }",
             enemy);
+  g_rage_asked[id] = GetTickCount64();
   RunScriptChunk(script, id);
   Log("barbarian: 0x%08X closes in on 0x%08X - Rage asked for (if it can), then back to attacking it", id, enemy);
 }
@@ -998,6 +1004,8 @@ void HenchmanRageOnInitiative(void* creature) {
   if (!stats || BarbarianLevelOf(stats) < 1 || !ReadCreatureFacts(stats).character) return;
   if (InHeavyArmour(creature) || (RageOf(creature) && HasRageIcon(creature))) return;
   const uint32_t id = IdOf(creature);
+  const auto asked = g_rage_asked.find(id);
+  if (asked != g_rage_asked.end() && GetTickCount64() - asked->second < kRageAskCooldownMs) return;  // just asked
   RageWanted& wanted = g_rage_wanted[id];
   wanted.until = GameMs() + kRageWantedMs;
   wanted.next_check = 0;

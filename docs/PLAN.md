@@ -1085,6 +1085,14 @@ Also: Cunning Strike's Withdraw held only when the target survived (13:31:27: Da
 kobold died, nothing) - it is the Rogue's own, so it now applies either way. Test commands for the
 rows the owner couldn't set up ("can't create a situation where EL1 and SL1 are testable"):
 `!prone [s]`, `!save <ability> <dc>`, `!reflex <dc> <damage>` (test_commands.cpp).
+*0.50.4 (owner: "a weird spot where daelan kept triggering new lines of audio dialog, I believe
+when I spawned the first hill giant and he had to rage again"):* 0.50.3's request looped - its
+attack order rolls initiative again at once, initiative marked the henchman again, and the next
+update asked again, clearing the queued Rage: ~30 asks in 0.6 s at each of the first two fights,
+~200 in 4 s at the second giant, a combat voice line each, until one Rage got through (one use
+spent). A Rage asked for now isn't asked again for 6 s. The game clock logs pauses ("game clock:
+paused / running"): Rage, Withdraw and the repeat saves run on it, and a Withdraw still holding 80
+real seconds later (14:13:27 -> 14:14:48) needs reading against them. `!reflex` logs the damage taken.
 *0.41.2 (owner: "why do enemies have in their radial menu, a barbarian section that is filled with
 greyed out options?"):* radial_class_feats.cpp (`radial_hide_self_feats`, client). The game puts every
 class feat with OnMenu 1 (cls_feat_*) that the character has on any creature's radial and greys a
