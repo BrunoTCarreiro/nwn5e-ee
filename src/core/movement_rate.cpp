@@ -11,6 +11,7 @@ namespace {
 using MovementRateFn = float (*)(void* creature);
 
 MovementRateFn g_movement_rate = nullptr;
+std::vector<MovementRateAdjuster> g_bonuses;    // filled at install, then only read
 std::vector<MovementRateAdjuster> g_adjusters;  // filled at install, then only read
 thread_local void* t_moving = nullptr;
 bool g_hooked = false;
@@ -21,6 +22,7 @@ float GetMovementRateFactor(void* creature) {
   t_moving = creature;
   float factor = g_movement_rate(creature);
   t_moving = outer;
+  for (MovementRateAdjuster bonus : g_bonuses) factor = bonus(creature, factor);
   for (MovementRateAdjuster adjuster : g_adjusters) factor = adjuster(creature, factor);
   return factor;
 }
@@ -40,6 +42,12 @@ bool HookMovementRate() {
 bool AddMovementRateAdjuster(MovementRateAdjuster adjuster) {
   if (!HookMovementRate()) return false;
   g_adjusters.push_back(adjuster);
+  return true;
+}
+
+bool AddMovementRateBonus(MovementRateAdjuster bonus) {
+  if (!HookMovementRate()) return false;
+  g_bonuses.push_back(bonus);
   return true;
 }
 

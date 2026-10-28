@@ -230,6 +230,75 @@ TEST(NwnOnlyClassFeatsAreTheOnesWithoutCounterparts) {
   CHECK_EQ(std::string(NwnOnlyClassFeatName(252)) == "Uncanny Dodge", true);
   CHECK_EQ(std::string(NwnOnlyClassFeatName(206)) == "Evasion", true);
   CHECK_EQ(std::string(NwnOnlyClassFeatName(840)) == "Epic Improved Sneak Attack", true);
+  // M0 / M16 (Monk): the NWN-only Monk features go; their counterparts and the later parts' feats stay.
+  for (int feat : {208, 209, 214, 215, 216, 297, 343, 344, 697, 698}) CHECK_EQ(has(feat), true);
+  for (int feat : {260, 207, 213, 39, 204, 8, 211, 296, 17, 23, 49}) CHECK_EQ(has(feat), false);
+  // The Monk's general feats come off Monks only: never in the list every character is swept with.
+  for (int feat : {6, 21, 844, 853}) CHECK_EQ(has(feat), false);
+  const std::vector<int>& monk = NwnOnlyMonkFeats();
+  auto monk_has = [&monk](int feat) {
+    for (int f : monk) {
+      if (f == feat) return true;
+    }
+    return false;
+  };
+  for (int feat : {6, 21, 844, 849, 853}) CHECK_EQ(monk_has(feat), true);
+  CHECK_EQ(monk_has(39), false);  // Stunning Fist: Stunning Strike (part 3)
+  CHECK_EQ(monk.size(), 12u);
+  CHECK_EQ(std::string(NwnOnlyClassFeatName(215)) == "Diamond Soul", true);
+  CHECK_EQ(std::string(NwnOnlyClassFeatName(344)) == "Improved Ki Strike", true);
+  CHECK_EQ(std::string(NwnOnlyClassFeatName(21)) == "Improved Unarmed Strike", true);
+  CHECK_EQ(std::string(NwnOnlyClassFeatName(850)) == "Epic Improved Stunning Fist", true);
+}
+
+// M2, M6, M10, M11, M15 (SRD 5.2.1 Monk). Breaks caught: NWN's level / 5 not
+// 0 below 5 or wrong at 20; Unarmored Movement before 2 or a step off by a
+// level (15 ft at 6, not 5; 30 ft at 18); its factor not a share of 30 ft;
+// Empowered Strikes at NWN's 10; Evasion at NWN's 9 or not granted at Monk 7
+// (or granted twice to a Rogue 7 / Monk 7); the Monk without its table.
+TEST(MonkPart1) {
+  CHECK_EQ(NwnMonkLevelArmorClass(0), 0);
+  CHECK_EQ(NwnMonkLevelArmorClass(4), 0);
+  CHECK_EQ(NwnMonkLevelArmorClass(5), 1);
+  CHECK_EQ(NwnMonkLevelArmorClass(20), 4);
+  CHECK_EQ(UnarmoredMovementFeet(1), 0);
+  CHECK_EQ(UnarmoredMovementFeet(2), 10);
+  CHECK_EQ(UnarmoredMovementFeet(5), 10);
+  CHECK_EQ(UnarmoredMovementFeet(6), 15);
+  CHECK_EQ(UnarmoredMovementFeet(9), 15);
+  CHECK_EQ(UnarmoredMovementFeet(10), 20);
+  CHECK_EQ(UnarmoredMovementFeet(14), 25);
+  CHECK_EQ(UnarmoredMovementFeet(17), 25);
+  CHECK_EQ(UnarmoredMovementFeet(18), 30);
+  CHECK_EQ(UnarmoredMovementFeet(20), 30);
+  CHECK_EQ(UnarmoredMovementFactor(1) == 0.0f, true);
+  CHECK_EQ(UnarmoredMovementFactor(6) == 0.5f, true);
+  CHECK_EQ(UnarmoredMovementFactor(18) == 1.0f, true);
+  CHECK_EQ(UnarmoredMovementFactor(2) > 0.333f && UnarmoredMovementFactor(2) < 0.334f, true);
+  CHECK_EQ(HasEmpoweredStrikes(5), false);
+  CHECK_EQ(HasEmpoweredStrikes(6), true);
+  CHECK_EQ(kDamagePowerPlusTwenty, 21);
+  CHECK_EQ(HasMonkEvasion(6), false);
+  CHECK_EQ(HasMonkEvasion(7), true);
+  CHECK_EQ(HasBodyAndMind(19), false);
+  CHECK_EQ(HasBodyAndMind(20), true);
+  CHECK_EQ(GrantedFeats2024({{CharacterClass::kMonk, 6}}).empty(), true);
+  const std::vector<int> monk7 = GrantedFeats2024({{CharacterClass::kMonk, 7}});
+  CHECK_EQ(monk7.size() == 1 && monk7[0] == kFeatImprovedEvasion, true);
+  for (const std::vector<ClassLevels>& both : {std::vector<ClassLevels>{{CharacterClass::kRogue, 7}, {CharacterClass::kMonk, 7}},
+                                               std::vector<ClassLevels>{{CharacterClass::kMonk, 7}, {CharacterClass::kRogue, 7}}}) {
+    int evasion = 0;
+    for (int feat : GrantedFeats2024(both)) evasion += feat == kFeatImprovedEvasion ? 1 : 0;
+    CHECK_EQ(evasion, 1);                        // asked by both classes, granted once
+    CHECK_EQ(GrantedFeats2024(both).size(), 2u);  // with the Rogue's Cunning Strike
+  }
+  CHECK_EQ(HasFeatureList(CharacterClass::kMonk), true);
+  CHECK_EQ(ClassFeatures2024(CharacterClass::kMonk, 1).size(), 2u);  // Martial Arts, Unarmored Defense
+  CHECK_EQ(ClassFeatures2024(CharacterClass::kMonk, 20).size(), 32u);
+  int subclass = 0;
+  for (const ClassFeature& f : ClassFeatures2024(CharacterClass::kMonk, 20)) subclass += f.subclass ? 1 : 0;
+  CHECK_EQ(subclass, 4);  // Open Hand Technique, Wholeness of Body, Fleet Step, Quivering Palm
+  CHECK_EQ(std::string(Subclass2024(CharacterClass::kMonk)) == "Warrior of the Open Hand", true);
 }
 
 // R1 (SRD 5.2.1 p. 62): 1d6 at 1, one more at every odd level, 10d6 at 19; a

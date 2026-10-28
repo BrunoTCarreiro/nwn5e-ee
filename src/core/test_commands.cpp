@@ -119,7 +119,8 @@ std::vector<std::string> GiveCommand(void* creature, const std::string& args) {
   return {};
 }
 
-// !spawn <blueprint> [ally]
+// !spawn <blueprint> [ally] [dr] - dr: damage reduction 10/+5 (Monk part 1: Empowered
+// Strikes gets through it, a Monk 5's fists don't).
 std::vector<std::string> SpawnCommand(void* creature, const std::string& args) {
   std::string blueprint = args, rest;
   const size_t space = args.find(' ');
@@ -129,21 +130,26 @@ std::vector<std::string> SpawnCommand(void* creature, const std::string& args) {
   }
   blueprint = Lower(blueprint);
   if (!IsResRef(blueprint)) {
-    return {"nwn5e: !spawn <creature blueprint> [ally] - e.g. !spawn nw_gntfrost (Frost Giant, Huge), nw_gnthill "
-            "(Hill Giant, Large), nw_orcb (Orc); ally: as your henchman."};
+    return {"nwn5e: !spawn <creature blueprint> [ally] [dr] - e.g. !spawn nw_gntfrost (Frost Giant, Huge), "
+            "nw_gnthill (Hill Giant, Large), nw_orcb (Orc); ally: as your henchman; dr: damage reduction 10/+5."};
   }
   const bool ally = Lower(rest).find("ally") != std::string::npos;
+  const bool reduction = Lower(rest).find("dr") != std::string::npos;
   const uint32_t id = ObjectIdOf(StatsOf(creature));
-  const std::string join = ally ? "ChangeFaction(o, OBJECT_SELF); AddHenchman(OBJECT_SELF, o); "
-                                : "ChangeToStandardFaction(o, STANDARD_FACTION_HOSTILE); ";
+  std::string join = ally ? "ChangeFaction(o, OBJECT_SELF); AddHenchman(OBJECT_SELF, o); "
+                          : "ChangeToStandardFaction(o, STANDARD_FACTION_HOSTILE); ";
+  if (reduction) {
+    join += "ApplyEffectToObject(DURATION_TYPE_PERMANENT, SupernaturalEffect(EffectDamageReduction(10, "
+            "DAMAGE_POWER_PLUS_FIVE)), o); ";
+  }
   const std::string code =
       "float f = GetFacing(OBJECT_SELF); vector p = GetPosition(OBJECT_SELF) + AngleToVector(f) * 5.0; "
       "object o = CreateObject(OBJECT_TYPE_CREATURE, \"" + blueprint + "\", Location(GetArea(OBJECT_SELF), p, f + 180.0)); "
       "if (GetIsObjectValid(o)) { " + join + "SendMessageToPC(OBJECT_SELF, \"nwn5e: spawned \" + GetName(o) + \"" +
-      (ally ? " (your henchman)" : " (hostile)") + ".\"); } else SendMessageToPC(OBJECT_SELF, \"nwn5e: no creature "
-      "blueprint \\\"" + blueprint + "\\\".\");";
+      (ally ? " (your henchman)" : " (hostile)") + (reduction ? ", damage reduction 10/+5" : "") +
+      ".\"); } else SendMessageToPC(OBJECT_SELF, \"nwn5e: no creature blueprint \\\"" + blueprint + "\\\".\");";
   RunScriptChunk(code.c_str(), id);
-  Log("spawn: 0x%08X asked for %s%s", id, blueprint.c_str(), ally ? " (ally)" : "");
+  Log("spawn: 0x%08X asked for %s%s%s", id, blueprint.c_str(), ally ? " (ally)" : "", reduction ? " (DR 10/+5)" : "");
   return {};
 }
 

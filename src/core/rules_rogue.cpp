@@ -49,6 +49,8 @@
 //   since a Short or Long Rest again with its d20 a 20 (record nwn5e_stroke_used).
 // Part 5 (0.50.0): R6 Cunning Strike - rules_cunning_strike.cpp (the dice
 // filter above pays for its effects).
+// Monk part 1 (0.52.0, M11): the Evasion filter takes Monk 7 as Rogue 7 (rules_features
+// grants Improved Evasion at Monk 7 too).
 // NWN mode: NWN's sneak attack, Evasion and Improved Evasion.
 
 #include <windows.h>
@@ -244,7 +246,8 @@ bool EvasionFilter(void* stats, int feat, uintptr_t caller, int* answer) {
   if (feat != rules::kFeatImprovedEvasion || !Faithful() || !stats || !FromGame(caller)) return false;
   if (!ReadCreatureFacts(stats).character) return false;  // monsters: NWN's
   void* creature = CreatureOf(stats);
-  bool has = rules::HasRogueEvasion(RogueLevel(stats));
+  bool has = rules::HasRogueEvasion(RogueLevel(stats)) ||
+             rules::HasMonkEvasion(ClassLevel2024(stats, rules::CharacterClass::kMonk));  // M11
   if (has && creature && IncapacitatedByCondition(creature)) has = false;
   if (has && creature) {
     const std::optional<rules::Ability> ability = RecentSaveAbility(creature);

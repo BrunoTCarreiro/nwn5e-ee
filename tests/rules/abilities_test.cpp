@@ -86,3 +86,21 @@ TEST(PrimalChampionRaisesStrengthAndConstitutionToTwentyFive) {
   ClassFeatureAbilityIncreases({{CharacterClass::kBarbarian, 19}, {CharacterClass::kFighter, 1}}, base, none);
   CHECK_EQ(none[0] + none[2], 0);
 }
+
+// M15 Body and Mind (Monk 20): Dexterity and Wisdom +4, at most 25. Breaks
+// caught: the Barbarian's abilities raised for a Monk, below Monk 20, past 25.
+TEST(BodyAndMindRaisesDexterityAndWisdomToTwentyFive) {
+  const int base[6] = {10, 18, 14, 10, 16, 8};
+  int delta[6] = {0, 2, 0, 0, 0, 0};  // Dexterity 20, Wisdom 16
+  ClassFeatureAbilityIncreases({{CharacterClass::kMonk, 20}}, base, delta);
+  CHECK_EQ(base[1] + delta[1], 24);
+  CHECK_EQ(base[4] + delta[4], 20);
+  CHECK_EQ(delta[0] + delta[2] + delta[3] + delta[5], 0);
+  int capped[6] = {0, 5, 0, 0, 7, 0};  // Dexterity 23, Wisdom 23
+  ClassFeatureAbilityIncreases({{CharacterClass::kMonk, 20}}, base, capped);
+  CHECK_EQ(base[1] + capped[1], 25);
+  CHECK_EQ(base[4] + capped[4], 25);
+  int none[6] = {0, 0, 0, 0, 0, 0};
+  ClassFeatureAbilityIncreases({{CharacterClass::kMonk, 19}, {CharacterClass::kRogue, 1}}, base, none);
+  CHECK_EQ(none[1] + none[4], 0);
+}

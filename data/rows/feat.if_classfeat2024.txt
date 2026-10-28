@@ -1,6 +1,11 @@
 # feat.2da - Phase 3 Rogue R8 (PLAN.md "Phase 3 — Rogue", 0.50.0): with class_features
 # faithful NWN's Improved Evasion is 2024's Evasion (src/core/rules_rogue.cpp answers it by the
-# 2024 rule: Rogue 7+, Dexterity saves, not while Incapacitated), so it carries Evasion's name
-# and description then. NWN mode keeps Improved Evasion's own.
+# 2024 rule: Rogue 7+ or Monk 7+, Dexterity saves, not while Incapacitated), so it carries
+# Evasion's name and description then. NWN mode keeps Improved Evasion's own.
+# Monk part 1 (0.52.0, rules_monk.cpp): Monk AC Bonus is Unarmored Defense, the Monk's Fast
+# Movement Unarmored Movement, Ki Strike Empowered Strikes.
 FEAT DESCRIPTION
 212 16000489 16000490
+260 16000505 16000506
+207 16000507 16000508
+213 16000509 16000510

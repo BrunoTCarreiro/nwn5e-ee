@@ -15,9 +15,11 @@
 //
 // X1 (owner, 2026-10-24: "remove them completely, we don't need to keep NWN
 // compatibility"): in faithful the NWN class feats with no 2024 counterpart
-// (rules::NwnOnlyClassFeats: the Barbarian's Uncanny Dodge and Damage
-// Reduction so far) are taken off characters by the same sync - the classes'
-// feat tables served in faithful no longer grant them.
+// (rules::NwnOnlyClassFeats: the Barbarian's, the Rogue's and the Monk's) are
+// taken off characters by the same sync - the classes' feat tables served in
+// faithful no longer grant them. The Monk's general feats (Cleave, Improved
+// Unarmed Strike, the epic Improved Stunning Fist: rules::NwnOnlyMonkFeats)
+// only from characters with Monk levels - others may have picked them.
 
 #include <windows.h>
 
@@ -87,7 +89,11 @@ std::vector<std::string> FeaturesCommand(void* creature, const std::string& /*ar
 // X1: the NWN-only class feats off a character (faithful).
 void RemoveNwnOnlyFeats(void* stats, const CreatureFacts& facts, uint32_t id) {
   std::vector<std::string> names;
-  for (int feat : rules::NwnOnlyClassFeats()) {
+  std::vector<int> feats = rules::NwnOnlyClassFeats();
+  if (ClassLevel2024(stats, rules::CharacterClass::kMonk) > 0) {
+    feats.insert(feats.end(), rules::NwnOnlyMonkFeats().begin(), rules::NwnOnlyMonkFeats().end());
+  }
+  for (int feat : feats) {
     if (!engine::HasFeat(stats, feat)) continue;
     g_remove_feat(stats, static_cast<uint16_t>(feat));
     Log("features: %s 0x%08X removed NWN feat %d (no 2024 counterpart, X1)", KindOf(facts), id, feat);

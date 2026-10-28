@@ -3,22 +3,17 @@
 # file is read each time, so no rebuild or restart is needed. The keys are in
 # src/rules/test_profile.h.
 
-# Rogue parts 1-6 (0.50.0): your first class becomes Rogue (the Thief from 3), level 17 -
-# Sneak Attack 9d6, Cunning Strike with two effects and Devious Strikes, Uncanny Dodge, Evasion,
-# Reliable Talent, Slippery Mind, Fast Hands, Use Magic Device. For Elusive (18) and Stroke of
-# Luck (20) change level to 20 and type !test again (levels are only added; a character of
-# another class keeps its level when it becomes a Rogue).
-# A human; Dexterity 18 (Finesse and ranged attacks), Intelligence 14 (Arcana for the scrolls).
-# A rapier in hand (Finesse), a shortbow and arrows, two daggers; wizard scrolls - Mage Armor
-# (level 1: no check), See Invisibility x2 (level 2: Arcana DC 12), Fireball x3 (level 3: DC
-# 13) - and a cleric's Lesser Restoration (level 2); two healing potions (the resume after a
-# potion now runs on the shared item-use hook).
-# !spawn nw_orcb ally (a henchman: an ally next to the target gives Sneak Attack without
-# Advantage); !spawn nw_gnthill (Large: Trip works); !spawn nw_gntfrost (Huge: Trip is skipped).
-name = Rogue parts 1-6: human Thief 17, a rapier, scrolls
+# Monk part 1 (0.52.0): your first class becomes Monk, level 7 - Unarmored Defense (10 + Dex +
+# Wis: 16 here, NWN's +1 at 5 left out), Unarmored Movement (+15 ft from 6: half again as fast),
+# Empowered Strikes (6: fists through damage reduction), Evasion (7). Take your armour off (and
+# no shield). For Body and Mind change level to 20 and type !test again (levels are only added;
+# a character of another class keeps its level when it becomes a Monk).
+# A human; Dexterity 16, Wisdom 16. A quarterstaff (not held: fists first). !spawn nw_orcb dr
+# (an orc with damage reduction 10/+5: fists get through, the quarterstaff doesn't).
+name = Monk part 1: human Monk 7, no armour, a quarterstaff
 species = human
-swap_class = rogue
-class = rogue
-level = 17
-abilities = 10 18 14 14 12 10
-items = nw_wswrp001 equip, nw_wbwsh001, nw_wamar001 x99, nw_wswdg001, nw_wswdg001, nw_it_sparscr104, nw_it_sparscr205, nw_it_sparscr205, nw_it_sparscr309, nw_it_sparscr309, nw_it_sparscr309, nw_it_spdvscr201, nw_it_mpotion001, nw_it_mpotion001
+swap_class = monk
+class = monk
+level = 7
+abilities = 10 16 14 10 16 8
+items = nw_wdbqs001

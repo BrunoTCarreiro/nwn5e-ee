@@ -28,8 +28,8 @@ void FaithfulAbilityDelta(const int nwn_base[6], const int level_bumps[6], const
                           const std::vector<AbilityIncrease>& asis, int delta[6]);
 
 // Class features that raise scores past 20 (B13 Primal Champion, Barbarian
-// 20: Strength and Constitution +4, at most 25), added to `delta` after
-// FaithfulAbilityDelta.
+// 20: Strength and Constitution +4; M15 Body and Mind, Monk 20: Dexterity and
+// Wisdom +4; at most 25), added to `delta` after FaithfulAbilityDelta.
 constexpr int kClassFeatureAbilityCap = 25;
 void ClassFeatureAbilityIncreases(const std::vector<ClassLevels>& classes, const int nwn_base[6], int delta[6]);
 

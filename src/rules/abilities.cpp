@@ -36,8 +36,18 @@ void FaithfulAbilityDelta(const int nwn_base[6], const int level_bumps[6], const
 
 void ClassFeatureAbilityIncreases(const std::vector<ClassLevels>& classes, const int nwn_base[6], int delta[6]) {
   for (const ClassLevels& entry : classes) {
-    if (entry.character_class != CharacterClass::kBarbarian || entry.levels < 20) continue;
-    for (Ability ability : {Ability::kStrength, Ability::kConstitution}) {
+    if (entry.levels < 20) continue;
+    Ability raised[2];
+    if (entry.character_class == CharacterClass::kBarbarian) {  // B13 Primal Champion
+      raised[0] = Ability::kStrength;
+      raised[1] = Ability::kConstitution;
+    } else if (entry.character_class == CharacterClass::kMonk) {  // M15 Body and Mind
+      raised[0] = Ability::kDexterity;
+      raised[1] = Ability::kWisdom;
+    } else {
+      continue;
+    }
+    for (Ability ability : raised) {
       const int i = static_cast<int>(ability);
       const int room = kClassFeatureAbilityCap - (nwn_base[i] + delta[i]);
       delta[i] += room < 4 ? (room > 0 ? room : 0) : 4;

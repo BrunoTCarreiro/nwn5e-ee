@@ -1,5 +1,7 @@
 #include "rules/class_features.h"
 
+#include <algorithm>
+
 namespace rules {
 
 namespace {
@@ -137,9 +139,52 @@ const std::vector<ClassFeature>& Rogue() {
   return kFeatures;
 }
 
+// SRD 5.2.1 Monk and Warrior of the Open Hand (PLAN.md "Phase 3 — Monk", decided 2026-10-24).
+const std::vector<ClassFeature>& Monk() {
+  static const std::vector<ClassFeature> kFeatures = {
+      {1, "Martial Arts", false, "Monk part 2"},
+      {1, "Unarmored Defense", false, "built: 10 + Dex + Wis with no armour and no shield (NWN's Monk AC Bonus, "
+                                      "without its Monk level / 5)"},
+      {2, "Monk's Focus", false, "Monk part 3"},
+      {2, "Flurry of Blows", false, "Monk part 3 (NWN's for now)"},
+      {2, "Patient Defense", false, "Monk part 3"},
+      {2, "Step of the Wind", false, "Monk part 3"},
+      {2, "Unarmored Movement", false, "built: +10 ft with no armour and no shield; +15 at 6, +20 at 10, +25 at "
+                                       "14, +30 at 18"},
+      {2, "Uncanny Metabolism", false, "Monk part 3"},
+      {3, "Deflect Attacks", false, "Monk part 5 (NWN's Deflect Arrows for now)"},
+      {3, "Warrior of the Open Hand", false, "built: granted at 3"},
+      {3, "Open Hand Technique", true, "Monk part 4"},
+      {4, "Ability Score Improvement", false, "built (!asi)"},
+      {4, "Slow Fall", false, "listed (NWN has no falling)"},
+      {5, "Extra Attack", false, "built"},
+      {5, "Stunning Strike", false, "Monk part 3 (NWN's Stunning Fist for now)"},
+      {6, "Empowered Strikes", false, "built: unarmed strikes get through every damage reduction X/+N (NWN's Ki "
+                                      "Strike, from 6)"},
+      {6, "Wholeness of Body", true, "Monk part 4 (NWN's for now)"},
+      {7, "Evasion", false, "built: no damage on a successful Dexterity save, half on a failed one; not while "
+                            "Incapacitated (NWN's Improved Evasion, granted)"},
+      {8, "Ability Score Improvement", false, "built (!asi)"},
+      {9, "Acrobatic Movement", false, "listed (NWN has no climbing or walking on liquids)"},
+      {10, "Heightened Focus", false, "Monk part 3"},
+      {10, "Self-Restoration", false, "Monk part 5"},
+      {11, "Fleet Step", true, "Phase 6 (bonus actions)"},
+      {12, "Ability Score Improvement", false, "built (!asi)"},
+      {13, "Deflect Energy", false, "Monk part 5"},
+      {14, "Disciplined Survivor", false, "Monk part 3"},
+      {15, "Perfect Focus", false, "Monk part 3"},
+      {16, "Ability Score Improvement", false, "built (!asi)"},
+      {17, "Quivering Palm", true, "Monk part 4 (NWN's for now)"},
+      {18, "Superior Defense", false, "Monk part 3"},
+      {19, "Epic Boon", false, "CM8"},
+      {20, "Body and Mind", false, "built: Dexterity and Wisdom +4, at most 25"},
+  };
+  return kFeatures;
+}
+
 bool HasFeatureList(CharacterClass character_class) {
   return character_class == CharacterClass::kFighter || character_class == CharacterClass::kBarbarian ||
-         character_class == CharacterClass::kRogue;
+         character_class == CharacterClass::kRogue || character_class == CharacterClass::kMonk;
 }
 
 bool HasDangerSense(int barbarian_level) { return barbarian_level >= 2; }
@@ -298,6 +343,16 @@ const std::vector<int>& NwnOnlyClassFeats() {
       222, 223, 224, 225,            // Crippling Strike, Defensive Roll, Opportunist, Skill Mastery
       259,                           // Slippery Mind (NWN's reroll; 2024's is R10)
       834, 835, 836, 837, 838, 839, 840, 841, 842, 843,  // Epic Improved Sneak Attack 1-10
+      208, 209, 214, 215, 216, 297,  // Still Mind, Purity of Body, Diamond Body, Diamond Soul, Perfect Self, Empty Body
+      343, 344, 697, 698,            // Ki Strike 2-3, Epic Improved Ki Strike 4-5 (Ki Strike 213 stays: M10)
+  };
+  return kFeats;
+}
+
+const std::vector<int>& NwnOnlyMonkFeats() {
+  static const std::vector<int> kFeats = {
+      6, 21,                                             // Cleave, Improved Unarmed Strike
+      844, 845, 846, 847, 848, 849, 850, 851, 852, 853,  // Epic Improved Stunning Fist 1-10
   };
   return kFeats;
 }
@@ -312,7 +367,19 @@ const char* NwnOnlyClassFeatName(int feat) {
     case 224: return "Opportunist";
     case 225: return "Skill Mastery";
     case 259: return "Slippery Mind";
-    default: return feat >= 834 && feat <= 843 ? "Epic Improved Sneak Attack" : "a class feat";
+    case 208: return "Still Mind";
+    case 209: return "Purity of Body";
+    case 214: return "Diamond Body";
+    case 215: return "Diamond Soul";
+    case 216: return "Perfect Self";
+    case 297: return "Empty Body";
+    case 343: case 344: return "Improved Ki Strike";
+    case 697: case 698: return "Epic Improved Ki Strike";
+    case 6: return "Cleave";
+    case 21: return "Improved Unarmed Strike";
+    default:
+      if (feat >= 834 && feat <= 843) return "Epic Improved Sneak Attack";
+      return feat >= 844 && feat <= 853 ? "Epic Improved Stunning Fist" : "a class feat";
   }
 }
 
@@ -323,6 +390,25 @@ int SneakAttackDice2024(int rogue_level) {
 }
 
 bool HasRogueEvasion(int rogue_level) { return rogue_level >= 7; }
+
+int NwnMonkLevelArmorClass(int monk_level) { return monk_level > 0 ? monk_level / 5 : 0; }
+
+int UnarmoredMovementFeet(int monk_level) {
+  if (monk_level < 2) return 0;
+  if (monk_level >= 18) return 30;
+  if (monk_level >= 14) return 25;
+  if (monk_level >= 10) return 20;
+  if (monk_level >= 6) return 15;
+  return 10;
+}
+
+float UnarmoredMovementFactor(int monk_level) { return UnarmoredMovementFeet(monk_level) / 30.0f; }
+
+bool HasEmpoweredStrikes(int monk_level) { return monk_level >= 6; }
+
+bool HasMonkEvasion(int monk_level) { return monk_level >= 7; }
+
+bool HasBodyAndMind(int monk_level) { return monk_level >= 20; }
 
 bool HasSlipperyMind(int rogue_level) { return rogue_level >= 15; }
 
@@ -492,13 +578,21 @@ std::vector<int> GrantedFeats2024(const std::vector<ClassLevels>& classes) {
       if (HasCunningStrike(c.levels)) feats.push_back(kFeatCunningStrike);   // R6: its radial
       if (HasDeviousStrikes(c.levels)) feats.push_back(kFeatDeviousStrikes);
     }
+    if (c.character_class == CharacterClass::kMonk && HasMonkEvasion(c.levels)) {
+      feats.push_back(kFeatImprovedEvasion);  // M11: 2024's Evasion
+    }
     if (c.character_class == CharacterClass::kBarbarian) {
       if (HasRecklessAttack(c.levels)) feats.push_back(kFeatRecklessAttack);
       if (HasBrutalStrike(c.levels)) feats.push_back(kFeatBrutalStrike);
       if (HasIntimidatingPresence(c.levels)) feats.push_back(kFeatIntimidatingPresence);
     }
   }
-  return feats;
+  // Once each (a Rogue 7 / Monk 7 asks twice for Evasion), in the order first asked.
+  std::vector<int> unique;
+  for (int feat : feats) {
+    if (std::find(unique.begin(), unique.end(), feat) == unique.end()) unique.push_back(feat);
+  }
+  return unique;
 }
 
 // Appended only: a character's record is a bit per entry, in this order.
@@ -567,6 +661,7 @@ std::vector<ClassFeature> ClassFeatures2024(CharacterClass character_class, int 
   const std::vector<ClassFeature>* table = character_class == CharacterClass::kFighter     ? &Fighter()
                                            : character_class == CharacterClass::kBarbarian ? &Barbarian()
                                            : character_class == CharacterClass::kRogue     ? &Rogue()
+                                           : character_class == CharacterClass::kMonk      ? &Monk()
                                                                                            : nullptr;
   if (!table) return features;
   for (const ClassFeature& feature : *table) {

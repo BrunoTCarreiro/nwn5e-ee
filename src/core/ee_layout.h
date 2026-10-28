@@ -864,6 +864,24 @@ constexpr const char* kItemComputeArmorClass = "?ComputeArmorClass@CNWSItem@@QEA
 // when HasFeat(194) (+0x4A), the Monk's + (level / 3) x 0.1 (a literal), caps
 // 1.5 / 3.0 for monks (D, the Barbarian brief).
 constexpr const char* kGetMovementRateFactor = "?GetMovementRateFactor@CNWSCreature@@QEAAMXZ";
+// GetMovementRateFactor's first test: +0x788 == 1 returns the float at +0x78c
+// as it is (a fixed rate - no class bonus, no caps); the Monk's Unarmored
+// Movement (rules_monk.cpp) leaves it alone too.
+constexpr size_t kCreatureFixedMovementRate = 0x788;
+// int CNWSCreature::GetUseMonkAbilities() (0x396370): Monk (class 5) levels -
+// or class 40's 1-3 - no armour (the chest item's ComputeArmorClass 0) and no
+// shield (left hand base item 14 / 56 / 57); the weapon isn't checked.
+constexpr const char* kGetUseMonkAbilities = "?GetUseMonkAbilities@CNWSCreature@@QEAAHXZ";
+// char CNWSCreatureStats::GetACNaturalBase(int monk_part_only) (0x3f3e90): with
+// the Monk abilities, + Wisdom (stats +0xd41, when positive, if the feat list
+// or the bonus list holds 260) + Monk level / 5; argument 1 returns that part
+// alone; then Pale Master and the epic Armor Skin.
+constexpr const char* kGetACNaturalBase = "?GetACNaturalBase@CNWSCreatureStats@@QEAADH@Z";
+// uchar CNWSCreature::CalculateDamagePower(CNWSObject* target, int offhand)
+// (0x385610): with the unarmed Monk tables (GetUseMonkAttackTables(1)) at
+// least ruleset KI_STRIKE_LEVEL_5..1 by feats 698, 697, 344, 343, 213. The
+// values are DAMAGE_POWER_* (6 is ENERGY; +20 is 21).
+constexpr const char* kCalculateDamagePower = "?CalculateDamagePower@CNWSCreature@@QEAAEPEAVCNWSObject@@H@Z";
 constexpr int kSlotChest = 0x2;
 // CNWBaseItem: weapon size uint8 +0x19 (GetDamageBonus +0x272: size minus the
 // creature's size == 1, melee, not double = wielded two-handed); NumDice uint8

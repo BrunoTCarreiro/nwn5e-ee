@@ -189,8 +189,15 @@ std::vector<BrutalEffect> ActiveBrutalEffects(const BrutalChoice& choice, int ba
 // The Barbarian's: Uncanny Dodge 1-6, Damage Reduction 1-4 and epic; the
 // Rogue's (R0, 0.50.0): Evasion, Crippling Strike, Defensive Roll,
 // Opportunist, Skill Mastery, Slippery Mind and the epic sneak dice (Improved
-// Evasion stays as the 2024 Evasion - R8; the Sneak Attack feats stay, R1).
+// Evasion stays as the 2024 Evasion - R8; the Sneak Attack feats stay, R1);
+// the Monk's (M0 / M16, 0.52.0): Still Mind, Purity of Body, Diamond Body,
+// Diamond Soul, Perfect Self, Empty Body, Ki Strike 2-3 and the epic Ki
+// Strikes (Ki Strike itself stays as Empowered Strikes - M10).
 const std::vector<int>& NwnOnlyClassFeats();
+// M16: feats the Monk's NWN table grants that anyone may also have picked in
+// NWN (Cleave, Improved Unarmed Strike; the epic Improved Stunning Fist):
+// taken off characters with Monk levels only.
+const std::vector<int>& NwnOnlyMonkFeats();
 // The name a chat line gives a removed feat's kind ("Uncanny Dodge" for all six).
 const char* NwnOnlyClassFeatName(int feat);
 
@@ -266,6 +273,31 @@ int FastHandsValue(int thieves_tools, int sleight_of_hand);
 bool HasUseMagicDevice(int rogue_level);
 bool ScrollNeedsArcanaCheck(int spell_level);
 int ScrollArcanaDc(int spell_level);
+// --- Monk (PLAN.md "Phase 3 — Monk", decided 2026-10-24) --------------------
+// NWN's Monk feats kept as their 2024 counterparts (M0): Monk AC Bonus is
+// Unarmored Defense (M2), the Monk's Fast Movement Unarmored Movement (M6),
+// Ki Strike Empowered Strikes (M10), Improved Evasion Evasion (M11).
+constexpr int kFeatMonkAcBonus = 260;
+constexpr int kFeatMonkEndurance = 207;
+constexpr int kFeatKiStrike = 213;
+// M2 Unarmored Defense (1): no armour, no shield - AC 10 + Dex + Wis. NWN also
+// adds Monk level / 5 (this), which 2024 doesn't.
+int NwnMonkLevelArmorClass(int monk_level);
+// M6 Unarmored Movement: +10 ft at Monk 2, +15 at 6, +20 at 10, +25 at 14, +30
+// at 18 (0 below 2), with no armour and no shield; as a share of a 30 ft speed
+// (NWN's movement-rate factor): +1/3 ... +1.
+int UnarmoredMovementFeet(int monk_level);
+float UnarmoredMovementFactor(int monk_level);
+// M10 Empowered Strikes (6): Unarmed Strikes can deal Force damage - in nwn5e
+// they get through every damage reduction X/+N (NWN's top damage power, +20);
+// per-type resistances stay.
+bool HasEmpoweredStrikes(int monk_level);
+constexpr int kDamagePowerPlusTwenty = 21;  // DAMAGE_POWER_PLUS_TWENTY (6 is DAMAGE_POWER_ENERGY)
+// M11 Evasion (7), as the Rogue's (R8): NWN's Improved Evasion, granted at 7.
+bool HasMonkEvasion(int monk_level);
+// M15 Body and Mind (20): Dexterity and Wisdom +4, at most 25.
+bool HasBodyAndMind(int monk_level);
+
 // Save proficiencies class features give (whatever the first class): Slippery Mind's.
 bool ClassFeatureSaveProficiency(const std::vector<ClassLevels>& classes, Ability ability);
 
