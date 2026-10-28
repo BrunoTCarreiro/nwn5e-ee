@@ -1328,6 +1328,8 @@ Haste's to what is there); EndCombatRound clears them (0x375c43). The bonus stri
 counted round (rules_mastery's EndCombatRound counter), and taken back when a mid-round recount no longer
 allows it (a second weapon: an off-hand attack). Savage Attacker's log line names the die it rolled (a
 Monk's d8, not the weapon's d6).
+*Accepted (owner, 2026-10-28: "MA1 is good. check the logs"; the 0.53.1 log: a quarterstaff equipped
+mid-round "the bonus strike kept once" - extra 1; a second dagger "taken back" - off-hand 1, extra 0).*
 
 ### Phase 3 — Rogue (CM9): recommendations (for the owner's decision)
 
