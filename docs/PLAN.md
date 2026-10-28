@@ -3426,6 +3426,52 @@ over the icon.
 Accepted (owner's test of 0.48.4: "ok, it-s good"): the key labels show over
 the icons; the log: 36 attached over the icon, slot 10's text "F10" whole.
 
+## Mocap mode — decided by the owner (2026-10-28)
+
+Owner, 2026-10-27/28: "I'm going to attempt to mocap some animations" - FreeMoCap
+("what does that export?") - "what can we add that will help turn captured
+performances into usable animations in nwn?" - "First thing to capture would be
+either a shove, a rage or a crouch stance" - "Sure" (to the plan below; built
+after the Rogue).
+
+*FreeMoCap's output:* a processed recording's output_data folder holds 3D
+positions of body points per frame (MediaPipe's 33 body landmarks; hands and
+face apart) as .npy and .csv (mediapipe_body_3d_xyz); its Blender add-on can
+build a T-posed armature and export BVH / FBX. nwn5e reads the CSV directly -
+no Blender: NWN's skeleton is coarse, so each NWN bone is aimed by the points at
+its two ends (direction retargeting: no rest-pose matching), twist from the hip
+and shoulder lines and the hand points.
+
+*In game:* the clips go into nwn5e's animation packs (anim_packs.cpp: built at
+each start from the player's own files, per body library - a_ba, a_fa, a_da,
+a_dfa and the large builds), retargeted to each body type (rotations only, so
+one capture fits all). Named slots the game uses when the clip exists, else
+today's animation: `n5_rage` (played as Rage starts, in place of victorymg),
+`n5_cridle` (stealth's crouched idle - saving under its name already wins over
+the recipe), `n5_shove` (the Shove's swing, in place of nwstab - anim_layers'
+swap). The clips are the owner's own data, not game files: they may go in the
+public repo.
+
+*Mocap mode v1 (the Animation Recipe Bench):* drop the CSV - up axis, facing,
+scale (mm) and frame rate found; clean-up - gap fill, smoothing (a slider,
+before / after), bone lengths held to the performer's median, feet to the floor,
+drift removed; retarget to the library's bones, in place (travel stripped, the
+hip bob kept); trim, blend in / out to the stance, loop seam (pose-matched
+crossfade), the contact ("hit") marker (suggested at the hands' peak speed) and
+fit-to-length (the swing it replaces); a 3D preview of the raw points over the
+NWN skeleton, per body type; save as a keyframe recipe - a new recipe kind
+carrying its own keys, read by the C++ pack builder and core.js alike. Later:
+foot pinning and stride matching (a crouch walk), mirror, several takes per
+recording, the weapon hand kept from an NWN attack (the recipes' kept part).
+Order: Rage first (a one-shot flourish: proves the path end to end), the crouch
+stance (a loop), the Shove (timed).
+
+*Capture habits (told to the owner):* two or more cameras; a T-pose at each
+take's start; cycles performed on the spot; a prop of the weapon's length; a
+clap or stomp at the contact moment. Rage: 2-3 s, relaxed to a fighting stance.
+Crouch stance: 5-10 s held with small natural movement. Shove: ~1 s from a
+combat stance, both hands forward, back to stance.
+
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
 Walked through one by one (issue, what NWN does, what 2024 does, what to
