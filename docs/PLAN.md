@@ -3800,6 +3800,10 @@ width). A click calls CNWSCreature::CancelAction(display id, group or special-at
 portrait panel's own call (a matching special attack comes off the round, else the group) -
 and RemoveSpecialAttack for nwn5e's own special attacks.
 Later, if wanted: henchmen's queues; the round's attack count; a fully clear background.
+*0.54.1 (owner: with two actions queued "the scrollbars ... rapidly appear and disappear alternatingly
+horizontal and vertical"):* the hidden slots still take room in NUI's row, so it overflowed the window
+sized to the shown ones and each scrollbar took room for the other. The row sits in a group without
+scrollbars ("scrollbars": 0 - clipped, never scrolled); the window 124 px tall, 28 px of side room.
 
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 

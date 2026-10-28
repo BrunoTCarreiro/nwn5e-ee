@@ -268,8 +268,14 @@ std::string CreateScript() {
   sprintf_s(loop, "for (k = 0; k < %d; k++) { sk = IntToString(k); ", rules::kQueueStripSlots);
   return std::string("if (!t) { json kids = JsonArray(); int k; string sk; ") + loop +
          "kids = JsonArrayInsert(kids, JsonParse(" + SlotExpression() + ")); } kids = JsonArrayInsert(kids, JsonParse(" +
-         Quoted(more) + ")); json root = JsonParse(\"{\\\"type\\\":\\\"row\\\",\\\"label\\\":null,\\\"value\\\":null}\");"
-         " root = JsonObjectSet(root, \"children\", kids); json w = JsonParse(" + Quoted(window) +
+         Quoted(more) + ")); json row = JsonParse(\"{\\\"type\\\":\\\"row\\\",\\\"label\\\":null,\\\"value\\\":null}\");"
+         " row = JsonObjectSet(row, \"children\", kids);"
+         // 0.54.1 (owner: two items queued, "the scrollbars ... rapidly appear and disappear alternatingly"):
+         // the hidden slots still take room, so the row overflowed a window sized to the shown ones and each
+         // scrollbar took room for the other. The row sits in a group without scrollbars - clipped, never scrolled.
+         " json root = JsonParse(\"{\\\"type\\\":\\\"group\\\",\\\"label\\\":null,\\\"value\\\":null,"
+         "\\\"border\\\":false,\\\"scrollbars\\\":0}\"); root = JsonObjectSet(root, \"children\", "
+         "JsonArrayInsert(JsonArray(), row)); json w = JsonParse(" + Quoted(window) +
          "); w = JsonObjectSet(w, \"root\", root); t = NuiCreate(p, w, \"n5queue\"); if (!t) return; }";
 }
 

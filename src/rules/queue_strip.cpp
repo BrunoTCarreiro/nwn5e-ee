@@ -70,7 +70,7 @@ QueueStripCount QueueStripSlots(int queued) {
 }
 
 float QueueStripWidth(int shown, int more) {
-  constexpr float kFrame = 16.0f;  // the window's own padding
+  constexpr float kFrame = 28.0f;  // the window's own padding and the group's
   return kFrame + shown * kQueueSlotWidth + (more > 0 ? kQueueMoreWidth : 0.0f);
 }
 

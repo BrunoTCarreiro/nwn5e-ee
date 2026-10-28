@@ -32,7 +32,7 @@ QueueStripCount QueueStripSlots(int queued);
 
 constexpr float kQueueSlotWidth = 112.0f;
 constexpr float kQueueMoreWidth = 48.0f;
-constexpr float kQueueStripHeight = 104.0f;
+constexpr float kQueueStripHeight = 124.0f;
 // The strip's width for `shown` items (and the "+N" when `more` > 0).
 float QueueStripWidth(int shown, int more);
 
