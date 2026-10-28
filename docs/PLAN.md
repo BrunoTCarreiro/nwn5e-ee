@@ -3815,6 +3815,18 @@ N; uses per day - those left today; others no limit), read by script from its Ca
 (item_use.cpp now tells guards which active property is used). A move clearing the queue is NWN's own
 (a new order replaces it) - kept (owner, 2026-10-28: "sure, let's keep the same NWN behaviour for the
 move").
+*0.55.0, animated (owner: "thinking that actions slide down and fade out as they exit the queue and all
+queued elements slide left"):* NUI has no animation of its own (one built-in effect: "encouraged", a
+glow), but every property can be a bind - a window's geometry (slide), a colour's alpha (fade), draw-list
+shapes. Server-side updates (a script and a message each) are too heavy for 60 a second, so the strip moved
+to nwn5e's client windows (client_ui.cpp: the game's own NUI, from its every frame; ClientNuiSetJson added
+for geometry / colours / bools). The server's side still reads the queue and names it by one script
+(locals), then hands the items over (a lock); clicks come back the same way. Each item is its own small
+window (a tile: icon, name, target over a dark card - a draw-list rectangle with a colour bind): the
+strip's left edge fixed (a full strip centred), a tile eases to its slot every frame (one leaving: those
+after it slide left), a new one drops in and fades in, one leaving slides down 36 px and fades over 0.4 s
+(text and card; the icon greys - it turns disabled: NUI can't fade images) and closes. Without client
+windows (a server with no game client) the server's strip as before.
 
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 

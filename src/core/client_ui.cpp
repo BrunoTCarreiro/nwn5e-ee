@@ -381,6 +381,13 @@ void ClientNuiSetText(int token, const char* bind, const std::string& text) {
   g_requests.push_back({Request::kBind, token, bind, std::move(ubjson)});
 }
 
+void ClientNuiSetJson(int token, const char* bind, const std::string& json) {
+  if (!g_ready || !token) return;
+  std::string ubjson, error;
+  if (!data::JsonToUbjson(json, &ubjson, &error)) return;
+  g_requests.push_back({Request::kBind, token, bind, std::move(ubjson)});
+}
+
 void ClientNuiClose(int token) {
   if (!g_ready || !token) return;
   g_requests.push_back({Request::kClose, token, "", ""});

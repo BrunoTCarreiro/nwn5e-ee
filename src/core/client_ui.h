@@ -31,6 +31,8 @@ int ClientNuiOpen(const char* id, const std::string& layout, ClientNuiHandler ha
 
 // Sets a string bind of an open window (next frame).
 void ClientNuiSetText(int token, const char* bind, const std::string& text);
+// Sets a bind to a JSON value (a geometry rect, a colour, a bool; next frame).
+void ClientNuiSetJson(int token, const char* bind, const std::string& json);
 
 // Closes a window (next frame).
 void ClientNuiClose(int token);

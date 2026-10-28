@@ -40,17 +40,37 @@
 // when its queued uses (ItemCastSpell actions of that item and power) already
 // take every use it has left (rules::ItemPowerUsesLeft: the stack, the charges,
 // the uses left today - read by script from its Cast Spell property).
+//
+// 0.55.0, the strip animated (owner: "actions slide down and fade out as they
+// exit the queue and all queued elements slide left"): NUI has no animation of
+// its own, so the strip moved to nwn5e's client windows (client_ui.cpp - the
+// game's own NUI, updated from its every frame, no script or server message).
+// The server side still reads the queue (every 150 ms, on change), names it by
+// one script (locals nwn5e_aq_n/i/t<k>, the GUI width) and hands the items over
+// (a lock - the client tick may run apart from the server's update); a click
+// comes back the same way and is cancelled at the server's next update. Each
+// item is its own small window (a tile: the icon, the name and the target over
+// a dark card - a draw-list rectangle whose colour fades), so each can move:
+// the strip's left edge is fixed (a full strip centred), a tile eases to its
+// slot every frame (one leaves: those after it slide left), a new one drops in
+// and fades in at its slot, and one leaving slides down, fades (text and card;
+// the icon greys - NUI can't fade images) and closes. Without client windows (a
+// server with no game client) the server's own strip as before.
 
 #include <windows.h>
 
 #include <stdint.h>
 #include <stdio.h>
 
+#include <math.h>
+
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "chat.h"
+#include "client_ui.h"
 #include "creature.h"
 #include "creature_update.h"
 #include "ee_layout.h"
@@ -291,48 +311,60 @@ std::string CreateScript() {
          " SetLocalInt(p, \"nwn5e_nui_n5queue\", t);";
 }
 
-// The script that sets slot k's binds.
+// An item's name, icon and target as script expressions (after `prelude`, which sets s and o).
+struct Fields {
+  std::string prelude, name, icon, target;
+};
+
+Fields FieldsOf(const Item& it, uint32_t player) {
+  Fields f;
+  char line[256];
+  switch (it.kind) {
+    case Kind::kSpell:
+      sprintf_s(line, "s = %d;", it.spell);
+      f.prelude = line;
+      f.name = "GetStringByStrRef(StringToInt(Get2DAString(\"spells\", \"Name\", s)))";
+      f.icon = "Get2DAString(\"spells\", \"IconResRef\", s)";
+      break;
+    case Kind::kItemSpell:
+      sprintf_s(line, "s = StringToInt(Get2DAString(\"iprp_spells\", \"SpellIndex\", %d)); o = StringToObject(\"%x\");",
+                it.iprp_row, it.item);
+      f.prelude = line;
+      f.name = "(GetIsObjectValid(o) ? GetName(o) : \"Use item\")";
+      f.icon = it.iprp_row >= 0 ? "Get2DAString(\"spells\", \"IconResRef\", s)" : "\"ir_use\"";
+      break;
+    case Kind::kSpecial:
+      sprintf_s(line, "s = %d;", it.feat);
+      f.prelude = line;
+      f.name = "GetStringByStrRef(StringToInt(Get2DAString(\"feat\", \"FEAT\", s)))";
+      f.icon = "Get2DAString(\"feat\", \"ICON\", s)";
+      break;
+    case Kind::kPlain:
+      f.name = Quoted(rules::QueueActionName(it.action));
+      f.icon = Quoted(rules::QueueActionIcon(it.action));
+      break;
+  }
+  if (it.target == player) {
+    f.target = "\"yourself\"";
+  } else {
+    sprintf_s(line, " q = StringToObject(\"%x\");", it.target);  // q: the target (o is an item's)
+    f.prelude += line;
+    f.target = std::string("(GetIsObjectValid(q) ? GetName(q) : \"") + (it.spot ? "a spot" : "") + "\")";
+  }
+  return f;
+}
+
+// The script that sets slot k's binds (the server's strip).
 std::string SlotScript(int k, const Item& it, uint32_t player) {
   const std::string number = std::to_string(k);
   auto set = [&](const char* which, const std::string& value) {
     return "NuiSetBind(p, t, \"aq_" + std::string(which) + number + "\", " + value + ");";
   };
-  std::string code;
-  char line[256];
-  switch (it.kind) {
-    case Kind::kSpell:
-      sprintf_s(line, "s = %d;", it.spell);
-      code += line;
-      code += set("n", "JsonString(GetStringByStrRef(StringToInt(Get2DAString(\"spells\", \"Name\", s))))");
-      code += set("i", "JsonString(Get2DAString(\"spells\", \"IconResRef\", s))");
-      break;
-    case Kind::kItemSpell:
-      sprintf_s(line, "s = StringToInt(Get2DAString(\"iprp_spells\", \"SpellIndex\", %d)); o = StringToObject(\"%x\");",
-                it.iprp_row, it.item);
-      code += line;
-      code += set("n", "JsonString(GetIsObjectValid(o) ? GetName(o) : \"Use item\")");
-      code += set("i", it.iprp_row >= 0 ? "JsonString(Get2DAString(\"spells\", \"IconResRef\", s))"
-                                        : "JsonString(\"ir_use\")");
-      break;
-    case Kind::kSpecial:
-      sprintf_s(line, "s = %d;", it.feat);
-      code += line;
-      code += set("n", "JsonString(GetStringByStrRef(StringToInt(Get2DAString(\"feat\", \"FEAT\", s))))");
-      code += set("i", "JsonString(Get2DAString(\"feat\", \"ICON\", s))");
-      break;
-    case Kind::kPlain:
-      code += set("n", "JsonString(" + Quoted(rules::QueueActionName(it.action)) + ")");
-      code += set("i", "JsonString(" + Quoted(rules::QueueActionIcon(it.action)) + ")");
-      break;
-  }
-  if (it.target == player) {
-    code += set("t", "JsonString(\"yourself\")");
-  } else {
-    sprintf_s(line, "o = StringToObject(\"%x\");", it.target);
-    code += line;
-    code += set("t", std::string("JsonString(GetIsObjectValid(o) ? GetName(o) : \"") + (it.spot ? "a spot" : "") +
-                         "\")");
-  }
+  const Fields f = FieldsOf(it, player);
+  std::string code = f.prelude;
+  code += set("n", "JsonString(" + f.name + ")");
+  code += set("i", "JsonString(" + f.icon + ")");
+  code += set("t", "JsonString(" + f.target + ")");
   // The action in progress in gold, its target pale gold; the others white and grey.
   code += set("c", k == 0 ? "gold" : "white");
   code += set("d", k == 0 ? "pale" : "grey");
@@ -347,7 +379,7 @@ void Show(uint32_t player, const std::vector<Item>& items) {
   }
   const rules::QueueStripCount count = rules::QueueStripSlots(static_cast<int>(items.size()));
   std::string code = "object p = OBJECT_SELF; int t = NuiFindWindow(p, \"n5queue\"); " + CreateScript() +
-                     " object o; int s;"
+                     " object o; object q; int s;"
                      " json gold = JsonParse(\"{\\\"r\\\":255,\\\"g\\\":215,\\\"b\\\":0,\\\"a\\\":255}\");"
                      " json pale = JsonParse(\"{\\\"r\\\":230,\\\"g\\\":200,\\\"b\\\":120,\\\"a\\\":255}\");"
                      " json white = JsonParse(\"{\\\"r\\\":240,\\\"g\\\":240,\\\"b\\\":240,\\\"a\\\":255}\");"
@@ -379,6 +411,308 @@ void Show(uint32_t player, const std::vector<Item>& items) {
 
 bool Off(void* creature) { return engine::GetLocalInt(creature, kVarOff) != 0; }
 
+// --- 0.55.0: the animated strip, on the client ------------------------------------
+
+struct ClientItem {
+  uint64_t key = 0;
+  Item item;  // its cancel
+  std::string icon, name, target;
+};
+
+std::mutex g_lock;  // the server's update and the client's frame
+int g_version = 0;                                   // g_lock
+std::vector<ClientItem> g_published;                 // g_lock
+int g_published_more = 0;                            // g_lock
+uint32_t g_published_player = ee::kObjectInvalid;     // g_lock
+float g_gui_width = 0.0f;                            // g_lock
+std::vector<std::pair<uint32_t, Item>> g_cancels;    // g_lock: clicks, for the server's update
+uint32_t g_client_player = ee::kObjectInvalid;        // the server's side
+
+uint64_t KeyOf(const Item& it) {
+  return (static_cast<uint64_t>(it.kind) << 40) | (static_cast<uint64_t>(it.own_special ? 1 : 0) << 36) |
+         (static_cast<uint64_t>(it.cancel_action) << 16) | it.cancel_id;
+}
+
+// The server's side: names the shown items by one script (locals) and hands them over.
+void Publish(uint32_t player, const std::vector<Item>& items) {
+  const rules::QueueStripCount count = rules::QueueStripSlots(static_cast<int>(items.size()));
+  std::vector<ClientItem> out;
+  float gui_width = 0.0f;
+  void* creature = CreatureById(player);
+  if (count.shown > 0 && creature) {
+    std::string code = "object p = OBJECT_SELF; object o; object q; int s;";
+    char line[96];
+    for (int k = 0; k < count.shown; ++k) {
+      const Fields f = FieldsOf(items[k], player);
+      code += f.prelude;
+      sprintf_s(line, " SetLocalString(p, \"nwn5e_aq_n%d\", ", k);
+      code += line + f.name + ");";
+      sprintf_s(line, " SetLocalString(p, \"nwn5e_aq_i%d\", ", k);
+      code += line + f.icon + ");";
+      sprintf_s(line, " SetLocalString(p, \"nwn5e_aq_t%d\", ", k);
+      code += line + f.target + ");";
+    }
+    code += " SetLocalInt(p, \"nwn5e_aq_gw\", GetPlayerDeviceProperty(p, \"gui_width\"));";
+    const int result = RunScriptChunk(code.c_str(), player);
+    static int logged = 0;
+    if ((result != 0 || logged < 3) && logged < 12) {
+      ++logged;
+      Log("queue: 0x%08X the strip %s: %d item(s) (script %zu chars, result %d)", player,
+          result == 0 ? "handed to the client" : "script FAILED", static_cast<int>(items.size()), code.size(), result);
+    }
+    for (int k = 0; k < count.shown; ++k) {
+      ClientItem ci;
+      ci.item = items[k];
+      ci.key = KeyOf(items[k]);
+      sprintf_s(line, "nwn5e_aq_n%d", k);
+      ci.name = engine::GetLocalString(creature, line);
+      sprintf_s(line, "nwn5e_aq_i%d", k);
+      ci.icon = engine::GetLocalString(creature, line);
+      sprintf_s(line, "nwn5e_aq_t%d", k);
+      ci.target = engine::GetLocalString(creature, line);
+      out.push_back(std::move(ci));
+    }
+    gui_width = static_cast<float>(engine::GetLocalInt(creature, "nwn5e_aq_gw"));
+  }
+  std::lock_guard<std::mutex> hold(g_lock);
+  g_published = std::move(out);
+  g_published_more = count.more;
+  g_published_player = player;
+  if (gui_width > 0.0f) g_gui_width = gui_width;
+  ++g_version;
+}
+
+constexpr float kTileWidth = 108.0f;
+constexpr float kTileHeight = 100.0f;
+constexpr float kTop = 4.0f;
+constexpr float kEnterRise = 16.0f;   // a new tile drops in from this far up
+constexpr float kExitDrop = 36.0f;    // a leaving tile slides this far down
+constexpr float kExitSeconds = 0.4f;
+constexpr float kEaseRate = 14.0f;    // per second: how fast a tile closes on its slot
+
+struct Tile {
+  uint64_t key = 0;
+  int token = 0;
+  Item item;
+  std::string icon, name, target;
+  int index = 0;
+  float x = 0.0f, y = 0.0f, alpha = 0.0f;
+  bool exiting = false;
+  float exit_t = 0.0f;
+  bool seen = false;
+  float sent_x = -1.0e6f, sent_y = -1.0e6f;
+  int sent_alpha = -1;
+  int sent_current = -1;
+};
+std::vector<Tile> g_tiles;  // the client's frame only
+int g_seen_version = 0;
+uint32_t g_tiles_player = ee::kObjectInvalid;
+int g_more_token = 0;
+int g_more_count = -1;
+float g_width = 1280.0f;
+LARGE_INTEGER g_last_frame{};
+int g_tile_serial = 0;
+
+// The strip's left edge is fixed (a full strip centred): a tile's slot.
+float SlotX(int index) {
+  float left = (g_width - rules::kQueueStripSlots * rules::kQueueSlotWidth) / 2.0f;
+  if (left < 0.0f) left = 0.0f;
+  return left + index * rules::kQueueSlotWidth;
+}
+
+std::string TileLayout() {
+  const std::string spacer = "{\"type\":\"spacer\",\"label\":null,\"value\":null}";
+  const std::string icon =
+      "{\"type\":\"button_image\",\"label\":{\"bind\":\"icon\"},\"value\":null,\"id\":\"aq\",\"width\":40.0,"
+      "\"height\":40.0,\"tooltip\":\"Click to cancel\",\"enabled\":{\"bind\":\"on\"}}";
+  auto label = [](const char* text, const char* colour) {
+    return std::string("{\"type\":\"label\",\"label\":null,\"value\":{\"bind\":\"") + text +
+           "\"},\"text_halign\":0,\"text_valign\":0,\"height\":18.0,\"foreground_color\":{\"bind\":\"" + colour +
+           "\"}}";
+  };
+  // The dark card behind it: a draw-list rectangle whose colour (and so its fade) is a bind.
+  const std::string card =
+      "\"draw_list\":[{\"type\":7,\"enabled\":true,\"color\":{\"bind\":\"bg\"},\"fill\":true,\"line_thickness\":1.0,"
+      "\"order\":-1,\"render\":0,\"arrayBinds\":false,\"rect\":{\"x\":-4.0,\"y\":-4.0,\"w\":104.0,\"h\":96.0}}],"
+      "\"draw_list_scissor\":false";
+  const std::string column = "{\"type\":\"col\",\"label\":null,\"value\":null,\"children\":[{\"type\":\"row\","
+                             "\"label\":null,\"value\":null,\"children\":[" + spacer + "," + icon + "," + spacer +
+                             "]}," + label("name", "nc") + "," + label("target", "tc") + "]," + card + "}";
+  const std::string root = "{\"type\":\"group\",\"label\":null,\"value\":null,\"border\":false,\"scrollbars\":0,"
+                           "\"children\":[" + column + "]}";
+  return "{\"version\":1,\"title\":false,\"root\":" + root +
+         ",\"geometry\":{\"bind\":\"geometry\"},\"resizable\":false,\"collapsed\":false,\"closable\":false,"
+         "\"transparent\":true,\"border\":false,\"accepts_input\":true,\"size_constraint\":null,"
+         "\"edge_constraint\":null,\"font\":\"\"}";
+}
+
+std::string Rect(float x, float y, float w, float h) {
+  char text[128];
+  sprintf_s(text, "{\"x\":%.1f,\"y\":%.1f,\"w\":%.1f,\"h\":%.1f}", x, y, w, h);
+  return text;
+}
+
+std::string Colour(int r, int g, int b, int a) {
+  char text[96];
+  sprintf_s(text, "{\"r\":%d,\"g\":%d,\"b\":%d,\"a\":%d}", r, g, b, a);
+  return text;
+}
+
+void TileEvent(const ClientNuiEvent& event) {
+  if (event.type != "click" || event.element != "aq") return;
+  for (const Tile& tile : g_tiles) {
+    if (tile.token != event.token || tile.exiting) continue;
+    std::lock_guard<std::mutex> hold(g_lock);
+    g_cancels.push_back({g_tiles_player, tile.item});
+    return;
+  }
+}
+
+void SetTexts(const Tile& tile) {
+  ClientNuiSetText(tile.token, "icon", tile.icon);
+  ClientNuiSetText(tile.token, "name", tile.name);
+  ClientNuiSetText(tile.token, "target", tile.target);
+}
+
+void Apply(const std::vector<ClientItem>& items) {
+  for (Tile& tile : g_tiles) tile.seen = false;
+  for (int i = 0; i < static_cast<int>(items.size()); ++i) {
+    const ClientItem& ci = items[i];
+    Tile* found = nullptr;
+    for (Tile& tile : g_tiles) {
+      if (!tile.exiting && tile.key == ci.key) found = &tile;
+    }
+    if (found) {
+      found->index = i;
+      found->seen = true;
+      found->item = ci.item;
+      if (found->icon != ci.icon || found->name != ci.name || found->target != ci.target) {
+        found->icon = ci.icon;
+        found->name = ci.name;
+        found->target = ci.target;
+        SetTexts(*found);
+      }
+      continue;
+    }
+    Tile tile;
+    tile.key = ci.key;
+    tile.item = ci.item;
+    tile.icon = ci.icon;
+    tile.name = ci.name;
+    tile.target = ci.target;
+    tile.index = i;
+    tile.seen = true;
+    tile.x = SlotX(i);
+    tile.y = kTop - kEnterRise;
+    tile.alpha = 0.0f;
+    const std::string id = "n5aq" + std::to_string(++g_tile_serial % 100000);
+    tile.token = ClientNuiOpen(id.c_str(), TileLayout(), &TileEvent);
+    if (!tile.token) continue;
+    SetTexts(tile);
+    ClientNuiSetJson(tile.token, "on", "true");
+    g_tiles.push_back(std::move(tile));
+  }
+  for (Tile& tile : g_tiles) {
+    if (tile.seen || tile.exiting) continue;
+    tile.exiting = true;  // done or cancelled: it slides down and fades
+    tile.exit_t = 0.0f;
+    ClientNuiSetJson(tile.token, "on", "false");
+  }
+}
+
+void Send(Tile& tile) {
+  if (fabsf(tile.x - tile.sent_x) > 0.4f || fabsf(tile.y - tile.sent_y) > 0.4f) {
+    ClientNuiSetJson(tile.token, "geometry", Rect(tile.x, tile.y, kTileWidth, kTileHeight));
+    tile.sent_x = tile.x;
+    tile.sent_y = tile.y;
+  }
+  const int alpha = static_cast<int>(tile.alpha * 255.0f + 0.5f);
+  const int current = !tile.exiting && tile.index == 0 ? 1 : 0;
+  if (alpha != tile.sent_alpha || current != tile.sent_current) {
+    // The action in progress in gold, its target pale gold; the others white and grey.
+    ClientNuiSetJson(tile.token, "nc", current ? Colour(255, 215, 0, alpha) : Colour(240, 240, 240, alpha));
+    ClientNuiSetJson(tile.token, "tc", current ? Colour(230, 200, 120, alpha) : Colour(185, 185, 185, alpha));
+    ClientNuiSetJson(tile.token, "bg", Colour(0, 0, 0, alpha * 150 / 255));
+    tile.sent_alpha = alpha;
+    tile.sent_current = current;
+  }
+}
+
+void UpdateMore(int more) {
+  if (more == g_more_count) return;
+  g_more_count = more;
+  if (more <= 0) {
+    if (g_more_token) ClientNuiClose(g_more_token);
+    g_more_token = 0;
+    return;
+  }
+  if (!g_more_token) {
+    const std::string layout =
+        "{\"version\":1,\"title\":false,\"root\":{\"type\":\"group\",\"label\":null,\"value\":null,\"border\":false,"
+        "\"scrollbars\":0,\"children\":[{\"type\":\"label\",\"label\":null,\"value\":{\"bind\":\"more\"},"
+        "\"text_halign\":0,\"text_valign\":0}]},\"geometry\":{\"bind\":\"geometry\"},\"resizable\":false,"
+        "\"collapsed\":false,\"closable\":false,\"transparent\":true,\"border\":false,\"accepts_input\":false,"
+        "\"size_constraint\":null,\"edge_constraint\":null,\"font\":\"\"}";
+    g_more_token = ClientNuiOpen("n5aqmore", layout, nullptr);
+  }
+  ClientNuiSetText(g_more_token, "more", "+" + std::to_string(more));
+  ClientNuiSetJson(g_more_token, "geometry", Rect(SlotX(rules::kQueueStripSlots), kTop + 30.0f, 56.0f, 36.0f));
+}
+
+void StripTick() {
+  LARGE_INTEGER now, frequency;
+  QueryPerformanceCounter(&now);
+  QueryPerformanceFrequency(&frequency);
+  float dt = g_last_frame.QuadPart ? static_cast<float>(now.QuadPart - g_last_frame.QuadPart) / frequency.QuadPart
+                                   : 0.0f;
+  g_last_frame = now;
+  if (dt > 0.1f) dt = 0.1f;
+  std::vector<ClientItem> snapshot;
+  int more = 0;
+  bool changed = false;
+  {
+    std::lock_guard<std::mutex> hold(g_lock);
+    if (g_version != g_seen_version) {
+      g_seen_version = g_version;
+      snapshot = g_published;
+      more = g_published_more;
+      g_tiles_player = g_published_player;
+      if (g_gui_width > 0.0f) g_width = g_gui_width;
+      changed = true;
+    }
+  }
+  if (changed) {
+    Apply(snapshot);
+    UpdateMore(more);
+  }
+  if (g_tiles.empty()) return;
+  const float ease = 1.0f - expf(-dt * kEaseRate);
+  for (Tile& tile : g_tiles) {
+    if (tile.exiting) {
+      tile.exit_t += dt;
+      const float p = tile.exit_t >= kExitSeconds ? 1.0f : tile.exit_t / kExitSeconds;
+      tile.y = kTop + kExitDrop * p * (2.0f - p);  // eases out as it drops
+      tile.alpha = 1.0f - p;
+    } else {
+      tile.x += (SlotX(tile.index) - tile.x) * ease;  // the slot moved: the tile slides there
+      tile.y += (kTop - tile.y) * ease;
+      tile.alpha += (1.0f - tile.alpha) * ease;
+      if (tile.alpha > 0.995f) tile.alpha = 1.0f;
+    }
+    Send(tile);
+  }
+  for (auto it = g_tiles.begin(); it != g_tiles.end();) {
+    if (it->exiting && it->exit_t >= kExitSeconds) {
+      ClientNuiClose(it->token);
+      it = g_tiles.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
+bool Cancel(void* creature, const Item& it);
+
 void QueueCreatureUpdate(void* creature) {
   const uint32_t id = IdOf(creature);
   if (id == ee::kObjectInvalid) return;
@@ -389,12 +723,38 @@ void QueueCreatureUpdate(void* creature) {
   void* stats = StatsOf(creature);
   if (!stats || !engine::AreaOf(creature) || !ReadCreatureFacts(stats).is_player) return;
   Player& state = g_players[id];
+  // Clicks on the client's strip, cancelled here on the server's side.
+  std::vector<Item> clicked;
+  {
+    std::lock_guard<std::mutex> hold(g_lock);
+    for (auto it = g_cancels.begin(); it != g_cancels.end();) {
+      if (it->first == id) {
+        clicked.push_back(it->second);
+        it = g_cancels.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
+  for (const Item& it : clicked) {
+    const bool done = Cancel(creature, it);
+    Log("queue: 0x%08X cancel (action %d, id %d%s): %s", id, it.cancel_action, it.cancel_id,
+        it.own_special ? ", nwn5e's special attack" : "", done ? "cancelled" : "not found");
+    state.signature.clear();
+  }
+  // The animated strip on this game's client (the single-player character); the server's strip otherwise.
+  const bool client = ClientNuiReady() && (g_client_player == ee::kObjectInvalid || g_client_player == id);
+  if (client) g_client_player = id;
   std::vector<Item> items = Off(creature) ? std::vector<Item>() : ReadQueue(creature);
   const std::string signature = Signature(items);
   if (signature == state.signature) return;
   state.signature = signature;
   state.items = items;
-  Show(id, items);
+  if (client) {
+    Publish(id, items);
+  } else {
+    Show(id, items);
+  }
 }
 
 bool Cancel(void* creature, const Item& it) {
@@ -514,10 +874,12 @@ void InstallActionQueue() {
   AddChatCommand("!queue", &QueueCommand);
   if (!AddItemUseGuard(&NoOverQueuedUses)) Log("queue: an item's uses can be queued past what it has (no UseItem hook)");
   const bool events = AddNuiWindow(kWindow, &OnQueueEvent);
+  AddClientTickListener(&StripTick);  // 0.55.0: the animated strip (ticks once the client's windows are ready)
   if (!AddCreatureUpdateListener(&QueueCreatureUpdate)) {
     Log("SKIP queue: the action queue strip - no creature updates");
     return;
   }
-  Log("queue: the action queue strip at the top of the screen (!queue on / off)%s; its window script %zu bytes",
-      events ? "; a click cancels an item" : "; clicks NOT heard (no NUI events)", CreateScript().size());
+  Log("queue: the action queue strip at the top of the screen (!queue on / off)%s; %s",
+      events ? "; a click cancels an item" : "; clicks NOT heard (no NUI events)",
+      "animated on the game's client when its windows are ready (else the server's strip)");
 }
