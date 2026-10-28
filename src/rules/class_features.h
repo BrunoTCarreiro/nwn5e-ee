@@ -5,6 +5,8 @@
 // each feature in nwn5e is part of the table, so the game can show what
 // works. Filled one class at a time, each with its own brief.
 
+#include <stdint.h>
+
 #include <vector>
 
 #include "rules/combat.h"
@@ -204,6 +206,13 @@ bool HasRogueEvasion(int rogue_level);
 bool HasSlipperyMind(int rogue_level);
 // R11 Elusive (18): no attack roll against you has Advantage unless you're Incapacitated.
 bool HasElusive(int rogue_level);
+// R7 Uncanny Dodge (5): the first hit each round from an attacker it can see is
+// halved (its reaction). Halves an attack's damage entries in place (each
+// rounded down; -1 = unused) and returns the new total.
+bool HasUncannyDodge(int rogue_level);
+int HalveAttackDamage(int16_t* entries, int count);
+// R12 Stroke of Luck (20): a failed save's d20 becomes a 20, once per Short or Long Rest.
+bool HasStrokeOfLuck(int rogue_level);
 // Save proficiencies class features give (whatever the first class): Slippery Mind's.
 bool ClassFeatureSaveProficiency(const std::vector<ClassLevels>& classes, Ability ability);
 

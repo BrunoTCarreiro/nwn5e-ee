@@ -266,6 +266,18 @@ TEST(RogueSneakAttack2024) {
   CHECK_EQ(static_cast<int>(granted7.size()), 1);
   CHECK_EQ(granted7.empty() ? 0 : granted7[0], kFeatImprovedEvasion);
   CHECK_EQ(GrantedOnlyWhenMissing(kFeatImprovedEvasion), true);
+  // Parts 3-4 (R7, R12): Uncanny Dodge from 5 halves each damage entry (rounded
+  // down; -1 unused, untouched); Stroke of Luck at 20.
+  CHECK_EQ(HasUncannyDodge(4), false);
+  CHECK_EQ(HasUncannyDodge(5), true);
+  CHECK_EQ(HasStrokeOfLuck(19), false);
+  CHECK_EQ(HasStrokeOfLuck(20), true);
+  int16_t damage[5] = {9, -1, 0, 4, 1};
+  CHECK_EQ(HalveAttackDamage(damage, 5), 6);
+  CHECK_EQ(damage[0], 4);
+  CHECK_EQ(damage[1], -1);
+  CHECK_EQ(damage[3], 2);
+  CHECK_EQ(damage[4], 0);
   CHECK_EQ(static_cast<int>(ClassFeatures2024(CharacterClass::kRogue, 1).size()), 4);
   CHECK_EQ(static_cast<int>(ClassFeatures2024(CharacterClass::kRogue, 20).size()), 28);
 }

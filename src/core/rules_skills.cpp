@@ -485,6 +485,21 @@ bool StealthParts(void* creature, int* extra, bool* proficient) {
   return true;
 }
 
+// R9 Reliable Talent (rules_skill_dcs.cpp, rules_perception.cpp): a Rogue 7+'s
+// d20 of 9 or lower counts as 10 on a check with a skill it is proficient in
+// (class_features faithful; the 2024 skills give the proficiency).
+int ReliableTalentRoll(void* creature, int nwn_skill, int d20) {
+  if (g_config.class_features != rules::RuleVariant::kFaithful || !Faithful() || !creature || d20 >= 10) return d20;
+  void* stats = StatsOf(creature);
+  const int rogue = stats ? ClassLevel2024(stats, rules::CharacterClass::kRogue) : 0;
+  if (rogue < 7) return d20;
+  int value = 0;
+  SkillParts parts;
+  bool is_player = false;
+  if (!SkillValue2024(stats, nwn_skill, nullptr, &value, &parts, &is_player)) return d20;
+  return rules::ReliableTalentD20(d20, rogue, parts.proficient);
+}
+
 void InstallSkillRules() {
   if (!Faithful()) return;
   RegisterRecords({kVarProficient, kVarExpertise, kVarSet});

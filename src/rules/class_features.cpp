@@ -110,11 +110,13 @@ const std::vector<ClassFeature>& Rogue() {
       {3, "Second-Story Work", true, "listed (NWN has no climbing or jumping)"},
       {4, "Ability Score Improvement", false, "built (!asi)"},
       {5, "Cunning Strike", false, "later (Rogue part 5)"},
-      {5, "Uncanny Dodge", false, "later (Rogue part 3)"},
+      {5, "Uncanny Dodge", false, "built: the first hit each round from an attacker you see is halved - your "
+                                  "reaction (no Retaliation or opportunity attack after it)"},
       {6, "Expertise", false, "built (!skills)"},
       {7, "Evasion", false, "built: no damage on a successful Dexterity save, half on a failed one; not while "
                             "Incapacitated (NWN's Improved Evasion, granted)"},
-      {7, "Reliable Talent", false, "later (Rogue part 4)"},
+      {7, "Reliable Talent", false, "built: a d20 of 9 or lower counts as 10 on proficient checks nwn5e rolls "
+                                    "(hiding, searching, the scripts' skill checks; not the engine's locks and traps)"},
       {8, "Ability Score Improvement", false, "built (!asi)"},
       {9, "Supreme Sneak", true, "later (an attacking-ends-hiding rule)"},
       {10, "Ability Score Improvement", false, "built (!asi)"},
@@ -127,7 +129,7 @@ const std::vector<ClassFeature>& Rogue() {
       {17, "Thief's Reflexes", true, "Phase 6"},
       {18, "Elusive", false, "built: no attack roll against you has Advantage unless you're Incapacitated"},
       {19, "Epic Boon", false, "CM8"},
-      {20, "Stroke of Luck", false, "later (Rogue part 4)"},
+      {20, "Stroke of Luck", false, "built: your first failed save becomes a 20; again after a Short or Long Rest"},
   };
   return kFeatures;
 }
@@ -312,6 +314,20 @@ bool HasRogueEvasion(int rogue_level) { return rogue_level >= 7; }
 bool HasSlipperyMind(int rogue_level) { return rogue_level >= 15; }
 
 bool HasElusive(int rogue_level) { return rogue_level >= 18; }
+
+bool HasUncannyDodge(int rogue_level) { return rogue_level >= 5; }
+
+int HalveAttackDamage(int16_t* entries, int count) {
+  int total = 0;
+  for (int i = 0; entries && i < count; ++i) {
+    if (entries[i] <= 0) continue;
+    entries[i] = static_cast<int16_t>(entries[i] / 2);
+    total += entries[i];
+  }
+  return total;
+}
+
+bool HasStrokeOfLuck(int rogue_level) { return rogue_level >= 20; }
 
 bool ClassFeatureSaveProficiency(const std::vector<ClassLevels>& classes, Ability ability) {
   for (const ClassLevels& c : classes) {

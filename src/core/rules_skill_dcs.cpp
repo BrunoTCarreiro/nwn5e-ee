@@ -52,6 +52,7 @@
 #include "skill_rank.h"
 
 int SearchDie(void* searcher, bool worse);  // rules_perception.cpp (SK5)
+int ReliableTalentRoll(void* creature, int nwn_skill, int d20);  // rules_skills.cpp (Rogue R9)
 
 namespace {
 
@@ -479,22 +480,33 @@ bool CheckDice(uintptr_t caller, int count, int sides, int* result) {
     LogCheck(searcher, true, sides, first, second, *result, "disadvantage: " + worse);
     return true;
   }
-  if (caller != g_skill_check_d20 || !t_check.creature || !ConditionsFaithful()) return false;
+  if (caller != g_skill_check_d20 || !t_check.creature || count != 1) return false;
   void* creature = t_check.creature;
   const char* sense = nullptr;
-  if (t_check.skill == ee::kSkillListen && effects::HasType(creature, ee::kEffectTypeDeaf)) sense = "deafened";
-  if ((t_check.skill == ee::kSkillSpot || t_check.skill == ee::kSkillSearch) && Blind(creature)) sense = "blinded";
-  const std::string worse = CheckDisadvantage(creature);
-  if (!sense && worse.empty()) return false;
+  std::string worse;
+  if (ConditionsFaithful()) {
+    if (t_check.skill == ee::kSkillListen && effects::HasType(creature, ee::kEffectTypeDeaf)) sense = "deafened";
+    if ((t_check.skill == ee::kSkillSpot || t_check.skill == ee::kSkillSearch) && Blind(creature)) sense = "blinded";
+    worse = CheckDisadvantage(creature);
+  }
+  const bool reliable = !sense && ReliableTalentRoll(creature, t_check.skill, 1) == 10;  // Rogue R9
+  if (!sense && worse.empty() && !reliable) return false;
   const int first = RollEngineDice(count, sides);
   int second = 0;
   int kept = 1;
   if (!sense) {
-    second = RollEngineDice(count, sides);
-    kept = second < first ? second : first;
+    kept = first;
+    if (!worse.empty()) {
+      second = RollEngineDice(count, sides);
+      kept = second < first ? second : first;
+    }
   }
-  LogCheck(creature, false, sides, first, second, kept,
-           sense ? std::string(sense) + ": fails what needs that sense" : "disadvantage: " + worse);
+  std::string why = sense ? std::string(sense) + ": fails what needs that sense" : worse.empty() ? "" : "disadvantage: " + worse;
+  if (reliable && kept < 10) {
+    kept = 10;
+    why += std::string(why.empty() ? "" : "; ") + "Reliable Talent: 10";
+  }
+  if (!why.empty()) LogCheck(creature, false, sides, first, second, kept, why);
   *result = kept;
   return true;
 }

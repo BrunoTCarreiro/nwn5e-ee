@@ -57,6 +57,8 @@ int IndomitableReroll(void* creature);  // rules_fighter.cpp (Fighter F5)
 int ClassSaveAdvantage(void* creature, rules::Ability ability);  // rules_barbarian.cpp (B5 Danger Sense, B2 Rage)
 int TakeStaggeredSave(void* creature);  // rules_barbarian_strikes.cpp (B10 Staggering Blow: its next save)
 bool IndomitableMightSucceeds(void* creature, int dc);           // rules_barbarian.cpp (B13)
+bool StrokeOfLuckReady(void* creature);                          // rules_rogue.cpp (R12)
+void StrokeOfLuckUsed(void* creature, bool succeeded);           // rules_rogue.cpp (R12)
 void NoteSaveForced(uint32_t by, void* creature);                // rules_barbarian.cpp (B3: keeps a Rage going)
 
 namespace {
@@ -138,6 +140,7 @@ struct SaveContext {
   int spell = -1;  // the spell whose script asked for this save, or -1
   std::optional<rules::Ability> ability;  // C1: the 2024 ability that spell uses
   ConditionSave condition;                // CN1–CN3
+  bool force_twenty = false;              // Rogue R12 Stroke of Luck: this roll's d20 is a 20
 };
 SaveContext g_save;
 
@@ -317,6 +320,14 @@ uint8_t SavingThrowRoll(void* creature, uint8_t save, uint16_t dc, uint8_t type,
     result = 1;
     TellIfPlayer(IdOf(creature), "nwn5e: Indomitable Might - your Strength score meets the DC: the save succeeds.");
   }
+  // Rogue R12 Stroke of Luck: the first failed save since a rest is rolled again with its d20 a 20.
+  if (result == 0 && !context.condition.auto_fail && StrokeOfLuckReady(creature)) {
+    g_save = context;
+    g_save.force_twenty = true;
+    result = g_saving_throw_roll(creature, save, static_cast<uint16_t>(std::clamp(new_dc, 1, 0xFFFF)), type, versus,
+                                 feedback, feat, from_combat);
+    StrokeOfLuckUsed(creature, result != 0);
+  }
   g_save = outer;
   if (save >= 1 && save <= 3) {
     g_last_save = LastSave{creature,
@@ -359,6 +370,10 @@ bool SaveD20(uintptr_t caller, int count, int sides, int* result) {
   if (caller != g_save_d20_caller || !g_save.active || count != 1 || sides != 20) return false;
   if (g_save.condition.auto_fail) {  // CN2/CN3: the wrapper makes it a failure
     *result = 1;
+    return true;
+  }
+  if (g_save.force_twenty) {  // Rogue R12 Stroke of Luck
+    *result = 20;
     return true;
   }
   void* stats = StatsOf(g_save.creature);

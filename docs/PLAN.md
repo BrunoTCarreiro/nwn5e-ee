@@ -1555,6 +1555,26 @@ Advantage source dropped, Disadvantage kept), passed for weapon and spell
 attack rolls (rules_advantage.cpp; the log says "Elusive: no Advantage").
 Tests: RogueSneakAttack2024 (part 2's rows), ElusiveTargetsGiveNoAdvantage.
 
+*Built 0.50.0 (parts 3-4: R7, R9, R12):* R7 - CNWSCreature::ResolveDamage is now
+one shared hook (resolve_damage.cpp: skips - the Shove's no-damage moved there -
+and after-listeners). After it fills the attack data's damage (int16 per type at
++0x16, 32 of them; GetDamage / SetDamage read them through
+GetDamageIndexFromFlags), a hit or critical on a Rogue 5+ character that sees the
+attacker and isn't dead, dying or Incapacitated is halved (each entry rounded
+down: rules::HalveAttackDamage) before ResolvePost*Damage builds the damage
+effect - so before resistances - spending its reaction: the round's AoO count
+(CNWSCombatRound +0x2f40, now ee::kRoundOpportunitiesLeft) decremented; none
+left, no Uncanny Dodge (and after it no Retaliation or AoO that round). R9 -
+rules_skills' ReliableTalentRoll (Rogue 7+, proficient in the skill's 2024
+counterpart): the scripts' GetIsSkillSuccessful d20 (rules_skill_dcs - now also
+without `conditions` faithful), trap searching's d20 (SearchDie) and a searching
+observer's Perception d20 (StealthDice) - with hiding's Stealth (0.35.0) the d20s
+nwn5e rolls; the engine's own lock / trap / heal-kit d20s stay (SK11's gap). R12 -
+rules_save_roll: a failed save of a Rogue 20 character whose Stroke of Luck is
+ready (record nwn5e_stroke_used) is rolled again with SaveD20 answering 20 (the
+engine's own total against the DC, its feedback line); used, it waits for a Short
+or Long Rest (rest listeners). Tests: RogueSneakAttack2024's part 3-4 rows.
+
 ## Phase 5 — rests, healing, death: decided by the owner (2026-10-23)
 
 Recon (EE 89.8193.37-17, disassembly; facts the decisions rest on):

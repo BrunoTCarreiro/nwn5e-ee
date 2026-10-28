@@ -94,6 +94,7 @@
 #include "skill_rank.h"
 
 bool StealthParts(void* creature, int* extra, bool* proficient);  // rules_skills.cpp
+int ReliableTalentRoll(void* creature, int nwn_skill, int d20);    // rules_skills.cpp (Rogue R9)
 extern "C" __declspec(dllimport) unsigned short __stdcall RtlCaptureStackBackTrace(unsigned long skip, unsigned long count,
                                                                                  void** frames, unsigned long* hash);
 extern "C" __declspec(dllimport) unsigned long long __stdcall GetTickCount64();
@@ -324,6 +325,7 @@ bool StealthDice(uintptr_t caller, int count, int sides, int* result) {
     if (Searching(creature)) {
       const int first = RollEngineDice(1, 20);
       t_die = rules::KeptCheckD20(first, worse ? RollEngineDice(1, 20) : 0, 0, worse ? 1 : 0);
+      t_die = ReliableTalentRoll(creature, ee::kSkillSpot, t_die);  // Rogue R9: Perception
     }
   }
   (void)sides;
@@ -747,5 +749,6 @@ int CarriedLightRadius(void* creature) { return creature ? CarriedLightRadiusOf(
 int SearchDie(void* searcher, bool worse) {
   if (Field<uint8_t>(searcher, ee::kCreatureDetectMode) == 0) return rules::PassiveCheckBase(worse);
   const int first = RollEngineDice(1, 20);
-  return rules::KeptCheckD20(first, worse ? RollEngineDice(1, 20) : 0, 0, worse ? 1 : 0);
+  const int kept = rules::KeptCheckD20(first, worse ? RollEngineDice(1, 20) : 0, 0, worse ? 1 : 0);
+  return ReliableTalentRoll(searcher, ee::kSkillSearch, kept);  // Rogue R9
 }

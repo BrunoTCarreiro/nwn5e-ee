@@ -35,6 +35,18 @@
 //   (rules_saves.cpp, rules::ClassFeatureSaveProficiency).
 // - R11 Elusive (Rogue 18): no attack roll against it has Advantage unless it
 //   is Incapacitated (rules_advantage.cpp: weapon and spell attack rolls).
+// Parts 3-4 (0.50.0):
+// - R7 Uncanny Dodge (Rogue 5): after CNWSCreature::ResolveDamage put a hit's
+//   damage in the attacker's attack data (resolve_damage.cpp; int16 per type at
+//   +0x16), the Rogue it hits - seeing the attacker, not Incapacitated - halves
+//   it before ResolvePost*Damage makes the damage effect (before resistances,
+//   as 2024 orders it), spending its round's reaction: the round's AoO count
+//   (+0x2f40, decremented - no opportunity attack or Retaliation after it).
+// - R9 Reliable Talent (Rogue 7): rules_skills' ReliableTalentRoll at the d20s
+//   nwn5e rolls - the scripts' GetIsSkillSuccessful, trap searching, a
+//   searching observer's Perception (and since 0.35.0 hiding's Stealth).
+// - R12 Stroke of Luck (Rogue 20): rules_save_roll rolls the first failed save
+//   since a Short or Long Rest again with its d20 a 20 (record nwn5e_stroke_used).
 // NWN mode: NWN's sneak attack, Evasion and Improved Evasion.
 
 #include <windows.h>
@@ -50,7 +62,12 @@
 #include "condition_effects.h"
 #include "config.h"
 #include "creature.h"
+#include "chat.h"
 #include "dice.h"
+#include "effects.h"
+#include "records.h"
+#include "resolve_damage.h"
+#include "rest.h"
 #include "feats.h"
 #include "saves.h"
 #include "ee_layout.h"
@@ -227,10 +244,76 @@ bool EvasionFilter(void* stats, int feat, uintptr_t caller, int* answer) {
   return true;
 }
 
+// R7 Uncanny Dodge: a hit on a Rogue 5+ halved - its reaction.
+void UncannyDodge(void* attacker, void* target) {
+  if (!Faithful() || !attacker || !target) return;
+  void* rogue = CreatureById(IdOf(target));
+  void* stats = rogue ? StatsOf(rogue) : nullptr;
+  if (!stats || !ReadCreatureFacts(stats).character || !rules::HasUncannyDodge(RogueLevel(stats))) return;
+  uint8_t* data = CurrentAttackData(attacker);
+  if (!data) return;
+  const uint8_t result = data[ee::kAttackResult];
+  if (result != 1 && result != 3) return;  // a hit or a critical hit
+  auto* entries = reinterpret_cast<int16_t*>(data + ee::kAttackDamageEntries);
+  int total = 0;
+  for (int i = 0; i < ee::kAttackDamageEntryCount; ++i) total += entries[i] > 0 ? entries[i] : 0;
+  if (total <= 0) return;
+  const uint32_t rogue_id = IdOf(rogue);
+  const uint32_t attacker_id = IdOf(attacker);
+  if (engine::IsDeadOrDying(rogue) || IncapacitatedByCondition(rogue) || !engine::Sees(rogue, attacker_id)) return;
+  void* round = Field<void*>(rogue, ee::kCreatureCombatRound);
+  if (!round || Field<int32_t>(round, ee::kRoundOpportunitiesLeft) <= 0) {
+    if (IsPlayer(rogue) && LogSlot()) Log("rogue: 0x%08X hit by 0x%08X (%d) - no Uncanny Dodge: reaction spent", rogue_id,
+                                         attacker_id, total);
+    return;
+  }
+  const int halved = rules::HalveAttackDamage(entries, ee::kAttackDamageEntryCount);
+  SetField<int32_t>(round, ee::kRoundOpportunitiesLeft, Field<int32_t>(round, ee::kRoundOpportunitiesLeft) - 1);
+  if (LogSlot()) Log("rogue: 0x%08X Uncanny Dodge - the hit by 0x%08X halved, %d -> %d (its reaction)", rogue_id,
+                     attacker_id, total, halved);
+  if (IsPlayer(rogue)) {
+    TellPlayer(rogue_id, "nwn5e: Uncanny Dodge - you halve the hit (" + std::to_string(total) + " -> " +
+                             std::to_string(halved) + "); your reaction this round.");
+  }
+}
+
+// R12 Stroke of Luck: ready / used, restored by a Short or Long Rest.
+constexpr const char* kVarStrokeUsed = "nwn5e_stroke_used";
+
+void StrokeOfLuckLongRest(void* stats) {
+  void* creature = stats ? CreatureOf(stats) : nullptr;
+  if (creature && engine::GetLocalInt(creature, kVarStrokeUsed)) SetRecord(creature, kVarStrokeUsed, 0);
+}
+
+std::string StrokeOfLuckShortRest(void* creature) {
+  if (!creature || !engine::GetLocalInt(creature, kVarStrokeUsed)) return std::string();
+  SetRecord(creature, kVarStrokeUsed, 0);
+  return "Stroke of Luck is ready again.";
+}
+
 // R1 (e): no flat-footed in 2024.
 int GetFlatFooted(void* creature) { return Faithful() ? 0 : g_flat_footed(creature); }
 
 }  // namespace
+
+bool StrokeOfLuckReady(void* creature) {
+  if (!Faithful() || !creature) return false;
+  void* stats = StatsOf(creature);
+  if (!stats || !ReadCreatureFacts(stats).character || !rules::HasStrokeOfLuck(RogueLevel(stats))) return false;
+  EnsureRecords(creature);
+  return engine::GetLocalInt(creature, kVarStrokeUsed) == 0;
+}
+
+void StrokeOfLuckUsed(void* creature, bool succeeded) {
+  if (!creature) return;
+  SetRecord(creature, kVarStrokeUsed, 1);
+  const uint32_t id = IdOf(creature);
+  Log("rogue: 0x%08X Stroke of Luck - a failed save rolled again as a 20: %s", id, succeeded ? "success" : "still fails");
+  if (IsPlayer(creature)) {
+    TellPlayer(id, std::string("nwn5e: Stroke of Luck - the failed save's d20 becomes a 20") +
+                       (succeeded ? ": it succeeds." : ", and it still fails.") + " Again after a Short or Long Rest.");
+  }
+}
 
 bool ElusiveTarget(void* creature) {
   if (!Faithful() || !creature) return false;
@@ -257,6 +340,13 @@ void InstallRogueRules() {
   const bool flat = HookExport("CNWSCreature::GetFlatFooted (never: 2024 has no flat-footed)", kGetFlatFooted,
                                reinterpret_cast<void*>(&GetFlatFooted), reinterpret_cast<void**>(&g_flat_footed));
   const bool evasion = AddFeatFilter(&EvasionFilter);
+  RegisterRecords({kVarStrokeUsed});
+  const bool uncanny = AddResolveDamageListener(&UncannyDodge);
+  AddRestListener(&StrokeOfLuckLongRest);
+  AddShortRestListener(&StrokeOfLuckShortRest);
+  Log("rogue: parts 3-4 - %s; Reliable Talent (hiding, searching, the scripts' skill checks); Stroke of Luck (a "
+      "failed save becomes a 20, once per rest)",
+      uncanny ? "Uncanny Dodge (the first seen hit a round halved, its reaction)" : "Uncanny Dodge NOT on");
   Log("rogue: part 2 - %s; Slippery Mind (Wisdom / Charisma saves at 15); Elusive (no Advantage against you at 18)",
       evasion ? "Evasion as 2024's (Dexterity saves, not Incapacitated; Improved Evasion at 7)"
               : "Evasion NOT converted (no HasFeat filter)");

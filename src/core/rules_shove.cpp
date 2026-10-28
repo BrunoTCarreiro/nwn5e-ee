@@ -48,6 +48,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "mastery.h"
+#include "resolve_damage.h"
 #include "rules/grapple.h"
 #include "saves.h"
 #include "skill_rank.h"
@@ -69,7 +70,6 @@ using UseFeatFn = int (*)(void* creature, uint16_t feat, uint16_t subfeat, uint3
                           Vector3* location);
 
 AddSpecialAttackFn g_add_special_attack = nullptr;
-TargetFn g_resolve_damage = nullptr;
 CodeRange g_special_code;          // ResolveMeleeSpecialAttack
 uintptr_t g_roll_caller = 0;       // its ResolveAttackRoll call
 uintptr_t g_damage_caller = 0;     // its ResolveDamage call
@@ -142,9 +142,9 @@ bool ShoveInsteadOfAttackRoll(AttackRoll& roll, uintptr_t caller) {
   return true;
 }
 
-void ResolveDamage(void* creature, void* target) {
-  if (reinterpret_cast<uintptr_t>(_ReturnAddress()) == g_damage_caller && UnarmedAttack(creature)) return;
-  g_resolve_damage(creature, target);
+// No damage for a Shove or one of nwn5e's options (resolve_damage.cpp's skip).
+bool ShoveSkipsResolveDamage(void* creature, void* /*target*/, uintptr_t caller) {
+  return caller == g_damage_caller && UnarmedAttack(creature);
 }
 
 // The Discipline value the engine compares: the Shove's save decides.
@@ -341,8 +341,7 @@ void InstallShoveRules() {
   g_post_damage_caller = SingleCallReturn(ee::kResolvePostMeleeDamage, "ResolvePostMeleeDamage");
   if (!g_roll_caller || !g_damage_caller || !g_post_damage_caller || !g_add_special_attack) return;
   g_on = AddAttackRollSkipper(&ShoveInsteadOfAttackRoll) &&
-         HookExport("CNWSCreature::ResolveDamage (a Shove deals no damage)", ee::kResolveDamage,
-                    reinterpret_cast<void*>(&ResolveDamage), reinterpret_cast<void**>(&g_resolve_damage)) &&
+         AddResolveDamageSkip(&ShoveSkipsResolveDamage) &&
          AddSkillAdjuster(&ShoveSave);
   if (!g_on) {
     Log("knockdown: Shove NOT on");
