@@ -38,6 +38,10 @@
 //   for the speaker against a 2024 DC (the save wrapper: Stroke of Luck, Indomitable
 //   Might ...); "!reflex <dc> <damage>" a Reflex-halved hit through the engine's
 //   GetReflexAdjustedDamage, as an area spell's (Evasion), as fire damage.
+// - 0.50.5 (owner: "add a !level command"): "!level <n> [class]" - the
+//   engine's own level-ups up to level n in the class (the first class when
+//   none is named; another one multiclasses), as !test's `level` makes them:
+//   only added, never taken away; abilities and items untouched.
 
 #include <windows.h>
 
@@ -348,6 +352,29 @@ const char* ClassName(int nwn_class) {
              : "another class";
 }
 
+// The engine's own level-ups in `nwn_class` up to `level` in it (the XP for the
+// new total first); the chat line saying what it reached.
+std::string AddLevels(void* stats, int nwn_class, int level) {
+  const uint32_t id = ObjectIdOf(stats);
+  const int had = ClassLevel(stats, nwn_class);
+  const int add = level - had;
+  if (add > 0) {
+    const int total = TotalLevel(stats) + add;
+    const uint32_t xp = g_config.progression == rules::RuleVariant::kFaithful ? rules::FaithfulXpForLevel(total)
+                                                                              : rules::NwnXpForLevel(total);
+    char code[300];
+    sprintf_s(code,
+              "if (GetXP(OBJECT_SELF) < %u) SetXP(OBJECT_SELF, %u); int i;"
+              " for (i = 0; i < %d; i++) if (!LevelUpHenchman(OBJECT_SELF, %d, TRUE)) break;",
+              xp, xp, add, nwn_class);
+    RunScriptChunk(code, id);  // the automatic level-ups take the 2024 feats (rules_feats.cpp)
+  }
+  return std::string("  class: ") + ClassName(nwn_class) + " " + std::to_string(ClassLevel(stats, nwn_class)) +
+         (add <= 0 ? " (already there)"
+          : had == 0 && TotalLevel(stats) > level ? " (a new class: multiclassed)"
+                                                  : " (" + std::to_string(add) + " levels added)");
+}
+
 // The level history: a level taken in a class the character no longer has
 // becomes `to`'s. Returns how many levels changed.
 int RewriteLevelHistory(void* stats, int to) {
@@ -425,6 +452,40 @@ std::string SwapFirstClass(void* stats, int to) {
          std::to_string(added) + " added" + (slots.size() > 1 ? "; only the first class" : "") + ")";
 }
 
+std::vector<std::string> LevelCommand(void* creature, const std::string& args) {
+  void* stats = StatsOf(creature);
+  if (!stats) return {};
+  const std::string text = Lower(Trim(args));
+  const size_t space = text.find(' ');
+  const int level = atoi(text.c_str());
+  int nwn_class = -1;
+  if (space != std::string::npos) {
+    const std::string name = Trim(text.substr(space + 1));
+    for (int i = 0; i < static_cast<int>(sizeof(kClassNames) / sizeof(kClassNames[0])); ++i) {
+      if (Lower(kClassNames[i]) == name) nwn_class = i;
+    }
+    if (nwn_class < 0) {
+      return {"nwn5e: no class \"" + name + "\" - barbarian, bard, cleric, druid, fighter, monk, paladin, ranger, "
+              "rogue, sorcerer or wizard."};
+    }
+  } else {
+    const std::vector<rules::NwnClassSlot> slots = ReadClassSlots(stats);
+    if (!slots.empty()) nwn_class = slots[0].nwn_class_id;
+  }
+  if (level < 1 || level > 40 || nwn_class < 0) {
+    return {"nwn5e: !level <n> [class] - levels up to n in the class (your first class when none is named), e.g. "
+            "!level 20 or !level 3 fighter. Levels are only added."};
+  }
+  const int had = ClassLevel(stats, nwn_class);
+  if (had >= level) {
+    return {"nwn5e: you are already " + std::string(ClassName(nwn_class)) + " " + std::to_string(had) +
+            " - levels are only added, never taken away."};
+  }
+  const std::string line = AddLevels(stats, nwn_class, level);
+  Log("test: 0x%08X !level %d %s:%s", ObjectIdOf(stats), level, ClassName(nwn_class), line.c_str());
+  return {"nwn5e: !level -" + line.substr(1)};
+}
+
 std::vector<std::string> TestCommand(void* creature, const std::string&) {
   void* stats = StatsOf(creature);
   if (!stats) return {};
@@ -451,26 +512,7 @@ std::vector<std::string> TestCommand(void* creature, const std::string&) {
   // 1b. The first class swapped (before the levels, which may then add some in it).
   if (profile.swap_class >= 0) lines.push_back(SwapFirstClass(stats, profile.swap_class));
   // 2. Level: the XP for it, then the engine's own level-ups in the class.
-  if (profile.nwn_class >= 0 && profile.level > 0) {
-    const int had = ClassLevel(stats, profile.nwn_class);
-    const int add = profile.level - had;
-    if (add > 0) {
-      const int total = TotalLevel(stats) + add;
-      const uint32_t xp = g_config.progression == rules::RuleVariant::kFaithful ? rules::FaithfulXpForLevel(total)
-                                                                                : rules::NwnXpForLevel(total);
-      char code[300];
-      sprintf_s(code,
-                "if (GetXP(OBJECT_SELF) < %u) SetXP(OBJECT_SELF, %u); int i;"
-                " for (i = 0; i < %d; i++) if (!LevelUpHenchman(OBJECT_SELF, %d, TRUE)) break;",
-                xp, xp, add, profile.nwn_class);
-      RunScriptChunk(code, id);  // the automatic level-ups take the 2024 feats (rules_feats.cpp)
-    }
-    lines.push_back(std::string("  class: ") + kClassNames[profile.nwn_class] + " " +
-                    std::to_string(ClassLevel(stats, profile.nwn_class)) +
-                    (add <= 0 ? " (already there)"
-                     : had == 0 && TotalLevel(stats) > profile.level ? " (a new class: multiclassed)"
-                                                                     : " (" + std::to_string(add) + " levels added)"));
-  }
+  if (profile.nwn_class >= 0 && profile.level > 0) lines.push_back(AddLevels(stats, profile.nwn_class, profile.level));
   // 2b. Experience only: the level-up screen makes the levels.
   if (profile.xp > 0) {
     char code[200];
@@ -541,6 +583,7 @@ void InstallTestCommands() {
   AddChatCommand("!prone", &ProneCommand);
   AddChatCommand("!save", &SaveCommand);
   AddChatCommand("!reflex", &ReflexCommand);
+  AddChatCommand("!level", &LevelCommand);
   Log("config: [debug] test_commands=1 - !test (data\\test.txt), !give <blueprint>, !feat add / remove <feat>, "
-      "!export, !spawn <blueprint> [ally], !prone [s], !save <ability> <dc>, !reflex <dc> <damage>");
+      "!export, !spawn <blueprint> [ally], !prone [s], !save <ability> <dc>, !reflex <dc> <damage>, !level <n> [class]");
 }

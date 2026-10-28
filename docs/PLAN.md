@@ -1093,6 +1093,9 @@ update asked again, clearing the queued Rage: ~30 asks in 0.6 s at each of the f
 spent). A Rage asked for now isn't asked again for 6 s. The game clock logs pauses ("game clock:
 paused / running"): Rage, Withdraw and the repeat saves run on it, and a Withdraw still holding 80
 real seconds later (14:13:27 -> 14:14:48) needs reading against them. `!reflex` logs the damage taken.
+*0.50.5 (owner: "add a !level command"):* `!level <n> [class]` (test commands): the engine's own
+level-ups up to level n in the class - the first class when none is named, another one multiclasses -
+as !test's `level` makes them (now one function, AddLevels), without touching abilities or items.
 *0.41.2 (owner: "why do enemies have in their radial menu, a barbarian section that is filled with
 greyed out options?"):* radial_class_feats.cpp (`radial_hide_self_feats`, client). The game puts every
 class feat with OnMenu 1 (cls_feat_*) that the character has on any creature's radial and greys a
