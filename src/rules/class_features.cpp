@@ -106,7 +106,8 @@ const std::vector<ClassFeature>& Rogue() {
       {2, "Cunning Action", false, "Phase 6 (bonus actions)"},
       {3, "Thief", false, "built: granted at 3"},
       {3, "Steady Aim", false, "Phase 6 (bonus actions)"},
-      {3, "Fast Hands", true, "later (Rogue part 6): locks and traps by the better of Thieves' Tools and Sleight of Hand"},
+      {3, "Fast Hands", true, "built: lock and trap checks use the better of Thieves' Tools and Sleight of Hand "
+                               "(the speed: Phase 6)"},
       {3, "Second-Story Work", true, "listed (NWN has no climbing or jumping)"},
       {4, "Ability Score Improvement", false, "built (!asi)"},
       {5, "Cunning Strike", false, "built: a Sneak Attack gives up dice for Poison, Trip or Withdraw (its radial, "
@@ -123,7 +124,8 @@ const std::vector<ClassFeature>& Rogue() {
       {10, "Ability Score Improvement", false, "built (!asi)"},
       {11, "Improved Cunning Strike", false, "built: two effects per Sneak Attack"},
       {12, "Ability Score Improvement", false, "built (!asi)"},
-      {13, "Use Magic Device", true, "later (Rogue part 6)"},
+      {13, "Use Magic Device", true, "built: any spell scroll - from level 2 an Arcana check (DC 10 + its level) "
+                                      "or it crumbles; attunement and charges later"},
       {14, "Devious Strikes", false, "built: Daze, Knock Out and Obscure (its own radial)"},
       {15, "Slippery Mind", false, "built: proficient in Wisdom and Charisma saves"},
       {16, "Ability Score Improvement", false, "built (!asi)"},
@@ -329,6 +331,14 @@ int HalveAttackDamage(int16_t* entries, int count) {
 }
 
 bool HasStrokeOfLuck(int rogue_level) { return rogue_level >= 20; }
+
+bool HasFastHands(int rogue_level) { return rogue_level >= 3; }
+int FastHandsValue(int thieves_tools, int sleight_of_hand) {
+  return sleight_of_hand > thieves_tools ? sleight_of_hand : thieves_tools;
+}
+bool HasUseMagicDevice(int rogue_level) { return rogue_level >= 13; }
+bool ScrollNeedsArcanaCheck(int spell_level) { return spell_level >= 2; }
+int ScrollArcanaDc(int spell_level) { return 10 + spell_level; }
 
 bool HasCunningStrike(int rogue_level) { return rogue_level >= 5; }
 bool HasDeviousStrikes(int rogue_level) { return rogue_level >= 14; }

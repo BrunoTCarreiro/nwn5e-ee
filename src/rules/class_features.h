@@ -250,6 +250,16 @@ std::vector<CunningEffect> ActiveCunningEffects(const CunningChoice& choice, int
 // it is skipped and costs nothing); *dice_left is what is still rolled.
 std::vector<CunningEffect> CunningEffectsForSneakAttack(const CunningChoice& choice, int rogue_level, int dice,
                                                         bool target_can_trip, int* dice_left);
+// T1 Fast Hands (Thief 3): lock and trap checks (Thieves' Tools) use the better
+// of that and Sleight of Hand.
+bool HasFastHands(int rogue_level);
+int FastHandsValue(int thieves_tools, int sleight_of_hand);
+// T4 Use Magic Device (Thief 13), scrolls: any Spell Scroll; a spell of level 2
+// or more needs an Intelligence (Arcana) check against 10 + its level (a
+// failure: the scroll crumbles).
+bool HasUseMagicDevice(int rogue_level);
+bool ScrollNeedsArcanaCheck(int spell_level);
+int ScrollArcanaDc(int spell_level);
 // Save proficiencies class features give (whatever the first class): Slippery Mind's.
 bool ClassFeatureSaveProficiency(const std::vector<ClassLevels>& classes, Ability ability);
 

@@ -37,6 +37,7 @@ void InstallShoveRules();
 void InstallGrappleRules();
 void InstallRogueRules();
 void InstallCombatOptions();
+void InstallThiefRules();
 void InstallSkillDcRules();
 void InstallPerceptionRules();
 void InstallDataServing(const wchar_t* dll_directory);
@@ -129,6 +130,7 @@ void Start(HMODULE self) {
   InstallGrappleRules();
   InstallRogueRules();
   InstallCombatOptions();
+  InstallThiefRules();
   InstallSkillDcRules();
   InstallPerceptionRules();
   InstallProgressionRules();

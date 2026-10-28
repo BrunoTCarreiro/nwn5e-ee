@@ -21,6 +21,10 @@ using SkillAdjuster = int (*)(const SkillQuery& query, int value);
 // Hooks GetSkillRank on first use; false (and logged) if it can't.
 bool AddSkillAdjuster(SkillAdjuster adjuster);
 
+// A skill total now, with every adjuster (the 2024 value when the skills are
+// faithful) - for nwn5e's own checks (an Arcana roll, Fast Hands).
+int SkillRankNow(void* stats, int skill, void* vs);
+
 // The return address of the single GetSkillRank call inside the exported
 // function `export_name` (0, logged, when there isn't exactly one).
 uintptr_t SkillRankCallerIn(const char* export_name);

@@ -3,7 +3,7 @@
 // is used (EE too: tested 2026-10-20, EP20). [rules] resume_attack_after_potion.
 // (Port of 1.69's rules_potion.cpp; docs/EE-PORT.md E2.)
 //
-// EE: CNWSCreature::UseItem queues the drink. For a player character in
+// EE: CNWSCreature::UseItem queues the drink (item_use.cpp's shared hook, 0.50.0). For a player character in
 // combat drinking a potion (base items 49, 54, 104) whose last attack was
 // within 30 s, that target is noted; once the drink is over and the character
 // has no orders (its per-creature update), the attack is given as a click
@@ -33,28 +33,18 @@
 #include "engine.h"
 #include "feat_use.h"
 #include "hooks.h"
+#include "item_use.h"
 #include "log.h"
 #include "rules/class_features.h"
 
 namespace {
 
-struct Vec3 {
-  float x, y, z;
-};
-using UseItemFn = int (*)(void* creature, uint32_t item, uint8_t active_property, uint8_t sub_property,
-                          uint32_t target, Vec3 location, uint32_t area, int flag);
 // (target, target-switched flag, clear all actions first, add to the front) — a click is (t, 0, 1, 0).
 using AddAttackActionsFn = int (*)(void* creature, uint32_t target, int switched, int clear_first, int front);
 using NearestEnemyFn = uint32_t (*)(void* creature, float range, uint32_t exclude, int must_be_seen, int check_path);
-using ItemByIdFn = void* (*)(void* app, uint32_t id);
-
-UseItemFn g_use_item = nullptr;
-
 struct Api {
   AddAttackActionsFn add_attack_actions = reinterpret_cast<AddAttackActionsFn>(EngineExport(ee::kAddAttackActions));
   NearestEnemyFn nearest_enemy = reinterpret_cast<NearestEnemyFn>(EngineExport(ee::kGetNearestEnemy));
-  ItemByIdFn item_by_id = reinterpret_cast<ItemByIdFn>(EngineExport(ee::kGetItemByGameObjectId));
-  void** app_manager = reinterpret_cast<void**>(EngineExport(ee::kAppManager));
 };
 
 const Api& E() {
@@ -85,10 +75,7 @@ void NoteTarget(AttackRoll& roll) {
   g_last_target[IdOf(roll.attacker)] = Noted{IdOf(roll.target), GetTickCount()};
 }
 
-bool IsPotion(uint32_t item_id) {
-  if (!E().item_by_id || !E().app_manager || !*E().app_manager) return false;
-  void* app = Field<void*>(*E().app_manager, ee::kAppManagerServerApp);
-  void* item = app ? E().item_by_id(app, item_id) : nullptr;
+bool IsPotion(const void* item) {
   const int row = engine::BaseItemRow(item);
   return row == 49 || row == 54 || row == 104;
 }
@@ -105,15 +92,11 @@ void NoteResume(void* creature, const char* what) {
   }
 }
 
-int UseItem(void* creature, uint32_t item, uint8_t active_property, uint8_t sub_property, uint32_t target,
-            Vec3 location, uint32_t area, int flag) {
-  const int result = g_use_item(creature, item, active_property, sub_property, target, location, area, flag);
+// After a use the engine queued (item_use.cpp).
+void AfterItemUse(void* creature, uint32_t, void* item) {
   void* stats = StatsOf(creature);
-  if (!result || !stats || !ReadCreatureFacts(stats).is_player || !InCombat(creature) || !IsPotion(item)) {
-    return result;
-  }
+  if (!stats || !ReadCreatureFacts(stats).is_player || !InCombat(creature) || !IsPotion(item)) return;
   NoteResume(creature, "drinking");
-  return result;
 }
 
 // Second Wind (Fighter F2): the feat rows nwn5e grants; Rage (Barbarian B1).
@@ -174,7 +157,6 @@ void InstallPotionRules() {
   if (!g_config.resume_attack_after_potion) return;
   if (!AddAttackRollListeners(&NoteTarget, nullptr)) return;
   if (!AddCreatureUpdateListener(&OnCreatureUpdate)) return;
-  HookExport("CNWSCreature::UseItem (back to attacking after a potion)", ee::kUseItem,
-             reinterpret_cast<void*>(&UseItem), reinterpret_cast<void**>(&g_use_item));
+  if (!AddItemUseListener(&AfterItemUse)) Log("resume: no item-use hook - no attack after a potion");
   if (!AddFeatUseListener(&AfterFeatUse)) Log("resume: no feat-use hook - no attack after Second Wind or Rage");
 }

@@ -41,6 +41,13 @@ bool AddSkillAdjuster(SkillAdjuster adjuster) {
   return true;
 }
 
+int SkillRankNow(void* stats, int skill, void* vs) {
+  if (!stats) return 0;
+  if (g_hooked) return GetSkillRank(stats, static_cast<uint8_t>(skill), vs, 0);
+  static const auto engine = reinterpret_cast<GetSkillRankFn>(EngineExport(ee::kGetSkillRank));
+  return engine ? engine(stats, static_cast<uint8_t>(skill), vs, 0) : 0;
+}
+
 uintptr_t SkillRankCallerIn(const char* export_name) {
   const uintptr_t function = EngineExport(export_name);
   const uintptr_t target = EngineExport(ee::kGetSkillRank);

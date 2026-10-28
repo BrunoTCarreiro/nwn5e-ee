@@ -1604,6 +1604,23 @@ a click is the same pick as the radial / quickbar / `!brutal` / `!cunning`
 only a change the player made picks). Tests: RogueCunningStrike,
 QuickbarCunningStrikeOptions, the grant rows.
 
+*Built 0.50.0 (part 6: T1, T4):* rules_thief.cpp. T1 Fast Hands (Thief 3) - a
+skill adjuster after the 2024 skills': Open Lock and Disable Trap (Thieves'
+Tools) answer the better of their value and Sleight of Hand's (Pick Pocket),
+wherever they are asked (the lock / trap actions, the character sheet). T4 Use
+Magic Device (Thief 13), scrolls - CNWSCreature::CheckUseMagicDeviceSkill (the
+engine's "does UMD overcome this item's class / race / alignment limit", SK8's
+"never") answers yes for a spell scroll (baseitems 75); CNWSCreature::UseItem is
+now one shared hook (item_use.cpp: guards and listeners - the potion resume
+moved onto it), whose guard reads the scroll by script (a class limit none of
+the Thief's classes meets? the spell's spells.2da Innate level) and for level 2+
+rolls Arcana: d20 (Reliable Talent) + the 2024 Arcana value (Spellcraft,
+skill_rank's new SkillRankNow) against 10 + the level - a failure crumbles one
+scroll of the stack and refuses the use. The scroll keeps its own caster level
+and DC (2024: the Thief's Intelligence); attunement and charges later. Tests:
+RogueThief. data/test.txt: a human Thief 17 with a rapier, a shortbow and
+wizard / cleric scrolls of levels 1-3.
+
 ## Phase 5 — rests, healing, death: decided by the owner (2026-10-23)
 
 Recon (EE 89.8193.37-17, disassembly; facts the decisions rest on):

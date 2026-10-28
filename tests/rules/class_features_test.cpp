@@ -356,6 +356,24 @@ TEST(RogueCunningStrike) {
   CHECK_EQ(left, 4);
 }
 
+// Part 6 (T1, T4): Fast Hands at Thief 3 takes the better value; Use Magic
+// Device at 13 reads any scroll, levels 2+ with an Arcana check against 10 +
+// the level. Breaks caught: either at the wrong level, the lower value taken,
+// a level 1 scroll checked, the DC off by the level.
+TEST(RogueThief) {
+  CHECK_EQ(HasFastHands(2), false);
+  CHECK_EQ(HasFastHands(3), true);
+  CHECK_EQ(FastHandsValue(5, 8), 8);
+  CHECK_EQ(FastHandsValue(9, 8), 9);
+  CHECK_EQ(HasUseMagicDevice(12), false);
+  CHECK_EQ(HasUseMagicDevice(13), true);
+  CHECK_EQ(ScrollNeedsArcanaCheck(0), false);
+  CHECK_EQ(ScrollNeedsArcanaCheck(1), false);
+  CHECK_EQ(ScrollNeedsArcanaCheck(2), true);
+  CHECK_EQ(ScrollArcanaDc(3), 13);
+  CHECK_EQ(ScrollArcanaDc(9), 19);
+}
+
 // Breaks caught: Rage's uses or damage at the wrong level (2 / 3 / 4 / 5 / 6
 // at 1 / 3 / 6 / 12 / 17; +2 / +3 / +4 at 1 / 9 / 16), a feat of the Rage
 // chain missed or another feat taken for one, a part 2 feature at the wrong

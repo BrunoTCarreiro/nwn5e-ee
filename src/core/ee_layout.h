@@ -506,6 +506,7 @@ constexpr int kSkillDisableTrap = 2;
 constexpr int kSkillListen = 6;
 constexpr int kSkillLore = 7;
 constexpr int kSkillOpenLock = 9;
+constexpr int kSkillPickPocket = 13;  // 2024's Sleight of Hand (T1 Fast Hands)
 constexpr int kSkillSearch = 14;
 constexpr int kSkillSetTrap = 15;
 constexpr int kSkillSpellcraft = 16;
