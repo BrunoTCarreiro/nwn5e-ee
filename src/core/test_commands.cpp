@@ -32,6 +32,12 @@
 //   in front of the speaker, facing it, hostile - or with "ally" its henchman
 //   (one that fights the others). E.g. nw_gntfrost (Frost Giant, Huge),
 //   nw_gnthill (Hill Giant, Large), nw_orcb (Orc, Medium).
+// - 0.50.3 (owner: "can't create a situation where EL1 and SL1 are testable"):
+//   "!prone [seconds]" knocks the speaker down (6 s; at most 60) - attacks
+//   against a prone creature (Elusive); "!save <ability> <dc>" rolls that save
+//   for the speaker against a 2024 DC (the save wrapper: Stroke of Luck, Indomitable
+//   Might ...); "!reflex <dc> <damage>" a Reflex-halved hit through the engine's
+//   GetReflexAdjustedDamage, as an area spell's (Evasion), as fire damage.
 
 #include <windows.h>
 
@@ -51,6 +57,8 @@
 #include "engine.h"
 #include "hooks.h"
 #include "log.h"
+#include "saves.h"
+#include "rules/abilities.h"
 #include "rules/class_features.h"
 #include "rules/feats2024.h"
 #include "rules/nwn_conversion.h"
@@ -132,6 +140,68 @@ std::vector<std::string> SpawnCommand(void* creature, const std::string& args) {
       "blueprint \\\"" + blueprint + "\\\".\");";
   RunScriptChunk(code.c_str(), id);
   Log("spawn: 0x%08X asked for %s%s", id, blueprint.c_str(), ally ? " (ally)" : "");
+  return {};
+}
+
+std::vector<std::string> ProneCommand(void* creature, const std::string& args) {
+  int seconds = atoi(Trim(args).c_str());
+  if (seconds <= 0) seconds = 6;
+  if (seconds > 60) seconds = 60;
+  const uint32_t id = ObjectIdOf(StatsOf(creature));
+  char code[200];
+  sprintf_s(code, "ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectKnockdown(), OBJECT_SELF, %d.0);", seconds);
+  RunScriptChunk(code, id);
+  Log("test: 0x%08X knocked down for %d s (!prone)", id, seconds);
+  return {"nwn5e: you are knocked down for " + std::to_string(seconds) + " s (!prone) - attack rolls against you "
+          "from within 5 ft have Advantage, unless something says otherwise (Elusive)."};
+}
+
+std::vector<std::string> SaveCommand(void* creature, const std::string& args) {
+  const std::string text = Lower(Trim(args));
+  const size_t space = text.find(' ');
+  const std::optional<rules::Ability> ability =
+      space == std::string::npos ? std::nullopt : rules::ParseAbility(text.substr(0, space).c_str());
+  const int dc = space == std::string::npos ? 0 : atoi(text.substr(space + 1).c_str());
+  if (!ability || dc <= 0 || dc > 60) return {"nwn5e: !save <str | dex | con | int | wis | cha> <dc> - e.g. !save dex 25"};
+  using SaveRollFn = uint8_t (*)(void* creature, uint8_t save, uint16_t dc, uint8_t type, uint32_t versus,
+                                 int feedback, uint16_t feat, int from_combat);
+  static const auto save_roll = reinterpret_cast<SaveRollFn>(EngineExport(ee::kSavingThrowRoll));
+  if (!save_roll) return {"nwn5e: no save roll export."};
+  const uint32_t id = ObjectIdOf(StatsOf(creature));
+  const uint8_t slot = *ability == rules::Ability::kDexterity ? ee::kSaveReflex
+                       : *ability == rules::Ability::kStrength || *ability == rules::Ability::kConstitution
+                           ? ee::kSaveFortitude
+                           : ee::kSaveWill;
+  RememberSaveDc2024(id, dc);  // a 2024 DC: not converted
+  SetForcedSaveAbility(*ability);
+  const uint8_t result = save_roll(creature, slot, static_cast<uint16_t>(dc), 0, id, 1, 0, 0);
+  SetForcedSaveAbility(std::nullopt);
+  const std::string name = rules::AbilityName(*ability);
+  Log("test: 0x%08X %s save DC %d (!save): %s", id, name.c_str(), dc,
+      result == 0 ? "failed" : result == 2 ? "immune" : "made");
+  return {"nwn5e: test " + name + " save, DC " + std::to_string(dc) + ": " +
+          (result == 0 ? "failed" : result == 2 ? "immune" : "made") + "."};
+}
+
+std::vector<std::string> ReflexCommand(void* creature, const std::string& args) {
+  const std::string text = Trim(args);
+  const size_t space = text.find(' ');
+  const int dc = atoi(text.c_str());
+  const int damage = space == std::string::npos ? 0 : atoi(text.substr(space + 1).c_str());
+  if (dc <= 0 || dc > 60 || damage <= 0 || damage > 500) {
+    return {"nwn5e: !reflex <dc> <damage> - a Reflex-halved fire hit on you, as an area spell's (e.g. !reflex 15 20)"};
+  }
+  const uint32_t id = ObjectIdOf(StatsOf(creature));
+  RememberSaveDc2024(id, dc);  // a 2024 DC: not converted
+  char code[600];
+  sprintf_s(code,
+            "int d = GetReflexAdjustedDamage(%d, OBJECT_SELF, %d, SAVING_THROW_TYPE_FIRE, OBJECT_SELF);"
+            " SendMessageToPC(OBJECT_SELF, \"nwn5e: test Reflex hit - %d fire damage, DC %d: you take \" +"
+            " IntToString(d) + \".\");"
+            " if (d > 0) ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectDamage(d, DAMAGE_TYPE_FIRE), OBJECT_SELF);",
+            damage, dc, damage, dc);
+  RunScriptChunk(code, id);
+  Log("test: 0x%08X a Reflex-halved hit, %d damage DC %d (!reflex)", id, damage, dc);
   return {};
 }
 
@@ -465,6 +535,9 @@ void InstallTestCommands() {
   AddChatCommand("!test", &TestCommand);
   AddChatCommand("!export", &ExportCommand);
   AddChatCommand("!spawn", &SpawnCommand);
+  AddChatCommand("!prone", &ProneCommand);
+  AddChatCommand("!save", &SaveCommand);
+  AddChatCommand("!reflex", &ReflexCommand);
   Log("config: [debug] test_commands=1 - !test (data\\test.txt), !give <blueprint>, !feat add / remove <feat>, "
-      "!export, !spawn <blueprint> [ally]");
+      "!export, !spawn <blueprint> [ally], !prone [s], !save <ability> <dc>, !reflex <dc> <damage>");
 }

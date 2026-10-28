@@ -1075,6 +1075,16 @@ Brutal Strike, Frenzy, Retaliation: icons only). Faithful's row 307 now has no c
 animation and no cast time (spells.if_classfeat2024.txt): the flourish is the Rage's one gesture,
 and the Rage is instant, as nwn5e's other class abilities. A henchman's refused second Rage (already
 raging) is now logged.
+*0.50.3 (owner, testing 0.50.2: "the henchman seemed to rage twice in a row before engaging"):*
+this time the log had two Rages: raged at initiative (13:29:19), then no orders at all for 6 s
+(`actions []` - the request's ClearAllActions had emptied its queue and its AI hadn't decided again),
+a lapse, the next initiative (13:29:27) and a second Rage; its first attack at 13:29:34.
+Initiative now only marks the henchman (a minute, the fight); its creature update asks for the Rage
+once it closes in on an enemy (B3's chase target) and queues the attack on that enemy after it.
+Also: Cunning Strike's Withdraw held only when the target survived (13:31:27: Daze + Withdraw, the
+kobold died, nothing) - it is the Rogue's own, so it now applies either way. Test commands for the
+rows the owner couldn't set up ("can't create a situation where EL1 and SL1 are testable"):
+`!prone [s]`, `!save <ability> <dc>`, `!reflex <dc> <damage>` (test_commands.cpp).
 *0.41.2 (owner: "why do enemies have in their radial menu, a barbarian section that is filled with
 greyed out options?"):* radial_class_feats.cpp (`radial_hide_self_feats`, client). The game puts every
 class feat with OnMenu 1 (cls_feat_*) that the character has on any creature's radial and greys a

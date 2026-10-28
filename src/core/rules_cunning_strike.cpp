@@ -352,7 +352,15 @@ void OnDamage(uint32_t creator, void* target, int damage) {
   void* victim = CreatureById(target_id);
   if (!rogue || !victim || GetTickCount() - pending.tick > kPendingMs) return;
   if (engine::IsDeadOrDying(victim)) {
-    if (LogSlot()) Log("rogue: 0x%08X Cunning Strike on 0x%08X - it went down: no effects", creator, target_id);
+    // Its effects are moot; Withdraw is the Rogue's own (0.50.3: it was lost with the target).
+    Pending own = pending;
+    own.effects.clear();
+    for (rules::CunningEffect e : pending.effects) {
+      if (e == rules::CunningEffect::kWithdraw) own.effects.push_back(e);
+    }
+    if (LogSlot()) Log("rogue: 0x%08X Cunning Strike on 0x%08X - it went down: no effects on it%s", creator, target_id,
+                       own.effects.empty() ? "" : " (Withdraw still yours)");
+    if (!own.effects.empty()) ApplyEffects(rogue, victim, own);
     return;
   }
   ApplyEffects(rogue, victim, pending);

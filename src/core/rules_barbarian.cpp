@@ -203,6 +203,13 @@ struct Rage {
 // The engine's thread only.
 std::unordered_map<uint32_t, Rage> g_raging;
 std::unordered_map<uint32_t, uint64_t> g_pending;  // a Rage queued or seen starting: real time
+// 0.50.3: henchmen that rolled initiative, to rage once they close in on an enemy.
+struct RageWanted {
+  uint64_t until = 0;       // game time
+  uint64_t next_check = 0;  // real time
+};
+std::unordered_map<uint32_t, RageWanted> g_rage_wanted;
+constexpr uint64_t kRageWantedMs = 60000;
 AddCastSpellActionsFn g_add_cast_spell_actions = nullptr;
 AddItemCastSpellActionsFn g_add_item_cast_spell_actions = nullptr;
 ItemByIdFn g_item_by_id = nullptr;
@@ -313,10 +320,14 @@ uint32_t MovingAtEnemy(void* creature) {
 // order at the head of its queue: running at the enemy, the attack target
 // field isn't set yet. 0.50.1: any order in its queue naming such an enemy,
 // or moving in a fight with one ahead.
-bool Chasing(void* creature) {
-  return ChasingTarget(creature, Field<uint32_t>(creature, ee::kCreatureAttackTarget)) ||
-         QueuedEnemy(creature, nullptr) != ee::kObjectInvalid || MovingAtEnemy(creature) != ee::kObjectInvalid;
+uint32_t ChaseTarget(void* creature) {
+  const uint32_t target = Field<uint32_t>(creature, ee::kCreatureAttackTarget);
+  if (ChasingTarget(creature, target)) return target;
+  const uint32_t queued = QueuedEnemy(creature, nullptr);
+  return queued != ee::kObjectInvalid ? queued : MovingAtEnemy(creature);
 }
+
+bool Chasing(void* creature) { return ChaseTarget(creature) != ee::kObjectInvalid; }
 
 void EndRage(void* creature, const char* why) {
   const uint32_t id = IdOf(creature);
@@ -424,11 +435,44 @@ void StartRage(void* creature) {
   Tell(creature, line);
 }
 
-// The creature update: a queued Rage starting (nwn5e_rage.nss ran), and each
-// Rage's end.
+// 0.50.3: a henchman marked at initiative closes in on `enemy`: its Rage, as
+// the game's AI does it (ClearAllActions, the feat; GetHasFeat: a use left) -
+// then the attack on that enemy again, so it doesn't stand idle after it.
+void AskHenchmanRage(uint32_t id, uint32_t enemy) {
+  char script[640];
+  sprintf_s(script,
+            "if (GetAssociateType(OBJECT_SELF) == ASSOCIATE_TYPE_HENCHMAN && GetIsPC(GetMaster(OBJECT_SELF))"
+            " && GetHasFeat(FEAT_BARBARIAN_RAGE) && !GetHasFeatEffect(FEAT_BARBARIAN_RAGE)) {"
+            " object e = StringToObject(\"%x\"); ClearAllActions();"
+            " ActionUseFeat(FEAT_BARBARIAN_RAGE, OBJECT_SELF); if (GetIsObjectValid(e)) ActionAttack(e); }",
+            enemy);
+  RunScriptChunk(script, id);
+  Log("barbarian: 0x%08X closes in on 0x%08X - Rage asked for (if it can), then back to attacking it", id, enemy);
+}
+
+void WatchRageWanted(void* creature, uint32_t id) {
+  const auto wanted = g_rage_wanted.find(id);
+  if (wanted == g_rage_wanted.end()) return;
+  const uint64_t now = GetTickCount64();
+  if (now < wanted->second.next_check) return;
+  wanted->second.next_check = now + kWatchMs;
+  if (RageOf(creature) || GameMs() > wanted->second.until || !Field<int32_t>(creature, ee::kCreatureInCombat) ||
+      engine::IsDeadOrDying(creature)) {
+    g_rage_wanted.erase(wanted);  // raging already (its own AI), the fight over, or never closed in
+    return;
+  }
+  const uint32_t enemy = ChaseTarget(creature);
+  if (enemy == ee::kObjectInvalid) return;
+  g_rage_wanted.erase(wanted);
+  AskHenchmanRage(id, enemy);
+}
+
+// The creature update: a henchman closing in (0.50.3), a queued Rage starting
+// (nwn5e_rage.nss ran), and each Rage's end.
 void WatchRage(void* creature) {
-  if (g_pending.empty() && g_raging.empty()) return;
+  if (g_pending.empty() && g_raging.empty() && g_rage_wanted.empty()) return;
   const uint32_t id = IdOf(creature);
+  if (!g_rage_wanted.empty()) WatchRageWanted(creature, id);
   if (!g_pending.empty()) {
     const auto pending = g_pending.find(id);
     if (pending != g_pending.end()) {
@@ -942,20 +986,22 @@ void RetaliationOnDamage(uint32_t creator, void* target, int damage) {
 // A henchman with Rage rages as a fight starts (0.46.1; owner's BS13 test - the OC's Daelan
 // never raged - "go with B"). The game's AI (nw_i0_generic, DetermineClassToUse) lets only
 // Xanos and HotU's Daelan rage on their own (tags x0_hen_xan, x2_hen_daelan); here any player's
-// henchman with the feat does, as that AI does it (ClearAllActions, then the feat; GetHasFeat:
-// a use left), when it rolls initiative - not in Heavy armour (a Rage there gives nothing), not
-// while raging. Its AI then goes back to fighting.
+// henchman with the feat does - not in Heavy armour (a Rage there gives nothing), not while
+// raging. 0.50.3 (owner, testing 0.50.2: it "seemed to rage twice in a row before engaging"):
+// raging at initiative cleared its orders, it stood idle, the Rage lapsed and the next
+// initiative raged again. Initiative now only marks it; it rages once it closes in on an enemy
+// (WatchRageWanted: B3's chase - an attack order, a move at an enemy ahead) and attacks that
+// enemy again after; a mark lapses with the fight or after a minute.
 void HenchmanRageOnInitiative(void* creature) {
   if (!Faithful() || !creature || IsPlayerCreature(creature)) return;
   void* stats = StatsOf(creature);
   if (!stats || BarbarianLevelOf(stats) < 1 || !ReadCreatureFacts(stats).character) return;
   if (InHeavyArmour(creature) || (RageOf(creature) && HasRageIcon(creature))) return;
   const uint32_t id = IdOf(creature);
-  RunScriptChunk("if (GetAssociateType(OBJECT_SELF) == ASSOCIATE_TYPE_HENCHMAN && GetIsPC(GetMaster(OBJECT_SELF))"
-                 " && GetHasFeat(FEAT_BARBARIAN_RAGE) && !GetHasFeatEffect(FEAT_BARBARIAN_RAGE)) {"
-                 " ClearAllActions(); ActionUseFeat(FEAT_BARBARIAN_RAGE, OBJECT_SELF); }",
-                 id);
-  Log("barbarian: 0x%08X a henchman's initiative - Rage asked for (if it can)", id);
+  RageWanted& wanted = g_rage_wanted[id];
+  wanted.until = GameMs() + kRageWantedMs;
+  wanted.next_check = 0;
+  Log("barbarian: 0x%08X a henchman's initiative - it rages as it closes in on an enemy", id);
 }
 
 void InstallBarbarianRules() {
