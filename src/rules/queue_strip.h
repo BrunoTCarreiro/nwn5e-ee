@@ -1,5 +1,8 @@
 #pragma once
 
+#include <string>
+#include <vector>
+
 // The action queue strip (core/action_queue.cpp, rules/queue_strip.cpp; owner, 2026-10-28: "a sort of
 // action queue at the middle top of the screen going left to right from the
 // next action to the most recently added to the queue. Each item would
@@ -35,6 +38,29 @@ constexpr float kQueueMoreWidth = 48.0f;
 constexpr float kQueueStripHeight = 124.0f;
 // The strip's width for `shown` items (and the "+N" when `more` > 0).
 float QueueStripWidth(int shown, int more);
+
+// 0.55.3 (owner: "we need to make sure the whole text is readable. a Potion of
+// cure wounds right now reads as \"Potion of Cur\""): a tile as wide as its
+// longer line (name or target) - the NUI font's characters about 7.5 px on
+// average (13 of them filled the 92 px the 108 px tile left its text), plus the
+// window's and the column's padding; at least the icon's room, at most 300 px.
+constexpr float kQueueCharWidth = 7.5f;
+constexpr float kQueueTilePad = 26.0f;
+constexpr float kQueueTileMin = 96.0f;
+constexpr float kQueueTileMax = 300.0f;
+constexpr float kQueueTileGap = 4.0f;
+float QueueTileWidth(int name_chars, int target_chars);
+// The owner, the same day: "is it possible to split the text into new lines?
+// Potion of / Cure Wounds?" - a name wrapped at its spaces into lines of about
+// `line_chars` (a word longer stays whole: the tile widens), at most
+// `max_lines` (the last takes the rest).
+constexpr int kQueueLineChars = 15;
+constexpr int kQueueNameLines = 2;
+std::vector<std::string> WrapQueueText(const std::string& text, int line_chars, int max_lines);
+// The tiles' left edges, the strip centred on a screen `gui_width` wide, the
+// gap between tiles; *fit = how many fit on it from the left (at least 1 when
+// there are any) - the rest go to the "+N" (room kept for it when any don't).
+std::vector<float> QueueTileXs(const std::vector<float>& widths, float gui_width, int* fit);
 
 // 0.54.2 (owner: "I can queue the same item (a potion for example) multiple
 // times while not having enough, this will pollute the queue"): how many more

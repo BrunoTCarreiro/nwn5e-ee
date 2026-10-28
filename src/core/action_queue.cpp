@@ -66,6 +66,15 @@
 // centred on the items it shows again (the fixed left edge left one or two
 // items left of the centre): one leaving, the strip closes up on its centre -
 // the items after it still slide left.
+//
+// 0.55.3 (owner: "a Potion of cure wounds right now reads as \"Potion of
+// Cur\""): each tile as wide as its longer line (rules::QueueTileWidth), the
+// strip centred on them (rules::QueueTileXs; those that don't fit on the
+// screen go to the "+N"), its card's rectangle a bind sized with it.
+// Then (owner: "is it possible to split the text into new lines? Potion of /
+// Cure Wounds?"): three text lines under the icon - the name wrapped at its
+// spaces (rules::WrapQueueText, about 15 characters, two lines at most) and the
+// target - each with its own colour; the tile as wide as its longest line.
 
 #include <windows.h>
 
@@ -493,7 +502,7 @@ void Publish(uint32_t player, const std::vector<Item>& items) {
 }
 
 constexpr float kTileWidth = 108.0f;
-constexpr float kTileHeight = 100.0f;
+constexpr float kTileHeight = 122.0f;  // the icon and three lines
 constexpr float kTop = 4.0f;
 constexpr int kRevealFrames = 3;      // a new tile shows nothing until its geometry has applied
 constexpr float kExitDrop = 36.0f;    // a leaving tile slides this far down
@@ -512,6 +521,8 @@ struct Tile {
   bool seen = false;
   int frames = 0;         // since it opened
   bool revealed = false;  // its icon, texts and card shown
+  float width = kTileWidth;
+  float sent_width = -1.0f;
   float sent_x = -1.0e6f, sent_y = -1.0e6f;
   int sent_alpha = -1;
   int sent_current = -1;
@@ -524,13 +535,13 @@ int g_more_count = -1;
 float g_width = 1280.0f;
 LARGE_INTEGER g_last_frame{};
 int g_tile_serial = 0;
-int g_shown = 0;  // the items the strip shows now (its centring)
+std::vector<float> g_xs;     // the shown tiles' left edges, by index (centred on them)
+float g_strip_right = 0.0f;  // where the "+N" goes
 
-// A tile's slot: the strip centred on the items it shows.
+// A tile's slot: the strip centred on the tiles it shows.
 float SlotX(int index) {
-  float left = (g_width - g_shown * rules::kQueueSlotWidth) / 2.0f;
-  if (left < 0.0f) left = 0.0f;
-  return left + index * rules::kQueueSlotWidth + (rules::kQueueSlotWidth - kTileWidth) / 2.0f;
+  if (index >= 0 && index < static_cast<int>(g_xs.size())) return g_xs[index];
+  return g_strip_right;
 }
 
 std::string TileLayout() {
@@ -546,11 +557,12 @@ std::string TileLayout() {
   // The dark card behind it: a draw-list rectangle whose colour (and so its fade) is a bind.
   const std::string card =
       "\"draw_list\":[{\"type\":7,\"enabled\":true,\"color\":{\"bind\":\"bg\"},\"fill\":true,\"line_thickness\":1.0,"
-      "\"order\":-1,\"render\":0,\"arrayBinds\":false,\"rect\":{\"x\":-4.0,\"y\":-4.0,\"w\":104.0,\"h\":96.0}}],"
+      "\"order\":-1,\"render\":0,\"arrayBinds\":false,\"rect\":{\"bind\":\"card\"}}],"
       "\"draw_list_scissor\":false";
   const std::string column = "{\"type\":\"col\",\"label\":null,\"value\":null,\"children\":[{\"type\":\"row\","
                              "\"label\":null,\"value\":null,\"children\":[" + spacer + "," + icon + "," + spacer +
-                             "]}," + label("name", "nc") + "," + label("target", "tc") + "]," + card + "}";
+                             "]}," + label("l1", "c1") + "," + label("l2", "c2") + "," + label("l3", "c3") +
+                             "]," + card + "}";
   const std::string root = "{\"type\":\"group\",\"label\":null,\"value\":null,\"border\":false,\"scrollbars\":0,"
                            "\"children\":[" + column + "]}";
   return "{\"version\":1,\"title\":false,\"root\":" + root +
@@ -581,14 +593,38 @@ void TileEvent(const ClientNuiEvent& event) {
   }
 }
 
-void SetTexts(const Tile& tile) {
-  ClientNuiSetText(tile.token, "icon", tile.icon);
-  ClientNuiSetText(tile.token, "name", tile.name);
-  ClientNuiSetText(tile.token, "target", tile.target);
+// The name's lines, then the target's (its colour the target's).
+std::vector<std::string> LinesOf(const std::string& name, const std::string& target) {
+  std::vector<std::string> lines = rules::WrapQueueText(name, rules::kQueueLineChars, rules::kQueueNameLines);
+  if (lines.empty()) lines.push_back("");
+  lines.push_back(target);
+  return lines;
 }
 
-void Apply(const std::vector<ClientItem>& items) {
-  g_shown = static_cast<int>(items.size());
+void SetTexts(const Tile& tile) {
+  ClientNuiSetText(tile.token, "icon", tile.icon);
+  const std::vector<std::string> lines = LinesOf(tile.name, tile.target);
+  static const char* const kLines[] = {"l1", "l2", "l3"};
+  for (int i = 0; i < 3; ++i) ClientNuiSetText(tile.token, kLines[i], i < static_cast<int>(lines.size()) ? lines[i] : "");
+}
+
+// The number of the name's lines (the rest is the target's).
+int NameLines(const Tile& tile) { return static_cast<int>(LinesOf(tile.name, tile.target).size()) - 1; }
+
+int Apply(const std::vector<ClientItem>& all) {
+  // Sized to their text, centred; those that don't fit on the screen go to the "+N".
+  std::vector<float> widths;
+  for (const ClientItem& ci : all) {
+    int longest = 0;
+    for (const std::string& line : LinesOf(ci.name, ci.target)) {
+      if (static_cast<int>(line.size()) > longest) longest = static_cast<int>(line.size());
+    }
+    widths.push_back(rules::QueueTileWidth(longest, 0));
+  }
+  int fit = 0;
+  g_xs = rules::QueueTileXs(widths, g_width, &fit);
+  g_strip_right = g_xs.empty() ? g_width / 2.0f : g_xs.back() + widths[fit - 1] + rules::kQueueTileGap;
+  const std::vector<ClientItem> items(all.begin(), all.begin() + fit);
   for (Tile& tile : g_tiles) tile.seen = false;
   for (int i = 0; i < static_cast<int>(items.size()); ++i) {
     const ClientItem& ci = items[i];
@@ -600,10 +636,12 @@ void Apply(const std::vector<ClientItem>& items) {
       found->index = i;
       found->seen = true;
       found->item = ci.item;
+      found->width = widths[i];
       if (found->icon != ci.icon || found->name != ci.name || found->target != ci.target) {
         found->icon = ci.icon;
         found->name = ci.name;
         found->target = ci.target;
+        found->sent_alpha = -1;  // the line colours follow the new lines
         if (found->revealed) SetTexts(*found);
       }
       continue;
@@ -616,6 +654,7 @@ void Apply(const std::vector<ClientItem>& items) {
     tile.target = ci.target;
     tile.index = i;
     tile.seen = true;
+    tile.width = widths[i];
     tile.x = SlotX(i);
     tile.y = kTop;
     tile.alpha = 0.0f;  // nothing shown until revealed, in place
@@ -630,20 +669,28 @@ void Apply(const std::vector<ClientItem>& items) {
     tile.exit_t = 0.0f;
     ClientNuiSetJson(tile.token, "on", "false");
   }
+  return static_cast<int>(all.size()) - fit;  // past the screen: to the "+N"
 }
 
 void Send(Tile& tile) {
-  if (fabsf(tile.x - tile.sent_x) > 0.4f || fabsf(tile.y - tile.sent_y) > 0.4f) {
-    ClientNuiSetJson(tile.token, "geometry", Rect(tile.x, tile.y, kTileWidth, kTileHeight));
+  if (fabsf(tile.x - tile.sent_x) > 0.4f || fabsf(tile.y - tile.sent_y) > 0.4f || tile.width != tile.sent_width) {
+    ClientNuiSetJson(tile.token, "geometry", Rect(tile.x, tile.y, tile.width, kTileHeight));
+    if (tile.width != tile.sent_width) {
+      ClientNuiSetJson(tile.token, "card", Rect(-4.0f, -4.0f, tile.width - 4.0f, kTileHeight - 4.0f));
+    }
     tile.sent_x = tile.x;
     tile.sent_y = tile.y;
+    tile.sent_width = tile.width;
   }
   const int alpha = static_cast<int>(tile.alpha * 255.0f + 0.5f);
   const int current = !tile.exiting && tile.index == 0 ? 1 : 0;
   if (alpha != tile.sent_alpha || current != tile.sent_current) {
     // The action in progress in gold, its target pale gold; the others white and grey.
-    ClientNuiSetJson(tile.token, "nc", current ? Colour(255, 215, 0, alpha) : Colour(240, 240, 240, alpha));
-    ClientNuiSetJson(tile.token, "tc", current ? Colour(230, 200, 120, alpha) : Colour(185, 185, 185, alpha));
+    const std::string name = current ? Colour(255, 215, 0, alpha) : Colour(240, 240, 240, alpha);
+    const std::string target = current ? Colour(230, 200, 120, alpha) : Colour(185, 185, 185, alpha);
+    const int name_lines = NameLines(tile);
+    static const char* const kColours[] = {"c1", "c2", "c3"};
+    for (int i = 0; i < 3; ++i) ClientNuiSetJson(tile.token, kColours[i], i < name_lines ? name : target);
     ClientNuiSetJson(tile.token, "bg", Colour(0, 0, 0, alpha * 150 / 255));
     tile.sent_alpha = alpha;
     tile.sent_current = current;
@@ -668,7 +715,7 @@ void UpdateMore(int more) {
     g_more_token = ClientNuiOpen("n5aqmore", layout, nullptr);
   }
   ClientNuiSetText(g_more_token, "more", "+" + std::to_string(more));
-  ClientNuiSetJson(g_more_token, "geometry", Rect(SlotX(g_shown), kTop + 30.0f, 56.0f, 36.0f));
+  ClientNuiSetJson(g_more_token, "geometry", Rect(g_strip_right, kTop + 30.0f, 56.0f, 36.0f));
 }
 
 void StripTick() {
@@ -693,10 +740,7 @@ void StripTick() {
       changed = true;
     }
   }
-  if (changed) {
-    Apply(snapshot);
-    UpdateMore(more);
-  }
+  if (changed) UpdateMore(more + Apply(snapshot));
   if (g_tiles.empty()) return;
   const float ease = 1.0f - expf(-dt * kEaseRate);
   for (Tile& tile : g_tiles) {

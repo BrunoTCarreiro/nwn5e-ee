@@ -3832,6 +3832,13 @@ appear in place"; "not as centered as it was before"):* a client window opens wh
 geometry (the centre) and takes its bound geometry a frame or two later - a new tile stays empty for three
 frames, then appears in place (no drop-in). The strip is centred on the items it shows again (the fixed
 left edge sat left of the centre); one leaving, it closes up on its centre - the items after it slide left.
+*0.55.3 (owner: "we need to make sure the whole text is readable. a Potion of cure wounds right now reads
+as 'Potion of Cur'"; then "is it possible to split the text into new lines? Potion of / Cure Wounds?"):*
+three text lines under the icon - the name split at its spaces into two balanced lines
+(rules::WrapQueueText: the split whose longer line is shortest - "Potion of / Cure Wounds") and the
+target, each line its own colour; each tile as wide as its longest line (about 7.5 px a character -
+13 had filled the 92 px the old tile left its text; 96-300 px), the strip centred on them, those that
+don't fit on the screen to the "+N". (0.55.2 capped the client windows' open / close log lines.)
 
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
