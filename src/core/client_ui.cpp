@@ -132,8 +132,11 @@ void Run(const Request& request) {
       g_api.write_int(g_message, 1, 32);  // the layout inline, as JSON
       WriteJson(request.ubjson);
       delivered = Deliver(ee::kNuiMinorCreate);
-      Log("client nui: window %s opened (token 0x%08X)%s", request.name.c_str(), request.token,
-          delivered ? "" : " - REFUSED by the engine");
+      // 0.55.2: capped like the events (the action queue strip opens a window per queued action).
+      if (!delivered || LogSlot()) {
+        Log("client nui: window %s opened (token 0x%08X)%s", request.name.c_str(), request.token,
+            delivered ? "" : " - REFUSED by the engine");
+      }
       break;
     case Request::kBind:
       g_api.write_int(g_message, 1, 32);  // one bind
@@ -147,7 +150,7 @@ void Run(const Request& request) {
       g_api.write_int(g_message, request.token, 32);
       delivered = Deliver(ee::kNuiMinorDestroy);
       g_windows.erase(request.token);
-      Log("client nui: window 0x%08X closed", request.token);
+      if (LogSlot()) Log("client nui: window 0x%08X closed", request.token);
       break;
   }
 }
@@ -184,7 +187,7 @@ void QueueEvent(void* window, const void* type, const void* element, int index, 
   event.type = engine::StdString(type);
   event.element = engine::StdString(element);
   event.array_index = index;
-  if (LogSlot() && event.type != "mousescroll") {
+  if (event.type != "mousescroll" && event.type != "open" && LogSlot()) {
     Log("client nui: window 0x%08X: %s %s", token, event.type.c_str(), event.element.c_str());
   }
   g_events.push_back(std::move(event));  // handled next frame, outside the window's own update
