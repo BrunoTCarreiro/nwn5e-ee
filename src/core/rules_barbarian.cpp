@@ -470,6 +470,10 @@ bool RageGuard(void* creature, int feat) {
   if (RageOf(creature)) {
     if (HasRageIcon(creature)) {
       Tell(creature, "you are already raging.");
+      static int logged = 0;  // a henchman's refusal is told to no one (0.50.2)
+      if (!IsPlayerCreature(creature) && logged < 40 && ++logged) {
+        Log("barbarian: 0x%08X Rage refused - already raging (nothing spent)", IdOf(creature));
+      }
       return false;
     }
     g_raging.erase(IdOf(creature));  // its effects are gone (dispelled): a new Rage may start

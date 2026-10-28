@@ -1,5 +1,9 @@
 # spells.2da - Barbarian B1 (rules_barbarian.cpp; PLAN.md "Phase 3 - Barbarian"): in faithful,
 # Rage (spell 307, the ability of feat 293 and its successors) runs nwn5e_rage - a marker
 # effect and a local; the DLL keeps the 2024 Rage - instead of nw_s1_barbrage (+4 Str/Con).
-ImpactScript
-307 nwn5e_rage
+# 0.50.2 (owner: "the henchman seemed to rage twice in a row"): no conjure / cast animation
+# (the game's "head" then "out", half a second each) - the Rage's one flourish is the victorymg
+# its start plays (0.47.0), and it is instant, as nwn5e's other class abilities (a Bonus Action
+# in 2024).
+ImpactScript ConjTime ConjAnim CastAnim CastTime
+307 nwn5e_rage 0 **** **** 0

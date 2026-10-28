@@ -1066,6 +1066,15 @@ GetIsWeaponEffective - GetDamageRoll at maximum) and nwn5e's damage additions ra
 the turn's Frenzy before the real hit. A damage roll outside the attacker's ResolveDamage
 (resolve_damage's DamageRollIsEstimate) is now the engine's alone - no Savage Attacker, Frenzy,
 Brutal Strike, sneak or Cunning Strike dice. Tests: RageChaseHeading.
+*0.50.2 (owner, testing 0.50.1: "the henchman seemed to rage twice in a row before engaging
+enemies"; "check if any other barbarian skill uses the same vfx as the rage"):* the log had one Rage
+(one start, no lapse, no second use) - the "twice" was the look: spell 307's own conjure ("head")
+and cast ("out") animations, half a second each, then the victorymg flourish its start plays. No
+other Barbarian feature shares it (Intimidating Presence: the war cry and taunt; Reckless Attack,
+Brutal Strike, Frenzy, Retaliation: icons only). Faithful's row 307 now has no conjure / cast
+animation and no cast time (spells.if_classfeat2024.txt): the flourish is the Rage's one gesture,
+and the Rage is instant, as nwn5e's other class abilities. A henchman's refused second Rage (already
+raging) is now logged.
 *0.41.2 (owner: "why do enemies have in their radial menu, a barbarian section that is filled with
 greyed out options?"):* radial_class_feats.cpp (`radial_hide_self_feats`, client). The game puts every
 class feat with OnMenu 1 (cls_feat_*) that the character has on any creature's radial and greys a
