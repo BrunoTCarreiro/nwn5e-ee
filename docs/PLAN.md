@@ -3768,6 +3768,39 @@ idle and walks differ - most combat animations are a_ba's).
 working, let's move on for now"):* the owner is working on the captures themselves; back to it
 with their takes and what looks wrong.
 
+## Action queue strip — decided by the owner (2026-10-28)
+
+Owner: "One thing I think is sorely needed is an action queue display" - then "a sort of action
+queue at the middle top of the screen going left to right from the next action to the most
+recently added to the queue. Each item would consist of an action and target"; "go with the
+design, do it before monk part 3".
+
+*Found first:* EE has a small one - PNL_ACTIONQUEUE under the portrait (CPanelActionQueue: the
+action in progress and the queue, click to cancel), fed by CNWSCreature::UpdateActionQueue
+(0x3a6270: up to 10 entries of 0x1c at creature +0x59c - group id, display id, parameter,
+point, target) and CNWSMessage::ComputeLastUpdate_ActionQueue. Display ids are NWScript's
+ACTION_* values (GetAQActionIDByID; GetCurrentAction returns them); special attacks have their
+own by feat (Knockdown, Disarm, Stunning Fist ...) - nwn5e's Shove: push and Grapple none.
+
+*Design taken:* a strip centred at the top, no title bar or border; left to right from the
+action in progress (gold) to the newest; up to 8 items, then "+N"; each the action's icon (the
+spell's, the feat's or the radial menu's ir_*), its name and its target ("a spot" for a point,
+"yourself"); a click cancels it; the player's own character; `!queue` on / off (per character,
+on by default); hidden when nothing is queued; the portrait panel stays.
+
+*Built 0.54.0* (src/core/action_queue.cpp, src/rules/queue_strip.cpp): the queue read as the
+engine reads it - action groups in order (GetPositionByGroupIndex, GetActionByGroupId), the
+combat round's special attacks before their attack (feat 0, 6 and the internal 0xfdea / 0xfdeb
+skipped, as the engine does), each action's parameters where UpdateActionQueue reads them
+(ee_layout.h); bookkeeping actions without an ACTION_* value left off. Checked every 150 ms per
+player; one script per change creates the NUI window if needed (its eight slots built in a
+loop from one template - a short script) and sets names (spells.2da, feat.2da, iprp_spells for
+an item's power, the target's name), icons, colours and the centred geometry (the player's GUI
+width). A click calls CNWSCreature::CancelAction(display id, group or special-attack id) - the
+portrait panel's own call (a matching special attack comes off the round, else the group) -
+and RemoveSpecialAttack for nwn5e's own special attacks.
+Later, if wanted: henchmen's queues; the round's attack count; a fully clear background.
+
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
 Walked through one by one (issue, what NWN does, what 2024 does, what to

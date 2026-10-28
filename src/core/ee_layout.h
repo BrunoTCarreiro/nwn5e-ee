@@ -328,6 +328,38 @@ constexpr int kActionMoveToPoint = 1;     // the engine's action ids (AttackObje
 constexpr size_t kActionId = 0x0;
 constexpr size_t kActionFirstParam = 0x38;
 constexpr int kActionAttackObject = 0xC;
+// The action queue strip (action_queue.cpp, 0.54.0; read from
+// CNWSCreature::UpdateActionQueue 0x3a6270): an action node's group id, uint16
+// +0x98 (the actions one command queued share it); its parameters are 8 bytes
+// apart from +0x38. Cast spell 0xF (the spell, the target at param 5, a point
+// at 6-8), drop item 9 (the item; a point at 1-3), set trap 0x1D (the object at
+// param 1), an item's spell 0x2E (the item, its active property's index at 1,
+// the target at 3, a point at 4-6).
+constexpr size_t kActionGroupId = 0x98;
+constexpr int kActionDropItem = 0x9;
+constexpr int kActionCastSpell = 0xF;
+constexpr int kActionSetTrap = 0x1D;
+constexpr int kActionItemCastSpell = 0x2E;
+// CNWSObject: the list position of the index-th action group; a group's
+// defining action (its type, 0xFFFF none, and node); an action's display id -
+// NWScript's ACTION_* (feat 1: a special attack's feat; 0xFFFF none).
+constexpr const char* kGetPositionByGroupIndex =
+    "?GetPositionByGroupIndex@CNWSObject@@QEAAPEAVCExoLinkedListNode@@H@Z";
+constexpr const char* kGetActionByGroupId = "?GetActionByGroupId@CNWSObject@@QEAAGGPEAPEAVCNWSObjectActionNode@@@Z";
+constexpr const char* kGetAQActionIDByID = "?GetAQActionIDByID@CNWSObject@@QEAAGGH@Z";
+// int CNWSCreature::CancelAction(display id, id): a queued special attack whose
+// feat is the display id's and whose special-attack id is `id` comes off the
+// combat round (RemoveSpecialAttack); else the action group `id` is removed.
+constexpr const char* kCreatureCancelAction = "?CancelAction@CNWSCreature@@QEAAHGG@Z";
+// CNWSCombatRound's queued special attacks: count, feat, id, removal by index.
+constexpr const char* kGetNumSpecialAttacks = "?GetNumSpecialAttacks@CNWSCombatRound@@QEAAHXZ";
+constexpr const char* kGetSpecialAttack = "?GetSpecialAttack@CNWSCombatRound@@QEAAGH@Z";
+constexpr const char* kGetSpecialAttackID = "?GetSpecialAttackID@CNWSCombatRound@@QEAAGH@Z";
+constexpr const char* kRemoveSpecialAttack = "?RemoveSpecialAttack@CNWSCombatRound@@QEAAXH@Z";
+// CNWItemProperty* CNWSItem::GetActiveProperty(int): its subtype uint16 +0x2
+// (an item spell's iprp_spells row).
+constexpr const char* kItemGetActiveProperty = "?GetActiveProperty@CNWSItem@@QEAAPEAVCNWItemProperty@@H@Z";
+constexpr size_t kItemPropertySubtype = 0x2;
 constexpr size_t kObjectCurrentAction = 0x90;
 constexpr size_t kObjectCurrentActionTarget = 0x94;
 constexpr uint16_t kActionNone = 0xFFFF;

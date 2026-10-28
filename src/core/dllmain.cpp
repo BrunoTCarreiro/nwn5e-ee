@@ -37,6 +37,7 @@ void InstallShoveRules();
 void InstallGrappleRules();
 void InstallRogueRules();
 void InstallCombatOptions();
+void InstallActionQueue();
 void InstallThiefRules();
 void InstallSkillDcRules();
 void InstallPerceptionRules();
@@ -90,7 +91,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.53.1";
+constexpr const char* kVersion = "0.54.0";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -131,6 +132,7 @@ void Start(HMODULE self) {
   InstallGrappleRules();
   InstallRogueRules();
   InstallCombatOptions();
+  InstallActionQueue();
   InstallThiefRules();
   InstallSkillDcRules();
   InstallPerceptionRules();
