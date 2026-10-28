@@ -55,7 +55,8 @@
 #include "rules/d20.h"
 #include "rules/weapons.h"
 
-bool BarbarianRaging(void* creature);  // rules_barbarian.cpp
+bool BarbarianRaging(void* creature);         // rules_barbarian.cpp
+void RefreshCombatOptions(uint32_t player);  // combat_options.cpp
 
 namespace {
 
@@ -179,6 +180,7 @@ void SetReckless(void* creature, bool on) {
   Tell(creature, on ? "Reckless Attack on - Advantage on your Strength attacks; attack rolls against you have "
                       "Advantage until a round after your last attack."
                     : "Reckless Attack off.");
+  RefreshCombatOptions(id);
 }
 
 void ToggleReckless(uint32_t self) {
@@ -211,6 +213,7 @@ void PickBrutal(void* creature, rules::BrutalEffect effect) {
   if (!active.empty() && rules::BrutalStrikeEffectCount(level) > 1 && active.size() < 2) line += " (pick another for two)";
   if (!active.empty() && engine::GetLocalInt(creature, kVarReckless) == 0) line += " - it needs Reckless Attack on";
   Tell(creature, line + ".");
+  RefreshCombatOptions(IdOf(creature));
 }
 
 template <rules::BrutalEffect kEffect>
@@ -480,6 +483,19 @@ int SunderingAttackBonus(void* stats, void* target) {
   g_sundered.erase(it);
   if (LogSlot()) Log("barbarian: 0x%08X sundered: +%d on 0x%08X's attack", IdOf(target), rules::kSunderingAttackBonus, attacker);
   return rules::kSunderingAttackBonus;
+}
+
+// The Combat options window (combat_options.cpp, 0.50.0).
+int BrutalStrikeBarbarianLevel(void* creature) { return Faithful() && creature ? BarbarianLevel(creature) : 0; }
+bool RecklessAttackOn(void* creature) { return creature && engine::GetLocalInt(creature, kVarReckless) != 0; }
+void SetRecklessAttack(void* creature, bool on) {
+  if (creature && Faithful() && rules::HasRecklessAttack(BarbarianLevel(creature))) SetReckless(creature, on);
+}
+rules::BrutalChoice BrutalStrikeChoice(void* creature) {
+  return rules::DecodeBrutalChoice(creature ? engine::GetLocalInt(creature, kVarBrutal) : 0);
+}
+void PickBrutalStrike(void* creature, rules::BrutalEffect effect) {
+  if (creature) PickBrutal(creature, effect);
 }
 
 void InstallBarbarianStrikes() {

@@ -1,0 +1,8 @@
+# feat.2da - Phase 3 Rogue part 5 (R6, X8; rules_cunning_strike.cpp). nwn5e grants them to
+# a Rogue (Cunning Strike at 5, Devious Strikes at 14; characters made earlier too) and
+# removes them in NWN mode; cls_feat_rog lists them only so the radial menu shows them.
+# Unlimited uses; each one's spell row is a master row whose sub-radial picks the
+# Cunning Strike effects (spells.rogue.txt) - the choice stays until changed.
+LABEL FEAT DESCRIPTION ICON GAINMULTIPLE EFFECTSSTACK ALLCLASSESCANUSE CATEGORY MAXCR SPELLID CRValue USESPERDAY TARGETSELF Constant TOOLSCATEGORIES PreReqEpic ReqAction
+1315 NWN5E_CUNNING_STRIKE 16000491 16000492 ife_cripple 0 0 0 7 1 1018 0.5 **** 1 FEAT_NWN5E_CUNNING_STRIKE 6 0 1
+1316 NWN5E_DEVIOUS_STRIKES 16000493 16000494 ife_stun 0 0 0 7 1 1024 0.5 **** 1 FEAT_NWN5E_DEVIOUS_STRIKES 6 0 1

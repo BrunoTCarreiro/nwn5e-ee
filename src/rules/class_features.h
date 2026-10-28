@@ -213,6 +213,43 @@ bool HasUncannyDodge(int rogue_level);
 int HalveAttackDamage(int16_t* entries, int count);
 // R12 Stroke of Luck (20): a failed save's d20 becomes a 20, once per Short or Long Rest.
 bool HasStrokeOfLuck(int rogue_level);
+// R6 Cunning Strike (5), Improved Cunning Strike (11: two effects at once),
+// Devious Strikes (14: Daze, Knock Out, Obscure): a Sneak Attack gives up some
+// of its dice (before rolling) for effects after its damage; the target's save
+// DC is 8 + PB + Dexterity modifier. nwn5e's feats 1315 / 1316 put the effects
+// on the radial (sub-radials, as Brutal Strike's); the choice is standing.
+constexpr int kFeatCunningStrike = 1315;
+constexpr int kFeatDeviousStrikes = 1316;
+enum class CunningEffect { kNone = 0, kPoison = 1, kTrip = 2, kWithdraw = 3, kDaze = 4, kKnockOut = 5, kObscure = 6 };
+bool HasCunningStrike(int rogue_level);
+bool HasDeviousStrikes(int rogue_level);
+int CunningStrikeEffectCount(int rogue_level);  // 0; 1 from 5; 2 from 11
+// Poison, Trip and Withdraw from 5; Daze, Knock Out and Obscure from 14.
+bool CunningEffectAvailable(CunningEffect effect, int rogue_level);
+// The Sneak Attack d6s an effect costs: Poison, Trip, Withdraw 1; Daze 2; Obscure 3; Knock Out 6.
+int CunningEffectCost(CunningEffect effect);
+const char* CunningEffectName(CunningEffect effect);  // "Poison" ...
+int CunningStrikeDc(int dexterity_modifier, int proficiency_bonus);
+// The standing choice: up to two effects, the older first; kept on the
+// character as one number (0: never chosen - off; henchmen never choose).
+struct CunningChoice {
+  CunningEffect first = CunningEffect::kNone;
+  CunningEffect second = CunningEffect::kNone;
+};
+int EncodeCunningChoice(const CunningChoice& choice);
+CunningChoice DecodeCunningChoice(int stored);
+enum class CunningPick { kChosen, kRemoved, kLocked, kOff };
+// A pick: kNone turns it off; an effect not yet available is refused; a chosen
+// one is removed; else it's chosen - alone below 11, from 11 with the newer of
+// the two kept.
+CunningPick PickCunningEffect(CunningChoice* choice, CunningEffect picked, int rogue_level);
+// The chosen effects that apply at this level (available ones, at most the count).
+std::vector<CunningEffect> ActiveCunningEffects(const CunningChoice& choice, int rogue_level);
+// One Sneak Attack of `dice` d6: the active effects, in order, while their cost
+// fits in the dice left (Trip only when the target is Large or smaller - else
+// it is skipped and costs nothing); *dice_left is what is still rolled.
+std::vector<CunningEffect> CunningEffectsForSneakAttack(const CunningChoice& choice, int rogue_level, int dice,
+                                                        bool target_can_trip, int* dice_left);
 // Save proficiencies class features give (whatever the first class): Slippery Mind's.
 bool ClassFeatureSaveProficiency(const std::vector<ClassLevels>& classes, Ability ability);
 

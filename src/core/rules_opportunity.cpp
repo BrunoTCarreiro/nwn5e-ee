@@ -18,7 +18,8 @@
 // The Fighter's Tactical Shift (F7, class_features faithful, in either AoO
 // mode): after Second Wind from Fighter 5, moving provokes nothing for the
 // rest of the round — the movement broadcast is skipped while the provoker
-// carries nwn5e_tactical_shift (nwn5e_secwind sets it for 6 s).
+// carries nwn5e_tactical_shift (nwn5e_secwind sets it for 6 s). The Rogue's
+// Cunning Strike: Withdraw (R6, 0.50.0) does the same for the round of its hit.
 
 #include <stdint.h>
 #include <string.h>
@@ -37,6 +38,7 @@
 #include "log.h"
 
 bool StaggeredNoOpportunityAttack(uint32_t id);  // rules_barbarian_strikes.cpp (B10 Staggering Blow)
+bool CunningWithdrawing(uint32_t id);            // rules_cunning_strike.cpp (R6 Withdraw)
 
 namespace {
 
@@ -55,15 +57,19 @@ bool LogSlot() { return g_config.log_attacks && g_log_lines < 200 && ++g_log_lin
 bool Faithful() { return g_config.opportunity_attacks == rules::RuleVariant::kFaithful; }
 bool TacticalShiftOn() { return g_config.class_features == rules::RuleVariant::kFaithful; }
 
-// Fighter F7: the provoker used Second Wind this round (Fighter 5+).
+// Fighter F7: the provoker used Second Wind this round (Fighter 5+); Rogue R6:
+// its Sneak Attack paid for Withdraw this round.
 bool TacticalShift(void* creature) {
-  if (!TacticalShiftOn() || !engine::GetLocalInt(creature, "nwn5e_tactical_shift")) return false;
+  if (!TacticalShiftOn()) return false;
   const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  const bool shift = engine::GetLocalInt(creature, "nwn5e_tactical_shift") != 0;
+  if (!shift && !CunningWithdrawing(id)) return false;
   const DWORD now = GetTickCount();
   DWORD& last = g_shift_logged[id];
   if (g_config.log_attacks && now - last > 6000) {
     last = now;
-    Log("opportunity attacks: 0x%08X Tactical Shift - moving provokes nothing this round", id);
+    Log("opportunity attacks: 0x%08X %s - moving provokes nothing this round", id,
+        shift ? "Tactical Shift" : "Cunning Strike: Withdraw");
   }
   return true;
 }

@@ -263,6 +263,22 @@
 16000488 Grappled: it can't move, and has Disadvantage on attacks against anyone but its grappler.
 16000489 Evasion
 16000490 Evasion (Rogue 7, 2024): when an effect lets you make a Dexterity saving throw to take only half damage, you take no damage on a success and only half on a failure. You can't use this feature while Incapacitated. A save the spell's rules make with another ability (Constitution for Cone of Cold) gets no Evasion.
+# 16000491-16000504: Cunning Strike and Devious Strikes (Rogue R6, 0.50.0; feat.rogue.txt,
+# spells.rogue.txt, effecticons.txt).
+16000491 Cunning Strike
+16000492 Cunning Strike (Rogue 5, 2024): when your Sneak Attack hits, you can give up some of its dice - before they are rolled - for an effect right after the damage. The target's save DC is 8 + your Proficiency Bonus + your Dexterity modifier.\n\nPoison (1d6): a Constitution save or it is Poisoned for a minute; it saves again at the end of each of its turns.\nTrip (1d6): a Large or smaller target makes a Dexterity save or falls prone.\nWithdraw (1d6): for the rest of the round you move without provoking opportunity attacks.\n\nFrom Rogue 11 (Improved Cunning Strike) a Sneak Attack can carry two different effects. Pick them on this menu, on the quickbar or in the Combat options window (!options, or the menu's last entry): the choice stays until you change it, and an effect whose dice don't fit is left out. Off gives you the full dice back. nwn5e doesn't ask for a Poisoner's Kit (NWN has none).
+16000493 Devious Strikes
+16000494 Devious Strikes (Rogue 14, 2024): three more Cunning Strike effects.\n\nDaze (2d6): a Constitution save or it is Slowed for a round (NWN's Slow stands in for 2024's Dazed: only one of a move, an action or a bonus action on its next turn).\nKnock Out (6d6): a Constitution save or it falls asleep (Unconscious) for a minute, until it takes damage; it saves again at the end of each of its turns.\nObscure (3d6): a Dexterity save or it is Blinded for a round.\n\nA creature NWN makes immune to sleep shrugs off Knock Out.
+16000495 Cunning Strike: Poison
+16000496 Cunning Strike: Trip
+16000497 Cunning Strike: Withdraw
+16000498 Cunning Strike: Off
+16000499 Combat options
+16000500 Devious Strikes: Daze
+16000501 Devious Strikes: Knock Out
+16000502 Devious Strikes: Obscure
+16000503 Cunning Strike: an effect picked
+16000504 Combat options: a window with every standing choice your character has - Reckless Attack, Brutal Strike's effects, Cunning Strike's - and what each does. Also !options in the chat.
 16000485 Intimidating Presence (Path of the Berserker, level 14): you strike terror with your menacing presence and primal power. Every enemy within 30 feet of you makes a Wisdom saving throw against 8 + your Strength modifier + your Proficiency Bonus; on a failure it is Frightened for 1 minute - Disadvantage on its attacks while it can see you. A Frightened creature repeats the save at the end of each of its turns, ending the effect on a success.\n\nOnce per Long Rest; after that, each use spends one of your Rage uses. A save you force keeps your Rage going.
 16000482 Shove: push
 16000483 Shove: push (2024, an Unarmed Strike in place of one of your attacks): no attack roll and no damage. The target, at most one size larger than you, makes a Strength or Dexterity saving throw - whichever is better for it - against 8 + your Strength modifier + your Proficiency Bonus. On a failure it is pushed 5 feet straight away from you and stays on its feet; a wall, a placeable or unwalkable ground behind it stops the push.\n\nShove (Knockdown) knocks it Prone instead. !shove push in the chat pushes the creature you are attacking.

@@ -19,6 +19,31 @@ constexpr int kSundering = 16003 * 65536 + 1311;
 constexpr int kBrutalOff = 16004 * 65536 + 1311;
 }  // namespace
 
+// Rogue R6 (0.50.0): Cunning Strike's options from its feat (Rogue 5), Devious
+// Strikes' from its own (14) - the spells.rogue.txt FeatIDs (Poison's row says
+// 1048904995, Obscure's 1049298212). Breaks caught: a Devious option without
+// its feat, an option's number not the row's, a record bit reused.
+TEST(QuickbarCunningStrikeOptions) {
+  QuickbarFacts facts;
+  facts.feats = {kFeatCunningStrike};
+  std::vector<int> want = {1048904995, QuickbarFeatValue(1315, 16006), QuickbarFeatValue(1315, 16007),
+                           QuickbarFeatValue(1315, 16008), QuickbarFeatValue(1315, 16012)};
+  CHECK_EQ(Values(QuickbarActions2024(facts)) == want, true);
+  facts.feats = {kFeatCunningStrike, kFeatDeviousStrikes, kFeatGrapple};
+  want.push_back(QuickbarFeatValue(1316, 16009));
+  want.push_back(QuickbarFeatValue(1316, 16010));
+  want.push_back(1049298212);
+  want.push_back(kFeatGrapple);
+  const std::vector<QuickbarAction> actions = QuickbarActions2024(facts);
+  CHECK_EQ(Values(actions) == want, true);
+  int bits = 0;
+  for (const QuickbarAction& a : actions) {
+    CHECK_EQ((bits >> a.record_bit) & 1, 0);  // each action its own bit
+    bits |= 1 << a.record_bit;
+  }
+  CHECK_EQ(actions.size() == 9 && actions[0].record_bit == 12 && actions[7].record_bit == 18, true);
+}
+
 // A sub-radial option's button number is its spells.2da FeatID (option * 65536
 // + feat): spells.barbarian.txt's Forceful Blow row says 1048577311. Breaks
 // caught: the feat alone (every option the same button), option and feat swapped.

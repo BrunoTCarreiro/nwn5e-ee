@@ -1,0 +1,19 @@
+# spells.2da - Phase 3 Rogue part 5 (R6, X8; rules_cunning_strike.cpp, combat_options.cpp).
+# 1018: Cunning Strike (feat 1315) - a master row, as Brutal Strike's (1011): its SubRadSpell
+#       rows 1019-1023 are the radial's sub-options, each with Master 1018 and FeatID = a
+#       unique number * 65536 + the feat (16005-16008, 16012: after Brutal Strike's
+#       16000-16004). n5_cs_* pick the effect; n5_cmbopts opens the Combat options window.
+# 1024: Devious Strikes (feat 1316, Rogue 14) - the same, rows 1025-1028 (16009-16011, 16013).
+# The n5_ scripts are run in C++ (script_hooks.cpp); no .ncs exists for them.
+Label Name IconResRef School Range VS MetaMagic TargetType ImpactScript Innate ConjTime ConjAnim CastAnim CastTime Proj ItemImmunity SubRadSpell1 SubRadSpell2 SubRadSpell3 SubRadSpell4 SubRadSpell5 Category Master UserType SpellDesc UseConcentration SpontaneouslyCast HostileSetting FeatID HasProjectile
+1018 nwn5e_CunningStrike 16000491 ife_cripple V P s 0x00 0x01 **** 1 0 **** **** 0 0 1 1019 1020 1021 1022 1023 5 **** 3 16000492 0 0 0 1315 0
+1019 nwn5e_CunningPoison 16000495 ife_x2usepoison V P s 0x00 0x01 n5_cs_poison 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1018 3 16000492 0 0 0 1048904995 0
+1020 nwn5e_CunningTrip 16000496 ife_impknock V P s 0x00 0x01 n5_cs_trip 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1018 3 16000492 0 0 0 1048970531 0
+1021 nwn5e_CunningWithdraw 16000497 ife_x2defaware V P s 0x00 0x01 n5_cs_wdraw 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1018 3 16000492 0 0 0 1049036067 0
+1022 nwn5e_CunningOff 16000498 ife_cripple V P s 0x00 0x01 n5_cs_off 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1018 3 16000492 0 0 0 1049101603 0
+1023 nwn5e_CunningOptions 16000499 ife_rogue V P s 0x00 0x01 n5_cmbopts 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1018 3 16000504 0 0 0 1049363747 0
+1024 nwn5e_DeviousStrikes 16000493 ife_stun V P s 0x00 0x01 **** 1 0 **** **** 0 0 1 1025 1026 1027 1028 **** 5 **** 3 16000494 0 0 0 1316 0
+1025 nwn5e_DeviousDaze 16000500 is_daze V P s 0x00 0x01 n5_cs_daze 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1024 3 16000494 0 0 0 1049167140 0
+1026 nwn5e_DeviousKnockOut 16000501 is_sleep V P s 0x00 0x01 n5_cs_ko 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1024 3 16000494 0 0 0 1049232676 0
+1027 nwn5e_DeviousObscure 16000502 is_blinddeaf V P s 0x00 0x01 n5_cs_obsc 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1024 3 16000494 0 0 0 1049298212 0
+1028 nwn5e_DeviousOptions 16000499 ife_rogue V P s 0x00 0x01 n5_cmbopts 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1024 3 16000504 0 0 0 1049429284 0

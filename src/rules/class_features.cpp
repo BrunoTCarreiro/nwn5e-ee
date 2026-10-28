@@ -109,7 +109,8 @@ const std::vector<ClassFeature>& Rogue() {
       {3, "Fast Hands", true, "later (Rogue part 6): locks and traps by the better of Thieves' Tools and Sleight of Hand"},
       {3, "Second-Story Work", true, "listed (NWN has no climbing or jumping)"},
       {4, "Ability Score Improvement", false, "built (!asi)"},
-      {5, "Cunning Strike", false, "later (Rogue part 5)"},
+      {5, "Cunning Strike", false, "built: a Sneak Attack gives up dice for Poison, Trip or Withdraw (its radial, "
+                                   "the quickbar, !options or !cunning; DC 8 + PB + Dex)"},
       {5, "Uncanny Dodge", false, "built: the first hit each round from an attacker you see is halved - your "
                                   "reaction (no Retaliation or opportunity attack after it)"},
       {6, "Expertise", false, "built (!skills)"},
@@ -120,10 +121,10 @@ const std::vector<ClassFeature>& Rogue() {
       {8, "Ability Score Improvement", false, "built (!asi)"},
       {9, "Supreme Sneak", true, "later (an attacking-ends-hiding rule)"},
       {10, "Ability Score Improvement", false, "built (!asi)"},
-      {11, "Improved Cunning Strike", false, "later (Rogue part 5)"},
+      {11, "Improved Cunning Strike", false, "built: two effects per Sneak Attack"},
       {12, "Ability Score Improvement", false, "built (!asi)"},
       {13, "Use Magic Device", true, "later (Rogue part 6)"},
-      {14, "Devious Strikes", false, "later (Rogue part 5)"},
+      {14, "Devious Strikes", false, "built: Daze, Knock Out and Obscure (its own radial)"},
       {15, "Slippery Mind", false, "built: proficient in Wisdom and Charisma saves"},
       {16, "Ability Score Improvement", false, "built (!asi)"},
       {17, "Thief's Reflexes", true, "Phase 6"},
@@ -329,6 +330,116 @@ int HalveAttackDamage(int16_t* entries, int count) {
 
 bool HasStrokeOfLuck(int rogue_level) { return rogue_level >= 20; }
 
+bool HasCunningStrike(int rogue_level) { return rogue_level >= 5; }
+bool HasDeviousStrikes(int rogue_level) { return rogue_level >= 14; }
+int CunningStrikeEffectCount(int rogue_level) { return rogue_level >= 11 ? 2 : HasCunningStrike(rogue_level) ? 1 : 0; }
+
+bool CunningEffectAvailable(CunningEffect effect, int rogue_level) {
+  switch (effect) {
+    case CunningEffect::kPoison:
+    case CunningEffect::kTrip:
+    case CunningEffect::kWithdraw:
+      return HasCunningStrike(rogue_level);
+    case CunningEffect::kDaze:
+    case CunningEffect::kKnockOut:
+    case CunningEffect::kObscure:
+      return HasDeviousStrikes(rogue_level);
+    default:
+      return false;
+  }
+}
+
+int CunningEffectCost(CunningEffect effect) {
+  switch (effect) {
+    case CunningEffect::kPoison:
+    case CunningEffect::kTrip:
+    case CunningEffect::kWithdraw: return 1;
+    case CunningEffect::kDaze: return 2;
+    case CunningEffect::kObscure: return 3;
+    case CunningEffect::kKnockOut: return 6;
+    default: return 0;
+  }
+}
+
+const char* CunningEffectName(CunningEffect effect) {
+  switch (effect) {
+    case CunningEffect::kPoison: return "Poison";
+    case CunningEffect::kTrip: return "Trip";
+    case CunningEffect::kWithdraw: return "Withdraw";
+    case CunningEffect::kDaze: return "Daze";
+    case CunningEffect::kKnockOut: return "Knock Out";
+    case CunningEffect::kObscure: return "Obscure";
+    default: return "none";
+  }
+}
+
+int CunningStrikeDc(int dexterity_modifier, int proficiency_bonus) { return 8 + proficiency_bonus + dexterity_modifier; }
+
+int EncodeCunningChoice(const CunningChoice& choice) {
+  return 1 + static_cast<int>(choice.first) + 8 * static_cast<int>(choice.second);
+}
+
+CunningChoice DecodeCunningChoice(int stored) {
+  CunningChoice choice;
+  if (stored <= 0) return choice;  // never chosen: off
+  const int value = stored - 1;
+  const int first = value % 8, second = (value / 8) % 8;
+  choice.first = first >= 1 && first <= 6 ? static_cast<CunningEffect>(first) : CunningEffect::kNone;
+  choice.second = second >= 1 && second <= 6 ? static_cast<CunningEffect>(second) : CunningEffect::kNone;
+  if (choice.first == CunningEffect::kNone) std::swap(choice.first, choice.second);
+  if (choice.first == choice.second) choice.second = CunningEffect::kNone;
+  return choice;
+}
+
+CunningPick PickCunningEffect(CunningChoice* choice, CunningEffect picked, int rogue_level) {
+  if (picked == CunningEffect::kNone) {
+    *choice = CunningChoice();
+    return CunningPick::kOff;
+  }
+  if (!CunningEffectAvailable(picked, rogue_level)) return CunningPick::kLocked;
+  if (choice->first == picked || choice->second == picked) {
+    if (choice->first == picked) choice->first = choice->second;
+    choice->second = CunningEffect::kNone;
+    return CunningPick::kRemoved;
+  }
+  if (CunningStrikeEffectCount(rogue_level) < 2) {
+    *choice = CunningChoice();
+    choice->first = picked;
+  } else if (choice->first == CunningEffect::kNone) {
+    choice->first = picked;
+  } else if (choice->second == CunningEffect::kNone) {
+    choice->second = picked;
+  } else {
+    choice->first = choice->second;  // the older one goes
+    choice->second = picked;
+  }
+  return CunningPick::kChosen;
+}
+
+std::vector<CunningEffect> ActiveCunningEffects(const CunningChoice& choice, int rogue_level) {
+  std::vector<CunningEffect> effects;
+  const size_t count = static_cast<size_t>(CunningStrikeEffectCount(rogue_level));
+  for (CunningEffect e : {choice.first, choice.second}) {
+    if (effects.size() < count && CunningEffectAvailable(e, rogue_level)) effects.push_back(e);
+  }
+  return effects;
+}
+
+std::vector<CunningEffect> CunningEffectsForSneakAttack(const CunningChoice& choice, int rogue_level, int dice,
+                                                        bool target_can_trip, int* dice_left) {
+  std::vector<CunningEffect> effects;
+  int left = dice > 0 ? dice : 0;
+  for (CunningEffect e : ActiveCunningEffects(choice, rogue_level)) {
+    if (e == CunningEffect::kTrip && !target_can_trip) continue;
+    const int cost = CunningEffectCost(e);
+    if (cost > left) continue;
+    left -= cost;
+    effects.push_back(e);
+  }
+  if (dice_left) *dice_left = left;
+  return effects;
+}
+
 bool ClassFeatureSaveProficiency(const std::vector<ClassLevels>& classes, Ability ability) {
   for (const ClassLevels& c : classes) {
     if (c.character_class == CharacterClass::kRogue && HasSlipperyMind(c.levels) &&
@@ -356,8 +467,10 @@ std::vector<int> GrantedFeats2024(const std::vector<ClassLevels>& classes) {
     if (c.character_class == CharacterClass::kFighter && c.levels >= 1) {
       feats.push_back(c.levels >= 10 ? kFeatSecondWind4 : c.levels >= 4 ? kFeatSecondWind3 : kFeatSecondWind2);
     }
-    if (c.character_class == CharacterClass::kRogue && HasRogueEvasion(c.levels)) {
-      feats.push_back(kFeatImprovedEvasion);  // R8: 2024's Evasion
+    if (c.character_class == CharacterClass::kRogue) {
+      if (HasRogueEvasion(c.levels)) feats.push_back(kFeatImprovedEvasion);  // R8: 2024's Evasion
+      if (HasCunningStrike(c.levels)) feats.push_back(kFeatCunningStrike);   // R6: its radial
+      if (HasDeviousStrikes(c.levels)) feats.push_back(kFeatDeviousStrikes);
     }
     if (c.character_class == CharacterClass::kBarbarian) {
       if (HasRecklessAttack(c.levels)) feats.push_back(kFeatRecklessAttack);
@@ -373,7 +486,7 @@ const std::vector<int>& GrantableFeats2024() {
   static const std::vector<int> kFeats = {kFeatSecondWind2,    kFeatSecondWind3,  kFeatSecondWind4,
                                           kFeatRecklessAttack, kFeatBrutalStrike, kFeatKnockdownShove,
                                           kFeatShovePush,      kFeatIntimidatingPresence, kFeatGrapple,
-                                          kFeatImprovedEvasion};
+                                          kFeatImprovedEvasion, kFeatCunningStrike, kFeatDeviousStrikes};
   return kFeats;
 }
 

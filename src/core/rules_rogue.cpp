@@ -47,6 +47,8 @@
 //   searching observer's Perception (and since 0.35.0 hiding's Stealth).
 // - R12 Stroke of Luck (Rogue 20): rules_save_roll rolls the first failed save
 //   since a Short or Long Rest again with its d20 a 20 (record nwn5e_stroke_used).
+// Part 5 (0.50.0): R6 Cunning Strike - rules_cunning_strike.cpp (the dice
+// filter above pays for its effects).
 // NWN mode: NWN's sneak attack, Evasion and Improved Evasion.
 
 #include <windows.h>
@@ -80,6 +82,8 @@
 
 bool CurrentAttackRollMode(uint32_t attacker_id, rules::RollMode* mode);  // rules_advantage.cpp
 void* CurrentDamageRoll(int* critical);                                   // rules_fighter.cpp
+int CunningStrikeForgo(void* stats, int dice);                            // rules_cunning_strike.cpp (R6)
+void InstallCunningStrike();
 
 namespace {
 
@@ -195,7 +199,9 @@ void ResolveSneakAttack(void* creature, void* target) {
   }
 }
 
-// R1: the sneak dice - ceil(Rogue level / 2) d6, doubled on a critical hit.
+// R1: the sneak dice - ceil(Rogue level / 2) d6, doubled on a critical hit;
+// R6: less the dice Cunning Strike's effects take (before the roll, before the
+// critical doubling).
 bool SneakDice(uintptr_t caller, int count, int sides, int* result) {
   if (caller != g_sneak_dice_return || sides != 6 || !Faithful()) return false;
   int critical = 0;
@@ -203,14 +209,18 @@ bool SneakDice(uintptr_t caller, int count, int sides, int* result) {
   if (!stats) return false;
   const int level = RogueLevel(stats);
   int dice = level > 0 ? rules::SneakAttackDice2024(level) : count;
+  const int forgone = level > 0 ? CunningStrikeForgo(stats, dice) : 0;
+  dice -= forgone;
   if (critical) dice *= 2;
-  if (dice <= 0) return false;
-  *result = RollEngineDice(dice, 6);
+  if (dice <= 0 && forgone <= 0) return false;
+  *result = dice > 0 ? RollEngineDice(dice, 6) : 0;
   const uint32_t id = ObjectIdOf(stats);
   g_sneak_round[id] = CombatRoundsEnded(id);
   if (LogSlot()) {
-    Log("rogue: 0x%08X sneak dice %dd6%s = %d (Rogue %d%s)", id, dice, critical ? " (critical: doubled)" : "", *result,
-        level, level > 0 ? "" : ": the engine's count");
+    char cunning[48] = "";
+    if (forgone > 0) sprintf_s(cunning, ", %dd6 given up for Cunning Strike", forgone);
+    Log("rogue: 0x%08X sneak dice %dd6%s = %d (Rogue %d%s%s)", id, dice, critical ? " (critical: doubled)" : "",
+        *result, level, level > 0 ? "" : ": the engine's count", cunning);
   }
   return true;
 }
@@ -342,6 +352,7 @@ void InstallRogueRules() {
   const bool evasion = AddFeatFilter(&EvasionFilter);
   RegisterRecords({kVarStrokeUsed});
   const bool uncanny = AddResolveDamageListener(&UncannyDodge);
+  InstallCunningStrike();
   AddRestListener(&StrokeOfLuckLongRest);
   AddShortRestListener(&StrokeOfLuckShortRest);
   Log("rogue: parts 3-4 - %s; Reliable Talent (hiding, searching, the scripts' skill checks); Stroke of Luck (a "

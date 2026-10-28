@@ -14,6 +14,15 @@ constexpr int kBrutalOptionHamstring = 16001;
 constexpr int kBrutalOptionStaggering = 16002;
 constexpr int kBrutalOptionSundering = 16003;
 constexpr int kBrutalOptionOff = 16004;
+// Cunning Strike's and Devious Strikes' (spells.rogue.txt; * 65536 + 1315 / 1316).
+constexpr int kCunningOptionPoison = 16005;
+constexpr int kCunningOptionTrip = 16006;
+constexpr int kCunningOptionWithdraw = 16007;
+constexpr int kCunningOptionOff = 16008;
+constexpr int kDeviousOptionDaze = 16009;
+constexpr int kDeviousOptionKnockOut = 16010;
+constexpr int kDeviousOptionObscure = 16011;
+constexpr int kCunningOptionCombatOptions = 16012;
 
 // The record's bits - fixed once shipped (a character's record keeps them).
 enum Bit {
@@ -29,6 +38,14 @@ enum Bit {
   kBitShove = 9,
   kBitShovePush = 10,
   kBitGrapple = 11,
+  kBitCunningPoison = 12,
+  kBitCunningTrip = 13,
+  kBitCunningWithdraw = 14,
+  kBitCunningOff = 15,
+  kBitDeviousDaze = 16,
+  kBitDeviousKnockOut = 17,
+  kBitDeviousObscure = 18,
+  kBitCombatOptions = 19,
 };
 
 bool IsSecondWind(int value) {
@@ -41,7 +58,7 @@ const std::vector<int>& QuickbarActionFeats2024() {
   static const std::vector<int> kFeats = {kFeatSecondWind2,    kFeatSecondWind3,  kFeatSecondWind4,
                                           kFeatRage,           kFeatRecklessAttack, kFeatBrutalStrike,
                                           kFeatIntimidatingPresence, kFeatKnockdownShove, kFeatShovePush,
-                                          kFeatGrapple};
+                                          kFeatGrapple,        kFeatCunningStrike, kFeatDeviousStrikes};
   return kFeats;
 }
 
@@ -78,6 +95,24 @@ std::vector<QuickbarAction> QuickbarActions2024(const QuickbarFacts& facts) {
   }
   if (has(kFeatIntimidatingPresence)) {
     actions.push_back({kBitIntimidatingPresence, kFeatIntimidatingPresence, "Intimidating Presence"});
+  }
+  if (has(kFeatCunningStrike)) {
+    actions.push_back({kBitCunningPoison, QuickbarFeatValue(kFeatCunningStrike, kCunningOptionPoison),
+                       "Cunning Strike: Poison"});
+    actions.push_back({kBitCunningTrip, QuickbarFeatValue(kFeatCunningStrike, kCunningOptionTrip), "Cunning Strike: Trip"});
+    actions.push_back({kBitCunningWithdraw, QuickbarFeatValue(kFeatCunningStrike, kCunningOptionWithdraw),
+                       "Cunning Strike: Withdraw"});
+    actions.push_back({kBitCunningOff, QuickbarFeatValue(kFeatCunningStrike, kCunningOptionOff), "Cunning Strike: Off"});
+    actions.push_back({kBitCombatOptions, QuickbarFeatValue(kFeatCunningStrike, kCunningOptionCombatOptions),
+                       "Combat options"});
+  }
+  if (has(kFeatDeviousStrikes)) {
+    actions.push_back({kBitDeviousDaze, QuickbarFeatValue(kFeatDeviousStrikes, kDeviousOptionDaze),
+                       "Devious Strikes: Daze"});
+    actions.push_back({kBitDeviousKnockOut, QuickbarFeatValue(kFeatDeviousStrikes, kDeviousOptionKnockOut),
+                       "Devious Strikes: Knock Out"});
+    actions.push_back({kBitDeviousObscure, QuickbarFeatValue(kFeatDeviousStrikes, kDeviousOptionObscure),
+                       "Devious Strikes: Obscure"});
   }
   if (has(kFeatKnockdownShove)) actions.push_back({kBitShove, kFeatKnockdownShove, "Shove"});
   if (has(kFeatShovePush)) actions.push_back({kBitShovePush, kFeatShovePush, "Shove: push"});

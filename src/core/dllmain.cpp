@@ -36,6 +36,7 @@ void InstallSpellAttackRules();
 void InstallShoveRules();
 void InstallGrappleRules();
 void InstallRogueRules();
+void InstallCombatOptions();
 void InstallSkillDcRules();
 void InstallPerceptionRules();
 void InstallDataServing(const wchar_t* dll_directory);
@@ -127,6 +128,7 @@ void Start(HMODULE self) {
   InstallShoveRules();
   InstallGrappleRules();
   InstallRogueRules();
+  InstallCombatOptions();
   InstallSkillDcRules();
   InstallPerceptionRules();
   InstallProgressionRules();

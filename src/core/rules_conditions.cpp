@@ -91,6 +91,16 @@ uint32_t FearSource(const void* creature) {
   return source;
 }
 
+// The game's poison icon alone (no poison effect): nwn5e's Poisoned - R6
+// Cunning Strike's Poison (2024's condition, no ability damage).
+bool HasPoisonIcon(const void* creature) {
+  bool found = false;
+  effects::ForEachOfType(creature, ee::kEffectTypeIcon, [&](const void* effect) {
+    if (effects::Integer(effect, 0) == ee::kIconPoison) found = true;
+  });
+  return found;
+}
+
 // NWN's own refusals of a fear effect (the handler sends their feedback).
 bool NwnRefusesFear(void* creature, const void* effect) {
   if (engine::IsDeadOrDying(creature)) return true;
@@ -237,7 +247,7 @@ rules::Conditions ReadConditions(void* creature) {
       Field<int32_t>(creature, ee::kCreatureIsPlayerCharacter) != 0 && hit_points < 1 && hit_points > ee::kHitPointsDead;
   conditions.asleep = effects::HasState(creature, ee::kStateAsleep) || player_down;
   conditions.restrained = effects::HasType(creature, ee::kEffectTypeEntangle);
-  conditions.poisoned = effects::HasType(creature, ee::kEffectTypePoison);
+  conditions.poisoned = effects::HasType(creature, ee::kEffectTypePoison) || HasPoisonIcon(creature);
   return conditions;
 }
 

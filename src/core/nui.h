@@ -55,6 +55,10 @@ void NuiSetTexts(uint32_t player, const char* window_id,
 // A string bind's current value (a text field the player typed in), read
 // through a local on the player.
 std::string NuiGetText(uint32_t player, const char* window_id, const std::string& bind);
+// A bool bind's current value (a checkbox).
+bool NuiGetBool(uint32_t player, const char* window_id, const std::string& bind);
+// Many bool binds in one script (checkboxes).
+void NuiSetBools(uint32_t player, const char* window_id, const std::vector<std::pair<std::string, bool>>& binds);
 // An integer bind's current value (a dropdown's selection).
 int NuiGetInt(uint32_t player, const char* window_id, const std::string& bind);
 // Watch these binds: each change sends a "watch" event naming the bind.
@@ -72,6 +76,9 @@ std::string Label(const std::string& value, float height = 0.0f);
 std::string Text(const std::string& value, float height = 0.0f);
 std::string Button(const char* id, const std::string& label, float width = 0.0f);
 std::string Spacer();
+// A checkbox (nw_inc_nui's NuiCheck) whose state is the bool bind `value_bind`
+// (NuiSetBools); watch the bind for a "watch" event per click.
+std::string Check(const char* id, const std::string& label, const char* value_bind);
 // A one-line text field (nw_inc_nui's NuiTextEdit) whose text is the bind
 // `value_bind`; watch the bind (NuiSetBindWatch) for a "watch" event per edit.
 std::string TextEdit(const char* id, const std::string& placeholder, const char* value_bind, int max_length,

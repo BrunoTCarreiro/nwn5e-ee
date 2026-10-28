@@ -5,6 +5,7 @@
 # 220: Rage (rules_barbarian.cpp, 0.22.0), the Rage feat's own icon by name.
 # 221 / 222: Reckless Attack on, a Brutal Strike effect picked (0.41.0) - the feats' icons.
 # 223: Grappled (0.49.0, rules_grapple.cpp) - the Grapple feat's icon (Bigby's Grasping Hand).
+# 224: a Cunning Strike effect picked (0.50.0, rules_cunning_strike.cpp) - the feat's icon.
 Label Icon StrRef
 200 NWN5E_EXHAUSTION_1 ief_fatigue 16000439
 201 NWN5E_EXHAUSTION_2 ief_fatigue 16000440
@@ -20,3 +21,4 @@ Label Icon StrRef
 221 NWN5E_RECKLESS_ATTACK ife_powhit 16000470
 222 NWN5E_BRUTAL_STRIKE ife_X2CritOGAxe 16000471
 223 NWN5E_GRAPPLED is_X1Bigby3 16000488
+224 NWN5E_CUNNING_STRIKE ife_cripple 16000503

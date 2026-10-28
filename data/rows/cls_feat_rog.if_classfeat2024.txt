@@ -11,3 +11,7 @@ FeatLabel FeatIndex List GrantedOnLevel OnMenu
 7 UncannyDodge4 253 3 -1 0
 8 UncannyDodge5 254 3 -1 0
 9 UncannyDodge6 255 3 -1 0
+# Part 5: Cunning Strike and Devious Strikes on the radial menu (granted by nwn5e at 5 and 14,
+# never by the engine).
++ NWN5E_CUNNING_STRIKE 1315 3 -1 1
++ NWN5E_DEVIOUS_STRIKES 1316 3 -1 1

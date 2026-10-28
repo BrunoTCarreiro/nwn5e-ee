@@ -86,8 +86,10 @@ TEST(GrantedFeatsFollowClassLevels) {
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kFighter, 9}}).size(), 1u);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 5}}).empty(), true);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 3}, {CharacterClass::kFighter, 2}})[0], kFeatSecondWind2);
-  CHECK_EQ(GrantableFeats2024().size(), 10u);
+  CHECK_EQ(GrantableFeats2024().size(), 12u);
   CHECK_EQ(GrantableFeats2024()[9], kFeatImprovedEvasion);
+  CHECK_EQ(GrantableFeats2024()[10], kFeatCunningStrike);
+  CHECK_EQ(GrantableFeats2024()[11], kFeatDeviousStrikes);
   CHECK_EQ(GrantableFeats2024()[0], kFeatSecondWind2);  // the record's order never changes
   CHECK_EQ(GrantableFeats2024()[4], kFeatBrutalStrike);
   CHECK_EQ(GrantableFeats2024()[5], kFeatKnockdownShove);
@@ -260,11 +262,17 @@ TEST(RogueSneakAttack2024) {
   CHECK_EQ(ClassFeatureSaveProficiency(fighter2_rogue15, Ability::kWisdom), true);
   CHECK_EQ(ClassFeatureSaveProficiency(fighter2_rogue15, Ability::kCharisma), true);
   CHECK_EQ(ClassFeatureSaveProficiency(fighter2_rogue15, Ability::kStrength), false);
+  const std::vector<int> granted4 = GrantedFeats2024({{CharacterClass::kRogue, 4}});
   const std::vector<int> granted6 = GrantedFeats2024({{CharacterClass::kRogue, 6}});
   const std::vector<int> granted7 = GrantedFeats2024({{CharacterClass::kRogue, 7}});
-  CHECK_EQ(static_cast<int>(granted6.size()), 0);
-  CHECK_EQ(static_cast<int>(granted7.size()), 1);
+  const std::vector<int> granted14 = GrantedFeats2024({{CharacterClass::kRogue, 14}});
+  CHECK_EQ(static_cast<int>(granted4.size()), 0);
+  CHECK_EQ(static_cast<int>(granted6.size()), 1);  // Cunning Strike's radial (R6)
+  CHECK_EQ(granted6.empty() ? 0 : granted6[0], kFeatCunningStrike);
+  CHECK_EQ(static_cast<int>(granted7.size()), 2);
   CHECK_EQ(granted7.empty() ? 0 : granted7[0], kFeatImprovedEvasion);
+  CHECK_EQ(static_cast<int>(granted14.size()), 3);
+  CHECK_EQ(granted14.size() == 3 ? granted14[2] : 0, kFeatDeviousStrikes);
   CHECK_EQ(GrantedOnlyWhenMissing(kFeatImprovedEvasion), true);
   // Parts 3-4 (R7, R12): Uncanny Dodge from 5 halves each damage entry (rounded
   // down; -1 unused, untouched); Stroke of Luck at 20.
@@ -280,6 +288,72 @@ TEST(RogueSneakAttack2024) {
   CHECK_EQ(damage[4], 0);
   CHECK_EQ(static_cast<int>(ClassFeatures2024(CharacterClass::kRogue, 1).size()), 4);
   CHECK_EQ(static_cast<int>(ClassFeatures2024(CharacterClass::kRogue, 20).size()), 28);
+}
+
+// Part 5 (R6): Cunning Strike from 5 (Poison, Trip, Withdraw: 1d6 each), two
+// effects from 11, Devious Strikes from 14 (Daze 2d6, Obscure 3d6, Knock Out
+// 6d6); DC 8 + PB + Dex; never chosen = off. Breaks caught: an effect at the
+// wrong level or cost, a third effect kept at 11 or a second below it, the
+// older of two not the one dropped, a pick not removing a chosen effect, the
+// stored number not round-tripping, an effect applied when its dice don't fit
+// (or charged when skipped: Trip on a Huge target), dice left miscounted.
+TEST(RogueCunningStrike) {
+  CHECK_EQ(HasCunningStrike(4), false);
+  CHECK_EQ(HasCunningStrike(5), true);
+  CHECK_EQ(HasDeviousStrikes(13), false);
+  CHECK_EQ(HasDeviousStrikes(14), true);
+  CHECK_EQ(CunningStrikeEffectCount(4), 0);
+  CHECK_EQ(CunningStrikeEffectCount(10), 1);
+  CHECK_EQ(CunningStrikeEffectCount(11), 2);
+  CHECK_EQ(CunningEffectCost(CunningEffect::kPoison), 1);
+  CHECK_EQ(CunningEffectCost(CunningEffect::kTrip), 1);
+  CHECK_EQ(CunningEffectCost(CunningEffect::kWithdraw), 1);
+  CHECK_EQ(CunningEffectCost(CunningEffect::kDaze), 2);
+  CHECK_EQ(CunningEffectCost(CunningEffect::kObscure), 3);
+  CHECK_EQ(CunningEffectCost(CunningEffect::kKnockOut), 6);
+  CHECK_EQ(CunningEffectAvailable(CunningEffect::kPoison, 4), false);
+  CHECK_EQ(CunningEffectAvailable(CunningEffect::kPoison, 5), true);
+  CHECK_EQ(CunningEffectAvailable(CunningEffect::kDaze, 13), false);
+  CHECK_EQ(CunningEffectAvailable(CunningEffect::kKnockOut, 14), true);
+  CHECK_EQ(CunningEffectAvailable(CunningEffect::kNone, 20), false);
+  CHECK_EQ(CunningStrikeDc(4, 3), 15);
+  CHECK_EQ(ActiveCunningEffects(DecodeCunningChoice(0), 20).empty(), true);  // never chosen: off
+
+  CunningChoice c;
+  CHECK_EQ(PickCunningEffect(&c, CunningEffect::kTrip, 5) == CunningPick::kChosen, true);
+  CHECK_EQ(PickCunningEffect(&c, CunningEffect::kPoison, 5) == CunningPick::kChosen, true);
+  std::vector<CunningEffect> active = ActiveCunningEffects(c, 5);
+  CHECK_EQ(static_cast<int>(active.size()), 1);  // one at a time below 11
+  CHECK_EQ(active.size() == 1 && active[0] == CunningEffect::kPoison, true);
+  CHECK_EQ(PickCunningEffect(&c, CunningEffect::kDaze, 5) == CunningPick::kLocked, true);
+  CHECK_EQ(PickCunningEffect(&c, CunningEffect::kPoison, 5) == CunningPick::kRemoved, true);
+  CHECK_EQ(ActiveCunningEffects(c, 5).empty(), true);
+
+  c = CunningChoice();
+  PickCunningEffect(&c, CunningEffect::kTrip, 11);
+  PickCunningEffect(&c, CunningEffect::kPoison, 11);
+  CHECK_EQ(static_cast<int>(ActiveCunningEffects(c, 11).size()), 2);
+  PickCunningEffect(&c, CunningEffect::kWithdraw, 11);  // a third: the older (Trip) goes
+  CHECK_EQ(c.first == CunningEffect::kPoison && c.second == CunningEffect::kWithdraw, true);
+  const CunningChoice back = DecodeCunningChoice(EncodeCunningChoice(c));
+  CHECK_EQ(back.first == CunningEffect::kPoison && back.second == CunningEffect::kWithdraw, true);
+  CHECK_EQ(static_cast<int>(ActiveCunningEffects(c, 10).size()), 1);  // a drained level: the first only
+  CHECK_EQ(PickCunningEffect(&c, CunningEffect::kNone, 11) == CunningPick::kOff, true);
+  CHECK_EQ(ActiveCunningEffects(DecodeCunningChoice(EncodeCunningChoice(c)), 11).empty(), true);
+
+  int left = -1;
+  c = CunningChoice{CunningEffect::kTrip, CunningEffect::kPoison};
+  CHECK_EQ(static_cast<int>(CunningEffectsForSneakAttack(c, 11, 6, true, &left).size()), 2);
+  CHECK_EQ(left, 4);
+  std::vector<CunningEffect> huge = CunningEffectsForSneakAttack(c, 11, 6, false, &left);
+  CHECK_EQ(huge.size() == 1 && huge[0] == CunningEffect::kPoison, true);  // no Trip on a Huge target
+  CHECK_EQ(left, 5);
+  c = CunningChoice{CunningEffect::kKnockOut, CunningEffect::kTrip};
+  CHECK_EQ(static_cast<int>(CunningEffectsForSneakAttack(c, 14, 7, true, &left).size()), 2);
+  CHECK_EQ(left, 0);
+  std::vector<CunningEffect> short_dice = CunningEffectsForSneakAttack(c, 14, 5, true, &left);
+  CHECK_EQ(short_dice.size() == 1 && short_dice[0] == CunningEffect::kTrip, true);  // Knock Out doesn't fit
+  CHECK_EQ(left, 4);
 }
 
 // Breaks caught: Rage's uses or damage at the wrong level (2 / 3 / 4 / 5 / 6

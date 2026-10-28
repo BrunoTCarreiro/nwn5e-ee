@@ -12,6 +12,10 @@ using ResolveDamageSkip = bool (*)(void* attacker, void* target, uintptr_t calle
 // After the engine's step: the damage is in CurrentAttackData(attacker).
 using ResolveDamageListener = void (*)(void* attacker, void* target);
 
+// While ResolveDamage runs (its damage rolls - the sneak dice): its attacker and
+// target. False outside it.
+bool ResolvingDamage(void** attacker, void** target);
+
 // Hook ResolveDamage on first use; false (and logged) if it can't.
 bool AddResolveDamageSkip(ResolveDamageSkip skip);
 bool AddResolveDamageListener(ResolveDamageListener listener);

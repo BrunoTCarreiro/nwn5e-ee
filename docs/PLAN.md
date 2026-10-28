@@ -1575,6 +1575,35 @@ ready (record nwn5e_stroke_used) is rolled again with SaveD20 answering 20 (the
 engine's own total against the DC, its feedback line); used, it waits for a Short
 or Long Rest (rest listeners). Tests: RogueSneakAttack2024's part 3-4 rows.
 
+*Built 0.50.0 (part 5: R6 + X8's window):* Cunning Strike is two radial feats
+nwn5e grants - 1315 at Rogue 5 (sub-radial: Poison, Trip, Withdraw, Off,
+Combat options) and 1316 Devious Strikes at 14 (Daze, Knock Out, Obscure,
+Combat options); spells.rogue.txt rows 1018-1028 (FeatIDs 16005-16013 * 65536 +
+the feat), each option a quickbar button too (record bits 12-19). The choice is
+a record (nwn5e_cunning: never chosen = off - henchmen keep full dice), shown by
+an icon (effecticons 224); one effect, two from 11 (a third drops the older).
+rules_rogue's sneak dice filter (inside ResolveDamage, which now tells who it
+resolves - resolve_damage's ResolvingDamage) asks rules_cunning_strike for the
+cost: the chosen effects in order while their dice fit, Trip skipped (free)
+against a Huge or larger target; the rest is rolled, doubled on a crit (the
+cost comes off before the doubling). When that hit's damage lands
+(OnApplyDamage listener, 5 s at most; nothing if it dropped the target) the
+target saves against 8 + PB + Dex (SavingThrowRoll, nwn5e's DC unconverted):
+Poison = the game's poison icon for a minute (rules_conditions now reads that
+icon as Poisoned: no ability damage), a poison-type Constitution save each 6 s
+ends it; Trip = knockdown for a round; Withdraw = the Rogue's moves provoke no
+AoO for the round (rules_opportunity, beside Tactical Shift); Daze = Slow for a
+round; Knock Out = EffectSleep for a minute (tagged), ended by any damage (at
+the creature's next update) or a Constitution save each 6 s - NWN's sleep
+immunity still blocks it (the Rogue is told); Obscure = Blindness for a round.
+The **Combat options** window (combat_options.cpp: `!options`, or the menus'
+last entry) lists every standing choice the character has - Reckless Attack,
+Brutal Strike's effects, Cunning Strike's - as checkboxes with what each does;
+a click is the same pick as the radial / quickbar / `!brutal` / `!cunning`
+(their chat line), and the window follows picks made anywhere (watch events:
+only a change the player made picks). Tests: RogueCunningStrike,
+QuickbarCunningStrikeOptions, the grant rows.
+
 ## Phase 5 — rests, healing, death: decided by the owner (2026-10-23)
 
 Recon (EE 89.8193.37-17, disassembly; facts the decisions rest on):

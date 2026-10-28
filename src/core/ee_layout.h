@@ -158,6 +158,7 @@ constexpr int kStateParalyzed = 8;
 constexpr int kStateAsleep = 9;
 constexpr int kStatePetrified = 15;
 constexpr int kIconFrightened = 14;
+constexpr int kIconPoison = 20;  // EFFECT_ICON_POISON: R6 Cunning Strike's Poisoned (no ability damage)
 constexpr int kRacialTypeAll = 28;  // a concealment effect's race filter: everyone
 // GetEffectImmunity(type, versus, 1): 1 also checks the immunity feats (its HasFeat calls).
 constexpr const char* kGetEffectImmunity = "?GetEffectImmunity@CNWSCreatureStats@@QEAAHEPEAVCNWSCreature@@H@Z";
