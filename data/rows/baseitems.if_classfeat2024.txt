@@ -1,0 +1,18 @@
+# baseitems.2da - Monk part 2 (M1 Martial Arts, 0.53.0; rules_monk.cpp): the 2024 Monk weapons
+# (Simple Melee weapons and Martial Melee weapons with the Light property) marked IsMonkWeapon in
+# faithful, so NWN's Flurry of Blows and Monk attack tables take them as the kama: shortsword,
+# light mace (the Mace), dagger, club, light hammer, handaxe, kukri (a dagger), magic staff and
+# quarterstaff, scimitar, short spear (the Spear), sickle. The kama and the torch keep NWN's 1.
+IsMonkWeapon
+0 1
+9 1
+22 1
+28 1
+37 1
+38 1
+42 1
+45 1
+50 1
+53 1
+58 1
+60 1

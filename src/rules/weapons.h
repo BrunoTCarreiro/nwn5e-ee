@@ -31,6 +31,13 @@ int OffHandDamageAbilityModifier(int ability_modifier, bool two_weapon_fighting_
 // light hammer, sickle, scimitar, shortsword, plus kukri and kama).
 bool IsLightNwnBaseItem(int base_item);
 
+// M1 Martial Arts: the 2024 Monk weapons among NWN base items - Simple Melee
+// weapons and Martial Melee weapons with the Light property: club, dagger,
+// handaxe, light hammer, light mace (the Mace), quarterstaff (and the magic
+// staff), short spear (the Spear), sickle, scimitar, shortsword; kama as a
+// sickle, kukri as a dagger.
+bool IsMonkWeapon2024(int base_item);
+
 // D1: off-hand attacks per round. `nwn_attacks` is the engine's count (0 when
 // it sees no second weapon; 2 with Improved Two-Weapon Fighting). 2024: one
 // extra attack at most — with two Light weapons, a double weapon, or Dual

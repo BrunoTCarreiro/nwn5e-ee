@@ -1296,6 +1296,31 @@ SRD 5.2.1 Monk (pp. 49–52, checked 2026-10-24); every 2024 feature below and t
 5 ft". With `carrying` faithful an overloaded creature (+0x970 = 2) now gets no class speed bonus:
 not Unarmored Movement, and not the Barbarian's Fast Movement (its ruleset answer 0 then - the
 same hole since B8). The Monk test profile carries a small shield and leather armour.
+*Accepted (owner, 2026-10-28: "I tested MK1, 4,5 and 6, they pass"; "MK2b, MK2c and MK3b pass, go with
+part 2").* (Equipping the shield and the armour needed `!feat add 32` / `!feat add 3`: NWN refuses gear
+without its proficiency feat; 2024 lets anyone wear it with penalties - X7.)
+
+**Built - part 2 (0.53.0; owner, 2026-10-28: "go with part 2").** M1 Martial Arts, as decided
+(a), (b), (c)(i) - while a character Monk is unarmed or holds only Monk weapons (a torch may be
+in the off hand) and GetUseMonkAbilities holds (no armour, no shield):
+- *(a) Dexterous Attacks:* rules_finesse's GetWeaponFinesse answers 1 for its unarmed strikes and
+  Monk weapons (installed with class_features faithful too, whatever `finesse` is); its damage
+  bonus takes the better of Dex and Str (FinesseDamageBonus); rules_shove's RollUnarmedSave uses
+  the better for the Shove / Grapple DC (a grapple's escape DC is the same number).
+- *(b) The Martial Arts die:* GetUnarmedDamageDie / Dice hooked - d6 / d8 / d10 / d12 at 1 / 5 /
+  11 / 17, one die, any size (NWN's tiers were < 4 / 8 / 12 / 16 up to d20, Small creatures
+  their own rows). A Monk weapon rolls the die when its own dice average lower - inside
+  rules_fighter's weapon-dice filter, so Great Weapon Fighting (a quarterstaff in two hands)
+  and Savage Attacker apply to the die. rules::IsMonkWeapon2024: club, dagger, handaxe, light
+  hammer, light mace, quarterstaff / magic staff, short spear, sickle, scimitar, shortsword;
+  kama, kukri. The served baseitems.2da (data/rows/baseitems.if_classfeat2024.txt) marks them
+  IsMonkWeapon: the column EE's CNWBaseItemArray::Load reads into base item +0xc0 (0x2a0d65;
+  without it only the torch and kama are), which InitializeNumberOfAttacks' Flurry and
+  GetUseMonkAttackTables read - verified by disassembly, so writing memory wasn't needed.
+- *(c) The bonus strike:* after InitializeNumberOfAttacks (rules_two_weapon's hook, now installed
+  with class_features faithful), one more on the round's extra attacks (+0x2f60) - none in a
+  round with an off-hand attack, none in NWN's Flurry mode (+0x6ef = 5: it adds its own until
+  part 3). It uses what is in hand.
 
 ### Phase 3 — Rogue (CM9): recommendations (for the owner's decision)
 

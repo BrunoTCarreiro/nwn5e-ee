@@ -3,19 +3,19 @@
 # file is read each time, so no rebuild or restart is needed. The keys are in
 # src/rules/test_profile.h.
 
-# Monk part 1 (0.52.0): your first class becomes Monk, level 7 - Unarmored Defense (10 + Dex +
-# Wis: 16 here, NWN's +1 at 5 left out), Unarmored Movement (+15 ft from 6: half again as fast),
-# Empowered Strikes (6: fists through damage reduction), Evasion (7). Take your armour off (and
-# no shield). For Body and Mind change level to 20 and type !test again (levels are only added;
-# a character of another class keeps its level when it becomes a Monk).
-# A human; Dexterity 16, Wisdom 16. A quarterstaff (not held: fists first). !spawn nw_orcb dr
-# (an orc with damage reduction 10/+5: fists get through, the quarterstaff doesn't). A small
-# shield and leather armour in the pack (MK2 / MK3: either one turns off Unarmored Defense and
-# Movement).
-name = Monk part 1: human Monk 7, no armour, a quarterstaff, a shield and leather armour
+# Monk part 2 (0.53.0): your first class becomes Monk, level 7 - Martial Arts (d8: Monk 5-10).
+# Take your armour off (and no shield). A human; Strength 10, Dexterity 16: every attack and
+# damage with fists or a Monk weapon uses Dexterity (+3), the Shove / Grapple DC too (8 + Dex +
+# PB = 14). In the pack: a quarterstaff (d6 -> d8), a dagger (d4 -> d8), a kama (d6 -> d8), a
+# spear (d8: its own), a longsword (not a Monk weapon: no Martial Arts at all - Strength, no
+# bonus strike), a second dagger (two daggers: an off-hand attack, so no bonus strike), a small
+# shield and leather armour (either one: no Martial Arts). The proficiency feats for those two
+# the spear and the longsword come with it (Shield, Light Armor, Simple and Martial weapons).
+name = Monk part 2: human Monk 7, Martial Arts, weapons to compare
 species = human
 swap_class = monk
 class = monk
 level = 7
 abilities = 10 16 14 10 16 8
-items = nw_wdbqs001, nw_ashsw001, nw_aarcl001
+feats = 32, 3, 45, 46
+items = nw_wdbqs001, nw_wswdg001, nw_wswdg001, nw_wspka001, nw_wplss001, nw_wswls001, nw_ashsw001, nw_aarcl001

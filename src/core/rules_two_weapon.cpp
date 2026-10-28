@@ -36,6 +36,7 @@
 bool HasTwoWeaponFightingStyle(void* stats);  // rules_fighter.cpp (Fighter F1, the 2024 style feat)
 int FinesseDamageBonus(void* stats, int off_hand);  // rules_finesse.cpp
 int RageDamageBonus(void* stats, int off_hand);     // rules_barbarian.cpp (Barbarian B2)
+void MartialArtsBonusStrike(void* round);           // rules_monk.cpp (Monk M1 (c))
 
 namespace {
 
@@ -52,12 +53,7 @@ LogOnce g_logged_style(512);
 
 bool TwoWeaponFaithful() { return g_config.two_weapon_fighting == rules::RuleVariant::kFaithful; }
 
-void InitializeNumberOfAttacks(void* round) {
-  {
-    WeaponSizeAsMedium as_medium(Field<void*>(round, ee::kRoundOwner));  // size faithful: Small as Medium
-    g_initialize_number_of_attacks(round);
-  }
-  if (!TwoWeaponFaithful()) return;
+void OffHandAttacksFaithful(void* round) {
   const int nwn_attacks = Field<int32_t>(round, ee::kRoundOffHandAttacks);
   if (nwn_attacks <= 0) return;
   void* creature = Field<void*>(round, ee::kRoundOwner);
@@ -76,6 +72,16 @@ void InitializeNumberOfAttacks(void* round) {
     Log("two-weapon: object 0x%08X off-hand attacks 3e %d -> 5e %d (base items %d / %d%s%s)", id, nwn_attacks, attacks,
         main_row, off_row, double_weapon ? ", double weapon" : "", dual_wielder ? ", Dual Wielder" : "");
   }
+}
+
+void InitializeNumberOfAttacks(void* round) {
+  {
+    WeaponSizeAsMedium as_medium(Field<void*>(round, ee::kRoundOwner));  // size faithful: Small as Medium
+    g_initialize_number_of_attacks(round);
+  }
+  if (TwoWeaponFaithful()) OffHandAttacksFaithful(round);
+  // Monk M1 (c): the bonus unarmed strike, once the off-hand count is known.
+  if (g_config.class_features == rules::RuleVariant::kFaithful) MartialArtsBonusStrike(round);
 }
 
 int GetDamageBonus(void* stats, void* target, int off_hand) {
@@ -119,8 +125,9 @@ void InstallTwoWeaponRules() {
                        "two_weapon_fighting: off-hand damage without Strength unless negative or with the style",
                        &OffHandStrength);
   }
-  if (TwoWeaponFaithful() || g_config.size == rules::RuleVariant::kFaithful) {
-    HookExport("CNWSCombatRound::InitializeNumberOfAttacks (off-hand attacks; weapon size)",
+  if (TwoWeaponFaithful() || g_config.size == rules::RuleVariant::kFaithful ||
+      g_config.class_features == rules::RuleVariant::kFaithful) {
+    HookExport("CNWSCombatRound::InitializeNumberOfAttacks (off-hand attacks; weapon size; Martial Arts)",
                ee::kInitializeNumberOfAttacks, reinterpret_cast<void*>(&InitializeNumberOfAttacks),
                reinterpret_cast<void**>(&g_initialize_number_of_attacks));
   }

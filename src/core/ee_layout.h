@@ -806,6 +806,8 @@ constexpr const char* kExecuteCommandGetSkillRank = "?ExecuteCommandGetSkillRank
 // void CNWSCreature::SetCombatMode(uchar mode, int force): the only writer of the
 // mode byte (+0x6ef); player toggles, SetActionMode, UseSkill and the AI all go through it.
 constexpr const char* kSetCombatMode = "?SetCombatMode@CNWSCreature@@QEAAXEH@Z";
+constexpr size_t kCreatureCombatMode = 0x6ef;  // uint8 (InitializeNumberOfAttacks: 5 Flurry, 6 Rapid Shot)
+constexpr uint8_t kCombatModeFlurry = 5;
 constexpr uint8_t kCombatModeParry = 1;
 constexpr uint8_t kCombatModeDefensiveCasting = 9;  // AIActionCastSpell +0x1bf0 rolls Concentration in it
 // uint AIActionTaunt(CNWSObjectActionNode*): first pass (+0x850 == 0) plays the
@@ -885,6 +887,17 @@ constexpr const char* kGetACNaturalBase = "?GetACNaturalBase@CNWSCreatureStats@@
 // least ruleset KI_STRIKE_LEVEL_5..1 by feats 698, 697, 344, 343, 213. The
 // values are DAMAGE_POWER_* (6 is ENERGY; +20 is 21).
 constexpr const char* kCalculateDamagePower = "?CalculateDamagePower@CNWSCreature@@QEAAEPEAVCNWSObject@@H@Z";
+// uchar CNWSCreatureStats::GetUnarmedDamageDie() / GetUnarmedDamageDice()
+// (0x40ad60 / 0x40aa70): with the Monk abilities NWN's Monk tiers (Monk level
+// < 4 / 8 / 12 / 16: d6 / d8 / d10 / d12 / d20 for a Medium creature, Small
+// ones the *_SDAMAGE_* rows; one die), else UNARMED_DAMAGE_DIE 3 - GetDamageRoll
+// and UpdateCombatInformation (the sheet) ask them.
+constexpr const char* kGetUnarmedDamageDie = "?GetUnarmedDamageDie@CNWSCreatureStats@@QEAAEXZ";
+constexpr const char* kGetUnarmedDamageDice = "?GetUnarmedDamageDice@CNWSCreatureStats@@QEAAEXZ";
+// The base items' IsMonkWeapon (baseitems.2da column, int at CNWBaseItem +0xc0;
+// CNWBaseItemArray::Load 0x2a0d65 - without the column only the torch (15) and
+// the kama (40) are): InitializeNumberOfAttacks' Flurry and
+// GetUseMonkAttackTables read it.
 constexpr int kSlotChest = 0x2;
 // CNWBaseItem: weapon size uint8 +0x19 (GetDamageBonus +0x272: size minus the
 // creature's size == 1, melee, not double = wielded two-handed); NumDice uint8

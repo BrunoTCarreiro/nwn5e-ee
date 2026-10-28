@@ -6,10 +6,14 @@
 //
 // Faithful: the engine's GetWeaponFinesse (asked for an attack's ability and
 // the sheet's attack line) answers by the 2024 property; unarmed attacks keep
-// NWN's answer until the Monk's brief (Martial Arts). The damage bonus gets
-// the better ability (rules::FinesseDamageAdjustment, through the
-// GetDamageBonus hook in rules_two_weapon.cpp; the off hand keeps D1's rule).
+// NWN's answer, except a Monk's under Martial Arts. The damage bonus gets the
+// better ability (rules::FinesseDamageAdjustment, through the GetDamageBonus
+// hook in rules_two_weapon.cpp; the off hand keeps D1's rule).
 // NWN mode: NWN's Weapon Finesse.
+//
+// Monk M1 (a) Dexterous Attacks (0.53.0, class_features faithful): unarmed
+// strikes and Monk weapons under Martial Arts (rules_monk.cpp) are finesse,
+// attack and damage alike, whatever `finesse` is.
 //
 // Not changed: the sheet's damage line (GetMeleeDamageBonus) still shows
 // Strength.
@@ -26,6 +30,7 @@
 #include "rules/weapons.h"
 
 bool HasTwoWeaponFightingStyle(void* stats);  // rules_fighter.cpp
+bool MartialArtsAttack(void* creature, int base_item);  // rules_monk.cpp (M1 Dexterous Attacks)
 
 namespace {
 
@@ -35,8 +40,14 @@ LogOnce g_logged(256);
 
 bool Faithful() { return g_config.finesse == rules::RuleVariant::kFaithful; }
 
+bool ClassFeaturesFaithful() { return g_config.class_features == rules::RuleVariant::kFaithful; }
+
 int GetWeaponFinesse(void* stats, void* item) {
-  if (!item) return g_get_weapon_finesse(stats, item);  // unarmed: NWN's (the Monk's brief)
+  void* creature = CreatureOf(stats);
+  if (creature && ClassFeaturesFaithful() && MartialArtsAttack(creature, item ? engine::BaseItemRow(item) : -1)) {
+    return 1;  // M1 Dexterous Attacks
+  }
+  if (!item || !Faithful()) return g_get_weapon_finesse(stats, item);  // unarmed: NWN's
   return rules::IsFinesseNwnBaseItem(engine::BaseItemRow(item)) ? 1 : 0;
 }
 
@@ -44,11 +55,12 @@ int GetWeaponFinesse(void* stats, void* item) {
 
 // What GetDamageBonus adds for 2024 Finesse: the better of Str and Dex.
 int FinesseDamageBonus(void* stats, int off_hand) {
-  if (!Faithful() || !stats) return 0;
+  if (!stats) return 0;
   void* creature = CreatureOf(stats);
   if (!creature) return 0;
   const int row = engine::BaseItemRowInSlot(creature, off_hand ? ee::kSlotLeftHand : ee::kSlotRightHand);
-  if (row < 0 || !rules::IsFinesseNwnBaseItem(row)) return 0;
+  const bool martial = ClassFeaturesFaithful() && !(off_hand && row < 0) && MartialArtsAttack(creature, row);
+  if (!martial && (!Faithful() || row < 0 || !rules::IsFinesseNwnBaseItem(row))) return 0;
   const bool two_weapon_faithful = g_config.two_weapon_fighting == rules::RuleVariant::kFaithful;
   if (off_hand && !two_weapon_faithful) return 0;  // NWN's off-hand Strength: left as it is
   const bool keeps = engine::HasFeat(stats, ee::kFeatTwoWeaponFighting) || HasTwoWeaponFightingStyle(stats);
@@ -63,7 +75,7 @@ int FinesseDamageBonus(void* stats, int off_hand) {
 }
 
 void InstallFinesseRules() {
-  if (!Faithful()) return;
+  if (!Faithful() && !ClassFeaturesFaithful()) return;  // the Monk's Dexterous Attacks need the hook too
   HookExport("CNWSCreatureStats::GetWeaponFinesse (finesse: the 2024 property, no feat)", ee::kGetWeaponFinesse,
              reinterpret_cast<void*>(&GetWeaponFinesse), reinterpret_cast<void**>(&g_get_weapon_finesse));
 }

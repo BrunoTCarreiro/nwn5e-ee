@@ -297,6 +297,23 @@ constexpr int kDamagePowerPlusTwenty = 21;  // DAMAGE_POWER_PLUS_TWENTY (6 is DA
 bool HasMonkEvasion(int monk_level);
 // M15 Body and Mind (20): Dexterity and Wisdom +4, at most 25.
 bool HasBodyAndMind(int monk_level);
+// M1 Martial Arts (1), while unarmed or wielding only Monk weapons, with no
+// armour and no shield: the Martial Arts die - d6, d8 at 5, d10 at 11, d12 at
+// 17 (0 below 1) - for Unarmed Strikes and Monk weapons;
+int MartialArtsDie(int monk_level);
+// the hands it allows (base items, -1 = empty): the main hand empty or a Monk
+// weapon, the off hand empty, a Monk weapon or a torch (held, not wielded);
+bool MartialArtsHands(int main_hand_base_item, int off_hand_base_item);
+// a weapon's damage dice give way to the die when it rolls higher on average;
+bool MartialArtsDieBetter(int weapon_dice, int weapon_sides, int martial_arts_die);
+// Dexterous Attacks: the better of Strength and Dexterity for the attack and
+// damage of Unarmed Strikes and Monk weapons, and for the Grapple / Shove DC;
+int DexterousAbilityModifier(int strength_modifier, int dexterity_modifier);
+// Bonus Unarmed Strike, nwn5e's stand-in until Phase 6 (bonus actions; the
+// owner's M1 (c)(i)): one more attack each round while Martial Arts holds -
+// none in a round with an off-hand attack (2024's Light-weapon attack takes the
+// same Bonus Action) or in NWN's Flurry of Blows mode (Flurry adds its own).
+int MartialArtsBonusAttacks(bool martial_arts, int off_hand_attacks, bool flurry_mode);
 
 // Save proficiencies class features give (whatever the first class): Slippery Mind's.
 bool ClassFeatureSaveProficiency(const std::vector<ClassLevels>& classes, Ability ability);

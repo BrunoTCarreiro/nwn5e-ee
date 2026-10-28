@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "rules/weapons.h"
+
 namespace rules {
 
 namespace {
@@ -142,7 +144,9 @@ const std::vector<ClassFeature>& Rogue() {
 // SRD 5.2.1 Monk and Warrior of the Open Hand (PLAN.md "Phase 3 — Monk", decided 2026-10-24).
 const std::vector<ClassFeature>& Monk() {
   static const std::vector<ClassFeature> kFeatures = {
-      {1, "Martial Arts", false, "Monk part 2"},
+      {1, "Martial Arts", false, "built: unarmed or Monk weapons only, no armour or shield - the better of Dex "
+                                 "and Str, the Martial Arts die (d6 / d8 at 5 / d10 at 11 / d12 at 17) when higher, "
+                                 "one more attack each round (no off-hand attack, not in Flurry mode)"},
       {1, "Unarmored Defense", false, "built: 10 + Dex + Wis with no armour and no shield (NWN's Monk AC Bonus, "
                                       "without its Monk level / 5)"},
       {2, "Monk's Focus", false, "Monk part 3"},
@@ -409,6 +413,37 @@ bool HasEmpoweredStrikes(int monk_level) { return monk_level >= 6; }
 bool HasMonkEvasion(int monk_level) { return monk_level >= 7; }
 
 bool HasBodyAndMind(int monk_level) { return monk_level >= 20; }
+
+int MartialArtsDie(int monk_level) {
+  if (monk_level < 1) return 0;
+  if (monk_level >= 17) return 12;
+  if (monk_level >= 11) return 10;
+  if (monk_level >= 5) return 8;
+  return 6;
+}
+
+bool MartialArtsHands(int main_hand_base_item, int off_hand_base_item) {
+  constexpr int kTorch = 15;
+  const bool main_ok = main_hand_base_item < 0 || IsMonkWeapon2024(main_hand_base_item);
+  const bool off_ok =
+      off_hand_base_item < 0 || off_hand_base_item == kTorch || IsMonkWeapon2024(off_hand_base_item);
+  return main_ok && off_ok;
+}
+
+bool MartialArtsDieBetter(int weapon_dice, int weapon_sides, int martial_arts_die) {
+  if (martial_arts_die <= 0) return false;
+  if (weapon_dice <= 0 || weapon_sides <= 0) return true;
+  // Averages: d(die) = (die + 1) / 2 against n x (sides + 1) / 2.
+  return martial_arts_die + 1 > weapon_dice * (weapon_sides + 1);
+}
+
+int DexterousAbilityModifier(int strength_modifier, int dexterity_modifier) {
+  return dexterity_modifier > strength_modifier ? dexterity_modifier : strength_modifier;
+}
+
+int MartialArtsBonusAttacks(bool martial_arts, int off_hand_attacks, bool flurry_mode) {
+  return martial_arts && off_hand_attacks <= 0 && !flurry_mode ? 1 : 0;
+}
 
 bool HasSlipperyMind(int rogue_level) { return rogue_level >= 15; }
 

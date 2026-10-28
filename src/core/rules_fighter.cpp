@@ -67,6 +67,8 @@
 bool TakeSavageAttacker(void* stats);
 // Brutal Strike's d10s and Frenzy's d6s (rules_barbarian_strikes.cpp, Barbarian B10 / BZ1).
 int BarbarianExtraDamage(void* stats, void* target, int offhand, int critical);
+// Monk M1 (b): the Martial Arts die a Monk weapon rolls instead of its dice (rules_monk.cpp; 0: its own).
+int MartialArtsWeaponDie(void* creature, int base_item, int dice, int sides);
 
 namespace {
 
@@ -179,6 +181,7 @@ constexpr int kMaxSavageSets = 8;  // weapon-dice sets one hit can roll (a criti
 struct GreatWeaponRoll {
   bool active = false;  // Great Weapon Fighting
   bool savage = false;  // Savage Attacker: the hit's dice twice, the higher roll kept
+  int martial = 0;      // Monk M1: a Monk weapon's dice rolled as one Martial Arts die of these sides
   uint32_t id = 0;
   int count = 0;
   int sides = 0;
@@ -258,25 +261,37 @@ int GetDamageRoll(void* stats, void* target, int offhand, int critical, int snea
     }
     t_great_weapon.sets = (std::max)(0, (std::min)(sets, kMaxSavageSets));
   }
+  if (weapon) {  // Monk M1 (b): a Monk weapon rolls the Martial Arts die when higher (rules_monk.cpp)
+    const int count = Field<uint8_t>(weapon, ee::kBaseItemNumDice), sides = Field<uint8_t>(weapon, ee::kBaseItemDieToRoll);
+    if (const int die = Faithful() ? MartialArtsWeaponDie(creature, AttackWeaponBaseItem(creature), count, sides) : 0) {
+      t_great_weapon.martial = die;
+      t_great_weapon.id = ObjectIdOf(stats);
+      t_great_weapon.count = count;
+      t_great_weapon.sides = sides;
+    }
+  }
   const int damage = g_get_damage_roll(stats, target, offhand, critical, sneak, death, force_max);
   t_great_weapon = outer;
   return damage + BarbarianExtraDamage(stats, target, offhand, critical);
 }
 
 bool GreatWeaponDice(uintptr_t caller, int count, int sides, int* result) {
-  if ((!t_great_weapon.active && !t_great_weapon.savage) || count != t_great_weapon.count ||
-      sides != t_great_weapon.sides) {
+  if ((!t_great_weapon.active && !t_great_weapon.savage && !t_great_weapon.martial) ||
+      count != t_great_weapon.count || sides != t_great_weapon.sides) {
     return false;
   }
   if (std::find(g_weapon_dice_returns.begin(), g_weapon_dice_returns.end(), caller) == g_weapon_dice_returns.end()) {
     return false;
   }
   int raised = 0;
+  // Monk M1: the Martial Arts die in place of the weapon's dice.
+  const int roll_count = t_great_weapon.martial ? 1 : count;
+  const int roll_sides = t_great_weapon.martial ? t_great_weapon.martial : sides;
   auto roll_once = [&]() {
-    if (!t_great_weapon.active) return RollEngineDice(count, sides);
+    if (!t_great_weapon.active) return RollEngineDice(roll_count, roll_sides);
     int total = 0;
-    for (int i = 0; i < count; ++i) {
-      const int roll = RollEngineDice(1, sides);
+    for (int i = 0; i < roll_count; ++i) {
+      const int roll = RollEngineDice(1, roll_sides);
       raised += roll < 3 ? 1 : 0;
       total += rules::GreatWeaponFightingDie(roll);
     }

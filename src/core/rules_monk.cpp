@@ -35,6 +35,26 @@
 // - M11 Evasion (7): rules_rogue's Evasion filter takes Monk 7 as Rogue 7;
 //   rules_features grants Improved Evasion (2024's Evasion) at Monk 7.
 // - M15 Body and Mind (20): rules::ClassFeatureAbilityIncreases (rules_abilities).
+// Part 2 (0.53.0), M1 Martial Arts - while a character Monk is unarmed or holds
+// only Monk weapons (rules::IsMonkWeapon2024; a torch may be in the off hand)
+// and GetUseMonkAbilities holds (no armour, no shield):
+// - (a) Dexterous Attacks: GetWeaponFinesse answers 1 for its unarmed strikes
+//   and Monk weapons (rules_finesse.cpp: the better of Dex and Str to hit), its
+//   damage bonus takes the better too (FinesseDamageBonus), and its Shove and
+//   Grapple DC (rules_shove.cpp's RollUnarmedSave; a grapple's escape DC is the
+//   same number).
+// - (b) the Martial Arts die: GetUnarmedDamageDie / Dice answer d6 / d8 / d10 /
+//   d12 at 1 / 5 / 11 / 17, one die, whatever the size (NWN's Monk tiers and
+//   their Small rows aside); a Monk weapon whose dice roll lower on average rolls
+//   the die instead (rules_fighter.cpp's weapon-dice filter - Great Weapon
+//   Fighting and Savage Attacker apply to it). The served baseitems.2da marks the
+//   2024 Monk weapons IsMonkWeapon (data/rows/baseitems.if_classfeat2024.txt), so
+//   NWN's Flurry of Blows (part 3 makes it 2024's) and Monk attack tables take
+//   them.
+// - (c) the bonus unarmed strike (the owner's (c)(i), until Phase 6): one more
+//   attack each round on the round's extra attacks (+0x2f60, after
+//   InitializeNumberOfAttacks - rules_two_weapon.cpp), unless the round has an
+//   off-hand attack or NWN's Flurry of Blows is on; it uses what is in hand.
 // Monsters keep NWN's Monk.
 
 #include <windows.h>
@@ -47,6 +67,7 @@
 #include "creature.h"
 #include "data_serving.h"
 #include "ee_layout.h"
+#include "engine.h"
 #include "feats.h"
 #include "hooks.h"
 #include "log.h"
@@ -55,6 +76,7 @@
 #include "ruleset.h"
 #include "rules/class_features.h"
 #include "rules/nwn_conversion.h"
+#include "rules/weapons.h"
 
 namespace {
 
@@ -64,15 +86,20 @@ constexpr float kMonkSpeedCap = 3.0f;  // ruleset MOVEMENT_SPEED_BONUS_MONK_CAP'
 using AcNaturalBaseFn = char (*)(void* stats, int monk_part_only);
 using UseMonkAbilitiesFn = int (*)(void* creature);
 using DamagePowerFn = uint8_t (*)(void* creature, void* target, int offhand);
+using UnarmedDiceFn = uint8_t (*)(void* stats);
 
 AcNaturalBaseFn g_ac_natural_base = nullptr;
 UseMonkAbilitiesFn g_use_monk_abilities = nullptr;
 DamagePowerFn g_damage_power = nullptr;
+UnarmedDiceFn g_unarmed_die = nullptr;
+UnarmedDiceFn g_unarmed_dice = nullptr;
 CodeRange g_movement_code;           // GetMovementRateFactor: its HasFeat(207)
 thread_local void* t_powering = nullptr;  // the creature CalculateDamagePower is working for
 LogOnce g_logged(500);
 
 bool Faithful() { return g_config.class_features == rules::RuleVariant::kFaithful; }
+
+uint32_t IdOf(const void* creature) { return creature ? Field<uint32_t>(creature, ee::kObjectId) : 0; }
 
 // A character's (player character or henchman) Monk levels in faithful; 0 otherwise.
 int MonkLevelOf(void* stats) {
@@ -156,6 +183,75 @@ int KiStrikeLevel1(int engine_value) {
 
 }  // namespace
 
+// --- Part 2: M1 Martial Arts --------------------------------------------------------
+
+// The Monk level when Martial Arts holds for a creature now (a character in
+// faithful; unarmed or only Monk weapons; no armour, no shield), else 0.
+int MartialArtsLevel(void* creature) {
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  const int level = MonkLevelOf(stats);
+  if (level <= 0) return 0;
+  if (!rules::MartialArtsHands(engine::BaseItemRowInSlot(creature, ee::kSlotRightHand),
+                               engine::BaseItemRowInSlot(creature, ee::kSlotLeftHand)) ||
+      !UsesMonkAbilities(creature)) {
+    return 0;
+  }
+  if (g_logged.First(LogOnce::Key(ObjectIdOf(stats), level, 5))) {
+    Log("monk: 0x%08X Martial Arts (Monk %d): d%d unarmed, the better of Dex and Str, Monk weapons roll the d%d "
+        "when higher, a bonus strike each round", ObjectIdOf(stats), level, rules::MartialArtsDie(level),
+        rules::MartialArtsDie(level));
+  }
+  return level;
+}
+
+// (a) Dexterous Attacks for an attack with this hand's item (-1: unarmed).
+bool MartialArtsAttack(void* creature, int base_item) {
+  return (base_item < 0 || rules::IsMonkWeapon2024(base_item)) && MartialArtsLevel(creature) > 0;
+}
+
+// (b) The die a Monk weapon's damage rolls instead of its own dice (0: its own).
+int MartialArtsWeaponDie(void* creature, int base_item, int dice, int sides) {
+  if (base_item < 0 || !rules::IsMonkWeapon2024(base_item)) return 0;
+  const int level = MartialArtsLevel(creature);
+  const int die = rules::MartialArtsDie(level);
+  if (!rules::MartialArtsDieBetter(dice, sides, die)) return 0;
+  if (g_config.log_attacks && g_logged.First(LogOnce::Key(IdOf(creature), base_item, 6 + die * 16))) {
+    Log("monk: 0x%08X Martial Arts: base item %d rolls d%d in place of its %dd%d", IdOf(creature), base_item, die,
+        dice, sides);
+  }
+  return die;
+}
+
+// (c) After InitializeNumberOfAttacks (rules_two_weapon.cpp): the bonus strike.
+void MartialArtsBonusStrike(void* round) {
+  void* creature = round ? Field<void*>(round, ee::kRoundOwner) : nullptr;
+  const int level = MartialArtsLevel(creature);
+  if (level <= 0) return;
+  const int off_hand = Field<int32_t>(round, ee::kRoundOffHandAttacks);
+  const bool flurry = Field<uint8_t>(creature, ee::kCreatureCombatMode) == ee::kCombatModeFlurry;
+  const int extra = rules::MartialArtsBonusAttacks(true, off_hand, flurry);
+  const uint32_t id = IdOf(creature);
+  if (g_config.log_attacks && g_logged.First(LogOnce::Key(id, extra * 4 + (off_hand > 0 ? 1 : 0) + (flurry ? 2 : 0), 7))) {
+    Log("monk: 0x%08X Martial Arts bonus strike: %s", id,
+        extra ? "one more attack this round" : off_hand > 0 ? "none (an off-hand attack this round)"
+                                                            : "none (NWN's Flurry of Blows adds its own)");
+  }
+  if (extra) SetField<int32_t>(round, ee::kRoundExtraAttacks, Field<int32_t>(round, ee::kRoundExtraAttacks) + extra);
+}
+
+namespace {
+
+uint8_t UnarmedDamageDie(void* stats) {
+  const int level = MartialArtsLevel(CreatureOf(stats));
+  return level > 0 ? static_cast<uint8_t>(rules::MartialArtsDie(level)) : g_unarmed_die(stats);
+}
+
+uint8_t UnarmedDamageDice(void* stats) {
+  return MartialArtsLevel(CreatureOf(stats)) > 0 ? 1 : g_unarmed_dice(stats);
+}
+
+}  // namespace
+
 void InstallMonkRules() {
   if (!Faithful()) return;
   ServeConditionalRows("classfeat2024");  // M0: cls_feat_monk.if_classfeat2024.txt, the 2024 names
@@ -187,6 +283,14 @@ void InstallMonkRules() {
                                  &KiStrikeLevel1);
   }
 
+  const bool die = HookExport("CNWSCreatureStats::GetUnarmedDamageDie (Martial Arts die)", ee::kGetUnarmedDamageDie,
+                              reinterpret_cast<void*>(&UnarmedDamageDie), reinterpret_cast<void**>(&g_unarmed_die)) &&
+                   HookExport("CNWSCreatureStats::GetUnarmedDamageDice (Martial Arts: one die)",
+                              ee::kGetUnarmedDamageDice, reinterpret_cast<void*>(&UnarmedDamageDice),
+                              reinterpret_cast<void**>(&g_unarmed_dice));
+  Log("monk: part 2 - Martial Arts: %s; Dex for attacks, damage and the Shove / Grapple DC; Monk weapons roll the "
+      "die when higher; a bonus strike each round",
+      die ? "the Martial Arts die unarmed" : "unarmed dice NOT converted");
   Log("monk: part 1 - X1 (NWN-only Monk feats removed); %s; %s; %s; Evasion at 7; Body and Mind at 20",
       defense ? "Unarmored Defense 10 + Dex + Wis (no Monk level / 5)" : "Unarmored Defense NOT converted",
       movement ? "Unarmored Movement +10 to +30 ft" : "Unarmored Movement NOT converted",

@@ -49,11 +49,13 @@
 #include "log.h"
 #include "mastery.h"
 #include "resolve_damage.h"
+#include "rules/class_features.h"
 #include "rules/grapple.h"
 #include "saves.h"
 #include "skill_rank.h"
 
 void ShoveSwing(uint32_t server_id);  // anim_layers.cpp: the player's next swing is nwstab (0.45.5)
+int MartialArtsLevel(void* creature);  // rules_monk.cpp: Monk M1, Dexterous Attacks for the DC
 
 namespace {
 
@@ -287,7 +289,12 @@ UnarmedSave RollUnarmedSave(void* attacker, void* target) {
   const CreatureFacts facts = ReadCreatureFacts(attacker_stats);
   const int pb = rules::ProficiencyBonusForCreature(facts.character, facts.level, facts.challenge_rating);
   const int strength = engine::AbilityModifier(attacker_stats, static_cast<int>(rules::Ability::kStrength));
-  const int dc = rules::ShoveDc(strength, pb);
+  const int dexterity = engine::AbilityModifier(attacker_stats, static_cast<int>(rules::Ability::kDexterity));
+  // Monk M1 (a) Dexterous Attacks: the DC may use Dexterity under Martial Arts (the better one).
+  const bool dexterous = dexterity > strength && g_config.class_features == rules::RuleVariant::kFaithful &&
+                         MartialArtsLevel(attacker) > 0;
+  const int ability_modifier = dexterous ? rules::DexterousAbilityModifier(strength, dexterity) : strength;
+  const int dc = rules::ShoveDc(ability_modifier, pb);
   const int str_save = SaveBonusFor(target_stats, rules::Ability::kStrength);
   const int dex_save = SaveBonusFor(target_stats, rules::Ability::kDexterity);
   const rules::Ability ability = rules::ShoveSaveAbility(str_save, dex_save);
@@ -300,9 +307,10 @@ UnarmedSave RollUnarmedSave(void* attacker, void* target) {
   result.immune = save == 2;
   result.dc = dc;
   char text[120];
-  sprintf_s(text, "%s save %+d vs DC %d (8 + Str %+d + PB %+d)",
+  sprintf_s(text, "%s save %+d vs DC %d (8 + %s %+d + PB %+d)",
             ability == rules::Ability::kStrength ? "Strength" : "Dexterity",
-            ability == rules::Ability::kStrength ? str_save : dex_save, dc, strength, pb);
+            ability == rules::Ability::kStrength ? str_save : dex_save, dc, dexterous ? "Dex" : "Str",
+            ability_modifier, pb);
   result.text = text;
   return result;
 }

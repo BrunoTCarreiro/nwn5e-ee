@@ -1,5 +1,6 @@
 #include "check.h"
 #include "rules/class_features.h"
+#include "rules/weapons.h"
 
 #include <string>
 
@@ -299,6 +300,49 @@ TEST(MonkPart1) {
   for (const ClassFeature& f : ClassFeatures2024(CharacterClass::kMonk, 20)) subclass += f.subclass ? 1 : 0;
   CHECK_EQ(subclass, 4);  // Open Hand Technique, Wholeness of Body, Fleet Step, Quivering Palm
   CHECK_EQ(std::string(Subclass2024(CharacterClass::kMonk)) == "Warrior of the Open Hand", true);
+}
+
+// M1 Martial Arts (SRD 5.2.1). Breaks caught: the die a step off (d8 at 4 or
+// 6, d10 at 10, d12 at 16), a die below Monk 1; a Martial weapon without Light
+// (longsword, morningstar, rapier) or a ranged one (sling, dart, shuriken)
+// counted a Monk weapon, or a Simple melee one left out (quarterstaff, short
+// spear, light mace); a shield or a non-Monk weapon in the off hand allowed, a
+// torch refused; a d6 weapon losing to a d6 die or a d4 one kept against a d6;
+// Dexterity used when lower; the bonus strike with an off-hand attack, in
+// Flurry mode, or without Martial Arts.
+TEST(MonkMartialArts) {
+  CHECK_EQ(MartialArtsDie(0), 0);
+  CHECK_EQ(MartialArtsDie(1), 6);
+  CHECK_EQ(MartialArtsDie(4), 6);
+  CHECK_EQ(MartialArtsDie(5), 8);
+  CHECK_EQ(MartialArtsDie(10), 8);
+  CHECK_EQ(MartialArtsDie(11), 10);
+  CHECK_EQ(MartialArtsDie(16), 10);
+  CHECK_EQ(MartialArtsDie(17), 12);
+  CHECK_EQ(MartialArtsDie(20), 12);
+  for (int monk : {0, 9, 22, 28, 37, 38, 40, 42, 45, 50, 53, 58, 60}) CHECK_EQ(IsMonkWeapon2024(monk), true);
+  for (int other : {1, 2, 4, 5, 13, 47, 51, 61, 59, 31, 15, 14, 36, -1}) CHECK_EQ(IsMonkWeapon2024(other), false);
+  CHECK_EQ(MartialArtsHands(-1, -1), true);   // unarmed
+  CHECK_EQ(MartialArtsHands(50, -1), true);   // a quarterstaff
+  CHECK_EQ(MartialArtsHands(40, 40), true);   // two kamas
+  CHECK_EQ(MartialArtsHands(-1, 15), true);   // a torch in the off hand
+  CHECK_EQ(MartialArtsHands(1, -1), false);   // a longsword
+  CHECK_EQ(MartialArtsHands(-1, 14), false);  // a small shield
+  CHECK_EQ(MartialArtsHands(22, 1), false);   // a dagger and a longsword
+  CHECK_EQ(MartialArtsHands(15, -1), false);  // a torch as the main weapon
+  CHECK_EQ(MartialArtsDieBetter(1, 6, 6), false);  // a d6 weapon against the d6: kept
+  CHECK_EQ(MartialArtsDieBetter(1, 4, 6), true);   // a dagger at Monk 1
+  CHECK_EQ(MartialArtsDieBetter(1, 8, 8), false);  // a short spear at 5
+  CHECK_EQ(MartialArtsDieBetter(1, 6, 8), true);   // a quarterstaff at 5
+  CHECK_EQ(MartialArtsDieBetter(2, 4, 8), false);  // 2d4 (5) against d8 (4.5)
+  CHECK_EQ(MartialArtsDieBetter(2, 4, 10), true);  // 2d4 (5) against d10 (5.5)
+  CHECK_EQ(MartialArtsDieBetter(1, 6, 0), false);
+  CHECK_EQ(DexterousAbilityModifier(1, 3), 3);
+  CHECK_EQ(DexterousAbilityModifier(4, 2), 4);
+  CHECK_EQ(MartialArtsBonusAttacks(true, 0, false), 1);
+  CHECK_EQ(MartialArtsBonusAttacks(true, 1, false), 0);
+  CHECK_EQ(MartialArtsBonusAttacks(true, 0, true), 0);
+  CHECK_EQ(MartialArtsBonusAttacks(false, 0, false), 0);
 }
 
 // R1 (SRD 5.2.1 p. 62): 1d6 at 1, one more at every odd level, 10d6 at 19; a

@@ -97,6 +97,27 @@ bool IsLightNwnBaseItem(int base_item) {
   }
 }
 
+bool IsMonkWeapon2024(int base_item) {
+  switch (base_item) {
+    case 0:   // shortsword
+    case 9:   // light mace
+    case 22:  // dagger
+    case 28:  // club
+    case 37:  // light hammer
+    case 38:  // handaxe
+    case 40:  // kama
+    case 42:  // kukri
+    case 45:  // magic staff
+    case 50:  // quarterstaff
+    case 53:  // scimitar
+    case 58:  // short spear
+    case 60:  // sickle
+      return true;
+    default:
+      return false;
+  }
+}
+
 int OffHandAttacks(int nwn_attacks, bool double_weapon, bool dual_wielder, bool main_hand_light,
                    bool off_hand_light) {
   if (nwn_attacks <= 0) return 0;
