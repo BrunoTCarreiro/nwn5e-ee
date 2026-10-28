@@ -69,6 +69,16 @@ QueueStripCount QueueStripSlots(int queued) {
   return {shown, queued - shown};
 }
 
+int ItemPowerUsesLeft(int number_of_uses, int stack_size, int charges, int uses_left_today) {
+  if (number_of_uses == 1) return stack_size > 0 ? stack_size : 0;  // single use
+  if (number_of_uses >= 2 && number_of_uses <= 6) {                  // 5 / 4 / 3 / 2 / 1 charges per use
+    const int per_use = 7 - number_of_uses;
+    return charges > 0 ? charges / per_use : 0;
+  }
+  if (number_of_uses >= 8 && number_of_uses <= 12) return uses_left_today > 0 ? uses_left_today : 0;  // per day
+  return -1;  // 0 charges per use, unlimited, unknown
+}
+
 float QueueStripWidth(int shown, int more) {
   constexpr float kFrame = 28.0f;  // the window's own padding and the group's
   return kFrame + shown * kQueueSlotWidth + (more > 0 ? kQueueMoreWidth : 0.0f);

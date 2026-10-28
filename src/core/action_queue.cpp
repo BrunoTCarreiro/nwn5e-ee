@@ -31,6 +31,15 @@
 // special attacks (Shove: push, Grapple - no display id) the combat round's
 // RemoveSpecialAttack. Player characters only; `!queue` turns it off and on
 // (the record nwn5e_queue_off). Both modes - it shows, it doesn't rule.
+//
+// 0.54.2 (owner: "clicking an item in the queue doesn't cancel it"): nui.cpp's
+// event hook knows a window by the token kept on the character
+// (nwn5e_nui_<id>), which NuiOpen sets - the strip's own script now sets it
+// too. And (owner: "I can queue the same item (a potion for example) multiple
+// times while not having enough"): a player's use of an item's power is refused
+// when its queued uses (ItemCastSpell actions of that item and power) already
+// take every use it has left (rules::ItemPowerUsesLeft: the stack, the charges,
+// the uses left today - read by script from its Cast Spell property).
 
 #include <windows.h>
 
@@ -61,6 +70,7 @@ constexpr const char* kVarOff = "nwn5e_queue_off";
 constexpr ULONGLONG kCheckEveryMs = 150;
 constexpr int kMaxGroups = 32;
 constexpr int kMaxSpecials = 9;  // the engine's own cap
+
 
 using PositionByGroupIndexFn = void* (*)(void* object, int index);
 using ActionByGroupIdFn = uint16_t (*)(void* object, uint16_t group, void** node);
@@ -276,7 +286,9 @@ std::string CreateScript() {
          " json root = JsonParse(\"{\\\"type\\\":\\\"group\\\",\\\"label\\\":null,\\\"value\\\":null,"
          "\\\"border\\\":false,\\\"scrollbars\\\":0}\"); root = JsonObjectSet(root, \"children\", "
          "JsonArrayInsert(JsonArray(), row)); json w = JsonParse(" + Quoted(window) +
-         "); w = JsonObjectSet(w, \"root\", root); t = NuiCreate(p, w, \"n5queue\"); if (!t) return; }";
+         "); w = JsonObjectSet(w, \"root\", root); t = NuiCreate(p, w, \"n5queue\"); if (!t) return; }"
+         // nui.cpp's event hook finds the window by this token (as NuiOpen keeps it).
+         " SetLocalInt(p, \"nwn5e_nui_n5queue\", t);";
 }
 
 // The script that sets slot k's binds.
@@ -415,6 +427,58 @@ void OnQueueEvent(const NuiEvent& event) {
   g_next_check[event.player] = 0;
 }
 
+// 0.54.2: a power's uses already queued (its ItemCastSpell actions), every action in the list.
+int QueuedUses(void* creature, uint32_t item_id, int active_property) {
+  const void* list = Field<void*>(creature, ee::kObjectActionQueue);
+  const void* node = list ? Field<void*>(list, ee::kListHead) : nullptr;
+  int queued = 0;
+  for (int i = 0; node && i < 256; ++i, node = Field<void*>(node, ee::kListNodeNext)) {
+    const void* action = Field<void*>(node, ee::kListNodeData);
+    if (action && Field<int32_t>(action, ee::kActionId) == ee::kActionItemCastSpell && Param(action, 0) == item_id &&
+        static_cast<int>(Param(action, 1)) == active_property) {
+      ++queued;
+    }
+  }
+  return queued;
+}
+
+bool NoOverQueuedUses(void* creature, uint32_t item_id, void* item) {
+  const int active_property = ItemUseActiveProperty();
+  if (!item || active_property < 0 || !g_active_property) return true;
+  void* stats = StatsOf(creature);
+  if (!stats || !ReadCreatureFacts(stats).is_player) return true;
+  const int queued = QueuedUses(creature, item_id, active_property);
+  if (queued <= 0) return true;
+  const void* property = g_active_property(item, active_property);
+  if (!property) return true;
+  const int row = Field<uint16_t>(property, ee::kItemPropertySubtype);
+  char script[700];
+  sprintf_s(script,
+            "object o = StringToObject(\"%x\"); itemproperty ip = GetFirstItemProperty(o); int n = -1; int d = 0;"
+            " while (GetIsItemPropertyValid(ip)) { if (GetItemPropertyType(ip) == ITEM_PROPERTY_CAST_SPELL &&"
+            " GetItemPropertySubType(ip) == %d) { n = GetItemPropertyCostTableValue(ip);"
+            " d = GetItemPropertyUsesPerDayRemaining(o, ip); break; } ip = GetNextItemProperty(o); }"
+            " SetLocalInt(OBJECT_SELF, \"nwn5e_aq_uses\", n); SetLocalInt(OBJECT_SELF, \"nwn5e_aq_stack\","
+            " GetItemStackSize(o)); SetLocalInt(OBJECT_SELF, \"nwn5e_aq_charges\", GetItemCharges(o));"
+            " SetLocalInt(OBJECT_SELF, \"nwn5e_aq_day\", d); SetLocalString(OBJECT_SELF, \"nwn5e_aq_name\","
+            " GetName(o));",
+            item_id, row);
+  const uint32_t id = IdOf(creature);
+  RunScriptChunk(script, id);
+  const int left = rules::ItemPowerUsesLeft(engine::GetLocalInt(creature, "nwn5e_aq_uses"),
+                                            engine::GetLocalInt(creature, "nwn5e_aq_stack"),
+                                            engine::GetLocalInt(creature, "nwn5e_aq_charges"),
+                                            engine::GetLocalInt(creature, "nwn5e_aq_day"));
+  if (left < 0 || queued < left) return true;
+  const std::string name = engine::GetLocalString(creature, "nwn5e_aq_name");
+  TellPlayer(id, "nwn5e: " + (name.empty() ? std::string("that item") : name) + " - " +
+                     (left == 1 ? std::string("its one use is") : "all " + std::to_string(left) + " uses are") +
+                     " already queued.");
+  Log("queue: 0x%08X refused another use of item 0x%08X (power %d): %d queued, %d left", id, item_id,
+      active_property, queued, left);
+  return false;
+}
+
 std::vector<std::string> QueueCommand(void* creature, const std::string& /*args*/) {
   const uint32_t id = IdOf(creature);
   EnsureRecords(creature);
@@ -448,6 +512,7 @@ void InstallActionQueue() {
   }
   RegisterRecords({kVarOff});
   AddChatCommand("!queue", &QueueCommand);
+  if (!AddItemUseGuard(&NoOverQueuedUses)) Log("queue: an item's uses can be queued past what it has (no UseItem hook)");
   const bool events = AddNuiWindow(kWindow, &OnQueueEvent);
   if (!AddCreatureUpdateListener(&QueueCreatureUpdate)) {
     Log("SKIP queue: the action queue strip - no creature updates");

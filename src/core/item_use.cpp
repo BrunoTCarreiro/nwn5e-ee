@@ -22,10 +22,17 @@ std::vector<ItemUseGuard> g_guards;        // filled at install, then only read
 std::vector<ItemUseListener> g_listeners;  // the same
 bool g_hooked = false;
 bool g_hook_failed = false;
+thread_local int t_active_property = -1;
 
 int UseItem(void* creature, uint32_t item, uint8_t active_property, uint8_t sub_property, uint32_t target,
             Vec3 location, uint32_t area, int flag) {
   void* object = creature ? ItemById(item) : nullptr;
+  const int outer = t_active_property;
+  t_active_property = active_property;
+  struct Restore {
+    int value;
+    ~Restore() { t_active_property = value; }
+  } restore{outer};
   if (creature) {
     for (ItemUseGuard guard : g_guards) {
       if (!guard(creature, item, object)) return 0;
@@ -56,6 +63,8 @@ void* ItemById(uint32_t item_id) {
   void* app = Field<void*>(*app_manager, ee::kAppManagerServerApp);
   return app ? item_by_id(app, item_id) : nullptr;
 }
+
+int ItemUseActiveProperty() { return t_active_property; }
 
 bool AddItemUseGuard(ItemUseGuard guard) {
   if (!Hook()) return false;

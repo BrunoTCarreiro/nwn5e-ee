@@ -3804,6 +3804,16 @@ Later, if wanted: henchmen's queues; the round's attack count; a fully clear bac
 horizontal and vertical"):* the hidden slots still take room in NUI's row, so it overflowed the window
 sized to the shown ones and each scrollbar took room for the other. The row sits in a group without
 scrollbars ("scrollbars": 0 - clipped, never scrolled); the window 124 px tall, 28 px of side room.
+*0.54.2 (owner: "clicking an item in the queue doesn't cancel it, I can queue the same item (a potion
+for example) multiple times while not having enough, this will pollute the queue. with the queue full of
+potion actions, if I move somewhere that clears the queue completely"):* nui.cpp's event hook knows a
+window by the token kept on the character (nwn5e_nui_<id>, set by NuiOpen) - the strip's own script
+never set it, so its clicks were dropped; it sets it now. A player's use of an item's power is refused
+("... all 3 uses are already queued") when the ItemCastSpell actions of that item and power in the queue
+take every use it has left (rules::ItemPowerUsesLeft: single use - the stack; N charges a use - charges /
+N; uses per day - those left today; others no limit), read by script from its Cast Spell property
+(item_use.cpp now tells guards which active property is used). A move clearing the queue is NWN's own
+(a new order replaces it) - left as it is for now; the owner asked whether moves should queue instead.
 
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 

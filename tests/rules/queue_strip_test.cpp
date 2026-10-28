@@ -34,3 +34,20 @@ TEST(ActionQueueStrip) {
   CHECK_EQ(QueueStripWidth(8, 3) - QueueStripWidth(8, 0) == kQueueMoreWidth, true);
   CHECK_EQ(QueueStripWidth(1, 0) - QueueStripWidth(0, 0) == kQueueSlotWidth, true);
 }
+
+// 0.54.2: how many queued uses an item's power allows. Breaks caught: a stack
+// of potions counted as one, charges per use read the wrong way round (a 5-per-
+// use wand with 10 charges allowing 10), per-day uses ignored, unlimited or
+// unknown powers limited.
+TEST(ItemPowerUsesLeft) {
+  CHECK_EQ(ItemPowerUsesLeft(1, 3, 0, 0), 3);    // three potions
+  CHECK_EQ(ItemPowerUsesLeft(1, 0, 0, 0), 0);
+  CHECK_EQ(ItemPowerUsesLeft(6, 1, 25, 0), 25);  // a wand, 1 charge a use
+  CHECK_EQ(ItemPowerUsesLeft(2, 1, 10, 0), 2);   // 5 charges a use
+  CHECK_EQ(ItemPowerUsesLeft(5, 1, 7, 0), 3);    // 2 charges a use
+  CHECK_EQ(ItemPowerUsesLeft(10, 1, 0, 2), 2);   // 3 uses a day, 2 left
+  CHECK_EQ(ItemPowerUsesLeft(8, 1, 0, 0), 0);
+  CHECK_EQ(ItemPowerUsesLeft(7, 1, 0, 0), -1);   // 0 charges a use
+  CHECK_EQ(ItemPowerUsesLeft(13, 1, 0, 0), -1);  // unlimited
+  CHECK_EQ(ItemPowerUsesLeft(-1, 1, 0, 0), -1);  // not a Cast Spell power
+}

@@ -36,4 +36,12 @@ constexpr float kQueueStripHeight = 124.0f;
 // The strip's width for `shown` items (and the "+N" when `more` > 0).
 float QueueStripWidth(int shown, int more);
 
+// 0.54.2 (owner: "I can queue the same item (a potion for example) multiple
+// times while not having enough, this will pollute the queue"): how many more
+// times an item's Cast Spell power can be used, by its number of uses
+// (IP_CONST_CASTSPELL_NUMUSES_*, the property's cost value): single use - the
+// stack; N charges per use - the charges / N; N uses per day - the uses left
+// today; 0 charges per use, unlimited or anything else - no limit (-1).
+int ItemPowerUsesLeft(int number_of_uses, int stack_size, int charges, int uses_left_today);
+
 }  // namespace rules

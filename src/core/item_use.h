@@ -17,3 +17,7 @@ bool AddItemUseListener(ItemUseListener listener);
 
 // The item with this object id (null if none).
 void* ItemById(uint32_t item_id);
+
+// Inside a guard or listener: the index of the item's active property (its
+// power) being used; -1 outside one.
+int ItemUseActiveProperty();
