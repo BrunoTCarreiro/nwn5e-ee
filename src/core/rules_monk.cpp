@@ -55,6 +55,13 @@
 //   attack each round on the round's extra attacks (+0x2f60, after
 //   InitializeNumberOfAttacks - rules_two_weapon.cpp), unless the round has an
 //   off-hand attack or NWN's Flurry of Blows is on; it uses what is in hand.
+//   Once a round (0.53.1; the owner's MA4 log: a weapon equipped mid-fight
+//   gave "extra 2" - 4 attacks): the engine counts a round's attacks again on
+//   an equip, and InitializeNumberOfAttacks only sets the extra attacks in
+//   Flurry / Rapid Shot (else it adds Haste's to what is there); EndCombatRound
+//   clears them (0x375c43) as rules_mastery's round counter ticks. So the strike
+//   is added once per counted round, and taken back if a mid-round recount no
+//   longer allows it (a second weapon: an off-hand attack).
 // Monsters keep NWN's Monk.
 
 #include <windows.h>
@@ -62,6 +69,7 @@
 #include <stdint.h>
 
 #include <algorithm>
+#include <unordered_map>
 
 #include "config.h"
 #include "creature.h"
@@ -72,6 +80,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "log_once.h"
+#include "mastery.h"
 #include "movement_rate.h"
 #include "ruleset.h"
 #include "rules/class_features.h"
@@ -222,21 +231,46 @@ int MartialArtsWeaponDie(void* creature, int base_item, int dice, int sides) {
   return die;
 }
 
-// (c) After InitializeNumberOfAttacks (rules_two_weapon.cpp): the bonus strike.
+// (c) After InitializeNumberOfAttacks (rules_two_weapon.cpp): the bonus strike, once a round.
+namespace {
+struct BonusStrike {
+  uint32_t round = 0;  // CombatRoundsEnded when it was last decided
+  bool added = false;
+};
+std::unordered_map<uint32_t, BonusStrike> g_bonus_strikes;  // by creature id (the engine's thread)
+bool g_rounds_counted = false;
+}  // namespace
+
 void MartialArtsBonusStrike(void* round) {
   void* creature = round ? Field<void*>(round, ee::kRoundOwner) : nullptr;
+  if (!creature) return;
+  const uint32_t id = IdOf(creature);
   const int level = MartialArtsLevel(creature);
-  if (level <= 0) return;
   const int off_hand = Field<int32_t>(round, ee::kRoundOffHandAttacks);
   const bool flurry = Field<uint8_t>(creature, ee::kCreatureCombatMode) == ee::kCombatModeFlurry;
-  const int extra = rules::MartialArtsBonusAttacks(true, off_hand, flurry);
-  const uint32_t id = IdOf(creature);
-  if (g_config.log_attacks && g_logged.First(LogOnce::Key(id, extra * 4 + (off_hand > 0 ? 1 : 0) + (flurry ? 2 : 0), 7))) {
+  const int extra = rules::MartialArtsBonusAttacks(level > 0, off_hand, flurry);
+  const int extra_now = Field<int32_t>(round, ee::kRoundExtraAttacks);
+  const uint32_t now = g_rounds_counted ? CombatRoundsEnded(id) : 0;
+  const auto known = g_bonus_strikes.find(id);
+  // Already added this round (a recount: an equip mid-round) - and still there (Flurry's set would replace it).
+  const bool had = g_rounds_counted && known != g_bonus_strikes.end() && known->second.round == now &&
+                   known->second.added && extra_now >= 1 && !flurry;
+  if (extra && !had) {
+    SetField<int32_t>(round, ee::kRoundExtraAttacks, extra_now + extra);
+  } else if (!extra && had) {
+    SetField<int32_t>(round, ee::kRoundExtraAttacks, extra_now - 1);  // a second weapon now: an off-hand attack
+  }
+  if (extra || had || known != g_bonus_strikes.end()) g_bonus_strikes[id] = BonusStrike{now, extra > 0};
+  if (level > 0 && g_config.log_attacks &&
+      g_logged.First(LogOnce::Key(id, extra * 4 + (off_hand > 0 ? 1 : 0) + (flurry ? 2 : 0), 7))) {
     Log("monk: 0x%08X Martial Arts bonus strike: %s", id,
         extra ? "one more attack this round" : off_hand > 0 ? "none (an off-hand attack this round)"
                                                             : "none (NWN's Flurry of Blows adds its own)");
   }
-  if (extra) SetField<int32_t>(round, ee::kRoundExtraAttacks, Field<int32_t>(round, ee::kRoundExtraAttacks) + extra);
+  if (had && g_config.log_attacks && g_logged.First(LogOnce::Key(id, extra, 8))) {
+    Log("monk: 0x%08X attacks counted again mid-round (an equip): the bonus strike %s", id,
+        extra ? "kept once" : "taken back");
+  }
 }
 
 namespace {
@@ -288,9 +322,11 @@ void InstallMonkRules() {
                    HookExport("CNWSCreatureStats::GetUnarmedDamageDice (Martial Arts: one die)",
                               ee::kGetUnarmedDamageDice, reinterpret_cast<void*>(&UnarmedDamageDice),
                               reinterpret_cast<void**>(&g_unarmed_dice));
+  g_rounds_counted = CountCombatRounds();
   Log("monk: part 2 - Martial Arts: %s; Dex for attacks, damage and the Shove / Grapple DC; Monk weapons roll the "
-      "die when higher; a bonus strike each round",
-      die ? "the Martial Arts die unarmed" : "unarmed dice NOT converted");
+      "die when higher; a bonus strike each round (%s)",
+      die ? "the Martial Arts die unarmed" : "unarmed dice NOT converted",
+      g_rounds_counted ? "once a round" : "rounds NOT counted: an equip mid-round may add it twice");
   Log("monk: part 1 - X1 (NWN-only Monk feats removed); %s; %s; %s; Evasion at 7; Body and Mind at 20",
       defense ? "Unarmored Defense 10 + Dex + Wis (no Monk level / 5)" : "Unarmored Defense NOT converted",
       movement ? "Unarmored Movement +10 to +30 ft" : "Unarmored Movement NOT converted",

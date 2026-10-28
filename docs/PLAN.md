@@ -1321,6 +1321,13 @@ in the off hand) and GetUseMonkAbilities holds (no armour, no shield):
   with class_features faithful), one more on the round's extra attacks (+0x2f60) - none in a
   round with an off-hand attack, none in NWN's Flurry mode (+0x6ef = 5: it adds its own until
   part 3). It uses what is in hand.
+*0.53.1 (owner's MA log, 2026-10-28: MA2-MA8 as expected; MA1 the sheet's own number):* a weapon
+equipped mid-fight gave that round "extra 2" - 4 attacks. The engine counts a round's attacks again on
+an equip, and InitializeNumberOfAttacks only *sets* the extra attacks in Flurry / Rapid Shot (else it adds
+Haste's to what is there); EndCombatRound clears them (0x375c43). The bonus strike is now added once per
+counted round (rules_mastery's EndCombatRound counter), and taken back when a mid-round recount no longer
+allows it (a second weapon: an off-hand attack). Savage Attacker's log line names the die it rolled (a
+Monk's d8, not the weapon's d6).
 
 ### Phase 3 — Rogue (CM9): recommendations (for the owner's decision)
 

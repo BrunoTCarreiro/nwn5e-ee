@@ -311,10 +311,11 @@ bool GreatWeaponDice(uintptr_t caller, int count, int sides, int* result) {
       first_total += first[i];
       second_total += second[i];
     }
-    if (g_config.log_attacks) {
-      Log("feats: 0x%08X Savage Attacker: %dd%d%s rolled twice, %d / %d -> %d", t_great_weapon.id,
-          count * t_great_weapon.sets, sides, t_great_weapon.sets > 1 ? " (critical hit)" : "", first_total,
-          second_total, keep_second ? second_total : first_total);
+    if (g_config.log_attacks) {  // 0.53.1: the dice rolled (a Monk's Martial Arts die, not the weapon's)
+      Log("feats: 0x%08X Savage Attacker: %dd%d%s%s rolled twice, %d / %d -> %d", t_great_weapon.id,
+          roll_count * t_great_weapon.sets, roll_sides, t_great_weapon.martial ? " (Martial Arts die)" : "",
+          t_great_weapon.sets > 1 ? " (critical hit)" : "", first_total, second_total,
+          keep_second ? second_total : first_total);
     }
   }
   if (t_great_weapon.savage && t_great_weapon.next < t_great_weapon.sets) {
