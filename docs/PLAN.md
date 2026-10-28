@@ -3698,6 +3698,9 @@ anim_packs builds it per library). What it does, and where it differs from the p
 Later (as planned): foot pinning and stride matching, mirror, several takes per
 recording, the weapon hand kept from an NWN attack; a woman's own take (a_fa's own
 idle and walks differ - most combat animations are a_ba's).
+*Parked (owner, 2026-10-28, after trying it: "it's not great, I'll keep trying to get the mocap
+working, let's move on for now"):* the owner is working on the captures themselves; back to it
+with their takes and what looks wrong.
 
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
