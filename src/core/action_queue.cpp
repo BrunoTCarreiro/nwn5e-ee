@@ -56,6 +56,16 @@
 // and fades in at its slot, and one leaving slides down, fades (text and card;
 // the icon greys - NUI can't fade images) and closes. Without client windows (a
 // server with no game client) the server's own strip as before.
+//
+// 0.55.1 (owner: "there are a few frames where a new action shows up in the
+// middle of the screen ... it can just appear in place"; "the queue now is not
+// as centered as it was before"): a client window opens where NUI puts a window
+// with no geometry yet (the screen's centre) and takes its bound geometry a
+// frame or two later - a new tile now stays empty (no icon, no text, no card)
+// for kRevealFrames frames, then appears in place, no drop. And the strip is
+// centred on the items it shows again (the fixed left edge left one or two
+// items left of the centre): one leaving, the strip closes up on its centre -
+// the items after it still slide left.
 
 #include <windows.h>
 
@@ -485,7 +495,7 @@ void Publish(uint32_t player, const std::vector<Item>& items) {
 constexpr float kTileWidth = 108.0f;
 constexpr float kTileHeight = 100.0f;
 constexpr float kTop = 4.0f;
-constexpr float kEnterRise = 16.0f;   // a new tile drops in from this far up
+constexpr int kRevealFrames = 3;      // a new tile shows nothing until its geometry has applied
 constexpr float kExitDrop = 36.0f;    // a leaving tile slides this far down
 constexpr float kExitSeconds = 0.4f;
 constexpr float kEaseRate = 14.0f;    // per second: how fast a tile closes on its slot
@@ -500,6 +510,8 @@ struct Tile {
   bool exiting = false;
   float exit_t = 0.0f;
   bool seen = false;
+  int frames = 0;         // since it opened
+  bool revealed = false;  // its icon, texts and card shown
   float sent_x = -1.0e6f, sent_y = -1.0e6f;
   int sent_alpha = -1;
   int sent_current = -1;
@@ -512,12 +524,13 @@ int g_more_count = -1;
 float g_width = 1280.0f;
 LARGE_INTEGER g_last_frame{};
 int g_tile_serial = 0;
+int g_shown = 0;  // the items the strip shows now (its centring)
 
-// The strip's left edge is fixed (a full strip centred): a tile's slot.
+// A tile's slot: the strip centred on the items it shows.
 float SlotX(int index) {
-  float left = (g_width - rules::kQueueStripSlots * rules::kQueueSlotWidth) / 2.0f;
+  float left = (g_width - g_shown * rules::kQueueSlotWidth) / 2.0f;
   if (left < 0.0f) left = 0.0f;
-  return left + index * rules::kQueueSlotWidth;
+  return left + index * rules::kQueueSlotWidth + (rules::kQueueSlotWidth - kTileWidth) / 2.0f;
 }
 
 std::string TileLayout() {
@@ -575,6 +588,7 @@ void SetTexts(const Tile& tile) {
 }
 
 void Apply(const std::vector<ClientItem>& items) {
+  g_shown = static_cast<int>(items.size());
   for (Tile& tile : g_tiles) tile.seen = false;
   for (int i = 0; i < static_cast<int>(items.size()); ++i) {
     const ClientItem& ci = items[i];
@@ -590,7 +604,7 @@ void Apply(const std::vector<ClientItem>& items) {
         found->icon = ci.icon;
         found->name = ci.name;
         found->target = ci.target;
-        SetTexts(*found);
+        if (found->revealed) SetTexts(*found);
       }
       continue;
     }
@@ -603,13 +617,11 @@ void Apply(const std::vector<ClientItem>& items) {
     tile.index = i;
     tile.seen = true;
     tile.x = SlotX(i);
-    tile.y = kTop - kEnterRise;
-    tile.alpha = 0.0f;
+    tile.y = kTop;
+    tile.alpha = 0.0f;  // nothing shown until revealed, in place
     const std::string id = "n5aq" + std::to_string(++g_tile_serial % 100000);
     tile.token = ClientNuiOpen(id.c_str(), TileLayout(), &TileEvent);
     if (!tile.token) continue;
-    SetTexts(tile);
-    ClientNuiSetJson(tile.token, "on", "true");
     g_tiles.push_back(std::move(tile));
   }
   for (Tile& tile : g_tiles) {
@@ -656,7 +668,7 @@ void UpdateMore(int more) {
     g_more_token = ClientNuiOpen("n5aqmore", layout, nullptr);
   }
   ClientNuiSetText(g_more_token, "more", "+" + std::to_string(more));
-  ClientNuiSetJson(g_more_token, "geometry", Rect(SlotX(rules::kQueueStripSlots), kTop + 30.0f, 56.0f, 36.0f));
+  ClientNuiSetJson(g_more_token, "geometry", Rect(SlotX(g_shown), kTop + 30.0f, 56.0f, 36.0f));
 }
 
 void StripTick() {
@@ -688,7 +700,21 @@ void StripTick() {
   if (g_tiles.empty()) return;
   const float ease = 1.0f - expf(-dt * kEaseRate);
   for (Tile& tile : g_tiles) {
-    if (tile.exiting) {
+    if (!tile.revealed) {
+      // Opened at NUI's default place: shown once its own geometry has applied, in place.
+      ++tile.frames;
+      if (tile.exiting) {
+        tile.exit_t = kExitSeconds;  // gone before it showed
+        continue;
+      }
+      tile.x = SlotX(tile.index);
+      if (tile.frames >= kRevealFrames) {
+        tile.revealed = true;
+        tile.alpha = 1.0f;
+        SetTexts(tile);
+        ClientNuiSetJson(tile.token, "on", "true");
+      }
+    } else if (tile.exiting) {
       tile.exit_t += dt;
       const float p = tile.exit_t >= kExitSeconds ? 1.0f : tile.exit_t / kExitSeconds;
       tile.y = kTop + kExitDrop * p * (2.0f - p);  // eases out as it drops
@@ -696,8 +722,6 @@ void StripTick() {
     } else {
       tile.x += (SlotX(tile.index) - tile.x) * ease;  // the slot moved: the tile slides there
       tile.y += (kTop - tile.y) * ease;
-      tile.alpha += (1.0f - tile.alpha) * ease;
-      if (tile.alpha > 0.995f) tile.alpha = 1.0f;
     }
     Send(tile);
   }

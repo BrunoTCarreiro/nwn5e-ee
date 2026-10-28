@@ -3827,6 +3827,11 @@ strip's left edge fixed (a full strip centred), a tile eases to its slot every f
 after it slide left), a new one drops in and fades in, one leaving slides down 36 px and fades over 0.4 s
 (text and card; the icon greys - it turns disabled: NUI can't fade images) and closes. Without client
 windows (a server with no game client) the server's strip as before.
+*0.55.1 (owner: "a few frames where a new action shows up in the middle of the screen ... it can just
+appear in place"; "not as centered as it was before"):* a client window opens where NUI puts one with no
+geometry (the centre) and takes its bound geometry a frame or two later - a new tile stays empty for three
+frames, then appears in place (no drop-in). The strip is centred on the items it shows again (the fixed
+left edge sat left of the centre); one leaving, it closes up on its centre - the items after it slide left.
 
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
