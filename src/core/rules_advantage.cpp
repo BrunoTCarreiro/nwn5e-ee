@@ -263,6 +263,14 @@ int RollSpellAttackD20(void* caster, void* target, bool ranged, std::string* not
   return kept;
 }
 
+// rules_rogue.cpp (R1): the roll mode of the attack `attacker_id` is making now
+// (inside ResolveAttackRoll, after BeforeAttackRoll decided it); false outside one.
+bool CurrentAttackRollMode(uint32_t attacker_id, rules::RollMode* mode) {
+  if (!t_pending.active || t_pending.attacker_id != attacker_id) return false;
+  *mode = t_pending.mode;
+  return true;
+}
+
 void InstallAdvantageRules() {
   if (!g_config.advantage_disadvantage) return;
   g_attack_roll_code = ResolveAttackRollCode();

@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "rules/combat.h"
+#include "rules/d20.h"
 #include "rules/grapple.h"
 
 namespace rules {
@@ -176,8 +177,25 @@ std::vector<BrutalEffect> ActiveBrutalEffects(const BrutalChoice& choice, int ba
 // X1 (owner, 2026-10-24: "remove them completely"): NWN class feats with no
 // 2024 counterpart, taken off characters in faithful and no longer granted
 // (the classes' feat tables, data/rows/cls_feat_*.if_classfeat2024.txt).
-// So far the Barbarian's: Uncanny Dodge 1-6, Damage Reduction 1-4 and epic.
+// The Barbarian's: Uncanny Dodge 1-6, Damage Reduction 1-4 and epic; the
+// Rogue's (R0, 0.50.0): Evasion, Crippling Strike, Defensive Roll,
+// Opportunist, Skill Mastery, Slippery Mind and the epic sneak dice (Improved
+// Evasion stays as the 2024 Evasion - R8; the Sneak Attack feats stay, R1).
 const std::vector<int>& NwnOnlyClassFeats();
+// The name a chat line gives a removed feat's kind ("Uncanny Dodge" for all six).
+const char* NwnOnlyClassFeatName(int feat);
+
+// --- Rogue (PLAN.md "Phase 3 — Rogue", decided 2026-10-28) -------------------
+constexpr int kFeatSneakAttack = 221;     // NWN's first Sneak Attack feat (345-353 the rest)
+constexpr int kFeatEvasion = 206;         // NWN's Evasion: removed (R0)
+constexpr int kFeatImprovedEvasion = 212;  // the 2024 Evasion from Rogue 7 (R8)
+// R1: 2024 Sneak Attack dice - 1d6 at Rogue 1, one more at every odd level
+// (10d6 at 19); twice as many on a critical hit.
+int SneakAttackDice2024(int rogue_level);
+// R1 (a): with a Finesse or ranged weapon, an attack with Advantage - or one
+// without Disadvantage when an ally of the attacker is within 5 ft of the
+// target (and not Incapacitated).
+bool SneakAttackApplies(bool finesse_or_ranged, RollMode mode, bool ally_next_to_target);
 
 // The feats nwn5e grants a character for its class levels (the DLL adds them —
 // so characters made earlier get them too — and removes them in NWN mode).

@@ -35,6 +35,7 @@ void InstallInitiativeRules();
 void InstallSpellAttackRules();
 void InstallShoveRules();
 void InstallGrappleRules();
+void InstallRogueRules();
 void InstallSkillDcRules();
 void InstallPerceptionRules();
 void InstallDataServing(const wchar_t* dll_directory);
@@ -86,7 +87,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.49.2";
+constexpr const char* kVersion = "0.50.0";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -125,6 +126,7 @@ void Start(HMODULE self) {
   InstallSpellAttackRules();
   InstallShoveRules();
   InstallGrappleRules();
+  InstallRogueRules();
   InstallSkillDcRules();
   InstallPerceptionRules();
   InstallProgressionRules();

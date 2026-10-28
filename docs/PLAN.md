@@ -1225,6 +1225,20 @@ SRD 5.2.1 Monk (pp. 49–52, checked 2026-10-24); every 2024 feature below and t
 
 ### Phase 3 — Rogue (CM9): recommendations (for the owner's decision)
 
+**Decided (owner, 2026-10-28: "go with the recommendations").** Every R and T
+below as recommended, with two updates made since the brief: **R6** Cunning
+Strike is picked like Brutal Strike - its six effects and Off are more than a
+sub-radial's five slots, so it brings the "Combat options" NUI window (X8's
+second half) plus a quickbar button per effect, `!cunning` as a fallback;
+**R7** Uncanny Dodge spends the round's reaction - the round's AoO count found
+for Retaliation (CNWSCombatRound +0x2f40, 0.47.1) - so (b). **R0** follows X1
+(owner, 2026-10-24: "remove them completely"): the NWN-only rogue feats are
+taken off characters in faithful, as the Barbarian's were, and the served
+feat table no longer grants them; Improved Evasion stays as 2024 Evasion (R8),
+the Sneak Attack feats stay (the AI's flanking talent asks for them; R1
+decides). Build order as proposed.
+
+
 SRD 5.2 Rogue, one subclass: **Thief** (Arcane
 Trickster, Assassin and Soulknife are PHB-only — private layer). Every feature
 below was checked in the SRD 5.2.1 PDF (pp. 61–64) on 2026-10-24; none is
@@ -1500,6 +1514,28 @@ R7 (ResolveDamage post-hook). 4. R9, R12. 5. R6 (needs R1; effects through the
 script bridge). 6. T4, T1. Later: R4, R5, T5 (Phase 6), T3 (an
 attacking-ends-hiding rule), R3 (the proficiency pass for all classes); R2 and
 T2 have nothing to build.
+
+*Built 0.50.0 (part 1: R0, R1; rules_rogue.cpp):* R0 - X1's list gains Evasion
+(206), Crippling Strike, Defensive Roll, Opportunist, Skill Mastery (222-225),
+Slippery Mind (259) and Epic Improved Sneak Attack 1-10 (834-843), taken off
+characters in faithful with a chat line naming them (rules_features.cpp,
+NwnOnlyClassFeatName); data/rows/cls_feat_rog.if_classfeat2024.txt stops
+granting Evasion (row 3) and Uncanny Dodge 1-6 (rows 4-9). R1 - CNWSCreature::
+ResolveSneakAttack (0x3ebe00) is hooked: in faithful it sets the attack's
+sneak flag (+0x60) by the 2024 test - a Finesse (IsFinesseNwnBaseItem) or
+ranged attack; the attack's roll mode Advantage (rules_advantage's pending
+mode, CurrentAttackRollMode) or, not Disadvantage, a friendly creature
+(GetAIStateReaction 1 - engine::IsFriend) within 5 ft of the target, not dead,
+dying or Incapacitated; not twice in the attacker's round (marked when the
+dice roll, CombatRoundsEnded); no immunity, no 10 m limit (the engine's
+special attacks 0x363 / 0x364 still never sneak). The dice: a filter on
+GetDamageRoll's 10th RollDice (+0x12df, found as the 10th of its 12 at load)
+rolls ceil(Rogue level / 2) d6 (ClassLevel2024: Assassin and Shadowdancer
+count), doubled on a critical hit - the roll's context from rules_fighter's
+GetDamageRoll hook (CurrentDamageRoll); a creature with sneak feats and no
+Rogue levels keeps the engine's count, doubled on a crit. R1 (e) -
+GetFlatFooted answers 0 in faithful. `!features` lists the Rogue (28 rows).
+Tests: RogueSneakAttack2024, NwnOnlyClassFeatsAreTheOnesWithoutCounterparts.
 
 ## Phase 5 — rests, healing, death: decided by the owner (2026-10-23)
 

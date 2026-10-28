@@ -123,6 +123,10 @@ bool IsEnemy(void* creature, uint32_t other_id) {
   return creature && E().reaction && E().reaction(creature, other_id) == ee::kReactionEnemy;
 }
 
+bool IsFriend(void* creature, uint32_t other_id) {
+  return creature && E().reaction && E().reaction(creature, other_id) == ee::kReactionFriend;
+}
+
 bool IsDeadOrDying(void* creature) {
   return creature && ((E().dead && E().dead(creature)) || (E().pc_dying && E().pc_dying(creature)));
 }

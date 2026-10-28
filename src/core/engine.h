@@ -30,6 +30,7 @@ int RaceOf(void* stats);                     // racialtypes.2da row, -1 if unkno
 int SkillRowCount();                         // skills.2da rows the engine loaded (0 if unknown)
 
 bool IsEnemy(void* creature, uint32_t other_id);  // GetAIStateReaction == enemy
+bool IsFriend(void* creature, uint32_t other_id); // GetAIStateReaction == friend
 bool IsDeadOrDying(void* creature);
 bool Sees(void* creature, uint32_t other_id);     // its visibility list, bit 0
 

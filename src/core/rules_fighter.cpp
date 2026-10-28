@@ -209,7 +209,22 @@ const void* GreatWeaponBase(void* stats, int offhand) {
   return two_handed || larger_than_wielder == 0 ? base : nullptr;
 }
 
+thread_local void* t_damage_stats = nullptr;  // the damage roll in progress (rules_rogue's sneak dice)
+thread_local int t_damage_critical = 0;
+
 int GetDamageRoll(void* stats, void* target, int offhand, int critical, int sneak, int death, int force_max) {
+  void* const outer_stats = t_damage_stats;
+  const int outer_critical = t_damage_critical;
+  t_damage_stats = stats;
+  t_damage_critical = critical;
+  struct Restore {
+    void* stats;
+    int critical;
+    ~Restore() {
+      t_damage_stats = stats;
+      t_damage_critical = critical;
+    }
+  } restore{outer_stats, outer_critical};
   const GreatWeaponRoll outer = t_great_weapon;
   t_great_weapon = GreatWeaponRoll();
   if (const void* base = Faithful() ? GreatWeaponBase(stats, offhand) : nullptr) {
@@ -546,6 +561,13 @@ std::vector<std::string> StyleCommand(void* creature, const std::string& args) {
   Log("fighter: 0x%08X Fighting Style %s swapped for %s at Fighter %d", IdOf(creature), StyleName(old_style),
       StyleName(new_style), level);
   return {std::string("nwn5e: ") + StyleName(old_style) + " swapped for " + StyleName(new_style) + "."};
+}
+
+// rules_rogue.cpp (R1): whose damage roll is in progress and whether it is a
+// critical hit (CNWSCreatureStats::GetDamageRoll's arguments); null outside one.
+void* CurrentDamageRoll(int* critical) {
+  if (critical) *critical = t_damage_critical;
+  return t_damage_stats;
 }
 
 void InstallFighterRules() {

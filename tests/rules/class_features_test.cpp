@@ -214,6 +214,41 @@ TEST(NwnOnlyClassFeatsAreTheOnesWithoutCounterparts) {
   CHECK_EQ(has(1067), true);  // epic Damage Reduction
   CHECK_EQ(has(293), false);  // Rage: kept as the 2024 Rage
   CHECK_EQ(has(194), false);  // Fast Movement: kept, from Barbarian 5
+  // R0 (Rogue): Evasion and the bonus picks go; Improved Evasion and the Sneak Attack feats stay.
+  CHECK_EQ(has(206), true);   // Evasion
+  CHECK_EQ(has(222), true);   // Crippling Strike
+  CHECK_EQ(has(225), true);   // Skill Mastery
+  CHECK_EQ(has(259), true);   // Slippery Mind
+  CHECK_EQ(has(834), true);   // Epic Improved Sneak Attack 1
+  CHECK_EQ(has(843), true);   // ... 10
+  CHECK_EQ(has(212), false);  // Improved Evasion: the 2024 Evasion (R8)
+  CHECK_EQ(has(221), false);  // Sneak Attack
+  CHECK_EQ(has(353), false);  // Sneak Attack 10
+  CHECK_EQ(std::string(NwnOnlyClassFeatName(252)) == "Uncanny Dodge", true);
+  CHECK_EQ(std::string(NwnOnlyClassFeatName(206)) == "Evasion", true);
+  CHECK_EQ(std::string(NwnOnlyClassFeatName(840)) == "Epic Improved Sneak Attack", true);
+}
+
+// R1 (SRD 5.2.1 p. 62): 1d6 at 1, one more at every odd level, 10d6 at 19; a
+// Finesse or ranged weapon, and Advantage or (without Disadvantage) an ally next
+// to the target. Breaks caught: NWN's count off by one (2d6 at 2), past 10d6,
+// a club counted, an ally's help kept under Disadvantage, Advantage alone
+// refused without an ally.
+TEST(RogueSneakAttack2024) {
+  CHECK_EQ(SneakAttackDice2024(0), 0);
+  CHECK_EQ(SneakAttackDice2024(1), 1);
+  CHECK_EQ(SneakAttackDice2024(2), 1);
+  CHECK_EQ(SneakAttackDice2024(3), 2);
+  CHECK_EQ(SneakAttackDice2024(19), 10);
+  CHECK_EQ(SneakAttackDice2024(20), 10);
+  CHECK_EQ(SneakAttackApplies(false, RollMode::kAdvantage, true), false);
+  CHECK_EQ(SneakAttackApplies(true, RollMode::kAdvantage, false), true);
+  CHECK_EQ(SneakAttackApplies(true, RollMode::kNormal, true), true);
+  CHECK_EQ(SneakAttackApplies(true, RollMode::kNormal, false), false);
+  CHECK_EQ(SneakAttackApplies(true, RollMode::kDisadvantage, true), false);
+  CHECK_EQ(HasFeatureList(CharacterClass::kRogue), true);
+  CHECK_EQ(static_cast<int>(ClassFeatures2024(CharacterClass::kRogue, 1).size()), 4);
+  CHECK_EQ(static_cast<int>(ClassFeatures2024(CharacterClass::kRogue, 20).size()), 28);
 }
 
 // Breaks caught: Rage's uses or damage at the wrong level (2 / 3 / 4 / 5 / 6

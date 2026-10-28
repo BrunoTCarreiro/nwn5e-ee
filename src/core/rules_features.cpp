@@ -86,18 +86,21 @@ std::vector<std::string> FeaturesCommand(void* creature, const std::string& /*ar
 
 // X1: the NWN-only class feats off a character (faithful).
 void RemoveNwnOnlyFeats(void* stats, const CreatureFacts& facts, uint32_t id) {
-  bool uncanny = false, reduction = false;
+  std::vector<std::string> names;
   for (int feat : rules::NwnOnlyClassFeats()) {
     if (!engine::HasFeat(stats, feat)) continue;
     g_remove_feat(stats, static_cast<uint16_t>(feat));
     Log("features: %s 0x%08X removed NWN feat %d (no 2024 counterpart, X1)", KindOf(facts), id, feat);
-    (feat == 196 || feat == 332 || feat == 333 || feat == 334 || feat == 1067 ? reduction : uncanny) = true;
+    const std::string name = rules::NwnOnlyClassFeatName(feat);
+    if (std::find(names.begin(), names.end(), name) == names.end()) names.push_back(name);
   }
-  if ((uncanny || reduction) && facts.is_player) {
-    std::string what = uncanny && reduction ? "Uncanny Dodge and Damage Reduction" : uncanny ? "Uncanny Dodge"
-                                                                                            : "Damage Reduction";
-    TellPlayer(id, "nwn5e: NWN's " + what + " aren't 2024 class features - removed (2024 rules). !features lists "
-                   "yours.");
+  if (!names.empty() && facts.is_player) {
+    std::string what;
+    for (size_t i = 0; i < names.size(); ++i) {
+      what += (i == 0 ? "" : i + 1 == names.size() ? " and " : ", ") + names[i];
+    }
+    TellPlayer(id, "nwn5e: NWN's " + what + (names.size() == 1 ? " isn't a" : " aren't") + " 2024 class feature" +
+                   (names.size() == 1 ? "" : "s") + " - removed (2024 rules). !features lists yours.");
   }
 }
 

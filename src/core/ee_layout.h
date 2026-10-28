@@ -86,6 +86,7 @@ constexpr const char* kGetDead = "?GetDead@CNWSObject@@QEAAHXZ";
 constexpr const char* kGetIsPCDying = "?GetIsPCDying@CNWSObject@@QEAAHXZ";
 constexpr const char* kGetVisibleListElement = "?GetVisibleListElement@CNWSCreature@@QEAAPEAVCNWVisibilityNode@@I@Z";
 constexpr int kReactionEnemy = 2;  // GetAIStateReaction (the AoO broadcast's enemy test)
+constexpr int kReactionFriend = 1;  // GetIsReactionTypeFriendly's value (0 neutral)
 
 // E1c — the round's target after a kill.
 constexpr const char* kResolvePostMeleeDamage = "?ResolvePostMeleeDamage@CNWSCreature@@IEAAXPEAVCNWSObject@@@Z";

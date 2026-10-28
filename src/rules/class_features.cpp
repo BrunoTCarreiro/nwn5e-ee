@@ -95,8 +95,45 @@ const char* Subclass2024(CharacterClass character_class) {
   return "";
 }
 
+// SRD 5.2 Rogue and Thief (PLAN.md "Phase 3 — Rogue", decided 2026-10-28).
+const std::vector<ClassFeature>& Rogue() {
+  static const std::vector<ClassFeature> kFeatures = {
+      {1, "Expertise", false, "built (!skills)"},
+      {1, "Sneak Attack", false, "built: Advantage, or an ally next to the target; Finesse or ranged; once a round; "
+                                 "crits double the dice; no creature is immune"},
+      {1, "Thieves' Cant", false, "listed (NWN has no languages)"},
+      {1, "Weapon Mastery", false, "built (!mastery)"},
+      {2, "Cunning Action", false, "Phase 6 (bonus actions)"},
+      {3, "Thief", false, "built: granted at 3"},
+      {3, "Steady Aim", false, "Phase 6 (bonus actions)"},
+      {3, "Fast Hands", true, "later (Rogue part 6): locks and traps by the better of Thieves' Tools and Sleight of Hand"},
+      {3, "Second-Story Work", true, "listed (NWN has no climbing or jumping)"},
+      {4, "Ability Score Improvement", false, "built (!asi)"},
+      {5, "Cunning Strike", false, "later (Rogue part 5)"},
+      {5, "Uncanny Dodge", false, "later (Rogue part 3)"},
+      {6, "Expertise", false, "built (!skills)"},
+      {7, "Evasion", false, "later (Rogue part 2)"},
+      {7, "Reliable Talent", false, "later (Rogue part 4)"},
+      {8, "Ability Score Improvement", false, "built (!asi)"},
+      {9, "Supreme Sneak", true, "later (an attacking-ends-hiding rule)"},
+      {10, "Ability Score Improvement", false, "built (!asi)"},
+      {11, "Improved Cunning Strike", false, "later (Rogue part 5)"},
+      {12, "Ability Score Improvement", false, "built (!asi)"},
+      {13, "Use Magic Device", true, "later (Rogue part 6)"},
+      {14, "Devious Strikes", false, "later (Rogue part 5)"},
+      {15, "Slippery Mind", false, "later (Rogue part 2)"},
+      {16, "Ability Score Improvement", false, "built (!asi)"},
+      {17, "Thief's Reflexes", true, "Phase 6"},
+      {18, "Elusive", false, "later (Rogue part 2)"},
+      {19, "Epic Boon", false, "CM8"},
+      {20, "Stroke of Luck", false, "later (Rogue part 4)"},
+  };
+  return kFeatures;
+}
+
 bool HasFeatureList(CharacterClass character_class) {
-  return character_class == CharacterClass::kFighter || character_class == CharacterClass::kBarbarian;
+  return character_class == CharacterClass::kFighter || character_class == CharacterClass::kBarbarian ||
+         character_class == CharacterClass::kRogue;
 }
 
 bool HasDangerSense(int barbarian_level) { return barbarian_level >= 2; }
@@ -241,8 +278,37 @@ const std::vector<int>& NwnOnlyClassFeats() {
   static const std::vector<int> kFeats = {
       195, 251, 252, 253, 254, 255,  // Uncanny Dodge 1-6 (Barbarian, Rogue)
       196, 332, 333, 334, 1067,      // Barbarian Damage Reduction 1-4, epic
+      206,                           // Evasion (the Rogue's at 2; 2024's is Improved Evasion at 7)
+      222, 223, 224, 225,            // Crippling Strike, Defensive Roll, Opportunist, Skill Mastery
+      259,                           // Slippery Mind (NWN's reroll; 2024's is R10)
+      834, 835, 836, 837, 838, 839, 840, 841, 842, 843,  // Epic Improved Sneak Attack 1-10
   };
   return kFeats;
+}
+
+const char* NwnOnlyClassFeatName(int feat) {
+  switch (feat) {
+    case 195: case 251: case 252: case 253: case 254: case 255: return "Uncanny Dodge";
+    case 196: case 332: case 333: case 334: case 1067: return "Damage Reduction";
+    case 206: return "Evasion";
+    case 222: return "Crippling Strike";
+    case 223: return "Defensive Roll";
+    case 224: return "Opportunist";
+    case 225: return "Skill Mastery";
+    case 259: return "Slippery Mind";
+    default: return feat >= 834 && feat <= 843 ? "Epic Improved Sneak Attack" : "a class feat";
+  }
+}
+
+int SneakAttackDice2024(int rogue_level) {
+  if (rogue_level <= 0) return 0;
+  const int dice = (rogue_level + 1) / 2;
+  return dice > 10 ? 10 : dice;
+}
+
+bool SneakAttackApplies(bool finesse_or_ranged, RollMode mode, bool ally_next_to_target) {
+  if (!finesse_or_ranged) return false;
+  return mode == RollMode::kAdvantage || (mode == RollMode::kNormal && ally_next_to_target);
 }
 
 int ChampionCriticalFloor(int fighter_level) { return fighter_level >= 15 ? 18 : fighter_level >= 3 ? 19 : 20; }
@@ -329,6 +395,7 @@ std::vector<ClassFeature> ClassFeatures2024(CharacterClass character_class, int 
   std::vector<ClassFeature> features;
   const std::vector<ClassFeature>* table = character_class == CharacterClass::kFighter     ? &Fighter()
                                            : character_class == CharacterClass::kBarbarian ? &Barbarian()
+                                           : character_class == CharacterClass::kRogue     ? &Rogue()
                                                                                            : nullptr;
   if (!table) return features;
   for (const ClassFeature& feature : *table) {

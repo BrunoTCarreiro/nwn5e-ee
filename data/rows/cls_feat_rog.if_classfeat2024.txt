@@ -1,0 +1,13 @@
+# cls_feat_rog.2da - faithful class features (rules_rogue.cpp; PLAN.md "Phase 3 — Rogue",
+# decided by the owner 2026-10-28). R0 / X1: NWN's Evasion (at 2) and Uncanny Dodge 1-6 have no
+# 2024 counterpart and are no longer granted (GrantedOnLevel -1) - 2024's Evasion is Improved
+# Evasion from Rogue 7 (R8), its Uncanny Dodge nwn5e's own (R7). The bonus picks (Crippling Strike
+# ...) aren't offered in faithful (ASIs instead, CM7) and are taken off characters (X1).
+FeatLabel FeatIndex List GrantedOnLevel OnMenu
+3 Evasion 206 3 -1 0
+4 UncannyDodge1 195 3 -1 0
+5 UncannyDodge2 251 3 -1 0
+6 UncannyDodge3 252 3 -1 0
+7 UncannyDodge4 253 3 -1 0
+8 UncannyDodge5 254 3 -1 0
+9 UncannyDodge6 255 3 -1 0
