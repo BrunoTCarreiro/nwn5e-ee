@@ -21,7 +21,21 @@
 //   Rogue levels (NWN's blueprints) keeps the engine's count, doubled on a crit.
 // - R1 (e): CNWSCreature::GetFlatFooted answers "never" (2024 has no
 //   flat-footed: no Dexterity lost from AC; helpless targets give Advantage).
-// NWN mode: NWN's sneak attack.
+// Part 2 (0.50.0):
+// - R8 Evasion: nwn5e grants NWN's Improved Evasion (212) at Rogue 7
+//   (rules_features), and a HasFeat filter answers it for characters by the
+//   2024 rule: Rogue 7+, not Incapacitated, and - when a save was just rolled -
+//   only if it rolled Dexterity (rules_save_roll's RecentSaveAbility: C1 moves
+//   some Reflex saves to Constitution - Cone of Cold, Sunbeam, Sunburst). The
+//   engine's Reflex-damage command (ExecuteCommandGetReflexAdjustedDamage
+//   0x52f790: the script's GetReflexAdjustedDamage) asks for 212 right after
+//   its save: none on a success, half on a failure. Faithful's served feat row
+//   names it "Evasion" (data/rows/feat.if_classfeat2024.txt).
+// - R10 Slippery Mind (Rogue 15): Wisdom and Charisma save proficiency
+//   (rules_saves.cpp, rules::ClassFeatureSaveProficiency).
+// - R11 Elusive (Rogue 18): no attack roll against it has Advantage unless it
+//   is Incapacitated (rules_advantage.cpp: weapon and spell attack rolls).
+// NWN mode: NWN's sneak attack, Evasion and Improved Evasion.
 
 #include <windows.h>
 
@@ -37,6 +51,8 @@
 #include "config.h"
 #include "creature.h"
 #include "dice.h"
+#include "feats.h"
+#include "saves.h"
 #include "ee_layout.h"
 #include "engine.h"
 #include "hooks.h"
@@ -182,10 +198,46 @@ bool SneakDice(uintptr_t caller, int count, int sides, int* result) {
   return true;
 }
 
+// A call from the game's own code (nwmain.exe), not nwn5e's: nwn5e's feature
+// sync must see the real feat list to grant Improved Evasion.
+bool FromGame(uintptr_t caller) {
+  static uintptr_t begin = 0, end = 0;
+  if (!begin) {
+    const auto base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
+    const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
+    const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
+    begin = base;
+    end = base + nt->OptionalHeader.SizeOfImage;
+  }
+  return caller >= begin && caller < end;
+}
+
+// R8: Improved Evasion (212) as the 2024 Evasion, for characters - the game's asks.
+bool EvasionFilter(void* stats, int feat, uintptr_t caller, int* answer) {
+  if (feat != rules::kFeatImprovedEvasion || !Faithful() || !stats || !FromGame(caller)) return false;
+  if (!ReadCreatureFacts(stats).character) return false;  // monsters: NWN's
+  void* creature = CreatureOf(stats);
+  bool has = rules::HasRogueEvasion(RogueLevel(stats));
+  if (has && creature && IncapacitatedByCondition(creature)) has = false;
+  if (has && creature) {
+    const std::optional<rules::Ability> ability = RecentSaveAbility(creature);
+    if (ability && *ability != rules::Ability::kDexterity) has = false;
+  }
+  *answer = has ? 1 : 0;
+  return true;
+}
+
 // R1 (e): no flat-footed in 2024.
 int GetFlatFooted(void* creature) { return Faithful() ? 0 : g_flat_footed(creature); }
 
 }  // namespace
+
+bool ElusiveTarget(void* creature) {
+  if (!Faithful() || !creature) return false;
+  void* stats = StatsOf(creature);
+  return stats && ReadCreatureFacts(stats).character && rules::HasElusive(RogueLevel(stats)) &&
+         !IncapacitatedByCondition(creature);
+}
 
 void InstallRogueRules() {
   if (!Faithful()) return;
@@ -204,6 +256,10 @@ void InstallRogueRules() {
       AddDiceFilter(&SneakDice);
   const bool flat = HookExport("CNWSCreature::GetFlatFooted (never: 2024 has no flat-footed)", kGetFlatFooted,
                                reinterpret_cast<void*>(&GetFlatFooted), reinterpret_cast<void**>(&g_flat_footed));
+  const bool evasion = AddFeatFilter(&EvasionFilter);
+  Log("rogue: part 2 - %s; Slippery Mind (Wisdom / Charisma saves at 15); Elusive (no Advantage against you at 18)",
+      evasion ? "Evasion as 2024's (Dexterity saves, not Incapacitated; Improved Evasion at 7)"
+              : "Evasion NOT converted (no HasFeat filter)");
   Log("rogue: part 1 - %s; %s; NWN-only rogue feats removed (X1)",
       sneak ? "Sneak Attack by the 2024 rules (Advantage or an ally next to the target, once a round, crits double)"
             : "Sneak Attack NOT converted",

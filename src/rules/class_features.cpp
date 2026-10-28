@@ -112,7 +112,8 @@ const std::vector<ClassFeature>& Rogue() {
       {5, "Cunning Strike", false, "later (Rogue part 5)"},
       {5, "Uncanny Dodge", false, "later (Rogue part 3)"},
       {6, "Expertise", false, "built (!skills)"},
-      {7, "Evasion", false, "later (Rogue part 2)"},
+      {7, "Evasion", false, "built: no damage on a successful Dexterity save, half on a failed one; not while "
+                            "Incapacitated (NWN's Improved Evasion, granted)"},
       {7, "Reliable Talent", false, "later (Rogue part 4)"},
       {8, "Ability Score Improvement", false, "built (!asi)"},
       {9, "Supreme Sneak", true, "later (an attacking-ends-hiding rule)"},
@@ -121,10 +122,10 @@ const std::vector<ClassFeature>& Rogue() {
       {12, "Ability Score Improvement", false, "built (!asi)"},
       {13, "Use Magic Device", true, "later (Rogue part 6)"},
       {14, "Devious Strikes", false, "later (Rogue part 5)"},
-      {15, "Slippery Mind", false, "later (Rogue part 2)"},
+      {15, "Slippery Mind", false, "built: proficient in Wisdom and Charisma saves"},
       {16, "Ability Score Improvement", false, "built (!asi)"},
       {17, "Thief's Reflexes", true, "Phase 6"},
-      {18, "Elusive", false, "later (Rogue part 2)"},
+      {18, "Elusive", false, "built: no attack roll against you has Advantage unless you're Incapacitated"},
       {19, "Epic Boon", false, "CM8"},
       {20, "Stroke of Luck", false, "later (Rogue part 4)"},
   };
@@ -306,6 +307,22 @@ int SneakAttackDice2024(int rogue_level) {
   return dice > 10 ? 10 : dice;
 }
 
+bool HasRogueEvasion(int rogue_level) { return rogue_level >= 7; }
+
+bool HasSlipperyMind(int rogue_level) { return rogue_level >= 15; }
+
+bool HasElusive(int rogue_level) { return rogue_level >= 18; }
+
+bool ClassFeatureSaveProficiency(const std::vector<ClassLevels>& classes, Ability ability) {
+  for (const ClassLevels& c : classes) {
+    if (c.character_class == CharacterClass::kRogue && HasSlipperyMind(c.levels) &&
+        (ability == Ability::kWisdom || ability == Ability::kCharisma)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool SneakAttackApplies(bool finesse_or_ranged, RollMode mode, bool ally_next_to_target) {
   if (!finesse_or_ranged) return false;
   return mode == RollMode::kAdvantage || (mode == RollMode::kNormal && ally_next_to_target);
@@ -323,6 +340,9 @@ std::vector<int> GrantedFeats2024(const std::vector<ClassLevels>& classes) {
     if (c.character_class == CharacterClass::kFighter && c.levels >= 1) {
       feats.push_back(c.levels >= 10 ? kFeatSecondWind4 : c.levels >= 4 ? kFeatSecondWind3 : kFeatSecondWind2);
     }
+    if (c.character_class == CharacterClass::kRogue && HasRogueEvasion(c.levels)) {
+      feats.push_back(kFeatImprovedEvasion);  // R8: 2024's Evasion
+    }
     if (c.character_class == CharacterClass::kBarbarian) {
       if (HasRecklessAttack(c.levels)) feats.push_back(kFeatRecklessAttack);
       if (HasBrutalStrike(c.levels)) feats.push_back(kFeatBrutalStrike);
@@ -336,7 +356,8 @@ std::vector<int> GrantedFeats2024(const std::vector<ClassLevels>& classes) {
 const std::vector<int>& GrantableFeats2024() {
   static const std::vector<int> kFeats = {kFeatSecondWind2,    kFeatSecondWind3,  kFeatSecondWind4,
                                           kFeatRecklessAttack, kFeatBrutalStrike, kFeatKnockdownShove,
-                                          kFeatShovePush,      kFeatIntimidatingPresence, kFeatGrapple};
+                                          kFeatShovePush,      kFeatIntimidatingPresence, kFeatGrapple,
+                                          kFeatImprovedEvasion};
   return kFeats;
 }
 
@@ -350,7 +371,8 @@ std::vector<int> FeatsEveryoneHas2024(bool shove_faithful) {
   return feats;
 }
 
-bool GrantedOnlyWhenMissing(int feat) { return feat == kFeatKnockdownShove; }
+// Feats a character may also have taken itself (NWN's picks): only nwn5e's own grant is taken back.
+bool GrantedOnlyWhenMissing(int feat) { return feat == kFeatKnockdownShove || feat == kFeatImprovedEvasion; }
 
 int IndomitableUses(int fighter_level) { return fighter_level >= 17 ? 3 : fighter_level >= 13 ? 2 : fighter_level >= 9 ? 1 : 0; }
 

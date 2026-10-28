@@ -1,0 +1,6 @@
+# feat.2da - Phase 3 Rogue R8 (PLAN.md "Phase 3 — Rogue", 0.50.0): with class_features
+# faithful NWN's Improved Evasion is 2024's Evasion (src/core/rules_rogue.cpp answers it by the
+# 2024 rule: Rogue 7+, Dexterity saves, not while Incapacitated), so it carries Evasion's name
+# and description then. NWN mode keeps Improved Evasion's own.
+FEAT DESCRIPTION
+212 16000489 16000490

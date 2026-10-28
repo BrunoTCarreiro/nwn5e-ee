@@ -22,6 +22,11 @@ void RememberSaveDc2024(uint32_t caster, int dc);
 // SK6: the next save rolls on `ability` (nullopt: back to the save's own).
 void SetForcedSaveAbility(std::optional<rules::Ability> ability);
 
+// R8 (Rogue Evasion): the ability of the save `creature` rolled in the last
+// 200 ms (after C1's spell substitution and any forced ability), or none - the
+// engine's Reflex-damage command asks for Evasion right after its save.
+std::optional<rules::Ability> RecentSaveAbility(void* creature);
+
 // rules_saves.cpp
 // A creature's 2024 save bonus for `ability`, as !saves shows it.
 int SaveBonusFor(void* stats, rules::Ability ability);

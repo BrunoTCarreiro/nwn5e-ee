@@ -1537,6 +1537,24 @@ Rogue levels keeps the engine's count, doubled on a crit. R1 (e) -
 GetFlatFooted answers 0 in faithful. `!features` lists the Rogue (28 rows).
 Tests: RogueSneakAttack2024, NwnOnlyClassFeatsAreTheOnesWithoutCounterparts.
 
+*Built 0.50.0 (part 2: R8, R10, R11):* R8 - nwn5e grants Improved Evasion (212)
+at Rogue 7 (GrantedFeats2024; GrantedOnlyWhenMissing: an old NWN pick stays the
+character's), served as "Evasion" in faithful (data/rows/feat.if_classfeat2024.txt,
+strings 16000489/490). A HasFeat filter answers 212 for characters, for the
+game's own calls only (nwmain.exe's code - nwn5e's sync must see the real list
+to grant it): Rogue 7+, not Incapacitated, and, when a save was rolled in the
+last 200 ms, only if it rolled Dexterity (rules_save_roll's RecentSaveAbility:
+C1's spell substitution and forced abilities included). The engine's Reflex-
+damage command (ExecuteCommandGetReflexAdjustedDamage 0x52f790) asks for 212 /
+206 before its save (the feedback's feat) and right after it: none on a
+success, half on a failure. Monsters keep NWN's. R10 - rules::
+ClassFeatureSaveProficiency (Rogue 15: Wisdom and Charisma), read by both save
+getters in rules_saves.cpp with class_features faithful. R11 - Elusive (Rogue
+18, not Incapacitated): SituationalRollMode gained `no_advantage` (every
+Advantage source dropped, Disadvantage kept), passed for weapon and spell
+attack rolls (rules_advantage.cpp; the log says "Elusive: no Advantage").
+Tests: RogueSneakAttack2024 (part 2's rows), ElusiveTargetsGiveNoAdvantage.
+
 ## Phase 5 — rests, healing, death: decided by the owner (2026-10-23)
 
 Recon (EE 89.8193.37-17, disassembly; facts the decisions rest on):

@@ -10,6 +10,7 @@
 #include "rules/combat.h"
 #include "rules/d20.h"
 #include "rules/grapple.h"
+#include "rules/saves.h"
 
 namespace rules {
 
@@ -196,6 +197,15 @@ int SneakAttackDice2024(int rogue_level);
 // without Disadvantage when an ally of the attacker is within 5 ft of the
 // target (and not Incapacitated).
 bool SneakAttackApplies(bool finesse_or_ranged, RollMode mode, bool ally_next_to_target);
+// R8 Evasion (7): NWN's Improved Evasion read as 2024's - Dexterity saves only,
+// not while Incapacitated (nwn5e grants it at Rogue 7; Monk 7 with its brief).
+bool HasRogueEvasion(int rogue_level);
+// R10 Slippery Mind (15): proficiency in Wisdom and Charisma saves.
+bool HasSlipperyMind(int rogue_level);
+// R11 Elusive (18): no attack roll against you has Advantage unless you're Incapacitated.
+bool HasElusive(int rogue_level);
+// Save proficiencies class features give (whatever the first class): Slippery Mind's.
+bool ClassFeatureSaveProficiency(const std::vector<ClassLevels>& classes, Ability ability);
 
 // The feats nwn5e grants a character for its class levels (the DLL adds them —
 // so characters made earlier get them too — and removes them in NWN mode).

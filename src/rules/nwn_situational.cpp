@@ -20,7 +20,7 @@ bool RangedCloseCombat(bool ranged, bool point_blank_shot, int threatening_enemi
 }
 
 RollMode SituationalRollMode(const NwnSituationalTerms& terms, bool ranged_close_combat, int extra_advantage,
-                             int extra_disadvantage) {
+                             int extra_disadvantage, bool no_advantage) {
   int advantage = extra_advantage;
   int disadvantage = extra_disadvantage;
   if (terms.target_blind) ++advantage;
@@ -29,6 +29,7 @@ RollMode SituationalRollMode(const NwnSituationalTerms& terms, bool ranged_close
   if (terms.cant_see_target) ++disadvantage;
   if (ranged_close_combat) ++disadvantage;
   if (terms.target_prone) ++(terms.ranged ? disadvantage : advantage);
+  if (no_advantage) advantage = 0;
   return ResolveRollMode(advantage, disadvantage);
 }
 

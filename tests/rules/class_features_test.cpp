@@ -86,7 +86,8 @@ TEST(GrantedFeatsFollowClassLevels) {
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kFighter, 9}}).size(), 1u);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 5}}).empty(), true);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 3}, {CharacterClass::kFighter, 2}})[0], kFeatSecondWind2);
-  CHECK_EQ(GrantableFeats2024().size(), 9u);
+  CHECK_EQ(GrantableFeats2024().size(), 10u);
+  CHECK_EQ(GrantableFeats2024()[9], kFeatImprovedEvasion);
   CHECK_EQ(GrantableFeats2024()[0], kFeatSecondWind2);  // the record's order never changes
   CHECK_EQ(GrantableFeats2024()[4], kFeatBrutalStrike);
   CHECK_EQ(GrantableFeats2024()[5], kFeatKnockdownShove);
@@ -247,6 +248,24 @@ TEST(RogueSneakAttack2024) {
   CHECK_EQ(SneakAttackApplies(true, RollMode::kNormal, false), false);
   CHECK_EQ(SneakAttackApplies(true, RollMode::kDisadvantage, true), false);
   CHECK_EQ(HasFeatureList(CharacterClass::kRogue), true);
+  // Part 2 (R8, R10, R11): Evasion from 7 (granted as Improved Evasion), Slippery
+  // Mind's Wisdom and Charisma saves from 15, Elusive from 18.
+  CHECK_EQ(HasRogueEvasion(6), false);
+  CHECK_EQ(HasRogueEvasion(7), true);
+  CHECK_EQ(HasElusive(17), false);
+  CHECK_EQ(HasElusive(18), true);
+  const std::vector<ClassLevels> rogue14 = {{CharacterClass::kRogue, 14}};
+  const std::vector<ClassLevels> fighter2_rogue15 = {{CharacterClass::kFighter, 2}, {CharacterClass::kRogue, 15}};
+  CHECK_EQ(ClassFeatureSaveProficiency(rogue14, Ability::kWisdom), false);
+  CHECK_EQ(ClassFeatureSaveProficiency(fighter2_rogue15, Ability::kWisdom), true);
+  CHECK_EQ(ClassFeatureSaveProficiency(fighter2_rogue15, Ability::kCharisma), true);
+  CHECK_EQ(ClassFeatureSaveProficiency(fighter2_rogue15, Ability::kStrength), false);
+  const std::vector<int> granted6 = GrantedFeats2024({{CharacterClass::kRogue, 6}});
+  const std::vector<int> granted7 = GrantedFeats2024({{CharacterClass::kRogue, 7}});
+  CHECK_EQ(static_cast<int>(granted6.size()), 0);
+  CHECK_EQ(static_cast<int>(granted7.size()), 1);
+  CHECK_EQ(granted7.empty() ? 0 : granted7[0], kFeatImprovedEvasion);
+  CHECK_EQ(GrantedOnlyWhenMissing(kFeatImprovedEvasion), true);
   CHECK_EQ(static_cast<int>(ClassFeatures2024(CharacterClass::kRogue, 1).size()), 4);
   CHECK_EQ(static_cast<int>(ClassFeatures2024(CharacterClass::kRogue, 20).size()), 28);
 }

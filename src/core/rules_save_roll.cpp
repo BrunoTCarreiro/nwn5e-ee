@@ -28,6 +28,8 @@
 //   rolled again with the Fighter level added (the DC lowered by it, so the
 //   engine's second save line shows the lower DC), uses in rules_fighter.cpp.
 
+#include <windows.h>
+
 #include <stdint.h>
 
 #include <algorithm>
@@ -145,6 +147,12 @@ int g_script_spell = -1;
 // SK6: the ability of the save being rolled when not NWN's default for it (a
 // Shove's Strength save), set around that one roll.
 std::optional<rules::Ability> g_forced_ability;
+struct LastSave {
+  void* creature = nullptr;
+  rules::Ability ability = rules::Ability::kDexterity;
+  DWORD tick = 0;
+};
+LastSave g_last_save;  // R8
 
 // The spell id of an object, as GetSpellId reads it (an area of effect keeps
 // its own); -1 when unknown.
@@ -310,6 +318,11 @@ uint8_t SavingThrowRoll(void* creature, uint8_t save, uint16_t dc, uint8_t type,
     TellIfPlayer(IdOf(creature), "nwn5e: Indomitable Might - your Strength score meets the DC: the save succeeds.");
   }
   g_save = outer;
+  if (save >= 1 && save <= 3) {
+    g_last_save = LastSave{creature,
+                           context.ability.value_or(rules::AbilityForNwnSave(static_cast<rules::NwnSave>(save - 1))),
+                           GetTickCount()};
+  }
   const uint32_t creature_id = IdOf(creature);
   if (context.condition.auto_fail && result != 2) {
     result = 0;  // a failure; the engine's own line may still read "success" when its total beat the DC
@@ -403,6 +416,11 @@ std::optional<rules::Ability> SaveAbilityOverride(void* stats) {
 bool SaveRollInProgressFor(void* stats) { return g_save.active && g_save.creature && StatsOf(g_save.creature) == stats; }
 
 void SetForcedSaveAbility(std::optional<rules::Ability> ability) { g_forced_ability = ability; }
+
+std::optional<rules::Ability> RecentSaveAbility(void* creature) {
+  if (!creature || g_last_save.creature != creature || GetTickCount() - g_last_save.tick > 200) return std::nullopt;
+  return g_last_save.ability;
+}
 
 bool SpellAttackCasting(void* creature, int* bonus, const char** source) {
   if (!creature) return false;

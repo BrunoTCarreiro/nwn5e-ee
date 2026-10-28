@@ -26,11 +26,19 @@
 #include "hooks.h"
 #include "log.h"
 #include "log_once.h"
+#include "rules/class_features.h"
 #include "rules/nwn_conversion.h"
 #include "rules/saves.h"
 #include "saves.h"
 
 namespace {
+
+// R10 Slippery Mind (Rogue 15): save proficiencies a class feature gives,
+// whatever the first class (class_features faithful).
+bool FeatureSaveProficient(const std::vector<rules::NwnClassSlot>& slots, rules::Ability ability) {
+  return g_config.class_features == rules::RuleVariant::kFaithful &&
+         rules::ClassFeatureSaveProficiency(rules::GroupClassLevels(slots), ability);
+}
 
 using SaveFn = char (*)(void* stats, int base_only);
 using ClassSaveBonusFn = uint8_t (*)(void* character_class, uint8_t level);
@@ -232,7 +240,7 @@ std::string DescribeSaves(void* stats) {
   const bool faithful = g_config.saves == rules::RuleVariant::kFaithful;
   const int aura = faithful ? AuraOfProtection(stats) : 0;
   const auto class_proficient = [&](rules::Ability ability) {
-    return character && first && rules::HasSaveProficiency(*first, ability);
+    return character && ((first && rules::HasSaveProficiency(*first, ability)) || FeatureSaveProficient(slots, ability));
   };
   struct Row {
     int value;
@@ -301,6 +309,7 @@ int SaveBonusFor(void* stats, rules::Ability ability) {
   const bool character = CountsAsCharacter(stats, facts);
   const int pb = rules::ProficiencyBonusForCreature(character, facts.level, facts.challenge_rating);
   const int aura = g_config.saves == rules::RuleVariant::kFaithful ? AuraOfProtection(stats) : 0;
-  const bool proficient = character && first && rules::HasSaveProficiency(*first, ability);
+  const bool proficient =
+      character && ((first && rules::HasSaveProficiency(*first, ability)) || FeatureSaveProficient(slots, ability));
   return rules::SavingThrowBonus(Ability(stats, ability), proficient, pb, aura);
 }

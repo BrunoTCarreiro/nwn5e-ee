@@ -42,6 +42,8 @@ MasteryRollSources RecklessRollSources(void* attacker, void* target, const uint8
 bool BrutalStrikeOnRoll(void* attacker, void* target, const uint8_t* data, rules::RollMode* mode, std::string* note);
 // rules_grapple.cpp (G2): a grappled creature's attack on anyone but its grappler.
 MasteryRollSources GrappleRollSources(void* attacker, void* target);
+// rules_rogue.cpp (R11): a Rogue 18+ not Incapacitated - no attack roll against it has Advantage.
+bool ElusiveTarget(void* creature);
 
 namespace {
 
@@ -151,10 +153,12 @@ void BeforeAttackRoll(AttackRoll& roll) {
   std::string heavy_note;
   const int heavy = HeavyWeaponDisadvantage(roll.attacker, terms.ranged, &heavy_note);
   if (heavy) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + heavy_note;
+  const bool elusive = ElusiveTarget(target);
+  if (elusive) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + std::string("Elusive: no Advantage");
   t_pending.mode = rules::SituationalRollMode(
       terms, rules::RangedCloseCombat(terms.ranged, t_pending.point_blank_shot, t_pending.threats),
       conditions.advantage + mastery.advantage + studied.advantage + reckless.advantage,
-      conditions.disadvantage + mastery.disadvantage + heavy + grappled.disadvantage);
+      conditions.disadvantage + mastery.disadvantage + heavy + grappled.disadvantage, elusive);
   {
     std::string brutal;
     if (BrutalStrikeOnRoll(roll.attacker, target, roll.data, &t_pending.mode, &brutal)) {
@@ -242,13 +246,15 @@ int RollSpellAttackD20(void* caster, void* target, bool ranged, std::string* not
     const bool point_blank_shot = ranged && engine::HasFeat(stats, ee::kFeatPointBlankShot);
     const int threats = ranged ? CountCloseCombatThreats(caster) : 0;
     const ConditionRollSources conditions = ConditionAttackRollSources(caster, target, ranged);
+    const bool elusive = ElusiveTarget(target);
     mode = rules::SituationalRollMode(terms, rules::RangedCloseCombat(ranged, point_blank_shot, threats),
-                                      conditions.advantage, conditions.disadvantage);
+                                      conditions.advantage, conditions.disadvantage, elusive);
     if (note) {
       *note = ModeName(mode);
       if (rules::NwnSituationalTotal(terms) != 0) *note += std::string(" (") + TermNames(terms) + ")";
       if (threats > 0) *note += "; close-combat enemies " + std::to_string(threats);
       if (!conditions.note.empty()) *note += "; conditions: " + conditions.note;
+      if (elusive) *note += "; Elusive: no Advantage";
     }
   }
   int kept = RollEngineDice(1, 20);

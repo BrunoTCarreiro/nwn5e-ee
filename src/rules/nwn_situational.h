@@ -38,7 +38,9 @@ bool RangedCloseCombat(bool ranged, bool point_blank_shot, int threatening_enemi
 // rule) or flanking (B2: off). Sources cancel as in ResolveRollMode.
 // `extra_advantage` / `extra_disadvantage`: other sources (weapon mastery:
 // Vex, Sap) that count like the situational ones.
+// R11 Elusive (Rogue 18): `no_advantage` - no attack roll against the target
+// has Advantage (its Disadvantage sources still count).
 RollMode SituationalRollMode(const NwnSituationalTerms& terms, bool ranged_close_combat, int extra_advantage = 0,
-                             int extra_disadvantage = 0);
+                             int extra_disadvantage = 0, bool no_advantage = false);
 
 }  // namespace rules

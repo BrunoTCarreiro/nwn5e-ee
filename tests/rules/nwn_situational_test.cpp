@@ -105,3 +105,16 @@ TEST(MasteryRollSourcesCancel) {
   CHECK_EQ(static_cast<int>(SituationalRollMode(none, false, 1, 1)), static_cast<int>(RollMode::kNormal));
   CHECK_EQ(static_cast<int>(SituationalRollMode(none, true, 1, 0)), static_cast<int>(RollMode::kNormal));
 }
+
+// R11 Elusive (Rogue 18): no attack roll against it has Advantage - prone,
+// blinded or any other source - while Disadvantage still counts. Breaks caught:
+// Advantage kept, a Disadvantage lost with it, the flag ignored.
+TEST(ElusiveTargetsGiveNoAdvantage) {
+  NwnSituationalTerms prone_melee;
+  prone_melee.target_prone = true;
+  CHECK_EQ(static_cast<int>(SituationalRollMode(prone_melee, false, 2, 0, true)), static_cast<int>(RollMode::kNormal));
+  CHECK_EQ(static_cast<int>(SituationalRollMode(prone_melee, false, 1, 1, true)),
+           static_cast<int>(RollMode::kDisadvantage));
+  CHECK_EQ(static_cast<int>(SituationalRollMode(prone_melee, false, 0, 0, false)),
+           static_cast<int>(RollMode::kAdvantage));
+}
