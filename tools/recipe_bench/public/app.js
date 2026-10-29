@@ -845,8 +845,26 @@
     link("neck_g", "rbicep_g", 0.04);
     link("pelvis_g", "lthigh_g", 0.055);
     link("pelvis_g", "rthigh_g", 0.055);
+    // The feet: NWN's foot bone ends at the ankle (no toe bone), so nothing drew which way a foot
+    // points - a heel and a toe drawn from it, turned with it since rest (the rest pose's forward +Y,
+    // the sole on the floor).
+    const rest = new Array(lib.bones.length);
+    lib.bones.forEach((b, i) => {
+      const p = b.position ? b.position.values[0] : [0, 0, 0], q = b.orientation ? b.orientation.values[0] : [0, 0, 0, 1];
+      if (b.parent < 0) rest[i] = { p: p.slice(0, 3), q };
+      else { const up = rest[b.parent], r = rotate(up.q, p); rest[i] = { p: [up.p[0] + r[0], up.p[1] + r[1], up.p[2] + r[2]], q: qmul(up.q, q) }; }
+    });
+    const feet = [];
+    let more = lib.bones.length;
+    for (const n of ["lfoot_g", "rfoot_g"]) {
+      if (!index.has(n)) continue;
+      const i = index.get(n), foot = { i, restQ: rest[i].q, sole: rest[i].p[2], heel: more++, toe: more++ };
+      feet.push(foot);
+      segments.push({ a: i, b: foot.heel, r: 0.03 }, { a: foot.heel, b: foot.toe, r: 0.03 }, { a: i, b: foot.toe, r: 0.03 });
+    }
     rig = {
       lib,
+      feet,
       segments: segments.filter((s, i, all) => all.findIndex((o) => o.a === s.a && o.b === s.b) === i),
       joints: JOINTS.filter((n) => index.has(n)).map((n) => index.get(n)),
       head: index.has("head_g") && index.has("head") ? [index.get("head_g"), index.get("head")] : null,
@@ -896,7 +914,14 @@
         world[i] = { p: [up.p[0] + r[0], up.p[1] + r[1], up.p[2] + r[2]], q: qmul(up.q, q) };
       }
     }
-    return world.map((w) => w.p);
+    const points = world.map((w) => w.p);
+    for (const f of rig.feet || []) {  // the heel and the toe, turned with the foot
+      const w = world[f.i], r = f.restQ, since = qmul(w.q, [-r[0], -r[1], -r[2], r[3]]);
+      const at = (v) => { const o = rotate(since, v); return [w.p[0] + o[0], w.p[1] + o[1], w.p[2] + o[2]]; };
+      points[f.heel] = at([0, -0.06, -f.sole]);
+      points[f.toe] = at([0, 0.14, -f.sole]);
+    }
+    return points;
   }
 
   let stanceCache = null;
