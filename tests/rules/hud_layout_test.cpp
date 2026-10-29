@@ -69,10 +69,11 @@ TEST(HudLayoutPips) {
   CHECK_EQ(HudFade(0.5f, 0.5f, 0.1f, 0.4f) == 0.5f, true);
 }
 
-// Where the card goes (0.57.2). Breaks caught: its right edge off the bar's
-// (the scale left out), its bottom on the Talk line, a card that reaches the
-// chat window left there, the move under the strip not centred or inside the
-// strip's tiles or their slide, a wide window moved anyway, off the screen.
+// Where the card goes (0.57.2, 0.57.3). Breaks caught: its right edge off the
+// bar's (the scale left out), a gap over the Talk line or a card into it, a
+// card that reaches the chat window left there, the move under the strip not
+// centred, a gap under the strip's tiles or a card into them, the strip off
+// and the card not on the top edge, a wide window moved anyway, off the screen.
 TEST(HudPlacement) {
   HudScreen wide;
   wide.width = 1638.0f;
@@ -81,7 +82,7 @@ TEST(HudPlacement) {
   const HudSpot a = PlaceHud(wide, 351.0f, 51.0f);
   CHECK_EQ(a.under_strip, false);
   CHECK_EQ(a.x + 351.0f == 1638.0f / 2.0f + 400.0f, true);  // the bar's right edge
-  CHECK_EQ(a.y + 51.0f == 904.0f - kQuickbarHeight - kTalkLineHeight - kHudAbove, true);
+  CHECK_EQ(a.y + 51.0f == 904.0f - kQuickbarHeight - kTalkLineHeight, true);  // right on the Talk line
   HudScreen scaled = wide;
   scaled.width = 2560.0f;
   scaled.height = 1440.0f;
@@ -90,20 +91,23 @@ TEST(HudPlacement) {
   const HudSpot b = PlaceHud(scaled, 351.0f, 51.0f);
   CHECK_EQ(b.under_strip, false);
   CHECK_EQ(b.x + 351.0f * 1.5f == 1280.0f + 600.0f, true);
-  CHECK_EQ(b.y + 51.0f * 1.5f == 1440.0f - (kQuickbarHeight + kTalkLineHeight + kHudAbove) * 1.5f, true);
+  CHECK_EQ(b.y + 51.0f * 1.5f == 1440.0f - (kQuickbarHeight + kTalkLineHeight) * 1.5f, true);
   HudScreen narrow = wide;
   narrow.width = 1078.0f;  // the owner's window once: the bar's right edge 939, the card would start at 588
   const HudSpot c = PlaceHud(narrow, 351.0f, 51.0f);
   CHECK_EQ(c.under_strip, true);
   CHECK_EQ(c.x + 351.0f / 2.0f == 1078.0f / 2.0f, true);  // centred
-  CHECK_EQ(c.y >= kQueueTileTop + kQueueTileHeight + kQueueExitDrop, true);  // under the tiles and their slide
-  CHECK_EQ(c.y < 200.0f, true);  // and not far under them
+  CHECK_EQ(c.y == kQueueTileTop + kQueueTileHeight, true);  // right under the strip's tiles
+  HudScreen narrow_off = narrow;
+  narrow_off.strip_on = false;  // !queue: the strip turned off
+  const HudSpot e = PlaceHud(narrow_off, 351.0f, 51.0f);
+  CHECK_EQ(e.under_strip && e.y == 0.0f && e.x == c.x, true);  // on the window's top edge
   HudScreen narrow_scaled = scaled;
   narrow_scaled.width = 1600.0f;  // at 1.5: the bar's right edge 1400, the card would start at 873 < 1092
   const HudSpot d = PlaceHud(narrow_scaled, 351.0f, 51.0f);
   CHECK_EQ(d.under_strip, true);
   CHECK_EQ(d.x + 351.0f * 1.5f / 2.0f == 800.0f, true);  // centred at the scale
-  CHECK_EQ(d.y >= kQueueTileTop + kQueueTileHeight * 1.5f + kQueueExitDrop, true);
+  CHECK_EQ(d.y == kQueueTileTop + kQueueTileHeight * 1.5f, true);
   HudScreen edge = wide;
   edge.width = 2.0f * (720.0f + 8.0f + 351.0f - 400.0f);  // the card just clear of the chat: stays
   CHECK_EQ(PlaceHud(edge, 351.0f, 51.0f).under_strip, false);

@@ -922,6 +922,9 @@ std::vector<std::string> QueueCommand(void* creature, const std::string& /*args*
 
 }  // namespace
 
+// The resource panel (resource_panel.cpp): the strip turned off with !queue.
+bool ActionQueueStripOff(void* creature) { return creature && Off(creature); }
+
 void InstallActionQueue() {
   g_position_by_group_index =
       reinterpret_cast<PositionByGroupIndexFn>(EngineExport(ee::kGetPositionByGroupIndex));

@@ -3939,6 +3939,15 @@ left edge would come within 8 of the chat log's right edge (the window narrower 
 (4 + 122 x s) and the 36 px a leaving tile slides (rules::PlaceHud; the strip's sizes now in
 rules/queue_strip.h, shared). Checked again every 2 s with the window's size, so a resize moves it.
 
+*0.57.3 (owner: "the resource panel should be right up against the talk input, right now there's a bit of a
+gap. When it gets transferred to the top, if the action queue is hidden, the resources should be up against the
+top of the window, if it's showing the resources should be right up against it, no space between them"):* no
+gaps - the card's bottom on the Talk line's top (56 x s over the bottom edge), under the strip its top on the
+tiles' bottom (4 + 122 x s: a tile's card, -4 inside its column, ends at the window's 122), and with the strip
+turned off (`!queue`) on the window's top edge. The panel still doesn't follow the strip filling and emptying
+(it sits under the strip's place either way); the owner asked whether the strip should be a permanent fixture
+so nothing moves - open.
+
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
 Walked through one by one (issue, what NWN does, what 2024 does, what to

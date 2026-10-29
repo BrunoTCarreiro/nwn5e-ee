@@ -64,6 +64,8 @@
 #include "log.h"
 #include "records.h"
 
+bool ActionQueueStripOff(void* creature);  // action_queue.cpp (!queue)
+
 namespace {
 
 constexpr const char* kVarOff = "nwn5e_hud_off";
@@ -93,6 +95,7 @@ std::vector<rules::HudPool> g_published;
 float g_published_gui_w = 0.0f;
 float g_published_gui_h = 0.0f;
 float g_published_gui_s = 1.0f;
+bool g_published_strip_on = true;
 int g_version = 0;
 
 // The server's side.
@@ -104,6 +107,7 @@ struct PlayerState {
   float gui_w = 0.0f;
   float gui_h = 0.0f;
   float gui_s = 1.0f;
+  bool strip_on = true;
 };
 std::unordered_map<uint32_t, PlayerState> g_players;
 uint32_t g_client_player = ee::kObjectInvalid;
@@ -112,7 +116,8 @@ uint32_t IdOf(const void* creature) { return creature ? Field<uint32_t>(creature
 
 bool Off(void* creature) { return engine::GetLocalInt(creature, kVarOff) != 0; }
 
-std::string Signature(const std::vector<rules::HudPool>& pools, float gui_w, float gui_h, float gui_s) {
+std::string Signature(const std::vector<rules::HudPool>& pools, float gui_w, float gui_h, float gui_s,
+                      bool strip_on) {
   std::string s = rules::HudShape(pools);
   for (const rules::HudPool& pool : pools) {
     s += "|" + std::to_string(pool.left);
@@ -120,7 +125,7 @@ std::string Signature(const std::vector<rules::HudPool>& pools, float gui_w, flo
     s += pool.tooltip;
   }
   char size[64];
-  sprintf_s(size, "|%.0fx%.0fx%.2f", gui_w, gui_h, gui_s);
+  sprintf_s(size, "|%.0fx%.0fx%.2f%s", gui_w, gui_h, gui_s, strip_on ? "" : "|no strip");
   return s + size;
 }
 
@@ -155,7 +160,8 @@ void PanelCreatureUpdate(void* creature) {
     const int percent = engine::GetLocalInt(creature, "nwn5e_hud_gs");  // 140 = 1.4
     state.gui_s = percent >= 50 && percent <= 400 ? percent / 100.0f : 1.0f;
   }
-  const std::string signature = Signature(pools, state.gui_w, state.gui_h, state.gui_s);
+  state.strip_on = !ActionQueueStripOff(creature);
+  const std::string signature = Signature(pools, state.gui_w, state.gui_h, state.gui_s, state.strip_on);
   if (signature == state.signature) return;
   const std::string shape = rules::HudShape(pools);
   static int logged = 0;
@@ -171,6 +177,7 @@ void PanelCreatureUpdate(void* creature) {
   g_published_gui_w = state.gui_w;
   g_published_gui_h = state.gui_h;
   g_published_gui_s = state.gui_s;
+  g_published_strip_on = state.strip_on;
   ++g_version;
 }
 
@@ -195,6 +202,7 @@ int g_seen_version = 0;
 float g_gui_w = 0.0f;
 float g_gui_h = 0.0f;
 float g_gui_s = 1.0f;
+bool g_strip_on = true;
 LARGE_INTEGER g_last_frame{};
 void** g_app_manager = nullptr;
 bool g_in_game_logged = false;
@@ -289,7 +297,7 @@ std::string PanelLayout(const rules::HudLayout& layout, const std::vector<rules:
 // Where the panel's window goes (window pixels): the card where rules::PlaceHud
 // puts it (on the quickbar's right edge over the Talk line, or under the action
 // queue strip when that would be over the chat), the window kWindowPad around it.
-bool g_under_strip_logged = false;
+int g_place_logged = 0;
 int g_place_logs = 0;
 
 void PanelPosition(float window_w, float window_h, float* x, float* y) {
@@ -298,17 +306,20 @@ void PanelPosition(float window_w, float window_h, float* x, float* y) {
   screen.height = g_gui_h;
   screen.scale = g_gui_s;
   screen.chat_right = kChatWidth * g_gui_s;
+  screen.strip_on = g_strip_on;
   const rules::HudSpot spot = rules::PlaceHud(screen, window_w - 2.0f * kWindowPad, window_h - 2.0f * kWindowPad);
   *x = spot.x - kWindowPad * g_gui_s;
   *y = spot.y - kWindowPad * g_gui_s;
-  if (spot.under_strip != g_under_strip_logged && g_place_logs < 12) {
+  const int place = spot.under_strip ? (g_strip_on ? 1 : 2) : 0;
+  if (place != g_place_logged && g_place_logs < 12) {
     ++g_place_logs;
     Log("hud: the resource panel %s (window %.0f x %.0f, GUI scale %.2f)",
-        spot.under_strip ? "under the action queue strip - over the quickbar it would cover the chat"
+        spot.under_strip ? (g_strip_on ? "under the action queue strip - over the quickbar it would cover the chat"
+                                       : "at the top (the strip is off) - over the quickbar it would cover the chat")
                          : "over the quickbar's right end",
         g_gui_w, g_gui_h, g_gui_s);
   }
-  g_under_strip_logged = spot.under_strip;
+  g_place_logged = place;
 }
 
 void ClosePanel() {
@@ -366,6 +377,7 @@ void PanelTick() {
       g_gui_w = g_published_gui_w;
       g_gui_h = g_published_gui_h;
       g_gui_s = g_published_gui_s;
+      g_strip_on = g_published_strip_on;
     }
   }
   const std::vector<rules::HudPool> pools = g_panel.pools;

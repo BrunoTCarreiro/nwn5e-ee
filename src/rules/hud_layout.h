@@ -81,14 +81,20 @@ float HudFade(float alpha, float target, float dt, float seconds);
 // right edge, its bottom
 // clear of the Talk line (owner: "move the box slightly up as it's just a bit
 // over the Talk input box"); where that would put it over the chat window (a
-// narrow game window), centred under the action queue strip instead, below
-// where its leaving tiles slide (owner: "it should be repositioned and placed
-// underneath the action queue panel").
+// narrow game window), centred under the action queue strip instead (owner:
+// "it should be repositioned and placed underneath the action queue panel").
+// 0.57.3 (owner: "the resource panel should be right up against the talk
+// input"; "if the action queue is hidden, the resources should be up against
+// the top of the window, if it's showing ... right up against it, no space
+// between them"): no gaps - the card's bottom on the Talk line's top, its top
+// on the strip's tiles' bottom (4 + 122 x s), or on the window's top edge
+// with the strip turned off (!queue).
 struct HudScreen {
   float width = 0.0f;       // the game window, pixels (gui_width)
   float height = 0.0f;
   float scale = 1.0f;       // the GUI scale (gui_scale / 100)
   float chat_right = 0.0f;  // the chat window's right edge, window pixels
+  bool strip_on = true;     // the action queue strip shown (not turned off with !queue)
 };
 struct HudSpot {
   float x = 0.0f, y = 0.0f;  // the card's top-left, window pixels
@@ -97,7 +103,6 @@ struct HudSpot {
 constexpr float kQuickbarWidth = 800.0f;
 constexpr float kQuickbarHeight = 36.0f;
 constexpr float kTalkLineHeight = 20.0f;  // the Talk line's top at 36 + 20 = 56 over the bottom edge
-constexpr float kHudAbove = 4.0f;         // the card's gap over the Talk line, under the strip
 constexpr float kHudClearOfChat = 8.0f;   // at least this far right of the chat window
 HudSpot PlaceHud(const HudScreen& screen, float card_w, float card_h);
 

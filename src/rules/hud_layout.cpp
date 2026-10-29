@@ -68,11 +68,11 @@ HudSpot PlaceHud(const HudScreen& screen, float card_w, float card_h) {
   HudSpot spot;
   const float bar_right = screen.width / 2.0f + kQuickbarWidth / 2.0f * s;
   spot.x = bar_right - card_w * s;
-  spot.y = screen.height - (kQuickbarHeight + kTalkLineHeight + kHudAbove + card_h) * s;
+  spot.y = screen.height - (kQuickbarHeight + kTalkLineHeight + card_h) * s;
   if (spot.x < screen.chat_right + kHudClearOfChat * s) {
     spot.under_strip = true;
     spot.x = (screen.width - card_w * s) / 2.0f;
-    spot.y = kQueueTileTop + kQueueTileHeight * s + kQueueExitDrop + kHudAbove * s;
+    spot.y = screen.strip_on ? kQueueTileTop + kQueueTileHeight * s : 0.0f;
   }
   if (spot.x < 0.0f) spot.x = 0.0f;
   return spot;
