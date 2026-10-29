@@ -1,8 +1,10 @@
 # Checks the nwn5e mocap points add-on in Blender, without a window:
 #   blender --background --factory-startup --python tools/mocap_blender/check.py -- <points.csv> <out folder>
-# Imports a take (the bench's Export points for Blender), checks the empties, the keys and
-# the stick figure, edits one key (the left ankle 10 cm up at one frame), exports the whole
-# take and the scene's range, and checks every value came back - the edited one changed.
+# Imports a take (the bench's Export points for Blender: marked standing / keep), checks the
+# empties, the keys, the stick figure and the marks (the scene's range on the kept part, the
+# standing markers), edits one key (the left ankle 10 cm up at one frame), exports, and checks
+# every value came back - the edited one changed. Then narrows the scene's range and exports
+# again: the kept part follows the range, the standing part and every frame still written.
 import csv
 import importlib.util
 import os
@@ -26,6 +28,21 @@ def check(ok, what):
         failed.append(what)
 
 
+def table(path):
+    with open(path, newline="", encoding="utf-8") as f:
+        rows = list(csv.reader(f))
+    return rows[0], [[float(v) if v else float("nan") for v in r] for r in rows[1:]]
+
+
+def marked(rows, column):
+    return [k for k in range(len(rows)) if rows[k][column] > 0]
+
+
+h0, a = table(points_csv)
+si, ki = h0.index("standing"), h0.index("keep")
+st, kp = marked(a, si), marked(a, ki)
+check(bool(st) and bool(kp), "the file marks a standing part and a kept part (%d and %d frames)" % (len(st), len(kp)))
+
 ctx = bpy.context
 for o in list(bpy.data.objects):
     bpy.data.objects.remove(o)
@@ -33,7 +50,12 @@ coll, count, fps = addon.import_points(ctx, points_csv)
 names = coll[addon.KEY_POINTS].split(",")
 check(len(names) == 33, "33 points imported (%d)" % len(names))
 check(fps == 30 and ctx.scene.render.fps == 30, "the scene at 30 a second (%d)" % ctx.scene.render.fps)
-check(ctx.scene.frame_end == count - 1, "the scene's frames 0-%d (%d frames)" % (ctx.scene.frame_end, count))
+check(count == len(a), "every row a frame (%d of %d)" % (count, len(a)))
+check(list(coll[addon.KEY_STANDING]) == [st[0], st[-1]], "the standing part stored: frames %d-%d" % (st[0], st[-1]))
+check((ctx.scene.frame_start, ctx.scene.frame_end) == (kp[0], kp[-1]),
+      "the scene plays the kept part: frames %d-%d (the file's %d-%d)" % (ctx.scene.frame_start, ctx.scene.frame_end, kp[0], kp[-1]))
+markers = sorted((m.name, m.frame) for m in ctx.scene.timeline_markers)
+check(markers == sorted([("standing", st[0]), ("standing end", st[-1])]), "the standing part's markers: %s" % markers)
 ankle = coll.objects[addon.PREFIX + "left_ankle"]
 fcs = list(addon_fc for addon_fc in ankle.animation_data.action.layers[0].strips[0].channelbags[0].fcurves) \
     if hasattr(ankle.animation_data.action, "layers") else []
@@ -58,22 +80,12 @@ z = fcs[2]
 z.keyframe_points[100].co.y += 0.1
 z.update()
 full = os.path.join(out_dir, "check_points_clean.csv")
-part = os.path.join(out_dir, "check_points_part.csv")
-n_full = addon.export_points(ctx, full, coll, False)
-ctx.scene.frame_start, ctx.scene.frame_end = 50, 149
-n_part = addon.export_points(ctx, part, coll, True)
-check(n_full == count and n_part == 100, "exported all %d frames, and the scene's 100 (%d, %d)" % (count, n_full, n_part))
-
-
-def table(path):
-    with open(path, newline="", encoding="utf-8") as f:
-        rows = list(csv.reader(f))
-    return rows[0], [[float(v) if v else float("nan") for v in r] for r in rows[1:]]
-
-
-h0, a = table(points_csv)
+trim = os.path.join(out_dir, "check_points_trim.csv")
+n_full, keep_full, standing_full = addon.export_points(ctx, full, coll)
+check(n_full == count and keep_full == (kp[0], kp[-1]) and standing_full == (st[0], st[-1]),
+      "exported all %d frames, kept part %s, standing part %s" % (n_full, keep_full, standing_full))
 h1, b = table(full)
-check(h0 == h1, "the same columns")
+check(h0 == h1, "the same columns (time, the marks, 33 points)")
 col = h1.index("body_left_ankle_z")
 worst, edited = 0.0, None
 for k in range(len(a)):
@@ -85,9 +97,14 @@ for k in range(len(a)):
             edited = d
         else:
             worst = max(worst, d)
-check(worst < 2e-5, "every other value back unchanged (worst %.6f)" % worst)
+check(worst < 2e-5, "every other value back unchanged, the marks too (worst %.6f)" % worst)
 check(edited is not None and abs(edited - 0.1) < 1e-4, "the edited ankle 10 cm up (%.4f)" % (edited or 0))
-_, p = table(part)
-check(abs(p[0][0]) < 1e-9 and abs(p[0][col] - a[50][col]) < 2e-5, "the scene's range starts at its first frame, time 0")
+# Trimmed tighter here: the scene's range narrowed by 10 frames each side.
+ctx.scene.frame_start, ctx.scene.frame_end = kp[0] + 10, kp[-1] - 10
+n_trim, keep_trim, _ = addon.export_points(ctx, trim, coll)
+_, p = table(trim)
+kt, stt = marked(p, ki), marked(p, si)
+check(n_trim == count and kt == list(range(kp[0] + 10, kp[-1] - 9)) and stt == st and abs(p[0][0]) < 1e-9,
+      "the range narrowed: kept frames %d-%d, the standing part and all %d frames still written" % (kt[0], kt[-1], n_trim))
 print("FAILED %d" % len(failed) if failed else "all ok")
 sys.exit(1 if failed else 0)

@@ -156,6 +156,9 @@
     const frames = [];
     const timeColumn = header.indexOf("time_s");  // the points round trip's files (#77): each frame's time
     const times = timeColumn >= 0 ? [] : null;
+    // And the frames marked standing / kept (pointsCsv's marks), first to last.
+    const markColumns = timeColumn >= 0 ? { standing: header.indexOf("standing"), keep: header.indexOf("keep") } : {};
+    const marked = { standing: [], keep: [] };
     for (let i = 1; i < lines.length; i++) {
       const cells = lines[i].split(",");
       const frame = new Float64Array(COUNT * 3);
@@ -164,11 +167,16 @@
         const v = c < 0 ? NaN : parseFloat(cells[c]);
         frame[s] = Number.isFinite(v) ? v : NaN;
       }
+      for (const m of ["standing", "keep"]) if (markColumns[m] >= 0 && parseFloat(cells[markColumns[m]]) > 0) marked[m].push(frames.length);
       frames.push(frame);
       if (times) times.push(parseFloat(cells[timeColumn]));
     }
     const capture = { frames, columns: header.length, format: timeColumn >= 0 ? "points" : "mediapipe" };
     if (times && times.every(Number.isFinite) && times.every((t, k) => k === 0 || t > times[k - 1])) capture.times = times;
+    if (marked.standing.length || marked.keep.length) {
+      capture.marks = {};
+      for (const m of ["standing", "keep"]) if (marked[m].length) capture.marks[m] = [marked[m][0], marked[m][marked[m].length - 1]];
+    }
     return capture;
   }
 
@@ -451,8 +459,7 @@
     // body's; right is the shoulder and hip lines. From the body alone, up leans with
     // it (a few degrees: centimetres at the hands).
     const fps0 = opt.fps > 1 ? opt.fps : 30;
-    const r0 = Math.max(0, Math.min(raw.length - 1, Math.round((opt.reference ? opt.reference[0] : 0) * fps0)));
-    const r1 = Math.max(r0 + 1, Math.min(raw.length, Math.round((opt.reference ? opt.reference[1] : 0.33) * fps0)));
+    const [r0, r1] = referenceSpan({ frames: raw, fps: fps0 }, opt.reference);
     const avg = (i) => { let v = [0, 0, 0]; for (let f = r0; f < r1; f++) v = add(v, point(raw[f], i)); return scale(v, 1 / (r1 - r0)); };
     let bodyUp = norm(sub(mid(avg(P.left_shoulder), avg(P.right_shoulder)), mid(avg(P.left_ankle), avg(P.right_ankle))));
     let up = bodyUp;
@@ -506,11 +513,27 @@
     return take;
   }
 
+  // The frames a standing window [start, end) s covers: [a, b) - prepare's, setReference's
+  // and the points export's.
+  function referenceSpan(take, reference) {
+    const n = take.frames.length;
+    const a = Math.max(0, Math.min(n - 1, Math.round((reference ? reference[0] : 0) * take.fps)));
+    const b = Math.max(a + 1, Math.min(n, Math.round((reference ? reference[1] : 0.33) * take.fps)));
+    return [a, b];
+  }
+
+  // The frames the kept part [start, end] s covers (end 0: to the end): [a, b], both kept -
+  // the retarget's and the points export's.
+  function keepSpan(take, start, end) {
+    const n = take.frames.length;
+    const a = Math.max(0, Math.min(n - 2, Math.round((start || 0) * take.fps)));
+    const b = end > 0 ? Math.max(a + 1, Math.min(n - 1, Math.round(end * take.fps))) : n - 1;
+    return [a, b];
+  }
+
   // The standing reference: frames [start, end) s, averaged.
   function setReference(take, reference) {
-    const n = take.frames.length;
-    let a = Math.max(0, Math.min(n - 1, Math.round((reference ? reference[0] : 0) * take.fps)));
-    let b = Math.max(a + 1, Math.min(n, Math.round((reference ? reference[1] : 0.33) * take.fps)));
+    const [a, b] = referenceSpan(take, reference);
     const avg = new Float64Array(COUNT * 3);
     for (let f = a; f < b; f++) for (let s = 0; s < COUNT * 3; s++) avg[s] += take.frames[f][s] / (b - a);
     take.reference = { start: a / take.fps, end: b / take.fps, pose: avg };
@@ -723,9 +746,7 @@
     const refL = landmarks(take.reference.pose);
     const waist = scale(R.waistOffset, take.hipHeight > 0.1 ? take.hipHeight / R.hipHeight : 1);
     const ref = { waist, frames: bodyFrames(refL, waist, null) };
-    const n = take.frames.length;
-    let a = Math.max(0, Math.min(n - 2, Math.round(opt.start * take.fps)));
-    let b = opt.end > 0 ? Math.max(a + 1, Math.min(n - 1, Math.round(opt.end * take.fps))) : n - 1;
+    const [a, b] = keepSpan(take, opt.start, opt.end);
     // Solve every frame kept.
     const driven = [];
     const rootIndex = R.index.get("rootdummy");
@@ -857,19 +878,49 @@
   // --- The points round trip (#77) -----------------------------------------------------------
   // The prepared take - cleaned, resampled, upright, facing forward (game space: +X the
   // performer's right, +Y forward, +Z up, metres, the floor at 0) - as a CSV: a row a frame,
-  // its time, then every point's x / y / z (MediaPipe's names). Blender's nwn5e mocap points
-  // add-on (tools/mocap_blender) reads and writes it; parseCapture reads it back. The whole
-  // take: the standing window at its start has to come back with it.
-  function pointsCsv(take) {
-    const header = ["time_s"];
+  // its time (0 at the first written), its marks, then every point's x / y / z (MediaPipe's
+  // names). Blender's nwn5e mocap points add-on (tools/mocap_blender) reads and writes it;
+  // parseCapture reads it back, the marks as capture.marks (trimFromMarks: the sliders).
+  // marks: the bench's sliders - { reference: [start, end) s, start, end (s; end 0: to the
+  // end) }. With them, from the standing window's first frame to the kept part's last (the
+  // owner, 2026-10-29: "go for b"): the retarget measures every turn and the hip height from
+  // the standing pose, so it travels with the part kept; and columns standing / keep, 1 on
+  // the frames of each. Without them, the whole take, unmarked.
+  function pointsSpan(take, marks) {
+    const n = take.frames.length;
+    if (!marks) return { from: 0, to: n - 1, standing: null, keep: null };
+    const standing = referenceSpan(take, marks.reference);
+    const keep = keepSpan(take, marks.start, marks.end);
+    return { from: Math.min(standing[0], keep[0]), to: Math.max(standing[1] - 1, keep[1]), standing, keep };
+  }
+
+  function pointsCsv(take, marks) {
+    const span = pointsSpan(take, marks);
+    const header = ["time_s"].concat(marks ? ["standing", "keep"] : []);
     for (const n of LANDMARKS) for (const a of ["x", "y", "z"]) header.push("body_" + n + "_" + a);
     const rows = [header.join(",")];
-    take.frames.forEach((f, k) => {
-      const row = [(k / take.fps).toFixed(6)];
+    for (let k = span.from; k <= span.to; k++) {
+      const f = take.frames[k];
+      const row = [((k - span.from) / take.fps).toFixed(6)];
+      if (marks) row.push(k >= span.standing[0] && k < span.standing[1] ? 1 : 0, k >= span.keep[0] && k <= span.keep[1] ? 1 : 0);
       for (let s = 0; s < COUNT * 3; s++) row.push(Number.isFinite(f[s]) ? f[s].toFixed(5) : "");
       rows.push(row.join(","));
-    });
+    }
     return rows.join("\n") + "\n";
+  }
+
+  // A points file's marks (capture.marks) as the bench's sliders, in seconds of the prepared
+  // take: { reference: [start, end), start, end (0: to the end) } - each only when marked.
+  function trimFromMarks(capture, fps) {
+    const out = {};
+    const marks = capture.marks;
+    if (!marks) return out;
+    const t = capture.times;
+    const at = (k) => (t ? t[k] - t[0] : k / fps);
+    const last = capture.frames.length - 1;
+    if (marks.standing) out.reference = [at(marks.standing[0]), at(marks.standing[1]) + 1 / fps];
+    if (marks.keep) { out.start = at(marks.keep[0]); out.end = marks.keep[1] >= last ? 0 : at(marks.keep[1]); }
+    return out;
   }
 
   // --- The take's motion, and where to trim ----------------------------------------------------
@@ -922,7 +973,8 @@
              end: end >= n - 1 ? 0 : end / take.fps, moving, still: best[1] > best[0] };
   }
 
-  const api = { LANDMARKS, CONNECTIONS, parseCapture, addHand, timesFrom, resample, despike, pointsCsv, frameRateFrom, prepare, setReference,
+  const api = { LANDMARKS, CONNECTIONS, parseCapture, addHand, timesFrom, resample, despike, pointsSpan, pointsCsv, trimFromMarks, frameRateFrom,
+                prepare, setReference, referenceSpan, keepSpan,
                 pointsAt, retarget, suggestContact, motionProfile, suggestTrim, reduceTrack, rig, solveFrame, landmarks, bodyFrames };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.Mocap = api;

@@ -329,8 +329,11 @@ rtmRoundTrip("a_fa", "taunt", { yaw: 0.3, yUp: true, mirror: false }, { strayHan
 }
 
 // The points round trip (#77): a prepared take written as points (what Blender's add-on
-// reads and writes) and read back must be the same take - the same frames, the same rate,
-// the same standing hips - and retarget the same.
+// reads and writes) and read back. With the bench's sliders as marks, only the standing
+// part to the end of the kept part is written (both ends cut here); read back, it is the
+// same frames (moved as a whole: the first written frame's hips over the origin, the floor
+// from the part written), the marks give the same sliders - the same standing and kept
+// frames - and it retargets the same. Without marks: the whole take, unmarked.
 {
   const lib = libs.get("a_ba");
   const clip = findClip("a_ba", "victorymg");
@@ -341,22 +344,37 @@ rtmRoundTrip("a_fa", "taunt", { yaw: 0.3, yUp: true, mirror: false }, { strayHan
     M.addHand(capture, made.left, "left");
     M.addHand(capture, made.right, "right");
     capture.times = M.timesFrom(made.stamps);
-    const take = M.prepare(capture, { fps: 30 });
-    const back = M.parseCapture(M.pointsCsv(take));
-    const again = M.prepare(back, { fps: 30, reference: [take.reference.start, take.reference.end] });
+    const reference = [0.1, 0.33];
+    const take = M.prepare(capture, { fps: 30, reference });
+    const marks = { reference, start: made.lead, end: take.duration - 0.3 };
+    const span = M.pointsSpan(take, marks);
+    const back = M.parseCapture(M.pointsCsv(take, marks));
+    const sliders = M.trimFromMarks(back, 30);
+    const again = M.prepare(back, { fps: 30, reference: sliders.reference, despike: 0 });
+    const shift = [0, 1, 2].map((c) => again.frames[0][c] - take.frames[span.from][c]);
     let worst = 0;
-    take.frames.forEach((f, k) => { for (let s = 0; s < f.length; s++) worst = Math.max(worst, Math.abs(f[s] - again.frames[k][s])); });
-    const a = M.retarget(take, lib.bones, { start: made.lead, stance }), b = M.retarget(again, lib.bones, { start: made.lead, stance });
+    again.frames.forEach((f, k) => {
+      for (let s = 0; s < f.length; s++) worst = Math.max(worst, Math.abs(f[s] - take.frames[k + span.from][s] - shift[s % 3]));
+    });
+    const rs = M.referenceSpan(again, sliders.reference), ks = M.keepSpan(again, sliders.start, sliders.end);
+    const same = rs[0] === span.standing[0] - span.from && rs[1] === span.standing[1] - span.from &&
+      ks[0] === span.keep[0] - span.from && ks[1] === span.keep[1] - span.from;
+    const a = M.retarget(take, lib.bones, { start: marks.start, end: marks.end, stance });
+    const b = M.retarget(again, lib.bones, { start: sliders.start, end: sliders.end, stance });
     let off = 0;
     for (let t = 0; t <= Math.min(a.length, b.length); t += 1 / 30) {
       const pa = posed(lib.bones, a, t), pb = posed(lib.bones, b, t);
       pa.forEach((w, i) => { off = Math.max(off, Math.hypot(...w.p.map((v, c) => v - pb[i].p[c]))); });
     }
-    const ok = back.format === "points" && back.times && again.frames.length === take.frames.length && again.fps === 30 &&
-      worst < 1e-4 && Math.abs(again.hipHeight - take.hipHeight) < 1e-4 && off < 0.002;
+    const whole = M.parseCapture(M.pointsCsv(take));
+    const ok = back.format === "points" && back.times && span.from > 0 && span.to < take.frames.length - 1 &&
+      again.frames.length === span.to - span.from + 1 && again.fps === 30 && same && worst < 1e-4 &&
+      Math.abs(again.hipHeight - shift[2] - take.hipHeight) < 1e-4 && off < 0.002 && whole.frames.length === take.frames.length && !whole.marks;
     if (!ok) failed++;
-    console.log((ok ? "ok  " : "FAIL") + " points round trip: " + again.frames.length + "/" + take.frames.length + " frames, points off by " +
-                (worst * 1000).toFixed(3) + " mm, retargeted joints by " + (off * 1000).toFixed(2) + " mm; format " + back.format);
+    console.log((ok ? "ok  " : "FAIL") + " points round trip: frames " + span.from + "-" + span.to + " of " + take.frames.length + " written (standing " +
+                span.standing.join("-") + ", keep " + span.keep.join("-") + "), " + again.frames.length + " back, the same sliders " + (same ? "yes" : "NO") +
+                ", points off by " + (worst * 1000).toFixed(3) + " mm, retargeted joints by " + (off * 1000).toFixed(2) + " mm; unmarked " +
+                whole.frames.length + " frames" + (whole.marks ? " WITH marks" : ", no marks"));
   }
 }
 

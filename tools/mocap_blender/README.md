@@ -25,20 +25,23 @@ entries last until Blender closes.)
 ## 1. Out of the bench
 
 In the bench's **Mocap** tab drop the recording's folder. Check the green
-(standing) and shaded (kept) parts of the graph, then press **Export points
-for Blender**: `<take>_points.csv` lands in your downloads. It is the whole
-take as the bench cleaned it - an even 30 frames a second, glitches removed,
-upright, facing forward, in metres.
+(standing) and shaded (kept) parts of the graph - the sliders under it move
+them - then press **Export points for Blender**: `<take>_points.csv` lands in
+your downloads. It is the take as the bench cleaned it - an even 30 frames a
+second, glitches removed, upright, facing forward, in metres - from the start
+of the standing part to the end of the kept part, both marked.
 
 ## 2. Into Blender
 
 1. **File › New › General**; select everything (**A**) and delete it (**X**).
 2. **File › Import › nwn5e mocap points (.csv)** › pick the file.
 3. Front view (**numpad 1**) faces the performer; **Home** frames it; **Space**
-   plays. The take arrives in a collection called `mocap <file>`.
+   plays the kept part (the timeline's **Start** / **End**). The take arrives
+   in a collection called `mocap <file>`.
 
-**Keep the whole take**: the standing part at its start comes back to the
-bench, which measures every turn from it. Trim in the bench afterwards.
+**The standing part** sits before the kept part, between the timeline markers
+`standing` and `standing end`. Leave its keys in: the bench measures every
+turn from it. Smoothing it along with the rest is fine.
 
 ## 3. Open the Graph Editor
 
@@ -96,16 +99,20 @@ pops. The take's hands don't turn (their tracking failed): moving and keying
 
 ## 8. Back to the bench
 
-1. **File › Export › nwn5e mocap points (.csv)** - it suggests
-   `<take>_points_clean.csv`. Leave **Only the scene's frame range** off.
-2. **File › Save** the .blend too, to come back to it.
-3. Drop the CSV on the bench's Mocap tab. Its glitch filter starts **off**
-   (it would "fix" a point you moved on purpose). Trim, blend, pick the
-   animation it's for, **Save for every body**; the next game start builds it.
+1. To trim tighter, narrow the timeline's **Start** / **End** first: the kept
+   part follows them.
+2. **File › Export › nwn5e mocap points (.csv)** - it suggests
+   `<take>_points_clean.csv`. Every frame goes, the standing part and the kept
+   part marked.
+3. **File › Save** the .blend too, to come back to it.
+4. Drop the CSV on the bench's Mocap tab. The standing and keep sliders come
+   back from its marks, and its glitch filter starts **off** (it would "fix" a
+   point you moved on purpose). Blend, pick the animation it's for, **Save for
+   every body**; the next game start builds it.
 
 ## Files
 
 - `nwn5e_mocap_points.py` - the add-on (import, export).
-- `check.py` - checks it without a window: imports a points CSV, edits a key,
-  exports, compares -
+- `check.py` - checks it without a window: imports a marked points CSV, edits
+  a key, exports, compares, then narrows the range and exports again -
   `blender --background --factory-startup --python tools/mocap_blender/check.py -- <points.csv> <out folder>`.

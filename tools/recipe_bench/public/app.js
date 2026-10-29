@@ -495,11 +495,14 @@
     }
   }
 
-  // The take's points, for Blender (#77): downloaded as <take>_points.csv.
+  // The take's points, for Blender (#77): downloaded as <take>_points.csv - from the standing
+  // part to the kept part's end, both marked (MC.pointsCsv).
   function exportPoints() {
     if (!mc.take) { setMcStatus("Drop a capture first.", "bad"); return; }
     const base = (mc.fileName.split(":")[0] || "take").replace(/\.csv.*$/i, "").replace(/[^A-Za-z0-9_.-]+/g, "_").replace(/_points$/, "");
-    const blob = new Blob([MC.pointsCsv(mc.take)], { type: "text/csv" });
+    const marks = { reference: mc.ref, start: mc.start, end: mc.end };
+    const span = MC.pointsSpan(mc.take, marks);
+    const blob = new Blob([MC.pointsCsv(mc.take, marks)], { type: "text/csv" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = base + "_points.csv";
@@ -507,8 +510,9 @@
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(link.href), 5000);
-    setMcStatus("Exported " + link.download + " (" + mc.take.frames.length + " frames, " + mc.take.fps + " a second) to your downloads: " +
-      "in Blender, File > Import > nwn5e mocap points.", "good");
+    setMcStatus("Exported " + link.download + " to your downloads: " + (span.from / mc.take.fps).toFixed(2) + "-" + (span.to / mc.take.fps).toFixed(2) +
+      " s of the take, from the standing part to the end of the kept part (" + (span.to - span.from + 1) + " frames, " + mc.take.fps +
+      " a second). In Blender, File > Import > nwn5e mocap points: it plays the kept part.", "good");
   }
 
   // The suggested standing window and part to keep (MC.suggestTrim) - the take prepared
@@ -525,11 +529,16 @@
     if (!mc.capture) return;
     mc.take = MC.prepare(mc.capture, { fps: mc.fps, smoothing: mc.smoothing, reference: mc.ref, despike: mc.despike ? 1 : 0 });
     let suggested = "";
-    if (mc.fresh) {  // a new capture: the standing window and the trim suggested
+    if (mc.fresh) {  // a new capture: the standing window and the trim - a points file's marks, else suggested
       mc.fresh = false;
-      applySuggestedTrim();
+      const marked = MC.trimFromMarks(mc.capture, mc.fps);
+      if (!marked.reference || marked.start === undefined) applySuggestedTrim();
+      if (marked.reference) mc.ref = marked.reference;
+      if (marked.start !== undefined) { mc.start = marked.start; mc.end = marked.end; mc.contact = null; }
       mc.take = MC.prepare(mc.capture, { fps: mc.fps, smoothing: mc.smoothing, reference: mc.ref, despike: mc.despike ? 1 : 0 });
-      suggested = "Suggested: standing " + mc.ref[0].toFixed(2) + "-" + mc.ref[1].toFixed(2) + " s, keep " + mc.start.toFixed(2) + "-" +
+      const from = marked.reference && marked.start !== undefined ? "From the points file's marks" : marked.reference || marked.start !== undefined
+        ? "From the points file's marks and suggested" : "Suggested";
+      suggested = from + ": standing " + mc.ref[0].toFixed(2) + "-" + mc.ref[1].toFixed(2) + " s, keep " + mc.start.toFixed(2) + "-" +
         (mc.end > 0 ? mc.end.toFixed(2) + " s" : "the end") + " (the graph below; change them with the sliders).";
     }
     mc.profile = MC.motionProfile(mc.take);

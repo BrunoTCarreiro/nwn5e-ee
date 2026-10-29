@@ -3797,6 +3797,20 @@ and starts with its glitch filter off for it - run on an edited take it "fixed" 
 ankle lifted on purpose. Checks: tools/mocap_blender/check.py in Blender without a window (the owner's take:
 33 points, every frame keyed, the figure on its empties, an edited key back exactly, the rest unchanged);
 mocap_check.js's points round trip (frames back within 0.01 mm, the retarget within 0.04 mm).
+*#77 fix (2026-10-29; owner: "the export for blender option on the bench seems like it exports the whole
+animation, not just the selected part"; offered (a) as is, (b) the standing part to the kept part's end,
+marked, (c) the kept part only with the standing pose as a hidden row - "go for b"):* replaces "the whole
+take" above. The export runs from the standing window's first frame to the kept part's last (pointsSpan:
+referenceSpan / keepSpan, the frame maths prepare, setReference and the retarget now share), with columns
+`standing` / `keep` (1 on their frames). The add-on stores the standing part, plays the kept part (the
+scene's range), puts markers "standing" / "standing end" on the timeline, and writes the standing part back
+as it came and the kept part as the scene's range (narrowing it trims); its "Only the scene's frame range"
+tick is gone. The bench sets its standing and keep sliders from a points file's marks (trimFromMarks) instead
+of suggesting them. The owner's take: 648 of 780 frames written (0.40-21.97 s). Checks: check.py (the
+marks in, the scene on the kept part, every value and mark back, a narrowed range comes back as the kept
+part); mocap_check.js (both ends cut, the same standing and kept frames back, retarget within 0.05 mm); the
+page in a headless browser (keep start moved to 5.00 s, exported, loaded back as 4.60 s). 5 deliberate
+breaks caught.
 *Capture habits (told to the owner):* two or more cameras; a T-pose at each
 take's start; cycles performed on the spot; a prop of the weapon's length; a
 clap or stomp at the contact moment. Rage: 2-3 s, relaxed to a fighting stance.
