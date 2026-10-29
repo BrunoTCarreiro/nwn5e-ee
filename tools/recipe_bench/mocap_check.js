@@ -251,6 +251,8 @@ function makeRtm(bones, clip, opt, stance, extra) {
     const pose = t < lead ? posed(bones, stance, 0) : posed(bones, clip, Math.min(t - lead, clip.length));
     const pt = landmarksFrom(bones, pose, restPose);
     if (extra.legRatio) reproportion(pt, extra.legRatio);
+    if (extra.kneeBack) for (const side of ["left", "right"]) pt[side + "_knee"] = add(pt[side + "_knee"], [0, -extra.kneeBack, 0]);
+    if (extra.footBack) { const heel = pt.right_heel; pt.right_heel = pt.right_foot_index; pt.right_foot_index = heel; }
     if (extra.travel && t >= lead) { const d = extra.travel(t - lead); for (const n in pt) pt[n] = [pt[n][0] + d[0], pt[n][1] + d[1], pt[n][2]]; }
     for (const n of M.LANDMARKS) {
       if (RTM_SKIP.has(n)) continue;
@@ -427,6 +429,30 @@ const track = (bones, clip, index, step) => {
   return out;
 };
 const wander = (ps) => Math.max(...ps.map((p) => Math.hypot(p[0] - ps[0][0], p[1] - ps[0][1])));
+// How far a doll's knee sits behind its hip-ankle line at worst (m): behind along the hips' forward
+// AND along its foot's (when the foot is flat) - a turned-out leg's knee follows its foot, sideways
+// of the hips: not backwards. Between `from` and `to` s (the blends left out: a mix toward NWN's
+// stance can lean a knee back a centimetre for a frame).
+function kneesBehind(bones, clip, from, to) {
+  const bi = (n) => bones.findIndex((b) => b.name.toLowerCase() === n);
+  const rest = posed(bones, null, 0);
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const scale = (a, s) => [a[0] * s, a[1] * s, a[2] * s], norm = (a) => scale(a, 1 / Math.max(Math.hypot(...a), 1e-9));
+  let worst = -Infinity;
+  for (let t = from || 0; t <= (to === undefined ? clip.length : to) + 1e-6; t += 1 / 30) {
+    const p = posed(bones, clip, t);
+    const across = sub(p[bi("rthigh_g")].p, p[bi("lthigh_g")].p), hips = [-across[1], across[0], 0];
+    for (const s of ["l", "r"]) {
+      const [th, sh, ft] = [bi(s + "thigh_g"), bi(s + "shin_g"), bi(s + "foot_g")];
+      const u = norm(sub(p[ft].p, p[th].p));
+      const behind = (way) => { const f = norm(sub(way, scale(u, dot(way, u)))); return -dot(sub(p[sh].p, p[th].p), f); };
+      const r = rest[ft].q, toes = rotate(qmul(p[ft].q, [-r[0], -r[1], -r[2], r[3]]), [0, 1, 0]);
+      const flat = Math.abs(toes[2]) < 0.6 * Math.hypot(toes[0], toes[1]);
+      worst = Math.max(worst, flat ? Math.min(behind(hips), behind([toes[0], toes[1], 0])) : behind(hips));
+    }
+  }
+  return worst;
+}
 {
   // Locks: getlow with thighs 1.25x, shins 0.75x - the feet slide on NWN's legs unless locked.
   const m = madeTake("a_ba", "getlow", { legRatio: 1.25 });
@@ -447,6 +473,39 @@ const wander = (ps) => Math.max(...ps.map((p) => Math.hypot(p[0] - ps[0][0], p[1
                 (s1 * 1000).toFixed(2) + " mm locked (" + (s2 * 100).toFixed(2) + " cm with the keys reduced as saved; " + held.locks.length +
                 " locks, out of reach " + (reach * 100).toFixed(1) + " cm); plants cover " +
                 (covered("left") * 100).toFixed(0) + "% / " + (covered("right") * 100).toFixed(0) + "% of the clip");
+  }
+}
+{
+  // Knees: a standing take (pause1 - its knees about 6 cm ahead of the hip-ankle line) with them
+  // moved 10 cm back, about 4 cm behind (a webcam's straight leg, overdone): the doll's never bend
+  // backwards - free or locked (a lock bends the knee over the toes).
+  const m = madeTake("a_ba", "pause1", { kneeBack: 0.1 });
+  if (m) {
+    const opt = { start: m.made.lead, stance: m.stance, place: "return" };
+    const free = kneesBehind(m.lib.bones, M.retarget(m.take, m.lib.bones, opt));
+    const locked = kneesBehind(m.lib.bones, M.retarget(m.take, m.lib.bones, Object.assign({ plants: M.suggestPlants(m.take) }, opt)));
+    const ok = free <= 0.005 && locked <= 0.005;
+    if (!ok) failed++;
+    console.log((ok ? "ok  " : "FAIL") + " knees: pause1 with the knees moved 10 cm back - the doll's behind the hip-ankle line by " + (free * 100).toFixed(1) +
+                " cm at worst, " + (locked * 100).toFixed(1) + " cm locked");
+  }
+}
+{
+  // Knees: a flat foot facing backwards (the right one turned round, pause1) doesn't say which way
+  // the knee bends - the hips do: its knee keeps pause1's bend, not straightened against the foot.
+  const m = madeTake("a_ba", "pause1", { footBack: true });
+  if (m) {
+    const got = M.retarget(m.take, m.lib.bones, { start: m.made.lead, stance: m.stance, place: "return" });
+    const knee = m.bone("rshin_g"), root = m.bone("rootdummy");
+    let worst = 0;
+    for (let t = 0; t <= Math.min(got.length, m.clip.length) + 1e-6; t += 1 / 30) {
+      const a = posed(m.lib.bones, m.clip, t), b = posed(m.lib.bones, got, t);
+      const da = [0, 1, 2].map((c) => a[knee].p[c] - a[root].p[c]), db = [0, 1, 2].map((c) => b[knee].p[c] - b[root].p[c]);
+      worst = Math.max(worst, Math.hypot(da[0] - db[0], da[1] - db[1], da[2] - db[2]));
+    }
+    const ok = worst < 0.03;
+    if (!ok) failed++;
+    console.log((ok ? "ok  " : "FAIL") + " knees: pause1 with the right foot turned round - the knee where pause1's is, off by " + (worst * 100).toFixed(1) + " cm at worst");
   }
 }
 {
@@ -562,6 +621,26 @@ if (recording) {
     }
     const [k0, k1] = M.keepSpan(held, trim.start, trim.end);
     const blendIn = 0.2, blendOut = 0.3, fps = held.fps;
+    {
+      // Knees (#79): the capture's often sit behind the hip-ankle line (webcams); no body's do.
+      let worst = -Infinity, at = "";
+      for (const body of ["a_ba", "a_fa", "a_da", "a_dfa", "a_ba2", "a_fa2", "a_da2", "a_dfa2"]) {
+        const lib = libs.get(body);
+        if (!lib) continue;
+        for (const locked of [false, true]) {
+          const clip = M.retarget(held, lib.bones, { start: trim.start, end: trim.end, stance: findClip(body, "pause1"), blendIn: 0.2, blendOut: 0.3,
+            plants: locked ? plants : null });
+          const b = kneesBehind(lib.bones, clip, 0.2, clip.length - 0.3);  // between the blends
+          if (b > worst) { worst = b; at = body + (locked ? " locked" : ""); }
+        }
+      }
+      // Within 2 cm of the line is a straight leg to the eye (about 2.5 degrees): the doll's hips face a
+      // degree or two off the capture's, enough to put a straight knee a centimetre either side.
+      const ok = worst <= 0.02;
+      if (!ok) failed++;
+      console.log((ok ? "ok  " : "FAIL") + " recording knees: behind the hip-ankle line by " + (worst * 100).toFixed(1) +
+                  " cm at worst on the 8 bodies, free and locked, between the blends (" + at + ")");
+    }
     for (const place of ["return", "inplace"]) {
       let worst = 0, worstAt = "", reached = 0, total = 0, free = 0;
       const ground = M.placeGround(held, k0, k1, place);

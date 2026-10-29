@@ -3850,6 +3850,18 @@ times in a readout beside the marker's take time and frame) instead of removing 
 marker within 8 px (the marker thickens) and else to whole frames; Delete / Remove plant takes it out. The retarget
 gained clipTime (a take time in the result). Checked in a headless browser (layout, frame steps by button and key,
 seek, add, select, an end snapped onto the marker, lengthen, Delete, the Recipe tab hides it).
+*Accepted TL1-TL8 (owner, 2026-10-29: "TL1 to TL8 pass").*
+*#79 knees (2026-10-29; owner: "how do I prevent knees from bending backwards on the target doll?"):* measured first - the
+take's knee points sit behind the hip-ankle line by over 1 cm in 36-43% of frames (up to 10 cm: webcams on a straight
+leg), the doll copied it, and the locks made the worst cases worse (bending the way the knee leaned): 16.3 cm at worst on
+the 8 bodies. Now: straightenKnees puts a knee behind the line onto it (a straight leg, never a backward one) before the
+retarget aims the leg, and legIK bends a locked knee forward. "Forward" is kneeWay: the hips' forward, turned halfway to
+the foot's when the foot is flat and faces within 100 degrees of the hips (by the foot alone, nwstab's pointed back foot -
+its heel-to-toe facing backwards - straightened a knee bent 25 cm forward). The take: 1.3 cm at worst between the blends,
+free and locked, on the 8 bodies (a straight leg - under 2 degrees; the check allows 2 cm, about 2.5 degrees); a blend into
+the stance can lean a knee back a centimetre for a frame. Checks: pause1 with its knees moved 10 cm back (the old code:
+3.3 cm behind; now straight), pause1 with a foot turned round (the knee keeps its bend), the take; 3 deliberate breaks
+caught.
 *Capture habits (told to the owner):* two or more cameras; a T-pose at each
 take's start; cycles performed on the spot; a prop of the weapon's length; a
 clap or stomp at the contact moment. Rage: 2-3 s, relaxed to a fighting stance.

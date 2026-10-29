@@ -57,7 +57,10 @@ animation for nwn5e:
    **Delete** (or **Remove plant**) takes it out. With **Lock planted feet**, a
    planted foot stays on its spot on every body - that body's leg bends to keep it
    there (a ring under the foot in the preview); red: out of the leg's reach on
-   this body, the foot slides that much (listed under the timeline). **The body**: *moves with its steps, back to its spot in the
+   this body, the foot slides that much (listed under the timeline). Knees never
+   bend backwards: a capture's knee behind the hip-ankle line (webcams put a
+   straight leg's knee a few centimetres either side) is set on the line, and a
+   lock bends the knee forward. **The body**: *moves with its steps, back to its spot in the
    blend-out* (one-off animations), or *stays on its spot* (walk cycles, loops:
    the take's travel is taken out, the game moves the creature).
 5. **Save for every body**: the take is retargeted to all eight body libraries and

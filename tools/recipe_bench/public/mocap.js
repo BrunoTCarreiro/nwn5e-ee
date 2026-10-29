@@ -579,6 +579,36 @@
     L.feet = mid(L.lan, L.ran);
     return L;
   }
+  // The way a knee bends forward (#79): the hips' forward, turned halfway toward the foot's
+  // when the foot is flat enough to say and faces within 100 degrees of the hips (a turned-out
+  // foot's knee follows it; a pointed foot's heel-to-toe can face backwards - nwstab's back leg,
+  // its toe 20 cm under its heel, the knee 25 cm ahead along the hips).
+  function kneeWay(lhip, rhip, foot) {
+    const hips = norm(cross([0, 0, 1], sub(rhip, lhip)));
+    const flat = [foot[0], foot[1], 0];
+    if (len(flat) > 0.02 && Math.abs(foot[2]) < 0.6 * len(flat)) {
+      const f = norm(flat);
+      if (dot(f, hips) > -0.17) return norm(add(hips, f));
+    }
+    return hips;
+  }
+
+  // Knees don't bend backwards (#79): a knee point behind the hip-ankle line - along kneeWay -
+  // goes onto the line: the leg straight, never bent the wrong way. Webcams put a straight leg's
+  // knee a few centimetres either side of the line (the owner's take: behind by over 1 cm in
+  // about 40% of frames, up to 10 cm), and the doll's knee bent backwards with it.
+  function straightenKnees(L) {
+    for (const s of ["l", "r"]) {
+      const H = L[s + "hip"], K = L[s + "kn"], F = L[s + "an"];
+      if (![H, K, F, L.lhip, L.rhip, L[s + "toe"], L[s + "heel"]].every(valid)) continue;
+      const u = norm(sub(F, H));
+      const way = kneeWay(L.lhip, L.rhip, sub(L[s + "toe"], L[s + "heel"]));
+      const f = norm(sub(way, scale(u, dot(way, u))));
+      if (len(f) < 0.5) continue;
+      const ahead = dot(sub(K, H), f);  // the knee's offset from the line along f (f is square to it)
+      if (ahead < 0) L[s + "kn"] = sub(K, scale(f, ahead));
+    }
+  }
   // Right / forward / up frames (a rotation) of the pelvis, the torso and the head.
   function frameOf(x, upHint) {
     const xr = norm(x);
@@ -671,6 +701,7 @@
   // One frame's local rotations (by bone index) and the root's position.
   function solveFrame(R, f, ref) {
     const L = landmarks(f);
+    straightenKnees(L);
     const frames = bodyFrames(L, ref.waist, ref.frames.pelvis);
     const local = new Map();
     const world = R.world.slice();
@@ -847,11 +878,14 @@
     const d = Math.max(Math.abs(l1 - l2) + 1e-4, Math.min(l1 + l2 - 1e-4, want));
     const u = norm(sub(T, H));
     let v = sub(sub(K, H), scale(u, dot(sub(K, H), u)));
-    if (len(v) < 1e-4) {
-      const pelvis = R.index.get("pelvis_g");
-      const fwd = rotate(pelvis !== undefined ? W[pelvis] : IDENTITY, [0, 1, 0]);
-      v = sub(fwd, scale(u, dot(fwd, u)));
-    }
+    // The knee bends forward (kneeWay: the hips' forward, toward the toes) - never behind the
+    // hip-ankle line (#79): a leg straight in the capture, or leaning back a little, would fold
+    // the wrong way.
+    const lt = R.index.get("lthigh_g"), rt = R.index.get("rthigh_g");
+    const toes = rotate(W[ft], rotate(qconj(R.world[ft]), [0, 1, 0]));
+    const way = lt !== undefined && rt !== undefined ? kneeWay(X[lt], X[rt], toes) : toes;
+    const ahead = sub(way, scale(u, dot(way, u)));
+    if ((len(v) < 1e-4 || dot(v, ahead) < 0) && len(ahead) > 1e-4) v = ahead;
     v = norm(v);
     const along = (l1 * l1 - l2 * l2 + d * d) / (2 * d);
     const K2 = add(add(H, scale(u, along)), scale(v, Math.sqrt(Math.max(0, l1 * l1 - along * along))));
