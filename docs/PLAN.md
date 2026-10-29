@@ -3925,6 +3925,20 @@ window is placed by that). The tooltip in paragraphs: "Focus: 14 of 18 points" a
 a line; "Uncanny Metabolism: ready"; "Perfect Focus". (The owner's 0.57.0 log: the quickbar's +0xa0 set while
 it showed; window 1078 then 1638 x 904, GUI scale 1.0.)
 
+*0.57.2 (owner: "either reduce the resource box padding, remove the semiopaque background or move the box
+slightly up as it's just a bit over the Talk input box"; and "if the game window resolution is something that
+would be low enough that the resource panel would overlap the chat window it should be repositioned and placed
+underneath the action queue panel"):* moved up. Read from the game: the Talk line (CGuiInGameChatPrompt,
+PNL_CHAT_PROMPT, placed at (0, 36), always shown in game - its HideChatPrompt has no callers) is a band the
+window's full width, 33 to 56 GUI units over the bottom edge, so the card's bottom now sits 4 over 56 (0.57.1's
+was at 40, 16 into it). The chat log (CGuiInGameChatWindow, PNL_CHAT; EDIT_CHAT_MAIN, or EDIT_CHAT_LEFT /
+EDIT_CHAT_RIGHT split) is 720 GUI units wide from the left edge at any window size, its bottom on the Talk
+line, only its height draggable (ui.chat.pane.primary.height; the owner's 2.98 - about 298). Where the card's
+left edge would come within 8 of the chat log's right edge (the window narrower than about 1460 px at scale
+1.0 for a Monk's Focus card), the card goes centred under the action queue strip instead - below the tiles
+(4 + 122 x s) and the 36 px a leaving tile slides (rules::PlaceHud; the strip's sizes now in
+rules/queue_strip.h, shared). Checked again every 2 s with the window's size, so a resize moves it.
+
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
 Walked through one by one (issue, what NWN does, what 2024 does, what to

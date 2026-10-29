@@ -25,7 +25,15 @@
 //   pixels, its w / h GUI units (x s). 0.57.1 (owner: "have the resource bar be
 //   aligned with the right edge of the quickbar"): the card's right edge on the
 //   bar's right edge (0.57.0 started it right of the chat window - EDIT_CHAT_MAIN,
-//   720 GUI units from the left edge, over the bar's left part).
+//   720 GUI units from the left edge, over the bar's left part). 0.57.2
+//   (owner: "move the box slightly up as it's just a bit over the Talk input
+//   box"; "if the game window resolution is ... low enough that the resource
+//   panel would overlap the chat window it should be ... placed underneath the
+//   action queue panel"): the card's bottom over the Talk line - a band the
+//   window's full width, 33-56 GUI units over the bottom (CGuiInGameChatPrompt)
+//   - and, where its left edge would reach the chat log (720 GUI units wide,
+//   fixed), centred under the action queue strip, below where its leaving
+//   tiles slide (rules::PlaceHud).
 // - The card: NUI draws with Nuklear - the window's padding 4 and the group's 4
 //   (the queue strip's 108 tile left its text 92), the group clipping its
 //   children's draw lists - so the label's draw list starts 8 in from the
@@ -68,9 +76,7 @@ constexpr float kGainSeconds = 0.25f;   // a regained one fades in
 constexpr float kWindowPad = 4.0f;      // the window's edge -> the group (the card's edge)
 constexpr float kGroupPad = 4.0f;       // the group -> the label (the draw list's origin)
 constexpr float kWindowSlack = 2.0f * (kWindowPad + kGroupPad);
-constexpr float kAboveQuickbar = 4.0f;  // GUI units
-constexpr float kQuickbarWidth = 800.0f;
-constexpr float kQuickbarHeight = 36.0f;
+constexpr float kChatWidth = 720.0f;  // EDIT_CHAT_MAIN, from the left edge (GUI units)
 constexpr size_t kQuickbarShown = 0xa0;  // CPanelQuickBar: non-null while the bar shows (GetGuiPosition's test)
 
 // The client's in-game GUI (rules_quickbar.cpp's chain): CAppManager +0 CClientExoApp
@@ -280,15 +286,29 @@ std::string PanelLayout(const rules::HudLayout& layout, const std::vector<rules:
          "\"edge_constraint\":null,\"font\":\"\"}";
 }
 
-// Where the panel's window goes (window pixels): its card's right edge on the
-// quickbar's right edge, its bottom kAboveQuickbar over the bar.
+// Where the panel's window goes (window pixels): the card where rules::PlaceHud
+// puts it (on the quickbar's right edge over the Talk line, or under the action
+// queue strip when that would be over the chat), the window kWindowPad around it.
+bool g_under_strip_logged = false;
+int g_place_logs = 0;
+
 void PanelPosition(float window_w, float window_h, float* x, float* y) {
-  const float s = g_gui_s;
-  const float bar_right = g_gui_w / 2.0f + kQuickbarWidth / 2.0f * s;
-  float left = bar_right - (window_w - kWindowPad) * s;
-  if (left < 0.0f) left = 0.0f;
-  *x = left;
-  *y = g_gui_h - (kQuickbarHeight + kAboveQuickbar + window_h - kWindowPad) * s;
+  rules::HudScreen screen;
+  screen.width = g_gui_w;
+  screen.height = g_gui_h;
+  screen.scale = g_gui_s;
+  screen.chat_right = kChatWidth * g_gui_s;
+  const rules::HudSpot spot = rules::PlaceHud(screen, window_w - 2.0f * kWindowPad, window_h - 2.0f * kWindowPad);
+  *x = spot.x - kWindowPad * g_gui_s;
+  *y = spot.y - kWindowPad * g_gui_s;
+  if (spot.under_strip != g_under_strip_logged && g_place_logs < 12) {
+    ++g_place_logs;
+    Log("hud: the resource panel %s (window %.0f x %.0f, GUI scale %.2f)",
+        spot.under_strip ? "under the action queue strip - over the quickbar it would cover the chat"
+                         : "over the quickbar's right end",
+        g_gui_w, g_gui_h, g_gui_s);
+  }
+  g_under_strip_logged = spot.under_strip;
 }
 
 void ClosePanel() {

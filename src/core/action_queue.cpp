@@ -502,10 +502,10 @@ void Publish(uint32_t player, const std::vector<Item>& items) {
 }
 
 constexpr float kTileWidth = 108.0f;
-constexpr float kTileHeight = 122.0f;  // the icon and three lines
-constexpr float kTop = 4.0f;
+constexpr float kTileHeight = rules::kQueueTileHeight;  // the icon and three lines
+constexpr float kTop = rules::kQueueTileTop;
 constexpr int kRevealFrames = 3;      // a new tile shows nothing until its geometry has applied
-constexpr float kExitDrop = 36.0f;    // a leaving tile slides this far down
+constexpr float kExitDrop = rules::kQueueExitDrop;  // a leaving tile slides this far down
 constexpr float kExitSeconds = 0.4f;
 constexpr float kEaseRate = 14.0f;    // per second: how fast a tile closes on its slot
 

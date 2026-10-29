@@ -36,6 +36,12 @@ QueueStripCount QueueStripSlots(int queued);
 constexpr float kQueueSlotWidth = 112.0f;
 constexpr float kQueueMoreWidth = 48.0f;
 constexpr float kQueueStripHeight = 124.0f;
+// The client's animated tiles (core/action_queue.cpp): a tile's top (window
+// pixels), its height (GUI units), how far a leaving one slides down (window
+// pixels) - the resource panel keeps clear of them (rules/hud_layout.h).
+constexpr float kQueueTileTop = 4.0f;
+constexpr float kQueueTileHeight = 122.0f;  // the icon and three lines
+constexpr float kQueueExitDrop = 36.0f;
 // The strip's width for `shown` items (and the "+N" when `more` > 0).
 float QueueStripWidth(int shown, int more);
 

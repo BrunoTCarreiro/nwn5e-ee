@@ -1,5 +1,7 @@
 #include "rules/hud_layout.h"
 
+#include "rules/queue_strip.h"
+
 namespace rules {
 
 namespace {
@@ -59,6 +61,21 @@ std::string HudShape(const std::vector<HudPool>& pools) {
     shape += ";";
   }
   return shape;
+}
+
+HudSpot PlaceHud(const HudScreen& screen, float card_w, float card_h) {
+  const float s = screen.scale > 0.0f ? screen.scale : 1.0f;
+  HudSpot spot;
+  const float bar_right = screen.width / 2.0f + kQuickbarWidth / 2.0f * s;
+  spot.x = bar_right - card_w * s;
+  spot.y = screen.height - (kQuickbarHeight + kTalkLineHeight + kHudAbove + card_h) * s;
+  if (spot.x < screen.chat_right + kHudClearOfChat * s) {
+    spot.under_strip = true;
+    spot.x = (screen.width - card_w * s) / 2.0f;
+    spot.y = kQueueTileTop + kQueueTileHeight * s + kQueueExitDrop + kHudAbove * s;
+  }
+  if (spot.x < 0.0f) spot.x = 0.0f;
+  return spot;
 }
 
 float HudFade(float alpha, float target, float dt, float seconds) {
