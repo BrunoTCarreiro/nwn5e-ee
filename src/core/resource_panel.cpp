@@ -22,10 +22,15 @@
 //   (CPanelQuickBar::Reposition 0x860010: SetPositionScreen((gui width - 800)
 //   / 2, 0); Camera::UpscaleViewport's sceneGUI_PNL_QUICK_BAR branch;
 //   CGuiInGame::GetGuiPosition keeps 36 for it). A NUI window's x / y are window
-//   pixels, its w / h GUI units (x s). The main chat window (EDIT_CHAT_MAIN,
-//   720 GUI units wide from the left edge) sits right above the bar's left part
-//   at almost every width, so the panel starts just clear of it - above the
-//   bar's left part, not over the newest chat lines.
+//   pixels, its w / h GUI units (x s). 0.57.1 (owner: "have the resource bar be
+//   aligned with the right edge of the quickbar"): the card's right edge on the
+//   bar's right edge (0.57.0 started it right of the chat window - EDIT_CHAT_MAIN,
+//   720 GUI units from the left edge, over the bar's left part).
+// - The card: NUI draws with Nuklear - the window's padding 4 and the group's 4
+//   (the queue strip's 108 tile left its text 92), the group clipping its
+//   children's draw lists - so the label's draw list starts 8 in from the
+//   window's edge and the card, 4 past the label on every side, fills the
+//   group: 4 in from the window's edge.
 
 #include "resource_panel.h"
 
@@ -60,12 +65,12 @@ constexpr ULONGLONG kGuiEveryMs = 2000;
 constexpr int kRevealFrames = 3;
 constexpr float kSpendSeconds = 0.45f;  // a spent pip fades out
 constexpr float kGainSeconds = 0.25f;   // a regained one fades in
-constexpr float kWindowSlack = 16.0f;   // the window's and the group's own padding around the content
+constexpr float kWindowPad = 4.0f;      // the window's edge -> the group (the card's edge)
+constexpr float kGroupPad = 4.0f;       // the group -> the label (the draw list's origin)
+constexpr float kWindowSlack = 2.0f * (kWindowPad + kGroupPad);
 constexpr float kAboveQuickbar = 4.0f;  // GUI units
 constexpr float kQuickbarWidth = 800.0f;
 constexpr float kQuickbarHeight = 36.0f;
-constexpr float kChatWidth = 720.0f;
-constexpr float kClearOfChat = 6.0f;
 constexpr size_t kQuickbarShown = 0xa0;  // CPanelQuickBar: non-null while the bar shows (GetGuiPosition's test)
 
 // The client's in-game GUI (rules_quickbar.cpp's chain): CAppManager +0 CClientExoApp
@@ -245,7 +250,8 @@ const std::string kCountColour = Colour(255, 255, 255, 255);
 const std::string kRingColour = Colour(150, 160, 170, 200);
 
 std::string PanelLayout(const rules::HudLayout& layout, const std::vector<rules::HudPool>& pools) {
-  std::string items = Shape(7, Colour(0, 0, 0, 150), true, 1.0f, {0.0f, 0.0f, layout.width, layout.height});
+  std::string items = Shape(7, Colour(0, 0, 0, 150), true, 1.0f,
+                            {-kGroupPad, -kGroupPad, layout.width + 2.0f * kGroupPad, layout.height + 2.0f * kGroupPad});
   for (size_t k = 0; k < layout.pools.size(); ++k) {
     const rules::HudPoolLayout& p = layout.pools[k];
     const int pool = static_cast<int>(k);
@@ -274,20 +280,15 @@ std::string PanelLayout(const rules::HudLayout& layout, const std::vector<rules:
          "\"edge_constraint\":null,\"font\":\"\"}";
 }
 
-// Where the panel goes (window pixels): above the quickbar, from its left end or
-// just clear of the chat window, whichever is further right; kept on the bar.
+// Where the panel's window goes (window pixels): its card's right edge on the
+// quickbar's right edge, its bottom kAboveQuickbar over the bar.
 void PanelPosition(float window_w, float window_h, float* x, float* y) {
   const float s = g_gui_s;
-  const float bar_left = g_gui_w / 2.0f - kQuickbarWidth / 2.0f * s;
   const float bar_right = g_gui_w / 2.0f + kQuickbarWidth / 2.0f * s;
-  float left = bar_left;
-  const float clear = (kChatWidth + kClearOfChat) * s;
-  if (clear > left) left = clear;
-  if (left + window_w * s > bar_right) left = bar_right - window_w * s;  // a narrow window: on the bar still
-  if (left < bar_left) left = bar_left;
+  float left = bar_right - (window_w - kWindowPad) * s;
   if (left < 0.0f) left = 0.0f;
   *x = left;
-  *y = g_gui_h - (kQuickbarHeight + kAboveQuickbar + window_h) * s;
+  *y = g_gui_h - (kQuickbarHeight + kAboveQuickbar + window_h - kWindowPad) * s;
 }
 
 void ClosePanel() {

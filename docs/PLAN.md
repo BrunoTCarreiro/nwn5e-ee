@@ -3917,6 +3917,14 @@ turn it off. **Decided:** "go with the recommendation, do it before testing" - 1
 - *Noted:* the action queue strip places its tiles as if x were in GUI units - right at the owner's GUI scale
   1.0, off-centre at other scales (to fix with the strip's next change).
 
+*0.57.1 (owner, after a look: "have the resource bar be aligned with the right edge of the quickbar and use
+paragraphs to structure the text inside the hover tooltip"):* the card's right edge on the quickbar's right
+edge (NUI is Nuklear: the window's padding 4 and the group's 4 - the strip's 108 tile left its text 92 - and
+the group clips its children's draw lists, so the card fills the group, 4 in from the window's edge, and the
+window is placed by that). The tooltip in paragraphs: "Focus: 14 of 18 points" and what they are; "Costs", one
+a line; "Uncanny Metabolism: ready"; "Perfect Focus". (The owner's 0.57.0 log: the quickbar's +0xa0 set while
+it showed; window 1078 then 1638 x 904, GUI scale 1.0.)
+
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
 Walked through one by one (issue, what NWN does, what 2024 does, what to

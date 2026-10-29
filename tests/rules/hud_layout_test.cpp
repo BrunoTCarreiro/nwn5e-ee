@@ -68,20 +68,27 @@ TEST(HudLayoutPips) {
   CHECK_EQ(HudFade(0.5f, 0.5f, 0.1f, 0.4f) == 0.5f, true);
 }
 
-// The Focus tooltip. Breaks caught: the points or DC missing, Stunning
-// Strike's cost before 5, Superior Defense's before 18, Uncanny Metabolism
-// shown ready once used, the heal's die not the level's Martial Arts die.
+// The Focus tooltip, in paragraphs (0.57.1). Breaks caught: the points or DC
+// missing, Stunning Strike's cost before 5, Superior Defense's before 18,
+// Uncanny Metabolism shown ready once used, the heal's die not the level's
+// Martial Arts die, the paragraphs run together, a cost not on its own line.
 TEST(HudFocusTooltip) {
   const std::string five = FocusTooltip(5, 3, 13, true);
   CHECK_EQ(five.find("3 of 5 points") != std::string::npos, true);
-  CHECK_EQ(five.find("DC 13") != std::string::npos, true);
-  CHECK_EQ(five.find("Stunning Strike 1") != std::string::npos, true);
+  CHECK_EQ(five.find("DC is 13.") != std::string::npos, true);
+  CHECK_EQ(five.find("\nStunning Strike: 1") != std::string::npos, true);
+  CHECK_EQ(five.find("\n\nCosts\nFlurry of Blows: 1 a round in its mode\nPatient Defense: 1\n") != std::string::npos,
+           true);
   CHECK_EQ(five.find("Superior Defense") == std::string::npos, true);
   CHECK_EQ(five.find("Uncanny Metabolism: ready") != std::string::npos, true);
   CHECK_EQ(five.find("d8 + 5") != std::string::npos, true);
   CHECK_EQ(FocusTooltip(4, 4, 12, true).find("Stunning Strike") == std::string::npos, true);
   const std::string eighteen = FocusTooltip(18, 0, 17, false);
-  CHECK_EQ(eighteen.find("Superior Defense 3") != std::string::npos, true);
+  CHECK_EQ(eighteen.find("\nSuperior Defense: 3") != std::string::npos, true);
+  int paragraphs = 1;
+  for (size_t at = eighteen.find("\n\n"); at != std::string::npos; at = eighteen.find("\n\n", at + 2)) ++paragraphs;
+  CHECK_EQ(paragraphs, 4);  // the points, the costs, Uncanny Metabolism, Perfect Focus
+  CHECK_EQ(eighteen.find("\n\nPerfect Focus\n") != std::string::npos, true);
   CHECK_EQ(eighteen.find("used - back on a Long Rest") != std::string::npos, true);
   CHECK_EQ(eighteen.find("Perfect Focus") != std::string::npos, true);
   CHECK_EQ(eighteen.find("d12 + 18") != std::string::npos, true);

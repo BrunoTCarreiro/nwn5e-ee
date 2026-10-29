@@ -515,22 +515,25 @@ int PerfectFocusSpent(int points, int spent) {
 
 int PatientDefenseTempDice(int monk_level) { return HasHeightenedFocus(monk_level) ? 2 : 0; }
 
+// 0.57.1 (owner: "use paragraphs to structure the text inside the hover
+// tooltip"): a heading line per topic, the costs one a line, a blank line
+// between them.
 std::string FocusTooltip(int monk_level, int left, int dc, bool metabolism_ready) {
   const int total = FocusPoints(monk_level);
   std::string tip = "Focus: " + std::to_string(left) + " of " + std::to_string(total) +
-                    " points (one per Monk level) - all back on a Short or Long Rest. Focus save DC " +
-                    std::to_string(dc) + ".\nCosts: Flurry of Blows 1 a round in its mode; Patient Defense 1; "
-                    "Step of the Wind 1";
-  if (HasStunningStrike(monk_level)) tip += "; Stunning Strike 1 (none on a miss)";
-  if (HasDisciplinedSurvivor(monk_level)) tip += "; a failed save rolled again 1";
-  if (HasSuperiorDefense(monk_level)) tip += "; Superior Defense 3";
-  tip += ".";
+                    " points\nOne point per Monk level; all of them come back on a Short or Long Rest. Your Focus "
+                    "save DC is " + std::to_string(dc) + ".";
+  tip += "\n\nCosts\nFlurry of Blows: 1 a round in its mode\nPatient Defense: 1\nStep of the Wind: 1";
+  if (HasStunningStrike(monk_level)) tip += "\nStunning Strike: 1 (none on a miss)";
+  if (HasDisciplinedSurvivor(monk_level)) tip += "\nA failed save rolled again: 1";
+  if (HasSuperiorDefense(monk_level)) tip += "\nSuperior Defense: 3";
   if (HasUncannyMetabolism(monk_level)) {
-    tip += std::string("\nUncanny Metabolism: ") + (metabolism_ready ? "ready" : "used - back on a Long Rest") +
-           ". At a fight's start with half your points spent or Bloodied: every point back and d" +
-           std::to_string(MartialArtsDie(monk_level)) + " + " + std::to_string(monk_level) + " hit points.";
+    tip += std::string("\n\nUncanny Metabolism: ") + (metabolism_ready ? "ready" : "used - back on a Long Rest") +
+           "\nAt a fight's start, with half your points spent or Bloodied: every point back and d" +
+           std::to_string(MartialArtsDie(monk_level)) + " + " + std::to_string(monk_level) +
+           " hit points, once per Long Rest.";
   }
-  if (HasPerfectFocus(monk_level)) tip += "\nPerfect Focus: at a fight's start, 3 or fewer points rise to 4.";
+  if (HasPerfectFocus(monk_level)) tip += "\n\nPerfect Focus\nAt a fight's start, 3 or fewer points rise to 4.";
   return tip;
 }
 
