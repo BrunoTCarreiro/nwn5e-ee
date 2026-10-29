@@ -3882,6 +3882,41 @@ target, each line its own colour; each tile as wide as its longest line (about 7
 don't fit on the screen to the "+N". (0.55.2 capped the client windows' open / close log lines.)
 *Accepted (owner, 2026-10-29: "ok, it's good, monk part 3").*
 
+## Resource panel — decided by the owner (2026-10-29)
+
+The owner, after Monk part 3: "We might need some sort of custom hud element to display focus points".
+Offered (info first): placement (a) above the quickbar's left end, (b) under the queue strip, (c) by the
+portrait; look (a) pips, rows of 10, with "14/18", a spent pip fading out, (b) a bar, (c) an icon and a
+number; scope (a) Focus only, (b) a general class-resources panel, Focus first, later Rage, Second Wind
+and once-per-rest features (Uncanny Metabolism as a dot lit while ready); shown (a) always while the
+character has a pool, (b) in combat or when not full; plus a hover tooltip with the costs and `!hud` to
+turn it off. **Decided:** "go with the recommendation, do it before testing" - 1a, 2a, 3b, 4a.
+
+**Built (0.57.0).** src/core/resource_panel.cpp, src/rules/hud_layout.cpp:
+- *What it shows:* one block per pool the class rules give (AddHudPool; the Monk's Focus from rules_monk.cpp,
+  Uncanny Metabolism its dot from Monk 2): the name, a pip per point - a blue circle under a grey ring, the
+  fill fading out over 0.45 s when spent, back in over 0.25 s - in rows of 10 (more than 40 points: the count
+  alone), "left/total", then each flag's name and dot (gold while ready, an empty ring once used), on a dark
+  card. Hovering it shows the tooltip (rules::FocusTooltip: the points, the DC, the costs at this level,
+  Uncanny Metabolism ready or used, Perfect Focus). `!hud` turns it off and on (record `nwn5e_hud_off`).
+- *How:* the server's side reads the pools for the single-player character every 150 ms and the window's
+  size and GUI scale (GetPlayerDeviceProperty) every 2 s, and hands them over when they change; the client's
+  side keeps one NUI window, rebuilt only when the pools' shape changes (names, totals, flags) - a spend or a
+  rest only recolours pips. A new window shows nothing for three frames (NUI opens it at the screen's centre
+  until its geometry applies), then appears in place. Closed when there is no in-game GUI (the main menu).
+- *Where (read from 89.8193.37):* the quickbar is 800 x 36 GUI units, centred on the bottom edge, scaled by the
+  GUI scale s about its bottom centre (CPanelQuickBar::Reposition 0x860010: SetPositionScreen((gui width -
+  800) / 2, 0); Camera::UpscaleViewport's sceneGUI_PNL_QUICK_BAR branch 0x5c131; CGuiInGame::GetGuiPosition
+  0x6f7b00 keeps 36 for it); nothing moves it, one row shows. A NUI window's x / y are window pixels, its w / h
+  GUI units (x s). The main chat window (EDIT_CHAT_MAIN, 720 GUI units wide from the left edge, its bottom on
+  the bar) sits right above the bar's left part at nearly every width, so the panel starts just right of it -
+  above the bar's left part, not over the newest chat lines (an adjustment to 1a; owner to confirm).
+- *Not yet:* hiding it when the quickbar hides (cutscenes): the bar's +0xa0 (non-null while it shows,
+  GetGuiPosition's test) is logged, not used, until a log confirms it. Rage, Second Wind and the Fighter's
+  and Rogue's once-per-rest features come as their own pools.
+- *Noted:* the action queue strip places its tiles as if x were in GUI units - right at the owner's GUI scale
+  1.0, off-centre at other scales (to fix with the strip's next change).
+
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
 Walked through one by one (issue, what NWN does, what 2024 does, what to

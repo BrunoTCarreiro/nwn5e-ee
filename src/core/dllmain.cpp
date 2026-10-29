@@ -38,6 +38,7 @@ void InstallGrappleRules();
 void InstallRogueRules();
 void InstallCombatOptions();
 void InstallActionQueue();
+void InstallResourcePanel();
 void InstallThiefRules();
 void InstallSkillDcRules();
 void InstallPerceptionRules();
@@ -91,7 +92,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.56.0";
+constexpr const char* kVersion = "0.57.0";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -146,6 +147,7 @@ void Start(HMODULE self) {
   InstallBarbarianRules();
   InstallBarbarianStrikes();
   InstallMonkRules();
+  InstallResourcePanel();  // after the class rules: they give its pools
   InstallRestRules();
   InstallDyingRules();
   InstallLowHpLook();

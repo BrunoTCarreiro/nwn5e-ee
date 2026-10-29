@@ -132,6 +132,7 @@
 #include "movement_rate.h"
 #include "records.h"
 #include "resistance.h"
+#include "resource_panel.h"
 #include "rest.h"
 #include "ruleset.h"
 #include "script_hooks.h"
@@ -553,6 +554,20 @@ uint32_t SuperiorDefenseResistance(void* object) {
 }
 
 // !focus
+// The resource panel (resource_panel.cpp, 0.57.0): Focus, Uncanny Metabolism its dot.
+bool FocusHudPool(void* creature, rules::HudPool* pool) {
+  const int level = MonkLevelOf(StatsOf(creature));
+  const int total = rules::FocusPoints(level);
+  if (total <= 0) return false;
+  const bool metabolism = !engine::GetLocalInt(creature, kVarMetabolismUsed);
+  pool->name = "Focus";
+  pool->left = FocusLeft(creature);
+  pool->total = total;
+  if (rules::HasUncannyMetabolism(level)) pool->flags.push_back({"Metabolism", metabolism});
+  pool->tooltip = rules::FocusTooltip(level, pool->left, FocusDcOf(creature), metabolism);
+  return true;
+}
+
 // !focus; with [debug] test_commands, "!focus left <n>" sets the points left and "!focus reset" gives them all
 // back with Uncanny Metabolism ready (and the next initiative a new fight).
 std::vector<std::string> FocusCommand(void* creature, const std::string& args) {
@@ -754,6 +769,7 @@ void InstallMonkRules() {
                      AddScriptHandler("n5_superior", &SuperiorDefenseScript);
   const bool resistance = AddResistanceProvider(&SuperiorDefenseResistance);
   AddChatCommand("!focus", &FocusCommand);
+  AddHudPool(&FocusHudPool);
   Log("monk: part 3 - %s; Flurry of Blows a point a round; Stunning Strike (a point on a hit, the Focus DC); "
       "Uncanny Metabolism / Perfect Focus at initiative; Disciplined Survivor; %s%s",
       focus ? "Focus points (X6 pool)" : "Focus points NOT kept (no feat-use hooks)",

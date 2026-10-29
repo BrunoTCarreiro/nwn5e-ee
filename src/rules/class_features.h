@@ -7,6 +7,8 @@
 
 #include <stdint.h>
 
+#include <string>
+
 #include <vector>
 
 #include "rules/combat.h"
@@ -351,6 +353,9 @@ bool UncannyMetabolismWanted(int points, int spent, bool bloodied);
 int PerfectFocusSpent(int points, int spent);
 // M5 Heightened Focus (10): Patient Defense's temporary hit points - two Martial Arts dice.
 int PatientDefenseTempDice(int monk_level);  // 0 below 10
+// The resource panel's Focus tooltip (0.57.0): the points, the DC, what each
+// use costs at this level, Uncanny Metabolism ready or used, Perfect Focus.
+std::string FocusTooltip(int monk_level, int left, int dc, bool metabolism_ready);
 
 // Save proficiencies class features give (whatever the first class): Slippery Mind's.
 bool ClassFeatureSaveProficiency(const std::vector<ClassLevels>& classes, Ability ability);
