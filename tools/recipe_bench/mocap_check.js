@@ -253,6 +253,15 @@ function makeRtm(bones, clip, opt, stance, extra) {
     if (extra.legRatio) reproportion(pt, extra.legRatio);
     if (extra.kneeBack) for (const side of ["left", "right"]) pt[side + "_knee"] = add(pt[side + "_knee"], [0, -extra.kneeBack, 0]);
     if (extra.footBack) { const heel = pt.right_heel; pt.right_heel = pt.right_foot_index; pt.right_foot_index = heel; }
+    if (extra.lean) {  // the whole performer tilted forward about the floor's origin, all take: a posture's lean
+      // (these takes give "up" (axes), so it isn't levelled away by the floor)
+      const co = Math.cos(extra.lean), si = Math.sin(extra.lean);
+      for (const n in pt) pt[n] = [pt[n][0], pt[n][1] * co + pt[n][2] * si, -pt[n][1] * si + pt[n][2] * co];
+    }
+    if (extra.turn && t >= lead) {  // turned about up after the standing part
+      const c = Math.cos(extra.turn), s = Math.sin(extra.turn);
+      for (const n in pt) pt[n] = [pt[n][0] * c - pt[n][1] * s, pt[n][0] * s + pt[n][1] * c, pt[n][2]];
+    }
     if (extra.travel && t >= lead) { const d = extra.travel(t - lead); for (const n in pt) pt[n] = [pt[n][0] + d[0], pt[n][1] + d[1], pt[n][2]]; }
     for (const n of M.LANDMARKS) {
       if (RTM_SKIP.has(n)) continue;
@@ -506,6 +515,66 @@ function kneesBehind(bones, clip, from, to) {
     const ok = worst < 0.03;
     if (!ok) failed++;
     console.log((ok ? "ok  " : "FAIL") + " knees: pause1 with the right foot turned round - the knee where pause1's is, off by " + (worst * 100).toFixed(1) + " cm at worst");
+  }
+}
+// The doll's joints off the animation's (root-relative; `turn`: the result turned back about up first) at
+// worst, over `joints`.
+function jointsOff(m, got, joints, turn) {
+  const idx = joints.map((n) => m.bone(n)), root = m.bone("rootdummy");
+  const c = Math.cos(-(turn || 0)), s = Math.sin(-(turn || 0));
+  let worst = 0, at = "";
+  for (let t = 0; t <= Math.min(got.length, m.clip.length) + 1e-6; t += 1 / 30) {
+    const a = posed(m.lib.bones, m.clip, t), b = posed(m.lib.bones, got, t);
+    idx.forEach((i, k) => {
+      const da = [0, 1, 2].map((q) => a[i].p[q] - a[root].p[q]), r = [0, 1, 2].map((q) => b[i].p[q] - b[root].p[q]);
+      const db = [r[0] * c - r[1] * s, r[0] * s + r[1] * c, r[2]];
+      const e = Math.hypot(da[0] - db[0], da[1] - db[1], da[2] - db[2]);
+      if (e > worst) { worst = e; at = joints[k] + " at " + t.toFixed(2) + " s"; }
+    });
+  }
+  return { worst, at };
+}
+const LEG_JOINTS = ["lshin_g", "lfoot_g", "rshin_g", "rfoot_g"];
+{
+  // The legs' neutral (#80): a performer leaning 5 degrees forward the whole take (tilted as a whole)
+  // - the standing part's lean is posture: the legs come back as
+  // the animation's; and so with the body turned a quarter after the standing part (the neutral
+  // turns with the pelvis).
+  // Against the same take upright: what the round trip itself costs the legs (its frames, its knees).
+  for (const turn of [0, Math.PI / 2]) {
+    const off = [0, 5].map((d) => {
+      const m = madeTake("a_ba", "victorymg", { lean: (d * Math.PI) / 180, turn });
+      return m ? jointsOff(m, M.retarget(m.take, m.lib.bones, { start: m.made.lead, stance: m.stance, place: "return" }), LEG_JOINTS, turn) : null;
+    });
+    if (!off[0]) continue;
+    const ok = off[1].worst < off[0].worst + 0.01;
+    if (!ok) failed++;
+    console.log((ok ? "ok  " : "FAIL") + " legs' neutral: victorymg, leaning 5 degrees forward all take" + (turn ? ", turned a quarter" : "") +
+                " - the legs off the animation's by " + (off[1].worst * 100).toFixed(1) + " cm at worst (" + off[1].at + "), upright " +
+                (off[0].worst * 100).toFixed(1) + " cm (" + off[0].at + ")");
+  }
+}
+{
+  // The neutral stance picked (#80): the standing part becomes it - nwreadyr, the unarmed ready
+  // stance (knees bent, hips low): the doll's legs, hips, torso and head and its root where the
+  // stance has them (not the arms: the standing part may be a T-pose).
+  const m = madeTake("a_ba", "victorymg", {});
+  const ready = m && findClip("a_ba", "nwreadyr");
+  if (m && ready) {
+    const got = M.retarget(m.take, m.lib.bones, { start: 0.05, end: m.made.lead - 0.15, stance: ready, place: "return" });
+    const names = ["rootdummy", "pelvis_g", "torso_g", "head_g", ...LEG_JOINTS];
+    const idx = names.map((n) => m.bone(n));
+    const want = posed(m.lib.bones, ready, 0);
+    let worst = 0, at = "";
+    for (let t = 0; t <= got.length + 1e-6; t += 1 / 30) {
+      const b = posed(m.lib.bones, got, t);
+      idx.forEach((i, k) => { const e = Math.hypot(...[0, 1, 2].map((q) => b[i].p[q] - want[i].p[q])); if (e > worst) { worst = e; at = names[k]; } });
+    }
+    const low = want[m.bone("rootdummy")].p[2] - posed(m.lib.bones, m.stance, 0)[m.bone("rootdummy")].p[2];
+    const ok = worst < 0.03;
+    if (!ok) failed++;
+    console.log((ok ? "ok  " : "FAIL") + " neutral stance nwreadyr: the standing part played as it - off by " + (worst * 100).toFixed(1) +
+                " cm at worst (" + at + "; the stance's root " + (low * 100).toFixed(0) + " cm from pause1's)");
   }
 }
 {

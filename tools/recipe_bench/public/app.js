@@ -143,7 +143,33 @@
     if (r.mix && names.length && !names.includes(r.mix)) r.mix = "";
     base.value = r.base;
     mix.value = r.mix;
+    refreshStances(names);
     recompute();
+  }
+
+  // The neutral stance picker (#80): the stances first (NWN's names: nw unarmed, 1h one-handed,
+  // 2h two-handed, 2w two weapons, pl polearm; r / l the side forward), then every animation.
+  const STANCES = [
+    ["pause1", "standing"], ["pause2", "standing, second idle"], ["pausetrd", "standing, tired"],
+    ["nwreadyr", "unarmed ready (r)"], ["nwreadyl", "unarmed ready (l)"],
+    ["1hreadyr", "one-handed ready (r)"], ["1hreadyl", "one-handed ready (l)"],
+    ["2hreadyr", "two-handed ready (r)"], ["2hreadyl", "two-handed ready (l)"],
+    ["2wreadyr", "two weapons ready (r)"], ["2wreadyl", "two weapons ready (l)"],
+    ["plreadyr", "polearm ready (r)"], ["plreadyl", "polearm ready (l)"],
+    ["bowrdy", "bow ready"], ["xbowrdy", "crossbow ready"],
+    ["getlowlp", "crouched low"], ["getmidlp", "crouched"], ["kneel", "kneeling"], ["meditate", "meditating"], ["sitcross", "sitting cross-legged"],
+  ];
+  function refreshStances(names) {
+    const select = $("mc-stance");
+    select.textContent = "";
+    const known = new Set();
+    const group = (label) => { const g = document.createElement("optgroup"); g.label = label; select.appendChild(g); return g; };
+    const stances = group("Stances");
+    for (const [name, what] of STANCES) if (names.includes(name)) { stances.appendChild(new Option(name + " - " + what, name)); known.add(name); }
+    const all = group("Every animation (its first frame)");
+    for (const n of names) if (!known.has(n)) all.appendChild(new Option(n, n));
+    if (names.length && !names.includes(mc.stance)) mc.stance = names.includes("pause1") ? "pause1" : names[0];
+    select.value = mc.stance;
   }
 
   // --- The recipe -----------------------------------------------------------------------
@@ -339,6 +365,7 @@
     slot: "n5_rage", name: "n5_mocap", smoothing: 0, ref: [0, 0.33], start: 0, end: 0,
     plants: { left: [], right: [] }, locks: true, place: "return",  // planted feet (s in the take) and where the body stands (#79)
     selected: null,  // the plant selected on the timeline: { side, bar }
+    stance: "pause1",  // the neutral stance (#80): the standing part becomes it; the blends start and end in it
     blendIn: 0.2, blendOut: 0.3, loop: false, sway: true, fitLength: 0, contactAt: 0, contact: null, tolerance: 0.75,
     saved: null,  // a keys recipe opened without its capture: its own keys, shown as they are
   };
@@ -407,6 +434,7 @@
     $("mc-sway").disabled = mc.place === "return";  // returning, the body follows the hips
     $("mc-place").value = mc.place;
     $("mc-locks").checked = mc.locks;
+    $("mc-stance").value = mc.stance;
     $("mc-fit").value = mc.fitLength;
     $("mc-at").value = mc.contactAt;
     $("mc-contact").value = mc.contact || 0;
@@ -415,7 +443,7 @@
 
   function mocapOptions(body) {
     const fit = mc.fitLength > 0;
-    return { name: mcName(), start: mc.start, end: mc.end, sway: mc.sway, stance: findClip(body, "pause1"),
+    return { name: mcName(), start: mc.start, end: mc.end, sway: mc.sway, stance: findClip(body, mc.stance) || findClip(body, "pause1"),
       place: mc.place, plants: mc.locks ? mc.plants : null,
       blendIn: mc.blendIn, blendOut: mc.blendOut, loop: mc.loop, loopBlend: 0.25, fitLength: mc.fitLength,
       contact: fit && mc.contact !== null ? mc.contact : null, contactAt: fit && mc.contactAt > 0 ? mc.contactAt : null,
@@ -652,7 +680,7 @@
     const recipe = { name, keyed: true, length, transtime: 0.25, keys,
       source: mc.fileName + " " + mc.start.toFixed(2) + "-" + (mc.end > 0 ? mc.end.toFixed(2) : mc.take.duration.toFixed(2)) + " s of " +
         mc.take.duration.toFixed(2) + ", " + mc.fps + " fps, smoothing " + mc.smoothing + (mc.loop ? ", looped" : "") +
-        (mc.place === "inplace" ? ", in place" : ", returns to its spot") +
+        (mc.place === "inplace" ? ", in place" : ", returns to its spot") + ", from " + mc.stance +
         (mc.locks ? ", " + (mc.plants.left.length + mc.plants.right.length) + " planted feet locked" : "") +
         (mc.fitLength > 0 ? ", fitted to " + mc.fitLength + " s" : "") };
     const text = A.writeRecipe(recipe);
@@ -732,6 +760,7 @@
     $("mc-loop").addEventListener("change", () => { mc.loop = $("mc-loop").checked; recompute(); });
     $("mc-sway").addEventListener("change", () => { mc.sway = $("mc-sway").checked; recompute(); });
     $("mc-place").addEventListener("change", () => { mc.place = $("mc-place").value; syncMocapInputs(); recompute(); });
+    $("mc-stance").addEventListener("change", () => { mc.stance = $("mc-stance").value; recompute(); });
     $("mc-locks").addEventListener("change", () => { mc.locks = $("mc-locks").checked; recompute(); });
     $("mc-feet-suggest").addEventListener("click", () => { if (mc.take) { mc.plants = MC.suggestPlants(mc.take); mc.selected = null; recompute(); } });
     $("mc-fit").addEventListener("change", () => { mc.fitLength = Math.max(0, parseFloat($("mc-fit").value) || 0); recompute(); });

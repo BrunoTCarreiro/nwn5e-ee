@@ -698,11 +698,41 @@
     return len(d) > 1e-6 ? norm(d) : null;
   }
 
+  // The legs' neutral (#80): a turn per thigh, shin and foot taking its direction in the standing
+  // part onto the stance's (pause1, or the stance picked) - applied in the pelvis's frame, so it
+  // turns with the body - as the hips, torso and head already are: the performer's standing legs
+  // become the stance's legs (their lean, their knees' bend), what they do from there is the
+  // performer's. Not the arms: the standing part may be a T-pose.
+  const LEG_NEUTRAL = ["lthigh_g", "lshin_g", "lfoot_g", "rthigh_g", "rshin_g", "rfoot_g"];
+  function legNeutral(R, refL) {
+    const out = new Map();
+    for (const d of DRIVEN) {
+      const i = R.index.get(d.bone);
+      if (i === undefined || !LEG_NEUTRAL.includes(d.bone)) continue;
+      let have = null, want = null;
+      if (d.kind === "aim") {
+        const dir = childDirection(R, d.bone, d.child);
+        if (dir) { have = sub(refL[d.to], refL[d.from]); want = rotate(R.neutral[i], dir); }
+      } else if (d.kind === "foot") {
+        have = sub(refL[d.toe], refL[d.heel]);
+        want = rotate(R.neutral[i], rotate(qconj(R.world[i]), [0, 1, 0]));
+      }
+      if (have && want && valid(have) && len(have) > 1e-6 && len(want) > 1e-6) out.set(i, fromTo(have, want));
+    }
+    return out;
+  }
+
   // One frame's local rotations (by bone index) and the root's position.
   function solveFrame(R, f, ref) {
     const L = landmarks(f);
     straightenKnees(L);
     const frames = bodyFrames(L, ref.waist, ref.frames.pelvis);
+    // A leg direction onto the stance's: its neutral turn, in the pelvis's frame since the standing part.
+    const since = ref.legs && ref.legs.size ? qmul(frames.pelvis, qconj(ref.frames.pelvis)) : null;
+    const toNeutral = (i, v) => {
+      const turn = since && ref.legs.get(i);
+      return turn ? rotate(since, rotate(turn, rotate(qconj(since), v))) : v;
+    };
     const local = new Map();
     const world = R.world.slice();
     const worldOf = (i) => world[i];
@@ -724,7 +754,7 @@
         }
       } else if (d.kind === "aim" || d.kind === "hand") {
         const dir = childDirection(R, d.bone, d.child);
-        const target = d.kind === "hand" ? sub(mid(L[d.index], L[d.pinky]), L[d.wrist]) : sub(L[d.to], L[d.from]);
+        const target = d.kind === "hand" ? sub(mid(L[d.index], L[d.pinky]), L[d.wrist]) : toNeutral(i, sub(L[d.to], L[d.from]));
         if (dir && len(target) > 1e-6) {
           w = qmul(fromTo(rotate(unturned, dir), target), unturned);
           if (d.kind === "hand") {
@@ -741,7 +771,7 @@
           }
         }
       } else if (d.kind === "foot") {
-        const target = sub(L[d.toe], L[d.heel]);
+        const target = toNeutral(i, sub(L[d.toe], L[d.heel]));
         if (len(target) > 1e-6) {
           const forward = rotate(qconj(R.world[i]), [0, 1, 0]);
           w = qmul(fromTo(rotate(unturned, forward), target), unturned);
@@ -761,10 +791,10 @@
   // The root's position: its rest place, lowered / raised with the hips (as a share
   // of the standing hip height) and swayed with the hips over the ground under them -
   // `ground`, the body's spot (placeGround), else the feet.
-  function rootPosition(R, L, take, refL, sway, ground) {
+  function rootPosition(R, L, take, refL, sway, ground, home) {
     const i = R.index.get("rootdummy");
     if (i === undefined) return null;
-    const rest = R.restPos[i];
+    const rest = home || R.restPos[i];  // the stance's root (#80): its hips' height, a crouch's low
     const s = take.hipHeight > 0.1 ? R.hipHeight / take.hipHeight : 1;
     const z = rest[2] + (L.hips[2] - take.hipHeight) * s;
     if (!sway) return [rest[0], rest[1], z];
@@ -915,8 +945,10 @@
     const tolerance = Math.max(0.01, opt.tolerance);
     const R = rig(bones, opt.stance);
     const refL = landmarks(take.reference.pose);
+    straightenKnees(refL);
     const waist = scale(R.waistOffset, take.hipHeight > 0.1 ? take.hipHeight / R.hipHeight : 1);
     const ref = { waist, frames: bodyFrames(refL, waist, null) };
+    ref.legs = legNeutral(R, refL);
     const [a, b] = keepSpan(take, opt.start, opt.end);
     // Solve every frame kept.
     const driven = [];
@@ -942,7 +974,13 @@
     const timeOf = (k) => k / take.fps;
     // The root over the body's spot - from the part kept in the end (a loop's, once cut).
     const ground = placeGround(take, a, a + count - 1, opt.place);
-    solved.forEach((sv, k) => { sv.root = rootPosition(R, sv.L, take, refL, opt.place === "return" || opt.sway, ground[k]); });
+    let home = rootIndex !== undefined ? R.restPos[rootIndex] : null;  // the stance's root: the standing part's
+    if (opt.stance && rootIndex !== undefined) {
+      for (const node of opt.stance.nodes) {
+        if (R.index.get(lower(node.name)) === rootIndex && node.position && node.position.times.length) home = node.position.values[0].slice(0, 3);
+      }
+    }
+    solved.forEach((sv, k) => { sv.root = rootPosition(R, sv.L, take, refL, opt.place === "return" || opt.sway, ground[k], home); });
     // Planted feet held (#79): each lock keeps its ankle on the spot on the ground where it
     // landed, by bending the leg (legIK) - on this body, whatever its legs' proportions. In
     // from 0.1 s before it lands, out over 0.2 s as it lifts (the correction rides the step).

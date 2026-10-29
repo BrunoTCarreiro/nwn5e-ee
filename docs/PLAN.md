@@ -3862,6 +3862,25 @@ free and locked, on the 8 bodies (a straight leg - under 2 degrees; the check al
 the stance can lean a knee back a centimetre for a frame. Checks: pause1 with its knees moved 10 cm back (the old code:
 3.3 cm behind; now straight), pause1 with a foot turned round (the knee keeps its bend), the take; 3 deliberate breaks
 caught.
+*#80 (2026-10-29; owner: "is there a way for me to adjust the lean of the captured data? ... the latest data makes it look
+like I'm leaning forward the whole time", then "shouldn't the "standing still" section work this out? The verticality of
+the capture?"):* measured - "up" was right (the floor under the feet, within 1.4-3.5 degrees of the body line, the floor
+level); the lean was posture: the standing legs 2.5 degrees forward, the torso 6.5 back, the head 18 ahead (the ear
+points). The bench took the hips, torso and head as change from the standing pose onto pause1, but copied the legs by
+direction: the doll stood 1.5 degrees further forward than pause1. Offered (a) a lean slider, (b) the standing part
+setting the legs' neutral too, (c) both; the owner: "go with b". Then: "Can that pose be configurable? such as I want an
+animation that follows from an unnarmed combat stance for example. So I pick the unnarmed neutral combat stance and then
+whatever changes modify that and return to it at the end" and "I'll attempt to get the body as close to the selected
+neutral as possible so that not a lot of effort has to be expended correcting it". Built (tools only): legNeutral - a turn
+per thigh, shin and foot taking the standing part's direction onto the stance's, applied in the pelvis's frame (it turns
+with the body); not the arms (a T-pose standing part); the standing pose's knees straightened first. The neutral stance
+is picked in the Mocap tab (the stances first - standing idles, the ready stances, crouches, kneeling - then every
+animation's first frame; pause1 by default, the slots' too); the root's home is the stance's root (nwreadyr's is 17 cm
+lower than pause1's), the blends start and end in it, the recipe's source names it. The latest take: the doll's standing
+legs 1.2 degrees (pause1 1.1; 2.5 before), the body 1.3 (2.0). Checks: victorymg leaning 5 degrees all take - the legs
+4.3 cm off at worst against 3.9 upright (10.8 before), and turned a quarter 5.6 against 4.9 (11.9 before); nwreadyr
+picked - the standing part played as it, 0.3 cm (23.1 before); the recording: knees -0.3 cm, 120 of 136 locks reach
+(108 before) and hold to 0.46 cm; 3 deliberate breaks caught; the picker in a headless browser.
 *Capture habits (told to the owner):* two or more cameras; a T-pose at each
 take's start; cycles performed on the spot; a prop of the weapon's length; a
 clap or stomp at the contact moment. Rage: 2-3 s, relaxed to a fighting stance.

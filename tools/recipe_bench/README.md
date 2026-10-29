@@ -41,7 +41,12 @@ animation for nwn5e:
 2. Pick what it is for - `n5_rage` (played as a Rage starts), `n5_cridle` (the
    crouched idle while hiding), `n5_shove` (a player's Shove swing) or a name of
    your own (play it with `!anim <name>`). Each sets sensible blends, a loop or a
-   fitted length.
+   fitted length. Pick the **neutral stance** it plays from - `pause1` standing,
+   `nwreadyr` the unarmed ready stance, any ready stance or any animation's first
+   frame: the take's standing part becomes it (legs, hips, torso and head; not
+   the arms - the standing part may be a T-pose), your moves change it, and the
+   blends start and end in it. Stand in the standing part as close to it as you
+   can.
 3. Set the **standing** window (standing still at the take's start: the floor,
    the facing and the body's neutral are found there), trim the take, smooth it if
    it jitters, and watch the body you pick play it with the capture's points over
