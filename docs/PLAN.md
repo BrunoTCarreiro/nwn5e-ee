@@ -4102,6 +4102,30 @@ place whether the strip shows or not (nothing moves as the queue fills and empti
 strip's own `!queue` off puts it on the top edge. 0.57.4: while the panel sits right under the strip, a leaving
 tile fades in place (rules::QueueExitDrop) instead of sliding 36 px down over it; elsewhere it still slides.
 
+## Test profiles — the owner's request (2026-10-29)
+
+The owner, after the test matrices for the issues waiting on a test: "set different "!test" commands for
+each of the different requirements" (#82). `!test` applied one profile, data\test.txt, so each test meant
+rewriting it, and the switches a test needs meant an ini edit and a restart.
+
+**Built (0.57.5).** src/core/test_commands.cpp, src/rules/test_profile.cpp, data/tests:
+- `!test` lists the profiles (data\tests\*.txt, each with its `name`); `!test <profile>` applies one (a name
+  of letters, digits, '-' and '_' - no path). data\test.txt is gone (its Monk 18 is `monk`).
+- One per setup in the matrices: `monk` (#28, #57), `barbarian` (#25), `grapple` (#11), `fighter` (#23),
+  `combat` (#2), `rest` (#49), `halfling` (#19 O6), `smallmonk` (#19 S4), `fourclass` (#19 EP16).
+- New keys: `levels` (more classes, each up to its level - EP16's three); `switches` (test switches for the
+  session only - attack_trace, attacks_per_round, creature_hp_multiplier, creature_min_hp, rest_clock, the
+  ones read each time they are used; every `!test <profile>` puts the ini's values back first, so one test's
+  switches don't stay on for the next; the ini is never written); `note` (lines shown after it is applied:
+  what the profile can't do itself - "start from a new level 1 character", an ini-only switch).
+- For those switches to work mid-game: with test_commands, the creature hit point floor and the attack trace
+  listen from the start (each checks its switch on every roll), and the attacks-per-round hook is in even with
+  extra_attack off (its sheet fix stays off there unless a count is set).
+- *Not settable from a profile* (installed at start-up: the ini only): every_hit_crits, combat_breakdown, mode
+  and the rule switches (dying, rests ...); a profile that needs one says so in a note.
+- *Not covered:* #19's CM1 / CM3 / CM4 rows (a character made in NWN mode, henchmen) - no profile makes those.
+- A unit test parses every profile in data\tests, so a typo fails test.bat instead of `!test` in game.
+
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
 Walked through one by one (issue, what NWN does, what 2024 does, what to

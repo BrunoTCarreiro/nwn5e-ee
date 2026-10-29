@@ -1,0 +1,16 @@
+# A !test profile ([debug] test_commands=1): type "!test fourclass" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# A 4th class, EP16 (issue 19): your first class becomes Fighter, then a level of Rogue and one of
+# Wizard, then the XP for level 4 - take a 4th class on the level-up screen (e.g. Cleric), look at the
+# sheet, save and reload. 14 in every ability, so every class is open. Start from a new level 1
+# character.
+name = Four classes EP16 (issue 19): Fighter 1, Rogue 1, Wizard 1, then the level-up screen
+species = human
+swap_class = fighter
+levels = rogue 1, wizard 1
+xp = 2700
+abilities = 14 14 14 14 14 14
+note = start from a new level 1 character; then level up on the level-up screen and pick a 4th class
+note = EP16c (the 3-class limit holds) needs mode=nwn in nwn5e.ini

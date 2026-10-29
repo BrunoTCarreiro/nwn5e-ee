@@ -1,0 +1,18 @@
+# A !test profile ([debug] test_commands=1): type "!test grapple" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# Grapple G2 (issue 11) and the push and Shove looks: your first class becomes Barbarian 17. A
+# battleaxe in hand (one hand free - a Grapple needs one), a greataxe and a large shield in the pack
+# (G2-2: a Grapple is refused with either in hand). Monsters get at least 50 hit points, so a grappled
+# orc lives through the drag. Test aids: !grapple, !grapple release, !reckless, !brutal forceful,
+# !animtrace, !spawn <blueprint> [ally].
+name = Grapple G2 (issue 11): human Berserker 17, one hand free
+species = human
+swap_class = barbarian
+class = barbarian
+level = 17
+abilities = 18 14 16 10 12 8
+items = nw_waxgr001, nw_waxbt001 equip, nw_ashlw001, nw_wthax001 x20
+switches = creature_min_hp=50
+note = spawn: !spawn nw_orcb (Medium), !spawn nw_gnthill (Large), !spawn nw_gntfrost (Huge), !spawn nw_orcb ally

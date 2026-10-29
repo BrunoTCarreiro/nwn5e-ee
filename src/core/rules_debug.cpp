@@ -7,6 +7,9 @@
 //   creature loaded again (a new object) is boosted again.
 // - attack_trace: each player character's attack roll with its round's
 //   attack counts, d20, modifier and result.
+//
+// With test_commands both listen from the start and check their switch on
+// every roll: a !test profile may turn them on for the session (#82).
 
 #include <stdint.h>
 
@@ -53,6 +56,7 @@ void BoostTestTarget(AttackRoll& roll) {
 }
 
 void TraceAttackRoll(AttackRoll& roll) {
+  if (!g_config.debug_attack_trace) return;
   void* stats = StatsOf(roll.attacker);
   if (!stats || !roll.data || g_trace_lines >= kTraceLimit) return;
   const CreatureFacts facts = ReadCreatureFacts(stats);
@@ -70,8 +74,9 @@ void TraceAttackRoll(AttackRoll& roll) {
 }  // namespace
 
 void InstallDebugSwitches() {
-  if (g_config.debug_creature_hp_multiplier > 1 || g_config.debug_creature_min_hp > 0) {
+  if (g_config.debug_creature_hp_multiplier > 1 || g_config.debug_creature_min_hp > 0 ||
+      g_config.debug_test_commands) {
     AddAttackRollListeners(&BoostTestTarget, nullptr);
   }
-  if (g_config.debug_attack_trace) AddAttackRollListeners(nullptr, &TraceAttackRoll);
+  if (g_config.debug_attack_trace || g_config.debug_test_commands) AddAttackRollListeners(nullptr, &TraceAttackRoll);
 }

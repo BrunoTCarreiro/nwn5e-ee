@@ -75,7 +75,50 @@ bool ParseItem(const std::string& text, TestItem* item) {
   return true;
 }
 
+// "<switch>=<value>", a switch a profile may set and a value in its range.
+bool ParseSwitch(const std::string& text, TestSwitch* test_switch) {
+  const size_t equals = text.find('=');
+  if (equals == std::string::npos) return false;
+  test_switch->name = Lower(Trim(text.substr(0, equals)));
+  const std::string number = Trim(text.substr(equals + 1));
+  if (number.empty() || number.size() > 6) return false;
+  for (char c : number) {
+    if (!isdigit(static_cast<unsigned char>(c))) return false;
+  }
+  test_switch->value = atoi(number.c_str());
+  int low = 0, high = 0;
+  return TestSwitchRange(test_switch->name, &low, &high) && test_switch->value >= low && test_switch->value <= high;
+}
+
 }  // namespace
+
+bool IsTestProfileName(const std::string& name) {
+  if (name.empty() || name.size() > 32) return false;
+  for (char c : name) {
+    if (!isalnum(static_cast<unsigned char>(c)) && c != '-' && c != '_') return false;
+  }
+  return true;
+}
+
+bool TestSwitchRange(const std::string& name, int* low, int* high) {
+  struct Range {
+    const char* name;
+    int low, high;
+  };
+  static const Range kRanges[] = {{"attack_trace", 0, 1},
+                                  {"attacks_per_round", 0, 6},
+                                  {"creature_hp_multiplier", 0, 100},
+                                  {"creature_min_hp", 0, 30000},
+                                  {"rest_clock", 0, 1}};
+  for (const Range& range : kRanges) {
+    if (name == range.name) {
+      *low = range.low;
+      *high = range.high;
+      return true;
+    }
+  }
+  return false;
+}
 
 TestProfile ParseTestProfile(const std::string& text) {
   TestProfile profile;
@@ -133,6 +176,31 @@ TestProfile ParseTestProfile(const std::string& text) {
           profile.errors.push_back(where + "\"" + part + "\" is not \"<blueprint> [xN] [equip] [offhand]\"");
         }
       }
+    } else if (key == "levels") {
+      for (const std::string& part : SplitCommas(value)) {
+        std::istringstream words(part);
+        std::string class_name, extra;
+        TestLevels levels;
+        if (words >> class_name >> levels.level && !(words >> extra)) levels.nwn_class = ClassFromName(Lower(class_name));
+        if (levels.nwn_class >= 0 && levels.level >= 1 && levels.level <= 20) {
+          profile.levels.push_back(levels);
+        } else {
+          profile.errors.push_back(where + "\"" + part + "\" is not \"<class> <level 1..20>\"");
+        }
+      }
+    } else if (key == "switches") {
+      for (const std::string& part : SplitCommas(value)) {
+        TestSwitch test_switch;
+        if (ParseSwitch(part, &test_switch)) {
+          profile.switches.push_back(test_switch);
+        } else {
+          profile.errors.push_back(where + "\"" + part +
+                                   "\": a profile sets attack_trace, attacks_per_round, creature_hp_multiplier, "
+                                   "creature_min_hp or rest_clock, each with a value in its range");
+        }
+      }
+    } else if (key == "note") {
+      if (!value.empty()) profile.notes.push_back(value);
     } else {
       profile.errors.push_back(where + "unknown key");
     }

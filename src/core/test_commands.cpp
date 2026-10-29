@@ -8,8 +8,9 @@
 //   one of nwn5e's names (alert, savage attacker, skilled, archery, defense,
 //   great weapon fighting, two-weapon fighting, asi 1..7, mastery <weapon>).
 //   No prerequisites or slots are checked: it is for testing.
-// - "!test" applies the profile in data	est.txt (next to nwn5e.dll; the
-//   format is in rules/test_profile.h) to the speaker: species (race, model,
+// - "!test <profile>" applies data\tests\<profile>.txt (next to nwn5e.dll;
+//   "!test" alone lists them; the format is in rules/test_profile.h) to the
+//   speaker: species (race, model,
 //   size), levels in a class (the engine's own level-ups; with feats faithful
 //   they take the 2024 feats, rules_feats.cpp), ability scores, feats and items. The file is read each time,
 //   so a new test needs only a new file, not a rebuild. Species features that
@@ -25,6 +26,12 @@
 //   Paladin / Ranger 2); with none, !test takes it away (0.41.3; owner: "make
 //   it clear the fighting style") - one left from a swapped Fighter. One named
 //   under `feats` is still given.
+//   0.57.5 (#82; owner: "set different "!test" commands for each of the
+//   different requirements"): a profile per test setup in data\tests; more
+//   classes (`levels`); test switches for the session (`switches` - the ones
+//   read each time they are used; every !test <profile> puts the ini's values
+//   back first, so one test's switches don't stay on for the next); `note`
+//   lines for what a profile can't do itself.
 // - "!export" saves the character to the vault as a campaign's chapter change
 //   does (C6's check: its records come back from its own database).
 // - "!spawn <blueprint> [ally]" (0.49.1, for the Grapple's and the Shove's size
@@ -49,7 +56,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <algorithm>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "chat.h"
@@ -492,20 +501,115 @@ std::vector<std::string> LevelCommand(void* creature, const std::string& args) {
   return {"nwn5e: !level -" + line.substr(1)};
 }
 
-std::vector<std::string> TestCommand(void* creature, const std::string&) {
+// --- !test profiles (#82) -------------------------------------------------
+
+// The switches a profile may set (rules::TestSwitchRange: their ranges), as
+// g_config holds them. Their ini values are kept at start-up and put back by
+// every !test <profile> before its own.
+struct SwitchField {
+  const char* name;
+  int (*get)();
+  void (*set)(int);
+};
+
+const SwitchField kSwitchFields[] = {
+    {"attack_trace", [] { return g_config.debug_attack_trace ? 1 : 0; },
+     [](int value) { g_config.debug_attack_trace = value != 0; }},
+    {"attacks_per_round", [] { return g_config.debug_attacks_per_round; },
+     [](int value) { g_config.debug_attacks_per_round = value; }},
+    {"creature_hp_multiplier", [] { return g_config.debug_creature_hp_multiplier; },
+     [](int value) { g_config.debug_creature_hp_multiplier = value; }},
+    {"creature_min_hp", [] { return g_config.debug_creature_min_hp; },
+     [](int value) { g_config.debug_creature_min_hp = value; }},
+    {"rest_clock", [] { return g_config.rest_clock ? 1 : 0; }, [](int value) { g_config.rest_clock = value != 0; }},
+};
+constexpr size_t kSwitchCount = sizeof(kSwitchFields) / sizeof(kSwitchFields[0]);
+int g_ini_switches[kSwitchCount] = {};
+
+// Every switch back to its ini value, then the profile's: the lines to show.
+std::vector<std::string> ApplySwitches(uint32_t id, const std::vector<rules::TestSwitch>& wanted) {
+  std::string set, back;
+  for (size_t i = 0; i < kSwitchCount; ++i) {
+    int value = g_ini_switches[i];
+    bool from_profile = false;
+    for (const rules::TestSwitch& test_switch : wanted) {
+      if (test_switch.name == kSwitchFields[i].name) {
+        value = test_switch.value;
+        from_profile = true;
+      }
+    }
+    const std::string text = std::string(kSwitchFields[i].name) + "=" + std::to_string(value);
+    if (from_profile) {
+      set += (set.empty() ? "" : ", ") + text;
+    } else if (kSwitchFields[i].get() != value) {
+      back += (back.empty() ? "" : ", ") + text;
+    }
+    kSwitchFields[i].set(value);
+  }
+  std::vector<std::string> lines;
+  if (!set.empty()) {
+    lines.push_back("  switches for this session: " + set + " (the ini's come back with the next !test <profile>)");
+  }
+  if (!back.empty()) lines.push_back("  switches back to the ini's: " + back);
+  if (!set.empty() || !back.empty()) {
+    Log("test: 0x%08X switches set %s; back to the ini's %s", id, set.empty() ? "none" : set.c_str(),
+        back.empty() ? "none" : back.c_str());
+  }
+  return lines;
+}
+
+// "!test" alone: the profiles in data\tests, each with its `name` line.
+std::vector<std::string> ListProfiles() {
+  const std::wstring folder = DllDirectory() + L"\\data\\tests";
+  std::vector<std::pair<std::string, std::string>> profiles;  // (profile, what it is for)
+  WIN32_FIND_DATAW found;
+  HANDLE handle = FindFirstFileW((folder + L"\\*.txt").c_str(), &found);
+  if (handle != INVALID_HANDLE_VALUE) {
+    do {
+      const std::wstring file = found.cFileName;
+      if (file.size() <= 4 || _wcsicmp(file.c_str() + file.size() - 4, L".txt") != 0) continue;
+      std::string profile;
+      for (wchar_t c : file.substr(0, file.size() - 4)) profile += c < 128 ? static_cast<char>(c) : '?';
+      profile = Lower(profile);
+      if (!rules::IsTestProfileName(profile)) continue;
+      std::string text;
+      ReadTextFile(folder + L"\\" + file, &text);
+      profiles.push_back({profile, rules::ParseTestProfile(text).name});
+    } while (FindNextFileW(handle, &found));
+    FindClose(handle);
+  }
+  if (profiles.empty()) return {"nwn5e: !test - no profiles in data\\tests next to nwn5e.dll."};
+  std::sort(profiles.begin(), profiles.end());
+  std::vector<std::string> lines = {"nwn5e: !test <profile> - sets you up for a test (data\\tests\\<profile>.txt):"};
+  for (const auto& profile : profiles) {
+    lines.push_back("  " + profile.first + (profile.second.empty() ? "" : " - " + profile.second));
+  }
+  return lines;
+}
+
+std::vector<std::string> TestCommand(void* creature, const std::string& args) {
   void* stats = StatsOf(creature);
   if (!stats) return {};
-  const std::wstring path = DllDirectory() + L"\\data\\test.txt";
+  const std::string name = Lower(Trim(args));
+  if (name.empty()) return ListProfiles();
+  if (!rules::IsTestProfileName(name)) {
+    return {"nwn5e: !test <profile> - letters, digits, '-' and '_' (!test alone lists the profiles)."};
+  }
+  const std::wstring path = DllDirectory() + L"\\data\\tests\\" + std::wstring(name.begin(), name.end()) + L".txt";
   std::string text;
-  if (!ReadTextFile(path, &text)) return {"nwn5e: !test - no data\\test.txt next to nwn5e.dll."};
+  if (!ReadTextFile(path, &text)) {
+    return {"nwn5e: !test - no profile \"" + name + "\" (data\\tests\\" + name + ".txt); !test alone lists them."};
+  }
   const rules::TestProfile profile = rules::ParseTestProfile(text);
   if (!profile.errors.empty()) {
-    std::vector<std::string> lines = {"nwn5e: !test - data\\test.txt has errors, nothing applied:"};
+    std::vector<std::string> lines = {"nwn5e: !test " + name + " - data\\tests\\" + name +
+                                      ".txt has errors, nothing applied:"};
     for (const std::string& error : profile.errors) lines.push_back("  " + error);
     return lines;
   }
   const uint32_t id = ObjectIdOf(stats);
-  std::vector<std::string> lines = {"nwn5e: !test" + (profile.name.empty() ? std::string() : " - " + profile.name)};
+  std::vector<std::string> lines = {"nwn5e: !test " + name +
+                                    (profile.name.empty() ? std::string() : " - " + profile.name)};
   // 1. Species: the race and its model.
   if (profile.race >= 0) {
     SetField<uint16_t>(stats, ee::kStatsRace, static_cast<uint16_t>(profile.race));
@@ -519,6 +623,8 @@ std::vector<std::string> TestCommand(void* creature, const std::string&) {
   if (profile.swap_class >= 0) lines.push_back(SwapFirstClass(stats, profile.swap_class));
   // 2. Level: the XP for it, then the engine's own level-ups in the class.
   if (profile.nwn_class >= 0 && profile.level > 0) lines.push_back(AddLevels(stats, profile.nwn_class, profile.level));
+  // 2a. More classes (`levels`), each up to its level.
+  for (const rules::TestLevels& more : profile.levels) lines.push_back(AddLevels(stats, more.nwn_class, more.level));
   // 2b. Experience only: the level-up screen makes the levels.
   if (profile.xp > 0) {
     char code[200];
@@ -573,7 +679,11 @@ std::vector<std::string> TestCommand(void* creature, const std::string&) {
     }
     lines.push_back("  items: " + names);
   }
-  Log("test: 0x%08X applied data\\test.txt (%s)", id, profile.name.c_str());
+  // 6. Test switches for this session: the ini's values back, then the profile's.
+  for (const std::string& line : ApplySwitches(id, profile.switches)) lines.push_back(line);
+  // 7. What the profile can't do itself.
+  for (const std::string& note : profile.notes) lines.push_back("  note: " + note);
+  Log("test: 0x%08X applied data\\tests\\%s.txt (%s)", id, name.c_str(), profile.name.c_str());
   return lines;
 }
 
@@ -581,6 +691,14 @@ std::vector<std::string> TestCommand(void* creature, const std::string&) {
 
 void InstallTestCommands() {
   if (!g_config.debug_test_commands) return;
+  for (size_t i = 0; i < kSwitchCount; ++i) {
+    g_ini_switches[i] = kSwitchFields[i].get();
+    int low = 0, high = 0;
+    if (!rules::TestSwitchRange(kSwitchFields[i].name, &low, &high)) {
+      Log("note: !test switch %s has no range in rules::TestSwitchRange (a profile can't set it)",
+          kSwitchFields[i].name);
+    }
+  }
   AddChatCommand("!give", &GiveCommand);
   AddChatCommand("!feat", &FeatCommand);
   AddChatCommand("!test", &TestCommand);
@@ -590,6 +708,6 @@ void InstallTestCommands() {
   AddChatCommand("!save", &SaveCommand);
   AddChatCommand("!reflex", &ReflexCommand);
   AddChatCommand("!level", &LevelCommand);
-  Log("config: [debug] test_commands=1 - !test (data\\test.txt), !give <blueprint>, !feat add / remove <feat>, "
+  Log("config: [debug] test_commands=1 - !test [profile] (data\\tests), !give <blueprint>, !feat add / remove <feat>, "
       "!export, !spawn <blueprint> [ally], !prone [s], !save <ability> <dc>, !reflex <dc> <damage>, !level <n> [class]");
 }

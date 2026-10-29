@@ -1,0 +1,20 @@
+# A !test profile ([debug] test_commands=1): type "!test barbarian" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# Barbarian parts 2-4 (issue 25): your first class becomes Barbarian 17, a Berserker (Retaliation from
+# 10, Intimidating Presence from 14, two Brutal Strike effects at 17); Strength 18. A battleaxe in hand
+# (Topple; one hand free), a greataxe, a large shield, throwing axes, a shortbow and arrows in the
+# pack. Monsters get at least 50 hit points so a fight lasts. Test aids: !rage (!rage reset),
+# !reckless, !brutal <forceful | hamstring | staggering | sundering | off>, !save str <dc>,
+# !spawn <blueprint> [ally].
+name = Barbarian parts 2-4 (issue 25): human Berserker 17
+species = human
+swap_class = barbarian
+class = barbarian
+level = 17
+abilities = 18 14 16 10 12 8
+items = nw_waxgr001, nw_waxbt001 equip, nw_ashlw001, nw_wthax001 x20, nw_wbwsh001, nw_wamar001 x99
+switches = creature_min_hp=50
+note = B11 (Relentless Rage at 0 hit points) needs dying=faithful in nwn5e.ini
+note = the rows for lower levels need a new character: levels are only added

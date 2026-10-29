@@ -1,0 +1,19 @@
+# A !test profile ([debug] test_commands=1): type "!test combat" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# Combat tests not yet seen in game (issue 2): your first class becomes Fighter 5. A shortbow in hand
+# and 99 arrows (C1: the shots left after a kill go to the next enemy in the fight); a warhammer with
+# its Push mastery (C4: a Huge creature isn't pushed, a Large one is); potions (C3: back to the target
+# after drinking one). Three attacks a round, so a kill leaves shots; the attack trace in the log.
+name = Combat tests (issue 2): human Fighter 5, a shortbow, a warhammer (Push), potions
+species = human
+swap_class = fighter
+class = fighter
+level = 5
+abilities = 14 16 14 10 12 8
+feats = mastery warhammer
+items = nw_wbwsh001 equip, nw_wamar001 x99, nw_wblhw001, nw_it_mpotion001 x5
+switches = attack_trace=1, attacks_per_round=3
+note = C1: !spawn nw_orcb twice; C4: !spawn nw_gntfrost (Huge), then !spawn nw_gnthill (Large)
+note = C2 needs every_hit_crits=1 and combat_breakdown=1 in nwn5e.ini, and a flat damage bonus effect on you (e.g. Divine Favor)

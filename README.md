@@ -84,10 +84,12 @@ nwn5e's NUI test window when your character arrives (`!nui` opens it any
 time: nwn5e's own windows, the base for the Fighting Style picker);
 `client_nui_test=1` opens nwn5e's client window test on the main menu (EE's
 own NUI with no game loaded: the base of nwn5e's creation and level-up
-steps); `test_commands=1` turns on the test chat commands: `!test` gives
-the character you play the setup in `data	est.txt` (species, levels in a
-class, ability scores, feats, items; read each time, so a new test needs a
-new file and no rebuild), `!give <blueprint> [stack]` an item, and
+steps); `test_commands=1` turns on the test chat commands: `!test <profile>`
+gives the character you play a test's setup from `data\tests\<profile>.txt`
+(species, levels in one or more classes, ability scores, feats, items, and
+test switches for the session; read each time, so a new test needs a new
+file and no rebuild; `!test` alone lists the profiles), `!give <blueprint>
+[stack]` an item, and
 `!feat add / remove <feat>` a feat, all without checks.
 
 What is carried over from the 1.69 build, unchanged:

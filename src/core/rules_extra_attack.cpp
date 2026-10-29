@@ -68,6 +68,7 @@ uint8_t GetAttacksPerRound(void* stats) {
 // The sheet's attacks per round: UpdateCombatInformation computes its own
 // (BAB + 4) / 5; characters get the count they actually make.
 void FixSheetAttacks(void* stats, uint8_t* info) {
+  if (!g_config.extra_attack && g_config.debug_attacks_per_round <= 0) return;  // in for a !test profile only (#82)
   const CreatureFacts facts = ReadCreatureFacts(stats);
   if (!facts.character) return;
   const int engine_attacks = info[ee::kCombatInfoAttacks];
@@ -83,7 +84,8 @@ void FixSheetAttacks(void* stats, uint8_t* info) {
 }  // namespace
 
 void InstallExtraAttackRules() {
-  if (!g_config.extra_attack && g_config.debug_attacks_per_round <= 0) return;
+  // With test_commands, in from the start: a !test profile may set attacks_per_round (#82).
+  if (!g_config.extra_attack && g_config.debug_attacks_per_round <= 0 && !g_config.debug_test_commands) return;
   HookExport("CNWSCreatureStats::GetAttacksPerRound", ee::kGetAttacksPerRound,
              reinterpret_cast<void*>(&GetAttacksPerRound), reinterpret_cast<void**>(&g_get_attacks_per_round));
   AddCombatInformationListener(&FixSheetAttacks);

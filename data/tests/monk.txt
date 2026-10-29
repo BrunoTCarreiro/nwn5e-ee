@@ -1,0 +1,17 @@
+# A !test profile ([debug] test_commands=1): type "!test monk" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# Monk part 3 (issue 28) and the resource panel (issue 57): your first class becomes Monk 18 - 18 Focus
+# points, Focus DC 8 + Wis 3 + PB 6 = 17 (!focus). A human; Dexterity 16, Wisdom 16. In the pack: a
+# quarterstaff (a Monk weapon) and a longsword (not one: no Martial Arts - no Flurry, no Stunning
+# Strike). Test aids: !focus left <n>, !focus reset, !save <ability> <dc> (Disciplined Survivor),
+# !reflex <dc> <damage> (Dodge), !spawn <blueprint>, !shortrest, !hud, !queue.
+name = Monk part 3 (issue 28) and the resource panel (issue 57): human Monk 18
+species = human
+swap_class = monk
+class = monk
+level = 18
+abilities = 10 16 14 10 16 8
+items = nw_wdbqs001, nw_wswls001
+note = take your armour and shield off, hold the quarterstaff, then !focus reset

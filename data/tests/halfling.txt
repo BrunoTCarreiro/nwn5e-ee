@@ -1,0 +1,15 @@
+# A !test profile ([debug] test_commands=1): type "!test halfling" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# Character model, size O6 (issue 19): your first class becomes Fighter 5, a halfling (Small). A longsword
+# in hand and a dagger in the off hand: both should equip (a longsword is one-handed for a Small
+# character too). The attack trace in the log.
+name = Size O6 (issue 19): halfling Fighter 5, a longsword and an off-hand dagger
+species = halfling
+swap_class = fighter
+class = fighter
+level = 5
+abilities = 16 14 14 8 12 10
+items = nw_wswls001 equip, nw_wswdg001 offhand
+switches = attack_trace=1

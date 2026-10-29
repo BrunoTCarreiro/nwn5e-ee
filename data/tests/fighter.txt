@@ -1,0 +1,19 @@
+# A !test profile ([debug] test_commands=1): type "!test fighter" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# Fighter on EE (issue 23): your first class becomes Fighter 13 - a Champion (crits on 19-20 from 3),
+# Indomitable (from 9), Studied Attacks (13), Second Wind's Tactical Shift (5). Then !level 18 for crits
+# on 18-20 (from 15) and Heroic Rally (18). The Defense Fighting Style, armour on (take it off for F1),
+# a longsword in hand. The attack trace in the log.
+name = Fighter on EE (issue 23): human Fighter 13, Defense, then !level 18
+species = human
+swap_class = fighter
+class = fighter
+level = 13
+abilities = 16 14 14 10 12 8
+feats = defense
+items = nw_aarcl004 equip, nw_wswls001 equip
+switches = attack_trace=1
+note = C1a (crits on 19-20) needs Fighter 3-14: above that, start from a new character
+note = then !level 18 for C1b (crits on 18-20) and C5 (Heroic Rally); !save wis 30 for Indomitable (F5)

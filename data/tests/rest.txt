@@ -1,0 +1,9 @@
+# A !test profile ([debug] test_commands=1): type "!test rest" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# Rests with the game clock moving (issue 49): your character isn't changed; rest_clock is on for this
+# session (off in the ini). A Long Rest moves the clock 8 hours, a Short Rest 1.
+name = Rests with the clock moving (issue 49): rest_clock on
+switches = rest_clock=1
+note = note the game hour before each rest; a Long Rest after 16:00 (R2-6) may not roll over to the next day
