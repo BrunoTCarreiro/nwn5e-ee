@@ -66,6 +66,15 @@ NWN keeps its rules in three places. Each 5e rule lands in the one that owns it:
 Each phase ends with an in-game test by the owner (the build machine cannot
 play the game).
 
+**Tracking (owner, 2026-10-29: "turn the current plan into gh issues so that
+we can keep track of the work we're doing").** Open work is tracked in GitHub
+issues on BrunoTCarreiro/nwn5e-ee and the nwn5e board (CLAUDE.md: labels,
+milestones = these phases, the lifecycle). This file stays the design and
+decision record; each issue names its section here. The first 76 issues
+(#1-#76) were opened from this file on 2026-10-29: everything built and not
+yet accepted, decided and not built, waiting for a decision, the known
+follow-ups, and the phases and classes not started.
+
 ### Phase 0 — Foundation
 - Toolchain in `X:\tools` (Ghidra 12.1.4, Node 24.21, REA 6.5.0). ✅
 - Function map `nwserver.exe` → `nwmain.exe` for the rule functions.
@@ -170,14 +179,18 @@ monster AC by CR.
 
 ## Open decisions (owner)
 
-1. Half-elf and half-orc are not 2024 species — keep as legacy, or replace?
-2. New species (dragonborn, tiefling, goliath, aasimar, orc) — appearance work needed.
-3. Epic levels: cap at 20 with Epic Boons, or a custom 21+ track for HotU?
-4. Hit points per level: fixed average or rolled?
-5. Prestige classes with no 2024 subclass equivalent: drop or adapt?
-6. Rituals and material components: model or ignore?
-7. Action economy design (Phase 6).
-12. Subclass selection UI: prestige classes become 2024 subclasses (decision
+Still open (2026-10-29) - 2, 6 and 7, tracked as issues #22, #38 and #51. 1, 3,
+4, 5 and 12 were answered by "Phase 3 — character model" (2026-10-19; CM1,
+CM3, CM6, CM10).
+
+1. *(Answered, CM6.)* Half-elf and half-orc are not 2024 species — keep as legacy, or replace?
+2. New species (dragonborn, tiefling, goliath, aasimar, orc) — appearance work needed. (#22)
+3. *(Answered, CM1 / CM7.)* Epic levels: cap at 20 with Epic Boons, or a custom 21+ track for HotU?
+4. *(Answered, CM3.)* Hit points per level: fixed average or rolled?
+5. *(Answered, CM10.)* Prestige classes with no 2024 subclass equivalent: drop or adapt?
+6. Rituals and material components: model or ignore? (#38)
+7. Action economy design (Phase 6). (#51)
+12. *(Answered, CM10.)* Subclass selection UI: prestige classes become 2024 subclasses (decision
     10). Proposed: pick the subclass at level 3 in the existing level-up feat
     step (one "subclass" feat per option, custom names/descriptions/icons),
     grant subclass features at their levels from the DLL, and hide prestige
