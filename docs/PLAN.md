@@ -3763,6 +3763,25 @@ recording, the weapon hand kept from an NWN attack (the recipes' kept part).
 Order: Rage first (a one-shot flourish: proves the path end to end), the crouch
 stance (a loop), the Shove (timed).
 
+*#74 (2026-10-29; owner, with a first FreeMoCap test take: "can the animation tool do anything with
+these?", then "go, it's a test take, I want to see what can be done with it, we also probably need to trim
+it and clean it up"):* FreeMoCap had moved on: the take's output is RTMPose's - `rtmpose_body_3d_xyz.csv`,
+a row a point a frame (COCO-WholeBody's 27 body points: the big toes stand for MediaPipe's foot_index),
+hands in files of their own, and the frame times in `synchronized_videos/timestamps/<take>_timestamps.csv`
+(no recording_parameters.json). The bench now reads it (MediaPipe's still works): the folder dropped or
+picked, the files sorted by name; the times resampled to an even 30 a second (that take: 336 frames at
+12.9 a second, 11-16, unevenly). Clean-up gained a glitch filter - a point whose bone from its parent
+suddenly stretches or squashes by 30% (and 6 cm) against the frames around it is dropped and filled (the
+take: an ankle a metre off for a frame at 9.1 s, its shin at 1.6x; 40 points in all); a neighbour test only
+past a metre, because at 13 a second a stab's peak sits 40 cm off its neighbours and a nearer limit cut it.
+Hand files whose points don't sit on the wrist (the take: 71-74 cm off - the hands too small in two 1080p
+webcams to place) are left out, and that hand follows its forearm. A new take gets a suggested standing
+window (the longest still stretch early on - the take: 0.4-1.9 s, arms relaxed, no T-pose needed) and trim
+(from just before the first move to just after the last: 4.1-22.0 s; the take ends with a step away at
+~21.5 s and 4 s standing), and a motion graph (hands, feet; the standing window, the part kept, the playing
+time). Measured (mocap_check.js): resampled from 13 a second a stab's peak lands 29 cm short at the hand,
+from 25 15 cm, from 60 6 cm - slow moves are fine at webcam rates, fast ones want a faster camera. A bench
+change only: no DLL version.
 *Capture habits (told to the owner):* two or more cameras; a T-pose at each
 take's start; cycles performed on the spot; a prop of the weapon's length; a
 clap or stomp at the contact moment. Rage: 2-3 s, relaxed to a fighting stance.

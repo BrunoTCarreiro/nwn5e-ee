@@ -316,7 +316,7 @@
   // retargets it to every body and writes a keys recipe (anim_recipe.cpp builds it per library).
   const MC = window.Mocap;
   const mc = {
-    capture: null, take: null, fileName: "", fps: 30, fpsFromFile: false,
+    capture: null, take: null, fileName: "", fps: 30, fpsFromFile: false, fpsSource: "", despike: true, profile: null, result: null,
     slot: "n5_rage", name: "n5_mocap", smoothing: 0, ref: [0, 0.33], start: 0, end: 0,
     blendIn: 0.2, blendOut: 0.3, loop: false, sway: true, fitLength: 0, contactAt: 0, contact: null, tolerance: 0.75,
     saved: null,  // a keys recipe opened without its capture: its own keys, shown as they are
@@ -371,6 +371,7 @@
     $("mc-name").value = mc.name;
     $("mc-fps").value = mc.fps;
     $("mc-smooth").value = mc.smoothing;
+    $("mc-glitch").checked = mc.despike;
     $("mc-ref0").value = mc.ref[0];
     $("mc-ref1").value = mc.ref[1];
     $("mc-start").value = mc.start;
@@ -393,27 +394,88 @@
       tolerance: mc.tolerance };
   }
 
-  async function loadMocapFiles(files) {
-    let csv = null, json = null;
+  // A recording's files, by name (a whole folder may come: the rest are passed over):
+  // the body (RTMPose's or MediaPipe's, the rigid one if that's all), its hands, the
+  // frame times (synchronized_videos/timestamps/<take>_timestamps.csv - not the per-camera
+  // ones), MediaPipe's recording_parameters.json; any other CSV as the body when nothing
+  // else is.
+  function sortRecordingFiles(files) {
+    const pick = { body: null, rigid: null, left: null, right: null, stamps: null, json: null, other: null };
     for (const f of files) {
-      if (/\.json$/i.test(f.name)) json = f;
-      else if (/\.csv$/i.test(f.name) || /\.txt$/i.test(f.name)) csv = f;
+      const n = f.name.toLowerCase();
+      if (/recording_parameters\.json$/.test(n)) pick.json = f;
+      else if (/left_hand_3d_xyz\.csv$/.test(n)) pick.left = f;
+      else if (/right_hand_3d_xyz\.csv$/.test(n)) pick.right = f;
+      else if (/_body_rigid_3d_xyz\.csv$/.test(n)) pick.rigid = f;
+      else if (/(rtmpose|mediapipe)_body_3d_xyz\.csv$/.test(n)) pick.body = f;
+      else if (/_timestamps\.csv$/.test(n) && !/\.camera/.test(n)) pick.stamps = f;
+      else if (/body_trajectories\.csv$/.test(n) || (/\.(csv|txt)$/.test(n) && !pick.other && !/(face|hand|center_of_mass|by_frame|timestamps)/.test(n))) pick.other = f;
     }
-    try {
-      if (json) {
-        const rate = MC.frameRateFrom(await json.text());
-        if (rate) { mc.fps = rate; mc.fpsFromFile = true; }
+    pick.body = pick.body || pick.rigid || pick.other;
+    return pick;
+  }
+
+  // Dropped folders, walked (CSV and JSON files only).
+  async function filesFromDrop(transfer) {
+    const entries = [...(transfer.items || [])].map((i) => (i.webkitGetAsEntry ? i.webkitGetAsEntry() : null)).filter(Boolean);
+    if (!entries.some((e) => e.isDirectory)) return [...transfer.files];
+    const out = [];
+    async function walk(entry, depth) {
+      if (entry.isFile) {
+        if (/\.(csv|json)$/i.test(entry.name)) out.push(await new Promise((ok, no) => entry.file(ok, no)));
+        return;
       }
-      if (csv) {
-        mc.capture = MC.parseCapture(await csv.text());
-        mc.fileName = csv.name;
+      if (!entry.isDirectory || depth > 4) return;
+      const reader = entry.createReader();
+      for (;;) {
+        const batch = await new Promise((ok, no) => reader.readEntries(ok, no));
+        if (!batch.length) break;
+        for (const e of batch) await walk(e, depth + 1);
+      }
+    }
+    for (const e of entries) await walk(e, 0);
+    return out;
+  }
+
+  async function loadMocapFiles(files, folderName) {
+    const pick = sortRecordingFiles(files);
+    try {
+      if (pick.json) {
+        const rate = MC.frameRateFrom(await pick.json.text());
+        if (rate) { mc.fps = rate; mc.fpsFromFile = true; mc.fpsSource = "recording_parameters.json"; }
+      }
+      if (pick.body) {
+        const capture = MC.parseCapture(await pick.body.text());
+        const hands = [];
+        for (const side of ["left", "right"]) {
+          if (pick[side]) { MC.addHand(capture, await pick[side].text(), side); hands.push(side); }
+        }
+        let timing = "";
+        if (pick.stamps) {
+          const times = MC.timesFrom(await pick.stamps.text());
+          if (times && times.length === capture.frames.length) {
+            capture.times = times;
+            mc.fps = 30;
+            mc.fpsFromFile = true;
+            mc.fpsSource = "resampled from the recording's frame times";
+          } else {
+            timing = times ? " Its timestamps list " + times.length + " frames, the capture " + capture.frames.length + ": not used." : "";
+          }
+        } else if (capture.format === "rtmpose") {
+          timing = " No frame times (synchronized_videos/timestamps/…_timestamps.csv): set the frame rate by hand.";
+          mc.fpsFromFile = false;
+        }
+        mc.capture = capture;
+        mc.fileName = (folderName ? folderName + ": " : "") + pick.body.name + (hands.length ? " + " + hands.join(" and ") + " hand" + (hands.length > 1 ? "s" : "") : "");
         mc.saved = null;
         mc.start = 0;
         mc.end = 0;
         mc.contact = null;
+        mc.fresh = true;
+        mc.timingNote = timing;
       }
       if (!mc.capture) {
-        setMcStatus(json ? "Frame rate " + mc.fps + " read: now drop the capture's CSV." : "Drop the capture's CSV (FreeMoCap's mediapipe_body_3d_xyz.csv).", json ? "" : "bad");
+        setMcStatus(pick.json ? "Frame rate " + mc.fps + " read: now drop the capture's CSV." : "No capture in it: drop a FreeMoCap recording folder or its body CSV.", pick.json ? "" : "bad");
         syncMocapInputs();
         return;
       }
@@ -424,16 +486,47 @@
     }
   }
 
+  // The suggested standing window and part to keep (MC.suggestTrim) - the take prepared
+  // again: the floor and the facing are found in the standing window.
+  function applySuggestedTrim() {
+    const s = MC.suggestTrim(mc.take);
+    mc.ref = s.reference.slice();
+    mc.start = s.start;
+    mc.end = s.end;
+    mc.contact = null;
+  }
+
   function prepareTake() {
     if (!mc.capture) return;
-    mc.take = MC.prepare(mc.capture, { fps: mc.fps, smoothing: mc.smoothing, reference: mc.ref });
+    mc.take = MC.prepare(mc.capture, { fps: mc.fps, smoothing: mc.smoothing, reference: mc.ref, despike: mc.despike ? 1 : 0 });
+    let suggested = "";
+    if (mc.fresh) {  // a new capture: the standing window and the trim suggested
+      mc.fresh = false;
+      applySuggestedTrim();
+      mc.take = MC.prepare(mc.capture, { fps: mc.fps, smoothing: mc.smoothing, reference: mc.ref, despike: mc.despike ? 1 : 0 });
+      suggested = "Suggested: standing " + mc.ref[0].toFixed(2) + "-" + mc.ref[1].toFixed(2) + " s, keep " + mc.start.toFixed(2) + "-" +
+        (mc.end > 0 ? mc.end.toFixed(2) + " s" : "the end") + " (the graph below; change them with the sliders).";
+    }
+    mc.profile = MC.motionProfile(mc.take);
     const d = mc.take.duration;
     for (const id of ["mc-ref0", "mc-ref1", "mc-start", "mc-end", "mc-contact"]) $(id).max = d.toFixed(2);
     if (mc.contact === null) mc.contact = MC.suggestContact(mc.take, mc.start, mc.end);
     const unit = mc.take.unit === 0.001 ? "millimetres" : mc.take.unit === 0.01 ? "centimetres" : "metres";
-    $("mc-info").textContent = mc.fileName + ": " + mc.capture.frames.length + " frames, " + d.toFixed(2) + " s at " + mc.fps +
-      " a second" + (mc.fpsFromFile ? " (from recording_parameters.json)" : "") + ", in " + unit + "; standing hips " +
-      mc.take.hipHeight.toFixed(2) + " m. " + mc.take.notes.join("; ") + (mc.take.notes.length ? "." : "");
+    // What was read, then what was done to it - a line each.
+    const info = $("mc-info");
+    info.textContent = mc.fileName + ": " + mc.capture.frames.length + " frames" + (mc.capture.format === "rtmpose" ? " (RTMPose)" : "") +
+      ", " + d.toFixed(2) + " s at " + mc.fps + " a second" + (mc.fpsFromFile && mc.fpsSource ? " (" + mc.fpsSource + ")" : "") + ", in " + unit +
+      "; standing hips " + mc.take.hipHeight.toFixed(2) + " m.";
+    const lines = mc.take.notes.concat(mc.timingNote ? [mc.timingNote.trim()] : [], suggested ? [suggested] : []);
+    if (lines.length) {
+      const list = document.createElement("ul");
+      for (const text of lines) {
+        const item = document.createElement("li");
+        item.textContent = text.charAt(0).toUpperCase() + text.slice(1);
+        list.appendChild(item);
+      }
+      info.appendChild(list);
+    }
     syncMocapInputs();
     recompute();
   }
@@ -443,6 +536,7 @@
     let result = null;
     if (lib && mc.take) result = MC.retarget(mc.take, lib.bones, mocapOptions(state.body));
     else if (lib && mc.saved) result = A.keyedClip(mc.saved, state.body, lib.bones);
+    mc.result = mc.take ? result : null;
     state.clips.base = state.clips.mix = null;
     state.layers = { base: null, mix: null, result: null };
     state.clips.result = nodeMap(result);
@@ -520,10 +614,23 @@
     $("tab-recipe").addEventListener("click", () => setMode("recipe"));
     $("tab-mocap").addEventListener("click", () => setMode("mocap"));
     $("mc-files").addEventListener("change", () => loadMocapFiles([...$("mc-files").files]));
+    $("mc-folder-b").addEventListener("click", () => $("mc-folder").click());
+    $("mc-folder").addEventListener("change", () => {
+      const files = [...$("mc-folder").files].filter((f) => /\.(csv|json)$/i.test(f.name));
+      const first = $("mc-folder").files[0];
+      loadMocapFiles(files, first && first.webkitRelativePath ? first.webkitRelativePath.split("/")[0] : "");
+    });
     const drop = $("drop");
     for (const type of ["dragenter", "dragover"]) drop.addEventListener(type, (e) => { e.preventDefault(); drop.classList.add("over"); });
     for (const type of ["dragleave", "drop"]) drop.addEventListener(type, () => drop.classList.remove("over"));
-    drop.addEventListener("drop", (e) => { e.preventDefault(); loadMocapFiles([...e.dataTransfer.files]); });
+    drop.addEventListener("drop", (e) => {
+      e.preventDefault();
+      const items = [...(e.dataTransfer.items || [])].map((i) => (i.webkitGetAsEntry ? i.webkitGetAsEntry() : null)).filter(Boolean);
+      const folder = items.find((i) => i.isDirectory);
+      filesFromDrop(e.dataTransfer).then((files) => loadMocapFiles(files, folder ? folder.name : ""));
+    });
+    $("mc-glitch").addEventListener("change", () => { mc.despike = $("mc-glitch").checked; prepareTake(); });
+    $("mc-trim").addEventListener("click", () => { if (mc.take) { applySuggestedTrim(); prepareTake(); } });
     // A file dropped beside the zone mustn't open in the tab.
     for (const type of ["dragover", "drop"]) window.addEventListener(type, (e) => { if (!drop.contains(e.target)) e.preventDefault(); });
     $("mc-slot").addEventListener("change", () => applySlot($("mc-slot").value));
@@ -827,12 +934,56 @@
     view.distance = Math.max(2.5, Math.min(16, view.distance * (1 + Math.sign(e.deltaY) * 0.08)));
   }, { passive: false });
 
+  // The motion graph: the hands' and feet's speed over the take, the standing window and
+  // the part kept shaded, the contact and the playing time marked.
+  function drawMotion() {
+    const c = $("mc-motion");
+    if (!c || !mc.take || !mc.profile || state.mode !== "mocap") return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(10, Math.round(c.clientWidth * dpr)), h = Math.max(10, Math.round(c.clientHeight * dpr));
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    const g = c.getContext("2d");
+    g.clearRect(0, 0, w, h);
+    const d = Math.max(mc.take.duration, 1e-6);
+    const x = (t) => (t / d) * w;
+    const css = getComputedStyle(document.documentElement);
+    const v = (n) => css.getPropertyValue(n).trim();
+    const end = mc.end > 0 ? mc.end : d;
+    g.globalAlpha = 0.25;
+    g.fillStyle = v("--accent");
+    g.fillRect(x(mc.start), 0, x(end) - x(mc.start), h);
+    g.globalAlpha = 0.35;
+    g.fillStyle = v("--ok");
+    g.fillRect(x(mc.ref[0]), 0, Math.max(1, x(mc.ref[1]) - x(mc.ref[0])), h);
+    g.globalAlpha = 1;
+    const top = Math.max(2, ...mc.profile.hands, ...mc.profile.feet);
+    const scale = Math.min(top, 6);  // m/s: a glitch-sized spike doesn't flatten the rest
+    const line = (values, color, width) => {
+      g.strokeStyle = color;
+      g.lineWidth = width * dpr;
+      g.beginPath();
+      values.forEach((s, f) => { const px = x(f / mc.take.fps), py = h - 3 * dpr - (Math.min(s, scale) / scale) * (h - 6 * dpr); if (f) g.lineTo(px, py); else g.moveTo(px, py); });
+      g.stroke();
+    };
+    line(mc.profile.feet, v("--muted"), 1);
+    line(mc.profile.hands, v("--capture"), 1.5);
+    if (mc.contact !== null && mc.fitLength > 0) {
+      g.fillStyle = v("--accent");
+      g.fillRect(x(mc.contact) - dpr, 0, 2 * dpr, h);
+    }
+    if (mc.result && mc.result.takeTime && mc.result.length > 0) {
+      g.fillStyle = v("--ink");
+      g.fillRect(x(mc.result.takeTime(state.time % mc.result.length)) - dpr / 2, 0, Math.max(1, dpr), h);
+    }
+  }
+
   let last = performance.now();
   function frame(now) {
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
     if (state.playing) state.time += dt;
     draw();
+    drawMotion();
     const result = state.clips.result;
     if (result && result.length > 0) {
       const t = state.time % result.length;

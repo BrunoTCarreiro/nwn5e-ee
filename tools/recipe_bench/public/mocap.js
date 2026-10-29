@@ -28,6 +28,17 @@
 //   contact moment ("hit": suggested where the hands move fastest) put at a
 //   chosen time, and key reduction (keys dropped where the engine's
 //   interpolation stays within 0.3 degrees / 3 mm).
+//
+// #74 (owner, 2026-10-29: a FreeMoCap test take - "I want to see what can be done
+// with it, we also probably need to trim it and clean it up"): FreeMoCap's newer
+// RTMPose output read too - output_data/rtmpose_body_3d_xyz.csv, a row a point a
+// frame ("frame,keypoint,x,y,z", COCO-WholeBody's names: the big toes are
+// MediaPipe's foot_index points), its hands in their own files (the index and
+// pinky knuckles give the hand's turn), its frame times from
+// synchronized_videos/timestamps/<take>_timestamps.csv (webcams run unevenly:
+// 10-17 a second) - resampled to an even rate. Clean-up gains a glitch filter (a
+// point that jumps away from its neighbours for a frame or two is dropped and
+// filled), and the take a motion profile and a suggested trim and standing window.
 (function (root) {
   "use strict";
 
@@ -52,6 +63,17 @@
   ].map(([a, b]) => [P[a], P[b]]);
   const NEEDED = ["left_shoulder", "right_shoulder", "left_elbow", "right_elbow", "left_wrist", "right_wrist", "left_hip",
     "right_hip", "left_knee", "right_knee", "left_ankle", "right_ankle", "left_ear", "right_ear", "nose"];
+  // RTMPose (COCO-WholeBody) names that differ from MediaPipe's; its hand files' points
+  // that stand for MediaPipe's hand points; points a tracker may not give, and what
+  // stands in for them (they're only drawn).
+  const ALIASES = { left_big_toe: "left_foot_index", right_big_toe: "right_foot_index" };
+  const HAND_POINTS = { forefinger1: "index", pinky_finger1: "pinky", thumb2: "thumb" };
+  const STAND_INS = {
+    left_eye_inner: "left_eye", left_eye_outer: "left_eye", right_eye_inner: "right_eye", right_eye_outer: "right_eye",
+    left_eye: "nose", right_eye: "nose", mouth_left: "nose", mouth_right: "nose",
+    left_thumb: "left_index", right_thumb: "right_index", left_heel: "left_ankle", right_heel: "right_ankle",
+    left_foot_index: "left_ankle", right_foot_index: "right_ankle",
+  };
 
   // --- Vectors and quaternions (x y z w, as the libraries key them) ----------------------
   const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -121,6 +143,7 @@
     const lines = String(text).split(/\r?\n/).filter((l) => l.trim().length);
     if (lines.length < 3) throw new Error("not a capture: fewer than two frames");
     const header = lines[0].replace(/^\s*#\s*/, "").split(",").map((h) => h.trim().toLowerCase());
+    if (isLong(header)) return parseLong(lines, header);
     const columns = new Array(COUNT * 3).fill(-1);
     header.forEach((h, c) => {
       const m = /^(?:body_)?([a-z_]+)_([xyz])$/.exec(h);
@@ -141,7 +164,184 @@
       }
       frames.push(frame);
     }
-    return { frames, columns: header.length };
+    return { frames, columns: header.length, format: "mediapipe" };
+  }
+
+  // A row a point a frame: "frame,keypoint,x,y,z" (FreeMoCap's RTMPose files).
+  const isLong = (header) => ["frame", "keypoint", "x", "y", "z"].every((h) => header.includes(h));
+  const num = (s) => { const v = parseFloat(s); return Number.isFinite(v) ? v : NaN; };
+  function readLong(lines, header, each) {
+    const fi = header.indexOf("frame"), ki = header.indexOf("keypoint");
+    const xi = header.indexOf("x"), yi = header.indexOf("y"), zi = header.indexOf("z");
+    let last = -1;
+    for (let i = 1; i < lines.length; i++) {
+      const c = lines[i].split(",");
+      const f = parseInt(c[fi], 10);
+      if (!(f >= 0) || c.length <= Math.max(fi, ki, xi, yi, zi)) continue;
+      each(f, c[ki].trim().toLowerCase(), [num(c[xi]), num(c[yi]), num(c[zi])]);
+      if (f > last) last = f;
+    }
+    return last + 1;
+  }
+  function parseLong(lines, header) {
+    const byFrame = new Map();
+    const seen = new Set();
+    const count = readLong(lines, header, (f, name, v) => {
+      const n = ALIASES[name] || name;
+      if (!(n in P)) return;
+      let frame = byFrame.get(f);
+      if (!frame) { frame = new Float64Array(COUNT * 3).fill(NaN); byFrame.set(f, frame); }
+      frame.set(v, P[n] * 3);
+      if (valid(v)) seen.add(n);
+    });
+    const missing = NEEDED.filter((n) => !seen.has(n));
+    if (missing.length) throw new Error("these body points aren't in it: " + missing.join(", ") + " (FreeMoCap's output_data/rtmpose_body_3d_xyz.csv has them)");
+    const frames = [];
+    for (let f = 0; f < count; f++) frames.push(byFrame.get(f) || new Float64Array(COUNT * 3).fill(NaN));
+    return { frames, columns: header.length, format: "rtmpose" };
+  }
+
+  // A hand file (rtmpose_left_hand_3d_xyz.csv): its index and pinky knuckles and its
+  // thumb into the capture's hand points. side: "left" / "right". The frames filled.
+  function addHand(capture, text, side) {
+    const lines = String(text).split(/\r?\n/).filter((l) => l.trim().length);
+    const header = (lines[0] || "").split(",").map((h) => h.trim().toLowerCase());
+    if (!isLong(header)) throw new Error("not a FreeMoCap hand file (frame,keypoint,x,y,z)");
+    let filled = 0;
+    const done = new Set();
+    readLong(lines, header, (f, name, v) => {
+      const short = name.replace(/^(left|right)_hand_/, "");
+      const what = HAND_POINTS[short];
+      if (!what || f >= capture.frames.length || !valid(v)) return;
+      capture.frames[f].set(v, P[side + "_" + what] * 3);
+      if (!done.has(f)) { done.add(f); filled++; }
+    });
+    capture.hands = Object.assign({}, capture.hands, { [side]: filled });
+    return filled;
+  }
+
+  // synchronized_videos/timestamps/<take>_timestamps.csv: each frame's time from the
+  // recording's start (seconds), or null.
+  function timesFrom(text) {
+    const lines = String(text).split(/\r?\n/).filter((l) => l.trim().length);
+    if (lines.length < 3) return null;
+    const header = lines[0].split(",").map((h) => h.trim().toLowerCase());
+    const c = header.findIndex((h) => h.startsWith("timestamp.from_recording_start"));
+    if (c < 0) return null;
+    const times = [];
+    for (let i = 1; i < lines.length; i++) times.push(num(lines[i].split(",")[c]));
+    return times.every(Number.isFinite) ? times : null;
+  }
+
+  // Even frames from uneven ones (times in seconds, rising): straight lines between.
+  function resample(frames, times, fps) {
+    const t0 = times[0], t1 = times[times.length - 1];
+    const n = Math.max(2, Math.floor((t1 - t0) * fps + 1e-6) + 1);
+    const out = [];
+    let j = 0;
+    for (let k = 0; k < n; k++) {
+      const t = t0 + k / fps;
+      while (j < times.length - 2 && times[j + 1] < t) j++;
+      const u = Math.max(0, Math.min(1, (t - times[j]) / Math.max(times[j + 1] - times[j], 1e-9)));
+      const a = frames[j], b = frames[j + 1];
+      const f = new Float64Array(a.length);
+      for (let s = 0; s < a.length; s++) f[s] = a[s] + (b[s] - a[s]) * u;
+      out.push(f);
+    }
+    return out;
+  }
+
+  // Glitches, dropped (NaN) and then filled: a point whose bone from its parent joint is
+  // suddenly stretched or squashed - by more than 30% (and 6 cm) of its length in the
+  // frames around it (two each side) - for a frame: a fast real move keeps its bones, a
+  // tracking slip doesn't (the owner's test take: an ankle a metre off for a frame, its
+  // shin at 1.6x); the frames around, not the whole take, because two webcams' bones
+  // drift slowly with the pose (that take's shin 35-49 cm). And, for any point, one
+  // further than `limit` (a metre) from the median of its neighbours - only that far:
+  // at 13 frames a second a stab's peak sits 40 cm and more off its neighbours, and a
+  // nearer limit cut it off. Lengths and limits in the capture's units (`metre`: a
+  // metre in them).
+  const BONES = [["left_shoulder", "left_elbow"], ["left_elbow", "left_wrist"], ["right_shoulder", "right_elbow"],
+    ["right_elbow", "right_wrist"], ["left_hip", "left_knee"], ["left_knee", "left_ankle"], ["right_hip", "right_knee"],
+    ["right_knee", "right_ankle"], ["left_ankle", "left_heel"], ["left_ankle", "left_foot_index"], ["right_ankle", "right_heel"],
+    ["right_ankle", "right_foot_index"], ["left_wrist", "left_index"], ["left_wrist", "left_pinky"], ["right_wrist", "right_index"],
+    ["right_wrist", "right_pinky"], ["left_shoulder", "left_hip"], ["right_shoulder", "right_hip"], ["left_ear", "nose"]]
+    .map(([a, b]) => [P[a], P[b]]);
+  function despike(frames, limit, metre) {
+    const n = frames.length;
+    if (!(limit > 0) || n < 5) return 0;
+    const m = metre > 0 ? metre : 1;
+    const drop = new Set();
+    const med = (v) => v.slice().sort((x, y) => x - y)[2];
+    const around = (f) => Math.max(0, Math.min(n - 5, f - 2));
+    for (const [a, b] of BONES) {
+      const lengths = frames.map((f) => { const p = point(f, a), q = point(f, b); return valid(p) && valid(q) ? len(sub(q, p)) : NaN; });
+      for (let f = 0; f < n; f++) {
+        if (!Number.isFinite(lengths[f])) continue;
+        const w = lengths.slice(around(f), around(f) + 5);
+        if (!w.every(Number.isFinite)) continue;
+        const usual = med(w);
+        if (Math.abs(lengths[f] - usual) > Math.max(usual * 0.3, 0.06 * m)) drop.add(f * COUNT + b);
+      }
+    }
+    for (let i = 0; i < COUNT; i++) {
+      for (let f = 0; f < n; f++) {
+        const p = point(frames[f], i);
+        if (!valid(p)) continue;
+        const w = [];
+        for (let g = around(f); g < around(f) + 5; g++) w.push(point(frames[g], i));
+        if (!w.every(valid)) continue;
+        const c = [0, 1, 2].map((k) => med(w.map((q) => q[k])));
+        if (Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2]) > limit) drop.add(f * COUNT + i);
+      }
+    }
+    for (const key of drop) {
+      const f = Math.floor(key / COUNT), i = key % COUNT;
+      frames[f][i * 3] = frames[f][i * 3 + 1] = frames[f][i * 3 + 2] = NaN;
+    }
+    return drop.size;
+  }
+
+  // A hand file's points that don't sit on the wrist - its index knuckle further from it,
+  // in most frames, than the forearm is long (the owner's test take: 74 cm off - the
+  // hands too small in the webcams' frames to place) - are dropped: that hand then
+  // follows its forearm.
+  function dropStrayHands(frames, notes, unit) {
+    for (const side of ["left", "right"]) {
+      const reach = [], forearm = [];
+      for (const f of frames) {
+        const w = point(f, P[side + "_wrist"]), e = point(f, P[side + "_elbow"]), k = point(f, P[side + "_index"]);
+        if (valid(w) && valid(k)) reach.push(len(sub(k, w)));
+        if (valid(w) && valid(e)) forearm.push(len(sub(w, e)));
+      }
+      if (!reach.length || !forearm.length) continue;
+      const off = percentile(reach, 0.5), arm = percentile(forearm, 0.5);
+      if (off <= arm) continue;
+      for (const f of frames) for (const what of ["index", "pinky", "thumb"]) f.fill(NaN, P[side + "_" + what] * 3, P[side + "_" + what] * 3 + 3);
+      notes.push("the " + side + " hand file's points don't sit on the wrist (" + Math.round(off * unit * 100) + " cm off): left out");
+    }
+  }
+
+  // Points the capture never gives: the hands from the forearms (the knuckles a third of a
+  // forearm past the wrist - no turn about the arm), the rest from their stand-ins.
+  function standIns(frames, notes) {
+    const never = (n) => frames.every((f) => !Number.isFinite(f[P[n] * 3]));
+    for (const side of ["left", "right"]) {
+      if (!never(side + "_index") || !never(side + "_pinky")) continue;
+      for (const f of frames) {
+        const w = point(f, P[side + "_wrist"]), e = point(f, P[side + "_elbow"]);
+        if (!valid(w) || !valid(e)) continue;
+        const k = add(w, scale(sub(w, e), 0.35));
+        for (const what of ["index", "pinky", "thumb"]) f.set(k, P[side + "_" + what] * 3);
+      }
+      notes.push("no usable " + side + " hand points: that hand follows its forearm (no turn about it)");
+    }
+    for (let pass = 0; pass < 2; pass++) {
+      for (const [n, from] of Object.entries(STAND_INS)) {
+        if (!never(n) || never(from)) continue;
+        for (const f of frames) f.set(point(f, P[from]), P[n] * 3);
+      }
+    }
   }
 
   // FreeMoCap's output_data/recording_parameters.json: the frame rate, or null.
@@ -213,16 +413,31 @@
   // (frames [a, b) averaged: the standing pose), hipHeight (standing), notes }.
   // options: fps (30), smoothing (sigma, frames; 0), reference: [start, end] s.
   function prepare(capture, options) {
-    const opt = Object.assign({ fps: 30, smoothing: 0, reference: [0, 0.33] }, options || {});
-    const raw = capture.frames.map((f) => Float64Array.from(f));
+    const opt = Object.assign({ fps: 30, smoothing: 0, reference: [0, 0.33], despike: 1 }, options || {});
+    let raw = capture.frames.map((f) => Float64Array.from(f));
     if (raw.length < 2) throw new Error("a capture needs two frames or more");
     const notes = [];
-    const gaps = fillGaps(raw);
-    if (gaps) notes.push(gaps + " missing values filled");
     // Size: millimetres when the body is metres long in thousands.
     const heights = raw.map((f) => len(sub(mid(point(f, P.left_shoulder), point(f, P.right_shoulder)), mid(point(f, P.left_ankle), point(f, P.right_ankle)))));
     const body = percentile(heights, 0.5);
     const unit = body > 50 ? 0.001 : body > 5 ? 0.01 : 1;
+    dropStrayHands(raw, notes, unit);
+    const glitches = opt.despike > 0 ? despike(raw, opt.despike / unit, 1 / unit) : 0;
+    if (glitches) notes.push(glitches + " glitches removed (a bone suddenly stretched or squashed by 30% or more for a frame)");
+    const gaps = fillGaps(raw);
+    if (gaps) notes.push(gaps + " missing values filled");
+    standIns(raw, notes);
+    let source = null;
+    if (capture.times && capture.times.length === raw.length) {
+      const times = capture.times;
+      const span = times[times.length - 1] - times[0];
+      const steps = [];
+      for (let i = 1; i < times.length; i++) steps.push(1 / Math.max(times[i] - times[i - 1], 1e-6));
+      source = { frames: raw.length, rate: (raw.length - 1) / Math.max(span, 1e-6), slowest: percentile(steps, 0.02), fastest: percentile(steps, 0.98) };
+      raw = resample(raw, times, opt.fps > 1 ? opt.fps : 30);
+      notes.push("resampled from " + source.frames + " frames at " + source.rate.toFixed(1) + " a second (" + source.slowest.toFixed(0) + "-" +
+                 source.fastest.toFixed(0) + ") to " + (opt.fps > 1 ? opt.fps : 30) + " - from the recording's timestamps");
+    }
     // Axes, from the standing reference (the T-pose at the take's start): up is the
     // floor's - the plane through both heels and both toes - when those points look
     // right (within 25 degrees of the body's ankles-to-shoulders line), else the
@@ -252,7 +467,7 @@
     if (opt.axes) {  // given (a check that knows them; a manual fix)
       up = norm(opt.axes.up);
       right = opt.axes.right;
-      notes.length = 0;
+      for (let k = notes.length - 1; k >= 0; k--) if (/^up from/.test(notes[k])) notes.splice(k, 1);
       notes.push("axes given");
     }
     right = norm(sub(right, scale(up, dot(right, up))));
@@ -279,7 +494,7 @@
     const floor = percentile(lows, 0.05);
     for (const f of frames) for (let i = 0; i < COUNT; i++) f[i * 3 + 2] -= floor;
     const fps = opt.fps > 1 ? opt.fps : 30;
-    const take = { fps, frames, up, right, forward, unit, mirrored, floor: floor, duration: (frames.length - 1) / fps, notes };
+    const take = { fps, frames, up, right, forward, unit, mirrored, floor: floor, duration: (frames.length - 1) / fps, notes, source };
     setReference(take, opt.reference);
     return take;
   }
@@ -632,8 +847,58 @@
     return out;
   }
 
-  const api = { LANDMARKS, CONNECTIONS, parseCapture, frameRateFrom, prepare, setReference, pointsAt, retarget,
-                suggestContact, reduceTrack, rig, solveFrame, landmarks, bodyFrames };
+  // --- The take's motion, and where to trim ----------------------------------------------------
+  // Per frame: the fastest hand, the fastest foot and the hips (m/s), smoothed over a fifth of a second.
+  function motionProfile(take) {
+    const n = take.frames.length;
+    const speed = (f, ids) => {
+      if (f === 0) return 0;
+      let s = 0;
+      for (const i of ids) s = Math.max(s, len(sub(point(take.frames[f], i), point(take.frames[f - 1], i))) * take.fps);
+      return s;
+    };
+    const raw = { hands: [], feet: [], hips: [] };
+    for (let f = 0; f < n; f++) {
+      raw.hands.push(speed(f, [P.left_wrist, P.right_wrist]));
+      raw.feet.push(speed(f, [P.left_ankle, P.right_ankle]));
+      const h = (g) => mid(point(take.frames[g], P.left_hip), point(take.frames[g], P.right_hip));
+      raw.hips.push(f ? len(sub(h(f), h(f - 1))) * take.fps : 0);
+    }
+    const r = Math.max(1, Math.round(take.fps * 0.1));
+    const soften = (v) => v.map((_, f) => { let s = 0, c = 0; for (let g = Math.max(0, f - r); g <= Math.min(n - 1, f + r); g++) { s += v[g]; c++; } return s / c; });
+    const out = { hands: soften(raw.hands), feet: soften(raw.feet), hips: soften(raw.hips) };
+    out.overall = out.hands.map((v, f) => Math.max(v, out.feet[f], out.hips[f]));
+    return out;
+  }
+
+  // A suggested standing window (the longest still stretch in the first 40%), and the part
+  // to keep: from just before the first movement after it to just after the last.
+  function suggestTrim(take) {
+    const m = motionProfile(take).overall;
+    const n = m.length;
+    const quiet = percentile(m, 0.15);
+    const moving = Math.max(0.6, quiet * 2.5);
+    let best = [0, 0], run = -1;
+    const limit = Math.max(2, Math.floor(n * 0.4));
+    for (let f = 0; f <= limit; f++) {
+      const still = f < limit && m[f] < moving;
+      if (still && run < 0) run = f;
+      if (!still && run >= 0) { if (f - run > best[1] - best[0]) best = [run, f]; run = -1; }
+    }
+    const pad = Math.round(take.fps * 0.3);
+    let refA = best[0], refB = best[1];
+    if (refB - refA > Math.round(take.fps * 0.4)) { const trim = Math.round((refB - refA) * 0.1); refA += trim; refB -= trim; }
+    refB = Math.min(refB, refA + Math.round(take.fps * 1.5));
+    let first = -1, last = -1;
+    for (let f = best[1]; f < n; f++) if (m[f] >= moving) { if (first < 0) first = f; last = f; }
+    const start = first < 0 ? 0 : Math.max(best[1], first - pad);
+    const end = last < 0 ? 0 : Math.min(n - 1, last + pad);
+    return { reference: [refA / take.fps, Math.max(refA + 1, refB) / take.fps], start: start / take.fps,
+             end: end >= n - 1 ? 0 : end / take.fps, moving, still: best[1] > best[0] };
+  }
+
+  const api = { LANDMARKS, CONNECTIONS, parseCapture, addHand, timesFrom, resample, despike, frameRateFrom, prepare, setReference,
+                pointsAt, retarget, suggestContact, motionProfile, suggestTrim, reduceTrack, rig, solveFrame, landmarks, bodyFrames };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.Mocap = api;
 })(typeof window !== "undefined" ? window : this);

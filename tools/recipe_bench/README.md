@@ -27,21 +27,38 @@ Options: `--build <folder>` (nwn5e's build folder; default `../../build`, or the
 The **Mocap** tab turns a [FreeMoCap](https://freemocap.org) recording into an
 animation for nwn5e:
 
-1. Drop the recording's `output_data/mediapipe_body_3d_xyz.csv` on the drop zone
-   (with `output_data/recording_parameters.json` for its frame rate; else 30).
+1. Drop the recording's folder on the drop zone (or **Pick a recording folder**),
+   or its files: FreeMoCap's RTMPose output - `output_data/rtmpose_body_3d_xyz.csv`,
+   the hand files `rtmpose_left_hand_3d_xyz.csv` / `..._right_...`, and
+   `synchronized_videos/timestamps/<take>_timestamps.csv` - or the older
+   MediaPipe one, `output_data/mediapipe_body_3d_xyz.csv` with
+   `recording_parameters.json` for its frame rate. The rest of the folder is
+   passed over. With the timestamps, the take is resampled to an even 30 a
+   second (webcams run unevenly); a body file without them needs its frame rate
+   set by hand. Glitches - a bone suddenly stretched or squashed by 30% for a
+   frame - are dropped and filled (**Remove glitches**); hand files whose points
+   don't sit on the wrists are left out (that hand then follows its forearm).
 2. Pick what it is for - `n5_rage` (played as a Rage starts), `n5_cridle` (the
    crouched idle while hiding), `n5_shove` (a player's Shove swing) or a name of
    your own (play it with `!anim <name>`). Each sets sensible blends, a loop or a
    fitted length.
-3. Set the **standing** window (the T-pose at the take's start: the floor, the
-   facing and the body's neutral are found there), trim the take, smooth it if it
-   jitters, and watch the body you pick play it with the capture's points over it.
+3. Set the **standing** window (standing still at the take's start: the floor,
+   the facing and the body's neutral are found there), trim the take, smooth it if
+   it jitters, and watch the body you pick play it with the capture's points over
+   it. A new take gets a suggested standing window and trim (**Suggest standing
+   and trim** again after changes); the graph under the sliders shows how fast
+   the hands and feet move, the standing window, the part kept and the playing
+   time.
 4. **Save for every body**: the take is retargeted to all eight body libraries and
    written as one keys recipe; the next game start builds it.
 
-Capture habits: two or more cameras; a T-pose at each take's start, facing
-forward, feet flat; moves performed on the spot (travel is stripped); a prop of
-the weapon's length; a clap or a stomp at the contact moment of a swing.
+Capture habits: two or more cameras; standing still (arms relaxed or a T-pose)
+for a second or two at each take's start, facing forward, feet flat; moves
+performed on the spot (travel is stripped); a prop of the weapon's length; a clap
+or a stomp at the contact moment of a swing. The frame rate matters for fast
+moves: resampled from 13 a second, a stab's peak lands about 29 cm short at the
+hand, from 25 about 15 cm (mocap_check.js's info lines); slow moves (a flourish, a
+stance) are fine at webcam rates.
 
 The arms and legs point where the performer's point; the pelvis, torso, neck
 and head turn by how much the performer's turn from the standing pose (which
@@ -59,8 +76,10 @@ with the torso (35%).
   `src/data/anim_recipe.cpp` (`kind = keys`).
 - `public/app.js`, `index.html`, `style.css` - the page.
 - `mocap_check.js` - checks Mocap mode on the real libraries: NWN animations turned
-  into made-up captures and back (the joints within a few cm), the axes found
-  from a standing pose, and a real recording retargeted to every body:
-  `node tools/recipe_bench/mocap_check.js build/animedit/libraries [recording.csv]`.
+  into made-up captures and back (the joints within a few cm) - MediaPipe's layout
+  and RTMPose's (a row a point a frame, hand files, uneven frame times, glitches,
+  hand files off the wrists) - the axes found from a standing pose, and a real
+  recording retargeted to every body:
+  `node tools/recipe_bench/mocap_check.js build/animedit/libraries [recording.csv | recording folder]`.
 - `check.js` - runs core.js on a folder of libraries:
   `node tools/recipe_bench/check.js build/animedit/libraries`.

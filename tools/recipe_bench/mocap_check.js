@@ -203,10 +203,153 @@ roundTrip("a_fa", "victorymg", { yaw: 0.3, yUp: false, mirror: false }, limits);
 roundTrip("a_dfa", "victorymg", { yaw: 0.3, yUp: false, mirror: false }, limits);
 roundTrip("a_da2", "taunt", { yaw: 0.3, yUp: false, mirror: false }, limits);
 
+// --- FreeMoCap's RTMPose files (#74) ------------------------------------------------------------
+// The same made-up recording as RTMPose writes it: a row a point a frame (its names: the big
+// toes for the foot_index points, no inner / outer eyes, mouth or hand points in the body
+// file), the hands in files of their own, and uneven frame times (webcams: 10-17 a second)
+// that the reader resamples to 30. Options: rate (frames a second, 13 by default),
+// glitches (a frame's ankle a metre off, a wrist 60 cm off - the filter must drop them),
+// strayHands (the hand files 80 cm off the wrists - they must be left out), info (print
+// only: what a rate loses - at 13 a second a stab's peak falls between frames).
+const RTM_RENAME = { left_foot_index: "left_big_toe", right_foot_index: "right_big_toe" };
+const RTM_SKIP = new Set(["left_eye_inner", "left_eye_outer", "right_eye_inner", "right_eye_outer", "mouth_left", "mouth_right",
+  "left_index", "left_pinky", "left_thumb", "right_index", "right_pinky", "right_thumb"]);
+function makeRtm(bones, clip, opt, stance, extra) {
+  const restPose = posed(bones, null, 0);
+  const lead = 0.5;  // the standing reference, seconds
+  const times = [];
+  const rate = extra.rate || 13;
+  for (let t = 0, k = 0; t <= lead + clip.length + 1e-9; k++) {
+    times.push(t);
+    t += (1 / rate) * (1 + (((k * 7919) % 11) - 5) * 0.08);  // unevenly: 13 a second is about 10-17
+  }
+  // A frame where the stance gives way to the clip (a person moves on from standing; the
+  // made-up one jumps, and resampling across the jump isn't what's checked).
+  if (!times.some((t) => Math.abs(t - lead) < 1e-9)) { times.push(lead); times.sort((a, b) => a - b); }
+  const body = ["frame,keypoint,x,y,z"], hands = { left: ["frame,keypoint,x,y,z"], right: ["frame,keypoint,x,y,z"] };
+  const fmt = (v) => v.map((x) => x.toFixed(3)).join(",");
+  times.forEach((t, f) => {
+    const pose = t < lead ? posed(bones, stance, 0) : posed(bones, clip, Math.min(t - lead, clip.length));
+    const pt = landmarksFrom(bones, pose, restPose);
+    for (const n of M.LANDMARKS) {
+      if (RTM_SKIP.has(n)) continue;
+      let p = toRecording(pt[n], opt);
+      if (extra.glitches && f === 9 && n === "right_ankle") p = p.map((v, c) => v + (c === 0 ? 1000 : 0));
+      if (extra.glitches && f === 14 && n === "left_wrist") p = p.map((v, c) => v + (c === 2 ? 600 : 0));
+      body.push(f + "," + (RTM_RENAME[n] || n) + "," + fmt(p));
+    }
+    for (const side of ["left", "right"]) {
+      const off = extra.strayHands ? [800, 0, 0] : [0, 0, 0];
+      const at = (n) => toRecording(pt[side + "_" + n], opt).map((v, c) => v + off[c]);
+      hands[side].push(f + ",hand_root," + fmt(toRecording(pt[side + "_wrist"], opt).map((v, c) => v + off[c])));
+      hands[side].push(f + ",forefinger1," + fmt(at("index")));
+      hands[side].push(f + ",pinky_finger1," + fmt(at("pinky")));
+      hands[side].push(f + ",thumb2," + fmt(at("thumb")));
+    }
+  });
+  const stamps = ["multiframe_number,timestamp.from_recording_start.sec,other"].concat(times.map((t, f) => f + "," + t.toFixed(6) + ",0"));
+  return { body: body.join("\n") + "\n", left: hands.left.join("\n") + "\n", right: hands.right.join("\n") + "\n",
+           stamps: stamps.join("\n") + "\n", lead };
+}
+function rtmRoundTrip(body, name, opt, extra, limits) {
+  const lib = libs.get(body);
+  const clip = findClip(body, name);
+  if (!lib || !clip) { console.log("SKIP", body, name); return; }
+  const stance = findClip(body, "pause1");
+  const made = makeRtm(lib.bones, clip, opt, stance, extra);
+  const capture = M.parseCapture(made.body);
+  M.addHand(capture, made.left, "left");
+  M.addHand(capture, made.right, "right");
+  capture.times = M.timesFrom(made.stamps);
+  const o = toRecording([0, 0, 0], opt);
+  const axis = (v) => toRecording(v, opt).map((x, c) => x - o[c]);
+  const take = M.prepare(capture, { fps: 30, reference: [0, made.lead - 0.1], axes: { up: axis([0, 0, 1]), right: axis([1, 0, 0]) } });
+  const result = M.retarget(take, lib.bones, { name: "rt", start: made.lead, stance });
+  const index = JOINTS.map((j) => lib.bones.findIndex((b) => b.name.toLowerCase() === j));
+  const rootIndex = lib.bones.findIndex((b) => b.name.toLowerCase() === "rootdummy");
+  const restWorld = posed(lib.bones, null, 0).map((w) => w.q);
+  let worst = 0, sum = 0, n = 0, worstAt = "";
+  for (let t = 0; t <= Math.min(clip.length, result.length) + 1e-6; t += 1 / 30) {
+    const want = posed(lib.bones, clip, t), got = posed(lib.bones, result, t);
+    for (let k = 0; k < index.length; k++) {
+      const i = index[k];
+      if (i < 0 || (extra.strayHands && /hand$/.test(JOINTS[k]))) continue;  // a hand left out follows its forearm: not its knuckles
+      const a = want[i].p.map((v, c) => v - want[rootIndex].p[c]), b = got[i].p.map((v, c) => v - got[rootIndex].p[c]);
+      const e = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+      sum += e; n++;
+      if (e > worst) { worst = e; worstAt = JOINTS[k] + " at " + t.toFixed(2) + " s"; }
+    }
+    // The hands' turn about their length (the hand files' index and pinky knuckles): a point
+    // 10 cm to the index side of each hand - a joint's place can't show it.
+    for (const name of extra.strayHands ? [] : ["lhand_g", "rhand_g"]) {
+      const i = lib.bones.findIndex((b) => b.name.toLowerCase() === name);
+      if (i < 0) continue;
+      const rest = restWorld[i];
+      const side = (pose) => { const since = qmul(pose[i].q, [-rest[0], -rest[1], -rest[2], rest[3]]);
+        return add(pose[i].p, rotate(since, [0, 0.1, 0])).map((v, c) => v - pose[rootIndex].p[c]); };
+      const a = side(want), b = side(got);
+      const e = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+      sum += e; n++;
+      if (e > worst) { worst = e; worstAt = name + "'s side at " + t.toFixed(2) + " s"; }
+    }
+  }
+  const mean = sum / Math.max(n, 1);
+  const notes = take.notes.join("; ");
+  const wantNotes = [/resampled from \d+ frames at \d+\.\d a second/];
+  if (extra.glitches) wantNotes.push(/glitches removed/);
+  if (extra.strayHands) wantNotes.push(/left hand file's points don't sit on the wrist/, /right hand file's points don't sit on the wrist/);
+  else wantNotes.push({ test: (s) => !/hand file/.test(s) });
+  const notesOk = wantNotes.every((r) => r.test(notes));
+  const ok = mean <= limits.mean && worst <= limits.worst && notesOk && capture.format === "rtmpose";
+  if (!ok && !extra.info) failed++;
+  console.log((extra.info ? "info" : ok ? "ok  " : "FAIL") + " rtmpose " + body + " " + name + " (" +
+              Object.keys(extra).filter((k) => extra[k] && k !== "rate" && k !== "info").concat(["uneven " + (extra.rate || 13) + "/s"]).join(", ") +
+              "): joints off by mean " + (mean * 100).toFixed(1) + " cm, worst " + (worst * 100).toFixed(1) + " cm (" + worstAt + "); " +
+              (notesOk ? "" : "MISSING NOTES; ") + notes);
+}
+// 13 frames a second through straight lines: a little softer than the 30 a second round trips.
+const rtmLimits = { mean: 0.05, worst: 0.14 };
+rtmRoundTrip("a_ba", "victorymg", { yaw: 0.65, yUp: true, mirror: false }, {}, rtmLimits);
+rtmRoundTrip("a_ba", "nwstab", { yaw: -1.2, yUp: false, mirror: false }, { rate: 60 }, rtmLimits);
+// What a rate loses on a fast move (a stab's peak between frames) - printed, not checked.
+rtmRoundTrip("a_ba", "nwstab", { yaw: -1.2, yUp: false, mirror: false }, { rate: 25, info: true }, rtmLimits);
+rtmRoundTrip("a_ba", "nwstab", { yaw: -1.2, yUp: false, mirror: false }, { info: true }, rtmLimits);
+rtmRoundTrip("a_ba", "victorymg", { yaw: 0.65, yUp: true, mirror: false }, { glitches: true }, rtmLimits);
+rtmRoundTrip("a_fa", "taunt", { yaw: 0.3, yUp: true, mirror: false }, { strayHands: true }, rtmLimits);
+{
+  // A frame time column missing or not numbers: no times (the frame rate then comes from the box).
+  const ok = M.timesFrom("a,b\n1,2\n3,4\n") === null && M.timesFrom("x,timestamp.from_recording_start.sec\n0,0\n1,nan\n") === null;
+  if (!ok) failed++;
+  console.log((ok ? "ok  " : "FAIL") + " timestamps: no times from a file without a usable time column");
+  // Resampling uneven frames: straight lines between, the even grid from the first time.
+  const r = M.resample([Float64Array.of(0), Float64Array.of(10), Float64Array.of(30)], [0, 0.1, 0.3], 10);
+  const okR = r.length === 4 && Math.abs(r[1][0] - 10) < 1e-9 && Math.abs(r[2][0] - 20) < 1e-9 && Math.abs(r[3][0] - 30) < 1e-9;
+  if (!okR) failed++;
+  console.log((okR ? "ok  " : "FAIL") + " resample: " + Array.from(r, (f) => f[0].toFixed(1)).join(" "));
+}
+
+// A recording: FreeMoCap's mediapipe_body_3d_xyz.csv, or a recording folder (its RTMPose
+// files: body, hands, timestamps).
+function readRecording(where) {
+  if (!fs.statSync(where).isDirectory()) return M.parseCapture(fs.readFileSync(where, "utf8"));
+  const out = path.join(where, "output_data");
+  const capture = M.parseCapture(fs.readFileSync(path.join(out, "rtmpose_body_3d_xyz.csv"), "utf8"));
+  for (const side of ["left", "right"]) {
+    const f = path.join(out, "rtmpose_" + side + "_hand_3d_xyz.csv");
+    if (fs.existsSync(f)) M.addHand(capture, fs.readFileSync(f, "utf8"), side);
+  }
+  const stampsDir = path.join(where, "synchronized_videos", "timestamps");
+  const stamps = fs.existsSync(stampsDir) ? fs.readdirSync(stampsDir).find((f) => /_timestamps\.csv$/i.test(f)) : null;
+  if (stamps) capture.times = M.timesFrom(fs.readFileSync(path.join(stampsDir, stamps), "utf8"));
+  return capture;
+}
+
 if (recording) {
-  const text = fs.readFileSync(recording, "utf8");
-  const capture = M.parseCapture(text);
+  const capture = readRecording(recording);
   const take = M.prepare(capture, { fps: 30, smoothing: 1, reference: [0, 0.33] });
+  const trim = M.suggestTrim(take);
+  console.log("suggested: standing " + trim.reference.map((v) => v.toFixed(2)).join("-") + " s, keep " + trim.start.toFixed(2) + "-" +
+              (trim.end > 0 ? trim.end.toFixed(2) : "end") + " s");
   console.log("recording: " + capture.frames.length + " frames, " + take.duration.toFixed(2) + " s; unit " + take.unit + ", up " +
               take.up.map((v) => v.toFixed(2)).join(" ") + ", forward " + take.forward.map((v) => v.toFixed(2)).join(" ") +
               "; standing hips " + take.hipHeight.toFixed(2) + " m; " + take.notes.join("; "));
