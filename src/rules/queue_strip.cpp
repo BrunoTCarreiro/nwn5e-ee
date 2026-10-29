@@ -71,6 +71,12 @@ QueueStripCount QueueStripSlots(int queued) {
   return {shown, queued - shown};
 }
 
+float QueueExitDrop(float progress, bool panel_under_strip) {
+  if (panel_under_strip) return 0.0f;
+  const float p = progress < 0.0f ? 0.0f : progress > 1.0f ? 1.0f : progress;
+  return kQueueExitDrop * p * (2.0f - p);
+}
+
 float QueueTileWidth(int name_chars, int target_chars) {
   const int chars = name_chars > target_chars ? name_chars : target_chars;
   float width = kQueueTilePad + chars * kQueueCharWidth;

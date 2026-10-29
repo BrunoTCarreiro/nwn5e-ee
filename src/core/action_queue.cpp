@@ -102,6 +102,8 @@
 #include "records.h"
 #include "rules/queue_strip.h"
 
+bool ResourcePanelUnderStrip();  // resource_panel.cpp (0.57.4: leaving tiles fade in place)
+
 namespace {
 
 constexpr const char* kWindow = "n5queue";
@@ -505,7 +507,6 @@ constexpr float kTileWidth = 108.0f;
 constexpr float kTileHeight = rules::kQueueTileHeight;  // the icon and three lines
 constexpr float kTop = rules::kQueueTileTop;
 constexpr int kRevealFrames = 3;      // a new tile shows nothing until its geometry has applied
-constexpr float kExitDrop = rules::kQueueExitDrop;  // a leaving tile slides this far down
 constexpr float kExitSeconds = 0.4f;
 constexpr float kEaseRate = 14.0f;    // per second: how fast a tile closes on its slot
 
@@ -761,7 +762,7 @@ void StripTick() {
     } else if (tile.exiting) {
       tile.exit_t += dt;
       const float p = tile.exit_t >= kExitSeconds ? 1.0f : tile.exit_t / kExitSeconds;
-      tile.y = kTop + kExitDrop * p * (2.0f - p);  // eases out as it drops
+      tile.y = kTop + rules::QueueExitDrop(p, ResourcePanelUnderStrip());  // eases out as it drops (0.57.4: or fades in place)
       tile.alpha = 1.0f - p;
     } else {
       tile.x += (SlotX(tile.index) - tile.x) * ease;  // the slot moved: the tile slides there

@@ -56,6 +56,10 @@ constexpr float kQueueTileMin = 96.0f;
 constexpr float kQueueTileMax = 300.0f;
 constexpr float kQueueTileGap = 4.0f;
 float QueueTileWidth(int name_chars, int target_chars);
+// 0.57.4 (owner: "fade in place under the strip"): how far down a leaving tile
+// is, `progress` (0..1) through its exit - easing out to kQueueExitDrop; none
+// while the resource panel sits right under the strip.
+float QueueExitDrop(float progress, bool panel_under_strip);
 // The owner, the same day: "is it possible to split the text into new lines?
 // Potion of / Cure Wounds?" - a name wrapped at its spaces into lines of about
 // `line_chars` (a word longer stays whole: the tile widens), at most

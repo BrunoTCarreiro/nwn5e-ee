@@ -298,6 +298,7 @@ std::string PanelLayout(const rules::HudLayout& layout, const std::vector<rules:
 // puts it (on the quickbar's right edge over the Talk line, or under the action
 // queue strip when that would be over the chat), the window kWindowPad around it.
 int g_place_logged = 0;
+bool g_under_strip_now = false;  // the panel placed right under the strip (its leaving tiles fade in place)
 int g_place_logs = 0;
 
 void PanelPosition(float window_w, float window_h, float* x, float* y) {
@@ -320,11 +321,13 @@ void PanelPosition(float window_w, float window_h, float* x, float* y) {
         g_gui_w, g_gui_h, g_gui_s);
   }
   g_place_logged = place;
+  g_under_strip_now = spot.under_strip && g_strip_on;
 }
 
 void ClosePanel() {
   if (g_panel.token) ClientNuiClose(g_panel.token);
   g_panel = Panel();
+  g_under_strip_now = false;
 }
 
 void OpenPanel(const std::vector<rules::HudPool>& pools) {
@@ -458,6 +461,9 @@ std::vector<std::string> HudCommand(void* creature, const std::string& /*args*/)
 }  // namespace
 
 void AddHudPool(HudPoolProvider provider) { g_providers.push_back(provider); }
+
+// action_queue.cpp (the client's frame, as this): the panel open right under the strip.
+bool ResourcePanelUnderStrip() { return g_panel.token != 0 && g_under_strip_now; }
 
 void InstallResourcePanel() {
   g_app_manager = reinterpret_cast<void**>(EngineExport(ee::kAppManager));

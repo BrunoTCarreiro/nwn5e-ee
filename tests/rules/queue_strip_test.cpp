@@ -86,6 +86,19 @@ TEST(QueueTextWraps) {
   CHECK_EQ(WrapQueueText("", 15, 2).empty(), true);
 }
 
+// 0.57.4: a leaving tile drops 36 px easing out - or fades in place while the
+// resource panel sits right under the strip. Breaks caught: a drop with the
+// panel there, no drop without it, past 36, a linear slide, before the start.
+TEST(QueueExitDrop) {
+  CHECK_EQ(QueueExitDrop(0.0f, false) == 0.0f, true);
+  CHECK_EQ(QueueExitDrop(1.0f, false) == kQueueExitDrop, true);
+  CHECK_EQ(QueueExitDrop(2.0f, false) == kQueueExitDrop, true);
+  CHECK_EQ(QueueExitDrop(0.5f, false) == kQueueExitDrop * 0.75f, true);  // eases out
+  CHECK_EQ(QueueExitDrop(-1.0f, false) == 0.0f, true);
+  CHECK_EQ(QueueExitDrop(0.5f, true) == 0.0f, true);
+  CHECK_EQ(QueueExitDrop(1.0f, true) == 0.0f, true);
+}
+
 // 0.54.2: how many queued uses an item's power allows. Breaks caught: a stack
 // of potions counted as one, charges per use read the wrong way round (a 5-per-
 // use wand with 10 charges allowing 10), per-day uses ignored, unlimited or

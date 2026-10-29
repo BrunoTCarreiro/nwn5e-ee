@@ -3946,7 +3946,11 @@ gaps - the card's bottom on the Talk line's top (56 x s over the bottom edge), u
 tiles' bottom (4 + 122 x s: a tile's card, -4 inside its column, ends at the window's 122), and with the strip
 turned off (`!queue`) on the window's top edge. The panel still doesn't follow the strip filling and emptying
 (it sits under the strip's place either way); the owner asked whether the strip should be a permanent fixture
-so nothing moves - open.
+so nothing moves.
+*Decided (owner, 2026-10-29: "go with c, and fade in place under the strip"):* (c) - the panel keeps the strip's
+place whether the strip shows or not (nothing moves as the queue fills and empties; no empty strip drawn); the
+strip's own `!queue` off puts it on the top edge. 0.57.4: while the panel sits right under the strip, a leaving
+tile fades in place (rules::QueueExitDrop) instead of sliding 36 px down over it; elsewhere it still slides.
 
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
