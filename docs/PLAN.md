@@ -3782,6 +3782,21 @@ window (the longest still stretch early on - the take: 0.4-1.9 s, arms relaxed, 
 time). Measured (mocap_check.js): resampled from 13 a second a stab's peak lands 29 cm short at the hand,
 from 25 15 cm, from 60 6 cm - slow moves are fine at webcam rates, fast ones want a faster camera. A bench
 change only: no DLL version.
+*#77 (2026-10-29; owner: "How should I clean this? I have blender installed can you guide me through
+this?" - Mocap Pro / Auto-Rig Pro weighed and set aside: capture and rigging tools, no route back into the
+bench; then "go with the points round trip"):* the take goes to Blender as points and comes back. The
+bench's **Export points for Blender** writes the prepared take - game space, metres, an even 30 a second,
+the whole take (the standing window must come back) - as a CSV: `time_s`, then `body_<point>_x/y/z`
+(MediaPipe's names). tools/mocap_blender/nwn5e_mocap_points.py (Blender 5.2's slotted-action API:
+`action.fcurve_ensure_for_datablock`) imports it as an empty per point keyed every frame plus a stick figure
+hooked to them, the performer facing Blender's front (game space turned half a turn about Z), and exports
+it back (all frames, or the scene's range). Cleaning is Blender's own Graph Editor tools (Key › Smooth ›
+Butterworth, Key › Blend › Blend to Neighbor / Scale Average at 0 for a planted foot); the guide is
+tools/mocap_blender/README.md. The bench reads a points file's times, keeps already-even frames as they are,
+and starts with its glitch filter off for it - run on an edited take it "fixed" the heel left behind by an
+ankle lifted on purpose. Checks: tools/mocap_blender/check.py in Blender without a window (the owner's take:
+33 points, every frame keyed, the figure on its empties, an edited key back exactly, the rest unchanged);
+mocap_check.js's points round trip (frames back within 0.01 mm, the retarget within 0.04 mm).
 *Capture habits (told to the owner):* two or more cameras; a T-pose at each
 take's start; cycles performed on the spot; a prop of the weapon's length; a
 clap or stomp at the contact moment. Rage: 2-3 s, relaxed to a fighting stance.

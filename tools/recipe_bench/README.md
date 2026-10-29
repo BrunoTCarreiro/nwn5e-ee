@@ -52,6 +52,12 @@ animation for nwn5e:
 4. **Save for every body**: the take is retargeted to all eight body libraries and
    written as one keys recipe; the next game start builds it.
 
+For hand clean-up - smoothing, a bad moment, a sliding foot, a pose - **Export
+points for Blender** writes the whole take as cleaned here (`<take>_points.csv`);
+clean it in Blender with `tools/mocap_blender` (its README is the step-by-step)
+and drop the file Blender exports back here. A points file keeps its own times,
+and the glitch filter starts off for it.
+
 Capture habits: two or more cameras; standing still (arms relaxed or a T-pose)
 for a second or two at each take's start, facing forward, feet flat; moves
 performed on the spot (travel is stripped); a prop of the weapon's length; a clap

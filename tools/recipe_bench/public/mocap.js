@@ -154,6 +154,8 @@
     const missing = NEEDED.filter((n) => columns[P[n] * 3] < 0 || columns[P[n] * 3 + 1] < 0 || columns[P[n] * 3 + 2] < 0);
     if (missing.length) throw new Error("these body points aren't in it: " + missing.join(", ") + " (FreeMoCap's output_data/mediapipe_body_3d_xyz.csv has them)");
     const frames = [];
+    const timeColumn = header.indexOf("time_s");  // the points round trip's files (#77): each frame's time
+    const times = timeColumn >= 0 ? [] : null;
     for (let i = 1; i < lines.length; i++) {
       const cells = lines[i].split(",");
       const frame = new Float64Array(COUNT * 3);
@@ -163,8 +165,11 @@
         frame[s] = Number.isFinite(v) ? v : NaN;
       }
       frames.push(frame);
+      if (times) times.push(parseFloat(cells[timeColumn]));
     }
-    return { frames, columns: header.length, format: "mediapipe" };
+    const capture = { frames, columns: header.length, format: timeColumn >= 0 ? "points" : "mediapipe" };
+    if (times && times.every(Number.isFinite) && times.every((t, k) => k === 0 || t > times[k - 1])) capture.times = times;
+    return capture;
   }
 
   // A row a point a frame: "frame,keypoint,x,y,z" (FreeMoCap's RTMPose files).
@@ -428,7 +433,9 @@
     if (gaps) notes.push(gaps + " missing values filled");
     standIns(raw, notes);
     let source = null;
-    if (capture.times && capture.times.length === raw.length) {
+    const target = opt.fps > 1 ? opt.fps : 30;
+    const even = (times) => times.every((t, i) => i === 0 || Math.abs(t - times[i - 1] - 1 / target) < 0.01 / target);
+    if (capture.times && capture.times.length === raw.length && !even(capture.times)) {  // already even (a points file): kept
       const times = capture.times;
       const span = times[times.length - 1] - times[0];
       const steps = [];
@@ -847,6 +854,24 @@
     return out;
   }
 
+  // --- The points round trip (#77) -----------------------------------------------------------
+  // The prepared take - cleaned, resampled, upright, facing forward (game space: +X the
+  // performer's right, +Y forward, +Z up, metres, the floor at 0) - as a CSV: a row a frame,
+  // its time, then every point's x / y / z (MediaPipe's names). Blender's nwn5e mocap points
+  // add-on (tools/mocap_blender) reads and writes it; parseCapture reads it back. The whole
+  // take: the standing window at its start has to come back with it.
+  function pointsCsv(take) {
+    const header = ["time_s"];
+    for (const n of LANDMARKS) for (const a of ["x", "y", "z"]) header.push("body_" + n + "_" + a);
+    const rows = [header.join(",")];
+    take.frames.forEach((f, k) => {
+      const row = [(k / take.fps).toFixed(6)];
+      for (let s = 0; s < COUNT * 3; s++) row.push(Number.isFinite(f[s]) ? f[s].toFixed(5) : "");
+      rows.push(row.join(","));
+    });
+    return rows.join("\n") + "\n";
+  }
+
   // --- The take's motion, and where to trim ----------------------------------------------------
   // Per frame: the fastest hand, the fastest foot and the hips (m/s), smoothed over a fifth of a second.
   function motionProfile(take) {
@@ -897,7 +922,7 @@
              end: end >= n - 1 ? 0 : end / take.fps, moving, still: best[1] > best[0] };
   }
 
-  const api = { LANDMARKS, CONNECTIONS, parseCapture, addHand, timesFrom, resample, despike, frameRateFrom, prepare, setReference,
+  const api = { LANDMARKS, CONNECTIONS, parseCapture, addHand, timesFrom, resample, despike, pointsCsv, frameRateFrom, prepare, setReference,
                 pointsAt, retarget, suggestContact, motionProfile, suggestTrim, reduceTrack, rig, solveFrame, landmarks, bodyFrames };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.Mocap = api;

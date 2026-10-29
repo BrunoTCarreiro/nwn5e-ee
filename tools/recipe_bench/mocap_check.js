@@ -328,6 +328,38 @@ rtmRoundTrip("a_fa", "taunt", { yaw: 0.3, yUp: true, mirror: false }, { strayHan
   console.log((okR ? "ok  " : "FAIL") + " resample: " + Array.from(r, (f) => f[0].toFixed(1)).join(" "));
 }
 
+// The points round trip (#77): a prepared take written as points (what Blender's add-on
+// reads and writes) and read back must be the same take - the same frames, the same rate,
+// the same standing hips - and retarget the same.
+{
+  const lib = libs.get("a_ba");
+  const clip = findClip("a_ba", "victorymg");
+  const stance = findClip("a_ba", "pause1");
+  if (lib && clip) {
+    const made = makeRtm(lib.bones, clip, { yaw: 0.65, yUp: true, mirror: false }, stance, {});
+    const capture = M.parseCapture(made.body);
+    M.addHand(capture, made.left, "left");
+    M.addHand(capture, made.right, "right");
+    capture.times = M.timesFrom(made.stamps);
+    const take = M.prepare(capture, { fps: 30 });
+    const back = M.parseCapture(M.pointsCsv(take));
+    const again = M.prepare(back, { fps: 30, reference: [take.reference.start, take.reference.end] });
+    let worst = 0;
+    take.frames.forEach((f, k) => { for (let s = 0; s < f.length; s++) worst = Math.max(worst, Math.abs(f[s] - again.frames[k][s])); });
+    const a = M.retarget(take, lib.bones, { start: made.lead, stance }), b = M.retarget(again, lib.bones, { start: made.lead, stance });
+    let off = 0;
+    for (let t = 0; t <= Math.min(a.length, b.length); t += 1 / 30) {
+      const pa = posed(lib.bones, a, t), pb = posed(lib.bones, b, t);
+      pa.forEach((w, i) => { off = Math.max(off, Math.hypot(...w.p.map((v, c) => v - pb[i].p[c]))); });
+    }
+    const ok = back.format === "points" && back.times && again.frames.length === take.frames.length && again.fps === 30 &&
+      worst < 1e-4 && Math.abs(again.hipHeight - take.hipHeight) < 1e-4 && off < 0.002;
+    if (!ok) failed++;
+    console.log((ok ? "ok  " : "FAIL") + " points round trip: " + again.frames.length + "/" + take.frames.length + " frames, points off by " +
+                (worst * 1000).toFixed(3) + " mm, retargeted joints by " + (off * 1000).toFixed(2) + " mm; format " + back.format);
+  }
+}
+
 // A recording: FreeMoCap's mediapipe_body_3d_xyz.csv, or a recording folder (its RTMPose
 // files: body, hands, timestamps).
 function readRecording(where) {

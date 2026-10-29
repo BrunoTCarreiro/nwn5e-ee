@@ -404,6 +404,7 @@
     for (const f of files) {
       const n = f.name.toLowerCase();
       if (/recording_parameters\.json$/.test(n)) pick.json = f;
+      else if (/_points.*\.csv$/.test(n)) pick.body = pick.body || f;  // the Blender round trip's file
       else if (/left_hand_3d_xyz\.csv$/.test(n)) pick.left = f;
       else if (/right_hand_3d_xyz\.csv$/.test(n)) pick.right = f;
       else if (/_body_rigid_3d_xyz\.csv$/.test(n)) pick.rigid = f;
@@ -451,7 +452,15 @@
           if (pick[side]) { MC.addHand(capture, await pick[side].text(), side); hands.push(side); }
         }
         let timing = "";
-        if (pick.stamps) {
+        if (capture.times) {  // a points file (the Blender round trip): its own times
+          mc.fps = 30;
+          mc.fpsFromFile = true;
+          mc.fpsSource = "the points file's times";
+          // Cleaned already: the glitch filter would "fix" a point moved by hand (a heel left
+          // behind by a lifted ankle reads as a glitch) - off until ticked.
+          mc.despike = false;
+          timing = " A points file, cleaned already: the glitch filter is off (tick Remove glitches to run it again).";
+        } else if (pick.stamps) {
           const times = MC.timesFrom(await pick.stamps.text());
           if (times && times.length === capture.frames.length) {
             capture.times = times;
@@ -484,6 +493,22 @@
     } catch (e) {
       setMcStatus("Couldn't read it: " + e.message, "bad");
     }
+  }
+
+  // The take's points, for Blender (#77): downloaded as <take>_points.csv.
+  function exportPoints() {
+    if (!mc.take) { setMcStatus("Drop a capture first.", "bad"); return; }
+    const base = (mc.fileName.split(":")[0] || "take").replace(/\.csv.*$/i, "").replace(/[^A-Za-z0-9_.-]+/g, "_").replace(/_points$/, "");
+    const blob = new Blob([MC.pointsCsv(mc.take)], { type: "text/csv" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = base + "_points.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+    setMcStatus("Exported " + link.download + " (" + mc.take.frames.length + " frames, " + mc.take.fps + " a second) to your downloads: " +
+      "in Blender, File > Import > nwn5e mocap points.", "good");
   }
 
   // The suggested standing window and part to keep (MC.suggestTrim) - the take prepared
@@ -631,6 +656,7 @@
     });
     $("mc-glitch").addEventListener("change", () => { mc.despike = $("mc-glitch").checked; prepareTake(); });
     $("mc-trim").addEventListener("click", () => { if (mc.take) { applySuggestedTrim(); prepareTake(); } });
+    $("mc-export").addEventListener("click", exportPoints);
     // A file dropped beside the zone mustn't open in the tab.
     for (const type of ["dragover", "drop"]) window.addEventListener(type, (e) => { if (!drop.contains(e.target)) e.preventDefault(); });
     $("mc-slot").addEventListener("change", () => applySlot($("mc-slot").value));
