@@ -299,8 +299,19 @@
       state.time = parseFloat($("scrub").value) * result.length;
     });
     $("view").addEventListener("click", () => Object.assign(view, { yaw: 0, pitch: 0.12, distance: view.home }));
+    $("step-back").addEventListener("click", () => stepFrame(-1));
+    $("step-on").addEventListener("click", () => stepFrame(1));
     document.addEventListener("keydown", (e) => {
+      // Not while typing or on a slider (its arrows are its own).
+      const t = e.target, typing = t && (t.tagName === "TEXTAREA" || t.tagName === "SELECT" || (t.tagName === "INPUT" && t.type !== "checkbox" && t.type !== "button"));
       if (e.key === " " && e.target === document.body) { e.preventDefault(); setPlaying(!state.playing); }
+      else if (!typing && !e.altKey && !e.ctrlKey && !e.metaKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+        e.preventDefault();
+        stepFrame(e.key === "ArrowLeft" ? -1 : 1);
+      } else if (!typing && state.mode === "mocap" && mc.selected && (e.key === "Delete" || e.key === "Backspace")) {
+        e.preventDefault();
+        removeSelectedPlant();
+      }
     });
     bindMocap();
   }
@@ -308,6 +319,14 @@
     state.playing = on;
     $("play").textContent = on ? "Pause" : "Play";
     $("play").setAttribute("aria-pressed", String(on));
+  }
+  // A frame back or on (a thirtieth of a second: in Mocap, a frame of the take), paused there.
+  function stepFrame(dir) {
+    const result = state.clips.result;
+    if (!result || !(result.length > 0)) return;
+    setPlaying(false);
+    const last = Math.max(0, Math.ceil(result.length * 30 - 1e-6) - 1);
+    state.time = Math.max(0, Math.min(last, Math.round((state.time % result.length) * 30) + dir)) / 30;
   }
 
 
@@ -319,6 +338,7 @@
     capture: null, take: null, fileName: "", fps: 30, fpsFromFile: false, fpsSource: "", despike: true, profile: null, result: null,
     slot: "n5_rage", name: "n5_mocap", smoothing: 0, ref: [0, 0.33], start: 0, end: 0,
     plants: { left: [], right: [] }, locks: true, place: "return",  // planted feet (s in the take) and where the body stands (#79)
+    selected: null,  // the plant selected on the timeline: { side, bar }
     blendIn: 0.2, blendOut: 0.3, loop: false, sway: true, fitLength: 0, contactAt: 0, contact: null, tolerance: 0.75,
     saved: null,  // a keys recipe opened without its capture: its own keys, shown as they are
   };
@@ -340,6 +360,8 @@
     $("tab-mocap").setAttribute("aria-selected", String(mode === "mocap"));
     $("recipe-card").hidden = mode !== "recipe";
     $("mocap-card").hidden = mode !== "mocap";
+    $("mc-timeline").hidden = mode !== "mocap";
+    document.querySelector(".stage-wrap").classList.toggle("mocap", mode === "mocap");
     const spans = $("labels").querySelectorAll("span");
     spans[0].hidden = spans[2].hidden = mode === "mocap";
     spans[1].firstChild.textContent = mode === "mocap" ? "Mocap" : "Recipe";
@@ -543,6 +565,7 @@
       if (marked.start !== undefined) { mc.start = marked.start; mc.end = marked.end; mc.contact = null; }
       mc.take = MC.prepare(mc.capture, { fps: mc.fps, smoothing: mc.smoothing, reference: mc.ref, despike: mc.despike ? 1 : 0 });
       mc.plants = marked.plants || MC.suggestPlants(mc.take);
+      mc.selected = null;
       const from = marked.reference && marked.start !== undefined ? "From the points file's marks" : marked.reference || marked.start !== undefined
         ? "From the points file's marks and suggested" : "Suggested";
       suggested = from + ": standing " + mc.ref[0].toFixed(2) + "-" + mc.ref[1].toFixed(2) + " s, keep " + mc.start.toFixed(2) + "-" +
@@ -710,7 +733,7 @@
     $("mc-sway").addEventListener("change", () => { mc.sway = $("mc-sway").checked; recompute(); });
     $("mc-place").addEventListener("change", () => { mc.place = $("mc-place").value; syncMocapInputs(); recompute(); });
     $("mc-locks").addEventListener("change", () => { mc.locks = $("mc-locks").checked; recompute(); });
-    $("mc-feet-suggest").addEventListener("click", () => { if (mc.take) { mc.plants = MC.suggestPlants(mc.take); recompute(); } });
+    $("mc-feet-suggest").addEventListener("click", () => { if (mc.take) { mc.plants = MC.suggestPlants(mc.take); mc.selected = null; recompute(); } });
     $("mc-fit").addEventListener("change", () => { mc.fitLength = Math.max(0, parseFloat($("mc-fit").value) || 0); recompute(); });
     $("mc-at").addEventListener("change", () => { mc.contactAt = Math.max(0, parseFloat($("mc-at").value) || 0); recompute(); });
     $("mc-contact").addEventListener("input", () => { mc.contact = parseFloat($("mc-contact").value); recompute(); });
@@ -1009,11 +1032,15 @@
     view.distance = Math.max(2.5, Math.min(16, view.distance * (1 + Math.sign(e.deltaY) * 0.08)));
   }, { passive: false });
 
-  // The motion graph: the hands' and feet's speed over the take, the standing window and
-  // the part kept shaded, the contact and the playing time marked; under it a row a foot,
-  // its planted stretches (#79) - red where the lock is out of the leg's reach on this body.
-  const FEET_ROWS = 28;  // CSS px under the curves: two rows of 11, 2 apart
-  let footDrag = null;  // a row being edited: { side, mode: new | edge | click | none, ... }
+  // The timeline under the preview (#79): the hands' and feet's speed over the take, the
+  // standing window and the part kept shaded, the contact and the marker (the playing time);
+  // under it a row a foot, its planted stretches - red where the lock is out of the leg's
+  // reach on this body; the selected one outlined, a handle at each end.
+  const ROW_H = 15, ROW_GAP = 2;
+  const FEET_ROWS = 2 * (ROW_H + ROW_GAP);  // CSS px under the curves
+  const rowTop = (r) => ROW_GAP + r * (ROW_H + ROW_GAP);  // a row's top, from the curves' bottom
+  let footDrag = null;  // a press on the timeline: { mode: seek | new | edge | select, side, bar, end, t0, t1, snapped }
+  const markerTime = () => (mc.result && mc.result.takeTime && mc.result.length > 0 ? mc.result.takeTime(state.time % mc.result.length) : null);
   function drawMotion() {
     const c = $("mc-motion");
     if (!c || !mc.take || !mc.profile || state.mode !== "mocap") return;
@@ -1045,7 +1072,7 @@
       g.stroke();
     };
     ["left", "right"].forEach((side, r) => {
-      const y = ch + (2 + r * 13) * dpr, rh = 11 * dpr;
+      const y = ch + rowTop(r) * dpr, rh = ROW_H * dpr;
       g.globalAlpha = 0.5;
       g.fillStyle = v("--line");
       g.fillRect(0, y, w, rh);
@@ -1059,10 +1086,19 @@
         g.fillRect(x(a), y, Math.max(2 * dpr, x(b) - x(a)), rh);
       }
       g.globalAlpha = 1;
+      if (mc.selected && mc.selected.side === side) {
+        const [a, b] = mc.selected.bar;
+        g.strokeStyle = v("--accent");
+        g.lineWidth = 2 * dpr;
+        g.strokeRect(x(a), y + dpr, Math.max(2 * dpr, x(b) - x(a)), rh - 2 * dpr);
+        g.fillStyle = v("--accent");
+        g.fillRect(x(a) - 3 * dpr, y, 6 * dpr, rh);
+        g.fillRect(x(b) - 3 * dpr, y, 6 * dpr, rh);
+      }
       g.fillStyle = v("--muted");
-      g.font = 9 * dpr + "px " + v("--mono");
+      g.font = 10 * dpr + "px " + v("--mono");
       g.textBaseline = "middle";
-      g.fillText(side === "left" ? "L" : "R", 2 * dpr, y + rh / 2);
+      g.fillText(side === "left" ? "L" : "R", 3 * dpr, y + rh / 2);
     });
     line(mc.profile.feet, v("--muted"), 1);
     line(mc.profile.hands, v("--capture"), 1.5);
@@ -1070,75 +1106,121 @@
       g.fillStyle = v("--accent");
       g.fillRect(x(mc.contact) - dpr, 0, 2 * dpr, h);
     }
-    if (mc.result && mc.result.takeTime && mc.result.length > 0) {
-      g.fillStyle = v("--ink");
-      g.fillRect(x(mc.result.takeTime(state.time % mc.result.length)) - dpr / 2, 0, Math.max(1, dpr), h);
+    const now = markerTime();
+    if (now !== null) {
+      const snapped = footDrag && footDrag.snapped;  // an edge on the marker: the marker shows it
+      const mw = snapped ? 3 * dpr : Math.max(1, dpr);
+      g.fillStyle = snapped ? v("--accent") : v("--ink");
+      g.fillRect(x(now) - mw / 2, 0, mw, h);
     }
+    // The readouts: the marker in the take, the selected plant.
+    const nowText = now !== null ? "marker " + now.toFixed(2) + " s · frame " + Math.round(now * mc.take.fps) : "";
+    if ($("mc-now").textContent !== nowText) $("mc-now").textContent = nowText;
+    const selText = mc.selected ? mc.selected.side + " foot " + mc.selected.bar[0].toFixed(2) + "-" + mc.selected.bar[1].toFixed(2) + " s" : "no plant selected";
+    if ($("mc-plant-sel").textContent !== selText) $("mc-plant-sel").textContent = selText;
+    if ($("mc-plant-remove").disabled !== !mc.selected) $("mc-plant-remove").disabled = !mc.selected;
   }
 
-  // Editing the planted feet on the rows: drag along a row to add a stretch, drag an end to
-  // move it, click one to remove it (#79).
+  // Pressing the timeline (#79): above the rows, the marker goes there (drag to scrub); on a
+  // row, a drag along it adds a plant, a click selects one, and the selected one's ends drag
+  // to lengthen or shorten it - snapping to the marker (within 8 px) and else to whole frames.
   function footHit(e) {
     const r = $("mc-motion").getBoundingClientRect();
     const d = Math.max(mc.take ? mc.take.duration : 1, 1e-6);
     const x = e.clientX - r.left, y = e.clientY - r.top;
     const top = r.height - FEET_ROWS;
-    const side = y >= top + 1 && y < top + 14 ? "left" : y >= top + 14 && y <= r.height ? "right" : null;
+    let side = null;
+    [["left", 0], ["right", 1]].forEach(([s, i]) => { if (y >= top + rowTop(i) - 1 && y < top + rowTop(i) + ROW_H + 1) side = s; });
+    const area = side ? "row" : y >= 0 && y < top ? "curves" : null;
     const t = Math.max(0, Math.min(d, (x / Math.max(r.width, 1)) * d));
-    let edge = null, inside = -1;
+    const pxPerS = r.width / d;
+    let edge = null, inside = null;
     if (side) {
-      const px = (s) => (s / d) * r.width;
-      mc.plants[side].forEach(([a, b], i) => {
-        if (Math.abs(x - px(a)) <= 4) edge = { index: i, end: 0 };
-        else if (Math.abs(x - px(b)) <= 4) edge = { index: i, end: 1 };
-        else if (t >= a && t <= b) inside = i;
-      });
+      const sel = mc.selected && mc.selected.side === side ? mc.selected.bar : null;
+      const near = (bar, grab) => (Math.abs(x - bar[0] * pxPerS) <= grab ? 0 : Math.abs(x - bar[1] * pxPerS) <= grab ? 1 : -1);
+      if (sel && near(sel, 7) >= 0) edge = { bar: sel, end: near(sel, 7) };  // the selected one's handles first, and wider
+      for (const bar of mc.plants[side]) {
+        if (edge) break;
+        const n = near(bar, 4);
+        if (n >= 0) edge = { bar, end: n };
+        else if (t >= bar[0] && t <= bar[1]) inside = bar;
+      }
     }
-    return { side, t, x, edge, inside };
+    return { area, side, t, x, pxPerS, edge, inside };
   }
-  // Sorted, the overlapping ones joined (ones that only come close stay two: a shuffle's).
+  // An edge's time: on the marker when within 8 px of it, else on a whole frame of the take.
+  function snapTime(t, pxPerS) {
+    const now = markerTime();
+    if (now !== null && Math.abs(t - now) * pxPerS <= 8) return { t: now, snapped: true };
+    return { t: Math.round(t * mc.take.fps) / mc.take.fps, snapped: false };
+  }
+  const seek = (t) => { if (mc.result && mc.result.clipTime) state.time = mc.result.clipTime(t); };
+  // Sorted, the overlapping ones joined (ones that only come close stay two: a shuffle's);
+  // the selection follows its plant.
   function tidyPlants(side) {
+    const sel = mc.selected && mc.selected.side === side ? mc.selected.bar : null;
     const bars = mc.plants[side].filter(([a, b]) => b - a >= 0.1).sort((p, q) => p[0] - q[0]);
     const out = [];
     for (const bar of bars) {
       const last = out[out.length - 1];
-      if (last && bar[0] < last[1]) last[1] = Math.max(last[1], bar[1]); else out.push(bar.slice());
+      if (last && bar[0] < last[1]) { last[1] = Math.max(last[1], bar[1]); if (bar === sel) mc.selected.bar = last; } else out.push(bar);
     }
     mc.plants[side] = out;
+    if (mc.selected && mc.selected.side === side && !out.includes(mc.selected.bar)) mc.selected = null;
+  }
+  function removeSelectedPlant() {
+    if (!mc.selected) return;
+    const { side, bar } = mc.selected;
+    mc.plants[side] = mc.plants[side].filter((p) => p !== bar);
+    mc.selected = null;
+    recompute();
   }
   {
     const graph = $("mc-motion");
     graph.addEventListener("pointerdown", (e) => {
       if (!mc.take) return;
       const h = footHit(e);
-      if (!h.side) return;
-      footDrag = h.edge ? { side: h.side, mode: "edge", index: h.edge.index, end: h.edge.end }
-        : h.inside >= 0 ? { side: h.side, mode: "click", index: h.inside, x0: h.x }
-        : { side: h.side, mode: "new", t0: h.t, t1: h.t };
+      if (!h.area) return;
+      if (h.area === "curves") { footDrag = { mode: "seek" }; seek(h.t); }
+      else if (h.edge) { mc.selected = { side: h.side, bar: h.edge.bar }; footDrag = { mode: "edge", side: h.side, bar: h.edge.bar, end: h.edge.end, moved: false }; }
+      else if (h.inside) { mc.selected = { side: h.side, bar: h.inside }; footDrag = { mode: "select" }; }
+      else { const s = snapTime(h.t, h.pxPerS); footDrag = { mode: "new", side: h.side, t0: s.t, t1: s.t, snapped: s.snapped }; }
       graph.setPointerCapture(e.pointerId);
       e.preventDefault();
     });
     graph.addEventListener("pointermove", (e) => {
       if (!mc.take) return;
       const h = footHit(e);
-      if (!footDrag) { graph.style.cursor = !h.side ? "" : h.edge ? "ew-resize" : h.inside >= 0 ? "pointer" : "crosshair"; return; }
-      if (footDrag.mode === "new") footDrag.t1 = h.t;
+      if (!footDrag) {
+        graph.style.cursor = h.area === "curves" ? "pointer" : !h.area ? "" : h.edge ? "ew-resize" : h.inside ? "pointer" : "crosshair";
+        return;
+      }
+      if (footDrag.mode === "seek") seek(h.t);
+      else if (footDrag.mode === "new") { const s = snapTime(h.t, h.pxPerS); footDrag.t1 = s.t; footDrag.snapped = s.snapped; }
       else if (footDrag.mode === "edge") {
-        const bar = mc.plants[footDrag.side][footDrag.index];
-        if (footDrag.end === 0) bar[0] = Math.min(h.t, bar[1] - 0.1); else bar[1] = Math.max(h.t, bar[0] + 0.1);
-      } else if (footDrag.mode === "click" && Math.abs(h.x - footDrag.x0) > 4) footDrag.mode = "none";
+        const s = snapTime(h.t, h.pxPerS), bar = footDrag.bar;
+        if (footDrag.end === 0) bar[0] = Math.min(s.t, bar[1] - 0.1); else bar[1] = Math.max(s.t, bar[0] + 0.1);
+        footDrag.snapped = s.snapped;
+        footDrag.moved = true;
+      }
     });
     const done = (cancel) => {
       const f = footDrag;
       footDrag = null;
-      if (!f || cancel) return;
-      if (f.mode === "new" && Math.abs(f.t1 - f.t0) >= 0.1) mc.plants[f.side].push([Math.min(f.t0, f.t1), Math.max(f.t0, f.t1)]);
-      if (f.mode === "click") mc.plants[f.side].splice(f.index, 1);
+      if (!f || cancel || f.mode === "seek" || f.mode === "select") return;
+      if (f.mode === "new") {
+        if (Math.abs(f.t1 - f.t0) < 0.1) { mc.selected = null; return; }  // a click on an empty stretch: nothing selected
+        const bar = [Math.min(f.t0, f.t1), Math.max(f.t0, f.t1)];
+        mc.plants[f.side].push(bar);
+        mc.selected = { side: f.side, bar };
+      }
+      if (f.mode === "edge" && !f.moved) return;
       tidyPlants(f.side);
       recompute();
     };
     graph.addEventListener("pointerup", () => done(false));
     graph.addEventListener("pointercancel", () => done(true));
+    $("mc-plant-remove").addEventListener("click", removeSelectedPlant);
   }
 
   let last = performance.now();

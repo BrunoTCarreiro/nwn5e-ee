@@ -3840,6 +3840,16 @@ free, exact locked (0.45 cm with the keys reduced); walk + 1.2 m/s in place sway
 owner's take - 108 of 136 locks within reach on the 8 bodies hold to 0.50 cm (29.8 cm unlocked). 7 deliberate breaks
 caught; check.py passes the planted feet through; the page in a headless browser (rows drawn, a drag adds, a click
 removes, export and reload keep them, the ring).
+*#79 timeline (2026-10-29; owner: "timeline should be placed under the mocap preview, selecting a foot planting section
+should allow the extension or shortening of the plant, not purely deletion. the extension or shortening, while dragging
+the edges of the bar should also snap to the now marker. And there should be a way to move frame by frame the marker
+for more finegrain control"):* the motion graph and its rows moved under the preview (in the sticky preview column,
+three times wider; the stage gives it room in Mocap). A click on the curves moves the marker (drag to scrub); ◀ ▶ by
+Play and the arrow keys step a frame, paused. On the rows a click selects a plant (outlined, a handle at each end; its
+times in a readout beside the marker's take time and frame) instead of removing it; its ends drag, snapping to the
+marker within 8 px (the marker thickens) and else to whole frames; Delete / Remove plant takes it out. The retarget
+gained clipTime (a take time in the result). Checked in a headless browser (layout, frame steps by button and key,
+seek, add, select, an end snapped onto the marker, lengthen, Delete, the Recipe tab hides it).
 *Capture habits (told to the owner):* two or more cameras; a T-pose at each
 take's start; cycles performed on the spot; a prop of the weapon's length; a
 clap or stomp at the contact moment. Rage: 2-3 s, relaxed to a fighting stance.

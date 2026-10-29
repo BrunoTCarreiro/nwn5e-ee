@@ -1015,6 +1015,7 @@
     const start = a / take.fps;
     return { name: opt.name, length: outLength, transtime: opt.transtime, animroot: "rootdummy", nodes,
              source: { start, end: (a + count - 1) / take.fps }, takeTime: (t) => start + unwarp(Math.max(0, Math.min(outLength, t))),
+             clipTime: (t) => warp(Math.max(0, Math.min(length, t - start))),  // a time in the take, in the result (the part kept)
              locks: locks.map((l) => ({ side: l.side, start: warp(timeOf(l.from)), end: warp(timeOf(l.to)), takeStart: (a + l.from) / take.fps,
                                         takeEnd: (a + l.to) / take.fps, short: l.short })) };
   }

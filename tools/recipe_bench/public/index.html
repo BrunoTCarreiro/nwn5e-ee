@@ -132,12 +132,7 @@
         </label>
       </div>
       <p class="note">The performer standing straight, facing forward: the body's turns are measured from there, and the floor and the facing are found there.</p>
-      <div class="motion">
-        <canvas id="mc-motion" aria-label="How fast the hands and feet move over the take, with the standing window and the part kept; under it, the left and right feet's planted stretches"></canvas>
-        <p class="note legend"><span class="key hands"></span>hands <span class="key feet"></span>feet <span class="key ref"></span>standing <span class="key keep"></span>kept <span class="key planted"></span>planted (rows L, R) <span class="key now"></span>now</p>
-      </div>
-      <p class="note">Planted feet, the L and R rows: drag along a row to add one, drag an end to move it, click one to remove it. Locked, a foot stays on its spot on every body - its leg bends to keep it there; red: out of the leg's reach on this body.</p>
-      <p class="note" id="mc-feet"></p>
+      <p class="note">The timeline under the preview shows the take: how fast the hands and feet move, the standing window (green), the part kept (shaded), and the rows L and R - where each foot is planted. Locked, a planted foot stays on its spot on every body: its leg bends to keep it there.</p>
       <div class="row">
         <label class="check"><input type="checkbox" id="mc-locks" checked> Lock planted feet</label>
         <button type="button" id="mc-feet-suggest">Suggest feet</button>
@@ -221,9 +216,22 @@
     </div>
     <div class="transport">
       <button type="button" id="play" aria-pressed="true">Pause</button>
+      <button type="button" id="step-back" class="step" title="A frame back (Left arrow)" aria-label="A frame back">&#9664;</button>
+      <button type="button" id="step-on" class="step" title="A frame on (Right arrow)" aria-label="A frame on">&#9654;</button>
       <input type="range" id="scrub" min="0" max="1" step="0.001" value="0" aria-label="Recipe time">
       <span class="clock" id="clock">0.00 / 0.00 s</span>
       <button type="button" id="view">Front view</button>
+    </div>
+    <div class="motion" id="mc-timeline" hidden>
+      <canvas id="mc-motion" aria-label="The take's timeline: how fast the hands and feet move, the standing window, the part kept and the marker; under it, the left and right feet's planted stretches"></canvas>
+      <div class="timeline-foot">
+        <p class="note legend"><span class="key hands"></span>hands <span class="key feet"></span>feet <span class="key ref"></span>standing <span class="key keep"></span>kept <span class="key planted"></span>planted (L, R) <span class="key now"></span>marker</p>
+        <span class="value" id="mc-now"></span>
+        <span class="value" id="mc-plant-sel">no plant selected</span>
+        <button type="button" id="mc-plant-remove" disabled>Remove plant</button>
+      </div>
+      <p class="note">Click the timeline to move the marker; &#9664; &#9654; or the arrow keys step it a frame. On the rows: drag along a row to add a plant; click one to select it, then drag its ends to lengthen or shorten it - they snap to the marker and to whole frames; Delete (or Remove plant) takes it out. Red: out of the leg's reach on this body.</p>
+      <p class="note" id="mc-feet"></p>
     </div>
     <p class="note">Drag to turn the figures, scroll to zoom. Play the recipe in game with <code>!animedit</code> or <code>!anim</code> after a restart.</p>
   </div>

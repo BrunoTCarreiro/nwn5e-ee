@@ -72,8 +72,8 @@ smoothing last also softens the step where a flattened foot starts and stops.
 
 ## 5. A foot that slides while it should stand still
 
-Leave it to the bench: mark the foot planted on the **L** / **R** rows under its
-motion graph (it suggests them) and it stays put on every body - that body's leg
+Leave it to the bench: mark the foot planted on the **L** / **R** rows of its
+timeline (it suggests them) and it stays put on every body - that body's leg
 bends to hold it. A foot pinned here comes back as points, and NWN's longer legs
 slide it again; the bench's lock doesn't.
 

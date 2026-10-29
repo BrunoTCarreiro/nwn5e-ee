@@ -59,7 +59,11 @@ label.check input { accent-color: var(--accent); width: 16px; height: 16px; marg
 .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 #mc-info ul { margin: 4px 0; padding-left: 18px; }
 #mc-info li { margin: 1px 0; }
-.motion canvas { display: block; width: 100%; height: 118px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; touch-action: none; }
+.motion { display: flex; flex-direction: column; gap: 6px; }
+.motion canvas { display: block; width: 100%; height: 140px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; touch-action: none; }
+.timeline-foot { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; }
+.timeline-foot .legend { flex: 1 1 260px; margin: 0; }
+.transport .step { padding: 6px 10px; }
 .motion .legend { margin: 4px 0 0; }
 .key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 4px 0 10px; vertical-align: -1px; }
 .key:first-child { margin-left: 0; }
@@ -109,6 +113,8 @@ pre { margin: 8px 0 0; padding: 8px; background: var(--bg); border: 1px solid va
 @media (min-width: 821px) {
   .stage-wrap { position: sticky; top: 16px; }
   .stage { height: min(70vh, 640px, calc(100vh - 150px)); min-height: 240px; }
+  /* Mocap: the timeline under the preview too (#79) - the stage gives it room. */
+  .stage-wrap.mocap .stage { height: min(60vh, 560px, calc(100vh - 400px)); min-height: 200px; }
 }
 .transport input[type="range"] { flex: 1 1 200px; }
 .clock { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 0.85rem; color: var(--muted); min-width: 11ch; text-align: right; }

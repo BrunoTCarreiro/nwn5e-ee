@@ -46,16 +46,18 @@ animation for nwn5e:
    the facing and the body's neutral are found there), trim the take, smooth it if
    it jitters, and watch the body you pick play it with the capture's points over
    it. A new take gets a suggested standing window and trim (**Suggest standing
-   and trim** again after changes); the graph under the sliders shows how fast
-   the hands and feet move, the standing window, the part kept and the playing
-   time.
-4. **Planted feet**: the rows **L** and **R** under the graph are the stretches
-   each foot stands still (suggested; **Suggest feet** again). Drag along a row
-   to add one, drag an end to move it, click one to remove it. With **Lock
-   planted feet**, a planted foot stays on its spot on every body - that body's
-   leg bends to keep it there (a ring under the foot in the preview); red: out of
-   the leg's reach on this body, the foot slides that much (listed under the
-   rows). **The body**: *moves with its steps, back to its spot in the
+   and trim** again after changes); the timeline under the preview shows how
+   fast the hands and feet move, the standing window, the part kept and the
+   marker (the playing time). Click the timeline to move the marker; **◀ ▶** (or
+   the arrow keys) step it a frame.
+4. **Planted feet**: the timeline's rows **L** and **R** are the stretches each
+   foot stands still (suggested; **Suggest feet** again). Drag along a row to add
+   one; click one to select it, then drag its ends to lengthen or shorten it -
+   they snap to the marker and to whole frames (the readout gives its times);
+   **Delete** (or **Remove plant**) takes it out. With **Lock planted feet**, a
+   planted foot stays on its spot on every body - that body's leg bends to keep it
+   there (a ring under the foot in the preview); red: out of the leg's reach on
+   this body, the foot slides that much (listed under the timeline). **The body**: *moves with its steps, back to its spot in the
    blend-out* (one-off animations), or *stays on its spot* (walk cycles, loops:
    the take's travel is taken out, the game moves the creature).
 5. **Save for every body**: the take is retargeted to all eight body libraries and
