@@ -366,6 +366,7 @@
     plants: { left: [], right: [] }, locks: true, place: "return",  // planted feet (s in the take) and where the body stands (#79)
     selected: null,  // the plant selected on the timeline: { side, bar }
     stance: "pause1",  // the neutral stance (#80): the standing part becomes it; the blends start and end in it
+    stanceView: false,  // the stage showing the stance from the front, 3/4 and the side (#80)
     blendIn: 0.2, blendOut: 0.3, loop: false, sway: true, fitLength: 0, contactAt: 0, contact: null, tolerance: 0.75,
     saved: null,  // a keys recipe opened without its capture: its own keys, shown as they are
   };
@@ -389,11 +390,21 @@
     $("mocap-card").hidden = mode !== "mocap";
     $("mc-timeline").hidden = mode !== "mocap";
     document.querySelector(".stage-wrap").classList.toggle("mocap", mode === "mocap");
-    const spans = $("labels").querySelectorAll("span");
-    spans[0].hidden = spans[2].hidden = mode === "mocap";
-    spans[1].firstChild.textContent = mode === "mocap" ? "Mocap" : "Recipe";
-    $("labels").classList.toggle("one", mode === "mocap");
+    stageLabels();
     recompute();
+  }
+  // The stage's labels: Base / Recipe / Mix, Mocap - or the stance's three views (#80).
+  function stageLabels() {
+    const mocap = state.mode === "mocap", stance = mocap && mc.stanceView;
+    const spans = $("labels").querySelectorAll("span");
+    spans[0].hidden = spans[2].hidden = mocap && !stance;
+    spans[0].firstChild.textContent = stance ? "Front" : "Base";
+    spans[1].firstChild.textContent = stance ? "3/4" : mocap ? "Mocap" : "Recipe";
+    spans[2].firstChild.textContent = stance ? "Side" : "Mix";
+    $("labels").classList.toggle("one", mocap && !stance);
+    if (stance) for (const id of ["lab-base", "lab-result", "lab-mix"]) $(id).textContent = mc.stance + " on " + state.body;
+    $("mc-stance-show").setAttribute("aria-pressed", String(stance));
+    $("mc-stance-show").textContent = stance ? "Back to the take" : "Show the stance (front, 3/4, side)";
   }
 
   function applySlot(slot) {
@@ -655,6 +666,7 @@
       if (out.length) feet += " Out of the leg's reach on " + state.body + " (the foot slides that much): " + out.join(", ") + ".";
     }
     $("mc-feet").textContent = feet;
+    if (mc.stanceView) stageLabels();
   }
 
   async function saveMocap() {
@@ -760,7 +772,13 @@
     $("mc-loop").addEventListener("change", () => { mc.loop = $("mc-loop").checked; recompute(); });
     $("mc-sway").addEventListener("change", () => { mc.sway = $("mc-sway").checked; recompute(); });
     $("mc-place").addEventListener("change", () => { mc.place = $("mc-place").value; syncMocapInputs(); recompute(); });
-    $("mc-stance").addEventListener("change", () => { mc.stance = $("mc-stance").value; recompute(); });
+    $("mc-stance").addEventListener("change", () => { mc.stance = $("mc-stance").value; stageLabels(); recompute(); });
+    $("mc-stance-show").addEventListener("click", () => {
+      mc.stanceView = !mc.stanceView;
+      if (mc.stanceView) Object.assign(view, { yaw: 0, pitch: 0.12, distance: view.home });  // from the front: the three side by side
+      stageLabels();
+      recompute();
+    });
     $("mc-locks").addEventListener("change", () => { mc.locks = $("mc-locks").checked; recompute(); });
     $("mc-feet-suggest").addEventListener("click", () => { if (mc.take) { mc.plants = MC.suggestPlants(mc.take); mc.selected = null; recompute(); } });
     $("mc-fit").addEventListener("change", () => { mc.fitLength = Math.max(0, parseFloat($("mc-fit").value) || 0); recompute(); });
@@ -881,6 +899,13 @@
     return world.map((w) => w.p);
   }
 
+  let stanceCache = null;
+  function stanceClip() {
+    const key = state.body + "|" + mc.stance;
+    if (!stanceCache || stanceCache.key !== key) stanceCache = { key, clip: nodeMap(findClip(state.body, mc.stance)) };
+    return stanceCache.clip;
+  }
+
   let colors = {};
   function readColors() {
     const css = getComputedStyle(document.documentElement);
@@ -957,15 +982,20 @@
     const { base, mix, result } = state.clips;
     const at = (clip) => (clip && clip.length > 0 ? state.time % clip.length : 0);
     const mocap = state.mode === "mocap";
-    const figures = [
-      { clip: base, layer: state.layers.base, color: colors.side, x: SPOTS[0], show: !mocap },
-      { clip: result, layer: state.layers.result, color: colors.accent, x: SPOTS[1], show: !mocap || !!result, capture: mocap },
-      { clip: mix, layer: state.layers.mix, color: colors.side, x: SPOTS[2], show: !mocap && !!mix },
-    ];
+    // The neutral stance from the front, 3/4 and the side (#80): its first frame, turned on its spot.
+    const stance = mocap && mc.stanceView ? stanceClip() : null;
+    const figures = stance
+      ? [0, Math.PI / 4, Math.PI / 2].map((turn, k) => ({ clip: stance, layer: null, color: k === 1 ? colors.accent : colors.side, x: SPOTS[k], turn, show: true }))
+      : [
+        { clip: base, layer: state.layers.base, color: colors.side, x: SPOTS[0], show: !mocap },
+        { clip: result, layer: state.layers.result, color: colors.accent, x: SPOTS[1], show: !mocap || !!result, capture: mocap },
+        { clip: mix, layer: state.layers.mix, color: colors.side, x: SPOTS[2], show: !mocap && !!mix },
+      ];
     const items = [];
     for (const fig of figures) {
       if (!fig.show) continue;
-      const points = pose(fig.clip, at(fig.clip), fig.x, fig.layer);
+      const points = fig.turn === undefined ? pose(fig.clip, at(fig.clip), fig.x, fig.layer)
+        : pose(fig.clip, 0, 0, null).map((p) => [p[0] * Math.cos(fig.turn) - p[1] * Math.sin(fig.turn) + fig.x, p[0] * Math.sin(fig.turn) + p[1] * Math.cos(fig.turn), p[2]]);
       const cam = points.map(toCamera);
       if (cam.some((c) => c[2] < NEAR)) continue;
       const screen = cam.map(toScreen);

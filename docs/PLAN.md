@@ -3880,7 +3880,10 @@ lower than pause1's), the blends start and end in it, the recipe's source names 
 legs 1.2 degrees (pause1 1.1; 2.5 before), the body 1.3 (2.0). Checks: victorymg leaning 5 degrees all take - the legs
 4.3 cm off at worst against 3.9 upright (10.8 before), and turned a quarter 5.6 against 4.9 (11.9 before); nwreadyr
 picked - the standing part played as it, 0.3 cm (23.1 before); the recording: knees -0.3 cm, 120 of 136 locks reach
-(108 before) and hold to 0.46 cm; 3 deliberate breaks caught; the picker in a headless browser.
+(108 before) and hold to 0.46 cm; 3 deliberate breaks caught; the picker in a headless browser. Then (owner: "after
+selecting the starting neutral pose there should be a button that shows the neutral from the front, side and 3/4s so I can
+get a good idea of how to position myself"): **Show the stance** - the stage shows the picked stance's first frame three
+times, turned 0, 45 and 90 degrees (Front, 3/4, Side), with or without a take; again to go back.
 *Capture habits (told to the owner):* two or more cameras; a T-pose at each
 take's start; cycles performed on the spot; a prop of the weapon's length; a
 clap or stomp at the contact moment. Rage: 2-3 s, relaxed to a fighting stance.

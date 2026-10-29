@@ -46,7 +46,8 @@ animation for nwn5e:
    frame: the take's standing part becomes it (legs, hips, torso and head; not
    the arms - the standing part may be a T-pose), your moves change it, and the
    blends start and end in it. Stand in the standing part as close to it as you
-   can.
+   can: **Show the stance** puts it on the stage from the front, 3/4 and the side
+   (no take needed), and again to go back.
 3. Set the **standing** window (standing still at the take's start: the floor,
    the facing and the body's neutral are found there), trim the take, smooth it if
    it jitters, and watch the body you pick play it with the capture's points over
