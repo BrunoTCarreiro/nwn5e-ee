@@ -3884,6 +3884,22 @@ picked - the standing part played as it, 0.3 cm (23.1 before); the recording: kn
 selecting the starting neutral pose there should be a button that shows the neutral from the front, side and 3/4s so I can
 get a good idea of how to position myself"): **Show the stance** - the stage shows the picked stance's first frame three
 times, turned 0, 45 and 90 degrees (Front, 3/4, Side), with or without a take; again to go back.
+*#81 (2026-10-29; owner: "can you take a look at the latest capture? for some reason it's playing really fast ... even the
+size of the captured points don't match the dummy", then "I'll need to recalibrate the cameras, I didn't notice the lower
+resolution"):* the first three-camera take (21-20-50): the rig at 13 frames a second (26-27 with two), the new camera at
+720x1280 against 1080x1920, reprojection 0.36 px (0.16). Its frame times were read right; the reconstruction lost the feet
+- 1.4 m under the floor in one frame in five - and the floor (the feet's lowest 5% over the take) went with them: the
+standing hips read 2.27 m (0.92 on the two-camera takes, the limbs the same), the take scaled 0.44 to the doll; and its
+crouched standing part turned a later straight leg 24 cm backwards under pause1 (#80). "Playing fast" not reproduced (the
+bench plays it at its real 28 s). Fixed (tools only): dropImpossible - a limb point whose bone is 60% longer or half as long
+as in the standing part, and 15 cm off it, dropped with the points past it on the limb and two frames either side
+(resampling blends a lost frame into its neighbours, and a fill anchored on a half-lost one bends toward it), then a lost
+heel or toe filled following its ankle (fillFeetFromAnkles) and the rest straight; the floor is where the feet stand in the
+standing part (median; the 5th percentile over the take had also set the two-camera takes' floor 12 cm low: their hips
+now 0.79-0.82 m); and the knee rule applied again after the legs' turn, at the thigh, along the doll's own hips (in a kick
+the capture's hip points face 20-30 degrees off them). The take: hips 0.78 m, jumps over 25 cm 8 -> 2, knees 1.6 cm at
+worst; the recordings' locks hold to 0.55-0.80 cm. Checks: feet lost 1.4 m for 0.35 s, the body sunk 30 cm for 0.35 s, a
+heel lagging 15 cm (kept), a heel lost on a walk (stays at its ankle's distance to 0.9 cm); 7 deliberate breaks caught.
 *Capture habits (told to the owner):* two or more cameras; a T-pose at each
 take's start; cycles performed on the spot; a prop of the weapon's length; a
 clap or stomp at the contact moment. Rage: 2-3 s, relaxed to a fighting stance.

@@ -381,6 +381,80 @@
   const valid = (v) => Number.isFinite(v[0]) && Number.isFinite(v[1]) && Number.isFinite(v[2]);
 
   // Gaps filled with straight lines (the ends held), per coordinate.
+  // Limb points the cameras lost for a while: a limb bone 60% longer, or half as long, as in the
+  // standing part [r0, r1), and 15 cm off it (a heel bone is 7-10 cm: its own jitter crosses 60%)
+  // - its end and everything past it on the limb dropped (to be filled). `metre`: a metre in the
+  // frames' units.
+  // despike's window is five frames: a second of lost feet passes it. The owner's first take with
+  // three cameras threw the feet 1.4 m below the floor for 0.8 s and again for its last 4.5 s, the
+  // floor went down with them and the hips read 2.27 m (0.92 on the two-camera takes).
+  const LIMB = [["left_hip", "left_knee"], ["left_knee", "left_ankle"], ["left_ankle", "left_heel"], ["left_ankle", "left_foot_index"],
+    ["right_hip", "right_knee"], ["right_knee", "right_ankle"], ["right_ankle", "right_heel"], ["right_ankle", "right_foot_index"],
+    ["left_shoulder", "left_elbow"], ["left_elbow", "left_wrist"], ["right_shoulder", "right_elbow"], ["right_elbow", "right_wrist"]];
+  const PAST = {
+    left_knee: ["left_ankle", "left_heel", "left_foot_index"], left_ankle: ["left_heel", "left_foot_index"],
+    right_knee: ["right_ankle", "right_heel", "right_foot_index"], right_ankle: ["right_heel", "right_foot_index"],
+    left_elbow: ["left_wrist", "left_index", "left_pinky", "left_thumb"], left_wrist: ["left_index", "left_pinky", "left_thumb"],
+    right_elbow: ["right_wrist", "right_index", "right_pinky", "right_thumb"], right_wrist: ["right_index", "right_pinky", "right_thumb"],
+  };
+  function dropImpossible(frames, r0, r1, metre) {
+    const far = 0.15 * (metre > 0 ? metre : 1);
+    let dropped = 0;
+    // Two frames either side go too: resampling blends a lost frame into its neighbours (13 a second
+    // to 30: 2.3 frames apart), and a fill anchored on a half-lost frame bends toward it.
+    const lost = new Set();
+    const lose = (f, name) => { for (let g = Math.max(0, f - 2); g <= Math.min(frames.length - 1, f + 2); g++) lost.add(g * COUNT + P[name]); };
+    for (const [a, b] of LIMB) {
+      const ia = P[a], ib = P[b];
+      if (ia === undefined || ib === undefined) continue;
+      const length = (f) => { const p = point(frames[f], ia), q = point(frames[f], ib); return valid(p) && valid(q) ? len(sub(q, p)) : NaN; };
+      const standing = [];
+      for (let f = r0; f < r1; f++) standing.push(length(f));
+      const usual = percentile(standing, 0.5);
+      if (!(usual > 0)) continue;
+      for (let f = 0; f < frames.length; f++) {
+        const l = length(f);
+        if (Number.isFinite(l) && (l > usual * 1.6 || l < usual * 0.5) && Math.abs(l - usual) > far) { lose(f, b); for (const n of PAST[b] || []) lose(f, n); }
+      }
+    }
+    for (const key of lost) {
+      const f = Math.floor(key / COUNT), i = key % COUNT;
+      if (!valid(point(frames[f], i))) continue;
+      frames[f][i * 3] = frames[f][i * 3 + 1] = frames[f][i * 3 + 2] = NaN;
+      dropped++;
+    }
+    return dropped;
+  }
+
+  // A lost heel or toe filled following its ankle: its offset from the ankle, straight between the
+  // frames either side of the gap (a straight line through space would leave it behind for the
+  // seconds a long gap lasts while the foot moves on).
+  function fillFeetFromAnkles(frames) {
+    let filled = 0;
+    for (const side of ["left", "right"]) {
+      const ia = P[side + "_ankle"];
+      for (const n of ["heel", "foot_index"]) {
+        const ip = P[side + "_" + n];
+        if (ia === undefined || ip === undefined) continue;
+        const offset = frames.map((f) => { const a = point(f, ia), q = point(f, ip); return valid(a) && valid(q) ? sub(q, a) : null; });
+        let last = -1;
+        for (let f = 0; f <= frames.length; f++) {
+          if (f < frames.length && !offset[f]) continue;
+          for (let g = last + 1; g < f; g++) {
+            const a = point(frames[g], ia);
+            if (!valid(a) || valid(point(frames[g], ip))) continue;
+            const o = last < 0 ? offset[f] : f >= frames.length ? offset[last] : add(offset[last], scale(sub(offset[f], offset[last]), (g - last) / (f - last)));
+            if (!o) continue;
+            frames[g].set(add(a, o), ip * 3);
+            filled++;
+          }
+          last = f;
+        }
+      }
+    }
+    return filled;
+  }
+
   function fillGaps(frames) {
     const n = frames.length;
     let filled = 0;
@@ -469,6 +543,14 @@
     // it (a few degrees: centimetres at the hands).
     const fps0 = opt.fps > 1 ? opt.fps : 30;
     const [r0, r1] = referenceSpan({ frames: raw, fps: fps0 }, opt.reference);
+    if (opt.despike > 0) {
+      const wild = dropImpossible(raw, r0, r1, 1 / unit);
+      if (wild) {
+        fillFeetFromAnkles(raw);
+        fillGaps(raw);
+        notes.push(wild + " points the cameras lost dropped and filled (a limb 60% longer, or half as long, as in the standing part)");
+      }
+    }
     const avg = (i) => { let v = [0, 0, 0]; for (let f = r0; f < r1; f++) v = add(v, point(raw[f], i)); return scale(v, 1 / (r1 - r0)); };
     let bodyUp = norm(sub(mid(avg(P.left_shoulder), avg(P.right_shoulder)), mid(avg(P.left_ankle), avg(P.right_ankle))));
     let up = bodyUp;
@@ -511,10 +593,12 @@
       return g;
     });
     frames = smooth(frames, opt.smoothing);
-    // The floor: the feet's low points (5th percentile), to 0.
+    // The floor, to 0: the feet's low points in the standing part (median) - the feet are flat there;
+    // over the whole take (5th percentile) when there's no standing part. A take's lost feet (far
+    // under it) don't take the floor down with them.
     const lows = frames.map((f) => Math.min(...["left_heel", "right_heel", "left_foot_index", "right_foot_index", "left_ankle", "right_ankle"]
       .filter((n) => P[n] !== undefined).map((n) => f[P[n] * 3 + 2])));
-    const floor = percentile(lows, 0.05);
+    const floor = r1 > r0 ? percentile(lows.slice(r0, r1), 0.5) : percentile(lows, 0.05);
     for (const f of frames) for (let i = 0; i < COUNT; i++) f[i * 3 + 2] -= floor;
     const fps = opt.fps > 1 ? opt.fps : 30;
     const take = { fps, frames, up, right, forward, unit, mirrored, floor: floor, duration: (frames.length - 1) / fps, notes, source };
@@ -733,6 +817,32 @@
       const turn = since && ref.legs.get(i);
       return turn ? rotate(since, rotate(turn, rotate(qconj(since), v))) : v;
     };
+    // The thighs' and shins' directions, turned - and a knee the turn takes past straight set straight
+    // (#80): a standing part crouched (a combat stance) under an upright stance (pause1) turns a later
+    // straight leg backwards (the owner's first combat-stance take: 24 cm). Checked when the thigh is
+    // solved - at this body's thigh and shin lengths, along kneeWay of the doll's own hips (its
+    // pelvis solved by then: in a kick the capture's hip points face 20-30 degrees off it).
+    const legDir = new Map();
+    const pelvisIndex = R.index.get("pelvis_g");
+    const legTarget = (i) => {
+      if (legDir.has(i)) return legDir.get(i);
+      const s = i === R.index.get("lthigh_g") ? "l" : i === R.index.get("rthigh_g") ? "r" : null;
+      if (!s) return null;
+      const lt = R.index.get("lthigh_g"), rt = R.index.get("rthigh_g"), sh = R.index.get(s + "shin_g"), ft = R.index.get(s + "foot_g");
+      const H = L[s + "hip"], K = L[s + "kn"], F = L[s + "an"];
+      if (sh === undefined || ft === undefined || pelvisIndex === undefined || ![H, K, F].every(valid)) return null;
+      const d1 = norm(toNeutral(i, sub(K, H))), d2 = norm(toNeutral(sh, sub(F, K)));
+      const l1 = len(R.restPos[sh]), l2 = len(R.restPos[ft]);
+      const u = norm(add(scale(d1, l1), scale(d2, l2)));
+      const across = rotate(world[pelvisIndex], sub(R.restPos[rt], R.restPos[lt]));
+      const foot = valid(L[s + "toe"]) && valid(L[s + "heel"]) ? sub(L[s + "toe"], L[s + "heel"]) : [0, 0, 0];
+      const way = kneeWay([0, 0, 0], across, foot);
+      const f = norm(sub(way, scale(u, dot(way, u))));
+      const straight = len(f) > 0.5 && dot(d1, f) < 0;
+      legDir.set(i, straight ? u : d1);
+      legDir.set(sh, straight ? u : d2);
+      return legDir.get(i);
+    };
     const local = new Map();
     const world = R.world.slice();
     const worldOf = (i) => world[i];
@@ -754,7 +864,7 @@
         }
       } else if (d.kind === "aim" || d.kind === "hand") {
         const dir = childDirection(R, d.bone, d.child);
-        const target = d.kind === "hand" ? sub(mid(L[d.index], L[d.pinky]), L[d.wrist]) : toNeutral(i, sub(L[d.to], L[d.from]));
+        const target = d.kind === "hand" ? sub(mid(L[d.index], L[d.pinky]), L[d.wrist]) : legTarget(i) || toNeutral(i, sub(L[d.to], L[d.from]));
         if (dir && len(target) > 1e-6) {
           w = qmul(fromTo(rotate(unturned, dir), target), unturned);
           if (d.kind === "hand") {

@@ -253,6 +253,16 @@ function makeRtm(bones, clip, opt, stance, extra) {
     if (extra.legRatio) reproportion(pt, extra.legRatio);
     if (extra.kneeBack) for (const side of ["left", "right"]) pt[side + "_knee"] = add(pt[side + "_knee"], [0, -extra.kneeBack, 0]);
     if (extra.footBack) { const heel = pt.right_heel; pt.right_heel = pt.right_foot_index; pt.right_foot_index = heel; }
+    // A camera rig losing the feet (the owner's three-camera take): ankles, heels and toes 1.4 m
+    // under the floor between extra.lostFeet[0] and [1] s; a heel 30 cm off its ankle in
+    // extra.lostHeel; the left heel 15 cm further back in extra.heelDrift (a heel point slow to
+    // follow: 70% longer, 10 cm more); the whole body extra.sink[2] m down in [0]-[1] s.
+    if (extra.lostFeet && t >= extra.lostFeet[0] && t <= extra.lostFeet[1]) {
+      for (const n of ["left_ankle", "left_heel", "left_foot_index", "right_ankle", "right_heel", "right_foot_index"]) pt[n] = [pt[n][0], pt[n][1], pt[n][2] - 1.4];
+    }
+    if (extra.lostHeel && t >= extra.lostHeel[0] && t <= extra.lostHeel[1]) pt.left_heel = [pt.left_heel[0] + 0.3, pt.left_heel[1] - 0.2, pt.left_heel[2]];
+    if (extra.heelDrift && t >= extra.heelDrift[0] && t <= extra.heelDrift[1]) pt.left_heel = [pt.left_heel[0], pt.left_heel[1] - 0.15, pt.left_heel[2]];
+    if (extra.sink && t >= extra.sink[0] && t <= extra.sink[1]) for (const n in pt) pt[n] = [pt[n][0], pt[n][1], pt[n][2] - extra.sink[2]];
     if (extra.lean) {  // the whole performer tilted forward about the floor's origin, all take: a posture's lean
       // (these takes give "up" (axes), so it isn't levelled away by the floor)
       const co = Math.cos(extra.lean), si = Math.sin(extra.lean);
@@ -437,6 +447,7 @@ const track = (bones, clip, index, step) => {
   for (let t = 0; t <= clip.length + 1e-6; t += step || 1 / 30) out.push(posed(bones, clip, t)[index].p);
   return out;
 };
+const sub3 = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const wander = (ps) => Math.max(...ps.map((p) => Math.hypot(p[0] - ps[0][0], p[1] - ps[0][1])));
 // How far a doll's knee sits behind its hip-ankle line at worst (m): behind along the hips' forward
 // AND along its foot's (when the foot is flat) - a turned-out leg's knee follows its foot, sideways
@@ -575,6 +586,38 @@ const LEG_JOINTS = ["lshin_g", "lfoot_g", "rshin_g", "rfoot_g"];
     if (!ok) failed++;
     console.log((ok ? "ok  " : "FAIL") + " neutral stance nwreadyr: the standing part played as it - off by " + (worst * 100).toFixed(1) +
                 " cm at worst (" + at + "; the stance's root " + (low * 100).toFixed(0) + " cm from pause1's)");
+  }
+}
+{
+  // A rough capture (#81): feet lost under the floor for 0.35 s - the lost points dropped and
+  // filled: the same standing hips as the clean take, the feet on the floor; the whole body 30 cm
+  // down for 0.35 s (no limb stretched) - the floor from the standing part, not the take's lowest;
+  // a heel point lagging 15 cm (70% longer, 10 cm more) is kept; a heel lost on a walk is filled
+  // following its ankle.
+  const clean = madeTake("a_ba", "victorymg", {}), lost = madeTake("a_ba", "victorymg", { lostFeet: [0.9, 1.25] });
+  if (clean && lost) {
+    const P = (f, n) => { const i = M.LANDMARKS.indexOf(n) * 3; return [f[i], f[i + 1], f[i + 2]]; };
+    let lowest = Infinity;
+    for (let k = Math.round(0.9 * 30); k <= Math.round(1.25 * 30); k++) for (const n of ["left_ankle", "right_ankle", "left_heel", "right_heel"]) lowest = Math.min(lowest, P(lost.take.frames[k], n)[2]);
+    const hips = Math.abs(lost.take.hipHeight - clean.take.hipHeight);
+    const sunk = madeTake("a_ba", "victorymg", { sink: [0.9, 1.25, 0.3] });
+    const floorOff = sunk ? Math.abs(sunk.take.hipHeight - clean.take.hipHeight) : 1;
+    const drift = madeTake("a_ba", "victorymg", { heelDrift: [0.8, 1.6] });
+    const kept = drift && !drift.take.notes.some((n) => /cameras lost/.test(n));
+    const walk = madeTake("a_ba", "walk", { lostHeel: [0.8, 1.2] }), walkClean = madeTake("a_ba", "walk", {});
+    // The filled heel stays on its ankle - at its own distance (a straight line through space leaves
+    // it behind as the foot moves on); it can't know how the foot rolls meanwhile.
+    let heelOff = 0;
+    if (walk && walkClean) {
+      const bone = (take, k) => Math.hypot(...sub3(P(take.frames[k], "left_heel"), P(take.frames[k], "left_ankle")));
+      for (let k = Math.round(0.8 * 30); k <= Math.round(1.2 * 30); k++) heelOff = Math.max(heelOff, Math.abs(bone(walk.take, k) - bone(walkClean.take, k)));
+    }
+    const ok = hips < 0.02 && lowest > -0.1 && lost.take.notes.some((n) => /cameras lost/.test(n)) && floorOff < 0.01 && kept && heelOff < 0.03;
+    if (!ok) failed++;
+    console.log((ok ? "ok  " : "FAIL") + " lost points: feet 1.4 m under for 0.35 s - standing hips " + lost.take.hipHeight.toFixed(2) + " m (clean " +
+                clean.take.hipHeight.toFixed(2) + "), the feet's lowest there " + (lowest * 100).toFixed(0) + " cm; the body sunk 30 cm: hips off by " +
+                (floorOff * 100).toFixed(1) + " cm; a lagging heel " + (kept ? "kept" : "DROPPED") +
+                "; a lost heel on a walk at its ankle's distance to " + (heelOff * 100).toFixed(1) + " cm");
   }
 }
 {

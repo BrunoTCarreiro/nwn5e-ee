@@ -36,8 +36,11 @@ animation for nwn5e:
    passed over. With the timestamps, the take is resampled to an even 30 a
    second (webcams run unevenly); a body file without them needs its frame rate
    set by hand. Glitches - a bone suddenly stretched or squashed by 30% for a
-   frame - are dropped and filled (**Remove glitches**); hand files whose points
-   don't sit on the wrists are left out (that hand then follows its forearm).
+   frame - are dropped and filled (**Remove glitches**), and so are points the
+   cameras lost for longer (a limb 60% longer or half as long as in the standing
+   part, and 15 cm off it; a lost heel or toe follows its ankle); hand files whose
+   points don't sit on the wrists are left out (that hand then follows its
+   forearm). The floor is where the feet stand in the standing part.
 2. Pick what it is for - `n5_rage` (played as a Rage starts), `n5_cridle` (the
    crouched idle while hiding), `n5_shove` (a player's Shove swing) or a name of
    your own (play it with `!anim <name>`). Each sets sensible blends, a loop or a
@@ -81,7 +84,9 @@ own times, its marks set the sliders and the planted feet, and the glitch filter
 starts off for it. (A sliding foot: lock it here - a fix in Blender slides again
 on NWN's legs.)
 
-Capture habits: two or more cameras; standing still (arms relaxed or a T-pose)
+Capture habits: two or more cameras, all at the same resolution, the rig at 25
+frames a second or more (FreeMoCap's stats show it; three 1080p webcams ran at 13),
+recalibrated after changing a camera; standing still (arms relaxed or a T-pose)
 for a second or two at each take's start, facing forward, feet flat; moves
 performed on the spot where you can (a one-off's steps travel and come back in
 the blend-out; a walk cycle's travel is taken out); a prop of the weapon's length; a clap
