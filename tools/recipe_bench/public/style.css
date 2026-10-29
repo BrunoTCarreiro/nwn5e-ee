@@ -103,5 +103,11 @@ pre { margin: 8px 0 0; padding: 8px; background: var(--bg); border: 1px solid va
 .empty h3 { font-family: var(--display); font-size: 1.15rem; margin: 0; }
 .empty ol { margin: 0; padding-left: 1.2em; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
 .transport { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* Two columns: the preview stays in view while the controls scroll (#78), sized to fit the window
+   with its transport and note (16px from the top, ~130px below the stage). */
+@media (min-width: 821px) {
+  .stage-wrap { position: sticky; top: 16px; }
+  .stage { height: min(70vh, 640px, calc(100vh - 150px)); min-height: 240px; }
+}
 .transport input[type="range"] { flex: 1 1 200px; }
 .clock { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 0.85rem; color: var(--muted); min-width: 11ch; text-align: right; }

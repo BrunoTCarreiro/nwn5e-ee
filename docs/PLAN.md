@@ -3811,6 +3811,12 @@ marks in, the scene on the kept part, every value and mark back, a narrowed rang
 part); mocap_check.js (both ends cut, the same standing and kept frames back, retarget within 0.05 mm); the
 page in a headless browser (keep start moved to 5.00 s, exported, loaded back as 4.60 s). 5 deliberate
 breaks caught.
+*#78 (2026-10-29; owner: "something to help with the mocap bench, make the preview scroll along with the page so its
+always visible"):* on the two-column layout the preview column (stage, transport, note) is sticky 16 px from the
+top, its stage no taller than the window less 150 px, so the figures and Play stay in view down to Save for every
+body, in both tabs (they share the stage). One column (820 px or less) is unchanged: stuck there it would cover
+the controls. Checked in a headless browser at 1400x1000, 1400x700 and 1100x600 (in view scrolled to the bottom)
+and 800x900 (unchanged).
 *Capture habits (told to the owner):* two or more cameras; a T-pose at each
 take's start; cycles performed on the spot; a prop of the weapon's length; a
 clap or stomp at the contact moment. Rage: 2-3 s, relaxed to a fighting stance.
