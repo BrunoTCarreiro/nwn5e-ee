@@ -318,6 +318,7 @@
   const mc = {
     capture: null, take: null, fileName: "", fps: 30, fpsFromFile: false, fpsSource: "", despike: true, profile: null, result: null,
     slot: "n5_rage", name: "n5_mocap", smoothing: 0, ref: [0, 0.33], start: 0, end: 0,
+    plants: { left: [], right: [] }, locks: true, place: "return",  // planted feet (s in the take) and where the body stands (#79)
     blendIn: 0.2, blendOut: 0.3, loop: false, sway: true, fitLength: 0, contactAt: 0, contact: null, tolerance: 0.75,
     saved: null,  // a keys recipe opened without its capture: its own keys, shown as they are
   };
@@ -354,6 +355,7 @@
       mc.blendIn = preset.blendIn;
       mc.blendOut = preset.blendOut;
       mc.loop = preset.loop;
+      mc.place = preset.loop ? "inplace" : "return";  // a loop stays on its spot; a one-off comes back to it
       if (preset.fit) {
         const swing = state.body ? findClip(state.body, "nwstab") : null;
         mc.fitLength = swing ? Math.round(swing.length * 100) / 100 : 1;
@@ -380,6 +382,9 @@
     $("mc-out").value = mc.blendOut;
     $("mc-loop").checked = mc.loop;
     $("mc-sway").checked = mc.sway;
+    $("mc-sway").disabled = mc.place === "return";  // returning, the body follows the hips
+    $("mc-place").value = mc.place;
+    $("mc-locks").checked = mc.locks;
     $("mc-fit").value = mc.fitLength;
     $("mc-at").value = mc.contactAt;
     $("mc-contact").value = mc.contact || 0;
@@ -389,6 +394,7 @@
   function mocapOptions(body) {
     const fit = mc.fitLength > 0;
     return { name: mcName(), start: mc.start, end: mc.end, sway: mc.sway, stance: findClip(body, "pause1"),
+      place: mc.place, plants: mc.locks ? mc.plants : null,
       blendIn: mc.blendIn, blendOut: mc.blendOut, loop: mc.loop, loopBlend: 0.25, fitLength: mc.fitLength,
       contact: fit && mc.contact !== null ? mc.contact : null, contactAt: fit && mc.contactAt > 0 ? mc.contactAt : null,
       tolerance: mc.tolerance };
@@ -500,7 +506,7 @@
   function exportPoints() {
     if (!mc.take) { setMcStatus("Drop a capture first.", "bad"); return; }
     const base = (mc.fileName.split(":")[0] || "take").replace(/\.csv.*$/i, "").replace(/[^A-Za-z0-9_.-]+/g, "_").replace(/_points$/, "");
-    const marks = { reference: mc.ref, start: mc.start, end: mc.end };
+    const marks = { reference: mc.ref, start: mc.start, end: mc.end, plants: mc.plants };
     const span = MC.pointsSpan(mc.take, marks);
     const blob = new Blob([MC.pointsCsv(mc.take, marks)], { type: "text/csv" });
     const link = document.createElement("a");
@@ -536,10 +542,12 @@
       if (marked.reference) mc.ref = marked.reference;
       if (marked.start !== undefined) { mc.start = marked.start; mc.end = marked.end; mc.contact = null; }
       mc.take = MC.prepare(mc.capture, { fps: mc.fps, smoothing: mc.smoothing, reference: mc.ref, despike: mc.despike ? 1 : 0 });
+      mc.plants = marked.plants || MC.suggestPlants(mc.take);
       const from = marked.reference && marked.start !== undefined ? "From the points file's marks" : marked.reference || marked.start !== undefined
         ? "From the points file's marks and suggested" : "Suggested";
       suggested = from + ": standing " + mc.ref[0].toFixed(2) + "-" + mc.ref[1].toFixed(2) + " s, keep " + mc.start.toFixed(2) + "-" +
-        (mc.end > 0 ? mc.end.toFixed(2) + " s" : "the end") + " (the graph below; change them with the sliders).";
+        (mc.end > 0 ? mc.end.toFixed(2) + " s" : "the end") + " (the graph below; change them with the sliders); planted feet " +
+        (marked.plants ? "from its marks" : "suggested") + ": " + mc.plants.left.length + " left, " + mc.plants.right.length + " right (the rows under the graph).";
     }
     mc.profile = MC.motionProfile(mc.take);
     const d = mc.take.duration;
@@ -589,6 +597,13 @@
     $("lab-result").textContent = result
       ? mcName() + " on " + state.body + " · " + result.length.toFixed(2) + " s · " + keys + " keys" + (mc.saved ? " (saved keys)" : "")
       : mc.saved ? mcName() + ": no keys for " + state.body : "drop a capture";
+    let feet = mc.take ? "Planted feet: " + mc.plants.left.length + " left, " + mc.plants.right.length + " right - " +
+      (mc.locks ? "locked on every body." : "not locked (tick Lock planted feet).") : "";
+    if (result && result.locks && mc.locks) {
+      const out = result.locks.filter((l) => l.short > 0.03).map((l) => l.side + " " + l.takeStart.toFixed(2) + " s (" + Math.round(l.short * 100) + " cm)");
+      if (out.length) feet += " Out of the leg's reach on " + state.body + " (the foot slides that much): " + out.join(", ") + ".";
+    }
+    $("mc-feet").textContent = feet;
   }
 
   async function saveMocap() {
@@ -614,6 +629,8 @@
     const recipe = { name, keyed: true, length, transtime: 0.25, keys,
       source: mc.fileName + " " + mc.start.toFixed(2) + "-" + (mc.end > 0 ? mc.end.toFixed(2) : mc.take.duration.toFixed(2)) + " s of " +
         mc.take.duration.toFixed(2) + ", " + mc.fps + " fps, smoothing " + mc.smoothing + (mc.loop ? ", looped" : "") +
+        (mc.place === "inplace" ? ", in place" : ", returns to its spot") +
+        (mc.locks ? ", " + (mc.plants.left.length + mc.plants.right.length) + " planted feet locked" : "") +
         (mc.fitLength > 0 ? ", fitted to " + mc.fitLength + " s" : "") };
     const text = A.writeRecipe(recipe);
     try {
@@ -691,6 +708,9 @@
     $("mc-out").addEventListener("input", () => { mc.blendOut = parseFloat($("mc-out").value); recompute(); });
     $("mc-loop").addEventListener("change", () => { mc.loop = $("mc-loop").checked; recompute(); });
     $("mc-sway").addEventListener("change", () => { mc.sway = $("mc-sway").checked; recompute(); });
+    $("mc-place").addEventListener("change", () => { mc.place = $("mc-place").value; syncMocapInputs(); recompute(); });
+    $("mc-locks").addEventListener("change", () => { mc.locks = $("mc-locks").checked; recompute(); });
+    $("mc-feet-suggest").addEventListener("click", () => { if (mc.take) { mc.plants = MC.suggestPlants(mc.take); recompute(); } });
     $("mc-fit").addEventListener("change", () => { mc.fitLength = Math.max(0, parseFloat($("mc-fit").value) || 0); recompute(); });
     $("mc-at").addEventListener("change", () => { mc.contactAt = Math.max(0, parseFloat($("mc-at").value) || 0); recompute(); });
     $("mc-contact").addEventListener("input", () => { mc.contact = parseFloat($("mc-contact").value); recompute(); });
@@ -814,7 +834,7 @@
     const css = getComputedStyle(document.documentElement);
     const get = (n) => css.getPropertyValue(n).trim();
     colors = { side: hex(get("--figure-side")), accent: hex(get("--accent")), stage: hex(get("--stage")), line: get("--line"), shadow: get("--shadow"),
-               capture: get("--capture") || "#2563eb" };
+               capture: get("--capture") || "#2563eb", ok: get("--ok") || "#1f7a3a" };
   }
   function hex(text) {
     const m = /^#([0-9a-f]{6})$/i.exec(text);
@@ -905,6 +925,26 @@
       ctx.lineCap = "round";
       ctx.lineWidth = (F * 0.07) / view.distance;
       ctx.stroke();
+      // A ring on the floor under a locked foot (#79).
+      if (fig.capture && mc.locks && mc.result && mc.result.locks) {
+        const now = at(fig.clip);
+        for (const l of mc.result.locks) {
+          if (now < l.start || now > l.end) continue;
+          const i = rig.lib.bones.findIndex((b) => b.name.toLowerCase() === (l.side === "left" ? "lfoot_g" : "rfoot_g"));
+          if (i < 0) continue;
+          const ring = [];
+          for (let s = 0; s <= 24; s++) {
+            const a = (s / 24) * Math.PI * 2;
+            ring.push(toCamera([points[i][0] + 0.12 * Math.cos(a), points[i][1] + 0.12 * Math.sin(a), 0]));
+          }
+          if (ring.some((c) => c[2] < NEAR)) continue;
+          ctx.beginPath();
+          ring.map(toScreen).forEach((p, s) => (s ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
+          ctx.strokeStyle = colors.ok;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      }
       const depthShade = (z) => Math.max(0, Math.min(0.35, (z - view.distance + 0.6) * 0.18));
       for (const s of rig.segments) {
         const z = (cam[s.a][2] + cam[s.b][2]) / 2;
@@ -970,7 +1010,10 @@
   }, { passive: false });
 
   // The motion graph: the hands' and feet's speed over the take, the standing window and
-  // the part kept shaded, the contact and the playing time marked.
+  // the part kept shaded, the contact and the playing time marked; under it a row a foot,
+  // its planted stretches (#79) - red where the lock is out of the leg's reach on this body.
+  const FEET_ROWS = 28;  // CSS px under the curves: two rows of 11, 2 apart
+  let footDrag = null;  // a row being edited: { side, mode: new | edge | click | none, ... }
   function drawMotion() {
     const c = $("mc-motion");
     if (!c || !mc.take || !mc.profile || state.mode !== "mocap") return;
@@ -984,12 +1027,13 @@
     const css = getComputedStyle(document.documentElement);
     const v = (n) => css.getPropertyValue(n).trim();
     const end = mc.end > 0 ? mc.end : d;
+    const ch = h - FEET_ROWS * dpr;  // the curves' height
     g.globalAlpha = 0.25;
     g.fillStyle = v("--accent");
-    g.fillRect(x(mc.start), 0, x(end) - x(mc.start), h);
+    g.fillRect(x(mc.start), 0, x(end) - x(mc.start), ch);
     g.globalAlpha = 0.35;
     g.fillStyle = v("--ok");
-    g.fillRect(x(mc.ref[0]), 0, Math.max(1, x(mc.ref[1]) - x(mc.ref[0])), h);
+    g.fillRect(x(mc.ref[0]), 0, Math.max(1, x(mc.ref[1]) - x(mc.ref[0])), ch);
     g.globalAlpha = 1;
     const top = Math.max(2, ...mc.profile.hands, ...mc.profile.feet);
     const scale = Math.min(top, 6);  // m/s: a glitch-sized spike doesn't flatten the rest
@@ -997,9 +1041,29 @@
       g.strokeStyle = color;
       g.lineWidth = width * dpr;
       g.beginPath();
-      values.forEach((s, f) => { const px = x(f / mc.take.fps), py = h - 3 * dpr - (Math.min(s, scale) / scale) * (h - 6 * dpr); if (f) g.lineTo(px, py); else g.moveTo(px, py); });
+      values.forEach((s, f) => { const px = x(f / mc.take.fps), py = ch - 3 * dpr - (Math.min(s, scale) / scale) * (ch - 6 * dpr); if (f) g.lineTo(px, py); else g.moveTo(px, py); });
       g.stroke();
     };
+    ["left", "right"].forEach((side, r) => {
+      const y = ch + (2 + r * 13) * dpr, rh = 11 * dpr;
+      g.globalAlpha = 0.5;
+      g.fillStyle = v("--line");
+      g.fillRect(0, y, w, rh);
+      const bars = mc.plants[side].slice();
+      if (footDrag && footDrag.mode === "new" && footDrag.side === side) bars.push([Math.min(footDrag.t0, footDrag.t1), Math.max(footDrag.t0, footDrag.t1)]);
+      for (const [a, b] of bars) {
+        const out = mc.locks && mc.result && mc.result.locks &&
+          mc.result.locks.some((l) => l.side === side && l.short > 0.03 && l.takeStart < b + 0.02 && l.takeEnd > a - 0.02);
+        g.globalAlpha = mc.locks ? 0.8 : 0.3;
+        g.fillStyle = out ? v("--danger") : v("--ink");
+        g.fillRect(x(a), y, Math.max(2 * dpr, x(b) - x(a)), rh);
+      }
+      g.globalAlpha = 1;
+      g.fillStyle = v("--muted");
+      g.font = 9 * dpr + "px " + v("--mono");
+      g.textBaseline = "middle";
+      g.fillText(side === "left" ? "L" : "R", 2 * dpr, y + rh / 2);
+    });
     line(mc.profile.feet, v("--muted"), 1);
     line(mc.profile.hands, v("--capture"), 1.5);
     if (mc.contact !== null && mc.fitLength > 0) {
@@ -1010,6 +1074,71 @@
       g.fillStyle = v("--ink");
       g.fillRect(x(mc.result.takeTime(state.time % mc.result.length)) - dpr / 2, 0, Math.max(1, dpr), h);
     }
+  }
+
+  // Editing the planted feet on the rows: drag along a row to add a stretch, drag an end to
+  // move it, click one to remove it (#79).
+  function footHit(e) {
+    const r = $("mc-motion").getBoundingClientRect();
+    const d = Math.max(mc.take ? mc.take.duration : 1, 1e-6);
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    const top = r.height - FEET_ROWS;
+    const side = y >= top + 1 && y < top + 14 ? "left" : y >= top + 14 && y <= r.height ? "right" : null;
+    const t = Math.max(0, Math.min(d, (x / Math.max(r.width, 1)) * d));
+    let edge = null, inside = -1;
+    if (side) {
+      const px = (s) => (s / d) * r.width;
+      mc.plants[side].forEach(([a, b], i) => {
+        if (Math.abs(x - px(a)) <= 4) edge = { index: i, end: 0 };
+        else if (Math.abs(x - px(b)) <= 4) edge = { index: i, end: 1 };
+        else if (t >= a && t <= b) inside = i;
+      });
+    }
+    return { side, t, x, edge, inside };
+  }
+  // Sorted, the overlapping ones joined (ones that only come close stay two: a shuffle's).
+  function tidyPlants(side) {
+    const bars = mc.plants[side].filter(([a, b]) => b - a >= 0.1).sort((p, q) => p[0] - q[0]);
+    const out = [];
+    for (const bar of bars) {
+      const last = out[out.length - 1];
+      if (last && bar[0] < last[1]) last[1] = Math.max(last[1], bar[1]); else out.push(bar.slice());
+    }
+    mc.plants[side] = out;
+  }
+  {
+    const graph = $("mc-motion");
+    graph.addEventListener("pointerdown", (e) => {
+      if (!mc.take) return;
+      const h = footHit(e);
+      if (!h.side) return;
+      footDrag = h.edge ? { side: h.side, mode: "edge", index: h.edge.index, end: h.edge.end }
+        : h.inside >= 0 ? { side: h.side, mode: "click", index: h.inside, x0: h.x }
+        : { side: h.side, mode: "new", t0: h.t, t1: h.t };
+      graph.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    graph.addEventListener("pointermove", (e) => {
+      if (!mc.take) return;
+      const h = footHit(e);
+      if (!footDrag) { graph.style.cursor = !h.side ? "" : h.edge ? "ew-resize" : h.inside >= 0 ? "pointer" : "crosshair"; return; }
+      if (footDrag.mode === "new") footDrag.t1 = h.t;
+      else if (footDrag.mode === "edge") {
+        const bar = mc.plants[footDrag.side][footDrag.index];
+        if (footDrag.end === 0) bar[0] = Math.min(h.t, bar[1] - 0.1); else bar[1] = Math.max(h.t, bar[0] + 0.1);
+      } else if (footDrag.mode === "click" && Math.abs(h.x - footDrag.x0) > 4) footDrag.mode = "none";
+    });
+    const done = (cancel) => {
+      const f = footDrag;
+      footDrag = null;
+      if (!f || cancel) return;
+      if (f.mode === "new" && Math.abs(f.t1 - f.t0) >= 0.1) mc.plants[f.side].push([Math.min(f.t0, f.t1), Math.max(f.t0, f.t1)]);
+      if (f.mode === "click") mc.plants[f.side].splice(f.index, 1);
+      tidyPlants(f.side);
+      recompute();
+    };
+    graph.addEventListener("pointerup", () => done(false));
+    graph.addEventListener("pointercancel", () => done(true));
   }
 
   let last = performance.now();

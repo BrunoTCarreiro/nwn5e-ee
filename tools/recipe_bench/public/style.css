@@ -59,7 +59,7 @@ label.check input { accent-color: var(--accent); width: 16px; height: 16px; marg
 .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 #mc-info ul { margin: 4px 0; padding-left: 18px; }
 #mc-info li { margin: 1px 0; }
-.motion canvas { display: block; width: 100%; height: 90px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; }
+.motion canvas { display: block; width: 100%; height: 118px; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; touch-action: none; }
 .motion .legend { margin: 4px 0 0; }
 .key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 4px 0 10px; vertical-align: -1px; }
 .key:first-child { margin-left: 0; }
@@ -68,6 +68,7 @@ label.check input { accent-color: var(--accent); width: 16px; height: 16px; marg
 .key.ref { background: color-mix(in srgb, var(--ok) 40%, transparent); }
 .key.keep { background: color-mix(in srgb, var(--accent) 30%, transparent); }
 .key.now { background: var(--ink); width: 2px; }
+.key.planted { background: var(--ink); opacity: 0.8; }
 .labels.one { grid-template-columns: 1fr; }
 input[type="range"] { width: 100%; accent-color: var(--accent); }
 .value { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); font-size: 0.85rem; }

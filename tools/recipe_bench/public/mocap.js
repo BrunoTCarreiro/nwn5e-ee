@@ -156,9 +156,11 @@
     const frames = [];
     const timeColumn = header.indexOf("time_s");  // the points round trip's files (#77): each frame's time
     const times = timeColumn >= 0 ? [] : null;
-    // And the frames marked standing / kept (pointsCsv's marks), first to last.
-    const markColumns = timeColumn >= 0 ? { standing: header.indexOf("standing"), keep: header.indexOf("keep") } : {};
-    const marked = { standing: [], keep: [] };
+    // And the frames marked standing / kept (pointsCsv's marks), first to last, and the
+    // feet planted (#79), as runs.
+    const markColumns = timeColumn >= 0 ? { standing: header.indexOf("standing"), keep: header.indexOf("keep"),
+      left_planted: header.indexOf("left_planted"), right_planted: header.indexOf("right_planted") } : {};
+    const marked = { standing: [], keep: [], left_planted: [], right_planted: [] };
     for (let i = 1; i < lines.length; i++) {
       const cells = lines[i].split(",");
       const frame = new Float64Array(COUNT * 3);
@@ -167,16 +169,23 @@
         const v = c < 0 ? NaN : parseFloat(cells[c]);
         frame[s] = Number.isFinite(v) ? v : NaN;
       }
-      for (const m of ["standing", "keep"]) if (markColumns[m] >= 0 && parseFloat(cells[markColumns[m]]) > 0) marked[m].push(frames.length);
+      for (const m of Object.keys(markColumns)) if (markColumns[m] >= 0 && parseFloat(cells[markColumns[m]]) > 0) marked[m].push(frames.length);
       frames.push(frame);
       if (times) times.push(parseFloat(cells[timeColumn]));
     }
     const capture = { frames, columns: header.length, format: timeColumn >= 0 ? "points" : "mediapipe" };
     if (times && times.every(Number.isFinite) && times.every((t, k) => k === 0 || t > times[k - 1])) capture.times = times;
-    if (marked.standing.length || marked.keep.length) {
-      capture.marks = {};
-      for (const m of ["standing", "keep"]) if (marked[m].length) capture.marks[m] = [marked[m][0], marked[m][marked[m].length - 1]];
+    const marks = {};
+    for (const m of ["standing", "keep"]) if (marked[m].length) marks[m] = [marked[m][0], marked[m][marked[m].length - 1]];
+    if (markColumns.left_planted >= 0 || markColumns.right_planted >= 0) {
+      const runs = (rows) => {
+        const out = [];
+        for (const k of rows) { const last = out[out.length - 1]; if (last && k === last[1] + 1) last[1] = k; else out.push([k, k]); }
+        return out;
+      };
+      marks.plants = { left: runs(marked.left_planted), right: runs(marked.right_planted) };  // none marked: none (not suggested)
     }
+    if (Object.keys(marks).length) capture.marks = marks;
     return capture;
   }
 
@@ -719,28 +728,156 @@
   }
 
   // The root's position: its rest place, lowered / raised with the hips (as a share
-  // of the standing hip height) and swayed with the hips over the feet.
-  function rootPosition(R, L, take, refL, sway) {
+  // of the standing hip height) and swayed with the hips over the ground under them -
+  // `ground`, the body's spot (placeGround), else the feet.
+  function rootPosition(R, L, take, refL, sway, ground) {
     const i = R.index.get("rootdummy");
     if (i === undefined) return null;
     const rest = R.restPos[i];
     const s = take.hipHeight > 0.1 ? R.hipHeight / take.hipHeight : 1;
     const z = rest[2] + (L.hips[2] - take.hipHeight) * s;
     if (!sway) return [rest[0], rest[1], z];
-    const now = sub(L.hips, L.feet), then = sub(refL.hips, refL.feet);
+    const now = sub(L.hips, ground ? [ground[0], ground[1], 0] : L.feet), then = sub(refL.hips, refL.feet);
     return [rest[0] + (now[0] - then[0]) * s, rest[1] + (now[1] - then[1]) * s, z];
+  }
+
+  // --- Where the body stands, and planted feet (#79) ------------------------------------------
+  // The body's spot on the ground, in the performer's space (x, y), per kept frame [a, b]:
+  // "return" - where the feet stood at the first frame kept: the body moves with the steps
+  // from there, and the blend-out brings it back (the game never moves the creature for an
+  // animation); "inplace" - the part's net travel taken out, at an even speed: the hips'
+  // move from its first fifth of a second to its last (a walk cycle's ends are the same
+  // step: no cycle's sway mistaken for travel; a loop ends where it starts), through the
+  // feet's midpoint on average - a walk on a treadmill (the game moves the creature), a
+  // stance on its spot.
+  function placeGround(take, a, b, place) {
+    const feet = [], hips = [];
+    for (let f = a; f <= b; f++) {
+      const fr = take.frames[f];
+      feet.push(mid(point(fr, P.left_ankle), point(fr, P.right_ankle)));
+      hips.push(mid(point(fr, P.left_hip), point(fr, P.right_hip)));
+    }
+    if (place === "return") return feet.map(() => [feet[0][0], feet[0][1]]);
+    const n = feet.length, tm = (n - 1) / 2;
+    const mx = feet.reduce((s, p) => s + p[0], 0) / n, my = feet.reduce((s, p) => s + p[1], 0) / n;
+    const w = Math.max(1, Math.min(Math.round(0.2 * take.fps), Math.floor(n / 4)));
+    const avg = (from) => [0, 1].map((c) => hips.slice(from, from + w).reduce((s, p) => s + p[c], 0) / w);
+    const h0 = avg(0), h1 = avg(n - w), dt = n - w;
+    const vx = dt > 0 ? (h1[0] - h0[0]) / dt : 0, vy = dt > 0 ? (h1[1] - h0[1]) / dt : 0;
+    return feet.map((_, k) => [mx + vx * (k - tm), my + vy * (k - tm)]);
+  }
+
+  // Where each foot stands still on the floor: its heel slower than 0.3 m/s (over a sixth
+  // of a second) and within 6 cm of its low (the take's 5th percentile), gaps under 0.15 s
+  // bridged - and split where the heel has wandered 5 cm from where it landed (a shuffle
+  // is two plants: one lock can't hold a foot that really moves), 0.2 s apart (the foot moves
+  // between the two spots over the locks' ramps, not in a frame); 0.4 s or more each.
+  // { left: [[from, to] s, ...], right: [...] }.
+  function suggestPlants(take) {
+    const fps = take.fps, n = take.frames.length;
+    const out = {};
+    for (const side of ["left", "right"]) {
+      const heel = take.frames.map((f) => point(f, P[side + "_heel"]));
+      const low = percentile(heel.map((p) => p[2]), 0.05);
+      // The heel over 5 frames (webcam jitter is a few millimetres a frame).
+      const at = heel.map((_, k) => {
+        let x = 0, y = 0, m = 0;
+        for (let j = Math.max(0, k - 2); j <= Math.min(n - 1, k + 2); j++, m++) { x += heel[j][0]; y += heel[j][1]; }
+        return [x / m, y / m];
+      });
+      const still = heel.map((p, k) => {
+        const i = Math.max(0, k - 2), j = Math.min(n - 1, k + 2);
+        const speed = j > i ? (Math.hypot(heel[j][0] - heel[i][0], heel[j][1] - heel[i][1]) * fps) / (j - i) : 0;
+        return speed < 0.3 && p[2] < low + 0.06;
+      });
+      const runs = [];
+      let run = -1;
+      for (let k = 0; k <= n; k++) {
+        const on = k < n && still[k];
+        if (on && run < 0) run = k;
+        if (!on && run >= 0) {
+          const last = runs[runs.length - 1];
+          if (last && run - last[1] - 1 < Math.round(0.15 * fps)) last[1] = k - 1; else runs.push([run, k - 1]);
+          run = -1;
+        }
+      }
+      const plants = [];
+      const gap = Math.max(1, Math.round(0.1 * fps));
+      for (const [r0, r1] of runs) {
+        let from = r0;
+        for (let k = r0; k <= r1 + 1; k++) {
+          const wandered = k <= r1 && Math.hypot(at[k][0] - at[from][0], at[k][1] - at[from][1]) > 0.05;
+          if (k > r1) plants.push([from, r1]);
+          else if (wandered) { plants.push([from, k - gap]); from = k + gap; k = from; }
+        }
+      }
+      out[side] = plants.filter((r) => r[1] - r[0] + 1 >= Math.round(0.4 * fps)).map((r) => [r[0] / fps, r[1] / fps]);
+    }
+    return out;
+  }
+
+  // Every bone's world turn (W) and place (P) for a solved frame's local turns and root.
+  function poseWorld(R, local, root) {
+    const rootIndex = R.index.get("rootdummy");
+    const W = new Array(R.bones.length), X = new Array(R.bones.length);
+    for (let i = 0; i < R.bones.length; i++) {
+      const p = R.bones[i].parent;
+      const q = local.has(i) ? local.get(i) : R.rest[i];
+      const offset = i === rootIndex && root ? root : R.restPos[i];
+      W[i] = p < 0 ? q : qmul(W[p], q);
+      X[i] = p < 0 ? offset : add(X[p], rotate(W[p], offset));
+    }
+    return { W, P: X };
+  }
+
+  // A leg bent so its ankle (the foot bone's place) moves `weight` of the way to `target`:
+  // the thigh and the shin turned in the plane the knee already bends in (the pelvis's
+  // forward when straight), the foot keeping its turn in the world. Returns how far the
+  // target is beyond the leg's reach (0 when it reaches).
+  function legIK(R, local, root, side, target, weight) {
+    const s = side === "left" ? "l" : "r";
+    const th = R.index.get(s + "thigh_g"), sh = R.index.get(s + "shin_g"), ft = R.index.get(s + "foot_g");
+    if (th === undefined || sh === undefined || ft === undefined || R.bones[sh].parent !== th || R.bones[ft].parent !== sh) return 0;
+    const { W, P: X } = poseWorld(R, local, root);
+    const H = X[th], K = X[sh], A = X[ft];
+    const T = add(A, scale(sub(target, A), weight));
+    const l1 = len(sub(K, H)), l2 = len(sub(A, K));
+    const want = len(sub(T, H));
+    const short = Math.max(0, want - (l1 + l2));
+    const d = Math.max(Math.abs(l1 - l2) + 1e-4, Math.min(l1 + l2 - 1e-4, want));
+    const u = norm(sub(T, H));
+    let v = sub(sub(K, H), scale(u, dot(sub(K, H), u)));
+    if (len(v) < 1e-4) {
+      const pelvis = R.index.get("pelvis_g");
+      const fwd = rotate(pelvis !== undefined ? W[pelvis] : IDENTITY, [0, 1, 0]);
+      v = sub(fwd, scale(u, dot(fwd, u)));
+    }
+    v = norm(v);
+    const along = (l1 * l1 - l2 * l2 + d * d) / (2 * d);
+    const K2 = add(add(H, scale(u, along)), scale(v, Math.sqrt(Math.max(0, l1 * l1 - along * along))));
+    const A2 = add(H, scale(u, d));
+    const q1 = fromTo(sub(K, H), sub(K2, H));
+    const Wth = qmul(q1, W[th]);
+    const q2 = fromTo(rotate(q1, sub(A, K)), sub(A2, K2));
+    const Wsh = qmul(q2, qmul(q1, W[sh]));
+    local.set(th, qnorm(qmul(qconj(W[R.bones[th].parent]), Wth)));
+    local.set(sh, qnorm(qmul(qconj(Wth), Wsh)));
+    local.set(ft, qnorm(qmul(qconj(Wsh), W[ft])));
+    return short;
   }
 
   // --- The retarget -----------------------------------------------------------------------------
   // options: name, start / end (s; end 0 = the end), sway (true), stance (a clip:
-  // pause1, for the blends), blendIn / blendOut (s), loop (false), loopBlend (s),
+  // pause1, for the blends), place ("return" | "inplace": placeGround - "inplace" for walk
+  // cycles and loops, whose net travel is travel; sway is always kept for "return"), plants ({ left / right: [[from, to] s in the take] }: feet held
+  // on the floor - the result's locks), blendIn / blendOut (s), loop (false), loopBlend (s),
   // fitLength (s; 0 keeps it), contact (s in the take) and contactAt (s in the
   // result), transtime (0.25), reduce (true), tolerance (degrees; 0.75 - and 4 mm
   // for the root, scaled alike). The clip's takeTime(t) is its time in the take.
   function retarget(take, bones, options) {
-    const opt = Object.assign({ name: "n5_mocap", start: 0, end: 0, sway: true, stance: null, blendIn: 0, blendOut: 0,
-      loop: false, loopBlend: 0.25, fitLength: 0, contact: null, contactAt: null, transtime: 0.25, reduce: true,
-      tolerance: 0.75 }, options || {});
+    const opt = Object.assign({ name: "n5_mocap", start: 0, end: 0, sway: true, stance: null, place: "return", plants: null,
+      blendIn: 0, blendOut: 0, loop: false, loopBlend: 0.25, fitLength: 0, contact: null, contactAt: null, transtime: 0.25,
+      reduce: true, tolerance: 0.75 }, options || {});
     const tolerance = Math.max(0.01, opt.tolerance);
     const R = rig(bones, opt.stance);
     const refL = landmarks(take.reference.pose);
@@ -753,7 +890,7 @@
     const solved = [];
     for (let f = a; f <= b; f++) {
       const { local, L } = solveFrame(R, take.frames[f], ref);
-      solved.push({ local, root: rootPosition(R, L, take, refL, opt.sway) });
+      solved.push({ local, L });
       if (!driven.length) for (const k of local.keys()) driven.push(k);
     }
     // The loop: cut where the pose comes closest to the first (in the last 40%), then crossfade.
@@ -769,6 +906,47 @@
     const count = solved.length;
     const length = Math.max((count - 1) / take.fps, 1 / take.fps);
     const timeOf = (k) => k / take.fps;
+    // The root over the body's spot - from the part kept in the end (a loop's, once cut).
+    const ground = placeGround(take, a, a + count - 1, opt.place);
+    solved.forEach((sv, k) => { sv.root = rootPosition(R, sv.L, take, refL, opt.place === "return" || opt.sway, ground[k]); });
+    // Planted feet held (#79): each lock keeps its ankle on the spot on the ground where it
+    // landed, by bending the leg (legIK) - on this body, whatever its legs' proportions. In
+    // from 0.1 s before it lands, out over 0.2 s as it lifts (the correction rides the step).
+    // The ground moves under an "inplace" body (its travel taken out): the spot moves with it.
+    const locks = [];
+    if (opt.plants && rootIndex !== undefined) {
+      const fps = take.fps;
+      const s = take.hipHeight > 0.1 ? R.hipHeight / take.hipHeight : 1;
+      const shift = (k) => [(ground[k][0] - ground[0][0]) * s, (ground[k][1] - ground[0][1]) * s, 0];
+      const foot = { left: R.index.get("lfoot_g"), right: R.index.get("rfoot_g") };
+      const ankles = solved.map((sv) => poseWorld(R, sv.local, sv.root).P);
+      const rIn = Math.max(1, Math.round(0.1 * fps)), rOut = Math.max(1, Math.round(0.2 * fps));
+      const held = { left: new Array(count).fill(null), right: new Array(count).fill(null) };
+      for (const side of ["left", "right"]) {
+        if (foot[side] === undefined) continue;
+        for (const [t0, t1] of opt.plants[side] || []) {
+          const p0 = Math.max(0, Math.round(t0 * fps) - a), p1 = Math.min(count - 1, Math.round(t1 * fps) - a);
+          if (p1 - p0 < 2) continue;
+          let spot = [0, 0, 0], m = 0;
+          for (let k = p0; k <= Math.min(p1, p0 + rIn); k++, m++) spot = add(spot, add(ankles[k][foot[side]], shift(k)));
+          spot = scale(spot, 1 / m);
+          const lock = { side, from: p0, to: p1, short: 0 };
+          locks.push(lock);
+          for (let k = Math.max(0, p0 - rIn); k <= Math.min(count - 1, p1 + rOut); k++) {
+            const w = k < p0 ? smoothstep(1 - (p0 - k) / (rIn + 1)) : k > p1 ? smoothstep(1 - (k - p1) / (rOut + 1)) : 1;
+            if (!held[side][k] || w > held[side][k].w) held[side][k] = { w, target: sub(spot, shift(k)), lock };
+          }
+        }
+      }
+      for (let k = 0; k < count; k++) {
+        for (const side of ["left", "right"]) {
+          const h = held[side][k];
+          if (!h || h.w <= 0) continue;
+          const short = legIK(R, solved[k].local, solved[k].root, side, h.target, h.w);
+          if (h.w >= 0.999) h.lock.short = Math.max(h.lock.short, short);
+        }
+      }
+    }
     // The stance (pause1 at 0): the blends' ends.
     const stanceLocal = new Map(), stanceRoot = rootIndex !== undefined ? R.restPos[rootIndex] : null;
     let stanceRootPos = stanceRoot;
@@ -819,20 +997,26 @@
         unwarp = (u) => (u / outLength) * length;
       }
     }
+    // A locked foot's leg and the root kept closer (a third of the tolerance): their keys'
+    // slack adds up at the foot - a centimetre at 0.75 degrees (#79).
+    const tight = new Set();
+    for (const l of locks) for (const n of ["thigh_g", "shin_g", "foot_g"]) { const i = R.index.get((l.side === "left" ? "l" : "r") + n); if (i !== undefined) tight.add(i); }
     const nodes = [];
     for (const [j, track] of tracks) {
       const node = { name: R.bones[j].name, parent: R.bones[j].parent, orientation: { times: track.times.map(warp), values: track.values } };
-      if (opt.reduce) node.orientation = reduceTrack(node.orientation, true, (tolerance * Math.PI) / 180);
+      if (opt.reduce) node.orientation = reduceTrack(node.orientation, true, ((tight.has(j) ? tolerance / 3 : tolerance) * Math.PI) / 180);
       nodes.push(node);
     }
     if (rootIndex !== undefined && rootTrack.times.length) {
       let position = { times: rootTrack.times.map(warp), values: rootTrack.values };
-      if (opt.reduce) position = reduceTrack(position, false, 0.004 * (tolerance / 0.75));
+      if (opt.reduce) position = reduceTrack(position, false, 0.004 * (tolerance / 0.75) * (locks.length ? 1 / 3 : 1));
       nodes.unshift({ name: R.bones[rootIndex].name, parent: R.bones[rootIndex].parent, position });
     }
     const start = a / take.fps;
     return { name: opt.name, length: outLength, transtime: opt.transtime, animroot: "rootdummy", nodes,
-             source: { start, end: (a + count - 1) / take.fps }, takeTime: (t) => start + unwarp(Math.max(0, Math.min(outLength, t))) };
+             source: { start, end: (a + count - 1) / take.fps }, takeTime: (t) => start + unwarp(Math.max(0, Math.min(outLength, t))),
+             locks: locks.map((l) => ({ side: l.side, start: warp(timeOf(l.from)), end: warp(timeOf(l.to)), takeStart: (a + l.from) / take.fps,
+                                        takeEnd: (a + l.to) / take.fps, short: l.short })) };
   }
 
   // --- Contact and key reduction ---------------------------------------------------------------
@@ -882,7 +1066,7 @@
   // names). Blender's nwn5e mocap points add-on (tools/mocap_blender) reads and writes it;
   // parseCapture reads it back, the marks as capture.marks (trimFromMarks: the sliders).
   // marks: the bench's sliders - { reference: [start, end) s, start, end (s; end 0: to the
-  // end) }. With them, from the standing window's first frame to the kept part's last (the
+  // end), plants ({ left / right: [[from, to] s]}: columns left_planted / right_planted) }. With them, from the standing window's first frame to the kept part's last (the
   // owner, 2026-10-29: "go for b"): the retarget measures every turn and the hip height from
   // the standing pose, so it travels with the part kept; and columns standing / keep, 1 on
   // the frames of each. Without them, the whole take, unmarked.
@@ -896,13 +1080,17 @@
 
   function pointsCsv(take, marks) {
     const span = pointsSpan(take, marks);
-    const header = ["time_s"].concat(marks ? ["standing", "keep"] : []);
+    const plants = marks && marks.plants
+      ? ["left", "right"].map((side) => (marks.plants[side] || []).map(([s0, s1]) => [Math.round(s0 * take.fps), Math.round(s1 * take.fps)]))
+      : null;
+    const header = ["time_s"].concat(marks ? ["standing", "keep"] : [], plants ? ["left_planted", "right_planted"] : []);
     for (const n of LANDMARKS) for (const a of ["x", "y", "z"]) header.push("body_" + n + "_" + a);
     const rows = [header.join(",")];
     for (let k = span.from; k <= span.to; k++) {
       const f = take.frames[k];
       const row = [((k - span.from) / take.fps).toFixed(6)];
       if (marks) row.push(k >= span.standing[0] && k < span.standing[1] ? 1 : 0, k >= span.keep[0] && k <= span.keep[1] ? 1 : 0);
+      if (plants) for (const runs of plants) row.push(runs.some(([p0, p1]) => k >= p0 && k <= p1) ? 1 : 0);
       for (let s = 0; s < COUNT * 3; s++) row.push(Number.isFinite(f[s]) ? f[s].toFixed(5) : "");
       rows.push(row.join(","));
     }
@@ -920,6 +1108,7 @@
     const last = capture.frames.length - 1;
     if (marks.standing) out.reference = [at(marks.standing[0]), at(marks.standing[1]) + 1 / fps];
     if (marks.keep) { out.start = at(marks.keep[0]); out.end = marks.keep[1] >= last ? 0 : at(marks.keep[1]); }
+    if (marks.plants) out.plants = { left: marks.plants.left.map(([x, y]) => [at(x), at(y)]), right: marks.plants.right.map(([x, y]) => [at(x), at(y)]) };
     return out;
   }
 
@@ -974,7 +1163,7 @@
   }
 
   const api = { LANDMARKS, CONNECTIONS, parseCapture, addHand, timesFrom, resample, despike, pointsSpan, pointsCsv, trimFromMarks, frameRateFrom,
-                prepare, setReference, referenceSpan, keepSpan,
+                prepare, setReference, referenceSpan, keepSpan, placeGround, suggestPlants, poseWorld, legIK,
                 pointsAt, retarget, suggestContact, motionProfile, suggestTrim, reduceTrack, rig, solveFrame, landmarks, bodyFrames };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.Mocap = api;

@@ -3817,6 +3817,29 @@ top, its stage no taller than the window less 150 px, so the figures and Play st
 body, in both tabs (they share the stage). One column (820 px or less) is unchanged: stuck there it would cover
 the controls. Checked in a headless browser at 1400x1000, 1400x700 and 1100x600 (in view scrolled to the bottom)
 and 800x900 (unchanged).
+*#79 (2026-10-29; owner: "wouldn't it be easier to edit the mocap animation if it were attached to an IK rig, so that
+I could just make sure a foot was well planted and the rest of the body would follow naturally that change?"):* measured
+first - the take's planted heels drift 4 cm at most in the points, yet 8-36 cm in game on 4 of 11 stretches, on every
+body: the retarget's doing (the hips hung over the feet's midpoint drag a planted foot half a step; NWN's longer, other-
+shaped legs at the performer's angles). Offered foot locks in the bench / an IK rig in Blender / both; the owner: "can I
+tell the bench when the animation has planted feet?", then "go ahead with the foot locks and for the animation, sure
+there would be two types, animate in place (for walk cycles) and return to original place for the others" (Mixamo /
+CMU import: "nah ... this is mostly for my own mocap data" - dropped). Built (tools only): suggestPlants (heel under
+0.3 m/s and within 6 cm of its low, 0.4 s or more, gaps under 0.15 s bridged, split where the heel wanders 5 cm,
+0.2 s apart) and rows L / R under the motion graph (drag to add, drag an end, click to remove; Suggest feet; Lock
+planted feet); in the retarget, legIK - thigh and shin turned in the knee's plane so the ankle stays on the spot where
+it landed (in 0.1 s before, out over 0.2 s after), the foot keeping its turn - with a locked leg and the root reduced
+at a third of the key tolerance (their slack added up to a centimetre at the foot); placeGround: "return" (default;
+one-offs) - the body moves with its steps from the first kept frame's feet and the blend-out brings it back -
+and "inplace" (walk cycles, loops; a loop slot's default) - the hips' net travel between the part's ends taken out
+at an even speed, through the feet's average, the ground and its locked feet sliding back under the body. Marks
+left_planted / right_planted through the points CSV and the Blender add-on; a ring under a locked foot; locks out of
+the leg's reach red, listed with the shortfall. Checks (mocap_check.js): getlow with 1.25x / 0.75x legs slides 21 cm
+free, exact locked (0.45 cm with the keys reduced); walk + 1.2 m/s in place sways within 1.8 cm of NWN's walk
+(returning, it travels 118 cm); taunt returning travels as the animation did and ends on the stance's spot; the
+owner's take - 108 of 136 locks within reach on the 8 bodies hold to 0.50 cm (29.8 cm unlocked). 7 deliberate breaks
+caught; check.py passes the planted feet through; the page in a headless browser (rows drawn, a drag adds, a click
+removes, export and reload keep them, the ring).
 *Capture habits (told to the owner):* two or more cameras; a T-pose at each
 take's start; cycles performed on the spot; a prop of the weapon's length; a
 clap or stomp at the contact moment. Rage: 2-3 s, relaxed to a fighting stance.

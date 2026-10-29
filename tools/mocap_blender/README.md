@@ -29,7 +29,8 @@ In the bench's **Mocap** tab drop the recording's folder. Check the green
 them - then press **Export points for Blender**: `<take>_points.csv` lands in
 your downloads. It is the take as the bench cleaned it - an even 30 frames a
 second, glitches removed, upright, facing forward, in metres - from the start
-of the standing part to the end of the kept part, both marked.
+of the standing part to the end of the kept part, both marked, and the bench's
+planted feet (they come back as they went).
 
 ## 2. Into Blender
 
@@ -70,6 +71,14 @@ smoothing last also softens the step where a flattened foot starts and stops.
    keys before or after.
 
 ## 5. A foot that slides while it should stand still
+
+Leave it to the bench: mark the foot planted on the **L** / **R** rows under its
+motion graph (it suggests them) and it stays put on every body - that body's leg
+bends to hold it. A foot pinned here comes back as points, and NWN's longer legs
+slide it again; the bench's lock doesn't.
+
+Only a foot the capture itself drags - a slip the performer didn't make - is
+worth fixing here:
 
 1. Select the foot's points: `mc.left_heel`, `mc.left_foot_index`,
    `mc.left_ankle`.
@@ -113,8 +122,8 @@ pops. The take's hands don't turn (their tracking failed): moving and keying
    `<take>_points_clean.csv`. Every frame goes, the standing part and the kept
    part marked.
 3. **File › Save** the .blend too, to come back to it.
-4. Drop the CSV on the bench's Mocap tab. The standing and keep sliders come
-   back from its marks, and its glitch filter starts **off** (it would "fix" a
+4. Drop the CSV on the bench's Mocap tab. The standing and keep sliders and the
+   planted feet come back from its marks, and its glitch filter starts **off** (it would "fix" a
    point you moved on purpose). Blend, pick the animation it's for, **Save for
    every body**; the next game start builds it.
 

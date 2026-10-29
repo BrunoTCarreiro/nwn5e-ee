@@ -3,7 +3,8 @@
 #
 # The bench's "Export points for Blender" writes a take as a CSV: a row a frame, its
 # time (time_s), its marks (standing, keep: 1 on the frames of the bench's standing part
-# and of the part it keeps), then each body point's x / y / z (body_<point>_x ...) in
+# and of the part it keeps; left_planted, right_planted: the feet the bench locks - passed
+# through as they came), then each body point's x / y / z (body_<point>_x ...) in
 # metres, in the bench's game space (+X the performer's right, +Y forward, +Z up, the
 # floor at 0). It runs from the standing part to the end of the kept part: the bench
 # measures every turn from the standing pose, so that part travels with the take.
@@ -47,6 +48,7 @@ KEY_FPS = "nwn5e_fps"
 KEY_SOURCE = "nwn5e_source"
 KEY_STANDING = "nwn5e_standing"  # the standing part's first and last frames, as imported
 KEY_KEEP = "nwn5e_keep"  # the kept part's, as imported (the scene's range carries it after)
+KEY_PLANTS = "nwn5e_plants_"  # + left / right: the planted feet's runs of frames, "a:b,c:d"
 MARKERS = ("standing", "standing end")
 
 # The stick figure's lines (the bench's CONNECTIONS).
@@ -76,7 +78,8 @@ def to_game(x, y, z):
 
 def read_points(path):
     """The CSV: (times, names, frames, marks) - frames[k][name] = (x, y, z) in game space;
-    marks["standing"] / marks["keep"] = (first, last) row marked 1 (absent: not marked)."""
+    marks["standing"] / marks["keep"] = (first, last) row marked 1 (absent: not marked);
+    marks["plants"] = {"left": [(first, last) ...], "right": [...]} when the columns are there."""
     with open(path, newline="", encoding="utf-8") as f:
         rows = list(csv.reader(f))
     if len(rows) < 3:
@@ -94,7 +97,7 @@ def read_points(path):
                 names.append(name)
             cols[name]["xyz".index(h[-1])] = c
     names = [n for n in names if min(cols[n]) >= 0]
-    mark_cols = {m: header.index(m) for m in ("standing", "keep") if m in header}
+    mark_cols = {m: header.index(m) for m in ("standing", "keep", "left_planted", "right_planted") if m in header}
     marked = {m: [] for m in mark_cols}
     times, frames = [], []
     for row in rows[1:]:
@@ -114,7 +117,17 @@ def read_points(path):
             except (ValueError, IndexError):
                 frame[n] = None
         frames.append(frame)
-    marks = {m: (v[0], v[-1]) for m, v in marked.items() if v}
+    marks = {m: (v[0], v[-1]) for m, v in marked.items() if v and m in ("standing", "keep")}
+    if "left_planted" in mark_cols or "right_planted" in mark_cols:
+        def runs(rows):
+            out = []
+            for k in rows:
+                if out and k == out[-1][1] + 1:
+                    out[-1][1] = k
+                else:
+                    out.append([k, k])
+            return [tuple(r) for r in out]
+        marks["plants"] = {side: runs(marked.get(side + "_planted", [])) for side in ("left", "right")}
     return times, names, frames, marks
 
 
@@ -132,7 +145,10 @@ def import_points(context, path):
     coll[KEY_SOURCE] = os.path.basename(path)
     first_frame = 0
     keyed = [first_frame + t * fps - times[0] * fps for t in times]
-    at = {m: (int(round(keyed[a])), int(round(keyed[b]))) for m, (a, b) in marks.items()}
+    at = {m: (int(round(keyed[r[0]])), int(round(keyed[r[1]]))) for m, r in marks.items() if m in ("standing", "keep")}
+    if "plants" in marks:
+        for side in ("left", "right"):
+            coll[KEY_PLANTS + side] = ",".join("%d:%d" % (int(round(keyed[a])), int(round(keyed[b]))) for a, b in marks["plants"][side])
     if "standing" in at:
         coll[KEY_STANDING] = list(at["standing"])
     if "keep" in at:
@@ -228,14 +244,22 @@ def export_points(context, path, coll):
     marked = standing is not None or KEY_KEEP in coll or keep != (a, b)
     if keep[0] > keep[1]:
         keep = None
+    # The planted feet, as they came.
+    plants = None
+    if KEY_PLANTS + "left" in coll or KEY_PLANTS + "right" in coll:
+        plants = [[tuple(int(v) for v in r.split(":")) for r in str(coll.get(KEY_PLANTS + side, "")).split(",") if r]
+                  for side in ("left", "right")]
     current = scene.frame_current
-    header = ["time_s"] + (["standing", "keep"] if marked else []) + ["body_%s_%s" % (n, axis) for n in names for axis in "xyz"]
+    header = ["time_s"] + (["standing", "keep"] if marked else []) + (["left_planted", "right_planted"] if plants is not None else []) + \
+        ["body_%s_%s" % (n, axis) for n in names for axis in "xyz"]
     rows = [header]
     for f in range(a, b + 1):
         scene.frame_set(f)
         row = ["%.6f" % ((f - a) / fps)]
         if marked:
             row += [1 if standing and standing[0] <= f <= standing[1] else 0, 1 if keep and keep[0] <= f <= keep[1] else 0]
+        if plants is not None:
+            row += [1 if any(p0 <= f <= p1 for p0, p1 in runs) else 0 for runs in plants]
         for n in names:
             p = to_game(*empties[n].matrix_world.translation)
             row += ["%.5f" % v for v in p]

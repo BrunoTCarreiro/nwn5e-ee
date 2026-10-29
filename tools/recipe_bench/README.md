@@ -49,20 +49,31 @@ animation for nwn5e:
    and trim** again after changes); the graph under the sliders shows how fast
    the hands and feet move, the standing window, the part kept and the playing
    time.
-4. **Save for every body**: the take is retargeted to all eight body libraries and
+4. **Planted feet**: the rows **L** and **R** under the graph are the stretches
+   each foot stands still (suggested; **Suggest feet** again). Drag along a row
+   to add one, drag an end to move it, click one to remove it. With **Lock
+   planted feet**, a planted foot stays on its spot on every body - that body's
+   leg bends to keep it there (a ring under the foot in the preview); red: out of
+   the leg's reach on this body, the foot slides that much (listed under the
+   rows). **The body**: *moves with its steps, back to its spot in the
+   blend-out* (one-off animations), or *stays on its spot* (walk cycles, loops:
+   the take's travel is taken out, the game moves the creature).
+5. **Save for every body**: the take is retargeted to all eight body libraries and
    written as one keys recipe; the next game start builds it.
 
-For hand clean-up - smoothing, a bad moment, a sliding foot, a pose - **Export
-points for Blender** writes the take as cleaned here (`<take>_points.csv`), from
-the standing part to the end of the kept part, both marked; clean it in Blender
-with `tools/mocap_blender` (its README is the step-by-step) - it plays the kept
-part - and drop the file Blender exports back here. A points file keeps its own
-times, its marks set the standing and keep sliders, and the glitch filter starts
-off for it.
+For hand clean-up - smoothing, a bad moment, a pose - **Export points for
+Blender** writes the take as cleaned here (`<take>_points.csv`), from the standing
+part to the end of the kept part, both marked, and the planted feet; clean it in
+Blender with `tools/mocap_blender` (its README is the step-by-step) - it plays the
+kept part - and drop the file Blender exports back here. A points file keeps its
+own times, its marks set the sliders and the planted feet, and the glitch filter
+starts off for it. (A sliding foot: lock it here - a fix in Blender slides again
+on NWN's legs.)
 
 Capture habits: two or more cameras; standing still (arms relaxed or a T-pose)
 for a second or two at each take's start, facing forward, feet flat; moves
-performed on the spot (travel is stripped); a prop of the weapon's length; a clap
+performed on the spot where you can (a one-off's steps travel and come back in
+the blend-out; a walk cycle's travel is taken out); a prop of the weapon's length; a clap
 or a stomp at the contact moment of a swing. The frame rate matters for fast
 moves: resampled from 13 a second, a stab's peak lands about 29 cm short at the
 hand, from 25 about 15 cm (mocap_check.js's info lines); slow moves (a flourish, a

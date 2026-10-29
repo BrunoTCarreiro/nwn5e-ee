@@ -133,14 +133,20 @@
       </div>
       <p class="note">The performer standing straight, facing forward: the body's turns are measured from there, and the floor and the facing are found there.</p>
       <div class="motion">
-        <canvas id="mc-motion" aria-label="How fast the hands and feet move over the take, with the standing window and the part kept"></canvas>
-        <p class="note legend"><span class="key hands"></span>hands <span class="key feet"></span>feet <span class="key ref"></span>standing <span class="key keep"></span>kept <span class="key now"></span>now</p>
+        <canvas id="mc-motion" aria-label="How fast the hands and feet move over the take, with the standing window and the part kept; under it, the left and right feet's planted stretches"></canvas>
+        <p class="note legend"><span class="key hands"></span>hands <span class="key feet"></span>feet <span class="key ref"></span>standing <span class="key keep"></span>kept <span class="key planted"></span>planted (rows L, R) <span class="key now"></span>now</p>
+      </div>
+      <p class="note">Planted feet, the L and R rows: drag along a row to add one, drag an end to move it, click one to remove it. Locked, a foot stays on its spot on every body - its leg bends to keep it there; red: out of the leg's reach on this body.</p>
+      <p class="note" id="mc-feet"></p>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="mc-locks" checked> Lock planted feet</label>
+        <button type="button" id="mc-feet-suggest">Suggest feet</button>
       </div>
       <div class="row">
         <button type="button" id="mc-trim">Suggest standing and trim</button>
         <button type="button" id="mc-export">Export points for Blender</button>
       </div>
-      <p class="note">Export points: the take as cleaned here, from the standing part (green) to the end of the kept part (shaded), both marked, for Blender's nwn5e mocap points add-on (tools/mocap_blender). Blender plays the kept part; clean it there, export it, and drop that file back here - the standing and keep sliders come back where they were.</p>
+      <p class="note">Export points: the take as cleaned here, from the standing part (green) to the end of the kept part (shaded), both marked, and the planted feet, for Blender's nwn5e mocap points add-on (tools/mocap_blender). Blender plays the kept part; clean it there, export it, and drop that file back here - the sliders and the planted feet come back where they were.</p>
       <div class="row">
         <label><span class="slider-head"><span>Keep from</span><span class="value" id="mc-start-v">0.00 s</span></span>
           <input type="range" id="mc-start" min="0" max="5" step="0.01" value="0">
@@ -161,8 +167,14 @@
       <div class="row">
         <label class="check"><input type="checkbox" id="mc-loop"> Loop (cut where the pose comes back closest, then crossfade)</label>
       </div>
+      <label>The body
+        <select id="mc-place">
+          <option value="return">moves with its steps, back to its spot in the blend-out</option>
+          <option value="inplace">stays on its spot - walk cycles, loops (the game moves the creature)</option>
+        </select>
+      </label>
       <div class="row">
-        <label class="check"><input type="checkbox" id="mc-sway" checked> Keep the hips' sway over the feet</label>
+        <label class="check"><input type="checkbox" id="mc-sway" checked> Keep the hips' sway over the feet (on its spot)</label>
       </div>
       <div class="row">
         <label>Fit to a length (s, 0 keeps it)

@@ -214,6 +214,25 @@ roundTrip("a_da2", "taunt", { yaw: 0.3, yUp: false, mirror: false }, limits);
 const RTM_RENAME = { left_foot_index: "left_big_toe", right_foot_index: "right_big_toe" };
 const RTM_SKIP = new Set(["left_eye_inner", "left_eye_outer", "right_eye_inner", "right_eye_outer", "mouth_left", "mouth_right",
   "left_index", "left_pinky", "left_thumb", "right_index", "right_pinky", "right_thumb"]);
+// Legs of other proportions: each thigh `ratio` times as long and the shin (2 - ratio) times
+// - the hip and the ankle where they were, the knee moved in its bend plane: the feet stay
+// where the animation put them, at knee angles NWN's legs don't share (#79).
+function reproportion(pt, ratio) {
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const scale = (a, s) => [a[0] * s, a[1] * s, a[2] * s], len = (a) => Math.hypot(a[0], a[1], a[2]);
+  const norm = (a) => scale(a, 1 / Math.max(len(a), 1e-9));
+  for (const side of ["left", "right"]) {
+    const H = pt[side + "_hip"], K = pt[side + "_knee"], F = pt[side + "_ankle"];
+    const l1 = len(sub(K, H)) * ratio, l2 = len(sub(F, K)) * (2 - ratio);
+    const u = norm(sub(F, H));
+    const d = Math.max(Math.abs(l1 - l2) + 1e-4, Math.min(l1 + l2 - 1e-4, len(sub(F, H))));
+    let v = sub(sub(K, H), scale(u, dot(sub(K, H), u)));
+    if (len(v) < 1e-4) v = sub([0, 1, 0], scale(u, u[1]));
+    v = norm(v);
+    const along = (l1 * l1 - l2 * l2 + d * d) / (2 * d);
+    pt[side + "_knee"] = add(add(H, scale(u, along)), scale(v, Math.sqrt(Math.max(0, l1 * l1 - along * along))));
+  }
+}
 function makeRtm(bones, clip, opt, stance, extra) {
   const restPose = posed(bones, null, 0);
   const lead = 0.5;  // the standing reference, seconds
@@ -231,6 +250,8 @@ function makeRtm(bones, clip, opt, stance, extra) {
   times.forEach((t, f) => {
     const pose = t < lead ? posed(bones, stance, 0) : posed(bones, clip, Math.min(t - lead, clip.length));
     const pt = landmarksFrom(bones, pose, restPose);
+    if (extra.legRatio) reproportion(pt, extra.legRatio);
+    if (extra.travel && t >= lead) { const d = extra.travel(t - lead); for (const n in pt) pt[n] = [pt[n][0] + d[0], pt[n][1] + d[1], pt[n][2]]; }
     for (const n of M.LANDMARKS) {
       if (RTM_SKIP.has(n)) continue;
       let p = toRecording(pt[n], opt);
@@ -346,7 +367,7 @@ rtmRoundTrip("a_fa", "taunt", { yaw: 0.3, yUp: true, mirror: false }, { strayHan
     capture.times = M.timesFrom(made.stamps);
     const reference = [0.1, 0.33];
     const take = M.prepare(capture, { fps: 30, reference });
-    const marks = { reference, start: made.lead, end: take.duration - 0.3 };
+    const marks = { reference, start: made.lead, end: take.duration - 0.3, plants: { left: [[0.6, 1.1], [1.5, 1.9]], right: [] } };
     const span = M.pointsSpan(take, marks);
     const back = M.parseCapture(M.pointsCsv(take, marks));
     const sliders = M.trimFromMarks(back, 30);
@@ -366,15 +387,112 @@ rtmRoundTrip("a_fa", "taunt", { yaw: 0.3, yUp: true, mirror: false }, { strayHan
       const pa = posed(lib.bones, a, t), pb = posed(lib.bones, b, t);
       pa.forEach((w, i) => { off = Math.max(off, Math.hypot(...w.p.map((v, c) => v - pb[i].p[c]))); });
     }
+    const plantsBack = sliders.plants && sliders.plants.right.length === 0 && sliders.plants.left.length === 2 &&
+      sliders.plants.left.every(([x, y], i) => Math.abs(x - (marks.plants.left[i][0] - span.from / 30)) < 1e-3 && Math.abs(y - (marks.plants.left[i][1] - span.from / 30)) < 1e-3);
     const whole = M.parseCapture(M.pointsCsv(take));
     const ok = back.format === "points" && back.times && span.from > 0 && span.to < take.frames.length - 1 &&
       again.frames.length === span.to - span.from + 1 && again.fps === 30 && same && worst < 1e-4 &&
-      Math.abs(again.hipHeight - shift[2] - take.hipHeight) < 1e-4 && off < 0.002 && whole.frames.length === take.frames.length && !whole.marks;
+      Math.abs(again.hipHeight - shift[2] - take.hipHeight) < 1e-4 && off < 0.002 && whole.frames.length === take.frames.length && !whole.marks && plantsBack;
     if (!ok) failed++;
     console.log((ok ? "ok  " : "FAIL") + " points round trip: frames " + span.from + "-" + span.to + " of " + take.frames.length + " written (standing " +
                 span.standing.join("-") + ", keep " + span.keep.join("-") + "), " + again.frames.length + " back, the same sliders " + (same ? "yes" : "NO") +
-                ", points off by " + (worst * 1000).toFixed(3) + " mm, retargeted joints by " + (off * 1000).toFixed(2) + " mm; unmarked " +
+                ", the planted feet " + (plantsBack ? "yes" : "NO") + ", points off by " + (worst * 1000).toFixed(3) + " mm, retargeted joints by " +
+                (off * 1000).toFixed(2) + " mm; unmarked " +
                 whole.frames.length + " frames" + (whole.marks ? " WITH marks" : ", no marks"));
+  }
+}
+
+// --- Foot locks and where the body stands (#79) ----------------------------------------------------
+// Made-up takes from NWN animations, retargeted to the same body, tweaked: legs of other
+// proportions (getlow - a crouch, both feet still - at knee angles NWN's legs don't share),
+// travel added (walk - NWN's is in place), and taunt as it is (its root moves 37 cm forward).
+function madeTake(body, name, extra) {
+  const lib = libs.get(body), clip = findClip(body, name), stance = findClip(body, "pause1");
+  if (!lib || !clip) return null;
+  const opt = { yaw: 0.4, yUp: false, mirror: false };
+  const made = makeRtm(lib.bones, clip, opt, stance, Object.assign({ rate: 30 }, extra));
+  const capture = M.parseCapture(made.body);
+  M.addHand(capture, made.left, "left");
+  M.addHand(capture, made.right, "right");
+  capture.times = M.timesFrom(made.stamps);
+  const o = toRecording([0, 0, 0], opt);
+  const axis = (v) => toRecording(v, opt).map((x, c) => x - o[c]);
+  const take = M.prepare(capture, { fps: 30, reference: [0, made.lead - 0.1], axes: { up: axis([0, 0, 1]), right: axis([1, 0, 0]) } });
+  const bone = (n) => lib.bones.findIndex((b) => b.name.toLowerCase() === n);
+  return { lib, clip, stance, made, take, bone };
+}
+const track = (bones, clip, index, step) => {
+  const out = [];
+  for (let t = 0; t <= clip.length + 1e-6; t += step || 1 / 30) out.push(posed(bones, clip, t)[index].p);
+  return out;
+};
+const wander = (ps) => Math.max(...ps.map((p) => Math.hypot(p[0] - ps[0][0], p[1] - ps[0][1])));
+{
+  // Locks: getlow with thighs 1.25x, shins 0.75x - the feet slide on NWN's legs unless locked.
+  const m = madeTake("a_ba", "getlow", { legRatio: 1.25 });
+  if (m) {
+    const plants = M.suggestPlants(m.take);
+    const covered = (side) => plants[side].reduce((s, [a, b]) => s + Math.max(0, Math.min(b, m.take.duration) - Math.max(a, m.made.lead)), 0) /
+      Math.max(1e-6, m.take.duration - m.made.lead);
+    const base = { start: m.made.lead, stance: m.stance, place: "return" };
+    const free = M.retarget(m.take, m.lib.bones, base);
+    const exact = M.retarget(m.take, m.lib.bones, Object.assign({ plants, reduce: false }, base));
+    const held = M.retarget(m.take, m.lib.bones, Object.assign({ plants }, base));
+    const slide = (clip) => Math.max(...["lfoot_g", "rfoot_g"].map((n) => wander(track(m.lib.bones, clip, m.bone(n)))));
+    const s0 = slide(free), s1 = slide(exact), s2 = slide(held);
+    const reach = Math.max(0, ...held.locks.map((l) => l.short));
+    const ok = covered("left") > 0.9 && covered("right") > 0.9 && held.locks.length >= 2 && s0 > 0.02 && s1 < 0.0005 && s2 < 0.01 && reach < 0.005;
+    if (!ok) failed++;
+    console.log((ok ? "ok  " : "FAIL") + " foot locks: getlow, legs 1.25x / 0.75x on a_ba: feet slide " + (s0 * 100).toFixed(1) + " cm free, " +
+                (s1 * 1000).toFixed(2) + " mm locked (" + (s2 * 100).toFixed(2) + " cm with the keys reduced as saved; " + held.locks.length +
+                " locks, out of reach " + (reach * 100).toFixed(1) + " cm); plants cover " +
+                (covered("left") * 100).toFixed(0) + "% / " + (covered("right") * 100).toFixed(0) + "% of the clip");
+  }
+}
+{
+  // In place: a walk with 1.2 m/s of travel added comes back as NWN's own (in place) walk - the
+  // root swaying as the walk's does (each about its own middle: the bench centres the hips over
+  // the feet's average, NWN's walk sits a little behind); returning, it travels.
+  const m = madeTake("a_ba", "walk", { travel: (t) => [0, 1.2 * t] });
+  if (m) {
+    const opt = { start: m.made.lead, stance: m.stance };
+    const inplace = M.retarget(m.take, m.lib.bones, Object.assign({ place: "inplace" }, opt));
+    const travel = M.retarget(m.take, m.lib.bones, Object.assign({ place: "return" }, opt));
+    const root = m.bone("rootdummy");
+    const want = track(m.lib.bones, m.clip, root), got = track(m.lib.bones, inplace, root), went = track(m.lib.bones, travel, root);
+    const n = Math.min(want.length, got.length);
+    const middle = (ps) => [0, 1].map((c) => ps.slice(0, n).reduce((s, p) => s + p[c], 0) / n);
+    const mw = middle(want), mg = middle(got);
+    let worst = 0;
+    for (let k = 0; k < n; k++) worst = Math.max(worst, Math.hypot(got[k][0] - mg[0] - (want[k][0] - mw[0]), got[k][1] - mg[1] - (want[k][1] - mw[1])));
+    const moved = went[Math.min(went.length, n) - 1][1] - went[0][1];
+    const ok = worst < 0.03 && moved > 0.9;
+    if (!ok) failed++;
+    console.log((ok ? "ok  " : "FAIL") + " in place: walk + 1.2 m/s travel on a_ba: the root sways as the walk's does (off by " + (worst * 100).toFixed(1) +
+                " cm at worst; centred " + (Math.hypot(mg[0] - mw[0], mg[1] - mw[1]) * 100).toFixed(0) + " cm from it); returning instead, it travels " +
+                (moved * 100).toFixed(0) + " cm");
+  }
+}
+{
+  // Returning: taunt (its root moves forward) travels as the animation did, then the blend-out
+  // brings it back to the stance's spot.
+  const m = madeTake("a_ba", "taunt", {});
+  if (m) {
+    const opt = { start: m.made.lead, stance: m.stance, blendIn: 0, blendOut: 0.3 };
+    const back = M.retarget(m.take, m.lib.bones, Object.assign({ place: "return" }, opt));
+    const root = m.bone("rootdummy");
+    const want = track(m.lib.bones, m.clip, root), got = track(m.lib.bones, back, root);
+    const before = Math.round((back.length - 0.3) * 30) - 1;
+    let worst = 0;
+    for (let k = 0; k <= before; k++) worst = Math.max(worst, Math.abs((got[k][1] - got[0][1]) - (want[k][1] - want[0][1])));
+    const stanceRoot = posed(m.lib.bones, m.stance, 0)[root].p;
+    const end = posed(m.lib.bones, back, back.length)[root].p;
+    const home = Math.hypot(end[0] - stanceRoot[0], end[1] - stanceRoot[1]);
+    const net = (ps, k) => Math.hypot(ps[k][0] - ps[0][0], ps[k][1] - ps[0][1]);
+    const ok = worst < 0.03 && home < 0.001 && net(want, before) > 0.2;
+    if (!ok) failed++;
+    console.log((ok ? "ok  " : "FAIL") + " returning: taunt on a_ba travels as the animation did (" + (net(want, before) * 100).toFixed(0) +
+                " cm forward, off by " + (worst * 100).toFixed(1) + " cm at worst), ends " + (home * 1000).toFixed(1) + " mm from the stance's spot");
   }
 }
 
@@ -426,6 +544,58 @@ if (recording) {
     if (!ok) failed++;
     console.log((ok ? "ok  " : "FAIL") + " recording -> " + body + ": " + result.nodes.length + " bones keyed, " + keys + " keys, " + bad +
                 " not finite; ankles " + lowest.toFixed(2) + "-" + highest.toFixed(2) + " m (rest " + restFoot.toFixed(2) + ")");
+  }
+  // Foot locks on the recording (#79): trimmed and planted as the bench suggests, both places,
+  // every body - each lock's foot between the blends, start to end on the ground (in place, the
+  // ground's own even slide taken out), within 1 cm where the leg reaches the spot.
+  {
+    let held = M.prepare(capture, { fps: 30, reference: trim.reference });
+    const plants = M.suggestPlants(held);
+    {
+      // A foot's plants apart - 0.15 s or more (a shuffle split leaves room for the foot to move).
+      let closest = Infinity;
+      for (const side of ["left", "right"]) for (let i = 1; i < plants[side].length; i++) closest = Math.min(closest, plants[side][i][0] - plants[side][i - 1][1]);
+      const ok = plants.left.length > 0 && plants.right.length > 0 && closest >= 0.15;
+      if (!ok) failed++;
+      console.log((ok ? "ok  " : "FAIL") + " recording planted feet suggested: " + plants.left.length + " left, " + plants.right.length + " right, " +
+                  (closest * 1000).toFixed(0) + " ms apart at the closest");
+    }
+    const [k0, k1] = M.keepSpan(held, trim.start, trim.end);
+    const blendIn = 0.2, blendOut = 0.3, fps = held.fps;
+    for (const place of ["return", "inplace"]) {
+      let worst = 0, worstAt = "", reached = 0, total = 0, free = 0;
+      const ground = M.placeGround(held, k0, k1, place);
+      for (const body of ["a_ba", "a_fa", "a_da", "a_dfa", "a_ba2", "a_fa2", "a_da2", "a_dfa2"]) {
+        const lib = libs.get(body);
+        if (!lib) continue;
+        const opt = { start: trim.start, end: trim.end, stance: findClip(body, "pause1"), blendIn, blendOut, place, plants };
+        const locked = M.retarget(held, lib.bones, opt), loose = M.retarget(held, lib.bones, Object.assign({}, opt, { plants: null }));
+        const foot = { left: lib.bones.findIndex((b) => b.name.toLowerCase() === "lfoot_g"), right: lib.bones.findIndex((b) => b.name.toLowerCase() === "rfoot_g") };
+        const rest = posed(lib.bones, null, 0), thighs = ["lthigh_g", "rthigh_g"].map((n) => lib.bones.findIndex((b) => b.name.toLowerCase() === n));
+        const scale = held.hipHeight > 0.1 ? (rest[thighs[0]].p[2] + rest[thighs[1]].p[2]) / 2 / held.hipHeight : 1;  // the retarget's (rig's hipHeight)
+        const drift = (clip, l, a, b) => {
+          const at = (k) => { const p = posed(lib.bones, clip, (k - k0) / fps)[foot[l.side]].p, g = ground[k - k0], g0 = ground[a - k0];
+            return [p[0] + (g[0] - g0[0]) * scale, p[1] + (g[1] - g0[1]) * scale]; };
+          const s0 = [0, 1, 2].map((d) => at(a + d)), s1 = [0, 1, 2].map((d) => at(b - d));
+          const m0 = [0, 1].map((c) => s0.reduce((s, p) => s + p[c], 0) / 3), m1 = [0, 1].map((c) => s1.reduce((s, p) => s + p[c], 0) / 3);
+          return Math.hypot(m1[0] - m0[0], m1[1] - m0[1]);
+        };
+        for (const l of locked.locks) {
+          const a = Math.max(Math.round(l.takeStart * fps), k0 + Math.round(blendIn * fps)), b = Math.min(Math.round(l.takeEnd * fps), k1 - Math.round(blendOut * fps));
+          if (b - a < 5) continue;
+          total++;
+          if (l.short > 0.03) continue;
+          reached++;
+          const d = drift(locked, l, a, b);
+          free = Math.max(free, drift(loose, l, a, b));
+          if (d > worst) { worst = d; worstAt = body + " " + l.side + " " + l.takeStart.toFixed(2) + " s"; }
+        }
+      }
+      const ok = reached > 0 && worst <= 0.01;
+      if (!ok) failed++;
+      console.log((ok ? "ok  " : "FAIL") + " recording foot locks (" + place + "): " + reached + "/" + total + " locks within 3 cm of reach on the 8 bodies hold to " +
+                  (worst * 100).toFixed(2) + " cm at worst (" + worstAt + "); unlocked, those slide up to " + (free * 100).toFixed(1) + " cm");
+    }
   }
 }
 console.log(failed ? failed + " FAILED" : "all ok");
