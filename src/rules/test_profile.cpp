@@ -100,6 +100,10 @@ bool IsTestProfileName(const std::string& name) {
   return true;
 }
 
+bool TestProfileBuildsCharacter(const TestProfile& profile) {
+  return profile.swap_class >= 0 || profile.nwn_class >= 0 || !profile.levels.empty();
+}
+
 bool TestSwitchRange(const std::string& name, int* low, int* high) {
   struct Range {
     const char* name;

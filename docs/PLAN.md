@@ -4126,6 +4126,18 @@ rewriting it, and the switches a test needs meant an ini edit and a restart.
 - *Not covered:* #19's CM1 / CM3 / CM4 rows (a character made in NWN mode, henchmen) - no profile makes those.
 - A unit test parses every profile in data\tests, so a typo fails test.bat instead of `!test` in game.
 
+*0.57.6 - decided by the owner (2026-10-29: "go with a").* Asked for new characters for some rows (levels were
+only added), the owner: "wait, can't the test commands also set levels? why are you asking me for ne
+characters?" Offered: (a) a profile that sets a class or levels first takes the character down to level 1,
+then builds it exactly; (b) levels only added, as built - a new character for some rows; (c) a separate
+`!reset`. Built (a): a profile with swap_class, class or levels (rules::TestProfileBuildsCharacter) starts with
+a script SetXP 0 - CM1 reads 0 as "level 1", and the engine's level loss takes the levels away, the last taken
+first (the DM level-down script's path, not yet seen in game: the first `!test` on a higher character is its
+test too). If no level is lost, the character's XP goes back and the profile only adds, as before; chat says
+which ("level: 18 -> 1 (a fresh start)" or "couldn't go down"). The profiles' "start from a new character"
+notes are gone; one character runs every profile, in any order. A feat a profile gives through `feats` isn't
+tied to a level and may stay.
+
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
 Walked through one by one (issue, what NWN does, what 2024 does, what to

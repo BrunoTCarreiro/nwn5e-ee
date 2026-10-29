@@ -86,7 +86,7 @@ time: nwn5e's own windows, the base for the Fighting Style picker);
 own NUI with no game loaded: the base of nwn5e's creation and level-up
 steps); `test_commands=1` turns on the test chat commands: `!test <profile>`
 gives the character you play a test's setup from `data\tests\<profile>.txt`
-(species, levels in one or more classes, ability scores, feats, items, and
+(species, classes built up from level 1, ability scores, feats, items, and
 test switches for the session; read each time, so a new test needs a new
 file and no rebuild; `!test` alone lists the profiles), `!give <blueprint>
 [stack]` an item, and

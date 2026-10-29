@@ -88,6 +88,18 @@ TEST(TestProfilesLevelsSwitchesNotes) {
   CHECK_EQ(ParseTestProfile("switches = creature_hp_multiplier=100, rest_clock=1\n").switches.size(), 2u);
 }
 
+// Breaks caught (0.57.6): a profile that builds a character not starting
+// from level 1 (it would keep the levels it had), or one that only sets
+// switches, notes, items or XP taking the character's levels away.
+TEST(TestProfilesThatBuildStartFromLevelOne) {
+  CHECK_EQ(TestProfileBuildsCharacter(ParseTestProfile("swap_class = monk\n")), true);
+  CHECK_EQ(TestProfileBuildsCharacter(ParseTestProfile("class = fighter\nlevel = 13\n")), true);
+  CHECK_EQ(TestProfileBuildsCharacter(ParseTestProfile("levels = rogue 1\n")), true);
+  CHECK_EQ(TestProfileBuildsCharacter(ParseTestProfile("switches = rest_clock=1\nnote = the hour\n")), false);
+  CHECK_EQ(TestProfileBuildsCharacter(ParseTestProfile("items = nw_wswls001\nxp = 2700\n")), false);
+  CHECK_EQ(TestProfileBuildsCharacter(ParseTestProfile("species = halfling\nabilities = 10 16 14 10 16 8\n")), false);
+}
+
 // Breaks caught (#82): a path, a dot or a long name let through into
 // data\tests\<name>.txt.
 TEST(TestProfileNames) {

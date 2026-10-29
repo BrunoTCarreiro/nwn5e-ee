@@ -25,6 +25,9 @@
 //               session only (TestSwitchRange); every !test <name> first puts
 //               back the ini's values, then sets these
 //   note      = a line shown after the profile is applied (one per line)
+// A profile that sets swap_class, class or levels builds a character: it
+// starts from level 1 (TestProfileBuildsCharacter; 0.57.6, owner: "go with
+// a"), so it gives the same character whatever the character was before.
 
 #include <string>
 #include <vector>
@@ -70,6 +73,10 @@ TestProfile ParseTestProfile(const std::string& text);
 // A profile's name as `!test <name>` takes it - a file name, no path: 1..32
 // letters, digits, '-' and '_'.
 bool IsTestProfileName(const std::string& name);
+
+// Does the profile build a character (swap_class, class or levels), and so
+// start from level 1? A profile of switches, notes, items or xp only doesn't.
+bool TestProfileBuildsCharacter(const TestProfile& profile);
 
 // The switches a profile may set: the ones read each time they are used (one
 // that installs a hook at start-up can't be set later). attack_trace 0..1,

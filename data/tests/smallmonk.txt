@@ -3,8 +3,7 @@
 # is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
 #
 # Character model, size S4 (issue 19): a halfling Monk 1 - an unarmed hit rolls the Martial Arts d6,
-# the same as a Medium monk's. Start from a new level 1 character: levels are only added, and
-# swap_class keeps the level.
+# the same as a Medium monk's.
 name = Size S4 (issue 19): halfling Monk 1, unarmed
 species = halfling
 swap_class = monk
@@ -12,5 +11,5 @@ class = monk
 level = 1
 abilities = 10 16 14 10 16 8
 switches = attack_trace=1
-note = start from a new level 1 character (levels are only added); no weapon in hand
+note = no weapon in hand
 note = combat_breakdown=1 in nwn5e.ini shows the damage die in the combat log

@@ -32,6 +32,13 @@
 //   read each time they are used; every !test <profile> puts the ini's values
 //   back first, so one test's switches don't stay on for the next); `note`
 //   lines for what a profile can't do itself.
+//   0.57.6 (owner, offered a reset or "levels are only added": "go with a"): a
+//   profile that builds a character (swap_class, class or levels) first takes
+//   it down to level 1 - a script SetXP 0, whose level loss (the engine's, as
+//   the DM level-down script's; CM1 reads 0 as "level 1") takes the levels
+//   away, the last taken first - so `!test fighter` is Fighter 13 whatever the
+//   character was. If no level is lost, its XP goes back and the profile only
+//   adds, as before.
 // - "!export" saves the character to the vault as a campaign's chapter change
 //   does (C6's check: its records come back from its own database).
 // - "!spawn <blueprint> [ally]" (0.49.1, for the Grapple's and the Shove's size
@@ -503,6 +510,23 @@ std::vector<std::string> LevelCommand(void* creature, const std::string& args) {
 
 // --- !test profiles (#82) -------------------------------------------------
 
+// A profile that builds a character starts from level 1: the line to show.
+std::string ResetToLevelOne(void* stats, uint32_t id) {
+  const int before = TotalLevel(stats);
+  if (before <= 1) return "  level: 1 (a fresh start)";
+  const uint32_t xp = Field<uint32_t>(stats, ee::kStatsExperience);
+  RunScriptChunk("SetXP(OBJECT_SELF, 0);", id);
+  const int after = TotalLevel(stats);
+  if (after > 1) {
+    SetField<uint32_t>(stats, ee::kStatsExperience, xp);  // no level lost: its XP back
+    Log("test: 0x%08X reset to level 1 failed - still level %d after SetXP 0 (XP %u put back)", id, after, xp);
+    return "  level: couldn't go down from " + std::to_string(before) + " (still " + std::to_string(after) +
+           ") - the profile only adds levels";
+  }
+  Log("test: 0x%08X reset from level %d to 1 (SetXP 0)", id, before);
+  return "  level: " + std::to_string(before) + " -> 1 (a fresh start), then the profile's";
+}
+
 // The switches a profile may set (rules::TestSwitchRange: their ranges), as
 // g_config holds them. Their ini values are kept at start-up and put back by
 // every !test <profile> before its own.
@@ -619,6 +643,8 @@ std::vector<std::string> TestCommand(void* creature, const std::string& args) {
                       profile.race == 2 || profile.race == 3 ? ee::kCreatureSizeSmall : ee::kCreatureSizeMedium);
     lines.push_back(std::string("  species: ") + kRaceNames[profile.race]);
   }
+  // 1a. A profile that builds a character starts from level 1.
+  if (rules::TestProfileBuildsCharacter(profile)) lines.push_back(ResetToLevelOne(stats, id));
   // 1b. The first class swapped (before the levels, which may then add some in it).
   if (profile.swap_class >= 0) lines.push_back(SwapFirstClass(stats, profile.swap_class));
   // 2. Level: the XP for it, then the engine's own level-ups in the class.

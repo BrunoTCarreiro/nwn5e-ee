@@ -17,4 +17,4 @@ abilities = 18 14 16 10 12 8
 items = nw_waxgr001, nw_waxbt001 equip, nw_ashlw001, nw_wthax001 x20, nw_wbwsh001, nw_wamar001 x99
 switches = creature_min_hp=50
 note = B11 (Relentless Rage at 0 hit points) needs dying=faithful in nwn5e.ini
-note = the rows for lower levels need a new character: levels are only added
+note = the rows for lower levels: change level = in this profile (it starts from level 1)

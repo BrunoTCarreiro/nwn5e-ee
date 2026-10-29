@@ -15,5 +15,5 @@ abilities = 16 14 14 10 12 8
 feats = defense
 items = nw_aarcl004 equip, nw_wswls001 equip
 switches = attack_trace=1
-note = C1a (crits on 19-20) needs Fighter 3-14: above that, start from a new character
-note = then !level 18 for C1b (crits on 18-20) and C5 (Heroic Rally); !save wis 30 for Indomitable (F5)
+note = C1a (crits on 19-20) at Fighter 13 now; Indomitable (F5): !save wis 30
+note = then !level 18 for C1b (crits on 18-20) and C5 (Heroic Rally)
