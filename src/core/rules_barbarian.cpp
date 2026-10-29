@@ -699,10 +699,14 @@ int UnarmoredDefenseBonus(void* stats) {
   return bonus;
 }
 
+bool MonkDodging(void* creature);  // rules_monk.cpp (M5 Patient Defense's Dodge)
+
 // Advantage a class gives a creature's save on `ability` (the save d20): B5
-// Danger Sense on Dexterity saves, unless Incapacitated.
+// Danger Sense on Dexterity saves, unless Incapacitated; the Monk's Dodge (M5)
+// on Dexterity saves.
 int ClassSaveAdvantage(void* creature, rules::Ability ability) {
   void* stats = StatsOf(creature);
+  if (ability == rules::Ability::kDexterity && MonkDodging(creature)) return 1;
   if (ability == rules::Ability::kDexterity && rules::HasDangerSense(BarbarianLevelOf(stats)) &&
       !IncapacitatedByCondition(creature)) {
     return 1;

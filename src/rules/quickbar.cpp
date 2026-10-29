@@ -46,6 +46,11 @@ enum Bit {
   kBitDeviousKnockOut = 17,
   kBitDeviousObscure = 18,
   kBitCombatOptions = 19,
+  kBitFlurryOfBlows = 20,
+  kBitPatientDefense = 21,
+  kBitStepOfTheWind = 22,
+  kBitStunningStrike = 23,
+  kBitSuperiorDefense = 24,
 };
 
 bool IsSecondWind(int value) {
@@ -58,7 +63,9 @@ const std::vector<int>& QuickbarActionFeats2024() {
   static const std::vector<int> kFeats = {kFeatSecondWind2,    kFeatSecondWind3,  kFeatSecondWind4,
                                           kFeatRage,           kFeatRecklessAttack, kFeatBrutalStrike,
                                           kFeatIntimidatingPresence, kFeatKnockdownShove, kFeatShovePush,
-                                          kFeatGrapple,        kFeatCunningStrike, kFeatDeviousStrikes};
+                                          kFeatGrapple,        kFeatCunningStrike, kFeatDeviousStrikes,
+                                          kFeatFlurryOfBlows,  kFeatPatientDefense, kFeatStepOfTheWind,
+                                          kFeatStunningFist,   kFeatSuperiorDefense};
   return kFeats;
 }
 
@@ -114,6 +121,12 @@ std::vector<QuickbarAction> QuickbarActions2024(const QuickbarFacts& facts) {
     actions.push_back({kBitDeviousObscure, QuickbarFeatValue(kFeatDeviousStrikes, kDeviousOptionObscure),
                        "Devious Strikes: Obscure"});
   }
+  // Monk part 3 (0.56.0): Flurry of Blows' mode, the Focus feats, Stunning Strike (NWN's Stunning Fist).
+  if (has(kFeatFlurryOfBlows)) actions.push_back({kBitFlurryOfBlows, kFeatFlurryOfBlows, "Flurry of Blows"});
+  if (has(kFeatPatientDefense)) actions.push_back({kBitPatientDefense, kFeatPatientDefense, "Patient Defense"});
+  if (has(kFeatStepOfTheWind)) actions.push_back({kBitStepOfTheWind, kFeatStepOfTheWind, "Step of the Wind"});
+  if (has(kFeatStunningFist)) actions.push_back({kBitStunningStrike, kFeatStunningFist, "Stunning Strike"});
+  if (has(kFeatSuperiorDefense)) actions.push_back({kBitSuperiorDefense, kFeatSuperiorDefense, "Superior Defense"});
   if (has(kFeatKnockdownShove)) actions.push_back({kBitShove, kFeatKnockdownShove, "Shove"});
   if (has(kFeatShovePush)) actions.push_back({kBitShovePush, kFeatShovePush, "Shove: push"});
   if (has(kFeatGrapple)) actions.push_back({kBitGrapple, kFeatGrapple, "Grapple"});

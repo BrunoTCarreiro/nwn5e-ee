@@ -288,3 +288,15 @@
 16000508 Unarmored Movement (Monk 2, 2024): while you wear no armour and hold no shield, your speed increases by 10 ft - 15 ft from Monk 6, 20 ft from 10, 25 ft from 14 and 30 ft from 18 (twice as fast). It adds to a Barbarian's Fast Movement.
 16000509 Empowered Strikes
 16000510 Empowered Strikes (Monk 6, 2024): your Unarmed Strikes can deal Force damage. In nwn5e they get through every damage reduction X/+N - the resistance to nonmagical attacks Force ignores; a resistance to one damage type still applies.
+# 16000511-16000520: the Monk's Focus (Monk part 3, 0.56.0; feat.if_classfeat2024.txt,
+# feat.monk.txt, spells.monk.txt).
+16000511 Stunning Strike
+16000512 Stunning Strike (Monk 5, 2024): once on each of your turns, when you hit a creature with an Unarmed Strike or a Monk weapon, you can spend 1 Focus Point to try to stun it. It makes a Constitution saving throw against your Focus save DC (8 + your Wisdom modifier + your Proficiency Bonus). On a failure it is Stunned until the start of your next turn; on a success its Speed is halved until then, and the next attack roll against it before then has Advantage.\n\nIn nwn5e it is NWN's Stunning Fist attack, without its -4 to hit, and the point is spent only when the attack hits.
+16000513 Flurry of Blows
+16000514 Flurry of Blows (Monk 2, 2024): you can spend 1 Focus Point to make two Unarmed Strikes as a Bonus Action - three from Monk 10 (Heightened Focus).\n\nIn nwn5e it is NWN's Flurry of Blows mode, without its -2 to hit: each round in it with Martial Arts spends 1 Focus Point for the strikes, in place of Martial Arts' bonus strike, and makes no off-hand attack. With no point left you get the bonus strike alone.
+16000515 Patient Defense
+16000516 Patient Defense (Monk 2, 2024): you can take the Disengage action as a Bonus Action, or spend 1 Focus Point to take both the Disengage and the Dodge actions. From Monk 10 (Heightened Focus), spending the point also gives you temporary hit points equal to two rolls of your Martial Arts die.\n\nIn nwn5e (1 Focus Point): until your next round, moving provokes no opportunity attacks, attack rolls against you have Disadvantage and you have Advantage on Dexterity saving throws (not while Incapacitated). The free Disengage waits for Bonus Actions (Phase 6).
+16000517 Step of the Wind
+16000518 Step of the Wind (Monk 2, 2024): you can take the Dash action as a Bonus Action, or spend 1 Focus Point to take both the Disengage and the Dash actions, your jump distance doubled for the turn.\n\nIn nwn5e (1 Focus Point): for a round, moving provokes no opportunity attacks and you move twice as fast. The free Dash waits for Bonus Actions (Phase 6); NWN has no jumping.
+16000519 Superior Defense
+16000520 Superior Defense (Monk 18, 2024): at the start of your turn you can spend 3 Focus Points to gain Resistance to all damage except Force damage for 1 minute, or until you have the Incapacitated condition.\n\nIn nwn5e it is used from the radial menu at any time; NWN's magical damage stands in for Force.

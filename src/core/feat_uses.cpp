@@ -1,5 +1,7 @@
 #include "feat_uses.h"
 
+#include <intrin.h>
+
 #include <stdint.h>
 
 #include <algorithm>
@@ -21,7 +23,14 @@ using FeatUseChangeFn = void (*)(void* stats, uint16_t feat);
 struct Provider {
   const char* record;
   FeatUsesTotal total;
+  FeatUsesCost cost;
+  FeatUsesSpend spend;
 };
+
+int CostOf(const Provider& provider, void* stats, int feat) {
+  const int cost = provider.cost ? provider.cost(stats, feat) : 1;
+  return cost > 1 ? cost : 1;
+}
 
 FeatUsesFn g_remaining = nullptr;
 FeatUsesFn g_total = nullptr;
@@ -49,16 +58,18 @@ uint8_t GetFeatRemainingUses(void* stats, uint16_t feat) {
   int total = 0;
   const Provider* provider = Claim(stats, feat, &total);
   if (!provider) return g_remaining(stats, feat);
-  return static_cast<uint8_t>(std::clamp(total - Spent(stats, *provider), 0, 100));
+  return static_cast<uint8_t>(std::clamp((total - Spent(stats, *provider)) / CostOf(*provider, stats, feat), 0, 100));
 }
 
 uint8_t GetFeatTotalUses(void* stats, uint16_t feat) {
   int total = 0;
-  if (!Claim(stats, feat, &total)) return g_total(stats, feat);
-  return static_cast<uint8_t>(std::clamp(total, 0, 100));
+  const Provider* provider = Claim(stats, feat, &total);
+  if (!provider) return g_total(stats, feat);
+  return static_cast<uint8_t>(std::clamp(total / CostOf(*provider, stats, feat), 0, 100));
 }
 
 void DecrementFeatRemainingUses(void* stats, uint16_t feat) {
+  const uintptr_t caller = reinterpret_cast<uintptr_t>(_ReturnAddress());
   int total = 0;
   const Provider* provider = Claim(stats, feat, &total);
   void* creature = provider ? CreatureOf(stats) : nullptr;
@@ -66,7 +77,9 @@ void DecrementFeatRemainingUses(void* stats, uint16_t feat) {
     g_decrement(stats, feat);
     return;
   }
-  SetSpentFeatUses(creature, provider->record, std::min(total, Spent(stats, *provider) + 1));
+  if (provider->spend && !provider->spend(stats, feat, caller)) return;
+  SetSpentFeatUses(creature, provider->record,
+                   std::min(total, Spent(stats, *provider) + CostOf(*provider, stats, feat)));
 }
 
 void IncrementFeatRemainingUses(void* stats, uint16_t feat) {
@@ -77,7 +90,7 @@ void IncrementFeatRemainingUses(void* stats, uint16_t feat) {
     g_increment(stats, feat);
     return;
   }
-  SetSpentFeatUses(creature, provider->record, Spent(stats, *provider) - 1);
+  SetSpentFeatUses(creature, provider->record, Spent(stats, *provider) - CostOf(*provider, stats, feat));
 }
 
 // The end of a Long Rest: every pool full.
@@ -110,10 +123,10 @@ bool Hook() {
 
 }  // namespace
 
-bool AddFeatUsesProvider(const char* record, FeatUsesTotal total) {
+bool AddFeatUsesProvider(const char* record, FeatUsesTotal total, FeatUsesCost cost, FeatUsesSpend spend) {
   if (!Hook()) return false;
   RegisterRecord(record);
-  g_providers.push_back(Provider{record, total});
+  g_providers.push_back(Provider{record, total, cost, spend});
   return true;
 }
 

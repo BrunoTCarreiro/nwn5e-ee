@@ -1,0 +1,10 @@
+# spells.2da - Phase 3 Monk part 3 (M5, M14; rules_monk.cpp). Feat abilities on yourself
+# (UserType 3), instant (no conjure / cast time or animation); each spends the feat's Focus
+# points through the feat's uses.
+# 1029: Patient Defense (feat 1317) - n5_patient. 1030: Step of the Wind (1318) - n5_stepwind.
+# 1031: Superior Defense (1319) - n5_superior.
+# The n5_ scripts are run in C++ (script_hooks.cpp); no .ncs exists for them.
+Label Name IconResRef School Range VS MetaMagic TargetType ImpactScript Innate ConjTime ConjAnim CastAnim CastTime Proj ItemImmunity SubRadSpell1 SubRadSpell2 SubRadSpell3 SubRadSpell4 SubRadSpell5 Category Master UserType SpellDesc UseConcentration SpontaneouslyCast HostileSetting FeatID HasProjectile
+1029 nwn5e_PatientDefense 16000515 ife_dodge V P s 0x00 0x01 n5_patient 1 0 **** **** 0 0 1 **** **** **** **** **** 5 **** 3 16000516 0 0 0 1317 0
+1030 nwn5e_StepOfTheWind 16000517 ife_monkend V P s 0x00 0x01 n5_stepwind 1 0 **** **** 0 0 1 **** **** **** **** **** 5 **** 3 16000518 0 0 0 1318 0
+1031 nwn5e_SuperiorDefense 16000519 ife_x2epmonk V P s 0x00 0x01 n5_superior 1 0 **** **** 0 0 1 **** **** **** **** **** 5 **** 3 16000520 0 0 0 1319 0

@@ -1,0 +1,9 @@
+# feat.2da - Phase 3 Monk part 3 (M5, M14; rules_monk.cpp). nwn5e grants them to a Monk
+# (Patient Defense and Step of the Wind at 2, Superior Defense at 18; characters made earlier
+# too) and removes them in NWN mode; cls_feat_monk lists them only so the radial menu shows
+# them. Their uses are the Monk's Focus points / the cost (1, 1, 3): USESPERDAY only marks
+# them as counted - nwn5e's pool (feat_uses.cpp) answers how many.
+LABEL FEAT DESCRIPTION ICON GAINMULTIPLE EFFECTSSTACK ALLCLASSESCANUSE CATEGORY MAXCR SPELLID CRValue USESPERDAY TARGETSELF Constant TOOLSCATEGORIES PreReqEpic ReqAction
+1317 NWN5E_PATIENT_DEFENSE 16000515 16000516 ife_dodge 0 0 0 7 1 1029 0.5 1 1 FEAT_NWN5E_PATIENT_DEFENSE 6 0 1
+1318 NWN5E_STEP_OF_THE_WIND 16000517 16000518 ife_monkend 0 0 0 7 1 1030 0.5 1 1 FEAT_NWN5E_STEP_OF_THE_WIND 6 0 1
+1319 NWN5E_SUPERIOR_DEFENSE 16000519 16000520 ife_x2epmonk 0 0 0 7 1 1031 0.5 1 1 FEAT_NWN5E_SUPERIOR_DEFENSE 6 0 1

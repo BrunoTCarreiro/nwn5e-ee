@@ -44,6 +44,37 @@ TEST(QuickbarCunningStrikeOptions) {
   CHECK_EQ(actions.size() == 9 && actions[0].record_bit == 12 && actions[7].record_bit == 18, true);
 }
 
+// Monk part 3 (0.56.0): Flurry of Blows (2), Patient Defense, Step of the Wind
+// (2), Stunning Strike (5), Superior Defense (18) when held - their own bits,
+// clear of the Rogue's (12-19). Breaks caught: one missing from the feats the
+// server asks about, a bit reused, a Monk action without its feat.
+TEST(QuickbarMonkActions) {
+  for (int feat : {kFeatFlurryOfBlows, kFeatPatientDefense, kFeatStepOfTheWind, kFeatStunningFist,
+                   kFeatSuperiorDefense}) {
+    bool asked = false;
+    for (int f : QuickbarActionFeats2024()) asked = asked || f == feat;
+    CHECK_EQ(asked, true);
+  }
+  QuickbarFacts facts;
+  facts.feats = {kFeatPatientDefense, kFeatStepOfTheWind};  // Monk 2-4
+  std::vector<int> want = {kFeatPatientDefense, kFeatStepOfTheWind};
+  CHECK_EQ(Values(QuickbarActions2024(facts)) == want, true);
+  facts.feats = {kFeatFlurryOfBlows, kFeatPatientDefense, kFeatStepOfTheWind, kFeatStunningFist,
+                 kFeatSuperiorDefense, kFeatCunningStrike, kFeatDeviousStrikes, kFeatRage};
+  int bits = 0;
+  const std::vector<QuickbarAction> actions = QuickbarActions2024(facts);
+  for (const QuickbarAction& a : actions) {
+    CHECK_EQ((bits >> a.record_bit) & 1, 0);
+    bits |= 1 << a.record_bit;
+  }
+  CHECK_EQ(actions.size(), 14u);  // Rage, the Rogue's 8, the Monk's 5
+  int monk_bits = 0;
+  for (const QuickbarAction& a : actions) {
+    if (a.record_bit >= 20) monk_bits |= 1 << a.record_bit;
+  }
+  CHECK_EQ(monk_bits, 0x1F << 20);
+}
+
 // A sub-radial option's button number is its spells.2da FeatID (option * 65536
 // + feat): spells.barbarian.txt's Forceful Blow row says 1048577311. Breaks
 // caught: the feat alone (every option the same button), option and feat swapped.

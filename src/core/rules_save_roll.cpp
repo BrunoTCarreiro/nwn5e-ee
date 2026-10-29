@@ -30,6 +30,8 @@
 
 #include <windows.h>
 
+#include <intrin.h>
+
 #include <stdint.h>
 
 #include <algorithm>
@@ -60,6 +62,9 @@ bool IndomitableMightSucceeds(void* creature, int dc);           // rules_barbar
 bool StrokeOfLuckReady(void* creature);                          // rules_rogue.cpp (R12)
 void StrokeOfLuckUsed(void* creature, bool succeeded);           // rules_rogue.cpp (R12)
 void NoteSaveForced(uint32_t by, void* creature);                // rules_barbarian.cpp (B3: keeps a Rage going)
+bool StunningStrikeSaveDc(void* target, uint32_t versus, uintptr_t caller, int* dc);  // rules_monk.cpp (M9)
+void StunningStrikeSaveResult(void* target, uint32_t versus, int result);  // rules_monk.cpp (M9)
+bool DisciplinedSurvivorReroll(void* creature);                          // rules_monk.cpp (M13)
 
 namespace {
 
@@ -273,6 +278,7 @@ void TellIfPlayer(uint32_t id, const std::string& line) {
 
 uint8_t SavingThrowRoll(void* creature, uint8_t save, uint16_t dc, uint8_t type, uint32_t versus, int feedback,
                         uint16_t feat, int from_combat) {
+  const uintptr_t caller = reinterpret_cast<uintptr_t>(_ReturnAddress());
   if (g_config.saves == rules::RuleVariant::kOff || !creature) {
     return g_saving_throw_roll(creature, save, dc, type, versus, feedback, feat, from_combat);
   }
@@ -282,8 +288,11 @@ uint8_t SavingThrowRoll(void* creature, uint8_t save, uint16_t dc, uint8_t type,
   // A save asked for by a spell's script uses that spell's DC (GetSpellSaveDC,
   // already 2024 — persistent areas of effect pass themselves as the
   // opponent, so the caster check alone misses them).
-  const bool spell_dc = g_script_spell >= 0 || IsSpellDc(versus, engine_dc);
-  const int new_dc = spell_dc ? engine_dc : rules::ConvertNwnFixedDc(engine_dc);
+  // Monk M9: a Stunning Strike's save is the Focus DC (already 2024).
+  int stun_dc = 0;
+  const bool stun = StunningStrikeSaveDc(creature, versus, caller, &stun_dc);
+  const bool spell_dc = !stun && (g_script_spell >= 0 || IsSpellDc(versus, engine_dc));
+  const int new_dc = stun ? stun_dc : spell_dc ? engine_dc : rules::ConvertNwnFixedDc(engine_dc);
   const SaveContext outer = g_save;
   g_save = SaveContext();
   g_save.active = true;
@@ -320,6 +329,12 @@ uint8_t SavingThrowRoll(void* creature, uint8_t save, uint16_t dc, uint8_t type,
     result = 1;
     TellIfPlayer(IdOf(creature), "nwn5e: Indomitable Might - your Strength score meets the DC: the save succeeds.");
   }
+  // Monk M13 Disciplined Survivor: a failed save is rolled again for a Focus point.
+  if (result == 0 && !context.condition.auto_fail && DisciplinedSurvivorReroll(creature)) {
+    g_save = context;
+    result = g_saving_throw_roll(creature, save, static_cast<uint16_t>(std::clamp(new_dc, 1, 0xFFFF)), type, versus,
+                                 feedback, feat, from_combat);
+  }
   // Rogue R12 Stroke of Luck: the first failed save since a rest is rolled again with its d20 a 20.
   if (result == 0 && !context.condition.auto_fail && StrokeOfLuckReady(creature)) {
     g_save = context;
@@ -339,6 +354,7 @@ uint8_t SavingThrowRoll(void* creature, uint8_t save, uint16_t dc, uint8_t type,
     result = 0;  // a failure; the engine's own line may still read "success" when its total beat the DC
     TellIfPlayer(creature_id, "nwn5e: that save fails automatically (" + context.condition.note + ")");
   }
+  if (stun) StunningStrikeSaveResult(creature, versus, result);
   if (context.ability && save >= 1 && save <= 3 &&
       *context.ability != rules::AbilityForNwnSave(static_cast<rules::NwnSave>(save - 1))) {
     static const char* const kNwnNames[] = {"Fortitude", "Reflex", "Will"};
@@ -350,7 +366,7 @@ uint8_t SavingThrowRoll(void* creature, uint8_t save, uint16_t dc, uint8_t type,
   if (g_config.log_attacks && g_save_log_lines < 300) {
     ++g_save_log_lines;
     Log("save roll: object 0x%08X save %d type %d vs 0x%08X: DC %d%s -> %d%s, %s%s%s", creature_id, save, type, versus,
-        engine_dc, spell_dc ? " (spell)" : "", new_dc, SpellNote(context.spell, context.ability).c_str(),
+        engine_dc, stun ? " (Stunning Strike)" : spell_dc ? " (spell)" : "", new_dc, SpellNote(context.spell, context.ability).c_str(),
         result == 1 ? "success" : (result == 2 ? "immune" : "failure"),
         context.condition.auto_fail ? ", automatic failure: " : "",
         context.condition.auto_fail ? context.condition.note.c_str() : "");

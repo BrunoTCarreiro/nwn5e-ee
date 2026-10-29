@@ -3,12 +3,16 @@
 # Body, Diamond Soul, Perfect Self, Empty Body, Ki Strike 2-3, Evasion, Cleave and Improved
 # Unarmed Strike have no 2024 counterpart and are no longer granted (GrantedOnLevel -1);
 # Improved Evasion (2024's Evasion) comes from nwn5e at Monk 7 (M11); Fast Movement
-# (Unarmored Movement) at 2 (M6); Ki Strike (Empowered Strikes) at 6 (M10). Stunning Fist,
-# Flurry of Blows, Deflect Arrows, Wholeness of Body and Quivering Palm wait for their parts.
+# (Unarmored Movement) at 2 (M6); Ki Strike (Empowered Strikes) at 6 (M10). Part 3 (0.56.0):
+# Flurry of Blows at 2 (M4), Stunning Fist (Stunning Strike) at 5 (M9); Patient Defense, Step of
+# the Wind (2) and Superior Defense (18) on the radial (granted by nwn5e, never by the engine).
+# Deflect Arrows, Wholeness of Body and Quivering Palm wait for their parts.
 FeatLabel FeatIndex List GrantedOnLevel OnMenu
 1 ImpStrike 21 3 -1 0
+2 FlurryofBlows 204 3 2 1
 3 Evasion 206 3 -1 0
 4 MonkEndurance 207 3 2 0
+5 StunFist 39 3 5 1
 7 StillMind 208 3 -1 0
 8 PurityofBody 209 3 -1 0
 10 ImprovedEvasion 212 3 -1 0
@@ -20,3 +24,6 @@ FeatLabel FeatIndex List GrantedOnLevel OnMenu
 22 KiStrike2 343 3 -1 0
 23 KiStrike3 344 3 -1 0
 25 Cleave 6 3 -1 0
++ NWN5E_PATIENT_DEFENSE 1317 3 -1 1
++ NWN5E_STEP_OF_THE_WIND 1318 3 -1 1
++ NWN5E_SUPERIOR_DEFENSE 1319 3 -1 1

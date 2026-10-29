@@ -37,6 +37,7 @@ bool HasRemarkableAthleteAdvantage(void* creature);  // rules_fighter.cpp (Fight
 bool HasFeralInstinctAdvantage(void* creature);      // rules_barbarian.cpp (Barbarian B9)
 void PersistentRageOnInitiative(void* creature);     // rules_barbarian.cpp (Barbarian B12)
 void HenchmanRageOnInitiative(void* creature);       // rules_barbarian.cpp (a henchman rages, 0.46.1)
+void MonkOnInitiative(void* creature);               // rules_monk.cpp (Monk M7 Uncanny Metabolism, Perfect Focus)
 
 namespace {
 
@@ -93,6 +94,7 @@ void ResolveInitiative(void* creature) {
   t_creature = outer;
   PersistentRageOnInitiative(creature);
   HenchmanRageOnInitiative(creature);
+  MonkOnInitiative(creature);
 }
 
 bool Invisible(void* creature) { return g_get_invisible && g_get_invisible(creature, creature, 0) != 0; }

@@ -1331,6 +1331,47 @@ Monk's d8, not the weapon's d6).
 *Accepted (owner, 2026-10-28: "MA1 is good. check the logs"; the 0.53.1 log: a quarterstaff equipped
 mid-round "the bonus strike kept once" - extra 1; a second dagger "taken back" - off-hand 1, extra 0).*
 
+**Built - part 3 (0.56.0; owner, 2026-10-29: "ok, it's good, monk part 3").** src/core/rules_monk.cpp, as
+decided (M4 (a), M7 (a), M9 (a), M13 automatic):
+- *M3 Monk's Focus:* X6's pool (feat_uses.cpp, record `nwn5e_focus_spent`), which now takes a cost per feat
+  and a spend filter: a Focus feat's uses are the points left / its cost (Stunning Strike, Patient Defense,
+  Step of the Wind 1; Superior Defense 3; Quivering Palm's 4 for part 4), so the radial and the quickbar count
+  them. A point per Monk level from 2; all back on a Short Rest (its line says so) and a Long Rest; Focus DC
+  8 + Wis + PB. `!focus` (test aids: `!focus left <n>`, `!focus reset`).
+- *M4 Flurry of Blows:* feat 204 from Monk 2 (HasFeat no below it; the served table grants it at 2). Each
+  round in its mode with Martial Arts spends a point (once per counted round - a recount doesn't pay again):
+  two strikes (three from 10) on the round's extra attacks in place of the bonus strike, no off-hand attack;
+  out of points, the engine's one (the bonus strike). Leaving the mode mid-round keeps the round's strikes,
+  no bonus strike on top. FLURRY_OF_BLOWS_TO_HIT_MODIFIER answered 0.
+- *M9 Stunning Strike:* Stunning Fist (39) from Monk 5, named Stunning Strike; a UseFeat guard: Martial Arts
+  holds, once a turn. ResolveMeleeSpecialAttack's own DecrementFeatRemainingUses(39) (0x3E6CAC - the attack
+  result at +0x78 is already set: the engine tests it right after) spends a point only on a hit (the spend
+  filter, told by its caller); the Fortitude save that follows (0x3E6FDD, told by its call site) takes the
+  Focus DC unconverted (a Con save in faithful saves). A failure: NWN's stun, 6 s (STUNNING_FIST_EFFECT_DURATION
+  6.0 - one round, as 2024); a success: EffectMovementSpeedDecrease(50) for 6 s and a mark - the next attack
+  roll on it within the round has Advantage (rules_advantage). STUNNING_FIST_TO_HIT_MODIFIER and
+  _DAMAGE_MODIFIER answered 0.
+- *M7:* at ResolveInitiative (one a 30 s - the "new fight" guard): Uncanny Metabolism with half the points
+  spent or Bloodied, once per Long Rest (record `nwn5e_metabolism_used`) - every point back, Martial Arts die
+  + Monk level healed; else Perfect Focus (15): 3 or fewer points left rise to 4.
+- *M13 Disciplined Survivor:* every save proficient from Monk 14 (rules::ClassFeatureSaveProficiency); a failed
+  save rolled again for a point in the save wrapper - after Indomitable and Indomitable Might, before Stroke of
+  Luck - while a point is left.
+- *M5:* feats 1317 / 1318 (granted at Monk 2; on the radial through cls_feat_monk's `+` rows) -> spells 1029 /
+  1030 -> n5_patient / n5_stepwind, 1 point each. Patient Defense: no opportunity attacks this round
+  (rules_opportunity's Tactical Shift test) and Dodge until the next round (attack rolls on it Disadvantage,
+  Dexterity saves Advantage, not while Incapacitated); from 10, two Martial Arts dice of temporary hit points
+  (600 s). Step of the Wind: no opportunity attacks and EffectMovementSpeedIncrease(100) for the round. The
+  free versions: Phase 6.
+- *M14 Superior Defense:* feat 1319 (Monk 18) -> spell 1031 -> n5_superior, 3 points: X4's resistance provider
+  (every damage type but Magical - NWN's Force) for a minute; Incapacitated ends it (checked as damage comes).
+- The quickbar places Flurry of Blows, Patient Defense, Step of the Wind, Stunning Strike and Superior Defense
+  when gained (record bits 20-24).
+- *Caveats:* the -4 / -2 answers are global (the ruleset answer has no creature: a monster's Stunning Fist and
+  Flurry lose their penalties too); a Monk 1-4 who took Stunning Fist as a general feat has it only from 5;
+  Uncanny Metabolism and Perfect Focus wait on ResolveInitiative at a fight's start (how often it runs is
+  still unverified - the 30 s guard).
+
 ### Phase 3 — Rogue (CM9): recommendations (for the owner's decision)
 
 **Decided (owner, 2026-10-28: "go with the recommendations").** Every R and T
@@ -3839,6 +3880,7 @@ three text lines under the icon - the name split at its spaces into two balanced
 target, each line its own colour; each tile as wide as its longest line (about 7.5 px a character -
 13 had filled the 92 px the old tile left its text; 96-300 px), the strip centred on them, those that
 don't fit on the screen to the "+N". (0.55.2 capped the client windows' open / close log lines.)
+*Accepted (owner, 2026-10-29: "ok, it's good, monk part 3").*
 
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 

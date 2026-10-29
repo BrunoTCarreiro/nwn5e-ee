@@ -62,27 +62,79 @@
 //   clears them (0x375c43) as rules_mastery's round counter ticks. So the strike
 //   is added once per counted round, and taken back if a mid-round recount no
 //   longer allows it (a second weapon: an off-hand attack).
+// Part 3 (0.56.0), Monk's Focus (decided: M3-M5, M7, M9, M13, M14 A):
+// - M3: the Focus points (Monk level, from 2) are X6's pool on the character
+//   (feat_uses.cpp, record nwn5e_focus_spent; the Long Rest empties it, a Short
+//   Rest too): the Focus feats' uses are the points / their cost (Stunning
+//   Strike, Patient Defense, Step of the Wind 1; Superior Defense 3), on the
+//   radial and quickbar as the engine counts them. The Focus DC 8 + Wis + PB.
+//   `!focus`.
+// - M4 Flurry of Blows: NWN's Flurry mode (feat 204, from Monk 2) is the 2024
+//   Flurry - each round in it with Martial Arts and a point left spends one:
+//   two strikes (three from 10, Heightened Focus) in place of the bonus strike
+//   (the engine's Flurry gives one; the rest added on the round's extra
+//   attacks), no off-hand attack; out of points, the bonus strike alone. Its -2
+//   (FLURRY_OF_BLOWS_TO_HIT_MODIFIER) answered 0.
+// - M9 Stunning Strike: NWN's Stunning Fist (39) from Monk 5, unarmed or a
+//   Monk weapon (a UseFeat guard), once a turn; its point spent by the
+//   engine's own decrement in ResolveMeleeSpecialAttack (after the attack roll)
+//   only on a hit (feat_uses' spend filter); the save that follows is the Focus
+//   DC's (rules_save_roll asks StunningStrikeSaveDc - the 2024 scale, a Con
+//   save); NWN's 6 s stun on a failure; on a success half speed and the next
+//   attack roll on it with Advantage (rules_advantage). The -4
+//   (STUNNING_FIST_TO_HIT_MODIFIER) answered 0.
+// - M7 Uncanny Metabolism (the owner's (a)): at a fight's initiative (one a
+//   30 s), half the points spent or Bloodied, once per Long Rest - every point
+//   back, Martial Arts die + Monk level healed. Perfect Focus (15): else 3 or
+//   fewer points rise to 4.
+// - M13 Disciplined Survivor (14): every save proficient (rules::
+//   ClassFeatureSaveProficiency); a failed save rolled again for a point after
+//   Indomitable (rules_save_roll, automatic).
+// - M5 Patient Defense, Step of the Wind (2; nwn5e's feats 1317 / 1318 on the
+//   radial, spells 1029 / 1030 -> n5_patient / n5_stepwind): Disengage (no
+//   opportunity attacks this round - rules_opportunity) and Dodge (attacks on
+//   it Disadvantage, Dexterity saves Advantage, not while Incapacitated) or a
+//   Dash (twice as fast for the round); Heightened Focus: Patient Defense's two
+//   Martial Arts dice of temporary hit points. The free versions: Phase 6.
+// - M14 Superior Defense (18; feat 1319, spell 1031 -> n5_superior, 3 points):
+//   Resistance (X4, resistance.cpp) to every damage but Force for a minute,
+//   Incapacitated ends it.
 // Monsters keep NWN's Monk.
 
 #include <windows.h>
 
 #include <stdint.h>
+#include <stdio.h>
 
 #include <algorithm>
+#include <string>
 #include <unordered_map>
+#include <vector>
 
+#include "attack_roll.h"
+#include "chat.h"
+#include "condition_effects.h"
 #include "config.h"
 #include "creature.h"
 #include "data_serving.h"
+#include "dice.h"
 #include "ee_layout.h"
+#include "effects.h"
 #include "engine.h"
+#include "feat_use.h"
+#include "feat_uses.h"
 #include "feats.h"
+#include "game_clock.h"
 #include "hooks.h"
 #include "log.h"
 #include "log_once.h"
 #include "mastery.h"
 #include "movement_rate.h"
+#include "records.h"
+#include "resistance.h"
+#include "rest.h"
 #include "ruleset.h"
+#include "script_hooks.h"
 #include "rules/class_features.h"
 #include "rules/nwn_conversion.h"
 #include "rules/weapons.h"
@@ -236,10 +288,13 @@ namespace {
 struct BonusStrike {
   uint32_t round = 0;  // CombatRoundsEnded when it was last decided
   bool added = false;
+  bool flurry_paid = false;  // M4: this round's Flurry point spent
 };
 std::unordered_map<uint32_t, BonusStrike> g_bonus_strikes;  // by creature id (the engine's thread)
 bool g_rounds_counted = false;
 }  // namespace
+
+bool SpendFlurryPoint(void* creature);  // below (part 3)
 
 void MartialArtsBonusStrike(void* round) {
   void* creature = round ? Field<void*>(round, ee::kRoundOwner) : nullptr;
@@ -252,6 +307,29 @@ void MartialArtsBonusStrike(void* round) {
   const int extra_now = Field<int32_t>(round, ee::kRoundExtraAttacks);
   const uint32_t now = g_rounds_counted ? CombatRoundsEnded(id) : 0;
   const auto known = g_bonus_strikes.find(id);
+  // M4 Flurry of Blows (the mode, from Monk 2): a point a round for its strikes; the engine's Flurry
+  // has set the round's extra attacks to one (+ Haste's) - the bonus strike's place.
+  if (flurry && level > 0 && rules::HasFlurryOfBlows(level)) {
+    const bool this_round = g_rounds_counted && known != g_bonus_strikes.end() && known->second.round == now;
+    const bool paid = this_round ? known->second.flurry_paid : SpendFlurryPoint(creature);
+    if (paid) SetField<int32_t>(round, ee::kRoundExtraAttacks, extra_now + rules::FlurryStrikes(level) - 1);
+    if (off_hand > 0) SetField<int32_t>(round, ee::kRoundOffHandAttacks, 0);  // the same Bonus Action
+    BonusStrike state;
+    state.round = now;
+    state.flurry_paid = paid;
+    g_bonus_strikes[id] = state;
+    if (g_config.log_attacks && g_logged.First(LogOnce::Key(id, paid ? rules::FlurryStrikes(level) : 1, 9))) {
+      Log("monk: 0x%08X Flurry of Blows: %s", id,
+          paid ? (std::to_string(rules::FlurryStrikes(level)) + " strikes this round (a Focus point)").c_str()
+               : "no Focus point left - the bonus strike alone");
+    }
+    return;
+  }
+  // Out of Flurry mode mid-round after its point was paid: the round keeps the Flurry's strikes (a
+  // recount outside Flurry adds to what is there), no bonus strike on top.
+  if (g_rounds_counted && known != g_bonus_strikes.end() && known->second.round == now && known->second.flurry_paid) {
+    return;
+  }
   // Already added this round (a recount: an equip mid-round) - and still there (Flurry's set would replace it).
   const bool had = g_rounds_counted && known != g_bonus_strikes.end() && known->second.round == now &&
                    known->second.added && extra_now >= 1 && !flurry;
@@ -285,6 +363,340 @@ uint8_t UnarmedDamageDice(void* stats) {
 }
 
 }  // namespace
+
+// --- Part 3 (0.56.0): Monk's Focus and what it pays for -------------------------------
+
+namespace {
+
+constexpr const char* kVarFocusSpent = "nwn5e_focus_spent";       // X6's pool: the points spent (record)
+constexpr const char* kVarMetabolismUsed = "nwn5e_metabolism_used";  // M7: since the last Long Rest (record)
+constexpr uint64_t kRoundMs = 6000;
+
+CodeRange g_special_attack_code;  // ResolveMeleeSpecialAttack: Stunning Fist's decrement and save
+
+std::unordered_map<uint32_t, uint64_t> g_dodging;      // M5 Patient Defense: until (game ms)
+std::unordered_map<uint32_t, uint64_t> g_disengaged;   // M5: no opportunity attacks until (game ms)
+std::unordered_map<uint32_t, uint64_t> g_superior;     // M14 Superior Defense: until (game ms)
+std::unordered_map<uint32_t, uint64_t> g_stun_marks;   // M9: a save made - the next attack on it has Advantage
+std::unordered_map<uint32_t, uint32_t> g_stun_round;   // M9: the round of the last Stunning Strike (once a turn)
+std::unordered_map<uint32_t, uint64_t> g_initiative;   // M7: the last initiative's game time (one a fight)
+
+struct PendingStun {
+  uint32_t attacker = 0;
+  uint32_t target = 0;
+  int dc = 0;
+  ULONGLONG at = 0;
+};
+PendingStun g_pending_stun;  // armed by the point spent, read by the save right after
+
+int FocusTotal(void* creature) { return rules::FocusPoints(MonkLevelOf(creature ? StatsOf(creature) : nullptr)); }
+
+int FocusLeft(void* creature) {
+  const int left = FocusTotal(creature) - SpentFeatUses(creature, kVarFocusSpent);
+  return left > 0 ? left : 0;
+}
+
+bool SpendFocus(void* creature, int points, const char* why) {
+  if (FocusLeft(creature) < points) return false;
+  SetSpentFeatUses(creature, kVarFocusSpent, SpentFeatUses(creature, kVarFocusSpent) + points);
+  Log("monk: 0x%08X %s - %d Focus point%s spent (%d left)", IdOf(creature), why, points, points == 1 ? "" : "s",
+      FocusLeft(creature));
+  return true;
+}
+
+int FocusDcOf(void* creature) {
+  void* stats = StatsOf(creature);
+  if (!stats) return 10;
+  const CreatureFacts facts = ReadCreatureFacts(stats);
+  return rules::FocusDc(engine::AbilityModifier(stats, 4),
+                        rules::ProficiencyBonusForCreature(facts.character, facts.level, facts.challenge_rating));
+}
+
+bool IsPlayer(void* creature) {
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  return stats && ReadCreatureFacts(stats).is_player;
+}
+
+void Tell(void* creature, const std::string& line) {
+  if (IsPlayer(creature)) TellPlayer(IdOf(creature), "nwn5e: " + line);
+}
+
+bool Until(const std::unordered_map<uint32_t, uint64_t>& map, uint32_t id) {
+  const auto it = map.find(id);
+  return it != map.end() && GameMs() < it->second;
+}
+
+// M3: the Focus feats' uses are the pool's points / their cost (X6).
+bool FocusUsesTotal(void* stats, int feat, int* total) {
+  if (!rules::FocusCost(feat) || !Faithful()) return false;
+  const int level = MonkLevelOf(stats);
+  if (level <= 0) return false;  // a non-Monk's Stunning Fist: NWN's
+  *total = rules::FocusPoints(level);
+  return true;
+}
+
+int FocusUsesCost(void* /*stats*/, int feat) { return rules::FocusCost(feat); }
+
+// M9: Stunning Fist's own decrement (ResolveMeleeSpecialAttack, after the attack roll) spends a
+// point only on a hit - 2024 pays on a hit - and arms the save that follows with the Focus DC.
+bool FocusUsesSpend(void* stats, int feat, uintptr_t caller) {
+  if (feat != rules::kFeatStunningFist || !g_special_attack_code.Contains(caller)) return true;
+  void* creature = CreatureOf(stats);
+  uint8_t* data = creature ? CurrentAttackData(creature) : nullptr;
+  const uint32_t id = IdOf(creature);
+  if (!data || !rules::MasteryAttackHit(data[ee::kAttackResult])) {
+    Log("monk: 0x%08X Stunning Strike missed - no Focus point spent", id);
+    Tell(creature, "Stunning Strike missed - no Focus point spent.");
+    return false;
+  }
+  g_pending_stun = PendingStun{id, Field<uint32_t>(creature, ee::kCreatureAttackTarget), FocusDcOf(creature),
+                               GetTickCount64()};
+  if (g_rounds_counted) g_stun_round[id] = CombatRoundsEnded(id);
+  Log("monk: 0x%08X Stunning Strike hits - 1 Focus point; Constitution save DC %d", id, g_pending_stun.dc);
+  return true;
+}
+
+// M3: the HasFeat answers below their 2024 levels (the engine's own above them): Stunning Fist
+// (Stunning Strike) from Monk 5, Flurry of Blows from 2 - for a Monk's character.
+bool FocusFeatFilter(void* stats, int feat, uintptr_t /*caller*/, int* answer) {
+  if ((feat != rules::kFeatStunningFist && feat != rules::kFeatFlurryOfBlows) || !Faithful() || !stats) return false;
+  const int level = MonkLevelOf(stats);
+  if (level <= 0) return false;
+  const bool has = feat == rules::kFeatStunningFist ? rules::HasStunningStrike(level) : rules::HasFlurryOfBlows(level);
+  if (has) return false;
+  *answer = 0;
+  return true;
+}
+
+// M9: Stunning Strike - Martial Arts' attacks only, once a turn.
+bool StunningStrikeGuard(void* creature, int feat) {
+  if (feat != rules::kFeatStunningFist || !Faithful()) return true;
+  const int level = MonkLevelOf(StatsOf(creature));
+  if (level <= 0) return true;
+  if (MartialArtsLevel(creature) <= 0) {
+    Tell(creature, "Stunning Strike needs an Unarmed Strike or a Monk weapon (no armour, no shield).");
+    return false;
+  }
+  const uint32_t id = IdOf(creature);
+  const auto last = g_stun_round.find(id);
+  if (g_rounds_counted && last != g_stun_round.end() && last->second == CombatRoundsEnded(id)) {
+    Tell(creature, "Stunning Strike - once a turn.");
+    return false;
+  }
+  return true;
+}
+
+// X6: every point back on a Short Rest.
+std::string FocusShortRest(void* creature) {
+  const int spent = SpentFeatUses(creature, kVarFocusSpent);
+  if (FocusTotal(creature) <= 0 || spent <= 0) return "";
+  SetSpentFeatUses(creature, kVarFocusSpent, 0);
+  return " Focus: all " + std::to_string(FocusTotal(creature)) + " points back.";
+}
+
+// M7: Uncanny Metabolism comes back on a Long Rest (the pool itself: feat_uses.cpp).
+void MetabolismLongRest(void* stats) {
+  void* creature = CreatureOf(stats);
+  if (creature && engine::GetLocalInt(creature, kVarMetabolismUsed)) SetRecord(creature, kVarMetabolismUsed, 0);
+}
+
+// M5 Patient Defense (1 point): no opportunity attacks this round and Dodge until the next one;
+// Heightened Focus (10) adds two Martial Arts dice of temporary hit points.
+void PatientDefenseScript(uint32_t self) {
+  void* creature = CreatureById(self);
+  const int level = MonkLevelOf(creature ? StatsOf(creature) : nullptr);
+  if (level <= 0) return;
+  g_dodging[self] = GameMs() + kRoundMs;
+  g_disengaged[self] = GameMs() + kRoundMs;
+  std::string line = "Patient Defense - you Disengage and Dodge until your next round (attacks on you have "
+                     "Disadvantage, Dexterity saves Advantage).";
+  if (const int dice = rules::PatientDefenseTempDice(level)) {
+    const int hp = RollEngineDice(dice, rules::MartialArtsDie(level));
+    ApplyEffectAs(self, self, "DURATION_TYPE_TEMPORARY", ("EffectTemporaryHitpoints(" + std::to_string(hp) + ")").c_str(),
+                  600.0f, 0.0f);
+    line += " Heightened Focus: " + std::to_string(hp) + " temporary hit points.";
+  }
+  Log("monk: 0x%08X Patient Defense", self);
+  Tell(creature, line);
+}
+
+// M5 Step of the Wind (1 point): no opportunity attacks this round, twice as fast for it (a Dash).
+void StepOfTheWindScript(uint32_t self) {
+  void* creature = CreatureById(self);
+  if (!creature || MonkLevelOf(StatsOf(creature)) <= 0) return;
+  g_disengaged[self] = GameMs() + kRoundMs;
+  ApplyEffectAs(self, self, "DURATION_TYPE_TEMPORARY", "EffectMovementSpeedIncrease(100)", 6.0f, 0.0f);
+  Log("monk: 0x%08X Step of the Wind", self);
+  Tell(creature, "Step of the Wind - you Disengage and Dash: twice as fast this round, no opportunity attacks.");
+}
+
+// M14 Superior Defense (3 points): Resistance to every damage but Force for a minute.
+void SuperiorDefenseScript(uint32_t self) {
+  void* creature = CreatureById(self);
+  if (!creature || !rules::HasSuperiorDefense(MonkLevelOf(StatsOf(creature)))) return;
+  g_superior[self] = GameMs() + 60000;
+  Log("monk: 0x%08X Superior Defense for a minute", self);
+  Tell(creature, "Superior Defense - Resistance to every damage but Force for a minute (Incapacitated ends it).");
+}
+
+uint32_t SuperiorDefenseResistance(void* object) {
+  const uint32_t id = IdOf(object);
+  if (g_superior.empty() || !Until(g_superior, id)) return 0;
+  void* creature = CreatureById(id);
+  if (creature && IncapacitatedByCondition(creature)) {
+    g_superior.erase(id);
+    Log("monk: 0x%08X Superior Defense ends (Incapacitated)", id);
+    return 0;
+  }
+  constexpr uint32_t kAllDamage = 0xFFF, kMagical = 8;  // DAMAGE_TYPE_*: bludgeoning 1 ... sonic 2048; Force = magical
+  return kAllDamage & ~kMagical;
+}
+
+// !focus
+// !focus; with [debug] test_commands, "!focus left <n>" sets the points left and "!focus reset" gives them all
+// back with Uncanny Metabolism ready (and the next initiative a new fight).
+std::vector<std::string> FocusCommand(void* creature, const std::string& args) {
+  const int level = MonkLevelOf(StatsOf(creature));
+  if (rules::FocusPoints(level) <= 0) return {"nwn5e: !focus - a Monk's Focus points (Monk 2+, class_features faithful)."};
+  EnsureRecords(creature);
+  if (g_config.debug_test_commands && !args.empty()) {
+    char word[16] = {};
+    int number = 0;
+    const int fields = sscanf_s(args.c_str(), "%15s %d", word, 16u, &number);
+    const int points = rules::FocusPoints(level);
+    if (fields == 2 && std::string(word) == "left") {
+      SetSpentFeatUses(creature, kVarFocusSpent, std::clamp(points - number, 0, points));
+    } else if (fields >= 1 && std::string(word) == "reset") {
+      SetSpentFeatUses(creature, kVarFocusSpent, 0);
+      SetRecord(creature, kVarMetabolismUsed, 0);
+      g_initiative.erase(IdOf(creature));
+    } else {
+      return {"nwn5e: !focus [left <n> | reset]"};
+    }
+  }
+  std::string line = "nwn5e: Focus " + std::to_string(FocusLeft(creature)) + " of " +
+                     std::to_string(rules::FocusPoints(level)) + " points, DC " + std::to_string(FocusDcOf(creature)) +
+                     ". Flurry of Blows 1 a round in its mode; Patient Defense, Step of the Wind 1";
+  if (rules::HasStunningStrike(level)) line += "; Stunning Strike 1 (none on a miss)";
+  if (rules::HasDisciplinedSurvivor(level)) line += "; a failed save rolled again 1";
+  if (rules::HasSuperiorDefense(level)) line += "; Superior Defense 3";
+  line += ". Uncanny Metabolism ";
+  line += engine::GetLocalInt(creature, kVarMetabolismUsed) ? "used (back on a Long Rest)." : "ready.";
+  return {line, "  All points back on a Short or Long Rest."};
+}
+
+}  // namespace
+
+// M9 (rules_save_roll.cpp): the save a Stunning Strike forces - the Focus DC on the 2024 scale. Only
+// the save ResolveMeleeSpecialAttack asks for (its feat argument is 0: told by the call site) right
+// after the point was spent.
+bool StunningStrikeSaveDc(void* target, uint32_t versus, uintptr_t caller, int* dc) {
+  if (!g_special_attack_code.Contains(caller)) return false;
+  if (!g_pending_stun.attacker || g_pending_stun.attacker != versus || GetTickCount64() - g_pending_stun.at > 2000) {
+    return false;
+  }
+  if (g_pending_stun.target && target && g_pending_stun.target != IdOf(target)) {
+    Log("monk: 0x%08X Stunning Strike's save made by 0x%08X (its attack target 0x%08X)", versus, IdOf(target),
+        g_pending_stun.target);
+  }
+  *dc = g_pending_stun.dc;
+  return true;
+}
+
+// The save's result: 0 failed, 1 saved, 2 immune.
+void StunningStrikeSaveResult(void* target, uint32_t versus, int result) {
+  if (!g_pending_stun.attacker || g_pending_stun.attacker != versus) return;
+  g_pending_stun = PendingStun();
+  void* monk = CreatureById(versus);
+  const uint32_t id = IdOf(target);
+  if (result == 2) {
+    Log("monk: 0x%08X is immune to the Stunning Strike", id);
+    return;
+  }
+  if (result == 0) {
+    Log("monk: 0x%08X fails the Stunning Strike save - Stunned until 0x%08X's next round", id, versus);
+    Tell(monk, "Stunning Strike - it fails its save: Stunned until your next round.");
+    return;
+  }
+  // A success: speed halved and the next attack roll against it has Advantage, until the Monk's next round.
+  ApplyEffectAs(versus, id, "DURATION_TYPE_TEMPORARY", "EffectMovementSpeedDecrease(50)", 6.0f, 0.0f);
+  g_stun_marks[id] = GameMs() + kRoundMs;
+  Log("monk: 0x%08X saves against the Stunning Strike - half speed, the next attack on it has Advantage", id);
+  Tell(monk, "Stunning Strike - it saves: half speed, and the next attack on it has Advantage.");
+}
+
+// M13 Disciplined Survivor (rules_save_roll.cpp, after Indomitable): a failed save rolled again for a point.
+bool DisciplinedSurvivorReroll(void* creature) {
+  if (!creature || !rules::HasDisciplinedSurvivor(MonkLevelOf(StatsOf(creature)))) return false;
+  if (!SpendFocus(creature, 1, "Disciplined Survivor: a failed save rolled again")) return false;
+  Tell(creature, "Disciplined Survivor - the failed save is rolled again (1 Focus point).");
+  return true;
+}
+
+// M5 (rules_opportunity.cpp): Patient Defense / Step of the Wind - moving provokes nothing this round.
+bool MonkDisengaged(uint32_t id) { return !g_disengaged.empty() && Until(g_disengaged, id); }
+
+// M5 Dodge (rules_barbarian.cpp's save advantage, rules_advantage.cpp): not while Incapacitated.
+bool MonkDodging(void* creature) {
+  if (g_dodging.empty() || !creature) return false;
+  return Until(g_dodging, IdOf(creature)) && !IncapacitatedByCondition(creature);
+}
+
+// rules_advantage.cpp: Dodge (Disadvantage on attacks against it), Stunning Strike's saved mark
+// (the next attack against it has Advantage - used up).
+MasteryRollSources MonkRollSources(void* /*attacker*/, void* target) {
+  MasteryRollSources sources;
+  if (MonkDodging(target)) {
+    sources.disadvantage = 1;
+    sources.note = "Dodge (Patient Defense)";
+  }
+  const uint32_t id = IdOf(target);
+  if (!g_stun_marks.empty() && Until(g_stun_marks, id)) {
+    g_stun_marks.erase(id);
+    sources.advantage = 1;
+    sources.note += (sources.note.empty() ? "" : ", ") + std::string("Stunning Strike saved: Advantage");
+  }
+  return sources;
+}
+
+// M7 (rules_initiative.cpp): Uncanny Metabolism and Perfect Focus at a fight's initiative.
+void MonkOnInitiative(void* creature) {
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  const int level = MonkLevelOf(stats);
+  if (!rules::HasUncannyMetabolism(level)) return;
+  EnsureRecords(creature);
+  const uint32_t id = IdOf(creature);
+  const uint64_t now = GameMs();
+  uint64_t& last = g_initiative[id];
+  if (last && now - last < 30000) return;  // the same fight
+  last = now;
+  const int points = rules::FocusPoints(level);
+  const int spent = SpentFeatUses(creature, kVarFocusSpent);
+  const int hit_points = Field<int16_t>(creature, ee::kObjectCurrentHitPoints);
+  static const auto max_hp = reinterpret_cast<int16_t (*)(void*, int)>(EngineExport(ee::kGetMaxHitPoints));
+  const bool bloodied = max_hp && rules::IsBloodied(hit_points, max_hp(creature, 1));
+  if (!engine::GetLocalInt(creature, kVarMetabolismUsed) && rules::UncannyMetabolismWanted(points, spent, bloodied)) {
+    SetSpentFeatUses(creature, kVarFocusSpent, 0);
+    const int healed = RollEngineDice(1, rules::MartialArtsDie(level)) + level;
+    ApplyEffectAs(id, id, "DURATION_TYPE_INSTANT", ("EffectHeal(" + std::to_string(healed) + ")").c_str(), 0.0f, 0.0f);
+    SetRecord(creature, kVarMetabolismUsed, 1);
+    Log("monk: 0x%08X Uncanny Metabolism: %d Focus points back, %d healed (%s)", id, spent, healed,
+        bloodied ? "Bloodied" : "half the points spent");
+    Tell(creature, "Uncanny Metabolism - every Focus point back and " + std::to_string(healed) +
+                       " hit points (once per Long Rest).");
+    return;
+  }
+  if (rules::HasPerfectFocus(level)) {
+    const int after = rules::PerfectFocusSpent(points, spent);
+    if (after != spent) {
+      SetSpentFeatUses(creature, kVarFocusSpent, after);
+      Log("monk: 0x%08X Perfect Focus: %d -> 4 Focus points", id, points - spent);
+      Tell(creature, "Perfect Focus - your Focus rises to 4 points.");
+    }
+  }
+}
+
+bool SpendFlurryPoint(void* creature) { return SpendFocus(creature, 1, "Flurry of Blows"); }
 
 void InstallMonkRules() {
   if (!Faithful()) return;
@@ -323,6 +735,30 @@ void InstallMonkRules() {
                               ee::kGetUnarmedDamageDice, reinterpret_cast<void*>(&UnarmedDamageDice),
                               reinterpret_cast<void**>(&g_unarmed_dice));
   g_rounds_counted = CountCombatRounds();
+  // Part 3: Monk's Focus.
+  g_special_attack_code = FunctionAt(EngineExport(ee::kResolveMeleeSpecialAttack));
+  if (FindCallsTo(g_special_attack_code, EngineExport(ee::kDecrementFeatRemainingUses)).empty()) {
+    Log("monk: no feat-use decrement in ResolveMeleeSpecialAttack - Stunning Strike spends a point on a miss too");
+  }
+  RegisterRecords({kVarMetabolismUsed});
+  const bool focus = AddFeatUsesProvider(kVarFocusSpent, &FocusUsesTotal, &FocusUsesCost, &FocusUsesSpend);
+  AddShortRestListener(&FocusShortRest);
+  AddRestListener(&MetabolismLongRest);
+  AddFeatFilter(&FocusFeatFilter);
+  AddFeatUseGuard(&StunningStrikeGuard);
+  AnswerRulesetInt("STUNNING_FIST_TO_HIT_MODIFIER", "Stunning Strike: no -4", [](int) { return 0; });
+  AnswerRulesetInt("STUNNING_FIST_DAMAGE_MODIFIER", "Stunning Strike: no damage penalty", [](int) { return 0; });
+  AnswerRulesetInt("FLURRY_OF_BLOWS_TO_HIT_MODIFIER", "Flurry of Blows: no -2", [](int) { return 0; });
+  const bool feats = AddScriptHandler("n5_patient", &PatientDefenseScript) &&
+                     AddScriptHandler("n5_stepwind", &StepOfTheWindScript) &&
+                     AddScriptHandler("n5_superior", &SuperiorDefenseScript);
+  const bool resistance = AddResistanceProvider(&SuperiorDefenseResistance);
+  AddChatCommand("!focus", &FocusCommand);
+  Log("monk: part 3 - %s; Flurry of Blows a point a round; Stunning Strike (a point on a hit, the Focus DC); "
+      "Uncanny Metabolism / Perfect Focus at initiative; Disciplined Survivor; %s%s",
+      focus ? "Focus points (X6 pool)" : "Focus points NOT kept (no feat-use hooks)",
+      feats ? "Patient Defense, Step of the Wind, Superior Defense" : "the Focus feats' scripts NOT hooked",
+      resistance ? "" : " (Superior Defense gives NO resistance: no DoDamageImmunity hook)");
   Log("monk: part 2 - Martial Arts: %s; Dex for attacks, damage and the Shove / Grapple DC; Monk weapons roll the "
       "die when higher; a bonus strike each round (%s)",
       die ? "the Martial Arts die unarmed" : "unarmed dice NOT converted",

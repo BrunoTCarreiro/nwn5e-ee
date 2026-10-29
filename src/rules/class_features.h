@@ -315,6 +315,43 @@ int DexterousAbilityModifier(int strength_modifier, int dexterity_modifier);
 // same Bonus Action) or in NWN's Flurry of Blows mode (Flurry adds its own).
 int MartialArtsBonusAttacks(bool martial_arts, int off_hand_attacks, bool flurry_mode);
 
+// Part 3 (0.56.0): Monk's Focus and what it pays for.
+constexpr int kFeatStunningFist = 39;     // NWN's Stunning Fist: Stunning Strike from Monk 5 (M9)
+constexpr int kFeatFlurryOfBlows = 204;   // NWN's Flurry of Blows: the 2024 Flurry's mode from Monk 2 (M4)
+constexpr int kFeatQuiveringPalm = 296;   // Open Hand 17 (part 4): 4 points
+constexpr int kFeatPatientDefense = 1317;
+constexpr int kFeatStepOfTheWind = 1318;
+constexpr int kFeatSuperiorDefense = 1319;
+// M3 Monk's Focus (2): as many points as Monk levels; all back on a Short or Long Rest.
+int FocusPoints(int monk_level);  // 0 below 2
+// The Focus DC: 8 + Wisdom modifier + PB.
+int FocusDc(int wisdom_modifier, int proficiency_bonus);
+// What a Focus feat costs: Stunning Strike, Patient Defense, Step of the Wind 1;
+// Superior Defense 3; Quivering Palm 4; 0 for any other feat.
+int FocusCost(int feat);
+// The Monk level a Focus feat needs (Stunning Strike 5, Patient Defense and Step
+// of the Wind 2, Superior Defense 18, Quivering Palm 17), 0 for any other feat.
+int FocusFeatLevel(int feat);
+bool HasFlurryOfBlows(int monk_level);         // 2
+bool HasUncannyMetabolism(int monk_level);     // 2
+bool HasStunningStrike(int monk_level);        // 5
+bool HasHeightenedFocus(int monk_level);       // 10
+bool HasDisciplinedSurvivor(int monk_level);   // 14
+bool HasPerfectFocus(int monk_level);          // 15
+bool HasSuperiorDefense(int monk_level);       // 18
+// M4: Flurry of Blows' strikes - 2, 3 from Monk 10 (Heightened Focus); they
+// replace the bonus strike (the engine's Flurry mode already gives one).
+int FlurryStrikes(int monk_level);
+// M7 Uncanny Metabolism (2), once per Long Rest, automatic at a fight's
+// initiative (the owner's (a)) when at least half the points are spent or the
+// Monk is Bloodied: every point back, and Martial Arts die + Monk level healed.
+bool UncannyMetabolismWanted(int points, int spent, bool bloodied);
+// M7 Perfect Focus (15): at initiative, Uncanny Metabolism not used then, 3 or
+// fewer points left rise to 4 - the points spent after.
+int PerfectFocusSpent(int points, int spent);
+// M5 Heightened Focus (10): Patient Defense's temporary hit points - two Martial Arts dice.
+int PatientDefenseTempDice(int monk_level);  // 0 below 10
+
 // Save proficiencies class features give (whatever the first class): Slippery Mind's.
 bool ClassFeatureSaveProficiency(const std::vector<ClassLevels>& classes, Ability ability);
 

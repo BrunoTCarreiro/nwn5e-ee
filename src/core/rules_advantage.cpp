@@ -42,6 +42,8 @@ MasteryRollSources RecklessRollSources(void* attacker, void* target, const uint8
 bool BrutalStrikeOnRoll(void* attacker, void* target, const uint8_t* data, rules::RollMode* mode, std::string* note);
 // rules_grapple.cpp (G2): a grappled creature's attack on anyone but its grappler.
 MasteryRollSources GrappleRollSources(void* attacker, void* target);
+// rules_monk.cpp (M5 Dodge: Disadvantage against it; M9 Stunning Strike saved: the next attack has Advantage).
+MasteryRollSources MonkRollSources(void* attacker, void* target);
 // rules_rogue.cpp (R11): a Rogue 18+ not Incapacitated - no attack roll against it has Advantage.
 bool ElusiveTarget(void* creature);
 
@@ -139,6 +141,7 @@ void BeforeAttackRoll(AttackRoll& roll) {
   const MasteryRollSources studied = TakeStudiedAttacks(roll.attacker, Field<uint32_t>(target, ee::kObjectId));
   const MasteryRollSources reckless = RecklessRollSources(roll.attacker, target, roll.data);
   const MasteryRollSources grappled = GrappleRollSources(roll.attacker, target);
+  const MasteryRollSources monk = MonkRollSources(roll.attacker, target);
   t_pending.conditions = conditions.note.empty() ? "" : "conditions: " + conditions.note;
   if (!mastery.note.empty()) {
     t_pending.conditions += (t_pending.conditions.empty() ? "mastery: " : "; mastery: ") + mastery.note;
@@ -150,6 +153,9 @@ void BeforeAttackRoll(AttackRoll& roll) {
     t_pending.conditions += (t_pending.conditions.empty() ? "barbarian: " : "; barbarian: ") + reckless.note;
   }
   if (!grappled.note.empty()) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + grappled.note;
+  if (!monk.note.empty()) {
+    t_pending.conditions += (t_pending.conditions.empty() ? "monk: " : "; monk: ") + monk.note;
+  }
   std::string heavy_note;
   const int heavy = HeavyWeaponDisadvantage(roll.attacker, terms.ranged, &heavy_note);
   if (heavy) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + heavy_note;
@@ -157,8 +163,8 @@ void BeforeAttackRoll(AttackRoll& roll) {
   if (elusive) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + std::string("Elusive: no Advantage");
   t_pending.mode = rules::SituationalRollMode(
       terms, rules::RangedCloseCombat(terms.ranged, t_pending.point_blank_shot, t_pending.threats),
-      conditions.advantage + mastery.advantage + studied.advantage + reckless.advantage,
-      conditions.disadvantage + mastery.disadvantage + heavy + grappled.disadvantage, elusive);
+      conditions.advantage + mastery.advantage + studied.advantage + reckless.advantage + monk.advantage,
+      conditions.disadvantage + mastery.disadvantage + heavy + grappled.disadvantage + monk.disadvantage, elusive);
   {
     std::string brutal;
     if (BrutalStrikeOnRoll(roll.attacker, target, roll.data, &t_pending.mode, &brutal)) {

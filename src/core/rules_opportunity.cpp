@@ -39,6 +39,7 @@
 
 bool StaggeredNoOpportunityAttack(uint32_t id);  // rules_barbarian_strikes.cpp (B10 Staggering Blow)
 bool CunningWithdrawing(uint32_t id);            // rules_cunning_strike.cpp (R6 Withdraw)
+bool MonkDisengaged(uint32_t id);                // rules_monk.cpp (M5 Patient Defense, Step of the Wind)
 
 namespace {
 
@@ -58,18 +59,20 @@ bool Faithful() { return g_config.opportunity_attacks == rules::RuleVariant::kFa
 bool TacticalShiftOn() { return g_config.class_features == rules::RuleVariant::kFaithful; }
 
 // Fighter F7: the provoker used Second Wind this round (Fighter 5+); Rogue R6:
-// its Sneak Attack paid for Withdraw this round.
+// its Sneak Attack paid for Withdraw this round; Monk M5: it Disengaged with
+// Patient Defense or Step of the Wind.
 bool TacticalShift(void* creature) {
   if (!TacticalShiftOn()) return false;
   const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
   const bool shift = engine::GetLocalInt(creature, "nwn5e_tactical_shift") != 0;
-  if (!shift && !CunningWithdrawing(id)) return false;
+  const bool monk = !shift && MonkDisengaged(id);
+  if (!shift && !monk && !CunningWithdrawing(id)) return false;
   const DWORD now = GetTickCount();
   DWORD& last = g_shift_logged[id];
   if (g_config.log_attacks && now - last > 6000) {
     last = now;
     Log("opportunity attacks: 0x%08X %s - moving provokes nothing this round", id,
-        shift ? "Tactical Shift" : "Cunning Strike: Withdraw");
+        shift ? "Tactical Shift" : monk ? "Disengage (Patient Defense / Step of the Wind)" : "Cunning Strike: Withdraw");
   }
   return true;
 }

@@ -87,7 +87,10 @@ TEST(GrantedFeatsFollowClassLevels) {
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kFighter, 9}}).size(), 1u);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 5}}).empty(), true);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 3}, {CharacterClass::kFighter, 2}})[0], kFeatSecondWind2);
-  CHECK_EQ(GrantableFeats2024().size(), 12u);
+  CHECK_EQ(GrantableFeats2024().size(), 15u);
+  CHECK_EQ(GrantableFeats2024()[12], kFeatPatientDefense);  // Monk part 3: appended, never inserted
+  CHECK_EQ(GrantableFeats2024()[13], kFeatStepOfTheWind);
+  CHECK_EQ(GrantableFeats2024()[14], kFeatSuperiorDefense);
   CHECK_EQ(GrantableFeats2024()[9], kFeatImprovedEvasion);
   CHECK_EQ(GrantableFeats2024()[10], kFeatCunningStrike);
   CHECK_EQ(GrantableFeats2024()[11], kFeatDeviousStrikes);
@@ -283,15 +286,16 @@ TEST(MonkPart1) {
   CHECK_EQ(HasMonkEvasion(7), true);
   CHECK_EQ(HasBodyAndMind(19), false);
   CHECK_EQ(HasBodyAndMind(20), true);
-  CHECK_EQ(GrantedFeats2024({{CharacterClass::kMonk, 6}}).empty(), true);
+  CHECK_EQ(GrantedFeats2024({{CharacterClass::kMonk, 1}}).empty(), true);
+  CHECK_EQ(GrantedFeats2024({{CharacterClass::kMonk, 6}}).size(), 2u);  // part 3: Patient Defense, Step of the Wind
   const std::vector<int> monk7 = GrantedFeats2024({{CharacterClass::kMonk, 7}});
-  CHECK_EQ(monk7.size() == 1 && monk7[0] == kFeatImprovedEvasion, true);
+  CHECK_EQ(monk7.size() == 3 && monk7[0] == kFeatImprovedEvasion, true);
   for (const std::vector<ClassLevels>& both : {std::vector<ClassLevels>{{CharacterClass::kRogue, 7}, {CharacterClass::kMonk, 7}},
                                                std::vector<ClassLevels>{{CharacterClass::kMonk, 7}, {CharacterClass::kRogue, 7}}}) {
     int evasion = 0;
     for (int feat : GrantedFeats2024(both)) evasion += feat == kFeatImprovedEvasion ? 1 : 0;
     CHECK_EQ(evasion, 1);                        // asked by both classes, granted once
-    CHECK_EQ(GrantedFeats2024(both).size(), 2u);  // with the Rogue's Cunning Strike
+    CHECK_EQ(GrantedFeats2024(both).size(), 4u);  // with the Rogue's Cunning Strike, the Monk's two Focus feats
   }
   CHECK_EQ(HasFeatureList(CharacterClass::kMonk), true);
   CHECK_EQ(ClassFeatures2024(CharacterClass::kMonk, 1).size(), 2u);  // Martial Arts, Unarmored Defense
@@ -343,6 +347,71 @@ TEST(MonkMartialArts) {
   CHECK_EQ(MartialArtsBonusAttacks(true, 1, false), 0);
   CHECK_EQ(MartialArtsBonusAttacks(true, 0, true), 0);
   CHECK_EQ(MartialArtsBonusAttacks(false, 0, false), 0);
+}
+
+// Monk part 3 (SRD 5.2.1 Monk): Monk's Focus, Flurry of Blows, Stunning Strike,
+// Uncanny Metabolism, Heightened Focus, Disciplined Survivor, Perfect Focus,
+// Superior Defense. Breaks caught: points at Monk 1 or not the level; the DC
+// without PB or Wis; a feat's cost or level wrong (Superior Defense 1 point or
+// at 17, Stunning Strike at 1); Flurry's third strike before 10; Uncanny
+// Metabolism with nothing spent, short of half, or not when Bloodied; Perfect
+// Focus lowering points above 4 or raising a Monk below 4 points total; temp
+// HP before 10; all six saves before 14 or only Str / Dex; the radial's Focus
+// feats before 2 / 18.
+TEST(MonkFocus) {
+  CHECK_EQ(FocusPoints(1), 0);
+  CHECK_EQ(FocusPoints(2), 2);
+  CHECK_EQ(FocusPoints(20), 20);
+  CHECK_EQ(FocusDc(3, 2), 13);
+  CHECK_EQ(FocusDc(5, 6), 19);
+  CHECK_EQ(FocusCost(kFeatStunningFist), 1);
+  CHECK_EQ(FocusCost(kFeatPatientDefense), 1);
+  CHECK_EQ(FocusCost(kFeatStepOfTheWind), 1);
+  CHECK_EQ(FocusCost(kFeatSuperiorDefense), 3);
+  CHECK_EQ(FocusCost(kFeatQuiveringPalm), 4);
+  CHECK_EQ(FocusCost(kFeatFlurryOfBlows), 0);  // spent per round by rules_monk, not as uses
+  CHECK_EQ(FocusCost(kFeatImprovedEvasion), 0);
+  CHECK_EQ(FocusFeatLevel(kFeatStunningFist), 5);
+  CHECK_EQ(FocusFeatLevel(kFeatSuperiorDefense), 18);
+  CHECK_EQ(FocusFeatLevel(kFeatPatientDefense), 2);
+  CHECK_EQ(HasFlurryOfBlows(1), false);
+  CHECK_EQ(HasFlurryOfBlows(2), true);
+  CHECK_EQ(HasStunningStrike(4), false);
+  CHECK_EQ(HasStunningStrike(5), true);
+  CHECK_EQ(FlurryStrikes(1), 0);
+  CHECK_EQ(FlurryStrikes(2), 2);
+  CHECK_EQ(FlurryStrikes(9), 2);
+  CHECK_EQ(FlurryStrikes(10), 3);
+  CHECK_EQ(UncannyMetabolismWanted(10, 0, true), false);  // nothing to give back
+  CHECK_EQ(UncannyMetabolismWanted(10, 4, false), false);
+  CHECK_EQ(UncannyMetabolismWanted(10, 5, false), true);   // half spent
+  CHECK_EQ(UncannyMetabolismWanted(9, 5, false), true);
+  CHECK_EQ(UncannyMetabolismWanted(9, 4, false), false);
+  CHECK_EQ(UncannyMetabolismWanted(10, 1, true), true);    // Bloodied
+  CHECK_EQ(UncannyMetabolismWanted(0, 0, true), false);
+  CHECK_EQ(HasPerfectFocus(14), false);
+  CHECK_EQ(HasPerfectFocus(15), true);
+  CHECK_EQ(PerfectFocusSpent(15, 13), 11);  // 2 left -> 4
+  CHECK_EQ(PerfectFocusSpent(15, 12), 11);  // 3 left -> 4
+  CHECK_EQ(PerfectFocusSpent(15, 11), 11);  // 4 left: kept
+  CHECK_EQ(PerfectFocusSpent(15, 2), 2);
+  CHECK_EQ(PerfectFocusSpent(3, 3), 3);     // fewer than 4 points in all: nothing to rise to
+  CHECK_EQ(PatientDefenseTempDice(9), 0);
+  CHECK_EQ(PatientDefenseTempDice(10), 2);
+  CHECK_EQ(HasDisciplinedSurvivor(13), false);
+  CHECK_EQ(HasDisciplinedSurvivor(14), true);
+  for (Ability a : {Ability::kStrength, Ability::kDexterity, Ability::kConstitution, Ability::kIntelligence,
+                    Ability::kWisdom, Ability::kCharisma}) {
+    CHECK_EQ(ClassFeatureSaveProficiency({{CharacterClass::kMonk, 14}}, a), true);
+  }
+  CHECK_EQ(ClassFeatureSaveProficiency({{CharacterClass::kMonk, 13}}, Ability::kCharisma), false);
+  CHECK_EQ(HasSuperiorDefense(17), false);
+  CHECK_EQ(HasSuperiorDefense(18), true);
+  CHECK_EQ(GrantedFeats2024({{CharacterClass::kMonk, 2}}).size(), 2u);
+  const std::vector<int> monk18 = GrantedFeats2024({{CharacterClass::kMonk, 18}});
+  CHECK_EQ(monk18.size(), 4u);  // Evasion, Patient Defense, Step of the Wind, Superior Defense
+  CHECK_EQ(monk18.back(), kFeatSuperiorDefense);
+  CHECK_EQ(GrantedFeats2024({{CharacterClass::kMonk, 17}}).size(), 3u);
 }
 
 // R1 (SRD 5.2.1 p. 62): 1d6 at 1, one more at every odd level, 10d6 at 19; a

@@ -149,20 +149,27 @@ const std::vector<ClassFeature>& Monk() {
                                  "one more attack each round (no off-hand attack, not in Flurry mode)"},
       {1, "Unarmored Defense", false, "built: 10 + Dex + Wis with no armour and no shield (NWN's Monk AC Bonus, "
                                       "without its Monk level / 5)"},
-      {2, "Monk's Focus", false, "Monk part 3"},
-      {2, "Flurry of Blows", false, "Monk part 3 (NWN's for now)"},
-      {2, "Patient Defense", false, "Monk part 3"},
-      {2, "Step of the Wind", false, "Monk part 3"},
+      {2, "Monk's Focus", false, "built: a point per Monk level, all back on a Short or Long Rest (!focus)"},
+      {2, "Flurry of Blows", false, "built: its combat mode - a point a round for two strikes (three from 10) in "
+                                    "place of the bonus strike, no -2"},
+      {2, "Patient Defense", false, "built: radial, 1 point - no opportunity attacks this round and Dodge "
+                                    "(free version: Phase 6)"},
+      {2, "Step of the Wind", false, "built: radial, 1 point - no opportunity attacks this round and twice as fast "
+                                     "(free version: Phase 6)"},
       {2, "Unarmored Movement", false, "built: +10 ft with no armour and no shield; +15 at 6, +20 at 10, +25 at "
                                        "14, +30 at 18"},
-      {2, "Uncanny Metabolism", false, "Monk part 3"},
+      {2, "Uncanny Metabolism", false, "built: automatic at a fight's start with half your points spent or "
+                                       "Bloodied - every point back and Martial Arts die + level healed, once per "
+                                       "Long Rest"},
       {3, "Deflect Attacks", false, "Monk part 5 (NWN's Deflect Arrows for now)"},
       {3, "Warrior of the Open Hand", false, "built: granted at 3"},
       {3, "Open Hand Technique", true, "Monk part 4"},
       {4, "Ability Score Improvement", false, "built (!asi)"},
       {4, "Slow Fall", false, "listed (NWN has no falling)"},
       {5, "Extra Attack", false, "built"},
-      {5, "Stunning Strike", false, "Monk part 3 (NWN's Stunning Fist for now)"},
+      {5, "Stunning Strike", false, "built: NWN's Stunning Fist attack, 1 point (none on a miss), Con save "
+                                    "against the Focus DC or Stunned; a success halves its speed and gives the next "
+                                    "attack on it Advantage"},
       {6, "Empowered Strikes", false, "built: unarmed strikes get through every damage reduction X/+N (NWN's Ki "
                                       "Strike, from 6)"},
       {6, "Wholeness of Body", true, "Monk part 4 (NWN's for now)"},
@@ -170,16 +177,18 @@ const std::vector<ClassFeature>& Monk() {
                             "Incapacitated (NWN's Improved Evasion, granted)"},
       {8, "Ability Score Improvement", false, "built (!asi)"},
       {9, "Acrobatic Movement", false, "listed (NWN has no climbing or walking on liquids)"},
-      {10, "Heightened Focus", false, "Monk part 3"},
+      {10, "Heightened Focus", false, "built: three Flurry strikes; Patient Defense's temporary hit points"},
       {10, "Self-Restoration", false, "Monk part 5"},
       {11, "Fleet Step", true, "Phase 6 (bonus actions)"},
       {12, "Ability Score Improvement", false, "built (!asi)"},
       {13, "Deflect Energy", false, "Monk part 5"},
-      {14, "Disciplined Survivor", false, "Monk part 3"},
-      {15, "Perfect Focus", false, "Monk part 3"},
+      {14, "Disciplined Survivor", false, "built: proficient in every save; a failed one rolled again for a point "
+                                         "(automatic)"},
+      {15, "Perfect Focus", false, "built: at a fight's start, 3 or fewer points rise to 4"},
       {16, "Ability Score Improvement", false, "built (!asi)"},
       {17, "Quivering Palm", true, "Monk part 4 (NWN's for now)"},
-      {18, "Superior Defense", false, "Monk part 3"},
+      {18, "Superior Defense", false, "built: radial, 3 points - Resistance to every damage but Force for a "
+                                     "minute (Incapacitated ends it)"},
       {19, "Epic Boon", false, "CM8"},
       {20, "Body and Mind", false, "built: Dexterity and Wisdom +4, at most 25"},
   };
@@ -445,6 +454,67 @@ int MartialArtsBonusAttacks(bool martial_arts, int off_hand_attacks, bool flurry
   return martial_arts && off_hand_attacks <= 0 && !flurry_mode ? 1 : 0;
 }
 
+int FocusPoints(int monk_level) { return monk_level >= 2 ? monk_level : 0; }
+
+int FocusDc(int wisdom_modifier, int proficiency_bonus) { return 8 + wisdom_modifier + proficiency_bonus; }
+
+int FocusCost(int feat) {
+  switch (feat) {
+    case kFeatStunningFist:
+    case kFeatPatientDefense:
+    case kFeatStepOfTheWind:
+      return 1;
+    case kFeatSuperiorDefense:
+      return 3;
+    case kFeatQuiveringPalm:
+      return 4;
+    default:
+      return 0;
+  }
+}
+
+int FocusFeatLevel(int feat) {
+  switch (feat) {
+    case kFeatPatientDefense:
+    case kFeatStepOfTheWind:
+      return 2;
+    case kFeatStunningFist:
+      return 5;
+    case kFeatQuiveringPalm:
+      return 17;
+    case kFeatSuperiorDefense:
+      return 18;
+    default:
+      return 0;
+  }
+}
+
+bool HasFlurryOfBlows(int monk_level) { return monk_level >= 2; }
+bool HasUncannyMetabolism(int monk_level) { return monk_level >= 2; }
+bool HasStunningStrike(int monk_level) { return monk_level >= 5; }
+bool HasHeightenedFocus(int monk_level) { return monk_level >= 10; }
+bool HasDisciplinedSurvivor(int monk_level) { return monk_level >= 14; }
+bool HasPerfectFocus(int monk_level) { return monk_level >= 15; }
+bool HasSuperiorDefense(int monk_level) { return monk_level >= 18; }
+
+int FlurryStrikes(int monk_level) {
+  if (!HasFlurryOfBlows(monk_level)) return 0;
+  return HasHeightenedFocus(monk_level) ? 3 : 2;
+}
+
+bool UncannyMetabolismWanted(int points, int spent, bool bloodied) {
+  if (points <= 0 || spent <= 0) return false;  // nothing to give back
+  return bloodied || spent * 2 >= points;
+}
+
+int PerfectFocusSpent(int points, int spent) {
+  const int left = points - spent;
+  if (points < 4 || left >= 4) return spent;
+  return points - 4;
+}
+
+int PatientDefenseTempDice(int monk_level) { return HasHeightenedFocus(monk_level) ? 2 : 0; }
+
 bool HasSlipperyMind(int rogue_level) { return rogue_level >= 15; }
 
 bool HasElusive(int rogue_level) { return rogue_level >= 18; }
@@ -587,6 +657,7 @@ bool ClassFeatureSaveProficiency(const std::vector<ClassLevels>& classes, Abilit
         (ability == Ability::kWisdom || ability == Ability::kCharisma)) {
       return true;
     }
+    if (c.character_class == CharacterClass::kMonk && HasDisciplinedSurvivor(c.levels)) return true;  // M13: all six
   }
   return false;
 }
@@ -616,6 +687,11 @@ std::vector<int> GrantedFeats2024(const std::vector<ClassLevels>& classes) {
     if (c.character_class == CharacterClass::kMonk && HasMonkEvasion(c.levels)) {
       feats.push_back(kFeatImprovedEvasion);  // M11: 2024's Evasion
     }
+    if (c.character_class == CharacterClass::kMonk) {  // M5, M14: Focus feats on the radial
+      if (c.levels >= FocusFeatLevel(kFeatPatientDefense)) feats.push_back(kFeatPatientDefense);
+      if (c.levels >= FocusFeatLevel(kFeatStepOfTheWind)) feats.push_back(kFeatStepOfTheWind);
+      if (c.levels >= FocusFeatLevel(kFeatSuperiorDefense)) feats.push_back(kFeatSuperiorDefense);
+    }
     if (c.character_class == CharacterClass::kBarbarian) {
       if (HasRecklessAttack(c.levels)) feats.push_back(kFeatRecklessAttack);
       if (HasBrutalStrike(c.levels)) feats.push_back(kFeatBrutalStrike);
@@ -635,7 +711,8 @@ const std::vector<int>& GrantableFeats2024() {
   static const std::vector<int> kFeats = {kFeatSecondWind2,    kFeatSecondWind3,  kFeatSecondWind4,
                                           kFeatRecklessAttack, kFeatBrutalStrike, kFeatKnockdownShove,
                                           kFeatShovePush,      kFeatIntimidatingPresence, kFeatGrapple,
-                                          kFeatImprovedEvasion, kFeatCunningStrike, kFeatDeviousStrikes};
+                                          kFeatImprovedEvasion, kFeatCunningStrike, kFeatDeviousStrikes,
+                                          kFeatPatientDefense, kFeatStepOfTheWind, kFeatSuperiorDefense};
   return kFeats;
 }
 
