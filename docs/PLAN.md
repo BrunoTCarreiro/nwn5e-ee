@@ -1385,6 +1385,25 @@ decided (M4 (a), M7 (a), M9 (a), M13 automatic):
   Uncanny Metabolism and Perfect Focus wait on ResolveInitiative at a fight's start (how often it runs is
   still unverified - the 30 s guard).
 
+*Fixes from the owner's tests (2026-10-30):*
+- *FO4 (owner: "FO4 is untestable, monk can't equit longsword"):* NWN won't equip a weapon its wielder isn't
+  proficient with. The `monk` test profile carries a light crossbow instead - in NWN's Monk proficiency (feat
+  49: crossbows), not a 2024 Monk weapon - so Martial Arts can be seen off (data only).
+- *0.57.8 (owner, FO6: Stunning Strike "greyed out with a 0. my focus is full"):* the client is told a feat's
+  remaining uses only when the feat list or a feat entry's own uses byte changes (ComputeLastUpdate_GuiFeats
+  0x4C98C0 compares both - the entries at stats +0x10, count +0x18, the byte at +2 - and sets bit 4 of the
+  player update; WriteGameObjUpdate_PlayerUpdate +0x112C then sends GetFeatRemainingUses). X6's pools live in a
+  record, so a spend, a rest or a `!focus` changed nothing the engine compares and the quickbar and the radial
+  kept the count last sent. For a feat a provider claims, a player character's byte now mirrors its remaining
+  uses, set at its AIUpdate when it differs (feat_uses.cpp) - Focus and Rage alike. Every engine accessor of a
+  claimed feat is hooked, and a save writes GetFeatRemainingUses, so the byte is free for this.
+- *0.57.10 (owner, FO6: "cannot use stunning strike while armed"):* UseFeat's case for Stunning Fist and
+  Quivering Palm (0x3A9590; its jump table sends 39 and 296 there) refuses any item in the right hand - "You
+  cannot use this feat while armed" (feedback 0xC6), NWN's unarmed-only rule. When the Stunning Strike guard
+  finds Martial Arts holding, it marks the creature's inventory, and that one GetItemInSlot call (the one the
+  0xC6 feedback follows, found by that pattern) answers an empty right hand, once. A non-Monk weapon is
+  refused by the guard first. Quivering Palm (part 4) will need the same.
+
 ### Phase 3 — Rogue (CM9): recommendations (for the owner's decision)
 
 **Decided (owner, 2026-10-28: "go with the recommendations").** Every R and T
@@ -4179,6 +4198,15 @@ test too). If no level is lost, the character's XP goes back and the profile onl
 which ("level: 18 -> 1 (a fresh start)" or "couldn't go down"). The profiles' "start from a new character"
 notes are gone; one character runs every profile, in any order. A feat a profile gives through `feats` isn't
 tied to a level and may stay.
+
+*Fixes from the owner's tests (2026-10-30):*
+- *0.57.7 (the owner's log: `!test fourclass` after `smallmonk` gave Fighter 1 / Rogue 1 - "Wizard needs
+  Intelligence 13" on the previous profile's Int 10):* a profile's scores are set before the levels too (a new
+  class's 13 test, CM2, sees them) and again after.
+- *0.57.9 (owner: after `!test monk` "the quickbar's slots all became empty"):* the reset and a swapped first
+  class took the old actions' feats, and the engine their buttons with them; the placement record
+  (nwn5e_quickbar_placed) still had them as placed, so they stayed off. A profile that builds a character now
+  forgets that record (as `!quickbar reset`): every action goes back on an empty slot at the next update.
 
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 

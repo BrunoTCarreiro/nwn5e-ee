@@ -103,6 +103,7 @@
 
 #include <windows.h>
 
+#include <intrin.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -469,8 +470,44 @@ bool FocusFeatFilter(void* stats, int feat, uintptr_t /*caller*/, int* answer) {
   return true;
 }
 
+// M9, 0.57.10 (owner, 2026-10-30, FO6: "cannot use stunning strike while armed"): UseFeat's case for
+// Stunning Fist and Quivering Palm (0x3A9590, read 89.8193.37: its jump table sends feats 39 and 296 there)
+// refuses any item in the right hand - "You cannot use this feat while armed" (feedback 0xC6), NWN's
+// unarmed-only rule. 2024's Stunning Strike takes a Monk weapon too: when the guard below finds Martial Arts
+// holding, it marks the creature's inventory, and that one GetItemInSlot call (the one the 0xC6 feedback
+// follows) answers an empty right hand for it, once. A non-Monk weapon is refused by the guard first.
+using GetItemInSlotFn = void* (*)(void* inventory, uint32_t slot);
+GetItemInSlotFn g_get_item_in_slot = nullptr;
+uintptr_t g_armed_check_return = 0;    // the return address of UseFeat's "while armed" GetItemInSlot
+void* g_armed_ok_inventory = nullptr;  // set by the guard for the use about to run; taken by that call
+
+void* GetItemInSlotHook(void* inventory, uint32_t slot) {
+  void* item = g_get_item_in_slot(inventory, slot);
+  if (item && inventory && inventory == g_armed_ok_inventory &&
+      reinterpret_cast<uintptr_t>(_ReturnAddress()) == g_armed_check_return) {
+    g_armed_ok_inventory = nullptr;
+    return nullptr;
+  }
+  return item;
+}
+
+// The call in UseFeat that the "while armed" feedback (mov edx, 0C6h) follows; 0 if not found.
+uintptr_t FindArmedCheck() {
+  static const uint8_t kFeedbackArmed[] = {0xBA, 0xC6, 0x00, 0x00, 0x00};
+  const CodeRange use_feat = FunctionAt(EngineExport(ee::kUseFeat));
+  uintptr_t found = 0;
+  int count = 0;
+  for (uintptr_t call : FindCallsTo(use_feat, EngineExport(ee::kGetItemInSlot))) {
+    if (!ContainsBytes(call + 5, call + 5 + 0x18, kFeedbackArmed, sizeof(kFeedbackArmed))) continue;
+    found = call + 5;
+    ++count;
+  }
+  return count == 1 ? found : 0;
+}
+
 // M9: Stunning Strike - Martial Arts' attacks only, once a turn.
 bool StunningStrikeGuard(void* creature, int feat) {
+  g_armed_ok_inventory = nullptr;  // a mark is for the use right after it, never a later one
   if (feat != rules::kFeatStunningFist || !Faithful()) return true;
   const int level = MonkLevelOf(StatsOf(creature));
   if (level <= 0) return true;
@@ -484,6 +521,7 @@ bool StunningStrikeGuard(void* creature, int feat) {
     Tell(creature, "Stunning Strike - once a turn.");
     return false;
   }
+  if (g_armed_check_return) g_armed_ok_inventory = Field<void*>(creature, ee::kCreatureInventory);  // a Monk weapon
   return true;
 }
 
@@ -761,6 +799,13 @@ void InstallMonkRules() {
   AddRestListener(&MetabolismLongRest);
   AddFeatFilter(&FocusFeatFilter);
   AddFeatUseGuard(&StunningStrikeGuard);
+  g_armed_check_return = FindArmedCheck();
+  if (!g_armed_check_return) {
+    Log("SKIP monk: Stunning Strike with a Monk weapon - UseFeat's \"while armed\" check not found (unarmed only)");
+  } else if (!HookExport("CNWSInventory::GetItemInSlot (M9: Stunning Strike with a Monk weapon)", ee::kGetItemInSlot,
+                         reinterpret_cast<void*>(&GetItemInSlotHook), reinterpret_cast<void**>(&g_get_item_in_slot))) {
+    g_armed_check_return = 0;
+  }
   AnswerRulesetInt("STUNNING_FIST_TO_HIT_MODIFIER", "Stunning Strike: no -4", [](int) { return 0; });
   AnswerRulesetInt("STUNNING_FIST_DAMAGE_MODIFIER", "Stunning Strike: no damage penalty", [](int) { return 0; });
   AnswerRulesetInt("FLURRY_OF_BLOWS_TO_HIT_MODIFIER", "Flurry of Blows: no -2", [](int) { return 0; });
