@@ -367,7 +367,13 @@ bool ReadAnimRecipe(const std::string& text, AnimRecipe* recipe, std::string* er
     else if (key == "blend_out") r.blend_out = std::max(0.0f, static_cast<float>(atof(value.c_str())));
     else if (key == "loop") r.loop = atoi(value.c_str()) != 0;
     else if (key == "loop_blend") r.loop_blend = std::max(0.0f, static_cast<float>(atof(value.c_str())));
-    else if (key == "take_start") r.take_start = static_cast<float>(atof(value.c_str()));
+    else if (key == "take_start") {
+      r.take_start = static_cast<float>(atof(value.c_str()));
+      if (!isfinite(r.take_start)) {
+        if (error) *error = "line " + std::to_string(line_number) + ": take_start isn't a finite number";
+        return false;
+      }
+    }
   }
   for (auto& limb : r.targets) {  // each limb's keys by time (stable: a file's order breaks ties)
     std::stable_sort(limb.second.begin(), limb.second.end(),

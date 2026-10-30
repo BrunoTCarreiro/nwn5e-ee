@@ -109,9 +109,9 @@ Vec3 Lerp(const Vec3& a, const Vec3& b, float f) { return pose::Add(a, pose::Sca
 // The limb's influence at take time T: interpolated between keys, eased in before the first and out after
 // the last.
 float ReachAt(const std::vector<AnimTargetKey>& keys, float T) {
-  if (keys.empty()) return 0.0f;
+  if (keys.empty() || !isfinite(T)) return 0.0f;
   if (T <= keys.front().t) return keys.front().reach * Smoothstep(1.0f - (keys.front().t - T) / kEase);
-  if (T >= keys.back().t) return keys.back().reach * Smoothstep(1.0f - (T - keys.back().t) / kEase);
+  if (T >= keys.back().t || keys.size() < 2) return keys.back().reach * Smoothstep(1.0f - (T - keys.back().t) / kEase);
   size_t i = 0;
   while (i + 1 < keys.size() && keys[i + 1].t < T) ++i;
   const float span = std::max(keys[i + 1].t - keys[i].t, 1e-6f);
@@ -135,7 +135,7 @@ Vec3 KeyPlace(const Limb& L, size_t i, const Pose& p, const Vec3& home) {
 Vec3 PlaceAt(const Limb& L, float T, const Pose& p, const Vec3& home) {
   const std::vector<AnimTargetKey>& keys = *L.keys;
   if (T <= keys.front().t) return KeyPlace(L, 0, p, home);
-  if (T >= keys.back().t) return KeyPlace(L, keys.size() - 1, p, home);
+  if (T >= keys.back().t || keys.size() < 2 || !isfinite(T)) return KeyPlace(L, keys.size() - 1, p, home);
   size_t i = 0;
   while (i + 1 < keys.size() && keys[i + 1].t < T) ++i;
   const float span = std::max(keys[i + 1].t - keys[i].t, 1e-6f);
@@ -210,6 +210,7 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
   };
   const int root = find("rootdummy"), torso = find("torso_g"), pelvis = find("pelvis_g");
   const float hip_height = pose::RestHipHeight(bones);
+  const float take_start = isfinite(recipe.take_start) ? recipe.take_start : 0.0f;  // a hand-edited nan: 0
   std::vector<Limb> limbs;
   for (const std::string& name : AnimTargetLimbs()) {
     const auto keys = recipe.targets.find(name);
@@ -281,7 +282,70 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
     pose::Forward(bones, p);
     return r;
   };
-  // A pinned key's place: on the body as it stands at the key's own time (after the hips moved).
+  const Limb* keyed_limb[2] = {nullptr, nullptr};  // the feet's limbs (left, right), when they have keys
+  for (const Limb& L : limbs) {
+    if (L.name == "left_foot") keyed_limb[0] = &L;
+    if (L.name == "right_foot") keyed_limb[1] = &L;
+  }
+  const pose::Chain legs[2] = {pose::FindChain(bones, "lthigh_g", "lshin_g", "lfoot_g"),
+                               pose::FindChain(bones, "rthigh_g", "rshin_g", "rfoot_g")};
+  const char* leg_names[2] = {"left_foot", "right_foot"};
+  // Whether a limb's place at T is fixed in the world: a held (pinned) key's, or easing toward another.
+  const auto held_at = [&](const Limb& L, float T) {
+    const std::vector<AnimTargetKey>& keys = *L.keys;
+    if (T <= keys.front().t) return keys.front().pinned;
+    if (T >= keys.back().t || keys.size() < 2) return keys.back().pinned;
+    size_t i = 0;
+    while (i + 1 < keys.size() && keys[i + 1].t < T) ++i;
+    if (!keys[i].pinned) return false;
+    const float window = std::min(kEase, std::max(keys[i + 1].t - keys[i].t, 1e-6f));
+    return T <= keys[i + 1].t - window || keys[i + 1].pinned;
+  };
+  // The hips and the legs at take time T, on `now` (the composed pose `before`): the hips toward their
+  // target; each foot where the capture planted it, blended toward its target (with `targets`); the legs
+  // solved when the hips moved or a foot has a target. A leg whose goal is fixed in the world (a planted
+  // foot, a held key) and falls short lowers the root, and both legs solve again - a solve always follows
+  // a sink. A foot target from the hip joint never sinks the hips: it moves with them, so sinking can't
+  // help it reach (it stays short, reported).
+  struct Stood {
+    float hips_reach = 0.0f, sunk = 0.0f;
+    float shortfall[2] = {0.0f, 0.0f}, reach[2] = {0.0f, 0.0f};
+    bool solved[2] = {false, false};
+  };
+  const auto stand = [&](Pose* now, const Pose& before, float T, bool targets) {
+    Stood s;
+    s.hips_reach = move_hips(now, T);
+    for (int pass = 0; pass < 3; ++pass) {
+      float fixed_short = 0.0f;
+      for (int side = 0; side < 2; ++side) {
+        const pose::Chain& leg = legs[side];
+        if (leg.root < 0) continue;
+        const Limb* L = targets ? keyed_limb[side] : nullptr;
+        const float r = L ? ReachAt(*L->keys, T) : 0.0f;
+        if (r <= 0.0f && s.hips_reach <= 0.0f && s.sunk <= 0.0f) continue;
+        const Vec3 planted = before.wp[leg.end];
+        const Vec3 goal = r > 0.0f ? Lerp(planted, PlaceAt(*L, T, *now, home), r) : planted;
+        const Vec3 knee_way = pose::Rotate(before.wq[leg.root], {0.0f, 1.0f, 0.0f});
+        // Damping by the reach: a planted foot (reach 0) lands exactly; a target eases near straight.
+        s.shortfall[side] = pose::SolveTwoBone(bones, before, now, leg, goal, knee_way, pose::kLimbDamping * r);
+        s.reach[side] = r;
+        s.solved[side] = true;
+        if (r <= 0.0f || held_at(*L, T)) fixed_short = std::max(fixed_short, s.shortfall[side]);
+      }
+      pose::Forward(bones, now);
+      if (pass == 2 || fixed_short <= 1e-4f || root < 0 || bones[root].parent < 0) break;
+      const float drop = std::min(fixed_short, kSinkCap * hip_height - s.sunk);
+      if (drop <= 1e-6f) break;
+      const int up = bones[root].parent;  // the root lowered in the world, back into its parent's frame
+      const Vec3 world = pose::Sub(now->wp[root], {0.0f, 0.0f, drop});
+      now->lp[root] = pose::Rotate(pose::QConj(now->wq[up]), pose::Sub(world, now->wp[up]));
+      pose::Forward(bones, now);
+      s.sunk += drop;
+    }
+    return s;
+  };
+  // A pinned key's place: on the body as it stands at the key's own time - after the hips and the legs on
+  // their planted feet, sinking included, as the bench shows it there.
   for (Limb& L : limbs) {
     if (L.hips) continue;
     for (const AnimTargetKey& k : *L.keys) {
@@ -289,14 +353,15 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
         L.held.push_back({0.0f, 0.0f, 0.0f});
         continue;
       }
-      const float t = std::max(0.0f, std::min(recipe.length, k.t - recipe.take_start));
-      Pose p = composed_pose(t);
-      move_hips(&p, k.t);
+      const float t = std::max(0.0f, std::min(recipe.length, k.t - take_start));
+      const Pose before = composed_pose(t);
+      Pose p = before;
+      stand(&p, before, k.t, false);
       L.held.push_back(BodyPlace(L, k, p, home));
     }
   }
 
-  // Each frame: the composed pose, the hips, the legs (sinking when one falls short), the hands.
+  // Each frame: the composed pose, the hips and the legs, the hands. The report after the last solve.
   std::map<std::string, AnimIkShort> worst;  // limb -> its worst shortfall while its goal had full weight
   const auto record = [&](const std::string& limb, float shortfall, float T) {
     AnimIkShort& w = worst[limb];
@@ -306,55 +371,24 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
       w.t = T;
     }
   };
-  const Limb* keyed_limb[2] = {nullptr, nullptr};  // the feet's limbs (left, right), when they have keys
-  for (const Limb& L : limbs) {
-    if (L.name == "left_foot") keyed_limb[0] = &L;
-    if (L.name == "right_foot") keyed_limb[1] = &L;
-  }
-  const pose::Chain legs[2] = {pose::FindChain(bones, "lthigh_g", "lshin_g", "lfoot_g"),
-                               pose::FindChain(bones, "rthigh_g", "rshin_g", "rfoot_g")};
-  const char* leg_names[2] = {"left_foot", "right_foot"};
   std::vector<std::vector<Value>> turns(bones.size());
   std::vector<Value> root_places;
   std::vector<bool> solved(bones.size(), false);
   bool root_moved = false;
   for (int f = 0; f <= frames; ++f) {
-    const float t = frame_time(f), T = recipe.take_start + t;
+    const float t = frame_time(f), T = take_start + t;
     const Pose before = composed_pose(t);
     Pose now = before;
-    const float hips_reach = move_hips(&now, T);
-    if (hips_reach > 0.0f) root_moved = true;
-    // The legs: each foot where the capture planted it, blended toward its target; solved when the
-    // hips moved or the foot has a target. One that falls short sinks the root, and both solve again.
-    float sunk = 0.0f;
-    for (int pass = 0; pass < 3; ++pass) {
-      float shortest = 0.0f;
-      for (int side = 0; side < 2; ++side) {
-        const pose::Chain& leg = legs[side];
-        if (leg.root < 0) continue;
-        const Limb* L = keyed_limb[side];
-        const float r = L ? ReachAt(*L->keys, T) : 0.0f;
-        if (r <= 0.0f && hips_reach <= 0.0f && sunk <= 0.0f) continue;
-        const Vec3 planted = before.wp[leg.end];
-        const Vec3 goal = r > 0.0f ? Lerp(planted, PlaceAt(*L, T, now, home), r) : planted;
-        const Vec3 knee_way = pose::Rotate(before.wq[leg.root], {0.0f, 1.0f, 0.0f});
-        // Damping by the reach: a planted foot (reach 0) lands exactly; a target eases near straight.
-        const float shortfall = pose::SolveTwoBone(bones, before, &now, leg, goal, knee_way, pose::kLimbDamping * r);
-        if (r <= 0.0f || r >= 0.999f) record(leg_names[side], shortfall, T);
-        shortest = std::max(shortest, shortfall);
-        solved[leg.root] = solved[leg.mid] = solved[leg.end] = true;
-      }
-      pose::Forward(bones, &now);
-      if (shortest <= 1e-4f || root < 0 || bones[root].parent < 0) break;
-      const float drop = std::min(shortest, kSinkCap * hip_height - sunk);
-      if (drop <= 1e-6f) break;
-      const int up = bones[root].parent;  // the root lowered in the world, back into its parent's frame
-      const Vec3 world = pose::Sub(now.wp[root], {0.0f, 0.0f, drop});
-      now.lp[root] = pose::Rotate(pose::QConj(now.wq[up]), pose::Sub(world, now.wp[up]));
-      pose::Forward(bones, &now);
-      sunk += drop;
-      root_moved = true;
+    const Stood s = stand(&now, before, T, true);
+    if (s.hips_reach > 0.0f || s.sunk > 0.0f) root_moved = true;
+    for (int side = 0; side < 2; ++side) {
+      if (!s.solved[side]) continue;
+      const pose::Chain& leg = legs[side];
+      solved[leg.root] = solved[leg.mid] = solved[leg.end] = true;
+      if (s.reach[side] <= 0.0f || s.reach[side] >= 0.999f) record(leg_names[side], s.shortfall[side], T);
     }
+    // The hips' own gap: their target against where the root ended (the legs held it back).
+    if (hips && s.hips_reach >= 0.999f) record("hips", pose::Length(pose::Sub(PlaceAt(*hips, T, now, home), now.wp[root])), T);
     // The hands: blended toward their targets on the body as it now stands.
     const Pose moved = now;
     for (const Limb& L : limbs) {

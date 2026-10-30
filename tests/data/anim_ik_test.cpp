@@ -451,3 +451,67 @@ TEST(AnimIkLoopStillMeets) {
   }
   CHECK_EQ(meets, true);
 }
+
+// The final review's findings (#89). A foot target is body-relative (from the hip joint): sinking can't
+// help it reach, so it never sinks the hips - it stays short, reported, and the other foot stays planted.
+TEST(AnimIkFootPastReachDoesntCrouch) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  const AnimClip base = Run(r, bones);
+  const float leg = ChainLength(bones, FindChain(bones, "lthigh_g", "lshin_g", "lfoot_g"));
+  r.targets["left_foot"] = {Key(2.5f, {0.0f, 0.0f, -(leg + 0.04f) / leg})};  // 4 cm past reach, straight down
+  std::vector<AnimIkShort> report;
+  const AnimClip out = Run(r, bones, &report);
+  const float drop = At(base, bones, "rootdummy", 0.5f)[2] - At(out, bones, "rootdummy", 0.5f)[2];
+  CHECK_EQ(fabsf(drop) < 1e-4f, true);  // no crouch
+  CHECK_EQ(Dist(At(out, bones, "rfoot_g", 0.5f), At(base, bones, "rfoot_g", 0.5f)) < 1e-3f, true);  // the planted foot stays
+  bool left = false, right = false;
+  for (const AnimIkShort& s : report) {
+    if (s.limb == "left_foot" && fabsf(s.metres - 0.04f) < 0.005f) left = true;
+    if (s.limb == "right_foot") right = true;
+  }
+  CHECK_EQ(left && !right, true);
+}
+
+// The hips raised past the legs' reach: the root sinks back until the planted feet reach (they do), so the
+// report names the hips' own gap, not the feet.
+TEST(AnimIkReportAfterSinking) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  r.targets["hips"] = {Key(2.5f, {0.0f, 0.0f, 0.10f / RestHipHeight(bones)})};
+  std::vector<AnimIkShort> report;
+  const AnimClip out = Run(r, bones, &report);
+  bool feet = false, hips = false;
+  for (const AnimIkShort& s : report) {
+    if (s.limb == "left_foot" || s.limb == "right_foot") feet = true;
+    if (s.limb == "hips" && s.metres > 0.05f && s.metres < 0.11f && fabsf(s.t - 2.5f) < 0.02f) hips = true;
+  }
+  CHECK_EQ(!feet && hips, true);
+}
+
+// A held key made while the hips sink lands where it was made: its place is taken on the body after the
+// hips and the legs, as the frame itself stands.
+TEST(AnimIkPinWhileSinking) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  r.targets["hips"] = {Key(2.5f, {0.0f, 0.0f, 0.10f / RestHipHeight(bones)})};
+  const AnimClip sunk = Run(r, bones);  // the body as the bench shows it, the hips sunk back
+  const Vec3 place = Add(At(sunk, bones, "lhand_g", 0.5f), {0.05f, 0.1f, 0.05f});
+  r.targets["left_hand"] = {Key(2.5f, OffsetFor(sunk, bones, "lbicep_g", "torso_g", ArmLength(bones), place, 0.5f), true)};
+  CHECK_EQ(Dist(At(Run(r, bones), bones, "lhand_g", 0.5f), place) < 1e-3f, true);
+}
+
+// A take time that isn't finite (only a hand-edited file) assembles safely: no key read past the end.
+TEST(AnimIkNonFiniteTimeSafe) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  r.take_start = NAN;
+  // Two keys a limb: with one, the unguarded code reads past the keys (undefined); with two, a nan time
+  // reads as full reach - deterministically wrong without the guard.
+  r.targets["left_hand"] = {Key(2.5f, {0.1f, 0.6f, -0.4f}), Key(2.6f, {0.1f, 0.6f, -0.4f})};
+  r.targets["hips"] = {Key(2.5f, {0.0f, 0.0f, -0.1f}), Key(2.6f, {0.0f, 0.0f, -0.1f})};
+  const AnimClip out = Run(r, bones);
+  AnimRecipe zero = r;
+  zero.take_start = 0.0f;  // read as 0: the clip a take_start of 0 gives
+  CHECK_EQ(SameKeys(out, Run(zero, bones)), true);
+}

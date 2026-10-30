@@ -584,6 +584,9 @@ TEST(AnimRecipeBadTargetRefused) {
   CHECK_EQ(ReadAnimRecipe(head + "target left_hand 1 0 inf 0 1\n", &back, &error), false);  // not finite
   CHECK_EQ(ReadAnimRecipe(head + "target left_hand 1 0 0 0 1 hold\n", &back, &error), false);  // not "pin"
   CHECK_EQ(ReadAnimRecipe(head + "target left_hand 1 0 0 0 1 pin\n", &back, &error), true);
+  CHECK_EQ(ReadAnimRecipe(head + "take_start = nan\n", &back, &error), false);  // the edits' clock must be a number
+  CHECK_EQ(Has(error, "take_start"), true);
+  CHECK_EQ(ReadAnimRecipe(head + "take_start = inf\n", &back, &error), false);
 }
 
 TEST(AnimRecipeTargetReachClamped) {
