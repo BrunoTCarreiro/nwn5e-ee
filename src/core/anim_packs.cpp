@@ -1,7 +1,7 @@
 // Animation recipes at startup (owner, 2026-10-25: "Let's try recipe" - "n5test
 // works"; 0.51.0: Mocap mode's keys recipes, built from their own keys per
 // library - data::KeyedAnimClip): each recipe (data\anims\*.recipe, nwn5e's; animedit\recipes\*.recipe,
-// the owner's drafts from !animedit or the Animation Recipe Bench, and
+// the owner's drafts from the Animation Recipe Bench, and
 // *.recipe.txt, a draft winning over a same-named one)
 // becomes an animation in the "animation packs" written into the served folder
 // before it is registered:
@@ -15,10 +15,9 @@
 // the game's is in nwn5e. data/anim_recipe.cpp does the reading and the maths.
 // The first test (owner: "n5test works") was this, from a script, through the
 // game's development folder. `animation_recipes`.
-// The libraries read are also copied to animedit\libraries\ (0.24.2; owner:
-// "the saving closing and opening the game just to get a preview is not great.
-// could we get a webapp working"): the Animation Recipe Bench, a local web app
-// (tools/recipe_bench/), reads them from there and previews a recipe at once.
+// The Animation Recipe Bench (nwn5e-tools\recipe_bench, a dev tool) reads the same
+// libraries from the install itself, through nwn5e-tools' helper (#87); the DLL no
+// longer copies them out.
 
 #include <windows.h>
 
@@ -47,7 +46,6 @@ std::map<std::string, std::string> g_built;  // recipe name -> its text as built
 // <base>_<hold> - the same lean, so a crouch walk leans armed too (owner,
 // 2026-10-25: "the PC doesn't lean forward" - the layer put the torso back up).
 constexpr const char* kHolds[] = {"swordr", "swordl", "shieldl", "bowl"};
-std::vector<std::string> g_animation_names;  // a_ba's chain's animations, for !animedit's dropdowns
 
 std::wstring DllDirectory() {
   HMODULE module = nullptr;
@@ -108,8 +106,8 @@ uint64_t WriteTime(const std::wstring& path) {
 
 }  // namespace
 
-// The recipe files in a folder: <name>.recipe (nwn5e's, !animedit's, the
-// Animation Recipe Bench's) and <name>.recipe.txt - what Notepad or a browser
+// The recipe files in a folder: <name>.recipe (nwn5e's, the Animation Recipe
+// Bench's) and <name>.recipe.txt - what Notepad or a browser
 // download makes of one (with " (1)" on a second copy).
 std::vector<std::wstring> RecipeFiles(const std::wstring& directory) {
   std::vector<std::wstring> files = FilesIn(directory, L"*.recipe");
@@ -120,8 +118,8 @@ std::vector<std::wstring> RecipeFiles(const std::wstring& directory) {
 namespace {
 
 // The recipes, by name: nwn5e's, then the owner's drafts over them. Within a
-// folder the newest file with a name wins (the page's .recipe.txt or
-// !animedit's .recipe, whichever was saved last).
+// folder the newest file with a name wins (a .recipe.txt or a .recipe,
+// whichever was saved last).
 std::map<std::string, data::AnimRecipe> ReadRecipes() {
   std::map<std::string, data::AnimRecipe> recipes;
   for (const std::wstring& directory : {DllDirectory() + L"\\data\\anims", DllDirectory() + L"\\animedit\\recipes"}) {
@@ -177,45 +175,12 @@ std::string PackName(const std::string& library) {
 
 }  // namespace
 
-// The libraries read this start, for the web page: animedit\libraries\<name>.mdl.
-void ExportLibraries() {
-  const std::wstring directory = DllDirectory() + L"\\animedit\\libraries";
-  CreateDirectoryW((DllDirectory() + L"\\animedit").c_str(), nullptr);
-  CreateDirectoryW(directory.c_str(), nullptr);
-  int written = 0;
-  for (const auto& entry : g_libraries) {
-    if (!entry.second.ok) continue;
-    const std::wstring path = directory + L"\\" + std::wstring(entry.first.begin(), entry.first.end()) + L".mdl";
-    if (WriteFile(path, entry.second.bytes)) ++written;
-  }
-  if (written) Log("anim packs: %d animation libraries copied to animedit\\libraries (for the web page)", written);
-}
-
 // data_serving's BuildServedTables, into the served folder before it is registered.
 void GenerateAnimationPacks(const std::wstring& served) {
   g_built.clear();
-  g_animation_names.clear();
   if (!g_config.animation_recipes) return;
-  // The humanoid animations (a_ba and its supermodels), for !animedit.
-  std::string library = "a_ba";
-  for (int depth = 0; depth < 8 && !library.empty(); ++depth) {
-    const Library& lib = LoadAnimLibrary(library);
-    if (!lib.ok) break;
-    for (const std::string& name : lib.library.clip_names) {
-      if (std::find(g_animation_names.begin(), g_animation_names.end(), name) == g_animation_names.end()) {
-        g_animation_names.push_back(name);
-      }
-    }
-    library = Lower(lib.library.supermodel);
-  }
-  std::sort(g_animation_names.begin(), g_animation_names.end());
   const std::map<std::string, data::AnimRecipe> recipes = ReadRecipes();
-  if (recipes.empty()) {
-    for (const char* library : {"a_fa", "a_da", "a_dfa", "a_ba2", "a_fa2", "a_da2", "a_dfa2"}) LoadAnimLibrary(library);
-    ExportLibraries();
-    g_libraries.clear();
-    return;
-  }
+  if (recipes.empty()) return;
   // The skeletons and their libraries.
   std::map<std::string, std::string> packs;  // library -> pack
   int skeletons = 0;
@@ -284,17 +249,13 @@ void GenerateAnimationPacks(const std::wstring& served) {
     }
   }
   for (const auto& recipe : recipes) g_built[recipe.first] = data::WriteAnimRecipe(recipe.second);
-  ExportLibraries();
   g_libraries.clear();  // the libraries' bytes aren't kept
   Log("anim packs: %zu recipes -> %zu packs (%d animations), %d skeletons pointed at them (animation_recipes)",
       recipes.size(), packs.size(), animations, skeletons);
   Log("anim packs: recipe core %s", data::AnimCoreStamp());
 }
 
-// !animedit's dropdowns: the humanoid animations a recipe can use.
-const std::vector<std::string>& AnimationNames() { return g_animation_names; }
-
-// !animedit: was `name` built at startup, and from which recipe text?
+// Was `name` built at startup, and from which recipe text? (stance_look, rules_barbarian, anim_layers)
 bool AnimationRecipeBuilt(const std::string& name, std::string* text) {
   const auto it = g_built.find(name);
   if (it == g_built.end()) return false;

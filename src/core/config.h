@@ -243,7 +243,7 @@ struct Config {
   // points (visualeffects 1570, low_hp_look.cpp).
   bool low_hp_bleed = true;
   int bleed_percent = 10;
-  // Animation recipes (anim_packs.cpp, !animedit): new animations built at
+  // Animation recipes (anim_packs.cpp): new animations built at
   // startup from the game's own, served as packs the body skeletons point at.
   bool animation_recipes = true;
   // A hiding creature crouches (owner, 2026-10-25: a crouch walk - "go, use
