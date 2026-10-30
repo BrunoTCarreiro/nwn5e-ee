@@ -4238,6 +4238,11 @@ tied to a level and may stay.
   the whole bar again (the engine's own full update, so the client shows what the server holds). The features
   update gives back a feat nwn5e granted that a level loss or a swapped class took (its record still said
   granted, so it never came back) - Shove, Shove: push and Grapple after a reset.
+- *0.58.2 (the owner's log: "script SetXP 120000 -> 195000" at `!test fighter`):* `!test` / `!level` raised the
+  XP with the SetXP script command, which CM1 reads in NWN's table - and 2024's level 13 threshold, 120,000, is
+  NWN's level 16 (the only one of the twenty that is), so a Fighter 13 had level 16's XP. They now raise it
+  through the engine's SetExperience (only the script command's call is converted); the reset to level 1 keeps
+  the script's SetXP 0 (its level loss is the point).
 
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 

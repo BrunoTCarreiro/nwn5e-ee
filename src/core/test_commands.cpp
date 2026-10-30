@@ -383,6 +383,22 @@ const char* ClassName(int nwn_class) {
              : "another class";
 }
 
+// The XP raised to `xp` (never lowered) through the engine's own SetExperience - not the SetXP script command,
+// which CM1 reads in NWN's table (rules_progression: a script's NWN threshold for another level sets that level),
+// and a 2024 threshold can be an NWN one: level 13's 120,000 is NWN's level 16 (0.58.2; the owner's log,
+// 2026-10-30: "script SetXP 120000 -> 195000" - a Fighter 13 with level 16's XP). Only the script command's
+// call is converted, so this call passes as it is.
+void RaiseXp(void* stats, uint32_t xp) {
+  using SetExperienceFn = void (*)(void* stats, uint32_t xp, int level_changes);
+  static const auto set_experience = reinterpret_cast<SetExperienceFn>(EngineExport(ee::kSetExperience));
+  if (!stats || Field<uint32_t>(stats, ee::kStatsExperience) >= xp) return;
+  if (set_experience) {
+    set_experience(stats, xp, 1);
+  } else {
+    SetField<uint32_t>(stats, ee::kStatsExperience, xp);
+  }
+}
+
 // The engine's own level-ups in `nwn_class` up to `level` in it (the XP for the
 // new total first); the chat line saying what it reached.
 std::string AddLevels(void* stats, int nwn_class, int level) {
@@ -393,11 +409,10 @@ std::string AddLevels(void* stats, int nwn_class, int level) {
     const int total = TotalLevel(stats) + add;
     const uint32_t xp = g_config.progression == rules::RuleVariant::kFaithful ? rules::FaithfulXpForLevel(total)
                                                                               : rules::NwnXpForLevel(total);
+    RaiseXp(stats, xp);
     char code[300];
-    sprintf_s(code,
-              "if (GetXP(OBJECT_SELF) < %u) SetXP(OBJECT_SELF, %u); int i;"
-              " for (i = 0; i < %d; i++) if (!LevelUpHenchman(OBJECT_SELF, %d, TRUE)) break;",
-              xp, xp, add, nwn_class);
+    sprintf_s(code, "int i; for (i = 0; i < %d; i++) if (!LevelUpHenchman(OBJECT_SELF, %d, TRUE)) break;", add,
+              nwn_class);
     RunScriptChunk(code, id);  // the automatic level-ups take the 2024 feats (rules_feats.cpp)
   }
   return std::string("  class: ") + ClassName(nwn_class) + " " + std::to_string(ClassLevel(stats, nwn_class)) +
@@ -664,9 +679,7 @@ std::vector<std::string> TestCommand(void* creature, const std::string& args) {
   for (const rules::TestLevels& more : profile.levels) lines.push_back(AddLevels(stats, more.nwn_class, more.level));
   // 2b. Experience only: the level-up screen makes the levels.
   if (profile.xp > 0) {
-    char code[200];
-    sprintf_s(code, "if (GetXP(OBJECT_SELF) < %d) SetXP(OBJECT_SELF, %d);", profile.xp, profile.xp);
-    RunScriptChunk(code, id);
+    RaiseXp(stats, static_cast<uint32_t>(profile.xp));
     lines.push_back("  xp: " + std::to_string(profile.xp) + " (level up on the level-up screen)");
   }
   // 2c. A Fighting Style without a class that has the feature (one left from a swapped Fighter) goes.
