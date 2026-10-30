@@ -456,6 +456,11 @@ bool ReadAnimClip(const std::string& bytes, const std::string& name, AnimClip* c
   return false;
 }
 
+#ifndef NWN5E_CORE_STAMP
+#define NWN5E_CORE_STAMP "unstamped"
+#endif
+const char* AnimCoreStamp() { return NWN5E_CORE_STAMP; }
+
 bool FindAnimClip(const AnimLibraryLookup& lookup, const std::string& library, const std::string& name,
                   AnimClip* clip) {
   std::string current = Lower(library);

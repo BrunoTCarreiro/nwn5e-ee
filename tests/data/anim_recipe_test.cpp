@@ -445,3 +445,7 @@ TEST(AnimRecipeChainMissingLibrary) {
   CHECK_EQ(FindAnimClip(set.Lookup(), "child", "wave", &clip), false);
   CHECK_EQ(FindAnimClip(set.Lookup(), "nosuch", "wave", &clip), false);
 }
+
+// The recipe core's stamp: the build's (core_stamp.bat) in the DLL and the tools' helper; a build
+// without one says so. Break caught: an empty stamp.
+TEST(AnimCoreStampSaysUnstamped) { CHECK_EQ(std::string(AnimCoreStamp()) == "unstamped", true); }

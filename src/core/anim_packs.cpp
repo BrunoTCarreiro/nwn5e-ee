@@ -288,6 +288,7 @@ void GenerateAnimationPacks(const std::wstring& served) {
   g_libraries.clear();  // the libraries' bytes aren't kept
   Log("anim packs: %zu recipes -> %zu packs (%d animations), %d skeletons pointed at them (animation_recipes)",
       recipes.size(), packs.size(), animations, skeletons);
+  Log("anim packs: recipe core %s", data::AnimCoreStamp());
 }
 
 // !animedit's dropdowns: the humanoid animations a recipe can use.

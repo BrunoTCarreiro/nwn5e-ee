@@ -13,6 +13,12 @@ if defined NWN5E_OUT set OUT=%NWN5E_OUT%
 if not exist "%OUT%" mkdir "%OUT%"
 if not exist "%OUT%\obj" mkdir "%OUT%\obj"
 
+rem The recipe core's stamp (core_stamp.bat): compiled in, and written beside the DLL as
+rem core_stamp.txt for the tools (nwn5e-tools' helper carries the same when built from these sources).
+set CORE_STAMP=
+for /f %%s in ('call "%~dp0core_stamp.bat"') do set CORE_STAMP=%%s
+if not defined CORE_STAMP echo core_stamp.bat gave no stamp & exit /b 1
+
 set CFLAGS=/nologo /O2 /MT /W3 /EHsc /std:c++17 /DWIN32_LEAN_AND_MEAN /DNOMINMAX /DUNICODE /D_UNICODE /Fo"%OUT%\obj\\"
 
 rem The private layer (docs/PRIVATE-LAYER.md): personal-use rules kept out of
@@ -24,7 +30,7 @@ if /i not "%~1"=="public" if exist private\src\*.cpp set PRIVATE_SRC=private\src
 if /i not "%~1"=="public" if exist private\rules\*.cpp set PRIVATE_SRC=%PRIVATE_SRC% private\rules\*.cpp
 if defined PRIVATE_SRC set PRIVATE_DEF=/DNWN5E_PRIVATE /Iprivate
 
-cl %CFLAGS% /LD /Ithird_party\minhook\include /Isrc %PRIVATE_DEF% ^
+cl %CFLAGS% /LD /Ithird_party\minhook\include /Isrc %PRIVATE_DEF% /DNWN5E_CORE_STAMP=\"%CORE_STAMP%\" ^
   src\core\dllmain.cpp src\core\log.cpp src\core\config.cpp src\core\hooks.cpp ^
   src\core\dice.cpp src\core\attack_roll.cpp src\core\ruleset.cpp src\core\sheet.cpp src\core\creature.cpp ^
   src\core\rules_crit.cpp src\core\rules_attack.cpp src\core\rules_extra_attack.cpp src\core\rules_sheet.cpp ^
@@ -47,6 +53,7 @@ cl %CFLAGS% /LD /Ithird_party\minhook\include /Isrc %PRIVATE_DEF% ^
   /Fe:"%OUT%\nwn5e.dll" /link /DLL user32.lib || exit /b 1
 
 cl %CFLAGS% src\loader\main.cpp /Fe:"%OUT%\nwn5e.exe" /link /SUBSYSTEM:WINDOWS user32.lib shell32.lib || exit /b 1
+>"%OUT%\core_stamp.txt" echo %CORE_STAMP%
 
 rem nwn5e's data (data\README.md), fresh next to the DLL; the private layer's
 rem data only in a private build. data\files holds compiled scripts served as

@@ -122,6 +122,10 @@ using AnimLibraryLookup = std::function<const LoadedAnimLibrary*(const std::stri
 bool FindAnimClip(const AnimLibraryLookup& lookup, const std::string& library, const std::string& name,
                   AnimClip* clip);
 
+// The recipe core's stamp: the SHA-256 core_stamp.bat gives its sources, compiled in as
+// NWN5E_CORE_STAMP by the DLL's build and the tools' helper alike ("unstamped" without one).
+const char* AnimCoreStamp();
+
 // The recipe's animation, from its base clip and (when it names one) its mix
 // clip; the crouch step needs the library's bones (without them it's skipped).
 AnimClip DeriveAnimClip(const AnimRecipe& recipe, const AnimClip& base, const AnimClip* mix,
