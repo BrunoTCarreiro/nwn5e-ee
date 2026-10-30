@@ -106,6 +106,9 @@ bool WalkNodes(const Bytes& m, size_t node, int parent, int depth, std::vector<A
   return true;
 }
 
+}  // namespace
+
+// Shared with anim_assemble.cpp (declared in anim_recipe.h).
 std::array<float, 4> Mix(const std::array<float, 4>& a, std::array<float, 4> b, float f, bool quaternion) {
   std::array<float, 4> out;
   if (quaternion) {
@@ -140,6 +143,8 @@ std::array<float, 4> Sample(const AnimKeys& keys, float t, bool quaternion) {
   }
   return keys.values.back();
 }
+
+namespace {
 
 // ASCII orientations are axis + angle.
 std::string AxisAngle(const std::array<float, 4>& q) {
@@ -177,10 +182,16 @@ Vec3 Normalized(const Vec3& a) {
   return l > 1e-9f ? Scale(a, 1.0f / l) : Vec3{0.0f, 0.0f, 0.0f};
 }
 
-Quat QMul(const Quat& a, const Quat& b) {
+}  // namespace
+
+// Shared with anim_assemble.cpp (declared in anim_recipe.h).
+std::array<float, 4> QMul(const std::array<float, 4>& a, const std::array<float, 4>& b) {
   return {a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1], a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
           a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3], a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]};
 }
+
+namespace {
+
 Quat QConj(const Quat& q) { return {-q[0], -q[1], -q[2], q[3]}; }
 Quat QNormalized(const Quat& q) {
   const float n = sqrtf(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);

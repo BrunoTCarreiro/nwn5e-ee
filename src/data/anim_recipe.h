@@ -94,6 +94,14 @@ struct AnimRecipe {
 std::string WriteAnimRecipe(const AnimRecipe& recipe);
 bool ReadAnimRecipe(const std::string& text, AnimRecipe* recipe, std::string* error);
 
+// The recipe core's shared maths (defined once, in anim_recipe.cpp; anim_assemble.cpp uses them).
+// A key value from a toward b by f: a quaternion (x y z w) the short way round, nlerped.
+std::array<float, 4> Mix(const std::array<float, 4>& a, std::array<float, 4> b, float f, bool quaternion);
+// A track at time t: its keys mixed, its first and last held outside them.
+std::array<float, 4> Sample(const AnimKeys& keys, float t, bool quaternion);
+// The quaternion product a * b (b's turn, then a's).
+std::array<float, 4> QMul(const std::array<float, 4>& a, const std::array<float, 4>& b);
+
 struct AnimNode {
   std::string name;
   int parent = -1;  // index in the list, -1 for the root
