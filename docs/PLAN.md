@@ -4173,6 +4173,11 @@ and keeps the paragraphs' gaps - right-aligned above the panel, below it at the 
 the cursor is read each frame: GetCursorPos on the game's window (this process's largest visible top-level
 window), scaled to the window size the game reports; off the panel, the box waits off screen. Rebuilt when
 its text changes, shown three frames after (the screen's-centre lesson).
+*0.57.12 (owner: "the tooltip panel is permanently onscreen, positioned on the top left. when the resource panel
+is hovered the tooltip repositions to the correct places, but when the cursor leaves ... returns to the top
+left"):* NUI keeps a window on screen, so the box parked at -10000 showed at the top-left. It now stays at its
+spot by the panel, its draw list switched off ("on" false) unless the mouse is on the panel - nothing drawn,
+input passing through.
 
 ## Test profiles — the owner's request (2026-10-29)
 

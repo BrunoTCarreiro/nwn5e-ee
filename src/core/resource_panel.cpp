@@ -46,8 +46,12 @@
 //   the paragraphs' gaps kept), right-aligned above the panel (below it at the
 //   screen's top: rules::PlaceHudTip). NUI has no hover event, so the cursor is
 //   read each frame (GetCursorPos on the game's window, scaled to the window
-//   size the game reports); off the panel, the box waits off screen. Rebuilt
-//   when its text changes, shown three frames later (the centre's lesson).
+//   size the game reports). Rebuilt when its text changes, shown three frames
+//   later (the centre's lesson). 0.57.12 (owner: "the tooltip panel is
+//   permanently onscreen, positioned on the top left"): NUI keeps a window on
+//   screen, so one parked at -10000 showed at the top-left; the box now stays
+//   at its spot by the panel, its draw list off ("on") unless the mouse is on
+//   the panel - nothing drawn, input passing through.
 
 #include "resource_panel.h"
 
@@ -305,14 +309,14 @@ std::string PanelLayout(const rules::HudLayout& layout, const std::vector<rules:
 
 // --- The hover box (0.57.11) ---------------------------------------------------
 constexpr const char* kTipWindowId = "n5hudtip";
-constexpr float kOffScreen = -10000.0f;
 
 struct Tip {
   int token = 0;
   std::string text;  // what its layout was built for
   float w = 0.0f, h = 0.0f;  // the card's text area, GUI units
   int frames = 0;
-  bool revealed = false;
+  bool revealed = false;  // three frames since it opened: its geometry applied
+  bool shown = false;     // its draw list on
   float sent_x = -1.0e6f, sent_y = -1.0e6f;
 };
 Tip g_tip;
@@ -394,7 +398,7 @@ bool CursorOver(float x, float y, float w, float h) {
   return mx >= x && mx < x + w && my >= y && my < y + h;
 }
 
-// The box for `text`, on screen while `hover` (the panel's window at x, y; its size panel_w x panel_h GUI units).
+// The box for `text`, drawn while `hover` (the panel's window at x, y; its size panel_w x panel_h GUI units).
 void UpdateTip(const std::string& text, bool hover, float x, float y, float panel_w, float panel_h) {
   if (text.empty()) {
     CloseTip();
@@ -413,28 +417,24 @@ void UpdateTip(const std::string& text, bool hover, float x, float y, float pane
     }
     ClientNuiSetJson(g_tip.token, "on", "false");
   }
-  if (!g_tip.revealed && ++g_tip.frames >= kRevealFrames) {
-    g_tip.revealed = true;
-    ClientNuiSetJson(g_tip.token, "on", "true");
-  }
+  if (!g_tip.revealed && ++g_tip.frames >= kRevealFrames) g_tip.revealed = true;
   const float s = g_gui_s > 0.0f ? g_gui_s : 1.0f;
   const float window_w = g_tip.w + kWindowSlack, window_h = g_tip.h + kWindowSlack;
-  float tx = kOffScreen, ty = kOffScreen;
-  if (hover && g_tip.revealed) {
-    const rules::HudBox panel{x, y, panel_w * s, panel_h * s};
-    const rules::HudBox spot = rules::PlaceHudTip(panel, window_w * s, window_h * s, rules::kHudTipGap * s);
-    tx = spot.x;
-    ty = spot.y;
+  const rules::HudBox panel{x, y, panel_w * s, panel_h * s};
+  const rules::HudBox spot = rules::PlaceHudTip(panel, window_w * s, window_h * s, rules::kHudTipGap * s);
+  if (fabsf(spot.x - g_tip.sent_x) > 0.4f || fabsf(spot.y - g_tip.sent_y) > 0.4f) {
+    ClientNuiSetJson(g_tip.token, "geometry", Rect(spot.x, spot.y, window_w, window_h));
+    g_tip.sent_x = spot.x;
+    g_tip.sent_y = spot.y;
   }
-  if (fabsf(tx - g_tip.sent_x) > 0.4f || fabsf(ty - g_tip.sent_y) > 0.4f) {
-    ClientNuiSetJson(g_tip.token, "geometry", Rect(tx, ty, window_w, window_h));
-    if (tx != kOffScreen && g_tip_logs < 5) {
-      ++g_tip_logs;
-      Log("hud: the hover box shown at %.0f, %.0f (%.0f x %.0f GUI units, the panel at %.0f, %.0f)", tx, ty, window_w,
-          window_h, x, y);
-    }
-    g_tip.sent_x = tx;
-    g_tip.sent_y = ty;
+  const bool show = hover && g_tip.revealed;
+  if (show == g_tip.shown) return;
+  ClientNuiSetJson(g_tip.token, "on", show ? "true" : "false");
+  g_tip.shown = show;
+  if (show && g_tip_logs < 5) {
+    ++g_tip_logs;
+    Log("hud: the hover box shown at %.0f, %.0f (%.0f x %.0f GUI units, the panel at %.0f, %.0f)", spot.x, spot.y,
+        window_w, window_h, x, y);
   }
 }
 
