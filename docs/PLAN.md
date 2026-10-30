@@ -4225,6 +4225,12 @@ tied to a level and may stay.
   class took the old actions' feats, and the engine their buttons with them; the placement record
   (nwn5e_quickbar_placed) still had them as placed, so they stayed off. A profile that builds a character now
   forgets that record (as `!quickbar reset`): every action goes back on an empty slot at the next update.
+- *0.57.13 (owner: after `!test fighter` "the quickbar still has old monk feats and no fighter feats"):* the
+  swap from Monk to Fighter took the Monk's feats, but the engine left their buttons (unlike the earlier
+  swap), so they kept the slots. A profile that builds a character also empties the buttons of nwn5e's actions
+  the character no longer has (rules::LostQuickbarActions: any class's actions, against the character's now;
+  items, spells and other feats untouched). A Fighter's own action is Second Wind (and everyone's Shove /
+  Grapple); its other features are passive.
 
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 

@@ -95,7 +95,7 @@
 #include "rules/weapons.h"
 
 void SetTestAbilityScores(void* creature, const int scores[6]);  // rules_abilities.cpp
-void ForgetQuickbarPlacements(void* creature);                    // rules_quickbar.cpp
+int ForgetQuickbarPlacements(void* creature);                     // rules_quickbar.cpp
 
 namespace {
 
@@ -718,8 +718,10 @@ std::vector<std::string> TestCommand(void* creature, const std::string& args) {
   }
   // 5b. A built character's quickbar: nwn5e's actions placed afresh, on empty slots.
   if (rules::TestProfileBuildsCharacter(profile)) {
-    ForgetQuickbarPlacements(creature);
-    lines.push_back("  quickbar: nwn5e's class actions go back on empty slots");
+    const int lost = ForgetQuickbarPlacements(creature);
+    lines.push_back("  quickbar: " +
+                    (lost > 0 ? std::to_string(lost) + " old class action(s) taken off; " : std::string()) +
+                    "nwn5e's class actions go back on empty slots");
   }
   // 6. Test switches for this session: the ini's values back, then the profile's.
   for (const std::string& line : ApplySwitches(id, profile.switches)) lines.push_back(line);

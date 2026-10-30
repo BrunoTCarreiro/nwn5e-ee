@@ -137,6 +137,25 @@ bool SameQuickbarAction(int value_a, int value_b) {
   return value_a == value_b || (IsSecondWind(value_a) && IsSecondWind(value_b));
 }
 
+std::vector<int> LostQuickbarActions(const std::vector<QuickbarSlot>& slots, const std::vector<QuickbarAction>& now) {
+  QuickbarFacts every;
+  every.feats = QuickbarActionFeats2024();
+  every.barbarian_level = 20;
+  const std::vector<QuickbarAction> all = QuickbarActions2024(every);
+  auto matches = [](const std::vector<QuickbarAction>& actions, int value) {
+    for (const QuickbarAction& a : actions) {
+      if (SameQuickbarAction(a.value, value)) return true;
+    }
+    return false;
+  };
+  std::vector<int> lost;
+  for (size_t i = 0; i < slots.size(); ++i) {
+    if (slots[i].type != kQuickbarTypeFeat) continue;
+    if (matches(all, slots[i].value) && !matches(now, slots[i].value)) lost.push_back(static_cast<int>(i));
+  }
+  return lost;
+}
+
 std::vector<QuickbarChange> PlanQuickbar(const std::vector<QuickbarSlot>& slots, int placed,
                                          const std::vector<QuickbarAction>& actions, int* new_placed) {
   std::vector<QuickbarSlot> bar = slots;

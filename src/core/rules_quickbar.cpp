@@ -191,11 +191,33 @@ std::vector<std::string> QuickbarCommand(void* creature, const std::string& args
 // class) took the old actions' feats away, the engine their buttons with them, and the record kept them
 // "placed" - so off. Cleared, every action the new character has comes back on an empty slot at its next
 // update, as with !quickbar reset.
-void ForgetQuickbarPlacements(void* creature) {
-  if (g_config.quickbar != rules::RuleVariant::kFaithful || !creature) return;
+// 0.57.13 (owner: after "!test fighter" "the quickbar still has old monk feats and no fighter feats"): the
+// buttons of nwn5e's actions the character no longer has (a class the profile swapped away - the engine
+// doesn't always take them off with the feats) are emptied too, so the new character's actions get slots.
+// Returns how many.
+int ForgetQuickbarPlacements(void* creature) {
+  if (g_config.quickbar != rules::RuleVariant::kFaithful || !creature) return 0;
   EnsureRecords(creature);
   SetRecord(creature, kVarPlaced, 0);
   g_last_check.erase(IdOf(creature));  // looked at in the next update, not in up to 2 s
+  void* stats = StatsOf(creature);
+  void* app = ServerApp();
+  std::vector<rules::QuickbarSlot> bar;
+  if (!stats || !app || !g_set_int_param || !g_send_button || !g_get_message || !g_player_by_object ||
+      !ReadBar(creature, &bar)) {
+    return 0;
+  }
+  void* player = g_player_by_object(app, IdOf(creature));
+  void* message = g_get_message(app);
+  if (!player || !message) return 0;
+  const std::vector<int> lost = rules::LostQuickbarActions(bar, ActionsOf(stats));
+  for (int slot : lost) {
+    g_set_int_param(creature, static_cast<uint8_t>(slot), static_cast<uint8_t>(rules::kQuickbarTypeEmpty), 0);
+    g_send_button(message, player, static_cast<uint8_t>(slot), 0);
+    Log("quickbar: 0x%08X slot %d emptied - %d, an action the character no longer has", IdOf(creature), slot,
+        bar[slot].value);
+  }
+  return static_cast<int>(lost.size());
 }
 
 void InstallQuickbarKeys();    // below

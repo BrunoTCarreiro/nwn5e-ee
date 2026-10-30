@@ -78,6 +78,14 @@ struct QuickbarChange {
 std::vector<QuickbarChange> PlanQuickbar(const std::vector<QuickbarSlot>& slots, int placed,
                                          const std::vector<QuickbarAction>& actions, int* new_placed);
 
+// The slots holding one of nwn5e's actions (any class's) that the character
+// doesn't have now (`now`: QuickbarActions2024 for it) - a button of a class a
+// !test profile swapped away (0.57.13; owner, 2026-10-30: after "!test
+// fighter" "the quickbar still has old monk feats and no fighter feats").
+// Emptied when a profile builds a character, so the new one's actions get
+// the slots. Items, spells and feats nwn5e doesn't place are left alone.
+std::vector<int> LostQuickbarActions(const std::vector<QuickbarSlot>& slots, const std::vector<QuickbarAction>& now);
+
 // The label drawn on a slot (0.48.2): "1".."9" then "F10".."F12" on the first
 // two rows with the number keys (else "F1".."F12"), "F1".."F12" on the Ctrl
 // row - no "Shift-" / "Ctrl-": a row shows only while its key is held, and the

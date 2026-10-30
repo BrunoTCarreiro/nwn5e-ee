@@ -4,6 +4,31 @@
 
 using namespace rules;
 
+// Breaks caught (0.57.13): a lost class's button left on the bar, the current
+// class's (Second Wind under another of its three feats) or everyone's Shove
+// taken off, an item or a feat nwn5e doesn't place touched.
+TEST(LostQuickbarActionsAfterAClassChange) {
+  QuickbarFacts fighter;
+  fighter.feats = {kFeatSecondWind2, kFeatKnockdownShove};
+  const std::vector<QuickbarAction> now = QuickbarActions2024(fighter);
+  std::vector<QuickbarSlot> bar(kQuickbarSlots);
+  bar[0] = {kQuickbarTypeFeat, kFeatPatientDefense};  // the Monk's: lost
+  bar[1] = {kQuickbarTypeFeat, kFeatSecondWind4};     // the Fighter's, another of its feats: kept
+  bar[2] = {1, kFeatRage};                            // not a feat button (an item's type): left
+  bar[3] = {kQuickbarTypeFeat, 9999};                 // a feat nwn5e doesn't place: left
+  bar[4] = {kQuickbarTypeFeat, kFeatRage};            // the Barbarian's: lost
+  bar[5] = {kQuickbarTypeFeat, kFeatKnockdownShove};  // everyone's Shove, held: kept
+  bar[6] = {kQuickbarTypeFeat, QuickbarFeatValue(kFeatBrutalStrike, 16000)};  // Forceful Blow's: lost
+  const std::vector<int> lost = LostQuickbarActions(bar, now);
+  CHECK_EQ(lost.size(), 3u);
+  if (lost.size() == 3u) {
+    CHECK_EQ(lost[0], 0);
+    CHECK_EQ(lost[1], 4);
+    CHECK_EQ(lost[2], 6);
+  }
+  CHECK_EQ(LostQuickbarActions(std::vector<QuickbarSlot>(kQuickbarSlots), now).empty(), true);
+}
+
 namespace {
 std::vector<int> Values(const std::vector<QuickbarAction>& actions) {
   std::vector<int> values;
