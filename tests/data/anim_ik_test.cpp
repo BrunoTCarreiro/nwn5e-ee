@@ -160,3 +160,294 @@ TEST(AnimIkKneesNeverBackward) {
   }
   CHECK_EQ(forward, true);
 }
+
+// --- The IK pass (data/anim_assemble.h, step 8) ------------------------------------------------------
+// On a whole body (both legs and arms) whose stance bends the knees and elbows a little, from a recipe
+// of identity deltas (the capture = the stance) whose torso may turn. Breaks caught: no reach ease,
+// pins re-placed every frame, the hips not scaled by the hip height, no sinking, the report dropped.
+namespace {
+
+std::vector<AnimNode> WholeBody(float s) {
+  return {Bone("a_ik", -1, 0.0f, 0.0f, 0.0f),
+          Bone("rootdummy", 0, 0.0f, 0.0f, 1.0f * s),
+          Bone("pelvis_g", 1, 0.0f, 0.0f, 0.0f),
+          Bone("lthigh_g", 2, -0.1f * s, 0.0f, -0.05f * s),
+          Bone("lshin_g", 3, 0.0f, 0.0f, -0.45f * s),
+          Bone("lfoot_g", 4, 0.0f, 0.0f, -0.42f * s),
+          Bone("rthigh_g", 2, 0.1f * s, 0.0f, -0.05f * s),
+          Bone("rshin_g", 6, 0.0f, 0.0f, -0.45f * s),
+          Bone("rfoot_g", 7, 0.0f, 0.0f, -0.42f * s),
+          Bone("torso_g", 1, 0.0f, 0.0f, 0.0f),
+          Bone("lbicep_g", 9, -0.2f * s, 0.0f, 0.42f * s),
+          Bone("lforearm_g", 10, 0.0f, 0.0f, -0.3f * s),
+          Bone("lhand_g", 11, 0.0f, 0.0f, -0.28f * s),
+          Bone("rbicep_g", 9, 0.2f * s, 0.0f, 0.42f * s),
+          Bone("rforearm_g", 13, 0.0f, 0.0f, -0.3f * s),
+          Bone("rhand_g", 14, 0.0f, 0.0f, -0.28f * s)};
+}
+
+int IndexOf(const std::vector<AnimNode>& bones, const char* name) {
+  for (size_t i = 0; i < bones.size(); ++i) {
+    if (bones[i].name == name) return static_cast<int>(i);
+  }
+  return -1;
+}
+
+// The stance's frame 0: knees and elbows a little bent, the root where the rest has it.
+AnimClip IkStance(const std::vector<AnimNode>& bones) {
+  AnimClip clip;
+  clip.name = "pause1";
+  clip.length = 1.0f;
+  clip.animroot = "rootdummy";
+  clip.nodes = bones;
+  const auto turn = [&](const char* name, float degrees) {
+    const int i = IndexOf(bones, name);
+    if (i < 0) return;
+    clip.nodes[i].orientation.times = {0.0f};
+    clip.nodes[i].orientation.values = {TurnX(degrees)};
+  };
+  turn("lthigh_g", 10.0f);
+  turn("rthigh_g", 10.0f);
+  turn("lshin_g", -20.0f);
+  turn("rshin_g", -20.0f);
+  turn("lforearm_g", 30.0f);
+  turn("rforearm_g", 30.0f);
+  return clip;
+}
+
+// Identity deltas for every bone below the model root (the capture is the stance), the root offset 0,
+// the torso turning `torso_degrees` about Z over the second; take_start 2 s.
+AnimRecipe IkRecipe(const std::vector<AnimNode>& bones, float torso_degrees) {
+  AnimRecipe r;
+  r.name = "n5_ik";
+  r.kind = AnimRecipeKind::kAssembled;
+  r.stance = "pause1";
+  r.length = 1.0f;
+  r.take_start = 2.0f;
+  for (size_t i = 1; i < bones.size(); ++i) {
+    AnimKeyTrack track;
+    track.bone = bones[i].name;
+    track.keys.times = {0.0f, 1.0f};
+    const float half = (bones[i].name == "torso_g" ? torso_degrees : 0.0f) * kPi / 360.0f;
+    track.keys.values = {{0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, sinf(half), cosf(half)}};
+    r.keys["a_ik"].push_back(track);
+  }
+  AnimKeyTrack root;
+  root.bone = "rootdummy";
+  root.position = true;
+  root.keys.times = {0.0f};
+  root.keys.values = {{0.0f, 0.0f, 0.0f, 0.0f}};
+  r.keys["a_ik"].push_back(root);
+  return r;
+}
+
+AnimClip Run(const AnimRecipe& r, const std::vector<AnimNode>& bones, std::vector<AnimIkShort>* report = nullptr) {
+  AnimClip out;
+  std::string err;
+  const bool ok = AssembleAnimClip(r, "a_ik", bones, IkStance(bones), &out, &err, report);
+  CHECK_EQ(ok, true);
+  return out;
+}
+
+Pose PoseOf(const AnimClip& clip, const std::vector<AnimNode>& bones, float t) {
+  return PoseAt(clip, ClipIndex(clip, bones), bones, t);
+}
+Vec3 At(const AnimClip& clip, const std::vector<AnimNode>& bones, const char* name, float t) {
+  return PoseOf(clip, bones, t).wp[IndexOf(bones, name)];
+}
+
+// The offset putting the end of the chain from `from` at `place`, in `frame`'s frame, in lengths.
+std::array<float, 3> OffsetFor(const AnimClip& base, const std::vector<AnimNode>& bones, const char* from,
+                               const char* frame, float length, const Vec3& place, float t) {
+  const Pose p = PoseOf(base, bones, t);
+  const Vec3 local = Rotate(QConj(p.wq[IndexOf(bones, frame)]), Sub(place, p.wp[IndexOf(bones, from)]));
+  return {local[0] / length, local[1] / length, local[2] / length};
+}
+
+AnimTargetKey Key(float t, const std::array<float, 3>& offset, bool pinned = false, float reach = 1.0f) {
+  AnimTargetKey k;
+  k.t = t;
+  k.offset = offset;
+  k.pinned = pinned;
+  k.reach = reach;
+  return k;
+}
+
+float ArmLength(const std::vector<AnimNode>& bones) {
+  return ChainLength(bones, FindChain(bones, "lbicep_g", "lforearm_g", "lhand_g"));
+}
+
+bool SameKeys(const AnimClip& a, const AnimClip& b) {
+  if (a.nodes.size() != b.nodes.size()) return false;
+  for (size_t i = 0; i < a.nodes.size(); ++i) {
+    if (a.nodes[i].orientation.values != b.nodes[i].orientation.values) return false;
+    if (a.nodes[i].position.values != b.nodes[i].position.values) return false;
+  }
+  return true;
+}
+
+}  // namespace
+
+TEST(AnimIkNoTargetsIdentical) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  const AnimRecipe plain = IkRecipe(bones, 30.0f);
+  AnimRecipe empty = plain;
+  empty.targets["left_hand"] = {};  // a limb with no keys
+  std::vector<AnimNode> armless = bones;
+  armless[IndexOf(bones, "lbicep_g")].name = "lbicep_x";
+  AnimRecipe absent = IkRecipe(armless, 30.0f);  // a limb this body hasn't
+  const AnimRecipe absent_plain = absent;
+  absent.targets["left_hand"] = {Key(2.5f, {0.0f, 0.5f, -0.5f})};
+  CHECK_EQ(SameKeys(Run(plain, bones), Run(empty, bones)), true);
+  CHECK_EQ(SameKeys(Run(absent_plain, armless), Run(absent, armless)), true);
+}
+
+TEST(AnimIkHandTargetReached) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  const AnimClip base = Run(r, bones);
+  const Vec3 place = Add(At(base, bones, "lhand_g", 0.5f), {0.1f, 0.15f, 0.1f});
+  r.targets["left_hand"] = {Key(2.5f, OffsetFor(base, bones, "lbicep_g", "torso_g", ArmLength(bones), place, 0.5f))};
+  const AnimClip out = Run(r, bones);
+  CHECK_EQ(Dist(At(out, bones, "lhand_g", 0.5f), place) < 1e-3f, true);
+}
+
+TEST(AnimIkReachEases) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  const AnimClip base = Run(r, bones);
+  const Vec3 place = Add(At(base, bones, "lhand_g", 0.5f), {0.1f, 0.15f, 0.1f});
+  r.targets["left_hand"] = {Key(2.5f, OffsetFor(base, bones, "lbicep_g", "torso_g", ArmLength(bones), place, 0.5f))};
+  const AnimClip out = Run(r, bones);
+  const auto moved = [&](float t) { return Dist(At(out, bones, "lhand_g", t), At(base, bones, "lhand_g", t)); };
+  const float full = moved(0.5f);
+  CHECK_EQ(full > 0.15f, true);
+  CHECK_EQ(moved(0.3f) < 1e-4f && moved(0.7f) < 1e-4f, true);  // eased out 0.2 s either side
+  CHECK_EQ(fabsf(moved(0.4f) - full * 0.5f) < 0.003f, true);    // halfway in (smoothstep 0.5)
+}
+
+TEST(AnimIkPinHoldsWorld) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 40.0f);  // the torso turns: the shoulder swings
+  const AnimClip base = Run(r, bones);
+  const Vec3 place = Add(At(base, bones, "lhand_g", 0.3f), {0.05f, 0.1f, 0.05f});
+  const std::array<float, 3> offset = OffsetFor(base, bones, "lbicep_g", "torso_g", ArmLength(bones), place, 0.3f);
+  r.targets["left_hand"] = {Key(2.3f, offset, true), Key(2.8f, offset)};
+  const AnimClip pinned = Run(r, bones);
+  bool held = true;
+  for (int f = 9; f <= 16; ++f) held = held && Dist(At(pinned, bones, "lhand_g", f / 30.0f), place) < 1e-3f;
+  CHECK_EQ(held, true);
+  r.targets["left_hand"] = {Key(2.3f, offset), Key(2.8f, offset)};  // not pinned: it follows the torso
+  CHECK_EQ(Dist(At(Run(r, bones), bones, "lhand_g", 0.5f), place) > 0.01f, true);
+}
+
+TEST(AnimIkHipsTargetByProportion) {
+  for (float s : {1.0f, 1.25f}) {
+    const std::vector<AnimNode> bones = WholeBody(s);
+    AnimRecipe r = IkRecipe(bones, 0.0f);
+    const AnimClip base = Run(r, bones);
+    r.targets["hips"] = {Key(2.5f, {0.0f, 0.0f, -0.1f})};
+    const AnimClip out = Run(r, bones);
+    const float drop = At(base, bones, "rootdummy", 0.5f)[2] - At(out, bones, "rootdummy", 0.5f)[2];
+    CHECK_EQ(fabsf(drop - 0.1f * RestHipHeight(bones)) < 1e-4f, true);
+    CHECK_EQ(Dist(At(out, bones, "lfoot_g", 0.5f), At(base, bones, "lfoot_g", 0.5f)) < 1e-3f, true);  // the feet stay
+    CHECK_EQ(Dist(At(out, bones, "rfoot_g", 0.5f), At(base, bones, "rfoot_g", 0.5f)) < 1e-3f, true);
+  }
+}
+
+// The hips raised 15 cm with the feet planted: the legs can't reach, so the root sinks back (as far as
+// the legs need) and the feet stay put.
+TEST(AnimIkSinkingKeepsFeetPlanted) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  const AnimClip base = Run(r, bones);
+  r.targets["hips"] = {Key(2.5f, {0.0f, 0.0f, 0.15f / RestHipHeight(bones)})};
+  const AnimClip out = Run(r, bones);
+  const float rise = At(out, bones, "rootdummy", 0.5f)[2] - At(base, bones, "rootdummy", 0.5f)[2];
+  CHECK_EQ(rise > -0.001f && rise < 0.03f, true);
+  CHECK_EQ(Dist(At(out, bones, "lfoot_g", 0.5f), At(base, bones, "lfoot_g", 0.5f)) < 1e-3f, true);  // exact: no damping
+}
+
+TEST(AnimIkProportionAcrossBodies) {
+  Vec3 reach[2];
+  int n = 0;
+  for (float s : {1.0f, 1.25f}) {
+    const std::vector<AnimNode> bones = WholeBody(s);
+    AnimRecipe r = IkRecipe(bones, 0.0f);
+    r.targets["left_hand"] = {Key(2.5f, {0.1f, 0.6f, -0.4f})};
+    const AnimClip out = Run(r, bones);
+    reach[n++] = Sub(At(out, bones, "lhand_g", 0.5f), At(out, bones, "lbicep_g", 0.5f));
+  }
+  CHECK_EQ(Dist(Scale(reach[0], 1.25f), reach[1]) < 1e-3f, true);
+}
+
+TEST(AnimIkFarTargetSafe) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  const AnimClip base = Run(r, bones);
+  const float hip = RestHipHeight(bones);
+  r.targets["hips"] = {Key(2.5f, {0.0f, 0.0f, 2.0f / hip})};  // 2 m up: the planted legs can't follow
+  r.targets["left_hand"] = {Key(2.5f, {0.0f, 4.0f, 0.0f})};   // ~2.3 m in front of the shoulder
+  std::vector<AnimIkShort> report;
+  const AnimClip out = Run(r, bones, &report);
+  bool finite = true;
+  for (const AnimNode& n : out.nodes) {
+    for (const auto& v : n.orientation.values) finite = finite && isfinite(v[0]) && isfinite(v[1]) && isfinite(v[2]) && isfinite(v[3]);
+    for (const auto& v : n.position.values) finite = finite && isfinite(v[0]) && isfinite(v[1]) && isfinite(v[2]);
+  }
+  CHECK_EQ(finite, true);
+  const float rise = At(out, bones, "rootdummy", 0.5f)[2] - At(base, bones, "rootdummy", 0.5f)[2];
+  CHECK_EQ(rise > 2.0f - 0.25f * hip - 0.01f, true);  // the sinking stops at its cap
+  bool hand = false, foot = false;
+  for (const AnimIkShort& s : report) {
+    if (s.limb == "left_hand" && s.metres > 1.0f && fabsf(s.t - 2.5f) < 0.02f) hand = true;
+    if (s.limb == "left_foot" && s.metres > 1.0f) foot = true;
+  }
+  CHECK_EQ(hand && foot, true);
+}
+
+TEST(AnimIkBlendPullsTargetBack) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  const AnimClip base = Run(r, bones);
+  const Vec3 place = Add(At(base, bones, "lhand_g", 0.2f), {0.1f, 0.15f, 0.1f});
+  r.targets["left_hand"] = {Key(2.2f, OffsetFor(base, bones, "lbicep_g", "torso_g", ArmLength(bones), place, 0.2f))};
+  CHECK_EQ(Dist(At(Run(r, bones), bones, "lhand_g", 0.2f), place) < 1e-3f, true);
+  r.blend_in = 0.4f;  // halfway into the blend at 0.2 s: the stance pulls the hand back
+  CHECK_EQ(Dist(At(Run(r, bones), bones, "lhand_g", 0.2f), place) > 0.005f, true);
+}
+
+TEST(AnimIkMissingLimbSkipped) {
+  std::vector<AnimNode> bones = WholeBody(1.0f);
+  bones[IndexOf(bones, "lforearm_g")].name = "lforearm_x";  // the left arm isn't a chain
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  const AnimClip base = Run(r, bones);
+  const Vec3 place = Add(At(base, bones, "rhand_g", 0.5f), {-0.1f, 0.15f, 0.1f});
+  const float arm = ChainLength(bones, FindChain(bones, "rbicep_g", "rforearm_g", "rhand_g"));
+  r.targets["left_hand"] = {Key(2.5f, {0.0f, 0.5f, 0.0f})};
+  r.targets["right_hand"] = {Key(2.5f, OffsetFor(base, bones, "rbicep_g", "torso_g", arm, place, 0.5f))};
+  const AnimClip out = Run(r, bones);
+  CHECK_EQ(Dist(At(out, bones, "rhand_g", 0.5f), place) < 1e-3f, true);
+}
+
+TEST(AnimIkLoopStillMeets) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 30.0f);
+  r.loop = true;
+  r.loop_blend = 0.2f;
+  r.targets["left_hand"] = {Key(2.9f, {0.1f, 0.6f, -0.4f})};
+  const AnimClip out = Run(r, bones);
+  bool meets = true;
+  for (const AnimNode& n : out.nodes) {
+    if (!n.has_orientation || n.orientation.values.size() < 2) continue;
+    const auto& a = n.orientation.values.front();
+    const auto& b = n.orientation.values.back();
+    float same = 0.0f, flipped = 0.0f;
+    for (int i = 0; i < 4; ++i) {
+      same = std::max(same, fabsf(a[i] - b[i]));
+      flipped = std::max(flipped, fabsf(a[i] + b[i]));
+    }
+    meets = meets && std::min(same, flipped) < 1e-5f;
+  }
+  CHECK_EQ(meets, true);
+}

@@ -22,7 +22,24 @@ namespace data {
 // without a track stay in the tree unkeyed, as KeyedAnimClip leaves them (the game plays rest).
 // False, with `err` (the reason only - the caller names the recipe and library), when the recipe
 // has no keys for `library`, the stance clip is empty, or none of the tracks' bones is in `bones`.
+//
+// Step 8, the IK pass (#89), runs on each frame between the root and the loop and blends, when the
+// recipe has targets for limbs this body has (else the clip is exactly phase 1's):
+// - the hips (the root) move toward their target by its reach;
+// - each foot goes to where the capture had it, blended toward its target by the reach, and the leg is
+//   solved whenever the hips moved or the foot has a target; a leg that falls short lowers the root
+//   (at most 0.25 x the hip height);
+// - each hand is blended toward its target and solved.
+// The limbs keep the bend side they had and their ends' turn in the world, and soften near full
+// extension (pose::kLimbDamping). Take time is recipe.take_start + the clip's time. `report` (when
+// given) gets each limb's worst shortfall over 3 cm while its reach is full.
+struct AnimIkShort {
+  std::string limb;
+  float metres = 0.0f;
+  float t = 0.0f;  // take time
+};
 bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, const std::vector<AnimNode>& bones,
-                      const AnimClip& stance, AnimClip* out, std::string* err);
+                      const AnimClip& stance, AnimClip* out, std::string* err,
+                      std::vector<AnimIkShort>* report = nullptr);
 
 }  // namespace data
