@@ -81,11 +81,51 @@ A new issue goes on the board with
   committed or attached.
 - **Every rule has two modes:** faithful (2024) and NWN mode (and why NWN does
   it that way). New features with no NWN counterpart are faithful only.
-- **Git:** stage by explicit path, never `git add -A`; one git command per
-  call; the owner pushes.
+- **Git:** commit only your own paths, in one step (below); never `git add -A`;
+  one git command per call; the owner pushes.
 - **Builds:** never build into `build\` while nwmain.exe runs - build into a
-  scratch folder (`NWN5E_OUT`) and install once the game is closed. After a
-  launch check, close the game completely (and check it's gone).
+  scratch folder (`NWN5E_OUT`) and install once the game is closed; one
+  installer at a time (below). After a launch check, close the game
+  completely (and check it's gone).
 - **Checks before "built":** the unit tests (test.bat), a mutation check of
   new rule tests (each deliberate break must fail a test), and a launch check
   for engine changes.
+
+## Two sessions in one checkout
+
+Decided (owner, 2026-10-30: "go with a, write the rules into CLAUDE.md"): the
+game stream and the tools stream work in this one checkout - one git index,
+one `build\`, one game - by these rules, not separate worktrees (the next
+step if they keep colliding).
+
+- **Who owns what.** The game stream: `src\`, `tests\`, `data\`, `scripts\`,
+  `test.bat` and docs/PLAN.md. The tools stream: `tools\`, the nwn5e-tools
+  repo (the dev layer behind its seam), docs/TOOLS-PLAN.md, the bench's docs
+  (docs/BENCH-*, docs/research). Shared - announced to the other session
+  before editing, left alone by it until committed: `build.bat`,
+  `src/core/config.*`, `nwn5e.ini`, `src/core/dllmain.cpp` (the version),
+  README.md, CLAUDE.md.
+- **One installer.** The game session builds into `build\`, installs and
+  launch-checks; the tools session builds into a scratch folder and asks it
+  to install. Either may install by agreement - it says so first, the other
+  stays out of `build\` until told the install is in. The owner says "game
+  closed" to the installer; it passes it on when the other session waits.
+- **Commit in one step.** `git commit --only <your paths>` (the message by
+  `-F -`), never `git add` then a separate `git commit`: a file the other
+  session staged would go in with yours. Before it, `git status --short` and
+  each shared file's diff checked to be only yours.
+- **The version from HEAD.** A DLL change takes the next `kVersion` after the
+  one in `src/core/dllmain.cpp` at HEAD, read just before committing; renumber
+  if the other session committed one meanwhile.
+- **Separate plan files.** docs/PLAN.md is the game's design and decision
+  record; the tools stream's notes are in docs/TOOLS-PLAN.md (the tools session
+  moves its paragraphs out of PLAN.md). Neither edits the other's file; a
+  pointer to it is a line in your own.
+- **Tools work behind the seam.** The tools stream changes nwn5e-ee's `src\`
+  only through the dev-layer seam; anything else it must change there is
+  announced first (the files named).
+- **Launch checks and logs.** `build\nwn5e.log` and `Documents\Neverwinter
+  Nights\logs\*` hold the owner's last test session: backed up before any
+  launch and restored after it. Only your own launch's nwmain PID is killed.
+- **Talk.** Installs, versions and shared files are agreed by cross-session
+  message, never assumed from what is on disk.
