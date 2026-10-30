@@ -39,6 +39,10 @@
 //   away, the last taken first - so `!test fighter` is Fighter 13 whatever the
 //   character was. If no level is lost, its XP goes back and the profile only
 //   adds, as before.
+//   0.57.7 (the owner's log, 2026-10-30: fourclass's Wizard refused - "Wizard
+//   needs Intelligence 13" on the previous profile's Int 10): the profile's
+//   scores are set before the levels too, so a new class's 13 test (CM2) sees
+//   them; and again after, so the levels' own increases don't change them.
 // - "!export" saves the character to the vault as a campaign's chapter change
 //   does (C6's check: its records come back from its own database).
 // - "!spawn <blueprint> [ally]" (0.49.1, for the Grapple's and the Shove's size
@@ -645,6 +649,8 @@ std::vector<std::string> TestCommand(void* creature, const std::string& args) {
   }
   // 1a. A profile that builds a character starts from level 1.
   if (rules::TestProfileBuildsCharacter(profile)) lines.push_back(ResetToLevelOne(stats, id));
+  // 1a'. The profile's scores before the levels: a new class needs 13 in its main ability (CM2).
+  if (profile.has_abilities) SetTestAbilityScores(creature, profile.abilities);
   // 1b. The first class swapped (before the levels, which may then add some in it).
   if (profile.swap_class >= 0) lines.push_back(SwapFirstClass(stats, profile.swap_class));
   // 2. Level: the XP for it, then the engine's own level-ups in the class.
@@ -661,7 +667,7 @@ std::vector<std::string> TestCommand(void* creature, const std::string& args) {
   // 2c. A Fighting Style without a class that has the feature (one left from a swapped Fighter) goes.
   const std::string styles = DropFightingStyles(stats);
   if (!styles.empty()) lines.push_back(styles);
-  // 3. Ability scores (through the ability sync).
+  // 3. Ability scores (through the ability sync) - again, after the levels' own increases.
   if (profile.has_abilities) {
     SetTestAbilityScores(creature, profile.abilities);
     char scores[80];
