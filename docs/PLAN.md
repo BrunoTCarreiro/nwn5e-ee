@@ -778,6 +778,11 @@ D4) when Bloodied and above 0 HP: + 5 + Con modifier, current HP written
 directly. The Fighter brief is done but for Action Surge (Phase 6), Tactical
 Mind / Master (later) and Heroic Warrior (with CM6).
 
+*Accepted (owner, 2026-10-30: "28, 57 and 23 accepted").* The Fighter on EE (#23): the Champion's
+crits (19-20, 18-20 from 15), Defense, Indomitable, Studied Attacks and Remarkable
+Athlete seen in the owner's `!test fighter` runs; Tactical Shift and Heroic Rally
+accepted without a log line of their own.
+
 ## Phase 3 — the non-caster classes (CM9): briefs for the owner's decision (2026-10-24)
 
 Owner, 2026-10-24: "start work on non caster classes" — the Barbarian, the
@@ -1403,6 +1408,9 @@ decided (M4 (a), M7 (a), M9 (a), M13 automatic):
   finds Martial Arts holding, it marks the creature's inventory, and that one GetItemInSlot call (the one the
   0xC6 feedback follows, found by that pattern) answers an empty right hand, once. A non-Monk weapon is
   refused by the guard first. Quivering Palm (part 4) will need the same.
+
+*Accepted (owner, 2026-10-30: "28, 57 and 23 accepted").* Monk part 3 (#28), 0.56.0 with 0.57.8 and 0.57.10: every row of
+FO1-FO14 seen in the owner's runs (the log evidence on #28).
 
 ### Phase 3 — Rogue (CM9): recommendations (for the owner's decision)
 
@@ -4181,6 +4189,9 @@ is hovered the tooltip repositions to the correct places, but when the cursor le
 left"):* NUI keeps a window on screen, so the box parked at -10000 showed at the top-left. It now stays at its
 spot by the panel, its draw list switched off ("on" false) unless the mouse is on the panel - nothing drawn,
 input passing through.
+
+*Accepted (owner, 2026-10-30: "28, 57 and 23 accepted").* The resource panel (#57), 0.57.0-0.57.12: HU1-HU12 and the hover
+box (HU5) seen in the owner's runs.
 
 ## Test profiles — the owner's request (2026-10-29)
 
