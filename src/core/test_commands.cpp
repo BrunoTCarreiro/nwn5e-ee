@@ -43,6 +43,10 @@
 //   needs Intelligence 13" on the previous profile's Int 10): the profile's
 //   scores are set before the levels too, so a new class's 13 test (CM2) sees
 //   them; and again after, so the levels' own increases don't change them.
+//   0.57.9 (owner: after "!test monk" "the quickbar's slots all became
+//   empty"): a profile that builds a character forgets the quickbar's
+//   placement record, so nwn5e's actions come back on empty slots (the reset
+//   took the old buttons with their feats; the record kept them off).
 // - "!export" saves the character to the vault as a campaign's chapter change
 //   does (C6's check: its records come back from its own database).
 // - "!spawn <blueprint> [ally]" (0.49.1, for the Grapple's and the Shove's size
@@ -91,6 +95,7 @@
 #include "rules/weapons.h"
 
 void SetTestAbilityScores(void* creature, const int scores[6]);  // rules_abilities.cpp
+void ForgetQuickbarPlacements(void* creature);                    // rules_quickbar.cpp
 
 namespace {
 
@@ -710,6 +715,11 @@ std::vector<std::string> TestCommand(void* creature, const std::string& args) {
                (item.equip ? " (equipped)" : "");
     }
     lines.push_back("  items: " + names);
+  }
+  // 5b. A built character's quickbar: nwn5e's actions placed afresh, on empty slots.
+  if (rules::TestProfileBuildsCharacter(profile)) {
+    ForgetQuickbarPlacements(creature);
+    lines.push_back("  quickbar: nwn5e's class actions go back on empty slots");
   }
   // 6. Test switches for this session: the ini's values back, then the profile's.
   for (const std::string& line : ApplySwitches(id, profile.switches)) lines.push_back(line);

@@ -186,6 +186,18 @@ std::vector<std::string> QuickbarCommand(void* creature, const std::string& args
 
 }  // namespace
 
+// !test (#82, 0.57.9; owner, 2026-10-30: after "!test monk" "the quickbar's slots all became empty"): a
+// profile that builds a character starts its placements afresh. Its reset to level 1 (and a swapped first
+// class) took the old actions' feats away, the engine their buttons with them, and the record kept them
+// "placed" - so off. Cleared, every action the new character has comes back on an empty slot at its next
+// update, as with !quickbar reset.
+void ForgetQuickbarPlacements(void* creature) {
+  if (g_config.quickbar != rules::RuleVariant::kFaithful || !creature) return;
+  EnsureRecords(creature);
+  SetRecord(creature, kVarPlaced, 0);
+  g_last_check.erase(IdOf(creature));  // looked at in the next update, not in up to 2 s
+}
+
 void InstallQuickbarKeys();    // below
 void InstallQuickbarLabels();  // below
 
