@@ -44,20 +44,46 @@ std::wstring Wide(const std::string& s) { return std::wstring(s.begin(), s.end()
 
 std::string EntryName(const std::string& resref, uint16_t type) { return Lower(resref) + "." + std::to_string(type); }
 
+// A loose file's extension for the resource types read here (empty: not looked for loose).
+const char* Extension(uint16_t type) {
+  switch (type) {
+    case kResourceType2DA: return "2da";
+    case kResourceTypeMdl: return "mdl";
+    case 3: return "tga";
+    case 2033: return "dds";
+    default: return "";
+  }
+}
+
+std::vector<std::string> KeyFiles169() {
+  std::vector<std::string> keys;
+  for (const char* name : kKeyOrder) keys.push_back(std::string(name) + ".key");
+  return keys;
+}
+
 }  // namespace
 
-GameResources::GameResources(const std::wstring& game_directory) : directory_(game_directory) {
-  for (const char* name : kKeyOrder) {
+GameResources::GameResources(const std::wstring& game_directory)
+    : GameResources(game_directory, KeyFiles169(), {game_directory + L"\\override"}) {}
+
+GameResources::GameResources(const std::wstring& game_directory, const std::vector<std::string>& key_files,
+                             const std::vector<std::wstring>& override_directories)
+    : directory_(game_directory), override_directories_(override_directories) {
+  for (const std::string& file : key_files) {
     Key key;
-    key.name = std::string(name) + ".key";
+    key.path = file;
+    const size_t slash = file.find_last_of("/\\");
+    key.name = slash == std::string::npos ? file : file.substr(slash + 1);
     keys_.push_back(key);
   }
 }
 
+std::vector<std::string> GameResources::EeKeyFiles() { return {"data/nwn_retail.key", "data/nwn_base.key"}; }
+
 bool GameResources::LoadKey(Key* key) {
   key->loaded = true;
   std::string b;
-  if (!ReadFile(directory_ + L"\\" + Wide(key->name), &b) || b.compare(0, 8, "KEY V1  ") != 0) return false;
+  if (!ReadFile(directory_ + L"\\" + Wide(key->path), &b) || b.compare(0, 8, "KEY V1  ") != 0) return false;
   const uint32_t bif_count = U32(b, 8), key_count = U32(b, 12), file_table = U32(b, 16), key_table = U32(b, 20);
   for (uint32_t i = 0; i < bif_count; ++i) {
     const size_t at = file_table + i * 12;
@@ -112,7 +138,10 @@ bool GameResources::ReadFromBif(const std::string& bif, uint32_t resource_index,
 }
 
 bool GameResources::Read(const std::string& resref, uint16_t type, std::string* bytes, std::string* source) {
-  if (type == kResourceType2DA && ReadFile(directory_ + L"\\override\\" + Wide(Lower(resref)) + L".2da", bytes)) {
+  const std::string extension = Extension(type);
+  for (const std::wstring& folder : override_directories_) {
+    if (extension.empty()) break;
+    if (!ReadFile(folder + L"\\" + Wide(Lower(resref) + "." + extension), bytes)) continue;
     if (source) *source = "override";
     return true;
   }
