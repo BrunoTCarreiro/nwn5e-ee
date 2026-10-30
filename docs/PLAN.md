@@ -3714,6 +3714,9 @@ tied to a level and may stay.
   through the engine's SetExperience (only the script command's call is converted); the reset to level 1 keeps
   the script's SetXP 0 (its level loss is the point).
 
+*Accepted (owner, 2026-10-30: "2 and 82 accepted").* The test profiles (#82), 0.57.5-0.58.2, with the `cleric` profile
+for combat C2: TP1-TP18 seen in the owner's runs.
+
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
 Walked through one by one (issue, what NWN does, what 2024 does, what to
@@ -3961,6 +3964,12 @@ in game 2026-10-19 ("Weak Goblin : Constitution Save vs. Cold").*
    Topple, Slow, Push.
 7. Follow-ups noted for later phases: Legendary Resistance (8), Disengage
    (6), sheet rows (7), species traits (3), spells (4).
+
+*Accepted (owner, 2026-10-30: "2 and 82 accepted").* The combat rows not seen in game until then (#2), on 0.58.x: a
+bow's remaining attacks to the next enemy in the fight (decision 14); a crit with a flat effect bonus (Divine
+Favor's +1 once, the dice doubled - crit_dice_only); back to the same target after a potion; Push - a Huge
+creature not pushed, a Large one slid 10 ft (D4). C1b / C1c (shots lost with no enemy in the fight, or past
+40 m) accepted on the owner's word, without a log line.
 
 ## Decided (owner, 2026-10-17)
 
