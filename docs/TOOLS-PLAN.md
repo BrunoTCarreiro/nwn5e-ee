@@ -557,3 +557,67 @@ idle and walks differ - most combat animations are a_ba's).
 *Parked (owner, 2026-10-28, after trying it: "it's not great, I'll keep trying to get the mocap
 working, let's move on for now"):* the owner is working on the captures themselves; back to it
 with their takes and what looks wrong.
+
+## Bench redesign, phase 2 — the new Mocap Bench's foundation (2026-10-30, #88)
+
+*Decided (owner, 2026-10-30):* "write the phase 2 plan", then "native, go with your recommendation":
+the plan (docs/superpowers/plans/2026-10-30-bench-redesign-phase2.md) was executed inline, with one
+fresh review of the whole branch at the end.
+
+*Built* in nwn5e-tools (`mocap_bench/`, port 8767; main from 3939b0e). There is no nwn5e-ee `src`
+change and no version bump.
+- `anim_helper`: a `serve` mode. One long-running helper assembles recipes with the game's own core
+  (phase 1's AssembleAnimClip) and reports its build stamp. `helper.js` is its Node side.
+- `public/core/`:
+  - one math module, the library reader (the one FK) and the take readers;
+  - clean-up v2 and the suggestions (spans, contacts, hit);
+  - the solve, carried over verbatim from the old bench's mocap.js;
+  - the assembled recipe writer and the project model with undo and redo;
+  - a memoized pipeline: clean, suggest, solve, assemble, re-running only the stages an edit touches.
+- `server.js`:
+  - recordings, projects and recipes under `build\animedit\`, and the helper;
+  - 127.0.0.1 only, with Host and Origin checked;
+  - Save refuses when the helper's stamp differs from the DLL's `core_stamp.txt`, or that file is
+    missing.
+- The page:
+  - the stage: the result, the ghost (the contact edits undone), the capture's points on the doll's
+    proportions, five views;
+  - the timeline: the overview, a ruler in take time, the animation's seconds, the moments, a contact
+    lane per foot;
+  - the inspector, the transport and the keys.
+
+*Parity* (`checks/parity_check.js`, today's code as the reference):
+- The carried-over solve matches the old bench's retarget to 6.6e-8 on all eight bodies: on the
+  fixture, on a knees-behind fixture and on the owner's take (7.15-9.75 s).
+- The assembled clip matches today's baked keys within 0.743° / 0.19 mm on the fixture and 0.818° /
+  1.10 mm on the owner's take, on all eight bodies.
+- A round trip through the fixture lands within 3.6 cm. Knees were never behind in 114 leg-frames.
+
+*Clean-up v2* (`checks/cleanup_check.js`):
+- A one-frame spike is dropped and refilled 0.1 mm off. A strike, a 3-frame hold and an overshoot are
+  kept.
+- A short gap is filled by the cubic within 0.61 mm; longer ones are held and marked.
+- 3 swapped frames are relabelled exactly; a fast crossing is left alone.
+- The filter is zero-phase (the peaks don't move) and capped at a quarter of the real rate.
+- A strike's peak goes from 3.84 to 3.58 m/s, with the hands and feet cut at 3.75 Hz.
+
+*Checks:* 111 (serve_check 7, the Node checks 91, the browser check 13). Each has deliberate breaks
+that it catches.
+
+*Rulings that shape behaviour* (the full list is on #88):
+- A Hampel run is dropped only when it snaps back (the spec's "isolated spikes that snap back").
+- A contact begins on the 3-frame average speed and ends on its frame's own speed: a kick releases as
+  soon as the foot speeds up.
+- Re-suggest replaces only the `auto` contacts. A suggestion overlapping one the owner set (`always` /
+  `never`) is left out.
+- New makes the project the history's starting point, as Open does: Ctrl+Z doesn't undo the creation.
+- Open and New read the take again, so a moved recording folder is reported, not shown from memory.
+- Save writes nothing when any body's solve fails, or when the core refuses the recipe on any body.
+- The knee rule is pinned by parity on a fixture whose knees point behind (the plan's visible-knee
+  test couldn't catch its removal).
+
+*Finding:* FreeMoCap's `output_data` on this install holds only processed points (`3d_xyz`,
+`rigid_3d_xyz`, the centres of mass), so the bench filters points FreeMoCap has already filtered. The
+README says to skip FreeMoCap's own filter where its version allows.
+
+*Next:* the owner's test (#88, matrix M1-M8), then phase 3, IK (#89).

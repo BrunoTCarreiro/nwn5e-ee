@@ -1,7 +1,8 @@
 # The Mocap Bench - a redesign
 
 Status: approved by the owner (2026-10-30: "approved, write the phase 1 plan"); epic #86, phases #87-#93. Phase 1 built
-in 0.58.0 and awaiting the owner's test (#87; what it leaves in the shipped DLL: #95). The current tool is the
+in 0.58.0 and accepted (#87; what it leaves in the shipped DLL: #95). Phase 2, the new bench's foundation, is
+built in `nwn5e-tools/mocap_bench` and awaiting the owner's test (#88). The current tool is the
 Animation Recipe Bench, which moved on 2026-10-30 with the other dev tools from this repo's
 `tools/` to the `nwn5e-tools` repo beside it (#85): it is now `nwn5e-tools/recipe_bench/`.
 The research behind this is in `docs/research/reports/Mocap cleanup and editing workflow.md`.
@@ -420,7 +421,7 @@ Code that carries over, re-read and tidied rather than rewritten:
 
 Each phase is a sub-issue of one epic. Each has its own checks, deliberate breaks,
 headless-browser check, test matrix and the owner's test. The new bench lives beside the
-old one in `nwn5e-tools` (`mocap_bench/`, `mocap_bench.bat`, port 8766) until it does
+old one in `nwn5e-tools` (`mocap_bench/`, `mocap_bench.bat`, port 8767: the VFX Bench holds 8766) until it does
 everything the owner uses. Only then, with his OK, is the old one deleted.
 
 1. **The split and the shared core.** *(DLL and tools.)*
@@ -457,6 +458,10 @@ everything the owner uses. Only then, with his OK, is the old one deleted.
      - Clean-up v2 changes the result on purpose, so it is judged by its own checks
        (spike vs strike, gaps, swaps, cutoffs) and by the owner looking at the same take
        in both benches side by side.
+   - *Built (#88).* `nwn5e-tools/mocap_bench`, port 8767; the record is docs/TOOLS-PLAN.md, "Bench
+     redesign, phase 2". Acceptance part 1: the carried-over solve matches today's to 7e-8, and the
+     assembled clip matches today's baked keys within 0.82° / 1.1 mm on all eight bodies. Part 2 is
+     the owner's side-by-side look (#88's test matrix).
 3. **IK.** *(Core and bench.)* Targets and pins for hands, feet and hips, dragged on the
    doll. Reach eased in and out, poles, extension damping, the hips sinking.
 4. **Poses.** *(Core and bench.)* Turning a part by dragging; push and replace; the ease;
