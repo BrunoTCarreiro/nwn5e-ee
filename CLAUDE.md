@@ -111,9 +111,10 @@ step if they keep colliding).
   stays out of `build\` until told the install is in. The owner says "game
   closed" to the installer; it passes it on when the other session waits.
 - **Commit in one step.** `git commit --only <your paths>` (the message by
-  `-F -`), never `git add` then a separate `git commit`: a file the other
-  session staged would go in with yours. Before it, `git status --short` and
-  each shared file's diff checked to be only yours.
+  `-F -`), never a plain `git commit` after `git add`: a file the other
+  session staged would go in with yours. A new file needs `git add <it>`
+  first (`--only` takes only paths git knows). Before it, `git status
+  --short` and each shared file's diff checked to be only yours.
 - **The version from HEAD.** A DLL change takes the next `kVersion` after the
   one in `src/core/dllmain.cpp` at HEAD, read just before committing; renumber
   if the other session committed one meanwhile.
