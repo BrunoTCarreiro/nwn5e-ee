@@ -4,8 +4,9 @@
 #
 # Monk part 3 (issue 28) and the resource panel (issue 57): your first class becomes Monk 18 - 18 Focus
 # points, Focus DC 8 + Wis 3 + PB 6 = 17 (!focus). A human; Dexterity 16, Wisdom 16. In the pack: a
-# quarterstaff (a Monk weapon) and a longsword (not one: no Martial Arts - no Flurry, no Stunning
-# Strike). Test aids: !focus left <n>, !focus reset, !save <ability> <dc> (Disciplined Survivor),
+# quarterstaff (a Monk weapon) and a light crossbow with bolts (not a Monk weapon, but a Monk can equip
+# it - NWN's Monk proficiency has crossbows; a longsword can't be equipped at all): with it in hand no
+# Martial Arts - no Flurry, no Stunning Strike (FO4). Test aids: !focus left <n>, !focus reset, !save <ability> <dc> (Disciplined Survivor),
 # !reflex <dc> <damage> (Dodge), !spawn <blueprint>, !shortrest, !hud, !queue.
 name = Monk part 3 (issue 28) and the resource panel (issue 57): human Monk 18
 species = human
@@ -13,5 +14,5 @@ swap_class = monk
 class = monk
 level = 18
 abilities = 10 16 14 10 16 8
-items = nw_wdbqs001, nw_wswls001
+items = nw_wdbqs001, nw_wbwxl001, nw_wambo001 x20
 note = take your armour and shield off, hold the quarterstaff, then !focus reset
