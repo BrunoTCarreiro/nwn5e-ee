@@ -2,7 +2,8 @@
 
 Status: approved by the owner (2026-10-30: "approved, write the phase 1 plan"); epic #86, phases #87-#93. Phase 1 built
 in 0.58.0 and accepted (#87; what it leaves in the shipped DLL: #95). Phase 2, the new bench's foundation, is
-built in `nwn5e-tools/mocap_bench` and awaiting the owner's test (#88). The current tool is the
+built in `nwn5e-tools/mocap_bench` and awaiting the owner's test (#88). Phase 3, IK, is built (the core in
+0.58.4-0.58.5) and awaiting the owner's test with phase 2 (#89). The current tool is the
 Animation Recipe Bench, which moved on 2026-10-30 with the other dev tools from this repo's
 `tools/` to the `nwn5e-tools` repo beside it (#85): it is now `nwn5e-tools/recipe_bench/`.
 The research behind this is in `docs/research/reports/Mocap cleanup and editing workflow.md`.
@@ -464,6 +465,10 @@ everything the owner uses. Only then, with his OK, is the old one deleted.
      the owner's side-by-side look (#88's test matrix).
 3. **IK.** *(Core and bench.)* Targets and pins for hands, feet and hips, dragged on the
    doll. Reach eased in and out, poles, extension damping, the hips sinking.
+   - *Built (#89).* The core's IK pass (step 8) is in 0.58.4, with 0.58.5's fixes; the bench drags on
+     the doll. The record is docs/TOOLS-PLAN.md, "Bench redesign, phase 3". A key made from a
+     dragged place lands there in the game's code (0.000 mm) and carries to every body by
+     proportion. Foot contacts stay pinned by the bench's solve until phase 6 (a ruling).
 4. **Poses.** *(Core and bench.)* Turning a part by dragging; push and replace; the ease;
    numbers in the inspector.
 5. **Timing.** *(Core and bench.)* First settle the engine facts below. Then:

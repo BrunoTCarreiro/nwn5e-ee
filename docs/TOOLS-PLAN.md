@@ -634,4 +634,69 @@ nature, for phase 3 to revisit. The deferred minors are listed on #88.
 `rigid_3d_xyz`, the centres of mass), so the bench filters points FreeMoCap has already filtered. The
 README says to skip FreeMoCap's own filter where its version allows.
 
-*Next:* the owner's test (#88, matrix M1-M8), then phase 3, IK (#89).
+*Next:* the owner's test (#88, matrix M1-M8), with phase 3's (#89).
+
+## Bench redesign, phase 3 — IK targets and pins (2026-10-30, #89)
+
+*Decided (owner, 2026-10-30):* "can you go ahead and do the IK phase? I'll look at phases 2 and 3
+together". The plan (docs/superpowers/plans/2026-10-30-bench-redesign-phase3.md) was executed inline, with
+one fresh review of the whole branch at the end.
+
+*Built:*
+- **The core (nwn5e-ee, game-owned files announced to the game session; it installed 0.58.4 and
+  installs 0.58.5 / 0.58.6):**
+  - `src/data/anim_pose.*`: the pose math in one place, and a two-bone solver for arms and legs (the
+    bend side kept, the end's world turn kept, damping over the last 2% of a limb, the shortfall
+    returned).
+  - Assembled recipes carry `take_start` and `target <limb> <t> <x y z> <reach> [pin]` lines.
+  - The IK pass (step 8), per frame:
+    - the hips toward their target;
+    - the legs on their planted feet, blended toward foot targets;
+    - a leg whose goal is fixed in the world (a planted foot, a held key) and falls short sinks the
+      hips, at most a quarter of the hip height;
+    - the hands toward their targets.
+  - Reach eases over 0.2 s outside a limb's keys; a held key stays still in the world until the next.
+  - A report of each limb short over 3 cm, and the hips' own gap.
+- **The bench (nwn5e-tools):**
+  - the helper reports the shortfalls;
+  - `core/ik.js` mirrors the frames a target's offset lives in;
+  - targets in the project, the recipe and the pipeline (an edit re-assembles, never re-solves);
+  - picking and dragging on the doll: a limb moves by the pointer's movement on the camera plane and
+    keys at the marker's frame; K keys a limb where it is;
+  - a row of keys per limb on the timeline (a diamond, a square when held, the reach curve faint);
+  - the key's inspector: time, reach, hold;
+  - readouts over the stage: limbs out of reach, foot slide in contacts, a note in a blend or the loop's
+    crossfade;
+  - Save's per-body report.
+
+*Proved:*
+- Through the helper, so the game's own code: a key made from a dragged place lands there (0.000 mm) on
+  a_ba, and carries to a_dfa where the mirror says (119 mm from a_ba's place).
+- The hips by proportion within 1 mm.
+- test.bat 276/0; checks/run.js 12/12; serve_check 8/8; browser_check 29/29 (real drags and keys).
+- Every check has breaks it catches.
+
+*Rulings that shape behaviour* (the full list is on #89):
+- Foot contacts stay pinned by the bench's solve (phase 2's, verified) until phase 6 moves them into the
+  core with the balance. Until then there are two leg solvers.
+- A foot target is stored from the hip joint (the spec's proportion rule), so it moves with the hips.
+  Past reach it stays short (reported); only world-fixed goals sink the hips.
+- Damping is 2%, scaled by the reach: a planted foot lands exactly.
+- IK runs before the blends (the spec's order): a key inside a blend or the loop's crossfade is pulled
+  back, and the page says so.
+- Hand pins are held keys (two keys: the hold and the next), not hand contact lanes.
+- The stage never resizes under a drag: the readouts float over it and the timeline scrolls in a fixed
+  box. Found by the browser check: the drop landed 7.7 cm off.
+
+*Final review* (a fresh reviewer): one Critical and five Important findings, plus one Minor graded up,
+all fixed with checks that failed first:
+- a foot past reach crouched the doll and pushed the planted foot into the floor (0.58.5);
+- the report named planted feet "short" (0.58.5);
+- a held key made while the hips sank landed 9 cm off (0.58.5);
+- a nan take_start read past the keys (0.58.5);
+- a wobbly click keyed a limb, and drags snapped it to the cursor;
+- keys after a pause sat between frames;
+- no note in the loop's crossfade.
+The deferred minors are listed on #89.
+
+*Next:* the owner's test of #88 and #89 together (matrices M1-M8, then I1-I8), then phase 4, poses (#90).
