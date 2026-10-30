@@ -152,7 +152,7 @@ The owner's decisions:
   - the ready stances turn rootdummy by 17-24°.
 - **Process** (nwn5e-ee/CLAUDE.md):
   - every phase has an issue;
-  - decisions go info-first and are quoted in PLAN.md;
+  - decisions go info-first and are quoted in TOOLS-PLAN.md (the tools stream's record, out of PLAN.md since 2026-10-30);
   - every check needs deliberate breaks it catches;
   - the owner does the in-game test;
   - nothing auto-advances;
