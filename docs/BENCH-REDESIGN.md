@@ -1,6 +1,6 @@
 # The Mocap Bench - a redesign
 
-Status: design, waiting for the owner's approval (2026-10-30). The current tool is the
+Status: approved by the owner (2026-10-30: "approved, write the phase 1 plan"); epic #86, phases #87-#93. The current tool is the
 Animation Recipe Bench, which moved on 2026-10-30 with the other dev tools from this repo's
 `tools/` to the `nwn5e-tools` repo beside it (#85): it is now `nwn5e-tools/recipe_bench/`.
 The research behind this is in `docs/research/reports/Mocap cleanup and editing workflow.md`.
