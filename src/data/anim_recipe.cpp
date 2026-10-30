@@ -1,5 +1,7 @@
 #include "data/anim_recipe.h"
 
+#include "data/anim_pose.h"
+
 #include <ctype.h>
 #include <math.h>
 #include <stdio.h>
@@ -10,6 +12,9 @@
 #include <sstream>
 
 namespace data {
+
+using namespace pose;  // the crouch step's pose math (anim_pose.h)
+
 namespace {
 
 constexpr size_t kBase = 12;  // offsets in a compiled model are from the end of the 12-byte file header
@@ -162,26 +167,6 @@ const AnimNode* FindNode(const AnimClip& clip, const std::string& name) {
   return nullptr;
 }
 
-// --- The crouch step: vectors, quaternions (x y z w), a pose ------------------------
-
-using Vec3 = std::array<float, 3>;
-using Quat = std::array<float, 4>;
-constexpr Quat kIdentity = {0.0f, 0.0f, 0.0f, 1.0f};
-constexpr float kPi = 3.14159265f;
-
-Vec3 Add(const Vec3& a, const Vec3& b) { return {a[0] + b[0], a[1] + b[1], a[2] + b[2]}; }
-Vec3 Sub(const Vec3& a, const Vec3& b) { return {a[0] - b[0], a[1] - b[1], a[2] - b[2]}; }
-Vec3 Scale(const Vec3& a, float s) { return {a[0] * s, a[1] * s, a[2] * s}; }
-float Dot(const Vec3& a, const Vec3& b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
-Vec3 Cross(const Vec3& a, const Vec3& b) {
-  return {a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]};
-}
-float Length(const Vec3& a) { return sqrtf(Dot(a, a)); }
-Vec3 Normalized(const Vec3& a) {
-  const float l = Length(a);
-  return l > 1e-9f ? Scale(a, 1.0f / l) : Vec3{0.0f, 0.0f, 0.0f};
-}
-
 }  // namespace
 
 // Shared with anim_assemble.cpp (declared in anim_recipe.h).
@@ -191,125 +176,6 @@ std::array<float, 4> QMul(const std::array<float, 4>& a, const std::array<float,
 }
 
 namespace {
-
-Quat QConj(const Quat& q) { return {-q[0], -q[1], -q[2], q[3]}; }
-Quat QNormalized(const Quat& q) {
-  const float n = sqrtf(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
-  return n > 1e-9f ? Quat{q[0] / n, q[1] / n, q[2] / n, q[3] / n} : kIdentity;
-}
-Vec3 Rotate(const Quat& q, const Vec3& v) {
-  const Vec3 u = {q[0], q[1], q[2]};
-  const Vec3 t = Scale(Cross(u, v), 2.0f);
-  return Add(Add(v, Scale(t, q[3])), Cross(u, t));
-}
-Quat AxisAngleQ(const Vec3& axis, float angle) {
-  const float s = sinf(angle / 2.0f);
-  return {axis[0] * s, axis[1] * s, axis[2] * s, cosf(angle / 2.0f)};
-}
-// The shortest turn taking direction a to direction b.
-Quat FromTo(const Vec3& from, const Vec3& to) {
-  const Vec3 a = Normalized(from), b = Normalized(to);
-  const float d = Dot(a, b);
-  if (d < -0.999999f) {
-    Vec3 axis = Cross({1.0f, 0.0f, 0.0f}, a);
-    if (Length(axis) < 1e-6f) axis = Cross({0.0f, 1.0f, 0.0f}, a);
-    return AxisAngleQ(Normalized(axis), kPi);
-  }
-  const Vec3 c = Cross(a, b);
-  return QNormalized({c[0], c[1], c[2], 1.0f + d});
-}
-
-// Local transforms (the clip's keys at t, else the bone's rest) and world ones.
-struct Pose {
-  std::vector<Vec3> lp, wp;
-  std::vector<Quat> lq, wq;
-};
-
-std::vector<int> ClipIndex(const AnimClip& clip, const std::vector<AnimNode>& bones) {
-  std::vector<int> index(bones.size(), -1);
-  for (size_t i = 0; i < bones.size(); ++i) {
-    const std::string name = Lower(bones[i].name);
-    for (size_t k = 0; k < clip.nodes.size(); ++k) {
-      if (Lower(clip.nodes[k].name) == name) {
-        index[i] = static_cast<int>(k);
-        break;
-      }
-    }
-  }
-  return index;
-}
-
-void Forward(const std::vector<AnimNode>& bones, Pose* pose) {
-  for (size_t i = 0; i < bones.size(); ++i) {
-    const int up = bones[i].parent;
-    if (up < 0) {
-      pose->wp[i] = pose->lp[i];
-      pose->wq[i] = pose->lq[i];
-    } else {
-      pose->wq[i] = QNormalized(QMul(pose->wq[up], pose->lq[i]));
-      pose->wp[i] = Add(pose->wp[up], Rotate(pose->wq[up], pose->lp[i]));
-    }
-  }
-}
-
-Pose PoseAt(const AnimClip& clip, const std::vector<int>& in_clip, const std::vector<AnimNode>& bones, float t) {
-  Pose pose;
-  const size_t n = bones.size();
-  pose.lp.resize(n);
-  pose.wp.resize(n);
-  pose.lq.resize(n);
-  pose.wq.resize(n);
-  for (size_t i = 0; i < n; ++i) {
-    const AnimNode& b = bones[i];
-    const AnimNode* node = in_clip[i] >= 0 ? &clip.nodes[in_clip[i]] : nullptr;
-    std::array<float, 4> p = b.has_position && !b.position.values.empty() ? b.position.values.front() : kIdentity;  // else 0 0 0
-    Quat q = b.has_orientation && !b.orientation.values.empty() ? b.orientation.values.front() : kIdentity;
-    if (node && node->has_position && !node->position.times.empty()) p = Sample(node->position, t, false);
-    if (node && node->has_orientation && !node->orientation.times.empty()) q = Sample(node->orientation, t, true);
-    pose.lp[i] = {p[0], p[1], p[2]};
-    pose.lq[i] = QNormalized(q);
-  }
-  Forward(bones, &pose);
-  return pose;
-}
-
-struct Leg {
-  int thigh, shin, foot;
-};
-
-// The thigh and shin turned so the ankle reaches where it was in `before`,
-// the knee in the plane it bent in; the foot keeps its turn in the world.
-void SolveLeg(const std::vector<AnimNode>& bones, const Pose& before, Pose* now, const Leg& leg) {
-  const Vec3 hip = now->wp[leg.thigh];
-  const Vec3 target = before.wp[leg.foot];
-  const float l1 = Length(now->lp[leg.shin]), l2 = Length(now->lp[leg.foot]);
-  const Vec3 to = Sub(target, hip);
-  const float reach = Length(to);
-  if (reach < 1e-5f || l1 < 1e-5f || l2 < 1e-5f) return;
-  const Vec3 u = Scale(to, 1.0f / reach);
-  const float d = std::max(fabsf(l1 - l2) + 1e-4f, std::min(l1 + l2 - 1e-4f, reach));
-  // The knee bends the way it did - off the old hip-ankle line (against the new
-  // one a straight front leg reads as bent backward: the knee flipped) - and a
-  // nearly straight leg the way its thigh faces.
-  const Vec3 old_line = Normalized(Sub(before.wp[leg.foot], before.wp[leg.thigh]));
-  Vec3 bend = Sub(before.wp[leg.shin], before.wp[leg.thigh]);
-  bend = Sub(bend, Scale(old_line, Dot(bend, old_line)));
-  const Vec3 facing = Normalized(Rotate(before.wq[leg.thigh], Vec3{0.0f, 1.0f, 0.0f}));
-  Vec3 pole = Add(bend, Scale(facing, 0.05f));
-  pole = Sub(pole, Scale(u, Dot(pole, u)));
-  if (Length(pole) < 1e-6f) return;
-  pole = Normalized(pole);
-  const float a = (l1 * l1 - l2 * l2 + d * d) / (2.0f * d);
-  const float h = sqrtf(std::max(0.0f, l1 * l1 - a * a));
-  const Vec3 knee = Add(hip, Add(Scale(u, a), Scale(pole, h)));
-  const Quat up = now->wq[bones[leg.thigh].parent];
-  const Quat thigh = QNormalized(QMul(FromTo(Rotate(now->wq[leg.thigh], now->lp[leg.shin]), Sub(knee, hip)), now->wq[leg.thigh]));
-  Quat shin = QNormalized(QMul(thigh, now->lq[leg.shin]));
-  shin = QNormalized(QMul(FromTo(Rotate(shin, now->lp[leg.foot]), Sub(target, knee)), shin));
-  now->lq[leg.thigh] = QNormalized(QMul(QConj(up), thigh));
-  now->lq[leg.shin] = QNormalized(QMul(QConj(thigh), shin));
-  now->lq[leg.foot] = QNormalized(QMul(QConj(shin), before.wq[leg.foot]));
-}
 
 bool Under(const std::vector<AnimNode>& bones, int bone, int ancestor) {
   for (int at = bone; at >= 0; at = bones[at].parent) {

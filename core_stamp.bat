@@ -6,7 +6,7 @@ rem tools can tell when they and the DLL run the same recipe core.
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 set FILES=
-for %%f in (src\data\anim_recipe.h src\data\anim_recipe.cpp src\data\anim_assemble.h src\data\anim_assemble.cpp) do (
+for %%f in (src\data\anim_recipe.h src\data\anim_recipe.cpp src\data\anim_assemble.h src\data\anim_assemble.cpp src\data\anim_pose.h src\data\anim_pose.cpp) do (
   if exist %%f (
     if defined FILES (set FILES=!FILES!+%%f) else (set FILES=%%f)
   )
