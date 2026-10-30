@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "config.h"
+#include "data/anim_assemble.h"
 #include "data/anim_recipe.h"
 #include "data/vfx_model.h"
 #include "data_serving.h"
@@ -210,10 +211,26 @@ void GenerateAnimationPacks(const std::wstring& served) {
   }
   // The packs.
   int animations = 0;
+  std::map<std::string, std::string> assembled_for;  // an assembled recipe -> the libraries it was built for
   for (const auto& entry : packs) {
     const Library& library = LoadAnimLibrary(entry.first);
     std::vector<data::AnimClip> clips;
     for (const auto& recipe : recipes) {
+      if (recipe.second.kind == data::AnimRecipeKind::kAssembled) {  // the bench's: onto the stance (no weapon layers)
+        data::AnimClip stance, assembled;
+        std::string why;
+        if (!FindClip(entry.first, recipe.second.stance, &stance)) {
+          why = "no " + recipe.second.stance + " (the stance) on its chain";
+        } else if (data::AssembleAnimClip(recipe.second, entry.first, library.library.bones, stance, &assembled,
+                                          &why)) {
+          clips.push_back(assembled);
+          std::string& built_for = assembled_for[recipe.first];
+          built_for += (built_for.empty() ? "" : ", ") + entry.first;
+          continue;
+        }
+        Log("anim packs: recipe %s: %s: %s", recipe.first.c_str(), entry.first.c_str(), why.c_str());
+        continue;
+      }
       if (recipe.second.keyed) {  // Mocap mode: the library's own keys (no weapon layers)
         data::AnimClip keyed;
         if (data::KeyedAnimClip(recipe.second, entry.first, library.library.bones, &keyed)) {
@@ -249,6 +266,10 @@ void GenerateAnimationPacks(const std::wstring& served) {
     }
   }
   for (const auto& recipe : recipes) g_built[recipe.first] = data::WriteAnimRecipe(recipe.second);
+  for (const auto& built : assembled_for) {
+    Log("anim packs: recipe %s: assembled on %s for %s", built.first.c_str(), recipes.at(built.first).stance.c_str(),
+        built.second.c_str());
+  }
   g_libraries.clear();  // the libraries' bytes aren't kept
   Log("anim packs: %zu recipes -> %zu packs (%d animations), %d skeletons pointed at them (animation_recipes)",
       recipes.size(), packs.size(), animations, skeletons);

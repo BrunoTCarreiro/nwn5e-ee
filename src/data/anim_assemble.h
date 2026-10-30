@@ -20,8 +20,8 @@ namespace data {
 // then the blends ease from and to the stance's first frame over blend_in / blend_out (smoothstep;
 // a zero length is no blend). The delta tracks hold their first and last keys outside them. Bones
 // without a track stay in the tree unkeyed, as KeyedAnimClip leaves them (the game plays rest).
-// False, with `err`, when the recipe has no keys for `library`, the stance clip is empty, or none
-// of the tracks' bones is in `bones`.
+// False, with `err` (the reason only - the caller names the recipe and library), when the recipe
+// has no keys for `library`, the stance clip is empty, or none of the tracks' bones is in `bones`.
 bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, const std::vector<AnimNode>& bones,
                       const AnimClip& stance, AnimClip* out, std::string* err);
 

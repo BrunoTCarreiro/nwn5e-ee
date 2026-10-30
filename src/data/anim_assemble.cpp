@@ -60,15 +60,15 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
                       const AnimClip& stance, AnimClip* out, std::string* err) {
   const auto found = recipe.keys.find(LowerName(library));
   if (found == recipe.keys.end() || found->second.empty()) {
-    if (err) *err = recipe.name + " has no keys for " + library;
+    if (err) *err = "no keys for " + library;
     return false;
   }
   if (stance.nodes.empty()) {
-    if (err) *err = recipe.name + ": the stance " + recipe.stance + " has no frame 0 on " + library;
+    if (err) *err = "the stance " + recipe.stance + " has no frame 0";
     return false;
   }
   if (bones.empty() || recipe.length <= 0.0f) {
-    if (err) *err = recipe.name + ": no bones or no length for " + library;
+    if (err) *err = "no bones, or no length";
     return false;
   }
   AnimClip clip;
@@ -119,7 +119,7 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
     ++keyed;
   }
   if (!keyed) {
-    if (err) *err = recipe.name + ": none of its bones for " + library + " is in the library's tree";
+    if (err) *err = "none of its bones is in the library's tree";
     return false;
   }
   *out = clip;

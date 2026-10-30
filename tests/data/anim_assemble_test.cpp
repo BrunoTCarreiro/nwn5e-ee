@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <array>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -239,4 +241,37 @@ TEST(AssembleEmptyStanceRefused) {
   std::string err;
   CHECK_EQ(AssembleAnimClip(r, "a_ba", Body(), AnimClip(), &out, &err), false);
   CHECK_EQ(Has(err, "1hreadyr"), true);
+}
+
+// The phase 1 launch check's recipe (tests/data/fixtures/n5_asmtiny.recipe) is exactly what
+// WriteAnimRecipe writes for it - stance pause1, a_ba only, lthigh_g turned 20 degrees about X for
+// 1 s, blends 0.1 / 0.1 - and reads back as one; the other bodies get "no keys".
+TEST(AssembleTinyFixtureIsTheWritersOwn) {
+  AnimRecipe r;
+  r.name = "n5_asmtiny";
+  r.kind = AnimRecipeKind::kAssembled;
+  r.stance = "pause1";
+  r.length = 1.0f;
+  r.blend_in = 0.1f;
+  r.blend_out = 0.1f;
+  r.source = "tests/data/fixtures - the phase 1 launch check (#87)";
+  AnimKeyTrack thigh;
+  thigh.bone = "lthigh_g";
+  thigh.keys.times = {0.0f, 1.0f};
+  thigh.keys.values = {Rx(20.0f), Rx(20.0f)};
+  r.keys["a_ba"] = {thigh};
+  std::ifstream file("tests/data/fixtures/n5_asmtiny.recipe", std::ios::binary);
+  std::stringstream read;
+  read << file.rdbuf();
+  std::string text = read.str();
+  text.erase(std::remove(text.begin(), text.end(), '\r'), text.end());  // a checkout may give it CRLFs
+  CHECK_EQ(text.empty(), false);
+  CHECK_EQ(text == WriteAnimRecipe(r), true);
+  AnimRecipe back;
+  std::string error;
+  CHECK_EQ(ReadAnimRecipe(text, &back, &error), true);
+  CHECK_EQ(back.kind == AnimRecipeKind::kAssembled && back.stance == "pause1" && back.keys.size() == 1, true);
+  AnimClip out;
+  CHECK_EQ(AssembleAnimClip(back, "a_fa", Body(), Stance(), &out, &error), false);
+  CHECK_EQ(Has(error, "no keys"), true);
 }

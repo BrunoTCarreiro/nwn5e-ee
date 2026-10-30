@@ -1,0 +1,14 @@
+# nwn5e animation recipe (Animation Recipe Bench: assembled) - key = value
+name = n5_asmtiny
+kind = assembled
+stance = pause1
+length = 1
+transtime = 0.25
+blend_in = 0.1
+blend_out = 0.1
+loop = 0
+loop_blend = 0.25
+source = tests/data/fixtures - the phase 1 launch check (#87)
+# keys <library> <bone> o <time x y z w> ...: the turn from the stance's first frame (L = S * delta)
+# keys <library> rootdummy p <time x y z> ...: the offset from the stance's first-frame root
+keys a_ba lthigh_g o 0 0.173648 0 0 0.984808 1 0.173648 0 0 0.984808
