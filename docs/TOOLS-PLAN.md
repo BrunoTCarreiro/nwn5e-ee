@@ -601,8 +601,8 @@ change and no version bump.
 - The filter is zero-phase (the peaks don't move) and capped at a quarter of the real rate.
 - A strike's peak goes from 3.84 to 3.58 m/s, with the hands and feet cut at 3.75 Hz.
 
-*Checks:* 111 (serve_check 7, the Node checks 91, the browser check 13). Each has deliberate breaks
-that it catches.
+*Checks:* 121 (serve_check 7, the Node checks 94, the browser check 20). Each has deliberate breaks
+or a failing run before its fix.
 
 *Rulings that shape behaviour* (the full list is on #88):
 - A Hampel run is dropped only when it snaps back (the spec's "isolated spikes that snap back").
@@ -615,6 +615,20 @@ that it catches.
 - Save writes nothing when any body's solve fails, or when the core refuses the recipe on any body.
 - The knee rule is pinned by parity on a fixture whose knees point behind (the plan's visible-knee
   test couldn't catch its removal).
+
+*Final review* (a fresh reviewer on the whole branch): no Critical findings. Eight Important ones, plus
+two Minor ones re-graded up, were fixed in one pass, each with a check that failed first:
+- the suggested hit on the owner's take was a lost stretch's release (22.07 s; now 8.70 s);
+- the page's keys were swallowed by a ticked box or a chosen list;
+- the inspector rebuilt under a field being typed in;
+- unsaved edits were dropped by Open, New or a reload;
+- auto contacts were frozen when the spans moved (they now follow the suggestion, so the ghost
+  differs from the result only by the owner's edits), and a moved one stayed auto;
+- the stance view didn't show the stance;
+- Enter in the New dialog closed it silently;
+- the browser check could hang.
+The points overlay sitting off the doll with a ready stance is ruled as the assembled model's
+nature, for phase 3 to revisit. The deferred minors are listed on #88.
 
 *Finding:* FreeMoCap's `output_data` on this install holds only processed points (`3d_xyz`,
 `rigid_3d_xyz`, the centres of mass), so the bench filters points FreeMoCap has already filtered. The
