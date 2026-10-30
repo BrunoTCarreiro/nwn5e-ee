@@ -206,6 +206,17 @@ constexpr const char* kResetFeatRemainingUses = "?ResetFeatRemainingUses@CNWSCre
 constexpr const char* kGetFeatRemainingUses = "?GetFeatRemainingUses@CNWSCreatureStats@@QEAAEG@Z";
 constexpr const char* kGetFeatTotalUses = "?GetFeatTotalUses@CNWSCreatureStats@@QEAAEG@Z";
 constexpr const char* kDecrementFeatRemainingUses = "?DecrementFeatRemainingUses@CNWSCreatureStats@@QEAAXG@Z";
+// The feat uses list (read 2026-10-30 in SetFeatRemainingUses 0x415960 and
+// ComputeLastUpdate_GuiFeats 0x4C98C0): CNWSCreatureStats +0x10 an array of
+// entry pointers, +0x18 its count (int32); an entry is { uint16 feat; uint8
+// spent } - the byte above, at +2. GuiFeats compares each entry's feat and
+// byte with the player's last copy and, on a difference, sets bit 4 of the
+// player update (TestPlayerUpdateDifferences +0x4DE), whose feat section sends
+// every entry's feat and GetFeatRemainingUses (WriteGameObjUpdate_PlayerUpdate
+// +0x112C) - the quickbar's and the radial's counts. Nothing else sends them.
+constexpr size_t kStatsFeatUses = 0x10;
+constexpr size_t kStatsFeatUsesCount = 0x18;
+constexpr size_t kFeatUsesEntryByte = 2;
 // X4 2024 Resistance: int CNWSObject::DoDamageImmunity(CNWSCreature* attacker,
 // int damage, uint damage-type flags, int simulate, int feedback) 0x491690 -
 // the damage left after the object's % immunity to that type (it removes

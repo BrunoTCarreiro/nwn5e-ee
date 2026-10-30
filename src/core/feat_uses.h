@@ -13,6 +13,11 @@
 // IncrementFeatRemainingUses answer from the pool - the radial, UseFeat, the
 // AI's talents and the scripts alike - and the end of a Long Rest
 // (ResetFeatRemainingUses) empties it.
+// 0.57.8: the client is told a feat's uses only when the feat list or a feat
+// entry's own uses byte changes (ee_layout.h kStatsFeatUses), and a pool lives
+// in a record - so for a player character the byte of each claimed feat
+// mirrors its remaining uses (set at its AIUpdate when it differs), and the
+// quickbar and the radial follow every spend, rest and level.
 
 // The total uses of `feat` for `stats` (true), or false: the feat is the
 // engine's. Asked often (the radial's refresh), so it tests the feat first.

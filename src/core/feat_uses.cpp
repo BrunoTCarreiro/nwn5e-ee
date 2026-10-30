@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "creature.h"
+#include "creature_update.h"
 #include "ee_layout.h"
 #include "engine.h"
 #include "hooks.h"
@@ -93,6 +94,38 @@ void IncrementFeatRemainingUses(void* stats, uint16_t feat) {
   SetSpentFeatUses(creature, provider->record, Spent(stats, *provider) - CostOf(*provider, stats, feat));
 }
 
+// The quickbar's and the radial's counts (0.57.8; owner, 2026-10-30: Stunning Strike "greyed out with a 0.
+// my focus is full"): the engine sends a player's client the feat uses only when the feat list or a feat
+// entry's own byte changes (ee_layout.h kStatsFeatUses), then GetFeatRemainingUses for each. A pool lives
+// in a record, so nothing the engine compares changed when it did - the client kept the count it was last
+// sent. For a feat a provider claims, the byte now holds its remaining uses, set here at a player
+// character's AIUpdate when it differs: a spend, a rest, a !focus or a level reaches the client at the next
+// update. Every engine accessor of a claimed feat is hooked above, and a save writes GetFeatRemainingUses,
+// so the byte is free for this.
+int g_sync_lines = 0;
+
+void SyncClientUses(void* creature) {
+  void* stats = StatsOf(creature);
+  if (!stats || Field<int32_t>(stats, ee::kStatsIsPlayer) == 0) return;
+  uint8_t* const* entries = Field<uint8_t* const*>(stats, ee::kStatsFeatUses);
+  const int count = Field<int32_t>(stats, ee::kStatsFeatUsesCount);
+  if (!entries || count <= 0 || count > 1000) return;
+  for (int i = 0; i < count; ++i) {
+    uint8_t* entry = entries[i];
+    if (!entry) continue;
+    const uint16_t feat = *reinterpret_cast<const uint16_t*>(entry);
+    int total = 0;
+    if (!Claim(stats, feat, &total)) continue;
+    const uint8_t remaining = GetFeatRemainingUses(stats, feat);
+    if (entry[ee::kFeatUsesEntryByte] == remaining) continue;
+    entry[ee::kFeatUsesEntryByte] = remaining;
+    if (g_sync_lines < 60) {
+      ++g_sync_lines;
+      Log("feat uses: 0x%08X feat %u - %u left, for the client's counts", ObjectIdOf(stats), feat, remaining);
+    }
+  }
+}
+
 // The end of a Long Rest: every pool full.
 void AfterLongRest(void* stats) {
   void* creature = CreatureOf(stats);
@@ -115,6 +148,9 @@ bool Hook() {
                         reinterpret_cast<void*>(&IncrementFeatRemainingUses), reinterpret_cast<void**>(&g_increment));
   if (g_hooked && !AddRestListener(&AfterLongRest)) {
     Log("feat uses: the end of a rest is not hooked - nwn5e's feature uses never come back");
+  }
+  if (g_hooked && !AddCreatureUpdateListener(&SyncClientUses)) {
+    Log("feat uses: AIUpdate is not hooked - the quickbar's counts of nwn5e's uses change only with the feat list");
   }
   g_hook_failed = !g_hooked;
   if (!g_hooked) Log("SKIP feat uses: a feat-use export is missing - the engine counts every feat's uses");
