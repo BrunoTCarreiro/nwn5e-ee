@@ -26,6 +26,7 @@
 #include <stdint.h>
 
 #include <algorithm>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -110,6 +111,8 @@ void RemoveNwnOnlyFeats(void* stats, const CreatureFacts& facts, uint32_t id) {
   }
 }
 
+std::set<uint64_t> g_given_back;  // (creature id, feat) logged once
+
 void FeaturesCreatureUpdate(void* creature) {
   const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
   if (id == ee::kObjectInvalid) return;
@@ -147,6 +150,13 @@ void FeaturesCreatureUpdate(void* creature) {
       }
       now_recorded |= 1 << i;
       Log("features: %s 0x%08X granted feat %d", KindOf(facts), id, feat);
+    } else if (want && had && !engine::HasFeat(stats, feat)) {
+      // 0.58.1: granted before, now gone - a level loss (!test's reset to level 1) or a swapped class took it
+      // (Shove, Shove: push, Grapple): given back, the record unchanged.
+      g_add_feat(stats, static_cast<uint16_t>(feat));
+      if (g_given_back.insert((static_cast<uint64_t>(id) << 16) | static_cast<uint64_t>(feat)).second) {
+        Log("features: %s 0x%08X feat %d given back (granted, then lost)", KindOf(facts), id, feat);
+      }
     } else if (!want && had) {
       if (engine::HasFeat(stats, feat)) g_remove_feat(stats, static_cast<uint16_t>(feat));
       now_recorded &= ~(1 << i);

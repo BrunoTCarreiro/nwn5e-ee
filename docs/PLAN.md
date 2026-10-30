@@ -4232,6 +4232,12 @@ tied to a level and may stay.
   the character no longer has (rules::LostQuickbarActions: any class's actions, against the character's now;
   items, spells and other feats untouched). A Fighter's own action is Second Wind (and everyone's Shove /
   Grapple); its other features are passive.
+- *0.58.1 (owner: "quick bar is absolutely empty now"; the log: the cleanup ran at `!test`, before the
+  features update took the old class's granted feats - so those stayed - and Shove was emptied because the
+  reset's level loss took Knockdown):* the cleanup waits 3 s (after the features update, every 2 s), then sends
+  the whole bar again (the engine's own full update, so the client shows what the server holds). The features
+  update gives back a feat nwn5e granted that a level loss or a swapped class took (its record still said
+  granted, so it never came back) - Shove, Shove: push and Grapple after a reset.
 
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 

@@ -64,6 +64,8 @@ GetMessageFn g_get_message = nullptr;
 PlayerByObjectFn g_player_by_object = nullptr;
 void** g_app_manager = nullptr;
 std::unordered_map<uint32_t, DWORD> g_last_check;  // by creature id
+std::unordered_map<uint32_t, DWORD> g_cleanup_due;  // by creature id: !test's lost-action cleanup, when due
+constexpr DWORD kCleanupAfterMs = 3000;            // after the features update (rules_features: every 2 s)
 bool g_full_logged = false;
 
 uint32_t IdOf(const void* creature) { return Field<uint32_t>(creature, ee::kObjectId); }
@@ -132,6 +134,34 @@ int PlaceActions(void* creature, int placed, bool tell) {
   return static_cast<int>(changes.size());
 }
 
+// The buttons of nwn5e's actions the character no longer has, emptied; then the whole bar sent again, so the
+// client shows what the server holds. Returns how many.
+int EmptyLostActions(void* creature) {
+  void* stats = StatsOf(creature);
+  void* app = ServerApp();
+  std::vector<rules::QuickbarSlot> bar;
+  if (!stats || !app || !g_set_int_param || !g_send_button || !g_get_message || !g_player_by_object ||
+      !ReadBar(creature, &bar)) {
+    return 0;
+  }
+  void* player = g_player_by_object(app, IdOf(creature));
+  void* message = g_get_message(app);
+  if (!player || !message) return 0;
+  const std::vector<int> lost = rules::LostQuickbarActions(bar, ActionsOf(stats));
+  for (int slot : lost) {
+    g_set_int_param(creature, static_cast<uint8_t>(slot), static_cast<uint8_t>(rules::kQuickbarTypeEmpty), 0);
+    Log("quickbar: 0x%08X slot %d emptied - %d, an action the character no longer has", IdOf(creature), slot,
+        bar[slot].value);
+  }
+  g_send_button(message, player, 0, 1);  // all 36: the engine's own full update
+  Log("quickbar: 0x%08X the whole bar sent again (%zu emptied)", IdOf(creature), lost.size());
+  if (!lost.empty()) {
+    TellPlayer(IdOf(creature), "nwn5e: quickbar - " + std::to_string(lost.size()) +
+                                   " action(s) of a class you no longer have taken off.");
+  }
+  return static_cast<int>(lost.size());
+}
+
 void QuickbarCreatureUpdate(void* creature) {
   const uint32_t id = IdOf(creature);
   if (id == ee::kObjectInvalid) return;
@@ -144,6 +174,11 @@ void QuickbarCreatureUpdate(void* creature) {
   const CreatureFacts facts = ReadCreatureFacts(stats);
   if (!facts.is_player || !facts.character || !facts.plausible) return;
   EnsureRecords(creature);
+  const auto due = g_cleanup_due.find(id);
+  if (due != g_cleanup_due.end() && static_cast<int32_t>(now - due->second) >= 0) {
+    g_cleanup_due.erase(due);
+    EmptyLostActions(creature);
+  }
   PlaceActions(creature, engine::GetLocalInt(creature, kVarPlaced), true);
 }
 
@@ -194,30 +229,15 @@ std::vector<std::string> QuickbarCommand(void* creature, const std::string& args
 // 0.57.13 (owner: after "!test fighter" "the quickbar still has old monk feats and no fighter feats"): the
 // buttons of nwn5e's actions the character no longer has (a class the profile swapped away - the engine
 // doesn't always take them off with the feats) are emptied too, so the new character's actions get slots.
-// Returns how many.
-int ForgetQuickbarPlacements(void* creature) {
-  if (g_config.quickbar != rules::RuleVariant::kFaithful || !creature) return 0;
+// 0.58.1 (owner: "quick bar is absolutely empty now"): not at !test - the old class's feats nwn5e granted go
+// in the features update after it (rules_features, every 2 s), so the cleanup waits kCleanupAfterMs, then
+// sends the whole bar again.
+void ForgetQuickbarPlacements(void* creature) {
+  if (g_config.quickbar != rules::RuleVariant::kFaithful || !creature) return;
   EnsureRecords(creature);
   SetRecord(creature, kVarPlaced, 0);
   g_last_check.erase(IdOf(creature));  // looked at in the next update, not in up to 2 s
-  void* stats = StatsOf(creature);
-  void* app = ServerApp();
-  std::vector<rules::QuickbarSlot> bar;
-  if (!stats || !app || !g_set_int_param || !g_send_button || !g_get_message || !g_player_by_object ||
-      !ReadBar(creature, &bar)) {
-    return 0;
-  }
-  void* player = g_player_by_object(app, IdOf(creature));
-  void* message = g_get_message(app);
-  if (!player || !message) return 0;
-  const std::vector<int> lost = rules::LostQuickbarActions(bar, ActionsOf(stats));
-  for (int slot : lost) {
-    g_set_int_param(creature, static_cast<uint8_t>(slot), static_cast<uint8_t>(rules::kQuickbarTypeEmpty), 0);
-    g_send_button(message, player, static_cast<uint8_t>(slot), 0);
-    Log("quickbar: 0x%08X slot %d emptied - %d, an action the character no longer has", IdOf(creature), slot,
-        bar[slot].value);
-  }
-  return static_cast<int>(lost.size());
+  g_cleanup_due[IdOf(creature)] = GetTickCount() + kCleanupAfterMs;
 }
 
 void InstallQuickbarKeys();    // below
