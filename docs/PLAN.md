@@ -3924,6 +3924,7 @@ body moved and half-moved through its fade-in (0.00 mm), a locked foot under a t
 after other keys, another stance or another span; the browser: 15 expectations on the owner's kick take. Deliberate breaks:
 8 in the core and 7 in the page, all caught (one more - the fade's lower limit - turned out not to change anything:
 smoothstep clamps it). Part 2 (timing: speed a stretch up or down, hold a pose for frames) waits on the owner trying part 1.
+*#84 (2026-10-30; owner: "how feasible would it be to separate legs and torso animations so that they can be mixed and matched? taking advantage of existing foot placement and let sway to increase the coherence between movements"):* options given - baked in the bench, or live in the game (the engine layers torso clips, animroot torso_g, but NWN never attacks while moving, no balance at run time, every client told). *Decision (owner, 2026-10-30):* "I was thinking of mixing in the bench", then "go" to: legs from / torso from (this take, an animation, a saved recipe; offset, speed, loop), the seam (chest keeps its direction / turns with the hips), the hips follow the weight on locked feet. Found: rootdummy carries torso_g and pelvis_g side by side (the torso doesn't hang from the hips); only rootdummy has position keys in NWN's clips.
 *Capture habits (told to the owner):* two or more cameras; a T-pose at each
 take's start; cycles performed on the spot; a prop of the weapon's length; a
 clap or stomp at the contact moment. Rage: 2-3 s, relaxed to a fighting stance.

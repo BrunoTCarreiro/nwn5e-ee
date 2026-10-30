@@ -652,6 +652,120 @@ const LEG_JOINTS = ["lshin_g", "lfoot_g", "rshin_g", "rfoot_g"];
   }
 }
 {
+  // Legs and torso from different sources (#84): both halves from the take change nothing; a torso
+  // from an animation (offset, looped) and from the take elsewhere (offset, speed) follow their
+  // sources, the legs untouched; legs from an animation follow it (its root too), the torso
+  // untouched; "chest keeps its direction" keeps the torso's turn, "turns with the hips" adds the
+  // hips' turn; an animation's planted feet (a still stance: both, all along; an in-place walk:
+  // none); the hips follow the weight - a bowing torso over standing legs keeps the body's weight
+  // over the feet, the feet held (the hips sinking where a leg can't reach); a torso leaned by a
+  // pose key the same; the cache, mixed.
+  const m = madeTake("a_ba", "victorymg", {});
+  const taunt = findClip("a_ba", "taunt"), ready = findClip("a_ba", "nwreadyr"), pause = findClip("a_ba", "pause1");
+  const bow = findClip("a_ba", "bow"), walk = findClip("a_ba", "walk");
+  if (m && taunt && ready && pause && bow && walk) {
+    const bones = m.lib.bones, lead = m.made.lead;
+    const conj = (q) => [-q[0], -q[1], -q[2], q[3]];
+    const ang = (a, b) => (2 * Math.acos(Math.min(1, Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]))) * 180) / Math.PI;
+    const nodeOf = (clip, n) => clip.nodes.find((x) => x.name.toLowerCase() === n);
+    const localAt = (clip, n, t) => { const node = nodeOf(clip, n); return node && node.orientation ? A.sample(node.orientation, t, true) : bones[m.bone(n)].orientation.values[0]; };
+    const rootAt = (clip, t) => A.sample(nodeOf(clip, "rootdummy").position, t, false);
+    const LEGS = ["pelvis_g", "lthigh_g", "lshin_g", "lfoot_g", "rthigh_g", "rshin_g", "rfoot_g"], TORSO = ["torso_g", "neck_g", "head_g", "lbicep_g", "rforearm_g", "rhand_g"];
+    const base = { start: lead, stance: m.stance, place: "return", reduce: false };
+    const plain = M.retarget(m.take, bones, base);
+    const frames = (clip) => { const out = []; for (let k = 0; k / 30 <= clip.length + 1e-9; k++) out.push(k / 30); return out; };
+    const worst = (clip, f) => Math.max(0, ...frames(clip).map(f));
+    const same = (x, y) => { if (Math.abs(x.length - y.length) > 1e-9) return Infinity; let d = 0; for (const t of frames(x)) { const p = posed(bones, x, t), q = posed(bones, y, t); p.forEach((w, i) => { d = Math.max(d, Math.hypot(...w.p.map((v, c) => v - q[i].p[c]))); }); } return d; };
+    // both from the take; and with a lock and the balance on the getlow take
+    const id = same(M.retarget(m.take, bones, Object.assign({ halves: { legs: { kind: "take" }, torso: { kind: "take", offset: 0, speed: 1 }, seam: "direction", balance: true } }, base)), plain);
+    const g = madeTake("a_ba", "getlow", { legRatio: 1.25 });
+    const gBase = { start: g.made.lead, stance: g.stance, place: "return", reduce: false, plants: M.suggestPlants(g.take) };
+    const idLocked = same(M.retarget(g.take, g.lib.bones, Object.assign({ halves: { legs: { kind: "take" }, torso: { kind: "take" }, seam: "hips", balance: true } }, gBase)),
+                          M.retarget(g.take, g.lib.bones, gBase));
+    // the torso from taunt, 0.5 s in, looped
+    const tSrc = { kind: "clip", clip: taunt, offset: 0.5, speed: 1, loop: true };
+    const tm = M.retarget(m.take, bones, Object.assign({ halves: { torso: tSrc, seam: "direction" } }, base));
+    const tauntOff = worst(tm, (t) => Math.max(...TORSO.map((n) => ang(localAt(tm, n, t), localAt(taunt, n, M.halfTime(tSrc, t, 0))))));
+    const tauntLegs = worst(tm, (t) => Math.max(...LEGS.map((n) => ang(localAt(tm, n, t), localAt(plain, n, t)))));
+    // the torso from the take 0.3 s on, 1.5 times as fast: against the whole take's solve
+    const whole = M.retarget(m.take, bones, { start: 0, end: 0, stance: m.stance, place: "return", reduce: false });
+    const kSrc = { kind: "take", offset: 0.3, speed: 1.5 };
+    const km = M.retarget(m.take, bones, Object.assign({ halves: { torso: kSrc, seam: "direction" } }, base));
+    const kStart = km.source.start;
+    const takeOff = worst(km, (t) => { const T = M.halfTime(kSrc, t, kStart); return T > whole.length ? 0 : Math.max(...TORSO.map((n) => ang(localAt(km, n, t), localAt(whole, n, T)))); });
+    // the legs from nwreadyr (looped), no locks: its legs and its root; the torso the take's
+    const lSrc = { kind: "clip", clip: ready, offset: 0, speed: 1, loop: true };
+    const lm = M.retarget(m.take, bones, Object.assign({ halves: { legs: lSrc, seam: "direction" } }, base));
+    const readyLegs = worst(lm, (t) => Math.max(...LEGS.map((n) => ang(localAt(lm, n, t), localAt(ready, n, M.halfTime(lSrc, t, 0))))));
+    const readyRoot = worst(lm, (t) => { const a = rootAt(lm, t), b = rootAt(ready, M.halfTime(lSrc, t, 0)); return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]); });
+    const keptTorso = worst(lm, (t) => Math.max(...TORSO.map((n) => ang(localAt(lm, n, t), localAt(plain, n, t)))));
+    // the seam: the torso's turn against the hips' (about up), taken from the stance's
+    const stancePose = posed(bones, m.stance, 0);
+    const yaw = (pose, n) => { const i = m.bone(n), f = rotate(qmul(pose[i].q, conj(stancePose[i].q)), [0, 1, 0]); return Math.atan2(f[1], f[0]); };
+    const wrap = (x) => Math.atan2(Math.sin(x), Math.cos(x));
+    const hm = M.retarget(m.take, bones, Object.assign({ halves: { legs: lSrc, seam: "hips" } }, base));
+    let hipsGap = 0, dirGap = 0, hipTurn = 0;
+    for (const t of frames(hm)) {
+      const ph = posed(bones, hm, t), pd = posed(bones, lm, t), pp = posed(bones, plain, t);
+      hipsGap = Math.max(hipsGap, Math.abs(wrap((yaw(ph, "torso_g") - yaw(ph, "pelvis_g")) - (yaw(pp, "torso_g") - yaw(pp, "pelvis_g")))) * 180 / Math.PI);
+      dirGap = Math.max(dirGap, ang(pd[m.bone("torso_g")].q, pp[m.bone("torso_g")].q));
+      hipTurn = Math.max(hipTurn, Math.abs(wrap(yaw(pd, "pelvis_g") - yaw(pp, "pelvis_g"))) * 180 / Math.PI);
+    }
+    // an animation's planted feet: pause1 (still) - both, all along; walk (in place) - none
+    const span = (r) => r.source.end - r.source.start;
+    const pm = M.retarget(m.take, bones, Object.assign({ halves: { legs: { kind: "clip", clip: pause, loop: true } }, plants: { left: [], right: [] } }, base));
+    const covered = (list) => list.reduce((n, [t0, t1]) => n + t1 - t0, 0);
+    const pausePlanted = Math.min(covered(pm.legPlants.left), covered(pm.legPlants.right)) / span(pm);
+    const wm = M.retarget(m.take, bones, Object.assign({ halves: { legs: { kind: "clip", clip: walk, loop: true } }, plants: { left: [], right: [] } }, base));
+    const walkPlanted = wm.legPlants.left.length + wm.legPlants.right.length;
+    // the hips follow the weight: bow's torso over pause1's legs, the feet held
+    const MASS = [["torso_g", "neck_g", 0.355], ["head_g", null, 0.081], ["lbicep_g", "lforearm_g", 0.028], ["rbicep_g", "rforearm_g", 0.028], ["lforearm_g", "lhand_g", 0.016],
+      ["rforearm_g", "rhand_g", 0.016], ["lhand_g", null, 0.006], ["rhand_g", null, 0.006], ["pelvis_g", null, 0.142], ["lthigh_g", "lshin_g", 0.1], ["rthigh_g", "rshin_g", 0.1],
+      ["lshin_g", "lfoot_g", 0.0465], ["rshin_g", "rfoot_g", 0.0465], ["lfoot_g", null, 0.0145], ["rfoot_g", null, 0.0145]];
+    const com = (pose) => { let x = 0, y = 0, w = 0; for (const [n, to, k] of MASS) { const p = to ? pose[m.bone(n)].p.map((v, c) => (v + pose[m.bone(to)].p[c]) / 2) : pose[m.bone(n)].p; x += k * p[0]; y += k * p[1]; w += k; } return [x / w, y / w]; };
+    const bSrc = { kind: "clip", clip: bow, offset: 0, speed: 1, loop: false };
+    const bowOpt = (balance) => Object.assign({ halves: { legs: { kind: "clip", clip: pause, loop: true }, torso: bSrc, seam: "direction", balance } }, base, { plants: { left: [], right: [] } });
+    const on = M.retarget(m.take, bones, bowOpt(true)), off = M.retarget(m.take, bones, bowOpt(false));
+    let offBy = 0, onBy = 0;
+    for (const t of frames(on)) {
+      const ref = com(posed(bones, pause, t % pause.length));
+      const d = (r) => { const c = com(posed(bones, r, t)); return Math.hypot(c[0] - ref[0], c[1] - ref[1]); };
+      offBy = Math.max(offBy, d(off)); onBy = Math.max(onBy, d(on));
+    }
+    const bowFeet = Math.max(wander(track(bones, on, m.bone("lfoot_g"))), wander(track(bones, on, m.bone("rfoot_g"))));
+    // a torso leaned 30 degrees by a pose key over a standing take's held feet
+    const st = madeTake("a_ba", "pause1", {});
+    const sBase = { start: st.made.lead, stance: st.stance, place: "return", reduce: false, plants: M.suggestPlants(st.take) };
+    const lean = [{ bone: "torso_g", mode: "add", fade: 0.2, keys: [{ t: st.made.lead + 0.5, v: [-30, 0, 0] }, { t: st.made.lead + 1.5, v: [-30, 0, 0] }] }];
+    const gPlain = M.retarget(st.take, st.lib.bones, sBase);
+    const leanOn = M.retarget(st.take, st.lib.bones, Object.assign({ poses: lean, halves: { balance: true } }, sBase));
+    const leanOff = M.retarget(st.take, st.lib.bones, Object.assign({ poses: lean }, sBase));
+    const gCom = (r, t) => { const pose = posed(st.lib.bones, r, t); let x = 0, y = 0, w = 0; for (const [n, to, k] of MASS) { const i = st.bone(n), j = to ? st.bone(to) : -1;
+      const p = j >= 0 ? pose[i].p.map((v, c) => (v + pose[j].p[c]) / 2) : pose[i].p; x += k * p[0]; y += k * p[1]; w += k; } return [x / w, y / w]; };
+    const leanBy = (r) => { const a = gCom(r, 1.0), b = gCom(gPlain, 1.0); return Math.hypot(a[0] - b[0], a[1] - b[1]); };
+    const leanFeet = Math.max(wander(track(st.lib.bones, leanOn, st.bone("lfoot_g"))), wander(track(st.lib.bones, leanOn, st.bone("rfoot_g"))));
+    // the cache, mixed: the torso 2 s on in the take, with the frames another span solved
+    const cache = {};
+    M.retarget(m.take, bones, Object.assign({ cache }, base, { start: lead + 0.5 }));
+    const mixedCached = same(M.retarget(m.take, bones, Object.assign({ cache, halves: { torso: { kind: "take", offset: 0.4, speed: 1.2 } } }, base)),
+                             M.retarget(m.take, bones, Object.assign({ halves: { torso: { kind: "take", offset: 0.4, speed: 1.2 } } }, base)));
+    const times = [M.halfTime({ kind: "clip", clip: { length: 1 }, offset: 0.2, speed: 2, loop: true }, 0.5, 0), M.halfTime({ kind: "clip", clip: { length: 1 }, offset: 0.2, speed: 2, loop: false }, 0.5, 0),
+      M.halfTime({ kind: "take", offset: 0.3, speed: 1.5 }, 1, 4)];
+    const timesOk = Math.abs(times[0] - 0.2) < 1e-9 && Math.abs(times[1] - 1) < 1e-9 && Math.abs(times[2] - 5.8) < 1e-9;
+    const ok = id < 1e-9 && idLocked < 1e-9 && tauntOff < 0.05 && tauntLegs < 1e-3 && takeOff < 0.5 && readyLegs < 0.05 && readyRoot < 1e-4 && keptTorso < 1e-3 &&
+      hipTurn > 10 && hipsGap < 0.5 && dirGap < 1e-3 && pausePlanted > 0.95 && walkPlanted === 0 && offBy > 0.04 && onBy < 0.25 * offBy && bowFeet < 0.005 &&
+      leanBy(leanOff) > 0.02 && leanBy(leanOn) < 0.3 * leanBy(leanOff) && leanFeet < 0.005 && mixedCached < 1e-9 && timesOk;
+    if (!ok) failed++;
+    console.log((ok ? "ok  " : "FAIL") + " legs and torso mixed: both from the take " + (id < 1e-9 && idLocked < 1e-9 ? "the same" : "DIFFERENT (" + id + ", " + idLocked + ")") +
+      "; taunt's torso " + tauntOff.toFixed(3) + " deg off it (legs " + tauntLegs.toFixed(4) + "); the take's 0.3 s on x1.5 " + takeOff.toFixed(3) + " deg off; nwreadyr's legs " +
+      readyLegs.toFixed(3) + " deg, root " + (readyRoot * 1000).toFixed(2) + " mm off (torso " + keptTorso.toFixed(4) + "); its hips turned up to " + hipTurn.toFixed(0) +
+      " deg: chest with the hips " + hipsGap.toFixed(2) + " deg off, keeping its direction " + dirGap.toFixed(4) + "; pause1's feet planted " + (pausePlanted * 100).toFixed(0) +
+      "% of it, walk's " + walkPlanted + " plants; bow's torso over pause1's legs: the weight " + (offBy * 100).toFixed(1) + " cm off the feet's, the hips following " +
+      (onBy * 100).toFixed(1) + " cm, feet held to " + (bowFeet * 1000).toFixed(1) + " mm; a 30-degree lean by a pose key " + (leanBy(leanOff) * 100).toFixed(1) + " -> " +
+      (leanBy(leanOn) * 100).toFixed(1) + " cm (feet " + (leanFeet * 1000).toFixed(1) + " mm); cached mixed " + (mixedCached < 1e-9 ? "the same" : "DIFFERENT") + "; times " + (timesOk ? "ok" : "WRONG " + times.join(", ")));
+  } else console.log("skip legs and torso mixed: a clip missing");
+}
+{
   // A rough capture (#81): feet lost under the floor for 0.35 s - the lost points dropped and
   // filled: the same standing hips as the clean take, the feet on the floor; the whole body 30 cm
   // down for 0.35 s (no limb stretched) - the floor from the standing part, not the take's lowest;

@@ -1105,13 +1105,107 @@
     return applied;
   }
 
+  // --- Legs and torso from different sources (#84) ---------------------------------------------
+  // NWN's skeleton: rootdummy carries torso_g and pelvis_g side by side (the torso doesn't hang
+  // from the hips), and only rootdummy has position keys in NWN's clips. The legs: the root's
+  // position, pelvis_g and the legs under it; the torso: torso_g and everything under it - the
+  // split the engine's own weapon layers use (animroot torso_g).
+  function torsoSet(R) {
+    const top = R.index.get("torso_g"), set = new Set();
+    if (top === undefined) return set;
+    for (let i = 0; i < R.bones.length; i++) for (let j = i; j >= 0; j = R.bones[j].parent) if (j === top) { set.add(i); break; }
+    return set;
+  }
+  // A track's value at t (held at its ends; turns along the short way).
+  function sampleTrack(track, t, quaternion) {
+    const ts = track.times, vs = track.values, n = ts.length;
+    if (t <= ts[0]) return vs[0];
+    if (t >= ts[n - 1]) return vs[n - 1];
+    let lo = 0, hi = n - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (ts[m] <= t) lo = m; else hi = m; }
+    const u = (t - ts[lo]) / Math.max(ts[hi] - ts[lo], 1e-9);
+    return quaternion ? qmix(vs[lo], vs[hi], u) : vs[lo].map((v, c) => v + (vs[hi][c] - v) * u);
+  }
+  // A half's time in its source at result time t: an animation's (offset + t x speed, looped or
+  // held at its ends), or the take's (the kept part's start + offset + t x speed).
+  function halfTime(src, t, start) {
+    const speed = src.speed > 0 ? src.speed : 1, s = (src.offset || 0) + t * speed;
+    if (src.kind !== "clip") return start + s;
+    const length = Math.max(src.clip.length, 1e-6);
+    return src.loop ? ((s % length) + length) % length : Math.max(0, Math.min(length, s));
+  }
+  // An animation's turns of the driven bones (the bone's rest where it has no keys) and its root at s.
+  function clipPose(R, clip, s, driven) {
+    const byName = new Map(clip.nodes.map((n) => [lower(n.name), n]));
+    const local = new Map();
+    for (const i of driven) {
+      const n = byName.get(lower(R.bones[i].name));
+      local.set(i, n && n.orientation && n.orientation.times.length ? qnorm(sampleTrack(n.orientation, s, true)) : R.rest[i]);
+    }
+    const r = byName.get("rootdummy");
+    return { local, root: r && r.position && r.position.times.length ? sampleTrack(r.position, s, false).slice(0, 3) : null };
+  }
+  // Which way a pelvis turn faces, about the up axis (radians): its stance forward turned by it.
+  function hipsYaw(R, pelvis, q) {
+    const parent = R.bones[pelvis].parent, Wp = parent >= 0 ? R.world[parent] : IDENTITY;
+    const f = rotate(qmul(Wp, q), rotate(qconj(R.neutral[pelvis]), [0, 1, 0]));
+    return Math.atan2(f[1], f[0]);
+  }
+  // An animation's planted feet (#84): where a foot stands still and low - an in-place walk
+  // slides its feet under the body (the game moves the creature), so it has none. Take-time
+  // pairs, frame k at (a + k) / fps.
+  function clipPlants(R, solved, a, fps) {
+    const out = { left: [], right: [] };
+    const minRun = Math.max(2, Math.round(0.2 * fps));
+    for (const [side, name] of [["left", "lfoot_g"], ["right", "rfoot_g"]]) {
+      const i = R.index.get(name);
+      if (i === undefined) continue;
+      const P = solved.map((sv) => poseWorld(R, sv.local, sv.root).P[i]);
+      const low = Math.min(...P.map((p) => p[2]));
+      const still = P.map((p, k) => {
+        const q = P[Math.max(0, k - 1)], r = P[Math.min(P.length - 1, k + 1)];
+        const speed = (Math.hypot(r[0] - q[0], r[1] - q[1]) * fps) / Math.max(1, Math.min(P.length - 1, k + 1) - Math.max(0, k - 1));
+        return speed < 0.15 && p[2] < low + 0.04;
+      });
+      for (let k = 0; k < still.length;) {
+        if (!still[k]) { k++; continue; }
+        let e = k;
+        while (e + 1 < still.length && still[e + 1]) e++;
+        if (e - k + 1 >= minRun) out[side].push([(a + k) / fps, (a + e) / fps]);
+        k = e + 1;
+      }
+    }
+    return out;
+  }
+  // The upper body's weight about the root, horizontally (fractions of the body's mass - the
+  // torso 0.355, the head 0.081, upper arms 0.028, forearms 0.016, hands 0.006 a side - each at
+  // its segment's middle): what the hips shift against.
+  const UPPER_MASS = [["torso_g", "neck_g", 0.355], ["head_g", null, 0.081], ["lbicep_g", "lforearm_g", 0.028], ["rbicep_g", "rforearm_g", 0.028],
+    ["lforearm_g", "lhand_g", 0.016], ["rforearm_g", "rhand_g", 0.016], ["lhand_g", null, 0.006], ["rhand_g", null, 0.006]];
+  const MOVING_MASS = 0.82;  // what moves with the root when the feet are held: all but the shins' and feet's share
+  function upperWeight(R, local, root) {
+    const { P } = poseWorld(R, local, root);
+    let x = 0, y = 0;
+    for (const [bone, toward, m] of UPPER_MASS) {
+      const i = R.index.get(bone);
+      if (i === undefined) continue;
+      const j = toward ? R.index.get(toward) : undefined;
+      const p = j !== undefined ? mid(P[i], P[j]) : P[i];
+      x += m * (p[0] - P[R.index.get("rootdummy")][0]);
+      y += m * (p[1] - P[R.index.get("rootdummy")][1]);
+    }
+    return [x, y];
+  }
+
   // --- The retarget -----------------------------------------------------------------------------
   // options: name, start / end (s; end 0 = the end), sway (true), stance (a clip:
   // pause1, for the blends), place ("return" | "inplace": placeGround - "inplace" for walk
   // cycles and loops, whose net travel is travel; sway is always kept for "return"), plants ({ left / right: [[from, to] s in the take] }: feet held
   // on the floor - the result's locks), poses (applyPoses' parts, #83), cache (an object the caller keeps,
-  // one per body: the solve is reused while the take, the bones, the stance and the part kept are the
-  // ones it was made from - a pose key moved re-solves nothing), blendIn / blendOut (s),
+  // one per body: each frame's solve is reused while the take, the bones and the stance are the ones it
+  // was made from - a pose key moved re-solves nothing), halves (#84: { legs, torso: a source - { kind:
+  // "take" } or { kind: "clip", clip, offset, speed, loop }; the torso's "take" also takes an offset
+  // and a speed; seam: "direction" | "hips"; balance: the hips follow the weight }), blendIn / blendOut (s),
   // loop (false), loopBlend (s),
   // fitLength (s; 0 keeps it), contact (s in the take) and contactAt (s in the
   // result), transtime (0.25), reduce (true), tolerance (degrees; 0.75 - and 4 mm
@@ -1131,14 +1225,48 @@
     // Solve every frame kept (or reuse the solve: what follows changes it, so a copy).
     const rootIndex = R.index.get("rootdummy");
     const c = opt.cache, stanceName = opt.stance ? opt.stance.name : "";
-    let base = c && c.take === take && c.bones === bones && c.stance === stanceName && c.a === a && c.b === b ? c.solved : null;
-    if (!base) {
-      base = [];
-      for (let f = a; f <= b; f++) base.push(solveFrame(R, take.frames[f], ref));
-      if (c) Object.assign(c, { take, bones, stance: stanceName, a, b, solved: base });
-    }
+    if (c && !(c.take === take && c.bones === bones && c.stance === stanceName && c.frames)) Object.assign(c, { take, bones, stance: stanceName, frames: new Map() });
+    const memo = c ? c.frames : new Map();
+    const solvedFrame = (f) => { let sv = memo.get(f); if (!sv) { sv = solveFrame(R, take.frames[f], ref); memo.set(f, sv); } return sv; };
+    const base = [];
+    for (let f = a; f <= b; f++) base.push(solvedFrame(f));
     const solved = base.map((sv) => ({ local: new Map(sv.local), L: sv.L }));
     const driven = solved.length ? [...solved[0].local.keys()] : [];
+    // Legs and torso from other sources (#84): the take's legs are the clock; each frame's
+    // torso and legs taken where their sources are at its time, the seam turned if asked.
+    const H = opt.halves || null;
+    const torsoBones = torsoSet(R);
+    const legsSrc = H && H.legs && H.legs.kind === "clip" && H.legs.clip ? H.legs : null;
+    const torsoSrc = H && H.torso && (H.torso.kind === "clip" ? !!H.torso.clip : (H.torso.offset || 0) !== 0 || (H.torso.speed || 1) !== 1) ? H.torso : null;
+    const pelvisIndex = R.index.get("pelvis_g"), torsoIndex = R.index.get("torso_g");
+    const takeLocalAt = (T) => {  // the take's turns at a time between its frames
+      const x = Math.max(0, Math.min(take.frames.length - 1, T * take.fps)), f0 = Math.floor(x), f1 = Math.min(take.frames.length - 1, f0 + 1), u = x - f0;
+      const s0 = solvedFrame(f0).local;
+      if (u < 1e-6 || f1 === f0) return s0;
+      const s1 = solvedFrame(f1).local, out = new Map();
+      for (const [k, q] of s0) out.set(k, qmix(q, s1.get(k), u));
+      return out;
+    };
+    solved.forEach((sv, k) => {
+      sv.ref = base[k].local;  // the legs' own source's whole body: what the balance measures against
+      if (!legsSrc && !torsoSrc) return;
+      const t = k / take.fps, start = a / take.fps;
+      if (legsSrc) {
+        const pose = clipPose(R, legsSrc.clip, halfTime(legsSrc, t, start), driven);
+        for (const j of driven) if (!torsoBones.has(j)) sv.local.set(j, pose.local.get(j));
+        sv.clipRoot = pose.root;
+        sv.ref = pose.local;
+      }
+      const src = torsoSrc ? (torsoSrc.kind === "clip" ? clipPose(R, torsoSrc.clip, halfTime(torsoSrc, t, start), driven).local : takeLocalAt(halfTime(torsoSrc, t, start))) : base[k].local;
+      for (const j of driven) if (torsoBones.has(j)) sv.local.set(j, src.get(j));
+      // "Chest turns with the hips": the torso turned about the up axis by how much the legs'
+      // hips face away from its own source's hips. Else it keeps its direction (as the engine's layers).
+      if (H.seam === "hips" && pelvisIndex !== undefined && torsoIndex !== undefined && src.has(pelvisIndex)) {
+        const turn = hipsYaw(R, pelvisIndex, sv.local.get(pelvisIndex)) - hipsYaw(R, pelvisIndex, src.get(pelvisIndex));
+        const parent = R.bones[torsoIndex].parent, Wp = parent >= 0 ? R.world[parent] : IDENTITY;
+        sv.local.set(torsoIndex, qnorm(qmul(qconj(Wp), qmul(axisAngle([0, 0, 1], turn), qmul(Wp, sv.local.get(torsoIndex))))));
+      }
+    });
     // The loop: cut where the pose comes closest to the first (in the last 40%), then crossfade.
     if (opt.loop && solved.length > 6) {
       let best = solved.length - 1, bestCost = Infinity;
@@ -1160,25 +1288,38 @@
         if (R.index.get(lower(node.name)) === rootIndex && node.position && node.position.times.length) home = node.position.values[0].slice(0, 3);
       }
     }
-    solved.forEach((sv, k) => { sv.root = rootPosition(R, sv.L, take, refL, opt.place === "return" || opt.sway, ground[k], home); });
+    solved.forEach((sv, k) => {
+      sv.root = legsSrc ? (sv.clipRoot || (rootIndex !== undefined ? R.restPos[rootIndex] : null))  // the legs' animation's own root (#84)
+        : rootPosition(R, sv.L, take, refL, opt.place === "return" || opt.sway, ground[k], home);
+    });
+    // The torso's hands' speed against the body (#84), for lining a mixed strike up on the timeline.
+    let torsoHands = null;
+    if ((legsSrc || torsoSrc) && rootIndex !== undefined) {
+      const hands = ["lhand_g", "rhand_g"].map((n) => R.index.get(n)).filter((i) => i !== undefined);
+      const rel = solved.map((sv) => { const { P } = poseWorld(R, sv.local, sv.root); return hands.map((i) => sub(P[i], P[rootIndex])); });
+      torsoHands = { start: a / take.fps, fps: take.fps, values: rel.map((h, k) => (k ? Math.max(0, ...h.map((p, n) => len(sub(p, rel[k - 1][n])) * take.fps)) : 0)) };
+    }
     // The pose keys (#83), before the locks: a locked foot stays pinned under a turned leg.
     if (opt.poses) applyPoses(R, solved, a, take.fps, opt.poses);
     // Planted feet held (#79): each lock keeps its ankle on the spot on the ground where it
     // landed, by bending the leg (legIK) - on this body, whatever its legs' proportions. In
     // from 0.1 s before it lands, out over 0.2 s as it lifts (the correction rides the step).
     // The ground moves under an "inplace" body (its travel taken out): the spot moves with it.
+    // With the legs from an animation (#84), its own planted feet (where a foot stands still).
     const locks = [];
-    if (opt.plants && rootIndex !== undefined) {
+    const legPlants = legsSrc && opt.plants && rootIndex !== undefined ? clipPlants(R, solved, a, take.fps) : null;
+    const plants = legsSrc ? legPlants : opt.plants;
+    const held = { left: new Array(count).fill(null), right: new Array(count).fill(null) };
+    if (plants && rootIndex !== undefined) {
       const fps = take.fps;
       const s = take.hipHeight > 0.1 ? R.hipHeight / take.hipHeight : 1;
-      const shift = (k) => [(ground[k][0] - ground[0][0]) * s, (ground[k][1] - ground[0][1]) * s, 0];
+      const shift = legsSrc ? () => [0, 0, 0] : (k) => [(ground[k][0] - ground[0][0]) * s, (ground[k][1] - ground[0][1]) * s, 0];
       const foot = { left: R.index.get("lfoot_g"), right: R.index.get("rfoot_g") };
       const ankles = solved.map((sv) => poseWorld(R, sv.local, sv.root).P);
       const rIn = Math.max(1, Math.round(0.1 * fps)), rOut = Math.max(1, Math.round(0.2 * fps));
-      const held = { left: new Array(count).fill(null), right: new Array(count).fill(null) };
       for (const side of ["left", "right"]) {
         if (foot[side] === undefined) continue;
-        for (const [t0, t1] of opt.plants[side] || []) {
+        for (const [t0, t1] of plants[side] || []) {
           const p0 = Math.max(0, Math.round(t0 * fps) - a), p1 = Math.min(count - 1, Math.round(t1 * fps) - a);
           if (p1 - p0 < 2) continue;
           let spot = [0, 0, 0], m = 0;
@@ -1192,13 +1333,38 @@
           }
         }
       }
+    }
+    // The hips follow the weight (#84): where a foot is held, the hips slide so the upper body's
+    // weight sits where the legs' own source had it - a torso leaning further (another source's,
+    // or a pose key's) moves them back; the held feet stay on their spots (the legs bend below),
+    // the hips sinking where a leg couldn't reach.
+    if (H && H.balance && rootIndex !== undefined) {
       for (let k = 0; k < count; k++) {
-        for (const side of ["left", "right"]) {
-          const h = held[side][k];
-          if (!h || h.w <= 0) continue;
-          const short = legIK(R, solved[k].local, solved[k].root, side, h.target, h.w);
-          if (h.w >= 0.999) h.lock.short = Math.max(h.lock.short, short);
+        const w = Math.max(held.left[k] ? held.left[k].w : 0, held.right[k] ? held.right[k].w : 0);
+        if (w <= 0 || !solved[k].root) continue;
+        const now = upperWeight(R, solved[k].local, solved[k].root), was = upperWeight(R, solved[k].ref, solved[k].root);
+        const r = solved[k].root;
+        const hipTo = (side, root) => sub(poseWorld(R, solved[k].local, root).P[R.index.get(side[0] + "thigh_g")], held[side][k].target);
+        const sides = ["left", "right"].filter((side) => held[side][k] && ["thigh_g", "shin_g", "foot_g"].every((n) => R.index.has(side[0] + n)));
+        const before = new Map(sides.map((side) => [side, len(hipTo(side, r))]));
+        solved[k].root = [r[0] - ((now[0] - was[0]) / MOVING_MASS) * w, r[1] - ((now[1] - was[1]) / MOVING_MASS) * w, r[2]];
+        // A held leg the slide puts further than it reaches (or than it already stretched): the
+        // hips sink until it reaches (a deep bow bends the knees).
+        let sink = 0;
+        for (const side of sides) {
+          const reach = Math.max((len(R.restPos[R.index.get(side[0] + "shin_g")]) + len(R.restPos[R.index.get(side[0] + "foot_g")])) * 0.995, before.get(side));
+          const d = hipTo(side, solved[k].root), across = d[0] * d[0] + d[1] * d[1];
+          if (across < reach * reach && len(d) > reach) sink = Math.max(sink, (d[2] - Math.sqrt(reach * reach - across)) * held[side][k].w);
         }
+        if (sink > 0) solved[k].root = [solved[k].root[0], solved[k].root[1], solved[k].root[2] - sink];
+      }
+    }
+    for (let k = 0; k < count; k++) {
+      for (const side of ["left", "right"]) {
+        const h = held[side][k];
+        if (!h || h.w <= 0) continue;
+        const short = legIK(R, solved[k].local, solved[k].root, side, h.target, h.w);
+        if (h.w >= 0.999) h.lock.short = Math.max(h.lock.short, short);
       }
     }
     // The stance (pause1 at 0): the blends' ends.
@@ -1271,7 +1437,8 @@
              source: { start, end: (a + count - 1) / take.fps }, takeTime: (t) => start + unwarp(Math.max(0, Math.min(outLength, t))),
              clipTime: (t) => warp(Math.max(0, Math.min(length, t - start))),  // a time in the take, in the result (the part kept)
              locks: locks.map((l) => ({ side: l.side, start: warp(timeOf(l.from)), end: warp(timeOf(l.to)), takeStart: (a + l.from) / take.fps,
-                                        takeEnd: (a + l.to) / take.fps, short: l.short })) };
+                                        takeEnd: (a + l.to) / take.fps, short: l.short })),
+             mixed: !!(legsSrc || torsoSrc), legPlants, torsoHands };
   }
 
   // --- Contact and key reduction ---------------------------------------------------------------
@@ -1418,7 +1585,7 @@
   }
 
   const api = { LANDMARKS, CONNECTIONS, parseCapture, addHand, timesFrom, resample, despike, pointsSpan, pointsCsv, trimFromMarks, frameRateFrom,
-                prepare, setReference, referenceSpan, keepSpan, placeGround, suggestPlants, poseWorld, legIK, poseValue, applyPoses,
+                prepare, setReference, referenceSpan, keepSpan, placeGround, suggestPlants, poseWorld, legIK, poseValue, applyPoses, halfTime,
                 pointsAt, retarget, suggestContact, motionProfile, suggestTrim, reduceTrack, rig, solveFrame, landmarks, bodyFrames };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.Mocap = api;
