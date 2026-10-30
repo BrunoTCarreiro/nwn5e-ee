@@ -589,6 +589,69 @@ const LEG_JOINTS = ["lshin_g", "lfoot_g", "rshin_g", "rfoot_g"];
   }
 }
 {
+  // Pose keys (#83) on victorymg (a_ba; keys not reduced): the right foot set 50 degrees toes-up from
+  // 0.3 to 0.6 s - against its shin turned 50 from the stance's, the shin untouched, nothing changed
+  // before the keys' fade; the left forearm adjusted 0 -> 40 degrees forward over 0.3-0.5 s - 40 there,
+  // 20 halfway (eased); the body's position 10 cm forward and 5 up at 0.4 s - the root moved so; a thigh
+  // turned 15 degrees through a plant (getlow, other legs, locked) - the foot still pinned; the solve
+  // cache - the same result as without it, again with other keys, and after the stance or the part kept
+  // changes (the same cache object: it re-solves).
+  const m = madeTake("a_ba", "victorymg", {});
+  if (m) {
+    const lead = m.made.lead, at = (t) => lead + t;
+    const base = { start: lead, stance: m.stance, place: "return", reduce: false };
+    const plain = M.retarget(m.take, m.lib.bones, base);
+    const poses = [
+      { bone: "rfoot_g", mode: "set", fade: 0.1, keys: [{ t: at(0.3), v: [50, 0, 0] }, { t: at(0.6), v: [50, 0, 0] }] },
+      { bone: "lforearm_g", mode: "add", fade: 0.1, keys: [{ t: at(0.3), v: [0, 0, 0] }, { t: at(0.5), v: [40, 0, 0] }] },
+      { bone: "rootdummy", mode: "add", fade: 0.1, keys: [{ t: at(0.4), v: [10, 0, 5] }] },
+    ];
+    const edited = M.retarget(m.take, m.lib.bones, Object.assign({ poses }, base));
+    const conj = (q) => [-q[0], -q[1], -q[2], q[3]];
+    const ang = (a, b) => (2 * Math.acos(Math.min(1, Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]))) * 180) / Math.PI;
+    const bone = (clip, t, n) => posed(m.lib.bones, clip, t)[m.bone(n)];
+    const rel = (pose, child, parent) => qmul(conj(pose[m.bone(parent)].q), pose[m.bone(child)].q);
+    const stance = posed(m.lib.bones, m.stance, 0);
+    const footTurn = ang(rel(posed(m.lib.bones, edited, 0.45), "rfoot_g", "rshin_g"), rel(stance, "rfoot_g", "rshin_g"));
+    const shinMoved = ang(bone(edited, 0.45, "rshin_g").q, bone(plain, 0.45, "rshin_g").q);
+    const before = ang(bone(edited, 0.1, "rfoot_g").q, bone(plain, 0.1, "rfoot_g").q);
+    const forearm = ang(bone(edited, 0.5, "lforearm_g").q, bone(plain, 0.5, "lforearm_g").q);
+    const halfway = ang(bone(edited, 0.4, "lforearm_g").q, bone(plain, 0.4, "lforearm_g").q);
+    const r0 = bone(plain, 0.4, "rootdummy").p, r1 = bone(edited, 0.4, "rootdummy").p;
+    const moved = Math.hypot(r1[0] - r0[0], r1[1] - r0[1] - 0.10, r1[2] - r0[2] - 0.05);
+    // halfway through its fade-in (0.1 s before its key at 0.4): half of it
+    const h0 = bone(plain, 0.35, "rootdummy").p, h1 = bone(edited, 0.35, "rootdummy").p;
+    const fadeHalf = Math.hypot(h1[0] - h0[0], h1[1] - h0[1] - 0.05, h1[2] - h0[2] - 0.025);
+    // locks under a turned thigh
+    const g = madeTake("a_ba", "getlow", { legRatio: 1.25 });
+    let slide = 1;
+    if (g) {
+      const held = M.retarget(g.take, g.lib.bones, { start: g.made.lead, stance: g.stance, place: "return", reduce: false, plants: M.suggestPlants(g.take),
+        poses: [{ bone: "rthigh_g", mode: "add", fade: 0.05, keys: [{ t: g.made.lead + 0.1, v: [15, 0, 0] }, { t: g.made.lead + 0.4, v: [15, 0, 0] }] }] });
+      slide = wander(track(g.lib.bones, held, g.bone("rfoot_g")));
+    }
+    // the cache
+    const cache = {};
+    const c1 = M.retarget(m.take, m.lib.bones, Object.assign({ poses, cache }, base));
+    const c2 = M.retarget(m.take, m.lib.bones, Object.assign({ poses: poses.slice(0, 1), cache }, base));
+    const u2 = M.retarget(m.take, m.lib.bones, Object.assign({ poses: poses.slice(0, 1) }, base));
+    const other = Object.assign({}, base, { stance: findClip("a_ba", "nwreadyr") });
+    const c3 = M.retarget(m.take, m.lib.bones, Object.assign({ poses, cache }, other));
+    const u3 = M.retarget(m.take, m.lib.bones, Object.assign({ poses }, other));
+    const later = Object.assign({}, other, { start: lead + 0.1 });  // the stance as the last call's: only the span changed
+    const c4 = M.retarget(m.take, m.lib.bones, Object.assign({ poses, cache }, later));
+    const u4 = M.retarget(m.take, m.lib.bones, Object.assign({ poses }, later));
+    const same = (x, y) => { if (Math.abs(x.length - y.length) > 1e-9) return Infinity; let d = 0; for (let t = 0; t <= x.length; t += 0.1) { const a = posed(m.lib.bones, x, t), b = posed(m.lib.bones, y, t); a.forEach((w, i) => { d = Math.max(d, Math.hypot(...w.p.map((v, c) => v - b[i].p[c]))); }); } return d; };
+    const cached = Math.max(same(c1, edited), same(c2, u2), same(c3, u3), same(c4, u4));
+    const ok = Math.abs(footTurn - 50) < 0.5 && shinMoved < 0.1 && before < 0.1 && Math.abs(forearm - 40) < 0.5 && Math.abs(halfway - 20) < 0.5 &&
+      moved < 0.001 && fadeHalf < 0.002 && slide < 0.0005 && cached < 1e-9;
+    if (!ok) failed++;
+    console.log((ok ? "ok  " : "FAIL") + " pose keys: the foot set " + footTurn.toFixed(1) + " degrees from the stance's (shin moved " + shinMoved.toFixed(2) +
+                ", before the keys " + before.toFixed(2) + "); the forearm " + forearm.toFixed(1) + " at its key, " + halfway.toFixed(1) + " halfway; the body moved off by " +
+                (moved * 1000).toFixed(2) + " mm, halfway through its fade-in by " + (fadeHalf * 1000).toFixed(2) + " mm; a locked foot under a turned thigh slides " + (slide * 1000).toFixed(2) + " mm; cached " + (cached < 1e-9 ? "the same" : "DIFFERENT (" + cached + ")"));
+  }
+}
+{
   // A rough capture (#81): feet lost under the floor for 0.35 s - the lost points dropped and
   // filled: the same standing hips as the clean take, the feet on the floor; the whole body 30 cm
   // down for 0.35 s (no limb stretched) - the floor from the standing part, not the take's lowest;

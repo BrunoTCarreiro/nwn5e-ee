@@ -64,6 +64,8 @@ label.check input { accent-color: var(--accent); width: 16px; height: 16px; marg
 .timeline-foot { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; }
 .timeline-foot .legend { flex: 1 1 260px; margin: 0; }
 .transport .step { padding: 6px 10px; }
+.pose { border-top: 1px solid var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.pose-sliders { display: flex; flex-direction: column; gap: 8px; }
 .motion .legend { margin: 4px 0 0; }
 .key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 4px 0 10px; vertical-align: -1px; }
 .key:first-child { margin-left: 0; }
@@ -114,7 +116,7 @@ pre { margin: 8px 0 0; padding: 8px; background: var(--bg); border: 1px solid va
   .stage-wrap { position: sticky; top: 16px; }
   .stage { height: min(70vh, 640px, calc(100vh - 150px)); min-height: 240px; }
   /* Mocap: the timeline under the preview too (#79) - the stage gives it room. */
-  .stage-wrap.mocap .stage { height: min(60vh, 560px, calc(100vh - 400px)); min-height: 200px; }
+  .stage-wrap.mocap .stage { height: min(60vh, 560px, calc(100vh - 400px - var(--pose-rows, 0px))); min-height: 200px; }
 }
 .transport input[type="range"] { flex: 1 1 200px; }
 .clock { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 0.85rem; color: var(--muted); min-width: 11ch; text-align: right; }

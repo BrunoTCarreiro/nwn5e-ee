@@ -1040,11 +1040,79 @@
     return short;
   }
 
+  // --- Pose keys (#83) ----------------------------------------------------------------------------
+  // Parts of the body turned - or the body's position moved - at keyed moments, on top of the solve.
+  // A part: { bone (a driven bone, or rootdummy: the body's position), mode ("add": on top of the
+  // capture | "set": the capture ignored), fade (s), keys: [{ t (s in the take), v: [3] }] }. A turn
+  // is in degrees about the part's axes in its parent's frame as the neutral stance has it:
+  // forward / back (about the body's right - a foot's toes up, a thigh forward), side (its end toward
+  // the body's right), twist (about the part's own length); "set" makes 0, 0, 0 the stance's pose of
+  // the part against its parent (a stiff foot: set it, and hold it with two keys alike). The body's
+  // position moves forward / right / up in cm. Keys ease into each other (smoothstep); before its
+  // first key and after its last the part fades in from and out to the capture over `fade`.
+  function poseValue(part, t) {
+    const keys = part.keys;
+    if (!keys.length) return null;
+    const fade = Math.max(0, part.fade === undefined ? 0.15 : part.fade);
+    const first = keys[0], last = keys[keys.length - 1];
+    if (t < first.t) return fade > 0 && t >= first.t - fade ? { v: first.v, w: smoothstep(1 - (first.t - t) / fade) } : null;
+    if (t > last.t) return fade > 0 && t <= last.t + fade ? { v: last.v, w: smoothstep(1 - (t - last.t) / fade) } : null;
+    let i = 0;
+    while (i < keys.length - 1 && keys[i + 1].t <= t) i++;
+    const k0 = keys[i], k1 = keys[Math.min(i + 1, keys.length - 1)];
+    const u = k1.t > k0.t ? smoothstep((t - k0.t) / (k1.t - k0.t)) : 0;
+    return { v: k0.v.map((x, c) => x + (k1.v[c] - x) * u), w: 1 };
+  }
+  // The part's own length, in its frame: toward its child (a limb), a foot's forward, else up.
+  function partAxis(R, i) {
+    const d = DRIVEN.find((x) => x.bone === lower(R.bones[i].name));
+    if (d && (d.kind === "aim" || d.kind === "hand" || d.kind === "neck")) { const c = childDirection(R, d.bone, d.child); if (c) return c; }
+    if (d && d.kind === "foot") return rotate(qconj(R.world[i]), [0, 1, 0]);
+    return rotate(qconj(R.world[i]), [0, 0, 1]);
+  }
+  // The parts' keys applied to solved frames (their local turns and roots), frame k at take time (a + k) / fps.
+  function applyPoses(R, solved, a, fps, poses) {
+    const rootIndex = R.index.get("rootdummy");
+    const parts = (poses || []).filter((p) => p && p.keys && p.keys.length && R.index.has(lower(p.bone)))
+      .map((p) => Object.assign({}, p, { i: R.index.get(lower(p.bone)), keys: p.keys.slice().sort((x, y) => x.t - y.t) }))
+      .sort((x, y) => x.i - y.i);
+    if (!parts.length) return 0;
+    const rad = Math.PI / 180;
+    let applied = 0;
+    for (let k = 0; k < solved.length; k++) {
+      const sv = solved[k], t = (a + k) / fps;
+      for (const part of parts) {
+        const pv = poseValue(part, t);
+        if (!pv) continue;
+        applied++;
+        if (part.i === rootIndex) {
+          if (sv.root) sv.root = [sv.root[0] + (pv.v[1] / 100) * pv.w, sv.root[1] + (pv.v[0] / 100) * pv.w, sv.root[2] + (pv.v[2] / 100) * pv.w];
+          continue;
+        }
+        if (!sv.local.has(part.i)) continue;
+        const { W } = poseWorld(R, sv.local, sv.root);
+        const i = part.i, parent = R.bones[i].parent;
+        const Wp = parent >= 0 ? W[parent] : IDENTITY, Np = parent >= 0 ? R.neutral[parent] : IDENTITY;
+        const carry = qmul(Wp, qconj(Np));  // the parent's turn since the stance: the axes go with it
+        const turn = (s) => qmul(axisAngle([1, 0, 0], pv.v[0] * s * rad), axisAngle([0, -1, 0], pv.v[1] * s * rad));
+        const twist = (q, s) => qmul(axisAngle(norm(rotate(q, partAxis(R, i))), pv.v[2] * s * rad), q);
+        let w;
+        if (part.mode === "set") w = qmix(W[i], twist(qmul(carry, qmul(turn(1), R.neutral[i])), 1), pv.w);
+        else w = twist(qmul(qmul(carry, qmul(turn(pv.w), qconj(carry))), W[i]), pv.w);
+        sv.local.set(i, qnorm(qmul(qconj(Wp), w)));
+      }
+    }
+    return applied;
+  }
+
   // --- The retarget -----------------------------------------------------------------------------
   // options: name, start / end (s; end 0 = the end), sway (true), stance (a clip:
   // pause1, for the blends), place ("return" | "inplace": placeGround - "inplace" for walk
   // cycles and loops, whose net travel is travel; sway is always kept for "return"), plants ({ left / right: [[from, to] s in the take] }: feet held
-  // on the floor - the result's locks), blendIn / blendOut (s), loop (false), loopBlend (s),
+  // on the floor - the result's locks), poses (applyPoses' parts, #83), cache (an object the caller keeps,
+  // one per body: the solve is reused while the take, the bones, the stance and the part kept are the
+  // ones it was made from - a pose key moved re-solves nothing), blendIn / blendOut (s),
+  // loop (false), loopBlend (s),
   // fitLength (s; 0 keeps it), contact (s in the take) and contactAt (s in the
   // result), transtime (0.25), reduce (true), tolerance (degrees; 0.75 - and 4 mm
   // for the root, scaled alike). The clip's takeTime(t) is its time in the take.
@@ -1060,15 +1128,17 @@
     const ref = { waist, frames: bodyFrames(refL, waist, null) };
     ref.legs = legNeutral(R, refL);
     const [a, b] = keepSpan(take, opt.start, opt.end);
-    // Solve every frame kept.
-    const driven = [];
+    // Solve every frame kept (or reuse the solve: what follows changes it, so a copy).
     const rootIndex = R.index.get("rootdummy");
-    const solved = [];
-    for (let f = a; f <= b; f++) {
-      const { local, L } = solveFrame(R, take.frames[f], ref);
-      solved.push({ local, L });
-      if (!driven.length) for (const k of local.keys()) driven.push(k);
+    const c = opt.cache, stanceName = opt.stance ? opt.stance.name : "";
+    let base = c && c.take === take && c.bones === bones && c.stance === stanceName && c.a === a && c.b === b ? c.solved : null;
+    if (!base) {
+      base = [];
+      for (let f = a; f <= b; f++) base.push(solveFrame(R, take.frames[f], ref));
+      if (c) Object.assign(c, { take, bones, stance: stanceName, a, b, solved: base });
     }
+    const solved = base.map((sv) => ({ local: new Map(sv.local), L: sv.L }));
+    const driven = solved.length ? [...solved[0].local.keys()] : [];
     // The loop: cut where the pose comes closest to the first (in the last 40%), then crossfade.
     if (opt.loop && solved.length > 6) {
       let best = solved.length - 1, bestCost = Infinity;
@@ -1091,6 +1161,8 @@
       }
     }
     solved.forEach((sv, k) => { sv.root = rootPosition(R, sv.L, take, refL, opt.place === "return" || opt.sway, ground[k], home); });
+    // The pose keys (#83), before the locks: a locked foot stays pinned under a turned leg.
+    if (opt.poses) applyPoses(R, solved, a, take.fps, opt.poses);
     // Planted feet held (#79): each lock keeps its ankle on the spot on the ground where it
     // landed, by bending the leg (legIK) - on this body, whatever its legs' proportions. In
     // from 0.1 s before it lands, out over 0.2 s as it lifts (the correction rides the step).
@@ -1346,7 +1418,7 @@
   }
 
   const api = { LANDMARKS, CONNECTIONS, parseCapture, addHand, timesFrom, resample, despike, pointsSpan, pointsCsv, trimFromMarks, frameRateFrom,
-                prepare, setReference, referenceSpan, keepSpan, placeGround, suggestPlants, poseWorld, legIK,
+                prepare, setReference, referenceSpan, keepSpan, placeGround, suggestPlants, poseWorld, legIK, poseValue, applyPoses,
                 pointsAt, retarget, suggestContact, motionProfile, suggestTrim, reduceTrack, rig, solveFrame, landmarks, bodyFrames };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.Mocap = api;

@@ -3900,6 +3900,30 @@ now 0.79-0.82 m); and the knee rule applied again after the legs' turn, at the t
 the capture's hip points face 20-30 degrees off them). The take: hips 0.78 m, jumps over 25 cm 8 -> 2, knees 1.6 cm at
 worst; the recordings' locks hold to 0.55-0.80 cm. Checks: feet lost 1.4 m for 0.35 s, the body sunk 30 cm for 0.35 s, a
 heel lagging 15 cm (kept), a heel lost on a walk (stays at its ankle's distance to 0.9 cm); 7 deliberate breaks caught.
+*#83 (2026-10-29/30; owner: "this doesn't give me enough control over the poses. for example, I can't see that's the foot
+orientation. I recorded a kick for the shove animation but the foot ended up being all limp instead of having a stiff heel
+out. I need something that gives me more control over the timing and position of the various body parts to make sure poses
+are timed correctly and impactful"):* found - the preview never drew the feet (NWN's foot bone ends at the ankle, no toe
+bone), and in 21-20-50's kicks the capture has the kicking foot toes-down by 23-88 degrees, with the heel and toe lost at
+about half the kick peaks (13 frames a second can't hold a foot through a kick). Drawn first: a heel and a toe turned with
+the foot bone. Options: (a) a rig in the Blender add-on, (b) pose keys and retiming in the bench, (c) Cascadeur. Asked to
+read Cascadeur's .casc ("can you make the bench use it (or find a way to convert it to fbx)?") - declined: its free plan
+exports .casc only and FBX / glTF start at the paid plan, so reading .casc would get around that paywall. *Decision (owner,
+2026-10-30):* "Let's try bench pose keys first". Part 1 built (tools only): pose keys - a part (the body's position, hips,
+torso, neck, head, thighs, shins, feet, upper arms, forearms, hands) turned at keyed moments by forward / back, side and
+twist in degrees about axes in its parent's frame as the stance has it (the body's position: forward, right, up in cm);
+*adjust* turns it on top of the capture, *set* replaces it (0 = the stance's pose of the part against its parent); keys
+ease (smoothstep) and fade from and to the capture over a set time; applied on every body after the solve and the roots,
+before the foot locks and the blends (MC.applyPoses). The bench: sliders that key the part at the marker, hold, previous /
+next key, a timeline row per posed part (click, drag to retime with snapping, Delete), the part drawn blue on the doll, the
+panel in the rail so the pinned preview and timeline stay in view (the stage gives up a row's height per part). A take's
+edits kept in the browser by file and frame count. The solve is reused while the take, body, stance and part kept are the
+same (MC.retarget's cache, compared there, not by a key the page builds): a slider to a redrawn doll 63-97 ms on the 20 s
+take (a re-solve ~140). Checks: a foot set 50 degrees from the stance's (to 0.0), a forearm 40 at its key and 20 halfway, the
+body moved and half-moved through its fade-in (0.00 mm), a locked foot under a turned thigh (0.00 mm), the cache the same
+after other keys, another stance or another span; the browser: 15 expectations on the owner's kick take. Deliberate breaks:
+8 in the core and 7 in the page, all caught (one more - the fade's lower limit - turned out not to change anything:
+smoothstep clamps it). Part 2 (timing: speed a stretch up or down, hold a pose for frames) waits on the owner trying part 1.
 *Capture habits (told to the owner):* two or more cameras; a T-pose at each
 take's start; cycles performed on the spot; a prop of the weapon's length; a
 clap or stomp at the contact moment. Rage: 2-3 s, relaxed to a fighting stance.

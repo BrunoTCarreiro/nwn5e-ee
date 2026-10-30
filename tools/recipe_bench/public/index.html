@@ -177,6 +177,39 @@
       <div class="row">
         <label class="check"><input type="checkbox" id="mc-sway" checked> Keep the hips' sway over the feet (on its spot)</label>
       </div>
+      <div class="pose" id="mc-pose">
+        <div class="row">
+          <label>Pose a part
+            <select id="pose-part"></select>
+          </label>
+          <label>Mode
+            <select id="pose-mode">
+              <option value="add">adjust the capture</option>
+              <option value="set">set it (the capture ignored)</option>
+            </select>
+          </label>
+          <label>Fade in / out (s)
+            <input type="number" id="pose-fade" min="0" max="2" step="0.05" value="0.15">
+          </label>
+        </div>
+        <div class="pose-sliders">
+          <label><span class="slider-head"><span id="pose-n0">Forward / back (°)</span><span class="value" id="pose-v0">0°</span></span>
+            <input type="range" id="pose-0" min="-180" max="180" step="1" value="0"></label>
+          <label><span class="slider-head"><span id="pose-n1">Side, + right (°)</span><span class="value" id="pose-v1">0°</span></span>
+            <input type="range" id="pose-1" min="-180" max="180" step="1" value="0"></label>
+          <label><span class="slider-head"><span id="pose-n2">Twist (°)</span><span class="value" id="pose-v2">0°</span></span>
+            <input type="range" id="pose-2" min="-180" max="180" step="1" value="0"></label>
+        </div>
+        <div class="row">
+          <button type="button" id="pose-prev">&#9664; Key</button>
+          <button type="button" id="pose-next">Key &#9654;</button>
+          <button type="button" id="pose-hold">Hold to the marker</button>
+          <button type="button" id="pose-del">Delete key</button>
+          <button type="button" id="pose-clear">Clear the part</button>
+        </div>
+        <p class="note" id="pose-info"></p>
+        <p class="note">Pick a part (drawn blue on the doll), put the marker on a frame and move a slider: that keys the part there. <strong>Adjust</strong> turns it on top of the capture; <strong>set</strong> ignores the capture - 0 is the neutral stance's pose (a stiff kicking foot: set it toes-up, then <strong>Hold to the marker</strong> to keep it). Keys ease into each other, and the part fades in from and out to the capture around them. On the part's row on the timeline (under the preview): click a key to go to it, drag it to retime, Delete removes it. Kept in this browser for this take.</p>
+      </div>
       <div class="row">
         <label>Fit to a length (s, 0 keeps it)
           <input type="number" id="mc-fit" min="0" max="20" step="0.05" value="0">

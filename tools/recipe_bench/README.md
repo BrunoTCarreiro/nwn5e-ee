@@ -72,7 +72,26 @@ animation for nwn5e:
    lock bends the knee forward. **The body**: *moves with its steps, back to its spot in the
    blend-out* (one-off animations), or *stays on its spot* (walk cycles, loops:
    the take's travel is taken out, the game moves the creature).
-5. **Save for every body**: the take is retargeted to all eight body libraries and
+5. **Pose keys** (the rail's *Pose a part*): for what the capture got wrong or
+   too soft - a kick's limp foot, a punch that should snap. Pick a part (the body's
+   position, hips, torso, neck, head, a thigh, shin, foot, upper arm, forearm or
+   hand; drawn blue on the doll), put the marker on a frame and move a slider:
+   that keys the part there. **Forward / back** (a foot's toes up, a thigh
+   forward), **side** (+ toward the body's right) and **twist**, in degrees in the
+   frame of the part it hangs from; the body's position moves forward, right and
+   up in cm. **Adjust** turns the part on top of the capture; **set** ignores the
+   capture - 0, 0, 0 is the neutral stance's pose of that part. Keys ease into
+   each other, and the part fades in from and out to the capture around them
+   (**Fade in / out**). **Hold to the marker** copies the part's last pose to the
+   marker (a stiff foot through a kick: set it at the kick's start, hold it at its
+   end); **◀ Key / Key ▶** go to the part's keys. Each posed part gets a row on the
+   timeline: click a key to go to it, drag it to retime (it snaps to the marker
+   and whole frames), **Delete** removes it. The keys apply on every body before
+   the foot locks (a planted foot stays planted under a turned leg). A take's
+   edits - the standing window, the trim, the planted feet, the stance, the body's
+   mode and the pose keys - are kept in this browser and come back when the same
+   file is dropped again.
+6. **Save for every body**: the take is retargeted to all eight body libraries and
    written as one keys recipe; the next game start builds it.
 
 For hand clean-up - smoothing, a bad moment, a pose - **Export points for

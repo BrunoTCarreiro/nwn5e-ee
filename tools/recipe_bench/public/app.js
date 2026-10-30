@@ -334,9 +334,9 @@
       else if (!typing && !e.altKey && !e.ctrlKey && !e.metaKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
         e.preventDefault();
         stepFrame(e.key === "ArrowLeft" ? -1 : 1);
-      } else if (!typing && state.mode === "mocap" && mc.selected && (e.key === "Delete" || e.key === "Backspace")) {
+      } else if (!typing && state.mode === "mocap" && (mc.poseSel || mc.selected) && (e.key === "Delete" || e.key === "Backspace")) {
         e.preventDefault();
-        removeSelectedPlant();
+        if (mc.poseSel) deletePoseKey(); else removeSelectedPlant();
       }
     });
     bindMocap();
@@ -367,6 +367,8 @@
     selected: null,  // the plant selected on the timeline: { side, bar }
     stance: "pause1",  // the neutral stance (#80): the standing part becomes it; the blends start and end in it
     stanceView: false,  // the stage showing the stance from the front, 3/4 and the side (#80)
+    poses: [], posePart: "rfoot_g", poseSel: null,  // pose keys (#83): parts, the part posed, a key selected on the timeline
+    solveCache: {},  // the retarget's solve kept per body (MC.retarget reuses it while the take, stance and span are the same)
     blendIn: 0.2, blendOut: 0.3, loop: false, sway: true, fitLength: 0, contactAt: 0, contact: null, tolerance: 0.75,
     saved: null,  // a keys recipe opened without its capture: its own keys, shown as they are
   };
@@ -455,7 +457,8 @@
   function mocapOptions(body) {
     const fit = mc.fitLength > 0;
     return { name: mcName(), start: mc.start, end: mc.end, sway: mc.sway, stance: findClip(body, mc.stance) || findClip(body, "pause1"),
-      place: mc.place, plants: mc.locks ? mc.plants : null,
+      place: mc.place, plants: mc.locks ? mc.plants : null, poses: mc.poses,
+      cache: (mc.solveCache[body] = mc.solveCache[body] || {}),
       blendIn: mc.blendIn, blendOut: mc.blendOut, loop: mc.loop, loopBlend: 0.25, fitLength: mc.fitLength,
       contact: fit && mc.contact !== null ? mc.contact : null, contactAt: fit && mc.contactAt > 0 ? mc.contactAt : null,
       tolerance: mc.tolerance };
@@ -595,6 +598,7 @@
   function prepareTake() {
     if (!mc.capture) return;
     mc.take = MC.prepare(mc.capture, { fps: mc.fps, smoothing: mc.smoothing, reference: mc.ref, despike: mc.despike ? 1 : 0 });
+    mc.solveCache = {};
     let suggested = "";
     if (mc.fresh) {  // a new capture: the standing window and the trim - a points file's marks, else suggested
       mc.fresh = false;
@@ -610,6 +614,18 @@
       suggested = from + ": standing " + mc.ref[0].toFixed(2) + "-" + mc.ref[1].toFixed(2) + " s, keep " + mc.start.toFixed(2) + "-" +
         (mc.end > 0 ? mc.end.toFixed(2) + " s" : "the end") + " (the graph below; change them with the sliders); planted feet " +
         (marked.plants ? "from its marks" : "suggested") + ": " + mc.plants.left.length + " left, " + mc.plants.right.length + " right (the rows under the graph).";
+      // This take's edits from last time (#83), kept in this browser.
+      mc.poses = [];
+      mc.poseSel = null;
+      const kept = loadSession();
+      if (kept) {
+        for (const k of ["ref", "start", "end", "plants", "stance", "place", "locks", "poses"]) if (kept[k] !== undefined) mc[k] = kept[k];
+        mc.contact = null;
+        mc.take = MC.prepare(mc.capture, { fps: mc.fps, smoothing: mc.smoothing, reference: mc.ref, despike: mc.despike ? 1 : 0 });
+        suggested = "This take's edits restored (saved " + new Date(kept.saved).toLocaleString() + "): standing " + mc.ref[0].toFixed(2) + "-" +
+          mc.ref[1].toFixed(2) + " s, keep " + mc.start.toFixed(2) + "-" + (mc.end > 0 ? mc.end.toFixed(2) + " s" : "the end") + ", " +
+          (mc.plants.left.length + mc.plants.right.length) + " planted feet, " + mc.poses.reduce((n, p) => n + p.keys.length, 0) + " pose keys, from " + mc.stance + ".";
+      }
     }
     mc.profile = MC.motionProfile(mc.take);
     const d = mc.take.duration;
@@ -667,6 +683,7 @@
     }
     $("mc-feet").textContent = feet;
     if (mc.stanceView) stageLabels();
+    saveSession();
   }
 
   async function saveMocap() {
@@ -694,6 +711,7 @@
         mc.take.duration.toFixed(2) + ", " + mc.fps + " fps, smoothing " + mc.smoothing + (mc.loop ? ", looped" : "") +
         (mc.place === "inplace" ? ", in place" : ", returns to its spot") + ", from " + mc.stance +
         (mc.locks ? ", " + (mc.plants.left.length + mc.plants.right.length) + " planted feet locked" : "") +
+        (mc.poses.length ? ", " + mc.poses.reduce((n, p) => n + p.keys.length, 0) + " pose keys" : "") +
         (mc.fitLength > 0 ? ", fitted to " + mc.fitLength + " s" : "") };
     const text = A.writeRecipe(recipe);
     try {
@@ -1053,9 +1071,11 @@
         }
       }
       const depthShade = (z) => Math.max(0, Math.min(0.35, (z - view.distance + 0.6) * 0.18));
+      const posed = fig.capture && mc.take ? rig.lib.bones.findIndex((b) => b.name.toLowerCase() === (mc.posePart === "rootdummy" ? "pelvis_g" : mc.posePart)) : -1;
       for (const s of rig.segments) {
         const z = (cam[s.a][2] + cam[s.b][2]) / 2;
-        items.push({ z, kind: 0, a: screen[s.a], b: screen[s.b], w: (2 * F * s.r) / z, color: shade(fig.color, depthShade(z), colors.stage) });
+        const color = s.a === posed ? colors.capture : shade(fig.color, depthShade(z), colors.stage);
+        items.push({ z, kind: 0, a: screen[s.a], b: screen[s.b], w: (2 * F * s.r) / z, color });
       }
       for (const j of rig.joints) {
         const z = cam[j][2];
@@ -1121,13 +1141,20 @@
   // under it a row a foot, its planted stretches - red where the lock is out of the leg's
   // reach on this body; the selected one outlined, a handle at each end.
   const ROW_H = 15, ROW_GAP = 2;
-  const FEET_ROWS = 2 * (ROW_H + ROW_GAP);  // CSS px under the curves
+  const rowsHeight = () => (2 + poseRows().length) * (ROW_H + ROW_GAP);  // CSS px under the curves: the feet's rows, a posed part's each
   const rowTop = (r) => ROW_GAP + r * (ROW_H + ROW_GAP);  // a row's top, from the curves' bottom
   let footDrag = null;  // a press on the timeline: { mode: seek | new | edge | select, side, bar, end, t0, t1, snapped }
   const markerTime = () => (mc.result && mc.result.takeTime && mc.result.length > 0 ? mc.result.takeTime(state.time % mc.result.length) : null);
   function drawMotion() {
     const c = $("mc-motion");
     if (!c || !mc.take || !mc.profile || state.mode !== "mocap") return;
+    const tall = 106 + rowsHeight() + "px";
+    if (c.style.height !== tall) {
+      c.style.height = tall;
+      const wrap = c.closest(".stage-wrap");  // the pinned stage gives up the pose rows' height (#83)
+      if (wrap) wrap.style.setProperty("--pose-rows", poseRows().length * (ROW_H + ROW_GAP) + "px");
+    }
+    syncPoseUi(false);
     const dpr = window.devicePixelRatio || 1;
     const w = Math.max(10, Math.round(c.clientWidth * dpr)), h = Math.max(10, Math.round(c.clientHeight * dpr));
     if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
@@ -1138,7 +1165,7 @@
     const css = getComputedStyle(document.documentElement);
     const v = (n) => css.getPropertyValue(n).trim();
     const end = mc.end > 0 ? mc.end : d;
-    const ch = h - FEET_ROWS * dpr;  // the curves' height
+    const ch = h - rowsHeight() * dpr;  // the curves' height
     g.globalAlpha = 0.25;
     g.fillStyle = v("--accent");
     g.fillRect(x(mc.start), 0, x(end) - x(mc.start), ch);
@@ -1184,6 +1211,29 @@
       g.textBaseline = "middle";
       g.fillText(side === "left" ? "L" : "R", 3 * dpr, y + rh / 2);
     });
+    // The posed parts' rows (#83): their keys (diamonds - set ones dark, adjust ones blue, the selected
+    // one in the accent), the stretch they act over (with the fades) shaded.
+    poseRows().forEach((part, n) => {
+      const y = ch + rowTop(2 + n) * dpr, rh = ROW_H * dpr, keys = part.keys, fade = part.fade === undefined ? 0.15 : part.fade;
+      g.globalAlpha = 0.5;
+      g.fillStyle = v("--line");
+      g.fillRect(0, y, w, rh);
+      g.globalAlpha = 0.35;
+      g.fillStyle = v("--capture");
+      g.fillRect(x(keys[0].t - fade), y + rh * 0.35, Math.max(dpr, x(keys[keys.length - 1].t + fade) - x(keys[0].t - fade)), rh * 0.3);
+      g.globalAlpha = 1;
+      for (const k of keys) {
+        const cx = x(k.t), cy = y + rh / 2, r = rh * 0.42;
+        g.beginPath();
+        g.moveTo(cx, cy - r); g.lineTo(cx + r, cy); g.lineTo(cx, cy + r); g.lineTo(cx - r, cy); g.closePath();
+        g.fillStyle = mc.poseSel && mc.poseSel.key === k ? v("--accent") : part.mode === "set" ? v("--ink") : v("--capture");
+        g.fill();
+      }
+      g.fillStyle = part.bone === mc.posePart ? v("--accent") : v("--muted");
+      g.font = 10 * dpr + "px " + v("--mono");
+      g.textBaseline = "middle";
+      g.fillText(partName(part.bone, true), 3 * dpr, y + rh / 2);
+    });
     line(mc.profile.feet, v("--muted"), 1);
     line(mc.profile.hands, v("--capture"), 1.5);
     if (mc.contact !== null && mc.fitLength > 0) {
@@ -1205,6 +1255,146 @@
     if ($("mc-plant-remove").disabled !== !mc.selected) $("mc-plant-remove").disabled = !mc.selected;
   }
 
+  // --- Pose keys (#83) -------------------------------------------------------------------------
+  // A part picked, turned at the marker with three sliders (moving one keys it there), in "adjust"
+  // (on top of the capture) or "set" (the capture ignored, 0 the stance's pose) - MC.applyPoses.
+  const POSE_PARTS = [["rootdummy", "Body position", "Body"], ["pelvis_g", "Hips", "Hips"], ["torso_g", "Torso", "Torso"],
+    ["neck_g", "Neck", "Neck"], ["head_g", "Head", "Head"], ["lthigh_g", "Left thigh", "L thigh"], ["lshin_g", "Left shin", "L shin"],
+    ["lfoot_g", "Left foot", "L foot"], ["rthigh_g", "Right thigh", "R thigh"], ["rshin_g", "Right shin", "R shin"], ["rfoot_g", "Right foot", "R foot"],
+    ["lbicep_g", "Left upper arm", "L arm"], ["lforearm_g", "Left forearm", "L forearm"], ["lhand_g", "Left hand", "L hand"],
+    ["rbicep_g", "Right upper arm", "R arm"], ["rforearm_g", "Right forearm", "R forearm"], ["rhand_g", "Right hand", "R hand"]];
+  const partName = (bone, short) => { const p = POSE_PARTS.find(([b]) => b === bone); return p ? p[short ? 2 : 1] : bone; };
+  const findPart = (bone) => mc.poses.find((p) => p.bone === bone);
+  const poseRows = () => POSE_PARTS.map(([b]) => findPart(b)).filter((p) => p && p.keys.length);
+  const keyAt = (part, t) => (part && mc.take ? part.keys.find((k) => Math.abs(k.t - t) < 0.5 / mc.take.fps) : null);
+  const poseFps = () => (mc.take ? mc.take.fps : 30);
+  const markerFrame = () => { const t = markerTime(); return t === null ? null : Math.round(t * poseFps()) / poseFps(); };
+  let recomputeQueued = false;
+  const recomputeSoon = () => { if (!recomputeQueued) { recomputeQueued = true; requestAnimationFrame(() => { recomputeQueued = false; recompute(); }); } };
+  // The part's value at the marker: its key there, else between its keys, else its nearest key's, else 0.
+  function poseShown() {
+    const part = findPart(mc.posePart), t = markerTime();
+    if (!part || !part.keys.length || t === null) return [0, 0, 0];
+    const at = keyAt(part, t);
+    if (at) return at.v.slice();
+    const keys = part.keys;
+    if (t <= keys[0].t) return keys[0].v.slice();
+    if (t >= keys[keys.length - 1].t) return keys[keys.length - 1].v.slice();
+    return MC.poseValue(part, t).v.slice();
+  }
+  let poseUiStamp = "";
+  function syncPoseUi(force) {
+    const part = findPart(mc.posePart), t = markerTime();
+    const stamp = [mc.posePart, t === null ? "-" : t.toFixed(4), part ? part.mode + part.fade + part.keys.map((k) => k.t.toFixed(4) + ":" + k.v.join(",")).join(";") : "",
+      mc.poseSel ? mc.poseSel.key.t : ""].join("|");
+    if (!force && stamp === poseUiStamp) return;
+    poseUiStamp = stamp;
+    $("pose-part").value = mc.posePart;
+    if (part) { $("pose-mode").value = part.mode; $("pose-fade").value = part.fade; }
+    const body = mc.posePart === "rootdummy";
+    $("pose-mode").disabled = body;
+    const names = body ? ["Forward / back (cm)", "Side, + right (cm)", "Up / down (cm)"] : ["Forward / back (°)", "Side, + right (°)", "Twist (°)"];
+    const v = poseShown();
+    for (let c = 0; c < 3; c++) {
+      const s = $("pose-" + c);
+      s.min = body ? -60 : -180;
+      s.max = body ? 60 : 180;
+      if (document.activeElement !== s) s.value = v[c];
+      $("pose-n" + c).textContent = names[c];
+      $("pose-v" + c).textContent = Math.round(v[c]) + (body ? " cm" : "°");
+    }
+    const at = part && t !== null ? keyAt(part, t) : null;
+    $("pose-del").disabled = !(at || mc.poseSel);
+    for (const id of ["pose-prev", "pose-next", "pose-hold", "pose-clear"]) $(id).disabled = !part || !part.keys.length;
+    $("pose-info").textContent = !mc.take ? "Drop a take to pose it." : (partName(mc.posePart) + ": " + (part && part.keys.length
+      ? part.keys.length + " key" + (part.keys.length > 1 ? "s" : "") + " (" + (body ? "moved" : part.mode === "set" ? "set" : "adjusted") + ")" + (at ? "; the marker is on one" : "")
+      : "no keys yet - move a slider to key it at the marker") + ".");
+  }
+  function poseSlider(c) {
+    if (!mc.take || markerFrame() === null) return;
+    setPlaying(false);
+    const t = markerFrame();
+    let part = findPart(mc.posePart);
+    if (!part) { part = { bone: mc.posePart, mode: $("pose-mode").value, fade: Math.max(0, parseFloat($("pose-fade").value) || 0), keys: [] }; mc.poses.push(part); }
+    let key = keyAt(part, t);
+    if (!key) {
+      key = { t, v: [0, 1, 2].map((i) => parseFloat($("pose-" + i).value) || 0) };
+      part.keys.push(key);
+      part.keys.sort((p, q) => p.t - q.t);
+    }
+    key.v[c] = parseFloat($("pose-" + c).value) || 0;
+    mc.poseSel = { bone: part.bone, key };
+    mc.selected = null;
+    $("pose-v" + c).textContent = Math.round(key.v[c]) + (part.bone === "rootdummy" ? " cm" : "°");
+    recomputeSoon();
+  }
+  function deletePoseKey() {
+    const part = mc.poseSel ? findPart(mc.poseSel.bone) : findPart(mc.posePart);
+    const key = mc.poseSel ? mc.poseSel.key : keyAt(part, markerTime());
+    if (!part || !key) return;
+    part.keys = part.keys.filter((k) => k !== key);
+    if (!part.keys.length) mc.poses = mc.poses.filter((p) => p !== part);
+    mc.poseSel = null;
+    syncPoseUi(true);
+    recompute();
+  }
+  function poseJump(dir) {
+    const part = findPart(mc.posePart), t = markerTime();
+    if (!part || t === null) return;
+    const half = 0.5 / poseFps();
+    const keys = dir < 0 ? part.keys.filter((k) => k.t < t - half) : part.keys.filter((k) => k.t > t + half);
+    const key = dir < 0 ? keys[keys.length - 1] : keys[0];
+    if (!key) return;
+    setPlaying(false);
+    seek(key.t);
+    mc.poseSel = { bone: part.bone, key };
+  }
+  // Hold: the part's last pose before the marker kept to the marker (a key alike there).
+  function poseHold() {
+    const part = findPart(mc.posePart), t = markerFrame();
+    if (!part || t === null) return;
+    const before = part.keys.filter((k) => k.t < t - 0.5 / poseFps());
+    if (!before.length) return;
+    let key = keyAt(part, t);
+    if (!key) { key = { t, v: before[before.length - 1].v.slice() }; part.keys.push(key); part.keys.sort((p, q) => p.t - q.t); }
+    else key.v = before[before.length - 1].v.slice();
+    mc.poseSel = { bone: part.bone, key };
+    syncPoseUi(true);
+    recompute();
+  }
+  {
+    const select = $("pose-part");
+    for (const [bone, name] of POSE_PARTS) select.appendChild(new Option(name, bone));
+    select.value = mc.posePart;
+    select.addEventListener("change", () => { mc.posePart = select.value; mc.poseSel = null; syncPoseUi(true); });
+    $("pose-mode").addEventListener("change", () => { const p = findPart(mc.posePart); if (p) { p.mode = $("pose-mode").value; recompute(); } syncPoseUi(true); });
+    $("pose-fade").addEventListener("change", () => { const p = findPart(mc.posePart); if (p) { p.fade = Math.max(0, parseFloat($("pose-fade").value) || 0); recompute(); } syncPoseUi(true); });
+    for (let c = 0; c < 3; c++) {
+      $("pose-" + c).addEventListener("input", () => poseSlider(c));
+      $("pose-" + c).addEventListener("change", () => syncPoseUi(true));
+    }
+    $("pose-prev").addEventListener("click", () => poseJump(-1));
+    $("pose-next").addEventListener("click", () => poseJump(1));
+    $("pose-hold").addEventListener("click", poseHold);
+    $("pose-del").addEventListener("click", deletePoseKey);
+    $("pose-clear").addEventListener("click", () => { mc.poses = mc.poses.filter((p) => p.bone !== mc.posePart); mc.poseSel = null; syncPoseUi(true); recompute(); });
+  }
+  // This take's edits, kept in this browser (#83): its file and frame count name it.
+  const sessionKey = () => (mc.capture ? "nwn5e-mocap|" + mc.fileName + "|" + mc.capture.frames.length : null);
+  function saveSession() {
+    const key = sessionKey();
+    if (!key || !mc.take) return;
+    try {
+      localStorage.setItem(key, JSON.stringify({ saved: Date.now(), ref: mc.ref, start: mc.start, end: mc.end, plants: mc.plants, stance: mc.stance,
+        place: mc.place, locks: mc.locks, poses: mc.poses }));
+    } catch (e) { /* no storage: the edits last until the page closes */ }
+  }
+  function loadSession() {
+    const key = sessionKey();
+    if (!key) return null;
+    try { const s = JSON.parse(localStorage.getItem(key) || "null"); return s && Array.isArray(s.poses) ? s : null; } catch (e) { return null; }
+  }
+
   // Pressing the timeline (#79): above the rows, the marker goes there (drag to scrub); on a
   // row, a drag along it adds a plant, a click selects one, and the selected one's ends drag
   // to lengthen or shorten it - snapping to the marker (within 8 px) and else to whole frames.
@@ -1212,12 +1402,19 @@
     const r = $("mc-motion").getBoundingClientRect();
     const d = Math.max(mc.take ? mc.take.duration : 1, 1e-6);
     const x = e.clientX - r.left, y = e.clientY - r.top;
-    const top = r.height - FEET_ROWS;
+    const top = r.height - rowsHeight();
     let side = null;
     [["left", 0], ["right", 1]].forEach(([s, i]) => { if (y >= top + rowTop(i) - 1 && y < top + rowTop(i) + ROW_H + 1) side = s; });
-    const area = side ? "row" : y >= 0 && y < top ? "curves" : null;
     const t = Math.max(0, Math.min(d, (x / Math.max(r.width, 1)) * d));
     const pxPerS = r.width / d;
+    const parts = poseRows();
+    for (let n = 0; n < parts.length; n++) {
+      if (y < top + rowTop(2 + n) - 1 || y >= top + rowTop(2 + n) + ROW_H + 1) continue;
+      let key = null;
+      for (const k of parts[n].keys) if (Math.abs(x - k.t * pxPerS) <= 6 && (!key || Math.abs(x - k.t * pxPerS) < Math.abs(x - key.t * pxPerS))) key = k;
+      return { area: "pose", part: parts[n], key, t, x, pxPerS };
+    }
+    const area = side ? "row" : y >= 0 && y < top ? "curves" : null;
     let edge = null, inside = null;
     if (side) {
       const sel = mc.selected && mc.selected.side === side ? mc.selected.bar : null;
@@ -1266,8 +1463,14 @@
       const h = footHit(e);
       if (!h.area) return;
       if (h.area === "curves") { footDrag = { mode: "seek" }; seek(h.t); }
-      else if (h.edge) { mc.selected = { side: h.side, bar: h.edge.bar }; footDrag = { mode: "edge", side: h.side, bar: h.edge.bar, end: h.edge.end, moved: false }; }
-      else if (h.inside) { mc.selected = { side: h.side, bar: h.inside }; footDrag = { mode: "select" }; }
+      else if (h.area === "pose") {
+        mc.posePart = h.part.bone;
+        mc.selected = null;
+        setPlaying(false);
+        if (h.key) { mc.poseSel = { bone: h.part.bone, key: h.key }; seek(h.key.t); footDrag = { mode: "posekey", part: h.part, key: h.key, moved: false }; }
+        else { mc.poseSel = null; seek(h.t); footDrag = { mode: "seek" }; }
+      } else if (h.edge) { mc.poseSel = null; mc.selected = { side: h.side, bar: h.edge.bar }; footDrag = { mode: "edge", side: h.side, bar: h.edge.bar, end: h.edge.end, moved: false }; }
+      else if (h.inside) { mc.poseSel = null; mc.selected = { side: h.side, bar: h.inside }; footDrag = { mode: "select" }; }
       else { const s = snapTime(h.t, h.pxPerS); footDrag = { mode: "new", side: h.side, t0: s.t, t1: s.t, snapped: s.snapped }; }
       graph.setPointerCapture(e.pointerId);
       e.preventDefault();
@@ -1276,11 +1479,16 @@
       if (!mc.take) return;
       const h = footHit(e);
       if (!footDrag) {
-        graph.style.cursor = h.area === "curves" ? "pointer" : !h.area ? "" : h.edge ? "ew-resize" : h.inside ? "pointer" : "crosshair";
+        graph.style.cursor = h.area === "curves" ? "pointer" : h.area === "pose" ? (h.key ? "ew-resize" : "pointer") : !h.area ? "" : h.edge ? "ew-resize" : h.inside ? "pointer" : "crosshair";
         return;
       }
       if (footDrag.mode === "seek") seek(h.t);
-      else if (footDrag.mode === "new") { const s = snapTime(h.t, h.pxPerS); footDrag.t1 = s.t; footDrag.snapped = s.snapped; }
+      else if (footDrag.mode === "posekey") {
+        const s = snapTime(h.t, h.pxPerS);
+        footDrag.key.t = s.t;
+        footDrag.snapped = s.snapped;
+        footDrag.moved = true;
+      } else if (footDrag.mode === "new") { const s = snapTime(h.t, h.pxPerS); footDrag.t1 = s.t; footDrag.snapped = s.snapped; }
       else if (footDrag.mode === "edge") {
         const s = snapTime(h.t, h.pxPerS), bar = footDrag.bar;
         if (footDrag.end === 0) bar[0] = Math.min(s.t, bar[1] - 0.1); else bar[1] = Math.max(s.t, bar[0] + 0.1);
@@ -1292,6 +1500,10 @@
       const f = footDrag;
       footDrag = null;
       if (!f || cancel || f.mode === "seek" || f.mode === "select") return;
+      if (f.mode === "posekey") {
+        if (f.moved) { f.part.keys.sort((p, q) => p.t - q.t); seek(f.key.t); recompute(); }
+        return;
+      }
       if (f.mode === "new") {
         if (Math.abs(f.t1 - f.t0) < 0.1) { mc.selected = null; return; }  // a click on an empty stretch: nothing selected
         const bar = [Math.min(f.t0, f.t1), Math.max(f.t0, f.t1)];
