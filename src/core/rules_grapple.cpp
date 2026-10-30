@@ -34,6 +34,12 @@
 //   behind a wall); either is gone, dead or in another area.
 // - D8: a player grappled (monsters' grabs, G3) - its Escape comes with G3.
 // The grapples live in memory only: a loaded game starts with none.
+// 0.58.6 (owner, 2026-10-30, G2-9: "the grappled enemy keeps attempting to
+// escape the grapple while the game is pause"): the escape try's and the held
+// icon's timers run on game time (game_clock: GameMs, still while paused) -
+// GetTickCount kept counting through a pause, and the creature updates run
+// then too. The messages point at Grapple on the radial / quickbar, not at
+// !grapple (owner: "I'm not a big fan of using !commands for combat stuff").
 
 #include <windows.h>
 
@@ -54,6 +60,7 @@
 #include "ee_layout.h"
 #include "effects.h"
 #include "engine.h"
+#include "game_clock.h"
 #include "hooks.h"
 #include "log.h"
 #include "mastery.h"
@@ -87,8 +94,8 @@ struct Grapple {
   float hold;   // metres between them (D5)
   int dc;       // the escape DC
   bool slows;   // the grappler drags at half speed
-  DWORD next_refresh;
-  DWORD next_escape;
+  uint64_t next_refresh;  // game time (GameMs): nothing while paused
+  uint64_t next_escape;
 };
 std::vector<Grapple> g_grapples;  // few: one per grappler (D3)
 struct Release {
@@ -199,7 +206,7 @@ int SkillBonus(void* stats, int skill) {
 
 // GT3: once a round, a grappled creature the game moves that isn't fighting its
 // grappler tries to escape; true when it got free.
-bool EscapeTry(Grapple& g, void* target, DWORD now) {
+bool EscapeTry(Grapple& g, void* target, uint64_t now) {
   if (now < g.next_escape || IsPlayer(target)) return false;
   g.next_escape = now + rules::kGrappleEscapeEveryMs;
   const bool fighting_grappler = Field<uint32_t>(target, ee::kCreatureAttackTarget) == g.grappler;
@@ -228,7 +235,7 @@ bool EscapeTry(Grapple& g, void* target, DWORD now) {
 }
 
 // The grappler's update: the end conditions, the drag, the held effects, the escape try.
-void UpdateGrapple(Grapple& g, void* grappler, DWORD now) {
+void UpdateGrapple(Grapple& g, void* grappler, uint64_t now) {
   void* target = CreatureById(g.target);
   const char* ended = nullptr;
   std::string to_grappler;
@@ -276,7 +283,7 @@ void GrappleUpdate(void* creature) {
   }
   if (g_grapples.empty()) return;
   Grapple* g = ByGrappler(IdOf(creature));
-  if (g) UpdateGrapple(*g, creature, GetTickCount());
+  if (g) UpdateGrapple(*g, creature, GameMs());
 }
 
 // D5: half speed while dragging (unless it is Tiny or two sizes smaller).
@@ -296,7 +303,7 @@ int GrappleStart(void* creature, uint32_t target) {
       return 1;
     }
     TellUnarmed(creature, "nwn5e: Grapple - you are already grappling a creature (one at a time). Use Grapple on it "
-                          "to let go first, or !grapple release.");
+                          "again to let go first.");
     return 0;
   }
   if (!HandFree(creature)) {
@@ -338,7 +345,7 @@ void ResolveGrapple(void* attacker, void* target) {
   if (!save.rolled) return;
   std::string outcome = save.immune ? "immune" : "made - not grappled";
   if (save.failed) {
-    const DWORD now = GetTickCount();
+    const uint64_t now = GameMs();
     Grapple g{attacker_id, target_id, engine::AreaOf(attacker), rules::GrappleHoldMetres(Distance2D(attacker, creature)),
               save.dc, rules::DragCostsExtra(grappler_size, target_size, false), now,
               now + rules::kGrappleEscapeEveryMs};
@@ -365,7 +372,7 @@ std::vector<std::string> GrappleCommand(void* creature, const std::string& args)
   }
   if (const Grapple* g = ByGrappler(id)) {
     TellAbout(id, "Grapple: you are grappling ", g->target,
-              " (escape DC " + std::to_string(g->dc) + "). !grapple release lets go.");
+              " (escape DC " + std::to_string(g->dc) + "). Grapple on it again lets go.");
     return {};
   }
   const uint32_t target = Field<uint32_t>(creature, ee::kCreatureAttackTarget);
@@ -402,6 +409,7 @@ void InstallGrappleRules() {
     return;
   }
   if (!AddMovementRateAdjuster(&GrappleMovementFactor)) Log("grapple: the drag keeps full speed (no movement hook)");
+  if (!StartGameClock()) Log("grapple: no game clock - escape tries run on no clock (never)");
   AddChatCommand("!grapple", &GrappleCommand);
   Log("grapple: Grapple (feat 1312) - a free hand, the Shove's save, Grappled (can't move, Disadvantage against "
       "others), the drag, escapes, letting go (faithful)");

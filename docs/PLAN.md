@@ -3370,6 +3370,12 @@ release` lets go. Tests: GrappleNeedsAFreeHand, GrappleHoldAndEscape,
 EveryoneCanShove and the quickbar's (mutations: the off hand ignored, a shield
 alone refused, no hold clamp, no slack, beats-not-meets, no grant, no quickbar
 entry - all caught).
+*0.58.6 (the owner's G2 run, 2026-10-30, G2-9: "the grappled enemy keeps attempting to escape the grapple while
+the game is pause, and not so much while the game is going"):* the escape try's and the held icon's timers ran on
+GetTickCount, and the creature updates run during a pause - four of five tries in the log fell in one. They run
+on the game clock now (GameMs, still while paused). "Not so much while running" is GT3 as decided: a grappled
+creature fighting its grappler keeps attacking. The messages point at Grapple again, not `!grapple release`
+(owner: "I'm not a big fan of using !commands for combat stuff, I rather use quickbar or radial menu actions").
 
 **GT-L1. Later: throwing an enemy into another** (owner: "How possible would it
 be to implement throwing an enemy into another as a way to damage both? We're
