@@ -309,24 +309,43 @@ bool Under(const std::vector<AnimNode>& bones, int bone, int ancestor) {
 
 }  // namespace
 
-std::string WriteAnimRecipe(const AnimRecipe& r) {
-  if (r.keyed) {
-    std::string text = "# nwn5e animation recipe (Animation Recipe Bench: Mocap mode) - key = value\n"
-                       "name = " + r.name + "\nkind = keys\nlength = " + Num(r.length) + "\ntranstime = " +
-                       Num(r.transtime) + "\nsource = " + r.source +
-                       "\n# keys <library> <bone> o <time x y z w> ... | p <time x y z> ...\n";
-    for (const auto& library : r.keys) {
-      for (const AnimKeyTrack& track : library.second) {
-        text += "keys " + library.first + " " + track.bone + (track.position ? " p" : " o");
-        for (size_t k = 0; k < track.keys.times.size(); ++k) {
-          const auto& v = track.keys.values[k];
-          text += " " + Num(track.keys.times[k]) + " " + Num(v[0]) + " " + Num(v[1]) + " " + Num(v[2]);
-          if (!track.position) text += " " + Num(v[3]);
-        }
-        text += "\n";
+namespace {
+
+// A keys or assembled recipe's tracks: a line per library, bone and channel.
+std::string KeyLines(const AnimRecipe& r) {
+  std::string text;
+  for (const auto& library : r.keys) {
+    for (const AnimKeyTrack& track : library.second) {
+      text += "keys " + library.first + " " + track.bone + (track.position ? " p" : " o");
+      for (size_t k = 0; k < track.keys.times.size(); ++k) {
+        const auto& v = track.keys.values[k];
+        text += " " + Num(track.keys.times[k]) + " " + Num(v[0]) + " " + Num(v[1]) + " " + Num(v[2]);
+        if (!track.position) text += " " + Num(v[3]);
       }
+      text += "\n";
     }
-    return text;
+  }
+  return text;
+}
+
+}  // namespace
+
+std::string WriteAnimRecipe(const AnimRecipe& r) {
+  if (r.kind == AnimRecipeKind::kAssembled) {
+    return "# nwn5e animation recipe (Animation Recipe Bench: assembled) - key = value\n"
+           "name = " + r.name + "\nkind = assembled\nstance = " + r.stance + "\nlength = " + Num(r.length) +
+           "\ntranstime = " + Num(r.transtime) + "\nblend_in = " + Num(r.blend_in) + "\nblend_out = " +
+           Num(r.blend_out) + "\nloop = " + (r.loop ? "1" : "0") + "\nloop_blend = " + Num(r.loop_blend) +
+           "\nsource = " + r.source +
+           "\n# keys <library> <bone> o <time x y z w> ...: the turn from the stance's first frame (L = S * delta)"
+           "\n# keys <library> rootdummy p <time x y z> ...: the offset from the stance's first-frame root\n" +
+           KeyLines(r);
+  }
+  if (r.keyed || r.kind == AnimRecipeKind::kKeys) {
+    return "# nwn5e animation recipe (Animation Recipe Bench: Mocap mode) - key = value\n"
+           "name = " + r.name + "\nkind = keys\nlength = " + Num(r.length) + "\ntranstime = " +
+           Num(r.transtime) + "\nsource = " + r.source +
+           "\n# keys <library> <bone> o <time x y z w> ... | p <time x y z> ...\n" + KeyLines(r);
   }
   return "# nwn5e animation recipe - key = value\n"
          "name = " + r.name + "\nbase = " + r.base + "\nmix = " + r.mix + "\namount = " + Num(r.amount) +
@@ -390,10 +409,35 @@ bool ReadAnimRecipe(const std::string& text, AnimRecipe* recipe, std::string* er
     else if (key == "end") r.end = static_cast<float>(atof(value.c_str()));
     else if (key == "crouch") r.crouch = std::max(0.0f, std::min(0.6f, static_cast<float>(atof(value.c_str()))));
     else if (key == "lean") r.lean = std::max(-45.0f, std::min(90.0f, static_cast<float>(atof(value.c_str()))));
-    else if (key == "kind") r.keyed = Lower(value) == "keys";
+    else if (key == "kind") {
+      const std::string kind = Lower(value);
+      r.kind = kind == "keys" ? AnimRecipeKind::kKeys
+               : kind == "assembled" ? AnimRecipeKind::kAssembled
+                                     : AnimRecipeKind::kFormula;
+      r.keyed = r.kind == AnimRecipeKind::kKeys;
+    }
     else if (key == "length") r.length = static_cast<float>(atof(value.c_str()));
     else if (key == "transtime") r.transtime = std::max(0.0f, static_cast<float>(atof(value.c_str())));
     else if (key == "source") r.source = value;
+    else if (key == "stance") r.stance = value;
+    else if (key == "blend_in") r.blend_in = std::max(0.0f, static_cast<float>(atof(value.c_str())));
+    else if (key == "blend_out") r.blend_out = std::max(0.0f, static_cast<float>(atof(value.c_str())));
+    else if (key == "loop") r.loop = atoi(value.c_str()) != 0;
+    else if (key == "loop_blend") r.loop_blend = std::max(0.0f, static_cast<float>(atof(value.c_str())));
+  }
+  if (r.kind == AnimRecipeKind::kAssembled) {
+    if (r.stance.empty()) {
+      if (error) *error = "an assembled recipe needs a stance (the animation its turns are relative to)";
+      return false;
+    }
+    if (r.name.empty() || r.keys.empty() || r.length <= 0.0f) {
+      if (error) *error = "an assembled recipe needs a name, a length and keys";
+      return false;
+    }
+    r.base.clear();
+    r.mix.clear();
+    *recipe = r;
+    return true;
   }
   if (r.keyed) {
     if (r.name.empty() || r.keys.empty() || r.length <= 0.0f) {

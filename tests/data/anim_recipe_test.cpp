@@ -449,3 +449,110 @@ TEST(AnimRecipeChainMissingLibrary) {
 // The recipe core's stamp: the build's (core_stamp.bat) in the DLL and the tools' helper; a build
 // without one says so. Break caught: an empty stamp.
 TEST(AnimCoreStampSaysUnstamped) { CHECK_EQ(std::string(AnimCoreStamp()) == "unstamped", true); }
+
+// The assembled recipe (#87, docs/BENCH-REDESIGN.md): the capture as each bone's turn relative to a
+// named stance's first frame (L = S * delta), the root as its offset from the stance's, and the
+// clip's blends and loop. Breaks caught: the writer dropping blend_out; the reader taking an
+// assembled recipe without a stance.
+namespace {
+
+long long Scaled(float v, double by) { return llround(static_cast<double>(v) * by); }
+
+AnimRecipe AssembledFixture() {
+  AnimRecipe r;
+  r.name = "n5_asm";
+  r.kind = AnimRecipeKind::kAssembled;
+  r.stance = "1hreadyr";
+  r.blend_in = 0.1f;
+  r.blend_out = 0.3f;
+  r.loop = false;
+  r.loop_blend = 0.2f;
+  r.length = 1.0f;
+  r.transtime = 0.2f;
+  r.source = "take3.csv 1.2-2.2 s";
+  AnimKeyTrack turn;
+  turn.bone = "torso_g";
+  turn.keys.times = {0.0f, 0.5f, 1.0f};
+  turn.keys.values = {{0, 0, 0, 1}, {0.12345f, -0.05432f, 0.01f, 0.99104f}, {0, 0, 0, 1}};
+  AnimKeyTrack root;
+  root.bone = "rootdummy";
+  root.position = true;
+  root.keys.times = {0.0f, 0.3333f, 1.0f};
+  root.keys.values = {{0, 0, 0, 0}, {0.0123f, -0.4567f, -0.081f, 0}, {0, 0.25f, 0, 0}};
+  r.keys["a_ba"] = {turn, root};
+  return r;
+}
+
+}  // namespace
+
+TEST(AnimRecipeAssembledRoundTrip) {
+  const AnimRecipe r = AssembledFixture();
+  AnimRecipe back;
+  std::string error;
+  CHECK_EQ(ReadAnimRecipe(WriteAnimRecipe(r), &back, &error), true);
+  CHECK_EQ(back.kind == AnimRecipeKind::kAssembled, true);
+  CHECK_EQ(back.keyed, false);
+  CHECK_EQ(back.name == "n5_asm" && back.stance == "1hreadyr" && back.source == r.source, true);
+  CHECK_EQ(back.base.empty() && back.mix.empty(), true);
+  CHECK_EQ(Milli(back.blend_in), 100);
+  CHECK_EQ(Milli(back.blend_out), 300);
+  CHECK_EQ(back.loop, false);
+  CHECK_EQ(Milli(back.loop_blend), 200);
+  CHECK_EQ(Milli(back.length), 1000);
+  CHECK_EQ(Milli(back.transtime), 200);
+  CHECK_EQ(back.keys.size() == 1 && back.keys["a_ba"].size() == 2, true);
+  for (size_t t = 0; t < 2 && t < back.keys["a_ba"].size(); ++t) {
+    const AnimKeyTrack& want = r.keys.at("a_ba")[t];
+    const AnimKeyTrack& got = back.keys["a_ba"][t];
+    CHECK_EQ(got.bone == want.bone && got.position == want.position, true);
+    CHECK_EQ(got.keys.times.size() == want.keys.times.size(), true);
+    for (size_t k = 0; k < want.keys.times.size() && k < got.keys.times.size(); ++k) {
+      CHECK_EQ(Scaled(got.keys.times[k], 1e4), Scaled(want.keys.times[k], 1e4));  // times to 4 decimals
+      const double by = want.position ? 1e4 : 1e5;  // positions to 4, quaternions to 5
+      for (int c = 0; c < (want.position ? 3 : 4); ++c) {
+        CHECK_EQ(Scaled(got.keys.values[k][c], by), Scaled(want.keys.values[k][c], by));
+      }
+    }
+  }
+  AnimRecipe looped = r;
+  looped.loop = true;
+  CHECK_EQ(ReadAnimRecipe(WriteAnimRecipe(looped), &back, &error), true);
+  CHECK_EQ(back.loop, true);
+}
+
+TEST(AnimRecipeAssembledNeedsAStance) {
+  AnimRecipe r = AssembledFixture();
+  r.stance.clear();
+  AnimRecipe back;
+  std::string error;
+  CHECK_EQ(ReadAnimRecipe(WriteAnimRecipe(r), &back, &error), false);
+  CHECK_EQ(Has(error, "stance"), true);
+  error.clear();
+  CHECK_EQ(ReadAnimRecipe("name = x\nkind = assembled\nlength = 1\nkeys a_ba torso_g o 0 0 0 0 1\n", &back, &error),
+           false);
+  CHECK_EQ(Has(error, "stance"), true);
+  CHECK_EQ(ReadAnimRecipe("name = x\nkind = assembled\nstance = 1hreadyr\nlength = 1\nkeys a_ba torso_g o 0 0 0 0 1\n",
+                          &back, &error),
+           true);  // the stance is what was missing
+}
+
+// The kinds before it read and write as they did: a formula recipe (data/anims' crouch idle) and a
+// keys recipe (Mocap mode's n5_shove / n5_rage).
+TEST(AnimRecipeOldKindsUnchanged) {
+  AnimRecipe r;
+  std::string error;
+  CHECK_EQ(ReadAnimRecipe("name = n5_cridle\nbase = pause1\nmix = \namount = 0\nspeed = 1\nstart = 0\nend = 0\n"
+                          "crouch = 0.4\nlean = 70\n",
+                          &r, &error),
+           true);
+  CHECK_EQ(r.kind == AnimRecipeKind::kFormula, true);
+  CHECK_EQ(r.keyed, false);
+  CHECK_EQ(r.stance.empty() && r.base == "pause1", true);
+  CHECK_EQ(Has(WriteAnimRecipe(r), "kind"), false);
+  CHECK_EQ(ReadAnimRecipe("name = n5_rage\nkind = keys\nlength = 2.5\nkeys a_ba torso_g o 0 0 0 0 1\n", &r, &error),
+           true);
+  CHECK_EQ(r.kind == AnimRecipeKind::kKeys, true);
+  CHECK_EQ(r.keyed, true);
+  CHECK_EQ(Has(WriteAnimRecipe(r), "kind = keys"), true);
+  CHECK_EQ(Has(WriteAnimRecipe(r), "stance") || Has(WriteAnimRecipe(r), "blend"), false);
+}

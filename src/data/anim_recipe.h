@@ -59,7 +59,15 @@ struct AnimKeyTrack {
   AnimKeys keys;
 };
 
+// The assembled recipe (#87, docs/BENCH-REDESIGN.md; `kind = assembled`): what the new bench saves.
+// Its keys lines are the capture per library as each bone's turn relative to the named stance's
+// first frame (the bone's turn L = S * delta, S the stance's), and the rootdummy p track as the
+// offset from the stance's first-frame root position - so the stance's own pose isn't in the file;
+// the game composes it from the player's own animations at startup (AssembleAnimClip).
+enum class AnimRecipeKind { kFormula, kKeys, kAssembled };
+
 struct AnimRecipe {
+  AnimRecipeKind kind = AnimRecipeKind::kFormula;
   std::string name;          // the new animation's name (a resref: letters, digits, '_')
   std::string base = "pause1";
   std::string mix;           // the animation it moves toward ("" for none)
@@ -69,12 +77,18 @@ struct AnimRecipe {
   float end = 0.0f;          // 0: to its end
   float crouch = 0.0f;       // metres the hips drop, the legs bent to keep the footfalls (0 - 0.6)
   float lean = 0.0f;         // degrees the upper body leans forward, the head looking ahead (-45 - 90)
-  // kind = keys (Mocap mode):
-  bool keyed = false;
+  // kind = keys (Mocap mode) and kind = assembled:
+  bool keyed = false;        // kind = keys only
   float length = 0.0f;
   float transtime = 0.25f;
   std::string source;                                         // what it was made from (shown, kept)
   std::map<std::string, std::vector<AnimKeyTrack>> keys;      // library (lower case) -> its tracks
+  // kind = assembled:
+  std::string stance;        // the NWN animation whose first frame is the neutral pose (required)
+  float blend_in = 0.0f;     // seconds from the stance into the capture
+  float blend_out = 0.0f;    // seconds from the capture back to the stance
+  bool loop = false;
+  float loop_blend = 0.25f;  // seconds over which a loop's end eases into its start
 };
 
 std::string WriteAnimRecipe(const AnimRecipe& recipe);
