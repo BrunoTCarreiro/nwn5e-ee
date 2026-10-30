@@ -328,7 +328,7 @@ std::string WriteAnimRecipe(const AnimRecipe& r) {
     }
     return text;
   }
-  return "# nwn5e animation recipe (!animedit) - key = value\n"
+  return "# nwn5e animation recipe - key = value\n"
          "name = " + r.name + "\nbase = " + r.base + "\nmix = " + r.mix + "\namount = " + Num(r.amount) +
          "\nspeed = " + Num(r.speed) + "\nstart = " + Num(r.start) + "\nend = " + Num(r.end) +
          "\ncrouch = " + Num(r.crouch) + "\nlean = " + Num(r.lean) + "\n";

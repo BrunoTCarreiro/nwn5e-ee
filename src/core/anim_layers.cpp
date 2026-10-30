@@ -15,7 +15,7 @@
 // Logged. `stuck_layer_fix`.
 //
 // Gob::PlayAnimation is hooked here (one hook per function): !animtrace
-// records through it too (AnimTracePlay).
+// records through it too (the dev layer's, through g_dev_seam).
 //
 // A player's Shove swings "nwstab" (0.45.5; owner: "for shove the PC should use
 // the nwstab animation for now") - or the owner's captured n5_shove once built
@@ -41,8 +41,8 @@
 #include "ee_layout.h"
 #include "hooks.h"
 #include "log.h"
+#include "dev_seam.h"
 
-void AnimTracePlay(void* gob, const char* name, float speed, int flag, float value);  // anim_trace.cpp
 bool AnimationRecipeBuilt(const std::string& name, std::string* text);              // anim_packs.cpp
 
 namespace {
@@ -152,7 +152,7 @@ int PlayAnimation(void* gob, const char* name, float speed, int flag, float valu
     }
   }
   if (name) {
-    AnimTracePlay(gob, name, speed, flag, value);
+    if (g_dev_seam.anim_play) g_dev_seam.anim_play(gob, name, speed, flag, value);  // !animtrace (dev layer)
     if (g_config.stuck_layer_fix) Note(gob, name, flag);
   }
   return g_play(gob, name, speed, flag, value);
@@ -218,7 +218,7 @@ void AnimLayersClient(void* client_creature) {
   }
   ReleaseSRWLockExclusive(&g_lock);
   for (const std::string& layer : stuck) {
-    AnimTracePlay(model, layer.c_str(), 1.0f, kLayerStop, 0.0f);
+    if (g_dev_seam.anim_play) g_dev_seam.anim_play(model, layer.c_str(), 1.0f, kLayerStop, 0.0f);
     g_play(model, layer.c_str(), 1.0f, kLayerStop, 0.0f);
     if (g_logged < kMaxLogged) {
       ++g_logged;
@@ -230,7 +230,7 @@ void AnimLayersClient(void* client_creature) {
 }
 
 void InstallAnimLayers() {
-  if (!HookExport("Gob::PlayAnimation (stuck arm layers; !animtrace)", kGobPlayAnimation,
+  if (!HookExport("Gob::PlayAnimation (stuck arm layers; the dev layer's trace)", kGobPlayAnimation,
                   reinterpret_cast<void*>(&PlayAnimation), reinterpret_cast<void**>(&g_play))) {
     g_play = nullptr;
     return;

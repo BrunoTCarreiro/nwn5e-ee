@@ -9,6 +9,7 @@
 #include "config.h"
 #include "hooks.h"
 #include "log.h"
+#include "dev_seam.h"
 
 #pragma comment(lib, "shlwapi.lib")
 
@@ -57,16 +58,12 @@ void InstallRestRules();
 void InstallDyingRules();
 void InstallShortRestButton();
 void InstallVfxBrowser();
-void InstallAnimBrowser();
-void InstallVfxEditor();
-void InstallAnimEditor();
 void InstallLowHpLook();
 void InstallStanceLook();
 void InstallStealthWatch();
 void InstallLightProbe();
 void InstallStealthGhost();
 void InstallLightSources();
-void InstallAnimTrace();
 void InstallDriveFix();
 void InstallAnimLayers();
 void InstallRadialClassFeats();
@@ -161,13 +158,13 @@ void Start(HMODULE self) {
   InstallRadialSpecialAttacks();
   InstallEquipCancelFix();
   InstallQuickbar();
-  InstallAnimTrace();
   InstallDriveFix();
   InstallShortRestButton();
   InstallVfxBrowser();
-  InstallAnimBrowser();
-  InstallVfxEditor();
-  InstallAnimEditor();
+#ifdef NWN5E_DEV
+  InstallDev();  // the dev layer (nwn5e-tools\dev): !animtrace, the !anim browser, the VFX editor
+  Log("dev layer: installed (a development build; never share this DLL)");
+#endif
   InstallNuiTest();
   InstallClientUi();
   InstallCreationPages();

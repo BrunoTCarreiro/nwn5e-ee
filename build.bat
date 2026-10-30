@@ -30,7 +30,18 @@ if /i not "%~1"=="public" if exist private\src\*.cpp set PRIVATE_SRC=private\src
 if /i not "%~1"=="public" if exist private\rules\*.cpp set PRIVATE_SRC=%PRIVATE_SRC% private\rules\*.cpp
 if defined PRIVATE_SRC set PRIVATE_DEF=/DNWN5E_PRIVATE /Iprivate
 
-cl %CFLAGS% /LD /Ithird_party\minhook\include /Isrc %PRIVATE_DEF% /DNWN5E_CORE_STAMP=\"%CORE_STAMP%\" ^
+rem The dev layer (nwn5e-tools\dev, docs/BENCH-REDESIGN.md): the tools' in-game parts - !animtrace,
+rem the !anim browser, the VFX editor - compiled in when that checkout sits beside this one
+rem (NWN5E_TOOLS=<folder> to point elsewhere). "build.bat public" leaves it out, like the private layer.
+set DEV_SRC=
+set DEV_DEF=
+set TOOLS=%NWN5E_TOOLS%
+if not defined TOOLS set TOOLS=%~dp0..\nwn5e-tools
+if /i not "%~1"=="public" if exist "%TOOLS%\dev\dev_layer.cpp" set DEV_SRC=%TOOLS%\dev\*.cpp
+if defined DEV_SRC set DEV_DEF=/DNWN5E_DEV /Isrc\core
+if defined DEV_SRC echo dev layer: on (%TOOLS%\dev)
+
+cl %CFLAGS% /LD /Ithird_party\minhook\include /Isrc %PRIVATE_DEF% %DEV_DEF% /DNWN5E_CORE_STAMP=\"%CORE_STAMP%\" ^
   src\core\dllmain.cpp src\core\log.cpp src\core\config.cpp src\core\hooks.cpp ^
   src\core\dice.cpp src\core\attack_roll.cpp src\core\ruleset.cpp src\core\sheet.cpp src\core\creature.cpp ^
   src\core\rules_crit.cpp src\core\rules_attack.cpp src\core\rules_extra_attack.cpp src\core\rules_sheet.cpp ^
@@ -45,10 +56,10 @@ cl %CFLAGS% /LD /Ithird_party\minhook\include /Isrc %PRIVATE_DEF% /DNWN5E_CORE_S
   src\core\rules_hit_points.cpp src\core\rules_feat_cadence.cpp src\core\rules_abilities.cpp ^
   src\core\rules_features.cpp src\core\rules_fighter.cpp src\core\rules_barbarian.cpp src\core\nui.cpp src\core\nui_test.cpp ^
   src\core\client_ui.cpp src\core\chargen_ui.cpp src\core\rules_feats.cpp src\core\rules_equipment.cpp src\core\rules_weapon_size.cpp src\core\rules_finesse.cpp src\core\test_commands.cpp src\core\chargen_skills.cpp src\core\records.cpp src\core\rules_origin_feats.cpp src\core\rules_rest.cpp src\core\rules_dying.cpp src\core\hud_rest.cpp src\core\vfx_browser.cpp ^
-  src\core\feat_use.cpp src\core\feat_uses.cpp src\core\game_clock.cpp src\core\resistance.cpp src\core\anim_browser.cpp src\core\low_hp_look.cpp src\core\stance_look.cpp src\core\stealth_watch.cpp src\core\light_probe.cpp src\core\stealth_ghost.cpp src\core\light_sources.cpp src\core\anim_trace.cpp src\core\script_hooks.cpp src\core\radial_class_feats.cpp src\core\radial_special_attacks.cpp src\core\equip_cancel.cpp src\core\rules_armor.cpp src\core\damage_listeners.cpp src\core\rules_barbarian_strikes.cpp src\core\anim_layers.cpp src\core\drive_fix.cpp src\core\vfx_editor.cpp src\core\anim_packs.cpp src\core\anim_editor.cpp src\core\rules_quickbar.cpp src\core\rules_grapple.cpp src\core\rules_rogue.cpp src\core\resolve_damage.cpp src\core\movement_rate.cpp src\core\rules_cunning_strike.cpp src\core\combat_options.cpp src\core\item_use.cpp src\core\rules_thief.cpp src\core\rules_monk.cpp src\core\action_queue.cpp src\core\resource_panel.cpp ^
+  src\core\feat_use.cpp src\core\feat_uses.cpp src\core\game_clock.cpp src\core\resistance.cpp src\core\low_hp_look.cpp src\core\stance_look.cpp src\core\stealth_watch.cpp src\core\light_probe.cpp src\core\stealth_ghost.cpp src\core\light_sources.cpp src\core\script_hooks.cpp src\core\radial_class_feats.cpp src\core\radial_special_attacks.cpp src\core\equip_cancel.cpp src\core\rules_armor.cpp src\core\damage_listeners.cpp src\core\rules_barbarian_strikes.cpp src\core\anim_layers.cpp src\core\drive_fix.cpp src\core\anim_packs.cpp src\core\dev_seam.cpp src\core\rules_quickbar.cpp src\core\rules_grapple.cpp src\core\rules_rogue.cpp src\core\resolve_damage.cpp src\core\movement_rate.cpp src\core\rules_cunning_strike.cpp src\core\combat_options.cpp src\core\item_use.cpp src\core\rules_thief.cpp src\core\rules_monk.cpp src\core\action_queue.cpp src\core\resource_panel.cpp ^
   src\data\twoda.cpp src\data\ubjson.cpp src\data\vfx_model.cpp src\data\anim_recipe.cpp ^
   src\rules\*.cpp ^
-  %PRIVATE_SRC% third_party\minhook\src\buffer.c third_party\minhook\src\hook.c ^
+  %PRIVATE_SRC% %DEV_SRC% third_party\minhook\src\buffer.c third_party\minhook\src\hook.c ^
   third_party\minhook\src\trampoline.c third_party\minhook\src\hde\hde64.c ^
   /Fe:"%OUT%\nwn5e.dll" /link /DLL user32.lib || exit /b 1
 

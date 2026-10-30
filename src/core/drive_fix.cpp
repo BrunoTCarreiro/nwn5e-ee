@@ -37,8 +37,8 @@
 #include "hooks.h"
 #include "log.h"
 #include "log_once.h"
+#include "dev_seam.h"
 
-void AnimTraceDrive(void* creature, const float* target, int facing, int a, int keys, int c);  // anim_trace.cpp
 
 namespace {
 
@@ -55,7 +55,7 @@ constexpr int kKeyForward = 1, kKeyBackward = 2;
 LogOnce g_fixed_logged(64);  // the first fix per creature
 
 int AddDriveAction(void* creature, uint16_t group, const float* target, int facing, int a, int keys, int c) {
-  AnimTraceDrive(creature, target, facing, a, keys, c);
+  if (g_dev_seam.anim_drive) g_dev_seam.anim_drive(creature, target, facing, a, keys, c);  // !animtrace (dev layer)
   const int32_t limit = creature ? Field<int32_t>(creature, kCreatureLimitSpeed) : 0;
   if (!limit || !g_config.drive_backward_fix || (keys & (kKeyForward | kKeyBackward)) != kKeyBackward) {
     return g_add_drive(creature, group, target, facing, a, keys, c);
