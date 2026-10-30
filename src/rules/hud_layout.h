@@ -106,4 +106,19 @@ constexpr float kTalkLineHeight = 20.0f;  // the Talk line's top at 36 + 20 = 56
 constexpr float kHudClearOfChat = 8.0f;   // at least this far right of the chat window
 HudSpot PlaceHud(const HudScreen& screen, float card_w, float card_h);
 
+// 0.57.11 (owner, 2026-10-30: the hover tooltip "doesn't show paragraphs" -
+// NUI's tooltip draws its text as one line): nwn5e's own hover box, shown while
+// the mouse is over the panel (core/resource_panel.cpp). Its text as lines:
+// each of the tooltip's lines wrapped at word breaks to `width` (kHudCharWidth
+// a character; a word longer than a line is cut), an empty line kept as the
+// gap between paragraphs, none at the end.
+constexpr float kHudTipWidth = 330.0f;  // the text's width, GUI units
+constexpr float kHudTipPad = 8.0f;      // the box around the text
+constexpr float kHudTipGap = 4.0f;      // the box to the panel
+std::vector<std::string> HudTipLines(const std::string& text, float width);
+// Where the box goes (window pixels, the sizes in pixels too): its right edge
+// on the panel's, above it `gap` away - below it when there is no room above;
+// never off the left edge.
+HudBox PlaceHudTip(const HudBox& panel, float tip_w, float tip_h, float gap);
+
 }  // namespace rules

@@ -8,6 +8,53 @@
 
 using namespace rules;
 
+// Breaks caught (0.57.11): a paragraph's gap lost, a line longer than the box,
+// a word split where a space was free, a long word left whole, text lost or
+// reordered, an empty line left at the end.
+TEST(HudTipLinesKeepParagraphsAndWrap) {
+  const std::vector<std::string> lines = HudTipLines("ab cd ef gh ij\n\nKL\nmnopqrstuvwxyz\n", 75.0f);  // 10 a line
+  CHECK_EQ(lines.size(), 6u);
+  if (lines.size() == 6u) {
+    CHECK_EQ(lines[0] == "ab cd ef", true);
+    CHECK_EQ(lines[1] == "gh ij", true);
+    CHECK_EQ(lines[2].empty(), true);  // the paragraphs' gap
+    CHECK_EQ(lines[3] == "KL", true);
+    CHECK_EQ(lines[4] == "mnopqrstuv", true);  // a word longer than a line, cut
+    CHECK_EQ(lines[5] == "wxyz", true);
+  }
+  // The Monk's tooltip at the box's width: four paragraphs, three gaps, no line too long.
+  const std::vector<std::string> focus = HudTipLines(FocusTooltip(18, 18, 17, true), kHudTipWidth);
+  int gaps = 0;
+  size_t longest = 0;
+  for (const std::string& line : focus) {
+    if (line.empty()) ++gaps;
+    if (line.size() > longest) longest = line.size();
+  }
+  CHECK_EQ(gaps, 3);
+  CHECK_EQ(longest <= static_cast<size_t>(kHudTipWidth / kHudCharWidth), true);
+  CHECK_EQ(!focus.empty() && focus[0] == "Focus: 18 of 18 points", true);
+  CHECK_EQ(HudTipLines("", kHudTipWidth).empty(), true);
+}
+
+// Breaks caught (0.57.11): the box not right-aligned with the panel, not above
+// it, not below it at the screen's top, or off the left edge.
+TEST(HudTipPlacedByThePanel) {
+  HudBox panel;
+  panel.x = 1000.0f;
+  panel.y = 800.0f;
+  panel.w = 200.0f;
+  panel.h = 60.0f;
+  HudBox box = PlaceHudTip(panel, 300.0f, 200.0f, 4.0f);
+  CHECK_EQ(static_cast<int>(box.x), 900);
+  CHECK_EQ(static_cast<int>(box.y), 596);  // 800 - 4 - 200: above
+  panel.y = 100.0f;
+  box = PlaceHudTip(panel, 300.0f, 200.0f, 4.0f);
+  CHECK_EQ(static_cast<int>(box.y), 164);  // no room above: 100 + 60 + 4, below
+  panel.x = 50.0f;
+  box = PlaceHudTip(panel, 300.0f, 200.0f, 4.0f);
+  CHECK_EQ(static_cast<int>(box.x), 0);  // never off the left edge
+}
+
 namespace {
 HudPool Focus(int left, int total) {
   HudPool pool;

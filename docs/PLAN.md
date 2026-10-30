@@ -4163,6 +4163,17 @@ place whether the strip shows or not (nothing moves as the queue fills and empti
 strip's own `!queue` off puts it on the top edge. 0.57.4: while the panel sits right under the strip, a leaving
 tile fades in place (rules::QueueExitDrop) instead of sliding 36 px down over it; elsewhere it still slides.
 
+*0.57.11 (owner, 2026-10-30, after the Monk's test run: "all pass except for the hover tooltip on the resource
+panel, it doesn't show paragraphs"):* NUI's tooltip draws its text as one line - the paragraphs' line breaks
+reach it (nui::Str escapes them, the text arrives with them) but aren't drawn. The panel's own hover box
+replaces it: a second client window (n5hudtip; input passes through), a dark card and a draw-list line per
+line of text - rules::HudTipLines wraps the tooltip at word breaks to 330 GUI units (kHudCharWidth a character)
+and keeps the paragraphs' gaps - right-aligned above the panel, below it at the screen's top
+(rules::PlaceHudTip). NUI has no hover event (no mouseenter / mouseleave among the binary's event names), so
+the cursor is read each frame: GetCursorPos on the game's window (this process's largest visible top-level
+window), scaled to the window size the game reports; off the panel, the box waits off screen. Rebuilt when
+its text changes, shown three frames after (the screen's-centre lesson).
+
 ## Test profiles — the owner's request (2026-10-29)
 
 The owner, after the test matrices for the issues waiting on a test: "set different "!test" commands for

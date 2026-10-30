@@ -39,6 +39,15 @@
 //   children's draw lists - so the label's draw list starts 8 in from the
 //   window's edge and the card, 4 past the label on every side, fills the
 //   group: 4 in from the window's edge.
+// - 0.57.11 (owner, 2026-10-30: the tooltip "doesn't show paragraphs"): NUI's
+//   tooltip draws its text as one line, so the panel has none; its own hover
+//   box does - a second client window (n5hudtip, input passes through it): a
+//   dark card and a draw-list line per text line (rules::HudTipLines: wrapped,
+//   the paragraphs' gaps kept), right-aligned above the panel (below it at the
+//   screen's top: rules::PlaceHudTip). NUI has no hover event, so the cursor is
+//   read each frame (GetCursorPos on the game's window, scaled to the window
+//   size the game reports); off the panel, the box waits off screen. Rebuilt
+//   when its text changes, shown three frames later (the centre's lesson).
 
 #include "resource_panel.h"
 
@@ -285,13 +294,148 @@ std::string PanelLayout(const rules::HudLayout& layout, const std::vector<rules:
   char size[96];
   sprintf_s(size, "\"width\":%.1f,\"height\":%.1f,", layout.width, layout.height);
   const std::string element = std::string("{\"type\":\"label\",\"label\":null,\"value\":\"\",") + size +
-                              "\"tooltip\":{\"bind\":\"tip\"},\"draw_list\":[" + items + "],\"draw_list_scissor\":false}";
+                              "\"draw_list\":[" + items + "],\"draw_list_scissor\":false}";
   const std::string root = "{\"type\":\"group\",\"label\":null,\"value\":null,\"border\":false,\"scrollbars\":0,"
                            "\"children\":[" + element + "]}";
   return "{\"version\":1,\"title\":false,\"root\":" + root +
          ",\"geometry\":{\"bind\":\"geometry\"},\"resizable\":false,\"collapsed\":false,\"closable\":false,"
          "\"transparent\":true,\"border\":false,\"accepts_input\":true,\"size_constraint\":null,"
          "\"edge_constraint\":null,\"font\":\"\"}";
+}
+
+// --- The hover box (0.57.11) ---------------------------------------------------
+constexpr const char* kTipWindowId = "n5hudtip";
+constexpr float kOffScreen = -10000.0f;
+
+struct Tip {
+  int token = 0;
+  std::string text;  // what its layout was built for
+  float w = 0.0f, h = 0.0f;  // the card's text area, GUI units
+  int frames = 0;
+  bool revealed = false;
+  float sent_x = -1.0e6f, sent_y = -1.0e6f;
+};
+Tip g_tip;
+int g_tip_logs = 0;
+
+std::string TipLayout(const std::vector<std::string>& lines, float w, float h) {
+  const rules::HudBox card{-kGroupPad, -kGroupPad, w + 2.0f * kGroupPad, h + 2.0f * kGroupPad};
+  std::string items = Shape(7, Colour(16, 16, 20, 235), true, 1.0f, card) + "," + Shape(7, kRingColour, false, 1.0f, card);
+  float y = rules::kHudTipPad;
+  for (const std::string& line : lines) {
+    if (!line.empty()) {
+      const rules::HudBox box{rules::kHudTipPad, y, w - 2.0f * rules::kHudTipPad, rules::kHudLine};
+      items += "," + Text(kNameColour, box, Quoted(line));
+    }
+    y += rules::kHudLine;
+  }
+  char size[96];
+  sprintf_s(size, "\"width\":%.1f,\"height\":%.1f,", w, h);
+  const std::string element = std::string("{\"type\":\"label\",\"label\":null,\"value\":\"\",") + size +
+                              "\"draw_list\":[" + items + "],\"draw_list_scissor\":false}";
+  const std::string root = "{\"type\":\"group\",\"label\":null,\"value\":null,\"border\":false,\"scrollbars\":0,"
+                           "\"children\":[" + element + "]}";
+  return "{\"version\":1,\"title\":false,\"root\":" + root +
+         ",\"geometry\":{\"bind\":\"geometry\"},\"resizable\":false,\"collapsed\":false,\"closable\":false,"
+         "\"transparent\":true,\"border\":false,\"accepts_input\":false,\"size_constraint\":null,"
+         "\"edge_constraint\":null,\"font\":\"\"}";
+}
+
+void CloseTip() {
+  if (g_tip.token) ClientNuiClose(g_tip.token);
+  g_tip = Tip();
+}
+
+// The game's window: this process's largest visible top-level window (found again if it goes).
+HWND GameWindow() {
+  static HWND cached = nullptr;
+  static ULONGLONG next_search = 0;
+  if (cached && IsWindow(cached)) return cached;
+  const ULONGLONG now = GetTickCount64();
+  if (now < next_search) return nullptr;
+  next_search = now + 1000;
+  struct Search {
+    DWORD pid;
+    HWND best;
+    LONG area;
+  } search{GetCurrentProcessId(), nullptr, 0};
+  EnumWindows(
+      [](HWND hwnd, LPARAM data) -> BOOL {
+        auto* s = reinterpret_cast<Search*>(data);
+        DWORD pid = 0;
+        GetWindowThreadProcessId(hwnd, &pid);
+        RECT r;
+        if (pid != s->pid || !IsWindowVisible(hwnd) || GetWindow(hwnd, GW_OWNER) || !GetClientRect(hwnd, &r)) {
+          return TRUE;
+        }
+        const LONG area = (r.right - r.left) * (r.bottom - r.top);
+        if (area > s->area) {
+          s->area = area;
+          s->best = hwnd;
+        }
+        return TRUE;
+      },
+      reinterpret_cast<LPARAM>(&search));
+  cached = search.best;
+  return cached;
+}
+
+// The mouse over a window-pixel rectangle (the game in front; the cursor scaled from the window's client
+// area to the size the game reports, should they differ).
+bool CursorOver(float x, float y, float w, float h) {
+  HWND hwnd = GameWindow();
+  if (!hwnd || GetForegroundWindow() != hwnd) return false;
+  POINT p;
+  RECT client;
+  if (!GetCursorPos(&p) || !ScreenToClient(hwnd, &p) || !GetClientRect(hwnd, &client)) return false;
+  if (client.right <= 0 || client.bottom <= 0) return false;
+  const float mx = static_cast<float>(p.x) * (g_gui_w > 0.0f ? g_gui_w / client.right : 1.0f);
+  const float my = static_cast<float>(p.y) * (g_gui_h > 0.0f ? g_gui_h / client.bottom : 1.0f);
+  return mx >= x && mx < x + w && my >= y && my < y + h;
+}
+
+// The box for `text`, on screen while `hover` (the panel's window at x, y; its size panel_w x panel_h GUI units).
+void UpdateTip(const std::string& text, bool hover, float x, float y, float panel_w, float panel_h) {
+  if (text.empty()) {
+    CloseTip();
+    return;
+  }
+  if (!g_tip.token || text != g_tip.text) {
+    CloseTip();
+    const std::vector<std::string> lines = rules::HudTipLines(text, rules::kHudTipWidth);
+    g_tip.text = text;
+    g_tip.w = rules::kHudTipWidth + 2.0f * rules::kHudTipPad;
+    g_tip.h = static_cast<float>(lines.size()) * rules::kHudLine + 2.0f * rules::kHudTipPad;
+    g_tip.token = ClientNuiOpen(kTipWindowId, TipLayout(lines, g_tip.w, g_tip.h), nullptr);
+    if (!g_tip.token) {
+      g_tip = Tip();
+      return;
+    }
+    ClientNuiSetJson(g_tip.token, "on", "false");
+  }
+  if (!g_tip.revealed && ++g_tip.frames >= kRevealFrames) {
+    g_tip.revealed = true;
+    ClientNuiSetJson(g_tip.token, "on", "true");
+  }
+  const float s = g_gui_s > 0.0f ? g_gui_s : 1.0f;
+  const float window_w = g_tip.w + kWindowSlack, window_h = g_tip.h + kWindowSlack;
+  float tx = kOffScreen, ty = kOffScreen;
+  if (hover && g_tip.revealed) {
+    const rules::HudBox panel{x, y, panel_w * s, panel_h * s};
+    const rules::HudBox spot = rules::PlaceHudTip(panel, window_w * s, window_h * s, rules::kHudTipGap * s);
+    tx = spot.x;
+    ty = spot.y;
+  }
+  if (fabsf(tx - g_tip.sent_x) > 0.4f || fabsf(ty - g_tip.sent_y) > 0.4f) {
+    ClientNuiSetJson(g_tip.token, "geometry", Rect(tx, ty, window_w, window_h));
+    if (tx != kOffScreen && g_tip_logs < 5) {
+      ++g_tip_logs;
+      Log("hud: the hover box shown at %.0f, %.0f (%.0f x %.0f GUI units, the panel at %.0f, %.0f)", tx, ty, window_w,
+          window_h, x, y);
+    }
+    g_tip.sent_x = tx;
+    g_tip.sent_y = ty;
+  }
 }
 
 // Where the panel's window goes (window pixels): the card where rules::PlaceHud
@@ -325,6 +469,7 @@ void PanelPosition(float window_w, float window_h, float* x, float* y) {
 }
 
 void ClosePanel() {
+  CloseTip();
   if (g_panel.token) ClientNuiClose(g_panel.token);
   g_panel = Panel();
   g_under_strip_now = false;
@@ -439,10 +584,8 @@ void PanelTick() {
     if (!tip.empty()) tip += "\n\n";
     tip += pool.tooltip;
   }
-  if (tip != panel.sent_tip) {
-    ClientNuiSetText(panel.token, "tip", tip);
-    panel.sent_tip = tip;
-  }
+  UpdateTip(tip, panel.revealed && CursorOver(x, y, window_w * g_gui_s, window_h * g_gui_s), x, y, window_w,
+            window_h);
 }
 
 std::vector<std::string> HudCommand(void* creature, const std::string& /*args*/) {
