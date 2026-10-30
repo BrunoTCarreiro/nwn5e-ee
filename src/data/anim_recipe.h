@@ -35,6 +35,7 @@
 // orientation 20: a quaternion x y z w).
 
 #include <array>
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -107,6 +108,19 @@ struct AnimLibrary {
 bool ReadAnimLibrary(const std::string& bytes, AnimLibrary* library, std::string* error);
 // One of its animations by name (any case); false when it hasn't it.
 bool ReadAnimClip(const std::string& bytes, const std::string& name, AnimClip* clip);
+
+// A compiled library's bytes with its header read, and how a caller hands them out by lower-case
+// name (null: no such library). The game reads them from its resource manager, the tools from the
+// install - one chain search for both.
+struct LoadedAnimLibrary {
+  std::string bytes;
+  AnimLibrary library;
+};
+using AnimLibraryLookup = std::function<const LoadedAnimLibrary*(const std::string& lower_name)>;
+// An animation as `library` plays it: its own, else its supermodel chain's, up to eight libraries
+// deep. False when none of them has it or a library in the chain is missing.
+bool FindAnimClip(const AnimLibraryLookup& lookup, const std::string& library, const std::string& name,
+                  AnimClip* clip);
 
 // The recipe's animation, from its base clip and (when it names one) its mix
 // clip; the crouch step needs the library's bones (without them it's skipped).

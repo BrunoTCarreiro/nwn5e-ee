@@ -145,37 +145,30 @@ std::map<std::string, data::AnimRecipe> ReadRecipes() {
   return recipes;
 }
 
-// The libraries, read once each.
-struct Library {
-  std::string bytes;
-  data::AnimLibrary info;
+// The libraries, read once each (their bytes and header: data::LoadedAnimLibrary).
+struct Library : data::LoadedAnimLibrary {
   bool ok = false;
 };
 std::map<std::string, Library> g_libraries;
 
-const Library& LoadLibrary(const std::string& name) {
+const Library& LoadAnimLibrary(const std::string& name) {
   auto it = g_libraries.find(name);
   if (it != g_libraries.end()) return it->second;
   Library& library = g_libraries[name];
   std::string why, error;
   library.ok = ReadGameResource(name, ee::kResTypeMdl, &library.bytes, &why) &&
-               data::ReadAnimLibrary(library.bytes, &library.info, &error);
+               data::ReadAnimLibrary(library.bytes, &library.library, &error);
   if (!library.ok) Log("anim packs: library %s not read (%s%s)", name.c_str(), why.c_str(), error.c_str());
   return library;
 }
 
 // An animation as `library` plays it: its own, else its supermodel chain's.
 bool FindClip(const std::string& library, const std::string& name, data::AnimClip* clip) {
-  std::string current = Lower(library);
-  for (int depth = 0; depth < 8 && !current.empty(); ++depth) {
-    const Library& lib = LoadLibrary(current);
-    if (!lib.ok) return false;
-    if (std::find(lib.info.clip_names.begin(), lib.info.clip_names.end(), Lower(name)) != lib.info.clip_names.end()) {
-      return data::ReadAnimClip(lib.bytes, name, clip);
-    }
-    current = Lower(lib.info.supermodel);
-  }
-  return false;
+  const auto lookup = [](const std::string& lower_name) -> const data::LoadedAnimLibrary* {
+    const Library& lib = LoadAnimLibrary(lower_name);
+    return lib.ok ? &lib : nullptr;
+  };
+  return data::FindAnimClip(lookup, library, name, clip);
 }
 
 std::string PackName(const std::string& library) {
@@ -206,19 +199,19 @@ void GenerateAnimationPacks(const std::wstring& served) {
   // The humanoid animations (a_ba and its supermodels), for !animedit.
   std::string library = "a_ba";
   for (int depth = 0; depth < 8 && !library.empty(); ++depth) {
-    const Library& lib = LoadLibrary(library);
+    const Library& lib = LoadAnimLibrary(library);
     if (!lib.ok) break;
-    for (const std::string& name : lib.info.clip_names) {
+    for (const std::string& name : lib.library.clip_names) {
       if (std::find(g_animation_names.begin(), g_animation_names.end(), name) == g_animation_names.end()) {
         g_animation_names.push_back(name);
       }
     }
-    library = Lower(lib.info.supermodel);
+    library = Lower(lib.library.supermodel);
   }
   std::sort(g_animation_names.begin(), g_animation_names.end());
   const std::map<std::string, data::AnimRecipe> recipes = ReadRecipes();
   if (recipes.empty()) {
-    for (const char* library : {"a_fa", "a_da", "a_dfa", "a_ba2", "a_fa2", "a_da2", "a_dfa2"}) LoadLibrary(library);
+    for (const char* library : {"a_fa", "a_da", "a_dfa", "a_ba2", "a_fa2", "a_da2", "a_dfa2"}) LoadAnimLibrary(library);
     ExportLibraries();
     g_libraries.clear();
     return;
@@ -239,7 +232,7 @@ void GenerateAnimationPacks(const std::wstring& served) {
         std::string keyword, self, library;
         line >> keyword >> self >> library;
         library = Lower(library);
-        if (library.empty() || library == "null" || !LoadLibrary(library).ok) continue;
+        if (library.empty() || library == "null" || !LoadAnimLibrary(library).ok) continue;
         const std::string pack = PackName(library);
         const size_t end = text.find_first_of("\r\n", at);
         text.replace(at, (end == std::string::npos ? text.size() : end) - at, "setsupermodel " + self + " " + pack);
@@ -253,12 +246,12 @@ void GenerateAnimationPacks(const std::wstring& served) {
   // The packs.
   int animations = 0;
   for (const auto& entry : packs) {
-    const Library& library = LoadLibrary(entry.first);
+    const Library& library = LoadAnimLibrary(entry.first);
     std::vector<data::AnimClip> clips;
     for (const auto& recipe : recipes) {
       if (recipe.second.keyed) {  // Mocap mode: the library's own keys (no weapon layers)
         data::AnimClip keyed;
-        if (data::KeyedAnimClip(recipe.second, entry.first, library.info.bones, &keyed)) {
+        if (data::KeyedAnimClip(recipe.second, entry.first, library.library.bones, &keyed)) {
           clips.push_back(keyed);
         } else {
           Log("anim packs: %s - no keys for %s (save it again in the bench)", recipe.first.c_str(), entry.first.c_str());
@@ -271,7 +264,7 @@ void GenerateAnimationPacks(const std::wstring& served) {
         continue;
       }
       const bool has_mix = !recipe.second.mix.empty() && FindClip(entry.first, recipe.second.mix, &mix);
-      clips.push_back(data::DeriveAnimClip(recipe.second, base, has_mix ? &mix : nullptr, &library.info.bones));
+      clips.push_back(data::DeriveAnimClip(recipe.second, base, has_mix ? &mix : nullptr, &library.library.bones));
       for (const char* hold : kHolds) {
         data::AnimClip layer, layer_mix;
         if (!FindClip(entry.first, recipe.second.base + "_" + hold, &layer)) continue;
@@ -279,14 +272,14 @@ void GenerateAnimationPacks(const std::wstring& served) {
         companion.name = recipe.second.name + "_" + hold;
         const bool layer_has_mix = has_mix && FindClip(entry.first, recipe.second.mix + "_" + hold, &layer_mix);
         if (!layer_has_mix) companion.mix.clear();
-        clips.push_back(data::DeriveAnimClip(companion, layer, layer_has_mix ? &layer_mix : nullptr, &library.info.bones));
+        clips.push_back(data::DeriveAnimClip(companion, layer, layer_has_mix ? &layer_mix : nullptr, &library.library.bones));
         g_built[companion.name] = data::WriteAnimRecipe(companion);
       }
     }
     if (clips.empty()) continue;
     const std::string pack = entry.second;
     if (WriteFile(served + L"\\" + std::wstring(pack.begin(), pack.end()) + L".mdl",
-                  data::WriteAnimPack(pack, entry.first, library.info.bones, clips))) {
+                  data::WriteAnimPack(pack, entry.first, library.library.bones, clips))) {
       animations += static_cast<int>(clips.size());
     }
   }

@@ -456,6 +456,19 @@ bool ReadAnimClip(const std::string& bytes, const std::string& name, AnimClip* c
   return false;
 }
 
+bool FindAnimClip(const AnimLibraryLookup& lookup, const std::string& library, const std::string& name,
+                  AnimClip* clip) {
+  std::string current = Lower(library);
+  for (int depth = 0; depth < 8 && !current.empty(); ++depth) {
+    const LoadedAnimLibrary* lib = lookup(current);
+    if (!lib) return false;
+    const std::vector<std::string>& names = lib->library.clip_names;
+    if (std::find(names.begin(), names.end(), Lower(name)) != names.end()) return ReadAnimClip(lib->bytes, name, clip);
+    current = Lower(lib->library.supermodel);
+  }
+  return false;
+}
+
 AnimClip DeriveAnimClip(const AnimRecipe& recipe, const AnimClip& base, const AnimClip* mix,
                         const std::vector<AnimNode>* bones) {
   const float length = std::max(base.length, 0.001f);

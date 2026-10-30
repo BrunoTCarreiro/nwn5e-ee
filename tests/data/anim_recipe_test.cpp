@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include <algorithm>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -102,6 +103,88 @@ AnimClip Stride(const std::vector<AnimNode>& body) {
   shin.orientation.values = {TurnX(-1.0f), TurnX(-12.0f), TurnX(-1.0f)};
   return clip;
 }
+
+// A compiled library laid out as the engine's: `name`, its supermodel ("NULL": none), one bone
+// (rootdummy, 1.2 up) and, unless `clip` is empty, that one animation (rootdummy turning 90
+// degrees over 2 s). Nothing of the game's.
+std::string CompiledLibrary(const char* name, const char* supermodel, const char* clip) {
+  std::string b(0x800, '\0');
+  const size_t base = 12;
+  const auto put32 = [&](size_t at, uint32_t v) { memcpy(&b[at], &v, 4); };
+  const auto put16 = [&](size_t at, uint16_t v) { memcpy(&b[at], &v, 2); };
+  const auto putf = [&](size_t at, float v) { memcpy(&b[at], &v, 4); };
+  const auto puts = [&](size_t at, const char* text) { memcpy(&b[at], text, strlen(text)); };
+  const auto rel = [&](size_t file_offset) { return static_cast<uint32_t>(file_offset - base); };
+  puts(base + 8, name);
+  puts(base + 0xA8, supermodel);
+  // Geometry: a_test -> rootdummy (a position).
+  put32(base + 0x48, rel(0x200));
+  puts(0x200 + 0x20, name);
+  put32(0x200 + 0x48, rel(0x278));
+  put32(0x200 + 0x4C, 1);
+  put32(0x278, rel(0x280));
+  puts(0x280 + 0x20, "rootdummy");
+  put32(0x280 + 0x54, rel(0x600));
+  put32(0x280 + 0x58, 1);
+  put32(0x280 + 0x60, rel(0x640));
+  put32(0x280 + 0x64, 4);
+  put32(0x600, 8);
+  put16(0x604, 1);
+  put16(0x606, 0);
+  put16(0x608, 1);
+  b[0x60A] = 3;
+  putf(0x640, 0.0f);
+  putf(0x644, 0.1f);
+  putf(0x648, 0.2f);
+  putf(0x64C, 1.2f);
+  // One animation, "idle": a_test -> rootdummy turning 90 degrees over 2 s.
+  put32(base + 0x78, rel(0x300));
+  put32(base + 0x7C, clip[0] ? 1 : 0);
+  put32(0x300, rel(0x400));
+  puts(0x400 + 8, clip);
+  put32(0x400 + 0x48, rel(0x500));
+  putf(0x400 + 0x70, 2.0f);
+  putf(0x400 + 0x74, 0.25f);
+  puts(0x400 + 0x78, "rootdummy");
+  puts(0x500 + 0x20, name);
+  put32(0x500 + 0x48, rel(0x578));
+  put32(0x500 + 0x4C, 1);
+  put32(0x578, rel(0x580));
+  puts(0x580 + 0x20, "rootdummy");
+  put32(0x580 + 0x54, rel(0x700));
+  put32(0x580 + 0x58, 1);
+  put32(0x580 + 0x60, rel(0x740));
+  put32(0x580 + 0x64, 10);
+  put32(0x700, 20);
+  put16(0x704, 2);
+  put16(0x706, 0);
+  put16(0x708, 2);
+  b[0x70A] = 4;
+  putf(0x740, 0.0f);
+  putf(0x744, 2.0f);
+  const float q[8] = {0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.7071f, 0.7071f};
+  for (int i = 0; i < 8; ++i) putf(0x748 + 4 * i, q[i]);
+
+  return b;
+}
+
+// Compiled libraries by name, and the lookup FindAnimClip walks them with.
+struct LibrarySet {
+  std::map<std::string, LoadedAnimLibrary> loaded;
+  void Add(const char* name, const char* supermodel, const char* clip) {
+    LoadedAnimLibrary l;
+    l.bytes = CompiledLibrary(name, supermodel, clip);
+    std::string error;
+    ReadAnimLibrary(l.bytes, &l.library, &error);
+    loaded[name] = l;
+  }
+  AnimLibraryLookup Lookup() const {
+    return [this](const std::string& name) -> const LoadedAnimLibrary* {
+      const auto it = loaded.find(name);
+      return it == loaded.end() ? nullptr : &it->second;
+    };
+  }
+};
 
 }  // namespace
 
@@ -311,63 +394,7 @@ TEST(AnimRecipeMixesTrimsAndSpeeds) {
 }
 
 TEST(AnimRecipeReadsACompiledLibrary) {
-  std::string b(0x800, '\0');
-  const size_t base = 12;
-  const auto put32 = [&](size_t at, uint32_t v) { memcpy(&b[at], &v, 4); };
-  const auto put16 = [&](size_t at, uint16_t v) { memcpy(&b[at], &v, 2); };
-  const auto putf = [&](size_t at, float v) { memcpy(&b[at], &v, 4); };
-  const auto puts = [&](size_t at, const char* text) { memcpy(&b[at], text, strlen(text)); };
-  const auto rel = [&](size_t file_offset) { return static_cast<uint32_t>(file_offset - base); };
-  puts(base + 8, "a_test");
-  puts(base + 0xA8, "NULL");
-  // Geometry: a_test -> rootdummy (a position).
-  put32(base + 0x48, rel(0x200));
-  puts(0x200 + 0x20, "a_test");
-  put32(0x200 + 0x48, rel(0x278));
-  put32(0x200 + 0x4C, 1);
-  put32(0x278, rel(0x280));
-  puts(0x280 + 0x20, "rootdummy");
-  put32(0x280 + 0x54, rel(0x600));
-  put32(0x280 + 0x58, 1);
-  put32(0x280 + 0x60, rel(0x640));
-  put32(0x280 + 0x64, 4);
-  put32(0x600, 8);
-  put16(0x604, 1);
-  put16(0x606, 0);
-  put16(0x608, 1);
-  b[0x60A] = 3;
-  putf(0x640, 0.0f);
-  putf(0x644, 0.1f);
-  putf(0x648, 0.2f);
-  putf(0x64C, 1.2f);
-  // One animation, "idle": a_test -> rootdummy turning 90 degrees over 2 s.
-  put32(base + 0x78, rel(0x300));
-  put32(base + 0x7C, 1);
-  put32(0x300, rel(0x400));
-  puts(0x400 + 8, "idle");
-  put32(0x400 + 0x48, rel(0x500));
-  putf(0x400 + 0x70, 2.0f);
-  putf(0x400 + 0x74, 0.25f);
-  puts(0x400 + 0x78, "rootdummy");
-  puts(0x500 + 0x20, "a_test");
-  put32(0x500 + 0x48, rel(0x578));
-  put32(0x500 + 0x4C, 1);
-  put32(0x578, rel(0x580));
-  puts(0x580 + 0x20, "rootdummy");
-  put32(0x580 + 0x54, rel(0x700));
-  put32(0x580 + 0x58, 1);
-  put32(0x580 + 0x60, rel(0x740));
-  put32(0x580 + 0x64, 10);
-  put32(0x700, 20);
-  put16(0x704, 2);
-  put16(0x706, 0);
-  put16(0x708, 2);
-  b[0x70A] = 4;
-  putf(0x740, 0.0f);
-  putf(0x744, 2.0f);
-  const float q[8] = {0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.7071f, 0.7071f};
-  for (int i = 0; i < 8; ++i) putf(0x748 + 4 * i, q[i]);
-
+  const std::string b = CompiledLibrary("a_test", "NULL", "idle");
   AnimLibrary library;
   std::string error;
   CHECK_EQ(ReadAnimLibrary(b, &library, &error), true);
@@ -387,4 +414,34 @@ TEST(AnimRecipeReadsACompiledLibrary) {
   CHECK_EQ(clip.nodes[1].orientation.times.size(), 2u);
   CHECK_EQ(Milli(clip.nodes[1].orientation.values[1][3]), 707);
   CHECK_EQ(ReadAnimClip(b, "walk", &clip), false);
+}
+
+// One chain search for the game and the tools (FindAnimClip). Breaks caught: the supermodel not
+// followed; the chain cut at 7 instead of 8; a missing library taken for an empty one.
+TEST(AnimRecipeFindsAClipUpTheChain) {
+  LibrarySet set;
+  set.Add("child", "parent", "");
+  set.Add("parent", "NULL", "wave");
+  AnimClip clip;
+  CHECK_EQ(FindAnimClip(set.Lookup(), "Child", "WAVE", &clip), true);
+  CHECK_EQ(Milli(clip.length), 2000);
+  CHECK_EQ(FindAnimClip(set.Lookup(), "parent", "wave", &clip), true);
+  CHECK_EQ(FindAnimClip(set.Lookup(), "child", "jump", &clip), false);
+}
+
+TEST(AnimRecipeChainStopsAtDepth8) {
+  LibrarySet set;
+  const char* names[10] = {"l0", "l1", "l2", "l3", "l4", "l5", "l6", "l7", "l8", "l9"};
+  for (int i = 0; i < 10; ++i) set.Add(names[i], i < 9 ? names[i + 1] : "NULL", i == 9 ? "wave" : "");
+  AnimClip clip;
+  CHECK_EQ(FindAnimClip(set.Lookup(), "l2", "wave", &clip), true);   // l2..l9: eight libraries
+  CHECK_EQ(FindAnimClip(set.Lookup(), "l1", "wave", &clip), false);  // nine: past the depth
+}
+
+TEST(AnimRecipeChainMissingLibrary) {
+  LibrarySet set;
+  set.Add("child", "parent", "");
+  AnimClip clip;
+  CHECK_EQ(FindAnimClip(set.Lookup(), "child", "wave", &clip), false);
+  CHECK_EQ(FindAnimClip(set.Lookup(), "nosuch", "wave", &clip), false);
 }
