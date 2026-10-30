@@ -205,7 +205,69 @@ std::string KeyLines(const AnimRecipe& r) {
   return text;
 }
 
+// An assembled recipe's IK targets (#89): take_start, then a line per key, the limbs in their order and
+// each limb's keys by time. Nothing without targets (the recipe as phase 1 wrote it).
+std::string TargetLines(const AnimRecipe& r) {
+  if (r.targets.empty() && r.take_start == 0.0f) return "";
+  std::string text = "take_start = " + Num(r.take_start) +
+                     "\n# target <limb> <take time> <x y z> <reach> [pin]: the place in the limb's own measure\n";
+  for (const std::string& limb : AnimTargetLimbs()) {
+    const auto found = r.targets.find(limb);
+    if (found == r.targets.end()) continue;
+    std::vector<AnimTargetKey> keys = found->second;
+    std::stable_sort(keys.begin(), keys.end(), [](const AnimTargetKey& a, const AnimTargetKey& b) { return a.t < b.t; });
+    for (const AnimTargetKey& k : keys) {
+      text += "target " + limb + " " + Num(k.t) + " " + Num(k.offset[0]) + " " + Num(k.offset[1]) + " " +
+              Num(k.offset[2]) + " " + Num(k.reach) + (k.pinned ? " pin" : "") + "\n";
+    }
+  }
+  return text;
+}
+
+// A `target` line's words after "target"; false (and the error) on anything but a known limb, five
+// finite numbers and an optional "pin".
+bool ReadTargetLine(const std::string& words_text, int line_number, AnimRecipe* r, std::string* error) {
+  std::istringstream words(words_text);
+  std::string limb;
+  words >> limb;
+  const auto bad = [&](const std::string& why) {
+    if (error) *error = "line " + std::to_string(line_number) + ": " + why;
+    return false;
+  };
+  const std::vector<std::string>& limbs = AnimTargetLimbs();
+  if (std::find(limbs.begin(), limbs.end(), Lower(limb)) == limbs.end()) {
+    return bad("a target's limb is left_hand, right_hand, left_foot, right_foot or hips (not '" + limb + "')");
+  }
+  float v[5];
+  for (float& x : v) {
+    std::string word;
+    if (!(words >> word)) return bad("a target line is 'target <limb> <t> <x> <y> <z> <reach> [pin]'");
+    char* end = nullptr;
+    x = strtof(word.c_str(), &end);
+    if (end == word.c_str() || *end != '\0' || !isfinite(x)) return bad("'" + word + "' isn't a finite number");
+  }
+  std::string tail;
+  bool pinned = false;
+  if (words >> tail) {
+    if (tail != "pin") return bad("after a target's reach only 'pin' may follow (not '" + tail + "')");
+    pinned = true;
+  }
+  if (words >> tail) return bad("too many words on a target line");
+  AnimTargetKey k;
+  k.t = v[0];
+  k.offset = {v[1], v[2], v[3]};
+  k.reach = std::max(0.0f, std::min(1.0f, v[4]));
+  k.pinned = pinned;
+  r->targets[Lower(limb)].push_back(k);
+  return true;
+}
+
 }  // namespace
+
+const std::vector<std::string>& AnimTargetLimbs() {
+  static const std::vector<std::string> limbs = {"left_hand", "right_hand", "left_foot", "right_foot", "hips"};
+  return limbs;
+}
 
 std::string WriteAnimRecipe(const AnimRecipe& r) {
   if (r.kind == AnimRecipeKind::kAssembled) {
@@ -213,8 +275,8 @@ std::string WriteAnimRecipe(const AnimRecipe& r) {
            "name = " + r.name + "\nkind = assembled\nstance = " + r.stance + "\nlength = " + Num(r.length) +
            "\ntranstime = " + Num(r.transtime) + "\nblend_in = " + Num(r.blend_in) + "\nblend_out = " +
            Num(r.blend_out) + "\nloop = " + (r.loop ? "1" : "0") + "\nloop_blend = " + Num(r.loop_blend) +
-           "\nsource = " + r.source +
-           "\n# keys <library> <bone> o <time x y z w> ...: the turn from the stance's first frame (L = S * delta)"
+           "\nsource = " + r.source + "\n" + TargetLines(r) +
+           "# keys <library> <bone> o <time x y z w> ...: the turn from the stance's first frame (L = S * delta)"
            "\n# keys <library> rootdummy p <time x y z> ...: the offset from the stance's first-frame root\n" +
            KeyLines(r);
   }
@@ -270,6 +332,10 @@ bool ReadAnimRecipe(const std::string& text, AnimRecipe* recipe, std::string* er
       if (!track.keys.times.empty()) r.keys[Lower(library)].push_back(track);
       continue;
     }
+    if (line.compare(0, 7, "target ") == 0) {  // target <limb> <t> <x> <y> <z> <reach> [pin]
+      if (!ReadTargetLine(line.substr(7), line_number, &r, error)) return false;
+      continue;
+    }
     const size_t eq = line.find('=');
     if (eq == std::string::npos) {
       if (error) *error = "line " + std::to_string(line_number) + ": no '='";
@@ -301,6 +367,11 @@ bool ReadAnimRecipe(const std::string& text, AnimRecipe* recipe, std::string* er
     else if (key == "blend_out") r.blend_out = std::max(0.0f, static_cast<float>(atof(value.c_str())));
     else if (key == "loop") r.loop = atoi(value.c_str()) != 0;
     else if (key == "loop_blend") r.loop_blend = std::max(0.0f, static_cast<float>(atof(value.c_str())));
+    else if (key == "take_start") r.take_start = static_cast<float>(atof(value.c_str()));
+  }
+  for (auto& limb : r.targets) {  // each limb's keys by time (stable: a file's order breaks ties)
+    std::stable_sort(limb.second.begin(), limb.second.end(),
+                     [](const AnimTargetKey& a, const AnimTargetKey& b) { return a.t < b.t; });
   }
   if (r.kind == AnimRecipeKind::kAssembled) {
     if (r.stance.empty()) {

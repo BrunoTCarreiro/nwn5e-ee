@@ -536,6 +536,69 @@ TEST(AnimRecipeAssembledNeedsAStance) {
            true);  // the stance is what was missing
 }
 
+// IK targets (#89): keys per limb in take time, `take_start` the take's second at the clip's 0. Breaks
+// caught: the pin flag dropped on write, keys left in file order, an unknown limb or a short line read.
+TEST(AnimRecipeTargetsRoundTrip) {
+  AnimRecipe r = AssembledFixture();
+  r.take_start = 2.1333f;
+  AnimTargetKey late, early, hips;
+  late.t = 2.5f;
+  late.offset = {0.12345f, -0.5f, 0.75f};
+  late.reach = 0.5f;
+  early.t = 2.2f;
+  early.offset = {0.0f, 0.25f, -0.125f};
+  early.pinned = true;
+  hips.t = 2.4f;
+  hips.offset = {0.0f, 0.0f, -0.08f};
+  r.targets["left_hand"] = {late, early};  // out of time order on purpose
+  r.targets["hips"] = {hips};
+  const std::string text = WriteAnimRecipe(r);
+  AnimRecipe back;
+  std::string error;
+  CHECK_EQ(ReadAnimRecipe(text, &back, &error), true);
+  CHECK_EQ(Scaled(back.take_start, 1e4), Scaled(2.1333f, 1e4));
+  CHECK_EQ(back.targets.size(), static_cast<size_t>(2));
+  const std::vector<AnimTargetKey>& hand = back.targets["left_hand"];
+  CHECK_EQ(hand.size(), static_cast<size_t>(2));
+  if (hand.size() == 2) {
+    CHECK_EQ(Scaled(hand[0].t, 1e4), Scaled(2.2f, 1e4));  // sorted
+    CHECK_EQ(hand[0].pinned && !hand[1].pinned, true);
+    CHECK_EQ(Scaled(hand[1].offset[0], 1e5), Scaled(0.12345f, 1e5));
+    CHECK_EQ(Scaled(hand[1].reach, 1e4), Scaled(0.5f, 1e4));
+    CHECK_EQ(Scaled(hand[0].reach, 1e4), Scaled(1.0f, 1e4));
+  }
+  CHECK_EQ(back.targets["hips"].size() == 1 && Scaled(back.targets["hips"][0].offset[2], 1e5) == Scaled(-0.08f, 1e5), true);
+  // No targets: no target or take_start lines - the recipe reads and writes as phase 1's.
+  const std::string plain = WriteAnimRecipe(AssembledFixture());
+  CHECK_EQ(Has(plain, "target") || Has(plain, "take_start"), false);
+  CHECK_EQ(AnimTargetLimbs().size(), static_cast<size_t>(5));
+}
+
+TEST(AnimRecipeBadTargetRefused) {
+  const std::string head = "name = x\nkind = assembled\nstance = 1hreadyr\nlength = 1\nkeys a_ba torso_g o 0 0 0 0 1\n";
+  AnimRecipe back;
+  std::string error;
+  CHECK_EQ(ReadAnimRecipe(head + "target left_elbow 1 0 0 0 1\n", &back, &error), false);
+  CHECK_EQ(Has(error, "line 6") && Has(error, "limb"), true);
+  CHECK_EQ(ReadAnimRecipe(head + "target left_hand 1 0 0\n", &back, &error), false);  // cut short
+  CHECK_EQ(ReadAnimRecipe(head + "target left_hand 1 0 inf 0 1\n", &back, &error), false);  // not finite
+  CHECK_EQ(ReadAnimRecipe(head + "target left_hand 1 0 0 0 1 hold\n", &back, &error), false);  // not "pin"
+  CHECK_EQ(ReadAnimRecipe(head + "target left_hand 1 0 0 0 1 pin\n", &back, &error), true);
+}
+
+TEST(AnimRecipeTargetReachClamped) {
+  const std::string head = "name = x\nkind = assembled\nstance = 1hreadyr\nlength = 1\nkeys a_ba torso_g o 0 0 0 0 1\n";
+  AnimRecipe back;
+  std::string error;
+  CHECK_EQ(ReadAnimRecipe(head + "target right_foot 1 0 0 0 1.7\ntarget right_foot 2 0 0 0 -0.3\n", &back, &error), true);
+  const std::vector<AnimTargetKey>& foot = back.targets["right_foot"];
+  CHECK_EQ(foot.size() == 2 && foot[0].reach == 1.0f && foot[1].reach == 0.0f, true);
+  // A file written by hand, keys out of time order: read back by time.
+  CHECK_EQ(ReadAnimRecipe(head + "target left_hand 2 0 0 0 1\ntarget left_hand 1 0.5 0 0 1\n", &back, &error), true);
+  const std::vector<AnimTargetKey>& hand = back.targets["left_hand"];
+  CHECK_EQ(hand.size() == 2 && hand[0].t == 1.0f && hand[0].offset[0] == 0.5f, true);
+}
+
 // The kinds before it read and write as they did: a formula recipe (data/anims' crouch idle) and a
 // keys recipe (Mocap mode's n5_shove / n5_rage).
 TEST(AnimRecipeOldKindsUnchanged) {

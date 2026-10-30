@@ -66,6 +66,24 @@ struct AnimKeyTrack {
 // the game composes it from the player's own animations at startup (AssembleAnimClip).
 enum class AnimRecipeKind { kFormula, kKeys, kAssembled };
 
+// An IK target's key (#89, docs/BENCH-REDESIGN.md "The model"): at take time `t` the limb's end is placed
+// at `offset`, in the limb's own measure so it carries to every body by proportion:
+// - a hand: from its shoulder, in the torso's frame, as a fraction of the arm's length;
+// - a foot: from its hip joint, in the pelvis's frame, as a fraction of the leg's length;
+// - the hips (the root): from the stance's first-frame root, in world axes, as a fraction of the hip
+//   height.
+// `reach` weighs the target against the capture (0..1). Between keys, the place and the reach interpolate;
+// outside them the reach eases to 0 over 0.2 s. A pinned key's place holds still in the world until the
+// next key. Recipe line: `target <limb> <t> <x> <y> <z> <reach> [pin]`.
+struct AnimTargetKey {
+  float t = 0.0f;
+  std::array<float, 3> offset = {0.0f, 0.0f, 0.0f};
+  float reach = 1.0f;
+  bool pinned = false;
+};
+// The limbs a target can move: left_hand, right_hand, left_foot, right_foot, hips.
+const std::vector<std::string>& AnimTargetLimbs();
+
 struct AnimRecipe {
   AnimRecipeKind kind = AnimRecipeKind::kFormula;
   std::string name;          // the new animation's name (a resref: letters, digits, '_')
@@ -89,6 +107,8 @@ struct AnimRecipe {
   float blend_out = 0.0f;    // seconds from the capture back to the stance
   bool loop = false;
   float loop_blend = 0.25f;  // seconds over which a loop's end eases into its start
+  float take_start = 0.0f;   // the take's second at the clip's 0: the edits' clock (targets are in take time)
+  std::map<std::string, std::vector<AnimTargetKey>> targets;  // limb -> its keys, by time
 };
 
 std::string WriteAnimRecipe(const AnimRecipe& recipe);
