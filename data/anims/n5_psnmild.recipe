@@ -1,4 +1,4 @@
-# nwn5e animation recipe (!animedit; built at startup by core/anim_packs.cpp) - the first one,
+# nwn5e animation recipe (built at startup by core/anim_packs.cpp) - the first one,
 # the owner's test (2026-10-25: "n5test works"): the poisoned idle, half of the way toward the
 # normal idle - a milder sway.
 name = n5_psnmild

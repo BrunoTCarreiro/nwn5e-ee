@@ -1,4 +1,5 @@
-# visualeffects.2da - the VFX editor's preview row (vfx_editor.cpp, !vfxedit): empty here; the
-# editor points it at each newly written model in the loaded table while the game runs.
+# visualeffects.2da - the VFX editor's preview row (the dev layer's, nwn5e-tools/dev/vfx_editor.cpp,
+# !vfxedit): empty here; in a dev build the editor points it at each newly written model in the
+# loaded table while the game runs.
 Label Type_FD OrientWithGround Imp_HeadCon_Node Imp_Impact_Node Imp_Root_S_Node Imp_Root_M_Node Imp_Root_L_Node Imp_Root_H_Node
 1600 NWN5E_VFX_EDITOR D 0 **** **** **** **** **** ****

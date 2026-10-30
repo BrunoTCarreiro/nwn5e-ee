@@ -3,7 +3,7 @@
 # the legs solved to keep its footfalls - leaning 70 degrees forward (a hip hinge).
 # Owner, 2026-10-25: "go, use stealth mode as the trigger"; 0.4 m / 70 degrees are the
 # owner's own tuning in the bench (n5_lowcrwalk / n5_lowcridle). Tune it in the Animation
-# Recipe Bench (tools/recipe_bench); a copy saved there overrides this one.
+# Recipe Bench (nwn5e-tools/recipe_bench, a dev tool); a copy saved there overrides this one.
 name = n5_crwalk
 base = walk
 mix = 

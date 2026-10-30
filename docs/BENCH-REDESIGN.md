@@ -1,6 +1,7 @@
 # The Mocap Bench - a redesign
 
-Status: approved by the owner (2026-10-30: "approved, write the phase 1 plan"); epic #86, phases #87-#93. The current tool is the
+Status: approved by the owner (2026-10-30: "approved, write the phase 1 plan"); epic #86, phases #87-#93. Phase 1 built
+in 0.58.0 and awaiting the owner's test (#87; what it leaves in the shipped DLL: #95). The current tool is the
 Animation Recipe Bench, which moved on 2026-10-30 with the other dev tools from this repo's
 `tools/` to the `nwn5e-tools` repo beside it (#85): it is now `nwn5e-tools/recipe_bench/`.
 The research behind this is in `docs/research/reports/Mocap cleanup and editing workflow.md`.
@@ -439,6 +440,10 @@ everything the owner uses. Only then, with his OK, is the old one deleted.
      - one of the owner's takes, converted, plays in game the same as today's baked keys
        recipe of it, within the key tolerance;
      - the VFX bench works as before.
+   - *Built 0.58.0 (#87).* The dev layer is `nwn5e-tools/dev` behind `g_dev_seam`; the helper
+     is `nwn5e-tools/anim_helper`; the assembled recipe is `src/data/anim_assemble`. A take
+     converted both ways (`recipe_bench/convert_assembled.js` / `compare_assembled.js`)
+     matches today's keys recipe within 0.84° / 1.1 mm on all eight bodies, fitted or not.
 2. **The bench's foundation.**
    - The server: recordings, projects, the helper.
    - The project model, with undo and redo.
