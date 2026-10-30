@@ -11,8 +11,10 @@ Exit 0: clean. Exit 1: a dev string found, or the stamp missing. Exit 2: bad usa
 import os
 import sys
 
-# The dev layer's chat commands (as the code compares them, NUL-ended) and the old export's folder.
-FORBIDDEN = ["!animtrace\0", "!animedit\0", "!vfxedit\0", "!vfxexport\0", "!anim\0", "animedit\\libraries"]
+# The dev layer's chat commands (as the code compares them, NUL-ended), the old export's folder, and
+# the dev layer's own setting (#95: !vfx, !light and vfx_bench moved out of the shipped DLL in 0.58.3).
+FORBIDDEN = ["!animtrace\0", "!animedit\0", "!vfxedit\0", "!vfxexport\0", "!anim\0", "animedit\\libraries",
+             "!vfx\0", "!light\0", "vfx_bench\0"]
 
 
 def encodings(text):

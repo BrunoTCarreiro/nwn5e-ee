@@ -57,11 +57,9 @@ void InstallBarbarianStrikes();
 void InstallRestRules();
 void InstallDyingRules();
 void InstallShortRestButton();
-void InstallVfxBrowser();
 void InstallLowHpLook();
 void InstallStanceLook();
 void InstallStealthWatch();
-void InstallLightProbe();
 void InstallStealthGhost();
 void InstallLightSources();
 void InstallDriveFix();
@@ -89,7 +87,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.58.2";
+constexpr const char* kVersion = "0.58.3";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -150,7 +148,6 @@ void Start(HMODULE self) {
   InstallLowHpLook();
   InstallStanceLook();
   InstallStealthWatch();
-  InstallLightProbe();
   InstallStealthGhost();
   InstallLightSources();
   InstallAnimLayers();
@@ -160,9 +157,8 @@ void Start(HMODULE self) {
   InstallQuickbar();
   InstallDriveFix();
   InstallShortRestButton();
-  InstallVfxBrowser();
 #ifdef NWN5E_DEV
-  InstallDev();  // the dev layer (nwn5e-tools\dev): !animtrace, the !anim browser, the VFX editor
+  InstallDev();  // the dev layer (nwn5e-tools\dev): !animtrace, the !anim browser, the VFX editor, !vfx, !light
   Log("dev layer: installed (a development build; never share this DLL)");
 #endif
   InstallNuiTest();

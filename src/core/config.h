@@ -262,9 +262,8 @@ struct Config {
   // Another creature's radial menu leaves out your self-only class feats
   // (Rage, Reckless Attack ...) instead of greying them (radial_class_feats.cpp).
   bool radial_hide_self_feats = true;
-  // The VFX Bench (nwn5e-tools/vfx_bench): the game's effects exported for it once,
-  // its Play in game / Stop requests played (the dev layer's vfx_editor.cpp; no effect without it).
-  bool vfx_bench = true;
+  // (vfx_bench, the VFX Bench's switch, is the dev layer's own since #95: nwn5e-tools/dev/vfx_editor.cpp
+  // reads [rules] vfx_bench from nwn5e.ini itself.)
   // Who has noticed a hiding player character (owner, 2026-10-25: "build your
   // recommendation" for showing enemies' sight): an eye over each hostile that
   // sees it, an ear over one that only hears it (stealth_watch.cpp).
