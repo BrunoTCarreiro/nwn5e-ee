@@ -1,0 +1,17 @@
+# A !test profile ([debug] test_commands=1): type "!test cleric" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# Combat C2 (issue 2): a crit with a flat damage bonus from an effect - only the dice doubled, Strength and
+# the effect's bonus added once. Your first class becomes Cleric 3 (NWN's spells until Phase 4), Wisdom 16,
+# a quarterstaff in hand. Divine Favor (a 1st-level Cleric spell) puts a flat damage bonus on you as an
+# effect. Needs every_hit_crits=1 in build/nwn5e.ini (then a restart), so every hit is a crit.
+name = Combat C2 (issue 2): human Cleric 3 for Divine Favor, a quarterstaff
+species = human
+swap_class = cleric
+class = cleric
+level = 3
+abilities = 14 10 14 10 16 8
+items = nw_wdbqs001 equip
+note = prepare Divine Favor in the spellbook, rest, cast it on yourself, then hit something
+note = needs every_hit_crits=1 in nwn5e.ini; judge by the totals - the breakdown still prints (Critical x2)
