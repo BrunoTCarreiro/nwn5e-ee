@@ -3924,7 +3924,24 @@ body moved and half-moved through its fade-in (0.00 mm), a locked foot under a t
 after other keys, another stance or another span; the browser: 15 expectations on the owner's kick take. Deliberate breaks:
 8 in the core and 7 in the page, all caught (one more - the fade's lower limit - turned out not to change anything:
 smoothstep clamps it). Part 2 (timing: speed a stretch up or down, hold a pose for frames) waits on the owner trying part 1.
-*#84 (2026-10-30; owner: "how feasible would it be to separate legs and torso animations so that they can be mixed and matched? taking advantage of existing foot placement and let sway to increase the coherence between movements"):* options given - baked in the bench, or live in the game (the engine layers torso clips, animroot torso_g, but NWN never attacks while moving, no balance at run time, every client told). *Decision (owner, 2026-10-30):* "I was thinking of mixing in the bench", then "go" to: legs from / torso from (this take, an animation, a saved recipe; offset, speed, loop), the seam (chest keeps its direction / turns with the hips), the hips follow the weight on locked feet. Found: rootdummy carries torso_g and pelvis_g side by side (the torso doesn't hang from the hips); only rootdummy has position keys in NWN's clips.
+*#84 (2026-10-30; owner: "how feasible would it be to separate legs and torso animations so that they can be mixed and matched? taking advantage of existing foot placement and let sway to increase the coherence between movements"):* options given - baked in the bench, or live in the game (the engine layers torso clips, animroot torso_g, but NWN never attacks while moving, no balance at run time, every client told). *Decision (owner, 2026-10-30):* "I was thinking of mixing in the bench", then "go" to: legs from / torso from (this take, an animation, a saved recipe; offset, speed, loop), the seam (chest keeps its direction / turns with the hips), the hips follow the weight on locked feet. Found: rootdummy carries torso_g and pelvis_g side by side (the torso doesn't hang from the hips); only rootdummy has position keys in NWN's clips. Built (tools only): MC.retarget's
+halves - legs from the take or an animation (offset, speed, loop; its own root), torso from an animation, a saved recipe or the
+take elsewhere (offset, speed); the take's legs are the clock. The seam: the chest keeps its direction, or turns with the hips by
+how much the legs' hips face away from its source's. An animation's rootdummy turn (the ready stances stand side-on that way,
+nwreadyr 17-19 degrees, 1hreadyr 21-24, swaying) carried into pelvis_g and torso_g - a mocap result keys no rootdummy turn;
+without it nwreadyr's feet sat 8 cm high and swayed 10 cm. An animation's planted feet where a foot stands still and low (a
+stance: one plant a foot all along; an in-place walk: none). The hips follow the weight: where a foot is held, the root slides
+so the upper body's weight (segment masses) sits where the legs' own source had it, the hips sinking where a held leg would no
+longer reach than it already did; a pose key's lean the same. The solve cached per frame. The bench: the rail's Mix legs and
+torso, the torso's hands dashed on the timeline, the readout at the marker, an animation's plants on the rows (not editable),
+saved with the take. Checks: both halves from the take unchanged (also locked, balanced); taunt's torso 0.000 deg off it, the
+take's 0.3 s on x1.5 0.000; nwreadyr's legs 0.033 deg, joints 0.00 mm; seams 0.00; plants 100% / 100% / none; bow's torso over
+pause1's legs 11.8 -> 1.4 cm off the feet's weight, feet 0.0 mm; a 30-degree pose-key lean 6.9 -> 0.8 cm; no feet held, no
+slide; the browser: 11 expectations. Deliberate breaks: 12 core, 6 page, all caught. *Asked alongside (owner): "why isn't the
+human male not very well mapped to my own body markers? the mocap data is larger than the doll"* - measured: a_ba's hips at 102.5
+cm, shoulders 155.7, the head's base 175.3 (about 1.9 m, long legs, a short torso and arms); the overlay scaled to his hips
+(x1.25-1.31) makes the owner's legs match (thigh 49.9 / 46.2 cm) and the rest bigger (hips to shoulders 66.6 / 53.2, upper arm
+38.4 / 30.5); the retarget copies angles, so only contacts move; the takes read the owner at 156-172 cm (calibration scale).
 *Capture habits (told to the owner):* two or more cameras; a T-pose at each
 take's start; cycles performed on the spot; a prop of the weapon's length; a
 clap or stomp at the contact moment. Rage: 2-3 s, relaxed to a fighting stance.

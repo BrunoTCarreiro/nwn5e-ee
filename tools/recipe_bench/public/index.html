@@ -177,6 +177,45 @@
       <div class="row">
         <label class="check"><input type="checkbox" id="mc-sway" checked> Keep the hips' sway over the feet (on its spot)</label>
       </div>
+      <div class="pose" id="mc-mix">
+        <p class="note"><strong>Mix legs and torso</strong> - each half from this take, an animation of the body, or a saved recipe (another take: save it first). The torso is the chest, head and arms; the legs are the hips, legs and where the body stands.</p>
+        <label>Legs from
+          <select id="mix-legs"></select>
+        </label>
+        <div class="row">
+          <label>Offset (s)
+            <input type="number" id="mix-legs-offset" step="0.05" value="0">
+          </label>
+          <label>Speed
+            <input type="number" id="mix-legs-speed" min="0.1" max="4" step="0.05" value="1">
+          </label>
+          <label class="check"><input type="checkbox" id="mix-legs-loop" checked> Loop</label>
+        </div>
+        <label>Torso from
+          <select id="mix-torso"></select>
+        </label>
+        <div class="row">
+          <label>Offset (s)
+            <input type="number" id="mix-torso-offset" step="0.05" value="0">
+          </label>
+          <label>Speed
+            <input type="number" id="mix-torso-speed" min="0.1" max="4" step="0.05" value="1">
+          </label>
+          <label class="check"><input type="checkbox" id="mix-torso-loop" checked> Loop</label>
+        </div>
+        <label>The seam
+          <select id="mix-seam">
+            <option value="direction">the chest keeps its direction</option>
+            <option value="hips">the chest turns with the hips</option>
+          </select>
+        </label>
+        <div class="row">
+          <label class="check"><input type="checkbox" id="mix-balance" checked> The hips follow the weight (on locked planted feet)</label>
+        </div>
+        <p class="value" id="mix-now"></p>
+        <p class="note" id="mix-info"></p>
+        <p class="note">The take's legs set the time: the part kept, the timeline, the planted feet. The other half starts at its offset (in the take: from the kept part's start) and plays at its speed; an animation loops or holds its last frame. Line a strike up with a footstep using the dashed line on the timeline - the torso's hands' speed. <strong>Keeps its direction</strong>: the chest faces where its source faced. <strong>Turns with the hips</strong>: it turns as much as the legs' hips face away from its source's. <strong>The hips follow the weight</strong>: while a foot is planted and locked, the hips slide so a torso leaning further (or a pose key's lean) stays over the feet, sinking if a leg can't reach. An animation's legs bring their own root and their own planted feet (where a foot stands still - an in-place walk has none).</p>
+      </div>
       <div class="pose" id="mc-pose">
         <div class="row">
           <label>Pose a part
@@ -264,7 +303,7 @@
     <div class="motion" id="mc-timeline" hidden>
       <canvas id="mc-motion" aria-label="The take's timeline: how fast the hands and feet move, the standing window, the part kept and the marker; under it, the left and right feet's planted stretches"></canvas>
       <div class="timeline-foot">
-        <p class="note legend"><span class="key hands"></span>hands <span class="key feet"></span>feet <span class="key ref"></span>standing <span class="key keep"></span>kept <span class="key planted"></span>planted (L, R) <span class="key now"></span>marker</p>
+        <p class="note legend"><span class="key hands"></span>hands <span class="key feet"></span>feet <span class="key ref"></span>standing <span class="key keep"></span>kept <span class="key planted"></span>planted (L, R) <span class="key mixhands"></span>torso's hands, mixed <span class="key now"></span>marker</p>
         <span class="value" id="mc-now"></span>
         <span class="value" id="mc-plant-sel">no plant selected</span>
         <button type="button" id="mc-plant-remove" disabled>Remove plant</button>

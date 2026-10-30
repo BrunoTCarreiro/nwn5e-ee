@@ -70,6 +70,7 @@
     }
     open.value = [...open.options].some((o) => o.value === keep) ? keep : "";
     nameNote();
+    if (typeof refreshMixLists === "function") refreshMixLists();
   }
 
   // --- Libraries, bodies, animation lists ------------------------------------------
@@ -144,6 +145,8 @@
     base.value = r.base;
     mix.value = r.mix;
     refreshStances(names);
+    mixClips.clear();
+    refreshMixLists();
     recompute();
   }
 
@@ -369,6 +372,9 @@
     stanceView: false,  // the stage showing the stance from the front, 3/4 and the side (#80)
     poses: [], posePart: "rfoot_g", poseSel: null,  // pose keys (#83): parts, the part posed, a key selected on the timeline
     solveCache: {},  // the retarget's solve kept per body (MC.retarget reuses it while the take, stance and span are the same)
+    // Legs and torso from different sources (#84): "take", "anim:<name>" or "recipe:<source>|<file>".
+    halves: { legs: { src: "take", offset: 0, speed: 1, loop: true }, torso: { src: "take", offset: 0, speed: 1, loop: true }, seam: "direction", balance: true },
+    recipes: {},  // saved recipes read for a half, by "<source>|<file>"
     blendIn: 0.2, blendOut: 0.3, loop: false, sway: true, fitLength: 0, contactAt: 0, contact: null, tolerance: 0.75,
     saved: null,  // a keys recipe opened without its capture: its own keys, shown as they are
   };
@@ -452,12 +458,13 @@
     $("mc-at").value = mc.contactAt;
     $("mc-contact").value = mc.contact || 0;
     $("mc-tol").value = mc.tolerance;
+    syncMixUi();
   }
 
   function mocapOptions(body) {
     const fit = mc.fitLength > 0;
     return { name: mcName(), start: mc.start, end: mc.end, sway: mc.sway, stance: findClip(body, mc.stance) || findClip(body, "pause1"),
-      place: mc.place, plants: mc.locks ? mc.plants : null, poses: mc.poses,
+      place: mc.place, plants: mc.locks ? mc.plants : null, poses: mc.poses, halves: mixOptions(body),
       cache: (mc.solveCache[body] = mc.solveCache[body] || {}),
       blendIn: mc.blendIn, blendOut: mc.blendOut, loop: mc.loop, loopBlend: 0.25, fitLength: mc.fitLength,
       contact: fit && mc.contact !== null ? mc.contact : null, contactAt: fit && mc.contactAt > 0 ? mc.contactAt : null,
@@ -619,12 +626,16 @@
       mc.poseSel = null;
       const kept = loadSession();
       if (kept) {
-        for (const k of ["ref", "start", "end", "plants", "stance", "place", "locks", "poses"]) if (kept[k] !== undefined) mc[k] = kept[k];
+        for (const k of ["ref", "start", "end", "plants", "stance", "place", "locks", "poses", "halves"]) if (kept[k] !== undefined) mc[k] = kept[k];
+        for (const h of [mc.halves.legs, mc.halves.torso]) {
+          if (h.src.startsWith("recipe:")) loadHalfRecipe(h.src.slice(7)).then(() => { mixClips.clear(); recompute(); }).catch(() => { h.src = "take"; syncMixUi(); recompute(); });
+        }
         mc.contact = null;
         mc.take = MC.prepare(mc.capture, { fps: mc.fps, smoothing: mc.smoothing, reference: mc.ref, despike: mc.despike ? 1 : 0 });
         suggested = "This take's edits restored (saved " + new Date(kept.saved).toLocaleString() + "): standing " + mc.ref[0].toFixed(2) + "-" +
           mc.ref[1].toFixed(2) + " s, keep " + mc.start.toFixed(2) + "-" + (mc.end > 0 ? mc.end.toFixed(2) + " s" : "the end") + ", " +
-          (mc.plants.left.length + mc.plants.right.length) + " planted feet, " + mc.poses.reduce((n, p) => n + p.keys.length, 0) + " pose keys, from " + mc.stance + ".";
+          (mc.plants.left.length + mc.plants.right.length) + " planted feet, " + mc.poses.reduce((n, p) => n + p.keys.length, 0) + " pose keys, from " + mc.stance +
+          (mixDescription() ? "; " + mixDescription() : "") + ".";
       }
     }
     mc.profile = MC.motionProfile(mc.take);
@@ -677,6 +688,11 @@
       : mc.saved ? mcName() + ": no keys for " + state.body : "drop a capture";
     let feet = mc.take ? "Planted feet: " + mc.plants.left.length + " left, " + mc.plants.right.length + " right - " +
       (mc.locks ? "locked on every body." : "not locked (tick Lock planted feet).") : "";
+    if (mc.take && mc.halves.legs.src !== "take") {
+      feet = "The legs are " + mixLabel(mc.halves.legs.src) + "'s: " + (mc.locks && result && result.legPlants
+        ? "its planted feet (where a foot stands still) - " + result.legPlants.left.length + " left, " + result.legPlants.right.length + " right - locked; the rows show them (not editable)."
+        : "its feet as it moves them (tick Lock planted feet to hold where they stand still).");
+    }
     if (result && result.locks && mc.locks) {
       const out = result.locks.filter((l) => l.short > 0.03).map((l) => l.side + " " + l.takeStart.toFixed(2) + " s (" + Math.round(l.short * 100) + " cm)");
       if (out.length) feet += " Out of the leg's reach on " + state.body + " (the foot slides that much): " + out.join(", ") + ".";
@@ -712,6 +728,7 @@
         (mc.place === "inplace" ? ", in place" : ", returns to its spot") + ", from " + mc.stance +
         (mc.locks ? ", " + (mc.plants.left.length + mc.plants.right.length) + " planted feet locked" : "") +
         (mc.poses.length ? ", " + mc.poses.reduce((n, p) => n + p.keys.length, 0) + " pose keys" : "") +
+        (mixDescription() ? ", " + mixDescription() : "") +
         (mc.fitLength > 0 ? ", fitted to " + mc.fitLength + " s" : "") };
     const text = A.writeRecipe(recipe);
     try {
@@ -1187,12 +1204,13 @@
       g.globalAlpha = 0.5;
       g.fillStyle = v("--line");
       g.fillRect(0, y, w, rh);
-      const bars = mc.plants[side].slice();
-      if (footDrag && footDrag.mode === "new" && footDrag.side === side) bars.push([Math.min(footDrag.t0, footDrag.t1), Math.max(footDrag.t0, footDrag.t1)]);
+      const fromAnim = mc.halves.legs.src !== "take";  // the legs' animation's own plants (#84)
+      const bars = fromAnim ? (mc.result && mc.result.legPlants ? mc.result.legPlants[side].slice() : []) : mc.plants[side].slice();
+      if (!fromAnim && footDrag && footDrag.mode === "new" && footDrag.side === side) bars.push([Math.min(footDrag.t0, footDrag.t1), Math.max(footDrag.t0, footDrag.t1)]);
       for (const [a, b] of bars) {
         const out = mc.locks && mc.result && mc.result.locks &&
           mc.result.locks.some((l) => l.side === side && l.short > 0.03 && l.takeStart < b + 0.02 && l.takeEnd > a - 0.02);
-        g.globalAlpha = mc.locks ? 0.8 : 0.3;
+        g.globalAlpha = mc.locks ? (fromAnim ? 0.45 : 0.8) : 0.3;
         g.fillStyle = out ? v("--danger") : v("--ink");
         g.fillRect(x(a), y, Math.max(2 * dpr, x(b) - x(a)), rh);
       }
@@ -1236,6 +1254,19 @@
     });
     line(mc.profile.feet, v("--muted"), 1);
     line(mc.profile.hands, v("--capture"), 1.5);
+    // The torso's source's hands (#84), dashed, where they fall in the part kept: line a strike up.
+    if (mc.result && mc.result.torsoHands && torsoMixed()) {
+      const th = mc.result.torsoHands;
+      g.setLineDash([4 * dpr, 3 * dpr]);
+      g.strokeStyle = v("--accent");
+      g.lineWidth = 1.5 * dpr;
+      g.beginPath();
+      th.values.forEach((s, k) => { const px = x(th.start + k / th.fps), py = ch - 3 * dpr - (Math.min(s, scale) / scale) * (ch - 6 * dpr); if (k) g.lineTo(px, py); else g.moveTo(px, py); });
+      g.stroke();
+      g.setLineDash([]);
+    }
+    const nowMix = mixNowText();
+    if ($("mix-now").textContent !== nowMix) $("mix-now").textContent = nowMix;
     if (mc.contact !== null && mc.fitLength > 0) {
       g.fillStyle = v("--accent");
       g.fillRect(x(mc.contact) - dpr, 0, 2 * dpr, h);
@@ -1253,6 +1284,130 @@
     const selText = mc.selected ? mc.selected.side + " foot " + mc.selected.bar[0].toFixed(2) + "-" + mc.selected.bar[1].toFixed(2) + " s" : "no plant selected";
     if ($("mc-plant-sel").textContent !== selText) $("mc-plant-sel").textContent = selText;
     if ($("mc-plant-remove").disabled !== !mc.selected) $("mc-plant-remove").disabled = !mc.selected;
+  }
+
+  // --- Legs and torso from different sources (#84) -----------------------------------------------
+  // Each half from this take, an animation of the body or a saved recipe (a take saved before):
+  // MC.retarget's halves. The take's legs are the clock; the rest has an offset and a speed.
+  const mixClips = new Map();  // "<body>|<src>" -> the clip
+  function halfClip(body, src) {
+    const key = body + "|" + src;
+    if (mixClips.has(key)) return mixClips.get(key);
+    const lib = libs.get(body);
+    let clip = null;
+    if (src.startsWith("anim:")) clip = findClip(body, src.slice(5));
+    else if (src.startsWith("recipe:")) {
+      const r = mc.recipes[src.slice(7)];
+      if (!r) return null;  // still being read: not kept
+      if (lib && r.keyed) clip = A.keyedClip(r, body, lib.bones);
+      else if (lib) { const b = findClip(body, r.base); clip = b ? A.deriveClip(r, b, r.mix ? findClip(body, r.mix) : null, lib.bones) : null; }
+    }
+    mixClips.set(key, clip);
+    return clip;
+  }
+  async function loadHalfRecipe(key) {
+    if (mc.recipes[key]) return;
+    const [source, file] = key.split("|");
+    const res = await fetch("/api/recipe?source=" + encodeURIComponent(source) + "&file=" + encodeURIComponent(file));
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.status + "");
+    mc.recipes[key] = A.readRecipe(await res.text());
+  }
+  function mixOptions(body) {
+    const h = mc.halves;
+    const half = (x, legs) => {
+      if (x.src === "take") return legs ? { kind: "take" } : { kind: "take", offset: x.offset, speed: x.speed };
+      const clip = halfClip(body, x.src);
+      return clip ? { kind: "clip", clip, offset: x.offset, speed: x.speed, loop: x.loop } : { kind: "take" };
+    };
+    return { legs: half(h.legs, true), torso: half(h.torso, false), seam: h.seam, balance: h.balance };
+  }
+  const torsoMixed = () => mc.halves.torso.src !== "take" || mc.halves.torso.offset !== 0 || mc.halves.torso.speed !== 1;
+  function mixLabel(src) {
+    if (src === "take") return "this take";
+    if (src.startsWith("anim:")) return src.slice(5);
+    const [source, file] = src.slice(7).split("|");
+    const r = state.saved.find((s) => s.source === source && s.file === file);
+    return (r ? r.name : file) + (source === "nwn5e" ? " (nwn5e's)" : " (saved)");
+  }
+  function mixDescription() {
+    const h = mc.halves;
+    if (h.legs.src === "take" && !torsoMixed()) return "";
+    const timing = (x) => (x.offset ? (x.offset > 0 ? " +" : " ") + x.offset.toFixed(2) + " s" : "") + (x.speed !== 1 ? " x" + x.speed.toFixed(2) : "") + (x.src !== "take" && !x.loop ? " (once)" : "");
+    return "legs from " + mixLabel(h.legs.src) + (h.legs.src !== "take" ? timing(h.legs) : "") + ", torso from " + mixLabel(h.torso.src) + timing(h.torso) +
+      " (the chest " + (h.seam === "hips" ? "turning with the hips" : "keeping its direction") + (h.balance ? ", the hips following the weight" : "") + ")";
+  }
+  // Where each half is in its source at the marker.
+  function mixNowText() {
+    if (!mc.result || !mc.result.source || (mc.halves.legs.src === "take" && !torsoMixed())) return "";
+    const T = markerTime();
+    if (T === null) return "";
+    const t = T - mc.result.source.start;
+    const at = (x) => {
+      if (x.src === "take") return "this take " + MC.halfTime({ kind: "take", offset: x.offset, speed: x.speed }, t, mc.result.source.start).toFixed(2) + " s";
+      const clip = halfClip(state.body, x.src);
+      return clip ? mixLabel(x.src) + " " + MC.halfTime({ kind: "clip", clip, offset: x.offset, speed: x.speed, loop: x.loop }, t, 0).toFixed(2) + " s" : mixLabel(x.src) + " (reading it)";
+    };
+    return "At the marker - legs: " + (mc.halves.legs.src === "take" ? "this take " + T.toFixed(2) + " s" : at(mc.halves.legs)) + " · torso: " + at(mc.halves.torso);
+  }
+  function refreshMixLists() {
+    for (const id of ["mix-legs", "mix-torso"]) {
+      const select = $(id), half = mc.halves[id === "mix-legs" ? "legs" : "torso"];
+      select.textContent = "";
+      select.appendChild(new Option("this take", "take"));
+      const group = (label) => { const g = document.createElement("optgroup"); g.label = label; select.appendChild(g); return g; };
+      if (state.saved && state.saved.length) {
+        const saved = group("Saved recipes (a take saved before, or a recipe)");
+        for (const r of state.saved) saved.appendChild(new Option((r.source === "nwn5e" ? "nwn5e's " : "") + r.name, "recipe:" + r.source + "|" + r.file));
+      }
+      const anims = group("Animations of the body");
+      for (const n of chainNames(state.body)) anims.appendChild(new Option(n, "anim:" + n));
+      if (![...select.options].some((o) => o.value === half.src)) half.src = "take";
+      select.value = half.src;
+    }
+    syncMixUi();
+  }
+  function syncMixUi() {
+    const h = mc.halves;
+    $("mix-legs").value = h.legs.src;
+    $("mix-torso").value = h.torso.src;
+    for (const [name, x] of [["legs", h.legs], ["torso", h.torso]]) {
+      const fixed = name === "legs" && x.src === "take";  // the take's legs are the clock
+      for (const k of ["offset", "speed"]) {
+        const input = $("mix-" + name + "-" + k);
+        if (document.activeElement !== input) input.value = x[k];
+        input.disabled = fixed;
+      }
+      $("mix-" + name + "-loop").checked = x.loop;
+      $("mix-" + name + "-loop").disabled = x.src === "take";
+    }
+    $("mix-seam").value = h.seam;
+    $("mix-balance").checked = h.balance;
+    $("mix-balance").disabled = !mc.locks;
+    $("mix-info").textContent = mixDescription() ? "Mixed: " + mixDescription() + "." : "Not mixed: legs and torso from this take.";
+  }
+  {
+    for (const name of ["legs", "torso"]) {
+      $("mix-" + name).addEventListener("change", () => {
+        const x = mc.halves[name], src = $("mix-" + name).value;
+        x.src = src;
+        syncMixUi();
+        if (src.startsWith("recipe:")) {
+          const key = src.slice(7);
+          loadHalfRecipe(key).then(() => { mixClips.clear(); syncMixUi(); recompute(); })
+            .catch((e) => { x.src = "take"; syncMixUi(); recompute(); setMcStatus("Couldn't read " + mixLabel(src) + ": " + e.message, "bad"); });
+        }
+        recompute();
+      });
+      $("mix-" + name + "-offset").addEventListener("change", () => { mc.halves[name].offset = parseFloat($("mix-" + name + "-offset").value) || 0; syncMixUi(); recompute(); });
+      $("mix-" + name + "-speed").addEventListener("change", () => {
+        mc.halves[name].speed = Math.max(0.1, Math.min(4, parseFloat($("mix-" + name + "-speed").value) || 1));
+        syncMixUi();
+        recompute();
+      });
+      $("mix-" + name + "-loop").addEventListener("change", () => { mc.halves[name].loop = $("mix-" + name + "-loop").checked; recompute(); });
+    }
+    $("mix-seam").addEventListener("change", () => { mc.halves.seam = $("mix-seam").value; recompute(); });
+    $("mix-balance").addEventListener("change", () => { mc.halves.balance = $("mix-balance").checked; recompute(); });
   }
 
   // --- Pose keys (#83) -------------------------------------------------------------------------
@@ -1386,7 +1541,7 @@
     if (!key || !mc.take) return;
     try {
       localStorage.setItem(key, JSON.stringify({ saved: Date.now(), ref: mc.ref, start: mc.start, end: mc.end, plants: mc.plants, stance: mc.stance,
-        place: mc.place, locks: mc.locks, poses: mc.poses }));
+        place: mc.place, locks: mc.locks, poses: mc.poses, halves: mc.halves }));
     } catch (e) { /* no storage: the edits last until the page closes */ }
   }
   function loadSession() {
@@ -1405,6 +1560,8 @@
     const top = r.height - rowsHeight();
     let side = null;
     [["left", 0], ["right", 1]].forEach(([s, i]) => { if (y >= top + rowTop(i) - 1 && y < top + rowTop(i) + ROW_H + 1) side = s; });
+    const animRows = mc.halves.legs.src !== "take" && y >= top && y < top + rowTop(2);  // the legs' animation's plants: not editable (#84)
+    if (animRows) side = null;
     const t = Math.max(0, Math.min(d, (x / Math.max(r.width, 1)) * d));
     const pxPerS = r.width / d;
     const parts = poseRows();
@@ -1414,7 +1571,7 @@
       for (const k of parts[n].keys) if (Math.abs(x - k.t * pxPerS) <= 6 && (!key || Math.abs(x - k.t * pxPerS) < Math.abs(x - key.t * pxPerS))) key = k;
       return { area: "pose", part: parts[n], key, t, x, pxPerS };
     }
-    const area = side ? "row" : y >= 0 && y < top ? "curves" : null;
+    const area = side ? "row" : (y >= 0 && y < top) || animRows ? "curves" : null;
     let edge = null, inside = null;
     if (side) {
       const sel = mc.selected && mc.selected.side === side ? mc.selected.bar : null;

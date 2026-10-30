@@ -1135,6 +1135,9 @@
     return src.loop ? ((s % length) + length) % length : Math.max(0, Math.min(length, s));
   }
   // An animation's turns of the driven bones (the bone's rest where it has no keys) and its root at s.
+  // One that turns its rootdummy (the ready stances stand side-on that way, 17-24 degrees, swaying):
+  // the turn carried into the bones hanging from it, the root moved for their offsets - a mocap
+  // result keys no rootdummy turn.
   function clipPose(R, clip, s, driven) {
     const byName = new Map(clip.nodes.map((n) => [lower(n.name), n]));
     const local = new Map();
@@ -1142,8 +1145,15 @@
       const n = byName.get(lower(R.bones[i].name));
       local.set(i, n && n.orientation && n.orientation.times.length ? qnorm(sampleTrack(n.orientation, s, true)) : R.rest[i]);
     }
-    const r = byName.get("rootdummy");
-    return { local, root: r && r.position && r.position.times.length ? sampleTrack(r.position, s, false).slice(0, 3) : null };
+    const r = byName.get("rootdummy"), rootIndex = R.index.get("rootdummy");
+    let root = r && r.position && r.position.times.length ? sampleTrack(r.position, s, false).slice(0, 3) : null;
+    if (r && r.orientation && r.orientation.times.length && rootIndex !== undefined) {
+      const q = qnorm(sampleTrack(r.orientation, s, true)), rest = R.rest[rootIndex];
+      for (const i of driven) if (R.bones[i].parent === rootIndex) local.set(i, qnorm(qmul(qconj(rest), qmul(q, local.get(i)))));
+      const pelvis = R.index.get("pelvis_g"), o = pelvis !== undefined ? R.restPos[pelvis] : [0, 0, 0];
+      root = add(root || R.restPos[rootIndex], sub(rotate(q, o), rotate(rest, o)));
+    }
+    return { local, root };
   }
   // Which way a pelvis turn faces, about the up axis (radians): its stance forward turned by it.
   function hipsYaw(R, pelvis, q) {

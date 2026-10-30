@@ -72,7 +72,23 @@ animation for nwn5e:
    lock bends the knee forward. **The body**: *moves with its steps, back to its spot in the
    blend-out* (one-off animations), or *stays on its spot* (walk cycles, loops:
    the take's travel is taken out, the game moves the creature).
-5. **Pose keys** (the rail's *Pose a part*): for what the capture got wrong or
+5. **Mix legs and torso** (the rail's *Mix legs and torso*): each half from this
+   take, an animation of the body, or a saved recipe (another take: save it
+   first). The torso is the chest, head and arms; the legs are the hips, legs and
+   where the body stands - NWN's own split (its weapon layers play the torso from
+   `torso_g` down). The take's legs set the time; the other half starts at its
+   **offset** (in the take: from the kept part's start) and plays at its
+   **speed**, an animation looping or holding its last frame. The dashed line on
+   the timeline is the torso's hands' speed - line a strike up with a footstep;
+   the readout under the controls says where each half is at the marker.
+   **The seam**: the chest *keeps its direction* (faces where its source faced) or
+   *turns with the hips* (as much as the legs' hips face away from its source's).
+   **The hips follow the weight**: while a foot is planted and locked, the hips
+   slide so a torso leaning further (or a pose key's lean) stays over the feet,
+   sinking where a leg couldn't reach. An animation's legs bring their own root
+   (a ready stance's side-on turn too) and their own planted feet - where a foot
+   stands still, shown on the rows (not editable; an in-place walk has none).
+6. **Pose keys** (the rail's *Pose a part*): for what the capture got wrong or
    too soft - a kick's limp foot, a punch that should snap. Pick a part (the body's
    position, hips, torso, neck, head, a thigh, shin, foot, upper arm, forearm or
    hand; drawn blue on the doll), put the marker on a frame and move a slider:
@@ -89,9 +105,9 @@ animation for nwn5e:
    and whole frames), **Delete** removes it. The keys apply on every body before
    the foot locks (a planted foot stays planted under a turned leg). A take's
    edits - the standing window, the trim, the planted feet, the stance, the body's
-   mode and the pose keys - are kept in this browser and come back when the same
-   file is dropped again.
-6. **Save for every body**: the take is retargeted to all eight body libraries and
+   mode, the mix and the pose keys - are kept in this browser and come back when
+   the same file is dropped again.
+7. **Save for every body**: the take is retargeted to all eight body libraries and
    written as one keys recipe; the next game start builds it.
 
 For hand clean-up - smoothing, a bad moment, a pose - **Export points for

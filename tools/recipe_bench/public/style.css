@@ -75,6 +75,7 @@ label.check input { accent-color: var(--accent); width: 16px; height: 16px; marg
 .key.keep { background: color-mix(in srgb, var(--accent) 30%, transparent); }
 .key.now { background: var(--ink); width: 2px; }
 .key.planted { background: var(--ink); opacity: 0.8; }
+.key.mixhands { height: 0; border-top: 2px dashed var(--accent); border-radius: 0; vertical-align: 3px; }
 .labels.one { grid-template-columns: 1fr; }
 input[type="range"] { width: 100%; accent-color: var(--accent); }
 .value { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); font-size: 0.85rem; }
