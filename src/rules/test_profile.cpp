@@ -113,7 +113,10 @@ bool TestSwitchRange(const std::string& name, int* low, int* high) {
                                   {"attacks_per_round", 0, 6},
                                   {"creature_hp_multiplier", 0, 100},
                                   {"creature_min_hp", 0, 30000},
-                                  {"rest_clock", 0, 1}};
+                                  {"push_slide_delay_ms", 0, 500},
+                                  {"push_slide_ms", 100, 1500},
+                                  {"rest_clock", 0, 1},
+                                  {"shove_slide_ms", 100, 1500}};
   for (const Range& range : kRanges) {
     if (name == range.name) {
       *low = range.low;

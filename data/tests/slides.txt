@@ -1,0 +1,13 @@
+# A !test profile ([debug] test_commands=1): type "!test slides" in game. Switches only, so it keeps
+# the character you are playing (no levels, class or items). Read each time: no rebuild or restart.
+#
+# The push slides' look (issue 11, 0.58.8). Change the numbers, save, and type "!test slides" again.
+#   push_slide_ms        how long a push that knocks the creature down slides (Push, Forceful Blow,
+#                        a killing blow's body), whatever the distance; 100..1500, built in 500
+#   push_slide_delay_ms  how far into its fall the slide starts; 0..500, built in 100
+#   shove_slide_ms       how long a Shove's push (5 ft, on its feet) slides; 100..1500, built in 350
+# creature_min_hp=50 is grapple.txt's, kept so a pushed orc lives through a few tries. Any other
+# !test profile puts the built-in times back.
+name = Push slide times (issue 11): switches only, keeps your character
+switches = creature_min_hp=50, push_slide_ms=500, push_slide_delay_ms=100, shove_slide_ms=350
+note = to tune: edit data\tests\slides.txt, then !test slides again

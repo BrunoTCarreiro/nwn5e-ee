@@ -85,6 +85,7 @@
 #include "engine.h"
 #include "hooks.h"
 #include "log.h"
+#include "mastery.h"
 #include "saves.h"
 #include "rules/abilities.h"
 #include "rules/class_features.h"
@@ -569,7 +570,14 @@ const SwitchField kSwitchFields[] = {
      [](int value) { g_config.debug_creature_hp_multiplier = value; }},
     {"creature_min_hp", [] { return g_config.debug_creature_min_hp; },
      [](int value) { g_config.debug_creature_min_hp = value; }},
+    // #11, 0.58.8: the push slides' times (no ini keys: their values here are the built-in ones).
+    {"push_slide_delay_ms", [] { return PushSlideTimesForTests().fall_slide_delay_ms; },
+     [](int value) { PushSlideTimesForTests().fall_slide_delay_ms = value; }},
+    {"push_slide_ms", [] { return PushSlideTimesForTests().fall_slide_ms; },
+     [](int value) { PushSlideTimesForTests().fall_slide_ms = value; }},
     {"rest_clock", [] { return g_config.rest_clock ? 1 : 0; }, [](int value) { g_config.rest_clock = value != 0; }},
+    {"shove_slide_ms", [] { return PushSlideTimesForTests().shove_slide_ms; },
+     [](int value) { PushSlideTimesForTests().shove_slide_ms = value; }},
 };
 constexpr size_t kSwitchCount = sizeof(kSwitchFields) / sizeof(kSwitchFields[0]);
 int g_ini_switches[kSwitchCount] = {};

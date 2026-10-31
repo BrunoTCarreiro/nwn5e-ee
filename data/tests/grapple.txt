@@ -16,3 +16,4 @@ abilities = 18 14 16 10 12 8
 items = nw_waxgr001, nw_waxbt001 equip, nw_ashlw001, nw_wthax001 x20
 switches = creature_min_hp=50
 note = spawn: !spawn nw_orcb (Medium), !spawn nw_gnthill (Large), !spawn nw_gntfrost (Huge), !spawn nw_orcb ally
+note = the push slides' times: !test slides (edit data\tests\slides.txt, then !test slides again)

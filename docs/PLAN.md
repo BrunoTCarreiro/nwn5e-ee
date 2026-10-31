@@ -3410,6 +3410,23 @@ smoothing. (2): the hold is arm's reach - 1 m up to a Medium target, half a metr
 against jitter (rules::GrappleDragDistance); it was where the creature was grabbed (1-2 m), dragged only once 0.2 m
 past it. Tests SmoothSlideAlongTheServersLine, SmoothHandsBackOnceTheClientCaughtUp, GrappleHoldAndEscape (10
 mutations caught).
+*The owner's 0.58.7 run, 2026-10-31:* S2-S6 pass ("the rest are good": the grab pulled to arm's reach, the
+drag, the Large hold, the release, the pause). G2-11: "the animation order should be falls prone first and then,
+while the falling prone animation is playing, sliding back. that way it looks like they are flying back. But the
+speed is too great at the moment." S1 (a Shove's push): "The slide isn't smooth, it's very fast." The log: the
+client drew every slide each frame (Forceful Blow's 4.6 m in 152 ms, 7 frames; handed back after 235 ms), but at
+the speed tuned while the client still snapped slides (30 m/s; a Shove's 1.5 m in 0.1 s, 5 frames), and starting
+as the damage landed - with Topple's knockdown, which a script applies 0.5 s after the roll - so a slide was over
+before the fall showed.
+*Built 0.58.8.* A push that knocks the creature down (the Push mastery's own fall, Topple's knockdown, a killing
+blow's body) waits for its fall to show on the server (at most 0.6 s), then slides 100 ms into it over 500 ms,
+whatever the distance (rules/push_slide.h: PushSlideStartMs). The tools session read the knockdown clips: kdbck
+(falling backwards) has the body down at about 0.4 s, kdfnt (forwards) at about 0.6 s, both clips 1.0 s, so the
+slide ends just after the body lands. A Shove's push is a stumble back over 350 ms. The client is told to draw a
+slide when it starts, so both begin together; the hold (Cutscene Immobilize) outlasts the slide. The three times
+are !test switches - push_slide_ms 100..1500, push_slide_delay_ms 0..500, shove_slide_ms 100..1500 - with a
+switches-only profile, `!test slides` (data/tests/slides.txt), to tune them in game without a rebuild. Tests
+PushSlidesWhileItFalls and the switch ranges in TestProfilesLevelsSwitchesNotes (12 mutations caught).
 
 **GT-L1. Later: throwing an enemy into another** (owner: "How possible would it
 be to implement throwing an enemy into another as a way to damage both? We're

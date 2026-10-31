@@ -86,6 +86,13 @@ TEST(TestProfilesLevelsSwitchesNotes) {
   CHECK_EQ(ParseTestProfile("switches = creature_min_hp=30000\n").errors.empty(), true);
   CHECK_EQ(ParseTestProfile("switches = creature_min_hp=30001\n").errors.size(), 1u);
   CHECK_EQ(ParseTestProfile("switches = creature_hp_multiplier=100, rest_clock=1\n").switches.size(), 2u);
+  // 0.58.8: the push slides' times.
+  CHECK_EQ(ParseTestProfile("switches = push_slide_ms=1500, push_slide_delay_ms=0, shove_slide_ms=100\n")
+               .errors.empty(),
+           true);
+  CHECK_EQ(ParseTestProfile("switches = push_slide_ms=99\n").errors.size(), 1u);
+  CHECK_EQ(ParseTestProfile("switches = push_slide_delay_ms=501\n").errors.size(), 1u);
+  CHECK_EQ(ParseTestProfile("switches = shove_slide_ms=1501\n").errors.size(), 1u);
 }
 
 // Breaks caught (0.57.6): a profile that builds a character not starting

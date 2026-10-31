@@ -47,6 +47,15 @@ std::string PushOnHit(void* attacker, void* target, float metres = 3.0f);
 std::string ShovePush(void* attacker, void* target, float metres, float* pushed);
 // A Push hit waits for its damage to land (OnApplyDamage).
 bool PushAwaiting();
+// #11, 0.58.8: the push slides' times (rules/push_slide.h: a falling push's
+// slide and how far into its fall it starts, a Shove's stumble) - test switches
+// for a session (!test: push_slide_ms, push_slide_delay_ms, shove_slide_ms).
+struct PushSlideTimes {
+  int fall_slide_ms;
+  int fall_slide_delay_ms;
+  int shove_slide_ms;
+};
+PushSlideTimes& PushSlideTimesForTests();
 // A damage effect created by `attacker_id` landed on `target`: the push, if it waited for it.
 void PushOnDamage(uint32_t attacker_id, void* target);
 // The creature's combat round ended (after the engine's EndCombatRound).

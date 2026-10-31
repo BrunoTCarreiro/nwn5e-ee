@@ -43,6 +43,17 @@
 // the push holding its fall 1.2 s and getting up while the knockdown wants the
 // creature down for a round. A push on a creature Topple just knocked down
 // (ToppledRecently) now only slides it: the knockdown's fall and round stand.
+//
+// 0.58.8 (#11; owner, 2026-10-31, G2-11: "the animation order should be falls
+// prone first and then, while the falling prone animation is playing, sliding
+// back. that way it looks like they are flying back. But the speed is too great
+// at the moment." S1: "The slide isn't smooth, it's very fast."): with the
+// client drawing the slide itself (0.58.7), the speed tuned against its snapping
+// went (30 m/s). A push that knocks the creature down - its own fall, Topple's
+// knockdown, a killing blow's body - waits for the fall to show and slides into
+// it over a set time (rules/push_slide.h); a Shove's push stumbles back slower.
+// The client is told to draw a slide when it starts. The times are !test
+// switches (push_slide_ms, push_slide_delay_ms, shove_slide_ms).
 
 #include <math.h>
 #include <stdint.h>
@@ -65,6 +76,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "mastery.h"
+#include "rules/push_slide.h"
 
 namespace {
 
@@ -115,14 +127,18 @@ const Api& E() {
 
 constexpr float kPushMetres = 3.0f;          // 10 ft
 constexpr int kPushFallMs = 1200;            // the fall's round pause
-constexpr DWORD kPushSlideMs = 100;          // the move along the line (owner: 0.45 -> 0.25 -> 0.15 s on 1.69, 0.1 s on EE)
-constexpr float kPushSlideMetresPerSecond = 30.0f;  // that 0.1 s was tuned on the 10 ft Push: 3 m / 0.1 s
+constexpr int kSlideHoldAfterMs = 300;       // a pushed creature's hold outlasts its slide (the client's hand-back)
 constexpr DWORD kPushWatchMs = 8000;
 constexpr DWORD kAwaitDamageMs = 5000;
 constexpr DWORD kRetargetMaxMs = 15000;
 constexpr float kBodyMetres = 0.5f;          // walkable line kept behind the new spot
 constexpr int kAnimationDamage = 14;         // the flinch a hit plays (nwmain's animation switch)
-constexpr float kShoveHoldSeconds = 0.5f;    // a shoved creature held in place while it slides
+constexpr int kShoveHoldMs = 500;            // a shoved creature held in place while it slides (at least)
+
+// The slides' times (rules/push_slide.h; 0.58.8), test switches for a session.
+PushSlideTimes g_times{rules::kFallSlideMs, rules::kFallSlideDelayMs, rules::kShoveSlideMs};
+
+int AtLeast(int minimum, int value) { return value > minimum ? value : minimum; }
 
 uint32_t IdOf(const void* object) { return Field<uint32_t>(object, ee::kObjectId); }
 Vec3 PositionOf(const void* object) {
@@ -345,22 +361,69 @@ struct Slide {
   Vec3 to;
   float metres;
   void* area;
+  DWORD pushed;       // when it was pushed
+  DWORD ms;           // its length
+  bool falls;         // a falling push: it slides into its fall (0.58.8)
+  int delay_ms;       // how far into the fall
+  bool fall_seen;     // its fall has shown
+  DWORD fall_seen_at;
+  bool started;       // it moves (the client was told to draw it)
   DWORD start;
-  DWORD ms;  // its length (SlideMs)
 };
 struct CorpseSlide {
   uint32_t id;
-  Vec3 from;
-  Vec3 to;
-  void* area;
-  DWORD start;
-  DWORD ms;
+  Slide slide;
 };
 
-// How long a slide of `metres` takes: the tuned speed, at least kPushSlideMs.
-DWORD SlideMs(float metres) {
-  const float ms = metres / kPushSlideMetresPerSecond * 1000.0f;
-  return ms > static_cast<float>(kPushSlideMs) ? static_cast<DWORD>(ms + 0.5f) : kPushSlideMs;
+// A slide planned now. `fall_shown`: a falling push whose fall shows already
+// (its own, set as it is pushed; lying down; a body's death).
+Slide NewSlide(const PushPlan& plan, void* area, bool falls, bool fall_shown, int ms) {
+  Slide slide{};
+  slide.from = plan.from;
+  slide.to = plan.to;
+  slide.metres = plan.metres;
+  slide.area = area;
+  slide.pushed = GetTickCount();
+  slide.ms = static_cast<DWORD>(ms);
+  slide.falls = falls;
+  slide.delay_ms = g_times.fall_slide_delay_ms;
+  slide.fall_seen = falls && fall_shown;
+  slide.fall_seen_at = slide.pushed;
+  return slide;
+}
+
+// Where the slide is now: false while it waits to start (a falling push for its
+// fall to show, then the delay into it: rules::PushSlideStartMs). As it starts
+// the client is told to draw it (SmoothSlide), so both begin together. *t: how
+// far along (1: done).
+bool SlideMoves(Slide& slide, uint32_t id, const void* creature, DWORD now, float* t) {
+  if (!slide.started) {
+    if (slide.falls && !slide.fall_seen && creature && LyingDown(Field<int32_t>(creature, ee::kCreatureAnimation))) {
+      slide.fall_seen = true;
+      slide.fall_seen_at = now;
+    }
+    const double waited = static_cast<double>(now - slide.pushed);
+    const double start = rules::PushSlideStartMs(
+        slide.falls, 0.0, slide.fall_seen ? static_cast<double>(slide.fall_seen_at - slide.pushed) : -1.0, waited,
+        static_cast<double>(slide.delay_ms));
+    if (start < 0.0 || waited < start) return false;
+    slide.started = true;
+    slide.start = now;
+    SmoothSlide(id, slide.from.x, slide.from.y, slide.to.x, slide.to.y, slide.ms);
+    if (slide.falls && LogSlot()) {
+      if (slide.fall_seen) {
+        Log("push: 0x%08X slides %.1f m over %lu ms from %.0f ms after the push (its fall showed at %lu ms)", id,
+            slide.metres, static_cast<unsigned long>(slide.ms), waited,
+            static_cast<unsigned long>(slide.fall_seen_at - slide.pushed));
+      } else {
+        Log("push: 0x%08X slides %.1f m over %lu ms: no fall showed in %d ms, so it slides anyway", id, slide.metres,
+            static_cast<unsigned long>(slide.ms), rules::kFallSlideWaitMs);
+      }
+    }
+  }
+  const DWORD elapsed = now - slide.start;
+  *t = elapsed >= slide.ms ? 1.0f : static_cast<float>(elapsed) / static_cast<float>(slide.ms);
+  return true;
 }
 struct Retarget {
   uint32_t pushed;
@@ -449,10 +512,10 @@ void Push(void* attacker, uint32_t attacker_id, void* target, uint32_t target_id
   // retarget (the kill's own retarget, rules_retarget.cpp, picks the next one).
   if (corpse) {
     g_corpse_slides.push_back(
-        CorpseSlide{target_id, plan.from, plan.to, AreaOf(target), GetTickCount(), SlideMs(plan.metres)});
-    SmoothSlide(target_id, plan.from.x, plan.from.y, plan.to.x, plan.to.y, SlideMs(plan.metres));
+        CorpseSlide{target_id, NewSlide(plan, AreaOf(target), true, true, g_times.fall_slide_ms)});
     if (LogSlot()) {
-      Log("push: 0x%08X on 0x%08X: the body slides %.1f m away (killing blow)%s", attacker_id, target_id, plan.metres,
+      Log("push: 0x%08X on 0x%08X: the body slides %.1f m away (killing blow), %d ms into its fall, over %d ms%s",
+          attacker_id, target_id, plan.metres, g_times.fall_slide_delay_ms, g_times.fall_slide_ms,
           plan.blocker != ee::kObjectInvalid ? " (cut short by a placeable)" : "");
     }
     return;
@@ -469,17 +532,20 @@ void Push(void* attacker, uint32_t attacker_id, void* target, uint32_t target_id
     }
   }
   // It can't walk while it falls and slides (its own attack order would pull
-  // it back toward the attacker).
+  // it back toward the attacker); the hold outlasts the slide (0.58.8).
+  const bool toppled = ToppledRecently(target_id);
+  const int hold_ms = AtLeast(kPushFallMs, (toppled ? rules::kFallSlideWaitMs : g_times.fall_slide_delay_ms) +
+                                               g_times.fall_slide_ms + kSlideHoldAfterMs);
   ApplyEffectAs(attacker_id, target_id, "DURATION_TYPE_TEMPORARY", "EffectCutsceneImmobilize()",
-                static_cast<float>(kPushFallMs) / 1000.0f, 0.0f);
+                static_cast<float>(hold_ms) / 1000.0f, 0.0f);
   uint32_t paused_by = ee::kObjectInvalid;
-  const Fall fall = ToppledRecently(target_id) ? Fall::kToppled : PlayFall(target, attacker_id, plan.away, &paused_by);
+  const Fall fall = toppled ? Fall::kToppled : PlayFall(target, attacker_id, plan.away, &paused_by);
   if (fall == Fall::kFell || fall == Fall::kFellUnpaused) {
     g_falls[target_id] = HeldFall{Field<int32_t>(target, ee::kCreatureAnimation), GetTickCount() + kPushFallMs - 150,
                                   false};
   }
-  g_slides[target_id] = Slide{plan.from, plan.to, plan.metres, AreaOf(target), GetTickCount(), SlideMs(plan.metres)};
-  SmoothSlide(target_id, plan.from.x, plan.from.y, plan.to.x, plan.to.y, SlideMs(plan.metres));  // 0.58.7
+  // 0.58.8: it slides into its fall - its own shows now, Topple's knockdown is waited for.
+  g_slides[target_id] = NewSlide(plan, AreaOf(target), true, fall != Fall::kToppled, g_times.fall_slide_ms);
   if (LogSlot()) {
     char blocker[48] = "";
     if (plan.blocker != ee::kObjectInvalid) sprintf_s(blocker, " (cut short by placeable 0x%08X)", plan.blocker);
@@ -491,12 +557,12 @@ void Push(void* attacker, uint32_t attacker_id, void* target, uint32_t target_id
     } else if (fall == Fall::kFellUnpaused) {
       sprintf_s(fall_note, ", falls without a round pause (its round has no time left)");
     } else if (fall == Fall::kToppled) {
-      sprintf_s(fall_note, " (no fall of its own: Topple's knockdown has it)");
+      sprintf_s(fall_note, " (no fall of its own: it waits for Topple's knockdown)");
     } else {
       sprintf_s(fall_note, " (no fall: already lying down)");
     }
-    Log("push: 0x%08X on 0x%08X: slides %.1f m away in %lu ms%s%s", attacker_id, target_id, plan.metres,
-        static_cast<unsigned long>(SlideMs(plan.metres)), blocker, fall_note);
+    Log("push: 0x%08X on 0x%08X: slides %.1f m away over %d ms, %d ms into its fall%s%s", attacker_id, target_id,
+        plan.metres, g_times.fall_slide_ms, g_times.fall_slide_delay_ms, blocker, fall_note);
   }
 }
 
@@ -547,20 +613,27 @@ void SlideAll() {
   const DWORD now = GetTickCount();
   for (auto it = g_slides.begin(); it != g_slides.end();) {
     const uint32_t id = it->first;
-    const Slide& slide = it->second;
+    Slide& slide = it->second;
     void* creature = CreatureById(id);
     if (!creature || AreaOf(creature) != slide.area) {
-      SmoothStop(id);
+      if (slide.started) SmoothStop(id);
       it = g_slides.erase(it);
       continue;
     }
     if (engine::IsDeadOrDying(creature)) {  // died mid-slide: the body goes on (0.45.3)
-      g_corpse_slides.push_back(CorpseSlide{id, slide.from, slide.to, slide.area, slide.start, slide.ms});
+      if (!slide.started && !slide.fall_seen) {  // its death is its fall
+        slide.fall_seen = true;
+        slide.fall_seen_at = now;
+      }
+      g_corpse_slides.push_back(CorpseSlide{id, slide});
       it = g_slides.erase(it);
       continue;
     }
-    const DWORD elapsed = now - slide.start;
-    const float t = elapsed >= slide.ms ? 1.0f : static_cast<float>(elapsed) / static_cast<float>(slide.ms);
+    float t = 0.0f;
+    if (!SlideMoves(slide, id, creature, now, &t)) {
+      ++it;
+      continue;
+    }
     PlaceOnGround(creature, slide.from.x + (slide.to.x - slide.from.x) * t,
                   slide.from.y + (slide.to.y - slide.from.y) * t);
     it = t >= 1.0f ? g_slides.erase(it) : std::next(it);
@@ -572,15 +645,17 @@ void SlideAll() {
 void SlideCorpses() {
   const DWORD now = GetTickCount();
   for (size_t i = 0; i < g_corpse_slides.size();) {
-    const CorpseSlide& slide = g_corpse_slides[i];
-    void* body = CreatureById(slide.id);
-    const DWORD elapsed = now - slide.start;
-    const float t = elapsed >= slide.ms ? 1.0f : static_cast<float>(elapsed) / static_cast<float>(slide.ms);
-    if (body && AreaOf(body) == slide.area) {
+    CorpseSlide& corpse = g_corpse_slides[i];
+    Slide& slide = corpse.slide;
+    void* body = CreatureById(corpse.id);
+    const bool here = body && AreaOf(body) == slide.area;
+    float t = 0.0f;
+    const bool moves = here && SlideMoves(slide, corpse.id, body, now, &t);
+    if (moves) {
       PlaceOnGround(body, slide.from.x + (slide.to.x - slide.from.x) * t, slide.from.y + (slide.to.y - slide.from.y) * t);
     }
-    if (!body || AreaOf(body) != slide.area || t >= 1.0f) {
-      if (t < 1.0f) SmoothStop(slide.id);
+    if (!here || (moves && t >= 1.0f)) {
+      if (!here && slide.started) SmoothStop(corpse.id);
       g_corpse_slides[i] = g_corpse_slides.back();
       g_corpse_slides.pop_back();
     } else {
@@ -613,15 +688,15 @@ std::string ShovePush(void* attacker, void* target, float metres, float* pushed)
     if (LogSlot()) Log("push: shove 0x%08X on 0x%08X: not pushed (%s)", attacker_id, target_id, plan.refused);
     return plan.refused;
   }
-  ApplyEffectAs(attacker_id, target_id, "DURATION_TYPE_TEMPORARY", "EffectCutsceneImmobilize()", kShoveHoldSeconds,
-                0.0f);
+  const int hold_ms = AtLeast(kShoveHoldMs, g_times.shove_slide_ms + kSlideHoldAfterMs);
+  ApplyEffectAs(attacker_id, target_id, "DURATION_TYPE_TEMPORARY", "EffectCutsceneImmobilize()",
+                static_cast<float>(hold_ms) / 1000.0f, 0.0f);
   if (!LyingDown(Field<int32_t>(target, ee::kCreatureAnimation))) E().set_animation(target, kAnimationDamage);
-  g_slides[target_id] = Slide{plan.from, plan.to, plan.metres, AreaOf(target), GetTickCount(), SlideMs(plan.metres)};
-  SmoothSlide(target_id, plan.from.x, plan.from.y, plan.to.x, plan.to.y, SlideMs(plan.metres));  // 0.58.7
+  g_slides[target_id] = NewSlide(plan, AreaOf(target), false, false, g_times.shove_slide_ms);  // a stumble (0.58.8)
   if (pushed) *pushed = plan.metres;
   if (LogSlot()) {
-    Log("push: shove 0x%08X on 0x%08X: slides %.1f m away, on its feet%s", attacker_id, target_id, plan.metres,
-        plan.blocker != ee::kObjectInvalid ? " (cut short by a placeable)" : "");
+    Log("push: shove 0x%08X on 0x%08X: slides %.1f m away over %d ms, on its feet%s", attacker_id, target_id,
+        plan.metres, g_times.shove_slide_ms, plan.blocker != ee::kObjectInvalid ? " (cut short by a placeable)" : "");
   }
   return std::string();
 }
@@ -647,6 +722,8 @@ std::string PushOnHit(void* attacker, void* target, float metres) {
 }
 
 bool PushAwaiting() { return !g_awaiting.empty(); }
+
+PushSlideTimes& PushSlideTimesForTests() { return g_times; }
 
 void PushOnDamage(uint32_t attacker_id, void* target) {
   const auto it = g_awaiting.find(attacker_id);
