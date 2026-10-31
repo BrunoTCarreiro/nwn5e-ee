@@ -65,6 +65,7 @@ PlayerByObjectFn g_player_by_object = nullptr;
 void** g_app_manager = nullptr;
 std::unordered_map<uint32_t, DWORD> g_last_check;  // by creature id
 std::unordered_map<uint32_t, DWORD> g_cleanup_due;  // by creature id: !test's lost-action cleanup, when due
+std::unordered_map<uint32_t, std::vector<rules::QuickbarSlot>> g_rebuild_bars;  // by creature id: the bar before (#102)
 constexpr DWORD kCleanupAfterMs = 3000;            // after the features update (rules_features: every 2 s)
 bool g_full_logged = false;
 
@@ -162,6 +163,31 @@ int EmptyLostActions(void* creature) {
   return static_cast<int>(lost.size());
 }
 
+// #102: the buttons a !test rebuild took off, back in their slots (rules::RebuildRestoredSlots), at its
+// cleanup - after the features update gave back what the reset took. Returns how many.
+int RestoreRebuildButtons(void* creature) {
+  const auto it = g_rebuild_bars.find(IdOf(creature));
+  if (it == g_rebuild_bars.end()) return 0;
+  const std::vector<rules::QuickbarSlot> before = it->second;
+  g_rebuild_bars.erase(it);
+  void* stats = StatsOf(creature);
+  std::vector<rules::QuickbarSlot> bar;
+  if (!stats || !g_set_int_param || !ReadBar(creature, &bar)) return 0;
+  std::vector<int> held;
+  for (const rules::QuickbarSlot& slot : before) {
+    const int feat = rules::QuickbarButtonFeat(slot.value);
+    if (slot.type == rules::kQuickbarTypeFeat && engine::HasFeat(stats, feat)) held.push_back(feat);
+  }
+  const std::vector<int> slots = rules::RebuildRestoredSlots(before, bar, held);
+  for (int slot : slots) {
+    g_set_int_param(creature, static_cast<uint8_t>(slot), static_cast<uint8_t>(rules::kQuickbarTypeFeat),
+                    before[slot].value);
+    Log("quickbar: 0x%08X slot %d <- %d again (its slot before the !test rebuild)", IdOf(creature), slot,
+        before[slot].value);
+  }
+  return static_cast<int>(slots.size());
+}
+
 void QuickbarCreatureUpdate(void* creature) {
   const uint32_t id = IdOf(creature);
   if (id == ee::kObjectInvalid) return;
@@ -175,9 +201,12 @@ void QuickbarCreatureUpdate(void* creature) {
   if (!facts.is_player || !facts.character || !facts.plausible) return;
   EnsureRecords(creature);
   const auto due = g_cleanup_due.find(id);
-  if (due != g_cleanup_due.end() && static_cast<int32_t>(now - due->second) >= 0) {
+  if (due != g_cleanup_due.end()) {
+    // #102: nothing placed until the rebuild's cleanup - the old buttons go back to their slots first.
+    if (static_cast<int32_t>(now - due->second) < 0) return;
     g_cleanup_due.erase(due);
-    EmptyLostActions(creature);
+    RestoreRebuildButtons(creature);
+    EmptyLostActions(creature);  // and the whole bar sent again
   }
   PlaceActions(creature, engine::GetLocalInt(creature, kVarPlaced), true);
 }
@@ -238,6 +267,18 @@ void ForgetQuickbarPlacements(void* creature) {
   SetRecord(creature, kVarPlaced, 0);
   g_last_check.erase(IdOf(creature));  // looked at in the next update, not in up to 2 s
   g_cleanup_due[IdOf(creature)] = GetTickCount() + kCleanupAfterMs;
+}
+
+// #102 (owner, 2026-10-31: "fix both"; Rage's button moved to the next empty slot at every rebuild - its
+// feat goes and comes back with the reset and the class swap, the engine taking the button with it): the bar
+// is read before the rebuild (RememberQuickbarForRebuild) and its feat buttons go back to their slots at the
+// cleanup, before anything is placed; then the new character's other actions go on empty slots.
+void RememberQuickbarForRebuild(void* creature) {
+  if (g_config.quickbar != rules::RuleVariant::kFaithful || !creature) return;
+  // Another rebuild whose cleanup hasn't run yet (two !test within a few seconds): its bar from before stands.
+  if (g_rebuild_bars.count(IdOf(creature)) && g_cleanup_due.count(IdOf(creature))) return;
+  std::vector<rules::QuickbarSlot> bar;
+  if (ReadBar(creature, &bar)) g_rebuild_bars[IdOf(creature)] = bar;
 }
 
 void InstallQuickbarKeys();    // below

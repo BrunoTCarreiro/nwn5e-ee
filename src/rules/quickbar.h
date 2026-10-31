@@ -86,6 +86,18 @@ std::vector<QuickbarChange> PlanQuickbar(const std::vector<QuickbarSlot>& slots,
 // the slots. Items, spells and feats nwn5e doesn't place are left alone.
 std::vector<int> LostQuickbarActions(const std::vector<QuickbarSlot>& slots, const std::vector<QuickbarAction>& now);
 
+// The feat a feat button holds: itself, or for a sub-radial option (a FeatID,
+// option * 65536 + feat) the feat it is an option of.
+int QuickbarButtonFeat(int value);
+
+// #102 (owner, 2026-10-31: "fix both"; Rage's button moved to the next empty
+// slot at every !test rebuild): the slots a rebuild emptied, to fill again as
+// they were - a feat button in `before` (read before the rebuild) whose slot
+// is empty `now`, whose feat (QuickbarButtonFeat) the character holds again
+// (`held`), and whose action isn't on the bar in another slot now.
+std::vector<int> RebuildRestoredSlots(const std::vector<QuickbarSlot>& before, const std::vector<QuickbarSlot>& now,
+                                      const std::vector<int>& held);
+
 // The label drawn on a slot (0.48.2): "1".."9" then "F10".."F12" on the first
 // two rows with the number keys (else "F1".."F12"), "F1".."F12" on the Ctrl
 // row - no "Shift-" / "Ctrl-": a row shows only while its key is held, and the

@@ -239,3 +239,27 @@ TEST(QuickbarSlotKeysNamed) {
   CHECK_EQ(QuickbarSlotKeys(24, true) == "Ctrl+F1", true);
   CHECK_EQ(QuickbarSlotKeys(35, true) == "Ctrl+F12", true);
 }
+
+// #102: a !test rebuild's buttons back in their slots. Breaks caught: a slot
+// filled since overwritten, a feat the character no longer holds put back, an
+// action already on the bar elsewhere doubled, a non-feat button put back, a
+// sub-radial option judged by its FeatID instead of its feat.
+TEST(QuickbarRebuildPutsButtonsBack) {
+  CHECK_EQ(QuickbarButtonFeat(kFeatRage), kFeatRage);
+  CHECK_EQ(QuickbarButtonFeat(kForceful), kFeatBrutalStrike);
+  std::vector<QuickbarSlot> before(kQuickbarSlots), now(kQuickbarSlots);
+  before[2] = QuickbarSlot{kQuickbarTypeFeat, kFeatRecklessAttack};
+  before[5] = QuickbarSlot{kQuickbarTypeFeat, kForceful};
+  before[11] = QuickbarSlot{kQuickbarTypeFeat, kFeatRage};
+  before[12] = QuickbarSlot{kQuickbarTypeFeat, kFeatSecondWind2};   // a class the rebuild took away
+  before[13] = QuickbarSlot{1, kFeatBrutalStrike};                    // an item (its number a held feat's)
+  before[14] = QuickbarSlot{kQuickbarTypeFeat, kFeatKnockdownShove};  // on the bar elsewhere now
+  before[15] = QuickbarSlot{kQuickbarTypeFeat, kHamstring};           // its slot filled since
+  now[2] = QuickbarSlot{kQuickbarTypeFeat, kFeatRecklessAttack};      // kept by the rebuild
+  now[20] = QuickbarSlot{kQuickbarTypeFeat, kFeatKnockdownShove};
+  now[15] = QuickbarSlot{kQuickbarTypeFeat, kFeatRecklessAttack};
+  const std::vector<int> held = {kFeatRecklessAttack, kFeatBrutalStrike, kFeatRage, kFeatKnockdownShove};
+  CHECK_EQ(RebuildRestoredSlots(before, now, held) == std::vector<int>({5, 11}), true);
+  CHECK_EQ(RebuildRestoredSlots(before, now, {}).empty(), true);
+  CHECK_EQ(RebuildRestoredSlots(before, before, held).empty(), true);  // nothing emptied
+}

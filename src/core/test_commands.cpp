@@ -65,6 +65,10 @@
 //   d20 + the skill's 2024 total, the one every check reads - and says which
 //   ability counted (Strength while raging for Primal Knowledge's skills). A
 //   profile that rebuilds the character ends an active Rage first.
+// - #102 (owner, 2026-10-31: "fix both"): a rebuilt character's quickbar
+//   buttons go back to their slots (Rage moved at every rebuild), and it starts
+//   rested - ForceRest, every use back as after a Long Rest (the Rage uses
+//   spent went through the rebuild) - without moving the rest clock.
 // - 0.50.5 (owner: "add a !level command"): "!level <n> [class]" - the
 //   engine's own level-ups up to level n in the class (the first class when
 //   none is named; another one multiclasses), as !test's `level` makes them:
@@ -103,6 +107,7 @@
 
 void SetTestAbilityScores(void* creature, const int scores[6]);  // rules_abilities.cpp
 void ForgetQuickbarPlacements(void* creature);                    // rules_quickbar.cpp
+void RememberQuickbarForRebuild(void* creature);                  // rules_quickbar.cpp (#102)
 void EndRageOnRebuild(void* creature);                            // rules_barbarian.cpp (#96)
 bool SkillTotal2024(void* creature, int nwn_skill, int* total, int* ability_modifier,
                     bool* rage_strength);                         // rules_skills.cpp (#96)
@@ -573,6 +578,17 @@ std::vector<std::string> LevelCommand(void* creature, const std::string& args) {
 
 // --- !test profiles (#82) -------------------------------------------------
 
+// #102: a rebuilt character rested, as after a Long Rest - ForceRest, whose end
+// every use pool listens to (rest.h) - with the rest clock held still.
+std::string RestAfterRebuild(uint32_t id) {
+  const bool clock = g_config.rest_clock;
+  g_config.rest_clock = false;
+  RunScriptChunk("ForceRest(OBJECT_SELF);", id);
+  g_config.rest_clock = clock;
+  Log("test: 0x%08X rested after the rebuild (ForceRest): every use, hit points and spells back", id);
+  return "  rested: every use, hit points and spells back (as after a Long Rest)";
+}
+
 // A profile that builds a character starts from level 1: the line to show.
 std::string ResetToLevelOne(void* stats, uint32_t id) {
   const int before = TotalLevel(stats);
@@ -715,6 +731,7 @@ std::vector<std::string> TestCommand(void* creature, const std::string& args) {
   }
   // 1a. A profile that builds a character starts from level 1, and out of a Rage (#96).
   if (rules::TestProfileBuildsCharacter(profile)) {
+    RememberQuickbarForRebuild(creature);  // #102: its buttons back in their slots after the rebuild
     EndRageOnRebuild(creature);
     lines.push_back(ResetToLevelOne(stats, id));
   }
@@ -786,6 +803,8 @@ std::vector<std::string> TestCommand(void* creature, const std::string& args) {
   }
   // 6. Test switches for this session: the ini's values back, then the profile's.
   for (const std::string& line : ApplySwitches(id, profile.switches)) lines.push_back(line);
+  // 6b. A built character starts rested (#102).
+  if (rules::TestProfileBuildsCharacter(profile)) lines.push_back(RestAfterRebuild(id));
   // 7. What the profile can't do itself.
   for (const std::string& note : profile.notes) lines.push_back("  note: " + note);
   Log("test: 0x%08X applied data\\tests\\%s.txt (%s)", id, name.c_str(), profile.name.c_str());

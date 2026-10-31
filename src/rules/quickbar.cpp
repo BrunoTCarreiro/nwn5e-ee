@@ -156,6 +156,25 @@ std::vector<int> LostQuickbarActions(const std::vector<QuickbarSlot>& slots, con
   return lost;
 }
 
+int QuickbarButtonFeat(int value) { return value & 0xFFFF; }
+
+std::vector<int> RebuildRestoredSlots(const std::vector<QuickbarSlot>& before, const std::vector<QuickbarSlot>& now,
+                                      const std::vector<int>& held) {
+  std::vector<int> slots;
+  const size_t count = std::min(before.size(), now.size());
+  for (size_t i = 0; i < count; ++i) {
+    if (before[i].type != kQuickbarTypeFeat || now[i].type != kQuickbarTypeEmpty) continue;
+    const int value = before[i].value;
+    if (std::find(held.begin(), held.end(), QuickbarButtonFeat(value)) == held.end()) continue;
+    bool elsewhere = false;
+    for (const QuickbarSlot& slot : now) {
+      if (slot.type == kQuickbarTypeFeat && SameQuickbarAction(slot.value, value)) elsewhere = true;
+    }
+    if (!elsewhere) slots.push_back(static_cast<int>(i));
+  }
+  return slots;
+}
+
 std::vector<QuickbarChange> PlanQuickbar(const std::vector<QuickbarSlot>& slots, int placed,
                                          const std::vector<QuickbarAction>& actions, int* new_placed) {
   std::vector<QuickbarSlot> bar = slots;
