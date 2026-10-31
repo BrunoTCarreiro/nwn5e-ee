@@ -700,3 +700,36 @@ all fixed with checks that failed first:
 The deferred minors are listed on #89.
 
 *Next:* the owner's test of #88 and #89 together (matrices M1-M8, then I1-I8), then phase 4, poses (#90).
+
+### The owner's test, first round (2026-10-31, #88)
+
+*Reported (owner):* in Workflow A a foot "set to always" still floated up and down; Save showed "a big chunk
+of red text"; the take row on its own scale above rows zoomed to the kept part was counterintuitive ("take s"
+should show the motion too); contact bars and the marker drew over the row labels. *Decided (owner):* "go,
+all four" (the fixes below, proposed info-first with the evidence).
+
+*Found:* on n5_asm2 the capture's hip points ride up 8-12 cm in each kick, past the standing leg's reach, and
+the solve only bent the leg - the planted foot lifted 7-11 cm and dropped back. At the end the owner walks
+out: the heel comes off, the tracker loses the left leg and its toe point freezes below the floor, so the
+contact ran on and the foot was dragged 36 cm up and 73 cm away (Save's 73 cm). "Always" and "auto" lock
+alike; always only keeps re-suggest off a contact.
+
+*Changed (nwn5e-tools, bench only - no core or DLL change):*
+- Contacts start only when the ankle is still too, and end when the ankle or heel rises 3 cm above where
+  it landed (a push-off) or a foot point is lost; never merged across such an end (e05b8b1).
+- The hips come down just enough to hold a planted foot, at most a quarter of the hip height (the core's
+  IK rule); the rest is reported short (c9bcee2). On n5_asm2 every planted foot now stays within 1 mm on
+  all eight bodies (up to 13.7 cm before).
+- Save's report: one line per problem across the bodies, worst first, amber (df00e56).
+- The timeline: every row on one time scale (the whole take on opening), the wheel zooms about the
+  pointer, Shift+wheel pans, F fits the kept part; the motion behind "take s"; everything clipped to the
+  track (53ea19a).
+
+*Rulings:*
+- `solveTake` takes `sink` (default on); parity_check runs it off, so it still proves the carried-over
+  solve key for key, and solve_check proves the sinking.
+- The wheel over the row labels still scrolls the timeline box (it holds the IK rows); over the track it
+  zooms.
+
+*Left:* where the take overstretches the leg for a moment (n5_asm2's walk-out, 23.3-23.6 s) the hips dip up
+to 19 cm as the foot lets go; trimming the kept part before the walk removes it.
