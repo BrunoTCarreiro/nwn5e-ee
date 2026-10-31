@@ -16,3 +16,4 @@ items = nw_waxgr001, nw_waxbt001 equip, nw_ashlw001, nw_wthax001 x20, nw_wbwsh00
 switches = creature_min_hp=50
 note = B3: a Rage ends after a round (6 s, unpaused) with no attack at an enemy, no save forced on one and no chase
 note = B12 (Persistent Rage) and two Brutal Strike effects: !test barbarian (level 17). B13 needs level 18
+note = B7: !skill intimidation 15 before and while raging - while raging the line says Strength (also acrobatics, perception, stealth, survival)

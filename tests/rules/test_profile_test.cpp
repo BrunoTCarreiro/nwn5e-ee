@@ -95,6 +95,38 @@ TEST(TestProfilesLevelsSwitchesNotes) {
   CHECK_EQ(ParseTestProfile("switches = shove_slide_ms=1501\n").errors.size(), 1u);
 }
 
+// Breaks caught (#96): a DC that isn't the last word, out of 1..60, not a
+// number, a tool taken for a skill, a skill of several words refused, the
+// skill or DC not set.
+TEST(SkillCheckArguments) {
+  Skill2024 skill = Skill2024::kArcana;
+  int dc = 0;
+  CHECK_EQ(ParseSkillCheckArgs("intimidation 15", &skill, &dc), true);
+  CHECK_EQ(skill == Skill2024::kIntimidation, true);
+  CHECK_EQ(dc, 15);
+  CHECK_EQ(ParseSkillCheckArgs("  Sleight of Hand 12 ", &skill, &dc), true);
+  CHECK_EQ(skill == Skill2024::kSleightOfHand, true);
+  CHECK_EQ(dc, 12);
+  CHECK_EQ(ParseSkillCheckArgs("perception 1", &skill, &dc), true);
+  CHECK_EQ(dc, 1);
+  CHECK_EQ(ParseSkillCheckArgs("stealth 60", &skill, &dc), true);
+  CHECK_EQ(skill == Skill2024::kStealth, true);
+  CHECK_EQ(dc, 60);
+  skill = Skill2024::kArcana;
+  dc = 7;
+  CHECK_EQ(ParseSkillCheckArgs("stealth 61", &skill, &dc), false);
+  CHECK_EQ(ParseSkillCheckArgs("stealth 0", &skill, &dc), false);
+  CHECK_EQ(ParseSkillCheckArgs("stealth 1x", &skill, &dc), false);
+  CHECK_EQ(ParseSkillCheckArgs("stealth -5", &skill, &dc), false);
+  CHECK_EQ(ParseSkillCheckArgs("stealth", &skill, &dc), false);
+  CHECK_EQ(ParseSkillCheckArgs("15 stealth", &skill, &dc), false);
+  CHECK_EQ(ParseSkillCheckArgs("thieves' tools 10", &skill, &dc), false);  // a tool
+  CHECK_EQ(ParseSkillCheckArgs("swimming 10", &skill, &dc), false);
+  CHECK_EQ(ParseSkillCheckArgs("", &skill, &dc), false);
+  CHECK_EQ(skill == Skill2024::kArcana, true);  // nothing set on a refusal
+  CHECK_EQ(dc, 7);
+}
+
 // Breaks caught (0.57.6): a profile that builds a character not starting
 // from level 1 (it would keep the levels it had), or one that only sets
 // switches, notes, items or XP taking the character's levels away.

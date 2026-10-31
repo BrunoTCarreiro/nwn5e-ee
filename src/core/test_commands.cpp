@@ -60,6 +60,11 @@
 //   for the speaker against a 2024 DC (the save wrapper: Stroke of Luck, Indomitable
 //   Might ...); "!reflex <dc> <damage>" a Reflex-halved hit through the engine's
 //   GetReflexAdjustedDamage, as an area spell's (Evasion), as fire damage.
+// - #96 (owner, 2026-10-31: "add !skill and end rage on !test"; B7: "Can't
+//   test b7"): "!skill <skill> <dc>" rolls a 2024 skill check for the speaker -
+//   d20 + the skill's 2024 total, the one every check reads - and says which
+//   ability counted (Strength while raging for Primal Knowledge's skills). A
+//   profile that rebuilds the character ends an active Rage first.
 // - 0.50.5 (owner: "add a !level command"): "!level <n> [class]" - the
 //   engine's own level-ups up to level n in the class (the first class when
 //   none is named; another one multiclasses), as !test's `level` makes them:
@@ -80,6 +85,7 @@
 #include "config.h"
 #include "creature.h"
 #include "data_serving.h"
+#include "dice.h"
 #include "ee_layout.h"
 #include "effects.h"
 #include "engine.h"
@@ -97,6 +103,9 @@
 
 void SetTestAbilityScores(void* creature, const int scores[6]);  // rules_abilities.cpp
 void ForgetQuickbarPlacements(void* creature);                    // rules_quickbar.cpp
+void EndRageOnRebuild(void* creature);                            // rules_barbarian.cpp (#96)
+bool SkillTotal2024(void* creature, int nwn_skill, int* total, int* ability_modifier,
+                    bool* rage_strength);                         // rules_skills.cpp (#96)
 
 namespace {
 
@@ -217,6 +226,35 @@ std::vector<std::string> SaveCommand(void* creature, const std::string& args) {
       result == 0 ? "failed" : result == 2 ? "immune" : "made");
   return {"nwn5e: test " + name + " save, DC " + std::to_string(dc) + ": " +
           (result == 0 ? "failed" : result == 2 ? "immune" : "made") + "."};
+}
+
+// #96: "!skill <skill> <dc>" - a 2024 skill check for the speaker against a DC.
+std::vector<std::string> SkillCommand(void* creature, const std::string& args) {
+  rules::Skill2024 skill = rules::Skill2024::kAthletics;
+  int dc = 0;
+  if (!rules::ParseSkillCheckArgs(args, &skill, &dc)) {
+    return {"nwn5e: !skill <skill> <dc> - a 2024 skill and a DC 1..60, e.g. !skill intimidation 15 or !skill "
+            "sleight of hand 12"};
+  }
+  const int row = rules::SkillsPageRow(skill);
+  int total = 0, modifier = 0;
+  bool rage_strength = false;
+  if (row < 0 || !SkillTotal2024(creature, row, &total, &modifier, &rage_strength)) {
+    return {"nwn5e: !skill rolls the 2024 skills - they are off (skills=faithful in nwn5e.ini)."};
+  }
+  const uint32_t id = ObjectIdOf(StatsOf(creature));
+  const int d20 = RollEngineDice(1, 20);
+  const int result = d20 + total;
+  const bool success = result >= dc;
+  const std::string name = rules::Skill2024Name(skill);
+  const std::string ability = rage_strength ? std::string("Strength, by Primal Knowledge while raging")
+                                            : std::string(rules::AbilityName(rules::AbilityFor(skill)));
+  char text[256];
+  sprintf_s(text, "nwn5e: test %s check, DC %d: d20 %d %+d = %d (%s %+d) - %s.", name.c_str(), dc, d20, total,
+            result, ability.c_str(), modifier, success ? "success" : "failure");
+  Log("test: 0x%08X %s check DC %d (!skill): d20 %d %+d = %d (%s %+d): %s", id, name.c_str(), dc, d20, total, result,
+      ability.c_str(), modifier, success ? "success" : "failure");
+  return {text};
 }
 
 std::vector<std::string> ReflexCommand(void* creature, const std::string& args) {
@@ -675,8 +713,11 @@ std::vector<std::string> TestCommand(void* creature, const std::string& args) {
                       profile.race == 2 || profile.race == 3 ? ee::kCreatureSizeSmall : ee::kCreatureSizeMedium);
     lines.push_back(std::string("  species: ") + kRaceNames[profile.race]);
   }
-  // 1a. A profile that builds a character starts from level 1.
-  if (rules::TestProfileBuildsCharacter(profile)) lines.push_back(ResetToLevelOne(stats, id));
+  // 1a. A profile that builds a character starts from level 1, and out of a Rage (#96).
+  if (rules::TestProfileBuildsCharacter(profile)) {
+    EndRageOnRebuild(creature);
+    lines.push_back(ResetToLevelOne(stats, id));
+  }
   // 1a'. The profile's scores before the levels: a new class needs 13 in its main ability (CM2).
   if (profile.has_abilities) SetTestAbilityScores(creature, profile.abilities);
   // 1b. The first class swapped (before the levels, which may then add some in it).
@@ -770,8 +811,10 @@ void InstallTestCommands() {
   AddChatCommand("!spawn", &SpawnCommand);
   AddChatCommand("!prone", &ProneCommand);
   AddChatCommand("!save", &SaveCommand);
+  AddChatCommand("!skill", &SkillCommand);
   AddChatCommand("!reflex", &ReflexCommand);
   AddChatCommand("!level", &LevelCommand);
   Log("config: [debug] test_commands=1 - !test [profile] (data\\tests), !give <blueprint>, !feat add / remove <feat>, "
-      "!export, !spawn <blueprint> [ally], !prone [s], !save <ability> <dc>, !reflex <dc> <damage>, !level <n> [class]");
+      "!export, !spawn <blueprint> [ally], !prone [s], !save <ability> <dc>, !skill <skill> <dc>, !reflex <dc> <damage>, "
+      "!level <n> [class]");
 }

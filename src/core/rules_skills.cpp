@@ -231,6 +231,7 @@ struct SkillParts {
   bool proficient = false;
   bool expertise = false;
   int effects = 0;
+  bool rage_strength = false;  // the ability is Strength by Primal Knowledge (B7, raging)
 };
 
 // The 2024 value of `skill` for `stats`, or false when NWN's stands.
@@ -258,8 +259,9 @@ bool SkillValue2024(void* stats, int skill, void* vs, int* value, SkillParts* pa
       g_total_effect_bonus ? g_total_effect_bonus(creature, ee::kEffectBonusTypeSkill, vs, 0, 0, 0, 0,
                                                   static_cast<uint8_t>(skill), 0xFF, 0)
                            : 0;
-  parts->ability = engine::AbilityModifier(stats, static_cast<int>(rules::AbilityFor(*mapped)));
-  parts->ability = RageSkillAbility(creature, *mapped, parts->ability);  // Barbarian B7: Strength while raging
+  const int key_modifier = engine::AbilityModifier(stats, static_cast<int>(rules::AbilityFor(*mapped)));
+  parts->ability = RageSkillAbility(creature, *mapped, key_modifier);  // Barbarian B7: Strength while raging
+  parts->rage_strength = parts->ability != key_modifier;
   parts->proficiency_bonus = pb;
   parts->proficient = rules::Has(profile.proficient, *mapped);
   parts->expertise = rules::Has(profile.expertise, *mapped);
@@ -289,8 +291,9 @@ int SkillValue(const SkillQuery& query, int engine_value) {
     if (logged.First(LogOnce::Key(id, query.skill, value))) {
       const auto mapped = rules::Skill2024ForNwnSkill(query.skill);
       Log("skills: 0x%08X %s: 3e %+d -> 2024 %+d (%s %+d, PB %+d %s, effects %+d, vs 0x%08X)", id,
-          rules::Faithful2024SkillLabel(query.skill), engine_value, value, AbilityShort(rules::AbilityFor(*mapped)),
-          parts.ability, parts.proficiency_bonus,
+          rules::Faithful2024SkillLabel(query.skill), engine_value, value,
+          parts.rage_strength ? "Str (Primal Knowledge)" : AbilityShort(rules::AbilityFor(*mapped)), parts.ability,
+          parts.proficiency_bonus,
           parts.expertise ? "x2 (Expertise)" : parts.proficient ? "(proficient)" : "(not proficient)", parts.effects,
           query.vs ? IdOf(query.vs) : ee::kObjectInvalid);
     }
@@ -482,6 +485,21 @@ bool StealthParts(void* creature, int* extra, bool* proficient) {
   if (!SkillValue2024(stats, ee::kSkillHide, nullptr, &value, &parts, &is_player)) return false;
   *extra = (parts.expertise ? parts.proficiency_bonus : 0) + parts.effects;
   *proficient = parts.proficient;
+  return true;
+}
+
+// #96 !skill (test_commands.cpp): `creature`'s 2024 total for the skills.2da
+// row `nwn_skill` (the value every check reads), the ability modifier in it,
+// and whether that is Strength by Primal Knowledge (B7, raging). False when
+// NWN's value stands (the skills not faithful, a row without a 2024 skill).
+bool SkillTotal2024(void* creature, int nwn_skill, int* total, int* ability_modifier, bool* rage_strength) {
+  void* stats = creature && Faithful() ? StatsOf(creature) : nullptr;
+  if (!stats) return false;
+  SkillParts parts;
+  bool is_player = false;
+  if (!SkillValue2024(stats, nwn_skill, nullptr, total, &parts, &is_player)) return false;
+  *ability_modifier = parts.ability;
+  *rage_strength = parts.rage_strength;
   return true;
 }
 

@@ -32,6 +32,8 @@
 #include <string>
 #include <vector>
 
+#include "rules/skills.h"
+
 namespace rules {
 
 struct TestItem {
@@ -85,5 +87,11 @@ bool TestProfileBuildsCharacter(const TestProfile& profile);
 // rules/push_slide.h) push_slide_delay_ms 0..500, push_slide_ms 100..1500,
 // shove_slide_ms 100..1500; false for any other name.
 bool TestSwitchRange(const std::string& name, int* low, int* high);
+
+// #96 (owner, 2026-10-31: "add !skill"): "!skill <skill> <dc>"'s arguments - a
+// 2024 skill (any case; more words allowed: "sleight of hand 12") and a DC
+// 1..60 as the last word. False (nothing set) for a tool, an unknown skill, no
+// DC or one out of range.
+bool ParseSkillCheckArgs(const std::string& text, Skill2024* skill, int* dc);
 
 }  // namespace rules

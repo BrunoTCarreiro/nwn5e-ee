@@ -1102,7 +1102,8 @@ once it closes in on an enemy (B3's chase target) and queues the attack on that 
 Also: Cunning Strike's Withdraw held only when the target survived (13:31:27: Daze + Withdraw, the
 kobold died, nothing) - it is the Rogue's own, so it now applies either way. Test commands for the
 rows the owner couldn't set up ("can't create a situation where EL1 and SL1 are testable"):
-`!prone [s]`, `!save <ability> <dc>`, `!reflex <dc> <damage>` (test_commands.cpp).
+`!prone [s]`, `!save <ability> <dc>`, `!reflex <dc> <damage>` (test_commands.cpp); later `!skill <skill> <dc>`
+(#96).
 *0.50.4 (owner: "a weird spot where daelan kept triggering new lines of audio dialog, I believe
 when I spawned the first hill giant and he had to rage again"):* 0.50.3's request looped - its
 attack order rolls initiative again at once, initiative marked the henchman again, and the next
@@ -1192,6 +1193,16 @@ The damage comes from a shared OnApplyDamage hook (damage_listeners.cpp - the we
 Vex / Slow / Push moved onto it, unchanged), so Retaliation doesn't depend on weapon mastery.
 Also (owner: "use victorymg animation for the rage"): a Rage starts with the mage's victory
 animation (ANIMATION_FIREFORGET_VICTORY2, victorymg). Test: HasRetaliation (10).
+*The owner's run, 2026-10-31 (#25; 0.58.9, `!test barbarian` at 17 and `!test barbarian14`):* B2 passes
+("B2 has been tested"). From the log: B1, B3 (at 14), B6, B9's initiative, B10, B12, BZ1 and BZ4 pass; BZ3
+struck back 5 times and was refused 9 (the engine's round mid-swing: the stand-in's limit). B7: "Can't test
+b7". For B3 at 17 ("it takes a long time for the rage to end" - Persistent Rage, 10 minutes) a Berserker 14
+profile, `!test barbarian14`. A level-17 Rage outlasted that profile's rebuild until a rest (381 s).
+*Decided (owner, 2026-10-31: "add !skill and end rage on !test"; #96).* *Built 0.59.1:* `!skill
+<skill> <dc>` (test commands) rolls a 2024 skill check for the speaker - d20 + the skill's 2024 total, the
+one every check reads (GetSkillRank's) - against the DC, and says which ability counted: Strength, by Primal
+Knowledge, while raging. The skills log line says so too ("Str (Primal Knowledge)"; it named the skill's own
+ability). A `!test` profile that rebuilds the character ends an active Rage first. Test SkillCheckArguments.
 *Recon facts (EE 89.8193.37-17; RVA):* GetMovementRateFactor 0x391FE0 — HasFeat(194) at 0x39202A (checked again by the session: `mov edx,0C2h; call HasFeat 0x40B900`), ruleset BARBARIAN_ENDURANCE_BONUS 0.1 (row 307), caps MOVEMENT_SPEED_PENALTY_CAP 0.125, BONUS_DEFAULT_CAP 1.5, MONK_CAP 3.0. DoDamageReduction 0x491950 — HasFeat for 1067/334/333/332/196 at +0x177/+0x219/+0x291/+0x309/+0x37E. SavingThrowRoll 0x3EC600 — HasFeat 255…251 at 0x3ED046/0x3ED115/0x3ED150/0x3ED188/0x3ED1C0, its only d20 at 0x3ED260 (ruleset UNCANNY_DODGE_LEVEL_2–6 = 1–5). Uncanny Dodge 2 (251) in ResolveSneakAttack +0x536 and ResolveDeathAttack +0x32A. GetArmorClassVersus 0x3F47F0 — 195 at +0x988/+0x999 and 949 at +0x9AB/+0x9BC via CExoArrayList::Contains (0x296910) on stats+0 / +0x20. GetFlatFooted 0x3E3910 — HasFeat(226 Uncanny Reflex) = never flat-footed. Script GetHasFeat (0x525410): GetHighestLevelOfFeat +0xBD, HasFeat +0xD3, GetFeatRemainingUses +0xF5. GetHighestLevelOfFeat 0x4029B0 (UseFeat +0x3C, the script feat commands). GetFeatRemainingUses 0x4012F0 (total inline, minus the entry's byte +2, clamped 0–100; callers UseFeat, AIActionCastSpell, PlayerUpdate, talents, ResolveDamage, ResolveMeleeSpecialAttack, SetCombatMode, SaveClassInfo, scripts). GetFeatTotalUses 0x401C70 (ReadStatsFromGff, SetFeatRemainingUses 0x415960; feat 331: + (level − 20) / 4). Increment / DecrementFeatRemainingUses 0x40B9D0 / 0x3F2750 change exactly that feat id's byte. Feat 293: SPELLID 307, USESPERDAY 1, TARGETSELF 1; spell 307 NW_S1_BarbRage, UserType 3. DoDamageImmunity 0x491690 (virtual +0x160; % from +0x170; removes max(1, dmg × % / 100)). OnApplyDamage 0x428740: immunity +0x160, DoDamageResistance +0x150 (0x492620), DoDamageReduction +0x148 for flags & 0x1007. AIActionCastSpell 0x3ADA70, AIActionItemCastSpell 0x3C07B0, AddAttackOfOpportunity 0x374320, GetHasFeatEffectApplied 0x495480. Scripts with feat 293: nw_i0_generic, x0_d1_userage / x0_d2_hasrage, x2_i0_spells.
 *Open / unverified:* a feat use and the Short Rest's +1 landing on the same entry (the highest Rage feat); ResetFeatRemainingUses just zeroing the byte; GetHasFeatEffectApplied = the script's GetHasFeatEffect; BZ3's AoO queueing; OnApplyDamage's second loop (+0x1238) not examined; flat-footed in faithful (Rogue brief); Rage Damage on thrown weapons (ranged = Dex in rules::AttackAbilityModifier); served feats with USESPERDAY `****` unlimited; design calls — Heavy = chest base AC 6+ (2024's Half Plate is Medium), potions allowed while raging, henchmen reckless whenever raging, "of your choice" = all enemies; renaming tlk strings (1062 …) by conditional served rows → private ids (assumed).
 

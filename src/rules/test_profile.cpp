@@ -127,6 +127,23 @@ bool TestSwitchRange(const std::string& name, int* low, int* high) {
   return false;
 }
 
+bool ParseSkillCheckArgs(const std::string& text, Skill2024* skill, int* dc) {
+  const std::string trimmed = Trim(text);
+  const size_t space = trimmed.find_last_of(" \t");
+  if (space == std::string::npos) return false;
+  const std::string number = trimmed.substr(space + 1);
+  if (number.empty() || number.size() > 2 || number.find_first_not_of("0123456789") != std::string::npos) {
+    return false;
+  }
+  const int value = atoi(number.c_str());
+  if (value < 1 || value > 60) return false;
+  const std::optional<Skill2024> parsed = ParseSkill2024(Trim(trimmed.substr(0, space)));
+  if (!parsed || IsTool(*parsed)) return false;
+  *skill = *parsed;
+  *dc = value;
+  return true;
+}
+
 TestProfile ParseTestProfile(const std::string& text) {
   TestProfile profile;
   std::istringstream in(text);

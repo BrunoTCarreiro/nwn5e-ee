@@ -742,6 +742,13 @@ int RageDamageBonus(void* stats, int off_hand) {
   return rules::RageDamage2024(rage->level);
 }
 
+// #96 (owner, 2026-10-31: "end rage on !test"): a character a !test profile
+// rebuilds loses an active Rage - a level-17 Rage (Persistent: 10 minutes)
+// otherwise outlasted `!test barbarian14`'s rebuild until a rest.
+void EndRageOnRebuild(void* creature) {
+  if (creature) EndRage(creature, "the character is rebuilt (!test)");
+}
+
 // B7 Primal Knowledge (rules_skills' 2024 skill bonus): the ability modifier
 // for `skill`, Strength when better while raging.
 int RageSkillAbility(void* creature, rules::Skill2024 skill, int modifier) {
