@@ -760,3 +760,32 @@ end's turn from the animation).
 
 *Scope kept:* a held hand key still turns with the animation (the go covered feet); holding a hand's turn
 the same way is a one-line change if wanted.
+
+## Bench redesign, phase 4 - poses (2026-10-31, #90)
+
+*Decided (owner, 2026-10-31):* "looks good, next phase", then "native, go with your recommendation". The plan
+(docs/superpowers/plans/2026-10-31-bench-redesign-phase4.md) was executed inline.
+
+*Built:*
+- **The core (nwn5e-ee 3830dc0, 0.59.0; game-owned files announced, built in a scratch copy and landed in
+  one go while the game session's runs used the tree):**
+  - Recipes carry `pose <part> <take t> <x> <y> <z> <push|replace> <ease>` lines (16 parts: torso, neck,
+    head, pelvis, the arms and the legs - not rootdummy).
+  - Step 4: push turns the capture further (R * delta), replace sets it (R); keys blend by smoothstep and
+    ease in and out of the capture over their ease (0-2 s).
+  - A posed pelvis keeps the feet: the IK pass re-solves the legs to the capture's foot, place and turn,
+    unless the leg itself is posed.
+- **The bench (nwn5e-tools):** core/pose.js (the turn convention, the posed turn, the key a drag makes, the
+  capture sampled as the core does); poses in the project, the recipe and the pipeline; the stage picks
+  any drawn part; pose rows on the timeline; the pose key's inspector; E / W, the turn drag, K, Delete, the
+  IK-override note.
+
+*Proved:* through the helper (the game's code), a key made from a drag turns the part exactly as dragged
+(0.0000 deg, alone and after another key), every frame of a posed clip matches the mirror within 0.028
+deg, and switching a key's mode keeps its pose. test.bat 298/0; checks/run.js 14/14; browser_check passes
+with 7 pose steps. Every check has breaks it catches (47 across the phase).
+
+*Rulings:* the plan's up-front five (stance-axis degrees; the pelvis keeps the feet; IK wins on its chains;
+picking by segment; the drag's key), plus those in the ledger, listed on #90.
+
+*Next:* the owner's test of #90, then phase 5, timing (#91).

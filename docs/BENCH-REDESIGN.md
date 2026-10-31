@@ -471,6 +471,11 @@ everything the owner uses. Only then, with his OK, is the old one deleted.
      proportion. Foot contacts stay pinned by the bench's solve until phase 6 (a ruling).
 4. **Poses.** *(Core and bench.)* Turning a part by dragging; push and replace; the ease;
    numbers in the inspector.
+   - *Built (#90).* Step 4 is in the core (0.59.0): pose keys per part in take time, the turn in degrees
+     about the part's stance axes (X, then Y, then Z), push (on the capture) or replace, eased in and out;
+     a posed pelvis keeps the feet; IK still wins on its chains. The bench turns any drawn part with E; a
+     key made by a drag gives the dragged turn exactly in the game's code. The record is
+     docs/TOOLS-PLAN.md, "Bench redesign, phase 4".
 5. **Timing.** *(Core and bench.)* First settle the engine facts below. Then:
    - time keys;
    - hold at the hit, with a slight drift;
