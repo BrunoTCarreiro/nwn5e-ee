@@ -789,3 +789,14 @@ with 7 pose steps. Every check has breaks it catches (47 across the phase).
 picking by segment; the drag's key), plus those in the ledger, listed on #90.
 
 *Next:* the owner's test of #90, then phase 5, timing (#91).
+
+*Final review* (a fresh reviewer): one Critical and four Important findings, all fixed with tests that failed
+first (core 0.59.2, 746effd; bench 7bae020):
+- a posed pelvis with a foot key, or a leg key inside its window, popped a planted foot ~15 cm - a turned
+  pelvis now never moves a foot (the leg's goal from the pose without the pelvis's keys);
+- ease-0 keys vanished at the bench's 4-decimal times - now the key's own frame within half a frame;
+- a drag or K on a hand or foot under IK landed up to 42 deg off - the key is made from the part's own
+  step-4 delta (pose.js keyForTurn);
+- a chain's key under its target still turned the hand or foot - now it has no effect there;
+- a pose selection went stale after an undo (Delete threw) - kept by its key's time.
+test.bat 303/0; checks/run.js 14/14; browser_check 40/40. The deferred minors are listed on #90.
