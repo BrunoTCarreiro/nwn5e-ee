@@ -44,14 +44,24 @@ bool EscapeSucceeds(int d20, int bonus, int dc);
 // D1: grappling takes a free hand - an empty main hand, or a one-handed weapon
 // with nothing in the off hand (a two-handed weapon or a full off hand: none).
 bool GrappleHandFree(bool main_hand_item, bool main_hand_two_handed, bool off_hand_item);
-// D5: the grappled creature is held at the distance it was grabbed at (1 to 2 m
-// between them); when the grappler moves farther, it is dragged back to that
-// distance. Farther than that plus kGrappleBreakSlackMetres (pushed, stuck
-// behind a wall, teleported): out of reach - the grapple ends (D6).
-constexpr float kGrappleHoldMinMetres = 1.0f;
-constexpr float kGrappleHoldMaxMetres = 2.0f;
+// D5: the grappled creature is held at arm's reach (0.58.7; owner, 2026-10-31:
+// "the enemy follows very far, too far for the PC's arm to reach, is it
+// possible to have a tighter coupling?"; decided "go with your
+// recommendation"): 1 m between them up to a Medium one, half a metre more per
+// size above (it was where it was grabbed, 1 to 2 m). Pulled in at once and
+// held there every update (GrappleDragDistance). Farther than the hold plus
+// kGrappleBreakSlackMetres (pushed, stuck behind a wall, teleported): out of
+// reach - the grapple ends (D6).
+constexpr float kGrappleHoldMetres = 1.0f;         // up to Medium
+constexpr float kGrappleHoldPerSizeMetres = 0.5f;  // per size above Medium
 constexpr float kGrappleBreakSlackMetres = 1.5f;
-float GrappleHoldMetres(float distance_at_grab);
+constexpr float kGrappleDragSlackMetres = 0.05f;   // no pull this close to the hold (no jitter)
+constexpr float kGrapplePullMetres = 0.08f;        // the most it is pulled in one update
+float GrappleHoldMetres(int target_size);
+// Where to place the held creature this update (the distance between them),
+// from `distance`: where it is within the slack (or closer than the hold), else
+// pulled toward the hold by at most kGrapplePullMetres.
+float GrappleDragDistance(float distance, float hold_metres);
 bool GrappleOutOfReach(float distance, float hold_metres);
 // GT3: a grappled creature's escape try comes once a round (6 s).
 constexpr int kGrappleEscapeEveryMs = 6000;

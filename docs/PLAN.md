@@ -3395,6 +3395,22 @@ as usual; B: the grappler faces it and walks backwards / sideways (a facing hook
 smoothing first (G2-11 with it), then (2), (3), and (4) A - B if A doesn't look right in game. #11 stays open
 until the slide looks right; (3) and (4) go with G5 (#14), their animations through the bench (the tools stream).
 
+*Built 0.58.7 - steps (1) and (2).* Read 89.8193.37: the client smooths a move the server makes for a creature
+that isn't walking only under 4 m - HandleServerToPlayerCreatureUpdate_Update (0x781E80) snaps a jump of 4 m or
+more (Forceful Blow's 4.6 m) - and chases a shorter one over 512 ms from the last network position (+0x2C0),
+which is where the drag's lag came from. Every client move goes through CNWCCreature's vtable slot 37 (0x80AD90:
+it copies the vector to +0x38, moves the light, checks the area, and puts the model there). client_smoothing.cpp
+hooks it: for a creature nwn5e moves, the vector is copied and its x / y replaced by nwn5e's point (the height
+stays the engine's) - a push's slide drawn along the server's line by the client's own clock (rules::SlidePoint),
+then held at its end until the client's network target catches up (within 5 cm, or 1 s: rules::SmoothHandBack);
+a held creature at the server's position each frame. rules_push.cpp and rules_grapple.cpp tell it what they move
+(SmoothSlide / SmoothFollow / SmoothStop). Single player only: another player's client keeps the engine's
+smoothing. (2): the hold is arm's reach - 1 m up to a Medium target, half a metre more per size above
+(rules::GrappleHoldMetres) - pulled in at once and every update, at most 8 cm an update, with 5 cm of slack
+against jitter (rules::GrappleDragDistance); it was where the creature was grabbed (1-2 m), dragged only once 0.2 m
+past it. Tests SmoothSlideAlongTheServersLine, SmoothHandsBackOnceTheClientCaughtUp, GrappleHoldAndEscape (10
+mutations caught).
+
 **GT-L1. Later: throwing an enemy into another** (owner: "How possible would it
 be to implement throwing an enemy into another as a way to damage both? We're
 not implementing this now, just note it down for later"). Feasible, and GT2

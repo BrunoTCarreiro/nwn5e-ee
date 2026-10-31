@@ -36,6 +36,7 @@ void InstallInitiativeRules();
 void InstallSpellAttackRules();
 void InstallShoveRules();
 void InstallGrappleRules();
+void InstallClientSmoothing();  // client_smoothing.cpp
 void InstallRogueRules();
 void InstallCombatOptions();
 void InstallActionQueue();
@@ -87,7 +88,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.58.6";
+constexpr const char* kVersion = "0.58.7";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -126,6 +127,7 @@ void Start(HMODULE self) {
   InstallSpellAttackRules();
   InstallShoveRules();
   InstallGrappleRules();
+  InstallClientSmoothing();
   InstallRogueRules();
   InstallCombatOptions();
   InstallActionQueue();

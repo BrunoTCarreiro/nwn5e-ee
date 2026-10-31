@@ -61,6 +61,7 @@
 #include "ee_layout.h"
 #include "effects.h"
 #include "engine.h"
+#include "client_smoothing.h"
 #include "hooks.h"
 #include "log.h"
 #include "mastery.h"
@@ -449,6 +450,7 @@ void Push(void* attacker, uint32_t attacker_id, void* target, uint32_t target_id
   if (corpse) {
     g_corpse_slides.push_back(
         CorpseSlide{target_id, plan.from, plan.to, AreaOf(target), GetTickCount(), SlideMs(plan.metres)});
+    SmoothSlide(target_id, plan.from.x, plan.from.y, plan.to.x, plan.to.y, SlideMs(plan.metres));
     if (LogSlot()) {
       Log("push: 0x%08X on 0x%08X: the body slides %.1f m away (killing blow)%s", attacker_id, target_id, plan.metres,
           plan.blocker != ee::kObjectInvalid ? " (cut short by a placeable)" : "");
@@ -477,6 +479,7 @@ void Push(void* attacker, uint32_t attacker_id, void* target, uint32_t target_id
                                   false};
   }
   g_slides[target_id] = Slide{plan.from, plan.to, plan.metres, AreaOf(target), GetTickCount(), SlideMs(plan.metres)};
+  SmoothSlide(target_id, plan.from.x, plan.from.y, plan.to.x, plan.to.y, SlideMs(plan.metres));  // 0.58.7
   if (LogSlot()) {
     char blocker[48] = "";
     if (plan.blocker != ee::kObjectInvalid) sprintf_s(blocker, " (cut short by placeable 0x%08X)", plan.blocker);
@@ -547,6 +550,7 @@ void SlideAll() {
     const Slide& slide = it->second;
     void* creature = CreatureById(id);
     if (!creature || AreaOf(creature) != slide.area) {
+      SmoothStop(id);
       it = g_slides.erase(it);
       continue;
     }
@@ -576,6 +580,7 @@ void SlideCorpses() {
       PlaceOnGround(body, slide.from.x + (slide.to.x - slide.from.x) * t, slide.from.y + (slide.to.y - slide.from.y) * t);
     }
     if (!body || AreaOf(body) != slide.area || t >= 1.0f) {
+      if (t < 1.0f) SmoothStop(slide.id);
       g_corpse_slides[i] = g_corpse_slides.back();
       g_corpse_slides.pop_back();
     } else {
@@ -612,6 +617,7 @@ std::string ShovePush(void* attacker, void* target, float metres, float* pushed)
                 0.0f);
   if (!LyingDown(Field<int32_t>(target, ee::kCreatureAnimation))) E().set_animation(target, kAnimationDamage);
   g_slides[target_id] = Slide{plan.from, plan.to, plan.metres, AreaOf(target), GetTickCount(), SlideMs(plan.metres)};
+  SmoothSlide(target_id, plan.from.x, plan.from.y, plan.to.x, plan.to.y, SlideMs(plan.metres));  // 0.58.7
   if (pushed) *pushed = plan.metres;
   if (LogSlot()) {
     Log("push: shove 0x%08X on 0x%08X: slides %.1f m away, on its feet%s", attacker_id, target_id, plan.metres,

@@ -33,9 +33,15 @@ bool GrappleHandFree(bool main_hand_item, bool main_hand_two_handed, bool off_ha
   return !main_hand_item || (!main_hand_two_handed && !off_hand_item);
 }
 
-float GrappleHoldMetres(float distance_at_grab) {
-  if (!(distance_at_grab > kGrappleHoldMinMetres)) return kGrappleHoldMinMetres;
-  return distance_at_grab < kGrappleHoldMaxMetres ? distance_at_grab : kGrappleHoldMaxMetres;
+float GrappleHoldMetres(int target_size) {
+  const int above = target_size > 3 ? target_size - 3 : 0;  // 3: Medium
+  return kGrappleHoldMetres + kGrappleHoldPerSizeMetres * static_cast<float>(above);
+}
+
+float GrappleDragDistance(float distance, float hold_metres) {
+  if (!(distance > hold_metres + kGrappleDragSlackMetres)) return distance;
+  const float pulled = distance - kGrapplePullMetres;
+  return pulled > hold_metres ? pulled : hold_metres;
 }
 
 bool GrappleOutOfReach(float distance, float hold_metres) {

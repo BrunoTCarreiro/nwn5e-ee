@@ -22,10 +22,12 @@
 //   round - d20 + the better of Athletics and Acrobatics (the engine's skill
 //   ranks: 2024 values with `skills` faithful) against the DC - its round paused
 //   for the try (in place of its attacks).
-// - D5 the drag: the grappled creature is held at the distance it was grabbed
-//   at (1-2 m); when the grappler moves farther it is placed back at that
-//   distance along the line between them (rules_push's DragCreatureTo: walkable
-//   and clear of placeables, else it stays). The grappler moves at half speed
+// - D5 the drag: the grappled creature is held at arm's reach (0.58.7: 1 m up
+//   to Medium, half a metre more per size above - it was where it was grabbed,
+//   1-2 m) and pulled back to it every update, at most 8 cm an update, along
+//   the line between them (rules_push's DragCreatureTo: walkable and clear of
+//   placeables, else it stays); the client draws its model at the server's
+//   position each frame (client_smoothing.cpp). The grappler moves at half speed
 //   (GetMovementRateFactor, movement_rate.cpp) unless it is Tiny or two or more
 //   sizes smaller.
 // - D6 it ends: Grapple on it again (or !grapple release) lets go; it escapes;
@@ -52,6 +54,7 @@
 #include <vector>
 
 #include "chat.h"
+#include "client_smoothing.h"
 #include "condition_effects.h"
 #include "config.h"
 #include "creature.h"
@@ -83,7 +86,6 @@ constexpr const char* kGrappledTag = "nwn5e_grappled";
 constexpr int kGrappledIconRow = 223;          // effecticons.txt NWN5E_GRAPPLED
 constexpr float kHeldEffectSeconds = 3.0f;     // the held effects, refreshed while the grapple lasts
 constexpr DWORD kRefreshEveryMs = 2000;
-constexpr float kDragStartMetres = 0.2f;       // dragged once the grappler is this far past the hold
 constexpr int kStruggleMs = 3000;              // an escape try's share of the round
 constexpr int kLogMax = 400;
 
@@ -189,6 +191,7 @@ void EndGrapple(uint32_t grappler, const std::string& to_grappler, const std::st
   const Grapple g = *it;
   g_grapples.erase(it);
   g_releases.push_back(Release{g.grappler, g.target});
+  SmoothStop(g.target);
   void* grappler_creature = CreatureById(g.grappler);
   void* target_creature = CreatureById(g.target);
   if (!to_grappler.empty() && grappler_creature && IsPlayer(grappler_creature)) {
@@ -254,12 +257,13 @@ void UpdateGrapple(Grapple& g, void* grappler, uint64_t now) {
     EndGrapple(g.grappler, to_grappler, to_grappler.empty() ? "" : "Grapple: you are free of ", ended);
     return;
   }
-  // D5: dragged back to the hold distance along the line between them.
+  // D5: pulled toward the hold distance every update, along the line between them (no slack to lag by).
   float distance = Distance2D(grappler, target);
-  if (distance > g.hold + kDragStartMetres) {
+  const float wanted = rules::GrappleDragDistance(distance, g.hold);
+  if (wanted < distance) {
     const float gx = Field<float>(grappler, ee::kObjectPositionX), gy = Field<float>(grappler, ee::kObjectPositionY);
     const float tx = Field<float>(target, ee::kObjectPositionX), ty = Field<float>(target, ee::kObjectPositionY);
-    const float scale = g.hold / distance;
+    const float scale = wanted / distance;
     if (DragCreatureTo(target, gx + (tx - gx) * scale, gy + (ty - gy) * scale)) distance = Distance2D(grappler, target);
   }
   if (rules::GrappleOutOfReach(distance, g.hold)) {
@@ -346,10 +350,11 @@ void ResolveGrapple(void* attacker, void* target) {
   std::string outcome = save.immune ? "immune" : "made - not grappled";
   if (save.failed) {
     const uint64_t now = GameMs();
-    Grapple g{attacker_id, target_id, engine::AreaOf(attacker), rules::GrappleHoldMetres(Distance2D(attacker, creature)),
+    Grapple g{attacker_id, target_id, engine::AreaOf(attacker), rules::GrappleHoldMetres(target_size),
               save.dc, rules::DragCostsExtra(grappler_size, target_size, false), now,
               now + rules::kGrappleEscapeEveryMs};
     g_grapples.push_back(g);
+    SmoothFollow(target_id);
     char text[200];
     sprintf_s(text, "failed - Grappled (escape DC %d). It can't move and comes with you%s. Grapple on it again lets go.",
               save.dc, g.slows ? " - you move at half speed while you hold it" : "");

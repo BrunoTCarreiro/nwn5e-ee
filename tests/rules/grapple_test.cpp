@@ -34,12 +34,18 @@ TEST(GrappleNeedsAFreeHand) {
 }
 
 // G2 D5 / D6: held at the grab distance (1-2 m), out of reach past it + 1.5 m;
-// the escape check meets or beats the DC. Breaks caught: no clamp (a grab at 3 m
-// kept), the slack lost (ends on the first step), "beats" instead of "meets".
+// the escape check meets or beats the DC. Breaks caught: the hold not by size,
+// a pull past the hold or with no slack, the slack lost (ends on the first
+// step), "beats" instead of "meets".
 TEST(GrappleHoldAndEscape) {
-  CHECK_EQ(Milli(GrappleHoldMetres(0.4f)), 1000);
-  CHECK_EQ(Milli(GrappleHoldMetres(1.6f)), 1600);
-  CHECK_EQ(Milli(GrappleHoldMetres(3.0f)), 2000);
+  CHECK_EQ(Milli(GrappleHoldMetres(kMedium)), 1000);  // 0.58.7: arm's reach by the target's size
+  CHECK_EQ(Milli(GrappleHoldMetres(kSmall)), 1000);
+  CHECK_EQ(Milli(GrappleHoldMetres(kLarge)), 1500);
+  CHECK_EQ(Milli(GrappleHoldMetres(kHuge)), 2000);
+  CHECK_EQ(Milli(GrappleDragDistance(1.03f, 1.0f)), 1030);  // within the slack: left
+  CHECK_EQ(Milli(GrappleDragDistance(1.5f, 1.0f)), 1420);   // pulled 8 cm
+  CHECK_EQ(Milli(GrappleDragDistance(1.06f, 1.0f)), 1000);  // never closer than the hold
+  CHECK_EQ(Milli(GrappleDragDistance(0.6f, 1.0f)), 600);    // already closer: left
   CHECK_EQ(GrappleOutOfReach(3.0f, 1.6f), false);
   CHECK_EQ(GrappleOutOfReach(3.2f, 1.6f), true);
   CHECK_EQ(EscapeSucceeds(10, 3, 13), true);
