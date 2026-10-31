@@ -80,6 +80,13 @@ bool IsTestProfileName(const std::string& name);
 // start from level 1? A profile of switches, notes, items or xp only doesn't.
 bool TestProfileBuildsCharacter(const TestProfile& profile);
 
+// #103 (owner, 2026-10-31: "it should be emptied and only filled up with
+// what's necessary, otherwise the characters will end up with multiple
+// duplicates of the same items and very encumbered"): does the profile empty
+// the inventory before its items? One that builds a character or gives items
+// does; switches, notes, xp or scores only don't.
+bool TestProfileEmptiesInventory(const TestProfile& profile);
+
 // The switches a profile may set: the ones read each time they are used (one
 // that installs a hook at start-up can't be set later). attack_trace 0..1,
 // attacks_per_round 0..6, creature_hp_multiplier 0..100, creature_min_hp

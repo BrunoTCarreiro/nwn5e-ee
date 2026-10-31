@@ -95,6 +95,20 @@ TEST(TestProfilesLevelsSwitchesNotes) {
   CHECK_EQ(ParseTestProfile("switches = shove_slide_ms=1501\n").errors.size(), 1u);
 }
 
+// Breaks caught (#103): a rebuilt character keeping its old items, a profile
+// giving items not emptying first, a switches-only profile (rest, slides)
+// emptying the inventory.
+TEST(TestProfilesEmptyTheInventory) {
+  CHECK_EQ(TestProfileEmptiesInventory(ParseTestProfile("swap_class = monk\n")), true);
+  CHECK_EQ(TestProfileEmptiesInventory(ParseTestProfile("class = fighter\nlevel = 13\n")), true);
+  CHECK_EQ(TestProfileEmptiesInventory(ParseTestProfile("levels = rogue 1\n")), true);
+  CHECK_EQ(TestProfileEmptiesInventory(ParseTestProfile("items = nw_wswls001\n")), true);
+  CHECK_EQ(TestProfileEmptiesInventory(ParseTestProfile("switches = rest_clock=1\nnote = the hour\n")), false);
+  CHECK_EQ(TestProfileEmptiesInventory(ParseTestProfile("xp = 2700\n")), false);
+  CHECK_EQ(TestProfileEmptiesInventory(ParseTestProfile("species = halfling\nabilities = 10 16 14 10 16 8\n")),
+           false);
+}
+
 // Breaks caught (#96): a DC that isn't the last word, out of 1..60, not a
 // number, a tool taken for a skill, a skill of several words refused, the
 // skill or DC not set.

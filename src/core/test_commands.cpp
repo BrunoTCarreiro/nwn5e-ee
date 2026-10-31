@@ -69,6 +69,11 @@
 //   buttons go back to their slots (Rage moved at every rebuild), and it starts
 //   rested - ForceRest, every use back as after a Long Rest (the Rage uses
 //   spent went through the rebuild) - without moving the rest clock.
+// - #103 (owner, 2026-10-31: "it should be emptied and only filled up with
+//   what's necessary"): a profile that builds a character or gives items
+//   empties the inventory and the equipped slots first - plot items, the
+//   creature slots and gold kept. "!time" (owner: "For Q5, where's the
+//   clock?") says the game's hour and date.
 // - 0.50.5 (owner: "add a !level command"): "!level <n> [class]" - the
 //   engine's own level-ups up to level n in the class (the first class when
 //   none is named; another one multiclasses), as !test's `level` makes them:
@@ -576,7 +581,52 @@ std::vector<std::string> LevelCommand(void* creature, const std::string& args) {
   return {"nwn5e: !level -" + line.substr(1)};
 }
 
+// #103: "!time" - the game's hour and date (the rest clock's rows).
+std::vector<std::string> TimeCommand(void* creature, const std::string&) {
+  const uint32_t id = ObjectIdOf(StatsOf(creature));
+  RunScriptChunk("SetLocalInt(OBJECT_SELF, \"nwn5e_test_hour\", GetTimeHour());"
+                 " SetLocalInt(OBJECT_SELF, \"nwn5e_test_minute\", GetTimeMinute());"
+                 " SetLocalInt(OBJECT_SELF, \"nwn5e_test_day\", GetCalendarDay());"
+                 " SetLocalInt(OBJECT_SELF, \"nwn5e_test_month\", GetCalendarMonth());"
+                 " SetLocalInt(OBJECT_SELF, \"nwn5e_test_year\", GetCalendarYear());",
+                 id);
+  const int hour = engine::GetLocalInt(creature, "nwn5e_test_hour");
+  const int minute = engine::GetLocalInt(creature, "nwn5e_test_minute");
+  const int day = engine::GetLocalInt(creature, "nwn5e_test_day");
+  const int month = engine::GetLocalInt(creature, "nwn5e_test_month");
+  const int year = engine::GetLocalInt(creature, "nwn5e_test_year");
+  RunScriptChunk("DeleteLocalInt(OBJECT_SELF, \"nwn5e_test_hour\"); DeleteLocalInt(OBJECT_SELF, \"nwn5e_test_minute\");"
+                 " DeleteLocalInt(OBJECT_SELF, \"nwn5e_test_day\"); DeleteLocalInt(OBJECT_SELF, \"nwn5e_test_month\");"
+                 " DeleteLocalInt(OBJECT_SELF, \"nwn5e_test_year\");",
+                 id);
+  char text[160];
+  sprintf_s(text, "nwn5e: game time - hour %d (minute %d), day %d of month %d, year %d.", hour, minute, day, month,
+            year);
+  Log("test: 0x%08X game time hour %d minute %d, day %d month %d year %d (!time)", id, hour, minute, day, month, year);
+  return {text};
+}
+
 // --- !test profiles (#82) -------------------------------------------------
+
+// #103: the inventory and the equipped slots emptied before a profile's items -
+// plot items (a campaign's quest items), the creature slots (a module's PC
+// skin, claws) and gold kept. The line to show.
+std::string EmptyInventoryForTest(void* creature, uint32_t id) {
+  engine::SetLocalInt(creature, "nwn5e_test_emptied", -1);
+  RunScriptChunk(
+      "int n = 0; object o = GetFirstItemInInventory(OBJECT_SELF);"
+      " while (GetIsObjectValid(o)) { if (!GetPlotFlag(o)) { DestroyObject(o); n++; }"
+      " o = GetNextItemInInventory(OBJECT_SELF); }"
+      " int i; for (i = 0; i <= INVENTORY_SLOT_BOLTS; i++) { object e = GetItemInSlot(i, OBJECT_SELF);"
+      " if (GetIsObjectValid(e) && !GetPlotFlag(e)) { DestroyObject(e); n++; } }"
+      " SetLocalInt(OBJECT_SELF, \"nwn5e_test_emptied\", n);",
+      id);
+  const int emptied = engine::GetLocalInt(creature, "nwn5e_test_emptied");
+  RunScriptChunk("DeleteLocalInt(OBJECT_SELF, \"nwn5e_test_emptied\");", id);
+  Log("test: 0x%08X inventory emptied for the profile's items: %d item(s) (plot items, creature slots and gold kept)",
+      id, emptied);
+  return "  inventory: emptied (" + std::to_string(emptied) + " item(s); plot items and gold kept), then the profile's";
+}
 
 // #102: a rebuilt character rested, as after a Long Rest - ForceRest, whose end
 // every use pool listens to (rest.h) - with the rest clock held still.
@@ -773,6 +823,8 @@ std::vector<std::string> TestCommand(void* creature, const std::string& args) {
   }
   if (!added.empty()) lines.push_back("  feats: " + added);
   if (!unknown.empty()) lines.push_back("  unknown feats (skipped): " + unknown);
+  // 4b. The inventory emptied first (#103), so a profile run again doesn't pile up its items.
+  if (rules::TestProfileEmptiesInventory(profile)) lines.push_back(EmptyInventoryForTest(creature, id));
   // 5. Items, equipped where asked (armour to the chest, shields and "offhand" to the left hand).
   for (const rules::TestItem& item : profile.items) {
     char code[700];
@@ -831,9 +883,10 @@ void InstallTestCommands() {
   AddChatCommand("!prone", &ProneCommand);
   AddChatCommand("!save", &SaveCommand);
   AddChatCommand("!skill", &SkillCommand);
+  AddChatCommand("!time", &TimeCommand);
   AddChatCommand("!reflex", &ReflexCommand);
   AddChatCommand("!level", &LevelCommand);
   Log("config: [debug] test_commands=1 - !test [profile] (data\\tests), !give <blueprint>, !feat add / remove <feat>, "
       "!export, !spawn <blueprint> [ally], !prone [s], !save <ability> <dc>, !skill <skill> <dc>, !reflex <dc> <damage>, "
-      "!level <n> [class]");
+      "!level <n> [class], !time");
 }
