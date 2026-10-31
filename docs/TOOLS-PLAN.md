@@ -800,3 +800,29 @@ first (core 0.59.2, 746effd; bench 7bae020):
 - a chain's key under its target still turned the hand or foot - now it has no effect there;
 - a pose selection went stale after an undo (Delete threw) - kept by its key's time.
 test.bat 303/0; checks/run.js 14/14; browser_check 40/40. The deferred minors are listed on #90.
+
+### The owner's questions while testing phase 4 (2026-10-31)
+
+*The foot's spin (owner: "in between the two keyes the foot does a few rotations before landing. Is there a way to
+fix this? like a "Simplify motion" feature?"):* measured on saaaaa through the helper - the webcam lost the right
+foot in the kick: its own track turns 429 deg between the hit (10.77) and the plant (11.63), up to 140 deg off its
+standing turn, and push keys keep that. Answered with replace (already built): the two kick keys switched,
+the foot turns 216 deg there in the world (96 against the shin, the straight blend), its largest frame step 14 deg
+instead of 88; the planted keys stay push (the contact's held turn). The owner: "Ah, cool it does work!" A repair
+of a lost foot in the solve (an ankle limit that leaves the turn-out, or spin detection) was offered, not asked for.
+
+*Planted height (#97; owner: "how can I adjust the height at which one foot is locked to the ground? In saaaaa the
+left foot is grounded a few centimeters off the ground but if I key it in the correct position it messes up all the
+animation"):* measured - a lock held the ankle where the capture had it at landing: saaaaa's left at 17.1 cm, pause1's
+standing ankle 14.0; a free IK foot key follows the hips (free keys at both ends slid it up to 81 cm); two held keys
+work but must share one spot. *Decision (owner, 2026-10-31):* "go on your proposal" - on the floor by default, a
+height per contact. *Built (nwn5e-tools aef605b, tools only):* a lock's ankle at the stance's standing ankle height
+(its first frame) plus the contact's height (m in the project, -0.1 .. 0.5, cm in the inspector; setting it makes an
+auto contact always); the hips sink as before; `floor: false` for the parity runs. saaaaa now: the left ankle 13.8-14.0
+cm all clip, the right planted 13.9-14.1 (was 12.8-13.4), the body 3.2 cm lower in the kick only (the straight standing
+leg), no new pop (the head's largest frame move 3.3 cm, as before). checks/run.js 14/14, browser_check 41/41, 9 breaks
+caught. Cost: every project's planted feet move to the floor when next saved; a tiptoe plant needs its height.
+
+*The doll's face (#98, Todo; owner: "is it on the plan to give the bench doll a "face" and obvious hand orientations so
+that those can be easier to adjust?"):* not on the plan (BENCH-REDESIGN's "no faces" non-goal is facial animation).
+Filed for later; the marks are to be decided when it's picked.
