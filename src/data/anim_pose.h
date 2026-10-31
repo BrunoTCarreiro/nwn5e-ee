@@ -30,6 +30,10 @@ Vec3 Rotate(const Quat& q, const Vec3& v);
 Quat AxisAngleQ(const Vec3& axis, float angle);
 // The shortest turn taking direction `from` to direction `to`.
 Quat FromTo(const Vec3& from, const Vec3& to);
+// A pose key's turn (#90): degrees about the X, Y and Z axes, X first, then Y, then Z (Rz * Ry * Rx), and
+// back - Y in [-90, 90]; at Y = +-90 (gimbal) X comes back 0 and Z carries the rest.
+Quat TurnFromDegrees(const Vec3& xyz);
+Vec3 DegreesFromTurn(const Quat& q);
 
 // Local transforms (a clip's keys at t, else the bone's rest) and world ones, per bone.
 struct Pose {

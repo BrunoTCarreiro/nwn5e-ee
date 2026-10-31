@@ -60,17 +60,58 @@ Value StanceValue(const AnimClip& stance, const AnimNode& bone, bool position) {
 // A delta track at t (its first and last keys held outside them).
 Value DeltaAt(const AnimKeyTrack& track, float t) { return Sample(track.keys, t, !track.position); }
 
-// A keyed bone: its delta track and its value in the stance's first frame.
+// Step 4 (#90): a part's turn from the stance at take time T under its pose keys (by time). Each key's
+// result is R * capture (push) or R (replace), R its turn about the stance axes; between two keys their
+// results blend by smoothstep; before the first key and after the last the result eases from the capture
+// over that key's ease (0: a step - the key's own frame).
+Value PosedDelta(const std::vector<AnimPoseKey>& keys, float T, const Value& capture) {
+  if (keys.empty() || !isfinite(T)) return capture;
+  const auto result = [&](const AnimPoseKey& k) {
+    const Value turn = pose::TurnFromDegrees({k.turn[0], k.turn[1], k.turn[2]});
+    return k.replace ? turn : QMul(turn, capture);
+  };
+  const AnimPoseKey& first = keys.front();
+  const AnimPoseKey& last = keys.back();
+  if (T <= first.t) {
+    const float w = first.ease > 0.0f ? Smoothstep(1.0f - (first.t - T) / first.ease) : (T >= first.t ? 1.0f : 0.0f);
+    return Mix(capture, result(first), w, true);
+  }
+  if (T >= last.t || keys.size() < 2) {
+    const float w = last.ease > 0.0f ? Smoothstep(1.0f - (T - last.t) / last.ease) : (T <= last.t ? 1.0f : 0.0f);
+    return Mix(capture, result(last), w, true);
+  }
+  size_t i = 0;
+  while (i + 1 < keys.size() && keys[i + 1].t < T) ++i;
+  const float span = std::max(keys[i + 1].t - keys[i].t, 1e-6f);
+  return Mix(result(keys[i]), result(keys[i + 1]), Smoothstep((T - keys[i].t) / span), true);
+}
+
+// How much of a part's pose keys shows at take time T (0: the capture's own turn) - PosedDelta's weight.
+float PoseInfluence(const std::vector<AnimPoseKey>& keys, float T) {
+  if (keys.empty() || !isfinite(T)) return 0.0f;
+  const AnimPoseKey& first = keys.front();
+  const AnimPoseKey& last = keys.back();
+  if (T < first.t) return first.ease > 0.0f ? Smoothstep(1.0f - (first.t - T) / first.ease) : 0.0f;
+  if (T > last.t) return last.ease > 0.0f ? Smoothstep(1.0f - (T - last.t) / last.ease) : 0.0f;
+  return 1.0f;
+}
+
+// A keyed bone: its delta track and its value in the stance's first frame; a posed part (#90) its pose keys
+// and the clock they're in (take time = take_start + clip time).
 struct Bound {
   const AnimKeyTrack* track;
   size_t at;
   Value home;
+  const std::vector<AnimPoseKey>* poses = nullptr;
+  float take_start = 0.0f;
 };
 
-// Steps 1 and 6: the capture composed onto the stance at t, before the loop and the blends.
-Value Composed(const Bound& b, float t) {
+// Steps 1, 4 and 6: the capture composed onto the stance at t, its pose keys applied (`posed`), before the
+// loop and the blends.
+Value Composed(const Bound& b, float t, bool posed = true) {
   const Value d = DeltaAt(*b.track, t);
   if (b.track->position) return {b.home[0] + d[0], b.home[1] + d[1], b.home[2] + d[2], 0.0f};
+  if (posed && b.poses) return QMul(b.home, PosedDelta(*b.poses, b.take_start + t, d));
   return QMul(b.home, d);
 }
 
@@ -225,6 +266,26 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
     if (err) *err = "none of its bones is in the library's tree";
     return false;
   }
+  // Step 4's parts (#90): each posed part this body has takes its keys; one without a capture track joins
+  // with an identity delta (the stance's turn, posed). A part the body lacks is skipped.
+  const float pose_clock = isfinite(recipe.take_start) ? recipe.take_start : 0.0f;
+  AnimKeyTrack unturned;
+  unturned.keys.times = {0.0f};
+  unturned.keys.values = {{0.0f, 0.0f, 0.0f, 1.0f}};
+  for (const auto& part : recipe.poses) {
+    if (part.second.empty()) continue;
+    size_t at = 0;
+    while (at < bones.size() && LowerName(bones[at].name) != part.first) ++at;
+    if (at == bones.size()) continue;
+    bool joined = false;
+    for (Bound& b : bound) {
+      if (b.at != at || b.track->position) continue;
+      b.poses = &part.second;
+      b.take_start = pose_clock;
+      joined = true;
+    }
+    if (!joined) bound.push_back({&unturned, at, StanceValue(stance, bones[at], false), &part.second, pose_clock});
+  }
   const auto frame_time = [&](int f) { return recipe.length * static_cast<float>(f) / static_cast<float>(frames); };
   const auto put = [&](size_t at, bool position, const AnimKeys& keys) {
     AnimNode& node = clip.nodes[at];
@@ -272,8 +333,14 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
     limbs.push_back(L);
   }
 
-  if (limbs.empty()) {
-    // Steps 1 and 6, then 9: each track on its own (phase 1's clip, exactly).
+  // A posed pelvis (#90) keeps the feet where the capture put them: the IK pass runs for it too.
+  const std::vector<AnimPoseKey>* pelvis_keys = nullptr;
+  if (pelvis >= 0) {
+    const auto found_pelvis = recipe.poses.find("pelvis_g");
+    if (found_pelvis != recipe.poses.end() && !found_pelvis->second.empty()) pelvis_keys = &found_pelvis->second;
+  }
+  if (limbs.empty() && !pelvis_keys) {
+    // Steps 1, 4 and 6, then 9: each track on its own (phase 1's clip, exactly, without pose keys).
     for (const Bound& b : bound) {
       std::vector<Value> values;
       for (int f = 0; f <= frames; ++f) values.push_back(Composed(b, frame_time(f)));
@@ -285,10 +352,10 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
 
   // The composed pose at clip time t (every keyed bone, the rest at rest), world transforms included.
   const pose::Pose rest = pose::RestPose(bones);
-  const auto composed_pose = [&](float t) {
+  const auto composed_pose = [&](float t, bool posed = true) {  // posed false: the capture alone (#90)
     Pose p = rest;
     for (const Bound& b : bound) {
-      const Value v = Composed(b, t);
+      const Value v = Composed(b, t, posed);
       if (b.track->position) p.lp[b.at] = {v[0], v[1], v[2]};
       else p.lq[b.at] = pose::QNormalized(v);
     }
@@ -348,9 +415,21 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
     float shortfall[2] = {0.0f, 0.0f}, reach[2] = {0.0f, 0.0f};
     bool solved[2] = {false, false};
   };
-  const auto stand = [&](Pose* now, const Pose& before, float T, bool targets) {
+  // Whether a leg's own bones are posed at T (#90): then its foot goes where the pose puts it.
+  const auto leg_posed = [&](int side, float T) {
+    const pose::Chain& leg = legs[side];
+    for (int b : {leg.root, leg.mid, leg.end}) {
+      const auto found_part = recipe.poses.find(LowerName(bones[b].name));
+      if (found_part != recipe.poses.end() && PoseInfluence(found_part->second, T) > 0.0f) return true;
+    }
+    return false;
+  };
+  // `captured`: the same frame without pose keys - a posed pelvis keeps each unposed leg's foot there, its
+  // place and its turn in the world (#90: pose keys turn parts; they don't move the body).
+  const auto stand = [&](Pose* now, const Pose& before, const Pose& captured, float T, bool targets) {
     Stood s;
     s.hips_reach = move_hips(now, T);
+    const float pelvis_w = pelvis_keys ? PoseInfluence(*pelvis_keys, T) : 0.0f;
     for (int pass = 0; pass < 3; ++pass) {
       float fixed_short = 0.0f;
       for (int side = 0; side < 2; ++side) {
@@ -358,14 +437,15 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
         if (leg.root < 0) continue;
         const Limb* L = targets ? keyed_limb[side] : nullptr;
         const float r = L ? ReachAt(*L->keys, T) : 0.0f;
-        if (r <= 0.0f && s.hips_reach <= 0.0f && s.sunk <= 0.0f) continue;
-        const Vec3 planted = before.wp[leg.end];
+        if (r <= 0.0f && s.hips_reach <= 0.0f && s.sunk <= 0.0f && pelvis_w <= 0.0f) continue;
+        const Pose& own = pelvis_w > 0.0f && !leg_posed(side, T) ? captured : before;
+        const Vec3 planted = own.wp[leg.end];
         const Vec3 goal = r > 0.0f ? Lerp(planted, PlaceAt(*L, T, *now, home), r) : planted;
         const Vec3 knee_way = pose::Rotate(before.wq[leg.root], {0.0f, 1.0f, 0.0f});
         // A held key's turn of the foot, by the reach; else the foot keeps the animation's.
         float held = 0.0f;
         const Quat turn = r > 0.0f ? TurnAt(*L, T, &held) : pose::kIdentity;
-        const Quat foot = held > 0.0f ? Mix(before.wq[leg.end], turn, held * r, true) : before.wq[leg.end];
+        const Quat foot = held > 0.0f ? Mix(own.wq[leg.end], turn, held * r, true) : own.wq[leg.end];
         // Damping by the reach: a planted foot (reach 0) lands exactly; a target eases near straight.
         s.shortfall[side] = pose::SolveTwoBone(bones, before, now, leg, goal, knee_way, pose::kLimbDamping * r, &foot);
         s.reach[side] = r;
@@ -398,7 +478,7 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
       const float t = std::max(0.0f, std::min(recipe.length, k.t - take_start));
       const Pose before = composed_pose(t);
       Pose p = before;
-      stand(&p, before, k.t, false);
+      stand(&p, before, pelvis_keys ? composed_pose(t, false) : before, k.t, false);
       L.held.push_back(BodyPlace(L, k, p, home));
       if (foot) L.held_turn.push_back(p.wq[L.chain.end]);  // the foot's turn there, held with the place
     }
@@ -422,7 +502,7 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
     const float t = frame_time(f), T = take_start + t;
     const Pose before = composed_pose(t);
     Pose now = before;
-    const Stood s = stand(&now, before, T, true);
+    const Stood s = stand(&now, before, pelvis_keys ? composed_pose(t, false) : before, T, true);
     if (s.hips_reach > 0.0f || s.sunk > 0.0f) root_moved = true;
     for (int side = 0; side < 2; ++side) {
       if (!s.solved[side]) continue;

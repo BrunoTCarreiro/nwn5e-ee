@@ -58,6 +58,27 @@ Quat AxisAngleQ(const Vec3& axis, float angle) {
   const float s = sinf(angle / 2.0f);
   return {axis[0] * s, axis[1] * s, axis[2] * s, cosf(angle / 2.0f)};
 }
+Quat TurnFromDegrees(const Vec3& xyz) {
+  const float r = kPi / 180.0f;
+  const Quat x = AxisAngleQ({1.0f, 0.0f, 0.0f}, xyz[0] * r), y = AxisAngleQ({0.0f, 1.0f, 0.0f}, xyz[1] * r),
+             z = AxisAngleQ({0.0f, 0.0f, 1.0f}, xyz[2] * r);
+  return QNormalized(QMul(z, QMul(y, x)));
+}
+
+Vec3 DegreesFromTurn(const Quat& q0) {
+  const Quat q = QNormalized(q0);
+  const float x = q[0], y = q[1], z = q[2], w = q[3];
+  // The turn's matrix entries the Z-Y-X angles read from (M = Rz * Ry * Rx).
+  const float m00 = 1.0f - 2.0f * (y * y + z * z), m01 = 2.0f * (x * y - z * w), m10 = 2.0f * (x * y + z * w);
+  const float m11 = 1.0f - 2.0f * (x * x + z * z), m20 = 2.0f * (x * z - y * w), m21 = 2.0f * (y * z + x * w);
+  const float m22 = 1.0f - 2.0f * (x * x + y * y);
+  const float d = 180.0f / kPi;
+  const float sy = std::max(-1.0f, std::min(1.0f, -m20));
+  const float ay = asinf(sy);
+  if (fabsf(sy) > 0.99999f) return {0.0f, ay * d, atan2f(-m01, m11) * d};  // gimbal: X folds into Z
+  return {atan2f(m21, m22) * d, ay * d, atan2f(m10, m00) * d};
+}
+
 Quat FromTo(const Vec3& from, const Vec3& to) {
   const Vec3 a = Normalized(from), b = Normalized(to);
   const float d = Dot(a, b);

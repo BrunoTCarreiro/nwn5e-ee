@@ -574,3 +574,227 @@ TEST(AnimIkHeldFootTurnEases) {
   for (int f = 1; f <= 30; ++f) fastest = fmaxf(fastest, DegreesBetween(FootTurn(held, bones, (f - 1) / 30.0f), FootTurn(held, bones, f / 30.0f)));
   CHECK_EQ(fastest < 5.0f, true);  // measured 3.65 at the release (15 degrees caught up over 0.2 s); a snap is ~15
 }
+
+// Pose keys' turns (#90): degrees about the stance axes, X first, then Y, then Z (R = Rz * Ry * Rx), and back.
+// Breaks caught: the order reversed, an axis swapped, the gimbal case read as NaN.
+namespace {
+bool SameTurn(const Quat& a, const Quat& b, float tolerance) {  // up to the quaternion's sign
+  const float s = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3] < 0.0f ? -1.0f : 1.0f;
+  float worst = 0.0f;
+  for (int i = 0; i < 4; ++i) worst = fmaxf(worst, fabsf(a[i] - s * b[i]));
+  return worst < tolerance;
+}
+bool Near(const Vec3& a, const Vec3& b) { return Dist(a, b) < 1e-5f; }
+}  // namespace
+
+TEST(TurnFromDegreesAxes) {
+  CHECK_EQ(SameTurn(TurnFromDegrees({90.0f, 0.0f, 0.0f}), AxisAngleQ({1.0f, 0.0f, 0.0f}, kPi / 2.0f), 1e-5f), true);
+  CHECK_EQ(SameTurn(TurnFromDegrees({0.0f, 90.0f, 0.0f}), AxisAngleQ({0.0f, 1.0f, 0.0f}, kPi / 2.0f), 1e-5f), true);
+  CHECK_EQ(SameTurn(TurnFromDegrees({0.0f, 0.0f, 90.0f}), AxisAngleQ({0.0f, 0.0f, 1.0f}, kPi / 2.0f), 1e-5f), true);
+  CHECK_EQ(Near(Rotate(TurnFromDegrees({90.0f, 0.0f, 0.0f}), {0.0f, 1.0f, 0.0f}), {0.0f, 0.0f, 1.0f}), true);
+  CHECK_EQ(Near(Rotate(TurnFromDegrees({0.0f, 0.0f, 0.0f}), {0.3f, -0.2f, 0.9f}), {0.3f, -0.2f, 0.9f}), true);
+}
+
+TEST(TurnFromDegreesOrder) {
+  // X first: +Y goes to +Z, then Y's quarter turn takes +Z to +X. (Y first would leave +Y at +Z.)
+  CHECK_EQ(Near(Rotate(TurnFromDegrees({90.0f, 90.0f, 0.0f}), {0.0f, 1.0f, 0.0f}), {1.0f, 0.0f, 0.0f}), true);
+  // Y, then Z: +X goes to -Z by Y's quarter, and Z leaves it there; +Z goes to +X, then to +Y.
+  CHECK_EQ(Near(Rotate(TurnFromDegrees({0.0f, 90.0f, 90.0f}), {0.0f, 0.0f, 1.0f}), {0.0f, 1.0f, 0.0f}), true);
+}
+
+TEST(eulerRoundTripAtGimbal) {
+  const Vec3 cases[] = {{10.0f, 20.0f, 30.0f}, {-170.0f, 45.0f, 120.0f}, {25.0f, 90.0f, -40.0f}, {0.0f, -90.0f, 10.0f}, {0.0f, 0.0f, 0.0f}};
+  for (const Vec3& c : cases) {
+    const Quat q = TurnFromDegrees(c);
+    const Vec3 back = DegreesFromTurn(q);
+    CHECK_EQ(isfinite(back[0]) && isfinite(back[1]) && isfinite(back[2]), true);
+    CHECK_EQ(back[1] >= -90.0f && back[1] <= 90.0f, true);
+    CHECK_EQ(SameTurn(TurnFromDegrees(back), q, 1e-4f), true);  // ~0.01 degrees
+  }
+  // Away from the gimbal the numbers themselves come back.
+  const Vec3 plain = DegreesFromTurn(TurnFromDegrees({10.0f, 20.0f, 30.0f}));
+  CHECK_EQ(fabsf(plain[0] - 10.0f) < 1e-3f && fabsf(plain[1] - 20.0f) < 1e-3f && fabsf(plain[2] - 30.0f) < 1e-3f, true);
+}
+
+// Step 4, pose keys (#90): push turns the capture further, replace sets the turn, keys blend by smoothstep and
+// ease in and out of the capture; turns are about the part's stance axes. Breaks caught: push applied after
+// the capture (the bone's own axes), replace ignored, no ease, the stance axes ignored, the clock off by the
+// take's start.
+namespace {
+AnimPoseKey PoseKey(float t, const std::array<float, 3>& turn, bool replace = false, float ease = 0.2f) {
+  AnimPoseKey k;
+  k.t = t;
+  k.turn = turn;
+  k.replace = replace;
+  k.ease = ease;
+  return k;
+}
+Quat LocalTurn(const AnimClip& clip, const std::vector<AnimNode>& bones, const char* name, float t) {
+  return PoseOf(clip, bones, t).lq[IndexOf(bones, name)];
+}
+}  // namespace
+
+TEST(AnimPosePushAddsToCapture) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 30.0f);
+  const AnimClip base = Run(r, bones);
+  // About X, while the capture turns the torso about Z: the key turns about the stance's X, before the
+  // capture's turn (R * delta), not about the torso's own turned X.
+  r.poses["torso_g"] = {PoseKey(2.5f, {15.0f, 0.0f, 0.0f})};
+  const AnimClip out = Run(r, bones);
+  const Quat want = QMul(TurnFromDegrees({15.0f, 0.0f, 0.0f}), LocalTurn(base, bones, "torso_g", 0.5f));
+  CHECK_EQ(SameTurn(LocalTurn(out, bones, "torso_g", 0.5f), want, 4e-4f), true);
+  CHECK_EQ(SameTurn(LocalTurn(out, bones, "torso_g", 0.25f), LocalTurn(base, bones, "torso_g", 0.25f), 1e-5f), true);
+  CHECK_EQ(SameTurn(LocalTurn(out, bones, "torso_g", 0.75f), LocalTurn(base, bones, "torso_g", 0.75f), 1e-5f), true);
+  const float partly = DegreesBetween(LocalTurn(out, bones, "torso_g", 0.4f), LocalTurn(base, bones, "torso_g", 0.4f));
+  CHECK_EQ(partly > 1.0f && partly < 14.0f, true);  // easing in
+}
+
+TEST(AnimPoseReplaceIgnoresCapture) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 30.0f);
+  r.poses["torso_g"] = {PoseKey(2.5f, {10.0f, 0.0f, 0.0f}, true)};
+  // The torso's stance turn is its rest (identity): replace sets it to the key's turn, the capture's 15 degrees
+  // about Z there gone.
+  CHECK_EQ(SameTurn(LocalTurn(Run(r, bones), bones, "torso_g", 0.5f), TurnFromDegrees({10.0f, 0.0f, 0.0f}), 4e-4f), true);
+}
+
+TEST(AnimPoseEaseAndBetweenKeys) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe still = IkRecipe(bones, 0.0f);
+  const AnimClip base = Run(still, bones);
+  // Ease 0: the key's own frame only.
+  AnimRecipe step = still;
+  step.poses["torso_g"] = {PoseKey(2.5f, {0.0f, 0.0f, 15.0f}, false, 0.0f)};
+  const AnimClip stepped = Run(step, bones);
+  CHECK_EQ(SameTurn(LocalTurn(stepped, bones, "torso_g", 0.5f), TurnFromDegrees({0.0f, 0.0f, 15.0f}), 4e-4f), true);
+  CHECK_EQ(SameTurn(LocalTurn(stepped, bones, "torso_g", 14.0f / 30.0f), LocalTurn(base, bones, "torso_g", 14.0f / 30.0f), 1e-5f), true);
+  CHECK_EQ(SameTurn(LocalTurn(stepped, bones, "torso_g", 16.0f / 30.0f), LocalTurn(base, bones, "torso_g", 16.0f / 30.0f), 1e-5f), true);
+  // Two keys 0.4 s apart: halfway between, the halfway turn.
+  AnimRecipe two = still;
+  two.poses["torso_g"] = {PoseKey(2.3f, {0.0f, 0.0f, 10.0f}), PoseKey(2.7f, {0.0f, 0.0f, 30.0f})};
+  CHECK_EQ(SameTurn(LocalTurn(Run(two, bones), bones, "torso_g", 0.5f), TurnFromDegrees({0.0f, 0.0f, 20.0f}), 4e-4f), true);
+  // Push then replace, the torso turning 30 about Z over the second (15 at 0.5): halfway between their results,
+  // push (10 + 15 = 25) and replace (10) - 17.5.
+  AnimRecipe mixed = IkRecipe(bones, 30.0f);
+  mixed.poses["torso_g"] = {PoseKey(2.3f, {0.0f, 0.0f, 10.0f}), PoseKey(2.7f, {0.0f, 0.0f, 10.0f}, true)};
+  CHECK_EQ(SameTurn(LocalTurn(Run(mixed, bones), bones, "torso_g", 0.5f), TurnFromDegrees({0.0f, 0.0f, 17.5f}), 4e-4f), true);
+}
+
+TEST(AnimPoseNoKeysIdentical) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  const AnimRecipe plain = IkRecipe(bones, 30.0f);
+  AnimRecipe empty = plain;
+  empty.poses["torso_g"] = {};  // a part with no keys
+  CHECK_EQ(SameKeys(Run(plain, bones), Run(empty, bones)), true);
+  std::vector<AnimNode> headless = bones;
+  headless[IndexOf(bones, "lforearm_g")].name = "lforearm_x";  // a part this body hasn't
+  AnimRecipe absent = IkRecipe(headless, 30.0f);
+  const AnimRecipe absent_plain = absent;
+  absent.poses["lforearm_g"] = {PoseKey(2.5f, {20.0f, 0.0f, 0.0f})};
+  CHECK_EQ(SameKeys(Run(absent_plain, headless), Run(absent, headless)), true);
+}
+
+TEST(AnimPoseCarriesInStanceAxes) {
+  // A pelvis resting turned 22 degrees about Z (as a_dfa's is): a key's X is the pelvis's own stance X.
+  std::vector<AnimNode> bones = WholeBody(1.0f);
+  const float half = 22.0f * kPi / 360.0f;
+  bones[IndexOf(bones, "pelvis_g")].orientation.values = {{0.0f, 0.0f, sinf(half), cosf(half)}};
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  r.poses["pelvis_g"] = {PoseKey(2.5f, {15.0f, 0.0f, 0.0f})};
+  const Quat want = QMul(TurnFromDegrees({0.0f, 0.0f, 22.0f}), TurnFromDegrees({15.0f, 0.0f, 0.0f}));
+  CHECK_EQ(SameTurn(LocalTurn(Run(r, bones), bones, "pelvis_g", 0.5f), want, 4e-4f), true);
+}
+
+TEST(poseUnderIkTargetDeterministic) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  const AnimClip base = Run(r, bones);
+  const Vec3 place = Add(At(base, bones, "lhand_g", 0.5f), {0.1f, 0.15f, 0.1f});
+  r.targets["left_hand"] = {Key(2.5f, OffsetFor(base, bones, "lbicep_g", "torso_g", ArmLength(bones), place, 0.5f))};
+  r.poses["lforearm_g"] = {PoseKey(2.5f, {30.0f, 0.0f, 0.0f})};
+  const AnimClip once = Run(r, bones);
+  CHECK_EQ(Dist(At(once, bones, "lhand_g", 0.5f), place) < 1e-3f, true);  // IK wins on its chain
+  CHECK_EQ(SameKeys(once, Run(r, bones)), true);
+}
+
+TEST(loopStillMeetsWithPoses) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 30.0f);
+  r.loop = true;
+  r.loop_blend = 0.2f;
+  r.poses["torso_g"] = {PoseKey(2.9f, {0.0f, 0.0f, 20.0f})};
+  const AnimClip out = Run(r, bones);
+  bool meets = true;
+  for (const AnimNode& n : out.nodes) {
+    if (!n.has_orientation || n.orientation.values.size() < 2) continue;
+    const auto& a = n.orientation.values.front();
+    const auto& b = n.orientation.values.back();
+    float same = 0.0f, flipped = 0.0f;
+    for (int i = 0; i < 4; ++i) {
+      same = fmaxf(same, fabsf(a[i] - b[i]));
+      flipped = fmaxf(flipped, fabsf(a[i] + b[i]));
+    }
+    meets = meets && fminf(same, flipped) < 1e-5f;
+  }
+  CHECK_EQ(meets, true);
+}
+
+// The pelvis keeps the feet (#90: "pose keys turn parts; they don't move the body"): a turned pelvis leaves
+// the feet where the capture put them, the legs re-solved; a turned leg moves its own foot on purpose.
+// Breaks caught: the legs left unsolved on pelvis frames, the planted place taken from the posed pose.
+TEST(AnimPosePelvisKeepsFeet) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  const AnimClip base = Run(r, bones);
+  r.poses["pelvis_g"] = {PoseKey(2.5f, {0.0f, 0.0f, 25.0f})};
+  const AnimClip out = Run(r, bones);
+  for (const char* foot : {"lfoot_g", "rfoot_g"}) {
+    for (float t : {0.4f, 0.5f, 0.6f}) {
+      CHECK_EQ(Dist(At(out, bones, foot, t), At(base, bones, foot, t)) < 1e-3f, true);
+      const int i = IndexOf(bones, foot);  // the foot's turn in the world stays too: it doesn't swivel with the pelvis
+      CHECK_EQ(SameTurn(PoseOf(out, bones, t).wq[i], PoseOf(base, bones, t).wq[i], 4e-4f), true);
+    }
+  }
+  const Quat want = QMul(TurnFromDegrees({0.0f, 0.0f, 25.0f}), LocalTurn(base, bones, "pelvis_g", 0.5f));
+  CHECK_EQ(SameTurn(LocalTurn(out, bones, "pelvis_g", 0.5f), want, 4e-4f), true);
+}
+
+TEST(AnimPoseLegPoseMovesItsFoot) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  const AnimClip base = Run(r, bones);
+  r.poses["lthigh_g"] = {PoseKey(2.5f, {40.0f, 0.0f, 0.0f})};
+  const AnimClip out = Run(r, bones);
+  CHECK_EQ(Dist(At(out, bones, "lfoot_g", 0.5f), At(base, bones, "lfoot_g", 0.5f)) > 0.1f, true);
+  CHECK_EQ(Dist(At(out, bones, "rfoot_g", 0.5f), At(base, bones, "rfoot_g", 0.5f)) < 1e-3f, true);
+  // With the pelvis turned too: the posed leg still takes its own foot along; the other keeps the capture's.
+  r.poses["pelvis_g"] = {PoseKey(2.5f, {0.0f, 0.0f, 25.0f})};
+  const AnimClip both = Run(r, bones);
+  CHECK_EQ(Dist(At(both, bones, "lfoot_g", 0.5f), At(base, bones, "lfoot_g", 0.5f)) > 0.1f, true);
+  CHECK_EQ(Dist(At(both, bones, "rfoot_g", 0.5f), At(base, bones, "rfoot_g", 0.5f)) < 1e-3f, true);
+}
+
+TEST(pelvisPoseWithFootPinAndHips) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  const AnimClip base = Run(r, bones);
+  const Vec3 planted = At(base, bones, "lfoot_g", 0.3f);
+  const std::array<float, 3> off = OffsetFor(base, bones, "lthigh_g", "pelvis_g", LegLength(bones), planted, 0.3f);
+  r.poses["pelvis_g"] = {PoseKey(2.5f, {0.0f, 0.0f, 25.0f})};
+  r.targets["left_foot"] = {Key(2.3f, off, true), Key(2.8f, off)};
+  r.targets["hips"] = {Key(2.5f, {0.0f, 0.0f, -0.05f})};
+  const AnimClip out = Run(r, bones);
+  bool finite = true;
+  for (const AnimNode& n : out.nodes) {
+    for (const auto& v : n.orientation.values) for (float x : v) finite = finite && isfinite(x);
+    for (const auto& v : n.position.values) for (float x : v) finite = finite && isfinite(x);
+  }
+  CHECK_EQ(finite, true);
+  bool held = true;
+  for (int f = 9; f <= 18; ++f) held = held && Dist(At(out, bones, "lfoot_g", f / 30.0f), planted) < 1e-3f;
+  CHECK_EQ(held, true);
+  CHECK_EQ(Dist(At(out, bones, "rfoot_g", 0.5f), At(base, bones, "rfoot_g", 0.5f)) < 1e-3f, true);
+  const float drop = At(base, bones, "rootdummy", 0.5f)[2] - At(out, bones, "rootdummy", 0.5f)[2];
+  CHECK_EQ(drop <= (0.05f + 0.25f) * RestHipHeight(bones) + 1e-4f, true);
+}

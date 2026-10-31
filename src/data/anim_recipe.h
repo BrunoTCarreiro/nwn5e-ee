@@ -84,6 +84,23 @@ struct AnimTargetKey {
 // The limbs a target can move: left_hand, right_hand, left_foot, right_foot, hips.
 const std::vector<std::string>& AnimTargetLimbs();
 
+// An assembled recipe's pose key (#90), in take time: the part turned by `turn` - degrees about the part's
+// stance axes, X first, then Y, then Z (R = Rz * Ry * Rx). A push key turns the capture's turn further
+// (delta' = R * delta); a replace key sets it (delta' = R), for frames the capture smeared. Between two
+// keys of a part their results blend; before the first and after the last the result eases from the
+// capture over the key's `ease` seconds (0 - 2; 0 a step). Recipe line:
+// `pose <part> <t> <x> <y> <z> <push|replace> <ease>`.
+struct AnimPoseKey {
+  float t = 0.0f;
+  std::array<float, 3> turn = {0.0f, 0.0f, 0.0f};
+  bool replace = false;
+  float ease = 0.2f;
+};
+// The parts a pose key can turn (lower case; a library's bones match in any case): torso_g neck_g head_g
+// pelvis_g, the arms (bicep, forearm, hand) and the legs (thigh, shin, foot). Not rootdummy: the hips'
+// place is the IK target's.
+const std::vector<std::string>& AnimPoseParts();
+
 struct AnimRecipe {
   AnimRecipeKind kind = AnimRecipeKind::kFormula;
   std::string name;          // the new animation's name (a resref: letters, digits, '_')
@@ -109,6 +126,7 @@ struct AnimRecipe {
   float loop_blend = 0.25f;  // seconds over which a loop's end eases into its start
   float take_start = 0.0f;   // the take's second at the clip's 0: the edits' clock (targets are in take time)
   std::map<std::string, std::vector<AnimTargetKey>> targets;  // limb -> its keys, by time
+  std::map<std::string, std::vector<AnimPoseKey>> poses;      // part -> its keys, by time
 };
 
 std::string WriteAnimRecipe(const AnimRecipe& recipe);

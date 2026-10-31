@@ -622,3 +622,77 @@ TEST(AnimRecipeOldKindsUnchanged) {
   CHECK_EQ(Has(WriteAnimRecipe(r), "kind = keys"), true);
   CHECK_EQ(Has(WriteAnimRecipe(r), "stance") || Has(WriteAnimRecipe(r), "blend"), false);
 }
+
+// Pose keys (#90): per part, in take time - `pose <part> <t> <x> <y> <z> <push|replace> <ease>`, the turn in
+// degrees about the part's stance axes. Breaks caught: the mode dropped on write, keys left in file order,
+// an unknown part or a short line read, the ease unclamped.
+TEST(AnimRecipePoseRoundTrip) {
+  AnimRecipe r = AssembledFixture();
+  r.take_start = 1.5f;
+  AnimPoseKey a, b, c;
+  a.t = 2.5f;
+  a.turn = {10.0f, -20.5f, 30.25f};
+  a.ease = 0.2f;
+  b.t = 2.1f;
+  b.turn = {0.0f, 0.0f, 15.0f};
+  b.replace = true;
+  b.ease = 0.0f;
+  c.t = 1.9f;
+  c.turn = {-170.0f, 45.0f, 120.0f};
+  c.ease = 0.5f;
+  r.poses["lforearm_g"] = {a, b};  // out of time order on purpose
+  r.poses["torso_g"] = {c};
+  const std::string text = WriteAnimRecipe(r);
+  AnimRecipe back;
+  std::string error;
+  CHECK_EQ(ReadAnimRecipe(text, &back, &error), true);
+  CHECK_EQ(back.poses.size(), static_cast<size_t>(2));
+  const std::vector<AnimPoseKey>& arm = back.poses["lforearm_g"];
+  CHECK_EQ(arm.size(), static_cast<size_t>(2));
+  if (arm.size() == 2) {
+    CHECK_EQ(Scaled(arm[0].t, 1e4), Scaled(2.1f, 1e4));  // sorted
+    CHECK_EQ(arm[0].replace && !arm[1].replace, true);
+    CHECK_EQ(Scaled(arm[0].ease, 1e4), Scaled(0.0f, 1e4));
+    CHECK_EQ(Scaled(arm[1].turn[0], 1e3) == Scaled(10.0f, 1e3) && Scaled(arm[1].turn[1], 1e3) == Scaled(-20.5f, 1e3) &&
+             Scaled(arm[1].turn[2], 1e3) == Scaled(30.25f, 1e3), true);
+  }
+  const std::vector<AnimPoseKey>& torso = back.poses["torso_g"];
+  CHECK_EQ(torso.size() == 1 && Scaled(torso[0].turn[0], 1e3) == Scaled(-170.0f, 1e3) && Scaled(torso[0].ease, 1e4) == Scaled(0.5f, 1e4), true);
+  CHECK_EQ(text.find("pose torso_g") < text.find("pose lforearm_g"), true);  // the parts in their order
+  CHECK_EQ(AnimPoseParts().size(), static_cast<size_t>(16));
+}
+
+TEST(AnimRecipeBadPoseRefused) {
+  const std::string head = "name = x\nkind = assembled\nstance = 1hreadyr\nlength = 1\nkeys a_ba torso_g o 0 0 0 0 1\n";
+  AnimRecipe back;
+  std::string error;
+  CHECK_EQ(ReadAnimRecipe(head + "pose rootdummy 1 0 0 0 push 0.2\n", &back, &error), false);  // not a pose part
+  CHECK_EQ(Has(error, "line 6") && Has(error, "part"), true);
+  CHECK_EQ(ReadAnimRecipe(head + "pose torso_g 1 0 0 push 0.2\n", &back, &error), false);       // a number short
+  CHECK_EQ(ReadAnimRecipe(head + "pose torso_g 1 0 0 0 blend 0.2\n", &back, &error), false);    // not push|replace
+  CHECK_EQ(ReadAnimRecipe(head + "pose torso_g 1 0 nan 0 push 0.2\n", &back, &error), false);   // not finite
+  CHECK_EQ(ReadAnimRecipe(head + "pose torso_g 1 0 0 0 push inf\n", &back, &error), false);
+  CHECK_EQ(ReadAnimRecipe(head + "pose torso_g 1 0 0 0 push 0.2 more\n", &back, &error), false);  // extra words
+  CHECK_EQ(ReadAnimRecipe(head + "pose Torso_G 1 0 0 0 replace 0.2\n", &back, &error), true);   // any case
+  CHECK_EQ(back.poses["torso_g"].size() == 1 && back.poses["torso_g"][0].replace, true);
+}
+
+TEST(AnimRecipePoseEaseClamped) {
+  const std::string head = "name = x\nkind = assembled\nstance = 1hreadyr\nlength = 1\nkeys a_ba torso_g o 0 0 0 0 1\n";
+  AnimRecipe back;
+  std::string error;
+  CHECK_EQ(ReadAnimRecipe(head + "pose head_g 1 0 0 0 push -1\npose head_g 2 0 0 0 push 5\n", &back, &error), true);
+  const std::vector<AnimPoseKey>& keys = back.poses["head_g"];
+  CHECK_EQ(keys.size() == 2 && keys[0].ease == 0.0f && keys[1].ease == 2.0f, true);
+  // A file written by hand, keys out of time order: read back by time.
+  CHECK_EQ(ReadAnimRecipe(head + "pose head_g 2 5 0 0 push 0\npose head_g 1 7 0 0 push 0\n", &back, &error), true);
+  CHECK_EQ(back.poses["head_g"].size() == 2 && back.poses["head_g"][0].t == 1.0f && back.poses["head_g"][0].turn[0] == 7.0f, true);
+}
+
+TEST(AnimRecipeNoPosesUnchanged) {
+  const std::string plain = WriteAnimRecipe(AssembledFixture());
+  CHECK_EQ(Has(plain, "pose"), false);
+  AnimRecipe empty = AssembledFixture();
+  empty.poses["torso_g"] = {};  // a part with no keys writes nothing
+  CHECK_EQ(WriteAnimRecipe(empty) == plain, true);
+}

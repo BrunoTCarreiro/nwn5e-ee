@@ -262,7 +262,71 @@ bool ReadTargetLine(const std::string& words_text, int line_number, AnimRecipe* 
   return true;
 }
 
+// An assembled recipe's pose keys (#90): a line per key, the parts in their order and each part's keys by
+// time. Nothing without poses.
+std::string PoseLines(const AnimRecipe& r) {
+  std::string text;
+  for (const std::string& part : AnimPoseParts()) {
+    const auto found = r.poses.find(part);
+    if (found == r.poses.end() || found->second.empty()) continue;
+    std::vector<AnimPoseKey> keys = found->second;
+    std::stable_sort(keys.begin(), keys.end(), [](const AnimPoseKey& a, const AnimPoseKey& b) { return a.t < b.t; });
+    if (text.empty()) {
+      text = "# pose <part> <take time> <x y z> <push|replace> <ease>: degrees about the part's stance axes, X then Y then Z\n";
+    }
+    for (const AnimPoseKey& k : keys) {
+      text += "pose " + part + " " + Num(k.t) + " " + Num(k.turn[0]) + " " + Num(k.turn[1]) + " " + Num(k.turn[2]) + " " +
+              (k.replace ? "replace" : "push") + " " + Num(k.ease) + "\n";
+    }
+  }
+  return text;
+}
+
+// A `pose` line's words after "pose"; false (and the error) on anything but a pose part, four finite
+// numbers, push or replace, and a finite ease (clamped to 0 - 2).
+bool ReadPoseLine(const std::string& words_text, int line_number, AnimRecipe* r, std::string* error) {
+  std::istringstream words(words_text);
+  std::string part;
+  words >> part;
+  const auto bad = [&](const std::string& why) {
+    if (error) *error = "line " + std::to_string(line_number) + ": " + why;
+    return false;
+  };
+  const std::vector<std::string>& parts = AnimPoseParts();
+  if (std::find(parts.begin(), parts.end(), Lower(part)) == parts.end()) {
+    return bad("a pose's part is a body part a pose can turn (torso_g, lforearm_g ...; not '" + part + "')");
+  }
+  const auto number = [&](float* x) {
+    std::string word;
+    if (!(words >> word)) return bad("a pose line is 'pose <part> <t> <x> <y> <z> <push|replace> <ease>'");
+    char* end = nullptr;
+    *x = strtof(word.c_str(), &end);
+    if (end == word.c_str() || *end != '\0' || !isfinite(*x)) return bad("'" + word + "' isn't a finite number");
+    return true;
+  };
+  AnimPoseKey k;
+  if (!number(&k.t) || !number(&k.turn[0]) || !number(&k.turn[1]) || !number(&k.turn[2])) return false;
+  std::string mode;
+  if (!(words >> mode)) return bad("a pose line is 'pose <part> <t> <x> <y> <z> <push|replace> <ease>'");
+  if (mode != "push" && mode != "replace") return bad("a pose is push or replace (not '" + mode + "')");
+  k.replace = mode == "replace";
+  float ease = 0.0f;
+  if (!number(&ease)) return false;
+  k.ease = std::max(0.0f, std::min(2.0f, ease));
+  std::string tail;
+  if (words >> tail) return bad("too many words on a pose line");
+  r->poses[Lower(part)].push_back(k);
+  return true;
+}
+
 }  // namespace
+
+const std::vector<std::string>& AnimPoseParts() {
+  static const std::vector<std::string> parts = {
+      "torso_g",  "neck_g",  "head_g",  "pelvis_g", "lbicep_g", "lforearm_g", "lhand_g", "rbicep_g",
+      "rforearm_g", "rhand_g", "lthigh_g", "lshin_g", "lfoot_g", "rthigh_g", "rshin_g", "rfoot_g"};
+  return parts;
+}
 
 const std::vector<std::string>& AnimTargetLimbs() {
   static const std::vector<std::string> limbs = {"left_hand", "right_hand", "left_foot", "right_foot", "hips"};
@@ -275,7 +339,7 @@ std::string WriteAnimRecipe(const AnimRecipe& r) {
            "name = " + r.name + "\nkind = assembled\nstance = " + r.stance + "\nlength = " + Num(r.length) +
            "\ntranstime = " + Num(r.transtime) + "\nblend_in = " + Num(r.blend_in) + "\nblend_out = " +
            Num(r.blend_out) + "\nloop = " + (r.loop ? "1" : "0") + "\nloop_blend = " + Num(r.loop_blend) +
-           "\nsource = " + r.source + "\n" + TargetLines(r) +
+           "\nsource = " + r.source + "\n" + TargetLines(r) + PoseLines(r) +
            "# keys <library> <bone> o <time x y z w> ...: the turn from the stance's first frame (L = S * delta)"
            "\n# keys <library> rootdummy p <time x y z> ...: the offset from the stance's first-frame root\n" +
            KeyLines(r);
@@ -336,6 +400,10 @@ bool ReadAnimRecipe(const std::string& text, AnimRecipe* recipe, std::string* er
       if (!ReadTargetLine(line.substr(7), line_number, &r, error)) return false;
       continue;
     }
+    if (line.compare(0, 5, "pose ") == 0) {  // pose <part> <t> <x> <y> <z> <push|replace> <ease>
+      if (!ReadPoseLine(line.substr(5), line_number, &r, error)) return false;
+      continue;
+    }
     const size_t eq = line.find('=');
     if (eq == std::string::npos) {
       if (error) *error = "line " + std::to_string(line_number) + ": no '='";
@@ -378,6 +446,9 @@ bool ReadAnimRecipe(const std::string& text, AnimRecipe* recipe, std::string* er
   for (auto& limb : r.targets) {  // each limb's keys by time (stable: a file's order breaks ties)
     std::stable_sort(limb.second.begin(), limb.second.end(),
                      [](const AnimTargetKey& a, const AnimTargetKey& b) { return a.t < b.t; });
+  }
+  for (auto& part : r.poses) {  // each part's keys by time
+    std::stable_sort(part.second.begin(), part.second.end(), [](const AnimPoseKey& a, const AnimPoseKey& b) { return a.t < b.t; });
   }
   if (r.kind == AnimRecipeKind::kAssembled) {
     if (r.stance.empty()) {
