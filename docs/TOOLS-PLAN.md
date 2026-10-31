@@ -733,3 +733,30 @@ alike; always only keeps re-suggest off a contact.
 
 *Left:* where the take overstretches the leg for a moment (n5_asm2's walk-out, 23.3-23.6 s) the hips dip up
 to 19 cm as the foot lets go; trimming the kept part before the walk removes it.
+
+### The owner's test, second round (2026-10-31, #88): a planted foot's turn
+
+*Reported (owner):* "The foot locking is better, although there's some slidy rotation going on. I tried
+keyframing it but it only locks the ankle in place, not the foot itself." *Pushed back:* not a later phase -
+no phase planned it, and the spec's "no sliding locked feet" covers a swivel. *Decided (owner):* "go for A
+and B".
+
+*Found:* the solve aims each foot along the capture's heel-to-toe line every frame; a lock pinned the ankle
+only, so the poorly tracked toe point swivelled planted feet up to 26-32 degrees on n5_asm2 (7.03-9.63 s),
+the toes swinging 3-8 cm. A held IK foot key also held only the place (the core's two-bone solve keeps the
+end's turn from the animation).
+
+*Changed:*
+- **A (bench, nwn5e-tools ee550c8):** a lock holds the foot's world turn as it landed (averaged over the
+  frames its spot is), eased in and out with the lock. Now 0.0 degrees on n5_asm2. `holdTurn` (default on);
+  parity_check runs the old bench's solve with it and `sink` off.
+- **B (core, nwn5e-ee 53a4f4e, 0.58.9):** a pinned foot key holds the foot's world turn as it was at the
+  key (on the body as it stands there, like its place) until the next key, easing over the same window;
+  a free key leaves the turn to the animation; hands and the hips unchanged. SolveTwoBone takes an
+  optional end turn. Built in a scratch copy while the game session's mutation run used the tree, put in
+  after it: test.bat 281/0, 3 breaks caught. The helper rebuilt (stamp b8991409...).
+- The bench's words (98bf4ee): auto and always both lock - place and turn; always only keeps re-suggest
+  off a contact. A held key's help: a foot keeps its turn too.
+
+*Scope kept:* a held hand key still turns with the animation (the go covered feet); holding a hand's turn
+the same way is a one-line change if wanted.
