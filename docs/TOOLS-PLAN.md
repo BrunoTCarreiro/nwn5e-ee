@@ -826,3 +826,17 @@ caught. Cost: every project's planted feet move to the floor when next saved; a 
 *The doll's face (#98, Todo; owner: "is it on the plan to give the bench doll a "face" and obvious hand orientations so
 that those can be easier to adjust?"):* not on the plan (BENCH-REDESIGN's "no faces" non-goal is facial animation).
 Filed for later; the marks are to be decided when it's picked.
+
+*A kick from a ready stance (#99; owner: "it looks good starting from the "pause1" pose. but if I move to any other it loses
+it's power, the leg no longer extends fully"):* measured on saaaaa through the helper - the legs' neutral (#80) is a fixed
+turn per thigh, shin and foot, so a ready stance's knee bend (44-55 deg) stayed in every frame: the kick's knee at its
+straightest 42-52 deg bent (pause1: 1), the ankle 86-94 cm high (pause1: 102). Offered: a leg in the air moves as
+performed (recommended), a pose key per stance today, or pause1's mapping with blends. *Decision (owner, 2026-10-31):*
+"sure, let's try it". *Built (nwn5e-tools, tools only):* solveTake's `upright` (the pipeline hands it pause1): a planted
+leg keeps the start pose's posture; off the ground a leg's thigh, shin and foot ease into their solve with pause1's legs'
+neutral (the rest of the body still the start pose's) over 0.3 s after the lift, and back over 0.3 s before the landing -
+by the locks as planted. saaaaa now, under each ready stance: the kick's knee 0-2 deg at its straightest, the ankle 94-102
+cm, both knees at the start still the stance's (nwreadyr 53 / 60 deg); the knee no faster at the lift and the landing
+than under pause1 (nwreadyr 24.4 / 11.9 deg a frame, pause1 31.3 / 12.4). Checks: airLegAsPerformed, plantedLegsKeepStance,
+postureEases (solve), startPoseKeepsAirLegs (pipeline); 5 breaks caught. Caveat: pose keys sit on the start pose's axes,
+so keys made under one start pose turn differently under another (saaaaa's thigh keys were made under pause1).
