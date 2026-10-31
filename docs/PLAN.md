@@ -3377,6 +3377,24 @@ on the game clock now (GameMs, still while paused). "Not so much while running" 
 creature fighting its grappler keeps attacking. The messages point at Grapple again, not `!grapple release`
 (owner: "I'm not a big fan of using !commands for combat stuff, I rather use quickbar or radial menu actions").
 
+*The owner's G2 run, 2026-10-31:* "G2 results I think they all pass" - G2-1 to G2-10, G2-12, G2-13; GT3 kept
+("keep gt3"). G2-11 doesn't: "the enemy sometimes teleports to the final location, instead of sliding" (the log:
+Forceful Blow "slides 4.6 m away in 152 ms" - 0.48.5's open question answered: the client does snap a 0.15 s
+slide; it gets the server's positions at its network rate and smooths a creature's own walking, not a move the
+server makes for it). The grapple's look, the same way: "the PC continues to move normally, albeit at half speed,
+and the grappled npc eventually slides after. is there a better way to do this? ... Is it possible to have the PC
+extend the empty handed arm towards the enemy in a way that suggests they are grabbing the enemy? and when they
+walk this animation should not be broken, they would need to walk backwards or sideways to keep contact. Also,
+right now the enemy follows very far ... is it possible to have a tighter coupling?"
+Offered: (1) smooth movement on screen - slower slides / nwn5e smoothing the moved creature's model on the
+client / the engine's own walking for the held creature; (2) tight coupling - the held creature kept at arm's
+reach (both sizes) every update, no slack; (3) the reaching arm - an arm layer over idle and walk, the pose built
+in the bench (its IK pins the hand); (4) walking while holding - A: it stays in front, the grappler walks forward
+as usual; B: the grappler faces it and walks backwards / sideways (a facing hook, a directional walk set).
+*Decided (owner, 2026-10-31: "go with your recommendation, keep 11 open"):* in that order - (1) by client-side
+smoothing first (G2-11 with it), then (2), (3), and (4) A - B if A doesn't look right in game. #11 stays open
+until the slide looks right; (3) and (4) go with G5 (#14), their animations through the bench (the tools stream).
+
 **GT-L1. Later: throwing an enemy into another** (owner: "How possible would it
 be to implement throwing an enemy into another as a way to damage both? We're
 not implementing this now, just note it down for later"). Feasible, and GT2
