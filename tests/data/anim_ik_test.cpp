@@ -515,3 +515,62 @@ TEST(AnimIkNonFiniteTimeSafe) {
   zero.take_start = 0.0f;  // read as 0: the clip a take_start of 0 gives
   CHECK_EQ(SameKeys(out, Run(zero, bones)), true);
 }
+
+// The owner's test (#88): a held foot key held the ankle while the foot went on turning with the animation
+// (the swivel the capture's toe point gives a planted foot). A held foot key holds the foot's world turn
+// too, as it was at the key, until the next key; a free key leaves the turn to the animation.
+namespace {
+
+// The recipe with the left foot turning `degrees` about up over the second: a swivel on the ankle, whose
+// place doesn't move.
+AnimRecipe SwivelRecipe(const std::vector<AnimNode>& bones, float degrees) {
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  const float half = degrees * kPi / 360.0f;
+  for (AnimKeyTrack& t : r.keys["a_ik"]) {
+    if (t.bone == "lfoot_g" && !t.position) t.keys.values = {{0.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, sinf(half), cosf(half)}};
+  }
+  return r;
+}
+float LegLength(const std::vector<AnimNode>& bones) { return ChainLength(bones, FindChain(bones, "lthigh_g", "lshin_g", "lfoot_g")); }
+float DegreesBetween(const Quat& a, const Quat& b) {
+  const float d = fabsf(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]);
+  return 2.0f * acosf(fminf(1.0f, d)) * 180.0f / kPi;
+}
+Quat FootTurn(const AnimClip& clip, const std::vector<AnimNode>& bones, float t) { return PoseOf(clip, bones, t).wq[IndexOf(bones, "lfoot_g")]; }
+
+}  // namespace
+
+TEST(AnimIkHeldFootKeepsItsTurn) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = SwivelRecipe(bones, 30.0f);
+  const AnimClip base = Run(r, bones);
+  const Vec3 place = At(base, bones, "lfoot_g", 0.3f);
+  const std::array<float, 3> offset = OffsetFor(base, bones, "lthigh_g", "pelvis_g", LegLength(bones), place, 0.3f);
+  const Quat landed = FootTurn(base, bones, 0.3f);
+  CHECK_EQ(DegreesBetween(landed, FootTurn(base, bones, 0.6f)) > 8.0f, true);  // the animation swivels it
+  r.targets["left_foot"] = {Key(2.3f, offset, true), Key(2.8f, offset)};
+  const AnimClip held = Run(r, bones);
+  float most = 0.0f, off = 0.0f;
+  for (int f = 9; f <= 18; ++f) {  // from the held key (2.3 s) to the next one's window (2.6 s)
+    most = fmaxf(most, DegreesBetween(landed, FootTurn(held, bones, f / 30.0f)));
+    off = fmaxf(off, Dist(At(held, bones, "lfoot_g", f / 30.0f), place));
+  }
+  CHECK_EQ(most < 0.5f, true);
+  CHECK_EQ(off < 1e-3f, true);
+  r.targets["left_foot"] = {Key(2.3f, offset), Key(2.8f, offset)};  // not held: the animation's turn
+  CHECK_EQ(DegreesBetween(landed, FootTurn(Run(r, bones), bones, 0.6f)) > 8.0f, true);
+}
+
+// The hold eases in with the key's reach and out over the window before the next key: no frame turns the
+// foot more than 5 degrees (the animation turns it 1 a frame; letting go catches up 15 over 0.2 s) - no snap.
+TEST(AnimIkHeldFootTurnEases) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = SwivelRecipe(bones, 30.0f);
+  const AnimClip base = Run(r, bones);
+  const std::array<float, 3> offset = OffsetFor(base, bones, "lthigh_g", "pelvis_g", LegLength(bones), At(base, bones, "lfoot_g", 0.3f), 0.3f);
+  r.targets["left_foot"] = {Key(2.3f, offset, true), Key(2.8f, offset)};
+  const AnimClip held = Run(r, bones);
+  float fastest = 0.0f;
+  for (int f = 1; f <= 30; ++f) fastest = fmaxf(fastest, DegreesBetween(FootTurn(held, bones, (f - 1) / 30.0f), FootTurn(held, bones, f / 30.0f)));
+  CHECK_EQ(fastest < 5.0f, true);  // measured 3.65 at the release (15 degrees caught up over 0.2 s); a snap is ~15
+}

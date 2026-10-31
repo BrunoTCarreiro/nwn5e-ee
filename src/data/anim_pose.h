@@ -63,11 +63,11 @@ constexpr float kLimbDamping = 0.02f;
 // The chain's root and mid turned so its end reaches `goal`:
 // - softened within the last `damping` (a fraction) of its length, so a limb doesn't snap straight;
 // - the mid bending in the plane it bent in `before`, else toward `pole_hint`;
-// - the end keeping its turn in the world from `before`.
+// - the end keeping its turn in the world from `before`, or taking `end_turn` (a world turn) when given.
 // `now` must have its world transforms current; they're left stale (Forward again to use them).
 // Returns how far `goal` lies beyond the chain's length (0 when it reaches).
 float SolveTwoBone(const std::vector<AnimNode>& bones, const Pose& before, Pose* now, const Chain& c, const Vec3& goal,
-                   const Vec3& pole_hint, float damping);
+                   const Vec3& pole_hint, float damping, const Quat* end_turn = nullptr);
 
 // The crouch step's leg solve: the ankle back where it was in `before`, the knee in the plane it bent in
 // (the thigh's facing when straight), the foot keeping its turn.

@@ -151,7 +151,7 @@ float RestHipHeight(const std::vector<AnimNode>& bones) {
 }
 
 float SolveTwoBone(const std::vector<AnimNode>& bones, const Pose& before, Pose* now, const Chain& c, const Vec3& goal,
-                   const Vec3& pole_hint, float damping) {
+                   const Vec3& pole_hint, float damping, const Quat* end_turn) {
   if (c.root < 0) return 0.0f;
   const Vec3 base = now->wp[c.root];
   const float l1 = Length(now->lp[c.mid]), l2 = Length(now->lp[c.end]);
@@ -188,7 +188,7 @@ float SolveTwoBone(const std::vector<AnimNode>& bones, const Pose& before, Pose*
   midq = QNormalized(QMul(FromTo(Rotate(midq, now->lp[c.end]), Sub(aim, mid)), midq));
   now->lq[c.root] = QNormalized(QMul(QConj(up), root));
   now->lq[c.mid] = QNormalized(QMul(QConj(root), midq));
-  now->lq[c.end] = QNormalized(QMul(QConj(midq), before.wq[c.end]));
+  now->lq[c.end] = QNormalized(QMul(QConj(midq), end_turn ? *end_turn : before.wq[c.end]));
   return shortfall;
 }
 

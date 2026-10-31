@@ -102,6 +102,7 @@ struct Limb {
   float length = 1.0f;    // the chain's rest length, or the hip height for the hips
   const std::vector<AnimTargetKey>* keys = nullptr;
   std::vector<Vec3> held;  // a pinned key's place in the world at its own time
+  std::vector<Quat> held_turn;  // a foot's: a pinned key's turn of the foot in the world at its own time
 };
 
 Vec3 Lerp(const Vec3& a, const Vec3& b, float f) { return pose::Add(a, pose::Scale(pose::Sub(b, a), f)); }
@@ -145,6 +146,41 @@ Vec3 PlaceAt(const Limb& L, float T, const Pose& p, const Vec3& home) {
     return w > 0.0f ? Lerp(L.held[i], KeyPlace(L, i + 1, p, home), w) : L.held[i];
   }
   return Lerp(KeyPlace(L, i, p, home), KeyPlace(L, i + 1, p, home), Smoothstep((T - keys[i].t) / span));
+}
+
+// A foot's held turn at take time T (#88, the owner's test: a held foot key held the ankle while the foot
+// went on turning with the animation): a pinned key holds the foot's turn in the world as it was at the
+// key, like its place - easing over the same window before the next key, toward its turn when it's pinned
+// too, else back to the animation's; toward a pinned key from a free one over their span, as the place
+// does. *w: how much of it applies (0: the animation's own turn).
+Quat TurnAt(const Limb& L, float T, float* w) {
+  const std::vector<AnimTargetKey>& keys = *L.keys;
+  *w = 0.0f;
+  if (L.held_turn.size() != keys.size()) return pose::kIdentity;
+  const auto own = [&](size_t i) {
+    *w = keys[i].pinned ? 1.0f : 0.0f;
+    return L.held_turn[i];
+  };
+  if (T <= keys.front().t) return own(0);
+  if (T >= keys.back().t || keys.size() < 2 || !isfinite(T)) return own(keys.size() - 1);
+  size_t i = 0;
+  while (i + 1 < keys.size() && keys[i + 1].t < T) ++i;
+  const float span = std::max(keys[i + 1].t - keys[i].t, 1e-6f);
+  if (keys[i].pinned) {
+    const float window = std::min(kEase, span);
+    const float u = Smoothstep((T - (keys[i + 1].t - window)) / window);
+    if (keys[i + 1].pinned) {
+      *w = 1.0f;
+      return Mix(L.held_turn[i], L.held_turn[i + 1], u, true);
+    }
+    *w = 1.0f - u;
+    return L.held_turn[i];
+  }
+  if (keys[i + 1].pinned) {
+    *w = Smoothstep((T - keys[i].t) / span);
+    return L.held_turn[i + 1];
+  }
+  return pose::kIdentity;
 }
 
 }  // namespace
@@ -326,8 +362,12 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
         const Vec3 planted = before.wp[leg.end];
         const Vec3 goal = r > 0.0f ? Lerp(planted, PlaceAt(*L, T, *now, home), r) : planted;
         const Vec3 knee_way = pose::Rotate(before.wq[leg.root], {0.0f, 1.0f, 0.0f});
+        // A held key's turn of the foot, by the reach; else the foot keeps the animation's.
+        float held = 0.0f;
+        const Quat turn = r > 0.0f ? TurnAt(*L, T, &held) : pose::kIdentity;
+        const Quat foot = held > 0.0f ? Mix(before.wq[leg.end], turn, held * r, true) : before.wq[leg.end];
         // Damping by the reach: a planted foot (reach 0) lands exactly; a target eases near straight.
-        s.shortfall[side] = pose::SolveTwoBone(bones, before, now, leg, goal, knee_way, pose::kLimbDamping * r);
+        s.shortfall[side] = pose::SolveTwoBone(bones, before, now, leg, goal, knee_way, pose::kLimbDamping * r, &foot);
         s.reach[side] = r;
         s.solved[side] = true;
         if (r <= 0.0f || held_at(*L, T)) fixed_short = std::max(fixed_short, s.shortfall[side]);
@@ -344,13 +384,15 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
     }
     return s;
   };
-  // A pinned key's place: on the body as it stands at the key's own time - after the hips and the legs on
-  // their planted feet, sinking included, as the bench shows it there.
+  // A pinned key's place (and a foot's, its turn): on the body as it stands at the key's own time - after
+  // the hips and the legs on their planted feet, sinking included, as the bench shows it there.
   for (Limb& L : limbs) {
     if (L.hips) continue;
     for (const AnimTargetKey& k : *L.keys) {
+      const bool foot = L.frame == pelvis;
       if (!k.pinned) {
         L.held.push_back({0.0f, 0.0f, 0.0f});
+        if (foot) L.held_turn.push_back(pose::kIdentity);
         continue;
       }
       const float t = std::max(0.0f, std::min(recipe.length, k.t - take_start));
@@ -358,6 +400,7 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
       Pose p = before;
       stand(&p, before, k.t, false);
       L.held.push_back(BodyPlace(L, k, p, home));
+      if (foot) L.held_turn.push_back(p.wq[L.chain.end]);  // the foot's turn there, held with the place
     }
   }
 
