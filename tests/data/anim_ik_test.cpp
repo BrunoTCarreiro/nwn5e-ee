@@ -798,3 +798,66 @@ TEST(pelvisPoseWithFootPinAndHips) {
   const float drop = At(base, bones, "rootdummy", 0.5f)[2] - At(out, bones, "rootdummy", 0.5f)[2];
   CHECK_EQ(drop <= (0.05f + 0.25f) * RestHipHeight(bones) + 1e-4f, true);
 }
+
+// The final review's findings (#90). C1: a posed pelvis with a foot key, or a leg key inside the pelvis's
+// window, popped the planted foot ~15 cm (a binary switch; the foot's own key counted). I1: ease 0 keys
+// vanished at the bench's 4-decimal times. I3: a chain key under an active target still turned the end.
+TEST(AnimPosePelvisFootKeyKeepsAnkle) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  const AnimClip base = Run(r, bones);
+  r.poses["pelvis_g"] = {PoseKey(2.5f, {0.0f, 0.0f, 25.0f})};
+  r.poses["lfoot_g"] = {PoseKey(2.5f, {20.0f, 0.0f, 0.0f})};
+  const AnimClip out = Run(r, bones);
+  CHECK_EQ(Dist(At(out, bones, "lfoot_g", 0.5f), At(base, bones, "lfoot_g", 0.5f)) < 1e-3f, true);  // a foot's key turns it in place
+  const int foot = IndexOf(bones, "lfoot_g");
+  CHECK_EQ(DegreesBetween(PoseOf(out, bones, 0.5f).wq[foot], PoseOf(base, bones, 0.5f).wq[foot]) > 10.0f, true);  // and it shows
+}
+
+TEST(AnimPoseLegKeyInsidePelvisContinuous) {
+  // A thigh key inside a posed pelvis's window: the ankle follows exactly the path the thigh key alone gives it
+  // (the pelvis never moves a foot), frame by frame - no jump where the thigh's influence starts or ends.
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  r.poses["lthigh_g"] = {PoseKey(2.5f, {5.0f, 0.0f, 0.0f}, false, 0.1f)};
+  const AnimClip thigh = Run(r, bones);
+  r.poses["pelvis_g"] = {PoseKey(2.2f, {0.0f, 0.0f, 25.0f}), PoseKey(2.8f, {0.0f, 0.0f, 25.0f})};
+  const AnimClip both = Run(r, bones);
+  float off = 0.0f;
+  for (int f = 0; f <= 30; ++f) off = fmaxf(off, Dist(At(both, bones, "lfoot_g", f / 30.0f), At(thigh, bones, "lfoot_g", f / 30.0f)));
+  CHECK_EQ(off < 1e-3f, true);
+  CHECK_EQ(Dist(At(thigh, bones, "lfoot_g", 0.5f), At(thigh, bones, "lfoot_g", 0.3f)) > 0.02f, true);  // the key does move the foot
+}
+
+TEST(AnimPoseEaseZeroAtBenchTimes) {
+  // The bench writes take_start and key times to 4 decimals: frame 16's take time is 1.5333 + 16/30 = 2.06663,
+  // the key's 2.0667 - it still shows on its frame, and only there.
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  r.take_start = 1.5333f;
+  const AnimClip base = Run(r, bones);
+  r.poses["torso_g"] = {PoseKey(2.0667f, {0.0f, 0.0f, 15.0f}, false, 0.0f)};
+  const AnimClip out = Run(r, bones);
+  CHECK_EQ(SameTurn(LocalTurn(out, bones, "torso_g", 16.0f / 30.0f), TurnFromDegrees({0.0f, 0.0f, 15.0f}), 4e-4f), true);
+  CHECK_EQ(SameTurn(LocalTurn(out, bones, "torso_g", 15.0f / 30.0f), LocalTurn(base, bones, "torso_g", 15.0f / 30.0f), 1e-5f), true);
+  CHECK_EQ(SameTurn(LocalTurn(out, bones, "torso_g", 17.0f / 30.0f), LocalTurn(base, bones, "torso_g", 17.0f / 30.0f), 1e-5f), true);
+}
+
+TEST(AnimPoseChainKeyInertUnderTarget) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  const AnimClip base = Run(r, bones);
+  const Vec3 hand = Add(At(base, bones, "lhand_g", 0.5f), {0.05f, 0.1f, 0.05f});
+  const Vec3 foot = Add(At(base, bones, "lfoot_g", 0.5f), {0.0f, 0.12f, 0.08f});
+  r.targets["left_hand"] = {Key(2.5f, OffsetFor(base, bones, "lbicep_g", "torso_g", ArmLength(bones), hand, 0.5f))};
+  r.targets["left_foot"] = {Key(2.5f, OffsetFor(base, bones, "lthigh_g", "pelvis_g", LegLength(bones), foot, 0.5f))};
+  const AnimClip targeted = Run(r, bones);
+  r.poses["lforearm_g"] = {PoseKey(2.5f, {30.0f, 0.0f, 0.0f})};
+  r.poses["lshin_g"] = {PoseKey(2.5f, {-25.0f, 0.0f, 0.0f})};
+  const AnimClip both = Run(r, bones);
+  for (const char* end : {"lhand_g", "lfoot_g"}) {
+    const int i = IndexOf(bones, end);
+    CHECK_EQ(Dist(At(both, bones, end, 0.5f), At(targeted, bones, end, 0.5f)) < 1e-3f, true);
+    CHECK_EQ(SameTurn(PoseOf(both, bones, 0.5f).wq[i], PoseOf(targeted, bones, 0.5f).wq[i], 4e-4f), true);  // the chain's key: no effect
+  }
+}
