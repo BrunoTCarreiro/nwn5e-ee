@@ -3427,6 +3427,11 @@ slide when it starts, so both begin together; the hold (Cutscene Immobilize) out
 are !test switches - push_slide_ms 100..1500, push_slide_delay_ms 0..500, shove_slide_ms 100..1500 - with a
 switches-only profile, `!test slides` (data/tests/slides.txt), to tune them in game without a rebuild. Tests
 PushSlidesWhileItFalls and the switch ranges in TestProfilesLevelsSwitchesNotes (12 mutations caught).
+*Accepted (owner, 2026-10-31: "grapple and slide tests are good"; "11 accepted").* G2 (the grab, the
+drag at arm's reach, the hold by size, letting go, the escape tries on game time, GT3) and the push slides'
+look on 0.58.8/0.58.9: a falling push slides into its fall, a Shove's push stumbles back, both drawn by the
+client. The reaching arm and walking while holding (steps 3 and 4 of the 2026-10-31 decision) go on with G5
+(#14).
 
 **GT-L1. Later: throwing an enemy into another** (owner: "How possible would it
 be to implement throwing an enemy into another as a way to damage both? We're
