@@ -840,3 +840,33 @@ cm, both knees at the start still the stance's (nwreadyr 53 / 60 deg); the knee 
 than under pause1 (nwreadyr 24.4 / 11.9 deg a frame, pause1 31.3 / 12.4). Checks: airLegAsPerformed, plantedLegsKeepStance,
 postureEases (solve), startPoseKeepsAirLegs (pipeline); 5 breaks caught. Caveat: pose keys sit on the start pose's axes,
 so keys made under one start pose turn differently under another (saaaaa's thigh keys were made under pause1).
+
+### Seam matching (2026-10-31, #100; plan docs/superpowers/plans/2026-10-31-mocap-seam-matching.md)
+
+*Asked (owner):* "how can we extend what we learned here to connecting other motions to different starting poses?",
+then "would this also work on a punch, or a two handed shove", "ok, go ahead", "native, go with your recommendation".
+*Measured first (saaaaa, keys off):* the first frame 36-42 deg off pause1 in the forearms, 84 deg off nwreadyr in the
+right forearm; the arms never took the stance; the first contact locked where the performer's foot was.
+*Built (nwn5e-tools 6584723, c16ec0f, eb66eb3, 9a2aad0; bench only):*
+- **The fade at the ends:** at the first and last frames the body's gap to the stance is added back as an offset that
+  fades out 0.1 s before the hit (0.3 s at most) and back in after the recovery (or 0.1 s after the hit). It covers the
+  whole body - the legs too, since the IK alone left them 39 deg off - and the root. The middle keeps the performance
+  and its speed (no crossfade).
+- **The target is the stance's pose in the world.** The solve, like the game, leaves rootdummy at its rest turn, and
+  the ready stances turn it 17-27 deg about a tilted axis. So the root's children (pelvis, torso) take that turn, and
+  the root is placed so the pelvis lands on the stance's.
+- **The feet:** a contact covering an end - or whose ease reaches it - locks on the stance's foot spot and turn when it
+  landed within 0.25 m; a farther one stays and Save names it. Landings are measured on the body before the fade (the
+  fade had moved a whole-clip contact up to 30 cm).
+- **The clip setting "start and end on the stance":** on by default, older projects too; while on, the recipe writes no
+  blends.
+- **Save names** a fade too short to ease, a far foot, and a joint a pose key or IK target leaves more than 2 deg off
+  the stance at an end.
+*Measured after:* saaaaa (keys off) under pause1, nwreadyr and 1hreadyr: both ends within 0.07 deg of the stance clip's
+own first frame, the feet 0.0 cm off its spots. saaaaa as saved: Save says the R foot is 75.1 deg off the stance at
+both ends - its foot keys at 9.93 s and 12.57 s, made before the seam, now turn the stance's planted foot.
+*Final review* (a fresh reviewer): two Important findings, both fixed with tests that failed first (a contact a few
+frames off an end left that end up to 5 cm off; keys at the ends broke a planted foot silently); the game's blend from
+the real stance into the clip measured exact. Checks: checks/run.js 14/14, browser_check 42/42, 20 deliberate breaks
+caught. Rulings and deferred minors: the ledger, listed on #100.
+*Follow-up:* #101 (pose keys keep their look when the start pose changes).
