@@ -870,3 +870,17 @@ frames off an end left that end up to 5 cm off; keys at the ends broke a planted
 the real stance into the clip measured exact. Checks: checks/run.js 14/14, browser_check 42/42, 20 deliberate breaks
 caught. Rulings and deferred minors: the ledger, listed on #100.
 *Follow-up:* #101 (pose keys keep their look when the start pose changes).
+
+*Pose keys across start poses (#101) and the doll's face (#98); the owner, 2026-10-31: "go with your recommendation,
+do #101 and 98".*
+- **#101 (nwn5e-tools 161dcd2):** picking another start pose rebases every pose key, so its part keeps the turn it had
+  at the key, against its parent - pose.js rebaseKeys, from both start poses' solves - the stance and the keys in one
+  undo step. My rulings on the issue's open questions: "keeps its look" is the joint (for the pelvis and torso, their
+  turn in the world, since they hang from the root); a key under an IK target keeps its own turn (IK still wins).
+  Through the helper, rebased keys turn their parts within 0.0000 deg of before (33.5 deg off not rebased). Caveat:
+  IK targets aren't rebased.
+- **#98 (nwn5e-tools 43e0eae):** the doll's head has a nose (a line along its forward, a dot at the tip) and each hand
+  a tick on its thumb side, both turning with their bones, in a darker shade; the feet unchanged (heel and toe already
+  show). Checked: in pause1 the face and thumbs point ahead; a head turned 90 deg turns its nose 90; a hand turned
+  over flips its tick.
+- Checks: checks/run.js 14/14, browser_check 43/43, 6 deliberate breaks caught.
