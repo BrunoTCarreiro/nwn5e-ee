@@ -10,4 +10,4 @@
 # !test profile puts the built-in times back.
 name = Push slide times (issue 11): switches only, keeps your character
 switches = creature_min_hp=50, push_slide_ms=500, push_slide_delay_ms=100, shove_slide_ms=350
-note = to tune: edit data\tests\slides.txt, then !test slides again
+note = to tune: edit build\data\tests\slides.txt (the game's copy - the next build copies data\tests over it), then !test slides again
