@@ -1,0 +1,18 @@
+# A !test profile ([debug] test_commands=1): type "!test barbarian14" in game and the character you
+# are playing gets what is below. Read each time, so no rebuild or restart is needed.
+#
+# Barbarian parts 2-4 (issue 25) below Persistent Rage. From level 15 a Rage lasts 10 minutes and only
+# unconsciousness or Heavy armour ends it early, so at 17 (!test barbarian) a round without an attack
+# doesn't end it. At 14 it does (B3). Also at 14: Rage uses 5, Rage Damage +3, Frenzy 3d6, one Brutal
+# Strike effect, Relentless Rage, Retaliation, Intimidating Presence. Persistent Rage (B12) and two
+# Brutal Strike effects need !test barbarian; Indomitable Might (B13) needs level 18.
+name = Barbarian (issue 25) below Persistent Rage: human Berserker 14, a Rage ends normally
+species = human
+swap_class = barbarian
+class = barbarian
+level = 14
+abilities = 18 14 16 10 12 8
+items = nw_waxgr001, nw_waxbt001 equip, nw_ashlw001, nw_wthax001 x20, nw_wbwsh001, nw_wamar001 x99
+switches = creature_min_hp=50
+note = B3: a Rage ends after a round (6 s, unpaused) with no attack at an enemy, no save forced on one and no chase
+note = B12 (Persistent Rage) and two Brutal Strike effects: !test barbarian (level 17). B13 needs level 18
