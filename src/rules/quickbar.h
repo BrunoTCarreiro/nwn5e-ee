@@ -53,7 +53,9 @@ const std::vector<int>& QuickbarActionFeats2024();
 std::vector<QuickbarAction> QuickbarActions2024(const QuickbarFacts& facts);
 
 // Second Wind is three feats (its uses grow with Fighter level): a button
-// holding any of them is the one action.
+// holding any of them is the one action. So is Rage: NWN's 293 and its
+// successors 326-331 (#102, 0.59.5 - the engine moves a Rage button along that
+// chain as levels go and come back).
 bool SameQuickbarAction(int value_a, int value_b);
 
 struct QuickbarSlot {
@@ -87,16 +89,19 @@ std::vector<QuickbarChange> PlanQuickbar(const std::vector<QuickbarSlot>& slots,
 std::vector<int> LostQuickbarActions(const std::vector<QuickbarSlot>& slots, const std::vector<QuickbarAction>& now);
 
 // The feat a feat button holds: itself, or for a sub-radial option (a FeatID,
-// option * 65536 + feat) the feat it is an option of.
+// option * 65536 + feat) the feat it is an option of; for any of Rage's chain,
+// Rage (293).
 int QuickbarButtonFeat(int value);
 
 // #102 (owner, 2026-10-31: "fix both"; Rage's button moved to the next empty
-// slot at every !test rebuild): the slots a rebuild emptied, to fill again as
-// they were - a feat button in `before` (read before the rebuild) whose slot
-// is empty `now`, whose feat (QuickbarButtonFeat) the character holds again
-// (`held`), and whose action isn't on the bar in another slot now.
-std::vector<int> RebuildRestoredSlots(const std::vector<QuickbarSlot>& before, const std::vector<QuickbarSlot>& now,
-                                      const std::vector<int>& held);
+// slot at every !test rebuild): the buttons a rebuild took off, to put back -
+// a feat button in `before` (read before the rebuild) whose slot is empty
+// `now`, whose feat (QuickbarButtonFeat) the character holds again (`held`),
+// and whose action isn't on the bar in another slot now. Each with the value
+// to write: the button's own, or Rage (293) for one of Rage's successors (the
+// engine maps it to the highest the character holds). record_bit -1.
+std::vector<QuickbarChange> RebuildRestoredButtons(const std::vector<QuickbarSlot>& before,
+                                                   const std::vector<QuickbarSlot>& now, const std::vector<int>& held);
 
 // The label drawn on a slot (0.48.2): "1".."9" then "F10".."F12" on the first
 // two rows with the number keys (else "F1".."F12"), "F1".."F12" on the Ctrl

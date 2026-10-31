@@ -163,7 +163,7 @@ int EmptyLostActions(void* creature) {
   return static_cast<int>(lost.size());
 }
 
-// #102: the buttons a !test rebuild took off, back in their slots (rules::RebuildRestoredSlots), at its
+// #102: the buttons a !test rebuild took off, back in their slots (rules::RebuildRestoredButtons), at its
 // cleanup - after the features update gave back what the reset took. Returns how many.
 int RestoreRebuildButtons(void* creature) {
   const auto it = g_rebuild_bars.find(IdOf(creature));
@@ -178,14 +178,12 @@ int RestoreRebuildButtons(void* creature) {
     const int feat = rules::QuickbarButtonFeat(slot.value);
     if (slot.type == rules::kQuickbarTypeFeat && engine::HasFeat(stats, feat)) held.push_back(feat);
   }
-  const std::vector<int> slots = rules::RebuildRestoredSlots(before, bar, held);
-  for (int slot : slots) {
-    g_set_int_param(creature, static_cast<uint8_t>(slot), static_cast<uint8_t>(rules::kQuickbarTypeFeat),
-                    before[slot].value);
-    Log("quickbar: 0x%08X slot %d <- %d again (its slot before the !test rebuild)", IdOf(creature), slot,
-        before[slot].value);
+  const std::vector<rules::QuickbarChange> back = rules::RebuildRestoredButtons(before, bar, held);
+  for (const rules::QuickbarChange& c : back) {
+    g_set_int_param(creature, static_cast<uint8_t>(c.slot), static_cast<uint8_t>(rules::kQuickbarTypeFeat), c.value);
+    Log("quickbar: 0x%08X slot %d <- %d again (its slot before the !test rebuild)", IdOf(creature), c.slot, c.value);
   }
-  return static_cast<int>(slots.size());
+  return static_cast<int>(back.size());
 }
 
 void QuickbarCreatureUpdate(void* creature) {

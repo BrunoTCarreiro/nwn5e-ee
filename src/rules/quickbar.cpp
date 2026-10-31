@@ -134,7 +134,8 @@ std::vector<QuickbarAction> QuickbarActions2024(const QuickbarFacts& facts) {
 }
 
 bool SameQuickbarAction(int value_a, int value_b) {
-  return value_a == value_b || (IsSecondWind(value_a) && IsSecondWind(value_b));
+  return value_a == value_b || (IsSecondWind(value_a) && IsSecondWind(value_b)) ||
+         (IsRageFeat(value_a) && IsRageFeat(value_b));
 }
 
 std::vector<int> LostQuickbarActions(const std::vector<QuickbarSlot>& slots, const std::vector<QuickbarAction>& now) {
@@ -156,11 +157,14 @@ std::vector<int> LostQuickbarActions(const std::vector<QuickbarSlot>& slots, con
   return lost;
 }
 
-int QuickbarButtonFeat(int value) { return value & 0xFFFF; }
+int QuickbarButtonFeat(int value) {
+  const int feat = value & 0xFFFF;
+  return IsRageFeat(feat) ? kFeatRage : feat;
+}
 
-std::vector<int> RebuildRestoredSlots(const std::vector<QuickbarSlot>& before, const std::vector<QuickbarSlot>& now,
-                                      const std::vector<int>& held) {
-  std::vector<int> slots;
+std::vector<QuickbarChange> RebuildRestoredButtons(const std::vector<QuickbarSlot>& before,
+                                                   const std::vector<QuickbarSlot>& now, const std::vector<int>& held) {
+  std::vector<QuickbarChange> changes;
   const size_t count = std::min(before.size(), now.size());
   for (size_t i = 0; i < count; ++i) {
     if (before[i].type != kQuickbarTypeFeat || now[i].type != kQuickbarTypeEmpty) continue;
@@ -170,9 +174,9 @@ std::vector<int> RebuildRestoredSlots(const std::vector<QuickbarSlot>& before, c
     for (const QuickbarSlot& slot : now) {
       if (slot.type == kQuickbarTypeFeat && SameQuickbarAction(slot.value, value)) elsewhere = true;
     }
-    if (!elsewhere) slots.push_back(static_cast<int>(i));
+    if (!elsewhere) changes.push_back({static_cast<int>(i), IsRageFeat(value) ? kFeatRage : value, -1, false});
   }
-  return slots;
+  return changes;
 }
 
 std::vector<QuickbarChange> PlanQuickbar(const std::vector<QuickbarSlot>& slots, int placed,
@@ -187,7 +191,8 @@ std::vector<QuickbarChange> PlanQuickbar(const std::vector<QuickbarSlot>& slots,
     for (int i = 0; i < kQuickbarSlots; ++i) {
       if (bar[i].type != kQuickbarTypeFeat || !SameQuickbarAction(bar[i].value, action.value)) continue;
       on_bar = true;
-      if (bar[i].value != action.value) {  // Second Wind after a level: the button follows the feat
+      // Second Wind after a level: the button follows the feat. Rage's chain is the engine's to move (0.59.5).
+      if (bar[i].value != action.value && !IsRageFeat(bar[i].value)) {
         changes.push_back({i, action.value, action.record_bit, true});
         bar[i].value = action.value;
       }

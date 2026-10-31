@@ -259,7 +259,48 @@ TEST(QuickbarRebuildPutsButtonsBack) {
   now[20] = QuickbarSlot{kQuickbarTypeFeat, kFeatKnockdownShove};
   now[15] = QuickbarSlot{kQuickbarTypeFeat, kFeatRecklessAttack};
   const std::vector<int> held = {kFeatRecklessAttack, kFeatBrutalStrike, kFeatRage, kFeatKnockdownShove};
-  CHECK_EQ(RebuildRestoredSlots(before, now, held) == std::vector<int>({5, 11}), true);
-  CHECK_EQ(RebuildRestoredSlots(before, now, {}).empty(), true);
-  CHECK_EQ(RebuildRestoredSlots(before, before, held).empty(), true);  // nothing emptied
+  const std::vector<QuickbarChange> back = RebuildRestoredButtons(before, now, held);
+  std::vector<int> slots;
+  for (const QuickbarChange& c : back) slots.push_back(c.slot);
+  CHECK_EQ(slots == std::vector<int>({5, 11}), true);
+  CHECK_EQ(back.size() == 2u && back[0].value == kForceful && back[1].value == kFeatRage, true);
+  CHECK_EQ(RebuildRestoredButtons(before, now, {}).empty(), true);
+  CHECK_EQ(RebuildRestoredButtons(before, before, held).empty(), true);  // nothing emptied
+}
+
+// #102 (0.59.5; the owner's log: Rage placed again at slots 2, 12 and 13 over
+// three Barbarian rebuilds): NWN's Rage is 293 and its successors 326-331, the
+// engine moving a Rage button along the chain. Breaks caught: a successor's
+// button not counted as Rage (a second Rage placed), the engine's button
+// rewritten, a Rage button a rebuild took off not put back, or put back as a
+// successor the character may not hold.
+TEST(QuickbarRageChainIsOneAction) {
+  CHECK_EQ(SameQuickbarAction(kFeatRage, 330), true);
+  CHECK_EQ(SameQuickbarAction(326, 331), true);
+  CHECK_EQ(SameQuickbarAction(kFeatRage, kFeatRecklessAttack), false);
+  CHECK_EQ(QuickbarButtonFeat(328), kFeatRage);
+  // The engine's Rage 5 (328) on the bar: Rage is there - nothing placed, nothing rewritten.
+  QuickbarFacts facts;
+  facts.feats = {kFeatRage};
+  facts.barbarian_level = 14;
+  std::vector<QuickbarSlot> bar(kQuickbarSlots);
+  bar[2] = QuickbarSlot{kQuickbarTypeFeat, 328};
+  int placed = 0;
+  bool rage_written = false;
+  for (const QuickbarChange& c : PlanQuickbar(bar, 0, QuickbarActions2024(facts), &placed)) {
+    if (IsRageFeat(c.value)) rage_written = true;
+  }
+  CHECK_EQ(rage_written, false);
+  // A rebuild took Rage 6 (330) off slot 4: it goes back as Rage (293).
+  std::vector<QuickbarSlot> before(kQuickbarSlots), now(kQuickbarSlots);
+  before[4] = QuickbarSlot{kQuickbarTypeFeat, 330};
+  const std::vector<QuickbarChange> back = RebuildRestoredButtons(before, now, {kFeatRage});
+  CHECK_EQ(back.size(), 1u);
+  if (back.size() == 1u) {
+    CHECK_EQ(back[0].slot, 4);
+    CHECK_EQ(back[0].value, kFeatRage);
+  }
+  // Not when the engine kept a Rage button in another slot (327 in slot 9).
+  now[9] = QuickbarSlot{kQuickbarTypeFeat, 327};
+  CHECK_EQ(RebuildRestoredButtons(before, now, {kFeatRage}).empty(), true);
 }
