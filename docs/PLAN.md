@@ -2004,6 +2004,19 @@ is a decision of its own (#110).
 rest rules); `rest_clock=0` keeps it still. *Built 0.59.18:* rest_clock's built-in value and nwn5e.ini's are 1
 (build\nwn5e.ini, never overwritten, gets it from the built-in value where it has no line); `!test rest` still
 turns it on where an ini turns it off.
+*Resting a lot (#110; owner, 2026-11-01: "are there any consequences in-game for resting too many times, like
+events tied to calendar days that can be missed?"). Researched 2026-11-01* (the campaigns' own .nss, which every
+official module ships, and the NWN Lexicon's SetTime / SetCalendar notes): nothing in the official campaigns can be
+missed by the date - no quest, deadline or leaving NPC reads it. The Prelude reads no clock at all (interiors, fixed
+lighting). Three of the "~6 gameplay" uses above are never wired up: Chapter 2's night-only encounter (no placed
+encounter uses it), HotU's hour-gated doors (TryToCloseAllDoorsInArea, never called) and its once-a-day throne
+search (no dialog uses it). What a jump does: timed effects end sooner (their expiry is on the same clock - a Short
+Rest takes 20 rounds off every buff, summons' 24 h end after 3 Long Rests; the resting PC's own buffs already go with
+NWN's Rest); pending DelayCommands fire at once; outdoor day and night, lamps and NPCs' night posts follow on their
+next heartbeat (some NPCs stand elsewhere at night); stores never restock (no time in them); an hour past 23 wraps
+into the next day (the Lexicon). The only stored-time checks: the Blacklake bartender's weekly earnings (works once
+either way) and the EE paladin mount's 24 game hours. SoU moves the calendar itself, always forward. Not seen in game:
+whether the lighting snaps or fades; heartbeats and encounter resets after a jump (inferred from the engine's fields).
 *A visible clock (#105; owner, 2026-11-01: "If time is an important part of the game, is affected by resting and
 has effects on in-game npc routines, shouldn't there be a visible clock?"). Decided (owner, 2026-11-01): "I see
 the time is already displayed on hover on the compass, so there should be a clock on top of the compass on the
