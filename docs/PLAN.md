@@ -443,6 +443,13 @@ Criminal removed the Soldier increases (Str 16) and gave Dex 17 (+2 +2) and
 Alert (initiative +5 = Dex +3, PB +2); a new character's point buy: 27 points,
 at most 15, the second point cost from 13 (owner).
 Not seen yet: a henchman's ASIs, the NWN-mode undo, legacy ASIs.
+*Accepted (#19, the character model rows not seen in game; owner, 2026-11-01: "EP16b is good"; "I won't test NWN
+mode as faithful characters should switch modes and vice versa. I'll assum the other rows from #19 matrix also
+pass").* Seen in game: S4, O6, CM1's script SetXP path (2026-10-30), EP16a and EP16b (the 4th class on the sheet,
+kept through save and reload). Taken as passing, not seen: CM1b (respawn), the henchman rows (CM3a HP, CM4a
+ASIs). Not tested, by the owner's call - a character stays in the mode it was made in: the mode-switch rows
+(CM3b, CM4b, CM4c) and NWN mode's 3-class limit (EP16c). So current HP above a lower maximum after a switch
+(CM3b) stays undecided, and the NWN-mode undo and legacy ASIs stay as built, unseen.
 
 **CM5. Backgrounds.** SRD 5.2 has 4: Acolyte, Criminal, Sage, Soldier
 (abilities, Origin feat, 2 skills, a tool). NWN has no background step; its
@@ -1240,6 +1247,10 @@ which CN5 makes the 2024 Frightened (no flight). A Rage entered under it ends it
 (Mindless Rage's immunity). Test FearArguments (7 mutations caught).
 *Accepted (owner, 2026-11-01: "F2, the fear icon disappeared"; "104 and 106 accepted").* F1-F3 and F5 on 0.59.6,
 F4 through #106's C4 (Rage while charmed ends the charm). BZ2 passes with it.
+*Accepted (#25, Barbarian parts 2-4; owner, 2026-11-01: "B9 is goo[d]"; "HR is good").* The last rows on 0.59.17:
+B9 (Instinctive Pounce's speed in the Rage's first round, by eye) and HR (a Barbarian henchman rages as a fight
+starts); the rest passed on 0.59.4-0.59.6 (Q1b, B1b, B7 through #96, B10b, B11, B13, BZ2; BZ3 within the
+stand-in's limit, decision A).
 *#109 (the tools session, adding `!test anims` for #108: a profile's `equip` knew only armour, shields and the off
 hand - a cloak went to the right hand). Built 0.59.14:* each item goes to its own slot - cloak, helmet, boots,
 gloves or bracers, belt, amulet, a ring to the right hand's ring (the next to the left), arrows / bolts / bullets
@@ -1983,6 +1994,11 @@ able to check H8 and H9"): the button, Short Rests (refused mid-fight, Hit
 Dice running out), Second Wind back, the Long Rest (every Hit Die back, all
 or nothing). Not checked: a henchman resting along (H8), the button greyed
 with Rest (H9).*
+*R2 accepted (#49; owner, 2026-11-01, 0.59.17: "Rest passes"):* with `!test rest`'s rest_clock on (the log: a
+Short Rest at 22:37:23, a Long Rest at 22:37:59), the R2 rows pass - a Long Rest +8 h, a Short Rest +1 h, an
+interrupted or refused one nothing (the owner's eye, on #105's clock; the log doesn't record the jump). Still off
+by default (rest_clock=0, as R2 decided before the game had a clock); whether faithful rests move it by default
+is a decision of its own (#110).
 *A visible clock (#105; owner, 2026-11-01: "If time is an important part of the game, is affected by resting and
 has effects on in-game npc routines, shouldn't there be a visible clock?"). Decided (owner, 2026-11-01): "I see
 the time is already displayed on hover on the compass, so there should be a clock on top of the compass on the
