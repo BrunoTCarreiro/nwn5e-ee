@@ -1999,6 +1999,11 @@ Short Rest at 22:37:23, a Long Rest at 22:37:59), the R2 rows pass - a Long Rest
 interrupted or refused one nothing (the owner's eye, on #105's clock; the log doesn't record the jump). Still off
 by default (rest_clock=0, as R2 decided before the game had a clock); whether faithful rests move it by default
 is a decision of its own (#110).
+*Decided (#110; owner, 2026-11-01: "go with B for 110"):* faithful rests move the clock by default - a Long Rest
++8 h, a Short Rest +1 h, as SRD 5.2's rests take; NWN mode keeps NWN's still clock (its rests don't install the
+rest rules); `rest_clock=0` keeps it still. *Built 0.59.18:* rest_clock's built-in value and nwn5e.ini's are 1
+(build\nwn5e.ini, never overwritten, gets it from the built-in value where it has no line); `!test rest` still
+turns it on where an ini turns it off.
 *A visible clock (#105; owner, 2026-11-01: "If time is an important part of the game, is affected by resting and
 has effects on in-game npc routines, shouldn't there be a visible clock?"). Decided (owner, 2026-11-01): "I see
 the time is already displayed on hover on the compass, so there should be a clock on top of the compass on the

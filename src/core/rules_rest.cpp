@@ -9,7 +9,8 @@
 //   at (+0x854 / +0x85C, which it computes only when 0) are set past any rest's
 //   length - an interrupted rest gives nothing, the end still restores
 //   everything. At its end (the rest listener, after ResetFeatRemainingUses)
-//   every Hit Die comes back; with rest_clock the clock moves 8 hours.
+//   every Hit Die comes back; with rest_clock (on by default since 0.59.18,
+//   #110) the clock moves 8 hours.
 //   A Long Rest also removes every level of Exhaustion (rules_dying.cpp).
 // - The Short Rest (a HUD button next to Rest; `!shortrest` too): instant,
 //   out of combat - no enemy that can see the character within 30 m, no

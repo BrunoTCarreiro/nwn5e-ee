@@ -211,9 +211,10 @@ struct Config {
   // spending them out of combat, NWN's Rest as the Long Rest (all or nothing,
   // the Hit Dice back); nwn / off = NWN's rest.
   rules::RuleVariant rests = rules::RuleVariant::kFaithful;
-  // Rests move the clock: a Long Rest 8 hours, a Short Rest 1 (to test; the
-  // owner keeps it still for now).
-  bool rest_clock = false;
+  // Rests move the clock: a Long Rest 8 hours, a Short Rest 1 - on by default
+  // since 0.59.18 (#110, owner: "go with B"); faithful rests only (NWN mode's
+  // rests don't install the rest rules). 0 keeps the clock still.
+  bool rest_clock = true;
   // Phase 5b: faithful = a player character with a henchman standing makes
   // death saves at 0 HP (else the module's dying: the campaigns' instant
   // death), henchmen lie at 1 HP until healed - a spell, a kit, a Short Rest
