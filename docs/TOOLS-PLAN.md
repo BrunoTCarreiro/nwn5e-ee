@@ -884,3 +884,38 @@ do #101 and 98".*
   show). Checked: in pause1 the face and thumbs point ahead; a head turned 90 deg turns its nose 90; a hand turned
   over flips its tick.
 - Checks: checks/run.js 14/14, browser_check 43/43, 6 deliberate breaks caught.
+
+### The same clip on any start pose and body (2026-11-01, #107; plan docs/superpowers/plans/2026-11-01-mocap-stance-posture.md)
+
+*Asked (owner):* "we need to find a way to make the same animation fit different starting poses and body types ...
+n5_rage, in the standard pause 1 and a_ma body it looks fine, move it to a_fa and the character is off balance. change
+the starting pose to 2hreadyr and the peak rage pose goes really low and one of the arms clips the leg", then "go for
+it with your recommendations".
+*Measured first:* the solve mapped the take onto each body's start pose, so the stance's posture stacked on the
+performance: a_fa's pause1 leans 10 deg (a cocked hip); 2hreadyr's root sits 12-16 cm lower and turns the torso 22-48
+deg. The owner's two hips IK keys, offsets from the start pose's root, took the roar a further 15 cm down.
+*Built (nwn5e-tools e0a11fa, 5c23732, 1266e0b, 07d3e18; bench only):*
+- **The start pose shapes only the ends.** The middle maps onto each body's upright reference: its pause1 with the
+  upper body turned about the hips until pelvis-to-neck stands vertical, its facing and legs kept (not the bind pose:
+  a_dfa's turns the pelvis 22 deg). #100's fade keeps the ends on the start pose.
+- **A clip setting "stance posture" (0-100%, 0 by default, older projects too)** blends the start pose's lean, crouch
+  and twist back in through the middle; 100% is the old solve.
+- **Hips IK keys follow a start-pose change** by the share the body doesn't (kept in the world at 0%, their numbers
+  unchanged at 100%), in the same undo step as #101's pose keys.
+*Measured after (n5_rage as saved, 0%):* the head at the peak, pause1 / 2hreadyr: a_ba 104/104, a_fa 98/97, a_da
+108/108, a_dfa 106/106 cm (2hreadyr was ~15 cm lower); the arms clear the legs under 2hreadyr by 8.3 / 0.3 / 13.7 /
+8.8 cm (all four clipped before); a_fa's weight 4.7 cm to the side under pause1 (9.5 before); both ends within 0.05
+deg of the stance.
+*Final review* (a fresh reviewer): one Important fixed with tests that failed first (the hips rebase ignored the
+posture: at 100% a key landed 17 cm off the body); one ruled for the owner's test: at 0% a ready stance's end fades
+bridge 32-61 deg in 0.3 s (n5_rage on a_ba under 2hreadyr: the torso up to 245 / 294 deg/s, the roar's own peak 122)
+- a fade that grows with the gap is the follow-up if it whips. Checks: checks/run.js 14/14, browser_check 45/45, 16
+deliberate breaks caught. Caveats: the hips rebase is exact on the body shown (rebased on a_ba, 5.5 cm off on a_dfa);
+the 10-15 cm sideways weight is the owner's first hips key's offset. Rulings and deferred minors: the ledger, listed
+on #107.
+
+*Rage tilts in combat (#108, 0.59.9, 12cc8db; built in the recipe core at the game session's request):* bench-made
+clips keyed no turn on a node without a track, so the engine kept rootdummy's turn from the animation before - the
+combat stances turn it 17-27 deg, which tilted Rage's n5_rage with a weapon drawn. The core now keys every node below
+the model's top that has no turn track at its rest turn, on both of its return paths. AnimAssembleKeysUnkeyedTurns, 4
+breaks caught, test.bat 311/0. The bench's helper is rebuilt for the new core stamp after the install.
