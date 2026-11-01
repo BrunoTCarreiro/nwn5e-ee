@@ -13,8 +13,13 @@
 //   after it opens (NUI opens a window at the screen's centre). Closed outside
 //   a game (no in-game GUI) and with `!clock` off.
 // The compass's place isn't read from the engine yet: the spot is a first
-// guess the owner tunes (clock_x / clock_y, `!test clock`; 0.59.9: `!clock
-// right / bottom <n>` live, `!clock where`).
+// guess the owner tunes (clock_x / clock_y, `!test clock`; 0.59.10: `!clock
+// right / bottom <n>` live, `!clock where`). 0.59.12 (owner: "any value under
+// 41 changes nothing and it's still not completely against the right edge"):
+// NUI keeps a window on screen, and a group clips its children's draw lists at
+// its pad, so the card stayed 4 in from the edge. The root is a column now -
+// no group - and the card is drawn out to the window's edges (the window's own
+// clip is its whole rect), so a window flush right is a card flush right.
 
 #include "clock_panel.h"
 
@@ -49,9 +54,8 @@ constexpr const char* kWindowId = "n5clock";
 constexpr ULONGLONG kCheckEveryMs = 1000;
 constexpr ULONGLONG kGuiEveryMs = 2000;
 constexpr int kRevealFrames = 3;
-constexpr float kWindowPad = 4.0f;  // the window's edge -> the group (as the resource panel's)
-constexpr float kGroupPad = 4.0f;   // the group -> the label (the draw list's origin)
-constexpr float kWindowSlack = 2.0f * (kWindowPad + kGroupPad);
+constexpr float kWindowPad = 4.0f;  // the window's edge -> the label (the draw list's origin); no group (0.59.12)
+constexpr float kWindowSlack = 2.0f * kWindowPad;
 constexpr size_t kClientAppInternal = 0x8;  // the resource panel's chain to the in-game GUI
 constexpr size_t kAppGui = 0x90;
 constexpr size_t kGuiQuickbar = 0x60;
@@ -199,10 +203,11 @@ constexpr float kIconY = 9.0f;
 
 std::string ClockLayout() {
   const float w = rules::kClockWidth, h = rules::kClockHeight;
-  std::string items = Shape(7, "on", Colour(0, 0, 0, 150), true, 1.0f, -kGroupPad, -kGroupPad, w + 2.0f * kGroupPad,
-                            h + 2.0f * kGroupPad);
-  items += "," + Shape(7, "on", Colour(150, 160, 170, 160), false, 1.0f, -kGroupPad, -kGroupPad, w + 2.0f * kGroupPad,
-                       h + 2.0f * kGroupPad);
+  // The card: the whole window (the label sits kWindowPad in from its edges).
+  std::string items = Shape(7, "on", Colour(0, 0, 0, 150), true, 1.0f, -kWindowPad, -kWindowPad,
+                            w + 2.0f * kWindowPad, h + 2.0f * kWindowPad);
+  items += "," + Shape(7, "on", Colour(150, 160, 170, 160), false, 1.0f, -kWindowPad, -kWindowPad,
+                       w + 2.0f * kWindowPad, h + 2.0f * kWindowPad);
   // The sun: a disc in a ring of eight dots, its colour a bind (yellow; orange at dawn and dusk).
   items += "," + Circle("sun", Bind("sun_c"), true, kIconX, kIconY, 4.2f);
   for (int k = 0; k < 8; ++k) {
@@ -220,8 +225,7 @@ std::string ClockLayout() {
   sprintf_s(size, "\"width\":%.1f,\"height\":%.1f,", w, h);
   const std::string element = std::string("{\"type\":\"label\",\"label\":null,\"value\":\"\",") + size +
                               "\"draw_list\":[" + items + "],\"draw_list_scissor\":false}";
-  const std::string root = "{\"type\":\"group\",\"label\":null,\"value\":null,\"border\":false,\"scrollbars\":0,"
-                           "\"children\":[" + element + "]}";
+  const std::string root = "{\"type\":\"col\",\"label\":null,\"value\":null,\"children\":[" + element + "]}";
   return "{\"version\":1,\"title\":false,\"root\":" + root +
          ",\"geometry\":{\"bind\":\"geometry\"},\"resizable\":false,\"collapsed\":false,\"closable\":false,"
          "\"transparent\":true,\"border\":false,\"accepts_input\":false,\"size_constraint\":null,"
@@ -256,7 +260,7 @@ void ClockTick() {
   const rules::HudBox spot =
       rules::PlaceClock(g_reading.gui_w, g_reading.gui_h, g_reading.gui_s, window_w, window_h,
                         static_cast<float>(g_offsets.from_right), static_cast<float>(g_offsets.from_bottom),
-                        kWindowPad);
+                        0.0f);  // 0.59.12: NUI keeps the window on screen; the card fills it
   if (fabsf(spot.x - g_window.sent_x) > 0.4f || fabsf(spot.y - g_window.sent_y) > 0.4f) {
     ClientNuiSetJson(g_window.token, "geometry", Rect(spot.x, spot.y, spot.w, spot.h));
     g_window.sent_x = spot.x;

@@ -2001,6 +2001,14 @@ transparent pad of 4 hang past the edges; centre 37 from the right), its bottom 
 (the queued attack, the one carried out, the attack targets, the round's target) and clears them with the combat
 state (ClearAllActions(TRUE)); an attack roll on the charmer is no roll but a miss, the attacker's orders
 cleared (an attack-roll skipper, the Shove's way). Tests HudClockPlacedOverTheCompass (3 mutations caught).
+*The owner's 0.59.10 run (2026-11-01):* C5 and the Rage upright (0.59.9, #108) pass ("the other items in the
+matrix pass"); the clock: "the default clock sits at about 41 units right, any value under 41 changes nothing
+and it's still not completely against the right edge of the window. clock bottom 125 is correct". *Built
+0.59.12:* NUI keeps a window on screen, and a group clips its children's draw lists at its pad, so the card
+stayed 4 in from the edge: the clock's root is a column now (no group) and the card is drawn to the window's
+edges (the window's own clip is its whole rect); the window is 74 x 26, flush right (centre 37), its bottom 129
+over the bottom edge - the card where the owner fitted it (125 for the old window, whose card ended 4 over its
+bottom). Test HudClockPlacedOverTheCompass (2 mutations caught).
 *5b built (0.19.0, key `dying`):* rules/death_saves.{h,cpp} (unit-tested: the
 saves, the Exhaustion penalty on them, Defy Death, damage at 0 HP, massive
 damage, the speed penalty); rules_dying.cpp -

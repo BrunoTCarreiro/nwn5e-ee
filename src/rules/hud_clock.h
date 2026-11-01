@@ -31,12 +31,16 @@ ClockPhase ClockPhaseOf(bool dawn, bool day, bool dusk);
 // tunes it: the clock_x / clock_y test switches).
 constexpr float kClockWidth = 66.0f;
 constexpr float kClockHeight = 18.0f;
-// 0.59.9 (owner: "it's just not pushed all the way to the right edge of the
-// screen nor against the compass at the bottom"): the card's right edge on the
-// screen's (the window's transparent pad hangs past it), lower. `!clock right
-// / bottom <n>` fits it live.
-constexpr int kClockFromRight = 37;
-constexpr int kClockFromBottom = 120;
+// 0.59.10 (owner: "it's just not pushed all the way to the right edge of the
+// screen nor against the compass at the bottom"): lower, and `!clock right /
+// bottom <n>` to fit it live. 0.59.12 (owner: "any value under 41 changes
+// nothing and it's still not completely against the right edge of the window.
+// clock bottom 125 is correct"): NUI keeps a window on screen, so its pad can't
+// hang past the edge - the card fills the window now (core/clock_panel.cpp)
+// and the window sits flush right; its bottom where the owner put the card
+// (125 for the old window, whose card ended 4 over its bottom).
+constexpr int kClockFromRight = 37;   // half the window (74): flush right
+constexpr int kClockFromBottom = 129;
 
 // The window's spot: x / y in window pixels, w / h the window's size in GUI
 // units (as NUI takes them) - `window_w` x `window_h` GUI units, centred
