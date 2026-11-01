@@ -860,20 +860,36 @@ std::vector<std::string> TestCommand(void* creature, const std::string& args) {
   if (!unknown.empty()) lines.push_back("  unknown feats (skipped): " + unknown);
   // 4b. The inventory emptied first (#103), so a profile run again doesn't pile up its items.
   if (rules::TestProfileEmptiesInventory(profile)) lines.push_back(EmptyInventoryForTest(creature, id));
-  // 5. Items, equipped where asked (armour to the chest, shields and "offhand" to the left hand).
+  // 5. Items, equipped where asked: each in its own slot (#109; the tools session, for #108's !test anims - a
+  // cloak went to the right hand) - armour to the chest, a cloak, helmet, boots, gloves or bracers, belt,
+  // amulet to theirs, a ring to the right hand's (the next to the left), arrows / bolts / bullets to theirs,
+  // shields and "offhand" to the left hand, the rest to the right.
+  RunScriptChunk("DeleteLocalInt(OBJECT_SELF, \"nwn5e_test_ring\");", id);
   for (const rules::TestItem& item : profile.items) {
-    char code[700];
+    char code[1600];
     sprintf_s(code,
               "object o = CreateItemOnObject(\"%s\", OBJECT_SELF, %d);"
               " if (!GetIsObjectValid(o)) { SendMessageToPC(OBJECT_SELF, \"nwn5e: !test - no item blueprint %s\"); return; }"
               " if (%d) { int b = GetBaseItemType(o); int slot = INVENTORY_SLOT_RIGHTHAND;"
               " if (b == BASE_ITEM_ARMOR) slot = INVENTORY_SLOT_CHEST;"
+              " else if (b == BASE_ITEM_CLOAK) slot = INVENTORY_SLOT_CLOAK;"
+              " else if (b == BASE_ITEM_HELMET) slot = INVENTORY_SLOT_HEAD;"
+              " else if (b == BASE_ITEM_BOOTS) slot = INVENTORY_SLOT_BOOTS;"
+              " else if (b == BASE_ITEM_GLOVES || b == BASE_ITEM_BRACER) slot = INVENTORY_SLOT_ARMS;"
+              " else if (b == BASE_ITEM_BELT) slot = INVENTORY_SLOT_BELT;"
+              " else if (b == BASE_ITEM_AMULET) slot = INVENTORY_SLOT_NECK;"
+              " else if (b == BASE_ITEM_RING) { if (GetLocalInt(OBJECT_SELF, \"nwn5e_test_ring\")) slot = INVENTORY_SLOT_LEFTRING;"
+              " else { slot = INVENTORY_SLOT_RIGHTRING; SetLocalInt(OBJECT_SELF, \"nwn5e_test_ring\", 1); } }"
+              " else if (b == BASE_ITEM_ARROW) slot = INVENTORY_SLOT_ARROWS;"
+              " else if (b == BASE_ITEM_BOLT) slot = INVENTORY_SLOT_BOLTS;"
+              " else if (b == BASE_ITEM_BULLET) slot = INVENTORY_SLOT_BULLETS;"
               " else if (%d || b == BASE_ITEM_SMALLSHIELD || b == BASE_ITEM_LARGESHIELD || b == BASE_ITEM_TOWERSHIELD)"
               " slot = INVENTORY_SLOT_LEFTHAND;"
               " AssignCommand(OBJECT_SELF, ActionEquipItem(o, slot)); }",
               item.blueprint.c_str(), item.stack, item.blueprint.c_str(), item.equip ? 1 : 0, item.offhand ? 1 : 0);
     RunScriptChunk(code, id);
   }
+  RunScriptChunk("DeleteLocalInt(OBJECT_SELF, \"nwn5e_test_ring\");", id);
   if (!profile.items.empty()) {
     std::string names;
     for (const rules::TestItem& item : profile.items) {

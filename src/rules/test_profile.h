@@ -18,7 +18,8 @@
 //   abilities = six scores, Str Dex Con Int Wis Cha
 //   feats     = a comma list of names !feat knows (alert, savage attacker,
 //               mastery longsword, ...) or feat numbers
-//   items     = a comma list of "<blueprint> [xN] [equip] [offhand]"
+//   items     = a comma list of "<blueprint> [xN] [equip] [offhand]" (equip:
+//               in the item's own slot - #109)
 //   levels    = a comma list of "<class> <level>": more classes, each up to
 //               its level (after class / level; another class multiclasses)
 //   switches  = a comma list of "<switch>=<value>": test switches for this
