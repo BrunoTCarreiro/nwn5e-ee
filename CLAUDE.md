@@ -98,16 +98,29 @@ game stream and the tools stream work in this one checkout - one git index,
 one `build\`, one game - by these rules, not separate worktrees (the next
 step if they keep colliding).
 
-- **Who owns what.** The game stream: `src\`, `tests\`, `data\`, `scripts\`,
-  `test.bat` and docs/PLAN.md. The tools stream: `tools\`, the nwn5e-tools
-  repo (the dev layer behind its seam), docs/TOOLS-PLAN.md, the bench's docs
-  (docs/BENCH-*, docs/research). Shared - announced to the other session
-  before editing, left alone by it until committed: `build.bat`,
-  `src/core/config.*`, `nwn5e.ini`, `src/core/dllmain.cpp` (the version),
-  README.md, CLAUDE.md.
+- **Who owns what.** Since 2026-11-01 (owner: "this sessions deals with
+  animations (within and without the game) the other one should not touch
+  anything related to the animations this one deals with. The other session
+  should not ask me to test "!test anim" for example") the tools stream is the
+  **animation session**: everything about animations, in the game and out of
+  it - the nwn5e-tools repo (the benches, the helper, the dev layer behind its
+  seam), `tools\`, the animation code here (`src/data/anim_*`,
+  `src/core/anim_packs.cpp`, `src/core/anim_layers.cpp`, `tests/data/anim_*`,
+  `tests/data/fixtures/*.recipe`), the shipped recipes (`data/anims/`), the
+  animation test profile (`data/tests/anims.txt`), docs/TOOLS-PLAN.md, the
+  bench's docs (docs/BENCH-*, docs/research), and the animation issues - their
+  test matrices and the owner's animation tests. The game session: the rest of
+  `src\`, `tests\`, `data\`, `scripts\`, `test.bat` and docs/PLAN.md. It
+  doesn't edit the animation files, write animation test steps or ask the
+  owner to test an animation: a game rule that plays an animation (Rage
+  starting n5_rage) is the game's, how the animation looks is the animation
+  session's. Shared - announced to the other session before editing, left
+  alone by it until committed: `build.bat`, `src/core/config.*`, `nwn5e.ini`,
+  `src/core/dllmain.cpp` (the version), README.md, CLAUDE.md.
 - **One installer.** The game session builds into `build\`, installs and
-  launch-checks; the tools session builds into a scratch folder and asks it
-  to install. Either may install by agreement - it says so first, the other
+  launch-checks; the animation session builds into a scratch folder and asks
+  it to install. An install carrying animation changes is reported to the
+  animation session, which gives the owner its tests. Either may install by agreement - it says so first, the other
   stays out of `build\` until told the install is in. The owner says "game
   closed" to the installer; it passes it on when the other session waits.
 - **Commit in one step.** `git commit --only <your paths>` (the message by
@@ -122,9 +135,9 @@ step if they keep colliding).
   record; the tools stream's notes are in docs/TOOLS-PLAN.md (the tools session
   moves its paragraphs out of PLAN.md). Neither edits the other's file; a
   pointer to it is a line in your own.
-- **Tools work behind the seam.** The tools stream changes nwn5e-ee's `src\`
-  only through the dev-layer seam; anything else it must change there is
-  announced first (the files named).
+- **Tools work behind the seam.** Beyond its animation files, the animation
+  session changes nwn5e-ee's `src\` only through the dev-layer seam; anything
+  else it must change there is announced first (the files named).
 - **Launch checks and logs.** `build\nwn5e.log` and `Documents\Neverwinter
   Nights\logs\*` hold the owner's last test session: backed up before any
   launch and restored after it. Only your own launch's nwmain PID is killed.
