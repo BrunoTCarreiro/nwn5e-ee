@@ -148,6 +148,29 @@ bool ParseSkillCheckArgs(const std::string& text, Skill2024* skill, int* dc) {
   return true;
 }
 
+bool ParseFearArgs(const std::string& text, bool* charm, int* seconds) {
+  bool want_charm = false;
+  int want_seconds = 0;
+  std::istringstream words(Lower(text));
+  std::string word;
+  while (words >> word) {
+    if (word == "charm") {
+      want_charm = true;
+    } else if (word == "fear") {
+      want_charm = false;
+    } else if (word.size() <= 3 && word.find_first_not_of("0123456789") == std::string::npos) {
+      if (want_seconds != 0) return false;  // one time only
+      want_seconds = atoi(word.c_str());
+      if (want_seconds < 1 || want_seconds > kTestFearMaxSeconds) return false;
+    } else {
+      return false;
+    }
+  }
+  *charm = want_charm;
+  *seconds = want_seconds != 0 ? want_seconds : kTestFearSeconds;
+  return true;
+}
+
 TestProfile ParseTestProfile(const std::string& text) {
   TestProfile profile;
   std::istringstream in(text);

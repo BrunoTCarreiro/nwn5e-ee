@@ -101,4 +101,12 @@ bool TestSwitchRange(const std::string& name, int* low, int* high);
 // DC or one out of range.
 bool ParseSkillCheckArgs(const std::string& text, Skill2024* skill, int* dc);
 
+// #104 (owner, 2026-10-31: "add !fear"): "!fear [charm] [seconds]"'s
+// arguments, in any order - "charm" (or "fear", the default) and seconds
+// 1..kTestFearMaxSeconds (else kTestFearSeconds). False (nothing set) for any
+// other word, a second number or a time out of range.
+constexpr int kTestFearSeconds = 30;
+constexpr int kTestFearMaxSeconds = 120;
+bool ParseFearArgs(const std::string& text, bool* charm, int* seconds);
+
 }  // namespace rules

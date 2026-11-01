@@ -74,6 +74,11 @@
 //   empties the inventory and the equipped slots first - plot items, the
 //   creature slots and gold kept. "!time" (owner: "For Q5, where's the
 //   clock?") says the game's hour and date.
+// - #104 (owner, 2026-10-31: "add !fear"; BZ2 Mindless Rage): "!fear [charm]
+//   [seconds]" - the speaker Frightened (or Charmed) by the nearest enemy (by
+//   itself when none is near) for 30 s (at most 120): the engine's own effect,
+//   as a spell's, which CN5 makes the 2024 Frightened (no flight). A Rage
+//   entered under it ends it; one under way turns it away (immune).
 // - 0.50.5 (owner: "add a !level command"): "!level <n> [class]" - the
 //   engine's own level-ups up to level n in the class (the first class when
 //   none is named; another one multiclasses), as !test's `level` makes them:
@@ -581,6 +586,30 @@ std::vector<std::string> LevelCommand(void* creature, const std::string& args) {
   return {"nwn5e: !level -" + line.substr(1)};
 }
 
+// #104: "!fear [charm] [seconds]" - the speaker Frightened or Charmed by the nearest enemy, for a while.
+std::vector<std::string> FearCommand(void* creature, const std::string& args) {
+  bool charm = false;
+  int seconds = rules::kTestFearSeconds;
+  if (!rules::ParseFearArgs(args, &charm, &seconds)) {
+    return {"nwn5e: !fear [charm] [seconds] - you Frightened (or Charmed) by the nearest enemy, 30 s (at most 120), "
+            "e.g. !fear or !fear charm 60"};
+  }
+  const uint32_t id = ObjectIdOf(StatsOf(creature));
+  const char* what = charm ? "Charmed" : "Frightened";
+  char code[1000];
+  sprintf_s(code,
+            "object pc = OBJECT_SELF; object src = GetNearestCreature(CREATURE_TYPE_REPUTATION, REPUTATION_TYPE_ENEMY);"
+            " if (!GetIsObjectValid(src)) src = pc;"
+            " string by = GetName(src); if (src == pc) by = \"yourself (no enemy near)\";"
+            " AssignCommand(src, ApplyEffectToObject(DURATION_TYPE_TEMPORARY, %s, pc, %d.0));"
+            " SendMessageToPC(pc, \"nwn5e: test - you are %s by \" + by + \" for %d s (!fear). Entering a Rage ends it"
+            " (Mindless Rage, Barbarian 6+); while raging you're immune.\");",
+            charm ? "EffectCharmed()" : "EffectFrightened()", seconds, what, seconds);
+  RunScriptChunk(code, id);
+  Log("test: 0x%08X %s for %d s by the nearest enemy, else itself (!fear)", id, what, seconds);
+  return {};
+}
+
 // #103: "!time" - the game's hour and date (the rest clock's rows).
 std::vector<std::string> TimeCommand(void* creature, const std::string&) {
   const uint32_t id = ObjectIdOf(StatsOf(creature));
@@ -884,9 +913,10 @@ void InstallTestCommands() {
   AddChatCommand("!save", &SaveCommand);
   AddChatCommand("!skill", &SkillCommand);
   AddChatCommand("!time", &TimeCommand);
+  AddChatCommand("!fear", &FearCommand);
   AddChatCommand("!reflex", &ReflexCommand);
   AddChatCommand("!level", &LevelCommand);
   Log("config: [debug] test_commands=1 - !test [profile] (data\\tests), !give <blueprint>, !feat add / remove <feat>, "
       "!export, !spawn <blueprint> [ally], !prone [s], !save <ability> <dc>, !skill <skill> <dc>, !reflex <dc> <damage>, "
-      "!level <n> [class], !time");
+      "!level <n> [class], !time, !fear [charm] [s]");
 }

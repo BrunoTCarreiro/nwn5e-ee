@@ -95,6 +95,37 @@ TEST(TestProfilesLevelsSwitchesNotes) {
   CHECK_EQ(ParseTestProfile("switches = shove_slide_ms=1501\n").errors.size(), 1u);
 }
 
+// Breaks caught (#104): charm not read, the default time not 30 s, a time
+// out of 1..120 taken, an unknown word or a second number taken, a value set
+// on a refusal.
+TEST(FearArguments) {
+  bool charm = true;
+  int seconds = 0;
+  CHECK_EQ(ParseFearArgs("", &charm, &seconds), true);
+  CHECK_EQ(charm, false);
+  CHECK_EQ(seconds, 30);
+  CHECK_EQ(ParseFearArgs("charm", &charm, &seconds), true);
+  CHECK_EQ(charm, true);
+  CHECK_EQ(seconds, 30);
+  CHECK_EQ(ParseFearArgs("60 Charm", &charm, &seconds), true);
+  CHECK_EQ(charm, true);
+  CHECK_EQ(seconds, 60);
+  CHECK_EQ(ParseFearArgs(" 120 ", &charm, &seconds), true);
+  CHECK_EQ(charm, false);
+  CHECK_EQ(seconds, 120);
+  CHECK_EQ(ParseFearArgs("fear 1", &charm, &seconds), true);
+  CHECK_EQ(seconds, 1);
+  charm = true;
+  seconds = 7;
+  CHECK_EQ(ParseFearArgs("121", &charm, &seconds), false);
+  CHECK_EQ(ParseFearArgs("0", &charm, &seconds), false);
+  CHECK_EQ(ParseFearArgs("sleep", &charm, &seconds), false);
+  CHECK_EQ(ParseFearArgs("10 20", &charm, &seconds), false);
+  CHECK_EQ(ParseFearArgs("5s", &charm, &seconds), false);
+  CHECK_EQ(charm, true);  // nothing set on a refusal
+  CHECK_EQ(seconds, 7);
+}
+
 // Breaks caught (#103): a rebuilt character keeping its old items, a profile
 // giving items not emptying first, a switches-only profile (rest, slides)
 // emptying the inventory.
