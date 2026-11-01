@@ -35,7 +35,12 @@
 //   effect's time (as CN5's fear), and an attack order on the charmer, or a
 //   harmful spell aimed at it, is refused with a word (action_guard.h); one
 //   under way when the charm lands stops. Immunities stay NWN's; Mindless Rage
-//   drops the icon. NPCs keep NWN's charm.
+//   drops the icon. NPCs keep NWN's charm. 0.59.9 (owner: "charming an
+//   attacking PC doesn't stop the attack" - GetAttackTarget reads none between
+//   swings): the orders are read directly (the queued attack, the one carried
+//   out, the attack targets, the round's target) and cleared with the combat
+//   state; and an attack roll on the charmer (one already in its round) is no
+//   roll but a miss, the attacker's orders cleared.
 // - Coup de grace (faithful): gone (2024 has none) — COUP_DE_GRACE_LEVEL_LIMIT
 //   answers -1, so no level qualifies.
 // - CN6 Concealment (faithful, with advantage_disadvantage): NWN's
@@ -176,6 +181,32 @@ void SayCharmRefusal(void* creature, uint32_t charmer, const char* what) {
   if (LogSlot()) Log("conditions: 0x%08X charmed by 0x%08X - %s refused (2024 Charmed)", id, charmer, what);
 }
 
+// The creature's orders against `target` (0.59.9): the attack at its queue's head, the attack it carries out,
+// its attack targets, its round's target.
+bool AttackingTarget(void* creature, uint32_t target) {
+  if (!creature || target == ee::kObjectInvalid) return false;
+  const void* list = Field<void*>(creature, ee::kObjectActionQueue);
+  const void* head = list ? Field<void*>(list, ee::kListHead) : nullptr;
+  const void* action = head ? Field<void*>(head, ee::kListNodeData) : nullptr;
+  if (action && Field<int32_t>(action, ee::kActionId) == ee::kActionAttackObject &&
+      Field<uint32_t>(action, ee::kActionFirstParam) == target) {
+    return true;
+  }
+  if (Field<uint16_t>(creature, ee::kObjectCurrentAction) == ee::kActionAttackObject &&
+      Field<uint32_t>(creature, ee::kObjectCurrentActionTarget) == target) {
+    return true;
+  }
+  if (Field<uint32_t>(creature, ee::kCreatureAttackTarget) == target ||
+      Field<uint32_t>(creature, ee::kCreatureAttemptedAttackTarget) == target) {
+    return true;
+  }
+  const void* round = Field<void*>(creature, ee::kCreatureCombatRound);
+  return round && Field<uint32_t>(round, ee::kRoundTarget) == target;
+}
+
+// Its orders and combat state cleared, once the engine is done with what it's handling.
+void StopOrders(uint32_t id) { RunScriptChunk("DelayCommand(0.0, ClearAllActions(TRUE));", id); }
+
 // The charm on a player, the 2024 way: NWN's state not kept; the icon credited to the charmer
 // (scheduled by it, after the engine is done with this effect), an attack on it stopped, a word.
 int ApplyCharm2024(void* creature, uint32_t id, void* effect) {
@@ -186,18 +217,32 @@ int ApplyCharm2024(void* creature, uint32_t id, void* effect) {
   sprintf_s(script,
             "object o = StringToObject(\"%x\"); if (!GetIsObjectValid(o)) return; object s = OBJECT_SELF;"
             "DelayCommand(0.0, ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectIcon(EFFECT_ICON_CHARMED), o, %.1f));"
-            "if (GetAttackTarget(o) == s) AssignCommand(o, ClearAllActions());"
             "string by = GetName(s); if (s == o) by = \"yourself\";"
             "if (GetIsPC(o)) SendMessageToPC(o, \"nwn5e: charmed by \" + by + \" for %.0f s - you keep control, but you "
             "can't attack it or aim a harmful spell at it (2024 Charmed)\");",
             id, seconds, seconds);
   RunScriptChunk(script, CreatureById(source) ? source : id);
+  const bool stopped = AttackingTarget(creature, source);
+  if (stopped) StopOrders(id);
   if (LogSlot()) {
-    Log("conditions: 0x%08X charmed by 0x%08X for %.0f s (2024 Charmed: control kept, no attack on it)", id, source,
-        seconds);
+    Log("conditions: 0x%08X charmed by 0x%08X for %.0f s (2024 Charmed: control kept, no attack on it)%s", id, source,
+        seconds, stopped ? " - its attack on it stopped" : "");
   }
-  (void)creature;
   return 1;  // NWN's charm state is not kept
+}
+
+// An attack roll on the charmer (0.59.9: one already in the attacker's round, an opportunity attack): no roll,
+// a miss, the attacker's orders cleared.
+bool CharmAttackRollSkip(AttackRoll& roll, uintptr_t /*caller*/) {
+  if (!Faithful() || !roll.attacker || !roll.target || !roll.data) return false;
+  const uint32_t target = Field<uint32_t>(roll.target, ee::kObjectId);
+  if (!CharmedBy(roll.attacker, target)) return false;
+  roll.data[ee::kAttackD20] = 0;
+  SetField<int32_t>(roll.data, ee::kAttackModifier, 0);
+  roll.data[ee::kAttackResult] = ee::kAttackResultMiss;
+  StopOrders(Field<uint32_t>(roll.attacker, ee::kObjectId));
+  SayCharmRefusal(roll.attacker, target, "attack");
+  return true;
 }
 
 // An attack order on the charmer, refused (CNWSObject::AddAction: action 0xC, its target the first parameter).
@@ -440,7 +485,7 @@ void InstallConditionRules() {
              reinterpret_cast<void*>(&AIActionCastSpell), reinterpret_cast<void**>(&g_ai_action_cast_spell));
   AnswerRulesetInt("COUP_DE_GRACE_LEVEL_LIMIT", "conditions: no coup de grace (2024)", [](int) { return -1; });
   // #106: the 2024 Charmed - no attack on the charmer, no harmful spell at it.
-  const bool attack_guard = AddActionGuard(&CharmAttackGuard);
+  const bool attack_guard = AddActionGuard(&CharmAttackGuard) && AddAttackRollSkipper(&CharmAttackRollSkip);
   const bool spell_guard = AddSpellCastGuard(&CharmSpellGuard);
   Log(attack_guard && spell_guard ? "conditions: Charmed on a player is 2024's - control kept, no attack or harmful "
                                     "spell on the charmer (faithful)"

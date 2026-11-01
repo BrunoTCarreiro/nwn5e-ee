@@ -1992,6 +1992,15 @@ its centre 64 GUI units from the right edge and its bottom 132 over the bottom (
 the compass's top; the compass's place isn't read from the engine yet, so the spot is two test switches (clock_x,
 clock_y; `!test clock`, data/tests/clock.txt) to fit it. `!clock` turns it off / on. Tests HudClockTime,
 HudClockPlacedOverTheCompass and the switch ranges (10 of 11 mutations run, all caught - the check was stopped for low memory before clock_y's lower bound, whose test row is in).
+*The owner's 0.59.8 run (2026-11-01):* the clock "seems fine it's just not pushed all the way to the right edge of
+the screen nor against ther compass at the bottom"; and #106's C5: "charming an attacking PC doesn't stop the
+attack" (the log: two attack rolls on the charmer after the charm - GetAttackTarget reads none between swings).
+*Built 0.59.10:* the clock's card flush with the right edge (rules::PlaceClock lets the window's
+transparent pad of 4 hang past the edges; centre 37 from the right), its bottom 120 over the bottom edge, and
+`!clock right / bottom <n>` / `!clock where` to fit it live. The charm reads the charmed player's orders directly
+(the queued attack, the one carried out, the attack targets, the round's target) and clears them with the combat
+state (ClearAllActions(TRUE)); an attack roll on the charmer is no roll but a miss, the attacker's orders
+cleared (an attack-roll skipper, the Shove's way). Tests HudClockPlacedOverTheCompass (3 mutations caught).
 *5b built (0.19.0, key `dying`):* rules/death_saves.{h,cpp} (unit-tested: the
 saves, the Exhaustion penalty on them, Defy Death, damage at 0 HP, massive
 damage, the speed penalty); rules_dying.cpp -

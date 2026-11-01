@@ -24,12 +24,12 @@ ClockPhase ClockPhaseOf(bool dawn, bool day, bool dusk) {
 }
 
 HudBox PlaceClock(float screen_w, float screen_h, float scale, float window_w, float window_h, float from_right,
-                  float from_bottom) {
+                  float from_bottom, float overhang) {
   const float s = scale > 0.0f ? scale : 1.0f;
   float x = screen_w - from_right * s - window_w * s / 2.0f;
   float y = screen_h - from_bottom * s - window_h * s;
-  if (x > screen_w - window_w * s) x = screen_w - window_w * s;
-  if (y > screen_h - window_h * s) y = screen_h - window_h * s;
+  if (x > screen_w - (window_w - overhang) * s) x = screen_w - (window_w - overhang) * s;
+  if (y > screen_h - (window_h - overhang) * s) y = screen_h - (window_h - overhang) * s;
   if (x < 0.0f) x = 0.0f;
   if (y < 0.0f) y = 0.0f;
   return HudBox{x, y, window_w, window_h};

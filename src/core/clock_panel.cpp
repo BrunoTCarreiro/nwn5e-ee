@@ -13,15 +13,18 @@
 //   after it opens (NUI opens a window at the screen's centre). Closed outside
 //   a game (no in-game GUI) and with `!clock` off.
 // The compass's place isn't read from the engine yet: the spot is a first
-// guess the owner tunes (clock_x / clock_y, `!test clock`).
+// guess the owner tunes (clock_x / clock_y, `!test clock`; 0.59.9: `!clock
+// right / bottom <n>` live, `!clock where`).
 
 #include "clock_panel.h"
 
 #include <windows.h>
 
 #include <math.h>
+#include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <mutex>
 #include <string>
@@ -252,7 +255,8 @@ void ClockTick() {
   const float window_w = rules::kClockWidth + kWindowSlack, window_h = rules::kClockHeight + kWindowSlack;
   const rules::HudBox spot =
       rules::PlaceClock(g_reading.gui_w, g_reading.gui_h, g_reading.gui_s, window_w, window_h,
-                        static_cast<float>(g_offsets.from_right), static_cast<float>(g_offsets.from_bottom));
+                        static_cast<float>(g_offsets.from_right), static_cast<float>(g_offsets.from_bottom),
+                        kWindowPad);
   if (fabsf(spot.x - g_window.sent_x) > 0.4f || fabsf(spot.y - g_window.sent_y) > 0.4f) {
     ClientNuiSetJson(g_window.token, "geometry", Rect(spot.x, spot.y, spot.w, spot.h));
     g_window.sent_x = spot.x;
@@ -278,8 +282,28 @@ void ClockTick() {
   g_window.sent_phase = phase;
 }
 
-std::vector<std::string> ClockCommand(void* creature, const std::string& /*args*/) {
+// "!clock right <n>" / "!clock bottom <n>" (GUI units, 0..2000) / "!clock where": the spot, while it's fitted.
+std::string Where() {
+  char text[200];
+  sprintf_s(text, "nwn5e: the clock - right %d, bottom %d GUI units (!clock right <n> / !clock bottom <n> moves it; "
+            "tell the game session the numbers that fit).", g_offsets.from_right, g_offsets.from_bottom);
+  return text;
+}
+
+std::vector<std::string> ClockCommand(void* creature, const std::string& args) {
   const uint32_t id = IdOf(creature);
+  std::string word = args;
+  for (char& c : word) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+  const size_t space = word.find(' ');
+  const std::string what = word.substr(0, space);
+  if (what == "where") return {Where()};
+  if (what == "right" || what == "bottom") {
+    const int value = space == std::string::npos ? -1 : atoi(word.substr(space + 1).c_str());
+    if (value < 0 || value > 2000) return {"nwn5e: !clock right <0..2000> or !clock bottom <0..2000> (GUI units)"};
+    (what == "right" ? g_offsets.from_right : g_offsets.from_bottom) = value;
+    Log("hud: 0x%08X the clock moved: right %d, bottom %d", id, g_offsets.from_right, g_offsets.from_bottom);
+    return {Where()};
+  }
   EnsureRecords(creature);
   const bool off = !Off(creature);
   SetRecord(creature, kVarOff, off ? 1 : 0);

@@ -31,14 +31,19 @@ ClockPhase ClockPhaseOf(bool dawn, bool day, bool dusk);
 // tunes it: the clock_x / clock_y test switches).
 constexpr float kClockWidth = 66.0f;
 constexpr float kClockHeight = 18.0f;
-constexpr int kClockFromRight = 64;
-constexpr int kClockFromBottom = 132;
+// 0.59.9 (owner: "it's just not pushed all the way to the right edge of the
+// screen nor against the compass at the bottom"): the card's right edge on the
+// screen's (the window's transparent pad hangs past it), lower. `!clock right
+// / bottom <n>` fits it live.
+constexpr int kClockFromRight = 37;
+constexpr int kClockFromBottom = 120;
 
 // The window's spot: x / y in window pixels, w / h the window's size in GUI
 // units (as NUI takes them) - `window_w` x `window_h` GUI units, centred
 // `from_right` x scale from the right edge, its bottom `from_bottom` x scale
-// over the bottom edge, kept on screen.
+// over the bottom edge, kept on screen but for `overhang` GUI units (its
+// transparent pad) past the right and bottom edges.
 HudBox PlaceClock(float screen_w, float screen_h, float scale, float window_w, float window_h, float from_right,
-                  float from_bottom);
+                  float from_bottom, float overhang);
 
 }  // namespace rules

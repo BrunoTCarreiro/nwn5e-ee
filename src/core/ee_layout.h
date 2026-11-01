@@ -1324,6 +1324,7 @@ constexpr size_t kAttackThreatFlag = 0x70;   // int32, 1 after a threat (+0x3b3)
                                              // log prints "Threat Roll" when it is set
 constexpr size_t kAttackResult = 0x78;       // uint8: 1 hit, 2 parried, 3 critical, 4 miss, 7 auto hit
 constexpr uint8_t kAttackResultCritical = 3;
+constexpr uint8_t kAttackResultMiss = 4;
 
 // CNWSCreatureStats -> its CCombatInformation*, the sheet's combat block
 // (UpdateCombatInformation reads [this + 0xd70] throughout, e.g. +0x114a).

@@ -7,7 +7,8 @@ using namespace rules;
 
 // #105. Breaks caught: the game minute read as the real one, its rounding up,
 // no fallback for an unknown hour length, the hour or minute not two digits,
-// dawn / dusk shown as day or night, the clock off its spot or off screen.
+// dawn / dusk shown as day or night, the clock off its spot or off screen, its
+// pad not allowed past the edge (0.59.9: flush to the right edge).
 TEST(HudClockTime) {
   CHECK_EQ(ClockGameMinute(0, 0, 120), 0);    // 2 real minutes a game hour
   CHECK_EQ(ClockGameMinute(0, 30, 120), 15);
@@ -27,13 +28,20 @@ TEST(HudClockTime) {
 }
 
 TEST(HudClockPlacedOverTheCompass) {
-  const HudBox a = PlaceClock(1700.0f, 900.0f, 1.0f, 82.0f, 34.0f, 64.0f, 132.0f);
+  const HudBox a = PlaceClock(1700.0f, 900.0f, 1.0f, 82.0f, 34.0f, 64.0f, 132.0f, 0.0f);
   CHECK_EQ(std::fabs(a.x - 1595.0f) < 0.01f, true);
   CHECK_EQ(std::fabs(a.y - 734.0f) < 0.01f, true);
   CHECK_EQ(std::fabs(a.w - 82.0f) < 0.01f && std::fabs(a.h - 34.0f) < 0.01f, true);  // GUI units
-  const HudBox b = PlaceClock(1700.0f, 900.0f, 2.0f, 82.0f, 34.0f, 64.0f, 132.0f);
+  const HudBox b = PlaceClock(1700.0f, 900.0f, 2.0f, 82.0f, 34.0f, 64.0f, 132.0f, 0.0f);
   CHECK_EQ(std::fabs(b.x - 1490.0f) < 0.01f, true);
   CHECK_EQ(std::fabs(b.y - 568.0f) < 0.01f, true);
-  const HudBox c = PlaceClock(1700.0f, 900.0f, 1.0f, 82.0f, 34.0f, 0.0f, -50.0f);  // kept on screen
+  const HudBox c = PlaceClock(1700.0f, 900.0f, 1.0f, 82.0f, 34.0f, 0.0f, -50.0f, 0.0f);  // kept on screen
   CHECK_EQ(std::fabs(c.x - 1618.0f) < 0.01f && std::fabs(c.y - 866.0f) < 0.01f, true);
+  // The pad (4) may hang past the edges: the card flush with them.
+  const HudBox d = PlaceClock(1700.0f, 900.0f, 1.0f, 82.0f, 34.0f, 0.0f, -50.0f, 4.0f);
+  CHECK_EQ(std::fabs(d.x - 1622.0f) < 0.01f && std::fabs(d.y - 870.0f) < 0.01f, true);
+  // The built-in spot: the card (the window less its pad of 4) ends on the right edge.
+  const HudBox e = PlaceClock(1700.0f, 900.0f, 1.0f, 82.0f, 34.0f, static_cast<float>(kClockFromRight),
+                              static_cast<float>(kClockFromBottom), 4.0f);
+  CHECK_EQ(std::fabs(e.x + 82.0f - 4.0f - 1700.0f) < 0.01f, true);
 }
