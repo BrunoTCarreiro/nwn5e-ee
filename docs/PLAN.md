@@ -2033,6 +2033,9 @@ says how each window opened. Test HudClockPlacedOverTheCompass (2 mutations caug
 good, I think it would need to be edge -5 to be perfect, but this is close enough". So edge_constraint is the
 window's margins from the screen's edges: 0 lets it reach them (null keeps it further in), -8 put it out of
 sight. *Built 0.59.17:* edge_constraint 0 built in (`!clock edge <n>` still tries others).
+*Accepted (owner, 2026-11-01: "it's still the same, let's leave it there and continue testing")* - the clock as
+0.59.17 places it, a few units short of flush right (the owner's "-5 to be perfect" left as is: below 0 NUI can
+put the window out of sight).
 *5b built (0.19.0, key `dying`):* rules/death_saves.{h,cpp} (unit-tested: the
 saves, the Exhaustion penalty on them, Defy Death, damage at 0 HP, massive
 damage, the speed penalty); rules_dying.cpp -
