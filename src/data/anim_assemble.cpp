@@ -251,7 +251,7 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
   clip.length = recipe.length;
   clip.transtime = recipe.transtime;
   clip.animroot = "rootdummy";
-  clip.nodes = bones;  // the library's tree, unkeyed: bones without a track play rest
+  clip.nodes = bones;  // the library's tree, unkeyed: key_unkeyed_turns holds the untracked ones (#108)
   for (AnimNode& node : clip.nodes) {
     node.has_position = node.has_orientation = false;
     node.position = AnimKeys();
@@ -301,17 +301,40 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
       node.orientation = keys;
     }
   };
-  // A node with no turn of its own is keyed at its rest turn, at 0 and at the clip's length (#108): the engine keeps an
-  // unkeyed node's turn from the animation before - n5_rage, played from a combat stance, kept that stance's 17-27
-  // degree rootdummy turn and tilted the whole body - and the bench solves with such nodes at rest. The model's own
-  // top node stays as it is. Both ways out below end with it.
+  // A node with no turn of its own holds the start pose's first-frame turn, at 0 and at the clip's length (#108;
+  // 0.59.11): the engine keeps an unkeyed node's turn from the animation before - n5_rage, played from a combat
+  // stance, kept that stance's 17-27 degree rootdummy turn and tilted the whole body. rootdummy holds its rest turn
+  // instead: the bench solves with the root at rest and folds the stance's root turn into the root's children, so an
+  // untracked child of the root (belt_g1, beside the pelvis) takes that fold too - rest^-1 * the stance's root * its
+  // own. Every node then starts and ends on the stance - the cloak, the belt, the shoulder pads, the weapon and shield
+  // points - as a keyed one does (S * delta, with no delta); 0.59.9's rest turn snapped them off it. The model's own
+  // top node stays as it is, and so does a name the tree holds twice (a_da's two Impact nodes): the engine matches an
+  // animation's nodes to the model's by name, so a turn keyed for one could land on the other. Both ways out below
+  // end with it.
   const auto key_unkeyed_turns = [&]() {
+    int root_at = -1;
     for (size_t b = 0; b < bones.size(); ++b) {
-      if (clip.nodes[b].has_orientation || bones[b].parent < 0) continue;
-      const Value rest = bones[b].orientation.values.empty() ? Value{0.0f, 0.0f, 0.0f, 1.0f} : bones[b].orientation.values.front();
+      if (LowerName(bones[b].name) == "rootdummy" && bones[b].parent >= 0) root_at = static_cast<int>(b);
+    }
+    const auto rest_of = [&](size_t b) {
+      return bones[b].orientation.values.empty() ? Value{0.0f, 0.0f, 0.0f, 1.0f} : bones[b].orientation.values.front();
+    };
+    const auto twin = [&](size_t b) {
+      for (size_t o = 0; o < bones.size(); ++o) {
+        if (o != b && LowerName(bones[o].name) == LowerName(bones[b].name)) return true;
+      }
+      return false;
+    };
+    // The fold, while the root has no turn of its own (a recipe keys only its place).
+    const bool fold = root_at >= 0 && !clip.nodes[root_at].has_orientation;
+    const Value unturn = fold ? QMul(pose::QConj(rest_of(root_at)), StanceValue(stance, bones[root_at], false)) : Value{0.0f, 0.0f, 0.0f, 1.0f};
+    for (size_t b = 0; b < bones.size(); ++b) {
+      if (clip.nodes[b].has_orientation || bones[b].parent < 0 || twin(b)) continue;
+      Value held = static_cast<int>(b) == root_at ? rest_of(b) : StanceValue(stance, bones[b], false);
+      if (fold && bones[b].parent == root_at) held = pose::QNormalized(QMul(unturn, held));
       AnimKeys keys;
       keys.times = {0.0f, recipe.length};
-      keys.values = {rest, rest};
+      keys.values = {held, held};
       put(b, false, keys);
     }
   };

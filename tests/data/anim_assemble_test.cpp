@@ -276,23 +276,35 @@ TEST(AssembleTinyFixtureIsTheWritersOwn) {
   CHECK_EQ(Has(error, "no keys"), true);
 }
 
-// The Rage tilt (#108): a node with no turn track of its own - rootdummy above all, since a recipe keys only its
-// place - is keyed at its rest turn, at 0 and at the clip's length. The engine keeps an unkeyed node's turn from
-// the animation before: n5_rage, played from a combat stance, kept that stance's 17-27 degree root turn and tilted
-// the whole body. Rest, not the stance's turn (the bench solves with the root at rest), on every untracked bone (b2
-// here); the model's own top node stays unkeyed; a keyed bone keeps its track - on both ways through the assembler
-// (no targets, and a hips target, which runs the IK passes). Breaks caught: the pass skipped on either way; the
-// stance's first frame instead of the rest; the top node keyed too.
+// Untracked turns (#108; 0.59.11): a node with no turn track of its own holds the start pose's first-frame turn, at 0
+// and at the clip's length. The engine keeps an unkeyed node's turn from the animation before - n5_rage, played from
+// a combat stance, kept that stance's 17-27 degree root turn and tilted the whole body - and 0.59.9's rest turn
+// snapped the cloak, the belt, the shoulder pads and the weapon and shield points off the stance. rootdummy holds its
+// rest (the bench solves with the root at rest, the stance's root turn folded into the root's children), so an
+// untracked child of the root (b2 here, belt_g1 in the game) takes that fold: rest^-1 * the stance's root * its own -
+// the stance's turn in the world. A node under a keyed bone holds the stance's turn (b3); one the stance doesn't turn,
+// its rest (b4); a name the tree holds twice stays unkeyed (a_da's two Impact nodes: the engine matches an
+// animation's nodes to the model's by name, so a turn keyed for one could land on the other); the model's own top
+// node stays unkeyed; a keyed bone keeps its track - on both ways through the assembler (no targets, and a hips
+// target, which runs the IK passes). Breaks caught: the pass skipped on either way; the rest instead of the stance's
+// turn (0.59.9); the root at the stance's turn; the root's children unfolded; the twins keyed; the top node keyed.
 TEST(AnimAssembleKeysUnkeyedTurns) {
   std::vector<AnimNode> body = Body();
   body[1].orientation.values = {Rx(12.0f)};  // rootdummy's rest, turned
-  AnimNode b2;
-  b2.name = "b2";
-  b2.parent = 1;
-  b2.has_orientation = true;
-  b2.orientation.times = {0.0f};
-  b2.orientation.values = {Rz(20.0f)};
-  body.push_back(b2);
+  const auto bone = [&](const char* name, int parent, const Q& rest) {
+    AnimNode n;
+    n.name = name;
+    n.parent = parent;
+    n.has_orientation = true;
+    n.orientation.times = {0.0f};
+    n.orientation.values = {rest};
+    body.push_back(n);
+  };
+  bone("b2", 1, Rz(20.0f));  // a child of the root, untracked (belt_g1)
+  bone("b3", 2, Rz(5.0f));   // under the keyed b1, untracked (a weapon point, a cloak bone)
+  bone("b4", 2, Rx(7.0f));   // under b1, untracked, and the stance doesn't turn it
+  bone("impact", 2, Rz(0.0f));    // one name twice (a_da's Impact nodes)
+  bone("impact", 2, Rx(120.0f));
   AnimClip stance = Stance();
   stance.nodes = body;
   stance.nodes[1].position.times = {0.0f};
@@ -301,25 +313,49 @@ TEST(AnimAssembleKeysUnkeyedTurns) {
   stance.nodes[1].orientation.values = {Rx(30.0f), Rx(35.0f)};  // the stance turns its root (a combat stance)
   stance.nodes[2].orientation.times = {0.0f, 1.0f};
   stance.nodes[2].orientation.values = {Rz(30.0f), Rz(45.0f)};
+  stance.nodes[3].orientation.times = {0.0f, 1.0f};
+  stance.nodes[3].orientation.values = {Rz(50.0f), Rz(60.0f)};
+  stance.nodes[4].orientation.times = {0.0f, 1.0f};
+  stance.nodes[4].orientation.values = {Rz(25.0f), Rz(35.0f)};
+  stance.nodes[5].has_orientation = false;
+  stance.nodes[5].orientation = AnimKeys();
   AnimRecipe r = Recipe();
   r.keys["a_ba"] = {Offset(0.0f, 0.0f, 0.0f), Turn({0.0f, 1.0f}, {Rz(0.0f), Rz(10.0f)})};
   AnimClip out;
   std::string err;
   CHECK_EQ(AssembleAnimClip(r, "a_ba", body, stance, &out, &err), true);
-  const AnimNode* root = Node(out, "rootdummy");
-  const AnimNode* extra = Node(out, "b2");
   const AnimNode* top = Node(out, "a_ba");
   const AnimNode* b1 = Node(out, "b1");
-  CHECK_EQ(root != nullptr && extra != nullptr && top != nullptr && b1 != nullptr, true);
-  if (!root || !extra || !top || !b1) return;
-  const auto constant = [&](const AnimNode& node, const Q& want) {
-    if (!node.has_orientation || node.orientation.times.size() != 2 || node.orientation.values.size() != 2) return false;
-    return fabsf(node.orientation.times[0]) < 1e-6f && fabsf(node.orientation.times[1] - r.length) < 1e-6f &&
-           Close(node.orientation.values[0], want, 1e-5f) && Close(node.orientation.values[1], want, 1e-5f);
+  CHECK_EQ(top != nullptr && b1 != nullptr, true);
+  if (!top || !b1) return;
+  const auto constant = [&](const AnimClip& clip, const char* name, const Q& want) {
+    const AnimNode* node = Node(clip, name);
+    if (!node || !node->has_orientation || node->orientation.times.size() != 2 || node->orientation.values.size() != 2) return false;
+    return fabsf(node->orientation.times[0]) < 1e-6f && fabsf(node->orientation.times[1] - r.length) < 1e-6f &&
+           Close(node->orientation.values[0], want, 1e-5f) && Close(node->orientation.values[1], want, 1e-5f);
   };
-  CHECK_EQ(constant(*root, Rx(12.0f)), true);   // its rest, not the stance's 30
-  CHECK_EQ(constant(*extra, Rz(20.0f)), true);  // an untracked bone at its rest
-  CHECK_EQ(top->has_orientation, false);        // the model's top node left alone
+  // Every untracked node, as each way out must key it.
+  const auto held = [&](const AnimClip& clip) {
+    return constant(clip, "rootdummy", Rx(12.0f)) &&             // its rest, not the stance's 30
+           constant(clip, "b2", QMul(Rx(18.0f), Rz(50.0f))) &&   // the root's fold: Rx(12)^-1 * Rx(30) * Rz(50)
+           constant(clip, "b3", Rz(25.0f)) &&                    // the stance's first frame, not its rest 5
+           constant(clip, "b4", Rx(7.0f));                       // the stance doesn't turn it: its rest
+  };
+  CHECK_EQ(constant(out, "rootdummy", Rx(12.0f)), true);
+  CHECK_EQ(constant(out, "b2", QMul(Rx(18.0f), Rz(50.0f))), true);
+  CHECK_EQ(constant(out, "b3", Rz(25.0f)), true);
+  CHECK_EQ(constant(out, "b4", Rx(7.0f)), true);
+  const auto twins_unkeyed = [&](const AnimClip& clip) {
+    int seen = 0;
+    for (const AnimNode& n : clip.nodes) {
+      if (n.name != "impact") continue;
+      ++seen;
+      if (n.has_orientation) return false;
+    }
+    return seen == 2;
+  };
+  CHECK_EQ(twins_unkeyed(out), true);
+  CHECK_EQ(top->has_orientation, false);  // the model's top node left alone
   CHECK_EQ(b1->has_orientation && b1->orientation.values.size() >= 2, true);
   CHECK_EQ(Close(b1->orientation.values.back(), Rz(40.0f), 1e-3f), true);  // the keyed bone as before: S * delta
   // With a hips target the IK passes run (the other way out): the same keys.
@@ -329,11 +365,8 @@ TEST(AnimAssembleKeysUnkeyedTurns) {
   r.targets["hips"] = {hips};
   AnimClip viaIk;
   CHECK_EQ(AssembleAnimClip(r, "a_ba", body, stance, &viaIk, &err), true);
+  CHECK_EQ(held(viaIk), true);
+  CHECK_EQ(twins_unkeyed(viaIk), true);
   const AnimNode* root2 = Node(viaIk, "rootdummy");
-  const AnimNode* extra2 = Node(viaIk, "b2");
-  CHECK_EQ(root2 != nullptr && extra2 != nullptr, true);
-  if (!root2 || !extra2) return;
-  CHECK_EQ(constant(*root2, Rx(12.0f)), true);
-  CHECK_EQ(constant(*extra2, Rz(20.0f)), true);
-  CHECK_EQ(root2->has_position && root2->position.values.size() >= 2, true);  // the target moved the root: the IK ran
+  CHECK_EQ(root2 && root2->has_position && root2->position.values.size() >= 2, true);  // the target moved the root: the IK ran
 }
