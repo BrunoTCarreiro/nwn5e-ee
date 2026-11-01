@@ -1,0 +1,19 @@
+# A !test profile ([debug] test_commands=1): type "!test anims" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# The bench-made animations in game (issue 108, 0.59.11): the parts a bench clip leaves untracked - the
+# weapon and shield points, the cloak, the robe - start and end on the stance, and Rage plays upright.
+# Your first class becomes Barbarian 5 (Rage) on the body you play (no species line, so yours stays).
+# Equipped: a battleaxe and a large shield (drawn: 1hreadyr) and a Wizard's Robe (a robe part). In the
+# pack: a Cloak of Protection +1 (a profile can't equip a cloak - drag it on) and a greataxe (drawn:
+# 2hreadyr). Test aids: !rage (!rage reset), !anim n5_rage, !anim saaaaa.
+name = Animations (issue 108): Barbarian 5 with a weapon, a shield, a robe and a cloak
+swap_class = barbarian
+class = barbarian
+level = 5
+abilities = 16 14 16 10 12 8
+items = nw_waxbt001 equip, nw_ashlw001 equip, nw_cloth005 equip, nw_maarcl055, nw_waxgr001
+note = equip the cloak from your pack first (a profile can't)
+note = Rage with the battleaxe and shield drawn (1hreadyr), with the greataxe (2hreadyr) and with nothing drawn (pause1) - !rage reset between
+note = the weapon keeps its grip, the shield doesn't turn, the cloak and the robe don't snap at the start or end, and the body stays upright
