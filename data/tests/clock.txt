@@ -1,0 +1,11 @@
+# A !test profile ([debug] test_commands=1): type "!test clock" in game. Switches only, so it keeps the
+# character you are playing. Read each time from build\data\tests\clock.txt (the game's copy - the next build
+# copies data\tests over it): no rebuild or restart.
+#
+# The HUD clock's spot over the compass (issue 105, 0.59.8), in GUI units (scaled by the GUI scale):
+#   clock_x  the clock's centre, this far from the screen's right edge; built in 64
+#   clock_y  its bottom, this far over the screen's bottom edge; built in 132
+# Change the numbers, save, and type "!test clock" again. Any other !test profile puts the built-in ones back.
+name = HUD clock spot (issue 105): switches only, keeps your character
+switches = clock_x=64, clock_y=132
+note = to fit: edit build\data\tests\clock.txt, then !test clock again; !clock turns the clock off or on

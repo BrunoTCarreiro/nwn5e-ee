@@ -1983,6 +1983,15 @@ the time is already displayed on hover on the compass, so there should be a cloc
 bottom right, we'll have to look into how to make it fit the UI but for now try to come up with something
 appropriate, the sun and moon icons are a nice touch".* A game day is 24 hours, an hour the module's "minutes per
 hour" of real time (2 in the owner's module: a day in 48 real minutes).
+*Built 0.59.8 (#105):* clock_panel.cpp - a client NUI window as the resource panel's (input passes through): a dark
+card, the sun (a disc in a ring of dots, orange at dawn and dusk) or the moon (a pale disc, a shadow over part of
+it), and the game time "HH:MM" - the game minute worked out from NWN's (GetTimeMinute counts the module's real
+minutes within the hour: rules::ClockGameMinute with HoursToSeconds(1)). Read once a second through the script
+bridge (GetTimeHour / Minute / Second, GetIsDawn / Day / Dusk), the GUI size every 2 s; placed by rules::PlaceClock,
+its centre 64 GUI units from the right edge and its bottom 132 over the bottom (x the GUI scale) - a first guess at
+the compass's top; the compass's place isn't read from the engine yet, so the spot is two test switches (clock_x,
+clock_y; `!test clock`, data/tests/clock.txt) to fit it. `!clock` turns it off / on. Tests HudClockTime,
+HudClockPlacedOverTheCompass and the switch ranges (10 of 11 mutations run, all caught - the check was stopped for low memory before clock_y's lower bound, whose test row is in).
 *5b built (0.19.0, key `dying`):* rules/death_saves.{h,cpp} (unit-tested: the
 saves, the Exhaustion penalty on them, Defy Death, damage at 0 HP, massive
 damage, the speed penalty); rules_dying.cpp -

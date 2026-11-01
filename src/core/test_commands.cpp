@@ -105,6 +105,7 @@
 #include "engine.h"
 #include "hooks.h"
 #include "log.h"
+#include "clock_panel.h"
 #include "mastery.h"
 #include "saves.h"
 #include "rules/abilities.h"
@@ -701,6 +702,11 @@ const SwitchField kSwitchFields[] = {
      [](int value) { g_config.debug_attacks_per_round = value; }},
     {"creature_hp_multiplier", [] { return g_config.debug_creature_hp_multiplier; },
      [](int value) { g_config.debug_creature_hp_multiplier = value; }},
+    // #105: the HUD clock's spot while it's fitted over the compass (GUI units from the right / bottom edge).
+    {"clock_x", [] { return ClockOffsetsForTests().from_right; },
+     [](int value) { ClockOffsetsForTests().from_right = value; }},
+    {"clock_y", [] { return ClockOffsetsForTests().from_bottom; },
+     [](int value) { ClockOffsetsForTests().from_bottom = value; }},
     {"creature_min_hp", [] { return g_config.debug_creature_min_hp; },
      [](int value) { g_config.debug_creature_min_hp = value; }},
     // #11, 0.58.8: the push slides' times (no ini keys: their values here are the built-in ones).

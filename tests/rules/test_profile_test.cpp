@@ -93,6 +93,10 @@ TEST(TestProfilesLevelsSwitchesNotes) {
   CHECK_EQ(ParseTestProfile("switches = push_slide_ms=99\n").errors.size(), 1u);
   CHECK_EQ(ParseTestProfile("switches = push_slide_delay_ms=501\n").errors.size(), 1u);
   CHECK_EQ(ParseTestProfile("switches = shove_slide_ms=1501\n").errors.size(), 1u);
+  // #105: the clock's spot.
+  CHECK_EQ(ParseTestProfile("switches = clock_x=0, clock_y=2000\n").errors.empty(), true);
+  CHECK_EQ(ParseTestProfile("switches = clock_x=2001\n").errors.size(), 1u);
+  CHECK_EQ(ParseTestProfile("switches = clock_y=-1\n").errors.size(), 1u);
 }
 
 // Breaks caught (#104): charm not read, the default time not 30 s, a time

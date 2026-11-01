@@ -115,6 +115,8 @@ bool TestSwitchRange(const std::string& name, int* low, int* high) {
   };
   static const Range kRanges[] = {{"attack_trace", 0, 1},
                                   {"attacks_per_round", 0, 6},
+                                  {"clock_x", 0, 2000},
+                                  {"clock_y", 0, 2000},
                                   {"creature_hp_multiplier", 0, 100},
                                   {"creature_min_hp", 0, 30000},
                                   {"push_slide_delay_ms", 0, 500},

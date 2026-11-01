@@ -41,6 +41,7 @@ void InstallRogueRules();
 void InstallCombatOptions();
 void InstallActionQueue();
 void InstallResourcePanel();
+void InstallHudClock();
 void InstallThiefRules();
 void InstallSkillDcRules();
 void InstallPerceptionRules();
@@ -88,7 +89,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.59.7";
+constexpr const char* kVersion = "0.59.8";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -145,6 +146,7 @@ void Start(HMODULE self) {
   InstallBarbarianStrikes();
   InstallMonkRules();
   InstallResourcePanel();  // after the class rules: they give its pools
+  InstallHudClock();       // #105: the game time over the compass
   InstallRestRules();
   InstallDyingRules();
   InstallLowHpLook();
