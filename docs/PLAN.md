@@ -2011,6 +2011,10 @@ stayed 4 in from the edge: the clock's root is a column now (no group) and the c
 edges (the window's own clip is its whole rect); the window is 74 x 26, flush right (centre 37), its bottom 129
 over the bottom edge - the card where the owner fitted it (125 for the old window, whose card ended 4 over its
 bottom). Test HudClockPlacedOverTheCompass (2 mutations caught).
+*0.59.13 (owner: "the clock is unvisible now as the frame is dominated by the scroll bar elements"):* a column's
+row takes its spacing under it (4), so the 26-high window's 18 inside its pad overflowed and grew scroll bars
+(the group had kept them off). The window is 8 taller than the card now (74 x 34), the card at its top - flush
+right still, its bottom 121 over the bottom edge (the card's 129). Test HudClockPlacedOverTheCompass (2 mutations caught).
 *5b built (0.19.0, key `dying`):* rules/death_saves.{h,cpp} (unit-tested: the
 saves, the Exhaustion penalty on them, Defy Death, damage at 0 HP, massive
 damage, the speed penalty); rules_dying.cpp -

@@ -4,9 +4,9 @@
 #
 # The HUD clock's spot over the compass (issue 105, 0.59.8), in GUI units (scaled by the GUI scale):
 #   clock_x  the clock's centre, this far from the screen's right edge; built in 37 (flush right)
-#   clock_y  its bottom, this far over the screen's bottom edge; built in 129 (the owner's fit)
+#   clock_y  its window's bottom, this far over the screen's bottom edge (the card ends 8 higher); built in 121
 # Or live: !clock right <n>, !clock bottom <n>, !clock where.
 # Change the numbers, save, and type "!test clock" again. Any other !test profile puts the built-in ones back.
 name = HUD clock spot (issue 105): switches only, keeps your character
-switches = clock_x=37, clock_y=129
+switches = clock_x=37, clock_y=121
 note = to fit: edit build\data\tests\clock.txt, then !test clock again; !clock turns the clock off or on

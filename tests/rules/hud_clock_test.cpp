@@ -40,9 +40,10 @@ TEST(HudClockPlacedOverTheCompass) {
   // The pad (4) may hang past the edges: the card flush with them.
   const HudBox d = PlaceClock(1700.0f, 900.0f, 1.0f, 82.0f, 34.0f, 0.0f, -50.0f, 4.0f);
   CHECK_EQ(std::fabs(d.x - 1622.0f) < 0.01f && std::fabs(d.y - 870.0f) < 0.01f, true);
-  // The built-in spot (0.59.12): the window - the card fills it, 66 x 18 + a pad of 4 - on the right edge, its
-  // bottom 129 over the bottom edge (the owner's fit).
-  const HudBox e = PlaceClock(1700.0f, 900.0f, 1.0f, 74.0f, 26.0f, static_cast<float>(kClockFromRight),
+  // The built-in spot (0.59.13): the window (66 x 18 + a pad of 4, kClockRowRoom more in height) on the right
+  // edge; the card - the window's top 26 - ends 129 over the bottom edge (the owner's fit).
+  const float window_h = 26.0f + kClockRowRoom;
+  const HudBox e = PlaceClock(1700.0f, 900.0f, 1.0f, 74.0f, window_h, static_cast<float>(kClockFromRight),
                               static_cast<float>(kClockFromBottom), 0.0f);
   CHECK_EQ(std::fabs(e.x + 74.0f - 1700.0f) < 0.01f, true);
   CHECK_EQ(std::fabs(e.y + 26.0f - (900.0f - 129.0f)) < 0.01f, true);

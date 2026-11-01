@@ -39,8 +39,13 @@ constexpr float kClockHeight = 18.0f;
 // hang past the edge - the card fills the window now (core/clock_panel.cpp)
 // and the window sits flush right; its bottom where the owner put the card
 // (125 for the old window, whose card ended 4 over its bottom).
+// 0.59.13 (owner: "the clock is unvisible now as the frame is dominated by the
+// scroll bar elements"): the column's row needs its spacing under it, or the
+// window grows scroll bars - the window is 8 taller than the card, the card at
+// its top, so the window's bottom is 8 under the card's (129 - 8 = 121).
 constexpr int kClockFromRight = 37;   // half the window (74): flush right
-constexpr int kClockFromBottom = 129;
+constexpr int kClockFromBottom = 121;
+constexpr float kClockRowRoom = 8.0f;  // the window's room under the card (the row's spacing)
 
 // The window's spot: x / y in window pixels, w / h the window's size in GUI
 // units (as NUI takes them) - `window_w` x `window_h` GUI units, centred

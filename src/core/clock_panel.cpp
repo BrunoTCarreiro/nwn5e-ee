@@ -20,6 +20,9 @@
 // its pad, so the card stayed 4 in from the edge. The root is a column now -
 // no group - and the card is drawn out to the window's edges (the window's own
 // clip is its whole rect), so a window flush right is a card flush right.
+// 0.59.13 (owner: "the clock is unvisible now as the frame is dominated by the
+// scroll bar elements"): a column's row takes its spacing under it, and the
+// window grew scroll bars - it's kClockRowRoom taller than the card now.
 
 #include "clock_panel.h"
 
@@ -256,7 +259,8 @@ void ClockTick() {
     ClientNuiSetJson(g_window.token, "sun", "false");
     ClientNuiSetJson(g_window.token, "moon", "false");
   }
-  const float window_w = rules::kClockWidth + kWindowSlack, window_h = rules::kClockHeight + kWindowSlack;
+  const float window_w = rules::kClockWidth + kWindowSlack;
+  const float window_h = rules::kClockHeight + kWindowSlack + rules::kClockRowRoom;
   const rules::HudBox spot =
       rules::PlaceClock(g_reading.gui_w, g_reading.gui_h, g_reading.gui_s, window_w, window_h,
                         static_cast<float>(g_offsets.from_right), static_cast<float>(g_offsets.from_bottom),
