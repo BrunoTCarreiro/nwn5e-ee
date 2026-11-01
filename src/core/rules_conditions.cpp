@@ -28,6 +28,14 @@
 //   effect's duration, credited to the source (through the script bridge,
 //   scheduled right after the effect is handled), and attacks with
 //   disadvantage while it can see that source. Immunities stay NWN's.
+// - CN8 Charmed, revised (#106; owner, 2026-11-01: "change the charm to 2024,
+//   not being able to attack the caster"): on a player character NWN's charm
+//   is a daze. Faithful: its state never takes hold on a player - the player
+//   keeps control and gets the charm icon credited to the charmer for the
+//   effect's time (as CN5's fear), and an attack order on the charmer, or a
+//   harmful spell aimed at it, is refused with a word (action_guard.h); one
+//   under way when the charm lands stops. Immunities stay NWN's; Mindless Rage
+//   drops the icon. NPCs keep NWN's charm.
 // - Coup de grace (faithful): gone (2024 has none) — COUP_DE_GRACE_LEVEL_LIMIT
 //   answers -1, so no level qualifies.
 // - CN6 Concealment (faithful, with advantage_disadvantage): NWN's
@@ -36,13 +44,23 @@
 //   Self-Concealment gives disadvantage instead (invisible and unseen
 //   targets already do, B1).
 
+#include <windows.h>
+
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+#include "action_guard.h"
 #include "attack_roll.h"
+#include "chat.h"
 #include "condition_effects.h"
 #include "config.h"
 #include "creature.h"
+#include "data_serving.h"
 #include "dice.h"
 #include "ee_layout.h"
 #include "effects.h"
@@ -110,7 +128,107 @@ bool NwnRefusesFear(void* creature, const void* effect) {
   return Immune(creature, ee::kImmunityMindSpells, versus) && !bypass;
 }
 
+// --- #106 Charmed (2024) on a player ---------------------------------------------------------------
+
+constexpr float kPermanentCharmSeconds = 60.0f;
+constexpr uint64_t kCharmWordMs = 2000;  // the refusal's word, at most this often a creature
+std::unordered_map<uint32_t, uint64_t> g_charm_word_at;
+std::vector<int> g_spell_hostile;  // spells.2da HostileSetting
+
+// NWN's own refusals of a charm effect (its handler sends their feedback), as the fear's.
+bool NwnRefusesCharm(void* creature, const void* effect) {
+  if (engine::IsDeadOrDying(creature)) return true;
+  void* versus = CreatureById(effects::Creator(effect));
+  if (Immune(creature, ee::kImmunityCharm, versus)) return true;
+  const bool bypass = (effects::Flags(effect) & 0x18) == 0x10 && effects::Integer(effect, 1) == 1;
+  return Immune(creature, ee::kImmunityMindSpells, versus) && !bypass;
+}
+
+// Is `creature` charmed by `source` (the charm icon nwn5e credited to it)?
+bool CharmedBy(const void* creature, uint32_t source) {
+  if (!creature || source == ee::kObjectInvalid) return false;
+  bool found = false;
+  effects::ForEachOfType(creature, ee::kEffectTypeIcon, [&](const void* effect) {
+    if (effects::Integer(effect, 0) == ee::kIconCharmed && effects::Creator(effect) == source) found = true;
+  });
+  return found;
+}
+
+bool SpellHostile(uint32_t spell) {
+  if (g_spell_hostile.size() < 2) {
+    g_spell_hostile.clear();
+    for (const std::string& value : GameTableColumn("spells", "HostileSetting")) {
+      g_spell_hostile.push_back(atoi(value.c_str()));
+    }
+  }
+  return spell < g_spell_hostile.size() && g_spell_hostile[spell] == 1;
+}
+
+void SayCharmRefusal(void* creature, uint32_t charmer, const char* what) {
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  const uint64_t now = GetTickCount64();
+  uint64_t& last = g_charm_word_at[id];
+  if (now - last < kCharmWordMs) return;
+  last = now;
+  if (Field<int32_t>(creature, ee::kCreatureIsPlayerCharacter) != 0) {
+    TellPlayer(id, std::string("nwn5e: you're charmed by it - you can't ") + what + " the creature that charmed you.");
+  }
+  if (LogSlot()) Log("conditions: 0x%08X charmed by 0x%08X - %s refused (2024 Charmed)", id, charmer, what);
+}
+
+// The charm on a player, the 2024 way: NWN's state not kept; the icon credited to the charmer
+// (scheduled by it, after the engine is done with this effect), an attack on it stopped, a word.
+int ApplyCharm2024(void* creature, uint32_t id, void* effect) {
+  const uint32_t source = effects::Creator(effect);
+  const bool temporary = (effects::Flags(effect) & 0x7) == ee::kEffectDurationTemporary;
+  const float seconds = temporary ? effects::Duration(effect) : kPermanentCharmSeconds;
+  char script[900];
+  sprintf_s(script,
+            "object o = StringToObject(\"%x\"); if (!GetIsObjectValid(o)) return; object s = OBJECT_SELF;"
+            "DelayCommand(0.0, ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectIcon(EFFECT_ICON_CHARMED), o, %.1f));"
+            "if (GetAttackTarget(o) == s) AssignCommand(o, ClearAllActions());"
+            "string by = GetName(s); if (s == o) by = \"yourself\";"
+            "if (GetIsPC(o)) SendMessageToPC(o, \"nwn5e: charmed by \" + by + \" for %.0f s - you keep control, but you "
+            "can't attack it or aim a harmful spell at it (2024 Charmed)\");",
+            id, seconds, seconds);
+  RunScriptChunk(script, CreatureById(source) ? source : id);
+  if (LogSlot()) {
+    Log("conditions: 0x%08X charmed by 0x%08X for %.0f s (2024 Charmed: control kept, no attack on it)", id, source,
+        seconds);
+  }
+  (void)creature;
+  return 1;  // NWN's charm state is not kept
+}
+
+// An attack order on the charmer, refused (CNWSObject::AddAction: action 0xC, its target the first parameter).
+bool CharmAttackGuard(void* object, uint32_t action, uint32_t type1, const void* param1) {
+  if (action != ee::kActionAttackObject || type1 != kActionParamObject || !param1 || !Faithful()) return false;
+  const uint32_t target = *static_cast<const uint32_t*>(param1);
+  if (!rules::CharmRefuses(rules::CharmedOrder::kAttack, CharmedBy(object, target))) return false;
+  SayCharmRefusal(object, target, "attack");
+  return true;
+}
+
+// A harmful spell aimed at the charmer, refused (CNWSCreature::AddCastSpellActions).
+bool CharmSpellGuard(void* creature, uint32_t spell, uint32_t target) {
+  if (!creature || !Faithful() || target == ee::kObjectInvalid) return false;
+  const rules::CharmedOrder order = SpellHostile(spell) ? rules::CharmedOrder::kHarmfulSpell : rules::CharmedOrder::kOther;
+  if (!rules::CharmRefuses(order, CharmedBy(creature, target))) return false;
+  SayCharmRefusal(creature, target, "aim a harmful spell at");
+  return true;
+}
+
 int OnApplySetState(void* handler, void* object, void* effect, int loading) {
+  // #106: a charm on a player character, the 2024 way.
+  if (Faithful() && object && effect && !loading && effects::Integer(effect, 0) == ee::kStateCharmed) {
+    const uint32_t id = Field<uint32_t>(object, ee::kObjectId);
+    void* creature = CreatureById(id);
+    if (creature && rules::Charm2024(Field<int32_t>(creature, ee::kCreatureIsPlayerCharacter) != 0, g_config.conditions) &&
+        !NwnRefusesCharm(creature, effect)) {
+      return ApplyCharm2024(creature, id, effect);
+    }
+    return g_on_apply_set_state(handler, object, effect, loading);
+  }
   if (!Faithful() || !object || !effect || loading || effects::Integer(effect, 0) != ee::kStateFrightened) {
     return g_on_apply_set_state(handler, object, effect, loading);
   }
@@ -321,6 +439,12 @@ void InstallConditionRules() {
   HookExport("CNWSCreature::AIActionCastSpell (CN8: deafness adds no spell failure)", ee::kAIActionCastSpell,
              reinterpret_cast<void*>(&AIActionCastSpell), reinterpret_cast<void**>(&g_ai_action_cast_spell));
   AnswerRulesetInt("COUP_DE_GRACE_LEVEL_LIMIT", "conditions: no coup de grace (2024)", [](int) { return -1; });
+  // #106: the 2024 Charmed - no attack on the charmer, no harmful spell at it.
+  const bool attack_guard = AddActionGuard(&CharmAttackGuard);
+  const bool spell_guard = AddSpellCastGuard(&CharmSpellGuard);
+  Log(attack_guard && spell_guard ? "conditions: Charmed on a player is 2024's - control kept, no attack or harmful "
+                                    "spell on the charmer (faithful)"
+                                  : "SKIP conditions CN8: a charmed player's orders aren't guarded");
   AddAttackRollListeners(nullptr, &ForceCriticalOnHelpless);
   // CN6 replaces the miss chance with disadvantage, so it needs the
   // advantage / disadvantage rule.

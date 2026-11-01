@@ -53,4 +53,18 @@ RollSources ConditionAttackSources(const Conditions& attacker, const Conditions&
 // attacker within 5 ft is a critical hit (2024: melee or ranged).
 bool ConditionForcesCritical(const Conditions& target, bool within_five_feet, RuleVariant variant);
 
+// #106 (CN8 revised; owner, 2026-11-01: "change the charm to 2024, not being
+// able to attack the caster"). Does NWN's charm become the 2024 Charmed - the
+// creature keeps control, and can't attack its charmer or aim a harmful spell
+// at it? Faithful, on a player character. NPCs keep NWN's charm (friendly to
+// the charmer, which their AI expects); NWN mode keeps NWN's (a daze on a
+// player).
+bool Charm2024(bool player_character, RuleVariant variant);
+
+// What a creature charmed by `target` may not order against it (2024): an
+// attack, or a harmful spell aimed at it. Other orders stand (moving, talking,
+// a helpful spell).
+enum class CharmedOrder { kAttack, kHarmfulSpell, kOther };
+bool CharmRefuses(CharmedOrder order, bool target_is_charmer);
+
 }  // namespace rules

@@ -157,13 +157,17 @@ constexpr int kStateStunned = 6;
 constexpr int kStateParalyzed = 8;
 constexpr int kStateAsleep = 9;
 constexpr int kStatePetrified = 15;
+// EffectCharmed's state (#106; CNWSCreature::RemoveCharmEffectsByOBJECTID 0x39e2e0 checks 1, and 7 Dominated).
+constexpr int kStateCharmed = 1;
 constexpr int kIconFrightened = 14;
+constexpr int kIconCharmed = 12;  // EFFECT_ICON_CHARMED (#106: the 2024 Charmed on a player)
 constexpr int kIconPoison = 20;  // EFFECT_ICON_POISON: R6 Cunning Strike's Poisoned (no ability damage)
 constexpr int kRacialTypeAll = 28;  // a concealment effect's race filter: everyone
 // GetEffectImmunity(type, versus, 1): 1 also checks the immunity feats (its HasFeat calls).
 constexpr const char* kGetEffectImmunity = "?GetEffectImmunity@CNWSCreatureStats@@QEAAHEPEAVCNWSCreature@@H@Z";
 constexpr int kImmunityMindSpells = 1;
 constexpr int kImmunityFear = 4;
+constexpr int kImmunityCharm = 14;  // IMMUNITY_TYPE_CHARM
 constexpr int kImmunityCriticalHit = 31;  // ResolveAttackRoll passes 31 (rdata 0xde7d30)
 constexpr const char* kOnApplySetState = "?OnApplySetState@CNWSEffectListHandler@@QEAAHPEAVCNWSObject@@PEAVCGameEffect@@H@Z";
 constexpr const char* kOnApplyEntangled = "?OnApplyEntangled@CNWSEffectListHandler@@QEAAHPEAVCNWSObject@@PEAVCGameEffect@@H@Z";

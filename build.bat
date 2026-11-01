@@ -48,7 +48,7 @@ cl %CFLAGS% /LD /Ithird_party\minhook\include /Isrc %PRIVATE_DEF% %DEV_DEF% /DNW
   src\core\rules_debug.cpp src\core\engine.cpp src\core\rules_racial.cpp src\core\rules_two_weapon.cpp ^
   src\core\rules_advantage.cpp src\core\rules_retarget.cpp src\core\feats.cpp src\core\rules_opportunity.cpp ^
   src\core\rules_potion.cpp src\core\effects.cpp src\core\rules_conditions.cpp src\core\chat.cpp src\core\rest.cpp ^
-  src\core\rules_mastery.cpp src\core\rules_push.cpp src\core\client_smoothing.cpp src\core\creature_update.cpp ^
+  src\core\rules_mastery.cpp src\core\rules_push.cpp src\core\client_smoothing.cpp src\core\action_guard.cpp src\core\creature_update.cpp ^
   src\core\skill_rank.cpp src\core\rules_skills.cpp src\core\rules_nwn_skills.cpp src\core\rules_casting.cpp ^
   src\core\rules_initiative.cpp src\core\rules_saves.cpp src\core\rules_save_roll.cpp src\core\rules_labels.cpp ^
   src\core\rules_spell_attack.cpp src\core\rules_shove.cpp src\core\rules_skill_dcs.cpp src\core\rules_perception.cpp ^

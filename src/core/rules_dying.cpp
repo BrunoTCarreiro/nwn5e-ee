@@ -67,6 +67,7 @@
 #include <utility>
 #include <vector>
 
+#include "action_guard.h"
 #include "attack_roll.h"
 #include "chat.h"
 #include "config.h"
@@ -1101,10 +1102,7 @@ int ExhaustionLevel(void* creature) { return creature && Faithful() ? Exhaustion
 
 namespace {
 
-// A down henchman's actions refused (see g_allow_down_actions).
-using AddActionFn = void (*)(void* object, uint32_t action, uint16_t group, uint32_t t1, void* p1, uint32_t t2, void* p2, uint32_t t3, void* p3, uint32_t t4, void* p4, uint32_t t5, void* p5, uint32_t t6, void* p6, uint32_t t7, void* p7, uint32_t t8, void* p8, uint32_t t9, void* p9, uint32_t t10, void* p10, uint32_t t11, void* p11, uint32_t t12, void* p12);
-AddActionFn g_add_action = nullptr;
-AddActionFn g_add_action_to_front = nullptr;
+// A down henchman's actions refused (see g_allow_down_actions) - an order guard (action_guard.h, #106).
 uint64_t g_last_refusal_log = 0;
 
 bool RefusesActions(void* object, uint32_t action) {
@@ -1119,14 +1117,8 @@ bool RefusesActions(void* object, uint32_t action) {
   return true;
 }
 
-void AddAction(void* object, uint32_t action, uint16_t group, uint32_t t1, void* p1, uint32_t t2, void* p2, uint32_t t3, void* p3, uint32_t t4, void* p4, uint32_t t5, void* p5, uint32_t t6, void* p6, uint32_t t7, void* p7, uint32_t t8, void* p8, uint32_t t9, void* p9, uint32_t t10, void* p10, uint32_t t11, void* p11, uint32_t t12, void* p12) {
-  if (RefusesActions(object, action)) return;
-  g_add_action(object, action, group, t1, p1, t2, p2, t3, p3, t4, p4, t5, p5, t6, p6, t7, p7, t8, p8, t9, p9, t10, p10, t11, p11, t12, p12);
-}
-
-void AddActionToFront(void* object, uint32_t action, uint16_t group, uint32_t t1, void* p1, uint32_t t2, void* p2, uint32_t t3, void* p3, uint32_t t4, void* p4, uint32_t t5, void* p5, uint32_t t6, void* p6, uint32_t t7, void* p7, uint32_t t8, void* p8, uint32_t t9, void* p9, uint32_t t10, void* p10, uint32_t t11, void* p11, uint32_t t12, void* p12) {
-  if (RefusesActions(object, action)) return;
-  g_add_action_to_front(object, action, group, t1, p1, t2, p2, t3, p3, t4, p4, t5, p5, t6, p6, t7, p7, t8, p8, t9, p9, t10, p10, t11, p11, t12, p12);
+bool DownHenchmanGuard(void* object, uint32_t action, uint32_t, const void*) {
+  return RefusesActions(object, action);
 }
 
 }  // namespace
@@ -1149,10 +1141,7 @@ void InstallDyingRules() {
     Log("SKIP dying: CNWSCreature::DoDamage not hooked - NWN's dying stays");
     return;
   }
-  if (!HookExport("CNWSObject::AddAction (dying: a down henchman does nothing)", ee::kObjectAddAction,
-                  reinterpret_cast<void*>(&AddAction), reinterpret_cast<void**>(&g_add_action)) ||
-      !HookExport("CNWSObject::AddActionToFront (dying: a down henchman does nothing)", ee::kObjectAddActionToFront,
-                  reinterpret_cast<void*>(&AddActionToFront), reinterpret_cast<void**>(&g_add_action_to_front))) {
+  if (!AddActionGuard(&DownHenchmanGuard)) {
     Log("dying: the action queue is not hooked - a down henchman's AI can still act (potions)");
   }
   if (!HookExport("CNWSEffectListHandler::OnApplyDeath (dying: death magic lays a henchman down)", ee::kOnApplyDeath,

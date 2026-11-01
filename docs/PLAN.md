@@ -1977,6 +1977,12 @@ able to check H8 and H9"): the button, Short Rests (refused mid-fight, Hit
 Dice running out), Second Wind back, the Long Rest (every Hit Die back, all
 or nothing). Not checked: a henchman resting along (H8), the button greyed
 with Rest (H9).*
+*A visible clock (#105; owner, 2026-11-01: "If time is an important part of the game, is affected by resting and
+has effects on in-game npc routines, shouldn't there be a visible clock?"). Decided (owner, 2026-11-01): "I see
+the time is already displayed on hover on the compass, so there should be a clock on top of the compass on the
+bottom right, we'll have to look into how to make it fit the UI but for now try to come up with something
+appropriate, the sun and moon icons are a nice touch".* A game day is 24 hours, an hour the module's "minutes per
+hour" of real time (2 in the owner's module: a day in 48 real minutes).
 *5b built (0.19.0, key `dying`):* rules/death_saves.{h,cpp} (unit-tested: the
 saves, the Exhaustion penalty on them, Defy Death, damage at 0 HP, massive
 damage, the speed penalty); rules_dying.cpp -
@@ -3210,6 +3216,20 @@ daze, by NWN's design), Petrified (same as paralysis plus the stone look; no
 damage resistance — later decision), Dazed (= 2024 Incapacitated), Confused
 (random AI), Grappled (no grapple in NWN; Phase 6). *Revised 2026-10-19:*
 Deafened — faithful drops the 20% arcane spell failure; NWN mode keeps it.
+*Revised (owner, 2026-11-01: "change the charm to 2024, not being able to attack the caster"; #106)* - after #104's
+F4 ("Cannot activate rage in F4": a charmed player was NWN's daze). Faithful: a charmed player keeps control - no
+NWN charm state, the charm icon credited to the charmer for the effect's time - and can't attack its charmer or
+aim a harmful spell at it (the order refused with a word); immunities stay NWN's; Mindless Rage ends it. NPCs keep
+NWN's charm (friendly to the charmer - close to 2024, and what their AI expects). The charmer's social Advantage
+has no NWN use against a player.
+*Built 0.59.7 (#106):* EffectCharmed is SetState 1 (CNWSCreature::RemoveCharmEffectsByOBJECTID checks 1 and 7,
+Dominated). On a player in faithful, OnApplySetState keeps no NWN state: the charm icon (EFFECT_ICON_CHARMED)
+credited to the charmer for the effect's time, an attack on it under way stopped, a word - unless NWN refuses
+the charm (immune to charm or mind spells: its own feedback). The orders: the dying rules' and the Rage's hooks
+on CNWSObject::AddAction and CNWSCreature::AddCastSpellActions moved into one place (action_guard.cpp, order
+guards); the charm's guards refuse an attack order on the charmer (action 0xC, its one parameter the target -
+read from CNWSCreature::AddAttackActions) and a spell aimed at it with spells.2da HostileSetting 1, with a word.
+Mindless Rage drops the charm icon with the fear's. Test ConditionsCharmed2024 (6 mutations caught).
 
 ## Grapple and Throw — decided by the owner (2026-10-27)
 

@@ -38,4 +38,12 @@ bool ConditionForcesCritical(const Conditions& target, bool within_five_feet, Ru
   return variant == RuleVariant::kFaithful && within_five_feet && (target.paralyzed || target.asleep);
 }
 
+bool Charm2024(bool player_character, RuleVariant variant) {
+  return variant == RuleVariant::kFaithful && player_character;
+}
+
+bool CharmRefuses(CharmedOrder order, bool target_is_charmer) {
+  return target_is_charmer && (order == CharmedOrder::kAttack || order == CharmedOrder::kHarmfulSpell);
+}
+
 }  // namespace rules

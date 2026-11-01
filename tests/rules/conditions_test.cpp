@@ -100,3 +100,19 @@ TEST(MeleeHitsOnHelplessTargetsAreCriticals) {
   CHECK_EQ(ConditionForcesCritical(stunned, true, RuleVariant::kFaithful), false);
   CHECK_EQ(ConditionForcesCritical(held, true, RuleVariant::kNwn), false);
 }
+
+// #106 (CN8 revised). Breaks caught: an NPC's charm turned 2024 (its AI
+// expects NWN's), the 2024 charm in NWN mode or with conditions off, an attack
+// or a harmful spell on the charmer allowed, an order against another creature
+// or a helpful spell on the charmer refused.
+TEST(ConditionsCharmed2024) {
+  CHECK_EQ(Charm2024(true, RuleVariant::kFaithful), true);
+  CHECK_EQ(Charm2024(false, RuleVariant::kFaithful), false);
+  CHECK_EQ(Charm2024(true, RuleVariant::kNwn), false);
+  CHECK_EQ(Charm2024(true, RuleVariant::kOff), false);
+  CHECK_EQ(CharmRefuses(CharmedOrder::kAttack, true), true);
+  CHECK_EQ(CharmRefuses(CharmedOrder::kHarmfulSpell, true), true);
+  CHECK_EQ(CharmRefuses(CharmedOrder::kAttack, false), false);
+  CHECK_EQ(CharmRefuses(CharmedOrder::kHarmfulSpell, false), false);
+  CHECK_EQ(CharmRefuses(CharmedOrder::kOther, true), false);
+}

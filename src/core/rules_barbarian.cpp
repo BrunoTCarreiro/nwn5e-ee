@@ -72,6 +72,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "action_guard.h"
 #include "attack_roll.h"
 #include "chat.h"
 #include "condition_effects.h"
@@ -187,10 +188,6 @@ constexpr int kUserTypeSpell = 1;  // spells.2da UserType: 1 spells, 2 creature 
 constexpr uint64_t kPendingMs = 15000;  // a queued Rage's cast, at most
 constexpr uint64_t kWatchMs = 250;
 
-using AddCastSpellActionsFn = int (*)(void* creature, uint32_t spell, int class_slot, int domain_level, int metamagic,
-                                      int spontaneous, Vec3 location, uint32_t target, int area_target,
-                                      int add_to_front, int fake, uint8_t projectile_path, int instant, int unknown,
-                                      int feat, uint8_t unknown2);
 using AddItemCastSpellActionsFn = int (*)(void* creature, uint32_t item, int property, int sub_property,
                                           Vec3 location, uint32_t target, int area_target, int flag);
 using ItemByIdFn = void* (*)(void* app, uint32_t id);
@@ -219,7 +216,6 @@ constexpr uint64_t kRageWantedMs = 60000;
 // the queued Rage - a loop (~30-200 asks, a voice line each) until one got through.
 std::unordered_map<uint32_t, uint64_t> g_rage_asked;
 constexpr uint64_t kRageAskCooldownMs = 6000;
-AddCastSpellActionsFn g_add_cast_spell_actions = nullptr;
 AddItemCastSpellActionsFn g_add_item_cast_spell_actions = nullptr;
 ItemByIdFn g_item_by_id = nullptr;
 void** g_app_manager = nullptr;
@@ -375,12 +371,13 @@ const char* RageEnds(void* creature, Rage& rage) {
   return nullptr;
 }
 
-// BZ2: CN5's fear is an icon effect nwn5e put on the creature (its record).
+// BZ2: CN5's fear and #106's 2024 charm are icon effects nwn5e put on the creature (their records).
 void DropFear(void* creature) {
   if (!g_remove_effect) return;
   std::vector<void*> fears;
   effects::ForEachOfType(creature, ee::kEffectTypeIcon, [&](const void* effect) {
-    if (effects::Integer(effect, 0) == ee::kIconFrightened) fears.push_back(const_cast<void*>(effect));
+    const int icon = effects::Integer(effect, 0);
+    if (icon == ee::kIconFrightened || icon == ee::kIconCharmed) fears.push_back(const_cast<void*>(effect));
   });
   for (void* effect : fears) g_remove_effect(creature, effect);
 }
@@ -578,17 +575,13 @@ int SpellUserType(uint32_t spell) {
   return spell < g_spell_user_types.size() ? g_spell_user_types[spell] : 0;
 }
 
-// B2: no spells while raging (feat and creature abilities - Rage itself - pass).
-int AddCastSpellActions(void* creature, uint32_t spell, int class_slot, int domain_level, int metamagic,
-                        int spontaneous, Vec3 location, uint32_t target, int area_target, int add_to_front, int fake,
-                        uint8_t projectile_path, int instant, int unknown, int feat, uint8_t unknown2) {
-  if (creature && RageOf(creature) && SpellUserType(spell) == kUserTypeSpell) {
-    Log("barbarian: 0x%08X raging - spell %u refused", IdOf(creature), spell);
-    Tell(creature, "you can't cast spells while raging.");
-    return 0;
-  }
-  return g_add_cast_spell_actions(creature, spell, class_slot, domain_level, metamagic, spontaneous, location, target,
-                                  area_target, add_to_front, fake, projectile_path, instant, unknown, feat, unknown2);
+// B2: no spells while raging (feat and creature abilities - Rage itself - pass); an order guard
+// (action_guard.h, #106).
+bool RageRefusesSpell(void* creature, uint32_t spell, uint32_t) {
+  if (!creature || !RageOf(creature) || SpellUserType(spell) != kUserTypeSpell) return false;
+  Log("barbarian: 0x%08X raging - spell %u refused", IdOf(creature), spell);
+  Tell(creature, "you can't cast spells while raging.");
+  return true;
 }
 
 // Scrolls, wands, rods and magic staffs cast spells; potions (the owner's
@@ -1084,10 +1077,7 @@ void InstallBarbarianRules() {
   if (!AddAttackRollListeners(&BeforeAttackRoll, nullptr)) Log("barbarian: no attack-roll hook - attacks don't keep a Rage going");
   if (!AddFeatUsesProvider(kVarRageSpent, &RageUsesTotal)) Log("barbarian: Rage keeps NWN's uses");
   if (!AddResistanceProvider(&RageResistance)) Log("barbarian: no DoDamageImmunity hook - a Rage gives no resistance");
-  if (!HookExport("CNWSCreature::AddCastSpellActions (Rage: no spells)", ee::kAddCastSpellActions,
-                  reinterpret_cast<void*>(&AddCastSpellActions), reinterpret_cast<void**>(&g_add_cast_spell_actions))) {
-    Log("barbarian: a raging creature can still cast spells");
-  }
+  if (!AddSpellCastGuard(&RageRefusesSpell)) Log("barbarian: a raging creature can still cast spells");
   if (!HookExport("CNWSCreature::AddItemCastSpellActions (Rage: no scrolls, wands)", ee::kAddItemCastSpellActions,
                   reinterpret_cast<void*>(&AddItemCastSpellActions),
                   reinterpret_cast<void**>(&g_add_item_cast_spell_actions))) {
