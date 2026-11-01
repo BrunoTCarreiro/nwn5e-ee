@@ -301,6 +301,20 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
       node.orientation = keys;
     }
   };
+  // A node with no turn of its own is keyed at its rest turn, at 0 and at the clip's length (#108): the engine keeps an
+  // unkeyed node's turn from the animation before - n5_rage, played from a combat stance, kept that stance's 17-27
+  // degree rootdummy turn and tilted the whole body - and the bench solves with such nodes at rest. The model's own
+  // top node stays as it is. Both ways out below end with it.
+  const auto key_unkeyed_turns = [&]() {
+    for (size_t b = 0; b < bones.size(); ++b) {
+      if (clip.nodes[b].has_orientation || bones[b].parent < 0) continue;
+      const Value rest = bones[b].orientation.values.empty() ? Value{0.0f, 0.0f, 0.0f, 1.0f} : bones[b].orientation.values.front();
+      AnimKeys keys;
+      keys.times = {0.0f, recipe.length};
+      keys.values = {rest, rest};
+      put(b, false, keys);
+    }
+  };
 
   // The limbs with targets that this body has (step 8 runs only for them).
   const auto find = [&](const char* name) {
@@ -352,6 +366,7 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
       for (int f = 0; f <= frames; ++f) values.push_back(Composed(b, frame_time(f)));
       put(b.at, b.track->position, Finish(recipe, values, b.home, b.track->position, frames));
     }
+    key_unkeyed_turns();
     *out = clip;
     return true;
   }
@@ -573,6 +588,7 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
     const Value home = bones[root].position.values.empty() ? Value{0.0f, 0.0f, 0.0f, 0.0f} : bones[root].position.values.front();
     put(root, true, Finish(recipe, root_places, home, true, frames));
   }
+  key_unkeyed_turns();
   // No key spins the long way round: each orientation on the same side as the one before.
   for (AnimNode& node : clip.nodes) {
     if (!node.has_orientation) continue;
