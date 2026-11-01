@@ -40,11 +40,15 @@ TEST(HudClockPlacedOverTheCompass) {
   // The pad (4) may hang past the edges: the card flush with them.
   const HudBox d = PlaceClock(1700.0f, 900.0f, 1.0f, 82.0f, 34.0f, 0.0f, -50.0f, 4.0f);
   CHECK_EQ(std::fabs(d.x - 1622.0f) < 0.01f && std::fabs(d.y - 870.0f) < 0.01f, true);
-  // The built-in spot (0.59.15): the window (66 x 18 + the window's and the group's pads, 82 x 34) on the
-  // right edge, its bottom 125 over the bottom edge (the owner's fit).
+  // The built-in spot (0.59.16): the window (66 x 18 + the window's and the group's pads, 82 x 34) with its
+  // pad of 4 past the right edge - the card on the edge - its bottom 125 over the bottom edge (the owner's fit);
+  // kept on screen (no pad past), the window flush.
   const HudBox e = PlaceClock(1700.0f, 900.0f, 1.0f, 82.0f, 34.0f, static_cast<float>(kClockFromRight),
-                              static_cast<float>(kClockFromBottom), 0.0f);
-  CHECK_EQ(std::fabs(e.x + 82.0f - 1700.0f) < 0.01f, true);
-  CHECK_EQ(kClockFromRight * 2, 82);  // flush by itself, not by the on-screen clamp
+                              static_cast<float>(kClockFromBottom), 4.0f);
+  CHECK_EQ(std::fabs(e.x + 82.0f - 4.0f - 1700.0f) < 0.01f, true);
+  CHECK_EQ(kClockFromRight * 2 + 8, 82);  // the card flush by itself, not by the clamp
   CHECK_EQ(std::fabs(e.y + 34.0f - (900.0f - 125.0f)) < 0.01f, true);
+  const HudBox f = PlaceClock(1700.0f, 900.0f, 1.0f, 82.0f, 34.0f, static_cast<float>(kClockFromRight),
+                              static_cast<float>(kClockFromBottom), 0.0f);
+  CHECK_EQ(std::fabs(f.x + 82.0f - 1700.0f) < 0.01f, true);
 }

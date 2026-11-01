@@ -45,7 +45,10 @@ constexpr float kClockHeight = 18.0f;
 // back (it keeps them off), so the card is 4 in from the window's edge (the
 // group's pad, which it clips at); the window flush right, its bottom 125 (the
 // owner's fit with this layout).
-constexpr int kClockFromRight = 41;   // half the window (82): flush right
+// 0.59.16 (owner: "try edge_constraint"): the window may hang its pad (4) past
+// the right edge, so the card ends on it - where NUI lets it (an edge
+// constraint below 0); where it doesn't, it keeps the window on screen, flush.
+constexpr int kClockFromRight = 37;   // half the window (82) less its pad: the card flush right
 constexpr int kClockFromBottom = 125;
 
 // The window's spot: x / y in window pixels, w / h the window's size in GUI

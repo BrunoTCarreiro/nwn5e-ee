@@ -25,6 +25,11 @@
 // scrollbar elements which half covers the numbers"): with no group NUI's window
 // shows scroll bars anyway. The group root is back (scrollbars 0), so the card
 // is the group: 4 in from the window's edge, the window flush right.
+// 0.59.16 (owner: "try edge_constraint"): NUI keeps a window on screen; its
+// edge_constraint (a rect, untried) is given -8 all round, and the window may
+// hang its pad past the right edge (rules::PlaceClock's overhang), so the card
+// can end on it. `!clock edge <n>` sets the constraint, `!clock edge off` takes
+// it away (null, as before) - the window reopens - in case NUI won't have it.
 
 #include "clock_panel.h"
 
@@ -36,6 +41,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <atomic>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -67,6 +73,10 @@ constexpr size_t kAppGui = 0x90;
 constexpr size_t kGuiQuickbar = 0x60;
 
 ClockOffsets g_offsets{rules::kClockFromRight, rules::kClockFromBottom};
+bool g_edge_on = true;          // 0.59.16: an edge_constraint given (else null)
+int g_edge_margin = -8;         // its four sides
+std::atomic<bool> g_reopen{false};  // the window rebuilt with the new constraint
+int g_open_logs = 0;
 
 // Server -> client.
 struct Reading {
@@ -207,6 +217,14 @@ std::string Circle(const char* enabled, const std::string& colour, bool fill, fl
 constexpr float kIconX = 10.0f;  // the icon's centre in the content (GUI units)
 constexpr float kIconY = 9.0f;
 
+std::string Edge() {
+  if (!g_edge_on) return "null";
+  char text[96];
+  sprintf_s(text, "{\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d}", g_edge_margin, g_edge_margin, g_edge_margin,
+            g_edge_margin);
+  return text;
+}
+
 std::string ClockLayout() {
   const float w = rules::kClockWidth, h = rules::kClockHeight;
   // The card: the group (the label sits kGroupPad in from it; the group clips there).
@@ -236,7 +254,7 @@ std::string ClockLayout() {
   return "{\"version\":1,\"title\":false,\"root\":" + root +
          ",\"geometry\":{\"bind\":\"geometry\"},\"resizable\":false,\"collapsed\":false,\"closable\":false,"
          "\"transparent\":true,\"border\":false,\"accepts_input\":false,\"size_constraint\":null,"
-         "\"edge_constraint\":null,\"font\":\"\"}";
+         "\"edge_constraint\":" + Edge() + ",\"font\":\"\"}";
 }
 
 void CloseClock() {
@@ -256,8 +274,13 @@ void ClockTick() {
     if (g_window.token) CloseClock();
     return;
   }
+  if (g_reopen.exchange(false) && g_window.token) CloseClock();
   if (!g_window.token) {
     g_window.token = ClientNuiOpen(kWindowId, ClockLayout(), nullptr);
+    if (g_open_logs < 6) {
+      ++g_open_logs;
+      Log("hud: the clock window %s (edge_constraint %s)", g_window.token ? "opened" : "NOT opened", Edge().c_str());
+    }
     if (!g_window.token) return;
     ClientNuiSetJson(g_window.token, "on", "false");
     ClientNuiSetJson(g_window.token, "sun", "false");
@@ -268,7 +291,7 @@ void ClockTick() {
   const rules::HudBox spot =
       rules::PlaceClock(g_reading.gui_w, g_reading.gui_h, g_reading.gui_s, window_w, window_h,
                         static_cast<float>(g_offsets.from_right), static_cast<float>(g_offsets.from_bottom),
-                        0.0f);  // NUI keeps the window on screen
+                        g_edge_on ? kWindowPad : 0.0f);  // 0.59.16: its pad past the edge, where NUI lets it
   if (fabsf(spot.x - g_window.sent_x) > 0.4f || fabsf(spot.y - g_window.sent_y) > 0.4f) {
     ClientNuiSetJson(g_window.token, "geometry", Rect(spot.x, spot.y, spot.w, spot.h));
     g_window.sent_x = spot.x;
@@ -297,8 +320,11 @@ void ClockTick() {
 // "!clock right <n>" / "!clock bottom <n>" (GUI units, 0..2000) / "!clock where": the spot, while it's fitted.
 std::string Where() {
   char text[200];
-  sprintf_s(text, "nwn5e: the clock - right %d, bottom %d GUI units (!clock right <n> / !clock bottom <n> moves it; "
-            "tell the game session the numbers that fit).", g_offsets.from_right, g_offsets.from_bottom);
+  char edge[32] = "off";
+  if (g_edge_on) sprintf_s(edge, "%d", g_edge_margin);
+  sprintf_s(text, "nwn5e: the clock - right %d, bottom %d GUI units, edge %s (!clock right <n> / !clock bottom <n> "
+            "moves it, !clock edge <n> / off; tell the game session what fits).", g_offsets.from_right,
+            g_offsets.from_bottom, edge);
   return text;
 }
 
@@ -309,6 +335,20 @@ std::vector<std::string> ClockCommand(void* creature, const std::string& args) {
   const size_t space = word.find(' ');
   const std::string what = word.substr(0, space);
   if (what == "where") return {Where()};
+  if (what == "edge") {  // 0.59.16: the window's edge_constraint, live
+    const std::string rest = space == std::string::npos ? "" : word.substr(space + 1);
+    if (rest == "off") {
+      g_edge_on = false;
+    } else {
+      const int value = atoi(rest.c_str());
+      if (rest.empty() || value < -100 || value > 100) return {"nwn5e: !clock edge <-100..100> or !clock edge off"};
+      g_edge_on = true;
+      g_edge_margin = value;
+    }
+    g_reopen = true;
+    Log("hud: 0x%08X the clock's edge_constraint %s", id, Edge().c_str());
+    return {Where()};
+  }
   if (what == "right" || what == "bottom") {
     const int value = space == std::string::npos ? -1 : atoi(word.substr(space + 1).c_str());
     if (value < 0 || value > 2000) return {"nwn5e: !clock right <0..2000> or !clock bottom <0..2000> (GUI units)"};

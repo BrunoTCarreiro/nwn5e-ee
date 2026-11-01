@@ -2024,6 +2024,11 @@ shows scroll bars, taller or not. The group root (scrollbars 0) is back - 0.59.1
 the card is the group, 4 in from the window's edge; the window flush right (centre 41), its bottom 125 (the
 owner's fit with this layout). A card fully flush would need the window past the screen's edge, which NUI
 doesn't allow as built (its edge_constraint is untried). Test HudClockPlacedOverTheCompass (2 mutations caught, the flush one after a check that the built-in spot is flush by itself, not by the on-screen clamp).
+*0.59.16 (owner, 2026-11-01: "try edge_constraint"):* the clock's window gets an edge_constraint of -8 all round
+(NUI's window rect, untried) and may hang its pad of 4 past the right edge (rules::PlaceClock's overhang; centre
+37), so its card can end on the edge where NUI lets it - where it doesn't, the window stays flush as in 0.59.15.
+`!clock edge <n>` / `!clock edge off` change it live (the window reopens; off = null, as before), and the log
+says how each window opened. Test HudClockPlacedOverTheCompass (2 mutations caught).
 *5b built (0.19.0, key `dying`):* rules/death_saves.{h,cpp} (unit-tested: the
 saves, the Exhaustion penalty on them, Defy Death, damage at 0 HP, massive
 damage, the speed penalty); rules_dying.cpp -
