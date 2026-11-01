@@ -919,3 +919,14 @@ clips keyed no turn on a node without a track, so the engine kept rootdummy's tu
 combat stances turn it 17-27 deg, which tilted Rage's n5_rage with a weapon drawn. The core now keys every node below
 the model's top that has no turn track at its rest turn, on both of its return paths. AnimAssembleKeysUnkeyedTurns, 4
 breaks caught, test.bat 311/0. The bench's helper is rebuilt for the new core stamp after the install.
+
+*Correction, 0.59.11 (8d59bec; the owner: "fix it"):* 0.59.9 held every untracked node at its bind turn, not just
+rootdummy, and the start poses turn many of them away from bind - so a bench clip snapped the weapon point (rhand, 8.5
+deg in 1hreadyr), the shield point (lforearm, 13-19 deg), a_fa's shoulder pad (up to 70 deg) and the robe and cloak
+bones (up to 72 deg) off the stance for its length. Found when the bench's checks ran on the 0.59.9 helper. Now an
+untracked node holds the start pose's first-frame turn (the recipe's S * delta, with no delta); rootdummy its rest;
+its untracked child belt_g1 the root's turn folded in, as the solve does for the pelvis; a name the tree holds twice
+(a_da's two Impact nodes) stays unkeyed, since the engine matches nodes by name. n5_rage under pause1, 1hreadyr and
+2hreadyr: every node but the root within 0.07 deg of the stance at both ends on a_ba, a_fa, a_da and a_dfa. Also the
+helper's frames count (nwn5e-tools 05cb3b5) and the bench's checks (2853076). AnimAssembleKeysUnkeyedTurns rewritten,
+7 breaks caught, test.bat 311/0, bench checks 14/14, browser_check 45/45.
