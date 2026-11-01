@@ -2019,6 +2019,11 @@ bottom). Test HudClockPlacedOverTheCompass (2 mutations caught).
 row takes its spacing under it (4), so the 26-high window's 18 inside its pad overflowed and grew scroll bars
 (the group had kept them off). The window is 8 taller than the card now (74 x 34), the card at its top - flush
 right still, its bottom 121 over the bottom edge (the card's 129). Test HudClockPlacedOverTheCompass (2 mutations caught).
+*0.59.15 (owner: "clock still has scrollbar elements which half covers the numbers"):* with no group, NUI's window
+shows scroll bars, taller or not. The group root (scrollbars 0) is back - 0.59.10's layout, which showed none - so
+the card is the group, 4 in from the window's edge; the window flush right (centre 41), its bottom 125 (the
+owner's fit with this layout). A card fully flush would need the window past the screen's edge, which NUI
+doesn't allow as built (its edge_constraint is untried). Test HudClockPlacedOverTheCompass (2 mutations caught, the flush one after a check that the built-in spot is flush by itself, not by the on-screen clamp).
 *5b built (0.19.0, key `dying`):* rules/death_saves.{h,cpp} (unit-tested: the
 saves, the Exhaustion penalty on them, Defy Death, damage at 0 HP, massive
 damage, the speed penalty); rules_dying.cpp -

@@ -21,8 +21,10 @@
 // no group - and the card is drawn out to the window's edges (the window's own
 // clip is its whole rect), so a window flush right is a card flush right.
 // 0.59.13 (owner: "the clock is unvisible now as the frame is dominated by the
-// scroll bar elements"): a column's row takes its spacing under it, and the
-// window grew scroll bars - it's kClockRowRoom taller than the card now.
+// scroll bar elements"): the window made taller - and 0.59.15 ("clock still has
+// scrollbar elements which half covers the numbers"): with no group NUI's window
+// shows scroll bars anyway. The group root is back (scrollbars 0), so the card
+// is the group: 4 in from the window's edge, the window flush right.
 
 #include "clock_panel.h"
 
@@ -57,8 +59,9 @@ constexpr const char* kWindowId = "n5clock";
 constexpr ULONGLONG kCheckEveryMs = 1000;
 constexpr ULONGLONG kGuiEveryMs = 2000;
 constexpr int kRevealFrames = 3;
-constexpr float kWindowPad = 4.0f;  // the window's edge -> the label (the draw list's origin); no group (0.59.12)
-constexpr float kWindowSlack = 2.0f * kWindowPad;
+constexpr float kWindowPad = 4.0f;  // the window's edge -> the group (as the resource panel's)
+constexpr float kGroupPad = 4.0f;   // the group -> the label (the draw list's origin)
+constexpr float kWindowSlack = 2.0f * (kWindowPad + kGroupPad);
 constexpr size_t kClientAppInternal = 0x8;  // the resource panel's chain to the in-game GUI
 constexpr size_t kAppGui = 0x90;
 constexpr size_t kGuiQuickbar = 0x60;
@@ -206,11 +209,11 @@ constexpr float kIconY = 9.0f;
 
 std::string ClockLayout() {
   const float w = rules::kClockWidth, h = rules::kClockHeight;
-  // The card: the whole window (the label sits kWindowPad in from its edges).
-  std::string items = Shape(7, "on", Colour(0, 0, 0, 150), true, 1.0f, -kWindowPad, -kWindowPad,
-                            w + 2.0f * kWindowPad, h + 2.0f * kWindowPad);
-  items += "," + Shape(7, "on", Colour(150, 160, 170, 160), false, 1.0f, -kWindowPad, -kWindowPad,
-                       w + 2.0f * kWindowPad, h + 2.0f * kWindowPad);
+  // The card: the group (the label sits kGroupPad in from it; the group clips there).
+  std::string items = Shape(7, "on", Colour(0, 0, 0, 150), true, 1.0f, -kGroupPad, -kGroupPad,
+                            w + 2.0f * kGroupPad, h + 2.0f * kGroupPad);
+  items += "," + Shape(7, "on", Colour(150, 160, 170, 160), false, 1.0f, -kGroupPad, -kGroupPad,
+                       w + 2.0f * kGroupPad, h + 2.0f * kGroupPad);
   // The sun: a disc in a ring of eight dots, its colour a bind (yellow; orange at dawn and dusk).
   items += "," + Circle("sun", Bind("sun_c"), true, kIconX, kIconY, 4.2f);
   for (int k = 0; k < 8; ++k) {
@@ -228,7 +231,8 @@ std::string ClockLayout() {
   sprintf_s(size, "\"width\":%.1f,\"height\":%.1f,", w, h);
   const std::string element = std::string("{\"type\":\"label\",\"label\":null,\"value\":\"\",") + size +
                               "\"draw_list\":[" + items + "],\"draw_list_scissor\":false}";
-  const std::string root = "{\"type\":\"col\",\"label\":null,\"value\":null,\"children\":[" + element + "]}";
+  const std::string root = "{\"type\":\"group\",\"label\":null,\"value\":null,\"border\":false,\"scrollbars\":0,"
+                           "\"children\":[" + element + "]}";
   return "{\"version\":1,\"title\":false,\"root\":" + root +
          ",\"geometry\":{\"bind\":\"geometry\"},\"resizable\":false,\"collapsed\":false,\"closable\":false,"
          "\"transparent\":true,\"border\":false,\"accepts_input\":false,\"size_constraint\":null,"
@@ -260,11 +264,11 @@ void ClockTick() {
     ClientNuiSetJson(g_window.token, "moon", "false");
   }
   const float window_w = rules::kClockWidth + kWindowSlack;
-  const float window_h = rules::kClockHeight + kWindowSlack + rules::kClockRowRoom;
+  const float window_h = rules::kClockHeight + kWindowSlack;
   const rules::HudBox spot =
       rules::PlaceClock(g_reading.gui_w, g_reading.gui_h, g_reading.gui_s, window_w, window_h,
                         static_cast<float>(g_offsets.from_right), static_cast<float>(g_offsets.from_bottom),
-                        0.0f);  // 0.59.12: NUI keeps the window on screen; the card fills it
+                        0.0f);  // NUI keeps the window on screen
   if (fabsf(spot.x - g_window.sent_x) > 0.4f || fabsf(spot.y - g_window.sent_y) > 0.4f) {
     ClientNuiSetJson(g_window.token, "geometry", Rect(spot.x, spot.y, spot.w, spot.h));
     g_window.sent_x = spot.x;
