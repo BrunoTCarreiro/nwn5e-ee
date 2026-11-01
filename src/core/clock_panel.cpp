@@ -30,6 +30,10 @@
 // hang its pad past the right edge (rules::PlaceClock's overhang), so the card
 // can end on it. `!clock edge <n>` sets the constraint, `!clock edge off` takes
 // it away (null, as before) - the window reopens - in case NUI won't have it.
+// 0.59.17 (owner: "clock is missing", then "edge 0 is almost good, I think it
+// would need to be edge -5 to be perfect, but this is close enough"): the
+// constraint is the window's margins from the screen's edges - 0 lets it reach
+// them (null keeps it further in), -8 put it out of sight. 0 is built in.
 
 #include "clock_panel.h"
 
@@ -74,7 +78,7 @@ constexpr size_t kGuiQuickbar = 0x60;
 
 ClockOffsets g_offsets{rules::kClockFromRight, rules::kClockFromBottom};
 bool g_edge_on = true;          // 0.59.16: an edge_constraint given (else null)
-int g_edge_margin = -8;         // its four sides
+int g_edge_margin = 0;          // its four sides (0.59.17: the owner's "close enough"; -8 hid the window)
 std::atomic<bool> g_reopen{false};  // the window rebuilt with the new constraint
 int g_open_logs = 0;
 

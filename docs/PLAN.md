@@ -2029,6 +2029,10 @@ doesn't allow as built (its edge_constraint is untried). Test HudClockPlacedOver
 37), so its card can end on the edge where NUI lets it - where it doesn't, the window stays flush as in 0.59.15.
 `!clock edge <n>` / `!clock edge off` change it live (the window reopens; off = null, as before), and the log
 says how each window opened. Test HudClockPlacedOverTheCompass (2 mutations caught).
+*The owner's 0.59.16 run:* "clock is missing" - the window opened (the log), out of sight; then "edge 0 is almost
+good, I think it would need to be edge -5 to be perfect, but this is close enough". So edge_constraint is the
+window's margins from the screen's edges: 0 lets it reach them (null keeps it further in), -8 put it out of
+sight. *Built 0.59.17:* edge_constraint 0 built in (`!clock edge <n>` still tries others).
 *5b built (0.19.0, key `dying`):* rules/death_saves.{h,cpp} (unit-tested: the
 saves, the Exhaustion penalty on them, Defy Death, damage at 0 HP, massive
 damage, the speed penalty); rules_dying.cpp -
