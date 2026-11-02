@@ -833,9 +833,11 @@ void QueueCreatureUpdate(void* creature) {
   if (client) g_client_player = id;
   std::vector<Item> items = Off(creature) ? std::vector<Item>() : ReadQueue(creature);
   // 0.61.1 (owner: "new actions aren't being added to the actions queue at the top"): a Bonus Action never enters
-  // NWN's queue - the one waiting for the next round and the one just used go first.
+  // NWN's queue - the one just used goes first; the one waiting for the next round (#120, owner: "it should be
+  // [Next action] [Next turn's action] [Default action]") just after the action in progress.
   if (!Off(creature)) {
-    std::vector<Item> bonus;
+    std::vector<Item> used;
+    std::vector<Item> waiting;
     for (const BonusStripItem& b : BonusActionStripItems(creature)) {
       Item it;
       it.kind = Kind::kSpecial;
@@ -851,9 +853,12 @@ void QueueCreatureUpdate(void* creature) {
         if (property) it.iprp_row = Field<uint16_t>(property, ee::kItemPropertySubtype);
         it.cancel_id = 0xFFFE;
       }
-      bonus.push_back(it);
+      (b.waiting ? waiting : used).push_back(it);
     }
-    items.insert(items.begin(), bonus.begin(), bonus.end());
+    std::vector<bool> special;
+    for (const Item& queued : items) special.push_back(queued.kind == Kind::kSpecial);
+    items.insert(items.begin() + rules::WaitingBonusSlot(special), waiting.begin(), waiting.end());
+    items.insert(items.begin(), used.begin(), used.end());
     // #120: the default attack, last - while actions wait and the last of them isn't an attack.
     const uint32_t fallback = DefaultAttackTarget(creature);
     const bool ends_attacking =

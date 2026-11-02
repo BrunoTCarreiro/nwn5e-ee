@@ -80,4 +80,13 @@ std::vector<float> QueueTileXs(const std::vector<float>& widths, float gui_width
 // today; 0 charges per use, unlimited or anything else - no limit (-1).
 int ItemPowerUsesLeft(int number_of_uses, int stack_size, int charges, int uses_left_today);
 
+// Phase 6 (#120; owner, 2026-11-02: "when issueing the second potion command it
+// appears at the front of the queue instead of at it's place - it should be
+// [Next action] [Next turn's action] [Default action]"): where a Bonus Action
+// waiting for the next round goes among the queue's items - just after the
+// action in progress (after the special attacks riding on it, which come first),
+// at the end when there's none. `special`: which of the queue's items, in
+// order, are special attacks.
+int WaitingBonusSlot(const std::vector<bool>& special);
+
 }  // namespace rules

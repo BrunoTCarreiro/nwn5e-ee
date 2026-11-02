@@ -278,6 +278,14 @@ attack (#120), then the reaction switches (#54).
     the player's (the input's), the potions' Bonus Action everyone's.
   - Test profile `!test queue` (a Cleric 5, three attacks a round, potions). Tests ActionQueueOrders,
     DefaultAttackTarget, DefaultAttackRangeAndPotions (18 of 18 mutations caught).
+- *The owner's 0.62.0 run (2026-11-02):* the log shows AQ-1 (the round's swings 2 and 3 after Doom was ordered, then
+  the cast), AQ-2 (two spells, one a round), AQ-3, AQ-6 to AQ-9 working; AQ-4 and AQ-5 ran during a cast round and out
+  of combat. The owner: "when issueing the second potion command it appears at the front of the queue instead of at
+  it's place / it should be [Next action] [Next turn's action] [Default action], but right now it shows as [Next
+  turn's action] [Next action] [Default action]". *Built 0.62.2 (with #121's 0.62.1 fix in):* a Bonus Action waiting
+  for the next round shows just after the action in progress (rules::WaitingBonusSlot: after the special attacks
+  riding on it too; at the end when none is in progress); the one just used still first. Test
+  WaitingBonusAfterTheActionInProgress (5 of 5 mutations caught).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,

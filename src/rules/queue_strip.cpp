@@ -161,6 +161,13 @@ int ItemPowerUsesLeft(int number_of_uses, int stack_size, int charges, int uses_
   return -1;  // 0 charges per use, unlimited, unknown
 }
 
+int WaitingBonusSlot(const std::vector<bool>& special) {
+  const int count = static_cast<int>(special.size());
+  int slot = 0;
+  while (slot < count && special[slot]) ++slot;  // the special attacks riding on the action in progress
+  return slot < count ? slot + 1 : count;
+}
+
 float QueueStripWidth(int shown, int more) {
   constexpr float kFrame = 28.0f;  // the window's own padding and the group's
   return kFrame + shown * kQueueSlotWidth + (more > 0 ? kQueueMoreWidth : 0.0f);

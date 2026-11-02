@@ -115,3 +115,15 @@ TEST(ItemPowerUsesLeft) {
   CHECK_EQ(ItemPowerUsesLeft(13, 1, 0, 0), -1);  // unlimited
   CHECK_EQ(ItemPowerUsesLeft(-1, 1, 0, 0), -1);  // not a Cast Spell power
 }
+
+// #120 (owner, 2026-11-02: "[Next action] [Next turn's action] [Default action]"). Breaks caught: the waiting Bonus
+// Action first again, after every queued action, between a special attack and the attack it rides on, past the end
+// of a queue of special attacks only.
+TEST(WaitingBonusAfterTheActionInProgress) {
+  CHECK_EQ(WaitingBonusSlot({}), 0);
+  CHECK_EQ(WaitingBonusSlot({false}), 1);
+  CHECK_EQ(WaitingBonusSlot({false, false, false}), 1);  // the attack, then two spells for later rounds
+  CHECK_EQ(WaitingBonusSlot({true, false, false}), 2);   // Knockdown riding on the attack
+  CHECK_EQ(WaitingBonusSlot({true, true, false}), 3);
+  CHECK_EQ(WaitingBonusSlot({true}), 1);
+}
