@@ -949,3 +949,27 @@ models, a gear picker, a warning when gear passes into the body; #112 (c) a two-
 solved it" - closed, solved with existing tools. #114 (the foot drag): the owner asked for rules that extend to any
 animation; the cutoff is general in scope but flips between two results on a tiny difference - a step rule is
 proposed (shift under ~5 cm, step above, never slide), waiting on his pick.
+
+### Gear on the bench's doll (2026-11-02, #111; plan docs/superpowers/plans/2026-11-02-mocap-bench-gear.md)
+
+*Built (nwn5e-tools ccd1852, 9a5e679, 77a7119, e4fd9f3, 434c663; bench only):*
+- **Measured from the game's models.** gear_measure.js reads nwn_base.key's baseitems.2da, blueprints and part models,
+  and keeps per item, in its attach node's frame (weapons on `rhand` along +Y, shields on `lforearm`), each part's
+  mesh box and its cells: the triangles clipped to 8 slices along a weapon, a 5 x 5 grid across a shield. Two hands
+  for a Large weapon. Only numbers are kept (public/core/gear_table.js).
+- **A gear picker** (weapon / shield, beside ghost / points), never saved; a project or start-pose change picks the
+  start pose's gear (1hreadyr a longsword and a large shield, 2hreadyr a greataxe); a two-hander clears the shield.
+- **The warning:** each part's cells against the body's capsules (torso, head, shoulders, thighs, shins, the free
+  arms, by the hip height), deeper than 1 cm. The timeline's take row is marked; Save names each item's deepest pass
+  per body part, ranked by each line's own threshold so it isn't buried.
+- **The general rule** (the owner's standard): NWN's own stance loops (pause1, 1hreadyr, 2hreadyr, every frame) are
+  clear on all four bodies. Against the real item meshes on NWN's own 1h/2h/pl/shield clips (140 clip-body runs), 48
+  warnings, 41 confirmed by the mesh.
+*Measured on the owner's n5_rage* (battleaxe and large shield): the axe ~13 cm into the torso and ~10 cm into the
+head at ~0.8 s on every body, ~6 cm into the left shoulder; the shield into the head or torso on a_ba and a_fa - 19
+of 20 warnings confirmed by the real meshes.
+*Final review* (a fresh reviewer): six Important findings, all fixed with tests that failed first - header boxes
+that included the node origin (the halberd's head ran down the haft), the "quarterstaff" that was the two-bladed
+sword, solid boxes over curved shapes (69 of 91 warnings false on NWN's own clips), the head and the shoulders
+uncovered, and gear lines buried at Save. Checks: checks/run.js 15/15, browser_check 46/46, 25 deliberate breaks
+caught. Rulings and deferred minors: the ledger, listed on #111.
