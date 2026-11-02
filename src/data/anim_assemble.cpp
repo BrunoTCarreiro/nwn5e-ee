@@ -516,6 +516,14 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
         Pose now = from;
         pose::SolveTwoBone(bones, from, &now, right_arm, at, bend_of(posed, right_arm, down), pose::kLimbDamping, &held_turn);
         pose::Forward(bones, &now);
+        // The forearm takes the hand's twist against the start pose's wrist, so the wrist holds as the start pose's does -
+        // the roll the turn moved onto the forearm (step 3) would otherwise carry over and pile up from frame to frame
+        // (n5_rage: the wrist 180 deg off its holding turn under a weapon held still).
+        const Quat wrist = pose::QNormalized(QMul(pose::QConj(now.wq[right_arm.mid]), held_turn));
+        const Quat roll = twist_of(QMul(wrist, pose::QConj(grip_arm[5])), pose::Normalized(now.lp[rhand]));
+        now.lq[right_arm.mid] = pose::QNormalized(QMul(now.lq[right_arm.mid], roll));
+        now.lq[rhand] = pose::QNormalized(QMul(pose::QConj(roll), wrist));
+        pose::Forward(bones, &now);
         p = now;
         gave_way = gave = true;
       }

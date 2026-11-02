@@ -696,6 +696,22 @@ TEST(AnimGripFollowHalf) {
   CHECK_EQ(worst_turn < 1.0f, true);
 }
 
+// The wrist holds as the start pose's does (#112 addendum 3): at a share of 0.5 on a swing past reach, the weapon's turn
+// moves twist onto the forearm frame after frame; the forearm takes it back against the start pose's wrist, so the wrist
+// stays within 60 deg of its holding turn (n5_rage had it 180 deg off). Break caught: the roll left to pile up.
+TEST(AnimGripFollowWristHolds) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = SwingRecipe(bones, 40.0f, 0.4f, -90.0f);
+  r.grip = true;
+  r.grip_follow = 0.5f;
+  const Pose st = PoseOf(IkStance(bones), bones, 0.0f);
+  const AnimClip out = Run(r, bones);
+  const int rh = IndexOf(bones, "rhand_g");
+  float worst = 0.0f;
+  for (int f = 0; f <= 30; ++f) worst = std::max(worst, TurnDegrees(PoseOf(out, bones, static_cast<float>(f) / 30.0f).lq[rh], st.lq[rh]));
+  CHECK_EQ(worst < 60.0f, true);
+}
+
 // A body without the right hand: no grip, the clip as without it.
 TEST(AnimIkGripMissingHandSkipped) {
   std::vector<AnimNode> bones = WholeBody(1.0f);
