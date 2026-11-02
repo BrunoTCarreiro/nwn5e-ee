@@ -392,7 +392,7 @@ std::vector<BonusStripItem> BonusActionStripItems(void* creature) {
 bool CancelWaitingBonusAction(void* creature) {
   const auto state = creature ? g_state.find(IdOf(creature)) : g_state.end();
   if (state == g_state.end() || !Waiting(state->second) || state->second.run_pending) return false;
-  Log("actions: 0x%08X the waiting %s cancelled", state->first, WaitingName(state->second));
+  Log("actions: 0x%08X the waiting Bonus Action cancelled (%s)", state->first, WaitingName(state->second));
   state->second.pending = -1;
   state->second.potion = false;
   return true;

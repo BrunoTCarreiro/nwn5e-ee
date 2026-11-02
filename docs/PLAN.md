@@ -286,6 +286,12 @@ attack (#120), then the reaction switches (#54).
   for the next round shows just after the action in progress (rules::WaitingBonusSlot: after the special attacks
   riding on it too; at the end when none is in progress); the one just used still first. Test
   WaitingBonusAfterTheActionInProgress (5 of 5 mutations caught).
+- *The owner's 0.62.2 run (2026-11-02):* "check the tile, they are confirmed" - the strip's order; the log: AQ-5b (a
+  potion drunk before the attack mid-round, a second one waiting), AQ-4 (the round's swings 2 and 3 after the drink),
+  AQ-5 (the waiting potion cancelled by its tile, nothing drunk at the next round).
+*Accepted (owner, 2026-11-02: "check the tile, they are confirmed", after "there's one issue" - the waiting tile's
+place, fixed in 0.62.2).* The Action queue and the default attack (#120), 0.62.0-0.62.2 - AQ-1 to AQ-3 and AQ-6 to
+AQ-9 on 0.62.0, AQ-4, AQ-5 and AQ-5b on 0.62.2. Next in the build order: the reaction switches (#54).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,
