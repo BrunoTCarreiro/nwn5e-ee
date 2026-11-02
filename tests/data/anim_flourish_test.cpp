@@ -92,6 +92,21 @@ TEST(FlourishWaitsWhileMoving) {
   CHECK_EQ(Step(moving), kWait);
 }
 
+TEST(FlourishWaitsForTheNextRoundWhileAttacking) {
+  FlourishTick between = Ready();  // between two rounds of a fight: the next starts on its next update
+  between.round_started = false;
+  between.attacking = true;
+  between.fits = true;  // even if the stale round would take the pause: the round's start clears it
+  CHECK_EQ(Step(between), kWait);
+}
+
+TEST(FlourishWaitsWhileMovingOutOfCombat) {
+  FlourishTick walking = Ready();  // the walk would overwrite it at once
+  walking.has_round = false;
+  walking.moving = true;
+  CHECK_EQ(Step(walking), kWait);
+}
+
 TEST(FlourishWaitsWhenItDoesNotFit) {
   FlourishTick late = Ready();  // after the round's last swing: the next round's start clears the timer
   late.fits = false;
