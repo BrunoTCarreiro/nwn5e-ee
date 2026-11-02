@@ -156,6 +156,23 @@ monster AC by CR.
 - Action / Bonus Action / Reaction / free object interaction inside NWN's
   6-second round. Highest design risk: NWN's action queue has no bonus action
   or reaction concept. Needs a design pass before code.
+- *Recon (2026-11-02, #51's comment):* a feat with a spell (feat.2da ReqAction 1) clears the player's queue - the
+  round's remaining attacks go - waits for the round's end and takes a 6 s cast round with no attacks: every nwn5e
+  class ability costs the rest of the round and the next one today. A feat with ReqAction 0 runs its script at once
+  (AI event 8) and leaves the round alone. One spell a round comes from WaitForEndOfRound and the cast round; a
+  potion drinks inside the round (1 s) but the order clears the attacks; an equip pauses the round 1.5 s, no attack
+  lost; the reaction count (+0x2F40) resets every round; attacks can be added mid-round (the AoO pattern).
+- *Decided (#51; owner, 2026-11-02): "Main decision: mostly, but allow multiple actions to be queued up, one being
+  executed each passing turn. At the end of the queue, if the PC ever targeted an enemy for normal attacks, a normal
+  attack should be placed as a default action to be used if there are no other actions in the queue. For the
+  other, (i) on all except the last one, I think maybe everyone should run on the same rules. We should also have a
+  combat configuration panel where the player can decide the default bonus actions and triggered reactions that are
+  active."* - A, per-round budgets on NWN's 6 s round (one Action, one Bonus Action, one Reaction), with a queue of
+  Actions, one a round, and a normal attack on the last enemy targeted as the default when the queue is empty; 1
+  (i) automatic bonus attacks count as the Bonus Action; 2 (i) reactions automatic, each switchable; 3 (i) Action
+  Surge / Thief's Reflexes a second round of attacks or a second spell; 4 (i) potions a Bonus Action; 5 (i)
+  equipping as NWN (1.5 s, no attack lost); 6 (ii) everyone on the same rules (monsters too). A combat configuration
+  panel: the default Bonus Actions and the active reactions.
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,
