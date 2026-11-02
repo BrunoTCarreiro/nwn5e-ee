@@ -350,6 +350,13 @@ AQ-9 on 0.62.0, AQ-4, AQ-5 and AQ-5b on 0.62.2. Next in the build order: the rea
   takes it through TakeReaction once its other checks pass; not attacking anyone, it's given an attack order at the
   creature first (AddAttackActions), as the engine's broadcast does for an idle observer, then the AoO.
   ReactionBackWhenNotFighting (4 of 4 mutations caught).
+- *The owner's 0.63.1 run (2026-11-02):* the log: RE-7 - a Berserker standing still struck back twice ("it wasn't
+  attacking: it turns on it"); RE-2 - Uncanny Dodge halved a hit (7 -> 3) and Deflect Attacks found the reaction
+  spent. RE-7b and RE-3 "look right" (the owner). RE-6 (the opportunity attacks switch) untested: "untestable right
+  now" - no enemy left the character's reach.
+*Accepted (owner, 2026-11-02: "they look right, accept 54").* The reactions and Disengage (#54), 0.63.0-0.63.1 -
+RE-1 to RE-5, RE-7 and DE-1 to DE-3 (RE-6 untested). Next in the build order: Action Surge / Thief's Reflexes (#53),
+the movement extras (#55); then the staple actions (#56, a decision first).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,
