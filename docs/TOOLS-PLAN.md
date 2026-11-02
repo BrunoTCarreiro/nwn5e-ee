@@ -1100,3 +1100,16 @@ of NWN's key rate (as a fast attack); the slider goes coarser for idles and taun
 on n5_rage's hand) - and two Important (a leg's own key lost its ease beside a plant; a planted leg's whole-pose key
 ignored a turn), fixed with checks that failed first; checks/run.js 16/16, browser_check 63/63, 34 deliberate breaks
 caught. Rulings and deferred minors: the ledger, listed on #116.
+*The owner's test of simplify (2026-11-02):* "The simplify option ends up creating A LOT more keyframes and not
+simplifying things at all" - a whole pose keyed every part whenever one strayed (n5_rage: 284 keys), and the fast second
+(0.5-1.6 s) kept a pose every frame or two. "go with A + C, the shaking is noise"; measured, C (a global cutoff) was the
+wrong tool - the fast second is a 1-2.6 Hz flail plus the hands' roll jitter, so a cutoff low enough bent the whole clip -
+then "go with 1 + 2, commit A first".
+- **A (nwn5e-tools ba5a08d):** each part keyed only where it turns or holds; keys within a frame share a whole pose.
+- **1 (b08e237, a71eaa8):** "smooth here" spans on their own timeline row - double-click to add, drag, Delete; inside
+  one, simplify keeps only the motion slower than its cutoff (1.5 a second by default, 0.5-6), easing in over 0.1 s.
+- **2:** the hands' and forearms' roll (twist about their own bone) counts a third against the detail.
+*Measured (n5_rage at 8 deg, a span over 0.5-1.6 s at 1.5 a second):* 284 -> 99 keys (1.8 a part a second); the flail's
+second 75 -> 36 keys. *A second fresh review:* simplifying again after a span edit refitted its own result (fixed: it
+refits the performance), a new span's cutoff field was empty (fixed), and five rules had no check (added); checks/run.js
+16/16, browser_check 67/67. Rulings and deferred minors: the ledger, listed on #116.
