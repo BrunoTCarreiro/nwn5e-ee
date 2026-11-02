@@ -292,6 +292,26 @@ attack (#120), then the reaction switches (#54).
 *Accepted (owner, 2026-11-02: "check the tile, they are confirmed", after "there's one issue" - the waiting tile's
 place, fixed in 0.62.2).* The Action queue and the default attack (#120), 0.62.0-0.62.2 - AQ-1 to AQ-3 and AQ-6 to
 AQ-9 on 0.62.0, AQ-4, AQ-5 and AQ-5b on 0.62.2. Next in the build order: the reaction switches (#54).
+- *#54, how it was (2026-11-02):* one reaction a round (the round's AoO count, +0x2F40; reactions.h's TakeReaction
+  gives it back after 6 s to a creature not fighting) shared by four automatic users - opportunity attacks (D2: only
+  moving away provokes), Uncanny Dodge (R7: the first hit seen each round halved), Deflect Attacks (M8: the first
+  B/P/S hit each round reduced; the redirect not built) and Retaliation (BZ3's stand-in: the round's AoO at whoever
+  damages the Berserker in reach); none could be switched off. Faithful still lets NWN's Tumble check (DC 15) avoid
+  opportunity attacks; Disengage only through the Monk's Patient Defense and Step of the Wind (M5). Slow Fall (M6):
+  no NWN use.
+- *Decided (#54; owner, 2026-11-02: "go with your recommendations"):*
+  - The reaction switches (#51's point 4): Combat configuration's "Reactions" - one checkbox per reaction the
+    character has: Opportunity attacks, Uncanny Dodge, Deflect Attacks, Retaliation; on by default; one off is
+    never taken, the round's reaction kept for the others. The player's own; monsters keep all theirs.
+  - 1 A: Deflect Attacks' redirect - its own checkbox, off by default (it spends a Focus Point); on, it fires at the
+    attacker when Deflect brings a hit's damage to 0 (within 5 ft for a melee attack, 60 ft and seen for a ranged
+    one): a Dexterity save against the Focus DC or two Martial Arts dice + the Dexterity modifier, of the attack's
+    damage type; 1 Focus Point.
+  - 2 A: Slow Fall left out - NWN has no falls (M6's "no NWN use").
+  - 3 B: a Disengage action for everyone (the radial and the quickbar): it takes the round's Action (no attacks that
+    round) and moving provokes no opportunity attacks until the next round; Tumble's check against opportunity
+    attacks retired with it in faithful (NWN mode keeps it). Only Disengage comes forward from #56; the rest of #56
+    waits for its own decision.
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,
