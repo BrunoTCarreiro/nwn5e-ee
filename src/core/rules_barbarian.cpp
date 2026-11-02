@@ -108,7 +108,7 @@
 #include "data/anim_recipe.h"
 
 bool AnimationRecipeBuilt(const std::string& name, std::string* text);  // anim_packs.cpp (Mocap mode's n5_rage)
-std::string AnimationVariant(const std::string& name, bool two_handed);  // anim_packs.cpp (#112: n5_rage_2h)
+std::string AnimationVariant(const std::string& name, data::WeaponGrip grip);  // anim_packs.cpp (#112: _2h, _pl)
 
 namespace {
 
@@ -383,21 +383,28 @@ void DropFear(void* creature) {
   for (void* effect : fears) g_remove_effect(creature, effect);
 }
 
-// #112 (the animation session's; owner: "Go with your recommendations"): whether NWN draws the main hand's
-// weapon in both hands (0.60.3, the animation session's review: as on screen, not D1's 2024 rule - a Small
-// wielder's Medium weapon, a magic staff; not a double weapon, NWN's two weapons).
-bool DrawnTwoHanded(void* creature) {
+// #112 (the animation session's; owner: "Go with your recommendations", then "the weapon hand gives way" and a
+// polearm version): how NWN draws the main hand's weapon (0.60.3: as on screen, not D1's 2024 rule - a Small
+// wielder's Medium weapon two hands; 0.60.5: staves, spears and polearms their own; double weapons and crossbows
+// one hand).
+data::WeaponGrip DrawnGrip(void* creature) {
   void* item = creature ? engine::ItemInSlot(creature, ee::kSlotRightHand) : nullptr;
   const void* base = item ? engine::BaseItem(engine::BaseItemRow(item)) : nullptr;
-  if (!base) return false;
-  return rules::NwnDrawsTwoHanded(Field<uint8_t>(base, ee::kBaseItemWield), Field<uint8_t>(base, ee::kBaseItemSize),
-                                  Field<int32_t>(creature, ee::kCreatureSize));
+  if (!base) return data::WeaponGrip::kOneHand;
+  switch (rules::NwnDrawnHold(Field<uint8_t>(base, ee::kBaseItemWield), Field<uint8_t>(base, ee::kBaseItemSize),
+                              Field<int32_t>(creature, ee::kCreatureSize))) {
+    case rules::NwnHold::kPolearm: return data::WeaponGrip::kPolearm;
+    case rules::NwnHold::kTwoHand: return data::WeaponGrip::kTwoHand;
+    case rules::NwnHold::kOneHand: return data::WeaponGrip::kOneHand;
+  }
+  return data::WeaponGrip::kOneHand;
 }
 
-// The two-handed variant (n5_rage_2h) when NWN draws the weapon two-handed and that recipe was built, else n5_rage.
+// The variant for the hold (n5_rage_pl, else n5_rage_2h, for a polearm; n5_rage_2h two-handed) when its recipe
+// was built, else n5_rage.
 std::string RageFlourish(void* creature) {
   static const char* const kPlay = "PlayAnimation(ANIMATION_FIREFORGET_VICTORY2, 1.0);";
-  const std::string name = AnimationVariant("n5_rage", DrawnTwoHanded(creature));
+  const std::string name = AnimationVariant("n5_rage", DrawnGrip(creature));
   std::string text;
   data::AnimRecipe captured;
   std::string error;

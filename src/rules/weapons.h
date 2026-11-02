@@ -143,17 +143,17 @@ int ToppleDc(int ability_modifier, int proficiency_bonus);
 // D4 Graze: the attack's ability modifier as damage, nothing when not positive.
 int GrazeDamage(int ability_modifier);
 
-// #112 (Rage's two-handed clip): whether NWN draws a held weapon with both hands
-// on its haft - baseitems.2da's WeaponWield 4 (staves, spears, polearms:
-// plreadyr, the left hand on the haft as 2hreadyr), or a standard weapon (0)
-// larger than its wielder's own size (a Small wielder's Medium weapon too -
-// unlike D1's 2024 rule, which wields it as Medium). Not double weapons (8): NWN
-// treats one as two weapons, likely drawn in the two-weapon stance (2wreadyr,
-// the hands about a metre apart); not bows, crossbows, shields, thrown or
-// creature weapons.
+// #112 (Rage's clip for the hold on screen): how NWN draws a held weapon -
+// baseitems.2da's WeaponWield 4 (staves, spears, polearms: plreadyr) a polearm;
+// a standard weapon (0) larger than its wielder's own size (a Small wielder's
+// Medium weapon too - unlike D1's 2024 rule, which wields it as Medium) two
+// hands (2hreadyr); the rest one hand - double weapons (8: NWN's two weapons,
+// likely the two-weapon stance, the hands about a metre apart), crossbows (the
+// owner's call), bows, shields, thrown and creature weapons.
 constexpr int kNwnWieldStandard = 0;
 constexpr int kNwnWieldTwoHanded = 4;
 constexpr int kNwnWieldDouble = 8;
-bool NwnDrawsTwoHanded(int weapon_wield, int weapon_size, int creature_size);
+enum class NwnHold { kOneHand, kTwoHand, kPolearm };
+NwnHold NwnDrawnHold(int weapon_wield, int weapon_size, int creature_size);
 
 }  // namespace rules
