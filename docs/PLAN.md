@@ -1556,6 +1556,10 @@ ResolveSpecialAttackAttackBonus read them inside ResolveAttackRoll; the damage o
 rules::MonkAttackPenalty: a character 0, a monster NWN's, none known (the sheet) 0; MonkOnInitiative keeps the
 fight until a creature update finds the Monk out of combat (NWN's in-combat state, +0x700) at least 10 s after it
 began (rules::MonkFightOver). Test MonkFollowUps (6 mutations caught).
+*Accepted (owner, 2026-11-02: "F1, F3-1 and 2 and 110 all pass").* The Monk follow-ups (#31), 0.60.11 - with parts
+1-5 accepted, the Monk's conversion (#27) is done; left for later: Phase 6 / 7 (Fleet Step, the free Patient
+Defense / Step of the Wind, the bonus strike as a Bonus Action, Deflect's redirect, Quivering Palm's two steps),
+the proficiencies (#17), the Epic Boon (#16), a custom deflect animation (with the animation session).
 
 ### Phase 3 — Rogue (CM9): recommendations (for the owner's decision)
 
@@ -2086,6 +2090,8 @@ is a decision of its own (#110).
 rest rules); `rest_clock=0` keeps it still. *Built 0.59.18:* rest_clock's built-in value and nwn5e.ini's are 1
 (build\nwn5e.ini, never overwritten, gets it from the built-in value where it has no line); `!test rest` still
 turns it on where an ini turns it off.
+*Accepted (owner, 2026-11-02: "F1, F3-1 and 2 and 110 all pass").* #110: a Long Rest moves the clock 8 hours and a
+Short Rest 1 by default, faithful.
 *Resting a lot (#110; owner, 2026-11-01: "are there any consequences in-game for resting too many times, like
 events tied to calendar days that can be missed?"). Researched 2026-11-01* (the campaigns' own .nss, which every
 official module ships, and the NWN Lexicon's SetTime / SetCalendar notes): nothing in the official campaigns can be
