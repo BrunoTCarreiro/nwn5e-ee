@@ -1024,3 +1024,22 @@ recommendations" - a grip rule in the recipe and one two-handed version per clip
 - **An edit during the solve was lost (I2, fixed 3c9e3e3):** the guard compared the project with itself.
 *Checks:* checks/run.js 15/15, browser_check 48/48, 12 deliberate breaks caught (3 of them core rules through the
 helper). Rulings and deferred minors: the ledger, listed on #112.
+*Addenda (owner, 2026-11-02):* "go with a, and c for the important clips"; "yes, go with the polearm version too. For
+the crossbow let's leave it at 1 handed rage for now"; "p2"; "let's go with your recommendations" (t3).
+- **0.60.4 (d8883c1):** the grip runs on the finished frames (after the blends); where the off arm can't reach, the weapon
+  hand comes in; `<name>_pl` on plreadyr for polearms, spears and staves (`data::WeaponGrip`); the game session's
+  0.60.5 (41aae35) passes NWN's drawn hold (double weapons and crossbows: one-handed). Bench 52d3967: two buttons.
+- **The second review:** on n5_rage the arms flipped at the strike (the polearm's upper arm 92-179 deg a frame, the hands
+  13-38 cm apart between frames) and the weapon elbow popped 12-25 cm; the ends' left elbow sat 2-4 cm off.
+- **0.60.6 (27d4286):** the weapon turns first - along the shortest turn toward the off hand, its forearm roll up to
+  80 deg and the wrist up to 60 deg - and the hand moves only for the rest; the twist goes to the forearm's roll. Both
+  arms solve from the arm as solved on the frame before (the start pose's on the first), bending toward the start
+  pose's bend. Where folding the arm would pass the wrist's caps, the weapon follows the forearm back while that
+  converges; a long polearm grip that would chase (1.2 m on a_dfa) keeps the weapon and bends the wrist instead.
+*Measured on n5_rage (4 bodies, through 0.60.6):* every frame on the grip in both versions; no flips or pops; the ends
+exactly the start pose; the hands within 3.4 cm between frames. Two-handed: the weapon hand moves up to 12-38 cm, the
+wrist within 63 deg. Polearm: the hand moves 5-70 cm; the wrist within 57 deg on a_fa, up to 84-89 deg on 12-13 frames
+(a_ba, a_da) and up to 117 deg on 50 frames (a_dfa, whose polearm grip spreads the hands 89 cm). A recorded two-handed
+take (the owner's (c)) is the quality path for clips that matter.
+*Checks:* test.bat 331/0; bench checks/run.js 15/15, browser_check 48/48; breaks caught across the core, the helper and
+the browser (ledger). Rulings and deferred minors: the ledger, listed on #112.
