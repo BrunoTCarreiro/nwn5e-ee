@@ -319,3 +319,50 @@ This addendum overrides Task 2's whole-pose greedy and adds to Task 4.
   - the smooth slider's replace.
 
 **Measure:** n5_rage at the default detail and cutoff - keys, keys a part a second, arms at rest, the shaking second's keys - before the default is fixed.
+
+---
+
+## Addendum 2 (2026-11-02): "smooth here" spans; the hands' and forearms' roll counts less
+
+*Measured first (n5_rage, a_ba):* the fast second (0.5-1.6 s) isn't a tremor.
+- **A flail at 1-2.6 Hz:** the right forearm swings 387 deg in it, against 128 deg in the other 2.4 s.
+- **Hand roll jitter all through:** the hands' twist about themselves is as large as their swing everywhere.
+- **A global cutoff is the wrong tool:** 4 Hz took the second from 77 keys to 65; 1.5 Hz took it to 32 but bent the rest by up to 10 deg (forearms) and 16-22 deg (hands, head).
+
+*The owner:* "go with 1 + 2, commit A first" (A: nwn5e-tools ba5a08d).
+
+**1 - "smooth here" spans (the owner marks the noise):**
+- **project.js:** `smoothSpans: [{ t0, t1, hz }]`, in take seconds.
+  - New projects and older files open with `[]`.
+  - Validate keeps the spans inside the take, at least 2 frames long and sorted; a span overlapping the one before moves after it (as contacts); `hz` is clamped to 0.5-6, default `SI.SPAN_HZ` = 1.5.
+  - `ORDER` gains "smoothSpans" (after "poses") and "smoothSpan": ["t0", "t1", "hz"].
+- **simplify.js:**
+  - `SI.simplify({ ..., spans })` replaces the `smooth` parameter.
+  - Inside a span the target is the shown motion low-passed at its `hz` (smoothTurns over the whole track).
+  - It eases in over `SI.SPAN_EDGE` = 0.1 s inside each edge (smoothstep; half the span when it is shorter than 0.2 s).
+  - Outside the spans the target is the shown motion exactly.
+- **The timeline:** a "smooth here" row, always shown, under the contact lanes.
+  - Double-click it to add a 0.4 s span there, in the gap it fell in.
+  - Drag its edges or its body (a frame clear of its neighbours, at least 2 frames long).
+  - Its inspector sets start, end and "drop motion faster than (a second)" (`hz`).
+  - Delete removes it, with a word; Ctrl+Z brings it back.
+- **The page:** simplify passes `p.smoothSpans`. The status names how many keys sit inside spans.
+
+**2 - the hands' and forearms' roll counts less:**
+- **simplify.js:** `SI.simplify({ ..., axes: { part: [x, y, z] } })` gives each listed part's bone axis in its own frame; `SI.ROLL` = 3.
+  - For a listed part, a gap is the swing and twist between the two turns about that axis, weighed sqrt(swing^2 + (twist / ROLL)^2).
+  - Holds use the same measure.
+  - Every other part keeps the plain angle.
+- **The page:** passes axes for the forearms and the hands (`SI.ROLL_PARTS`) from the shown body: the direction to the part's child farthest from its joint (forearm: the hand joint; hand: its attach point).
+
+**Checks (failing first):**
+- **simplify_check:**
+  - smoothSpanCalmsOnlyThere (a 2 Hz, 30 deg flail inside a span at 1.5 Hz: at most 3 keys in it; outside, keys and values as without the span);
+  - rollCountsLess (a hand's twist jittering 8 deg: its ends only at detail 5; the same jitter as swing: more keys);
+  - shakingSmoothed reworked on a span.
+- **project_check:** smoothSpansValidated.
+- **timeline_check:** smoothRowShown, smoothSpanAdded, smoothSpanDragClamps, smoothSpanHit.
+- **Browser:** smoothSpanAdded (double-click the row), simplifyCalmsTheSpan (fewer keys inside than without the span), deleteSmoothSpan.
+- **Breaks:** the span's blend, the edge ease, ROLL = 1, the axis, the validation, add and drag, the page passing spans and axes, Delete.
+
+**Measure:** n5_rage with a span over 0.5-1.6 s - its keys inside, the keys in all, keys a part a second, and how far the motion outside moves (0 expected).
