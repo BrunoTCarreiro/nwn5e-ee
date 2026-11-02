@@ -359,7 +359,8 @@ std::string WriteAnimRecipe(const AnimRecipe& r) {
            "name = " + r.name + "\nkind = assembled\nstance = " + r.stance + "\nlength = " + Num(r.length) +
            "\ntranstime = " + Num(r.transtime) + "\nblend_in = " + Num(r.blend_in) + "\nblend_out = " +
            Num(r.blend_out) + "\nloop = " + (r.loop ? "1" : "0") + "\nloop_blend = " + Num(r.loop_blend) +
-           (r.grip ? "\ngrip = 1" : "") + "\nsource = " + r.source + "\n" + TargetLines(r) + PoseLines(r) +
+           (r.grip ? "\ngrip = 1" : "") + (r.grip && r.grip_follow < 1.0f ? "\ngrip_follow = " + Num(r.grip_follow) : std::string()) +
+           "\nsource = " + r.source + "\n" + TargetLines(r) + PoseLines(r) +
            "# keys <library> <bone> o <time x y z w> ...: the turn from the stance's first frame (L = S * delta)"
            "\n# keys <library> rootdummy p <time x y z> ...: the offset from the stance's first-frame root\n" +
            KeyLines(r);
@@ -456,6 +457,7 @@ bool ReadAnimRecipe(const std::string& text, AnimRecipe* recipe, std::string* er
     else if (key == "loop") r.loop = atoi(value.c_str()) != 0;
     else if (key == "loop_blend") r.loop_blend = std::max(0.0f, static_cast<float>(atof(value.c_str())));
     else if (key == "grip") r.grip = atoi(value.c_str()) != 0;
+    else if (key == "grip_follow") r.grip_follow = std::max(0.0f, std::min(1.0f, static_cast<float>(atof(value.c_str()))));
     else if (key == "take_start") {
       r.take_start = static_cast<float>(atof(value.c_str()));
       if (!isfinite(r.take_start)) {

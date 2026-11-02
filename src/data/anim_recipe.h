@@ -126,6 +126,7 @@ struct AnimRecipe {
   float loop_blend = 0.25f;  // seconds over which a loop's end eases into its start
   float take_start = 0.0f;   // the take's second at the clip's 0: the edits' clock (targets are in take time)
   bool grip = false;         // #112: the left hand held where the stance holds it against the right hand (a two-hander)
+  float grip_follow = 1.0f;  // #112 addendum 3: the weapon hand's share of the take's, against the torso (0: the stance's)
   std::map<std::string, std::vector<AnimTargetKey>> targets;  // limb -> its keys, by time
   std::map<std::string, std::vector<AnimPoseKey>> poses;      // part -> its keys, by time
 };

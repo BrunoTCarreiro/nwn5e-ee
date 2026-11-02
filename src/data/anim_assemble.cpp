@@ -406,6 +406,10 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
   Quat grip_turn = {0.0f, 0.0f, 0.0f, 1.0f};
   float grip_limit = 0.0f;
   std::array<Quat, 6> grip_arm{};  // the start pose's arm turns: lbicep, lforearm, lhand, rbicep, rforearm, rhand
+  // The weapon held by the body (addendum 3): the start pose's weapon hand against the torso, and the take's share of it.
+  Vec3 grip_hand_place = {0.0f, 0.0f, 0.0f};
+  Quat grip_hand_turn = {0.0f, 0.0f, 0.0f, 1.0f};
+  const float grip_follow = std::max(0.0f, std::min(1.0f, recipe.grip_follow));
   if (grip) {
     Pose st = pose::RestPose(bones);
     for (size_t b = 0; b < bones.size(); ++b) {
@@ -424,6 +428,8 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
     for (int k = 0; k < 6; ++k) {
       if (arm_at[k] >= 0) grip_arm[k] = st.lq[arm_at[k]];
     }
+    grip_hand_place = pose::Rotate(pose::QConj(st.wq[torso]), pose::Sub(st.wp[rhand], st.wp[torso]));
+    grip_hand_turn = QMul(pose::QConj(st.wq[torso]), st.wq[rhand]);
   }
 
   // The report: each limb's worst shortfall while its goal had full weight (the grip's: the weapon hand's largest move).
@@ -495,10 +501,26 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
     for (int f = 0; f <= frames; ++f) {
       const float t = frame_time(f), T = take_start + t;
       Pose p = pose::PoseAt(clip, in_clip, bones, t);
-      const Pose take = p;
-      const Vec3 shoulder = p.wp[left_arm.root], down = pose::Rotate(p.wq[torso], {0.0f, -1.0f, 0.0f});
+      const Vec3 down = pose::Rotate(p.wq[torso], {0.0f, -1.0f, 0.0f});
       const Pose posed = arm_toward(arm_toward(p, 0, grip_arm, 1.0f), 3, grip_arm, 1.0f);  // the start pose's arms here
       bool gave = false;
+      // 0. The weapon held by the body (addendum 3, the owner's f1): a one-handed take's fist turns and swings as no
+      //    weapon held in two hands would (the polearm turned 136 deg against the torso). The weapon hand's place and turn
+      //    against the torso are the start pose's, mixed toward the take's by grip_follow; the right arm solves to them
+      //    from the frame before. At 1 the take's arm stays.
+      if (grip_follow < 0.999f && right_arm.root >= 0) {
+        const Quat body = p.wq[torso], unbody = pose::QConj(body);
+        const Vec3 at = pose::Add(p.wp[torso], pose::Rotate(body, Lerp(grip_hand_place, pose::Rotate(unbody, pose::Sub(p.wp[rhand], p.wp[torso])), grip_follow)));
+        Quat held_turn = pose::QNormalized(QMul(body, Mix(grip_hand_turn, QMul(unbody, p.wq[rhand]), grip_follow, true)));
+        const Pose from = arm_toward(p, 3, last, 1.0f);
+        Pose now = from;
+        pose::SolveTwoBone(bones, from, &now, right_arm, at, bend_of(posed, right_arm, down), pose::kLimbDamping, &held_turn);
+        pose::Forward(bones, &now);
+        p = now;
+        gave_way = gave = true;
+      }
+      const Pose take = p;
+      const Vec3 shoulder = p.wp[left_arm.root];
       Quat weapon = p.wq[rhand];
       const auto excess_at = [&](const Vec3& at, const Quat& turn) {
         return pose::Length(pose::Sub(pose::Add(at, pose::Rotate(turn, grip_place)), shoulder)) - grip_limit;

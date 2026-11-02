@@ -535,6 +535,32 @@ TEST(AnimRecipeGripRoundTrip) {
   CHECK_EQ(back.grip, true);
 }
 
+// The grip's follow share (#112 addendum 3): `grip_follow = <0..1>` reads and writes back; absent (and an older recipe)
+// it is 1 - the take's hand - and no line is written; out of range it clamps.
+TEST(AnimRecipeGripFollowRoundTrip) {
+  AnimRecipe r = AssembledFixture();
+  r.grip = true;
+  AnimRecipe back;
+  std::string error;
+  CHECK_EQ(ReadAnimRecipe(WriteAnimRecipe(r), &back, &error), true);
+  CHECK_EQ(back.grip_follow == 1.0f, true);
+  CHECK_EQ(WriteAnimRecipe(r).find("grip_follow") == std::string::npos, true);
+  r.grip_follow = 0.25f;
+  const std::string text = WriteAnimRecipe(r);
+  CHECK_EQ(text.find("\ngrip_follow = 0.25\n") != std::string::npos, true);
+  CHECK_EQ(ReadAnimRecipe(text, &back, &error), true);
+  CHECK_EQ(fabsf(back.grip_follow - 0.25f) < 1e-6f, true);
+  for (const auto& odd : {std::make_pair(std::string("7"), 1.0f), std::make_pair(std::string("-3"), 0.0f)}) {
+    std::string bent = text;
+    const size_t at = bent.find("grip_follow = 0.25");
+    CHECK_EQ(at != std::string::npos, true);
+    if (at == std::string::npos) continue;
+    bent.replace(at, 18, "grip_follow = " + odd.first);
+    CHECK_EQ(ReadAnimRecipe(bent, &back, &error), true);
+    CHECK_EQ(back.grip_follow == odd.second, true);
+  }
+}
+
 // The clip a game call plays (#112): <name>_2h when the character wields a two-hander and that was built; a name too
 // long for the suffix (16 characters in all) keeps its own.
 TEST(AnimVariantName) {

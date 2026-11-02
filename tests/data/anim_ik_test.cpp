@@ -589,18 +589,21 @@ TEST(AnimGripElbowsOnTheStanceAtTheEnds) {
     const int i = IndexOf(bones, n);
     side.nodes[i].orientation.values = {AboutY(n[0] == 'l' ? -30.0f : 30.0f)};
   }
-  AnimRecipe r = IkRecipe(bones, 0.0f);
-  r.grip = true;
-  AnimClip out;
-  std::string err;
-  CHECK_EQ(AssembleAnimClip(r, "a_ik", bones, side, &out, &err, nullptr), true);
   const Pose st = PoseOf(side, bones, 0.0f);
-  float worst = 0.0f;
-  for (const float t : {0.0f, 1.0f}) {
-    const Pose p = PoseOf(out, bones, t);
-    for (const char* n : {"lforearm_g", "rforearm_g", "lhand_g", "rhand_g"}) worst = std::max(worst, Dist(p.wp[IndexOf(bones, n)], st.wp[IndexOf(bones, n)]));
+  for (const float follow : {1.0f, 0.25f}) {  // the take's hand, and the weapon held by the body (addendum 3)
+    AnimRecipe r = IkRecipe(bones, 0.0f);
+    r.grip = true;
+    r.grip_follow = follow;
+    AnimClip out;
+    std::string err;
+    CHECK_EQ(AssembleAnimClip(r, "a_ik", bones, side, &out, &err, nullptr), true);
+    float worst = 0.0f;
+    for (const float t : {0.0f, 1.0f}) {
+      const Pose p = PoseOf(out, bones, t);
+      for (const char* n : {"lforearm_g", "rforearm_g", "lhand_g", "rhand_g"}) worst = std::max(worst, Dist(p.wp[IndexOf(bones, n)], st.wp[IndexOf(bones, n)]));
+    }
+    CHECK_EQ(worst < 1e-3f, true);
   }
-  CHECK_EQ(worst < 1e-3f, true);
 }
 
 // The grip on the IK path (#112 second review I3): a hips target sends the clip through the IK pass, and the grip still
@@ -630,6 +633,67 @@ TEST(AnimGripThroughALoop) {
   float worst = 0.0f;
   for (int f = 0; f <= 30; ++f) worst = std::max(worst, Dist(LeftInRight(PoseOf(out, bones, static_cast<float>(f) / 30.0f), bones).p, stance.p));
   CHECK_EQ(worst < 1e-3f, true);
+}
+
+// The weapon held by the body (#112 addendum 3, the owner's f1): the weapon hand's place and turn against the torso are
+// the start pose's mixed toward the take's by the follow share. Its place and turn against the torso at t.
+struct HandOnBody {
+  Vec3 p;
+  Quat q;
+};
+HandOnBody RightOnTorso(const Pose& p, const std::vector<AnimNode>& bones) {
+  const int r = IndexOf(bones, "rhand_g"), t = IndexOf(bones, "torso_g");
+  return {Rotate(QConj(p.wq[t]), Sub(p.wp[r], p.wp[t])), QMul(QConj(p.wq[t]), p.wq[r])};
+}
+
+// Share 0: the weapon hand stays on the start pose's place and turn against the torso all through, however the take's
+// right arm swings (in across the body, then out past reach), and the left hand holds the grip. Break caught: the share
+// ignored.
+TEST(AnimGripFollowNothingHoldsTheWeapon) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = SwingRecipe(bones, 40.0f, 0.4f, -90.0f);
+  r.grip = true;
+  r.grip_follow = 0.0f;
+  const HandOnBody st = RightOnTorso(PoseOf(IkStance(bones), bones, 0.0f), bones);
+  const HandInHand grip = LeftInRight(PoseOf(IkStance(bones), bones, 0.0f), bones);
+  const AnimClip out = Run(r, bones);
+  float worst_place = 0.0f, worst_turn = 0.0f, worst_grip = 0.0f;
+  for (int f = 0; f <= 30; ++f) {
+    const Pose p = PoseOf(out, bones, static_cast<float>(f) / 30.0f);
+    const HandOnBody h = RightOnTorso(p, bones);
+    worst_place = std::max(worst_place, Dist(h.p, st.p));
+    worst_turn = std::max(worst_turn, TurnDegrees(h.q, st.q));
+    worst_grip = std::max(worst_grip, Dist(LeftInRight(p, bones).p, grip.p));
+  }
+  CHECK_EQ(worst_place < 1e-3f, true);
+  CHECK_EQ(worst_turn < 0.5f, true);
+  CHECK_EQ(worst_grip < 1e-3f, true);
+}
+
+// Share 0.5: where nothing else gives way (the swing stays within reach), the weapon hand is halfway between the start
+// pose's and the take's, in place and in turn, against the torso. Break caught: the place without the turn.
+TEST(AnimGripFollowHalf) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = SwingRecipe(bones, 30.0f, 0.5f, 30.0f);
+  const AnimClip loose = Run(r, bones);
+  r.grip = true;
+  r.grip_follow = 0.5f;
+  const HandOnBody st = RightOnTorso(PoseOf(IkStance(bones), bones, 0.0f), bones);
+  const AnimClip out = Run(r, bones);
+  float worst_place = 0.0f, worst_turn = 0.0f, most_apart = 0.0f;
+  for (int f = 0; f <= 30; ++f) {
+    const float t = static_cast<float>(f) / 30.0f;
+    const HandOnBody h = RightOnTorso(PoseOf(out, bones, t), bones), take = RightOnTorso(PoseOf(loose, bones, t), bones);
+    most_apart = std::max(most_apart, Dist(take.p, st.p));
+    worst_place = std::max(worst_place, Dist(h.p, Scale(Add(st.p, take.p), 0.5f)));
+    float a = 0.0f, b = 0.0f;
+    a = TurnDegrees(h.q, st.q);
+    b = TurnDegrees(h.q, take.q);
+    worst_turn = std::max(worst_turn, fabsf(a - b));
+  }
+  CHECK_EQ(most_apart > 0.1f, true);
+  CHECK_EQ(worst_place < 0.02f, true);
+  CHECK_EQ(worst_turn < 1.0f, true);
 }
 
 // A body without the right hand: no grip, the clip as without it.
