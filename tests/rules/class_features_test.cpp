@@ -433,6 +433,20 @@ static bool Grants(const std::vector<int>& feats, int feat) {
   return false;
 }
 
+// #31 (0.60.11): monsters keep NWN's Stunning Fist / Flurry penalties; a fight ends once the Monk is out of
+// combat (not within its first 10 s). Breaks caught: a character's penalty kept, a monster's dropped, an unknown
+// creature penalised, a fight over while in combat, over in its first moments, never over.
+TEST(MonkFollowUps) {
+  CHECK_EQ(MonkAttackPenalty(true, true, -4), 0);    // a character's Stunning Strike
+  CHECK_EQ(MonkAttackPenalty(true, false, -4), -4);  // a monster's Stunning Fist
+  CHECK_EQ(MonkAttackPenalty(true, false, -2), -2);  // a monster's Flurry
+  CHECK_EQ(MonkAttackPenalty(false, false, -2), 0);  // not known: the sheet's figures
+  CHECK_EQ(MonkFightOver(true, 60000), false);
+  CHECK_EQ(MonkFightOver(false, 9999), false);
+  CHECK_EQ(MonkFightOver(false, 10000), true);
+  CHECK_EQ(MonkFightOver(false, 600000), true);
+}
+
 // Monk part 4 (SRD 5.2.1 Warrior of the Open Hand; PLAN.md OH1, OH2, OH4).
 // Breaks caught: a feature at the wrong level (Open Hand Technique 3, Wholeness
 // 6, Quivering Palm 17), NWN's levels left for its feats (Wholeness 7, Quivering

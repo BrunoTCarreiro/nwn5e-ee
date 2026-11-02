@@ -357,6 +357,16 @@ int PatientDefenseTempDice(int monk_level);  // 0 below 10
 // use costs at this level, Uncanny Metabolism ready or used, Perfect Focus.
 std::string FocusTooltip(int monk_level, int left, int dc, bool metabolism_ready);
 
+// #31 (0.60.11; owner: "go with your recommendations"): 1 B - Stunning Strike's
+// -4 and Flurry's -2 (NWN's, answered through the ruleset): none for a character
+// (2024), NWN's for a monster (NWN's Monk); a creature not known (the sheet's
+// figures) a character's. 3 B - Uncanny Metabolism and Perfect Focus once a
+// fight: a fight is over once the Monk is out of combat (NWN's in-combat state)
+// at least kMonkFightMinMs after it began (not a start the state hasn't caught).
+int MonkAttackPenalty(bool known, bool character, int engine_value);
+constexpr long long kMonkFightMinMs = 10000;
+bool MonkFightOver(bool in_combat, long long ms_since_start);
+
 // Part 4 (0.60.0, #29): Warrior of the Open Hand - the SRD's one Monk subclass,
 // from Monk 3, so its levels are Monk levels.
 constexpr int kFeatWholenessOfBody = 211;     // NWN's (Monk 7, once a day): 2024's from Open Hand 6 (OH2)

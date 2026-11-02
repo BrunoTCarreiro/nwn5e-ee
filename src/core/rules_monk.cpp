@@ -83,8 +83,9 @@
 //   save); NWN's 6 s stun on a failure; on a success half speed and the next
 //   attack roll on it with Advantage (rules_advantage). The -4
 //   (STUNNING_FIST_TO_HIT_MODIFIER) answered 0.
-// - M7 Uncanny Metabolism (the owner's (a)): at a fight's initiative (one a
-//   30 s), half the points spent or Bloodied, once per Long Rest - every point
+// - M7 Uncanny Metabolism (the owner's (a)): at a fight's initiative (0.60.11,
+//   #31: once a fight - a new one after the Monk was out of combat), half the
+//   points spent or Bloodied, once per Long Rest - every point
 //   back, Martial Arts die + Monk level healed. Perfect Focus (15): else 3 or
 //   fewer points rise to 4.
 // - M13 Disciplined Survivor (14): every save proficient (rules::
@@ -771,9 +772,10 @@ void MonkOnInitiative(void* creature) {
   EnsureRecords(creature);
   const uint32_t id = IdOf(creature);
   const uint64_t now = GameMs();
-  uint64_t& last = g_initiative[id];
-  if (last && now - last < 30000) return;  // the same fight
-  last = now;
+  // #31 (3 B): the same fight until the Monk is out of combat (MonkFightUpdate) - not 30 s (the owner's 10:29 log:
+  // Uncanny Metabolism a minute into a fight).
+  if (g_initiative.count(id)) return;
+  g_initiative[id] = now;
   const int points = rules::FocusPoints(level);
   const int spent = SpentFeatUses(creature, kVarFocusSpent);
   const int hit_points = Field<int16_t>(creature, ee::kObjectCurrentHitPoints);
@@ -1131,6 +1133,35 @@ void SelfRestorationUpdate(void* creature) {
   RemoveCondition(id, pick);
 }
 
+// #31 (1 B): Stunning Strike's -4 and Flurry's -2 - none for a character, NWN's for a monster (NWN's Monk). The
+// engine reads them while working out an attack's bonus (GetAttackModifierVersus, ResolveSpecialAttackAttackBonus)
+// inside ResolveAttackRoll, the damage one inside ResolveDamage: the attacker is the roll's.
+int PenaltyFor(void* attacker, int engine_value) {
+  void* stats = attacker ? StatsOf(attacker) : nullptr;
+  return rules::MonkAttackPenalty(stats != nullptr, stats && ReadCreatureFacts(stats).character, engine_value);
+}
+
+int AttackRollPenalty(int engine_value) {
+  const AttackRoll* roll = CurrentAttackRoll();
+  return PenaltyFor(roll ? roll->attacker : nullptr, engine_value);
+}
+
+int DamageRollPenalty(int engine_value) {
+  void* attacker = nullptr;
+  void* target = nullptr;
+  return PenaltyFor(ResolvingDamage(&attacker, &target) ? attacker : nullptr, engine_value);
+}
+
+// #31 (3 B): a Monk's fight is over once it's out of combat (NWN's in-combat state, about 8 s after its last action):
+// the next initiative is a new one.
+void MonkFightUpdate(void* creature) {
+  if (g_initiative.empty() || !creature) return;
+  const auto fight = g_initiative.find(IdOf(creature));
+  if (fight == g_initiative.end()) return;
+  const bool in_combat = Field<int32_t>(creature, ee::kCreatureInCombat) != 0;
+  if (rules::MonkFightOver(in_combat, static_cast<long long>(GameMs() - fight->second))) g_initiative.erase(fight);
+}
+
 }  // namespace
 
 // rules_save_roll.cpp (OH4): NWN's Quivering Palm death save (ResolvePostMeleeDamage, before the use is spent),
@@ -1220,9 +1251,12 @@ void InstallMonkRules() {
                          reinterpret_cast<void*>(&GetItemInSlotHook), reinterpret_cast<void**>(&g_get_item_in_slot))) {
     g_armed_check_return = 0;
   }
-  AnswerRulesetInt("STUNNING_FIST_TO_HIT_MODIFIER", "Stunning Strike: no -4", [](int) { return 0; });
-  AnswerRulesetInt("STUNNING_FIST_DAMAGE_MODIFIER", "Stunning Strike: no damage penalty", [](int) { return 0; });
-  AnswerRulesetInt("FLURRY_OF_BLOWS_TO_HIT_MODIFIER", "Flurry of Blows: no -2", [](int) { return 0; });
+  // #31 (1 B, 0.60.11): characters only - monsters keep NWN's.
+  AnswerRulesetInt("STUNNING_FIST_TO_HIT_MODIFIER", "Stunning Strike: no -4 for characters", &AttackRollPenalty);
+  AnswerRulesetInt("STUNNING_FIST_DAMAGE_MODIFIER", "Stunning Strike: no damage penalty for characters",
+                   &DamageRollPenalty);
+  AnswerRulesetInt("FLURRY_OF_BLOWS_TO_HIT_MODIFIER", "Flurry of Blows: no -2 for characters", &AttackRollPenalty);
+  AddCreatureUpdateListener(&MonkFightUpdate);  // #31 (3 B): once a fight
   const bool feats = AddScriptHandler("n5_patient", &PatientDefenseScript) &&
                      AddScriptHandler("n5_stepwind", &StepOfTheWindScript) &&
                      AddScriptHandler("n5_superior", &SuperiorDefenseScript);

@@ -503,6 +503,14 @@ bool HasDisciplinedSurvivor(int monk_level) { return monk_level >= 14; }
 bool HasPerfectFocus(int monk_level) { return monk_level >= 15; }
 bool HasSuperiorDefense(int monk_level) { return monk_level >= 18; }
 
+int MonkAttackPenalty(bool known, bool character, int engine_value) {
+  return known && !character ? engine_value : 0;
+}
+
+bool MonkFightOver(bool in_combat, long long ms_since_start) {
+  return !in_combat && ms_since_start >= kMonkFightMinMs;
+}
+
 int FlurryStrikes(int monk_level) {
   if (!HasFlurryOfBlows(monk_level)) return 0;
   return HasHeightenedFocus(monk_level) ? 3 : 2;

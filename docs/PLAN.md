@@ -1545,6 +1545,17 @@ NWN's parry sparks (VFX_COM_SPARKS_PARRY) on the Monk with each deflection.
 Body, Quivering Palm on a hit and a miss, Topple, Push, Addle, Deflect Attacks; the 13:27 log on 0.60.10: Deflect
 Attacks and Wholeness of Body again). Left for later: a custom deflect animation (C, with the animation session),
 Deflect's redirect and Quivering Palm's two steps (Phase 6 / 7).
+*Monk follow-ups (#31; owner, 2026-11-02: "go with your recommendations"):* 1 B - Stunning Strike's -4 and
+Flurry's -2 none for characters, NWN's for monsters (NWN's Monk); 2 A - a Monk 1-4's general-feat Stunning Fist
+(NWN mode's only) waits for Monk 5, kept; 3 B - Uncanny Metabolism and Perfect Focus once a fight, a new one only
+after the Monk was out of combat (the owner's 10:29 log: Uncanny Metabolism at 10:40:42, a minute into a fight -
+the 30 s guard); 4 A - henchman AI with Flurry / Stunning Strike checked in the playthroughs (#72); 5 A - +100%
+speed at Monk 18 kept; the radial / quickbar refresh of pool uses was 0.57.8's. *Built 0.60.11:* the three ruleset
+answers ask who attacks - the roll being resolved (CurrentAttackRoll: GetAttackModifierVersus and
+ResolveSpecialAttackAttackBonus read them inside ResolveAttackRoll; the damage one inside ResolveDamage) -
+rules::MonkAttackPenalty: a character 0, a monster NWN's, none known (the sheet) 0; MonkOnInitiative keeps the
+fight until a creature update finds the Monk out of combat (NWN's in-combat state, +0x700) at least 10 s after it
+began (rules::MonkFightOver). Test MonkFollowUps (6 mutations caught).
 
 ### Phase 3 — Rogue (CM9): recommendations (for the owner's decision)
 
