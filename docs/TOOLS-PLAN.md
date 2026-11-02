@@ -1043,3 +1043,13 @@ wrist within 63 deg. Polearm: the hand moves 5-70 cm; the wrist within 57 deg on
 take (the owner's (c)) is the quality path for clips that matter.
 *Checks:* test.bat 331/0; bench checks/run.js 15/15, browser_check 48/48; breaks caught across the core, the helper and
 the browser (ledger). Rulings and deferred minors: the ledger, listed on #112.
+*The owner's test of 0.60.6 (2026-11-02):* "the two handed sword becomes awkward but the two handed polearm is straigh
+up nonsense. the pole arm flips in the middle of the animation and then flips again" - the weapon followed the one-handed
+take's fist (the polearm turned 136 deg against the torso on a_dfa; the fist 167). Owner: "go with f1".
+- **0.60.9 (2315ebf) and 0.60.10 (dff8f46):** a recipe's `grip_follow` (0..1; absent 1). The weapon hand's place and
+  turn against the torso are the start pose's, mixed toward the take's by the share; the forearm takes the hand's twist
+  against the start pose's wrist (0.60.9 let the roll pile up: the wrist 180 deg off). Bench d5f5f33: the slider "weapon
+  follows the arms (%)"; the polearm version opens at 25%, the two-handed at 50%.
+*Measured on n5_rage (4 bodies, at those shares):* the polearm within 28-32 deg of its start direction (was 102-136),
+the two-handed 45-57 (was 79-82); the wrist within 16-32 / 38-58 deg of its holding turn; every frame on the grip; no
+flips or pops; the hands within 0.7 cm between frames; the ends exactly the start pose.
