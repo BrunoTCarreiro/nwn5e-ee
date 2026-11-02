@@ -1072,3 +1072,31 @@ recommendations, 117 first".
 *Final review* (a fresh reviewer): one Critical - older projects (n5_rage's) couldn't tick a version - and six
 Important, fixed with checks that failed first; checks/run.js 15/15, browser_check 52/52, 32 deliberate breaks caught.
 Rulings and deferred minors: the ledger, listed on #117.
+
+### Whole-pose keys and simplify to main poses (2026-11-02, #116; plan docs/superpowers/plans/2026-11-02-mocap-bench-whole-pose-keys.md)
+
+*Asked (owner):* "is it possible to key the main poses of an animation to simplify these animations and make them more
+readable?" (#116: n5_rage keys every frame, 1% of its arm frames at rest; NWN's own clips 2.5-8.7 keys a bone a second,
+21-58% at rest), then "but this way we're not keying the whole pose, we're keying specific parts" and "yes to both, go
+with your recommendations".
+*Built (nwn5e-tools 6e689e7, 32022f2, 57dfaab, 42267c1, 8f0ddaa; bench only - the core, the recipe format and the
+install unchanged):*
+- **Whole poses:** Shift+K keys every part at the marker as the doll stands, as one key on a "whole pose" row (replace
+  by default). It moves, deletes and takes its mode and ease as one; turning a part at its time adjusts it inside it; a
+  part's own row takes its key out. Stored as the parts' pose keys sharing an id, so rebasing (#101) and versions (#117)
+  carry them unchanged.
+- **The body flows between whole poses:** a part keeps moving through one unless it turns back or holds there (a
+  monotone cubic, each run measured from its first key); a part's own keys still stop at each key. The recipe carries
+  the flow as a pose line at every frame the core samples, so the game plays exactly what the doll shows.
+- **Legs:** keyed by a whole pose only while the foot is off the ground; release keys keep a planted leg on the capture.
+- **Simplify to main poses** (the clip tab): a detail slider (degrees, 8 by default) and a button. It keys the clip as
+  whole poses where its motion turns or holds, at least two frames apart, never for a one-frame tracking glitch, with
+  runs of near-equal keys held still. It keys what the doll shows now; Ctrl+Z undoes it, and right after, the slider
+  simplifies again in its place.
+*Measured (n5_rage at 8 deg, through the helper):* 26-27 whole poses (7.5-7.8 a second), the arms at rest 36-44% of the
+frames (was 2%); its fist shaking (0.6-1.4 s) stays dense - real motion, faster than the detail. 8 deg sits at the top
+of NWN's key rate (as a fast attack); the slider goes coarser for idles and taunts.
+*Final review* (a fresh reviewer): one Critical - the flow swung a part past 180 deg the long way (149 deg in one frame
+on n5_rage's hand) - and two Important (a leg's own key lost its ease beside a plant; a planted leg's whole-pose key
+ignored a turn), fixed with checks that failed first; checks/run.js 16/16, browser_check 63/63, 34 deliberate breaks
+caught. Rulings and deferred minors: the ledger, listed on #116.
