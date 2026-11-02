@@ -357,6 +357,27 @@ AQ-9 on 0.62.0, AQ-4, AQ-5 and AQ-5b on 0.62.2. Next in the build order: the rea
 *Accepted (owner, 2026-11-02: "they look right, accept 54").* The reactions and Disengage (#54), 0.63.0-0.63.1 -
 RE-1 to RE-5, RE-7 and DE-1 to DE-3 (RE-6 untested). Next in the build order: Action Surge / Thief's Reflexes (#53),
 the movement extras (#55); then the staple actions (#56, a decision first).
+- *#56, the staple actions (the owner, 2026-11-02: "let's do something normal, go for staple actions"; asked first
+  "if these actions are mainly combat or mainly RP actions. if they are combat actions do they require specific
+  equipment? If they do, is it available in NWN?"):* combat with no equipment - Dodge, Dash (both built for the
+  Monk, M5), Disengage (#54), Help's attack part; Help's check part - role-play, no NWN hook; Ready, dropping prone,
+  dragging a downed ally - combat, a mechanism NWN lacks; Jump - exploration, no jumping in NWN; the Net - combat,
+  no net item in NWN; grenades - combat, NWN's (base item 81: Acid, Alchemist's Fire, Holy Water and Caltrops have
+  SRD 5.2 counterparts; Tanglefoot Bag, Thunderstone, Choking Powder, the Fire and Acid Bombs don't). The owner
+  asked "can the help action be used to assist a downed henchman?" - in the 2024 rules Help stabilizes a creature at
+  0 Hit Points (DC 10 Wisdom (Medicine)); nwn5e's downed henchmen make no death saves (D2: only healing gets them
+  up), so that does nothing for them; a house rule could get one up instead.
+- *Decided (#56; owner, 2026-11-02: "see, this is where gameplay conflicts with rule faithfulness. Let's go with B
+  and have it off by default, but we'll have the possibility there anyway in case the player wants to add that
+  house rule. And dodge, dash, no help for attacks and grenades in their own issue"):*
+  - Dodge and Dash, everyone's Actions (the radial's Special Attacks page and the quickbar, as Disengage): Dodge -
+    until the next round attacks against you have Disadvantage (an attacker you see) and Dexterity saves Advantage;
+    Dash - twice as fast for the round. The Monk's (M5) pieces, for everyone.
+  - Help - only the house rule (B), off by default (nwn5e.ini): on, every player character has Help - on a downed
+    henchman, a DC 10 Wisdom (Medicine) check; success, it gets up at 1 HP; failure, nothing (again next round). It
+    takes the Action. Not SRD: labelled a house rule. No Help for attacks.
+  - Grenades as 2024 gear: their own issue. Ready, dropping prone, dragging a downed ally, the Net: later, an issue
+    for them. Jump dropped (no jumping in NWN).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,
