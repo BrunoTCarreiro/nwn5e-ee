@@ -886,18 +886,24 @@ const std::vector<int>& GrantableFeats2024() {
                                           kFeatImprovedEvasion, kFeatCunningStrike, kFeatDeviousStrikes,
                                           kFeatPatientDefense, kFeatStepOfTheWind, kFeatSuperiorDefense,
                                           kFeatOpenHandTechnique, kFeatDeflectArrows, kFeatWholenessOfBody,
-                                          kFeatQuiveringPalm,  kFeatDisengage};
+                                          kFeatQuiveringPalm,  kFeatDisengage,    kFeatDodge,
+                                          kFeatDash,           kFeatHelp};
   return kFeats;
 }
 
-std::vector<int> FeatsEveryoneHas2024(bool shove_faithful, bool actions_faithful) {
+std::vector<int> FeatsEveryoneHas2024(bool shove_faithful, bool actions_faithful, bool help_house_rule) {
   std::vector<int> feats;
   if (shove_faithful) {
     feats.push_back(kFeatKnockdownShove);
     feats.push_back(kFeatShovePush);
     feats.push_back(kFeatGrapple);  // G2: Grapple, the Unarmed Strike's third option
   }
-  if (actions_faithful) feats.push_back(kFeatDisengage);  // #54 (3 B)
+  if (actions_faithful) {
+    feats.push_back(kFeatDisengage);  // #54 (3 B)
+    feats.push_back(kFeatDodge);      // #56
+    feats.push_back(kFeatDash);
+    if (help_house_rule) feats.push_back(kFeatHelp);  // #56: the house rule, off by default
+  }
   return feats;
 }
 

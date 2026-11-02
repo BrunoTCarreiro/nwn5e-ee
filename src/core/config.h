@@ -216,6 +216,11 @@ struct Config {
   // default Bonus Action: the automatic bonus attack or none); nwn / off =
   // NWN's (an ability takes the round).
   rules::RuleVariant actions = rules::RuleVariant::kFaithful;
+  // #56 (owner, 2026-11-02: "Let's go with B and have it off by default"): a
+  // house rule, not SRD 5.2 - with the actions faithful every player character
+  // has Help: on a downed henchman, a DC 10 Wisdom (Medicine) check gets it up
+  // at 1 HP. 0 (the default): no Help.
+  bool help_house_rule = false;
   // Rests move the clock: a Long Rest 8 hours, a Short Rest 1 - on by default
   // since 0.59.18 (#110, owner: "go with B"); faithful rests only (NWN mode's
   // rests don't install the rest rules). 0 keeps the clock still.

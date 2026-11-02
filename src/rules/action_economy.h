@@ -119,4 +119,12 @@ bool ReactionDefaultOn(Reaction reaction);
 bool ReactionOn(int record, Reaction reaction);
 int SetReactionOn(int record, Reaction reaction, bool on);
 
+// #56 (owner, 2026-11-02): the staple actions, each the round's Action. Dash:
+// the creature's speed doubled for the round (its movement factor times two).
+float DashMovementFactor(float factor, bool dashing);
+// Help - a house rule, not SRD 5.2 (off by default: help_house_rule): on a
+// downed henchman, a DC 10 Wisdom (Medicine) check gets it up at 1 HP.
+constexpr int kHelpMedicineDc = 10;
+bool HelpMedicineSucceeds(int d20, int medicine_bonus);
+
 }  // namespace rules

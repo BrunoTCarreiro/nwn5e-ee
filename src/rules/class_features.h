@@ -454,7 +454,12 @@ constexpr int kFeatKnockdownShove = 23;  // kFeatShovePush: rules/grapple.h
 // character also has Disengage (nwn5e's feat 1321 - the radial's Special Attacks
 // page and the quickbar).
 constexpr int kFeatDisengage = 1321;
-std::vector<int> FeatsEveryoneHas2024(bool shove_faithful, bool actions_faithful);
+// #56 (owner, 2026-11-02): Dodge and Dash too, while the actions are faithful;
+// Help only with the house rule on (help_house_rule).
+constexpr int kFeatDodge = 1322;
+constexpr int kFeatDash = 1323;
+constexpr int kFeatHelp = 1324;
+std::vector<int> FeatsEveryoneHas2024(bool shove_faithful, bool actions_faithful, bool help_house_rule);
 bool GrantedOnlyWhenMissing(int feat);
 
 }  // namespace rules

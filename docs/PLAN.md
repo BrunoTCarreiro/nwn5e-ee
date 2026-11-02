@@ -378,6 +378,20 @@ the movement extras (#55); then the staple actions (#56, a decision first).
     takes the Action. Not SRD: labelled a house rule. No Help for attacks.
   - Grenades as 2024 gear: their own issue. Ready, dropping prone, dragging a downed ally, the Net: later, an issue
     for them. Jump dropped (no jumping in NWN).
+  - Opened: #124 (grenades), #125 (Ready, dropping prone, dragging, the Net).
+- *Built 0.64.0 (#56; `actions` faithful):* src/core/staple_actions.cpp - feats 1322 Dodge, 1323 Dash, 1324 Help
+  (data/rows/feat.actions.txt; spells 1039-1041 -> n5_dodge, n5_dash, n5_help), every player character's
+  (rules::FeatsEveryoneHas2024 - Help only with [rules] help_house_rule=1; record bits 20-22, quickbar bits 28-30).
+  Each takes the Action (ReqAction 1, the cast path: mid-round behind the round's attacks).
+  - Dodge: 6 s in which rules_monk.cpp's MonkDodging answers yes (the Patient Defense Dodge: Disadvantage on attacks
+    against it, Advantage on Dexterity saves, not while Incapacitated); the radial's Special Attacks slot 0 (Parry's).
+  - Dash: 6 s of a movement rate bonus, the factor times two (rules::DashMovementFactor - not an effect, so the
+    engine's speed cap doesn't hold it back; the grapple's drag halves it); slot 2 (Improved Power Attack's).
+  - Help (the house rule): its target by script (GetSpellTargetObject); a henchman rules_dying.cpp holds down
+    (IsDownHenchmanUnderRules) - a d20 + the 2024 Medicine value (NWN's Heal through GetSkillRank) against DC 10
+    (rules::HelpMedicineSucceeds); success: HelpDownHenchmanUp - the next pass stands it up at 1 HP ("helped up");
+    the quickbar only (the radial page has no slot left).
+  - Tests StapleActions, the everyone / grantable feats (11 of 11 mutations caught).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,

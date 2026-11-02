@@ -24,7 +24,9 @@
 // AddFeatEntry calls) - so nwn5e's Grapple (1312) takes Called Shot: Leg's slot
 // 3, next to the Shove (Called Shot has no 2024 counterpart); the arm stays.
 // #54 (owner, 2026-11-02, 3 B): nwn5e's Disengage (1321, everyone's while the
-// actions are faithful) takes Called Shot: Arm's slot 1.
+// actions are faithful) takes Called Shot: Arm's slot 1. #56: Dodge (1322) takes
+// Parry's slot 0 and Dash (1323) Improved Power Attack's slot 2 - neither has a
+// 2024 counterpart (Power Attack's slot 5 stays).
 
 #include <stdint.h>
 
@@ -77,6 +79,8 @@ constexpr Entry kEntries[] = {
     {rules::kFeatShovePush, 6, "Shove: push", "Disarm"},
     {rules::kFeatGrapple, 3, "Grapple", "Called Shot: Leg"},
     {rules::kFeatDisengage, 1, "Disengage", "Called Shot: Arm"},
+    {rules::kFeatDodge, 0, "Dodge", "Parry"},
+    {rules::kFeatDash, 2, "Dash", "Improved Power Attack"},
 };
 constexpr size_t kPlayerMayAttack = 0x37c;  // bit 0x80: the page is built at all
 constexpr size_t kClientCreatureStats = 0x3b0;
@@ -149,6 +153,7 @@ void InstallRadialSpecialAttacks() {
   if (HookAddress("radial Special Attacks page (Shove: push in Disarm's slot)", builder,
                   reinterpret_cast<void*>(&BuildSpecialAttacks), reinterpret_cast<void**>(&g_build))) {
     Log("radial: Shove: push on the Special Attacks page, slot 6 (Disarm's - nothing in faithful); Grapple in slot 3 "
-        "(Called Shot: Leg's); Disengage in slot 1 (Called Shot: Arm's), when the actions are faithful");
+        "(Called Shot: Leg's); Disengage, Dodge, Dash in slots 1, 0, 2 (Called Shot: Arm's, Parry's, Improved "
+        "Power Attack's), when the actions are faithful");
   }
 }

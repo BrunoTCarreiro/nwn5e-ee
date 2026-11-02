@@ -158,6 +158,7 @@ struct DownPlayer {
 struct DownHenchman {
   bool laid_down = false;
   uint64_t next_hold = 0;  // real time: the next check that it still lies
+  bool helped = false;     // #56: Help's house rule got it up (at the next pass, at 1 HP)
 };
 constexpr uint64_t kHoldDownMs = 1000;
 struct PlayerUpkeep {
@@ -708,7 +709,10 @@ bool UpdateDownHenchman(uint32_t id, DownHenchman& state) {
   }
   const uint32_t master_id = PlayerMasterOf(henchman);
   void* master = master_id ? CreatureById(master_id) : nullptr;
-  const char* why = !master ? "no longer a player's henchman" : HitPoints(henchman) > 1 ? "healed" : nullptr;
+  const char* why = !master                    ? "no longer a player's henchman"
+                    : HitPoints(henchman) > 1   ? "healed"
+                    : state.helped              ? "helped up (Help, the house rule)"
+                                                : nullptr;
   if (!why) {
     const uint64_t now = GetTickCount64();
     if (now >= state.next_hold && !LyingPose(henchman)) {  // its AI cleared the pose
@@ -1099,6 +1103,16 @@ std::vector<std::string> DyingCommand(void* creature, const std::string& args) {
 
 // Exhaustion's level, for !rest (0 with dying off).
 int ExhaustionLevel(void* creature) { return creature && Faithful() ? ExhaustionOf(creature) : 0; }
+
+// #56 (staple_actions.cpp, Help's house rule): a henchman these rules hold down; get it up at its next pass (1 HP).
+bool IsDownHenchmanUnderRules(uint32_t id) { return g_down_henchmen.count(id) != 0; }
+
+bool HelpDownHenchmanUp(uint32_t id) {
+  const auto it = g_down_henchmen.find(id);
+  if (it == g_down_henchmen.end()) return false;
+  it->second.helped = true;
+  return true;
+}
 
 namespace {
 

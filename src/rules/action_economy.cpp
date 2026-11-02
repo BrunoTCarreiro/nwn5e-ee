@@ -114,6 +114,10 @@ bool ReactionOn(int record, Reaction reaction) {
   return ReactionDefaultOn(reaction) != flipped;
 }
 
+float DashMovementFactor(float factor, bool dashing) { return dashing ? factor * 2.0f : factor; }
+
+bool HelpMedicineSucceeds(int d20, int medicine_bonus) { return d20 + medicine_bonus >= kHelpMedicineDc; }
+
 int SetReactionOn(int record, Reaction reaction, bool on) {
   const int bit = 1 << static_cast<int>(reaction);
   return on == ReactionDefaultOn(reaction) ? (record & ~bit) : (record | bit);

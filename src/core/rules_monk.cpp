@@ -173,6 +173,7 @@
 #include "ruleset.h"
 #include "saves.h"
 #include "script_hooks.h"
+#include "staple_actions.h"
 #include "rules/class_features.h"
 #include "rules/nwn_conversion.h"
 #include "rules/weapons.h"
@@ -752,10 +753,13 @@ bool DisciplinedSurvivorReroll(void* creature) {
 // M5 (rules_opportunity.cpp): Patient Defense / Step of the Wind - moving provokes nothing this round.
 bool MonkDisengaged(uint32_t id) { return !g_disengaged.empty() && Until(g_disengaged, id); }
 
-// M5 Dodge (rules_barbarian.cpp's save advantage, rules_advantage.cpp): not while Incapacitated.
+// M5 Dodge (rules_barbarian.cpp's save advantage, rules_advantage.cpp): not while Incapacitated. #56: everyone's
+// Dodge action too (staple_actions.cpp).
 bool MonkDodging(void* creature) {
-  if (g_dodging.empty() || !creature) return false;
-  return Until(g_dodging, IdOf(creature)) && !IncapacitatedByCondition(creature);
+  if (!creature) return false;
+  const uint32_t id = IdOf(creature);
+  const bool dodging = (!g_dodging.empty() && Until(g_dodging, id)) || Dodging(id);
+  return dodging && !IncapacitatedByCondition(creature);
 }
 
 // rules_advantage.cpp: Dodge (Disadvantage on attacks against it), Stunning Strike's saved mark
@@ -764,7 +768,7 @@ MasteryRollSources MonkRollSources(void* /*attacker*/, void* target) {
   MasteryRollSources sources;
   if (MonkDodging(target)) {
     sources.disadvantage = 1;
-    sources.note = "Dodge (Patient Defense)";
+    sources.note = "Dodge";
   }
   const uint32_t id = IdOf(target);
   if (!g_stun_marks.empty() && Until(g_stun_marks, id)) {

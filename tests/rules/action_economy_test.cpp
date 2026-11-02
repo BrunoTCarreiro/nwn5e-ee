@@ -159,6 +159,18 @@ TEST(ReactionSwitches) {
   CHECK_EQ(SetReactionOn(0, Reaction::kUncannyDodge, true), 0);  // already its default
 }
 
+// #56 (owner, 2026-11-02): Dash doubles the speed for its round; Help's house rule is a DC 10 Medicine check.
+// Breaks caught: Dash not doubling, doubling when not dashing; Help one short, Help needing more than 10.
+TEST(StapleActions) {
+  CHECK_EQ(DashMovementFactor(1.0f, true) == 2.0f, true);
+  CHECK_EQ(DashMovementFactor(1.33f, true) == 2.66f, true);
+  CHECK_EQ(DashMovementFactor(1.0f, false) == 1.0f, true);
+  CHECK_EQ(HelpMedicineSucceeds(7, 3), true);   // 10
+  CHECK_EQ(HelpMedicineSucceeds(6, 3), false);  // 9
+  CHECK_EQ(HelpMedicineSucceeds(10, 0), true);
+  CHECK_EQ(HelpMedicineSucceeds(12, -3), false);
+}
+
 // Breaks caught: a melee weapon looking as far as a bow, a bow looking 10 m, a bad setting giving no range;
 // potions not known, another item taken for one.
 TEST(DefaultAttackRangeAndPotions) {

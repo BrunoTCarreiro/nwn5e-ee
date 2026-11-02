@@ -87,7 +87,7 @@ TEST(GrantedFeatsFollowClassLevels) {
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kFighter, 9}}).size(), 1u);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 5}}).empty(), true);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 3}, {CharacterClass::kFighter, 2}})[0], kFeatSecondWind2);
-  CHECK_EQ(GrantableFeats2024().size(), 20u);  // #54: Disengage appended (bit 19)
+  CHECK_EQ(GrantableFeats2024().size(), 23u);  // #54: Disengage appended (bit 19); #56: Dodge, Dash, Help
   CHECK_EQ(GrantableFeats2024()[15], kFeatOpenHandTechnique);  // Monk parts 4 / 5: appended
   CHECK_EQ(GrantableFeats2024()[16], kFeatDeflectArrows);
   CHECK_EQ(GrantableFeats2024()[17], kFeatWholenessOfBody);
@@ -125,20 +125,30 @@ TEST(GrantedFeatsFollowClassLevels) {
 // its own in NWN mode). Breaks caught: granted in NWN mode, a class feat
 // marked only-when-missing (NWN mode would then keep a stray nwn5e feat).
 TEST(EveryoneCanShove) {
-  CHECK_EQ(FeatsEveryoneHas2024(true, false).size(), 3u);
-  CHECK_EQ(FeatsEveryoneHas2024(true, false)[0], kFeatKnockdownShove);
-  CHECK_EQ(FeatsEveryoneHas2024(true, false)[1], kFeatShovePush);
-  CHECK_EQ(FeatsEveryoneHas2024(true, false)[2], kFeatGrapple);
-  // #54: Disengage for everyone while the actions are faithful (whatever the Shove's mode).
-  const std::vector<int> everyone = FeatsEveryoneHas2024(true, true);
-  CHECK_EQ(everyone.size(), 4u);
-  CHECK_EQ(everyone.size() == 4u && everyone[3] == kFeatDisengage, true);
-  const std::vector<int> disengage_only = FeatsEveryoneHas2024(false, true);
-  CHECK_EQ(disengage_only.size(), 1u);
-  CHECK_EQ(disengage_only.size() == 1u && disengage_only[0] == kFeatDisengage, true);
-  CHECK_EQ(GrantableFeats2024().back(), kFeatDisengage);  // appended: the records' bits keep their places
+  CHECK_EQ(FeatsEveryoneHas2024(true, false, false).size(), 3u);
+  CHECK_EQ(FeatsEveryoneHas2024(true, false, false)[0], kFeatKnockdownShove);
+  CHECK_EQ(FeatsEveryoneHas2024(true, false, false)[1], kFeatShovePush);
+  CHECK_EQ(FeatsEveryoneHas2024(true, false, false)[2], kFeatGrapple);
+  // #54 / #56: Disengage, Dodge and Dash for everyone while the actions are faithful (whatever the Shove's mode);
+  // Help only with the house rule - and the actions faithful.
+  const std::vector<int> everyone = FeatsEveryoneHas2024(true, true, false);
+  CHECK_EQ(everyone.size(), 6u);
+  CHECK_EQ(everyone.size() == 6u && everyone[3] == kFeatDisengage && everyone[4] == kFeatDodge &&
+               everyone[5] == kFeatDash,
+           true);
+  const std::vector<int> actions_only = FeatsEveryoneHas2024(false, true, false);
+  CHECK_EQ(actions_only.size(), 3u);
+  CHECK_EQ(actions_only.size() == 3u && actions_only[0] == kFeatDisengage, true);
+  const std::vector<int> with_help = FeatsEveryoneHas2024(false, true, true);
+  CHECK_EQ(with_help.size() == 4u && with_help[3] == kFeatHelp, true);
+  CHECK_EQ(FeatsEveryoneHas2024(false, false, true).empty(), true);  // no Help in NWN mode
+  // Appended: the records' bits keep their places.
+  const std::vector<int>& grantable = GrantableFeats2024();
+  CHECK_EQ(grantable.size() == 23u && grantable[19] == kFeatDisengage && grantable[20] == kFeatDodge &&
+               grantable[21] == kFeatDash && grantable[22] == kFeatHelp,
+           true);
   CHECK_EQ(GrantedOnlyWhenMissing(kFeatShovePush), false);
-  CHECK_EQ(FeatsEveryoneHas2024(false, false).empty(), true);
+  CHECK_EQ(FeatsEveryoneHas2024(false, false, false).empty(), true);
   CHECK_EQ(GrantedOnlyWhenMissing(kFeatKnockdownShove), true);
   CHECK_EQ(GrantedOnlyWhenMissing(kFeatSecondWind2), false);
   CHECK_EQ(GrantedOnlyWhenMissing(kFeatBrutalStrike), false);

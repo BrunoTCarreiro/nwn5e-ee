@@ -4,3 +4,8 @@
 # Special Attacks page (radial_special_attacks.cpp) and the quickbar.
 LABEL FEAT DESCRIPTION ICON GAINMULTIPLE EFFECTSSTACK ALLCLASSESCANUSE CATEGORY MAXCR SPELLID CRValue USESPERDAY TARGETSELF Constant TOOLSCATEGORIES PreReqEpic ReqAction
 1321 NWN5E_DISENGAGE 16000533 16000534 ife_mobility 0 0 0 7 1 1038 0.5 **** 1 FEAT_NWN5E_DISENGAGE 6 0 1
+# #56 (staple_actions.cpp): Dodge and Dash (everyone's, Dodge's and Barbarian Endurance's icons); Help (the house
+# rule, off by default; on another creature - TARGETSELF 0; the Heal skill's icon).
+1322 NWN5E_DODGE 16000535 16000536 ife_dodge 0 0 0 7 1 1039 0.5 **** 1 FEAT_NWN5E_DODGE 6 0 1
+1323 NWN5E_DASH 16000537 16000538 ife_barbend 0 0 0 7 1 1040 0.5 **** 1 FEAT_NWN5E_DASH 6 0 1
+1324 NWN5E_HELP 16000539 16000540 isk_heal 0 0 0 7 1 1041 0.5 **** 0 FEAT_NWN5E_HELP 6 0 1

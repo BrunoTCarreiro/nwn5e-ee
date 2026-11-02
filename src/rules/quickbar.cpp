@@ -54,6 +54,9 @@ enum Bit {
   kBitWholenessOfBody = 25,  // Monk part 4 (0.60.0)
   kBitQuiveringPalm = 26,
   kBitDisengage = 27,  // #54 (0.63.0)
+  kBitDodge = 28,      // #56
+  kBitDash = 29,
+  kBitHelp = 30,
 };
 
 bool IsSecondWind(int value) {
@@ -69,7 +72,8 @@ const std::vector<int>& QuickbarActionFeats2024() {
                                           kFeatGrapple,        kFeatCunningStrike, kFeatDeviousStrikes,
                                           kFeatFlurryOfBlows,  kFeatPatientDefense, kFeatStepOfTheWind,
                                           kFeatStunningFist,   kFeatSuperiorDefense, kFeatWholenessOfBody,
-                                          kFeatQuiveringPalm,  kFeatDisengage};
+                                          kFeatQuiveringPalm,  kFeatDisengage,    kFeatDodge,
+                                          kFeatDash,           kFeatHelp};
   return kFeats;
 }
 
@@ -139,6 +143,9 @@ std::vector<QuickbarAction> QuickbarActions2024(const QuickbarFacts& facts) {
   if (has(kFeatShovePush)) actions.push_back({kBitShovePush, kFeatShovePush, "Shove: push"});
   if (has(kFeatGrapple)) actions.push_back({kBitGrapple, kFeatGrapple, "Grapple"});
   if (has(kFeatDisengage)) actions.push_back({kBitDisengage, kFeatDisengage, "Disengage"});  // #54 (3 B)
+  if (has(kFeatDodge)) actions.push_back({kBitDodge, kFeatDodge, "Dodge"});                  // #56
+  if (has(kFeatDash)) actions.push_back({kBitDash, kFeatDash, "Dash"});
+  if (has(kFeatHelp)) actions.push_back({kBitHelp, kFeatHelp, "Help"});
   return actions;
 }
 

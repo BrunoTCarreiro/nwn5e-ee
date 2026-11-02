@@ -59,6 +59,7 @@ void InstallBonusActions();  // Phase 6 (#52)
 void InstallActionOrders();  // Phase 6 (#120)
 void InstallDefaultAttack();  // Phase 6 (#120)
 void InstallDisengage();  // Phase 6 (#54)
+void InstallStapleActions();  // Phase 6 (#56)
 void InstallBarbarianStrikes();
 void InstallRestRules();
 void InstallDyingRules();
@@ -93,7 +94,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.63.1";
+constexpr const char* kVersion = "0.64.0";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -153,6 +154,7 @@ void Start(HMODULE self) {
   InstallActionOrders();   // Phase 6 (#120): an order mid-round keeps the attack
   InstallDefaultAttack();  // Phase 6 (#120): a queue run dry in a fight attacks again
   InstallDisengage();      // Phase 6 (#54): everyone's Disengage action
+  InstallStapleActions();  // Phase 6 (#56): Dodge, Dash; Help (a house rule)
   InstallResourcePanel();  // after the class rules: they give its pools
   InstallHudClock();       // #105: the game time over the compass
   InstallRestRules();

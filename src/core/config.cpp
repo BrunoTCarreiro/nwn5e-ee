@@ -105,6 +105,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.finesse = ReadVariant(ini, L"finesse", g_config.mode);
   g_config.rests = ReadVariant(ini, L"rests", g_config.mode);
   g_config.actions = ReadVariant(ini, L"actions", g_config.mode);
+  g_config.help_house_rule = ReadBool(ini, L"help_house_rule", g_config.help_house_rule);  // #56
   g_config.rest_clock = ReadBool(ini, L"rest_clock", g_config.rest_clock);
   g_config.dying = ReadVariant(ini, L"dying", g_config.mode);
   g_config.death_save_aura_vfx =

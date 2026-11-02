@@ -2,3 +2,8 @@
 # C++ (script_hooks.cpp; no .ncs). A feat ability on yourself (UserType 3), no conjure / cast time or animation.
 Label Name IconResRef School Range VS MetaMagic TargetType ImpactScript Innate ConjTime ConjAnim CastAnim CastTime Proj ItemImmunity SubRadSpell1 SubRadSpell2 SubRadSpell3 SubRadSpell4 SubRadSpell5 Category Master UserType SpellDesc UseConcentration SpontaneouslyCast HostileSetting FeatID HasProjectile
 1038 nwn5e_Disengage 16000533 ife_mobility V P s 0x00 0x01 n5_disengage 1 0 **** **** 0 0 1 **** **** **** **** **** 5 **** 3 16000534 0 0 0 1321 0
+# #56: 1039 Dodge (feat 1322) - n5_dodge; 1040 Dash (1323) - n5_dash: on yourself. 1041 Help (1324) - n5_help: on a
+# creature you touch (Range T, TargetType 0x02), not hostile.
+1039 nwn5e_Dodge 16000535 ife_dodge V P s 0x00 0x01 n5_dodge 1 0 **** **** 0 0 1 **** **** **** **** **** 5 **** 3 16000536 0 0 0 1322 0
+1040 nwn5e_Dash 16000537 ife_barbend V P s 0x00 0x01 n5_dash 1 0 **** **** 0 0 1 **** **** **** **** **** 5 **** 3 16000538 0 0 0 1323 0
+1041 nwn5e_Help 16000539 isk_heal V T s 0x00 0x02 n5_help 1 0 **** **** 0 0 1 **** **** **** **** **** 5 **** 3 16000540 0 0 0 1324 0
