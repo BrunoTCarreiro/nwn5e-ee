@@ -173,6 +173,20 @@ monster AC by CR.
   Surge / Thief's Reflexes a second round of attacks or a second spell; 4 (i) potions a Bonus Action; 5 (i)
   equipping as NWN (1.5 s, no attack lost); 6 (ii) everyone on the same rules (monsters too). A combat configuration
   panel: the default Bonus Actions and the active reactions.
+- *The design's points (owner, 2026-11-02: "yes to all, no automatic triggers for now"):*
+  1. The queue holds Actions (spells, items, abilities that take the Action), one a round in order (the action
+     queue strip shows them). A Bonus Action clicked runs at once when the round's is free, else it waits for the
+     next round (in place of that round's default Bonus Action).
+  2. The default attack: the last enemy ordered attacked, while alive and in sight; when it dies, the nearest enemy
+     in sight (NWN's own retarget after a kill); out of combat, nothing.
+  3. Everyone on the same rules: monsters and henchmen have the same budgets and queue (their AI fills it); their
+     potions are Bonus Actions, their reactions automatic; the panel's settings are the player's.
+  4. The Combat options window grows into "Combat configuration": the default Bonus Action (the automatic bonus
+     attack - off-hand, Martial Arts' strike, Flurry in its mode - or none, keeping it for a clicked one) and a
+     switch per reaction (opportunity attacks, Uncanny Dodge, Deflect Attacks and its redirect, Retaliation). No
+     automatic triggers (Rage at a fight's start, Second Wind when Bloodied) for now.
+  5. The build order: Bonus Actions (#52), the Action queue and the default attack (#120), the reaction switches
+     (#54), Action Surge / Thief's Reflexes (#53), the movement extras (#55); then the staple actions (#56).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,
