@@ -973,3 +973,28 @@ that included the node origin (the halberd's head ran down the haft), the "quart
 sword, solid boxes over curved shapes (69 of 91 warnings false on NWN's own clips), the head and the shoulders
 uncovered, and gear lines buried at Save. Checks: checks/run.js 15/15, browser_check 46/46, 23 deliberate breaks
 caught. Rulings and deferred minors: the ledger, listed on #111.
+
+### Planted feet never slide at a clip's ends (2026-11-02, #114; plan docs/superpowers/plans/2026-11-02-mocap-bench-foot-step.md)
+
+*Asked (owner):* "the right foot is weakly placed" (n5_rage on a_dfa); then "any "fix" ... needs to be based on rules
+that are extensible to other animations ... feet that are planted should not move (right?) ... The foot should drag,
+but I also need to learn how to plant feet correctly so it doesn't happen"; "Go with your recommendations" (the step rule).
+*Diagnosed:* the bench's solve held the foot still to the end (0.0 cm); the game's assembly dragged it 25.5 cm in the
+last 0.3 s - the loop crossfade (n5_rage loops, 0.4 s) pulling a last plant that #100's 25 cm move-or-leave rule had
+left off the stance's spot toward the first frame (on the spot). My first explanation (#100's lock letting go) was
+wrong; the owner's own reading (the loop) was right.
+*Built (nwn5e-tools 41280e2, ec62aed, dce65b7, a66c9d8; bench only):*
+- **The step rule:** a clip's first / last plant covers its end when its held frames reach into the seam's window.
+  The first 5 cm of its gap to the start pose's foot spot shift the plant (its turn by the same share); any rest is a
+  step - the foot lifts (a lift growing from nothing), moves only while up and sets down on the spot, at least 4
+  frames. Two feet stepping at one end take turns; a plant with no room to step lands on the spot. No point where the
+  behaviour flips.
+- **No loop crossfade while a returning clip's ends match the stance** (both ends are the stance; it only pulled a
+  stepping foot down). In-place clips keep it.
+- **Save** names each step as a notice ("right foot steps 25.4 cm onto the stance's spot at the clip's end"), still
+  names a leg a key leaves off the stance, and measures slides over the held spans only.
+*Measured* (n5_rage through the game's assembly, 4 bodies x pause1 / 2hreadyr): every foot starts and ends 0.0 cm off
+the stance's spot; never both feet up; planted frames move only 0.5-0.8 cm at isolated frames (the recipe's key
+reduction, pre-existing). *Final review* (a fresh reviewer): 7 Important + 3 re-graded Minors fixed with tests that
+failed first; checks/run.js 15/15, browser_check 46/46, 15 deliberate breaks caught. Rulings and deferred minors: the
+ledger, listed on #114.
