@@ -6,13 +6,17 @@
 # weapon and shield points, the cloak, the robe - start and end on the stance, and Rage plays upright.
 # Your first class becomes Barbarian 5 (Rage) on the body you play (no species line, so yours stays).
 # Equipped: a battleaxe and a large shield (drawn: 1hreadyr), a Wizard's Robe (a robe part) and a Cloak
-# of Protection +1. In the pack: a greataxe (drawn: 2hreadyr). Test aids: !rage (!rage reset), !anim
-# n5_rage, !anim saaaaa.
+# of Protection +1. In the pack: a greataxe (drawn: 2hreadyr), a halberd and a spear (polearms), a two-bladed sword
+# (a double weapon) and a light crossbow. Test aids: !rage (!rage reset), !anim n5_rage, !anim saaaaa.
+# Issue 112 (0.60.6): Rage plays n5_rage_2h with the greataxe, n5_rage_pl with the halberd or the spear, and the
+# one-handed n5_rage with the battleaxe, the two-bladed sword or the crossbow - each version only once it's built.
 name = Animations (issue 108): Barbarian 5 with a weapon, a shield, a robe and a cloak
 swap_class = barbarian
 class = barbarian
 level = 5
 abilities = 16 14 16 10 12 8
-items = nw_waxbt001 equip, nw_ashlw001 equip, nw_cloth005 equip, nw_maarcl055 equip, nw_waxgr001
+items = nw_waxbt001 equip, nw_ashlw001 equip, nw_cloth005 equip, nw_maarcl055 equip, nw_waxgr001, nw_wplhb001, nw_wplss001, nw_wdbsw001, nw_wbwxl001
 note = Rage with the battleaxe and shield drawn (1hreadyr), with the greataxe (2hreadyr) and with nothing drawn (pause1) - !rage reset between
 note = the weapon keeps its grip, the shield doesn't turn, the cloak and the robe don't snap at the start or end, and the body stays upright
+note = issue 112 - Rage with the greataxe (n5_rage_2h) and the halberd or spear (n5_rage_pl): the left hand stays on the haft, no arm whips at the strike
+note = issue 112 - Rage with the two-bladed sword or the crossbow plays the one-handed n5_rage
