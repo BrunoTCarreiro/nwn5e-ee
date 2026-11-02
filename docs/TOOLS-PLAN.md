@@ -971,5 +971,5 @@ of 20 warnings confirmed by the real meshes.
 *Final review* (a fresh reviewer): six Important findings, all fixed with tests that failed first - header boxes
 that included the node origin (the halberd's head ran down the haft), the "quarterstaff" that was the two-bladed
 sword, solid boxes over curved shapes (69 of 91 warnings false on NWN's own clips), the head and the shoulders
-uncovered, and gear lines buried at Save. Checks: checks/run.js 15/15, browser_check 46/46, 25 deliberate breaks
+uncovered, and gear lines buried at Save. Checks: checks/run.js 15/15, browser_check 46/46, 23 deliberate breaks
 caught. Rulings and deferred minors: the ledger, listed on #111.
