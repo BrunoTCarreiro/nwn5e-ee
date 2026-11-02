@@ -972,6 +972,11 @@ void PresenceUpdate(void* creature) {
 // queued, the attacker hostile; then CNWSCombatRound::AddAttackOfOpportunity(attacker) (an AoO
 // attack at the front of the round), round +0x2f40 - 1 and +0x750 = 1. Only while it is already
 // attacking someone (the broadcast would add attack actions first; not done here).
+// #54 (0.63.1; the owner's RE-7, a Berserker standing still: "didn't proc" - "its reaction is spent", the
+// engine's AoO count not refilled while none of its rounds runs): the reaction is the shared one, taken through
+// TakeReaction (reactions.h: back for a creature not fighting) once every other check passed; not attacking
+// anyone, it's given an attack order at the creature first, as the engine's broadcast does for an idle observer
+// (AddAttackActions), then the AoO.
 using AddAttackOfOpportunityFn = void (*)(void* round, uint32_t target);
 using MaxAttackRangeFn = float (*)(void* creature, uint32_t target, int a, int b);
 using CreatureTestFn = int (*)(void* creature);
@@ -1001,15 +1006,13 @@ void RetaliationOnDamage(uint32_t creator, void* target, int damage) {
   void* round = Field<void*>(target, ee::kCreatureCombatRound);
   if (!add_aoo || !reach || !ranged || !casting || !round) return;
   const char* why = nullptr;
-  if (Field<int32_t>(round, kRoundOpportunityLeft) <= 0) why = "its reaction is spent this round";
-  else if (Field<int32_t>(round, kRoundStateA) != 0 || Field<int32_t>(round, kRoundStateB) != 0) why = "its round can't take it";
+  if (Field<int32_t>(round, kRoundStateA) != 0 || Field<int32_t>(round, kRoundStateB) != 0) why = "its round can't take it";
   else if (Field<int32_t>(target, ee::kCreatureInCombat) != 1) why = "not in combat";
   else if (Field<uint8_t>(target, kCreatureStateByteA) == 1 || Field<uint8_t>(target, kCreatureStateByteB) == 1 ||
            Field<int32_t>(target, kCreatureStateC) != 0) why = "busy";
   else if (engine::AreaOf(target) != engine::AreaOf(attacker)) why = "another area";
   else if (ranged(target)) why = "a ranged weapon in hand";
   else if (casting(target)) why = "a spell or heal queued";
-  else if (Field<uint32_t>(target, ee::kCreatureAttackTarget) == ee::kObjectInvalid) why = "not attacking anyone";
   else {
     const float dx = Field<float>(target, ee::kObjectPositionX) - Field<float>(attacker, ee::kObjectPositionX);
     const float dy = Field<float>(target, ee::kObjectPositionX + 4) - Field<float>(attacker, ee::kObjectPositionX + 4);
@@ -1025,10 +1028,23 @@ void RetaliationOnDamage(uint32_t creator, void* target, int damage) {
     }
     return;
   }
+  if (!TakeReaction(target)) {  // #54 (0.63.1): the shared reaction (back for a creature not fighting)
+    if (g_retaliation_logged < kRetaliationLogMax) {
+      ++g_retaliation_logged;
+      Log("barbarian: 0x%08X hurt by 0x%08X (%d) - no Retaliation: its reaction is spent this round", id, creator, damage);
+    }
+    return;
+  }
+  const bool idle = Field<uint32_t>(target, ee::kCreatureAttackTarget) == ee::kObjectInvalid;
+  if (idle) {  // as the engine's broadcast does for an idle observer: an attack order at it first
+    using AddAttackActionsFn = int (*)(void* creature, uint32_t target, int switched, int clear_first, int front);
+    static const auto add_attack = reinterpret_cast<AddAttackActionsFn>(EngineExport(ee::kAddAttackActions));
+    if (add_attack) add_attack(target, creator, 0, 1, 0);
+  }
   add_aoo(round, creator);
-  SetField<int32_t>(round, kRoundOpportunityLeft, Field<int32_t>(round, kRoundOpportunityLeft) - 1);
   SetField<int32_t>(target, kCreatureOpportunityMade, 1);
-  Log("barbarian: 0x%08X Retaliation - hurt by 0x%08X (%d), strikes back (its reaction)", id, creator, damage);
+  Log("barbarian: 0x%08X Retaliation - hurt by 0x%08X (%d), strikes back (its reaction)%s", id, creator, damage,
+      idle ? " - it wasn't attacking: it turns on it" : "");
   Tell(target, "Retaliation - you strike back (your reaction this round).");
 }
 

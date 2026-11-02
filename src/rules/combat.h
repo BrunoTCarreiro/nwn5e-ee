@@ -54,8 +54,11 @@ int AttacksPerAttackAction(const std::vector<ClassLevels>& classes);
 // D2's one reaction a round, spent (0.60.7): one a rule took comes back once a
 // round's time (6 s) went by with none of the creature's own combat rounds
 // ended since - it isn't fighting, so the engine's round start never refilled
-// it. One spent otherwise (an opportunity attack) waits for the engine.
+// it. #54 (0.63.1; the owner's RE-7: Retaliation "didn't proc" on a Barbarian
+// standing still): one spent otherwise (an opportunity attack, or none of its
+// rounds ran yet) comes back while no round of its own runs - the engine only
+// refills it as one starts; while its rounds run, the engine's refill.
 constexpr long long kReactionRoundMs = 6000;
-bool ReactionBackWithoutRounds(bool taken_by_rule, bool round_ended_since, long long ms_since);
+bool ReactionBackWithoutRounds(bool taken_by_rule, bool round_ended_since, long long ms_since, bool round_running);
 
 }  // namespace rules

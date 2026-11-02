@@ -69,6 +69,7 @@ std::unordered_map<uint32_t, DWORD> g_shift_logged;  // by provoker: last Tactic
 
 bool LogSlot() { return g_config.log_attacks && g_log_lines < 200 && ++g_log_lines; }
 constexpr const char* kVarReactions = "nwn5e_reactions";  // #54: rules::ReactionOn's record
+constexpr size_t kRoundRunning = 0x2f04;                    // CNWSCombatRound: RoundStarted (#51's recon)
 
 bool Faithful() { return g_config.opportunity_attacks == rules::RuleVariant::kFaithful; }
 bool TacticalShiftOn() { return g_config.class_features == rules::RuleVariant::kFaithful; }
@@ -194,8 +195,9 @@ bool TakeReaction(void* creature) {
     const auto taken = g_reactions_taken.find(id);
     // No round of its own ended since a rule took it, and a round's time went by: not fighting - it's back.
     const bool by_rule = taken != g_reactions_taken.end();
+    const bool running = Field<int32_t>(round, kRoundRunning) != 0;  // #54 (0.63.1)
     if (!rules::ReactionBackWithoutRounds(by_rule, by_rule && taken->second.rounds != rounds,
-                                          by_rule ? static_cast<long long>(now - taken->second.at) : 0)) {
+                                          by_rule ? static_cast<long long>(now - taken->second.at) : 0, running)) {
       return false;
     }
     left = 1;

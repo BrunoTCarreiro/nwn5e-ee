@@ -337,6 +337,19 @@ AQ-9 on 0.62.0, AQ-4, AQ-5 and AQ-5b on 0.62.2. Next in the build order: the rea
   - Deflect Attacks' description (16000532) tells of the switch and the redirect; Disengage's 16000533-16000534.
   - Test profile `!test reactions` (a Monk 5 / Rogue 5). Tests ReactionSwitches, DeflectRedirect, the everyone /
     grantable feats (21 of 21 mutations caught).
+- *The owner's 0.63.0 run (2026-11-02):* "RE-6 is untestable right now, RE-7 looked like it didn't proc and maybe
+  some of the monk as well". The log: the switches recorded; Deflect Attacks took a hit of 4 to 0 and the redirect
+  spent a Focus point - the orc's Dexterity save failed, 14 slashing back (RE-3, RE-4); Disengage twice, moving
+  provoked nothing, the default attack off (DE-1, DE-2). No Uncanny Dodge line - the orc spent most rounds prone
+  (Topple) and attacked with Disadvantage; no hit of its is in the log to halve. RE-7: three hits on the Berserker
+  "no Retaliation: its reaction is spent this round", then "not attacking anyone" - it stood still: BZ3's stand-in
+  read the engine's AoO count, refilled only as one of its rounds starts, and needed an attack under way.
+- *Built 0.63.1:* the shared reaction comes back to a creature none of whose rounds runs, whoever spent it
+  (rules::ReactionBackWithoutRounds' round_running: one a rule took after 6 s as before; one spent otherwise - an
+  opportunity attack, or no round ran yet - while no round runs; while they run, the engine's refill). Retaliation
+  takes it through TakeReaction once its other checks pass; not attacking anyone, it's given an attack order at the
+  creature first (AddAttackActions), as the engine's broadcast does for an idle observer, then the AoO.
+  ReactionBackWhenNotFighting (4 of 4 mutations caught).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,

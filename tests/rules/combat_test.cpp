@@ -122,9 +122,13 @@ TEST(ExtraAttackFromSeveralClassesDoesNotStack) {
 // caught: back before 6 s, never back, back after a round of its own ended (the engine's refill decides then),
 // back when no rule took it (an opportunity attack's).
 TEST(ReactionBackWhenNotFighting) {
-  CHECK_EQ(ReactionBackWithoutRounds(true, false, 6000), true);
-  CHECK_EQ(ReactionBackWithoutRounds(true, false, 26000), true);
-  CHECK_EQ(ReactionBackWithoutRounds(true, false, 5999), false);
-  CHECK_EQ(ReactionBackWithoutRounds(true, true, 26000), false);
-  CHECK_EQ(ReactionBackWithoutRounds(false, false, 26000), false);
+  CHECK_EQ(ReactionBackWithoutRounds(true, false, 6000, false), true);
+  CHECK_EQ(ReactionBackWithoutRounds(true, false, 26000, false), true);
+  CHECK_EQ(ReactionBackWithoutRounds(true, false, 5999, false), false);
+  CHECK_EQ(ReactionBackWithoutRounds(true, true, 26000, false), false);
+  CHECK_EQ(ReactionBackWithoutRounds(true, false, 2000, true), false);  // a rule's, this round
+  // #54 (0.63.1): spent otherwise - back while none of its rounds runs; the engine's refill while they do.
+  CHECK_EQ(ReactionBackWithoutRounds(false, false, 26000, false), true);
+  CHECK_EQ(ReactionBackWithoutRounds(false, false, 0, false), true);
+  CHECK_EQ(ReactionBackWithoutRounds(false, false, 26000, true), false);
 }
