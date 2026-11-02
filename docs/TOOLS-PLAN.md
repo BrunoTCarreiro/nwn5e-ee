@@ -930,3 +930,22 @@ its untracked child belt_g1 the root's turn folded in, as the solve does for the
 2hreadyr: every node but the root within 0.07 deg of the stance at both ends on a_ba, a_fa, a_da and a_dfa. Also the
 helper's frames count (nwn5e-tools 05cb3b5) and the bench's checks (2853076). AnimAssembleKeysUnkeyedTurns rewritten,
 7 breaks caught, test.bat 311/0, bench checks 14/14, browser_check 45/45.
+
+### The owner's test of #108 with `!test anims` (2026-11-01/02): follow-ups #111-#115
+
+*Reported (owner):* "the shield intersects with the body. We'll need to add accessories to the bench, where a shield
+sits, weapons as well so we can preview how they look, even if they're just long cillinders"; "just because they're
+raging, doesn't mean they can suddenly 1hand a great axe"; "the cloak doesn't animate correctly, it stays stiff in
+both animations"; "the right foot is weakly placed" (a_dfa); "the right arm spasms a bit".
+*Measured:* NWN keys its cloak and robe bones by hand in every animation (22-26 bones; up to 109 deg in 1hslashl, 177
+in kdbck) - no cloth simulation. n5_rage's right foot: the last contact lands ~25 cm off the start pose's spot on
+every body, at #100's 25 cm cutoff, so it drags ~25 cm at the end on some bodies (a_dfa in the game's 12:16 recipe,
+a_fa in today's solve); the start poses' footing differs by 17-22 cm at the right foot. The right elbow jolts at
+32.30 s in the capture.
+*Decisions (owner, 2026-11-02):* "111, 112 and 113. go with recs" - #111 (a) gear as shapes measured from the game's
+models, a gear picker, a warning when gear passes into the body; #112 (c) a two-handed variant per clip, generated
+(the off hand on the haft) and replaceable by a recorded take, played by the game when a two-hander is wielded; #113
+(a) simulated cloth baked into keys; in that order. #115 (span smoothing): "it's 32.3, but the replace keyframes
+solved it" - closed, solved with existing tools. #114 (the foot drag): the owner asked for rules that extend to any
+animation; the cutoff is general in scope but flips between two results on a tiny difference - a step rule is
+proposed (shift under ~5 cm, step above, never slide), waiting on his pick.
