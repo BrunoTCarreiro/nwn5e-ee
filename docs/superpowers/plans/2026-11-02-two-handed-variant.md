@@ -190,3 +190,37 @@ Tests:
   - The arm bones' steps within the plain clip's plus 25 deg/frame.
   - Between frames the grip within 3 cm.
 - The browser readout check names the grip only as a notice (M6).
+
+---
+
+## Addendum 3 (2026-11-02): the weapon held by the body, with a follow share
+
+**Why:** the owner's test of 0.60.6: "the pole arm flips in the middle of the animation and then flips again in the same
+direction to finish". Measured: the weapon's direction follows the one-handed take's fist. On a_dfa the polearm turns up
+to 136 deg from its start direction against the torso, and the fist itself 167. A fist's turn is not a weapon's.
+Owner: "go with f1".
+
+### Task 9: The follow share (core)
+
+- **Recipe:** `grip_follow = <0..1>`. Absent means 1 (the take's hand: older recipes unchanged). Written only when the
+  grip is on and the share is below 1.
+- **`hold_grip`, per frame, before the turn and the move:** the weapon hand's target against the torso is the start
+  pose's place and turn, mixed toward the take's by the share (lerp for the place, slerp for the turn). The right arm
+  solves to it from its arm on the frame before, bending toward the start pose's bend. At a share of 1 it isn't
+  touched. The turn, the move and the left arm then run from that pose as before.
+- **Tests:**
+  - `AnimGripFollowNothingHoldsTheWeapon`: share 0; the right hand on the start pose's place and turn against the torso
+    on every frame; the left hand on the grip.
+  - `AnimGripFollowHalf`: share 0.5; where nothing else gives way, the hand halfway in place and turn.
+  - `AnimGripFollowAllIsTheTake`: share 1, or none, gives the same keys.
+  - `AnimRecipeGripFollowRoundTrip`.
+
+### Task 10: The bench's follow slider
+
+- **project.js:** `clip.gripFollow` (0..1, default 0.5), ordered after `grip`; `VERSIONS` gain `follow`
+  (two-handed 0.5, polearm 0.25), set by `makeVersion`.
+- **recipe.js:** writes `grip_follow`.
+- **inspector.js:** the slider "weapon follows the arms (%)", shown with the grip.
+- **pipeline.js:** the cache keys on it.
+- **Checks:** `gripFollowDefault`, `gripFollowWritten`; `gripAssembled`'s cases at share 1 and a polearm case at 0.25
+  (the weapon's direction within the share of the take's); the browser version opens with its share.
