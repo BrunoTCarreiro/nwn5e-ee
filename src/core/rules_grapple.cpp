@@ -391,6 +391,12 @@ std::vector<std::string> GrappleCommand(void* creature, const std::string& args)
 
 }  // namespace
 
+// #112 (rules_barbarian.cpp's Rage flourish): the main hand's item held two-handed (D1's rule).
+bool WieldsTwoHanded(void* creature) {
+  void* main_hand = creature ? engine::ItemInSlot(creature, ee::kSlotRightHand) : nullptr;
+  return main_hand && WieldedTwoHanded(creature, main_hand);
+}
+
 // rules_advantage.cpp: a grappled creature's attack on anyone but its grappler.
 MasteryRollSources GrappleRollSources(void* attacker, void* target) {
   MasteryRollSources sources;

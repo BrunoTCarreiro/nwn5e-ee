@@ -108,6 +108,8 @@
 #include "data/anim_recipe.h"
 
 bool AnimationRecipeBuilt(const std::string& name, std::string* text);  // anim_packs.cpp (Mocap mode's n5_rage)
+std::string AnimationVariant(const std::string& name, bool two_handed);  // anim_packs.cpp (#112: n5_rage_2h)
+bool WieldsTwoHanded(void* creature);                                    // rules_grapple.cpp (D1's rule)
 
 namespace {
 
@@ -382,20 +384,23 @@ void DropFear(void* creature) {
   for (void* effect : fears) g_remove_effect(creature, effect);
 }
 
-std::string RageFlourish() {
+// #112 (the animation session's; owner: "Go with your recommendations"): the two-handed variant
+// (n5_rage_2h) when the Barbarian wields a two-hander and that recipe was built, else n5_rage.
+std::string RageFlourish(void* creature) {
   static const char* const kPlay = "PlayAnimation(ANIMATION_FIREFORGET_VICTORY2, 1.0);";
+  const std::string name = AnimationVariant("n5_rage", WieldsTwoHanded(creature));
   std::string text;
   data::AnimRecipe captured;
   std::string error;
-  if (!AnimationRecipeBuilt("n5_rage", &text) || !data::ReadAnimRecipe(text, &captured, &error)) return kPlay;
+  if (!AnimationRecipeBuilt(name, &text) || !data::ReadAnimRecipe(text, &captured, &error)) return kPlay;
   char script[600];
   sprintf_s(script,
             "if (Get2DAString(\"appearance\", \"MODELTYPE\", GetAppearanceType(OBJECT_SELF)) == \"P\") {"
-            " ReplaceObjectAnimation(OBJECT_SELF, \"victorymg\", \"n5_rage\");"
+            " ReplaceObjectAnimation(OBJECT_SELF, \"victorymg\", \"%s\");"
             " DelayCommand(0.1, PlayAnimation(ANIMATION_FIREFORGET_VICTORY2, 1.0));"
             " DelayCommand(%.2f, ReplaceObjectAnimation(OBJECT_SELF, \"victorymg\", \"victorymg\")); }"
             " else %s",
-            std::max(1.0f, captured.length) + 0.6f, kPlay);
+            name.c_str(), std::max(1.0f, captured.length) + 0.6f, kPlay);
   return script;
 }
 
@@ -446,7 +451,7 @@ void StartRage(void* creature) {
   // once built - on part-based bodies (the skeletons its animation packs serve), victorymg
   // swapped for it a moment (EE's ReplaceObjectAnimation, as stance_look's crouch) and
   // mapped back to itself after it.
-  script += RageFlourish();
+  script += RageFlourish(creature);
   RunScriptChunk(script.c_str(), id);
   const int damage = rules::RageDamage2024(rage.level);
   Log("barbarian: 0x%08X Rage starts (level %d: +%d damage, resistance%s%s%s)", id, rage.level, damage,
