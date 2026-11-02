@@ -73,6 +73,7 @@
 #include <vector>
 
 #include "action_guard.h"
+#include "anim_flourishes.h"
 #include "attack_roll.h"
 #include "chat.h"
 #include "condition_effects.h"
@@ -109,6 +110,7 @@
 
 bool AnimationRecipeBuilt(const std::string& name, std::string* text);  // anim_packs.cpp (Mocap mode's n5_rage)
 std::string AnimationVariant(const std::string& name, data::WeaponGrip grip);  // anim_packs.cpp (#112: _2h, _pl)
+bool BarbarianRaging(void* creature);  // below: the Rage's flourish drops when the Rage ends first
 
 namespace {
 
@@ -401,23 +403,12 @@ data::WeaponGrip DrawnGrip(void* creature) {
 }
 
 // The variant for the hold (n5_rage_pl, else n5_rage_2h, for a polearm; n5_rage_2h two-handed) when its recipe
-// was built, else n5_rage.
+// was built, else n5_rage. #121: requested from anim_flourishes (after its swing, in its paused round - a script
+// PlayAnimation cut the swing and dropped the target); nothing left for the Rage's script.
 std::string RageFlourish(void* creature) {
-  static const char* const kPlay = "PlayAnimation(ANIMATION_FIREFORGET_VICTORY2, 1.0);";
-  const std::string name = AnimationVariant("n5_rage", DrawnGrip(creature));
-  std::string text;
-  data::AnimRecipe captured;
-  std::string error;
-  if (!AnimationRecipeBuilt(name, &text) || !data::ReadAnimRecipe(text, &captured, &error)) return kPlay;
-  char script[600];
-  sprintf_s(script,
-            "if (Get2DAString(\"appearance\", \"MODELTYPE\", GetAppearanceType(OBJECT_SELF)) == \"P\") {"
-            " ReplaceObjectAnimation(OBJECT_SELF, \"victorymg\", \"%s\");"
-            " DelayCommand(0.1, PlayAnimation(ANIMATION_FIREFORGET_VICTORY2, 1.0));"
-            " DelayCommand(%.2f, ReplaceObjectAnimation(OBJECT_SELF, \"victorymg\", \"victorymg\")); }"
-            " else %s",
-            name.c_str(), std::max(1.0f, captured.length) + 0.6f, kPlay);
-  return script;
+  RequestFlourishClip(creature, kFlourishVictory2, "victorymg", 1.734f, AnimationVariant("n5_rage", DrawnGrip(creature)),
+                      &BarbarianRaging);
+  return "";
 }
 
 void StartRage(void* creature) {
@@ -920,9 +911,10 @@ void UseIntimidatingPresence(uint32_t self) {
     ++frightened;
   }
   RunScriptChunk("int v = VFX_FNF_HOWL_WAR_CRY; if (GetGender(OBJECT_SELF) == GENDER_FEMALE) v = VFX_FNF_HOWL_WAR_CRY_FEMALE;"
-                 " ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(v), OBJECT_SELF);"
-                 " PlayAnimation(ANIMATION_FIREFORGET_TAUNT, 1.0);",
+                 " ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(v), OBJECT_SELF);",
                  self);
+  // #121 (owner: "C with A meanwhile"): victoryth, or the owner's n5_presence once built - after its swing.
+  RequestFlourishClip(creature, kFlourishVictory3, "victoryth", 1.47f, "n5_presence", nullptr);
   Log("barbarian: 0x%08X Intimidating Presence (%s): DC %d Wisdom save - %zu enemies within 30 ft, %d frightened%s",
       self, cost.c_str(), dc, search.targets.size(), frightened,
       immune ? (", " + std::to_string(immune) + " immune").c_str() : "");

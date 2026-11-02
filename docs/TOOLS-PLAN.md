@@ -1123,3 +1123,18 @@ flourish (a fire-and-forget at speed 1.0) plays mid-round; swings are 1.0 s at a
 the swing, then play the flourish while pausing the round for its length, as an equip does; B (#122, nwn5e-tools
 f9a2d4e): each slot's time budget - n5_rage 1.5 s, n5_shove 1.0 s - in the clip tab, as a red line on the take row, and
 named at Save. No clip changed.
+
+### Flourishes inside the combat round (2026-11-02, #121, 0.61.3)
+
+*Found:* a script PlayAnimation runs ClearAllActions - the swing in progress cut, the target dropped, the round
+emptied (also the game session's BA-12). *Built* (plan docs/superpowers/plans/2026-11-02-flourish-in-the-round.md):
+src/data/anim_flourish (the pure decision) and src/core/anim_flourishes (a creature-update listener). A flourish is
+set on the creature directly (CNWSCreature::SetAnimation), never through a script:
+- in a fight it waits for the creature's swing (its own round pause, or an enemy's at it), then pauses its round for
+  the clip plus 75 ms as the engine pauses for an equip (CheckActionLength first; the round's length shrinks, no
+  attack lost); after the round's last swing, or between two rounds, it waits for the next round;
+- out of combat it plays at once, set back to the idle at its end so the next one is sent again;
+- it waits while the creature moves, and drops if it dies, the Rage ends first, or after 12 s.
+Rage: victorymg, swapped for the built n5_rage (_2h, _pl) on part-based bodies. Intimidating Presence (owner: "C with
+A meanwhile"): victoryth, or n5_presence once the owner records and builds it - no code change then. One log line per
+stage (`flourish:` asks / waits / plays / over / done / drops).
