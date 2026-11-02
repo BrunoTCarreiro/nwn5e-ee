@@ -520,6 +520,31 @@ TEST(AnimRecipeAssembledRoundTrip) {
   CHECK_EQ(back.loop, true);
 }
 
+// The two-handed grip (#112): `grip = 1` reads and writes back; without it, false and no line.
+TEST(AnimRecipeGripRoundTrip) {
+  AnimRecipe r = AssembledFixture();
+  AnimRecipe back;
+  std::string error;
+  CHECK_EQ(ReadAnimRecipe(WriteAnimRecipe(r), &back, &error), true);
+  CHECK_EQ(back.grip, false);
+  CHECK_EQ(WriteAnimRecipe(r).find("grip =") == std::string::npos, true);
+  r.grip = true;
+  const std::string text = WriteAnimRecipe(r);
+  CHECK_EQ(text.find("\ngrip = 1\n") != std::string::npos, true);
+  CHECK_EQ(ReadAnimRecipe(text, &back, &error), true);
+  CHECK_EQ(back.grip, true);
+}
+
+// The clip a game call plays (#112): <name>_2h when the character wields a two-hander and that was built; a name too
+// long for the suffix (16 characters in all) keeps its own.
+TEST(AnimVariantName) {
+  const auto built = [](const std::string& n) { return n == "n5_rage_2h" || n == "n5_abcdefghijk_2h"; };
+  CHECK_EQ(VariantName("n5_rage", true, built) == "n5_rage_2h", true);
+  CHECK_EQ(VariantName("n5_rage", false, built) == "n5_rage", true);
+  CHECK_EQ(VariantName("n5_shove", true, built) == "n5_shove", true);
+  CHECK_EQ(VariantName("n5_abcdefghijk", true, built) == "n5_abcdefghijk", true);
+}
+
 TEST(AnimRecipeAssembledNeedsAStance) {
   AnimRecipe r = AssembledFixture();
   r.stance.clear();

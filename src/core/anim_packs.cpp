@@ -283,3 +283,9 @@ bool AnimationRecipeBuilt(const std::string& name, std::string* text) {
   if (text) *text = it->second;
   return true;
 }
+
+// The clip a game call plays (#112): <name>_2h when the creature wields a two-hander (the caller's rule says) and that
+// recipe was built, else the name. (rules_barbarian's Rage)
+std::string AnimationVariant(const std::string& name, bool two_handed) {
+  return data::VariantName(name, two_handed, [](const std::string& n) { return AnimationRecipeBuilt(n, nullptr); });
+}

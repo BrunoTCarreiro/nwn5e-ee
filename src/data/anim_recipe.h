@@ -125,11 +125,16 @@ struct AnimRecipe {
   bool loop = false;
   float loop_blend = 0.25f;  // seconds over which a loop's end eases into its start
   float take_start = 0.0f;   // the take's second at the clip's 0: the edits' clock (targets are in take time)
+  bool grip = false;         // #112: the left hand held where the stance holds it against the right hand (a two-hander)
   std::map<std::string, std::vector<AnimTargetKey>> targets;  // limb -> its keys, by time
   std::map<std::string, std::vector<AnimPoseKey>> poses;      // part -> its keys, by time
 };
 
 std::string WriteAnimRecipe(const AnimRecipe& recipe);
+
+// The clip a game call plays (#112): <name>_2h when the character wields a two-hander and that was built (`built`
+// says), else the name; a name too long for the suffix (16 characters in all, as !anim plays) keeps its own.
+std::string VariantName(const std::string& name, bool two_handed, const std::function<bool(const std::string&)>& built);
 bool ReadAnimRecipe(const std::string& text, AnimRecipe* recipe, std::string* error);
 
 // The recipe core's shared maths (defined once, in anim_recipe.cpp; anim_assemble.cpp uses them).

@@ -288,6 +288,56 @@ bool SameKeys(const AnimClip& a, const AnimClip& b) {
 
 }  // namespace
 
+// The left hand's place and turn in the right hand's (rhand_g's) frame.
+struct HandInHand {
+  Vec3 p;
+  Quat q;
+};
+HandInHand LeftInRight(const Pose& p, const std::vector<AnimNode>& bones) {
+  const int r = IndexOf(bones, "rhand_g"), l = IndexOf(bones, "lhand_g");
+  return {Rotate(QConj(p.wq[r]), Sub(p.wp[l], p.wp[r])), QMul(QConj(p.wq[r]), p.wq[l])};
+}
+float TurnDegrees(const Quat& a, const Quat& b) {
+  const float d = fabsf(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]);
+  return 2.0f * acosf(d > 1.0f ? 1.0f : d) * 180.0f / kPi;
+}
+
+// The two-handed grip (#112): the left hand held where the stance holds it against the right hand, place and turn, all
+// through - while the torso turns 30 deg and the right forearm 40 deg; without the grip it drifts off. Breaks caught:
+// the grip skipped, the place without the turn, the early path taken.
+TEST(AnimIkGripHoldsTheOtherHand) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 30.0f);
+  for (AnimKeyTrack& t : r.keys["a_ik"]) {
+    if (t.bone != "rforearm_g") continue;
+    const float half = 40.0f * kPi / 360.0f;
+    t.keys.values = {{0.0f, 0.0f, 0.0f, 1.0f}, {sinf(half), 0.0f, 0.0f, cosf(half)}};
+  }
+  const HandInHand stance = LeftInRight(PoseOf(IkStance(bones), bones, 0.0f), bones);
+  AnimRecipe held = r;
+  held.grip = true;
+  const AnimClip out = Run(held, bones), loose = Run(r, bones);
+  float worst_place = 0.0f, worst_turn = 0.0f;
+  for (const float t : {0.0f, 0.25f, 0.5f, 0.75f, 1.0f}) {
+    const HandInHand g = LeftInRight(PoseOf(out, bones, t), bones);
+    worst_place = std::max(worst_place, Dist(g.p, stance.p));
+    worst_turn = std::max(worst_turn, TurnDegrees(g.q, stance.q));
+  }
+  CHECK_EQ(worst_place < 1e-3f, true);
+  CHECK_EQ(worst_turn < 0.5f, true);
+  CHECK_EQ(Dist(LeftInRight(PoseOf(loose, bones, 1.0f), bones).p, stance.p) > 0.05f, true);
+}
+
+// A body without the right hand: no grip, the clip as without it.
+TEST(AnimIkGripMissingHandSkipped) {
+  std::vector<AnimNode> bones = WholeBody(1.0f);
+  bones[IndexOf(bones, "rhand_g")].name = "rhand_x";
+  const AnimRecipe r = IkRecipe(bones, 30.0f);
+  AnimRecipe held = r;
+  held.grip = true;
+  CHECK_EQ(SameKeys(Run(r, bones), Run(held, bones)), true);
+}
+
 TEST(AnimIkNoTargetsIdentical) {
   const std::vector<AnimNode> bones = WholeBody(1.0f);
   const AnimRecipe plain = IkRecipe(bones, 30.0f);

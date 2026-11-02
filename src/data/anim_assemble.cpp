@@ -382,7 +382,29 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
   }
   bool any_poses = false;
   for (const auto& part : recipe.poses) any_poses = any_poses || !part.second.empty();
-  if (limbs.empty() && !pelvis_keys) {
+  // The two-handed grip (#112): the left hand held where the stance holds it against the right hand - its place and turn
+  // in rhand_g's frame, from the stance's first frame on this body - every frame, after the other IK (over a left-hand
+  // target). A body without the right hand or the left arm has none.
+  const int rhand = find("rhand_g");
+  const pose::Chain left_arm = pose::FindChain(bones, "lbicep_g", "lforearm_g", "lhand_g");
+  const bool grip = recipe.grip && rhand >= 0 && left_arm.root >= 0 && torso >= 0;
+  Vec3 grip_place = {0.0f, 0.0f, 0.0f};
+  Quat grip_turn = {0.0f, 0.0f, 0.0f, 1.0f};
+  if (grip) {
+    Pose st = pose::RestPose(bones);
+    for (size_t b = 0; b < bones.size(); ++b) {
+      if (bones[b].parent < 0) continue;
+      st.lq[b] = pose::QNormalized(StanceValue(stance, bones[b], false));
+      if (static_cast<int>(b) == root) {
+        const Value h = StanceValue(stance, bones[b], true);
+        st.lp[b] = {h[0], h[1], h[2]};
+      }
+    }
+    pose::Forward(bones, &st);
+    grip_place = pose::Rotate(pose::QConj(st.wq[rhand]), pose::Sub(st.wp[left_arm.end], st.wp[rhand]));
+    grip_turn = QMul(pose::QConj(st.wq[rhand]), st.wq[left_arm.end]);
+  }
+  if (limbs.empty() && !pelvis_keys && !grip) {
     // Steps 1, 4 and 6, then 9: each track on its own (phase 1's clip, exactly, without pose keys).
     for (const Bound& b : bound) {
       std::vector<Value> values;
@@ -583,6 +605,17 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
       const float shortfall = pose::SolveTwoBone(bones, moved, &now, L.chain, goal, elbow_way, pose::kLimbDamping * r, &hand);
       if (r >= 0.999f) record(L.name, shortfall, T);
       solved[L.chain.root] = solved[L.chain.mid] = solved[L.chain.end] = true;
+    }
+    // The grip (#112): the left hand on the right hand's grip place, with its turn, on the body as it now stands.
+    if (grip) {
+      pose::Forward(bones, &now);
+      const Pose arms = now;
+      const Vec3 goal = pose::Add(arms.wp[rhand], pose::Rotate(arms.wq[rhand], grip_place));
+      Quat hand = pose::QNormalized(QMul(arms.wq[rhand], grip_turn));
+      const Vec3 elbow_way = pose::Rotate(arms.wq[torso], {0.0f, -1.0f, 0.0f});
+      const float shortfall = pose::SolveTwoBone(bones, arms, &now, left_arm, goal, elbow_way, 0.0f, &hand);
+      record("left_hand", shortfall, T);
+      solved[left_arm.root] = solved[left_arm.mid] = solved[left_arm.end] = true;
     }
     for (size_t b = 0; b < bones.size(); ++b) turns[b].push_back(now.lq[b]);
     if (root >= 0) root_places.push_back({now.lp[root][0], now.lp[root][1], now.lp[root][2], 0.0f});
