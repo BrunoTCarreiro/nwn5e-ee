@@ -31,8 +31,9 @@ D&D 2024 (SRD 5.2) for Neverwinter Nights: Enhanced Edition, as an x64 DLL
    `needs-decision`.
 3. **Starting:** board → In progress.
 4. **Building:** commits name the issue (`feat: 0.58.0 - Monk part 4 (#29)`);
-   each change bumps the version (`kVersion`, src/core/dllmain.cpp).
-5. **Built:** comment on the issue with the version, what changed, the files,
+   the version (`kVersion`, src/core/dllmain.cpp) is bumped by the game
+   session on `main`, once per install ("Two sessions, two working copies").
+5. **Built:** comment on the issue with the version it ships in, what changed, the files,
    the test matrix and caveats; add `needs-test`; board → Needs test. Print
    the test matrix in chat too.
 6. **The owner tests** and says "check the logs"; fixes go on the same issue
@@ -85,18 +86,54 @@ A new issue goes on the board with
   one git command per call; the owner pushes.
 - **Builds:** never build into `build\` while nwmain.exe runs - build into a
   scratch folder (`NWN5E_OUT`) and install once the game is closed; one
-  installer at a time (below). After a launch check, close the game
+  installer, the game session (below). After a launch check, close the game
   completely (and check it's gone).
 - **Checks before "built":** the unit tests (test.bat), a mutation check of
   new rule tests (each deliberate break must fail a test), and a launch check
   for engine changes.
 
-## Two sessions in one checkout
+## Two sessions, two working copies
 
-Decided (owner, 2026-10-30: "go with a, write the rules into CLAUDE.md"): the
-game stream and the tools stream work in this one checkout - one git index,
-one `build\`, one game - by these rules, not separate worktrees (the next
-step if they keep colliding).
+Decided (owner, 2026-11-02, #123: "we need a better way tio isolate the two
+session so you don't have to be waiting for eachother", then "yes, go with
+1 + 2"; before, 2026-10-30, one checkout by rules). Two sessions, each in its
+own git working copy of this repo:
+
+- **The game session** ("mechanics dev") works here, in `nwn5e-ee` on `main`.
+  This checkout's `build\` is the one the game runs, and the bench saves its
+  projects and recipes under `build\animedit`.
+- **The animation session** ("animation dev") works in the worktree
+  `..\nwn5e-ee-anim` on branch `anim`, with its own `build\` for test.bat and
+  its builds. It never builds into this checkout's `build\`. The private layer
+  lives only here: it builds and tests with `NWN5E_PRIVATE=<this
+  checkout>\private` (build.bat and test.bat default to `private\`).
+- **Merging.** The animation session commits on `anim` and keeps it current
+  with `main` (`git merge main` in its worktree). When a change is ready for
+  the game, it messages "anim ready at <commit>". The game session runs `git
+  merge anim` here when its tree allows; its own uncommitted files can stay.
+  Only this checkout moves `main`: moved from the worktree, this tree would
+  look as if it had reverted the change.
+- **Version and installs.** `kVersion` (src/core/dllmain.cpp) is changed only
+  by the game session, on `main`, once per install: one number covers
+  everything merged since the last install. `anim` never edits dllmain.cpp.
+  The game session builds from `main`'s committed tree (`git diff --quiet
+  HEAD -- src build.bat` before and after the build), launch-checks and
+  installs. An install carrying animation changes is reported to the animation
+  session, which gives the owner its tests.
+- **No shared lines for new work.**
+  - build.bat compiles every `src\core`, `src\data` and `src\rules` source, so
+    a new file needs no build.bat line. Names are unique across those folders
+    (one obj folder); build.bat stops on a duplicate.
+  - Animation installs hang off `InstallAnimLayers()` (src/core/anim_layers.cpp),
+    so there are no new animation lines in dllmain.cpp.
+  - A game rule that plays an animation calls the animation session's API
+    in one line (e.g. `RequestFlourishClip`, src/core/anim_flourishes.h).
+    Which clip plays, its timing and swaps live in the animation files. A new
+    hook in a game file is announced, with the lines, before it lands.
+- **The anim helper** (nwn5e-tools) builds from this checkout by default, so
+  its core stamp matches the installed DLL. `NWN5E_EE=<worktree>` builds one
+  from `anim` for bench work before a merge. core_stamp.bat hashes the raw
+  bytes: the same file with CRLF gives another stamp.
 
 - **Who owns what.** Since 2026-11-01 (owner: "this sessions deals with
   animations (within and without the game) the other one should not touch
@@ -104,8 +141,8 @@ step if they keep colliding).
   should not ask me to test "!test anim" for example") the tools stream is the
   **animation session**: everything about animations, in the game and out of
   it - the nwn5e-tools repo (the benches, the helper, the dev layer behind its
-  seam), `tools\`, the animation code here (`src/data/anim_*`,
-  `src/core/anim_packs.cpp`, `src/core/anim_layers.cpp`, `tests/data/anim_*`,
+  seam), `tools\`, the animation code (`src/data/anim_*`, `src/core/anim_*`,
+  `tests/data/anim_*`,
   `tests/data/fixtures/*.recipe`), the shipped recipes (`data/anims/`), the
   animation test profile (`data/tests/anims.txt`), docs/TOOLS-PLAN.md, the
   bench's docs (docs/BENCH-*, docs/research), and the animation issues - their
@@ -115,22 +152,16 @@ step if they keep colliding).
   owner to test an animation: a game rule that plays an animation (Rage
   starting n5_rage) is the game's, how the animation looks is the animation
   session's. Shared - announced to the other session before editing, left
-  alone by it until committed: `build.bat`, `src/core/config.*`, `nwn5e.ini`,
-  `src/core/dllmain.cpp` (the version), README.md, CLAUDE.md.
-- **One installer.** The game session builds into `build\`, installs and
-  launch-checks; the animation session builds into a scratch folder and asks
-  it to install. An install carrying animation changes is reported to the
-  animation session, which gives the owner its tests. Either may install by agreement - it says so first, the other
-  stays out of `build\` until told the install is in. The owner says "game
-  closed" to the installer; it passes it on when the other session waits.
+  alone by it until merged: `build.bat`, `test.bat`, `src/core/config.*`,
+  `nwn5e.ini`, README.md, CLAUDE.md.
+- **One installer.** The game session builds `main`, installs and
+  launch-checks (above). The owner says "game closed" to the installer; the
+  animation session passes it on when the owner says it there.
 - **Commit in one step.** `git commit --only <your paths>` (the message by
   `-F -`), never a plain `git commit` after `git add`: a file the other
   session staged would go in with yours. A new file needs `git add <it>`
   first (`--only` takes only paths git knows). Before it, `git status
   --short` and each shared file's diff checked to be only yours.
-- **The version from HEAD.** A DLL change takes the next `kVersion` after the
-  one in `src/core/dllmain.cpp` at HEAD, read just before committing; renumber
-  if the other session committed one meanwhile.
 - **Separate plan files.** docs/PLAN.md is the game's design and decision
   record; the tools stream's notes are in docs/TOOLS-PLAN.md (the tools session
   moves its paragraphs out of PLAN.md). Neither edits the other's file; a

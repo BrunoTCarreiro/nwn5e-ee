@@ -7,12 +7,15 @@ call "%VCVARS%" >nul || exit /b 1
 cd /d "%~dp0"
 if not exist build\obj\rules mkdir build\obj\rules
 
-rem The private layer's rules and tests (docs/PRIVATE-LAYER.md), when present.
+rem The private layer's rules and tests (docs/PRIVATE-LAYER.md), when present: private\ here, or
+rem NWN5E_PRIVATE=<folder> (the animation session's worktree uses the main checkout's).
+set PRIV=private
+if defined NWN5E_PRIVATE set PRIV=%NWN5E_PRIVATE%
 set PRIVATE_SRC=
 set PRIVATE_DEF=
-if exist private\rules\*.cpp set PRIVATE_SRC=private\rules\*.cpp
-if exist private\tests\*.cpp set PRIVATE_SRC=%PRIVATE_SRC% private\tests\*.cpp
-if defined PRIVATE_SRC set PRIVATE_DEF=/DNWN5E_PRIVATE /Iprivate
+if exist %PRIV%\rules\*.cpp set PRIVATE_SRC=%PRIV%\rules\*.cpp
+if exist %PRIV%\tests\*.cpp set PRIVATE_SRC=%PRIVATE_SRC% %PRIV%\tests\*.cpp
+if defined PRIVATE_SRC set PRIVATE_DEF=/DNWN5E_PRIVATE /I%PRIV%
 
 cl /nologo /O2 /MT /W3 /EHsc /std:c++17 /Isrc /Itests %PRIVATE_DEF% /Fobuild\obj\rules\ ^
   tests\rules_main.cpp tests\rules\*.cpp tests\data\*.cpp src\rules\*.cpp src\data\*.cpp %PRIVATE_SRC% ^

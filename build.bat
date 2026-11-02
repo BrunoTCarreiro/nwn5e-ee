@@ -24,11 +24,15 @@ set CFLAGS=/nologo /O2 /MT /W3 /EHsc /std:c++17 /DWIN32_LEAN_AND_MEAN /DNOMINMAX
 rem The private layer (docs/PRIVATE-LAYER.md): personal-use rules kept out of
 rem this public repo, compiled in when private\ exists. "build.bat public"
 rem leaves it out - build any DLL that leaves this machine that way.
+rem NWN5E_PRIVATE=<folder> takes it from elsewhere (the animation session's worktree uses the main checkout's,
+rem CLAUDE.md "Two sessions, two working copies").
+set PRIV=private
+if defined NWN5E_PRIVATE set PRIV=%NWN5E_PRIVATE%
 set PRIVATE_SRC=
 set PRIVATE_DEF=
-if /i not "%~1"=="public" if exist private\src\*.cpp set PRIVATE_SRC=private\src\*.cpp
-if /i not "%~1"=="public" if exist private\rules\*.cpp set PRIVATE_SRC=%PRIVATE_SRC% private\rules\*.cpp
-if defined PRIVATE_SRC set PRIVATE_DEF=/DNWN5E_PRIVATE /Iprivate
+if /i not "%~1"=="public" if exist %PRIV%\src\*.cpp set PRIVATE_SRC=%PRIV%\src\*.cpp
+if /i not "%~1"=="public" if exist %PRIV%\rules\*.cpp set PRIVATE_SRC=%PRIVATE_SRC% %PRIV%\rules\*.cpp
+if defined PRIVATE_SRC set PRIVATE_DEF=/DNWN5E_PRIVATE /I%PRIV%
 
 rem The dev layer (nwn5e-tools\dev, docs/BENCH-REDESIGN.md): the tools' in-game parts - !animtrace,
 rem the !anim browser, the VFX editor, !vfx, !light - compiled in when that checkout sits beside this one
@@ -41,23 +45,13 @@ if /i not "%~1"=="public" if exist "%TOOLS%\dev\dev_layer.cpp" set DEV_SRC=%TOOL
 if defined DEV_SRC set DEV_DEF=/DNWN5E_DEV /Isrc\core
 if defined DEV_SRC echo dev layer: on (%TOOLS%\dev)
 
+rem Every source in src\core, src\data and src\rules goes in (a new file needs no line here). They share one obj
+rem folder, so a name used in two of them would overwrite the other's object: stop on one.
+for %%f in (src\data\*.cpp src\rules\*.cpp) do if exist src\core\%%~nxf (echo duplicate source name: %%~nxf& exit /b 1)
+for %%f in (src\rules\*.cpp) do if exist src\data\%%~nxf (echo duplicate source name: %%~nxf& exit /b 1)
+
 cl %CFLAGS% /LD /Ithird_party\minhook\include /Isrc %PRIVATE_DEF% %DEV_DEF% /DNWN5E_CORE_STAMP=\"%CORE_STAMP%\" ^
-  src\core\dllmain.cpp src\core\log.cpp src\core\config.cpp src\core\hooks.cpp ^
-  src\core\dice.cpp src\core\attack_roll.cpp src\core\ruleset.cpp src\core\sheet.cpp src\core\creature.cpp ^
-  src\core\rules_crit.cpp src\core\rules_attack.cpp src\core\rules_extra_attack.cpp src\core\rules_sheet.cpp ^
-  src\core\rules_debug.cpp src\core\engine.cpp src\core\rules_racial.cpp src\core\rules_two_weapon.cpp ^
-  src\core\rules_advantage.cpp src\core\rules_retarget.cpp src\core\feats.cpp src\core\rules_opportunity.cpp ^
-  src\core\rules_potion.cpp src\core\effects.cpp src\core\rules_conditions.cpp src\core\chat.cpp src\core\rest.cpp ^
-  src\core\rules_mastery.cpp src\core\rules_push.cpp src\core\client_smoothing.cpp src\core\action_guard.cpp src\core\creature_update.cpp ^
-  src\core\skill_rank.cpp src\core\rules_skills.cpp src\core\rules_nwn_skills.cpp src\core\rules_casting.cpp ^
-  src\core\rules_initiative.cpp src\core\rules_saves.cpp src\core\rules_save_roll.cpp src\core\rules_labels.cpp ^
-  src\core\rules_spell_attack.cpp src\core\rules_shove.cpp src\core\rules_skill_dcs.cpp src\core\rules_perception.cpp ^
-  src\core\rules_loaded.cpp src\core\data_serving.cpp src\core\rules_progression.cpp src\core\rules_alignment.cpp ^
-  src\core\rules_hit_points.cpp src\core\rules_feat_cadence.cpp src\core\rules_abilities.cpp ^
-  src\core\rules_features.cpp src\core\rules_fighter.cpp src\core\rules_barbarian.cpp src\core\nui.cpp src\core\nui_test.cpp ^
-  src\core\client_ui.cpp src\core\chargen_ui.cpp src\core\rules_feats.cpp src\core\rules_equipment.cpp src\core\rules_weapon_size.cpp src\core\rules_finesse.cpp src\core\test_commands.cpp src\core\chargen_skills.cpp src\core\records.cpp src\core\rules_origin_feats.cpp src\core\rules_rest.cpp src\core\rules_dying.cpp src\core\hud_rest.cpp ^
-  src\core\feat_use.cpp src\core\feat_uses.cpp src\core\game_clock.cpp src\core\resistance.cpp src\core\low_hp_look.cpp src\core\stance_look.cpp src\core\stealth_watch.cpp src\core\stealth_ghost.cpp src\core\light_sources.cpp src\core\script_hooks.cpp src\core\radial_class_feats.cpp src\core\radial_special_attacks.cpp src\core\equip_cancel.cpp src\core\rules_armor.cpp src\core\damage_listeners.cpp src\core\rules_barbarian_strikes.cpp src\core\anim_layers.cpp src\core\drive_fix.cpp src\core\anim_packs.cpp src\core\anim_flourishes.cpp src\core\dev_seam.cpp src\core\rules_quickbar.cpp src\core\rules_grapple.cpp src\core\rules_rogue.cpp src\core\resolve_damage.cpp src\core\movement_rate.cpp src\core\rules_cunning_strike.cpp src\core\combat_options.cpp src\core\item_use.cpp src\core\rules_thief.cpp src\core\rules_monk.cpp src\core\action_queue.cpp src\core\resource_panel.cpp src\core\clock_panel.cpp src\core\bonus_actions.cpp src\core\action_order.cpp src\core\default_attack.cpp ^
-  src\data\twoda.cpp src\data\ubjson.cpp src\data\vfx_model.cpp src\data\anim_recipe.cpp src\data\anim_assemble.cpp src\data\anim_pose.cpp src\data\anim_flourish.cpp ^
+  src\core\*.cpp src\data\*.cpp ^
   src\rules\*.cpp ^
   %PRIVATE_SRC% %DEV_SRC% third_party\minhook\src\buffer.c third_party\minhook\src\hook.c ^
   third_party\minhook\src\trampoline.c third_party\minhook\src\hde\hde64.c ^
@@ -72,7 +66,7 @@ rem they are (nwn5e_secwind.ncs: compiled by 1.69's clcompile from scripts\,
 rem the interim of EP6).
 if exist "%OUT%\data" rmdir /s /q "%OUT%\data"
 xcopy /e /i /q /y data "%OUT%\data" >nul || exit /b 1
-if defined PRIVATE_SRC if exist private\data xcopy /e /i /q /y private\data "%OUT%\data\private" >nul
+if defined PRIVATE_SRC if exist %PRIV%\data xcopy /e /i /q /y %PRIV%\data "%OUT%\data\private" >nul
 
 rem build\nwn5e.ini holds the player's settings: only create it, never overwrite it.
 if not exist "%OUT%\nwn5e.ini" copy nwn5e.ini "%OUT%\nwn5e.ini" >nul
