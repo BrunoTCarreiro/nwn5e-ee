@@ -1138,3 +1138,6 @@ set on the creature directly (CNWSCreature::SetAnimation), never through a scrip
 Rage: victorymg, swapped for the built n5_rage (_2h, _pl) on part-based bodies. Intimidating Presence (owner: "C with
 A meanwhile"): victoryth, or n5_presence once the owner records and builds it - no code change then. One log line per
 stage (`flourish:` asks / waits / plays / over / done / drops).
+*A fresh review* (0.62.1): "attacking" read the current action, which reads none outside the engine's RunActions
+(now the action queue's head), and an enemy's swing pausing the round before its own round ran was played over
+(now it waits; a pause counts while the round runs or in a fight). Four minors deferred (the ledger, listed on #121).

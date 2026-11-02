@@ -60,6 +60,15 @@ const Api& E() {
   return api;
 }
 
+// The action at the queue's head (-1: none). Outside the engine's RunActions - this listener runs after AIUpdate -
+// the action in progress sits there and the current action (+0x90) reads none (rules_push's HasNoOrders).
+int HeadActionId(void* creature) {
+  const void* list = Field<void*>(creature, ee::kObjectActionQueue);
+  const void* head = list ? Field<void*>(list, ee::kListHead) : nullptr;
+  const void* action = head ? Field<void*>(head, ee::kListNodeData) : nullptr;
+  return action ? Field<int32_t>(action, ee::kActionId) : -1;
+}
+
 // The animations CNWSCreature::AnimationStationary calls moving (walks, runs).
 bool MovingAnimation(int animation) {
   return (animation >= 2 && animation <= 4) || animation == 78 || animation == 79 ||
@@ -144,8 +153,8 @@ void Finish(void* creature, uint32_t id, Request& request, int64_t now) {
 
 void LogWait(uint32_t id, Request& request, const data::FlourishTick& tick, void* round) {
   const Waiting why = tick.moving            ? Waiting::kMoving
-                      : !tick.round_started ? Waiting::kNextRound
                       : tick.paused         ? Waiting::kPaused
+                      : !tick.round_started ? Waiting::kNextRound
                                             : Waiting::kNoRoom;
   if (why == request.waiting) return;
   request.waiting = why;
@@ -176,13 +185,16 @@ void OnCreatureUpdate(void* creature) {
     return;
   }
   void* round = Field<void*>(creature, ee::kCreatureCombatRound);
-  const uint16_t action = Field<uint16_t>(creature, ee::kObjectCurrentAction);
+  const int action = HeadActionId(creature);
   data::FlourishTick tick;
   tick.alive = !engine::IsDeadOrDying(creature);
   tick.wanted = !request.wanted || request.wanted(creature);
   tick.has_round = round != nullptr;
   tick.round_started = round && Field<int32_t>(round, kRoundStarted) != 0;
-  tick.paused = round && Field<int32_t>(round, ee::kRoundPaused) == 1;
+  // A pause counts while its round runs or in a fight: one left on an idle round after a fight doesn't hold an
+  // out-of-combat flourish until it drops.
+  tick.paused = round && Field<int32_t>(round, ee::kRoundPaused) == 1 &&
+                (tick.round_started || Field<int32_t>(creature, ee::kCreatureInCombat) != 0);
   tick.moving = action == ee::kActionMoveToPoint || MovingAnimation(Field<int32_t>(creature, ee::kCreatureAnimation));
   tick.attacking = action == ee::kActionAttackObject;
   tick.fits = tick.round_started && !tick.paused && E().check_action_length(round, id, request.pause_ms) != 0;

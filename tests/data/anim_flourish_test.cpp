@@ -86,6 +86,13 @@ TEST(FlourishWaitsWhilePaused) {
   CHECK_EQ(Step(swinging), kWait);
 }
 
+TEST(FlourishWaitsForAnEnemysSwingBeforeItsRound) {
+  FlourishTick struck = Ready();  // not attacking yet, an enemy's swing pauses its round all the same
+  struck.round_started = false;
+  struck.paused = true;
+  CHECK_EQ(Step(struck), kWait);
+}
+
 TEST(FlourishWaitsWhileMoving) {
   FlourishTick moving = Ready();
   moving.moving = true;
