@@ -3,7 +3,8 @@
 // Phase 6 - the action economy (docs/PLAN.md "Phase 6 — Action economy";
 // decided by the owner 2026-11-02, #51): per-round budgets on NWN's 6 s round -
 // one Action, one Bonus Action, one Reaction. Part 1 (#52): the Bonus Action.
-// Part 2 (#120): the Action queue and the default attack.
+// Part 2 (#120): the Action queue and the default attack. Part 3 (#54): the
+// reaction switches.
 
 namespace rules {
 
@@ -105,5 +106,17 @@ bool AttackYields(bool round_running, bool action_waiting);
 // Action): NWN's potion base items (baseitems.2da 49 potions, 104 crafted
 // potions; 54, which the 1.69 port also listed, is a deleted row in EE).
 bool IsPotionBaseItem(int base_item);
+
+// Part 3 (#54; owner, 2026-11-02: "go with your recommendations"): the reaction
+// switches - Combat configuration's "Reactions". A player character's record
+// keeps a bit per reaction that differs from its default: on for opportunity
+// attacks, Uncanny Dodge, Deflect Attacks and Retaliation; off for Deflect
+// Attacks' redirect (it spends a Focus Point). One switched off is never taken -
+// the round's one reaction stays for the others. Monsters keep all theirs.
+enum class Reaction { kOpportunityAttack = 0, kUncannyDodge = 1, kDeflectAttacks = 2, kRetaliation = 3,
+                      kDeflectRedirect = 4 };
+bool ReactionDefaultOn(Reaction reaction);
+bool ReactionOn(int record, Reaction reaction);
+int SetReactionOn(int record, Reaction reaction, bool on);
 
 }  // namespace rules

@@ -312,6 +312,31 @@ AQ-9 on 0.62.0, AQ-4, AQ-5 and AQ-5b on 0.62.2. Next in the build order: the rea
     round) and moving provokes no opportunity attacks until the next round; Tumble's check against opportunity
     attacks retired with it in faithful (NWN mode keeps it). Only Disengage comes forward from #56; the rest of #56
     waits for its own decision.
+- *Built 0.63.0 (#54, part 3 - reactions and Disengage; `actions` faithful):*
+  - The switches (rules::Reaction, ReactionOn / SetReactionOn: a record bit per reaction that differs from its
+    default; the record nwn5e_reactions, rules_opportunity.cpp; reactions.h's ReactionAllowed - a player's switches,
+    every other creature all its reactions). Combat configuration's "Reactions": Opportunity attacks (everyone),
+    Uncanny Dodge (Rogue 5), Deflect Attacks and "Deflect: redirect" (Monk 3), Retaliation (Barbarian 10). Each rule
+    asks before it takes the reaction: the AoO broadcast's observer (GetAIStateReaction: not an enemy to the one
+    leaving, for the broadcast only), Uncanny Dodge, Deflect Attacks, Retaliation. With two on for one hit, the first
+    rule takes it (Uncanny Dodge before Deflect Attacks - their install order); a switch picks.
+  - Deflect's redirect (rules::DeflectRedirects / DeflectRedirectReaches / DeflectRedirectDamage /
+    DeflectRedirectDamageIndex): the hit brought to 0, the switch on, a Focus point - the attacker (melee: in reach;
+    ranged: 18.3 m and seen) makes a Dexterity save (FocusSave, the Focus DC) or takes 2 Martial Arts dice + Dex, of
+    the attack's largest damage share - its weapon's own damage (index 12) as the weapon's baseitems.2da
+    WeaponType (GetCurrentAttackWeapon).
+  - Disengage (src/core/disengage.cpp): feat 1321 (data/rows/feat.actions.txt; Mobility's icon), spell 1038 ->
+    n5_disengage (spells.actions.txt); every player character's (rules::FeatsEveryoneHas2024 - granted by
+    rules_features.cpp, record bit 19; taken back in NWN mode); the radial's Special Attacks page, slot 1 over Called
+    Shot: Arm (radial_special_attacks.cpp - while the Shove is faithful, as that page's hook is), and the quickbar
+    (bit 27). ReqAction 1: NWN's cast path - mid-round behind the round's attacks (#120), then its cast round, no
+    attacks. Its script: 6 s in which the movement broadcast is skipped (rules_opportunity.cpp, as Tactical Shift
+    is), and the default attack off (StopDefaultAttack). Tumble against opportunity attacks fails in faithful
+    (rules_skill_dcs.cpp: the broadcast's Tumble check answered -1000 while the actions and opportunity attacks are
+    faithful).
+  - Deflect Attacks' description (16000532) tells of the switch and the redirect; Disengage's 16000533-16000534.
+  - Test profile `!test reactions` (a Monk 5 / Rogue 5). Tests ReactionSwitches, DeflectRedirect, the everyone /
+    grantable feats (21 of 21 mutations caught).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,

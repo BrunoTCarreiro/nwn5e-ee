@@ -1,0 +1,6 @@
+# feat.2da - Phase 6 part 3 (#54, 3 B; src/core/disengage.cpp): Disengage, every player character's while
+# `actions` is faithful (rules::FeatsEveryoneHas2024; nwn5e grants it and takes it back in NWN mode). It takes the
+# Action (ReqAction 1: NWN's cast path, a cast round); unlimited uses; on yourself. Mobility's icon. On the radial's
+# Special Attacks page (radial_special_attacks.cpp) and the quickbar.
+LABEL FEAT DESCRIPTION ICON GAINMULTIPLE EFFECTSSTACK ALLCLASSESCANUSE CATEGORY MAXCR SPELLID CRValue USESPERDAY TARGETSELF Constant TOOLSCATEGORIES PreReqEpic ReqAction
+1321 NWN5E_DISENGAGE 16000533 16000534 ife_mobility 0 0 0 7 1 1038 0.5 **** 1 FEAT_NWN5E_DISENGAGE 6 0 1

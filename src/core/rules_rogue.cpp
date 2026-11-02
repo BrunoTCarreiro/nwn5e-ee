@@ -275,6 +275,7 @@ void UncannyDodge(void* attacker, void* target) {
   const uint32_t rogue_id = IdOf(rogue);
   const uint32_t attacker_id = IdOf(attacker);
   if (engine::IsDeadOrDying(rogue) || IncapacitatedByCondition(rogue) || !engine::Sees(rogue, attacker_id)) return;
+  if (!ReactionAllowed(rogue, rules::Reaction::kUncannyDodge)) return;  // #54: switched off - the reaction kept
   if (!TakeReaction(rogue)) {  // 0.60.7: back a round later when the Rogue isn't fighting (reactions.h)
     if (IsPlayer(rogue) && LogSlot()) Log("rogue: 0x%08X hit by 0x%08X (%d) - no Uncanny Dodge: reaction spent", rogue_id,
                                          attacker_id, total);

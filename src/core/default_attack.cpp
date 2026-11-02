@@ -187,9 +187,11 @@ uint32_t DefaultAttackTarget(void* creature) {
   return it->second.target;
 }
 
-bool CancelDefaultAttack(void* creature) {
+bool CancelDefaultAttack(void* creature) { return StopDefaultAttack(creature, "its tile clicked in the action queue"); }
+
+bool StopDefaultAttack(void* creature, const char* why) {
   if (!creature || g_armed.find(IdOf(creature)) == g_armed.end()) return false;
-  Disarm(creature, "its tile clicked in the action queue");
+  Disarm(creature, why);
   return true;
 }
 

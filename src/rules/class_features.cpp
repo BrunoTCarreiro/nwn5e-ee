@@ -624,6 +624,32 @@ int DeflectAttacksReduction(int d10, int dexterity_modifier, int monk_level) {
   return reduction > 0 ? reduction : 0;
 }
 
+bool DeflectRedirects(int damage_after, bool switched_on, int focus_points_left) {
+  return damage_after <= 0 && switched_on && focus_points_left >= 1;
+}
+
+bool DeflectRedirectReaches(bool ranged, float distance_metres, bool seen) {
+  return !ranged || (seen && distance_metres <= kDeflectRedirectRangedMetres);
+}
+
+int DeflectRedirectDamage(int two_dice_total, int dexterity_modifier) {
+  const int damage = two_dice_total + dexterity_modifier;
+  return damage > 0 ? damage : 0;
+}
+
+int DeflectRedirectDamageIndex(const int16_t* before, int count, int weapon_type) {
+  int best = -1;
+  for (int i = 0; before && i < count; ++i) {
+    if (before[i] > 0 && (best < 0 || before[i] > before[best])) best = i;
+  }
+  if (best != kDamageIndexBase) return best < 0 ? 0 : best;
+  switch (weapon_type) {
+    case 1: case 5: return 1;  // piercing
+    case 3: case 4: return 2;  // slashing
+    default: return 0;         // bludgeoning
+  }
+}
+
 int ReduceAttackDamage(int16_t* entries, int count, int amount) {
   for (int pass = 0; pass < 2; ++pass) {  // physical first, then the rest
     for (int i = 0; entries && i < count && amount > 0; ++i) {
@@ -860,17 +886,18 @@ const std::vector<int>& GrantableFeats2024() {
                                           kFeatImprovedEvasion, kFeatCunningStrike, kFeatDeviousStrikes,
                                           kFeatPatientDefense, kFeatStepOfTheWind, kFeatSuperiorDefense,
                                           kFeatOpenHandTechnique, kFeatDeflectArrows, kFeatWholenessOfBody,
-                                          kFeatQuiveringPalm};
+                                          kFeatQuiveringPalm,  kFeatDisengage};
   return kFeats;
 }
 
-std::vector<int> FeatsEveryoneHas2024(bool shove_faithful) {
+std::vector<int> FeatsEveryoneHas2024(bool shove_faithful, bool actions_faithful) {
   std::vector<int> feats;
   if (shove_faithful) {
     feats.push_back(kFeatKnockdownShove);
     feats.push_back(kFeatShovePush);
     feats.push_back(kFeatGrapple);  // G2: Grapple, the Unarmed Strike's third option
   }
+  if (actions_faithful) feats.push_back(kFeatDisengage);  // #54 (3 B)
   return feats;
 }
 

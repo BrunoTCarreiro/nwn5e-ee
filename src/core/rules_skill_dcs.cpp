@@ -287,6 +287,14 @@ int SkillAtCheck(const SkillQuery& query, int value) {
     dc = SpellDcOf(t_counter_spell);
     what = "Spellcraft: identify a spell (counterspell)";
   } else if (g_aoo_code.Contains(caller) && query.skill == ee::kSkillTumble) {
+    // #54 (owner, 2026-11-02, 3 B): in 2024 only Disengage avoids opportunity attacks - the check fails.
+    if (g_config.actions == rules::RuleVariant::kFaithful &&
+        g_config.opportunity_attacks == rules::RuleVariant::kFaithful) {
+      if (g_config.log_attacks && g_logged.First(LogOnce::Key(0x54, 0, 0))) {
+        Log("skill DC: Tumble against attacks of opportunity - retired (faithful: only Disengage avoids them)");
+      }
+      return value - 1000;
+    }
     dc = ee::kTumbleDc;
     what = "Tumble against attacks of opportunity";
     log_code = &g_aoo_code;

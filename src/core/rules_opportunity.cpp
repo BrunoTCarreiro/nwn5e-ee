@@ -20,6 +20,14 @@
 // rest of the round — the movement broadcast is skipped while the provoker
 // carries nwn5e_tactical_shift (nwn5e_secwind sets it for 6 s). The Rogue's
 // Cunning Strike: Withdraw (R6, 0.50.0) does the same for the round of its hit.
+//
+// Phase 6 part 3 (#54; owner, 2026-11-02: "go with your recommendations"):
+// - The Disengage action (disengage.cpp; everyone's, 3 B) skips the movement
+//   broadcast the same way, for the round it's taken.
+// - The reaction switches: a player character whose "Opportunity attacks" is off
+//   isn't an enemy to the one leaving its reach, for the broadcast only - its
+//   reaction stays for Uncanny Dodge, Deflect Attacks, Retaliation (each asks
+//   ReactionAllowed first). The record: nwn5e_reactions (rules::ReactionOn).
 
 #include <stdint.h>
 #include <string.h>
@@ -39,6 +47,7 @@
 #include "log.h"
 #include "mastery.h"
 #include "reactions.h"
+#include "records.h"
 #include "rules/combat.h"
 
 bool StaggeredNoOpportunityAttack(uint32_t id);  // rules_barbarian_strikes.cpp (B10 Staggering Blow)
@@ -59,6 +68,7 @@ int g_log_lines = 0;
 std::unordered_map<uint32_t, DWORD> g_shift_logged;  // by provoker: last Tactical Shift line
 
 bool LogSlot() { return g_config.log_attacks && g_log_lines < 200 && ++g_log_lines; }
+constexpr const char* kVarReactions = "nwn5e_reactions";  // #54: rules::ReactionOn's record
 
 bool Faithful() { return g_config.opportunity_attacks == rules::RuleVariant::kFaithful; }
 bool TacticalShiftOn() { return g_config.class_features == rules::RuleVariant::kFaithful; }
@@ -82,6 +92,19 @@ bool TacticalShift(void* creature) {
   return true;
 }
 
+// #54 (3 B): it took the Disengage action this round.
+bool Disengaged(void* creature) {
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  if (!Disengaging(id)) return false;
+  const DWORD now = GetTickCount();
+  DWORD& last = g_shift_logged[id];
+  if (now - last > 6000) {
+    last = now;
+    Log("opportunity attacks: 0x%08X Disengage - moving provokes nothing this round", id);
+  }
+  return true;
+}
+
 bool Running(void* creature) {
   const int animation = Field<int32_t>(creature, ee::kCreatureAnimation);
   return animation == 0x04 || animation == 0x56 || animation == 0x57;
@@ -100,7 +123,7 @@ const char* Provocation(uintptr_t caller) {
 void BroadcastAttackOfOpportunity(void* creature, uint32_t target, int flag) {
   const uintptr_t caller = reinterpret_cast<uintptr_t>(_ReturnAddress());
   const bool movement = g_ai_update_code.Contains(caller);
-  if (movement && TacticalShift(creature)) return;
+  if (movement && (Disengaged(creature) || TacticalShift(creature))) return;
   if (!Faithful()) {
     g_broadcast(creature, target, flag);  // NWN's provocations
     return;
@@ -121,6 +144,14 @@ void BroadcastAttackOfOpportunity(void* creature, uint32_t target, int flag) {
 uint8_t GetAIStateReaction(void* object, uint32_t other_id) {
   const uint8_t reaction = g_get_ai_state_reaction(object, other_id);
   if (object != t_broadcasting || reaction != ee::kReactionEnemy) return reaction;
+  // #54: its "Opportunity attacks" switched off - the reaction kept for the others.
+  if (void* observer = CreatureById(other_id); observer && !ReactionAllowed(observer, rules::Reaction::kOpportunityAttack)) {
+    if (LogSlot()) {
+      Log("opportunity attacks: 0x%08X leaves 0x%08X's reach - no AoO (its Opportunity attacks switch is off)",
+          Field<uint32_t>(object, ee::kObjectId), other_id);
+    }
+    return 1;
+  }
   if (StaggeredNoOpportunityAttack(other_id)) return 1;  // Brutal Strike's Staggering Blow: no reaction
   if (OpenHandAddled(other_id)) return 1;                // Open Hand Technique's Addle: no reaction
   if (!Running(object)) return reaction;
@@ -174,7 +205,31 @@ bool TakeReaction(void* creature) {
   return true;
 }
 
+bool ReactionSwitchOn(void* creature, rules::Reaction reaction) {
+  if (creature) EnsureRecords(creature);
+  return rules::ReactionOn(creature ? engine::GetLocalInt(creature, kVarReactions) : 0, reaction);
+}
+
+void SetReactionSwitch(void* creature, rules::Reaction reaction, bool on) {
+  if (!creature) return;
+  EnsureRecords(creature);
+  const int record = rules::SetReactionOn(engine::GetLocalInt(creature, kVarReactions), reaction, on);
+  SetRecord(creature, kVarReactions, record);
+  static const char* const kNames[] = {"Opportunity attacks", "Uncanny Dodge", "Deflect Attacks", "Retaliation",
+                                       "Deflect Attacks' redirect"};
+  Log("reactions: 0x%08X %s %s (record %d)", Field<uint32_t>(creature, ee::kObjectId),
+      kNames[static_cast<int>(reaction)], on ? "on" : "off", record);
+}
+
+bool ReactionAllowed(void* creature, rules::Reaction reaction) {
+  if (!creature || g_config.actions != rules::RuleVariant::kFaithful) return true;
+  void* stats = StatsOf(creature);
+  if (!stats || !ReadCreatureFacts(stats).is_player) return true;  // monsters, henchmen: all of theirs
+  return ReactionSwitchOn(creature, reaction);
+}
+
 void InstallOpportunityRules() {
+  if (g_config.actions == rules::RuleVariant::kFaithful) RegisterRecords({kVarReactions});  // #54
   if (!Faithful() && !TacticalShiftOn()) return;
   g_ai_update_code = FunctionAt(EngineExport(ee::kAIUpdate));
   if (!g_ai_update_code.Valid()) {

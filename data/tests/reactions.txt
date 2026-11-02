@@ -1,0 +1,18 @@
+# A !test profile ([debug] test_commands=1): type "!test reactions" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# The reactions and Disengage (issue 54): a Monk 5 / Rogue 5 - Deflect Attacks and its redirect (Monk 3),
+# Uncanny Dodge (Rogue 5), opportunity attacks - with the one reaction a round they share, each switched in
+# Combat configuration (!options). Disengage on the radial (Special Attacks) and the quickbar. Retaliation is
+# the Barbarian 10's: !test barbarian14. The attack trace in the log shows the round's swings.
+name = Reactions and Disengage (issue 54): human Monk 5 / Rogue 5, a quarterstaff
+species = human
+swap_class = monk
+class = monk
+level = 5
+levels = rogue 5
+abilities = 10 16 14 10 16 8
+items = nw_wdbqs001 equip
+switches = attack_trace=1
+note = take armour and shield off; !spawn nw_orcb (one or two); !options for the Reactions switches

@@ -415,6 +415,21 @@ bool HasDeflectEnergy(int monk_level);    // 13
 bool DeflectAttacksQualifies(const int16_t* entries, int count, bool deflect_energy);
 int DeflectAttacksReduction(int d10, int dexterity_modifier, int monk_level);
 int ReduceAttackDamage(int16_t* entries, int count, int amount);  // the new total
+// #54 (owner, 2026-11-02, 1 A): Deflect Attacks' redirect - when the reduction
+// brings the hit's damage to 0, with the switch on and a Focus Point left: the
+// attacker - within 5 ft of a melee attack (any melee attacker that hit is), 60 ft
+// and seen for a ranged one - makes a Dexterity save against the Focus DC or takes
+// two Martial Arts dice + the Dexterity modifier, of the attack's damage type.
+constexpr float kDeflectRedirectRangedMetres = 18.3f;  // 60 ft
+bool DeflectRedirects(int damage_after, bool switched_on, int focus_points_left);
+bool DeflectRedirectReaches(bool ranged, float distance_metres, bool seen);
+int DeflectRedirectDamage(int two_dice_total, int dexterity_modifier);
+// Its type (an index into the attack's damage entries: NWN's DAMAGE_TYPE_* bit):
+// the attack's largest share; its weapon's own damage (index 12) as the weapon's
+// type - baseitems.2da WeaponType 1 piercing, 2 bludgeoning, 3 slashing, 4
+// slashing and piercing (slashing), 5 piercing and bludgeoning (piercing), else
+// bludgeoning (a creature's blow).
+int DeflectRedirectDamageIndex(const int16_t* before, int count, int weapon_type);
 // M12 Self-Restoration (10): the condition removed at the end of a turn -
 // Charmed, else Frightened, else Poisoned.
 enum class SelfRestoration { kNone, kCharmed, kFrightened, kPoisoned };
@@ -435,7 +450,11 @@ const std::vector<int>& GrantableFeats2024();
 // Shove then) and nwn5e's Shove: push - and (G2) nwn5e's Grapple. Feat 23 NWN also lets characters take:
 // granted only when missing, and only a grant nwn5e made is taken back in NWN mode.
 constexpr int kFeatKnockdownShove = 23;  // kFeatShovePush: rules/grapple.h
-std::vector<int> FeatsEveryoneHas2024(bool shove_faithful);
+// #54 (owner, 2026-11-02, 3 B): while the actions are faithful every player
+// character also has Disengage (nwn5e's feat 1321 - the radial's Special Attacks
+// page and the quickbar).
+constexpr int kFeatDisengage = 1321;
+std::vector<int> FeatsEveryoneHas2024(bool shove_faithful, bool actions_faithful);
 bool GrantedOnlyWhenMissing(int feat);
 
 }  // namespace rules

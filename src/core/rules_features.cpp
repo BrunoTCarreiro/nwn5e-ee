@@ -132,7 +132,8 @@ void FeaturesCreatureUpdate(void* creature) {
   std::vector<int> wanted =
       faithful ? rules::GrantedFeats2024(rules::GroupClassLevels(ReadClassSlots(stats))) : std::vector<int>();
   if (faithful && facts.is_player) {  // G1: the Shove (players only - the AI of others would use it far more)
-    for (int feat : rules::FeatsEveryoneHas2024(g_config.knockdown == rules::RuleVariant::kFaithful)) {
+    for (int feat : rules::FeatsEveryoneHas2024(g_config.knockdown == rules::RuleVariant::kFaithful,
+                                                g_config.actions == rules::RuleVariant::kFaithful)) {
       wanted.push_back(feat);
     }
   }

@@ -22,6 +22,7 @@
 #include "ee_layout.h"
 #include "log.h"
 #include "nui.h"
+#include "reactions.h"
 #include "script_hooks.h"
 #include "rules/class_features.h"
 
@@ -54,7 +55,7 @@ constexpr const char* kStatus = "o_status";
 constexpr float kRowHeight = 28.0f;
 constexpr float kCheckWidth = 190.0f;
 
-enum class Kind { kBonus, kReckless, kBrutal, kCunning, kOpenHand };
+enum class Kind { kBonus, kReaction, kReckless, kBrutal, kCunning, kOpenHand };
 
 struct Option {
   const char* bind;  // the checkbox's bool bind (and its id)
@@ -73,6 +74,14 @@ const Option kOptions[] = {
     {"o_ba_patient", Kind::kBonus, 1317, "Patient Defense", "Disengage and Dodge; a Focus point a round"},
     {"o_ba_step", Kind::kBonus, 1318, "Step of the Wind", "Disengage and Dash; a Focus point a round"},
     {"o_ba_whole", Kind::kBonus, 211, "Wholeness of Body", "heals you (not at full hit points); a use"},
+    // #54 (owner, 2026-11-02): the reactions, each switchable; effect = rules::Reaction.
+    {"o_re_aoo", Kind::kReaction, 0, "Opportunity attacks", "an attack at an enemy leaving your reach"},
+    {"o_re_dodge", Kind::kReaction, 1, "Uncanny Dodge", "halves the first hit you see each round"},
+    {"o_re_deflect", Kind::kReaction, 2, "Deflect Attacks",
+     "less damage from the first weapon hit each round (any hit from Monk 13)"},
+    {"o_re_redirect", Kind::kReaction, 4, "Deflect: redirect",
+     "a hit taken to 0: a Focus point, its attacker saves (Dex) or takes 2 Martial Arts dice + Dex"},
+    {"o_re_retal", Kind::kReaction, 3, "Retaliation", "an attack back at a creature in reach that damages you"},
     {"o_reckless", Kind::kReckless, 0, "Reckless Attack",
      "Advantage on your Strength attacks; attacks against you have Advantage until a round after your last"},
     {"o_bs_force", Kind::kBrutal, 1, "Forceful Blow", "pushed 15 ft straight away from you"},
@@ -97,6 +106,17 @@ bool Faithful() { return g_config.class_features == rules::RuleVariant::kFaithfu
 bool Available(void* creature, const Option& o) {
   switch (o.kind) {
     case Kind::kBonus: return ActionEconomyOn() && (o.effect == 0 || HasBonusFamily(creature, o.effect));
+    case Kind::kReaction: {  // #54: the ones the character has
+      if (!ActionEconomyOn()) return false;
+      switch (static_cast<rules::Reaction>(o.effect)) {
+        case rules::Reaction::kOpportunityAttack: return true;
+        case rules::Reaction::kUncannyDodge: return rules::HasUncannyDodge(CunningStrikeRogueLevel(creature));
+        case rules::Reaction::kDeflectAttacks:
+        case rules::Reaction::kDeflectRedirect: return rules::HasDeflectAttacks(OpenHandMonkLevel(creature));
+        case rules::Reaction::kRetaliation: return rules::HasRetaliation(BrutalStrikeBarbarianLevel(creature));
+      }
+      return false;
+    }
     case Kind::kReckless: return rules::HasRecklessAttack(BrutalStrikeBarbarianLevel(creature));
     case Kind::kBrutal:
       return rules::BrutalEffectAvailable(static_cast<rules::BrutalEffect>(o.effect), BrutalStrikeBarbarianLevel(creature));
@@ -110,6 +130,7 @@ bool Available(void* creature, const Option& o) {
 bool Checked(void* creature, const Option& o) {
   switch (o.kind) {
     case Kind::kBonus: return DefaultBonusKey(creature) == o.effect;
+    case Kind::kReaction: return ReactionSwitchOn(creature, static_cast<rules::Reaction>(o.effect));
     case Kind::kReckless: return RecklessAttackOn(creature);
     case Kind::kBrutal: {
       for (rules::BrutalEffect e :
@@ -134,6 +155,7 @@ bool Checked(void* creature, const Option& o) {
 void Toggle(void* creature, const Option& o, bool on) {
   switch (o.kind) {
     case Kind::kBonus: SetDefaultBonusKey(creature, on ? o.effect : -1); break;  // one of them, or none
+    case Kind::kReaction: SetReactionSwitch(creature, static_cast<rules::Reaction>(o.effect), on); break;
     case Kind::kReckless: SetRecklessAttack(creature, on); break;
     case Kind::kBrutal: PickBrutalStrike(creature, static_cast<rules::BrutalEffect>(o.effect)); break;
     case Kind::kCunning: PickCunningStrike(creature, static_cast<rules::CunningEffect>(o.effect)); break;
@@ -194,6 +216,15 @@ std::string Layout(void* creature, int* rows) {
   }
   for (const Option& o : kOptions) {
     if (o.kind != Kind::kBonus || !Available(creature, o)) continue;
+    add(OptionRow(o));
+    ++count;
+  }
+  if (ActionEconomyOn()) {  // #54
+    add(Header("Reactions - one a round, taken when its moment comes (one switched off leaves it for the others):"));
+    ++count;
+  }
+  for (const Option& o : kOptions) {
+    if (o.kind != Kind::kReaction || !Available(creature, o)) continue;
     add(OptionRow(o));
     ++count;
   }
@@ -270,7 +301,8 @@ void Open(uint32_t player) {
   void* creature = CreatureById(player);
   if (!creature) return;
   if (!Faithful() || !HasAnyOption(creature)) {
-    TellPlayer(player, "nwn5e: no combat configuration yet - the Bonus Action (actions faithful), Reckless Attack "
+    TellPlayer(player, "nwn5e: no combat configuration yet - the Bonus Action and reactions (actions faithful), "
+                       "Reckless Attack "
                        "(Barbarian 2), Brutal Strike (Barbarian 9), Cunning Strike (Rogue 5), Open Hand Technique "
                        "(Monk 3).");
     return;

@@ -87,7 +87,7 @@ TEST(GrantedFeatsFollowClassLevels) {
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kFighter, 9}}).size(), 1u);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 5}}).empty(), true);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 3}, {CharacterClass::kFighter, 2}})[0], kFeatSecondWind2);
-  CHECK_EQ(GrantableFeats2024().size(), 19u);
+  CHECK_EQ(GrantableFeats2024().size(), 20u);  // #54: Disengage appended (bit 19)
   CHECK_EQ(GrantableFeats2024()[15], kFeatOpenHandTechnique);  // Monk parts 4 / 5: appended
   CHECK_EQ(GrantableFeats2024()[16], kFeatDeflectArrows);
   CHECK_EQ(GrantableFeats2024()[17], kFeatWholenessOfBody);
@@ -125,12 +125,20 @@ TEST(GrantedFeatsFollowClassLevels) {
 // its own in NWN mode). Breaks caught: granted in NWN mode, a class feat
 // marked only-when-missing (NWN mode would then keep a stray nwn5e feat).
 TEST(EveryoneCanShove) {
-  CHECK_EQ(FeatsEveryoneHas2024(true).size(), 3u);
-  CHECK_EQ(FeatsEveryoneHas2024(true)[0], kFeatKnockdownShove);
-  CHECK_EQ(FeatsEveryoneHas2024(true)[1], kFeatShovePush);
-  CHECK_EQ(FeatsEveryoneHas2024(true)[2], kFeatGrapple);
+  CHECK_EQ(FeatsEveryoneHas2024(true, false).size(), 3u);
+  CHECK_EQ(FeatsEveryoneHas2024(true, false)[0], kFeatKnockdownShove);
+  CHECK_EQ(FeatsEveryoneHas2024(true, false)[1], kFeatShovePush);
+  CHECK_EQ(FeatsEveryoneHas2024(true, false)[2], kFeatGrapple);
+  // #54: Disengage for everyone while the actions are faithful (whatever the Shove's mode).
+  const std::vector<int> everyone = FeatsEveryoneHas2024(true, true);
+  CHECK_EQ(everyone.size(), 4u);
+  CHECK_EQ(everyone.size() == 4u && everyone[3] == kFeatDisengage, true);
+  const std::vector<int> disengage_only = FeatsEveryoneHas2024(false, true);
+  CHECK_EQ(disengage_only.size(), 1u);
+  CHECK_EQ(disengage_only.size() == 1u && disengage_only[0] == kFeatDisengage, true);
+  CHECK_EQ(GrantableFeats2024().back(), kFeatDisengage);  // appended: the records' bits keep their places
   CHECK_EQ(GrantedOnlyWhenMissing(kFeatShovePush), false);
-  CHECK_EQ(FeatsEveryoneHas2024(false).empty(), true);
+  CHECK_EQ(FeatsEveryoneHas2024(false, false).empty(), true);
   CHECK_EQ(GrantedOnlyWhenMissing(kFeatKnockdownShove), true);
   CHECK_EQ(GrantedOnlyWhenMissing(kFeatSecondWind2), false);
   CHECK_EQ(GrantedOnlyWhenMissing(kFeatBrutalStrike), false);
@@ -506,6 +514,36 @@ TEST(MonkOpenHand) {
 // reduction without Dex or the Monk level, a negative reduction, magic damage
 // reduced before the physical, damage below 0 or the total wrong, Self-
 // Restoration's order (Charmed, Frightened, Poisoned).
+// #54 (owner, 2026-11-02, 1 A): Deflect Attacks' redirect. Breaks caught: a redirect with damage left, with the switch
+// off, with no Focus Point; a ranged attacker out of 60 ft or unseen reached, a melee one not; the damage without the
+// Dexterity modifier or below 0; the type not the largest share; the weapon's own damage not its weapon's type.
+TEST(DeflectRedirect) {
+  CHECK_EQ(DeflectRedirects(0, true, 1), true);
+  CHECK_EQ(DeflectRedirects(1, true, 5), false);
+  CHECK_EQ(DeflectRedirects(0, false, 5), false);
+  CHECK_EQ(DeflectRedirects(0, true, 0), false);
+  CHECK_EQ(DeflectRedirectReaches(false, 30.0f, false), true);  // melee: it hit you, so it's in reach
+  CHECK_EQ(DeflectRedirectReaches(true, 18.0f, true), true);
+  CHECK_EQ(DeflectRedirectReaches(true, 19.0f, true), false);
+  CHECK_EQ(DeflectRedirectReaches(true, 5.0f, false), false);
+  CHECK_EQ(DeflectRedirectDamage(7, 3), 10);
+  CHECK_EQ(DeflectRedirectDamage(2, -4), 0);
+  int16_t entries[32];
+  for (int16_t& e : entries) e = -1;
+  entries[5] = 4;   // cold
+  entries[8] = 9;   // fire
+  CHECK_EQ(DeflectRedirectDamageIndex(entries, 32, 0), 8);
+  entries[12] = 11;  // the weapon's own damage
+  CHECK_EQ(DeflectRedirectDamageIndex(entries, 32, 1), 1);  // a piercing weapon
+  CHECK_EQ(DeflectRedirectDamageIndex(entries, 32, 2), 0);  // bludgeoning
+  CHECK_EQ(DeflectRedirectDamageIndex(entries, 32, 3), 2);  // slashing
+  CHECK_EQ(DeflectRedirectDamageIndex(entries, 32, 4), 2);  // slashing and piercing
+  CHECK_EQ(DeflectRedirectDamageIndex(entries, 32, 5), 1);  // piercing and bludgeoning
+  CHECK_EQ(DeflectRedirectDamageIndex(entries, 32, 0), 0);  // a creature's blow
+  for (int16_t& e : entries) e = -1;
+  CHECK_EQ(DeflectRedirectDamageIndex(entries, 32, 3), 0);
+}
+
 TEST(MonkDeflectAndRestore) {
   CHECK_EQ(HasDeflectAttacks(2), false);
   CHECK_EQ(HasDeflectAttacks(3), true);

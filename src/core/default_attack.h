@@ -8,3 +8,5 @@
 // and in a fight - or invalid; a click on its tile disarms it until the next attack order.
 uint32_t DefaultAttackTarget(void* creature);
 bool CancelDefaultAttack(void* creature);
+// #54: another rule turns it off (Disengage: leaving is the point), until the next attack order.
+bool StopDefaultAttack(void* creature, const char* why);

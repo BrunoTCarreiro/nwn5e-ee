@@ -107,4 +107,16 @@ bool AttackYields(bool round_running, bool action_waiting) { return !round_runni
 
 bool IsPotionBaseItem(int base_item) { return base_item == 49 || base_item == 104; }
 
+bool ReactionDefaultOn(Reaction reaction) { return reaction != Reaction::kDeflectRedirect; }
+
+bool ReactionOn(int record, Reaction reaction) {
+  const bool flipped = ((record >> static_cast<int>(reaction)) & 1) != 0;
+  return ReactionDefaultOn(reaction) != flipped;
+}
+
+int SetReactionOn(int record, Reaction reaction, bool on) {
+  const int bit = 1 << static_cast<int>(reaction);
+  return on == ReactionDefaultOn(reaction) ? (record & ~bit) : (record | bit);
+}
+
 }  // namespace rules

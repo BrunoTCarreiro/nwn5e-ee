@@ -137,6 +137,7 @@
 #include <stdio.h>
 
 #include <algorithm>
+#include <cmath>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -1035,10 +1036,59 @@ void OpenHandAfterRoll(AttackRoll& roll) {
 
 // --- Part 5 (0.60.0, #30): Deflect Attacks, Self-Restoration -----------------------------
 
+// #54: baseitems.2da WeaponType of the weapon making the attacker's current attack (0: none - a creature's blow).
+int CurrentAttackWeaponType(void* attacker, const uint8_t* data) {
+  using WeaponFn = void* (*)(void* round, int attack_type);
+  static const auto weapon_of = reinterpret_cast<WeaponFn>(EngineExport(ee::kGetCurrentAttackWeapon));
+  static const std::vector<std::string> types = GameTableColumn("baseitems", "WeaponType");
+  void* round = attacker ? Field<void*>(attacker, ee::kCreatureCombatRound) : nullptr;
+  void* weapon = round && data && weapon_of ? weapon_of(round, data[ee::kAttackType]) : nullptr;
+  const int row = weapon ? engine::BaseItemRow(weapon) : -1;
+  if (row < 0 || static_cast<size_t>(row) >= types.size() || types[row].empty()) return 0;
+  return atoi(types[row].c_str());
+}
+
+// #54 (owner, 2026-11-02: "go with your recommendations" - 1 A): Deflect Attacks' redirect, its switch on (off by
+// default: it spends a Focus Point) - the hit brought to 0: the attacker (a melee attacker that hit is in reach; a
+// ranged one within 60 ft and seen) makes a Dexterity save against the Focus DC or takes two Martial Arts dice + the
+// Dexterity modifier, of the attack's damage type (rules::DeflectRedirectDamageIndex).
+void DeflectRedirect(void* monk, void* attacker, const uint8_t* data, const int16_t* before, int level, void* stats) {
+  const uint32_t monk_id = IdOf(monk), attacker_id = IdOf(attacker);
+  if (engine::IsDeadOrDying(attacker)) return;
+  const bool ranged = *reinterpret_cast<const int32_t*>(data + ee::kAttackRanged) != 0;
+  const float dx = Field<float>(monk, ee::kObjectPositionX) - Field<float>(attacker, ee::kObjectPositionX);
+  const float dy = Field<float>(monk, ee::kObjectPositionX + 4) - Field<float>(attacker, ee::kObjectPositionX + 4);
+  const float distance = std::sqrt(dx * dx + dy * dy);
+  if (!rules::DeflectRedirectReaches(ranged, distance, engine::Sees(monk, attacker_id))) {
+    Log("monk: 0x%08X Deflect Attacks' redirect - 0x%08X out of reach (%.1f m, ranged) or unseen: none", monk_id,
+        attacker_id, distance);
+    return;
+  }
+  if (!SpendFocus(monk, 1, "Deflect Attacks' redirect")) return;
+  const int dc = FocusDcOf(monk);
+  const uint8_t save = FocusSave(attacker, monk_id, dc, rules::Ability::kDexterity);
+  const int die = rules::MartialArtsDie(level);
+  const int rolled = RollEngineDice(2, die);
+  const int dexterity = engine::AbilityModifier(stats, 1);
+  const int damage = save == 0 ? rules::DeflectRedirectDamage(rolled, dexterity) : 0;
+  const int index = rules::DeflectRedirectDamageIndex(before, ee::kAttackDamageEntryCount,
+                                                      CurrentAttackWeaponType(attacker, data));
+  if (damage > 0) {
+    ApplyEffectAs(monk_id, attacker_id, "DURATION_TYPE_INSTANT",
+                  ("EffectDamage(" + std::to_string(damage) + ", " + std::to_string(1 << index) + ")").c_str(), 0.0f,
+                  kSwingDelay);
+  }
+  Log("monk: 0x%08X Deflect Attacks' redirect at 0x%08X (1 Focus point) - Dexterity save DC %d %s: 2d%d %d + Dex %d "
+      "= %d damage (type bit %d)", monk_id, attacker_id, dc, SaveOutcome(save), die, rolled, dexterity, damage, index);
+  Tell(monk, std::string("Deflect Attacks' redirect (1 Focus point) - its Dexterity save (DC ") + std::to_string(dc) +
+                 ") " + SaveOutcome(save) + (save == 0 ? ": " + std::to_string(damage) + " damage back at it."
+                                                       : ": no damage."));
+}
+
 // M8 (resolve_damage.h: after ResolveDamage put a hit's damage in the attacker's attack data): the first hit
 // each round on a Monk 3+ character whose damage includes bludgeoning, piercing or slashing (any type from 13,
 // Deflect Energy) - its reaction, shared with Uncanny Dodge and opportunity attacks - loses 1d10 + Dex modifier
-// + Monk level, physical damage first. Automatic; the redirect at 0 waits for reactions (Phase 6 / 7).
+// + Monk level, physical damage first. Automatic; #54: switchable (Combat configuration), and the redirect at 0.
 void DeflectAttacks(void* attacker, void* target) {
   if (!Faithful() || !attacker || !target) return;
   void* monk = CreatureById(IdOf(target));
@@ -1050,6 +1100,7 @@ void DeflectAttacks(void* attacker, void* target) {
   auto* entries = reinterpret_cast<int16_t*>(data + ee::kAttackDamageEntries);
   if (!rules::DeflectAttacksQualifies(entries, ee::kAttackDamageEntryCount, rules::HasDeflectEnergy(level))) return;
   if (engine::IsDeadOrDying(monk) || IncapacitatedByCondition(monk)) return;
+  if (!ReactionAllowed(monk, rules::Reaction::kDeflectAttacks)) return;  // #54: switched off - the reaction kept
   const uint32_t monk_id = IdOf(monk), attacker_id = IdOf(attacker);
   if (!TakeReaction(monk)) {  // 0.60.7: back a round later when the Monk isn't fighting (reactions.h)
     if (IsPlayer(monk) && g_logged.First(LogOnce::Key(monk_id, static_cast<int>(attacker_id), 10))) {
@@ -1059,6 +1110,8 @@ void DeflectAttacks(void* attacker, void* target) {
   }
   int total = 0;
   for (int i = 0; i < ee::kAttackDamageEntryCount; ++i) total += entries[i] > 0 ? entries[i] : 0;
+  int16_t before[ee::kAttackDamageEntryCount];  // #54: the redirect's damage type
+  std::copy(entries, entries + ee::kAttackDamageEntryCount, before);
   const int d10 = RollEngineDice(1, 10);
   const int dexterity = engine::AbilityModifier(stats, 1);
   const int reduction = rules::DeflectAttacksReduction(d10, dexterity, level);
@@ -1069,6 +1122,9 @@ void DeflectAttacks(void* attacker, void* target) {
   ApplyEffectAs(monk_id, monk_id, "DURATION_TYPE_INSTANT", "EffectVisualEffect(VFX_COM_SPARKS_PARRY)", 0.0f, kSwingDelay);
   Tell(monk, "Deflect Attacks - the hit's " + std::to_string(total) + " damage less " + std::to_string(reduction) +
                  " (1d10 + Dex + Monk level): " + std::to_string(after) + "; your reaction this round.");
+  if (rules::DeflectRedirects(after, ReactionAllowed(monk, rules::Reaction::kDeflectRedirect), FocusLeft(monk))) {
+    DeflectRedirect(monk, attacker, data, before, level, stats);
+  }
 }
 
 // M12 Self-Restoration (10): at the end of each round - 6 s of game time after one is seen - a Monk 10+

@@ -1,0 +1,4 @@
+# spells.2da - Phase 6 part 3 (#54, 3 B; src/core/disengage.cpp): 1038 Disengage (feat 1321) - n5_disengage, run in
+# C++ (script_hooks.cpp; no .ncs). A feat ability on yourself (UserType 3), no conjure / cast time or animation.
+Label Name IconResRef School Range VS MetaMagic TargetType ImpactScript Innate ConjTime ConjAnim CastAnim CastTime Proj ItemImmunity SubRadSpell1 SubRadSpell2 SubRadSpell3 SubRadSpell4 SubRadSpell5 Category Master UserType SpellDesc UseConcentration SpontaneouslyCast HostileSetting FeatID HasProjectile
+1038 nwn5e_Disengage 16000533 ife_mobility V P s 0x00 0x01 n5_disengage 1 0 **** **** 0 0 1 **** **** **** **** **** 5 **** 3 16000534 0 0 0 1321 0

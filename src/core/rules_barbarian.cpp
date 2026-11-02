@@ -94,6 +94,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "log_once.h"
+#include "reactions.h"
 #include "records.h"
 #include "resistance.h"
 #include "rest.h"
@@ -988,6 +989,7 @@ void RetaliationOnDamage(uint32_t creator, void* target, int damage) {
   if (!Faithful() || damage <= 0 || !target || creator == ee::kObjectInvalid || creator == IdOf(target)) return;
   void* stats = StatsOf(target);
   if (!stats || !rules::HasRetaliation(BarbarianLevelOf(stats))) return;
+  if (!ReactionAllowed(target, rules::Reaction::kRetaliation)) return;  // #54: switched off - the reaction kept
   void* attacker = CreatureById(creator);
   if (!attacker || engine::IsDeadOrDying(target) || !engine::IsEnemy(target, creator)) return;
   static const auto add_aoo = reinterpret_cast<AddAttackOfOpportunityFn>(

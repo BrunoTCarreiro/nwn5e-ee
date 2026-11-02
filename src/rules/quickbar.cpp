@@ -53,6 +53,7 @@ enum Bit {
   kBitSuperiorDefense = 24,
   kBitWholenessOfBody = 25,  // Monk part 4 (0.60.0)
   kBitQuiveringPalm = 26,
+  kBitDisengage = 27,  // #54 (0.63.0)
 };
 
 bool IsSecondWind(int value) {
@@ -68,7 +69,7 @@ const std::vector<int>& QuickbarActionFeats2024() {
                                           kFeatGrapple,        kFeatCunningStrike, kFeatDeviousStrikes,
                                           kFeatFlurryOfBlows,  kFeatPatientDefense, kFeatStepOfTheWind,
                                           kFeatStunningFist,   kFeatSuperiorDefense, kFeatWholenessOfBody,
-                                          kFeatQuiveringPalm};
+                                          kFeatQuiveringPalm,  kFeatDisengage};
   return kFeats;
 }
 
@@ -137,6 +138,7 @@ std::vector<QuickbarAction> QuickbarActions2024(const QuickbarFacts& facts) {
   if (has(kFeatKnockdownShove)) actions.push_back({kBitShove, kFeatKnockdownShove, "Shove"});
   if (has(kFeatShovePush)) actions.push_back({kBitShovePush, kFeatShovePush, "Shove: push"});
   if (has(kFeatGrapple)) actions.push_back({kBitGrapple, kFeatGrapple, "Grapple"});
+  if (has(kFeatDisengage)) actions.push_back({kBitDisengage, kFeatDisengage, "Disengage"});  // #54 (3 B)
   return actions;
 }
 

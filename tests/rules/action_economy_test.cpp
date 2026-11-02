@@ -138,6 +138,27 @@ TEST(ActionQueueOrders) {
   CHECK_EQ(AttackYields(false, false), false);
 }
 
+// Part 3 (#54; owner, 2026-11-02): the reaction switches. Breaks caught: a reaction off by default (or the redirect
+// on), a switch that doesn't stick, one switch turning another, a switch back that leaves a bit behind.
+TEST(ReactionSwitches) {
+  CHECK_EQ(ReactionOn(0, Reaction::kOpportunityAttack), true);
+  CHECK_EQ(ReactionOn(0, Reaction::kUncannyDodge), true);
+  CHECK_EQ(ReactionOn(0, Reaction::kDeflectAttacks), true);
+  CHECK_EQ(ReactionOn(0, Reaction::kRetaliation), true);
+  CHECK_EQ(ReactionOn(0, Reaction::kDeflectRedirect), false);  // it spends a Focus Point
+  const int no_aoo = SetReactionOn(0, Reaction::kOpportunityAttack, false);
+  CHECK_EQ(ReactionOn(no_aoo, Reaction::kOpportunityAttack), false);
+  CHECK_EQ(ReactionOn(no_aoo, Reaction::kUncannyDodge), true);
+  CHECK_EQ(ReactionOn(no_aoo, Reaction::kDeflectRedirect), false);
+  const int redirect = SetReactionOn(no_aoo, Reaction::kDeflectRedirect, true);
+  CHECK_EQ(ReactionOn(redirect, Reaction::kDeflectRedirect), true);
+  CHECK_EQ(ReactionOn(redirect, Reaction::kOpportunityAttack), false);
+  CHECK_EQ(ReactionOn(SetReactionOn(redirect, Reaction::kRetaliation, false), Reaction::kRetaliation), false);
+  CHECK_EQ(SetReactionOn(SetReactionOn(redirect, Reaction::kOpportunityAttack, true), Reaction::kDeflectRedirect, false),
+           0);
+  CHECK_EQ(SetReactionOn(0, Reaction::kUncannyDodge, true), 0);  // already its default
+}
+
 // Breaks caught: a melee weapon looking as far as a bow, a bow looking 10 m, a bad setting giving no range;
 // potions not known, another item taken for one.
 TEST(DefaultAttackRangeAndPotions) {
