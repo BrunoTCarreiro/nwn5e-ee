@@ -5,7 +5,8 @@
 // Strikes' radial menus - opens a window with a checkbox per standing choice
 // the character has: Reckless Attack (Barbarian 2), Brutal Strike's effects (9;
 // 13; two at 17), Cunning Strike's (Rogue 5; two at 11; Devious Strikes' at
-// 14). A click is the same pick the radial, the quickbar and the chat commands
+// 14), Open Hand Technique's (Monk 3, 0.60.0: one of three, or none). A click is
+// the same pick the radial, the quickbar and the chat commands
 // make (with their chat line), and the window follows every pick, wherever it
 // was made (a second effect past the limit drops the older one).
 
@@ -35,6 +36,11 @@ int CunningStrikeRogueLevel(void* creature);
 rules::CunningChoice CunningStrikeChoice(void* creature);
 int CunningStrikeDcOf(void* creature);
 void PickCunningStrike(void* creature, rules::CunningEffect effect);
+// rules_monk.cpp
+int OpenHandMonkLevel(void* creature);
+rules::OpenHandTechnique OpenHandTechniqueOf(void* creature);
+int MonkFocusDc(void* creature);
+void PickOpenHandTechnique(void* creature, rules::OpenHandTechnique technique);
 
 namespace {
 
@@ -43,7 +49,7 @@ constexpr const char* kStatus = "o_status";
 constexpr float kRowHeight = 28.0f;
 constexpr float kCheckWidth = 190.0f;
 
-enum class Kind { kReckless, kBrutal, kCunning };
+enum class Kind { kReckless, kBrutal, kCunning, kOpenHand };
 
 struct Option {
   const char* bind;  // the checkbox's bool bind (and its id)
@@ -66,6 +72,9 @@ const Option kOptions[] = {
     {"o_cs_daze", Kind::kCunning, 4, "Daze (2d6)", "Constitution save or Slowed for a round"},
     {"o_cs_ko", Kind::kCunning, 5, "Knock Out (6d6)", "Constitution save or asleep for a minute, until it takes damage"},
     {"o_cs_obsc", Kind::kCunning, 6, "Obscure (3d6)", "Dexterity save or Blinded for a round"},
+    {"o_oh_topple", Kind::kOpenHand, 1, "Topple", "Dexterity save or knocked prone for a round"},
+    {"o_oh_push", Kind::kOpenHand, 2, "Push", "Strength save or pushed 15 ft away from you"},
+    {"o_oh_addle", Kind::kOpenHand, 3, "Addle", "no opportunity attacks until its next turn"},
 };
 
 bool g_syncing = false;  // the window's own bind updates: not the player's clicks
@@ -79,6 +88,7 @@ bool Available(void* creature, const Option& o) {
       return rules::BrutalEffectAvailable(static_cast<rules::BrutalEffect>(o.effect), BrutalStrikeBarbarianLevel(creature));
     case Kind::kCunning:
       return rules::CunningEffectAvailable(static_cast<rules::CunningEffect>(o.effect), CunningStrikeRogueLevel(creature));
+    case Kind::kOpenHand: return rules::HasOpenHandTechnique(OpenHandMonkLevel(creature));
   }
   return false;
 }
@@ -100,6 +110,7 @@ bool Checked(void* creature, const Option& o) {
       }
       return false;
     }
+    case Kind::kOpenHand: return static_cast<int>(OpenHandTechniqueOf(creature)) == o.effect;
   }
   return false;
 }
@@ -110,6 +121,9 @@ void Toggle(void* creature, const Option& o, bool on) {
     case Kind::kReckless: SetRecklessAttack(creature, on); break;
     case Kind::kBrutal: PickBrutalStrike(creature, static_cast<rules::BrutalEffect>(o.effect)); break;
     case Kind::kCunning: PickCunningStrike(creature, static_cast<rules::CunningEffect>(o.effect)); break;
+    case Kind::kOpenHand:  // one of three: a click on the chosen one turns the technique off
+      PickOpenHandTechnique(creature, on ? static_cast<rules::OpenHandTechnique>(o.effect) : rules::OpenHandTechnique::kOff);
+      break;
   }
 }
 
@@ -136,6 +150,10 @@ std::string Status(void* creature) {
     line += "Cunning Strike: " + (names.empty() ? std::string("off - full Sneak Attack dice")
                                                 : names + " (" + std::to_string(dice) + "d6 of your " +
                                                       std::to_string(rules::SneakAttackDice2024(rogue)) + "d6)");
+  }
+  if (rules::HasOpenHandTechnique(OpenHandMonkLevel(creature))) {
+    if (!line.empty()) line += ".  ";
+    line += std::string("Open Hand Technique: ") + rules::OpenHandTechniqueName(OpenHandTechniqueOf(creature));
   }
   return line;
 }
@@ -188,6 +206,17 @@ std::string Layout(void* creature, int* rows) {
     add(OptionRow(o));
     ++count;
   }
+  const int monk = OpenHandMonkLevel(creature);
+  if (rules::HasOpenHandTechnique(monk)) {
+    add(Header("Open Hand Technique (Monk " + std::to_string(monk) + ") - each Flurry of Blows hit, one of these; "
+               "save DC " + std::to_string(MonkFocusDc(creature)) + ":"));
+    ++count;
+  }
+  for (const Option& o : kOptions) {
+    if (o.kind != Kind::kOpenHand || !Available(creature, o)) continue;
+    add(OptionRow(o));
+    ++count;
+  }
   add(nui::Sized(nui::Label(nui::Bind(kStatus)), 0.0f, 48.0f));
   add(nui::Row(nui::List({nui::Spacer(), nui::Button("o_close", nui::Str("Close"), 100.0f)})));
   if (rows) *rows = count;
@@ -217,7 +246,7 @@ void Open(uint32_t player) {
   if (!creature) return;
   if (!Faithful() || !HasAnyOption(creature)) {
     TellPlayer(player, "nwn5e: no combat options yet - Reckless Attack (Barbarian 2), Brutal Strike (Barbarian 9), "
-                       "Cunning Strike (Rogue 5).");
+                       "Cunning Strike (Rogue 5), Open Hand Technique (Monk 3).");
     return;
   }
   int rows = 0;
@@ -270,6 +299,6 @@ void InstallCombatOptions() {
   const bool window = AddNuiWindow(kWindow, &OnEvent);
   AddScriptHandler("n5_cmbopts", &OpenScript);
   AddChatCommand("!options", &OptionsCommand);
-  Log("combat options: !options%s (Reckless Attack, Brutal Strike, Cunning Strike)",
+  Log("combat options: !options%s (Reckless Attack, Brutal Strike, Cunning Strike, Open Hand Technique)",
       window ? "" : " NOT on (no NUI event hook)");
 }

@@ -98,6 +98,19 @@ TEST(QuickbarMonkActions) {
     if (a.record_bit >= 20) monk_bits |= 1 << a.record_bit;
   }
   CHECK_EQ(monk_bits, 0x1F << 20);
+  // Part 4 (0.60.0): Wholeness of Body and Quivering Palm, bits 25 and 26 (the record's int: below 31).
+  for (int feat : {kFeatWholenessOfBody, kFeatQuiveringPalm}) {
+    bool asked = false;
+    for (int f : QuickbarActionFeats2024()) asked = asked || f == feat;
+    CHECK_EQ(asked, true);
+  }
+  facts.feats = {kFeatWholenessOfBody, kFeatQuiveringPalm};
+  const std::vector<QuickbarAction> open_hand = QuickbarActions2024(facts);
+  CHECK_EQ(open_hand.size(), 2u);
+  CHECK_EQ(open_hand[0].value, kFeatWholenessOfBody);
+  CHECK_EQ(open_hand[0].record_bit, 25);
+  CHECK_EQ(open_hand[1].value, kFeatQuiveringPalm);
+  CHECK_EQ(open_hand[1].record_bit, 26);
 }
 
 // A sub-radial option's button number is its spells.2da FeatID (option * 65536

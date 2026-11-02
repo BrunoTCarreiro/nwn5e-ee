@@ -40,6 +40,7 @@
 bool StaggeredNoOpportunityAttack(uint32_t id);  // rules_barbarian_strikes.cpp (B10 Staggering Blow)
 bool CunningWithdrawing(uint32_t id);            // rules_cunning_strike.cpp (R6 Withdraw)
 bool MonkDisengaged(uint32_t id);                // rules_monk.cpp (M5 Patient Defense, Step of the Wind)
+bool OpenHandAddled(uint32_t id);                // rules_monk.cpp (OH1 Open Hand Technique's Addle)
 
 namespace {
 
@@ -117,6 +118,7 @@ uint8_t GetAIStateReaction(void* object, uint32_t other_id) {
   const uint8_t reaction = g_get_ai_state_reaction(object, other_id);
   if (object != t_broadcasting || reaction != ee::kReactionEnemy) return reaction;
   if (StaggeredNoOpportunityAttack(other_id)) return 1;  // Brutal Strike's Staggering Blow: no reaction
+  if (OpenHandAddled(other_id)) return 1;                // Open Hand Technique's Addle: no reaction
   if (!Running(object)) return reaction;
   void* candidate = CreatureById(other_id);
   if (!candidate) return reaction;

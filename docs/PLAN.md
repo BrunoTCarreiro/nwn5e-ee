@@ -1475,6 +1475,57 @@ decided (M4 (a), M7 (a), M9 (a), M13 automatic):
 *Accepted (owner, 2026-10-30: "28, 57 and 23 accepted").* Monk part 3 (#28), 0.56.0 with 0.57.8 and 0.57.10: every row of
 FO1-FO14 seen in the owner's runs (the log evidence on #28).
 
+**Built - parts 4 and 5 (0.60.0; owner, 2026-11-02: "Monk parts 4 and 5"; #29, #30).** src/core/rules_monk.cpp, as
+decided (OH1, OH2, OH4 (a), M8, M12 A). Warrior of the Open Hand is the SRD's one Monk subclass, from 3, so its
+levels are Monk levels.
+- *OH2 Wholeness of Body (6):* NWN's feat 211 moves from Monk 7 to 6 in the served table (cls_feat_monk row 9;
+  characters made earlier are granted it - only when missing, so NWN mode keeps NWN's own); spell 309 runs
+  n5_wholeness instead of nw_s2_wholeness (spells.if_classfeat2024.txt, instant): the Martial Arts die + Wisdom
+  modifier healed, at least 1. Uses = the Wisdom modifier, at least 1, a Long Rest (X6 pool
+  `nwn5e_wholeness_spent`; the Short Rest leaves it). An action until Phase 6.
+- *OH4 Quivering Palm (17), (a) one step.* Read by disassembly (89.8193.37): ResolveMeleeSpecialAttack (0x3E6660)
+  runs the special attack's roll, ResolveDamage and ResolvePostMeleeDamage (0x3E8F00), whose Quivering Palm part
+  needs a hit with damage, a target not immune to critical hits and a lower level than the attacker's, then rolls
+  Fortitude against QUIVERING_PALM_BASE_DC + level / 2 + Wis (SavingThrowRoll at 0x3E93F5) or death; after that
+  its switch spends the use (DecrementFeatRemainingUses(296) at 0x3E76D2) and adds NWN's feedback for an immune
+  (0x7E) or higher-level (0x49) target. nwn5e: feat 296 at 17 (row 17), HasFeat no below it; the save wrapper
+  answers NWN's death save "saved" with no roll for a faithful Monk character (no instant death); the spend
+  filter takes 4 Focus points only on a hit and then rolls the 2024 Constitution save against the Focus DC -
+  10d12 magical (NWN's Force), half on a success - a half second later (with the swing). Unarmed only: UseFeat's
+  own rule, as 2024's Unarmed Strike. No vibrations to end later, no "one creature at a time" ((b): Phase 6 / 7).
+- *OH1 Open Hand Technique (3).* CNWSCombatRound::GetExtraAttack (0x376270): an attack is extra when the round has
+  extra attacks (+0x2F60 / +0x2F64) and its index + 1 passes the main hand's count (+0x2F50); GetOffHandAttack
+  (0x376400): past the main hand's and the extra ones. So a round runs the main hand, then the extra attacks -
+  where M4 put the Flurry's strikes - then the off hand. After an attack roll that hits, in a round whose Flurry
+  point was paid, attacks main..main + FlurryStrikes - 1 are the Flurry's (rules::IsFlurryStrike); each imposes
+  the standing choice (X8): nwn5e's feat 1320 at 3 whose radial (spells 1032-1037, FeatIDs 16014-16018) picks
+  Topple / Push / Addle / off or opens the Combat options window; `!technique`; `!options` (one of three
+  checkboxes); record `nwn5e_oh_technique`, Topple until changed. Topple: a Dexterity save against the Focus DC
+  or NWN's knockdown for a round; Push: a Strength save (rules_shove's forced Strength) or rules_push's 15 ft as
+  the hit lands (the Monk installs rules_push and lands its pushes itself, weapon mastery or not); Addle: no
+  opportunity attacks until its next turn (rules_opportunity, as Staggering Blow's).
+- *M8 Deflect Attacks (3) / Deflect Energy (13):* NWN's Deflect Arrows (8) moves from 2 to 3 (row 6) and carries
+  the 2024 name; its own effect is masked (HasFeat(8) in ResolveDefensiveEffects answers no for characters). After
+  ResolveDamage (resolve_damage.h, the Rogue's Uncanny Dodge's way), the first hit each round on a Monk 3+
+  character whose damage includes bludgeoning, piercing or slashing (the weapon's base damage counts; any type
+  from 13) loses 1d10 + Dex + Monk level, physical damage first (rules::ReduceAttackDamage) - the round's
+  reaction (+0x2F40), shared with Uncanny Dodge and opportunity attacks; not while Incapacitated. Automatic; the
+  redirect at 0 damage (1 point): Phase 6 / 7.
+- *M12 Self-Restoration (10):* a creature update listener: a round (6 s of game time) after Charmed, Frightened
+  or Poisoned is seen on a Monk 10+ character, one goes - Charmed, else Frightened, else Poisoned
+  (rules::SelfRestorationPick) - and one more each round after. nwn5e's 2024 Charmed (a player) and Frightened are
+  icons (rules_conditions.cpp); NWN's charm and domination (a henchman), NWN's poison effect and the poison icon
+  (Cunning Strike's Poisoned) count too; removed by a script (RemoveEffect takes linked effects). Going without
+  food has no NWN use.
+- The quickbar places Wholeness of Body and Quivering Palm when gained (record bits 25, 26 - six bits left);
+  Open Hand Technique's pick stays on its radial, `!technique` and `!options`. The Focus tooltip lists Quivering
+  Palm's 4; `!features` describes all six.
+- Tests MonkOpenHand, MonkDeflectAndRestore and QuickbarMonkActions' new rows (31 of 31 mutations caught).
+- *Caveats:* NWN's own feedback line for a Quivering Palm on a crit-immune or higher-level target still shows
+  (nwn5e's save and damage follow anyway); Deflect Attacks takes the round's first qualifying hit even when a
+  bigger one comes later; Topple's knockdown is NWN's (its own immunities); Self-Restoration acts a round after a
+  condition is seen, not at the exact end of the Monk's turn.
+
 ### Phase 3 — Rogue (CM9): recommendations (for the owner's decision)
 
 **Decided (owner, 2026-10-28: "go with the recommendations").** Every R and T

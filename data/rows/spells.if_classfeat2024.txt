@@ -7,3 +7,7 @@
 # in 2024).
 ImpactScript ConjTime ConjAnim CastAnim CastTime
 307 nwn5e_rage 0 **** **** 0
+# Monk part 4 (0.60.0, OH2): Wholeness of Body (spell 309, feat 211) runs n5_wholeness - the Martial
+# Arts die + Wisdom healed (rules_monk.cpp) - instead of nw_s2_wholeness (2 x Monk level), instant
+# (a Bonus Action in 2024).
+309 n5_wholeness 0 **** **** 0

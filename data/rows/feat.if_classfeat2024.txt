@@ -4,8 +4,12 @@
 # Evasion's name and description then. NWN mode keeps Improved Evasion's own.
 # Monk part 1 (0.52.0, rules_monk.cpp): Monk AC Bonus is Unarmored Defense, the Monk's Fast
 # Movement Unarmored Movement, Ki Strike Empowered Strikes. Part 3 (0.56.0): Stunning Fist is
-# Stunning Strike, Flurry of Blows the 2024 one.
+# Stunning Strike, Flurry of Blows the 2024 one. Parts 4 / 5 (0.60.0): Deflect Arrows is Deflect
+# Attacks; Wholeness of Body and Quivering Palm the 2024 ones.
 FEAT DESCRIPTION
+8 16000531 16000532
+211 16000527 16000528
+296 16000529 16000530
 212 16000489 16000490
 260 16000505 16000506
 207 16000507 16000508

@@ -161,9 +161,12 @@ const std::vector<ClassFeature>& Monk() {
       {2, "Uncanny Metabolism", false, "built: automatic at a fight's start with half your points spent or "
                                        "Bloodied - every point back and Martial Arts die + level healed, once per "
                                        "Long Rest"},
-      {3, "Deflect Attacks", false, "Monk part 5 (NWN's Deflect Arrows for now)"},
+      {3, "Deflect Attacks", false, "built: automatic on the first hit each round with bludgeoning, piercing "
+                                    "or slashing damage (your reaction) - 1d10 + Dex + Monk level off it (NWN's "
+                                    "Deflect Arrows, masked); the redirect: Phase 6 / 7"},
       {3, "Warrior of the Open Hand", false, "built: granted at 3"},
-      {3, "Open Hand Technique", true, "Monk part 4"},
+      {3, "Open Hand Technique", true, "built: each Flurry of Blows hit - Topple (default), Push or Addle, picked "
+                                       "on its radial, !technique or !options"},
       {4, "Ability Score Improvement", false, "built (!asi)"},
       {4, "Slow Fall", false, "listed (NWN has no falling)"},
       {5, "Extra Attack", false, "built"},
@@ -172,21 +175,24 @@ const std::vector<ClassFeature>& Monk() {
                                     "attack on it Advantage"},
       {6, "Empowered Strikes", false, "built: unarmed strikes get through every damage reduction X/+N (NWN's Ki "
                                       "Strike, from 6)"},
-      {6, "Wholeness of Body", true, "Monk part 4 (NWN's for now)"},
+      {6, "Wholeness of Body", true, "built: radial - Martial Arts die + Wis healed, Wis uses (at least 1) a "
+                                     "Long Rest (an action until Phase 6)"},
       {7, "Evasion", false, "built: no damage on a successful Dexterity save, half on a failed one; not while "
                             "Incapacitated (NWN's Improved Evasion, granted)"},
       {8, "Ability Score Improvement", false, "built (!asi)"},
       {9, "Acrobatic Movement", false, "listed (NWN has no climbing or walking on liquids)"},
       {10, "Heightened Focus", false, "built: three Flurry strikes; Patient Defense's temporary hit points"},
-      {10, "Self-Restoration", false, "Monk part 5"},
+      {10, "Self-Restoration", false, "built: at the end of each round, one of Charmed, Frightened or Poisoned "
+                                      "ends (in that order)"},
       {11, "Fleet Step", true, "Phase 6 (bonus actions)"},
       {12, "Ability Score Improvement", false, "built (!asi)"},
-      {13, "Deflect Energy", false, "Monk part 5"},
+      {13, "Deflect Energy", false, "built: Deflect Attacks takes any damage type"},
       {14, "Disciplined Survivor", false, "built: proficient in every save; a failed one rolled again for a point "
                                          "(automatic)"},
       {15, "Perfect Focus", false, "built: at a fight's start, 3 or fewer points rise to 4"},
       {16, "Ability Score Improvement", false, "built (!asi)"},
-      {17, "Quivering Palm", true, "Monk part 4 (NWN's for now)"},
+      {17, "Quivering Palm", true, "built: NWN's special attack, 4 points on a hit - Con save against the Focus "
+                                   "DC at once, 10d12 Force (half on a success); no instant death"},
       {18, "Superior Defense", false, "built: radial, 3 points - Resistance to every damage but Force for a "
                                      "minute (Incapacitated ends it)"},
       {19, "Epic Boon", false, "CM8"},
@@ -526,6 +532,7 @@ std::string FocusTooltip(int monk_level, int left, int dc, bool metabolism_ready
   tip += "\n\nCosts\nFlurry of Blows: 1 a round in its mode\nPatient Defense: 1\nStep of the Wind: 1";
   if (HasStunningStrike(monk_level)) tip += "\nStunning Strike: 1 (none on a miss)";
   if (HasDisciplinedSurvivor(monk_level)) tip += "\nA failed save rolled again: 1";
+  if (HasQuiveringPalm(monk_level)) tip += "\nQuivering Palm: 4 (none on a miss)";
   if (HasSuperiorDefense(monk_level)) tip += "\nSuperior Defense: 3";
   if (HasUncannyMetabolism(monk_level)) {
     tip += std::string("\n\nUncanny Metabolism: ") + (metabolism_ready ? "ready" : "used - back on a Long Rest") +
@@ -535,6 +542,109 @@ std::string FocusTooltip(int monk_level, int left, int dc, bool metabolism_ready
   }
   if (HasPerfectFocus(monk_level)) tip += "\n\nPerfect Focus\nAt a fight's start, 3 or fewer points rise to 4.";
   return tip;
+}
+
+// Part 4 (0.60.0): Warrior of the Open Hand.
+bool HasOpenHandTechnique(int monk_level) { return monk_level >= 3; }
+bool HasWholenessOfBody(int monk_level) { return monk_level >= 6; }
+bool HasQuiveringPalm(int monk_level) { return monk_level >= 17; }
+
+int MonkFeatLevel2024(int feat) {
+  switch (feat) {
+    case kFeatFlurryOfBlows: return 2;
+    case kFeatDeflectArrows: return 3;
+    case kFeatStunningFist: return 5;
+    case kFeatWholenessOfBody: return 6;
+    case kFeatQuiveringPalm: return 17;
+    default: return 0;
+  }
+}
+
+int WholenessOfBodyUses(int wisdom_modifier) { return wisdom_modifier > 1 ? wisdom_modifier : 1; }
+
+int WholenessOfBodyHealing(int martial_arts_roll, int wisdom_modifier) {
+  const int healed = martial_arts_roll + wisdom_modifier;
+  return healed > 1 ? healed : 1;
+}
+
+int QuiveringPalmDamage(int rolled, bool saved) { return saved ? rolled / 2 : rolled; }
+
+OpenHandTechnique DecodeOpenHandTechnique(int record) {
+  switch (record) {
+    case 2: return OpenHandTechnique::kPush;
+    case 3: return OpenHandTechnique::kAddle;
+    case 4: return OpenHandTechnique::kOff;
+    default: return OpenHandTechnique::kTopple;  // 0: never chosen
+  }
+}
+
+int EncodeOpenHandTechnique(OpenHandTechnique technique) { return static_cast<int>(technique); }
+
+const char* OpenHandTechniqueName(OpenHandTechnique technique) {
+  switch (technique) {
+    case OpenHandTechnique::kTopple: return "Topple";
+    case OpenHandTechnique::kPush: return "Push";
+    case OpenHandTechnique::kAddle: return "Addle";
+    case OpenHandTechnique::kOff: return "off";
+  }
+  return "Topple";
+}
+
+bool IsFlurryStrike(int attack_index, int main_hand_attacks, int flurry_strikes) {
+  return flurry_strikes > 0 && attack_index >= main_hand_attacks && attack_index < main_hand_attacks + flurry_strikes;
+}
+
+// Part 5 (0.60.0).
+bool HasDeflectAttacks(int monk_level) { return monk_level >= 3; }
+bool HasSelfRestoration(int monk_level) { return monk_level >= 10; }
+bool HasDeflectEnergy(int monk_level) { return monk_level >= 13; }
+
+namespace {
+constexpr int kDamageIndexBase = 12;  // DAMAGE_TYPE_BASE_WEAPON (4096): the weapon's own damage
+bool PhysicalDamageIndex(int i) { return i <= 2 || i == kDamageIndexBase; }
+}  // namespace
+
+bool DeflectAttacksQualifies(const int16_t* entries, int count, bool deflect_energy) {
+  for (int i = 0; entries && i < count; ++i) {
+    if (entries[i] > 0 && (deflect_energy || PhysicalDamageIndex(i))) return true;
+  }
+  return false;
+}
+
+int DeflectAttacksReduction(int d10, int dexterity_modifier, int monk_level) {
+  const int reduction = d10 + dexterity_modifier + monk_level;
+  return reduction > 0 ? reduction : 0;
+}
+
+int ReduceAttackDamage(int16_t* entries, int count, int amount) {
+  for (int pass = 0; pass < 2; ++pass) {  // physical first, then the rest
+    for (int i = 0; entries && i < count && amount > 0; ++i) {
+      if (entries[i] <= 0 || PhysicalDamageIndex(i) != (pass == 0)) continue;
+      const int taken = entries[i] < amount ? entries[i] : amount;
+      entries[i] = static_cast<int16_t>(entries[i] - taken);
+      amount -= taken;
+    }
+  }
+  int total = 0;
+  for (int i = 0; entries && i < count; ++i) total += entries[i] > 0 ? entries[i] : 0;
+  return total;
+}
+
+SelfRestoration SelfRestorationPick(bool charmed, bool frightened, bool poisoned) {
+  if (charmed) return SelfRestoration::kCharmed;
+  if (frightened) return SelfRestoration::kFrightened;
+  if (poisoned) return SelfRestoration::kPoisoned;
+  return SelfRestoration::kNone;
+}
+
+const char* SelfRestorationName(SelfRestoration condition) {
+  switch (condition) {
+    case SelfRestoration::kCharmed: return "Charmed";
+    case SelfRestoration::kFrightened: return "Frightened";
+    case SelfRestoration::kPoisoned: return "Poisoned";
+    case SelfRestoration::kNone: return "nothing";
+  }
+  return "nothing";
 }
 
 bool HasSlipperyMind(int rogue_level) { return rogue_level >= 15; }
@@ -713,6 +823,12 @@ std::vector<int> GrantedFeats2024(const std::vector<ClassLevels>& classes) {
       if (c.levels >= FocusFeatLevel(kFeatPatientDefense)) feats.push_back(kFeatPatientDefense);
       if (c.levels >= FocusFeatLevel(kFeatStepOfTheWind)) feats.push_back(kFeatStepOfTheWind);
       if (c.levels >= FocusFeatLevel(kFeatSuperiorDefense)) feats.push_back(kFeatSuperiorDefense);
+      // Part 4 / 5 (0.60.0): Open Hand Technique's radial; NWN's Wholeness of Body, Quivering Palm and
+      // Deflect Arrows at their 2024 levels (the served table's; a character made earlier may lack them).
+      if (HasOpenHandTechnique(c.levels)) feats.push_back(kFeatOpenHandTechnique);
+      if (HasDeflectAttacks(c.levels)) feats.push_back(kFeatDeflectArrows);
+      if (HasWholenessOfBody(c.levels)) feats.push_back(kFeatWholenessOfBody);
+      if (HasQuiveringPalm(c.levels)) feats.push_back(kFeatQuiveringPalm);
     }
     if (c.character_class == CharacterClass::kBarbarian) {
       if (HasRecklessAttack(c.levels)) feats.push_back(kFeatRecklessAttack);
@@ -734,7 +850,9 @@ const std::vector<int>& GrantableFeats2024() {
                                           kFeatRecklessAttack, kFeatBrutalStrike, kFeatKnockdownShove,
                                           kFeatShovePush,      kFeatIntimidatingPresence, kFeatGrapple,
                                           kFeatImprovedEvasion, kFeatCunningStrike, kFeatDeviousStrikes,
-                                          kFeatPatientDefense, kFeatStepOfTheWind, kFeatSuperiorDefense};
+                                          kFeatPatientDefense, kFeatStepOfTheWind, kFeatSuperiorDefense,
+                                          kFeatOpenHandTechnique, kFeatDeflectArrows, kFeatWholenessOfBody,
+                                          kFeatQuiveringPalm};
   return kFeats;
 }
 
@@ -749,7 +867,10 @@ std::vector<int> FeatsEveryoneHas2024(bool shove_faithful) {
 }
 
 // Feats a character may also have taken itself (NWN's picks): only nwn5e's own grant is taken back.
-bool GrantedOnlyWhenMissing(int feat) { return feat == kFeatKnockdownShove || feat == kFeatImprovedEvasion; }
+bool GrantedOnlyWhenMissing(int feat) {
+  return feat == kFeatKnockdownShove || feat == kFeatImprovedEvasion || feat == kFeatDeflectArrows ||
+         feat == kFeatWholenessOfBody || feat == kFeatQuiveringPalm;
+}
 
 int IndomitableUses(int fighter_level) { return fighter_level >= 17 ? 3 : fighter_level >= 13 ? 2 : fighter_level >= 9 ? 1 : 0; }
 

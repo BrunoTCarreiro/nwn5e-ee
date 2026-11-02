@@ -99,6 +99,34 @@
 // - M14 Superior Defense (18; feat 1319, spell 1031 -> n5_superior, 3 points):
 //   Resistance (X4, resistance.cpp) to every damage but Force for a minute,
 //   Incapacitated ends it.
+// Part 4 (0.60.0, #29), Warrior of the Open Hand (decided: OH1, OH2, OH4 A; the
+// SRD's one subclass, from 3 - its levels are Monk levels):
+// - OH2 Wholeness of Body (6): NWN's feat 211 at 6 (the served table; granted to
+//   characters made earlier), its spell 309 running n5_wholeness - the Martial
+//   Arts die + Wisdom healed (at least 1); uses = Wisdom (at least 1) a Long Rest
+//   (X6 pool nwn5e_wholeness_spent). An action until Phase 6.
+// - OH4 Quivering Palm (17), the owner's (a): NWN's special attack (unarmed -
+//   UseFeat's own rule, as 2024's Unarmed Strike), 4 points spent by the engine's
+//   decrement only on a hit; then the Constitution save against the Focus DC at
+//   once - 10d12 magical (NWN's Force), half on a success. NWN's death save in
+//   ResolvePostMeleeDamage is answered "saved" (rules_save_roll.cpp).
+// - OH1 Open Hand Technique (3): each hit of a Flurry of Blows strike - the
+//   round's attacks after the main hand's (CNWSCombatRound::GetExtraAttack's
+//   rule), in a round whose Flurry point was paid - imposes the standing choice
+//   (X8; the radial's nwn5e feat 1320, !technique, !options; record
+//   nwn5e_oh_technique, Topple until changed): Topple (a Dexterity save or NWN's
+//   knockdown for a round), Push (a Strength save or rules_push's 15 ft push as
+//   the hit lands), Addle (no opportunity attacks until its next turn -
+//   rules_opportunity.cpp).
+// Part 5 (0.60.0, #30):
+// - M8 Deflect Attacks (3) / Deflect Energy (13): NWN's Deflect Arrows (8) moved
+//   to 3 and named so, its NWN effect masked (HasFeat in ResolveDefensiveEffects
+//   answered no); after ResolveDamage (the Rogue's Uncanny Dodge's way), the
+//   first hit each round with bludgeoning, piercing or slashing damage (any type
+//   from 13) loses 1d10 + Dex + Monk level - the round's reaction. The redirect:
+//   Phase 6 / 7.
+// - M12 Self-Restoration (10): a round after Charmed, Frightened or Poisoned is
+//   seen, one goes (in that order) - and one more each round after.
 // Monsters keep NWN's Monk.
 
 #include <windows.h>
@@ -108,6 +136,7 @@
 #include <stdio.h>
 
 #include <algorithm>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -117,6 +146,8 @@
 #include "condition_effects.h"
 #include "config.h"
 #include "creature.h"
+#include "creature_update.h"
+#include "damage_listeners.h"
 #include "data_serving.h"
 #include "dice.h"
 #include "ee_layout.h"
@@ -133,13 +164,17 @@
 #include "movement_rate.h"
 #include "records.h"
 #include "resistance.h"
+#include "resolve_damage.h"
 #include "resource_panel.h"
 #include "rest.h"
 #include "ruleset.h"
+#include "saves.h"
 #include "script_hooks.h"
 #include "rules/class_features.h"
 #include "rules/nwn_conversion.h"
 #include "rules/weapons.h"
+
+void RefreshCombatOptions(uint32_t player);  // combat_options.cpp
 
 namespace {
 
@@ -441,7 +476,13 @@ int FocusUsesCost(void* /*stats*/, int feat) { return rules::FocusCost(feat); }
 
 // M9: Stunning Fist's own decrement (ResolveMeleeSpecialAttack, after the attack roll) spends a
 // point only on a hit - 2024 pays on a hit - and arms the save that follows with the Focus DC.
+bool QuiveringPalmSpend(void* creature, uint8_t* data);  // part 4, below
+
 bool FocusUsesSpend(void* stats, int feat, uintptr_t caller) {
+  if (feat == rules::kFeatQuiveringPalm && g_special_attack_code.Contains(caller)) {  // OH4: the points only on a hit
+    void* creature = CreatureOf(stats);
+    return QuiveringPalmSpend(creature, creature ? CurrentAttackData(creature) : nullptr);
+  }
   if (feat != rules::kFeatStunningFist || !g_special_attack_code.Contains(caller)) return true;
   void* creature = CreatureOf(stats);
   uint8_t* data = creature ? CurrentAttackData(creature) : nullptr;
@@ -458,14 +499,23 @@ bool FocusUsesSpend(void* stats, int feat, uintptr_t caller) {
   return true;
 }
 
+CodeRange g_defensive_code_for_filter;  // ResolveDefensiveEffects (part 5): set at install
+
 // M3: the HasFeat answers below their 2024 levels (the engine's own above them): Stunning Fist
-// (Stunning Strike) from Monk 5, Flurry of Blows from 2 - for a Monk's character.
-bool FocusFeatFilter(void* stats, int feat, uintptr_t /*caller*/, int* answer) {
-  if ((feat != rules::kFeatStunningFist && feat != rules::kFeatFlurryOfBlows) || !Faithful() || !stats) return false;
+// (Stunning Strike) from Monk 5, Flurry of Blows from 2 - for a Monk's character. Parts 4 / 5 (0.60.0):
+// Deflect Arrows (Deflect Attacks) from 3, Wholeness of Body from 6, Quivering Palm from 17
+// (rules::MonkFeatLevel2024 - NWN's table gave them at 2, 7, 15); and NWN's Deflect Arrows itself never
+// for a character (ResolveDefensiveEffects' HasFeat - M8 replaces it).
+bool FocusFeatFilter(void* stats, int feat, uintptr_t caller, int* answer) {
+  const int needed = rules::MonkFeatLevel2024(feat);
+  if (needed <= 0 || !Faithful() || !stats) return false;
+  if (feat == rules::kFeatDeflectArrows && g_defensive_code_for_filter.Contains(caller) &&
+      ReadCreatureFacts(stats).character) {
+    *answer = 0;
+    return true;
+  }
   const int level = MonkLevelOf(stats);
-  if (level <= 0) return false;
-  const bool has = feat == rules::kFeatStunningFist ? rules::HasStunningStrike(level) : rules::HasFlurryOfBlows(level);
-  if (has) return false;
+  if (level <= 0 || level >= needed) return false;
   *answer = 0;
   return true;
 }
@@ -751,6 +801,369 @@ void MonkOnInitiative(void* creature) {
 
 bool SpendFlurryPoint(void* creature) { return SpendFocus(creature, 1, "Flurry of Blows"); }
 
+// --- Part 4 (0.60.0, #29): Warrior of the Open Hand ------------------------------------
+
+namespace {
+
+constexpr const char* kVarWholenessSpent = "nwn5e_wholeness_spent";  // OH2: its uses (X6 pool, a record)
+constexpr const char* kVarTechnique = "nwn5e_oh_technique";          // OH1: rules::EncodeOpenHandTechnique; 0 = Topple
+constexpr float kSwingDelay = 0.5f;                                  // effects land with the swing (as the mastery's)
+constexpr int kStateDominated = 7;                                   // EffectDominated's state (Charmed's kin)
+using SaveRollFn = uint8_t (*)(void* creature, uint8_t save, uint16_t dc, uint8_t type, uint32_t versus, int feedback,
+                               uint16_t feat, int from_combat);
+
+CodeRange g_post_melee_code;                       // ResolvePostMeleeDamage: NWN's Quivering Palm death save
+std::unordered_map<uint32_t, uint64_t> g_addled;  // OH1 Addle: no opportunity attacks until (game ms)
+std::unordered_map<uint32_t, uint64_t> g_restoration_due;  // M12: the end of the round a condition was seen in
+
+int WisdomOf(void* stats) { return stats ? engine::AbilityModifier(stats, 4) : 0; }
+
+const char* SaveOutcome(uint8_t save) { return save == 2 ? "immune" : save == 0 ? "failed" : "made"; }
+
+// A save against the Monk's Focus DC (already 2024: not converted) - Dexterity as NWN's Reflex, Strength
+// riding on it (rules_shove's way), Constitution as Fortitude.
+uint8_t FocusSave(void* target, uint32_t monk, int dc, rules::Ability ability) {
+  static const auto save_roll = reinterpret_cast<SaveRollFn>(EngineExport(ee::kSavingThrowRoll));  // through the hook
+  if (!save_roll || !target) return 1;
+  RememberSaveDc2024(monk, dc);
+  if (ability == rules::Ability::kStrength) SetForcedSaveAbility(rules::Ability::kStrength);
+  const uint8_t save = static_cast<uint8_t>(ability == rules::Ability::kConstitution ? ee::kSaveFortitude : ee::kSaveReflex);
+  const uint8_t result = save_roll(target, save, static_cast<uint16_t>(std::clamp(dc, 1, 0xFFFF)), 0, monk, 1, 0, 1);
+  SetForcedSaveAbility(std::nullopt);
+  return result;
+}
+
+// OH2 Wholeness of Body (Open Hand 6): its uses - the Wisdom modifier, at least 1 - per Long Rest (X6: the Long
+// Rest empties the pool; a Short Rest doesn't).
+bool WholenessUsesTotal(void* stats, int feat, int* total) {
+  if (feat != rules::kFeatWholenessOfBody || !Faithful()) return false;
+  if (!rules::HasWholenessOfBody(MonkLevelOf(stats))) return false;  // NWN's (a monster's Monk)
+  *total = rules::WholenessOfBodyUses(WisdomOf(stats));
+  return true;
+}
+
+// Spell 309's script in faithful (spells.if_classfeat2024.txt): the Martial Arts die + Wisdom, at least 1.
+void WholenessScript(uint32_t self) {
+  void* creature = CreatureById(self);
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  const int level = MonkLevelOf(stats);
+  if (!rules::HasWholenessOfBody(level)) return;
+  const int wisdom = WisdomOf(stats);
+  const int die = rules::MartialArtsDie(level);
+  const int roll = RollEngineDice(1, die);
+  const int healed = rules::WholenessOfBodyHealing(roll, wisdom);
+  ApplyEffectAs(self, self, "DURATION_TYPE_INSTANT", ("EffectHeal(" + std::to_string(healed) + ")").c_str(), 0.0f, 0.0f);
+  ApplyEffectAs(self, self, "DURATION_TYPE_INSTANT", "EffectVisualEffect(VFX_IMP_HEALING_M)", 0.0f, 0.0f);
+  const int left = std::max(0, rules::WholenessOfBodyUses(wisdom) - SpentFeatUses(creature, kVarWholenessSpent));
+  Log("monk: 0x%08X Wholeness of Body - d%d %d + Wis %d: %d healed (%d use%s left)", self, die, roll, wisdom, healed,
+      left, left == 1 ? "" : "s");
+  Tell(creature, "Wholeness of Body - d" + std::to_string(die) + " (" + std::to_string(roll) + ") + Wisdom " +
+                     std::to_string(wisdom) + ": " + std::to_string(healed) + " hit points. " + std::to_string(left) +
+                     (left == 1 ? " use" : " uses") + " left until a Long Rest.");
+}
+
+// OH4 Quivering Palm (Open Hand 17), the owner's (a): the engine spends the feat's use in
+// ResolveMeleeSpecialAttack after the attack roll and ResolvePostMeleeDamage (whose death save is answered
+// "saved" - QuiveringPalmEngineSave). 4 Focus points on a hit, then the 2024 save at once: 10d12 Force (NWN's
+// magical damage), half on a success. A miss spends nothing.
+bool QuiveringPalmSpend(void* creature, uint8_t* data) {
+  const uint32_t id = IdOf(creature);
+  if (!creature || !data || !rules::MasteryAttackHit(data[ee::kAttackResult])) {
+    Log("monk: 0x%08X Quivering Palm missed - no Focus points spent", id);
+    Tell(creature, "Quivering Palm missed - no Focus points spent.");
+    return false;
+  }
+  const uint32_t target_id = Field<uint32_t>(creature, ee::kCreatureAttackTarget);
+  void* target = CreatureById(target_id);
+  if (!target) return false;  // a door, a placeable: nothing to set vibrating
+  const int dc = FocusDcOf(creature);
+  const uint8_t save = FocusSave(target, id, dc, rules::Ability::kConstitution);
+  const int rolled = RollEngineDice(rules::kQuiveringPalmDice, rules::kQuiveringPalmSides);
+  const int damage = rules::QuiveringPalmDamage(rolled, save != 0);
+  ApplyEffectAs(id, target_id, "DURATION_TYPE_INSTANT",
+                ("EffectDamage(" + std::to_string(damage) + ", DAMAGE_TYPE_MAGICAL)").c_str(), 0.0f, kSwingDelay);
+  ApplyEffectAs(id, target_id, "DURATION_TYPE_INSTANT", "EffectVisualEffect(VFX_IMP_MAGBLUE)", 0.0f, kSwingDelay);
+  Log("monk: 0x%08X Quivering Palm on 0x%08X - 4 Focus points; Constitution save DC %d %s: 10d12 %d -> %d force", id,
+      target_id, dc, SaveOutcome(save), rolled, damage);
+  Tell(creature, std::string("Quivering Palm (4 Focus points) - its Constitution save (DC ") + std::to_string(dc) +
+                     ") " + SaveOutcome(save) + ": " + std::to_string(damage) + " force damage (10d12: " +
+                     std::to_string(rolled) + (save != 0 ? ", halved" : "") + ").");
+  return true;
+}
+
+// OH1 Open Hand Technique (3): the standing choice (X8), Topple until changed.
+rules::OpenHandTechnique TechniqueOf(void* creature) {
+  return rules::DecodeOpenHandTechnique(creature ? engine::GetLocalInt(creature, kVarTechnique) : 0);
+}
+
+const char* TechniqueText(rules::OpenHandTechnique technique) {
+  switch (technique) {
+    case rules::OpenHandTechnique::kTopple: return "a Dexterity save or knocked prone for a round";
+    case rules::OpenHandTechnique::kPush: return "a Strength save or pushed 15 ft away";
+    case rules::OpenHandTechnique::kAddle: return "no opportunity attacks until its next turn";
+    case rules::OpenHandTechnique::kOff: return "nothing";
+  }
+  return "nothing";
+}
+
+void PickTechnique(void* creature, rules::OpenHandTechnique technique) {
+  if (!creature) return;
+  if (!rules::HasOpenHandTechnique(MonkLevelOf(StatsOf(creature)))) {
+    Tell(creature, "Open Hand Technique comes at Monk 3 (Warrior of the Open Hand).");
+    return;
+  }
+  EnsureRecords(creature);
+  SetRecord(creature, kVarTechnique, rules::EncodeOpenHandTechnique(technique));
+  const uint32_t id = IdOf(creature);
+  Log("monk: 0x%08X Open Hand Technique: %s", id, rules::OpenHandTechniqueName(technique));
+  if (technique == rules::OpenHandTechnique::kOff) {
+    Tell(creature, "Open Hand Technique: off - your Flurry of Blows hits impose nothing.");
+  } else {
+    Tell(creature, std::string("Open Hand Technique: ") + rules::OpenHandTechniqueName(technique) +
+                       " on each Flurry of Blows hit (" + TechniqueText(technique) + "; DC " +
+                       std::to_string(FocusDcOf(creature)) + ").");
+  }
+  RefreshCombatOptions(id);
+}
+
+template <rules::OpenHandTechnique kTechnique>
+void PickTechniqueScript(uint32_t self) {
+  if (void* creature = CreatureById(self)) PickTechnique(creature, kTechnique);
+}
+
+std::vector<std::string> TechniqueCommand(void* creature, const std::string& args) {
+  if (!rules::HasOpenHandTechnique(MonkLevelOf(StatsOf(creature)))) {
+    return {"nwn5e: Open Hand Technique comes at Monk 3 (Warrior of the Open Hand; class_features faithful)."};
+  }
+  static const struct {
+    const char* word;
+    rules::OpenHandTechnique technique;
+  } kWords[] = {{"topple", rules::OpenHandTechnique::kTopple},
+                {"push", rules::OpenHandTechnique::kPush},
+                {"addle", rules::OpenHandTechnique::kAddle},
+                {"off", rules::OpenHandTechnique::kOff}};
+  for (const auto& w : kWords) {
+    if (args.find(w.word) == std::string::npos) continue;
+    PickTechnique(creature, w.technique);
+    return {};
+  }
+  EnsureRecords(creature);
+  const rules::OpenHandTechnique now = TechniqueOf(creature);
+  return {std::string("nwn5e: Open Hand Technique: ") + rules::OpenHandTechniqueName(now) +
+          (now == rules::OpenHandTechnique::kOff ? "" : std::string(" - ") + TechniqueText(now)) +
+          ", on each Flurry of Blows hit (DC " + std::to_string(FocusDcOf(creature)) +
+          "). !technique topple | push | addle | off (or its radial menu, or !options)."};
+}
+
+void ApplyTechnique(void* monk, void* target, rules::OpenHandTechnique technique) {
+  const uint32_t monk_id = IdOf(monk), target_id = IdOf(target);
+  const int dc = FocusDcOf(monk);
+  const std::string dcs = " DC " + std::to_string(dc) + " ";
+  std::string what;
+  switch (technique) {
+    case rules::OpenHandTechnique::kTopple: {
+      const uint8_t save = FocusSave(target, monk_id, dc, rules::Ability::kDexterity);
+      if (save == 0) {
+        ApplyEffectAs(monk_id, target_id, "DURATION_TYPE_TEMPORARY", "EffectKnockdown()", 6.0f, kSwingDelay);
+      }
+      what = "Topple - Dexterity save" + dcs + SaveOutcome(save) + (save == 0 ? ": knocked prone for a round" : "");
+      break;
+    }
+    case rules::OpenHandTechnique::kPush: {
+      const uint8_t save = FocusSave(target, monk_id, dc, rules::Ability::kStrength);
+      what = "Push - Strength save" + dcs + SaveOutcome(save);
+      if (save == 0) {
+        const std::string push = PushOnHit(monk, target, rules::kOpenHandPushMetres);
+        what += push.empty() ? " (no push: rules_push is off in this game build)" : ": pushed 15 ft (" + push + ")";
+      }
+      break;
+    }
+    case rules::OpenHandTechnique::kAddle:
+      g_addled[target_id] = GameMs() + kRoundMs;
+      what = "Addle - no opportunity attacks until its next turn";
+      break;
+    case rules::OpenHandTechnique::kOff:
+      return;
+  }
+  Log("monk: 0x%08X Open Hand Technique on 0x%08X: %s", monk_id, target_id, what.c_str());
+  Tell(monk, "Open Hand Technique: " + what + ".");
+}
+
+// Push's 15 ft goes when the hit's damage lands (rules_push.cpp) - here too, for weapon mastery off (its own
+// damage listener lands pushes when on; a push it landed isn't waiting any more).
+void OpenHandPushLands(uint32_t creator, void* target, int /*damage*/) {
+  if (PushAwaiting()) PushOnDamage(creator, target);
+}
+
+// After an attack roll (attack_roll.h): a hit of one of this round's Flurry of Blows strikes - the round's
+// attacks after the main hand's, in a round whose Flurry point was paid.
+void OpenHandAfterRoll(AttackRoll& roll) {
+  if (!roll.attacker || !roll.target || !roll.data || !g_rounds_counted || g_bonus_strikes.empty()) return;
+  if (!rules::MasteryAttackHit(roll.data[ee::kAttackResult])) return;
+  void* monk = roll.attacker;
+  const uint32_t id = IdOf(monk);
+  const auto known = g_bonus_strikes.find(id);
+  if (known == g_bonus_strikes.end() || !known->second.flurry_paid || known->second.round != CombatRoundsEnded(id)) {
+    return;
+  }
+  const int level = MonkLevelOf(StatsOf(monk));
+  if (!rules::HasOpenHandTechnique(level)) return;
+  const rules::OpenHandTechnique technique = TechniqueOf(monk);
+  if (technique == rules::OpenHandTechnique::kOff) return;
+  void* round = Field<void*>(monk, ee::kCreatureCombatRound);
+  if (!round || CurrentAttackData(monk) != roll.data) return;  // not the round's own attack (an opportunity attack)
+  const int index = Field<uint8_t>(round, ee::kRoundCurrentAttack);
+  const int main_hand = Field<int32_t>(round, ee::kRoundMainHandAttacks);
+  if (!rules::IsFlurryStrike(index, main_hand, rules::FlurryStrikes(level))) return;
+  void* target = CreatureById(IdOf(roll.target));
+  if (!target || target == monk || engine::IsDeadOrDying(target)) return;
+  ApplyTechnique(monk, target, technique);
+}
+
+// --- Part 5 (0.60.0, #30): Deflect Attacks, Self-Restoration -----------------------------
+
+// M8 (resolve_damage.h: after ResolveDamage put a hit's damage in the attacker's attack data): the first hit
+// each round on a Monk 3+ character whose damage includes bludgeoning, piercing or slashing (any type from 13,
+// Deflect Energy) - its reaction, shared with Uncanny Dodge and opportunity attacks - loses 1d10 + Dex modifier
+// + Monk level, physical damage first. Automatic; the redirect at 0 waits for reactions (Phase 6 / 7).
+void DeflectAttacks(void* attacker, void* target) {
+  if (!Faithful() || !attacker || !target) return;
+  void* monk = CreatureById(IdOf(target));
+  void* stats = monk ? StatsOf(monk) : nullptr;
+  const int level = MonkLevelOf(stats);
+  if (!rules::HasDeflectAttacks(level)) return;
+  uint8_t* data = CurrentAttackData(attacker);
+  if (!data || !rules::MasteryAttackHit(data[ee::kAttackResult])) return;
+  auto* entries = reinterpret_cast<int16_t*>(data + ee::kAttackDamageEntries);
+  if (!rules::DeflectAttacksQualifies(entries, ee::kAttackDamageEntryCount, rules::HasDeflectEnergy(level))) return;
+  if (engine::IsDeadOrDying(monk) || IncapacitatedByCondition(monk)) return;
+  const uint32_t monk_id = IdOf(monk), attacker_id = IdOf(attacker);
+  void* round = Field<void*>(monk, ee::kCreatureCombatRound);
+  if (!round || Field<int32_t>(round, ee::kRoundOpportunitiesLeft) <= 0) {
+    if (IsPlayer(monk) && g_logged.First(LogOnce::Key(monk_id, static_cast<int>(attacker_id), 10))) {
+      Log("monk: 0x%08X hit by 0x%08X - no Deflect Attacks: reaction spent this round", monk_id, attacker_id);
+    }
+    return;
+  }
+  int total = 0;
+  for (int i = 0; i < ee::kAttackDamageEntryCount; ++i) total += entries[i] > 0 ? entries[i] : 0;
+  const int d10 = RollEngineDice(1, 10);
+  const int dexterity = engine::AbilityModifier(stats, 1);
+  const int reduction = rules::DeflectAttacksReduction(d10, dexterity, level);
+  const int after = rules::ReduceAttackDamage(entries, ee::kAttackDamageEntryCount, reduction);
+  SetField<int32_t>(round, ee::kRoundOpportunitiesLeft, Field<int32_t>(round, ee::kRoundOpportunitiesLeft) - 1);
+  Log("monk: 0x%08X Deflect Attacks - the hit by 0x%08X: %d less %d (1d10 %d + Dex %d + Monk %d) = %d (its reaction)",
+      monk_id, attacker_id, total, reduction, d10, dexterity, level, after);
+  Tell(monk, "Deflect Attacks - the hit's " + std::to_string(total) + " damage less " + std::to_string(reduction) +
+                 " (1d10 + Dex + Monk level): " + std::to_string(after) + "; your reaction this round.");
+}
+
+// M12 Self-Restoration (10): at the end of each round - 6 s of game time after one is seen - a Monk 10+
+// character drops one of Charmed, Frightened, Poisoned (rules::SelfRestorationPick's order). nwn5e's 2024
+// Charmed (on a player) and Frightened are icons (rules_conditions.cpp); NWN's charm or domination (a henchman),
+// NWN's poison effect, or the poison icon (Cunning Strike's Poisoned).
+struct HeldConditions {
+  bool charmed = false;
+  bool frightened = false;
+  bool poisoned = false;
+};
+
+HeldConditions HeldOf(const void* creature) {
+  HeldConditions held;
+  effects::ForEachOfType(creature, ee::kEffectTypeSetState, [&](const void* effect) {
+    const int state = effects::Integer(effect, 0);
+    if (state == ee::kStateCharmed || state == kStateDominated) held.charmed = true;
+    if (state == ee::kStateFrightened) held.frightened = true;
+  });
+  effects::ForEachOfType(creature, ee::kEffectTypeIcon, [&](const void* effect) {
+    const int icon = effects::Integer(effect, 0);
+    if (icon == ee::kIconCharmed) held.charmed = true;
+    if (icon == ee::kIconFrightened) held.frightened = true;
+    if (icon == ee::kIconPoison) held.poisoned = true;
+  });
+  if (!held.poisoned) held.poisoned = effects::HasType(creature, ee::kEffectTypePoison);
+  return held;
+}
+
+// The condition's effects removed (the script's RemoveEffect takes their linked effects too), as the creature.
+void RemoveCondition(uint32_t id, rules::SelfRestoration condition) {
+  const char* test = nullptr;
+  switch (condition) {
+    case rules::SelfRestoration::kCharmed:
+      test = "t == EFFECT_TYPE_CHARMED || t == EFFECT_TYPE_DOMINATED || (t == EFFECT_TYPE_ICON && "
+             "GetEffectInteger(e, 0) == EFFECT_ICON_CHARMED)";
+      break;
+    case rules::SelfRestoration::kFrightened:
+      test = "t == EFFECT_TYPE_FRIGHTENED || (t == EFFECT_TYPE_ICON && GetEffectInteger(e, 0) == EFFECT_ICON_FRIGHTENED)";
+      break;
+    case rules::SelfRestoration::kPoisoned:
+      test = "t == EFFECT_TYPE_POISON || (t == EFFECT_TYPE_ICON && GetEffectInteger(e, 0) == EFFECT_ICON_POISON)";
+      break;
+    case rules::SelfRestoration::kNone:
+      return;
+  }
+  const std::string script =
+      std::string("effect e = GetFirstEffect(OBJECT_SELF); while (GetIsEffectValid(e)) { int t = GetEffectType(e, "
+                  "TRUE); if (") + test + ") RemoveEffect(OBJECT_SELF, e); e = GetNextEffect(OBJECT_SELF); }"
+      " ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_REMOVE_CONDITION), OBJECT_SELF);"
+      " if (GetIsPC(OBJECT_SELF)) SendMessageToPC(OBJECT_SELF, \"nwn5e: Self-Restoration - you are no longer " +
+      std::string(rules::SelfRestorationName(condition)) + ".\");";
+  RunScriptChunk(script.c_str(), id);
+}
+
+void SelfRestorationUpdate(void* creature) {
+  if (!creature) return;
+  const HeldConditions held = HeldOf(creature);
+  if (!held.charmed && !held.frightened && !held.poisoned) {
+    if (!g_restoration_due.empty()) g_restoration_due.erase(IdOf(creature));
+    return;
+  }
+  if (!rules::HasSelfRestoration(MonkLevelOf(StatsOf(creature))) || engine::IsDeadOrDying(creature)) return;
+  const uint32_t id = IdOf(creature);
+  const uint64_t now = GameMs();
+  const auto due = g_restoration_due.emplace(id, now + kRoundMs);  // first seen: the end of this round
+  if (due.second || now < due.first->second) return;
+  due.first->second = now + kRoundMs;
+  const rules::SelfRestoration pick = rules::SelfRestorationPick(held.charmed, held.frightened, held.poisoned);
+  Log("monk: 0x%08X Self-Restoration - no longer %s (charmed %d, frightened %d, poisoned %d)", id,
+      rules::SelfRestorationName(pick), held.charmed ? 1 : 0, held.frightened ? 1 : 0, held.poisoned ? 1 : 0);
+  RemoveCondition(id, pick);
+}
+
+}  // namespace
+
+// rules_save_roll.cpp (OH4): NWN's Quivering Palm death save (ResolvePostMeleeDamage, before the use is spent),
+// for a faithful Monk character, answered "saved" without a roll: no instant death - nwn5e's 2024 save comes
+// with the points (QuiveringPalmSpend).
+bool QuiveringPalmEngineSave(uint32_t versus, uintptr_t caller) {
+  if (!Faithful() || !g_post_melee_code.Contains(caller)) return false;
+  void* monk = CreatureById(versus);
+  if (!monk || MonkLevelOf(StatsOf(monk)) <= 0) return false;
+  const uint8_t* data = CurrentAttackData(monk);
+  if (!data || Field<uint16_t>(data, ee::kAttackSpecial) != rules::kFeatQuiveringPalm) return false;
+  Log("monk: 0x%08X Quivering Palm - NWN's death save answered \"saved\" (2024: no instant death)", versus);
+  return true;
+}
+
+// rules_opportunity.cpp (OH1 Addle): no opportunity attacks until its next turn.
+bool OpenHandAddled(uint32_t id) {
+  if (g_addled.empty()) return false;
+  const auto it = g_addled.find(id);
+  if (it == g_addled.end()) return false;
+  if (GameMs() < it->second) return true;
+  g_addled.erase(it);
+  return false;
+}
+
+// The Combat options window (combat_options.cpp).
+int OpenHandMonkLevel(void* creature) { return creature && Faithful() ? MonkLevelOf(StatsOf(creature)) : 0; }
+rules::OpenHandTechnique OpenHandTechniqueOf(void* creature) {
+  if (creature) EnsureRecords(creature);
+  return TechniqueOf(creature);
+}
+int MonkFocusDc(void* creature) { return creature ? FocusDcOf(creature) : 0; }
+void PickOpenHandTechnique(void* creature, rules::OpenHandTechnique technique) { PickTechnique(creature, technique); }
+
 void InstallMonkRules() {
   if (!Faithful()) return;
   ServeConditionalRows("classfeat2024");  // M0: cls_feat_monk.if_classfeat2024.txt, the 2024 names
@@ -815,6 +1228,37 @@ void InstallMonkRules() {
   const bool resistance = AddResistanceProvider(&SuperiorDefenseResistance);
   AddChatCommand("!focus", &FocusCommand);
   AddHudPool(&FocusHudPool);
+  // Part 4 (0.60.0): Warrior of the Open Hand.
+  g_post_melee_code = FunctionAt(EngineExport(ee::kResolvePostMeleeDamage));
+  RegisterRecords({kVarTechnique});
+  const bool wholeness = AddFeatUsesProvider(kVarWholenessSpent, &WholenessUsesTotal) &&
+                         AddScriptHandler("n5_wholeness", &WholenessScript);
+  bool picks = AddScriptHandler("n5_oh_topple", &PickTechniqueScript<rules::OpenHandTechnique::kTopple>);
+  picks = AddScriptHandler("n5_oh_push", &PickTechniqueScript<rules::OpenHandTechnique::kPush>) && picks;
+  picks = AddScriptHandler("n5_oh_addle", &PickTechniqueScript<rules::OpenHandTechnique::kAddle>) && picks;
+  picks = AddScriptHandler("n5_oh_off", &PickTechniqueScript<rules::OpenHandTechnique::kOff>) && picks;
+  AddChatCommand("!technique", &TechniqueCommand);
+  InstallPushRules();  // Push's 15 ft (rules_push; the mastery and the Shove install it too)
+  AddDamageListener(&OpenHandPushLands);
+  const bool technique = g_rounds_counted && AddAttackRollListeners(nullptr, &OpenHandAfterRoll);
+  Log("monk: part 4 - %s; Quivering Palm: 4 points on a hit, a Constitution save at once - 10d12 force, half on a "
+      "success%s; Open Hand Technique %s%s",
+      wholeness ? "Wholeness of Body (Martial Arts die + Wis, Wis uses a Long Rest)" : "Wholeness of Body NOT converted",
+      g_post_melee_code.Valid() ? " (NWN's death save answered saved)" : " - NWN's death save NOT found: it may kill",
+      technique ? "on Flurry of Blows hits (Topple / Push / Addle)" : "NOT on (no attack-roll hook or round count)",
+      picks ? "" : " - the radial's picks do nothing (use !technique or !options)");
+  // Part 5 (0.60.0): Deflect Attacks, Self-Restoration.
+  g_defensive_code_for_filter = FunctionAt(EngineExport(ee::kResolveDefensiveEffects));
+  const bool masked = g_defensive_code_for_filter.Valid() &&
+                      !FindCallsTo(g_defensive_code_for_filter, EngineExport(ee::kHasFeat)).empty();
+  const bool deflect = AddResolveDamageListener(&DeflectAttacks);
+  const bool restoration = AddCreatureUpdateListener(&SelfRestorationUpdate);
+  Log("monk: part 5 - %s%s; %s",
+      deflect ? "Deflect Attacks (the first B / P / S hit a round, any from 13: 1d10 + Dex + Monk level off - the "
+                "reaction)"
+              : "Deflect Attacks NOT on (no ResolveDamage hook)",
+      masked ? "; NWN's Deflect Arrows masked" : "; NWN's Deflect Arrows NOT masked (no HasFeat in ResolveDefensiveEffects)",
+      restoration ? "Self-Restoration (one of Charmed, Frightened, Poisoned a round)" : "Self-Restoration NOT on");
   Log("monk: part 3 - %s; Flurry of Blows a point a round; Stunning Strike (a point on a hit, the Focus DC); "
       "Uncanny Metabolism / Perfect Focus at initiative; Disciplined Survivor; %s%s",
       focus ? "Focus points (X6 pool)" : "Focus points NOT kept (no feat-use hooks)",

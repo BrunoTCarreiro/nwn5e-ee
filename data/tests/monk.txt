@@ -8,7 +8,10 @@
 # it - NWN's Monk proficiency has crossbows; a longsword can't be equipped at all): with it in hand no
 # Martial Arts - no Flurry, no Stunning Strike (FO4). Test aids: !focus left <n>, !focus reset, !save <ability> <dc> (Disciplined Survivor),
 # !reflex <dc> <damage> (Dodge), !spawn <blueprint>, !shortrest, !hud, !queue.
-name = Monk part 3 (issue 28) and the resource panel (issue 57): human Monk 18
+# Monk parts 4 and 5 (issues 29, 30; 0.60.0): Wholeness of Body (3 uses: Wis +3) and Quivering Palm on the
+# quickbar; Open Hand Technique on its radial, !technique or !options (Topple until changed); Deflect
+# Attacks (1d10 + 3 + 18 off the first hit a round); Self-Restoration - !fear, !fear charm.
+name = Monk parts 3-5 (issues 28, 29, 30) and the resource panel (issue 57): human Monk 18
 species = human
 swap_class = monk
 class = monk

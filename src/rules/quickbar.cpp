@@ -51,6 +51,8 @@ enum Bit {
   kBitStepOfTheWind = 22,
   kBitStunningStrike = 23,
   kBitSuperiorDefense = 24,
+  kBitWholenessOfBody = 25,  // Monk part 4 (0.60.0)
+  kBitQuiveringPalm = 26,
 };
 
 bool IsSecondWind(int value) {
@@ -65,7 +67,8 @@ const std::vector<int>& QuickbarActionFeats2024() {
                                           kFeatIntimidatingPresence, kFeatKnockdownShove, kFeatShovePush,
                                           kFeatGrapple,        kFeatCunningStrike, kFeatDeviousStrikes,
                                           kFeatFlurryOfBlows,  kFeatPatientDefense, kFeatStepOfTheWind,
-                                          kFeatStunningFist,   kFeatSuperiorDefense};
+                                          kFeatStunningFist,   kFeatSuperiorDefense, kFeatWholenessOfBody,
+                                          kFeatQuiveringPalm};
   return kFeats;
 }
 
@@ -127,6 +130,10 @@ std::vector<QuickbarAction> QuickbarActions2024(const QuickbarFacts& facts) {
   if (has(kFeatStepOfTheWind)) actions.push_back({kBitStepOfTheWind, kFeatStepOfTheWind, "Step of the Wind"});
   if (has(kFeatStunningFist)) actions.push_back({kBitStunningStrike, kFeatStunningFist, "Stunning Strike"});
   if (has(kFeatSuperiorDefense)) actions.push_back({kBitSuperiorDefense, kFeatSuperiorDefense, "Superior Defense"});
+  // Monk part 4 (0.60.0): Wholeness of Body (Open Hand 6), Quivering Palm (17). Open Hand Technique's choice
+  // (Topple until changed) stays on its radial, !technique and !options - the record's bits are few.
+  if (has(kFeatWholenessOfBody)) actions.push_back({kBitWholenessOfBody, kFeatWholenessOfBody, "Wholeness of Body"});
+  if (has(kFeatQuiveringPalm)) actions.push_back({kBitQuiveringPalm, kFeatQuiveringPalm, "Quivering Palm"});
   if (has(kFeatKnockdownShove)) actions.push_back({kBitShove, kFeatKnockdownShove, "Shove"});
   if (has(kFeatShovePush)) actions.push_back({kBitShovePush, kFeatShovePush, "Shove: push"});
   if (has(kFeatGrapple)) actions.push_back({kBitGrapple, kFeatGrapple, "Grapple"});

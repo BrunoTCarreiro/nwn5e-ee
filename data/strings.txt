@@ -300,3 +300,17 @@
 16000518 Step of the Wind (Monk 2, 2024): you can take the Dash action as a Bonus Action, or spend 1 Focus Point to take both the Disengage and the Dash actions, your jump distance doubled for the turn.\n\nIn nwn5e (1 Focus Point): for a round, moving provokes no opportunity attacks and you move twice as fast. The free Dash waits for Bonus Actions (Phase 6); NWN has no jumping.
 16000519 Superior Defense
 16000520 Superior Defense (Monk 18, 2024): at the start of your turn you can spend 3 Focus Points to gain Resistance to all damage except Force damage for 1 minute, or until you have the Incapacitated condition.\n\nIn nwn5e it is used from the radial menu at any time; NWN's magical damage stands in for Force.
+# 16000521-16000532: Monk parts 4 and 5 (0.60.0; feat.monk.txt, feat.if_classfeat2024.txt,
+# spells.monk.txt).
+16000521 Open Hand Technique
+16000522 Open Hand Technique (Warrior of the Open Hand 3, 2024): whenever you hit a creature with an attack granted by your Flurry of Blows, you can impose one of these effects on it. Addle: it can't make Opportunity Attacks until the start of its next turn. Push: it must succeed on a Strength saving throw or be pushed up to 15 feet away from you. Topple: it must succeed on a Dexterity saving throw or have the Prone condition.\n\nIn nwn5e the effect is a standing choice, picked on this feat's radial menu, with !technique or in the Combat options window (Topple until you pick another; off imposes nothing). The saves are against your Focus save DC; Prone is NWN's knockdown for a round.
+16000523 Open Hand Technique: Topple
+16000524 Open Hand Technique: Push
+16000525 Open Hand Technique: Addle
+16000526 Open Hand Technique: off
+16000527 Wholeness of Body
+16000528 Wholeness of Body (Warrior of the Open Hand 6, 2024): as a Bonus Action you can roll your Martial Arts die and regain hit points equal to the number rolled plus your Wisdom modifier (minimum 1). You can use it a number of times equal to your Wisdom modifier (minimum once), and you regain all expended uses when you finish a Long Rest.\n\nIn nwn5e it is used from the radial menu, as an action until Bonus Actions come (Phase 6).
+16000529 Quivering Palm
+16000530 Quivering Palm (Warrior of the Open Hand 17, 2024): when you hit a creature with an Unarmed Strike, you can spend 4 Focus Points to set up vibrations in its body; when you end them, it makes a Constitution saving throw against your Focus save DC, taking 10d12 Force damage on a failed save, or half as much on a successful one.\n\nIn nwn5e it is NWN's Quivering Palm attack, and the save comes at once: the 4 points are spent only on a hit, the damage is magical (NWN's Force), and there is no instant death.
+16000531 Deflect Attacks
+16000532 Deflect Attacks (Monk 3, 2024): when an attack roll hits you and its damage includes Bludgeoning, Piercing or Slashing damage, you can take a Reaction to reduce the attack's total damage against you by 1d10 + your Dexterity modifier + your Monk level. From Monk 13 (Deflect Energy) it works against any damage type. If you reduce the damage to 0, you can spend 1 Focus Point to redirect some of the attack's force at a creature near you.\n\nIn nwn5e it is automatic on the first such hit each round (your reaction: an Uncanny Dodge or an opportunity attack shares it); the redirect waits for reactions (Phase 6 / 7). NWN's Deflect Arrows is not used.

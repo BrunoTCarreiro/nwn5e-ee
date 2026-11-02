@@ -3,8 +3,18 @@
 # points through the feat's uses.
 # 1029: Patient Defense (feat 1317) - n5_patient. 1030: Step of the Wind (1318) - n5_stepwind.
 # 1031: Superior Defense (1319) - n5_superior.
+# Part 4 (0.60.0, OH1, X8): 1032 Open Hand Technique (feat 1320) - a master row, as Cunning Strike's
+#       (1018): its SubRadSpell rows 1033-1037 are the radial's sub-options, each with Master 1032 and
+#       FeatID = a unique number * 65536 + the feat (16014-16018: after Cunning Strike's 16005-16013).
+#       n5_oh_* pick the technique; n5_cmbopts opens the Combat options window.
 # The n5_ scripts are run in C++ (script_hooks.cpp); no .ncs exists for them.
 Label Name IconResRef School Range VS MetaMagic TargetType ImpactScript Innate ConjTime ConjAnim CastAnim CastTime Proj ItemImmunity SubRadSpell1 SubRadSpell2 SubRadSpell3 SubRadSpell4 SubRadSpell5 Category Master UserType SpellDesc UseConcentration SpontaneouslyCast HostileSetting FeatID HasProjectile
 1029 nwn5e_PatientDefense 16000515 ife_dodge V P s 0x00 0x01 n5_patient 1 0 **** **** 0 0 1 **** **** **** **** **** 5 **** 3 16000516 0 0 0 1317 0
 1030 nwn5e_StepOfTheWind 16000517 ife_monkend V P s 0x00 0x01 n5_stepwind 1 0 **** **** 0 0 1 **** **** **** **** **** 5 **** 3 16000518 0 0 0 1318 0
 1031 nwn5e_SuperiorDefense 16000519 ife_x2epmonk V P s 0x00 0x01 n5_superior 1 0 **** **** 0 0 1 **** **** **** **** **** 5 **** 3 16000520 0 0 0 1319 0
+1032 nwn5e_OpenHandTechnique 16000521 ife_flurry V P s 0x00 0x01 **** 1 0 **** **** 0 0 1 1033 1034 1035 1036 1037 5 **** 3 16000522 0 0 0 1320 0
+1033 nwn5e_OpenHandTopple 16000523 ife_impknock V P s 0x00 0x01 n5_oh_topple 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1032 3 16000522 0 0 0 1049494824 0
+1034 nwn5e_OpenHandPush 16000524 ife_knockdow V P s 0x00 0x01 n5_oh_push 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1032 3 16000522 0 0 0 1049560360 0
+1035 nwn5e_OpenHandAddle 16000525 is_daze V P s 0x00 0x01 n5_oh_addle 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1032 3 16000522 0 0 0 1049625896 0
+1036 nwn5e_OpenHandOff 16000526 ife_flurry V P s 0x00 0x01 n5_oh_off 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1032 3 16000522 0 0 0 1049691432 0
+1037 nwn5e_OpenHandOptions 16000499 ife_flurry V P s 0x00 0x01 n5_cmbopts 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1032 3 16000504 0 0 0 1049756968 0

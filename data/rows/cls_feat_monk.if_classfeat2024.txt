@@ -6,7 +6,9 @@
 # (Unarmored Movement) at 2 (M6); Ki Strike (Empowered Strikes) at 6 (M10). Part 3 (0.56.0):
 # Flurry of Blows at 2 (M4), Stunning Fist (Stunning Strike) at 5 (M9); Patient Defense, Step of
 # the Wind (2) and Superior Defense (18) on the radial (granted by nwn5e, never by the engine).
-# Deflect Arrows, Wholeness of Body and Quivering Palm wait for their parts.
+# Parts 4 / 5 (0.60.0): Deflect Arrows (Deflect Attacks) at 3 (M8), Wholeness of Body at 6 (OH2) and
+# Quivering Palm at 17 (OH4) - Open Hand's levels are Monk levels (the SRD's one subclass, from 3); Open
+# Hand Technique's radial (OH1) granted by nwn5e at 3.
 FeatLabel FeatIndex List GrantedOnLevel OnMenu
 1 ImpStrike 21 3 -1 0
 2 FlurryofBlows 204 3 2 1
@@ -27,3 +29,7 @@ FeatLabel FeatIndex List GrantedOnLevel OnMenu
 + NWN5E_PATIENT_DEFENSE 1317 3 -1 1
 + NWN5E_STEP_OF_THE_WIND 1318 3 -1 1
 + NWN5E_SUPERIOR_DEFENSE 1319 3 -1 1
+6 DefArrow 8 3 3 0
+9 WholenessofBody 211 3 6 1
+17 QuiveringPalm 296 3 17 1
++ NWN5E_OPEN_HAND_TECHNIQUE 1320 3 -1 1

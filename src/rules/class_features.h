@@ -357,6 +357,60 @@ int PatientDefenseTempDice(int monk_level);  // 0 below 10
 // use costs at this level, Uncanny Metabolism ready or used, Perfect Focus.
 std::string FocusTooltip(int monk_level, int left, int dc, bool metabolism_ready);
 
+// Part 4 (0.60.0, #29): Warrior of the Open Hand - the SRD's one Monk subclass,
+// from Monk 3, so its levels are Monk levels.
+constexpr int kFeatWholenessOfBody = 211;     // NWN's (Monk 7, once a day): 2024's from Open Hand 6 (OH2)
+constexpr int kFeatOpenHandTechnique = 1320;  // nwn5e's: its radial picks the technique (OH1, X8)
+bool HasOpenHandTechnique(int monk_level);    // 3
+bool HasWholenessOfBody(int monk_level);      // 6
+bool HasQuiveringPalm(int monk_level);        // 17
+// The Monk level a Monk feat comes at in 2024, where nwn5e answers it (NWN's
+// table gave some earlier): Flurry of Blows 2, Deflect Attacks (Deflect Arrows)
+// 3, Stunning Strike 5, Wholeness of Body 6, Quivering Palm 17; 0 for others.
+// Below it HasFeat says no.
+int MonkFeatLevel2024(int feat);
+// OH2 Wholeness of Body: uses = the Wisdom modifier, at least 1, per Long Rest;
+// it heals the Martial Arts die + Wisdom modifier, at least 1.
+int WholenessOfBodyUses(int wisdom_modifier);
+int WholenessOfBodyHealing(int martial_arts_roll, int wisdom_modifier);
+// OH4 Quivering Palm, the owner's (a) - one step: on an Unarmed Strike's hit, 4
+// points; a Constitution save against the Focus DC at once - 10d12 Force (NWN's
+// magical damage), half on a success. No instant death.
+constexpr int kQuiveringPalmDice = 10;
+constexpr int kQuiveringPalmSides = 12;
+int QuiveringPalmDamage(int rolled, bool saved);
+// OH1 Open Hand Technique (3): each hit of a Flurry of Blows strike imposes the
+// standing choice (X8, Topple by default): Topple (a Dexterity save or Prone),
+// Push (a Strength save or pushed 15 ft away), Addle (no opportunity attacks
+// until its next turn); off imposes nothing.
+enum class OpenHandTechnique { kTopple = 1, kPush = 2, kAddle = 3, kOff = 4 };
+OpenHandTechnique DecodeOpenHandTechnique(int record);  // 0 = never chosen = Topple
+int EncodeOpenHandTechnique(OpenHandTechnique technique);
+const char* OpenHandTechniqueName(OpenHandTechnique technique);
+constexpr float kOpenHandPushMetres = 4.572f;  // 15 ft
+// Whether the round's attack `attack_index` (0 first) is one of Flurry of
+// Blows' strikes: the engine's round runs the main hand's attacks first, then
+// its extra attacks - where the Flurry's strikes are.
+bool IsFlurryStrike(int attack_index, int main_hand_attacks, int flurry_strikes);
+
+// Part 5 (0.60.0, #30).
+constexpr int kFeatDeflectArrows = 8;  // NWN's (Monk 2): Deflect Attacks from 3 (M8); its NWN effect masked
+bool HasDeflectAttacks(int monk_level);   // 3
+bool HasSelfRestoration(int monk_level);  // 10
+bool HasDeflectEnergy(int monk_level);    // 13
+// M8 Deflect Attacks: a hit whose damage includes Bludgeoning, Piercing or
+// Slashing (any type from 13, Deflect Energy) - entries by damage index (0-2
+// B / P / S, 12 the weapon's base damage; -1 unused) - takes 1d10 + Dex
+// modifier + Monk level off the attack's total damage, physical first.
+bool DeflectAttacksQualifies(const int16_t* entries, int count, bool deflect_energy);
+int DeflectAttacksReduction(int d10, int dexterity_modifier, int monk_level);
+int ReduceAttackDamage(int16_t* entries, int count, int amount);  // the new total
+// M12 Self-Restoration (10): the condition removed at the end of a turn -
+// Charmed, else Frightened, else Poisoned.
+enum class SelfRestoration { kNone, kCharmed, kFrightened, kPoisoned };
+SelfRestoration SelfRestorationPick(bool charmed, bool frightened, bool poisoned);
+const char* SelfRestorationName(SelfRestoration condition);
+
 // Save proficiencies class features give (whatever the first class): Slippery Mind's.
 bool ClassFeatureSaveProficiency(const std::vector<ClassLevels>& classes, Ability ability);
 

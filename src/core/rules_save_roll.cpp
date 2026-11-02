@@ -64,6 +64,7 @@ void StrokeOfLuckUsed(void* creature, bool succeeded);           // rules_rogue.
 void NoteSaveForced(uint32_t by, void* creature);                // rules_barbarian.cpp (B3: keeps a Rage going)
 bool StunningStrikeSaveDc(void* target, uint32_t versus, uintptr_t caller, int* dc);  // rules_monk.cpp (M9)
 void StunningStrikeSaveResult(void* target, uint32_t versus, int result);  // rules_monk.cpp (M9)
+bool QuiveringPalmEngineSave(uint32_t versus, uintptr_t caller);  // rules_monk.cpp (OH4)
 bool DisciplinedSurvivorReroll(void* creature);                          // rules_monk.cpp (M13)
 
 namespace {
@@ -279,6 +280,8 @@ void TellIfPlayer(uint32_t id, const std::string& line) {
 uint8_t SavingThrowRoll(void* creature, uint8_t save, uint16_t dc, uint8_t type, uint32_t versus, int feedback,
                         uint16_t feat, int from_combat) {
   const uintptr_t caller = reinterpret_cast<uintptr_t>(_ReturnAddress());
+  // Monk OH4: NWN's Quivering Palm death save - no roll, no line: "saved" (nwn5e's 2024 save follows).
+  if (creature && QuiveringPalmEngineSave(versus, caller)) return 1;
   if (g_config.saves == rules::RuleVariant::kOff || !creature) {
     return g_saving_throw_roll(creature, save, dc, type, versus, feedback, feat, from_combat);
   }

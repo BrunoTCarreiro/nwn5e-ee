@@ -87,7 +87,11 @@ TEST(GrantedFeatsFollowClassLevels) {
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kFighter, 9}}).size(), 1u);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 5}}).empty(), true);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 3}, {CharacterClass::kFighter, 2}})[0], kFeatSecondWind2);
-  CHECK_EQ(GrantableFeats2024().size(), 15u);
+  CHECK_EQ(GrantableFeats2024().size(), 19u);
+  CHECK_EQ(GrantableFeats2024()[15], kFeatOpenHandTechnique);  // Monk parts 4 / 5: appended
+  CHECK_EQ(GrantableFeats2024()[16], kFeatDeflectArrows);
+  CHECK_EQ(GrantableFeats2024()[17], kFeatWholenessOfBody);
+  CHECK_EQ(GrantableFeats2024()[18], kFeatQuiveringPalm);
   CHECK_EQ(GrantableFeats2024()[12], kFeatPatientDefense);  // Monk part 3: appended, never inserted
   CHECK_EQ(GrantableFeats2024()[13], kFeatStepOfTheWind);
   CHECK_EQ(GrantableFeats2024()[14], kFeatSuperiorDefense);
@@ -130,6 +134,10 @@ TEST(EveryoneCanShove) {
   CHECK_EQ(GrantedOnlyWhenMissing(kFeatKnockdownShove), true);
   CHECK_EQ(GrantedOnlyWhenMissing(kFeatSecondWind2), false);
   CHECK_EQ(GrantedOnlyWhenMissing(kFeatBrutalStrike), false);
+  CHECK_EQ(GrantedOnlyWhenMissing(kFeatOpenHandTechnique), false);  // nwn5e's own: taken back in NWN mode
+  CHECK_EQ(GrantedOnlyWhenMissing(kFeatWholenessOfBody), true);     // NWN's table gives it too
+  CHECK_EQ(GrantedOnlyWhenMissing(kFeatQuiveringPalm), true);
+  CHECK_EQ(GrantedOnlyWhenMissing(kFeatDeflectArrows), true);
 }
 
 // Breaks caught: part 3 at the wrong level (Reckless 2, Frenzy 3, Brutal
@@ -287,15 +295,17 @@ TEST(MonkPart1) {
   CHECK_EQ(HasBodyAndMind(19), false);
   CHECK_EQ(HasBodyAndMind(20), true);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kMonk, 1}}).empty(), true);
-  CHECK_EQ(GrantedFeats2024({{CharacterClass::kMonk, 6}}).size(), 2u);  // part 3: Patient Defense, Step of the Wind
+  // Part 3: Patient Defense, Step of the Wind; parts 4 / 5: Open Hand Technique, Deflect Attacks, Wholeness of Body.
+  CHECK_EQ(GrantedFeats2024({{CharacterClass::kMonk, 6}}).size(), 5u);
   const std::vector<int> monk7 = GrantedFeats2024({{CharacterClass::kMonk, 7}});
-  CHECK_EQ(monk7.size() == 3 && monk7[0] == kFeatImprovedEvasion, true);
+  CHECK_EQ(monk7.size() == 6 && monk7[0] == kFeatImprovedEvasion, true);
   for (const std::vector<ClassLevels>& both : {std::vector<ClassLevels>{{CharacterClass::kRogue, 7}, {CharacterClass::kMonk, 7}},
                                                std::vector<ClassLevels>{{CharacterClass::kMonk, 7}, {CharacterClass::kRogue, 7}}}) {
     int evasion = 0;
     for (int feat : GrantedFeats2024(both)) evasion += feat == kFeatImprovedEvasion ? 1 : 0;
     CHECK_EQ(evasion, 1);                        // asked by both classes, granted once
-    CHECK_EQ(GrantedFeats2024(both).size(), 4u);  // with the Rogue's Cunning Strike, the Monk's two Focus feats
+    // With the Rogue's Cunning Strike, the Monk's two Focus feats and parts 4 / 5's three.
+    CHECK_EQ(GrantedFeats2024(both).size(), 7u);
   }
   CHECK_EQ(HasFeatureList(CharacterClass::kMonk), true);
   CHECK_EQ(ClassFeatures2024(CharacterClass::kMonk, 1).size(), 2u);  // Martial Arts, Unarmored Defense
@@ -409,9 +419,111 @@ TEST(MonkFocus) {
   CHECK_EQ(HasSuperiorDefense(18), true);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kMonk, 2}}).size(), 2u);
   const std::vector<int> monk18 = GrantedFeats2024({{CharacterClass::kMonk, 18}});
-  CHECK_EQ(monk18.size(), 4u);  // Evasion, Patient Defense, Step of the Wind, Superior Defense
-  CHECK_EQ(monk18.back(), kFeatSuperiorDefense);
-  CHECK_EQ(GrantedFeats2024({{CharacterClass::kMonk, 17}}).size(), 3u);
+  // Evasion, Patient Defense, Step of the Wind, Superior Defense; Open Hand Technique, Deflect Attacks,
+  // Wholeness of Body, Quivering Palm (parts 4 / 5).
+  CHECK_EQ(monk18.size(), 8u);
+  CHECK_EQ(monk18[3], kFeatSuperiorDefense);
+  CHECK_EQ(GrantedFeats2024({{CharacterClass::kMonk, 17}}).size(), 7u);
+}
+
+static bool Grants(const std::vector<int>& feats, int feat) {
+  for (int f : feats) {
+    if (f == feat) return true;
+  }
+  return false;
+}
+
+// Monk part 4 (SRD 5.2.1 Warrior of the Open Hand; PLAN.md OH1, OH2, OH4).
+// Breaks caught: a feature at the wrong level (Open Hand Technique 3, Wholeness
+// 6, Quivering Palm 17), NWN's levels left for its feats (Wholeness 7, Quivering
+// Palm 15, Deflect Arrows 2), Wholeness' uses not Wis or no minimum 1, its
+// healing without Wis or no minimum 1, Quivering Palm's half rounded up or
+// whole on a success, "never chosen" not Topple, a technique not coming back as
+// it went in, a Flurry strike counted among the main hand's attacks or past
+// the Flurry's strikes.
+TEST(MonkOpenHand) {
+  CHECK_EQ(HasOpenHandTechnique(2), false);
+  CHECK_EQ(HasOpenHandTechnique(3), true);
+  CHECK_EQ(HasWholenessOfBody(5), false);
+  CHECK_EQ(HasWholenessOfBody(6), true);
+  CHECK_EQ(HasQuiveringPalm(16), false);
+  CHECK_EQ(HasQuiveringPalm(17), true);
+  CHECK_EQ(MonkFeatLevel2024(kFeatWholenessOfBody), 6);
+  CHECK_EQ(MonkFeatLevel2024(kFeatQuiveringPalm), 17);
+  CHECK_EQ(MonkFeatLevel2024(kFeatDeflectArrows), 3);
+  CHECK_EQ(MonkFeatLevel2024(kFeatStunningFist), 5);
+  CHECK_EQ(MonkFeatLevel2024(kFeatFlurryOfBlows), 2);
+  CHECK_EQ(MonkFeatLevel2024(kFeatPatientDefense), 0);
+  CHECK_EQ(WholenessOfBodyUses(3), 3);
+  CHECK_EQ(WholenessOfBodyUses(1), 1);
+  CHECK_EQ(WholenessOfBodyUses(0), 1);
+  CHECK_EQ(WholenessOfBodyUses(-1), 1);
+  CHECK_EQ(WholenessOfBodyHealing(5, 3), 8);
+  CHECK_EQ(WholenessOfBodyHealing(1, -1), 1);
+  CHECK_EQ(WholenessOfBodyHealing(1, -3), 1);
+  CHECK_EQ(QuiveringPalmDamage(65, false), 65);
+  CHECK_EQ(QuiveringPalmDamage(65, true), 32);
+  CHECK_EQ(DecodeOpenHandTechnique(0) == OpenHandTechnique::kTopple, true);
+  for (OpenHandTechnique t : {OpenHandTechnique::kTopple, OpenHandTechnique::kPush, OpenHandTechnique::kAddle,
+                              OpenHandTechnique::kOff}) {
+    CHECK_EQ(DecodeOpenHandTechnique(EncodeOpenHandTechnique(t)) == t, true);
+  }
+  CHECK_EQ(std::string(OpenHandTechniqueName(OpenHandTechnique::kPush)) == "Push", true);
+  CHECK_EQ(IsFlurryStrike(0, 1, 2), false);  // the main hand's attack
+  CHECK_EQ(IsFlurryStrike(1, 1, 2), true);
+  CHECK_EQ(IsFlurryStrike(2, 1, 2), true);
+  CHECK_EQ(IsFlurryStrike(3, 1, 2), false);  // past the Flurry's two (Haste's)
+  CHECK_EQ(IsFlurryStrike(1, 2, 3), false);  // Extra Attack: two main-hand attacks first
+  CHECK_EQ(IsFlurryStrike(4, 2, 3), true);
+  CHECK_EQ(IsFlurryStrike(2, 2, 0), false);  // no Flurry this round
+  CHECK_EQ(Grants(GrantedFeats2024({{CharacterClass::kMonk, 3}}), kFeatOpenHandTechnique), true);
+  CHECK_EQ(Grants(GrantedFeats2024({{CharacterClass::kMonk, 2}}), kFeatOpenHandTechnique), false);
+  CHECK_EQ(Grants(GrantedFeats2024({{CharacterClass::kMonk, 6}}), kFeatWholenessOfBody), true);
+  CHECK_EQ(Grants(GrantedFeats2024({{CharacterClass::kMonk, 5}}), kFeatWholenessOfBody), false);
+  CHECK_EQ(Grants(GrantedFeats2024({{CharacterClass::kMonk, 17}}), kFeatQuiveringPalm), true);
+  CHECK_EQ(Grants(GrantedFeats2024({{CharacterClass::kMonk, 16}}), kFeatQuiveringPalm), false);
+  CHECK_EQ(FocusTooltip(17, 17, 18, true).find("Quivering Palm: 4") != std::string::npos, true);
+  CHECK_EQ(FocusTooltip(16, 16, 18, true).find("Quivering Palm") == std::string::npos, true);
+}
+
+// Monk part 5 (SRD 5.2.1; PLAN.md M8, M12). Breaks caught: Deflect Attacks at
+// the wrong level (3; Deflect Energy 13; Self-Restoration 10), a fire-only hit
+// taken before 13, the weapon's base damage not counted as physical, the
+// reduction without Dex or the Monk level, a negative reduction, magic damage
+// reduced before the physical, damage below 0 or the total wrong, Self-
+// Restoration's order (Charmed, Frightened, Poisoned).
+TEST(MonkDeflectAndRestore) {
+  CHECK_EQ(HasDeflectAttacks(2), false);
+  CHECK_EQ(HasDeflectAttacks(3), true);
+  CHECK_EQ(HasDeflectEnergy(12), false);
+  CHECK_EQ(HasDeflectEnergy(13), true);
+  CHECK_EQ(HasSelfRestoration(9), false);
+  CHECK_EQ(HasSelfRestoration(10), true);
+  int16_t fire[13] = {-1, -1, -1, -1, -1, -1, -1, -1, 9, -1, -1, -1, -1};
+  CHECK_EQ(DeflectAttacksQualifies(fire, 13, false), false);
+  CHECK_EQ(DeflectAttacksQualifies(fire, 13, true), true);
+  int16_t base[13] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 7};
+  CHECK_EQ(DeflectAttacksQualifies(base, 13, false), true);  // the weapon's own damage
+  int16_t slash[13] = {-1, -1, 5, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+  CHECK_EQ(DeflectAttacksQualifies(slash, 13, false), true);
+  int16_t none[13] = {-1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+  CHECK_EQ(DeflectAttacksQualifies(none, 13, true), false);
+  CHECK_EQ(DeflectAttacksReduction(6, 3, 5), 14);
+  CHECK_EQ(DeflectAttacksReduction(1, -5, 0), 0);
+  int16_t mixed[13] = {-1, -1, 10, 6, -1, -1, -1, -1, -1, -1, -1, -1, 4};  // slashing 10, magical 6, base 4
+  CHECK_EQ(ReduceAttackDamage(mixed, 13, 12), 8);
+  CHECK_EQ(mixed[2], 0);
+  CHECK_EQ(mixed[12], 2);  // physical first
+  CHECK_EQ(mixed[3], 6);
+  CHECK_EQ(ReduceAttackDamage(mixed, 13, 20), 0);
+  CHECK_EQ(mixed[3], 0);
+  CHECK_EQ(mixed[0], -1);  // unused entries stay unused
+  CHECK_EQ(SelfRestorationPick(true, true, true) == SelfRestoration::kCharmed, true);
+  CHECK_EQ(SelfRestorationPick(false, true, true) == SelfRestoration::kFrightened, true);
+  CHECK_EQ(SelfRestorationPick(false, false, true) == SelfRestoration::kPoisoned, true);
+  CHECK_EQ(SelfRestorationPick(false, false, false) == SelfRestoration::kNone, true);
+  CHECK_EQ(Grants(GrantedFeats2024({{CharacterClass::kMonk, 3}}), kFeatDeflectArrows), true);
+  CHECK_EQ(Grants(GrantedFeats2024({{CharacterClass::kMonk, 2}}), kFeatDeflectArrows), false);
 }
 
 // R1 (SRD 5.2.1 p. 62): 1d6 at 1, one more at every odd level, 10d6 at 19; a
