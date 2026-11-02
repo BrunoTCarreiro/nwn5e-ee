@@ -132,8 +132,15 @@ struct AnimRecipe {
 
 std::string WriteAnimRecipe(const AnimRecipe& recipe);
 
-// The clip a game call plays (#112): <name>_2h when the character wields a two-hander and that was built (`built`
-// says), else the name; a name too long for the suffix (16 characters in all, as !anim plays) keeps its own.
+// How the character holds its weapon, for the clip a game call plays (#112): one hand; both close on a handle (a
+// greatsword, a greataxe, a weapon larger than its wielder - NWN's 2hreadyr); both spread on a shaft (a polearm, a
+// spear, a staff - plreadyr).
+enum class WeaponGrip { kOneHand, kTwoHand, kPolearm };
+
+// The clip a game call plays (#112): for a polearm <name>_pl, else <name>_2h; for a two-hander <name>_2h; each only
+// when built (`built` says), else the name. A name too long for the suffix (16 characters in all, as !anim plays)
+// keeps its own. The bool form is the two-hander's (true) or one hand's.
+std::string VariantName(const std::string& name, WeaponGrip grip, const std::function<bool(const std::string&)>& built);
 std::string VariantName(const std::string& name, bool two_handed, const std::function<bool(const std::string&)>& built);
 bool ReadAnimRecipe(const std::string& text, AnimRecipe* recipe, std::string* error);
 

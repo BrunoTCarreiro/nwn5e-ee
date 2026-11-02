@@ -138,6 +138,9 @@ AnimKeys Finish(const AnimRecipe& r, const std::vector<Value>& values, const Val
 constexpr float kEase = 0.2f;       // a limb's reach eases from 0 over 0.2 s outside its keys
 constexpr float kSinkCap = 0.25f;   // the hips sink at most this fraction of the hip height
 constexpr float kReportOver = 0.03f;
+// The grip's off arm (#112 addendum): kept to this share of its length - a slight bend, never locked straight - unless
+// the start pose holds it straighter.
+constexpr float kGripBend = 0.95f;
 
 struct Limb {
   std::string name;
@@ -349,10 +352,16 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
   const int root = find("rootdummy"), torso = find("torso_g"), pelvis = find("pelvis_g");
   const float hip_height = pose::RestHipHeight(bones);
   const float take_start = isfinite(recipe.take_start) ? recipe.take_start : 0.0f;  // a hand-edited nan: 0
+  // The two-handed grip (#112): a body without the right hand or the left arm has none.
+  const int rhand = find("rhand_g");
+  const pose::Chain left_arm = pose::FindChain(bones, "lbicep_g", "lforearm_g", "lhand_g");
+  const pose::Chain right_arm = pose::FindChain(bones, "rbicep_g", "rforearm_g", "rhand_g");
+  const bool grip = recipe.grip && rhand >= 0 && left_arm.root >= 0 && torso >= 0;
   std::vector<Limb> limbs;
   for (const std::string& name : AnimTargetLimbs()) {
     const auto keys = recipe.targets.find(name);
     if (keys == recipe.targets.end() || keys->second.empty()) continue;
+    if (grip && name == "left_hand") continue;  // the grip holds the left hand: its target does nothing (the grip wins)
     Limb L;
     L.name = name;
     L.keys = &keys->second;
@@ -383,13 +392,11 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
   bool any_poses = false;
   for (const auto& part : recipe.poses) any_poses = any_poses || !part.second.empty();
   // The two-handed grip (#112): the left hand held where the stance holds it against the right hand - its place and turn
-  // in rhand_g's frame, from the stance's first frame on this body - every frame, after the other IK (over a left-hand
-  // target). A body without the right hand or the left arm has none.
-  const int rhand = find("rhand_g");
-  const pose::Chain left_arm = pose::FindChain(bones, "lbicep_g", "lforearm_g", "lhand_g");
-  const bool grip = recipe.grip && rhand >= 0 && left_arm.root >= 0 && torso >= 0;
+  // in rhand_g's frame, from the stance's first frame on this body - and the off arm's limit: the straighter of
+  // kGripBend of its length and its span in the stance, so the clip's ends (the stance) never move.
   Vec3 grip_place = {0.0f, 0.0f, 0.0f};
   Quat grip_turn = {0.0f, 0.0f, 0.0f, 1.0f};
+  float grip_limit = 0.0f;
   if (grip) {
     Pose st = pose::RestPose(bones);
     for (size_t b = 0; b < bones.size(); ++b) {
@@ -403,8 +410,80 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
     pose::Forward(bones, &st);
     grip_place = pose::Rotate(pose::QConj(st.wq[rhand]), pose::Sub(st.wp[left_arm.end], st.wp[rhand]));
     grip_turn = QMul(pose::QConj(st.wq[rhand]), st.wq[left_arm.end]);
+    grip_limit = std::max(kGripBend * pose::ChainLength(bones, left_arm), pose::Length(pose::Sub(st.wp[left_arm.end], st.wp[left_arm.root])));
   }
-  if (limbs.empty() && !pelvis_keys && !grip) {
+
+  // The report: each limb's worst shortfall while its goal had full weight (the grip's: the weapon hand's largest move).
+  std::map<std::string, AnimIkShort> worst;
+  const auto record = [&](const std::string& limb, float shortfall, float T) {
+    AnimIkShort& w = worst[limb];
+    w.limb = limb;
+    if (shortfall > w.metres) {
+      w.metres = shortfall;
+      w.t = T;
+    }
+  };
+  const auto finish_report = [&]() {
+    if (!report) return;
+    for (const auto& w : worst) {
+      if (w.second.metres > kReportOver) report->push_back(w.second);
+    }
+  };
+
+  // The grip on the finished frames (#112 addendum) - after Step 9's loop and blends, which turn each bone on its own
+  // and so would pull the hands apart. Each frame: where the grip lies beyond the off arm's limit from the left
+  // shoulder, the weapon hand gives way first - rhand_g moves toward the shoulder by the excess, along the line to it,
+  // keeping its turn in the world (the weapon points as performed), so the grip comes to the limit; then the left arm
+  // takes the grip, place and turn. The arms' turns are written back per frame, each on the same side as the one
+  // before; the right arm's only where it gave way.
+  const auto hold_grip = [&]() {
+    if (!grip) return;
+    const std::vector<int> in_clip = pose::ClipIndex(clip, bones);
+    const int arm[6] = {left_arm.root, left_arm.mid, left_arm.end, right_arm.root, right_arm.mid, right_arm.end};
+    std::vector<std::vector<Value>> held(6);
+    bool gave_way = false;
+    for (int f = 0; f <= frames; ++f) {
+      const float t = frame_time(f), T = take_start + t;
+      Pose p = pose::PoseAt(clip, in_clip, bones, t);
+      const Vec3 shoulder = p.wp[left_arm.root];
+      Vec3 goal = pose::Add(p.wp[rhand], pose::Rotate(p.wq[rhand], grip_place));
+      const float excess = pose::Length(pose::Sub(goal, shoulder)) - grip_limit;
+      if (excess > 0.0f && right_arm.root >= 0) {
+        const Pose before = p;
+        Quat turn = before.wq[rhand];
+        const Vec3 in = pose::Normalized(pose::Sub(shoulder, goal));
+        const Vec3 elbow_way = pose::Rotate(before.wq[torso], {0.0f, -1.0f, 0.0f});
+        pose::SolveTwoBone(bones, before, &p, right_arm, pose::Add(before.wp[rhand], pose::Scale(in, excess)), elbow_way, pose::kLimbDamping, &turn);
+        pose::Forward(bones, &p);
+        record("grip", pose::Length(pose::Sub(p.wp[rhand], before.wp[rhand])), T);
+        goal = pose::Add(p.wp[rhand], pose::Rotate(p.wq[rhand], grip_place));
+        gave_way = true;
+      }
+      const Pose arms = p;
+      Quat hand = pose::QNormalized(QMul(arms.wq[rhand], grip_turn));
+      const Vec3 elbow_way = pose::Rotate(arms.wq[torso], {0.0f, -1.0f, 0.0f});
+      record("left_hand", pose::SolveTwoBone(bones, arms, &p, left_arm, goal, elbow_way, pose::kLimbDamping, &hand), T);
+      for (int k = 0; k < 6; ++k) {
+        if (arm[k] >= 0) held[k].push_back(p.lq[arm[k]]);
+      }
+    }
+    for (int k = 0; k < 6; ++k) {
+      if (arm[k] < 0 || (k >= 3 && !gave_way)) continue;
+      AnimKeys keys;
+      for (int f = 0; f <= frames; ++f) {
+        Value q = held[k][f];
+        if (f > 0) {
+          const Value& a = keys.values.back();
+          if (a[0] * q[0] + a[1] * q[1] + a[2] * q[2] + a[3] * q[3] < 0.0f) q = {-q[0], -q[1], -q[2], -q[3]};
+        }
+        keys.times.push_back(frame_time(f));
+        keys.values.push_back(q);
+      }
+      put(static_cast<size_t>(arm[k]), false, keys);
+    }
+  };
+
+  if (limbs.empty() && !pelvis_keys) {
     // Steps 1, 4 and 6, then 9: each track on its own (phase 1's clip, exactly, without pose keys).
     for (const Bound& b : bound) {
       std::vector<Value> values;
@@ -412,6 +491,8 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
       put(b.at, b.track->position, Finish(recipe, values, b.home, b.track->position, frames));
     }
     key_unkeyed_turns();
+    hold_grip();
+    finish_report();
     *out = clip;
     return true;
   }
@@ -563,15 +644,6 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
   }
 
   // Each frame: the composed pose, the hips and the legs, the hands. The report after the last solve.
-  std::map<std::string, AnimIkShort> worst;  // limb -> its worst shortfall while its goal had full weight
-  const auto record = [&](const std::string& limb, float shortfall, float T) {
-    AnimIkShort& w = worst[limb];
-    w.limb = limb;
-    if (shortfall > w.metres) {
-      w.metres = shortfall;
-      w.t = T;
-    }
-  };
   std::vector<std::vector<Value>> turns(bones.size());
   std::vector<Value> root_places;
   std::vector<bool> solved(bones.size(), false);
@@ -606,17 +678,6 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
       if (r >= 0.999f) record(L.name, shortfall, T);
       solved[L.chain.root] = solved[L.chain.mid] = solved[L.chain.end] = true;
     }
-    // The grip (#112): the left hand on the right hand's grip place, with its turn, on the body as it now stands.
-    if (grip) {
-      pose::Forward(bones, &now);
-      const Pose arms = now;
-      const Vec3 goal = pose::Add(arms.wp[rhand], pose::Rotate(arms.wq[rhand], grip_place));
-      Quat hand = pose::QNormalized(QMul(arms.wq[rhand], grip_turn));
-      const Vec3 elbow_way = pose::Rotate(arms.wq[torso], {0.0f, -1.0f, 0.0f});
-      const float shortfall = pose::SolveTwoBone(bones, arms, &now, left_arm, goal, elbow_way, 0.0f, &hand);
-      record("left_hand", shortfall, T);
-      solved[left_arm.root] = solved[left_arm.mid] = solved[left_arm.end] = true;
-    }
     for (size_t b = 0; b < bones.size(); ++b) turns[b].push_back(now.lq[b]);
     if (root >= 0) root_places.push_back({now.lp[root][0], now.lp[root][1], now.lp[root][2], 0.0f});
   }
@@ -645,6 +706,7 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
     put(root, true, Finish(recipe, root_places, home, true, frames));
   }
   key_unkeyed_turns();
+  hold_grip();
   // No key spins the long way round: each orientation on the same side as the one before.
   for (AnimNode& node : clip.nodes) {
     if (!node.has_orientation) continue;
@@ -654,11 +716,7 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
       if (a[0] * q[0] + a[1] * q[1] + a[2] * q[2] + a[3] * q[3] < 0.0f) q = {-q[0], -q[1], -q[2], -q[3]};
     }
   }
-  if (report) {
-    for (const auto& w : worst) {
-      if (w.second.metres > kReportOver) report->push_back(w.second);
-    }
-  }
+  finish_report();
   *out = clip;
   return true;
 }

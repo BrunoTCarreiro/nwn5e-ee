@@ -328,6 +328,145 @@ TEST(AnimIkGripHoldsTheOtherHand) {
   CHECK_EQ(Dist(LeftInRight(PoseOf(loose, bones, 1.0f), bones).p, stance.p) > 0.05f, true);
 }
 
+// The grip's give-way (#112 addendum): the off arm's limit - the straighter of 95% of its length and its span in the
+// start pose; the goal's distance from the left shoulder in a pose; the right arm swung `degrees` about X over the second.
+float GripLimit(const std::vector<AnimNode>& bones) {
+  const Pose st = PoseOf(IkStance(bones), bones, 0.0f);
+  return std::max(0.95f * ArmLength(bones), Dist(st.wp[IndexOf(bones, "lhand_g")], st.wp[IndexOf(bones, "lbicep_g")]));
+}
+float GoalReach(const Pose& p, const std::vector<AnimNode>& bones, const HandInHand& grip) {
+  const int r = IndexOf(bones, "rhand_g");
+  return Dist(Add(p.wp[r], Rotate(p.wq[r], grip.p)), p.wp[IndexOf(bones, "lbicep_g")]);
+}
+Quat AboutY(float degrees) { return AxisAngleQ({0.0f, 1.0f, 0.0f}, degrees * kPi / 180.0f); }
+// The right arm swung sideways: in across the body to `in_deg` at `at` (the left arm reaches), then out to `out_deg` at
+// the end (out of its reach). Sideways, since this body's grip mirrors the hands: a swing about X keeps the reach.
+AnimRecipe SwingRecipe(const std::vector<AnimNode>& bones, float in_deg, float at, float out_deg) {
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  for (AnimKeyTrack& t : r.keys["a_ik"]) {
+    if (t.bone != "rbicep_g") continue;
+    t.keys.times = {0.0f, at, 1.0f};
+    t.keys.values = {{0.0f, 0.0f, 0.0f, 1.0f}, AboutY(in_deg), AboutY(out_deg)};
+  }
+  return r;
+}
+
+// Where the left arm can't reach the grip, the weapon hand gives way: on every frame the left hand is on the grip
+// (place and turn) with the left arm within its limit; the right hand keeps its turn in the world and only ever comes
+// nearer the left shoulder; the report names the move as "grip" and leaves no left-hand shortfall. Breaks caught: the
+// give-way off, the move without the turn kept.
+TEST(AnimGripWeaponHandGivesWay) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  const AnimRecipe r = SwingRecipe(bones, 40.0f, 0.4f, -90.0f);
+  const HandInHand stance = LeftInRight(PoseOf(IkStance(bones), bones, 0.0f), bones);
+  const AnimClip loose = Run(r, bones);
+  CHECK_EQ(GoalReach(PoseOf(loose, bones, 1.0f), bones, stance) > GripLimit(bones) + 0.05f, true);  // out of reach alone
+  AnimRecipe held = r;
+  held.grip = true;
+  std::vector<AnimIkShort> report;
+  const AnimClip out = Run(held, bones, &report);
+  const int rh = IndexOf(bones, "rhand_g"), lu = IndexOf(bones, "lbicep_g"), lh = IndexOf(bones, "lhand_g");
+  float worst_place = 0.0f, worst_turn = 0.0f, worst_span = 0.0f, worst_rturn = 0.0f, worst_away = 0.0f;
+  for (int f = 0; f <= 30; ++f) {
+    const float t = static_cast<float>(f) / 30.0f;
+    const Pose g = PoseOf(out, bones, t), l = PoseOf(loose, bones, t);
+    const HandInHand h = LeftInRight(g, bones);
+    worst_place = std::max(worst_place, Dist(h.p, stance.p));
+    worst_turn = std::max(worst_turn, TurnDegrees(h.q, stance.q));
+    worst_span = std::max(worst_span, Dist(g.wp[lh], g.wp[lu]) - GripLimit(bones));
+    worst_rturn = std::max(worst_rturn, TurnDegrees(g.wq[rh], l.wq[rh]));
+    worst_away = std::max(worst_away, Dist(g.wp[rh], g.wp[lu]) - Dist(l.wp[rh], l.wp[lu]));
+  }
+  CHECK_EQ(worst_place < 1e-3f, true);
+  CHECK_EQ(worst_turn < 0.5f, true);
+  CHECK_EQ(worst_span < 2e-3f, true);
+  CHECK_EQ(worst_rturn < 0.5f, true);
+  CHECK_EQ(worst_away < 1e-3f, true);
+  bool named = false, left_short = false;
+  for (const AnimIkShort& s : report) {
+    named = named || (s.limb == "grip" && s.metres > 0.05f);
+    left_short = left_short || s.limb == "left_hand";
+  }
+  CHECK_EQ(named, true);
+  CHECK_EQ(left_short, false);
+}
+
+// Where the left arm reaches the grip within its limit, the right arm is the clip's without the grip - the rule
+// changes nothing it doesn't need to. Break caught: a give-way on every frame.
+TEST(AnimGripUntouchedWhereItReaches) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  const AnimRecipe r = SwingRecipe(bones, 40.0f, 0.4f, -90.0f);
+  const HandInHand stance = LeftInRight(PoseOf(IkStance(bones), bones, 0.0f), bones);
+  AnimRecipe held = r;
+  held.grip = true;
+  const AnimClip out = Run(held, bones), loose = Run(r, bones);
+  int within = 0;
+  float worst = 0.0f;
+  for (int f = 0; f <= 30; ++f) {
+    const float t = static_cast<float>(f) / 30.0f;
+    const Pose g = PoseOf(out, bones, t), l = PoseOf(loose, bones, t);
+    if (GoalReach(l, bones, stance) > GripLimit(bones) - 1e-3f) continue;
+    ++within;
+    for (const char* n : {"rbicep_g", "rforearm_g", "rhand_g"}) worst = std::max(worst, TurnDegrees(g.lq[IndexOf(bones, n)], l.lq[IndexOf(bones, n)]));
+  }
+  CHECK_EQ(within >= 5, true);
+  CHECK_EQ(worst < 0.01f, true);
+}
+
+// The grip holds through the clip's blends (#112 review I1): the blends turn each bone on its own, so a grip solved
+// before them drifts inside their windows (a sideways swing: mirrored arms would blend in step). Break caught: the grip
+// solved before Step 9.
+TEST(AnimGripHoldsThroughTheBlends) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = SwingRecipe(bones, 20.0f, 0.5f, 40.0f);  // in across the body, within reach all through
+  r.grip = true;
+  r.blend_in = 0.3f;
+  r.blend_out = 0.3f;
+  const HandInHand stance = LeftInRight(PoseOf(IkStance(bones), bones, 0.0f), bones);
+  const AnimClip out = Run(r, bones);
+  float worst_place = 0.0f, worst_turn = 0.0f;
+  for (int f = 0; f <= 30; ++f) {
+    const HandInHand h = LeftInRight(PoseOf(out, bones, static_cast<float>(f) / 30.0f), bones);
+    worst_place = std::max(worst_place, Dist(h.p, stance.p));
+    worst_turn = std::max(worst_turn, TurnDegrees(h.q, stance.q));
+  }
+  CHECK_EQ(worst_place < 1e-3f, true);
+  CHECK_EQ(worst_turn < 0.5f, true);
+}
+
+// A start pose whose off arm is straighter than 95% of its length (this one's: ~96.6%) keeps its own: the clip's ends -
+// the start pose - don't move. Break caught: the limit without the start pose's span.
+TEST(AnimGripEndsOnTheStance) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  const Pose st = PoseOf(IkStance(bones), bones, 0.0f);
+  const int rh = IndexOf(bones, "rhand_g"), lh = IndexOf(bones, "lhand_g"), lu = IndexOf(bones, "lbicep_g");
+  CHECK_EQ(Dist(st.wp[lh], st.wp[lu]) > 0.95f * ArmLength(bones), true);
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  r.grip = true;
+  const AnimClip out = Run(r, bones);
+  for (const float t : {0.0f, 1.0f}) {
+    const Pose p = PoseOf(out, bones, t);
+    CHECK_EQ(Dist(p.wp[rh], st.wp[rh]) < 1e-4f, true);
+    CHECK_EQ(Dist(p.wp[lh], st.wp[lh]) < 1e-4f, true);
+  }
+}
+
+// Under the grip a left-hand target does nothing (the grip wins): the clip is the grip's alone, and the target's
+// shortfall isn't reported. Break caught: the target solved first (its bend survives into the grip).
+TEST(AnimGripSkipsALeftHandTarget) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe held = IkRecipe(bones, 30.0f);
+  held.grip = true;
+  AnimRecipe aimed = held;
+  aimed.targets["left_hand"] = {Key(2.5f, {0.8f, 0.9f, -0.2f})};
+  std::vector<AnimIkShort> report;
+  const AnimClip a = Run(aimed, bones, &report), b = Run(held, bones);
+  CHECK_EQ(SameKeys(a, b), true);
+  bool left_short = false;
+  for (const AnimIkShort& s : report) left_short = left_short || s.limb == "left_hand";
+  CHECK_EQ(left_short, false);
+}
+
 // A body without the right hand: no grip, the clip as without it.
 TEST(AnimIkGripMissingHandSkipped) {
   std::vector<AnimNode> bones = WholeBody(1.0f);

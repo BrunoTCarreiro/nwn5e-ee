@@ -328,9 +328,24 @@ const std::vector<std::string>& AnimPoseParts() {
   return parts;
 }
 
+std::string VariantName(const std::string& name, WeaponGrip grip, const std::function<bool(const std::string&)>& built) {
+  const auto pick = [&](const char* suffix) {
+    const std::string variant = name + suffix;
+    return variant.size() <= 16 && built && built(variant) ? variant : std::string();
+  };
+  if (grip == WeaponGrip::kPolearm) {
+    const std::string pl = pick("_pl");
+    if (!pl.empty()) return pl;
+  }
+  if (grip != WeaponGrip::kOneHand) {
+    const std::string two = pick("_2h");
+    if (!two.empty()) return two;
+  }
+  return name;
+}
+
 std::string VariantName(const std::string& name, bool two_handed, const std::function<bool(const std::string&)>& built) {
-  const std::string variant = name + "_2h";
-  return two_handed && variant.size() <= 16 && built && built(variant) ? variant : name;
+  return VariantName(name, two_handed ? WeaponGrip::kTwoHand : WeaponGrip::kOneHand, built);
 }
 
 const std::vector<std::string>& AnimTargetLimbs() {

@@ -284,8 +284,12 @@ bool AnimationRecipeBuilt(const std::string& name, std::string* text) {
   return true;
 }
 
-// The clip a game call plays (#112): <name>_2h when the creature wields a two-hander (the caller's rule says) and that
-// recipe was built, else the name. (rules_barbarian's Rage)
+// The clip a game call plays (#112): by how the creature holds its weapon (the caller's rule says) - a polearm's
+// <name>_pl, else <name>_2h; a two-hander's <name>_2h - when that recipe was built, else the name. (rules_barbarian's
+// Rage.) The bool form is the two-hander's (true) or one hand's.
+std::string AnimationVariant(const std::string& name, data::WeaponGrip grip) {
+  return data::VariantName(name, grip, [](const std::string& n) { return AnimationRecipeBuilt(n, nullptr); });
+}
 std::string AnimationVariant(const std::string& name, bool two_handed) {
-  return data::VariantName(name, two_handed, [](const std::string& n) { return AnimationRecipeBuilt(n, nullptr); });
+  return AnimationVariant(name, two_handed ? data::WeaponGrip::kTwoHand : data::WeaponGrip::kOneHand);
 }

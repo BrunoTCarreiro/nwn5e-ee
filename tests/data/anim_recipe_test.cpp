@@ -545,6 +545,18 @@ TEST(AnimVariantName) {
   CHECK_EQ(VariantName("n5_abcdefghijk", true, built) == "n5_abcdefghijk", true);
 }
 
+// By the grip kind (#112 addendum): a polearm plays <name>_pl, else <name>_2h, else the name; a two-hander <name>_2h,
+// else the name; one hand the name. Break caught: _pl without its _2h fallback.
+TEST(AnimVariantNameByGrip) {
+  const auto built = [](const std::string& n) { return n == "n5_rage_2h" || n == "n5_rage_pl" || n == "n5_shove_2h" || n == "n5_abcdefghijk_pl"; };
+  CHECK_EQ(VariantName("n5_rage", WeaponGrip::kPolearm, built) == "n5_rage_pl", true);
+  CHECK_EQ(VariantName("n5_shove", WeaponGrip::kPolearm, built) == "n5_shove_2h", true);
+  CHECK_EQ(VariantName("n5_kick", WeaponGrip::kPolearm, built) == "n5_kick", true);
+  CHECK_EQ(VariantName("n5_rage", WeaponGrip::kTwoHand, built) == "n5_rage_2h", true);
+  CHECK_EQ(VariantName("n5_rage", WeaponGrip::kOneHand, built) == "n5_rage", true);
+  CHECK_EQ(VariantName("n5_abcdefghijk", WeaponGrip::kPolearm, built) == "n5_abcdefghijk", true);
+}
+
 TEST(AnimRecipeAssembledNeedsAStance) {
   AnimRecipe r = AssembledFixture();
   r.stance.clear();
