@@ -38,8 +38,9 @@ int CunningStrikeDcOf(void* creature);
 void PickCunningStrike(void* creature, rules::CunningEffect effect);
 // bonus_actions.cpp (Phase 6, #52)
 bool ActionEconomyOn();
-bool DefaultBonusAttackOn(void* creature);
-void SetDefaultBonusAttack(void* creature, bool on);
+int DefaultBonusKey(void* creature);
+void SetDefaultBonusKey(void* creature, int key);
+bool HasBonusFamily(void* creature, int family);
 // rules_monk.cpp
 int OpenHandMonkLevel(void* creature);
 rules::OpenHandTechnique OpenHandTechniqueOf(void* creature);
@@ -64,8 +65,14 @@ struct Option {
 };
 
 const Option kOptions[] = {
-    {"o_bonus", Kind::kBonus, 0, "Bonus attack",
-     "each round: your off-hand attack, Martial Arts' strike or Flurry - off: the Bonus Action kept for one you use"},
+    // 0.61.1: the default Bonus Action - one of these, or none (all off).
+    {"o_ba_attack", Kind::kBonus, 0, "Bonus attack", "your off-hand attack, Martial Arts' strike or Flurry of Blows"},
+    {"o_ba_secwind", Kind::kBonus, 1220, "Second Wind", "heals you (not at full hit points); a use a round"},
+    {"o_ba_rage", Kind::kBonus, 293, "Rage", "starts a Rage (not while raging); a use"},
+    {"o_ba_intim", Kind::kBonus, 1314, "Intimidating Presence", "frightens the enemies around you; a use"},
+    {"o_ba_patient", Kind::kBonus, 1317, "Patient Defense", "Disengage and Dodge; a Focus point a round"},
+    {"o_ba_step", Kind::kBonus, 1318, "Step of the Wind", "Disengage and Dash; a Focus point a round"},
+    {"o_ba_whole", Kind::kBonus, 211, "Wholeness of Body", "heals you (not at full hit points); a use"},
     {"o_reckless", Kind::kReckless, 0, "Reckless Attack",
      "Advantage on your Strength attacks; attacks against you have Advantage until a round after your last"},
     {"o_bs_force", Kind::kBrutal, 1, "Forceful Blow", "pushed 15 ft straight away from you"},
@@ -89,7 +96,7 @@ bool Faithful() { return g_config.class_features == rules::RuleVariant::kFaithfu
 
 bool Available(void* creature, const Option& o) {
   switch (o.kind) {
-    case Kind::kBonus: return ActionEconomyOn();
+    case Kind::kBonus: return ActionEconomyOn() && (o.effect == 0 || HasBonusFamily(creature, o.effect));
     case Kind::kReckless: return rules::HasRecklessAttack(BrutalStrikeBarbarianLevel(creature));
     case Kind::kBrutal:
       return rules::BrutalEffectAvailable(static_cast<rules::BrutalEffect>(o.effect), BrutalStrikeBarbarianLevel(creature));
@@ -102,7 +109,7 @@ bool Available(void* creature, const Option& o) {
 
 bool Checked(void* creature, const Option& o) {
   switch (o.kind) {
-    case Kind::kBonus: return DefaultBonusAttackOn(creature);
+    case Kind::kBonus: return DefaultBonusKey(creature) == o.effect;
     case Kind::kReckless: return RecklessAttackOn(creature);
     case Kind::kBrutal: {
       for (rules::BrutalEffect e :
@@ -126,7 +133,7 @@ bool Checked(void* creature, const Option& o) {
 // A pick toggles: a chosen effect is removed, another is chosen.
 void Toggle(void* creature, const Option& o, bool on) {
   switch (o.kind) {
-    case Kind::kBonus: SetDefaultBonusAttack(creature, on); break;
+    case Kind::kBonus: SetDefaultBonusKey(creature, on ? o.effect : -1); break;  // one of them, or none
     case Kind::kReckless: SetRecklessAttack(creature, on); break;
     case Kind::kBrutal: PickBrutalStrike(creature, static_cast<rules::BrutalEffect>(o.effect)); break;
     case Kind::kCunning: PickCunningStrike(creature, static_cast<rules::CunningEffect>(o.effect)); break;
@@ -182,7 +189,7 @@ std::string Layout(void* creature, int* rows) {
   };
   int count = 0;
   if (ActionEconomyOn()) {  // Phase 6 (#52)
-    add(Header("Bonus Action - one a round; the default when you use none:"));
+    add(Header("Bonus Action - one a round. In a fight, at the start of each round in which yours is free:"));
     ++count;
   }
   for (const Option& o : kOptions) {

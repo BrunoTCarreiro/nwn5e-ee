@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include <vector>
+
 // Phase 6 part 1 (#52): the 2024 Bonus Action (bonus_actions.cpp), `actions` faithful.
 
 // rules_two_weapon.cpp, after InitializeNumberOfAttacks set the round's off-hand attacks and before the Monk's
@@ -10,8 +12,17 @@
 void BonusActionRoundStart(void* round);
 // rules_monk.cpp: whether the Martial Arts strike / Flurry of Blows is this round's Bonus Action.
 bool MartialArtsBonusAllowed(void* creature);
-// The Combat configuration window (combat_options.cpp): the default Bonus Action - the automatic bonus attack (on)
-// or none (off).
+// The Combat configuration window (combat_options.cpp): the default Bonus Action - its key: 0 the automatic bonus
+// attack, -1 none, else a Bonus Action ability's family (rules::BonusFeatFamily); whether the creature has one of a
+// family's feats.
 bool ActionEconomyOn();
-bool DefaultBonusAttackOn(void* creature);
-void SetDefaultBonusAttack(void* creature, bool on);
+int DefaultBonusKey(void* creature);
+void SetDefaultBonusKey(void* creature, int key);
+bool HasBonusFamily(void* creature, int family);
+// The action queue strip (action_queue.cpp): a waiting Bonus Action ("next round") and one just used (a moment).
+struct BonusStripItem {
+  int feat = -1;
+  bool waiting = false;
+};
+std::vector<BonusStripItem> BonusActionStripItems(void* creature);
+bool CancelWaitingBonusAction(void* creature);

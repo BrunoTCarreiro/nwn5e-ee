@@ -26,12 +26,34 @@ bool TakesNoAction(int feat);
 // The name a chat line gives a Bonus Action feat ("" for any other).
 const char* BonusActionName(int feat);
 
-// The default Bonus Action (Combat configuration): the automatic bonus attack
-// (the off-hand attack, Martial Arts' strike, Flurry of Blows in its mode), or
-// none - kept for one clicked.
-enum class DefaultBonusAction { kBonusAttack = 0, kNone = 1 };
-DefaultBonusAction DecodeDefaultBonusAction(int record);  // 0 = never chosen = the bonus attack
-int EncodeDefaultBonusAction(DefaultBonusAction choice);
+// The default Bonus Action (Combat configuration; 0.61.1, owner: "This option
+// should allow the player to select what bonus action they'd want to be
+// triggered automatically"): the automatic bonus attack (the off-hand attack,
+// Martial Arts' strike, Flurry of Blows in its mode), a Bonus Action ability
+// (fired at the start of each of the creature's rounds in combat while its
+// Bonus Action is free), or none - kept for one clicked.
+enum class DefaultBonusAction { kBonusAttack = 0, kNone = 1, kFeat = 2 };
+struct DefaultBonus {
+  DefaultBonusAction kind = DefaultBonusAction::kBonusAttack;
+  int feat = -1;  // kFeat: the ability's family (BonusFeatFamily)
+};
+DefaultBonus DecodeDefaultBonus(int record);  // 0 the bonus attack (never chosen), 1 none, the family + 2
+int EncodeDefaultBonus(DefaultBonus choice);
+// A Bonus Action feat's family: Rage's successors are Rage (293), Second Wind's
+// are its first (1220); any other feat is its own.
+int BonusFeatFamily(int feat);
+// Pointless to fire: the healing ones (Second Wind, Wholeness of Body) at full
+// hit points.
+bool DefaultBonusPointless(int family, int hit_points, int max_hit_points);
+// A round's plan: fire the chosen ability when the round's Bonus Action is free
+// and the ability is ready (held, a use left, not already on - Rage - and not
+// pointless); otherwise the automatic bonus attack (the ability's fallback, or
+// the choice itself) - or none.
+struct DefaultPlan {
+  bool fire_feat = false;
+  DefaultBonusAction attack = DefaultBonusAction::kBonusAttack;
+};
+DefaultPlan PlanDefaultBonus(DefaultBonus choice, bool bonus_used, bool feat_ready);
 
 // A round's start: which automatic bonus attacks it keeps and whether they
 // spend its Bonus Action. `used`: the round's Bonus Action already went (a

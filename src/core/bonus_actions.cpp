@@ -12,8 +12,18 @@
 // - The default Bonus Action (Combat configuration; record nwn5e_bonus_default): the automatic bonus attack - the
 //   off-hand attack (rules_two_weapon.cpp), the Monk's Martial Arts strike or Flurry of Blows (rules_monk.cpp) - or
 //   none, kept free for one clicked. An off-hand attack through Nick (weapon mastery) is part of the Attack action.
+// 0.61.1 (owner: "This option should allow the player to select what bonus action they'd want to be triggered
+// automatically"; "yes, build both as described"):
+// - The default may also be a Bonus Action ability (record: its family + 2): at the start of each of the creature's
+//   rounds in combat, while the round's Bonus Action is free, it fires (as a waiting one does) - unless it isn't
+//   ready (not held, no use left, Rage while raging) or is pointless (Second Wind, Wholeness of Body at full hit
+//   points); then the bonus attack. Never out of combat (the round's start is in combat only).
+// - The action queue strip shows a waiting Bonus Action ("next round"; a click cancels it) and one just used (about
+//   1.5 s): they never enter NWN's queue.
 
 #include "bonus_actions.h"
+
+#include <windows.h>
 
 #include <stdint.h>
 
@@ -37,6 +47,7 @@
 #include "rules/weapons.h"
 
 int MartialArtsLevel(void* creature);        // rules_monk.cpp (M1)
+bool BarbarianRaging(void* creature);        // rules_barbarian.cpp (B1)
 void RefreshCombatOptions(uint32_t player);  // combat_options.cpp
 
 namespace {
@@ -63,6 +74,12 @@ struct BonusState {
   bool martial_arts = true;
 };
 std::unordered_map<uint32_t, BonusState> g_state;  // by creature id; the engine's thread
+struct RecentUse {
+  int feat = -1;
+  ULONGLONG until = 0;
+};
+std::unordered_map<uint32_t, RecentUse> g_recent;  // the strip's "used" tile, by creature id
+constexpr ULONGLONG kRecentMs = 1500;
 thread_local bool t_running_pending = false;
 int g_lines = 0;
 
@@ -79,8 +96,43 @@ void Tell(void* creature, const std::string& line) {
   if (IsPlayer(creature)) TellPlayer(IdOf(creature), "nwn5e: " + line);
 }
 
-rules::DefaultBonusAction DefaultOf(void* creature) {
-  return rules::DecodeDefaultBonusAction(creature ? engine::GetLocalInt(creature, kVarDefault) : 0);
+rules::DefaultBonus DefaultOf(void* creature) {
+  return rules::DecodeDefaultBonus(creature ? engine::GetLocalInt(creature, kVarDefault) : 0);
+}
+
+// The feat of a family the creature holds (Rage's and Second Wind's highest first), or -1.
+int HeldFeatOf(void* creature, int family) {
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  if (!stats) return -1;
+  static const int kRage[] = {331, 330, 329, 328, 327, 326, 293};
+  static const int kSecondWind[] = {1222, 1221, 1220};
+  if (family == 293) {
+    for (int feat : kRage) {
+      if (engine::HasFeat(stats, feat)) return feat;
+    }
+    return -1;
+  }
+  if (family == 1220) {
+    for (int feat : kSecondWind) {
+      if (engine::HasFeat(stats, feat)) return feat;
+    }
+    return -1;
+  }
+  return engine::HasFeat(stats, family) ? family : -1;
+}
+
+// Ready to fire: a use left (nwn5e's pools answer the engine's count), not already raging, not pointless.
+bool FeatReady(void* creature, int feat, int family) {
+  using RemainingUsesFn = uint8_t (*)(void* stats, uint16_t feat);
+  using MaxHitPointsFn = int16_t (*)(void* creature, int);
+  static const auto remaining = reinterpret_cast<RemainingUsesFn>(EngineExport(ee::kGetFeatRemainingUses));
+  static const auto max_hp = reinterpret_cast<MaxHitPointsFn>(EngineExport(ee::kGetMaxHitPoints));
+  void* stats = StatsOf(creature);
+  if (feat < 0 || !stats) return false;
+  if (remaining && remaining(stats, static_cast<uint16_t>(feat)) == 0) return false;
+  if (family == 293 && BarbarianRaging(creature)) return false;
+  const int hp = Field<int16_t>(creature, ee::kObjectCurrentHitPoints);
+  return !(max_hp && rules::DefaultBonusPointless(family, hp, max_hp(creature, 1)));
 }
 
 bool Free(uint32_t id, const BonusState& s) {
@@ -143,6 +195,7 @@ void BonusActionUsed(void* creature, int feat) {
   if (!Faithful() || !creature || !rules::TakesBonusAction(feat)) return;
   const uint32_t id = IdOf(creature);
   Spend(id, &g_state[id]);
+  g_recent[id] = RecentUse{feat, GetTickCount64() + kRecentMs};
   if (LogSlot()) Log("actions: 0x%08X %s - the round's Bonus Action", id, rules::BonusActionName(feat));
 }
 
@@ -188,9 +241,20 @@ void BonusActionRoundStart(void* round) {
       Spend(id, &s);
       s.run_pending = true;  // the creature update runs it
     }
+    // 0.61.1: the default - a Bonus Action ability fires while the round's is free and it's ready; else the bonus
+    // attack (or none).
+    const rules::DefaultBonus choice = DefaultOf(creature);
+    const int held = choice.kind == rules::DefaultBonusAction::kFeat ? HeldFeatOf(creature, choice.feat) : -1;
+    const rules::DefaultPlan plan =
+        rules::PlanDefaultBonus(choice, s.used, held >= 0 && FeatReady(creature, held, choice.feat));
+    if (plan.fire_feat) {
+      s.pending = held;
+      Spend(id, &s);
+      s.run_pending = true;
+    }
     const bool nick = off_hand > 0 && NickOffHand(creature);
     const bool martial_arts = off_hand <= 0 && MartialArtsLevel(creature) > 0;
-    const rules::RoundBonus r = rules::DecideRoundBonus(s.used, DefaultOf(creature), off_hand > 0, martial_arts, nick);
+    const rules::RoundBonus r = rules::DecideRoundBonus(s.used, plan.attack, off_hand > 0, martial_arts, nick);
     s.keep_off_hand = r.keep_off_hand;
     s.martial_arts = r.keep_martial_arts;
     if (r.spends_bonus) Spend(id, &s);
@@ -213,23 +277,73 @@ bool MartialArtsBonusAllowed(void* creature) {
 
 bool ActionEconomyOn() { return Faithful(); }
 
-bool DefaultBonusAttackOn(void* creature) {
+int DefaultBonusKey(void* creature) {
   if (creature) EnsureRecords(creature);
-  return DefaultOf(creature) == rules::DefaultBonusAction::kBonusAttack;
+  const rules::DefaultBonus choice = DefaultOf(creature);
+  return choice.kind == rules::DefaultBonusAction::kNone   ? -1
+         : choice.kind == rules::DefaultBonusAction::kFeat ? choice.feat
+                                                           : 0;
 }
 
-void SetDefaultBonusAttack(void* creature, bool on) {
+void SetDefaultBonusKey(void* creature, int key) {
   if (!creature || !Faithful()) return;
   EnsureRecords(creature);
-  SetRecord(creature, kVarDefault,
-            rules::EncodeDefaultBonusAction(on ? rules::DefaultBonusAction::kBonusAttack : rules::DefaultBonusAction::kNone));
+  rules::DefaultBonus choice;
+  if (key < 0) {
+    choice.kind = rules::DefaultBonusAction::kNone;
+  } else if (key > 0) {
+    choice.kind = rules::DefaultBonusAction::kFeat;
+    choice.feat = rules::BonusFeatFamily(key);
+  }
+  SetRecord(creature, kVarDefault, rules::EncodeDefaultBonus(choice));
   const uint32_t id = IdOf(creature);
-  Log("actions: 0x%08X default Bonus Action: %s", id, on ? "the bonus attack" : "none");
-  Tell(creature, on ? "Default Bonus Action: your bonus attack each round (the off-hand attack, Martial Arts' strike "
-                      "or Flurry of Blows)."
-                    : "Default Bonus Action: none - your bonus attack is left out, the Bonus Action kept for one you "
-                      "use.");
+  const std::string name = choice.kind == rules::DefaultBonusAction::kFeat ? rules::BonusActionName(choice.feat) : "";
+  Log("actions: 0x%08X default Bonus Action: %s", id,
+      choice.kind == rules::DefaultBonusAction::kNone ? "none" : name.empty() ? "the bonus attack" : name.c_str());
+  if (choice.kind == rules::DefaultBonusAction::kNone) {
+    Tell(creature, "Default Bonus Action: none - your bonus attack is left out, the Bonus Action kept for one you use.");
+  } else if (choice.kind == rules::DefaultBonusAction::kFeat) {
+    Tell(creature, "Default Bonus Action: " + name + " - at the start of each of your rounds in a fight while your "
+                   "Bonus Action is free (skipped when it can't be used or would do nothing: then your bonus attack).");
+  } else {
+    Tell(creature, "Default Bonus Action: your bonus attack each round (the off-hand attack, Martial Arts' strike or "
+                   "Flurry of Blows).");
+  }
   RefreshCombatOptions(id);
+}
+
+bool HasBonusFamily(void* creature, int family) { return HeldFeatOf(creature, family) >= 0; }
+
+std::vector<BonusStripItem> BonusActionStripItems(void* creature) {
+  std::vector<BonusStripItem> items;
+  if (!Faithful() || !creature) return items;
+  const uint32_t id = IdOf(creature);
+  const auto state = g_state.find(id);
+  if (state != g_state.end() && state->second.pending >= 0 && !state->second.run_pending) {
+    BonusStripItem waiting;
+    waiting.feat = state->second.pending;
+    waiting.waiting = true;
+    items.push_back(waiting);
+  }
+  const auto recent = g_recent.find(id);
+  if (recent != g_recent.end()) {
+    if (GetTickCount64() < recent->second.until) {
+      BonusStripItem used;
+      used.feat = recent->second.feat;
+      items.push_back(used);
+    } else {
+      g_recent.erase(recent);
+    }
+  }
+  return items;
+}
+
+bool CancelWaitingBonusAction(void* creature) {
+  const auto state = creature ? g_state.find(IdOf(creature)) : g_state.end();
+  if (state == g_state.end() || state->second.pending < 0 || state->second.run_pending) return false;
+  Log("actions: 0x%08X the waiting %s cancelled", state->first, rules::BonusActionName(state->second.pending));
+  state->second.pending = -1;
+  return true;
 }
 
 void InstallBonusActions() {

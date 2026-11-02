@@ -98,6 +98,7 @@
 #include "hooks.h"
 #include "item_use.h"
 #include "log.h"
+#include "bonus_actions.h"
 #include "nui.h"
 #include "records.h"
 #include "rules/queue_strip.h"
@@ -147,6 +148,7 @@ struct Item {
   uint16_t cancel_action = 0xFFFF;
   uint16_t cancel_id = 0xFFFF;
   bool own_special = false;  // nwn5e's special attack: RemoveSpecialAttack by its id
+  int bonus = 0;  // Phase 6 (#52, 0.61.1): a Bonus Action - 1 waiting for the next round, 2 just used
 };
 
 struct Player {
@@ -254,8 +256,8 @@ std::string Signature(const std::vector<Item>& items) {
   std::string s;
   char part[96];
   for (const Item& it : items) {
-    sprintf_s(part, "%d,%d,%d,%d,%x,%d,%x,%d,%d,%d;", static_cast<int>(it.kind), it.action, it.spell, it.feat,
-              it.item, it.iprp_row, it.target, it.spot ? 1 : 0, it.cancel_action, it.cancel_id);
+    sprintf_s(part, "%d,%d,%d,%d,%x,%d,%x,%d,%d,%d,%d;", static_cast<int>(it.kind), it.action, it.spell, it.feat,
+              it.item, it.iprp_row, it.target, it.spot ? 1 : 0, it.cancel_action, it.cancel_id, it.bonus);
     s += part;
   }
   return s;
@@ -365,7 +367,9 @@ Fields FieldsOf(const Item& it, uint32_t player) {
       f.icon = Quoted(rules::QueueActionIcon(it.action));
       break;
   }
-  if (it.target == player) {
+  if (it.bonus) {  // 0.61.1: a Bonus Action - when, not its target
+    f.target = it.bonus == 1 ? "\"next round\"" : "\"Bonus Action\"";
+  } else if (it.target == player) {
     f.target = "\"yourself\"";
   } else {
     sprintf_s(line, " q = StringToObject(\"%x\");", it.target);  // q: the target (o is an item's)
@@ -450,8 +454,9 @@ std::vector<std::pair<uint32_t, Item>> g_cancels;    // g_lock: clicks, for the 
 uint32_t g_client_player = ee::kObjectInvalid;        // the server's side
 
 uint64_t KeyOf(const Item& it) {
-  return (static_cast<uint64_t>(it.kind) << 40) | (static_cast<uint64_t>(it.own_special ? 1 : 0) << 36) |
-         (static_cast<uint64_t>(it.cancel_action) << 16) | it.cancel_id;
+  return (static_cast<uint64_t>(it.kind) << 40) | (static_cast<uint64_t>(it.bonus) << 37) |
+         (static_cast<uint64_t>(it.own_special ? 1 : 0) << 36) | (static_cast<uint64_t>(it.cancel_action) << 16) |
+         it.cancel_id;
 }
 
 // The server's side: names the shown items by one script (locals) and hands them over.
@@ -815,6 +820,21 @@ void QueueCreatureUpdate(void* creature) {
   const bool client = ClientNuiReady() && (g_client_player == ee::kObjectInvalid || g_client_player == id);
   if (client) g_client_player = id;
   std::vector<Item> items = Off(creature) ? std::vector<Item>() : ReadQueue(creature);
+  // 0.61.1 (owner: "new actions aren't being added to the actions queue at the top"): a Bonus Action never enters
+  // NWN's queue - the one waiting for the next round and the one just used go first.
+  if (!Off(creature)) {
+    std::vector<Item> bonus;
+    for (const BonusStripItem& b : BonusActionStripItems(creature)) {
+      Item it;
+      it.kind = Kind::kSpecial;
+      it.feat = b.feat;
+      it.target = id;
+      it.bonus = b.waiting ? 1 : 2;
+      it.cancel_id = static_cast<uint16_t>(b.feat);
+      bonus.push_back(it);
+    }
+    items.insert(items.begin(), bonus.begin(), bonus.end());
+  }
   const std::string signature = Signature(items);
   if (signature == state.signature) return;
   state.signature = signature;
@@ -827,6 +847,7 @@ void QueueCreatureUpdate(void* creature) {
 }
 
 bool Cancel(void* creature, const Item& it) {
+  if (it.bonus) return it.bonus == 1 && CancelWaitingBonusAction(creature);  // a used one is done
   if (it.own_special) {
     void* round = Field<void*>(creature, ee::kCreatureCombatRound);
     if (!round) return false;

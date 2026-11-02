@@ -29,11 +29,46 @@ const char* BonusActionName(int feat) {
   return "";
 }
 
-DefaultBonusAction DecodeDefaultBonusAction(int record) {
-  return record == 1 ? DefaultBonusAction::kNone : DefaultBonusAction::kBonusAttack;
+DefaultBonus DecodeDefaultBonus(int record) {
+  DefaultBonus choice;
+  if (record == 1) {
+    choice.kind = DefaultBonusAction::kNone;
+  } else if (record >= 2) {
+    choice.kind = DefaultBonusAction::kFeat;
+    choice.feat = record - 2;
+  }
+  return choice;
 }
 
-int EncodeDefaultBonusAction(DefaultBonusAction choice) { return static_cast<int>(choice); }
+int EncodeDefaultBonus(DefaultBonus choice) {
+  switch (choice.kind) {
+    case DefaultBonusAction::kNone: return 1;
+    case DefaultBonusAction::kFeat: return choice.feat >= 0 ? choice.feat + 2 : 0;
+    case DefaultBonusAction::kBonusAttack: return 0;
+  }
+  return 0;
+}
+
+int BonusFeatFamily(int feat) {
+  if (IsRageFeat(feat)) return kFeatRage;
+  if (feat == kFeatSecondWind3 || feat == kFeatSecondWind4) return kFeatSecondWind2;
+  return feat;
+}
+
+bool DefaultBonusPointless(int family, int hit_points, int max_hit_points) {
+  const bool healing = family == kFeatSecondWind2 || family == kFeatWholenessOfBody;
+  return healing && hit_points >= max_hit_points;
+}
+
+DefaultPlan PlanDefaultBonus(DefaultBonus choice, bool bonus_used, bool feat_ready) {
+  DefaultPlan plan;
+  if (choice.kind == DefaultBonusAction::kNone) {
+    plan.attack = DefaultBonusAction::kNone;
+    return plan;
+  }
+  plan.fire_feat = choice.kind == DefaultBonusAction::kFeat && !bonus_used && feat_ready;
+  return plan;  // the bonus attack: the choice, or the ability's fallback
+}
 
 RoundBonus DecideRoundBonus(bool used, DefaultBonusAction choice, bool off_hand, bool martial_arts, bool nick) {
   RoundBonus round;

@@ -209,6 +209,24 @@ monster AC by CR.
   - Tests BonusActionOnceARound, BonusActionFeats, BonusActionRoundStart (CAUGHT mutations caught).
   - Later: potions as Bonus Actions (with the Action queue, #120 - the item path), Cunning Action and Steady Aim
     (#53), Rage extended by a Bonus Action (it extends by attacking, as before), the reaction switches (#54).
+- *The owner's 0.61.0 run (2026-11-02):* "new actions aren't being added to the actions queue at the top. They still
+  execute, but I can't see them. In the options having bonus actions checked doesn't do anything or does it? I still
+  have to manually trigger it. This option should allow the player to select what bonus action they'd want to be
+  triggered automatically." (The log: Rage instant, Intimidating Presence and Patient Defense waited for the next
+  round and went, Nick's off-hand attack free.) *Decided (owner, 2026-11-02: "yes, build both as described"):*
+  - the action queue strip shows a waiting Bonus Action ("next round") and one just used (a moment) - they never
+    enter NWN's queue;
+  - the default Bonus Action is a selector: the bonus attack, a Bonus Action ability the character has, or none;
+    the ability fires at the start of each of its rounds in combat while the Bonus Action is free, skipped when it
+    isn't ready (no use left, Rage while raging) or would do nothing (Second Wind, Wholeness of Body at full hit
+    points) - then the bonus attack; never out of combat.
+- *Built 0.61.1:* rules::DefaultBonus (record: 0 the bonus attack, 1 none, the ability's family + 2;
+  rules::BonusFeatFamily - Rage's successors and Second Wind's are one), DefaultBonusPointless, PlanDefaultBonus; the
+  round's start fires the ready ability as a waiting one (the creature update runs it), its held feat the highest of
+  its family, "ready" the engine's remaining uses (nwn5e's pools answer) and !BarbarianRaging. Combat configuration:
+  a checkbox per choice the character has (one ticked, none ticked = none). The strip (action_queue.cpp) puts the
+  waiting one ("next round"; a click cancels it) and the used one (1.5 s) first. Test DefaultBonusChoice (CAUGHT
+  mutations caught).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,
