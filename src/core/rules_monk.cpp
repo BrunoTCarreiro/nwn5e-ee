@@ -1053,6 +1053,8 @@ void DeflectAttacks(void* attacker, void* target) {
   const int after = rules::ReduceAttackDamage(entries, ee::kAttackDamageEntryCount, reduction);
   Log("monk: 0x%08X Deflect Attacks - the hit by 0x%08X: %d less %d (1d10 %d + Dex %d + Monk %d) = %d (its reaction)",
       monk_id, attacker_id, total, reduction, d10, dexterity, level, after);
+  // 0.60.8 (owner, 2026-11-02: "go with A for the deflection"): NWN's parry sparks on the Monk, with the swing.
+  ApplyEffectAs(monk_id, monk_id, "DURATION_TYPE_INSTANT", "EffectVisualEffect(VFX_COM_SPARKS_PARRY)", 0.0f, kSwingDelay);
   Tell(monk, "Deflect Attacks - the hit's " + std::to_string(total) + " damage less " + std::to_string(reduction) +
                  " (1d10 + Dex + Monk level): " + std::to_string(after) + "; your reaction this round.");
 }

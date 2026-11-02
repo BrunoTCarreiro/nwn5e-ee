@@ -1525,6 +1525,19 @@ levels are Monk levels.
   (nwn5e's save and damage follow anyway); Deflect Attacks takes the round's first qualifying hit even when a
   bigger one comes later; Topple's knockdown is NWN's (its own immunities); Self-Restoration acts a round after a
   condition is seen, not at the exact end of the Monk's turn.
+*The owner's 0.60.5 run (2026-11-02):* "OH2-2 shows "Trap Kit" instead of "Wholeness of Body" in the action
+queue" - NWN's spells.2da row 309 carries an item's name strref, which the strip shows (the radial names the
+feat); "M8-1 isn't triggering" - the log: Deflect Attacks took hits to 0, then "reaction spent this round" four
+rounds later: the engine refills the round's reaction only when the creature's own round starts, and a Monk
+standing still while shot at has none running. *Built 0.60.7:* data/rows/spells.names.txt serves row 309 the
+feat's name (1945), both modes; reactions.h's TakeReaction - a reaction a rule took is back after 6 s when none of
+the creature's rounds ended since (rules::ReactionBackWithoutRounds; test ReactionBackWhenNotFighting, 4 mutations
+caught) - for Deflect Attacks and the Rogue's Uncanny Dodge (the same gap). The owner: "M12-1,2 and 3 are
+confirmed"; "I didn't see the deflection trigger probably because there was no animation to show it".
+*Decided (owner, 2026-11-02): "go with A for the deflection, the thing is that I'm pretty sure I've seen deflect
+projectile animation. but yeah, I'll add C later."* (A: a visual effect on the Monk; B, NWN's parry - the hit then a
+miss to the engine - not taken; C: a custom deflect animation, with the animation session, later.) *Built 0.60.8:*
+NWN's parry sparks (VFX_COM_SPARKS_PARRY) on the Monk with each deflection.
 
 ### Phase 3 — Rogue (CM9): recommendations (for the owner's decision)
 
