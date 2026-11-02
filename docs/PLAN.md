@@ -235,6 +235,11 @@ monster AC by CR.
   knew a target from an attack rolled in the last 30 s - none yet in a fight's first round. *Built 0.61.2:* the
   resume follows every Bonus Action feat; with no attack rolled, the target ordered (+kCreatureAttackTarget); an
   instant one's dropped attack is given back within 3 s (a later order of the player's stands).
+- *The owner's 0.61.2 run (2026-11-02):* BA-12 - the default Rage at the fight's first round (19:40:10), once; the
+  attacks followed (19:40:15, 19:40:18) and kept the Rage going; no second Rage.
+*Accepted (owner, 2026-11-02: "all other BA items passed"; "BA-12 passes").* Bonus Actions (#52), 0.61.0-0.61.2 -
+BA-1 to BA-11, BA-13 and BA-14 on 0.61.1, BA-12 on 0.61.2. Next in the build order: the Action queue and the default
+attack (#120), then the reaction switches (#54).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,
