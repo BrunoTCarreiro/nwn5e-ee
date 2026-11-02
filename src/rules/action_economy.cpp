@@ -83,4 +83,28 @@ RoundBonus DecideRoundBonus(bool used, DefaultBonusAction choice, bool off_hand,
   return round;
 }
 
+DefaultAttackPick PickDefaultAttack(bool armed, bool in_combat, bool last_target_stands, bool nearest_found) {
+  if (!armed || !in_combat) return DefaultAttackPick::kNone;
+  if (last_target_stands) return DefaultAttackPick::kLastTarget;
+  return nearest_found ? DefaultAttackPick::kNearest : DefaultAttackPick::kNone;
+}
+
+float DefaultAttackRange(bool ranged_weapon, int ranged_retarget_range) {
+  if (!ranged_weapon || ranged_retarget_range <= 0) return kDefaultAttackMeleeRange;
+  return static_cast<float>(ranged_retarget_range);
+}
+
+bool OrderKeepsAttack(int input_minor) {
+  return input_minor == 0x12 || input_minor == 0x09 || input_minor == 0x06 || input_minor == 0x23;
+}
+
+OrderPlace PlaceOrder(bool attacking_mid_round, bool waits_for_round_end) {
+  if (!attacking_mid_round) return OrderPlace::kAsNwn;
+  return waits_for_round_end ? OrderPlace::kAfterAttacks : OrderPlace::kBeforeAttacks;
+}
+
+bool AttackYields(bool round_running, bool action_waiting) { return !round_running && action_waiting; }
+
+bool IsPotionBaseItem(int base_item) { return base_item == 49 || base_item == 104; }
+
 }  // namespace rules

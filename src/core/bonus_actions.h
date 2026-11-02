@@ -23,6 +23,8 @@ bool HasBonusFamily(void* creature, int family);
 struct BonusStripItem {
   int feat = -1;
   bool waiting = false;
+  uint32_t item = 0x7F000000;  // #120: a potion waiting - the item and its power (active property)
+  int active_property = -1;
 };
 std::vector<BonusStripItem> BonusActionStripItems(void* creature);
 bool CancelWaitingBonusAction(void* creature);

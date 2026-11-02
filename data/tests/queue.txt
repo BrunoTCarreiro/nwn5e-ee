@@ -1,0 +1,18 @@
+# A !test profile ([debug] test_commands=1): type "!test queue" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# The Action queue and the default attack (issue 120): a Cleric 5 with three attacks a round (the
+# attacks_per_round switch), a quarterstaff and five potions. A spell given mid-round keeps the round's
+# attacks and goes at the next round; a potion is a Bonus Action, drunk before the attack, which carries
+# on; when the queue runs dry in a fight the character attacks its last target again (or the nearest
+# enemy it sees once that one falls). The attack trace in the log shows each round's swings.
+name = Action queue (issue 120): human Cleric 5, three attacks a round, a quarterstaff, potions
+species = human
+swap_class = cleric
+class = cleric
+level = 5
+abilities = 14 10 14 10 16 8
+items = nw_wdbqs001 equip, nw_it_mpotion001 x5
+switches = attack_trace=1, attacks_per_round=3
+note = prepare Doom, Bless and Cure Light Wounds in the spellbook and rest; !spawn nw_orcb (twice for AQ-6)

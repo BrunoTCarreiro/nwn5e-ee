@@ -25,6 +25,9 @@
 // ordered to attack (+kCreatureAttackTarget). An instant one's attack, when
 // something drops it (Rage's flourish did, Patient Defense didn't), is given
 // back within 3 s - not later, so a later order of the player's stands.
+// Phase 6 part 2 (#120): with `actions` faithful the default attack
+// (default_attack.cpp) takes over - after any action, not only these - so this
+// resume is NWN mode's.
 
 #include <stdint.h>
 
@@ -85,10 +88,7 @@ void NoteTarget(AttackRoll& roll) {
   g_last_target[IdOf(roll.attacker)] = Noted{IdOf(roll.target), GetTickCount()};
 }
 
-bool IsPotion(const void* item) {
-  const int row = engine::BaseItemRow(item);
-  return row == 49 || row == 54 || row == 104;
-}
+bool IsPotion(const void* item) { return rules::IsPotionBaseItem(engine::BaseItemRow(item)); }
 
 // A player character in combat starts something that drops its attack:
 // note the last target (if it attacked within 30 s) to go back to after it.
@@ -173,6 +173,10 @@ void OnCreatureUpdate(void* creature) {
 
 void InstallPotionRules() {
   if (!g_config.resume_attack_after_potion) return;
+  if (g_config.actions == rules::RuleVariant::kFaithful) {
+    Log("resume: off - the default attack (actions faithful) goes back to attacking after any action");
+    return;
+  }
   if (!AddAttackRollListeners(&NoteTarget, nullptr)) return;
   if (!AddCreatureUpdateListener(&OnCreatureUpdate)) return;
   if (!AddItemUseListener(&AfterItemUse)) Log("resume: no item-use hook - no attack after a potion");

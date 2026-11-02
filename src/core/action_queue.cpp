@@ -75,6 +75,12 @@
 // Cure Wounds?"): three text lines under the icon - the name wrapped at its
 // spaces (rules::WrapQueueText, about 15 characters, two lines at most) and the
 // target - each with its own colour; the tile as wide as its longest line.
+//
+// Phase 6 part 2 (#120; owner: "a normal attack should be placed as a default
+// action to be used if there are no other actions in the queue"): while actions
+// are queued and the last isn't an attack, a "Default attack" tile last - the
+// enemy the default attack (default_attack.cpp) goes for once they're done; a
+// click on it turns the default attack off until the next attack order.
 
 #include <windows.h>
 
@@ -99,6 +105,7 @@
 #include "item_use.h"
 #include "log.h"
 #include "bonus_actions.h"
+#include "default_attack.h"
 #include "nui.h"
 #include "records.h"
 #include "rules/queue_strip.h"
@@ -148,7 +155,8 @@ struct Item {
   uint16_t cancel_action = 0xFFFF;
   uint16_t cancel_id = 0xFFFF;
   bool own_special = false;  // nwn5e's special attack: RemoveSpecialAttack by its id
-  int bonus = 0;  // Phase 6 (#52, 0.61.1): a Bonus Action - 1 waiting for the next round, 2 just used
+  int bonus = 0;  // Phase 6 (#52, 0.61.1): a Bonus Action - 1 waiting for the next round, 2 just used;
+                  // #120: 3 the default attack after the queue
 };
 
 struct Player {
@@ -363,11 +371,15 @@ Fields FieldsOf(const Item& it, uint32_t player) {
       f.icon = "Get2DAString(\"feat\", \"ICON\", s)";
       break;
     case Kind::kPlain:
-      f.name = Quoted(rules::QueueActionName(it.action));
+      f.name = Quoted(it.bonus == 3 ? "Default attack" : rules::QueueActionName(it.action));
       f.icon = Quoted(rules::QueueActionIcon(it.action));
       break;
   }
-  if (it.bonus) {  // 0.61.1: a Bonus Action - when, not its target
+  if (it.bonus == 3) {  // #120: the default attack - its target
+    sprintf_s(line, " q = StringToObject(\"%x\");", it.target);
+    f.prelude += line;
+    f.target = "(GetIsObjectValid(q) ? GetName(q) : \"\")";
+  } else if (it.bonus) {  // 0.61.1: a Bonus Action - when, not its target
     f.target = it.bonus == 1 ? "\"next round\"" : "\"Bonus Action\"";
   } else if (it.target == player) {
     f.target = "\"yourself\"";
@@ -831,9 +843,28 @@ void QueueCreatureUpdate(void* creature) {
       it.target = id;
       it.bonus = b.waiting ? 1 : 2;
       it.cancel_id = static_cast<uint16_t>(b.feat);
+      if (b.item != ee::kObjectInvalid) {  // #120: a potion waiting
+        it.kind = Kind::kItemSpell;
+        it.item = b.item;
+        void* object = ItemById(b.item);
+        const void* property = object && b.active_property >= 0 ? g_active_property(object, b.active_property) : nullptr;
+        if (property) it.iprp_row = Field<uint16_t>(property, ee::kItemPropertySubtype);
+        it.cancel_id = 0xFFFE;
+      }
       bonus.push_back(it);
     }
     items.insert(items.begin(), bonus.begin(), bonus.end());
+    // #120: the default attack, last - while actions wait and the last of them isn't an attack.
+    const uint32_t fallback = DefaultAttackTarget(creature);
+    const bool ends_attacking =
+        !items.empty() && items.back().kind == Kind::kPlain && items.back().action == rules::kQueueAttack;
+    if (fallback != ee::kObjectInvalid && !items.empty() && !ends_attacking) {
+      Item it;
+      it.action = rules::kQueueAttack;
+      it.target = fallback;
+      it.bonus = 3;
+      items.push_back(it);
+    }
   }
   const std::string signature = Signature(items);
   if (signature == state.signature) return;
@@ -847,6 +878,7 @@ void QueueCreatureUpdate(void* creature) {
 }
 
 bool Cancel(void* creature, const Item& it) {
+  if (it.bonus == 3) return CancelDefaultAttack(creature);                  // #120
   if (it.bonus) return it.bonus == 1 && CancelWaitingBonusAction(creature);  // a used one is done
   if (it.own_special) {
     void* round = Field<void*>(creature, ee::kCreatureCombatRound);

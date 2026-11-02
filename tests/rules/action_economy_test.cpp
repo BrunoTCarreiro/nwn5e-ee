@@ -106,3 +106,49 @@ TEST(DefaultBonusChoice) {
   CHECK_EQ(plan.fire_feat, false);
   CHECK_EQ(plan.attack == DefaultBonusAction::kBonusAttack, true);
 }
+
+// Part 2 (#120; owner, 2026-11-02): the default attack. Breaks caught: one out of combat, one never ordered (or
+// after a move), the nearest enemy preferred to the last target standing, no fallback when it fell, an attack on
+// nobody.
+TEST(DefaultAttackTarget) {
+  CHECK_EQ(PickDefaultAttack(true, true, true, true) == DefaultAttackPick::kLastTarget, true);
+  CHECK_EQ(PickDefaultAttack(true, true, true, false) == DefaultAttackPick::kLastTarget, true);
+  CHECK_EQ(PickDefaultAttack(true, true, false, true) == DefaultAttackPick::kNearest, true);  // it fell
+  CHECK_EQ(PickDefaultAttack(true, true, false, false) == DefaultAttackPick::kNone, true);
+  CHECK_EQ(PickDefaultAttack(true, false, true, true) == DefaultAttackPick::kNone, true);  // the fight is over
+  CHECK_EQ(PickDefaultAttack(false, true, true, true) == DefaultAttackPick::kNone, true);  // never ordered / moved
+}
+
+// Part 2 (#120): the Action queue. Breaks caught: a move or an attack order keeping the attack (they replace the
+// queue, as in NWN), a spell / item / feat / talent order dropping it, a spell placed before the round's attacks, a
+// potion after them, an order placed while not attacking, the attack yielding mid-round or with nothing waiting.
+TEST(ActionQueueOrders) {
+  CHECK_EQ(OrderKeepsAttack(0x12), true);   // a spell
+  CHECK_EQ(OrderKeepsAttack(0x09), true);   // an item
+  CHECK_EQ(OrderKeepsAttack(0x06), true);   // a feat
+  CHECK_EQ(OrderKeepsAttack(0x23), true);   // a talent
+  CHECK_EQ(OrderKeepsAttack(0x01), false);  // a move
+  CHECK_EQ(OrderKeepsAttack(0x02), false);  // an attack
+  CHECK_EQ(PlaceOrder(true, true) == OrderPlace::kAfterAttacks, true);
+  CHECK_EQ(PlaceOrder(true, false) == OrderPlace::kBeforeAttacks, true);
+  CHECK_EQ(PlaceOrder(false, true) == OrderPlace::kAsNwn, true);
+  CHECK_EQ(PlaceOrder(false, false) == OrderPlace::kAsNwn, true);
+  CHECK_EQ(AttackYields(false, true), true);
+  CHECK_EQ(AttackYields(true, true), false);
+  CHECK_EQ(AttackYields(false, false), false);
+}
+
+// Breaks caught: a melee weapon looking as far as a bow, a bow looking 10 m, a bad setting giving no range;
+// potions not known, another item taken for one.
+TEST(DefaultAttackRangeAndPotions) {
+  CHECK_EQ(DefaultAttackRange(false, 40) == kDefaultAttackMeleeRange, true);
+  CHECK_EQ(DefaultAttackRange(true, 40) == 40.0f, true);
+  CHECK_EQ(DefaultAttackRange(true, 25) == 25.0f, true);
+  CHECK_EQ(DefaultAttackRange(true, 0) == kDefaultAttackMeleeRange, true);
+  CHECK_EQ(IsPotionBaseItem(49), true);
+  CHECK_EQ(IsPotionBaseItem(54), false);  // a deleted row
+  CHECK_EQ(IsPotionBaseItem(104), true);
+  CHECK_EQ(IsPotionBaseItem(46), false);   // a wand
+  CHECK_EQ(IsPotionBaseItem(75), false);   // a scroll
+  CHECK_EQ(IsPotionBaseItem(-1), false);
+}

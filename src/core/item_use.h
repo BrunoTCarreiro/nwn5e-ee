@@ -21,3 +21,19 @@ void* ItemById(uint32_t item_id);
 // Inside a guard or listener: the index of the item's active property (its
 // power) being used; -1 outside one.
 int ItemUseActiveProperty();
+
+// Phase 6 part 2 (#120): a use's whole order - kept by a guard that refuses it
+// for now (a potion waiting for the next round's Bonus Action) and given again
+// later through the hook (its guards and listeners run again).
+struct ItemUseOrder {
+  uint32_t item = 0x7F000000;
+  uint8_t active_property = 0;
+  uint8_t sub_property = 0;
+  uint32_t target = 0x7F000000;
+  float x = 0.0f, y = 0.0f, z = 0.0f;
+  uint32_t area = 0x7F000000;
+  int flag = 0;
+};
+// Inside a guard or listener: the use's order (null outside one).
+const ItemUseOrder* CurrentItemUse();
+int UseItemAgain(void* creature, const ItemUseOrder& order);

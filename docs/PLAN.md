@@ -240,6 +240,44 @@ monster AC by CR.
 *Accepted (owner, 2026-11-02: "all other BA items passed"; "BA-12 passes").* Bonus Actions (#52), 0.61.0-0.61.2 -
 BA-1 to BA-11, BA-13 and BA-14 on 0.61.1, BA-12 on 0.61.2. Next in the build order: the Action queue and the default
 attack (#120), then the reaction switches (#54).
+- *#120's recon (2026-11-02, a static read of 89.8193.37):* a player's spell, item, feat or talent order
+  (CNWSMessage::HandlePlayerToServerInputMessage, minors 0x12, 0x09, 0x06, 0x23) calls CNWSCreature::ActionManager(1),
+  which - while the creature's AI action state (+0x8D6) is below 10: idle, moving, attacking - runs ClearAllActions;
+  ClearAction of the AttackObject deletes the combat round's schedule (RemoveAllActions, ClearAllAttacks): the rest
+  of the round's attacks go, the round runs out idle, then the cast. ClearAllActions keeps an action whose
+  ClearAction says no. Once a cast is queued the state is 0x0E and a new order appends (NWN's own queue of spells,
+  one a round through WaitForEndOfRound and the cast round). An attack never yields to what's queued behind it
+  (AIActionAttackObject doesn't read the queue; at a round's end it starts the next). A potion's order queues a 1 s
+  wait (no WaitForEndOfRound) and drinks inside the running round. Move orders are ActionManager(8), attack orders
+  (4): they always clear. Nothing re-issues a player's attack when its queue runs dry.
+- *Built 0.62.0 (#120, part 2 - the Action queue and the default attack; `actions` faithful):*
+  src/core/action_order.cpp, src/core/default_attack.cpp, rules/action_economy.{h,cpp}.
+  - An order given mid-round keeps the attack (a player character; the queue's head an AttackObject, the round
+    running): the order's ClearAllActions runs with ClearAction refusing the AttackObject. Its new actions
+    (rules::PlaceOrder): those that wait for the round's end (a spell, a scroll, a wand) stay behind the attack - the
+    round's attacks go on and at the round's end the attack yields (rules::AttackYields: AIActionAttackObject with
+    no round running and a spell waiting - its own clean-up, done), the cast takes the next round, one a round as
+    NWN keeps them; the others (a potion) go to the queue's head - drunk now, the attack carrying on after it.
+  - An attack order on the target it's attacking, with actions waiting (AddAttackActions, clearing): those go, the
+    attack and its round stay (NWN's ClearAllActions would drop the round's attacks with them).
+  - The default attack (a player character's): armed by an attack order on an enemy (an AttackObject added); when
+    its queue runs dry in a fight - no orders, commandable (+0xEC), alive; tried once a second - it attacks as a
+    click would: the last enemy while it stands (alive, an enemy, seen), else the nearest enemy it sees
+    (rules::PickDefaultAttack; rules::DefaultAttackRange: 10 m with a melee weapon, ranged_retarget_range with a
+    ranged one), which becomes the remembered one. Off when the fight is over, when it dies, on a move order of the
+    player's (a click on the ground - HandlePlayerToServerInputWalkToWaypoint - or the keys, InputDriveControl; not
+    a combat step, which keeps attacking), on a click on its tile; on again with the next attack order. It replaces
+    the potion resume in faithful mode (rules_potion.cpp keeps it for NWN mode).
+  - Potions are Bonus Actions (#51's decision 4 (i); everyone): a potion's use (baseitems.2da 49, 104 -
+    rules::IsPotionBaseItem; 54, the 1.69 port's third row, is deleted in EE) spends the round's Bonus Action; one
+    more waits for the next round, as a Bonus Action feat does (the strip's "next round" tile; the use's order kept -
+    item_use.cpp's ItemUseOrder - and given again at the round's start, before a running attack).
+  - The action queue strip: a "Default attack" tile last while actions are queued and the last isn't an attack (its
+    click turns the default attack off); a waiting potion's tile.
+  - Monsters and henchmen: their AI gives them one action a round itself; the default attack and the kept attack are
+    the player's (the input's), the potions' Bonus Action everyone's.
+  - Test profile `!test queue` (a Cleric 5, three attacks a round, potions). Tests ActionQueueOrders,
+    DefaultAttackTarget, DefaultAttackRangeAndPotions (18 of 18 mutations caught).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,

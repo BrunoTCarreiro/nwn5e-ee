@@ -23,16 +23,33 @@ std::vector<ItemUseListener> g_listeners;  // the same
 bool g_hooked = false;
 bool g_hook_failed = false;
 thread_local int t_active_property = -1;
+thread_local const ItemUseOrder* t_order = nullptr;  // #120: the use under way
 
 int UseItem(void* creature, uint32_t item, uint8_t active_property, uint8_t sub_property, uint32_t target,
             Vec3 location, uint32_t area, int flag) {
   void* object = creature ? ItemById(item) : nullptr;
   const int outer = t_active_property;
   t_active_property = active_property;
+  ItemUseOrder order;
+  order.item = item;
+  order.active_property = active_property;
+  order.sub_property = sub_property;
+  order.target = target;
+  order.x = location.x;
+  order.y = location.y;
+  order.z = location.z;
+  order.area = area;
+  order.flag = flag;
+  const ItemUseOrder* outer_order = t_order;
+  t_order = &order;
   struct Restore {
     int value;
-    ~Restore() { t_active_property = value; }
-  } restore{outer};
+    const ItemUseOrder* order;
+    ~Restore() {
+      t_active_property = value;
+      t_order = order;
+    }
+  } restore{outer, outer_order};
   if (creature) {
     for (ItemUseGuard guard : g_guards) {
       if (!guard(creature, item, object)) return 0;
@@ -65,6 +82,14 @@ void* ItemById(uint32_t item_id) {
 }
 
 int ItemUseActiveProperty() { return t_active_property; }
+
+const ItemUseOrder* CurrentItemUse() { return t_order; }
+
+int UseItemAgain(void* creature, const ItemUseOrder& order) {
+  if (!creature || !g_hooked) return 0;
+  return UseItem(creature, order.item, order.active_property, order.sub_property, order.target,
+                 Vec3{order.x, order.y, order.z}, order.area, order.flag);
+}
 
 bool AddItemUseGuard(ItemUseGuard guard) {
   if (!Hook()) return false;

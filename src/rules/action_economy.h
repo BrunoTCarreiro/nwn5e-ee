@@ -3,6 +3,7 @@
 // Phase 6 - the action economy (docs/PLAN.md "Phase 6 — Action economy";
 // decided by the owner 2026-11-02, #51): per-round budgets on NWN's 6 s round -
 // one Action, one Bonus Action, one Reaction. Part 1 (#52): the Bonus Action.
+// Part 2 (#120): the Action queue and the default attack.
 
 namespace rules {
 
@@ -66,5 +67,43 @@ struct RoundBonus {
   bool spends_bonus = false;
 };
 RoundBonus DecideRoundBonus(bool used, DefaultBonusAction choice, bool off_hand, bool martial_arts, bool nick);
+
+// Part 2 (#120; owner, 2026-11-02: "if the PC ever targeted an enemy for normal
+// attacks, a normal attack should be placed as a default action to be used if
+// there are no other actions in the queue"): what a player character attacks
+// when its queue runs dry in a fight - the last enemy it was ordered to attack
+// while that one stands (alive, an enemy, seen), else the nearest enemy it
+// sees. Nothing out of combat, or when it wasn't ordered to attack an enemy
+// since the fight began or its last move order.
+enum class DefaultAttackPick { kNone, kLastTarget, kNearest };
+DefaultAttackPick PickDefaultAttack(bool armed, bool in_combat, bool last_target_stands, bool nearest_found);
+// How far the default attack looks for the nearest enemy: 10 m with a melee
+// weapon (one it can walk to and reach, as the potion resume looked), a ranged
+// weapon's [rules] ranged_retarget_range.
+constexpr float kDefaultAttackMeleeRange = 10.0f;
+float DefaultAttackRange(bool ranged_weapon, int ranged_retarget_range);
+
+// The Action queue (#120; the design's point 1: "one a round in order"). NWN
+// drops a player character's running attack - the rest of its round's attacks
+// - the moment it's given a spell, an item or a feat (#120's recon: the order's
+// ActionManager(1) clears the queue). In 2024 the round it attacks is its
+// Action, so an order given mid-round keeps the attack: what NWN makes wait for
+// the round's end (a spell, a scroll, a wand - WaitForEndOfRound) goes after
+// the round's attacks, and at the round's end the attack steps aside for it;
+// what doesn't (a potion, now a Bonus Action) goes before the attack, which
+// carries on after it. Not attacking mid-round: as NWN.
+// The player's orders that keep the attack (CNWSMessage's input minors): a
+// spell 0x12, an item 0x09, a feat 0x06, a talent 0x23.
+bool OrderKeepsAttack(int input_minor);
+enum class OrderPlace { kAsNwn, kAfterAttacks, kBeforeAttacks };
+OrderPlace PlaceOrder(bool attacking_mid_round, bool waits_for_round_end);
+// At the round's end (none running): the attack yields to an Action waiting
+// behind it.
+bool AttackYields(bool round_running, bool action_waiting);
+
+// Potions (#120; #51's decision 4 (i), SRD 5.2: drinking a potion takes a Bonus
+// Action): NWN's potion base items (baseitems.2da 49 potions, 104 crafted
+// potions; 54, which the 1.69 port also listed, is a deleted row in EE).
+bool IsPotionBaseItem(int base_item);
 
 }  // namespace rules
