@@ -56,4 +56,8 @@ int AttacksPerAttackAction(const std::vector<ClassLevels>& classes) {
   return attacks;
 }
 
+bool ReactionBackWithoutRounds(bool taken_by_rule, bool round_ended_since, long long ms_since) {
+  return taken_by_rule && !round_ended_since && ms_since >= kReactionRoundMs;
+}
+
 }  // namespace rules

@@ -34,8 +34,12 @@
 #include "ee_layout.h"
 #include "engine.h"
 #include "feats.h"
+#include "game_clock.h"
 #include "hooks.h"
 #include "log.h"
+#include "mastery.h"
+#include "reactions.h"
+#include "rules/combat.h"
 
 bool StaggeredNoOpportunityAttack(uint32_t id);  // rules_barbarian_strikes.cpp (B10 Staggering Blow)
 bool CunningWithdrawing(uint32_t id);            // rules_cunning_strike.cpp (R6 Withdraw)
@@ -139,7 +143,36 @@ bool SpringAttackInMovement(void*, int feat, uintptr_t caller, int* answer) {
   return true;
 }
 
+// The reactions rules took: the creature's ended rounds then, and when (game ms).
+struct ReactionTaken {
+  uint32_t rounds = 0;
+  uint64_t at = 0;
+};
+std::unordered_map<uint32_t, ReactionTaken> g_reactions_taken;  // the engine's thread
+
 }  // namespace
+
+bool TakeReaction(void* creature) {
+  void* round = creature ? Field<void*>(creature, ee::kCreatureCombatRound) : nullptr;
+  if (!round) return false;
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  const uint32_t rounds = CombatRoundsEnded(id);
+  const uint64_t now = GameMs();
+  int left = Field<int32_t>(round, ee::kRoundOpportunitiesLeft);
+  if (left <= 0) {
+    const auto taken = g_reactions_taken.find(id);
+    // No round of its own ended since a rule took it, and a round's time went by: not fighting - it's back.
+    const bool by_rule = taken != g_reactions_taken.end();
+    if (!rules::ReactionBackWithoutRounds(by_rule, by_rule && taken->second.rounds != rounds,
+                                          by_rule ? static_cast<long long>(now - taken->second.at) : 0)) {
+      return false;
+    }
+    left = 1;
+  }
+  SetField<int32_t>(round, ee::kRoundOpportunitiesLeft, left - 1);
+  g_reactions_taken[id] = ReactionTaken{rounds, now};
+  return true;
+}
 
 void InstallOpportunityRules() {
   if (!Faithful() && !TacticalShiftOn()) return;

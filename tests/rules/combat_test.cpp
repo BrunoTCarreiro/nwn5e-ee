@@ -116,3 +116,15 @@ TEST(ExtraAttackFromSeveralClassesDoesNotStack) {
   CHECK_EQ(AttacksPerAttackAction({{CharacterClass::kFighter, 11}, {CharacterClass::kBarbarian, 5}}), 3);
   CHECK_EQ(AttacksPerAttackAction({{CharacterClass::kFighter, 4}, {CharacterClass::kBarbarian, 4}}), 1);
 }
+
+// 0.60.7 (the owner's M8-1: Deflect Attacks once, then "reaction spent" rounds later, standing still): a
+// reaction a rule took is back after a round's time when none of the creature's rounds ended since. Breaks
+// caught: back before 6 s, never back, back after a round of its own ended (the engine's refill decides then),
+// back when no rule took it (an opportunity attack's).
+TEST(ReactionBackWhenNotFighting) {
+  CHECK_EQ(ReactionBackWithoutRounds(true, false, 6000), true);
+  CHECK_EQ(ReactionBackWithoutRounds(true, false, 26000), true);
+  CHECK_EQ(ReactionBackWithoutRounds(true, false, 5999), false);
+  CHECK_EQ(ReactionBackWithoutRounds(true, true, 26000), false);
+  CHECK_EQ(ReactionBackWithoutRounds(false, false, 26000), false);
+}

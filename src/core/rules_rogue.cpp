@@ -79,6 +79,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "mastery.h"
+#include "reactions.h"
 #include "rules/class_features.h"
 #include "rules/weapons.h"
 
@@ -274,14 +275,12 @@ void UncannyDodge(void* attacker, void* target) {
   const uint32_t rogue_id = IdOf(rogue);
   const uint32_t attacker_id = IdOf(attacker);
   if (engine::IsDeadOrDying(rogue) || IncapacitatedByCondition(rogue) || !engine::Sees(rogue, attacker_id)) return;
-  void* round = Field<void*>(rogue, ee::kCreatureCombatRound);
-  if (!round || Field<int32_t>(round, ee::kRoundOpportunitiesLeft) <= 0) {
+  if (!TakeReaction(rogue)) {  // 0.60.7: back a round later when the Rogue isn't fighting (reactions.h)
     if (IsPlayer(rogue) && LogSlot()) Log("rogue: 0x%08X hit by 0x%08X (%d) - no Uncanny Dodge: reaction spent", rogue_id,
                                          attacker_id, total);
     return;
   }
   const int halved = rules::HalveAttackDamage(entries, ee::kAttackDamageEntryCount);
-  SetField<int32_t>(round, ee::kRoundOpportunitiesLeft, Field<int32_t>(round, ee::kRoundOpportunitiesLeft) - 1);
   if (LogSlot()) Log("rogue: 0x%08X Uncanny Dodge - the hit by 0x%08X halved, %d -> %d (its reaction)", rogue_id,
                      attacker_id, total, halved);
   if (IsPlayer(rogue)) {

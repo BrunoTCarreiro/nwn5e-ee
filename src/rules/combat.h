@@ -51,4 +51,11 @@ struct ClassLevels {
 // Attack from several classes does not add up.
 int AttacksPerAttackAction(const std::vector<ClassLevels>& classes);
 
+// D2's one reaction a round, spent (0.60.7): one a rule took comes back once a
+// round's time (6 s) went by with none of the creature's own combat rounds
+// ended since - it isn't fighting, so the engine's round start never refilled
+// it. One spent otherwise (an opportunity attack) waits for the engine.
+constexpr long long kReactionRoundMs = 6000;
+bool ReactionBackWithoutRounds(bool taken_by_rule, bool round_ended_since, long long ms_since);
+
 }  // namespace rules

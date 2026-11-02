@@ -162,6 +162,7 @@
 #include "log_once.h"
 #include "mastery.h"
 #include "movement_rate.h"
+#include "reactions.h"
 #include "records.h"
 #include "resistance.h"
 #include "resolve_damage.h"
@@ -1038,8 +1039,7 @@ void DeflectAttacks(void* attacker, void* target) {
   if (!rules::DeflectAttacksQualifies(entries, ee::kAttackDamageEntryCount, rules::HasDeflectEnergy(level))) return;
   if (engine::IsDeadOrDying(monk) || IncapacitatedByCondition(monk)) return;
   const uint32_t monk_id = IdOf(monk), attacker_id = IdOf(attacker);
-  void* round = Field<void*>(monk, ee::kCreatureCombatRound);
-  if (!round || Field<int32_t>(round, ee::kRoundOpportunitiesLeft) <= 0) {
+  if (!TakeReaction(monk)) {  // 0.60.7: back a round later when the Monk isn't fighting (reactions.h)
     if (IsPlayer(monk) && g_logged.First(LogOnce::Key(monk_id, static_cast<int>(attacker_id), 10))) {
       Log("monk: 0x%08X hit by 0x%08X - no Deflect Attacks: reaction spent this round", monk_id, attacker_id);
     }
@@ -1051,7 +1051,6 @@ void DeflectAttacks(void* attacker, void* target) {
   const int dexterity = engine::AbilityModifier(stats, 1);
   const int reduction = rules::DeflectAttacksReduction(d10, dexterity, level);
   const int after = rules::ReduceAttackDamage(entries, ee::kAttackDamageEntryCount, reduction);
-  SetField<int32_t>(round, ee::kRoundOpportunitiesLeft, Field<int32_t>(round, ee::kRoundOpportunitiesLeft) - 1);
   Log("monk: 0x%08X Deflect Attacks - the hit by 0x%08X: %d less %d (1d10 %d + Dex %d + Monk %d) = %d (its reaction)",
       monk_id, attacker_id, total, reduction, d10, dexterity, level, after);
   Tell(monk, "Deflect Attacks - the hit's " + std::to_string(total) + " damage less " + std::to_string(reduction) +

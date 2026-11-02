@@ -1,0 +1,5 @@
+# spells.2da - names (0.60.7; owner: "OH2-2 shows "Trap Kit" instead of "Wholeness of Body" in the action
+# queue"). NWN's own row 309 (Wholeness of Body, feat 211) carries another string's strref as its Name (an item's
+# name); the radial names it by the feat, the action queue strip by the spell. Both modes: the feat's own strref.
+Name
+309 1945
