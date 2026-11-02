@@ -1053,3 +1053,22 @@ take's fist (the polearm turned 136 deg against the torso on a_dfa; the fist 167
 *Measured on n5_rage (4 bodies, at those shares):* the polearm within 28-32 deg of its start direction (was 102-136),
 the two-handed 45-57 (was 79-82); the wrist within 16-32 / 38-58 deg of its holding turn; every frame on the grip; no
 flips or pops; the hands within 0.7 cm between frames; the ends exactly the start pose.
+
+### A clip's versions saved with it (2026-11-02, #117; plan docs/superpowers/plans/2026-11-02-mocap-bench-clip-versions.md)
+
+*Asked (owner, testing #112):* "We need to find a way to make saving the variants easier." "go with your
+recommendations, 117 first".
+*Built (nwn5e-tools 9cec76e, ea44e28, 97f0e68, 6deb365, fecb556; bench only):*
+- **The clip keeps its versions:** a box per version (two-handed on 2hreadyr, polearm on plreadyr), each with its own
+  "weapon follows the arms" share; none while the clip holds its own two-handed grip.
+- **One Save writes the clip and every version it has,** from the same take and edits (each rebased onto its start pose
+  on the shown body). The server checks every recipe on every body with the game's code and writes all or none. The
+  status names the versions, any separate project whose recipe a version replaces, and a version's recipe left from an
+  earlier Save (the game still plays it).
+- **A "show" switch** puts a version on the doll (its gear too; the header says so). While it's shown, keying from the
+  doll waits with a word - the pose is the version's, the keys the clip's.
+- **The separate-project button (#112) stays,** for a version with its own edits: it saves the very recipe the clip's
+  version does.
+*Final review* (a fresh reviewer): one Critical - older projects (n5_rage's) couldn't tick a version - and six
+Important, fixed with checks that failed first; checks/run.js 15/15, browser_check 52/52, 32 deliberate breaks caught.
+Rulings and deferred minors: the ledger, listed on #117.
