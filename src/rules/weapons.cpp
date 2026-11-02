@@ -394,4 +394,9 @@ int MasterySlotOf(const std::vector<int>& chosen, int slots, int base_item) {
   return -1;
 }
 
+bool NwnDrawsTwoHanded(int weapon_wield, int weapon_size, int creature_size) {
+  if (weapon_wield == kNwnWieldTwoHanded) return true;
+  return weapon_wield == kNwnWieldStandard && weapon_size > creature_size;
+}
+
 }  // namespace rules

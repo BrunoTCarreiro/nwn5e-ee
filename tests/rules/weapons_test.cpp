@@ -240,3 +240,18 @@ TEST(BarbarianMasteryIsMeleeOnly) {
   CHECK_EQ(MasteryAllowed({{CharacterClass::kBarbarian, 4}, {CharacterClass::kFighter, 1}}, 8), true);
   CHECK_EQ(MasteryAllowed({{CharacterClass::kWizard, 5}}, 13), false);
 }
+
+// #112: Rage's two-handed clip follows NWN's drawn hold (baseitems.2da: WeaponWield, WeaponSize; creature
+// sizes 2 Small, 3 Medium). Breaks caught: a Small wielder's longsword drawn one-handed (D1's Small-as-Medium),
+// a Medium wielder's longsword two-handed, a magic staff (WeaponWield 4, size 3) one-handed, a double weapon
+// (NWN's two weapons, the two-weapon stance), a bow or a shield two-handed.
+TEST(NwnDrawsTwoHandedAsOnScreen) {
+  CHECK_EQ(NwnDrawsTwoHanded(kNwnWieldStandard, 3, 2), true);   // a halfling's longsword
+  CHECK_EQ(NwnDrawsTwoHanded(kNwnWieldStandard, 3, 3), false);  // a human's longsword
+  CHECK_EQ(NwnDrawsTwoHanded(kNwnWieldStandard, 4, 3), true);   // a human's greatsword
+  CHECK_EQ(NwnDrawsTwoHanded(kNwnWieldStandard, 2, 2), false);  // a halfling's shortsword
+  CHECK_EQ(NwnDrawsTwoHanded(kNwnWieldTwoHanded, 3, 3), true);  // a magic staff
+  CHECK_EQ(NwnDrawsTwoHanded(kNwnWieldDouble, 4, 3), false);    // a two-bladed sword: two weapons
+  CHECK_EQ(NwnDrawsTwoHanded(5, 4, 3), false);                  // a longbow
+  CHECK_EQ(NwnDrawsTwoHanded(7, 0, 3), false);                  // a shield
+}

@@ -109,7 +109,6 @@
 
 bool AnimationRecipeBuilt(const std::string& name, std::string* text);  // anim_packs.cpp (Mocap mode's n5_rage)
 std::string AnimationVariant(const std::string& name, bool two_handed);  // anim_packs.cpp (#112: n5_rage_2h)
-bool WieldsTwoHanded(void* creature);                                    // rules_grapple.cpp (D1's rule)
 
 namespace {
 
@@ -384,11 +383,21 @@ void DropFear(void* creature) {
   for (void* effect : fears) g_remove_effect(creature, effect);
 }
 
-// #112 (the animation session's; owner: "Go with your recommendations"): the two-handed variant
-// (n5_rage_2h) when the Barbarian wields a two-hander and that recipe was built, else n5_rage.
+// #112 (the animation session's; owner: "Go with your recommendations"): whether NWN draws the main hand's
+// weapon in both hands (0.60.3, the animation session's review: as on screen, not D1's 2024 rule - a Small
+// wielder's Medium weapon, a magic staff; not a double weapon, NWN's two weapons).
+bool DrawnTwoHanded(void* creature) {
+  void* item = creature ? engine::ItemInSlot(creature, ee::kSlotRightHand) : nullptr;
+  const void* base = item ? engine::BaseItem(engine::BaseItemRow(item)) : nullptr;
+  if (!base) return false;
+  return rules::NwnDrawsTwoHanded(Field<uint8_t>(base, ee::kBaseItemWield), Field<uint8_t>(base, ee::kBaseItemSize),
+                                  Field<int32_t>(creature, ee::kCreatureSize));
+}
+
+// The two-handed variant (n5_rage_2h) when NWN draws the weapon two-handed and that recipe was built, else n5_rage.
 std::string RageFlourish(void* creature) {
   static const char* const kPlay = "PlayAnimation(ANIMATION_FIREFORGET_VICTORY2, 1.0);";
-  const std::string name = AnimationVariant("n5_rage", WieldsTwoHanded(creature));
+  const std::string name = AnimationVariant("n5_rage", DrawnTwoHanded(creature));
   std::string text;
   data::AnimRecipe captured;
   std::string error;
