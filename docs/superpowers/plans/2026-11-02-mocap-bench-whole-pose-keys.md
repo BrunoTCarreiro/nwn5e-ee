@@ -259,3 +259,63 @@
   - The worst error.
   - Through the helper, so it is the game's own assembly.
 - **Docs:** TOOLS-PLAN gets a #116 entry (nwn5e-ee); #116 gets a completion comment; the board goes to "Needs test" (bench only: restart the bench, no install).
+
+---
+
+## Addendum 1 (2026-11-02): each part keyed where it needs one; shaking dropped first
+
+*The owner, testing simplify:* "The simplify option ends up creating A LOT more keyframes and not simplifying things at
+all", then "go with A + C, the shaking is noise".
+
+*Measured (n5_rage, a_ba):*
+- **Before:** 11 pose keys.
+- **Simplify at 8°:** 26 whole poses = 284 keys. Any part straying keyed all 16 parts.
+- **The shaking:** 15 whole poses sit in the fist shaking (0.5-1.6 s, 20-60° a frame).
+- **Each part on its own:** 139 keys at 8°.
+
+This addendum overrides Task 2's whole-pose greedy and adds to Task 4.
+
+**A - each part keyed where it turns or holds (simplify.js):**
+- **The ends:** every part is keyed at the clip's ends (a leg where its foot is free), and each leg at its extreme off the ground (as before).
+- **Then, while a part strays more than the detail:**
+  - That part is keyed at its worst frame, which must be a lasting gap (the spike rule as before).
+  - If a whole pose already exists within `SI.MIN_GAP` (2) frames of that frame, the part joins it there instead of making a new one.
+  - If it is already keyed there, the frame counts as missed.
+  - So whole poses stay at least 3 frames apart, and keys that land close together share one.
+- **Holds** run per part, over that part's own consecutive keys.
+- **Speed:** only the changed part's gaps are computed again.
+- **The result's shape is unchanged:** `{ keys: [whole-pose frames], values: { part: [turn or null per whole pose] }, worst, missed }`. A part not keyed at a whole pose is null there. `toWholePoses` already skips nulls, and the bake already flows each part through its own keys.
+
+**C - shaking dropped before the fit (simplify.js, project.js, the page):**
+- **Parameter:** `SI.simplify({ ..., smooth })`, in Hz. The fit's target is the shown motion low-passed at `smooth` Hz.
+- **The filter:** a 4th-order Butterworth (two RBJ biquads, Q 0.5412 and 1.3066), run forward and back (zero phase).
+  - It works on each part's rotation vectors, measured from its first frame with each frame on the side of the one before (as bake's chart).
+  - It pads by odd reflection, and the clip's first and last frames are kept as shown.
+- **Off:** `smooth` 0 or absent leaves the target unfiltered (today's behaviour).
+- **Project:** `clip.smooth`, Hz, 0 (off) or 1-12. The default `SI.SMOOTH` is set from n5_rage's numbers, and older projects get it on open (parse) and in validate.
+- **The page:** a second slider in the simplify field, `data-field="smooth"`, labelled "drop shaking faster than (a second)".
+  - It runs from "smooth" to "as performed": 1-12, where 12 shows "off" and stores 0.
+  - Right after a simplify it simplifies again in its place, as the detail slider does; otherwise it only sets the value.
+  - The button passes both values.
+
+**Checks (failing first):**
+- **Updated in simplify_check:**
+  - legsOnlyAirborne: the torso is keyed at the ends only.
+  - coarserFewer: counts keys.
+- **New in simplify_check:**
+  - partsKeyedWhereTheyNeed: a still part has its 2 end keys only.
+  - nearbyKeysShareAWholePose: two parts' extremes a frame apart share one whole pose.
+  - shakingSmoothed: a 6 Hz ±15° shake over a slow arc gives at most 3 keys in the shake, and the ends are exact.
+  - smoothKeepsSlowMotion: a 1 Hz 40° swing comes through the 4 Hz filter within 2°.
+  - smoothValidated.
+- **Browser:**
+  - smoothSlider: right after a simplify, "off" gives more keys, and one Ctrl+Z goes back before the simplify.
+  - simplifyButton: no part is keyed at every whole pose unless it needs to be.
+- **Breaks:**
+  - the join window;
+  - the per-part keying (back to whole);
+  - the filter (off);
+  - the pinned ends;
+  - the smooth slider's replace.
+
+**Measure:** n5_rage at the default detail and cutoff - keys, keys a part a second, arms at rest, the shaking second's keys - before the default is fixed.
