@@ -18,6 +18,13 @@
 // the cast and the attack is lost; the same resume follows a Second Wind
 // used mid-fight. 0.22.0: Rage (Barbarian B1) too; UseFeat is the shared
 // hook (feat_use.cpp).
+// 0.61.2 (Phase 6, #52; the owner's BA-12: "after triggering the rage, lost the
+// target"): every Bonus Action feat (rules::TakesBonusAction) - instant since
+// 0.61.0, fired by the player or as the round's default - and when no attack was
+// rolled in the last 30 s (a fight's first round), the target the character was
+// ordered to attack (+kCreatureAttackTarget). An instant one's attack, when
+// something drops it (Rage's flourish did, Patient Defense didn't), is given
+// back within 3 s - not later, so a later order of the player's stands.
 
 #include <stdint.h>
 
@@ -35,6 +42,7 @@
 #include "hooks.h"
 #include "item_use.h"
 #include "log.h"
+#include "rules/action_economy.h"
 #include "rules/class_features.h"
 
 namespace {
@@ -56,12 +64,14 @@ struct Noted {
   uint32_t target;
   DWORD tick;
   const char* what = "";  // what interrupted the attack: "drinking", "Second Wind"
+  DWORD window = 10000;   // how long the resume waits for the orders to end
 };
 // The engine's server thread only.
 std::unordered_map<uint32_t, Noted> g_last_target;  // player character -> its last attack's target
 std::unordered_map<uint32_t, Noted> g_resume;       // drinking -> the target to go back to
 constexpr DWORD kLastTargetMaxMs = 30000;           // a fight's last attack, not an old one
 constexpr DWORD kResumeWindowMs = 10000;            // the drink and its animation
+constexpr DWORD kBonusResumeWindowMs = 3000;        // 0.61.2: an instant Bonus Action (its flourish)
 constexpr float kFallbackRange = 10.0f;
 int g_log_lines = 0;
 
@@ -82,14 +92,20 @@ bool IsPotion(const void* item) {
 
 // A player character in combat starts something that drops its attack:
 // note the last target (if it attacked within 30 s) to go back to after it.
-void NoteResume(void* creature, const char* what) {
+void NoteResume(void* creature, const char* what, DWORD window = kResumeWindowMs) {
   const uint32_t id = IdOf(creature);
   const auto last = g_last_target.find(id);
-  if (last == g_last_target.end() || GetTickCount() - last->second.tick > kLastTargetMaxMs) return;
-  g_resume[id] = Noted{last->second.target, GetTickCount(), what};
-  if (LogSlot()) {
-    Log("resume: 0x%08X %s mid-fight; will go back to attacking 0x%08X after it", id, what, last->second.target);
+  uint32_t target = ee::kObjectInvalid;
+  if (last != g_last_target.end() && GetTickCount() - last->second.tick <= kLastTargetMaxMs) {
+    target = last->second.target;
+  } else {
+    // 0.61.2: no attack rolled yet - the target the character was ordered to attack.
+    const uint32_t ordered = Field<uint32_t>(creature, ee::kCreatureAttackTarget);
+    if (CreatureById(ordered) && engine::IsEnemy(creature, ordered)) target = ordered;
   }
+  if (target == ee::kObjectInvalid) return;
+  g_resume[id] = Noted{target, GetTickCount(), what, window};
+  if (LogSlot()) Log("resume: 0x%08X %s mid-fight; will go back to attacking 0x%08X after it", id, what, target);
 }
 
 // After a use the engine queued (item_use.cpp).
@@ -99,19 +115,21 @@ void AfterItemUse(void* creature, uint32_t, void* item) {
   NoteResume(creature, "drinking");
 }
 
-// Second Wind (Fighter F2): the feat rows nwn5e grants; Rage (Barbarian B1).
+// Second Wind (Fighter F2), Rage (Barbarian B1) - and since 0.61.2 every Bonus Action feat.
 const char* ResumesAfterFeat(int feat) {
-  if (feat >= rules::kFeatSecondWind2 && feat <= rules::kFeatSecondWind4) return "Second Wind";
-  if (rules::IsRageFeat(feat)) return "Rage";
+  if (rules::TakesBonusAction(feat)) return rules::BonusActionName(feat);
   return nullptr;
 }
 
-// After a feat use the engine queued (feat_use.cpp).
+// After a feat use the engine took (feat_use.cpp): an instant Bonus Action (actions faithful) waits 3 s for a
+// dropped attack; the old cast-round way (NWN mode) 10 s.
 void AfterFeatUse(void* creature, int feat) {
   const char* what = ResumesAfterFeat(feat);
   if (!what) return;
   void* stats = StatsOf(creature);
-  if (stats && ReadCreatureFacts(stats).is_player && InCombat(creature)) NoteResume(creature, what);
+  if (!stats || !ReadCreatureFacts(stats).is_player || !InCombat(creature)) return;
+  NoteResume(creature, what,
+             g_config.actions == rules::RuleVariant::kFaithful ? kBonusResumeWindowMs : kResumeWindowMs);
 }
 
 // After the engine's update: the drink is over when the character has no
@@ -120,7 +138,7 @@ void OnCreatureUpdate(void* creature) {
   if (g_resume.empty()) return;
   const auto it = g_resume.find(IdOf(creature));
   if (it == g_resume.end()) return;
-  if (GetTickCount() - it->second.tick > kResumeWindowMs || engine::IsDeadOrDying(creature)) {
+  if (GetTickCount() - it->second.tick > it->second.window || engine::IsDeadOrDying(creature)) {
     g_resume.erase(it);
     return;
   }

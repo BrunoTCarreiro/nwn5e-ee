@@ -206,7 +206,7 @@ monster AC by CR.
     +0x2F60, no Focus point).
   - Combat configuration (the Combat options window, renamed; !options): "Bonus attack" - the default Bonus Action
     (record nwn5e_bonus_default: 0 the bonus attack, 1 none).
-  - Tests BonusActionOnceARound, BonusActionFeats, BonusActionRoundStart (CAUGHT mutations caught).
+  - Tests BonusActionOnceARound, BonusActionFeats, BonusActionRoundStart (15 of 15 mutations caught).
   - Later: potions as Bonus Actions (with the Action queue, #120 - the item path), Cunning Action and Steady Aim
     (#53), Rage extended by a Bonus Action (it extends by attacking, as before), the reaction switches (#54).
 - *The owner's 0.61.0 run (2026-11-02):* "new actions aren't being added to the actions queue at the top. They still
@@ -225,8 +225,16 @@ monster AC by CR.
   round's start fires the ready ability as a waiting one (the creature update runs it), its held feat the highest of
   its family, "ready" the engine's remaining uses (nwn5e's pools answer) and !BarbarianRaging. Combat configuration:
   a checkbox per choice the character has (one ticked, none ticked = none). The strip (action_queue.cpp) puts the
-  waiting one ("next round"; a click cancels it) and the used one (1.5 s) first. Test DefaultBonusChoice (CAUGHT
+  waiting one ("next round"; a click cancels it) and the used one (1.5 s) first. Test DefaultBonusChoice (12 of 12
   mutations caught).
+- *The owner's 0.61.1 run (2026-11-02):* BA-12 "after triggering the rage, lost the target. after clicking an enemy,
+  it triggered the rage again" - the log: the default Rage at a fight's first round (19:26:29), then no orders and
+  no attack target, the Rage lapsing a round later (no attack), so the next round's default raged again (by the
+  rules: it had ended). Patient Defense as the default kept the Monk attacking round after round; Rage's flourish
+  (a PlayAnimation - #121, the animation session's) drops the attack order, and the resume (rules_potion.cpp) only
+  knew a target from an attack rolled in the last 30 s - none yet in a fight's first round. *Built 0.61.2:* the
+  resume follows every Bonus Action feat; with no attack rolled, the target ordered (+kCreatureAttackTarget); an
+  instant one's dropped attack is given back within 3 s (a later order of the player's stands).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,
