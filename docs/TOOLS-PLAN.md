@@ -998,3 +998,29 @@ the stance's spot; never both feet up; planted frames move only 0.5-0.8 cm at is
 reduction, pre-existing). *Final review* (a fresh reviewer): 7 Important + 3 re-graded Minors fixed with tests that
 failed first; checks/run.js 15/15, browser_check 46/46, 15 deliberate breaks caught. Rulings and deferred minors: the
 ledger, listed on #114.
+
+### The two-handed version: a grip in the recipe (2026-11-02, #112; plan docs/superpowers/plans/2026-11-02-two-handed-variant.md)
+
+*Asked (owner):* "just because they're raging, doesn't mean they can suddenly 1hand a great axe"; "Go with your
+recommendations" - a grip rule in the recipe and one two-handed version per clip (polearms use it too for now).
+*Built:*
+- **The grip (core 0.60.1, 157c8f1):** a recipe's `grip = 1` holds the left hand where the start pose holds it
+  against the right hand - its place and turn in rhand_g's frame, from the start pose's first frame on each body -
+  every frame, after the other IK. A body without the right hand or the left arm has none. Where the left arm can't
+  reach, it stretches straight at the grip and the shortfall is named like an IK target's.
+- **The variant pick (0.60.1):** `AnimationVariant(name, two_handed)` gives `<name>_2h` when the character wields a
+  two-hander and that recipe is built (16 characters at most). The game session's 0.60.2 (bac312d) uses it for Rage.
+- **The bench (nwn5e-tools 6f5ecee, 3c9e3e3):** the clip's "two-handed grip" box, and "make the two-handed version":
+  a new project `<name>_2h` - the take, edits and settings the same, the grip on, the start pose 2hreadyr (keys
+  rebased as a start pose change does) - opened unsaved; refused with the reason over 16 characters or when it exists.
+  An edit made while it (or a start pose change) solves wins.
+*Final review* (a fresh reviewer) - "with fixes":
+- **The plan's rule isn't enough (C1, open):** on n5_rage made into the version, the left arm stretches straight at the
+  haft and falls short on 87-94 of 105 frames on a_ba, a_da and a_dfa (20-47 cm; a_fa 73 frames, 20 cm): the
+  one-handed take carries the weapon hand where the off hand can't follow. The remedy changes how the weapon hand
+  moves - waiting on the owner's pick.
+- **The blends undo the grip (I1, with C1):** the grip is solved before the clip's blends, so unseamed clips and
+  in-place loops drift 2-9 cm inside their blend windows (seamed clips like n5_rage don't). Fixed with C1's core change.
+- **An edit during the solve was lost (I2, fixed 3c9e3e3):** the guard compared the project with itself.
+*Checks:* checks/run.js 15/15, browser_check 48/48, 12 deliberate breaks caught (3 of them core rules through the
+helper). Rulings and deferred minors: the ledger, listed on #112.
