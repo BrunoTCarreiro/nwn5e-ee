@@ -73,3 +73,81 @@
 - Test: `checks/project_check.js` (`gripDefault`), `checks/recipe_check.js` (`gripWritten`, and through the helper on every body: `gripAssembled`, the left hand within 1 cm of the right hand's grip place at 5 times; this needs the rebuilt helper), `browser_check.mjs` (`twoHandedVersion`: the button opens `n5_bchk_2h`-style named projects... the fixture's name gives the version's name, 2hreadyr, grip on, the gear picker a greataxe; over 16 characters it refuses).
 
 - [ ] **Steps:** failing tests, implement, run.js and browser_check pass (with the 0.60.x helper built for the checks, the installed one put back for the owner), commit.
+
+---
+
+## Addendum 2026-11-02: the weapon hand gives way, the grip after the blends, the polearm version
+
+**Why:** the final review (ledger "Final:" lines) found the plan's grip too weak for a one-handed take. On n5_rage made
+into the version, the left arm stretches straight at the haft and falls short on 87-94 of 105 frames (20-47 cm) - C1.
+It also found the grip solved before Step 9's blends, so it drifts in unseamed clips and in-place loops (I1). The owner,
+2026-11-02: "go with a, and c for the important clips" ((a) the weapon hand gives way; (c) recorded two-handed takes,
+his own); "yes, go with the polearm version too. For the crossbow let's leave it at 1 handed rage for now".
+Measured grips (NWN's ready stances, 4 bodies): 2hreadyr hands 13-25 cm apart, the left just below the right;
+plreadyr 64-89 cm, the left 61-87 cm up the shaft; 2wreadyr / bowrdy / 1hreadyr no shared grip; xbowrdy the
+crossbow in the left hand (left as one-handed, ruled).
+
+**Global Constraints (added):**
+- The grip's rule takes its relation from the start pose, so each grip kind is a start pose: the two-handed version
+  is made on 2hreadyr (`<name>_2h`), the polearm version on plreadyr (`<name>_pl`). No rule per weapon.
+- The off arm's limit is the straighter of 95% of its length (`kGripBend`) and its span in the start pose, so a
+  clip's ends - the start pose - never move.
+- Only a recipe with the grip changes; every other clip assembles exactly as before.
+- The bool `AnimationVariant(name, two_handed)` stays (the game's 0.60.3 calls it); the grip-kind form is added.
+
+### Task 4: The grip over the finished frames (core 0.60.4)
+
+**Files:** `src/data/anim_assemble.cpp`, `src/data/anim_recipe.h/.cpp` (`WeaponGrip`, `VariantName` by kind),
+`src/core/anim_packs.cpp` (`AnimationVariant(name, data::WeaponGrip)`), `src/core/dllmain.cpp` (the next kVersion
+after HEAD's, read just before committing), tests in `tests/data/anim_ik_test.cpp`, `tests/data/anim_recipe_test.cpp`.
+
+- The in-loop grip goes. One pass, `hold_grip`, runs after Step 9 and the unkeyed nodes, on both paths (the early
+  path is no longer forced by the grip). For each frame `f`:
+  - Take the finished pose (`pose::PoseAt`) and the goal, `W(rhand_g) * grip_place`.
+  - Where the goal lies beyond the off arm's limit from lbicep_g, the weapon hand gives way. rhand_g moves toward
+    the left shoulder by the excess, along the shoulder-to-goal line, keeping its world turn
+    (`SolveTwoBone` on the right arm, `kLimbDamping`). The goal moves with it.
+  - Then the left arm: the goal with `W(rhand_g) * grip_turn` (`kLimbDamping`; the limit keeps it short of the
+    damped zone).
+  - The arms' local turns are written back per frame, each on the same side as the one before.
+- Report: `grip`, the weapon hand's largest move and its time (a notice), and `left_hand`, any shortfall left.
+- A `left_hand` IK target is skipped under the grip (the grip wins, documented).
+- `enum class WeaponGrip { kOneHand, kTwoHand, kPolearm }`:
+  - `VariantName(name, WeaponGrip, built)`: kPolearm gives `_pl`, else `_2h`, else the name; kTwoHand gives `_2h`,
+    else the name; kOneHand gives the name.
+  - The bool form delegates to it.
+- Tests:
+  - `AnimGripWeaponHandGivesWay`: a right arm out of the left's reach. Every frame the left hand is on the grip
+    (1 mm, 0.5 deg) and the left arm's span is within its limit. The right hand keeps its world turn and moves
+    toward the left shoulder. The report names `grip`.
+  - `AnimGripUntouchedWhereItReaches`: frames the left arm reaches within its limit keep the right arm's keys of
+    the clip without the grip.
+  - `AnimGripHoldsThroughTheBlends`: blend_in / blend_out over 0; every frame on the grip.
+  - `AnimGripEndsOnTheStance`: a stance with the off arm straighter than 95%; the first and last frames are the
+    stance's.
+  - `AnimGripSkipsALeftHandTarget`: the clip is the grip's alone; no `left_hand` target shortfall.
+  - `AnimVariantName`, extended to the grip kinds.
+- Breaks: the give-way off, the move without the turn kept, the limit without the start pose's span, the pass on one
+  path only, the target not skipped, `_pl` without its `_2h` fallback.
+
+### Task 5: The bench makes both versions
+
+**Files:** `mocap_bench/public/core/project.js` (`versionName(name, existing, kind)` replacing `twoHandedName`;
+`VERSIONS = { twohand: { suffix: "_2h", stance: "2hreadyr" }, polearm: { suffix: "_pl", stance: "plreadyr" } }`),
+`core/gear.js` (plreadyr's default: a halberd), `inspector.js` (two buttons; the hint says the game plays a version
+where it asks for one - Rage does), `app.js` (`makeVersion(kind)`; a failed rebase says so; the unsaved-edit word says
+they go into the version), the readout and Save (`grip`: "the weapon hand comes in up to N cm for the grip at T s";
+`left_hand` under the grip: "the left hand can't reach the grip by N cm", not a target's).
+- Checks:
+  - `versionName` replaces `twoHandedName`.
+  - `gripAssembled` is reworked: every frame on the grip within 1 cm and the turn within 1 deg, the left arm's span
+    within its limit + 1 cm. Frames whose clip without the grip already held the left hand within the limit keep
+    the right hand (1 mm). Run on 2hreadyr seamed, on 2hreadyr with ends off and blends 0.2 / 0.3, and on plreadyr.
+  - `gripNotice`: Save names the weapon hand's move.
+  - browser `twoHandedVersion` makes the polearm version too (plreadyr, `_pl`, a halberd).
+- The helper is rebuilt for the checks; the installed one is put back for the owner.
+
+### Task 6 (the game session's): Rage passes the grip kind
+
+`rules_barbarian.cpp` calls `AnimationVariant("n5_rage", kind)`: WeaponWield 4 gives kPolearm, a standard weapon
+larger than its wielder kTwoHand, else kOneHand. Sent to the game session after Task 4's commit.
