@@ -1538,6 +1538,11 @@ confirmed"; "I didn't see the deflection trigger probably because there was no a
 projectile animation. but yeah, I'll add C later."* (A: a visual effect on the Monk; B, NWN's parry - the hit then a
 miss to the engine - not taken; C: a custom deflect animation, with the animation session, later.) *Built 0.60.8:*
 NWN's parry sparks (VFX_COM_SPARKS_PARRY) on the Monk with each deflection.
+*Accepted (owner, 2026-11-02: "M12-1,2 and 3 are confirmed"; "everything passes").* Monk parts 4 and 5 (#29, #30),
+0.60.0 with 0.60.7 and 0.60.8: OH1, OH2, OH4 and M8, M12 - every row of the matrices (the 10:29 log: Wholeness of
+Body, Quivering Palm on a hit and a miss, Topple, Push, Addle, Deflect Attacks; the 13:27 log on 0.60.10: Deflect
+Attacks and Wholeness of Body again). Left for later: a custom deflect animation (C, with the animation session),
+Deflect's redirect and Quivering Palm's two steps (Phase 6 / 7).
 
 ### Phase 3 — Rogue (CM9): recommendations (for the owner's decision)
 
