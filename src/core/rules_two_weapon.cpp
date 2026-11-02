@@ -37,6 +37,7 @@ bool HasTwoWeaponFightingStyle(void* stats);  // rules_fighter.cpp (Fighter F1, 
 int FinesseDamageBonus(void* stats, int off_hand);  // rules_finesse.cpp
 int RageDamageBonus(void* stats, int off_hand);     // rules_barbarian.cpp (Barbarian B2)
 void MartialArtsBonusStrike(void* round);           // rules_monk.cpp (Monk M1 (c))
+void BonusActionRoundStart(void* round);            // bonus_actions.cpp (Phase 6, #52)
 
 namespace {
 
@@ -80,6 +81,8 @@ void InitializeNumberOfAttacks(void* round) {
     g_initialize_number_of_attacks(round);
   }
   if (TwoWeaponFaithful()) OffHandAttacksFaithful(round);
+  // Phase 6 (#52): the round's Bonus Action - the off-hand attack left out when it's taken or kept free.
+  BonusActionRoundStart(round);
   // Monk M1 (c): the bonus unarmed strike, once the off-hand count is known.
   if (g_config.class_features == rules::RuleVariant::kFaithful) MartialArtsBonusStrike(round);
 }

@@ -273,7 +273,7 @@
 16000496 Cunning Strike: Trip
 16000497 Cunning Strike: Withdraw
 16000498 Cunning Strike: Off
-16000499 Combat options
+16000499 Combat configuration
 16000500 Devious Strikes: Daze
 16000501 Devious Strikes: Knock Out
 16000502 Devious Strikes: Obscure

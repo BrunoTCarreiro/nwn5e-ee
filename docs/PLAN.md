@@ -187,6 +187,28 @@ monster AC by CR.
      automatic triggers (Rage at a fight's start, Second Wind when Bloodied) for now.
   5. The build order: Bonus Actions (#52), the Action queue and the default attack (#120), the reaction switches
      (#54), Action Surge / Thief's Reflexes (#53), the movement extras (#55); then the staple actions (#56).
+- *Built 0.61.0 (#52, part 1 - Bonus Actions; key `actions`, faithful by default):* src/core/bonus_actions.cpp,
+  rules/action_economy.{h,cpp}.
+  - The feats that take the Bonus Action (rules::TakesBonusAction: Second Wind, Rage and its successors,
+    Intimidating Presence, Patient Defense, Step of the Wind, Wholeness of Body) and those that take no action
+    (rules::TakesNoAction: Reckless Attack, Superior Defense, the Brutal / Cunning / Devious Strikes and Open Hand
+    Technique pickers) get ReqAction 0 in memory after every rules load (CNWFeat +0x70): instant, the round's
+    attacks go on.
+  - One Bonus Action a round (rules::BonusActionFree: the creature's own round - CombatRoundsEnded - or 6 s out of
+    combat): a UseFeat guard lets one through while free (a listener spends it once the engine took the use); one
+    more is refused and waits (the latest click), and the next round's start spends its Bonus Action on it - a
+    creature update runs it (out of combat, once free).
+  - The round's start (rules_two_weapon.cpp's InitializeNumberOfAttacks hook, after the off-hand count, before the
+    Monk's strike): rules::DecideRoundBonus - the automatic bonus attack (the off-hand attack, Martial Arts' strike,
+    Flurry of Blows) is the round's Bonus Action unless it's taken (a waiting one) or kept free (the default "none");
+    an off-hand attack through Nick (weapon mastery on either hand's weapon) is part of the Attack action - kept,
+    free. Left out: the off-hand attack (+0x2F54 = 0), the Monk's strike and Flurry (the engine's Flurry strike off
+    +0x2F60, no Focus point).
+  - Combat configuration (the Combat options window, renamed; !options): "Bonus attack" - the default Bonus Action
+    (record nwn5e_bonus_default: 0 the bonus attack, 1 none).
+  - Tests BonusActionOnceARound, BonusActionFeats, BonusActionRoundStart (CAUGHT mutations caught).
+  - Later: potions as Bonus Actions (with the Action queue, #120 - the item path), Cunning Action and Steady Aim
+    (#53), Rage extended by a Bonus Action (it extends by attacking, as before), the reaction switches (#54).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,

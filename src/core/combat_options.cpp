@@ -36,6 +36,10 @@ int CunningStrikeRogueLevel(void* creature);
 rules::CunningChoice CunningStrikeChoice(void* creature);
 int CunningStrikeDcOf(void* creature);
 void PickCunningStrike(void* creature, rules::CunningEffect effect);
+// bonus_actions.cpp (Phase 6, #52)
+bool ActionEconomyOn();
+bool DefaultBonusAttackOn(void* creature);
+void SetDefaultBonusAttack(void* creature, bool on);
 // rules_monk.cpp
 int OpenHandMonkLevel(void* creature);
 rules::OpenHandTechnique OpenHandTechniqueOf(void* creature);
@@ -49,7 +53,7 @@ constexpr const char* kStatus = "o_status";
 constexpr float kRowHeight = 28.0f;
 constexpr float kCheckWidth = 190.0f;
 
-enum class Kind { kReckless, kBrutal, kCunning, kOpenHand };
+enum class Kind { kBonus, kReckless, kBrutal, kCunning, kOpenHand };
 
 struct Option {
   const char* bind;  // the checkbox's bool bind (and its id)
@@ -60,6 +64,8 @@ struct Option {
 };
 
 const Option kOptions[] = {
+    {"o_bonus", Kind::kBonus, 0, "Bonus attack",
+     "each round: your off-hand attack, Martial Arts' strike or Flurry - off: the Bonus Action kept for one you use"},
     {"o_reckless", Kind::kReckless, 0, "Reckless Attack",
      "Advantage on your Strength attacks; attacks against you have Advantage until a round after your last"},
     {"o_bs_force", Kind::kBrutal, 1, "Forceful Blow", "pushed 15 ft straight away from you"},
@@ -83,6 +89,7 @@ bool Faithful() { return g_config.class_features == rules::RuleVariant::kFaithfu
 
 bool Available(void* creature, const Option& o) {
   switch (o.kind) {
+    case Kind::kBonus: return ActionEconomyOn();
     case Kind::kReckless: return rules::HasRecklessAttack(BrutalStrikeBarbarianLevel(creature));
     case Kind::kBrutal:
       return rules::BrutalEffectAvailable(static_cast<rules::BrutalEffect>(o.effect), BrutalStrikeBarbarianLevel(creature));
@@ -95,6 +102,7 @@ bool Available(void* creature, const Option& o) {
 
 bool Checked(void* creature, const Option& o) {
   switch (o.kind) {
+    case Kind::kBonus: return DefaultBonusAttackOn(creature);
     case Kind::kReckless: return RecklessAttackOn(creature);
     case Kind::kBrutal: {
       for (rules::BrutalEffect e :
@@ -118,6 +126,7 @@ bool Checked(void* creature, const Option& o) {
 // A pick toggles: a chosen effect is removed, another is chosen.
 void Toggle(void* creature, const Option& o, bool on) {
   switch (o.kind) {
+    case Kind::kBonus: SetDefaultBonusAttack(creature, on); break;
     case Kind::kReckless: SetRecklessAttack(creature, on); break;
     case Kind::kBrutal: PickBrutalStrike(creature, static_cast<rules::BrutalEffect>(o.effect)); break;
     case Kind::kCunning: PickCunningStrike(creature, static_cast<rules::CunningEffect>(o.effect)); break;
@@ -172,6 +181,15 @@ std::string Layout(void* creature, int* rows) {
     children += element;
   };
   int count = 0;
+  if (ActionEconomyOn()) {  // Phase 6 (#52)
+    add(Header("Bonus Action - one a round; the default when you use none:"));
+    ++count;
+  }
+  for (const Option& o : kOptions) {
+    if (o.kind != Kind::kBonus || !Available(creature, o)) continue;
+    add(OptionRow(o));
+    ++count;
+  }
   const int barbarian = BrutalStrikeBarbarianLevel(creature);
   if (rules::HasRecklessAttack(barbarian)) {
     add(Header("Barbarian " + std::to_string(barbarian)));
@@ -245,14 +263,17 @@ void Open(uint32_t player) {
   void* creature = CreatureById(player);
   if (!creature) return;
   if (!Faithful() || !HasAnyOption(creature)) {
-    TellPlayer(player, "nwn5e: no combat options yet - Reckless Attack (Barbarian 2), Brutal Strike (Barbarian 9), "
-                       "Cunning Strike (Rogue 5), Open Hand Technique (Monk 3).");
+    TellPlayer(player, "nwn5e: no combat configuration yet - the Bonus Action (actions faithful), Reckless Attack "
+                       "(Barbarian 2), Brutal Strike (Barbarian 9), Cunning Strike (Rogue 5), Open Hand Technique "
+                       "(Monk 3).");
     return;
   }
   int rows = 0;
   const std::string root = Layout(creature, &rows);
   const float height = 90.0f + rows * (kRowHeight + 6.0f) + 60.0f;
-  if (!NuiOpen(player, kWindow, nui::Window(root, nui::Str("Combat options"), 120.0f, 120.0f, 720.0f, height))) return;
+  if (!NuiOpen(player, kWindow, nui::Window(root, nui::Str("Combat configuration"), 120.0f, 120.0f, 720.0f, height))) {
+    return;
+  }
   Sync(player, creature);
   std::vector<std::string> binds;
   for (const Option& o : kOptions) {
@@ -299,6 +320,7 @@ void InstallCombatOptions() {
   const bool window = AddNuiWindow(kWindow, &OnEvent);
   AddScriptHandler("n5_cmbopts", &OpenScript);
   AddChatCommand("!options", &OptionsCommand);
-  Log("combat options: !options%s (Reckless Attack, Brutal Strike, Cunning Strike, Open Hand Technique)",
+  Log("combat options: !options%s (Combat configuration: the Bonus Action, Reckless Attack, Brutal Strike, Cunning "
+      "Strike, Open Hand Technique)",
       window ? "" : " NOT on (no NUI event hook)");
 }

@@ -177,6 +177,7 @@
 #include "rules/weapons.h"
 
 void RefreshCombatOptions(uint32_t player);  // combat_options.cpp
+bool MartialArtsBonusAllowed(void* creature);  // bonus_actions.cpp (Phase 6, #52)
 
 namespace {
 
@@ -346,6 +347,15 @@ void MartialArtsBonusStrike(void* round) {
   const int extra_now = Field<int32_t>(round, ee::kRoundExtraAttacks);
   const uint32_t now = g_rounds_counted ? CombatRoundsEnded(id) : 0;
   const auto known = g_bonus_strikes.find(id);
+  // Phase 6 (#52): the strike and Flurry are the round's Bonus Action - none when it's taken (one used, one waiting)
+  // or kept free (Combat configuration's default). In Flurry mode the engine's own Flurry strike goes too, and no
+  // Focus point is spent.
+  if (level > 0 && !MartialArtsBonusAllowed(creature)) {
+    if (flurry) SetField<int32_t>(round, ee::kRoundExtraAttacks, extra_now > 0 ? extra_now - 1 : 0);
+    if (off_hand > 0 && flurry) SetField<int32_t>(round, ee::kRoundOffHandAttacks, 0);
+    g_bonus_strikes[id] = BonusStrike{now, false, false};
+    return;
+  }
   // M4 Flurry of Blows (the mode, from Monk 2): a point a round for its strikes; the engine's Flurry
   // has set the round's extra attacks to one (+ Haste's) - the bonus strike's place.
   if (flurry && level > 0 && rules::HasFlurryOfBlows(level)) {

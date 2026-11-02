@@ -55,6 +55,7 @@ void InstallFeatureRules();
 void InstallFighterRules();
 void InstallBarbarianRules();
 void InstallMonkRules();
+void InstallBonusActions();  // Phase 6 (#52)
 void InstallBarbarianStrikes();
 void InstallRestRules();
 void InstallDyingRules();
@@ -89,7 +90,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.60.11";
+constexpr const char* kVersion = "0.61.0";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -145,6 +146,7 @@ void Start(HMODULE self) {
   InstallBarbarianRules();
   InstallBarbarianStrikes();
   InstallMonkRules();
+  InstallBonusActions();   // Phase 6 (#52): after the class rules
   InstallResourcePanel();  // after the class rules: they give its pools
   InstallHudClock();       // #105: the game time over the compass
   InstallRestRules();

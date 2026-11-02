@@ -211,6 +211,11 @@ struct Config {
   // spending them out of combat, NWN's Rest as the Long Rest (all or nothing,
   // the Hit Dice back); nwn / off = NWN's rest.
   rules::RuleVariant rests = rules::RuleVariant::kFaithful;
+  // Phase 6 (#52): faithful = the 2024 action economy - the class abilities
+  // that take a Bonus Action instant, one a round (Combat configuration's
+  // default Bonus Action: the automatic bonus attack or none); nwn / off =
+  // NWN's (an ability takes the round).
+  rules::RuleVariant actions = rules::RuleVariant::kFaithful;
   // Rests move the clock: a Long Rest 8 hours, a Short Rest 1 - on by default
   // since 0.59.18 (#110, owner: "go with B"); faithful rests only (NWN mode's
   // rests don't install the rest rules). 0 keeps the clock still.
