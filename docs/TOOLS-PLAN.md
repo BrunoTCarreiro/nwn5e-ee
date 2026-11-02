@@ -1113,3 +1113,13 @@ then "go with 1 + 2, commit A first".
 second 75 -> 36 keys. *A second fresh review:* simplifying again after a span edit refitted its own result (fixed: it
 refits the performance), a new span's cutoff field was empty (fixed), and five rules had no check (added); checks/run.js
 16/16, browser_check 67/67. Rulings and deferred minors: the ledger, listed on #116.
+
+### A slot's time budget (2026-11-02, #122; with #121 on the game side)
+
+*Reported (owner):* "I've had the rage animation cancel an attack animation because it was too long (the attack still
+went through, just didn't show the animation)". Found: since 0.61.0 Rage is an instant Bonus Action, so its 3.47 s
+flourish (a fire-and-forget at speed 1.0) plays mid-round; swings are 1.0 s at about 1, 3 and 5 s of the 6 s round.
+*Decision (owner):* "B and C, do not trim it, I'll tailor the animations to fit the budget" - C (#121, game side): wait for
+the swing, then play the flourish while pausing the round for its length, as an equip does; B (#122, nwn5e-tools
+f9a2d4e): each slot's time budget - n5_rage 1.5 s, n5_shove 1.0 s - in the clip tab, as a red line on the take row, and
+named at Save. No clip changed.
