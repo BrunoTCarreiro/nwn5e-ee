@@ -151,3 +151,42 @@ they go into the version), the readout and Save (`grip`: "the weapon hand comes 
 
 `rules_barbarian.cpp` calls `AnimationVariant("n5_rage", kind)`: WeaponWield 4 gives kPolearm, a standard weapon
 larger than its wielder kTwoHand, else kOneHand. Sent to the game session after Task 4's commit.
+
+---
+
+## Addendum 2 (2026-11-02): the weapon turns first; the arms solve from the start pose (core 0.60.6)
+
+**Why:** the second final review (ledger "Final 2:") found, on n5_rage through 0.60.4:
+- **C1:** the off arm flips at the strike on the polearm version (lbicep up to 179 deg/frame; the hands 13-38 cm apart between frames), and the weapon elbow pops 12-25 cm/frame on the two-handed one. Both arm solves start from the performance's arms, which are ill-conditioned for 20-100 cm moves.
+- **I1:** the left elbow sits 2-4 cm off the start pose at the ends.
+- **I2:** the bench's preview cache ignores the grip.
+- **I3:** no test covers the grip on the IK path.
+
+The owner picked "p2" (the weapon turns first), then t3 (the turn shared between the forearm's roll and the wrist) after the measurements in the ledger.
+
+### Task 7: The grip's turn and arm references (core 0.60.6)
+
+`hold_grip`, per frame, where the goal lies beyond the off arm's limit (`excess > 1e-4`):
+1. **The weapon turns first.** Along the shortest turn that carries the grip toward the left shoulder (about `d x e`, with d the grip's direction from the hand and e the shoulder's), as far as needed but no further than its split about the forearm's axis allows: twist (the forearm's roll) <= 80 deg (`kGripRoll`), swing (the wrist) <= 60 deg (`kGripWrist`).
+2. **The hand moves only for the rest**, toward the shoulder, with the turned weapon. The right arm solves from a reference blended from the performance's arm toward the start pose's (carried on the frame's torso) by how far the hand moves (`smoothstep(move / (0.3 x arm length))`), and bends the way that reference does.
+3. **The twist goes to the forearm's roll** (rforearm_g turns about its own axis); the wrist keeps only the swing.
+4. **The left arm solves from the start pose's left arm** carried on the frame's torso, bending the way it does (no swivel: the ends are the start pose exactly).
+
+Tests:
+- `AnimGripTurnsBeforeItMoves`: frames turning alone covers keep the hand's place (1 mm); the turn stays within the caps; the hand moves only past them.
+- `AnimGripForearmTakesTheRoll`: the wrist (the hand against the forearm) differs from the take's by at most the swing cap.
+- `AnimGripArmsTurnSmoothly`: the four arm bones step no faster than the take's plus 20 deg/frame; between frames the grip holds within 3 cm.
+- `AnimGripElbowsOnTheStanceAtTheEnds`: a stance whose elbow bends sideways; both elbows on the stance at the ends (1 mm).
+- `AnimGripOnTheIkPath`: a hips target; every frame on the grip.
+- `AnimGripThroughALoop`: an in-place loop's crossfade.
+
+`AnimGripWeaponHandGivesWay` now asserts the turn's caps instead of a kept turn.
+
+### Task 8: The bench reads it
+
+- `pipeline.js`: the clip cache keys on the grip (I2), with a `pipeline_check` case.
+- `gripAssembled`:
+  - The wrist within the swing cap.
+  - The arm bones' steps within the plain clip's plus 25 deg/frame.
+  - Between frames the grip within 3 cm.
+- The browser readout check names the grip only as a notice (M6).
