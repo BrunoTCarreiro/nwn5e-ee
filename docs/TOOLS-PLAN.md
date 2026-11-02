@@ -1141,3 +1141,6 @@ stage (`flourish:` asks / waits / plays / over / done / drops).
 *A fresh review* (0.62.1): "attacking" read the current action, which reads none outside the engine's RunActions
 (now the action queue's head), and an enemy's swing pausing the round before its own round ran was played over
 (now it waits; a pause counts while the round runs or in a fight). Four minors deferred (the ledger, listed on #121).
+*Accepted (owner, 2026-11-02: "it looked right, accept #121")* on 0.62.2: out of combat at once; mid-fight it
+waited for the swing three times and the next attack followed the clip on the same target; after the round's swings
+it played at the next round's start; Presence's victoryth the same. The enemy's-swing case wasn't exercised.
