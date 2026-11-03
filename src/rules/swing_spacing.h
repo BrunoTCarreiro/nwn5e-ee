@@ -34,4 +34,10 @@ SwingLayout OneSwingPerAttack(int attacks, int first_due, int length_now, int sw
 // when they don't fit, never in. The pending swings' dues first, then the added ones'.
 SwingLayout AddedSwings(int pending, int added, int now, int length);
 
+// A swing starting at `now`, its round's swings still to come due at `dues` (in order) of `length`: none of them
+// closer than kMinSwingGapMs of round time to the one before - a swing the engine held (0.66.3, the owner's AS-1b:
+// held a second, the next ones then due at once, followed back to back) moves the next ones back, never earlier;
+// the round's end moved out to a gap past the last when needed, never in.
+SwingLayout KeepSwingGaps(int now, const std::vector<int>& dues, int length);
+
 }  // namespace rules

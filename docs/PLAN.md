@@ -468,6 +468,18 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     swings); not in a cast round. The round bar's ticks take in swings added mid-round. Tests
     SwingSpacingEngineLengths, SwingSpacingOneSwingPerAttack, SwingSpacingAddedSwings (16 of 16 mutations
     caught). Installed with it: the animation session's #128 (a flourish pauses its round at once).
+  - *The owner's 0.66.2 run of AS-1b (2026-11-03):* "something happened here where the round kept going but some
+    attacks were not made on time and were skipped?" The log: none skipped - all six made, the next round on time.
+    The engine held the 4th swing 1.2 s past its due with the round's timer running (AIActionAttackObject not taking
+    a due swing - its cause not found), so the 5th and 6th were due by then and followed back to back; the
+    pre-fight Surge's 6th was held 1 s the same way. 0.66.1's 3-swing rounds show the same holds (gaps of 3.1 and
+    2.9 s, then 1.6 s), hidden in NWN's 2 s gaps.
+  - *Built 0.66.3:* as a swing starts (CNWSCombatRound::GetAction - the list's RemoveHead, called only by
+    AIActionAttackObject), the swings behind it keep at least 300 ms of round time between them
+    (rules::KeepSwingGaps: moved back, never earlier; the round's end moved out past the last when needed) - a hold
+    stretches the round instead of bunching it; a swing made more than 300 ms late is logged. The round bar's ticks
+    follow the swings: a made one where the round was when it was made, the ones to come where they're due now.
+    Test SwingSpacingKeepGaps (7 of 7 mutations caught).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,

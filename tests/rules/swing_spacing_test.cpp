@@ -55,3 +55,22 @@ TEST(SwingSpacingAddedSwings) {
   CHECK_EQ(over.round_length, 4000 + 2 * kMinSwingGapMs);
   CHECK_EQ(AddedSwings(2, 0, 1500, 3250).dues.empty(), true);
 }
+
+// 0.66.3 (the owner's AS-1b: "the round kept going but some attacks were not made on time"). Breaks caught: held
+// swings' followers left due at once, moved from the round's start instead of the swing, swings on time moved,
+// one moved earlier, the round's end not moved out past them.
+TEST(SwingSpacingKeepGaps) {
+  // The 4th swing held to 2514 ms; the 5th and 6th were due at 1781 and 2203 - they keep their gaps behind it.
+  const SwingLayout held = KeepSwingGaps(2514, {1781, 2203}, 2625);
+  CHECK_EQ(held.dues.size() == 2 && held.dues[0] == 2514 + kMinSwingGapMs, true);
+  CHECK_EQ(held.dues.size() == 2 && held.dues[1] == 2514 + 2 * kMinSwingGapMs, true);
+  CHECK_EQ(held.round_length, 2514 + 3 * kMinSwingGapMs);
+  // On time: nothing moved, the round's end kept.
+  const SwingLayout on_time = KeepSwingGaps(937, {1359, 1781, 2203}, 2625);
+  CHECK_EQ(on_time.dues.size() == 3 && on_time.dues[0] == 1359 && on_time.dues[2] == 2203, true);
+  CHECK_EQ(on_time.round_length, 2625);
+  // One close behind, the next far enough: only the close one moves.
+  const SwingLayout one = KeepSwingGaps(1000, {1100, 2000}, 3000);
+  CHECK_EQ(one.dues.size() == 2 && one.dues[0] == 1300 && one.dues[1] == 2000, true);
+  CHECK_EQ(KeepSwingGaps(1000, {}, 3000).round_length, 3000);
+}

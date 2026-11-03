@@ -38,4 +38,16 @@ SwingLayout AddedSwings(int pending, int added, int now, int length) {
   return layout;
 }
 
+SwingLayout KeepSwingGaps(int now, const std::vector<int>& dues, int length) {
+  SwingLayout layout;
+  layout.round_length = length;
+  int before = now;
+  for (int due : dues) {
+    before = std::max(due, before + kMinSwingGapMs);
+    layout.dues.push_back(before);
+  }
+  if (!layout.dues.empty()) layout.round_length = std::max(length, layout.dues.back() + kMinSwingGapMs);
+  return layout;
+}
+
 }  // namespace rules

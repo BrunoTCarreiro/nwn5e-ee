@@ -17,6 +17,14 @@
 // Action Surge in a running round (extra_actions.cpp) adds its attacks the same way, as swings of their own spaced
 // with the pending ones (rules::AddedSwings), in place of AddCleaveAttack (all of them at once, at the list's head,
 // a Cleave tag on each).
+//
+// 0.66.3 (the owner's AS-1b on 0.66.2: "the round kept going but some attacks were not made on time and were
+// skipped?" - none skipped: the engine held the 4th swing 1.2 s with the round's timer running, so the 5th and 6th
+// were due by then and followed back to back; 0.66.1's 3-swing rounds show the same holds, hidden in NWN's 2 s
+// gaps). As a swing starts (CNWSCombatRound::GetAction - the list's RemoveHead, only AIActionAttackObject's), the
+// swings behind it keep at least rules::kMinSwingGapMs of round time between them (rules::KeepSwingGaps): moved
+// back, never earlier, the round's end moved out past them when needed - a hold stretches the round, it doesn't
+// bunch it.
 
 #include "round_swings.h"
 
@@ -37,9 +45,11 @@ namespace {
 using InitializeAttackActionsFn = void (*)(void* round, uint32_t target);
 using AddActionFn = void (*)(void* round, void* action);
 using NewFn = void* (*)(size_t size);
+using GetActionFn = void* (*)(void* round);
 
 constexpr const char* kInitializeAttackActions = "?InitializeAttackActions@CNWSCombatRound@@QEAAXI@Z";
 constexpr const char* kAddAction = "?AddAction@CNWSCombatRound@@QEAAXPEAVCNWSCombatRoundAction@@@Z";
+constexpr const char* kGetAction = "?GetAction@CNWSCombatRound@@QEAAPEAVCNWSCombatRoundAction@@XZ";
 constexpr const char* kNewPattern = "B9 28 00 00 00 E8 ?? ?? ?? ??";  // AddCleaveAttack: mov ecx, 28h; call new
 constexpr size_t kNewCall = 5;
 
@@ -66,10 +76,12 @@ constexpr uint8_t kActionAttack = 1;
 constexpr uint16_t kAnimationAttack = 9;
 constexpr int kMaxNodes = 128;
 constexpr int kMaxAttacks = 40;  // the round's attack data holds 50 (GetAttack)
+constexpr int kHeldLogMs = 300;  // a swing this far past its due is logged
 
 InitializeAttackActionsFn g_initialize = nullptr;
 AddActionFn g_add_action = nullptr;
 NewFn g_new = nullptr;
+GetActionFn g_get_action = nullptr;
 int g_lines = 0;
 
 bool LogSlot() { return g_lines < 300 && ++g_lines; }
@@ -187,6 +199,36 @@ void InitializeAttackActions(void* round, uint32_t target) {
   if (round) SplitSwings(round);
 }
 
+// A swing starting (taken off the list): the ones behind it keep their gaps.
+void SwingStarts(void* round, void* action) {
+  const int now = Field<int32_t>(round, kRoundTimer);
+  const int late = now - Field<int32_t>(action, kActionDue);
+  const std::vector<void*> pending = AttackActions(round);
+  std::vector<int> dues;
+  for (void* next : pending) dues.push_back(Field<int32_t>(next, kActionDue));
+  const int length_was = Field<int32_t>(round, kRoundLength);
+  const rules::SwingLayout plan = rules::KeepSwingGaps(now, dues, length_was);
+  int moved = 0;
+  for (size_t i = 0; i < pending.size() && i < plan.dues.size(); ++i) {
+    if (plan.dues[i] == dues[i]) continue;
+    SetField<int32_t>(pending[i], kActionDue, plan.dues[i]);
+    ++moved;
+  }
+  if (plan.round_length != length_was) SetField<int32_t>(round, kRoundLength, plan.round_length);
+  if (moved > 0) SortByDue(round);
+  if ((moved > 0 || late > kHeldLogMs) && LogSlot()) {
+    Log("round swings: 0x%08X a swing made at %d ms, %d ms past its due; %d to come, %d moved back to keep their "
+        "gaps (the round's timer %d -> %d ms)",
+        OwnerId(round), now, late, static_cast<int>(pending.size()), moved, length_was, plan.round_length);
+  }
+}
+
+void* GetAction(void* round) {
+  void* action = g_get_action(round);
+  if (action && round && Field<uint8_t>(action, kActionType) == kActionAttack) SwingStarts(round, action);
+  return action;
+}
+
 }  // namespace
 
 bool AddRoundSwings(void* round, uint32_t target, int count) {
@@ -240,5 +282,7 @@ void InstallRoundSwings() {
                   reinterpret_cast<void*>(&InitializeAttackActions), reinterpret_cast<void**>(&g_initialize))) {
     return;
   }
-  Log("round swings: one swing per attack (#53)");
+  const bool gaps = HookExport("CNWSCombatRound::GetAction (a held swing's followers keep their gaps)", kGetAction,
+                               reinterpret_cast<void*>(&GetAction), reinterpret_cast<void**>(&g_get_action));
+  Log("round swings: one swing per attack (#53)%s", gaps ? "; a held swing's followers keep their gaps" : "");
 }

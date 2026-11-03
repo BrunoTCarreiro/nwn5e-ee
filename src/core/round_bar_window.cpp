@@ -16,6 +16,8 @@
 // 0.66.1 (owner: "the bar pauses for a split second, then the vfx plays, then the animation plays" - a flourish's
 // 3.5 s pause came at a fresh round's start, its bar empty: dimmed and still, it looked like nothing): while the
 // round is paused the whole track turns violet, so a pause is plain whatever the fill.
+// 0.66.3 (#53): the ticks follow the swings - a made one where the round was when it was made, the ones to come where
+// they're due now (an Action Surge's added swings, a held swing's followers moved back: round_swings.cpp).
 
 #include <windows.h>
 
@@ -89,24 +91,30 @@ Sample g_published;  // g_lock
 uint32_t g_client_player = ee::kObjectInvalid;
 long long g_last_timer = -1;
 bool g_last_running = false;
-int g_last_left = 0;  // the round's swings to come at the last sample
-std::vector<long long> g_snapshot;  // the round's swings' due times, as it started
+struct Swing {
+  const void* action;
+  long long due;
+};
+std::vector<Swing> g_pending;     // the round's swings to come, at the last sample
+std::vector<long long> g_made;    // the round's swings made, where the round was then (ms)
 ULONGLONG g_next_gui = 0;
 float g_gui_w = 0.0f, g_gui_h = 0.0f, g_gui_s = 1.0f;
 
 uint32_t IdOf(const void* object) { return object ? Field<uint32_t>(object, ee::kObjectId) : ee::kObjectInvalid; }
 bool Off(void* creature) { return creature && engine::GetLocalInt(creature, kVarOff) != 0; }
 
-std::vector<long long> AttackDues(void* round) {
-  std::vector<long long> dues;
+std::vector<Swing> PendingSwings(void* round) {
+  std::vector<Swing> swings;
   void* wrapper = Field<void*>(round, kRoundActionList);
   void* list = wrapper ? *static_cast<void**>(wrapper) : nullptr;
   void* node = list ? *static_cast<void**>(list) : nullptr;
   for (int guard = 0; node && guard < 64; ++guard, node = Field<void*>(node, kNodeNext)) {
     const void* action = Field<void*>(node, kNodeData);
-    if (action && Field<uint8_t>(action, kActionType) == kActionAttack) dues.push_back(Field<int32_t>(action, kActionDue));
+    if (action && Field<uint8_t>(action, kActionType) == kActionAttack) {
+      swings.push_back(Swing{action, Field<int32_t>(action, kActionDue)});
+    }
   }
-  return dues;
+  return swings;
 }
 
 void RoundBarUpdate(void* creature) {
@@ -140,23 +148,23 @@ void RoundBarUpdate(void* creature) {
     s.timer = Field<int32_t>(round, kRoundTimer);
     s.length = Field<int32_t>(round, kRoundLength);
   }
-  const std::vector<long long> pending = s.running ? AttackDues(round) : std::vector<long long>();
-  if (s.running && (!g_last_running || s.timer < g_last_timer)) {
-    g_snapshot = pending;  // a new round
-  } else if (s.running && static_cast<int>(pending.size()) > g_last_left) {
-    // #53 (0.66.2): swings added to the running round (Action Surge) - the ticks made so far, then those to come.
-    const size_t made = static_cast<size_t>(std::max(0, static_cast<int>(g_snapshot.size()) - g_last_left));
-    if (g_snapshot.size() > made) g_snapshot.resize(made);
-    g_snapshot.insert(g_snapshot.end(), pending.begin(), pending.end());
+  const std::vector<Swing> pending = s.running ? PendingSwings(round) : std::vector<Swing>();
+  if (!s.running || !g_last_running || s.timer < g_last_timer) {
+    g_made.clear();  // a new round, or none
+  } else {
+    // A swing gone from the list was made since the last sample: its tick where the round was then.
+    for (const Swing& was : g_pending) {
+      const bool still = std::any_of(pending.begin(), pending.end(), [&](const Swing& is) { return is.action == was.action; });
+      if (!still) g_made.push_back(std::min<long long>(std::max<long long>(was.due, g_last_timer), s.timer));
+    }
   }
-  if (!s.running) g_snapshot.clear();
+  g_pending = pending;
   g_last_running = s.running;
   g_last_timer = s.timer;
-  const int left = static_cast<int>(pending.size());
-  g_last_left = left;
-  s.marks = rules::RoundSwingMarks(g_snapshot, s.length);
-  s.done = static_cast<int>(g_snapshot.size()) - left;
-  if (s.done < 0) s.done = 0;
+  std::vector<long long> ticks = g_made;
+  for (const Swing& swing : pending) ticks.push_back(swing.due);
+  s.marks = rules::RoundSwingMarks(ticks, s.length);
+  s.done = static_cast<int>(g_made.size());
   s.pips = g_config.actions == rules::RuleVariant::kFaithful;
   if (s.pips) {
     s.action = rules::ActionPip(s.running);
