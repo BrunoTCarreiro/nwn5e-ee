@@ -5,9 +5,10 @@
 // - Action Surge (Fighter 2; feat 1325, n5_actionsurge; instant - rules::TakesNoAction): the Attack action again.
 //   Its uses: a pool (feat_uses.cpp; rules::ActionSurgeUses - 1, 2 from 17), all back on a Short Rest, emptied by a
 //   Long one. Used while the Fighter attacks in a running round: its Attack action's attacks
-//   (rules::AttacksPerAttackAction) added to the round now - the engine's own way of adding an attack to a running
-//   round (CNWSCombatRound::AddCleaveAttack, as the Cleave mastery does), so the combat log may name them Cleave.
-//   Otherwise the next round the Fighter starts gets them (its extra attacks, +0x2F60, at the round's start).
+//   (rules::AttacksPerAttackAction) added to the round now, as swings of their own spaced with the round's pending
+//   ones (round_swings.cpp: AddRoundSwings; 0.66.2, #53 - 0.65.0's AddCleaveAttack put them all at once, named
+//   Cleave). Otherwise the next round the Fighter starts gets them (its extra attacks, +0x2F60, at the round's
+//   start - one swing each, round_swings.cpp).
 // - Thief's Reflexes (Thief 17 - the SRD's one Rogue subclass): a fight's first round (initiative) gets the Attack
 //   action twice, the same way; switchable in Combat configuration (record nwn5e_thief_reflexes_off; on by default).
 // - Cunning Action (Rogue 2; feats 1326-1328): Dash, Disengage, Hide as Bonus Actions (rules::TakesBonusAction:
@@ -40,6 +41,7 @@
 #include "log.h"
 #include "records.h"
 #include "rest.h"
+#include "round_swings.h"
 #include "script_hooks.h"
 #include "staple_actions.h"
 #include "rules/class_features.h"
@@ -54,7 +56,6 @@ constexpr size_t kCreatureStealthMode = 0x6ed;  // byte: SetStealthMode's
 constexpr uint64_t kRoundMs = 6000;
 constexpr uint64_t kFirstRoundWindowMs = 10000;  // initiative to the first round's start
 
-using AddCleaveAttackFn = void (*)(void* round, uint32_t target, int great_cleave);
 using SetStealthModeFn = void (*)(void* creature, uint8_t mode);
 
 struct Start {
@@ -135,11 +136,10 @@ void ActionSurgeScript(uint32_t self) {
   void* round = Field<void*>(creature, ee::kCreatureCombatRound);
   const uint32_t target = Field<uint32_t>(creature, ee::kCreatureAttackTarget);
   void* victim = CreatureById(target);
-  static const auto add_cleave = reinterpret_cast<AddCleaveAttackFn>(EngineExport(ee::kAddCleaveAttack));
-  if (round && Field<int32_t>(round, kRoundStarted) != 0 && victim && !engine::IsDeadOrDying(victim) && add_cleave) {
-    for (int i = 0; i < attacks; ++i) add_cleave(round, target, 0);
+  if (round && Field<int32_t>(round, kRoundStarted) != 0 && victim && !engine::IsDeadOrDying(victim) &&
+      AddRoundSwings(round, target, attacks)) {
     if (LogSlot()) Log("actions: 0x%08X Action Surge - the Attack action again: %d attack(s) added to this round at "
-                       "0x%08X", self, attacks, target);
+                       "0x%08X, swings of their own", self, attacks, target);
     Tell(creature, "Action Surge - your Attack action again: " + std::to_string(attacks) + " more attack" +
                        (attacks == 1 ? "" : "s") + " this round.");
     return;

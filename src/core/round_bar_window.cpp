@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include <algorithm>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -88,6 +89,7 @@ Sample g_published;  // g_lock
 uint32_t g_client_player = ee::kObjectInvalid;
 long long g_last_timer = -1;
 bool g_last_running = false;
+int g_last_left = 0;  // the round's swings to come at the last sample
 std::vector<long long> g_snapshot;  // the round's swings' due times, as it started
 ULONGLONG g_next_gui = 0;
 float g_gui_w = 0.0f, g_gui_h = 0.0f, g_gui_s = 1.0f;
@@ -138,11 +140,20 @@ void RoundBarUpdate(void* creature) {
     s.timer = Field<int32_t>(round, kRoundTimer);
     s.length = Field<int32_t>(round, kRoundLength);
   }
-  if (s.running && (!g_last_running || s.timer < g_last_timer)) g_snapshot = AttackDues(round);  // a new round
+  const std::vector<long long> pending = s.running ? AttackDues(round) : std::vector<long long>();
+  if (s.running && (!g_last_running || s.timer < g_last_timer)) {
+    g_snapshot = pending;  // a new round
+  } else if (s.running && static_cast<int>(pending.size()) > g_last_left) {
+    // #53 (0.66.2): swings added to the running round (Action Surge) - the ticks made so far, then those to come.
+    const size_t made = static_cast<size_t>(std::max(0, static_cast<int>(g_snapshot.size()) - g_last_left));
+    if (g_snapshot.size() > made) g_snapshot.resize(made);
+    g_snapshot.insert(g_snapshot.end(), pending.begin(), pending.end());
+  }
   if (!s.running) g_snapshot.clear();
   g_last_running = s.running;
   g_last_timer = s.timer;
-  const int left = s.running ? static_cast<int>(AttackDues(round).size()) : 0;
+  const int left = static_cast<int>(pending.size());
+  g_last_left = left;
   s.marks = rules::RoundSwingMarks(g_snapshot, s.length);
   s.done = static_cast<int>(g_snapshot.size()) - left;
   if (s.done < 0) s.done = 0;

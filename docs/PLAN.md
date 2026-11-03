@@ -440,6 +440,34 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     when not moved, Hide when not in stealth mode).
   - Tests ExtraActions, ExtraActionsEconomy, the grants' counts, the quickbar's 64-bit record (15 of 15 mutations
     caught).
+- *The owner's 0.66.1 run of AS-1 / AS-2 (2026-11-03):* "AS-1 and 2 look funky, especially 2. if AS gets activated
+  before combat the PC looks like it half swings the sword before each attack but only attacks once". The log: the
+  pre-fight Surge's round resolved its 6 attacks in pairs 8 ms apart at 0 / 2 / 4 s. CNWSCombatRound::
+  InitializeAttackActions (0x376EE0) gives a round at most three swings (2 s apart from the round's start delay);
+  past three attacks a swing carries n / 3 of them (the first ones one more), all played in one animation of
+  min(750 n + 500, 3000) / (3 + (n - 3) / 2) ms (n = 6: 667 ms for two attacks) - so the first is cut off. NWN's own
+  look for any round with 4+ attacks (Flurry from Monk 5, two weapons from Fighter 11, Fighter 20, Thief's
+  Reflexes). The mid-round Surge (AddCleaveAttack) gave each attack a whole swing, but three back to back at once,
+  before the round's own (and named Cleave).
+  - *Decided (owner, 2026-11-03: "go with A"):* **one swing per attack.** A round with more than three attacks gives
+    each its own whole swing, spread evenly between NWN's first and last swing times (6 attacks: one every 0.8 s);
+    the round lasts as long as NWN's. Action Surge's mid-round attacks join that spacing (no Cleave tag). Options
+    passed over: B - only Action Surge and Thief's Reflexes get their own swings; C - NWN's doubled swings kept.
+  - *Built 0.66.2 (both modes - how a round shows its attacks, not how many):* src/core/round_swings.cpp,
+    src/rules/swing_spacing.{h,cpp}. The recon: StartCombatRound runs InitializeNumberOfAttacks, then
+    InitializeAttackActions, which takes its swings' total (min(750 n + 500, 3000)) off the round's 6000 ms timer
+    (DecrementRoundLength scales the dues down with it); a due swing pauses the round - its timer standing still -
+    for its animation ((k + 1) / 2 of it for k attacks) and resolves its k attacks (ResolveAttack(target, k,
+    animation)). After InitializeAttackActions, a swing carrying k > 1 attacks becomes k swings (copies made by the
+    engine's operator new - the call AddCleaveAttack makes - added with CNWSCombatRound::AddAction; the engine's
+    animation length kept), rules::OneSwingPerAttack giving the dues (evenly from the first, the last gap at the
+    round's end) and the timer (+ the engine's total, - n swings): the round's 6 s kept (6 attacks: a 666 ms swing
+    every 1 s). Action Surge in a running round: AddRoundSwings - its attacks as swings of their own (+0x2F60 counted
+    as AddCleaveAttack counted them; no Cleave tag), the pending and the new due evenly from now (rules::AddedSwings:
+    at least 300 ms of timer apart, the round's end moved out when they don't fit - the round stretched by their
+    swings); not in a cast round. The round bar's ticks take in swings added mid-round. Tests
+    SwingSpacingEngineLengths, SwingSpacingOneSwingPerAttack, SwingSpacingAddedSwings (16 of 16 mutations
+    caught). Installed with it: the animation session's #128 (a flourish pauses its round at once).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,
