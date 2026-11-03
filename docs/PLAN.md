@@ -545,6 +545,27 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     "hidden: attacking from hiding, unseen; d20 15 / 1 -> 15", out of stealth mode after it; HA-4 - the stealth
     button (Stealth 29), the first attack with Advantage (12 / 19 -> 19), then out. HA-1 on 0.66.6.
   - *Accepted (owner, 2026-11-03: "accept 129").*
+- *#55, the movement extras (B9, C2, B10, OH3; Phase 6's last planned part).* NWN movement has no per-turn budget, so
+  "move up to half your Speed" can't be counted; the pattern already used (Tactical Shift, Withdraw, Patient Defense):
+  moving provokes no opportunity attacks for the rest of the round, no speed change. Options given: 1. Instinctive
+  Pounce (built in #25 as +50% speed for the Rage's first round): A leave it, B an automatic charge; 2. Remarkable
+  Athlete's move after a Critical Hit: A no opportunity attacks from moving for the rest of the round, B A plus +50%
+  speed, C leave it out; 3. Forceful Blow's move toward its target: A the same as 2A, B an automatic step after it,
+  C leave it out; 4. Fleet Step (Open Hand 11): A once a round, Step of the Wind right after another Bonus Action goes
+  at once (its Focus point, not the round's Bonus Action), B leave it out; 5. the free Patient Defense / Step of the
+  Wind (Disengage / Dash as a Bonus Action, no Focus point; Phase 6's Monk leftover): A fold it into #55, B later.
+  - *Decided (owner, 2026-11-03: "go with your recommendations"):* 1A, 2A, 3A, 4A, 5A.
+  - *Built 0.67.0:* disengage.cpp's StartFreeMove - Disengage's no-opportunity-attack window (6 s, the movement
+    broadcast skipped: rules_opportunity's Disengaged), the attack going on (no default-attack stop). Remarkable
+    Athlete: rules_fighter.cpp's after-attack-roll listener on a Critical Hit (Champion 3). Forceful Blow:
+    rules_barbarian_strikes.cpp after the push. Fleet Step: bonus_actions.cpp's guard lets Step of the Wind (either
+    use) through when the round's Bonus Action went to something else - the bonus attack, Flurry, a potion count -
+    once a round in a slot of its own (rules::FleetStepAllows; Monk 11); the use isn't the round's Bonus Action. The
+    free uses: feats 1330 "Patient Defense: Disengage" and 1331 "Step of the Wind: Dash" (data/rows/feat.monk.txt,
+    spells 1047 / 1048, cls_feat_monk "+" rows, strings 16000551-16000554; n5_pd_free / n5_sotw_free run
+    StartDisengage / StartDash), Bonus Actions, granted at Monk 2 (GrantableFeats2024 entries 28, 29; the quickbar's
+    bits 37, 38). Instinctive Pounce as built (#25). Tests ExtraActions (Fleet Step, the grants), ExtraActionsEconomy,
+    QuickbarHighBits, the grant counts (12 of 12 mutations caught).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,

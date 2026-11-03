@@ -63,6 +63,8 @@ enum Bit {
   kBitCunningDisengage = 34,
   kBitCunningHide = 35,
   kBitSteadyAim = 36,
+  kBitPatientDefenseFree = 37,  // #55
+  kBitStepOfTheWindFree = 38,
 };
 
 bool IsSecondWind(int value) {
@@ -81,7 +83,7 @@ const std::vector<int>& QuickbarActionFeats2024() {
                                           kFeatQuiveringPalm,  kFeatDisengage,    kFeatDodge,
                                           kFeatDash,           kFeatHelp,         kFeatActionSurge,
                                           kFeatCunningDash,    kFeatCunningDisengage, kFeatCunningHide,
-                                          kFeatSteadyAim};
+                                          kFeatSteadyAim,      kFeatPatientDefenseFree, kFeatStepOfTheWindFree};
   return kFeats;
 }
 
@@ -162,6 +164,13 @@ std::vector<QuickbarAction> QuickbarActions2024(const QuickbarFacts& facts) {
   }
   if (has(kFeatCunningHide)) actions.push_back({kBitCunningHide, kFeatCunningHide, "Cunning Action: Hide"});
   if (has(kFeatSteadyAim)) actions.push_back({kBitSteadyAim, kFeatSteadyAim, "Steady Aim"});
+  // #55: the Monk's free Patient Defense / Step of the Wind.
+  if (has(kFeatPatientDefenseFree)) {
+    actions.push_back({kBitPatientDefenseFree, kFeatPatientDefenseFree, "Patient Defense: Disengage"});
+  }
+  if (has(kFeatStepOfTheWindFree)) {
+    actions.push_back({kBitStepOfTheWindFree, kFeatStepOfTheWindFree, "Step of the Wind: Dash"});
+  }
   return actions;
 }
 

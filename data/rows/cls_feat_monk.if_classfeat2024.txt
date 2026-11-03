@@ -33,3 +33,5 @@ FeatLabel FeatIndex List GrantedOnLevel OnMenu
 9 WholenessofBody 211 3 6 1
 17 QuiveringPalm 296 3 17 1
 + NWN5E_OPEN_HAND_TECHNIQUE 1320 3 -1 1
++ NWN5E_PD_DISENGAGE 1330 3 -1 1
++ NWN5E_SOTW_DASH 1331 3 -1 1

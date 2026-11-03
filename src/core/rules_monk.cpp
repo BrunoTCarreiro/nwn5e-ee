@@ -633,6 +633,11 @@ void StepOfTheWindScript(uint32_t self) {
   Tell(creature, "Step of the Wind - you Disengage and Dash: twice as fast this round, no opportunity attacks.");
 }
 
+// #55 (the owner's 5A): Patient Defense's and Step of the Wind's free uses - the Disengage / Dash action as a Bonus
+// Action, no Focus point (staple_actions.cpp, disengage.cpp - as Cunning Action's).
+void PatientDefenseFreeScript(uint32_t self) { StartDisengage(self); }
+void StepOfTheWindFreeScript(uint32_t self) { StartDash(self); }
+
 // M14 Superior Defense (3 points): Resistance to every damage but Force for a minute.
 void SuperiorDefenseScript(uint32_t self) {
   void* creature = CreatureById(self);
@@ -1329,6 +1334,8 @@ void InstallMonkRules() {
   AddCreatureUpdateListener(&MonkFightUpdate);  // #31 (3 B): once a fight
   const bool feats = AddScriptHandler("n5_patient", &PatientDefenseScript) &&
                      AddScriptHandler("n5_stepwind", &StepOfTheWindScript) &&
+                     AddScriptHandler("n5_pd_free", &PatientDefenseFreeScript) &&
+                     AddScriptHandler("n5_sotw_free", &StepOfTheWindFreeScript) &&
                      AddScriptHandler("n5_superior", &SuperiorDefenseScript);
   const bool resistance = AddResistanceProvider(&SuperiorDefenseResistance);
   AddChatCommand("!focus", &FocusCommand);

@@ -10,3 +10,7 @@ LABEL FEAT DESCRIPTION ICON GAINMULTIPLE EFFECTSSTACK ALLCLASSESCANUSE CATEGORY 
 # Monk part 4 (0.60.0, OH1, X8): Open Hand Technique (Monk 3) - unlimited uses; its spell row is a
 # master row whose sub-radial picks the technique (spells.monk.txt) - the choice stays until changed.
 1320 NWN5E_OPEN_HAND_TECHNIQUE 16000521 16000522 ife_flurry 0 0 0 7 1 1032 0.5 **** 1 FEAT_NWN5E_OPEN_HAND_TECHNIQUE 6 0 1
+# #55 (0.67.0): Patient Defense's and Step of the Wind's free uses (Monk 2) - the Disengage / Dash action as a
+# Bonus Action, no Focus point; unlimited uses (rules::TakesBonusAction: instant, one a round).
+1330 NWN5E_PD_DISENGAGE 16000551 16000552 ife_mobility 0 0 0 7 1 1047 0.5 **** 1 FEAT_NWN5E_PD_DISENGAGE 6 0 1
+1331 NWN5E_SOTW_DASH 16000553 16000554 ife_barbend 0 0 0 7 1 1048 0.5 **** 1 FEAT_NWN5E_SOTW_DASH 6 0 1

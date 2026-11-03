@@ -170,6 +170,12 @@ TEST(QuickbarHighBits) {
   uint64_t again = 0;
   CHECK_EQ(static_cast<int>(PlanQuickbar(EmptyBar(), placed, QuickbarActions2024(facts), &again).size()), 0);
   CHECK_EQ(again == placed, true);
+  // #55: the Monk's free Patient Defense / Step of the Wind - bits 37 and 38.
+  QuickbarFacts monk;
+  monk.feats = {kFeatPatientDefenseFree, kFeatStepOfTheWindFree};
+  uint64_t monk_placed = 0;
+  CHECK_EQ(static_cast<int>(PlanQuickbar(EmptyBar(), 0, QuickbarActions2024(monk), &monk_placed).size()), 2);
+  CHECK_EQ(monk_placed == ((uint64_t{1} << 37) | (uint64_t{1} << 38)), true);
 }
 
 // New actions go in the first empty slots, keys 1-9 first, and are recorded;

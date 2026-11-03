@@ -325,6 +325,10 @@
 16000548 Cunning Action (Rogue 2, 2024): on your turn, you can take one of the following actions as a Bonus Action: Dash, Disengage or Hide.\n\nHide: into stealth mode, even in a fight; your Stealth check decides who still sees you.
 16000549 Steady Aim
 16000550 Steady Aim (Rogue 3, 2024): as a Bonus Action, you give yourself Advantage on your next attack roll on the current turn. You can use this feature only if you haven't moved during this turn, and after you use it, your Speed is 0 until the end of the current turn.\n\nIn nwn5e: refused once you've moved this round; you can't move until your next round.
+16000551 Patient Defense: Disengage
+16000552 Patient Defense (Monk 2, 2024): you can take the Disengage action as a Bonus Action, or spend 1 Focus Point to take both the Disengage and the Dodge actions.\n\nIn nwn5e this is the free use (no Focus Point): until your next round, moving provokes no opportunity attacks. A Bonus Action. Patient Defense is the 1-point use.
+16000553 Step of the Wind: Dash
+16000554 Step of the Wind (Monk 2, 2024): you can take the Dash action as a Bonus Action, or spend 1 Focus Point to take both the Disengage and the Dash actions.\n\nIn nwn5e this is the free use (no Focus Point): twice as fast this round. A Bonus Action. Step of the Wind is the 1-point use.
 16000535 Dodge
 16000536 Dodge (2024): until the start of your next turn, any attack roll made against you has Disadvantage if you can see the attacker, and you make Dexterity saving throws with Advantage. You lose this benefit if you have the Incapacitated condition or if your Speed is 0. It takes your Action.\n\nIn nwn5e it lasts until your next round. Used while you're attacking, it goes after the round's attacks; its round has no attacks.
 16000537 Dash

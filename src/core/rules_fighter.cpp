@@ -42,6 +42,7 @@
 
 #include "attack_roll.h"
 #include "chat.h"
+#include "staple_actions.h"
 #include "config.h"
 #include "creature.h"
 #include "creature_update.h"
@@ -133,6 +134,15 @@ void StudiedAttacksAfterAttackRoll(AttackRoll& roll) {
         "target)",
         attacker_id, target_id);
   }
+}
+
+// C2 Remarkable Athlete (Champion 3; #55, the owner's 2A): right after a Critical Hit, moving provokes no
+// opportunity attacks for the rest of the round (disengage.cpp's window - NWN has no half-Speed budget to count).
+void RemarkableAthleteAfterAttackRoll(AttackRoll& roll) {
+  if (!roll.attacker || !roll.data || !Faithful()) return;
+  if (Field<uint8_t>(roll.data, ee::kAttackResult) != ee::kAttackResultCritical) return;
+  if (!rules::HasRemarkableAthlete(FighterLevelOf(StatsOf(roll.attacker)))) return;
+  StartFreeMove(IdOf(roll.attacker), "Remarkable Athlete (a Critical Hit)");
 }
 
 // --- F1 Defense, Great Weapon Fighting ------------------------------------------
@@ -615,6 +625,7 @@ void InstallFighterRules() {
              reinterpret_cast<void*>(&CreatureArmorClass), reinterpret_cast<void**>(&g_creature_armor_class));
   InstallWeaponDiceRules();
   AddAttackRollListeners(nullptr, &StudiedAttacksAfterAttackRoll);
+  AddAttackRollListeners(nullptr, &RemarkableAthleteAfterAttackRoll);  // #55
   AddCreatureUpdateListener(&HeroicRally);
   AddRestListener(&ResetIndomitable);
   RegisterRecords({kVarStyleSwap});

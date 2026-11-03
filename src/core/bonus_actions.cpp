@@ -83,6 +83,11 @@ struct BonusState {
   uint32_t decided_round = 0;
   bool keep_off_hand = true;
   bool martial_arts = true;
+  int spent_feat = -1;         // #55: the feat the round's Bonus Action went to (-1: the bonus attack, a potion)
+  bool fleet_pass = false;     // #55: the guard let Step of the Wind through on Fleet Step
+  bool fleet_used = false;     // #55: Fleet Step's own once-a-round slot
+  uint32_t fleet_round = 0;
+  uint64_t fleet_at = 0;
 };
 std::unordered_map<uint32_t, BonusState> g_state;  // by creature id; the engine's thread
 struct RecentUse {
@@ -160,6 +165,25 @@ void Spend(uint32_t id, BonusState* s) {
   s->used = true;
   s->used_round = CombatRoundsEnded(id);
   s->used_at = GameMs();
+  s->spent_feat = -1;  // BonusActionUsed names the feat
+}
+
+int MonkLevel(void* creature) {
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  if (!stats) return 0;
+  int levels = 0;
+  for (const rules::ClassLevels& c : rules::GroupClassLevels(ReadClassSlots(stats))) {
+    if (c.character_class == rules::CharacterClass::kMonk) levels += c.levels;
+  }
+  return levels;
+}
+
+// #55 OH3 Fleet Step (Open Hand 11; the owner's 4A): Step of the Wind right after a Bonus Action other than Step of
+// the Wind goes at once - once a round, in a slot of its own (its Focus point if any, not the round's Bonus Action).
+bool FleetStepPass(void* creature, uint32_t id, const BonusState& s, int feat) {
+  const bool fleet_free = rules::BonusActionFree(s.fleet_used, CombatRoundsEnded(id) != s.fleet_round,
+                                                 static_cast<long long>(GameMs() - s.fleet_at));
+  return rules::FleetStepAllows(MonkLevel(creature), feat, s.spent_feat, fleet_free);
 }
 
 bool RoundRunning(void* creature) {
@@ -199,7 +223,12 @@ bool BonusActionGuard(void* creature, int feat) {
   if (!Faithful() || !creature || !rules::TakesBonusAction(feat) || t_running_pending) return true;
   const uint32_t id = IdOf(creature);
   BonusState& s = g_state[id];
+  s.fleet_pass = false;
   if (Free(id, s)) return true;  // spent once the engine takes the use (BonusActionUsed)
+  if (FleetStepPass(creature, id, s, feat)) {
+    s.fleet_pass = true;  // BonusActionUsed: Fleet Step's slot, not the round's Bonus Action
+    return true;
+  }
   s.pending = feat;
   s.potion = false;
   if (LogSlot()) Log("actions: 0x%08X %s waits - the round's Bonus Action is spent", id, rules::BonusActionName(feat));
@@ -211,8 +240,23 @@ bool BonusActionGuard(void* creature, int feat) {
 void BonusActionUsed(void* creature, int feat) {
   if (!Faithful() || !creature || !rules::TakesBonusAction(feat)) return;
   const uint32_t id = IdOf(creature);
-  Spend(id, &g_state[id]);
+  BonusState& s = g_state[id];
   g_recent[id] = RecentUse{feat, GetTickCount64() + kRecentMs};
+  if (s.fleet_pass && rules::IsStepOfTheWind(feat)) {  // #55: Fleet Step
+    s.fleet_pass = false;
+    s.fleet_used = true;
+    s.fleet_round = CombatRoundsEnded(id);
+    s.fleet_at = GameMs();
+    if (LogSlot()) {
+      Log("actions: 0x%08X %s - Fleet Step: right after the round's Bonus Action, not another", id,
+          rules::BonusActionName(feat));
+    }
+    Tell(creature, std::string("Fleet Step - ") + rules::BonusActionName(feat) + " right after your Bonus Action.");
+    return;
+  }
+  s.fleet_pass = false;
+  Spend(id, &s);
+  s.spent_feat = feat;
   if (LogSlot()) Log("actions: 0x%08X %s - the round's Bonus Action", id, rules::BonusActionName(feat));
 }
 

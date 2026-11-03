@@ -13,6 +13,7 @@
 
 #include <stdint.h>
 
+#include <string>
 #include <unordered_map>
 
 #include "chat.h"
@@ -48,6 +49,19 @@ void StartDisengage(uint32_t self) {
   Log("actions: 0x%08X Disengage - moving provokes no opportunity attacks until its next round", self);
   if (IsPlayer(creature)) {
     TellPlayer(self, "nwn5e: Disengage - until your next round, moving away provokes no opportunity attacks.");
+  }
+}
+
+// #55 (the owner's 2A, 3A): "move up to half your Speed without provoking Opportunity Attacks" - NWN has no Speed
+// budget to count, so, as Tactical Shift and Withdraw: moving provokes none for the rest of the round. The attack goes
+// on (no default-attack stop: following the target is the point).
+void StartFreeMove(uint32_t self, const char* why) {
+  void* creature = CreatureById(self);
+  if (!creature) return;
+  g_until[self] = GameMs() + kDisengageMs;
+  Log("actions: 0x%08X %s - moving provokes no opportunity attacks this round", self, why);
+  if (IsPlayer(creature)) {
+    TellPlayer(self, std::string("nwn5e: ") + why + " - this round, moving provokes no opportunity attacks.");
   }
 }
 

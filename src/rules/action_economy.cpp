@@ -12,7 +12,8 @@ bool TakesBonusAction(int feat) {
   return feat == kFeatSecondWind2 || feat == kFeatSecondWind3 || feat == kFeatSecondWind4 || IsRageFeat(feat) ||
          feat == kFeatIntimidatingPresence || feat == kFeatPatientDefense || feat == kFeatStepOfTheWind ||
          feat == kFeatWholenessOfBody || feat == kFeatCunningDash || feat == kFeatCunningDisengage ||
-         feat == kFeatCunningHide || feat == kFeatSteadyAim;  // #53
+         feat == kFeatCunningHide || feat == kFeatSteadyAim ||  // #53
+         feat == kFeatPatientDefenseFree || feat == kFeatStepOfTheWindFree;  // #55
 }
 
 bool TakesNoAction(int feat) {
@@ -32,6 +33,8 @@ const char* BonusActionName(int feat) {
   if (feat == kFeatCunningDisengage) return "Cunning Action: Disengage";
   if (feat == kFeatCunningHide) return "Cunning Action: Hide";
   if (feat == kFeatSteadyAim) return "Steady Aim";
+  if (feat == kFeatPatientDefenseFree) return "Patient Defense: Disengage";  // #55
+  if (feat == kFeatStepOfTheWindFree) return "Step of the Wind: Dash";
   return "";
 }
 

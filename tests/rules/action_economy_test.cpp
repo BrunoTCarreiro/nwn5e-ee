@@ -174,6 +174,11 @@ TEST(ExtraActionsEconomy) {
   CHECK_EQ(std::string(BonusActionName(kFeatCunningDash)) == "Cunning Action: Dash", true);
   CHECK_EQ(std::string(BonusActionName(kFeatCunningHide)) == "Cunning Action: Hide", true);
   CHECK_EQ(std::string(BonusActionName(kFeatSteadyAim)) == "Steady Aim", true);
+  // #55: the Monk's free Patient Defense / Step of the Wind take the Bonus Action.
+  CHECK_EQ(TakesBonusAction(kFeatPatientDefenseFree), true);
+  CHECK_EQ(TakesBonusAction(kFeatStepOfTheWindFree), true);
+  CHECK_EQ(std::string(BonusActionName(kFeatPatientDefenseFree)) == "Patient Defense: Disengage", true);
+  CHECK_EQ(std::string(BonusActionName(kFeatStepOfTheWindFree)) == "Step of the Wind: Dash", true);
 }
 
 TEST(StapleActions) {

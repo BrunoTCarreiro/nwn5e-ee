@@ -87,7 +87,7 @@ TEST(GrantedFeatsFollowClassLevels) {
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kFighter, 9}}).size(), 2u);  // #53: and Action Surge
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 5}}).empty(), true);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 3}, {CharacterClass::kFighter, 2}})[0], kFeatSecondWind2);
-  CHECK_EQ(GrantableFeats2024().size(), 28u);  // #54 Disengage (bit 19); #56 Dodge, Dash, Help; #53 five
+  CHECK_EQ(GrantableFeats2024().size(), 30u);  // #54 Disengage (bit 19); #56 Dodge, Dash, Help; #53 five; #55 two
   CHECK_EQ(GrantableFeats2024()[15], kFeatOpenHandTechnique);  // Monk parts 4 / 5: appended
   CHECK_EQ(GrantableFeats2024()[16], kFeatDeflectArrows);
   CHECK_EQ(GrantableFeats2024()[17], kFeatWholenessOfBody);
@@ -144,7 +144,7 @@ TEST(EveryoneCanShove) {
   CHECK_EQ(FeatsEveryoneHas2024(false, false, true).empty(), true);  // no Help in NWN mode
   // Appended: the records' bits keep their places.
   const std::vector<int>& grantable = GrantableFeats2024();
-  CHECK_EQ(grantable.size() == 28u && grantable[19] == kFeatDisengage && grantable[20] == kFeatDodge &&
+  CHECK_EQ(grantable.size() == 30u && grantable[19] == kFeatDisengage && grantable[20] == kFeatDodge &&
                grantable[21] == kFeatDash && grantable[22] == kFeatHelp,
            true);
   CHECK_EQ(GrantedOnlyWhenMissing(kFeatShovePush), false);
@@ -314,17 +314,17 @@ TEST(MonkPart1) {
   CHECK_EQ(HasBodyAndMind(20), true);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kMonk, 1}}).empty(), true);
   // Part 3: Patient Defense, Step of the Wind; parts 4 / 5: Open Hand Technique, Deflect Attacks, Wholeness of Body.
-  CHECK_EQ(GrantedFeats2024({{CharacterClass::kMonk, 6}}).size(), 5u);
+  CHECK_EQ(GrantedFeats2024({{CharacterClass::kMonk, 6}}).size(), 7u);  // #55: + the free PD / SotW
   const std::vector<int> monk7 = GrantedFeats2024({{CharacterClass::kMonk, 7}});
-  CHECK_EQ(monk7.size() == 6 && monk7[0] == kFeatImprovedEvasion, true);
+  CHECK_EQ(monk7.size() == 8 && monk7[0] == kFeatImprovedEvasion, true);
   for (const std::vector<ClassLevels>& both : {std::vector<ClassLevels>{{CharacterClass::kRogue, 7}, {CharacterClass::kMonk, 7}},
                                                std::vector<ClassLevels>{{CharacterClass::kMonk, 7}, {CharacterClass::kRogue, 7}}}) {
     int evasion = 0;
     for (int feat : GrantedFeats2024(both)) evasion += feat == kFeatImprovedEvasion ? 1 : 0;
     CHECK_EQ(evasion, 1);                        // asked by both classes, granted once
     // With the Rogue's Cunning Strike, the Monk's two Focus feats and parts 4 / 5's three; #53: the Rogue's Cunning
-    // Action (three) and Steady Aim.
-    CHECK_EQ(GrantedFeats2024(both).size(), 11u);
+    // Action (three) and Steady Aim; #55: the Monk's free Patient Defense / Step of the Wind.
+    CHECK_EQ(GrantedFeats2024(both).size(), 13u);
   }
   CHECK_EQ(HasFeatureList(CharacterClass::kMonk), true);
   CHECK_EQ(ClassFeatures2024(CharacterClass::kMonk, 1).size(), 2u);  // Martial Arts, Unarmored Defense
@@ -436,13 +436,13 @@ TEST(MonkFocus) {
   CHECK_EQ(ClassFeatureSaveProficiency({{CharacterClass::kMonk, 13}}, Ability::kCharisma), false);
   CHECK_EQ(HasSuperiorDefense(17), false);
   CHECK_EQ(HasSuperiorDefense(18), true);
-  CHECK_EQ(GrantedFeats2024({{CharacterClass::kMonk, 2}}).size(), 2u);
+  CHECK_EQ(GrantedFeats2024({{CharacterClass::kMonk, 2}}).size(), 4u);  // #55: + the free PD / SotW
   const std::vector<int> monk18 = GrantedFeats2024({{CharacterClass::kMonk, 18}});
   // Evasion, Patient Defense, Step of the Wind, Superior Defense; Open Hand Technique, Deflect Attacks,
   // Wholeness of Body, Quivering Palm (parts 4 / 5).
-  CHECK_EQ(monk18.size(), 8u);
+  CHECK_EQ(monk18.size(), 10u);
   CHECK_EQ(monk18[3], kFeatSuperiorDefense);
-  CHECK_EQ(GrantedFeats2024({{CharacterClass::kMonk, 17}}).size(), 7u);
+  CHECK_EQ(GrantedFeats2024({{CharacterClass::kMonk, 17}}).size(), 9u);
 }
 
 static bool Grants(const std::vector<int>& feats, int feat) {
@@ -572,7 +572,23 @@ TEST(ExtraActions) {
   CHECK_EQ(has(GrantedFeats2024({{CharacterClass::kRogue, 3}}), kFeatSteadyAim), true);
   CHECK_EQ(has(GrantedFeats2024({{CharacterClass::kRogue, 1}}), kFeatCunningDash), false);
   const std::vector<int>& grantable = GrantableFeats2024();
-  CHECK_EQ(grantable.size() == 28u && grantable[23] == kFeatActionSurge && grantable[27] == kFeatSteadyAim, true);
+  CHECK_EQ(grantable.size() == 30u && grantable[23] == kFeatActionSurge && grantable[27] == kFeatSteadyAim, true);
+  // #55: appended - the Monk's free Patient Defense / Step of the Wind.
+  CHECK_EQ(grantable.size() == 30u && grantable[28] == kFeatPatientDefenseFree &&
+               grantable[29] == kFeatStepOfTheWindFree,
+           true);
+  const std::vector<int> monk2 = GrantedFeats2024({{CharacterClass::kMonk, 2}});
+  CHECK_EQ(has(monk2, kFeatPatientDefenseFree) && has(monk2, kFeatStepOfTheWindFree), true);
+  CHECK_EQ(has(GrantedFeats2024({{CharacterClass::kMonk, 1}}), kFeatPatientDefenseFree), false);
+  // #55: Fleet Step (Open Hand 11) - Step of the Wind right after another Bonus Action, once a round.
+  CHECK_EQ(HasFleetStep(10), false);
+  CHECK_EQ(HasFleetStep(11), true);
+  CHECK_EQ(FleetStepAllows(11, kFeatStepOfTheWind, kFeatPatientDefense, true), true);
+  CHECK_EQ(FleetStepAllows(11, kFeatStepOfTheWindFree, -1, true), true);  // after the bonus attack / Flurry
+  CHECK_EQ(FleetStepAllows(11, kFeatStepOfTheWind, kFeatStepOfTheWindFree, true), false);  // not after itself
+  CHECK_EQ(FleetStepAllows(11, kFeatPatientDefense, kFeatPatientDefenseFree, true), false);  // only Step of the Wind
+  CHECK_EQ(FleetStepAllows(11, kFeatStepOfTheWind, kFeatPatientDefense, false), false);  // once a round
+  CHECK_EQ(FleetStepAllows(10, kFeatStepOfTheWind, kFeatPatientDefense, true), false);
 }
 
 TEST(DeflectRedirect) {

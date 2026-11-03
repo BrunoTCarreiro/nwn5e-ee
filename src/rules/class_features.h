@@ -467,6 +467,15 @@ constexpr int kFeatCunningDash = 1326;       // Rogue 2: Cunning Action - each a
 constexpr int kFeatCunningDisengage = 1327;
 constexpr int kFeatCunningHide = 1328;
 constexpr int kFeatSteadyAim = 1329;         // Rogue 3: a Bonus Action
+// #55 (owner, 2026-11-03: "go with your recommendations"): the Monk's free Patient Defense / Step of the Wind (Monk 2)
+// - Disengage / Dash as a Bonus Action, no Focus point (1317 / 1318 are the 1-point uses) - and Fleet Step (Open
+// Hand 11): Step of the Wind right after a Bonus Action other than Step of the Wind, once a round, in a slot of its
+// own (its Focus point if any, not the round's Bonus Action).
+constexpr int kFeatPatientDefenseFree = 1330;
+constexpr int kFeatStepOfTheWindFree = 1331;
+bool HasFleetStep(int monk_level);  // 11
+bool IsStepOfTheWind(int feat);     // either use
+bool FleetStepAllows(int monk_level, int feat, int bonus_action_spent_on, bool fleet_step_free);
 bool HasActionSurge(int fighter_level);       // 2
 int ActionSurgeUses(int fighter_level);       // 1, 2 from 17 - a Short or Long Rest gives them back
 bool HasCunningAction(int rogue_level);       // 2

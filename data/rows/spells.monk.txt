@@ -18,3 +18,7 @@ Label Name IconResRef School Range VS MetaMagic TargetType ImpactScript Innate C
 1035 nwn5e_OpenHandAddle 16000525 is_daze V P s 0x00 0x01 n5_oh_addle 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1032 3 16000522 0 0 0 1049625896 0
 1036 nwn5e_OpenHandOff 16000526 ife_flurry V P s 0x00 0x01 n5_oh_off 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1032 3 16000522 0 0 0 1049691432 0
 1037 nwn5e_OpenHandOptions 16000499 ife_flurry V P s 0x00 0x01 n5_cmbopts 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1032 3 16000504 0 0 0 1049756968 0
+# #55 (0.67.0): 1047 Patient Defense: Disengage (feat 1330) - n5_pd_free; 1048 Step of the Wind: Dash (1331) -
+# n5_sotw_free. The free uses, on yourself, instant.
+1047 nwn5e_PatientDefenseFree 16000551 ife_mobility V P s 0x00 0x01 n5_pd_free 1 0 **** **** 0 0 1 **** **** **** **** **** 5 **** 3 16000552 0 0 0 1330 0
+1048 nwn5e_StepOfTheWindFree 16000553 ife_barbend V P s 0x00 0x01 n5_sotw_free 1 0 **** **** 0 0 1 **** **** **** **** **** 5 **** 3 16000554 0 0 0 1331 0

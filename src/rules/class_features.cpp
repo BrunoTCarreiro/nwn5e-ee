@@ -19,7 +19,8 @@ const std::vector<ClassFeature>& Fighter() {
       {2, "Tactical Mind", false, "Phase 7 (a choice)"},
       {3, "Champion", false, "built: granted at 3"},
       {3, "Improved Critical", true, "built: crits on 19-20"},
-      {3, "Remarkable Athlete", true, "built: advantage on initiative (the move after a crit: Phase 6)"},
+      {3, "Remarkable Athlete", true, "built: advantage on initiative; after a Critical Hit, moving provokes no "
+                                      "opportunity attacks for the round (#55)"},
       {4, "Ability Score Improvement", false, "built (!asi)"},
       {5, "Extra Attack", false, "built"},
       {5, "Tactical Shift", false, "built: no opportunity attacks the round you use Second Wind"},
@@ -152,10 +153,10 @@ const std::vector<ClassFeature>& Monk() {
       {2, "Monk's Focus", false, "built: a point per Monk level, all back on a Short or Long Rest (!focus)"},
       {2, "Flurry of Blows", false, "built: its combat mode - a point a round for two strikes (three from 10) in "
                                     "place of the bonus strike, no -2"},
-      {2, "Patient Defense", false, "built: radial, 1 point - no opportunity attacks this round and Dodge "
-                                    "(free version: Phase 6)"},
-      {2, "Step of the Wind", false, "built: radial, 1 point - no opportunity attacks this round and twice as fast "
-                                     "(free version: Phase 6)"},
+      {2, "Patient Defense", false, "built: radial, 1 point - no opportunity attacks this round and Dodge; free "
+                                    "- Patient Defense: Disengage, a Bonus Action (#55)"},
+      {2, "Step of the Wind", false, "built: radial, 1 point - no opportunity attacks this round and twice as fast; "
+                                     "free - Step of the Wind: Dash, a Bonus Action (#55)"},
       {2, "Unarmored Movement", false, "built: +10 ft with no armour and no shield; +15 at 6, +20 at 10, +25 at "
                                        "14, +30 at 18"},
       {2, "Uncanny Metabolism", false, "built: automatic at a fight's start with half your points spent or "
@@ -184,7 +185,7 @@ const std::vector<ClassFeature>& Monk() {
       {10, "Heightened Focus", false, "built: three Flurry strikes; Patient Defense's temporary hit points"},
       {10, "Self-Restoration", false, "built: at the end of each round, one of Charmed, Frightened or Poisoned "
                                       "ends (in that order)"},
-      {11, "Fleet Step", true, "Phase 6 (bonus actions)"},
+      {11, "Fleet Step", true, "built: Step of the Wind right after another Bonus Action, once a round (#55)"},
       {12, "Ability Score Improvement", false, "built (!asi)"},
       {13, "Deflect Energy", false, "built: Deflect Attacks takes any damage type"},
       {14, "Disciplined Survivor", false, "built: proficient in every save; a failed one rolled again for a point "
@@ -851,6 +852,15 @@ bool HasThiefsReflexes(int rogue_level) { return rogue_level >= 17; }
 
 bool SteadyAimAllowed(float moved_metres) { return moved_metres <= kSteadyAimMoveTolerance; }
 
+bool HasFleetStep(int monk_level) { return monk_level >= 11; }
+
+bool IsStepOfTheWind(int feat) { return feat == kFeatStepOfTheWind || feat == kFeatStepOfTheWindFree; }
+
+bool FleetStepAllows(int monk_level, int feat, int bonus_action_spent_on, bool fleet_step_free) {
+  return HasFleetStep(monk_level) && IsStepOfTheWind(feat) && !IsStepOfTheWind(bonus_action_spent_on) &&
+         fleet_step_free;
+}
+
 bool StealthToggleAllowed(bool into_stealth, bool attack_target) { return !into_stealth || !attack_target; }
 
 bool HiddenAttackAdvantage(bool hiding, bool target_sees, bool faithful) { return faithful && hiding && !target_sees; }
@@ -891,6 +901,9 @@ std::vector<int> GrantedFeats2024(const std::vector<ClassLevels>& classes) {
       if (HasDeflectAttacks(c.levels)) feats.push_back(kFeatDeflectArrows);
       if (HasWholenessOfBody(c.levels)) feats.push_back(kFeatWholenessOfBody);
       if (HasQuiveringPalm(c.levels)) feats.push_back(kFeatQuiveringPalm);
+      // #55: Patient Defense's and Step of the Wind's free uses (no Focus point), with them at 2.
+      if (c.levels >= FocusFeatLevel(kFeatPatientDefense)) feats.push_back(kFeatPatientDefenseFree);
+      if (c.levels >= FocusFeatLevel(kFeatStepOfTheWind)) feats.push_back(kFeatStepOfTheWindFree);
     }
     if (c.character_class == CharacterClass::kBarbarian) {
       if (HasRecklessAttack(c.levels)) feats.push_back(kFeatRecklessAttack);
@@ -917,7 +930,7 @@ const std::vector<int>& GrantableFeats2024() {
                                           kFeatQuiveringPalm,  kFeatDisengage,    kFeatDodge,
                                           kFeatDash,           kFeatHelp,         kFeatActionSurge,
                                           kFeatCunningDash,    kFeatCunningDisengage, kFeatCunningHide,
-                                          kFeatSteadyAim};
+                                          kFeatSteadyAim,      kFeatPatientDefenseFree, kFeatStepOfTheWindFree};
   return kFeats;
 }
 

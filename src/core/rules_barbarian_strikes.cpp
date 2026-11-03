@@ -41,6 +41,7 @@
 
 #include "attack_roll.h"
 #include "chat.h"
+#include "staple_actions.h"
 #include "config.h"
 #include "creature.h"
 #include "dice.h"
@@ -270,7 +271,10 @@ void ApplyBrutalEffects(void* attacker, void* target, const BrutalPending& pendi
     switch (effect) {
       case rules::BrutalEffect::kForceful: {
         const std::string push = PushOnHit(attacker, target, rules::kForcefulBlowMetres);
-        part += push.empty() ? " (no push: weapon mastery's Push is off)" : " (" + push + ")";
+        // #55 (the owner's 3A): its move toward the target - no opportunity attacks from moving this round.
+        if (!push.empty()) StartFreeMove(attacker_id, "Forceful Blow");
+        part += push.empty() ? " (no push: weapon mastery's Push is off)"
+                             : " (" + push + "; you follow without opportunity attacks this round)";
         break;
       }
       case rules::BrutalEffect::kHamstring: {
