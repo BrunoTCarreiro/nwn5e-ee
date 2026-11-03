@@ -1154,3 +1154,5 @@ already gone out the window from the moment it is paused for attacks." *Built:* 
 right after the swing in progress, however little of the round is left: no CheckActionLength, no
 DecrementRoundLength - the round's timer stands still for the clip, then runs on, so the round ends later and its
 later attacks keep their timing. Still waits for a swing in progress (pausing over it cut the swing - #121's bug).
+*Accepted (owner, 2026-11-03: "it's good")* on 0.66.2 (with #53's one swing per attack): six flourishes played, the
+only waits were for a swing in progress (90 and 478 ms), none dropped.
