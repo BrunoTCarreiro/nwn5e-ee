@@ -520,6 +520,15 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     runs that update for every creature in the hider's area as hiding starts (after its Stealth roll), as the 2024
     Hide takes effect at once. Who still finds it (up close, a look in its cone, a search) keeps seeing it, and a
     hostile takes it out of stealth mode (F) - hiding in front of an enemy within 2 m fails at once.
+  - *The owner's 0.66.6 run (2026-11-03):* "no matter where I am, even if I'm behind them and outside the passive
+    perception range (blue dashed line) the enemy will still have me as seen" (HA-1, 3, 4 good). The log: the
+    at-once check ran ("2 creature(s) ... check for it now") and decided nothing - no detection logged until the
+    6 s update ("does not see"). The recon: DoPerceptionUpdateOnCreature skips the stealth checks for a target its
+    observer both sees and hears (visibility node +4, bits 0 and 1) unless its flag holds, and keeps the flag only
+    for a target with Hide in Plain Sight (HasFeat(433) at its start).
+  - *Built 0.66.7:* a HasFeat filter (feats.cpp) answers Hide in Plain Sight yes for the hider, at that call site
+    (DoPerceptionUpdateOnCreature's code) and only while the at-once checks run - the engine's own re-check: its
+    detection (the stealth rules), its visible list and its perception events.
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,

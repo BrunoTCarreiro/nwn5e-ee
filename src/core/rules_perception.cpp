@@ -88,6 +88,7 @@
 #include "ee_layout.h"
 #include "effects.h"
 #include "engine.h"
+#include "feats.h"
 #include "hooks.h"
 #include "log.h"
 #include "rules/class_features.h"
@@ -132,6 +133,9 @@ std::unordered_set<uint32_t> g_hide_ends_after_attack;  // ids: a swing started 
 // #129 (0.66.6): a hide checked for at once.
 using PerceptionUpdateFn = void (*)(void* observer, void* target, int flag);
 constexpr const char* kDoPerceptionUpdateOnCreature = "?DoPerceptionUpdateOnCreature@CNWSCreature@@QEAAXPEAV1@H@Z";
+constexpr int kFeatHideInPlainSight = 433;  // 0x1B1: what keeps DoPerceptionUpdateOnCreature's flag
+CodeRange g_perception_update_code;
+thread_local void* t_rechecked_hider = nullptr;  // PerceiveHiderNow's hider (its stats) while its checks run
 StealthDetectionFn g_stealth_detection = nullptr;
 DetectionFn g_listen_detection = nullptr;
 DetectionFn g_spot_detection = nullptr;
@@ -274,6 +278,19 @@ bool Snuffing(void* creature) {
 // visible list), as SetStealthMode itself does for Hide in Plain Sight (feat 433) - not at its next update. One who
 // still finds it (up close, a look in its cone, a search) keeps seeing it, and a hostile takes it out of stealth
 // mode (F).
+// 0.66.7 (the owner on 0.66.6: "no matter where I am, even if I'm behind them and outside the passive perception
+// range (blue dashed line) the enemy will still have me as seen"): DoPerceptionUpdateOnCreature skips the stealth
+// checks for a target its observer both sees and hears (visibility node +4, bits 0 and 1) unless its flag holds,
+// and it keeps the flag only for a target with Hide in Plain Sight (HasFeat(433) at its start) - so the 0.66.6 call
+// changed nothing. A HasFeat filter answers yes there, for the hider, while these checks run: the engine's own
+// re-check (its detection, its visible list, its perception events).
+bool ForcedRecheck(void* stats, int feat, uintptr_t caller, int* answer) {
+  if (feat != kFeatHideInPlainSight || !t_rechecked_hider || stats != t_rechecked_hider) return false;
+  if (!g_perception_update_code.Valid() || !g_perception_update_code.Contains(caller)) return false;
+  *answer = 1;
+  return true;
+}
+
 int PerceiveHiderNow(void* hider) {
   static const auto update = reinterpret_cast<PerceptionUpdateFn>(EngineExport(kDoPerceptionUpdateOnCreature));
   void* area = engine::AreaOf(hider);
@@ -283,6 +300,8 @@ int PerceiveHiderNow(void* hider) {
   if (!ids || count <= 0) return 0;
   const std::vector<uint32_t> others(ids, ids + count);  // copied: the updates may touch the area's lists
   const uint32_t self = IdOf(hider);
+  void* outer = t_rechecked_hider;
+  t_rechecked_hider = StatsOf(hider);
   int checked = 0;
   for (uint32_t id : others) {
     if (id == self) continue;
@@ -291,6 +310,7 @@ int PerceiveHiderNow(void* hider) {
     update(observer, hider, 1);
     ++checked;
   }
+  t_rechecked_hider = outer;
   return checked;
 }
 
@@ -731,6 +751,12 @@ void InstallPerceptionRules() {
              reinterpret_cast<void*>(&GetDetectMode), reinterpret_cast<void**>(&g_detect_mode));
   HookExport("CNWSCreatureStats::GetFavoredEnemyBonus (none on perception)", ee::kGetFavoredEnemyBonus,
              reinterpret_cast<void*>(&GetFavoredEnemyBonus), reinterpret_cast<void**>(&g_favored_enemy));
+  // #129 (0.66.7): a hide checked for at once - the engine's re-check forced for it.
+  g_perception_update_code = FunctionAt(EngineExport(kDoPerceptionUpdateOnCreature));
+  if (!g_perception_update_code.Valid() || !AddFeatFilter(&ForcedRecheck)) {
+    Log("stealth: a hide's at-once check NOT forced (no perception update code or HasFeat filter) - "
+        "it waits for each creature's next update");
+  }
   // #129 B: an attack from hiding rolled hidden, the hide ending after it.
   HookExport("CNWSCreature::ActivityManager (an attack leaves stealth mode until its roll is made)", kActivityManager,
              reinterpret_cast<void*>(&ActivityManager), reinterpret_cast<void**>(&g_activity_manager));
