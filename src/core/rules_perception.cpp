@@ -128,6 +128,10 @@ constexpr uint32_t kActivityForAttack = 4;        // ResolveAttack's ActivityMan
 ActivityManagerFn g_activity_manager = nullptr;
 ResolveAttackFn g_resolve_attack = nullptr;
 std::unordered_set<uint32_t> g_hide_ends_after_attack;  // ids: a swing started from hiding, its roll to come
+
+// #129 (0.66.6): a hide checked for at once.
+using PerceptionUpdateFn = void (*)(void* observer, void* target, int flag);
+constexpr const char* kDoPerceptionUpdateOnCreature = "?DoPerceptionUpdateOnCreature@CNWSCreature@@QEAAXPEAV1@H@Z";
 StealthDetectionFn g_stealth_detection = nullptr;
 DetectionFn g_listen_detection = nullptr;
 DetectionFn g_spot_detection = nullptr;
@@ -263,6 +267,33 @@ bool Snuffing(void* creature) {
   return mark > 0 && mark <= now && now - mark <= 30;
 }
 
+// #129 (0.66.6; the owner on 0.66.5: "check the logs, the enemy never lost sight of me" - a creature checks the
+// hiders it sees at its perception update, every 6 s, and both hides were attacked from within 5.4 s): a hide takes
+// effect at once, as the 2024 Hide does - every creature in the hider's area checks for it now
+// (CNWSCreature::DoPerceptionUpdateOnCreature(observer, hider, 1): the Stealth and Perception rules above, then its
+// visible list), as SetStealthMode itself does for Hide in Plain Sight (feat 433) - not at its next update. One who
+// still finds it (up close, a look in its cone, a search) keeps seeing it, and a hostile takes it out of stealth
+// mode (F).
+int PerceiveHiderNow(void* hider) {
+  static const auto update = reinterpret_cast<PerceptionUpdateFn>(EngineExport(kDoPerceptionUpdateOnCreature));
+  void* area = engine::AreaOf(hider);
+  if (!update || !area) return 0;
+  const uint32_t* ids = Field<uint32_t*>(area, ee::kAreaObjectIds);
+  const int count = Field<int32_t>(area, ee::kAreaObjectCount);
+  if (!ids || count <= 0) return 0;
+  const std::vector<uint32_t> others(ids, ids + count);  // copied: the updates may touch the area's lists
+  const uint32_t self = IdOf(hider);
+  int checked = 0;
+  for (uint32_t id : others) {
+    if (id == self) continue;
+    void* observer = CreatureById(id);
+    if (!observer) continue;
+    update(observer, hider, 1);
+    ++checked;
+  }
+  return checked;
+}
+
 void SetStealthMode(void* creature, uint8_t mode) {
   // A ranged Snuff (light_sources.cpp, 0.39.1; owner: "would it be possible with
   // 'snuff' to maintain stealth if it is performed while in stealth?"): its
@@ -299,6 +330,11 @@ void SetStealthMode(void* creature, uint8_t mode) {
   const uint32_t id = IdOf(creature);
   if (starts && engine::AreaOf(creature)) {
     RollStealth(creature, "starts hiding");
+    const int checked = PerceiveHiderNow(creature);
+    if (LogSlot()) {
+      Log("stealth: 0x%08X hides - %d creature(s) in its area check for it now (#129: as Hide in Plain Sight)", id,
+          checked);
+    }
   } else if (starts || mode != 1) {
     // Stopped hiding, or being placed (a loaded game restores the mode before
     // the creature is in its area): the next 6 s update rolls if it hides.

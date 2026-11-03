@@ -510,6 +510,16 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     its round's swings go with it) - a moment later (DelayCommand -> n5_ca_hidestop), since a waiting Hide goes off
     at a round's start from inside the attack step; until then the round's swings are held (round_swings.cpp's
     GetAction puts a held swing back). Test ExtraActions' WhenAttackEndsHide rows (3 of 3 mutations caught).
+  - *The owner's 0.66.5 run (2026-11-03):* "check the logs, the enemy never lost sight of me". The log: A and B
+    worked (the attack stopped, the next attack "from hiding - the roll made hidden, out of stealth mode after it"),
+    but no perception check came while hiding: a creature checks the hiders it sees at its perception update, every
+    6 s of game time, and both hides were attacked from after about 4.5 and 5.4 s - the orc kept the sight it had.
+    The recon: SetStealthMode runs DoPerceptionUpdateOnCreature(creature, hider, 1) for every creature in the area at
+    once only for Hide in Plain Sight (feat 433).
+  - *Built 0.66.6:* a hide (perception faithful) is checked for at once - rules_perception.cpp's SetStealthMode hook
+    runs that update for every creature in the hider's area as hiding starts (after its Stealth roll), as the 2024
+    Hide takes effect at once. Who still finds it (up close, a look in its cone, a search) keeps seeing it, and a
+    hostile takes it out of stealth mode (F) - hiding in front of an enemy within 2 m fails at once.
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,
