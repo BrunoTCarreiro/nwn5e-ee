@@ -566,6 +566,10 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     StartDisengage / StartDash), Bonus Actions, granted at Monk 2 (GrantableFeats2024 entries 28, 29; the quickbar's
     bits 37, 38). Instinctive Pounce as built (#25). Tests ExtraActions (Fleet Step, the grants), ExtraActionsEconomy,
     QuickbarHighBits, the grant counts (12 of 12 mutations caught).
+  - *The owner's 0.67.0 run (2026-11-03):* PD-1 (Patient Defense: Disengage - no Focus point, moving provoked
+    nothing), SW-1 / FS-1 (Step of the Wind: Dash and the 1-point use through Fleet Step), FS-2 (a second one waited),
+    RA-1 (a crit, then no opportunity attacks), FB-1 (two Forceful Blows, the follow without opportunity attacks).
+  - *Accepted (owner, 2026-11-03: "accept 55").*
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,
