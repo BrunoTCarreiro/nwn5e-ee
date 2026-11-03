@@ -78,6 +78,7 @@
 #include "records.h"
 
 bool ActionQueueStripOff(void* creature);  // action_queue.cpp (!queue)
+bool RoundBarEnabled(void* creature);      // round_bar.cpp (#127: the panel goes under it)
 
 namespace {
 
@@ -109,6 +110,7 @@ float g_published_gui_w = 0.0f;
 float g_published_gui_h = 0.0f;
 float g_published_gui_s = 1.0f;
 bool g_published_strip_on = true;
+bool g_published_round_bar_on = false;
 int g_version = 0;
 
 // The server's side.
@@ -121,6 +123,7 @@ struct PlayerState {
   float gui_h = 0.0f;
   float gui_s = 1.0f;
   bool strip_on = true;
+  bool round_bar_on = false;
 };
 std::unordered_map<uint32_t, PlayerState> g_players;
 uint32_t g_client_player = ee::kObjectInvalid;
@@ -130,7 +133,7 @@ uint32_t IdOf(const void* creature) { return creature ? Field<uint32_t>(creature
 bool Off(void* creature) { return engine::GetLocalInt(creature, kVarOff) != 0; }
 
 std::string Signature(const std::vector<rules::HudPool>& pools, float gui_w, float gui_h, float gui_s,
-                      bool strip_on) {
+                      bool strip_on, bool round_bar_on) {
   std::string s = rules::HudShape(pools);
   for (const rules::HudPool& pool : pools) {
     s += "|" + std::to_string(pool.left);
@@ -138,7 +141,8 @@ std::string Signature(const std::vector<rules::HudPool>& pools, float gui_w, flo
     s += pool.tooltip;
   }
   char size[64];
-  sprintf_s(size, "|%.0fx%.0fx%.2f%s", gui_w, gui_h, gui_s, strip_on ? "" : "|no strip");
+  sprintf_s(size, "|%.0fx%.0fx%.2f%s%s", gui_w, gui_h, gui_s, strip_on ? "" : "|no strip",
+            round_bar_on ? "|round bar" : "");
   return s + size;
 }
 
@@ -174,7 +178,9 @@ void PanelCreatureUpdate(void* creature) {
     state.gui_s = percent >= 50 && percent <= 400 ? percent / 100.0f : 1.0f;
   }
   state.strip_on = !ActionQueueStripOff(creature);
-  const std::string signature = Signature(pools, state.gui_w, state.gui_h, state.gui_s, state.strip_on);
+  state.round_bar_on = RoundBarEnabled(creature);
+  const std::string signature =
+      Signature(pools, state.gui_w, state.gui_h, state.gui_s, state.strip_on, state.round_bar_on);
   if (signature == state.signature) return;
   const std::string shape = rules::HudShape(pools);
   static int logged = 0;
@@ -191,6 +197,7 @@ void PanelCreatureUpdate(void* creature) {
   g_published_gui_h = state.gui_h;
   g_published_gui_s = state.gui_s;
   g_published_strip_on = state.strip_on;
+  g_published_round_bar_on = state.round_bar_on;
   ++g_version;
 }
 
@@ -216,6 +223,7 @@ float g_gui_w = 0.0f;
 float g_gui_h = 0.0f;
 float g_gui_s = 1.0f;
 bool g_strip_on = true;
+bool g_round_bar_on = false;
 LARGE_INTEGER g_last_frame{};
 void** g_app_manager = nullptr;
 bool g_in_game_logged = false;
@@ -452,6 +460,7 @@ void PanelPosition(float window_w, float window_h, float* x, float* y) {
   screen.scale = g_gui_s;
   screen.chat_right = kChatWidth * g_gui_s;
   screen.strip_on = g_strip_on;
+  screen.round_bar_on = g_round_bar_on;
   const rules::HudSpot spot = rules::PlaceHud(screen, window_w - 2.0f * kWindowPad, window_h - 2.0f * kWindowPad);
   *x = spot.x - kWindowPad * g_gui_s;
   *y = spot.y - kWindowPad * g_gui_s;
@@ -526,6 +535,7 @@ void PanelTick() {
       g_gui_h = g_published_gui_h;
       g_gui_s = g_published_gui_s;
       g_strip_on = g_published_strip_on;
+      g_round_bar_on = g_published_round_bar_on;
     }
   }
   const std::vector<rules::HudPool> pools = g_panel.pools;

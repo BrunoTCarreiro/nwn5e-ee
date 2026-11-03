@@ -95,6 +95,7 @@ struct HudScreen {
   float scale = 1.0f;       // the GUI scale (gui_scale / 100)
   float chat_right = 0.0f;  // the chat window's right edge, window pixels
   bool strip_on = true;     // the action queue strip shown (not turned off with !queue)
+  bool round_bar_on = false;  // #127: the round bar under the strip - the panel goes under it
 };
 struct HudSpot {
   float x = 0.0f, y = 0.0f;  // the card's top-left, window pixels

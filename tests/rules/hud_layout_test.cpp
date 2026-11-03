@@ -2,6 +2,7 @@
 #include "rules/class_features.h"
 #include "rules/hud_layout.h"
 #include "rules/queue_strip.h"
+#include "rules/round_bar.h"
 
 #include <cmath>
 #include <string>
@@ -149,6 +150,13 @@ TEST(HudPlacement) {
   narrow_off.strip_on = false;  // !queue: the strip turned off
   const HudSpot e = PlaceHud(narrow_off, 351.0f, 51.0f);
   CHECK_EQ(e.under_strip && e.y == 0.0f && e.x == c.x, true);  // on the window's top edge
+  HudScreen narrow_bar = narrow;
+  narrow_bar.round_bar_on = true;  // #127: under the round bar, which is under the strip
+  const HudSpot f = PlaceHud(narrow_bar, 351.0f, 51.0f);
+  CHECK_EQ(f.under_strip && f.y == c.y + kRoundBarHeight + kRoundBarWindowExtra, true);
+  HudScreen wide_bar = wide;
+  wide_bar.round_bar_on = true;  // over the quickbar: the round bar is nowhere near
+  CHECK_EQ(PlaceHud(wide_bar, 351.0f, 51.0f).y == a.y, true);
   HudScreen narrow_scaled = scaled;
   narrow_scaled.width = 1600.0f;  // at 1.5: the bar's right edge 1400, the card would start at 873 < 1092
   const HudSpot d = PlaceHud(narrow_scaled, 351.0f, 51.0f);

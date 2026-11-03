@@ -22,6 +22,7 @@
 #include "ee_layout.h"
 #include "log.h"
 #include "nui.h"
+#include "bonus_actions.h"
 #include "extra_actions.h"
 #include "reactions.h"
 #include "script_hooks.h"
@@ -56,7 +57,7 @@ constexpr const char* kStatus = "o_status";
 constexpr float kRowHeight = 28.0f;
 constexpr float kCheckWidth = 190.0f;
 
-enum class Kind { kBonus, kReaction, kAutomatic, kReckless, kBrutal, kCunning, kOpenHand };
+enum class Kind { kBonus, kReaction, kAutomatic, kDisplay, kReckless, kBrutal, kCunning, kOpenHand };
 
 struct Option {
   const char* bind;  // the checkbox's bool bind (and its id)
@@ -82,6 +83,8 @@ const Option kOptions[] = {
     {"o_ba_steady", Kind::kBonus, 1329, "Steady Aim", "Advantage on your next attack; you can't move this round"},
     // #53 (owner: "a lot of these automatic actions should be managed by the user"): automatic ones, switchable.
     {"o_au_thief", Kind::kAutomatic, 1, "Thief's Reflexes", "a fight's first round: your Attack action twice"},
+    // #127: the round bar (also !roundbar).
+    {"o_di_round", Kind::kDisplay, 1, "Round bar", "under the action queue: your round, its swings, what's left"},
     // #54 (owner, 2026-11-02): the reactions, each switchable; effect = rules::Reaction.
     {"o_re_aoo", Kind::kReaction, 0, "Opportunity attacks", "an attack at an enemy leaving your reach"},
     {"o_re_dodge", Kind::kReaction, 1, "Uncanny Dodge", "halves the first hit you see each round"},
@@ -126,6 +129,7 @@ bool Available(void* creature, const Option& o) {
       return false;
     }
     case Kind::kAutomatic: return ActionEconomyOn() && rules::HasThiefsReflexes(CunningStrikeRogueLevel(creature));
+    case Kind::kDisplay: return true;
     case Kind::kReckless: return rules::HasRecklessAttack(BrutalStrikeBarbarianLevel(creature));
     case Kind::kBrutal:
       return rules::BrutalEffectAvailable(static_cast<rules::BrutalEffect>(o.effect), BrutalStrikeBarbarianLevel(creature));
@@ -141,6 +145,7 @@ bool Checked(void* creature, const Option& o) {
     case Kind::kBonus: return DefaultBonusKey(creature) == o.effect;
     case Kind::kReaction: return ReactionSwitchOn(creature, static_cast<rules::Reaction>(o.effect));
     case Kind::kAutomatic: return ThiefsReflexesOn(creature);
+    case Kind::kDisplay: return RoundBarEnabled(creature);
     case Kind::kReckless: return RecklessAttackOn(creature);
     case Kind::kBrutal: {
       for (rules::BrutalEffect e :
@@ -167,6 +172,7 @@ void Toggle(void* creature, const Option& o, bool on) {
     case Kind::kBonus: SetDefaultBonusKey(creature, on ? o.effect : -1); break;  // one of them, or none
     case Kind::kReaction: SetReactionSwitch(creature, static_cast<rules::Reaction>(o.effect), on); break;
     case Kind::kAutomatic: SetThiefsReflexes(creature, on); break;
+    case Kind::kDisplay: SetRoundBar(creature, on); break;
     case Kind::kReckless: SetRecklessAttack(creature, on); break;
     case Kind::kBrutal: PickBrutalStrike(creature, static_cast<rules::BrutalEffect>(o.effect)); break;
     case Kind::kCunning: PickCunningStrike(creature, static_cast<rules::CunningEffect>(o.effect)); break;
@@ -247,6 +253,13 @@ std::string Layout(void* creature, int* rows) {
   }
   for (const Option& o : kOptions) {
     if (o.kind != Kind::kAutomatic || !Available(creature, o)) continue;
+    add(OptionRow(o));
+    ++count;
+  }
+  add(Header("Display:"));  // #127
+  ++count;
+  for (const Option& o : kOptions) {
+    if (o.kind != Kind::kDisplay || !Available(creature, o)) continue;
     add(OptionRow(o));
     ++count;
   }

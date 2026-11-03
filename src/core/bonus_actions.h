@@ -28,3 +28,8 @@ struct BonusStripItem {
 };
 std::vector<BonusStripItem> BonusActionStripItems(void* creature);
 bool CancelWaitingBonusAction(void* creature);
+// #127 (the round bar): 0 the round's Bonus Action free, 1 spent, 2 spent with one waiting for the next round.
+int BonusActionStatus(void* creature);
+// #127: the round bar (round_bar.cpp) - on unless turned off (!roundbar, Combat configuration).
+bool RoundBarEnabled(void* creature);
+void SetRoundBar(void* creature, bool on);

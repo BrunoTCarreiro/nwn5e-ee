@@ -393,6 +393,15 @@ std::vector<BonusStripItem> BonusActionStripItems(void* creature) {
   return items;
 }
 
+int BonusActionStatus(void* creature) {
+  if (!Faithful() || !creature || g_state.empty()) return 0;
+  const auto state = g_state.find(IdOf(creature));
+  if (state == g_state.end()) return 0;
+  const bool free = Free(state->first, state->second);
+  if (Waiting(state->second) && !state->second.run_pending) return 2;
+  return free ? 0 : 1;
+}
+
 bool CancelWaitingBonusAction(void* creature) {
   const auto state = creature ? g_state.find(IdOf(creature)) : g_state.end();
   if (state == g_state.end() || !Waiting(state->second) || state->second.run_pending) return false;

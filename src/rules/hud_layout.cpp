@@ -1,6 +1,7 @@
 #include "rules/hud_layout.h"
 
 #include "rules/queue_strip.h"
+#include "rules/round_bar.h"
 
 namespace rules {
 
@@ -115,6 +116,7 @@ HudSpot PlaceHud(const HudScreen& screen, float card_w, float card_h) {
     spot.under_strip = true;
     spot.x = (screen.width - card_w * s) / 2.0f;
     spot.y = screen.strip_on ? kQueueTileTop + kQueueTileHeight * s : 0.0f;
+    if (screen.round_bar_on) spot.y += (kRoundBarHeight + kRoundBarWindowExtra) * s;  // #127: under the round bar
   }
   if (spot.x < 0.0f) spot.x = 0.0f;
   return spot;

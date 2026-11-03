@@ -15,6 +15,8 @@
 // time) later when none of the creature's rounds ended since (0.60.7; the
 // owner's M8-1: Deflect Attacks once, then "reaction spent" rounds later).
 bool TakeReaction(void* creature);
+// #127 (the round bar): whether TakeReaction would succeed now (nothing spent).
+bool ReactionReady(void* creature);
 
 // Phase 6 part 3 (#54; owner, 2026-11-02): the reaction switches (Combat
 // configuration's "Reactions"; rules::ReactionOn) - a player character's own,

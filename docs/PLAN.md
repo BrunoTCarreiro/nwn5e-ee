@@ -4153,6 +4153,30 @@ target, each line its own colour; each tile as wide as its longest line (about 7
 don't fit on the screen to the "+N". (0.55.2 capped the client windows' open / close log lines.)
 *Accepted (owner, 2026-10-29: "ok, it's good, monk part 3").*
 
+## Round bar — decided by the owner (2026-11-03)
+
+Owner: "sometimes it's hard to figure out when a round ends and the next one begins, is there something that could be
+done here? An onscreen element, like a small loading bar that would show the state of the current round?" (#127).
+The engine keeps it per creature: CNWSCombatRound's RoundStarted (+0x2F04), SpellCastRound (+0x2F08), Timer
+(+0x2F0C), RoundLength (+0x2F10), Paused (+0x2F1C - each swing pauses it), the reaction count (+0x2F40) and the
+schedule (+0x2F70: entries of 0x28 bytes, the due time at +0, the type at +0x10 - 1 an attack). Options: A the bar,
+the swings' ticks and three pips (the Action, the Bonus Action, the Reaction) under the action queue strip; B the bar
+only; C A's content in the resource panel.
+
+*Decided (owner, 2026-11-03: "go with A").*
+
+*Built 0.66.0* (src/core/round_bar.cpp, src/rules/round_bar.cpp): a client window under the strip
+(rules::RoundBarTop: the strip's tiles' bottom, or the screen's top with `!queue` off), centred at the GUI scale, in a
+fight only - a card, the three pips with their letters (A, B, R: green left, grey spent, amber a Bonus Action waiting
+for the next round - bonus_actions.cpp's BonusActionStatus, reactions.h's ReactionReady; shown while the actions are
+faithful), the bar (rules::RoundFill; gold an attack round, blue a cast round, dimmed while paused, empty between
+rounds) and up to ten ticks (rules::RoundSwingMarks: the schedule's attack entries as the round starts; dark once made
+- fewer left). The server's side samples the single-player character every update (a lock); the client's draws every
+frame, the fill moving between samples while the round runs. `!roundbar` or Combat configuration's "Display: Round
+bar" turns it off (the record nwn5e_roundbar_off). The resource panel, when it sits under the strip (a narrow window),
+goes under the bar (rules::PlaceHud's round_bar_on). Tests RoundBarFillAndSwings, RoundBarKindsAndPips, the panel's
+place (13 of 13 mutations caught).
+
 ## Resource panel — decided by the owner (2026-10-29)
 
 The owner, after Monk part 3: "We might need some sort of custom hud element to display focus points".

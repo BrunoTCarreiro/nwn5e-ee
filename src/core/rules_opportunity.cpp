@@ -207,6 +207,18 @@ bool TakeReaction(void* creature) {
   return true;
 }
 
+bool ReactionReady(void* creature) {
+  void* round = creature ? Field<void*>(creature, ee::kCreatureCombatRound) : nullptr;
+  if (!round) return false;
+  if (Field<int32_t>(round, ee::kRoundOpportunitiesLeft) > 0) return true;
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  const auto taken = g_reactions_taken.find(id);
+  const bool by_rule = taken != g_reactions_taken.end();
+  return rules::ReactionBackWithoutRounds(by_rule, by_rule && taken->second.rounds != CombatRoundsEnded(id),
+                                         by_rule ? static_cast<long long>(GameMs() - taken->second.at) : 0,
+                                         Field<int32_t>(round, kRoundRunning) != 0);
+}
+
 bool ReactionSwitchOn(void* creature, rules::Reaction reaction) {
   if (creature) EnsureRecords(creature);
   return rules::ReactionOn(creature ? engine::GetLocalInt(creature, kVarReactions) : 0, reaction);
