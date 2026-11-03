@@ -157,6 +157,20 @@ own git working copy of this repo:
 - **One installer.** The game session builds `main`, installs and
   launch-checks (above). The owner says "game closed" to the installer; the
   animation session passes it on when the owner says it there.
+- **The front desk** (owner, 2026-11-03: "go with B"). The owner talks to the
+  game session; it routes animation topics to the animation session. The
+  animation window is for bench work and animation design.
+  - **Forwarding:** animation topics go to the animation session with the
+    owner's words quoted verbatim, and its answer is read back to the owner,
+    whole for decisions (the info-first explanation it writes).
+  - **Test matrices:** the animation session sends its matrix with each "anim
+    ready"; the game session gives the owner one matrix per install, covering
+    both streams.
+  - **"check the logs":** after an install carrying animation changes, the
+    game session reads its own lines and asks the animation session to read
+    the animation lines (`flourish:`, `look:`, recipes), then reads both back.
+  - **Lost messages:** anything that must not be lost also goes on its issue -
+    a session that isn't running misses a message.
 - **Commit in one step.** `git commit --only <your paths>` (the message by
   `-F -`), never a plain `git commit` after `git add`: a file the other
   session staged would go in with yours. A new file needs `git add <it>`
