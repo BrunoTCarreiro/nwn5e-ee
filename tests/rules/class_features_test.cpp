@@ -552,6 +552,10 @@ TEST(ExtraActions) {
   CHECK_EQ(StealthToggleAllowed(true, true), false);
   CHECK_EQ(StealthToggleAllowed(false, true), true);
   CHECK_EQ(StealthToggleAllowed(false, false), true);
+  // #129: an attack from hiding - the 2024 Hide ends after the roll, NWN's before it.
+  CHECK_EQ(WhenAttackEndsHide(false, true) == HideAtAttack::kNotHiding, true);
+  CHECK_EQ(WhenAttackEndsHide(true, true) == HideAtAttack::kEndsAfterRoll, true);
+  CHECK_EQ(WhenAttackEndsHide(true, false) == HideAtAttack::kEndsBeforeRoll, true);
   auto has = [](const std::vector<int>& feats, int feat) {
     return std::find(feats.begin(), feats.end(), feat) != feats.end();
   };

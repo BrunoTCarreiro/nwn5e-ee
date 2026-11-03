@@ -480,6 +480,11 @@ bool SteadyAimAllowed(float moved_metres);
 // owner: "after cunning action hide mid round I cannot exit stealth mode even after combat is done" - NWN refuses
 // both ways, as nothing put a fighter in stealth mode before Cunning Action).
 bool StealthToggleAllowed(bool into_stealth, bool attack_target);
+// #129 (owner, 2026-11-03: "do A and B now before I continue with the matrix"): when an attack ends a hide. NWN ends
+// stealth mode as a swing starts (ResolveAttack's ActivityManager), before the roll; the 2024 Hide ends after the
+// attack roll, the roll made hidden (Advantage while the target can't see you).
+enum class HideAtAttack { kNotHiding, kEndsBeforeRoll, kEndsAfterRoll };
+HideAtAttack WhenAttackEndsHide(bool hiding, bool faithful);
 bool GrantedOnlyWhenMissing(int feat);
 
 }  // namespace rules

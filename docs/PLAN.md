@@ -494,6 +494,22 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     activity bit set first (a hide from 0.65.0 - 0.66.3), the attack target set aside around the engine's toggle, and
     SetStealthMode(0) if the engine still leaves it on. Test ExtraActions' StealthToggleAllowed rows (3 of 3 mutations
     caught).
+- *#129, attacking from hiding (a follow-up of #53's CA-3).* The owner's 0.66.4 run: the Hide worked (Stealth 15,
+  then 22), but the attack in progress took the character out of stealth mode at its next swing (0.1 s and 0.5 s
+  later). The recon: each swing's CNWSCreature::ResolveAttack calls ActivityManager(4) before its roll, which turns
+  the stealth activity off (SetActivity) - NWN ends stealth mode as a swing starts; the 2024 Hide ends after the
+  attack roll, made hidden (Advantage while the target can't see you). (0.65.0 - 0.66.3's Hide never set the
+  activity bit, so this never fired.) Options: A, Hide stops your attacks (you stay hidden until you order one);
+  B, the first attack from hiding rolled hidden, the hide ending right after it.
+  - *Decided (owner, 2026-11-03):* "do A and B now before I continue with the matrix".
+  - *Built 0.66.5:* rules::WhenAttackEndsHide (faithful: after the roll; NWN: before it). B (rules_perception.cpp,
+    perception faithful): an ActivityManager hook leaves the stealth activity for an attack's call (marked left
+    alone for the call, +0x8E4 bit 0, as ActivityManager reads it), and a ResolveAttack hook ends the hide by
+    SetActivity(stealth, 0) once the swing's roll and damage are done. A (extra_actions.cpp): the Hide turns the
+    default attack off and cancels the attack order as the action queue's click does (CNWSCreature::CancelAction:
+    its round's swings go with it) - a moment later (DelayCommand -> n5_ca_hidestop), since a waiting Hide goes off
+    at a round's start from inside the attack step; until then the round's swings are held (round_swings.cpp's
+    GetAction puts a held swing back). Test ExtraActions' WhenAttackEndsHide rows (3 of 3 mutations caught).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,

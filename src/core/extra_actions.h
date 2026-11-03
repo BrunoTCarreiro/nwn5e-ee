@@ -9,6 +9,8 @@
 // rules_two_weapon.cpp's round start (after InitializeNumberOfAttacks): a pending Action Surge or Thief's Reflexes
 // adds the Attack action's attacks to the round; Steady Aim's starting place.
 void ExtraActionsRoundStart(void* round);
+// #129 A: a Cunning Action Hide's attack stop on its way - the round's swings held until it lands (round_swings.cpp).
+bool HideHoldsAttacks(void* creature);
 // rules_initiative.cpp: a fight's start - Thief's Reflexes' first round.
 void ThiefsReflexesOnInitiative(void* creature);
 // rules_advantage.cpp: Steady Aim's Advantage on the next attack (taken by it).

@@ -36,6 +36,7 @@
 
 #include "creature.h"
 #include "ee_layout.h"
+#include "extra_actions.h"
 #include "hooks.h"
 #include "log.h"
 #include "rules/swing_spacing.h"
@@ -225,7 +226,12 @@ void SwingStarts(void* round, void* action) {
 
 void* GetAction(void* round) {
   void* action = g_get_action(round);
-  if (action && round && Field<uint8_t>(action, kActionType) == kActionAttack) SwingStarts(round, action);
+  if (!action || !round || Field<uint8_t>(action, kActionType) != kActionAttack) return action;
+  if (HideHoldsAttacks(Field<void*>(round, ee::kRoundOwner))) {
+    g_add_action(round, action);  // #129 A: back on the list - a Cunning Action Hide cancels the attack in a moment
+    return nullptr;
+  }
+  SwingStarts(round, action);
   return action;
 }
 

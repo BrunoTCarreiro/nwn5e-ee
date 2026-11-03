@@ -90,6 +90,7 @@
 #include "engine.h"
 #include "hooks.h"
 #include "log.h"
+#include "rules/class_features.h"
 #include "rules/skills.h"
 #include "skill_rank.h"
 
@@ -112,6 +113,21 @@ using StaticLineFn = int (*)(void* area, float x1, float y1, float x2, float y2,
                              uint32_t exclude, uint32_t* blocker, int flag, void* exclude_list, int doors);
 
 SetStealthModeFn g_set_stealth_mode = nullptr;
+
+// #129 B: an attack from hiding (the 2024 Hide).
+using ActivityManagerFn = void (*)(void* creature, uint32_t action);
+using ResolveAttackFn = void (*)(void* creature, uint32_t target, int attacks, int animation);
+using SetActivityFn = void (*)(void* creature, int activity, int on);
+constexpr const char* kActivityManager = "?ActivityManager@CNWSCreature@@QEAAXI@Z";
+constexpr const char* kResolveAttack = "?ResolveAttack@CNWSCreature@@IEAAXIHH@Z";
+constexpr const char* kSetActivity = "?SetActivity@CNWSCreature@@QEAAXHH@Z";
+constexpr size_t kCreatureActivityBits = 0x8e0;   // uint32: bit 0 stealth (SetActivity)
+constexpr size_t kCreatureActivitiesLeft = 0x8e4; // uint32: activities ActivityManager / SetActivity leave alone
+constexpr uint32_t kActivityStealth = 1;
+constexpr uint32_t kActivityForAttack = 4;        // ResolveAttack's ActivityManager(4)
+ActivityManagerFn g_activity_manager = nullptr;
+ResolveAttackFn g_resolve_attack = nullptr;
+std::unordered_set<uint32_t> g_hide_ends_after_attack;  // ids: a swing started from hiding, its roll to come
 StealthDetectionFn g_stealth_detection = nullptr;
 DetectionFn g_listen_detection = nullptr;
 DetectionFn g_spot_detection = nullptr;
@@ -291,6 +307,38 @@ void SetStealthMode(void* creature, uint8_t mode) {
   }
   if (mode != 1) {
     for (auto it = g_told.begin(); it != g_told.end();) it = static_cast<uint32_t>(it->first) == id ? g_told.erase(it) : ++it;
+  }
+}
+
+// #129 B (the owner, 2026-11-03: "do A and B now before I continue with the matrix"): an attack from hiding is
+// rolled hidden, and the hide ends after its roll - the 2024 Hide (rules::WhenAttackEndsHide). Each swing's
+// CNWSCreature::ResolveAttack calls ActivityManager(4) before its roll, which turns the stealth activity off
+// (SetActivity -> SetStealthMode(0)) - NWN's way, the roll then made in plain view. Here that call leaves the stealth
+// activity (marked left alone for the call: +0x8E4 bit 0, as ActivityManager reads it), and once ResolveAttack is
+// done - its roll (Advantage while the target can't see the hider: rules_advantage.cpp) and damage - the hide ends
+// by SetActivity(stealth, 0).
+void ActivityManager(void* creature, uint32_t action) {
+  if (!creature || action != kActivityForAttack ||
+      rules::WhenAttackEndsHide(Hiding(creature), true) != rules::HideAtAttack::kEndsAfterRoll ||
+      !(Field<uint32_t>(creature, kCreatureActivityBits) & kActivityStealth)) {
+    g_activity_manager(creature, action);
+    return;
+  }
+  const uint32_t left = Field<uint32_t>(creature, kCreatureActivitiesLeft);
+  SetField<uint32_t>(creature, kCreatureActivitiesLeft, left | kActivityStealth);
+  g_activity_manager(creature, action);
+  SetField<uint32_t>(creature, kCreatureActivitiesLeft, left);
+  g_hide_ends_after_attack.insert(IdOf(creature));
+}
+
+void ResolveAttack(void* creature, uint32_t target, int attacks, int animation) {
+  g_resolve_attack(creature, target, attacks, animation);
+  if (!creature || g_hide_ends_after_attack.erase(IdOf(creature)) == 0 || !Hiding(creature)) return;
+  static const auto set_activity = reinterpret_cast<SetActivityFn>(EngineExport(kSetActivity));
+  if (set_activity) set_activity(creature, static_cast<int>(kActivityStealth), 0);
+  if (LogSlot()) {
+    Log("stealth: 0x%08X attacked 0x%08X from hiding - the roll made hidden, out of stealth mode after it (the 2024 "
+        "Hide)%s", IdOf(creature), target, Hiding(creature) ? " - STILL hiding: the engine kept it" : "");
   }
 }
 
@@ -647,6 +695,11 @@ void InstallPerceptionRules() {
              reinterpret_cast<void*>(&GetDetectMode), reinterpret_cast<void**>(&g_detect_mode));
   HookExport("CNWSCreatureStats::GetFavoredEnemyBonus (none on perception)", ee::kGetFavoredEnemyBonus,
              reinterpret_cast<void*>(&GetFavoredEnemyBonus), reinterpret_cast<void**>(&g_favored_enemy));
+  // #129 B: an attack from hiding rolled hidden, the hide ending after it.
+  HookExport("CNWSCreature::ActivityManager (an attack leaves stealth mode until its roll is made)", kActivityManager,
+             reinterpret_cast<void*>(&ActivityManager), reinterpret_cast<void**>(&g_activity_manager));
+  HookExport("CNWSCreature::ResolveAttack (an attack from hiding ends the hide after its roll)", kResolveAttack,
+             reinterpret_cast<void*>(&ResolveAttack), reinterpret_cast<void**>(&g_resolve_attack));
   AddSkillAdjuster(&PerceptionSkill);
   AddDiceFilter(&StealthDice);
   Log("perception: Stealth once per hide, passive Perception unless searching, no size / combat / Favored Enemy "

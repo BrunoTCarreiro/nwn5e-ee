@@ -23,6 +23,14 @@
 //   Hide goes in by SetActivity, and a ToggleMode hook takes a hider out even with an attack target
 //   (rules::StealthToggleAllowed), its activity bit set first (a hide from 0.65.0 - 0.66.3), SetStealthMode(0) if
 //   the engine still leaves it on.
+//   #129 A (0.66.5; the owner, 2026-11-03: "do A and B now before I continue with the matrix" - a Hide in the middle
+//   of an attack was undone by the attack's next swing): the Hide stops your attacks - the attack order cancelled as
+//   the action queue's own click cancels it (CNWSCreature::CancelAction: its round's swings go with it) and the
+//   default attack off until your next attack order; you stay hidden until you attack. A waiting Hide goes off at a
+//   round's start - from inside the attack step (AIActionAttackObject -> StartCombatRound), where its action can't be
+//   cancelled - so the cancel runs a moment later (DelayCommand -> n5_ca_hidestop), and the round's swings are held
+//   until then (round_swings.cpp asks HideHoldsAttacks). The attack you then order is rolled hidden (B,
+//   rules_perception.cpp).
 // - Steady Aim (Rogue 3; feat 1329): a Bonus Action refused (a UseFeat guard - the Bonus Action not spent) once the
 //   Rogue moved since its round began (rules::SteadyAimAllowed: half a metre); its next attack with Advantage
 //   (rules_advantage.cpp), and no moving until the round ends (EffectCutsceneImmobilize, as the grapple holds).
@@ -32,13 +40,17 @@
 
 #include <stdint.h>
 
+#include <algorithm>
 #include <cmath>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
+#include "action_order.h"
 #include "chat.h"
 #include "config.h"
 #include "creature.h"
+#include "default_attack.h"
 #include "ee_layout.h"
 #include "effects.h"
 #include "engine.h"
@@ -75,6 +87,12 @@ constexpr int kActivityStealth = 1;
 constexpr uint8_t kModeStealth = 1;  // ToggleMode / SetMode / ACTION_MODE_STEALTH
 
 ToggleModeFn g_toggle_mode = nullptr;
+
+// #129 A: the Hide stops your attacks.
+using AqIdFn = uint16_t (*)(void* object, uint16_t id, int feat);
+using CancelActionFn = int (*)(void* creature, uint16_t action, uint16_t id);
+constexpr uint64_t kHideHoldMs = 3000;  // the round's swings held at most this long for the cancel
+std::unordered_map<uint32_t, uint64_t> g_hide_hold;  // id -> held until (game ms)
 
 struct Start {
   float x = 0.0f, y = 0.0f;
@@ -192,6 +210,39 @@ void CunningHideScript(uint32_t self) {
   }
   if (LogSlot()) Log("actions: 0x%08X Cunning Action: Hide - stealth mode on (a Bonus Action)", self);
   Tell(creature, "Cunning Action: Hide - into stealth mode (your Stealth check decides who still sees you).");
+  // #129 A: the Hide stops your attacks - the default attack off now, the attack order cancelled in a moment.
+  StopDefaultAttack(creature, "Cunning Action: Hide - hiding stops your attacks");
+  bool attacking = false;
+  for (void* node : QueueNodes(creature)) {
+    if (Field<int32_t>(node, ee::kActionId) == ee::kActionAttackObject) attacking = true;
+  }
+  if (!attacking) return;
+  g_hide_hold[self] = GameMs() + kHideHoldMs;
+  RunScriptChunk("DelayCommand(0.0, ExecuteScript(\"n5_ca_hidestop\", OBJECT_SELF));", self);
+}
+
+// #129 A: the Hide's attack stop, outside the attack step - the attack order's groups cancelled.
+void HideStopScript(uint32_t self) {
+  g_hide_hold.erase(self);
+  void* creature = CreatureById(self);
+  if (!creature) return;
+  static const auto aq_id = reinterpret_cast<AqIdFn>(EngineExport(ee::kGetAQActionIDByID));
+  static const auto cancel = reinterpret_cast<CancelActionFn>(EngineExport(ee::kCreatureCancelAction));
+  if (!aq_id || !cancel) return;
+  std::vector<uint16_t> groups;
+  for (void* node : QueueNodes(creature)) {
+    if (Field<int32_t>(node, ee::kActionId) != ee::kActionAttackObject) continue;
+    const uint16_t group = Field<uint16_t>(node, ee::kActionGroupId);
+    if (std::find(groups.begin(), groups.end(), group) == groups.end()) groups.push_back(group);
+  }
+  const uint16_t display = aq_id(creature, static_cast<uint16_t>(ee::kActionAttackObject), 0);
+  int stopped = 0;
+  for (uint16_t group : groups) stopped += cancel(creature, display, group) != 0 ? 1 : 0;
+  if (LogSlot()) {
+    Log("actions: 0x%08X Cunning Action: Hide - its attack stopped (%d of %d attack order(s)) - hidden until it "
+        "attacks", self, stopped, static_cast<int>(groups.size()));
+  }
+  if (stopped > 0) Tell(creature, "Cunning Action: Hide - you stop attacking and stay hidden until you attack.");
 }
 
 // The stealth button, or a script's SetActionMode (a find): out of stealth mode even with an attack target.
@@ -321,6 +372,15 @@ bool SteadyAimReady(void* creature) {
 
 bool HideReady(void* creature) { return creature && Field<uint8_t>(creature, kCreatureStealthMode) != 1; }
 
+bool HideHoldsAttacks(void* creature) {
+  if (g_hide_hold.empty() || !creature) return false;
+  const auto held = g_hide_hold.find(IdOf(creature));
+  if (held == g_hide_hold.end()) return false;
+  if (GameMs() <= held->second) return true;
+  g_hide_hold.erase(held);
+  return false;
+}
+
 bool ThiefsReflexesOn(void* creature) {
   if (!creature) return false;
   EnsureRecords(creature);
@@ -343,6 +403,7 @@ void InstallExtraActions() {
                        AddScriptHandler("n5_ca_dash", &CunningDashScript) &&
                        AddScriptHandler("n5_ca_diseng", &CunningDisengageScript) &&
                        AddScriptHandler("n5_ca_hide", &CunningHideScript) &&
+                       AddScriptHandler("n5_ca_hidestop", &HideStopScript) &&
                        AddScriptHandler("n5_steadyaim", &SteadyAimScript);
   const bool guard = AddFeatUseGuard(&SteadyAimGuard);
   HookExport("CNWSCreature::ToggleMode (out of stealth mode with an attack target)", kToggleMode,

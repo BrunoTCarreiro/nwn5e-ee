@@ -853,6 +853,11 @@ bool SteadyAimAllowed(float moved_metres) { return moved_metres <= kSteadyAimMov
 
 bool StealthToggleAllowed(bool into_stealth, bool attack_target) { return !into_stealth || !attack_target; }
 
+HideAtAttack WhenAttackEndsHide(bool hiding, bool faithful) {
+  if (!hiding) return HideAtAttack::kNotHiding;
+  return faithful ? HideAtAttack::kEndsAfterRoll : HideAtAttack::kEndsBeforeRoll;
+}
+
 std::vector<int> GrantedFeats2024(const std::vector<ClassLevels>& classes) {
   std::vector<int> feats;
   for (const ClassLevels& c : classes) {
