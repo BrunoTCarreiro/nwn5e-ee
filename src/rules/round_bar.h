@@ -2,7 +2,7 @@
 
 #include <vector>
 
-// The round bar (core/round_bar.cpp; #127, owner, 2026-11-03: "sometimes it's
+// The round bar (core/round_bar_window.cpp; #127, owner, 2026-11-03: "sometimes it's
 // hard to figure out when a round ends and the next one begins ... like a
 // small loading bar that would show the state of the current round?", then
 // "go with A"): under the action queue strip, in a fight - the player

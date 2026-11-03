@@ -4165,7 +4165,7 @@ only; C A's content in the resource panel.
 
 *Decided (owner, 2026-11-03: "go with A").*
 
-*Built 0.66.0* (src/core/round_bar.cpp, src/rules/round_bar.cpp): a client window under the strip
+*Built 0.66.0* (src/core/round_bar_window.cpp, src/rules/round_bar.cpp - one obj folder: the names differ): a client window under the strip
 (rules::RoundBarTop: the strip's tiles' bottom, or the screen's top with `!queue` off), centred at the GUI scale, in a
 fight only - a card, the three pips with their letters (A, B, R: green left, grey spent, amber a Bonus Action waiting
 for the next round - bonus_actions.cpp's BonusActionStatus, reactions.h's ReactionReady; shown while the actions are

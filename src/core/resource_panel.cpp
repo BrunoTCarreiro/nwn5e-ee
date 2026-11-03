@@ -78,7 +78,7 @@
 #include "records.h"
 
 bool ActionQueueStripOff(void* creature);  // action_queue.cpp (!queue)
-bool RoundBarEnabled(void* creature);      // round_bar.cpp (#127: the panel goes under it)
+bool RoundBarEnabled(void* creature);      // round_bar_window.cpp (#127: the panel goes under it)
 
 namespace {
 
