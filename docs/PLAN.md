@@ -399,6 +399,21 @@ the movement extras (#55); then the staple actions (#56, a decision first).
 *Accepted (owner, 2026-11-03: "HE-1 and 2 are very hard to test, I'll assume they work").* The staple actions (#56),
 0.64.0 - Dodge and Dash for everyone, Help as an off-by-default house rule. Phase 6 left: Action Surge / Thief's
 Reflexes (#53), the movement extras (#55), grenades (#124), the later staple actions (#125).
+- *#53, the extra actions (F3, T5, R4, R5 - all "Phase 6" in their briefs; none built).* *Decided (#53; owner,
+  2026-11-03: "go with your recommendations. but see a lot of these automatic actions should be managed by the user,
+  for now in the !options panel"):*
+  - 1 A Action Surge (Fighter 2; two uses from 17; back on a Short or Long Rest): an instant feat (the Fighter's
+    radial section, the quickbar). Used while attacking, the round gets the Attack action again - its attacks added
+    to the round now; with an Action waiting in the queue (a spell, a scroll), that Action goes now instead of after
+    the round; used outside a fight, the next round started.
+  - Thief's Reflexes (Thief 17: two turns in a fight's first round): automatic - the first round of each fight gets
+    the Attack action twice (or a queued Action too) - switchable in Combat configuration (the owner: automatic
+    actions managed by the user).
+  - 3 A Cunning Action (Rogue 2): Dash and Disengage as Bonus Actions (instant; a "Cunning Action" sub-menu in the
+    Rogue's radial section, the quickbar; choosable as the default Bonus Action); Hide after a recon here - with
+    this build if letting stealth through in combat is one engine check, else a follow-up.
+  - 4 A Steady Aim (Rogue 3): a Bonus Action refused once the Rogue moved since its round began; the next attack
+    with Advantage, no moving until the round ends; also a default Bonus Action choice.
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,
