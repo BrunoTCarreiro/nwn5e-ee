@@ -15,7 +15,7 @@ FlourishStep DecideFlourish(const FlourishTick& t) {
   if (t.has_round && t.paused) return FlourishStep::Wait;
   if (!t.has_round || (!t.round_started && !t.attacking)) return FlourishStep::PlayNow;
   if (!t.round_started) return FlourishStep::Wait;
-  return t.fits ? FlourishStep::PauseAndPlay : FlourishStep::Wait;
+  return FlourishStep::PauseAndPlay;
 }
 
 int FlourishPauseMs(float clip_seconds) {

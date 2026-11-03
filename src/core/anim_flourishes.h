@@ -6,8 +6,9 @@
 // A script PlayAnimation runs ClearAllActions - the swing in progress is cut, the target dropped, the round emptied
 // (the game session's BA-12). So a flourish never goes through one: the animation is set on the creature directly
 // (CNWSCreature::SetAnimation) from a creature-update listener, at the moment data::DecideFlourish picks:
-// - in a fight, after the creature's swing, with its round paused for the clip as the engine pauses it for an equip
-//   or a flinch (CheckActionLength first; no attack is lost - the round's length shrinks by the pause);
+// - in a fight, right after the creature's swing, with its round paused for the clip however little of the round is
+//   left (#128; owner: "why can't the round be paused to play the animation?"): the round's timer stands still for
+//   the clip, then runs on - the round ends later, its later attacks keep their timing and none is lost;
 // - out of combat, at once (the animation set back to the idle after the clip, so the next one is sent again).
 // It waits while the creature moves, and drops if it dies, stops wanting it (Rage over) or waits 12 s.
 //

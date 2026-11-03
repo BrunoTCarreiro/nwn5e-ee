@@ -28,7 +28,7 @@ namespace {
 // The combat round and the object (nwmain 8193.37-17, the #121 research; the shared fields are ee_layout.h's).
 constexpr size_t kRoundStarted = 0x2f04;        // int32: the round runs (StartCombatRound sets it, clears any pause)
 constexpr size_t kRoundTimer = 0x2f0c;          // int32 ms into the round
-constexpr size_t kRoundLength = 0x2f10;         // int32 ms (a pause shrinks it: DecrementRoundLength)
+constexpr size_t kRoundLength = 0x2f10;         // int32 ms
 constexpr size_t kObjectAnimationSpeed = 0xdc;  // float, beside the animation +0xd8
 
 constexpr int64_t kSwapGapMs = 100;       // the swap reaches the client before the animation
@@ -37,21 +37,17 @@ constexpr int64_t kRestoreAfterMs = 600;  // the swap stays this long after the 
 constexpr int kAnimationIdle = 0;
 constexpr const char* kSwapVar = "n5_flourish_swap";  // the swap script's answer: 1 = part-based, swapped
 
-using CheckActionLengthFn = int (*)(void* round, uint32_t by, int ms);
 using SetRoundPausedFn = void (*)(void* round, int paused, uint32_t by);
 using RoundTimeFn = void (*)(void* round, int ms, int flag);
 using SetAnimationFn = void (*)(void* creature, int animation);
 
 struct Api {
-  CheckActionLengthFn check_action_length =
-      reinterpret_cast<CheckActionLengthFn>(EngineExport(ee::kCheckActionLength));
   SetRoundPausedFn set_round_paused = reinterpret_cast<SetRoundPausedFn>(EngineExport(ee::kSetRoundPaused));
   RoundTimeFn set_pause_timer = reinterpret_cast<RoundTimeFn>(EngineExport(ee::kSetPauseTimer));
-  RoundTimeFn decrement_round_length = reinterpret_cast<RoundTimeFn>(EngineExport(ee::kDecrementRoundLength));
   SetAnimationFn set_animation = reinterpret_cast<SetAnimationFn>(EngineExport(ee::kSetAnimation));
 
   bool Complete() const {
-    return check_action_length && set_round_paused && set_pause_timer && decrement_round_length && set_animation;
+    return set_round_paused && set_pause_timer && set_animation;
   }
 };
 
@@ -75,7 +71,7 @@ bool MovingAnimation(int animation) {
          (animation >= 84 && animation <= 87);
 }
 
-enum class Waiting { kNone, kMoving, kNextRound, kPaused, kNoRoom };
+enum class Waiting { kNone, kMoving, kNextRound, kPaused };
 
 struct Request {
   int animation = 0;
@@ -115,7 +111,6 @@ void Play(void* creature, uint32_t id, Request& request, void* round, bool pause
   if (pause) {
     E().set_round_paused(round, 1, id);
     E().set_pause_timer(round, request.pause_ms, 0);
-    E().decrement_round_length(round, request.pause_ms, 0);
   }
   SetField<float>(creature, kObjectAnimationSpeed, 1.0f);
   E().set_animation(creature, request.animation);
@@ -152,10 +147,7 @@ void Finish(void* creature, uint32_t id, Request& request, int64_t now) {
 }
 
 void LogWait(uint32_t id, Request& request, const data::FlourishTick& tick, void* round) {
-  const Waiting why = tick.moving            ? Waiting::kMoving
-                      : tick.paused         ? Waiting::kPaused
-                      : !tick.round_started ? Waiting::kNextRound
-                                            : Waiting::kNoRoom;
+  const Waiting why = tick.moving ? Waiting::kMoving : tick.paused ? Waiting::kPaused : Waiting::kNextRound;
   if (why == request.waiting) return;
   request.waiting = why;
   switch (why) {
@@ -165,10 +157,7 @@ void LogWait(uint32_t id, Request& request, const data::FlourishTick& tick, void
       Log("flourish: 0x%08X waits - its round is paused by 0x%08X (%d ms left)", id,
           Field<uint32_t>(round, ee::kRoundPausedBy), Field<int32_t>(round, ee::kRoundPauseTimer));
       break;
-    default:
-      Log("flourish: 0x%08X waits - no room for %d ms in its round (%d/%d ms)", id, request.pause_ms,
-          Field<int32_t>(round, kRoundTimer), Field<int32_t>(round, kRoundLength));
-      break;
+    default: break;
   }
 }
 
@@ -197,7 +186,6 @@ void OnCreatureUpdate(void* creature) {
                 (tick.round_started || Field<int32_t>(creature, ee::kCreatureInCombat) != 0);
   tick.moving = action == ee::kActionMoveToPoint || MovingAnimation(Field<int32_t>(creature, ee::kCreatureAnimation));
   tick.attacking = action == ee::kActionAttackObject;
-  tick.fits = tick.round_started && !tick.paused && E().check_action_length(round, id, request.pause_ms) != 0;
   tick.now_ms = now;
   tick.not_before_ms = request.not_before;
   tick.give_up_ms = request.give_up;

@@ -9,7 +9,7 @@ using data::DecideFlourish;
 using data::FlourishStep;
 using data::FlourishTick;
 
-// A creature mid-fight, between swings, the clip fitting: the case that pauses and plays.
+// A creature mid-fight, between swings: the case that pauses and plays.
 FlourishTick Ready() {
   FlourishTick t;
   t.alive = true;
@@ -18,7 +18,6 @@ FlourishTick Ready() {
   t.round_started = true;
   t.paused = false;
   t.moving = false;
-  t.fits = true;
   t.now_ms = 10000;
   t.not_before_ms = 9900;
   t.give_up_ms = 22000;
@@ -33,7 +32,8 @@ const int kDrop = static_cast<int>(FlourishStep::Drop);
 
 }  // namespace
 
-TEST(FlourishPausesWhenItFits) { CHECK_EQ(Step(Ready()), kPause); }
+// #128: however little of the round is left - no room rule; the round stretches by the clip.
+TEST(FlourishPausesTheRunningRound) { CHECK_EQ(Step(Ready()), kPause); }
 
 TEST(FlourishDropsWhenDeadOrUnwanted) {
   FlourishTick dead = Ready();
@@ -75,7 +75,6 @@ TEST(FlourishPlaysAtOnceOutOfCombat) {
   none.paused = true;  // a pause still counting down out of combat doesn't hold it
   FlourishTick idle = Ready();
   idle.round_started = false;
-  idle.fits = false;
   CHECK_EQ(Step(none), kPlayNow);
   CHECK_EQ(Step(idle), kPlayNow);
 }
@@ -103,7 +102,6 @@ TEST(FlourishWaitsForTheNextRoundWhileAttacking) {
   FlourishTick between = Ready();  // between two rounds of a fight: the next starts on its next update
   between.round_started = false;
   between.attacking = true;
-  between.fits = true;  // even if the stale round would take the pause: the round's start clears it
   CHECK_EQ(Step(between), kWait);
 }
 
@@ -112,12 +110,6 @@ TEST(FlourishWaitsWhileMovingOutOfCombat) {
   walking.has_round = false;
   walking.moving = true;
   CHECK_EQ(Step(walking), kWait);
-}
-
-TEST(FlourishWaitsWhenItDoesNotFit) {
-  FlourishTick late = Ready();  // after the round's last swing: the next round's start clears the timer
-  late.fits = false;
-  CHECK_EQ(Step(late), kWait);
 }
 
 TEST(FlourishPauseCoversTheClip) {

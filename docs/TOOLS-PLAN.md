@@ -1144,3 +1144,13 @@ stage (`flourish:` asks / waits / plays / over / done / drops).
 *Accepted (owner, 2026-11-02: "it looked right, accept #121")* on 0.62.2: out of combat at once; mid-fight it
 waited for the swing three times and the next attack followed the clip on the same target; after the round's swings
 it played at the next round's start; Presence's victoryth the same. The enemy's-swing case wasn't exercised.
+
+### Flourishes stretch the round (2026-11-03, #128)
+
+*Reported (owner, 0.66.1):* "the animation only kicked in at the start of the next turn even though the vfx and the
+voice line played immediately" - with less than the clip left in the round, #121's flourish waited for the next round.
+*Direction (owner):* "why can't the round be paused to play the animation? the sanctity of the 6 second round is
+already gone out the window from the moment it is paused for attacks." *Built:* the flourish pauses its running round
+right after the swing in progress, however little of the round is left: no CheckActionLength, no
+DecrementRoundLength - the round's timer stands still for the clip, then runs on, so the round ends later and its
+later attacks keep their timing. Still waits for a swing in progress (pausing over it cut the swing - #121's bug).
