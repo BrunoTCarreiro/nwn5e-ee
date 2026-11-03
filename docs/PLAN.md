@@ -494,6 +494,10 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     activity bit set first (a hide from 0.65.0 - 0.66.3), the attack target set aside around the engine's toggle, and
     SetStealthMode(0) if the engine still leaves it on. Test ExtraActions' StealthToggleAllowed rows (3 of 3 mutations
     caught).
+  - *The owner's 0.66.8 run (2026-11-03):* AS-3, CA-1, CA-2, CA-4, SA-1, SA-2, OP-1 - "everything passes" (the
+    log: Action Surge mid-round, a Short Rest, Disengage and Dash as Bonus Actions, a second one waiting for the next
+    round, Steady Aim); the swing rows on 0.66.3, CA-3 through #129.
+  - *Accepted (owner, 2026-11-03: "everything passes").*
 - *#129, attacking from hiding (a follow-up of #53's CA-3).* The owner's 0.66.4 run: the Hide worked (Stealth 15,
   then 22), but the attack in progress took the character out of stealth mode at its next swing (0.1 s and 0.5 s
   later). The recon: each swing's CNWSCreature::ResolveAttack calls ActivityManager(4) before its roll, which turns
