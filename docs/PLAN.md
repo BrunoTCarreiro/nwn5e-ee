@@ -537,6 +537,10 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     an attacker hiding (stealth mode - the hide lasts through the roll) whose target's visibility list doesn't see
     it rolls with Advantage ("hidden: attacking from hiding, unseen" in the advantage line), perception faithful.
     Test ExtraActions' HiddenAttackAdvantage rows (4 of 4 mutations caught).
+  - *The owner's 0.66.8 run (2026-11-03):* HA-2/3 - the Cunning Action Hide (Stealth 16) unseen at once, the attack
+    "hidden: attacking from hiding, unseen; d20 15 / 1 -> 15", out of stealth mode after it; HA-4 - the stealth
+    button (Stealth 29), the first attack with Advantage (12 / 19 -> 19), then out. HA-1 on 0.66.6.
+  - *Accepted (owner, 2026-11-03: "accept 129").*
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,
