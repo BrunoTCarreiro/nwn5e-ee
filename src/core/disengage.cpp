@@ -24,6 +24,7 @@
 #include "log.h"
 #include "reactions.h"
 #include "script_hooks.h"
+#include "staple_actions.h"
 
 namespace {
 
@@ -35,7 +36,11 @@ bool IsPlayer(void* creature) {
   return stats && ReadCreatureFacts(stats).is_player;
 }
 
-void DisengageScript(uint32_t self) {
+void DisengageScript(uint32_t self) { StartDisengage(self); }
+
+}  // namespace
+
+void StartDisengage(uint32_t self) {
   void* creature = CreatureById(self);
   if (!creature) return;
   g_until[self] = GameMs() + kDisengageMs;
@@ -45,8 +50,6 @@ void DisengageScript(uint32_t self) {
     TellPlayer(self, "nwn5e: Disengage - until your next round, moving away provokes no opportunity attacks.");
   }
 }
-
-}  // namespace
 
 bool Disengaging(uint32_t id) {
   if (g_until.empty()) return false;

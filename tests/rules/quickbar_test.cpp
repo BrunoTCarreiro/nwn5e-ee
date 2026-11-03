@@ -158,6 +158,20 @@ TEST(QuickbarSecondWindIsOneAction) {
   CHECK_EQ(SameQuickbarAction(kForceful, kFeatBrutalStrike), false);
 }
 
+// #53: the record's second half (bits 32 on: Action Surge, Cunning Action, Steady Aim). Breaks caught: a high bit
+// lost (the action placed again every time), one placed before placed again.
+TEST(QuickbarHighBits) {
+  QuickbarFacts facts;
+  facts.feats = {kFeatActionSurge, kFeatCunningDash, kFeatSteadyAim};
+  uint64_t placed = 0;
+  std::vector<QuickbarChange> changes = PlanQuickbar(EmptyBar(), 0, QuickbarActions2024(facts), &placed);
+  CHECK_EQ(static_cast<int>(changes.size()), 3);
+  CHECK_EQ(placed == ((uint64_t{1} << 32) | (uint64_t{1} << 33) | (uint64_t{1} << 36)), true);
+  uint64_t again = 0;
+  CHECK_EQ(static_cast<int>(PlanQuickbar(EmptyBar(), placed, QuickbarActions2024(facts), &again).size()), 0);
+  CHECK_EQ(again == placed, true);
+}
+
 // New actions go in the first empty slots, keys 1-9 first, and are recorded;
 // nothing is overwritten. Breaks caught: an occupied slot written, a non-feat
 // button counted as empty, the record not kept.
@@ -167,7 +181,7 @@ TEST(QuickbarFillsFirstEmptySlots) {
   bar[1] = Feat(kFeatRage);  // already there
   QuickbarFacts facts;
   facts.feats = {kFeatRage, kFeatRecklessAttack, kFeatKnockdownShove};
-  int placed = -1;
+  uint64_t placed = ~uint64_t{0};
   std::vector<QuickbarChange> changes = PlanQuickbar(bar, 0, QuickbarActions2024(facts), &placed);
   CHECK_EQ(static_cast<int>(changes.size()), 2);
   if (changes.size() != 2) return;
@@ -176,7 +190,7 @@ TEST(QuickbarFillsFirstEmptySlots) {
   CHECK_EQ(changes[1].slot, 3);
   CHECK_EQ(changes[1].value, kFeatKnockdownShove);
   CHECK_EQ(changes[1].refresh, false);
-  CHECK_EQ(placed, (1 << 1) | (1 << 2) | (1 << 9));  // Rage recorded (already on the bar), not re-placed
+  CHECK_EQ(placed == uint64_t{(1 << 1) | (1 << 2) | (1 << 9)}, true);  // Rage recorded (on the bar), not re-placed
 }
 
 // An action placed before isn't placed again - the player took it off. Breaks
@@ -184,9 +198,9 @@ TEST(QuickbarFillsFirstEmptySlots) {
 TEST(QuickbarRespectsRemovedActions) {
   QuickbarFacts facts;
   facts.feats = {kFeatRage};
-  int placed = 0;
+  uint64_t placed = 0;
   CHECK_EQ(static_cast<int>(PlanQuickbar(EmptyBar(), 1 << 1, QuickbarActions2024(facts), &placed).size()), 0);
-  CHECK_EQ(placed, 1 << 1);
+  CHECK_EQ(placed == uint64_t{1 << 1}, true);
 }
 
 // A full quickbar: the action waits, unrecorded, for a free slot. Breaks
@@ -195,9 +209,9 @@ TEST(QuickbarFullBarWaits) {
   std::vector<QuickbarSlot> bar(kQuickbarSlots, QuickbarSlot{1, 0});
   QuickbarFacts facts;
   facts.feats = {kFeatRage};
-  int placed = 0;
+  uint64_t placed = 0;
   CHECK_EQ(static_cast<int>(PlanQuickbar(bar, 0, QuickbarActions2024(facts), &placed).size()), 0);
-  CHECK_EQ(placed, 0);
+  CHECK_EQ(placed == 0, true);
   bar[30] = QuickbarSlot{};
   std::vector<QuickbarChange> changes = PlanQuickbar(bar, 0, QuickbarActions2024(facts), &placed);
   CHECK_EQ(static_cast<int>(changes.size()), 1);
@@ -213,7 +227,7 @@ TEST(QuickbarSecondWindButtonFollowsTheFeat) {
   bar[4] = Feat(kFeatSecondWind2);
   QuickbarFacts facts;
   facts.feats = {kFeatSecondWind3};
-  int placed = 0;
+  uint64_t placed = 0;
   std::vector<QuickbarChange> changes = PlanQuickbar(bar, 1 << 0, QuickbarActions2024(facts), &placed);
   CHECK_EQ(static_cast<int>(changes.size()), 1);
   if (changes.size() != 1) return;
@@ -298,7 +312,7 @@ TEST(QuickbarRageChainIsOneAction) {
   facts.barbarian_level = 14;
   std::vector<QuickbarSlot> bar(kQuickbarSlots);
   bar[2] = QuickbarSlot{kQuickbarTypeFeat, 328};
-  int placed = 0;
+  uint64_t placed = 0;
   bool rage_written = false;
   for (const QuickbarChange& c : PlanQuickbar(bar, 0, QuickbarActions2024(facts), &placed)) {
     if (IsRageFeat(c.value)) rage_written = true;

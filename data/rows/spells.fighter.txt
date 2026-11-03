@@ -4,3 +4,4 @@ Label Name IconResRef School Range VS MetaMagic TargetType ImpactScript Innate C
 1000 nwn5e_SecondWind 16000120 ife_tough V P s 0x00 0x01 nwn5e_secwind 1 500 head out 500 0 1 5 3 0 0 0 1220 0
 1001 nwn5e_SecondWind 16000120 ife_tough V P s 0x00 0x01 nwn5e_secwind 1 500 head out 500 0 1 5 3 0 0 0 1221 0
 1002 nwn5e_SecondWind 16000120 ife_tough V P s 0x00 0x01 nwn5e_secwind 1 500 head out 500 0 1 5 3 0 0 0 1222 0
+1042 nwn5e_ActionSurge 16000541 is_Haste V P s 0x00 0x01 n5_actionsurge 1 0 **** **** 0 0 1 5 3 0 0 0 1325 0

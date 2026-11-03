@@ -414,6 +414,32 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     this build if letting stealth through in combat is one engine check, else a follow-up.
   - 4 A Steady Aim (Rogue 3): a Bonus Action refused once the Rogue moved since its round began; the next attack
     with Advantage, no moving until the round ends; also a default Bonus Action choice.
+- *Built 0.65.0 (#53; class features faithful):* src/core/extra_actions.cpp; feats 1325-1329 (data/rows/feat.fighter.txt,
+  feat.rogue.txt; spells 1042-1046; the radial's class sections - cls_feat_fight.txt,
+  cls_feat_rog.if_classfeat2024.txt - and the quickbar, whose placement record is now 64 bits: two records,
+  rules::PlanQuickbar's uint64_t), granted by rules::GrantedFeats2024 (record bits 23-27).
+  - Action Surge (rules::TakesNoAction: instant): its uses a pool (rules::ActionSurgeUses; a Short Rest gives them
+    back, a Long one empties it). In a running round with a living target: rules::AttacksPerAttackAction's attacks
+    added now - CNWSCombatRound::AddCleaveAttack each (its recon: a 0x28-byte round action, the attack type, at the
+    schedule's head, +0x2F60 counted, the round shortened to fit, then a Cleave tag - the engine's own way, as the
+    Cleave mastery uses it; the log may say Cleave). Otherwise the next round started: +0x2F60 at its start
+    (rules_two_weapon.cpp's InitializeNumberOfAttacks hook - ExtraActionsRoundStart).
+  - Not built: Action Surge's "an Action waiting goes now". NWN's spell takes its own cast round and a cast mid-round
+    ends the attack round - the Surge would lose the round's attacks, not add an Action.
+  - Thief's Reflexes: the initiative (rules_initiative.cpp) marks a Thief 17's fight; its first round, within 10 s,
+    gets the Attack action's attacks again (+0x2F60). Combat configuration's "Automatic actions" switches it (record
+    nwn5e_thief_reflexes_off; on by default).
+  - Cunning Action (rules::TakesBonusAction): Dash, Disengage as everyone's (StartDash, StartDisengage); Hide -
+    CNWSCreature::SetStealthMode(1) by the server (its recon: no combat check there; the 1.69 refusal was the
+    client's or the input's), Stealth rolled as hiding starts (rules_perception.cpp).
+  - Steady Aim: a UseFeat guard refuses it (the Bonus Action not spent) once the Rogue moved more than 0.5 m since
+    its round began (rules::SteadyAimAllowed; the round's start recorded by ExtraActionsRoundStart; no round of its
+    own: not moving now); its next attack with Advantage (rules_advantage.cpp: SteadyAimRollSources, used up) and
+    EffectCutsceneImmobilize for 6 s (as the grapple holds).
+  - Combat configuration: Cunning Action's three and Steady Aim as default Bonus Actions (FeatReady: Steady Aim
+    when not moved, Hide when not in stealth mode).
+  - Tests ExtraActions, ExtraActionsEconomy, the grants' counts, the quickbar's 64-bit record (15 of 15 mutations
+    caught).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,

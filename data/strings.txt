@@ -315,6 +315,16 @@
 16000531 Deflect Attacks
 16000532 Deflect Attacks (Monk 3, 2024): when an attack roll hits you and its damage includes Bludgeoning, Piercing or Slashing damage, you can take a Reaction to reduce the attack's total damage against you by 1d10 + your Dexterity modifier + your Monk level. From Monk 13 (Deflect Energy) it works against any damage type. If you reduce the damage to 0, you can spend 1 Focus Point to redirect some of the attack's force: a creature you can see within 5 feet (a melee attack) or 60 feet (a ranged one) makes a Dexterity saving throw against your Focus save DC or takes two rolls of your Martial Arts die plus your Dexterity modifier, of the attack's damage type.\n\nIn nwn5e it is automatic on the first such hit each round (your reaction, shared with Uncanny Dodge, Retaliation and opportunity attacks); the redirect goes at the attacker when it's switched on. Both are switched in Combat configuration (!options). NWN's Deflect Arrows is not used.
 16000533 Disengage
+16000541 Action Surge
+16000542 Action Surge (Fighter 2, 2024): on your turn, you can take one additional action, except the Magic action. Once you use it, you can't do so again until you finish a Short or Long Rest; from Fighter 17 you can use it twice before a rest, but only once on a turn.\n\nIn nwn5e it takes no action: used while you attack, your Attack action's attacks are added to the round at once; otherwise your next round has them twice.
+16000543 Cunning Action: Dash
+16000544 Cunning Action (Rogue 2, 2024): on your turn, you can take one of the following actions as a Bonus Action: Dash, Disengage or Hide.\n\nDash: twice as fast this round, and your attacks go on.
+16000545 Cunning Action: Disengage
+16000546 Cunning Action (Rogue 2, 2024): on your turn, you can take one of the following actions as a Bonus Action: Dash, Disengage or Hide.\n\nDisengage: moving away provokes no opportunity attacks until your next round, and your attacks go on.
+16000547 Cunning Action: Hide
+16000548 Cunning Action (Rogue 2, 2024): on your turn, you can take one of the following actions as a Bonus Action: Dash, Disengage or Hide.\n\nHide: into stealth mode, even in a fight; your Stealth check decides who still sees you.
+16000549 Steady Aim
+16000550 Steady Aim (Rogue 3, 2024): as a Bonus Action, you give yourself Advantage on your next attack roll on the current turn. You can use this feature only if you haven't moved during this turn, and after you use it, your Speed is 0 until the end of the current turn.\n\nIn nwn5e: refused once you've moved this round; you can't move until your next round.
 16000535 Dodge
 16000536 Dodge (2024): until the start of your next turn, any attack roll made against you has Disadvantage if you can see the attacker, and you make Dexterity saving throws with Advantage. You lose this benefit if you have the Incapacitated condition or if your Speed is 0. It takes your Action.\n\nIn nwn5e it lasts until your next round. Used while you're attacking, it goes after the round's attacks; its round has no attacks.
 16000537 Dash

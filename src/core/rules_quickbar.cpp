@@ -56,6 +56,18 @@ constexpr size_t kButtonSize = 0x60;
 constexpr size_t kButtonType = 0x08;      // byte
 constexpr size_t kButtonIntParam = 0x50;  // int32
 constexpr const char* kVarPlaced = "nwn5e_quickbar_placed";
+constexpr const char* kVarPlacedHigh = "nwn5e_quickbar_placed2";  // #53: bits 32-63 (rules::PlanQuickbar's record)
+
+uint64_t PlacedOf(void* creature) {
+  const uint32_t low = static_cast<uint32_t>(engine::GetLocalInt(creature, kVarPlaced));
+  const uint32_t high = static_cast<uint32_t>(engine::GetLocalInt(creature, kVarPlacedHigh));
+  return (static_cast<uint64_t>(high) << 32) | low;
+}
+
+void SetPlaced(void* creature, uint64_t placed) {
+  SetRecord(creature, kVarPlaced, static_cast<int>(static_cast<uint32_t>(placed)));
+  SetRecord(creature, kVarPlacedHigh, static_cast<int>(static_cast<uint32_t>(placed >> 32)));
+}
 constexpr DWORD kCheckEveryMs = 2000;
 
 SetIntParamFn g_set_int_param = nullptr;
@@ -98,7 +110,7 @@ bool ReadBar(void* creature, std::vector<rules::QuickbarSlot>* bar) {
 }
 
 // Plans and writes; the chat line names the new buttons. Returns how many were written.
-int PlaceActions(void* creature, int placed, bool tell) {
+int PlaceActions(void* creature, uint64_t placed, bool tell) {
   if (!g_set_int_param || !g_send_button || !g_get_message || !g_player_by_object) return 0;
   void* stats = StatsOf(creature);
   void* app = ServerApp();
@@ -109,7 +121,7 @@ int PlaceActions(void* creature, int placed, bool tell) {
   if (!player || !message || !ReadBar(creature, &bar)) return 0;
   const std::vector<rules::QuickbarAction> actions = ActionsOf(stats);
   if (actions.empty()) return 0;
-  int now_placed = placed;
+  uint64_t now_placed = placed;
   const std::vector<rules::QuickbarChange> changes = rules::PlanQuickbar(bar, placed, actions, &now_placed);
   const uint32_t id = IdOf(creature);
   std::string line;
@@ -124,10 +136,10 @@ int PlaceActions(void* creature, int placed, bool tell) {
     if (c.refresh) continue;
     line += (line.empty() ? "" : ", ") + std::string(name) + " (" + rules::QuickbarSlotKeys(c.slot, QuickbarNumberKeysOn()) + ")";
   }
-  if (now_placed != placed) SetRecord(creature, kVarPlaced, now_placed);
+  if (now_placed != placed) SetPlaced(creature, now_placed);
   if (tell && !line.empty()) TellPlayer(id, "nwn5e: on your quickbar - " + line + ".");
   for (const rules::QuickbarAction& a : actions) {  // a full bar: said once a session in the log
-    if (!(now_placed & (1 << a.record_bit)) && !g_full_logged) {
+    if (!(now_placed & (uint64_t{1} << a.record_bit)) && !g_full_logged) {
       g_full_logged = true;
       Log("quickbar: 0x%08X no empty slot for %s - it waits for one", id, a.name);
     }
@@ -206,7 +218,7 @@ void QuickbarCreatureUpdate(void* creature) {
     RestoreRebuildButtons(creature);
     EmptyLostActions(creature);  // and the whole bar sent again
   }
-  PlaceActions(creature, engine::GetLocalInt(creature, kVarPlaced), true);
+  PlaceActions(creature, PlacedOf(creature), true);
 }
 
 // !quickbar [reset]
@@ -219,7 +231,7 @@ std::vector<std::string> QuickbarCommand(void* creature, const std::string& args
   EnsureRecords(creature);
   std::vector<std::string> lines;
   if (args == "reset") {
-    SetRecord(creature, kVarPlaced, 0);
+    SetPlaced(creature, 0);
     const int written = PlaceActions(creature, 0, true);
     lines.push_back("nwn5e: quickbar record cleared - " + std::to_string(written) +
                     " action(s) put back on empty slots.");
@@ -228,7 +240,7 @@ std::vector<std::string> QuickbarCommand(void* creature, const std::string& args
                                          : "nwn5e: the number keys aren't hooked (see the log) - F1-F12 as usual.");
   std::vector<rules::QuickbarSlot> bar;
   const bool have_bar = ReadBar(creature, &bar);
-  const int placed = engine::GetLocalInt(creature, kVarPlaced);
+  const uint64_t placed = PlacedOf(creature);
   for (const rules::QuickbarAction& a : ActionsOf(stats)) {
     std::string where;
     for (int i = 0; have_bar && i < rules::kQuickbarSlots; ++i) {
@@ -237,7 +249,7 @@ std::vector<std::string> QuickbarCommand(void* creature, const std::string& args
       }
     }
     if (where.empty()) {
-      where = (placed & (1 << a.record_bit)) ? "not on the quickbar (taken off - !quickbar reset puts it back)"
+      where = (placed & (uint64_t{1} << a.record_bit)) ? "not on the quickbar (taken off - !quickbar reset puts it back)"
                                              : "not on the quickbar yet (no empty slot)";
     }
     lines.push_back("  " + std::string(a.name) + " - " + where);
@@ -262,7 +274,7 @@ std::vector<std::string> QuickbarCommand(void* creature, const std::string& args
 void ForgetQuickbarPlacements(void* creature) {
   if (g_config.quickbar != rules::RuleVariant::kFaithful || !creature) return;
   EnsureRecords(creature);
-  SetRecord(creature, kVarPlaced, 0);
+  SetPlaced(creature, 0);
   g_last_check.erase(IdOf(creature));  // looked at in the next update, not in up to 2 s
   g_cleanup_due[IdOf(creature)] = GetTickCount() + kCleanupAfterMs;
 }
@@ -296,7 +308,7 @@ void InstallQuickbar() {
     Log("SKIP quickbar: placing actions - a quickbar export is missing");
     return;
   }
-  RegisterRecords({kVarPlaced});
+  RegisterRecords({kVarPlaced, kVarPlacedHigh});
   AddCreatureUpdateListener(&QuickbarCreatureUpdate);
   Log("quickbar: nwn5e's class actions go on empty quickbar slots when gained");
 }

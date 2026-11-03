@@ -15,7 +15,7 @@ const std::vector<ClassFeature>& Fighter() {
       {1, "Fighting Style", false, "built: Archery, Defense, Great Weapon Fighting, Two-Weapon Fighting"},
       {1, "Second Wind", false, "built: radial menu (an action until Phase 6), 2 / 3 / 4 uses per rest"},
       {1, "Weapon Mastery", false, "built (!mastery)"},
-      {2, "Action Surge", false, "Phase 6"},
+      {2, "Action Surge", false, "built: radial menu / quickbar - the Attack action again (Phase 6, #53)"},
       {2, "Tactical Mind", false, "Phase 7 (a choice)"},
       {3, "Champion", false, "built: granted at 3"},
       {3, "Improved Critical", true, "built: crits on 19-20"},
@@ -36,7 +36,7 @@ const std::vector<ClassFeature>& Fighter() {
       {14, "Ability Score Improvement", false, "built (!asi)"},
       {15, "Superior Critical", true, "built: crits on 18-20"},
       {16, "Ability Score Improvement", false, "built (!asi)"},
-      {17, "Action Surge (2 uses)", false, "Phase 6"},
+      {17, "Action Surge (2 uses)", false, "built"},
       {17, "Indomitable (3 uses)", false, "built"},
       {18, "Survivor", true, "built: Heroic Rally (Defy Death: Phase 5)"},
       {19, "Epic Boon", false, "CM8"},
@@ -107,9 +107,9 @@ const std::vector<ClassFeature>& Rogue() {
                                  "crits double the dice; no creature is immune"},
       {1, "Thieves' Cant", false, "listed (NWN has no languages)"},
       {1, "Weapon Mastery", false, "built (!mastery)"},
-      {2, "Cunning Action", false, "Phase 6 (bonus actions)"},
+      {2, "Cunning Action", false, "built: Dash, Disengage, Hide as Bonus Actions (radial menu / quickbar)"},
       {3, "Thief", false, "built: granted at 3"},
-      {3, "Steady Aim", false, "Phase 6 (bonus actions)"},
+      {3, "Steady Aim", false, "built: a Bonus Action (radial menu / quickbar, or the default Bonus Action)"},
       {3, "Fast Hands", true, "built: lock and trap checks use the better of Thieves' Tools and Sleight of Hand "
                                "(the speed: Phase 6)"},
       {3, "Second-Story Work", true, "listed (NWN has no climbing or jumping)"},
@@ -133,7 +133,7 @@ const std::vector<ClassFeature>& Rogue() {
       {14, "Devious Strikes", false, "built: Daze, Knock Out and Obscure (its own radial)"},
       {15, "Slippery Mind", false, "built: proficient in Wisdom and Charisma saves"},
       {16, "Ability Score Improvement", false, "built (!asi)"},
-      {17, "Thief's Reflexes", true, "Phase 6"},
+      {17, "Thief's Reflexes", true, "built: a fight's first round, your Attack action twice (!options)"},
       {18, "Elusive", false, "built: no attack roll against you has Advantage unless you're Incapacitated"},
       {19, "Epic Boon", false, "CM8"},
       {20, "Stroke of Luck", false, "built: your first failed save becomes a 20; again after a Short or Long Rest"},
@@ -839,13 +839,32 @@ bool HasRemarkableAthlete(int fighter_level) { return fighter_level >= 3; }
 
 bool HasStudiedAttacks(int fighter_level) { return fighter_level >= 13; }
 
+bool HasActionSurge(int fighter_level) { return fighter_level >= 2; }
+
+int ActionSurgeUses(int fighter_level) { return fighter_level >= 17 ? 2 : HasActionSurge(fighter_level) ? 1 : 0; }
+
+bool HasCunningAction(int rogue_level) { return rogue_level >= 2; }
+
+bool HasSteadyAim(int rogue_level) { return rogue_level >= 3; }
+
+bool HasThiefsReflexes(int rogue_level) { return rogue_level >= 17; }
+
+bool SteadyAimAllowed(float moved_metres) { return moved_metres <= kSteadyAimMoveTolerance; }
+
 std::vector<int> GrantedFeats2024(const std::vector<ClassLevels>& classes) {
   std::vector<int> feats;
   for (const ClassLevels& c : classes) {
     if (c.character_class == CharacterClass::kFighter && c.levels >= 1) {
       feats.push_back(c.levels >= 10 ? kFeatSecondWind4 : c.levels >= 4 ? kFeatSecondWind3 : kFeatSecondWind2);
+      if (HasActionSurge(c.levels)) feats.push_back(kFeatActionSurge);  // #53
     }
     if (c.character_class == CharacterClass::kRogue) {
+      if (HasCunningAction(c.levels)) {  // #53
+        feats.push_back(kFeatCunningDash);
+        feats.push_back(kFeatCunningDisengage);
+        feats.push_back(kFeatCunningHide);
+      }
+      if (HasSteadyAim(c.levels)) feats.push_back(kFeatSteadyAim);
       if (HasRogueEvasion(c.levels)) feats.push_back(kFeatImprovedEvasion);  // R8: 2024's Evasion
       if (HasCunningStrike(c.levels)) feats.push_back(kFeatCunningStrike);   // R6: its radial
       if (HasDeviousStrikes(c.levels)) feats.push_back(kFeatDeviousStrikes);
@@ -887,7 +906,9 @@ const std::vector<int>& GrantableFeats2024() {
                                           kFeatPatientDefense, kFeatStepOfTheWind, kFeatSuperiorDefense,
                                           kFeatOpenHandTechnique, kFeatDeflectArrows, kFeatWholenessOfBody,
                                           kFeatQuiveringPalm,  kFeatDisengage,    kFeatDodge,
-                                          kFeatDash,           kFeatHelp};
+                                          kFeatDash,           kFeatHelp,         kFeatActionSurge,
+                                          kFeatCunningDash,    kFeatCunningDisengage, kFeatCunningHide,
+                                          kFeatSteadyAim};
   return kFeats;
 }
 

@@ -84,10 +84,10 @@ TEST(GrantedFeatsFollowClassLevels) {
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kFighter, 1}})[0], kFeatSecondWind2);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kFighter, 4}})[0], kFeatSecondWind3);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kFighter, 10}})[0], kFeatSecondWind4);
-  CHECK_EQ(GrantedFeats2024({{CharacterClass::kFighter, 9}}).size(), 1u);
+  CHECK_EQ(GrantedFeats2024({{CharacterClass::kFighter, 9}}).size(), 2u);  // #53: and Action Surge
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 5}}).empty(), true);
   CHECK_EQ(GrantedFeats2024({{CharacterClass::kWizard, 3}, {CharacterClass::kFighter, 2}})[0], kFeatSecondWind2);
-  CHECK_EQ(GrantableFeats2024().size(), 23u);  // #54: Disengage appended (bit 19); #56: Dodge, Dash, Help
+  CHECK_EQ(GrantableFeats2024().size(), 28u);  // #54 Disengage (bit 19); #56 Dodge, Dash, Help; #53 five
   CHECK_EQ(GrantableFeats2024()[15], kFeatOpenHandTechnique);  // Monk parts 4 / 5: appended
   CHECK_EQ(GrantableFeats2024()[16], kFeatDeflectArrows);
   CHECK_EQ(GrantableFeats2024()[17], kFeatWholenessOfBody);
@@ -144,7 +144,7 @@ TEST(EveryoneCanShove) {
   CHECK_EQ(FeatsEveryoneHas2024(false, false, true).empty(), true);  // no Help in NWN mode
   // Appended: the records' bits keep their places.
   const std::vector<int>& grantable = GrantableFeats2024();
-  CHECK_EQ(grantable.size() == 23u && grantable[19] == kFeatDisengage && grantable[20] == kFeatDodge &&
+  CHECK_EQ(grantable.size() == 28u && grantable[19] == kFeatDisengage && grantable[20] == kFeatDodge &&
                grantable[21] == kFeatDash && grantable[22] == kFeatHelp,
            true);
   CHECK_EQ(GrantedOnlyWhenMissing(kFeatShovePush), false);
@@ -322,8 +322,9 @@ TEST(MonkPart1) {
     int evasion = 0;
     for (int feat : GrantedFeats2024(both)) evasion += feat == kFeatImprovedEvasion ? 1 : 0;
     CHECK_EQ(evasion, 1);                        // asked by both classes, granted once
-    // With the Rogue's Cunning Strike, the Monk's two Focus feats and parts 4 / 5's three.
-    CHECK_EQ(GrantedFeats2024(both).size(), 7u);
+    // With the Rogue's Cunning Strike, the Monk's two Focus feats and parts 4 / 5's three; #53: the Rogue's Cunning
+    // Action (three) and Steady Aim.
+    CHECK_EQ(GrantedFeats2024(both).size(), 11u);
   }
   CHECK_EQ(HasFeatureList(CharacterClass::kMonk), true);
   CHECK_EQ(ClassFeatures2024(CharacterClass::kMonk, 1).size(), 2u);  // Martial Arts, Unarmored Defense
@@ -527,6 +528,39 @@ TEST(MonkOpenHand) {
 // #54 (owner, 2026-11-02, 1 A): Deflect Attacks' redirect. Breaks caught: a redirect with damage left, with the switch
 // off, with no Focus Point; a ranged attacker out of 60 ft or unseen reached, a melee one not; the damage without the
 // Dexterity modifier or below 0; the type not the largest share; the weapon's own damage not its weapon's type.
+// #53 (owner, 2026-11-03): the extra actions. Breaks caught: Action Surge at 1 or not at 2, a second use before 17
+// (or none at 17), Cunning Action at 1, Steady Aim at 2, Thief's Reflexes before 17, Steady Aim refused for a jitter
+// or allowed after a move, the feats not granted at their levels.
+TEST(ExtraActions) {
+  CHECK_EQ(HasActionSurge(1), false);
+  CHECK_EQ(HasActionSurge(2), true);
+  CHECK_EQ(ActionSurgeUses(1), 0);
+  CHECK_EQ(ActionSurgeUses(2), 1);
+  CHECK_EQ(ActionSurgeUses(16), 1);
+  CHECK_EQ(ActionSurgeUses(17), 2);
+  CHECK_EQ(HasCunningAction(1), false);
+  CHECK_EQ(HasCunningAction(2), true);
+  CHECK_EQ(HasSteadyAim(2), false);
+  CHECK_EQ(HasSteadyAim(3), true);
+  CHECK_EQ(HasThiefsReflexes(16), false);
+  CHECK_EQ(HasThiefsReflexes(17), true);
+  CHECK_EQ(SteadyAimAllowed(0.0f), true);
+  CHECK_EQ(SteadyAimAllowed(0.4f), true);
+  CHECK_EQ(SteadyAimAllowed(0.6f), false);
+  auto has = [](const std::vector<int>& feats, int feat) {
+    return std::find(feats.begin(), feats.end(), feat) != feats.end();
+  };
+  CHECK_EQ(has(GrantedFeats2024({{CharacterClass::kFighter, 1}}), kFeatActionSurge), false);
+  CHECK_EQ(has(GrantedFeats2024({{CharacterClass::kFighter, 2}}), kFeatActionSurge), true);
+  const std::vector<int> rogue2 = GrantedFeats2024({{CharacterClass::kRogue, 2}});
+  CHECK_EQ(has(rogue2, kFeatCunningDash) && has(rogue2, kFeatCunningDisengage) && has(rogue2, kFeatCunningHide), true);
+  CHECK_EQ(has(rogue2, kFeatSteadyAim), false);
+  CHECK_EQ(has(GrantedFeats2024({{CharacterClass::kRogue, 3}}), kFeatSteadyAim), true);
+  CHECK_EQ(has(GrantedFeats2024({{CharacterClass::kRogue, 1}}), kFeatCunningDash), false);
+  const std::vector<int>& grantable = GrantableFeats2024();
+  CHECK_EQ(grantable.size() == 28u && grantable[23] == kFeatActionSurge && grantable[27] == kFeatSteadyAim, true);
+}
+
 TEST(DeflectRedirect) {
   CHECK_EQ(DeflectRedirects(0, true, 1), true);
   CHECK_EQ(DeflectRedirects(1, true, 5), false);
@@ -622,13 +656,14 @@ TEST(RogueSneakAttack2024) {
   const std::vector<int> granted6 = GrantedFeats2024({{CharacterClass::kRogue, 6}});
   const std::vector<int> granted7 = GrantedFeats2024({{CharacterClass::kRogue, 7}});
   const std::vector<int> granted14 = GrantedFeats2024({{CharacterClass::kRogue, 14}});
-  CHECK_EQ(static_cast<int>(granted4.size()), 0);
-  CHECK_EQ(static_cast<int>(granted6.size()), 1);  // Cunning Strike's radial (R6)
-  CHECK_EQ(granted6.empty() ? 0 : granted6[0], kFeatCunningStrike);
-  CHECK_EQ(static_cast<int>(granted7.size()), 2);
-  CHECK_EQ(granted7.empty() ? 0 : granted7[0], kFeatImprovedEvasion);
-  CHECK_EQ(static_cast<int>(granted14.size()), 3);
-  CHECK_EQ(granted14.size() == 3 ? granted14[2] : 0, kFeatDeviousStrikes);
+  // #53: Cunning Action's three (2) and Steady Aim (3) first.
+  CHECK_EQ(static_cast<int>(granted4.size()), 4);
+  CHECK_EQ(static_cast<int>(granted6.size()), 5);  // Cunning Strike's radial (R6)
+  CHECK_EQ(granted6.size() == 5 ? granted6[4] : 0, kFeatCunningStrike);
+  CHECK_EQ(static_cast<int>(granted7.size()), 6);
+  CHECK_EQ(granted7.size() == 6 ? granted7[4] : 0, kFeatImprovedEvasion);
+  CHECK_EQ(static_cast<int>(granted14.size()), 7);
+  CHECK_EQ(granted14.size() == 7 ? granted14[6] : 0, kFeatDeviousStrikes);
   CHECK_EQ(GrantedOnlyWhenMissing(kFeatImprovedEvasion), true);
   // Parts 3-4 (R7, R12): Uncanny Dodge from 5 halves each damage entry (rounded
   // down; -1 unused, untouched); Stroke of Luck at 20.

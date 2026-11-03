@@ -460,6 +460,21 @@ constexpr int kFeatDodge = 1322;
 constexpr int kFeatDash = 1323;
 constexpr int kFeatHelp = 1324;
 std::vector<int> FeatsEveryoneHas2024(bool shove_faithful, bool actions_faithful, bool help_house_rule);
+
+// #53 (owner, 2026-11-03): the extra actions - class feats GrantedFeats2024 gives.
+constexpr int kFeatActionSurge = 1325;       // Fighter 2: instant (no action)
+constexpr int kFeatCunningDash = 1326;       // Rogue 2: Cunning Action - each a Bonus Action
+constexpr int kFeatCunningDisengage = 1327;
+constexpr int kFeatCunningHide = 1328;
+constexpr int kFeatSteadyAim = 1329;         // Rogue 3: a Bonus Action
+bool HasActionSurge(int fighter_level);       // 2
+int ActionSurgeUses(int fighter_level);       // 1, 2 from 17 - a Short or Long Rest gives them back
+bool HasCunningAction(int rogue_level);       // 2
+bool HasSteadyAim(int rogue_level);           // 3
+bool HasThiefsReflexes(int rogue_level);      // 17 (the Thief, the SRD's one Rogue subclass)
+// Steady Aim is refused once the Rogue moved since its round began - farther than a step's jitter.
+constexpr float kSteadyAimMoveTolerance = 0.5f;
+bool SteadyAimAllowed(float moved_metres);
 bool GrantedOnlyWhenMissing(int feat);
 
 }  // namespace rules

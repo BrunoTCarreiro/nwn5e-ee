@@ -76,13 +76,7 @@ void DodgeScript(uint32_t self) {
                        "saves Advantage.");
 }
 
-void DashScript(uint32_t self) {
-  void* creature = CreatureById(self);
-  if (!creature) return;
-  g_dashing[self] = GameMs() + kRoundMs;
-  Log("actions: 0x%08X Dash - twice as fast this round", self);
-  Tell(creature, self, "Dash - twice as fast this round.");
-}
+void DashScript(uint32_t self) { StartDash(self); }
 
 float DashBonus(void* creature, float factor) {
   if (g_dashing.empty() || !creature) return factor;
@@ -123,6 +117,14 @@ void HelpScript(uint32_t self) {
 }  // namespace
 
 bool Dodging(uint32_t id) { return !g_dodging.empty() && Until(g_dodging, id); }
+
+void StartDash(uint32_t id) {
+  void* creature = CreatureById(id);
+  if (!creature) return;
+  g_dashing[id] = GameMs() + kRoundMs;
+  Log("actions: 0x%08X Dash - twice as fast this round", id);
+  Tell(creature, id, "Dash - twice as fast this round.");
+}
 
 void InstallStapleActions() {
   if (g_config.actions != rules::RuleVariant::kFaithful) return;

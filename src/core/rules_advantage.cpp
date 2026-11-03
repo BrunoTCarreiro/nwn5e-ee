@@ -29,6 +29,7 @@
 #include "creature.h"
 #include "dice.h"
 #include "ee_layout.h"
+#include "extra_actions.h"
 #include "engine.h"
 #include "log.h"
 #include "rules/nwn_situational.h"
@@ -142,6 +143,7 @@ void BeforeAttackRoll(AttackRoll& roll) {
   const MasteryRollSources reckless = RecklessRollSources(roll.attacker, target, roll.data);
   const MasteryRollSources grappled = GrappleRollSources(roll.attacker, target);
   const MasteryRollSources monk = MonkRollSources(roll.attacker, target);
+  const MasteryRollSources steady = SteadyAimRollSources(roll.attacker);  // #53
   t_pending.conditions = conditions.note.empty() ? "" : "conditions: " + conditions.note;
   if (!mastery.note.empty()) {
     t_pending.conditions += (t_pending.conditions.empty() ? "mastery: " : "; mastery: ") + mastery.note;
@@ -156,6 +158,9 @@ void BeforeAttackRoll(AttackRoll& roll) {
   if (!monk.note.empty()) {
     t_pending.conditions += (t_pending.conditions.empty() ? "monk: " : "; monk: ") + monk.note;
   }
+  if (!steady.note.empty()) {
+    t_pending.conditions += (t_pending.conditions.empty() ? "rogue: " : "; rogue: ") + steady.note;
+  }
   std::string heavy_note;
   const int heavy = HeavyWeaponDisadvantage(roll.attacker, terms.ranged, &heavy_note);
   if (heavy) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + heavy_note;
@@ -163,7 +168,8 @@ void BeforeAttackRoll(AttackRoll& roll) {
   if (elusive) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + std::string("Elusive: no Advantage");
   t_pending.mode = rules::SituationalRollMode(
       terms, rules::RangedCloseCombat(terms.ranged, t_pending.point_blank_shot, t_pending.threats),
-      conditions.advantage + mastery.advantage + studied.advantage + reckless.advantage + monk.advantage,
+      conditions.advantage + mastery.advantage + studied.advantage + reckless.advantage + monk.advantage +
+          steady.advantage,
       conditions.disadvantage + mastery.disadvantage + heavy + grappled.disadvantage + monk.disadvantage, elusive);
   {
     std::string brutal;

@@ -38,6 +38,7 @@ bool HasFeralInstinctAdvantage(void* creature);      // rules_barbarian.cpp (Bar
 void PersistentRageOnInitiative(void* creature);     // rules_barbarian.cpp (Barbarian B12)
 void HenchmanRageOnInitiative(void* creature);       // rules_barbarian.cpp (a henchman rages, 0.46.1)
 void MonkOnInitiative(void* creature);               // rules_monk.cpp (Monk M7 Uncanny Metabolism, Perfect Focus)
+void ThiefsReflexesOnInitiative(void* creature);     // extra_actions.cpp (#53)
 
 namespace {
 
@@ -95,6 +96,7 @@ void ResolveInitiative(void* creature) {
   PersistentRageOnInitiative(creature);
   HenchmanRageOnInitiative(creature);
   MonkOnInitiative(creature);
+  ThiefsReflexesOnInitiative(creature);
 }
 
 bool Invisible(void* creature) { return g_get_invisible && g_get_invisible(creature, creature, 0) != 0; }

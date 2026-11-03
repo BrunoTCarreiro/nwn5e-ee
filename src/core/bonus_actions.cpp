@@ -42,6 +42,7 @@
 #include "ee_layout.h"
 #include "engine.h"
 #include "action_order.h"
+#include "extra_actions.h"
 #include "feat_use.h"
 #include "game_clock.h"
 #include "hooks.h"
@@ -51,6 +52,7 @@
 #include "records.h"
 #include "rules_loaded.h"
 #include "rules/action_economy.h"
+#include "rules/class_features.h"
 #include "rules/weapons.h"
 
 int MartialArtsLevel(void* creature);        // rules_monk.cpp (M1)
@@ -143,6 +145,8 @@ bool FeatReady(void* creature, int feat, int family) {
   if (feat < 0 || !stats) return false;
   if (remaining && remaining(stats, static_cast<uint16_t>(feat)) == 0) return false;
   if (family == 293 && BarbarianRaging(creature)) return false;
+  if (family == rules::kFeatSteadyAim && !SteadyAimReady(creature)) return false;  // #53
+  if (family == rules::kFeatCunningHide && !HideReady(creature)) return false;
   const int hp = Field<int16_t>(creature, ee::kObjectCurrentHitPoints);
   return !(max_hp && rules::DefaultBonusPointless(family, hp, max_hp(creature, 1)));
 }

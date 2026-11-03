@@ -24,6 +24,7 @@
 #include "config.h"
 #include "creature.h"
 #include "ee_layout.h"
+#include "extra_actions.h"
 #include "engine.h"
 #include "hooks.h"
 #include "log.h"
@@ -83,6 +84,8 @@ void InitializeNumberOfAttacks(void* round) {
   if (TwoWeaponFaithful()) OffHandAttacksFaithful(round);
   // Phase 6 (#52): the round's Bonus Action - the off-hand attack left out when it's taken or kept free.
   BonusActionRoundStart(round);
+  // Phase 6 (#53): Action Surge's or Thief's Reflexes' extra Attack action; Steady Aim's starting place.
+  ExtraActionsRoundStart(round);
   // Monk M1 (c): the bonus unarmed strike, once the off-hand count is known.
   if (g_config.class_features == rules::RuleVariant::kFaithful) MartialArtsBonusStrike(round);
 }

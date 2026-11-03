@@ -77,8 +77,9 @@ struct QuickbarChange {
 // - an action already on the quickbar (any slot) is only recorded;
 // - else it goes in the first empty slot, in slot order (F1 / key 1 first);
 //   with no slot free it waits (not recorded).
-std::vector<QuickbarChange> PlanQuickbar(const std::vector<QuickbarSlot>& slots, int placed,
-                                         const std::vector<QuickbarAction>& actions, int* new_placed);
+// #53: the record is 64 bits (two records on the character: bits 0-31, 32-63).
+std::vector<QuickbarChange> PlanQuickbar(const std::vector<QuickbarSlot>& slots, uint64_t placed,
+                                         const std::vector<QuickbarAction>& actions, uint64_t* new_placed);
 
 // The slots holding one of nwn5e's actions (any class's) that the character
 // doesn't have now (`now`: QuickbarActions2024 for it) - a button of a class a

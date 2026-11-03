@@ -7,6 +7,10 @@
 # The n5_ scripts are run in C++ (script_hooks.cpp); no .ncs exists for them.
 Label Name IconResRef School Range VS MetaMagic TargetType ImpactScript Innate ConjTime ConjAnim CastAnim CastTime Proj ItemImmunity SubRadSpell1 SubRadSpell2 SubRadSpell3 SubRadSpell4 SubRadSpell5 Category Master UserType SpellDesc UseConcentration SpontaneouslyCast HostileSetting FeatID HasProjectile
 1018 nwn5e_CunningStrike 16000491 ife_cripple V P s 0x00 0x01 **** 1 0 **** **** 0 0 1 1019 1020 1021 1022 1023 5 **** 3 16000492 0 0 0 1315 0
+1043 nwn5e_CunningDash 16000543 ife_barbend V P s 0x00 0x01 n5_ca_dash 1 0 **** **** 0 0 1 **** **** **** **** **** 5 **** 3 16000544 0 0 0 1326 0
+1044 nwn5e_CunningDisengage 16000545 ife_mobility V P s 0x00 0x01 n5_ca_diseng 1 0 **** **** 0 0 1 **** **** **** **** **** 5 **** 3 16000546 0 0 0 1327 0
+1045 nwn5e_CunningHide 16000547 isk_hide V P s 0x00 0x01 n5_ca_hide 1 0 **** **** 0 0 1 **** **** **** **** **** 5 **** 3 16000548 0 0 0 1328 0
+1046 nwn5e_SteadyAim 16000549 ife_pbshot V P s 0x00 0x01 n5_steadyaim 1 0 **** **** 0 0 1 **** **** **** **** **** 5 **** 3 16000550 0 0 0 1329 0
 1019 nwn5e_CunningPoison 16000495 ife_x2usepoison V P s 0x00 0x01 n5_cs_poison 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1018 3 16000492 0 0 0 1048904995 0
 1020 nwn5e_CunningTrip 16000496 ife_impknock V P s 0x00 0x01 n5_cs_trip 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1018 3 16000492 0 0 0 1048970531 0
 1021 nwn5e_CunningWithdraw 16000497 ife_x2defaware V P s 0x00 0x01 n5_cs_wdraw 1 0 **** **** 0 0 1 **** **** **** **** **** 5 1018 3 16000492 0 0 0 1049036067 0

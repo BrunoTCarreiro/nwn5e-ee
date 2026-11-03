@@ -161,6 +161,21 @@ TEST(ReactionSwitches) {
 
 // #56 (owner, 2026-11-02): Dash doubles the speed for its round; Help's house rule is a DC 10 Medicine check.
 // Breaks caught: Dash not doubling, doubling when not dashing; Help one short, Help needing more than 10.
+// #53: Cunning Action and Steady Aim take the Bonus Action, Action Surge none; their names. Breaks caught: one left
+// an action, Action Surge costing the Bonus Action, a name missing.
+TEST(ExtraActionsEconomy) {
+  CHECK_EQ(TakesBonusAction(kFeatCunningDash), true);
+  CHECK_EQ(TakesBonusAction(kFeatCunningDisengage), true);
+  CHECK_EQ(TakesBonusAction(kFeatCunningHide), true);
+  CHECK_EQ(TakesBonusAction(kFeatSteadyAim), true);
+  CHECK_EQ(TakesBonusAction(kFeatActionSurge), false);
+  CHECK_EQ(TakesNoAction(kFeatActionSurge), true);
+  CHECK_EQ(TakesNoAction(kFeatSteadyAim), false);
+  CHECK_EQ(std::string(BonusActionName(kFeatCunningDash)) == "Cunning Action: Dash", true);
+  CHECK_EQ(std::string(BonusActionName(kFeatCunningHide)) == "Cunning Action: Hide", true);
+  CHECK_EQ(std::string(BonusActionName(kFeatSteadyAim)) == "Steady Aim", true);
+}
+
 TEST(StapleActions) {
   CHECK_EQ(DashMovementFactor(1.0f, true) == 2.0f, true);
   CHECK_EQ(DashMovementFactor(1.33f, true) == 2.66f, true);

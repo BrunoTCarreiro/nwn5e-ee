@@ -57,6 +57,12 @@ enum Bit {
   kBitDodge = 28,      // #56
   kBitDash = 29,
   kBitHelp = 30,
+  // #53: the record's second half (bits 32 on).
+  kBitActionSurge = 32,
+  kBitCunningDash = 33,
+  kBitCunningDisengage = 34,
+  kBitCunningHide = 35,
+  kBitSteadyAim = 36,
 };
 
 bool IsSecondWind(int value) {
@@ -73,7 +79,9 @@ const std::vector<int>& QuickbarActionFeats2024() {
                                           kFeatFlurryOfBlows,  kFeatPatientDefense, kFeatStepOfTheWind,
                                           kFeatStunningFist,   kFeatSuperiorDefense, kFeatWholenessOfBody,
                                           kFeatQuiveringPalm,  kFeatDisengage,    kFeatDodge,
-                                          kFeatDash,           kFeatHelp};
+                                          kFeatDash,           kFeatHelp,         kFeatActionSurge,
+                                          kFeatCunningDash,    kFeatCunningDisengage, kFeatCunningHide,
+                                          kFeatSteadyAim};
   return kFeats;
 }
 
@@ -146,6 +154,14 @@ std::vector<QuickbarAction> QuickbarActions2024(const QuickbarFacts& facts) {
   if (has(kFeatDodge)) actions.push_back({kBitDodge, kFeatDodge, "Dodge"});                  // #56
   if (has(kFeatDash)) actions.push_back({kBitDash, kFeatDash, "Dash"});
   if (has(kFeatHelp)) actions.push_back({kBitHelp, kFeatHelp, "Help"});
+  // #53: the extra actions.
+  if (has(kFeatActionSurge)) actions.push_back({kBitActionSurge, kFeatActionSurge, "Action Surge"});
+  if (has(kFeatCunningDash)) actions.push_back({kBitCunningDash, kFeatCunningDash, "Cunning Action: Dash"});
+  if (has(kFeatCunningDisengage)) {
+    actions.push_back({kBitCunningDisengage, kFeatCunningDisengage, "Cunning Action: Disengage"});
+  }
+  if (has(kFeatCunningHide)) actions.push_back({kBitCunningHide, kFeatCunningHide, "Cunning Action: Hide"});
+  if (has(kFeatSteadyAim)) actions.push_back({kBitSteadyAim, kFeatSteadyAim, "Steady Aim"});
   return actions;
 }
 
@@ -195,14 +211,14 @@ std::vector<QuickbarChange> RebuildRestoredButtons(const std::vector<QuickbarSlo
   return changes;
 }
 
-std::vector<QuickbarChange> PlanQuickbar(const std::vector<QuickbarSlot>& slots, int placed,
-                                         const std::vector<QuickbarAction>& actions, int* new_placed) {
+std::vector<QuickbarChange> PlanQuickbar(const std::vector<QuickbarSlot>& slots, uint64_t placed,
+                                         const std::vector<QuickbarAction>& actions, uint64_t* new_placed) {
   std::vector<QuickbarSlot> bar = slots;
   bar.resize(kQuickbarSlots);
-  int record = placed;
+  uint64_t record = placed;
   std::vector<QuickbarChange> changes;
   for (const QuickbarAction& action : actions) {
-    const int bit = 1 << action.record_bit;
+    const uint64_t bit = uint64_t{1} << action.record_bit;
     bool on_bar = false;
     for (int i = 0; i < kQuickbarSlots; ++i) {
       if (bar[i].type != kQuickbarTypeFeat || !SameQuickbarAction(bar[i].value, action.value)) continue;

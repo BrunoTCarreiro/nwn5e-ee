@@ -11,12 +11,14 @@ bool BonusActionFree(bool used, bool round_ended_since, long long ms_since_use) 
 bool TakesBonusAction(int feat) {
   return feat == kFeatSecondWind2 || feat == kFeatSecondWind3 || feat == kFeatSecondWind4 || IsRageFeat(feat) ||
          feat == kFeatIntimidatingPresence || feat == kFeatPatientDefense || feat == kFeatStepOfTheWind ||
-         feat == kFeatWholenessOfBody;
+         feat == kFeatWholenessOfBody || feat == kFeatCunningDash || feat == kFeatCunningDisengage ||
+         feat == kFeatCunningHide || feat == kFeatSteadyAim;  // #53
 }
 
 bool TakesNoAction(int feat) {
   return feat == kFeatRecklessAttack || feat == kFeatSuperiorDefense || feat == kFeatBrutalStrike ||
-         feat == kFeatCunningStrike || feat == kFeatDeviousStrikes || feat == kFeatOpenHandTechnique;
+         feat == kFeatCunningStrike || feat == kFeatDeviousStrikes || feat == kFeatOpenHandTechnique ||
+         feat == kFeatActionSurge;  // #53: Action Surge itself takes no action
 }
 
 const char* BonusActionName(int feat) {
@@ -26,6 +28,10 @@ const char* BonusActionName(int feat) {
   if (feat == kFeatPatientDefense) return "Patient Defense";
   if (feat == kFeatStepOfTheWind) return "Step of the Wind";
   if (feat == kFeatWholenessOfBody) return "Wholeness of Body";
+  if (feat == kFeatCunningDash) return "Cunning Action: Dash";  // #53
+  if (feat == kFeatCunningDisengage) return "Cunning Action: Disengage";
+  if (feat == kFeatCunningHide) return "Cunning Action: Hide";
+  if (feat == kFeatSteadyAim) return "Steady Aim";
   return "";
 }
 
