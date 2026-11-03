@@ -480,6 +480,20 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     stretches the round instead of bunching it; a swing made more than 300 ms late is logged. The round bar's ticks
     follow the swings: a made one where the round was when it was made, the ones to come where they're due now.
     Test SwingSpacingKeepGaps (7 of 7 mutations caught).
+  - *The owner's 0.66.3 run of CA-3 (2026-11-03):* "after cunning action hide mid round I cannot exit stealth mode
+    even after combat is done". The log: a find ("out of stealth mode (found_ends_hiding)") and the next Hide's
+    "already in stealth mode" - the find's SetActionMode had done nothing. The recon: SetActionMode -> SetMode, which
+    toggles only when the mode differs (stealth: byte +0x6ED) -> ToggleMode, which refuses a stealth change either
+    way while the creature has an attack target (+0x724 / +0x728: feedback 0x3C), else SetActivity(stealth, on /
+    off) - the stealth activity bit (+0x8E0 bit 0) and SetStealthMode. 0.65.0's Hide called SetStealthMode alone: the
+    bit stayed off, and SetActivity finds nothing to turn off without it (0.39.3's snuff found the same), in a fight
+    or after it.
+  - *Built 0.66.4:* Cunning Action: Hide goes in by SetActivity(stealth, 1) - the engine's own way. A ToggleMode hook
+    (the stealth button, a find's SetActionMode) takes a hider out even with an attack target
+    (rules::StealthToggleAllowed: into stealth mode not with an attack target - NWN's, kept - out of it always): the
+    activity bit set first (a hide from 0.65.0 - 0.66.3), the attack target set aside around the engine's toggle, and
+    SetStealthMode(0) if the engine still leaves it on. Test ExtraActions' StealthToggleAllowed rows (3 of 3 mutations
+    caught).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,

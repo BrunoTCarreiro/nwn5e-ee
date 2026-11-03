@@ -547,6 +547,11 @@ TEST(ExtraActions) {
   CHECK_EQ(SteadyAimAllowed(0.0f), true);
   CHECK_EQ(SteadyAimAllowed(0.4f), true);
   CHECK_EQ(SteadyAimAllowed(0.6f), false);
+  // 0.66.4: the stealth button - into stealth mode not with an attack target (NWN's), out of it always.
+  CHECK_EQ(StealthToggleAllowed(true, false), true);
+  CHECK_EQ(StealthToggleAllowed(true, true), false);
+  CHECK_EQ(StealthToggleAllowed(false, true), true);
+  CHECK_EQ(StealthToggleAllowed(false, false), true);
   auto has = [](const std::vector<int>& feats, int feat) {
     return std::find(feats.begin(), feats.end(), feat) != feats.end();
   };

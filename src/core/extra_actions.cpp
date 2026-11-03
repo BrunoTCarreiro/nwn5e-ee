@@ -13,8 +13,16 @@
 //   action twice, the same way; switchable in Combat configuration (record nwn5e_thief_reflexes_off; on by default).
 // - Cunning Action (Rogue 2; feats 1326-1328): Dash, Disengage, Hide as Bonus Actions (rules::TakesBonusAction:
 //   instant, one a round - bonus_actions.cpp); Dash and Disengage as everyone's (staple_actions.cpp,
-//   disengage.cpp); Hide: stealth mode switched on by the server (CNWSCreature::SetStealthMode - no combat check
-//   there; the stealth rules roll Stealth as hiding starts, rules_perception.cpp).
+//   disengage.cpp); Hide: stealth mode switched on by the server (CNWSCreature::SetActivity(stealth, on) - the
+//   engine's own way in, as ToggleMode's; no combat check there; the stealth rules roll Stealth as hiding starts,
+//   rules_perception.cpp).
+//   0.66.4 (the owner: "after cunning action hide mid round I cannot exit stealth mode even after combat is done"):
+//   0.65.0's SetStealthMode alone left the stealth activity bit (+0x8E0 bit 0) off, and SetActivity - the way out
+//   for the stealth button and a script's SetActionMode (ToggleMode) - finds nothing to turn off without it; and
+//   ToggleMode refuses stealth changes both ways while the creature has an attack target (+0x724 / +0x728). Now the
+//   Hide goes in by SetActivity, and a ToggleMode hook takes a hider out even with an attack target
+//   (rules::StealthToggleAllowed), its activity bit set first (a hide from 0.65.0 - 0.66.3), SetStealthMode(0) if
+//   the engine still leaves it on.
 // - Steady Aim (Rogue 3; feat 1329): a Bonus Action refused (a UseFeat guard - the Bonus Action not spent) once the
 //   Rogue moved since its round began (rules::SteadyAimAllowed: half a metre); its next attack with Advantage
 //   (rules_advantage.cpp), and no moving until the round ends (EffectCutsceneImmobilize, as the grapple holds).
@@ -57,6 +65,16 @@ constexpr uint64_t kRoundMs = 6000;
 constexpr uint64_t kFirstRoundWindowMs = 10000;  // initiative to the first round's start
 
 using SetStealthModeFn = void (*)(void* creature, uint8_t mode);
+using SetActivityFn = void (*)(void* creature, int activity, int on);
+using ToggleModeFn = int (*)(void* creature, uint8_t mode);
+
+constexpr const char* kSetActivity = "?SetActivity@CNWSCreature@@QEAAXHH@Z";
+constexpr const char* kToggleMode = "?ToggleMode@CNWSCreature@@QEAAHE@Z";
+constexpr size_t kCreatureActivities = 0x8e0;  // uint32: bit 0 stealth (SetActivity)
+constexpr int kActivityStealth = 1;
+constexpr uint8_t kModeStealth = 1;  // ToggleMode / SetMode / ACTION_MODE_STEALTH
+
+ToggleModeFn g_toggle_mode = nullptr;
 
 struct Start {
   float x = 0.0f, y = 0.0f;
@@ -157,15 +175,60 @@ void CunningDisengageScript(uint32_t self) { StartDisengage(self); }
 void CunningHideScript(uint32_t self) {
   void* creature = CreatureById(self);
   if (!creature) return;
-  static const auto set_stealth = reinterpret_cast<SetStealthModeFn>(EngineExport(ee::kSetStealthMode));
-  if (!set_stealth) return;
+  static const auto set_activity = reinterpret_cast<SetActivityFn>(EngineExport(kSetActivity));
+  if (!set_activity) return;
   if (Field<uint8_t>(creature, kCreatureStealthMode) == 1) {
     Tell(creature, "Cunning Action: Hide - you're already in stealth mode.");
     return;
   }
-  set_stealth(creature, 1);  // through rules_perception.cpp's hook: Stealth rolled as hiding starts
+  // The engine's way in: the stealth activity bit, then SetStealthMode (rules_perception.cpp's hook: Stealth rolled
+  // as hiding starts) - so the stealth button can take it out again.
+  set_activity(creature, kActivityStealth, 1);
+  if (Field<uint8_t>(creature, kCreatureStealthMode) != 1) {
+    if (LogSlot()) Log("actions: 0x%08X Cunning Action: Hide - the engine kept it out of stealth mode (activities 0x%X)",
+                       self, Field<uint32_t>(creature, kCreatureActivities));
+    Tell(creature, "Cunning Action: Hide - you can't go into stealth mode now.");
+    return;
+  }
   if (LogSlot()) Log("actions: 0x%08X Cunning Action: Hide - stealth mode on (a Bonus Action)", self);
   Tell(creature, "Cunning Action: Hide - into stealth mode (your Stealth check decides who still sees you).");
+}
+
+// The stealth button, or a script's SetActionMode (a find): out of stealth mode even with an attack target.
+int ToggleMode(void* creature, uint8_t mode) {
+  if (!creature || mode != kModeStealth || Field<uint8_t>(creature, kCreatureStealthMode) != 1) {
+    return g_toggle_mode(creature, mode);  // into stealth mode: NWN's own rules (no attack target)
+  }
+  const uint32_t target = Field<uint32_t>(creature, ee::kCreatureAttackTarget);
+  const uint32_t attempted = Field<uint32_t>(creature, ee::kCreatureAttemptedAttackTarget);
+  const bool fighting = target != ee::kObjectInvalid || attempted != ee::kObjectInvalid;
+  if (!rules::StealthToggleAllowed(false, fighting)) return g_toggle_mode(creature, mode);
+  const uint32_t activities = Field<uint32_t>(creature, kCreatureActivities);
+  SetField<uint32_t>(creature, kCreatureActivities, activities | kActivityStealth);  // SetActivity's to turn off
+  if (fighting) {
+    SetField<uint32_t>(creature, ee::kCreatureAttackTarget, ee::kObjectInvalid);
+    SetField<uint32_t>(creature, ee::kCreatureAttemptedAttackTarget, ee::kObjectInvalid);
+  }
+  int done = g_toggle_mode(creature, mode);
+  if (fighting) {
+    SetField<uint32_t>(creature, ee::kCreatureAttackTarget, target);
+    SetField<uint32_t>(creature, ee::kCreatureAttemptedAttackTarget, attempted);
+  }
+  bool forced = false;
+  if (Field<uint8_t>(creature, kCreatureStealthMode) == 1) {  // still on (e.g. it can't use Hide / Move Silently)
+    static const auto set_stealth = reinterpret_cast<SetStealthModeFn>(EngineExport(ee::kSetStealthMode));
+    if (set_stealth) set_stealth(creature, 0);
+    SetField<uint32_t>(creature, kCreatureActivities,
+                       Field<uint32_t>(creature, kCreatureActivities) & ~static_cast<uint32_t>(kActivityStealth));
+    forced = true;
+    done = 1;
+  }
+  if ((fighting || !(activities & kActivityStealth) || forced) && LogSlot()) {
+    Log("stealth: 0x%08X out of stealth mode%s%s%s", IdOf(creature), fighting ? " - its attack target set aside" : "",
+        (activities & kActivityStealth) ? "" : " - its stealth activity bit was off (a Cunning Action hide before 0.66.4)",
+        forced ? " - SetStealthMode(0): the engine left it on" : "");
+  }
+  return done;
 }
 
 // UseFeat's guard: Steady Aim refused once the Rogue moved this round (the Bonus Action not spent).
@@ -282,6 +345,8 @@ void InstallExtraActions() {
                        AddScriptHandler("n5_ca_hide", &CunningHideScript) &&
                        AddScriptHandler("n5_steadyaim", &SteadyAimScript);
   const bool guard = AddFeatUseGuard(&SteadyAimGuard);
+  HookExport("CNWSCreature::ToggleMode (out of stealth mode with an attack target)", kToggleMode,
+             reinterpret_cast<void*>(&ToggleMode), reinterpret_cast<void**>(&g_toggle_mode));
   Log("actions: extra actions - Action Surge%s, Thief's Reflexes, Cunning Action, Steady Aim%s%s",
       uses ? "" : " (NWN's uses: no pool)", scripts ? "" : " - NOT available (no script hook)",
       guard ? "" : "; Steady Aim NOT refused after a move (no UseFeat guard)");

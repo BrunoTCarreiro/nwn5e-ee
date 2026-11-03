@@ -475,6 +475,11 @@ bool HasThiefsReflexes(int rogue_level);      // 17 (the Thief, the SRD's one Ro
 // Steady Aim is refused once the Rogue moved since its round began - farther than a step's jitter.
 constexpr float kSteadyAimMoveTolerance = 0.5f;
 bool SteadyAimAllowed(float moved_metres);
+// The stealth button (CNWSCreature::ToggleMode; a script's SetActionMode - a find): into stealth mode not with an
+// attack target (NWN's own refusal, kept - a Hide in a fight is Cunning Action's); out of it always (0.66.4, the
+// owner: "after cunning action hide mid round I cannot exit stealth mode even after combat is done" - NWN refuses
+// both ways, as nothing put a fighter in stealth mode before Cunning Action).
+bool StealthToggleAllowed(bool into_stealth, bool attack_target);
 bool GrantedOnlyWhenMissing(int feat);
 
 }  // namespace rules

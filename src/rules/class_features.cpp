@@ -851,6 +851,8 @@ bool HasThiefsReflexes(int rogue_level) { return rogue_level >= 17; }
 
 bool SteadyAimAllowed(float moved_metres) { return moved_metres <= kSteadyAimMoveTolerance; }
 
+bool StealthToggleAllowed(bool into_stealth, bool attack_target) { return !into_stealth || !attack_target; }
+
 std::vector<int> GrantedFeats2024(const std::vector<ClassLevels>& classes) {
   std::vector<int> feats;
   for (const ClassLevels& c : classes) {
