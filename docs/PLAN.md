@@ -392,6 +392,13 @@ the movement extras (#55); then the staple actions (#56, a decision first).
     (rules::HelpMedicineSucceeds); success: HelpDownHenchmanUp - the next pass stands it up at 1 HP ("helped up");
     the quickbar only (the radial page has no slot left).
   - Tests StapleActions, the everyone / grantable feats (11 of 11 mutations caught).
+- *The owner's 0.64.0 run (2026-11-03):* the log: ST-3 - Disengage, Dodge, Dash placed on the quickbar; ST-1 - Dodge
+  from the radial (slot 0, over Parry), then an attack on the character "disadvantage ... Dodge"; ST-2 - Dash. HE-1 and
+  HE-2 (Help, the house rule) untested: "very hard to test, I'll assume they work". The owner also asked for the
+  radial's reorganization, later: #126.
+*Accepted (owner, 2026-11-03: "HE-1 and 2 are very hard to test, I'll assume they work").* The staple actions (#56),
+0.64.0 - Dodge and Dash for everyone, Help as an off-by-default house rule. Phase 6 left: Action Surge / Thief's
+Reflexes (#53), the movement extras (#55), grenades (#124), the later staple actions (#125).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,
