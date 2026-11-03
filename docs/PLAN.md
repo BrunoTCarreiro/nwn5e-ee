@@ -4176,6 +4176,11 @@ frame, the fill moving between samples while the round runs. `!roundbar` or Comb
 bar" turns it off (the record nwn5e_roundbar_off). The resource panel, when it sits under the strip (a narrow window),
 goes under the bar (rules::PlaceHud's round_bar_on). Tests RoundBarFillAndSwings, RoundBarKindsAndPips, the panel's
 place (13 of 13 mutations caught).
+*The owner's 0.66.0 run (2026-11-03):* "the bar pauses for a split second, then the vfx plays, then the animation
+plays" - the log: the Rage flourish waited for the next round ("no room for 3542 ms in its round"), then played paused
+3542 ms at the new round's start; no swing during it. The bar then sat empty, dimmed and still - no visible pause.
+*Built 0.66.1:* while the round is paused the whole track turns violet. The gap between the Rage's VFX and its
+animation (the flourish waiting for room) is the animation session's: #128 ("yes, do both").
 
 ## Resource panel — decided by the owner (2026-10-29)
 

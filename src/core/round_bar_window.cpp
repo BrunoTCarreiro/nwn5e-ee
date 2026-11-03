@@ -13,6 +13,9 @@
 // a client window every frame, the fill moving between samples while the round runs. `!roundbar` (or Combat
 // configuration's "Round bar") turns it off and on - the record nwn5e_roundbar_off. Both modes: it shows, it doesn't
 // rule.
+// 0.66.1 (owner: "the bar pauses for a split second, then the vfx plays, then the animation plays" - a flourish's
+// 3.5 s pause came at a fresh round's start, its bar empty: dimmed and still, it looked like nothing): while the
+// round is paused the whole track turns violet, so a pause is plain whatever the fill.
 
 #include <windows.h>
 
@@ -200,7 +203,7 @@ std::string Layout() {
     items += "," + Shape(2, Bind(kPipBinds[i]), true, 1.0f, box) + "," + Shape(2, ring, false, 1.5f, box);
     items += "," + Text(Bind("lc"), Rect(kPipX[i] + kPip + 3.0f, 1.0f, 14.0f, 18.0f), kLetters[i]);
   }
-  items += "," + Shape(7, Colour(70, 70, 70, 210), true, 1.0f, Rect(kBarX, kBarY, kBarW, kBarH));
+  items += "," + Shape(7, Bind("bc"), true, 1.0f, Rect(kBarX, kBarY, kBarW, kBarH));
   items += "," + Shape(7, Bind("fc"), true, 1.0f, Bind("fill"));
   for (int i = 0; i < rules::kRoundBarMaxSwings; ++i) {
     items += "," + Shape(7, Bind("tc" + std::to_string(i)), true, 1.0f, Bind("t" + std::to_string(i)));
@@ -279,7 +282,9 @@ void RoundBarTick() {
   char width[32];
   sprintf_s(width, "%.0f", kBarW * fill);  // whole units: no bind sent for a change too small to see
   Set("fill", Rect(kBarX, kBarY, static_cast<float>(atof(width)), kBarH));
-  const int alpha = s.paused ? 130 : 255;
+  const bool held = s.running && s.paused;  // 0.66.1: the round paused - the track says so
+  Set("bc", held ? Colour(130, 85, 185, 235) : Colour(70, 70, 70, 210));
+  const int alpha = held ? 130 : 255;
   Set("fc", kind == rules::RoundKind::kCast ? Colour(90, 150, 255, alpha) : Colour(230, 185, 60, alpha));
   for (int i = 0; i < rules::kRoundBarMaxSwings; ++i) {
     const std::string n = std::to_string(i);
