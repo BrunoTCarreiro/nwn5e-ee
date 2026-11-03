@@ -4286,6 +4286,12 @@ plays" - the log: the Rage flourish waited for the next round ("no room for 3542
 3542 ms at the new round's start; no swing during it. The bar then sat empty, dimmed and still - no visible pause.
 *Built 0.66.1:* while the round is paused the whole track turns violet. The gap between the Rage's VFX and its
 animation (the flourish waiting for room) is the animation session's: #128 ("yes, do both").
+*0.66.3 (#53):* the ticks follow the swings - a made one where the round was when it was made, the ones to come where
+they're due now (an Action Surge's added swings, a held swing's followers).
+*The owner's 0.66.8 run (2026-11-03):* RB-1 to RB-7 - the log: the bar in each fight; Patient Defense, a second one
+waiting, then used; Uncanny Dodge as the reaction (Deflect refused, the reaction spent); `!roundbar` off and on; the
+Rage flourish after the swing in progress, the round paused 3542 ms. *Accepted (owner, 2026-11-03: "everything
+looked correct, accept 127").*
 
 ## Resource panel — decided by the owner (2026-10-29)
 
