@@ -529,6 +529,14 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
   - *Built 0.66.7:* a HasFeat filter (feats.cpp) answers Hide in Plain Sight yes for the hider, at that call site
     (DoPerceptionUpdateOnCreature's code) and only while the at-once checks run - the engine's own re-check: its
     detection (the stealth rules), its visible list and its perception events.
+  - *The owner's 0.66.7 run (2026-11-03, "check the logs"):* the at-once check worked (both creatures "does not
+    see / hear" as the hide began), but the attack from hiding rolled normally ("normal roll"). The recon: the
+    engine's "invisible attacker" term (INVISIBILITY_ATTACK_BONUS, in GetAttackModifierVersus) asks
+    CNWSCreature::GetInvisible(defender, attacker), which walks invisibility effects only - a hider never counted.
+  - *Built 0.66.8:* rules_advantage.cpp adds the Hide action's Invisible condition (rules::HiddenAttackAdvantage):
+    an attacker hiding (stealth mode - the hide lasts through the roll) whose target's visibility list doesn't see
+    it rolls with Advantage ("hidden: attacking from hiding, unseen" in the advantage line), perception faithful.
+    Test ExtraActions' HiddenAttackAdvantage rows (4 of 4 mutations caught).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,

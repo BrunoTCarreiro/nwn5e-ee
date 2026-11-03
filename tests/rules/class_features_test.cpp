@@ -556,6 +556,11 @@ TEST(ExtraActions) {
   CHECK_EQ(WhenAttackEndsHide(false, true) == HideAtAttack::kNotHiding, true);
   CHECK_EQ(WhenAttackEndsHide(true, true) == HideAtAttack::kEndsAfterRoll, true);
   CHECK_EQ(WhenAttackEndsHide(true, false) == HideAtAttack::kEndsBeforeRoll, true);
+  // 0.66.8: Advantage from hiding - only while hiding, only unseen by the target, faithful only.
+  CHECK_EQ(HiddenAttackAdvantage(true, false, true), true);
+  CHECK_EQ(HiddenAttackAdvantage(true, true, true), false);
+  CHECK_EQ(HiddenAttackAdvantage(false, false, true), false);
+  CHECK_EQ(HiddenAttackAdvantage(true, false, false), false);
   auto has = [](const std::vector<int>& feats, int feat) {
     return std::find(feats.begin(), feats.end(), feat) != feats.end();
   };

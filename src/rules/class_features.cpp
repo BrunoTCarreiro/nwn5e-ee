@@ -853,6 +853,8 @@ bool SteadyAimAllowed(float moved_metres) { return moved_metres <= kSteadyAimMov
 
 bool StealthToggleAllowed(bool into_stealth, bool attack_target) { return !into_stealth || !attack_target; }
 
+bool HiddenAttackAdvantage(bool hiding, bool target_sees, bool faithful) { return faithful && hiding && !target_sees; }
+
 HideAtAttack WhenAttackEndsHide(bool hiding, bool faithful) {
   if (!hiding) return HideAtAttack::kNotHiding;
   return faithful ? HideAtAttack::kEndsAfterRoll : HideAtAttack::kEndsBeforeRoll;

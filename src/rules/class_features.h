@@ -485,6 +485,9 @@ bool StealthToggleAllowed(bool into_stealth, bool attack_target);
 // attack roll, the roll made hidden (Advantage while the target can't see you).
 enum class HideAtAttack { kNotHiding, kEndsBeforeRoll, kEndsAfterRoll };
 HideAtAttack WhenAttackEndsHide(bool hiding, bool faithful);
+// #129 (0.66.8): the Hide action's Invisible condition - Advantage on an attack against a creature that can't see
+// you (a hider its target doesn't see), faithful only.
+bool HiddenAttackAdvantage(bool hiding, bool target_sees, bool faithful);
 bool GrantedOnlyWhenMissing(int feat);
 
 }  // namespace rules

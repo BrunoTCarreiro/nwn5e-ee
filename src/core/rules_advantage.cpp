@@ -32,6 +32,7 @@
 #include "extra_actions.h"
 #include "engine.h"
 #include "log.h"
+#include "rules/class_features.h"
 #include "rules/nwn_situational.h"
 #include "ruleset.h"
 #include "weapon_size.h"
@@ -124,6 +125,23 @@ int CountCloseCombatThreats(void* attacker) {
   return count.threats;
 }
 
+// #129 (0.66.8; the owner's 0.66.7 run - an attack from hiding, its target not seeing the hider, rolled normally):
+// the Hide action's Invisible condition, Advantage on an attack against a creature that can't see you. The engine's
+// "invisible attacker" term (INVISIBILITY_ATTACK_BONUS, read above) asks CNWSCreature::GetInvisible, which reads
+// invisibility effects only - a hider never counted. Here: the attacker hiding (stealth mode; the hide lasts through
+// the roll, rules_perception.cpp) and its target's visibility list not seeing it.
+MasteryRollSources HiddenAttackerRollSources(void* attacker, void* target) {
+  MasteryRollSources sources;
+  const bool hiding = Field<uint8_t>(attacker, ee::kCreatureStealthMode) == 1;
+  const bool faithful = g_config.perception == rules::RuleVariant::kFaithful;
+  if (!rules::HiddenAttackAdvantage(hiding, engine::Sees(target, Field<uint32_t>(attacker, ee::kObjectId)), faithful)) {
+    return sources;
+  }
+  sources.advantage = 1;
+  sources.note = "attacking from hiding, unseen";
+  return sources;
+}
+
 void BeforeAttackRoll(AttackRoll& roll) {
   t_pending = PendingAttack();
   void* stats = StatsOf(roll.attacker);
@@ -144,6 +162,7 @@ void BeforeAttackRoll(AttackRoll& roll) {
   const MasteryRollSources grappled = GrappleRollSources(roll.attacker, target);
   const MasteryRollSources monk = MonkRollSources(roll.attacker, target);
   const MasteryRollSources steady = SteadyAimRollSources(roll.attacker);  // #53
+  const MasteryRollSources hidden = HiddenAttackerRollSources(roll.attacker, target);  // #129
   t_pending.conditions = conditions.note.empty() ? "" : "conditions: " + conditions.note;
   if (!mastery.note.empty()) {
     t_pending.conditions += (t_pending.conditions.empty() ? "mastery: " : "; mastery: ") + mastery.note;
@@ -161,6 +180,9 @@ void BeforeAttackRoll(AttackRoll& roll) {
   if (!steady.note.empty()) {
     t_pending.conditions += (t_pending.conditions.empty() ? "rogue: " : "; rogue: ") + steady.note;
   }
+  if (!hidden.note.empty()) {
+    t_pending.conditions += (t_pending.conditions.empty() ? "hidden: " : "; hidden: ") + hidden.note;
+  }
   std::string heavy_note;
   const int heavy = HeavyWeaponDisadvantage(roll.attacker, terms.ranged, &heavy_note);
   if (heavy) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + heavy_note;
@@ -169,7 +191,7 @@ void BeforeAttackRoll(AttackRoll& roll) {
   t_pending.mode = rules::SituationalRollMode(
       terms, rules::RangedCloseCombat(terms.ranged, t_pending.point_blank_shot, t_pending.threats),
       conditions.advantage + mastery.advantage + studied.advantage + reckless.advantage + monk.advantage +
-          steady.advantage,
+          steady.advantage + hidden.advantage,
       conditions.disadvantage + mastery.disadvantage + heavy + grappled.disadvantage + monk.disadvantage, elusive);
   {
     std::string brutal;
