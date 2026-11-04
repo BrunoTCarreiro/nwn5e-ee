@@ -33,6 +33,7 @@
 #include "rules/hazard_avoid.h"
 
 bool HoldsRangedWeapon(void* creature);  // light_sources.cpp (baseitems.2da RangedWeapon)
+bool IsDownHenchmanUnderRules(uint32_t id);  // rules_dying.cpp (a downed henchman lies there)
 
 namespace {
 
@@ -144,7 +145,7 @@ void HazardScriptRan(uint32_t aoe, const char* name) {
   for (const auto& in : hazard.inside) {
     if (!in.second) continue;
     void* creature = CreatureById(in.first);
-    if (!creature || !Avoids(creature)) continue;
+    if (!creature || IsDownHenchmanUnderRules(in.first) || !Avoids(creature)) continue;  // 0.73.1: down can't move
     int64_t& last = g_stepped[in.first];
     if (now - last < 4000) continue;
     last = now;

@@ -761,6 +761,12 @@ close, then attacked).
     once in 4 s; action_order.cpp's AIActionAttackObject hook drops an avoiding creature's melee attack on a target
     standing in a hazard that would hurt it while it stands outside (a spell's area: its caster's enemy; HoldsRangedWeapon:
     a ranged attack goes on). Charmed (state 1), confused (2), dominated (7, or a dominated associate) are not in control.
+  - *The owner's 0.73.0 run (2026-11-04: "well, the henchmen will need to be made stronger, they can't deal with a
+    firebomb"):* the `!spawn nw_orcb ally` henchman, a level 1 orc, kept its 4 hit points (the test floor skipped it: a
+    henchman counts as a character), failed its save in the Fire Bomb's cloud (18 Fire) and went down; the step-out
+    was ordered each round ("steps out of 0x...") but a downed henchman can't move. *0.73.1:* the floor for a !spawn
+    ally too; a downed henchman isn't told to step out. Henchmen's toughness against the party's area damage: its own
+    issue (later).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,

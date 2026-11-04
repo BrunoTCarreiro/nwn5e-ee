@@ -37,12 +37,13 @@ constexpr int kTraceLimit = 400;
 
 bool BoostWanted() { return g_config.debug_creature_hp_multiplier > 1 || g_config.debug_creature_min_hp > 0; }
 
-// `target` (a creature, not a character) boosted once: its hit points multiplied and raised to the minimum.
-void Boost(void* target) {
+// `target` (a creature, not a character - or, `party_too`, a !spawn ally: a henchman counts as a character) boosted
+// once: its hit points multiplied and raised to the minimum.
+void Boost(void* target, bool party_too = false) {
   const int multiplier = g_config.debug_creature_hp_multiplier > 1 ? g_config.debug_creature_hp_multiplier : 1;
   const int minimum = g_config.debug_creature_min_hp;
   void* target_stats = target ? StatsOf(target) : nullptr;
-  if (!target_stats || ReadCreatureFacts(target_stats).character) return;
+  if (!target_stats || (!party_too && ReadCreatureFacts(target_stats).character)) return;
   const uint32_t target_id = Field<uint32_t>(target, ee::kObjectId);
   {
     std::lock_guard<std::mutex> lock(g_boosted_lock);
@@ -94,8 +95,10 @@ void BoostTestCreatureForSave(void* creature, uint32_t versus) {
   Boost(creature);
 }
 
-void BoostTestCreatureById(uint32_t id) {
-  if (BoostWanted()) Boost(CreatureById(id));
+// 0.73.1 (owner: "the henchmen will need to be made stronger, they can't deal with a firebomb" - the !spawn ally,
+// a level 1 orc, kept its 4 hit points): an ally spawned for a test gets the floor too.
+void BoostTestCreatureById(uint32_t id, bool ally) {
+  if (BoostWanted()) Boost(CreatureById(id), ally);
 }
 
 void InstallDebugSwitches() {
