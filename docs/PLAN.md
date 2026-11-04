@@ -676,6 +676,13 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     roll). *0.71.1:* the coating adds ItemPropertyLight (low, orange: 10 m) for its 4 rounds - the wielder's light
     effect, counted as carried by the hiding rule; #132's line once a throw (3 s per thrower); a hazard (patch, cloud,
     Caltrops) signals only creatures not friendly to its thrower - the thrower and its friends still take its damage.
+  - *The owner's 0.72.0 / 0.72.1 runs:* GR-2 (1d4 Fire, then a burning tick of 1), GR-4 (Holy Water: the skeleton 8
+    Divine, the orc unharmed), GR-16 ("you carry a light (10 m) - enemies spot you at +4"), GR-9 in part (the thrower
+    made its own Caltrops' DC 15 save twice), GR-1 (a failed save, 9 Acid, no splash); #132's HD-1 and HD-2.
+*Accepted (owner, 2026-11-04: "you can accept all of those").* #124 (grenades as 2024 gear, 0.68.0 - 0.72.1) and #132 (a
+throw from hiding keeps the hide). Left untested: GR-5 (a throw mid-round takes a swing), GR-6 - GR-8 (Tanglefoot Bag,
+the Thunderstone's deafening, Choking Powder), a failed Caltrops save, the Fire Bomb's hit on a creature (GR-10),
+GR-12 (the aiming circles), GR-13 (the descriptions).
 - *#130, house rules; flasks thrown at the ground leave a patch (the 2024 Oil flask's rule).* Asked (owner, 2026-11-04,
   after #124's brief): "Ok, I want to add a house rules section. For example we'll keep the faithful rules, the ones
   you added. But I also want acid flask, alchemist fire and holy water to work with oil flask rules where they create a
@@ -708,6 +715,8 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     - Test FlaskPatches (11 of 11 mutations caught).
   - *0.70.0 (owner, 2026-11-04: "go with your recommendations"; #124's 0.70.0 note):* the patches hurt anyone in them,
     the thrower and its henchmen too (4B replaced); an Alchemist's Fire patch gives light while it burns.
+*Accepted (owner, 2026-11-04: "you can accept all of those").* #130 (the house-rules section; flask patches). Seen: an Acid
+Flask at the ground left its patch (HR-1's patch, 0.71.0). Left untested: HR-1's creature walking in, HR-2 - HR-8.
 - *#133, a creature that only hears a hider (owner, 2026-11-04, the 0.71.0 run: "the enemy, after the throw had a
   "heard" icon over them but they were tracking them as if they had seen me").* The log: the orc hit by an Acid Flask
   from hiding attacked the thrower a second later, before it had perceived it at all (NWN's AI answers a spell cast at
@@ -724,6 +733,12 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     searches". action_order.cpp's AIActionAttackObject hook asks it first, installed with actions or perception
     faithful. NWN's AI asks again each combat round, so it keeps searching until it sees the hider (found ends the
     hide, #129, and the attack goes ahead). Spells cast at a hider aren't changed. Test ExtraActions' stealth checks (4 of 4 mutations caught).
+  - *The owner's 0.72.1 run:* HS-1 - three Acid Flasks from hiding, the orc's attacks dropped for searches ("where it
+    was hit from", then "where it last heard it", 0.9 m from the hider), no attack on the hider while it hid; HS-4 - not
+    hidden, the orc attacked as before. 0.72.1 also: the test hit point floor ([debug] creature_min_hp) before a save
+    against a character and at !spawn (the 0.72.0 run's orc died of one flask at its own 4 hit points).
+*Accepted (owner, 2026-11-04: "you can accept all of those").* #133. Left untested: HS-2 (a longer move away), HS-3 (found up
+close, then attacked).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,
