@@ -193,6 +193,14 @@ monster AC by CR.
     comes back empty: no number on the quickbar, the spell panels or the cure menu (a Wizard's memorised cantrip
     keeps its ready count on the quickbar). SL-5 - !test gives a Wizard every Wizard cantrip (NWN's character
     creation does; swap_class skipped it).
+  - *Asked (2026-11-04), after the owner's SL-5 ("currently they are allowed to memorize one spell in multiple slots.
+    I don't think that's how it's supposed to work? ... This just gives the caster less flexibility"):* a 2024 Wizard
+    prepares a list from its spellbook after a Long Rest and casts any prepared spell with any slot of its level -
+    Part 3's model. When: A the plan's order (Part 2, then Part 3; the Wizard memorises until then), B Part 3 next,
+    then Part 2, C a stop-gap now (the Wizard casts any spellbook spell with any slot; NWN ties its level-up picks and
+    scroll learning to memorising, so research and risk). Recommended B: Part 3 is the fix, and Part 2's upcasting is
+    built once, on every caster casting from shared slots (a memorised NWN slot holds one spell).
+  - *Decided (owner, 2026-11-04: "go with B"):* Part 3 (the Prepare spells window) next, then Part 2.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
