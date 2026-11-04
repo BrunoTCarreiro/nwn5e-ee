@@ -865,6 +865,10 @@ bool StealthToggleAllowed(bool into_stealth, bool attack_target) { return !into_
 
 bool HiddenAttackAdvantage(bool hiding, bool target_sees, bool faithful) { return faithful && hiding && !target_sees; }
 
+bool UnseenHiderSearched(bool faithful, bool attacker_is_player, bool target_hiding, bool attacker_sees_target) {
+  return faithful && !attacker_is_player && target_hiding && !attacker_sees_target;
+}
+
 HideAtAttack WhenAttackEndsHide(bool hiding, bool faithful) {
   if (!hiding) return HideAtAttack::kNotHiding;
   return faithful ? HideAtAttack::kEndsAfterRoll : HideAtAttack::kEndsBeforeRoll;

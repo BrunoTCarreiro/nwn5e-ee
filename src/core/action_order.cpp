@@ -47,6 +47,8 @@
 #include "rules/action_economy.h"
 #include "rules/grenades.h"
 
+bool UnseenHiderSearch(void* creature, void* node);  // rules_perception.cpp (#133)
+
 namespace {
 
 constexpr const char* kInputMessage = "?HandlePlayerToServerInputMessage@CNWSMessage@@QEAAHPEAVCNWSPlayer@@E@Z";
@@ -220,6 +222,13 @@ int OnClearAction(void* creature, void* node, int is_head) {
 
 // At the round's end the attack yields to an Action waiting behind it.
 uint32_t OnAttackObject(void* creature, void* node) {
+  // #133 (owner, 2026-11-04: "go with B"): an AI creature's attack on a hider it doesn't see becomes a search.
+  if (creature && node && UnseenHiderSearch(creature, node)) {
+    static const auto clear_action = reinterpret_cast<int (*)(void*, void*, int)>(EngineExport(kClearAction));
+    const auto clear = g_clear_action ? g_clear_action : clear_action;
+    if (clear) clear(creature, node, 1);  // the attack's own clean-up: its target, the round's schedule
+    return ee::kActionDone;
+  }
   if (Faithful() && creature && !RoundRunning(creature) && IsPlayer(creature) &&
       rules::AttackYields(false, ActionWaiting(creature))) {
     g_clear_action(creature, node, 1);  // the attack's own clean-up: its target, the round's schedule
@@ -302,7 +311,14 @@ void PlaceNewOrder(void* creature, const std::vector<void*>& before, const char*
 }
 
 void InstallActionOrders() {
-  if (!Faithful()) return;
+  if (!Faithful()) {
+    // #133: the attack hook for the search of an unseen hider (perception faithful), without the Action queue.
+    if (g_config.perception == rules::RuleVariant::kFaithful) {
+      HookExport("CNWSCreature::AIActionAttackObject (#133: an unseen hider searched for)", kAIActionAttackObject,
+                 reinterpret_cast<void*>(&OnAttackObject), reinterpret_cast<void**>(&g_attack_object));
+    }
+    return;
+  }
   if (!E().clear_all || !E().player_object || !E().remove || !E().add_head) {
     Log("SKIP the Action queue: engine functions missing");
     return;

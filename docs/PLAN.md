@@ -708,6 +708,22 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     - Test FlaskPatches (11 of 11 mutations caught).
   - *0.70.0 (owner, 2026-11-04: "go with your recommendations"; #124's 0.70.0 note):* the patches hurt anyone in them,
     the thrower and its henchmen too (4B replaced); an Alchemist's Fire patch gives light while it burns.
+- *#133, a creature that only hears a hider (owner, 2026-11-04, the 0.71.0 run: "the enemy, after the throw had a
+  "heard" icon over them but they were tracking them as if they had seen me").* The log: the orc hit by an Acid Flask
+  from hiding attacked the thrower a second later, before it had perceived it at all (NWN's AI answers a spell cast at
+  it by attacking the caster); then, hearing it (Stealth 6), NWN's AI attacked its exact spot, each roll at
+  Disadvantage ("target unseen") - the 2024 rule for a creature you hear but can't see, but NWN's hearing never
+  guesses wrong. Options: A as now; B a creature that only hears a hider goes to where it heard it and searches,
+  attacking once it sees it (a grenade's target likewise); C B for the throw only.
+  - *Decided (owner, 2026-11-04: "go with B"):* B, faithful.
+  - *Built 0.72.0:* rules::UnseenHiderSearched; rules_perception.cpp's Detection keeps where each creature last heard
+    each hider (its listen check heard a hiding target) and UnseenHiderSearch - an AI creature's AIActionAttackObject
+    on a hiding target it doesn't see (engine::Sees: its visibility list's seen bit) is dropped (ClearAction, done) and
+    a search queued by DelayCommand (search mode, run to the last heard spot - else the hider's spot as it attacks, the
+    throw's origin - look left and right, wait 3 s); once a second at most, logged "would attack ... unseen - it
+    searches". action_order.cpp's AIActionAttackObject hook asks it first, installed with actions or perception
+    faithful. NWN's AI asks again each combat round, so it keeps searching until it sees the hider (found ends the
+    hide, #129, and the attack goes ahead). Spells cast at a hider aren't changed. Test ExtraActions' stealth checks (4 of 4 mutations caught).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,

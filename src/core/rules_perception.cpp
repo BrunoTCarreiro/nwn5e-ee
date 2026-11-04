@@ -137,6 +137,18 @@ constexpr const char* kAIActionItemCastSpell = "?AIActionItemCastSpell@CNWSCreat
 AIActionItemCastSpellFn g_item_cast_spell = nullptr;
 thread_local bool t_grenade_throw = false;
 std::unordered_map<uint32_t, int64_t> g_throw_logged;  // id -> ms: ActivityManager(1) comes each tick of a cast (0.71.1)
+// #133: where each creature last heard each hider ((observer << 32) | hider -> x, y, z), the search's goal; and when
+// a creature last turned an attack into a search (id -> ms).
+struct HeardAt {
+  float x, y, z;
+};
+std::unordered_map<uint64_t, HeardAt> g_heard_at;
+std::unordered_map<uint32_t, int64_t> g_hunt_at;
+std::unordered_map<uint32_t, int64_t> g_hunt_logged;
+int64_t NowMs() {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch())
+      .count();
+}
 ResolveAttackFn g_resolve_attack = nullptr;
 std::unordered_set<uint32_t> g_hide_ends_after_attack;  // ids: a swing started from hiding, its roll to come
 
@@ -727,6 +739,12 @@ int Detection(DetectionFn original, bool spot, void* observer, void* target, int
   if (spot && g_config.hiders_need_search && (searching || in_cone || result) && PartyHider(target)) {
     TellCheck(observer, target, result, searching, close);
   }
+  // #133: where it heard a hider - a search goes there (UnseenHiderSearch).
+  if (!spot && result && Hiding(target)) {
+    g_heard_at[static_cast<uint64_t>(IdOf(observer)) << 32 | IdOf(target)] = {
+        Field<float>(target, ee::kObjectPositionX), Field<float>(target, ee::kObjectPositionY),
+        Field<float>(target, ee::kObjectPositionZ)};
+  }
   if (!g_config.log_attacks) return result;
   const uint64_t key = (static_cast<uint64_t>(IdOf(observer)) << 32 | IdOf(target)) ^ (spot ? 1ull << 63 : 0);
   const auto it = g_noticed.find(key);
@@ -809,6 +827,52 @@ void InstallPerceptionRules() {
   AddDiceFilter(&StealthDice);
   Log("perception: Stealth once per hide, passive Perception unless searching, no size / combat / Favored Enemy "
       "terms (faithful)");
+}
+
+// #133 (owner, 2026-11-04: "go with B"; rules::UnseenHiderSearched): an AI creature's attack on a hider it doesn't
+// see becomes a search - it runs to where it last heard the hider (else where the hider is as it attacks: a grenade's
+// thrower, where the throw came from), in search mode, looks about and waits; NWN's AI asks again (its combat round)
+// and it goes on searching until it sees the hider - found ends the hide (#129) and the attack goes ahead. True: the
+// attack is dropped (action_order.cpp's AIActionAttackObject hook). The search is queued by DelayCommand, outside the
+// engine's action processing; at most once a second per creature.
+bool UnseenHiderSearch(void* creature, void* node) {
+  if (!creature || !node) return false;
+  const uint32_t target = Field<uint32_t>(node, ee::kActionFirstParam);
+  void* hider = target != ee::kObjectInvalid ? CreatureById(target) : nullptr;
+  if (!hider || hider == creature ||
+      !rules::UnseenHiderSearched(g_config.perception == rules::RuleVariant::kFaithful, IsPlayer(creature),
+                                  Hiding(hider), engine::Sees(creature, target))) {
+    return false;
+  }
+  const uint32_t id = IdOf(creature);
+  const int64_t now = NowMs();
+  int64_t& last = g_hunt_at[id];
+  if (now - last < 1000) return true;  // searching already: the attack dropped
+  last = now;
+  const auto heard = g_heard_at.find(static_cast<uint64_t>(id) << 32 | target);
+  const HeardAt at = heard != g_heard_at.end()
+                         ? heard->second
+                         : HeardAt{Field<float>(hider, ee::kObjectPositionX), Field<float>(hider, ee::kObjectPositionY),
+                                   Field<float>(hider, ee::kObjectPositionZ)};
+  char code[900];
+  sprintf_s(code,
+            "location at = Location(GetArea(OBJECT_SELF), Vector(%.2f, %.2f, %.2f), GetFacing(OBJECT_SELF));"
+            "DelayCommand(0.10, SetActionMode(OBJECT_SELF, ACTION_MODE_DETECT, TRUE));"
+            "DelayCommand(0.11, ActionMoveToLocation(at, TRUE));"
+            "DelayCommand(0.12, ActionPlayAnimation(ANIMATION_FIREFORGET_HEAD_TURN_LEFT));"
+            "DelayCommand(0.13, ActionPlayAnimation(ANIMATION_FIREFORGET_HEAD_TURN_RIGHT));"
+            "DelayCommand(0.14, ActionWait(3.0));",
+            at.x, at.y, at.z);
+  RunScriptChunk(code, id);
+  int64_t& logged = g_hunt_logged[id];
+  if (now - logged > 6000 && LogSlot()) {
+    logged = now;
+    const float dx = at.x - Field<float>(hider, ee::kObjectPositionX);
+    const float dy = at.y - Field<float>(hider, ee::kObjectPositionY);
+    Log("stealth: 0x%08X would attack 0x%08X unseen - it searches where it %s instead (#133; %.1f m from the hider "
+        "now)", id, target, heard != g_heard_at.end() ? "last heard it" : "was hit from", sqrtf(dx * dx + dy * dy));
+  }
+  return true;
 }
 
 // SK9 (rules_initiative.cpp) and Search: hidden = hiding with a hide that held.

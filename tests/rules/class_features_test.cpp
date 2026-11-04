@@ -561,6 +561,13 @@ TEST(ExtraActions) {
   CHECK_EQ(HiddenAttackAdvantage(true, true, true), false);
   CHECK_EQ(HiddenAttackAdvantage(false, false, true), false);
   CHECK_EQ(HiddenAttackAdvantage(true, false, false), false);
+  // #133 (owner, 2026-11-04: "go with B"): an AI attack on a hider it doesn't see becomes a search. Breaks caught: one
+  // that sees the hider searching, a target not hiding searched for, a player's order turned, NWN mode.
+  CHECK_EQ(UnseenHiderSearched(true, false, true, false), true);
+  CHECK_EQ(UnseenHiderSearched(true, false, true, true), false);   // it sees the hider: it attacks
+  CHECK_EQ(UnseenHiderSearched(true, false, false, false), false); // not hiding (an invisible creature): NWN's
+  CHECK_EQ(UnseenHiderSearched(true, true, true, false), false);   // a player's order stands
+  CHECK_EQ(UnseenHiderSearched(false, false, true, false), false); // NWN mode
   auto has = [](const std::vector<int>& feats, int feat) {
     return std::find(feats.begin(), feats.end(), feat) != feats.end();
   };

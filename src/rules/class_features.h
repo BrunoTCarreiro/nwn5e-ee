@@ -497,6 +497,11 @@ HideAtAttack WhenAttackEndsHide(bool hiding, bool faithful);
 // #129 (0.66.8): the Hide action's Invisible condition - Advantage on an attack against a creature that can't see
 // you (a hider its target doesn't see), faithful only.
 bool HiddenAttackAdvantage(bool hiding, bool target_sees, bool faithful);
+// #133 (owner, 2026-11-04: "go with B"): an AI creature's attack on a hider it doesn't see (it only hears it, or a
+// grenade from hiding hit it) becomes a search - it goes to where it heard the hider and looks, and attacks once it
+// sees it (found ends the hide, #129). NWN's AI attacks a heard creature's exact spot; 2024 has an unseen target's
+// attacker guess its spot. A player's order stands; a target not hiding (an invisible one) keeps NWN's. Faithful only.
+bool UnseenHiderSearched(bool faithful, bool attacker_is_player, bool target_hiding, bool attacker_sees_target);
 bool GrantedOnlyWhenMissing(int feat);
 
 }  // namespace rules
