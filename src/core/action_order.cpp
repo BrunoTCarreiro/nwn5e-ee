@@ -48,6 +48,7 @@
 #include "rules/grenades.h"
 
 bool UnseenHiderSearch(void* creature, void* node);  // rules_perception.cpp (#133)
+bool HazardHoldsAttack(void* creature, void* node);  // hazard_watch.cpp (#131)
 
 namespace {
 
@@ -223,7 +224,8 @@ int OnClearAction(void* creature, void* node, int is_head) {
 // At the round's end the attack yields to an Action waiting behind it.
 uint32_t OnAttackObject(void* creature, void* node) {
   // #133 (owner, 2026-11-04: "go with B"): an AI creature's attack on a hider it doesn't see becomes a search.
-  if (creature && node && UnseenHiderSearch(creature, node)) {
+  // #131: a melee attack on a target standing in a hazard waits (a living creature it would hurt, outside it).
+  if (creature && node && (UnseenHiderSearch(creature, node) || HazardHoldsAttack(creature, node))) {
     static const auto clear_action = reinterpret_cast<int (*)(void*, void*, int)>(EngineExport(kClearAction));
     const auto clear = g_clear_action ? g_clear_action : clear_action;
     if (clear) clear(creature, node, 1);  // the attack's own clean-up: its target, the round's schedule

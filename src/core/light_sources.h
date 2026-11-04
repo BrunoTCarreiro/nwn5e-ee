@@ -16,3 +16,6 @@ void CreatingFireLight(bool on);
 // and the tiles' torches, as a hit puts one out; relit as ever (Use, the Light spell). With light_sources on only.
 // Returns how many went out.
 int BlastPutsOutLights(uint32_t self, float radius, const char* what);
+
+// Any object of the server by id (CNWSObject*: a placeable, an area of effect ...), null if none (0.73.0, #131).
+void* GameObjectById(uint32_t id);

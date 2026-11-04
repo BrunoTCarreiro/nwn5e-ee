@@ -15,3 +15,8 @@ using ScriptHandler = void (*)(uint32_t self);
 // Hooks RunScript on first use; false (and logged) if it can't be hooked, or
 // if the hook's lookup wouldn't find the name (registered twice).
 bool AddScriptHandler(const char* name, ScriptHandler handler);
+
+// 0.73.0 (#131): `observer` runs after the script `name` has run - the game's
+// own or a handler - with its OBJECT_SELF and the name as registered.
+using ScriptObserver = void (*)(uint32_t self, const char* name);
+bool AddScriptObserver(const char* name, ScriptObserver observer);

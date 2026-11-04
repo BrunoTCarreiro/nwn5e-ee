@@ -739,6 +739,28 @@ Flask at the ground left its patch (HR-1's patch, 0.71.0). Left untested: HR-1's
     against a character and at !spawn (the 0.72.0 run's orc died of one flask at its own 4 hit points).
 *Accepted (owner, 2026-11-04: "you can accept all of those").* #133. Left untested: HS-2 (a longer move away), HS-3 (found up
 close, then attacked).
+- *#131, creatures keep out of hazards (owner, 2026-11-04, on #130's 0.69.1 run: "We might need to eventually work on
+  the henchman AI to prevent them from standing in hazard areas").* How it was: the grenade hazards hurt anyone (0.70.0);
+  NWN's henchman AI (nw_ch_acb) answers only an enemy's area spell (it may flee or dispel) and ignores its master's on
+  purpose ("if we singe some eyebrow hair, oh well"). Options: 1 who - A a player's associates, B every AI creature;
+  2 which - A the grenade hazards, B also the harmful spell areas where they'd hurt it; 3 what - A step out, B step out
+  and keep out (a melee attack on a target in one waits), C B and no following into one.
+  - *Decided (owner, 2026-11-04: "1. hmmmmmm, I'm not sure if we're entering some sort of deeper game mechanics but I
+    feel that most living enemies would avoid hazards, while undead and enemies that are charmed or somehow dominated
+    would not / 2 B / 3 B"):* every living AI creature - monsters and a player's associates; not undead or constructs,
+    not the charmed, dominated or confused; never a player's character; 2B; 3B.
+  - *Built 0.73.0 (with the grenades faithful):* rules::HazardOfScript / HazardStepOutMetres (the hazards by their
+    scripts: #130's patches, the Bombs' clouds, Caltrops, Choking Powder - anyone, Holy Water's undead and evil
+    outsiders; Acid Fog, Incendiary Cloud, Stinking Cloud, Cloudkill, Wall of Fire, Blade Barrier, Web, Entangle,
+    Grease, Creeping Doom, Evard's Black Tentacles, Storm of Vengeance, Cloud of Bewilderment, Stonehold, Ghoul Touch -
+    whom NWN's area-spell rule picks; the radius + 1.5 m), AvoidsHazards, HazardHoldsAttack (test HazardAvoidance,
+    14 of 14 mutations caught). script_hooks.cpp: AddScriptObserver - run after a script, the game's or a handler.
+    hazard_watch.cpp: after each hazard script, the creatures in it listed by a script run as it
+    (GetFirstInPersistentObject; spellsIsTarget written out for the spells' areas), kept by hazard; an avoiding
+    creature it hurts steps out (ClearAllActions, ActionMoveAwayFromLocation(its centre, running, radius + 1.5 m)),
+    once in 4 s; action_order.cpp's AIActionAttackObject hook drops an avoiding creature's melee attack on a target
+    standing in a hazard that would hurt it while it stands outside (a spell's area: its caster's enemy; HoldsRangedWeapon:
+    a ranged attack goes on). Charmed (state 1), confused (2), dominated (7, or a dominated associate) are not in control.
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,

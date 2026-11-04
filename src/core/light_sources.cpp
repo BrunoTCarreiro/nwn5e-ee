@@ -966,6 +966,8 @@ void RadialActivate(void* menu) {
 
 void CreatingFireLight(bool on) { g_creating_fire_light = on; }
 
+void* GameObjectById(uint32_t id) { return ObjectById(id); }
+
 int BlastPutsOutLights(uint32_t self, float radius, const char* what) {
   if (!g_config.light_sources || radius <= 0.0f) return 0;
   const std::string r = Num(radius);
