@@ -1,0 +1,14 @@
+# classes.2da - #36 Part 1 (owner, 2026-11-04: 1A 2A 3A 4A; docs/PLAN.md "Phase 4"), served with spellcasting
+# faithful (core/rules_spell_slots.cpp asks for "spells2024"): the 2024 slot tables (data/files/cls_spgn_5e*.2da: SRD
+# 5.2's, the class's cantrips at level 0); Cleric, Druid, Paladin and Ranger cast spontaneously (MemorizesSpells 0,
+# every class spell known - SpellbookRestricted 0 - until the Prepare spells window, Part 3); Paladin and Ranger from
+# level 1, the Paladin on Charisma; the Cleric's spontaneous cures gone (any slot casts any spell). Bard and Sorcerer
+# keep their known spells (NWN's picker until Part 3); the Wizard memorises (its spellbook until Part 3).
+SpellGainTable MemorizesSpells MinCastingLevel SpellcastingAbil CanCastSpontaneously
+1  CLS_SPGN_5EBARD  0  1  CHA  0
+2  CLS_SPGN_5ECLER  0  1  WIS  0
+3  CLS_SPGN_5EDRU   0  1  WIS  0
+6  CLS_SPGN_5EPAL   0  1  CHA  0
+7  CLS_SPGN_5ERANG  0  1  WIS  0
+9  CLS_SPGN_5ESORC  0  1  CHA  0
+10 CLS_SPGN_5EWIZ   1  1  INT  0

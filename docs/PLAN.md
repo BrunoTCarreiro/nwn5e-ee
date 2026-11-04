@@ -147,6 +147,33 @@ monster AC by CR.
   roll before the end of its next turn (through the advantage rules' sources,
   as the conditions add theirs). Decide then: NWN has no psychic damage type
   (magical or sonic).
+- *#36, spell slots and 2024 preparation.* How it was (both modes): NWN's casting - Wizard, Cleric, Druid, Paladin,
+  Ranger memorise a spell into each slot; Sorcerer and Bard know a list with uses per spell level; 3e counts with bonus
+  spells for a high casting score; cantrips limited; Paladin and Ranger from level 4. The engine has both models, by
+  data (classes.2da MemorizesSpells, SpellKnownTable, MinCastingLevel; cls_spgn / cls_spkn). SRD 5.2: slots by class
+  level (full casters; Paladin and Ranger half casters from level 1; a multiclass character one combined table:
+  full-caster levels + half the Paladin and Ranger levels, rounded up); a prepared list sized by class level, any
+  prepared spell cast with any slot of its level or higher - Cleric, Druid and Wizard (from its spellbook) change the
+  list after a Long Rest, Paladin and Ranger one spell, Bard and Sorcerer one when they gain a level; cantrips at will,
+  stronger at 5 / 11 / 17; upcasting. Options: 1 the model - A NWN's known-spells model for every caster, B NWN's
+  memorising with 2024 counts, C nwn5e's own counters; 2 upcasting - A automatic (no slot left at the level: the
+  lowest higher slot, the spell told the slot's level), B A + by choice, C none; 3 changing prepared spells - A a
+  "Prepare spells" window (after a Long Rest; at level-up for Bard and Sorcerer), B NWN's level-up picker only, C a
+  chat command; 4 multiclass - A one combined pool, B a pool per class.
+  - *Decided (owner, 2026-11-04: "go with your recommendations and note down the upcasting thing so you don't forget when doing 39"):* 1A, 2A,
+    3A, 4A. **For #39:** 2B - upcasting on purpose (a higher slot chosen, e.g. the radial's metamagic entries as
+    "cast with a level N slot"), the rewritten scripts scaling by the slot level 2A passes.
+  - *The plan:* Part 1 the 2024 slots and spontaneous casting; Part 2 upcasting (2A) and the combined multiclass pool
+    (4A); Part 3 the Prepare spells window (3A) - one window for every caster in faithful (at creation, at level-up,
+    after a Long Rest; each class's limits; the prepared count a total over the levels, as 2024's - NWN's own picker
+    counts per spell level), the Wizard's spellbook kept apart from its prepared list.
+  - *Built 0.74.0 (Part 1; key `spellcasting`, faithful by default):* rules::SpellSlots2024, CantripsKnown2024,
+    PreparedSpells2024, SpellGain2024, CastSpendsUse (SRD 5.2's tables; test SpellSlots2024; with the data test 10 of 10 mutations caught); data/files/cls_spgn_5e
+    {bard,cler,dru,pal,rang,sorc,wiz}.2da (test SpellGainTablesAreSrd52 against the rules) and classes.if_spells2024
+    (SpellGainTable; Cleric, Druid, Paladin, Ranger MemorizesSpells 0; MinCastingLevel 1; the Paladin on CHA; no
+    spontaneous cures). rules_spell_slots.cpp hooks GetSpellGainWithBonus (rules::SpellGain2024 for a caster class's
+    slot: no 3e bonus spells, domain slot or prestige caster levels), GetSpellMinAbilityMet (no 3e minimum score),
+    DecrementSpellsPerDayLeft and SetMemorizedSpellInSlotReady (cantrips at will).
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

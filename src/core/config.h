@@ -235,6 +235,11 @@ struct Config {
   // the thrower's DC; Caltrops a DC 15 Dexterity save on entering; a player's throw mid-round goes at once and takes
   // one of the round's swings. nwn / off: NWN's (a touch attack and splash; the throw waits for the round's end).
   rules::RuleVariant grenades = rules::RuleVariant::kFaithful;
+  // #36 (owner, 2026-11-04: "go with your recommendations ..." - 1A 2A 3A 4A): spellcasting - faithful: the 2024
+  // spell slots (SRD 5.2's tables, no bonus spells, no 3e minimum score; Paladin and Ranger from level 1), any slot of
+  // a level casts any of the class's spells (Cleric, Druid, Paladin, Ranger spontaneous), cantrips at will; nwn / off:
+  // NWN's (memorised slots, 3e counts).
+  rules::RuleVariant spellcasting = rules::RuleVariant::kFaithful;
   // Rests move the clock: a Long Rest 8 hours, a Short Rest 1 - on by default
   // since 0.59.18 (#110, owner: "go with B"); faithful rests only (NWN mode's
   // rests don't install the rest rules). 0 keeps the clock still.

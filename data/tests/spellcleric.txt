@@ -1,0 +1,16 @@
+# A !test profile ([debug] test_commands=1): type "!test spellcleric" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# Spell slots (issue 36, part 1): your first class becomes Cleric 5, Wisdom 16. With spellcasting faithful the
+# Cleric casts spontaneously - every Cleric spell of a level you have slots for, from that level's slots (2024: four
+# 1st, three 2nd, two 3rd); cantrips at will; no bonus spells from Wisdom.
+name = Spell slots (issue 36): human Cleric 5, Wisdom 16 - any Cleric spell from its level's slots
+species = human
+swap_class = cleric
+class = cleric
+level = 5
+abilities = 10 10 14 10 16 12
+items = nw_wdbqs001 equip
+note = the spellbook and the radial's spells list every Cleric spell of levels 0 to 3 - no memorising
+note = slots 4 / 3 / 2 (no Wisdom bonus); a cantrip never runs out
