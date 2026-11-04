@@ -622,6 +622,16 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     (ServeConditionalRows "grenades2024"): Acid, Alchemist's Fire, Holy Water no circle on a creature (TargetFlags 35:
     EE's 32, "suppress with target", as Dispel Magic's) and one creature wide at the ground (0.83 m, #130's patch);
     Tanglefoot Bag none; the bombs 5 m (their cloud); Choking Powder, Thunderstone and Caltrops the game's.
+  - *The owner's 0.69.1 run (2026-11-04):* "I'm having a bit of an issue with the hazards not affecting the PC ... The
+    acid flask doesn't show an area of effect preview but it clearly has a pretty big splashzone ... The firebomb area
+    is huge and bright but it doesn't emit any light ... Why does throwing a flask while hidden count as entering
+    combat?" The log: no "grenades: 0x..." line in the 0.69.0 or the 0.69.1 run - none of #124's handlers ever ran; the
+    game's chat shows NWN's ranged touch attack and 1-point splash (a desk, an invisible object). Cause:
+    script_hooks.cpp's lookup took only names starting "n5" (every handler before #124 was nwn5e's own), so x0_s3_acid,
+    x0_s3_alchem, x0_s3_holy, x2_s3_bomb, x0_s3_calen and x0_s3_calhb ran as NWN's: #124 and #130 untested so far.
+    *0.69.2:* the lookup is rules::FindScriptName (any registered name, case-blind; test ScriptNames, 4 of 4 mutations
+    caught), and AddScriptHandler refuses a name its hook's lookup wouldn't find (logged "SKIP nwn5e's script ...").
+    Hiding: it ended as each throw started (09:23:20, 09:23:49) - the engine's, no nwn5e line.
 - *#130, house rules; flasks thrown at the ground leave a patch (the 2024 Oil flask's rule).* Asked (owner, 2026-11-04,
   after #124's brief): "Ok, I want to add a house rules section. For example we'll keep the faithful rules, the ones
   you added. But I also want acid flask, alchemist fire and holy water to work with oil flask rules where they create a

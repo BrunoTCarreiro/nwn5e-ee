@@ -10,6 +10,7 @@
 #include "creature.h"
 #include "hooks.h"
 #include "log.h"
+#include "rules/script_names.h"
 
 namespace {
 
@@ -17,29 +18,25 @@ using RunScriptFn = int (*)(void* vm, void* name, uint32_t self, int self_valid,
 RunScriptFn g_run_script = nullptr;
 constexpr const char* kRunScript = "?RunScript@CVirtualMachine@@QEAAHPEAVCExoString@@IHH@Z";
 
-struct Handler {
-  std::string name;
-  ScriptHandler run;
-};
-std::vector<Handler> g_handlers;  // registered at install, read on the engine's thread
+// Registered at install, read on the engine's thread: a name and its handler at the same index.
+std::vector<std::string> g_names;
+std::vector<ScriptHandler> g_runs;
 bool g_hooked = false;
 bool g_failed = false;
 
-// A CExoString (char* +0, length +8) naming a registered script, resrefs being case-blind.
-const Handler* Find(void* name) {
+// A CExoString (char* +0, length +8) naming a registered script (rules::FindScriptName: case-blind). 0.69.2: any
+// name - before, only "n5..." ones were looked at, so the game's scripts #124 replaces (x0_s3_acid ...) ran as NWN's.
+ScriptHandler Find(void* name) {
   if (!name) return nullptr;
   const char* chars = Field<const char*>(name, 0);
   const uint32_t length = Field<uint32_t>(name, 8);
-  if (!chars || length < 3 || (chars[0] != 'n' && chars[0] != 'N') || chars[1] != '5') return nullptr;
-  for (const Handler& h : g_handlers) {
-    if (h.name.size() == length && _strnicmp(chars, h.name.c_str(), length) == 0) return &h;
-  }
-  return nullptr;
+  const int at = rules::FindScriptName(g_names, chars, length);
+  return at < 0 ? nullptr : g_runs[static_cast<size_t>(at)];
 }
 
 int RunScript(void* vm, void* name, uint32_t self, int self_valid, int event) {
-  if (const Handler* h = Find(name)) {
-    h->run(self);
+  if (const ScriptHandler run = Find(name)) {
+    run(self);
     return 1;
   }
   return g_run_script(vm, name, self, self_valid, event);
@@ -58,6 +55,18 @@ bool AddScriptHandler(const char* name, ScriptHandler handler) {
     }
     g_hooked = true;
   }
-  g_handlers.push_back(Handler{name, handler});
+  g_names.push_back(name);
+  g_runs.push_back(handler);
+  // 0.69.2: the hook's own lookup must find it (a CExoString as the engine passes it) - else it would never run.
+  alignas(8) uint8_t probe[16] = {};
+  *reinterpret_cast<const char**>(probe) = name;
+  *reinterpret_cast<uint32_t*>(probe + 8) = static_cast<uint32_t>(strlen(name));
+  if (Find(probe) != handler) {
+    Log("SKIP nwn5e's script %s: the RunScript hook wouldn't run it (%s)", name,
+        Find(probe) ? "the name is registered twice" : "its lookup misses it");
+    g_names.pop_back();
+    g_runs.pop_back();
+    return false;
+  }
   return true;
 }
