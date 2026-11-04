@@ -68,6 +68,12 @@ int FlaskPatchAreaEffect(Grenade grenade);
 // Attack action it replaces (none left: one of the next round's).
 bool ThrowGoesNow(bool attacking_mid_round, bool grenade, bool faithful);
 
+// #132 (owner, 2026-11-04: "go with your recommendations" - A): a grenade thrown from hiding keeps the thrower hidden -
+// the 2024 Hide ends on an attack roll, and a grenade's target makes a save. NWN's engine takes the thrower out of
+// stealth mode as the throw starts (the item cast's ActivityManager(1)). Faithful only; a spell or another item keeps
+// NWN's (a spell with a Verbal component ends the 2024 Hide too).
+bool ThrowKeepsHiding(bool hiding, bool grenade_throw, bool faithful);
+
 // The item's description in 2024 terms (nwn5e's string, 16000555-16000563) for a grenade's in dialog.tlk (the
 // blueprints' 2989-2997, 84353-84354); with the flask patches' house rule (#130) on, the three flasks' name it
 // (16000564-16000566). 0 for any other.

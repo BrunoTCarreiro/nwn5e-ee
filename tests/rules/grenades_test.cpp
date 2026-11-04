@@ -71,6 +71,15 @@ TEST(FlaskPatches) {
   CHECK_EQ(GrenadeDescription2024(2989, false), 16000555u);
 }
 
+// #132 (owner, 2026-11-04: "go with your recommendations" - A): a throw from hiding keeps the hide. Breaks caught: NWN
+// mode kept hidden, a spell or another item kept hidden, a creature not hiding counted.
+TEST(ThrowFromHiding) {
+  CHECK_EQ(ThrowKeepsHiding(true, true, true), true);
+  CHECK_EQ(ThrowKeepsHiding(true, true, false), false);  // NWN's: the throw ends it
+  CHECK_EQ(ThrowKeepsHiding(true, false, true), false);  // a spell or another item: NWN's
+  CHECK_EQ(ThrowKeepsHiding(false, true, true), false);  // not hiding
+}
+
 // The descriptions in 2024 terms. Breaks caught: one swapped for another's, a grenade's left NWN's, another item's
 // swapped (2993 Coldstone, 2996).
 TEST(GrenadeDescriptions) {

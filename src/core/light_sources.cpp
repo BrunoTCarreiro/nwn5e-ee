@@ -198,6 +198,8 @@
 #include "effects.h"
 #include "engine.h"
 #include "hooks.h"
+#include "grenades.h"
+#include "light_sources.h"
 #include "log.h"
 #include "script_hooks.h"
 
@@ -215,6 +217,7 @@ int g_unstatic = 0;                               // static lights made normal p
 constexpr size_t kPlaceableUseable = 0x264;       // int32 ("Useable")
 constexpr size_t kObjectPlot = 0xfc;              // int32 (GetPlotFlag)
 bool g_creating_flames = false;                   // nwn5e is placing tile flames' stand-ins now
+bool g_creating_fire_light = false;               // a grenade's fire light is being placed (0.70.0)
 
 // Light reach per placeables.2da row: bright / dim in cm (-1: no light), loaded once.
 struct Reach {
@@ -277,6 +280,12 @@ int LoadPlaceable(void* placeable, void* gff, void* gff_struct, int flag, void* 
   if (result && placeable && g_creating_flames) {  // a tile flame's stand-in: clickable, never broken
     SetField<int32_t>(placeable, kPlaceableStatic, 0);
     SetField<int32_t>(placeable, kPlaceableUseable, 1);
+    SetField<int32_t>(placeable, kObjectPlot, 1);
+    return result;
+  }
+  if (result && placeable && g_creating_fire_light) {  // a grenade's fire light: the client gets it, never clicked
+    SetField<int32_t>(placeable, kPlaceableStatic, 0);
+    SetField<int32_t>(placeable, kPlaceableUseable, 0);
     SetField<int32_t>(placeable, kObjectPlot, 1);
     return result;
   }
@@ -955,6 +964,8 @@ void RadialActivate(void* menu) {
   g_activate(menu);
 }
 
+void CreatingFireLight(bool on) { g_creating_fire_light = on; }
+
 void InstallLightSources() {
   g_map_light = g_config.map_light < 10 ? 10 : g_config.map_light > 100 ? 100 : g_config.map_light;
   if (g_config.light_sources) {
@@ -968,7 +979,7 @@ void InstallLightSources() {
     AddScriptHandler(kFlameHitScript, [](uint32_t self) { FlameHit(self); });
     AddScriptHandler(kFlameSpellScript, [](uint32_t self) { FlameSpell(self); });
   }
-  if (FlamesWanted()) {
+  if (FlamesWanted() || GrenadesFaithful()) {  // 0.70.0: a grenade's fire light too
     HookExport("CNWSPlaceable::LoadPlaceable (static lights, tile flames' stand-ins: normal placeables)", kLoadPlaceable,
                reinterpret_cast<void*>(&LoadPlaceable), reinterpret_cast<void**>(&g_load_placeable));
   }

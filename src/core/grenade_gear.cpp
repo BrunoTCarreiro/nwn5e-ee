@@ -22,6 +22,14 @@
 //   it at its round tick (n5_fp*_rd, every 6 s) takes the flask's dice, no save, once a round (rules::FlaskMakesPatch);
 //   whom, NWN's area-spell rule (x0_i0_spells' spellsIsTarget, SPELL_TARGET_STANDARDHOSTILE: allies only above Normal
 //   difficulty, written out here); Holy Water's only undead and evil outsiders.
+// - 0.70.0 (owner, 2026-11-04, after "I'm having a bit of an issue with the hazards not affecting the PC": "go with
+//   your recommendations"): every grenade hazard hurts anyone in it, the thrower and its henchmen too - the flask
+//   patches (4B replaced), Caltrops' field, the bombs' clouds (nwn5e's own scripts, n5_bfire_* / n5_bacid_*: NWN's
+//   Incendiary Cloud and Acid Fog effects, the spells' own scripts left to the spells) and Choking Powder's cloud
+//   (x0_s3_chokeen / x0_s3_chokehb, the grenade's own). And light (owner: "is it possible to create a temporary light
+//   source while it's active?"): an invisible object with an orange light where the fire burns - the Fire Bomb's
+//   cloud (VFX_DUR_LIGHT_ORANGE_20, 5 rounds), an Alchemist's Fire patch (_10, 2 rounds); light_sources.cpp loads it
+//   as a normal placeable (CreatingFireLight), and the hiding-in-light rule counts it (stealth_watch.cpp).
 // The scripts run in C++ (script_hooks.cpp: RunScript by name); their NWScript is a chunk wrapped in main - no
 // include: the hostility test is GetIsReactionTypeFriendly's, as NWN's Thunderstone's own.
 
@@ -38,6 +46,7 @@
 #include "effects.h"
 #include "engine.h"
 #include "item_use.h"
+#include "light_sources.h"
 #include "log.h"
 #include "script_hooks.h"
 #include "rules/grenades.h"
@@ -47,6 +56,15 @@
 namespace {
 
 int g_lines = 0;
+
+// 0.70.0: nwn5e's scripts for the bombs' clouds (no .ncs; script_hooks.cpp), the fire light's tag, the Acid cloud's slow.
+constexpr const char* kFireCloudIn = "n5_bfire_in";
+constexpr const char* kFireCloudRound = "n5_bfire_rd";
+constexpr const char* kAcidCloudInName = "n5_bacid_in";
+constexpr const char* kAcidCloudRoundName = "n5_bacid_rd";
+constexpr const char* kAcidCloudOutName = "n5_bacid_out";
+constexpr const char* kFireLightTag = "nwn5e_fire_light";
+constexpr const char* kAcidSlowTag = "n5_bacid_slow";
 
 bool LogSlot() { return g_lines < 200 && ++g_lines; }
 
@@ -139,13 +157,91 @@ if (GetIsObjectValid(t) && (k == OBJECT_TYPE_CREATURE || k == OBJECT_TYPE_DOOR |
   if (k == OBJECT_TYPE_CREATURE) n = GetReflexAdjustedDamage(n, t, $DC, save, OBJECT_SELF);
   if (n > 0) ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectLinkEffects(EffectDamage(n, type), EffectVisualEffect(imp)), t);
 }
-ApplyEffectAtLocation(DURATION_TYPE_TEMPORARY, EffectAreaOfEffect(cloud), l, RoundsToSeconds(5));
+string sEnter = "$BAIN"; string sRound = "$BARD"; string sExit = "$BAOUT";
+if (GetSpellId() == 744) { sEnter = "$BFIN"; sRound = "$BFRD"; sExit = ""; }
+ApplyEffectAtLocation(DURATION_TYPE_TEMPORARY, EffectAreaOfEffect(cloud, sEnter, sRound, sExit), l, RoundsToSeconds(5));
+if (GetSpellId() == 744) {
+  object lt = CreateObject(OBJECT_TYPE_PLACEABLE, "plc_invisobj", l, FALSE, "$LIGHTTAG");
+  ApplyEffectToObject(DURATION_TYPE_PERMANENT, EffectVisualEffect(VFX_DUR_LIGHT_ORANGE_20), lt);
+  DestroyObject(lt, RoundsToSeconds(5));
+}
 )nss";
 
-// 4A: Caltrops' field, a creature entering it (OBJECT_SELF the area of effect).
+// 0.70.0: the Fire Bomb's cloud (NWN's Incendiary Cloud, nw_s0_incclouda / c): a creature entering it, or every creature,
+// door and placeable in it at its round tick - 4d6 Fire, a Dexterity save on the thrower's DC for half (GetSpellSaveDC:
+// rules_save_roll.cpp's grenade DC). Anyone (no spell resistance: alchemy, not magic). OBJECT_SELF the cloud.
+const char* const kFireCloud = R"nss(
+object c = GetAreaOfEffectCreator(); int dc = GetSpellSaveDC();
+object t = $FIRST;
+while (GetIsObjectValid(t)) {
+  if (!GetIsDead(t) && GetTag(t) != "$LIGHTTAG") {
+    SignalEvent(t, EventSpellCastAt(c, 744));
+    int n = GetReflexAdjustedDamage(d6(4), t, dc, SAVING_THROW_TYPE_FIRE, c);
+    if (n > 0) ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectLinkEffects(EffectDamage(n, DAMAGE_TYPE_FIRE), EffectVisualEffect(VFX_IMP_FLAME_S)), t);
+  }
+  t = $NEXT;
+}
+)nss";
+
+// 0.70.0: the Acid Bomb's cloud (NWN's Acid Fog, nw_s0_acidfoga / b / c): entering, 4d6 Acid and a Constitution save
+// or slowed (half speed) while in it; at its round tick, 2d6 Acid to every creature in it (NWN's - its save there
+// changes nothing); leaving, the slow ends. Anyone.
+const char* const kAcidCloudIn = R"nss(
+object c = GetAreaOfEffectCreator(); object t = GetEnteringObject();
+if (!GetIsObjectValid(t) || GetIsDead(t)) return;
+SignalEvent(t, EventSpellCastAt(c, 745));
+if (FortitudeSave(t, GetSpellSaveDC(), SAVING_THROW_TYPE_ACID, c) == 0) {
+  ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(EffectMovementSpeedDecrease(50), "$SLOWTAG"), t);
+}
+ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectLinkEffects(EffectDamage(d6(4), DAMAGE_TYPE_ACID), EffectVisualEffect(VFX_IMP_ACID_S)), t);
+)nss";
+
+const char* const kAcidCloudRound = R"nss(
+object c = GetAreaOfEffectCreator();
+object t = GetFirstInPersistentObject(OBJECT_SELF, OBJECT_TYPE_CREATURE);
+while (GetIsObjectValid(t)) {
+  if (!GetIsDead(t)) {
+    SignalEvent(t, EventSpellCastAt(c, 745));
+    ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectLinkEffects(EffectDamage(d6(2), DAMAGE_TYPE_ACID), EffectVisualEffect(VFX_IMP_ACID_S)), t);
+  }
+  t = GetNextInPersistentObject(OBJECT_SELF, OBJECT_TYPE_CREATURE);
+}
+)nss";
+
+const char* const kAcidCloudOut = R"nss(
+object t = GetExitingObject();
+effect e = GetFirstEffect(t);
+while (GetIsEffectValid(e)) {
+  if (GetEffectTag(e) == "$SLOWTAG") { RemoveEffect(t, e); break; }
+  e = GetNextEffect(t);
+}
+)nss";
+
+// 0.70.0: Choking Powder's cloud (NWN's x0_s3_choke names x0_s3_chokeen / x0_s3_chokehb; x0_i0_spells'
+// spellsStinkingCloud): a creature entering it, or every creature in it at its round tick - a Constitution save on the
+// thrower's DC or dazed (Incapacitated) 2 rounds, unless immune to poison. Anyone.
+const char* const kChoke = R"nss(
+object c = GetAreaOfEffectCreator(); int dc = GetSpellSaveDC();
+object t = $FIRST;
+while (GetIsObjectValid(t)) {
+  if (!GetIsDead(t)) {
+    SignalEvent(t, EventSpellCastAt(c, 467));
+    if (FortitudeSave(t, dc, SAVING_THROW_TYPE_POISON, c) == 0 && !GetIsImmune(t, IMMUNITY_TYPE_POISON)) {
+      effect eDaze = EffectLinkEffects(EffectLinkEffects(EffectVisualEffect(VFX_DUR_MIND_AFFECTING_DISABLED), EffectDazed()),
+                                       EffectVisualEffect(VFX_DUR_CESSATE_NEGATIVE));
+      ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_DAZED_S), t);
+      ApplyEffectToObject(DURATION_TYPE_TEMPORARY, eDaze, t, RoundsToSeconds(2));
+    }
+  }
+  t = $NEXT;
+}
+)nss";
+
+// 4A: Caltrops' field, a creature entering it (OBJECT_SELF the area of effect) - 0.70.0: any creature, the thrower
+// and its allies too (NWN's spared friends).
 const char* const kCaltropsEnter = R"nss(
 object t = GetEnteringObject(); object c = GetAreaOfEffectCreator();
-if (GetObjectType(t) != OBJECT_TYPE_CREATURE || t == c || GetIsReactionTypeFriendly(t, c)) return;
+if (GetObjectType(t) != OBJECT_TYPE_CREATURE || GetIsDead(t)) return;
 SignalEvent(t, EventSpellCastAt(c, 471));
 if (ReflexSave(t, $DC, SAVING_THROW_TYPE_NONE, c)) return;
 ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectLinkEffects(EffectDamage($DAMAGE, DAMAGE_TYPE_PIERCING),
@@ -162,25 +258,14 @@ if (n >= $LIFE) {
 
 // #130, a house rule: a flask's patch (OBJECT_SELF its area of effect) - a creature entering it, or everyone in it at
 // its round tick: the flask's dice, no save (2B, 3A), once a round (a local on the creature for
-// rules::kFlaskPatchLockSeconds); whom it hurts, NWN's area-spell rule (4B: x0_i0_spells' spellsIsTarget,
-// SPELL_TARGET_STANDARDHOSTILE - the thrower and its henchmen, or a neutral, only above Normal difficulty).
+// rules::kFlaskPatchLockSeconds). 0.70.0 (owner: "go with your recommendations"): anyone in it, the thrower and its
+// henchmen too, as the 2024 Oil's (4B's NWN area-spell rule, sparing allies on Normal, replaced).
 const char* const kPatch = R"nss(
-object c = GetAreaOfEffectCreator(); object cm = GetMaster(c); object mod = GetModule();
-int hard = GetGameDifficulty() > GAME_DIFFICULTY_NORMAL;
+object c = GetAreaOfEffectCreator();
 string key = "n5_fpatch_" + ObjectToString(OBJECT_SELF);
 object t = $FIRST;
 while (GetIsObjectValid(t)) {
-  object m = GetMaster(t);
   int hurt = GetObjectType(t) == OBJECT_TYPE_CREATURE && !GetIsDead(t) && !GetLocalInt(t, key);
-  if (hurt) {
-    int pc = GetIsPC(t) || GetLocalInt(mod, "X0_G_ALLOWSPELLSTOHURT") == 10;
-    int notfriend = !GetIsReactionTypeFriendly(t, c);
-    int own = hard && (t == c || m == c);
-    if (!own && GetIsObjectValid(m) && ((!GetIsReactionTypeFriendly(m, c) && GetIsPC(m)) || GetIsReactionTypeHostile(m, c))) own = TRUE;
-    hurt = GetIsReactionTypeHostile(t, c) || own || (pc && notfriend) ||
-           (notfriend && hard && GetLocalInt(mod, "X2_SWITCH_ENABLE_NPC_AOE_HURT_ALLIES"));
-    if (GetIsObjectValid(m) && GetIsObjectValid(cm) && m == cm && !GetLocalInt(mod, "X2_SWITCH_MULTI_HENCH_AOE_MADNESS")) hurt = FALSE;
-  }
   $ONLY
   if (hurt) {
     SetLocalInt(t, key, 1);
@@ -245,6 +330,12 @@ void FlaskScript(uint32_t self, rules::Grenade grenade) {
              std::to_string(rules::FlaskPatchAreaEffect(grenade)) + ", \"" + PatchScriptName(grenade, "in") + "\", \"" +
              PatchScriptName(grenade, "rd") + "\", \"\"), GetSpellTargetLocation(), RoundsToSeconds(" +
              std::to_string(rules::kFlaskPatchRounds) + "));";
+    if (fire) {  // 0.70.0: its fire's light while it burns
+      ground += " object lt = CreateObject(OBJECT_TYPE_PLACEABLE, \"plc_invisobj\", GetSpellTargetLocation(), FALSE, \"" +
+                std::string(kFireLightTag) + "\"); ApplyEffectToObject(DURATION_TYPE_PERMANENT, " +
+                "EffectVisualEffect(VFX_DUR_LIGHT_ORANGE_10), lt); DestroyObject(lt, RoundsToSeconds(" +
+                std::to_string(rules::kFlaskPatchRounds) + "));";
+    }
   }
   Replace(&code, "$GROUND", ground);
   Replace(&code, "$ITEM", fire ? kCoating : "");
@@ -262,7 +353,9 @@ void FlaskScript(uint32_t self, rules::Grenade grenade) {
         Dice(dice).c_str(), fire ? " and burning 3 rounds" : "",
         patch ? "; at the ground a patch for 2 rounds (the house rule)" : "");
   }
+  CreatingFireLight(patch && fire);  // light_sources.cpp: the fire light's invisible object a normal placeable
   Run(code, self, name);
+  CreatingFireLight(false);
 }
 
 // #130: a patch's scripts - a creature entering it, or its round tick (everyone in it).
@@ -302,8 +395,19 @@ void BombScript(uint32_t self) {
   std::string code = kBomb;
   Replace(&code, "$DICE", Dice(rules::GrenadeHitDice(rules::Grenade::kFireBomb)));
   Replace(&code, "$DC", std::to_string(dc));
-  if (LogSlot()) Log("grenades: 0x%08X a bomb - the target's Dexterity save, DC %d, for half of 10d6; its cloud", self, dc);
+  Replace(&code, "$BFIN", kFireCloudIn);
+  Replace(&code, "$BFRD", kFireCloudRound);
+  Replace(&code, "$BAIN", kAcidCloudInName);
+  Replace(&code, "$BARD", kAcidCloudRoundName);
+  Replace(&code, "$BAOUT", kAcidCloudOutName);
+  Replace(&code, "$LIGHTTAG", kFireLightTag);
+  if (LogSlot()) {
+    Log("grenades: 0x%08X a bomb - the target's Dexterity save, DC %d, for half of 10d6; its cloud hurts anyone in it "
+        "(a Fire Bomb's gives light)", self, dc);
+  }
+  CreatingFireLight(true);  // a Fire Bomb's light (light_sources.cpp)
   Run(code, self, "bomb");
+  CreatingFireLight(false);
 }
 
 void CaltropsEnterScript(uint32_t self) {
@@ -315,6 +419,35 @@ void CaltropsEnterScript(uint32_t self) {
 }
 
 void CaltropsRoundScript(uint32_t) {}  // 4A: entering only - NWN's point each round is gone
+
+// 0.70.0: the clouds' scripts - a creature entering, or the round tick (everyone in it).
+void CloudScript(uint32_t self, const char* chunk, bool entering, int types, const char* what) {
+  std::string code = chunk;
+  const std::string kinds = std::to_string(types);
+  Replace(&code, "$FIRST", entering ? "GetEnteringObject()" : "GetFirstInPersistentObject(OBJECT_SELF, " + kinds + ")");
+  Replace(&code, "$NEXT", entering ? "OBJECT_INVALID" : "GetNextInPersistentObject(OBJECT_SELF, " + kinds + ")");
+  Replace(&code, "$LIGHTTAG", kFireLightTag);
+  Replace(&code, "$SLOWTAG", kAcidSlowTag);
+  if (LogSlot()) Log("grenades: 0x%08X %s - %s (anyone in it)", self, what, entering ? "a creature entering" : "its round");
+  Run(code, self, what);
+}
+
+constexpr int kCreatures = 1;              // OBJECT_TYPE_CREATURE
+constexpr int kCreaturesDoorsPlaceables = 1 | 8 | 64;  // NWN's Incendiary Cloud's round: creatures, doors, placeables
+
+void FireCloudIn(uint32_t self) { CloudScript(self, kFireCloud, true, kCreatures, "a Fire Bomb's cloud"); }
+void FireCloudRound(uint32_t self) {
+  CloudScript(self, kFireCloud, false, kCreaturesDoorsPlaceables, "a Fire Bomb's cloud");
+}
+void AcidCloudIn(uint32_t self) { CloudScript(self, kAcidCloudIn, true, kCreatures, "an Acid Bomb's cloud"); }
+void AcidCloudRound(uint32_t self) { CloudScript(self, kAcidCloudRound, false, kCreatures, "an Acid Bomb's cloud"); }
+void AcidCloudOut(uint32_t self) {
+  std::string code = kAcidCloudOut;
+  Replace(&code, "$SLOWTAG", kAcidSlowTag);
+  Run(code, self, "an Acid Bomb's cloud, leaving");
+}
+void ChokeIn(uint32_t self) { CloudScript(self, kChoke, true, kCreatures, "Choking Powder's cloud"); }
+void ChokeRound(uint32_t self) { CloudScript(self, kChoke, false, kCreatures, "Choking Powder's cloud"); }
 
 }  // namespace
 
@@ -361,6 +494,14 @@ void InstallGrenades() {
                                         &FirePatchRound) &&
                        AddScriptHandler(PatchScriptName(rules::Grenade::kHolyWater, "in").c_str(), &HolyPatchIn) &&
                        AddScriptHandler(PatchScriptName(rules::Grenade::kHolyWater, "rd").c_str(), &HolyPatchRound);
+  // 0.70.0: the bombs' clouds and Choking Powder's - anyone in them.
+  const bool clouds = AddScriptHandler(kFireCloudIn, &FireCloudIn) && AddScriptHandler(kFireCloudRound, &FireCloudRound) &&
+                      AddScriptHandler(kAcidCloudInName, &AcidCloudIn) &&
+                      AddScriptHandler(kAcidCloudRoundName, &AcidCloudRound) &&
+                      AddScriptHandler(kAcidCloudOutName, &AcidCloudOut) &&
+                      AddScriptHandler("x0_s3_chokeen", &ChokeIn) && AddScriptHandler("x0_s3_chokehb", &ChokeRound);
+  Log("grenades: every grenade hazard hurts anyone in it - the patches, Caltrops, the bombs' and Choking Powder's "
+      "clouds; fire gives light%s", clouds ? "" : " - the clouds NOT available (no script hook)");
   Log("grenades: flask patches, a house rule ([house_rules] flask_patches): %s%s",
       g_config.flask_patches ? "on - a flask thrown at the ground leaves a patch for 2 rounds" : "off",
       patches ? "" : " - NOT available (no script hook)");

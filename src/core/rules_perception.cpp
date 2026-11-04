@@ -91,7 +91,9 @@
 #include "feats.h"
 #include "hooks.h"
 #include "log.h"
+#include "grenades.h"
 #include "rules/class_features.h"
+#include "rules/grenades.h"
 #include "rules/skills.h"
 #include "skill_rank.h"
 
@@ -126,7 +128,13 @@ constexpr size_t kCreatureActivityBits = 0x8e0;   // uint32: bit 0 stealth (SetA
 constexpr size_t kCreatureActivitiesLeft = 0x8e4; // uint32: activities ActivityManager / SetActivity leave alone
 constexpr uint32_t kActivityStealth = 1;
 constexpr uint32_t kActivityForAttack = 4;        // ResolveAttack's ActivityManager(4)
+constexpr uint32_t kActivityForCast = 1;          // AIActionCastSpell's and AIActionItemCastSpell's ActivityManager(1)
 ActivityManagerFn g_activity_manager = nullptr;
+// #132: CNWSCreature::AIActionItemCastSpell (a grenade is a spell cast from an item) - a throw running now.
+using AIActionItemCastSpellFn = uint32_t (*)(void* creature, void* node);
+constexpr const char* kAIActionItemCastSpell = "?AIActionItemCastSpell@CNWSCreature@@QEAAIPEAVCNWSObjectActionNode@@@Z";
+AIActionItemCastSpellFn g_item_cast_spell = nullptr;
+thread_local bool t_grenade_throw = false;
 ResolveAttackFn g_resolve_attack = nullptr;
 std::unordered_set<uint32_t> g_hide_ends_after_attack;  // ids: a swing started from hiding, its roll to come
 
@@ -374,6 +382,22 @@ void SetStealthMode(void* creature, uint8_t mode) {
 // done - its roll (Advantage while the target can't see the hider: rules_advantage.cpp) and damage - the hide ends
 // by SetActivity(stealth, 0).
 void ActivityManager(void* creature, uint32_t action) {
+  // #132 (owner, 2026-11-04: "go with your recommendations" - A): a grenade thrown from hiding keeps the hide (2024:
+  // its target saves, no attack roll). The item cast's ActivityManager(1) turns the stealth activity off unless it is
+  // left alone (+0x8E4 bit 0, as above for an attack) - left alone for that call; the rest (combat modes) as NWN's.
+  if (creature && action == kActivityForCast && t_grenade_throw &&
+      rules::ThrowKeepsHiding(Hiding(creature), true, true) &&
+      (Field<uint32_t>(creature, kCreatureActivityBits) & kActivityStealth)) {
+    const uint32_t left = Field<uint32_t>(creature, kCreatureActivitiesLeft);
+    SetField<uint32_t>(creature, kCreatureActivitiesLeft, left | kActivityStealth);
+    g_activity_manager(creature, action);
+    SetField<uint32_t>(creature, kCreatureActivitiesLeft, left);
+    if (LogSlot()) {
+      Log("stealth: 0x%08X throws a grenade from hiding - still hidden (2024: a save, no attack roll; #132)%s",
+          IdOf(creature), Hiding(creature) ? "" : " - NOT hidden: the engine ended it anyway");
+    }
+    return;
+  }
   if (!creature || action != kActivityForAttack ||
       rules::WhenAttackEndsHide(Hiding(creature), true) != rules::HideAtAttack::kEndsAfterRoll ||
       !(Field<uint32_t>(creature, kCreatureActivityBits) & kActivityStealth)) {
@@ -385,6 +409,15 @@ void ActivityManager(void* creature, uint32_t action) {
   g_activity_manager(creature, action);
   SetField<uint32_t>(creature, kCreatureActivitiesLeft, left);
   g_hide_ends_after_attack.insert(IdOf(creature));
+}
+
+// #132: the item cast marks a grenade's throw for ActivityManager (above) while it runs.
+uint32_t AIActionItemCastSpell(void* creature, void* node) {
+  const bool outer = t_grenade_throw;
+  t_grenade_throw = GrenadesFaithful() && IsGrenadeCast(node);
+  const uint32_t result = g_item_cast_spell(creature, node);
+  t_grenade_throw = outer;
+  return result;
 }
 
 void ResolveAttack(void* creature, uint32_t target, int attacks, int animation) {
@@ -762,6 +795,9 @@ void InstallPerceptionRules() {
              reinterpret_cast<void*>(&ActivityManager), reinterpret_cast<void**>(&g_activity_manager));
   HookExport("CNWSCreature::ResolveAttack (an attack from hiding ends the hide after its roll)", kResolveAttack,
              reinterpret_cast<void*>(&ResolveAttack), reinterpret_cast<void**>(&g_resolve_attack));
+  // #132: a grenade thrown from hiding keeps the hide.
+  HookExport("CNWSCreature::AIActionItemCastSpell (a grenade thrown from hiding keeps the hide)", kAIActionItemCastSpell,
+             reinterpret_cast<void*>(&AIActionItemCastSpell), reinterpret_cast<void**>(&g_item_cast_spell));
   AddSkillAdjuster(&PerceptionSkill);
   AddDiceFilter(&StealthDice);
   Log("perception: Stealth once per hide, passive Perception unless searching, no size / combat / Favored Enemy "

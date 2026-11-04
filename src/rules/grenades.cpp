@@ -54,6 +54,8 @@ bool ThrowGoesNow(bool attacking_mid_round, bool grenade, bool faithful) {
   return faithful && grenade && attacking_mid_round;
 }
 
+bool ThrowKeepsHiding(bool hiding, bool grenade_throw, bool faithful) { return faithful && hiding && grenade_throw; }
+
 unsigned GrenadeDescription2024(unsigned game_strref, bool flask_patches) {
   if (flask_patches) {
     switch (game_strref) {

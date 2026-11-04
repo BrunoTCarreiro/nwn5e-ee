@@ -632,6 +632,30 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     *0.69.2:* the lookup is rules::FindScriptName (any registered name, case-blind; test ScriptNames, 4 of 4 mutations
     caught), and AddScriptHandler refuses a name its hook's lookup wouldn't find (logged "SKIP nwn5e's script ...").
     Hiding: it ended as each throw started (09:23:20, 09:23:49) - the engine's, no nwn5e line.
+  - *Decided (owner, 2026-11-04: "go with your recommendations"), after the 0.69.1 run:* every grenade hazard hurts
+    anyone in it, the thrower and its henchmen too - the flask patches (#130's 4B replaced), Caltrops' field, the bombs'
+    clouds, Choking Powder's cloud (henchmen keeping out of them: #131, later); an orange light where the fire burns,
+    the Fire Bomb's cloud and an Alchemist's Fire patch; a grenade thrown from hiding keeps the hide (#132 A).
+  - *Built 0.70.0 (with 0.69.2's fix):*
+    - grenade_gear.cpp: the patches and Caltrops (x0_s3_calen) hurt any creature. The bombs' clouds run nwn5e's own
+      scripts (EffectAreaOfEffect(AOE_PER_FOGFIRE / FOGACID, n5_bfire_in / _rd, n5_bacid_in / _rd / _out)): NWN's
+      Incendiary Cloud (4d6 Fire entering and each round - creatures, doors, placeables - Dexterity half on the
+      thrower's DC) and Acid Fog (entering, 4d6 Acid and a Constitution save or slowed while in it, tagged
+      n5_bacid_slow and removed on leaving; 2d6 Acid each round), to anyone, no spell resistance; the Acid Fog and
+      Incendiary Cloud spells keep NWN's scripts. Choking Powder's own x0_s3_chokeen / x0_s3_chokehb in C++: anyone, a
+      Constitution save or dazed 2 rounds (poison immunity as NWN's).
+    - Light: an invisible object (plc_invisobj, tag nwn5e_fire_light) with VFX_DUR_LIGHT_ORANGE_20 at the Fire Bomb's
+      cloud for 5 rounds, _10 at an Alchemist's Fire patch for 2. light_sources.cpp's LoadPlaceable hook (now also
+      with the grenades faithful) loads it as a normal placeable while CreatingFireLight is on - not static (a static
+      one a script creates never reaches the client), not clickable, plot. The hiding-in-light rule (stealth_watch.cpp)
+      counts VFX_DUR_LIGHT_* on placeables: bright within half its radius, dim within it.
+    - #132: rules::ThrowKeepsHiding; rules_perception.cpp hooks CNWSCreature::AIActionItemCastSpell (a grenade's throw
+      marked while it runs: IsGrenadeCast), and #129's ActivityManager hook leaves the stealth activity alone for its
+      ActivityManager(1) (+0x8E4 bit 0; the combat modes still turned off) - logged "throws a grenade from hiding -
+      still hidden".
+    - The descriptions: Caltrops, Choking Powder, the bombs and the patches say "anyone in it, you too"; the fire ones'
+      light.
+    - Test ThrowFromHiding (3 of 3 mutations caught).
 - *#130, house rules; flasks thrown at the ground leave a patch (the 2024 Oil flask's rule).* Asked (owner, 2026-11-04,
   after #124's brief): "Ok, I want to add a house rules section. For example we'll keep the faithful rules, the ones
   you added. But I also want acid flask, alchemist fire and holy water to work with oil flask rules where they create a
@@ -662,6 +686,8 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     - config: [house_rules] help (Help's, #56 - [rules] help_house_rule still read) and flask_patches; "config: house
       rules" in the log. The test switch flask_patches (0..1): `!test grenades` turns it on, ten of each flask.
     - Test FlaskPatches (11 of 11 mutations caught).
+  - *0.70.0 (owner, 2026-11-04: "go with your recommendations"; #124's 0.70.0 note):* the patches hurt anyone in them,
+    the thrower and its henchmen too (4B replaced); an Alchemist's Fire patch gives light while it burns.
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,
@@ -787,7 +813,7 @@ in-game text says "a house rule". A house rule works only with the faithful mode
 | Key | Issue | The rule | With |
 |---|---|---|---|
 | `help` (before 0.69.0 `[rules] help_house_rule`, still read) | #56 | Help on a downed henchman: a DC 10 Wisdom (Medicine) check gets it up at 1 HP | `actions` faithful |
-| `flask_patches` | #130 | Acid, Alchemist's Fire, Holy Water thrown at the ground leave a patch one creature wide for 2 rounds: the flask's dice to a creature entering it or ending its round there, no save, once a round; allies only above Normal difficulty | `grenades` faithful |
+| `flask_patches` | #130 | Acid, Alchemist's Fire, Holy Water thrown at the ground leave a patch one creature wide for 2 rounds: the flask's dice to anyone entering it or ending its round there (you too), no save, once a round; a fire one gives light | `grenades` faithful |
 
 ## Phase 3 — character model: decided by the owner (2026-10-19)
 
