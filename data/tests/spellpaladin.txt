@@ -3,12 +3,14 @@
 # is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
 #
 # Spell slots (issue 36, part 1): your first class becomes Paladin 2, Charisma 16. In 2024 a Paladin casts from
-# level 1 (NWN: 4), on Charisma (NWN: Wisdom) - two 1st-level slots at level 2.
-name = Spell slots (issue 36): human Paladin 2, Charisma 16 - two 1st-level slots, Charisma DC
+# level 1 (NWN: 4), on Charisma (NWN: Wisdom) - two 1st-level slots at level 2. NWN's 1st-level Paladin spells are
+# buffs (and Cure Light Wounds, a touch attack on undead, no save): the Charisma DC shows with #39's spells.
+name = Spell slots (issue 36): human Paladin 2, Wisdom 10, Charisma 16 - two 1st-level slots
 species = human
 swap_class = paladin
 class = paladin
 level = 2
 abilities = 16 10 14 8 10 16
 items = nw_wswls001 equip
-note = two 1st-level slots; any Paladin 1st-level spell; its save DC is 8 + Charisma + PB
+note = two 1st-level slots, any Paladin 1st-level spell from them (Wisdom 10: no 3e minimum score)
+note = e.g. Bless, then Divine Favor; a third 1st-level spell is refused until you rest

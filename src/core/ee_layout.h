@@ -1267,6 +1267,11 @@ constexpr size_t kCreatureAssociateType = 0x908;      // uint16: 1 henchman, 2 c
 constexpr size_t kStatsChallengeRating = 0xd0;        // float
 constexpr size_t kStatsClassCount = 0xd8;             // uint8, at most 8 (GetClass / GetClassLevel bounds)
 constexpr int kMaxClassSlots = 8;                     // class block +0xE0, 0x188 each, next field at +0xD20
+constexpr size_t kStatsClassInfo = 0xe0;              // CNWSCreatureStats_ClassInfo x 8 (SetMemorizedSpellInSlotReady)
+constexpr size_t kClassInfoSize = 0x188;
+constexpr size_t kClassInfoSpellsLeft = 0x168;        // uint8 x 10: a spontaneous caster's uses left per spell level
+                                                      // (DecrementSpellsPerDayLeft; UnReadySpell +0x317 inline)
+constexpr size_t kClassInfoClass = 0x17c;             // uint8 classes.2da row (GetClass: stats + slot x 0x188 + 0x25C)
 constexpr size_t kStatsRace = 0xd20;                  // uint16 racialtypes row (GetAttackModifierVersus +0x1448)
 constexpr size_t kObjectPositionX = 0xa4;             // float x, y, z at +0xa4 / +0xa8 / +0xac (SetPosition)
 constexpr size_t kObjectPositionY = 0xa8;

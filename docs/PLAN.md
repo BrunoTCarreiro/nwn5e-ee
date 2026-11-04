@@ -174,6 +174,13 @@ monster AC by CR.
     spontaneous cures). rules_spell_slots.cpp hooks GetSpellGainWithBonus (rules::SpellGain2024 for a caster class's
     slot: no 3e bonus spells, domain slot or prestige caster levels), GetSpellMinAbilityMet (no 3e minimum score),
     DecrementSpellsPerDayLeft and SetMemorizedSpellInSlotReady (cantrips at will).
+  - *0.74.1 (owner, 2026-11-04: "SL-3 cantrips run out / SL-4 paladin has no spell I can cast at an enemy"):* a cast
+    spends in CNWSCreatureStats::UnReadySpell, which decrements a spontaneous caster's per-level byte inline (ClassInfo
+    +0x168) and unreadies a memorised spell through the ClassInfo's SetMemorizedSpellInSlotReady - neither hooked in
+    0.74.0. Now UnReadySpell is hooked (a cantrip's use put back) and the ClassInfo's SetMemorizedSpellInSlotReady
+    (a memorised cantrip stays ready); the slot log is player characters only, once per value (NPCs at module load
+    had used it up). SL-4: NWN's 1st-level Paladin spells are buffs and Cure Light Wounds (a touch attack on undead,
+    no save), so the Paladin's Charisma DC shows with #39's spells; the row checks the slots instead.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
