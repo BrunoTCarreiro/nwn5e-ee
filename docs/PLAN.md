@@ -395,7 +395,9 @@ the movement extras (#55); then the staple actions (#56, a decision first).
 - *The owner's 0.64.0 run (2026-11-03):* the log: ST-3 - Disengage, Dodge, Dash placed on the quickbar; ST-1 - Dodge
   from the radial (slot 0, over Parry), then an attack on the character "disadvantage ... Dodge"; ST-2 - Dash. HE-1 and
   HE-2 (Help, the house rule) untested: "very hard to test, I'll assume they work". The owner also asked for the
-  radial's reorganization, later: #126.
+  radial's reorganization, later: #126 (owner, 2026-11-04: "Same for 126 as we need to have all actions done and
+  ready before we reorganize it" - near the end, with #125: "125 is non essential, something to review once we're
+  almost done").
 *Accepted (owner, 2026-11-03: "HE-1 and 2 are very hard to test, I'll assume they work").* The staple actions (#56),
 0.64.0 - Dodge and Dash for everyone, Help as an off-by-default house rule. Phase 6 left: Action Surge / Thief's
 Reflexes (#53), the movement extras (#55), grenades (#124), the later staple actions (#125).
@@ -770,7 +772,8 @@ close, then attacked).
   - *The owner's 0.73.1 run:* HZ-1 (the ally orc, 4 -> 50 hit points, stepped out of the Fire Bomb's cloud), HZ-2 (a
     hostile orc stepped out, twice), HZ-3 (a skeleton stayed), HZ-4 (a greataxe orc held its attack on the player
     character standing in Caltrops three times, and stepped out of the cloud and the field), HZ-6 (the ally stepped out
-    of Caltrops); another creature in the room held its attack on the orc in the cloud. Henchmen's toughness: #134.
+    of Caltrops); another creature in the room held its attack on the orc in the cloud. Henchmen's toughness: #134, dropped (owner,
+    2026-11-04: "134 was just for testing" - the test henchman's 4 hit points; 0.73.1's floor).
 *Accepted (owner, 2026-11-04: "I think the HZ matrix is good").* #131.
 
 ### Phase 7 — Interface
