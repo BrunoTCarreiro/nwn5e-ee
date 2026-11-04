@@ -33,6 +33,7 @@
 
 #include "config.h"
 #include "creature.h"
+#include "data_serving.h"
 #include "ee_layout.h"
 #include "effects.h"
 #include "engine.h"
@@ -342,6 +343,8 @@ void InstallGrenades() {
     Log("grenades: NWN's (a touch attack and splash; key grenades)");
     return;
   }
+  // 0.69.1: the aiming circles as the 2024 areas (data/rows/spells.if_grenades2024.txt) - NWN's were its splash.
+  ServeConditionalRows("grenades2024");
   const bool scripts = AddScriptHandler("x0_s3_acid", &AcidScript) &&
                        AddScriptHandler("x0_s3_alchem", &AlchemistsFireScript) &&
                        AddScriptHandler("x0_s3_holy", &HolyWaterScript) && AddScriptHandler("x2_s3_bomb", &BombScript) &&

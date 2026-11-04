@@ -1,0 +1,15 @@
+# spells.2da - the grenades as 2024 gear (#124, #130): their aiming circles, served with the grenades faithful
+# (core/grenade_gear.cpp asks for "grenades2024"). The game's are NWN's splash, 6.67 m for every flask and bomb
+# (owner, 2026-11-04: "the preview area for the bombs and flasks are the same and they are huge").
+# - Acid, Alchemist's Fire, Holy Water: one creature (2024) - no circle on a creature (TargetFlags 32, EE's "suppress
+#   with target", as Dispel Magic's 35); at the ground a circle one creature wide (0.83 m: #130's patch).
+# - Tanglefoot Bag: one creature, never the ground - no circle.
+# - The bombs: the 5-round cloud's 5 m (Acid Fog's and Incendiary Cloud's areas), on a creature too.
+# Choking Powder (6.67), Thunderstone (3.33) and Caltrops (5) keep the game's: their areas are NWN's.
+TargetShape TargetSizeX TargetFlags
+464 sphere 0.83 35
+465 **** **** ****
+466 sphere 0.83 35
+469 sphere 0.83 35
+744 sphere 5 3
+745 sphere 5 3

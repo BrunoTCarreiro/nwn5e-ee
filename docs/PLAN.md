@@ -616,6 +616,12 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     - The descriptions in faithful mode: nwn5e's strings 16000555-16000563 for dialog.tlk's 2989-2997 and 84353-84354
       (rules::GrenadeDescription2024, rules_labels.cpp's swap).
     - Tests GrenadeSpells, GrenadeRules, GrenadeDescriptions (17 of 17 mutations caught).
+  - *The owner's 0.69.0 run (2026-11-04):* "the preview area for the bombs and flasks are the same and they are huge" -
+    spells.2da's aiming circle (EE's TargetShape / TargetSizeX / TargetFlags) is NWN's splash, 6.67 m for every flask
+    and both bombs. *0.69.1:* data/rows/spells.if_grenades2024.txt, served with the grenades faithful
+    (ServeConditionalRows "grenades2024"): Acid, Alchemist's Fire, Holy Water no circle on a creature (TargetFlags 35:
+    EE's 32, "suppress with target", as Dispel Magic's) and one creature wide at the ground (0.83 m, #130's patch);
+    Tanglefoot Bag none; the bombs 5 m (their cloud); Choking Powder, Thunderstone and Caltrops the game's.
 - *#130, house rules; flasks thrown at the ground leave a patch (the 2024 Oil flask's rule).* Asked (owner, 2026-11-04,
   after #124's brief): "Ok, I want to add a house rules section. For example we'll keep the faithful rules, the ones
   you added. But I also want acid flask, alchemist fire and holy water to work with oil flask rules where they create a
