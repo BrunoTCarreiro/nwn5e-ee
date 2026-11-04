@@ -35,6 +35,9 @@
 //   light_sources.cpp's BlastPutsOutLights). The Thunderstone's x0_s3_thunder runs in C++ for it, as NWN's: every
 //   creature within 3.33 m that isn't the thrower's friend, a Constitution save on the thrower's DC or deafened 5
 //   rounds.
+// - 0.71.1: Alchemist's Fire on a weapon makes it a light too; a hazard hurts its thrower and the thrower's friends but
+//   doesn't signal them as attacked (its own cloud started the thrower's combat - an Initiative roll - in the owner's
+//   0.71.0 run).
 // The scripts run in C++ (script_hooks.cpp: RunScript by name); their NWScript is a chunk wrapped in main - no
 // include: the hostility test is GetIsReactionTypeFriendly's, as NWN's Thunderstone's own.
 
@@ -110,7 +113,9 @@ ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectLinkEffects(EffectDamage($DICE,
 $AFTER
 )nss";
 
-// Alchemist's Fire on an item: NWN's coating of a melee weapon (1d4+1 fire a hit, 4 rounds).
+// Alchemist's Fire on an item: NWN's coating of a melee weapon (1d4+1 fire a hit, 4 rounds). 0.71.1 (owner,
+// 2026-11-04: "alchemist's fire on a weapon should also make it a light source"): and an orange light while it burns
+// (ItemPropertyLight, low: 10 m - the wielder's light effect, which the hiding-in-light rule counts as carried).
 const char* const kCoating = R"nss(
 if (k == OBJECT_TYPE_ITEM) {
   if (!GetWeaponRanged(t) && StringToInt(Get2DAString("baseitems", "WeaponType", GetBaseItemType(t))) > 0) {
@@ -118,6 +123,8 @@ if (k == OBJECT_TYPE_ITEM) {
     ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_PULSE_FIRE), GetItemPossessor(t));
     AddItemProperty(DURATION_TYPE_TEMPORARY, ItemPropertyOnHitCastSpell(124, 1), t, RoundsToSeconds(4));
     AddItemProperty(DURATION_TYPE_TEMPORARY, ItemPropertyVisualEffect(ITEM_VISUAL_FIRE), t, RoundsToSeconds(4));
+    AddItemProperty(DURATION_TYPE_TEMPORARY, ItemPropertyLight(IP_CONST_LIGHTBRIGHTNESS_LOW, IP_CONST_LIGHTCOLOR_ORANGE),
+                    t, RoundsToSeconds(4));
   } else {
     FloatingTextStrRefOnCreature(100944, OBJECT_SELF);
   }
@@ -180,7 +187,7 @@ object c = GetAreaOfEffectCreator(); int dc = GetSpellSaveDC();
 object t = $FIRST;
 while (GetIsObjectValid(t)) {
   if (!GetIsDead(t) && GetTag(t) != "$LIGHTTAG") {
-    SignalEvent(t, EventSpellCastAt(c, 744));
+    if (!GetIsReactionTypeFriendly(t, c)) SignalEvent(t, EventSpellCastAt(c, 744));
     int n = GetReflexAdjustedDamage(d6(4), t, dc, SAVING_THROW_TYPE_FIRE, c);
     if (n > 0) ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectLinkEffects(EffectDamage(n, DAMAGE_TYPE_FIRE), EffectVisualEffect(VFX_IMP_FLAME_S)), t);
   }
@@ -194,7 +201,7 @@ while (GetIsObjectValid(t)) {
 const char* const kAcidCloudIn = R"nss(
 object c = GetAreaOfEffectCreator(); object t = GetEnteringObject();
 if (!GetIsObjectValid(t) || GetIsDead(t)) return;
-SignalEvent(t, EventSpellCastAt(c, 745));
+if (!GetIsReactionTypeFriendly(t, c)) SignalEvent(t, EventSpellCastAt(c, 745));
 if (FortitudeSave(t, GetSpellSaveDC(), SAVING_THROW_TYPE_ACID, c) == 0) {
   ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(EffectMovementSpeedDecrease(50), "$SLOWTAG"), t);
 }
@@ -206,7 +213,7 @@ object c = GetAreaOfEffectCreator();
 object t = GetFirstInPersistentObject(OBJECT_SELF, OBJECT_TYPE_CREATURE);
 while (GetIsObjectValid(t)) {
   if (!GetIsDead(t)) {
-    SignalEvent(t, EventSpellCastAt(c, 745));
+    if (!GetIsReactionTypeFriendly(t, c)) SignalEvent(t, EventSpellCastAt(c, 745));
     ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectLinkEffects(EffectDamage(d6(2), DAMAGE_TYPE_ACID), EffectVisualEffect(VFX_IMP_ACID_S)), t);
   }
   t = GetNextInPersistentObject(OBJECT_SELF, OBJECT_TYPE_CREATURE);
@@ -230,7 +237,7 @@ object c = GetAreaOfEffectCreator(); int dc = GetSpellSaveDC();
 object t = $FIRST;
 while (GetIsObjectValid(t)) {
   if (!GetIsDead(t)) {
-    SignalEvent(t, EventSpellCastAt(c, 467));
+    if (!GetIsReactionTypeFriendly(t, c)) SignalEvent(t, EventSpellCastAt(c, 467));
     if (FortitudeSave(t, dc, SAVING_THROW_TYPE_POISON, c) == 0 && !GetIsImmune(t, IMMUNITY_TYPE_POISON)) {
       effect eDaze = EffectLinkEffects(EffectLinkEffects(EffectVisualEffect(VFX_DUR_MIND_AFFECTING_DISABLED), EffectDazed()),
                                        EffectVisualEffect(VFX_DUR_CESSATE_NEGATIVE));
@@ -267,7 +274,7 @@ while (GetIsObjectValid(t)) {
 const char* const kCaltropsEnter = R"nss(
 object t = GetEnteringObject(); object c = GetAreaOfEffectCreator();
 if (GetObjectType(t) != OBJECT_TYPE_CREATURE || GetIsDead(t)) return;
-SignalEvent(t, EventSpellCastAt(c, 471));
+if (!GetIsReactionTypeFriendly(t, c)) SignalEvent(t, EventSpellCastAt(c, 471));
 if (ReflexSave(t, $DC, SAVING_THROW_TYPE_NONE, c)) return;
 ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectLinkEffects(EffectDamage($DAMAGE, DAMAGE_TYPE_PIERCING),
                     EffectVisualEffect(VFX_IMP_SPIKE_TRAP)), t);
@@ -295,7 +302,7 @@ while (GetIsObjectValid(t)) {
   if (hurt) {
     SetLocalInt(t, key, 1);
     AssignCommand(t, DelayCommand($LOCK, DeleteLocalInt(t, key)));
-    SignalEvent(t, EventSpellCastAt(c, $SPELL));
+    if (!GetIsReactionTypeFriendly(t, c)) SignalEvent(t, EventSpellCastAt(c, $SPELL));
     ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectLinkEffects(EffectDamage($DICE, $TYPE), EffectVisualEffect($VIS)), t);
   }
   t = $NEXT;

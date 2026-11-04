@@ -74,6 +74,7 @@
 #include <intrin.h>
 
 #include <algorithm>
+#include <chrono>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -135,6 +136,7 @@ using AIActionItemCastSpellFn = uint32_t (*)(void* creature, void* node);
 constexpr const char* kAIActionItemCastSpell = "?AIActionItemCastSpell@CNWSCreature@@QEAAIPEAVCNWSObjectActionNode@@@Z";
 AIActionItemCastSpellFn g_item_cast_spell = nullptr;
 thread_local bool t_grenade_throw = false;
+std::unordered_map<uint32_t, int64_t> g_throw_logged;  // id -> ms: ActivityManager(1) comes each tick of a cast (0.71.1)
 ResolveAttackFn g_resolve_attack = nullptr;
 std::unordered_set<uint32_t> g_hide_ends_after_attack;  // ids: a swing started from hiding, its roll to come
 
@@ -392,7 +394,12 @@ void ActivityManager(void* creature, uint32_t action) {
     SetField<uint32_t>(creature, kCreatureActivitiesLeft, left | kActivityStealth);
     g_activity_manager(creature, action);
     SetField<uint32_t>(creature, kCreatureActivitiesLeft, left);
-    if (LogSlot()) {
+    // Once a throw (the call comes each tick while the cast runs): 3 s apart per thrower.
+    const int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now().time_since_epoch()).count();
+    int64_t& last = g_throw_logged[IdOf(creature)];
+    if (now - last > 3000 && LogSlot()) {
+      last = now;
       Log("stealth: 0x%08X throws a grenade from hiding - still hidden (2024: a save, no attack roll; #132)%s",
           IdOf(creature), Hiding(creature) ? "" : " - NOT hidden: the engine ended it anyway");
     }

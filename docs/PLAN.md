@@ -665,6 +665,17 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     blast puts out N lights" to the thrower; with light_sources on only. The Thunderstone's x0_s3_thunder in C++ for
     it (NWN's: non-friends within 3.33 m, a Constitution save on the thrower's DC or deafened 5 rounds). Test
     GrenadeBlasts (4 of 4 mutations caught).
+  - *The owner's 0.71.0 run (2026-11-04: "alchemist's fire on a weapon should also make it a light source. check the
+    logs"):* the Acid Bomb's and the Thunderstone's blasts put out 2 candelabras each (relit by Use); the Acid Bomb's
+    fog on the thrower walking in - Constitution save 16 vs DC 14, 19 Acid entering, 4 its round; the Fire Bomb thrown
+    from hiding ("still hidden"), its light read by the hiding rule (darkness -> dim -> in light walking up, darkness
+    again as the cloud ended), its cloud Dexterity 18 vs 14, 7 Fire; an Acid Flask at the ground left its patch; at a
+    spawned orc its Dexterity save (19 vs 14), the thrower still hidden while the orc searched; Alchemist's Fire on
+    the longsword: 5 and 2 Fire on hits. Found: #132's log line came every tick of the cast (ActivityManager(1) each
+    AI update - 300+ lines, the stealth log's budget); the thrower's own cloud signalled it as attacked (an Initiative
+    roll). *0.71.1:* the coating adds ItemPropertyLight (low, orange: 10 m) for its 4 rounds - the wielder's light
+    effect, counted as carried by the hiding rule; #132's line once a throw (3 s per thrower); a hazard (patch, cloud,
+    Caltrops) signals only creatures not friendly to its thrower - the thrower and its friends still take its damage.
 - *#130, house rules; flasks thrown at the ground leave a patch (the 2024 Oil flask's rule).* Asked (owner, 2026-11-04,
   after #124's brief): "Ok, I want to add a house rules section. For example we'll keep the faithful rules, the ones
   you added. But I also want acid flask, alchemist fire and holy water to work with oil flask rules where they create a
