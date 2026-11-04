@@ -767,6 +767,11 @@ close, then attacked).
     was ordered each round ("steps out of 0x...") but a downed henchman can't move. *0.73.1:* the floor for a !spawn
     ally too; a downed henchman isn't told to step out. Henchmen's toughness against the party's area damage: its own
     issue (later).
+  - *The owner's 0.73.1 run:* HZ-1 (the ally orc, 4 -> 50 hit points, stepped out of the Fire Bomb's cloud), HZ-2 (a
+    hostile orc stepped out, twice), HZ-3 (a skeleton stayed), HZ-4 (a greataxe orc held its attack on the player
+    character standing in Caltrops three times, and stepped out of the cloud and the field), HZ-6 (the ally stepped out
+    of Caltrops); another creature in the room held its attack on the orc in the cloud. Henchmen's toughness: #134.
+*Accepted (owner, 2026-11-04: "I think the HZ matrix is good").* #131.
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,
