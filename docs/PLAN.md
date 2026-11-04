@@ -201,6 +201,28 @@ monster AC by CR.
     scroll learning to memorising, so research and risk). Recommended B: Part 3 is the fix, and Part 2's upcasting is
     built once, on every caster casting from shared slots (a memorised NWN slot holds one spell).
   - *Decided (owner, 2026-11-04: "go with B"):* Part 3 (the Prepare spells window) next, then Part 2.
+  - *Part 3 brief (2026-11-04; research: the engine and the window).* The engine's known list per class slot is
+    saved with the character (SaveClassInfo "KnownList"; ReadSpellsFromGff) and is what the radial and spellbook
+    show; CNWSCreatureStats::AddKnownSpell caps a player's list by CNWClass::GetSpellsKnownPerLevel (exported, server
+    and client) unless the class has LearnScroll - also on load. The server checks no spells at level-up
+    (ValidateLevelUp); ValidateCharacter counts them only with Enforce Legal Characters on. LearnScroll checks the
+    class's LearnScroll, not MemorizesSpells. A player character's locals are saved in savegames only, not in an
+    exported .bic (SaveServerCharacter -> SaveCreature); an item's locals are in both. NWN's spell-pick page shows
+    for SpellbookRestricted classes unless SkipSpellSelection (client only). Questions:
+    1 what the radial shows - A the prepared spells and cantrips only (the known list; every 2024 caster
+    MemorizesSpells 0, SpellbookRestricted 1; GetSpellsKnownPerLevel answers 2024's counts; a Wizard's whole
+    spellbook on an undroppable Spellbook item, scrolls learned into it), B every spell, the unprepared greyed and
+    refused; 2 where spells are chosen at creation and level-up - A a Spells page in NWN's own screens (Route A,
+    CHARGEN.md 9) changed to 2024's counts for every caster, the in-game window for the Long Rest changes only, B the
+    in-game window for everything; 3 when a Long Rest change is allowed - A the window opens after a Long Rest and a
+    radial entry reopens it until the first cast, B only when the rest ends. Recommended A, A, A.
+  - *Decided (owner, 2026-11-04: "go with your recommendations. But for 3, can you make the window show up for wizard
+    characters while they are resting? Here they can change their memorized spells but the button to accept the
+    memorized spells only becomes enabled once the full rest completes?"):* 1A, 2A, 3A, and the window opens when
+    the rest starts: the list can be changed while resting, its accept button enabled once the rest completes (an
+    interrupted rest changes nothing); after it, the radial entry reopens it until the first cast. For every class
+    that changes its list after a Long Rest (Wizard, Cleric, Druid; Paladin and Ranger one spell) - the owner
+    named the Wizard; the rule is the same for the others (assumption noted to the owner).
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
