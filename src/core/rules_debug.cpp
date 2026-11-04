@@ -4,7 +4,12 @@
 //   attacks a creature that is not a character, its current hit points are
 //   multiplied and raised to the minimum, once per creature, so weak monsters
 //   survive several hits. Remembered per creature object in memory, so a
-//   creature loaded again (a new object) is boosted again.
+//   creature loaded again (a new object) is boosted again. 0.72.1 (owner,
+//   2026-11-04: "somehow while testing HS-1 the orc does immediately from one
+//   acid flask" - a grenade makes no attack roll, and the orc's 4 hit points
+//   went at its first failed save): also before a creature's save against a
+//   character (a grenade, a bomb's cloud, a spell), and as !spawn makes a
+//   hostile one (a flask's patch has neither).
 // - attack_trace: each player character's attack roll with its round's
 //   attack counts, d20, modifier and result.
 //
@@ -30,15 +35,14 @@ std::mutex g_boosted_lock;
 int g_trace_lines = 0;
 constexpr int kTraceLimit = 400;
 
-void BoostTestTarget(AttackRoll& roll) {
+bool BoostWanted() { return g_config.debug_creature_hp_multiplier > 1 || g_config.debug_creature_min_hp > 0; }
+
+// `target` (a creature, not a character) boosted once: its hit points multiplied and raised to the minimum.
+void Boost(void* target) {
   const int multiplier = g_config.debug_creature_hp_multiplier > 1 ? g_config.debug_creature_hp_multiplier : 1;
   const int minimum = g_config.debug_creature_min_hp;
-  if (multiplier <= 1 && minimum <= 0) return;
-  void* target = CreatureById(Field<uint32_t>(roll.target, ee::kObjectId));
-  void* attacker_stats = StatsOf(roll.attacker);
-  void* target_stats = StatsOf(target);
-  if (!attacker_stats || !target_stats) return;
-  if (!ReadCreatureFacts(attacker_stats).character || ReadCreatureFacts(target_stats).character) return;
+  void* target_stats = target ? StatsOf(target) : nullptr;
+  if (!target_stats || ReadCreatureFacts(target_stats).character) return;
   const uint32_t target_id = Field<uint32_t>(target, ee::kObjectId);
   {
     std::lock_guard<std::mutex> lock(g_boosted_lock);
@@ -53,6 +57,13 @@ void BoostTestTarget(AttackRoll& roll) {
   SetField<int32_t>(target, ee::kObjectCurrentHitPoints, new_hit_points);  // as EE's SetCurrentHitPoints writes it
   Log("debug: creature 0x%08X hit points %d -> %d (creature_hp_multiplier=%d, creature_min_hp=%d)", target_id,
       hit_points, new_hit_points, multiplier, minimum);
+}
+
+void BoostTestTarget(AttackRoll& roll) {
+  if (!BoostWanted()) return;
+  void* attacker_stats = StatsOf(roll.attacker);
+  if (!attacker_stats || !ReadCreatureFacts(attacker_stats).character) return;
+  Boost(CreatureById(Field<uint32_t>(roll.target, ee::kObjectId)));
 }
 
 void TraceAttackRoll(AttackRoll& roll) {
@@ -72,6 +83,20 @@ void TraceAttackRoll(AttackRoll& roll) {
 }
 
 }  // namespace
+
+// 0.72.1: before a creature's save against a character (rules_save_roll.cpp), and as !spawn makes a hostile one
+// (test_commands.cpp).
+void BoostTestCreatureForSave(void* creature, uint32_t versus) {
+  if (!BoostWanted() || !creature) return;
+  void* source = CreatureById(versus);
+  void* source_stats = source ? StatsOf(source) : nullptr;
+  if (!source_stats || !ReadCreatureFacts(source_stats).character) return;
+  Boost(creature);
+}
+
+void BoostTestCreatureById(uint32_t id) {
+  if (BoostWanted()) Boost(CreatureById(id));
+}
 
 void InstallDebugSwitches() {
   if (g_config.debug_creature_hp_multiplier > 1 || g_config.debug_creature_min_hp > 0 ||

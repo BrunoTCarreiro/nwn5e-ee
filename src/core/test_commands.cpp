@@ -123,6 +123,8 @@ void EndRageOnRebuild(void* creature);                            // rules_barba
 bool SkillTotal2024(void* creature, int nwn_skill, int* total, int* ability_modifier,
                     bool* rage_strength);                         // rules_skills.cpp (#96)
 
+void BoostTestCreatureById(uint32_t id);  // rules_debug.cpp (0.72.1: the test hit point floor at !spawn)
+
 namespace {
 
 bool IsResRef(const std::string& text) {
@@ -194,13 +196,19 @@ std::vector<std::string> SpawnCommand(void* creature, const std::string& args) {
             "DAMAGE_POWER_PLUS_FIVE)), o); ";
   }
   const std::string code =
+      "DeleteLocalString(OBJECT_SELF, \"nwn5e_spawned\"); "
       "float f = GetFacing(OBJECT_SELF); vector p = GetPosition(OBJECT_SELF) + AngleToVector(f) * 5.0; "
       "object o = CreateObject(OBJECT_TYPE_CREATURE, \"" + blueprint + "\", Location(GetArea(OBJECT_SELF), p, f + 180.0)); "
-      "if (GetIsObjectValid(o)) { " + join + "SendMessageToPC(OBJECT_SELF, \"nwn5e: spawned \" + GetName(o) + \"" +
+      "if (GetIsObjectValid(o)) { SetLocalString(OBJECT_SELF, \"nwn5e_spawned\", ObjectToString(o)); " + join +
+      "SendMessageToPC(OBJECT_SELF, \"nwn5e: spawned \" + GetName(o) + \"" +
       (ally ? " (your henchman)" : " (hostile)") + (reduction ? ", damage reduction 10/+5" : "") +
       ".\"); } else SendMessageToPC(OBJECT_SELF, \"nwn5e: no creature blueprint \\\"" + blueprint + "\\\".\");";
   RunScriptChunk(code.c_str(), id);
   Log("spawn: 0x%08X asked for %s%s%s", id, blueprint.c_str(), ally ? " (ally)" : "", reduction ? " (DR 10/+5)" : "");
+  // 0.72.1: a hostile one gets the test hit point floor at once ([debug] creature_min_hp) - a grenade's patch makes
+  // neither an attack roll nor a save.
+  const std::string spawned = engine::GetLocalString(creature, "nwn5e_spawned");
+  if (!ally && !spawned.empty()) BoostTestCreatureById(static_cast<uint32_t>(strtoul(spawned.c_str(), nullptr, 16)));
   return {};
 }
 
