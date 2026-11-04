@@ -1,0 +1,5 @@
+# feat.2da - #36 Part 3a (core/prepare_spells.cpp): Prepare Spells, on a 2024 caster's radial (nwn5e grants it
+# with spellcasting faithful; the cls_feat_*.if_spells2024 rows put it on the radial): opens the Prepare spells
+# window. Unlimited uses, instant; its spell row (spells.prepare.txt) runs n5_prepspl.
+LABEL FEAT DESCRIPTION ICON GAINMULTIPLE EFFECTSSTACK ALLCLASSESCANUSE CATEGORY MAXCR SPELLID CRValue USESPERDAY TARGETSELF Constant TOOLSCATEGORIES PreReqEpic ReqAction
+1547 NWN5E_PREPARE_SPELLS 16000567 16000568 ife_X2ScribScrl 0 0 0 7 1 1049 0.5 **** 1 FEAT_NWN5E_PREPARE_SPELLS 6 0 0

@@ -66,6 +66,7 @@ void InstallRoundSwings();  // #53 (0.66.2): one swing per attack
 void InstallGrenades();     // #124 (0.68.0): grenades as 2024 gear
 void InstallHazardWatch();  // #131 (0.73.0): living creatures keep out of hazards
 void InstallSpellSlots();   // #36 (0.74.0): the 2024 spell slots
+void InstallPrepareSpells();  // #36 Part 3a (0.75.0): the Prepare spells window
 void InstallBarbarianStrikes();
 void InstallRestRules();
 void InstallDyingRules();
@@ -100,7 +101,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.74.2";
+constexpr const char* kVersion = "0.75.0";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -167,6 +168,7 @@ void Start(HMODULE self) {
   InstallGrenades();       // #124 (0.68.0): grenades as 2024 gear
   InstallHazardWatch();    // #131 (0.73.0): living creatures keep out of hazards
   InstallSpellSlots();     // #36 (0.74.0): the 2024 spell slots
+  InstallPrepareSpells();  // #36 Part 3a (0.75.0): the Prepare spells window
   InstallResourcePanel();  // after the class rules: they give its pools
   InstallHudClock();       // #105: the game time over the compass
   InstallRestRules();

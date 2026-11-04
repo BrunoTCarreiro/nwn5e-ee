@@ -903,6 +903,23 @@ constexpr uint16_t kFeedbackNoSpellUses = 0x16;
 // static CExoString CExoString::ToString(int) - their first ToString call after it.
 constexpr const char* kClientSpellUsesLeftPattern = "41 0F B6 F1 41 0F B6 F8 8B EA 4C 8B F1 44 3A 41 69 0F 83";
 constexpr const char* kExoStringToString = "?ToString@CExoString@@SA?AV1@H@Z";
+// #36 Part 3: uchar CNWClass::GetSpellsKnownPerLevel(class level, spell level, class row, race, ability) - the
+// cap on a restricted class's known list without LearnScroll: AddKnownSpell for a player (stats +0xB0) refuses past
+// it (ComputeNumberKnownSpellsLeft 0x3F22C0), also while ReadSpellsFromGff loads a saved list (0x40F550);
+// ValidateCharacter (Enforce Legal Characters), LevelUpAutomatic and the client's pages ask it too.
+constexpr const char* kGetSpellsKnownPerLevel = "?GetSpellsKnownPerLevel@CNWClass@@QEAAEEEEGE@Z";
+constexpr const char* kReadSpellsFromGff = "?ReadSpellsFromGff@CNWSCreatureStats@@QEAAXPEAVCResGFF@@PEAVCResStruct@@H@Z";
+// A class slot's known list by spell level (CNWSCreatureStats_ClassInfo, ClassInfo at stats +0xE0 + slot x 0x188):
+// add / remove (no cap - the Stats versions cap a player's), the index-th, the count.
+constexpr const char* kClassInfoAddKnownSpell = "?AddKnownSpell@CNWSCreatureStats_ClassInfo@@QEAAXEI@Z";
+constexpr const char* kClassInfoRemoveKnownSpell = "?RemoveKnownSpell@CNWSCreatureStats_ClassInfo@@QEAAXEI@Z";
+constexpr const char* kClassInfoGetKnownSpell = "?GetKnownSpell@CNWSCreatureStats_ClassInfo@@QEAAIEE@Z";
+constexpr const char* kClassInfoGetNumberKnownSpells = "?GetNumberKnownSpells@CNWSCreatureStats_ClassInfo@@QEAAGE@Z";
+// CExoString CNWSpell::GetSpellNameText() (the hidden return pointer after this; freed with kExoStringDestructor).
+constexpr const char* kSpellGetNameText = "?GetSpellNameText@CNWSpell@@QEAA?AVCExoString@@XZ";
+// int CNWSCreature::LearnScroll(uint item): a class with LearnScroll (the Wizard) adds the scroll's spell to its
+// known list through the Stats AddKnownSpell (0x396F09) and uses the scroll up.
+constexpr const char* kCreatureLearnScroll = "?LearnScroll@CNWSCreature@@QEAAHI@Z";
 // void CNWSCreature::ResolveInitiative(): one RollDice(1, 20) (+0x43), then
 // GetDEXMod(0) and the feat keys EPIC_SUPERIOR / IMPROVED / BLOODED / THUG
 // _INITIATIVE_BONUS, each read only here.

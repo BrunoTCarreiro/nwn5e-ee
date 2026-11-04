@@ -223,6 +223,30 @@ monster AC by CR.
     interrupted rest changes nothing); after it, the radial entry reopens it until the first cast. For every class
     that changes its list after a Long Rest (Wizard, Cleric, Druid; Paladin and Ranger one spell) - the owner
     named the Wizard; the rule is the same for the others (assumption noted to the owner).
+  - *The plan:* 3a the engine's lists, the Wizard's Spellbook item and the Prepare spells window (rest-time,
+    radial; until 3b it also fills the places a new character or a level-up opens); 3b the Spells page in the
+    creation and level-up screens (the level-up's swaps: Bard and Sorcerer one spell, a cantrip). Research for 3a
+    found that NWN keeps no known list for a Cleric, Druid, Paladin or Ranger, so every blueprint caster of those
+    would cast nothing: creatures that aren't player characters (henchmen too) know their class's spells.
+  - *Built 0.75.0 (Part 3a):*
+    - rules::LongRestChange, LongRestCantripChange, PreparesFromSpellbook, SpellbookSpells2024, KnownSpellsCap2024,
+      ListChangeAllowed (SRD 5.2's Spell Preparation by Class and Spellcasting features; test SpellLists, 14 of 14
+      mutations caught). A list over its count (NWN's, e.g. a Wizard's seven cantrips) may change freely down to it.
+    - classes.if_spells2024: every 2024 caster MemorizesSpells 0, SpellbookRestricted 1, SkipSpellSelection 1 (NWN's
+      spell page until 3b). rules_spell_slots.cpp hooks CNWClass::GetSpellsKnownPerLevel (the cap on a player's
+      known list: the cantrips, the prepared total at a level with slots; none while ReadSpellsFromGff loads).
+    - core/prepare_spells.cpp: the window (NUI n5prep: Cantrips / Prepared / Spellbook tabs, a list with icons and a
+      prepared mark, the clicked spell's description, the counts, Accept / Cancel); opened as a rest begins
+      (rest.h's new AddRestStartListener - CNWSCreature::Rest moved there from rules_rest.cpp), Accept enabled at
+      the rest's end, an interrupted rest changing nothing; after a Long Rest the change stays open until the first
+      cast (UnReadySpell); the radial's Prepare Spells (feat 1547, spell row 1049, n5_prepspl) and !prepare open
+      it; it opens by itself when a list is empty or over its count, and after a level-up.
+    - The Wizard's Spellbook: nw_it_book015 renamed, cursed (undroppable) and plot, the ids in its local (an item's
+      locals are in the .bic); an existing Wizard's NWN spellbook moves in once; LearnScroll's new spell goes into it.
+    - Creatures that aren't player characters: a Cleric's, Druid's, Paladin's or Ranger's empty list for a level it
+      has slots for is filled with every class spell of that level (first seen, and after a rest).
+    - !test spellcleric / spellpaladin / spellwizard now go through the window (0.74.2's "every Wizard cantrip"
+      step is gone - the window chooses three).
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

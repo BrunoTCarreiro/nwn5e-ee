@@ -2,9 +2,9 @@
 # playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
 # is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
 #
-# Spell slots (issue 36, part 1): your first class becomes Wizard 3, Intelligence 16. The Wizard still memorises
-# (its spellbook and prepared list come with part 3), with 2024's counts - three cantrips, four 1st, two 2nd - and a
-# cast cantrip stays ready.
+# Spell slots and preparing (issue 36, parts 1 and 3a): your first class becomes Wizard 3, Intelligence 16. The
+# Wizard gets a Spellbook item (10 spells at level 3: pick them in the window's Spellbook tab), prepares 5 of them
+# and 3 cantrips, and casts any prepared spell with any slot of its level (four 1st, two 2nd).
 name = Spell slots (issue 36): human Wizard 3, Intelligence 16 - 2024 counts, cantrips at will
 species = human
 swap_class = wizard
@@ -12,6 +12,5 @@ class = wizard
 level = 3
 abilities = 8 14 14 16 10 10
 items = nw_wdbqs001 equip
-note = your spellbook gets every Wizard cantrip (NWN gives them at character creation)
-note = memorise as usual: 3 cantrips, four 1st, two 2nd (no Intelligence bonus); rest
-note = cast a memorised cantrip - it stays ready
+note = the Prepare spells window opens: Spellbook tab - add 10 spells; Cantrips - 3; Prepared - 5; Accept
+note = a Spellbook item is in your inventory (undroppable); its description lists your spells

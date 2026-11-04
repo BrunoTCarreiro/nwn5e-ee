@@ -12,5 +12,5 @@ class = paladin
 level = 2
 abilities = 16 10 14 8 10 16
 items = nw_wswls001 equip
-note = two 1st-level slots, any Paladin 1st-level spell from them (Wisdom 10: no 3e minimum score)
+note = the Prepare spells window opens: pick 3 Paladin spells, Accept; two 1st-level slots cast any of them
 note = e.g. Bless, then Divine Favor; a third 1st-level spell is refused until you rest

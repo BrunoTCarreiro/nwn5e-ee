@@ -1,0 +1,4 @@
+# spells.2da - #36 Part 3a (core/prepare_spells.cpp): Prepare Spells (feat 1547) runs n5_prepspl, which opens the
+# Prepare spells window. The n5_ scripts are run in C++ (script_hooks.cpp); no .ncs exists for them.
+Label Name IconResRef School Range VS MetaMagic TargetType ImpactScript Innate ConjTime ConjAnim CastAnim CastTime Proj ItemImmunity SubRadSpell1 SubRadSpell2 SubRadSpell3 SubRadSpell4 SubRadSpell5 Category Master UserType SpellDesc UseConcentration SpontaneouslyCast HostileSetting FeatID HasProjectile
+1049 nwn5e_PrepareSpells 16000567 ife_X2ScribScrl V P s 0x00 0x01 n5_prepspl 1 0 **** **** 0 0 1 **** **** **** **** **** 5 **** 3 16000568 0 0 0 1547 0

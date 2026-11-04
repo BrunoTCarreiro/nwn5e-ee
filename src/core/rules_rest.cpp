@@ -54,12 +54,10 @@ constexpr float kShortRestEnemyRange = 30.0f;  // the Rest button's REST_ENEMY_C
 constexpr uint32_t kNoGradualRestore = 0xffffffffu;
 constexpr int kAbilityConstitution = 2;
 
-using RestFn = void (*)(void* creature, int associate, int enemy_line_of_sight);
 using FeatUsesFn = void (*)(void* stats, uint16_t feat);
 using AssociateIdFn = uint32_t (*)(void* creature, uint16_t type, int nth);
 using MaxHitPointsFn = int16_t (*)(void* creature, int include_temporary);
 
-RestFn g_rest = nullptr;
 FeatUsesFn g_feat_use_back = nullptr;
 AssociateIdFn g_associate_id = nullptr;
 MaxHitPointsFn g_max_hit_points = nullptr;
@@ -93,10 +91,8 @@ int CurrentHitPoints(void* creature) { return Field<int16_t>(creature, ee::kObje
 
 // --- The Long Rest ----------------------------------------------------------------
 
-void Rest(void* creature, int associate, int enemy_line_of_sight) {
-  g_rest(creature, associate, enemy_line_of_sight);
-  if (!creature || !(Field<uint32_t>(creature, ee::kCreatureActivities) & ee::kActivityResting)) return;
-  // Begun: no HP or spell levels along the way - all at the end, or nothing.
+// A rest has begun (rest.h): no HP or spell levels along the way - all at the end, or nothing.
+void RestBegun(void* creature) {
   SetField<uint32_t>(creature, ee::kCreatureRestHpRate, kNoGradualRestore);
   SetField<uint32_t>(creature, ee::kCreatureRestSpellRate, kNoGradualRestore);
 }
@@ -256,10 +252,7 @@ void InstallRestRules() {
   g_feat_use_back = reinterpret_cast<FeatUsesFn>(EngineExport(ee::kIncrementFeatRemainingUses));
   g_associate_id = reinterpret_cast<AssociateIdFn>(EngineExport(ee::kGetAssociateId));
   g_max_hit_points = reinterpret_cast<MaxHitPointsFn>(EngineExport(ee::kGetMaxHitPoints));
-  if (!HookExport("CNWSCreature::Rest (rests: all or nothing)", ee::kCreatureRest, reinterpret_cast<void*>(&Rest),
-                  reinterpret_cast<void**>(&g_rest))) {
-    Log("SKIP rests: CNWSCreature::Rest not hooked - NWN's rest stays as it is");
-  }
+  if (!AddRestStartListener(&RestBegun)) Log("SKIP rests: CNWSCreature::Rest not hooked - NWN's rest stays as it is");
   if (!AddRestListener(&AfterLongRest)) Log("SKIP rests: the end of a rest is not hooked - no Hit Dice back");
   AddChatCommand("!shortrest", &ShortRestCommand);
   AddCreatureUpdateListener(&ShortRestRequested);

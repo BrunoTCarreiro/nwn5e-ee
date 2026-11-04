@@ -25,6 +25,7 @@
 // Part 2: upcasting and the combined multiclass pool (2A, 4A); Part 3: the Prepare spells window (3A).
 
 #include <intrin.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include <utility>
@@ -38,7 +39,9 @@
 #include "hooks.h"
 #include "log.h"
 #include "log_once.h"
+#include "prepare_spells.h"
 #include "rules/nwn_conversion.h"
+#include "rules/spell_lists.h"
 #include "rules/spell_slots.h"
 
 namespace {
@@ -56,6 +59,9 @@ using FeedbackFn = void (*)(void* creature, uint16_t id, void* data, void* playe
 using ClientUsesFn = uint8_t (*)(void* client_stats, uint32_t spell_id, uint8_t slot, uint8_t domain_level,
                                  uint8_t metamagic);
 using ToStringFn = void* (*)(void* out, int value);  // static CExoString CExoString::ToString(int)
+using KnownPerLevelFn = uint8_t (*)(void* klass, uint8_t class_level, uint8_t spell_level, uint8_t nwn_class,
+                                    uint16_t race, uint8_t ability);
+using ReadSpellsFn = void (*)(void* stats, void* gff, void* gff_struct, int flag);
 constexpr const char* kGain = "?GetSpellGainWithBonus@CNWSCreatureStats@@QEAAEEE@Z";
 constexpr const char* kMinAbility = "?GetSpellMinAbilityMet@CNWSCreatureStats@@QEAAHEE@Z";
 constexpr const char* kDecrement = "?DecrementSpellsPerDayLeft@CNWSCreatureStats@@QEAAXEE@Z";
@@ -76,6 +82,9 @@ ToStringFn g_to_string = nullptr;
 // The client's uses getter called from (its return address) -> that caller's next ToString (its return address).
 std::vector<std::pair<uintptr_t, uintptr_t>> g_count_sites;
 thread_local uintptr_t t_blank_at = 0;  // the ToString whose number is a cantrip's uses
+KnownPerLevelFn g_known_per_level = nullptr;
+ReadSpellsFn g_read_spells = nullptr;
+thread_local bool t_loading_spells = false;  // a saved known list loads whole
 LogOnce g_gain_logged(400);  // a player character's slots, once per class, level and spell level
 int g_cast_lines = 0;
 
@@ -133,6 +142,7 @@ int UnReady(void* stats, uint32_t spell_id, uint8_t slot, uint8_t domain_level, 
   uint8_t* cantrips = UsesLeft(stats, slot, 0);
   const uint8_t before = *cantrips;
   const int result = g_unready(stats, spell_id, slot, domain_level, metamagic);
+  if (result) PrepareSpellsNoteCast(CreatureOf(stats));  // #36 Part 3: a Long Rest's change closes
   if (*cantrips != before && !rules::CastSpendsUse(true, 0)) {
     *cantrips = before;
     if (LogCast()) {
@@ -246,6 +256,34 @@ void* ToString(void* out, int value) {
   return result;
 }
 
+// Part 3: the classes.2da row of a CNWClass (rules classes +0x110, 0x530 each), -1 if it isn't one.
+int ClassRowOf(const void* klass) {
+  void* rules_object = RulesObject();
+  const uint8_t* classes = rules_object ? Field<const uint8_t*>(rules_object, ee::kRulesClasses) : nullptr;
+  if (!classes || !klass) return -1;
+  const ptrdiff_t offset = static_cast<const uint8_t*>(klass) - classes;
+  const int count = Field<uint8_t>(rules_object, ee::kRulesClassCount);
+  if (offset < 0 || offset % static_cast<ptrdiff_t>(ee::kClassStride) != 0) return -1;
+  const int row = static_cast<int>(offset / static_cast<ptrdiff_t>(ee::kClassStride));
+  return row < count ? row : -1;
+}
+
+// Part 3: a 2024 caster's known list is its cantrips and prepared spells - the cap 2024's counts (the Prepare
+// spells window holds the prepared total); none while a saved list loads.
+uint8_t KnownPerLevel(void* klass, uint8_t class_level, uint8_t spell_level, uint8_t nwn_class, uint16_t race,
+                      uint8_t ability) {
+  const int cap = rules::KnownSpellsCap2024(ClassRowOf(klass), class_level, spell_level);
+  if (cap < 0) return g_known_per_level(klass, class_level, spell_level, nwn_class, race, ability);
+  if (t_loading_spells) return 0xFF;
+  return static_cast<uint8_t>(cap);
+}
+
+void ReadSpells(void* stats, void* gff, void* gff_struct, int flag) {
+  t_loading_spells = true;
+  g_read_spells(stats, gff, gff_struct, flag);
+  t_loading_spells = false;
+}
+
 bool HideCantripCounts() {
   const uintptr_t inside = FindPattern("the client's spell uses getter (#36 SL-3)", ee::kClientSpellUsesLeftPattern);
   const uintptr_t getter = inside ? FunctionEntry(inside) : 0;
@@ -293,6 +331,14 @@ void InstallSpellSlots() {
                      AddSpellOrderGuard(&SlotsSpokenFor);
   Log(queue ? "spells: a cast order beyond the slots left is refused (the queued casts count; #36 SL-2)"
             : "SKIP spells #36 SL-2: cast orders aren't checked against the slots left");
+  const bool lists = HookExport("CNWClass::GetSpellsKnownPerLevel (2024 cantrips and prepared spells, #36)",
+                                ee::kGetSpellsKnownPerLevel, reinterpret_cast<void*>(&KnownPerLevel),
+                                reinterpret_cast<void**>(&g_known_per_level)) &&
+                     HookExport("CNWSCreatureStats::ReadSpellsFromGff (a saved list loads whole, #36)",
+                                ee::kReadSpellsFromGff, reinterpret_cast<void*>(&ReadSpells),
+                                reinterpret_cast<void**>(&g_read_spells));
+  Log(lists ? "spells: a caster's known list is its cantrips and prepared spells (2024 counts; #36 Part 3)"
+            : "SKIP spells #36 Part 3: the known lists keep NWN's counts");
   const bool counts = HideCantripCounts();
   Log(counts ? "spells: a cantrip's button shows no uses number (%zu places; #36 SL-3)"
              : "SKIP spells #36 SL-3: a cantrip's button keeps its uses number (%zu places found)",
