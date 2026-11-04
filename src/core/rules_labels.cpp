@@ -20,6 +20,8 @@
 #include "hooks.h"
 #include "log.h"
 #include "data_serving.h"
+#include "grenades.h"
+#include "rules/grenades.h"
 #include "rules/saves.h"
 #include "rules/skills.h"
 #include "rules/species.h"
@@ -53,6 +55,10 @@ const char* Label2024(uint32_t strref) {
   if (!label) {
     const auto swap = rules::CreationStringSwap2024(strref);
     if (swap && Faithful(swap->rule)) label = DataString(swap->nwn5e);
+  }
+  // #124: the grenades' descriptions in 2024 terms.
+  if (!label && GrenadesFaithful()) {
+    if (const unsigned grenade = rules::GrenadeDescription2024(strref)) label = DataString(grenade);
   }
   return label;
 }

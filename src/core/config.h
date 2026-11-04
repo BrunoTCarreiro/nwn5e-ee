@@ -221,6 +221,12 @@ struct Config {
   // has Help: on a downed henchman, a DC 10 Wisdom (Medicine) check gets it up
   // at 1 HP. 0 (the default): no Help.
   bool help_house_rule = false;
+  // #124 (owner, 2026-11-04: "good recs, go with them"): NWN's grenades as 2024 gear - faithful: the flasks (Acid,
+  // Alchemist's Fire, Holy Water) a Dexterity save on the thrower's DC (8 + Dex + PB) for 2024's damage, no splash;
+  // burning 3 rounds; the bombs 10d6, Dexterity half; Tanglefoot Bag, Thunderstone, Choking Powder and the clouds on
+  // the thrower's DC; Caltrops a DC 15 Dexterity save on entering; a player's throw mid-round goes at once and takes
+  // one of the round's swings. nwn / off: NWN's (a touch attack and splash; the throw waits for the round's end).
+  rules::RuleVariant grenades = rules::RuleVariant::kFaithful;
   // Rests move the clock: a Long Rest 8 hours, a Short Rest 1 - on by default
   // since 0.59.18 (#110, owner: "go with B"); faithful rests only (NWN mode's
   // rests don't install the rest rules). 0 keeps the clock still.

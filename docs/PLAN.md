@@ -570,6 +570,52 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     nothing), SW-1 / FS-1 (Step of the Wind: Dash and the 1-point use through Fleet Step), FS-2 (a second one waited),
     RA-1 (a crit, then no opportunity attacks), FB-1 (two Forceful Blows, the follow without opportunity attacks).
   - *Accepted (owner, 2026-11-03: "accept 55").*
+- *#125, the later staple actions (Ready, dropping prone, dragging a downed ally, the Net):* deferred (owner,
+  2026-11-03: "I think 125 will be deferred to way later, I don't see much value in those").
+- *#124, grenades as 2024 gear.* The recon (the game's data, EE 89.8193.37): base item 81 (`grenade`) carries one
+  single-use Cast Spell (iprp_spells 336-343, 528-529); spells.2da 464-471, 744-745 (Innate 3, a projectile, range M =
+  20 m, Caltrops S = 8 m). DoGrenade (x0_i0_spells): a ranged touch attack for the direct hit (Acid Flask 1d6,
+  Alchemist's Fire 1d6, Holy Water 2d4 vs undead only, the bombs 10d6), doubled on a crit, and always 1 point of
+  splash to the hostiles within 6.67 m; no save. Tanglefoot Bag (x0_s3_tangle): one target, Reflex DC 15 or entangled
+  2 rounds. Thunderstone (x0_s3_thunder): 3.33 m, Fort DC 15 or deafened 5 rounds. Choking Powder (x0_s3_choke): a
+  5-round cloud (6.7 m), Fort vs the spell DC or dazed 2 rounds. Caltrops (x0_s3_caltrop): a permanent 5 m circle,
+  1 piercing on entering and each round, no save, gone after 25 damage. The bombs (x2_s3_bomb) add a 5-round cloud:
+  fire 4d6 a round (Reflex half) or acid 4d6 on entering and a permanent slow. Blueprints x1_wmgrenade001-007,
+  x2_it_acidbomb / firebomb; Drow mephits carry Tanglefoot Bags; traps and Craft Trap use them. The 2024 gear
+  (SRD 5.2): Acid, Alchemist's Fire, Holy Water - replace one attack of the Attack action; one creature within
+  20 ft, a Dexterity save (DC 8 + Dex + PB): 2d6 Acid; 1d4 Fire and burning (1d4 Fire at the start of each of its
+  turns until it puts it out); 2d8 Radiant to a Fiend or Undead. Caltrops - a Utilize action, a 5-ft square within
+  5 ft; entering: a DC 15 Dexterity save or 1 Piercing and Speed 0 until its next turn.
+  Options: 1 the throw's cost - A 2024 (mid-round it goes at once and takes one of the round's remaining swings),
+  B the Action as now; 2 the flasks' hit - A 2024 (the Dex save, one target, 2024's damage; Holy Water on Undead and
+  evil Outsiders; NWN's 20 m range kept), B A plus NWN's 1-point splash, C NWN's; 3 burning - A 3 rounds for
+  everyone (1d4 Fire at the start of each of its rounds - the action that puts it out, which NWN's AI never takes),
+  B until put out (players' Extinguish action, monsters 3 rounds at most), C 1 minute; 4 Caltrops - A NWN's throw
+  and 5 m circle, 2024's effect (the save on entering, 1 Piercing and stopped until its next round), NWN's 25-damage
+  life, B 2024 exactly (a 1.5 m patch), C NWN's; 5 the five without a 2024 counterpart - A kept in 2024 terms (the
+  flasks' save in place of the touch attack and DC 15; Tanglefoot Restrained, Thunderstone Deafened, Choking Powder
+  Incapacitated; the bombs 10d6, Dex half), B NWN's exactly, C NWN mode only.
+  - *Decided (owner, 2026-11-04: "good recs, go with them"):* 1A, 2A, 3A, 4A, 5A.
+  - *Built 0.68.0 (key `grenades`, faithful by default):* src/core/grenade_gear.cpp, src/rules/grenades.{h,cpp}.
+    - The flasks and the bombs run in C++ in place of NWN's scripts (script_hooks.cpp by name: x0_s3_acid,
+      x0_s3_alchem, x0_s3_holy, x2_s3_bomb): the spell target's Dexterity save on the thrower's DC
+      (rules::GrenadeSaveDc), 2024's damage (rules::GrenadeHitDice), no splash; Holy Water on undead and evil
+      outsiders only; Alchemist's Fire's burning (VFX_DUR_INFERNO_CHEST, 1d4 Fire at 1, 2 and 3 rounds) and NWN's
+      coating of a melee weapon; the bombs GetReflexAdjustedDamage (Evasion) then NWN's 5-round clouds.
+    - Caltrops: NWN's throw and field (x0_s3_caltrop), x0_s3_calen in C++ - a hostile entering, a DC 15 Dexterity save
+      or 1 Piercing and EffectCutsceneImmobilize 6 s; x0_s3_calhb nothing; NW_L_TOTAL_DAMAGE to 25 as NWN's.
+    - rules_save_roll.cpp: a grenade's save (rules::GrenadeSaveOnThrowerDc: all but Caltrops) against its thrower is
+      on the thrower's DC - Tanglefoot Bag's and Thunderstone's fixed 15 replaced; SpellDc2024 answers the clouds'
+      GetSpellSaveDC (Choking Powder, the bombs') the same way.
+    - 1A: the #120 ordering (action_order.cpp's PlaceNewOrder) puts a player's grenade cast (an ItemCastSpell of a
+      base item 81) before its attack mid-round - the engine's AIActionItemCastSpell starts no cast round and no pause
+      while a round runs (its StartCombatRoundCast only without one) - its WaitForEndOfRound left behind the attack
+      and not counted as an Action waiting; round_swings.cpp's TakeRoundSwing frees the round's last pending swing
+      (CExoLinkedListInternal::Remove; the engine's operator delete, StartCombatRound's) or owes one to the next round
+      (taken after InitializeAttackActions).
+    - The descriptions in faithful mode: nwn5e's strings 16000555-16000563 for dialog.tlk's 2989-2997 and 84353-84354
+      (rules::GrenadeDescription2024, rules_labels.cpp's swap).
+    - Tests GrenadeSpells, GrenadeRules, GrenadeDescriptions (17 of 17 mutations caught).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,

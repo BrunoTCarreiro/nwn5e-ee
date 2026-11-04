@@ -46,11 +46,13 @@
 #include "ee_layout.h"
 #include "engine.h"
 #include "feats.h"
+#include "grenades.h"
 #include "hooks.h"
 #include "log.h"
 #include "log_once.h"
 #include "rules/core.h"
 #include "rules/d20.h"
+#include "rules/grenades.h"
 #include "rules/nwn_conversion.h"
 #include "rules/saves.h"
 #include "saves.h"
@@ -210,6 +212,13 @@ bool SpellDc2024(void* creature, int spell_id, int engine_dc, int* dc, int* pb_o
                                                     facts.challenge_rating);
   const int innate = Field<uint8_t>(spell, ee::kSpellInnateLevel);
   const int slot = Field<uint8_t>(creature, ee::kCreatureCastingSlot);
+  // #124: a grenade's (Choking Powder's, the bombs' clouds) - the thrower's DC, 8 + Dexterity + PB.
+  if (GrenadesFaithful() && rules::GrenadeSaveOnThrowerDc(rules::GrenadeForSpell(spell_id))) {
+    *dc = rules::GrenadeSaveDc(engine::AbilityModifier(stats, static_cast<int>(rules::Ability::kDexterity)), pb);
+    *source = "grenade";
+    if (pb_out) *pb_out = pb;
+    return true;
+  }
   *source = "class";
   if (Field<int32_t>(creature, ee::kCreatureCastingFromItem) != 0) {
     *dc = rules::SpellScrollDc(innate);
@@ -295,7 +304,13 @@ uint8_t SavingThrowRoll(void* creature, uint8_t save, uint16_t dc, uint8_t type,
   int stun_dc = 0;
   const bool stun = StunningStrikeSaveDc(creature, versus, caller, &stun_dc);
   const bool spell_dc = !stun && (g_script_spell >= 0 || IsSpellDc(versus, engine_dc));
-  const int new_dc = stun ? stun_dc : spell_dc ? engine_dc : rules::ConvertNwnFixedDc(engine_dc);
+  // #124: a grenade's save against its thrower (Tanglefoot Bag's and Thunderstone's scripts pass NWN's fixed 15) is on
+  // the thrower's DC; Caltrops keep 2024's 15; an area of effect's (versus itself) already asked GetSpellSaveDC.
+  int grenade_dc = 0;
+  const bool grenade = !stun && GrenadesFaithful() &&
+                       rules::GrenadeSaveOnThrowerDc(rules::GrenadeForSpell(g_script_spell)) &&
+                       GrenadeDcOf(versus, &grenade_dc);
+  const int new_dc = stun ? stun_dc : grenade ? grenade_dc : spell_dc ? engine_dc : rules::ConvertNwnFixedDc(engine_dc);
   const SaveContext outer = g_save;
   g_save = SaveContext();
   g_save.active = true;

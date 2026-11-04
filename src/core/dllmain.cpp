@@ -63,6 +63,7 @@ void InstallStapleActions();  // Phase 6 (#56)
 void InstallExtraActions();  // Phase 6 (#53)
 void InstallRoundBar();  // #127
 void InstallRoundSwings();  // #53 (0.66.2): one swing per attack
+void InstallGrenades();     // #124 (0.68.0): grenades as 2024 gear
 void InstallBarbarianStrikes();
 void InstallRestRules();
 void InstallDyingRules();
@@ -97,7 +98,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.67.0";
+constexpr const char* kVersion = "0.68.0";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -161,6 +162,7 @@ void Start(HMODULE self) {
   InstallExtraActions();   // Phase 6 (#53): Action Surge, Thief's Reflexes, Cunning Action, Steady Aim
   InstallRoundBar();       // #127: the round bar under the action queue strip
   InstallRoundSwings();    // #53 (0.66.2): one swing per attack; Action Surge's mid-round swings
+  InstallGrenades();       // #124 (0.68.0): grenades as 2024 gear
   InstallResourcePanel();  // after the class rules: they give its pools
   InstallHudClock();       // #105: the game time over the compass
   InstallRestRules();

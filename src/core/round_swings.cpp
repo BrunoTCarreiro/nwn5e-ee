@@ -32,6 +32,7 @@
 #include <string.h>
 
 #include <algorithm>
+#include <unordered_map>
 #include <vector>
 
 #include "creature.h"
@@ -47,10 +48,18 @@ using InitializeAttackActionsFn = void (*)(void* round, uint32_t target);
 using AddActionFn = void (*)(void* round, void* action);
 using NewFn = void* (*)(size_t size);
 using GetActionFn = void* (*)(void* round);
+using DeleteFn = void (*)(void* object, size_t size);
+using ListRemoveFn = void* (*)(void* list, void* node);
 
 constexpr const char* kInitializeAttackActions = "?InitializeAttackActions@CNWSCombatRound@@QEAAXI@Z";
 constexpr const char* kAddAction = "?AddAction@CNWSCombatRound@@QEAAXPEAVCNWSCombatRoundAction@@@Z";
 constexpr const char* kGetAction = "?GetAction@CNWSCombatRound@@QEAAPEAVCNWSCombatRoundAction@@XZ";
+// #124: the engine's operator delete - StartCombatRound's, freeing the round's actions (mov edx, 28h; mov rcx, rax;
+// call delete) - and the list's Remove.
+constexpr const char* kStartCombatRound = "?StartCombatRound@CNWSCombatRound@@QEAAXI@Z";
+constexpr const char* kDeletePattern = "BA 28 00 00 00 48 8B C8 E8 ?? ?? ?? ??";
+constexpr size_t kDeleteCall = 8;
+constexpr const char* kListRemove = "?Remove@CExoLinkedListInternal@@QEAAPEAXPEAVCExoLinkedListNode@@@Z";
 constexpr const char* kNewPattern = "B9 28 00 00 00 E8 ?? ?? ?? ??";  // AddCleaveAttack: mov ecx, 28h; call new
 constexpr size_t kNewCall = 5;
 
@@ -83,6 +92,9 @@ InitializeAttackActionsFn g_initialize = nullptr;
 AddActionFn g_add_action = nullptr;
 NewFn g_new = nullptr;
 GetActionFn g_get_action = nullptr;
+DeleteFn g_delete = nullptr;
+ListRemoveFn g_list_remove = nullptr;
+std::unordered_map<uint32_t, int> g_owed;  // #124: swings a throw takes from the creature's next round
 int g_lines = 0;
 
 bool LogSlot() { return g_lines < 300 && ++g_lines; }
@@ -195,9 +207,43 @@ void SplitSwings(void* round) {
   }
 }
 
+// #124: the round's last pending swing taken off its list and freed (as RecomputeRound frees one).
+bool RemoveLastSwing(void* round) {
+  if (!g_delete || !g_list_remove) return false;
+  void* last = nullptr;
+  for (void* node : Nodes(round)) {
+    void* action = Field<void*>(node, kNodeData);
+    if (action && Field<uint8_t>(action, kActionType) == kActionAttack) last = node;
+  }
+  if (!last) return false;
+  void* wrapper = Field<void*>(round, kRoundActionList);
+  void* list = wrapper ? *static_cast<void**>(wrapper) : nullptr;
+  void* action = list ? g_list_remove(list, last) : nullptr;
+  if (!action) return false;
+  g_delete(action, kActionSize);
+  return true;
+}
+
+// The swings a throw took from this round (1A, none left then).
+void PayOwedSwings(void* round) {
+  if (g_owed.empty()) return;
+  const uint32_t id = OwnerId(round);
+  const auto owed = g_owed.find(id);
+  if (owed == g_owed.end()) return;
+  int paid = 0;
+  while (owed->second > 0 && RemoveLastSwing(round)) {
+    --owed->second;
+    ++paid;
+  }
+  g_owed.erase(owed);
+  if (paid > 0 && LogSlot()) Log("round swings: 0x%08X %d swing(s) of this round went to last round's throw", id, paid);
+}
+
 void InitializeAttackActions(void* round, uint32_t target) {
   g_initialize(round, target);
-  if (round) SplitSwings(round);
+  if (!round) return;
+  SplitSwings(round);
+  PayOwedSwings(round);
 }
 
 // A swing starting (taken off the list): the ones behind it keep their gaps.
@@ -274,11 +320,28 @@ bool AddRoundSwings(void* round, uint32_t target, int count) {
   return true;
 }
 
+bool TakeRoundSwing(void* creature) {
+  void* round = creature ? Field<void*>(creature, ee::kCreatureCombatRound) : nullptr;
+  if (!round || Field<int32_t>(round, kRoundStarted) == 0 || Field<int32_t>(round, kRoundCastRound) != 0) return false;
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  if (RemoveLastSwing(round)) {
+    if (LogSlot()) Log("round swings: 0x%08X a throw took one of the round's remaining swings (#124)", id);
+    return true;
+  }
+  ++g_owed[id];
+  if (LogSlot()) Log("round swings: 0x%08X a throw after the round's swings: one of its next round's (#124)", id);
+  return true;
+}
+
 void InstallRoundSwings() {
   g_add_action = reinterpret_cast<AddActionFn>(EngineExport(kAddAction));
   const uintptr_t cleave = EngineExport(ee::kAddCleaveAttack);
   const uintptr_t site = cleave ? FindPatternIn("round swings: operator new", FunctionAt(cleave), kNewPattern) : 0;
   g_new = reinterpret_cast<NewFn>(site ? CallTarget(site + kNewCall) : 0);
+  const uintptr_t start = EngineExport(kStartCombatRound);
+  const uintptr_t freeing = start ? FindPatternIn("round swings: operator delete", FunctionAt(start), kDeletePattern) : 0;
+  g_delete = reinterpret_cast<DeleteFn>(freeing ? CallTarget(freeing + kDeleteCall) : 0);
+  g_list_remove = reinterpret_cast<ListRemoveFn>(EngineExport(kListRemove));
   if (!g_add_action || !g_new) {
     Log("round swings: not installed (AddAction %s, operator new %s) - NWN's swings kept",
         g_add_action ? "found" : "missing", g_new ? "found" : "missing");

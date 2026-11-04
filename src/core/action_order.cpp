@@ -33,15 +33,19 @@
 #include <stdint.h>
 
 #include <algorithm>
+#include <unordered_map>
 #include <vector>
 
 #include "config.h"
 #include "creature.h"
 #include "ee_layout.h"
 #include "engine.h"
+#include "grenades.h"
 #include "hooks.h"
 #include "log.h"
+#include "round_swings.h"
 #include "rules/action_economy.h"
+#include "rules/grenades.h"
 
 namespace {
 
@@ -129,10 +133,29 @@ void* HeadAttack(void* creature) {
 
 bool AttackingMidRound(void* creature) { return HeadAttack(creature) && RoundRunning(creature); }
 
+// #124 1A: a thrown grenade's wait for the round's end, left behind the attack (it runs, harmlessly, once the fight's
+// attack is over) - not an Action waiting. By creature id; pruned as the queue loses them.
+std::unordered_map<uint32_t, std::vector<void*>> g_left_waits;
+
+bool LeftWait(void* creature, void* node) {
+  if (g_left_waits.empty()) return false;
+  const auto it = g_left_waits.find(IdOf(creature));
+  if (it == g_left_waits.end()) return false;
+  const std::vector<void*> queue = QueueNodes(creature);
+  std::vector<void*>& left = it->second;
+  left.erase(std::remove_if(left.begin(), left.end(),
+                            [&](void* wait) { return std::find(queue.begin(), queue.end(), wait) == queue.end(); }),
+             left.end());
+  const bool found = std::find(left.begin(), left.end(), node) != left.end();
+  if (left.empty()) g_left_waits.erase(it);
+  return found;
+}
+
 // A spell or an item's spell (or its wait for the round's end) waiting in the queue.
 bool ActionWaiting(void* creature) {
   for (void* node : QueueNodes(creature)) {
     const int action = ActionOf(node);
+    if (action == kActionWaitForEndOfRound && LeftWait(creature, node)) continue;  // #124
     if (action == kActionWaitForEndOfRound || action == ee::kActionCastSpell || action == ee::kActionItemCastSpell) {
       return true;
     }
@@ -247,6 +270,25 @@ void PlaceNewOrder(void* creature, const std::vector<void*>& before, const char*
   }
   if (fresh.empty()) return;
   const uint32_t id = IdOf(creature);
+  // #124 1A: a grenade thrown mid-round goes at once - its cast before the attack, its wait for the round's end left
+  // behind it - and takes one of the round's remaining swings (round_swings.cpp).
+  bool grenade = false;
+  for (void* at : fresh) grenade = grenade || IsGrenadeCast(Field<void*>(at, ee::kListNodeData));
+  if (rules::ThrowGoesNow(true, grenade, GrenadesFaithful())) {
+    void* list = ListOf(creature);
+    for (auto at = fresh.rbegin(); at != fresh.rend(); ++at) {
+      void* node = Field<void*>(*at, ee::kListNodeData);
+      if (ActionOf(node) == kActionWaitForEndOfRound) {
+        g_left_waits[id].push_back(node);
+        continue;
+      }
+      void* moved = E().remove(list, *at);
+      if (moved) E().add_head(list, moved);
+    }
+    TakeRoundSwing(creature);
+    if (LogSlot()) Log("actions: 0x%08X %s - a grenade thrown at once, one of its swings for it (#124)", id, what);
+    return;
+  }
   if (rules::PlaceOrder(true, waits) == rules::OrderPlace::kAfterAttacks) {
     if (LogSlot()) Log("actions: 0x%08X %s waits behind the round's attacks (the next round's Action)", id, what);
     return;
