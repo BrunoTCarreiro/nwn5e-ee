@@ -1,0 +1,16 @@
+# A !test profile ([debug] test_commands=1): type "!test grenades" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# Grenades as 2024 gear (issue 124): your first class becomes Fighter 5 - two attacks a round, so a throw
+# mid-round takes one of them - Dexterity 16 and PB 3 (a grenade's DC 14), a longsword in hand, five of
+# each grenade and a Holy Water. The attack trace in the log.
+name = Grenades as 2024 gear (issue 124): human Fighter 5, Dex 16 (DC 14), every grenade
+species = human
+swap_class = fighter
+class = fighter
+level = 5
+abilities = 14 16 14 10 12 8
+items = nw_wswls001 equip, x1_wmgrenade001 x5, x1_wmgrenade002 x5, x1_wmgrenade003 x5, x1_wmgrenade004 x5, x1_wmgrenade005 x5, x1_wmgrenade006 x5, x1_wmgrenade007 x5, x2_it_firebomb x2, x2_it_acidbomb x2
+switches = attack_trace=1
+note = the grenades are on the quickbar's item slots or in your inventory - use one on a creature
