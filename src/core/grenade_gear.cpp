@@ -30,6 +30,11 @@
 //   source while it's active?"): an invisible object with an orange light where the fire burns - the Fire Bomb's
 //   cloud (VFX_DUR_LIGHT_ORANGE_20, 5 rounds), an Alchemist's Fire patch (_10, 2 rounds); light_sources.cpp loads it
 //   as a normal placeable (CreatingFireLight), and the hiding-in-light rule counts it (stealth_watch.cpp).
+// - 0.71.0 (owner, 2026-11-04: "one more thing, bombs (poison and fire) along with thunderstone should tunr off torches and other such light sources in range of the explosion as they blow up"): a bomb's or a
+//   Thunderstone's blast puts out the lit lights round it (rules::GrenadeBlastRadius: 5 m, 3.33 m;
+//   light_sources.cpp's BlastPutsOutLights). The Thunderstone's x0_s3_thunder runs in C++ for it, as NWN's: every
+//   creature within 3.33 m that isn't the thrower's friend, a Constitution save on the thrower's DC or deafened 5
+//   rounds.
 // The scripts run in C++ (script_hooks.cpp: RunScript by name); their NWScript is a chunk wrapped in main - no
 // include: the hostility test is GetIsReactionTypeFriendly's, as NWN's Thunderstone's own.
 
@@ -237,6 +242,26 @@ while (GetIsObjectValid(t)) {
 }
 )nss";
 
+// 0.71.0: the Thunderstone (NWN's x0_s3_thunder, its DC the thrower's): the screen shakes, every creature within its
+// radius that isn't the thrower's friend makes a Constitution save or is deafened 5 rounds.
+const char* const kThunder = R"nss(
+location l = GetSpellTargetLocation();
+ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectVisualEffect(VFX_FNF_SCREEN_SHAKE), OBJECT_SELF, RoundsToSeconds(3));
+ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_FNF_LOS_NORMAL_30), l);
+object t = GetFirstObjectInShape(SHAPE_SPHERE, $RADIUS, l, TRUE, OBJECT_TYPE_CREATURE);
+while (GetIsObjectValid(t)) {
+  if (t != OBJECT_SELF && !GetIsReactionTypeFriendly(t)) {
+    SignalEvent(t, EventSpellCastAt(OBJECT_SELF, GetSpellId(), TRUE));
+    float w = GetDistanceBetweenLocations(l, GetLocation(t)) / 20.0;
+    if (FortitudeSave(t, $DC, SAVING_THROW_TYPE_NONE, OBJECT_SELF) == 0) {
+      DelayCommand(w, ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectDeaf(), t, RoundsToSeconds(5)));
+      DelayCommand(w, ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_HEAD_NATURE), t));
+    }
+  }
+  t = GetNextObjectInShape(SHAPE_SPHERE, $RADIUS, l, TRUE, OBJECT_TYPE_CREATURE);
+}
+)nss";
+
 // 4A: Caltrops' field, a creature entering it (OBJECT_SELF the area of effect) - 0.70.0: any creature, the thrower
 // and its allies too (NWN's spared friends).
 const char* const kCaltropsEnter = R"nss(
@@ -408,6 +433,22 @@ void BombScript(uint32_t self) {
   CreatingFireLight(true);  // a Fire Bomb's light (light_sources.cpp)
   Run(code, self, "bomb");
   CreatingFireLight(false);
+  BlastPutsOutLights(self, rules::GrenadeBlastRadius(rules::Grenade::kFireBomb), "a bomb's blast");  // 0.71.0
+}
+
+// 0.71.0: the Thunderstone - NWN's, its DC the thrower's - and its bang puts out the lights round it.
+void ThunderstoneScript(uint32_t self) {
+  const int dc = DcFor(self);
+  const float radius = rules::GrenadeBlastRadius(rules::Grenade::kThunderstone);
+  std::string code = kThunder;
+  Replace(&code, "$RADIUS", std::to_string(radius));
+  Replace(&code, "$DC", std::to_string(dc));
+  if (LogSlot()) {
+    Log("grenades: 0x%08X a Thunderstone - non-friends within %.2f m: a Constitution save, DC %d, or deafened 5 rounds",
+        self, radius, dc);
+  }
+  Run(code, self, "Thunderstone");
+  BlastPutsOutLights(self, radius, "a Thunderstone's bang");
 }
 
 void CaltropsEnterScript(uint32_t self) {
@@ -482,6 +523,7 @@ void InstallGrenades() {
                        AddScriptHandler("x0_s3_alchem", &AlchemistsFireScript) &&
                        AddScriptHandler("x0_s3_holy", &HolyWaterScript) && AddScriptHandler("x2_s3_bomb", &BombScript) &&
                        AddScriptHandler("x0_s3_calen", &CaltropsEnterScript) &&
+                       AddScriptHandler("x0_s3_thunder", &ThunderstoneScript) &&
                        AddScriptHandler("x0_s3_calhb", &CaltropsRoundScript);
   Log("grenades: 2024 gear - the flasks a Dexterity save (DC 8 + Dex + PB) for 2024's damage, no splash; burning 3 "
       "rounds; the bombs Dexterity half; Caltrops DC 15 on entering; a throw mid-round takes a swing%s",

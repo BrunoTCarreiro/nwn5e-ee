@@ -80,6 +80,18 @@ TEST(ThrowFromHiding) {
   CHECK_EQ(ThrowKeepsHiding(false, true, true), false);  // not hiding
 }
 
+// 0.71.0 (owner, 2026-11-04: "bombs (poison and fire) along with thunderstone should tunr off torches ..."): the blasts
+// that put out lights. Breaks caught: a bomb without a blast, the Thunderstone's the bombs', a flask or Caltrops with one.
+TEST(GrenadeBlasts) {
+  CHECK_EQ(GrenadeBlastRadius(Grenade::kFireBomb) == 5.0f, true);
+  CHECK_EQ(GrenadeBlastRadius(Grenade::kAcidBomb) == 5.0f, true);
+  CHECK_EQ(GrenadeBlastRadius(Grenade::kThunderstone) > 3.3f && GrenadeBlastRadius(Grenade::kThunderstone) < 3.4f, true);
+  CHECK_EQ(GrenadeBlastRadius(Grenade::kAlchemistsFire) == 0.0f, true);
+  CHECK_EQ(GrenadeBlastRadius(Grenade::kAcid) == 0.0f, true);
+  CHECK_EQ(GrenadeBlastRadius(Grenade::kCaltrops) == 0.0f, true);
+  CHECK_EQ(GrenadeBlastRadius(Grenade::kChokingPowder) == 0.0f, true);
+}
+
 // The descriptions in 2024 terms. Breaks caught: one swapped for another's, a grenade's left NWN's, another item's
 // swapped (2993 Coldstone, 2996).
 TEST(GrenadeDescriptions) {

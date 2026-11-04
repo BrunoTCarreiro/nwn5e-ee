@@ -966,6 +966,46 @@ void RadialActivate(void* menu) {
 
 void CreatingFireLight(bool on) { g_creating_fire_light = on; }
 
+int BlastPutsOutLights(uint32_t self, float radius, const char* what) {
+  if (!g_config.light_sources || radius <= 0.0f) return 0;
+  const std::string r = Num(radius);
+  // The lit ones round the blast: a lit placeable, or a tile flame's stand-in not out.
+  Run("location at = GetSpellTargetLocation(); string out = \"\";"
+      "object q = GetFirstObjectInShape(SHAPE_SPHERE, " + r + ", at, FALSE, OBJECT_TYPE_PLACEABLE);"
+      "while (GetIsObjectValid(q)) {"
+      " int fl = GetStringLeft(GetTag(q), 11) == \"nwn5e_flame\";"
+      " if ((fl && !GetLocalInt(q, \"nwn5e_torch_out\")) || (!fl && GetPlaceableIllumination(q)))"
+      "  out += ObjectToString(q) + \" \";"
+      " q = GetNextObjectInShape(SHAPE_SPHERE, " + r + ", at, FALSE, OBJECT_TYPE_PLACEABLE);"
+      "}"
+      "SetLocalString(OBJECT_SELF, \"nwn5e_blast_lights\", out);",
+      self, "a blast's lights listed");
+  void* thrower = ObjectById(self);
+  const std::string list = thrower ? engine::GetLocalString(thrower, "nwn5e_blast_lights") : "";
+  int out = 0;
+  for (const char* p = list.c_str(); *p;) {
+    char* end = nullptr;
+    const unsigned long id = strtoul(p, &end, 16);
+    if (end == p) break;
+    for (p = end; *p == ' '; ++p) {
+    }
+    if (!ObjectById(static_cast<uint32_t>(id))) continue;
+    // As a hit puts it out (Damaged / FlameHit), with no attacker.
+    Run(std::string("if (GetStringLeft(GetTag(OBJECT_SELF), 11) == \"nwn5e_flame\") {") + kFlameState +
+            " if (c > 0) {" + kFlameOut + "} } else if (GetPlaceableIllumination(OBJECT_SELF)) {" + kDouse + "}",
+        static_cast<uint32_t>(id), "a blast puts out a light");
+    ++out;
+  }
+  if (out > 0) {
+    FillLights(self, false);
+    Run("if (GetIsPC(OBJECT_SELF)) SendMessageToPC(OBJECT_SELF, \"nwn5e: the blast puts out " + std::to_string(out) +
+            (out == 1 ? " light" : " lights") + "\");",
+        self, "a blast's message");
+  }
+  Log("lights: %s put out %d light(s) within %.2f m", what, out, radius);
+  return out;
+}
+
 void InstallLightSources() {
   g_map_light = g_config.map_light < 10 ? 10 : g_config.map_light > 100 ? 100 : g_config.map_light;
   if (g_config.light_sources) {

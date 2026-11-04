@@ -68,6 +68,13 @@ int FlaskPatchAreaEffect(Grenade grenade);
 // Attack action it replaces (none left: one of the next round's).
 bool ThrowGoesNow(bool attacking_mid_round, bool grenade, bool faithful);
 
+// 0.71.0 (owner, 2026-11-04: "one more thing, bombs (poison and fire) along with
+// thunderstone should tunr off torches and other such light sources in range of the explosion as they blow up"): the
+// radius in which a grenade's blast puts out the lit lights (core/light_sources.cpp's BlastPutsOutLights) - the bombs'
+// 5 m (their cloud, their aiming circle), the Thunderstone's 3.33 m (its bang, NWN's RADIUS_SIZE_MEDIUM); 0 for the
+// rest (the flasks, Tanglefoot Bag, Choking Powder, Caltrops - no blast).
+float GrenadeBlastRadius(Grenade grenade);
+
 // #132 (owner, 2026-11-04: "go with your recommendations" - A): a grenade thrown from hiding keeps the thrower hidden -
 // the 2024 Hide ends on an attack roll, and a grenade's target makes a save. NWN's engine takes the thrower out of
 // stealth mode as the throw starts (the item cast's ActivityManager(1)). Faithful only; a spell or another item keeps

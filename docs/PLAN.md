@@ -656,6 +656,15 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     - The descriptions: Caltrops, Choking Powder, the bombs and the patches say "anyone in it, you too"; the fire ones'
       light.
     - Test ThrowFromHiding (3 of 3 mutations caught).
+  - *Asked (owner, 2026-11-04, after 0.70.0's install):* "one more thing, bombs (poison and fire) along with
+    thunderstone should tunr off torches and other such light sources in range of the explosion as they blow up".
+    *Built 0.71.0* (the defaults stated to the owner: each blast's own radius; what nwn5e can already put out; carried
+    torches stay lit): rules::GrenadeBlastRadius - the bombs 5 m (their cloud), the Thunderstone 3.33 m (its bang);
+    light_sources.cpp's BlastPutsOutLights - the lit placeables (lamps, braziers, torch brackets) and the tiles'
+    torches (their stand-ins) round the spell's target put out as a hit does, the fill lights recomputed, "nwn5e: the
+    blast puts out N lights" to the thrower; with light_sources on only. The Thunderstone's x0_s3_thunder in C++ for
+    it (NWN's: non-friends within 3.33 m, a Constitution save on the thrower's DC or deafened 5 rounds). Test
+    GrenadeBlasts (4 of 4 mutations caught).
 - *#130, house rules; flasks thrown at the ground leave a patch (the 2024 Oil flask's rule).* Asked (owner, 2026-11-04,
   after #124's brief): "Ok, I want to add a house rules section. For example we'll keep the faithful rules, the ones
   you added. But I also want acid flask, alchemist fire and holy water to work with oil flask rules where they create a

@@ -56,6 +56,15 @@ bool ThrowGoesNow(bool attacking_mid_round, bool grenade, bool faithful) {
 
 bool ThrowKeepsHiding(bool hiding, bool grenade_throw, bool faithful) { return faithful && hiding && grenade_throw; }
 
+float GrenadeBlastRadius(Grenade grenade) {
+  switch (grenade) {
+    case Grenade::kFireBomb:
+    case Grenade::kAcidBomb: return 5.0f;
+    case Grenade::kThunderstone: return 3.33f;
+    default: return 0.0f;
+  }
+}
+
 unsigned GrenadeDescription2024(unsigned game_strref, bool flask_patches) {
   if (flask_patches) {
     switch (game_strref) {
