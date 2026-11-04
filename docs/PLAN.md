@@ -226,8 +226,9 @@ monster AC by CR.
   - *The plan:* 3a the engine's lists, the Wizard's Spellbook item and the Prepare spells window (rest-time,
     radial; until 3b it also fills the places a new character or a level-up opens); 3b the Spells page in the
     creation and level-up screens (the level-up's swaps: Bard and Sorcerer one spell, a cantrip). Research for 3a
-    found that NWN keeps no known list for a Cleric, Druid, Paladin or Ranger, so every blueprint caster of those
-    would cast nothing: creatures that aren't player characters (henchmen too) know their class's spells.
+    found that NWN keeps no known list for a Cleric, Druid, Paladin or Ranger, and a blueprint Wizard has only its
+    memorised spells, so those blueprint casters would cast nothing: creatures that aren't player characters
+    (henchmen too) know their class's spells.
   - *Built 0.75.0 (Part 3a):*
     - rules::LongRestChange, LongRestCantripChange, PreparesFromSpellbook, SpellbookSpells2024, KnownSpellsCap2024,
       ListChangeAllowed (SRD 5.2's Spell Preparation by Class and Spellcasting features; test SpellLists, 14 of 14
@@ -243,8 +244,9 @@ monster AC by CR.
       it; it opens by itself when a list is empty or over its count, and after a level-up.
     - The Wizard's Spellbook: nw_it_book015 renamed, cursed (undroppable) and plot, the ids in its local (an item's
       locals are in the .bic); an existing Wizard's NWN spellbook moves in once; LearnScroll's new spell goes into it.
-    - Creatures that aren't player characters: a Cleric's, Druid's, Paladin's or Ranger's empty list for a level it
-      has slots for is filled with every class spell of that level (first seen, and after a rest).
+    - Creatures that aren't player characters: a caster class's empty list at a level it has slots for is filled
+      with every class spell of that level (first seen, and after a rest) - a Cleric's, Druid's, Paladin's or
+      Ranger's (NWN keeps none) and a blueprint Wizard's (only memorised spells, e.g. nw_skelmage).
     - !test spellcleric / spellpaladin / spellwizard now go through the window (0.74.2's "every Wizard cantrip"
       step is gone - the window chooses three).
 

@@ -13,9 +13,10 @@
 //   and by itself when a list is empty or over its count (a new character, 0.75.0's change). What may change
 //   (rules/spell_lists.h, SRD 5.2): filling a list up, always; after a Long Rest until the first cast, Cleric, Druid
 //   and Wizard any prepared spell, Paladin and Ranger one, the Wizard one cantrip; the spellbook only grows.
-// - Creatures that aren't player characters (henchmen too) cast as in Part 1: a Cleric's, Druid's, Paladin's or
-//   Ranger's known list holds every spell of its class at the levels it has slots for (filled when first seen and
-//   after a rest) - NWN keeps no list for those classes, so a blueprint has none.
+// - Creatures that aren't player characters (henchmen too) cast as in Part 1: where a caster class's known list is
+//   empty at a level it has slots for, it holds every spell of its class at that level (filled when first seen and
+//   after a rest). NWN keeps no list for a Cleric, Druid, Paladin or Ranger, and a blueprint Wizard has only its
+//   memorised spells (nw_skelmage), so without it they would cast nothing; a Bard's or Sorcerer's list stays.
 // Part 3b: the Spells page at creation and level-up (with the level-up swaps: Bard and Sorcerer a spell, a cantrip).
 
 #include "prepare_spells.h"
@@ -670,11 +671,11 @@ void RestDone(void* stats) {
 }
 
 // A creature that isn't a player character casts as in Part 1: every spell of its class at the levels it has slots
-// for, where its list for that level is empty (a Cleric's, Druid's, Paladin's or Ranger's - NWN keeps no list).
+// for, where its list for that level is empty (a Cleric's, Druid's, Paladin's or Ranger's - NWN keeps no list - or
+// a blueprint Wizard's, which has only memorised spells).
 void FillCreatureLists(void* stats) {
   int added = 0;
   for (const CasterSlot& c : CasterSlots(stats)) {
-    if (c.row != 2 && c.row != 3 && c.row != 6 && c.row != 7) continue;
     void* info = ClassInfoOf(stats, c.slot);
     const int top = TopLevel(c.row, c.level);
     for (int level = 0; level <= top; ++level) {
