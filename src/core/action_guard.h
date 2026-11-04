@@ -22,3 +22,19 @@ bool AddActionGuard(ActionGuard guard);
 using SpellCastGuard = bool (*)(void* creature, uint32_t spell, uint32_t target);
 // Hooks AddCastSpellActions on first use; false (and logged) if it can't.
 bool AddSpellCastGuard(SpellCastGuard guard);
+
+// The whole order, for guards that need its class, domain level or metamagic (#36: no more casts queued than the
+// slots left). class_slot: the caster's class slot 0-7; 0xFF none (a script's cheat cast), 0xFE a spell-like
+// ability. spontaneous: NWN's spontaneous conversion (a Cleric's cures); fake: a cast that only plays.
+struct SpellOrder {
+  uint32_t spell = 0;
+  int class_slot = 0xFF;
+  int domain_level = 0;
+  int metamagic = 0;
+  bool spontaneous = false;
+  uint32_t target = 0;
+  bool fake = false;
+};
+using SpellOrderGuard = bool (*)(void* creature, const SpellOrder& order);
+// The same hook as AddSpellCastGuard (asked after those guards); false (and logged) if it can't.
+bool AddSpellOrderGuard(SpellOrderGuard guard);

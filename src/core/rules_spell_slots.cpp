@@ -14,12 +14,23 @@
 //   SetMemorizedSpellInSlotReady, which leaves a cantrip ready. DecrementSpellsPerDayLeft (a script's
 //   DecrementRemainingSpellUses) spends nothing at level 0 either. GetSpellMinAbilityMet: no 3e minimum score (10 + the
 //   spell's level).
+// - 0.74.2 (owner, 2026-11-04: "SL-2 should not be allowed to queue spells a larger number of times than the slots
+//   available" / "SL-3 cantrips still show a number os uses even though they never go down"):
+//   - A cast order beyond the slots left is refused with the engine's own "no uses" feedback
+//     (action_guard's spell order guard): AddCastSpellActions checks only the uses left now, and a use is spent
+//     when casting starts, so the casts already queued from the same slots count (the running one too, until it
+//     spends its use).
+//   - A cantrip's button shows no number: the client's uses getter (not exported, a byte pattern) marks a
+//     cantrip, and its caller's next CExoString::ToString - the number it writes - comes back empty.
 // Part 2: upcasting and the combined multiclass pool (2A, 4A); Part 3: the Prepare spells window (3A).
 
+#include <intrin.h>
 #include <stdint.h>
 
+#include <utility>
 #include <vector>
 
+#include "action_guard.h"
 #include "config.h"
 #include "creature.h"
 #include "data_serving.h"
@@ -37,6 +48,14 @@ using MinAbilityFn = int (*)(void* stats, uint8_t slot, uint8_t spell_level);
 using DecrementFn = void (*)(void* stats, uint8_t slot, uint8_t spell_level);
 using UnReadyFn = int (*)(void* stats, uint32_t spell_id, uint8_t slot, uint8_t domain_level, uint8_t metamagic);
 using SetReadyFn = void (*)(void* class_info, uint8_t spell_level, uint8_t index, int ready);
+using UsesLeftFn = uint8_t (*)(void* stats, uint32_t spell_id, uint8_t slot, uint8_t domain_level, uint8_t metamagic);
+using GetSpellFn = void* (*)(const void* spells, int id);
+using SpellLevelFn = uint8_t (*)(void* spell, uint8_t nwn_class);
+using MetaMagicCostFn = uint8_t (*)(void* rules_object, uint8_t metamagic);
+using FeedbackFn = void (*)(void* creature, uint16_t id, void* data, void* player);
+using ClientUsesFn = uint8_t (*)(void* client_stats, uint32_t spell_id, uint8_t slot, uint8_t domain_level,
+                                 uint8_t metamagic);
+using ToStringFn = void* (*)(void* out, int value);  // static CExoString CExoString::ToString(int)
 constexpr const char* kGain = "?GetSpellGainWithBonus@CNWSCreatureStats@@QEAAEEE@Z";
 constexpr const char* kMinAbility = "?GetSpellMinAbilityMet@CNWSCreatureStats@@QEAAHEE@Z";
 constexpr const char* kDecrement = "?DecrementSpellsPerDayLeft@CNWSCreatureStats@@QEAAXEE@Z";
@@ -47,6 +66,16 @@ MinAbilityFn g_min_ability = nullptr;
 DecrementFn g_decrement = nullptr;
 UnReadyFn g_unready = nullptr;
 SetReadyFn g_set_ready = nullptr;
+UsesLeftFn g_uses_left = nullptr;
+GetSpellFn g_get_spell = nullptr;
+SpellLevelFn g_spell_level = nullptr;
+MetaMagicCostFn g_metamagic_cost = nullptr;
+FeedbackFn g_feedback = nullptr;
+ClientUsesFn g_client_uses = nullptr;
+ToStringFn g_to_string = nullptr;
+// The client's uses getter called from (its return address) -> that caller's next ToString (its return address).
+std::vector<std::pair<uintptr_t, uintptr_t>> g_count_sites;
+thread_local uintptr_t t_blank_at = 0;  // the ToString whose number is a cantrip's uses
 LogOnce g_gain_logged(400);  // a player character's slots, once per class, level and spell level
 int g_cast_lines = 0;
 
@@ -122,6 +151,120 @@ void SetReady(void* class_info, uint8_t spell_level, uint8_t index, int ready) {
   g_set_ready(class_info, spell_level, index, ready);
 }
 
+void* RulesObject() {
+  static void** const global = reinterpret_cast<void**>(EngineExport(ee::kRules));
+  return global ? *global : nullptr;
+}
+
+// The level of the slots a cast draws on for a class (classes.2da row): the spell's level for it plus its
+// metamagic's cost; -1 off the class's list (or unknown).
+int SlotLevel(int nwn_class, uint32_t spell_id, int metamagic) {
+  void* rules_object = RulesObject();
+  if (!rules_object || !g_get_spell || !g_spell_level || !g_metamagic_cost) return -1;
+  void* spells = Field<void*>(rules_object, ee::kRulesSpells);
+  void* spell = spells ? g_get_spell(spells, static_cast<int>(spell_id)) : nullptr;
+  if (!spell) return -1;
+  const int level = g_spell_level(spell, static_cast<uint8_t>(nwn_class));
+  if (level == 0xFF) return -1;
+  return level + (metamagic ? g_metamagic_cost(rules_object, static_cast<uint8_t>(metamagic)) : 0);
+}
+
+bool Memorizes(int nwn_class) {
+  void* rules_object = RulesObject();
+  const uint8_t* classes = rules_object ? Field<const uint8_t*>(rules_object, ee::kRulesClasses) : nullptr;
+  return classes && Field<int32_t>(classes + nwn_class * ee::kClassStride, ee::kClassMemorizesSpells) != 0;
+}
+
+// SL-2: an order to cast beyond the slots left is refused - the casts already queued from the same slots count, the
+// running one (the queue's first node between ticks) until it has spent its use.
+bool SlotsSpokenFor(void* creature, const SpellOrder& order) {
+  if (!creature || order.fake || order.spontaneous || order.domain_level != 0 || order.class_slot < 0 ||
+      order.class_slot >= ee::kMaxClassSlots || !g_uses_left) {
+    return false;
+  }
+  void* stats = StatsOf(creature);
+  const uint8_t slot = static_cast<uint8_t>(order.class_slot);
+  int row = 0, level = 0;
+  if (!CasterSlot(stats, slot, &row, &level)) return false;
+  const rules::QueuedCast wanted{order.spell, order.metamagic, SlotLevel(row, order.spell, order.metamagic)};
+  if (wanted.slot_level < 0 || !rules::CastSpendsUse(true, wanted.slot_level)) return false;  // a cantrip: at will
+  const bool memorizes = Memorizes(row);
+  const int left = g_uses_left(stats, order.spell, slot, 0, static_cast<uint8_t>(order.metamagic));
+  const bool running_spent = Field<int32_t>(creature, ee::kCreatureCastUseSpent) != 0;
+  const void* list = Field<void*>(creature, ee::kObjectActionQueue);
+  int queued = 0;
+  bool first = true;
+  for (const void* node = list ? Field<void*>(list, ee::kListHead) : nullptr; node;
+       node = Field<void*>(node, ee::kListNodeNext)) {
+    const void* action = Field<void*>(node, ee::kListNodeData);
+    const bool running = first;
+    first = false;
+    if (!action || Field<int32_t>(action, ee::kActionId) != ee::kActionCastSpell) continue;
+    if (running && running_spent) continue;  // under way, its use already spent
+    if ((Field<uint32_t>(action, ee::kCastFlags) & ee::kCastFlagFake) != 0) continue;
+    if (Field<uint8_t>(action, ee::kCastClassSlot) != slot || Field<int32_t>(action, ee::kCastDomainLevel) != 0) continue;
+    const uint32_t spell = Field<uint32_t>(action, ee::kCastSpell);
+    const int metamagic = Field<int32_t>(action, ee::kCastMetamagic);
+    const rules::QueuedCast queued_cast{spell, metamagic, memorizes ? 0 : SlotLevel(row, spell, metamagic)};
+    if (rules::DrawsOnSameSlots(memorizes, wanted, queued_cast)) ++queued;
+  }
+  if (!rules::CastQueueFull(true, wanted.slot_level, queued, left)) return false;
+  if (IsPlayer(stats) && g_feedback) g_feedback(creature, ee::kFeedbackNoSpellUses, nullptr, nullptr);
+  if (LogCast()) {
+    Log("spells: object 0x%08X spell %u (level %d) not queued - %d already queued from its slots, %d left",
+        ObjectIdOf(stats), order.spell, wanted.slot_level, queued, left);
+  }
+  return true;
+}
+
+// SL-3: the client's uses getter - a cantrip of a 2024 caster class marks its caller's next number to come back empty.
+uint8_t ClientUsesLeft(void* client_stats, uint32_t spell_id, uint8_t slot, uint8_t domain_level, uint8_t metamagic) {
+  const uint8_t uses = g_client_uses(client_stats, spell_id, slot, domain_level, metamagic);
+  t_blank_at = 0;
+  if (!client_stats || domain_level != 0 || metamagic != 0 || slot >= ee::kClientStatsClassSlots ||
+      slot >= Field<uint8_t>(client_stats, ee::kClientStatsClassCount)) {
+    return uses;
+  }
+  const int row = Field<uint8_t>(client_stats, ee::kClientStatsClassSlotClass + slot * ee::kClientStatsClassSlotSize);
+  if (rules::CasterKindOfClass(row) == rules::CasterKind::kNone) return uses;
+  const int spell_level = SlotLevel(row, spell_id, 0);
+  if (spell_level < 0 || rules::CastSpendsUse(true, spell_level)) return uses;
+  const uintptr_t from = reinterpret_cast<uintptr_t>(_ReturnAddress());
+  for (const auto& site : g_count_sites) {
+    if (site.first == from) t_blank_at = site.second;
+  }
+  return uses;
+}
+
+void* ToString(void* out, int value) {
+  void* result = g_to_string(out, value);
+  if (t_blank_at && reinterpret_cast<uintptr_t>(_ReturnAddress()) == t_blank_at) {
+    t_blank_at = 0;
+    char* text = result ? Field<char*>(result, 0) : nullptr;
+    if (text) text[0] = '\0';
+  }
+  return result;
+}
+
+bool HideCantripCounts() {
+  const uintptr_t inside = FindPattern("the client's spell uses getter (#36 SL-3)", ee::kClientSpellUsesLeftPattern);
+  const uintptr_t getter = inside ? FunctionEntry(inside) : 0;
+  const uintptr_t to_string = EngineExport(ee::kExoStringToString);
+  if (!getter || !to_string) return false;
+  for (uintptr_t site : FindCallsAnywhere(getter)) {
+    for (uintptr_t call : FindCallsTo(FunctionAt(site), to_string)) {
+      if (call <= site) continue;
+      g_count_sites.push_back({site + 5, call + 5});  // E8 rel32: the return address is 5 bytes on
+      break;
+    }
+  }
+  if (g_count_sites.empty()) return false;
+  return HookAddress("client CNWCCreatureStats::GetSpellUsesLeft (a cantrip's count hidden, #36)", getter,
+                     reinterpret_cast<void*>(&ClientUsesLeft), reinterpret_cast<void**>(&g_client_uses)) &&
+         HookExport("CExoString::ToString (a cantrip's count hidden, #36)", ee::kExoStringToString,
+                    reinterpret_cast<void*>(&ToString), reinterpret_cast<void**>(&g_to_string));
+}
+
 }  // namespace
 
 void InstallSpellSlots() {
@@ -141,6 +284,19 @@ void InstallSpellSlots() {
   const bool ready =
       HookExport("CNWSCreatureStats_ClassInfo::SetMemorizedSpellInSlotReady (a memorised cantrip stays ready, #36)",
                  kSetReady, reinterpret_cast<void*>(&SetReady), reinterpret_cast<void**>(&g_set_ready));
+  g_uses_left = reinterpret_cast<UsesLeftFn>(EngineExport(ee::kGetSpellUsesLeft));
+  g_get_spell = reinterpret_cast<GetSpellFn>(EngineExport(ee::kGetSpell));
+  g_spell_level = reinterpret_cast<SpellLevelFn>(EngineExport(ee::kSpellGetLevel));
+  g_metamagic_cost = reinterpret_cast<MetaMagicCostFn>(EngineExport(ee::kGetMetaMagicLevelCost));
+  g_feedback = reinterpret_cast<FeedbackFn>(EngineExport(ee::kCreatureSendFeedbackMessage));
+  const bool queue = g_uses_left && g_get_spell && g_spell_level && g_metamagic_cost && g_feedback &&
+                     AddSpellOrderGuard(&SlotsSpokenFor);
+  Log(queue ? "spells: a cast order beyond the slots left is refused (the queued casts count; #36 SL-2)"
+            : "SKIP spells #36 SL-2: cast orders aren't checked against the slots left");
+  const bool counts = HideCantripCounts();
+  Log(counts ? "spells: a cantrip's button shows no uses number (%zu places; #36 SL-3)"
+             : "SKIP spells #36 SL-3: a cantrip's button keeps its uses number (%zu places found)",
+      g_count_sites.size());
   Log("spells: 2024 slots (SRD 5.2's tables; no bonus spells, no 3e minimum score); Cleric, Druid, Paladin and Ranger "
       "cast any class spell with any slot of its level; Paladin and Ranger from level 1; cantrips at will (#36 Part 1)%s",
       gain && min && spend && cast && ready ? "" : " - SOME hooks missing");

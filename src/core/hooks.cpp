@@ -424,6 +424,8 @@ uintptr_t FirstCallIn(uintptr_t function) {
   return 0;
 }
 
+std::vector<uintptr_t> FindCallsAnywhere(uintptr_t target) { return FindCallsTo(TextSection(), target); }
+
 uintptr_t FindPattern(const char* what, const char* pattern) {
   int matches = 0;
   const uintptr_t at = FindUnique(TextSection(), ParsePattern(pattern), &matches);

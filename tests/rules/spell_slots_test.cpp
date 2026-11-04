@@ -62,3 +62,20 @@ TEST(SpellSlots2024) {
   CHECK_EQ(CastSpendsUse(true, 1), true);
   CHECK_EQ(CastSpendsUse(false, 0), true);
 }
+
+// 0.74.2 (owner, 2026-11-04: "SL-2 should not be allowed to queue spells a larger number of times than the slots
+// available"). Breaks caught: a full queue let through or a short one refused, a cantrip's queue refused, NWN mode
+// refusing, a memorised spell matched by level or ignoring metamagic, a spontaneous cast matched by spell.
+TEST(CastQueue) {
+  CHECK_EQ(CastQueueFull(true, 1, 4, 4), true);    // four 1st-level casts queued, four slots left: a fifth refused
+  CHECK_EQ(CastQueueFull(true, 1, 3, 4), false);
+  CHECK_EQ(CastQueueFull(true, 2, 1, 0), true);    // none left
+  CHECK_EQ(CastQueueFull(true, 0, 9, 3), false);   // a cantrip: at will
+  CHECK_EQ(CastQueueFull(false, 1, 4, 4), false);  // NWN: the engine's own check at cast time
+  const QueuedCast magic_missile{107, 0, 1}, sleep{166, 0, 1}, empowered{107, 1, 3}, web{213, 0, 2};
+  CHECK_EQ(DrawsOnSameSlots(true, magic_missile, magic_missile), true);   // a Wizard: its ready copies
+  CHECK_EQ(DrawsOnSameSlots(true, magic_missile, sleep), false);
+  CHECK_EQ(DrawsOnSameSlots(true, magic_missile, empowered), false);
+  CHECK_EQ(DrawsOnSameSlots(false, magic_missile, sleep), true);          // a Cleric: the slots of the level
+  CHECK_EQ(DrawsOnSameSlots(false, magic_missile, web), false);
+}

@@ -13,4 +13,5 @@ level = 5
 abilities = 10 10 14 10 16 12
 items = nw_wdbqs001 equip
 note = the spellbook and the radial's spells list every Cleric spell of levels 0 to 3 - no memorising
-note = slots 4 / 3 / 2 (no Wisdom bonus); a cantrip never runs out
+note = slots 4 / 3 / 2 (no Wisdom bonus); a cantrip never runs out and its button shows no number
+note = a 1st-level spell clicked five times queues four casts - the fifth is refused (no uses left)

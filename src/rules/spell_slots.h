@@ -34,4 +34,18 @@ int SpellGain2024(int class_row, int class_level, int spell_level);
 // A cast spends a use: not a cantrip's in faithful (at will).
 bool CastSpendsUse(bool faithful, int spell_level);
 
+// A cast order and what it draws on: for a class that memorises, the ready copies of the spell with that metamagic;
+// for one that casts spontaneously, the slots of its level (core/rules_spell_slots.cpp counts the queue).
+struct QueuedCast {
+  unsigned spell = 0;
+  int metamagic = 0;
+  int slot_level = 0;
+};
+bool DrawsOnSameSlots(bool memorizes, const QueuedCast& a, const QueuedCast& b);
+
+// A new cast order is refused when the casts already queued from the same slots use up what is left (owner,
+// 2026-11-04: "SL-2 should not be allowed to queue spells a larger number of times than the slots available");
+// a cantrip never (at will).
+bool CastQueueFull(bool faithful, int slot_level, int queued, int uses_left);
+
 }  // namespace rules

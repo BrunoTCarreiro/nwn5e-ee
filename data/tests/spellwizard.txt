@@ -12,5 +12,6 @@ class = wizard
 level = 3
 abilities = 8 14 14 16 10 10
 items = nw_wdbqs001 equip
+note = your spellbook gets every Wizard cantrip (NWN gives them at character creation)
 note = memorise as usual: 3 cantrips, four 1st, two 2nd (no Intelligence bonus); rest
 note = cast a memorised cantrip - it stays ready

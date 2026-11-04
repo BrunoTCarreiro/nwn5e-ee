@@ -55,6 +55,8 @@ CodeRange FunctionAt(uintptr_t address);
 // Every direct call (E8 rel32) inside `range` that lands on `target`, in
 // address order. Call sites are not changed by hooking their target.
 std::vector<uintptr_t> FindCallsTo(CodeRange range, uintptr_t target);
+// The same over the whole of nwmain's code (.text).
+std::vector<uintptr_t> FindCallsAnywhere(uintptr_t target);
 
 // Whether the bytes `pattern` occur anywhere in [from, to).
 bool ContainsBytes(uintptr_t from, uintptr_t to, const uint8_t* pattern, size_t size);

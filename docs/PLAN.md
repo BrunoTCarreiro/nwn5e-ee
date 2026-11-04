@@ -181,6 +181,18 @@ monster AC by CR.
     (a memorised cantrip stays ready); the slot log is player characters only, once per value (NPCs at module load
     had used it up). SL-4: NWN's 1st-level Paladin spells are buffs and Cure Light Wounds (a touch attack on undead,
     no save), so the Paladin's Charisma DC shows with #39's spells; the row checks the slots instead.
+  - *0.74.2 (owner, 2026-11-04: "SL-2 should not be allowed to queue spells a larger number of times than the slots
+    available / SL-3 cantrips still show a number os uses even though they never go down / SL-5 wizard doesn't have
+    cantrips"):* SL-2 - AddCastSpellActions checks only the uses left now and a use is spent when casting starts, so
+    a cast order is refused (the engine's own "no uses" feedback) when the casts already queued from the same slots
+    use up what is left (rules::CastQueueFull, DrawsOnSameSlots; test CastQueue, 7 of 7 mutations caught): a
+    memorising class's ready copies of the spell, else the slots of its level; the running cast is the queue's first
+    node between ticks and counts until it has spent its use (creature +0x81C); cantrips never. Through a new
+    action_guard SpellOrderGuard (the whole order). SL-3 - the server sends plain counts (no "unlimited"), so the
+    client's uses getter (a byte pattern) marks a 2024 caster's cantrip and its caller's next CExoString::ToString
+    comes back empty: no number on the quickbar, the spell panels or the cure menu (a Wizard's memorised cantrip
+    keeps its ready count on the quickbar). SL-5 - !test gives a Wizard every Wizard cantrip (NWN's character
+    creation does; swap_class skipped it).
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

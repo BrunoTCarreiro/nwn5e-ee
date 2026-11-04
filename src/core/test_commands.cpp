@@ -561,6 +561,39 @@ std::string SwapFirstClass(void* stats, int to) {
          std::to_string(added) + " added" + (slots.size() > 1 ? "; only the first class" : "") + ")";
 }
 
+// A Wizard in the first class gets every Wizard cantrip in its spellbook: NWN gives them at character creation,
+// which swap_class skips (owner, 2026-11-04, #36 SL-5: "wizard doesn't have cantrips").
+std::string AddWizardCantrips(void* stats) {
+  constexpr int kNwnClassWizard = 10;  // classes.2da row
+  using GetSpellFn = void* (*)(const void* spells, int id);
+  using SpellLevelFn = uint8_t (*)(void* spell, uint8_t nwn_class);
+  using IsKnownFn = int (*)(void* stats, uint8_t slot, uint32_t spell_id);
+  using AddKnownFn = void (*)(void* stats, uint8_t slot, uint32_t spell_id);
+  static const auto get_spell = reinterpret_cast<GetSpellFn>(EngineExport(ee::kGetSpell));
+  static const auto spell_level = reinterpret_cast<SpellLevelFn>(EngineExport(ee::kSpellGetLevel));
+  static const auto is_known = reinterpret_cast<IsKnownFn>(EngineExport(ee::kIsInKnownSpellList));
+  static const auto add_known = reinterpret_cast<AddKnownFn>(EngineExport(ee::kAddKnownSpell));
+  const std::vector<rules::NwnClassSlot> slots = ReadClassSlots(stats);
+  if (slots.empty() || slots[0].nwn_class_id != kNwnClassWizard) return {};
+  void** rules_global = reinterpret_cast<void**>(EngineExport(ee::kRules));
+  void* spells = rules_global && *rules_global ? Field<void*>(*rules_global, ee::kRulesSpells) : nullptr;
+  if (!spells || !get_spell || !spell_level || !is_known || !add_known) {
+    return "  spellbook: no Wizard cantrips added (an engine function is missing)";
+  }
+  const int count = Field<int32_t>(spells, ee::kSpellArrayCount);
+  int added = 0;
+  for (int id = 0; id < count && count < 100000; ++id) {
+    void* spell = get_spell(spells, id);
+    if (!spell || spell_level(spell, kNwnClassWizard) != 0) continue;
+    if (is_known(stats, 0, static_cast<uint32_t>(id))) continue;
+    add_known(stats, 0, static_cast<uint32_t>(id));
+    ++added;
+  }
+  Log("test: 0x%08X spellbook: %d Wizard cantrips added (NWN gives them at character creation)", ObjectIdOf(stats),
+      added);
+  return "  spellbook: " + std::to_string(added) + " Wizard cantrips added (NWN's character creation)";
+}
+
 std::vector<std::string> LevelCommand(void* creature, const std::string& args) {
   void* stats = StatsOf(creature);
   if (!stats) return {};
@@ -839,6 +872,11 @@ std::vector<std::string> TestCommand(void* creature, const std::string& args) {
   if (profile.nwn_class >= 0 && profile.level > 0) lines.push_back(AddLevels(stats, profile.nwn_class, profile.level));
   // 2a. More classes (`levels`), each up to its level.
   for (const rules::TestLevels& more : profile.levels) lines.push_back(AddLevels(stats, more.nwn_class, more.level));
+  // 2a'. A Wizard's cantrips: character creation gives them, and a rebuilt character skipped it (#36).
+  if (rules::TestProfileBuildsCharacter(profile)) {
+    const std::string cantrips = AddWizardCantrips(stats);
+    if (!cantrips.empty()) lines.push_back(cantrips);
+  }
   // 2b. Experience only: the level-up screen makes the levels.
   if (profile.xp > 0) {
     RaiseXp(stats, static_cast<uint32_t>(profile.xp));

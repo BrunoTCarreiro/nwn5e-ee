@@ -100,4 +100,13 @@ int SpellGain2024(int class_row, int class_level, int spell_level) {
 
 bool CastSpendsUse(bool faithful, int spell_level) { return !(faithful && spell_level == 0); }
 
+bool DrawsOnSameSlots(bool memorizes, const QueuedCast& a, const QueuedCast& b) {
+  if (memorizes) return a.spell == b.spell && a.metamagic == b.metamagic;
+  return a.slot_level == b.slot_level;
+}
+
+bool CastQueueFull(bool faithful, int slot_level, int queued, int uses_left) {
+  return faithful && CastSpendsUse(faithful, slot_level) && queued >= uses_left;
+}
+
 }  // namespace rules

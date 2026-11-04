@@ -867,6 +867,42 @@ constexpr size_t kSpellArrayCount = 0x0;
 constexpr const char* kGetSpell = "?GetSpell@CNWSpellArray@@QEBAPEAVCNWSpell@@H@Z";
 constexpr const char* kLoadSpellArray = "?Load@CNWSpellArray@@QEAAXXZ";
 constexpr size_t kSpellUseConcentration = 0x174;
+// unsigned char CNWSpell::GetSpellLevel(unsigned char nwn_class) - 0xFF off the class's list (UnReadySpell +0x177).
+constexpr const char* kSpellGetLevel = "?GetSpellLevel@CNWSpell@@QEAAEE@Z";
+// CNWSCreatureStats::AddKnownSpell(uchar class slot, uint spell) - into the slot's known list (a Wizard's spellbook)
+// at the spell's level for the class; GetIsInKnownSpellList(uchar class slot, uint spell) - already there.
+constexpr const char* kAddKnownSpell = "?AddKnownSpell@CNWSCreatureStats@@QEAAXEI@Z";
+constexpr const char* kIsInKnownSpellList = "?GetIsInKnownSpellList@CNWSCreatureStats@@QEAAHEI@Z";
+// #36 SL-2, a cast order checked against the slots left (CNWSCreature::AddCastSpellActions checks only the uses
+// left now): uchar CNWSCreatureStats::GetSpellUsesLeft(spell, class slot, domain level, metamagic) - a memorising
+// class's ready copies, else the per-day uses of the spell's level; uchar CNWRules::GetMetaMagicLevelCost(meta);
+// a class's MemorizesSpells (int32, rules classes +0x4EC; UnReadySpell +0x1B3).
+constexpr const char* kGetSpellUsesLeft = "?GetSpellUsesLeft@CNWSCreatureStats@@QEAAEIEEE@Z";
+constexpr const char* kGetMetaMagicLevelCost = "?GetMetaMagicLevelCost@CNWRules@@QEAAEE@Z";
+constexpr size_t kClassMemorizesSpells = 0x4ec;
+// A queued cast (action 0xF): the spell +0x38, the class slot's low byte +0x40, the domain level +0x48, the
+// metamagic +0x50, flags +0x80 (bit 31: fake) - AddCastSpellActions' AddAction, AIActionCastSpell's reads.
+constexpr size_t kCastSpell = 0x38;
+constexpr size_t kCastClassSlot = 0x40;
+constexpr size_t kCastDomainLevel = 0x48;
+constexpr size_t kCastMetamagic = 0x50;
+constexpr size_t kCastFlags = 0x80;
+constexpr uint32_t kCastFlagFake = 0x80000000u;
+// int32 on the creature: the running cast has spent its use (AIActionCastSpell sets it at the spend, its exits
+// clear it; DecrementSpellReadyCount spends nothing while it is set). RunActions puts an action still under way
+// back at the head of the queue (RunActions +0x104D), so a running cast is the queue's first node between ticks.
+constexpr size_t kCreatureCastUseSpent = 0x81c;
+// void CNWSCreature::SendFeedbackMessage(uint16 id, CNWCCMessageData*, CNWSPlayer*); 0x16 is the engine's own
+// refusal of a cast with no uses left (HandlePlayerToServerInputMessage).
+constexpr const char* kCreatureSendFeedbackMessage =
+    "?SendFeedbackMessage@CNWSCreature@@QEAAXGPEAVCNWCCMessageData@@PEAVCNWSPlayer@@@Z";
+constexpr uint16_t kFeedbackNoSpellUses = 0x16;
+// #36 SL-3, a cantrip's button with no number: the client's CNWCCreatureStats::GetSpellUsesLeft(spell, class
+// slot, domain level, metamagic) (not exported; this pattern is at its +0x1E) gives the uses its five callers
+// (the quickbar's refresh and one-button setter, two spell panels, the spontaneous-cure menu) then write with
+// static CExoString CExoString::ToString(int) - their first ToString call after it.
+constexpr const char* kClientSpellUsesLeftPattern = "41 0F B6 F1 41 0F B6 F8 8B EA 4C 8B F1 44 3A 41 69 0F 83";
+constexpr const char* kExoStringToString = "?ToString@CExoString@@SA?AV1@H@Z";
 // void CNWSCreature::ResolveInitiative(): one RollDice(1, 20) (+0x43), then
 // GetDEXMod(0) and the feat keys EPIC_SUPERIOR / IMPROVED / BLOODED / THUG
 // _INITIATIVE_BONUS, each read only here.

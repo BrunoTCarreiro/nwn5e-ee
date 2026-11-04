@@ -30,6 +30,7 @@ using AddCastSpellActionsFn = int (*)(void* creature, uint32_t spell, int class_
                                       int feat, uint8_t unknown2);
 AddCastSpellActionsFn g_add_cast_spell_actions = nullptr;
 std::vector<SpellCastGuard> g_spell_guards;
+std::vector<SpellOrderGuard> g_spell_order_guards;
 bool g_spells_hooked = false;
 bool g_spells_failed = false;
 
@@ -64,6 +65,19 @@ int AddCastSpellActions(void* creature, uint32_t spell, int class_slot, int doma
   for (SpellCastGuard guard : g_spell_guards) {
     if (guard(creature, spell, target)) return 0;
   }
+  if (!g_spell_order_guards.empty()) {
+    SpellOrder order;
+    order.spell = spell;
+    order.class_slot = class_slot;
+    order.domain_level = domain_level;
+    order.metamagic = metamagic;
+    order.spontaneous = spontaneous != 0;
+    order.target = target;
+    order.fake = fake != 0;
+    for (SpellOrderGuard guard : g_spell_order_guards) {
+      if (guard(creature, order)) return 0;
+    }
+  }
   return g_add_cast_spell_actions(creature, spell, class_slot, domain_level, metamagic, spontaneous, location, target,
                                   area_target, add_to_front, fake, projectile_path, instant, unknown, feat, unknown2);
 }
@@ -85,7 +99,9 @@ bool AddActionGuard(ActionGuard guard) {
   return true;
 }
 
-bool AddSpellCastGuard(SpellCastGuard guard) {
+namespace {
+
+bool HookSpellOrders() {
   if (!g_spells_hooked && !g_spells_failed) {
     g_spells_hooked = HookExport("CNWSCreature::AddCastSpellActions (order guards)", ee::kAddCastSpellActions,
                                  reinterpret_cast<void*>(&AddCastSpellActions),
@@ -93,7 +109,19 @@ bool AddSpellCastGuard(SpellCastGuard guard) {
     g_spells_failed = !g_spells_hooked;
     if (g_spells_failed) Log("SKIP order guards: the spell order is not hooked");
   }
-  if (!g_spells_hooked || !guard) return false;
+  return g_spells_hooked;
+}
+
+}  // namespace
+
+bool AddSpellCastGuard(SpellCastGuard guard) {
+  if (!HookSpellOrders() || !guard) return false;
   g_spell_guards.push_back(guard);
+  return true;
+}
+
+bool AddSpellOrderGuard(SpellOrderGuard guard) {
+  if (!HookSpellOrders() || !guard) return false;
+  g_spell_order_guards.push_back(guard);
   return true;
 }
