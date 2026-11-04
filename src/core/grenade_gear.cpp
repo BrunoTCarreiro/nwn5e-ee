@@ -16,6 +16,12 @@
 //   (x0_s3_calhb); the field gone after 25 points (NWN's NW_L_TOTAL_DAMAGE).
 // - 1A (action_order.cpp, round_swings.cpp): mid-round a player's throw goes at once and takes one of the round's
 //   remaining swings.
+// - #130 (owner, 2026-11-04: "1A (later we'll check if it's too small), 2B, 3A, 4B"), a house rule ([house_rules]
+//   flask_patches, off by default): Acid, Alchemist's Fire or Holy Water thrown at the ground leaves a patch - its area
+//   of effect (vfx_persistent rows 100-102: one creature wide) for 2 rounds; a creature entering it (n5_fp*_in) or in
+//   it at its round tick (n5_fp*_rd, every 6 s) takes the flask's dice, no save, once a round (rules::FlaskMakesPatch);
+//   whom, NWN's area-spell rule (x0_i0_spells' spellsIsTarget, SPELL_TARGET_STANDARDHOSTILE: allies only above Normal
+//   difficulty, written out here); Holy Water's only undead and evil outsiders.
 // The scripts run in C++ (script_hooks.cpp: RunScript by name); their NWScript is a chunk wrapped in main - no
 // include: the hostility test is GetIsReactionTypeFriendly's, as NWN's Thunderstone's own.
 
@@ -69,7 +75,9 @@ const char* const kFlask = R"nss(
 object t = GetSpellTargetObject(); int k = GetObjectType(t);
 $ITEM
 if (!GetIsObjectValid(t) || (k != OBJECT_TYPE_CREATURE && k != OBJECT_TYPE_DOOR && k != OBJECT_TYPE_PLACEABLE)) {
-  ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect($VIS), GetSpellTargetLocation()); return;
+  ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect($VIS), GetSpellTargetLocation());
+  $GROUND
+  return;
 }
 $ONLY
 SignalEvent(t, EventSpellCastAt(OBJECT_SELF, GetSpellId()));
@@ -151,12 +159,93 @@ if (n >= $LIFE) {
 }
 )nss";
 
+// #130, a house rule: a flask's patch (OBJECT_SELF its area of effect) - a creature entering it, or everyone in it at
+// its round tick: the flask's dice, no save (2B, 3A), once a round (a local on the creature for
+// rules::kFlaskPatchLockSeconds); whom it hurts, NWN's area-spell rule (4B: x0_i0_spells' spellsIsTarget,
+// SPELL_TARGET_STANDARDHOSTILE - the thrower and its henchmen, or a neutral, only above Normal difficulty).
+const char* const kPatch = R"nss(
+object c = GetAreaOfEffectCreator(); object cm = GetMaster(c); object mod = GetModule();
+int hard = GetGameDifficulty() > GAME_DIFFICULTY_NORMAL;
+string key = "n5_fpatch_" + ObjectToString(OBJECT_SELF);
+object t = $FIRST;
+while (GetIsObjectValid(t)) {
+  object m = GetMaster(t);
+  int hurt = GetObjectType(t) == OBJECT_TYPE_CREATURE && !GetIsDead(t) && !GetLocalInt(t, key);
+  if (hurt) {
+    int pc = GetIsPC(t) || GetLocalInt(mod, "X0_G_ALLOWSPELLSTOHURT") == 10;
+    int notfriend = !GetIsReactionTypeFriendly(t, c);
+    int own = hard && (t == c || m == c);
+    if (!own && GetIsObjectValid(m) && ((!GetIsReactionTypeFriendly(m, c) && GetIsPC(m)) || GetIsReactionTypeHostile(m, c))) own = TRUE;
+    hurt = GetIsReactionTypeHostile(t, c) || own || (pc && notfriend) ||
+           (notfriend && hard && GetLocalInt(mod, "X2_SWITCH_ENABLE_NPC_AOE_HURT_ALLIES"));
+    if (GetIsObjectValid(m) && GetIsObjectValid(cm) && m == cm && !GetLocalInt(mod, "X2_SWITCH_MULTI_HENCH_AOE_MADNESS")) hurt = FALSE;
+  }
+  $ONLY
+  if (hurt) {
+    SetLocalInt(t, key, 1);
+    AssignCommand(t, DelayCommand($LOCK, DeleteLocalInt(t, key)));
+    SignalEvent(t, EventSpellCastAt(c, $SPELL));
+    ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectLinkEffects(EffectDamage($DICE, $TYPE), EffectVisualEffect($VIS)), t);
+  }
+  t = $NEXT;
+}
+)nss";
+
+// Holy Water's patch: undead and evil outsiders only.
+const char* const kPatchHolyOnly = R"nss(
+  if (hurt) {
+    int r = GetRacialType(t);
+    if (r != RACIAL_TYPE_UNDEAD && !(r == RACIAL_TYPE_OUTSIDER && GetAlignmentGoodEvil(t) == ALIGNMENT_EVIL)) hurt = FALSE;
+  }
+)nss";
+
+const char* FlaskName(rules::Grenade grenade) {
+  return grenade == rules::Grenade::kAlchemistsFire ? "Alchemist's Fire"
+         : grenade == rules::Grenade::kHolyWater    ? "Holy Water"
+                                                    : "Acid";
+}
+
+const char* FlaskDamageType(rules::Grenade grenade) {
+  return grenade == rules::Grenade::kAlchemistsFire ? "DAMAGE_TYPE_FIRE"
+         : grenade == rules::Grenade::kHolyWater    ? "DAMAGE_TYPE_DIVINE"
+                                                    : "DAMAGE_TYPE_ACID";
+}
+
+const char* FlaskImpact(rules::Grenade grenade) {
+  return grenade == rules::Grenade::kAlchemistsFire ? "VFX_IMP_FLAME_S"
+         : grenade == rules::Grenade::kHolyWater    ? "VFX_IMP_HEAD_HOLY"
+                                                    : "VFX_IMP_ACID_S";
+}
+
+int FlaskSpell(rules::Grenade grenade) {
+  return grenade == rules::Grenade::kAlchemistsFire ? 464 : grenade == rules::Grenade::kHolyWater ? 466 : 469;
+}
+
+// The patch's scripts, nwn5e's names (no .ncs; script_hooks.cpp): n5_fpacid_in / n5_fpacid_rd, n5_fpfire_*,
+// n5_fpholy_*.
+std::string PatchScriptName(rules::Grenade grenade, const char* part) {
+  const char* flask = grenade == rules::Grenade::kAlchemistsFire ? "fire"
+                      : grenade == rules::Grenade::kHolyWater    ? "holy"
+                                                                 : "acid";
+  return std::string("n5_fp") + flask + "_" + part;
+}
+
 void FlaskScript(uint32_t self, rules::Grenade grenade) {
   const rules::GrenadeDice dice = rules::GrenadeHitDice(grenade);
   const int dc = DcFor(self);
   std::string code = kFlask;
   const bool fire = grenade == rules::Grenade::kAlchemistsFire;
   const bool holy = grenade == rules::Grenade::kHolyWater;
+  // #130's house rule: thrown at the ground, a patch - its area of effect for 2 rounds.
+  const bool patch = rules::FlaskMakesPatch(grenade, GrenadesFaithful(), g_config.flask_patches);
+  std::string ground;
+  if (patch) {
+    ground = "ApplyEffectAtLocation(DURATION_TYPE_TEMPORARY, EffectAreaOfEffect(" +
+             std::to_string(rules::FlaskPatchAreaEffect(grenade)) + ", \"" + PatchScriptName(grenade, "in") + "\", \"" +
+             PatchScriptName(grenade, "rd") + "\", \"\"), GetSpellTargetLocation(), RoundsToSeconds(" +
+             std::to_string(rules::kFlaskPatchRounds) + "));";
+  }
+  Replace(&code, "$GROUND", ground);
   Replace(&code, "$ITEM", fire ? kCoating : "");
   Replace(&code, "$ONLY", holy ? kHolyOnly : "");
   Replace(&code, "$AFTER", fire ? kBurning : "");
@@ -164,15 +253,44 @@ void FlaskScript(uint32_t self, rules::Grenade grenade) {
   Replace(&code, "$SIDES", std::to_string(rules::kBurningDieSides));
   Replace(&code, "$DC", std::to_string(dc));
   Replace(&code, "$DICE", Dice(dice));
-  Replace(&code, "$TYPE", fire ? "DAMAGE_TYPE_FIRE" : holy ? "DAMAGE_TYPE_DIVINE" : "DAMAGE_TYPE_ACID");
-  Replace(&code, "$VIS", fire ? "VFX_IMP_FLAME_S" : holy ? "VFX_IMP_HEAD_HOLY" : "VFX_IMP_ACID_S");
-  const char* name = fire ? "Alchemist's Fire" : holy ? "Holy Water" : "Acid";
+  Replace(&code, "$TYPE", FlaskDamageType(grenade));
+  Replace(&code, "$VIS", FlaskImpact(grenade));
+  const char* name = FlaskName(grenade);
   if (LogSlot()) {
-    Log("grenades: 0x%08X %s - the target's Dexterity save, DC %d, or %s%s (2024)", self, name, dc,
-        Dice(dice).c_str(), fire ? " and burning 3 rounds" : "");
+    Log("grenades: 0x%08X %s - the target's Dexterity save, DC %d, or %s%s (2024)%s", self, name, dc,
+        Dice(dice).c_str(), fire ? " and burning 3 rounds" : "",
+        patch ? "; at the ground a patch for 2 rounds (the house rule)" : "");
   }
   Run(code, self, name);
 }
+
+// #130: a patch's scripts - a creature entering it, or its round tick (everyone in it).
+void PatchScript(uint32_t self, rules::Grenade grenade, bool entering) {
+  const rules::GrenadeDice dice = rules::GrenadeHitDice(grenade);
+  std::string code = kPatch;
+  Replace(&code, "$FIRST",
+          entering ? "GetEnteringObject()" : "GetFirstInPersistentObject(OBJECT_SELF, OBJECT_TYPE_CREATURE)");
+  Replace(&code, "$NEXT",
+          entering ? "OBJECT_INVALID" : "GetNextInPersistentObject(OBJECT_SELF, OBJECT_TYPE_CREATURE)");
+  Replace(&code, "$ONLY", grenade == rules::Grenade::kHolyWater ? kPatchHolyOnly : "");
+  Replace(&code, "$LOCK", std::to_string(rules::kFlaskPatchLockSeconds));
+  Replace(&code, "$SPELL", std::to_string(FlaskSpell(grenade)));
+  Replace(&code, "$DICE", Dice(dice));
+  Replace(&code, "$TYPE", FlaskDamageType(grenade));
+  Replace(&code, "$VIS", FlaskImpact(grenade));
+  if (LogSlot()) {
+    Log("grenades: 0x%08X %s's patch (the house rule) - %s: %s, no save, once a round", self, FlaskName(grenade),
+        entering ? "a creature entering" : "its round, everyone in it", Dice(dice).c_str());
+  }
+  Run(code, self, "a flask's patch");
+}
+
+void AcidPatchIn(uint32_t self) { PatchScript(self, rules::Grenade::kAcid, true); }
+void AcidPatchRound(uint32_t self) { PatchScript(self, rules::Grenade::kAcid, false); }
+void FirePatchIn(uint32_t self) { PatchScript(self, rules::Grenade::kAlchemistsFire, true); }
+void FirePatchRound(uint32_t self) { PatchScript(self, rules::Grenade::kAlchemistsFire, false); }
+void HolyPatchIn(uint32_t self) { PatchScript(self, rules::Grenade::kHolyWater, true); }
+void HolyPatchRound(uint32_t self) { PatchScript(self, rules::Grenade::kHolyWater, false); }
 
 void AcidScript(uint32_t self) { FlaskScript(self, rules::Grenade::kAcid); }
 void AlchemistsFireScript(uint32_t self) { FlaskScript(self, rules::Grenade::kAlchemistsFire); }
@@ -232,4 +350,15 @@ void InstallGrenades() {
   Log("grenades: 2024 gear - the flasks a Dexterity save (DC 8 + Dex + PB) for 2024's damage, no splash; burning 3 "
       "rounds; the bombs Dexterity half; Caltrops DC 15 on entering; a throw mid-round takes a swing%s",
       scripts ? "" : " - NOT available (no script hook)");
+  // #130: the patches' scripts (the house rule is read at each throw: a test profile may turn it on).
+  const bool patches = AddScriptHandler(PatchScriptName(rules::Grenade::kAcid, "in").c_str(), &AcidPatchIn) &&
+                       AddScriptHandler(PatchScriptName(rules::Grenade::kAcid, "rd").c_str(), &AcidPatchRound) &&
+                       AddScriptHandler(PatchScriptName(rules::Grenade::kAlchemistsFire, "in").c_str(), &FirePatchIn) &&
+                       AddScriptHandler(PatchScriptName(rules::Grenade::kAlchemistsFire, "rd").c_str(),
+                                        &FirePatchRound) &&
+                       AddScriptHandler(PatchScriptName(rules::Grenade::kHolyWater, "in").c_str(), &HolyPatchIn) &&
+                       AddScriptHandler(PatchScriptName(rules::Grenade::kHolyWater, "rd").c_str(), &HolyPatchRound);
+  Log("grenades: flask patches, a house rule ([house_rules] flask_patches): %s%s",
+      g_config.flask_patches ? "on - a flask thrown at the ground leaves a patch for 2 rounds" : "off",
+      patches ? "" : " - NOT available (no script hook)");
 }

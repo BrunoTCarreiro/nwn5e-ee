@@ -36,11 +36,33 @@ GrenadeDice GrenadeHitDice(Grenade grenade) {
 
 bool GrenadeHalfOnSave(Grenade grenade) { return grenade == Grenade::kFireBomb || grenade == Grenade::kAcidBomb; }
 
+bool FlaskMakesPatch(Grenade grenade, bool grenades_faithful, bool house_rule) {
+  if (!grenades_faithful || !house_rule) return false;
+  return grenade == Grenade::kAcid || grenade == Grenade::kAlchemistsFire || grenade == Grenade::kHolyWater;
+}
+
+int FlaskPatchAreaEffect(Grenade grenade) {
+  switch (grenade) {
+    case Grenade::kAcid: return 100;
+    case Grenade::kAlchemistsFire: return 101;
+    case Grenade::kHolyWater: return 102;
+    default: return -1;
+  }
+}
+
 bool ThrowGoesNow(bool attacking_mid_round, bool grenade, bool faithful) {
   return faithful && grenade && attacking_mid_round;
 }
 
-unsigned GrenadeDescription2024(unsigned game_strref) {
+unsigned GrenadeDescription2024(unsigned game_strref, bool flask_patches) {
+  if (flask_patches) {
+    switch (game_strref) {
+      case 2989: return 16000564;  // Acid Flask, with the house rule's patch
+      case 2990: return 16000565;  // Alchemist's Fire
+      case 2994: return 16000566;  // Holy Water
+      default: break;
+    }
+  }
   switch (game_strref) {
     case 2989: return 16000555;   // Acid Flask
     case 2990: return 16000556;   // Alchemist's Fire

@@ -709,6 +709,9 @@ const SwitchField kSwitchFields[] = {
      [](int value) { ClockOffsetsForTests().from_bottom = value; }},
     {"creature_min_hp", [] { return g_config.debug_creature_min_hp; },
      [](int value) { g_config.debug_creature_min_hp = value; }},
+    // #130: the flask patches' house rule ([house_rules] flask_patches; read at each throw).
+    {"flask_patches", [] { return g_config.flask_patches ? 1 : 0; },
+     [](int value) { g_config.flask_patches = value != 0; }},
     // #11, 0.58.8: the push slides' times (no ini keys: their values here are the built-in ones).
     {"push_slide_delay_ms", [] { return PushSlideTimesForTests().fall_slide_delay_ms; },
      [](int value) { PushSlideTimesForTests().fall_slide_delay_ms = value; }},

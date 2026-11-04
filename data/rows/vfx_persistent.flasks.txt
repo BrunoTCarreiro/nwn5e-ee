@@ -1,0 +1,8 @@
+# vfx_persistent.2da - #130's house rule (nwn5e.ini [house_rules] flask_patches): Acid, Alchemist's Fire or Holy
+# Water thrown at the ground leaves a patch one creature wide (1A: a 5-ft square - 0.83 m from the centre) for 2
+# rounds. core/grenade_gear.cpp names its scripts (EffectAreaOfEffect: n5_fp*_in, n5_fp*_rd). The looks are the
+# game's own models by name: one actor of Acid Fog's fog, of Wall of Fire's flames; the Light spell's glow.
+LABEL SHAPE RADIUS OrientWithGround DurationVFX MODEL01 NUMACT01 DURATION01 EDGEWGHT01 SoundDuration MODELMIN01
+100 NWN5E_FLASK_ACID C 0.83 0 **** vps_fogacid 1 3400 0 sps_fog_loop vps_fogacid_L
+101 NWN5E_FLASK_FIRE C 0.83 0 **** vps_wallfire 1 300 0 sps_wallfire vps_wallfire_L
+102 NWN5E_FLASK_HOLY C 0.83 0 148 **** **** **** **** **** ****

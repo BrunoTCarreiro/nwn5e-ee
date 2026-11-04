@@ -48,12 +48,29 @@ constexpr int kCaltropsSaveDc = 15;
 constexpr int kCaltropsDamage = 1;
 constexpr int kCaltropsFieldDamage = 25;
 
+// #130 (owner, 2026-11-04: "1A (later we'll check if it's too small), 2B, 3A, 4B"), a house rule - not SRD 5.2, off
+// by default (nwn5e.ini [house_rules] flask_patches) - after the 2024 Oil flask's doused space: Acid, Alchemist's Fire
+// and Holy Water thrown at the ground (no creature, door or placeable at the target) make a patch one creature wide
+// (1A: a 5-ft square - its area of effect's 0.83 m radius) for 2 rounds. A creature that enters it or ends its round
+// there takes the flask's dice (2B: GrenadeHitDice), no save (3A), at most once a round; whom it hurts is NWN's
+// area-spell rule (4B: allies only above Normal difficulty); Holy Water's hurts only undead and evil outsiders. Only
+// with the grenades faithful (core/grenade_gear.cpp).
+bool FlaskMakesPatch(Grenade grenade, bool grenades_faithful, bool house_rule);
+constexpr int kFlaskPatchRounds = 2;
+// Once a round: a creature a patch hurt isn't hurt by it again for 5 s - under the 6-second round, so the patch's
+// round tick (every 6 s) still finds it next round.
+constexpr float kFlaskPatchLockSeconds = 5.0f;
+// The patch's area of effect, a vfx_persistent.2da row (data/rows/vfx_persistent.flasks.txt): Acid 100, Alchemist's
+// Fire 101, Holy Water 102; -1 for any other.
+int FlaskPatchAreaEffect(Grenade grenade);
+
 // 1A: mid-round a player's throw goes at once and takes one of the round's remaining swings - the attack of the
 // Attack action it replaces (none left: one of the next round's).
 bool ThrowGoesNow(bool attacking_mid_round, bool grenade, bool faithful);
 
 // The item's description in 2024 terms (nwn5e's string, 16000555-16000563) for a grenade's in dialog.tlk (the
-// blueprints' 2989-2997, 84353-84354); 0 for any other.
-unsigned GrenadeDescription2024(unsigned game_strref);
+// blueprints' 2989-2997, 84353-84354); with the flask patches' house rule (#130) on, the three flasks' name it
+// (16000564-16000566). 0 for any other.
+unsigned GrenadeDescription2024(unsigned game_strref, bool flask_patches);
 
 }  // namespace rules

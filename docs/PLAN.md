@@ -616,6 +616,36 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
     - The descriptions in faithful mode: nwn5e's strings 16000555-16000563 for dialog.tlk's 2989-2997 and 84353-84354
       (rules::GrenadeDescription2024, rules_labels.cpp's swap).
     - Tests GrenadeSpells, GrenadeRules, GrenadeDescriptions (17 of 17 mutations caught).
+- *#130, house rules; flasks thrown at the ground leave a patch (the 2024 Oil flask's rule).* Asked (owner, 2026-11-04,
+  after #124's brief): "Ok, I want to add a house rules section. For example we'll keep the faithful rules, the ones
+  you added. But I also want acid flask, alchemist fire and holy water to work with oil flask rules where they create a
+  hazard area when thrown in the floor". Oil (SRD 5.2): poured on the ground it covers a 5-ft square; lit, it burns 2
+  rounds - 5 Fire damage to a creature that enters it or ends its turn there, at most once a turn. The section (the
+  plan): nwn5e.ini's `[house_rules]`, each rule off by default, Help's key moved there ("House rules", below).
+  Options: 1 the size - A one creature's space (a 5-ft square), B NWN's small radius (1.67 m); 2 the damage - A Oil's
+  flat 5 of the flask's type, B the flask's dice each time; 3 a save - A none (Oil's), B a Dexterity save for none;
+  4 whom it hurts - A anyone (Oil's), B NWN's area-spell rule (allies only above Normal difficulty, as the Bombs'
+  clouds).
+  - *Decided (owner, 2026-11-04: "1A (later we'll check if it's too small), 2B, 3A, 4B"; then "go ahead with the code
+    we'll test them all together" - with #124's 0.68.0):* 1A, 2B, 3A, 4B.
+  - *Built 0.69.0 ([house_rules] flask_patches, off by default; with the grenades faithful):*
+    - rules::FlaskMakesPatch (Acid, Alchemist's Fire, Holy Water; the house rule on and the grenades faithful),
+      kFlaskPatchRounds 2, kFlaskPatchLockSeconds 5 (once a round, under the 6-s tick), FlaskPatchAreaEffect -
+      vfx_persistent rows 100-102 (data/rows/vfx_persistent.flasks.txt): a 0.83 m radius; one actor of Acid Fog's fog,
+      of Wall of Fire's flames; Holy Water the Light spell's glow (VFX_DUR_LIGHT).
+    - grenade_gear.cpp: a flask at the ground (no creature, door or placeable at the target) - its splash visual, then
+      EffectAreaOfEffect(row, n5_fp<flask>_in, n5_fp<flask>_rd) for 2 rounds. The patch's scripts in C++ (kPatch):
+      entering, the creature; its round tick (6 s), everyone in it - the flask's dice (2B), no save (3A), a local on
+      the creature for 5 s (once a round). Whom: x0_i0_spells' spellsIsTarget (SPELL_TARGET_STANDARDHOSTILE) written
+      out (4B) - hostiles always; the thrower, its henchmen and neutrals only above Normal difficulty; the module's
+      switches X0_G_ALLOWSPELLSTOHURT, X2_SWITCH_ENABLE_NPC_AOE_HURT_ALLIES, X2_SWITCH_MULTI_HENCH_AOE_MADNESS. Holy
+      Water's only undead and evil outsiders.
+    - The three flasks' descriptions with the house rule on: 16000564-16000566 (rules::GrenadeDescription2024's
+      flask_patches). The grenades' 2024 descriptions (16000555-16000563) lose dialog.tlk's opening sentence (the
+      game's own text, not ours to copy).
+    - config: [house_rules] help (Help's, #56 - [rules] help_house_rule still read) and flask_patches; "config: house
+      rules" in the log. The test switch flask_patches (0..1): `!test grenades` turns it on, ten of each flask.
+    - Test FlaskPatches (11 of 11 mutations caught).
 
 ### Phase 7 — Interface
 - Character creation and level-up screens for the 2024 flow (background,
@@ -731,6 +761,17 @@ line in nwn5e.ini picks the default for all of them — `mode=faithful`
 "NWN mode" is not the original 3e game: that stays available by switching a
 rule off (its key = 0). Earlier rules (crits, attack bonus, Extra Attack,
 retargeting, Phase 1b) are the same in both modes unless noted.
+
+## House rules (owner, 2026-11-04, #130)
+
+The owner: "I want to add a house rules section. For example we'll keep the faithful rules, the ones you added." Rules
+that aren't SRD 5.2: each off by default, on top of the faithful rules, in nwn5e.ini's `[house_rules]`; each one's
+in-game text says "a house rule". A house rule works only with the faithful mode it names.
+
+| Key | Issue | The rule | With |
+|---|---|---|---|
+| `help` (before 0.69.0 `[rules] help_house_rule`, still read) | #56 | Help on a downed henchman: a DC 10 Wisdom (Medicine) check gets it up at 1 HP | `actions` faithful |
+| `flask_patches` | #130 | Acid, Alchemist's Fire, Holy Water thrown at the ground leave a patch one creature wide for 2 rounds: the flask's dice to a creature entering it or ending its round there, no save, once a round; allies only above Normal difficulty | `grenades` faithful |
 
 ## Phase 3 — character model: decided by the owner (2026-10-19)
 

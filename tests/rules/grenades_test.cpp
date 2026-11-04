@@ -44,18 +44,45 @@ TEST(GrenadeRules) {
   CHECK_EQ(kCaltropsSaveDc == 15 && kCaltropsDamage == 1 && kCaltropsFieldDamage == 25, true);
 }
 
+// #130 (owner, 2026-11-04: "1A (later we'll check if it's too small), 2B, 3A, 4B"), the flask patches' house rule.
+// Breaks caught: a patch with the house rule off or the grenades NWN's, a bomb's or Caltrops' or Tanglefoot's patch,
+// a flask without one, two flasks' areas swapped, 3 rounds, the lock a full round (the next tick missed), the house
+// rule's descriptions not swapped or swapped for another grenade.
+TEST(FlaskPatches) {
+  CHECK_EQ(FlaskMakesPatch(Grenade::kAcid, true, true), true);
+  CHECK_EQ(FlaskMakesPatch(Grenade::kAlchemistsFire, true, true), true);
+  CHECK_EQ(FlaskMakesPatch(Grenade::kHolyWater, true, true), true);
+  CHECK_EQ(FlaskMakesPatch(Grenade::kAcid, true, false), false);  // the house rule off (the default)
+  CHECK_EQ(FlaskMakesPatch(Grenade::kHolyWater, false, true), false);  // NWN's grenades
+  CHECK_EQ(FlaskMakesPatch(Grenade::kFireBomb, true, true), false);
+  CHECK_EQ(FlaskMakesPatch(Grenade::kCaltrops, true, true), false);
+  CHECK_EQ(FlaskMakesPatch(Grenade::kTanglefoot, true, true), false);
+  CHECK_EQ(FlaskPatchAreaEffect(Grenade::kAcid), 100);
+  CHECK_EQ(FlaskPatchAreaEffect(Grenade::kAlchemistsFire), 101);
+  CHECK_EQ(FlaskPatchAreaEffect(Grenade::kHolyWater), 102);
+  CHECK_EQ(FlaskPatchAreaEffect(Grenade::kAcidBomb), -1);
+  CHECK_EQ(kFlaskPatchRounds, 2);
+  CHECK_EQ(kFlaskPatchLockSeconds > 0.0f && kFlaskPatchLockSeconds < 6.0f, true);
+  CHECK_EQ(GrenadeDescription2024(2989, true), 16000564u);
+  CHECK_EQ(GrenadeDescription2024(2990, true), 16000565u);
+  CHECK_EQ(GrenadeDescription2024(2994, true), 16000566u);
+  CHECK_EQ(GrenadeDescription2024(2991, true), 16000557u);  // Caltrops: no patch, its 2024 text
+  CHECK_EQ(GrenadeDescription2024(84353, true), 16000562u);
+  CHECK_EQ(GrenadeDescription2024(2989, false), 16000555u);
+}
+
 // The descriptions in 2024 terms. Breaks caught: one swapped for another's, a grenade's left NWN's, another item's
 // swapped (2993 Coldstone, 2996).
 TEST(GrenadeDescriptions) {
-  CHECK_EQ(GrenadeDescription2024(2989), 16000555u);
-  CHECK_EQ(GrenadeDescription2024(2990), 16000556u);
-  CHECK_EQ(GrenadeDescription2024(2991), 16000557u);
-  CHECK_EQ(GrenadeDescription2024(2992), 16000558u);
-  CHECK_EQ(GrenadeDescription2024(2994), 16000559u);
-  CHECK_EQ(GrenadeDescription2024(2995), 16000560u);
-  CHECK_EQ(GrenadeDescription2024(2997), 16000561u);
-  CHECK_EQ(GrenadeDescription2024(84353), 16000562u);
-  CHECK_EQ(GrenadeDescription2024(84354), 16000563u);
-  CHECK_EQ(GrenadeDescription2024(2993), 0u);
-  CHECK_EQ(GrenadeDescription2024(2996), 0u);
+  CHECK_EQ(GrenadeDescription2024(2989, false), 16000555u);
+  CHECK_EQ(GrenadeDescription2024(2990, false), 16000556u);
+  CHECK_EQ(GrenadeDescription2024(2991, false), 16000557u);
+  CHECK_EQ(GrenadeDescription2024(2992, false), 16000558u);
+  CHECK_EQ(GrenadeDescription2024(2994, false), 16000559u);
+  CHECK_EQ(GrenadeDescription2024(2995, false), 16000560u);
+  CHECK_EQ(GrenadeDescription2024(2997, false), 16000561u);
+  CHECK_EQ(GrenadeDescription2024(84353, false), 16000562u);
+  CHECK_EQ(GrenadeDescription2024(84354, false), 16000563u);
+  CHECK_EQ(GrenadeDescription2024(2993, false), 0u);
+  CHECK_EQ(GrenadeDescription2024(2996, false), 0u);
 }

@@ -10,7 +10,7 @@
 // - Dash (feat 1323, n5_dash): its speed doubled for the round (a movement rate bonus: rules::DashMovementFactor -
 //   not an effect, so the engine's speed cap doesn't hold it back; the grapple's drag still halves it). Slot 2
 //   (Improved Power Attack's), and the quickbar.
-// - Help (feat 1324, n5_help) - the house rule, off by default ([rules] help_house_rule; not SRD 5.2: the 2024 Help
+// - Help (feat 1324, n5_help) - the house rule, off by default ([house_rules] help; not SRD 5.2: the 2024 Help
 //   stabilizes a creature at 0 Hit Points, and nwn5e's downed henchmen make no death saves): on a downed henchman, a
 //   DC 10 Wisdom (Medicine) check (NWN's Heal, the 2024 skill value) - success, it gets up at 1 HP (rules_dying.cpp);
 //   failure, nothing. The quickbar (a target: the radial's page has no slot left).

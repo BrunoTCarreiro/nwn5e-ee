@@ -56,9 +56,11 @@ const char* Label2024(uint32_t strref) {
     const auto swap = rules::CreationStringSwap2024(strref);
     if (swap && Faithful(swap->rule)) label = DataString(swap->nwn5e);
   }
-  // #124: the grenades' descriptions in 2024 terms.
+  // #124: the grenades' descriptions in 2024 terms (#130: the three flasks' with their patch when it's on).
   if (!label && GrenadesFaithful()) {
-    if (const unsigned grenade = rules::GrenadeDescription2024(strref)) label = DataString(grenade);
+    if (const unsigned grenade = rules::GrenadeDescription2024(strref, g_config.flask_patches)) {
+      label = DataString(grenade);
+    }
   }
   return label;
 }

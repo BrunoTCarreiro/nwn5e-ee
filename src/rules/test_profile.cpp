@@ -119,6 +119,7 @@ bool TestSwitchRange(const std::string& name, int* low, int* high) {
                                   {"clock_y", 0, 2000},
                                   {"creature_hp_multiplier", 0, 100},
                                   {"creature_min_hp", 0, 30000},
+                                  {"flask_patches", 0, 1},
                                   {"push_slide_delay_ms", 0, 500},
                                   {"push_slide_ms", 100, 1500},
                                   {"rest_clock", 0, 1},

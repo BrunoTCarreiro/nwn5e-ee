@@ -5,12 +5,14 @@
 # Grenades as 2024 gear (issue 124): your first class becomes Fighter 5 - two attacks a round, so a throw
 # mid-round takes one of them - Dexterity 16 and PB 3 (a grenade's DC 14), a longsword in hand, five of
 # each grenade and a Holy Water. The attack trace in the log.
-name = Grenades as 2024 gear (issue 124): human Fighter 5, Dex 16 (DC 14), every grenade
+# The flask patches' house rule (issue 130) on: Acid, Alchemist's Fire and Holy Water thrown at the ground leave a
+# patch - ten of each of those three.
+name = Grenades as 2024 gear (issue 124): human Fighter 5, Dex 16 (DC 14), every grenade; flask patches on (issue 130)
 species = human
 swap_class = fighter
 class = fighter
 level = 5
 abilities = 14 16 14 10 12 8
-items = nw_wswls001 equip, x1_wmgrenade001 x5, x1_wmgrenade002 x5, x1_wmgrenade003 x5, x1_wmgrenade004 x5, x1_wmgrenade005 x5, x1_wmgrenade006 x5, x1_wmgrenade007 x5, x2_it_firebomb x2, x2_it_acidbomb x2
-switches = attack_trace=1
-note = the grenades are on the quickbar's item slots or in your inventory - use one on a creature
+items = nw_wswls001 equip, x1_wmgrenade001 x10, x1_wmgrenade002 x10, x1_wmgrenade003 x5, x1_wmgrenade004 x5, x1_wmgrenade005 x10, x1_wmgrenade006 x5, x1_wmgrenade007 x5, x2_it_firebomb x2, x2_it_acidbomb x2
+switches = attack_trace=1, flask_patches=1
+note = the grenades are on the quickbar's item slots or in your inventory - use one on a creature, or a flask on the ground for its patch

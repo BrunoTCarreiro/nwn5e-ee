@@ -219,8 +219,16 @@ struct Config {
   // #56 (owner, 2026-11-02: "Let's go with B and have it off by default"): a
   // house rule, not SRD 5.2 - with the actions faithful every player character
   // has Help: on a downed henchman, a DC 10 Wisdom (Medicine) check gets it up
-  // at 1 HP. 0 (the default): no Help.
+  // at 1 HP. 0 (the default): no Help. [house_rules] help (#130; before it
+  // [rules] help_house_rule, still read).
   bool help_house_rule = false;
+  // #130 (owner, 2026-11-04: "1A (later we'll check if it's too small), 2B,
+  // 3A, 4B"): a house rule, not SRD 5.2 - with the grenades faithful, Acid,
+  // Alchemist's Fire and Holy Water thrown at the ground leave a patch one
+  // creature wide for 2 rounds (the 2024 Oil flask's doused space): the
+  // flask's dice to a creature entering it or ending its round there, no
+  // save, once a round. [house_rules] flask_patches; 0 (the default): none.
+  bool flask_patches = false;
   // #124 (owner, 2026-11-04: "good recs, go with them"): NWN's grenades as 2024 gear - faithful: the flasks (Acid,
   // Alchemist's Fire, Holy Water) a Dexterity save on the thrower's DC (8 + Dex + PB) for 2024's damage, no splash;
   // burning 3 rounds; the bombs 10d6, Dexterity half; Tanglefoot Bag, Thunderstone, Choking Powder and the clouds on
