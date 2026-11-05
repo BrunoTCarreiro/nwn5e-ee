@@ -950,6 +950,13 @@ constexpr const char* kSpellsPageAllCantripsPattern = "44 8B C3 41 0F B6 D6 48 8
 // as at the page's setup +0x1A20 (10 CExoArrayList<uint32>, 0x10 each: data +0, count int32 +8).
 constexpr const char* kSpellsPageRemovePattern =
     "48 63 B9 38 0E 00 00 85 FF 0F 88 ?? ?? ?? ?? 48 8B 81 C8 11 00 00 44 8B 24 B8";
+// 0.78.3: the page's Add (a click on an available row; void (page)) - this pattern at its +0x35: the page's
+// creature, its spells left (+0x19DC) checked, the selected available row (+0x920). Add builds the picked spell's
+// known row itself (its one CNWSpell::GetSpellNameText call), then the client's AddKnownSpell; it calls ShowLevel
+// only to move on to the next level's tab.
+constexpr const char* kSpellsPageAddPattern =
+    "48 8B F1 8B 89 D8 19 00 00 E8 ?? ?? ?? ?? 4C 8B F0 48 85 C0 0F 84 ?? ?? ?? ?? 66 83 BE DC 19 00 00 00 0F 84 "
+    "?? ?? ?? ?? 48 63 BE 20 09 00 00";
 constexpr const char* kSpellsPageCreaturePattern = "41 8B 8C 24 D8 19 00 00 E8";
 constexpr size_t kSpellsPageSelected = 0xe38;
 constexpr size_t kSpellsPageKnownIds = 0x11c8;

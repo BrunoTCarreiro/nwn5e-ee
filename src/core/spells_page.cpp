@@ -26,8 +26,12 @@
 //   are swapped out to the left get a 'known' or 'old' label"; 0.78.2: "instead of (old) make it '- Out' and add
 //   '- In' to the ones swapped in"): at a level-up (something known before), a known row picked this level-up reads
 //   "<name> - In", an available row known before and dropped reads "<name> - Out" - CNWSpell::GetSpellNameText at
-//   ShowLevel's two calls (the known rows', then the available rows'). A drop rebuilds the tab (ShowLevel), as a pick
-//   does, so its row shows the label at once.
+//   ShowLevel's two calls (the known rows', then the available rows'). A drop rebuilds the tab (ShowLevel), so its row
+//   shows the label at once.
+// - 0.78.3 (owner, 2026-11-05: "the spells that were swapped in don't say '- IN'"): a pick doesn't rebuild the tab -
+//   the page's Add (a click on an available row) builds the known row itself and names it at its own
+//   GetSpellNameText call - so that call is labelled too: "- In" unless the spell was known before (a dropped spell
+//   picked back).
 // - 0.77.1 (owner, 2026-11-05: "again initial prepare spells pop up out of nowhere"): NWN's page setup gives a
 //   class with LearnScroll at level 1 every cantrip (its known list's level 0 empty: all of them, the client's
 //   AddKnownSpell in a loop) - 7 against 2024's 3, and the Prepare window opened to trim them. At that call the add is
@@ -65,6 +69,7 @@ using SpellLevelFn = uint8_t (*)(void* spell, uint8_t nwn_class);
 using GetSpellFn = void* (*)(const void* spells, int id);
 using ClientAddKnownFn = uintptr_t (*)(void* client_stats, uintptr_t slot, uintptr_t spell);
 using RemoveFn = void (*)(void* page);
+using AddFn = void (*)(void* page);
 using SpellNameFn = void* (*)(void* spell, void* out);  // CExoString CNWSpell::GetSpellNameText()
 using ClientCreatureFn = void* (*)(uint32_t id);
 constexpr int kNwnClassWizard = 10;
@@ -85,6 +90,9 @@ thread_local bool t_book_loaded = false;
 ClientAddKnownFn g_client_add_known = nullptr;
 uintptr_t g_all_cantrips_site = 0;  // the page setup's every-cantrip add (its return address)
 RemoveFn g_remove = nullptr;
+AddFn g_add = nullptr;
+uintptr_t g_add_name_site = 0;  // Add's name call (its return address): the picked spell's new known row
+thread_local void* t_add_page = nullptr;  // the page Add is picking on
 SpellNameFn g_spell_name = nullptr;
 uintptr_t g_known_name_site = 0;  // ShowLevel's name calls (return addresses): the known rows', the available rows'
 uintptr_t g_avail_name_site = 0;
@@ -292,11 +300,41 @@ void* SpellOf(uint32_t id) {
   return spells && g_get_spell ? g_get_spell(spells, static_cast<int>(id)) : nullptr;
 }
 
+// The known list as at the page's setup holds `spell` (by its CNWSpell).
+bool SavedHasSpell(const void* saved, const void* spell) {
+  const uint32_t* data = Field<const uint32_t*>(saved, 0);
+  const int count = Field<int32_t>(saved, ee::kExoArrayListCount);
+  for (int i = 0; data && i < count && i < 4096; ++i) {
+    if (SpellOf(data[i]) == spell) return true;
+  }
+  return false;
+}
+
+void AppendLabel(void* name_string, const char* label) {
+  const char* name = Field<const char*>(name_string, 0);
+  const std::string text = std::string(name ? name : "") + label;
+  g_destroy_string(name_string);
+  g_make_string(name_string, text.c_str());
+}
+
+// 0.78.3: a click's new known row (Add's own name call) - " - In" at a level-up, unless known before.
+void* PickedRowName(void* page, void* spell, void* result) {
+  void* const client_stats = PageStats(page);
+  Levelled c;
+  if (!client_stats || !LevelledClass(client_stats, &c) || !KnewSomething(page)) return result;
+  const int spell_level = Field<uint8_t>(page, ee::kSpellsPageLevel);
+  if (spell_level > 9) return result;
+  const void* saved = static_cast<uint8_t*>(page) + ee::kSpellsPageSavedKnown + spell_level * ee::kExoArrayListSize;
+  if (!SavedHasSpell(saved, spell)) AppendLabel(result, " - In");
+  return result;
+}
+
 // 0.78.1 / 0.78.2: a row's name with its label - " - In" for a pick of this level-up in the known column, " - Out"
-// for a spell known before and dropped, back in the available column.
+// for a spell known before and dropped, back in the available column (ShowLevel's rows; 0.78.3: and Add's row).
 void* SpellName(void* spell, void* out) {
   void* result = g_spell_name(spell, out);
   const uintptr_t from = reinterpret_cast<uintptr_t>(_ReturnAddress());
+  if (from == g_add_name_site && t_add_page && result) return PickedRowName(t_add_page, spell, result);
   if ((from != g_known_name_site && from != g_avail_name_site) || !t_show_page || !t_page_stats || !result) {
     return result;
   }
@@ -321,12 +359,16 @@ void* SpellName(void* spell, void* out) {
       if (SpellOf(data[i]) == spell && !KnownNow(t_page_stats, c, spell_level, data[i])) label = " - Out";
     }
   }
-  if (!label) return result;
-  const char* name = Field<const char*>(result, 0);
-  const std::string text = std::string(name ? name : "") + label;
-  g_destroy_string(result);
-  g_make_string(result, text.c_str());
+  if (label) AppendLabel(result, label);
   return result;
+}
+
+// 0.78.3: a click on an available row - the page kept while Add names the known row it builds.
+void Add(void* page) {
+  void* const outer = t_add_page;
+  t_add_page = page;
+  g_add(page);
+  t_add_page = outer;
 }
 
 void Remove(void* page) {
@@ -349,7 +391,7 @@ void Remove(void* page) {
     }
   }
   g_remove(page);
-  ShowLevel(page, spell_level);  // 0.78.1: the tab rebuilt, as a pick rebuilds it - the dropped row's " - Out"
+  ShowLevel(page, spell_level);  // 0.78.1: the tab rebuilt - the dropped row's " - Out"
 }
 
 }  // namespace
@@ -402,12 +444,17 @@ bool InstallSpellsPage() {
     g_known_name_site = name_calls[0] + 5;
     g_avail_name_site = name_calls[1] + 5;
   }
+  const uintptr_t add_inside = FindPattern("the Spells page's Add (#36)", ee::kSpellsPageAddPattern);
+  const uintptr_t add = add_inside ? FunctionEntry(add_inside) : 0;
+  const std::vector<uintptr_t> add_name_calls =
+      add && name_export ? FindCallsTo(FunctionAt(add), name_export) : std::vector<uintptr_t>();
+  g_add_name_site = add_name_calls.size() == 1 ? add_name_calls[0] + 5 : 0;  // the picked spell's known row
   g_all_cantrips_site = all_cantrips ? all_cantrips + 15 : 0;  // the call (+10) and its 5 bytes
   const uintptr_t quick = quick_inside ? FunctionEntry(quick_inside) : 0;
   g_quick_site = quick_inside ? quick_inside + 26 : 0;  // the pattern's call (+21) and its 5 bytes
   if (!left || !show || !quick || !g_known_count || !g_set_text || !g_make_string || !g_destroy_string ||
       !g_avail_site || !g_get_known || !g_get_spell || !client_add || !remove || !g_client_creature ||
-      !g_known_name_site) {
+      !g_known_name_site || !add || !g_add_name_site) {
     Log("SKIP spells #36 3b: the Spells page isn't mapped (left %p, show %p, quick %p, known %p)",
         reinterpret_cast<void*>(left), reinterpret_cast<void*>(show), reinterpret_cast<void*>(quick),
         reinterpret_cast<void*>(g_known_count));
@@ -426,6 +473,8 @@ bool InstallSpellsPage() {
                   reinterpret_cast<void*>(&ClientAddKnown), reinterpret_cast<void**>(&g_client_add_known)) &&
       HookAddress("CCharacterSpellsPanel Remove (the level-up swaps, SRD 5.2's, #36)", remove,
                   reinterpret_cast<void*>(&Remove), reinterpret_cast<void**>(&g_remove)) &&
+      HookAddress("CCharacterSpellsPanel Add (a pick's - In label, #36)", add, reinterpret_cast<void*>(&Add),
+                  reinterpret_cast<void**>(&g_add)) &&
       HookExport("CNWSpell::GetSpellNameText (the page's - In / - Out labels, #36)", ee::kSpellGetNameText,
                  reinterpret_cast<void*>(&SpellName), reinterpret_cast<void**>(&g_spell_name));
   Log("spells: NWN's Spells page at creation and level-up with 2024's counts - the total across levels, the title's "

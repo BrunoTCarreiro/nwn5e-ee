@@ -353,6 +353,11 @@ monster AC by CR.
   - *0.78.2 (owner, 2026-11-05: "instead of (old) make it '- Out' and add '- In' to the ones swapped in"):* the
     labels read "<name> - In" (every pick of this level-up - a pick isn't tied to the spell it replaces) and
     "<name> - Out".
+  - *0.78.3 (owner, 2026-11-05: "the spells that were swapped in don't say '- IN'"):* a pick doesn't rebuild the
+    tab, as 0.78.1 assumed: the page's Add (0x9C74C0, a click on an available row) builds the known row itself and
+    names it at its own CNWSpell::GetSpellNameText call, and calls ShowLevel only to move on to the next level's
+    tab. So a clicked pick showed no label until the tab was rebuilt. Add is hooked and its name call labelled too:
+    "- In" unless the spell was known before (a dropped spell picked back).
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
