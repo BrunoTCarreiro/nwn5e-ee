@@ -155,8 +155,13 @@ own git working copy of this repo:
   alone by it until merged: `build.bat`, `test.bat`, `src/core/config.*`,
   `nwn5e.ini`, README.md, CLAUDE.md.
 - **One installer.** The game session builds `main`, installs and
-  launch-checks (above). The owner says "game closed" to the installer; the
-  animation session passes it on when the owner says it there.
+  launch-checks (above). It checks for itself whether the game is running
+  (`tasklist` for nwmain.exe) instead of asking (owner, 2026-11-05: "instead
+  of asking me to tell you when the game's closed, can't you just check?"):
+  it installs once nwmain.exe isn't running, checks again right before the
+  copy and compares every file after it. While the game runs it says the
+  build is ready and installs when it's closed; "game closed" from the owner
+  still works, and the animation session passes it on.
 - **The front desk** (owner, 2026-11-03: "go with B"). The owner talks to the
   game session; it routes animation topics to the animation session. The
   animation window is for bench work and animation design.
