@@ -294,6 +294,21 @@ monster AC by CR.
     cast multiple cantrips"; "PR-9 and 11 pass"; PR-10 dropped ("will not test, forget those older characters" - the
     code that moves a Wizard's NWN spellbook into the item stays: a new Wizard's empty book is made by it).
   - *Part 3a accepted (owner, 2026-11-05: "part 3a accepted, start 3b").*
+  - *Part 3b brief (2026-11-05; research: the client's spell page).* NWN's Spells page (CCharacterSpellsPanel,
+    vtable 0xE7B580, .gui CG_SPELLS) follows the class pick at creation and level-up for a SpellbookRestricted class
+    without SkipSpellSelection; it counts per spell level - the client's spells left (0x7EE050, not exported:
+    GetSpellsKnownPerLevel minus the known at that level) - with the cantrips on their own tab, and its picks go to the
+    client's known list. The level-up message already carries removals (HandlePlayerToServerLevelUpMessage reads an
+    added and a removed list per level; LevelUp applies both), but the page has no swap. With 3a's counts it is right
+    at creation (but the Wizard's would be its prepared list, not its book) and over-allows later (Cleric 2->3: 7
+    picks for 1 new place) - a total-across-levels bound on 0x7EE050 (and the hub's quick level-up, 0x7EB630) fixes
+    that. Plan: 3b-1 the page for Bard, Sorcerer, Cleric, Druid, Paladin and Ranger with 2024's counts; 3b-2 the
+    Wizard; 3b-3 the level-up swaps. Questions: 1 the Wizard's spellbook - A on NWN's page (6 at creation, 2 a level;
+    the columns the book), B the Prepare window's Spellbook tab; 2 the level-up swaps - A on the page (drop a known
+    spell, pick its replacement), B the Prepare window after the level-up with one swap; 3 the page's counts - A NWN's
+    "Remaining" per tab, B 2024's totals ("Cantrips 3 of 3, Prepared 5 of 6"). Recommended A, A (built last; back
+    to the owner before any fallback to B), B.
+  - *Decided (owner, 2026-11-05: "go with your recommendations"):* 1A, 2A, 3B.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
