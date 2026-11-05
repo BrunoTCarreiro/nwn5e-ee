@@ -293,6 +293,7 @@ monster AC by CR.
   - *Tested (owner, 2026-11-05):* PR-6 and PR-8 pass ("6 had passed previously and 8 passed this time"); "PR-7 I can
     cast multiple cantrips"; "PR-9 and 11 pass"; PR-10 dropped ("will not test, forget those older characters" - the
     code that moves a Wizard's NWN spellbook into the item stays: a new Wizard's empty book is made by it).
+  - *Part 3a accepted (owner, 2026-11-05: "part 3a accepted, start 3b").*
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
