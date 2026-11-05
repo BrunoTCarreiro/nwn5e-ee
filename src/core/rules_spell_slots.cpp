@@ -116,9 +116,13 @@ uint8_t Gain(void* stats, uint8_t slot, uint8_t spell_level) {
   return static_cast<uint8_t>(gain);
 }
 
+// 0.75.1: only a real spell level - CNWSCreatureStats::LevelUpAutomatic asks with a package spell's level for the
+// class, 0xFF when it's off the list, and on a yes adds it to its per-level lists at that index (out of bounds:
+// the crash of !test spellcleric, once the Cleric's list became a restricted known list).
 int MinAbility(void* stats, uint8_t slot, uint8_t spell_level) {
   int row = 0, level = 0;
-  return CasterSlot(stats, slot, &row, &level) ? 1 : g_min_ability(stats, slot, spell_level);
+  if (!CasterSlot(stats, slot, &row, &level)) return g_min_ability(stats, slot, spell_level);
+  return rules::SpellLevelMet2024(spell_level) ? 1 : 0;
 }
 
 void Decrement(void* stats, uint8_t slot, uint8_t spell_level) {

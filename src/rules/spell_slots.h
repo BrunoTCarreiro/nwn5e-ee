@@ -31,6 +31,10 @@ int PreparedSpells2024(int class_row, int class_level);
 // spontaneous caster only a gate - they're at will), else the slots. 0 outside.
 int SpellGain2024(int class_row, int class_level, int spell_level);
 
+// No 3e minimum score (10 + the spell's level) in 2024: any real spell level 0-9 is met; any other (the engine's
+// 0xFF, a spell off the class's list) never is - LevelUpAutomatic indexes its per-level lists with it (0.75.1).
+bool SpellLevelMet2024(int spell_level);
+
 // A cast spends a use: not a cantrip's in faithful (at will).
 bool CastSpendsUse(bool faithful, int spell_level);
 

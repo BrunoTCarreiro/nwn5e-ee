@@ -61,6 +61,11 @@ TEST(SpellSlots2024) {
   CHECK_EQ(CastSpendsUse(true, 0), false);
   CHECK_EQ(CastSpendsUse(true, 1), true);
   CHECK_EQ(CastSpendsUse(false, 0), true);
+  // 0.75.1 (owner, 2026-11-05: "attempting to do !test spellcleric crashes the game"): 0xFF is no spell level.
+  CHECK_EQ(SpellLevelMet2024(0), true);
+  CHECK_EQ(SpellLevelMet2024(9), true);
+  CHECK_EQ(SpellLevelMet2024(0xFF), false);
+  CHECK_EQ(SpellLevelMet2024(10), false);
 }
 
 // 0.74.2 (owner, 2026-11-04: "SL-2 should not be allowed to queue spells a larger number of times than the slots

@@ -113,6 +113,7 @@
 #include "rules/feats2024.h"
 #include "rules/nwn_conversion.h"
 #include "rules/progression.h"
+#include "prepare_spells.h"
 #include "rules/test_profile.h"
 #include "rules/weapons.h"
 
@@ -917,6 +918,11 @@ std::vector<std::string> TestCommand(void* creature, const std::string& args) {
   }
   // 6. Test switches for this session: the ini's values back, then the profile's.
   for (const std::string& line : ApplySwitches(id, profile.switches)) lines.push_back(line);
+  // 6a. A built 2024 caster's lists start empty, the Prepare spells window opening (#36; 0.75.1).
+  if (rules::TestProfileBuildsCharacter(profile)) {
+    const std::string spells = PrepareSpellsReset(creature);
+    if (!spells.empty()) lines.push_back(spells);
+  }
   // 6b. A built character starts rested (#102).
   if (rules::TestProfileBuildsCharacter(profile)) lines.push_back(RestAfterRebuild(id));
   // 7. What the profile can't do itself.

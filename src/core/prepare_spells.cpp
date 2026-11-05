@@ -831,6 +831,38 @@ void PrepareSpellsNoteCast(void* creature) {
   if (LogLine()) Log("prepare: 0x%08X cast a spell - the Long Rest's change is closed", IdOf(creature));
 }
 
+std::string PrepareSpellsReset(void* creature) {
+  void* stats = StatsOf(creature);
+  if (g_config.spellcasting != rules::RuleVariant::kFaithful || !g_number_known || !stats || !IsPlayer(creature)) {
+    return {};
+  }
+  const uint32_t id = IdOf(creature);
+  int removed = 0;
+  bool wizard = false;
+  for (const CasterSlot& c : CasterSlots(stats)) {
+    wizard = wizard || c.row == kNwnClassWizard;
+    void* info = ClassInfoOf(stats, c.slot);
+    for (int level = 0; level <= 9; ++level) {
+      for (int spell : Known(stats, c.slot, level)) {
+        g_remove_known(info, static_cast<uint8_t>(level), static_cast<uint32_t>(spell));
+        ++removed;
+      }
+    }
+  }
+  std::string code = "object b = GetItemPossessedBy(OBJECT_SELF, \"" + std::string(kBookTag) + "\");\n";
+  code += wizard ? "" : "if (GetIsObjectValid(b)) { SetPlotFlag(b, FALSE); DestroyObject(b); }\n";
+  code += "SetLocalString(OBJECT_SELF, \"" + std::string(kBookCopy) + "\", \"\");\n";
+  RunScriptChunk(code.c_str(), id);
+  if (wizard) WriteBook(creature, {});
+  SetChangeOpen(creature, false);
+  g_sessions.erase(id);
+  if (CasterSlots(stats).empty()) return {};
+  g_open_pending[id] = {-1, false};
+  if (LogLine()) Log("prepare: 0x%08X !test - lists emptied (%d spells), the window opens", id, removed);
+  return "  spells: cantrips and prepared spells empty" + std::string(wizard ? ", an empty Spellbook" : "") +
+         " - the Prepare spells window opens";
+}
+
 void InstallPrepareSpells() {
   if (g_config.spellcasting != rules::RuleVariant::kFaithful) return;
   g_add_known = reinterpret_cast<AddKnownFn>(EngineExport(ee::kClassInfoAddKnownSpell));

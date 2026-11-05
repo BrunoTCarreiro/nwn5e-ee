@@ -98,6 +98,8 @@ int SpellGain2024(int class_row, int class_level, int spell_level) {
   return SpellSlots2024(CasterKindOfClass(class_row), class_level, spell_level);
 }
 
+bool SpellLevelMet2024(int spell_level) { return spell_level >= 0 && spell_level <= 9; }
+
 bool CastSpendsUse(bool faithful, int spell_level) { return !(faithful && spell_level == 0); }
 
 bool DrawsOnSameSlots(bool memorizes, const QueuedCast& a, const QueuedCast& b) {

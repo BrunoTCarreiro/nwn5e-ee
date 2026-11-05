@@ -249,6 +249,13 @@ monster AC by CR.
       Ranger's (NWN keeps none) and a blueprint Wizard's (only memorised spells, e.g. nw_skelmage).
     - !test spellcleric / spellpaladin / spellwizard now go through the window (0.74.2's "every Wizard cantrip"
       step is gone - the window chooses three).
+  - *0.75.1 (owner, 2026-11-05: "attempting to do !test spellcleric crashes the game"):* CExoArrayList<uint>::Add
+    from CNWSCreatureStats::LevelUpAutomatic (+0x17B0; the crash report's backtrace, via LevelUpHenchman). With the
+    Cleric's list now restricted, the automatic level-up walks the class package's spells, asks
+    GetSpellMinAbilityMet with each one's Cleric level - 0xFF off the list - and on a yes adds it to its per-level
+    lists at that index. Part 1's hook said yes to every level; now only 0-9 (rules::SpellLevelMet2024, 2 of 2
+    mutations caught). And !test empties a rebuilt caster's lists (the automatic level-ups pick the package's
+    spells) and its Spellbook, so the window starts as a new character's (PrepareSpellsReset).
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
