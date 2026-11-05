@@ -336,6 +336,14 @@ monster AC by CR.
     window opened to trim them. That add is skipped for a 2024 caster: the cantrips tab picks 3, the character arrives
     complete and no window opens (no tutorial tie-in needed: the window is a rest's, or the quickbar's).
   - *Tested (owner, 2026-11-05, 0.77.1's WZ-1 / WZ-2: a new Wizard's cantrips and spellbook on the page):* "It passes".
+  - *Built 0.78.0 (Part 3b-3, 2A):* research found that stock NWN already lets a non-memorising class drop any known
+    spell on the Spells page (its Remove, 0x9CA3E0; the level-up message sends what's gone as removed and the
+    server's LevelUp applies it) - unlimited, and since 0.76.0 for all seven casters. core/spells_page.cpp hooks
+    Remove: a pick of this level-up can always be dropped; a spell known before it (the page's own copy of the known
+    lists at its setup, +0x1A20) only as SRD 5.2's level-up swap - Bard and Sorcerer one level 1+ spell, Bard,
+    Cleric, Druid and Sorcerer one cantrip (rules::LevelUpSwapAllowed, test LevelUpSwaps, 5 of 5 mutations caught) -
+    else refused, the title reading "No more swaps". Reset, Recommended and Cancel undo swaps as NWN does.
+    !test spellpagesorc (a Sorcerer 2 with the XP for 3).
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

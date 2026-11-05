@@ -1,0 +1,19 @@
+# A !test profile ([debug] test_commands=1): type "!test spellpagesorc" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# The level-up swaps on NWN's Spells page (issue 36, part 3b-3): your first class becomes Sorcerer 2, Charisma 16,
+# with the XP for level 3. Fill its lists in the Prepare spells window first (4 cantrips, 4 spells), then level up on
+# the level-up screen: on the Spells page a click on a spell you knew before drops it - one level 1+ spell and one
+# cantrip may be replaced at a level-up (SRD 5.2); a second is refused (the title reads No more swaps).
+name = Spells page swaps (issue 36 3b-3): Sorcerer 2 with the XP for 3 - replace one spell and one cantrip
+species = human
+swap_class = sorcerer
+class = sorcerer
+level = 2
+abilities = 8 14 14 10 10 16
+xp = 900
+items = nw_wdbqs001 equip
+note = first the Prepare spells window: 4 cantrips and 4 spells, Accept
+note = then level up: on the Spells page drop one known spell and one known cantrip (click them), pick replacements
+note = a second known spell or cantrip can't be dropped (No more swaps); a spell picked this level-up always can

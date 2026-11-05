@@ -45,6 +45,13 @@ int SpellsLeftOnPage(int level_left, int prepared_total, int known_total);
 // page (what it had prepared, and the picks); every one of them is in the book; the prepared list keeps what was
 // prepared (in the book already), then takes the new picks in order, up to `prepared_limit` - the rest stay in the
 // book only (2024: "choose four spells from your spellbook" at level 1; a Long Rest changes them).
+// Part 3b-3 (2A): at a level-up, a spell known before it may be replaced - SRD 5.2: "Whenever you gain a [Bard /
+// Sorcerer] level, you can replace one spell on your list", and Bard, Cleric, Druid and Sorcerer "can replace one of
+// your cantrips"; Paladin, Ranger and Wizard none at a level-up (theirs after a Long Rest). `swaps_done`: the spells
+// of that list (cantrips, or the level 1+ spells) already dropped this level-up. A pick of this level-up isn't a
+// swap (it can always be dropped).
+bool LevelUpSwapAllowed(int class_row, bool cantrip, int swaps_done);
+
 struct WizardLists {
   std::vector<int> book;
   std::vector<int> prepared;

@@ -69,6 +69,17 @@ int SpellsLeftOnPage(int level_left, int prepared_total, int known_total) {
   return std::max(0, std::min(level_left, prepared_total - known_total));
 }
 
+bool LevelUpSwapAllowed(int class_row, bool cantrip, int swaps_done) {
+  if (swaps_done >= 1) return false;
+  switch (class_row) {
+    case kClassBard:
+    case kClassSorcerer: return true;  // a spell or a cantrip
+    case kClassCleric:
+    case kClassDruid: return cantrip;  // a cantrip only (their prepared spells change after a Long Rest)
+    default: return false;
+  }
+}
+
 WizardLists TakeWizardPicks(const std::vector<int>& book, const std::vector<int>& known, int prepared_limit) {
   WizardLists lists;
   lists.book = book;

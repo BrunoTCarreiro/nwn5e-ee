@@ -64,6 +64,23 @@ TEST(SpellsPageTotal) {
   CHECK_EQ(BoundedKnownCap(4, 0, 9, 0), 4);  // never above the engine's cap
 }
 
+// Part 3b-3 (2A): the level-up swaps on NWN's Spells page. Breaks caught: a second swap allowed, the Bard's or
+// Sorcerer's spell swap refused, a Cleric's spell swap allowed, a Cleric's cantrip swap refused, a Paladin's or
+// Wizard's allowed.
+TEST(LevelUpSwaps) {
+  CHECK_EQ(LevelUpSwapAllowed(1, false, 0), true);   // Bard: a spell
+  CHECK_EQ(LevelUpSwapAllowed(9, false, 0), true);   // Sorcerer: a spell
+  CHECK_EQ(LevelUpSwapAllowed(9, true, 0), true);    // Sorcerer: a cantrip
+  CHECK_EQ(LevelUpSwapAllowed(9, false, 1), false);  // one only
+  CHECK_EQ(LevelUpSwapAllowed(2, true, 0), true);    // Cleric: a cantrip
+  CHECK_EQ(LevelUpSwapAllowed(3, true, 0), true);    // Druid: a cantrip
+  CHECK_EQ(LevelUpSwapAllowed(2, false, 0), false);  // Cleric: no spell (after a Long Rest)
+  CHECK_EQ(LevelUpSwapAllowed(2, true, 1), false);
+  CHECK_EQ(LevelUpSwapAllowed(6, false, 0), false);  // Paladin: after a Long Rest
+  CHECK_EQ(LevelUpSwapAllowed(10, true, 0), false);  // Wizard: its cantrip after a Long Rest
+  CHECK_EQ(LevelUpSwapAllowed(10, false, 0), false); // a book spell never leaves
+}
+
 // Part 3b-2 (owner, 2026-11-05: "Not a fan of the spellbook appearing AFTER the class configuration can it be
 // integrated into the character creation somehow?"): the Spells page's picks into a Wizard's book and prepared
 // list. Breaks caught: a pick left out of the book, the prepared over its count, an old prepared spell dropped for a

@@ -944,6 +944,19 @@ constexpr const char* kSpellsPageAvailKnownPattern = "41 0F B6 55 6A 49 8B CD E8
 // has no cantrip: every cantrip of the class added - the client's AddKnownSpell (client stats, slot, spell), the call
 // at this pattern +10 (NWN's "a Wizard knows every cantrip").
 constexpr const char* kSpellsPageAllCantripsPattern = "44 8B C3 41 0F B6 D6 48 8B CD E8 ?? ?? ?? ?? FF C3";
+// Part 3b-3: the page's Remove (a click on a known row; void (page)) - this pattern at its +0x38: the selected row
+// int32 +0xE38 (-1 none), the shown known spells' ids uint32* +0x11C8; the tab's spell level uint8 +0x19DE, the
+// page's creature id uint32 +0x19D8 (the client lookup: ShowLevel's call at this other pattern +8), the known lists
+// as at the page's setup +0x1A20 (10 CExoArrayList<uint32>, 0x10 each: data +0, count int32 +8).
+constexpr const char* kSpellsPageRemovePattern =
+    "48 63 B9 38 0E 00 00 85 FF 0F 88 ?? ?? ?? ?? 48 8B 81 C8 11 00 00 44 8B 24 B8";
+constexpr const char* kSpellsPageCreaturePattern = "41 8B 8C 24 D8 19 00 00 E8";
+constexpr size_t kSpellsPageSelected = 0xe38;
+constexpr size_t kSpellsPageKnownIds = 0x11c8;
+constexpr size_t kSpellsPageLevel = 0x19de;
+constexpr size_t kSpellsPageCreature = 0x19d8;
+constexpr size_t kSpellsPageSavedKnown = 0x1a20;
+constexpr size_t kExoArrayListSize = 0x10;  // count: kExoArrayListCount above
 constexpr size_t kSpellsPageRemainLabel = 0x2f8;
 constexpr size_t kSpellsPageKnownTitle = 0x250;
 constexpr size_t kGuiLabelWrapper = 0x80;
