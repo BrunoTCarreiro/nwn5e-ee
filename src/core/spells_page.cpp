@@ -23,10 +23,11 @@
 //   page's own copy of the known lists at its setup (+0x1A20) - only Bard and Sorcerer one level 1+ spell, Bard,
 //   Cleric, Druid and Sorcerer one cantrip; else refused, the title saying so.
 // - 0.78.1 (owner, 2026-11-05: "maybe new selected spells that go on the right get a 'new' label and spells that
-//   are swapped out to the left get a 'known' or 'old' label"): at a level-up (something known before), a
-//   known row picked this level-up reads "<name> (new)", an available row known before and dropped reads "<name>
-//   (old)" - CNWSpell::GetSpellNameText at ShowLevel's two calls (the known rows', then the available rows'). A drop
-//   rebuilds the tab (ShowLevel), as a pick does, so its row shows the label at once.
+//   are swapped out to the left get a 'known' or 'old' label"; 0.78.2: "instead of (old) make it '- Out' and add
+//   '- In' to the ones swapped in"): at a level-up (something known before), a known row picked this level-up reads
+//   "<name> - In", an available row known before and dropped reads "<name> - Out" - CNWSpell::GetSpellNameText at
+//   ShowLevel's two calls (the known rows', then the available rows'). A drop rebuilds the tab (ShowLevel), as a pick
+//   does, so its row shows the label at once.
 // - 0.77.1 (owner, 2026-11-05: "again initial prepare spells pop up out of nowhere"): NWN's page setup gives a
 //   class with LearnScroll at level 1 every cantrip (its known list's level 0 empty: all of them, the client's
 //   AddKnownSpell in a loop) - 7 against 2024's 3, and the Prepare window opened to trim them. At that call the add is
@@ -291,8 +292,8 @@ void* SpellOf(uint32_t id) {
   return spells && g_get_spell ? g_get_spell(spells, static_cast<int>(id)) : nullptr;
 }
 
-// 0.78.1: a row's name with its label - "(new)" for a pick of this level-up in the known column, "(old)" for a
-// spell known before and dropped, back in the available column.
+// 0.78.1 / 0.78.2: a row's name with its label - " - In" for a pick of this level-up in the known column, " - Out"
+// for a spell known before and dropped, back in the available column.
 void* SpellName(void* spell, void* out) {
   void* result = g_spell_name(spell, out);
   const uintptr_t from = reinterpret_cast<uintptr_t>(_ReturnAddress());
@@ -311,13 +312,13 @@ void* SpellName(void* spell, void* out) {
     for (int i = 0; i < count && i < 255 && !label; ++i) {
       const uint32_t id = g_get_known(t_page_stats, static_cast<uint8_t>(c.slot), static_cast<uint8_t>(spell_level),
                                       static_cast<uint8_t>(i));
-      if (SpellOf(id) == spell && !ListHas(saved, id)) label = " (new)";
+      if (SpellOf(id) == spell && !ListHas(saved, id)) label = " - In";
     }
   } else {  // an available row: known before, dropped?
     const uint32_t* data = Field<const uint32_t*>(saved, 0);
     const int count = Field<int32_t>(saved, ee::kExoArrayListCount);
     for (int i = 0; data && i < count && i < 4096 && !label; ++i) {
-      if (SpellOf(data[i]) == spell && !KnownNow(t_page_stats, c, spell_level, data[i])) label = " (old)";
+      if (SpellOf(data[i]) == spell && !KnownNow(t_page_stats, c, spell_level, data[i])) label = " - Out";
     }
   }
   if (!label) return result;
@@ -348,7 +349,7 @@ void Remove(void* page) {
     }
   }
   g_remove(page);
-  ShowLevel(page, spell_level);  // 0.78.1: the tab rebuilt, as a pick rebuilds it - the dropped row's "(old)"
+  ShowLevel(page, spell_level);  // 0.78.1: the tab rebuilt, as a pick rebuilds it - the dropped row's " - Out"
 }
 
 }  // namespace
@@ -425,7 +426,7 @@ bool InstallSpellsPage() {
                   reinterpret_cast<void*>(&ClientAddKnown), reinterpret_cast<void**>(&g_client_add_known)) &&
       HookAddress("CCharacterSpellsPanel Remove (the level-up swaps, SRD 5.2's, #36)", remove,
                   reinterpret_cast<void*>(&Remove), reinterpret_cast<void**>(&g_remove)) &&
-      HookExport("CNWSpell::GetSpellNameText (the page's (new) / (old) labels, #36)", ee::kSpellGetNameText,
+      HookExport("CNWSpell::GetSpellNameText (the page's - In / - Out labels, #36)", ee::kSpellGetNameText,
                  reinterpret_cast<void*>(&SpellName), reinterpret_cast<void**>(&g_spell_name));
   Log("spells: NWN's Spells page at creation and level-up with 2024's counts - the total across levels, the title's "
       "totals; a Wizard's spellbook; the level-up swaps (#36 Part 3b)%s",

@@ -350,6 +350,9 @@ monster AC by CR.
     known column's picks of this level-up read "<name> (new)" and the available column's dropped spells "<name>
     (old)" (CNWSpell::GetSpellNameText at ShowLevel's two calls; none at creation, where all would be new); a drop
     rebuilds the tab as a pick does.
+  - *0.78.2 (owner, 2026-11-05: "instead of (old) make it '- Out' and add '- In' to the ones swapped in"):* the
+    labels read "<name> - In" (every pick of this level-up - a pick isn't tied to the spell it replaces) and
+    "<name> - Out".
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
