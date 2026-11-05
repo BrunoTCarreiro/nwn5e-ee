@@ -32,6 +32,12 @@
 //   the page's Add (a click on an available row) builds the known row itself and names it at its own
 //   GetSpellNameText call - so that call is labelled too: "- In" unless the spell was known before (a dropped spell
 //   picked back).
+// - 0.78.4 (owner, 2026-11-05: "re-adding it back doesn't increase the counter to 6 and the OK button remains
+//   greyed out"): the OK button needs all ten levels marked done (+0x19E0), and NWN marks a level only at the
+//   page's setup and for the tab picked on. 2024's total is shared by the spell levels, so a pick on one tab leaves
+//   the others' marks stale (a Sorcerer 3's level 2, 2 left at the setup, stays not done once level 1's picks fill
+//   the total). After a pick or a drop, every level with nothing left is marked done and the OK button updated; a
+//   pick refreshes the title too (Add rebuilds nothing).
 // - 0.77.1 (owner, 2026-11-05: "again initial prepare spells pop up out of nowhere"): NWN's page setup gives a
 //   class with LearnScroll at level 1 every cantrip (its known list's level 0 empty: all of them, the client's
 //   AddKnownSpell in a loop) - 7 against 2024's 3, and the Prepare window opened to trim them. At that call the add is
@@ -70,6 +76,7 @@ using GetSpellFn = void* (*)(const void* spells, int id);
 using ClientAddKnownFn = uintptr_t (*)(void* client_stats, uintptr_t slot, uintptr_t spell);
 using RemoveFn = void (*)(void* page);
 using AddFn = void (*)(void* page);
+using UpdateOkFn = void (*)(void* page);  // the page's OK button from its levels' done marks
 using SpellNameFn = void* (*)(void* spell, void* out);  // CExoString CNWSpell::GetSpellNameText()
 using ClientCreatureFn = void* (*)(uint32_t id);
 constexpr int kNwnClassWizard = 10;
@@ -91,6 +98,7 @@ ClientAddKnownFn g_client_add_known = nullptr;
 uintptr_t g_all_cantrips_site = 0;  // the page setup's every-cantrip add (its return address)
 RemoveFn g_remove = nullptr;
 AddFn g_add = nullptr;
+UpdateOkFn g_update_ok = nullptr;
 uintptr_t g_add_name_site = 0;  // Add's name call (its return address): the picked spell's new known row
 thread_local void* t_add_page = nullptr;  // the page Add is picking on
 SpellNameFn g_spell_name = nullptr;
@@ -185,9 +193,9 @@ uintptr_t ClientAddKnown(void* client_stats, uintptr_t slot, uintptr_t spell) {
   return g_client_add_known(client_stats, slot, spell);
 }
 
-uint8_t SpellsLeft(void* client_stats, uint8_t spell_level) {
+// A level's spells left to pick on the page: the engine's, bounded by 2024's total (a Wizard's: its spellbook).
+uint8_t LeftOnPage(void* client_stats, uint8_t spell_level) {
   const uint8_t left = g_spells_left(client_stats, spell_level);
-  t_page_stats = client_stats;
   Levelled c;
   if (spell_level == 0 || spell_level > 9 || !LevelledClass(client_stats, &c)) return left;
   if (c.row == kNwnClassWizard) {  // 3b-2: its spellbook
@@ -196,6 +204,11 @@ uint8_t SpellsLeft(void* client_stats, uint8_t spell_level) {
   }
   return static_cast<uint8_t>(
       rules::SpellsLeftOnPage(left, rules::PreparedSpells2024(c.row, c.level), KnownPrepared(client_stats, c)));
+}
+
+uint8_t SpellsLeft(void* client_stats, uint8_t spell_level) {
+  t_page_stats = client_stats;
+  return LeftOnPage(client_stats, spell_level);
 }
 
 uintptr_t QuickLevelUp(void* client_stats, void* package, void* out) {
@@ -363,12 +376,31 @@ void* SpellName(void* spell, void* out) {
   return result;
 }
 
-// 0.78.3: a click on an available row - the page kept while Add names the known row it builds.
+// 0.78.4: every level with nothing left marked done (2024's total is shared by the levels; NWN marks only the tab
+// picked on), then the OK button updated. A mark is only ever set: NWN's own "not done" for a level with spells
+// left stays.
+void RefreshLevelsDone(void* page) {
+  void* const client_stats = PageStats(page);
+  Levelled c;
+  if (!client_stats || !LevelledClass(client_stats, &c)) return;
+  for (int spell_level = 0; spell_level <= 9; ++spell_level) {
+    if (LeftOnPage(client_stats, static_cast<uint8_t>(spell_level)) == 0) {
+      SetField<int32_t>(page, ee::kSpellsPageLevelDone + spell_level * sizeof(int32_t), 1);
+    }
+  }
+  g_update_ok(page);
+}
+
+// 0.78.3: a click on an available row - the page kept while Add names the known row it builds. 0.78.4: then the
+// levels' done marks and the title (Add rebuilds nothing, so the title kept its count).
 void Add(void* page) {
   void* const outer = t_add_page;
   t_add_page = page;
   g_add(page);
   t_add_page = outer;
+  if (!page) return;
+  RefreshLevelsDone(page);
+  SetTitle(page, PageStats(page), Field<uint8_t>(page, ee::kSpellsPageLevel), nullptr);
 }
 
 void Remove(void* page) {
@@ -392,6 +424,7 @@ void Remove(void* page) {
   }
   g_remove(page);
   ShowLevel(page, spell_level);  // 0.78.1: the tab rebuilt - the dropped row's " - Out"
+  RefreshLevelsDone(page);       // 0.78.4
 }
 
 }  // namespace
@@ -449,12 +482,15 @@ bool InstallSpellsPage() {
   const std::vector<uintptr_t> add_name_calls =
       add && name_export ? FindCallsTo(FunctionAt(add), name_export) : std::vector<uintptr_t>();
   g_add_name_site = add_name_calls.size() == 1 ? add_name_calls[0] + 5 : 0;  // the picked spell's known row
+  const uintptr_t ok_call =
+      add ? FindPatternIn("Spells page: Add's OK update", FunctionAt(add), ee::kSpellsPageAddOkUpdatePattern) : 0;
+  g_update_ok = reinterpret_cast<UpdateOkFn>(ok_call ? CallTarget(ok_call + 11) : 0);  // the second call
   g_all_cantrips_site = all_cantrips ? all_cantrips + 15 : 0;  // the call (+10) and its 5 bytes
   const uintptr_t quick = quick_inside ? FunctionEntry(quick_inside) : 0;
   g_quick_site = quick_inside ? quick_inside + 26 : 0;  // the pattern's call (+21) and its 5 bytes
   if (!left || !show || !quick || !g_known_count || !g_set_text || !g_make_string || !g_destroy_string ||
       !g_avail_site || !g_get_known || !g_get_spell || !client_add || !remove || !g_client_creature ||
-      !g_known_name_site || !add || !g_add_name_site) {
+      !g_known_name_site || !add || !g_add_name_site || !g_update_ok) {
     Log("SKIP spells #36 3b: the Spells page isn't mapped (left %p, show %p, quick %p, known %p)",
         reinterpret_cast<void*>(left), reinterpret_cast<void*>(show), reinterpret_cast<void*>(quick),
         reinterpret_cast<void*>(g_known_count));

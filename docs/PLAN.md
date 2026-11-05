@@ -358,6 +358,14 @@ monster AC by CR.
     names it at its own CNWSpell::GetSpellNameText call, and calls ShowLevel only to move on to the next level's
     tab. So a clicked pick showed no label until the tab was rebuilt. Add is hooked and its name call labelled too:
     "- In" unless the spell was known before (a dropped spell picked back).
+  - *0.78.4 (owner, 2026-11-05: "bug: when removing a spell that's been added prepared spells go from '6 of 6' to
+    '5 of 6'. re-adding it back doesn't increase the counter to 6 and the OK button remains greyed out. same happens
+    in the cantrips"):* two causes. The title was refreshed only when the tab was rebuilt, and a pick doesn't
+    rebuild it: Add now refreshes it. And the OK button needs all ten levels marked done (+0x19E0), which NWN sets
+    only at the page's setup and for the tab picked on (0x9CE730). 2024's total is shared by the spell levels, so a
+    pick on one tab left the others' marks stale: a Sorcerer 3's level 2 (2 left at the setup) stayed not done once
+    level 1's picks filled the total, whatever tab was picked on, cantrips included. After a pick or a drop every
+    level with nothing left is now marked done, then the OK button updated (0x9C6E70); a mark is only ever set.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

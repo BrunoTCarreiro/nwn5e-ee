@@ -957,6 +957,12 @@ constexpr const char* kSpellsPageRemovePattern =
 constexpr const char* kSpellsPageAddPattern =
     "48 8B F1 8B 89 D8 19 00 00 E8 ?? ?? ?? ?? 4C 8B F0 48 85 C0 0F 84 ?? ?? ?? ?? 66 83 BE DC 19 00 00 00 0F 84 "
     "?? ?? ?? ?? 48 63 BE 20 09 00 00";
+// 0.78.4: after the client's AddKnownSpell, Add calls the tab's done mark (0x9CE730: done when nothing is left, or
+// nothing to pick) and then the OK button's update (0x9C6E70, void (page): for a class that doesn't memorise, OK only
+// with all ten levels marked done) - the second call of this pattern (+11). The marks: int32 x10 at +0x19E0, set at
+// the page's setup (0x9CE190) and by 0x9CE730 for the tab picked on only.
+constexpr const char* kSpellsPageAddOkUpdatePattern = "48 8B CE E8 ?? ?? ?? ?? 48 8B CE E8 ?? ?? ?? ?? 83 BE 30 09 00 00 00";
+constexpr size_t kSpellsPageLevelDone = 0x19e0;
 constexpr const char* kSpellsPageCreaturePattern = "41 8B 8C 24 D8 19 00 00 E8";
 constexpr size_t kSpellsPageSelected = 0xe38;
 constexpr size_t kSpellsPageKnownIds = 0x11c8;
