@@ -335,6 +335,7 @@ monster AC by CR.
     gives a LearnScroll class at level 1 every cantrip (the client's AddKnownSpell in a loop, 0x9CE2FD) - so the
     window opened to trim them. That add is skipped for a 2024 caster: the cantrips tab picks 3, the character arrives
     complete and no window opens (no tutorial tie-in needed: the window is a rest's, or the quickbar's).
+  - *Tested (owner, 2026-11-05, 0.77.1's WZ-1 / WZ-2: a new Wizard's cantrips and spellbook on the page):* "It passes".
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
