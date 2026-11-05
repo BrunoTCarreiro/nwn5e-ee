@@ -1,0 +1,19 @@
+# A !test profile ([debug] test_commands=1): type "!test spellpage" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# NWN's Spells page with 2024's counts (issue 36, part 3b-1): your first class becomes Cleric 2, Wisdom 16, with the
+# XP for level 3. Prepare its spells in the Prepare spells window (3 cantrips and 5 prepared at Cleric 2), then
+# level up on the level-up screen: the Spells page follows the class step and lets you pick ONE new spell in all -
+# 2024's prepared count goes from 5 to 6 - even though the page now has 2nd-level spells too.
+name = Spells page (issue 36 3b-1): Cleric 2 with the XP for 3 - level up on NWN's Spells page
+species = human
+swap_class = cleric
+class = cleric
+level = 2
+abilities = 10 10 14 10 16 12
+xp = 900
+items = nw_wdbqs001 equip
+note = first the Prepare spells window: 3 cantrips and 5 prepared spells, Accept
+note = then level up (the level-up screen): on the Spells page the title reads Prepared 5 of 6 - one pick in all
+note = try Recommended there too: exactly one spell added
