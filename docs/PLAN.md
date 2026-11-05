@@ -278,6 +278,11 @@ monster AC by CR.
     to start; interrupted by Initiative, a non-cantrip spell, damage, an hour of exertion - an hour rested first gives
     a Short Rest's benefits, and the rest can resume at +1 hour per interruption). nwn5e has no limit (R1, owner
     2026-10-23: "no limit"); a follow-up issue holds the question.
+  - *0.75.5 (owner, 2026-11-05: "PR6. spellbook tab should be the first one." / "PR7. cannot use a second prepared
+    cantrip" / "PR8. grease is already in the spellbook"):* the Wizard's tabs are Spellbook, Cantrips, Prepared; a
+    scroll of a spell already in the Spellbook is refused and kept (its Cast Spell property's iprp_spells SpellIndex
+    read first - LearnScroll checks only the known, prepared list and would use it up). PR7 read as the 2024 limit
+    (one cantrip per Long Rest for a Wizard), asked back. The profile's Wizard 3 prepares 6 (2024), not 5.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

@@ -377,8 +377,10 @@ std::string Layout(bool wizard, bool several) {
   const std::string list = ListView(Cell(icon, 32.0f, false) + "," + Cell(name, 0.0f, true) + "," +
                                         Cell(level, 70.0f, false) + "," + Cell(mark, 90.0f, false),
                                     Bind("n"), 34.0f);
-  std::string tabs = Sized(Button("t0", Str("Cantrips")), 140.0f) + "," + Sized(Button("t1", Str("Prepared")), 140.0f);
-  if (wizard) tabs += "," + Sized(Button("t2", Str("Spellbook")), 140.0f);
+  // The Wizard's Spellbook first: the book is what it prepares from (owner, 2026-11-05: "PR6. spellbook tab should
+  // be the first one.").
+  std::string tabs = wizard ? Sized(Button("t2", Str("Spellbook")), 140.0f) + "," : std::string();
+  tabs += Sized(Button("t0", Str("Cantrips")), 140.0f) + "," + Sized(Button("t1", Str("Prepared")), 140.0f);
   if (several) tabs += "," + Spacer() + "," + Sized(Button("cls", Str("Next class")), 140.0f);
   const std::string ok =
       "{\"type\":\"button\",\"label\":\"Accept\",\"value\":null,\"id\":\"ok\",\"width\":120.0,"
@@ -821,6 +823,25 @@ int LearnScroll(void* creature, uint32_t item) {
     if (c.row == kNwnClassWizard) slot = c.slot;
   }
   if (slot < 0) return g_learn_scroll(creature, item);
+  // 0.75.5 (owner: "PR8. grease is already in the spellbook"): a spell already in the book - the engine checks only
+  // the known (prepared) list and would use the scroll up - is refused, the scroll kept.
+  char code[700];
+  sprintf_s(code,
+            "object i = StringToObject(\"%x\"); int s = -1; itemproperty p = GetFirstItemProperty(i);\n"
+            "while (GetIsItemPropertyValid(p)) { if (GetItemPropertyType(p) == ITEM_PROPERTY_CAST_SPELL) { s = "
+            "StringToInt(Get2DAString(\"iprp_spells\", \"SpellIndex\", GetItemPropertySubType(p))); break; } p = "
+            "GetNextItemProperty(i); }\nSetLocalInt(OBJECT_SELF, \"nwn5e_scroll_spell\", s);",
+            item);
+  engine::SetLocalInt(creature, "nwn5e_scroll_spell", -1);  // not an earlier scroll's, should the script not run
+  RunScriptChunk(code, IdOf(creature));
+  const int scroll_spell = engine::GetLocalInt(creature, "nwn5e_scroll_spell");
+  if (scroll_spell >= 0 && Contains(Book(creature), scroll_spell)) {
+    const SpellEntry* e = EntryOf(kNwnClassWizard, scroll_spell);
+    TellPlayer(IdOf(creature), "nwn5e: " + (e ? e->name : std::string("that spell")) +
+                                   " is already in your Spellbook - the scroll is kept.");
+    if (LogLine()) Log("prepare: 0x%08X scroll of spell %d refused - already in the Spellbook", IdOf(creature), scroll_spell);
+    return 0;
+  }
   const std::vector<int> before = KnownFrom(stats, slot, 1, 9);
   const int result = g_learn_scroll(creature, item);
   std::vector<int> book = Book(creature);

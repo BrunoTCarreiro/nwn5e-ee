@@ -3,7 +3,7 @@
 # is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
 #
 # Spell slots and preparing (issue 36, parts 1 and 3a): your first class becomes Wizard 3, Intelligence 16. The
-# Wizard gets a Spellbook item (10 spells at level 3: pick them in the window's Spellbook tab), prepares 5 of them
+# Wizard gets a Spellbook item (10 spells at level 3: pick them in the window's Spellbook tab), prepares 6 of them
 # and 3 cantrips, and casts any prepared spell with any slot of its level (four 1st, two 2nd).
 name = Spell slots (issue 36): human Wizard 3, Intelligence 16 - 2024 counts, cantrips at will
 species = human
@@ -12,5 +12,5 @@ class = wizard
 level = 3
 abilities = 8 14 14 16 10 10
 items = nw_wdbqs001 equip
-note = the Prepare spells window opens: Spellbook tab - add 10 spells; Cantrips - 3; Prepared - 5; Accept
+note = the Prepare spells window opens: Spellbook tab - add 10 spells; Cantrips - 3; Prepared - 6; Accept
 note = a Spellbook item is in your inventory (undroppable); its description lists your spells
