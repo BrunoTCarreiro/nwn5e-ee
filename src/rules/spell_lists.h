@@ -27,7 +27,8 @@ int SpellbookSpells2024(int wizard_level);
 
 // The engine's cap on a class's known list (CNWClass::GetSpellsKnownPerLevel, which the known list - the cantrips and
 // the prepared spells - is held to): the cantrips at level 0; at a level the class has slots for, the prepared total
-// (the window holds the total); else 0. -1 for a class that isn't a 2024 caster.
+// (the window holds the total) - the Wizard's spellbook size instead (3b-2: NWN's Spells page picks its book; a
+// Wizard's LearnScroll keeps the engine from capping its list); else 0. -1 for a class that isn't a 2024 caster.
 int KnownSpellsCap2024(int class_row, int class_level, int spell_level);
 
 // `after` may replace `before` (the list when the change opened): at most `limit` spells, and of `before`'s spells at
@@ -39,6 +40,16 @@ bool ListChangeAllowed(ListChange change, const std::vector<int>& before, const 
 // (`level_left`, the engine's - the prepared total minus what's known at that level) bounded by the total left: the
 // prepared total minus what's known at all the class's levels. Never below 0.
 int SpellsLeftOnPage(int level_left, int prepared_total, int known_total);
+
+// Part 3b-2: the Spells page's picks into a Wizard's lists. `known` is its known list's level 1+ spells after the
+// page (what it had prepared, and the picks); every one of them is in the book; the prepared list keeps what was
+// prepared (in the book already), then takes the new picks in order, up to `prepared_limit` - the rest stay in the
+// book only (2024: "choose four spells from your spellbook" at level 1; a Long Rest changes them).
+struct WizardLists {
+  std::vector<int> book;
+  std::vector<int> prepared;
+};
+WizardLists TakeWizardPicks(const std::vector<int>& book, const std::vector<int>& known, int prepared_limit);
 
 // The same as a cap on the level's known list (the quick level-up asks the cap itself): what's known at the level
 // plus what the total still allows, at most `cap`.

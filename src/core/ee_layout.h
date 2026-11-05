@@ -935,6 +935,11 @@ constexpr const char* kClientSpellsLeftKnownCallPattern = "0F B6 53 6A 44 0F B6 
 constexpr const char* kSpellsPageShowLevelPattern = "66 41 89 84 24 DC 19 00 00 41 8B FF 44 89 7C 24 44";
 constexpr const char* kClientQuickLevelUpSpellPattern =
     "44 88 44 24 28 66 89 4C 24 20 45 0F B6 CE 44 0F B6 C6 48 8B CF E8";
+// ShowLevel's Available pass: each spell's level for the class (CNWSpell::GetSpellLevel, the call at this pattern
+// +8) against the tab's, then the class's known spells (the client's GetKnownSpell (client stats, slot, level,
+// index), the call at this pattern +8) - a known one isn't listed.
+constexpr const char* kSpellsPageAvailLevelPattern = "0F B6 54 24 40 49 8B CF E8 ?? ?? ?? ?? 0F B6 C0 3B C6 0F 85";
+constexpr const char* kSpellsPageAvailKnownPattern = "41 0F B6 55 6A 49 8B CD E8 ?? ?? ?? ?? 41 3B C6 41 0F 44 DC";
 constexpr size_t kSpellsPageRemainLabel = 0x2f8;
 constexpr size_t kSpellsPageKnownTitle = 0x250;
 constexpr size_t kGuiLabelWrapper = 0x80;

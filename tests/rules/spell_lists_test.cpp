@@ -31,6 +31,10 @@ TEST(SpellLists) {
   CHECK_EQ(KnownSpellsCap2024(6, 2, 1), 3);   // Paladin 2: three prepared
   CHECK_EQ(KnownSpellsCap2024(6, 2, 0), 0);   // no cantrips
   CHECK_EQ(KnownSpellsCap2024(4, 5, 1), -1);  // Fighter: not a caster
+  CHECK_EQ(KnownSpellsCap2024(10, 1, 1), 6);  // Wizard 1: its spellbook's six (3b-2: the page picks the book)
+  CHECK_EQ(KnownSpellsCap2024(10, 3, 2), 10);
+  CHECK_EQ(KnownSpellsCap2024(10, 3, 3), 0);  // no 3rd-level slots at 3
+  CHECK_EQ(KnownSpellsCap2024(10, 3, 0), 3);  // cantrips as before
   // A change against the list when it opened.
   const std::vector<int> before{1, 2, 3};
   CHECK_EQ(ListChangeAllowed(ListChange::kNone, before, {1, 2, 3, 4}, 4), true);   // filling up
@@ -58,4 +62,23 @@ TEST(SpellsPageTotal) {
   CHECK_EQ(BoundedKnownCap(6, 5, 6, 5), 6);  // level 1: 5 known + 1
   CHECK_EQ(BoundedKnownCap(6, 5, 6, 6), 5);  // the total reached: no room
   CHECK_EQ(BoundedKnownCap(4, 0, 9, 0), 4);  // never above the engine's cap
+}
+
+// Part 3b-2 (owner, 2026-11-05: "Not a fan of the spellbook appearing AFTER the class configuration can it be
+// integrated into the character creation somehow?"): the Spells page's picks into a Wizard's book and prepared
+// list. Breaks caught: a pick left out of the book, the prepared over its count, an old prepared spell dropped for a
+// pick, the picks' order lost.
+TEST(WizardPicks) {
+  // Creation: six picks, four prepared.
+  WizardLists made = TakeWizardPicks({}, {11, 12, 13, 14, 15, 16}, 4);
+  CHECK_EQ(made.book == std::vector<int>({11, 12, 13, 14, 15, 16}), true);
+  CHECK_EQ(made.prepared == std::vector<int>({11, 12, 13, 14}), true);
+  // A level-up: four prepared from a book of six, two picks, one more prepared place.
+  WizardLists up = TakeWizardPicks({11, 12, 13, 14, 15, 16}, {13, 14, 15, 16, 21, 22}, 5);
+  CHECK_EQ(up.book == std::vector<int>({11, 12, 13, 14, 15, 16, 21, 22}), true);
+  CHECK_EQ(up.prepared == std::vector<int>({13, 14, 15, 16, 21}), true);
+  // Nothing picked: the lists stay.
+  WizardLists same = TakeWizardPicks({11, 12}, {11}, 4);
+  CHECK_EQ(same.book == std::vector<int>({11, 12}), true);
+  CHECK_EQ(same.prepared == std::vector<int>({11}), true);
 }

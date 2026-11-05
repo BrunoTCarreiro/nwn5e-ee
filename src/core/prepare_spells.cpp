@@ -714,19 +714,33 @@ void FillCreatureLists(void* stats) {
 }
 
 // A player character's Wizard: its NWN spellbook (the known list's level 1+ spells) into a Spellbook item, once.
+// Part 3b-2: the Spells page's picks (they land in the known list) into the Wizard's book, and its prepared list kept
+// to its count - what was prepared first, then the picks (rules::TakeWizardPicks); `had_book` false: a new book.
+void TakeWizardPicksFor(void* creature, void* stats, const CasterSlot& c, bool had_book) {
+  const std::vector<int> book = had_book ? Book(creature) : std::vector<int>();
+  const std::vector<int> known = KnownFrom(stats, c.slot, 1, 9);
+  const rules::WizardLists lists =
+      rules::TakeWizardPicks(book, known, rules::PreparedSpells2024(c.row, c.level));
+  void* info = ClassInfoOf(stats, c.slot);
+  int unprepared = 0;
+  for (int id : known) {
+    if (Contains(lists.prepared, id)) continue;
+    const SpellEntry* e = EntryOf(c.row, id);
+    if (e) g_remove_known(info, static_cast<uint8_t>(e->level), static_cast<uint32_t>(id)), ++unprepared;
+  }
+  if (!had_book || lists.book != book) WriteBook(creature, lists.book);
+  if (LogLine() && (!had_book || lists.book != book || unprepared)) {
+    Log("prepare: 0x%08X Wizard - spellbook %zu (%zu new), %zu prepared%s", IdOf(creature), lists.book.size(),
+        lists.book.size() - book.size(), lists.prepared.size(), had_book ? "" : " - a new Spellbook item");
+  }
+}
+
+// A player character's Wizard: its book found (or made from what it knows: NWN's spellbook, or the Spells page's
+// picks at creation), and the page's picks of a level-up taken into it.
 void MoveWizardBook(void* creature, void* stats) {
   for (const CasterSlot& c : CasterSlots(stats)) {
     if (c.row != kNwnClassWizard) continue;
-    if (FindBook(creature)) return;
-    std::vector<int> book = KnownFrom(stats, c.slot, 1, 9);
-    void* info = ClassInfoOf(stats, c.slot);
-    for (int id : book) {
-      const SpellEntry* e = EntryOf(c.row, id);
-      if (e) g_remove_known(info, static_cast<uint8_t>(e->level), static_cast<uint32_t>(id));
-    }
-    WriteBook(creature, book);
-    if (LogLine()) Log("prepare: 0x%08X Wizard - its spellbook (%zu spells) moved to a Spellbook item", IdOf(creature),
-                       book.size());
+    TakeWizardPicksFor(creature, stats, c, FindBook(creature));
     return;
   }
 }
@@ -759,6 +773,7 @@ bool HasEmptyPlaces(void* creature, void* stats) {
 }
 
 std::map<uint32_t, int> g_levels;  // a player character's caster levels when last seen
+uint32_t g_player_id = 0;          // the player character last seen (single player: the one)
 
 int CasterLevels(void* stats) {
   int total = 0;
@@ -796,6 +811,7 @@ void Update(void* creature) {
   if (engine::GetLocalInt(creature, kSeenVar) == 0) FirstSight(creature, stats);
   if (!IsPlayer(creature)) return;
   const uint32_t id = IdOf(creature);
+  g_player_id = id;
   // A level-up: the new places are to fill.
   const int levels = CasterLevels(stats);
   auto known_levels = g_levels.find(id);
@@ -806,8 +822,8 @@ void Update(void* creature) {
     if (!CasterSlots(stats).empty()) {
       GrantPrepareSpells(creature, stats);
       MoveWizardBook(creature, stats);
-      // 3b-1: NWN's Spells page fills the new places of a level-up; the window opens for what's left (the Wizard's
-      // spellbook until 3b-2, a page closed short).
+      // 3b-1 / 3b-2: NWN's Spells page fills the new places of a level-up (MoveWizardBook takes a Wizard's picks into
+      // its book); the window opens for what's left (a page closed short).
       if (!g_sessions.count(id) && !g_open_pending.count(id) && HasEmptyPlaces(creature, stats)) {
         g_open_pending[id] = {-1, false};
       }
@@ -893,6 +909,11 @@ std::vector<std::string> PrepareCommand(void* creature, const std::string&) {
 }
 
 }  // namespace
+
+std::vector<int> PrepareSpellsPlayerBook() {
+  void* creature = g_player_id ? CreatureById(g_player_id) : nullptr;
+  return creature ? Book(creature) : std::vector<int>();
+}
 
 void PrepareSpellsNoteCast(void* creature) {
   if (!IsPlayer(creature) || !ChangeOpen(creature)) return;

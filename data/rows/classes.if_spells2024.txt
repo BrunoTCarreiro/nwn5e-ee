@@ -6,7 +6,7 @@
 #   cantrips and prepared spells (SpellbookRestricted 1) - the Prepare spells window keeps it (core/prepare_spells.cpp);
 #   a Wizard's whole spellbook is its Spellbook item.
 # - Part 3b-1: NWN's Spells page at creation and level-up for Bard, Sorcerer, Cleric, Druid, Paladin and Ranger
-#   (SkipSpellSelection 0; core/spells_page.cpp gives it 2024's counts); the Wizard's stays skipped until 3b-2.
+#   (SkipSpellSelection 0; core/spells_page.cpp gives it 2024's counts); 3b-2 the Wizard's too (its spellbook).
 SpellGainTable MemorizesSpells MinCastingLevel SpellcastingAbil CanCastSpontaneously SpellbookRestricted SkipSpellSelection
 1  CLS_SPGN_5EBARD  0  1  CHA  0  1  0
 2  CLS_SPGN_5ECLER  0  1  WIS  0  1  0
@@ -14,4 +14,4 @@ SpellGainTable MemorizesSpells MinCastingLevel SpellcastingAbil CanCastSpontaneo
 6  CLS_SPGN_5EPAL   0  1  CHA  0  1  0
 7  CLS_SPGN_5ERANG  0  1  WIS  0  1  0
 9  CLS_SPGN_5ESORC  0  1  CHA  0  1  0
-10 CLS_SPGN_5EWIZ   0  1  INT  0  1  1
+10 CLS_SPGN_5EWIZ   0  1  INT  0  1  0

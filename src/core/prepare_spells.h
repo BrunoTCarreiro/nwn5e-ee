@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 // #36 Part 3a: the Prepare spells window and the lists behind it (prepare_spells.cpp).
 
@@ -14,3 +15,7 @@ void PrepareSpellsNoteCast(void* creature);
 // the automatic level-ups (LevelUpHenchman) pick spells from the class package - its Spellbook too; the window
 // opens. The line for the player ("" for a character with no spellcasting class).
 std::string PrepareSpellsReset(void* creature);
+
+// Part 3b-2: the player character's Spellbook (single player: the one player character; its book's spell ids), for
+// the client's Spells page. Empty when there is none.
+std::vector<int> PrepareSpellsPlayerBook();

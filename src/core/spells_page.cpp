@@ -11,7 +11,12 @@
 //   they ask whether a level has spells, not how many are left.
 // - 3B: the known column's title (KnownTitle) reads 2024's totals - "Cantrips 3 of 3" on the cantrips tab, "Prepared
 //   5 of 6" on the others - set after each ShowLevel (a tab, and a click's refresh).
-// The Wizard stays on the Prepare spells window's Spellbook tab until Part 3b-2 (its SkipSpellSelection stays 1).
+// - Part 3b-2 (owner, 2026-11-05: "Not a fan of the spellbook appearing AFTER the class configuration can it be
+//   integrated into the character creation somehow?"; 1A): a Wizard's levels 1+ on the page are its spellbook - six
+//   at creation, two at each level-up (rules::SpellbookSpells2024; the count bounded by the book and the picks), the
+//   title "Spellbook N of M", a spell already in its book not offered again (CNWSpell::GetSpellLevel answers 0xFF
+//   at the page's Available pass for it). The picks land in the known list; prepare_spells.cpp takes them into the
+//   book and keeps the prepared list to its count (the first four at creation).
 
 #include "spells_page.h"
 
@@ -27,6 +32,7 @@
 #include "ee_layout.h"
 #include "hooks.h"
 #include "log.h"
+#include "prepare_spells.h"
 #include "rules/spell_lists.h"
 #include "rules/spell_slots.h"
 
@@ -39,6 +45,10 @@ using QuickLevelUpFn = uintptr_t (*)(void* client_stats, void* package, void* ou
 using SetTextFn = void (*)(void* wrapper, const void* exo_string);
 using ExoStringFn = void (*)(void* exo_string, const char* text);
 using ExoStringDestroyFn = void (*)(void* exo_string);
+using GetKnownFn = uint32_t (*)(void* client_stats, uint8_t slot, uint8_t spell_level, uint8_t index);
+using SpellLevelFn = uint8_t (*)(void* spell, uint8_t nwn_class);
+using GetSpellFn = void* (*)(const void* spells, int id);
+constexpr int kNwnClassWizard = 10;
 
 SpellsLeftFn g_spells_left = nullptr;
 KnownCountFn g_known_count = nullptr;
@@ -47,6 +57,12 @@ QuickLevelUpFn g_quick_level_up = nullptr;
 SetTextFn g_set_text = nullptr;
 ExoStringFn g_make_string = nullptr;
 ExoStringDestroyFn g_destroy_string = nullptr;
+GetKnownFn g_get_known = nullptr;
+SpellLevelFn g_spell_level = nullptr;
+GetSpellFn g_get_spell = nullptr;
+uintptr_t g_avail_site = 0;                   // ShowLevel's Available pass: its GetSpellLevel call's return address
+thread_local std::vector<void*> t_book_spells;  // the levelled Wizard's book as CNWSpell* (for that pass)
+thread_local bool t_book_loaded = false;
 uintptr_t g_quick_site = 0;                // the quick level-up's GetSpellsKnownPerLevel call (its return address)
 thread_local void* t_quick_stats = nullptr;  // the client stats the quick level-up runs for
 thread_local void* t_page_stats = nullptr;   // the client stats the page's last spells-left was for
@@ -78,11 +94,62 @@ int KnownPrepared(void* client_stats, const Levelled& c) {
   return known;
 }
 
+// 3b-2: the Wizard's book (single player: the player character's; a Wizard at level 1 - new, or a new class - has
+// none yet) and how many spells its book and the page's picks hold together.
+std::vector<int> PageBook(const Levelled& c) { return c.level <= 1 ? std::vector<int>() : PrepareSpellsPlayerBook(); }
+
+int BookWithPicks(void* client_stats, const Levelled& c) {
+  std::vector<int> all = PageBook(c);
+  for (int spell_level = 1; spell_level <= 9; ++spell_level) {
+    const int count = g_known_count(client_stats, static_cast<uint8_t>(c.slot), static_cast<uint8_t>(spell_level));
+    for (int i = 0; i < count && i < 255; ++i) {
+      const int spell = static_cast<int>(g_get_known(client_stats, static_cast<uint8_t>(c.slot),
+                                                     static_cast<uint8_t>(spell_level), static_cast<uint8_t>(i)));
+      if (std::find(all.begin(), all.end(), spell) == all.end()) all.push_back(spell);
+    }
+  }
+  return static_cast<int>(all.size());
+}
+
+void* RulesObject() {
+  static void** const global = reinterpret_cast<void**>(EngineExport(ee::kRules));
+  return global ? *global : nullptr;
+}
+
+// 3b-2: a spell already in the levelled Wizard's book isn't offered on the page's Available list again.
+uint8_t SpellLevel(void* spell, uint8_t nwn_class) {
+  const uint8_t level = g_spell_level(spell, nwn_class);
+  if (reinterpret_cast<uintptr_t>(_ReturnAddress()) != g_avail_site || nwn_class != kNwnClassWizard || level == 0 ||
+      level > 9 || !t_page_stats) {
+    return level;
+  }
+  Levelled c;
+  if (!LevelledClass(t_page_stats, &c) || c.row != kNwnClassWizard) return level;
+  if (!t_book_loaded) {
+    t_book_loaded = true;
+    t_book_spells.clear();
+    void* rules_object = RulesObject();
+    void* spells = rules_object ? Field<void*>(rules_object, ee::kRulesSpells) : nullptr;
+    for (int id : PageBook(c)) {
+      void* entry = spells && g_get_spell ? g_get_spell(spells, id) : nullptr;
+      if (entry) t_book_spells.push_back(entry);
+    }
+  }
+  for (void* entry : t_book_spells) {
+    if (entry == spell) return 0xFF;  // in the book already
+  }
+  return level;
+}
+
 uint8_t SpellsLeft(void* client_stats, uint8_t spell_level) {
   const uint8_t left = g_spells_left(client_stats, spell_level);
   t_page_stats = client_stats;
   Levelled c;
   if (spell_level == 0 || spell_level > 9 || !LevelledClass(client_stats, &c)) return left;
+  if (c.row == kNwnClassWizard) {  // 3b-2: its spellbook
+    return static_cast<uint8_t>(
+        rules::SpellsLeftOnPage(left, rules::SpellbookSpells2024(c.level), BookWithPicks(client_stats, c)));
+  }
   return static_cast<uint8_t>(
       rules::SpellsLeftOnPage(left, rules::PreparedSpells2024(c.row, c.level), KnownPrepared(client_stats, c)));
 }
@@ -105,6 +172,7 @@ void SetWrapperText(void* wrapper, const std::string& text) {
 // 3B: the known column's title, 2024's totals.
 void ShowLevel(void* page, int spell_level) {
   t_page_stats = nullptr;
+  t_book_loaded = false;
   g_show_level(page, spell_level);
   Levelled c;
   void* const client_stats = t_page_stats;
@@ -117,6 +185,8 @@ void ShowLevel(void* page, int spell_level) {
   if (spell_level == 0) {
     sprintf_s(text, "Cantrips %d of %d", g_known_count(client_stats, static_cast<uint8_t>(c.slot), 0),
               rules::CantripsKnown2024(c.row, c.level));
+  } else if (c.row == kNwnClassWizard) {
+    sprintf_s(text, "Spellbook %d of %d", BookWithPicks(client_stats, c), rules::SpellbookSpells2024(c.level));
   } else {
     sprintf_s(text, "Prepared %d of %d", KnownPrepared(client_stats, c), rules::PreparedSpells2024(c.row, c.level));
   }
@@ -130,6 +200,9 @@ int SpellsPageCap(uintptr_t caller, int spell_level, int cap) {
   Levelled c;
   if (!LevelledClass(t_quick_stats, &c)) return cap;
   const int here = g_known_count(t_quick_stats, static_cast<uint8_t>(c.slot), static_cast<uint8_t>(spell_level));
+  if (c.row == kNwnClassWizard) {
+    return rules::BoundedKnownCap(cap, here, rules::SpellbookSpells2024(c.level), BookWithPicks(t_quick_stats, c));
+  }
   return rules::BoundedKnownCap(cap, here, rules::PreparedSpells2024(c.row, c.level), KnownPrepared(t_quick_stats, c));
 }
 
@@ -146,9 +219,19 @@ bool InstallSpellsPage() {
   g_make_string = reinterpret_cast<ExoStringFn>(EngineExport(ee::kExoStringFromChars));
   g_destroy_string = reinterpret_cast<ExoStringDestroyFn>(EngineExport(ee::kExoStringDestructor));
   const uintptr_t show = show_inside ? FunctionEntry(show_inside) : 0;
+  const uintptr_t avail_level = show ? FindPatternIn("Spells page: the Available pass's spell level", FunctionAt(show),
+                                                    ee::kSpellsPageAvailLevelPattern)
+                                     : 0;
+  const uintptr_t avail_known = show ? FindPatternIn("Spells page: the Available pass's known spell", FunctionAt(show),
+                                                    ee::kSpellsPageAvailKnownPattern)
+                                     : 0;
+  g_avail_site = avail_level ? avail_level + 13 : 0;  // the call (+8) and its 5 bytes
+  g_get_known = reinterpret_cast<GetKnownFn>(avail_known ? CallTarget(avail_known + 8) : 0);
+  g_get_spell = reinterpret_cast<GetSpellFn>(EngineExport(ee::kGetSpell));
   const uintptr_t quick = quick_inside ? FunctionEntry(quick_inside) : 0;
   g_quick_site = quick_inside ? quick_inside + 26 : 0;  // the pattern's call (+21) and its 5 bytes
-  if (!left || !show || !quick || !g_known_count || !g_set_text || !g_make_string || !g_destroy_string) {
+  if (!left || !show || !quick || !g_known_count || !g_set_text || !g_make_string || !g_destroy_string ||
+      !g_avail_site || !g_get_known || !g_get_spell) {
     Log("SKIP spells #36 3b: the Spells page isn't mapped (left %p, show %p, quick %p, known %p)",
         reinterpret_cast<void*>(left), reinterpret_cast<void*>(show), reinterpret_cast<void*>(quick),
         reinterpret_cast<void*>(g_known_count));
@@ -160,9 +243,11 @@ bool InstallSpellsPage() {
       HookAddress("CCharacterSpellsPanel ShowLevel (2024's totals in the title, #36)", show,
                   reinterpret_cast<void*>(&ShowLevel), reinterpret_cast<void**>(&g_show_level)) &&
       HookAddress("client quick level-up (its spell picks to 2024's total, #36)", quick,
-                  reinterpret_cast<void*>(&QuickLevelUp), reinterpret_cast<void**>(&g_quick_level_up));
+                  reinterpret_cast<void*>(&QuickLevelUp), reinterpret_cast<void**>(&g_quick_level_up)) &&
+      HookExport("CNWSpell::GetSpellLevel (a Wizard's book spells not offered again on the page, #36)",
+                 ee::kSpellGetLevel, reinterpret_cast<void*>(&SpellLevel), reinterpret_cast<void**>(&g_spell_level));
   Log("spells: NWN's Spells page at creation and level-up with 2024's counts - the total across levels, the title's "
-      "totals (#36 Part 3b-1)%s",
+      "totals; a Wizard's spellbook (#36 Part 3b-1, 3b-2)%s",
       hooked ? "" : " - SOME hooks missing");
   return hooked;
 }

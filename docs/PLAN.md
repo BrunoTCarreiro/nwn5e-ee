@@ -317,6 +317,19 @@ monster AC by CR.
     rules::BoundedKnownCap; test SpellsPageTotal, 5 of 5 mutations caught). A tab's enable test and the other readers
     keep the per-level count (they ask whether a level has spells). After a level-up the Prepare window opens only
     for places left (the Wizard's, until 3b-2).
+  - *Tested (owner, 2026-11-05):* "SP-4 there's no recommended button on the page" - the page's Recommended shows by
+    the ruleset's CHARGEN_ENABLE_RECOMMENDED_BUTTON (1; set only at the page's setup), so at a level-up it may be NWN's
+    own layout's; the level-up screen's Recommended (the quick level-up) is the bounded path to test instead. "SP-7
+    Not a fan of the spellbook appearing AFTER the class configuration can it be integrated into the character
+    creation somehow?" - 3b-2 (1A).
+  - *Built 0.77.0 (Part 3b-2):* the Wizard on NWN's Spells page too (SkipSpellSelection 0): its levels 1+ are its
+    spellbook - six at creation, two at each level-up (KnownSpellsCap2024 answers the book's size for a Wizard; a
+    Wizard's LearnScroll keeps the engine from capping its list), the count bounded by the book and the picks
+    together, the title "Spellbook N of M", a spell already in the book not offered again (CNWSpell::GetSpellLevel
+    answers 0xFF at the page's Available pass). The picks land in the known list; prepare_spells.cpp takes them into
+    the Spellbook item and keeps the prepared list to its count - the first four at creation (2024: "choose four
+    spells from your spellbook"), at a level-up what was prepared and then the picks (rules::TakeWizardPicks, test
+    WizardPicks; 4 of 4 mutations caught). Single player: the page reads the player character's book.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

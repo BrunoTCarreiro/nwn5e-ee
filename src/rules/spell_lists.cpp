@@ -46,6 +46,7 @@ int KnownSpellsCap2024(int class_row, int class_level, int spell_level) {
   if (CasterKindOfClass(class_row) == CasterKind::kNone) return -1;
   if (spell_level == 0) return CantripsKnown2024(class_row, class_level);
   if (spell_level < 1 || spell_level > 9 || SpellGain2024(class_row, class_level, spell_level) <= 0) return 0;
+  if (class_row == kClassWizard) return SpellbookSpells2024(class_level);
   return PreparedSpells2024(class_row, class_level);
 }
 
@@ -66,6 +67,23 @@ bool ListChangeAllowed(ListChange change, const std::vector<int>& before, const 
 
 int SpellsLeftOnPage(int level_left, int prepared_total, int known_total) {
   return std::max(0, std::min(level_left, prepared_total - known_total));
+}
+
+WizardLists TakeWizardPicks(const std::vector<int>& book, const std::vector<int>& known, int prepared_limit) {
+  WizardLists lists;
+  lists.book = book;
+  for (int spell : known) {
+    if (std::find(book.begin(), book.end(), spell) != book.end() &&
+        static_cast<int>(lists.prepared.size()) < prepared_limit) {
+      lists.prepared.push_back(spell);  // prepared before
+    }
+  }
+  for (int spell : known) {
+    if (std::find(book.begin(), book.end(), spell) != book.end()) continue;
+    lists.book.push_back(spell);  // a pick: into the book
+    if (static_cast<int>(lists.prepared.size()) < prepared_limit) lists.prepared.push_back(spell);
+  }
+  return lists;
 }
 
 int BoundedKnownCap(int cap, int known_here, int prepared_total, int known_total) {
