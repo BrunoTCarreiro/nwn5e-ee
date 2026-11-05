@@ -12,8 +12,10 @@
 //   (its Accept waits for the rest's end; an interrupted rest closes it, nothing changed - and a rest's start ends
 //   an earlier rest's change, 0.75.2), from the radial (feat Prepare Spells)
 //   and by itself when a list is empty or over its count (a new character, 0.75.0's change). What may change
-//   (rules/spell_lists.h, SRD 5.2): filling a list up, always; after a Long Rest until the first cast, Cleric, Druid
-//   and Wizard any prepared spell, Paladin and Ranger one, the Wizard one cantrip; the spellbook only grows.
+//   (rules/spell_lists.h, SRD 5.2): filling a list up, always; as a Long Rest finishes - in the window of that rest,
+//   until it is accepted, cancelled or closed (0.75.4: no grace period after it) - Cleric, Druid and Wizard any
+//   prepared spell, Paladin and Ranger one, the Wizard one cantrip; the spellbook only grows. A rest with no window
+//   at its start (ForceRest: a script's, !test's) opens one at its end.
 // - Creatures that aren't player characters (henchmen too) cast as in Part 1: where a caster class's known list is
 //   empty at a level it has slots for, it holds every spell of its class at that level (filled when first seen and
 //   after a rest). NWN keeps no list for a Cleric, Druid, Paladin or Ranger, and a blueprint Wizard has only its
@@ -301,6 +303,7 @@ struct Session {
   bool rest_done = false;
   int selected = -1;
   std::string note;                                    // the last click's word
+  int token = 0;                                       // its window (a replaced window's events aren't its)
 };
 std::map<uint32_t, Session> g_sessions;
 // Opened on the next update - not from inside the engine's rest or a NUI event: the class slot (-1 the first),
@@ -464,7 +467,8 @@ void Sync(uint32_t player) {
     status = std::string("After your Long Rest you can change prepared spells: ") +
              ChangeWords(rules::LongRestChange(row)) +
              (rules::LongRestCantripChange(row) != rules::ListChange::kNone ? "; and one cantrip" : "") +
-             " (until you cast a spell).";
+             " - in this window; once you accept, cancel or close it, the change is over until your next Long "
+             "Rest.";
   } else {
     status = "Fill empty places now; prepared spells change after a Long Rest.";
   }
@@ -510,10 +514,12 @@ void Open(uint32_t player, int slot, bool resting) {
   if (s.cantrips.empty() && CantripLimit(s) > 0) s.tab = kTabCantrips;
   if (s.caster.row == kNwnClassWizard && static_cast<int>(s.book.size()) < BookLimit(s)) s.tab = kTabBook;
   g_sessions[player] = s;
-  if (!NuiOpen(player, kWindow, Layout(s.caster.row == kNwnClassWizard, casters.size() > 1))) {
+  const int token = NuiOpen(player, kWindow, Layout(s.caster.row == kNwnClassWizard, casters.size() > 1));
+  if (!token) {
     g_sessions.erase(player);
     return;
   }
+  g_sessions[player].token = token;
   Sync(player);
   if (LogLine()) {
     Log("prepare: 0x%08X window opened - %s %d%s, cantrips %zu, prepared %zu%s", player, ClassName(s.caster.row),
@@ -583,10 +589,20 @@ void Toggle(uint32_t player, int index) {
   ShowDescription(player, id);
 }
 
+// The window closed (Accept, Cancel, its X): a Long Rest's change is over (0.75.4).
+void EndSession(uint32_t player, const char* how) {
+  g_sessions.erase(player);
+  void* creature = CreatureById(player);
+  if (creature && ChangeOpen(creature)) {
+    SetChangeOpen(creature, false);
+    if (LogLine()) Log("prepare: 0x%08X window %s - the Long Rest's change is over", player, how);
+  }
+}
+
 void OnEvent(const NuiEvent& event) {
   auto found = g_sessions.find(event.player);
   if (event.type == "close") {
-    g_sessions.erase(event.player);
+    if (found != g_sessions.end() && found->second.token == event.token) EndSession(event.player, "closed");
     return;
   }
   if (event.type != "click" || found == g_sessions.end()) return;
@@ -610,10 +626,10 @@ void OnEvent(const NuiEvent& event) {
     void* creature = CreatureById(event.player);
     if (Waiting(s) || !creature || !Allowed(creature, s)) return;
     Commit(event.player);
-    g_sessions.erase(event.player);
+    EndSession(event.player, "accepted");
     NuiClose(event.player, kWindow);
   } else if (event.element == "cancel") {
-    g_sessions.erase(event.player);
+    EndSession(event.player, "cancelled");
     NuiClose(event.player, kWindow);
   }
 }
@@ -658,13 +674,15 @@ void RestDone(void* stats) {
   SetChangeOpen(creature, true);
   const uint32_t id = IdOf(creature);
   auto found = g_sessions.find(id);
-  if (found != g_sessions.end() && found->second.resting) {
+  if (found != g_sessions.end()) {
     found->second.rest_done = true;
     found->second.note = "The rest is complete.";
     LoadBase(creature, found->second.caster.slot, &found->second.base_cantrips, &found->second.base_prepared);
     Sync(id);
+  } else {
+    g_open_pending[id] = {FirstLongRestSlot(stats), false};  // a rest with no window at its start (ForceRest)
   }
-  if (LogLine()) Log("prepare: 0x%08X rested - prepared spells can change until the first cast", id);
+  if (LogLine()) Log("prepare: 0x%08X rested - prepared spells can change in the rest's window", id);
 }
 
 // A creature that isn't a player character casts as in Part 1: every spell of its class at the levels it has slots

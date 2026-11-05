@@ -265,6 +265,19 @@ monster AC by CR.
   - *0.75.3 (owner, 2026-11-05: "PR-4 where's the prepare spells in the radial menu?"):* Prepare Spells (feat 1547;
     cls_feat List 3, OnMenu 1 - Turn Undead's place on the radial) is also one of nwn5e's quickbar actions now
     (rules/quickbar: record bit 39; an empty slot, keys 1-9 first, and a chat line), and its grant is logged.
+  - *Asked (2026-11-05, owner: "is PR-4 what 2024 rules suggest?"):* not quite - SRD 5.2: "Whenever you finish a Long
+    Rest, you can change your list of prepared spells"; nothing keeps the change open after it. PR-4's "until the
+    first cast" was 3A's safety net. A keep it, B the change only in the window of that rest (Accept, Cancel or
+    closing it ends it; reopening then only fills empty places), C as B with one reopen after a Cancel. Recommended B.
+  - *Decided (owner, 2026-11-05: "go with B. The game is not strict at all about long rests so this grace period is
+    unecessary"):* B.
+  - *0.75.4:* the change opens as the rest finishes, in that rest's window (or, for a rest with no window at its
+    start - a script's ForceRest, !test's - one opened at its end), and Accept, Cancel or the window's X ends it
+    (the window's token tells a replaced window's close from this one's). Asked with it: do the 2024 rules limit Long
+    Rests? SRD 5.2: "After you finish a Long Rest, you must wait at least 16 hours before starting another one" (1 HP
+    to start; interrupted by Initiative, a non-cantrip spell, damage, an hour of exertion - an hour rested first gives
+    a Short Rest's benefits, and the rest can resume at +1 hour per interruption). nwn5e has no limit (R1, owner
+    2026-10-23: "no limit"); a follow-up issue holds the question.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
