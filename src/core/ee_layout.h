@@ -940,6 +940,10 @@ constexpr const char* kClientQuickLevelUpSpellPattern =
 // index), the call at this pattern +8) - a known one isn't listed.
 constexpr const char* kSpellsPageAvailLevelPattern = "0F B6 54 24 40 49 8B CF E8 ?? ?? ?? ?? 0F B6 C0 3B C6 0F 85";
 constexpr const char* kSpellsPageAvailKnownPattern = "41 0F B6 55 6A 49 8B CD E8 ?? ?? ?? ?? 41 3B C6 41 0F 44 DC";
+// The page's per-level setup (0x9CE190), its cantrips tab for a class with LearnScroll at level 1 whose known list
+// has no cantrip: every cantrip of the class added - the client's AddKnownSpell (client stats, slot, spell), the call
+// at this pattern +10 (NWN's "a Wizard knows every cantrip").
+constexpr const char* kSpellsPageAllCantripsPattern = "44 8B C3 41 0F B6 D6 48 8B CD E8 ?? ?? ?? ?? FF C3";
 constexpr size_t kSpellsPageRemainLabel = 0x2f8;
 constexpr size_t kSpellsPageKnownTitle = 0x250;
 constexpr size_t kGuiLabelWrapper = 0x80;

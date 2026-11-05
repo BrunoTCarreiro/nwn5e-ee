@@ -330,6 +330,11 @@ monster AC by CR.
     the Spellbook item and keeps the prepared list to its count - the first four at creation (2024: "choose four
     spells from your spellbook"), at a level-up what was prepared and then the picks (rules::TakeWizardPicks, test
     WizardPicks; 4 of 4 mutations caught). Single player: the page reads the player character's book.
+  - *0.77.1 (owner, 2026-11-05: "again initial prepare spells pop up out of nowhere would this make sense to integrate
+    with the caster tutorial part?"):* the log: a new Wizard arrived with 7 cantrips (2024: 3) - NWN's page setup
+    gives a LearnScroll class at level 1 every cantrip (the client's AddKnownSpell in a loop, 0x9CE2FD) - so the
+    window opened to trim them. That add is skipped for a 2024 caster: the cantrips tab picks 3, the character arrives
+    complete and no window opens (no tutorial tie-in needed: the window is a rest's, or the quickbar's).
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
