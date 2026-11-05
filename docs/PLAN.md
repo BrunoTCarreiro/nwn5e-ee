@@ -344,6 +344,12 @@ monster AC by CR.
     Cleric, Druid and Sorcerer one cantrip (rules::LevelUpSwapAllowed, test LevelUpSwaps, 5 of 5 mutations caught) -
     else refused, the title reading "No more swaps". Reset, Recommended and Cancel undo swaps as NWN does.
     !test spellpagesorc (a Sorcerer 2 with the XP for 3).
+  - *0.78.1 (owner, 2026-11-05: "knowing that you can swap one spell and knowing which spells were previously there
+    and the once there weren't can be a bit confusing ... maybe new selected spells that go on the right get a 'new'
+    label and spells that vare swapped out to the left get a 'known' or 'old' label"):* at a level-up the
+    known column's picks of this level-up read "<name> (new)" and the available column's dropped spells "<name>
+    (old)" (CNWSpell::GetSpellNameText at ShowLevel's two calls; none at creation, where all would be new); a drop
+    rebuilds the tab as a pick does.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
