@@ -1,0 +1,19 @@
+# A !test profile ([debug] test_commands=1): type "!test spellpagewiz" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# The Wizard's spellbook on NWN's Spells page (issue 36, part 3b-2): your first class becomes Wizard 1, Intelligence
+# 16, with the XP for level 2. Fill its book and lists in the Prepare spells window first (a rebuilt character starts
+# empty: 6 spellbook spells, 3 cantrips, 4 prepared), then level up on the level-up screen: the Spells page offers 2
+# new spellbook spells (title Spellbook 6 of 8) and none of the 6 already in the book.
+name = Spells page (issue 36 3b-2): Wizard 1 with the XP for 2 - level up, the spellbook on NWN's Spells page
+species = human
+swap_class = wizard
+class = wizard
+level = 1
+abilities = 8 14 14 16 10 10
+xp = 300
+items = nw_wdbqs001 equip
+note = first the Prepare spells window: Spellbook 6, Cantrips 3, Prepared 4, Accept
+note = then level up (the level-up screen): Spellbook 6 of 8 on the Spells page - two picks, the book's 6 not offered
+note = after it: the Spellbook item lists 8, and 5 are prepared (the 4, then your first pick)
