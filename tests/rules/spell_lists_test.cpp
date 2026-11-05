@@ -43,3 +43,19 @@ TEST(SpellLists) {
   CHECK_EQ(ListChangeAllowed(ListChange::kNone, nwn_cantrips, {2, 4, 6}, 3), true);
   CHECK_EQ(ListChangeAllowed(ListChange::kNone, nwn_cantrips, {2, 4, 6, 7}, 3), false);
 }
+
+// Part 3b-1 (owner, 2026-11-05: "go with your recommendations"): NWN's Spells page with 2024's total. A Cleric 2->3
+// knows 5 at level 1 of a total of 6: the page's level 1 (6 - 5 = 1 left) and level 2 (6 - 0 = 6) each come down to
+// the 1 the total leaves. Breaks caught: no bound, the bound off by one, a negative count, the cap not bounded or
+// above the engine's.
+TEST(SpellsPageTotal) {
+  CHECK_EQ(SpellsLeftOnPage(1, 6, 5), 1);
+  CHECK_EQ(SpellsLeftOnPage(6, 6, 5), 1);   // level 2: 6 per level, 1 by the total
+  CHECK_EQ(SpellsLeftOnPage(6, 6, 6), 0);   // the total reached
+  CHECK_EQ(SpellsLeftOnPage(0, 6, 7), 0);   // over it (an old list): none, not negative
+  CHECK_EQ(SpellsLeftOnPage(2, 9, 4), 2);   // the level's own count is the lower
+  CHECK_EQ(BoundedKnownCap(6, 0, 6, 5), 1);  // level 2 for the quick level-up: 0 known + 1 the total allows
+  CHECK_EQ(BoundedKnownCap(6, 5, 6, 5), 6);  // level 1: 5 known + 1
+  CHECK_EQ(BoundedKnownCap(6, 5, 6, 6), 5);  // the total reached: no room
+  CHECK_EQ(BoundedKnownCap(4, 0, 9, 0), 4);  // never above the engine's cap
+}

@@ -743,6 +743,21 @@ bool NeedsPreparing(void* stats) {
   return false;
 }
 
+// A list with room (or over its count): a class's cantrips or prepared spells, a Wizard's spellbook.
+bool HasEmptyPlaces(void* creature, void* stats) {
+  for (const CasterSlot& c : CasterSlots(stats)) {
+    const int cantrips = static_cast<int>(Known(stats, c.slot, 0).size());
+    const int prepared = static_cast<int>(KnownFrom(stats, c.slot, 1, 9).size());
+    if (cantrips != rules::CantripsKnown2024(c.row, c.level)) return true;
+    if (prepared != rules::PreparedSpells2024(c.row, c.level)) return true;
+    if (c.row == kNwnClassWizard &&
+        static_cast<int>(Book(creature).size()) < rules::SpellbookSpells2024(c.level)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 std::map<uint32_t, int> g_levels;  // a player character's caster levels when last seen
 
 int CasterLevels(void* stats) {
@@ -791,7 +806,11 @@ void Update(void* creature) {
     if (!CasterSlots(stats).empty()) {
       GrantPrepareSpells(creature, stats);
       MoveWizardBook(creature, stats);
-      if (!g_sessions.count(id) && !g_open_pending.count(id)) g_open_pending[id] = {-1, false};
+      // 3b-1: NWN's Spells page fills the new places of a level-up; the window opens for what's left (the Wizard's
+      // spellbook until 3b-2, a page closed short).
+      if (!g_sessions.count(id) && !g_open_pending.count(id) && HasEmptyPlaces(creature, stats)) {
+        g_open_pending[id] = {-1, false};
+      }
     }
   }
   auto pending = g_open_pending.find(id);

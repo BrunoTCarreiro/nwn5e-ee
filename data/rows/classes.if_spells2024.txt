@@ -4,13 +4,14 @@
 #   from level 1, the Paladin on Charisma; no spontaneous cures (any slot casts any spell).
 # - Part 3 (1A): every 2024 caster casts spontaneously (MemorizesSpells 0) from its known list, which holds its
 #   cantrips and prepared spells (SpellbookRestricted 1) - the Prepare spells window keeps it (core/prepare_spells.cpp);
-#   a Wizard's whole spellbook is its Spellbook item. NWN's spell page at creation and level-up is skipped
-#   (SkipSpellSelection 1) until Part 3b's Spells page.
+#   a Wizard's whole spellbook is its Spellbook item.
+# - Part 3b-1: NWN's Spells page at creation and level-up for Bard, Sorcerer, Cleric, Druid, Paladin and Ranger
+#   (SkipSpellSelection 0; core/spells_page.cpp gives it 2024's counts); the Wizard's stays skipped until 3b-2.
 SpellGainTable MemorizesSpells MinCastingLevel SpellcastingAbil CanCastSpontaneously SpellbookRestricted SkipSpellSelection
-1  CLS_SPGN_5EBARD  0  1  CHA  0  1  1
-2  CLS_SPGN_5ECLER  0  1  WIS  0  1  1
-3  CLS_SPGN_5EDRU   0  1  WIS  0  1  1
-6  CLS_SPGN_5EPAL   0  1  CHA  0  1  1
-7  CLS_SPGN_5ERANG  0  1  WIS  0  1  1
-9  CLS_SPGN_5ESORC  0  1  CHA  0  1  1
+1  CLS_SPGN_5EBARD  0  1  CHA  0  1  0
+2  CLS_SPGN_5ECLER  0  1  WIS  0  1  0
+3  CLS_SPGN_5EDRU   0  1  WIS  0  1  0
+6  CLS_SPGN_5EPAL   0  1  CHA  0  1  0
+7  CLS_SPGN_5ERANG  0  1  WIS  0  1  0
+9  CLS_SPGN_5ESORC  0  1  CHA  0  1  0
 10 CLS_SPGN_5EWIZ   0  1  INT  0  1  1

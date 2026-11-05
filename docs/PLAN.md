@@ -309,6 +309,14 @@ monster AC by CR.
     "Remaining" per tab, B 2024's totals ("Cantrips 3 of 3, Prepared 5 of 6"). Recommended A, A (built last; back
     to the owner before any fallback to B), B.
   - *Decided (owner, 2026-11-05: "go with your recommendations"):* 1A, 2A, 3B.
+  - *Built 0.76.0 (Part 3b-1):* NWN's Spells page at creation and level-up for Bard, Sorcerer, Cleric, Druid,
+    Paladin and Ranger (classes.if_spells2024: SkipSpellSelection 0). core/spells_page.cpp hooks, by byte patterns,
+    the client's spells left (bounded by the total left: rules::SpellsLeftOnPage - the Remaining number, a pick,
+    Recommended), the page's ShowLevel (KnownTitle reads "Cantrips N of M" / "Prepared N of M", 3B) and the quick
+    level-up (the hub's no-Customize path and Recommended: at its GetSpellsKnownPerLevel call the answer is bounded,
+    rules::BoundedKnownCap; test SpellsPageTotal, 5 of 5 mutations caught). A tab's enable test and the other readers
+    keep the per-level count (they ask whether a level has spells). After a level-up the Prepare window opens only
+    for places left (the Wizard's, until 3b-2).
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

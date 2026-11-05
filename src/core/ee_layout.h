@@ -920,6 +920,24 @@ constexpr const char* kSpellGetNameText = "?GetSpellNameText@CNWSpell@@QEAA?AVCE
 // int CNWSCreature::LearnScroll(uint item): a class with LearnScroll (the Wizard) adds the scroll's spell to its
 // known list through the Stats AddKnownSpell (0x396F09) and uses the scroll up.
 constexpr const char* kCreatureLearnScroll = "?LearnScroll@CNWSCreature@@QEAAHI@Z";
+// #36 Part 3b-1, NWN's Spells page (CCharacterSpellsPanel, vtable 0xE7B580, .gui CG_SPELLS; none of it exported):
+// - the client's spells left, uchar (client stats, spell level): GetSpellsKnownPerLevel for the class being
+//   levelled (client stats +0x6A) minus its known at the level (the known count, uint16 (client stats, slot, level):
+//   the call at the pattern +14); 0 for a memorising class. The prologue pattern is its entry.
+// - ShowLevel(page, level) (a tab; a click's refresh): this pattern is inside it (Remaining's count stored).
+// - the quick level-up (client stats, package, out) - the hub's no-Customize path and the page's Recommended - picks
+//   package spells while GetSpellsKnownPerLevel (its call at this pattern +21) exceeds the known at the level.
+// - the page's labels: RemainLabel +0x2F8, KnownTitle +0x250 (CGuiLabel; its string wrapper +0x80 - ShowLevel
+//   writes Remaining's count at +0x378).
+constexpr const char* kClientSpellsLeftPattern =
+    "48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 20 57 48 83 EC 40 0F B6 F2 48 8B D9 E8";
+constexpr const char* kClientSpellsLeftKnownCallPattern = "0F B6 53 6A 44 0F B6 C6 48 8B CB 0F B6 F8 E8";
+constexpr const char* kSpellsPageShowLevelPattern = "66 41 89 84 24 DC 19 00 00 41 8B FF 44 89 7C 24 44";
+constexpr const char* kClientQuickLevelUpSpellPattern =
+    "44 88 44 24 28 66 89 4C 24 20 45 0F B6 CE 44 0F B6 C6 48 8B CF E8";
+constexpr size_t kSpellsPageRemainLabel = 0x2f8;
+constexpr size_t kSpellsPageKnownTitle = 0x250;
+constexpr size_t kGuiLabelWrapper = 0x80;
 // void CNWSCreature::ResolveInitiative(): one RollDice(1, 20) (+0x43), then
 // GetDEXMod(0) and the feat keys EPIC_SUPERIOR / IMPROVED / BLOODED / THUG
 // _INITIATIVE_BONUS, each read only here.

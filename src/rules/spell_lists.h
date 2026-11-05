@@ -35,4 +35,13 @@ int KnownSpellsCap2024(int class_row, int class_level, int spell_level);
 // (NWN's list, or a count that fell) may change freely down to it.
 bool ListChangeAllowed(ListChange change, const std::vector<int>& before, const std::vector<int>& after, int limit);
 
+// Part 3b-1, NWN's Spells page (owner, 2026-11-05: "go with your recommendations"): a level's spells left to pick
+// (`level_left`, the engine's - the prepared total minus what's known at that level) bounded by the total left: the
+// prepared total minus what's known at all the class's levels. Never below 0.
+int SpellsLeftOnPage(int level_left, int prepared_total, int known_total);
+
+// The same as a cap on the level's known list (the quick level-up asks the cap itself): what's known at the level
+// plus what the total still allows, at most `cap`.
+int BoundedKnownCap(int cap, int known_here, int prepared_total, int known_total);
+
 }  // namespace rules

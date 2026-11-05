@@ -64,4 +64,12 @@ bool ListChangeAllowed(ListChange change, const std::vector<int>& before, const 
   }
 }
 
+int SpellsLeftOnPage(int level_left, int prepared_total, int known_total) {
+  return std::max(0, std::min(level_left, prepared_total - known_total));
+}
+
+int BoundedKnownCap(int cap, int known_here, int prepared_total, int known_total) {
+  return std::min(cap, known_here + std::max(0, prepared_total - known_total));
+}
+
 }  // namespace rules

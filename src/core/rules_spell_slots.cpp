@@ -40,6 +40,7 @@
 #include "log.h"
 #include "log_once.h"
 #include "prepare_spells.h"
+#include "spells_page.h"
 #include "rules/nwn_conversion.h"
 #include "rules/spell_lists.h"
 #include "rules/spell_slots.h"
@@ -279,7 +280,8 @@ uint8_t KnownPerLevel(void* klass, uint8_t class_level, uint8_t spell_level, uin
   const int cap = rules::KnownSpellsCap2024(ClassRowOf(klass), class_level, spell_level);
   if (cap < 0) return g_known_per_level(klass, class_level, spell_level, nwn_class, race, ability);
   if (t_loading_spells) return 0xFF;
-  return static_cast<uint8_t>(cap);
+  // Part 3b-1: the client's quick level-up picks against the 2024 total.
+  return static_cast<uint8_t>(SpellsPageCap(reinterpret_cast<uintptr_t>(_ReturnAddress()), spell_level, cap));
 }
 
 void ReadSpells(void* stats, void* gff, void* gff_struct, int flag) {
@@ -343,6 +345,7 @@ void InstallSpellSlots() {
                                 reinterpret_cast<void**>(&g_read_spells));
   Log(lists ? "spells: a caster's known list is its cantrips and prepared spells (2024 counts; #36 Part 3)"
             : "SKIP spells #36 Part 3: the known lists keep NWN's counts");
+  InstallSpellsPage();  // Part 3b-1: NWN's Spells page with 2024's counts
   const bool counts = HideCantripCounts();
   Log(counts ? "spells: a cantrip's button shows no uses number (%zu places; #36 SL-3)"
              : "SKIP spells #36 SL-3: a cantrip's button keeps its uses number (%zu places found)",
