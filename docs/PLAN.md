@@ -290,6 +290,9 @@ monster AC by CR.
     messages in the spellbook are also cut off"). Asked with it, "There's no way to change spells in the
     spell book, is this normal?" - yes: SRD 5.2's spellbook only grows (six level 1 spells, two per Wizard level
     after 1, copied spells); what a Long Rest changes is which of them are prepared.
+  - *Tested (owner, 2026-11-05):* PR-6 and PR-8 pass ("6 had passed previously and 8 passed this time"); "PR-7 I can
+    cast multiple cantrips"; "PR-9 and 11 pass"; PR-10 dropped ("will not test, forget those older characters" - the
+    code that moves a Wizard's NWN spellbook into the item stays: a new Wizard's empty book is made by it).
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
