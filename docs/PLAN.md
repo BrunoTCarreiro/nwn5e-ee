@@ -262,6 +262,9 @@ monster AC by CR.
     rest's start now ends an earlier rest's change (only this rest's end opens one), and an interrupted rest closes
     the window ("the rest was interrupted - your spells stay as they were"); a rest interrupted before the window
     opened opens none.
+  - *0.75.3 (owner, 2026-11-05: "PR-4 where's the prepare spells in the radial menu?"):* Prepare Spells (feat 1547;
+    cls_feat List 3, OnMenu 1 - Turn Undead's place on the radial) is also one of nwn5e's quickbar actions now
+    (rules/quickbar: record bit 39; an empty slot, keys 1-9 first, and a chat line), and its grant is logged.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

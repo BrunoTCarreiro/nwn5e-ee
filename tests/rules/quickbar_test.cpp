@@ -176,6 +176,13 @@ TEST(QuickbarHighBits) {
   uint64_t monk_placed = 0;
   CHECK_EQ(static_cast<int>(PlanQuickbar(EmptyBar(), 0, QuickbarActions2024(monk), &monk_placed).size()), 2);
   CHECK_EQ(monk_placed == ((uint64_t{1} << 37) | (uint64_t{1} << 38)), true);
+  // #36 (0.75.3): a caster's Prepare Spells - bit 39.
+  QuickbarFacts cleric;
+  cleric.feats = {kFeatPrepareSpells};
+  uint64_t cleric_placed = 0;
+  CHECK_EQ(static_cast<int>(PlanQuickbar(EmptyBar(), 0, QuickbarActions2024(cleric), &cleric_placed).size()), 1);
+  CHECK_EQ(cleric_placed == (uint64_t{1} << 39), true);
+  CHECK_EQ(Values(QuickbarActions2024(cleric)) == std::vector<int>{kFeatPrepareSpells}, true);
 }
 
 // New actions go in the first empty slots, keys 1-9 first, and are recorded;

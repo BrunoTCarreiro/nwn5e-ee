@@ -44,6 +44,7 @@
 #include "nui.h"
 #include "rest.h"
 #include "script_hooks.h"
+#include "rules/class_features.h"
 #include "rules/nwn_conversion.h"
 #include "rules/spell_lists.h"
 #include "rules/spell_slots.h"
@@ -51,7 +52,6 @@
 namespace {
 
 constexpr const char* kWindow = "n5prep";
-constexpr int kFeatPrepareSpells = 1547;
 constexpr const char* kBookResRef = "nw_it_book015";  // a plain book (base item 74), renamed
 constexpr const char* kBookTag = "n5_spellbook";
 constexpr const char* kBookVar = "n5_spellbook";       // on the book: the spell ids, "107,166,..."
@@ -727,6 +727,15 @@ int CasterLevels(void* stats) {
   return total;
 }
 
+// The radial's Prepare Spells (with Turn Undead's class abilities; rules_quickbar.cpp also puts it on an empty
+// quickbar slot, 0.75.3).
+void GrantPrepareSpells(void* creature, void* stats) {
+  if (engine::HasFeat(stats, rules::kFeatPrepareSpells)) return;
+  const bool added = engine::AddFeat(stats, rules::kFeatPrepareSpells);
+  if (LogLine()) Log("prepare: 0x%08X Prepare Spells (feat %d) %s", IdOf(creature), rules::kFeatPrepareSpells,
+                    added ? "granted" : "REFUSED by the engine");
+}
+
 // A creature's lists looked at once (a local on it, so a loaded game's creatures are looked at again unless they were
 // before it was saved): one that isn't a player character knows its class's spells; a player character gets the
 // radial's Prepare Spells, a Wizard its Spellbook item, and the window when a list is empty or over its count.
@@ -737,7 +746,7 @@ void FirstSight(void* creature, void* stats) {
     return;
   }
   if (CasterSlots(stats).empty()) return;
-  if (!engine::HasFeat(stats, kFeatPrepareSpells)) engine::AddFeat(stats, kFeatPrepareSpells);
+  GrantPrepareSpells(creature, stats);
   MoveWizardBook(creature, stats);
   if (NeedsPreparing(stats)) g_open_pending[IdOf(creature)] = {-1, false};
 }
@@ -756,7 +765,7 @@ void Update(void* creature) {
   } else if (known_levels->second != levels) {
     known_levels->second = levels;
     if (!CasterSlots(stats).empty()) {
-      if (!engine::HasFeat(stats, kFeatPrepareSpells)) engine::AddFeat(stats, kFeatPrepareSpells);
+      GrantPrepareSpells(creature, stats);
       MoveWizardBook(creature, stats);
       if (!g_sessions.count(id) && !g_open_pending.count(id)) g_open_pending[id] = {-1, false};
     }

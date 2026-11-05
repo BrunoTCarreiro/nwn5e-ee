@@ -65,6 +65,7 @@ enum Bit {
   kBitSteadyAim = 36,
   kBitPatientDefenseFree = 37,  // #55
   kBitStepOfTheWindFree = 38,
+  kBitPrepareSpells = 39,  // #36 Part 3a (0.75.3)
 };
 
 bool IsSecondWind(int value) {
@@ -83,7 +84,8 @@ const std::vector<int>& QuickbarActionFeats2024() {
                                           kFeatQuiveringPalm,  kFeatDisengage,    kFeatDodge,
                                           kFeatDash,           kFeatHelp,         kFeatActionSurge,
                                           kFeatCunningDash,    kFeatCunningDisengage, kFeatCunningHide,
-                                          kFeatSteadyAim,      kFeatPatientDefenseFree, kFeatStepOfTheWindFree};
+                                          kFeatSteadyAim,      kFeatPatientDefenseFree, kFeatStepOfTheWindFree,
+                                          kFeatPrepareSpells};
   return kFeats;
 }
 
@@ -171,6 +173,8 @@ std::vector<QuickbarAction> QuickbarActions2024(const QuickbarFacts& facts) {
   if (has(kFeatStepOfTheWindFree)) {
     actions.push_back({kBitStepOfTheWindFree, kFeatStepOfTheWindFree, "Step of the Wind: Dash"});
   }
+  // #36 Part 3a (owner, 2026-11-05: "PR-4 where's the prepare spells in the radial menu?"): the window's button.
+  if (has(kFeatPrepareSpells)) actions.push_back({kBitPrepareSpells, kFeatPrepareSpells, "Prepare Spells"});
   return actions;
 }
 

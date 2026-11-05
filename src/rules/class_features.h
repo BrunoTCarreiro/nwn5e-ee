@@ -473,6 +473,8 @@ constexpr int kFeatSteadyAim = 1329;         // Rogue 3: a Bonus Action
 // own (its Focus point if any, not the round's Bonus Action).
 constexpr int kFeatPatientDefenseFree = 1330;
 constexpr int kFeatStepOfTheWindFree = 1331;
+// #36 Part 3a: Prepare Spells, every 2024 caster's - the Prepare spells window (core/prepare_spells.cpp).
+constexpr int kFeatPrepareSpells = 1547;
 bool HasFleetStep(int monk_level);  // 11
 bool IsStepOfTheWind(int feat);     // either use
 bool FleetStepAllows(int monk_level, int feat, int bonus_action_spent_on, bool fleet_step_free);
