@@ -283,6 +283,13 @@ monster AC by CR.
     scroll of a spell already in the Spellbook is refused and kept (its Cast Spell property's iprp_spells SpellIndex
     read first - LearnScroll checks only the known, prepared list and would use it up). PR7 read as the 2024 limit
     (one cantrip per Long Rest for a Wizard), asked back. The profile's Wizard 3 prepares 6 (2024), not 5.
+  - *0.75.6 (owner, 2026-11-05: "the prepare spells window should be made larger, right now the top line reads
+    'Wizard 3 - cantrips O of 3, prepared O of 6, spellbook 1O of' the last 10 is cut off. Might happen with longer
+    named classes."):* the header is two lines (the class and level; the counts), the window 980 x 680 (was 820 x
+    620), the list 480 wide, the status a wrapping text box, the Spellbook tab's hint shorter (owner: "All other
+    messages in the spellbook are also cut off"). Asked with it, "There's no way to change spells in the
+    spell book, is this normal?" - yes: SRD 5.2's spellbook only grows (six level 1 spells, two per Wizard level
+    after 1, copied spells); what a Long Rest changes is which of them are prepared.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

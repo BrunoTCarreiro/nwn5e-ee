@@ -386,10 +386,11 @@ std::string Layout(bool wizard, bool several) {
       "{\"type\":\"button\",\"label\":\"Accept\",\"value\":null,\"id\":\"ok\",\"width\":120.0,"
       "\"enabled\":{\"bind\":\"ok_on\"}}";
   const std::string root =
-      Col(Label(Bind("head"), 26.0f) + "," + Row(tabs) + "," + Label(Bind("tab"), 22.0f) + "," +
-          Row(Sized(list, 430.0f) + "," + Text(Bind("desc"))) + "," + Label(Bind("status"), 44.0f) + "," +
+      Col(Label(Bind("head"), 26.0f) + "," + Label(Bind("counts"), 26.0f) + "," + Row(tabs) + "," +
+          Label(Bind("tab"), 22.0f) + "," +
+          Row(Sized(list, 480.0f) + "," + Text(Bind("desc"))) + "," + Text(Bind("status"), 56.0f) + "," +
           Row(Spacer() + "," + ok + "," + Sized(Button("cancel", Str("Cancel")), 120.0f)));
-  return Window(root, Str("Prepare spells"), 140.0f, 90.0f, 820.0f, 620.0f);
+  return Window(root, Str("Prepare spells"), 100.0f, 70.0f, 980.0f, 680.0f);
 }
 
 std::string JsonString(const std::string& text) {
@@ -452,14 +453,17 @@ void Sync(uint32_t player) {
                      "\"IconResRef\", JsonGetInt(JsonArrayGet(ids, i)))));\n"
                      "NuiSetBind(OBJECT_SELF, " + std::to_string(token) + ", \"ic\", icons);";
   RunScriptChunk(code.c_str(), player);
-  char head[256];
-  sprintf_s(head, "%s %d - cantrips %zu of %d, prepared %zu of %d%s", ClassName(row), s.caster.level,
-            s.cantrips.size(), CantripLimit(s), s.prepared.size(), PreparedLimit(s),
-            row == kNwnClassWizard ? (", spellbook " + std::to_string(s.book.size()) + " of " +
-                                      std::to_string(BookLimit(s))).c_str()
-                                   : "");
+  // Two lines (0.75.6: one was cut off past "spellbook 10 of"): the class, then the counts. The tab's hint is a
+  // one-line label (kept short); the status wraps in its text box.
+  const std::string head = std::string(ClassName(row)) + " " + std::to_string(s.caster.level);
+  std::string counts = "Cantrips " + std::to_string(s.cantrips.size()) + " of " + std::to_string(CantripLimit(s)) +
+                       "    Prepared " + std::to_string(s.prepared.size()) + " of " +
+                       std::to_string(PreparedLimit(s));
+  if (row == kNwnClassWizard) {
+    counts += "    Spellbook " + std::to_string(s.book.size()) + " of " + std::to_string(BookLimit(s));
+  }
   const char* tab = s.tab == kTabCantrips ? "Cantrips you know - click one to pick or drop it"
-                    : s.tab == kTabBook   ? "Your spellbook - add the Wizard spells you learn (they stay in it)"
+                    : s.tab == kTabBook   ? "Spellbook - click a spell to add it (it stays in the book)"
                     : rules::PreparesFromSpellbook(row) ? "Prepared spells - from your spellbook"
                                                         : "Prepared spells - from your class's list";
   std::string status;
@@ -477,7 +481,7 @@ void Sync(uint32_t player) {
   if (!s.note.empty()) status = s.note + " " + status;
   const bool ok = !Waiting(s) && Allowed(creature, s);
   if (!Waiting(s) && !Allowed(creature, s)) status += " Too many changes for this rest - undo some to accept.";
-  NuiSetTexts(player, kWindow, {{"head", head}, {"tab", tab}, {"status", status}});
+  NuiSetTexts(player, kWindow, {{"head", head}, {"counts", counts}, {"tab", tab}, {"status", status}});
   NuiSetJson(player, kWindow, "ok_on", ok ? "true" : "false");
 }
 
