@@ -9,7 +9,8 @@
 //   it learns goes into the book.
 // - The window (NUI n5prep): the class's cantrips, its prepared spells (from its class's list, or the Wizard's book)
 //   and the Wizard's spellbook; a click picks or drops a spell and shows its description. It opens when a rest begins
-//   (its Accept waits for the rest's end; an interrupted rest changes nothing), from the radial (feat Prepare Spells)
+//   (its Accept waits for the rest's end; an interrupted rest closes it, nothing changed - and a rest's start ends
+//   an earlier rest's change, 0.75.2), from the radial (feat Prepare Spells)
 //   and by itself when a list is empty or over its count (a new character, 0.75.0's change). What may change
 //   (rules/spell_lists.h, SRD 5.2): filling a list up, always; after a Long Rest until the first cast, Cleric, Druid
 //   and Wizard any prepared spell, Paladin and Ranger one, the Wizard one cantrip; the spellbook only grows.
@@ -298,7 +299,6 @@ struct Session {
   std::vector<int> shown;                              // the tab's spells, in the list's order
   bool resting = false;                                // opened as a rest began: Accept waits for its end
   bool rest_done = false;
-  bool interrupted = false;
   int selected = -1;
   std::string note;                                    // the last click's word
 };
@@ -321,16 +321,16 @@ int BookLimit(const Session& s) {
 }
 
 rules::ListChange PreparedChange(void* creature, const Session& s) {
-  return ChangeOpen(creature) || (s.resting && !s.interrupted) ? rules::LongRestChange(s.caster.row)
+  return ChangeOpen(creature) || s.resting ? rules::LongRestChange(s.caster.row)
                                                                 : rules::ListChange::kNone;
 }
 
 rules::ListChange CantripChange(void* creature, const Session& s) {
-  return ChangeOpen(creature) || (s.resting && !s.interrupted) ? rules::LongRestCantripChange(s.caster.row)
+  return ChangeOpen(creature) || s.resting ? rules::LongRestCantripChange(s.caster.row)
                                                                 : rules::ListChange::kNone;
 }
 
-bool Waiting(const Session& s) { return s.resting && !s.rest_done && !s.interrupted; }
+bool Waiting(const Session& s) { return s.resting && !s.rest_done; }
 
 bool Allowed(void* creature, const Session& s) {
   return rules::ListChangeAllowed(CantripChange(creature, s), s.base_cantrips, s.cantrips, CantripLimit(s)) &&
@@ -460,8 +460,6 @@ void Sync(uint32_t player) {
   std::string status;
   if (Waiting(s)) {
     status = "Resting. You can change your spells now; Accept is ready once the rest is complete.";
-  } else if (s.interrupted && !ChangeOpen(creature)) {
-    status = "The rest was interrupted: only empty places can be filled.";
   } else if (ChangeOpen(creature)) {
     status = std::string("After your Long Rest you can change prepared spells: ") +
              ChangeWords(rules::LongRestChange(row)) +
@@ -641,12 +639,12 @@ int FirstLongRestSlot(void* stats) {
 
 void RestBegun(void* creature) {
   if (!IsPlayer(creature) || !HasLongRestChange(StatsOf(creature))) return;
+  SetChangeOpen(creature, false);  // 0.75.2: an earlier rest's change ends - only this rest's end opens one
   const uint32_t id = IdOf(creature);
   auto found = g_sessions.find(id);
   if (found != g_sessions.end()) {  // open already: it waits for the rest's end now
     found->second.resting = true;
     found->second.rest_done = false;
-    found->second.interrupted = false;
     Sync(id);
     return;
   }
@@ -662,7 +660,6 @@ void RestDone(void* stats) {
   auto found = g_sessions.find(id);
   if (found != g_sessions.end() && found->second.resting) {
     found->second.rest_done = true;
-    found->second.interrupted = false;
     found->second.note = "The rest is complete.";
     LoadBase(creature, found->second.caster.slot, &found->second.base_cantrips, &found->second.base_prepared);
     Sync(id);
@@ -768,16 +765,17 @@ void Update(void* creature) {
   if (pending != g_open_pending.end()) {
     const PendingOpen open = pending->second;
     g_open_pending.erase(pending);
-    Open(id, open.slot, open.resting);
+    const bool resting = (Field<uint32_t>(creature, ee::kCreatureActivities) & ee::kActivityResting) != 0;
+    if (!open.resting || resting) Open(id, open.slot, open.resting);
     return;
   }
   auto found = g_sessions.find(id);
   if (found != g_sessions.end() && Waiting(found->second) &&
       !(Field<uint32_t>(creature, ee::kCreatureActivities) & ee::kActivityResting)) {
-    found->second.interrupted = true;
-    found->second.note.clear();
-    Sync(id);
-    if (LogLine()) Log("prepare: 0x%08X the rest was interrupted - no change", id);
+    g_sessions.erase(found);
+    NuiClose(id, kWindow);
+    TellPlayer(id, "nwn5e: the rest was interrupted - your spells stay as they were.");
+    if (LogLine()) Log("prepare: 0x%08X the rest was interrupted - the window closed, no change", id);
   }
 }
 

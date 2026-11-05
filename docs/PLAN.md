@@ -256,6 +256,12 @@ monster AC by CR.
     lists at that index. Part 1's hook said yes to every level; now only 0-9 (rules::SpellLevelMet2024, 2 of 2
     mutations caught). And !test empties a rebuilt caster's lists (the automatic level-ups pick the package's
     spells) and its Spellbook, so the window starts as a new character's (PrepareSpellsReset).
+  - *0.75.2 (owner, 2026-11-05: "PR3 fails, interrupting rest allows the player to accept changes as if the rest had
+    been completed. close the prepare spells window if the rest is interrupted"):* the change of an earlier rest
+    (here !test's ForceRest) was still open - no spell cast since - so the interrupted rest's window accepted it. A
+    rest's start now ends an earlier rest's change (only this rest's end opens one), and an interrupted rest closes
+    the window ("the rest was interrupted - your spells stay as they were"); a rest interrupted before the window
+    opened opens none.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
