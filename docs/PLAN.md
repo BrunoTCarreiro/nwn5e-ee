@@ -597,6 +597,11 @@ monster AC by CR.
     told; an item's spell (a scroll, a wand, a potion) needs none. spell_impact.{h,cpp}: the cast's moment, the
     game's start, the cast item and the spell's name, moved out of rules_concentration.cpp and shared. "!gold
     [amount]" (test commands; rules::ParseGoldAmount, 5 of 5 mutations caught) shows or sets the gold.
+  - *The owner's 0.87.0 run (2026-11-06):* GC-1 to GC-6 in the log (25 and 100 GP taken; refused at 20, 3 and 150
+    GP); "can't test GC-7"; CO-7 (#37) "passes". *Decided (owner, 2026-11-06: "Let's have this system in place but
+    for now let's turn it off under house rules"):* *0.87.1:* [house_rules] free_material_components (config,
+    nwn5e.ini; announced on #123) - on for now, at the owner's word (house rules are otherwise off by default):
+    no gold asked or taken; 0 brings SRD 5.2's costs back.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

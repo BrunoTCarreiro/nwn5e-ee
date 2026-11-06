@@ -9,6 +9,8 @@
 // - The cast taking effect (spell_impact.h): a cast let through above, not from an item (a scroll's, a wand's or a
 //   potion's spell needs no component), takes the consumed part from the payer (TakeGoldFromCreature: NWN says
 //   "Lost N GP"), told.
+// - 0.87.1 (owner, 2026-11-06: "Let's have this system in place but for now let's turn it off under house
+//   rules"): [house_rules] free_material_components (on for now) - no gold asked or taken.
 // NWN mode: free (NWN has no components).
 
 #include <windows.h>
@@ -81,6 +83,7 @@ std::string CostWords(const rules::ComponentCost& cost) {
 
 // The order: refused (true) when the payer hasn't the cost on hand.
 bool OrderGuard(void* creature, const SpellOrder& order) {
+  if (g_config.free_material_components) return false;  // 0.87.1: the house rule
   if (order.fake || order.class_slot < 0 || order.class_slot > 7) return false;
   const int spell = static_cast<int>(order.spell);
   const rules::ComponentCost cost = rules::CostlyComponent(spell);
@@ -107,6 +110,7 @@ bool OrderGuard(void* creature, const SpellOrder& order) {
 
 // The cast taking effect: a let-through order's consumed part paid.
 void Impact(void* creature, int spell) {
+  if (g_config.free_material_components) return;
   const uint32_t id = IdOf(creature);
   auto found = g_pending.find(id);
   if (found == g_pending.end()) return;
@@ -148,7 +152,8 @@ void InstallComponents() {
   const bool hooked = AddSpellOrderGuard(&OrderGuard) && AddSpellImpactListener(rules::CostlySpells(), &Impact) &&
                       AddGameStartListener(&GameStarted);
   Log(hooked ? "components: SRD 5.2's costly material components in gold (%zu of NWN's spells) - the cost on hand to "
-               "cast, the consumed part taken; a player character's casts and its associates' (#38)"
-             : "SKIP components #38: not hooked - spells need no material components (%zu)",
-      rules::CostlySpells().size());
+               "cast, the consumed part taken; a player character's casts and its associates' (#38)%s"
+             : "SKIP components #38: not hooked - spells need no material components (%zu)%s",
+      rules::CostlySpells().size(),
+      g_config.free_material_components ? " - free for now: house rule free_material_components" : "");
 }

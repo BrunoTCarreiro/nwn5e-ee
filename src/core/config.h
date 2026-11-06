@@ -234,6 +234,10 @@ struct Config {
   // Rest may start any time (no 16-hour wait after one ends). [house_rules] long_rest_any_time; 0 (the default):
   // the wait.
   bool long_rest_any_time = false;
+  // #38 (owner, 2026-11-06: "Let's have this system in place but for now let's turn it off under house rules"): a
+  // house rule, not SRD 5.2 - with spellcasting faithful, spells' costly material components cost no gold.
+  // [house_rules] free_material_components; 1 (the default for now, at the owner's word): free; 0: SRD 5.2's costs.
+  bool free_material_components = true;
   // #124 (owner, 2026-11-04: "good recs, go with them"): NWN's grenades as 2024 gear - faithful: the flasks (Acid,
   // Alchemist's Fire, Holy Water) a Dexterity save on the thrower's DC (8 + Dex + PB) for 2024's damage, no splash;
   // burning 3 rounds; the bombs 10d6, Dexterity half; Tanglefoot Bag, Thunderstone, Choking Powder and the clouds on
