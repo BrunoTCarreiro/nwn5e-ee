@@ -56,6 +56,12 @@
 //   refreshes it for memorized spells and uses left only - so a spell dropped kept its count until the next
 //   refresh. After the update's remove and add known spell (by return address), the quickbar's own refresh runs:
 //   the button reads NP at once (rules_spell_slots.cpp).
+// - 0.84.4 (owner, 2026-11-06: "why does the radial wheel show spells that have 0 slots? for example I can assign
+//   color spray although that's not an available spell to prepare, nor is it in the spells menu"): the client's
+//   RemoveKnownSpell finds a spell's level through the slot's class, so a spell that class has no level for (a
+//   `!test` class swap - a Wizard's Color Spray under the Cleric that took its slot) stayed in the client's list:
+//   the radial (a spellbook-restricted class lists its known spells) showed it with no uses. After the remove,
+//   the spell comes out of whichever level of the slot still holds it.
 // - 0.77.1 (owner, 2026-11-05: "again initial prepare spells pop up out of nowhere"): NWN's page setup gives a
 //   class with LearnScroll at level 1 every cantrip (its known list's level 0 empty: all of them, the client's
 //   AddKnownSpell in a loop) - 7 against 2024's 3, and the Prepare window opened to trim them. At that call the add is
@@ -121,6 +127,7 @@ uintptr_t g_all_cantrips_site = 0;  // the page setup's every-cantrip add (its r
 ClientRemoveKnownFn g_client_remove_known = nullptr;
 QuickbarRefreshFn g_quickbar_refresh = nullptr;
 uintptr_t g_update_remove_site = 0;
+int g_stale_logged = 0;  // 0.84.4: the log's first lines only
 uintptr_t g_update_add_site = 0;
 void** g_app_manager = nullptr;
 constexpr size_t kClientAppInternal = 0x8;
@@ -289,10 +296,41 @@ uintptr_t ClientAddKnown(void* client_stats, uintptr_t slot, uintptr_t spell) {
   return result;
 }
 
-// 0.84.3: a spell the server dropped from a known list - its quickbar button reads NP at once.
+// 0.84.4: `spell` taken out of every level of the slot's known lists (as the remove does at the level its class
+// gives: the ids shifted down, the count less one); the number taken out.
+int DropFromKnownLists(void* client_stats, uint8_t slot, uint32_t spell) {
+  if (!client_stats || slot >= ee::kClientStatsClassSlots) return 0;
+  int dropped = 0;
+  for (int level = 0; level <= 9; ++level) {
+    uint8_t* list = static_cast<uint8_t*>(client_stats) + ee::kClientStatsKnownLists +
+                    slot * ee::kClientStatsClassSlotSize + level * ee::kClientStatsKnownListSize;
+    uint32_t* ids = *reinterpret_cast<uint32_t**>(list);
+    int32_t* count = reinterpret_cast<int32_t*>(list + 8);
+    for (int i = 0; ids && i < *count;) {
+      if (ids[i] != spell) {
+        ++i;
+        continue;
+      }
+      memmove(ids + i, ids + i + 1, static_cast<size_t>(*count - i - 1) * sizeof(uint32_t));
+      --*count;
+      ++dropped;
+    }
+  }
+  return dropped;
+}
+
+// 0.84.3: a spell the server dropped from a known list - its quickbar button reads NP at once. 0.84.4: one its
+// class has no level for comes out too.
 uintptr_t ClientRemoveKnown(void* client_stats, uintptr_t slot, uintptr_t spell) {
+  const uintptr_t from = reinterpret_cast<uintptr_t>(_ReturnAddress());
   const uintptr_t result = g_client_remove_known(client_stats, slot, spell);
-  if (reinterpret_cast<uintptr_t>(_ReturnAddress()) == g_update_remove_site) RefreshQuickbar();
+  const int stale = DropFromKnownLists(client_stats, static_cast<uint8_t>(slot), static_cast<uint32_t>(spell));
+  if (stale > 0 && g_stale_logged < 10) {
+    ++g_stale_logged;
+    Log("spells: client known list - spell %u taken out of class slot %u (its class has no level for it)",
+        static_cast<unsigned>(spell), static_cast<unsigned>(slot & 0xFF));
+  }
+  if (from == g_update_remove_site) RefreshQuickbar();
   return result;
 }
 
@@ -697,11 +735,16 @@ bool InstallSpellsPage() {
       "totals; a Wizard's spellbook; the level-up swaps, no remove icon on a spell that can't be dropped (#36 "
       "Part 3b)%s",
       hooked ? "" : " - SOME hooks missing");
-  const bool refresh =
-      refresh_found && hooked &&
-      HookAddress("client RemoveKnownSpell (the quickbar refreshed after the server's known-list change, #36)",
+  const bool remove_hooked =
+      client_remove && hooked &&
+      HookAddress("client RemoveKnownSpell (a spell its class has no level for taken out too; the quickbar "
+                  "refreshed after the server's known-list change, #36)",
                   client_remove, reinterpret_cast<void*>(&ClientRemoveKnown),
                   reinterpret_cast<void**>(&g_client_remove_known));
+  Log(remove_hooked ? "spells: a known spell its class has no level for leaves the client's list too (a !test "
+                      "class swap's old spells; #36)"
+                    : "SKIP spells #36: a known spell its class has no level for stays in the client's list");
+  const bool refresh = remove_hooked && refresh_found;
   if (!refresh) g_update_add_site = 0;
   Log(refresh ? "spells: the quickbar reads its numbers again after the server changes a known list (a spell "
                 "dropped reads NP at once; #36 UC-9)"

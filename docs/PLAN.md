@@ -459,6 +459,15 @@ monster AC by CR.
     without refreshing the quickbar - it does so for memorized spells and uses left only - so the button kept its
     count. *0.84.3:* after the update's remove and add (by return address), the quickbar's own refresh runs
     (spells_page.cpp).
+  - *The owner (2026-11-06):* "why does the radial wheel show spells that have 0 slots? for example I can assign
+    color spray although that's not an available spell to prepare, nor is it in the spells menu". The log: a Wizard
+    3 loaded, then `!test spellcleric` swapped its class slot to Cleric and emptied the lists. The client's
+    RemoveKnownSpell finds a spell's level through the slot's class (CNWSpell::GetSpellLevel) and returns when the
+    class has none, so the Wizard's spells off the Cleric list stayed in the client's list; the radial (a
+    spellbook-restricted class lists its known spells) showed them with no uses. The server's list was right (the
+    cast refused). Only a class swap - a `!test` profile - does this; loading a save rebuilds the client's lists.
+    The same caused 0.84.1's stale Negative Energy Ray. *0.84.4:* after the remove, the spell comes out of
+    whichever level of the slot still holds it (spells_page.cpp).
   - *Built 0.80.0 (Part 2b, the combined multiclass pool, 4A):* SRD 5.2's multiclassing - with the Spellcasting
     feature from more than one class, the slots are the Multiclass Spellcaster table's (the full casters') at the
     Bard, Cleric, Druid, Sorcerer and Wizard levels plus half the Paladin and Ranger levels, rounded up; each class

@@ -661,6 +661,11 @@ constexpr size_t kClientStatsClassSlotLevel = 0x296;
 // #36 Part 2a: a class slot's uses left per spell level, uint8 x 10 (the client's GetSpellUsesLeft reads a
 // spontaneous caster's slot level here).
 constexpr size_t kClientStatsClassSlotUses = 0x288;
+// #36 (0.84.4): a class slot's known lists, one per spell level (0-9) from +0x148 (slot 0; + slot x 0x150), 0x10
+// each: CExoArrayList<uint32> - the spell ids +0, the count int32 +8. The client's RemoveKnownSpell (client stats,
+// slot, spell; 0x7F9380) finds the level through the slot's class (CNWSpell::GetSpellLevel) and deletes there.
+constexpr size_t kClientStatsKnownLists = 0x148;
+constexpr size_t kClientStatsKnownListSize = 0x10;
 // The server's twin (0x3F1830; same arguments), which the automatic level-ups
 // (LevelUpAutomatic — henchmen, the script's LevelUpHenchman, its one caller)
 // ask for every feat they try (rules_feats.cpp).
