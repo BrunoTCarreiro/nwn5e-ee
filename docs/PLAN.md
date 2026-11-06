@@ -3151,6 +3151,14 @@ LoadModuleFinish (a new game or a saved one loaded; the server's MainLoop is its
 start; the local nwn5e_rest_grace holds the stamp of the game whose grace a creature used (a finished Long Rest
 uses it), so the rest gate lets the first one through and logs "this game's grace rest"; !rest says so. Every
 !test profile resets it ("rest: the next Long Rest skips the 16-hour wait").
+*Corrected (owner, 2026-11-06: "GR-1 no, the grace rest would be just at the start of the game, after character
+creation, not everytime a game loads").* Taken as: one grace Long Rest per character (a new character's first
+rest has no wait anyway, so the grace is the one extra rest the wait would refuse), not renewed by a load; a
+!test profile still grants it again. *Built 0.85.1:* rules::LongRestGraceApplies (a rest the wait would refuse,
+the grace unused; test LongRestWait) replaces the game-start stamp, and the LoadModuleFinish hook is gone. The
+rest gate lets such a rest through and marks it (nwn5e_rest_grace_now); its end uses the grace (the record
+nwn5e_rest_grace_used, saved with the character). A !test profile resets the record; 0.82.0's clearing of the
+wait after a profile's own rest is gone (the grace does it: one rest either way).
 *Resting a lot (#110; owner, 2026-11-01: "are there any consequences in-game for resting too many times, like
 events tied to calendar days that can be missed?"). Researched 2026-11-01* (the campaigns' own .nss, which every
 official module ships, and the NWN Lexicon's SetTime / SetCalendar notes): nothing in the official campaigns can be

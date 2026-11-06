@@ -125,7 +125,6 @@ bool SkillTotal2024(void* creature, int nwn_skill, int* total, int* ability_modi
                     bool* rage_strength);                         // rules_skills.cpp (#96)
 
 void BoostTestCreatureById(uint32_t id, bool ally);  // rules_debug.cpp (0.72.1 / 0.73.1: the test hit point floor)
-void ClearLongRestWait(void* creature);              // rules_rest.cpp (#135: a test's rest starts no wait)
 bool GrantLongRestGrace(void* creature);             // rules_rest.cpp (#138: a grace Long Rest again)
 
 namespace {
@@ -684,14 +683,13 @@ std::string EmptyInventoryForTest(void* creature, uint32_t id) {
 }
 
 // #102: a rebuilt character rested, as after a Long Rest - ForceRest, whose end
-// every use pool listens to (rest.h) - with the rest clock held still. #135: and
-// no 16-hour wait after it (the profile's own Rest may follow at once).
+// every use pool listens to (rest.h) - with the rest clock held still. #138: the
+// profile's grace rest (6c) lets its own Rest follow at once.
 std::string RestAfterRebuild(uint32_t id) {
   const bool clock = g_config.rest_clock;
   g_config.rest_clock = false;
   RunScriptChunk("ForceRest(OBJECT_SELF);", id);
   g_config.rest_clock = clock;
-  ClearLongRestWait(CreatureById(id));
   Log("test: 0x%08X rested after the rebuild (ForceRest): every use, hit points and spells back", id);
   return "  rested: every use, hit points and spells back (as after a Long Rest)";
 }
@@ -944,7 +942,9 @@ std::vector<std::string> TestCommand(void* creature, const std::string& args) {
   // 6b. A built character starts rested (#102).
   if (rules::TestProfileBuildsCharacter(profile)) lines.push_back(RestAfterRebuild(id));
   // 6c. #138 (owner, 2026-11-06: "\"!test\" allows for a grace rest too"): the next Long Rest skips the wait.
-  if (GrantLongRestGrace(creature)) lines.push_back("  rest: the next Long Rest skips the 16-hour wait (a grace rest)");
+  if (GrantLongRestGrace(creature)) {
+    lines.push_back("  rest: a grace rest - one Long Rest may skip the 16-hour wait");
+  }
   // 7. What the profile can't do itself.
   for (const std::string& note : profile.notes) lines.push_back("  note: " + note);
   Log("test: 0x%08X applied data\\tests\\%s.txt (%s)", id, name.c_str(), profile.name.c_str());
