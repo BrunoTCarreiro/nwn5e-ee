@@ -443,6 +443,7 @@ monster AC by CR.
     slots - NWN's client count for a spontaneous class reads the level's slots, never the known list. *0.84.1:* a
     2024 caster's spell its class doesn't know reads 0 on the client (spells_page.cpp's ClientKnowsSpell: the
     client's known count and known spell), so such a button greys out - as after a Long Rest's change too.
+    UC-1 to UC-7 pass ("everything goes through"); UC-8 to retest with a prepared Cleric spell on the quickbar.
   - *Built 0.80.0 (Part 2b, the combined multiclass pool, 4A):* SRD 5.2's multiclassing - with the Spellcasting
     feature from more than one class, the slots are the Multiclass Spellcaster table's (the full casters') at the
     Bard, Cleric, Druid, Sorcerer and Wizard levels plus half the Paladin and Ranger levels, rounded up; each class
