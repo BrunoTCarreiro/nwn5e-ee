@@ -85,6 +85,49 @@ TEST(CastQueue) {
   CHECK_EQ(DrawsOnSameSlots(false, magic_missile, web), false);
 }
 
+TEST(MulticlassSlots) {
+  constexpr int kFighter = 4;
+  const std::vector<ClassLevel> wizard_cleric{{10, 3}, {2, 2}};  // Wizard 3 / Cleric 2: the table's level 5
+  CHECK_EQ(MulticlassCasterLevel2024(wizard_cleric), 5);
+  CHECK_EQ(SharesSlotPool(wizard_cleric, 0), true);
+  CHECK_EQ(SharesSlotPool(wizard_cleric, 1), true);
+  CHECK_EQ(SlotsForClassSlot2024(wizard_cleric, 0, 1), 4);  // 4 / 3 / 2, the pool's, in both slots
+  CHECK_EQ(SlotsForClassSlot2024(wizard_cleric, 0, 2), 3);
+  CHECK_EQ(SlotsForClassSlot2024(wizard_cleric, 0, 3), 2);  // 3rd-level slots neither class has alone
+  CHECK_EQ(SlotsForClassSlot2024(wizard_cleric, 1, 1), 4);  // the Cleric's: the same pool
+  CHECK_EQ(SlotsForClassSlot2024(wizard_cleric, 1, 3), 2);
+  CHECK_EQ(SlotsForClassSlot2024(wizard_cleric, 0, 4), 0);
+  CHECK_EQ(SlotsForClassSlot2024(wizard_cleric, 1, 0), SpellGain2024(2, 2, 0));  // its cantrips its own
+  CHECK_EQ(SlotsForClassSlot2024(wizard_cleric, 0, 0), SpellGain2024(10, 3, 0));
+  const std::vector<ClassLevel> fighter_wizard{{kFighter, 5}, {10, 3}};  // one caster class: its own table
+  CHECK_EQ(MulticlassCasterLevel2024(fighter_wizard), 0);
+  CHECK_EQ(SharesSlotPool(fighter_wizard, 1), false);
+  CHECK_EQ(SlotsForClassSlot2024(fighter_wizard, 1, 1), SpellGain2024(10, 3, 1));
+  CHECK_EQ(SlotsForClassSlot2024(fighter_wizard, 1, 2), SpellGain2024(10, 3, 2));
+  CHECK_EQ(SlotsForClassSlot2024(fighter_wizard, 0, 1), 0);
+  const std::vector<ClassLevel> paladin_ranger{{6, 3}, {7, 3}};  // half each, rounded up: 2 + 2
+  CHECK_EQ(MulticlassCasterLevel2024(paladin_ranger), 4);
+  CHECK_EQ(SlotsForClassSlot2024(paladin_ranger, 0, 1), 4);
+  CHECK_EQ(SlotsForClassSlot2024(paladin_ranger, 0, 2), 3);
+  CHECK_EQ(SlotsForClassSlot2024(paladin_ranger, 1, 2), 3);
+  const std::vector<ClassLevel> paladin_wizard{{6, 1}, {10, 1}};  // Paladin 1 counts 1 (rounded up)
+  CHECK_EQ(MulticlassCasterLevel2024(paladin_wizard), 2);
+  CHECK_EQ(SlotsForClassSlot2024(paladin_wizard, 0, 1), 3);
+  const std::vector<ClassLevel> three{{kFighter, 2}, {2, 4}, {6, 5}};  // Cleric 4 + Paladin 5 / 2: 4 + 3
+  CHECK_EQ(MulticlassCasterLevel2024(three), 7);
+  CHECK_EQ(SlotsForClassSlot2024(three, 1, 4), 1);           // 4 / 3 / 3 / 1
+  CHECK_EQ(SlotsForClassSlot2024(three, 2, 4), 1);           // the Paladin's: the same pool
+  CHECK_EQ(SlotsForClassSlot2024(three, 0, 1), 0);           // the Fighter: none
+  CHECK_EQ(SharesSlotPool(three, 0), false);
+  CHECK_EQ(SharesSlotPool({{kFighter, 5}}, 0), false);
+  CHECK_EQ(SharesSlotPool({{10, 0}, {2, 3}}, 0), false);     // a slot with no levels
+  CHECK_EQ(MulticlassCasterLevel2024({{10, 0}, {2, 3}}), 0);  // ... isn't a second caster class
+  CHECK_EQ(SharesSlotPool({{10, 3}, {2, 2}, {9, 0}}, 2), false);
+  CHECK_EQ(SharesSlotPool(wizard_cleric, 2), false);         // no such slot
+  CHECK_EQ(SharesSlotPool(wizard_cleric, -1), false);
+  CHECK_EQ(SlotsForClassSlot2024(wizard_cleric, 2, 1), 0);    // no such slot
+}
+
 TEST(Upcasting) {
   const SlotUses wizard{0, 4, 2, 1, 0, 0, 0, 0, 0, 0};  // four 1st-level slots, two 2nd, one 3rd
   CHECK_EQ(SlotToSpend(wizard, 1), 1);                  // its own level first

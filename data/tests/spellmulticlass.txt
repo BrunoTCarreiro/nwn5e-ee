@@ -1,0 +1,19 @@
+# A !test profile ([debug] test_commands=1): type "!test spellmulticlass" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# The combined multiclass pool (issue 36, part 2b): your first class becomes Wizard 3, then Cleric 2 - two caster
+# classes, so the slots are the Multiclass Spellcaster table's at level 5 (SRD 5.2: the full casters' levels added):
+# four 1st-level slots, three 2nd-level and two 3rd-level, shared by both classes' spells.
+name = Multiclass slots (issue 36 2b): human Wizard 3 / Cleric 2 - one pool of 4 / 3 / 2 slots for both classes
+species = human
+swap_class = wizard
+class = wizard
+level = 3
+levels = cleric 2
+abilities = 8 14 14 16 16 10
+items = nw_wdbqs001 equip
+note = first the Prepare spells window for each class (Next class), Accept; then rest once - the pool fills at a rest
+note = a 1st-level spell of either class reads 9 (4 + 3 + 2), a 2nd-level Wizard spell 5; no 3rd-level spells to prepare
+note = cast a Cleric 1st-level spell: the Wizard's 1st-level spells read one fewer too (the same slots)
+note = with the four 1st-level slots gone, either class's 1st-level spell upcasts into a 2nd- or 3rd-level slot

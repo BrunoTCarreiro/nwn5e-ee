@@ -70,4 +70,23 @@ int CastsLeft(const SlotUses& uses, int slot_level);
 // cantrip (0) always fits.
 bool CastFitsQueue(SlotUses uses, const std::vector<int>& queued, int slot_level);
 
+// Part 2 (4A, the combined multiclass pool; decided 2026-11-04): SRD 5.2's multiclassing - with the Spellcasting
+// feature from more than one class, the spell slots come from the Multiclass Spellcaster table (the full casters')
+// at the levels of the Bard, Cleric, Druid, Sorcerer and Wizard plus half the Paladin and Ranger levels, rounded up;
+// each class prepares its own spells (by its own level) and casts them with those slots. In NWN each class slot has
+// its own uses per spell level, so every caster class holds the pool's table and a spend from one is made in all
+// (core/rules_spell_slots.cpp): no class shows 0 slots in NWN's own panels. `classes`: a creature's class slots in
+// order (classes.2da row, levels).
+struct ClassLevel {
+  int class_row = -1;
+  int level = 0;
+};
+// The Multiclass Spellcaster table's level; 0 with fewer than two caster classes (one keeps its own table).
+int MulticlassCasterLevel2024(const std::vector<ClassLevel>& classes);
+// Whether a class slot's spell slots are the shared pool: a caster class, with two or more caster classes.
+bool SharesSlotPool(const std::vector<ClassLevel>& classes, int slot);
+// classes.2da's SpellGainTable value for a class slot: SpellGain2024's, or for a class sharing the pool spell levels
+// 1-9 from the Multiclass Spellcaster table. Level 0 stays each class's own (its cantrips).
+int SlotsForClassSlot2024(const std::vector<ClassLevel>& classes, int slot, int spell_level);
+
 }  // namespace rules

@@ -35,6 +35,13 @@
 //   - The slot level a cast spent is kept on the caster (local int N5_SLOT_LEVEL) for #39's spells - "the spell
 //     assumes the higher level for that casting"; the player is told when a higher slot is spent.
 //   - SL-2's queue check spends the queued casts' slots in order, as they will be (rules::CastFitsQueue).
+// - Part 2b (4A, the combined multiclass pool): with two or more 2024 caster classes, the slots are SRD 5.2's
+//   Multiclass Spellcaster table's at the full casters' levels plus half the Paladin and Ranger levels (rounded up).
+//   NWN keeps uses per class slot, so GetSpellGainWithBonus gives every caster class the pool's table
+//   (rules::SlotsForClassSlot2024; cantrips stay each class's) - a rest fills them alike - and a spend from one is
+//   made in the others: the cast's (UnReadySpell) and a script's (DecrementSpellsPerDayLeft). Each class's counts
+//   stay the pool's, so the casts left and the client's numbers read them as they are; SL-2's queue counts the
+//   casts of every class sharing it. No class shows 0 slots in NWN's own panels.
 
 #include <intrin.h>
 #include <stddef.h>
@@ -121,10 +128,18 @@ bool CasterSlot(void* stats, uint8_t slot, int* row, int* level) {
   return rules::CasterKindOfClass(*row) != rules::CasterKind::kNone;
 }
 
+// Part 2b: a creature's class slots, in order.
+std::vector<rules::ClassLevel> ClassLevelsOf(void* stats) {
+  std::vector<rules::ClassLevel> classes;
+  if (!stats) return classes;
+  for (const rules::NwnClassSlot& entry : ReadClassSlots(stats)) classes.push_back({entry.nwn_class_id, entry.levels});
+  return classes;
+}
+
 uint8_t Gain(void* stats, uint8_t slot, uint8_t spell_level) {
   int row = 0, level = 0;
   if (!CasterSlot(stats, slot, &row, &level)) return g_gain(stats, slot, spell_level);
-  const int gain = rules::SpellGain2024(row, level, spell_level);
+  const int gain = rules::SlotsForClassSlot2024(ClassLevelsOf(stats), slot, spell_level);  // 4A: the pool's
   if (IsPlayer(stats) && g_gain_logged.First(LogOnce::Key(ObjectIdOf(stats), row * 100 + level, spell_level))) {
     Log("spells: object 0x%08X class %d level %d, spell level %d: %d (2024; NWN's %d)", ObjectIdOf(stats), row, level,
         spell_level, gain, g_gain(stats, slot, spell_level));
@@ -141,13 +156,31 @@ int MinAbility(void* stats, uint8_t slot, uint8_t spell_level) {
   return rules::SpellLevelMet2024(spell_level) ? 1 : 0;
 }
 
+uint8_t* UsesLeft(void* stats, uint8_t slot, int spell_level);
+
+// Part 2b (4A): a slot of `spell_level` spent from one class sharing the pool, spent in the others too.
+void MirrorSpend(void* stats, uint8_t from_slot, int spell_level) {
+  if (spell_level < 1 || spell_level > 9) return;
+  const std::vector<rules::ClassLevel> classes = ClassLevelsOf(stats);
+  if (!rules::SharesSlotPool(classes, from_slot)) return;
+  for (size_t other = 0; other < classes.size(); ++other) {
+    if (other == from_slot || !rules::SharesSlotPool(classes, static_cast<int>(other))) continue;
+    uint8_t* uses = UsesLeft(stats, static_cast<uint8_t>(other), spell_level);
+    if (*uses > 0) --*uses;
+  }
+}
+
 void Decrement(void* stats, uint8_t slot, uint8_t spell_level) {
   int row = 0, level = 0;
-  if (CasterSlot(stats, slot, &row, &level) && !rules::CastSpendsUse(true, spell_level)) {
+  const bool caster = CasterSlot(stats, slot, &row, &level);
+  if (caster && !rules::CastSpendsUse(true, spell_level)) {
     if (LogCast()) Log("spells: object 0x%08X lost a cantrip use (class %d) - at will, none spent", ObjectIdOf(stats), row);
     return;
   }
+  const bool real_level = caster && spell_level >= 1 && spell_level <= 9;
+  const uint8_t before = real_level ? *UsesLeft(stats, slot, spell_level) : 0;
   g_decrement(stats, slot, spell_level);
+  if (real_level && *UsesLeft(stats, slot, spell_level) < before) MirrorSpend(stats, slot, spell_level);  // 4A
 }
 
 // A spontaneous caster's uses left at this spell level (ClassInfo's per-level bytes).
@@ -212,6 +245,7 @@ int UnReady(void* stats, uint32_t spell_id, uint8_t slot, uint8_t domain_level, 
     PrepareSpellsNoteCast(creature);  // #36 Part 3: a Long Rest's change closes
     const int spent_level = upcast ? spend_at : SlotLevel(row, spell_id, metamagic);
     if (creature && spent_level >= 0) engine::SetLocalInt(creature, kSlotLevelVar, spent_level);
+    if (slot_level >= 1) MirrorSpend(stats, slot, spent_level);  // 4A: the other classes sharing the pool
     if (upcast) {
       if (LogCast()) {
         Log("spells: object 0x%08X spell %u (level %d) upcast - no level %d slot left, a level %d slot spent",
@@ -279,6 +313,8 @@ bool SlotsSpokenFor(void* creature, const SpellOrder& order) {
   const rules::QueuedCast wanted{order.spell, order.metamagic, SlotLevel(row, order.spell, order.metamagic)};
   if (wanted.slot_level < 0 || !rules::CastSpendsUse(true, wanted.slot_level)) return false;  // a cantrip: at will
   const bool memorizes = Memorizes(row);
+  const std::vector<rules::ClassLevel> classes = ClassLevelsOf(stats);
+  const bool pooled = !memorizes && rules::SharesSlotPool(classes, slot);  // 4A: every class sharing the pool
   const int left = memorizes ? g_uses_left(stats, order.spell, slot, 0, static_cast<uint8_t>(order.metamagic))
                              : rules::CastsLeft(SlotUsesOf(stats, slot), wanted.slot_level);
   std::vector<int> queued_levels;  // Part 2a: a spontaneous caster's queued casts' slot levels, in order
@@ -294,10 +330,13 @@ bool SlotsSpokenFor(void* creature, const SpellOrder& order) {
     if (!action || Field<int32_t>(action, ee::kActionId) != ee::kActionCastSpell) continue;
     if (running && running_spent) continue;  // under way, its use already spent
     if ((Field<uint32_t>(action, ee::kCastFlags) & ee::kCastFlagFake) != 0) continue;
-    if (Field<uint8_t>(action, ee::kCastClassSlot) != slot || Field<int32_t>(action, ee::kCastDomainLevel) != 0) continue;
+    if (Field<int32_t>(action, ee::kCastDomainLevel) != 0) continue;
+    const uint8_t action_slot = Field<uint8_t>(action, ee::kCastClassSlot);
+    if (action_slot != slot && !(pooled && rules::SharesSlotPool(classes, action_slot))) continue;
+    const int action_row = action_slot < classes.size() ? classes[action_slot].class_row : row;
     const uint32_t spell = Field<uint32_t>(action, ee::kCastSpell);
     const int metamagic = Field<int32_t>(action, ee::kCastMetamagic);
-    const rules::QueuedCast queued_cast{spell, metamagic, memorizes ? 0 : SlotLevel(row, spell, metamagic)};
+    const rules::QueuedCast queued_cast{spell, metamagic, memorizes ? 0 : SlotLevel(action_row, spell, metamagic)};
     if (rules::DrawsOnSameSlots(memorizes, wanted, queued_cast)) ++queued;
     if (!memorizes) queued_levels.push_back(queued_cast.slot_level);
   }
@@ -448,6 +487,7 @@ void InstallSpellSlots() {
       "cast any class spell with any slot of its level; Paladin and Ranger from level 1; cantrips at will (#36 Part 1)%s",
       gain && min && spend && cast && ready ? "" : " - SOME hooks missing");
   Log("spells: upcasting - with no slot left at a spell's level, the lowest higher one is spent; the uses shown are "
-      "the slots at its level and above (#36 Part 2a)%s",
+      "the slots at its level and above (#36 Part 2a); two or more caster classes share one pool, the Multiclass "
+      "Spellcaster table's (#36 Part 2b)%s",
       upcasting && cast && g_client_uses ? "" : " - SOME hooks missing");
 }

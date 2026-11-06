@@ -128,6 +128,43 @@ int CastsLeft(const SlotUses& uses, int slot_level) {
   return left;
 }
 
+int MulticlassCasterLevel2024(const std::vector<ClassLevel>& classes) {
+  int casters = 0;
+  int level = 0;
+  for (const ClassLevel& entry : classes) {
+    if (entry.level <= 0) continue;
+    switch (CasterKindOfClass(entry.class_row)) {
+      case CasterKind::kFull:
+        ++casters;
+        level += entry.level;
+        break;
+      case CasterKind::kHalf:
+        ++casters;
+        level += (entry.level + 1) / 2;  // half, rounded up
+        break;
+      default:
+        break;
+    }
+  }
+  return casters >= 2 ? level : 0;
+}
+
+bool SharesSlotPool(const std::vector<ClassLevel>& classes, int slot) {
+  if (slot < 0 || slot >= static_cast<int>(classes.size())) return false;
+  const ClassLevel& entry = classes[slot];
+  return entry.level > 0 && CasterKindOfClass(entry.class_row) != CasterKind::kNone &&
+         MulticlassCasterLevel2024(classes) > 0;
+}
+
+int SlotsForClassSlot2024(const std::vector<ClassLevel>& classes, int slot, int spell_level) {
+  if (slot < 0 || slot >= static_cast<int>(classes.size())) return 0;
+  const ClassLevel& entry = classes[slot];
+  const int own = SpellGain2024(entry.class_row, entry.level, spell_level);
+  if (spell_level < 1 || !SharesSlotPool(classes, slot)) return own;
+  const int pooled = MulticlassCasterLevel2024(classes);
+  return SpellSlots2024(CasterKind::kFull, pooled > 20 ? 20 : pooled, spell_level);
+}
+
 bool CastFitsQueue(SlotUses uses, const std::vector<int>& queued, int slot_level) {
   if (slot_level == 0) return true;
   for (int queued_level : queued) {

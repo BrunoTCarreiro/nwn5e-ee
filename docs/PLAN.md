@@ -388,6 +388,19 @@ monster AC by CR.
     - SL-2's queue check spends the queued casts' slots in order (a fifth 1st-level cast with four 1st-level slots
       queues, into a 2nd-level slot).
     `!test spellupcast` (Sorcerer 3: 4 / 2 slots); spellcleric's note: nine 1st-level casts queue, not four.
+  - *Built 0.80.0 (Part 2b, the combined multiclass pool, 4A):* SRD 5.2's multiclassing - with the Spellcasting
+    feature from more than one class, the slots are the Multiclass Spellcaster table's (the full casters') at the
+    Bard, Cleric, Druid, Sorcerer and Wizard levels plus half the Paladin and Ranger levels, rounded up; each class
+    prepares by its own level. rules::MulticlassCasterLevel2024 (0 with fewer than two caster classes: one keeps its
+    own table), SharesSlotPool, SlotsForClassSlot2024 (test MulticlassSlots, 14 of 14 mutations caught). NWN keeps
+    uses per class slot, so every caster class's GetSpellGainWithBonus is the pool's table (cantrips stay each class's) and a
+    rest fills them alike; a spend from one class is made in the others - the cast's (UnReadySpell, upcasts
+    included) and a script's (DecrementSpellsPerDayLeft). Each class's counts stay the pool's, so the casts left and
+    the client's numbers read them as they are, and no class shows 0 slots in NWN's own panels (designed first as
+    one class holding the pool and the others none - dropped before building: a panel that hides a spell level with
+    no slots would have hidden the second class's spells). SL-2's queue counts the casts of every class sharing
+    the pool. After a level-up the next rest makes every class's counts the new pool's. `!test spellmulticlass`
+    (Wizard 3 / Cleric 2: the table's level 5, 4 / 3 / 2).
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
