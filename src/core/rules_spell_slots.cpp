@@ -594,9 +594,15 @@ bool InstallUpcastRadial(uintptr_t client_getter) {
     g_controlled = reinterpret_cast<ControlledFn>(CallTarget(reinterpret_cast<uintptr_t>(lookup) + 10));
   }
   const uintptr_t set_entry = EngineExport(ee::kRadialSetEntry);
+  // The radial's spell lists: the getter's callers that reference the cast callback (the spell list and a spell's
+  // subradial; not the spontaneous cure / inflict radial, which casts by its own).
+  const std::vector<uintptr_t> cast_refs = callback ? FindRipReferences(callback) : std::vector<uintptr_t>();
   g_radial_count_sites.clear();
   for (uintptr_t site : client_getter && set_entry ? FindCallsAnywhere(client_getter) : std::vector<uintptr_t>()) {
-    if (FindCallsTo(FunctionAt(site), set_entry).empty()) continue;  // the radial's spell lists only
+    const CodeRange range = FunctionAt(site);
+    bool lists = false;
+    for (uintptr_t ref : cast_refs) lists = lists || range.Contains(ref);
+    if (!lists) continue;
     g_radial_count_sites.push_back(site + 5);
     if (!g_game_new) {
       const uintptr_t alloc = FindPatternIn("the radial spell list's new menu (#36 upcasting)", FunctionAt(site),
@@ -696,7 +702,7 @@ void InstallSpellSlots() {
       HookExport("CNWSCreatureStats_ClassInfo::SetMemorizedSpellInSlotReady (a memorised cantrip stays ready, #36)",
                  kSetReady, reinterpret_cast<void*>(&SetReady), reinterpret_cast<void**>(&g_set_ready));
   const bool upcasting =
-      HookExport("CNWSCreatureStats::GetSpellUsesLeft (upcasting: the slots at a spell's level and above, #36 Part 2)",
+      HookExport("CNWSCreatureStats::GetSpellUsesLeft (upcasting by choice: a domain level names the slot, #36 Part 2)",
                  ee::kGetSpellUsesLeft, reinterpret_cast<void*>(&UsesLeftHook), reinterpret_cast<void**>(&g_uses_left));
   g_get_spell = reinterpret_cast<GetSpellFn>(EngineExport(ee::kGetSpell));
   g_spell_level = reinterpret_cast<SpellLevelFn>(EngineExport(ee::kSpellGetLevel));
@@ -723,7 +729,8 @@ void InstallSpellSlots() {
       "cast any class spell with any slot of its level; Paladin and Ranger from level 1; cantrips at will (#36 Part 1)%s",
       gain && min && spend && cast && ready ? "" : " - SOME hooks missing");
   Log("spells: upcasting by choice - a spell's radial entry opens its levels (\"Level N\"), the chosen slot level in "
-      "the cast's domain level; an upcast quickbar button reads L3\xB7" "4 (#36 Part 2); two or more caster classes "
+      "the cast's domain level; an upcast quickbar button shows its level before its count (#36 Part 2); two or more "
+      "caster classes "
       "share one pool, the Multiclass Spellcaster table's (#36 Part 2b)%s",
       upcasting && cast && g_client_uses && g_radial_ready ? "" : " - SOME hooks missing");
 }
