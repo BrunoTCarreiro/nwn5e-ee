@@ -29,6 +29,7 @@
 #include "log.h"
 #include "log_once.h"
 #include "ruleset.h"
+#include "rules/class_features.h"
 #include "rules/skills.h"
 
 bool HiddenByStealth(void* creature);         // rules_perception.cpp (SK5)
@@ -101,6 +102,32 @@ void ResolveInitiative(void* creature) {
 
 bool Invisible(void* creature) { return g_get_invisible && g_get_invisible(creature, creature, 0) != 0; }
 
+// #136 B (owner, 2026-11-06: "Go with your recommendations for 1 and 4."; rules::SurprisedAtInitiative): SRD 5.2's
+// Surprise - a creature that sees no enemy as it rolls while one is hidden from it (a hider's attack started the
+// fight) has Disadvantage on the roll.
+struct SurpriseCheck {
+  void* creature;
+  bool sees_enemy;
+  bool hidden_enemy;
+};
+
+void LookForEnemies(void* context, uint32_t id, void* other) {
+  auto* check = static_cast<SurpriseCheck*>(context);
+  if (!other || engine::IsDeadOrDying(other) || !engine::IsEnemy(check->creature, id)) return;
+  if (engine::Sees(check->creature, id)) {
+    check->sees_enemy = true;
+  } else if (HiddenByStealth(other)) {
+    check->hidden_enemy = true;
+  }
+}
+
+bool Surprised(void* creature) {
+  SurpriseCheck check{creature, false, false};
+  engine::ForEachOtherCreatureInArea(creature, &LookForEnemies, &check);
+  return rules::SurprisedAtInitiative(g_config.initiative == rules::RuleVariant::kFaithful, check.sees_enemy,
+                                      check.hidden_enemy);
+}
+
 // The initiative d20.
 bool InitiativeD20(uintptr_t caller, int count, int sides, int* result) {
   if (caller != g_d20_caller || !t_creature || count != 1 || sides != 20) return false;
@@ -109,9 +136,11 @@ bool InitiativeD20(uintptr_t caller, int count, int sides, int* result) {
   const bool hidden = !invisible && HiddenByStealth(creature);
   const bool athlete = !invisible && !hidden && HasRemarkableAthleteAdvantage(creature);
   const bool feral = !invisible && !hidden && !athlete && HasFeralInstinctAdvantage(creature);
+  const bool surprised = Surprised(creature);  // #136 B
   const std::string worse = CheckDisadvantage(creature);  // SK11
+  const std::string reasons = surprised ? (worse.empty() ? "Surprised" : worse + ", Surprised") : worse;
   const int advantage = invisible || hidden || athlete || feral ? 1 : 0;
-  const int disadvantage = worse.empty() ? 0 : 1;
+  const int disadvantage = reasons.empty() ? 0 : 1;
   const int first = RollEngineDice(1, 20);
   const int second = advantage || disadvantage ? RollEngineDice(1, 20) : 0;
   int kept = rules::KeptCheckD20(first, second, advantage, disadvantage);
@@ -128,11 +157,16 @@ bool InitiativeD20(uintptr_t caller, int count, int sides, int* result) {
                       : athlete ? "advantage: Remarkable Athlete"
                       : feral   ? "advantage: Feral Instinct"
                                 : "";
-    if (disadvantage) why += (why.empty() ? "disadvantage: " : "; disadvantage: ") + worse;
+    if (disadvantage) why += (why.empty() ? "disadvantage: " : "; disadvantage: ") + reasons;
     if (advantage && disadvantage) why += " - they cancel";
     if (luck) why += why.empty() ? "Halfling Luck rerolled a 1" : "; Halfling Luck rerolled a 1";
     Log("initiative: 0x%08X d20 %d%s%s -> %d (%s)", IdOf(creature), first, second ? " / " : "",
         second ? std::to_string(second).c_str() : "", kept, why.c_str());
+  }
+  if (surprised && g_roll_lines < 200) {  // #136: any creature's, for the test's log
+    ++g_roll_lines;
+    Log("initiative: 0x%08X Surprised - sees no enemy, one hidden from it (#136): d20 %d / %d -> %d", IdOf(creature),
+        first, second, kept);
   }
   *result = kept;
   return true;

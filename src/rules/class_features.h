@@ -504,6 +504,17 @@ bool HiddenAttackAdvantage(bool hiding, bool target_sees, bool faithful);
 // sees it (found ends the hide, #129). NWN's AI attacks a heard creature's exact spot; 2024 has an unseen target's
 // attacker guess its spot. A player's order stands; a target not hiding (an invisible one) keeps NWN's. Faithful only.
 bool UnseenHiderSearched(bool faithful, bool attacker_is_player, bool target_hiding, bool attacker_sees_target);
+// #136 (owner, 2026-11-06: "Go with your recommendations for 1 and 4." - B): the same leak by the damage path - NWN's
+// OnDamaged sends a creature that can't see its damager to the damager's exact location (a script's move order). A
+// move ending within kUnseenHiderMoveReach of a hider the mover doesn't see becomes #133's search; a player's order
+// stands. Faithful only.
+constexpr float kUnseenHiderMoveReach = 1.0f;  // metres
+bool MoveOntoUnseenHider(bool faithful, bool mover_is_player, bool target_hiding, bool mover_sees_target,
+                         float distance_to_target);
+// #136 B: SRD 5.2's Surprise - "If a combatant is surprised by combat starting, that combatant has Disadvantage on
+// their Initiative roll." Here a creature is surprised when it rolls seeing no enemy while one is hidden from it
+// (a hider's attack started the fight). Faithful only.
+bool SurprisedAtInitiative(bool faithful, bool sees_an_enemy, bool an_enemy_hidden_from_it);
 bool GrantedOnlyWhenMissing(int feat);
 
 }  // namespace rules

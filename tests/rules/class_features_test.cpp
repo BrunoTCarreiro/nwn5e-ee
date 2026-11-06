@@ -568,6 +568,18 @@ TEST(ExtraActions) {
   CHECK_EQ(UnseenHiderSearched(true, false, false, false), false); // not hiding (an invisible creature): NWN's
   CHECK_EQ(UnseenHiderSearched(true, true, true, false), false);   // a player's order stands
   CHECK_EQ(UnseenHiderSearched(false, false, true, false), false); // NWN mode
+  // #136 B: a script's move onto a hider the mover doesn't see (NWN's OnDamaged) becomes the same search; Surprise.
+  CHECK_EQ(MoveOntoUnseenHider(true, false, true, false, 0.0f), true);   // the damager's exact location
+  CHECK_EQ(MoveOntoUnseenHider(true, false, true, false, 1.0f), true);   // within the reach
+  CHECK_EQ(MoveOntoUnseenHider(true, false, true, false, 1.5f), false);  // elsewhere: its own move
+  CHECK_EQ(MoveOntoUnseenHider(true, false, true, true, 0.0f), false);   // it sees the hider
+  CHECK_EQ(MoveOntoUnseenHider(true, false, false, false, 0.0f), false); // not hiding
+  CHECK_EQ(MoveOntoUnseenHider(true, true, true, false, 0.0f), false);   // a player's order stands
+  CHECK_EQ(MoveOntoUnseenHider(false, false, true, false, 0.0f), false); // NWN mode
+  CHECK_EQ(SurprisedAtInitiative(true, false, true), true);    // hit by a hider it never saw
+  CHECK_EQ(SurprisedAtInitiative(true, true, true), false);    // it sees an enemy: not surprised
+  CHECK_EQ(SurprisedAtInitiative(true, false, false), false);  // no hidden enemy
+  CHECK_EQ(SurprisedAtInitiative(false, false, true), false);  // NWN mode
   auto has = [](const std::vector<int>& feats, int feat) {
     return std::find(feats.begin(), feats.end(), feat) != feats.end();
   };

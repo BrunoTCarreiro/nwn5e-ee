@@ -145,6 +145,12 @@ struct HeardAt {
 std::unordered_map<uint64_t, HeardAt> g_heard_at;
 std::unordered_map<uint32_t, int64_t> g_hunt_at;
 std::unordered_map<uint32_t, int64_t> g_hunt_logged;
+// #136: where each creature's own search last sent it (id -> the spot, when) - that move isn't turned again.
+struct SearchMove {
+  float x, y, z;
+  int64_t at;
+};
+std::unordered_map<uint32_t, SearchMove> g_search_move;
 int64_t NowMs() {
   return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch())
       .count();
@@ -773,6 +779,30 @@ std::vector<uintptr_t> Returns(const CodeRange& code, const char* target) {
   return calls;
 }
 
+// #136: CNWSCreature::AddMoveToPointAction - a script's ActionMoveToLocation (ExecuteCommandMoveToPoint's call) onto a
+// hider the mover doesn't see becomes #133's search (UnseenHiderMove, below). The Vector comes by pointer.
+using AddMoveToPointFn = int (*)(void* creature, uint16_t group, const float* position, uint32_t area, uint32_t target,
+                                 int run, float range, float timeout, int a, int b, int c, int d, int e, int f);
+constexpr const char* kAddMoveToPointAction = "?AddMoveToPointAction@CNWSCreature@@QEAAHGVVector@@IIHMMHHHHHH@Z";
+constexpr const char* kExecuteCommandMoveToPoint = "?ExecuteCommandMoveToPoint@CNWSVirtualMachineCommands@@QEAAHHH@Z";
+AddMoveToPointFn g_add_move_to_point = nullptr;
+uintptr_t g_script_move_site = 0;  // ExecuteCommandMoveToPoint's call (its return address)
+
+}  // namespace
+
+bool UnseenHiderMove(void* creature, const float* to);  // below
+
+namespace {
+
+int AddMoveToPoint(void* creature, uint16_t group, const float* position, uint32_t area, uint32_t target, int run,
+                   float range, float timeout, int a, int b, int c, int d, int e, int f) {
+  if (reinterpret_cast<uintptr_t>(_ReturnAddress()) == g_script_move_site && creature && position &&
+      UnseenHiderMove(creature, position)) {
+    return 1;  // a search instead
+  }
+  return g_add_move_to_point(creature, group, position, area, target, run, range, timeout, a, b, c, d, e, f);
+}
+
 }  // namespace
 
 void InstallPerceptionRules() {
@@ -823,6 +853,19 @@ void InstallPerceptionRules() {
   // #132: a grenade thrown from hiding keeps the hide.
   HookExport("CNWSCreature::AIActionItemCastSpell (a grenade thrown from hiding keeps the hide)", kAIActionItemCastSpell,
              reinterpret_cast<void*>(&AIActionItemCastSpell), reinterpret_cast<void**>(&g_item_cast_spell));
+  // #136: a script's move onto a hider the mover doesn't see (NWN's OnDamaged) becomes #133's search.
+  const uintptr_t move_command = EngineExport(kExecuteCommandMoveToPoint);
+  const uintptr_t add_move = EngineExport(kAddMoveToPointAction);
+  const std::vector<uintptr_t> move_calls =
+      move_command && add_move ? FindCallsTo(FunctionAt(move_command), add_move) : std::vector<uintptr_t>();
+  if (move_calls.size() == 1) {
+    g_script_move_site = move_calls[0] + 5;
+    HookExport("CNWSCreature::AddMoveToPointAction (a script's move onto an unseen hider becomes a search, #136)",
+               kAddMoveToPointAction, reinterpret_cast<void*>(&AddMoveToPoint),
+               reinterpret_cast<void**>(&g_add_move_to_point));
+  } else {
+    Log("SKIP stealth #136: a script's move onto an unseen hider isn't turned (%zu calls found)", move_calls.size());
+  }
   AddSkillAdjuster(&PerceptionSkill);
   AddDiceFilter(&StealthDice);
   Log("perception: Stealth once per hide, passive Perception unless searching, no size / combat / Favored Enemy "
@@ -835,15 +878,9 @@ void InstallPerceptionRules() {
 // and it goes on searching until it sees the hider - found ends the hide (#129) and the attack goes ahead. True: the
 // attack is dropped (action_order.cpp's AIActionAttackObject hook). The search is queued by DelayCommand, outside the
 // engine's action processing; at most once a second per creature.
-bool UnseenHiderSearch(void* creature, void* node) {
-  if (!creature || !node) return false;
-  const uint32_t target = Field<uint32_t>(node, ee::kActionFirstParam);
-  void* hider = target != ee::kObjectInvalid ? CreatureById(target) : nullptr;
-  if (!hider || hider == creature ||
-      !rules::UnseenHiderSearched(g_config.perception == rules::RuleVariant::kFaithful, IsPlayer(creature),
-                                  Hiding(hider), engine::Sees(creature, target))) {
-    return false;
-  }
+// #133 / #136: the search itself - `instead` names what it replaces (the log's "attack", "run to").
+bool SearchForUnseenHider(void* creature, void* hider, const char* instead) {
+  const uint32_t target = IdOf(hider);
   const uint32_t id = IdOf(creature);
   const int64_t now = NowMs();
   int64_t& last = g_hunt_at[id];
@@ -863,16 +900,71 @@ bool UnseenHiderSearch(void* creature, void* node) {
             "DelayCommand(0.13, ActionPlayAnimation(ANIMATION_FIREFORGET_HEAD_TURN_RIGHT));"
             "DelayCommand(0.14, ActionWait(3.0));",
             at.x, at.y, at.z);
+  g_search_move[id] = {at.x, at.y, at.z, now};  // #136: its own move
   RunScriptChunk(code, id);
   int64_t& logged = g_hunt_logged[id];
   if (now - logged > 6000 && LogSlot()) {
     logged = now;
     const float dx = at.x - Field<float>(hider, ee::kObjectPositionX);
     const float dy = at.y - Field<float>(hider, ee::kObjectPositionY);
-    Log("stealth: 0x%08X would attack 0x%08X unseen - it searches where it %s instead (#133; %.1f m from the hider "
-        "now)", id, target, heard != g_heard_at.end() ? "last heard it" : "was hit from", sqrtf(dx * dx + dy * dy));
+    Log("stealth: 0x%08X would %s 0x%08X unseen - it searches where it %s instead (#133/#136; %.1f m from the "
+        "hider now)", id, instead, target, heard != g_heard_at.end() ? "last heard it" : "was hit from",
+        sqrtf(dx * dx + dy * dy));
   }
   return true;
+}
+
+bool UnseenHiderSearch(void* creature, void* node) {
+  if (!creature || !node) return false;
+  const uint32_t target = Field<uint32_t>(node, ee::kActionFirstParam);
+  void* hider = target != ee::kObjectInvalid ? CreatureById(target) : nullptr;
+  if (!hider || hider == creature ||
+      !rules::UnseenHiderSearched(g_config.perception == rules::RuleVariant::kFaithful, IsPlayer(creature),
+                                  Hiding(hider), engine::Sees(creature, target))) {
+    return false;
+  }
+  return SearchForUnseenHider(creature, hider, "attack");
+}
+
+// #136 B (owner, 2026-11-06: "Go with your recommendations for 1 and 4."; rules::MoveOntoUnseenHider): a script's
+// move order onto a hider the mover doesn't see - NWN's OnDamaged (nw_c2_default6) runs a creature that can't see its
+// damager to the damager's exact location, a hider's grenade or its lingering patch - becomes #133's search. Its own
+// search's move (the spot it went to, the last 3 s) is let through. True: the move is dropped.
+namespace {
+struct MoveCheck {
+  void* mover;
+  const float* to;
+  void* hider;
+  float best;
+};
+
+void FindUnseenHider(void* context, uint32_t id, void* other) {
+  auto* check = static_cast<MoveCheck*>(context);
+  if (!other || !Hiding(other) || !engine::IsEnemy(check->mover, id)) return;
+  const float dx = check->to[0] - Field<float>(other, ee::kObjectPositionX);
+  const float dy = check->to[1] - Field<float>(other, ee::kObjectPositionY);
+  const float distance = sqrtf(dx * dx + dy * dy);
+  if (distance >= check->best ||
+      !rules::MoveOntoUnseenHider(g_config.perception == rules::RuleVariant::kFaithful, IsPlayer(check->mover), true,
+                                  engine::Sees(check->mover, id), distance)) {
+    return;
+  }
+  check->best = distance;
+  check->hider = other;
+}
+}  // namespace
+
+bool UnseenHiderMove(void* creature, const float* to) {
+  if (IsPlayer(creature)) return false;
+  const auto own = g_search_move.find(IdOf(creature));
+  if (own != g_search_move.end() && NowMs() - own->second.at < 3000) {
+    const float dx = to[0] - own->second.x;
+    const float dy = to[1] - own->second.y;
+    if (dx * dx + dy * dy < 0.25f) return false;  // its own search's move
+  }
+  MoveCheck check{creature, to, nullptr, 1e9f};
+  engine::ForEachOtherCreatureInArea(creature, &FindUnseenHider, &check);
+  return check.hider && SearchForUnseenHider(creature, check.hider, "run to");
 }
 
 // SK9 (rules_initiative.cpp) and Search: hidden = hiding with a hide that held.

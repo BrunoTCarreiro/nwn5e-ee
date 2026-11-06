@@ -869,6 +869,16 @@ bool UnseenHiderSearched(bool faithful, bool attacker_is_player, bool target_hid
   return faithful && !attacker_is_player && target_hiding && !attacker_sees_target;
 }
 
+bool MoveOntoUnseenHider(bool faithful, bool mover_is_player, bool target_hiding, bool mover_sees_target,
+                         float distance_to_target) {
+  return UnseenHiderSearched(faithful, mover_is_player, target_hiding, mover_sees_target) &&
+         distance_to_target <= kUnseenHiderMoveReach;
+}
+
+bool SurprisedAtInitiative(bool faithful, bool sees_an_enemy, bool an_enemy_hidden_from_it) {
+  return faithful && !sees_an_enemy && an_enemy_hidden_from_it;
+}
+
 HideAtAttack WhenAttackEndsHide(bool hiding, bool faithful) {
   if (!hiding) return HideAtAttack::kNotHiding;
   return faithful ? HideAtAttack::kEndsAfterRoll : HideAtAttack::kEndsBeforeRoll;

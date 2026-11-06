@@ -1002,6 +1002,17 @@ close, then attacked).
   through #133's rule (where the hider was heard, a search near it); B A, and the creatures unaware of the hider
   Surprised when its attack starts combat (SRD 5.2: Disadvantage on their Initiative roll).
   - *Decided (owner, 2026-11-06: "Go with your recommendations for 1 and 4."):* B, faithful.
+  - *Built 0.81.0:* rules::MoveOntoUnseenHider (#133's rule and the move ending within kUnseenHiderMoveReach, 1 m,
+    of the hider) and SurprisedAtInitiative (test ExtraActions' stealth checks, 8 of 8 mutations caught).
+    - rules_perception.cpp hooks CNWSCreature::AddMoveToPointAction for a script's ActionMoveToLocation only
+      (ExecuteCommandMoveToPoint's one call, by its return address; the Vector by pointer): an AI creature's move
+      onto a hiding enemy it doesn't see (the nearest within 1 m of the destination) is dropped for #133's search,
+      now shared (SearchForUnseenHider: where it last heard the hider, else where the hider is - the hit's origin;
+      once a second at most; logged "would run to ... unseen - it searches"). The search's own move (its spot, the
+      last 3 s) goes through.
+    - rules_initiative.cpp: Surprise - an Initiative d20 with Disadvantage when the creature sees no enemy (alive,
+      in its area) while one is hidden from it (HiddenByStealth); logged for any creature ("Surprised - sees no
+      enemy, one hidden from it"), with the player's roll line's reasons.
 - *#131, creatures keep out of hazards (owner, 2026-11-04, on #130's 0.69.1 run: "We might need to eventually work on
   the henchman AI to prevent them from standing in hazard areas").* How it was: the grenade hazards hurt anyone (0.70.0);
   NWN's henchman AI (nw_ch_acb) answers only an enemy's area spell (it may flee or dispel) and ignores its master's on
