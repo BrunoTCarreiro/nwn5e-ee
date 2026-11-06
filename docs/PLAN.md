@@ -1104,6 +1104,7 @@ close, then attacked).
     - rules_initiative.cpp: Surprise - an Initiative d20 with Disadvantage when the creature sees no enemy (alive,
       in its area) while one is hidden from it (HiddenByStealth); logged for any creature ("Surprised - sees no
       enemy, one hidden from it"), with the player's roll line's reasons.
+  *Accepted (owner, 2026-11-06: "HD and LR seem fine and accepted").* #136.
 - *#131, creatures keep out of hazards (owner, 2026-11-04, on #130's 0.69.1 run: "We might need to eventually work on
   the henchman AI to prevent them from standing in hazard areas").* How it was: the grenade hazards hurt anyone (0.70.0);
   NWN's henchman AI (nw_ch_acb) answers only an enemy's area spell (it may flee or dispel) and ignores its master's on
@@ -3109,6 +3110,7 @@ Short Rest benefits (c) not taken - an interrupted rest still gives nothing (R3)
 refuses a Long Rest's start to a creature that is down - dying, or nwn5e_down / a henchman these rules hold down
 (rules_dying.cpp's IsDownForRest) - and tells a downed henchman's master "<name> is down and doesn't rest - heal
 them first (a spell, a healer's kit or a Short Rest), then rest"; the player's own rest goes ahead.
+*Accepted (owner, 2026-11-06: "HD and LR seem fine and accepted").* #135.
 *Resting a lot (#110; owner, 2026-11-01: "are there any consequences in-game for resting too many times, like
 events tied to calendar days that can be missed?"). Researched 2026-11-01* (the campaigns' own .nss, which every
 official module ships, and the NWN Lexicon's SetTime / SetCalendar notes): nothing in the official campaigns can be
