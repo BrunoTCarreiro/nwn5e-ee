@@ -602,6 +602,35 @@ monster AC by CR.
     for now let's turn it off under house rules"):* *0.87.1:* [house_rules] free_material_components (config,
     nwn5e.ini; announced on #123) - on for now, at the owner's word (house rules are otherwise off by default):
     no gold asked or taken; 0 brings SRD 5.2's costs back.
+- *#39 Part 1, the cantrips (owner, 2026-11-06: "go for 39 focusing on the cantrips").* SRD 5.2 has 27 cantrips,
+  NWN 10; 5 are both (Acid Splash, Light, Ray of Frost, Resistance; True Strike - NWN's a level 1 buff). NWN's play
+  3e (Ray of Frost 1d4+1, Acid Splash and Electric Jolt 1d3, Resistance +1 to saves for 2 turns, Light for hours a
+  level); the attack (SK10) and the DC (C5) are 2024's already. SRD 5.2's damage cantrips: 1d6-1d12, a die more at
+  character levels 5, 11, 17, most with a rider. Options: 1 how - A served spells.2da rows and C++ scripts (as
+  Disengage, Rage, the grenades; tested rules; NWN's visual effects), B NWScript compiled; 2 2024's damage types
+  NWN lacks - A Lightning Electrical, Thunder Sonic, Necrotic Negative, Radiant Divine, Force and Psychic Magical,
+  Poison Acid (none to a poison-immune creature), B all Magical; 3 which - A those that do something in NWN (Fire
+  Bolt, Chill Touch, Shocking Grasp, Poison Spray, Sacred Flame, Starry Wisp, Sorcerous Burst, Vicious Mockery;
+  Guidance, Spare the Dying; True Strike as 2024's, Shillelagh, Produce Flame; Eldritch Blast with the Warlock),
+  B A + light versions of the utility ones; 4 NWN's own (Daze, Flare, Electric Jolt, Virtue, Cure / Inflict Minor
+  Wounds) - A retired in faithful, B kept; 5 a choice inside a spell (Resistance's damage type, Guidance's skill) -
+  A a menu (past 5 a "more" entry), B every type / every check; 6 three builds: the damage cantrips, support, the
+  weapon cantrips.
+  - *Decided (owner, 2026-11-06):* "1. A, but do not reuse icons yet. We'll need to see which icons become
+    available after the existing abilities with no 2024 correspondence are removed." "2. A, but poison and acid
+    are different things and force and psychic aren't magical" "3. B. Mage Hand can count as a summoned creature
+    that allows the player to open/close doors, interact with chests, snuff lights... Prestidigitation can at the
+    very least snuff and relight light sources. Minor illusion can create effects (sounds) and illusions (small
+    creatures or humanoids) that will make guards or other creatures investigate (we have that functionality now)
+    so they are not useless" "4. A" "5. recommnedations" "6. ok".
+  - *What follows:* new spells show a placeholder icon of nwn5e's own (not a game icon) until the icons are
+    reassigned. Poison, Force and Psychic become damage types of their own: NWN:EE has DAMAGE_TYPE_CUSTOM1-8
+    (damagetypes.2da rows past Base, 12; the damage effect carries 32 amounts, OnApplyDamage reads them all,
+    resistance and immunity take 32-bit flags) - served damagetypes / damagetypegroups / damagehitvisual rows give
+    them their names, colours and hit visuals; a creature immune to poison takes no Poison damage. Lightning,
+    Thunder, Necrotic and Radiant stay NWN's Electrical, Sonic, Negative and Divine. The utility cantrips (3B) are a
+    fourth build, with the owner's ideas (Mage Hand a summoned hand for doors, chests and lights; Prestidigitation
+    lights; Minor Illusion sounds and figures that draw creatures to investigate).
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
