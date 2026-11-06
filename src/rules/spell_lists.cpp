@@ -73,6 +73,16 @@ bool RemoveIconShown(bool picked_this_level_up, bool swap_left) { return picked_
 
 bool AddIconShown(int spells_left) { return spells_left > 0; }
 
+std::vector<int> WizardPageRows(const std::vector<int>& book, const std::vector<int>& known) {
+  std::vector<int> rows;
+  for (const std::vector<int>* list : {&book, &known}) {
+    for (int spell : *list) {
+      if (std::find(rows.begin(), rows.end(), spell) == rows.end()) rows.push_back(spell);
+    }
+  }
+  return rows;
+}
+
 bool LevelUpSwapAllowed(int class_row, bool cantrip, int swaps_done) {
   if (swaps_done >= 1) return false;
   switch (class_row) {

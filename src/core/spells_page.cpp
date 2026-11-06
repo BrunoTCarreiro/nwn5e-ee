@@ -39,6 +39,12 @@
 //   Add moves on to the next tab when the one picked on is done and the next has picks left - two looks at the next
 //   level's spells left (calls into the client's spells left right after "inc dl"). From the cantrips tab they're
 //   answered 0, so the page stays on it.
+// - 0.83.3 (owner, 2026-11-06, WZ-3: "On level up it says 6 of 8 but only shows 4 spells", then "go for A"): a
+//   Wizard's level-up page lists its whole spellbook in the known column - ShowLevel's known pass (its two calls of
+//   the client's known count and its one of the known spell, by return address) reads the book's spells at the
+//   tab's level, then the page's other known ones (rules::WizardPageRows); everything else, the page's OK among
+//   them, reads the client's own lists, so only the picks go to the server. A book spell counts as known before:
+//   no remove icon, and Remove refuses it.
 // - 0.78.4 (owner, 2026-11-05: "re-adding it back doesn't increase the counter to 6 and the OK button remains
 //   greyed out"): the OK button needs all ten levels marked done (+0x19E0), and NWN marks a level only at the
 //   page's setup and for the tab picked on. 2024's total is shared by the spell levels, so a pick on one tab leaves
@@ -109,6 +115,17 @@ AddFn g_add = nullptr;
 UpdateOkFn g_update_ok = nullptr;
 RemoveFromPanelFn g_remove_from_panel = nullptr;
 std::vector<uintptr_t> g_next_tab_sites;  // 0.83.1: Add's looks at the next tab's spells left (return addresses)
+// 0.83.3: ShowLevel's known pass - its known counts and its known spell read (return addresses); the rows it lists
+// for a Wizard, kept for the pass (the client stats and the tab's level they were made for).
+std::vector<uintptr_t> g_known_pass_count_sites;
+uintptr_t g_known_pass_get_site = 0;
+struct WizardRows {
+  bool valid = false;
+  void* client_stats = nullptr;
+  int spell_level = -1;
+  std::vector<int> ids;
+};
+thread_local WizardRows t_wizard_rows;
 int g_hidden_logged = 0;  // the log's first lines only
 ClientCreatureFn g_client_creature = nullptr;
 uintptr_t g_quick_site = 0;                // the quick level-up's GetSpellsKnownPerLevel call (its return address)
@@ -189,6 +206,51 @@ uint8_t SpellLevel(void* spell, uint8_t nwn_class) {
   return level;
 }
 
+// 0.83.3: the rows a Wizard's level-up page lists at a tab's level (null: not a Wizard's level 1+ tab) - its book's
+// spells of that Wizard level, then its other known spells (prepared, picked; rules::WizardPageRows).
+const std::vector<int>* WizardRowsFor(void* client_stats, uint8_t slot, uint8_t spell_level) {
+  Levelled c;
+  if (spell_level < 1 || spell_level > 9 || !LevelledClass(client_stats, &c) || c.row != kNwnClassWizard ||
+      slot != c.slot) {
+    return nullptr;
+  }
+  if (!t_wizard_rows.valid || t_wizard_rows.client_stats != client_stats || t_wizard_rows.spell_level != spell_level) {
+    void* rules_object = RulesObject();
+    void* spells = rules_object ? Field<void*>(rules_object, ee::kRulesSpells) : nullptr;
+    std::vector<int> book;
+    for (int id : PageBook(c)) {
+      void* entry = spells && g_get_spell ? g_get_spell(spells, id) : nullptr;
+      if (entry && g_spell_level(entry, kNwnClassWizard) == spell_level) book.push_back(id);
+    }
+    std::vector<int> known;
+    const int count = g_known_count(client_stats, slot, spell_level);
+    for (int i = 0; i < count && i < 255; ++i) {
+      known.push_back(static_cast<int>(g_get_known(client_stats, slot, spell_level, static_cast<uint8_t>(i))));
+    }
+    t_wizard_rows = {true, client_stats, spell_level, rules::WizardPageRows(book, known)};
+  }
+  return &t_wizard_rows.ids;
+}
+
+uint16_t KnownCount(void* client_stats, uint8_t slot, uint8_t spell_level) {
+  const uintptr_t from = reinterpret_cast<uintptr_t>(_ReturnAddress());
+  for (uintptr_t site : g_known_pass_count_sites) {
+    if (site != from) continue;
+    if (const std::vector<int>* rows = WizardRowsFor(client_stats, slot, spell_level)) {
+      return static_cast<uint16_t>(rows->size());
+    }
+  }
+  return g_known_count(client_stats, slot, spell_level);
+}
+
+uint32_t GetKnown(void* client_stats, uint8_t slot, uint8_t spell_level, uint8_t index) {
+  if (reinterpret_cast<uintptr_t>(_ReturnAddress()) == g_known_pass_get_site) {
+    const std::vector<int>* rows = WizardRowsFor(client_stats, slot, spell_level);
+    if (rows && index < rows->size()) return static_cast<uint32_t>((*rows)[index]);
+  }
+  return g_get_known(client_stats, slot, spell_level, index);
+}
+
 // 0.77.1: the page setup's every-cantrip add skipped for a 2024 caster (the cantrips tab picks them).
 uintptr_t ClientAddKnown(void* client_stats, uintptr_t slot, uintptr_t spell) {
   if (reinterpret_cast<uintptr_t>(_ReturnAddress()) == g_all_cantrips_site) {
@@ -266,7 +328,9 @@ void HideAddButtons(void* page);          // below (0.83.1)
 void ShowLevel(void* page, int spell_level) {
   t_page_stats = nullptr;
   t_book_loaded = false;
+  t_wizard_rows.valid = false;  // 0.83.3: made fresh for this pass
   g_show_level(page, spell_level);
+  t_wizard_rows.valid = false;
   SetTitle(page, t_page_stats, spell_level, nullptr);
   HideUnremovableButtons(page);
   HideAddButtons(page);
@@ -276,6 +340,17 @@ void ShowLevel(void* page, int spell_level) {
 void* PageStats(void* page) {
   void* creature = g_client_creature ? g_client_creature(Field<uint32_t>(page, ee::kSpellsPageCreature)) : nullptr;
   return creature ? Field<void*>(creature, ee::kClientCreatureStats) : nullptr;
+}
+
+bool ListHas(const void* list, uint32_t spell);
+
+// A spell known before this level-up: in the page's copy of the known lists at its setup, or (0.83.3) a Wizard's
+// book spell (its whole book is listed; the book never loses one).
+bool KnownBefore(const Levelled& c, int spell_level, const void* saved, uint32_t spell) {
+  if (ListHas(saved, spell)) return true;
+  if (c.row != kNwnClassWizard || spell_level < 1) return false;
+  const std::vector<int> book = PageBook(c);
+  return std::find(book.begin(), book.end(), static_cast<int>(spell)) != book.end();
 }
 
 bool ListHas(const void* list, uint32_t spell) {  // a CExoArrayList<uint32>: data +0, count +8
@@ -346,7 +421,7 @@ void HideUnremovableButtons(void* page) {
   const bool cantrip = spell_level == 0;
   const bool swap_left = rules::LevelUpSwapAllowed(c.row, cantrip, SwapsDone(page, client_stats, c, cantrip));
   const int hidden = HideMoveButtons(static_cast<uint8_t*>(page) + ee::kSpellsPageKnownList, [&](uint32_t spell) {
-    return !rules::RemoveIconShown(!ListHas(saved, spell), swap_left);
+    return !rules::RemoveIconShown(!KnownBefore(c, spell_level, saved, spell), swap_left);
   });
   if (hidden > 0 && g_hidden_logged < 20) {
     ++g_hidden_logged;
@@ -420,7 +495,7 @@ void Remove(void* page) {
   const int spell_level = Field<uint8_t>(page, ee::kSpellsPageLevel);
   const uint32_t spell = ids[index];
   const void* saved = static_cast<uint8_t*>(page) + ee::kSpellsPageSavedKnown + spell_level * ee::kExoArrayListSize;
-  if (spell_level >= 0 && spell_level <= 9 && ListHas(saved, spell)) {  // known before: a swap
+  if (spell_level >= 0 && spell_level <= 9 && KnownBefore(c, spell_level, saved, spell)) {  // known before: a swap
     const bool cantrip = spell_level == 0;
     if (!rules::LevelUpSwapAllowed(c.row, cantrip, SwapsDone(page, client_stats, c, cantrip))) {
       SetTitle(page, client_stats, spell_level, "No more swaps");
@@ -478,6 +553,28 @@ bool InstallSpellsPage() {
   const uintptr_t add_inside = FindPattern("the Spells page's Add (#36)", ee::kSpellsPageAddPattern);
   const uintptr_t add = add_inside ? FunctionEntry(add_inside) : 0;
   g_remove_from_panel = reinterpret_cast<RemoveFromPanelFn>(EngineExport(ee::kGuiRemoveFromPanel));
+  // 0.83.3: ShowLevel's known pass - the known count's first two calls in it and the known spell's first (the
+  // Available pass, after it, has one of each).
+  const uintptr_t known_count_fn = reinterpret_cast<uintptr_t>(g_known_count);
+  const uintptr_t get_known_fn = reinterpret_cast<uintptr_t>(g_get_known);
+  std::vector<uintptr_t> count_calls =
+      show && known_count_fn ? FindCallsTo(FunctionAt(show), known_count_fn) : std::vector<uintptr_t>();
+  std::vector<uintptr_t> get_calls =
+      show && get_known_fn ? FindCallsTo(FunctionAt(show), get_known_fn) : std::vector<uintptr_t>();
+  std::sort(count_calls.begin(), count_calls.end());
+  std::sort(get_calls.begin(), get_calls.end());
+  g_known_pass_count_sites.clear();
+  g_known_pass_get_site = 0;
+  const bool known_pass = count_calls.size() == 3 && get_calls.size() == 2 && count_calls[0] < get_calls[0] &&
+                          get_calls[0] < count_calls[1] && count_calls[1] < count_calls[2] &&
+                          count_calls[2] < get_calls[1];
+  if (known_pass) {
+    g_known_pass_count_sites = {count_calls[0] + 5, count_calls[1] + 5};
+    g_known_pass_get_site = get_calls[0] + 5;
+  } else {
+    Log("SKIP spells #36: a Wizard's level-up page lists its prepared spells only (%zu / %zu known-list calls)",
+        count_calls.size(), get_calls.size());
+  }
   // 0.83.1: Add's two looks at the next tab - its calls into the client's spells left just after "inc dl; mov rcx,
   // rdi" (the level + 1); the third, for its own tab, isn't.
   g_next_tab_sites.clear();
@@ -522,7 +619,12 @@ bool InstallSpellsPage() {
       HookAddress("CCharacterSpellsPanel Remove (the level-up swaps, SRD 5.2's, #36)", remove,
                   reinterpret_cast<void*>(&Remove), reinterpret_cast<void**>(&g_remove)) &&
       HookAddress("CCharacterSpellsPanel Add (the title, the OK button, a swap undone, #36)", add,
-                  reinterpret_cast<void*>(&Add), reinterpret_cast<void**>(&g_add));
+                  reinterpret_cast<void*>(&Add), reinterpret_cast<void**>(&g_add)) &&
+      (!known_pass ||
+       (HookAddress("client known count (a Wizard's level-up page lists its whole book, #36)", known_count_fn,
+                    reinterpret_cast<void*>(&KnownCount), reinterpret_cast<void**>(&g_known_count)) &&
+        HookAddress("client known spell (a Wizard's level-up page lists its whole book, #36)", get_known_fn,
+                    reinterpret_cast<void*>(&GetKnown), reinterpret_cast<void**>(&g_get_known))));
   Log("spells: NWN's Spells page at creation and level-up with 2024's counts - the total across levels, the title's "
       "totals; a Wizard's spellbook; the level-up swaps, no remove icon on a spell that can't be dropped (#36 "
       "Part 3b)%s",

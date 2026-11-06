@@ -440,6 +440,12 @@ monster AC by CR.
     asked. The tab icons' greyed look: #137 (later). UP: "how does upcasting work? I can't seem to trigger it" - the
     log: four casts (Negative Energy Ray, Scare, Darkness and one more), at most three 1st-level slots spent of four;
     upcasting starts with the 1st-level slots all gone. Explained.
+  - *Decided (owner, 2026-11-06: "go for A"):* WZ-3's count - a Wizard's level-up page shows its whole spellbook in
+    the known column. *Built 0.83.3:* ShowLevel's known pass (its two calls of the client's known count, 0x7F66E0,
+    and its one of the known spell, 0x7F5C50, by return address; the Available pass after it keeps its own) reads
+    the book's spells at the tab's level, then the page's other known ones (rules::WizardPageRows, test
+    LevelUpSwaps, 3 of 3 mutations caught). The page's OK (0x9C90D0) reads the client's own known lists, so only the picks
+    go to the server. A book spell counts as known before (no remove icon; Remove refuses it).
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

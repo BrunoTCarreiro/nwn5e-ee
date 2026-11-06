@@ -88,6 +88,11 @@ TEST(LevelUpSwaps) {
   CHECK_EQ(AddIconShown(2), true);
   CHECK_EQ(AddIconShown(1), true);
   CHECK_EQ(AddIconShown(0), false);
+  // 0.83.3: a Wizard's level-up page - its whole book at the tab's level, then the picks.
+  CHECK_EQ(WizardPageRows({10, 11, 12}, {11, 20}) == std::vector<int>({10, 11, 12, 20}), true);
+  CHECK_EQ(WizardPageRows({}, {5, 6}) == std::vector<int>({5, 6}), true);       // no book yet: the picks
+  CHECK_EQ(WizardPageRows({7, 8}, {}) == std::vector<int>({7, 8}), true);       // the book alone
+  CHECK_EQ(WizardPageRows({7}, {20, 20, 7}) == std::vector<int>({7, 20}), true);  // each once
 }
 
 // Part 3b-2 (owner, 2026-11-05: "Not a fan of the spellbook appearing AFTER the class configuration can it be

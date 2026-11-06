@@ -59,6 +59,10 @@ bool RemoveIconShown(bool picked_this_level_up, bool swap_left);
 // 0.83.1 (owner, 2026-11-06: "ALso remove the icon that adds spells to the prepared column once it is no longer
 // possible to add new spells"): an available spell's add icon - shown while the tab has a pick left.
 bool AddIconShown(int spells_left);
+// 0.83.3 (owner, 2026-11-06, WZ-3: "On level up it says 6 of 8 but only shows 4 spells", then "go for A" - the whole
+// spellbook shown): a Wizard's level-up page lists, at a tab's level, its spellbook's spells (`book`) and then the
+// page's other known spells (`known`: its prepared ones and this level-up's picks) - each once, the book's first.
+std::vector<int> WizardPageRows(const std::vector<int>& book, const std::vector<int>& known);
 
 struct WizardLists {
   std::vector<int> book;
