@@ -70,4 +70,8 @@ TEST(LongRestWait) {
   CHECK_EQ(LongRestWaitLeft(true, true, end, end), 0);        // the house rule: any time
   CHECK_EQ(LongRestWaitLeft(false, false, end, end), 0);      // NWN mode
   CHECK_EQ(LongRestWaitLeft(true, false, end, end - 5), 0);   // a clock set back
+  // #135 b: at least 1 Hit Point to start a Long Rest - a creature that is down doesn't.
+  CHECK_EQ(DownBlocksLongRest(true, true), true);
+  CHECK_EQ(DownBlocksLongRest(true, false), false);
+  CHECK_EQ(DownBlocksLongRest(false, true), false);  // NWN mode: the engine's own (no rest while dying)
 }

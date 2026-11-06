@@ -53,5 +53,9 @@ int GameHourOf(int year, int month, int day, int hour);
 // The hours still to wait before a Long Rest may start; 0 when it may: no Long Rest finished yet (`last_end_hour`
 // 0), NWN mode, the house rule `any_time` ([house_rules] long_rest_any_time), or a clock behind the last one's end.
 int LongRestWaitLeft(bool faithful, bool any_time, int last_end_hour, int now_hour);
+// #135 b (owner, 2026-11-06: "1 yes, 2 keep, 3 a+b, 4 B"): SRD 5.2 - "To start a Long Rest, you must have at least
+// 1 Hit Point." A creature that is down (nwn5e's 0 HP: a player's dying state, a henchman lying down at 1 HP until
+// healed) doesn't start one - healing gets it up first. Faithful only.
+bool DownBlocksLongRest(bool faithful, bool down);
 
 }  // namespace rules

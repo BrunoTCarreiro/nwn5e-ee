@@ -368,7 +368,8 @@ monster AC by CR.
     level with nothing left is now marked done, then the OK button updated (0x9C6E70); a mark is only ever set.
   - *The labels' arrows (owner, 2026-11-06: "For 2 is it possible to have arrow symbols? If not go work your
     recommendation"):* not possible - the game's text is Windows-1252 (the language's code page), which has no
-    arrow characters (the nearest are the guillemets « »). "- In" and "- Out" kept.
+    arrow characters (the nearest are the guillemets « »). "- In" and "- Out" kept (owner, 2026-11-06: "2
+    keep").
   - *Part 2 next (owner, 2026-11-06: "Go with your recommendations for 1 and 4."):* Part 2 - upcasting (2A) and
     the combined multiclass pool (4A) - while Part 3b waits for the owner's in-game tests.
   - *Built 0.79.0 (Part 2a, upcasting, 2A):* every 2024 caster casts spontaneously since 0.75 (a byte per spell level,
@@ -3012,6 +3013,12 @@ NWN's CNWSCreature::Rest): refused while the wait lasts, the player told "no Lon
 it. With rest_clock on it comes to one Long Rest a game day. "!time <hours>" (test commands; rules::ParseClockHours)
 moves the clock 1-48 hours to test it without waiting (7 of 7 mutations caught). A !test profile's ForceRest
 clears the wait (its own Rest may follow); a module script's ForceRest (an inn) counts as a Long Rest.
+*Decided (owner, 2026-11-06: "1 yes, 2 keep, 3 a+b, 4 B"):* the 1 HP minimum (b) yes; the interrupted rest's
+Short Rest benefits (c) not taken - an interrupted rest still gives nothing (R3).
+*Built 0.82.1 (#135 b):* rules::DownBlocksLongRest (test LongRestWait, 3 of 3 mutations caught); the rest gate
+refuses a Long Rest's start to a creature that is down - dying, or nwn5e_down / a henchman these rules hold down
+(rules_dying.cpp's IsDownForRest) - and tells a downed henchman's master "<name> is down and doesn't rest - heal
+them first (a spell, a healer's kit or a Short Rest), then rest"; the player's own rest goes ahead.
 *Resting a lot (#110; owner, 2026-11-01: "are there any consequences in-game for resting too many times, like
 events tied to calendar days that can be missed?"). Researched 2026-11-01* (the campaigns' own .nss, which every
 official module ships, and the NWN Lexicon's SetTime / SetCalendar notes): nothing in the official campaigns can be

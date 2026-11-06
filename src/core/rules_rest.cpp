@@ -17,6 +17,9 @@
 //   least 16 hours before starting another one." Each Long Rest's end is recorded (nwn5e_long_rest_end, the game
 //   hour: rules::GameHourOf, + the 8 hours rest_clock moves), and a rest's start is refused until 16 have passed
 //   (rest.h's gate; the player told how many are left; !rest says it too). [house_rules] long_rest_any_time lifts it.
+//   #135 b (owner, 2026-11-06: "1 yes, 2 keep, 3 a+b, 4 B"): "To start a Long Rest, you must have at least 1 Hit
+//   Point" - a creature that is down (dying, or a henchman lying down until healed) doesn't start one; a downed
+//   henchman's master is told to heal it first, and the player's own rest goes ahead.
 // - The Short Rest (a HUD button next to Rest; `!shortrest` too): instant,
 //   out of combat - no enemy that can see the character within 30 m, no
 //   damage taken or spell cast in the last 10 s (the engine's "exerted" timer,
@@ -51,6 +54,7 @@
 #include "rules/hit_dice.h"
 
 int ExhaustionLevel(void* creature);  // rules_dying.cpp (Phase 5b)
+bool IsDownForRest(void* creature);   // rules_dying.cpp (#135 b)
 
 namespace {
 
@@ -123,8 +127,18 @@ int LongRestWaitLeft(void* creature) {
 
 std::string HoursText(int hours) { return std::to_string(hours) + (hours == 1 ? " hour" : " hours"); }
 
-// #135: the gate on a rest's start (rest.h).
+// #135: the gate on a rest's start (rest.h) - b: not while down; a: the 16-hour wait.
 std::string LongRestGate(void* creature) {
+  if (rules::DownBlocksLongRest(Faithful(), engine::IsDeadOrDying(creature) || IsDownForRest(creature))) {
+    Log("rests: 0x%08X Long Rest refused - down (a Long Rest needs at least 1 hit point; #135)", IdOf(creature));
+    if (Field<int32_t>(creature, ee::kCreatureIsPlayerCharacter) == 0) {
+      RunScriptChunk("object m = GetMaster(OBJECT_SELF); if (GetIsPC(m)) SendMessageToPC(m, \"nwn5e: \" + "
+                     "GetName(OBJECT_SELF) + \" is down and doesn't rest - heal them first (a spell, a healer's kit or "
+                     "a Short Rest), then rest.\");",
+                     IdOf(creature));
+    }
+    return "not while down - a Long Rest needs at least 1 hit point.";
+  }
   const int left = LongRestWaitLeft(creature);
   if (left <= 0) return "";
   Log("rests: 0x%08X Long Rest refused - %d of the 16 hours after the last one still to pass (#135)", IdOf(creature),

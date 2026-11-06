@@ -1104,6 +1104,12 @@ std::vector<std::string> DyingCommand(void* creature, const std::string& args) {
 // Exhaustion's level, for !rest (0 with dying off).
 int ExhaustionLevel(void* creature) { return creature && Faithful() ? ExhaustionOf(creature) : 0; }
 
+// #135 b (rules_rest.cpp): a player or henchman these rules hold down (nwn5e's 0 HP) - no Long Rest starts.
+bool IsDownForRest(void* creature) {
+  return creature && (g_down_henchmen.count(Field<uint32_t>(creature, ee::kObjectId)) != 0 ||
+                      engine::GetLocalInt(creature, kVarDown) != 0);
+}
+
 // #56 (staple_actions.cpp, Help's house rule): a henchman these rules hold down; get it up at its next pass (1 HP).
 bool IsDownHenchmanUnderRules(uint32_t id) { return g_down_henchmen.count(id) != 0; }
 
