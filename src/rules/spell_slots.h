@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <string>
 #include <vector>
 
 // #36 (owner, 2026-11-04: "go with your recommendations and note down the upcasting thing so you don't forget when
@@ -55,20 +56,45 @@ bool DrawsOnSameSlots(bool memorizes, const QueuedCast& a, const QueuedCast& b);
 // a cantrip never (at will).
 bool CastQueueFull(bool faithful, int slot_level, int queued, int uses_left);
 
-// Part 2 (2A, upcasting; decided 2026-11-04): SRD 5.2 - a spell is cast with a slot of its level or higher, and "the
-// spell assumes the higher level for that casting". With no slot left at a spell's level, the lowest higher one is
-// spent. `SlotUses` is a caster's uses left per spell level (0-9); a slot level is the spell's level plus its
-// metamagic's cost.
+// Part 2, upcasting by choice (owner, 2026-11-06: "Upcasting should not be automatic, the player should have/get to
+// choose at what level they cast a spell" - 2B; 0.79.0's automatic 2A gone): SRD 5.2 - a spell is cast with a slot
+// of its level or higher, and "the spell assumes the higher level for that casting". The chosen slot level rides in
+// the cast's domain level (0: the spell's own). `SlotUses` is a caster's uses (or slots) per spell level (0-9); a
+// slot level is the spell's level plus its metamagic's cost.
 using SlotUses = std::array<int, 10>;
-// The level of the slot a cast needing `slot_level` spends: its own if one is left, else the lowest higher one; -1 if
-// none (never a lower one).
-int SlotToSpend(const SlotUses& uses, int slot_level);
-// The casts left of a spell needing `slot_level`: the uses at its level and above.
+// The slot level a cast spends: the spell's own (`slot_level`) for domain level 0, else the domain level when it is
+// that level or a higher one up to 9; -1 for any other (never a lower slot).
+int ChosenSlotLevel(int slot_level, int domain_level);
+// The casts left of a spell needing `slot_level`: the uses at its level and above - its radial entry's count (the
+// levels are chosen under it).
 int CastsLeft(const SlotUses& uses, int slot_level);
-// SL-2 with upcasting: whether a new cast needing `slot_level` still finds a slot once the casts already queued (their
-// slot levels, in order) have each spent theirs as they will - their own level, else the lowest higher one. A
-// cantrip (0) always fits.
-bool CastFitsQueue(SlotUses uses, const std::vector<int>& queued, int slot_level);
+// SL-2: whether a new cast at `slot_level` still finds a slot once the casts already queued (their slot levels) have
+// each spent one of theirs; a cantrip (0) always fits.
+bool CastFitsQueue(const SlotUses& uses, const std::vector<int>& queued, int slot_level);
+// The radial's levels for a spell needing `slot_level` ("an extra level ... where the user can go into and pick at
+// which level they want to cast the spell at"): its own, then each higher one the caster has slots of (`slots`:
+// its slots per spell level, the class's table). Empty when there is no higher one - the spell's entry casts at once.
+std::vector<int> UpcastMenuLevels(const SlotUses& slots, int slot_level);
+// An upcast quickbar button's number (owner: "go with L3·4"): "L", the slot level, Windows-1252's middle dot
+// (0xB7), the uses left.
+std::string UpcastCountText(int slot_level, int uses);
+// The client radial's spell entry param (the game's own packing; its cast callback, 0x9A4540, unpacks it): the spell
+// id in bits 0-15, the domain level in 24-27, the class slot in 28-29 and 38, the metamagic in 31-36; bit 30 (a
+// no-uses listing) and bit 37 (a spontaneous conversion) mark other listings. Bits 40-43 are nwn5e's own: a level
+// submenu's first level (its "more" entry).
+struct RadialCast {
+  unsigned spell = 0;
+  int domain_level = 0;
+  int class_slot = 0;
+  int metamagic = 0;
+  bool other = false;
+};
+RadialCast DecodeRadialCast(long long param);
+// The param with its domain level set (0-15), all else kept.
+long long RadialCastWithDomain(long long param, int domain_level);
+// nwn5e's level submenu's first level (bits 40-43), read and set.
+int RadialCastFromLevel(long long param);
+long long RadialCastWithFromLevel(long long param, int level);
 
 // Part 2 (4A, the combined multiclass pool; decided 2026-11-04): SRD 5.2's multiclassing - with the Spellcasting
 // feature from more than one class, the spell slots come from the Multiclass Spellcaster table (the full casters')

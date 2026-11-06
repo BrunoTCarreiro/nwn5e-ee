@@ -415,6 +415,26 @@ monster AC by CR.
     L3·4"):* the one extra radial click to cast at a spell's own level is fine; an upcast quickbar button's number
     reads "L3·4" (level 3, 4 slots left) - the text the game writes after the uses getter, rewritten as the
     cantrips' is.
+  - *Built 0.84.0 (upcasting by choice; 0.79.0's automatic upcast gone):* rules::ChosenSlotLevel (the domain level
+    names the slot, 0 the spell's own, never a lower), CastFitsQueue at exact levels, UpcastMenuLevels (its level and
+    each higher one with slots; none when there's no higher one - the entry casts at once), UpcastCountText
+    ("L3·4"), DecodeRadialCast / RadialCastWithDomain (the radial's param; tests Upcasting, RadialParam; 22 of 22
+    mutations caught).
+    - Server: GetSpellUsesLeft answers a domain level N with level N's slots when NWN would cast the spell with one of
+      its own level (asked with domain 0 - ConfirmDomainSpell refuses a spontaneous class - and that byte 1 for the
+      question); UnReadySpell spends level N the same way (NWN spends the own level's byte, set to 1, domain 0;
+      level N's is decremented); domain 0 is NWN's own level. SL-2 counts exact levels, domain levels included.
+    - Client: CRadialMenu::SetEntryx hooked - a 2024 caster's spell leaf (the cast callback, found by pattern; no
+      metamagic, no domain, no other listing) with a higher level of slots becomes a SetSubMenuCreatorx entry (its
+      icon, name and param). Its creator builds a CRadialMenu as the game does (its operator new from the spell
+      list's own call, the constructor, +0x7F1) with "Level N" entries (the text SetEntryx: the spell's icon
+      resref, the label) casting with domain N (0 for its own), each count the client's level-N uses
+      (SetCountText), greyed with none unless the quickbar is assigning (handler +0x890); past 8 levels the last
+      entry opens the rest. The client getter: domain N - level N's uses; domain 0 - its own level's, the radial's
+      spell lists (the two getter calls in functions that call SetEntryx) the slots at its level and above, so the
+      parent isn't greyed while a higher slot is left. An upcast quickbar button's number: the getter's caller's
+      next ToString rewritten "L3·4". The quickbar keeps the param (QBDomainLevel), saved with the character.
+    `!test spellupcast` and spellcleric's notes rewritten.
   - *Built 0.80.0 (Part 2b, the combined multiclass pool, 4A):* SRD 5.2's multiclassing - with the Spellcasting
     feature from more than one class, the slots are the Multiclass Spellcaster table's (the full casters') at the
     Bard, Cleric, Druid, Sorcerer and Wizard levels plus half the Paladin and Ranger levels, rounded up; each class

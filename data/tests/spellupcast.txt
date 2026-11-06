@@ -2,10 +2,10 @@
 # playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
 # is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
 #
-# Upcasting (issue 36, part 2a): your first class becomes Sorcerer 3, Charisma 16 - four 1st-level slots and two
-# 2nd-level ones. With no slot left at a spell's level, the lowest higher one is spent (SRD 5.2: a spell is cast with
-# a slot of its level or higher), and a spell's uses read the slots at its level and above.
-name = Upcasting (issue 36 2a): human Sorcerer 3, Charisma 16 - four 1st-level slots, two 2nd-level
+# Upcasting by choice (issue 36, part 2): your first class becomes Sorcerer 3, Charisma 16 - four 1st-level slots and
+# two 2nd-level ones. A 1st-level spell's radial entry opens its levels (Level 1, Level 2), each casting with a slot
+# of that level (SRD 5.2: a spell is cast with a slot of its level or higher); nothing upcasts by itself.
+name = Upcasting by choice (issue 36 2): human Sorcerer 3, Charisma 16 - four 1st-level slots, two 2nd-level
 species = human
 swap_class = sorcerer
 class = sorcerer
@@ -13,6 +13,6 @@ level = 3
 abilities = 8 14 14 10 10 16
 items = nw_wdbqs001 equip
 note = first the Prepare spells window: 4 cantrips and 6 spells (a few 1st-level ones and a 2nd-level one), Accept
-note = a 1st-level spell's button reads 6 (four 1st-level slots and two 2nd-level), a 2nd-level spell's reads 2
-note = cast 1st-level spells five times: the fifth says no level 1 slot left - cast with a level 2 slot
-note = then the 2nd-level spell reads 1; a 2nd-level spell never takes a 1st-level slot
+note = the radial: a 1st-level spell reads 6 and opens Level 1 (4) and Level 2 (2); Level 2 casts it with a 2nd-level slot
+note = the quickbar: assign the spell's Level 2 to a slot - its number shows L2 then the count; a plain slot counts the 1st-level slots only
+note = with the 1st-level slots spent, Level 1 and the plain slot are greyed; Level 2 still casts

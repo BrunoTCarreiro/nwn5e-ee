@@ -129,30 +129,71 @@ TEST(MulticlassSlots) {
 }
 
 TEST(Upcasting) {
+  // By choice: the domain level carries the slot level (0: the spell's own).
+  CHECK_EQ(ChosenSlotLevel(1, 0), 1);
+  CHECK_EQ(ChosenSlotLevel(1, 3), 3);
+  CHECK_EQ(ChosenSlotLevel(3, 3), 3);
+  CHECK_EQ(ChosenSlotLevel(2, 1), -1);   // never a lower slot
+  CHECK_EQ(ChosenSlotLevel(1, 10), -1);
+  CHECK_EQ(ChosenSlotLevel(0, 0), 0);    // a cantrip
+  CHECK_EQ(ChosenSlotLevel(10, 0), -1);
   const SlotUses wizard{0, 4, 2, 1, 0, 0, 0, 0, 0, 0};  // four 1st-level slots, two 2nd, one 3rd
-  CHECK_EQ(SlotToSpend(wizard, 1), 1);                  // its own level first
-  CHECK_EQ(SlotToSpend(wizard, 3), 3);
-  CHECK_EQ(SlotToSpend(wizard, 4), -1);                 // never a lower slot
-  const SlotUses spent_low{0, 0, 2, 1, 0, 0, 0, 0, 0, 0};
-  CHECK_EQ(SlotToSpend(spent_low, 1), 2);               // none at 1st: the lowest higher slot
-  const SlotUses only_third{0, 0, 0, 1, 0, 0, 0, 0, 0, 0};
-  CHECK_EQ(SlotToSpend(only_third, 1), 3);
-  const SlotUses empty{3, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-  CHECK_EQ(SlotToSpend(empty, 1), -1);
   CHECK_EQ(CastsLeft(wizard, 1), 7);                    // the slots at its level and above
   CHECK_EQ(CastsLeft(wizard, 2), 3);
   CHECK_EQ(CastsLeft(wizard, 3), 1);
   CHECK_EQ(CastsLeft(wizard, 4), 0);
-  CHECK_EQ(CastsLeft(spent_low, 1), 3);
   const SlotUses one_each{0, 1, 1, 0, 0, 0, 0, 0, 0, 0};
   CHECK_EQ(CastFitsQueue(one_each, {}, 1), true);
-  CHECK_EQ(CastFitsQueue(one_each, {1}, 1), true);      // the queued one takes the 1st, this one the 2nd
-  CHECK_EQ(CastFitsQueue(one_each, {1, 1}, 1), false);  // both slots spoken for
-  CHECK_EQ(CastFitsQueue(one_each, {2}, 1), true);      // the queued 2nd-level spell takes the 2nd
-  CHECK_EQ(CastFitsQueue(one_each, {1}, 2), true);      // the queued 1st-level spell takes the 1st
-  CHECK_EQ(CastFitsQueue(one_each, {1, 1}, 2), false);  // the second queued one upcasts into the 2nd
-  const SlotUses one_first{0, 1, 0, 0, 0, 0, 0, 0, 0, 0};
-  CHECK_EQ(CastFitsQueue(one_first, {0, 0, 0}, 1), true);  // queued cantrips spend nothing
+  CHECK_EQ(CastFitsQueue(one_each, {1}, 1), false);     // its own level only: no upcast by itself
+  CHECK_EQ(CastFitsQueue(one_each, {2}, 1), true);
+  CHECK_EQ(CastFitsQueue(one_each, {1}, 2), true);      // a chosen 2nd-level cast
+  CHECK_EQ(CastFitsQueue(one_each, {2}, 2), false);
+  CHECK_EQ(CastFitsQueue(one_each, {0, 0, 0}, 1), true);  // queued cantrips spend nothing
+  CHECK_EQ(CastFitsQueue(one_each, {}, 0), true);       // a cantrip, no cantrip uses counted
+  const SlotUses empty{3, 0, 0, 0, 0, 0, 0, 0, 0, 0};
   CHECK_EQ(CastFitsQueue(empty, {}, 0), true);          // a cantrip always fits
   CHECK_EQ(CastFitsQueue(empty, {}, 1), false);
+  CHECK_EQ(CastFitsQueue(empty, {}, 10), false);
+  // The radial's levels: its own, then each higher one with slots; none when there is no higher one.
+  const SlotUses table5{0, 4, 3, 2, 0, 0, 0, 0, 0, 0};  // a full caster 5
+  CHECK_EQ(UpcastMenuLevels(table5, 1) == std::vector<int>({1, 2, 3}), true);
+  CHECK_EQ(UpcastMenuLevels(table5, 2) == std::vector<int>({2, 3}), true);
+  CHECK_EQ(UpcastMenuLevels(table5, 3).empty(), true);   // its highest level: cast at once
+  CHECK_EQ(UpcastMenuLevels(table5, 0).empty(), true);   // a cantrip
+  const SlotUses gap{0, 4, 0, 2, 0, 0, 0, 0, 0, 0};
+  CHECK_EQ(UpcastMenuLevels(gap, 1) == std::vector<int>({1, 3}), true);
+  CHECK_EQ(UpcastCountText(3, 4) == "L3\xB7" "4", true);
+  CHECK_EQ(UpcastCountText(9, 12) == "L9\xB7" "12", true);
+}
+
+TEST(RadialParam) {
+  // The game's packing: spell 0-15, domain level 24-27, class slot 28-29 + 38, metamagic 31-36, bits 30 / 37 others.
+  const long long plain = 107LL | (1LL << 28);  // Magic Missile, class slot 1
+  RadialCast cast = DecodeRadialCast(plain);
+  CHECK_EQ(cast.spell, 107u);
+  CHECK_EQ(cast.class_slot, 1);
+  CHECK_EQ(cast.domain_level, 0);
+  CHECK_EQ(cast.metamagic, 0);
+  CHECK_EQ(cast.other, false);
+  CHECK_EQ(DecodeRadialCast(107LL | (1LL << 28) | (1LL << 38)).class_slot, 5);  // slot 5: bits 28-29 and 38
+  CHECK_EQ(DecodeRadialCast(107LL | (2LL << 28)).class_slot, 2);
+  CHECK_EQ(DecodeRadialCast(371LL | (2LL << 28)).spell, 371u);                // a spell id past 255
+  CHECK_EQ(DecodeRadialCast(107LL | (4LL << 31)).metamagic, 4);                 // Maximize
+  CHECK_EQ(DecodeRadialCast(107LL | (32LL << 31)).metamagic, 32);               // Still, the top bit
+  CHECK_EQ(DecodeRadialCast(107LL | (1LL << 30)).other, true);
+  CHECK_EQ(DecodeRadialCast(107LL | (1LL << 37)).other, true);
+  CHECK_EQ(DecodeRadialCast(107LL | (9LL << 24)).domain_level, 9);
+  const long long upcast = RadialCastWithDomain(plain, 3);  // "Level 3"
+  cast = DecodeRadialCast(upcast);
+  CHECK_EQ(cast.domain_level, 3);
+  CHECK_EQ(cast.spell, 107u);
+  CHECK_EQ(cast.class_slot, 1);
+  CHECK_EQ(DecodeRadialCast(RadialCastWithDomain(upcast, 0)).domain_level, 0);
+  CHECK_EQ(RadialCastWithDomain(upcast, 0), plain);
+  const long long more = RadialCastWithFromLevel(plain, 8);  // a "Level 8+" entry
+  CHECK_EQ(RadialCastFromLevel(more), 8);
+  CHECK_EQ(RadialCastFromLevel(plain), 0);
+  CHECK_EQ(DecodeRadialCast(more).class_slot, 1);
+  CHECK_EQ(DecodeRadialCast(more).domain_level, 0);
+  CHECK_EQ(RadialCastWithFromLevel(more, 0), plain);
 }

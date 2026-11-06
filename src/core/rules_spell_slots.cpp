@@ -23,18 +23,24 @@
 //   - A cantrip's button shows no number: the client's uses getter (not exported, a byte pattern) marks a
 //     cantrip, and its caller's next CExoString::ToString - the number it writes - comes back empty.
 // Part 2: upcasting and the combined multiclass pool (2A, 4A); Part 3: the Prepare spells window (3A).
-// - Part 2a (2A, upcasting; owner, 2026-11-06: "Go with your recommendations for 1 and 4."): SRD 5.2 - a spell is
-//   cast with a slot of its level or higher. With none left at its level, the lowest higher slot is spent
-//   (rules::SlotToSpend):
-//   - GetSpellUsesLeft (the cast's own check, the AI's, GetHasSpell) answers the casts left - the slots at the
-//     spell's level and above (rules::CastsLeft) - when NWN would cast it with a slot of its level (known, its
-//     metamagic feat...): asked with that level's byte set to 1 for the question if it's empty.
-//   - UnReadySpell checks GetSpellUsesLeft and then decrements the slot level's byte inline, so for an upcast that
-//     byte is 1 while NWN spends it and the higher slot is decremented instead.
-//   - The client's uses getter (the quickbar's number, its greyed button) answers the same total from its copy.
-//   - The slot level a cast spent is kept on the caster (local int N5_SLOT_LEVEL) for #39's spells - "the spell
-//     assumes the higher level for that casting"; the player is told when a higher slot is spent.
-//   - SL-2's queue check spends the queued casts' slots in order, as they will be (rules::CastFitsQueue).
+// - Part 2, upcasting by choice (owner, 2026-11-06: "Upcasting should not be automatic, the player should have/get to
+//   choose at what level they cast a spell. I picture it as selecting the spell from their original level but there
+//   being an extra level (in the radial menu) where the user can go into and pick at which level they want to cast
+//   the spell at. For the quickbar, they can just set an upcast spell in a slot"; then "1 ok, 2 go with L3·4").
+//   0.79.0's automatic upcast is gone. The chosen slot level rides in the cast's domain level (rules::ChosenSlotLevel;
+//   0: the spell's own) - a byte in the cast message, the action's +0x48, the caster's +0x21C (GetLastSpellLevel()),
+//   the quickbar's QBDomainLevel; a spontaneous class never used it.
+//   - Server: GetSpellUsesLeft answers a domain level N with level N's slots, when NWN would cast the spell with a
+//     slot of its own level (asked with domain 0 - its ConfirmDomainSpell refuses a spontaneous class - and that
+//     level's byte 1 for the question). UnReadySpell spends level N the same way: NWN spends the own level's byte
+//     (set to 1 for it, domain 0), and level N's is decremented instead. SL-2's queue counts exact levels.
+//   - Client radial (CRadialMenu::SetEntryx hooked): a 2024 caster's spell leaf (the cast callback, no metamagic, no
+//     domain) with a higher level of slots becomes a submenu (SetSubMenuCreatorx) - "Level N" for its level and each
+//     higher one with slots (rules::UpcastMenuLevels), each casting with domain N (0 for its own), its count the
+//     level's slots left; built as the game builds one (its operator new, the CRadialMenu constructor, +0x7F1).
+//   - The client's uses getter: domain N - level N's slots; domain 0 - its own level's, the radial's spell list (the
+//     parent entry) the slots at its level and above. An upcast quickbar button's number reads "L3·4"
+//     (rules::UpcastCountText: the getter's caller's next ToString, as a cantrip's is blanked).
 // - Part 2b (4A, the combined multiclass pool): with two or more 2024 caster classes, the slots are SRD 5.2's
 //   Multiclass Spellcaster table's at the full casters' levels plus half the Paladin and Ranger levels (rounded up).
 //   NWN keeps uses per class slot, so GetSpellGainWithBonus gives every caster class the pool's table
@@ -47,6 +53,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <stdio.h>
+#include <string.h>
+
+#include <algorithm>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -102,6 +113,40 @@ MetaMagicCostFn g_metamagic_cost = nullptr;
 FeedbackFn g_feedback = nullptr;
 ClientUsesFn g_client_uses = nullptr;
 ToStringFn g_to_string = nullptr;
+// Upcasting by choice: the client radial's pieces (CRadialMenu, CGuiIcon exports; the cast callback by pattern; the
+// game's operator new and its controlled creature from the game's own calls).
+using SetEntryFn = void (*)(void* menu, int index, void* icon, uint32_t strref, void* handler, void* callback,
+                            int64_t param);
+using SetEntryTextFn = void (*)(void* menu, int index, const char* icon, const char* text, void* handler,
+                                void* callback, int64_t param);
+using SetCreatorFn = void (*)(void* menu, int index, void* icon, uint32_t strref, void* handler, void* creator,
+                              int64_t param);
+using SetCreatorTextFn = void (*)(void* menu, int index, const char* icon, const char* text, void* handler,
+                                  void* creator, int64_t param);
+using DisableEntryFn = void (*)(void* menu, int index);
+using SetCountTextFn = void (*)(void* icon, void* text);  // CExoString by value: the callee owns it
+using RadialCtorFn = void* (*)(void* menu);
+using GameNewFn = void* (*)(size_t size);
+using ControlledFn = void* (*)(void* app);
+using ExoStringFromCharsFn = void* (*)(void* out, const char* text);
+using ExoStringDestroyFn = void (*)(void* text);
+SetEntryFn g_set_entry = nullptr;  // the original (hooked)
+SetEntryTextFn g_set_entry_text = nullptr;
+SetCreatorFn g_set_creator = nullptr;
+SetCreatorTextFn g_set_creator_text = nullptr;
+DisableEntryFn g_disable_entry = nullptr;
+SetCountTextFn g_set_count_text = nullptr;
+RadialCtorFn g_radial_ctor = nullptr;
+GameNewFn g_game_new = nullptr;
+ControlledFn g_controlled = nullptr;
+void** g_controlled_app = nullptr;
+ExoStringFromCharsFn g_exo_from_chars = nullptr;
+ExoStringDestroyFn g_exo_destroy = nullptr;
+void* g_cast_callback = nullptr;                 // the radial's leaf callback that casts (0x9A4540)
+std::vector<uintptr_t> g_radial_count_sites;     // the radial spell lists' calls of the client getter (returns)
+thread_local uintptr_t t_upcast_text_at = 0;     // the next ToString that writes an upcast button's number
+thread_local int t_upcast_text_level = 0;
+bool g_radial_ready = false;                     // the radial's level menu installed
 // The client's uses getter called from (its return address) -> that caller's next ToString (its return address).
 std::vector<std::pair<uintptr_t, uintptr_t>> g_count_sites;
 thread_local uintptr_t t_blank_at = 0;  // the ToString whose number is a cantrip's uses
@@ -199,62 +244,62 @@ rules::SlotUses SlotUsesOf(void* stats, uint8_t slot) {
 int SlotLevel(int nwn_class, uint32_t spell_id, int metamagic);
 bool Memorizes(int nwn_class);
 
-// Part 2a: the slot level a cast needs when it can upcast - a spontaneous 2024 caster's spell levels 1-9, no domain
-// slot; -1 otherwise (NWN's).
-int UpcastableSlotLevel(int row, uint32_t spell_id, uint8_t domain_level, uint8_t metamagic) {
-  if (domain_level != 0 || Memorizes(row)) return -1;
-  const int slot_level = SlotLevel(row, spell_id, metamagic);
-  return slot_level >= 1 && slot_level <= 9 ? slot_level : -1;
+// Upcasting by choice: a spontaneous 2024 caster's spell of level 1-9 (`own`, with its metamagic's cost) - the slot
+// level a cast with this domain level spends (rules::ChosenSlotLevel), -1 for a lower or unknown one; -2 when the
+// cast isn't one of these (a memorizer, a cantrip, off the class's list): NWN's.
+int ChosenSlot(int row, uint32_t spell_id, uint8_t domain_level, uint8_t metamagic, int* own) {
+  if (Memorizes(row)) return -2;
+  *own = SlotLevel(row, spell_id, metamagic);
+  if (*own < 1 || *own > 9) return -2;
+  return rules::ChosenSlotLevel(*own, domain_level);
 }
 
-// Part 2a: the casts left of a spell - the slots at its level and above - when NWN would cast it with a slot of its
-// level (asked with that level's byte set to 1 for the question when it's empty).
+// Upcasting by choice: a domain level N names the slot - level N's slots, when NWN would cast the spell with one of
+// its own level (asked with domain 0 and that level's byte set to 1 for the question).
 uint8_t UsesLeftHook(void* stats, uint32_t spell_id, uint8_t slot, uint8_t domain_level, uint8_t metamagic) {
-  int row = 0, level = 0;
-  const int slot_level =
-      CasterSlot(stats, slot, &row, &level) ? UpcastableSlotLevel(row, spell_id, domain_level, metamagic) : -1;
-  if (slot_level < 1) return g_uses_left(stats, spell_id, slot, domain_level, metamagic);
-  const int casts = rules::CastsLeft(SlotUsesOf(stats, slot), slot_level);
-  if (casts == 0) return g_uses_left(stats, spell_id, slot, domain_level, metamagic);
-  uint8_t* own = UsesLeft(stats, slot, slot_level);
-  const uint8_t before = *own;
-  if (before == 0) *own = 1;
-  const uint8_t castable = g_uses_left(stats, spell_id, slot, domain_level, metamagic);
-  *own = before;
-  return castable ? static_cast<uint8_t>(casts > 255 ? 255 : casts) : 0;
+  int row = 0, level = 0, own = -1;
+  if (domain_level == 0 || !CasterSlot(stats, slot, &row, &level)) {
+    return g_uses_left(stats, spell_id, slot, domain_level, metamagic);
+  }
+  const int chosen = ChosenSlot(row, spell_id, domain_level, metamagic, &own);
+  if (chosen == -2) return g_uses_left(stats, spell_id, slot, domain_level, metamagic);
+  if (chosen < 0) return 0;
+  uint8_t* own_byte = UsesLeft(stats, slot, own);
+  const uint8_t before = *own_byte;
+  if (before == 0) *own_byte = 1;
+  const uint8_t castable = g_uses_left(stats, spell_id, slot, 0, metamagic);
+  *own_byte = before;
+  return castable ? *UsesLeft(stats, slot, chosen) : 0;
 }
 
 int UnReady(void* stats, uint32_t spell_id, uint8_t slot, uint8_t domain_level, uint8_t metamagic) {
   int row = 0, level = 0;
   if (!CasterSlot(stats, slot, &row, &level)) return g_unready(stats, spell_id, slot, domain_level, metamagic);
-  // Part 2a: with no slot left at the spell's level, NWN spends that level's byte (set to 1 for it) and the lowest
-  // higher slot goes instead.
-  const int slot_level = UpcastableSlotLevel(row, spell_id, domain_level, metamagic);
-  const int spend_at = slot_level >= 1 ? rules::SlotToSpend(SlotUsesOf(stats, slot), slot_level) : -1;
-  const bool upcast = slot_level >= 1 && spend_at > slot_level;
-  if (upcast) *UsesLeft(stats, slot, slot_level) = 1;
+  // Upcasting by choice: a domain level N spends a level N slot - NWN spends the own level's byte (domain 0, the byte
+  // set to 1 for it) and level N's is decremented instead.
+  int own = -1;
+  const int chosen = domain_level != 0 ? ChosenSlot(row, spell_id, domain_level, metamagic, &own) : -2;
+  if (chosen == -1) return 0;  // a lower or unknown level: no cast
+  const bool upcast = chosen >= 1;
+  if (upcast && *UsesLeft(stats, slot, chosen) == 0) return 0;  // none left at the chosen level
+  const uint8_t own_before = upcast ? *UsesLeft(stats, slot, own) : 0;
+  if (upcast) *UsesLeft(stats, slot, own) = 1;
   uint8_t* cantrips = UsesLeft(stats, slot, 0);
   const uint8_t before = *cantrips;
-  const int result = g_unready(stats, spell_id, slot, domain_level, metamagic);
+  const int result = g_unready(stats, spell_id, slot, upcast ? 0 : domain_level, metamagic);
   if (upcast) {
-    *UsesLeft(stats, slot, slot_level) = 0;
-    if (result) --*UsesLeft(stats, slot, spend_at);
+    *UsesLeft(stats, slot, own) = own_before;
+    if (result) --*UsesLeft(stats, slot, chosen);
   }
   if (result) {
     void* const creature = CreatureOf(stats);
     PrepareSpellsNoteCast(creature);  // #36 Part 3: a Long Rest's change closes
-    const int spent_level = upcast ? spend_at : SlotLevel(row, spell_id, metamagic);
+    const int spent_level = upcast ? chosen : SlotLevel(row, spell_id, metamagic);
     if (creature && spent_level >= 0) engine::SetLocalInt(creature, kSlotLevelVar, spent_level);
-    if (slot_level >= 1) MirrorSpend(stats, slot, spent_level);  // 4A: the other classes sharing the pool
-    if (upcast) {
-      if (LogCast()) {
-        Log("spells: object 0x%08X spell %u (level %d) upcast - no level %d slot left, a level %d slot spent",
-            ObjectIdOf(stats), spell_id, slot_level, slot_level, spend_at);
-      }
-      if (IsPlayer(stats)) {
-        TellPlayer(ObjectIdOf(stats), "nwn5e: no level " + std::to_string(slot_level) + " slot left - cast with a level " +
-                                         std::to_string(spend_at) + " slot.");
-      }
+    if (!Memorizes(row)) MirrorSpend(stats, slot, spent_level);  // 4A: the other classes sharing the pool
+    if (upcast && LogCast()) {
+      Log("spells: object 0x%08X spell %u (level %d) cast with a level %d slot (chosen)", ObjectIdOf(stats), spell_id,
+          own, chosen);
     }
   }
   if (*cantrips != before && !rules::CastSpendsUse(true, 0)) {
@@ -302,7 +347,7 @@ bool Memorizes(int nwn_class) {
 // SL-2: an order to cast beyond the slots left is refused - the casts already queued from the same slots count, the
 // running one (the queue's first node between ticks) until it has spent its use.
 bool SlotsSpokenFor(void* creature, const SpellOrder& order) {
-  if (!creature || order.fake || order.spontaneous || order.domain_level != 0 || order.class_slot < 0 ||
+  if (!creature || order.fake || order.spontaneous || order.class_slot < 0 ||
       order.class_slot >= ee::kMaxClassSlots || !g_uses_left) {
     return false;
   }
@@ -310,14 +355,17 @@ bool SlotsSpokenFor(void* creature, const SpellOrder& order) {
   const uint8_t slot = static_cast<uint8_t>(order.class_slot);
   int row = 0, level = 0;
   if (!CasterSlot(stats, slot, &row, &level)) return false;
-  const rules::QueuedCast wanted{order.spell, order.metamagic, SlotLevel(row, order.spell, order.metamagic)};
-  if (wanted.slot_level < 0 || !rules::CastSpendsUse(true, wanted.slot_level)) return false;  // a cantrip: at will
   const bool memorizes = Memorizes(row);
+  if (memorizes && order.domain_level != 0) return false;  // a domain slot: NWN's
+  const int own_level = SlotLevel(row, order.spell, order.metamagic);
+  const rules::QueuedCast wanted{order.spell, order.metamagic,
+                                 memorizes ? own_level : rules::ChosenSlotLevel(own_level, order.domain_level)};
+  if (wanted.slot_level < 0 || !rules::CastSpendsUse(true, wanted.slot_level)) return false;  // a cantrip: at will
   const std::vector<rules::ClassLevel> classes = ClassLevelsOf(stats);
   const bool pooled = !memorizes && rules::SharesSlotPool(classes, slot);  // 4A: every class sharing the pool
   const int left = memorizes ? g_uses_left(stats, order.spell, slot, 0, static_cast<uint8_t>(order.metamagic))
-                             : rules::CastsLeft(SlotUsesOf(stats, slot), wanted.slot_level);
-  std::vector<int> queued_levels;  // Part 2a: a spontaneous caster's queued casts' slot levels, in order
+                             : SlotUsesOf(stats, slot)[wanted.slot_level];
+  std::vector<int> queued_levels;  // a spontaneous caster's queued casts' slot levels (by choice: their domain's)
   const bool running_spent = Field<int32_t>(creature, ee::kCreatureCastUseSpent) != 0;
   const void* list = Field<void*>(creature, ee::kObjectActionQueue);
   int queued = 0;
@@ -330,13 +378,18 @@ bool SlotsSpokenFor(void* creature, const SpellOrder& order) {
     if (!action || Field<int32_t>(action, ee::kActionId) != ee::kActionCastSpell) continue;
     if (running && running_spent) continue;  // under way, its use already spent
     if ((Field<uint32_t>(action, ee::kCastFlags) & ee::kCastFlagFake) != 0) continue;
-    if (Field<int32_t>(action, ee::kCastDomainLevel) != 0) continue;
+    const int action_domain = Field<int32_t>(action, ee::kCastDomainLevel);
+    if (memorizes && action_domain != 0) continue;
     const uint8_t action_slot = Field<uint8_t>(action, ee::kCastClassSlot);
     if (action_slot != slot && !(pooled && rules::SharesSlotPool(classes, action_slot))) continue;
     const int action_row = action_slot < classes.size() ? classes[action_slot].class_row : row;
     const uint32_t spell = Field<uint32_t>(action, ee::kCastSpell);
     const int metamagic = Field<int32_t>(action, ee::kCastMetamagic);
-    const rules::QueuedCast queued_cast{spell, metamagic, memorizes ? 0 : SlotLevel(action_row, spell, metamagic)};
+    const rules::QueuedCast queued_cast{
+        spell, metamagic,
+        memorizes ? 0
+                  : rules::ChosenSlotLevel(SlotLevel(action_row, spell, metamagic),
+                                           action_domain < 0 || action_domain > 255 ? 255 : action_domain)};
     if (rules::DrawsOnSameSlots(memorizes, wanted, queued_cast)) ++queued;
     if (!memorizes) queued_levels.push_back(queued_cast.slot_level);
   }
@@ -354,28 +407,53 @@ bool SlotsSpokenFor(void* creature, const SpellOrder& order) {
 }
 
 // SL-3: the client's uses getter - a cantrip of a 2024 caster class marks its caller's next number to come back empty.
+// The client's copy of a class slot's uses per spell level.
+rules::SlotUses ClientSlotUses(const void* client_stats, uint8_t slot) {
+  rules::SlotUses uses{};
+  const uint8_t* bytes = static_cast<const uint8_t*>(client_stats) + ee::kClientStatsClassSlotUses +
+                         slot * ee::kClientStatsClassSlotSize;
+  for (int level = 0; level <= 9; ++level) uses[level] = bytes[level];
+  return uses;
+}
+
 uint8_t ClientUsesLeft(void* client_stats, uint32_t spell_id, uint8_t slot, uint8_t domain_level, uint8_t metamagic) {
-  const uint8_t uses = g_client_uses(client_stats, spell_id, slot, domain_level, metamagic);
+  const uintptr_t from = reinterpret_cast<uintptr_t>(_ReturnAddress());
   t_blank_at = 0;
-  if (!client_stats || domain_level != 0 || slot >= ee::kClientStatsClassSlots ||
-      slot >= Field<uint8_t>(client_stats, ee::kClientStatsClassCount)) {
-    return uses;
+  t_upcast_text_at = 0;
+  const bool known_slot = client_stats && slot < ee::kClientStatsClassSlots &&
+                          slot < Field<uint8_t>(client_stats, ee::kClientStatsClassCount);
+  const int row = known_slot ? Field<uint8_t>(client_stats, ee::kClientStatsClassSlotClass +
+                                                              slot * ee::kClientStatsClassSlotSize)
+                             : -1;
+  const bool caster = known_slot && rules::CasterKindOfClass(row) != rules::CasterKind::kNone;
+  int own = -1;
+  if (caster && domain_level != 0) {  // by choice: a level N cast - level N's slots (the radial's, a quickbar button)
+    const int chosen = ChosenSlot(row, spell_id, domain_level, metamagic, &own);
+    if (chosen != -2) {
+      if (chosen < 0) return 0;
+      const uint8_t uses = static_cast<uint8_t>(ClientSlotUses(client_stats, slot)[chosen]);
+      for (const auto& site : g_count_sites) {
+        if (site.first == from) {
+          t_upcast_text_at = site.second;  // its number: "L3·4"
+          t_upcast_text_level = chosen;
+        }
+      }
+      return uses;
+    }
   }
-  const int row = Field<uint8_t>(client_stats, ee::kClientStatsClassSlotClass + slot * ee::kClientStatsClassSlotSize);
-  if (rules::CasterKindOfClass(row) == rules::CasterKind::kNone) return uses;
-  const int upcastable = UpcastableSlotLevel(row, spell_id, domain_level, metamagic);
-  if (upcastable >= 1) {  // Part 2a: the casts left - its copy of the slots at the spell's level and above
-    rules::SlotUses counts{};
-    const uint8_t* bytes = static_cast<const uint8_t*>(client_stats) + ee::kClientStatsClassSlotUses +
-                           slot * ee::kClientStatsClassSlotSize;
-    for (int level = 0; level <= 9; ++level) counts[level] = bytes[level];
-    const int casts = rules::CastsLeft(counts, upcastable);
-    return static_cast<uint8_t>(casts > 255 ? 255 : casts);
+  const uint8_t uses = g_client_uses(client_stats, spell_id, slot, domain_level, metamagic);
+  if (!caster || domain_level != 0) return uses;
+  if (metamagic == 0 && ChosenSlot(row, spell_id, 0, 0, &own) >= 1) {
+    for (uintptr_t site : g_radial_count_sites) {  // the radial's spell entry: the slots at its level and above
+      if (site == from) {
+        const int casts = rules::CastsLeft(ClientSlotUses(client_stats, slot), own);
+        return static_cast<uint8_t>(casts > 255 ? 255 : casts);
+      }
+    }
   }
   if (metamagic != 0) return uses;
   const int spell_level = SlotLevel(row, spell_id, 0);
   if (spell_level < 0 || rules::CastSpendsUse(true, spell_level)) return uses;
-  const uintptr_t from = reinterpret_cast<uintptr_t>(_ReturnAddress());
   for (const auto& site : g_count_sites) {
     if (site.first == from) t_blank_at = site.second;
   }
@@ -384,12 +462,169 @@ uint8_t ClientUsesLeft(void* client_stats, uint32_t spell_id, uint8_t slot, uint
 
 void* ToString(void* out, int value) {
   void* result = g_to_string(out, value);
+  if (t_upcast_text_at && reinterpret_cast<uintptr_t>(_ReturnAddress()) == t_upcast_text_at) {
+    t_upcast_text_at = 0;
+    if (result && g_exo_destroy && g_exo_from_chars) {  // an upcast quickbar button: "L3·4"
+      const std::string text = rules::UpcastCountText(t_upcast_text_level, value);
+      g_exo_destroy(result);
+      g_exo_from_chars(result, text.c_str());
+    }
+    return result;
+  }
   if (t_blank_at && reinterpret_cast<uintptr_t>(_ReturnAddress()) == t_blank_at) {
     t_blank_at = 0;
     char* text = result ? Field<char*>(result, 0) : nullptr;
     if (text) text[0] = '\0';
   }
   return result;
+}
+
+// --- Upcasting by choice: the radial's level submenu ---
+
+// The client's controlled creature's stats (the radial's cast callback casts for it).
+void* ClientControlledStats() {
+  void* const holder = g_controlled_app ? *g_controlled_app : nullptr;
+  void* const app = holder ? *static_cast<void**>(holder) : nullptr;
+  void* const creature = app && g_controlled ? g_controlled(app) : nullptr;
+  return creature ? Field<void*>(creature, ee::kClientCreatureStats) : nullptr;
+}
+
+// The radial's levels for a spell entry's param (rules::UpcastMenuLevels; empty: not one to choose a level for) - a
+// 2024 caster's spell, no metamagic, no domain level, no other listing.
+std::vector<int> UpcastLevels(int64_t param, void** client_stats_out, rules::RadialCast* cast_out, int* own_out) {
+  const rules::RadialCast cast = rules::DecodeRadialCast(param);
+  if (cast.other || cast.domain_level != 0 || cast.metamagic != 0) return {};
+  void* const client_stats = ClientControlledStats();
+  if (!client_stats || cast.class_slot >= ee::kClientStatsClassSlots ||
+      cast.class_slot >= Field<uint8_t>(client_stats, ee::kClientStatsClassCount)) {
+    return {};
+  }
+  std::vector<rules::ClassLevel> classes;
+  const int count = Field<uint8_t>(client_stats, ee::kClientStatsClassCount);
+  for (int index = 0; index < count && index < ee::kClientStatsClassSlots; ++index) {
+    classes.push_back({Field<uint8_t>(client_stats, ee::kClientStatsClassSlotClass + index * ee::kClientStatsClassSlotSize),
+                       Field<uint8_t>(client_stats, ee::kClientStatsClassSlotLevel + index * ee::kClientStatsClassSlotSize)});
+  }
+  const int row = classes[cast.class_slot].class_row;
+  int own = -1;
+  if (rules::CasterKindOfClass(row) == rules::CasterKind::kNone || ChosenSlot(row, cast.spell, 0, 0, &own) < 1) return {};
+  rules::SlotUses table{};
+  for (int level = 1; level <= 9; ++level) table[level] = rules::SlotsForClassSlot2024(classes, cast.class_slot, level);
+  *client_stats_out = client_stats;
+  *cast_out = cast;
+  *own_out = own;
+  return rules::UpcastMenuLevels(table, own);
+}
+
+void* BuildLevelMenu(void* handler, int64_t param, int from_level);
+void* LevelMenu(void* handler, int64_t param) { return BuildLevelMenu(handler, param, 0); }
+void* LevelMenuMore(void* handler, int64_t param) {
+  return BuildLevelMenu(handler, rules::RadialCastWithFromLevel(param, 0), rules::RadialCastFromLevel(param));
+}
+
+// "Level N" for the spell's level and each higher one with slots (from `from_level` on: a "more" entry's), each
+// casting with domain level N (0 for its own), its count the level's slots left - greyed with none, unless the
+// quickbar is assigning. Eight entries hold the radial; past them, the last opens the rest.
+void* BuildLevelMenu(void* handler, int64_t param, int from_level) {
+  void* const menu = g_game_new ? g_game_new(ee::kRadialMenuSize) : nullptr;
+  if (!menu) return nullptr;
+  g_radial_ctor(menu);
+  SetField<uint8_t>(menu, ee::kRadialMenuOwnedFlag, 1);
+  void* client_stats = nullptr;
+  rules::RadialCast cast;
+  int own = -1;
+  std::vector<int> levels = UpcastLevels(param, &client_stats, &cast, &own);
+  levels.erase(std::remove_if(levels.begin(), levels.end(), [&](int level) { return level < from_level; }),
+               levels.end());
+  void* rules_object = RulesObject();
+  void* spells = rules_object ? Field<void*>(rules_object, ee::kRulesSpells) : nullptr;
+  void* spell = spells && g_get_spell ? g_get_spell(spells, static_cast<int>(cast.spell)) : nullptr;
+  if (levels.empty() || !spell) return menu;
+  char icon[17] = {};
+  memcpy(icon, static_cast<const uint8_t*>(spell) + ee::kSpellIconResRef, 16);
+  const bool assigning = handler && Field<void*>(handler, ee::kRadialHandlerAssigning) != nullptr;
+  const rules::SlotUses uses = ClientSlotUses(client_stats, cast.class_slot);
+  for (size_t k = 0; k < levels.size(); ++k) {
+    const int index = static_cast<int>(k);
+    char text[24];
+    if (index == ee::kRadialMenuEntries - 1 && levels.size() > static_cast<size_t>(ee::kRadialMenuEntries)) {
+      sprintf_s(text, "Level %d+", levels[k]);
+      g_set_creator_text(menu, index, icon, text, handler, reinterpret_cast<void*>(&LevelMenuMore),
+                         rules::RadialCastWithFromLevel(param, levels[k]));
+      break;
+    }
+    const int level = levels[k];
+    sprintf_s(text, "Level %d", level);
+    g_set_entry_text(menu, index, icon, text, handler, g_cast_callback,
+                     rules::RadialCastWithDomain(param, level == own ? 0 : level));
+    void* const entry_icon = Field<void*>(menu, ee::kRadialMenuIcons + index * sizeof(void*));
+    if (entry_icon && g_to_string) {
+      alignas(16) uint8_t count[32] = {};
+      g_to_string(count, uses[level]);
+      g_set_count_text(entry_icon, count);  // a CExoString by value: the callee destroys it
+    }
+    if (uses[level] == 0 && !assigning) g_disable_entry(menu, index);
+  }
+  return menu;
+}
+
+// CRadialMenu::SetEntryx: a 2024 caster's spell leaf (the cast callback) with a higher level of slots becomes a
+// submenu of its levels - its icon, its name, the same param.
+void SetEntry(void* menu, int index, void* icon, uint32_t strref, void* handler, void* callback, int64_t param) {
+  if (callback == g_cast_callback && g_set_creator) {
+    void* client_stats = nullptr;
+    rules::RadialCast cast;
+    int own = -1;
+    if (!UpcastLevels(param, &client_stats, &cast, &own).empty()) {
+      g_set_creator(menu, index, icon, strref, handler, reinterpret_cast<void*>(&LevelMenu), param);
+      return;
+    }
+  }
+  g_set_entry(menu, index, icon, strref, handler, callback, param);
+}
+
+// The radial's pieces, and the SetEntryx hook. False (logged) when any is missing: the spell entries stay NWN's.
+bool InstallUpcastRadial(uintptr_t client_getter) {
+  const uintptr_t callback = FindPattern("the radial's cast callback (#36 upcasting)", ee::kRadialCastCallbackPattern);
+  const uint8_t* lookup = reinterpret_cast<const uint8_t*>(callback + ee::kRadialCastControlled);
+  if (callback && lookup[0] == 0x48 && lookup[1] == 0x8B && lookup[2] == 0x05 && lookup[7] == 0x48 && lookup[8] == 0x8B &&
+      lookup[9] == 0x08 && lookup[10] == 0xE8) {
+    const int32_t rel = *reinterpret_cast<const int32_t*>(lookup + 3);
+    g_controlled_app = reinterpret_cast<void**>(reinterpret_cast<uintptr_t>(lookup) + 7 + rel);
+    g_controlled = reinterpret_cast<ControlledFn>(CallTarget(reinterpret_cast<uintptr_t>(lookup) + 10));
+  }
+  const uintptr_t set_entry = EngineExport(ee::kRadialSetEntry);
+  g_radial_count_sites.clear();
+  for (uintptr_t site : client_getter && set_entry ? FindCallsAnywhere(client_getter) : std::vector<uintptr_t>()) {
+    if (FindCallsTo(FunctionAt(site), set_entry).empty()) continue;  // the radial's spell lists only
+    g_radial_count_sites.push_back(site + 5);
+    if (!g_game_new) {
+      const uintptr_t alloc = FindPatternIn("the radial spell list's new menu (#36 upcasting)", FunctionAt(site),
+                                            ee::kRadialMenuNewPattern);
+      if (alloc) g_game_new = reinterpret_cast<GameNewFn>(CallTarget(alloc + 5));
+    }
+  }
+  g_cast_callback = reinterpret_cast<void*>(callback);
+  g_set_entry_text = reinterpret_cast<SetEntryTextFn>(EngineExport(ee::kRadialSetEntryText));
+  g_set_creator = reinterpret_cast<SetCreatorFn>(EngineExport(ee::kRadialSetCreator));
+  g_set_creator_text = reinterpret_cast<SetCreatorTextFn>(EngineExport(ee::kRadialSetCreatorText));
+  g_disable_entry = reinterpret_cast<DisableEntryFn>(EngineExport(ee::kRadialDisableEntry));
+  g_set_count_text = reinterpret_cast<SetCountTextFn>(EngineExport(ee::kGuiIconSetCountText));
+  g_radial_ctor = reinterpret_cast<RadialCtorFn>(EngineExport(ee::kRadialMenuCtor));
+  g_exo_from_chars = reinterpret_cast<ExoStringFromCharsFn>(EngineExport(ee::kExoStringFromChars));
+  g_exo_destroy = reinterpret_cast<ExoStringDestroyFn>(EngineExport(ee::kExoStringDestructor));
+  if (!callback || !g_controlled || !set_entry || g_radial_count_sites.size() != 2 || !g_game_new ||
+      !g_set_entry_text || !g_set_creator || !g_set_creator_text || !g_disable_entry || !g_set_count_text ||
+      !g_radial_ctor || !g_exo_from_chars || !g_exo_destroy) {
+    Log("SKIP spells #36 upcasting: the radial's level menu isn't mapped (callback %p, creature %p, %zu spell lists, "
+        "new %p)", reinterpret_cast<void*>(callback), reinterpret_cast<void*>(g_controlled),
+        g_radial_count_sites.size(), reinterpret_cast<void*>(g_game_new));
+    g_cast_callback = nullptr;
+    g_radial_count_sites.clear();
+    return false;
+  }
+  return HookExport("CRadialMenu::SetEntryx (a spell's levels to cast it at, #36 upcasting)", ee::kRadialSetEntry,
+                    reinterpret_cast<void*>(&SetEntry), reinterpret_cast<void**>(&g_set_entry));
 }
 
 // Part 3: the classes.2da row of a CNWClass (rules classes +0x110, 0x530 each), -1 if it isn't one.
@@ -434,6 +669,7 @@ bool HideCantripCounts() {
     }
   }
   if (g_count_sites.empty()) return false;
+  g_radial_ready = InstallUpcastRadial(getter);  // upcasting by choice: the radial's level menu
   return HookAddress("client CNWCCreatureStats::GetSpellUsesLeft (a cantrip's count hidden, #36)", getter,
                      reinterpret_cast<void*>(&ClientUsesLeft), reinterpret_cast<void**>(&g_client_uses)) &&
          HookExport("CExoString::ToString (a cantrip's count hidden, #36)", ee::kExoStringToString,
@@ -486,8 +722,8 @@ void InstallSpellSlots() {
   Log("spells: 2024 slots (SRD 5.2's tables; no bonus spells, no 3e minimum score); Cleric, Druid, Paladin and Ranger "
       "cast any class spell with any slot of its level; Paladin and Ranger from level 1; cantrips at will (#36 Part 1)%s",
       gain && min && spend && cast && ready ? "" : " - SOME hooks missing");
-  Log("spells: upcasting - with no slot left at a spell's level, the lowest higher one is spent; the uses shown are "
-      "the slots at its level and above (#36 Part 2a); two or more caster classes share one pool, the Multiclass "
-      "Spellcaster table's (#36 Part 2b)%s",
-      upcasting && cast && g_client_uses ? "" : " - SOME hooks missing");
+  Log("spells: upcasting by choice - a spell's radial entry opens its levels (\"Level N\"), the chosen slot level in "
+      "the cast's domain level; an upcast quickbar button reads L3\xB7" "4 (#36 Part 2); two or more caster classes "
+      "share one pool, the Multiclass Spellcaster table's (#36 Part 2b)%s",
+      upcasting && cast && g_client_uses && g_radial_ready ? "" : " - SOME hooks missing");
 }

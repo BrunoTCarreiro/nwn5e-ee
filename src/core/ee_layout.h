@@ -1179,6 +1179,33 @@ constexpr size_t kHubCustomizeMode = 0xf4;  // int: editing an existing characte
 constexpr size_t kAlignmentPageSize = 0x1050;
 constexpr size_t kAlignmentPageCreature = 0x1018;
 constexpr size_t kClientCreatureStats = 0x3b0;
+// #36, upcasting by choice: the client's radial menu (libsource\guiman\guimenu.cpp; game\clientcore\guispellmenu.cpp).
+// A CRadialMenu is 0x7F8 bytes (the game's operator new, its constructor, then byte +0x7F1 = 1, as the spell list
+// 0x9A2B10 does); entry i's icon at +0x6E0 + 8i (owned). A spell leaf's callback is the radial's cast (0x9A4540,
+// this pattern at its start): `handler +0x890` set means the quickbar's assign mode (it hands the param to the
+// quickbar), else it casts for the client's controlled creature - `mov rax,[global]; mov rcx,[rax]; call` at its
+// +0x2B. CNWSpell +0x18: the icon resref (16 chars).
+constexpr const char* kRadialCastCallbackPattern =
+    "48 89 5C 24 08 57 48 83 EC 50 48 8B F9 48 8B DA 48 8B 89 90 08 00 00 48 85 C9 74 0F 48 8B 5C 24 60 48 83 C4 50 "
+    "5F E9";
+constexpr size_t kRadialCastControlled = 0x2b;
+constexpr const char* kRadialMenuNewPattern = "B9 F8 07 00 00 E8";  // mov ecx, 7F8h; call operator new (+5)
+constexpr size_t kRadialMenuSize = 0x7f8;
+constexpr size_t kRadialMenuOwnedFlag = 0x7f1;
+constexpr size_t kRadialMenuIcons = 0x6e0;
+constexpr int kRadialMenuEntries = 8;
+constexpr size_t kRadialHandlerAssigning = 0x890;
+constexpr size_t kSpellIconResRef = 0x18;
+constexpr const char* kRadialSetEntry =
+    "?SetEntryx@CRadialMenu@@QEAAXHPEAVCGuiIcon@@IPEAXP8CCallbackHandlerBase@@EAAX_J@Z2@Z";
+constexpr const char* kRadialSetEntryText = "?SetEntryx@CRadialMenu@@QEAAXHPEBD0PEAXP8CCallbackHandlerBase@@EAAX_J@Z2@Z";
+constexpr const char* kRadialSetCreator =
+    "?SetSubMenuCreatorx@CRadialMenu@@QEAAXHPEAVCGuiIcon@@IPEAXP8CCallbackHandlerBase@@EAAPEAV1@_J@Z2@Z";
+constexpr const char* kRadialSetCreatorText =
+    "?SetSubMenuCreatorx@CRadialMenu@@QEAAXHPEBD0PEAXP8CCallbackHandlerBase@@EAAPEAV1@_J@Z2@Z";
+constexpr const char* kRadialDisableEntry = "?DisableEntry@CRadialMenu@@QEAAXH@Z";
+constexpr const char* kRadialMenuCtor = "??0CRadialMenu@@QEAA@XZ";
+constexpr const char* kGuiIconSetCountText = "?SetCountText@CGuiIcon@@QEAAXVCExoString@@@Z";
 constexpr size_t kClientStatsLawChaos = 0xc6;
 constexpr size_t kClientStatsGoodEvil = 0xc8;
 constexpr int kAlignmentNeutral = 50;

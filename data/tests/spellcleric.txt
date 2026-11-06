@@ -15,4 +15,5 @@ abilities = 10 10 14 10 16 12
 items = nw_wdbqs001 equip
 note = the Prepare spells window opens: pick 4 cantrips and 9 spells, Accept - the radial lists only those
 note = slots 4 / 3 / 2 (no Wisdom bonus); a cantrip never runs out and its button shows no number
-note = a 1st-level spell clicked ten times queues nine casts (4 + 3 + 2 slots, upcast) - the tenth is refused
+note = a 1st-level spell's quickbar slot clicked five times queues four casts - the fifth is refused (no 1st-level
+note = slot left; its radial entry's Level 2 and Level 3 cast it with a higher one)

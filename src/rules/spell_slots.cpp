@@ -111,12 +111,10 @@ bool CastQueueFull(bool faithful, int slot_level, int queued, int uses_left) {
   return faithful && CastSpendsUse(faithful, slot_level) && queued >= uses_left;
 }
 
-int SlotToSpend(const SlotUses& uses, int slot_level) {
+int ChosenSlotLevel(int slot_level, int domain_level) {
   if (slot_level < 0 || slot_level > 9) return -1;
-  for (int level = slot_level; level <= 9; ++level) {
-    if (uses[level] > 0) return level;
-  }
-  return -1;
+  if (domain_level == 0) return slot_level;
+  return domain_level >= slot_level && domain_level <= 9 ? domain_level : -1;
 }
 
 int CastsLeft(const SlotUses& uses, int slot_level) {
@@ -165,14 +163,49 @@ int SlotsForClassSlot2024(const std::vector<ClassLevel>& classes, int slot, int 
   return SpellSlots2024(CasterKind::kFull, pooled > 20 ? 20 : pooled, spell_level);
 }
 
-bool CastFitsQueue(SlotUses uses, const std::vector<int>& queued, int slot_level) {
+bool CastFitsQueue(const SlotUses& uses, const std::vector<int>& queued, int slot_level) {
   if (slot_level == 0) return true;
+  if (slot_level < 0 || slot_level > 9) return false;
+  int taken = 0;
   for (int queued_level : queued) {
-    if (queued_level < 1) continue;  // a cantrip spends nothing
-    const int spent = SlotToSpend(uses, queued_level);
-    if (spent >= 1) --uses[spent];
+    if (queued_level == slot_level) ++taken;
   }
-  return SlotToSpend(uses, slot_level) >= 1;
+  return uses[slot_level] > taken;
+}
+
+std::vector<int> UpcastMenuLevels(const SlotUses& slots, int slot_level) {
+  std::vector<int> levels;
+  if (slot_level < 1 || slot_level > 9) return levels;
+  levels.push_back(slot_level);
+  for (int level = slot_level + 1; level <= 9; ++level) {
+    if (slots[level] > 0) levels.push_back(level);
+  }
+  if (levels.size() < 2) levels.clear();
+  return levels;
+}
+
+RadialCast DecodeRadialCast(long long param) {
+  RadialCast cast;
+  cast.spell = static_cast<unsigned>(param & 0xFFFF);
+  cast.domain_level = static_cast<int>((param >> 24) & 0xF);
+  cast.class_slot = static_cast<int>(((param >> 28) & 3) | ((param >> 36) & 4));
+  cast.metamagic = static_cast<int>((param >> 31) & 0x3F);
+  cast.other = ((param >> 30) & 1) != 0 || ((param >> 37) & 1) != 0;
+  return cast;
+}
+
+long long RadialCastWithDomain(long long param, int domain_level) {
+  return (param & ~(0xFLL << 24)) | (static_cast<long long>(domain_level & 0xF) << 24);
+}
+
+int RadialCastFromLevel(long long param) { return static_cast<int>((param >> 40) & 0xF); }
+
+long long RadialCastWithFromLevel(long long param, int level) {
+  return (param & ~(0xFLL << 40)) | (static_cast<long long>(level & 0xF) << 40);
+}
+
+std::string UpcastCountText(int slot_level, int uses) {
+  return "L" + std::to_string(slot_level) + "\xB7" + std::to_string(uses);
 }
 
 }  // namespace rules
