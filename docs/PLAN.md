@@ -423,6 +423,14 @@ monster AC by CR.
     seçected"): Add moves on to the next tab when the one picked on is done and the next has picks left - two looks
     at the next level's spells left (its calls into the client's spells left after "inc dl", one byte pattern, two
     matches in the binary). From the cantrips tab they're answered 0, so the page stays on it.
+  - *The owner's 0.83.1 run (2026-11-06):* "IC is good" - IC-1 to IC-10 pass (the remove and add icons, the
+    cantrips tab staying put). WZ-3: "labels on top of buttons don't follow the button order. on top of the buttons
+    the texts go cantrips, prepared, spellbook, whiule the buttons go spellbook, cantrips, prepared" - *0.83.2:* the
+    Prepare window's counts line reads Spellbook, Cantrips, Prepared for a Wizard, as its tabs. And "On level up it
+    says 6 of 8 but only shows 4 spells" (the known column lists the prepared 4; the book's other 2 show nowhere):
+    asked. The tab icons' greyed look: #137 (later). UP: "how does upcasting work? I can't seem to trigger it" - the
+    log: four casts (Negative Energy Ray, Scare, Darkness and one more), at most three 1st-level slots spent of four;
+    upcasting starts with the 1st-level slots all gone. Explained.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

@@ -459,8 +459,8 @@ void Sync(uint32_t player) {
   std::string counts = "Cantrips " + std::to_string(s.cantrips.size()) + " of " + std::to_string(CantripLimit(s)) +
                        "    Prepared " + std::to_string(s.prepared.size()) + " of " +
                        std::to_string(PreparedLimit(s));
-  if (row == kNwnClassWizard) {
-    counts += "    Spellbook " + std::to_string(s.book.size()) + " of " + std::to_string(BookLimit(s));
+  if (row == kNwnClassWizard) {  // 0.83.2 (owner: the labels "don't follow the button order"): the tabs' order
+    counts = "Spellbook " + std::to_string(s.book.size()) + " of " + std::to_string(BookLimit(s)) + "    " + counts;
   }
   const char* tab = s.tab == kTabCantrips ? "Cantrips you know - click one to pick or drop it"
                     : s.tab == kTabBook   ? "Spellbook - click a spell to add it (it stays in the book)"
