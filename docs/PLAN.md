@@ -411,6 +411,10 @@ monster AC by CR.
     it); SL-2 likewise. The quickbar's assign mode is the same radial, so an upcast version goes on a slot as is.
     Open: the quickbar button shows no level mark (the count differs); a 1st-level spell with slots up to 9th needs
     a "more" entry (the radial holds 8).
+  - *Decided (owner, 2026-11-06: "can we add extra text to an upcasted slot in the quick bar?", then "1 ok, 2 go with
+    L3·4"):* the one extra radial click to cast at a spell's own level is fine; an upcast quickbar button's number
+    reads "L3·4" (level 3, 4 slots left) - the text the game writes after the uses getter, rewritten as the
+    cantrips' is.
   - *Built 0.80.0 (Part 2b, the combined multiclass pool, 4A):* SRD 5.2's multiclassing - with the Spellcasting
     feature from more than one class, the slots are the Multiclass Spellcaster table's (the full casters') at the
     Bard, Cleric, Druid, Sorcerer and Wizard levels plus half the Paladin and Ranger levels, rounded up; each class
