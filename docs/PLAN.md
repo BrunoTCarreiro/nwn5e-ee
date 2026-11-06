@@ -588,6 +588,15 @@ monster AC by CR.
     (3e's guideline: about 49,000 GP of wealth at level 10; NWN's random chests give 2d20 GP at levels 9-10).
     *Decided (owner, 2026-11-06: "for now keep the gp cost. we'll see how it works on a playthrough"):* the
     SRD's costs as listed; Restoration free.
+  - *Built 0.87.0 (key `spellcasting`, #36's; faithful):* rules::CostlyComponent - 42 spells.2da rows (the 25
+    spells and their sub-radial variants), the GP on hand and the GP consumed - and ComponentAffordable (test
+    MaterialComponentCosts, 8 of 8 mutations caught). rules_components.cpp: the spell order guard - a cast from a
+    class slot of such a spell: the payer (the caster if a player character, else its master if one: a
+    henchman, a familiar, a summon; enemies and NPCs pay nothing) needs the whole cost on hand, else the order
+    is refused and told; the cast taking effect (spell_impact.h) takes the consumed part (TakeGoldFromCreature),
+    told; an item's spell (a scroll, a wand, a potion) needs none. spell_impact.{h,cpp}: the cast's moment, the
+    game's start, the cast item and the spell's name, moved out of rules_concentration.cpp and shared. "!gold
+    [amount]" (test commands; rules::ParseGoldAmount, 5 of 5 mutations caught) shows or sets the gold.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

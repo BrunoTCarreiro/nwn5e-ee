@@ -119,6 +119,20 @@ TEST(FearArguments) {
   CHECK_EQ(ParseClockHours("8 9", &hours), false);
   CHECK_EQ(ParseClockHours("soon", &hours), false);
   CHECK_EQ(ParseClockHours("8x", &hours), false);
+  int gold = 5;  // #38: !gold [amount]
+  CHECK_EQ(ParseGoldAmount("", &gold), true);
+  CHECK_EQ(gold, -1);
+  CHECK_EQ(ParseGoldAmount(" 500 ", &gold), true);
+  CHECK_EQ(gold, 500);
+  CHECK_EQ(ParseGoldAmount("0", &gold), true);
+  CHECK_EQ(gold, 0);
+  CHECK_EQ(ParseGoldAmount("1000000", &gold), true);
+  CHECK_EQ(gold, 1000000);
+  CHECK_EQ(ParseGoldAmount("1000001", &gold), false);
+  CHECK_EQ(ParseGoldAmount("-5", &gold), false);
+  CHECK_EQ(ParseGoldAmount("5 6", &gold), false);
+  CHECK_EQ(ParseGoldAmount("lots", &gold), false);
+  CHECK_EQ(ParseGoldAmount("12345678", &gold), false);
   CHECK_EQ(ParseFearArgs("", &charm, &seconds), true);
   CHECK_EQ(charm, false);
   CHECK_EQ(seconds, 30);

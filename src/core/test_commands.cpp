@@ -621,6 +621,29 @@ std::vector<std::string> FearCommand(void* creature, const std::string& args) {
   return {};
 }
 
+// #38 (0.87.0): "!gold [amount]" - your gold, or set to `amount` (0 to 1,000,000; the material components'
+// costs tested without hunting for gold).
+std::vector<std::string> GoldCommand(void* creature, const std::string& args) {
+  const uint32_t id = ObjectIdOf(StatsOf(creature));
+  int gold = -1;
+  if (!rules::ParseGoldAmount(args, &gold)) {
+    return {"nwn5e: !gold [amount] - your gold, or set to 0 to 1000000 GP (e.g. !gold 500)"};
+  }
+  if (gold >= 0) {
+    char code[256];
+    sprintf_s(code,
+              "int g = GetGold(OBJECT_SELF); int n = %d; if (n > g) GiveGoldToCreature(OBJECT_SELF, n - g); "
+              "else if (n < g) TakeGoldFromCreature(g - n, OBJECT_SELF, TRUE);",
+              gold);
+    RunScriptChunk(code, id);
+    Log("test: 0x%08X gold set to %d (!gold)", id, gold);
+    return {"nwn5e: your gold is now " + std::to_string(gold) + " GP."};
+  }
+  RunScriptChunk("SetLocalInt(OBJECT_SELF, \"nwn5e_test_gold\", GetGold(OBJECT_SELF));", id);
+  const int have = engine::GetLocalInt(creature, "nwn5e_test_gold");
+  return {"nwn5e: you have " + std::to_string(have) + " GP (!gold <amount> sets it)."};
+}
+
 // #103: "!time" - the game's hour and date (the rest clock's rows). #135: "!time <hours>" moves the clock that many
 // hours (1-48; the 16-hour wait between Long Rests, tested without waiting), as the rest clock does.
 std::vector<std::string> TimeCommand(void* creature, const std::string& args) {
@@ -969,6 +992,7 @@ void InstallTestCommands() {
   AddChatCommand("!save", &SaveCommand);
   AddChatCommand("!skill", &SkillCommand);
   AddChatCommand("!time", &TimeCommand);
+  AddChatCommand("!gold", &GoldCommand);
   AddChatCommand("!fear", &FearCommand);
   AddChatCommand("!reflex", &ReflexCommand);
   AddChatCommand("!level", &LevelCommand);

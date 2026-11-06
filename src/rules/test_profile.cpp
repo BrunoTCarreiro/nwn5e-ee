@@ -167,6 +167,21 @@ bool ParseClockHours(const std::string& text, int* hours) {
   return true;
 }
 
+bool ParseGoldAmount(const std::string& text, int* gold) {
+  std::istringstream words(text);
+  std::string word, extra;
+  if (!(words >> word)) {
+    *gold = -1;
+    return true;
+  }
+  if (words >> extra) return false;
+  if (word.size() > 7 || word.find_first_not_of("0123456789") != std::string::npos) return false;
+  const int value = atoi(word.c_str());
+  if (value > kTestGoldMax) return false;
+  *gold = value;
+  return true;
+}
+
 bool ParseFearArgs(const std::string& text, bool* charm, int* seconds) {
   bool want_charm = false;
   int want_seconds = 0;

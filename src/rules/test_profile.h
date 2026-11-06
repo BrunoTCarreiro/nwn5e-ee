@@ -114,5 +114,9 @@ bool ParseFearArgs(const std::string& text, bool* charm, int* seconds);
 // kTestClockMaxHours, "+16" as "16". False for anything else.
 constexpr int kTestClockMaxHours = 48;
 bool ParseClockHours(const std::string& text, int* hours);
+// #38: "!gold [amount]" - nothing (-1: say the gold) or the gold to have, 0 to kTestGoldMax. False for anything
+// else.
+constexpr int kTestGoldMax = 1000000;
+bool ParseGoldAmount(const std::string& text, int* gold);
 
 }  // namespace rules
