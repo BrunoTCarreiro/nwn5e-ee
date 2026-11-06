@@ -111,4 +111,31 @@ bool CastQueueFull(bool faithful, int slot_level, int queued, int uses_left) {
   return faithful && CastSpendsUse(faithful, slot_level) && queued >= uses_left;
 }
 
+int SlotToSpend(const SlotUses& uses, int slot_level) {
+  if (slot_level < 0 || slot_level > 9) return -1;
+  for (int level = slot_level; level <= 9; ++level) {
+    if (uses[level] > 0) return level;
+  }
+  return -1;
+}
+
+int CastsLeft(const SlotUses& uses, int slot_level) {
+  if (slot_level < 0 || slot_level > 9) return 0;
+  int left = 0;
+  for (int level = slot_level; level <= 9; ++level) {
+    if (uses[level] > 0) left += uses[level];
+  }
+  return left;
+}
+
+bool CastFitsQueue(SlotUses uses, const std::vector<int>& queued, int slot_level) {
+  if (slot_level == 0) return true;
+  for (int queued_level : queued) {
+    if (queued_level < 1) continue;  // a cantrip spends nothing
+    const int spent = SlotToSpend(uses, queued_level);
+    if (spent >= 1) --uses[spent];
+  }
+  return SlotToSpend(uses, slot_level) >= 1;
+}
+
 }  // namespace rules

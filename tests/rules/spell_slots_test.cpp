@@ -84,3 +84,32 @@ TEST(CastQueue) {
   CHECK_EQ(DrawsOnSameSlots(false, magic_missile, sleep), true);          // a Cleric: the slots of the level
   CHECK_EQ(DrawsOnSameSlots(false, magic_missile, web), false);
 }
+
+TEST(Upcasting) {
+  const SlotUses wizard{0, 4, 2, 1, 0, 0, 0, 0, 0, 0};  // four 1st-level slots, two 2nd, one 3rd
+  CHECK_EQ(SlotToSpend(wizard, 1), 1);                  // its own level first
+  CHECK_EQ(SlotToSpend(wizard, 3), 3);
+  CHECK_EQ(SlotToSpend(wizard, 4), -1);                 // never a lower slot
+  const SlotUses spent_low{0, 0, 2, 1, 0, 0, 0, 0, 0, 0};
+  CHECK_EQ(SlotToSpend(spent_low, 1), 2);               // none at 1st: the lowest higher slot
+  const SlotUses only_third{0, 0, 0, 1, 0, 0, 0, 0, 0, 0};
+  CHECK_EQ(SlotToSpend(only_third, 1), 3);
+  const SlotUses empty{3, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+  CHECK_EQ(SlotToSpend(empty, 1), -1);
+  CHECK_EQ(CastsLeft(wizard, 1), 7);                    // the slots at its level and above
+  CHECK_EQ(CastsLeft(wizard, 2), 3);
+  CHECK_EQ(CastsLeft(wizard, 3), 1);
+  CHECK_EQ(CastsLeft(wizard, 4), 0);
+  CHECK_EQ(CastsLeft(spent_low, 1), 3);
+  const SlotUses one_each{0, 1, 1, 0, 0, 0, 0, 0, 0, 0};
+  CHECK_EQ(CastFitsQueue(one_each, {}, 1), true);
+  CHECK_EQ(CastFitsQueue(one_each, {1}, 1), true);      // the queued one takes the 1st, this one the 2nd
+  CHECK_EQ(CastFitsQueue(one_each, {1, 1}, 1), false);  // both slots spoken for
+  CHECK_EQ(CastFitsQueue(one_each, {2}, 1), true);      // the queued 2nd-level spell takes the 2nd
+  CHECK_EQ(CastFitsQueue(one_each, {1}, 2), true);      // the queued 1st-level spell takes the 1st
+  CHECK_EQ(CastFitsQueue(one_each, {1, 1}, 2), false);  // the second queued one upcasts into the 2nd
+  const SlotUses one_first{0, 1, 0, 0, 0, 0, 0, 0, 0, 0};
+  CHECK_EQ(CastFitsQueue(one_first, {0, 0, 0}, 1), true);  // queued cantrips spend nothing
+  CHECK_EQ(CastFitsQueue(empty, {}, 0), true);          // a cantrip always fits
+  CHECK_EQ(CastFitsQueue(empty, {}, 1), false);
+}

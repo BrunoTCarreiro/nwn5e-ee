@@ -1,5 +1,8 @@
 #pragma once
 
+#include <array>
+#include <vector>
+
 // #36 (owner, 2026-11-04: "go with your recommendations and note down the upcasting thing so you don't forget when
 // doing 39" - 1A 2A 3A 4A; docs/PLAN.md "Phase 4"): the 2024 spell slots, cantrips and prepared spells - SRD 5.2's
 // class tables (the Bard, Cleric, Druid, Paladin, Ranger, Sorcerer and Wizard Features tables; the Multiclass
@@ -51,5 +54,20 @@ bool DrawsOnSameSlots(bool memorizes, const QueuedCast& a, const QueuedCast& b);
 // 2026-11-04: "SL-2 should not be allowed to queue spells a larger number of times than the slots available");
 // a cantrip never (at will).
 bool CastQueueFull(bool faithful, int slot_level, int queued, int uses_left);
+
+// Part 2 (2A, upcasting; decided 2026-11-04): SRD 5.2 - a spell is cast with a slot of its level or higher, and "the
+// spell assumes the higher level for that casting". With no slot left at a spell's level, the lowest higher one is
+// spent. `SlotUses` is a caster's uses left per spell level (0-9); a slot level is the spell's level plus its
+// metamagic's cost.
+using SlotUses = std::array<int, 10>;
+// The level of the slot a cast needing `slot_level` spends: its own if one is left, else the lowest higher one; -1 if
+// none (never a lower one).
+int SlotToSpend(const SlotUses& uses, int slot_level);
+// The casts left of a spell needing `slot_level`: the uses at its level and above.
+int CastsLeft(const SlotUses& uses, int slot_level);
+// SL-2 with upcasting: whether a new cast needing `slot_level` still finds a slot once the casts already queued (their
+// slot levels, in order) have each spent theirs as they will - their own level, else the lowest higher one. A
+// cantrip (0) always fits.
+bool CastFitsQueue(SlotUses uses, const std::vector<int>& queued, int slot_level);
 
 }  // namespace rules

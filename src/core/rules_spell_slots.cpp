@@ -23,6 +23,18 @@
 //   - A cantrip's button shows no number: the client's uses getter (not exported, a byte pattern) marks a
 //     cantrip, and its caller's next CExoString::ToString - the number it writes - comes back empty.
 // Part 2: upcasting and the combined multiclass pool (2A, 4A); Part 3: the Prepare spells window (3A).
+// - Part 2a (2A, upcasting; owner, 2026-11-06: "Go with your recommendations for 1 and 4."): SRD 5.2 - a spell is
+//   cast with a slot of its level or higher. With none left at its level, the lowest higher slot is spent
+//   (rules::SlotToSpend):
+//   - GetSpellUsesLeft (the cast's own check, the AI's, GetHasSpell) answers the casts left - the slots at the
+//     spell's level and above (rules::CastsLeft) - when NWN would cast it with a slot of its level (known, its
+//     metamagic feat...): asked with that level's byte set to 1 for the question if it's empty.
+//   - UnReadySpell checks GetSpellUsesLeft and then decrements the slot level's byte inline, so for an upcast that
+//     byte is 1 while NWN spends it and the higher slot is decremented instead.
+//   - The client's uses getter (the quickbar's number, its greyed button) answers the same total from its copy.
+//   - The slot level a cast spent is kept on the caster (local int N5_SLOT_LEVEL) for #39's spells - "the spell
+//     assumes the higher level for that casting"; the player is told when a higher slot is spent.
+//   - SL-2's queue check spends the queued casts' slots in order, as they will be (rules::CastFitsQueue).
 
 #include <intrin.h>
 #include <stddef.h>
@@ -32,9 +44,11 @@
 #include <vector>
 
 #include "action_guard.h"
+#include "chat.h"
 #include "config.h"
 #include "creature.h"
 #include "data_serving.h"
+#include "engine.h"
 #include "ee_layout.h"
 #include "hooks.h"
 #include "log.h"
@@ -73,7 +87,8 @@ MinAbilityFn g_min_ability = nullptr;
 DecrementFn g_decrement = nullptr;
 UnReadyFn g_unready = nullptr;
 SetReadyFn g_set_ready = nullptr;
-UsesLeftFn g_uses_left = nullptr;
+UsesLeftFn g_uses_left = nullptr;  // the original (hooked: Part 2a's casts left)
+constexpr const char* kSlotLevelVar = "N5_SLOT_LEVEL";  // the slot level the caster's last cast spent
 GetSpellFn g_get_spell = nullptr;
 SpellLevelFn g_spell_level = nullptr;
 MetaMagicCostFn g_metamagic_cost = nullptr;
@@ -141,13 +156,73 @@ uint8_t* UsesLeft(void* stats, uint8_t slot, int spell_level) {
          spell_level;
 }
 
+rules::SlotUses SlotUsesOf(void* stats, uint8_t slot) {
+  rules::SlotUses uses{};
+  const uint8_t* bytes = UsesLeft(stats, slot, 0);
+  for (int level = 0; level <= 9; ++level) uses[level] = bytes[level];
+  return uses;
+}
+
+int SlotLevel(int nwn_class, uint32_t spell_id, int metamagic);
+bool Memorizes(int nwn_class);
+
+// Part 2a: the slot level a cast needs when it can upcast - a spontaneous 2024 caster's spell levels 1-9, no domain
+// slot; -1 otherwise (NWN's).
+int UpcastableSlotLevel(int row, uint32_t spell_id, uint8_t domain_level, uint8_t metamagic) {
+  if (domain_level != 0 || Memorizes(row)) return -1;
+  const int slot_level = SlotLevel(row, spell_id, metamagic);
+  return slot_level >= 1 && slot_level <= 9 ? slot_level : -1;
+}
+
+// Part 2a: the casts left of a spell - the slots at its level and above - when NWN would cast it with a slot of its
+// level (asked with that level's byte set to 1 for the question when it's empty).
+uint8_t UsesLeftHook(void* stats, uint32_t spell_id, uint8_t slot, uint8_t domain_level, uint8_t metamagic) {
+  int row = 0, level = 0;
+  const int slot_level =
+      CasterSlot(stats, slot, &row, &level) ? UpcastableSlotLevel(row, spell_id, domain_level, metamagic) : -1;
+  if (slot_level < 1) return g_uses_left(stats, spell_id, slot, domain_level, metamagic);
+  const int casts = rules::CastsLeft(SlotUsesOf(stats, slot), slot_level);
+  if (casts == 0) return g_uses_left(stats, spell_id, slot, domain_level, metamagic);
+  uint8_t* own = UsesLeft(stats, slot, slot_level);
+  const uint8_t before = *own;
+  if (before == 0) *own = 1;
+  const uint8_t castable = g_uses_left(stats, spell_id, slot, domain_level, metamagic);
+  *own = before;
+  return castable ? static_cast<uint8_t>(casts > 255 ? 255 : casts) : 0;
+}
+
 int UnReady(void* stats, uint32_t spell_id, uint8_t slot, uint8_t domain_level, uint8_t metamagic) {
   int row = 0, level = 0;
   if (!CasterSlot(stats, slot, &row, &level)) return g_unready(stats, spell_id, slot, domain_level, metamagic);
+  // Part 2a: with no slot left at the spell's level, NWN spends that level's byte (set to 1 for it) and the lowest
+  // higher slot goes instead.
+  const int slot_level = UpcastableSlotLevel(row, spell_id, domain_level, metamagic);
+  const int spend_at = slot_level >= 1 ? rules::SlotToSpend(SlotUsesOf(stats, slot), slot_level) : -1;
+  const bool upcast = slot_level >= 1 && spend_at > slot_level;
+  if (upcast) *UsesLeft(stats, slot, slot_level) = 1;
   uint8_t* cantrips = UsesLeft(stats, slot, 0);
   const uint8_t before = *cantrips;
   const int result = g_unready(stats, spell_id, slot, domain_level, metamagic);
-  if (result) PrepareSpellsNoteCast(CreatureOf(stats));  // #36 Part 3: a Long Rest's change closes
+  if (upcast) {
+    *UsesLeft(stats, slot, slot_level) = 0;
+    if (result) --*UsesLeft(stats, slot, spend_at);
+  }
+  if (result) {
+    void* const creature = CreatureOf(stats);
+    PrepareSpellsNoteCast(creature);  // #36 Part 3: a Long Rest's change closes
+    const int spent_level = upcast ? spend_at : SlotLevel(row, spell_id, metamagic);
+    if (creature && spent_level >= 0) engine::SetLocalInt(creature, kSlotLevelVar, spent_level);
+    if (upcast) {
+      if (LogCast()) {
+        Log("spells: object 0x%08X spell %u (level %d) upcast - no level %d slot left, a level %d slot spent",
+            ObjectIdOf(stats), spell_id, slot_level, slot_level, spend_at);
+      }
+      if (IsPlayer(stats)) {
+        TellPlayer(ObjectIdOf(stats), "nwn5e: no level " + std::to_string(slot_level) + " slot left - cast with a level " +
+                                         std::to_string(spend_at) + " slot.");
+      }
+    }
+  }
   if (*cantrips != before && !rules::CastSpendsUse(true, 0)) {
     *cantrips = before;
     if (LogCast()) {
@@ -204,7 +279,9 @@ bool SlotsSpokenFor(void* creature, const SpellOrder& order) {
   const rules::QueuedCast wanted{order.spell, order.metamagic, SlotLevel(row, order.spell, order.metamagic)};
   if (wanted.slot_level < 0 || !rules::CastSpendsUse(true, wanted.slot_level)) return false;  // a cantrip: at will
   const bool memorizes = Memorizes(row);
-  const int left = g_uses_left(stats, order.spell, slot, 0, static_cast<uint8_t>(order.metamagic));
+  const int left = memorizes ? g_uses_left(stats, order.spell, slot, 0, static_cast<uint8_t>(order.metamagic))
+                             : rules::CastsLeft(SlotUsesOf(stats, slot), wanted.slot_level);
+  std::vector<int> queued_levels;  // Part 2a: a spontaneous caster's queued casts' slot levels, in order
   const bool running_spent = Field<int32_t>(creature, ee::kCreatureCastUseSpent) != 0;
   const void* list = Field<void*>(creature, ee::kObjectActionQueue);
   int queued = 0;
@@ -222,8 +299,13 @@ bool SlotsSpokenFor(void* creature, const SpellOrder& order) {
     const int metamagic = Field<int32_t>(action, ee::kCastMetamagic);
     const rules::QueuedCast queued_cast{spell, metamagic, memorizes ? 0 : SlotLevel(row, spell, metamagic)};
     if (rules::DrawsOnSameSlots(memorizes, wanted, queued_cast)) ++queued;
+    if (!memorizes) queued_levels.push_back(queued_cast.slot_level);
   }
-  if (!rules::CastQueueFull(true, wanted.slot_level, queued, left)) return false;
+  if (memorizes ? !rules::CastQueueFull(true, wanted.slot_level, queued, left)
+                : rules::CastFitsQueue(SlotUsesOf(stats, slot), queued_levels, wanted.slot_level)) {
+    return false;
+  }
+  if (!memorizes) queued = static_cast<int>(queued_levels.size());
   if (IsPlayer(stats) && g_feedback) g_feedback(creature, ee::kFeedbackNoSpellUses, nullptr, nullptr);
   if (LogCast()) {
     Log("spells: object 0x%08X spell %u (level %d) not queued - %d already queued from its slots, %d left",
@@ -236,12 +318,22 @@ bool SlotsSpokenFor(void* creature, const SpellOrder& order) {
 uint8_t ClientUsesLeft(void* client_stats, uint32_t spell_id, uint8_t slot, uint8_t domain_level, uint8_t metamagic) {
   const uint8_t uses = g_client_uses(client_stats, spell_id, slot, domain_level, metamagic);
   t_blank_at = 0;
-  if (!client_stats || domain_level != 0 || metamagic != 0 || slot >= ee::kClientStatsClassSlots ||
+  if (!client_stats || domain_level != 0 || slot >= ee::kClientStatsClassSlots ||
       slot >= Field<uint8_t>(client_stats, ee::kClientStatsClassCount)) {
     return uses;
   }
   const int row = Field<uint8_t>(client_stats, ee::kClientStatsClassSlotClass + slot * ee::kClientStatsClassSlotSize);
   if (rules::CasterKindOfClass(row) == rules::CasterKind::kNone) return uses;
+  const int upcastable = UpcastableSlotLevel(row, spell_id, domain_level, metamagic);
+  if (upcastable >= 1) {  // Part 2a: the casts left - its copy of the slots at the spell's level and above
+    rules::SlotUses counts{};
+    const uint8_t* bytes = static_cast<const uint8_t*>(client_stats) + ee::kClientStatsClassSlotUses +
+                           slot * ee::kClientStatsClassSlotSize;
+    for (int level = 0; level <= 9; ++level) counts[level] = bytes[level];
+    const int casts = rules::CastsLeft(counts, upcastable);
+    return static_cast<uint8_t>(casts > 255 ? 255 : casts);
+  }
+  if (metamagic != 0) return uses;
   const int spell_level = SlotLevel(row, spell_id, 0);
   if (spell_level < 0 || rules::CastSpendsUse(true, spell_level)) return uses;
   const uintptr_t from = reinterpret_cast<uintptr_t>(_ReturnAddress());
@@ -328,7 +420,9 @@ void InstallSpellSlots() {
   const bool ready =
       HookExport("CNWSCreatureStats_ClassInfo::SetMemorizedSpellInSlotReady (a memorised cantrip stays ready, #36)",
                  kSetReady, reinterpret_cast<void*>(&SetReady), reinterpret_cast<void**>(&g_set_ready));
-  g_uses_left = reinterpret_cast<UsesLeftFn>(EngineExport(ee::kGetSpellUsesLeft));
+  const bool upcasting =
+      HookExport("CNWSCreatureStats::GetSpellUsesLeft (upcasting: the slots at a spell's level and above, #36 Part 2)",
+                 ee::kGetSpellUsesLeft, reinterpret_cast<void*>(&UsesLeftHook), reinterpret_cast<void**>(&g_uses_left));
   g_get_spell = reinterpret_cast<GetSpellFn>(EngineExport(ee::kGetSpell));
   g_spell_level = reinterpret_cast<SpellLevelFn>(EngineExport(ee::kSpellGetLevel));
   g_metamagic_cost = reinterpret_cast<MetaMagicCostFn>(EngineExport(ee::kGetMetaMagicLevelCost));
@@ -353,4 +447,7 @@ void InstallSpellSlots() {
   Log("spells: 2024 slots (SRD 5.2's tables; no bonus spells, no 3e minimum score); Cleric, Druid, Paladin and Ranger "
       "cast any class spell with any slot of its level; Paladin and Ranger from level 1; cantrips at will (#36 Part 1)%s",
       gain && min && spend && cast && ready ? "" : " - SOME hooks missing");
+  Log("spells: upcasting - with no slot left at a spell's level, the lowest higher one is spent; the uses shown are "
+      "the slots at its level and above (#36 Part 2a)%s",
+      upcasting && cast && g_client_uses ? "" : " - SOME hooks missing");
 }

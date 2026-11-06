@@ -658,6 +658,9 @@ constexpr int kClientStatsClassSlots = 8;
 constexpr size_t kClientStatsClassSlotSize = 0x150;
 constexpr size_t kClientStatsClassSlotClass = 0x295;
 constexpr size_t kClientStatsClassSlotLevel = 0x296;
+// #36 Part 2a: a class slot's uses left per spell level, uint8 x 10 (the client's GetSpellUsesLeft reads a
+// spontaneous caster's slot level here).
+constexpr size_t kClientStatsClassSlotUses = 0x288;
 // The server's twin (0x3F1830; same arguments), which the automatic level-ups
 // (LevelUpAutomatic — henchmen, the script's LevelUpHenchman, its one caller)
 // ask for every feat they try (rules_feats.cpp).

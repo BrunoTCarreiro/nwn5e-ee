@@ -371,6 +371,23 @@ monster AC by CR.
     arrow characters (the nearest are the guillemets « »). "- In" and "- Out" kept.
   - *Part 2 next (owner, 2026-11-06: "Go with your recommendations for 1 and 4."):* Part 2 - upcasting (2A) and
     the combined multiclass pool (4A) - while Part 3b waits for the owner's in-game tests.
+  - *Built 0.79.0 (Part 2a, upcasting, 2A):* every 2024 caster casts spontaneously since 0.75 (a byte per spell level,
+    ClassInfo +0x168). rules::SlotToSpend (its own level, else the lowest higher slot; never a lower one), CastsLeft
+    (the slots at its level and above), CastFitsQueue (the queued casts spend in order, as they will; test Upcasting,
+    10 of 10 mutations caught). rules_spell_slots.cpp:
+    - GetSpellUsesLeft hooked (the cast's own check, UnReadySpell's, the AI's, GetHasSpell): the casts left when NWN
+      would cast the spell with a slot of its level - asked with that level's byte set to 1 for the question if empty,
+      so every other check (known, metamagic feat, polymorph) stays NWN's.
+    - UnReadySpell checks GetSpellUsesLeft, then decrements the slot level's byte inline (the only cast spend: the
+      binary's other writes to those bytes are the scripts' Decrement / IncrementSpellsPerDayLeft). For an upcast the
+      byte is 1 while NWN spends it, and the lowest higher slot is decremented instead.
+    - The slot level spent is kept on the caster, local int N5_SLOT_LEVEL, for #39's spells ("the spell assumes the
+      higher level for that casting"); a player is told "no level N slot left - cast with a level M slot".
+    - The client's uses getter answers the same total from its copy (class slot +0x288): the quickbar's number, and
+      no greyed button while a higher slot is left.
+    - SL-2's queue check spends the queued casts' slots in order (a fifth 1st-level cast with four 1st-level slots
+      queues, into a 2nd-level slot).
+    `!test spellupcast` (Sorcerer 3: 4 / 2 slots); spellcleric's note: nine 1st-level casts queue, not four.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
