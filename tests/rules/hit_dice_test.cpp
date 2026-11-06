@@ -74,10 +74,4 @@ TEST(LongRestWait) {
   CHECK_EQ(DownBlocksLongRest(true, true), true);
   CHECK_EQ(DownBlocksLongRest(true, false), false);
   CHECK_EQ(DownBlocksLongRest(false, true), false);  // NWN mode: the engine's own (no rest while dying)
-  // #138: one grace Long Rest per character (and per !test profile) - a rest the wait would refuse.
-  CHECK_EQ(LongRestGraceApplies(16, false), true);
-  CHECK_EQ(LongRestGraceApplies(1, false), true);
-  CHECK_EQ(LongRestGraceApplies(16, true), false);  // used
-  CHECK_EQ(LongRestGraceApplies(0, false), false);  // no wait: a plain rest, the grace kept
-  CHECK_EQ(LongRestGraceApplies(0, true), false);
 }

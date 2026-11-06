@@ -3159,6 +3159,11 @@ the grace unused; test LongRestWait) replaces the game-start stamp, and the Load
 rest gate lets such a rest through and marks it (nwn5e_rest_grace_now); its end uses the grace (the record
 nwn5e_rest_grace_used, saved with the character). A !test profile resets the record; 0.82.0's clearing of the
 wait after a profile's own rest is gone (the grace does it: one rest either way).
+*Removed (owner, 2026-11-06: "wait, so there's already a rest available at the start of the game? never mind
+then. I just wanted the player to have access to one rest. remove it and we can accept this").* 0.85.2 takes the
+grace rest out: the rest code is 0.84.4's again (#135's wait as accepted - a character with no Long Rest yet may
+rest at once, and a !test profile that builds a character clears the wait after its own rest, so one may
+follow). *Accepted (owner, 2026-11-06: "remove it and we can accept this").* #138 closed.
 *Resting a lot (#110; owner, 2026-11-01: "are there any consequences in-game for resting too many times, like
 events tied to calendar days that can be missed?"). Researched 2026-11-01* (the campaigns' own .nss, which every
 official module ships, and the NWN Lexicon's SetTime / SetCalendar notes): nothing in the official campaigns can be

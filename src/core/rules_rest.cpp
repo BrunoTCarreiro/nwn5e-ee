@@ -20,12 +20,6 @@
 //   #135 b (owner, 2026-11-06: "1 yes, 2 keep, 3 a+b, 4 B"): "To start a Long Rest, you must have at least 1 Hit
 //   Point" - a creature that is down (dying, or a henchman lying down until healed) doesn't start one; a downed
 //   henchman's master is told to heal it first, and the player's own rest goes ahead.
-// - #138 (owner, 2026-11-06: "give one grace rest at the start of the game, \"!test\" allows for a grace rest
-//   too", then "the grace rest would be just at the start of the game, after character creation, not everytime
-//   a game loads"): a character has one grace Long Rest - one that starts while the wait lasts
-//   (rules::LongRestGraceApplies) - used when that rest finishes (the record nwn5e_rest_grace_used, saved with
-//   it; a load doesn't renew it). Applying any !test profile grants it again (in place of 0.82.0's clearing of
-//   the wait after the profile's own rest: one rest either way).
 // - The Short Rest (a HUD button next to Rest; `!shortrest` too): instant,
 //   out of combat - no enemy that can see the character within 30 m, no
 //   damage taken or spell cast in the last 10 s (the engine's "exerted" timer,
@@ -66,8 +60,6 @@ namespace {
 
 constexpr const char* kVarHitDiceSpent = "nwn5e_hit_dice_spent";
 constexpr const char* kVarLongRestEnd = "nwn5e_long_rest_end";  // #135: the game hour the last Long Rest ended
-constexpr const char* kVarRestGraceUsed = "nwn5e_rest_grace_used";  // #138: 1 once its grace Long Rest is taken
-constexpr const char* kVarRestGraceNow = "nwn5e_rest_grace_now";    // #138: 1 while the rest under way is the grace
 constexpr float kShortRestEnemyRange = 30.0f;  // the Rest button's REST_ENEMY_CHECK_DISTANCE
 constexpr uint32_t kNoGradualRestore = 0xffffffffu;
 constexpr int kAbilityConstitution = 2;
@@ -135,9 +127,6 @@ int LongRestWaitLeft(void* creature) {
 
 std::string HoursText(int hours) { return std::to_string(hours) + (hours == 1 ? " hour" : " hours"); }
 
-// #138: whether this creature's grace Long Rest is still to come.
-bool GraceUsed(void* creature) { return engine::GetLocalInt(creature, kVarRestGraceUsed) != 0; }
-
 // #135: the gate on a rest's start (rest.h) - b: not while down; a: the 16-hour wait.
 std::string LongRestGate(void* creature) {
   if (rules::DownBlocksLongRest(Faithful(), engine::IsDeadOrDying(creature) || IsDownForRest(creature))) {
@@ -151,13 +140,7 @@ std::string LongRestGate(void* creature) {
     return "not while down - a Long Rest needs at least 1 hit point.";
   }
   const int left = LongRestWaitLeft(creature);
-  const bool grace = rules::LongRestGraceApplies(left, GraceUsed(creature));
-  engine::SetLocalInt(creature, kVarRestGraceNow, grace ? 1 : 0);
   if (left <= 0) return "";
-  if (grace) {
-    Log("rests: 0x%08X Long Rest allowed - its grace rest (%d of the 16 hours skipped; #138)", IdOf(creature), left);
-    return "";
-  }
   Log("rests: 0x%08X Long Rest refused - %d of the 16 hours after the last one still to pass (#135)", IdOf(creature),
       left);
   return "no Long Rest yet - " + HoursText(left) + " more to wait (16 hours must pass after a Long Rest ends).";
@@ -184,11 +167,6 @@ void AfterLongRest(void* stats) {
   }
   // #135: when it ended - after the 8 hours rest_clock moves (just queued) when it's on.
   SetRecord(creature, kVarLongRestEnd, GameHourNow(creature) + (g_config.rest_clock ? 8 : 0));
-  if (engine::GetLocalInt(creature, kVarRestGraceNow) != 0) {  // #138: the grace rest taken
-    engine::SetLocalInt(creature, kVarRestGraceNow, 0);
-    SetRecord(creature, kVarRestGraceUsed, 1);
-    Log("rests: 0x%08X its grace Long Rest taken - the 16-hour wait applies from now on (#138)", IdOf(creature));
-  }
 }
 
 // --- The Short Rest ---------------------------------------------------------------
@@ -313,16 +291,10 @@ std::vector<std::string> RestCommand(void* creature, const std::string&) {
     lines.push_back("nwn5e: Exhaustion " + std::to_string(exhaustion) + " - a Long Rest removes it (!dying).");
   }
   const int wait = LongRestWaitLeft(creature);  // #135
-  if (rules::LongRestGraceApplies(wait, GraceUsed(creature))) {  // #138
-    lines.push_back("nwn5e: a Long Rest may start now - your grace rest (one per character: " + HoursText(wait) +
-                    " of the 16-hour wait skipped; the wait applies after it).");
-  } else {
-    lines.push_back(wait > 0 ? "nwn5e: the next Long Rest in " + HoursText(wait) + " (16 hours after the last one "
-                                                                                "ends)."
-                             : std::string(g_config.long_rest_any_time
-                                               ? "nwn5e: a Long Rest any time (house rule long_rest_any_time)."
-                                               : "nwn5e: a Long Rest may start now."));
-  }
+  lines.push_back(wait > 0 ? "nwn5e: the next Long Rest in " + HoursText(wait) + " (16 hours after the last one ends)."
+                           : std::string(g_config.long_rest_any_time
+                                             ? "nwn5e: a Long Rest any time (house rule long_rest_any_time)."
+                                             : "nwn5e: a Long Rest may start now."));
   return lines;
 }
 
@@ -330,17 +302,14 @@ std::vector<std::string> RestCommand(void* creature, const std::string&) {
 
 void RequestShortRest() { g_short_rest_requested = true; }
 
-// #138: a !test profile applied - its grace Long Rest again (the next one may skip the wait); false when there's
-// no wait to skip (NWN mode, the house rule).
-bool GrantLongRestGrace(void* creature) {
-  if (!creature || !Faithful() || g_config.long_rest_any_time) return false;
-  SetRecord(creature, kVarRestGraceUsed, 0);
-  return true;
+// #135: a test's rest (a !test profile's ForceRest) doesn't start the 16-hour wait.
+void ClearLongRestWait(void* creature) {
+  if (creature && Faithful()) SetRecord(creature, kVarLongRestEnd, 0);
 }
 
 void InstallRestRules() {
   if (!Faithful()) return;
-  RegisterRecords({kVarHitDiceSpent, kVarLongRestEnd, kVarRestGraceUsed});
+  RegisterRecords({kVarHitDiceSpent, kVarLongRestEnd});
   g_feat_use_back = reinterpret_cast<FeatUsesFn>(EngineExport(ee::kIncrementFeatRemainingUses));
   g_associate_id = reinterpret_cast<AssociateIdFn>(EngineExport(ee::kGetAssociateId));
   g_max_hit_points = reinterpret_cast<MaxHitPointsFn>(EngineExport(ee::kGetMaxHitPoints));
