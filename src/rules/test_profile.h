@@ -110,5 +110,9 @@ bool ParseSkillCheckArgs(const std::string& text, Skill2024* skill, int* dc);
 constexpr int kTestFearSeconds = 30;
 constexpr int kTestFearMaxSeconds = 120;
 bool ParseFearArgs(const std::string& text, bool* charm, int* seconds);
+// #135: "!time [hours]" - nothing (0: say the time) or a number of hours to move the clock, 1 to
+// kTestClockMaxHours, "+16" as "16". False for anything else.
+constexpr int kTestClockMaxHours = 48;
+bool ParseClockHours(const std::string& text, int* hours);
 
 }  // namespace rules

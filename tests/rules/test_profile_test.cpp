@@ -105,6 +105,20 @@ TEST(TestProfilesLevelsSwitchesNotes) {
 TEST(FearArguments) {
   bool charm = true;
   int seconds = 0;
+  int hours = -1;  // #135: !time [hours]
+  CHECK_EQ(ParseClockHours("", &hours), true);
+  CHECK_EQ(hours, 0);
+  CHECK_EQ(ParseClockHours("16", &hours), true);
+  CHECK_EQ(hours, 16);
+  CHECK_EQ(ParseClockHours(" +8 ", &hours), true);
+  CHECK_EQ(hours, 8);
+  CHECK_EQ(ParseClockHours("48", &hours), true);
+  CHECK_EQ(ParseClockHours("49", &hours), false);
+  CHECK_EQ(ParseClockHours("0", &hours), false);
+  CHECK_EQ(ParseClockHours("-3", &hours), false);
+  CHECK_EQ(ParseClockHours("8 9", &hours), false);
+  CHECK_EQ(ParseClockHours("soon", &hours), false);
+  CHECK_EQ(ParseClockHours("8x", &hours), false);
   CHECK_EQ(ParseFearArgs("", &charm, &seconds), true);
   CHECK_EQ(charm, false);
   CHECK_EQ(seconds, 30);

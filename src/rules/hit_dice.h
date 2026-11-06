@@ -44,4 +44,14 @@ struct ShortRest {
 ShortRest ShortRestDice(const HitDice& remaining, int hit_points, int max_hit_points, int con_modifier,
                         const std::function<int(int sides)>& roll);
 
+// #135 (owner, 2026-11-06: "Also impose the 16 hour limit but also make it so the user can remove this limit as part
+// of the house rules we talked about earlier"): SRD 5.2 - "After you finish a Long Rest, you must wait at least 16
+// hours before starting another one." On the game clock, in whole hours.
+constexpr int kLongRestWaitHours = 16;
+// A calendar date's hour as a count from year 0 (NWN's calendar: 12 months of 28 days).
+int GameHourOf(int year, int month, int day, int hour);
+// The hours still to wait before a Long Rest may start; 0 when it may: no Long Rest finished yet (`last_end_hour`
+// 0), NWN mode, the house rule `any_time` ([house_rules] long_rest_any_time), or a clock behind the last one's end.
+int LongRestWaitLeft(bool faithful, bool any_time, int last_end_hour, int now_hour);
+
 }  // namespace rules

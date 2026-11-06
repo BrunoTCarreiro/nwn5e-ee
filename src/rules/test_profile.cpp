@@ -151,6 +151,22 @@ bool ParseSkillCheckArgs(const std::string& text, Skill2024* skill, int* dc) {
   return true;
 }
 
+bool ParseClockHours(const std::string& text, int* hours) {
+  std::istringstream words(text);
+  std::string word, extra;
+  if (!(words >> word)) {
+    *hours = 0;
+    return true;
+  }
+  if (words >> extra) return false;
+  if (word[0] == '+') word.erase(0, 1);
+  if (word.empty() || word.size() > 2 || word.find_first_not_of("0123456789") != std::string::npos) return false;
+  const int value = atoi(word.c_str());
+  if (value < 1 || value > kTestClockMaxHours) return false;
+  *hours = value;
+  return true;
+}
+
 bool ParseFearArgs(const std::string& text, bool* charm, int* seconds) {
   bool want_charm = false;
   int want_seconds = 0;

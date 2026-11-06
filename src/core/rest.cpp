@@ -2,6 +2,7 @@
 
 #include <vector>
 
+#include "chat.h"
 #include "creature.h"
 #include "ee_layout.h"
 #include "hooks.h"
@@ -27,24 +28,45 @@ std::vector<ShortRestListener> g_short_rest_listeners;  // filled at install, th
 using RestFn = void (*)(void* creature, int associate, int enemy_line_of_sight);
 RestFn g_rest = nullptr;
 std::vector<RestStartListener> g_start_listeners;  // filled at install, then only read
+std::vector<RestGate> g_gates;                     // #135; filled at install, then only read
 bool g_rest_hooked = false;
 bool g_rest_hook_failed = false;
 
 void Rest(void* creature, int associate, int enemy_line_of_sight) {
+  for (RestGate gate : g_gates) {
+    const std::string why = creature ? gate(creature) : std::string();
+    if (why.empty()) continue;
+    if (Field<int32_t>(creature, ee::kCreatureIsPlayerCharacter) != 0) {
+      TellPlayer(Field<uint32_t>(creature, ee::kObjectId), "nwn5e: " + why);
+    }
+    return;  // the rest doesn't start
+  }
   g_rest(creature, associate, enemy_line_of_sight);
   if (!creature || !(Field<uint32_t>(creature, ee::kCreatureActivities) & ee::kActivityResting)) return;
   for (RestStartListener listener : g_start_listeners) listener(creature);
 }
 }  // namespace
 
-bool AddRestStartListener(RestStartListener listener) {
+namespace {
+bool HookRest() {
   if (!g_rest_hooked && !g_rest_hook_failed) {
     g_rest_hooked = HookExport("CNWSCreature::Rest (a rest begins)", ee::kCreatureRest, reinterpret_cast<void*>(&Rest),
                                reinterpret_cast<void**>(&g_rest));
     g_rest_hook_failed = !g_rest_hooked;
   }
-  if (!g_rest_hooked || !listener) return false;
+  return g_rest_hooked;
+}
+}  // namespace
+
+bool AddRestStartListener(RestStartListener listener) {
+  if (!HookRest() || !listener) return false;
   g_start_listeners.push_back(listener);
+  return true;
+}
+
+bool AddRestGate(RestGate gate) {
+  if (!HookRest() || !gate) return false;
+  g_gates.push_back(gate);
   return true;
 }
 

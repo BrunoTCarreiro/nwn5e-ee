@@ -229,6 +229,11 @@ struct Config {
   // flask's dice to a creature entering it or ending its round there, no
   // save, once a round. [house_rules] flask_patches; 0 (the default): none.
   bool flask_patches = false;
+  // #135 (owner, 2026-11-06: "Also impose the 16 hour limit but also make it so the user can remove this limit as
+  // part of the house rules we talked about earlier"): a house rule, not SRD 5.2 - with the rests faithful, a Long
+  // Rest may start any time (no 16-hour wait after one ends). [house_rules] long_rest_any_time; 0 (the default):
+  // the wait.
+  bool long_rest_any_time = false;
   // #124 (owner, 2026-11-04: "good recs, go with them"): NWN's grenades as 2024 gear - faithful: the flasks (Acid,
   // Alchemist's Fire, Holy Water) a Dexterity save on the thrower's DC (8 + Dex + PB) for 2024's damage, no splash;
   // burning 3 rounds; the bombs 10d6, Dexterity half; Tanglefoot Bag, Thunderstone, Choking Powder and the clouds on

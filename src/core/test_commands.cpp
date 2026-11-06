@@ -125,6 +125,7 @@ bool SkillTotal2024(void* creature, int nwn_skill, int* total, int* ability_modi
                     bool* rage_strength);                         // rules_skills.cpp (#96)
 
 void BoostTestCreatureById(uint32_t id, bool ally);  // rules_debug.cpp (0.72.1 / 0.73.1: the test hit point floor)
+void ClearLongRestWait(void* creature);              // rules_rest.cpp (#135: a test's rest starts no wait)
 
 namespace {
 
@@ -620,9 +621,23 @@ std::vector<std::string> FearCommand(void* creature, const std::string& args) {
   return {};
 }
 
-// #103: "!time" - the game's hour and date (the rest clock's rows).
-std::vector<std::string> TimeCommand(void* creature, const std::string&) {
+// #103: "!time" - the game's hour and date (the rest clock's rows). #135: "!time <hours>" moves the clock that many
+// hours (1-48; the 16-hour wait between Long Rests, tested without waiting), as the rest clock does.
+std::vector<std::string> TimeCommand(void* creature, const std::string& args) {
   const uint32_t id = ObjectIdOf(StatsOf(creature));
+  int move = 0;
+  if (!rules::ParseClockHours(args, &move)) {
+    return {"nwn5e: !time [hours] - the game time, or the clock moved 1 to 48 hours (e.g. !time 16)"};
+  }
+  if (move > 0) {
+    char code[256];
+    sprintf_s(code,
+              "DelayCommand(0.0, SetTime(GetTimeHour() + %d, GetTimeMinute(), GetTimeSecond(), GetTimeMillisecond()));",
+              move);
+    RunScriptChunk(code, id);
+    Log("test: 0x%08X the clock moved %d hours (!time)", id, move);
+    return {"nwn5e: the clock moves " + std::to_string(move) + " hours (!time again to see it)."};
+  }
   RunScriptChunk("SetLocalInt(OBJECT_SELF, \"nwn5e_test_hour\", GetTimeHour());"
                  " SetLocalInt(OBJECT_SELF, \"nwn5e_test_minute\", GetTimeMinute());"
                  " SetLocalInt(OBJECT_SELF, \"nwn5e_test_day\", GetCalendarDay());"
@@ -668,12 +683,14 @@ std::string EmptyInventoryForTest(void* creature, uint32_t id) {
 }
 
 // #102: a rebuilt character rested, as after a Long Rest - ForceRest, whose end
-// every use pool listens to (rest.h) - with the rest clock held still.
+// every use pool listens to (rest.h) - with the rest clock held still. #135: and
+// no 16-hour wait after it (the profile's own Rest may follow at once).
 std::string RestAfterRebuild(uint32_t id) {
   const bool clock = g_config.rest_clock;
   g_config.rest_clock = false;
   RunScriptChunk("ForceRest(OBJECT_SELF);", id);
   g_config.rest_clock = clock;
+  ClearLongRestWait(CreatureById(id));
   Log("test: 0x%08X rested after the rebuild (ForceRest): every use, hit points and spells back", id);
   return "  rested: every use, hit points and spells back (as after a Long Rest)";
 }
@@ -957,5 +974,5 @@ void InstallTestCommands() {
   AddChatCommand("!level", &LevelCommand);
   Log("config: [debug] test_commands=1 - !test [profile] (data\\tests), !give <blueprint>, !feat add / remove <feat>, "
       "!export, !spawn <blueprint> [ally], !prone [s], !save <ability> <dc>, !skill <skill> <dc>, !reflex <dc> <damage>, "
-      "!level <n> [class], !time, !fear [charm] [s]");
+      "!level <n> [class], !time [hours], !fear [charm] [s]");
 }

@@ -3003,6 +3003,15 @@ part of the house rules we talked about earlier"):* the 16-hour wait between Lon
 on the game clock; a [house_rules] switch removes it (off by default, as every house rule). The 1 HP minimum
 (explained: the resting character already can't rest while down, so it only changes a downed henchman) and the
 interrupted rest's Short Rest benefits: asked.
+*Built 0.82.0 (#135, the 16-hour wait):* rules::GameHourOf (NWN's calendar: 12 months of 28 days) and
+LongRestWaitLeft (0 with no Long Rest yet, NWN mode, the house rule or a clock behind the last end; test
+LongRestWait, 10 of 10 mutations caught). rules_rest.cpp records each Long Rest's end as a game hour (nwn5e_long_rest_end, a
+character record; + the 8 hours rest_clock moves) and gates a rest's start (rest.h's new AddRestGate, asked before
+NWN's CNWSCreature::Rest): refused while the wait lasts, the player told "no Long Rest yet - N hours more to wait";
+!rest says when the next may start. [house_rules] long_rest_any_time (config, nwn5e.ini; announced on #123) lifts
+it. With rest_clock on it comes to one Long Rest a game day. "!time <hours>" (test commands; rules::ParseClockHours)
+moves the clock 1-48 hours to test it without waiting (7 of 7 mutations caught). A !test profile's ForceRest
+clears the wait (its own Rest may follow); a module script's ForceRest (an inn) counts as a Long Rest.
 *Resting a lot (#110; owner, 2026-11-01: "are there any consequences in-game for resting too many times, like
 events tied to calendar days that can be missed?"). Researched 2026-11-01* (the campaigns' own .nss, which every
 official module ships, and the NWN Lexicon's SetTime / SetCalendar notes): nothing in the official campaigns can be

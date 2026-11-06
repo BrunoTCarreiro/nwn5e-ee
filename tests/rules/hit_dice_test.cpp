@@ -50,3 +50,24 @@ TEST(ShortRestSpendsTheBiggestDiceToTheMaximum) {
   rest = ShortRestDice(HitDice(), 5, 10, 0, fixed);
   CHECK_EQ(rest.sides.size(), 0u);
 }
+
+TEST(LongRestWait) {
+  // NWN's calendar: 28-day months, 12 of them; an hour is the count's unit.
+  CHECK_EQ(GameHourOf(1372, 1, 2, 0) - GameHourOf(1372, 1, 1, 0), 24);
+  CHECK_EQ(GameHourOf(1372, 1, 1, 5) - GameHourOf(1372, 1, 1, 0), 5);
+  CHECK_EQ(GameHourOf(1372, 2, 1, 0) - GameHourOf(1372, 1, 28, 0), 24);   // a month's end
+  CHECK_EQ(GameHourOf(1373, 1, 1, 0) - GameHourOf(1372, 12, 28, 0), 24);  // a year's end
+  CHECK_EQ(GameHourOf(1372, 1, 1, 0) > 0, true);
+  // SRD 5.2: 16 hours after a Long Rest ends before another starts.
+  const int end = GameHourOf(1372, 3, 10, 8);
+  CHECK_EQ(LongRestWaitLeft(true, false, end, end), 16);
+  CHECK_EQ(LongRestWaitLeft(true, false, end, end + 10), 6);
+  CHECK_EQ(LongRestWaitLeft(true, false, end, end + 15), 1);
+  CHECK_EQ(LongRestWaitLeft(true, false, end, end + 16), 0);  // on the hour: it may
+  CHECK_EQ(LongRestWaitLeft(true, false, end, end + 40), 0);
+  CHECK_EQ(LongRestWaitLeft(true, false, 0, end), 0);         // no Long Rest yet
+  CHECK_EQ(LongRestWaitLeft(true, false, 0, 5), 0);           // ... whatever the clock reads
+  CHECK_EQ(LongRestWaitLeft(true, true, end, end), 0);        // the house rule: any time
+  CHECK_EQ(LongRestWaitLeft(false, false, end, end), 0);      // NWN mode
+  CHECK_EQ(LongRestWaitLeft(true, false, end, end - 5), 0);   // a clock set back
+}

@@ -80,4 +80,14 @@ ShortRest ShortRestDice(const HitDice& remaining, int hit_points, int max_hit_po
   return rest;
 }
 
+int GameHourOf(int year, int month, int day, int hour) {
+  return ((year * 12 + (month - 1)) * 28 + (day - 1)) * 24 + hour;
+}
+
+int LongRestWaitLeft(bool faithful, bool any_time, int last_end_hour, int now_hour) {
+  if (!faithful || any_time || last_end_hour <= 0 || now_hour < last_end_hour) return 0;
+  const int left = last_end_hour + kLongRestWaitHours - now_hour;
+  return left > 0 ? left : 0;
+}
+
 }  // namespace rules

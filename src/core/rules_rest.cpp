@@ -12,6 +12,11 @@
 //   every Hit Die comes back; with rest_clock (on by default since 0.59.18,
 //   #110) the clock moves 8 hours.
 //   A Long Rest also removes every level of Exhaustion (rules_dying.cpp).
+// - #135 (owner, 2026-11-06: "Also impose the 16 hour limit but also make it so the user can remove this limit as
+//   part of the house rules we talked about earlier"): SRD 5.2 - "After you finish a Long Rest, you must wait at
+//   least 16 hours before starting another one." Each Long Rest's end is recorded (nwn5e_long_rest_end, the game
+//   hour: rules::GameHourOf, + the 8 hours rest_clock moves), and a rest's start is refused until 16 have passed
+//   (rest.h's gate; the player told how many are left; !rest says it too). [house_rules] long_rest_any_time lifts it.
 // - The Short Rest (a HUD button next to Rest; `!shortrest` too): instant,
 //   out of combat - no enemy that can see the character within 30 m, no
 //   damage taken or spell cast in the last 10 s (the engine's "exerted" timer,
@@ -50,6 +55,7 @@ int ExhaustionLevel(void* creature);  // rules_dying.cpp (Phase 5b)
 namespace {
 
 constexpr const char* kVarHitDiceSpent = "nwn5e_hit_dice_spent";
+constexpr const char* kVarLongRestEnd = "nwn5e_long_rest_end";  // #135: the game hour the last Long Rest ended
 constexpr float kShortRestEnemyRange = 30.0f;  // the Rest button's REST_ENEMY_CHECK_DISTANCE
 constexpr uint32_t kNoGradualRestore = 0xffffffffu;
 constexpr int kAbilityConstitution = 2;
@@ -97,6 +103,35 @@ void RestBegun(void* creature) {
   SetField<uint32_t>(creature, ee::kCreatureRestSpellRate, kNoGradualRestore);
 }
 
+// #135: the game hour now (the calendar's, by the script bridge).
+int GameHourNow(void* creature) {
+  RunScriptChunk("object p = OBJECT_SELF; SetLocalInt(p, \"nwn5e_now_y\", GetCalendarYear());"
+                 " SetLocalInt(p, \"nwn5e_now_m\", GetCalendarMonth()); SetLocalInt(p, \"nwn5e_now_d\", GetCalendarDay());"
+                 " SetLocalInt(p, \"nwn5e_now_h\", GetTimeHour());",
+                 IdOf(creature));
+  return rules::GameHourOf(engine::GetLocalInt(creature, "nwn5e_now_y"), engine::GetLocalInt(creature, "nwn5e_now_m"),
+                           engine::GetLocalInt(creature, "nwn5e_now_d"), engine::GetLocalInt(creature, "nwn5e_now_h"));
+}
+
+// #135: the hours before this creature may start a Long Rest (0: it may).
+int LongRestWaitLeft(void* creature) {
+  EnsureRecords(creature);
+  const int last = engine::GetLocalInt(creature, kVarLongRestEnd);
+  if (last <= 0) return 0;
+  return rules::LongRestWaitLeft(Faithful(), g_config.long_rest_any_time, last, GameHourNow(creature));
+}
+
+std::string HoursText(int hours) { return std::to_string(hours) + (hours == 1 ? " hour" : " hours"); }
+
+// #135: the gate on a rest's start (rest.h).
+std::string LongRestGate(void* creature) {
+  const int left = LongRestWaitLeft(creature);
+  if (left <= 0) return "";
+  Log("rests: 0x%08X Long Rest refused - %d of the 16 hours after the last one still to pass (#135)", IdOf(creature),
+      left);
+  return "no Long Rest yet - " + HoursText(left) + " more to wait (16 hours must pass after a Long Rest ends).";
+}
+
 void MoveClock(uint32_t creature_id, int hours) {
   char code[256];
   sprintf_s(code,
@@ -116,6 +151,8 @@ void AfterLongRest(void* stats) {
   if (g_config.rest_clock && Field<int32_t>(creature, ee::kCreatureIsPlayerCharacter) != 0) {
     MoveClock(IdOf(creature), 8);
   }
+  // #135: when it ended - after the 8 hours rest_clock moves (just queued) when it's on.
+  SetRecord(creature, kVarLongRestEnd, GameHourNow(creature) + (g_config.rest_clock ? 8 : 0));
 }
 
 // --- The Short Rest ---------------------------------------------------------------
@@ -239,6 +276,11 @@ std::vector<std::string> RestCommand(void* creature, const std::string&) {
   if (const int exhaustion = ExhaustionLevel(creature)) {
     lines.push_back("nwn5e: Exhaustion " + std::to_string(exhaustion) + " - a Long Rest removes it (!dying).");
   }
+  const int wait = LongRestWaitLeft(creature);  // #135
+  lines.push_back(wait > 0 ? "nwn5e: the next Long Rest in " + HoursText(wait) + " (16 hours after the last one ends)."
+                           : std::string(g_config.long_rest_any_time
+                                             ? "nwn5e: a Long Rest any time (house rule long_rest_any_time)."
+                                             : "nwn5e: a Long Rest may start now."));
   return lines;
 }
 
@@ -246,17 +288,25 @@ std::vector<std::string> RestCommand(void* creature, const std::string&) {
 
 void RequestShortRest() { g_short_rest_requested = true; }
 
+// #135: a test's rest (a !test profile's ForceRest) doesn't start the 16-hour wait.
+void ClearLongRestWait(void* creature) {
+  if (creature && Faithful()) SetRecord(creature, kVarLongRestEnd, 0);
+}
+
 void InstallRestRules() {
   if (!Faithful()) return;
-  RegisterRecords({kVarHitDiceSpent});
+  RegisterRecords({kVarHitDiceSpent, kVarLongRestEnd});
   g_feat_use_back = reinterpret_cast<FeatUsesFn>(EngineExport(ee::kIncrementFeatRemainingUses));
   g_associate_id = reinterpret_cast<AssociateIdFn>(EngineExport(ee::kGetAssociateId));
   g_max_hit_points = reinterpret_cast<MaxHitPointsFn>(EngineExport(ee::kGetMaxHitPoints));
   if (!AddRestStartListener(&RestBegun)) Log("SKIP rests: CNWSCreature::Rest not hooked - NWN's rest stays as it is");
   if (!AddRestListener(&AfterLongRest)) Log("SKIP rests: the end of a rest is not hooked - no Hit Dice back");
+  if (!AddRestGate(&LongRestGate)) Log("SKIP rests #135: a rest's start isn't gated - no 16-hour wait");
   AddChatCommand("!shortrest", &ShortRestCommand);
   AddCreatureUpdateListener(&ShortRestRequested);
   AddChatCommand("!rest", &RestCommand);
-  Log("rests: Long Rest = NWN's Rest (all or nothing, Hit Dice back), Short Rest = Hit Dice (rests faithful%s)",
+  Log("rests: Long Rest = NWN's Rest (all or nothing, Hit Dice back; 16 hours between them%s), Short Rest = Hit Dice "
+      "(rests faithful%s)",
+      g_config.long_rest_any_time ? " - lifted, house rule long_rest_any_time" : "",
       g_config.rest_clock ? ", the clock moves" : "");
 }

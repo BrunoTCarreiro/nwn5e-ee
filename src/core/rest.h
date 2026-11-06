@@ -16,6 +16,10 @@ bool AddRestListener(RestListener listener);
 using RestStartListener = void (*)(void* creature);
 // Hooks it on first use; false (and logged) if it can't.
 bool AddRestStartListener(RestStartListener listener);
+// #135: a gate on a rest's start, asked before NWN's CNWSCreature::Rest: "" lets it begin, else why it can't - the
+// rest doesn't start and a player character is told ("nwn5e: " + why). Hooks it on first use; false if it can't.
+using RestGate = std::string (*)(void* creature);
+bool AddRestGate(RestGate gate);
 
 // X6: a Short Rest (rules_rest.cpp - the HUD button, !shortrest). Features
 // that come back on one listen here; each returns words for the player's line
