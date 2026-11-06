@@ -444,6 +444,15 @@ monster AC by CR.
     2024 caster's spell its class doesn't know reads 0 on the client (spells_page.cpp's ClientKnowsSpell: the
     client's known count and known spell), so such a button greys out - as after a Long Rest's change too.
     UC-1 to UC-7 pass ("everything goes through"); UC-8 to retest with a prepared Cleric spell on the quickbar.
+  - *The owner's 0.84.1 run (2026-11-06):* "SP-3. when no moore spells are prepareable grey out the ones that aren't
+    prepared. if the user presses the prepared ones they unprepare and all other spells stop being greyed out." /
+    "WZ-3 should not allow to accept without picking all the spells and cantrips." / "UC-9 if a spell is unprepared
+    but in the quicjbar (and in the radial menu) instead of 0 it should have "NP" for "not prepared"". WZ-5/6
+    ("cannot long rest due to the 16 hour limit"): the log shows a Long Rest just before (#135's wait, as built).
+    *0.84.2:* the Prepare spells window greys the spells a full list doesn't hold (rules::PickRowEnabled; a picked
+    one stays clickable, and dropping it frees the rest); Accept waits until each list holds its count, or every
+    spell it could take (rules::ListComplete), with a status line saying so; a 2024 caster's spell its class
+    doesn't know reads "NP" on the client (the getter's caller's next ToString, as "L3·4").
   - *Built 0.80.0 (Part 2b, the combined multiclass pool, 4A):* SRD 5.2's multiclassing - with the Spellcasting
     feature from more than one class, the slots are the Multiclass Spellcaster table's (the full casters') at the
     Bard, Cleric, Druid, Sorcerer and Wizard levels plus half the Paladin and Ranger levels, rounded up; each class

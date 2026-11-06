@@ -88,6 +88,15 @@ TEST(LevelUpSwaps) {
   CHECK_EQ(AddIconShown(2), true);
   CHECK_EQ(AddIconShown(1), true);
   CHECK_EQ(AddIconShown(0), false);
+  // 0.84.2: the Prepare window - a full list greys the rest; Accept once each list is complete.
+  CHECK_EQ(PickRowEnabled(false, 3, 4), true);   // room left
+  CHECK_EQ(PickRowEnabled(false, 4, 4), false);  // full: greyed
+  CHECK_EQ(PickRowEnabled(true, 4, 4), true);    // a picked one: drop it
+  CHECK_EQ(ListComplete(4, 4, 30), true);
+  CHECK_EQ(ListComplete(3, 4, 30), false);
+  CHECK_EQ(ListComplete(2, 4, 2), true);         // fewer spells than places: all of them
+  CHECK_EQ(ListComplete(1, 4, 2), false);
+  CHECK_EQ(ListComplete(0, 0, 10), true);        // no places (a Paladin's cantrips)
   // 0.83.3: a Wizard's level-up page - its whole book at the tab's level, then the picks.
   CHECK_EQ(WizardPageRows({10, 11, 12}, {11, 20}) == std::vector<int>({10, 11, 12, 20}), true);
   CHECK_EQ(WizardPageRows({}, {5, 6}) == std::vector<int>({5, 6}), true);       // no book yet: the picks

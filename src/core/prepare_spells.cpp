@@ -335,6 +335,25 @@ rules::ListChange CantripChange(void* creature, const Session& s) {
 
 bool Waiting(const Session& s) { return s.resting && !s.rest_done; }
 
+// 0.84.2 (owner, 2026-11-06, WZ-3: "should not allow to accept without picking all the spells and cantrips"):
+// each list holds its count, or every spell it could take (rules::ListComplete).
+bool Complete(const Session& s) {
+  const int row = s.caster.row;
+  const int top = TopLevel(row, s.caster.level);
+  int cantrips = 0, prepared = 0, book = 0;
+  for (const SpellEntry& e : ClassSpells(row)) {
+    if (e.level == 0) {
+      ++cantrips;
+    } else if (e.level <= top) {
+      ++book;
+      if (!rules::PreparesFromSpellbook(row) || Contains(s.book, e.id)) ++prepared;
+    }
+  }
+  return rules::ListComplete(static_cast<int>(s.cantrips.size()), CantripLimit(s), cantrips) &&
+         rules::ListComplete(static_cast<int>(s.prepared.size()), PreparedLimit(s), prepared) &&
+         (row != kNwnClassWizard || rules::ListComplete(static_cast<int>(s.book.size()), BookLimit(s), book));
+}
+
 bool Allowed(void* creature, const Session& s) {
   return rules::ListChangeAllowed(CantripChange(creature, s), s.base_cantrips, s.cantrips, CantripLimit(s)) &&
          rules::ListChangeAllowed(PreparedChange(creature, s), s.base_prepared, s.prepared, PreparedLimit(s)) &&
@@ -367,9 +386,10 @@ std::string Layout(bool wizard, bool several) {
   using namespace nui;
   const std::string icon =
       "{\"type\":\"button_image\",\"label\":{\"bind\":\"ic\"},\"value\":null,\"id\":\"pi\",\"width\":32.0,"
-      "\"height\":32.0}";
+      "\"height\":32.0,\"enabled\":{\"bind\":\"en\"}}";
   const std::string name =
-      "{\"type\":\"button\",\"label\":{\"bind\":\"nm\"},\"value\":null,\"id\":\"sp\",\"height\":32.0}";
+      "{\"type\":\"button\",\"label\":{\"bind\":\"nm\"},\"value\":null,\"id\":\"sp\",\"height\":32.0,"
+      "\"enabled\":{\"bind\":\"en\"}}";
   const std::string level = "{\"type\":\"label\",\"label\":null,\"value\":{\"bind\":\"lv\"},\"text_halign\":1,"
                             "\"text_valign\":1}";
   const std::string mark = "{\"type\":\"label\",\"label\":null,\"value\":{\"bind\":\"mk\"},\"text_halign\":1,"
@@ -429,11 +449,15 @@ void Sync(uint32_t player) {
       s.shown.push_back(e.id);
     }
   }
-  std::string names = "[", levels = "[", marks = "[";  // each under the script literals' 8 KB cap
+  // 0.84.2 (SP-3): a full list greys the spells it doesn't hold; dropping one frees them.
+  const int limit = s.tab == kTabCantrips ? CantripLimit(s) : s.tab == kTabBook ? BookLimit(s) : PreparedLimit(s);
+  std::string names = "[", levels = "[", marks = "[", enabled = "[";  // each under the 8 KB literal cap
   for (size_t i = 0; i < s.shown.size(); ++i) {
     const SpellEntry* e = EntryOf(row, s.shown[i]);
     const bool on = Contains(*picked, s.shown[i]);
     const char* sep = i ? "," : "";
+    enabled += std::string(sep) +
+               (rules::PickRowEnabled(on, static_cast<int>(picked->size()), limit) ? "true" : "false");
     names += sep + JsonString(e ? e->name : "?");
     levels += sep + JsonString(e && e->level ? "Level " + std::to_string(e->level) : "Cantrip");
     marks += sep + JsonString(on ? (s.tab == kTabBook ? "in book" : "prepared") : "");
@@ -441,6 +465,8 @@ void Sync(uint32_t player) {
   names += "]";
   levels += "]";
   marks += "]";
+  enabled += "]";
+  NuiSetJson(player, kWindow, "en", enabled);
   NuiSetJson(player, kWindow, "nm", names);
   NuiSetJson(player, kWindow, "lv", levels);
   NuiSetJson(player, kWindow, "mk", marks);
@@ -479,8 +505,13 @@ void Sync(uint32_t player) {
     status = "Fill empty places now; prepared spells change after a Long Rest.";
   }
   if (!s.note.empty()) status = s.note + " " + status;
-  const bool ok = !Waiting(s) && Allowed(creature, s);
+  const bool complete = Complete(s);  // 0.84.2 (WZ-3): every list filled first
+  const bool ok = !Waiting(s) && Allowed(creature, s) && complete;
   if (!Waiting(s) && !Allowed(creature, s)) status += " Too many changes for this rest - undo some to accept.";
+  if (!Waiting(s) && !complete) {
+    status += row == kNwnClassWizard ? " Accept once your spellbook, cantrips and prepared spells are all picked."
+                                     : " Accept once your cantrips and prepared spells are all picked.";
+  }
   NuiSetTexts(player, kWindow, {{"head", head}, {"counts", counts}, {"tab", tab}, {"status", status}});
   NuiSetJson(player, kWindow, "ok_on", ok ? "true" : "false");
 }
@@ -630,7 +661,7 @@ void OnEvent(const NuiEvent& event) {
     g_sessions.erase(event.player);
   } else if (event.element == "ok") {
     void* creature = CreatureById(event.player);
-    if (Waiting(s) || !creature || !Allowed(creature, s)) return;
+    if (Waiting(s) || !creature || !Allowed(creature, s) || !Complete(s)) return;
     Commit(event.player);
     EndSession(event.player, "accepted");
     NuiClose(event.player, kWindow);

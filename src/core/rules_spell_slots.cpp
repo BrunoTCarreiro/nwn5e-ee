@@ -41,6 +41,7 @@
 //   - The client's uses getter: domain N - level N's slots; domain 0 - its own level's, the radial's spell list (the
 //     parent entry) the slots at its level and above. An upcast quickbar button's number reads "L3·4"
 //     (rules::UpcastCountText: the getter's caller's next ToString, as a cantrip's is blanked).
+//   - 0.84.2 (owner: "instead of 0 it should have 'NP' for 'not prepared'"): its number reads NP.
 //   - 0.84.1: a spell the class doesn't know (not among its cantrips and prepared spells) reads 0 on the client - a
 //     stale quickbar button greys out (the owner's Negative Energy Ray, left from a Sorcerer, counted a Cleric's
 //     three 2nd-level slots while the server refused it: "No uses or preparations left for that spell").
@@ -149,6 +150,7 @@ void* g_cast_callback = nullptr;                 // the radial's leaf callback t
 std::vector<uintptr_t> g_radial_count_sites;     // the radial spell lists' calls of the client getter (returns)
 thread_local uintptr_t t_upcast_text_at = 0;     // the next ToString that writes an upcast button's number
 thread_local int t_upcast_text_level = 0;
+thread_local uintptr_t t_np_text_at = 0;         // 0.84.2: the next ToString that writes a "NP" (not prepared)
 bool g_radial_ready = false;                     // the radial's level menu installed
 // The client's uses getter called from (its return address) -> that caller's next ToString (its return address).
 std::vector<std::pair<uintptr_t, uintptr_t>> g_count_sites;
@@ -423,6 +425,7 @@ uint8_t ClientUsesLeft(void* client_stats, uint32_t spell_id, uint8_t slot, uint
   const uintptr_t from = reinterpret_cast<uintptr_t>(_ReturnAddress());
   t_blank_at = 0;
   t_upcast_text_at = 0;
+  t_np_text_at = 0;
   const bool known_slot = client_stats && slot < ee::kClientStatsClassSlots &&
                           slot < Field<uint8_t>(client_stats, ee::kClientStatsClassCount);
   const int row = known_slot ? Field<uint8_t>(client_stats, ee::kClientStatsClassSlotClass +
@@ -434,7 +437,12 @@ uint8_t ClientUsesLeft(void* client_stats, uint32_t spell_id, uint8_t slot, uint
   // (NWN's count for a spontaneous class reads the level's slots only; the server refuses the cast).
   if (caster && !Memorizes(row)) {
     const int class_level = SlotLevel(row, spell_id, 0);
-    if (class_level >= 0 && !ClientKnowsSpell(client_stats, slot, class_level, spell_id)) return 0;
+    if (class_level >= 0 && !ClientKnowsSpell(client_stats, slot, class_level, spell_id)) {
+      for (const auto& site : g_count_sites) {  // 0.84.2 (UC-9): its number reads "NP", not prepared
+        if (site.first == from) t_np_text_at = site.second;
+      }
+      return 0;
+    }
   }
   int own = -1;
   if (caster && domain_level != 0) {  // by choice: a level N cast - level N's slots (the radial's, a quickbar button)
@@ -472,6 +480,14 @@ uint8_t ClientUsesLeft(void* client_stats, uint32_t spell_id, uint8_t slot, uint
 
 void* ToString(void* out, int value) {
   void* result = g_to_string(out, value);
+  if (t_np_text_at && reinterpret_cast<uintptr_t>(_ReturnAddress()) == t_np_text_at) {
+    t_np_text_at = 0;
+    if (result && g_exo_destroy && g_exo_from_chars) {  // 0.84.2 (UC-9): a spell the class doesn't know
+      g_exo_destroy(result);
+      g_exo_from_chars(result, "NP");
+    }
+    return result;
+  }
   if (t_upcast_text_at && reinterpret_cast<uintptr_t>(_ReturnAddress()) == t_upcast_text_at) {
     t_upcast_text_at = 0;
     if (result && g_exo_destroy && g_exo_from_chars) {  // an upcast quickbar button: "L3·4"

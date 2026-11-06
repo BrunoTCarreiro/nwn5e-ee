@@ -73,6 +73,12 @@ bool RemoveIconShown(bool picked_this_level_up, bool swap_left) { return picked_
 
 bool AddIconShown(int spells_left) { return spells_left > 0; }
 
+bool PickRowEnabled(bool picked, int picked_count, int limit) { return picked || picked_count < limit; }
+
+bool ListComplete(int picked_count, int limit, int candidates) {
+  return picked_count >= std::min(limit, candidates);
+}
+
 std::vector<int> WizardPageRows(const std::vector<int>& book, const std::vector<int>& known) {
   std::vector<int> rows;
   for (const std::vector<int>* list : {&book, &known}) {
