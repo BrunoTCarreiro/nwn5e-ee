@@ -543,6 +543,20 @@ monster AC by CR.
     quickbar, add a button for that in the resources panel. Maybe clicking the \"concentrating: <spell>\"
     element"):* 1A, 2A, 3A, 5A; 4: the resource panel's "Concentrating: <spell>" line, which a click ends, and
     the combat-log messages - no End Concentration action on the radial or the quickbar.
+  - *Built 0.86.0 (key `concentration`, SK7's; faithful):* rules::IsConcentrationSpell - 84 spells.2da rows whose
+    spell is an SRD 5.2 Concentration spell (from SRD 5.2.1's Duration lines; the sub-radial variants listed too;
+    Endurance and Bigby's Crushing Hand kept with Enhance Ability and Arcane Hand), ConcentrationSaveDc,
+    ItemCastNeedsConcentration (a potion's - base items 49, 104 - needs none); tests ConcentrationSaveDc,
+    ConcentrationFromItems, ConcentrationSpellsAreSrd52. rules_concentration.cpp: a RunScript start listener
+    (script_hooks.h's new AddScriptStartListener) sees a Concentration spell's own ImpactScript (spells.2da's,
+    read once by the script bridge) begin for its caster (its spell +0x218, its cast item +0x818) - the caster's
+    earlier one ends first. What holds it: the caster's effects of that spell (CGameEffect spell id +0x1C) on any
+    object of its area and its areas of effect (creator +0x330, spell +0x314); ending removes them (a script per
+    object) and destroys the areas; none left - over. Damage (OnApplyDamage's listener): the engine's save,
+    forced to Constitution, DC on the 2024 scale; a failure, down, Incapacitated (IncapacitatedByCondition) or
+    Rage end it at the caster's next update. The resource panel: rules::HudPool's `line` (no pips, no count) and
+    `click`; "Concentrating: <spell>" in gold, a left click over it (the client) ends it on the server's next
+    panel update (resource_panel.h's AddHudClick). The player's Concentration is a local variable too (a load).
 - *#38, rituals and material components (open decision 6).* SRD 5.2: a prepared spell with the Ritual tag can be
   cast as a Ritual - 10 minutes longer, no slot, so never upcast (a Wizard from its spellbook, unprepared:
   Ritual Adept); a focus or a component pouch covers ordinary material components, a component with a cost must

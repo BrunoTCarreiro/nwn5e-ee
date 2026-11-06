@@ -102,6 +102,8 @@ constexpr size_t kAppGui = 0x90;
 constexpr size_t kGuiQuickbar = 0x60;
 
 std::vector<HudPoolProvider> g_providers;
+std::vector<std::pair<std::string, HudClickHandler>> g_click_handlers;  // 0.86.0 (#37)
+std::string g_clicked;  // a block's action the client saw clicked, for the server (under g_lock)
 
 // Server -> client.
 std::mutex g_lock;
@@ -159,6 +161,17 @@ void PanelCreatureUpdate(void* creature) {
   if (g_client_player != id && g_client_player != ee::kObjectInvalid && CreatureById(g_client_player)) return;
   g_client_player = id;
   EnsureRecords(creature);
+  std::string clicked;  // 0.86.0 (#37): a block clicked on the client
+  {
+    std::lock_guard<std::mutex> hold(g_lock);
+    clicked.swap(g_clicked);
+  }
+  if (!clicked.empty()) {
+    for (const auto& handler : g_click_handlers) {
+      if (handler.first == clicked) handler.second(creature);
+    }
+    state.next = 0;  // the panel follows at once
+  }
   std::vector<rules::HudPool> pools;
   if (!Off(creature)) {
     for (HudPoolProvider provider : g_providers) {
@@ -282,6 +295,7 @@ std::string Text(const std::string& colour, const rules::HudBox& box, const std:
 
 const std::string kNameColour = Colour(225, 225, 225, 255);
 const std::string kCountColour = Colour(255, 255, 255, 255);
+const std::string kClickColour = Colour(255, 215, 120, 255);  // 0.86.0: a block a click acts on (#37)
 const std::string kRingColour = Colour(150, 160, 170, 200);
 
 std::string PanelLayout(const rules::HudLayout& layout, const std::vector<rules::HudPool>& pools) {
@@ -290,7 +304,7 @@ std::string PanelLayout(const rules::HudLayout& layout, const std::vector<rules:
   for (size_t k = 0; k < layout.pools.size(); ++k) {
     const rules::HudPoolLayout& p = layout.pools[k];
     const int pool = static_cast<int>(k);
-    items += "," + Text(kNameColour, p.name, Quoted(pools[k].name));
+    items += "," + Text(pools[k].click.empty() ? kNameColour : kClickColour, p.name, Quoted(pools[k].name));
     for (size_t i = 0; i < p.pips.size(); ++i) {
       items += "," + Shape(2, Bind(PipBind(pool, static_cast<int>(i))), true, 1.0f, p.pips[i]);
       items += "," + Shape(2, kRingColour, false, 1.5f, p.pips[i]);
@@ -596,6 +610,23 @@ void PanelTick() {
   }
   UpdateTip(tip, panel.revealed && CursorOver(x, y, window_w * g_gui_s, window_h * g_gui_s), x, y, window_w,
             window_h);
+  // 0.86.0 (#37): the left button pressed over a block with a click - the server hears it (its next update).
+  static bool was_down = false;
+  const bool down = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+  if (down && !was_down && panel.revealed) {
+    const float inset = kWindowPad + kGroupPad;  // the draw list's origin in the window
+    for (size_t k = 0; k < pools.size() && k < panel.layout.pools.size(); ++k) {
+      if (pools[k].click.empty()) continue;
+      const rules::HudBox& b = panel.layout.pools[k].block;
+      if (!CursorOver(x + (inset + b.x) * g_gui_s, y + (inset + b.y) * g_gui_s, b.w * g_gui_s, b.h * g_gui_s)) {
+        continue;
+      }
+      std::lock_guard<std::mutex> hold(g_lock);
+      g_clicked = pools[k].click;
+      Log("hud: the resource panel's %s clicked", pools[k].name.c_str());
+    }
+  }
+  was_down = down;
 }
 
 std::vector<std::string> HudCommand(void* creature, const std::string& /*args*/) {
@@ -614,6 +645,10 @@ std::vector<std::string> HudCommand(void* creature, const std::string& /*args*/)
 }  // namespace
 
 void AddHudPool(HudPoolProvider provider) { g_providers.push_back(provider); }
+
+void AddHudClick(const char* action, HudClickHandler handler) {
+  if (action && handler) g_click_handlers.push_back({action, handler});
+}
 
 // action_queue.cpp (the client's frame, as this): the panel open right under the strip.
 bool ResourcePanelUnderStrip() { return g_panel.token != 0 && g_under_strip_now; }

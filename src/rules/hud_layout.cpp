@@ -13,7 +13,10 @@ int ShownPips(int total) { return total > 0 && total <= kHudMaxPips ? total : 0;
 
 }  // namespace
 
-std::string HudCount(const HudPool& pool) { return std::to_string(pool.left) + "/" + std::to_string(pool.total); }
+std::string HudCount(const HudPool& pool) {
+  if (pool.line) return "";
+  return std::to_string(pool.left) + "/" + std::to_string(pool.total);
+}
 
 HudLayout LayoutHud(const std::vector<HudPool>& pools) {
   HudLayout layout;
@@ -22,7 +25,7 @@ HudLayout LayoutHud(const std::vector<HudPool>& pools) {
   for (const HudPool& pool : pools) {
     HudPoolLayout p;
     p.name = {kHudPad, top, TextWidth(pool.name), kHudLine};
-    const int pips = ShownPips(pool.total);
+    const int pips = pool.line ? 0 : ShownPips(pool.total);
     const int rows = pips > 0 ? (pips + kHudPipsPerRow - 1) / kHudPipsPerRow : 1;
     const int across = pips < kHudPipsPerRow ? pips : kHudPipsPerRow;
     const float pips_x = p.name.Right() + kHudGap;
@@ -32,7 +35,8 @@ HudLayout LayoutHud(const std::vector<HudPool>& pools) {
                         kHudPip, kHudPip});
     }
     const float pips_right = pips > 0 ? pips_x + (across - 1) * kHudPipStep + kHudPip : p.name.Right();
-    p.count = {pips_right + kHudGap, top, TextWidth(HudCount(pool)), kHudLine};
+    p.count = pool.line ? HudBox{p.name.Right(), top, 0.0f, kHudLine}  // a line: no count
+                        : HudBox{pips_right + kHudGap, top, TextWidth(HudCount(pool)), kHudLine};
     float x = p.count.Right();
     for (const HudFlag& flag : pool.flags) {
       x += kHudFlagGap;
@@ -57,7 +61,7 @@ HudLayout LayoutHud(const std::vector<HudPool>& pools) {
 std::string HudShape(const std::vector<HudPool>& pools) {
   std::string shape;
   for (const HudPool& pool : pools) {
-    shape += pool.name + "#" + std::to_string(pool.total);
+    shape += pool.name + "#" + std::to_string(pool.total) + (pool.line ? "|" : "");
     for (const HudFlag& flag : pool.flags) shape += "+" + flag.name;
     shape += ";";
   }

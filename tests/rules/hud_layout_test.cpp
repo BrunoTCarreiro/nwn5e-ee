@@ -105,6 +105,21 @@ TEST(HudLayoutPips) {
   CHECK_EQ(LayoutHud({Focus(20, 20)}).pools[0].block.h == kHudLine + 1 * kHudPipStep, true);
   CHECK_EQ(LayoutHud({Focus(21, 21)}).pools[0].block.h == kHudLine + 2 * kHudPipStep, true);
   CHECK_EQ(LayoutHud({}).width == 0.0f && LayoutHud({}).height == 0.0f, true);
+  // 0.86.0 (#37): a line - its name alone, no pips and no count, under the pools before it.
+  HudPool line;
+  line.name = "Concentrating: Bless";
+  line.line = true;
+  line.total = 5;  // ignored
+  const HudLayout with_line = LayoutHud({Focus(2, 2), line});
+  CHECK_EQ(with_line.pools[1].pips.empty(), true);
+  CHECK_EQ(with_line.pools[1].count.w == 0.0f, true);
+  CHECK_EQ(with_line.pools[1].block.w == with_line.pools[1].name.w, true);
+  CHECK_EQ(with_line.pools[1].block.h == kHudLine, true);
+  CHECK_EQ(with_line.pools[1].block.y >= with_line.pools[0].block.Bottom(), true);
+  CHECK_EQ(HudCount(line).empty(), true);
+  HudPool counted = line;
+  counted.line = false;
+  CHECK_EQ(HudShape({line}) == HudShape({counted}), false);  // a line's shape is its own
   CHECK_EQ(HudCount(Focus(14, 18)) == "14/18", true);
   CHECK_EQ(HudShape({Focus(14, 18)}) == HudShape({Focus(3, 18)}), true);
   CHECK_EQ(HudShape({Focus(14, 18)}) == HudShape({Focus(14, 19)}), false);

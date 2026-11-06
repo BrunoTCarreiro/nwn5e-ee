@@ -25,6 +25,11 @@ struct HudPool {
   int total = 0;
   std::vector<HudFlag> flags;
   std::string tooltip;
+  // 0.86.0 (#37; owner, 2026-11-06: "add a button for that in the resources panel. Maybe clicking the
+  // \"concentrating: <spell>\" element"): a line of text alone (no pips, no count), and what a click on the
+  // block does ("" nothing; resource_panel.h's AddHudClick).
+  bool line = false;
+  std::string click;
 };
 
 constexpr int kHudPipsPerRow = 10;

@@ -23,6 +23,7 @@ std::vector<std::string> g_names;
 std::vector<ScriptHandler> g_runs;
 std::vector<std::string> g_observer_names;  // 0.73.0: run after their script (#131)
 std::vector<ScriptObserver> g_observers;
+std::vector<ScriptStartListener> g_starts;  // 0.86.0: before every script (#37)
 bool g_hooked = false;
 bool g_failed = false;
 
@@ -37,6 +38,13 @@ ScriptHandler Find(void* name) {
 }
 
 int RunScript(void* vm, void* name, uint32_t self, int self_valid, int event) {
+  if (name && !g_starts.empty()) {
+    const char* chars = Field<const char*>(name, 0);
+    const uint32_t length = Field<uint32_t>(name, 8);
+    if (chars) {
+      for (ScriptStartListener listener : g_starts) listener(self, chars, length);
+    }
+  }
   // 0.73.0: an observer of this script, looked up before it runs (the name's text may not outlive the run).
   int observer = -1;
   if (name && !g_observers.empty()) {
@@ -76,6 +84,12 @@ bool AddScriptObserver(const char* name, ScriptObserver observer) {
   }
   g_observer_names.push_back(name);
   g_observers.push_back(observer);
+  return true;
+}
+
+bool AddScriptStartListener(ScriptStartListener listener) {
+  if (!listener || !Hooked("a start listener")) return false;
+  g_starts.push_back(listener);
   return true;
 }
 

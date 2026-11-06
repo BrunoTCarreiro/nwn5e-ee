@@ -69,6 +69,7 @@ void InstallSpellSlots();   // #36 (0.74.0): the 2024 spell slots
 void InstallPrepareSpells();  // #36 Part 3a (0.75.0): the Prepare spells window
 void InstallBarbarianStrikes();
 void InstallRestRules();
+void InstallConcentration();  // #37 (0.86.0): SRD 5.2's Concentration
 void InstallDyingRules();
 void InstallShortRestButton();
 void InstallLowHpLook();
@@ -101,7 +102,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.85.2";
+constexpr const char* kVersion = "0.86.0";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -169,6 +170,7 @@ void Start(HMODULE self) {
   InstallHazardWatch();    // #131 (0.73.0): living creatures keep out of hazards
   InstallSpellSlots();     // #36 (0.74.0): the 2024 spell slots
   InstallPrepareSpells();  // #36 Part 3a (0.75.0): the Prepare spells window
+  InstallConcentration();  // #37 (0.86.0): before the panel's install (it gives a pool)
   InstallResourcePanel();  // after the class rules: they give its pools
   InstallHudClock();       // #105: the game time over the compass
   InstallRestRules();

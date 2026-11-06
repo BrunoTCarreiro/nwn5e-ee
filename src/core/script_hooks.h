@@ -20,3 +20,8 @@ bool AddScriptHandler(const char* name, ScriptHandler handler);
 // own or a handler - with its OBJECT_SELF and the name as registered.
 using ScriptObserver = void (*)(uint32_t self, const char* name);
 bool AddScriptObserver(const char* name, ScriptObserver observer);
+
+// 0.86.0 (#37): `listener` hears every script about to run - its OBJECT_SELF and its name's text (not
+// terminated: `length` characters) - before handlers and observers. Every script goes through: keep it cheap.
+using ScriptStartListener = void (*)(uint32_t self, const char* name, uint32_t length);
+bool AddScriptStartListener(ScriptStartListener listener);

@@ -8,6 +8,10 @@
 // cheap. False: the creature has none.
 using HudPoolProvider = bool (*)(void* creature, rules::HudPool* pool);
 void AddHudPool(HudPoolProvider provider);
+// 0.86.0 (#37): a click on a pool block whose `click` is `action` (rules::HudPool) - the left button pressed
+// over it on the client - runs `handler` for the single-player character on the server's thread.
+using HudClickHandler = void (*)(void* creature);
+void AddHudClick(const char* action, HudClickHandler handler);
 
 void InstallResourcePanel();
 

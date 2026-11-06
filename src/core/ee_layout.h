@@ -140,6 +140,7 @@ constexpr size_t kEffectType = 0x08;
 constexpr size_t kEffectFlags = 0x0a;
 constexpr size_t kEffectDuration = 0x0c;
 constexpr size_t kEffectCreator = 0x18;
+constexpr size_t kEffectSpellId = 0x1c;  // #37: int32, the spell that made it (GetEffectSpellId)
 constexpr size_t kEffectIntegerCount = 0x40;
 constexpr size_t kEffectIntegers = 0x48;
 constexpr uint16_t kEffectDurationTemporary = 1;
@@ -442,6 +443,15 @@ constexpr size_t kVmCommandsObjectSelf = 0xc;
 constexpr const char* kGetGameObject = "?GetGameObject@CServerExoApp@@QEAAPEAVCGameObject@@I@Z";
 constexpr size_t kVtableAsNwsObject = 0x20;
 constexpr size_t kObjectLastSpellId = 0x218;
+// #37: the item a creature casts its spell from, uint32 (GetSpellCastItem; OBJECT_INVALID: none); an area of
+// effect (object kind 11, CServerExoApp::GetAreaOfEffectByGameObjectID): its creator uint32 +0x330 (SetCreator)
+// and its spell int32 +0x314 (GetEffectSpellId) - SetCreator also writes the spell to +0x218.
+constexpr size_t kCreatureLastSpellCastItem = 0x818;
+constexpr const char* kGetAreaOfEffectById =
+    "?GetAreaOfEffectByGameObjectID@CServerExoApp@@QEAAPEAVCNWSAreaOfEffectObject@@I@Z";
+constexpr size_t kAoeCreator = 0x330;
+constexpr size_t kAoeEffectSpellId = 0x314;
+constexpr uint8_t kObjectTypeAreaOfEffect = 11;
 
 // Strings (EP4): int CTlkTable::FetchInternal(uint strref, STR_RES& out, int);
 // STR_RES = {CExoString text +0x0, CResRef +0x10, uint32 +0x24} (its copy
