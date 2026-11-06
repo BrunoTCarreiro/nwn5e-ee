@@ -160,6 +160,13 @@ const std::vector<SpellEntry>& ClassSpells(int row) {
   return entries;
 }
 
+// #39 (0.88.0, 4A): a spell off the class's list - a retired NWN cantrip - drops out of the window's lists.
+const SpellEntry* EntryOf(int row, int id);
+void DropUnlisted(int row, std::vector<int>* ids) {
+  ids->erase(std::remove_if(ids->begin(), ids->end(), [row](int id) { return EntryOf(row, id) == nullptr; }),
+             ids->end());
+}
+
 const SpellEntry* EntryOf(int row, int id) {
   for (const SpellEntry& e : ClassSpells(row)) {
     if (e.id == id) return &e;
@@ -547,6 +554,11 @@ void Open(uint32_t player, int slot, bool resting) {
   s.base_cantrips = s.cantrips;
   s.base_prepared = s.prepared;
   if (ChangeOpen(creature)) LoadBase(creature, s.caster.slot, &s.base_cantrips, &s.base_prepared);
+  // #39 (0.88.0, 4A): "a character who knows one drops it at its next Prepare" - out of the base too, so it
+  // isn't counted as a change of the rest's.
+  for (std::vector<int>* ids : {&s.cantrips, &s.prepared, &s.base_cantrips, &s.base_prepared}) {
+    DropUnlisted(s.caster.row, ids);
+  }
   if (s.prepared.empty() && !s.cantrips.empty() && CantripLimit(s) > 0) s.tab = kTabPrepared;
   if (s.cantrips.empty() && CantripLimit(s) > 0) s.tab = kTabCantrips;
   if (s.caster.row == kNwnClassWizard && static_cast<int>(s.book.size()) < BookLimit(s)) s.tab = kTabBook;

@@ -144,6 +144,9 @@ constexpr size_t kEffectFlags = 0x0a;
 constexpr size_t kEffectDuration = 0x0c;
 constexpr size_t kEffectCreator = 0x18;
 constexpr size_t kEffectSpellId = 0x1c;  // #37: int32, the spell that made it (GetEffectSpellId)
+// #39: int CNWSEffectListHandler::OnApplyHeal(CNWSObject*, CGameEffect*, int) - a heal effect landing; its
+// amount is the effect's integer 0 (read first thing).
+constexpr const char* kOnApplyHeal = "?OnApplyHeal@CNWSEffectListHandler@@QEAAHPEAVCNWSObject@@PEAVCGameEffect@@H@Z";
 constexpr size_t kEffectIntegerCount = 0x40;
 constexpr size_t kEffectIntegers = 0x48;
 constexpr uint16_t kEffectDurationTemporary = 1;

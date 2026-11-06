@@ -1,0 +1,25 @@
+# spells.2da - #39 Part 1, build 1 (core/rules_cantrips.cpp asks for "cantrips2024": spellcasting faithful).
+# SRD 5.2's damage cantrips: 1050-1056 new (Fire Bolt, Chill Touch, Shocking Grasp, Poison Spray, Sacred Flame,
+# Starry Wisp, Vicious Mockery) - their animations and sounds from NWN's cantrips' rows, nwn5e's placeholder icon
+# (owner, 2026-11-06: "do not reuse icons yet"), their scripts run in C++; Light, Ray of Frost and Acid Splash
+# run nwn5e's scripts (Acid Splash aimed at a point: a 5-foot sphere); NWN's own cantrips (Daze, Flare, Electric
+# Jolt, Virtue, Cure / Inflict Minor Wounds) off the class lists (4A) - monsters and items keep them.
+Label Name IconResRef School Range VS MetaMagic TargetType ImpactScript Bard Cleric Druid Paladin Ranger Wiz_Sorc Innate ConjTime ConjAnim ConjHeadVisual ConjHandVisual ConjGrndVisual ConjSoundVFX ConjSoundMale ConjSoundFemale CastAnim CastTime CastHeadVisual CastHandVisual CastGrndVisual CastSound Proj ProjModel ProjType ProjSpwnPoint ProjSound ProjOrientation ImmunityType ItemImmunity SubRadSpell1 SubRadSpell2 SubRadSpell3 SubRadSpell4 SubRadSpell5 Category Master UserType SpellDesc UseConcentration SpontaneouslyCast AltMessage HostileSetting FeatID Counter1 Counter2 HasProjectile TargetShape TargetSizeX TargetSizeY TargetFlags
+1050 nwn5e_Fire_Bolt 16000569 n5_is_new V L vs 0x3d 0x3A n5_c_firebolt **** **** **** **** **** 0 0 1500 hand **** vco_mehanfire01 **** sco_mehanfire01 vs_chant_evoc_hm vs_chant_evoc_hf out 1700 **** **** **** **** 0 **** **** **** **** path Fire 1 **** **** **** **** **** 2 **** 1 16000570 0 0 **** 1 **** **** **** 0 **** **** **** ****
+1051 nwn5e_Chill_Touch 16000571 n5_is_new N T vs 0x38 0x3A n5_c_chilltouch **** **** **** **** **** 0 0 1500 hand **** vco_mehanevil03 **** sco_mehanevil03 vs_chant_necr_hm vs_chant_necr_hf touch 1000 **** **** **** **** 0 **** **** **** **** **** Negative 1 **** **** **** **** **** 2 **** 1 16000572 0 0 **** 1 **** **** **** 0 **** **** **** ****
+1052 nwn5e_Shocking_Grasp 16000573 n5_is_new V T vs 0x38 0x3A n5_c_shockgrasp **** **** **** **** **** 0 0 1500 hand **** vco_mebalelec01 **** sco_mebalelec01 vs_chant_evoc_hm vs_chant_evoc_hf touch 1000 **** **** **** **** 0 **** **** **** **** **** Electricity 1 **** **** **** **** **** 2 **** 1 16000574 0 0 **** 1 **** **** **** 0 **** **** **** ****
+1053 nwn5e_Poison_Spray 16000575 n5_is_new N S vs 0x3d 0x3A n5_c_poisonspray **** **** 0 **** **** 0 0 1500 hand **** vco_mebalacid01 **** sco_mebalacid01 vs_chant_necr_hm vs_chant_necr_hf out 1700 **** **** **** **** 0 **** **** **** **** path Poison 1 **** **** **** **** **** 2 **** 1 16000576 0 0 **** 1 **** **** **** 0 **** **** **** ****
+1054 nwn5e_Sacred_Flame 16000577 n5_is_new V M vs 0x1a 0x3A n5_c_sacredflame **** 0 **** **** **** **** 0 1500 hand **** vco_smhanholy01 **** sco_mehanholy01 vs_chant_evoc_lm vs_chant_evoc_lf out 1700 **** **** **** **** 0 **** **** **** **** path Divine 1 **** **** **** **** **** 2 **** 1 16000578 0 0 **** 1 **** **** **** 0 **** **** **** ****
+1055 nwn5e_Starry_Wisp 16000579 n5_is_new V M vs 0x1a 0x3A n5_c_starrywisp 0 **** 0 **** **** **** 0 1500 hand **** vco_smhanholy01 **** sco_mehanholy01 vs_chant_conj_lm vs_chant_conj_lf out 1700 **** **** **** **** 0 **** **** **** **** path Divine 1 **** **** **** **** **** 2 **** 1 16000580 0 0 **** 1 **** **** **** 0 **** **** **** ****
+1056 nwn5e_Vicious_Mockery 16000581 n5_is_new E M v 0x3a 0x2A n5_c_mockery 0 **** **** **** **** **** 0 1500 hand **** vco_smhanmind01 **** sco_mehanmind01 vs_chant_ench_lm vs_chant_ench_lf out 1000 **** **** **** **** 1 vpr_los homing hand spr_los path **** 1 **** **** **** **** **** 2 **** 1 16000582 0 0 **** 1 **** **** **** 1 **** **** **** ****
+# The rewrites and the retired (only the columns named).
+ImpactScript SpellDesc TargetType TargetShape TargetSizeX TargetFlags Bard Cleric Druid Paladin Ranger Wiz_Sorc
+33 NW_S0_CurMinW 6129 0x2B **** **** **** **** **** **** **** **** ****
+37 NW_S0_Daze 6133 0x2A **** **** **** **** **** **** **** **** ****
+100 n5_c_light 16000583 0x2B **** **** **** 0 0 **** **** **** 0
+144 n5_c_rayfrost 16000584 0x3A **** **** **** **** **** **** **** **** 0
+189 NW_S0_Virtue 6520 0x2B **** **** **** **** **** **** **** **** ****
+416 X0_S0_Flare 510 0x3A **** **** **** **** **** **** **** **** ****
+424 n5_c_acidsplash 16000585 0x3E sphere 1.52 0 **** **** **** **** **** 0
+431 x0_s0_inflict 1570 0x3A **** **** **** **** **** **** **** **** ****
+439 X0_S0_ElecJolt 1857 0x3A **** **** **** **** **** **** **** **** ****

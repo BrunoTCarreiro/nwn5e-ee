@@ -1,0 +1,7 @@
+# damagetypes.2da - #39 (owner, 2026-11-06: "poison and acid are different things and force and psychic aren't
+# magical"): 2024's Poison, Force and Psychic as damage types of their own - NWN:EE's DAMAGE_TYPE_CUSTOM1-3 (the
+# rows past Base, 12), their groups below (damagetypegroups.if_cantrips2024.txt).
+Label CharsheetStrref DamageTypeGroup DamageRangedProjectile
+13 Poison 16000586 10 0
+14 Force 16000587 11 0
+15 Psychic 16000588 12 0

@@ -54,6 +54,7 @@ bool StaggeredNoOpportunityAttack(uint32_t id);  // rules_barbarian_strikes.cpp 
 bool CunningWithdrawing(uint32_t id);            // rules_cunning_strike.cpp (R6 Withdraw)
 bool MonkDisengaged(uint32_t id);                // rules_monk.cpp (M5 Patient Defense, Step of the Wind)
 bool OpenHandAddled(uint32_t id);                // rules_monk.cpp (OH1 Open Hand Technique's Addle)
+bool ShockingGraspNoOpportunityAttack(uint32_t id);  // rules_cantrips.cpp (#39 Shocking Grasp)
 
 namespace {
 
@@ -155,6 +156,7 @@ uint8_t GetAIStateReaction(void* object, uint32_t other_id) {
   }
   if (StaggeredNoOpportunityAttack(other_id)) return 1;  // Brutal Strike's Staggering Blow: no reaction
   if (OpenHandAddled(other_id)) return 1;                // Open Hand Technique's Addle: no reaction
+  if (ShockingGraspNoOpportunityAttack(other_id)) return 1;  // #39 Shocking Grasp: no Opportunity Attacks
   if (!Running(object)) return reaction;
   void* candidate = CreatureById(other_id);
   if (!candidate) return reaction;

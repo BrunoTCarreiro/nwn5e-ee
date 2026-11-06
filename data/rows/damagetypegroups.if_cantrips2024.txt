@@ -1,0 +1,5 @@
+# damagetypegroups.2da - #39: the combat log's name and colour for Poison, Force and Psychic (damagetypes rows 13-15).
+Label FeedbackStrref ColorR ColorG ColorB
+10 Poison 16000586 140 200 40
+11 Force 16000587 150 170 255
+12 Psychic 16000588 255 110 200

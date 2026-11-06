@@ -631,6 +631,22 @@ monster AC by CR.
     Thunder, Necrotic and Radiant stay NWN's Electrical, Sonic, Negative and Divine. The utility cantrips (3B) are a
     fourth build, with the owner's ideas (Mage Hand a summoned hand for doors, chests and lights; Prestidigitation
     lights; Minor Illusion sounds and figures that draw creatures to investigate).
+  - *Built 0.88.0 (build 1, the damage cantrips; `spellcasting` faithful):* rules::Cantrips (SRD 5.2.1's die, damage
+    type and roll for each), CantripDice / CantripDiceRolled (Cantrip Upgrade at 5, 11, 17; doubled on a Critical
+    Hit), RetiredCantrips (tests CantripUpgrade, CantripsAreSrd52, CantripsRetired). Served rows
+    (spells.if_cantrips2024.txt): Fire Bolt 1050, Chill Touch 1051, Shocking Grasp 1052, Poison Spray 1053, Sacred
+    Flame 1054, Starry Wisp 1055, Vicious Mockery 1056 - NWN's cantrips' animations and sounds, nwn5e's placeholder
+    icon n5_is_new (its own art); Light 100, Ray of Frost 144, Acid Splash 424 (aimed at a point, a 1.5 m sphere) on
+    nwn5e's scripts; Daze, Flare, Electric Jolt, Virtue, Cure / Inflict Minor Wounds off the class lists (the Prepare
+    spells window drops a known one). damagetypes / damagetypegroups.if_cantrips2024.txt: Poison, Force, Psychic
+    (custom 1-3, rows 13-15; names, the combat log's colours). rules_cantrips.cpp: each script in C++ - a chunk
+    rolls (the engine's touch attack: SK10's spell attack; or the save against GetSpellSaveDC: C5's DC), C++ rolls
+    the damage, a chunk applies it with NWN's visuals and the rider (Ray of Frost -33% speed a round; Chill Touch
+    OnApplyHeal hooked - a heal heals 0 until the end of the caster's next turn; Shocking Grasp no Opportunity
+    Attacks, rules_opportunity.cpp asks; Starry Wisp a light, its invisibility removed; Vicious Mockery
+    Disadvantage on its next attack roll, rules_advantage.cpp asks; Poison Spray none to the poison-immune). !test
+    profiles cantripbard and cantripwizard (level 5). Sorcerous Burst moves to build 2 (its seven damage types: the
+    "more" menu).
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

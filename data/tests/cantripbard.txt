@@ -1,0 +1,15 @@
+# A !test profile ([debug] test_commands=1): type "!test cantripbard" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# The cantrips (issue 39 part 1): your first class becomes Bard 5, Charisma 16 - level 5, so a damage cantrip rolls
+# two dice (Cantrip Upgrade). Pick Vicious Mockery, Starry Wisp and Light among the Bard's cantrips.
+name = Cantrips (issue 39): human Bard 5, Charisma 16 - Vicious Mockery, Starry Wisp, Light; two dice at level 5
+species = human
+swap_class = bard
+class = bard
+level = 5
+abilities = 8 14 14 10 10 16
+items = nw_wswrp001 equip
+note = the Prepare spells window opens: Cantrips - pick Vicious Mockery, Starry Wisp and Light; then your spells; Accept
+note = !spawn nw_orcb gives you an enemy to cast them at

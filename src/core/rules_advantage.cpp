@@ -46,6 +46,8 @@ bool BrutalStrikeOnRoll(void* attacker, void* target, const uint8_t* data, rules
 MasteryRollSources GrappleRollSources(void* attacker, void* target);
 // rules_monk.cpp (M5 Dodge: Disadvantage against it; M9 Stunning Strike saved: the next attack has Advantage).
 MasteryRollSources MonkRollSources(void* attacker, void* target);
+// rules_cantrips.cpp (#39): Vicious Mockery - Disadvantage on the creature's next attack roll.
+MasteryRollSources MockeryRollSources(void* attacker);
 // rules_rogue.cpp (R11): a Rogue 18+ not Incapacitated - no attack roll against it has Advantage.
 bool ElusiveTarget(void* creature);
 
@@ -163,6 +165,7 @@ void BeforeAttackRoll(AttackRoll& roll) {
   const MasteryRollSources monk = MonkRollSources(roll.attacker, target);
   const MasteryRollSources steady = SteadyAimRollSources(roll.attacker);  // #53
   const MasteryRollSources hidden = HiddenAttackerRollSources(roll.attacker, target);  // #129
+  const MasteryRollSources mocked = MockeryRollSources(roll.attacker);                 // #39
   t_pending.conditions = conditions.note.empty() ? "" : "conditions: " + conditions.note;
   if (!mastery.note.empty()) {
     t_pending.conditions += (t_pending.conditions.empty() ? "mastery: " : "; mastery: ") + mastery.note;
@@ -183,6 +186,7 @@ void BeforeAttackRoll(AttackRoll& roll) {
   if (!hidden.note.empty()) {
     t_pending.conditions += (t_pending.conditions.empty() ? "hidden: " : "; hidden: ") + hidden.note;
   }
+  if (!mocked.note.empty()) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + mocked.note;
   std::string heavy_note;
   const int heavy = HeavyWeaponDisadvantage(roll.attacker, terms.ranged, &heavy_note);
   if (heavy) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + heavy_note;
@@ -192,7 +196,9 @@ void BeforeAttackRoll(AttackRoll& roll) {
       terms, rules::RangedCloseCombat(terms.ranged, t_pending.point_blank_shot, t_pending.threats),
       conditions.advantage + mastery.advantage + studied.advantage + reckless.advantage + monk.advantage +
           steady.advantage + hidden.advantage,
-      conditions.disadvantage + mastery.disadvantage + heavy + grappled.disadvantage + monk.disadvantage, elusive);
+      conditions.disadvantage + mastery.disadvantage + heavy + grappled.disadvantage + monk.disadvantage +
+          mocked.disadvantage,
+      elusive);
   {
     std::string brutal;
     if (BrutalStrikeOnRoll(roll.attacker, target, roll.data, &t_pending.mode, &brutal)) {
