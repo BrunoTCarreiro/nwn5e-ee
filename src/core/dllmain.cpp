@@ -83,6 +83,7 @@ void InstallDriveFix();
 void InstallAnimLayers();
 void InstallRadialClassFeats();
 void InstallRadialSpecialAttacks();
+void InstallRadialRetarget();  // #140 (0.89.0): radial casting retargets
 void InstallEquipCancelFix();
 void InstallQuickbar();
 void InstallNuiTest();
@@ -104,7 +105,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.88.0";
+constexpr const char* kVersion = "0.89.0";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -187,6 +188,7 @@ void Start(HMODULE self) {
   InstallAnimLayers();
   InstallRadialClassFeats();
   InstallRadialSpecialAttacks();
+  InstallRadialRetarget();  // #140 (0.89.0)
   InstallEquipCancelFix();
   InstallQuickbar();
   InstallDriveFix();

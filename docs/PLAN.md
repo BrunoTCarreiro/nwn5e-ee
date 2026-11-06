@@ -1322,6 +1322,18 @@ close, then attacked).
     cast on the ally, a harmful one or an area spell retargets; a helpful area spell opened on yourself
     retargets too (every area spell shows its area); feat abilities with an area follow the same rules; built
     before #39's build 2.
+  - *Built (0.89.0, 2026-11-06):* `radial_retarget.cpp` hooks the radial's four leaves - a spell (the cast
+    callback #36 maps, so the upcast menu's "Level N" too), a spell-like ability, the spell menu's feat and the
+    creature menu's RadialMenuUseFeat (class abilities, special attacks). When `rules::RadialRetargets` says so it
+    starts the quickbar's own cursor instead of the cast: the spell cursor with the same param (class, upcast
+    level, metamagic carry over) or the feat cursor, both showing TargetShape's area; Esc frees it, nothing spent.
+    What the menu was opened on: yourself, an ally (GetAIStateReaction friend), another creature, a door, a
+    placeable or an item, or the ground (anything else). Two refinements of the table: opened on yourself, a spell
+    that can't target its caster (TargetType without the self bit, e.g. the Help house rule's) retargets; a class
+    ability that isn't self-only, helpful and single-target, opened on yourself is used on you (the game gave it
+    the cursor). A feat's spell is feat.2da SPELLID; TARGETSELF feats are used at once. Items aren't cast from the
+    radial (the inventory and the quickbar already show the cursor). `radial_retarget` (nwn5e.ini). Tests:
+    RadialSpellFromRow, RadialRetargets, CreatureMenuFeatParams.
 
 ### Phase 8 — Creatures and campaign balance
 - Bounded accuracy breaks against 3e stat blocks (HotU creatures with AC 30+).

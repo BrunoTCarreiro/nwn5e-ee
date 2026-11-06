@@ -1236,6 +1236,54 @@ constexpr const char* kRadialSetCreatorText =
 constexpr const char* kRadialDisableEntry = "?DisableEntry@CRadialMenu@@QEAAXH@Z";
 constexpr const char* kRadialMenuCtor = "??0CRadialMenu@@QEAA@XZ";
 constexpr const char* kGuiIconSetCountText = "?SetCountText@CGuiIcon@@QEAAXVCExoString@@@Z";
+// #140, radial casting retargets (radial_retarget.cpp; 8193.37 addresses for orientation). The spell menu's
+// handler: the target object id +0x88C (OBJECT_INVALID: the ground), the point +0x880 (a Vector), assign mode
+// +0x890 (kRadialHandlerAssigning). Its spell-like ability leaf (0x9A4610: assign, else CastSpellLikeAbility
+// for the controlled creature) and its feat leaf (0x9A4770: assign; GetFeat; opened on yourself and the feat
+// not self-only -> the feat cursor, else the use at once 0x805310(creature, feat, target, &point)).
+constexpr size_t kSpellMenuPoint = 0x880;
+constexpr size_t kSpellMenuTarget = 0x88c;
+constexpr const char* kRadialAbilityCallbackPattern =
+    "48 89 5C 24 08 57 48 83 EC 40 48 8B D9 48 8B FA 48 8B 89 90 08 00 00 48 85 C9 74 0F 48 8B 5C 24 50 48 83 C4 40 "
+    "5F E9";
+constexpr const char* kRadialMenuFeatPattern =
+    "48 8B C4 57 48 81 EC 90 00 00 00 48 C7 40 C8 FE FF FF FF 48 89 58 18 48 89 70 20 48 8B 05 ?? ?? ?? ?? 48 33 C4 "
+    "48 89 84 24 88 00 00 00 48 8B FA 48 8B D9 48 8B 05 ?? ?? ?? ?? 48 8B 08 E8 ?? ?? ?? ?? 48 8B F0 48 85 C0 0F 84 "
+    "?? ?? ?? ?? 48 8B 8B 90 08 00 00 48 85 C9 74 0C 8B D7 E8";
+// In the feat leaf: new(0x160); the feat cursor's constructor (0x702800); 0x702C30(cursor, 1, feat, &CResRef).
+constexpr const char* kRadialFeatCursorPattern =
+    "B9 60 01 00 00 E8 ?? ?? ?? ?? 48 89 44 24 68 48 85 C0 74 0D 48 8B C8 E8 ?? ?? ?? ?? 48 8B D8 EB 02 33 DB 48 85 "
+    "DB 74 4C 48 8D 15 ?? ?? ?? ?? 48 8D 4C 24 70 E8 ?? ?? ?? ?? 0F 10 44 24 70 0F 29 44 24 40 0F B6 84 24 80 00 00 "
+    "00 88 44 24 50 4C 8D 4C 24 40 4C 8B C7 B2 01 48 8B CB E8";
+constexpr size_t kRadialFeatCursorCtor = 23;
+constexpr size_t kRadialFeatCursorStart = 92;
+constexpr size_t kFeatCursorSize = 0x160;
+constexpr const char* kRadialUseFeatPattern = "4C 8D 8B 80 08 00 00 8B D7 48 8B CE E8";
+constexpr size_t kRadialUseFeatCall = 12;
+// The creature menu (CGuiCreatureMenu): the target +0x7F8, the point +0x830, assign mode +0x828. Its
+// RadialMenuUseFeat (0x998520; param feat | extra << 16) toggles these modes first, then as the feat leaf.
+constexpr size_t kCreatureMenuTarget = 0x7f8;
+constexpr size_t kCreatureMenuAssigning = 0x828;
+constexpr size_t kCreatureMenuPoint = 0x830;
+constexpr int64_t kCreatureMenuModeFeats[] = {0x1c, 0x13, 0x1e, 0xcc, 0x383, 0x362, 0x185, 0x186, 0x1a9, 0x3b3};
+constexpr const char* kCreatureMenuUseFeatPattern =
+    "40 55 56 57 48 81 EC 90 00 00 00 48 C7 44 24 60 FE FF FF FF 48 89 9C 24 C0 00 00 00 48 8B 05 ?? ?? ?? ?? 48 33 "
+    "C4 48 89 84 24 88 00 00 00 48 8B DA 48 8B E9 48 8B 05 ?? ?? ?? ?? 48 8B 08 E8 ?? ?? ?? ?? 48 8B F8 48 85 C0 0F "
+    "84 ?? ?? ?? ?? 48 8B 8D 28 08 00 00 48 85 C9";
+// The quickbar's spell button (0x859D30): new(0x168); the spell cursor's constructor (0x704290);
+// 0x704500(cursor, param, &CResRef, 0: a spell / 1: a spell-like ability) - TargetType's valid targets,
+// TargetShape's area preview (0x704BD0), then active; a pick casts with the param (0x704300), Esc frees it.
+constexpr const char* kQuickbarSpellCursorPattern =
+    "B9 68 01 00 00 E8 ?? ?? ?? ?? 48 89 84 24 80 00 00 00 48 85 C0 74 0D 48 8B C8 E8 ?? ?? ?? ?? 48 8B D8 EB 02 33 "
+    "DB 48 85 DB 74 3B 48 8D 15 ?? ?? ?? ?? 48 8D 4C 24 28 E8 ?? ?? ?? ?? 0F 10 44 24 28 0F 29 44 24 40 0F B6 44 24 "
+    "38 88 44 24 50 45 33 C9 4C 8D 44 24 40 48 8B 97 10 01 00 00 48 8B CB E8";
+constexpr size_t kQuickbarSpellCursorNew = 5;
+constexpr size_t kQuickbarSpellCursorCtor = 26;
+constexpr size_t kQuickbarSpellCursorStart = 97;
+constexpr size_t kSpellCursorSize = 0x168;
+constexpr size_t kClientObjectId = 0x8;  // a client object's id (the server's)
+constexpr uint8_t kObjectTypeCreature = 5;  // CGameObject +0xc
+constexpr uint8_t kObjectTypeItem = 6;
 constexpr size_t kClientStatsLawChaos = 0xc6;
 constexpr size_t kClientStatsGoodEvil = 0xc8;
 constexpr int kAlignmentNeutral = 50;

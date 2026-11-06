@@ -301,6 +301,10 @@ struct Config {
   // Another creature's radial menu leaves out your self-only class feats
   // (Rage, Reckless Attack ...) instead of greying them (radial_class_feats.cpp).
   bool radial_hide_self_feats = true;
+  // #140 (owner, 2026-11-06): a spell, a spell-like ability or a feat's spell picked from the radial menu hands
+  // over the quickbar's targeting cursor, its area shown, when the radial's target isn't the plain one - an area
+  // spell, the ground, a harmful spell on yourself or an ally (radial_retarget.cpp).
+  bool radial_retarget = true;
   // (vfx_bench, the VFX Bench's switch, is the dev layer's own since #95: nwn5e-tools/dev/vfx_editor.cpp
   // reads [rules] vfx_bench from nwn5e.ini itself.)
   // Who has noticed a hiding player character (owner, 2026-10-25: "build your
