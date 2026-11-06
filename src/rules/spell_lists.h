@@ -56,6 +56,9 @@ bool LevelUpSwapAllowed(int class_row, bool cantrip, int swaps_done);
 // Spells page - shown for a pick of this level-up (always removable), and for a spell known before it only while a
 // swap of its list is left (LevelUpSwapAllowed).
 bool RemoveIconShown(bool picked_this_level_up, bool swap_left);
+// 0.83.1 (owner, 2026-11-06: "ALso remove the icon that adds spells to the prepared column once it is no longer
+// possible to add new spells"): an available spell's add icon - shown while the tab has a pick left.
+bool AddIconShown(int spells_left);
 
 struct WizardLists {
   std::vector<int> book;

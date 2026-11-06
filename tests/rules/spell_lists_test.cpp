@@ -84,6 +84,10 @@ TEST(LevelUpSwaps) {
   CHECK_EQ(RemoveIconShown(true, true), true);
   CHECK_EQ(RemoveIconShown(false, true), true);
   CHECK_EQ(RemoveIconShown(false, false), false);  // its swap spent (or none): hidden
+  // 0.83.1: the add icon - while a pick is left on the tab.
+  CHECK_EQ(AddIconShown(2), true);
+  CHECK_EQ(AddIconShown(1), true);
+  CHECK_EQ(AddIconShown(0), false);
 }
 
 // Part 3b-2 (owner, 2026-11-05: "Not a fan of the spellbook appearing AFTER the class configuration can it be

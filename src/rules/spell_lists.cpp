@@ -71,6 +71,8 @@ int SpellsLeftOnPage(int level_left, int prepared_total, int known_total) {
 
 bool RemoveIconShown(bool picked_this_level_up, bool swap_left) { return picked_this_level_up || swap_left; }
 
+bool AddIconShown(int spells_left) { return spells_left > 0; }
+
 bool LevelUpSwapAllowed(int class_row, bool cantrip, int swaps_done) {
   if (swaps_done >= 1) return false;
   switch (class_row) {

@@ -414,6 +414,15 @@ monster AC by CR.
     does); rows and spells matched by the known list's button and id arrays (+0x430, +0x420 = the page's +0x11C8). A
     drop rebuilds the tab, so the other rows lose theirs at once; a pick that undoes a swap rebuilds it, the buttons
     back. "No more swaps" stays as the fallback.
+  - *0.83.1 (owner, 2026-11-06: "ALso remove the icon that adds spells to the prepared column once it is no longer
+    possible to add new spells"):* once the tab has nothing left to pick (rules::AddIconShown: its spells left,
+    LeftOnPage; test LevelUpSwaps, 2 of 2 mutations caught), every available row's move button is taken out too - after the tab is built and after a pick (the
+    available list +0x890, laid out as the known one: its ids the page's +0xCB0, Add's). A drop rebuilds the tab,
+    the buttons back. RemoveFromPanel only detaches the button's model (the hover's own toggle for the info button).
+    And (owner, 2026-11-06: "And in cantrips, do not move automatically to level 1 spells once all the cantrips are
+    seçected"): Add moves on to the next tab when the one picked on is done and the next has picks left - two looks
+    at the next level's spells left (its calls into the client's spells left after "inc dl", one byte pattern, two
+    matches in the binary). From the cantrips tab they're answered 0, so the page stays on it.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

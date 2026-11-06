@@ -972,6 +972,7 @@ constexpr size_t kSpellsPageLevelDone = 0x19e0;
 // CTL_CG_BTN_FEAT) with two CGuiMouseoverChildButton children: +0xC8 the move button (its callback the page's Add
 // or Remove), +0x198 the info button (put in the panel on hover, taken out after).
 constexpr size_t kSpellsPageKnownList = 0xda8;
+constexpr size_t kSpellsPageAvailList = 0x890;  // 0.83.1: the available list, alike (its ids the page's +0xCB0)
 constexpr size_t kGuiListboxIds = 0x420;
 constexpr size_t kGuiListboxButtons = 0x430;
 constexpr size_t kFeatButtonMoveButton = 0xc8;

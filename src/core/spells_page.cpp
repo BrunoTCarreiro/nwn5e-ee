@@ -32,6 +32,13 @@
 //   as the familiar page's row does). A drop rebuilds the tab (ShowLevel), so the other rows lose theirs at once; a
 //   pick that undoes a swap (the dropped spell picked back) rebuilds it too, the buttons back. "No more swaps"
 //   stays, should one show.
+// - 0.83.1 (owner, 2026-11-06: "ALso remove the icon that adds spells to the prepared column once it is no longer
+//   possible to add new spells"): once the tab has nothing left to pick (rules::AddIconShown - after it's built, and
+//   after a pick), every available row's move button goes too; a drop rebuilds the tab, the buttons back.
+//   And (owner: "in cantrips, do not move automatically to level 1 spells once all the cantrips are seçected"):
+//   Add moves on to the next tab when the one picked on is done and the next has picks left - two looks at the next
+//   level's spells left (calls into the client's spells left right after "inc dl"). From the cantrips tab they're
+//   answered 0, so the page stays on it.
 // - 0.78.4 (owner, 2026-11-05: "re-adding it back doesn't increase the counter to 6 and the OK button remains
 //   greyed out"): the OK button needs all ten levels marked done (+0x19E0), and NWN marks a level only at the
 //   page's setup and for the tab picked on. 2024's total is shared by the spell levels, so a pick on one tab leaves
@@ -48,6 +55,7 @@
 #include <intrin.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <algorithm>
 #include <string>
@@ -100,6 +108,7 @@ RemoveFn g_remove = nullptr;
 AddFn g_add = nullptr;
 UpdateOkFn g_update_ok = nullptr;
 RemoveFromPanelFn g_remove_from_panel = nullptr;
+std::vector<uintptr_t> g_next_tab_sites;  // 0.83.1: Add's looks at the next tab's spells left (return addresses)
 int g_hidden_logged = 0;  // the log's first lines only
 ClientCreatureFn g_client_creature = nullptr;
 uintptr_t g_quick_site = 0;                // the quick level-up's GetSpellsKnownPerLevel call (its return address)
@@ -204,6 +213,13 @@ uint8_t LeftOnPage(void* client_stats, uint8_t spell_level) {
 
 uint8_t SpellsLeft(void* client_stats, uint8_t spell_level) {
   t_page_stats = client_stats;
+  if (spell_level == 1) {  // 0.83.1: Add looking past the cantrips tab - nothing there, so it stays
+    const uintptr_t from = reinterpret_cast<uintptr_t>(_ReturnAddress());
+    Levelled c;
+    for (uintptr_t site : g_next_tab_sites) {
+      if (site == from && LevelledClass(client_stats, &c)) return 0;
+    }
+  }
   return LeftOnPage(client_stats, spell_level);
 }
 
@@ -245,6 +261,7 @@ void SetTitle(void* page, void* client_stats, int spell_level, const char* note)
 }
 
 void HideUnremovableButtons(void* page);  // below (0.83.0)
+void HideAddButtons(void* page);          // below (0.83.1)
 
 void ShowLevel(void* page, int spell_level) {
   t_page_stats = nullptr;
@@ -252,6 +269,7 @@ void ShowLevel(void* page, int spell_level) {
   g_show_level(page, spell_level);
   SetTitle(page, t_page_stats, spell_level, nullptr);
   HideUnremovableButtons(page);
+  HideAddButtons(page);
 }
 
 // The page's client stats (its creature, page +0x19D8).
@@ -298,6 +316,26 @@ int SwapsDone(void* page, void* client_stats, const Levelled& c, bool cantrip) {
 // list's swap spent or none for the class (rules::RemoveIconShown) - has its move button (the row's +0xC8 child)
 // taken out of the panel, as the familiar page's row takes out its own. The rows and their spell ids: the known
 // list's button and id arrays (the ids are the page's +0x11C8, Remove's).
+// The move buttons of a list's rows whose spell `hide_if` names, taken out of the panel - the row as mapped only
+// (its two child buttons of one class, CGuiMouseoverChildButton). The count hidden.
+template <typename HideIf>
+int HideMoveButtons(const uint8_t* list, HideIf hide_if) {
+  const uint32_t* ids = Field<const uint32_t*>(list, ee::kGuiListboxIds);
+  const int id_count = Field<int32_t>(list, ee::kGuiListboxIds + ee::kExoArrayListCount);
+  void* const* rows = Field<void* const*>(list, ee::kGuiListboxButtons);
+  const int row_count = Field<int32_t>(list, ee::kGuiListboxButtons + ee::kExoArrayListCount);
+  int hidden = 0;
+  for (int i = 0; ids && rows && i < id_count && i < row_count && i < 4096; ++i) {
+    uint8_t* row = static_cast<uint8_t*>(rows[i]);
+    if (!row || !hide_if(ids[i])) continue;
+    uint8_t* move = row + ee::kFeatButtonMoveButton;
+    if (Field<void*>(move, 0) != Field<void*>(row + ee::kFeatButtonInfoButton, 0)) continue;
+    g_remove_from_panel(move);
+    ++hidden;
+  }
+  return hidden;
+}
+
 void HideUnremovableButtons(void* page) {
   void* const client_stats = page && g_remove_from_panel ? PageStats(page) : nullptr;
   Levelled c;
@@ -307,25 +345,29 @@ void HideUnremovableButtons(void* page) {
   const void* saved = static_cast<uint8_t*>(page) + ee::kSpellsPageSavedKnown + spell_level * ee::kExoArrayListSize;
   const bool cantrip = spell_level == 0;
   const bool swap_left = rules::LevelUpSwapAllowed(c.row, cantrip, SwapsDone(page, client_stats, c, cantrip));
-  const uint8_t* list = static_cast<uint8_t*>(page) + ee::kSpellsPageKnownList;
-  const uint32_t* ids = Field<const uint32_t*>(list, ee::kGuiListboxIds);
-  const int id_count = Field<int32_t>(list, ee::kGuiListboxIds + ee::kExoArrayListCount);
-  void* const* rows = Field<void* const*>(list, ee::kGuiListboxButtons);
-  const int row_count = Field<int32_t>(list, ee::kGuiListboxButtons + ee::kExoArrayListCount);
-  int hidden = 0;
-  for (int i = 0; ids && rows && i < id_count && i < row_count && i < 4096; ++i) {
-    uint8_t* row = static_cast<uint8_t*>(rows[i]);
-    if (!row || rules::RemoveIconShown(!ListHas(saved, ids[i]), swap_left)) continue;
-    uint8_t* move = row + ee::kFeatButtonMoveButton;
-    // The row as mapped: its two child buttons are of one class (CGuiMouseoverChildButton, the same vtable).
-    if (Field<void*>(move, 0) != Field<void*>(row + ee::kFeatButtonInfoButton, 0)) continue;
-    g_remove_from_panel(move);
-    ++hidden;
-  }
+  const int hidden = HideMoveButtons(static_cast<uint8_t*>(page) + ee::kSpellsPageKnownList, [&](uint32_t spell) {
+    return !rules::RemoveIconShown(!ListHas(saved, spell), swap_left);
+  });
   if (hidden > 0 && g_hidden_logged < 20) {
     ++g_hidden_logged;
     Log("spells: the Spells page's level %d tab - %d known spells show no remove icon (known before, no swap "
         "left; #36)", spell_level, hidden);
+  }
+}
+
+// 0.83.1: nothing left to pick on the tab - no add button on any available row.
+void HideAddButtons(void* page) {
+  void* const client_stats = page && g_remove_from_panel ? PageStats(page) : nullptr;
+  Levelled c;
+  if (!client_stats || !LevelledClass(client_stats, &c)) return;
+  const int spell_level = Field<uint8_t>(page, ee::kSpellsPageLevel);
+  if (spell_level > 9 || rules::AddIconShown(LeftOnPage(client_stats, static_cast<uint8_t>(spell_level)))) return;
+  const int hidden =
+      HideMoveButtons(static_cast<uint8_t*>(page) + ee::kSpellsPageAvailList, [](uint32_t) { return true; });
+  if (hidden > 0 && g_hidden_logged < 20) {
+    ++g_hidden_logged;
+    Log("spells: the Spells page's level %d tab - nothing left to pick, %d add icons hidden (#36)", spell_level,
+        hidden);
   }
 }
 
@@ -361,6 +403,8 @@ void Add(void* page) {
       SwapsDone(page, client_stats, c, cantrip) < swaps_before) {
     ShowLevel(page, spell_level);
     RefreshLevelsDone(page);
+  } else if (levelled && Field<uint8_t>(page, ee::kSpellsPageLevel) == spell_level) {
+    HideAddButtons(page);  // 0.83.1: the last pick - the add buttons go
   }
 }
 
@@ -434,6 +478,22 @@ bool InstallSpellsPage() {
   const uintptr_t add_inside = FindPattern("the Spells page's Add (#36)", ee::kSpellsPageAddPattern);
   const uintptr_t add = add_inside ? FunctionEntry(add_inside) : 0;
   g_remove_from_panel = reinterpret_cast<RemoveFromPanelFn>(EngineExport(ee::kGuiRemoveFromPanel));
+  // 0.83.1: Add's two looks at the next tab - its calls into the client's spells left just after "inc dl; mov rcx,
+  // rdi" (the level + 1); the third, for its own tab, isn't.
+  g_next_tab_sites.clear();
+  if (add && left) {
+    static const uint8_t kNextLevel[] = {0xFE, 0xC2, 0x48, 0x8B, 0xCF};
+    for (uintptr_t call : FindCallsTo(FunctionAt(add), left)) {
+      if (memcmp(reinterpret_cast<const void*>(call - sizeof(kNextLevel)), kNextLevel, sizeof(kNextLevel)) == 0) {
+        g_next_tab_sites.push_back(call + 5);
+      }
+    }
+  }
+  if (g_next_tab_sites.size() != 2) {
+    Log("SKIP spells #36: the cantrips tab may move on to level 1 by itself (%zu of Add's next-tab looks found)",
+        g_next_tab_sites.size());
+    g_next_tab_sites.clear();
+  }
   const uintptr_t ok_call =
       add ? FindPatternIn("Spells page: Add's OK update", FunctionAt(add), ee::kSpellsPageAddOkUpdatePattern) : 0;
   g_update_ok = reinterpret_cast<UpdateOkFn>(ok_call ? CallTarget(ok_call + 11) : 0);  // the second call
