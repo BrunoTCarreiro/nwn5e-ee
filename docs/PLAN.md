@@ -565,6 +565,8 @@ monster AC by CR.
     (CNWSModule::LoadModuleFinish) clears the last game's Concentrations, and every creature's saved one is taken
     up at its first update. "Endurance and bigby's hand ... this doesn't really matter, right?" - right: #39's
     rewrite retires or folds such NWN-only variants, and the table follows it.
+  - *The owner (2026-11-06):* "same for CO-6, 8 and 9 as they can't be tested normally" - left to a
+    playthrough.
 - *#38, rituals and material components (open decision 6).* SRD 5.2: a prepared spell with the Ritual tag can be
   cast as a Ritual - 10 minutes longer, no slot, so never upcast (a Wizard from its spellbook, unprepared:
   Ritual Adept); a focus or a component pouch covers ordinary material components, a component with a cost must
@@ -576,6 +578,16 @@ monster AC by CR.
   - *Decided (owner, 2026-11-06: "38, rituals A, components B for now, we'll need to check the meterial
     costs"):* no Rituals for now; costly material components paid in gold - the table of costs goes to the owner
     to check.
+  - *The costs (SRD 5.2.1's, for the NWN spells that map to an SRD spell - 25 spells, their sub-radial variants
+    too):* Bless 5 (kept), Protection from Evil and Good 25 (consumed), True Seeing 25, Continual Flame 50,
+    Greater Restoration 100, Magic Circle 100, Stoneskin 100 (both NWN Stoneskins), Glyph of Warding 200, Raise
+    Dead 500, Awaken 1,000, Planar Binding 1,000 (all three), Resurrection 1,000 (consumed); Clairvoyance 100,
+    Identify 100, Create Undead 150 (and Create Greater Undead), Arcane Sword 250, Circle of Death 500, Holy Aura
+    1,000, Shapechange 1,500, Gate 5,000 (kept); Legend Lore 450 (250 consumed). Asked: Restoration (between the
+    SRD's Lesser and Greater), Protection from Alignment's 25 a cast, Greater Stoneskin's 100; NWN's economy
+    (3e's guideline: about 49,000 GP of wealth at level 10; NWN's random chests give 2d20 GP at levels 9-10).
+    *Decided (owner, 2026-11-06: "for now keep the gp cost. we'll see how it works on a playthrough"):* the
+    SRD's costs as listed; Restoration free.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
