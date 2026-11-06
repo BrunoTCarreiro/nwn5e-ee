@@ -557,6 +557,14 @@ monster AC by CR.
     Rage end it at the caster's next update. The resource panel: rules::HudPool's `line` (no pips, no count) and
     `click`; "Concentrating: <spell>" in gold, a left click over it (the client) ends it on the server's next
     panel update (resource_panel.h's AddHudClick). The player's Concentration is a local variable too (a load).
+  - *The owner's 0.86.0 run (2026-11-06):* CO-1 to CO-5 in the log (Bless, its end by Shield of Faith, a recast,
+    the panel's click, the saves - six made, then one failed); CO-7 untested (no such potion: `!give
+    nw_it_mpotion015` is Bull's Strength); CO-6, 8, 9 not in the log. The failed save's ending read "Bless ends - "
+    (its reason read after its record was erased). "Why does the PC's concentration survive a load but enemies'
+    don't?" - only the panel and a hit looked at a creature's saved one. *0.86.1:* the reason kept; a game's start
+    (CNWSModule::LoadModuleFinish) clears the last game's Concentrations, and every creature's saved one is taken
+    up at its first update. "Endurance and bigby's hand ... this doesn't really matter, right?" - right: #39's
+    rewrite retires or folds such NWN-only variants, and the table follows it.
 - *#38, rituals and material components (open decision 6).* SRD 5.2: a prepared spell with the Ritual tag can be
   cast as a Ritual - 10 minutes longer, no slot, so never upcast (a Wizard from its spellbook, unprepared:
   Ritual Adept); a focus or a component pouch covers ordinary material components, a component with a cost must

@@ -20,6 +20,9 @@
 //   damage's own handling), as do Incapacitated (IncapacitatedByCondition), down (dying or dead) and Rage.
 // - 4 (the owner's): the resource panel's line "Concentrating: <spell>"; a click on it ends it (no action). The
 //   combat log has each save's roll and an nwn5e line for its outcome.
+// - 0.86.1 (owner: "Why does the PC's concentration survive a load but enemies' don't?"): a creature's
+//   Concentration is also its local variable (saved with the game); a game's start (CNWSModule::LoadModuleFinish,
+//   a new game or a saved one) clears the last game's and every creature's is taken up at its first update.
 // NWN mode: no Concentration (NWN's).
 
 #include <windows.h>
@@ -83,6 +86,9 @@ struct Held {
 std::unordered_map<uint32_t, Held> g_held;  // by caster
 std::unordered_map<int, std::string> g_impact;  // a Concentration spell's ImpactScript, lower case
 std::unordered_set<std::string> g_impact_names;  // the same names: a script's first look
+std::unordered_set<uint32_t> g_looked;  // 0.86.1: creatures whose saved Concentration was read this game
+using LoadModuleFinishFn = uint32_t (*)(void* module);
+LoadModuleFinishFn g_load_module_finish = nullptr;
 bool g_impact_read = false;
 void** g_app_manager = nullptr;
 void** g_rules = nullptr;
@@ -198,7 +204,7 @@ Held* Find(void* creature) {
   return &held;
 }
 
-void End(void* creature, const std::string& why) {
+void End(void* creature, std::string why) {  // (a copy: the reason may be its record's, erased below)
   const uint32_t id = IdOf(creature);
   auto found = g_held.find(id);
   if (found == g_held.end()) return;
@@ -306,6 +312,8 @@ void Damaged(uint32_t creator, void* target, int damage) {
 // Every creature update: a concentrating one's endings, and whether its spell is still there.
 void Update(void* creature) {
   if (!g_impact_read && IsPlayer(creature) && engine::AreaOf(creature)) ReadImpactScripts(creature);
+  const uint32_t first = IdOf(creature);
+  if (g_looked.insert(first).second && engine::GetLocalInt(creature, kVarHeld) > 0) Find(creature);  // a load
   if (g_held.empty()) return;
   const auto found = g_held.find(IdOf(creature));  // (after a load the panel's provider or a hit restores it)
   if (found == g_held.end()) return;
@@ -339,6 +347,17 @@ bool ConcentrationHudPool(void* creature, rules::HudPool* pool) {
   return true;
 }
 
+// 0.86.1: a game started (a new one, a saved one loaded): the last game's Concentrations and scripts go.
+uint32_t LoadModuleFinish(void* module) {
+  const uint32_t result = g_load_module_finish(module);
+  g_held.clear();
+  g_looked.clear();
+  g_impact.clear();
+  g_impact_names.clear();
+  g_impact_read = false;
+  return result;
+}
+
 void PanelClicked(void* creature) {
   if (Find(creature)) End(creature, "you ended it");
 }
@@ -362,7 +381,11 @@ void InstallConcentration() {
   const bool found = g_app_manager && g_rules && g_get_object && g_get_item && g_get_aoe && g_get_spell &&
                      g_spell_name && g_free_text && g_save_roll;
   const bool hooked = found && AddScriptStartListener(&ScriptStarting) && AddDamageListener(&Damaged) &&
-                      AddCreatureUpdateListener(&Update);
+                      AddCreatureUpdateListener(&Update) &&
+                      HookExport("CNWSModule::LoadModuleFinish (a game started: the last one's Concentration "
+                                 "cleared, #37)",
+                                 ee::kModuleLoadFinish, reinterpret_cast<void*>(&LoadModuleFinish),
+                                 reinterpret_cast<void**>(&g_load_module_finish));
   if (!hooked) {
     Log("SKIP concentration #37: not mapped or hooked - spells keep NWN's (no Concentration)");
     return;

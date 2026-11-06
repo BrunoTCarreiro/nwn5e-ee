@@ -71,6 +71,9 @@ constexpr const char* kGetRulesetFloatEntry = "?GetRulesetFloatEntry@CNWRules@@Q
 constexpr const char* kGetCreatureByGameObjectId = "?GetCreatureByGameObjectID@CServerExoApp@@QEAAPEAVCNWSCreature@@I@Z";
 // CAppManager* g_pAppManager; its CServerExoApp* is at +8 (ResolveAttackRoll +0x3d2)
 constexpr const char* kAppManager = "?g_pAppManager@@3PEAVCAppManager@@EA";
+// #37 (0.86.1): uint CNWSModule::LoadModuleFinish() - a module's load finished (a new game or a saved one: both
+// through CServerExoAppInternal::MainLoop, its one caller).
+constexpr const char* kModuleLoadFinish = "?LoadModuleFinish@CNWSModule@@QEAAIXZ";
 constexpr size_t kAppManagerServerApp = 0x8;
 // CNWRules* g_pRules; its CNWBaseItemArray* is at +0x20 (UpdateCombatInformation +0x117e)
 constexpr const char* kRules = "?g_pRules@@3PEAVCNWRules@@EA";
