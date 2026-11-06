@@ -86,6 +86,8 @@ int GameHourOf(int year, int month, int day, int hour) {
 
 bool DownBlocksLongRest(bool faithful, bool down) { return faithful && down; }
 
+bool LongRestGraceLeft(int used_in, int game_start) { return game_start != 0 && used_in != game_start; }
+
 int LongRestWaitLeft(bool faithful, bool any_time, int last_end_hour, int now_hour) {
   if (!faithful || any_time || last_end_hour <= 0 || now_hour < last_end_hour) return 0;
   const int left = last_end_hour + kLongRestWaitHours - now_hour;

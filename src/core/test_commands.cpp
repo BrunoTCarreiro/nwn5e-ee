@@ -126,6 +126,7 @@ bool SkillTotal2024(void* creature, int nwn_skill, int* total, int* ability_modi
 
 void BoostTestCreatureById(uint32_t id, bool ally);  // rules_debug.cpp (0.72.1 / 0.73.1: the test hit point floor)
 void ClearLongRestWait(void* creature);              // rules_rest.cpp (#135: a test's rest starts no wait)
+bool GrantLongRestGrace(void* creature);             // rules_rest.cpp (#138: a grace Long Rest again)
 
 namespace {
 
@@ -942,6 +943,8 @@ std::vector<std::string> TestCommand(void* creature, const std::string& args) {
   }
   // 6b. A built character starts rested (#102).
   if (rules::TestProfileBuildsCharacter(profile)) lines.push_back(RestAfterRebuild(id));
+  // 6c. #138 (owner, 2026-11-06: "\"!test\" allows for a grace rest too"): the next Long Rest skips the wait.
+  if (GrantLongRestGrace(creature)) lines.push_back("  rest: the next Long Rest skips the 16-hour wait (a grace rest)");
   // 7. What the profile can't do itself.
   for (const std::string& note : profile.notes) lines.push_back("  note: " + note);
   Log("test: 0x%08X applied data\\tests\\%s.txt (%s)", id, name.c_str(), profile.name.c_str());

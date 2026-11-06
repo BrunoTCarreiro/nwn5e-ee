@@ -57,5 +57,10 @@ int LongRestWaitLeft(bool faithful, bool any_time, int last_end_hour, int now_ho
 // 1 Hit Point." A creature that is down (nwn5e's 0 HP: a player's dying state, a henchman lying down at 1 HP until
 // healed) doesn't start one - healing gets it up first. Faithful only.
 bool DownBlocksLongRest(bool faithful, bool down);
+// #138 (owner, 2026-11-06: "give one grace rest at the start of the game, \"!test\" allows for a grace rest too"):
+// each game start (a new game or a saved one loaded: `game_start`, a stamp; 0 unknown) gives a creature one Long
+// Rest that skips the wait - its first one in that game. `used_in` is the stamp of the game whose grace the
+// creature used (0 none, or granted again by a !test profile).
+bool LongRestGraceLeft(int used_in, int game_start);
 
 }  // namespace rules

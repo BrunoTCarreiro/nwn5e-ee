@@ -74,4 +74,10 @@ TEST(LongRestWait) {
   CHECK_EQ(DownBlocksLongRest(true, true), true);
   CHECK_EQ(DownBlocksLongRest(true, false), false);
   CHECK_EQ(DownBlocksLongRest(false, true), false);  // NWN mode: the engine's own (no rest while dying)
+  // #138: one grace Long Rest per game start (and per !test profile).
+  CHECK_EQ(LongRestGraceLeft(0, 77), true);    // not used yet
+  CHECK_EQ(LongRestGraceLeft(77, 77), false);  // used in this game
+  CHECK_EQ(LongRestGraceLeft(41, 77), true);   // used in an earlier game (a saved one loaded)
+  CHECK_EQ(LongRestGraceLeft(0, 0), false);    // no game start seen: no grace
+  CHECK_EQ(LongRestGraceLeft(41, 0), false);   // ... whatever was used
 }

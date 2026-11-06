@@ -468,6 +468,11 @@ monster AC by CR.
     cast refused). Only a class swap - a `!test` profile - does this; loading a save rebuilds the client's lists.
     The same caused 0.84.1's stale Negative Energy Ray. *0.84.4:* after the remove, the spell comes out of
     whichever level of the slot still holds it (spells_page.cpp).
+  - *The level-up swaps (OK-1 to OK-4; owner, 2026-11-06: "So I can only replace a limited number of spells? I
+    can't just remove Daze and Light for example, for Flare and Resistance?"):* explained - SRD 5.2 lets a Bard or
+    Sorcerer replace one spell, and a Bard, Cleric, Druid or Sorcerer one cantrip, at each level gained; a house
+    rule for more was offered. *Decided (owner, 2026-11-06: "do not add unlimited swaps, only those allowed by
+    2024"):* the swaps stay SRD 5.2's (rules::LevelUpSwapAllowed); no house rule.
   - *Built 0.80.0 (Part 2b, the combined multiclass pool, 4A):* SRD 5.2's multiclassing - with the Spellcasting
     feature from more than one class, the slots are the Multiclass Spellcaster table's (the full casters') at the
     Bard, Cleric, Druid, Sorcerer and Wizard levels plus half the Paladin and Ranger levels, rounded up; each class
@@ -3135,6 +3140,17 @@ refuses a Long Rest's start to a creature that is down - dying, or nwn5e_down / 
 (rules_dying.cpp's IsDownForRest) - and tells a downed henchman's master "<name> is down and doesn't rest - heal
 them first (a spell, a healer's kit or a Short Rest), then rest"; the player's own rest goes ahead.
 *Accepted (owner, 2026-11-06: "HD and LR seem fine and accepted").* #135.
+*A grace rest (#138, follow-up of #135; owner, 2026-11-06: "WZ-5/6 cannot long rest due to the 16 hour limit (maybe
+there can be an extra grace long rest at the beginning of the game?)").* Explained: the log showed a Long Rest
+four minutes before the refused one (the wait as built); a new character has no wait; a !test profile that
+builds a character already cleared it once. Options: keep it, a grace rest per game start, test-only.
+*Decided (owner, 2026-11-06: "give one grace rest at the start of the game, \"!test\" allows for a grace rest
+too"):* each game start's first Long Rest skips the 16-hour wait, and any !test profile grants it again.
+*Built 0.85.0 (#138):* rules::LongRestGraceLeft (test LongRestWait). rules_rest.cpp hooks CNWSModule::
+LoadModuleFinish (a new game or a saved one loaded; the server's MainLoop is its one caller) and stamps the game
+start; the local nwn5e_rest_grace holds the stamp of the game whose grace a creature used (a finished Long Rest
+uses it), so the rest gate lets the first one through and logs "this game's grace rest"; !rest says so. Every
+!test profile resets it ("rest: the next Long Rest skips the 16-hour wait").
 *Resting a lot (#110; owner, 2026-11-01: "are there any consequences in-game for resting too many times, like
 events tied to calendar days that can be missed?"). Researched 2026-11-01* (the campaigns' own .nss, which every
 official module ships, and the NWN Lexicon's SetTime / SetCalendar notes): nothing in the official campaigns can be

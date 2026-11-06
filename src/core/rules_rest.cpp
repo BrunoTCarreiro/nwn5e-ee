@@ -20,6 +20,11 @@
 //   #135 b (owner, 2026-11-06: "1 yes, 2 keep, 3 a+b, 4 B"): "To start a Long Rest, you must have at least 1 Hit
 //   Point" - a creature that is down (dying, or a henchman lying down until healed) doesn't start one; a downed
 //   henchman's master is told to heal it first, and the player's own rest goes ahead.
+// - #138 (owner, 2026-11-06: "give one grace rest at the start of the game, \"!test\" allows for a grace rest
+//   too"): each game start (CNWSModule::LoadModuleFinish - a new game or a saved one loaded) is stamped; a
+//   creature's first Long Rest in that game skips the wait (rules::LongRestGraceLeft: the local
+//   nwn5e_rest_grace holds the stamp of the game whose grace it used - a finished Long Rest uses it). Applying
+//   any !test profile grants it again.
 // - The Short Rest (a HUD button next to Rest; `!shortrest` too): instant,
 //   out of combat - no enemy that can see the character within 30 m, no
 //   damage taken or spell cast in the last 10 s (the engine's "exerted" timer,
@@ -60,6 +65,7 @@ namespace {
 
 constexpr const char* kVarHitDiceSpent = "nwn5e_hit_dice_spent";
 constexpr const char* kVarLongRestEnd = "nwn5e_long_rest_end";  // #135: the game hour the last Long Rest ended
+constexpr const char* kVarRestGrace = "nwn5e_rest_grace";  // #138: the game start whose grace rest it used
 constexpr float kShortRestEnemyRange = 30.0f;  // the Rest button's REST_ENEMY_CHECK_DISTANCE
 constexpr uint32_t kNoGradualRestore = 0xffffffffu;
 constexpr int kAbilityConstitution = 2;
@@ -71,6 +77,9 @@ using MaxHitPointsFn = int16_t (*)(void* creature, int include_temporary);
 FeatUsesFn g_feat_use_back = nullptr;
 AssociateIdFn g_associate_id = nullptr;
 MaxHitPointsFn g_max_hit_points = nullptr;
+using LoadModuleFinishFn = uint32_t (*)(void* module);
+LoadModuleFinishFn g_load_module_finish = nullptr;
+int g_game_start = 0;  // #138: this game's stamp (0: no game start seen)
 
 bool Faithful() { return g_config.rests == rules::RuleVariant::kFaithful; }
 uint32_t IdOf(const void* object) { return Field<uint32_t>(object, ee::kObjectId); }
@@ -127,6 +136,19 @@ int LongRestWaitLeft(void* creature) {
 
 std::string HoursText(int hours) { return std::to_string(hours) + (hours == 1 ? " hour" : " hours"); }
 
+// #138: whether this creature's grace Long Rest of this game is still to come.
+bool GraceLeft(void* creature) {
+  return rules::LongRestGraceLeft(engine::GetLocalInt(creature, kVarRestGrace), g_game_start);
+}
+
+// #138: a module's load finished - a game started (new or loaded): a new stamp, nonzero.
+uint32_t LoadModuleFinish(void* module) {
+  const uint32_t result = g_load_module_finish(module);
+  g_game_start = static_cast<int>((GetTickCount64() / 10) & 0x7FFFFFFF) | 1;
+  Log("rests: a game started - each character's first Long Rest in it skips the 16-hour wait (#138)");
+  return result;
+}
+
 // #135: the gate on a rest's start (rest.h) - b: not while down; a: the 16-hour wait.
 std::string LongRestGate(void* creature) {
   if (rules::DownBlocksLongRest(Faithful(), engine::IsDeadOrDying(creature) || IsDownForRest(creature))) {
@@ -141,6 +163,11 @@ std::string LongRestGate(void* creature) {
   }
   const int left = LongRestWaitLeft(creature);
   if (left <= 0) return "";
+  if (GraceLeft(creature)) {
+    Log("rests: 0x%08X Long Rest allowed - this game's grace rest (%d of the 16 hours skipped; #138)",
+        IdOf(creature), left);
+    return "";
+  }
   Log("rests: 0x%08X Long Rest refused - %d of the 16 hours after the last one still to pass (#135)", IdOf(creature),
       left);
   return "no Long Rest yet - " + HoursText(left) + " more to wait (16 hours must pass after a Long Rest ends).";
@@ -167,6 +194,7 @@ void AfterLongRest(void* stats) {
   }
   // #135: when it ended - after the 8 hours rest_clock moves (just queued) when it's on.
   SetRecord(creature, kVarLongRestEnd, GameHourNow(creature) + (g_config.rest_clock ? 8 : 0));
+  engine::SetLocalInt(creature, kVarRestGrace, g_game_start);  // #138: this game's grace rest used
 }
 
 // --- The Short Rest ---------------------------------------------------------------
@@ -291,10 +319,16 @@ std::vector<std::string> RestCommand(void* creature, const std::string&) {
     lines.push_back("nwn5e: Exhaustion " + std::to_string(exhaustion) + " - a Long Rest removes it (!dying).");
   }
   const int wait = LongRestWaitLeft(creature);  // #135
-  lines.push_back(wait > 0 ? "nwn5e: the next Long Rest in " + HoursText(wait) + " (16 hours after the last one ends)."
-                           : std::string(g_config.long_rest_any_time
-                                             ? "nwn5e: a Long Rest any time (house rule long_rest_any_time)."
-                                             : "nwn5e: a Long Rest may start now."));
+  if (wait > 0 && GraceLeft(creature)) {  // #138
+    lines.push_back("nwn5e: a Long Rest may start now - this game's grace rest (" + HoursText(wait) +
+                    " of the 16-hour wait skipped; the wait applies after it).");
+  } else {
+    lines.push_back(wait > 0 ? "nwn5e: the next Long Rest in " + HoursText(wait) + " (16 hours after the last one "
+                                                                                "ends)."
+                             : std::string(g_config.long_rest_any_time
+                                               ? "nwn5e: a Long Rest any time (house rule long_rest_any_time)."
+                                               : "nwn5e: a Long Rest may start now."));
+  }
   return lines;
 }
 
@@ -307,6 +341,14 @@ void ClearLongRestWait(void* creature) {
   if (creature && Faithful()) SetRecord(creature, kVarLongRestEnd, 0);
 }
 
+// #138: a !test profile applied - a grace Long Rest again (the next one skips the wait); false when there's no
+// wait to skip (NWN mode, the house rule, no game start seen).
+bool GrantLongRestGrace(void* creature) {
+  if (!creature || !Faithful() || g_config.long_rest_any_time || g_game_start == 0) return false;
+  engine::SetLocalInt(creature, kVarRestGrace, 0);
+  return true;
+}
+
 void InstallRestRules() {
   if (!Faithful()) return;
   RegisterRecords({kVarHitDiceSpent, kVarLongRestEnd});
@@ -316,6 +358,10 @@ void InstallRestRules() {
   if (!AddRestStartListener(&RestBegun)) Log("SKIP rests: CNWSCreature::Rest not hooked - NWN's rest stays as it is");
   if (!AddRestListener(&AfterLongRest)) Log("SKIP rests: the end of a rest is not hooked - no Hit Dice back");
   if (!AddRestGate(&LongRestGate)) Log("SKIP rests #135: a rest's start isn't gated - no 16-hour wait");
+  if (!HookExport("CNWSModule::LoadModuleFinish (a game started: a grace Long Rest, #138)", ee::kModuleLoadFinish,
+                  reinterpret_cast<void*>(&LoadModuleFinish), reinterpret_cast<void**>(&g_load_module_finish))) {
+    Log("SKIP rests #138: no grace Long Rest at a game's start");
+  }
   AddChatCommand("!shortrest", &ShortRestCommand);
   AddCreatureUpdateListener(&ShortRestRequested);
   AddChatCommand("!rest", &RestCommand);
