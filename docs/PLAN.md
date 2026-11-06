@@ -473,6 +473,12 @@ monster AC by CR.
     Sorcerer replace one spell, and a Bard, Cleric, Druid or Sorcerer one cantrip, at each level gained; a house
     rule for more was offered. *Decided (owner, 2026-11-06: "do not add unlimited swaps, only those allowed by
     2024"):* the swaps stay SRD 5.2's (rules::LevelUpSwapAllowed); no house rule.
+  - *Accepted (owner, 2026-11-06: "those open for testing are all tested and accepted").* #36 - Parts 1, 2, 2b, 3
+    and 3b (0.74.0-0.84.4): the 2024 slots, spontaneous casting from the known list, upcasting by choice, the
+    multiclass pool, the Prepare spells window, NWN's Spells page with 2024's counts and swaps, NP / L3·4 on the
+    quickbar. Carried elsewhere: cantrip damage at levels 5 / 11 / 17, in each cantrip's script (#39, which reads
+    the slot level a cast spent); Pact Magic with the Warlock (CM11); the tab icons' look (#137); "Resting" on
+    Accept (#139).
   - *Built 0.80.0 (Part 2b, the combined multiclass pool, 4A):* SRD 5.2's multiclassing - with the Spellcasting
     feature from more than one class, the slots are the Multiclass Spellcaster table's (the full casters') at the
     Bard, Cleric, Druid, Sorcerer and Wizard levels plus half the Paladin and Ranger levels, rounded up; each class
