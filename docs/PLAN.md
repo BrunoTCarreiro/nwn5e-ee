@@ -1307,6 +1307,21 @@ close, then attacked).
   hardcoded client code; every sheet number is a server value; routes A–F
   (2da, tlk, art, NWScript, server hooks, client hooks) with EE portability,
   and the cheapest route per item above.
+- *#140, radial casting (owner, 2026-11-06: "I have an issue with spells picked from the radial menu not showing
+  the area of effect of a spell ... we're targeting blind without kn owing how big the area is, how many friends
+  and/or foes it might hit ...").* NWN casts a radial spell at once at what the radial was opened on (a creature,
+  an object, a spot); the quickbar enters EE's targeting mode, which shows a spell's area (spells.2da's
+  TargetShape: 114 of 362 spells have one; HostileSetting marks 150 harmful). The owner's rules: on an enemy a
+  single-target spell is cast at once, an area spell retargets with its area shown; on the ground or scenery
+  every spell retargets; on yourself a helpful spell is yours, a harmful or neutral one retargets. Edge cases put:
+  allies, neutral creatures (as enemies), self-only and caster-centred spells (at once), cones and lines (they
+  retarget), objects (as creatures), variants and the upcast menu (after the last pick), items (the same), feat
+  abilities, a cancelled cursor (nothing spent), range (NWN walks), quickbar assignment (unchanged), spells with no
+  shape (single until #39), a controlled creature (the same), the AI (unaffected).
+  - *Decided (owner, 2026-11-06: "Q1. right Q2. b Q3. a Q4. before"):* allies - a helpful single-target spell is
+    cast on the ally, a harmful one or an area spell retargets; a helpful area spell opened on yourself
+    retargets too (every area spell shows its area); feat abilities with an area follow the same rules; built
+    before #39's build 2.
 
 ### Phase 8 — Creatures and campaign balance
 - Bounded accuracy breaks against 3e stat blocks (HotU creatures with AC 30+).
