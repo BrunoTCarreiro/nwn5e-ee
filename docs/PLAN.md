@@ -634,7 +634,7 @@ monster AC by CR.
   - *Built 0.88.0 (build 1, the damage cantrips; `spellcasting` faithful):* rules::Cantrips (SRD 5.2.1's die, damage
     type and roll for each), CantripDice / CantripDiceRolled (Cantrip Upgrade at 5, 11, 17; doubled on a Critical
     Hit), RetiredCantrips (tests CantripUpgrade, CantripsAreSrd52, CantripsRetired). Served rows
-    (spells.if_cantrips2024.txt): Fire Bolt 1050, Chill Touch 1051, Shocking Grasp 1052, Poison Spray 1053, Sacred
+    (spells.if_cantrips2024.new / .lists.txt): Fire Bolt 1050, Chill Touch 1051, Shocking Grasp 1052, Poison Spray 1053, Sacred
     Flame 1054, Starry Wisp 1055, Vicious Mockery 1056 - NWN's cantrips' animations and sounds, nwn5e's placeholder
     icon n5_is_new (its own art); Light 100, Ray of Frost 144, Acid Splash 424 (aimed at a point, a 1.5 m sphere) on
     nwn5e's scripts; Daze, Flare, Electric Jolt, Virtue, Cure / Inflict Minor Wounds off the class lists (the Prepare
@@ -647,6 +647,8 @@ monster AC by CR.
     Disadvantage on its next attack roll, rules_advantage.cpp asks; Poison Spray none to the poison-immune). !test
     profiles cantripbard and cantripwizard (level 5). Sorcerous Burst moves to build 2 (its seven damage types: the
     "more" menu).
+    The launch check found spells.2da skipped ("line 16: expected a row number and 59 values": one rows file held two
+    header lines) - split in two, and test RowsFilesParse now parses every rows file as the DLL does.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
