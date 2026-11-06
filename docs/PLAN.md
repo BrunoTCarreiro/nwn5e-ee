@@ -366,6 +366,11 @@ monster AC by CR.
     pick on one tab left the others' marks stale: a Sorcerer 3's level 2 (2 left at the setup) stayed not done once
     level 1's picks filled the total, whatever tab was picked on, cantrips included. After a pick or a drop every
     level with nothing left is now marked done, then the OK button updated (0x9C6E70); a mark is only ever set.
+  - *The labels' arrows (owner, 2026-11-06: "For 2 is it possible to have arrow symbols? If not go work your
+    recommendation"):* not possible - the game's text is Windows-1252 (the language's code page), which has no
+    arrow characters (the nearest are the guillemets « »). "- In" and "- Out" kept.
+  - *Part 2 next (owner, 2026-11-06: "Go with your recommendations for 1 and 4."):* Part 2 - upcasting (2A) and
+    the combined multiclass pool (4A) - while Part 3b waits for the owner's in-game tests.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
@@ -960,6 +965,13 @@ Flask at the ground left its patch (HR-1's patch, 0.71.0). Left untested: HR-1's
     against a character and at !spawn (the 0.72.0 run's orc died of one flask at its own 4 hit points).
 *Accepted (owner, 2026-11-04: "you can accept all of those").* #133. Left untested: HS-2 (a longer move away), HS-3 (found up
 close, then attacked).
+- *#136, a creature harmed by a hider it can't see (owner, 2026-11-05: "if an enemy is harmed by a player action
+  (thrown grenade for example), but they don't have any player or henchmnen in LoS, does combat start?").* NWN's
+  OnDamaged (nw_c2_default6) sends a creature that can't see its damager to the damager's exact location
+  (ActionMoveToLocation(GetLocation(oDamager))) - #133's leak, by the damage path. Options: A route that move
+  through #133's rule (where the hider was heard, a search near it); B A, and the creatures unaware of the hider
+  Surprised when its attack starts combat (SRD 5.2: Disadvantage on their Initiative roll).
+  - *Decided (owner, 2026-11-06: "Go with your recommendations for 1 and 4."):* B, faithful.
 - *#131, creatures keep out of hazards (owner, 2026-11-04, on #130's 0.69.1 run: "We might need to eventually work on
   the henchman AI to prevent them from standing in hazard areas").* How it was: the grenade hazards hurt anyone (0.70.0);
   NWN's henchman AI (nw_ch_acb) answers only an enemy's area spell (it may flee or dispel) and ignores its master's on
@@ -2941,6 +2953,15 @@ rest rules); `rest_clock=0` keeps it still. *Built 0.59.18:* rest_clock's built-
 turns it on where an ini turns it off.
 *Accepted (owner, 2026-11-02: "F1, F3-1 and 2 and 110 all pass").* #110: a Long Rest moves the clock 8 hours and a
 Short Rest 1 by default, faithful.
+*Long Rest limits (#135; owner, 2026-11-05: "do the 2024 rules restrict number of long rests at all per period of
+time?").* SRD 5.2: "After you finish a Long Rest, you must wait at least 16 hours before starting another one";
+"To start a Long Rest, you must have at least 1 Hit Point"; an interrupted rest of 1 hour or more gives a Short
+Rest's benefits, and it can be resumed for 1 more hour per interruption. R1 has no limit.
+*Decided (owner, 2026-11-06: "Also impose the 16 hour limit but also make it so the user can remove this limit as
+part of the house rules we talked about earlier"):* the 16-hour wait between Long Rests, faithful (on by default),
+on the game clock; a [house_rules] switch removes it (off by default, as every house rule). The 1 HP minimum
+(explained: the resting character already can't rest while down, so it only changes a downed henchman) and the
+interrupted rest's Short Rest benefits: asked.
 *Resting a lot (#110; owner, 2026-11-01: "are there any consequences in-game for resting too many times, like
 events tied to calendar days that can be missed?"). Researched 2026-11-01* (the campaigns' own .nss, which every
 official module ships, and the NWN Lexicon's SetTime / SetCalendar notes): nothing in the official campaigns can be
