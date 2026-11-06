@@ -509,6 +509,21 @@ void Remove(void* page) {
 
 }  // namespace
 
+bool ClientKnowsSpell(void* client_stats, int slot, int spell_level, uint32_t spell) {
+  if (!client_stats || !g_known_count || !g_get_known || slot < 0 || slot > 255 || spell_level < 0 ||
+      spell_level > 9) {
+    return true;
+  }
+  const int count = g_known_count(client_stats, static_cast<uint8_t>(slot), static_cast<uint8_t>(spell_level));
+  for (int i = 0; i < count && i < 255; ++i) {
+    if (g_get_known(client_stats, static_cast<uint8_t>(slot), static_cast<uint8_t>(spell_level),
+                    static_cast<uint8_t>(i)) == spell) {
+      return true;
+    }
+  }
+  return false;
+}
+
 int SpellsPageCap(uintptr_t caller, int spell_level, int cap) {
   if (!t_quick_stats || caller != g_quick_site || spell_level < 1 || spell_level > 9 || !g_known_count) return cap;
   Levelled c;

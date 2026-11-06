@@ -41,6 +41,9 @@
 //   - The client's uses getter: domain N - level N's slots; domain 0 - its own level's, the radial's spell list (the
 //     parent entry) the slots at its level and above. An upcast quickbar button's number reads "L3·4"
 //     (rules::UpcastCountText: the getter's caller's next ToString, as a cantrip's is blanked).
+//   - 0.84.1: a spell the class doesn't know (not among its cantrips and prepared spells) reads 0 on the client - a
+//     stale quickbar button greys out (the owner's Negative Energy Ray, left from a Sorcerer, counted a Cleric's
+//     three 2nd-level slots while the server refused it: "No uses or preparations left for that spell").
 // - Part 2b (4A, the combined multiclass pool): with two or more 2024 caster classes, the slots are SRD 5.2's
 //   Multiclass Spellcaster table's at the full casters' levels plus half the Paladin and Ranger levels (rounded up).
 //   NWN keeps uses per class slot, so GetSpellGainWithBonus gives every caster class the pool's table
@@ -426,6 +429,13 @@ uint8_t ClientUsesLeft(void* client_stats, uint32_t spell_id, uint8_t slot, uint
                                                               slot * ee::kClientStatsClassSlotSize)
                              : -1;
   const bool caster = known_slot && rules::CasterKindOfClass(row) != rules::CasterKind::kNone;
+  // 0.84.1: a spell the class doesn't know (a 2024 caster's known list: its cantrips and prepared spells) has no
+  // uses - a quickbar button left from another class, or from before a Long Rest's change, reads 0 and greys out
+  // (NWN's count for a spontaneous class reads the level's slots only; the server refuses the cast).
+  if (caster && !Memorizes(row)) {
+    const int class_level = SlotLevel(row, spell_id, 0);
+    if (class_level >= 0 && !ClientKnowsSpell(client_stats, slot, class_level, spell_id)) return 0;
+  }
   int own = -1;
   if (caster && domain_level != 0) {  // by choice: a level N cast - level N's slots (the radial's, a quickbar button)
     const int chosen = ChosenSlot(row, spell_id, domain_level, metamagic, &own);

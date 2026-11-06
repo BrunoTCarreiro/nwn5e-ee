@@ -435,6 +435,14 @@ monster AC by CR.
       parent isn't greyed while a higher slot is left. An upcast quickbar button's number: the getter's caller's
       next ToString rewritten "L3·4". The quickbar keeps the param (QBDomainLevel), saved with the character.
     `!test spellupcast` and spellcleric's notes rewritten.
+  - *The owner's 0.84.0 run (2026-11-06):* "everything goes through, but check the logs to figure out why can't I
+    cast the negative energy ray, it says I have 3 slots" / "it sais I had no preparations left". The client log:
+    nine "No uses or preparations left for that spell." (the server's GetSpellUsesLeft: the spell isn't in the
+    Cleric's known list) - the quickbar button (key 8) was left from the Sorcerer test (`!test spellcleric` swapped
+    the class); Negative Energy Ray is a Cleric 2nd-level spell, so the button counted the Cleric's three 2nd-level
+    slots - NWN's client count for a spontaneous class reads the level's slots, never the known list. *0.84.1:* a
+    2024 caster's spell its class doesn't know reads 0 on the client (spells_page.cpp's ClientKnowsSpell: the
+    client's known count and known spell), so such a button greys out - as after a Long Rest's change too.
   - *Built 0.80.0 (Part 2b, the combined multiclass pool, 4A):* SRD 5.2's multiclassing - with the Spellcasting
     feature from more than one class, the slots are the Multiclass Spellcaster table's (the full casters') at the
     Bard, Cleric, Druid, Sorcerer and Wizard levels plus half the Paladin and Ranger levels, rounded up; each class
