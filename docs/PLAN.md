@@ -527,6 +527,33 @@ monster AC by CR.
     the book's spells at the tab's level, then the page's other known ones (rules::WizardPageRows, test
     LevelUpSwaps, 3 of 3 mutations caught). The page's OK (0x9C90D0) reads the client's own known lists, so only the picks
     go to the server. A book spell counts as known before (no remove icon; Remove refuses it).
+- *#37, Concentration (owner, 2026-11-06: "let's start with 37 and 38").* SRD 5.2: a spell whose duration is
+  "Concentration, up to ..." lasts while its caster keeps Concentration - one such spell at a time (casting another
+  ends the first); damage calls for a Constitution save, DC 10 or half the damage (rounded down) if higher, at most
+  30; Concentration ends when the caster is Incapacitated or dies, or when it chooses; Rage ends it (B2). How it
+  was: NWN has none - every buff, area and summon runs its 3e duration, any number at once (SK7 only removed the
+  Concentration skill's check while casting); spells.2da has no concentration column; a spell's effects carry its
+  caster and spell id. Options: 1 which spells - A the NWN spells that are SRD 5.2 spells marked Concentration (a
+  table from the SRD's descriptions; NWN-only spells with #39), B A + NWN-only ones by likeness; 2 who - A every
+  caster (players, henchmen, enemies; NWN mode none), B player characters; 3 items - A scrolls and wands as a
+  cast, potions not, B items never; 4 what's shown - A a resource panel line, combat-log messages for each save,
+  an End Concentration action on the radial and the quickbar, B the messages only; 5 durations - A NWN's until
+  #39 gives each spell its SRD duration, B the SRD's now.
+  - *Decided (owner, 2026-11-06: "37, all recommendations except 4A, do not have a end concentration item in the
+    quickbar, add a button for that in the resources panel. Maybe clicking the \"concentrating: <spell>\"
+    element"):* 1A, 2A, 3A, 5A; 4: the resource panel's "Concentrating: <spell>" line, which a click ends, and
+    the combat-log messages - no End Concentration action on the radial or the quickbar.
+- *#38, rituals and material components (open decision 6).* SRD 5.2: a prepared spell with the Ritual tag can be
+  cast as a Ritual - 10 minutes longer, no slot, so never upcast (a Wizard from its spellbook, unprepared:
+  Ritual Adept); a focus or a component pouch covers ordinary material components, a component with a cost must
+  be on the caster and one the spell consumes is used up each cast. How it was: NWN has neither; of its spells
+  only a few carry the Ritual tag (Identify, Silence). Options: rituals - A left out for now (revisited if #39 adds
+  Ritual spells that matter), B a "Ritual" radial entry out of combat, no slot, the clock 10 minutes on;
+  components - A ignored, B only costly ones, paid in gold (a consumed one takes its cost, a kept one needs it on
+  hand; a henchman pays from its master's gold; enemies exempt; NWN mode free), C costly ones as gem items.
+  - *Decided (owner, 2026-11-06: "38, rituals A, components B for now, we'll need to check the meterial
+    costs"):* no Rituals for now; costly material components paid in gold - the table of costs goes to the owner
+    to check.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
@@ -1206,7 +1233,8 @@ CM3, CM6, CM10).
 3. *(Answered, CM1 / CM7.)* Epic levels: cap at 20 with Epic Boons, or a custom 21+ track for HotU?
 4. *(Answered, CM3.)* Hit points per level: fixed average or rolled?
 5. *(Answered, CM10.)* Prestige classes with no 2024 subclass equivalent: drop or adapt?
-6. Rituals and material components: model or ignore? (#38)
+6. *(Answered 2026-11-06, #38: no Rituals for now; costly material components paid in gold.)* Rituals and
+   material components: model or ignore?
 7. Action economy design (Phase 6). (#51)
 12. *(Answered, CM10.)* Subclass selection UI: prestige classes become 2024 subclasses (decision
     10). Proposed: pick the subclass at level 3 in the existing level-up feat
