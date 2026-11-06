@@ -389,6 +389,15 @@ monster AC by CR.
     - SL-2's queue check spends the queued casts' slots in order (a fifth 1st-level cast with four 1st-level slots
       queues, into a 2nd-level slot).
     `!test spellupcast` (Sorcerer 3: 4 / 2 slots); spellcleric's note: nine 1st-level casts queue, not four.
+  - *Revised (owner, 2026-11-06: "Upcasting should not be automatic, the player should have/get to choose at what
+    level they cast a spell. I picture it as selecting the spell from their original level but there being an extra
+    level (in the radial menu) where the user can go into and pick at which level they want to cast the spell at.
+    For the quickbar, they can just set an upcast spell in a slot"):* 2A gives way to 2B, upcasting by choice
+    (planned for #39, brought forward): a spell's radial entry gets one more level listing the slot levels to cast it
+    with, and an upcast version can be put on the quickbar. A cast from the spell's own entry with no slot of its
+    level left fails, as NWN's. The approach to look into: NWN's metamagic versions of a spell (the radial's
+    submenu, the quickbar's assign menu, the cast's metamagic byte and its slot-level cost) - "cast at level N"
+    versions through the same machinery. 0.79.0's automatic upcast stays until the choice is built, then goes.
   - *Built 0.80.0 (Part 2b, the combined multiclass pool, 4A):* SRD 5.2's multiclassing - with the Spellcasting
     feature from more than one class, the slots are the Multiclass Spellcaster table's (the full casters') at the
     Bard, Cleric, Druid, Sorcerer and Wizard levels plus half the Paladin and Ranger levels, rounded up; each class
