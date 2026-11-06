@@ -398,6 +398,19 @@ monster AC by CR.
     level left fails, as NWN's. The approach to look into: NWN's metamagic versions of a spell (the radial's
     submenu, the quickbar's assign menu, the cast's metamagic byte and its slot-level cost) - "cast at level N"
     versions through the same machinery. 0.79.0's automatic upcast stays until the choice is built, then goes.
+  - *Researched (2026-11-06; the map in the session's notes):* NWN's metamagic versions aren't a submenu under a spell
+    - they are a separate branch under each class (Metamagic -> type -> level -> spells, 0x9A24B0) - so the spell ->
+    level submenu is new radial UI. The plan: the chosen slot level rides in the cast's **domain level** (radial param
+    bits 24-27, a byte on the wire, action +0x48, creature +0x21C - GetLastSpellLevel() returns it - and the
+    quickbar's QBDomainLevel, saved and reloaded); a spontaneous class never uses it today. Client: CRadialMenu::
+    SetEntryx (0x1FA010) hooked - a 2024 caster's spell leaf (callback 0x9A4540) becomes a submenu
+    (SetSubMenuCreatorx 0x1FA7F0) listing "Level N" for each level with slots, each casting with domain N;
+    DisableEntry (0x1F8B30) kept off the parent while a slot of its level or above is left; the client's uses getter
+    counts level N's slots for domain N, its own level's only for domain 0. Server: GetSpellUsesLeft and
+    UnReadySpell read domain N as the slot level (the original asked with domain 0: ConfirmDomainSpell would refuse
+    it); SL-2 likewise. The quickbar's assign mode is the same radial, so an upcast version goes on a slot as is.
+    Open: the quickbar button shows no level mark (the count differs); a 1st-level spell with slots up to 9th needs
+    a "more" entry (the radial holds 8).
   - *Built 0.80.0 (Part 2b, the combined multiclass pool, 4A):* SRD 5.2's multiclassing - with the Spellcasting
     feature from more than one class, the slots are the Multiclass Spellcaster table's (the full casters') at the
     Bard, Cleric, Druid, Sorcerer and Wizard levels plus half the Paladin and Ranger levels, rounded up; each class
