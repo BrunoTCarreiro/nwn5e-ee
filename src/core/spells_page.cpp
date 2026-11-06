@@ -51,6 +51,11 @@
 //   the others' marks stale (a Sorcerer 3's level 2, 2 left at the setup, stays not done once level 1's picks fill
 //   the total). After a pick or a drop, every level with nothing left is marked done and the OK button updated; a
 //   pick refreshes the title too (Add rebuilds nothing).
+// - 0.84.3 (owner, 2026-11-06: "the button didn't change after the spell being unprepared"): the client's player
+//   update changes a class's known list (the Prepare spells window's Accept) without refreshing the quickbar - NWN
+//   refreshes it for memorized spells and uses left only - so a spell dropped kept its count until the next
+//   refresh. After the update's remove and add known spell (by return address), the quickbar's own refresh runs:
+//   the button reads NP at once (rules_spell_slots.cpp).
 // - 0.77.1 (owner, 2026-11-05: "again initial prepare spells pop up out of nowhere"): NWN's page setup gives a
 //   class with LearnScroll at level 1 every cantrip (its known list's level 0 empty: all of them, the client's
 //   AddKnownSpell in a loop) - 7 against 2024's 3, and the Prepare window opened to trim them. At that call the add is
@@ -88,6 +93,8 @@ using GetKnownFn = uint32_t (*)(void* client_stats, uint8_t slot, uint8_t spell_
 using SpellLevelFn = uint8_t (*)(void* spell, uint8_t nwn_class);
 using GetSpellFn = void* (*)(const void* spells, int id);
 using ClientAddKnownFn = uintptr_t (*)(void* client_stats, uintptr_t slot, uintptr_t spell);
+using ClientRemoveKnownFn = uintptr_t (*)(void* client_stats, uintptr_t slot, uintptr_t spell);
+using QuickbarRefreshFn = void (*)(void* quickbar);
 using RemoveFn = void (*)(void* page);
 using AddFn = void (*)(void* page);
 using UpdateOkFn = void (*)(void* page);  // the page's OK button from its levels' done marks
@@ -110,6 +117,15 @@ thread_local std::vector<void*> t_book_spells;  // the levelled Wizard's book as
 thread_local bool t_book_loaded = false;
 ClientAddKnownFn g_client_add_known = nullptr;
 uintptr_t g_all_cantrips_site = 0;  // the page setup's every-cantrip add (its return address)
+// 0.84.3: the player update's remove and add known spell (return addresses), the quickbar's refresh, its chain.
+ClientRemoveKnownFn g_client_remove_known = nullptr;
+QuickbarRefreshFn g_quickbar_refresh = nullptr;
+uintptr_t g_update_remove_site = 0;
+uintptr_t g_update_add_site = 0;
+void** g_app_manager = nullptr;
+constexpr size_t kClientAppInternal = 0x8;
+constexpr size_t kAppGui = 0x90;
+constexpr size_t kGuiQuickbar = 0x60;
 RemoveFn g_remove = nullptr;
 AddFn g_add = nullptr;
 UpdateOkFn g_update_ok = nullptr;
@@ -252,12 +268,32 @@ uint32_t GetKnown(void* client_stats, uint8_t slot, uint8_t spell_level, uint8_t
 }
 
 // 0.77.1: the page setup's every-cantrip add skipped for a 2024 caster (the cantrips tab picks them).
+// 0.84.3: the quickbar's numbers read again (the game's own refresh of all its buttons).
+void RefreshQuickbar() {
+  if (!g_quickbar_refresh || !g_app_manager || !*g_app_manager) return;
+  void* client = *static_cast<void**>(*g_app_manager);
+  void* app = client ? Field<void*>(client, kClientAppInternal) : nullptr;
+  void* gui = app ? Field<void*>(app, kAppGui) : nullptr;
+  void* quickbar = gui ? Field<void*>(gui, kGuiQuickbar) : nullptr;
+  if (quickbar) g_quickbar_refresh(quickbar);
+}
+
 uintptr_t ClientAddKnown(void* client_stats, uintptr_t slot, uintptr_t spell) {
-  if (reinterpret_cast<uintptr_t>(_ReturnAddress()) == g_all_cantrips_site) {
+  const uintptr_t from = reinterpret_cast<uintptr_t>(_ReturnAddress());
+  if (from == g_all_cantrips_site) {
     Levelled c;
     if (LevelledClass(client_stats, &c)) return 0;
   }
-  return g_client_add_known(client_stats, slot, spell);
+  const uintptr_t result = g_client_add_known(client_stats, slot, spell);
+  if (from == g_update_add_site) RefreshQuickbar();  // 0.84.3: a spell the server added
+  return result;
+}
+
+// 0.84.3: a spell the server dropped from a known list - its quickbar button reads NP at once.
+uintptr_t ClientRemoveKnown(void* client_stats, uintptr_t slot, uintptr_t spell) {
+  const uintptr_t result = g_client_remove_known(client_stats, slot, spell);
+  if (reinterpret_cast<uintptr_t>(_ReturnAddress()) == g_update_remove_site) RefreshQuickbar();
+  return result;
 }
 
 // A level's spells left to pick on the page: the engine's, bounded by 2024's total (a Wizard's: its spellbook).
@@ -620,6 +656,23 @@ bool InstallSpellsPage() {
         reinterpret_cast<void*>(g_known_count));
     return false;
   }
+  // 0.84.3: the player update's known-list calls and the quickbar's refresh.
+  const uintptr_t update = FunctionByString("the client's player update (#36 UC-9)", ee::kPlayerUpdateName);
+  const CodeRange update_range = update ? FunctionAt(update) : CodeRange{};
+  const uintptr_t remove_call = update ? FindPatternIn("the player update's known-spell remove (#36 UC-9)",
+                                                       update_range, ee::kPlayerUpdateRemoveKnownPattern)
+                                       : 0;
+  const uintptr_t refresh_call = update ? FindPatternIn("the player update's quickbar refresh (#36 UC-9)",
+                                                        update_range, ee::kPlayerUpdateQuickbarRefreshPattern)
+                                        : 0;
+  const std::vector<uintptr_t> update_adds =
+      update ? FindCallsTo(update_range, client_add) : std::vector<uintptr_t>();
+  const uintptr_t client_remove = remove_call ? CallTarget(remove_call + 9) : 0;
+  g_quickbar_refresh = reinterpret_cast<QuickbarRefreshFn>(refresh_call ? CallTarget(refresh_call + 3) : 0);
+  g_app_manager = reinterpret_cast<void**>(EngineExport(ee::kAppManager));
+  const bool refresh_found = client_remove && g_quickbar_refresh && g_app_manager && update_adds.size() == 1;
+  g_update_remove_site = refresh_found ? remove_call + 14 : 0;  // the call (+9) and its 5 bytes
+  g_update_add_site = refresh_found ? update_adds[0] + 5 : 0;
   const bool hooked =
       HookAddress("client spells left (the Spells page: 2024's total, #36)", left, reinterpret_cast<void*>(&SpellsLeft),
                   reinterpret_cast<void**>(&g_spells_left)) &&
@@ -644,5 +697,16 @@ bool InstallSpellsPage() {
       "totals; a Wizard's spellbook; the level-up swaps, no remove icon on a spell that can't be dropped (#36 "
       "Part 3b)%s",
       hooked ? "" : " - SOME hooks missing");
+  const bool refresh =
+      refresh_found && hooked &&
+      HookAddress("client RemoveKnownSpell (the quickbar refreshed after the server's known-list change, #36)",
+                  client_remove, reinterpret_cast<void*>(&ClientRemoveKnown),
+                  reinterpret_cast<void**>(&g_client_remove_known));
+  if (!refresh) g_update_add_site = 0;
+  Log(refresh ? "spells: the quickbar reads its numbers again after the server changes a known list (a spell "
+                "dropped reads NP at once; #36 UC-9)"
+              : "SKIP spells #36 UC-9: the quickbar's numbers wait for its next refresh after a known-list change "
+                "(remove %p, refresh %p, %zu adds)",
+      reinterpret_cast<void*>(client_remove), reinterpret_cast<void*>(g_quickbar_refresh), update_adds.size());
   return hooked;
 }

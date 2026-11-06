@@ -947,6 +947,15 @@ constexpr const char* kSpellsPageAvailKnownPattern = "41 0F B6 55 6A 49 8B CD E8
 // has no cantrip: every cantrip of the class added - the client's AddKnownSpell (client stats, slot, spell), the call
 // at this pattern +10 (NWN's "a Wizard knows every cantrip").
 constexpr const char* kSpellsPageAllCantripsPattern = "44 8B C3 41 0F B6 D6 48 8B CD E8 ?? ?? ?? ?? FF C3";
+// #36 UC-9 (0.84.3): the client's player update (CNWCMessage::HandleServerToPlayerUpdate_PlayerInfo, found by its
+// own name string) changes a class's known list - the client's RemoveKnownSpell (client stats, slot, spell), the
+// call at this pattern +9, then the AddKnownSpell above - and refreshes the quickbar only for memorized spells and
+// uses left: the quickbar's refresh (void (quickbar); it reads the controlled creature itself), the call at the
+// other pattern +3. The quickbar: the app manager's client app (+0) +0x8, then +0x90 (the in-game GUI), +0x60.
+constexpr const char* kPlayerUpdateName = "HandleServerToPlayerUpdate_PlayerInfo";
+constexpr const char* kPlayerUpdateRemoveKnownPattern =
+    "44 8B C0 0F B6 D3 49 8B CF E8 ?? ?? ?? ?? 66 45 03 E6 75 DA BA 10 00 00 00";
+constexpr const char* kPlayerUpdateQuickbarRefreshPattern = "49 8B CD E8 ?? ?? ?? ?? 83 7C 24 6C 00";
 // Part 3b-3: the page's Remove (a click on a known row; void (page)) - this pattern at its +0x38: the selected row
 // int32 +0xE38 (-1 none), the shown known spells' ids uint32* +0x11C8; the tab's spell level uint8 +0x19DE, the
 // page's creature id uint32 +0x19D8 (the client lookup: ShowLevel's call at this other pattern +8), the known lists

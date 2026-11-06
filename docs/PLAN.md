@@ -453,6 +453,12 @@ monster AC by CR.
     one stays clickable, and dropping it frees the rest); Accept waits until each list holds its count, or every
     spell it could take (rules::ListComplete), with a status line saying so; a 2024 caster's spell its class
     doesn't know reads "NP" on the client (the getter's caller's next ToString, as "L3·4").
+  - *The owner's 0.84.2 run (2026-11-06):* "the button didn't change after the spell being unprepared". The log: the
+    rest's window accepted at 15:17:39 ("prepared 9 (+1 -1)"), after the rest's uses were back. The client's player
+    update (HandleServerToPlayerUpdate_PlayerInfo) applies a known-list change (its remove and add known spell)
+    without refreshing the quickbar - it does so for memorized spells and uses left only - so the button kept its
+    count. *0.84.3:* after the update's remove and add (by return address), the quickbar's own refresh runs
+    (spells_page.cpp).
   - *Built 0.80.0 (Part 2b, the combined multiclass pool, 4A):* SRD 5.2's multiclassing - with the Spellcasting
     feature from more than one class, the slots are the Multiclass Spellcaster table's (the full casters') at the
     Bard, Cleric, Druid, Sorcerer and Wizard levels plus half the Paladin and Ranger levels, rounded up; each class
