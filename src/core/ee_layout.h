@@ -966,6 +966,17 @@ constexpr const char* kSpellsPageAddPattern =
 // the page's setup (0x9CE190) and by 0x9CE730 for the tab picked on only.
 constexpr const char* kSpellsPageAddOkUpdatePattern = "48 8B CE E8 ?? ?? ?? ?? 48 8B CE E8 ?? ?? ?? ?? 83 BE 30 09 00 00 00";
 constexpr size_t kSpellsPageLevelDone = 0x19e0;
+// 0.83.0: the page's known list, a CGuiButtonListbox at +0xDA8 - its rows in its button array (+0x430) and their
+// spell ids in its int array (+0x420, the page's +0x11C8: kSpellsPageKnownIds), each a CExoArrayList (data +0,
+// count +8; ShowLevel's InsertButton(list, row, place, spell id)). A row is a CGuiCharGenFeatButton (model
+// CTL_CG_BTN_FEAT) with two CGuiMouseoverChildButton children: +0xC8 the move button (its callback the page's Add
+// or Remove), +0x198 the info button (put in the panel on hover, taken out after).
+constexpr size_t kSpellsPageKnownList = 0xda8;
+constexpr size_t kGuiListboxIds = 0x420;
+constexpr size_t kGuiListboxButtons = 0x430;
+constexpr size_t kFeatButtonMoveButton = 0xc8;
+constexpr size_t kFeatButtonInfoButton = 0x198;
+constexpr const char* kGuiRemoveFromPanel = "?RemoveFromPanel@CGuiObject@@QEAAXXZ";
 constexpr const char* kSpellsPageCreaturePattern = "41 8B 8C 24 D8 19 00 00 E8";
 constexpr size_t kSpellsPageSelected = 0xe38;
 constexpr size_t kSpellsPageKnownIds = 0x11c8;

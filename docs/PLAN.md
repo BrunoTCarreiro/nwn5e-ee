@@ -402,6 +402,18 @@ monster AC by CR.
     no slots would have hidden the second class's spells). SL-2's queue counts the casts of every class sharing
     the pool. After a level-up the next rest makes every class's counts the new pool's. `!test spellmulticlass`
     (Wizard 3 / Cleric 2: the table's level 5, 4 / 3 / 2).
+  - *0.83.0 (owner, 2026-11-06: "instead of addin 'in' and 'out' is it possible to change the visibility of the
+    icons used to add and remove spells? if so we can just prevent the user from attempting to remove unremovable
+    spells. a spell that was added shoould keep the icon that allows the user to remove it while all the other ones
+    that would result in a 'no more swaps' warning would get their icons hidden"):* the labels "- In" / "- Out"
+    are gone (the GetSpellNameText hook with them). Each row on the page is a CGuiCharGenFeatButton (model
+    CTL_CG_BTN_FEAT) with two CGuiMouseoverChildButton children: +0xC8 the move button (Add or Remove), +0x198 the
+    info button (shown on hover). Once a tab is built, a known row whose spell can't be dropped now - known before
+    this level-up, its list's swap spent or none for the class (rules::RemoveIconShown; test LevelUpSwaps, 3 of 3
+    mutations caught) - has its move button taken out of the panel (CGuiObject::RemoveFromPanel, as the familiar page's row
+    does); rows and spells matched by the known list's button and id arrays (+0x430, +0x420 = the page's +0x11C8). A
+    drop rebuilds the tab, so the other rows lose theirs at once; a pick that undoes a swap rebuilds it, the buttons
+    back. "No more swaps" stays as the fallback.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

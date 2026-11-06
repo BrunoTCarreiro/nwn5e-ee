@@ -79,6 +79,11 @@ TEST(LevelUpSwaps) {
   CHECK_EQ(LevelUpSwapAllowed(6, false, 0), false);  // Paladin: after a Long Rest
   CHECK_EQ(LevelUpSwapAllowed(10, true, 0), false);  // Wizard: its cantrip after a Long Rest
   CHECK_EQ(LevelUpSwapAllowed(10, false, 0), false); // a book spell never leaves
+  // 0.83.0: the remove icon - a pick always; a spell known before only while its list's swap is left.
+  CHECK_EQ(RemoveIconShown(true, false), true);
+  CHECK_EQ(RemoveIconShown(true, true), true);
+  CHECK_EQ(RemoveIconShown(false, true), true);
+  CHECK_EQ(RemoveIconShown(false, false), false);  // its swap spent (or none): hidden
 }
 
 // Part 3b-2 (owner, 2026-11-05: "Not a fan of the spellbook appearing AFTER the class configuration can it be

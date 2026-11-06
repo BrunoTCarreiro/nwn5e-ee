@@ -51,6 +51,11 @@ int SpellsLeftOnPage(int level_left, int prepared_total, int known_total);
 // of that list (cantrips, or the level 1+ spells) already dropped this level-up. A pick of this level-up isn't a
 // swap (it can always be dropped).
 bool LevelUpSwapAllowed(int class_row, bool cantrip, int swaps_done);
+// 0.83.0 (owner, 2026-11-06: "is it possible to change the visibility of the icons used to add and remove spells? if
+// so we can just prevent the user from attempting to remove unremovable spells"): a known spell's remove icon on the
+// Spells page - shown for a pick of this level-up (always removable), and for a spell known before it only while a
+// swap of its list is left (LevelUpSwapAllowed).
+bool RemoveIconShown(bool picked_this_level_up, bool swap_left);
 
 struct WizardLists {
   std::vector<int> book;
