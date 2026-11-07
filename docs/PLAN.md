@@ -757,6 +757,12 @@ monster AC by CR.
     (the short sword is Martial - the profile's mistake); the shortbow is Simple in 2024 but NWN's martial (its
     baseitems ReqFeat), and nwn5e doesn't give classes their 2024 weapon lists yet (#17, X7). The cantripbard
     profile now has two daggers and a light crossbow (Simple in both).
+  - *Builds 3a and 3b accepted (owner, 2026-11-07: "accepted", after "TS-2,4 and 5 are confirmed" and "everything seems
+    good"):* on 0.92.2 - Produce Flame (PF-1 to PF-8: the Flame a Bonus Action, Hurl refused with no flame, the
+    second Flame in a round waiting, the carried light while hidden, the quickbar), Shillelagh (Wisdom, its die,
+    Force, its icon, ending on a weapon swap), True Strike (its one-attack round with Charisma, Radiant and its d6,
+    melee and ranged; refused with no weapon). The look of Produce Flame, Hurl and Fire Bolt: #143. Left: build 1's
+    CA-1 to CA-10; build 4. The probe's code goes in the next install.
   - *Build 4 brief (2026-11-07): the utility cantrips, SRD 5.2.1's nine left (Eldritch Blast waits for a Warlock).*
     Q1 Mending and Message (no broken items, no one to whisper to in single player): A off the class lists until
     they have a use, B flavour. Q2 Mage Hand: A cast at a door, lever, light or container within 30 ft - the hand
