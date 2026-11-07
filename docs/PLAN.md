@@ -1344,6 +1344,10 @@ close, then attacked).
     / RT-7 cure doesn't cast at once / RT-9 fire bolt doesn't cast at once"):* the radial's target is the client's
     id, the server's with bit 31 set (the log: Hold Person "on the ground (0x8000031a)", the orc being 0x31A);
     looked up on the server as is it found no object, so every creature counted as the ground. rules::ServerObjectId.
+  - *Accepted (owner, 2026-11-07: "accepted, 2 b, 3 it already does"):* 0.89.2's rows pass (the log agreed:
+    single-target spells on a creature at once, area spells, harmful spells on an ally and ground picks the cursor).
+    The two picks: a self-only spell (Shield) on another creature's radial stays greyed, as the game has it (2 b);
+    Esc already cancels the cursor (3).
 
 ### Phase 8 — Creatures and campaign balance
 - Bounded accuracy breaks against 3e stat blocks (HotU creatures with AC 30+).
