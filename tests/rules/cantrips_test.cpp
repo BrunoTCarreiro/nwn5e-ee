@@ -233,6 +233,69 @@ TEST(WeaponCantripDamage) {
   AddDamage(nullptr, 32, kDamageTypeCold, 3);  // no crash
 }
 
+// #39 build 4a: the utility cantrips' menus - SRD 5.2.1's effects, less those the owner left out.
+TEST(UtilityCantrips) {
+  const ChoiceCantrip* druidcraft = ChoiceCantripOf(kDruidcraft);
+  CHECK_EQ(druidcraft != nullptr, true);
+  CHECK_EQ(druidcraft->kind == ChoiceKind::kMode, true);
+  CHECK_EQ(druidcraft->options.size(), 4u);
+  CHECK_EQ(strcmp(druidcraft->options[0].label, "Weather Sensor"), 0);
+  CHECK_EQ(strcmp(druidcraft->options[3].label, "Fire Play"), 0);
+  const ChoiceCantrip* elementalism = ChoiceCantripOf(kElementalism);
+  CHECK_EQ(elementalism->options.size(), 4u);  // no Sculpt Element
+  CHECK_EQ(strcmp(elementalism->options[2].label, "Beckon Fire"), 0);
+  const ChoiceCantrip* prestidigitation = ChoiceCantripOf(kPrestidigitation);
+  CHECK_EQ(prestidigitation->options.size(), 2u);  // Fire Play and Magic Mark
+  const ChoiceCantrip* thaumaturgy = ChoiceCantripOf(kThaumaturgy);
+  CHECK_EQ(thaumaturgy->options.size(), 3u);  // no Altered Eyes or Tremors; Phantom Sound with 4b
+  CHECK_EQ(thaumaturgy->options.back().spell + 1, kPhantomSound);  // its row next, reserved
+  CHECK_EQ(ChoiceCantripOf(kMageHand) == nullptr, true);              // no menu
+  CHECK_EQ(UtilityEffectOf(1105) == UtilityEffect::kWeatherSensor, true);
+  CHECK_EQ(UtilityEffectOf(1104) == UtilityEffect::kWeatherSensor, true);  // cast with no choice: the first
+  CHECK_EQ(UtilityEffectOf(1108) == UtilityEffect::kFirePlay, true);
+  CHECK_EQ(UtilityEffectOf(1113) == UtilityEffect::kBeckonWater, true);
+  CHECK_EQ(UtilityEffectOf(1115) == UtilityEffect::kFirePlay, true);
+  CHECK_EQ(UtilityEffectOf(1116) == UtilityEffect::kMagicMark, true);
+  CHECK_EQ(UtilityEffectOf(1119) == UtilityEffect::kThaumaturgyFirePlay, true);
+  CHECK_EQ(UtilityEffectOf(1120) == UtilityEffect::kInvisibleHand, true);
+  CHECK_EQ(UtilityEffectOf(kMageHand) == UtilityEffect::kMageHand, true);
+  CHECK_EQ(UtilityEffectOf(kPhantomSound) == UtilityEffect::kPhantomSound, true);
+  CHECK_EQ(UtilityEffectOf(kProduceFlameFlame) == UtilityEffect::kNone, true);  // a mode of its own
+  CHECK_EQ(UtilityEffectOf(kProduceFlameHurl) == UtilityEffect::kNone, true);   // its mode 1 isn't Weather Sensor
+  CHECK_EQ(UtilityEffectOf(1050) == UtilityEffect::kNone, true);
+  CHECK_EQ(EffectIconOf(1118), -1);  // Booming Voice's icon is its own (kBoomingVoiceIcon)
+  CHECK_EQ(BonusActionFeatOfSpell(1104), -1);  // all actions
+  CHECK_EQ(BonusActionFeatOfSpell(kMageHand), -1);
+}
+
+// #39 build 4a: what each effect does to a light and a door; Elementalism's Cube; the ranges.
+TEST(UtilityCantripEffects) {
+  CHECK_EQ(FirePlayOf(UtilityEffect::kFirePlay) == FirePlay::kToggle, true);
+  CHECK_EQ(FirePlayOf(UtilityEffect::kMageHand) == FirePlay::kToggle, true);
+  CHECK_EQ(FirePlayOf(UtilityEffect::kBeckonFire) == FirePlay::kLight, true);  // embers light, don't snuff
+  CHECK_EQ(FirePlayOf(UtilityEffect::kBeckonWater) == FirePlay::kSnuff, true);
+  CHECK_EQ(FirePlayOf(UtilityEffect::kThaumaturgyFirePlay) == FirePlay::kDim, true);
+  CHECK_EQ(FirePlayOf(UtilityEffect::kBeckonAir) == FirePlay::kNone, true);
+  CHECK_EQ(FirePlayOf(UtilityEffect::kMagicMark) == FirePlay::kNone, true);
+  CHECK_EQ(DoorPlayOf(UtilityEffect::kInvisibleHand) == DoorPlay::kToggle, true);
+  CHECK_EQ(DoorPlayOf(UtilityEffect::kMageHand) == DoorPlay::kToggle, true);
+  CHECK_EQ(DoorPlayOf(UtilityEffect::kBeckonAir) == DoorPlay::kClose, true);  // closes, never opens
+  CHECK_EQ(DoorPlayOf(UtilityEffect::kFirePlay) == DoorPlay::kNone, true);
+  CHECK_EQ(FillsElementCube(UtilityEffect::kBeckonAir), true);
+  CHECK_EQ(FillsElementCube(UtilityEffect::kBeckonWater), true);
+  CHECK_EQ(FillsElementCube(UtilityEffect::kFirePlay), false);
+  CHECK_EQ(FillsElementCube(UtilityEffect::kMageHand), false);
+  CHECK_EQ(CantripRangeFeet(1108), 30);   // Druidcraft
+  CHECK_EQ(CantripRangeFeet(1112), 30);   // Elementalism
+  CHECK_EQ(CantripRangeFeet(1115), 10);   // Prestidigitation
+  CHECK_EQ(CantripRangeFeet(1116), 10);
+  CHECK_EQ(CantripRangeFeet(1120), 30);   // Thaumaturgy
+  CHECK_EQ(CantripRangeFeet(kMageHand), 30);
+  CHECK_EQ(CantripRangeFeet(1105), 0);    // Weather Sensor: on yourself
+  CHECK_EQ(CantripRangeFeet(1118), 0);    // Booming Voice
+  CHECK_EQ(CantripRangeFeet(1050), 0);    // not one
+}
+
 // 0.90.1: the effect icon each shows while it lasts - effecticons.2da rows 130-160, past the game's 129.
 TEST(ChoiceCantripIcons) {
   CHECK_EQ(EffectIconOf(151), 130);   // Resistance, cast with no choice

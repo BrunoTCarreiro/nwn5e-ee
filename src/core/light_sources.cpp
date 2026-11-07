@@ -197,6 +197,7 @@
 #include "ee_layout.h"
 #include "effects.h"
 #include "engine.h"
+#include "game_clock.h"
 #include "hooks.h"
 #include "grenades.h"
 #include "light_sources.h"
@@ -315,7 +316,8 @@ constexpr const char* kDouse =
     "SetLocalInt(OBJECT_SELF, \"nwn5e_lamp_out\", 1); SetLocalInt(OBJECT_SELF, \"nwn5e_light_changed\", 1);";
 constexpr const char* kRelight =
     "PlayAnimation(ANIMATION_PLACEABLE_ACTIVATE); SetPlaceableIllumination(OBJECT_SELF, TRUE);"
-    "DeleteLocalInt(OBJECT_SELF, \"nwn5e_lamp_out\"); SetLocalInt(OBJECT_SELF, \"nwn5e_light_changed\", 1);";
+    "DeleteLocalInt(OBJECT_SELF, \"nwn5e_lamp_out\"); SetLocalInt(OBJECT_SELF, \"nwn5e_light_changed\", 1);"
+    "DeleteLocalInt(OBJECT_SELF, \"n5c_dimmed\");";  // #39 4a: lit again by anything - no Fire Play relight due
 
 // The spells that put a flame out (cold, water, wind).
 constexpr const char* kDousingSpells =
@@ -523,7 +525,7 @@ constexpr const char* kFlameOut =
     "SetTileSourceLightColor(tl, k == 1 ? 0 : c1, k == 2 ? 0 : c2); SetLocalInt(OBJECT_SELF, \"nwn5e_light_changed\", 1);";
 constexpr const char* kFlameLit =
     "int r = GetLocalInt(OBJECT_SELF, \"nwn5e_torch_colour\"); if (r <= 0) r = 1;"
-    "DeleteLocalInt(OBJECT_SELF, \"nwn5e_torch_out\");"
+    "DeleteLocalInt(OBJECT_SELF, \"nwn5e_torch_out\"); DeleteLocalInt(OBJECT_SELF, \"n5c_dimmed\");"
     "SetTileSourceLightColor(tl, k == 1 ? r : c1, k == 2 ? r : c2); SetLocalInt(OBJECT_SELF, \"nwn5e_light_changed\", 1);";
 
 void FlameUsed(uint32_t flame) {
@@ -556,6 +558,73 @@ void FlameSpell(uint32_t flame) {
   FillLights(flame, false);
   Log("lights: tile flame 0x%08X a spell cast at it", flame);
 }
+
+// --- #39 build 4a: a cantrip's Fire Play (light_sources.h) ---------------------------------------------------------
+struct Dimmed {
+  uint32_t light;
+  uint64_t at;  // game ms: lit again
+};
+std::vector<Dimmed> g_dimmed;
+
+// Thaumaturgy's Fire Play: its minute over, a light it dimmed (and nothing lit since) burns again.
+void DimmedUpdate(void*) {
+  if (g_dimmed.empty()) return;
+  const uint64_t now = GameMs();
+  for (size_t i = 0; i < g_dimmed.size();) {
+    if (now < g_dimmed[i].at) {
+      ++i;
+      continue;
+    }
+    const uint32_t light = g_dimmed[i].light;
+    g_dimmed.erase(g_dimmed.begin() + static_cast<std::ptrdiff_t>(i));
+    if (!ObjectById(light)) continue;
+    Run(std::string("if (GetLocalInt(OBJECT_SELF, \"n5c_dimmed\")) {"
+                    " if (GetStringLeft(GetTag(OBJECT_SELF), 11) == \"nwn5e_flame\") {") +
+            kFlameState + " if (c <= 0) {" + kFlameLit + "} }"
+            " else if (!GetPlaceableIllumination(OBJECT_SELF)) {" + kRelight + "}"
+            " DeleteLocalInt(OBJECT_SELF, \"n5c_dimmed\"); }",
+        light, "Fire Play's light back");
+    FillLights(light, false);
+    Log("lights: 0x%08X burns again (Thaumaturgy's Fire Play: its minute over)", light);
+  }
+}
+
+}  // namespace
+
+int FirePlayAt(uint32_t caster, uint32_t target, rules::FirePlay mode, int dim_seconds) {
+  if (!g_config.light_sources || mode == rules::FirePlay::kNone) return -1;
+  void* object = ObjectById(target);
+  if (!object) return -1;
+  const int m = static_cast<int>(mode);  // 1 toggle, 2 light, 3 snuff, 4 dim
+  char head[160];
+  sprintf_s(head, "object u = StringToObject(\"%x\"); int mode = %d; int res = -1;", caster, m);
+  const std::string code =
+      std::string(head) +
+      "SetLocalString(OBJECT_SELF, \"n5c_name\", GetName(OBJECT_SELF));"
+      "if (GetStringLeft(GetTag(OBJECT_SELF), 11) == \"nwn5e_flame\") {" + kFlameState +
+      " if (c > 0) { if (mode != 2) {" + kFlameOut + " res = 2; } else res = 0; }"
+      " else { if (mode == 1 || mode == 2) {" + kFlameLit + " res = 1; } else res = 0; }"
+      "} else if (GetObjectType(OBJECT_SELF) == OBJECT_TYPE_PLACEABLE &&"
+      " (GetLocalInt(OBJECT_SELF, \"nwn5e_lamp\") || GetPlaceableIllumination(OBJECT_SELF))) {"
+      " if (GetPlaceableIllumination(OBJECT_SELF)) { if (mode != 2) {" + kDouse + " res = 2; } else res = 0; }"
+      " else { if (mode == 1 || mode == 2) {" + kRelight + " res = 1; } else res = 0; }"
+      "}"
+      "if (res == 2 && mode == 4) SetLocalInt(OBJECT_SELF, \"n5c_dimmed\", 1);"
+      "if (res == 2) {" + NoticeCode() + "}"
+      "SetLocalInt(OBJECT_SELF, \"n5c_fireplay\", res + 10);";
+  engine::SetLocalInt(object, "n5c_fireplay", 0);
+  Run(code, target, "Fire Play");
+  const int stored = engine::GetLocalInt(object, "n5c_fireplay");
+  const int r = stored ? stored - 10 : -1;
+  if (r == 1 || r == 2) FillLights(target, false);
+  if (r == 2 && mode == rules::FirePlay::kDim) {
+    g_dimmed.push_back({target, GameMs() + static_cast<uint64_t>(dim_seconds) * 1000});
+  }
+  Log("lights: 0x%08X Fire Play (mode %d) by 0x%08X: %d", target, m, caster, r);
+  return r;
+}
+
+namespace {
 
 // An attack on a light or flame: one already out stops the attacker (Bash is
 // snuff); a ranged Snuff's shot is its own roll (see the top).
@@ -1020,6 +1089,7 @@ void InstallLightSources() {
     AddScriptHandler(kFlameUseScript, [](uint32_t self) { FlameUsed(self); });
     AddScriptHandler(kFlameHitScript, [](uint32_t self) { FlameHit(self); });
     AddScriptHandler(kFlameSpellScript, [](uint32_t self) { FlameSpell(self); });
+    AddCreatureUpdateListener(&DimmedUpdate);  // #39 build 4a: Thaumaturgy's Fire Play, its minute over
   }
   if (FlamesWanted() || GrenadesFaithful()) {  // 0.70.0: a grenade's fire light too
     HookExport("CNWSPlaceable::LoadPlaceable (static lights, tile flames' stand-ins: normal placeables)", kLoadPlaceable,

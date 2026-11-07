@@ -14,3 +14,4 @@ items = nw_wdbqs001 equip
 note = the Prepare spells window opens: Cantrips - pick Resistance, Guidance, Spare the Dying and Sacred Flame; Accept
 note = Resistance and Guidance open a menu on the radial: seven choices and More (Guidance has three pages)
 note = !spawn nw_orcb gives you an enemy to be hit by; !skill stealth 15 rolls a check Guidance can add to
+note = Thaumaturgy (build 4a): Booming Voice then !skill intimidation 15 (advantage), Fire Play at a lamp, Invisible Hand at a door

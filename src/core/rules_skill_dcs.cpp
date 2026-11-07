@@ -500,18 +500,26 @@ bool CheckDice(uintptr_t caller, int count, int sides, int* result) {
   }
   const bool reliable = !sense && ReliableTalentRoll(creature, t_check.skill, 1) == 10;  // Rogue R9
   const int guidance = sense ? 0 : GuidanceCheckBonus(creature, t_check.skill);  // #39 build 2: 1d4
-  if (!sense && worse.empty() && !reliable && guidance == 0) return false;
+  const bool booming = !sense && BoomingVoiceAdvantage(creature, t_check.skill);  // #39 build 4a: Advantage
+  if (!sense && worse.empty() && !reliable && guidance == 0 && !booming) return false;
   const int first = RollEngineDice(count, sides);
   int second = 0;
   int kept = 1;
   if (!sense) {
     kept = first;
-    if (!worse.empty()) {
+    if (!worse.empty() && !booming) {
       second = RollEngineDice(count, sides);
       kept = second < first ? second : first;
+    } else if (booming && worse.empty()) {
+      second = RollEngineDice(count, sides);
+      kept = second > first ? second : first;
     }
   }
   std::string why = sense ? std::string(sense) + ": fails what needs that sense" : worse.empty() ? "" : "disadvantage: " + worse;
+  if (booming) {
+    why += std::string(why.empty() ? "" : "; ") +
+           (worse.empty() ? "advantage: Booming Voice" : "Booming Voice's advantage cancels it");
+  }
   if (reliable && kept < 10) {
     kept = 10;
     why += std::string(why.empty() ? "" : "; ") + "Reliable Talent: 10";

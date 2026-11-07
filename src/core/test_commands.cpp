@@ -270,10 +270,16 @@ std::vector<std::string> SkillCommand(void* creature, const std::string& args) {
     return {"nwn5e: !skill rolls the 2024 skills - they are off (skills=faithful in nwn5e.ini)."};
   }
   const uint32_t id = ObjectIdOf(StatsOf(creature));
-  const int d20 = RollEngineDice(1, 20);
+  int d20 = RollEngineDice(1, 20);
+  std::string advantage;
+  if (BoomingVoiceAdvantage(creature, row)) {  // #39 build 4a: Booming Voice - Advantage on Intimidation
+    const int other = RollEngineDice(1, 20);
+    advantage = " (Booming Voice: advantage, " + std::to_string(other < d20 ? other : d20) + " dropped)";
+    if (other > d20) d20 = other;
+  }
   const int guidance = GuidanceCheckBonus(creature, row);  // #39 build 2
   const int result = d20 + total + guidance;
-  const std::string plus = guidance > 0 ? " + Guidance " + std::to_string(guidance) : std::string();
+  const std::string plus = (guidance > 0 ? " + Guidance " + std::to_string(guidance) : std::string()) + advantage;
   const bool success = result >= dc;
   const std::string name = rules::Skill2024Name(skill);
   const std::string ability = rage_strength ? std::string("Strength, by Primal Knowledge while raging")

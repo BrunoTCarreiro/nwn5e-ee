@@ -792,6 +792,27 @@ monster AC by CR.
       its area; no Sculpt Element. Prestidigitation - Fire Play, and Magic Mark as a bonus. Thaumaturgy - Booming
       Voice, Invisible Hand, Phantom Sound, Fire Play; no Altered Eyes or Tremors. Druidcraft as looked at. Q7 A, the
       fleeing 2 rounds. Q8 A.
+  - *Build 4 started (owner, 2026-11-07: "Give me CA-1 to CA-10 and you start building the utility cantrips"), in two
+    installs as build 3: 4a Fire Play and the doors (Druidcraft, Elementalism, Prestidigitation, Thaumaturgy less
+    Phantom Sound, Mage Hand at doors and lights); 4b the sounds and illusions (Dancing Lights, Minor Illusion, Phantom
+    Sound, Druidcraft's animal sound, the creatures' reactions - Q7, Mage Hand's levers and containers).*
+  - *Built 0.93.0 (build 4a):* rows 1104-1122 (spells.if_cantrips2024.utility.txt; one impact script n5_c_utility,
+    rules_utility_cantrips.cpp; no AI category, as NWN's Light): Druidcraft 1104 (Weather Sensor, Bloom, Sensory
+    Effect, Fire Play), Elementalism 1109 (Beckon Air, Earth, Fire, Water - a 5-foot Cube, 1.5 m round the point or the
+    object), Prestidigitation 1114 (Fire Play, Magic Mark), Thaumaturgy 1117 (Booming Voice, Fire Play, Invisible Hand;
+    1121 Phantom Sound reserved for 4b), Mage Hand 1122 (no menu). Ranges by rules::CantripRangeFeet (30 ft;
+    Prestidigitation 10) through ComputeSpellRange. Lights: light_sources.h's FirePlayAt (a lamp, brazier, torch
+    bracket or tile flame's stand-in, as a click or the Light spell: its animation, the area's lighting, the stealth
+    rule, guards who see one go out) - Fire Play and Mage Hand toggle, Beckon Fire lights, Beckon Water snuffs,
+    Thaumaturgy's Fire Play dims one out for 1 minute (game time) and lights it again (any relight first cancels that).
+    Doors (a script run as the door): Invisible Hand and Mage Hand open an unlocked shut one or shut an open one, Beckon
+    Air shuts open ones. Booming Voice: Advantage on Intimidation checks for 1 minute (GetIsSkillSuccessful's d20 and
+    !skill; it and Disadvantage cancel), its icon 164 (the icon alone, as Shillelagh's). Magic Mark: a blue glow
+    (VFX_DUR_GLOW_LIGHT_BLUE, not a light the stealth rule counts) on an invisible placeable at the point for an hour of
+    play (real time, not NWN's 2-minute hour), three per caster. Weather Sensor: GetWeather now (no forecast; indoors or
+    underground no sky). Bloom, Sensory Effect, Beckon Earth: a visual and a line. Tests UtilityCantrips,
+    UtilityCantripEffects; 16 of 16 mutations caught (a missed one - Produce Flame's modes taken as utility effects -
+    fixed with a Hurl check). The Shillelagh probe's code out.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

@@ -37,6 +37,7 @@
 //   (bonus_actions.cpp), granted at the first cast.
 // - Build 3b (owner, 2026-11-07: "build 3b"): Shillelagh 1099 (a Bonus Action, its feats 1549 / 1550) and True
 //   Strike (NWN's 415 rewritten: its cast an attack) - rules_weapon_cantrips.cpp.
+// - Build 4a: Druidcraft, Elementalism, Prestidigitation, Thaumaturgy and Mage Hand - rules_utility_cantrips.cpp.
 // NWN mode: NWN's cantrips.
 
 #include <windows.h>
@@ -467,6 +468,9 @@ ComputeSpellRangeFn g_compute_spell_range = nullptr;
 
 float ComputeSpellRange(void* creature, void* range_code, uint32_t spell) {
   const float range = g_compute_spell_range(creature, range_code, spell);
+  if (const int feet = rules::CantripRangeFeet(static_cast<int>(spell))) {
+    return static_cast<float>(feet) * kMetresPerFoot;  // #39 build 4a: the utility cantrips' 30 / 10 feet
+  }
   if (spell != static_cast<uint32_t>(rules::kSpareTheDying) || !creature) return range;
   void* stats = StatsOf(creature);
   const int level = stats ? ReadCreatureFacts(stats).level : 1;
@@ -766,4 +770,5 @@ void InstallCantrips() {
   Log("cantrips: build 3a - Produce Flame (Flame a Bonus Action, Hurl an action; a carried light) (#39 Part 1)%s",
       flame ? "" : " - SOME hooks missing");
   InstallWeaponCantrips();  // build 3b: Shillelagh, True Strike
+  InstallUtilityCantrips();  // build 4a: Fire Play, the doors, Booming Voice, Magic Mark (rules_utility_cantrips.cpp)
 }

@@ -94,6 +94,29 @@ std::vector<ChoiceCantrip> BuildChoiceCantrips() {
                             {{kTrueStrikeRadiant, kDamageTypeRadiant, "Radiant"},
                              {kTrueStrikeWeapon, 0, "Weapon's type"}}};
   all.push_back(true_strike);
+  // Build 4a: the utility cantrips, each a menu of its effects (the option's value a UtilityEffect).
+  const auto effect = [](UtilityEffect e) { return static_cast<uint32_t>(e); };
+  ChoiceCantrip druidcraft{kDruidcraft, "n5_c_utility", ChoiceKind::kMode,
+                           {{1105, effect(UtilityEffect::kWeatherSensor), "Weather Sensor"},
+                            {1106, effect(UtilityEffect::kBloom), "Bloom"},
+                            {1107, effect(UtilityEffect::kSensoryEffect), "Sensory Effect"},
+                            {1108, effect(UtilityEffect::kFirePlay), "Fire Play"}}};
+  all.push_back(druidcraft);
+  ChoiceCantrip elementalism{kElementalism, "n5_c_utility", ChoiceKind::kMode,
+                             {{1110, effect(UtilityEffect::kBeckonAir), "Beckon Air"},
+                              {1111, effect(UtilityEffect::kBeckonEarth), "Beckon Earth"},
+                              {1112, effect(UtilityEffect::kBeckonFire), "Beckon Fire"},
+                              {1113, effect(UtilityEffect::kBeckonWater), "Beckon Water"}}};
+  all.push_back(elementalism);
+  ChoiceCantrip prestidigitation{kPrestidigitation, "n5_c_utility", ChoiceKind::kMode,
+                                 {{1115, effect(UtilityEffect::kFirePlay), "Fire Play"},
+                                  {1116, effect(UtilityEffect::kMagicMark), "Magic Mark"}}};
+  all.push_back(prestidigitation);
+  ChoiceCantrip thaumaturgy{kThaumaturgy, "n5_c_utility", ChoiceKind::kMode,
+                            {{1118, effect(UtilityEffect::kBoomingVoice), "Booming Voice"},
+                             {1119, effect(UtilityEffect::kThaumaturgyFirePlay), "Fire Play"},
+                             {1120, effect(UtilityEffect::kInvisibleHand), "Invisible Hand"}}};
+  all.push_back(thaumaturgy);
   return all;
 }
 
@@ -265,6 +288,54 @@ void AddDamage(int16_t* entries, int count, uint32_t type, int amount) {
   const int index = DamageTypeIndex(type);
   if (!entries || index < 0 || index >= count || amount <= 0) return;
   entries[index] = static_cast<int16_t>((entries[index] > 0 ? entries[index] : 0) + amount);
+}
+
+UtilityEffect UtilityEffectOf(int spell) {
+  if (spell == kMageHand) return UtilityEffect::kMageHand;
+  if (spell == kPhantomSound) return UtilityEffect::kPhantomSound;
+  const ChoiceCantrip* cantrip = ChoiceCantripOf(spell);
+  if (!cantrip || cantrip->kind != ChoiceKind::kMode || cantrip->options.empty()) return UtilityEffect::kNone;
+  if (cantrip->master != kDruidcraft && cantrip->master != kElementalism && cantrip->master != kPrestidigitation &&
+      cantrip->master != kThaumaturgy) {
+    return UtilityEffect::kNone;  // Produce Flame's modes are its own
+  }
+  const CantripOption* option = ChoiceOptionOf(spell);
+  return static_cast<UtilityEffect>(option ? option->value : cantrip->options.front().value);
+}
+
+FirePlay FirePlayOf(UtilityEffect effect) {
+  switch (effect) {
+    case UtilityEffect::kFirePlay:
+    case UtilityEffect::kMageHand: return FirePlay::kToggle;
+    case UtilityEffect::kBeckonFire: return FirePlay::kLight;
+    case UtilityEffect::kBeckonWater: return FirePlay::kSnuff;
+    case UtilityEffect::kThaumaturgyFirePlay: return FirePlay::kDim;
+    default: return FirePlay::kNone;
+  }
+}
+
+DoorPlay DoorPlayOf(UtilityEffect effect) {
+  switch (effect) {
+    case UtilityEffect::kInvisibleHand:
+    case UtilityEffect::kMageHand: return DoorPlay::kToggle;
+    case UtilityEffect::kBeckonAir: return DoorPlay::kClose;
+    default: return DoorPlay::kNone;
+  }
+}
+
+bool FillsElementCube(UtilityEffect effect) {
+  return effect == UtilityEffect::kBeckonAir || effect == UtilityEffect::kBeckonEarth ||
+         effect == UtilityEffect::kBeckonFire || effect == UtilityEffect::kBeckonWater;
+}
+
+int CantripRangeFeet(int spell) {
+  const UtilityEffect effect = UtilityEffectOf(spell);
+  if (effect == UtilityEffect::kNone || effect == UtilityEffect::kWeatherSensor ||
+      effect == UtilityEffect::kBoomingVoice) {
+    return 0;  // on yourself (or not one)
+  }
+  const ChoiceCantrip* cantrip = ChoiceCantripOf(spell);
+  return cantrip && cantrip->master == kPrestidigitation ? 10 : 30;
 }
 
 int MoveWeaponDamage(int16_t* entries, int count, uint32_t type) {

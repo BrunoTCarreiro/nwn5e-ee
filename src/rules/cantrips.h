@@ -183,4 +183,63 @@ int DamageTypeIndex(uint32_t type);
 void AddDamage(int16_t* entries, int count, uint32_t type, int amount);
 int MoveWeaponDamage(int16_t* entries, int count, uint32_t type);
 
+// --- #39 Part 1, build 4a: the utility cantrips - Fire Play and the doors -----------------------------------------
+// Owner, 2026-11-07: "1A, 2A, 3A, 4 ... A, 5 let's look into these deeper, 6 A", then Q5's closer look ("Sculpt
+// elements, yes, don't use it. Prestidigitation is mostly for light sources. and marks ... thaumaturgy don't do the
+// eyes and tremors", Q8 A), then "start building the utility cantrips". Each cantrip's radial menu (ChoiceKind::kMode)
+// lists its effects, the option's value a UtilityEffect:
+// - Druidcraft 1104 (Druid; 30 ft): Weather Sensor, Bloom, Sensory Effect, Fire Play.
+// - Elementalism 1109 (Druid, Sorcerer, Wizard; 30 ft; a 5-foot Cube): Beckon Air, Beckon Earth, Beckon Fire,
+//   Beckon Water (no Sculpt Element).
+// - Prestidigitation 1114 (Bard, Sorcerer, Wizard; 10 ft): Fire Play, Magic Mark (up to three at a time, 1 hour).
+// - Thaumaturgy 1117 (Cleric; 30 ft): Booming Voice, Fire Play (Q8 A: dimmed out for 1 minute), Invisible Hand;
+//   Phantom Sound (1121) comes with build 4b.
+// - Mage Hand 1122 (Bard, Sorcerer, Wizard; 30 ft): no menu - at a door it opens or shuts it (unlocked), at a light
+//   it lights or snuffs it.
+enum class UtilityEffect : uint32_t {
+  kNone,
+  kWeatherSensor,
+  kBloom,
+  kSensoryEffect,
+  kFirePlay,
+  kBeckonAir,
+  kBeckonEarth,
+  kBeckonFire,
+  kBeckonWater,
+  kMagicMark,
+  kBoomingVoice,
+  kThaumaturgyFirePlay,
+  kInvisibleHand,
+  kPhantomSound,
+  kMageHand,
+};
+constexpr int kDruidcraft = 1104;
+constexpr int kElementalism = 1109;
+constexpr int kPrestidigitation = 1114;
+constexpr int kThaumaturgy = 1117;
+constexpr int kPhantomSound = 1121;  // its row reserved for build 4b (not on the menu yet)
+constexpr int kMageHand = 1122;
+constexpr int kMagicMarksAtOnce = 3;      // "up to three of its non-instantaneous effects active at a time"
+constexpr int kFirePlayDimSeconds = 60;   // Thaumaturgy's Fire Play: "for 1 minute"
+constexpr int kBoomingVoiceSeconds = 60;  // "for 1 minute"
+constexpr int kElementCubeFeet = 5;       // Elementalism's 5-foot Cube
+constexpr int kBoomingVoiceIcon = 164;    // its effect icon (effecticons.2da)
+
+// A utility cantrip row's effect: a variant's; the cantrip cast with no choice, its first option's; Mage Hand's
+// own; kNone for any other row.
+UtilityEffect UtilityEffectOf(int spell);
+// How an effect plays with a light (light_sources.cpp): kToggle lights an unlit one and snuffs a lit one (Fire Play,
+// Mage Hand), kLight lights only (Beckon Fire's embers), kSnuff snuffs only (Beckon Water), kDim puts it out for a
+// minute (Thaumaturgy's Fire Play); kNone not at all.
+enum class FirePlay { kNone, kToggle, kLight, kSnuff, kDim };
+FirePlay FirePlayOf(UtilityEffect effect);
+// And with a door: kToggle opens a shut unlocked one and shuts an open one (Invisible Hand, Mage Hand), kClose shuts
+// an open one only (Beckon Air); kNone not at all.
+enum class DoorPlay { kNone, kToggle, kClose };
+DoorPlay DoorPlayOf(UtilityEffect effect);
+// True when the effect fills Elementalism's 5-foot Cube (every light or door in it), not one object.
+bool FillsElementCube(UtilityEffect effect);
+// The range a row's effect reaches in feet (30; Prestidigitation's 10); 0: the row's own (on yourself, or not one).
+int CantripRangeFeet(int spell);
+
 }  // namespace rules
