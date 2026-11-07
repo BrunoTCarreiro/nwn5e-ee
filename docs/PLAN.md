@@ -727,6 +727,19 @@ monster AC by CR.
       6 A, depending on the creature they might also have an effect that would scare creatures away?"):* Q1-Q4
       A; Q6 A, and a sound may scare some creatures away instead, by the creature - to design; Q5 a closer look
       first.
+    - *Q5 looked at (2026-11-07), each cantrip's effects - the working ones (Fire Play, the doors, Booming Voice,
+      Magic Mark a little) and visuals - with Q7 how creatures react to a sound (A by its kind: voices or footsteps
+      draw them, a roar or thunder makes animals, beasts and vermin flee for 3 rounds, a creature fighting ignores
+      it; B one sound; C none flee) and Q8 Thaumaturgy's Fire Play (A dim puts a light out for a minute, B colour).*
+    - *Decided (owner, 2026-11-07: "Q5.For elementalism beckon earch can be used on top of icy surfaces to negate
+      sliperyness in that area, beckon water can create wet patches (that can be electrified for example) or snuff
+      out lights. Sculpt elements, yes, don't use it. Prestidigitation is mostly for light sources. and marks I
+      guess, but that's a bonus thing? thaumaturgy don't do the eyes and tremors Q7. A, but 2 turns Q8. A"):*
+      Elementalism - Beckon Fire lights, Beckon Air closes doors, Beckon Water snuffs lights (and, with #142's
+      surfaces, makes a wet patch that can be electrified), Beckon Earth (with #142) takes the slip out of ice in
+      its area; no Sculpt Element. Prestidigitation - Fire Play, and Magic Mark as a bonus. Thaumaturgy - Booming
+      Voice, Invisible Hand, Phantom Sound, Fire Play; no Altered Eyes or Tremors. Druidcraft as looked at. Q7 A, the
+      fleeing 2 rounds. Q8 A.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
