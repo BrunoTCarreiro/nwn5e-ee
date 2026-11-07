@@ -80,6 +80,14 @@ TEST(RadialRetargets) {
   CHECK_EQ(RadialRetargets(RadialOn::kAlly, at_once), false);
 }
 
+// #140 (0.89.2): the radial's target as the server knows it - the client sets bit 31.
+TEST(ServerObjectId) {
+  CHECK_EQ(ServerObjectId(0x8000031Au), static_cast<uint32_t>(0x31A));         // a spawned orc
+  CHECK_EQ(ServerObjectId(0xFFFFFFFFu), static_cast<uint32_t>(0x7FFFFFFF));    // the player character
+  CHECK_EQ(ServerObjectId(0x7F000000u), static_cast<uint32_t>(0x7F000000));    // OBJECT_INVALID: the ground
+  CHECK_EQ(ServerObjectId(0x0000031Au), static_cast<uint32_t>(0x31A));         // already the server's
+}
+
 // #140: the creature menu's feat param, as the game passes it on.
 TEST(CreatureMenuFeatParams) {
   CHECK_EQ(CreatureMenuFeatCursorParam(300), static_cast<int64_t>(300));

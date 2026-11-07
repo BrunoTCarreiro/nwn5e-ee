@@ -138,12 +138,13 @@ rules::RadialOn Classify(uint32_t target, uint32_t self_id, uint8_t* kind) {
   if (target == self_id) return rules::RadialOn::kSelf;
   if (target == ee::kObjectInvalid) return rules::RadialOn::kGround;
   void* app = ServerApp();
-  void* object = app && g_get_object ? g_get_object(app, target) : nullptr;
+  const uint32_t server_target = rules::ServerObjectId(target);  // the client's id has bit 31 set
+  void* object = app && g_get_object ? g_get_object(app, server_target) : nullptr;
   if (!object) return rules::RadialOn::kGround;
   *kind = Field<uint8_t>(object, ee::kGameObjectType);
   if (*kind == ee::kObjectTypeCreature) {
-    void* self = CreatureById(self_id);
-    return self && engine::IsFriend(self, target) ? rules::RadialOn::kAlly : rules::RadialOn::kOther;
+    void* self = CreatureById(rules::ServerObjectId(self_id));
+    return self && engine::IsFriend(self, server_target) ? rules::RadialOn::kAlly : rules::RadialOn::kOther;
   }
   if (*kind == ee::kObjectTypeItem || *kind == ee::kObjectTypePlaceable || *kind == ee::kObjectTypeDoor) {
     return rules::RadialOn::kOther;
@@ -209,7 +210,10 @@ bool SpellLeaf(void* handler, int64_t param, bool ability, const Menu& menu, con
     return false;
   }
   const bool started = StartSpellCursor(param, ability);
-  Note(what, spell, on, target, kind, started ? "the targeting cursor, its area shown" : "no cursor (cast at once)");
+  Note(what, spell, on, target, kind,
+       !started      ? "no cursor (cast at once)"
+       : facts.area  ? "the targeting cursor, its area shown"
+                     : "the targeting cursor");
   return started;
 }
 
@@ -270,7 +274,9 @@ bool FeatLeaf(void* handler, int64_t param, const Menu& menu, int64_t cursor_par
   if (rules::RadialRetargets(on, facts)) {
     const bool started = StartFeatCursor(cursor_param);
     Note("feat", spell, on, target, kind,
-         started ? "the targeting cursor, its area shown" : "no cursor (used at once)");
+         !started      ? "no cursor (used at once)"
+         : facts.area  ? "the targeting cursor, its area shown"
+                       : "the targeting cursor");
     return started;
   }
   if (on == rules::RadialOn::kSelf && !self_only) {

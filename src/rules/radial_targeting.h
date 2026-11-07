@@ -53,4 +53,10 @@ uint32_t CreatureMenuFeatUseParam(int64_t param);
 
 const char* RadialOnName(RadialOn on);
 
+// The server's id of an object the client knows: the client's is the server's with bit 31 set
+// (CNWSMessage::WriteOBJECTIDServer; the player character 0x7FFFFFFF is 0xFFFFFFFF there, OBJECT_INVALID
+// 0x7F000000 stays). 0.89.2: 0.89.1 looked the radial's target up as the client knows it - no object, so every
+// creature counted as the ground.
+uint32_t ServerObjectId(uint32_t client_id);
+
 }  // namespace rules

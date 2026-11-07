@@ -51,6 +51,8 @@ uint32_t CreatureMenuFeatUseParam(int64_t param) {
   return (static_cast<uint32_t>(param >> 16) << 16) | static_cast<uint32_t>(param & kFeatMask);
 }
 
+uint32_t ServerObjectId(uint32_t client_id) { return client_id & 0x7fffffffu; }
+
 const char* RadialOnName(RadialOn on) {
   switch (on) {
     case RadialOn::kSelf:
