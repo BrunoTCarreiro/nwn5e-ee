@@ -1,0 +1,16 @@
+# A !test profile ([debug] test_commands=1): type "!test cantripsorcerer" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# Sorcerous Burst (issue 39 part 1, build 2): your first class becomes Sorcerer 5, Charisma 16 (+3) - two dice at
+# level 5, and each 8 rolled adds a d8, at most three more.
+name = Sorcerous Burst (issue 39 build 2): human Sorcerer 5, Charisma 16 - its seven damage types on the radial
+species = human
+swap_class = sorcerer
+class = sorcerer
+level = 5
+abilities = 8 14 14 10 10 16
+items = nw_wdbqs001 equip
+note = the Prepare spells window opens: Cantrips - pick Sorcerous Burst and Fire Bolt; then your spells; Accept
+note = Sorcerous Burst opens a menu on the radial: its seven damage types on one page
+note = !spawn nw_orcb gives you an enemy to cast it at

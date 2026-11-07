@@ -37,6 +37,7 @@
 #include <string>
 #include <vector>
 
+#include "cantrip_effects.h"
 #include "condition_effects.h"
 #include "config.h"
 #include "creature.h"
@@ -308,7 +309,7 @@ int SkillAtCheck(const SkillQuery& query, int value) {
   const int shift = dc - converted;
   if (log_code) t_log_fix = LogFix{true, *log_code, shift, converted};
   LogConversion(what, dc, converted, "");
-  return value + shift;
+  return value + shift + GuidanceCheckBonus(CreatureOf(query.stats), query.skill);  // #39 build 2: 1d4
 }
 
 // --- Wrappers that tell the checks apart ---------------------------------------
@@ -498,7 +499,8 @@ bool CheckDice(uintptr_t caller, int count, int sides, int* result) {
     worse = CheckDisadvantage(creature);
   }
   const bool reliable = !sense && ReliableTalentRoll(creature, t_check.skill, 1) == 10;  // Rogue R9
-  if (!sense && worse.empty() && !reliable) return false;
+  const int guidance = sense ? 0 : GuidanceCheckBonus(creature, t_check.skill);  // #39 build 2: 1d4
+  if (!sense && worse.empty() && !reliable && guidance == 0) return false;
   const int first = RollEngineDice(count, sides);
   int second = 0;
   int kept = 1;
@@ -514,8 +516,9 @@ bool CheckDice(uintptr_t caller, int count, int sides, int* result) {
     kept = 10;
     why += std::string(why.empty() ? "" : "; ") + "Reliable Talent: 10";
   }
-  if (!why.empty()) LogCheck(creature, false, sides, first, second, kept, why);
-  *result = kept;
+  if (guidance > 0) why += std::string(why.empty() ? "" : "; ") + "Guidance +" + std::to_string(guidance);
+  if (!why.empty()) LogCheck(creature, false, sides, first, second, kept + guidance, why);
+  *result = kept + guidance;
   return true;
 }
 

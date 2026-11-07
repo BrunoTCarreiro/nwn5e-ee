@@ -96,6 +96,36 @@ const std::vector<int> kSpells = {
      462,  // Bigbys_Clenched_Fist - Arcane Hand
      463,  // Bigbys_Crushing_Hand - Arcane Hand; nearest SRD spell
      485,  // Flesh_to_stone - Flesh to Stone
+    1057,  // nwn5e_Guidance - Guidance (#39 build 2; its variants below carry their own rows)
+    1060,  // nwn5e_Resistance_Acid - Resistance
+    1061,  // nwn5e_Resistance_Bludgeoning - Resistance
+    1062,  // nwn5e_Resistance_Cold - Resistance
+    1063,  // nwn5e_Resistance_Fire - Resistance
+    1064,  // nwn5e_Resistance_Lightning - Resistance
+    1065,  // nwn5e_Resistance_Necrotic - Resistance
+    1066,  // nwn5e_Resistance_Piercing - Resistance
+    1067,  // nwn5e_Resistance_Poison - Resistance
+    1068,  // nwn5e_Resistance_Radiant - Resistance
+    1069,  // nwn5e_Resistance_Slashing - Resistance
+    1070,  // nwn5e_Resistance_Thunder - Resistance
+    1071,  // nwn5e_Guidance_Acrobatics - Guidance
+    1072,  // nwn5e_Guidance_Animal_Handling - Guidance
+    1073,  // nwn5e_Guidance_Arcana - Guidance
+    1074,  // nwn5e_Guidance_Athletics - Guidance
+    1075,  // nwn5e_Guidance_Deception - Guidance
+    1076,  // nwn5e_Guidance_History - Guidance
+    1077,  // nwn5e_Guidance_Insight - Guidance
+    1078,  // nwn5e_Guidance_Intimidation - Guidance
+    1079,  // nwn5e_Guidance_Investigation - Guidance
+    1080,  // nwn5e_Guidance_Medicine - Guidance
+    1081,  // nwn5e_Guidance_Nature - Guidance
+    1082,  // nwn5e_Guidance_Perception - Guidance
+    1083,  // nwn5e_Guidance_Performance - Guidance
+    1084,  // nwn5e_Guidance_Persuasion - Guidance
+    1085,  // nwn5e_Guidance_Religion - Guidance
+    1086,  // nwn5e_Guidance_Sleight_of_Hand - Guidance
+    1087,  // nwn5e_Guidance_Stealth - Guidance
+    1088,  // nwn5e_Guidance_Survival - Guidance
 };
 
 }  // namespace

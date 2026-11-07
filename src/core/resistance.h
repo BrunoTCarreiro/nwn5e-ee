@@ -21,3 +21,9 @@ using ResistanceProvider = uint32_t (*)(void* object);
 
 // Hooks DoDamageImmunity on first use; false (and logged) if it can't.
 bool AddResistanceProvider(ResistanceProvider provider);
+
+// #39 build 2: a flat reduction of one damage type's amount, before Resistance halves what is left (SRD 5.2:
+// adjustments first, then Resistance) - the Resistance cantrip's 1d4. Returns how much of `damage` (the type's
+// amount after the engine's immunity) to take off; 0 for none. `simulate`: the engine only asks - use nothing up.
+using DamageReducer = int (*)(void* object, uint32_t flags, int damage, bool simulate);
+bool AddDamageReducer(DamageReducer reducer);

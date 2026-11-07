@@ -16,13 +16,22 @@ using DoDamageImmunityFn = int (*)(void* object, void* attacker, int damage, uin
 
 DoDamageImmunityFn g_do_damage_immunity = nullptr;
 std::vector<ResistanceProvider> g_providers;  // filled at install, then only read
+std::vector<DamageReducer> g_reducers;        // the same
 bool g_hooked = false;
 bool g_hook_failed = false;
 int g_log_lines = 0;
 
 int DoDamageImmunity(void* object, void* attacker, int damage, uint32_t flags, int simulate, int feedback) {
-  const int left = g_do_damage_immunity(object, attacker, damage, flags, simulate, feedback);
+  int left = g_do_damage_immunity(object, attacker, damage, flags, simulate, feedback);
   if (!object || left <= 0) return left;
+  if (!g_reducers.empty()) {
+    int off = 0;
+    for (DamageReducer reducer : g_reducers) off += reducer(object, flags, left - off, simulate != 0);
+    off = std::min(std::max(off, 0), left);
+    left -= off;
+    damage -= off;
+    if (left <= 0) return 0;
+  }
   uint32_t resisted = 0;
   for (ResistanceProvider provider : g_providers) resisted |= provider(object);
   if (!(resisted & flags)) return left;
@@ -37,13 +46,23 @@ int DoDamageImmunity(void* object, void* attacker, int damage, uint32_t flags, i
 
 }  // namespace
 
-bool AddResistanceProvider(ResistanceProvider provider) {
+bool Hooked() {
   if (!g_hooked && !g_hook_failed) {
     g_hooked = HookExport("CNWSObject::DoDamageImmunity (X4: 2024 Resistance)", ee::kDoDamageImmunity,
                           reinterpret_cast<void*>(&DoDamageImmunity), reinterpret_cast<void**>(&g_do_damage_immunity));
     g_hook_failed = !g_hooked;
   }
-  if (!g_hooked) return false;
+  return g_hooked;
+}
+
+bool AddResistanceProvider(ResistanceProvider provider) {
+  if (!Hooked()) return false;
   g_providers.push_back(provider);
+  return true;
+}
+
+bool AddDamageReducer(DamageReducer reducer) {
+  if (!Hooked()) return false;
+  g_reducers.push_back(reducer);
   return true;
 }

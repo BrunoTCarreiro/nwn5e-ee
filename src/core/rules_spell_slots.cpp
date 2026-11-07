@@ -77,6 +77,7 @@
 #include "log_once.h"
 #include "prepare_spells.h"
 #include "spells_page.h"
+#include "rules/cantrips.h"
 #include "rules/nwn_conversion.h"
 #include "rules/spell_lists.h"
 #include "rules/spell_slots.h"
@@ -426,6 +427,11 @@ uint8_t ClientUsesLeft(void* client_stats, uint32_t spell_id, uint8_t slot, uint
   t_blank_at = 0;
   t_upcast_text_at = 0;
   t_np_text_at = 0;
+  // #39 build 2: a choice cantrip's variant (a quickbar button's "Resistance: Fire") counts as its cantrip - known,
+  // at will, no count shown (the engine itself spends and checks the master's use for it).
+  if (const rules::ChoiceCantrip* choice = rules::ChoiceCantripOf(static_cast<int>(spell_id))) {
+    spell_id = static_cast<uint32_t>(choice->master);
+  }
   const bool known_slot = client_stats && slot < ee::kClientStatsClassSlots &&
                           slot < Field<uint8_t>(client_stats, ee::kClientStatsClassCount);
   const int row = known_slot ? Field<uint8_t>(client_stats, ee::kClientStatsClassSlotClass +
@@ -594,9 +600,54 @@ void* BuildLevelMenu(void* handler, int64_t param, int from_level) {
   return menu;
 }
 
+// #39 build 2: a choice cantrip's options (rules::ChoiceCantrips: Resistance's damage types, Guidance's skills,
+// Sorcerous Burst's types), each its variant row cast through the radial's own cast callback (its class, the
+// quickbar's assign mode and #140's retargeting as any spell's): eight to a page, or seven and "More".
+void* BuildChoiceMenu(void* handler, int64_t param);
+void* ChoiceMenu(void* handler, int64_t param) { return BuildChoiceMenu(handler, param); }
+
+bool IsChoiceMaster(int64_t param) {
+  const int spell = static_cast<int>(param & 0xFFFF);
+  return rules::ChoiceCantripOf(spell) != nullptr && rules::ChoiceOptionOf(spell) == nullptr;
+}
+
+void* BuildChoiceMenu(void* handler, int64_t param) {
+  void* const menu = g_game_new ? g_game_new(ee::kRadialMenuSize) : nullptr;
+  if (!menu) return nullptr;
+  g_radial_ctor(menu);
+  SetField<uint8_t>(menu, ee::kRadialMenuOwnedFlag, 1);
+  const rules::ChoiceCantrip* cantrip = rules::ChoiceCantripOf(static_cast<int>(param & 0xFFFF));
+  void* rules_object = RulesObject();
+  void* spells = rules_object ? Field<void*>(rules_object, ee::kRulesSpells) : nullptr;
+  if (!cantrip || !spells || !g_get_spell) return menu;
+  const int count = static_cast<int>(cantrip->options.size());
+  const int first = rules::RadialChoiceFirst(param);
+  const rules::RadialPage page = rules::RadialChoicePage(count, first);
+  for (int k = 0; k < page.shown; ++k) {
+    const rules::CantripOption& option = cantrip->options[static_cast<size_t>(first + k)];
+    void* spell = g_get_spell(spells, option.spell);
+    char icon[17] = {};
+    if (spell) memcpy(icon, static_cast<const uint8_t*>(spell) + ee::kSpellIconResRef, 16);
+    g_set_entry_text(menu, k, icon, option.label, handler, g_cast_callback, rules::RadialChoiceCast(param, option.spell));
+  }
+  if (page.more) {
+    void* master = g_get_spell(spells, cantrip->master);
+    char icon[17] = {};
+    if (master) memcpy(icon, static_cast<const uint8_t*>(master) + ee::kSpellIconResRef, 16);
+    g_set_creator_text(menu, page.shown, icon, "More", handler, reinterpret_cast<void*>(&ChoiceMenu),
+                       rules::RadialChoiceWithFirst(param, first + page.shown));
+  }
+  return menu;
+}
+
 // CRadialMenu::SetEntryx: a 2024 caster's spell leaf (the cast callback) with a higher level of slots becomes a
 // submenu of its levels - its icon, its name, the same param.
 void SetEntry(void* menu, int index, void* icon, uint32_t strref, void* handler, void* callback, int64_t param) {
+  if (callback == g_cast_callback && g_set_creator && IsChoiceMaster(param)) {  // #39 build 2: its options
+    g_set_creator(menu, index, icon, strref, handler, reinterpret_cast<void*>(&ChoiceMenu),
+                  rules::RadialChoiceWithFirst(param, 0));
+    return;
+  }
   if (callback == g_cast_callback && g_set_creator) {
     void* client_stats = nullptr;
     rules::RadialCast cast;

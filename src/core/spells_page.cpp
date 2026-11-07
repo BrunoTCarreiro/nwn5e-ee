@@ -83,6 +83,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "prepare_spells.h"
+#include "rules/cantrips.h"
 #include "rules/spell_lists.h"
 #include "rules/spell_slots.h"
 
@@ -204,9 +205,17 @@ void* RulesObject() {
   return global ? *global : nullptr;
 }
 
+// #39 build 2: Sorcerous Burst is the Sorcerer's only - NWN's one Wiz_Sorc column would give it the Wizard too.
+bool IsSorcererOnly(const void* spell) {
+  void* rules_object = RulesObject();
+  void* spells = rules_object ? Field<void*>(rules_object, ee::kRulesSpells) : nullptr;
+  return spells && g_get_spell && spell == g_get_spell(spells, rules::kSorcerousBurst);
+}
+
 // 3b-2: a spell already in the levelled Wizard's book isn't offered on the page's Available list again.
 uint8_t SpellLevel(void* spell, uint8_t nwn_class) {
   const uint8_t level = g_spell_level(spell, nwn_class);
+  if (nwn_class == kNwnClassWizard && level != 0xFF && IsSorcererOnly(spell)) return 0xFF;  // #39 build 2
   if (reinterpret_cast<uintptr_t>(_ReturnAddress()) != g_avail_site || nwn_class != kNwnClassWizard || level == 0 ||
       level > 9 || !t_page_stats) {
     return level;

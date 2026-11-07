@@ -1,0 +1,16 @@
+# A !test profile ([debug] test_commands=1): type "!test cantripcleric" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# The choice cantrips (issue 39 part 1, build 2): your first class becomes Cleric 5, Wisdom 16. Pick Resistance,
+# Guidance and Spare the Dying as cantrips - each casts through a menu on the radial (a damage type, a skill).
+name = Choice cantrips (issue 39 build 2): human Cleric 5, Wisdom 16 - Resistance, Guidance, Spare the Dying
+species = human
+swap_class = cleric
+class = cleric
+level = 5
+abilities = 10 10 14 10 16 12
+items = nw_wdbqs001 equip
+note = the Prepare spells window opens: Cantrips - pick Resistance, Guidance, Spare the Dying and Sacred Flame; Accept
+note = Resistance and Guidance open a menu on the radial: seven choices and More (Guidance has three pages)
+note = !spawn nw_orcb gives you an enemy to be hit by; !skill stealth 15 rolls a check Guidance can add to

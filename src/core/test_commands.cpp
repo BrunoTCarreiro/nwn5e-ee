@@ -95,6 +95,7 @@
 #include <utility>
 #include <vector>
 
+#include "cantrip_effects.h"
 #include "chat.h"
 #include "config.h"
 #include "creature.h"
@@ -270,16 +271,18 @@ std::vector<std::string> SkillCommand(void* creature, const std::string& args) {
   }
   const uint32_t id = ObjectIdOf(StatsOf(creature));
   const int d20 = RollEngineDice(1, 20);
-  const int result = d20 + total;
+  const int guidance = GuidanceCheckBonus(creature, row);  // #39 build 2
+  const int result = d20 + total + guidance;
+  const std::string plus = guidance > 0 ? " + Guidance " + std::to_string(guidance) : std::string();
   const bool success = result >= dc;
   const std::string name = rules::Skill2024Name(skill);
   const std::string ability = rage_strength ? std::string("Strength, by Primal Knowledge while raging")
                                             : std::string(rules::AbilityName(rules::AbilityFor(skill)));
   char text[256];
-  sprintf_s(text, "nwn5e: test %s check, DC %d: d20 %d %+d = %d (%s %+d) - %s.", name.c_str(), dc, d20, total,
-            result, ability.c_str(), modifier, success ? "success" : "failure");
-  Log("test: 0x%08X %s check DC %d (!skill): d20 %d %+d = %d (%s %+d): %s", id, name.c_str(), dc, d20, total, result,
-      ability.c_str(), modifier, success ? "success" : "failure");
+  sprintf_s(text, "nwn5e: test %s check, DC %d: d20 %d %+d%s = %d (%s %+d) - %s.", name.c_str(), dc, d20, total,
+            plus.c_str(), result, ability.c_str(), modifier, success ? "success" : "failure");
+  Log("test: 0x%08X %s check DC %d (!skill): d20 %d %+d%s = %d (%s %+d): %s", id, name.c_str(), dc, d20, total,
+      plus.c_str(), result, ability.c_str(), modifier, success ? "success" : "failure");
   return {text};
 }
 

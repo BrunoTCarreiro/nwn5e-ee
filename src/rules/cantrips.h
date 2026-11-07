@@ -58,4 +58,63 @@ int CantripDiceRolled(int character_level, bool critical);
 const std::vector<int>& RetiredCantrips();
 bool IsRetiredCantrip(int spell);
 
+// --- #39 Part 1, build 2: the cantrips cast through a choice ---------------------------------------------------
+// Resistance (a damage type), Guidance (a skill), Sorcerous Burst (a damage type) - decision 5 ("A a menu (past 5 a
+// "more" entry)"). Each option is a spells.2da row of its own, Master the cantrip (NWN's sub-radial variants: the
+// engine spends and checks the master's use for it - GetSpellUsesLeft, UnReadySpell, GetHasSpell), so the cast tells
+// the choice and the quickbar can hold one. The radial lists them (rules_spell_slots.cpp): eight to a page, or seven
+// and "More". The master cast with no choice (an item's, a creature's, a spellbook button) takes the first type of
+// damage the creature takes (Resistance), the first skill it checks (Guidance), or Fire (Sorcerous Burst).
+
+enum class ChoiceKind { kDamageType, kSkill };
+
+struct CantripOption {
+  int spell = -1;          // the variant's spells.2da row
+  uint32_t value = 0;      // a damage-type bit, or a Skill2024 (skills.h)
+  const char* label = "";  // the radial's label
+};
+
+struct ChoiceCantrip {
+  int master = -1;  // the cantrip's row (the one on the class lists)
+  const char* script = "";
+  ChoiceKind kind = ChoiceKind::kDamageType;
+  std::vector<CantripOption> options;  // SRD 5.2.1's order; their rows consecutive
+};
+
+constexpr int kResistance = 151;      // NWN's row, rewritten
+constexpr int kGuidance = 1057;
+constexpr int kSpareTheDying = 1058;
+constexpr int kSorcerousBurst = 1059;  // Sorcerer only (not the Wizard's, though NWN's Wiz_Sorc column is shared)
+
+const std::vector<ChoiceCantrip>& ChoiceCantrips();
+// The choice cantrip a row belongs to - its master or one of its variants (null: none).
+const ChoiceCantrip* ChoiceCantripOf(int spell);
+// A variant's option (null: the master itself, or not one).
+const CantripOption* ChoiceOptionOf(int spell);
+
+// A radial page of `count` options from option `first`: all that are left when they fit its eight slots, else seven
+// and a "More" entry (the next page from first + 7).
+constexpr int kRadialSlots = 8;
+struct RadialPage {
+  int shown = 0;
+  bool more = false;
+};
+RadialPage RadialChoicePage(int count, int first);
+
+// The choice menu's page in a radial param (bits 44-48; #36's upcast menu uses 40-43), and an option's cast param:
+// the menu's param with the variant's row and no page bits.
+int RadialChoiceFirst(long long param);
+long long RadialChoiceWithFirst(long long param, int first);
+long long RadialChoiceCast(long long param, int variant);
+
+// Sorcerous Burst's damage: `dice` d8s (Cantrip Upgrade, doubled on a Critical Hit); each 8 rolled lets another d8 be
+// rolled and added, at most `extra_cap` more (the spellcasting ability modifier). `roll_d8` rolls one d8.
+int SorcerousBurstDamage(int dice, int extra_cap, int (*roll_d8)(void* context), void* context, int* extra_out);
+
+// Resistance: the damage of the chosen type taken off (1d4, at most the damage); once per turn - the caller keeps it.
+int ResistanceReduction(int damage, int d4);
+
+// Spare the Dying's range in feet: 15, doubling at character levels 5 (30), 11 (60) and 17 (120).
+int SpareTheDyingRangeFeet(int character_level);
+
 }  // namespace rules

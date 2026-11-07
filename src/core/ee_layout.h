@@ -147,6 +147,9 @@ constexpr size_t kEffectSpellId = 0x1c;  // #37: int32, the spell that made it (
 // #39: int CNWSEffectListHandler::OnApplyHeal(CNWSObject*, CGameEffect*, int) - a heal effect landing; its
 // amount is the effect's integer 0 (read first thing).
 constexpr const char* kOnApplyHeal = "?OnApplyHeal@CNWSEffectListHandler@@QEAAHPEAVCNWSObject@@PEAVCGameEffect@@H@Z";
+// #39 build 2: float CNWSCreature::ComputeSpellRange(CExoString range, uint spell) - the range the caster walks to
+// (the CExoString by value: freed by the function).
+constexpr const char* kComputeSpellRange = "?ComputeSpellRange@CNWSCreature@@QEAAMVCExoString@@I@Z";
 constexpr size_t kEffectIntegerCount = 0x40;
 constexpr size_t kEffectIntegers = 0x48;
 constexpr uint16_t kEffectDurationTemporary = 1;

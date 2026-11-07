@@ -1120,6 +1120,19 @@ bool HelpDownHenchmanUp(uint32_t id) {
   return true;
 }
 
+// #39 build 2 (Spare the Dying, rules_cantrips.cpp): a player character these rules hold at 0 Hit Points becomes
+// Stable - no more death saving throws, as after a third success (its next pass shows the Stable look). 1: made
+// Stable; 2: it already was; 0: it isn't one.
+int StabilizeDownPlayer(uint32_t id) {
+  const auto it = g_down_players.find(id);
+  if (it == g_down_players.end()) return 0;
+  if (it->second.saves.stable) return 2;
+  it->second.saves = rules::DeathSaves{};
+  it->second.saves.stable = true;
+  Log("dying: 0x%08X made Stable (Spare the Dying)", id);
+  return 1;
+}
+
 namespace {
 
 // A down henchman's actions refused (see g_allow_down_actions) - an order guard (action_guard.h, #106).

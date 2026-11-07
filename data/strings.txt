@@ -372,3 +372,48 @@
 16000586 Poison
 16000587 Force
 16000588 Psychic
+
+# #39 Part 1, build 2: the cantrips cast through a choice and Spare the Dying (SRD 5.2.1's text, CC-BY-4.0).
+16000589 Abjuration Cantrip (Cleric, Druid)\nCasting Time: Action\nRange: Touch\nComponents: V, S\nDuration: Concentration, up to 1 minute\n\nYou touch a willing creature and choose a damage type: Acid, Bludgeoning, Cold, Fire, Lightning, Necrotic, Piercing, Poison, Radiant, Slashing, or Thunder. When the creature takes damage of the chosen type before the spell ends, the creature reduces the total damage taken by 1d4. A creature can benefit from this spell only once per turn.\n\nnwn5e: choose the damage type on the spell's radial menu (a quickbar button can hold one); cast with no type (a scroll, a creature's), the first type of damage the creature takes is the one. A turn here is a round (6 seconds). Lightning is NWN's Electrical damage, Thunder its Sonic, Necrotic its Negative and Radiant its Divine.
+16000590 Guidance
+16000591 Divination Cantrip (Cleric, Druid)\nCasting Time: Action\nRange: Touch\nComponents: V, S\nDuration: Concentration, up to 1 minute\n\nYou touch a willing creature and choose a skill. Until the spell ends, the creature adds 1d4 to any ability check using the chosen skill.\n\nnwn5e: choose the skill on the spell's radial menu (a quickbar button can hold one); cast with no skill, the first skill the creature checks is the one. The 1d4 counts on the game's skill checks - a conversation's, picking a lock, disarming a trap, searching, identifying a spell - and on !skill.
+16000592 Spare the Dying
+16000593 Necromancy Cantrip (Cleric, Druid)\nCasting Time: Action\nRange: 15 feet\nComponents: V, S\nDuration: Instantaneous\n\nChoose a creature within range that has 0 Hit Points and isn't dead. The creature becomes Stable.\n\nCantrip Upgrade. The range doubles when you reach levels 5 (30 feet), 11 (60 feet), and 17 (120 feet).\n\nnwn5e: a player character at 0 Hit Points makes death saving throws and can be made Stable; a henchman down at 0 lies until it is healed, already as good as Stable.
+16000594 Sorcerous Burst
+16000595 Evocation Cantrip (Sorcerer)\nCasting Time: Action\nRange: 120 feet\nComponents: V, S\nDuration: Instantaneous\n\nYou cast sorcerous energy at one creature or object within range. Make a ranged spell attack against the target. On a hit, the target takes 1d8 damage of a type you choose: Acid, Cold, Fire, Lightning, Poison, Psychic, or Thunder.\n\nIf you roll an 8 on a d8 for this spell, you can roll another d8, and add it to the damage. When you cast this spell, the maximum number of these d8s you can add to the spell's damage equals your spellcasting ability modifier.\n\nCantrip Upgrade. The damage increases by 1d8 when you reach levels 5 (2d8), 11 (3d8), and 17 (4d8).\n\nnwn5e: choose the damage type on the spell's radial menu (a quickbar button can hold one); cast with no type, Fire. Lightning is NWN's Electrical damage, Thunder its Sonic.
+16000596 Resistance: Acid
+16000597 Resistance: Bludgeoning
+16000598 Resistance: Cold
+16000599 Resistance: Fire
+16000600 Resistance: Lightning
+16000601 Resistance: Necrotic
+16000602 Resistance: Piercing
+16000603 Resistance: Poison
+16000604 Resistance: Radiant
+16000605 Resistance: Slashing
+16000606 Resistance: Thunder
+16000607 Guidance: Acrobatics
+16000608 Guidance: Animal Handling
+16000609 Guidance: Arcana
+16000610 Guidance: Athletics
+16000611 Guidance: Deception
+16000612 Guidance: History
+16000613 Guidance: Insight
+16000614 Guidance: Intimidation
+16000615 Guidance: Investigation
+16000616 Guidance: Medicine
+16000617 Guidance: Nature
+16000618 Guidance: Perception
+16000619 Guidance: Performance
+16000620 Guidance: Persuasion
+16000621 Guidance: Religion
+16000622 Guidance: Sleight of Hand
+16000623 Guidance: Stealth
+16000624 Guidance: Survival
+16000625 Sorcerous Burst: Acid
+16000626 Sorcerous Burst: Cold
+16000627 Sorcerous Burst: Fire
+16000628 Sorcerous Burst: Lightning
+16000629 Sorcerous Burst: Poison
+16000630 Sorcerous Burst: Psychic
+16000631 Sorcerous Burst: Thunder

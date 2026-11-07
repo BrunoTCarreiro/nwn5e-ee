@@ -20,6 +20,16 @@
 // - Acid Splash: a 5-foot (1.5 m) sphere at the point (or the creature) - each creature in it a Dexterity save, one
 //   damage roll. Light: the object or creature touched lights 1 hour (Bright 20 ft and Dim 20 ft: NWN's 15 m light);
 //   cast again, the earlier one ends.
+// - Build 2 (owner, 2026-11-07: "go for it"; decision 5 "recommendations": a menu, past its slots a "More"):
+//   Resistance (NWN's 151 rewritten), Guidance 1057 and Sorcerous Burst 1059 are cast through a choice - each
+//   option a variant row (rules::ChoiceCantrips; the radial's menu: rules_spell_slots.cpp). Resistance and
+//   Guidance put a marker on the creature touched (a tagged VFX_DUR_CESSATE_POSITIVE, its spell id the row cast;
+//   Concentration, up to 1 minute, ends it): Resistance takes 1d4 off its type's damage once per turn
+//   (resistance.h's reducer, before Resistance halves it), Guidance adds 1d4 to checks with its skill
+//   (cantrip_effects.h: rules_skill_dcs.cpp's checks, !skill). Spare the Dying 1058 makes a player character at 0
+//   Hit Points Stable (rules_dying.cpp; its range by level through CNWSCreature::ComputeSpellRange). Sorcerous
+//   Burst: a ranged spell attack, d8s of its type, each 8 another d8 (at most the Charisma modifier more); the
+//   Sorcerer's only (spells_page.cpp keeps it off the Wizard, NWN's Wiz_Sorc column being shared).
 // NWN mode: NWN's cantrips.
 
 #include <windows.h>
@@ -28,6 +38,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -43,8 +54,14 @@
 #include "hooks.h"
 #include "log.h"
 #include "mastery.h"
+#include "cantrip_effects.h"
+#include "resistance.h"
 #include "script_hooks.h"
 #include "rules/cantrips.h"
+#include "rules/skills.h"
+
+int StabilizeDownPlayer(uint32_t id);        // rules_dying.cpp: 1 made Stable, 2 already, 0 not a down player
+bool IsDownHenchmanUnderRules(uint32_t id);  // rules_dying.cpp
 
 namespace {
 
@@ -272,6 +289,240 @@ SetLocalString(OBJECT_SELF, "n5c_light", ObjectToString(t));
 
 void LightScript(uint32_t self) { Run(kLight, self, "n5c_light"); }
 
+// --- #39 Part 1, build 2: Resistance, Guidance, Spare the Dying, Sorcerous Burst ---------------------------------
+
+const rules::ChoiceCantrip* g_resistance = nullptr;
+const rules::ChoiceCantrip* g_guidance = nullptr;
+std::unordered_map<uint32_t, uint64_t> g_resisted;         // Resistance: once per turn - until (game ms)
+std::unordered_map<uint32_t, uint32_t> g_resist_locked;    // a master cast's type: the first taken
+std::unordered_map<uint32_t, uint32_t> g_guidance_locked;  // a master cast's skill: the first checked
+constexpr int kAbilityCharisma = 5;
+constexpr float kMetresPerFoot = 0.3048f;
+
+// The row of the effect on `object` that one of `cantrip`'s rows put there (-1: none): its marker, a tagged
+// VFX_DUR_CESSATE_POSITIVE carrying the row cast as its spell id. The engine drops it at its end, or Concentration
+// (rules_concentration.cpp) at the caster's.
+int ActiveRow(const void* object, const rules::ChoiceCantrip* cantrip) {
+  if (!object || !cantrip) return -1;
+  void* const* list = Field<void* const*>(object, ee::kObjectEffects);
+  const int count = Field<int32_t>(object, ee::kObjectEffectCount);
+  if (!list || count <= 0 || count > 4096) return -1;
+  for (int i = 0; i < count; ++i) {
+    const void* effect = list[i];
+    if (!effect) continue;
+    const int spell = Field<int32_t>(effect, ee::kEffectSpellId);
+    if (spell == cantrip->master || rules::ChoiceCantripOf(spell) == cantrip) return spell;
+  }
+  return -1;
+}
+
+uint32_t TargetIdOf(void* caster) {
+  const std::string target = caster ? engine::GetLocalString(caster, "n5c_target") : std::string();
+  return target.empty() ? ee::kObjectInvalid : static_cast<uint32_t>(strtoul(target.c_str(), nullptr, 16));
+}
+
+std::string DamageName(uint32_t type) {
+  switch (type) {
+    case 1: return "Bludgeoning";
+    case 2: return "Piercing";
+    case 4: return "Slashing";
+    case rules::kDamageTypeAcid: return "Acid";
+    case rules::kDamageTypeCold: return "Cold";
+    case rules::kDamageTypeRadiant: return "Radiant";
+    case rules::kDamageTypeLightning: return "Lightning";
+    case rules::kDamageTypeFire: return "Fire";
+    case rules::kDamageTypeNecrotic: return "Necrotic";
+    case rules::kDamageTypeThunder: return "Thunder";
+    case rules::kDamageTypePoison: return "Poison";
+    case rules::kDamageTypePsychic: return "Psychic";
+  }
+  return "type " + std::to_string(type);
+}
+
+// Resistance and Guidance on the creature touched: the marker (Concentration, up to 1 minute; an earlier one of the
+// same cantrip on it ends) and a line to the caster.
+const char* const kWard = R"nss(
+object t = GetSpellTargetObject();
+if (!GetIsObjectValid(t)) t = OBJECT_SELF;
+SignalEvent(t, EventSpellCastAt(OBJECT_SELF, GetSpellId(), FALSE));
+effect e = GetFirstEffect(t);
+while (GetIsEffectValid(e)) { if (GetEffectTag(e) == "$TAG") RemoveEffect(t, e); e = GetNextEffect(t); }
+ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect($VIS), t);
+ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(EffectVisualEffect(VFX_DUR_CESSATE_POSITIVE),
+                    GetSpellId()), "$TAG"), t, RoundsToSeconds(10));
+SetLocalString(OBJECT_SELF, "n5c_target", ObjectToString(t));
+string who = GetName(t);
+if (t == OBJECT_SELF) who = "yourself";
+SendMessageToPC(OBJECT_SELF, "nwn5e: $SAY " + who + ".");
+)nss";
+
+void Ward(uint32_t self, const rules::ChoiceCantrip* cantrip, const char* tag, const char* vis) {
+  void* caster = CreatureById(self);
+  if (!caster || !cantrip) return;
+  const int row = Field<int32_t>(caster, ee::kObjectLastSpellId);
+  const rules::CantripOption* option = rules::ChoiceOptionOf(row);
+  std::string say = cantrip->kind == rules::ChoiceKind::kSkill ? "Guidance" : "Resistance";
+  if (option) {
+    say += std::string(" (") + option->label + ")";
+  } else {
+    say += cantrip->kind == rules::ChoiceKind::kSkill ? " (the first skill checked)"
+                                                      : " (the first type of damage taken)";
+  }
+  say += " on";
+  std::string code = kWard;
+  Replace(&code, "$TAG", tag);
+  Replace(&code, "$VIS", vis);
+  Replace(&code, "$SAY", say);
+  Run(code, self, tag);
+  const uint32_t target = TargetIdOf(caster);
+  g_resist_locked.erase(target);
+  g_guidance_locked.erase(target);
+  if (g_logged < 60) {
+    ++g_logged;
+    Log("cantrips: 0x%08X %s - row %d on 0x%08X (Concentration, up to 1 minute)", self, say.c_str(), row, target);
+  }
+}
+
+void ResistanceScript(uint32_t self) { Ward(self, g_resistance, "n5c_resist", "VFX_IMP_HEAD_HOLY"); }
+void GuidanceScript(uint32_t self) { Ward(self, g_guidance, "n5c_guidance", "VFX_IMP_HEAD_MIND"); }
+
+// Resistance: 1d4 off the chosen type's damage, once per turn (resistance.h: before Resistance halves it).
+int ResistanceReducer(void* object, uint32_t flags, int damage, bool simulate) {
+  if (simulate || damage <= 0 || !object) return 0;
+  const int row = ActiveRow(object, g_resistance);
+  if (row < 0) return 0;
+  const uint32_t id = Field<uint32_t>(object, ee::kObjectId);
+  uint32_t type = 0;
+  if (const rules::CantripOption* option = rules::ChoiceOptionOf(row)) {
+    type = option->value;
+  } else {
+    type = g_resist_locked.emplace(id, flags).first->second;  // cast with no choice: the first type taken
+  }
+  if (!(type & flags) || Live(&g_resisted, id)) return 0;
+  g_resisted[id] = GameMs() + kRoundMs;
+  const int d4 = RollEngineDice(1, 4);
+  const int off = rules::ResistanceReduction(damage, d4);
+  if (g_logged < 200) {
+    ++g_logged;
+    Log("cantrips: 0x%08X Resistance (%s): %d of %d damage stopped (1d4 %d; once this turn)", id,
+        DamageName(type).c_str(), off, damage, d4);
+  }
+  return off;
+}
+
+// Spare the Dying: who it was cast at, then the line (and the visual when it worked).
+const char* const kSpareTarget = R"nss(
+SetLocalString(OBJECT_SELF, "n5c_target", ObjectToString(GetSpellTargetObject()));
+)nss";
+const char* const kSpareSay = R"nss(
+object t = StringToObject("$TARGET");
+if (!GetIsObjectValid(t)) return;
+SignalEvent(t, EventSpellCastAt(OBJECT_SELF, GetSpellId(), FALSE));
+if ($WORKED) ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_HEAD_HEAL), t);
+SendMessageToPC(OBJECT_SELF, "nwn5e: Spare the Dying - " + GetName(t) + "$SAY");
+)nss";
+
+void SpareTheDyingScript(uint32_t self) {
+  Run(kSpareTarget, self, "n5c_sparedying");
+  void* caster = CreatureById(self);
+  const uint32_t target = TargetIdOf(caster);
+  if (target == ee::kObjectInvalid) return;
+  const int state = StabilizeDownPlayer(target);
+  const char* say = " has Hit Points left, or is dead: nothing to spare.";
+  if (state == 1) say = " is Stable: no more death saving throws.";
+  if (state == 2) say = " is already Stable.";
+  if (state == 0 && IsDownHenchmanUnderRules(target)) {
+    say = " lies at 0 Hit Points, in no danger (nwn5e's henchmen make no death saving throws) - heal them to "
+          "wake them.";
+  }
+  std::string code = kSpareSay;
+  Replace(&code, "$TARGET", engine::GetLocalString(caster, "n5c_target"));
+  Replace(&code, "$WORKED", state == 1 ? "TRUE" : "FALSE");
+  Replace(&code, "$SAY", say);
+  Run(code, self, "n5c_sparedying");
+  Log("cantrips: 0x%08X Spare the Dying on 0x%08X - %s", self, target,
+      state == 1 ? "Stable" : state == 2 ? "already Stable" : "not dying");
+}
+
+// Spare the Dying's range by the caster's character level (15 feet, 30 at 5, 60 at 11, 120 at 17): the engine
+// walks the caster into it (CNWSCreature::ComputeSpellRange; the range code by value, freed by the original).
+using ComputeSpellRangeFn = float (*)(void* creature, void* range_code, uint32_t spell);
+ComputeSpellRangeFn g_compute_spell_range = nullptr;
+
+float ComputeSpellRange(void* creature, void* range_code, uint32_t spell) {
+  const float range = g_compute_spell_range(creature, range_code, spell);
+  if (spell != static_cast<uint32_t>(rules::kSpareTheDying) || !creature) return range;
+  void* stats = StatsOf(creature);
+  const int level = stats ? ReadCreatureFacts(stats).level : 1;
+  return static_cast<float>(rules::SpareTheDyingRangeFeet(level)) * kMetresPerFoot;
+}
+
+// Sorcerous Burst: a ranged spell attack; on a hit d8s of the chosen type, each 8 another d8 (at most the Charisma
+// modifier more).
+int RollD8(void*) { return RollEngineDice(1, 8); }
+
+Look BurstLookOf(uint32_t type) {
+  Look look;
+  look.beam = "ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_MIRV), t);";
+  switch (type) {
+    case rules::kDamageTypeAcid: look.vis = "VFX_IMP_ACID_S"; break;
+    case rules::kDamageTypeCold: look.vis = "VFX_IMP_FROST_S"; break;
+    case rules::kDamageTypeLightning: look.vis = "VFX_IMP_LIGHTNING_S"; break;
+    case rules::kDamageTypePoison:
+      look.vis = "VFX_IMP_POISON_S";
+      look.immune = LookOf(1053).immune;  // Poison Spray's: none to a creature immune to poison
+      break;
+    case rules::kDamageTypePsychic: look.vis = "VFX_IMP_HEAD_MIND"; break;
+    case rules::kDamageTypeThunder: look.vis = "VFX_IMP_SONIC"; break;
+    default:
+      look.beam = "ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_MIRV_FLAME), t);";
+      look.vis = "VFX_IMP_FLAME_S";
+  }
+  return look;
+}
+
+void SorcerousBurstScript(uint32_t self) {
+  void* caster = CreatureById(self);
+  if (!caster) return;
+  const int row = Field<int32_t>(caster, ee::kObjectLastSpellId);
+  const rules::CantripOption* option = rules::ChoiceOptionOf(row);
+  const uint32_t type = option ? option->value : rules::kDamageTypeFire;  // cast with no choice: Fire
+  const Look look = BurstLookOf(type);
+  std::string roll = kAttack;
+  Replace(&roll, "$TOUCH", "TouchAttackRanged");
+  Replace(&roll, "$BEAM", look.beam);
+  Run(roll, self, "n5_c_sorcburst");
+  const int level = engine::GetLocalInt(caster, kVarLevel);
+  const std::string hits = engine::GetLocalString(caster, kVarHits);
+  void* stats = StatsOf(caster);
+  const int cap = stats ? engine::AbilityModifier(stats, kAbilityCharisma) : 0;
+  size_t at = 0;
+  while (at < hits.size()) {
+    const size_t colon = hits.find(':', at);
+    const size_t end = hits.find(';', at);
+    if (colon == std::string::npos || end == std::string::npos || colon > end) break;
+    const std::string target = hits.substr(at, colon - at);
+    const bool critical = atoi(hits.substr(colon + 1, end - colon - 1).c_str()) == 2;
+    at = end + 1;
+    const int dice = rules::CantripDiceRolled(level, critical);
+    int extra = 0;
+    const int amount = rules::SorcerousBurstDamage(dice, cap, &RollD8, nullptr, &extra);
+    std::string apply = kDamage;
+    Replace(&apply, "$TARGET", target);
+    Replace(&apply, "$AMOUNT", std::to_string(amount));
+    Replace(&apply, "$TYPE", std::to_string(type));
+    Replace(&apply, "$VIS", look.vis);
+    Replace(&apply, "$IMMUNE", look.immune);
+    Replace(&apply, "$RIDER", "");
+    Run(apply, self, "n5_c_sorcburst");
+    if (g_logged < 60) {
+      ++g_logged;
+      Log("cantrips: 0x%08X Sorcerous Burst (%s) hits %s - %d damage (%d d8%s, %d more for 8s, at most %d)", self,
+          DamageName(type).c_str(), target.c_str(), amount, dice, critical ? ", a Critical Hit" : "", extra, cap);
+    }
+  }
+}
+
 template <int Spell>
 void CantripScript(uint32_t self) {
   Cast(self, Spell);
@@ -309,6 +560,29 @@ MasteryRollSources MockeryRollSources(void* attacker) {
   return sources;
 }
 
+// cantrip_effects.h: Guidance's 1d4 on a check with its skill.
+int GuidanceCheckBonus(void* creature, int nwn_skill) {
+  if (!creature || !g_guidance) return 0;
+  const int row = ActiveRow(creature, g_guidance);
+  if (row < 0) return 0;
+  const std::optional<rules::Skill2024> skill = rules::Skill2024ForNwnSkill(nwn_skill);
+  if (!skill) return 0;
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  uint32_t chosen = 0;
+  if (const rules::CantripOption* option = rules::ChoiceOptionOf(row)) {
+    chosen = option->value;
+  } else {
+    chosen = g_guidance_locked.emplace(id, static_cast<uint32_t>(*skill)).first->second;  // the first checked
+  }
+  if (chosen != static_cast<uint32_t>(*skill)) return 0;
+  const int d4 = RollEngineDice(1, 4);
+  if (g_logged < 200) {
+    ++g_logged;
+    Log("cantrips: 0x%08X Guidance (%s): +%d on the check", id, rules::Skill2024Name(*skill), d4);
+  }
+  return d4;
+}
+
 void InstallCantrips() {
   if (!Faithful()) {
     Log("cantrips: NWN's (key spellcasting)");
@@ -325,10 +599,26 @@ void InstallCantrips() {
                  AddScriptHandler("n5_c_sacredflame", &CantripScript<1054>) &&
                  AddScriptHandler("n5_c_starrywisp", &CantripScript<1055>) &&
                  AddScriptHandler("n5_c_mockery", &CantripScript<1056>);
+  g_resistance = rules::ChoiceCantripOf(rules::kResistance);
+  g_guidance = rules::ChoiceCantripOf(rules::kGuidance);
+  const bool choices = AddScriptHandler("n5_c_resist", &ResistanceScript) &&
+                       AddScriptHandler("n5_c_guidance", &GuidanceScript) &&
+                       AddScriptHandler("n5_c_sparedying", &SpareTheDyingScript) &&
+                       AddScriptHandler("n5_c_sorcburst", &SorcerousBurstScript);
+  const bool reducer = AddDamageReducer(&ResistanceReducer);
+  const bool range = HookExport("CNWSCreature::ComputeSpellRange (Spare the Dying's range by level, #39)",
+                                ee::kComputeSpellRange, reinterpret_cast<void*>(&ComputeSpellRange),
+                                reinterpret_cast<void**>(&g_compute_spell_range));
   const bool heal = HookExport("CNWSEffectListHandler::OnApplyHeal (Chill Touch: no Hit Points regained, #39)",
                                ee::kOnApplyHeal, reinterpret_cast<void*>(&OnApplyHeal),
                                reinterpret_cast<void**>(&g_on_apply_heal));
   Log("cantrips: SRD 5.2's damage cantrips (%zu; Cantrip Upgrade at 5, 11, 17), Poison / Force / Psychic damage of "
       "their own, NWN's own cantrips off the class lists (#39 Part 1)%s",
       rules::Cantrips().size(), scripts && heal ? "" : " - SOME hooks missing");
+  Log("cantrips: build 2 - Resistance, Guidance and Sorcerous Burst cast through a choice (%zu variant rows), "
+      "Spare the Dying (#39 Part 1)%s",
+      g_resistance && g_guidance ? g_resistance->options.size() + g_guidance->options.size() +
+                                       rules::ChoiceCantripOf(rules::kSorcerousBurst)->options.size()
+                                 : 0,
+      choices && reducer && range ? "" : " - SOME hooks missing");
 }

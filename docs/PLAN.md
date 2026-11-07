@@ -649,6 +649,28 @@ monster AC by CR.
     "more" menu).
     The launch check found spells.2da skipped ("line 16: expected a row number and 59 values": one rows file held two
     header lines) - split in two, and test RowsFilesParse now parses every rows file as the DLL does.
+  - *Built 0.90.0 (build 2, owner, 2026-11-07: "go for it"; `spellcasting` faithful):* the cantrips cast through a
+    choice (decision 5: a menu, past its slots a "More") and Spare the Dying. rules::ChoiceCantrips: Resistance
+    (NWN's 151 rewritten - Cleric and Druid, SRD 5.2.1's text) with a variant row per damage type (1060-1070),
+    Guidance 1057 per skill (1071-1088), Sorcerous Burst 1059 per type (1089-1095), each variant's Master its
+    cantrip - NWN's own sub-radial mechanism: the engine maps a variant to its master in GetSpellUsesLeft,
+    UnReadySpell and GetHasSpell (CNWSpell +0x178; a spell's variants a heap list at +0x168, count +0x170, the
+    loader reading SubRadSpell1-8), so a variant needs no class level and a quickbar button can hold one
+    (rules_spell_slots.cpp's client count treats it as its cantrip). The radial: #36's SetEntryx hook turns the
+    master's leaf into a menu of its options (rules::RadialChoicePage: eight to a page, or seven and "More"; its
+    page in param bits 44-48), each casting its variant through the radial's cast callback (#140's retargeting
+    applies). Resistance and Guidance mark the creature touched (a tagged VFX_DUR_CESSATE_POSITIVE carrying the
+    variant's id; Concentration ends it - the variant rows are in rules::ConcentrationSpells): Resistance takes
+    1d4 off the chosen type, once per turn, before Resistance halves it (resistance.h's new reducer); Guidance adds
+    1d4 to checks with its skill - the scripts' GetIsSkillSuccessful (its d20), the engine's converted checks
+    (rules_skill_dcs.cpp's SkillAtCheck: Open Lock, Search, traps, Spellcraft) and !skill. Cast with no choice
+    (an item's or a creature's master): the first type taken, the first skill checked; Sorcerous Burst Fire.
+    Spare the Dying: a down player character Stable (rules_dying.cpp's StabilizeDownPlayer); its range 15 ft,
+    doubling at 5, 11, 17 (CNWSCreature::ComputeSpellRange hooked). Sorcerous Burst: a ranged spell attack, d8s,
+    each 8 another d8 up to the Charisma modifier (rules::SorcerousBurstDamage); off the Wizard's list
+    (spells_page.cpp's GetSpellLevel: 0xFF for the Wizard, NWN's Wiz_Sorc column being shared). Tests
+    ChoiceCantripsAreSrd52, RadialChoicePage, RadialChoiceParams, SorcerousBurstDice, ResistanceAndSpareTheDying;
+    !test profiles cantripcleric, cantripsorcerer.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

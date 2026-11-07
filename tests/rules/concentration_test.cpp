@@ -39,7 +39,16 @@ TEST(ConcentrationSpellsAreSrd52) {
   CHECK_EQ(IsConcentrationSpell(172), true);   // Stoneskin
   CHECK_EQ(IsConcentrationSpell(138), true);   // Protection from Evil (a variant of row 321)
   CHECK_EQ(IsConcentrationSpell(321), true);
-  CHECK_EQ(IsConcentrationSpell(485), true);   // Flesh to Stone (the table's last)
+  CHECK_EQ(IsConcentrationSpell(485), true);   // Flesh to Stone (NWN's last)
+  CHECK_EQ(IsConcentrationSpell(151), true);   // Resistance: its master and every variant (#39 build 2)
+  CHECK_EQ(IsConcentrationSpell(1060), true);
+  CHECK_EQ(IsConcentrationSpell(1070), true);
+  CHECK_EQ(IsConcentrationSpell(1057), true);  // Guidance and its variants
+  CHECK_EQ(IsConcentrationSpell(1071), true);
+  CHECK_EQ(IsConcentrationSpell(1088), true);  // the table's last
+  CHECK_EQ(IsConcentrationSpell(1058), false);  // Spare the Dying: Instantaneous
+  CHECK_EQ(IsConcentrationSpell(1059), false);  // Sorcerous Burst
+  CHECK_EQ(IsConcentrationSpell(1089), false);
   CHECK_EQ(IsConcentrationSpell(4), true);     // Bestow Curse (the first)
   CHECK_EQ(IsConcentrationSpell(107), false);  // Magic Missile
   CHECK_EQ(IsConcentrationSpell(58), false);   // Fireball
@@ -48,7 +57,7 @@ TEST(ConcentrationSpellsAreSrd52) {
   CHECK_EQ(IsConcentrationSpell(325), false);  // a deleted row
   CHECK_EQ(IsConcentrationSpell(-1), false);
   const std::vector<int>& all = ConcentrationSpells();
-  CHECK_EQ(all.size(), 84u);
+  CHECK_EQ(all.size(), 114u);  // 84 of NWN's rows, Guidance and 29 variants
   CHECK_EQ(std::is_sorted(all.begin(), all.end()), true);
   CHECK_EQ(std::adjacent_find(all.begin(), all.end()) == all.end(), true);  // no row twice
 }
