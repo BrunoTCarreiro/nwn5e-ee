@@ -2,26 +2,29 @@
 // with spells picked from the radial menu not showing the area of effect of a spell ... we're targeting blind";
 // decided "Q1. right Q2. b Q3. a Q4. before"). The rules: rules/radial_targeting.h.
 //
-// The client's radial leaves cast at once at what the menu was opened on. The spell menu's handler (guispellmenu)
-// keeps it at +0x88C (an object id; OBJECT_INVALID: the ground) and +0x880 (a point); +0x890 set means the
-// quickbar's assign mode. Its leaves: a spell (the cast callback #36 knows, 0x9A4540 in 8193.37), a spell-like
-// ability (0x9A4610: CastSpellLikeAbility), a feat (0x9A4770). The creature menu's own feat leaf, the class
-// abilities' and Special Attacks' (RadialMenuUseFeat, 0x998520; param feat | extra << 16) keeps them at +0x7F8 and
-// +0x830, assign mode +0x828. Both feat leaves already hand over the feat cursor for a feat that isn't self-only
-// (feat.2da TARGETSELF, CNWFeat +0x2C) when the menu was opened on yourself, and use it at once (0x805310: the
-// client creature, the feat, the target, the point) otherwise.
+// The client's radial leaves cast at once at what the menu was opened on. The spell menu's handler (guispellmenu) keeps
+// it at +0x88C (an object id; OBJECT_INVALID: the ground) and +0x880 (a point); +0x890 set means the quickbar's assign
+// mode. Its leaves: a spell (the cast callback #36 knows, 0x9A4540 in 8193.37), a spell-like ability (0x9A4610:
+// CastSpellLikeAbility), a feat (0x9A4770). It greys a spell its target can't take (0x9A4910: the menu's mask +0x898
+// and the spell's TargetType against the target - none: the ground; yourself, a creature, an item, a door, a placeable,
+// a trigger); one the rules hand the cursor stays pickable here. The creature menu's spontaneous cure / inflict leaf
+// (0x998880) casts at its target +0x7F8. The creature menu's own feat leaf, the class abilities' and Special Attacks'
+// (RadialMenuUseFeat, 0x998520; param feat | extra << 16) keeps them at +0x7F8 and +0x830, assign mode +0x828. Both
+// feat leaves already hand over the feat cursor for a feat that isn't self-only (feat.2da TARGETSELF, CNWFeat +0x2C)
+// when the menu was opened on yourself, and use it at once (0x805310: the client creature, the feat, the target, the
+// point) otherwise.
 //
-// The quickbar's spell button starts the spell cursor: a 0x168-byte object (the game's operator new, its
-// constructor 0x704290), then 0x704500(cursor, param, an empty CResRef, 0 for a spell / 1 for a spell-like
-// ability), which sets the valid targets from spells.2da TargetType, the area preview from TargetShape (0x704BD0)
-// and activates it; a pick casts with the same param (class, domain level - #36's upcast level -, metamagic), Esc
-// drops it, both free it. The feat cursor is 0x160 bytes (0x702800, then 0x702C30(cursor, 1, feat, CResRef)), its
-// area its spell's. Here each leaf asks rules::RadialRetargets: true starts the cursor instead of the cast; false
-// leaves the game's own (a feat that isn't self-only opened on yourself, which the game would hand the cursor, is
-// used on yourself when the rules say so). What the menu was opened on: yourself (the controlled creature), a
-// creature friendly to it (an ally: GetAIStateReaction friend), another creature, door, placeable or item, or the
-// ground (anything else). The spells' facts: spells.2da Range, TargetType, HostileSetting, TargetShape, and
-// feat.2da SPELLID, TARGETSELF, read once (as the game serves them). `radial_retarget`.
+// The quickbar's spell button starts the spell cursor: a 0x168-byte object (the game's operator new, its constructor
+// 0x704290), then 0x704500(cursor, param, an empty CResRef, 0 for a spell / 1 for a spell-like ability), which sets the
+// valid targets from spells.2da TargetType, the area preview from TargetShape (0x704BD0) and activates it; a pick casts
+// with the same param (class, domain level - #36's upcast level -, metamagic), a cancel drops it, both free it. The
+// feat cursor is 0x160 bytes (0x702800, then 0x702C30(cursor, 1, feat, CResRef)), its area its spell's. Here each leaf
+// asks rules::RadialRetargets: true starts the cursor instead of the cast; false leaves the game's own (a feat that
+// isn't self-only opened on yourself, which the game would hand the cursor, is used on yourself when the rules say so).
+// What the menu was opened on: yourself (the controlled creature), a creature friendly to it (an ally:
+// GetAIStateReaction friend), another creature, door, placeable or item, or the ground (anything else). The spells'
+// facts: spells.2da Range, TargetType, HostileSetting, TargetShape, and feat.2da SPELLID, TARGETSELF, read once (as the
+// game serves them). `radial_retarget`.
 
 #include <windows.h>
 
@@ -51,11 +54,14 @@ using FeatCursorStartFn = void (*)(void* cursor, uint8_t from_menu, int64_t feat
 using UseFeatFn = void (*)(void* client_creature, uint32_t feat, uint32_t target, const void* point);
 using ControlledFn = void* (*)(void* client_app);
 using GetObjectFn = void* (*)(void* server_app, uint32_t id);
+using ValidTargetFn = int (*)(void* handler, int spell);
 
 LeafFn g_spell_leaf = nullptr;    // originals (trampolines)
 LeafFn g_ability_leaf = nullptr;
 LeafFn g_menu_feat_leaf = nullptr;
 LeafFn g_creature_feat_leaf = nullptr;
+LeafFn g_spontaneous_leaf = nullptr;
+ValidTargetFn g_valid_target = nullptr;
 GameNewFn g_game_new = nullptr;
 CursorCtorFn g_spell_cursor_ctor = nullptr;
 SpellCursorStartFn g_spell_cursor_start = nullptr;
@@ -75,6 +81,9 @@ struct Tables {
 Tables g_tables;
 int g_logged = 0;
 constexpr int kMaxLogged = 60;
+int g_picks_logged = 0;
+constexpr int kMaxPicksLogged = 30;
+int g_kept_logged = 0;
 
 const Tables& ReadTables() {
   if (!g_tables.read) {
@@ -111,8 +120,13 @@ int FeatSpell(int feat, bool* self_only) {
   return atoi(t.feat_spell[row].c_str());
 }
 
+// The client's controlled creature, as the game's `mov rax,[global]; mov rcx,[rax]; call`: the global holds a
+// pointer to the client app's pointer (0.89.1: 0.89.0 passed the holder, found no creature, and every leaf fell
+// back to the game's own cast).
 void* ControlledCreature() {
-  return g_controlled && g_controlled_app && *g_controlled_app ? g_controlled(*g_controlled_app) : nullptr;
+  void* const holder = g_controlled_app ? *g_controlled_app : nullptr;
+  void* const app = holder ? *static_cast<void**>(holder) : nullptr;
+  return app && g_controlled ? g_controlled(app) : nullptr;
 }
 
 void* ServerApp() {
@@ -162,14 +176,31 @@ bool StartFeatCursor(int64_t param) {
   return true;
 }
 
+struct Menu {
+  size_t target, point, assigning;
+};
+constexpr Menu kSpellMenu{ee::kSpellMenuTarget, ee::kSpellMenuPoint, ee::kRadialHandlerAssigning};
+constexpr Menu kCreatureMenu{ee::kCreatureMenuTarget, ee::kCreatureMenuPoint, ee::kCreatureMenuAssigning};
+
+// Each leaf picked, before anything is decided (the first few): what it was handed.
+void Picked(const char* leaf, void* handler, int64_t param, const Menu& menu, void* creature) {
+  if (g_picks_logged >= kMaxPicksLogged || !handler) return;
+  ++g_picks_logged;
+  Log("radial (#140): the %s leaf picked - param 0x%llx, target 0x%08x, assigning %d, creature %s, "
+      "radial_retarget %d", leaf, static_cast<unsigned long long>(param), Field<uint32_t>(handler, menu.target),
+      Field<void*>(handler, menu.assigning) ? 1 : 0, creature ? "found" : "NOT FOUND",
+      g_config.radial_retarget ? 1 : 0);
+}
+
 // A spell or spell-like ability leaf: true when the cursor took over.
-bool SpellLeaf(void* handler, int64_t param, bool ability) {
-  if (!g_config.radial_retarget || !handler || Field<void*>(handler, ee::kRadialHandlerAssigning)) return false;
+bool SpellLeaf(void* handler, int64_t param, bool ability, const Menu& menu, const char* leaf) {
   void* creature = ControlledCreature();
+  Picked(leaf, handler, param, menu, creature);
+  if (!g_config.radial_retarget || !handler || Field<void*>(handler, menu.assigning)) return false;
   const int spell = static_cast<int>(param & 0xffff);
   rules::RadialSpell facts;
   if (!creature || !SpellFacts(spell, &facts)) return false;
-  const uint32_t target = Field<uint32_t>(handler, ee::kSpellMenuTarget);
+  const uint32_t target = Field<uint32_t>(handler, menu.target);
   uint8_t kind = 0;
   const rules::RadialOn on = Classify(target, Field<uint32_t>(creature, ee::kClientObjectId), &kind);
   const char* what = ability ? "ability" : "spell";
@@ -183,27 +214,51 @@ bool SpellLeaf(void* handler, int64_t param, bool ability) {
 }
 
 void SpellLeafHook(void* handler, int64_t param) {
-  if (!SpellLeaf(handler, param, false)) g_spell_leaf(handler, param);
+  if (!SpellLeaf(handler, param, false, kSpellMenu, "spell")) g_spell_leaf(handler, param);
 }
 
 void AbilityLeafHook(void* handler, int64_t param) {
-  if (!SpellLeaf(handler, param, true)) g_ability_leaf(handler, param);
+  if (!SpellLeaf(handler, param, true, kSpellMenu, "spell-like ability")) g_ability_leaf(handler, param);
 }
 
-struct FeatMenu {
-  size_t target, point, assigning;
-};
-constexpr FeatMenu kSpellMenu{ee::kSpellMenuTarget, ee::kSpellMenuPoint, ee::kRadialHandlerAssigning};
-constexpr FeatMenu kCreatureMenu{ee::kCreatureMenuTarget, ee::kCreatureMenuPoint, ee::kCreatureMenuAssigning};
+void SpontaneousLeafHook(void* handler, int64_t param) {
+  if (!SpellLeaf(handler, param, false, kCreatureMenu, "spontaneous cure / inflict")) {
+    g_spontaneous_leaf(handler, param);
+  }
+}
+
+// The spell menu greys a spell its target can't take (Cure Light Wounds on the ground, Hold Person on yourself);
+// one the rules hand the cursor stays pickable - the cursor finds it a target it can take.
+int ValidTargetHook(void* handler, int spell) {
+  const int valid = g_valid_target(handler, spell);
+  if (valid || !g_config.radial_retarget || !handler || Field<void*>(handler, ee::kRadialHandlerAssigning)) {
+    return valid;
+  }
+  void* creature = ControlledCreature();
+  rules::RadialSpell facts;
+  if (!creature || !SpellFacts(spell, &facts)) return valid;
+  const uint32_t target = Field<uint32_t>(handler, ee::kSpellMenuTarget);
+  uint8_t kind = 0;
+  const rules::RadialOn on = Classify(target, Field<uint32_t>(creature, ee::kClientObjectId), &kind);
+  if (!rules::RadialRetargets(on, facts)) return valid;
+  if (g_kept_logged < kMaxLogged) {
+    ++g_kept_logged;
+    Log("radial (#140): %s (%d) kept pickable on %s (0x%08x, kind %d) - the cursor aims it",
+        SpellNameOf(spell).c_str(), spell, rules::RadialOnName(on), target, kind);
+  }
+  return 1;
+}
 
 // A feat leaf: true when the cursor took over, or the feat was used on yourself where the game would have handed
 // the cursor.
-bool FeatLeaf(void* handler, int64_t param, const FeatMenu& menu, int64_t cursor_param, uint32_t use_param) {
+bool FeatLeaf(void* handler, int64_t param, const Menu& menu, int64_t cursor_param, uint32_t use_param,
+              const char* leaf) {
+  void* creature = ControlledCreature();
+  Picked(leaf, handler, param, menu, creature);
   if (!g_config.radial_retarget || !handler || Field<void*>(handler, menu.assigning)) return false;
   for (int64_t mode : ee::kCreatureMenuModeFeats) {
     if (param == mode) return false;  // a mode the game toggles before anything else
   }
-  void* creature = ControlledCreature();
   bool self_only = false;
   const int spell = creature ? FeatSpell(static_cast<int>(param & 0xffff), &self_only) : -1;
   rules::RadialSpell facts;
@@ -214,7 +269,8 @@ bool FeatLeaf(void* handler, int64_t param, const FeatMenu& menu, int64_t cursor
   const rules::RadialOn on = Classify(target, Field<uint32_t>(creature, ee::kClientObjectId), &kind);
   if (rules::RadialRetargets(on, facts)) {
     const bool started = StartFeatCursor(cursor_param);
-    Note("feat", spell, on, target, kind, started ? "the targeting cursor, its area shown" : "no cursor (used at once)");
+    Note("feat", spell, on, target, kind,
+         started ? "the targeting cursor, its area shown" : "no cursor (used at once)");
     return started;
   }
   if (on == rules::RadialOn::kSelf && !self_only) {
@@ -228,12 +284,14 @@ bool FeatLeaf(void* handler, int64_t param, const FeatMenu& menu, int64_t cursor
 }
 
 void MenuFeatLeafHook(void* handler, int64_t param) {
-  if (!FeatLeaf(handler, param, kSpellMenu, param, static_cast<uint32_t>(param))) g_menu_feat_leaf(handler, param);
+  if (!FeatLeaf(handler, param, kSpellMenu, param, static_cast<uint32_t>(param), "spell menu's feat")) {
+    g_menu_feat_leaf(handler, param);
+  }
 }
 
 void CreatureFeatLeafHook(void* handler, int64_t param) {
   if (!FeatLeaf(handler, param, kCreatureMenu, rules::CreatureMenuFeatCursorParam(param),
-                rules::CreatureMenuFeatUseParam(param))) {
+                rules::CreatureMenuFeatUseParam(param), "creature menu's feat")) {
     g_creature_feat_leaf(handler, param);
   }
 }
@@ -253,6 +311,10 @@ void InstallRadialRetarget() {
   const uintptr_t creature_feat_leaf = FindPattern("the creature menu's RadialMenuUseFeat (#140)",
                                                    ee::kCreatureMenuUseFeatPattern);
   const uintptr_t spell_cursor = FindPattern("the quickbar's spell cursor (#140)", ee::kQuickbarSpellCursorPattern);
+  const uintptr_t valid_target = FindPattern("the spell menu's valid-target check (#140)",
+                                             ee::kRadialValidTargetPattern);
+  const uintptr_t spontaneous_leaf = FindPattern("the creature menu's spontaneous cure / inflict leaf (#140)",
+                                                 ee::kCreatureMenuSpellLeafPattern);
   const uintptr_t feat_cursor = menu_feat_leaf ? FindPatternIn("the radial's feat cursor (#140)",
                                                                FunctionAt(menu_feat_leaf), ee::kRadialFeatCursorPattern)
                                                : 0;
@@ -280,7 +342,8 @@ void InstallRadialRetarget() {
   if (use_feat) g_use_feat = reinterpret_cast<UseFeatFn>(CallTarget(use_feat + ee::kRadialUseFeatCall));
   g_get_object = reinterpret_cast<GetObjectFn>(EngineExport(ee::kGetGameObject));
   g_app_manager = reinterpret_cast<void**>(EngineExport(ee::kAppManager));
-  if (!spell_leaf || !ability_leaf || !menu_feat_leaf || !creature_feat_leaf || !g_controlled || !g_game_new ||
+  if (!spell_leaf || !ability_leaf || !menu_feat_leaf || !creature_feat_leaf || !valid_target || !spontaneous_leaf ||
+      !g_controlled || !g_game_new ||
       !g_spell_cursor_ctor || !g_spell_cursor_start || !g_feat_cursor_ctor || !g_feat_cursor_start || !g_use_feat ||
       !g_get_object || !g_app_manager) {
     Log("SKIP radial (#140): the radial's leaves or the cursors aren't mapped (spell %p, ability %p, feat %p / %p, "
@@ -299,4 +362,8 @@ void InstallRadialRetarget() {
               reinterpret_cast<void**>(&g_menu_feat_leaf));
   HookAddress("the creature menu's RadialMenuUseFeat (#140)", creature_feat_leaf,
               reinterpret_cast<void*>(&CreatureFeatLeafHook), reinterpret_cast<void**>(&g_creature_feat_leaf));
+  HookAddress("the spell menu's valid-target check (#140: a spell the cursor aims stays pickable)", valid_target,
+              reinterpret_cast<void*>(&ValidTargetHook), reinterpret_cast<void**>(&g_valid_target));
+  HookAddress("the creature menu's spontaneous cure / inflict leaf (#140)", spontaneous_leaf,
+              reinterpret_cast<void*>(&SpontaneousLeafHook), reinterpret_cast<void**>(&g_spontaneous_leaf));
 }

@@ -1266,6 +1266,16 @@ constexpr size_t kCreatureMenuTarget = 0x7f8;
 constexpr size_t kCreatureMenuAssigning = 0x828;
 constexpr size_t kCreatureMenuPoint = 0x830;
 constexpr int64_t kCreatureMenuModeFeats[] = {0x1c, 0x13, 0x1e, 0xcc, 0x383, 0x362, 0x185, 0x186, 0x1a9, 0x3b3};
+// 0.89.1: its spontaneous cure / inflict leaf (0x998880; assign +0x828, else casts at +0x7F8).
+constexpr const char* kCreatureMenuSpellLeafPattern =
+    "48 89 5C 24 08 57 48 83 EC 60 48 8B F9 48 8B DA 48 8B 89 28 08 00 00 48 85 C9 74 0F 48 8B 5C 24 70 48 83 C4 60 "
+    "5F E9";
+// 0.89.1: the spell menu's valid-target check (0x9A4910, int (handler, spell)): the menu's mask +0x898 and the
+// spell's TargetType (+0x50) against the target +0x88C - no client object: the ground bit; yourself, a creature
+// (kind 5), an item (6), a door (10), a placeable (9), a trigger (7). 0 greys the spell (the list, sub-radials).
+constexpr const char* kRadialValidTargetPattern =
+    "48 89 5C 24 08 48 89 74 24 10 48 89 7C 24 18 41 56 48 83 EC 20 48 8B 05 ?? ?? ?? ?? 48 8B D9 48 8B 88 D0 00 00 "
+    "00 E8 ?? ?? ?? ?? 48 85 C0 74 32 0F B7 B3 98 08 00 00 66 23 70 50";
 constexpr const char* kCreatureMenuUseFeatPattern =
     "40 55 56 57 48 81 EC 90 00 00 00 48 C7 44 24 60 FE FF FF FF 48 89 9C 24 C0 00 00 00 48 8B 05 ?? ?? ?? ?? 48 33 "
     "C4 48 89 84 24 88 00 00 00 48 8B DA 48 8B E9 48 8B 05 ?? ?? ?? ?? 48 8B 08 E8 ?? ?? ?? ?? 48 8B F8 48 85 C0 0F "
