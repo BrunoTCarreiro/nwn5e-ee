@@ -444,8 +444,9 @@ void SpareTheDyingScript(uint32_t self) {
   Replace(&code, "$WORKED", state == 1 ? "TRUE" : "FALSE");
   Replace(&code, "$SAY", say);
   Run(code, self, "n5c_sparedying");
+  const bool henchman = state == 0 && IsDownHenchmanUnderRules(target);
   Log("cantrips: 0x%08X Spare the Dying on 0x%08X - %s", self, target,
-      state == 1 ? "Stable" : state == 2 ? "already Stable" : "not dying");
+      state == 1 ? "Stable" : state == 2 ? "already Stable" : henchman ? "a down henchman, in no danger" : "not dying");
 }
 
 // Spare the Dying's range by the caster's character level (15 feet, 30 at 5, 60 at 11, 120 at 17): the engine
