@@ -15,7 +15,7 @@ bool TakesBonusAction(int feat) {
          feat == kFeatWholenessOfBody || feat == kFeatCunningDash || feat == kFeatCunningDisengage ||
          feat == kFeatCunningHide || feat == kFeatSteadyAim ||  // #53
          feat == kFeatPatientDefenseFree || feat == kFeatStepOfTheWindFree ||  // #55
-         IsBonusActionSpellFeat(feat);  // #39 build 3a: a Bonus Action spell (Produce Flame)
+         IsBonusActionSpellFeat(feat);  // #39 builds 3a, 3b: a Bonus Action spell (Produce Flame, Shillelagh)
 }
 
 bool TakesNoAction(int feat) {
@@ -38,6 +38,7 @@ const char* BonusActionName(int feat) {
   if (feat == kFeatPatientDefenseFree) return "Patient Defense: Disengage";  // #55
   if (feat == kFeatStepOfTheWindFree) return "Step of the Wind: Dash";
   if (feat == kFeatProduceFlame) return "Produce Flame";  // #39 build 3a
+  if (feat == kFeatShillelaghForce || feat == kFeatShillelaghWeapon) return "Shillelagh";  // #39 build 3b
   return "";
 }
 

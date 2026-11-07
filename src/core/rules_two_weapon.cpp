@@ -32,6 +32,7 @@
 #include "mastery.h"
 #include "rules/weapons.h"
 #include "ruleset.h"
+#include "weapon_cantrips.h"
 #include "weapon_size.h"
 
 bool HasTwoWeaponFightingStyle(void* stats);  // rules_fighter.cpp (Fighter F1, the 2024 style feat)
@@ -82,12 +83,14 @@ void InitializeNumberOfAttacks(void* round) {
     g_initialize_number_of_attacks(round);
   }
   if (TwoWeaponFaithful()) OffHandAttacksFaithful(round);
+  // #39 build 3b: a True Strike's round - its one attack, before the Bonus Action and extra attacks are decided.
+  const bool true_strike = TrueStrikeRoundStart(round);
   // Phase 6 (#52): the round's Bonus Action - the off-hand attack left out when it's taken or kept free.
   BonusActionRoundStart(round);
   // Phase 6 (#53): Action Surge's or Thief's Reflexes' extra Attack action; Steady Aim's starting place.
   ExtraActionsRoundStart(round);
   // Monk M1 (c): the bonus unarmed strike, once the off-hand count is known.
-  if (g_config.class_features == rules::RuleVariant::kFaithful) MartialArtsBonusStrike(round);
+  if (g_config.class_features == rules::RuleVariant::kFaithful && !true_strike) MartialArtsBonusStrike(round);
 }
 
 int GetDamageBonus(void* stats, void* target, int off_hand) {
@@ -98,6 +101,7 @@ int GetDamageBonus(void* stats, void* target, int off_hand) {
   t_damage_stats = outer;
   bonus += FinesseDamageBonus(stats, off_hand);  // 2024 Finesse: the better of Str and Dex
   bonus += RageDamageBonus(stats, off_hand);     // Barbarian B2: Rage Damage
+  bonus += WeaponCantripDamageBonus(stats, off_hand, t_two_handed_multiplier);  // #39 3b: Shillelagh, True Strike
   if (!off_hand) bonus = MasteryCleaveDamage(stats, bonus, t_two_handed_multiplier);  // D4 Cleave's extra attack
   return bonus;
 }
@@ -132,7 +136,7 @@ void InstallTwoWeaponRules() {
                        &OffHandStrength);
   }
   if (TwoWeaponFaithful() || g_config.size == rules::RuleVariant::kFaithful ||
-      g_config.class_features == rules::RuleVariant::kFaithful) {
+      g_config.class_features == rules::RuleVariant::kFaithful || WeaponCantripsOn()) {  // #39 3b: True Strike
     HookExport("CNWSCombatRound::InitializeNumberOfAttacks (off-hand attacks; weapon size; Martial Arts)",
                ee::kInitializeNumberOfAttacks, reinterpret_cast<void*>(&InitializeNumberOfAttacks),
                reinterpret_cast<void**>(&g_initialize_number_of_attacks));
@@ -140,8 +144,9 @@ void InstallTwoWeaponRules() {
   const bool mastery = g_config.weapon_mastery != rules::RuleVariant::kOff;  // D4 Cleave's damage
   const bool finesse = g_config.finesse == rules::RuleVariant::kFaithful;
   const bool rage = g_config.class_features == rules::RuleVariant::kFaithful;  // Barbarian B2 Rage Damage
-  if (TwoWeaponFaithful() || mastery || finesse || rage) {
-    HookExport("CNWSCreatureStats::GetDamageBonus (who deals damage; Cleave; Finesse; Rage)", ee::kGetDamageBonus,
+  if (TwoWeaponFaithful() || mastery || finesse || rage || WeaponCantripsOn()) {
+    HookExport("CNWSCreatureStats::GetDamageBonus (who deals damage; Cleave; Finesse; Rage; weapon cantrips)",
+               ee::kGetDamageBonus,
                reinterpret_cast<void*>(&GetDamageBonus), reinterpret_cast<void**>(&g_get_damage_bonus));
   }
   if (g_config.two_handed_strength == rules::RuleVariant::kFaithful || mastery) {

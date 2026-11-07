@@ -85,6 +85,15 @@ std::vector<ChoiceCantrip> BuildChoiceCantrips() {
   ChoiceCantrip flame{kProduceFlame, "n5_c_produceflame", ChoiceKind::kMode,
                      {{kProduceFlameFlame, 0, "Flame"}, {kProduceFlameHurl, 1, "Hurl"}}};
   all.push_back(flame);
+  // Build 3b: the damage type of the weapon cantrips (decision 3 A): theirs, or the weapon's own (0).
+  ChoiceCantrip shillelagh{kShillelagh, "n5_c_shillelagh", ChoiceKind::kDamageType,
+                           {{kShillelaghForce, kDamageTypeForce, "Force"}, {kShillelaghWeapon, 0, "Bludgeoning"}},
+                           161};
+  all.push_back(shillelagh);
+  ChoiceCantrip true_strike{kTrueStrike, "n5_c_truestrike", ChoiceKind::kDamageType,
+                            {{kTrueStrikeRadiant, kDamageTypeRadiant, "Radiant"},
+                             {kTrueStrikeWeapon, 0, "Weapon's type"}}};
+  all.push_back(true_strike);
   return all;
 }
 
@@ -158,10 +167,14 @@ long long RadialChoiceCast(long long param, int variant) {
 
 int BonusActionFeatOfSpell(int spell) {
   if (spell == kProduceFlame || spell == kProduceFlameFlame) return kFeatProduceFlame;  // casting it: the Flame
+  if (spell == kShillelagh || spell == kShillelaghForce) return kFeatShillelaghForce;   // casting it: Force
+  if (spell == kShillelaghWeapon) return kFeatShillelaghWeapon;
   return -1;
 }
 
-bool IsBonusActionSpellFeat(int feat) { return feat == kFeatProduceFlame; }
+bool IsBonusActionSpellFeat(int feat) {
+  return feat == kFeatProduceFlame || feat == kFeatShillelaghForce || feat == kFeatShillelaghWeapon;
+}
 
 int SorcerousBurstDamage(int dice, int extra_cap, int (*roll_d8)(void* context), void* context, int* extra_out) {
   int total = 0;
@@ -191,6 +204,77 @@ int SpareTheDyingRangeFeet(int character_level) {
   if (character_level >= 11) feet *= 2;
   if (character_level >= 17) feet *= 2;
   return feet;
+}
+
+bool IsShillelagh(int spell) {
+  return spell == kShillelagh || spell == kShillelaghForce || spell == kShillelaghWeapon;
+}
+
+bool IsTrueStrike(int spell) {
+  return spell == kTrueStrike || spell == kTrueStrikeRadiant || spell == kTrueStrikeWeapon;
+}
+
+bool IsShillelaghWeapon(int nwn_base_item) {
+  return nwn_base_item == 28 || nwn_base_item == 50 || nwn_base_item == 45;
+}
+
+WeaponDie ShillelaghDie(int character_level) {
+  if (character_level >= 17) return {2, 6};
+  if (character_level >= 11) return {1, 12};
+  if (character_level >= 5) return {1, 10};
+  return {1, 8};
+}
+
+WeaponDie BetterDice(WeaponDie a, WeaponDie b) {
+  return b.count * (b.sides + 1) > a.count * (a.sides + 1) ? b : a;  // twice the average
+}
+
+int TrueStrikeExtraDice(int character_level, bool critical) {
+  int dice = 0;
+  if (character_level >= 5) ++dice;
+  if (character_level >= 11) ++dice;
+  if (character_level >= 17) ++dice;
+  return critical ? dice * 2 : dice;
+}
+
+int WeaponCantripAbility(bool true_strike, int normal, int casting) {
+  if (true_strike) return casting;
+  return casting > normal ? casting : normal;
+}
+
+uint32_t WeaponCantripDamageType(int spell) {
+  if (const CantripOption* option = ChoiceOptionOf(spell)) {
+    return IsShillelagh(spell) || IsTrueStrike(spell) ? option->value : 0;
+  }
+  if (spell == kShillelagh || spell == kTrueStrike) return ChoiceCantripOf(spell)->options.front().value;
+  return 0;
+}
+
+namespace {
+constexpr int kBaseWeaponIndex = 12;  // DAMAGE_TYPE_BASE_WEAPON (4096)
+}  // namespace
+
+int DamageTypeIndex(uint32_t type) {
+  if (type == 0 || (type & (type - 1)) != 0) return -1;
+  int index = 0;
+  while ((type >> index) != 1u) ++index;
+  return index;
+}
+
+void AddDamage(int16_t* entries, int count, uint32_t type, int amount) {
+  const int index = DamageTypeIndex(type);
+  if (!entries || index < 0 || index >= count || amount <= 0) return;
+  entries[index] = static_cast<int16_t>((entries[index] > 0 ? entries[index] : 0) + amount);
+}
+
+int MoveWeaponDamage(int16_t* entries, int count, uint32_t type) {
+  const int index = DamageTypeIndex(type);
+  if (!entries || index < 0 || index >= count || index == kBaseWeaponIndex || count <= kBaseWeaponIndex) return 0;
+  const int moved = entries[kBaseWeaponIndex];
+  if (moved <= 0) return 0;
+  AddDamage(entries, count, type, moved);
+  entries[kBaseWeaponIndex] = 0;
+  return moved;
 }
 
 }  // namespace rules

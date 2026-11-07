@@ -35,6 +35,8 @@
 //   light for the stealth rules; its Hurl (1098) an action while it lasts, a ranged spell attack, d8 Fire. A
 //   Bonus Action spell's cast (rules::BonusActionFeatOfSpell) becomes its feat's use - instant, one a round
 //   (bonus_actions.cpp), granted at the first cast.
+// - Build 3b (owner, 2026-11-07: "build 3b"): Shillelagh 1099 (a Bonus Action, its feats 1549 / 1550) and True
+//   Strike (NWN's 415 rewritten: its cast an attack) - rules_weapon_cantrips.cpp.
 // NWN mode: NWN's cantrips.
 
 #include <windows.h>
@@ -65,6 +67,7 @@
 #include "resistance.h"
 #include "script_hooks.h"
 #include "spell_impact.h"
+#include "weapon_cantrips.h"
 #include "rules/cantrips.h"
 #include "rules/skills.h"
 
@@ -634,6 +637,11 @@ bool BonusActionCastGuard(void* creature, uint32_t spell, uint32_t target) {
     TellPlayer(id, "nwn5e: Produce Flame - no flame in your hand to hurl: cast its Flame first (a Bonus Action).");
     return true;
   }
+  if (rules::IsShillelagh(static_cast<int>(spell)) &&
+      !rules::IsShillelaghWeapon(engine::BaseItemRowInSlot(creature, ee::kSlotRightHand))) {
+    TellPlayer(id, "nwn5e: Shillelagh - no Club or Quarterstaff in your hand.");  // #39 3b: before the Bonus Action
+    return true;
+  }
   const int feat = rules::BonusActionFeatOfSpell(static_cast<int>(spell));
   if (feat < 0 || g_config.actions != rules::RuleVariant::kFaithful || !g_use_feat) return false;
   void* stats = StatsOf(creature);
@@ -755,4 +763,5 @@ void InstallCantrips() {
       choices && reducer && range ? "" : " - SOME hooks missing");
   Log("cantrips: build 3a - Produce Flame (Flame a Bonus Action, Hurl an action; a carried light) (#39 Part 1)%s",
       flame ? "" : " - SOME hooks missing");
+  InstallWeaponCantrips();  // build 3b: Shillelagh, True Strike
 }

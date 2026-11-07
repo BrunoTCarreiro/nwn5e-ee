@@ -711,6 +711,24 @@ monster AC by CR.
     it instant in faithful `actions`); an AddCastSpellActions guard refuses their cast and uses the feat instead
     (granted at the first cast) - instant, one a round, a second waiting for the next round (bonus_actions.cpp).
     Tests ProduceFlame, BonusActionFeats; !test cantripdruid.
+  - *Built 0.92.0 (build 3b; owner, 2026-11-07: "build 3b"):* Shillelagh 1099 (the Druid's; nwn5e's placeholder
+    icon) - its radial menu Force (1100) and Bludgeoning (1101, the weapon's own) - cast as a Bonus Action (feats
+    1549 / 1550, as the Flame), with a Club or Quarterstaff (or NWN's magic staff 45) in the hand, refused without
+    one. For 1 minute (a marker with effect icons 161-163, carrying the cantrip's row so the AI sees it): that
+    weapon's melee attacks use the better of Wisdom and their own term (Strength, or Finesse's Dexterity) for attack
+    and damage (GetAttackModifierVersus, GetDamageBonus); its die a d8, d10 at 5, d12 at 11, 2d6 at 17 (GetDamageRoll's
+    weapon-dice filter, as the Martial Arts die - the better of the two); Force moves the weapon's damage to Force
+    (ResolveDamage). Letting go of the weapon (another in the hand, or none) ends it (the creature update). True
+    Strike (NWN's 415 rewritten: a Bard, Sorcerer and Wizard cantrip cast at a creature) - Radiant (1102) or the
+    weapon's type (1103): an AddCastSpellActions order guard turns the cast into an attack order at it (no cast);
+    the next round started at it (within 15 s) is cut to one attack (InitializeNumberOfAttacks: no off-hand,
+    extra or Martial Arts attack; an Action Surge's still added). That attack uses the class slot's spellcasting
+    ability in place of Strength or Dexterity (an item's: the best of Int, Wis, Cha); Radiant moves the weapon's
+    damage to Radiant; 1d6 Radiant more at 5 (2d6 at 11, 3d6 at 17), doubled on a Critical Hit. Refused with a
+    word: no weapon in the hand, or cast at no creature. Not checked: proficiency with the weapon. Tests
+    Shillelagh, TrueStrike, WeaponCantripDamage; !test cantripbard (short sword and dagger, shortbow, Charisma
+    18) and cantripdruid (a club in the pack). Next free ids: spells 1104, feats 1551, effect icons 164,
+    strings 16000648.
   - *Build 4 brief (2026-11-07): the utility cantrips, SRD 5.2.1's nine left (Eldritch Blast waits for a Warlock).*
     Q1 Mending and Message (no broken items, no one to whisper to in single player): A off the class lists until
     they have a use, B flavour. Q2 Mage Hand: A cast at a door, lever, light or container within 30 ft - the hand

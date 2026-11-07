@@ -425,3 +425,15 @@
 16000635 Produce Flame: Hurl
 16000636 Produce Flame (Bonus Action)
 16000637 nwn5e: Produce Flame cast as a Bonus Action - your attacks go on; one Bonus Action a round, a second waits for your next round. Granted the first time you cast it.
+
+# #39 Part 1, build 3b: Shillelagh and True Strike (SRD 5.2.1's text, CC-BY-4.0).
+16000638 Shillelagh
+16000639 Transmutation Cantrip (Druid)\nCasting Time: Bonus Action\nRange: Self\nComponents: V, S, M (mistletoe)\nDuration: 1 minute\n\nA Club or Quarterstaff you are holding is imbued with nature's power. For the duration, you can use your spellcasting ability instead of Strength for the attack and damage rolls of melee attacks using that weapon, and the weapon's damage die becomes a d8. If the attack deals damage, it can be Force damage or the weapon's normal damage type (your choice).\n\nThe spell ends early if you cast it again or if you let go of the weapon.\n\nCantrip Upgrade. The damage die changes when you reach levels 5 (d10), 11 (d12), and 17 (2d6).\n\nnwn5e: the spell's radial menu has Force and Bludgeoning (the weapon's type); cast as a Bonus Action, your attacks go on. The better of your Wisdom and Strength is used. Unequipping the weapon ends it.
+16000640 Shillelagh: Force
+16000641 Shillelagh: Bludgeoning
+16000642 Shillelagh: Force (Bonus Action)
+16000643 Shillelagh: Bludgeoning (Bonus Action)
+16000644 nwn5e: Shillelagh cast as a Bonus Action - your attacks go on; one Bonus Action a round, a second waits for your next round. Granted the first time you cast it.
+16000645 Divination Cantrip (Bard, Sorcerer, Warlock, Wizard)\nCasting Time: Action\nRange: Self\nComponents: S, M (a weapon with which you have proficiency and that is worth 1+ CP)\nDuration: Instantaneous\n\nGuided by a flash of magical insight, you make one attack with the weapon used in the spell's casting. The attack uses your spellcasting ability for the attack and damage rolls instead of using Strength or Dexterity. If the attack deals damage, it can be Radiant damage or the weapon's normal damage type (your choice).\n\nCantrip Upgrade. Whether you deal Radiant damage or the weapon's normal damage type, the attack deals extra Radiant damage when you reach levels 5 (1d6), 11 (2d6), and 17 (3d6).\n\nnwn5e: cast it at a creature - its radial menu has Radiant and the weapon's type. It becomes one attack with the weapon in your hand, melee or ranged, at the start of your next round: that round has no other attacks. No casting animation.
+16000646 True Strike: Radiant
+16000647 True Strike: Weapon's Type

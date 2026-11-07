@@ -136,4 +136,51 @@ int ResistanceReduction(int damage, int d4);
 // Spare the Dying's range in feet: 15, doubling at character levels 5 (30), 11 (60) and 17 (120).
 int SpareTheDyingRangeFeet(int character_level);
 
+// --- #39 Part 1, build 3b: the weapon cantrips (owner, 2026-11-07: "1 A, 2 A, 3 A, 4 A ... 5 A"; "build 3b") -----
+// Shillelagh 1099 (the Druid's; a Bonus Action): the Club or Quarterstaff in your hand, 1 minute - its melee attacks
+// may use your spellcasting ability instead of Strength (the better is taken), its damage die a d8 (d10 at 5, d12 at
+// 11, 2d6 at 17), Force or the weapon's type (Force 1100, Bludgeoning 1101); it ends if you let go of the weapon or
+// cast it again. True Strike (NWN's 415 rewritten; Bard, Sorcerer, Wizard): one attack with the weapon in your hand -
+// the game's own, the round's other attacks dropped - using your spellcasting ability instead of Strength or
+// Dexterity, Radiant (1102) or the weapon's type (1103), and 1d6 Radiant more at 5 (2d6 at 11, 3d6 at 17).
+constexpr int kShillelagh = 1099;
+constexpr int kShillelaghForce = 1100;
+constexpr int kShillelaghWeapon = 1101;
+constexpr int kFeatShillelaghForce = 1549;   // its Bonus Action with Force (the cantrip cast with no choice)
+constexpr int kFeatShillelaghWeapon = 1550;  // its Bonus Action with the weapon's type
+constexpr int kTrueStrike = 415;             // NWN's row, rewritten
+constexpr int kTrueStrikeRadiant = 1102;
+constexpr int kTrueStrikeWeapon = 1103;
+
+// The cantrip or one of its variants.
+bool IsShillelagh(int spell);
+bool IsTrueStrike(int spell);
+// NWN base items Shillelagh takes: Club 28, Quarterstaff 50, and NWN's magic staff 45 (a quarterstaff to 2024).
+bool IsShillelaghWeapon(int nwn_base_item);
+
+struct WeaponDie {
+  int count = 0;
+  int sides = 0;
+};
+// Shillelagh's damage die at a character level: d8, d10 at 5, d12 at 11, 2d6 at 17.
+WeaponDie ShillelaghDie(int character_level);
+// The dice a hit rolls when two could (the weapon's or Martial Arts' and Shillelagh's): the higher average; a tie
+// keeps `a`.
+WeaponDie BetterDice(WeaponDie a, WeaponDie b);
+// True Strike's extra Radiant d6s at a character level: 0, 1 at 5, 2 at 11, 3 at 17; doubled on a Critical Hit.
+int TrueStrikeExtraDice(int character_level, bool critical);
+// The ability modifier the attack and damage rolls use, `normal` the one they would: True Strike's is the
+// spellcasting ability's ("instead of using Strength or Dexterity"), Shillelagh's the better of the two ("you can
+// use your spellcasting ability instead of Strength").
+int WeaponCantripAbility(bool true_strike, int normal, int casting);
+// The damage-type bit a variant's hit deals (the master cast with no choice: its first option's); 0 the weapon's.
+uint32_t WeaponCantripDamageType(int spell);
+
+// A hit's damage (CNWSCombatAttackData +0x16: an int16 per damage-type bit, -1 unused; bit 12 the weapon's own):
+// the bit's index (-1 not one bit); `amount` more of `type`; the weapon's own damage moved to `type` (returns how
+// much moved; 0 for type 0, the weapon's own).
+int DamageTypeIndex(uint32_t type);
+void AddDamage(int16_t* entries, int count, uint32_t type, int amount);
+int MoveWeaponDamage(int16_t* entries, int count, uint32_t type);
+
 }  // namespace rules

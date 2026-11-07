@@ -3,14 +3,15 @@
 # is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
 #
 # The Druid's cantrips (issue 39 part 1, build 3a): your first class becomes Druid 5, Wisdom 16 - two dice at level
-# 5. Produce Flame: Flame is a Bonus Action, Hurl an action while it lasts.
+# 5. Produce Flame: Flame is a Bonus Action, Hurl an action while it lasts. Build 3b: Shillelagh.
 name = Druid cantrips (issue 39 build 3a): human Druid 5, Wisdom 16 - Produce Flame (Flame, Hurl)
 species = human
 swap_class = druid
 class = druid
 level = 5
 abilities = 10 14 14 10 16 10
-items = nw_wdbqs001 equip
+items = nw_wdbqs001 equip, nw_wblcl001
 note = the Prepare spells window opens: Cantrips - pick Produce Flame (and others); Accept
 note = Produce Flame's radial menu: Flame (a Bonus Action, a light in your hand), Hurl (an action)
 note = !spawn nw_orcb gives you an enemy to hurl it at
+note = Shillelagh (build 3b): Force or Bludgeoning, a Bonus Action - the quarterstaff uses Wisdom and a d10 at level 5; a club in your pack to swap to

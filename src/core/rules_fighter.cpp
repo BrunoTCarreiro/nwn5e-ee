@@ -61,6 +61,7 @@
 #include "records.h"
 #include "resolve_damage.h"
 #include "rules_loaded.h"
+#include "weapon_cantrips.h"
 #include "weapon_size.h"
 
 // Savage Attacker (rules_origin_feats.cpp): true once per turn for a
@@ -192,6 +193,8 @@ struct GreatWeaponRoll {
   bool active = false;  // Great Weapon Fighting
   bool savage = false;  // Savage Attacker: the hit's dice twice, the higher roll kept
   int martial = 0;      // Monk M1: a Monk weapon's dice rolled as one Martial Arts die of these sides
+  int martial_count = 1;          // #39 3b: Shillelagh's die in place of the weapon's (2d6 at 17)
+  const char* die_name = nullptr;  // whose die (the log)
   uint32_t id = 0;
   int count = 0;
   int sides = 0;
@@ -275,6 +278,20 @@ int GetDamageRoll(void* stats, void* target, int offhand, int critical, int snea
     const int count = Field<uint8_t>(weapon, ee::kBaseItemNumDice), sides = Field<uint8_t>(weapon, ee::kBaseItemDieToRoll);
     if (const int die = Faithful() ? MartialArtsWeaponDie(creature, AttackWeaponBaseItem(creature), count, sides) : 0) {
       t_great_weapon.martial = die;
+      t_great_weapon.die_name = "Martial Arts die";
+      t_great_weapon.id = ObjectIdOf(stats);
+      t_great_weapon.count = count;
+      t_great_weapon.sides = sides;
+    }
+    // #39 build 3b: Shillelagh's die (d8 to 2d6) in place of the dice above, when better.
+    const int before_count = t_great_weapon.martial ? 1 : count;
+    const int before_sides = t_great_weapon.martial ? t_great_weapon.martial : sides;
+    int roll_count = before_count, roll_sides = before_sides;
+    if (WeaponCantripDice(stats, offhand, &roll_count, &roll_sides) &&
+        (roll_count != before_count || roll_sides != before_sides)) {
+      t_great_weapon.martial = roll_sides;
+      t_great_weapon.martial_count = roll_count;
+      t_great_weapon.die_name = "Shillelagh's die";
       t_great_weapon.id = ObjectIdOf(stats);
       t_great_weapon.count = count;
       t_great_weapon.sides = sides;
@@ -294,8 +311,8 @@ bool GreatWeaponDice(uintptr_t caller, int count, int sides, int* result) {
     return false;
   }
   int raised = 0;
-  // Monk M1: the Martial Arts die in place of the weapon's dice.
-  const int roll_count = t_great_weapon.martial ? 1 : count;
+  // Monk M1: the Martial Arts die in place of the weapon's dice (#39 3b: or Shillelagh's).
+  const int roll_count = t_great_weapon.martial ? t_great_weapon.martial_count : count;
   const int roll_sides = t_great_weapon.martial ? t_great_weapon.martial : sides;
   auto roll_once = [&]() {
     if (!t_great_weapon.active) return RollEngineDice(roll_count, roll_sides);
@@ -323,7 +340,10 @@ bool GreatWeaponDice(uintptr_t caller, int count, int sides, int* result) {
     }
     if (g_config.log_attacks) {  // 0.53.1: the dice rolled (a Monk's Martial Arts die, not the weapon's)
       Log("feats: 0x%08X Savage Attacker: %dd%d%s%s rolled twice, %d / %d -> %d", t_great_weapon.id,
-          roll_count * t_great_weapon.sets, roll_sides, t_great_weapon.martial ? " (Martial Arts die)" : "",
+          roll_count * t_great_weapon.sets, roll_sides,
+          !t_great_weapon.martial ? ""
+          : t_great_weapon.die_name && t_great_weapon.die_name[0] == 'S' ? " (Shillelagh's die)"
+                                                                         : " (Martial Arts die)",
           t_great_weapon.sets > 1 ? " (critical hit)" : "", first_total, second_total,
           keep_second ? second_total : first_total);
     }
@@ -608,7 +628,7 @@ void InstallFighterRules() {
   const bool savage_attacker = g_config.feats == rules::RuleVariant::kFaithful;
   if (!Faithful()) {
     OnRulesLoaded(&HideFightingStyleRows);
-    if (savage_attacker) InstallWeaponDiceRules();
+    if (savage_attacker || WeaponCantripsOn()) InstallWeaponDiceRules();  // #39 3b: Shillelagh's die
     if (g_config.armor == rules::RuleVariant::kFaithful) {  // 2024 armour on the sheet (rules_armor.cpp)
       HookExport("CNWSCreature::GetArmorClass (sheet and GetAC: 2024 armour)", ee::kCreatureGetArmorClass,
                  reinterpret_cast<void*>(&CreatureArmorClassArmorOnly),

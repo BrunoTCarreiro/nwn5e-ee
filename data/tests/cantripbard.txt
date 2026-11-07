@@ -2,14 +2,17 @@
 # playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
 # is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
 #
-# The cantrips (issue 39 part 1): your first class becomes Bard 5, Charisma 16 - level 5, so a damage cantrip rolls
-# two dice (Cantrip Upgrade). Pick Vicious Mockery, Starry Wisp and Light among the Bard's cantrips.
-name = Cantrips (issue 39): human Bard 5, Charisma 16 - Vicious Mockery, Starry Wisp, Light; two dice at level 5
+# The cantrips (issue 39 part 1): your first class becomes Bard 5, Charisma 18 - level 5, so a damage cantrip rolls
+# two dice (Cantrip Upgrade). Pick Vicious Mockery, Starry Wisp and Light among the Bard's cantrips. Build 3b: True
+# Strike - a short sword and a dagger (two attacks a round), a shortbow; Charisma 18, Dexterity 12; 1d6 Radiant more
+# at level 5.
+name = Cantrips (issue 39): human Bard 5, Charisma 18 - Vicious Mockery, Starry Wisp, Light, True Strike
 species = human
 swap_class = bard
 class = bard
 level = 5
-abilities = 8 14 14 10 10 16
-items = nw_wswrp001 equip
-note = the Prepare spells window opens: Cantrips - pick Vicious Mockery, Starry Wisp and Light; then your spells; Accept
+abilities = 8 12 14 10 10 18
+items = nw_wswss001 equip, nw_wswdg001 offhand, nw_wbwsh001, nw_wamar001 x99
+note = the Prepare spells window opens: Cantrips - pick Vicious Mockery, Starry Wisp, Light and True Strike; then your spells; Accept
 note = !spawn nw_orcb gives you an enemy to cast them at
+note = True Strike (build 3b): Radiant or the weapon's type, cast at a creature - one attack with Charisma, no other that round

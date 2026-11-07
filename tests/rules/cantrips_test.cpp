@@ -125,6 +125,114 @@ TEST(ChoiceCantripsAreSrd52) {
   CHECK_EQ(ChoiceOptionOf(1080)->value, static_cast<uint32_t>(Skill2024::kMedicine));
 }
 
+// #39 build 3b: Shillelagh - a Bonus Action, its die by level, Force or the weapon's type.
+TEST(Shillelagh) {
+  const ChoiceCantrip* shillelagh = ChoiceCantripOf(kShillelagh);
+  CHECK_EQ(shillelagh != nullptr, true);
+  CHECK_EQ(shillelagh->kind == ChoiceKind::kDamageType, true);
+  CHECK_EQ(shillelagh->options.size(), 2u);
+  CHECK_EQ(shillelagh->options[0].spell, 1100);
+  CHECK_EQ(shillelagh->options[1].spell, 1101);
+  CHECK_EQ(WeaponCantripDamageType(1099), kDamageTypeForce);  // cast with no choice: Force
+  CHECK_EQ(WeaponCantripDamageType(1100), kDamageTypeForce);
+  CHECK_EQ(WeaponCantripDamageType(1101), 0u);                // the weapon's own
+  CHECK_EQ(BonusActionFeatOfSpell(1099), 1549);
+  CHECK_EQ(BonusActionFeatOfSpell(1100), 1549);
+  CHECK_EQ(BonusActionFeatOfSpell(1101), 1550);
+  CHECK_EQ(IsBonusActionSpellFeat(1549), true);
+  CHECK_EQ(IsBonusActionSpellFeat(1550), true);
+  CHECK_EQ(IsBonusActionSpellFeat(1551), false);
+  CHECK_EQ(EffectIconOf(1099), 161);
+  CHECK_EQ(EffectIconOf(1100), 162);
+  CHECK_EQ(EffectIconOf(1101), 163);
+  CHECK_EQ(IsShillelagh(1099) && IsShillelagh(1100) && IsShillelagh(1101), true);
+  CHECK_EQ(IsShillelagh(1102) || IsShillelagh(1098), false);
+  CHECK_EQ(IsShillelaghWeapon(28), true);  // Club
+  CHECK_EQ(IsShillelaghWeapon(50), true);  // Quarterstaff
+  CHECK_EQ(IsShillelaghWeapon(45), true);  // NWN's magic staff
+  CHECK_EQ(IsShillelaghWeapon(22), false);  // a dagger
+  CHECK_EQ(IsShillelaghWeapon(-1), false);  // nothing in hand
+  CHECK_EQ(ShillelaghDie(1).count, 1);
+  CHECK_EQ(ShillelaghDie(4).sides, 8);
+  CHECK_EQ(ShillelaghDie(5).sides, 10);
+  CHECK_EQ(ShillelaghDie(10).sides, 10);
+  CHECK_EQ(ShillelaghDie(11).sides, 12);
+  CHECK_EQ(ShillelaghDie(16).count, 1);
+  CHECK_EQ(ShillelaghDie(17).count, 2);
+  CHECK_EQ(ShillelaghDie(17).sides, 6);
+  // The better die: 2d6 (7) over d12 (6.5), d8 over the staff's d6; a Monk's d10 over Shillelagh's d8; a tie keeps a.
+  CHECK_EQ(BetterDice({1, 6}, {1, 8}).sides, 8);
+  CHECK_EQ(BetterDice({1, 10}, {1, 8}).sides, 10);
+  CHECK_EQ(BetterDice({1, 12}, {2, 6}).count, 2);
+  CHECK_EQ(BetterDice({2, 4}, {1, 4}).count, 2);
+  CHECK_EQ(BetterDice({1, 8}, {1, 8}).count, 1);
+  CHECK_EQ(BetterDice({2, 4}, {1, 9}).count, 2);  // 5 each: the first kept
+  // "can use your spellcasting ability instead of Strength": the better.
+  CHECK_EQ(WeaponCantripAbility(false, 1, 3), 3);
+  CHECK_EQ(WeaponCantripAbility(false, 4, 3), 4);
+  CHECK_EQ(WeaponCantripAbility(false, -1, -2), -1);
+}
+
+// #39 build 3b: True Strike - the spellcasting ability in place of Strength or Dexterity; Radiant dice by level.
+TEST(TrueStrike) {
+  const ChoiceCantrip* strike = ChoiceCantripOf(kTrueStrike);
+  CHECK_EQ(strike != nullptr, true);
+  CHECK_EQ(strike->master, 415);
+  CHECK_EQ(strike->options.size(), 2u);
+  CHECK_EQ(strike->options[0].spell, 1102);
+  CHECK_EQ(strike->options[1].spell, 1103);
+  CHECK_EQ(WeaponCantripDamageType(415), kDamageTypeRadiant);
+  CHECK_EQ(WeaponCantripDamageType(1102), kDamageTypeRadiant);
+  CHECK_EQ(WeaponCantripDamageType(1103), 0u);
+  CHECK_EQ(WeaponCantripDamageType(1094), 0u);  // Sorcerous Burst: not a weapon cantrip
+  CHECK_EQ(BonusActionFeatOfSpell(415), -1);    // an action
+  CHECK_EQ(BonusActionFeatOfSpell(1102), -1);
+  CHECK_EQ(EffectIconOf(1102), -1);
+  CHECK_EQ(IsTrueStrike(415) && IsTrueStrike(1102) && IsTrueStrike(1103), true);
+  CHECK_EQ(IsTrueStrike(1101) || IsTrueStrike(414), false);
+  CHECK_EQ(WeaponCantripAbility(true, 4, 3), 3);  // instead of: even when lower
+  CHECK_EQ(WeaponCantripAbility(true, 1, 3), 3);
+  CHECK_EQ(TrueStrikeExtraDice(1, false), 0);
+  CHECK_EQ(TrueStrikeExtraDice(4, true), 0);
+  CHECK_EQ(TrueStrikeExtraDice(5, false), 1);
+  CHECK_EQ(TrueStrikeExtraDice(5, true), 2);
+  CHECK_EQ(TrueStrikeExtraDice(10, false), 1);
+  CHECK_EQ(TrueStrikeExtraDice(11, false), 2);
+  CHECK_EQ(TrueStrikeExtraDice(17, false), 3);
+  CHECK_EQ(TrueStrikeExtraDice(20, true), 6);
+}
+
+// #39 build 3b: a hit's damage entries - the weapon's damage moved to Force or Radiant, Radiant dice added.
+TEST(WeaponCantripDamage) {
+  CHECK_EQ(DamageTypeIndex(1), 0);
+  CHECK_EQ(DamageTypeIndex(kDamageTypeRadiant), 6);
+  CHECK_EQ(DamageTypeIndex(4096), 12);
+  CHECK_EQ(DamageTypeIndex(kDamageTypeForce), 14);
+  CHECK_EQ(DamageTypeIndex(0), -1);
+  CHECK_EQ(DamageTypeIndex(3), -1);
+  int16_t entries[32];
+  for (int16_t& e : entries) e = -1;
+  entries[12] = 9;  // the weapon's
+  entries[8] = 3;   // a flaming weapon's fire stays
+  CHECK_EQ(MoveWeaponDamage(entries, 32, kDamageTypeForce), 9);
+  CHECK_EQ(entries[14], 9);
+  CHECK_EQ(entries[12], 0);
+  CHECK_EQ(entries[8], 3);
+  CHECK_EQ(MoveWeaponDamage(entries, 32, kDamageTypeForce), 0);  // nothing left to move
+  CHECK_EQ(MoveWeaponDamage(entries, 32, 0), 0);                 // the weapon's own: stays
+  entries[12] = 5;
+  entries[6] = 2;
+  CHECK_EQ(MoveWeaponDamage(entries, 32, kDamageTypeRadiant), 5);
+  CHECK_EQ(entries[6], 7);  // added to what was there
+  AddDamage(entries, 32, kDamageTypeRadiant, 4);
+  CHECK_EQ(entries[6], 11);
+  AddDamage(entries, 32, kDamageTypeCold, 3);  // an unused entry starts from 0
+  CHECK_EQ(entries[5], 3);
+  AddDamage(entries, 32, kDamageTypeCold, 0);
+  CHECK_EQ(entries[5], 3);
+  AddDamage(nullptr, 32, kDamageTypeCold, 3);  // no crash
+}
+
 // 0.90.1: the effect icon each shows while it lasts - effecticons.2da rows 130-160, past the game's 129.
 TEST(ChoiceCantripIcons) {
   CHECK_EQ(EffectIconOf(151), 130);   // Resistance, cast with no choice

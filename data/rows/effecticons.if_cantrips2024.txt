@@ -2,6 +2,7 @@
 # effect bar): Resistance's and Guidance's icons while they last (rules::EffectIconOf; rules_cantrips.cpp asks for
 # "cantrips2024"), past the game's row 129 - each named for its option (its variant's name: "Resistance:
 # Piercing"), the game's own status icons Damage Resistance (ief_DamResist) and Skill Increase (ief_SkillIncr).
+# Build 3b: Shillelagh's (161-163) while it lasts, the game's Damage Increase (ief_DamIncr).
 Label Icon StrRef
 130 NWN5E_RESISTANCE ief_DamResist 901
 131 NWN5E_RESISTANCE_ACID ief_DamResist 16000596
@@ -34,3 +35,6 @@ Label Icon StrRef
 158 NWN5E_GUIDANCE_SLEIGHT_OF_HAND ief_SkillIncr 16000622
 159 NWN5E_GUIDANCE_STEALTH ief_SkillIncr 16000623
 160 NWN5E_GUIDANCE_SURVIVAL ief_SkillIncr 16000624
+161 NWN5E_SHILLELAGH ief_DamIncr 16000638
+162 NWN5E_SHILLELAGH_FORCE ief_DamIncr 16000640
+163 NWN5E_SHILLELAGH_BLUDGEONING ief_DamIncr 16000641

@@ -27,6 +27,7 @@
 #include "log_once.h"
 #include "attack_roll.h"
 #include "rules/nwn_conversion.h"
+#include "weapon_cantrips.h"
 
 int RacialSlingBonusToRemove(void* stats, bool ranged);  // rules_racial.cpp
 
@@ -57,7 +58,9 @@ bool CurrentAttackIsRanged(void* stats) {
 }
 
 int GetAttackModifierVersus(void* stats, void* target) {
-  const int style = FightingStyleAttackBonus(stats) + SunderingAttackBonus(stats, target);  // Archery; Sundering Blow
+  // Archery; Sundering Blow; #39 build 3b: Shillelagh's and True Strike's spellcasting ability.
+  const int style =
+      FightingStyleAttackBonus(stats) + SunderingAttackBonus(stats, target) + WeaponCantripAttackBonus(stats);
   const int engine_modifier =
       g_get_attack_modifier_versus(stats, target) - RacialSlingBonusToRemove(stats, CurrentAttackIsRanged(stats));
   if (!g_config.attack_proficiency) return engine_modifier + style;
@@ -116,7 +119,8 @@ int EngineAttackModifier(void* stats, void* target) {
 
 void InstallAttackRules() {
   const bool fighter = g_config.class_features == rules::RuleVariant::kFaithful;  // Archery, Defense
-  if (g_config.attack_proficiency || g_config.racial_combat_bonuses == rules::RuleVariant::kFaithful || fighter) {
+  if (g_config.attack_proficiency || g_config.racial_combat_bonuses == rules::RuleVariant::kFaithful || fighter ||
+      WeaponCantripsOn()) {
     HookExport("CNWSCreatureStats::GetAttackModifierVersus", ee::kGetAttackModifierVersus,
                reinterpret_cast<void*>(&GetAttackModifierVersus),
                reinterpret_cast<void**>(&g_get_attack_modifier_versus));
