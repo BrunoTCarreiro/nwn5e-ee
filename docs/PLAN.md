@@ -737,6 +737,15 @@ monster AC by CR.
     through DelayCommand with the row cast (1100 / 1101), any Shillelagh row counts, and the watch gives it 2 s to land
     (a log line lists the creature's effects if it never does). Produce Flame's flame (the same path, untested yet)
     goes on the same way.
+  - *0.92.2 (the owner's 0.92.1 run, 2026-11-07: "still nothing, no icon on the top right, no notice when changing
+    weapons"):* the log - "marker never landed - 1 effects: t68/s-1" 2 s after each cast: through DelayCommand too,
+    no part of the link (icon, visual) stayed on the caster. Cause not found yet (the engine's EffectIcon takes any id
+    1-65535; ApplyEffectToObject leaves the spell id alone). Now the DLL keeps Shillelagh itself - its row, its
+    weapon, its minute (game time) - so its attacks don't depend on the effect; its icon goes on as the Rage's does (a
+    tagged supernatural EffectIcon from the creature update, 0.3 s after the cast). The first cast of a session logs a
+    probe (1.5 s after it: each effect's tag, true type, spell id, duration type, first integer) of three test effects
+    - C1 0.92.1's link applied in the cast's script, U2 the icon with the row's spell id, U3 the icon linked with the
+    visual, both from the update - and takes them off.
   - *Build 4 brief (2026-11-07): the utility cantrips, SRD 5.2.1's nine left (Eldritch Blast waits for a Warlock).*
     Q1 Mending and Message (no broken items, no one to whisper to in single player): A off the class lists until
     they have a use, B flavour. Q2 Mage Hand: A cast at a door, lever, light or container within 30 ft - the hand

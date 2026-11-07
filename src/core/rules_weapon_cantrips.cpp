@@ -4,9 +4,8 @@
 // Mastery and Sneak Attack stay - with nwn5e's attack, damage and round hooks asking here (weapon_cantrips.h).
 // - Shillelagh 1099 (the Druid's; its radial menu Force 1100 or Bludgeoning 1101, the weapon's own): cast as a Bonus
 //   Action (Q1 A: through feats 1549 / 1550, rules_cantrips.cpp's guard), with a Club or Quarterstaff (or NWN's magic
-//   staff) in the hand - refused without one. For 1 minute (a marker effect with its icon, carrying the row cast;
-//   0.92.1: applied through DelayCommand, after the feat's spell script - the 0.92.0 marker, applied inside it,
-//   never showed): that weapon's melee attacks use the better of Wisdom and the term they had (Strength, or
+//   staff) in the hand - refused without one. For 1 minute (0.92.2: kept by the DLL, its icon only a look -
+//   the Shillelagh section): that weapon's melee attacks use the better of Wisdom and the term they had (Strength, or
 //   Finesse's Dexterity) for attack and damage; its damage die is a d8 (d10 at 5, d12 at 11, 2d6 at 17; a Monk's
 //   Martial Arts die when higher); Force turns the weapon's damage to Force. Letting go of the weapon (another in
 //   the hand, or none) ends it, as casting it again does.
@@ -22,6 +21,7 @@
 #include "weapon_cantrips.h"
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #include <string>
@@ -74,7 +74,6 @@ constexpr int kAbilityStrength = 0;
 constexpr int kAbilityIntelligence = 3;
 constexpr int kAbilityWisdom = 4;
 constexpr int kAbilityCharisma = 5;
-constexpr uint64_t kMarkerGraceMs = 2000;  // game ms: Shillelagh's marker lands a moment after its script (DelayCommand)
 constexpr uint64_t kTrueStrikeWaitMs = 15000;  // its attack's round starts within about two rounds (walking in)
 constexpr size_t kRoundLastAttackCount = 0x2f64;  // InitializeAttackActions adds the counts +0x2F50..+0x2F64
 
@@ -134,69 +133,96 @@ int NormalDamageTerm(void* stats, int base_item, bool ranged, float multiplier) 
 
 // --- Shillelagh -------------------------------------------------------------------------------------------------
 
+// 0.92.2: the DLL keeps Shillelagh - its row, its weapon, its minute - and its icon is only its look. The owner's
+// 0.92.0 and 0.92.1 runs: the marker (a link of its icon and VFX_DUR_CESSATE_POSITIVE, the row's spell id, as
+// Resistance's) never stayed on the caster, applied inside the feat's spell script or through DelayCommand. The icon
+// now goes on as the Rage's does (a supernatural EffectIcon, tagged, from the creature update - outside any spell's
+// script), and the cast's first update logs which of three probe effects stayed (the diagnosis), then takes them off.
 struct Imbued {
   void* weapon = nullptr;  // the CNWSItem* in the hand at the cast (compared, never read)
+  int row = rules::kShillelagh;
   uint64_t cast = 0;       // game ms of the cast
-  bool seen = false;       // its marker found once
+  uint64_t ends = 0;       // game ms: its minute's end
+  bool icon = false;       // its icon put on
+  bool probed = false;     // the probe's report logged
 };
-std::unordered_map<uint32_t, Imbued> g_imbued;  // by caster: letting go of the weapon ends it
+std::unordered_map<uint32_t, Imbued> g_imbued;  // by caster
+constexpr uint64_t kShillelaghMs = 60000;       // 1 minute
+constexpr uint64_t kIconAfterMs = 300;          // the icon, a moment after the cast (its script over)
+constexpr uint64_t kProbeReportMs = 1500;       // the probe's report
 
-// The row of the Shillelagh on `creature` (-1: none): its marker's spell id, the row cast.
-int ShillelaghRow(const void* creature) {
-  if (!creature) return -1;
-  void* const* list = Field<void* const*>(creature, ee::kObjectEffects);
-  const int count = Field<int32_t>(creature, ee::kObjectEffectCount);
-  if (!list || count <= 0 || count > 4096) return -1;
-  for (int i = 0; i < count; ++i) {
-    const int spell = list[i] ? Field<int32_t>(list[i], ee::kEffectSpellId) : -1;
-    if (rules::IsShillelagh(spell)) return spell;
-  }
-  return -1;
-}
-
-// 0.92.1's diagnosis: the creature's effects, type and spell id ("t<type>/s<spell>").
-std::string DescribeEffects(const void* creature) {
-  void* const* list = Field<void* const*>(creature, ee::kObjectEffects);
-  const int count = Field<int32_t>(creature, ee::kObjectEffectCount);
-  if (!list || count <= 0 || count > 4096) return "no effects";
-  std::string text = std::to_string(count) + " effects:";
-  for (int i = 0; i < count && i < 24; ++i) {
-    if (!list[i]) continue;
-    text += " t" + std::to_string(Field<uint16_t>(list[i], ee::kEffectType)) + "/s" +
-            std::to_string(Field<int32_t>(list[i], ee::kEffectSpellId));
-  }
-  return text;
+// The Shillelagh on `creature` (null: none, or its minute over).
+const Imbued* ShillelaghOf(void* creature) {
+  if (g_imbued.empty() || !creature) return nullptr;
+  const auto imbued = g_imbued.find(IdOf(creature));
+  if (imbued == g_imbued.end() || GameMs() >= imbued->second.ends) return nullptr;
+  return &imbued->second;
 }
 
 // The Shillelagh row when `creature`'s current attack is a melee attack with the weapon it imbued, else -1.
 int ShillelaghAttack(void* creature) {
-  if (!creature || !rules::IsShillelaghWeapon(engine::BaseItemRowInSlot(creature, ee::kSlotRightHand))) return -1;
+  const Imbued* imbued = ShillelaghOf(creature);
+  if (!imbued || !rules::IsShillelaghWeapon(engine::BaseItemRowInSlot(creature, ee::kSlotRightHand))) return -1;
   const uint8_t* attack = nullptr;
   void* weapon = AttackWeapon(creature, &attack);
-  if (!weapon || AttackRanged(attack) || weapon != engine::ItemInSlot(creature, ee::kSlotRightHand)) return -1;
-  const auto imbued = g_imbued.find(IdOf(creature));
-  if (imbued != g_imbued.end() && imbued->second.weapon != weapon) return -1;  // not the one it was cast on
-  return ShillelaghRow(creature);
+  if (!weapon || AttackRanged(attack) || weapon != imbued->weapon ||
+      weapon != engine::ItemInSlot(creature, ee::kSlotRightHand)) {
+    return -1;
+  }
+  return imbued->row;
 }
 
+// The cast: an earlier Shillelagh's icon off, the cast's visual and line; probe C1, 0.92.1's marker as it was.
 const char* const kShillelaghCast = R"nss(
 effect e = GetFirstEffect(OBJECT_SELF);
 while (GetIsEffectValid(e)) {
-  if (GetEffectTag(e) == "n5c_shillelagh") RemoveEffect(OBJECT_SELF, e);
+  string t = GetEffectTag(e);
+  if (t == "n5c_shillelagh" || GetStringLeft(t, 9) == "n5c_probe") RemoveEffect(OBJECT_SELF, e);
   e = GetNextEffect(OBJECT_SELF);
 }
 ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_HEAD_NATURE), OBJECT_SELF);
 effect m = EffectLinkEffects(EffectIcon($ICON), EffectVisualEffect(VFX_DUR_CESSATE_POSITIVE));
-m = TagEffect(SetEffectSpellId(m, $ROW), "n5c_shillelagh");
-DelayCommand(0.0, ApplyEffectToObject(DURATION_TYPE_TEMPORARY, m, OBJECT_SELF, TurnsToSeconds(1)));
+m = TagEffect(SetEffectSpellId(m, $ROW), "n5c_probe_c1");
+ApplyEffectToObject(DURATION_TYPE_TEMPORARY, m, OBJECT_SELF, 10.0);
 SendMessageToPC(OBJECT_SELF, "nwn5e: Shillelagh - your " + GetName(GetItemInSlot(INVENTORY_SLOT_RIGHTHAND)) +
                 " for 1 minute: $SAY");
+)nss";
+
+// Its icon, as the Rage's; probes U2 (the icon with the row's spell id) and U3 (the icon linked with the visual).
+const char* const kShillelaghIcon = R"nss(
+ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SupernaturalEffect(EffectIcon($ICON)), "n5c_shillelagh"),
+                    OBJECT_SELF, $SECONDS);
+if ($PROBE) {
+  ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(EffectIcon($ICON), $ROW), "n5c_probe_u2"),
+                      OBJECT_SELF, 10.0);
+  ApplyEffectToObject(DURATION_TYPE_TEMPORARY,
+                      TagEffect(EffectLinkEffects(EffectIcon($ICON), EffectVisualEffect(VFX_DUR_CESSATE_POSITIVE)),
+                                "n5c_probe_u3"), OBJECT_SELF, 10.0);
+}
+)nss";
+
+// The probe's report: each effect's tag, true type, spell id, duration type and first integer; the probes then off.
+const char* const kProbeReport = R"nss(
+string r = "";
+effect e = GetFirstEffect(OBJECT_SELF);
+while (GetIsEffectValid(e)) {
+  r += GetEffectTag(e) + ":" + IntToString(GetEffectType(e, TRUE)) + ":" + IntToString(GetEffectSpellId(e)) + ":" +
+       IntToString(GetEffectDurationType(e)) + ":" + IntToString(GetEffectInteger(e, 0)) + " ";
+  e = GetNextEffect(OBJECT_SELF);
+}
+SetLocalString(OBJECT_SELF, "n5c_probe", r);
+e = GetFirstEffect(OBJECT_SELF);
+while (GetIsEffectValid(e)) {
+  if (GetStringLeft(GetEffectTag(e), 9) == "n5c_probe") RemoveEffect(OBJECT_SELF, e);
+  e = GetNextEffect(OBJECT_SELF);
+}
 )nss";
 
 const char* const kShillelaghEnd = R"nss(
 effect e = GetFirstEffect(OBJECT_SELF);
 while (GetIsEffectValid(e)) {
-  if (GetEffectTag(e) == "n5c_shillelagh") RemoveEffect(OBJECT_SELF, e);
+  string t = GetEffectTag(e);
+  if (t == "n5c_shillelagh" || GetStringLeft(t, 9) == "n5c_probe") RemoveEffect(OBJECT_SELF, e);
   e = GetNextEffect(OBJECT_SELF);
 }
 )nss";
@@ -211,6 +237,8 @@ void Run(const std::string& code, uint32_t self, const char* what) {
   const int result = RunScriptChunk(code.c_str(), self);
   if (result != 0 && LogSlot()) Log("cantrips: 0x%08X %s - its script returned %d", self, what, result);
 }
+
+bool g_probe_done = false;  // the probe runs once a session
 
 void ShillelaghScript(uint32_t self) {
   void* caster = CreatureById(self);
@@ -235,39 +263,59 @@ void ShillelaghScript(uint32_t self) {
   Replace(&code, "$ROW", std::to_string(row));
   Replace(&code, "$SAY", say);
   Run(code, self, "n5_c_shillelagh");
-  g_imbued[self] = Imbued{engine::ItemInSlot(caster, ee::kSlotRightHand), GameMs(), false};
+  const uint64_t now = GameMs();
+  Imbued imbued;
+  imbued.weapon = engine::ItemInSlot(caster, ee::kSlotRightHand);
+  imbued.row = row;
+  imbued.cast = now;
+  imbued.ends = now + kShillelaghMs;
+  imbued.probed = g_probe_done;
+  g_imbued[self] = imbued;
   Log("cantrips: 0x%08X Shillelagh (row %d) - base item %d for 1 minute: Wisdom %+d, %dd%d, %s", self, row, base_item,
       wisdom, die.count, die.sides, force ? "Force" : "Bludgeoning");
 }
 
-// Letting go of the weapon ends it; its minute's end (the marker gone) drops the watch.
+// Its icon a moment after the cast; the probe's report; its minute's end; letting go of the weapon ends it.
 void ShillelaghUpdate(void* creature) {
   if (g_imbued.empty() || !creature) return;
   const uint32_t id = IdOf(creature);
-  const auto imbued = g_imbued.find(id);
-  if (imbued == g_imbued.end()) return;
-  const int row = ShillelaghRow(creature);
-  if (row < 0) {
-    if (!imbued->second.seen && GameMs() - imbued->second.cast < kMarkerGraceMs) return;  // not landed yet
-    const bool seen = imbued->second.seen;
-    g_imbued.erase(imbued);
-    if (!LogSlot()) return;
-    if (seen) {
-      Log("cantrips: 0x%08X Shillelagh ended", id);
-    } else {
-      Log("cantrips: 0x%08X Shillelagh's marker never landed - %s", id, DescribeEffects(creature).c_str());
-    }
+  const auto found = g_imbued.find(id);
+  if (found == g_imbued.end()) return;
+  Imbued& imbued = found->second;
+  const uint64_t now = GameMs();
+  if (now >= imbued.ends) {
+    g_imbued.erase(found);
+    Run(kShillelaghEnd, id, "n5_c_shillelagh");
+    TellPlayer(id, "nwn5e: Shillelagh ends - its minute is over.");
+    if (LogSlot()) Log("cantrips: 0x%08X Shillelagh ended (its minute)", id);
     return;
   }
-  if (!imbued->second.seen) {
-    imbued->second.seen = true;
-    if (LogSlot()) Log("cantrips: 0x%08X Shillelagh's marker is on (row %d)", id, row);
+  if (engine::ItemInSlot(creature, ee::kSlotRightHand) != imbued.weapon) {
+    g_imbued.erase(found);
+    Run(kShillelaghEnd, id, "n5_c_shillelagh");
+    TellPlayer(id, "nwn5e: Shillelagh ends - you let go of the weapon.");
+    if (LogSlot()) Log("cantrips: 0x%08X Shillelagh ends - the weapon left the hand", id);
+    return;
   }
-  if (engine::ItemInSlot(creature, ee::kSlotRightHand) == imbued->second.weapon) return;
-  g_imbued.erase(imbued);
-  Run(kShillelaghEnd, id, "n5_c_shillelagh");
-  TellPlayer(id, "nwn5e: Shillelagh ends - you let go of the weapon.");
-  if (LogSlot()) Log("cantrips: 0x%08X Shillelagh ends - the weapon left the hand", id);
+  if (!imbued.icon && now - imbued.cast >= kIconAfterMs) {
+    imbued.icon = true;
+    std::string code = kShillelaghIcon;
+    char seconds[32];
+    sprintf_s(seconds, "%.1f", static_cast<double>(imbued.ends - now) / 1000.0);
+    Replace(&code, "$ICON", std::to_string(rules::EffectIconOf(imbued.row)));
+    Replace(&code, "$ROW", std::to_string(imbued.row));
+    Replace(&code, "$SECONDS", seconds);
+    Replace(&code, "$PROBE", imbued.probed ? "FALSE" : "TRUE");
+    Run(code, id, "n5_c_shillelagh");
+    if (LogSlot()) Log("cantrips: 0x%08X Shillelagh's icon %d put on (%ss left)", id, rules::EffectIconOf(imbued.row), seconds);
+  }
+  if (imbued.icon && !imbued.probed && now - imbued.cast >= kProbeReportMs) {
+    imbued.probed = true;
+    g_probe_done = true;
+    Run(kProbeReport, id, "n5_c_shillelagh");
+    Log("cantrips: 0x%08X Shillelagh's probe (tag:type:spell:duration:integer) - %s", id,
+        engine::GetLocalString(creature, "n5c_probe").c_str());
+  }
 }
 
 // --- True Strike ------------------------------------------------------------------------------------------------
