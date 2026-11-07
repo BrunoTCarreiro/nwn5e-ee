@@ -746,6 +746,17 @@ monster AC by CR.
     probe (1.5 s after it: each effect's tag, true type, spell id, duration type, first integer) of three test effects
     - C1 0.92.1's link applied in the cast's script, U2 the icon with the row's spell id, U3 the icon linked with the
     visual, both from the update - and takes them off.
+  - *The owner's 0.92.2 run (2026-11-07):* Shillelagh works - its icon on (0.3 s after the cast), attacks +6 (Wisdom
+    +3 for Strength +0), its 1d10 (Savage Attacker rolling it twice), the weapon's damage Force, and "ends - the
+    weapon left the hand" on a swap. The probe: n5c_shillelagh (the icon alone, spell -1) and U2 (the icon with
+    spell 1100) stayed; C1 and U3 - the icon linked with VFX_DUR_CESSATE_POSITIVE, in the cast's script or from the
+    update - did not. So the link was what never stayed (why Resistance's same link stays isn't known); the icon
+    alone is kept. True Strike: one attack in its round (Charisma +4 in place of +1), 8 of the weapon's damage made
+    Radiant, 1d6 Radiant more; refused with no weapon in the hand. Produce Flame's Hurl found its flame. "Can't test
+    TS-4, bard cannot equip short bow. or short sword for that matter": SRD 5.2.1 gives the Bard Simple weapons only
+    (the short sword is Martial - the profile's mistake); the shortbow is Simple in 2024 but NWN's martial (its
+    baseitems ReqFeat), and nwn5e doesn't give classes their 2024 weapon lists yet (#17, X7). The cantripbard
+    profile now has two daggers and a light crossbow (Simple in both).
   - *Build 4 brief (2026-11-07): the utility cantrips, SRD 5.2.1's nine left (Eldritch Blast waits for a Warlock).*
     Q1 Mending and Message (no broken items, no one to whisper to in single player): A off the class lists until
     they have a use, B flavour. Q2 Mage Hand: A cast at a door, lever, light or container within 30 ft - the hand

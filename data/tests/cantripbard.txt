@@ -4,15 +4,15 @@
 #
 # The cantrips (issue 39 part 1): your first class becomes Bard 5, Charisma 18 - level 5, so a damage cantrip rolls
 # two dice (Cantrip Upgrade). Pick Vicious Mockery, Starry Wisp and Light among the Bard's cantrips. Build 3b: True
-# Strike - a short sword and a dagger (two attacks a round), a shortbow; Charisma 18, Dexterity 12; 1d6 Radiant more
-# at level 5.
+# Strike - two daggers (two attacks a round), a light crossbow; Charisma 18, Dexterity 12; 1d6 Radiant more at
+# level 5. Simple weapons only (SRD 5.2.1: a Bard's proficiency); NWN's shortbow is a martial one until issue 17.
 name = Cantrips (issue 39): human Bard 5, Charisma 18 - Vicious Mockery, Starry Wisp, Light, True Strike
 species = human
 swap_class = bard
 class = bard
 level = 5
 abilities = 8 12 14 10 10 18
-items = nw_wswss001 equip, nw_wswdg001 offhand, nw_wbwsh001, nw_wamar001 x99
+items = nw_wswdg001 equip, nw_wswdg001 offhand, nw_wbwxl001, nw_wambo001 x20
 note = the Prepare spells window opens: Cantrips - pick Vicious Mockery, Starry Wisp, Light and True Strike; then your spells; Accept
 note = !spawn nw_orcb gives you an enemy to cast them at
 note = True Strike (build 3b): Radiant or the weapon's type, cast at a creature - one attack with Charisma, no other that round
