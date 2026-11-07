@@ -1340,6 +1340,10 @@ close, then attacked).
     every pick fell back to the game's cast; and the spell menu greys a spell its target can't take (0x9A4910,
     TargetType against the target), so one the rules hand the cursor is kept pickable now. The Cleric's
     spontaneous cure / inflict leaf follows the rules too; each pick writes a log line.
+  - *Fixed (0.89.2, 2026-11-07; owner's test of 0.89.1: "RT-1 doesn't cast at once, asks for retarget with cursor
+    / RT-7 cure doesn't cast at once / RT-9 fire bolt doesn't cast at once"):* the radial's target is the client's
+    id, the server's with bit 31 set (the log: Hold Person "on the ground (0x8000031a)", the orc being 0x31A);
+    looked up on the server as is it found no object, so every creature counted as the ground. rules::ServerObjectId.
 
 ### Phase 8 — Creatures and campaign balance
 - Bounded accuracy breaks against 3e stat blocks (HotU creatures with AC 30+).
