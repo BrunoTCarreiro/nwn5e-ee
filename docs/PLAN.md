@@ -711,6 +711,22 @@ monster AC by CR.
     it instant in faithful `actions`); an AddCastSpellActions guard refuses their cast and uses the feat instead
     (granted at the first cast) - instant, one a round, a second waiting for the next round (bonus_actions.cpp).
     Tests ProduceFlame, BonusActionFeats; !test cantripdruid.
+  - *Build 4 brief (2026-11-07): the utility cantrips, SRD 5.2.1's nine left (Eldritch Blast waits for a Warlock).*
+    Q1 Mending and Message (no broken items, no one to whisper to in single player): A off the class lists until
+    they have a use, B flavour. Q2 Mage Hand: A cast at a door, lever, light or container within 30 ft - the hand
+    opens or closes it, uses it, lights or snuffs it, opens the container as if you stood by it; "Use" again
+    from its menu while it lasts - B a hand steered like a familiar. Q3 Minor Illusion: A Sound (draws creatures
+    that hear it, as heard_investigates) and Image (a crate, a humanoid or a small creature that draws creatures
+    that see it; a Study action's Investigation check against the spell save DC sees through it), B the sound
+    only. Q4 Dancing Lights: A four lights at a point, Dim Light 10 ft each (light for the stealth rules), moved
+    with a Bonus Action, B one light following you. Q5 Druidcraft, Elementalism, Prestidigitation, Thaumaturgy: A a
+    menu of each one's effects (the working ones - Fire Play, the doors, Booming Voice - and the rest a visual
+    and a line), B the working ones only. Q6 sounds at a point (Phantom Sound, Druidcraft's animal sound): A they
+    draw creatures, B a sound only.
+    - *Decided (owner, 2026-11-07: "1A, 2A, 3A, 4 not too about the uses but A, 5 let's look into these deeper,
+      6 A, depending on the creature they might also have an effect that would scare creatures away?"):* Q1-Q4
+      A; Q6 A, and a sound may scare some creatures away instead, by the creature - to design; Q5 a closer look
+      first.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
