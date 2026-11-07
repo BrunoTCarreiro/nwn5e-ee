@@ -686,6 +686,9 @@ monster AC by CR.
     a made save bit 3 sees through) - its master too. Now each creature friendly to it sees through, as after a made
     save (rules_dying.cpp FriendsSeeThrough, logged with each node's flags); its enemies stay blind. Only that apply
     sets the bits, so a creature arriving later isn't marked.
+  - *Build 2 accepted (owner, 2026-11-07: "accepted, go for build 3"):* CB-1 to CB-4 and CB-6 to CB-10 pass (CB-7
+    on 0.90.2: Spare the Dying and Cure Light Wounds reach a down henchman); CB-5 (a conversation's Persuade check)
+    left to a playthrough.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
