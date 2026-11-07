@@ -1334,6 +1334,12 @@ close, then attacked).
     the cursor). A feat's spell is feat.2da SPELLID; TARGETSELF feats are used at once. Items aren't cast from the
     radial (the inventory and the quickbar already show the cursor). `radial_retarget` (nwn5e.ini). Tests:
     RadialSpellFromRow, RadialRetargets, CreatureMenuFeatParams.
+  - *Fixed (0.89.1, 2026-11-07; owner's test of 0.89.0: "The radial menu behaviour doesn't seem to have changed at
+    all", RT-4 "is greyed out in the radial menu", RT-6 "cannot select hold person if radial menu is on PC"):*
+    the leaves read the controlled creature through the global once, not twice as the game does - no creature, so
+    every pick fell back to the game's cast; and the spell menu greys a spell its target can't take (0x9A4910,
+    TargetType against the target), so one the rules hand the cursor is kept pickable now. The Cleric's
+    spontaneous cure / inflict leaf follows the rules too; each pick writes a log line.
 
 ### Phase 8 — Creatures and campaign balance
 - Bounded accuracy breaks against 3e stat blocks (HotU creatures with AC 30+).
