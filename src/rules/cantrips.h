@@ -79,6 +79,7 @@ struct ChoiceCantrip {
   const char* script = "";
   ChoiceKind kind = ChoiceKind::kDamageType;
   std::vector<CantripOption> options;  // SRD 5.2.1's order; their rows consecutive
+  int icon = -1;  // its effect icon (effecticons.2da row) while it lasts: the master's, then each option's in turn
 };
 
 constexpr int kResistance = 151;      // NWN's row, rewritten
@@ -91,6 +92,11 @@ const std::vector<ChoiceCantrip>& ChoiceCantrips();
 const ChoiceCantrip* ChoiceCantripOf(int spell);
 // A variant's option (null: the master itself, or not one).
 const CantripOption* ChoiceOptionOf(int spell);
+// 0.90.1 (owner, 2026-11-07: "While concentrating on spells that give bonuses (like resistance to piercing, for
+// example) these bonuses should appear on the top right while the concentrating is happening"): the effect icon a
+// row shows on the creature it's cast on - its effecticons.2da row, named for the option ("Resistance: Piercing");
+// -1 for none (Sorcerous Burst). EffectIcon takes rows 1-255, the game's run to 129: these are 130-160.
+int EffectIconOf(int spell);
 
 // A radial page of `count` options from option `first`: all that are left when they fit its eight slots, else seven
 // and a "More" entry (the next page from first + 7).

@@ -61,9 +61,10 @@ std::vector<ChoiceCantrip> BuildChoiceCantrips() {
                             {1067, kDamageTypePoison, "Poison"},
                             {1068, kDamageTypeRadiant, "Radiant"},
                             {1069, 4, "Slashing"},
-                            {1070, kDamageTypeThunder, "Thunder"}}};
+                            {1070, kDamageTypeThunder, "Thunder"}},
+                           130};
   all.push_back(resistance);
-  ChoiceCantrip guidance{kGuidance, "n5_c_guidance", ChoiceKind::kSkill, {}};
+  ChoiceCantrip guidance{kGuidance, "n5_c_guidance", ChoiceKind::kSkill, {}, 142};
   static const char* const kSkillLabels[] = {
       "Acrobatics", "Animal Handling", "Arcana",       "Athletics",  "Deception", "History",
       "Insight",    "Intimidation",    "Investigation", "Medicine",   "Nature",    "Perception",
@@ -110,6 +111,17 @@ const CantripOption* ChoiceOptionOf(int spell) {
     }
   }
   return nullptr;
+}
+
+int EffectIconOf(int spell) {
+  for (const ChoiceCantrip& cantrip : Choices()) {
+    if (cantrip.icon < 0) continue;
+    if (cantrip.master == spell) return cantrip.icon;
+    for (size_t i = 0; i < cantrip.options.size(); ++i) {
+      if (cantrip.options[i].spell == spell) return cantrip.icon + 1 + static_cast<int>(i);
+    }
+  }
+  return -1;
 }
 
 RadialPage RadialChoicePage(int count, int first) {

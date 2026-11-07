@@ -125,6 +125,21 @@ TEST(ChoiceCantripsAreSrd52) {
   CHECK_EQ(ChoiceOptionOf(1080)->value, static_cast<uint32_t>(Skill2024::kMedicine));
 }
 
+// 0.90.1: the effect icon each shows while it lasts - effecticons.2da rows 130-160, past the game's 129.
+TEST(ChoiceCantripIcons) {
+  CHECK_EQ(EffectIconOf(151), 130);   // Resistance, cast with no choice
+  CHECK_EQ(EffectIconOf(1060), 131);  // Resistance: Acid
+  CHECK_EQ(EffectIconOf(1066), 137);  // Resistance: Piercing
+  CHECK_EQ(EffectIconOf(1070), 141);  // Resistance: Thunder
+  CHECK_EQ(EffectIconOf(1057), 142);  // Guidance
+  CHECK_EQ(EffectIconOf(1071), 143);  // Guidance: Acrobatics
+  CHECK_EQ(EffectIconOf(1087), 159);  // Guidance: Stealth
+  CHECK_EQ(EffectIconOf(1088), 160);  // Guidance: Survival, the last
+  CHECK_EQ(EffectIconOf(1059), -1);   // Sorcerous Burst: no lasting effect
+  CHECK_EQ(EffectIconOf(1091), -1);
+  CHECK_EQ(EffectIconOf(1050), -1);   // Fire Bolt
+}
+
 // Decision 5: eight options to a page, or seven and "More".
 TEST(RadialChoicePage) {
   CHECK_EQ(RadialChoicePage(7, 0).shown, 7);   // Sorcerous Burst: one page

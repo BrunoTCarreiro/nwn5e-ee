@@ -340,7 +340,8 @@ std::string DamageName(uint32_t type) {
 }
 
 // Resistance and Guidance on the creature touched: the marker (Concentration, up to 1 minute; an earlier one of the
-// same cantrip on it ends) and a line to the caster.
+// same cantrip on it ends) - its effect icon on the effect bar, named for the option (0.90.1) - and a line to the
+// caster.
 const char* const kWard = R"nss(
 object t = GetSpellTargetObject();
 if (!GetIsObjectValid(t)) t = OBJECT_SELF;
@@ -348,8 +349,9 @@ SignalEvent(t, EventSpellCastAt(OBJECT_SELF, GetSpellId(), FALSE));
 effect e = GetFirstEffect(t);
 while (GetIsEffectValid(e)) { if (GetEffectTag(e) == "$TAG") RemoveEffect(t, e); e = GetNextEffect(t); }
 ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect($VIS), t);
-ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(EffectVisualEffect(VFX_DUR_CESSATE_POSITIVE),
-                    GetSpellId()), "$TAG"), t, RoundsToSeconds(10));
+effect m = EffectLinkEffects(EffectIcon($ICON), EffectVisualEffect(VFX_DUR_CESSATE_POSITIVE));
+ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(m, GetSpellId()), "$TAG"), t,
+                    RoundsToSeconds(10));
 SetLocalString(OBJECT_SELF, "n5c_target", ObjectToString(t));
 string who = GetName(t);
 if (t == OBJECT_SELF) who = "yourself";
@@ -361,25 +363,27 @@ void Ward(uint32_t self, const rules::ChoiceCantrip* cantrip, const char* tag, c
   if (!caster || !cantrip) return;
   const int row = Field<int32_t>(caster, ee::kObjectLastSpellId);
   const rules::CantripOption* option = rules::ChoiceOptionOf(row);
-  std::string say = cantrip->kind == rules::ChoiceKind::kSkill ? "Guidance" : "Resistance";
+  std::string label = cantrip->kind == rules::ChoiceKind::kSkill ? "Guidance" : "Resistance";
   if (option) {
-    say += std::string(" (") + option->label + ")";
+    label += std::string(" (") + option->label + ")";
   } else {
-    say += cantrip->kind == rules::ChoiceKind::kSkill ? " (the first skill checked)"
-                                                      : " (the first type of damage taken)";
+    label += cantrip->kind == rules::ChoiceKind::kSkill ? " (the first skill checked)"
+                                                        : " (the first type of damage taken)";
   }
-  say += " on";
+  const int icon = rules::EffectIconOf(row < 0 ? cantrip->master : row);
   std::string code = kWard;
   Replace(&code, "$TAG", tag);
   Replace(&code, "$VIS", vis);
-  Replace(&code, "$SAY", say);
+  Replace(&code, "$SAY", label + " on");
+  Replace(&code, "$ICON", std::to_string(icon > 0 ? icon : rules::EffectIconOf(cantrip->master)));
   Run(code, self, tag);
   const uint32_t target = TargetIdOf(caster);
   g_resist_locked.erase(target);
   g_guidance_locked.erase(target);
   if (g_logged < 60) {
     ++g_logged;
-    Log("cantrips: 0x%08X %s - row %d on 0x%08X (Concentration, up to 1 minute)", self, say.c_str(), row, target);
+    Log("cantrips: 0x%08X %s - row %d on 0x%08X, effect icon %d (Concentration, up to 1 minute)", self,
+        label.c_str(), row, target, icon);
   }
 }
 

@@ -671,6 +671,13 @@ monster AC by CR.
     (spells_page.cpp's GetSpellLevel: 0xFF for the Wizard, NWN's Wiz_Sorc column being shared). Tests
     ChoiceCantripsAreSrd52, RadialChoicePage, RadialChoiceParams, SorcerousBurstDice, ResistanceAndSpareTheDying;
     !test profiles cantripcleric, cantripsorcerer.
+  - *0.90.1 (owner, 2026-11-07, testing 0.90.0: "While concentrating on spells that give bonuses (like resistance to
+    piercing, for example) these bonuses should appear on the top right while the concentrating is happening";
+    "Can't test CB-5"):* Resistance and Guidance carry an effect icon while they last (linked to their marker, so
+    Concentration's end takes it too): effecticons.2da rows 130-160 (the game's run to 129, EffectIcon takes up to
+    255), one per option, named for it - the variant's name ("Resistance: Piercing", "Guidance: Stealth") - with
+    the game's Damage Resistance and Skill Increase icons (rules::EffectIconOf). The log of 0.90.0's test: Resistance
+    (Piercing) stopped 3 of 8 and 1 of 1, once a turn; Guidance (Stealth) added +2, +1, +4 on !skill.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
