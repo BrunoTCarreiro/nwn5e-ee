@@ -702,6 +702,15 @@ monster AC by CR.
     - *Decided (owner, 2026-11-07: "1 A, 2 A, 3 A, 4 A and while Produce Flame is active the character is also a
       light source, 5 A"):* recommendations throughout; Produce Flame's flame makes its caster a light source (the
       stealth rules' carried light).
+  - *Built 0.91.0 (build 3a):* Produce Flame 1096 (the Druid's; nwn5e's placeholder icon) - its radial menu Flame
+    (1097) and Hurl (1098, Master 1096). Flame: NWN's 15 m orange light on the caster (VFX_DUR_LIGHT_ORANGE_15, a
+    carried light for the stealth rules - visual ids 153-180), 10 minutes, the old one ending when cast again. Hurl:
+    an action while it lasts - a ranged spell attack, d8 Fire, Cantrip Upgrade, the flame staying; with no flame
+    the order is refused with a word (no round lost). Bonus Action casting (Q1 A): rules::BonusActionFeatOfSpell -
+    the cantrip and its Flame carried by feat 1548 (feat.if_cantrips2024.txt, SPELLID 1097; TakesBonusAction makes
+    it instant in faithful `actions`); an AddCastSpellActions guard refuses their cast and uses the feat instead
+    (granted at the first cast) - instant, one a round, a second waiting for the next round (bonus_actions.cpp).
+    Tests ProduceFlame, BonusActionFeats; !test cantripdruid.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

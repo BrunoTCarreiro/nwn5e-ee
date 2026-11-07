@@ -30,6 +30,11 @@
 //   Hit Points Stable (rules_dying.cpp; its range by level through CNWSCreature::ComputeSpellRange). Sorcerous
 //   Burst: a ranged spell attack, d8s of its type, each 8 another d8 (at most the Charisma modifier more); the
 //   Sorcerer's only (spells_page.cpp keeps it off the Wizard, NWN's Wiz_Sorc column being shared).
+// - Build 3a (owner, 2026-11-07: "1 A, 2 A, 3 A, 4 A and while Produce Flame is active the character is also a
+//   light source, 5 A"): Produce Flame 1096 - its Flame (1097) a light in the hand for 10 minutes, a carried
+//   light for the stealth rules; its Hurl (1098) an action while it lasts, a ranged spell attack, d8 Fire. A
+//   Bonus Action spell's cast (rules::BonusActionFeatOfSpell) becomes its feat's use - instant, one a round
+//   (bonus_actions.cpp), granted at the first cast.
 // NWN mode: NWN's cantrips.
 
 #include <windows.h>
@@ -54,9 +59,12 @@
 #include "hooks.h"
 #include "log.h"
 #include "mastery.h"
+#include "action_guard.h"
 #include "cantrip_effects.h"
+#include "chat.h"
 #include "resistance.h"
 #include "script_hooks.h"
+#include "spell_impact.h"
 #include "rules/cantrips.h"
 #include "rules/skills.h"
 
@@ -528,6 +536,122 @@ void SorcerousBurstScript(uint32_t self) {
   }
 }
 
+// --- #39 Part 1, build 3a: Produce Flame, and a spell cast as a Bonus Action ------------------------------------
+
+using UseFeatFn = int (*)(void* creature, uint16_t feat, uint16_t subfeat, uint32_t target, uint32_t area,
+                          float* location);
+UseFeatFn g_use_feat = nullptr;  // CNWSCreature::UseFeat through its hook (bonus_actions.cpp's guard: one a round)
+thread_local bool t_bonus_cast = false;
+
+// Whether `object` carries an effect a spell row put there (its spell id).
+bool HasEffectOfSpell(const void* object, int spell) {
+  if (!object) return false;
+  void* const* list = Field<void* const*>(object, ee::kObjectEffects);
+  const int count = Field<int32_t>(object, ee::kObjectEffectCount);
+  if (!list || count <= 0 || count > 4096) return false;
+  for (int i = 0; i < count; ++i) {
+    if (list[i] && Field<int32_t>(list[i], ee::kEffectSpellId) == spell) return true;
+  }
+  return false;
+}
+
+// The flame in the hand: NWN's 15 m orange light (Bright Light 20 feet and Dim 20 feet more, as Light's) - a carried
+// light for the stealth rules (rules_perception.cpp: visual ids 153-180) - for 10 minutes; cast again, the old ends.
+const char* const kFlame = R"nss(
+effect e = GetFirstEffect(OBJECT_SELF);
+while (GetIsEffectValid(e)) {
+  if (GetEffectTag(e) == "n5c_flame") RemoveEffect(OBJECT_SELF, e);
+  e = GetNextEffect(OBJECT_SELF);
+}
+ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_FLAME_S), OBJECT_SELF);
+effect l = EffectLinkEffects(EffectVisualEffect(VFX_DUR_LIGHT_ORANGE_15), EffectVisualEffect(VFX_DUR_CESSATE_POSITIVE));
+ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(l, $FLAME), "n5c_flame"), OBJECT_SELF,
+                    TurnsToSeconds(10));
+SendMessageToPC(OBJECT_SELF, "nwn5e: Produce Flame - a flame in your hand for 10 minutes (Bright Light 20 feet, " +
+                "Dim Light 20 feet more): Hurl it with an action.");
+)nss";
+
+// Hurl: a ranged spell attack at the target, d8 Fire (Cantrip Upgrade; doubled on a Critical Hit); the flame stays.
+void HurlFlame(uint32_t self, void* caster) {
+  if (!HasEffectOfSpell(caster, rules::kProduceFlameFlame)) {
+    TellPlayer(self, "nwn5e: Produce Flame - no flame in your hand to hurl.");
+    return;
+  }
+  std::string roll = kAttack;
+  Replace(&roll, "$TOUCH", "TouchAttackRanged");
+  Replace(&roll, "$BEAM", "ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_MIRV_FLAME), t);");
+  Run(roll, self, "n5_c_produceflame");
+  const int level = engine::GetLocalInt(caster, kVarLevel);
+  const std::string hits = engine::GetLocalString(caster, kVarHits);
+  size_t at = 0;
+  while (at < hits.size()) {
+    const size_t colon = hits.find(':', at);
+    const size_t end = hits.find(';', at);
+    if (colon == std::string::npos || end == std::string::npos || colon > end) break;
+    const std::string target = hits.substr(at, colon - at);
+    const bool critical = atoi(hits.substr(colon + 1, end - colon - 1).c_str()) == 2;
+    at = end + 1;
+    const int dice = rules::CantripDiceRolled(level, critical);
+    const int amount = RollEngineDice(dice, rules::kProduceFlameDie);
+    std::string apply = kDamage;
+    Replace(&apply, "$TARGET", target);
+    Replace(&apply, "$AMOUNT", std::to_string(amount));
+    Replace(&apply, "$TYPE", std::to_string(rules::kDamageTypeFire));
+    Replace(&apply, "$VIS", "VFX_IMP_FLAME_S");
+    Replace(&apply, "$IMMUNE", "");
+    Replace(&apply, "$RIDER", "");
+    Run(apply, self, "n5_c_produceflame");
+    if (g_logged < 60) {
+      ++g_logged;
+      Log("cantrips: 0x%08X Produce Flame hurled at %s - %d Fire (%d d8%s)", self, target.c_str(), amount, dice,
+          critical ? ", a Critical Hit" : "");
+    }
+  }
+}
+
+void ProduceFlameScript(uint32_t self) {
+  void* caster = CreatureById(self);
+  if (!caster) return;
+  const int row = Field<int32_t>(caster, ee::kObjectLastSpellId);
+  if (row == rules::kProduceFlameHurl) {
+    HurlFlame(self, caster);
+    return;
+  }
+  std::string code = kFlame;  // the Flame, or the cantrip cast with no choice
+  Replace(&code, "$FLAME", std::to_string(rules::kProduceFlameFlame));
+  Run(code, self, "n5_c_produceflame");
+  Log("cantrips: 0x%08X Produce Flame - a flame in the hand, a light for 10 minutes (row %d)", self, row);
+}
+
+// Q1 A: a Bonus Action spell's cast becomes its feat's use (rules::BonusActionFeatOfSpell) - instant, the round's
+// attacks go on, one a round (a second waits for the next round): the feat granted if missing. Hurl with no flame is
+// refused before it costs the round.
+bool BonusActionCastGuard(void* creature, uint32_t spell, uint32_t target) {
+  if (!creature || t_bonus_cast) return false;
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  if (spell == static_cast<uint32_t>(rules::kProduceFlameHurl) &&
+      !HasEffectOfSpell(creature, rules::kProduceFlameFlame)) {
+    TellPlayer(id, "nwn5e: Produce Flame - no flame in your hand to hurl: cast its Flame first (a Bonus Action).");
+    return true;
+  }
+  const int feat = rules::BonusActionFeatOfSpell(static_cast<int>(spell));
+  if (feat < 0 || g_config.actions != rules::RuleVariant::kFaithful || !g_use_feat) return false;
+  void* stats = StatsOf(creature);
+  if (!stats) return false;
+  if (!engine::HasFeat(stats, feat)) engine::AddFeat(stats, feat);
+  float nowhere[3] = {0.0f, 0.0f, 0.0f};
+  t_bonus_cast = true;
+  const int used = g_use_feat(creature, static_cast<uint16_t>(feat), 0, id, ee::kObjectInvalid, nowhere);
+  t_bonus_cast = false;
+  if (g_logged < 200) {
+    ++g_logged;
+    Log("cantrips: 0x%08X %s cast as a Bonus Action (feat %d): %s", id, SpellNameOf(static_cast<int>(spell)).c_str(),
+        feat, used ? "used" : "waits for the next round, or refused");
+  }
+  (void)target;
+  return true;  // the cast refused: the feat's use ran it
+}
+
 template <int Spell>
 void CantripScript(uint32_t self) {
   Cast(self, Spell);
@@ -611,6 +735,9 @@ void InstallCantrips() {
                        AddScriptHandler("n5_c_sparedying", &SpareTheDyingScript) &&
                        AddScriptHandler("n5_c_sorcburst", &SorcerousBurstScript);
   const bool reducer = AddDamageReducer(&ResistanceReducer);
+  g_use_feat = reinterpret_cast<UseFeatFn>(EngineExport(ee::kUseFeat));  // through its hook
+  const bool flame = AddScriptHandler("n5_c_produceflame", &ProduceFlameScript) &&
+                     AddSpellCastGuard(&BonusActionCastGuard) && g_use_feat;
   const bool range = HookExport("CNWSCreature::ComputeSpellRange (Spare the Dying's range by level, #39)",
                                 ee::kComputeSpellRange, reinterpret_cast<void*>(&ComputeSpellRange),
                                 reinterpret_cast<void**>(&g_compute_spell_range));
@@ -626,4 +753,6 @@ void InstallCantrips() {
                                        rules::ChoiceCantripOf(rules::kSorcerousBurst)->options.size()
                                  : 0,
       choices && reducer && range ? "" : " - SOME hooks missing");
+  Log("cantrips: build 3a - Produce Flame (Flame a Bonus Action, Hurl an action; a carried light) (#39 Part 1)%s",
+      flame ? "" : " - SOME hooks missing");
 }

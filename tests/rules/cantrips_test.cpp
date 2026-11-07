@@ -140,6 +140,25 @@ TEST(ChoiceCantripIcons) {
   CHECK_EQ(EffectIconOf(1050), -1);   // Fire Bolt
 }
 
+// Build 3a: Produce Flame's Flame and Hurl; the Flame (or the cantrip cast with no choice) a Bonus Action.
+TEST(ProduceFlame) {
+  const ChoiceCantrip* flame = ChoiceCantripOf(kProduceFlame);
+  CHECK_EQ(flame != nullptr, true);
+  CHECK_EQ(flame->kind == ChoiceKind::kMode, true);
+  CHECK_EQ(flame->options.size(), 2u);
+  CHECK_EQ(flame->options[0].spell, kProduceFlameFlame);
+  CHECK_EQ(flame->options[1].spell, kProduceFlameHurl);
+  CHECK_EQ(ChoiceCantripOf(1098)->master, 1096);
+  CHECK_EQ(RadialChoicePage(2, 0).shown, 2);  // one page
+  CHECK_EQ(BonusActionFeatOfSpell(1096), 1548);  // the cantrip cast: its Flame
+  CHECK_EQ(BonusActionFeatOfSpell(1097), 1548);
+  CHECK_EQ(BonusActionFeatOfSpell(1098), -1);    // Hurl: an action
+  CHECK_EQ(BonusActionFeatOfSpell(1050), -1);
+  CHECK_EQ(IsBonusActionSpellFeat(1548), true);
+  CHECK_EQ(IsBonusActionSpellFeat(1547), false);
+  CHECK_EQ(EffectIconOf(1097), -1);
+}
+
 // Decision 5: eight options to a page, or seven and "More".
 TEST(RadialChoicePage) {
   CHECK_EQ(RadialChoicePage(7, 0).shown, 7);   // Sorcerous Burst: one page

@@ -82,6 +82,9 @@ std::vector<ChoiceCantrip> BuildChoiceCantrips() {
                        {1094, kDamageTypePsychic, "Psychic"},
                        {1095, kDamageTypeThunder, "Thunder"}}};
   all.push_back(burst);
+  ChoiceCantrip flame{kProduceFlame, "n5_c_produceflame", ChoiceKind::kMode,
+                     {{kProduceFlameFlame, 0, "Flame"}, {kProduceFlameHurl, 1, "Hurl"}}};
+  all.push_back(flame);
   return all;
 }
 
@@ -152,6 +155,13 @@ long long RadialChoiceWithFirst(long long param, int first) {
 long long RadialChoiceCast(long long param, int variant) {
   return (param & ~kMenuPageBits & ~0xFFFFLL) | static_cast<long long>(variant & 0xFFFF);
 }
+
+int BonusActionFeatOfSpell(int spell) {
+  if (spell == kProduceFlame || spell == kProduceFlameFlame) return kFeatProduceFlame;  // casting it: the Flame
+  return -1;
+}
+
+bool IsBonusActionSpellFeat(int feat) { return feat == kFeatProduceFlame; }
 
 int SorcerousBurstDamage(int dice, int extra_cap, int (*roll_d8)(void* context), void* context, int* extra_out) {
   int total = 0;

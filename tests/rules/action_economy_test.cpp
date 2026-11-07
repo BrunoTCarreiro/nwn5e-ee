@@ -19,7 +19,8 @@ TEST(BonusActionOnceARound) {
 // Attack, Superior Defense, the pickers), an action ability (Quivering Palm, Stunning Fist) taken as either.
 TEST(BonusActionFeats) {
   for (int feat : {kFeatSecondWind2, kFeatSecondWind3, kFeatSecondWind4, kFeatRage, 326, 331,
-                   kFeatIntimidatingPresence, kFeatPatientDefense, kFeatStepOfTheWind, kFeatWholenessOfBody}) {
+                   kFeatIntimidatingPresence, kFeatPatientDefense, kFeatStepOfTheWind, kFeatWholenessOfBody,
+                   1548}) {  // #39 build 3a: Produce Flame's Bonus Action feat
     CHECK_EQ(TakesBonusAction(feat), true);
     CHECK_EQ(TakesNoAction(feat), false);
     CHECK_EQ(BonusActionName(feat)[0] != 0, true);

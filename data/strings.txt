@@ -417,3 +417,11 @@
 16000629 Sorcerous Burst: Poison
 16000630 Sorcerous Burst: Psychic
 16000631 Sorcerous Burst: Thunder
+
+# #39 Part 1, build 3a: Produce Flame (SRD 5.2.1's text, CC-BY-4.0) and its Bonus Action.
+16000632 Produce Flame
+16000633 Conjuration Cantrip (Druid)\nCasting Time: Bonus Action\nRange: Self\nComponents: V, S\nDuration: 10 minutes\n\nA flickering flame appears in your hand and remains there for the duration. While there, the flame emits no heat and ignites nothing, and it sheds Bright Light in a 20-foot radius and Dim Light for an additional 20 feet. The spell ends if you cast it again.\n\nUntil the spell ends, you can take a Magic action to hurl fire at a creature or an object within 60 feet of you. Make a ranged spell attack. On a hit, the target takes 1d8 Fire damage.\n\nCantrip Upgrade. The damage increases by 1d8 when you reach levels 5 (2d8), 11 (3d8), and 17 (4d8).\n\nnwn5e: the spell's radial menu has Flame (cast as a Bonus Action: your attacks go on) and Hurl (an action, while the flame lasts; the flame stays). With the flame you carry a light, as a torch.
+16000634 Produce Flame: Flame
+16000635 Produce Flame: Hurl
+16000636 Produce Flame (Bonus Action)
+16000637 nwn5e: Produce Flame cast as a Bonus Action - your attacks go on; one Bonus Action a round, a second waits for your next round. Granted the first time you cast it.

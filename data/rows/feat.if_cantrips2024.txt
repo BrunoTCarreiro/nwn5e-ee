@@ -1,0 +1,5 @@
+# feat.2da - #39 Part 1, build 3a (core/rules_cantrips.cpp asks for "cantrips2024"): Produce Flame's Bonus Action -
+# its Flame (SPELLID 1097) through a feat, as the class abilities' Bonus Actions (bonus_actions.cpp makes it
+# instant: ReqAction 0 in faithful `actions`). nwn5e grants it at the first cast; unlimited uses, on yourself.
+LABEL FEAT DESCRIPTION ICON GAINMULTIPLE EFFECTSSTACK ALLCLASSESCANUSE CATEGORY MAXCR SPELLID CRValue USESPERDAY TARGETSELF Constant TOOLSCATEGORIES PreReqEpic ReqAction
+1548 NWN5E_PRODUCE_FLAME 16000636 16000637 n5_is_new 0 0 0 7 1 1097 0.5 **** 1 FEAT_NWN5E_PRODUCE_FLAME 6 0 1

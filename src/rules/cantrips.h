@@ -66,7 +66,7 @@ bool IsRetiredCantrip(int spell);
 // and "More". The master cast with no choice (an item's, a creature's, a spellbook button) takes the first type of
 // damage the creature takes (Resistance), the first skill it checks (Guidance), or Fire (Sorcerous Burst).
 
-enum class ChoiceKind { kDamageType, kSkill };
+enum class ChoiceKind { kDamageType, kSkill, kMode };  // kMode: a way to use it (Produce Flame's Flame, Hurl)
 
 struct CantripOption {
   int spell = -1;          // the variant's spells.2da row
@@ -86,6 +86,14 @@ constexpr int kResistance = 151;      // NWN's row, rewritten
 constexpr int kGuidance = 1057;
 constexpr int kSpareTheDying = 1058;
 constexpr int kSorcerousBurst = 1059;  // Sorcerer only (not the Wizard's, though NWN's Wiz_Sorc column is shared)
+// Build 3a (owner, 2026-11-07: "1 A, 2 A, 3 A, 4 A and while Produce Flame is active the character is also a light
+// source, 5 A"): Produce Flame - Flame (a Bonus Action: the flame in your hand, a light, 10 minutes) and Hurl (an
+// action while it lasts: a ranged spell attack, d8 Fire).
+constexpr int kProduceFlame = 1096;
+constexpr int kProduceFlameFlame = 1097;
+constexpr int kProduceFlameHurl = 1098;
+constexpr int kProduceFlameDie = 8;
+constexpr int kFeatProduceFlame = 1548;  // its Bonus Action: a feat carrying the Flame (bonus_actions.cpp)
 
 const std::vector<ChoiceCantrip>& ChoiceCantrips();
 // The choice cantrip a row belongs to - its master or one of its variants (null: none).
@@ -112,6 +120,11 @@ RadialPage RadialChoicePage(int count, int first);
 int RadialChoiceFirst(long long param);
 long long RadialChoiceWithFirst(long long param, int first);
 long long RadialChoiceCast(long long param, int variant);
+
+// Q1 A: a spell cast as a Bonus Action - the feat that carries it (feat.2da SPELLID; instant and one a round, as
+// the class abilities' Bonus Actions): its cast becomes that feat's use. -1: a spell cast as NWN casts it.
+int BonusActionFeatOfSpell(int spell);
+bool IsBonusActionSpellFeat(int feat);
 
 // Sorcerous Burst's damage: `dice` d8s (Cantrip Upgrade, doubled on a Critical Hit); each 8 rolled lets another d8 be
 // rolled and added, at most `extra_cap` more (the spellcasting ability modifier). `roll_d8` rolls one d8.
