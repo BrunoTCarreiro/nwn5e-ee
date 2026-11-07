@@ -4,8 +4,9 @@
 // Mastery and Sneak Attack stay - with nwn5e's attack, damage and round hooks asking here (weapon_cantrips.h).
 // - Shillelagh 1099 (the Druid's; its radial menu Force 1100 or Bludgeoning 1101, the weapon's own): cast as a Bonus
 //   Action (Q1 A: through feats 1549 / 1550, rules_cantrips.cpp's guard), with a Club or Quarterstaff (or NWN's magic
-//   staff) in the hand - refused without one. For 1 minute (a marker effect with its icon, carrying the cantrip's
-//   row so the AI sees it): that weapon's melee attacks use the better of Wisdom and the term they had (Strength, or
+//   staff) in the hand - refused without one. For 1 minute (a marker effect with its icon, carrying the row cast;
+//   0.92.1: applied through DelayCommand, after the feat's spell script - the 0.92.0 marker, applied inside it,
+//   never showed): that weapon's melee attacks use the better of Wisdom and the term they had (Strength, or
 //   Finesse's Dexterity) for attack and damage; its damage die is a d8 (d10 at 5, d12 at 11, 2d6 at 17; a Monk's
 //   Martial Arts die when higher); Force turns the weapon's damage to Force. Letting go of the weapon (another in
 //   the hand, or none) ends it, as casting it again does.
@@ -73,7 +74,7 @@ constexpr int kAbilityStrength = 0;
 constexpr int kAbilityIntelligence = 3;
 constexpr int kAbilityWisdom = 4;
 constexpr int kAbilityCharisma = 5;
-constexpr const char* kVarShillelaghRow = "n5c_shillelagh_row";  // the row cast (the marker carries the cantrip's)
+constexpr uint64_t kMarkerGraceMs = 2000;  // game ms: Shillelagh's marker lands a moment after its script (DelayCommand)
 constexpr uint64_t kTrueStrikeWaitMs = 15000;  // its attack's round starts within about two rounds (walking in)
 constexpr size_t kRoundLastAttackCount = 0x2f64;  // InitializeAttackActions adds the counts +0x2F50..+0x2F64
 
@@ -92,18 +93,6 @@ const char* AbilityName(int ability) {
 }
 
 std::string Signed(int value) { return (value >= 0 ? "+" : "") + std::to_string(value); }
-
-// Whether `object` carries an effect a spell row put there (its spell id).
-bool HasEffectOfSpell(const void* object, int spell) {
-  if (!object) return false;
-  void* const* list = Field<void* const*>(object, ee::kObjectEffects);
-  const int count = Field<int32_t>(object, ee::kObjectEffectCount);
-  if (!list || count <= 0 || count > 4096) return false;
-  for (int i = 0; i < count; ++i) {
-    if (list[i] && Field<int32_t>(list[i], ee::kEffectSpellId) == spell) return true;
-  }
-  return false;
-}
 
 int CharacterLevel(void* stats) {
   const int level = stats ? ReadCreatureFacts(stats).level : 1;
@@ -147,14 +136,36 @@ int NormalDamageTerm(void* stats, int base_item, bool ranged, float multiplier) 
 
 struct Imbued {
   void* weapon = nullptr;  // the CNWSItem* in the hand at the cast (compared, never read)
+  uint64_t cast = 0;       // game ms of the cast
+  bool seen = false;       // its marker found once
 };
 std::unordered_map<uint32_t, Imbued> g_imbued;  // by caster: letting go of the weapon ends it
 
-// The row of the Shillelagh on `creature` (-1: none).
-int ShillelaghRow(void* creature) {
-  if (!HasEffectOfSpell(creature, rules::kShillelagh)) return -1;
-  const int row = engine::GetLocalInt(creature, kVarShillelaghRow);
-  return rules::IsShillelagh(row) ? row : rules::kShillelagh;
+// The row of the Shillelagh on `creature` (-1: none): its marker's spell id, the row cast.
+int ShillelaghRow(const void* creature) {
+  if (!creature) return -1;
+  void* const* list = Field<void* const*>(creature, ee::kObjectEffects);
+  const int count = Field<int32_t>(creature, ee::kObjectEffectCount);
+  if (!list || count <= 0 || count > 4096) return -1;
+  for (int i = 0; i < count; ++i) {
+    const int spell = list[i] ? Field<int32_t>(list[i], ee::kEffectSpellId) : -1;
+    if (rules::IsShillelagh(spell)) return spell;
+  }
+  return -1;
+}
+
+// 0.92.1's diagnosis: the creature's effects, type and spell id ("t<type>/s<spell>").
+std::string DescribeEffects(const void* creature) {
+  void* const* list = Field<void* const*>(creature, ee::kObjectEffects);
+  const int count = Field<int32_t>(creature, ee::kObjectEffectCount);
+  if (!list || count <= 0 || count > 4096) return "no effects";
+  std::string text = std::to_string(count) + " effects:";
+  for (int i = 0; i < count && i < 24; ++i) {
+    if (!list[i]) continue;
+    text += " t" + std::to_string(Field<uint16_t>(list[i], ee::kEffectType)) + "/s" +
+            std::to_string(Field<int32_t>(list[i], ee::kEffectSpellId));
+  }
+  return text;
 }
 
 // The Shillelagh row when `creature`'s current attack is a melee attack with the weapon it imbued, else -1.
@@ -176,8 +187,8 @@ while (GetIsEffectValid(e)) {
 }
 ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_HEAD_NATURE), OBJECT_SELF);
 effect m = EffectLinkEffects(EffectIcon($ICON), EffectVisualEffect(VFX_DUR_CESSATE_POSITIVE));
-ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(m, $MASTER), "n5c_shillelagh"), OBJECT_SELF,
-                    TurnsToSeconds(1));
+m = TagEffect(SetEffectSpellId(m, $ROW), "n5c_shillelagh");
+DelayCommand(0.0, ApplyEffectToObject(DURATION_TYPE_TEMPORARY, m, OBJECT_SELF, TurnsToSeconds(1)));
 SendMessageToPC(OBJECT_SELF, "nwn5e: Shillelagh - your " + GetName(GetItemInSlot(INVENTORY_SLOT_RIGHTHAND)) +
                 " for 1 minute: $SAY");
 )nss";
@@ -221,11 +232,10 @@ void ShillelaghScript(uint32_t self) {
                     " damage die, " + (force ? "Force damage." : "its own Bludgeoning damage.");
   std::string code = kShillelaghCast;
   Replace(&code, "$ICON", std::to_string(rules::EffectIconOf(row)));
-  Replace(&code, "$MASTER", std::to_string(rules::kShillelagh));
+  Replace(&code, "$ROW", std::to_string(row));
   Replace(&code, "$SAY", say);
   Run(code, self, "n5_c_shillelagh");
-  engine::SetLocalInt(caster, kVarShillelaghRow, row);
-  g_imbued[self] = Imbued{engine::ItemInSlot(caster, ee::kSlotRightHand)};
+  g_imbued[self] = Imbued{engine::ItemInSlot(caster, ee::kSlotRightHand), GameMs(), false};
   Log("cantrips: 0x%08X Shillelagh (row %d) - base item %d for 1 minute: Wisdom %+d, %dd%d, %s", self, row, base_item,
       wisdom, die.count, die.sides, force ? "Force" : "Bludgeoning");
 }
@@ -236,10 +246,22 @@ void ShillelaghUpdate(void* creature) {
   const uint32_t id = IdOf(creature);
   const auto imbued = g_imbued.find(id);
   if (imbued == g_imbued.end()) return;
-  if (!HasEffectOfSpell(creature, rules::kShillelagh)) {
+  const int row = ShillelaghRow(creature);
+  if (row < 0) {
+    if (!imbued->second.seen && GameMs() - imbued->second.cast < kMarkerGraceMs) return;  // not landed yet
+    const bool seen = imbued->second.seen;
     g_imbued.erase(imbued);
-    if (LogSlot()) Log("cantrips: 0x%08X Shillelagh ended", id);
+    if (!LogSlot()) return;
+    if (seen) {
+      Log("cantrips: 0x%08X Shillelagh ended", id);
+    } else {
+      Log("cantrips: 0x%08X Shillelagh's marker never landed - %s", id, DescribeEffects(creature).c_str());
+    }
     return;
+  }
+  if (!imbued->second.seen) {
+    imbued->second.seen = true;
+    if (LogSlot()) Log("cantrips: 0x%08X Shillelagh's marker is on (row %d)", id, row);
   }
   if (engine::ItemInSlot(creature, ee::kSlotRightHand) == imbued->second.weapon) return;
   g_imbued.erase(imbued);

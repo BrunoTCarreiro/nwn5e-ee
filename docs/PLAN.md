@@ -729,6 +729,14 @@ monster AC by CR.
     Shillelagh, TrueStrike, WeaponCantripDamage; !test cantripbard (short sword and dagger, shortbow, Charisma
     18) and cantripdruid (a club in the pack). Next free ids: spells 1104, feats 1551, effect icons 164,
     strings 16000648.
+  - *0.92.1 (the owner's 0.92.0 run, 2026-11-07: "I'm not sure shillelagh is work, no icon on top right and no
+    notice that shillelagh ended on unequipping weapon"):* the log - each cast's marker missing 3 ms after its script
+    (the watch ended at once, so no "let go" line) and the attacks without Wisdom (+3, not +6). The marker had been
+    applied inside the feat's spell script, carrying the cantrip's row (1099); every feat ability that works applies
+    its effects after it (the Monk's through DelayCommand, the Rage's from the creature update). Now the marker goes on
+    through DelayCommand with the row cast (1100 / 1101), any Shillelagh row counts, and the watch gives it 2 s to land
+    (a log line lists the creature's effects if it never does). Produce Flame's flame (the same path, untested yet)
+    goes on the same way.
   - *Build 4 brief (2026-11-07): the utility cantrips, SRD 5.2.1's nine left (Eldritch Blast waits for a Warlock).*
     Q1 Mending and Message (no broken items, no one to whisper to in single player): A off the class lists until
     they have a use, B flavour. Q2 Mage Hand: A cast at a door, lever, light or container within 30 ft - the hand

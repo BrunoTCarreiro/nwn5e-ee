@@ -560,6 +560,8 @@ bool HasEffectOfSpell(const void* object, int spell) {
 
 // The flame in the hand: NWN's 15 m orange light (Bright Light 20 feet and Dim 20 feet more, as Light's) - a carried
 // light for the stealth rules (rules_perception.cpp: visual ids 153-180) - for 10 minutes; cast again, the old ends.
+// 0.92.1: applied through DelayCommand, after the feat's spell script (Shillelagh's marker, applied inside it on
+// 0.92.0, never showed).
 const char* const kFlame = R"nss(
 effect e = GetFirstEffect(OBJECT_SELF);
 while (GetIsEffectValid(e)) {
@@ -568,8 +570,8 @@ while (GetIsEffectValid(e)) {
 }
 ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_FLAME_S), OBJECT_SELF);
 effect l = EffectLinkEffects(EffectVisualEffect(VFX_DUR_LIGHT_ORANGE_15), EffectVisualEffect(VFX_DUR_CESSATE_POSITIVE));
-ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(l, $FLAME), "n5c_flame"), OBJECT_SELF,
-                    TurnsToSeconds(10));
+l = TagEffect(SetEffectSpellId(l, $FLAME), "n5c_flame");
+DelayCommand(0.0, ApplyEffectToObject(DURATION_TYPE_TEMPORARY, l, OBJECT_SELF, TurnsToSeconds(10)));
 SendMessageToPC(OBJECT_SELF, "nwn5e: Produce Flame - a flame in your hand for 10 minutes (Bright Light 20 feet, " +
                 "Dim Light 20 feet more): Hurl it with an action.");
 )nss";
