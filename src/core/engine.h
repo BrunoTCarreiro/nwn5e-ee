@@ -33,6 +33,9 @@ bool IsEnemy(void* creature, uint32_t other_id);  // GetAIStateReaction == enemy
 bool IsFriend(void* creature, uint32_t other_id); // GetAIStateReaction == friend
 bool IsDeadOrDying(void* creature);
 bool Sees(void* creature, uint32_t other_id);     // its visibility list, bit 0
+// The CNWVisibilityNode `creature` keeps for `other_id` (its visibility list), or null; its flags byte at
+// ee::kVisibilityFlags (bit 0 seen; bit 2 blinded by the other's Sanctuary / Ethereal, bit 3 sees through it).
+void* VisibilityNode(void* creature, uint32_t other_id);
 
 // Centre-to-centre distance squared, and edge to edge (minus both personal spaces).
 float CentreDistanceSquared(const void* a, const void* b);

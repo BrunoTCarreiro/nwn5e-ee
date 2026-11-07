@@ -678,6 +678,14 @@ monster AC by CR.
     255), one per option, named for it - the variant's name ("Resistance: Piercing", "Guidance: Stealth") - with
     the game's Damage Resistance and Skill Increase icons (rules::EffectIconOf). The log of 0.90.0's test: Resistance
     (Piercing) stopped 3 of 8 and 1 of 1, once a turn; Guidance (Stealth) added +2, +1, +4 on !skill.
+  - *0.90.2 (owner, 2026-11-07, CB-7: "Spare the Dying doesn't cast and if trying to cast via radial by pressing
+    elsewhere to get the cursor, on click the cursor turns into a talk cursor and the henchman gets up and initiates
+    a conversation"; "the others are good"):* the log - the cast at the down henchman queued, then dropped before
+    its conjuring. A down henchman is ethereal (0.20.2, so enemies turn on the party): Sanctuary without a save, and
+    CNWSEffectListHandler::OnApplySanctuary marks every creature in the area (visibility node +4: bit 2 can't see;
+    a made save bit 3 sees through) - its master too. Now each creature friendly to it sees through, as after a made
+    save (rules_dying.cpp FriendsSeeThrough, logged with each node's flags); its enemies stay blind. Only that apply
+    sets the bits, so a creature arriving later isn't marked.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

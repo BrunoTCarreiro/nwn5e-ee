@@ -694,6 +694,40 @@ bool LyingPose(void* creature) {
 
 // One down henchman's pass. False when it is up (or gone): healed above 1 HP
 // only - the fight's end doesn't get it up.
+// 0.90.2 (#39 build 2: Spare the Dying on a down henchman - "the cursor turns into a talk cursor", the cast
+// dropped): the ethereal look is Sanctuary without a save - CNWSEffectListHandler::OnApplySanctuary marks every
+// creature in the area at once (its visibility node: bit 2 "can't see"; a made save sets bit 3 "sees through"
+// instead), the henchman's own side too, so neither its master's spells nor the cursor could reach it. Each
+// creature friendly to it sees through, as after a made save; its enemies stay blind (one arriving later is never
+// marked: only that apply sets the bits).
+struct SeeThrough {
+  uint32_t henchman = 0;
+  int friends = 0;
+  std::string flags;  // each friend's id: the flags before -> after, for the log
+};
+
+void FriendSeesThrough(void* context, uint32_t id, void* observer) {
+  SeeThrough* see = static_cast<SeeThrough*>(context);
+  if (!observer || !engine::IsFriend(observer, see->henchman)) return;
+  void* node = engine::VisibilityNode(observer, see->henchman);
+  if (!node) return;
+  const uint8_t before = Field<uint8_t>(node, ee::kVisibilityFlags);
+  const uint8_t after = static_cast<uint8_t>((before & ~0x04) | 0x08);
+  SetField<uint8_t>(node, ee::kVisibilityFlags, after);
+  ++see->friends;
+  char text[48];
+  sprintf_s(text, " 0x%08X 0x%02X->0x%02X", id, before, after);
+  see->flags += text;
+}
+
+void FriendsSeeThrough(void* henchman) {
+  SeeThrough see;
+  see.henchman = IdOf(henchman);
+  engine::ForEachOtherCreatureInArea(henchman, &FriendSeesThrough, &see);
+  Log("dying: henchman 0x%08X - its side sees through its ethereal look (%d friend(s):%s)", see.henchman,
+      see.friends, see.flags.c_str());
+}
+
 bool UpdateDownHenchman(uint32_t id, DownHenchman& state) {
   void* henchman = CreatureById(id);
   if (!henchman) return false;
@@ -703,6 +737,7 @@ bool UpdateDownHenchman(uint32_t id, DownHenchman& state) {
   }
   if (!state.laid_down) {
     RunHenchmanScript(kLayDownScript, id);
+    FriendsSeeThrough(henchman);
     state.laid_down = true;
     state.next_hold = GetTickCount64() + kHoldDownMs;
     return true;

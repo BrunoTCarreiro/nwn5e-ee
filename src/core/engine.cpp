@@ -137,6 +137,11 @@ bool Sees(void* creature, uint32_t other_id) {
   return node && (Field<uint8_t>(node, ee::kVisibilityFlags) & 1) != 0;
 }
 
+void* VisibilityNode(void* creature, uint32_t other_id) {
+  if (!creature || !E().visible) return nullptr;
+  return const_cast<void*>(E().visible(creature, other_id));
+}
+
 float CentreDistanceSquared(const void* a, const void* b) {
   const float dx = Field<float>(a, ee::kObjectPositionX) - Field<float>(b, ee::kObjectPositionX);
   const float dy = Field<float>(a, ee::kObjectPositionY) - Field<float>(b, ee::kObjectPositionY);
