@@ -689,6 +689,19 @@ monster AC by CR.
   - *Build 2 accepted (owner, 2026-11-07: "accepted, go for build 3"):* CB-1 to CB-4 and CB-6 to CB-10 pass (CB-7
     on 0.90.2: Spare the Dying and Cure Light Wounds reach a down henchman); CB-5 (a conversation's Persuade check)
     left to a playthrough.
+  - *Build 3 brief (2026-11-07): the weapon cantrips - True Strike (NWN's 415 rewritten), Shillelagh, Produce
+    Flame.* No spell can be cast as a Bonus Action yet (only feats - ReqAction 0, instant, one a round - and
+    potions); weapon attacks have the hooks (the attack's ability: Finesse; its die: the Martial Arts die; its
+    damage types per hit). Q1 Bonus Action casting: A a cast turned into a Bonus Action (a hidden feat, as the class
+    abilities; reusable for 2024's Bonus Action spells), B a normal cast for now. Q2 True Strike: A the cast becomes
+    one of the game's own weapon attacks (its magic, on-hit, Mastery, Sneak Attack; the round's other attacks
+    dropped), B nwn5e rolls it inside a cast. Q3 the damage type: A a radial choice, B always Radiant / Force, C the
+    weapon's unless picked. Q4 Produce Flame's hurl: A its menu (Flame a Bonus Action, Hurl an action while it
+    lasts), B a separate ability. Q5: A two installs (3a Bonus Action casting and Produce Flame; 3b Shillelagh and
+    True Strike), B one.
+    - *Decided (owner, 2026-11-07: "1 A, 2 A, 3 A, 4 A and while Produce Flame is active the character is also a
+      light source, 5 A"):* recommendations throughout; Produce Flame's flame makes its caster a light source (the
+      stealth rules' carried light).
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
