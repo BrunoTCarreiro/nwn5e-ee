@@ -6,6 +6,7 @@ backup/
 # The test register's spreadsheet (#147), written by scripts/tests_sheet.py from docs/tests.csv.
 /TESTS.xlsx
 /TESTS.xlsx.tmp
+/TESTS.xlsx.base.json
 # The private layer (docs/PRIVATE-LAYER.md): personal-use rules, its own repo.
 private/
 # Python caches from the tools (tools/data, tools/gff).

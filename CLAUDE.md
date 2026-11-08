@@ -86,9 +86,12 @@ open ones").
   row replaces it), Dropped.
 - `python -I scripts/tests_sheet.py` writes `TESTS.xlsx` at this checkout's
   root (git-ignored), the owner's view: newest issue first, a filter on
-  every column, open on the Open tests. It's rebuilt after every change to
-  the register; an edit made in the spreadsheet is lost at the next
-  rebuild, so results come in chat.
+  every column, open on the Open tests. Each Status cell is a dropdown
+  (owner, 2026-11-08: "make it so the status cells are dropdowns where I
+  can select the status"). Every run first reads the saved sheet back: a
+  Status or Note the owner changed there goes into `docs/tests.csv`
+  (against `TESTS.xlsx.base.json`, what the last run wrote). So results come
+  from the sheet or from chat; run the script before reading the register.
 - **Edit it only with** `tests_sheet.py set <#issue> <id> <status> [note]`
   (a result, dated today) and `tests_sheet.py add <rows.csv>` (rows in the
   same columns). Both rebuild the sheet, and both keep a cell's line breaks.
