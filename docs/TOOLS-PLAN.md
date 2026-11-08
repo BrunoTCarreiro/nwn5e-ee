@@ -1173,6 +1173,13 @@ shadow at +0xB0); the game keys only its colour (76: the fireball's flicker, Pre
   (radius keys: a lasting effect's start and end, a one-shot's impact, lengthened to fit); its keys follow a changed
   colour or radius; warnings past 4 lights or 20 m. The preview: a ground glow as wide as the light reaches there and a
   halo at the light, following its keys.
-*Tests:* test.bat 424/0 (6 light tests in vfx_model_test: the draft both ways, the writer, the ASCII and compiled
-readers); check_effect.js 39 light checks; 39 breaks caught across the tasks. *In game:* L-0 passed on 0.95.3 (owner:
+*A fresh review* (0 critical, 4 important, 5 minor) - fixed: a radius through 0 (typing "0.8" passes "0") or a
+colour through black wiped a light's keys (now they wait and come back from their own scale); the flicker started
+and ended up to 30% off the light's colour (a jump into and out of the loop; now each flicker dips from the full
+colour and back, its own depth the pattern); a game light's own flags (ambient only, dynamic, priority, fading) were
+dropped on Save (now carried: draft lines only off a new light's values; the library export is format 13). Left for
+the owner: an effect with only a light (no emitter) can't be played and the game's light-only effects aren't in the
+library; five minors (on #145).
+*Tests:* test.bat 425/0 (7 light tests in vfx_model_test: the draft both ways, the writer, the ASCII and compiled
+readers, the flags); check_effect.js 45 light checks; 55 breaks caught across the tasks and the review. *In game:* L-0 passed on 0.95.3 (owner:
 "ok, it light's up" - the ASCII light loads and lights); L-1 (the fireball's own light read into the bench) on 0.95.4.
