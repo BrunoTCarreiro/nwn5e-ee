@@ -857,6 +857,12 @@ monster AC by CR.
     stays shut. Beckon Water at the ground: a puddle (vfx_persistent 103, Grease's slick) 1 minute; Beckon Earth: a
     dust patch (104, a dust puff a round) 10 minutes. Tests UtilitySounds, MinorIllusion, DancingLightsAndPatches; 16
     of 16 mutations caught.
+  - *0.94.1 (owner, 2026-11-08: "there should be 5 new magic mark symbols, all tga with no alpha. can you wire them up
+    for a test as well?"):* Magic Mark shows one of the owner's symbols (data/files/n5t_mark01-05.tga, 256 x 256)
+    at random, flat on the ground and turned a random way: models n5v_mark01-05 (a 0.6 m quad just above the ground,
+    self-lit, faded out at its end), drawn additively (n5t_markNN.txi "blending additive": black shows as nothing -
+    the files' alpha, at most 88, is left aside), visualeffects.2da 1840-1844 (OrientWithGround, OrientWithObject),
+    rules::MagicMarkVisual.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

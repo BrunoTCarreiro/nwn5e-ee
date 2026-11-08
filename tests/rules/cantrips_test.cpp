@@ -288,6 +288,12 @@ TEST(UtilityCantripEffects) {
   CHECK_EQ(FillsElementCube(UtilityEffect::kBeckonWater), true);
   CHECK_EQ(FillsElementCube(UtilityEffect::kFirePlay), false);
   CHECK_EQ(FillsElementCube(UtilityEffect::kMageHand), false);
+  // 0.94.1: Magic Mark's five symbols, rows 1840-1844.
+  CHECK_EQ(MagicMarkVisual(1), 1840);
+  CHECK_EQ(MagicMarkVisual(5), 1844);
+  CHECK_EQ(MagicMarkVisual(3), 1842);
+  CHECK_EQ(MagicMarkVisual(0), 1840);  // out of range: the first
+  CHECK_EQ(MagicMarkVisual(6), 1840);
   CHECK_EQ(CantripRangeFeet(kDruidcraft), 30);
   CHECK_EQ(CantripRangeFeet(1112), 30);   // Elementalism
   CHECK_EQ(CantripRangeFeet(1115), 10);   // Prestidigitation

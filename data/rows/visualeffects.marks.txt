@@ -1,0 +1,10 @@
+# visualeffects.2da - #39 Part 1 (0.94.1; owner, 2026-11-08: "there should be 5 new magic mark symbols, all tga with
+# no alpha. can you wire them up for a test as well?"): Prestidigitation's Magic Mark - one of the owner's symbols
+# (data\files\n5t_mark01-05.tga, drawn additively: n5t_markNN.txi) on a flat 0.6 m model (n5v_mark01-05) on the
+# ground, turned with its object (core/rules_utility_cantrips.cpp picks one at random, at a random facing).
+Label Type_FD OrientWithGround Imp_Root_S_Node Imp_Root_M_Node Imp_Root_L_Node Imp_Root_H_Node OrientWithObject
+1840 NWN5E_MAGIC_MARK_1 D 1 n5v_mark01 n5v_mark01 n5v_mark01 n5v_mark01 1
+1841 NWN5E_MAGIC_MARK_2 D 1 n5v_mark02 n5v_mark02 n5v_mark02 n5v_mark02 1
+1842 NWN5E_MAGIC_MARK_3 D 1 n5v_mark03 n5v_mark03 n5v_mark03 n5v_mark03 1
+1843 NWN5E_MAGIC_MARK_4 D 1 n5v_mark04 n5v_mark04 n5v_mark04 n5v_mark04 1
+1844 NWN5E_MAGIC_MARK_5 D 1 n5v_mark05 n5v_mark05 n5v_mark05 n5v_mark05 1

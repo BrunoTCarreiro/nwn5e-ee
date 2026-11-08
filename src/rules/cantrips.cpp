@@ -336,6 +336,11 @@ DoorPlay DoorPlayOf(UtilityEffect effect) {
   }
 }
 
+int MagicMarkVisual(int roll) {
+  if (roll < 1 || roll > kMagicMarkVisuals) roll = 1;
+  return kMagicMarkFirstVisual + roll - 1;
+}
+
 bool FillsElementCube(UtilityEffect effect) {
   return effect == UtilityEffect::kBeckonAir || effect == UtilityEffect::kBeckonEarth ||
          effect == UtilityEffect::kBeckonFire || effect == UtilityEffect::kBeckonWater;

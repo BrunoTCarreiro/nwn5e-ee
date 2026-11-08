@@ -243,6 +243,12 @@ constexpr int kFirePlayDimSeconds = 60;   // Thaumaturgy's Fire Play: "for 1 min
 constexpr int kBoomingVoiceSeconds = 60;  // "for 1 minute"
 constexpr int kElementCubeFeet = 5;       // Elementalism's 5-foot Cube
 constexpr int kBoomingVoiceIcon = 164;    // its effect icon (effecticons.2da)
+// 0.94.1 (owner, 2026-11-08: "there should be 5 new magic mark symbols ... can you wire them up for a test"): Magic
+// Mark's look - one of the owner's symbols, visualeffects.2da rows 1840-1844.
+constexpr int kMagicMarkFirstVisual = 1840;
+constexpr int kMagicMarkVisuals = 5;
+// The symbol for a roll of 1..kMagicMarkVisuals (out of range: the first).
+int MagicMarkVisual(int roll);
 
 // A utility cantrip row's effect: a variant's; the cantrip cast with no choice, its first option's; Druidcraft's
 // (Fire Play) and Mage Hand's own; kNone for any other row.

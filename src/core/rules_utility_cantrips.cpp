@@ -174,11 +174,13 @@ int DoorAt(uint32_t id, DoorPlay play, std::string* name) {
   return stored ? stored - 10 : -1;
 }
 
-// Magic Mark: a blue glow at the point for an hour of play; the caster's fourth takes its oldest away.
+// Magic Mark: one of the owner's symbols (0.94.1: rules::MagicMarkVisual, a random one) flat on the ground at the
+// point, turned a random way, for an hour of play; the caster's fourth takes its oldest away.
 const char* const kMark = R"nss(
 location l = GetLocalLocation(OBJECT_SELF, "n5c_at");
+l = Location(GetAreaFromLocation(l), GetPositionFromLocation(l), IntToFloat(Random(360)));
 object m = CreateObject(OBJECT_TYPE_PLACEABLE, "plc_invisobj", l, FALSE, "n5c_mark");
-ApplyEffectToObject(DURATION_TYPE_PERMANENT, EffectVisualEffect(VFX_DUR_GLOW_LIGHT_BLUE), m);
+ApplyEffectToObject(DURATION_TYPE_PERMANENT, EffectVisualEffect($VFX), m);
 DestroyObject(m, $SECONDS);
 SetLocalString(OBJECT_SELF, "n5c_mark", ObjectToString(m));
 SendMessageToPC(OBJECT_SELF, "nwn5e: Prestidigitation - Magic Mark: a glowing mark there for an hour (three at a time).");
@@ -189,6 +191,7 @@ void PlaceMark(uint32_t self, void* caster) {
   char seconds[32];
   sprintf_s(seconds, "%.1f", kMarkSeconds);
   Replace(&code, "$SECONDS", seconds);
+  Replace(&code, "$VFX", std::to_string(rules::MagicMarkVisual(RollEngineDice(1, rules::kMagicMarkVisuals))));
   CreatingFireLight(true);  // light_sources.cpp: the invisible object a normal placeable, so the client gets its glow
   Run(code, self, "Magic Mark");
   CreatingFireLight(false);
