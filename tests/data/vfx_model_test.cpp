@@ -231,6 +231,55 @@ TEST(VfxModelWritesLight) {
   CHECK_EQ(p.find("  parent n5p\n") != std::string::npos && p.find("  shadow 0\n") != std::string::npos, true);
 }
 
+// #145, the review: a game light's own flags - ambient only, dynamic, priority, fading - kept through the draft (a line
+// each, only off the default, so a new light's draft is unchanged; vfx_bench/check_effect.js holds the same lines), the
+// model and the ASCII reader (either spelling of the dynamic flag), so a game effect saved again lights as it did.
+TEST(VfxLightKeepsItsFlags) {
+  VfxEffect effect;
+  VfxEmitter flame;
+  flame.name = "flame";
+  effect.emitters.push_back(flame);
+  VfxLight light;
+  light.name = "glow";
+  light.shadow = true;
+  light.ambient_only = true;
+  light.dynamic = false;
+  light.priority = 5;
+  light.fading = false;
+  effect.lights.push_back(light);
+  const std::string text = WriteVfxDraft(effect);
+  CHECK_EQ(text.find("\nshadow = 1\nambientonly = 1\ndynamic = 0\npriority = 5\nfading = 0\n") != std::string::npos, true);
+  VfxEffect back;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(text, &back, &error), true);
+  CHECK_EQ(back.lights.size(), 1u);
+  if (back.lights.size() == 1) {
+    const VfxLight& l = back.lights[0];
+    CHECK_EQ(l.ambient_only && !l.dynamic && l.priority == 5 && !l.fading, true);
+  }
+  CHECK_EQ(WriteVfxDraft(back) == text, true);
+  const std::string model = WriteVfxModel(effect, "n5f");
+  const std::string node = Section(Section(model, "beginmodelgeom n5f", "endmodelgeom n5f"), "node light n5f_l0_glow", "endnode");
+  for (const char* line : {"  ambientonly 1\n", "  isdynamic 0\n", "  lightpriority 5\n", "  fadingLight 0\n"}) {
+    CHECK_EQ(node.find(line) != std::string::npos, true);
+  }
+  VfxEffect read;
+  CHECK_EQ(ReadVfxAsciiModel(model, &read, &error), true);
+  CHECK_EQ(read.lights.size(), 1u);
+  if (read.lights.size() == 1) {
+    const VfxLight& l = read.lights[0];
+    CHECK_EQ(l.ambient_only && !l.dynamic && l.priority == 5 && !l.fading, true);
+  }
+  // The other spelling of the dynamic flag (nDynamicType, as some ASCII models write it).
+  std::string other = model;
+  const size_t at = other.find("  isdynamic 0");
+  CHECK_EQ(at != std::string::npos, true);
+  if (at != std::string::npos) other.replace(at, 13, "  nDynamicType 0");
+  VfxEffect spelled;
+  CHECK_EQ(ReadVfxAsciiModel(other, &spelled, &error), true);
+  CHECK_EQ(spelled.lights.size() == 1 && !spelled.lights[0].dynamic, true);
+}
+
 // #145 Task 3: a light read back from an ASCII model (the one the writer makes: draft -> model -> draft keeps it, its
 // parent node kept, its keys in each animation).
 TEST(VfxLightThroughTheAsciiModel) {
@@ -344,6 +393,11 @@ TEST(VfxReadsALightFromACompiledModel) {
   node(0x400, "glow", 0xA80, {{8, 3, {0}, {0, 0, 0.7f}}, {88, 1, {0}, {10}}, {140, 1, {0}, {1}}, {76, 3, {0}, {1, 0.75f, 0}}});
   put32(0x400 + 0x5C, 0x003);  // header | light
   put32(0x400 + 0xB0, 1);      // shadow
+  put32(0x400 + 0xA0, 5);      // priority (the review: its flags kept)
+  put32(0x400 + 0xA4, 1);      // ambient only
+  put32(0x400 + 0xA8, 0);      // dynamic type: not dynamic
+  put32(0x400 + 0xAC, 1);      // affect dynamic
+  put32(0x400 + 0xB8, 0);      // fading light: no
   // The duration (2 s): the light's colour flickers, its radius holds.
   puts(0x1000 + 8, "duration");
   put32(0x1000 + 0x48, static_cast<uint32_t>(0x1100 - 0x10 - base));
@@ -365,6 +419,8 @@ TEST(VfxReadsALightFromACompiledModel) {
   CHECK_EQ(Milli(l.radius), 10000);
   CHECK_EQ(Milli(l.multiplier), 1000);
   CHECK_EQ(l.shadow, true);
+  CHECK_EQ(l.priority, 5);
+  CHECK_EQ(l.ambient_only && !l.dynamic && !l.fading, true);
   bool parent_kept = false;
   for (const VfxNode& n : effect.nodes) parent_kept = parent_kept || n.name == "Lamp";
   CHECK_EQ(parent_kept, true);

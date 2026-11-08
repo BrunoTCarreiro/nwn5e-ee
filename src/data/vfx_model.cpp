@@ -323,8 +323,8 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
       if (!line.empty()) lines.push_back(line);
     }
   }
-  // A light node each, with the flags the game's own effect lights carry (#145 Task 0: dynamic, affecting creatures,
-  // no flare, priority 3, fading; ambient-only off - it lights its surroundings).
+  // A light node each, with its own flags (a new light's: dynamic, priority 3, fading, ambient-only off - it lights its
+  // surroundings - as most of the game's own effect lights, #145 Task 0), affecting creatures, no flare.
   for (size_t i = 0; i < effect.lights.size(); ++i) {
     const VfxLight& l = effect.lights[i];
     lines.push_back("node light " + light_names[i]);
@@ -332,12 +332,12 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
     lines.push_back("  position " + Num(l.position[0]) + " " + Num(l.position[1]) + " " + Num(l.position[2]));
     lines.push_back("  orientation 0 0 0 0");
     lines.push_back("  wirecolor 1 1 1");
-    lines.push_back("  ambientonly 0");
-    lines.push_back("  isdynamic 1");
+    lines.push_back(std::string("  ambientonly ") + (l.ambient_only ? "1" : "0"));
+    lines.push_back(std::string("  isdynamic ") + (l.dynamic ? "1" : "0"));
     lines.push_back("  affectdynamic 1");
     lines.push_back(std::string("  shadow ") + (l.shadow ? "1" : "0"));
-    lines.push_back("  lightpriority 3");
-    lines.push_back("  fadingLight 1");
+    lines.push_back("  lightpriority " + std::to_string(l.priority));
+    lines.push_back(std::string("  fadingLight ") + (l.fading ? "1" : "0"));
     lines.push_back("  flareradius 0");
     lines.push_back("  multiplier " + Num(l.multiplier));
     lines.push_back("  radius " + Num(l.radius));
@@ -505,6 +505,10 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
     out += "color = " + Num(l.color[0]) + " " + Num(l.color[1]) + " " + Num(l.color[2]) + "\n";
     out += "radius = " + Num(l.radius) + "\nbrightness = " + Num(l.multiplier) + "\n";
     if (l.shadow) out += "shadow = 1\n";
+    if (l.ambient_only) out += "ambientonly = 1\n";  // its flags: only off a new light's
+    if (!l.dynamic) out += "dynamic = 0\n";
+    if (l.priority != 3) out += "priority = " + std::to_string(l.priority) + "\n";
+    if (!l.fading) out += "fading = 0\n";
     out += DraftKeys(l.keys);
   }
   return out;
@@ -563,6 +567,10 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
       else if (key == "radius") l.radius = ToFloat(value);
       else if (key == "brightness") l.multiplier = ToFloat(value);
       else if (key == "shadow") l.shadow = Trim(value) != "0";
+      else if (key == "ambientonly") l.ambient_only = Trim(value) != "0";
+      else if (key == "dynamic") l.dynamic = Trim(value) != "0";
+      else if (key == "priority") l.priority = atoi(Trim(value).c_str());
+      else if (key == "fading") l.fading = Trim(value) != "0";
       else DraftKeyLine(key, words, &l.keys);
       continue;
     }
@@ -684,6 +692,8 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
     float color[3] = {1, 1, 1};
     float radius = 5.0f, multiplier = 1.0f;
     bool shadow = false;
+    bool ambient_only = false, dynamic = true, fading = true;
+    int priority = 3;
   };
   std::vector<Geo> geo;
   std::map<std::string, size_t> geo_at;  // lower-case name -> index
@@ -816,6 +826,10 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
         else if (first == "radius") g.radius = ToFloat(w[1]);
         else if (first == "multiplier") g.multiplier = ToFloat(w[1]);
         else if (first == "shadow") g.shadow = w[1] != "0";
+        else if (first == "ambientonly") g.ambient_only = w[1] != "0";
+        else if (first == "isdynamic" || first == "ndynamictype") g.dynamic = w[1] != "0";  // either spelling
+        else if (first == "lightpriority") g.priority = atoi(w[1].c_str());
+        else if (first == "fadinglight") g.fading = w[1] != "0";
       }
       if (emitter < 0) continue;
       const auto on = [](const std::string& v) { return v != "0" && Lower(v) != "false"; };
@@ -925,6 +939,10 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       l.radius = g.radius;
       l.multiplier = g.multiplier;
       l.shadow = g.shadow;
+      l.ambient_only = g.ambient_only;
+      l.dynamic = g.dynamic;
+      l.priority = g.priority;
+      l.fading = g.fading;
       l.keys = g.keys;
       result.lights.push_back(l);
       continue;
@@ -1260,6 +1278,10 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
       }
     }
     l.shadow = m.U32(node + 0xB0) != 0;
+    l.priority = static_cast<int>(m.U32(node + 0xA0));  // the review: its flags kept, so it lights as it did
+    l.ambient_only = m.U32(node + 0xA4) != 0;
+    l.dynamic = m.U32(node + 0xA8) != 0;
+    l.fading = m.U32(node + 0xB8) != 0;
     result.lights.push_back(l);
   }
   // A point-to-point emitter's target: its first child that is a reference node (header flags
