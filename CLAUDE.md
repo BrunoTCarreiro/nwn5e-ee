@@ -35,9 +35,9 @@ D&D 2024 (SRD 5.2) for Neverwinter Nights: Enhanced Edition, as an x64 DLL
    session on `main`, once per install ("Two sessions, two working copies").
 5. **Built:** comment on the issue with the version it ships in, what changed, the files,
    the test matrix and caveats; add `needs-test`; board → Needs test. Print
-   the test matrix in chat too.
+   the test matrix in chat too, and add its rows to the test register (below).
 6. **The owner tests** and says "check the logs"; fixes go on the same issue
-   (a new version and a comment each).
+   (a new version and a comment each). Each result goes in the register.
 7. **Accepted** (the owner says so): note it in PLAN.md (`*Accepted (owner,
    date: "...")*`), remove `needs-test`, close the issue (board → Done).
 8. **Follow-ups found on the way** get their own issue (`type:follow-up`),
@@ -72,6 +72,32 @@ gh project item-edit --id <item id> --project-id PVT_kwHOAFhW084BpSF9 --field-id
 
 A new issue goes on the board with
 `gh project item-add 2 --owner BrunoTCarreiro --url <issue url>`.
+
+## The test register
+
+Decided (owner, 2026-11-08, #147: "instead of having ephemeral test
+matrices let's have an excel file where we keep all the tests, passed and
+open so that I can just look at them any time and filter to only show the
+open ones").
+
+- `docs/tests.csv` holds every test, one row each: `id, status, issue,
+  feature, version, setup, do, expect, note, added, result_date, stream,
+  source`. Status: Open, Passed, Failed, Superseded (a retest or a newer
+  row replaces it), Dropped.
+- `python -I scripts/tests_sheet.py` writes `TESTS.xlsx` at this checkout's
+  root (git-ignored), the owner's view: newest issue first, a filter on
+  every column, open on the Open tests. It's rebuilt after every change to
+  the register; an edit made in the spreadsheet is lost at the next
+  rebuild, so results come in chat.
+- **One writer:** the game session, on `main`. The animation session sends
+  its rows with "anim ready" and its results by message; the game session
+  adds them.
+- **When:**
+  - A "Built" comment's matrix: its rows, Open.
+  - The owner's result ("NO-1 passes", a log read): Passed or Failed, with
+    the owner's words in the note.
+  - A retest row: the old row becomes Superseded, its note naming the retest.
+  - An accepted issue: its rows still Open become Passed.
 
 ## Rules that always hold
 
