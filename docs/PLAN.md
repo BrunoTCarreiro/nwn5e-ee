@@ -903,6 +903,10 @@ monster AC by CR.
     OrientWithObject; [effect +0x120] picks mode 0 or 3) the client turns the effect's root part to the world's axes,
     Gob::SetPartPosition("root", its position, identity). The hook now skips that call for an effect it turned to mode
     0 (data::SkipsWorldAlignment); the diagnosis log (fd4e81c) is removed.
+  - *#145 accepted (owner, 2026-11-08, in the animation session's window: "#145 accepted").* The VFX bench's
+    effect light (colour, radius, brightness, flicker, fades; a game light kept with its own flags), installed in
+    0.95.3-0.95.8. Every row is passed or superseded: L-0, L-2, L-3b, L-5 to L-8, D-2 and P-1 passed; L-1, L-3,
+    L-4 and D-1 superseded by their retests. The design notes are the animation session's (docs/TOOLS-PLAN.md).
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
