@@ -867,6 +867,9 @@ monster AC by CR.
     (its placeable and visual); the symbols' alpha channel was 0 on every pixel the lines included (the stray 88s
     aside), so the mark drew transparent - the same model path shows the light zones on placeables. The five TGAs are
     re-saved 24-bit (the empty alpha dropped, the colours as they were; the originals in b4e8e3f).
+  - *0.94.3 (owner, 2026-11-08: "There's an issue with the last mark (05) where the square it's inscribed in can be
+    seen"):* its background was dark grey (35, 31, 32), not black - drawn additively, a faint square. Levels: that
+    grey to black, the rest stretched (white stays white).
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
