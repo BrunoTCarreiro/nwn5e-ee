@@ -17,23 +17,40 @@
 // - Magic Mark: a blue glow at the point (an invisible placeable) for an hour of play, three at a time (the oldest
 //   goes).
 // - Beckon Earth: a visual and a line (a lasting patch waits for the owner's call, as Beckon Water's puddle).
-// Build 4b: Dancing Lights, Minor Illusion, Thaumaturgy's Phantom Sound (row 1121), Druidcraft's animal sound, Mage
-// Hand's levers and containers. NWN mode: none (they aren't NWN's spells).
+// Build 4b (owner, 2026-11-08: "go for 4b"; Q1-Q3 "Go with your recommendations, but I'll design the looks"):
+// - Sounds at a point (Q6 A, Q7 A): Minor Illusion's (voices, footsteps, a roar, thunder), Thaumaturgy's Phantom
+//   Sound (whispers, thunder), Druidcraft's Animal Sound - the game's own sound files. Voices, footsteps and
+//   whispers draw the creatures hostile to the caster that hear them (60 ft): they come to look, as for a light put
+//   out (heard_investigates). A roar, thunder or the animal's sound makes animals, beasts and vermin flee for 2
+//   rounds (rules::FleesFromScaringSound); the others come to look. None fighting, talking or the caster's own.
+// - Minor Illusion's image (an object, a humanoid, a small creature: a barrel, a commoner, a cat) for 1 minute -
+//   inert, unseen by the AI, passed through; those hostile that see the point come to look and study it (d20 +
+//   Intelligence against the spell save DC: they see through it, or are fooled). Cast again, it ends.
+// - Dancing Lights: four lights (NWN's 5 m yellow light and a glow) at the point, Concentration 1 minute; its
+//   Move a Bonus Action (bonus_actions.h), up to 60 ft and within 120 ft (the order's point, action_guard.h).
+// - Mage Hand at a lever (its OnUsed with you as its user) or a container (its inventory, as if you stood by it).
+// - Beckon Water at the ground: a puddle 1 minute; Beckon Earth: a dust patch 10 minutes (Q1 A; placeholder looks).
+// NWN mode: none (they aren't NWN's spells).
 
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <cmath>
 #include <deque>
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "action_guard.h"
+#include "bonus_actions.h"
 #include "cantrip_effects.h"
 #include "chat.h"
 #include "config.h"
 #include "creature.h"
+#include "creature_update.h"
+#include "dice.h"
 #include "ee_layout.h"
 #include "effects.h"
 #include "engine.h"
@@ -96,6 +113,8 @@ if ($CUBE) {
 }
 SetLocalString(OBJECT_SELF, "n5c_targets", r);
 SetLocalLocation(OBJECT_SELF, "n5c_at", l);
+SetLocalInt(OBJECT_SELF, "n5c_at_object", GetIsObjectValid(t) && t != OBJECT_SELF);
+SetLocalInt(OBJECT_SELF, "n5c_dc", GetSpellSaveDC());
 $LOOK
 )nss";
 
@@ -207,10 +226,463 @@ const char* NothingLine(UtilityEffect effect) {
     case UtilityEffect::kBeckonWater: return "no burning light within 5 feet for its mist";
     case UtilityEffect::kBeckonAir: return "no open door within 5 feet for its breeze";
     case UtilityEffect::kInvisibleHand: return "no door there";
-    case UtilityEffect::kMageHand: return "nothing there the hand can work - a door or a light";
+    case UtilityEffect::kMageHand: return "nothing there the hand can work - a door, a light, a lever or a container";
     default: return "nothing happens";
   }
 }
+
+// --- Build 4b (owner, 2026-11-08: "go for 4b"): the sounds, the illusions, Dancing Lights, the patches, Mage Hand's
+// levers and containers ----------------------------------------------------------------------------------------
+
+using rules::ImageKind;
+using rules::SoundPlay;
+
+bool Investigates() { return g_config.heard_investigates && g_config.perception == rules::RuleVariant::kFaithful; }
+
+std::string Hex(uint32_t id) {
+  char text[16];
+  sprintf_s(text, "%x", id);
+  return text;
+}
+
+std::string Num(float value) {
+  char text[32];
+  sprintf_s(text, "%.2f", value);
+  return text;
+}
+
+// The creatures near the cast's point (n5c_at) that a sound or an image may move: not the caster's own (its party,
+// its associates), none fighting, talking or plot - "id:race:enemy:int;" (race NWN's racial type, enemy 1 when hostile
+// to the caster, int the Intelligence modifier); $SIGHT TRUE for those with a line to the point.
+const char* const kNear = R"nss(
+location l = GetLocalLocation(OBJECT_SELF, "n5c_at");
+object u = OBJECT_SELF;
+string r = "";
+object o = GetFirstObjectInShape(SHAPE_SPHERE, $METRES, l, $SIGHT, OBJECT_TYPE_CREATURE);
+while (GetIsObjectValid(o)) {
+  if (o != u && !GetIsPC(o) && !GetIsDead(o) && !GetIsInCombat(o) && GetCommandable(o) && !IsInConversation(o) &&
+      !GetPlotFlag(o) && !GetIsObjectValid(GetMaster(o)) && !GetFactionEqual(o, u) && !GetLocalInt(o, "nwn5e_seek") &&
+      GetTag(o) != "n5c_image") {
+    r += ObjectToString(o) + ":" + IntToString(GetRacialType(o)) + ":" + IntToString(GetIsEnemy(u, o)) + ":" +
+         IntToString(GetAbilityModifier(ABILITY_INTELLIGENCE, o)) + ";";
+  }
+  o = GetNextObjectInShape(SHAPE_SPHERE, $METRES, l, $SIGHT, OBJECT_TYPE_CREATURE);
+}
+SetLocalString(OBJECT_SELF, "n5c_near", r);
+)nss";
+
+struct Near {
+  uint32_t id = 0;
+  int race = 0;
+  bool enemy = false;
+  int intelligence = 0;
+};
+
+std::vector<Near> NearOf(void* caster, uint32_t self, float metres, bool sight) {
+  std::string code = kNear;
+  Replace(&code, "$METRES", Num(metres));
+  Replace(&code, "$SIGHT", sight ? "TRUE" : "FALSE");
+  Run(code, self, "the creatures near");
+  std::vector<Near> nearby;
+  const std::string list = engine::GetLocalString(caster, "n5c_near");
+  size_t at = 0;
+  while (at < list.size()) {
+    const size_t end = list.find(';', at);
+    if (end == std::string::npos) break;
+    Near n;
+    unsigned int id = 0;
+    int enemy = 0;
+    if (sscanf_s(list.substr(at, end - at).c_str(), "%x:%d:%d:%d", &id, &n.race, &enemy, &n.intelligence) == 4) {
+      n.id = id;
+      n.enemy = enemy != 0;
+      nearby.push_back(n);
+    }
+    at = end + 1;
+  }
+  return nearby;
+}
+
+// A creature fleeing the point for 2 rounds (Q7), as the caster's script.
+const char* const kFlee = R"nss(
+object o = StringToObject("$ID");
+location l = GetLocalLocation(OBJECT_SELF, "n5c_at");
+SetLocalInt(o, "nwn5e_seek", 1);
+AssignCommand(o, ClearAllActions());
+AssignCommand(o, ActionMoveAwayFromLocation(l, TRUE, 30.0));
+DelayCommand($SECONDS, AssignCommand(o, ClearAllActions()));
+DelayCommand($SECONDS, DeleteLocalInt(o, "nwn5e_seek"));
+SetLocalString(OBJECT_SELF, "n5c_name", GetName(o));
+)nss";
+
+// A creature coming to look at the point - searching, a look round, then home (as a light put out draws one,
+// light_sources.cpp); $ARRIVE runs as it gets there (an image's study).
+const char* const kLook = R"nss(
+object o = StringToObject("$ID");
+object u = OBJECT_SELF;
+location l = GetLocalLocation(OBJECT_SELF, "n5c_at");
+SetLocalInt(o, "nwn5e_seek", 25);
+location home = GetLocation(o);
+AssignCommand(o, ClearAllActions());
+SetActionMode(o, ACTION_MODE_DETECT, TRUE);
+AssignCommand(o, ActionMoveToLocation(l));
+$ARRIVE
+AssignCommand(o, ActionPlayAnimation(ANIMATION_FIREFORGET_HEAD_TURN_LEFT));
+AssignCommand(o, ActionPlayAnimation(ANIMATION_FIREFORGET_HEAD_TURN_RIGHT));
+AssignCommand(o, ActionWait($WAIT));
+AssignCommand(o, ActionMoveToLocation(home));
+AssignCommand(o, ActionDoCommand(SetActionMode(OBJECT_SELF, ACTION_MODE_DETECT, FALSE)));
+AssignCommand(o, ActionDoCommand(DeleteLocalInt(OBJECT_SELF, "nwn5e_seek")));
+SetLocalString(OBJECT_SELF, "n5c_name", GetName(o));
+)nss";
+
+std::string Joined(const std::vector<std::string>& parts) {
+  std::string line;
+  for (size_t i = 0; i < parts.size(); ++i) line += (i == 0 ? "" : i + 1 == parts.size() ? " and " : ", ") + parts[i];
+  return line;
+}
+
+// Minor Illusion's earlier image ends with a new cast (SRD 5.2.1: "The illusion ends if you cast this spell again").
+void EndImage(uint32_t self) {
+  Run("object old = GetLocalObject(OBJECT_SELF, \"n5c_image\"); if (GetIsObjectValid(old)) DestroyObject(old);"
+      "DeleteLocalObject(OBJECT_SELF, \"n5c_image\");",
+      self, "Minor Illusion's earlier image");
+}
+
+bool IsMinorIllusion(int row) {
+  const rules::ChoiceCantrip* cantrip = rules::ChoiceCantripOf(row);
+  return cantrip && cantrip->master == rules::kMinorIllusion;
+}
+
+// A sound at the point (Q6 A, Q7 A): its creatures - animals, beasts and vermin flee a scaring one for 2 rounds;
+// the others hostile to the caster come to look (heard_investigates); none fighting.
+const char* const kSound = R"nss(
+location l = GetLocalLocation(OBJECT_SELF, "n5c_at");
+object s = CreateObject(OBJECT_TYPE_PLACEABLE, "plc_invisobj", l, FALSE, "n5c_sound");
+AssignCommand(s, PlaySound("$SOUND"));
+$MORE
+DestroyObject(s, 8.0);
+)nss";
+
+void PlaySoundAt(uint32_t self, void* caster, UtilityEffect effect, const std::string& name) {
+  const SoundPlay play = rules::SoundPlayOf(effect);
+  std::string code = kSound;
+  Replace(&code, "$SOUND", rules::SoundResrefOf(effect));
+  // Footsteps: a few, one after another.
+  Replace(&code, "$MORE", effect == UtilityEffect::kIllusionFootsteps
+                              ? "DelayCommand(0.6, AssignCommand(s, PlaySound(\"fs_dirt_hard2\")));"
+                                "DelayCommand(1.2, AssignCommand(s, PlaySound(\"fs_dirt_hard3\")));"
+                                "DelayCommand(1.8, AssignCommand(s, PlaySound(\"fs_dirt_hard1\")));"
+                              : "");
+  CreatingFireLight(true);  // light_sources.cpp: the invisible object a normal placeable, so the clients hear it
+  Run(code, self, "a sound");
+  CreatingFireLight(false);
+  std::vector<std::string> done;
+  for (const Near& n : NearOf(caster, self, rules::kSoundHearingFeet * kMetresPerFoot, false)) {
+    if (play == SoundPlay::kScares && rules::FleesFromScaringSound(n.race)) {
+      std::string flee = kFlee;
+      Replace(&flee, "$ID", Hex(n.id));
+      Replace(&flee, "$SECONDS", std::to_string(rules::kScareSeconds) + ".0");
+      Run(flee, self, "a creature fleeing");
+      done.push_back(engine::GetLocalString(caster, "n5c_name") + " flees");
+    } else if (n.enemy && Investigates()) {
+      std::string look = kLook;
+      Replace(&look, "$ID", Hex(n.id));
+      Replace(&look, "$ARRIVE", "");
+      Replace(&look, "$WAIT", "6.0");
+      Run(look, self, "a creature coming to look");
+      done.push_back(engine::GetLocalString(caster, "n5c_name") + " comes to look");
+    }
+  }
+  TellPlayer(self, "nwn5e: " + name + " - " + (done.empty() ? std::string("no one near reacts") : Joined(done)) + ".");
+  if (LogSlot()) Log("cantrips: 0x%08X %s (%s): %zu react", self, name.c_str(), rules::SoundResrefOf(effect), done.size());
+}
+
+// Minor Illusion's image at the point for 1 minute - the game's own barrel, commoner or cat, inert: plot, unseen by
+// the AI (EffectEthereal: no one attacks it) and passed through (EffectCutsceneGhost: "things can pass through it").
+// The creatures hostile to the caster that see the point come to look; the one that gets there studies it - d20 +
+// its Intelligence against the spell save DC (rules::SeesThroughIllusion) - and the caster is told which.
+const char* const kImage = R"nss(
+location l = GetLocalLocation(OBJECT_SELF, "n5c_at");
+object i;
+if ($CREATURE) {
+  i = CreateObject(OBJECT_TYPE_CREATURE, "$BLUEPRINT", l, FALSE, "n5c_image");
+  ChangeToStandardFaction(i, STANDARD_FACTION_COMMONER);
+  SetPlotFlag(i, TRUE);
+  AssignCommand(i, ClearAllActions(TRUE));
+  ApplyEffectToObject(DURATION_TYPE_PERMANENT, SupernaturalEffect(EffectEthereal()), i);
+  ApplyEffectToObject(DURATION_TYPE_PERMANENT, SupernaturalEffect(EffectCutsceneGhost()), i);
+  SetCommandable(FALSE, i);
+} else {
+  i = CreateObject(OBJECT_TYPE_PLACEABLE, "$BLUEPRINT", l, FALSE, "n5c_image");
+  SetUseableFlag(i, FALSE);
+  SetPlotFlag(i, TRUE);
+}
+SetLocalObject(OBJECT_SELF, "n5c_image", i);
+DestroyObject(i, $SECONDS);
+SetLocalString(OBJECT_SELF, "n5c_image_name", GetName(i));
+)nss";
+
+void MakeImage(uint32_t self, void* caster, UtilityEffect effect, const std::string& name) {
+  const ImageKind kind = rules::ImageKindOf(effect);
+  std::string code = kImage;
+  Replace(&code, "$CREATURE", kind == ImageKind::kObject ? "FALSE" : "TRUE");
+  Replace(&code, "$BLUEPRINT", rules::ImageBlueprintOf(kind));
+  Replace(&code, "$SECONDS", std::to_string(rules::kMinorIllusionSeconds) + ".0");
+  Run(code, self, "Minor Illusion's image");
+  const std::string image = engine::GetLocalString(caster, "n5c_image_name");
+  const int dc = engine::GetLocalInt(caster, "n5c_dc");
+  std::vector<std::string> done;
+  if (Investigates()) {
+    for (const Near& n : NearOf(caster, self, rules::kImageSightFeet * kMetresPerFoot, true)) {
+      if (!n.enemy) continue;
+      const int d20 = RollEngineDice(1, 20);
+      const bool through = rules::SeesThroughIllusion(d20, n.intelligence, dc);
+      char id[16];
+      sprintf_s(id, "%x", n.id);
+      char arrive[400];
+      sprintf_s(arrive,
+                "AssignCommand(o, ActionDoCommand(SendMessageToPC(u, \"nwn5e: \" + GetName(o) + \" studies the %s: %s "
+                "(Investigation %d vs DC %d)\")));",
+                image.c_str(), through ? "sees through the illusion" : "is fooled", d20 + n.intelligence, dc);
+      std::string look = kLook;
+      Replace(&look, "$ID", id);
+      Replace(&look, "$ARRIVE", arrive);
+      Replace(&look, "$WAIT", through ? "2.0" : "6.0");
+      Run(look, self, "a creature coming to look");
+      done.push_back(engine::GetLocalString(caster, "n5c_name") + " comes to look");
+      if (LogSlot()) {
+        Log("cantrips: 0x%08X Minor Illusion's %s: 0x%08X comes to look - d20 %d %+d vs DC %d: %s", self, image.c_str(),
+            n.id, d20, n.intelligence, dc, through ? "sees through it" : "fooled");
+      }
+    }
+  }
+  TellPlayer(self, "nwn5e: " + name + " - a " + image + " there for a minute" +
+                       (done.empty() ? std::string(".") : "; " + Joined(done) + "."));
+}
+
+// Dancing Lights: four lights at the point (NWN's 5 m yellow light - Dim Light for the stealth rules - and a glow for
+// each orb's placeholder look), on Concentration for 1 minute (rules_concentration.cpp holds its spell's effects:
+// these carry the row cast); moved with a Bonus Action; out beyond 120 ft of the caster.
+struct Lights {
+  std::vector<uint32_t> ids;
+  int row = rules::kDancingLights;
+  uint64_t ends = 0;  // game ms
+  float x = 0.0f, y = 0.0f, z = 0.0f;
+};
+std::unordered_map<uint32_t, Lights> g_lights;  // by caster
+
+const char* const kLightsAt = R"nss(
+object a = GetArea(OBJECT_SELF);
+$DESTROY
+string ids = ""; int k;
+for (k = 0; k < $COUNT; k++) {
+  float dx = k % 2 == 0 ? -0.9 : 0.9;
+  float dy = k < 2 ? -0.9 : 0.9;
+  object o = CreateObject(OBJECT_TYPE_PLACEABLE, "plc_invisobj", Location(a, Vector($X + dx, $Y + dy, $Z), 0.0), FALSE,
+                          "n5c_dlight");
+  effect e = EffectLinkEffects(EffectVisualEffect(VFX_DUR_LIGHT_YELLOW_5), EffectVisualEffect(VFX_DUR_GLOW_LIGHT_YELLOW));
+  ApplyEffectToObject(DURATION_TYPE_TEMPORARY, SetEffectSpellId(e, $ROW), o, $SECONDS);
+  ids += ObjectToString(o) + ";";
+}
+SetLocalString(OBJECT_SELF, "n5c_dlights", ids);
+)nss";
+
+std::string DestroyCode(const std::vector<uint32_t>& ids) {
+  std::string code;
+  for (const uint32_t id : ids) {
+    char line[80];
+    sprintf_s(line, "DestroyObject(StringToObject(\"%x\"));", id);
+    code += line;
+  }
+  return code;
+}
+
+void LightsAt(uint32_t self, void* caster, Lights* lights, float x, float y, float z) {
+  const uint64_t now = GameMs();
+  const float seconds = lights->ends > now ? static_cast<float>(lights->ends - now) / 1000.0f : 0.0f;
+  std::string code = kLightsAt;
+  Replace(&code, "$DESTROY", DestroyCode(lights->ids));
+  Replace(&code, "$COUNT", std::to_string(rules::kDancingLightsCount));
+  Replace(&code, "$X", Num(x));
+  Replace(&code, "$Y", Num(y));
+  Replace(&code, "$Z", Num(z));
+  Replace(&code, "$ROW", std::to_string(lights->row));
+  Replace(&code, "$SECONDS", Num(seconds));
+  CreatingFireLight(true);  // the invisible objects normal placeables: the clients get their light
+  Run(code, self, "Dancing Lights");
+  CreatingFireLight(false);
+  lights->ids = ParseIds(engine::GetLocalString(caster, "n5c_dlights"));
+  lights->x = x;
+  lights->y = y;
+  lights->z = z;
+}
+
+void EndLights(uint32_t self, const char* why) {
+  const auto found = g_lights.find(self);
+  if (found == g_lights.end()) return;
+  Run(DestroyCode(found->second.ids), self, "Dancing Lights out");
+  g_lights.erase(found);
+  TellPlayer(self, std::string("nwn5e: Dancing Lights go out - ") + why + ".");
+  if (LogSlot()) Log("cantrips: 0x%08X Dancing Lights out - %s", self, why);
+}
+
+void PlaceLights(uint32_t self, void* caster, int row) {
+  Lights lights;
+  const auto old = g_lights.find(self);
+  if (old != g_lights.end()) {
+    lights.ids = old->second.ids;  // destroyed as the new ones come
+    g_lights.erase(old);
+  }
+  lights.row = row;
+  lights.ends = GameMs() + static_cast<uint64_t>(rules::kDancingLightsSeconds) * 1000;
+  Run("vector v = GetPositionFromLocation(GetLocalLocation(OBJECT_SELF, \"n5c_at\"));"
+      "SetLocalString(OBJECT_SELF, \"n5c_xyz\", FloatToString(v.x, 0, 2) + \" \" + FloatToString(v.y, 0, 2) + \" \" +"
+      " FloatToString(v.z, 0, 2));",
+      self, "the point");
+  float x = 0.0f, y = 0.0f, z = 0.0f;
+  if (sscanf_s(engine::GetLocalString(caster, "n5c_xyz").c_str(), "%f %f %f", &x, &y, &z) != 3) return;
+  LightsAt(self, caster, &lights, x, y, z);
+  g_lights[self] = lights;
+  TellPlayer(self, "nwn5e: Dancing Lights - four lights for 1 minute (Concentration); its Move takes them up to 60 feet "
+                   "(a Bonus Action).");
+  if (LogSlot()) Log("cantrips: 0x%08X Dancing Lights (row %d): %zu lights at %.1f, %.1f", self, row, lights.ids.size(), x, y);
+}
+
+float Feet(float dx, float dy) { return std::sqrt(dx * dx + dy * dy) / kMetresPerFoot; }
+
+// The Move: a Bonus Action (bonus_actions.h), up to 60 feet and within 120 of the caster; no cast.
+bool DancingLightsMoveGuard(void* creature, const SpellOrder& order) {
+  if (!creature || order.fake || static_cast<int>(order.spell) != rules::kDancingLightsMove) return false;
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  const auto found = g_lights.find(id);
+  if (found == g_lights.end()) {
+    TellPlayer(id, "nwn5e: Dancing Lights - no lights of yours to move: cast its Lights first.");
+    return true;
+  }
+  float x = order.x, y = order.y, z = order.z;
+  if (order.target != ee::kObjectInvalid && order.target != id) {
+    if (void* object = GameObjectById(order.target)) {
+      x = Field<float>(object, ee::kObjectPositionX);
+      y = Field<float>(object, ee::kObjectPositionY);
+      z = Field<float>(object, ee::kObjectPositionY + 4);
+    }
+  }
+  Lights& lights = found->second;
+  const float from_lights = Feet(x - lights.x, y - lights.y);
+  const float from_caster =
+      Feet(x - Field<float>(creature, ee::kObjectPositionX), y - Field<float>(creature, ee::kObjectPositionY));
+  if (!rules::DancingLightsMoveAllowed(from_lights, from_caster)) {
+    TellPlayer(id, "nwn5e: Dancing Lights - they move up to 60 feet, and stay within 120 feet of you.");
+    return true;
+  }
+  if (g_config.actions == rules::RuleVariant::kFaithful && !SpendBonusAction(creature, "Dancing Lights: Move")) return true;
+  LightsAt(id, creature, &lights, x, y, z);
+  TellPlayer(id, "nwn5e: Dancing Lights - they move.");
+  if (LogSlot()) Log("cantrips: 0x%08X Dancing Lights moved %.0f ft (%.0f ft from the caster)", id, from_lights, from_caster);
+  return true;
+}
+
+bool HasEffectOfSpellOn(uint32_t object_id, int spell) {
+  void* object = GameObjectById(object_id);
+  if (!object) return false;
+  void* const* list = Field<void* const*>(object, ee::kObjectEffects);
+  const int count = Field<int32_t>(object, ee::kObjectEffectCount);
+  if (!list || count <= 0 || count > 4096) return false;
+  for (int i = 0; i < count; ++i) {
+    if (list[i] && Field<int32_t>(list[i], ee::kEffectSpellId) == spell) return true;
+  }
+  return false;
+}
+
+// Their minute's end, Concentration ending (its effects gone from them), or 120 feet away: out.
+void LightsUpdate(void* creature) {
+  if (g_lights.empty() || !creature) return;
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  const auto found = g_lights.find(id);
+  if (found == g_lights.end()) return;
+  const Lights& lights = found->second;
+  if (GameMs() >= lights.ends) return EndLights(id, "their minute is over");
+  if (lights.ids.empty() || !HasEffectOfSpellOn(lights.ids.front(), lights.row)) {
+    return EndLights(id, "your Concentration ended");
+  }
+  const float feet = Feet(Field<float>(creature, ee::kObjectPositionX) - lights.x,
+                          Field<float>(creature, ee::kObjectPositionY) - lights.y);
+  if (feet > static_cast<float>(rules::kDancingLightsRangeFeet)) EndLights(id, "more than 120 feet from you");
+}
+
+// Mage Hand at a placeable that's no light: a container opens (unlocked) as if you stood by it - CNWSPlaceable::
+// OpenInventory, the window closing once you move as ever; a usable object is used - its OnUsed run with you as the
+// user (GetLastUsedBy: CNWSPlaceable +0x528).
+const char* const kHandAt = R"nss(
+int r = -1;
+if (GetObjectType(OBJECT_SELF) == OBJECT_TYPE_PLACEABLE) {
+  if (GetHasInventory(OBJECT_SELF)) r = GetLocked(OBJECT_SELF) ? 3 : 4;
+  else if (GetUseableFlag(OBJECT_SELF)) r = 5;
+}
+SetLocalInt(OBJECT_SELF, "n5c_hand", r + 10);
+SetLocalString(OBJECT_SELF, "n5c_name", GetName(OBJECT_SELF));
+)nss";
+constexpr size_t kPlaceableLastUsedBy = 0x528;  // ExecuteCommandGetLastUsedBy (+0x61)
+
+using GetGameObjectFn = void* (*)(void* app, uint32_t id);
+using CastFn = void* (*)(void* object);
+using OpenInventoryFn = void (*)(void* placeable, uint32_t opener);
+
+void* PlaceableById(uint32_t id) {
+  static const auto get = reinterpret_cast<GetGameObjectFn>(EngineExport(ee::kGetGameObject));
+  static void** app_manager = reinterpret_cast<void**>(EngineExport(ee::kAppManager));
+  if (!get || !app_manager || !*app_manager) return nullptr;
+  void* app = Field<void*>(*app_manager, ee::kAppManagerServerApp);
+  void* object = app ? get(app, id) : nullptr;
+  if (!object) return nullptr;
+  const auto cast = reinterpret_cast<CastFn>(reinterpret_cast<void* const*>(Field<void*>(object, 0))[ee::kVtableAsPlaceable / 8]);
+  return cast ? cast(object) : nullptr;
+}
+
+int HandAt(uint32_t self, uint32_t id, std::string* name) {
+  void* object = GameObjectById(id);
+  if (!object) return -1;
+  engine::SetLocalInt(object, "n5c_hand", 0);
+  Run(kHandAt, id, "Mage Hand at an object");
+  const int stored = engine::GetLocalInt(object, "n5c_hand");
+  const int r = stored ? stored - 10 : -1;
+  if (name) *name = engine::GetLocalString(object, "n5c_name");
+  void* placeable = r >= 4 ? PlaceableById(id) : nullptr;
+  if (r == 4) {
+    static const auto open = reinterpret_cast<OpenInventoryFn>(EngineExport("?OpenInventory@CNWSPlaceable@@QEAAXI@Z"));
+    if (!placeable || !open) return -1;
+    open(placeable, self);
+  }
+  if (r == 5) {
+    if (!placeable) return -1;
+    SetField<uint32_t>(placeable, kPlaceableLastUsedBy, self);
+    Run("string s = GetEventScript(OBJECT_SELF, EVENT_SCRIPT_PLACEABLE_ON_USED); if (s != \"\") ExecuteScript(s, OBJECT_SELF);",
+        id, "Mage Hand using an object");
+  }
+  return r;
+}
+
+// Q1 A: Beckon Water at the ground leaves a puddle for 1 minute, Beckon Earth a dust patch for 10 - looks for now
+// (vfx_persistent rows 103-104: Grease's slick; a dust puff a round, kDustHeartbeat), #142 their rules.
+constexpr const char* kDustHeartbeat = "n5c_dust_hb";
+
+void PlacePatch(uint32_t self, UtilityEffect effect) {
+  char code[300];
+  sprintf_s(code,
+            "ApplyEffectAtLocation(DURATION_TYPE_TEMPORARY, EffectAreaOfEffect(%d, \"\", \"%s\", \"\"), "
+            "GetLocalLocation(OBJECT_SELF, \"n5c_at\"), %d.0);",
+            rules::PatchAreaEffectOf(effect), effect == UtilityEffect::kBeckonEarth ? kDustHeartbeat : "",
+            rules::PatchSecondsOf(effect));
+  Run(code, self, "a patch");
+  if (LogSlot()) Log("cantrips: 0x%08X a patch (area effect %d) for %d s", self, rules::PatchAreaEffectOf(effect),
+                     rules::PatchSecondsOf(effect));
+}
+
+void DustHeartbeat(uint32_t self) {
+  Run("ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_DUST_EXPLOSION), GetLocation(OBJECT_SELF));",
+      self, "the dust patch");
+}
+
 
 void UtilityScript(uint32_t self) {
   void* caster = CreatureById(self);
@@ -219,10 +691,6 @@ void UtilityScript(uint32_t self) {
   const UtilityEffect effect = rules::UtilityEffectOf(row);
   if (effect == UtilityEffect::kNone) return;
   const std::string name = SpellNameOf(row);
-  if (effect == UtilityEffect::kPhantomSound) {
-    TellPlayer(self, "nwn5e: " + name + " - not here yet: it comes with the next build.");
-    return;
-  }
   std::string code = kTargets;
   char metres[32];
   sprintf_s(metres, "%.2f", rules::kElementCubeFeet * kMetresPerFoot);
@@ -241,6 +709,24 @@ void UtilityScript(uint32_t self) {
     PlaceMark(self, caster);
     return;
   }
+  if (IsMinorIllusion(row)) EndImage(self);  // a new cast ends the earlier illusion
+  if (rules::SoundPlayOf(effect) != SoundPlay::kNone) {
+    PlaySoundAt(self, caster, effect, name);
+    return;
+  }
+  if (rules::ImageKindOf(effect) != ImageKind::kNone) {
+    MakeImage(self, caster, effect, name);
+    return;
+  }
+  if (effect == UtilityEffect::kDancingLights) {
+    PlaceLights(self, caster, row);
+    return;
+  }
+  if (effect == UtilityEffect::kDancingLightsMove) {  // the order guard moves them; a script's cast can't
+    TellPlayer(self, "nwn5e: Dancing Lights - Move them from its menu (a Bonus Action).");
+    return;
+  }
+  if (rules::PatchAreaEffectOf(effect) >= 0 && !engine::GetLocalInt(caster, "n5c_at_object")) PlacePatch(self, effect);
   const FirePlay fire = rules::FirePlayOf(effect);
   const DoorPlay door = rules::DoorPlayOf(effect);
   if (fire == FirePlay::kNone && door == DoorPlay::kNone) {
@@ -261,6 +747,13 @@ void UtilityScript(uint32_t self) {
     const int r = FirePlayAt(self, id, fire, rules::kFirePlayDimSeconds);
     void* object = GameObjectById(id);
     what = object ? engine::GetLocalString(object, "n5c_name") : std::string("it");
+    if (r < 0 && effect == UtilityEffect::kMageHand) {  // build 4b: a lever or a container
+      const int used = HandAt(self, id, &what);
+      if (used == 3) done.push_back(what + " is locked");
+      if (used == 4) done.push_back(what + " opens");
+      if (used == 5) done.push_back("the hand works " + what);
+      continue;
+    }
     if (r == 1) done.push_back(what + " is lit");
     if (r == 2) done.push_back(what + (fire == FirePlay::kDim ? " dims out for a minute" : " goes out"));
     if (r == 0 && fire != FirePlay::kLight && fire != FirePlay::kSnuff) done.push_back(what + " is out already");
@@ -296,8 +789,13 @@ bool BoomingVoiceAdvantage(void* creature, int nwn_skill) {
 }
 
 void InstallUtilityCantrips() {
-  const bool scripts = AddScriptHandler("n5_c_utility", &UtilityScript);
+  const bool scripts = AddScriptHandler("n5_c_utility", &UtilityScript) &&
+                       AddScriptHandler(kDustHeartbeat, &DustHeartbeat);
+  const bool hooks = AddSpellOrderGuard(&DancingLightsMoveGuard) && AddCreatureUpdateListener(&LightsUpdate);
   Log("cantrips: build 4a - Druidcraft, Elementalism, Prestidigitation, Thaumaturgy, Mage Hand (Fire Play, the doors, "
       "Booming Voice, Magic Mark) (#39 Part 1)%s",
       scripts ? "" : " - SOME hooks missing");
+  Log("cantrips: build 4b - Minor Illusion, Phantom Sound, Animal Sound (sounds that draw or scare), the images, "
+      "Dancing Lights (its Move a Bonus Action), Mage Hand at levers and containers, the patches (#39 Part 1)%s",
+      scripts && hooks ? "" : " - SOME hooks missing");
 }

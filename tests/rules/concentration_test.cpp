@@ -57,7 +57,10 @@ TEST(ConcentrationSpellsAreSrd52) {
   CHECK_EQ(IsConcentrationSpell(325), false);  // a deleted row
   CHECK_EQ(IsConcentrationSpell(-1), false);
   const std::vector<int>& all = ConcentrationSpells();
-  CHECK_EQ(all.size(), 114u);  // 84 of NWN's rows, Guidance and 29 variants
+  CHECK_EQ(all.size(), 116u);  // 84 of NWN's rows, Guidance and 29 variants, Dancing Lights and its Lights
+  CHECK_EQ(IsConcentrationSpell(1131), true);
+  CHECK_EQ(IsConcentrationSpell(1132), true);
+  CHECK_EQ(IsConcentrationSpell(1133), false);  // the Move: a Bonus Action, no cast
   CHECK_EQ(std::is_sorted(all.begin(), all.end()), true);
   CHECK_EQ(std::adjacent_find(all.begin(), all.end()) == all.end(), true);  // no row twice
 }

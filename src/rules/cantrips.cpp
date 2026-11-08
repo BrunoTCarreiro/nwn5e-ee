@@ -109,8 +109,28 @@ std::vector<ChoiceCantrip> BuildChoiceCantrips() {
   ChoiceCantrip thaumaturgy{kThaumaturgy, "n5_c_utility", ChoiceKind::kMode,
                             {{1118, effect(UtilityEffect::kBoomingVoice), "Booming Voice"},
                              {1119, effect(UtilityEffect::kThaumaturgyFirePlay), "Fire Play"},
-                             {1120, effect(UtilityEffect::kInvisibleHand), "Invisible Hand"}}};
+                             {1120, effect(UtilityEffect::kInvisibleHand), "Invisible Hand"},
+                             {kPhantomWhispers, effect(UtilityEffect::kPhantomWhispers), "Phantom Sound: Whispers"},
+                             {kPhantomThunder, effect(UtilityEffect::kPhantomThunder), "Phantom Sound: Thunder"}}};
   all.push_back(thaumaturgy);
+  // Build 4b.
+  ChoiceCantrip druidcraft{kDruidcraft, "n5_c_utility", ChoiceKind::kMode,
+                           {{1107, effect(UtilityEffect::kFirePlay), "Fire Play"},
+                            {1108, effect(UtilityEffect::kAnimalSound), "Animal Sound"}}};
+  all.push_back(druidcraft);
+  ChoiceCantrip illusion{kMinorIllusion, "n5_c_utility", ChoiceKind::kMode,
+                         {{1124, effect(UtilityEffect::kIllusionVoices), "Sound: Voices"},
+                          {1125, effect(UtilityEffect::kIllusionFootsteps), "Sound: Footsteps"},
+                          {1126, effect(UtilityEffect::kIllusionRoar), "Sound: Roar"},
+                          {1127, effect(UtilityEffect::kIllusionThunder), "Sound: Thunder"},
+                          {1128, effect(UtilityEffect::kImageObject), "Image: Barrel"},
+                          {1129, effect(UtilityEffect::kImageHumanoid), "Image: Humanoid"},
+                          {1130, effect(UtilityEffect::kImageCreature), "Image: Small Creature"}}};
+  all.push_back(illusion);
+  ChoiceCantrip lights{kDancingLights, "n5_c_utility", ChoiceKind::kMode,
+                       {{kDancingLightsLights, effect(UtilityEffect::kDancingLights), "Lights"},
+                        {kDancingLightsMove, effect(UtilityEffect::kDancingLightsMove), "Move"}}};
+  all.push_back(lights);
   return all;
 }
 
@@ -286,11 +306,10 @@ void AddDamage(int16_t* entries, int count, uint32_t type, int amount) {
 
 UtilityEffect UtilityEffectOf(int spell) {
   if (spell == kMageHand) return UtilityEffect::kMageHand;
-  if (spell == kDruidcraft) return UtilityEffect::kFirePlay;  // 0.93.1: Fire Play alone, no menu
-  if (spell == kPhantomSound) return UtilityEffect::kPhantomSound;
   const ChoiceCantrip* cantrip = ChoiceCantripOf(spell);
   if (!cantrip || cantrip->kind != ChoiceKind::kMode || cantrip->options.empty()) return UtilityEffect::kNone;
-  if (cantrip->master != kElementalism && cantrip->master != kPrestidigitation && cantrip->master != kThaumaturgy) {
+  if (cantrip->master != kElementalism && cantrip->master != kPrestidigitation && cantrip->master != kThaumaturgy &&
+      cantrip->master != kDruidcraft && cantrip->master != kMinorIllusion && cantrip->master != kDancingLights) {
     return UtilityEffect::kNone;  // Produce Flame's modes are its own
   }
   const CantripOption* option = ChoiceOptionOf(spell);
@@ -328,7 +347,76 @@ int CantripRangeFeet(int spell) {
     return 0;  // on yourself (or not one)
   }
   const ChoiceCantrip* cantrip = ChoiceCantripOf(spell);
-  return cantrip && cantrip->master == kPrestidigitation ? 10 : 30;
+  if (cantrip && cantrip->master == kPrestidigitation) return 10;
+  if (cantrip && cantrip->master == kDancingLights) return kDancingLightsRangeFeet;
+  return 30;
+}
+
+SoundPlay SoundPlayOf(UtilityEffect effect) {
+  switch (effect) {
+    case UtilityEffect::kPhantomWhispers:
+    case UtilityEffect::kIllusionVoices:
+    case UtilityEffect::kIllusionFootsteps: return SoundPlay::kDraws;
+    case UtilityEffect::kAnimalSound:
+    case UtilityEffect::kPhantomThunder:
+    case UtilityEffect::kIllusionRoar:
+    case UtilityEffect::kIllusionThunder: return SoundPlay::kScares;
+    default: return SoundPlay::kNone;
+  }
+}
+
+bool FleesFromScaringSound(int nwn_racial_type) {
+  return nwn_racial_type == 8 || nwn_racial_type == 9 || nwn_racial_type == 25;
+}
+
+const char* SoundResrefOf(UtilityEffect effect) {
+  switch (effect) {
+    case UtilityEffect::kPhantomWhispers: return "as_pl_chantingm1";
+    case UtilityEffect::kIllusionVoices: return "as_pl_comtalk1";
+    case UtilityEffect::kIllusionFootsteps: return "fs_dirt_hard1";
+    case UtilityEffect::kAnimalSound: return "c_wolf_bat1";
+    case UtilityEffect::kIllusionRoar: return "c_bear_bat1";
+    case UtilityEffect::kPhantomThunder:
+    case UtilityEffect::kIllusionThunder: return "as_wt_thundercl1";
+    default: return "";
+  }
+}
+
+ImageKind ImageKindOf(UtilityEffect effect) {
+  switch (effect) {
+    case UtilityEffect::kImageObject: return ImageKind::kObject;
+    case UtilityEffect::kImageHumanoid: return ImageKind::kHumanoid;
+    case UtilityEffect::kImageCreature: return ImageKind::kCreature;
+    default: return ImageKind::kNone;
+  }
+}
+
+const char* ImageBlueprintOf(ImageKind kind) {
+  switch (kind) {
+    case ImageKind::kObject: return "plc_barrel";
+    case ImageKind::kHumanoid: return "nw_commale";
+    case ImageKind::kCreature: return "nw_cat";
+    default: return "";
+  }
+}
+
+bool SeesThroughIllusion(int d20, int investigation_bonus, int dc) { return d20 + investigation_bonus >= dc; }
+
+bool DancingLightsMoveAllowed(float feet_from_lights, float feet_from_caster) {
+  return feet_from_lights <= static_cast<float>(kDancingLightsMoveFeet) &&
+         feet_from_caster <= static_cast<float>(kDancingLightsRangeFeet);
+}
+
+int PatchAreaEffectOf(UtilityEffect effect) {
+  if (effect == UtilityEffect::kBeckonWater) return kPuddleAreaEffect;
+  if (effect == UtilityEffect::kBeckonEarth) return kDustAreaEffect;
+  return -1;
+}
+
+int PatchSecondsOf(UtilityEffect effect) {
+  if (effect == UtilityEffect::kBeckonWater) return 60;
+  if (effect == UtilityEffect::kBeckonEarth) return 600;
+  return 0;
 }
 
 int MoveWeaponDamage(int16_t* entries, int count, uint32_t type) {

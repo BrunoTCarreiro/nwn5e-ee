@@ -15,3 +15,4 @@ items = nw_wdbqs001 equip
 note = the Prepare spells window opens: Spellbook - add its spells; Cantrips - pick 4 (Fire Bolt, Ray of Frost, Acid Splash, Shocking Grasp ...); Prepared; Accept
 note = !spawn nw_orcb gives you an enemy to cast them at
 note = Elementalism, Prestidigitation and Mage Hand (build 4a): lights and doors; Prestidigitation's Magic Mark on the ground
+note = Minor Illusion and Dancing Lights (build 4b): sounds and images near a guard; four lights, moved with a Bonus Action; Mage Hand at a lever or a chest

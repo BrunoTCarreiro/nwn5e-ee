@@ -104,13 +104,14 @@ TEST(ChoiceCantripsAreSrd52) {
   for (const CantripOption& option : burst->options) {
     CHECK_EQ(option.value != 1u && option.value != 2u && option.value != 4u, true);  // no weapon damage
   }
-  // Every option's row is its master's +1, +2 ... and no row is two things.
+  // Every option's row comes after its master's (build 4b: Thaumaturgy's Thunder, 1134, after Mage Hand's 1122), and
+  // no row is two things.
   std::vector<int> rows;
   for (const ChoiceCantrip& cantrip : ChoiceCantrips()) {
     rows.push_back(cantrip.master);
     for (size_t i = 0; i < cantrip.options.size(); ++i) {
       rows.push_back(cantrip.options[i].spell);
-      if (i > 0) CHECK_EQ(cantrip.options[i].spell, cantrip.options[i - 1].spell + 1);
+      CHECK_EQ(cantrip.options[i].spell > cantrip.master, true);
     }
   }
   std::sort(rows.begin(), rows.end());
@@ -235,19 +236,23 @@ TEST(WeaponCantripDamage) {
 
 // #39 build 4a: the utility cantrips' menus - SRD 5.2.1's effects, less those the owner left out.
 TEST(UtilityCantrips) {
-  // 0.93.1 (owner, 2026-11-08: "weather sensor, bloom and sensory effect ... can be removed"): Druidcraft is Fire Play.
-  CHECK_EQ(ChoiceCantripOf(kDruidcraft) == nullptr, true);
-  CHECK_EQ(UtilityEffectOf(kDruidcraft) == UtilityEffect::kFirePlay, true);
+  // 0.93.1 took Weather Sensor, Bloom and Sensory Effect out; build 4b gave back the animal's sound (Q3 A).
+  const ChoiceCantrip* druidcraft = ChoiceCantripOf(kDruidcraft);
+  CHECK_EQ(druidcraft != nullptr, true);
+  CHECK_EQ(druidcraft->options.size(), 2u);
+  CHECK_EQ(UtilityEffectOf(kDruidcraft) == UtilityEffect::kFirePlay, true);  // cast with no choice: Fire Play
+  CHECK_EQ(UtilityEffectOf(1107) == UtilityEffect::kFirePlay, true);
+  CHECK_EQ(UtilityEffectOf(1108) == UtilityEffect::kAnimalSound, true);
   CHECK_EQ(UtilityEffectOf(1105) == UtilityEffect::kNone, true);  // its old menu's rows: unused
-  CHECK_EQ(UtilityEffectOf(1108) == UtilityEffect::kNone, true);
   const ChoiceCantrip* elementalism = ChoiceCantripOf(kElementalism);
   CHECK_EQ(elementalism->options.size(), 4u);  // no Sculpt Element
   CHECK_EQ(strcmp(elementalism->options[2].label, "Beckon Fire"), 0);
   const ChoiceCantrip* prestidigitation = ChoiceCantripOf(kPrestidigitation);
   CHECK_EQ(prestidigitation->options.size(), 2u);  // Fire Play and Magic Mark
   const ChoiceCantrip* thaumaturgy = ChoiceCantripOf(kThaumaturgy);
-  CHECK_EQ(thaumaturgy->options.size(), 3u);  // no Altered Eyes or Tremors; Phantom Sound with 4b
-  CHECK_EQ(thaumaturgy->options.back().spell + 1, kPhantomSound);  // its row next, reserved
+  CHECK_EQ(thaumaturgy->options.size(), 5u);  // no Altered Eyes or Tremors; Phantom Sound's whispers and thunder
+  CHECK_EQ(thaumaturgy->options[3].spell, kPhantomWhispers);
+  CHECK_EQ(thaumaturgy->options[4].spell, kPhantomThunder);
   CHECK_EQ(ChoiceCantripOf(kMageHand) == nullptr, true);              // no menu
   CHECK_EQ(UtilityEffectOf(1109) == UtilityEffect::kBeckonAir, true);  // cast with no choice: the first
   CHECK_EQ(UtilityEffectOf(1113) == UtilityEffect::kBeckonWater, true);
@@ -256,7 +261,8 @@ TEST(UtilityCantrips) {
   CHECK_EQ(UtilityEffectOf(1119) == UtilityEffect::kThaumaturgyFirePlay, true);
   CHECK_EQ(UtilityEffectOf(1120) == UtilityEffect::kInvisibleHand, true);
   CHECK_EQ(UtilityEffectOf(kMageHand) == UtilityEffect::kMageHand, true);
-  CHECK_EQ(UtilityEffectOf(kPhantomSound) == UtilityEffect::kPhantomSound, true);
+  CHECK_EQ(UtilityEffectOf(kPhantomWhispers) == UtilityEffect::kPhantomWhispers, true);
+  CHECK_EQ(UtilityEffectOf(kPhantomThunder) == UtilityEffect::kPhantomThunder, true);
   CHECK_EQ(UtilityEffectOf(kProduceFlameFlame) == UtilityEffect::kNone, true);  // a mode of its own
   CHECK_EQ(UtilityEffectOf(kProduceFlameHurl) == UtilityEffect::kNone, true);   // its mode 1 isn't Weather Sensor
   CHECK_EQ(UtilityEffectOf(1050) == UtilityEffect::kNone, true);
@@ -290,6 +296,77 @@ TEST(UtilityCantripEffects) {
   CHECK_EQ(CantripRangeFeet(kMageHand), 30);
   CHECK_EQ(CantripRangeFeet(1118), 0);    // Booming Voice
   CHECK_EQ(CantripRangeFeet(1050), 0);    // not one
+}
+
+// #39 build 4b: the sounds - which draw creatures, which scare beasts away (Q7 A), and who flees.
+TEST(UtilitySounds) {
+  CHECK_EQ(SoundPlayOf(UtilityEffect::kIllusionVoices) == SoundPlay::kDraws, true);
+  CHECK_EQ(SoundPlayOf(UtilityEffect::kIllusionFootsteps) == SoundPlay::kDraws, true);
+  CHECK_EQ(SoundPlayOf(UtilityEffect::kPhantomWhispers) == SoundPlay::kDraws, true);
+  CHECK_EQ(SoundPlayOf(UtilityEffect::kIllusionRoar) == SoundPlay::kScares, true);
+  CHECK_EQ(SoundPlayOf(UtilityEffect::kIllusionThunder) == SoundPlay::kScares, true);
+  CHECK_EQ(SoundPlayOf(UtilityEffect::kPhantomThunder) == SoundPlay::kScares, true);
+  CHECK_EQ(SoundPlayOf(UtilityEffect::kAnimalSound) == SoundPlay::kScares, true);
+  CHECK_EQ(SoundPlayOf(UtilityEffect::kImageObject) == SoundPlay::kNone, true);
+  CHECK_EQ(SoundPlayOf(UtilityEffect::kFirePlay) == SoundPlay::kNone, true);
+  CHECK_EQ(FleesFromScaringSound(8), true);    // animal
+  CHECK_EQ(FleesFromScaringSound(9), true);    // beast
+  CHECK_EQ(FleesFromScaringSound(25), true);   // vermin
+  CHECK_EQ(FleesFromScaringSound(19), false);  // magical beast
+  CHECK_EQ(FleesFromScaringSound(6), false);   // humanoid
+  for (UtilityEffect e : {UtilityEffect::kIllusionVoices, UtilityEffect::kIllusionFootsteps,
+                          UtilityEffect::kIllusionRoar, UtilityEffect::kIllusionThunder, UtilityEffect::kPhantomWhispers,
+                          UtilityEffect::kPhantomThunder, UtilityEffect::kAnimalSound}) {
+    CHECK_EQ(SoundResrefOf(e)[0] != 0, true);
+  }
+  CHECK_EQ(SoundResrefOf(UtilityEffect::kFirePlay)[0], 0);
+  CHECK_EQ(strcmp(SoundResrefOf(UtilityEffect::kIllusionThunder), SoundResrefOf(UtilityEffect::kPhantomThunder)), 0);
+  CHECK_EQ(kScareSeconds, 12);  // 2 rounds
+}
+
+// #39 build 4b: Minor Illusion's menu - four sounds and three images - and seeing through an image.
+TEST(MinorIllusion) {
+  const ChoiceCantrip* illusion = ChoiceCantripOf(kMinorIllusion);
+  CHECK_EQ(illusion != nullptr, true);
+  CHECK_EQ(illusion->options.size(), 7u);  // one radial page
+  CHECK_EQ(RadialChoicePage(7, 0).more, false);
+  CHECK_EQ(UtilityEffectOf(kMinorIllusion) == UtilityEffect::kIllusionVoices, true);  // no choice: the first
+  CHECK_EQ(UtilityEffectOf(1127) == UtilityEffect::kIllusionThunder, true);
+  CHECK_EQ(UtilityEffectOf(1130) == UtilityEffect::kImageCreature, true);
+  CHECK_EQ(ImageKindOf(UtilityEffectOf(1128)) == ImageKind::kObject, true);
+  CHECK_EQ(ImageKindOf(UtilityEffectOf(1129)) == ImageKind::kHumanoid, true);
+  CHECK_EQ(ImageKindOf(UtilityEffect::kIllusionVoices) == ImageKind::kNone, true);
+  CHECK_EQ(strcmp(ImageBlueprintOf(ImageKind::kObject), "plc_barrel"), 0);
+  CHECK_EQ(strcmp(ImageBlueprintOf(ImageKind::kHumanoid), "nw_commale"), 0);
+  CHECK_EQ(strcmp(ImageBlueprintOf(ImageKind::kCreature), "nw_cat"), 0);
+  CHECK_EQ(ImageBlueprintOf(ImageKind::kNone)[0], 0);
+  CHECK_EQ(SeesThroughIllusion(10, 2, 12), true);   // meets the DC
+  CHECK_EQ(SeesThroughIllusion(10, 1, 12), false);
+  CHECK_EQ(CantripRangeFeet(1124), 30);
+  CHECK_EQ(CantripRangeFeet(1121), 30);  // Phantom Sound
+  CHECK_EQ(CantripRangeFeet(1108), 30);  // Animal Sound
+}
+
+// #39 build 4b: Dancing Lights - 120 ft, its Move a Bonus Action up to 60 ft; the patches.
+TEST(DancingLightsAndPatches) {
+  const ChoiceCantrip* lights = ChoiceCantripOf(kDancingLights);
+  CHECK_EQ(lights != nullptr, true);
+  CHECK_EQ(lights->options.size(), 2u);
+  CHECK_EQ(UtilityEffectOf(kDancingLights) == UtilityEffect::kDancingLights, true);  // no choice: the lights
+  CHECK_EQ(UtilityEffectOf(kDancingLightsMove) == UtilityEffect::kDancingLightsMove, true);
+  CHECK_EQ(CantripRangeFeet(kDancingLightsLights), 120);
+  CHECK_EQ(CantripRangeFeet(kDancingLightsMove), 120);
+  CHECK_EQ(kDancingLightsCount, 4);
+  CHECK_EQ(DancingLightsMoveAllowed(60.0f, 100.0f), true);
+  CHECK_EQ(DancingLightsMoveAllowed(61.0f, 100.0f), false);   // farther than the move
+  CHECK_EQ(DancingLightsMoveAllowed(10.0f, 121.0f), false);   // out of the spell's range
+  CHECK_EQ(DancingLightsMoveAllowed(0.0f, 120.0f), true);
+  CHECK_EQ(PatchAreaEffectOf(UtilityEffect::kBeckonWater), kPuddleAreaEffect);
+  CHECK_EQ(PatchAreaEffectOf(UtilityEffect::kBeckonEarth), kDustAreaEffect);
+  CHECK_EQ(PatchAreaEffectOf(UtilityEffect::kBeckonFire), -1);
+  CHECK_EQ(PatchSecondsOf(UtilityEffect::kBeckonWater), 60);   // its water evaporates in 1 minute
+  CHECK_EQ(PatchSecondsOf(UtilityEffect::kBeckonEarth), 600);  // the owner's 10 minutes
+  CHECK_EQ(PatchSecondsOf(UtilityEffect::kBeckonAir), 0);
 }
 
 // 0.90.1: the effect icon each shows while it lasts - effecticons.2da rows 130-160, past the game's 129.

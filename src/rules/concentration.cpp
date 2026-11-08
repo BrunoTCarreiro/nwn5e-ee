@@ -126,6 +126,8 @@ const std::vector<int> kSpells = {
     1086,  // nwn5e_Guidance_Sleight_of_Hand - Guidance
     1087,  // nwn5e_Guidance_Stealth - Guidance
     1088,  // nwn5e_Guidance_Survival - Guidance
+    1131,  // nwn5e_Dancing_Lights - Dancing Lights (#39 build 4b)
+    1132,  // nwn5e_Dancing_Lights_Lights - Dancing Lights (its Move, 1133, is no cast)
 };
 
 }  // namespace

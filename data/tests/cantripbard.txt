@@ -16,3 +16,4 @@ items = nw_wswdg001 equip, nw_wswdg001 offhand, nw_wbwxl001, nw_wambo001 x20
 note = the Prepare spells window opens: Cantrips - pick Vicious Mockery, Starry Wisp, Light and True Strike; then your spells; Accept
 note = !spawn nw_orcb gives you an enemy to cast them at
 note = True Strike (build 3b): Radiant or the weapon's type, cast at a creature - one attack with Charisma, no other that round
+note = Minor Illusion and Dancing Lights (build 4b): sounds and images near a guard; four lights in the dark

@@ -437,6 +437,20 @@ std::vector<BonusStripItem> BonusActionStripItems(void* creature) {
   return items;
 }
 
+bool SpendBonusAction(void* creature, const char* what) {
+  if (!Faithful() || !creature) return true;
+  const uint32_t id = IdOf(creature);
+  BonusState& s = g_state[id];
+  if (!Free(id, s)) {
+    if (LogSlot()) Log("actions: 0x%08X %s refused - the round's Bonus Action is spent", id, what);
+    Tell(creature, std::string(what) + " - your Bonus Action is spent this round.");
+    return false;
+  }
+  Spend(id, &s);
+  if (LogSlot()) Log("actions: 0x%08X %s - the round's Bonus Action", id, what);
+  return true;
+}
+
 int BonusActionStatus(void* creature) {
   if (!Faithful() || !creature || g_state.empty()) return 0;
   const auto state = g_state.find(IdOf(creature));

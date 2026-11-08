@@ -28,6 +28,9 @@ struct BonusStripItem {
 };
 std::vector<BonusStripItem> BonusActionStripItems(void* creature);
 bool CancelWaitingBonusAction(void* creature);
+// #39 build 4b: a rule's own Bonus Action (Dancing Lights' Move): spends the round's if it's free (true), else tells
+// the player it's spent (false). True with `actions` in NWN mode (no Bonus Action).
+bool SpendBonusAction(void* creature, const char* what);
 // #127 (the round bar): 0 the round's Bonus Action free, 1 spent, 2 spent with one waiting for the next round.
 int BonusActionStatus(void* creature);
 // #127: the round bar (round_bar_window.cpp) - on unless turned off (!roundbar, Combat configuration).

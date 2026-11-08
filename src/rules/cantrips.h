@@ -188,13 +188,17 @@ int MoveWeaponDamage(int16_t* entries, int count, uint32_t type);
 // elements, yes, don't use it. Prestidigitation is mostly for light sources. and marks ... thaumaturgy don't do the
 // eyes and tremors", Q8 A), then "start building the utility cantrips". Each cantrip's radial menu (ChoiceKind::kMode)
 // lists its effects, the option's value a UtilityEffect:
-// - Druidcraft 1104 (Druid; 30 ft): Fire Play, no menu (0.93.1, owner, 2026-11-08: "weather sensor, bloom and
-//   sensory effect don't seem to do much, they can be removed"; rows 1105-1108 unused).
+// - Druidcraft 1104 (Druid; 30 ft): Fire Play (1107), Animal Sound (1108) - 0.93.1 (owner, 2026-11-08: "weather
+//   sensor, bloom and sensory effect don't seem to do much, they can be removed") took its other effects out; build 4b
+//   (owner, 2026-11-08: "Go with your recommendations", Q3 A) gave back the animal's sound. Rows 1105-1106 unused.
 // - Elementalism 1109 (Druid, Sorcerer, Wizard; 30 ft; a 5-foot Cube): Beckon Air, Beckon Earth, Beckon Fire,
 //   Beckon Water (no Sculpt Element).
 // - Prestidigitation 1114 (Bard, Sorcerer, Wizard; 10 ft): Fire Play, Magic Mark (up to three at a time, 1 hour).
-// - Thaumaturgy 1117 (Cleric; 30 ft): Booming Voice, Fire Play (Q8 A: dimmed out for 1 minute), Invisible Hand;
-//   Phantom Sound (1121) comes with build 4b.
+// - Thaumaturgy 1117 (Cleric; 30 ft): Booming Voice, Fire Play (Q8 A: dimmed out for 1 minute), Invisible Hand,
+//   Phantom Sound - whispers (1121) or thunder (1134).
+// - Build 4b: Minor Illusion 1123 (Bard, Sorcerer, Wizard; 30 ft; 1 minute) - a sound (voices, footsteps, a roar,
+//   thunder) or an image (an object, a humanoid, a small creature); Dancing Lights 1131 (Bard, Sorcerer, Wizard;
+//   120 ft; Concentration, 1 minute) - its lights (1132), moved with a Bonus Action (1133).
 // - Mage Hand 1122 (Bard, Sorcerer, Wizard; 30 ft): no menu - at a door it opens or shuts it (unlocked), at a light
 //   it lights or snuffs it.
 enum class UtilityEffect : uint32_t {
@@ -208,15 +212,32 @@ enum class UtilityEffect : uint32_t {
   kBoomingVoice,
   kThaumaturgyFirePlay,
   kInvisibleHand,
-  kPhantomSound,
+  kPhantomWhispers,
   kMageHand,
+  // Build 4b:
+  kAnimalSound,
+  kPhantomThunder,
+  kIllusionVoices,
+  kIllusionFootsteps,
+  kIllusionRoar,
+  kIllusionThunder,
+  kImageObject,
+  kImageHumanoid,
+  kImageCreature,
+  kDancingLights,
+  kDancingLightsMove,
 };
 constexpr int kDruidcraft = 1104;
 constexpr int kElementalism = 1109;
 constexpr int kPrestidigitation = 1114;
 constexpr int kThaumaturgy = 1117;
-constexpr int kPhantomSound = 1121;  // its row reserved for build 4b (not on the menu yet)
+constexpr int kPhantomWhispers = 1121;
 constexpr int kMageHand = 1122;
+constexpr int kMinorIllusion = 1123;
+constexpr int kDancingLights = 1131;
+constexpr int kDancingLightsLights = 1132;
+constexpr int kDancingLightsMove = 1133;
+constexpr int kPhantomThunder = 1134;
 constexpr int kMagicMarksAtOnce = 3;      // "up to three of its non-instantaneous effects active at a time"
 constexpr int kFirePlayDimSeconds = 60;   // Thaumaturgy's Fire Play: "for 1 minute"
 constexpr int kBoomingVoiceSeconds = 60;  // "for 1 minute"
@@ -237,7 +258,43 @@ enum class DoorPlay { kNone, kToggle, kClose };
 DoorPlay DoorPlayOf(UtilityEffect effect);
 // True when the effect fills Elementalism's 5-foot Cube (every light or door in it), not one object.
 bool FillsElementCube(UtilityEffect effect);
-// The range a row's effect reaches in feet (30; Prestidigitation's 10); 0: the row's own (on yourself, or not one).
+// The range a row's effect reaches in feet (30; Prestidigitation's 10; Dancing Lights' 120); 0: the row's own (on
+// yourself, or not one).
 int CantripRangeFeet(int spell);
+
+// --- Build 4b (owner, 2026-11-08: "go for 4b"): the sounds, the illusions, Dancing Lights, the patches ------------
+// Q7 A (owner, 2026-11-07: "A, but 2 turns"): voices, footsteps or whispers draw the creatures that hear them, which
+// come to look; a beast's roar or thunder (Druidcraft's Animal Sound too) makes animals, beasts and vermin flee from
+// it for 2 rounds, and the others come to look. A creature already fighting ignores either.
+enum class SoundPlay { kNone, kDraws, kScares };
+SoundPlay SoundPlayOf(UtilityEffect effect);
+// NWN's racial types that flee a scaring sound: animal 8, beast 9, vermin 25.
+bool FleesFromScaringSound(int nwn_racial_type);
+// The game's own sound for an effect ("" none).
+const char* SoundResrefOf(UtilityEffect effect);
+constexpr int kSoundHearingFeet = 60;  // how far creatures hear it, for these rules
+constexpr int kScareSeconds = 12;      // "flee ... for 2 rounds"
+// Minor Illusion's image (SRD 5.2.1: an object no larger than a 5-foot Cube; the owner's humanoid and small
+// creature fit it): the game's own blueprint ("" none), for 1 minute. Creatures that see it come to look; one that
+// gets there studies it - an Intelligence (Investigation) check against the spell save DC sees through it.
+enum class ImageKind { kNone, kObject, kHumanoid, kCreature };
+ImageKind ImageKindOf(UtilityEffect effect);
+const char* ImageBlueprintOf(ImageKind kind);
+bool SeesThroughIllusion(int d20, int investigation_bonus, int dc);
+constexpr int kMinorIllusionSeconds = 60;
+constexpr int kImageSightFeet = 60;
+// Dancing Lights: four lights at the point, Dim Light 10 ft each (NWN's 5 m light, the stealth rules' light), for
+// 1 minute on Concentration; a Bonus Action moves them up to 60 ft, and they go out more than 120 ft from the caster.
+constexpr int kDancingLightsCount = 4;
+constexpr int kDancingLightsSeconds = 60;
+constexpr int kDancingLightsMoveFeet = 60;
+constexpr int kDancingLightsRangeFeet = 120;
+bool DancingLightsMoveAllowed(float feet_from_lights, float feet_from_caster);
+// Q1 A (owner, 2026-11-08): Beckon Water at the ground leaves a puddle (1 minute: SRD 5.2.1's water evaporates in 1
+// minute), Beckon Earth a dust patch (10 minutes) - a look for now (#142 their rules), served vfx_persistent rows.
+constexpr int kPuddleAreaEffect = 103;
+constexpr int kDustAreaEffect = 104;
+int PatchAreaEffectOf(UtilityEffect effect);  // -1: none
+int PatchSecondsOf(UtilityEffect effect);
 
 }  // namespace rules

@@ -34,6 +34,7 @@ struct SpellOrder {
   bool spontaneous = false;
   uint32_t target = 0;
   bool fake = false;
+  float x = 0.0f, y = 0.0f, z = 0.0f;  // #39 build 4b: the point it's cast at (Dancing Lights' Move)
 };
 using SpellOrderGuard = bool (*)(void* creature, const SpellOrder& order);
 // The same hook as AddSpellCastGuard (asked after those guards); false (and logged) if it can't.

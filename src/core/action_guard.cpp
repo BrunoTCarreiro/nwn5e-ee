@@ -74,6 +74,9 @@ int AddCastSpellActions(void* creature, uint32_t spell, int class_slot, int doma
     order.spontaneous = spontaneous != 0;
     order.target = target;
     order.fake = fake != 0;
+    order.x = location.x;
+    order.y = location.y;
+    order.z = location.z;
     for (SpellOrderGuard guard : g_spell_order_guards) {
       if (guard(creature, order)) return 0;
     }

@@ -834,6 +834,29 @@ monster AC by CR.
     - *Decided (owner, 2026-11-08: "Go with your recommendations, but I'll design the looks, just tell me which VFX you
       need"):* A, A, A; the owner designs the new looks - the list of what each needs is on #143, and nwn5e serves
       the rows (visualeffects.2da, vfx_persistent.2da) for the owner's models when they're made.
+  - *Build 1's tests (owner, 2026-11-08: "CA matrix passes, check the logs. go for 4b"):* the log on 0.93.1 - Fire Bolt
+    2d10 (18), Ray of Frost 2d8 (11), Acid Splash 2d6 (10), Shocking Grasp 2d8 (5), Vicious Mockery 2d6 (8), Starry
+    Wisp 2d8 (9), Sacred Flame 2d8 (8); no script errors. CA-10 (a save that knew Daze) not run.
+  - *Built 0.94.0 (build 4b):* rows 1107-1108 (Druidcraft's Fire Play and Animal Sound - its menu again), 1121 and
+    1134 (Thaumaturgy's Phantom Sound: Whispers, Thunder), Minor Illusion 1123 (1124-1130: Sound - Voices,
+    Footsteps, Roar, Thunder; Image - a barrel, a humanoid, a small creature), Dancing Lights 1131 (1132 Lights, 1133
+    Move; Concentration). Sounds (rules::SoundPlayOf; the game's own files on an invisible object at the point): those
+    that draw - voices, footsteps, whispers - send the creatures hostile to the caster within 60 ft to look (searching,
+    a look round, home; heard_investigates); those that scare - a roar, thunder, the animal's sound - make animals,
+    beasts and vermin (racial types 8, 9, 25) flee 2 rounds, the others coming to look; none fighting, talking, plot
+    or the caster's. Minor Illusion's image: plc_barrel / nw_commale / nw_cat for 1 minute - the creatures commoner
+    faction, plot, ethereal (the AI doesn't see or attack it), a cutscene ghost (passed through), uncommandable; the
+    hostile creatures that see the point come to look and, getting there, study it (d20 + Intelligence vs the spell
+    save DC, rules::SeesThroughIllusion; the caster told); a new cast ends the earlier. Dancing Lights: four invisible
+    placeables at the point (VFX_DUR_LIGHT_YELLOW_5 - the stealth rules' light - and a yellow glow, the orbs'
+    placeholder), their effects the row cast (Concentration holds them; its end takes them off and the lights go), 1
+    minute; out beyond 120 ft. Its Move: a spell order guard (no cast) with the order's point (action_guard.h's
+    SpellOrder x, y, z), up to 60 ft and within 120 ft, a Bonus Action (bonus_actions.h's SpendBonusAction). Mage Hand
+    at a placeable that's no light: a container opens (CNWSPlaceable::OpenInventory - its window closes once you move,
+    as NWN's), a usable object is used (its OnUsed, GetLastUsedBy the caster: CNWSPlaceable +0x528); a locked one
+    stays shut. Beckon Water at the ground: a puddle (vfx_persistent 103, Grease's slick) 1 minute; Beckon Earth: a
+    dust patch (104, a dust puff a round) 10 minutes. Tests UtilitySounds, MinorIllusion, DancingLightsAndPatches; 16
+    of 16 mutations caught.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
