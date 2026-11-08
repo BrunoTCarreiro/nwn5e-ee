@@ -895,6 +895,9 @@ monster AC by CR.
   - *0.95.2:* nwn5e-tools 0d56019 - the bench clears a preview's node 10 s after the next Play or Stop (its end
     animation played at "root" when cleared at once); its preview keeps the world's directions for a position-only
     attach, as the game does (the owner keeps the hand flame centred, 0 0 z).
+    Also d9a4fb3 / da78091 (owner: "build it"): the bench's Turns with the character - the feet, chest and head
+    turn with it by default (a turning feet effect through set_effect_node(model, "root", false), mode 0), the hands
+    stay upright by default.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
