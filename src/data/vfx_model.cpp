@@ -679,6 +679,11 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
     bool emitter = false;
     bool p2p = false, p2p_sel = false;  // an emitter's flags (read in any order)
     std::vector<VfxKeys> keys;
+    // #145: a light node's own (its keys of colour and radius go in `keys`).
+    bool light = false;
+    float color[3] = {1, 1, 1};
+    float radius = 5.0f, multiplier = 1.0f;
+    bool shadow = false;
   };
   std::vector<Geo> geo;
   std::map<std::string, size_t> geo_at;  // lower-case name -> index
@@ -695,6 +700,14 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
         const size_t width = key_name == "positionkey" ? 4 : 5;
         VfxKeys* k = FindKeys(&geo[current].keys, anim, true);
         std::vector<float>& out = key_name == "positionkey" ? k->position : k->orientation;
+        for (const auto& row : rows) {
+          if (row.size() < width) continue;
+          out.insert(out.end(), row.begin(), row.begin() + width);
+        }
+      } else if (key_name == "colorkey" || key_name == "radiuskey") {  // #145, a light's
+        const size_t width = key_name == "colorkey" ? 4 : 2;
+        VfxKeys* k = FindKeys(&geo[current].keys, anim, true);
+        std::vector<float>& out = key_name == "colorkey" ? k->color : k->radius;
         for (const auto& row : rows) {
           if (row.size() < width) continue;
           out.insert(out.end(), row.begin(), row.begin() + width);
@@ -766,6 +779,7 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
         geo.back().kind = Lower(w[1]);
         current = static_cast<int>(geo.size()) - 1;
         geo_at.emplace(Lower(w[2]), geo.size() - 1);
+        geo.back().light = Lower(w[1]) == "light";  // #145
         if (Lower(w[1]) == "emitter") {
           geo.back().emitter = true;
           result.emitters.emplace_back();
@@ -797,6 +811,12 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       else if (first == "position") ReadFloats(w, 1, g.position, 3);
       else if (first == "orientation") ReadFloats(w, 1, g.orientation, 4);
       else if (first == "refmodel") g.ref_model = w[1];
+      if (g.light) {  // #145
+        if (first == "color") ReadFloats(w, 1, g.color, 3);
+        else if (first == "radius") g.radius = ToFloat(w[1]);
+        else if (first == "multiplier") g.multiplier = ToFloat(w[1]);
+        else if (first == "shadow") g.shadow = w[1] != "0";
+      }
       if (emitter < 0) continue;
       const auto on = [](const std::string& v) { return v != "0" && Lower(v) != "false"; };
       if (first == "p2p") g.p2p = on(w[1]);
@@ -862,7 +882,7 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
   };
   std::set<std::string> keep;
   for (const Geo& g : geo) {
-    if (!g.emitter) continue;
+    if (!g.emitter && !g.light) continue;  // #145: a light's ancestors too
     std::string up = g.parent;
     for (int depth = 0; depth < 64 && !is_root(up) && geo_at.count(Lower(up)); ++depth) {
       const Geo& parent = geo[geo_at[Lower(up)]];
@@ -894,6 +914,19 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
         e.keys = g.keys;
         if (g.p2p) e.p2p = g.p2p_sel ? "bezier" : "gravity";
       }
+      continue;
+    }
+    if (g.light) {  // #145
+      VfxLight l;
+      l.name = g.name;
+      l.parent = is_root(g.parent) ? std::string() : g.parent;
+      memcpy(l.position, g.position, sizeof(l.position));
+      memcpy(l.color, g.color, sizeof(l.color));
+      l.radius = g.radius;
+      l.multiplier = g.multiplier;
+      l.shadow = g.shadow;
+      l.keys = g.keys;
+      result.lights.push_back(l);
       continue;
     }
     const bool target = targets.count(Lower(g.name)) > 0;
@@ -1184,7 +1217,14 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
   // The nodes the emitters hang under (their ancestors up to the root, which is the effect's
   // own node), parents first - the game moves and turns them (0.42.3).
   std::set<size_t> emitter_nodes(nodes.begin(), nodes.end()), ancestors;
-  for (size_t node : nodes) {
+  // #145: the lights (node flags 0x002 at +0x5C) - their ancestors are kept as the emitters' are.
+  std::vector<size_t> light_nodes;
+  for (const GeoNode& g : geometry) {
+    if (g.node != root_node && (m.U32(g.node + 0x5C) & 0x002)) light_nodes.push_back(g.node);
+  }
+  std::vector<size_t> hung = nodes;
+  hung.insert(hung.end(), light_nodes.begin(), light_nodes.end());
+  for (size_t node : hung) {
     if (!geo_at.count(node)) continue;
     for (size_t up = geometry[geo_at[node]].parent; up && up != root_node && geo_at.count(up) && ancestors.insert(up).second;
          up = geometry[geo_at[up]].parent) {
@@ -1202,6 +1242,25 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
     AxisAngle(g.rot, turn);
     if (turn[3] > 1e-4f && (turn[0] || turn[1] || turn[2])) memcpy(n.orientation, turn, sizeof(turn));
     result.nodes.push_back(n);
+  }
+  // #145: each light - where it sits, its colour (76), radius (88) and brightness (the multiplier, 140), its shadow
+  // (+0xB0), as the game's own effect lights keep them (Task 0).
+  for (size_t node : light_nodes) {
+    const GeoNode& g = geometry[geo_at[node]];
+    VfxLight l;
+    l.name = g.name;
+    l.parent = parent_name(g);
+    memcpy(l.position, g.pos, sizeof(l.position));
+    std::vector<Controller> controllers;
+    if (ReadControllers(m, node, &controllers)) {
+      for (const Controller& c : controllers) {
+        if (c.type == 76 && c.columns == 3 && c.values.size() >= 3) memcpy(l.color, c.values.data(), sizeof(l.color));
+        if (c.type == 88 && c.columns == 1 && !c.values.empty()) l.radius = c.values[0];
+        if (c.type == 140 && c.columns == 1 && !c.values.empty()) l.multiplier = c.values[0];
+      }
+    }
+    l.shadow = m.U32(node + 0xB0) != 0;
+    result.lights.push_back(l);
   }
   // A point-to-point emitter's target: its first child that is a reference node (header flags
   // 0x10; the game's SetEmitterTarget takes the first child with a reference object), kept
@@ -1255,6 +1314,13 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
       for (VfxEmitter& e : result.emitters) {
         if (Lower(e.name) == name) keys = &e.keys;
       }
+      const VfxLight* lit = nullptr;  // #145
+      for (VfxLight& l : result.lights) {
+        if (Lower(l.name) == name) {
+          keys = &l.keys;
+          lit = &l;
+        }
+      }
       std::vector<Controller> controllers;
       if (!keys || !ReadControllers(m, copy, &controllers)) continue;
       const GeoNode& base = geometry[g->second];
@@ -1268,6 +1334,22 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
           for (size_t r = 0; r < rows; ++r) {
             out.push_back(c.times[r]);
             for (int k = 0; k < 3; ++k) out.push_back(c.values[r * 3 + k]);
+          }
+        } else if (lit && c.type == 76 && c.columns == 3 && c.values.size() >= rows * 3) {  // #145: a light's colour
+          bool shifts = rows >= 2;
+          for (int k = 0; k < 3 && !shifts; ++k) shifts = std::fabs(c.values[k] - lit->color[k]) > 1e-4f;
+          if (!shifts) continue;
+          std::vector<float>& out = FindKeys(keys, a.first, true)->color;
+          for (size_t r = 0; r < rows; ++r) {
+            out.push_back(c.times[r]);
+            for (int k = 0; k < 3; ++k) out.push_back(c.values[r * 3 + k]);
+          }
+        } else if (lit && c.type == 88 && c.columns == 1 && c.values.size() >= rows) {  // #145: its radius
+          if (rows < 2 && std::fabs(c.values[0] - lit->radius) <= 1e-4f) continue;
+          std::vector<float>& out = FindKeys(keys, a.first, true)->radius;
+          for (size_t r = 0; r < rows; ++r) {
+            out.push_back(c.times[r]);
+            out.push_back(c.values[r]);
           }
         } else if (c.type == 20 && c.columns == 4 && c.values.size() >= rows * 4) {
           bool turns = rows >= 2;
