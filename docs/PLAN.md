@@ -863,6 +863,10 @@ monster AC by CR.
     self-lit, faded out at its end), drawn additively (n5t_markNN.txi "blending additive": black shows as nothing -
     the files' alpha, at most 88, is left aside), visualeffects.2da 1840-1844 (OrientWithGround, OrientWithObject),
     rules::MagicMarkVisual.
+  - *0.94.2 (owner, 2026-11-08: "magic mark doesn't show anything on the place it was cast"):* the log - each mark made
+    (its placeable and visual); the symbols' alpha channel was 0 on every pixel the lines included (the stray 88s
+    aside), so the mark drew transparent - the same model path shows the light zones on placeables. The five TGAs are
+    re-saved 24-bit (the empty alpha dropped, the colours as they were; the originals in b4e8e3f).
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
