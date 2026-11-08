@@ -175,10 +175,16 @@ int DoorAt(uint32_t id, DoorPlay play, std::string* name) {
 }
 
 // Magic Mark: one of the owner's symbols (0.94.1: rules::MagicMarkVisual, a random one) flat on the ground at the
-// point, turned a random way, for an hour of play; the caster's fourth takes its oldest away.
+// point, turned a random way, for an hour of play; the caster's fourth takes its oldest away. 0.95.10 (the owner,
+// UT-15: "the magic marks are not on the ground, they are floating"): the point goes down to the walkmesh
+// (GetGroundHeight) - a click can give a point above it - and how far it went is logged.
 const char* const kMark = R"nss(
 location l = GetLocalLocation(OBJECT_SELF, "n5c_at");
-l = Location(GetAreaFromLocation(l), GetPositionFromLocation(l), IntToFloat(Random(360)));
+vector p = GetPositionFromLocation(l);
+float g = GetGroundHeight(l);
+SetLocalString(OBJECT_SELF, "n5c_mark_drop", g > -6.0 ? FloatToString(p.z - g, 0, 2) : "no ground");
+if (g > -6.0) p.z = g;
+l = Location(GetAreaFromLocation(l), p, IntToFloat(Random(360)));
 object m = CreateObject(OBJECT_TYPE_PLACEABLE, "plc_invisobj", l, FALSE, "n5c_mark");
 ApplyEffectToObject(DURATION_TYPE_PERMANENT, EffectVisualEffect($VFX), m);
 DestroyObject(m, $SECONDS);
@@ -205,7 +211,10 @@ void PlaceMark(uint32_t self, void* caster) {
     Run(destroy, self, "Magic Mark's oldest");
     marks.pop_front();
   }
-  if (LogSlot()) Log("cantrips: 0x%08X Magic Mark %s (%zu up)", self, mark.c_str(), marks.size());
+  if (LogSlot()) {
+    Log("cantrips: 0x%08X Magic Mark %s (%zu up; the point dropped %s m to the ground)", self, mark.c_str(),
+        marks.size(), engine::GetLocalString(caster, "n5c_mark_drop").c_str());
+  }
 }
 
 std::vector<uint32_t> ParseIds(const std::string& list) {

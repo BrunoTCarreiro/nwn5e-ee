@@ -876,8 +876,12 @@ monster AC by CR.
     VFX_DUR_CESSATE_POSITIVE, the link 0.92.2's probe showed never stays. Concentration's check and Resistance's 1d4
     both look for that effect. The marker is now the icon alone, a plain (magical) one as the conditions' icons are,
     so Dispel Magic still ends it (owner: "why can't dispel magic remove resistance or guidance? wasn't it supposed
-    to?" - a first build made it supernatural, never installed). Retests: CB-3b, CB-4 (Guidance) and CB-5 (Dispel
-    Magic ends Resistance) on 0.95.9.
+    to?" - a first build made it supernatural, never installed). Retests: CB-3b, CB-4 (Guidance) and CB-11 (Dispel
+    Magic ends Resistance) on 0.95.9 - all three passed (owner: "they all pass now").
+  - *0.95.10 (owner, 2026-11-08, UT-15: "the magic marks are not on the ground, they are floating"):* the mark's
+    invisible object and its ground node are at the target point's height, so a point above the walkmesh (a click
+    can give one) floats the mark. The point now goes down to GetGroundHeight, and the drop is logged ("the point
+    dropped N m to the ground").
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's
