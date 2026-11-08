@@ -173,6 +173,68 @@ TEST(VfxDraftWithoutALightUnchanged) {
   CHECK_EQ(ReadVfxDraft(text, &back, &error) && back.lights.empty(), true);
 }
 
+// #145: the model writes each light as a light node of its geometry - under its parent (a node of the effect), where it
+// sits, the flags the game's own effect lights carry (Task 0: dynamic, affecting creatures, no flare, priority 3, fading),
+// its colour, radius and brightness - and, in each animation, its colour and radius keys; the loop lasts its keys.
+std::string Section(const std::string& text, const std::string& from, const std::string& to) {
+  const size_t a = text.find(from), b = a == std::string::npos ? a : text.find(to, a);
+  return a == std::string::npos || b == std::string::npos ? std::string() : text.substr(a, b - a);
+}
+
+TEST(VfxModelWritesLight) {
+  VfxEffect effect;
+  VfxNode orbit;
+  orbit.name = "orbit";
+  effect.nodes.push_back(orbit);
+  VfxLight light;
+  light.name = "glow";
+  light.parent = "orbit";
+  light.position[2] = 1.25f;
+  light.color[1] = 0.5f;
+  light.color[2] = 0.25f;
+  light.radius = 6.0f;
+  light.multiplier = 1.5f;
+  light.shadow = true;
+  VfxKeys loop;
+  loop.anim = "duration";
+  loop.color = {0, 1, 0.5f, 0.25f, 1, 0.5f, 0.25f, 0.125f, 2.5f, 1, 0.5f, 0.25f};
+  loop.radius = {0, 6, 2.5f, 6};
+  VfxKeys start;
+  start.anim = "impact";
+  start.radius = {0, 0, 0.5f, 6};
+  light.keys = {start, loop};
+  effect.lights.push_back(light);
+  const std::string model = WriteVfxModel(effect, "n5t");
+  const std::string geometry = Section(model, "beginmodelgeom n5t", "endmodelgeom n5t");
+  const std::string node = Section(geometry, "node light n5t_l0_glow", "endnode");
+  CHECK_EQ(node.empty(), false);
+  for (const char* line : {"  parent n5t_n0_orbit\n", "  position 0 0 1.25\n", "  color 1 0.5 0.25\n", "  radius 6\n",
+                           "  multiplier 1.5\n", "  shadow 1\n", "  isdynamic 1\n", "  affectdynamic 1\n", "  ambientonly 0\n",
+                           "  lightpriority 3\n", "  fadingLight 1\n", "  flareradius 0\n"}) {
+    CHECK_EQ(node.find(line) != std::string::npos, true);
+  }
+  const std::string duration = Section(model, "newanim duration n5t", "doneanim duration n5t");
+  const std::string in_loop = Section(duration, "node light n5t_l0_glow", "endnode");
+  CHECK_EQ(in_loop.find("  parent n5t_n0_orbit\n") != std::string::npos, true);
+  CHECK_EQ(in_loop.find("  colorkey 3\n    0 1 0.5 0.25\n    1 0.5 0.25 0.125\n    2.5 1 0.5 0.25\n") != std::string::npos, true);
+  CHECK_EQ(in_loop.find("  radiuskey 2\n    0 6\n    2.5 6\n") != std::string::npos, true);
+  CHECK_EQ(duration.find("  length 2.5\n") != std::string::npos, true);  // the loop lasts its keys (2.5 s, over the 2 s default)
+  const std::string impact = Section(model, "newanim impact n5t", "doneanim impact n5t");
+  CHECK_EQ(Section(impact, "node light n5t_l0_glow", "endnode").find("  radiuskey 2\n    0 0\n    0.5 6\n") != std::string::npos, true);
+  const std::string cessation = Section(model, "newanim cessation n5t", "doneanim cessation n5t");
+  CHECK_EQ(Section(cessation, "node light n5t_l0_glow", "endnode").find("key") == std::string::npos, true);  // listed, no keys
+  CHECK_EQ(cessation.find("node light n5t_l0_glow") != std::string::npos, true);
+  // Without a parent: under the model's root; without shadow: shadow 0.
+  VfxEffect plain;
+  plain.lights.emplace_back();
+  const std::string p = Section(WriteVfxModel(plain, "n5p"), "node light n5p_l0_light", "endnode");
+  CHECK_EQ(p.find("  parent n5p\n") != std::string::npos && p.find("  shadow 0\n") != std::string::npos, true);
+}
+
+TEST(VfxModelWithoutALightUnchanged) {
+  CHECK_EQ(WriteVfxModel(Sample(), "n5s").find("node light") == std::string::npos, true);
+}
+
 TEST(VfxModelKeysEmission) {
   const std::string model = WriteVfxModel(Sample(), "n5vx0001");
   CHECK_EQ(Contains(model, "newmodel n5vx0001"), true);

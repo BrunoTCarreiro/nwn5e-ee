@@ -183,7 +183,7 @@ bool DraftKeyLine(const std::string& key, const std::vector<std::string>& words,
   return false;
 }
 
-// The last key's time in one animation, over the effect's nodes and emitters.
+// The last key's time in one animation, over the effect's nodes, emitters and lights (#145: their colour and radius).
 float LastKeyTime(const VfxEffect& effect, const std::string& anim) {
   float last = 0.0f;
   const auto scan = [&](const std::vector<VfxKeys>& keys) {
@@ -191,10 +191,13 @@ float LastKeyTime(const VfxEffect& effect, const std::string& anim) {
       if (k.anim != anim) continue;
       for (size_t i = 0; i + 3 < k.position.size(); i += 4) last = std::max(last, k.position[i]);
       for (size_t i = 0; i + 4 < k.orientation.size(); i += 5) last = std::max(last, k.orientation[i]);
+      for (size_t i = 0; i + 3 < k.color.size(); i += 4) last = std::max(last, k.color[i]);
+      for (size_t i = 0; i + 1 < k.radius.size(); i += 2) last = std::max(last, k.radius[i]);
     }
   };
   for (const VfxNode& n : effect.nodes) scan(n.keys);
   for (const VfxEmitter& e : effect.emitters) scan(e.keys);
+  for (const VfxLight& l : effect.lights) scan(l.keys);
   return last;
 }
 
@@ -276,6 +279,16 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
   const auto turn = [](const float o[4]) {
     return Num(o[0]) + " " + Num(o[1]) + " " + Num(o[2]) + " " + Num(o[3]);
   };
+  // #145: the lights - leaves (nothing hangs under them), under their parent (a node or an emitter of the effect, else
+  // the model's root), named as the nodes are.
+  std::vector<std::string> light_names;
+  for (size_t i = 0; i < effect.lights.size(); ++i) {
+    light_names.push_back(ModelNodeName(model, "l" + std::to_string(i), effect.lights[i].name));
+  }
+  const auto light_parent = [&](const VfxLight& l) {
+    const auto it = l.parent.empty() ? by_name.end() : by_name.find(l.parent);
+    return it == by_name.end() ? model : it->second;
+  };
 
   std::vector<std::string> lines = {
       "#MAXMODEL ASCII",
@@ -310,6 +323,27 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
       if (!line.empty()) lines.push_back(line);
     }
   }
+  // A light node each, with the flags the game's own effect lights carry (#145 Task 0: dynamic, affecting creatures,
+  // no flare, priority 3, fading; ambient-only off - it lights its surroundings).
+  for (size_t i = 0; i < effect.lights.size(); ++i) {
+    const VfxLight& l = effect.lights[i];
+    lines.push_back("node light " + light_names[i]);
+    lines.push_back("  parent " + light_parent(l));
+    lines.push_back("  position " + Num(l.position[0]) + " " + Num(l.position[1]) + " " + Num(l.position[2]));
+    lines.push_back("  orientation 0 0 0 0");
+    lines.push_back("  wirecolor 1 1 1");
+    lines.push_back("  ambientonly 0");
+    lines.push_back("  isdynamic 1");
+    lines.push_back("  affectdynamic 1");
+    lines.push_back(std::string("  shadow ") + (l.shadow ? "1" : "0"));
+    lines.push_back("  lightpriority 3");
+    lines.push_back("  fadingLight 1");
+    lines.push_back("  flareradius 0");
+    lines.push_back("  multiplier " + Num(l.multiplier));
+    lines.push_back("  radius " + Num(l.radius));
+    lines.push_back("  color " + Num(l.color[0]) + " " + Num(l.color[1]) + " " + Num(l.color[2]));
+    lines.push_back("endnode");
+  }
   lines.push_back("endmodelgeom " + model);
   // The impact: long enough for every emitter's emission (and, F, what it emitted to fade),
   // for the effect's own length and for its keys; the duration and cessation as long as the
@@ -338,6 +372,16 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
         for (size_t i = 0; i + 4 < k.orientation.size(); i += 5) {
           lines.push_back("    " + Num(k.orientation[i]) + " " + turn(&k.orientation[i + 1]));
         }
+      }
+      if (k.color.size() >= 4) {  // #145, a light's
+        lines.push_back("  colorkey " + std::to_string(k.color.size() / 4));
+        for (size_t i = 0; i + 3 < k.color.size(); i += 4) {
+          lines.push_back("    " + Num(k.color[i]) + " " + Num(k.color[i + 1]) + " " + Num(k.color[i + 2]) + " " + Num(k.color[i + 3]));
+        }
+      }
+      if (k.radius.size() >= 2) {
+        lines.push_back("  radiuskey " + std::to_string(k.radius.size() / 2));
+        for (size_t i = 0; i + 1 < k.radius.size(); i += 2) lines.push_back("    " + Num(k.radius[i]) + " " + Num(k.radius[i + 1]));
       }
     }
   };
@@ -374,6 +418,12 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
         lines.push_back("    " + Num(on + 0.01f) + " 0");
       }
       key_lines(e.keys, name);
+      lines.push_back("endnode");
+    }
+    for (size_t i = 0; i < effect.lights.size(); ++i) {  // #145
+      lines.push_back("node light " + light_names[i]);
+      lines.push_back("  parent " + light_parent(effect.lights[i]));
+      key_lines(effect.lights[i].keys, name);
       lines.push_back("endnode");
     }
     lines.push_back(std::string("doneanim ") + name + " " + model);
