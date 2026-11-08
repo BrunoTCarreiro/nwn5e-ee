@@ -23,7 +23,7 @@
 // - Build 2 (owner, 2026-11-07: "go for it"; decision 5 "recommendations": a menu, past its slots a "More"):
 //   Resistance (NWN's 151 rewritten), Guidance 1057 and Sorcerous Burst 1059 are cast through a choice - each
 //   option a variant row (rules::ChoiceCantrips; the radial's menu: rules_spell_slots.cpp). Resistance and
-//   Guidance put a marker on the creature touched (a tagged VFX_DUR_CESSATE_POSITIVE, its spell id the row cast;
+//   Guidance put a marker on the creature touched (a tagged effect icon, its spell id the row cast;
 //   Concentration, up to 1 minute, ends it): Resistance takes 1d4 off its type's damage once per turn
 //   (resistance.h's reducer, before Resistance halves it), Guidance adds 1d4 to checks with its skill
 //   (cantrip_effects.h: rules_skill_dcs.cpp's checks, !skill). Spare the Dying 1058 makes a player character at 0
@@ -312,7 +312,7 @@ constexpr int kAbilityCharisma = 5;
 constexpr float kMetresPerFoot = 0.3048f;
 
 // The row of the effect on `object` that one of `cantrip`'s rows put there (-1: none): its marker, a tagged
-// VFX_DUR_CESSATE_POSITIVE carrying the row cast as its spell id. The engine drops it at its end, or Concentration
+// effect icon carrying the row cast as its spell id. The engine drops it at its end, or Concentration
 // (rules_concentration.cpp) at the caster's.
 int ActiveRow(const void* object, const rules::ChoiceCantrip* cantrip) {
   if (!object || !cantrip) return -1;
@@ -353,7 +353,10 @@ std::string DamageName(uint32_t type) {
 
 // Resistance and Guidance on the creature touched: the marker (Concentration, up to 1 minute; an earlier one of the
 // same cantrip on it ends) - its effect icon on the effect bar, named for the option (0.90.1) - and a line to the
-// caster.
+// caster. 0.95.9 (the owner, CB-3: "concentration on resistance slashind disappears immediately"): the marker is
+// the icon alone, supernatural, as Shillelagh's. Linked with VFX_DUR_CESSATE_POSITIVE it never stayed (0.92.2's
+// probe), so 3 s after the cast Concentration found nothing of the spell and ended it, and Resistance never
+// stopped any damage. Supernatural: Dispel Magic doesn't take it off (Concentration's end does).
 const char* const kWard = R"nss(
 object t = GetSpellTargetObject();
 if (!GetIsObjectValid(t)) t = OBJECT_SELF;
@@ -361,7 +364,7 @@ SignalEvent(t, EventSpellCastAt(OBJECT_SELF, GetSpellId(), FALSE));
 effect e = GetFirstEffect(t);
 while (GetIsEffectValid(e)) { if (GetEffectTag(e) == "$TAG") RemoveEffect(t, e); e = GetNextEffect(t); }
 ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect($VIS), t);
-effect m = EffectLinkEffects(EffectIcon($ICON), EffectVisualEffect(VFX_DUR_CESSATE_POSITIVE));
+effect m = SupernaturalEffect(EffectIcon($ICON));
 ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(m, GetSpellId()), "$TAG"), t,
                     RoundsToSeconds(10));
 SetLocalString(OBJECT_SELF, "n5c_target", ObjectToString(t));

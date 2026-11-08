@@ -870,6 +870,12 @@ monster AC by CR.
   - *0.94.3 (owner, 2026-11-08: "There's an issue with the last mark (05) where the square it's inscribed in can be
     seen"):* its background was dark grey (35, 31, 32), not black - drawn additively, a faint square. Levels: that
     grey to black, the rest stretched (white stays white).
+  - *0.95.9 (owner, 2026-11-08: "CB-3 fails, concentration on resistance slashind disappears immediately"):* the
+    log - "concentrates on Resistance: Slashing", then 3 s later "is over (none of its effects left here)", with
+    or without damage. Build 2's marker for Resistance and Guidance was the icon linked with
+    VFX_DUR_CESSATE_POSITIVE, the link 0.92.2's probe showed never stays. Concentration's check and Resistance's 1d4
+    both look for that effect. The marker is now the icon alone (supernatural, as Shillelagh's): retests CB-3b, and
+    CB-4 (Guidance) on 0.95.9.
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's
