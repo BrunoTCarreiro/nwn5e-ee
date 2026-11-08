@@ -35,6 +35,11 @@ struct VfxLight {
   float radius = 5.0f;
   float multiplier = 1.0f;
   bool shadow = false;
+  // Its own flags, as a game effect's light has them (Task 0 saw each value); the defaults are a new light's.
+  bool ambient_only = false;  // lights only the ambient (ambientonly)
+  bool dynamic = true;        // a dynamic light (isdynamic / the binary's dynamic type)
+  int priority = 3;           // lightpriority: which lights the engine keeps past its limit
+  bool fading = true;         // fadingLight: fades in and out as it comes and goes
   std::vector<VfxKeys> keys;
 };
 
