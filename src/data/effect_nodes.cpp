@@ -97,4 +97,17 @@ EffectNodes EffectNodesFrom(const TwoDA& table) {
   return out;
 }
 
+bool FindEffectNode(const EffectNodes& rows, const EffectNodeOverrides& overrides, const std::string& model,
+                    EffectNode* where) {
+  const auto set = overrides.find(model);
+  if (set != overrides.end()) {
+    *where = set->second;
+    return true;
+  }
+  const auto row = rows.models.find(model);
+  if (row == rows.models.end()) return false;
+  *where = row->second;
+  return true;
+}
+
 }  // namespace data

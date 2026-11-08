@@ -36,4 +36,11 @@ bool ValidNodeName(const std::string& name);
 // nodes keeps the first row's. Each such case, and a row with a bad node name, is a line in `refused`.
 EffectNodes EffectNodesFrom(const TwoDA& table);
 
+// Nodes set at run time (the VFX bench's preview, core's DevSeam::set_effect_node): model (lower case) -> node.
+using EffectNodeOverrides = std::map<std::string, EffectNode>;
+
+// Where `model` (lower case) goes: its override if it has one, else its row's; false when neither names a node.
+bool FindEffectNode(const EffectNodes& rows, const EffectNodeOverrides& overrides, const std::string& model,
+                    EffectNode* where);
+
 }  // namespace data

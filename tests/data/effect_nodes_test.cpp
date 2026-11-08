@@ -58,6 +58,31 @@ TEST(EffectNodesFromRows) {
   CHECK_EQ(EffectNodesFrom(plain).models.empty(), true);
 }
 
+// The VFX bench's nodes, set at run time. Breaks caught: the row winning over an override, a removed override
+// still found, the row not found once its override is gone, a model with neither found.
+TEST(EffectNodesSetAtRunTime) {
+  EffectNodes rows;
+  rows.models["n5v_flame"] = EffectNode{"rhand", true};
+  EffectNodeOverrides overrides;
+  EffectNode where;
+  CHECK_EQ(FindEffectNode(rows, overrides, "n5v_flame", &where), true);
+  CHECK_EQ(where.node == "rhand", true);
+  overrides["n5v_flame"] = EffectNode{"lhand", false};
+  overrides["n5v_draft"] = EffectNode{"head", true};
+  CHECK_EQ(FindEffectNode(rows, overrides, "n5v_flame", &where), true);
+  CHECK_EQ(where.node == "lhand", true);
+  CHECK_EQ(where.upright, false);
+  CHECK_EQ(FindEffectNode(rows, overrides, "n5v_draft", &where), true);
+  CHECK_EQ(where.node == "head", true);
+  overrides.erase("n5v_flame");
+  overrides.erase("n5v_draft");
+  CHECK_EQ(FindEffectNode(rows, overrides, "n5v_flame", &where), true);
+  CHECK_EQ(where.node == "rhand", true);
+  CHECK_EQ(where.upright, true);
+  CHECK_EQ(FindEffectNode(rows, overrides, "n5v_draft", &where), false);
+  CHECK_EQ(FindEffectNode(rows, overrides, "vdr_glow", &where), false);
+}
+
 // Breaks caught: a space or a dash taken, an empty name taken, the 31-character limit off by one.
 TEST(EffectNodeNames) {
   CHECK_EQ(ValidNodeName("rhand"), true);

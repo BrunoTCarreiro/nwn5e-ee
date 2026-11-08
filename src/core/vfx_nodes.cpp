@@ -13,6 +13,9 @@
 // it turns with the node. Only a plain attach (mode 0 or 3) changes mode. AttachToPart (a node already found) is
 // treated the same. The rows are read from the served visualeffects.2da at the first rules load.
 //
+// The VFX bench (the dev layer, through DevSeam::set_effect_node) sets a model's node at run time, before its
+// row's: its preview goes on the hand while it plays.
+//
 // `!vfxnode <row> [seconds]` (debug_test_commands) puts a row's visual effect on you; `!vfxnode off` ends it.
 
 #include <windows.h>
@@ -26,6 +29,7 @@
 #include <memory>
 #include <mutex>
 #include <set>
+#include <shared_mutex>
 #include <string>
 #include <vector>
 
@@ -35,6 +39,7 @@
 #include "data/effect_nodes.h"
 #include "data/twoda.h"
 #include "data_serving.h"
+#include "dev_seam.h"
 #include "ee_layout.h"
 #include "effects.h"
 #include "hooks.h"
@@ -68,8 +73,10 @@ using GetPartFn = void* (*)(void* object, const char* name);
 
 AttachToObjectFn g_attach_to_object = nullptr;
 AttachToPartFn g_attach_to_part = nullptr;
-std::atomic<const data::EffectNodes*> g_nodes{nullptr};
-std::vector<std::unique_ptr<data::EffectNodes>> g_owned;  // every table read stays alive (a hook may be reading it)
+std::shared_mutex g_table_mutex;    // g_rows, g_overrides
+data::EffectNodes g_rows;           // the served visualeffects.2da's, read at the first rules load
+data::EffectNodeOverrides g_overrides;  // the VFX bench's (DevSeam::set_effect_node): before the rows
+std::atomic<bool> g_loaded{false};
 std::mutex g_log_mutex;
 std::set<std::string> g_logged_own;   // models already logged
 std::set<std::string> g_logged_game;
@@ -117,43 +124,45 @@ void Note(const std::string& model, const char* game_node, int game_mode, const 
 
 // The node of `target` that `self` goes on instead, with *node / *mode for the attach; nullptr when no row moves its
 // model or the target's model lacks that node (the game's attach then).
-void* Redirect(void* self, void* target, const char* game_node, int game_mode, const char** node, int* mode) {
+void* Redirect(void* self, void* target, const char* game_node, int game_mode, std::string* node, int* mode) {
   if (!self || !target) return nullptr;
   const char* name = ModelNameOf(self);
   if (!name || !*name) return nullptr;
   const std::string model = Lower(name);
-  const data::EffectNodes* nodes = g_nodes.load(std::memory_order_acquire);
-  const data::EffectNode* where = nullptr;
-  if (nodes) {
-    const auto found = nodes->models.find(model);
-    if (found != nodes->models.end()) where = &found->second;
+  data::EffectNode where;
+  bool found = false;
+  {
+    std::shared_lock<std::shared_mutex> lock(g_table_mutex);
+    found = data::FindEffectNode(g_rows, g_overrides, model, &where);
   }
-  if (!where) {
+  if (!found) {
     const bool own = model.compare(0, 2, "n5") == 0;
     if (own || model[0] == 'v') Note(model, game_node, game_mode, "", own);
     return nullptr;
   }
-  void* part = PartOf(target, where->node.c_str());
+  void* part = PartOf(target, where.node.c_str());
   if (!part) {
-    Note(model, game_node, game_mode, " - stays: the target's model has no \"" + where->node + "\"", true);
+    Note(model, game_node, game_mode, " - stays: the target's model has no \"" + where.node + "\"", true);
     return nullptr;
   }
-  *node = where->node.c_str();
-  *mode = ModeFor(*where, game_mode);
-  Note(model, game_node, game_mode, " - moved to \"" + where->node + "\" (mode " + std::to_string(*mode) + ")",
+  *node = where.node;
+  *mode = ModeFor(where, game_mode);
+  Note(model, game_node, game_mode, " - moved to \"" + where.node + "\" (mode " + std::to_string(*mode) + ")",
        true);
   return part;
 }
 
 void* AttachToObject(void* self, void* target, const char* node, int mode) {
-  const char* moved = nullptr;
+  std::string moved;
   int moved_mode = mode;
-  if (Redirect(self, target, node, mode, &moved, &moved_mode)) return g_attach_to_object(self, target, moved, moved_mode);
+  if (Redirect(self, target, node, mode, &moved, &moved_mode)) {
+    return g_attach_to_object(self, target, moved.c_str(), moved_mode);
+  }
   return g_attach_to_object(self, target, node, mode);
 }
 
 void* AttachToPart(void* self, void* target, void* part, int mode) {
-  const char* moved = nullptr;
+  std::string moved;
   int moved_mode = mode;
   if (void* other = Redirect(self, target, nullptr, mode, &moved, &moved_mode)) {
     return g_attach_to_part(self, target, other, moved_mode);
@@ -162,7 +171,7 @@ void* AttachToPart(void* self, void* target, void* part, int mode) {
 }
 
 void LoadNodes(void* /*rules*/, bool /*reload*/) {
-  if (g_nodes.load()) return;  // served once, at start
+  if (g_loaded.load()) return;  // served once, at start
   std::string bytes, why, error;
   data::TwoDA table;
   if (!ReadGameResource("visualeffects", ee::kResourceType2da, &bytes, &why)) {
@@ -173,19 +182,54 @@ void LoadNodes(void* /*rules*/, bool /*reload*/) {
     Log("SKIP effect nodes: visualeffects.2da not parsed (%s)", error.c_str());
     return;
   }
-  auto nodes = std::make_unique<data::EffectNodes>(data::EffectNodesFrom(table));
-  for (const std::string& line : nodes->refused) Log("effect nodes: %s", line.c_str());
+  data::EffectNodes nodes = data::EffectNodesFrom(table);
+  for (const std::string& line : nodes.refused) Log("effect nodes: %s", line.c_str());
   std::string list;
-  for (const auto& entry : nodes->models) {
+  for (const auto& entry : nodes.models) {
     if (list.size() > 400) {
       list += " ...";
       break;
     }
     list += (list.empty() ? "" : ", ") + entry.first + " -> " + entry.second.node + (entry.second.upright ? " (upright)" : "");
   }
-  Log("effect nodes: %zu models follow a node%s%s", nodes->models.size(), list.empty() ? "" : ": ", list.c_str());
-  g_nodes.store(nodes.get(), std::memory_order_release);
-  g_owned.push_back(std::move(nodes));
+  Log("effect nodes: %zu models follow a node%s%s", nodes.models.size(), list.empty() ? "" : ": ", list.c_str());
+  {
+    std::unique_lock<std::shared_mutex> lock(g_table_mutex);
+    g_rows = std::move(nodes);
+  }
+  g_loaded = true;
+}
+
+// DevSeam::set_effect_node (dev_seam.h): the VFX bench's preview model on a node, before its row's.
+bool SetEffectNode(const char* model, const char* node, bool upright) {
+  const std::string name = Lower(model);
+  const std::string where = Lower(node);
+  if (name.empty() || (!where.empty() && !data::ValidNodeName(where))) {
+    Log("effect nodes: the bench's node \"%s\" for \"%s\" refused (an empty model or a bad node name)", where.c_str(),
+        name.c_str());
+    return false;
+  }
+  {
+    std::unique_lock<std::shared_mutex> lock(g_table_mutex);
+    if (where.empty()) {
+      g_overrides.erase(name);
+    } else {
+      data::EffectNode set;
+      set.node = where;
+      set.upright = upright;
+      g_overrides[name] = set;
+    }
+  }
+  {
+    std::lock_guard<std::mutex> lock(g_log_mutex);
+    g_logged_own.erase(name);  // its next attach is logged again
+  }
+  if (where.empty()) {
+    Log("effect nodes: the bench's node for %s cleared", name.c_str());
+  } else {
+    Log("effect nodes: the bench puts %s on \"%s\"%s", name.c_str(), where.c_str(), upright ? " (upright)" : "");
+  }
+  return true;
 }
 
 std::vector<std::string> VfxNodeCommand(void* creature, const std::string& args) {
@@ -240,5 +284,6 @@ void InstallVfxNodes() {
     return;
   }
   OnRulesLoaded(&LoadNodes);
+  g_dev_seam.set_effect_node = &SetEffectNode;
   if (g_config.debug_test_commands) AddChatCommand("!vfxnode", &VfxNodeCommand);
 }

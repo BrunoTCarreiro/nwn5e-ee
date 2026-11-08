@@ -885,6 +885,9 @@ monster AC by CR.
     named NWN5E_... (data/twoda.cpp); data/effect_nodes.cpp reads the table: by model name, so a moved model needs
     its own name (one a row without a node also uses stays put, logged). Test rows 1845-1847 (right hand upright,
     left hand turning, head) with a marker (the owner's mark 05 on three crossed squares); `!vfxnode <row>`.
+  - *The VFX bench's seam (the animation session, 2026-11-08, relaying the owner's "yes, go for it" to hand
+    placement in the bench):* DevSeam::set_effect_node(model, node, upright), filled by core once the hooks are
+    in: a model's node set at run time, before its row's (data::FindEffectNode); an empty node removes it.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
