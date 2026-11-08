@@ -1156,3 +1156,23 @@ DecrementRoundLength - the round's timer stands still for the clip, then runs on
 later attacks keep their timing. Still waits for a swing in progress (pausing over it cut the swing - #121's bug).
 *Accepted (owner, 2026-11-03: "it's good")* on 0.66.2 (with #53's one swing per attack): six flourishes played, the
 only waits were for a swing in progress (90 and 478 ms), none dropped.
+
+### Lights in the VFX Bench's effects (2026-11-08, #145; plan docs/superpowers/plans/2026-11-08-vfx-bench-effect-light.md)
+
+*Asked (owner):* "can the vfx bench edit the light source of an effect?" -> "plan it" -> "go with native, start the light
+plan". *Found (Task 0, read-only):* 91 of the 489 effect models carry a light node (flag 0x002; its header at +0x60,
+shadow at +0xB0); the game keys only its colour (76: the fireball's flicker, Premonition's blue loop) and its radius
+(88: fades from and to 0), never the multiplier. *Built:*
+- vfx_model (src/data): a VfxEffect's lights (VfxLight: parent, position, colour, radius, multiplier, shadow, colour and
+  radius keys) through the draft (`[light <name>]` after the emitters, `<anim>_color` / `<anim>_radius`), the ASCII model
+  writer (`node light`, Aurora spelling - `isdynamic`, `affectdynamic`, `colorkey` / `radiuskey`; the animations last
+  their keys) and both readers (ASCII and compiled: a light's ancestors kept, its keys read). The library export is
+  format 12, so the game's effects come into the bench with their lights.
+- The VFX Bench (nwn5e-tools): the Lights card - add / remove, hangs under the point, a node or an emitter, position,
+  colour, radius, brightness, shadow; Flicker (colour keys in the loop, whole flickers, a pattern) and Fade in / out
+  (radius keys: a lasting effect's start and end, a one-shot's impact, lengthened to fit); its keys follow a changed
+  colour or radius; warnings past 4 lights or 20 m. The preview: a ground glow as wide as the light reaches there and a
+  halo at the light, following its keys.
+*Tests:* test.bat 424/0 (6 light tests in vfx_model_test: the draft both ways, the writer, the ASCII and compiled
+readers); check_effect.js 39 light checks; 39 breaks caught across the tasks. *In game:* L-0 passed on 0.95.3 (owner:
+"ok, it light's up" - the ASCII light loads and lights); L-1 (the fireball's own light read into the bench) on 0.95.4.
