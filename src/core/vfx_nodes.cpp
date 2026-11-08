@@ -152,11 +152,45 @@ void* Redirect(void* self, void* target, const char* game_node, int game_mode, s
   return part;
 }
 
+// #145 diagnosis (the owner: a turning effect on the chest starts along the world's axes whichever way the character
+// faces, then turns with it): at a moved attach of the VFX bench's previews (n5vx...), the turns - the effect's own
+// (Gob +0xB4, what Gob::SetOrientation writes), the target's, the node's in the world (Part::GetWorld, what the attach
+// copies every frame) and the object that walk ends on (its part +0x50) - before and after the game's attach.
+// Temporary: it goes with the fix.
+using GetWorldFn = void (*)(void* part, float* position, float* orientation);
+std::atomic<int> g_turn_logs{0};
+constexpr int kTurnLogCap = 16;
+
+std::string TurnOf(const void* object) {
+  if (!object) return "none";
+  const float* f = reinterpret_cast<const float*>(static_cast<const uint8_t*>(object) + 0xB4);
+  char text[96];
+  sprintf_s(text, "%.3f %.3f %.3f %.3f", f[0], f[1], f[2], f[3]);
+  return text;
+}
+
+void LogTurns(const char* when, void* self, void* target, const char* node) {
+  const char* name = self ? ModelNameOf(self) : nullptr;
+  if (!name || Lower(name).compare(0, 4, "n5vx") != 0 || g_turn_logs.fetch_add(1) >= kTurnLogCap) return;
+  void* part = target ? PartOf(target, node) : nullptr;
+  float position[3] = {0, 0, 0}, turn[4] = {0, 0, 0, 1};
+  // What the attach calls on the node every frame: its vtable +0x18 (Part::GetWorld for a plain node).
+  if (part) reinterpret_cast<GetWorldFn>((*static_cast<uintptr_t* const*>(part))[0x18 / 8])(part, position, turn);
+  void* owner = part ? *reinterpret_cast<void* const*>(static_cast<const uint8_t*>(part) + 0x50) : nullptr;
+  Log("effect nodes: turns %s %s on \"%s\" - effect %s; target %s; node in the world %.3f %.3f %.3f %.3f at %.2f %.2f %.2f; "
+      "the walk ends on %s",
+      when, name, node, TurnOf(self).c_str(), TurnOf(target).c_str(), turn[0], turn[1], turn[2], turn[3], position[0],
+      position[1], position[2], owner == target ? "the target" : owner ? ("another object, turned " + TurnOf(owner)).c_str() : "nothing");
+}
+
 void* AttachToObject(void* self, void* target, const char* node, int mode) {
   std::string moved;
   int moved_mode = mode;
   if (Redirect(self, target, node, mode, &moved, &moved_mode)) {
-    return g_attach_to_object(self, target, moved.c_str(), moved_mode);
+    LogTurns("before", self, target, moved.c_str());
+    void* result = g_attach_to_object(self, target, moved.c_str(), moved_mode);
+    LogTurns("after", self, target, moved.c_str());
+    return result;
   }
   return g_attach_to_object(self, target, node, mode);
 }
