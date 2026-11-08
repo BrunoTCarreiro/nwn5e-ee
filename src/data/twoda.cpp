@@ -113,6 +113,11 @@ bool ApplyRows(TwoDA* table, const std::string& rows_text, std::string* error, i
         for (size_t c = 0; c < table->columns.size(); ++c) {
           if (_stricmp(table->columns[c].c_str(), name.c_str()) == 0) found = static_cast<int>(c);
         }
+        if (found < 0 && _strnicmp(name.c_str(), kOwnColumnPrefix, strlen(kOwnColumnPrefix)) == 0) {
+          table->columns.push_back(name);  // #144: nwn5e's own column joins the table
+          for (std::vector<std::string>& row : table->rows) row.resize(table->columns.size(), kEmpty);
+          found = static_cast<int>(table->columns.size()) - 1;
+        }
         if (found < 0) {
           if (error) *error = "line " + std::to_string(line_number) + ": no column " + name;
           return false;

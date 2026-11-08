@@ -57,3 +57,31 @@ TEST(TwoDARowsMergeIntoTheTable) {
   CHECK_EQ(ApplyRows(&t, "NOPE\n1 x\n", &error, &changed), false);
   CHECK_EQ(ApplyRows(&t, "LABEL FEAT\n1 only-one\n", &error, &changed), false);
 }
+
+// #144: nwn5e's own columns (NWN5E_...) join the table. Breaks caught: such a column refused, any made-up
+// column accepted, the other rows not given "****" for it, a second rows file adding it twice, the written
+// table losing it.
+TEST(TwoDARowsAddOwnColumns) {
+  TwoDA t;
+  std::string error;
+  ParseTwoDA(kFeat, &t, &error);
+  int changed = 0;
+  CHECK_EQ(ApplyRows(&t, "LABEL NWN5E_Node\n1 Hand rhand\n3 New lhand\n", &error, &changed), true);
+  CHECK_EQ(t.columns.size(), 5u);
+  CHECK_EQ(t.columns[4] == "NWN5E_Node", true);
+  CHECK_EQ(t.rows[0].size(), 5u);
+  CHECK_EQ(t.rows[0][4] == "****", true);
+  CHECK_EQ(t.rows[1][4] == "rhand", true);
+  CHECK_EQ(t.rows[1][2] == "425", true);  // its game columns untouched
+  CHECK_EQ(t.rows[2].size(), 5u);           // padding
+  CHECK_EQ(t.rows[3][4] == "lhand", true);
+  CHECK_EQ(ApplyRows(&t, "nwn5e_node\n0 head\n", &error, &changed), true);  // a second file: the same column
+  CHECK_EQ(t.columns.size(), 5u);
+  CHECK_EQ(t.rows[0][4] == "head", true);
+  CHECK_EQ(ApplyRows(&t, "NWN5X_NODE\n0 x\n", &error, &changed), false);  // only nwn5e's own prefix
+  CHECK_EQ(t.columns.size(), 5u);
+  TwoDA again;
+  CHECK_EQ(ParseTwoDA(WriteTwoDA(t), &again, &error), true);
+  CHECK_EQ(again.columns.size(), 5u);
+  CHECK_EQ(again.rows[1][4] == "rhand", true);
+}

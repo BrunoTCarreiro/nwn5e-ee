@@ -870,6 +870,21 @@ monster AC by CR.
   - *0.94.3 (owner, 2026-11-08: "There's an issue with the last mark (05) where the square it's inscribed in can be
     seen"):* its background was dark grey (35, 31, 32), not black - drawn additively, a faint square. Levels: that
     grey to black, the rest stretched (white stays white).
+- **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
+  allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
+  takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's
+  flame in the hand (#141). The game pins effects only to the head, the chest ("impact") and the feet ("root");
+  its "hand" casting glows sit at a fixed point in front of the chest (handconjure, linked to the model's base).
+  - *Recon:* the client attaches every model with Gob::AttachToObject(target, node name, mode) (exported): the
+    target's node found by name (GetPart, vtable +0x230), an attach behaviour keeping the model on it each frame -
+    mode 0 CAurBehaviorAttach (position and turning), 3 CAurBehaviorAttachNoOrientation (position only), 1 / 2 / 4
+    translate, rotate, GUI scale. Gob::GetModelName (vtable +0x18) names the attached model.
+  - *0.95.0:* core/vfx_nodes.cpp hooks AttachToObject and AttachToPart: a model that a visualeffects row sends to
+    a node (NWN5E_Node; NWN5E_NodeUpright 1 = position only, else turning with it; a plain attach's mode only)
+    goes there when the target's model has that node, else where the game puts it. Rows files may add columns
+    named NWN5E_... (data/twoda.cpp); data/effect_nodes.cpp reads the table: by model name, so a moved model needs
+    its own name (one a row without a node also uses stays put, logged). Test rows 1845-1847 (right hand upright,
+    left hand turning, head) with a marker (the owner's mark 05 on three crossed squares); `!vfxnode <row>`.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

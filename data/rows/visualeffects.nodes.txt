@@ -1,0 +1,11 @@
+# visualeffects.2da - #144 (0.95.0; owner, 2026-11-08: "I'd go for engine work as it allows for more flexibility
+# with effects later by allowing nodes to follow body parts"): effects that follow a body part. NWN5E_Node names
+# the node of the target's model a row's models go on (core/vfx_nodes.cpp: rhand, lhand, head, impact, or any
+# other node); NWN5E_NodeUpright 1 keeps them upright there (the node's position only), otherwise they turn with
+# it. A model moved this way needs a name of its own (data/effect_nodes.h). These three are tests (!vfxnode 1845,
+# 1846, 1847): a small glowing marker (n5v_nodetest_r, _l, _h - the owner's mark 05 symbol on three crossed
+# squares).
+Label Type_FD OrientWithGround Imp_Impact_Node NWN5E_Node NWN5E_NodeUpright
+1845 NWN5E_NODE_TEST_RHAND D 0 n5v_nodetest_r rhand 1
+1846 NWN5E_NODE_TEST_LHAND D 0 n5v_nodetest_l lhand 0
+1847 NWN5E_NODE_TEST_HEAD D 0 n5v_nodetest_h head 1
