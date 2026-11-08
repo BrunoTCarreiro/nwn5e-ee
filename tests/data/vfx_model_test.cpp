@@ -231,6 +231,150 @@ TEST(VfxModelWritesLight) {
   CHECK_EQ(p.find("  parent n5p\n") != std::string::npos && p.find("  shadow 0\n") != std::string::npos, true);
 }
 
+// #145 Task 3: a light read back from an ASCII model (the one the writer makes: draft -> model -> draft keeps it, its
+// parent node kept, its keys in each animation).
+TEST(VfxLightThroughTheAsciiModel) {
+  VfxEffect effect;
+  VfxNode orbit;
+  orbit.name = "orbit";
+  effect.nodes.push_back(orbit);
+  VfxNode lamp;  // only the light hangs under it: kept for the light's sake
+  lamp.name = "lamp";
+  effect.nodes.push_back(lamp);
+  VfxEmitter flame;
+  flame.name = "flame";
+  flame.parent = "orbit";
+  effect.emitters.push_back(flame);
+  VfxLight light;
+  light.name = "glow";
+  light.parent = "lamp";
+  light.position[2] = 1.25f;
+  light.color[1] = 0.5f;
+  light.color[2] = 0.25f;
+  light.radius = 6.0f;
+  light.multiplier = 1.5f;
+  light.shadow = true;
+  VfxKeys loop;
+  loop.anim = "duration";
+  loop.color = {0, 1, 0.5f, 0.25f, 1, 0.5f, 0.25f, 0.125f, 2, 1, 0.5f, 0.25f};
+  loop.radius = {0, 6, 2, 6};
+  VfxKeys start;
+  start.anim = "impact";
+  start.radius = {0, 0, 0.5f, 6};
+  light.keys = {start, loop};
+  effect.lights.push_back(light);
+  VfxEffect back;
+  std::string error;
+  CHECK_EQ(ReadVfxAsciiModel(WriteVfxModel(effect, "n5r"), &back, &error), true);
+  CHECK_EQ(back.lights.size(), 1u);
+  if (back.lights.size() != 1) return;
+  const VfxLight& l = back.lights[0];
+  CHECK_EQ(l.name == "n5r_l0_glow", true);
+  CHECK_EQ(l.parent == "n5r_n1_lamp", true);
+  CHECK_EQ(Milli(l.position[2]), 1250);
+  CHECK_EQ(Milli(l.color[1]), 500);
+  CHECK_EQ(Milli(l.radius), 6000);
+  CHECK_EQ(Milli(l.multiplier), 1500);
+  CHECK_EQ(l.shadow, true);
+  bool parent_kept = false;
+  for (const VfxNode& n : back.nodes) parent_kept = parent_kept || n.name == "n5r_n1_lamp";
+  CHECK_EQ(parent_kept, true);
+  const VfxKeys* d = nullptr;
+  const VfxKeys* i = nullptr;
+  for (const VfxKeys& k : l.keys) {
+    if (k.anim == "duration") d = &k;
+    if (k.anim == "impact") i = &k;
+  }
+  CHECK_EQ(d && d->color.size() == 12u && d->radius.size() == 4u && Milli(d->color[7]) == 125, true);
+  CHECK_EQ(i && i->radius.size() == 4u && Milli(i->radius[3]) == 6000, true);
+}
+
+// #145 Task 3: a light read from a compiled model, as the game's own effects keep theirs (Task 0): node flags 0x002 at
+// +0x5C, shadow at +0xB0, colour 76, radius 88, multiplier 140 - and its loop keys of colour and radius.
+TEST(VfxReadsALightFromACompiledModel) {
+  std::string b(0x1800, '\0');
+  const auto put32 = [&](size_t at, uint32_t v) { memcpy(&b[at], &v, 4); };
+  const auto put16 = [&](size_t at, uint16_t v) { memcpy(&b[at], &v, 2); };
+  const auto putf = [&](size_t at, float v) { memcpy(&b[at], &v, 4); };
+  const auto puts = [&](size_t at, const char* text) { memcpy(&b[at], text, strlen(text)); };
+  const size_t base = 12;
+  struct Ctrl {
+    uint32_t type;
+    int columns;
+    std::vector<float> times, values;
+  };
+  const auto node = [&](size_t at, const char* name, size_t keys, const std::vector<Ctrl>& ctrls) {
+    puts(at + 0x10, name);
+    const size_t data = keys + 0x40;
+    uint16_t used = 0;
+    put32(at + 0x44, static_cast<uint32_t>(keys - base));
+    put32(at + 0x48, static_cast<uint32_t>(ctrls.size()));
+    put32(at + 0x50, static_cast<uint32_t>(data - base));
+    for (size_t i = 0; i < ctrls.size(); ++i) {
+      const Ctrl& c = ctrls[i];
+      const size_t k = keys + 12 * i;
+      put32(k, c.type);
+      put16(k + 4, static_cast<uint16_t>(c.times.size()));
+      put16(k + 6, used);
+      for (float t : c.times) putf(data + 4 * used++, t);
+      put16(k + 8, used);
+      for (float v : c.values) putf(data + 4 * used++, v);
+      b[k + 10] = static_cast<char>(c.columns);
+    }
+    put32(at + 0x54, used);
+  };
+  const auto children = [&](size_t at, size_t array, const std::vector<size_t>& kids) {
+    put32(at + 0x38, static_cast<uint32_t>(array - base));
+    put32(at + 0x3C, static_cast<uint32_t>(kids.size()));
+    for (size_t i = 0; i < kids.size(); ++i) put32(array + 4 * i, static_cast<uint32_t>(kids[i] - 0x10 - base));
+  };
+  puts(base + 8, "test_lit");
+  // The geometry: root -> [Group01 (1 m up) -> eyes (an emitter), Lamp (0.5 m along x) -> glow (a light)].
+  put32(base + 0x48, static_cast<uint32_t>(0x100 - 0x10 - base));
+  node(0x100, "test_lit", 0x900, {{8, 3, {0}, {0, 0, 0}}});
+  children(0x100, 0x1600, {0x200, 0x500});
+  node(0x200, "Group01", 0x980, {{8, 3, {0}, {0, 0, 1}}});
+  children(0x200, 0x1610, {0x300});
+  node(0x500, "Lamp", 0xD80, {{8, 3, {0}, {0.5f, 0, 0}}});
+  children(0x500, 0x1640, {0x400});
+  node(0x300, "eyes", 0xA00, {{8, 3, {0}, {0, 0, 0}}});
+  puts(0x300 + 0x60 + 0x18, "Fountain");
+  puts(0x300 + 0x60 + 0x38, "Normal");
+  puts(0x300 + 0x60 + 0x78, "fxpa_eye1");
+  node(0x400, "glow", 0xA80, {{8, 3, {0}, {0, 0, 0.7f}}, {88, 1, {0}, {10}}, {140, 1, {0}, {1}}, {76, 3, {0}, {1, 0.75f, 0}}});
+  put32(0x400 + 0x5C, 0x003);  // header | light
+  put32(0x400 + 0xB0, 1);      // shadow
+  // The duration (2 s): the light's colour flickers, its radius holds.
+  puts(0x1000 + 8, "duration");
+  put32(0x1000 + 0x48, static_cast<uint32_t>(0x1100 - 0x10 - base));
+  putf(0x1000 + 0x70, 2.0f);
+  node(0x1100, "test_lit", 0xB00, {{8, 3, {0}, {0, 0, 0}}});
+  children(0x1100, 0x1620, {0x1200});
+  node(0x1200, "Group01", 0xB80, {});
+  children(0x1200, 0x1630, {0x1300});
+  node(0x1300, "glow", 0xC00, {{76, 3, {0, 1, 2}, {1, 0.75f, 0, 1, 1, 1, 1, 0.75f, 0}}, {88, 1, {0, 2}, {10, 8}}});
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxBinaryModel(b, &effect, &error), true);
+  CHECK_EQ(effect.lights.size(), 1u);
+  if (effect.lights.size() != 1) return;
+  const VfxLight& l = effect.lights[0];
+  CHECK_EQ(l.name == "glow" && l.parent == "Lamp", true);
+  CHECK_EQ(Milli(l.position[2]), 700);
+  CHECK_EQ(Milli(l.color[1]), 750);
+  CHECK_EQ(Milli(l.radius), 10000);
+  CHECK_EQ(Milli(l.multiplier), 1000);
+  CHECK_EQ(l.shadow, true);
+  bool parent_kept = false;
+  for (const VfxNode& n : effect.nodes) parent_kept = parent_kept || n.name == "Lamp";
+  CHECK_EQ(parent_kept, true);
+  const VfxKeys* d = nullptr;
+  for (const VfxKeys& k : l.keys) {
+    if (k.anim == "duration") d = &k;
+  }
+  CHECK_EQ(d && d->color.size() == 12u && Milli(d->color[5]) == 1000 && d->radius.size() == 4u && Milli(d->radius[3]) == 8000, true);
+}
+
 TEST(VfxModelWithoutALightUnchanged) {
   CHECK_EQ(WriteVfxModel(Sample(), "n5s").find("node light") == std::string::npos, true);
 }
