@@ -15,4 +15,4 @@ note = the Prepare spells window opens: Cantrips - pick Produce Flame (and other
 note = Produce Flame's radial menu: Flame (a Bonus Action, a light in your hand), Hurl (an action)
 note = !spawn nw_orcb gives you an enemy to hurl it at
 note = Shillelagh (build 3b): Force or Bludgeoning, a Bonus Action - the quarterstaff uses Wisdom and a d10 at level 5; a club in your pack to swap to
-note = Druidcraft and Elementalism (build 4a): their radial menus - Fire Play and Beckon Fire / Water at a lamp or torch, Beckon Air at an open door
+note = Druidcraft (build 4a): Fire Play at a lamp or torch; Elementalism's radial menu - Beckon Fire / Water at a light, Beckon Air at an open door

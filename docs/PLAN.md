@@ -813,6 +813,18 @@ monster AC by CR.
     underground no sky). Bloom, Sensory Effect, Beckon Earth: a visual and a line. Tests UtilityCantrips,
     UtilityCantripEffects; 16 of 16 mutations caught (a missed one - Produce Flame's modes taken as utility effects -
     fixed with a Hurl check). The Shillelagh probe's code out.
+  - *The owner's 0.93.0 run (2026-11-08):* "UT-2. weather sensor, bloom and sensory effect don't seem to do much, they
+    can be removed. Beackon water on the ground should leave a puddle. Actually, is there any "permanent" effect like
+    that in NWN? Beckin earth on the ground should leave some sort of effect, nothing happens. UT-11 can't target a
+    light source or a door with Thaumaturgy, the player has to target the PC and then use the cursor ... but
+    prestidigitation seems to work fine"; then "we'll need to review the vfx for all these effects" (#143). The log:
+    Fire Play, Beckon Fire / Water / Air, Invisible Hand, Booming Voice's advantage, the dim and its relight, Magic
+    Mark's three - as built. *0.93.1:* Druidcraft is Fire Play alone, cast at a light (no menu; rows 1105-1108
+    unused) - its Weather Sensor, Bloom and Sensory Effect out, the owner's call. The game offers a spell on an
+    object's radial only when its row's TargetType takes the object: a menu's row now takes every target its effects
+    take - Thaumaturgy 0x31 (yourself, a door, a light), Prestidigitation 0x34. Beckon Water's puddle and Beckon
+    Earth's patch: a decision (NWN's lasting ground effects are areas of effect - Grease, Web, the fogs; no puddle or
+    dust look among them).
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

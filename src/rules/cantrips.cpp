@@ -96,12 +96,6 @@ std::vector<ChoiceCantrip> BuildChoiceCantrips() {
   all.push_back(true_strike);
   // Build 4a: the utility cantrips, each a menu of its effects (the option's value a UtilityEffect).
   const auto effect = [](UtilityEffect e) { return static_cast<uint32_t>(e); };
-  ChoiceCantrip druidcraft{kDruidcraft, "n5_c_utility", ChoiceKind::kMode,
-                           {{1105, effect(UtilityEffect::kWeatherSensor), "Weather Sensor"},
-                            {1106, effect(UtilityEffect::kBloom), "Bloom"},
-                            {1107, effect(UtilityEffect::kSensoryEffect), "Sensory Effect"},
-                            {1108, effect(UtilityEffect::kFirePlay), "Fire Play"}}};
-  all.push_back(druidcraft);
   ChoiceCantrip elementalism{kElementalism, "n5_c_utility", ChoiceKind::kMode,
                              {{1110, effect(UtilityEffect::kBeckonAir), "Beckon Air"},
                               {1111, effect(UtilityEffect::kBeckonEarth), "Beckon Earth"},
@@ -292,11 +286,11 @@ void AddDamage(int16_t* entries, int count, uint32_t type, int amount) {
 
 UtilityEffect UtilityEffectOf(int spell) {
   if (spell == kMageHand) return UtilityEffect::kMageHand;
+  if (spell == kDruidcraft) return UtilityEffect::kFirePlay;  // 0.93.1: Fire Play alone, no menu
   if (spell == kPhantomSound) return UtilityEffect::kPhantomSound;
   const ChoiceCantrip* cantrip = ChoiceCantripOf(spell);
   if (!cantrip || cantrip->kind != ChoiceKind::kMode || cantrip->options.empty()) return UtilityEffect::kNone;
-  if (cantrip->master != kDruidcraft && cantrip->master != kElementalism && cantrip->master != kPrestidigitation &&
-      cantrip->master != kThaumaturgy) {
+  if (cantrip->master != kElementalism && cantrip->master != kPrestidigitation && cantrip->master != kThaumaturgy) {
     return UtilityEffect::kNone;  // Produce Flame's modes are its own
   }
   const CantripOption* option = ChoiceOptionOf(spell);
@@ -330,8 +324,7 @@ bool FillsElementCube(UtilityEffect effect) {
 
 int CantripRangeFeet(int spell) {
   const UtilityEffect effect = UtilityEffectOf(spell);
-  if (effect == UtilityEffect::kNone || effect == UtilityEffect::kWeatherSensor ||
-      effect == UtilityEffect::kBoomingVoice) {
+  if (effect == UtilityEffect::kNone || effect == UtilityEffect::kBoomingVoice) {
     return 0;  // on yourself (or not one)
   }
   const ChoiceCantrip* cantrip = ChoiceCantripOf(spell);

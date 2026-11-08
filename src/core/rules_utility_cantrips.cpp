@@ -1,14 +1,14 @@
 // #39 Part 1, build 4a: the utility cantrips - Fire Play and the doors (docs/PLAN.md "Phase 4"; owner, 2026-11-07:
 // "1A, 2A, 3A, 4 not too about the uses but A, 5 let's look into these deeper, 6 A ...", Q5's closer look, Q8 A, then
-// "start building the utility cantrips"), `spellcasting` faithful. One impact script, n5_c_utility, for Druidcraft,
-// Elementalism, Prestidigitation and Thaumaturgy (each a radial menu of its effects: rules::UtilityEffectOf) and Mage
-// Hand:
+// "start building the utility cantrips"), `spellcasting` faithful. One impact script, n5_c_utility, for Elementalism,
+// Prestidigitation and Thaumaturgy (each a radial menu of its effects: rules::UtilityEffectOf), Druidcraft (0.93.1:
+// Fire Play alone - its Weather Sensor, Bloom and Sensory Effect out, the owner's call) and Mage Hand:
 // - The target: the object it was cast at, or a point; Elementalism fills a 5-foot Cube (every light and door within
 //   1.5 m of the point). Ranges 30 ft, Prestidigitation's 10 ft (rules::CantripRangeFeet; rules_cantrips.cpp's
 //   ComputeSpellRange hook).
 // - Lights (light_sources.cpp's FirePlayAt - as a click, a hit or the Light spell: the deactivate animation, the
-//   area's lighting, the stealth light rule, the guards who see one go out): Fire Play (Druidcraft's,
-//   Prestidigitation's) and Mage Hand light or snuff one; Beckon Fire's embers light those in the Cube, Beckon Water's
+//   area's lighting, the stealth light rule, the guards who see one go out): Druidcraft, Prestidigitation's Fire
+//   Play and Mage Hand light or snuff one; Beckon Fire's embers light those in the Cube, Beckon Water's
 //   mist snuffs them; Thaumaturgy's Fire Play dims one out for 1 minute (Q8 A), then it burns again.
 // - Doors: Invisible Hand and Mage Hand open an unlocked shut door or shut an open one; Beckon Air's breeze shuts the
 //   open ones in the Cube.
@@ -16,8 +16,7 @@
 //   GetIsSkillSuccessful d20, !skill), its icon on the effect bar.
 // - Magic Mark: a blue glow at the point (an invisible placeable) for an hour of play, three at a time (the oldest
 //   goes).
-// - The rest a visual and a line: Weather Sensor (the area's weather now - NWN keeps no forecast; indoors or
-//   underground, no sky), Bloom, Sensory Effect, Beckon Earth.
+// - Beckon Earth: a visual and a line (a lasting patch waits for the owner's call, as Beckon Water's puddle).
 // Build 4b: Dancing Lights, Minor Illusion, Thaumaturgy's Phantom Sound (row 1121), Druidcraft's animal sound, Mage
 // Hand's levers and containers. NWN mode: none (they aren't NWN's spells).
 
@@ -103,25 +102,6 @@ $LOOK
 // Each effect's visual and line (the lights' and doors' lines come from what they did).
 std::string LookOf(UtilityEffect effect) {
   switch (effect) {
-    case UtilityEffect::kWeatherSensor:
-      return "object a = GetArea(OBJECT_SELF); string w;"
-             "if (GetIsAreaInterior(a) || !GetIsAreaAboveGround(a)) w = \"no sky here (indoors or underground)\";"
-             "else { int k = GetWeather(a);"
-             " if (k == WEATHER_RAIN) { w = \"rain\";"
-             "  ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_PULSE_WATER), OBJECT_SELF); }"
-             " else if (k == WEATHER_SNOW) { w = \"snow\";"
-             "  ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_FROST_S), OBJECT_SELF); }"
-             " else { w = \"clear skies\";"
-             "  ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectVisualEffect(VFX_DUR_GLOW_LIGHT_YELLOW), OBJECT_SELF, "
-             "6.0); } }"
-             "SendMessageToPC(OBJECT_SELF, \"nwn5e: Druidcraft - Weather Sensor: \" + w + "
-             "\" (the weather now: NWN keeps no forecast).\");";
-    case UtilityEffect::kBloom:
-      return "ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_PULSE_NATURE), l);"
-             "SendMessageToPC(OBJECT_SELF, \"nwn5e: Druidcraft - Bloom: a flower blossoms there.\");";
-    case UtilityEffect::kSensoryEffect:
-      return "ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_PULSE_WIND), l);"
-             "SendMessageToPC(OBJECT_SELF, \"nwn5e: Druidcraft - Sensory Effect: leaves fall on a gentle breeze.\");";
     case UtilityEffect::kBeckonAir:
       return "ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_PULSE_WIND), l);";
     case UtilityEffect::kBeckonEarth:

@@ -235,12 +235,11 @@ TEST(WeaponCantripDamage) {
 
 // #39 build 4a: the utility cantrips' menus - SRD 5.2.1's effects, less those the owner left out.
 TEST(UtilityCantrips) {
-  const ChoiceCantrip* druidcraft = ChoiceCantripOf(kDruidcraft);
-  CHECK_EQ(druidcraft != nullptr, true);
-  CHECK_EQ(druidcraft->kind == ChoiceKind::kMode, true);
-  CHECK_EQ(druidcraft->options.size(), 4u);
-  CHECK_EQ(strcmp(druidcraft->options[0].label, "Weather Sensor"), 0);
-  CHECK_EQ(strcmp(druidcraft->options[3].label, "Fire Play"), 0);
+  // 0.93.1 (owner, 2026-11-08: "weather sensor, bloom and sensory effect ... can be removed"): Druidcraft is Fire Play.
+  CHECK_EQ(ChoiceCantripOf(kDruidcraft) == nullptr, true);
+  CHECK_EQ(UtilityEffectOf(kDruidcraft) == UtilityEffect::kFirePlay, true);
+  CHECK_EQ(UtilityEffectOf(1105) == UtilityEffect::kNone, true);  // its old menu's rows: unused
+  CHECK_EQ(UtilityEffectOf(1108) == UtilityEffect::kNone, true);
   const ChoiceCantrip* elementalism = ChoiceCantripOf(kElementalism);
   CHECK_EQ(elementalism->options.size(), 4u);  // no Sculpt Element
   CHECK_EQ(strcmp(elementalism->options[2].label, "Beckon Fire"), 0);
@@ -250,9 +249,7 @@ TEST(UtilityCantrips) {
   CHECK_EQ(thaumaturgy->options.size(), 3u);  // no Altered Eyes or Tremors; Phantom Sound with 4b
   CHECK_EQ(thaumaturgy->options.back().spell + 1, kPhantomSound);  // its row next, reserved
   CHECK_EQ(ChoiceCantripOf(kMageHand) == nullptr, true);              // no menu
-  CHECK_EQ(UtilityEffectOf(1105) == UtilityEffect::kWeatherSensor, true);
-  CHECK_EQ(UtilityEffectOf(1104) == UtilityEffect::kWeatherSensor, true);  // cast with no choice: the first
-  CHECK_EQ(UtilityEffectOf(1108) == UtilityEffect::kFirePlay, true);
+  CHECK_EQ(UtilityEffectOf(1109) == UtilityEffect::kBeckonAir, true);  // cast with no choice: the first
   CHECK_EQ(UtilityEffectOf(1113) == UtilityEffect::kBeckonWater, true);
   CHECK_EQ(UtilityEffectOf(1115) == UtilityEffect::kFirePlay, true);
   CHECK_EQ(UtilityEffectOf(1116) == UtilityEffect::kMagicMark, true);
@@ -285,13 +282,12 @@ TEST(UtilityCantripEffects) {
   CHECK_EQ(FillsElementCube(UtilityEffect::kBeckonWater), true);
   CHECK_EQ(FillsElementCube(UtilityEffect::kFirePlay), false);
   CHECK_EQ(FillsElementCube(UtilityEffect::kMageHand), false);
-  CHECK_EQ(CantripRangeFeet(1108), 30);   // Druidcraft
+  CHECK_EQ(CantripRangeFeet(kDruidcraft), 30);
   CHECK_EQ(CantripRangeFeet(1112), 30);   // Elementalism
   CHECK_EQ(CantripRangeFeet(1115), 10);   // Prestidigitation
   CHECK_EQ(CantripRangeFeet(1116), 10);
   CHECK_EQ(CantripRangeFeet(1120), 30);   // Thaumaturgy
   CHECK_EQ(CantripRangeFeet(kMageHand), 30);
-  CHECK_EQ(CantripRangeFeet(1105), 0);    // Weather Sensor: on yourself
   CHECK_EQ(CantripRangeFeet(1118), 0);    // Booming Voice
   CHECK_EQ(CantripRangeFeet(1050), 0);    // not one
 }

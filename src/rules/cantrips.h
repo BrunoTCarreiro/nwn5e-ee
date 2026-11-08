@@ -188,7 +188,8 @@ int MoveWeaponDamage(int16_t* entries, int count, uint32_t type);
 // elements, yes, don't use it. Prestidigitation is mostly for light sources. and marks ... thaumaturgy don't do the
 // eyes and tremors", Q8 A), then "start building the utility cantrips". Each cantrip's radial menu (ChoiceKind::kMode)
 // lists its effects, the option's value a UtilityEffect:
-// - Druidcraft 1104 (Druid; 30 ft): Weather Sensor, Bloom, Sensory Effect, Fire Play.
+// - Druidcraft 1104 (Druid; 30 ft): Fire Play, no menu (0.93.1, owner, 2026-11-08: "weather sensor, bloom and
+//   sensory effect don't seem to do much, they can be removed"; rows 1105-1108 unused).
 // - Elementalism 1109 (Druid, Sorcerer, Wizard; 30 ft; a 5-foot Cube): Beckon Air, Beckon Earth, Beckon Fire,
 //   Beckon Water (no Sculpt Element).
 // - Prestidigitation 1114 (Bard, Sorcerer, Wizard; 10 ft): Fire Play, Magic Mark (up to three at a time, 1 hour).
@@ -198,9 +199,6 @@ int MoveWeaponDamage(int16_t* entries, int count, uint32_t type);
 //   it lights or snuffs it.
 enum class UtilityEffect : uint32_t {
   kNone,
-  kWeatherSensor,
-  kBloom,
-  kSensoryEffect,
   kFirePlay,
   kBeckonAir,
   kBeckonEarth,
@@ -225,8 +223,8 @@ constexpr int kBoomingVoiceSeconds = 60;  // "for 1 minute"
 constexpr int kElementCubeFeet = 5;       // Elementalism's 5-foot Cube
 constexpr int kBoomingVoiceIcon = 164;    // its effect icon (effecticons.2da)
 
-// A utility cantrip row's effect: a variant's; the cantrip cast with no choice, its first option's; Mage Hand's
-// own; kNone for any other row.
+// A utility cantrip row's effect: a variant's; the cantrip cast with no choice, its first option's; Druidcraft's
+// (Fire Play) and Mage Hand's own; kNone for any other row.
 UtilityEffect UtilityEffectOf(int spell);
 // How an effect plays with a light (light_sources.cpp): kToggle lights an unlit one and snuffs a lit one (Fire Play,
 // Mage Hand), kLight lights only (Beckon Fire's embers), kSnuff snuffs only (Beckon Water), kDim puts it out for a
