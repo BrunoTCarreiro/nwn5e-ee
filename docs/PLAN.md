@@ -5569,6 +5569,19 @@ it so the status cells are dropdowns where I can select the status". The process
 *Accepted (owner, 2026-11-08: "#147 accepted").* TR-1 to TR-4 passed; the owner marked results in the sheet's
 dropdowns, and they were read back.
 
+*Moved to a GitHub Project (#148; owner, 2026-11-08: "Argh, so I guess an excel file to track issues isn't the best
+as it cannot be read and edited by agents and myself at the same time, what else can we use?", then "go with A" - of
+a GitHub Project, Google Sheets, a claude.ai page with a database, or keeping Excel).*
+
+- The tests are on the "nwn5e tests" board (users/BrunoTCarreiro/projects/3), one item per test, edited by the owner
+  and the sessions at once. Its columns are Status (a dropdown), ID, Issue (a number), Version, Stream, Setup, Do,
+  Expect, Note, Added, Result date and Source; text columns hold 1024 characters, so each item's description holds
+  the whole test.
+- The 243 open and failed tests were moved. The passed, superseded and dropped ones stay in docs/tests.csv, the
+  archive, and `export` writes the board back into it.
+- scripts/tests_board.py (list, add, set, export, move) replaces tests_sheet.py, and TESTS.xlsx is retired. The
+  owner's last Excel results were carried over.
+
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
 Walked through one by one (issue, what NWN does, what 2024 does, what to
