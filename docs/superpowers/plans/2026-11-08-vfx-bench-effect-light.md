@@ -143,3 +143,26 @@
 
 - A fresh reviewer (the most capable model) on the whole range, with this Review Focus.
 - One fix pass under TDD.
+
+## Addendum 2026-11-08: Task 0 findings (read-only, from the game's own models)
+
+- **How common:** 91 of the 489 models named in visualeffects.2da carry a light node, 59 of them outside the SCENE_ rows. Examples: VFX_FNF_FIREBALL, VFX_IMP_FLAME_M, VFX_IMP_HEALING_S, VFX_DUR_PROT_PREMONITION, VFX_DUR_ANTI_LIGHT_10.
+- **The binary layout:**
+  - A light is node flag 0x002 (flags 0x3 with the header bit) at node +0x5C.
+  - Its header follows at +0x60: flare radius; flare arrays to +0xA0; then priority, ambientonly, dynamic type, affect dynamic, shadow, generate flare and fading light at +0xA0..+0xB8.
+- **Values seen:** priority 2-5, ambientonly 0/1, dynamic type 0/1, affect dynamic 1, shadow 0/1, no flares, fading light 0/1.
+- **Controllers:** 8 position, 20 orientation, 76 colour (3), 88 radius (1, metres), 140 multiplier (1).
+  - Radius: 4-14 in effects.
+  - Multiplier: 1-5.
+- **What the game keys, and where:**
+  - **Colour (76)** in impact, duration and cessation: the fireball's orange-white flicker, Premonition's looping blue, a fade to black at the end.
+  - **Radius (88):** fades in from 0 and out to 0 (VFX_DUR_ANTI_LIGHT_10, VFX_IMP_FLAME_M).
+  - **The multiplier is never keyed** in the samples.
+
+**Rulings:**
+- **Task 4's flicker** keys the colour (the light's colour times a factor), as the game does. A fade keys the radius, from 0 and back to 0. The multiplier (Brightness) stays static.
+- **The draft's key lines** are `colorkey` and `radiuskey`; there's no brightness key.
+- **The ASCII spelling** is the Aurora one:
+  - in the node: `node light` with `color`, `radius`, `multiplier`, `ambientonly`, `isdynamic`, `affectdynamic`, `shadow`, `lightpriority`, `fadingLight`, `flareradius`;
+  - in the animations: `colorkey` and `radiuskey`.
+- **The in-game check moves** to the first Play in game after Task 2. Nothing can play an ASCII light before the writer exists. The stop rule stands: if a written light doesn't load or doesn't light, try `nDynamicType` in place of `isdynamic`, then stop and report.
