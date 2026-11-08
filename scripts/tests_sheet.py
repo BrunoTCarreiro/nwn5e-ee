@@ -8,9 +8,14 @@ status is one of Open, Passed, Failed, Superseded, Dropped. This script writes T
 (git-ignored): one sheet, newest issue first, the header frozen, a filter on every column (it opens showing the Open
 tests; clear the Status filter to see them all), the status coloured. Standard library only.
 
-  python -I scripts/tests_sheet.py [register.csv] [out.xlsx]
+  python -I scripts/tests_sheet.py                      the sheet from docs/tests.csv
+  python -I scripts/tests_sheet.py set <#issue> <id> <status> [note]   a result (today's date), then the sheet
+  python -I scripts/tests_sheet.py add <rows.csv>       rows appended (same columns), then the sheet
+Edit the register only through these (or the csv module with newline=''): a cell may hold line breaks.
 """
 import csv
+import datetime
+import io
 import os
 import re
 import sys
@@ -175,9 +180,46 @@ PARTS = {
 }
 
 
+def write_register(path, rows):
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=FIELDS, lineterminator="\n")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow(row)
+    with open(path, "wb") as f:
+        f.write(buf.getvalue().encode("utf-8"))
+
+
+def edit(register, args):
+    rows = read_register(register)
+    if args[0] == "set" and len(args) in (4, 5):
+        issue, rid, status = args[1], args[2], args[3]
+        assert status in STATUSES, f"status {status!r}: one of {sorted(STATUSES)}"
+        hits = [row for row in rows if row["issue"] == issue and row["id"] == rid]
+        assert len(hits) == 1, f"{issue} {rid}: {len(hits)} rows"
+        hits[0]["status"] = status
+        hits[0]["result_date"] = "" if status == "Open" else datetime.date.today().isoformat()
+        if len(args) == 5:
+            hits[0]["note"] = args[4]
+        print(f"{issue} {rid}: {status}")
+    elif args[0] == "add" and len(args) == 2:
+        added = read_register(args[1])
+        rows += added
+        print(f"{len(added)} rows added")
+    else:
+        sys.exit(__doc__)
+    write_register(register, rows)
+    read_register(register)  # still valid (no row twice)
+
+
 def main():
-    register = sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "docs", "tests.csv")
-    out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(ROOT, "TESTS.xlsx")
+    register = os.path.join(ROOT, "docs", "tests.csv")
+    out = os.path.join(ROOT, "TESTS.xlsx")
+    if len(sys.argv) > 1 and sys.argv[1] in ("set", "add"):
+        edit(register, sys.argv[1:])
+    elif len(sys.argv) > 1:
+        register = sys.argv[1]
+        out = sys.argv[2] if len(sys.argv) > 2 else out
     rows = read_register(register)
     rows.sort(key=lambda row: -int(row["issue"][1:]))  # newest issue first; a stable sort keeps each issue's order
     parts = dict(PARTS)

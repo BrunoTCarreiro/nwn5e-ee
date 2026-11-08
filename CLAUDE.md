@@ -89,6 +89,9 @@ open ones").
   every column, open on the Open tests. It's rebuilt after every change to
   the register; an edit made in the spreadsheet is lost at the next
   rebuild, so results come in chat.
+- **Edit it only with** 
+  (a result, dated today) and  (rows in the
+  same columns). Both rebuild the sheet, and both keep a cell's line breaks.
 - **One writer:** the game session, on `main`. The animation session sends
   its rows with "anim ready" and its results by message; the game session
   adds them.
