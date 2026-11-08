@@ -888,8 +888,10 @@ monster AC by CR.
   - *The VFX bench's seam (the animation session, 2026-11-08, relaying the owner's "yes, go for it" to hand
     placement in the bench):* DevSeam::set_effect_node(model, node, upright), filled by core once the hooks are
     in: a model's node set at run time, before its row's (data::FindEffectNode); an empty node removes it.
-  - *0.95.1:* installed with the bench's side (nwn5e-tools c55deea the page, 0b9a555 the dev layer): "On the
-    character's" right or left hand and Stays upright for Play in game (the bench's own notes: docs/TOOLS-PLAN.md).
+  - *0.95.1:* installed with the bench's side (nwn5e-tools c55deea the page, 0b9a555 the dev layer, 40d27ee the
+    chest and head through the same seam): "On the character's" right or left hand, chest or head, and Stays upright
+    for Play in game (the bench's own notes: docs/TOOLS-PLAN.md). The game attaches its own effects with mode 3
+    (position only) at head, impact and root.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
