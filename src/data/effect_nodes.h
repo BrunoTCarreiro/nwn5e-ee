@@ -27,6 +27,25 @@ struct EffectNodes {
   std::vector<std::string> refused;       // why a row's node or model was left out, one line each
 };
 
+// The attach modes nwn5e chooses between (Gob::AttachToObject's last argument).
+constexpr int kAttachTurning = 0;       // CAurBehaviorAttach: the node's position and turning
+constexpr int kAttachPositionOnly = 3;  // CAurBehaviorAttachNoOrientation: its position only
+
+// The mode for a model a row moves: upright, position only; otherwise turning with the node. A mode the game asks
+// for other than those two (1 translate, 2 rotate, 4 GUI scale) stays.
+int EffectAttachMode(const EffectNode& where, int game_mode);
+
+// After a position-only attach (an effect whose row has no OrientWithObject) the client turns the effect's root part
+// to the world's axes - right for an upright effect, wrong for one nwn5e turned to mode 0, which would then start
+// on the world's axes and turn from there (the owner, 2026-11-08: "if I face south the flame still appears in
+// front of the PC"). Whether that reset must be skipped for an attach the game asked as `game_mode` and nwn5e made
+// `new_mode`.
+bool SkipsWorldAlignment(int game_mode, int new_mode);
+
+// Whether a Gob::SetPartPosition call is that reset: the part "root" (any case) turned to the identity (w 1, x y z
+// 0 - the engine's quaternion order).
+bool IsWorldAlignment(const char* part, const float turn[4]);
+
 // A node name a row may give: 1-31 letters, digits or '_' (a model's node names).
 bool ValidNodeName(const std::string& name);
 

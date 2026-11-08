@@ -83,6 +83,35 @@ TEST(EffectNodesSetAtRunTime) {
   CHECK_EQ(FindEffectNode(rows, overrides, "vdr_glow", &where), false);
 }
 
+// The attach mode and the game's world-aligned start (0.95.7). Breaks caught: upright and turning swapped, the
+// game's other modes changed, the reset skipped for an upright effect or one the game already turns, the reset
+// not recognised in another case, a turned part (or another part) taken for it.
+TEST(EffectAttachModes) {
+  EffectNode upright{"rhand", true};
+  EffectNode turning{"lhand", false};
+  CHECK_EQ(EffectAttachMode(upright, 0), 3);
+  CHECK_EQ(EffectAttachMode(upright, 3), 3);
+  CHECK_EQ(EffectAttachMode(turning, 3), 0);
+  CHECK_EQ(EffectAttachMode(turning, 0), 0);
+  CHECK_EQ(EffectAttachMode(turning, 1), 1);
+  CHECK_EQ(EffectAttachMode(upright, 4), 4);
+  CHECK_EQ(SkipsWorldAlignment(3, 0), true);   // the game would align it; nwn5e turns it
+  CHECK_EQ(SkipsWorldAlignment(3, 3), false);  // upright: the game's alignment is right
+  CHECK_EQ(SkipsWorldAlignment(0, 0), false);  // OrientWithObject: the game turns it and doesn't align it
+  CHECK_EQ(SkipsWorldAlignment(0, 3), false);
+  const float identity[4] = {1, 0, 0, 0};
+  const float turned[4] = {0.7071f, 0, 0, 0.7071f};
+  CHECK_EQ(IsWorldAlignment("root", identity), true);
+  CHECK_EQ(IsWorldAlignment("ROOT", identity), true);
+  CHECK_EQ(IsWorldAlignment("impact", identity), false);
+  CHECK_EQ(IsWorldAlignment("root", turned), false);
+  const float x_off[4] = {1, 0.25f, 0, 0}, y_off[4] = {1, 0, 0.25f, 0}, z_off[4] = {1, 0, 0, 0.25f};
+  CHECK_EQ(IsWorldAlignment("root", x_off), false);
+  CHECK_EQ(IsWorldAlignment("root", y_off), false);
+  CHECK_EQ(IsWorldAlignment("root", z_off), false);
+  CHECK_EQ(IsWorldAlignment(nullptr, identity), false);
+}
+
 // Breaks caught: a space or a dash taken, an empty name taken, the 31-character limit off by one.
 TEST(EffectNodeNames) {
   CHECK_EQ(ValidNodeName("rhand"), true);

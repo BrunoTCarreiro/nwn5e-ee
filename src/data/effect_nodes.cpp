@@ -33,6 +33,20 @@ std::string Cell(const std::vector<std::string>& row, int column) {
 
 }  // namespace
 
+int EffectAttachMode(const EffectNode& where, int game_mode) {
+  if (game_mode != kAttachTurning && game_mode != kAttachPositionOnly) return game_mode;
+  return where.upright ? kAttachPositionOnly : kAttachTurning;
+}
+
+bool SkipsWorldAlignment(int game_mode, int new_mode) {
+  return game_mode == kAttachPositionOnly && new_mode == kAttachTurning;
+}
+
+bool IsWorldAlignment(const char* part, const float turn[4]) {
+  return part && turn && _stricmp(part, "root") == 0 && turn[0] == 1.0f && turn[1] == 0.0f && turn[2] == 0.0f &&
+         turn[3] == 0.0f;
+}
+
 bool ValidNodeName(const std::string& name) {
   if (name.empty() || name.size() > 31) return false;
   for (char c : name) {

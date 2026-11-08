@@ -898,6 +898,11 @@ monster AC by CR.
     Also d9a4fb3 / da78091 (owner: "build it"): the bench's Turns with the character - the feet, chest and head
     turn with it by default (a turning feet effect through set_effect_node(model, "root", false), mode 0), the hands
     stay upright by default.
+  - *0.95.7 (the owner, D-1: "if I face south the flame still appears in front of the PC"):* a turning effect
+    started on the world's axes, then turned with the character. Recon: after a position-only attach (a row without
+    OrientWithObject; [effect +0x120] picks mode 0 or 3) the client turns the effect's root part to the world's axes,
+    Gob::SetPartPosition("root", its position, identity). The hook now skips that call for an effect it turned to mode
+    0 (data::SkipsWorldAlignment); the diagnosis log (fd4e81c) is removed.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).

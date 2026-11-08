@@ -13,6 +13,11 @@
 // it turns with the node. Only a plain attach (mode 0 or 3) changes mode. AttachToPart (a node already found) is
 // treated the same. The rows are read from the served visualeffects.2da at the first rules load.
 //
+// 0.95.7: after a position-only attach (a row without OrientWithObject) the client turns the effect's root part to
+// the world's axes (Gob::SetPartPosition("root", its position, identity), right after the attach). For an effect
+// this hook turned to mode 0 that call is skipped (data::SkipsWorldAlignment), or it would start on the world's
+// axes and turn from there.
+//
 // The VFX bench (the dev layer, through DevSeam::set_effect_node) sets a model's node at run time, before its
 // row's: its preview goes on the hand while it plays.
 //
@@ -26,6 +31,7 @@
 #include <string.h>
 
 #include <atomic>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -52,14 +58,16 @@ constexpr const char* kAttachToObject = "?AttachToObject@Gob@@UEAAPEAXPEAVCAurOb
 constexpr const char* kAttachToPart = "?AttachToPart@Gob@@UEAAPEAXPEAVCAurObject@@PEAVCAurPart@@H@Z";
 constexpr const char* kGetModelName = "?GetModelName@Gob@@UEAAPEBDXZ";
 constexpr const char* kGetPart = "?GetPart@Gob@@UEAAPEAVCAurPart@@PEBD@Z";
+constexpr const char* kSetPartPosition = "?SetPartPosition@Gob@@UEAAHPEBDVVector@@VQuaternion@@@Z";
 constexpr const char* kRttiGob = ".?AVGob@@";
 constexpr int kModelNameSlot = 0x18 / 8;  // Gob vtable: GetModelName
 constexpr int kAttachSlot = 0x98 / 8;     // Gob vtable: AttachToObject
 constexpr int kGetPartSlot = 0x230 / 8;   // CAurObject / Gob vtable: GetPart(name) - AttachToObject's own lookup
+constexpr int kSetPartPositionSlot = 0x130 / 8;  // Gob vtable: SetPartPosition - the client's world alignment
+constexpr uint64_t kAlignmentWindowMs = 1000;    // the alignment follows the attach in the same call
+constexpr int kSkipLogCap = 16;
 // AttachToObject's lookup of the node on the target: call qword ptr [rax + 0x230].
 constexpr uint8_t kGetPartCall[] = {0xff, 0x90, 0x30, 0x02, 0x00, 0x00};
-constexpr int kAttachFull = 0;          // CAurBehaviorAttach: position and turning
-constexpr int kAttachPositionOnly = 3;  // CAurBehaviorAttachNoOrientation
 constexpr size_t kOwnLogCap = 64;       // nwn5e's models (n5...) and every move, logged once each
 constexpr size_t kGameLogCap = 24;      // the game's effect models (v...): how it attaches them
 constexpr int kDefaultSeconds = 30;
@@ -70,9 +78,15 @@ using AttachToObjectFn = void* (*)(void* self, void* target, const char* node, i
 using AttachToPartFn = void* (*)(void* self, void* target, void* part, int mode);
 using ModelNameFn = const char* (*)(void* gob);
 using GetPartFn = void* (*)(void* object, const char* name);
+// Vector and Quaternion by value: by a pointer to a copy (x64). The quaternion is w, x, y, z.
+using SetPartPositionFn = int (*)(void* self, const char* part, const float* position, const float* turn);
 
 AttachToObjectFn g_attach_to_object = nullptr;
 AttachToPartFn g_attach_to_part = nullptr;
+SetPartPositionFn g_set_part_position = nullptr;
+std::mutex g_turning_mutex;
+std::map<void*, uint64_t> g_turning;  // effects turned to mode 0, when: their world alignment is skipped once
+std::atomic<int> g_skip_logs{0};
 std::shared_mutex g_table_mutex;    // g_rows, g_overrides
 data::EffectNodes g_rows;           // the served visualeffects.2da's, read at the first rules load
 data::EffectNodeOverrides g_overrides;  // the VFX bench's (DevSeam::set_effect_node): before the rows
@@ -99,9 +113,23 @@ std::string Lower(const char* text) {
   return out;
 }
 
-int ModeFor(const data::EffectNode& where, int mode) {
-  if (mode != kAttachFull && mode != kAttachPositionOnly) return mode;  // translate, rotate, GUI scale: as asked
-  return where.upright ? kAttachPositionOnly : kAttachFull;
+// An effect turned to mode 0: the client's world alignment right after its attach is skipped (stale ones forgotten).
+void RememberTurning(void* self) {
+  const uint64_t now = GetTickCount64();
+  std::lock_guard<std::mutex> lock(g_turning_mutex);
+  for (auto it = g_turning.begin(); it != g_turning.end();) {
+    it = now - it->second > kAlignmentWindowMs ? g_turning.erase(it) : std::next(it);
+  }
+  g_turning[self] = now;
+}
+
+bool TakeTurning(void* self) {
+  std::lock_guard<std::mutex> lock(g_turning_mutex);
+  const auto found = g_turning.find(self);
+  if (found == g_turning.end()) return false;
+  const bool fresh = GetTickCount64() - found->second <= kAlignmentWindowMs;
+  g_turning.erase(found);
+  return fresh;
 }
 
 // The first attach of each of nwn5e's models (n5...), of every model moved, and of the game's effect models (v...),
@@ -146,51 +174,18 @@ void* Redirect(void* self, void* target, const char* game_node, int game_mode, s
     return nullptr;
   }
   *node = where.node;
-  *mode = ModeFor(where, game_mode);
+  *mode = data::EffectAttachMode(where, game_mode);
+  if (data::SkipsWorldAlignment(game_mode, *mode)) RememberTurning(self);
   Note(model, game_node, game_mode, " - moved to \"" + where.node + "\" (mode " + std::to_string(*mode) + ")",
        true);
   return part;
-}
-
-// #145 diagnosis (the owner: a turning effect on the chest starts along the world's axes whichever way the character
-// faces, then turns with it): at a moved attach of the VFX bench's previews (n5vx...), the turns - the effect's own
-// (Gob +0xB4, what Gob::SetOrientation writes), the target's, the node's in the world (Part::GetWorld, what the attach
-// copies every frame) and the object that walk ends on (its part +0x50) - before and after the game's attach.
-// Temporary: it goes with the fix.
-using GetWorldFn = void (*)(void* part, float* position, float* orientation);
-std::atomic<int> g_turn_logs{0};
-constexpr int kTurnLogCap = 16;
-
-std::string TurnOf(const void* object) {
-  if (!object) return "none";
-  const float* f = reinterpret_cast<const float*>(static_cast<const uint8_t*>(object) + 0xB4);
-  char text[96];
-  sprintf_s(text, "%.3f %.3f %.3f %.3f", f[0], f[1], f[2], f[3]);
-  return text;
-}
-
-void LogTurns(const char* when, void* self, void* target, const char* node) {
-  const char* name = self ? ModelNameOf(self) : nullptr;
-  if (!name || Lower(name).compare(0, 4, "n5vx") != 0 || g_turn_logs.fetch_add(1) >= kTurnLogCap) return;
-  void* part = target ? PartOf(target, node) : nullptr;
-  float position[3] = {0, 0, 0}, turn[4] = {0, 0, 0, 1};
-  // What the attach calls on the node every frame: its vtable +0x18 (Part::GetWorld for a plain node).
-  if (part) reinterpret_cast<GetWorldFn>((*static_cast<uintptr_t* const*>(part))[0x18 / 8])(part, position, turn);
-  void* owner = part ? *reinterpret_cast<void* const*>(static_cast<const uint8_t*>(part) + 0x50) : nullptr;
-  Log("effect nodes: turns %s %s on \"%s\" - effect %s; target %s; node in the world %.3f %.3f %.3f %.3f at %.2f %.2f %.2f; "
-      "the walk ends on %s",
-      when, name, node, TurnOf(self).c_str(), TurnOf(target).c_str(), turn[0], turn[1], turn[2], turn[3], position[0],
-      position[1], position[2], owner == target ? "the target" : owner ? ("another object, turned " + TurnOf(owner)).c_str() : "nothing");
 }
 
 void* AttachToObject(void* self, void* target, const char* node, int mode) {
   std::string moved;
   int moved_mode = mode;
   if (Redirect(self, target, node, mode, &moved, &moved_mode)) {
-    LogTurns("before", self, target, moved.c_str());
-    void* result = g_attach_to_object(self, target, moved.c_str(), moved_mode);
-    LogTurns("after", self, target, moved.c_str());
-    return result;
+    return g_attach_to_object(self, target, moved.c_str(), moved_mode);
   }
   return g_attach_to_object(self, target, node, mode);
 }
@@ -202,6 +197,18 @@ void* AttachToPart(void* self, void* target, void* part, int mode) {
     return g_attach_to_part(self, target, other, moved_mode);
   }
   return g_attach_to_part(self, target, part, mode);
+}
+
+// The client's world alignment after a position-only attach, skipped for an effect turned to mode 0.
+int SetPartPosition(void* self, const char* part, const float* position, const float* turn) {
+  if (self && data::IsWorldAlignment(part, turn) && TakeTurning(self)) {
+    if (g_skip_logs.fetch_add(1) < kSkipLogCap) {
+      Log("effect nodes: %s turns with its node from the start (the game's world alignment skipped)",
+          Lower(ModelNameOf(self)).c_str());
+    }
+    return 1;
+  }
+  return g_set_part_position(self, part, position, turn);
 }
 
 void LoadNodes(void* /*rules*/, bool /*reload*/) {
@@ -316,6 +323,13 @@ void InstallVfxNodes() {
       !HookExport("Gob::AttachToPart (an effect on the node its row names)", kAttachToPart,
                   reinterpret_cast<void*>(&AttachToPart), reinterpret_cast<void**>(&g_attach_to_part))) {
     return;
+  }
+  if (VtableSlot(vtable, kSetPartPositionSlot) != EngineExport(kSetPartPosition) ||
+      !HookExport("Gob::SetPartPosition (a turning effect not aligned to the world's axes)", kSetPartPosition,
+                  reinterpret_cast<void*>(&SetPartPosition), reinterpret_cast<void**>(&g_set_part_position))) {
+    g_set_part_position = nullptr;
+    Log("SKIP effect nodes: Gob::SetPartPosition isn't as read (vtable +0x130) - a turning effect starts on the "
+        "world's axes");
   }
   OnRulesLoaded(&LoadNodes);
   g_dev_seam.set_effect_node = &SetEffectNode;
