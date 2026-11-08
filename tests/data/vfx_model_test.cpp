@@ -222,7 +222,8 @@ TEST(VfxModelWritesLight) {
   const std::string impact = Section(model, "newanim impact n5t", "doneanim impact n5t");
   CHECK_EQ(Section(impact, "node light n5t_l0_glow", "endnode").find("  radiuskey 2\n    0 0\n    0.5 6\n") != std::string::npos, true);
   const std::string cessation = Section(model, "newanim cessation n5t", "doneanim cessation n5t");
-  CHECK_EQ(Section(cessation, "node light n5t_l0_glow", "endnode").find("key") == std::string::npos, true);  // listed, no keys
+  // Listed, with no keys of its own: it goes out with the effect (a 0.4 s fade from its radius).
+  CHECK_EQ(Section(cessation, "node light n5t_l0_glow", "endnode").find("  radiuskey 2\n    0 6\n    0.4 0\n") != std::string::npos, true);
   CHECK_EQ(cessation.find("node light n5t_l0_glow") != std::string::npos, true);
   // Without a parent: under the model's root; without shadow: shadow 0.
   VfxEffect plain;
@@ -278,6 +279,43 @@ TEST(VfxLightKeepsItsFlags) {
   VfxEffect spelled;
   CHECK_EQ(ReadVfxAsciiModel(other, &spelled, &error), true);
   CHECK_EQ(spelled.lights.size() == 1 && !spelled.lights[0].dynamic, true);
+}
+
+// #145, the owner's test ("Stop in game: the light starts again, gone about 3 s later"; a fade out of 0.1 s cures it): a
+// light without radius keys in its effect's last animation goes out with it - its radius from itself to 0 over 0.4 s,
+// at the cessation's start (a lasting effect) or the impact's end (a one-shot; all of it if shorter) - as the game's own
+// effects end theirs dark; a light with its own radius keys there keeps just those.
+TEST(VfxLightGoesOutWithItsEffect) {
+  const auto light_in = [](const std::string& model, const char* anim, const char* name) {
+    return Section(Section(model, std::string("newanim ") + anim + " n5o", std::string("doneanim ") + anim + " n5o"),
+                   std::string("node light n5o_l0_") + name, "endnode");
+  };
+  VfxEffect lasting;
+  lasting.duration = true;
+  VfxLight glow;
+  glow.name = "glow";
+  glow.radius = 6.0f;
+  lasting.lights.push_back(glow);
+  std::string model = WriteVfxModel(lasting, "n5o");
+  CHECK_EQ(light_in(model, "cessation", "glow").find("  radiuskey 2\n    0 6\n    0.4 0\n") != std::string::npos, true);
+  CHECK_EQ(light_in(model, "duration", "glow").find("key") == std::string::npos, true);  // only at the end
+  lasting.lengths[2] = 0.25f;  // a short end: the whole of it
+  model = WriteVfxModel(lasting, "n5o");
+  CHECK_EQ(light_in(model, "cessation", "glow").find("  radiuskey 2\n    0 6\n    0.25 0\n") != std::string::npos, true);
+  VfxKeys own;
+  own.anim = "cessation";
+  own.radius = {0, 6, 0.75f, 0};
+  lasting.lights[0].keys.push_back(own);
+  lasting.lengths[2] = 1.0f;
+  model = WriteVfxModel(lasting, "n5o");
+  const std::string kept = light_in(model, "cessation", "glow");
+  CHECK_EQ(kept.find("  radiuskey 2\n    0 6\n    0.75 0\n") != std::string::npos && kept.find("0.4 0") == std::string::npos, true);
+  VfxEffect once;
+  once.duration = false;
+  once.lengths[0] = 2.0f;
+  once.lights.push_back(glow);
+  model = WriteVfxModel(once, "n5o");
+  CHECK_EQ(light_in(model, "impact", "glow").find("  radiuskey 2\n    1.6 6\n    2 0\n") != std::string::npos, true);
 }
 
 // #145 Task 3: a light read back from an ASCII model (the one the writer makes: draft -> model -> draft keeps it, its

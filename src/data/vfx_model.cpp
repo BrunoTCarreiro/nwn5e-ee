@@ -345,6 +345,7 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
     lines.push_back("endnode");
   }
   lines.push_back("endmodelgeom " + model);
+  constexpr float kLightFadeOut = 0.4f;  // #145: how fast a light without an end of its own goes out
   // The impact: long enough for every emitter's emission (and, F, what it emitted to fade),
   // for the effect's own length and for its keys; the duration and cessation as long as the
   // effect has them (2 s / 1 s if not given) and their keys.
@@ -420,10 +421,23 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
       key_lines(e.keys, name);
       lines.push_back("endnode");
     }
+    // #145: in the effect's last animation (a lasting one's cessation, a one-shot's impact) a light without radius keys
+    // of its own there goes out with it - 0.4 s from its radius to 0, as the game's own effects end theirs dark (the
+    // owner's test: else the game lights it again for a few seconds after Stop).
+    const bool last = std::string(name) == (effect.duration ? "cessation" : "impact");
     for (size_t i = 0; i < effect.lights.size(); ++i) {  // #145
+      const VfxLight& l = effect.lights[i];
       lines.push_back("node light " + light_names[i]);
-      lines.push_back("  parent " + light_parent(effect.lights[i]));
-      key_lines(effect.lights[i].keys, name);
+      lines.push_back("  parent " + light_parent(l));
+      key_lines(l.keys, name);
+      bool own = false;
+      for (const VfxKeys& k : l.keys) own = own || (k.anim == name && k.radius.size() >= 2);
+      if (last && !own) {
+        const float fade = std::min(kLightFadeOut, length);
+        lines.push_back("  radiuskey 2");
+        lines.push_back("    " + Num(effect.duration ? 0.0f : length - fade) + " " + Num(l.radius));
+        lines.push_back("    " + Num(effect.duration ? fade : length) + " 0");
+      }
       lines.push_back("endnode");
     }
     lines.push_back(std::string("doneanim ") + name + " " + model);
