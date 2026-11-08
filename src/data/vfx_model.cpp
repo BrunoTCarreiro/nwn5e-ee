@@ -152,6 +152,8 @@ std::string DraftKeys(const std::vector<VfxKeys>& keys) {
       if (k.anim != anim) continue;
       if (!k.position.empty()) out += std::string(anim) + "_position = " + Row(k.position) + "\n";
       if (!k.orientation.empty()) out += std::string(anim) + "_orientation = " + Row(k.orientation) + "\n";
+      if (!k.color.empty()) out += std::string(anim) + "_color = " + Row(k.color) + "\n";  // #145, a light's
+      if (!k.radius.empty()) out += std::string(anim) + "_radius = " + Row(k.radius) + "\n";
     }
   }
   return out;
@@ -167,6 +169,14 @@ bool DraftKeyLine(const std::string& key, const std::vector<std::string>& words,
     }
     if (key == a + "_orientation") {
       ReadAll(words, &FindKeys(keys, a, true)->orientation);
+      return true;
+    }
+    if (key == a + "_color") {  // #145, a light's
+      ReadAll(words, &FindKeys(keys, a, true)->color);
+      return true;
+    }
+    if (key == a + "_radius") {
+      ReadAll(words, &FindKeys(keys, a, true)->radius);
       return true;
     }
   }
@@ -437,12 +447,22 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
     out += "flags =" + flags + "\n";
     out += DraftKeys(e.keys);
   }
+  // #145: the lights, after the emitters (core.js writes the same bytes).
+  for (const VfxLight& l : effect.lights) {
+    out += "\n[light " + l.name + "]\n";
+    if (!l.parent.empty()) out += "parent = " + l.parent + "\n";
+    out += "position = " + Num(l.position[0]) + " " + Num(l.position[1]) + " " + Num(l.position[2]) + "\n";
+    out += "color = " + Num(l.color[0]) + " " + Num(l.color[1]) + " " + Num(l.color[2]) + "\n";
+    out += "radius = " + Num(l.radius) + "\nbrightness = " + Num(l.multiplier) + "\n";
+    if (l.shadow) out += "shadow = 1\n";
+    out += DraftKeys(l.keys);
+  }
   return out;
 }
 
 bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error) {
   VfxEffect result;
-  int emitter = -1, node = -1;  // the section being read (indices: the lists grow)
+  int emitter = -1, node = -1, light = -1;  // the section being read (indices: the lists grow)
   std::istringstream in(text);
   std::string raw;
   int line_number = 0;
@@ -456,15 +476,21 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
       if (Lower(inner).rfind("emitter", 0) == 0) {
         result.emitters.emplace_back();
         emitter = static_cast<int>(result.emitters.size()) - 1;
-        node = -1;
+        node = light = -1;
         result.emitters.back().name = Trim(inner.substr(7));
         if (result.emitters.back().name.empty()) result.emitters.back().name = "emitter";
       } else if (Lower(inner).rfind("node", 0) == 0) {
         result.nodes.emplace_back();
         node = static_cast<int>(result.nodes.size()) - 1;
-        emitter = -1;
+        emitter = light = -1;
         result.nodes.back().name = Trim(inner.substr(4));
         if (result.nodes.back().name.empty()) result.nodes.back().name = "node";
+      } else if (Lower(inner).rfind("light", 0) == 0) {  // #145
+        result.lights.emplace_back();
+        light = static_cast<int>(result.lights.size()) - 1;
+        emitter = node = -1;
+        result.lights.back().name = Trim(inner.substr(5));
+        if (result.lights.back().name.empty()) result.lights.back().name = "light";
       } else {
         if (error) *error = "line " + std::to_string(line_number) + ": unknown section [" + inner + "]";
         return false;
@@ -479,6 +505,17 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
     const std::string key = Lower(Trim(line.substr(0, eq)));
     const std::string value = Trim(line.substr(eq + 1));
     const std::vector<std::string> words = Words(value);
+    if (light >= 0) {  // #145
+      VfxLight& l = result.lights[light];
+      if (key == "parent") l.parent = value;
+      else if (key == "position") ReadFloats(words, 0, l.position, 3);
+      else if (key == "color") ReadFloats(words, 0, l.color, 3);
+      else if (key == "radius") l.radius = ToFloat(value);
+      else if (key == "brightness") l.multiplier = ToFloat(value);
+      else if (key == "shadow") l.shadow = Trim(value) != "0";
+      else DraftKeyLine(key, words, &l.keys);
+      continue;
+    }
     if (node >= 0) {
       VfxNode& n = result.nodes[node];
       if (key == "parent") n.parent = value;

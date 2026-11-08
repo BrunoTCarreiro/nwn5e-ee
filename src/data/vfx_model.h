@@ -20,6 +20,22 @@ struct VfxKeys {
   std::string anim;  // impact | duration | cessation
   std::vector<float> position;
   std::vector<float> orientation;
+  // #145, a light's: its colour (t r g b) and radius (t m) - what the game's own effects key (a flicker, a fade).
+  std::vector<float> color;
+  std::vector<float> radius;
+};
+
+// #145: a light of the effect (a light node of its model): where it hangs, its colour, radius (metres) and
+// brightness (the game's multiplier), whether it casts shadows, and its keys.
+struct VfxLight {
+  std::string name = "light";
+  std::string parent;  // "" = the model's root
+  float position[3] = {0.0f, 0.0f, 0.0f};
+  float color[3] = {1.0f, 1.0f, 1.0f};
+  float radius = 5.0f;
+  float multiplier = 1.0f;
+  bool shadow = false;
+  std::vector<VfxKeys> keys;
 };
 
 // A node an emitter hangs under (a dummy in the model; in the game's models also a mesh
@@ -129,6 +145,7 @@ struct VfxEffect {
   float shake_duration = 0.0f;
   std::vector<VfxNode> nodes;  // parents before children
   std::vector<VfxEmitter> emitters;
+  std::vector<VfxLight> lights;  // #145
 };
 
 // The keys of `anim` in a list (created when `create`; nullptr when absent).

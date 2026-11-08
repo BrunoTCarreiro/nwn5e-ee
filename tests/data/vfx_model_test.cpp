@@ -107,6 +107,72 @@ TEST(VfxDraftRoundTrip) {
   if (!back.emitters.empty()) CHECK_EQ(Milli(back.emitters[0].deadspace), 390);
 }
 
+// #145: an effect's light through the draft - its section after the emitters, the same bytes as the bench's
+// writer (vfx_bench/check_effect.js holds the same text), and back.
+const char* const kLightSection =
+    "\n[light glow]\nparent = orbit\nposition = 0 0 1.25\ncolor = 1 0.5 0.25\nradius = 6\nbrightness = 1.5\nshadow = 1\n"
+    "duration_color = 0 1 0.5 0.25 1 0.5 0.25 0.125 2 1 0.5 0.25\nduration_radius = 0 6 2 6\n";
+
+TEST(VfxLightThroughTheDraft) {
+  VfxEffect effect;
+  VfxLight light;
+  light.name = "glow";
+  light.parent = "orbit";
+  light.position[2] = 1.25f;
+  light.color[1] = 0.5f;
+  light.color[2] = 0.25f;
+  light.radius = 6.0f;
+  light.multiplier = 1.5f;
+  light.shadow = true;
+  VfxKeys k;
+  k.anim = "duration";
+  k.color = {0, 1, 0.5f, 0.25f, 1, 0.5f, 0.25f, 0.125f, 2, 1, 0.5f, 0.25f};
+  k.radius = {0, 6, 2, 6};
+  light.keys.push_back(k);
+  effect.lights.push_back(light);
+  const std::string text = WriteVfxDraft(effect);
+  const size_t n = strlen(kLightSection);
+  CHECK_EQ(text.size() >= n && text.compare(text.size() - n, n, kLightSection) == 0, true);
+  VfxEffect back;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(text, &back, &error), true);
+  CHECK_EQ(back.lights.size(), 1u);
+  if (!back.lights.empty()) {
+    const VfxLight& l = back.lights[0];
+    CHECK_EQ(l.name == "glow" && l.parent == "orbit", true);
+    CHECK_EQ(Milli(l.position[2]), 1250);
+    CHECK_EQ(Milli(l.color[1]), 500);
+    CHECK_EQ(Milli(l.radius), 6000);
+    CHECK_EQ(Milli(l.multiplier), 1500);
+    CHECK_EQ(l.shadow, true);
+    CHECK_EQ(l.keys.size() == 1 && l.keys[0].anim == "duration" && l.keys[0].color.size() == 12u && l.keys[0].radius.size() == 4u, true);
+  }
+  CHECK_EQ(WriteVfxDraft(back) == text, true);
+  // A light with the defaults: no parent, shadow or key lines.
+  VfxEffect plain;
+  plain.lights.emplace_back();
+  const std::string p = WriteVfxDraft(plain);
+  CHECK_EQ(p.find("\n[light light]\nposition = 0 0 0\ncolor = 1 1 1\nradius = 5\nbrightness = 1\n") != std::string::npos, true);
+  CHECK_EQ(p.find("shadow") == std::string::npos && p.find("parent") == std::string::npos, true);
+  // A light before an emitter (a draft written by hand): each keeps its own lines.
+  VfxEffect mixed;
+  CHECK_EQ(ReadVfxDraft("name = x\n[light a]\nradius = 3\n[emitter e]\nbirthrate = 7\n", &mixed, &error), true);
+  CHECK_EQ(mixed.lights.size() == 1 && mixed.emitters.size() == 1, true);
+  if (mixed.lights.size() == 1 && mixed.emitters.size() == 1) {
+    CHECK_EQ(Milli(mixed.lights[0].radius), 3000);
+    CHECK_EQ(Milli(mixed.emitters[0].birthrate), 7000);
+  }
+}
+
+TEST(VfxDraftWithoutALightUnchanged) {
+  const std::string text = WriteVfxDraft(Sample());
+  CHECK_EQ(text.find("[light") == std::string::npos && text.find("_color") == std::string::npos &&
+               text.find("_radius") == std::string::npos, true);
+  VfxEffect back;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(text, &back, &error) && back.lights.empty(), true);
+}
+
 TEST(VfxModelKeysEmission) {
   const std::string model = WriteVfxModel(Sample(), "n5vx0001");
   CHECK_EQ(Contains(model, "newmodel n5vx0001"), true);
