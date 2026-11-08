@@ -5554,6 +5554,21 @@ tied to a level and may stay.
 *Accepted (owner, 2026-10-30: "2 and 82 accepted").* The test profiles (#82), 0.57.5-0.58.2, with the `cleric` profile
 for combat C2: TP1-TP18 seen in the owner's runs.
 
+## Test register — the owner's request (2026-11-08, #147)
+
+The owner, 2026-11-08: "instead of having ephemeral test matrices let's have an excel file where we keep all the
+tests, passed and open so that I can just look at them any time and filter to only show the open ones", then "make
+it so the status cells are dropdowns where I can select the status". The process is CLAUDE.md's "The test register".
+
+- docs/tests.csv holds every test: 632 backfilled from the test tables on 63 issues. An accepted issue's rows are
+  Passed and an open issue's are Open, with the results from the owner's messages filled in.
+- scripts/tests_sheet.py (standard library only) writes TESTS.xlsx (git-ignored): newest issue first, a filter on
+  every column (it opens on the Open tests), and Status dropdowns coloured by value. Every run first reads the saved
+  sheet back, so a Status or Note the owner changes there goes into the register. `set` and `add` edit it.
+
+*Accepted (owner, 2026-11-08: "#147 accepted").* TR-1 to TR-4 passed; the owner marked results in the sheet's
+dropdowns, and they were read back.
+
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
 Walked through one by one (issue, what NWN does, what 2024 does, what to
