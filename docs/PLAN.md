@@ -825,6 +825,15 @@ monster AC by CR.
     take - Thaumaturgy 0x31 (yourself, a door, a light), Prestidigitation 0x34. Beckon Water's puddle and Beckon
     Earth's patch: a decision (NWN's lasting ground effects are areas of effect - Grease, Web, the fogs; no puddle or
     dust look among them).
+    - *Brief (2026-11-08):* Q1 Beckon Water's puddle and Beckon Earth's dust: A lasting patches now, a look only, in 4b
+      (a puddle 1 minute - SRD 5.2.1's water evaporates in 1 minute; dust 10 minutes - no end given), #142 adding
+      their rules (electrified water, dust on ice); B with #142. Q2 their look until new visuals exist: A placeholders
+      now (Grease's slick for the puddle, a dust puff a round), new ones asked for through #143; B the new visuals
+      first. Q3 Druidcraft's animal sound (part of the Sensory Effect taken out; Q6 / Q7's sound that draws or scares):
+      A kept in 4b (Druidcraft's menu again: Fire Play, Animal Sound); B dropped. Recommendations A, A, A.
+    - *Decided (owner, 2026-11-08: "Go with your recommendations, but I'll design the looks, just tell me which VFX you
+      need"):* A, A, A; the owner designs the new looks - the list of what each needs is on #143, and nwn5e serves
+      the rows (visualeffects.2da, vfx_persistent.2da) for the owner's models when they're made.
 
 ### Phase 5 — Rest, healing, death
 - Short rest (spend Hit Dice) and long rest (8 h, regain all HP and half max HD).
