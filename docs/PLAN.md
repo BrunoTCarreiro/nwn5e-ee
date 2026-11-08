@@ -874,8 +874,10 @@ monster AC by CR.
     log - "concentrates on Resistance: Slashing", then 3 s later "is over (none of its effects left here)", with
     or without damage. Build 2's marker for Resistance and Guidance was the icon linked with
     VFX_DUR_CESSATE_POSITIVE, the link 0.92.2's probe showed never stays. Concentration's check and Resistance's 1d4
-    both look for that effect. The marker is now the icon alone (supernatural, as Shillelagh's): retests CB-3b, and
-    CB-4 (Guidance) on 0.95.9.
+    both look for that effect. The marker is now the icon alone, a plain (magical) one as the conditions' icons are,
+    so Dispel Magic still ends it (owner: "why can't dispel magic remove resistance or guidance? wasn't it supposed
+    to?" - a first build made it supernatural, never installed). Retests: CB-3b, CB-4 (Guidance) and CB-5 (Dispel
+    Magic ends Resistance) on 0.95.9.
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's

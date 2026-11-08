@@ -354,9 +354,11 @@ std::string DamageName(uint32_t type) {
 // Resistance and Guidance on the creature touched: the marker (Concentration, up to 1 minute; an earlier one of the
 // same cantrip on it ends) - its effect icon on the effect bar, named for the option (0.90.1) - and a line to the
 // caster. 0.95.9 (the owner, CB-3: "concentration on resistance slashind disappears immediately"): the marker is
-// the icon alone, supernatural, as Shillelagh's. Linked with VFX_DUR_CESSATE_POSITIVE it never stayed (0.92.2's
-// probe), so 3 s after the cast Concentration found nothing of the spell and ended it, and Resistance never
-// stopped any damage. Supernatural: Dispel Magic doesn't take it off (Concentration's end does).
+// the icon alone. Linked with VFX_DUR_CESSATE_POSITIVE it never stayed (0.92.2's probe), so 3 s after the cast
+// Concentration found nothing of the spell and ended it, and Resistance never stopped any damage. A plain
+// (magical) icon, as the conditions' are, so Dispel Magic can end it - and Concentration with it, finding nothing
+// left (the owner: "why can't dispel magic remove resistance or guidance? wasn't it supposed to?"). SRD 5.2's
+// Dispel Magic ends any spell of level 3 or lower; NWN's, until #39 rewrites it, makes its caster-level check.
 const char* const kWard = R"nss(
 object t = GetSpellTargetObject();
 if (!GetIsObjectValid(t)) t = OBJECT_SELF;
@@ -364,7 +366,7 @@ SignalEvent(t, EventSpellCastAt(OBJECT_SELF, GetSpellId(), FALSE));
 effect e = GetFirstEffect(t);
 while (GetIsEffectValid(e)) { if (GetEffectTag(e) == "$TAG") RemoveEffect(t, e); e = GetNextEffect(t); }
 ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect($VIS), t);
-effect m = SupernaturalEffect(EffectIcon($ICON));
+effect m = EffectIcon($ICON);
 ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(m, GetSpellId()), "$TAG"), t,
                     RoundsToSeconds(10));
 SetLocalString(OBJECT_SELF, "n5c_target", ObjectToString(t));
