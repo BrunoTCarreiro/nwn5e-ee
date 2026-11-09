@@ -433,5 +433,10 @@ constexpr int kPuddleAreaEffect = 103;
 constexpr int kDustAreaEffect = 104;
 int PatchAreaEffectOf(UtilityEffect effect);  // -1: none
 int PatchSecondsOf(UtilityEffect effect);
+// 0.97.5 (owner, 2026-11-09: "swap them in, keep 10 minutes"): until the owner's n5v_puddle / n5v_dustpatch (#143),
+// the game's own pieces show them - NWN's Puddle 1 (about 1.1 m across) and its flat Dirt Patch 1 (2.5 m, shrunk to
+// the 5-foot square's 1.5 m). "" none.
+const char* PatchBlueprintOf(UtilityEffect effect);
+float PatchScaleOf(UtilityEffect effect);
 
 }  // namespace rules

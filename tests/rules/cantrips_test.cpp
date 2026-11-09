@@ -464,6 +464,13 @@ TEST(DancingLightsAndPatches) {
   CHECK_EQ(PatchSecondsOf(UtilityEffect::kBeckonWater), 60);   // its water evaporates in 1 minute
   CHECK_EQ(PatchSecondsOf(UtilityEffect::kBeckonEarth), 600);  // the owner's 10 minutes
   CHECK_EQ(PatchSecondsOf(UtilityEffect::kBeckonAir), 0);
+  // 0.97.5 (owner: "swap them in, keep 10 minutes"): the game's puddle and its flat dirt patch, shrunk to 5 feet.
+  CHECK_EQ(strcmp(PatchBlueprintOf(UtilityEffect::kBeckonWater), "nw_plc_puddle1"), 0);
+  CHECK_EQ(strcmp(PatchBlueprintOf(UtilityEffect::kBeckonEarth), "x3_plc_dirt001"), 0);
+  CHECK_EQ(PatchBlueprintOf(UtilityEffect::kBeckonFire)[0], 0);
+  CHECK_EQ(PatchScaleOf(UtilityEffect::kBeckonEarth) * 2.5f > 1.45f && PatchScaleOf(UtilityEffect::kBeckonEarth) * 2.5f < 1.55f,
+           true);  // the 5-foot square
+  CHECK_EQ(PatchScaleOf(UtilityEffect::kBeckonWater), 1.0f);
 }
 
 // 0.90.1: the effect icon each shows while it lasts - effecticons.2da rows 130-160, past the game's 129.

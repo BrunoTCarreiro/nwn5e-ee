@@ -857,6 +857,18 @@ monster AC by CR.
     stays shut. Beckon Water at the ground: a puddle (vfx_persistent 103, Grease's slick) 1 minute; Beckon Earth: a
     dust patch (104, a dust puff a round) 10 minutes. Tests UtilitySounds, MinorIllusion, DancingLightsAndPatches; 16
     of 16 mutations caught.
+  - *The patches' looks - decided (owner, 2026-11-09: "swap them in, keep 10 minutes"),* after BW-1 ("we have to fix
+    the vfx for beckonwater") and BW-2 ("what sense does it make for a puff of dust to happen every turn? what's the
+    description for beckon earth anyway?" - SRD 5.2.1: "a thin shroud of dust or sand that covers surfaces in a
+    5-foot-square area", a still layer) and "beckon earth doesn't seem to stop" (its 10 minutes, Q1's). Until the
+    owner's n5v_puddle / n5v_dustpatch (#143), the game's own pieces stand in: the puddle NWN's Puddle 1
+    (nw_plc_puddle1, about 1.1 m across) for the minute, in place of Grease's slick (a stain made for Grease, far
+    wider than 5 feet); the dust NWN's flat Dirt Patch 1 (x3_plc_dirt001, 2.5 m, shrunk to 1.5 m - the 5-foot square)
+    for the 10 minutes, one dust burst at the cast and no puff a round. The area effects stay, with no look, for
+    #142's rules. *Built 0.97.5:* rules::PatchBlueprintOf, PatchScaleOf (test DancingLightsAndPatches); the patch's
+    placeable on the walkmesh under the point (GetGroundHeight - the click's point is 0.3-0.4 m over it), a random
+    turn, loaded as a normal placeable (light_sources.cpp's CreatingFireLight: the blueprints are static), plot, gone
+    with the area effect; vfx_persistent row 103 without Grease's model; the dust heartbeat (n5c_dust_hb) gone.
   - *0.94.1 (owner, 2026-11-08: "there should be 5 new magic mark symbols, all tga with no alpha. can you wire them up
     for a test as well?"):* Magic Mark shows one of the owner's symbols (data/files/n5t_mark01-05.tga, 256 x 256)
     at random, flat on the ground and turned a random way: models n5v_mark01-05 (a 0.6 m quad just above the ground,

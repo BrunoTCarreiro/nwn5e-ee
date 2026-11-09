@@ -619,6 +619,17 @@ int PatchSecondsOf(UtilityEffect effect) {
   return 0;
 }
 
+const char* PatchBlueprintOf(UtilityEffect effect) {
+  if (effect == UtilityEffect::kBeckonWater) return "nw_plc_puddle1";
+  if (effect == UtilityEffect::kBeckonEarth) return "x3_plc_dirt001";
+  return "";
+}
+
+float PatchScaleOf(UtilityEffect effect) {
+  if (effect == UtilityEffect::kBeckonEarth) return 0.6f;  // 2.5 m to 1.5 m
+  return 1.0f;
+}
+
 int MoveWeaponDamage(int16_t* entries, int count, uint32_t type) {
   const int index = DamageTypeIndex(type);
   if (!entries || index < 0 || index >= count || index == kBaseWeaponIndex || count <= kBaseWeaponIndex) return 0;

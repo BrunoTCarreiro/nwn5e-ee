@@ -1526,25 +1526,41 @@ int HandAt(uint32_t self, uint32_t id, std::string* name) {
   return r;
 }
 
-// Q1 A: Beckon Water at the ground leaves a puddle for 1 minute, Beckon Earth a dust patch for 10 - looks for now
-// (vfx_persistent rows 103-104: Grease's slick; a dust puff a round, kDustHeartbeat), #142 their rules.
-constexpr const char* kDustHeartbeat = "n5c_dust_hb";
+// Q1 A: Beckon Water at the ground leaves a puddle for 1 minute, Beckon Earth a dust patch for 10 - an area effect
+// with no look (vfx_persistent rows 103-104) for #142's rules. 0.97.5 (owner, 2026-11-09: "swap them in, keep 10
+// minutes"): the look the game's own puddle or flat dirt patch (rules::PatchBlueprintOf, shrunk by PatchScaleOf), on
+// the walkmesh under the point (the click's point is 0.3-0.4 m over it), a random turn; its blueprint is static, so it
+// is loaded as a normal placeable (CreatingFireLight), plot. It goes with the area effect.
+const char* const kPatch = R"nss(
+location l = GetLocalLocation(OBJECT_SELF, "n5c_at");
+ApplyEffectAtLocation(DURATION_TYPE_TEMPORARY, EffectAreaOfEffect($AOE, "", "", ""), l, $SECONDS);
+vector p = GetPositionFromLocation(l);
+float g = GetGroundHeight(l);
+if (g > -5.9) p.z = g;
+object o = CreateObject(OBJECT_TYPE_PLACEABLE, "$BLUEPRINT", Location(GetAreaFromLocation(l), p, IntToFloat(Random(360))),
+                        FALSE, "n5c_patch");
+SetPlotFlag(o, TRUE);
+SetUseableFlag(o, FALSE);
+if ($SCALE != 1.0) SetObjectVisualTransform(o, OBJECT_VISUAL_TRANSFORM_SCALE, $SCALE);
+DestroyObject(o, $SECONDS);
+SetLocalInt(OBJECT_SELF, "n5c_patch_made", GetIsObjectValid(o));
+)nss";
 
 void PlacePatch(uint32_t self, UtilityEffect effect) {
-  char code[300];
-  sprintf_s(code,
-            "ApplyEffectAtLocation(DURATION_TYPE_TEMPORARY, EffectAreaOfEffect(%d, \"\", \"%s\", \"\"), "
-            "GetLocalLocation(OBJECT_SELF, \"n5c_at\"), %d.0);",
-            rules::PatchAreaEffectOf(effect), effect == UtilityEffect::kBeckonEarth ? kDustHeartbeat : "",
-            rules::PatchSecondsOf(effect));
+  std::string code = kPatch;
+  Replace(&code, "$AOE", std::to_string(rules::PatchAreaEffectOf(effect)));
+  Replace(&code, "$SECONDS", std::to_string(rules::PatchSecondsOf(effect)) + ".0");
+  Replace(&code, "$BLUEPRINT", rules::PatchBlueprintOf(effect));
+  Replace(&code, "$SCALE", Num(rules::PatchScaleOf(effect)));
+  CreatingFireLight(true);  // light_sources.cpp: the static blueprint loaded as a normal placeable
   Run(code, self, "a patch");
-  if (LogSlot()) Log("cantrips: 0x%08X a patch (area effect %d) for %d s", self, rules::PatchAreaEffectOf(effect),
-                     rules::PatchSecondsOf(effect));
-}
-
-void DustHeartbeat(uint32_t self) {
-  Run("ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_DUST_EXPLOSION), GetLocation(OBJECT_SELF));",
-      self, "the dust patch");
+  CreatingFireLight(false);
+  void* caster = CreatureById(self);
+  if (LogSlot()) {
+    Log("cantrips: 0x%08X a patch (area effect %d, %s x%.2f%s) for %d s", self, rules::PatchAreaEffectOf(effect),
+        rules::PatchBlueprintOf(effect), rules::PatchScaleOf(effect),
+        caster && engine::GetLocalInt(caster, "n5c_patch_made") ? "" : " - NOT made", rules::PatchSecondsOf(effect));
+  }
 }
 
 
@@ -1653,8 +1669,7 @@ bool BoomingVoiceAdvantage(void* creature, int nwn_skill) {
 }
 
 void InstallUtilityCantrips() {
-  const bool scripts = AddScriptHandler("n5_c_utility", &UtilityScript) &&
-                       AddScriptHandler(kDustHeartbeat, &DustHeartbeat);
+  const bool scripts = AddScriptHandler("n5_c_utility", &UtilityScript);
   const bool hooks = AddSpellOrderGuard(&DancingLightsMoveGuard) && AddCreatureUpdateListener(&LightsUpdate);
   Log("cantrips: build 4a - Druidcraft, Elementalism, Prestidigitation, Thaumaturgy, Mage Hand (Fire Play, the doors, "
       "Booming Voice, Magic Mark) (#39 Part 1)%s",
