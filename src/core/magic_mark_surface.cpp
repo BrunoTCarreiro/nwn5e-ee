@@ -33,6 +33,11 @@
 // cursor wasn't on (the floor behind a wall the game sends), the order's point moves in front of the wall and the
 // cast marks the wall (rules_utility_cantrips.cpp). Single player only (GetIsMultiPlayer): the host's mouse isn't a
 // remote player's.
+//
+// 0.96.5: MO-1c - a door model's transition surface ("sam") is passed through along every line (the leaf behind
+// it); MO-7 (owner: "it gets applied on the wall and is hidden by the pillar") - the scene's pick tests the area's
+// visible meshes only while hitcheck_static_trimesh_parts is set (HitPartOnBSPNode's second list; otherwise its
+// static BSP parts, the plain walls), so the cursor's pick sets it, as the game's own picks do, and restores it.
 
 #include "magic_mark_surface.h"
 
@@ -120,6 +125,8 @@ constexpr const char* kGuiManVariable = "?g_pGuiMan@@3PEAVCGuiMan@@EA";
 constexpr const char* kCameraHitCheck = "?HitCheck@Camera@@UEAAHHHPEAVVector@@PEAVCHitInfo@@@Z";
 constexpr const char* kCameraPosition = "?GetPosition@Camera@@UEAA?AVVector@@XZ";
 constexpr const char* kIsMultiPlayer = "?GetIsMultiPlayer@CServerExoApp@@UEAAHXZ";
+constexpr const char* kStaticTrimeshHits = "?hitcheck_static_trimesh_parts@@3HA";  // int: test the visible meshes
+constexpr int kPassThroughTries = 4;  // transition surfaces passed along one line
 constexpr int kCameraPositionSlot = 0x40 / 8;
 constexpr int kCameraHitCheckSlot = 0x60 / 8;
 constexpr size_t kClientInternal = 0x8;
@@ -171,6 +178,7 @@ struct ClickApi {
   void** app_manager = nullptr;  // g_pAppManager
   uintptr_t camera_hit_check = 0;
   uintptr_t camera_position = 0;
+  int* static_trimesh = nullptr;  // hitcheck_static_trimesh_parts
 };
 ClickApi g_click_api;
 std::mutex g_clicks_mutex;
@@ -254,7 +262,7 @@ struct Hit {
 };
 
 // The game's hit test of `gob` along a line: the nearest point and the part it's on.
-std::optional<Hit> HitLine(void* gob, const Vec3f& from, const Vec3f& to, bool boxes) {
+std::optional<Hit> HitLineOnce(void* gob, const Vec3f& from, const Vec3f& to, bool boxes) {
   alignas(16) uint8_t info[kHitInfoSize] = {};
   g_api.make_info(info, 0, kHitEverything, boxes ? 1 : 0);
   float start[3] = {from.x, from.y, from.z};
@@ -266,6 +274,18 @@ std::optional<Hit> HitLine(void* gob, const Vec3f& from, const Vec3f& to, bool b
   if (found && name && *name) hit = Hit{{at[0], at[1], at[2]}, name};
   g_api.free_info(info);
   return hit;
+}
+
+// The same, passing through a door's transition surface (rules::MarkPassesThrough) to what's behind it.
+std::optional<Hit> HitLine(void* gob, const Vec3f& from, const Vec3f& to, bool boxes) {
+  const Vec3f step = rules::Scale(rules::Normalized(rules::Sub(to, from)), 0.01f);
+  Vec3f start = from;
+  for (int i = 0; i < kPassThroughTries; ++i) {
+    const std::optional<Hit> hit = HitLineOnce(gob, start, to, boxes);
+    if (!hit || !rules::MarkPassesThrough(hit->part)) return hit;
+    start = rules::Add(hit->point, step);
+  }
+  return std::nullopt;
 }
 
 // The model's place in the world.
@@ -427,11 +447,20 @@ bool MultiPlayer() {
   return !server || g_click_api.multiplayer(server) != 0;
 }
 
-std::optional<Vec3f> PickAt(void* camera, int x, int y) {
+// The scene's pick at a screen point, the area's visible meshes included (*part the part hit, when asked).
+std::optional<Vec3f> PickAt(void* camera, int x, int y, std::string* part = nullptr) {
   alignas(16) uint8_t info[kHitInfoSize] = {};
   g_api.make_info(info, 0, kHitEverything, 0);
   float at[3] = {};
+  int* const trimesh = g_click_api.static_trimesh;
+  const int was = trimesh ? *trimesh : 0;
+  if (trimesh) *trimesh = 1;
   const int hit = Slot<CameraPickFn>(camera, kCameraHitCheckSlot)(camera, x, y, at, info);
+  if (trimesh) *trimesh = was;
+  if (part) {
+    const char* name = Field<const char*>(info, kHitInfoPartName);
+    *part = name ? name : "";
+  }
   g_api.free_info(info);
   if (!hit) return std::nullopt;
   return Vec3f{at[0], at[1], at[2]};
@@ -441,6 +470,7 @@ struct CursorPick {
   Vec3f camera;
   Vec3f point;
   Vec3f normal;
+  std::string part;  // the part the pick hit
   int x = 0, y = 0;
 };
 
@@ -454,7 +484,7 @@ std::optional<CursorPick> PickUnderCursor(std::string* why) {
   }
   CursorPick pick;
   g_click_api.mouse_pos(gui, &pick.x, &pick.y);
-  const std::optional<Vec3f> point = PickAt(camera, pick.x, pick.y);
+  const std::optional<Vec3f> point = PickAt(camera, pick.x, pick.y, &pick.part);
   if (!point) {
     *why = "nothing under the cursor";
     return std::nullopt;
@@ -507,15 +537,16 @@ void NoteMarkOrder(void* creature, SpellOrder* order, bool from_input) {
     order->z = before.z;
     if (ClickLogSlot()) {
       Log("magic mark clicks: 0x%08X spell %u - the cursor at %.2f %.2f %.2f (facing %.2f %.2f %.2f) isn't the floor "
-          "sent (%.2f %.2f %.2f): a wall's mark; the cast moved to %.2f %.2f %.2f, in front of it (mouse %d %d)",
+          "sent (%.2f %.2f %.2f): a wall's mark; the cast moved to %.2f %.2f %.2f, in front of it (part \"%s\"; "
+          "mouse %d %d)",
           caster, order->spell, pick->point.x, pick->point.y, pick->point.z, pick->normal.x, pick->normal.y,
-          pick->normal.z, sent.x, sent.y, sent.z, before.x, before.y, before.z, pick->x, pick->y);
+          pick->normal.z, sent.x, sent.y, sent.z, before.x, before.y, before.z, pick->part.c_str(), pick->x, pick->y);
     }
   } else if (ClickLogSlot()) {
     Log("magic mark clicks: 0x%08X spell %u at 0x%08X - the cursor at %.2f %.2f %.2f, seen from %.2f %.2f %.2f "
-        "(the order's point %.2f %.2f %.2f; mouse %d %d)",
+        "(the order's point %.2f %.2f %.2f; part \"%s\"; mouse %d %d)",
         caster, order->spell, order->target, pick->point.x, pick->point.y, pick->point.z, pick->camera.x,
-        pick->camera.y, pick->camera.z, sent.x, sent.y, sent.z, pick->x, pick->y);
+        pick->camera.y, pick->camera.z, sent.x, sent.y, sent.z, pick->part.c_str(), pick->x, pick->y);
   }
   std::lock_guard<std::mutex> lock(g_clicks_mutex);
   g_clicks[caster] = click;
@@ -528,6 +559,7 @@ void InstallMarkClicks() {
   g_click_api.app_manager = reinterpret_cast<void**>(EngineExport(ee::kAppManager));
   g_click_api.camera_hit_check = EngineExport(kCameraHitCheck);
   g_click_api.camera_position = EngineExport(kCameraPosition);
+  g_click_api.static_trimesh = reinterpret_cast<int*>(EngineExport(kStaticTrimeshHits));
   if (!g_click_api.mouse_pos || !g_click_api.multiplayer || !g_click_api.gui || !g_click_api.app_manager ||
       !g_click_api.camera_hit_check || !g_click_api.camera_position ||
       !GamePickAsRead(reinterpret_cast<uintptr_t>(g_click_api.mouse_pos),
@@ -541,7 +573,9 @@ void InstallMarkClicks() {
     return;
   }
   Log("magic mark clicks: on - a player's Magic Mark goes where the cursor was at the click (single player); a click "
-      "on a wall marks the wall");
+      "on a wall marks the wall%s",
+      g_click_api.static_trimesh ? "; pillars and the area's other visible meshes are seen"
+                                 : " - hitcheck_static_trimesh_parts not found: pillars aren't seen");
 }
 
 }  // namespace

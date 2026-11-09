@@ -1,5 +1,6 @@
 #include "rules/mark_surface.h"
 
+#include <ctype.h>
 #include <math.h>
 #include <stdio.h>
 
@@ -232,6 +233,11 @@ bool MarkCursorOnCaster(const Vec3f& cursor, const Vec3f& feet) {
   const float across = sqrtf((cursor.x - feet.x) * (cursor.x - feet.x) + (cursor.y - feet.y) * (cursor.y - feet.y));
   const float up = cursor.z - feet.z;
   return across <= kMarkBodyReach && up >= -0.2f && up <= kMarkBodyHeight;
+}
+
+bool MarkPassesThrough(const std::string& part) {
+  return part.size() == 3 && tolower(static_cast<unsigned char>(part[0])) == 's' &&
+         tolower(static_cast<unsigned char>(part[1])) == 'a' && tolower(static_cast<unsigned char>(part[2])) == 'm';
 }
 
 float MarkFacingOf(const Vec3f& normal) {

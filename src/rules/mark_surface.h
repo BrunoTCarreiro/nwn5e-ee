@@ -115,5 +115,9 @@ float MarkFacingOf(const Vec3f& normal);
 constexpr float kMarkBodyReach = 0.6f;
 constexpr float kMarkBodyHeight = 2.2f;
 bool MarkCursorOnCaster(const Vec3f& cursor, const Vec3f& feet);
+// 0.96.5 (MO-1c; owner, 2026-11-09: "can be fixed if the player manages to click on the door itself and not on
+// the transition surface"): a door model's transition surface, the part "sam" (148 of the game's 237 door models),
+// is passed through - the mark goes on the leaf behind it.
+bool MarkPassesThrough(const std::string& part);
 
 }  // namespace rules
