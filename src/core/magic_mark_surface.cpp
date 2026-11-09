@@ -21,6 +21,18 @@
 // The game's turns are checked at the install with its own Quaternion * Vector: rules::Rotate's way, or its reverse.
 // Not placed (logged; the game's attach then): an object that isn't a door or a placeable, a record that doesn't
 // read, no line hitting. The server's object is read from the client: single player and a host's own client.
+//
+// 0.96.3 (owner, 2026-11-09: "A" - the mark where you click - "but we should try to find a way to deal with walls
+// that have floors behind them so that the wall is marked and not the floor"): the cast order's hook (action_guard.h,
+// a player's own click, a frame after it) takes the point under the cursor with the game's own pick - after its
+// CGuiMan::GetMousePos, the camera's HitCheck at the mouse (vtable +0x60): the camera's ray through it against the
+// scene, tiles and all; two picks 3 pixels beside it give the surface's normal. The camera: g_pAppManager's client
+// app (+0), its internal (+8), its world (+0x30), its camera (+0xe8) - the game's own pick's path, checked by its
+// code at the install. Cast at a door or a placeable, the record keeps that ray and the model is tested along it
+// (the eyes' lines when it misses: a radial opened on the object has the cursor on the menu). Cast at a point the
+// cursor wasn't on (the floor behind a wall the game sends), the order's point moves in front of the wall and the
+// cast marks the wall (rules_utility_cantrips.cpp). Single player only (GetIsMultiPlayer): the host's mouse isn't a
+// remote player's.
 
 #include "magic_mark_surface.h"
 
@@ -29,16 +41,23 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include <string.h>
+
 #include <atomic>
+#include <chrono>
+#include <map>
+#include <mutex>
 #include <optional>
 #include <string>
 
+#include "action_guard.h"
 #include "creature.h"
 #include "ee_layout.h"
 #include "engine.h"
 #include "hooks.h"
 #include "light_sources.h"
 #include "log.h"
+#include "rules/cantrips.h"
 #include "rules/mark_surface.h"
 
 namespace {
@@ -93,6 +112,30 @@ constexpr const char* kMarkModelPrefix = "n5v_mark";
 constexpr float kLargestBox = 60.0f;  // metres across: larger, the box isn't the model's own
 constexpr int kLogCap = 48;
 
+// 0.96.3: the point under the cursor at the click - the game's own pick right after its CGuiMan::GetMousePos call:
+// mov rax, [g_pAppManager]; mov rcx, [rax]; call (mov rcx, [rcx+8]; jmp (mov rax, [rcx+30h]; ret)); the mouse's x, y
+// and no CHitInfo as arguments; mov rcx, [rax+0e8h]; mov rax, [rcx]; call [rax+60h] (Camera::HitCheck).
+constexpr const char* kGetMousePos = "?GetMousePos@CGuiMan@@QEAAXPEAH0@Z";
+constexpr const char* kGuiManVariable = "?g_pGuiMan@@3PEAVCGuiMan@@EA";
+constexpr const char* kCameraHitCheck = "?HitCheck@Camera@@UEAAHHHPEAVVector@@PEAVCHitInfo@@@Z";
+constexpr const char* kCameraPosition = "?GetPosition@Camera@@UEAA?AVVector@@XZ";
+constexpr const char* kIsMultiPlayer = "?GetIsMultiPlayer@CServerExoApp@@UEAAHXZ";
+constexpr int kCameraPositionSlot = 0x40 / 8;
+constexpr int kCameraHitCheckSlot = 0x60 / 8;
+constexpr size_t kClientInternal = 0x8;
+constexpr size_t kInternalWorld = 0x30;
+constexpr size_t kWorldCamera = 0xe8;
+constexpr uint8_t kLoadRaxRip[] = {0x48, 0x8b, 0x05};
+constexpr uint8_t kLoadRcxRax[] = {0x48, 0x8b, 0x08};
+constexpr uint8_t kInternalHop[] = {0x48, 0x8b, 0x49, 0x08, 0xe9};
+constexpr uint8_t kWorldHop[] = {0x48, 0x8b, 0x41, 0x30, 0xc3};
+constexpr uint8_t kPickArguments[] = {0x44, 0x8b, 0x44, 0x24, 0x50, 0x4c, 0x8d, 0x4c, 0x24, 0x40, 0x8b, 0x54,
+                                      0x24, 0x54, 0x48, 0xc7, 0x44, 0x24, 0x20, 0x00, 0x00, 0x00, 0x00};
+constexpr uint8_t kCameraPickCall[] = {0x48, 0x8b, 0x88, 0xe8, 0x00, 0x00, 0x00, 0x48, 0x8b, 0x01, 0xff, 0x50, 0x60};
+constexpr int kNormalPixels = 3;           // the two picks beside the cursor's
+constexpr int64_t kClickFreshMs = 120000;  // a click waits this long for its cast (the walk there included)
+constexpr int kClickLogCap = 40;
+
 using HitCheckFn = void* (*)(void* gob, float* start, float* end, float* hit, void* info);
 using HitInfoMakeFn = void* (*)(void* info, int kind, int64_t mask, int boxes);
 using HitInfoFreeFn = void (*)(void* info);
@@ -105,6 +148,9 @@ using PartWorldFn = void (*)(void* part, float* position, float* turn);
 using ModelNameFn = const char* (*)(void* gob);
 using GetPartFn = void* (*)(void* object, const char* name);
 using TurnVectorFn = float* (*)(float* out, const float* turn, const float* vector);
+using MousePosFn = void (*)(void* gui, int* x, int* y);
+using CameraPickFn = int (*)(void* camera, int x, int y, float* point, void* info);
+using IsMultiPlayerFn = int (*)(void* server);
 
 struct Api {
   HitInfoMakeFn make_info = nullptr;
@@ -117,6 +163,26 @@ Api g_api;
 std::atomic<bool> g_ready{false};
 bool g_reversed = false;  // the game turns rules::Rotate's reverse way: its turns conjugated in and out
 std::atomic<int> g_logs{0};
+
+struct ClickApi {
+  MousePosFn mouse_pos = nullptr;
+  IsMultiPlayerFn multiplayer = nullptr;
+  void** gui = nullptr;          // g_pGuiMan
+  void** app_manager = nullptr;  // g_pAppManager
+  uintptr_t camera_hit_check = 0;
+  uintptr_t camera_position = 0;
+};
+ClickApi g_click_api;
+std::mutex g_clicks_mutex;
+std::map<uint32_t, MarkClick> g_clicks;  // each caster's last Magic Mark click
+std::atomic<int> g_click_logs{0};
+
+bool ClickLogSlot() { return g_click_logs.fetch_add(1) < kClickLogCap; }
+
+int64_t NowMs() {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch())
+      .count();
+}
 
 bool LogSlot() { return g_logs.fetch_add(1) < kLogCap; }
 
@@ -238,8 +304,33 @@ struct Projection {
   bool boxes = false;
 };
 
-// Lines from the eyes to the model; the first that hits, with the surface's normal there.
-std::optional<Projection> Project(void* target, const Vec3f& eye_world, std::string* why) {
+// A hit along the line from `from` to `to`, with the surface's normal there (two lines beside it).
+Projection SurfaceAt(void* target, const Hit& hit, const Vec3f& from, const Vec3f& to, bool boxes, int lines) {
+  const Vec3f direction = rules::Normalized(rules::Sub(to, from));
+  Vec3f u, v;
+  rules::MarkRayOffsets(direction, &u, &v);
+  std::optional<Vec3f> beside_u, beside_v;
+  if (const std::optional<Hit> h = HitLine(target, rules::Add(from, u), rules::Add(to, u), boxes)) beside_u = h->point;
+  if (const std::optional<Hit> h = HitLine(target, rules::Add(from, v), rules::Add(to, v), boxes)) beside_v = h->point;
+  Projection found;
+  found.hit = hit;
+  found.normal = rules::MarkSurfaceNormal(direction, hit.point, beside_u, beside_v);
+  found.direction = direction;
+  found.lines = lines;
+  found.boxes = boxes;
+  return found;
+}
+
+// The click's ray (0.96.3; lines 0), else lines from the eyes to the model; the first that hits, with the surface's
+// normal there.
+std::optional<Projection> Project(void* target, const rules::MarkRecord& record, std::string* why) {
+  if (record.click) {
+    const Vec3f end = rules::MarkClickEnd(*record.click);
+    if (const std::optional<Hit> hit = HitLine(target, record.click->from, end, false)) {
+      return SurfaceAt(target, *hit, record.click->from, end, false, 0);
+    }
+  }
+  const Vec3f& eye_world = record.eye;
   float low[3] = {}, high[3] = {};
   Slot<BoundingBoxFn>(target, kBoundingBoxSlot)(target, low, high);
   const Vec3f box_min{low[0], low[1], low[2]}, box_max{high[0], high[1], high[2]};
@@ -260,24 +351,7 @@ std::optional<Projection> Project(void* target, const Vec3f& eye_world, std::str
       const Vec3f to = ToWorld(frame, rules::MarkRayEnd(eye, aim, box_min, box_max));
       ++lines;
       const std::optional<Hit> hit = HitLine(target, eye_world, to, boxes);
-      if (!hit) continue;
-      const Vec3f direction = rules::Normalized(rules::Sub(to, eye_world));
-      Vec3f u, v;
-      rules::MarkRayOffsets(direction, &u, &v);
-      std::optional<Vec3f> beside_u, beside_v;
-      if (const std::optional<Hit> h = HitLine(target, rules::Add(eye_world, u), rules::Add(to, u), boxes)) {
-        beside_u = h->point;
-      }
-      if (const std::optional<Hit> h = HitLine(target, rules::Add(eye_world, v), rules::Add(to, v), boxes)) {
-        beside_v = h->point;
-      }
-      Projection found;
-      found.hit = *hit;
-      found.normal = rules::MarkSurfaceNormal(direction, hit->point, beside_u, beside_v);
-      found.direction = direction;
-      found.lines = lines;
-      found.boxes = boxes;
-      return found;
+      if (hit) return SurfaceAt(target, *hit, eye_world, to, boxes, lines);
     }
   }
   char text[200];
@@ -310,7 +384,177 @@ bool PartWorld(void* part, Vec3f* position, Quatf* turn) {
   return true;
 }
 
+bool CodeIs(uintptr_t at, const uint8_t* bytes, size_t size) {
+  return memcmp(reinterpret_cast<const void*>(at), bytes, size) == 0;
+}
+
+uintptr_t Rel32Target(uintptr_t field, uintptr_t next) { return next + *reinterpret_cast<const int32_t*>(field); }
+
+// The game's own pick under the cursor is as read (see kGetMousePos), its camera through `app_manager`.
+bool GamePickAsRead(uintptr_t mouse_pos, uintptr_t app_manager) {
+  for (const uintptr_t at : FindCallsAnywhere(mouse_pos)) {
+    if (!CodeIs(at + 5, kLoadRaxRip, sizeof(kLoadRaxRip)) || Rel32Target(at + 8, at + 12) != app_manager) continue;
+    if (!CodeIs(at + 12, kLoadRcxRax, sizeof(kLoadRcxRax)) || *reinterpret_cast<const uint8_t*>(at + 15) != 0xe8) {
+      continue;
+    }
+    const uintptr_t internal = Rel32Target(at + 16, at + 20);
+    if (!CodeIs(internal, kInternalHop, sizeof(kInternalHop))) continue;
+    if (!CodeIs(Rel32Target(internal + 5, internal + 9), kWorldHop, sizeof(kWorldHop))) continue;
+    if (CodeIs(at + 20, kPickArguments, sizeof(kPickArguments)) &&
+        CodeIs(at + 43, kCameraPickCall, sizeof(kCameraPickCall))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void* WorldCamera() {
+  void* manager = *g_click_api.app_manager;
+  void* client = manager ? Field<void*>(manager, 0) : nullptr;
+  void* internal = client ? Field<void*>(client, kClientInternal) : nullptr;
+  void* world = internal ? Field<void*>(internal, kInternalWorld) : nullptr;
+  void* camera = world ? Field<void*>(world, kWorldCamera) : nullptr;
+  if (!camera || SlotOf(camera, kCameraHitCheckSlot) != g_click_api.camera_hit_check ||
+      SlotOf(camera, kCameraPositionSlot) != g_click_api.camera_position) {
+    return nullptr;
+  }
+  return camera;
+}
+
+bool MultiPlayer() {
+  void* manager = *g_click_api.app_manager;
+  void* server = manager ? Field<void*>(manager, ee::kAppManagerServerApp) : nullptr;
+  return !server || g_click_api.multiplayer(server) != 0;
+}
+
+std::optional<Vec3f> PickAt(void* camera, int x, int y) {
+  alignas(16) uint8_t info[kHitInfoSize] = {};
+  g_api.make_info(info, 0, kHitEverything, 0);
+  float at[3] = {};
+  const int hit = Slot<CameraPickFn>(camera, kCameraHitCheckSlot)(camera, x, y, at, info);
+  g_api.free_info(info);
+  if (!hit) return std::nullopt;
+  return Vec3f{at[0], at[1], at[2]};
+}
+
+struct CursorPick {
+  Vec3f camera;
+  Vec3f point;
+  Vec3f normal;
+  int x = 0, y = 0;
+};
+
+// The point under the cursor now, the camera it's seen from and its surface's normal.
+std::optional<CursorPick> PickUnderCursor(std::string* why) {
+  void* camera = WorldCamera();
+  void* gui = *g_click_api.gui;
+  if (!camera || !gui) {
+    *why = camera ? "no GUI" : "no world camera as read";
+    return std::nullopt;
+  }
+  CursorPick pick;
+  g_click_api.mouse_pos(gui, &pick.x, &pick.y);
+  const std::optional<Vec3f> point = PickAt(camera, pick.x, pick.y);
+  if (!point) {
+    *why = "nothing under the cursor";
+    return std::nullopt;
+  }
+  float from[3] = {};
+  Slot<ResultOutFn>(camera, kCameraPositionSlot)(camera, from);
+  pick.camera = {from[0], from[1], from[2]};
+  pick.point = *point;
+  const Vec3f direction = rules::Normalized(rules::Sub(pick.point, pick.camera));
+  pick.normal = rules::MarkSurfaceNormal(direction, pick.point, PickAt(camera, pick.x + kNormalPixels, pick.y),
+                                         PickAt(camera, pick.x, pick.y + kNormalPixels));
+  return pick;
+}
+
+// The cast order's adjuster (action_guard.h): a player's own Magic Mark click in single player - the point under the
+// cursor kept for the cast; cast at a point the cursor wasn't on (a wall with floor behind it), the order's point
+// moved in front of the wall, at the caster's feet.
+void NoteMarkOrder(void* creature, SpellOrder* order, bool from_input) {
+  if (!from_input || !creature || !order ||
+      rules::UtilityEffectOf(static_cast<int>(order->spell)) != rules::UtilityEffect::kMagicMark) {
+    return;
+  }
+  const uint32_t caster = Field<uint32_t>(creature, ee::kObjectId);
+  if (MultiPlayer()) {
+    if (ClickLogSlot()) Log("magic mark clicks: 0x%08X - a multiplayer game: aimed from the eyes, no walls", caster);
+    return;
+  }
+  std::string why;
+  const std::optional<CursorPick> pick = PickUnderCursor(&why);
+  if (!pick) {
+    if (ClickLogSlot()) Log("magic mark clicks: 0x%08X spell %u - %s; aimed from the eyes", caster, order->spell, why.c_str());
+    return;
+  }
+  MarkClick click;
+  click.spell = order->spell;
+  click.target = order->target;
+  click.camera = pick->camera;
+  click.point = pick->point;
+  click.normal = pick->normal;
+  click.when_ms = NowMs();
+  const Vec3f feet{Field<float>(creature, ee::kObjectPositionX), Field<float>(creature, ee::kObjectPositionY),
+                   Field<float>(creature, ee::kObjectPositionZ)};
+  const Vec3f sent{order->x, order->y, order->z};
+  const bool at_point = order->target == ee::kObjectInvalid;
+  if (at_point && !rules::MarkClickOnFloor(pick->point, sent) && !rules::MarkCursorOnCaster(pick->point, feet)) {
+    click.wall = true;
+    const Vec3f before = rules::MarkCastPointBefore(pick->point, pick->camera, feet.z);
+    order->x = before.x;
+    order->y = before.y;
+    order->z = before.z;
+    if (ClickLogSlot()) {
+      Log("magic mark clicks: 0x%08X spell %u - the cursor at %.2f %.2f %.2f (facing %.2f %.2f %.2f) isn't the floor "
+          "sent (%.2f %.2f %.2f): a wall's mark; the cast moved to %.2f %.2f %.2f, in front of it (mouse %d %d)",
+          caster, order->spell, pick->point.x, pick->point.y, pick->point.z, pick->normal.x, pick->normal.y,
+          pick->normal.z, sent.x, sent.y, sent.z, before.x, before.y, before.z, pick->x, pick->y);
+    }
+  } else if (ClickLogSlot()) {
+    Log("magic mark clicks: 0x%08X spell %u at 0x%08X - the cursor at %.2f %.2f %.2f, seen from %.2f %.2f %.2f "
+        "(the order's point %.2f %.2f %.2f; mouse %d %d)",
+        caster, order->spell, order->target, pick->point.x, pick->point.y, pick->point.z, pick->camera.x,
+        pick->camera.y, pick->camera.z, sent.x, sent.y, sent.z, pick->x, pick->y);
+  }
+  std::lock_guard<std::mutex> lock(g_clicks_mutex);
+  g_clicks[caster] = click;
+}
+
+void InstallMarkClicks() {
+  g_click_api.mouse_pos = reinterpret_cast<MousePosFn>(EngineExport(kGetMousePos));
+  g_click_api.multiplayer = reinterpret_cast<IsMultiPlayerFn>(EngineExport(kIsMultiPlayer));
+  g_click_api.gui = reinterpret_cast<void**>(EngineExport(kGuiManVariable));
+  g_click_api.app_manager = reinterpret_cast<void**>(EngineExport(ee::kAppManager));
+  g_click_api.camera_hit_check = EngineExport(kCameraHitCheck);
+  g_click_api.camera_position = EngineExport(kCameraPosition);
+  if (!g_click_api.mouse_pos || !g_click_api.multiplayer || !g_click_api.gui || !g_click_api.app_manager ||
+      !g_click_api.camera_hit_check || !g_click_api.camera_position ||
+      !GamePickAsRead(reinterpret_cast<uintptr_t>(g_click_api.mouse_pos),
+                      reinterpret_cast<uintptr_t>(g_click_api.app_manager))) {
+    Log("SKIP magic mark clicks: the game's pick under the cursor isn't as read - marks on objects are aimed from "
+        "the caster's eyes, and walls aren't marked");
+    return;
+  }
+  if (!AddSpellOrderAdjuster(&NoteMarkOrder)) {
+    Log("SKIP magic mark clicks: the cast order isn't hooked - marks on objects are aimed from the caster's eyes");
+    return;
+  }
+  Log("magic mark clicks: on - a player's Magic Mark goes where the cursor was at the click (single player); a click "
+      "on a wall marks the wall");
+}
+
 }  // namespace
+
+std::optional<MarkClick> TakeMarkClick(uint32_t caster, uint32_t spell) {
+  std::lock_guard<std::mutex> lock(g_clicks_mutex);
+  const auto found = g_clicks.find(caster);
+  if (found == g_clicks.end()) return std::nullopt;
+  const MarkClick click = found->second;
+  g_clicks.erase(found);
+  if (click.spell != spell || NowMs() - click.when_ms > kClickFreshMs) return std::nullopt;
+  return click;
+}
 
 bool AttachMagicMark(void* self, void* target, int game_mode, MarkAttachPartFn attach_to_part, void** result) {
   if (!g_ready.load(std::memory_order_acquire) || !self || !target || !attach_to_part || !result) return false;
@@ -349,7 +593,7 @@ bool AttachMagicMark(void* self, void* target, int game_mode, MarkAttachPartFn a
                        kind, id, record.fix->part.c_str());
   }
   std::string why;
-  const std::optional<Projection> found = Project(target, record.eye, &why);
+  const std::optional<Projection> found = Project(target, record, &why);
   if (!found) {
     if (LogSlot()) Log("magic mark surface: %s on %s 0x%08X - %s; the game's attach", model.c_str(), kind, id, why.c_str());
     return false;
@@ -371,10 +615,13 @@ bool AttachMagicMark(void* self, void* target, int game_mode, MarkAttachPartFn a
   record.fix = fix;
   engine::SetLocalString(object, key.c_str(), rules::MarkRecordText(record).c_str());
   if (LogSlot()) {
-    Log("magic mark surface: %s on %s 0x%08X - its part \"%s\" at %.2f %.2f %.2f, facing %.2f %.2f %.2f (line %d%s; "
+    const std::string how = found->lines == 0 ? std::string("the click's ray")
+                                              : (record.click ? "the click's ray missed; line " : "line ") +
+                                                    std::to_string(found->lines);
+    Log("magic mark surface: %s on %s 0x%08X - its part \"%s\" at %.2f %.2f %.2f, facing %.2f %.2f %.2f (%s%s; "
         "the eyes at %.2f %.2f %.2f; the game's mode %d)",
         model.c_str(), kind, id, found->hit.part.c_str(), found->hit.point.x, found->hit.point.y, found->hit.point.z,
-        found->normal.x, found->normal.y, found->normal.z, found->lines, found->boxes ? ", its parts' boxes" : "",
+        found->normal.x, found->normal.y, found->normal.z, how.c_str(), found->boxes ? ", its parts' boxes" : "",
         record.eye.x, record.eye.y, record.eye.z, game_mode);
   }
   return true;
@@ -447,6 +694,7 @@ bool InstallMagicMarkSurface() {
   Log("magic mark surface: on - a mark cast at a door or a placeable goes on its model's surface, on the part the "
       "caster's eyes meet (the game's turns %s)",
       g_reversed ? "the reverse way" : "as rules::Rotate");
+  InstallMarkClicks();
   return true;
 }
 

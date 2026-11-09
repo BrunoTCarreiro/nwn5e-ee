@@ -927,6 +927,31 @@ monster AC by CR.
     - If the hit test isn't as read at the install (its slots and code, the client's door and placeable, the
       game's turns checked with its own Quaternion * Vector), marks on objects keep 0.96.0's invisible object.
     - Only where the game draws the scene: single player, a host's own client.
+  - *Tested (owner, 2026-11-09): MO-1b failed* - "if the door leads to a different area the mark is still placed in
+    the vertical transition surface, not on the door itself" (the eyes' line aimed at the middle of a model whose box
+    takes in the transition surface behind the leaf) - *and MO-2b* - "on tables I would expct to be able to at least
+    chance where on the top surface the mark would appear, but it always appears in the same place" (one spot per
+    place stood). The owner: "What is the issue with picking the wall and a specific place on the wall (or on a
+    placeable for that matter?)" - the cast message carries the object alone, the point only for the ground (its
+    flags byte); the client knows the spot under the cursor.
+  - *Magic Mark where you click - decided (owner, 2026-11-09: "A. but we should try to find a way to deal with walls
+    that have floors behind them so that the wall is marked and not the floor"),* over B (the eyes' line kept, aimed
+    at the nearest part). 0.96.3:
+    - The cast order's hook (action_guard.h's new adjuster; a player's own order, its caller the input handler)
+      takes, for Magic Mark in single player, the point under the cursor with the game's own pick: after
+      CGuiMan::GetMousePos, the world camera's HitCheck at the mouse (the camera's ray against the scene, tiles
+      included). Two picks 3 pixels beside it give the surface's normal. The path to the camera
+      (g_pAppManager +0, +8, +0x30, +0xe8) is checked against the game's own pick code at the install.
+    - A door or a placeable: the record keeps the camera's ray through the cursor's point ("|c"), and the client
+      tests the model along it (run on 4 m past the point, in case the cursor was on something nearer). If the ray
+      misses the model (a radial opened on the object puts the cursor on the menu), the eyes' lines are the
+      fallback.
+    - A point: if the cursor's point isn't the floor the game sent (more than 0.75 m off across or up/down, and not
+      on the caster's own body), the cursor was on a wall (with floor behind it, which the game sends), a pillar or
+      a ledge. The order's point moves 0.6 m in front of it, at the caster's feet, so the caster doesn't walk
+      around. The cast marks the wall at the cursor on an invisible object: upright, facing out along the normal
+      (flat on a ledge's top).
+    - The floor: as before.
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's

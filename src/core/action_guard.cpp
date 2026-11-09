@@ -3,6 +3,8 @@
 
 #include "action_guard.h"
 
+#include <intrin.h>
+
 #include <vector>
 
 #include "ee_layout.h"
@@ -31,6 +33,8 @@ using AddCastSpellActionsFn = int (*)(void* creature, uint32_t spell, int class_
 AddCastSpellActionsFn g_add_cast_spell_actions = nullptr;
 std::vector<SpellCastGuard> g_spell_guards;
 std::vector<SpellOrderGuard> g_spell_order_guards;
+std::vector<SpellOrderAdjuster> g_spell_order_adjusters;
+CodeRange g_player_input;  // CNWSMessage::HandlePlayerToServerInputMessage: a player's own order
 bool g_spells_hooked = false;
 bool g_spells_failed = false;
 
@@ -59,24 +63,36 @@ void AddActionToFront(void* object, uint32_t action, uint16_t group, uint32_t t1
                         t10, p10, t11, p11, t12, p12);
 }
 
+SpellOrder OrderOf(uint32_t spell, int class_slot, int domain_level, int metamagic, int spontaneous,
+                   const Vec3& location, uint32_t target, int fake) {
+  SpellOrder order;
+  order.spell = spell;
+  order.class_slot = class_slot;
+  order.domain_level = domain_level;
+  order.metamagic = metamagic;
+  order.spontaneous = spontaneous != 0;
+  order.target = target;
+  order.fake = fake != 0;
+  order.x = location.x;
+  order.y = location.y;
+  order.z = location.z;
+  return order;
+}
+
 int AddCastSpellActions(void* creature, uint32_t spell, int class_slot, int domain_level, int metamagic,
                         int spontaneous, Vec3 location, uint32_t target, int area_target, int add_to_front, int fake,
                         uint8_t projectile_path, int instant, int unknown, int feat, uint8_t unknown2) {
+  if (!g_spell_order_adjusters.empty()) {
+    const bool from_input = g_player_input.Contains(reinterpret_cast<uintptr_t>(_ReturnAddress()));
+    SpellOrder order = OrderOf(spell, class_slot, domain_level, metamagic, spontaneous, location, target, fake);
+    for (SpellOrderAdjuster adjust : g_spell_order_adjusters) adjust(creature, &order, from_input);
+    location = {order.x, order.y, order.z};
+  }
   for (SpellCastGuard guard : g_spell_guards) {
     if (guard(creature, spell, target)) return 0;
   }
   if (!g_spell_order_guards.empty()) {
-    SpellOrder order;
-    order.spell = spell;
-    order.class_slot = class_slot;
-    order.domain_level = domain_level;
-    order.metamagic = metamagic;
-    order.spontaneous = spontaneous != 0;
-    order.target = target;
-    order.fake = fake != 0;
-    order.x = location.x;
-    order.y = location.y;
-    order.z = location.z;
+    const SpellOrder order = OrderOf(spell, class_slot, domain_level, metamagic, spontaneous, location, target, fake);
     for (SpellOrderGuard guard : g_spell_order_guards) {
       if (guard(creature, order)) return 0;
     }
@@ -126,5 +142,18 @@ bool AddSpellCastGuard(SpellCastGuard guard) {
 bool AddSpellOrderGuard(SpellOrderGuard guard) {
   if (!HookSpellOrders() || !guard) return false;
   g_spell_order_guards.push_back(guard);
+  return true;
+}
+
+bool AddSpellOrderAdjuster(SpellOrderAdjuster adjuster) {
+  if (!HookSpellOrders() || !adjuster) return false;
+  if (!g_player_input.Valid()) {
+    g_player_input = FunctionAt(EngineExport(ee::kHandlePlayerToServerInputMessage));
+    if (!g_player_input.Valid()) {
+      Log("SKIP order adjusters: the player's input handler isn't found - no order is a player's click");
+      return false;
+    }
+  }
+  g_spell_order_adjusters.push_back(adjuster);
   return true;
 }

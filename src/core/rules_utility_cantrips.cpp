@@ -304,8 +304,9 @@ int TintOfCast(void* caster) {
 }
 
 // 0.96.2: the mark's effect on the object, a symbol not on it already in that colour; its record the caster's eyes.
+// 0.96.3: with the click's ray when the click was at this object.
 void MarkOnSurface(uint32_t self, void* caster, uint32_t target, const std::string& name, const char* kind, int tint,
-                   const rules::Vec3f& eye) {
+                   const rules::Vec3f& eye, const std::optional<MarkClick>& click) {
   const std::string used = " " + engine::GetLocalString(caster, "n5c_mark_used");
   std::vector<bool> taken(rules::kMagicMarkVisuals, false);
   for (int symbol = 1; symbol <= rules::kMagicMarkVisuals; ++symbol) {
@@ -315,6 +316,8 @@ void MarkOnSurface(uint32_t self, void* caster, uint32_t target, const std::stri
   const std::string model = rules::MagicMarkModel(symbol, tint, true);
   rules::MarkRecord record;
   record.eye = eye;
+  const bool clicked = click && click->target == target;
+  if (clicked) record.click = rules::MarkRay{click->camera, click->point};
   std::string code = kMarkOnSurface;
   char number[32];
   sprintf_s(number, "%x", target);
@@ -328,8 +331,8 @@ void MarkOnSurface(uint32_t self, void* caster, uint32_t target, const std::stri
   Replace(&code, "$WHAT", name.empty() ? std::string("it") : name);
   Run(code, self, "Magic Mark on an object's surface");
   char where[240];
-  sprintf_s(where, "%s, on %s (a %s; the eyes at %.2f %.2f %.2f - on its model's surface as the client attaches it)",
-            kTintNames[tint], name.empty() ? "it" : name.c_str(), kind, eye.x, eye.y, eye.z);
+  sprintf_s(where, "%s, on %s (a %s; %s - on its model's surface as the client attaches it)", kTintNames[tint],
+            name.empty() ? "it" : name.c_str(), kind, clicked ? "where the cursor was" : "aimed from the eyes");
   KeptMark kept;
   kept.object = target;
   kept.tag = kSurfaceMarkTag + model;
@@ -339,7 +342,7 @@ void MarkOnSurface(uint32_t self, void* caster, uint32_t target, const std::stri
 // A door or a placeable cast at: the upright mark on it. False when the target is neither (the ground's mark then).
 // 0.96.2: on its model's surface (MarkOnSurface); 0.96.0's invisible object at its slab or walkmesh when the client's
 // hit test isn't as read (magic_mark_surface.cpp's install).
-bool MarkOnObject(uint32_t self, void* caster, int tint) {
+bool MarkOnObject(uint32_t self, void* caster, int tint, const std::optional<MarkClick>& click) {
   if (!engine::GetLocalInt(caster, "n5c_at_object")) return false;
   const std::vector<uint32_t> ids = ParseIds(engine::GetLocalString(caster, "n5c_targets"));
   if (ids.empty()) return false;
@@ -361,7 +364,7 @@ bool MarkOnObject(uint32_t self, void* caster, int tint) {
                                                                                                : std::string());
   if (MagicMarkSurfaceReady()) {
     MarkOnSurface(self, caster, target, name, kind == kObjectTypeDoorScript ? "door" : "placeable", tint,
-                  rules::Vec3f{cx, cy, cz + rules::MarkEyeHeight(size)});
+                  rules::Vec3f{cx, cy, cz + rules::MarkEyeHeight(size)}, click);
     return true;
   }
   rules::MarkSpot spot;
@@ -420,9 +423,54 @@ bool MarkOnObject(uint32_t self, void* caster, int tint) {
   return true;
 }
 
+// 0.96.3 (owner, 2026-11-09: "A. but we should try to find a way to deal with walls that have floors behind them so
+// that the wall is marked and not the floor"): a click on a wall - the cursor's point wasn't the floor the game sent
+// (magic_mark_surface.cpp moved the cast in front of it) - marks the wall at the cursor: upright, facing out of it
+// (flat on a ledge's top), on an invisible object there.
+const char* const kMarkOnWall = R"nss(
+object m = CreateObject(OBJECT_TYPE_PLACEABLE, "plc_invisobj", Location(GetArea(OBJECT_SELF), Vector($X, $Y, $Z), $FACING), FALSE, "n5c_mark");
+ApplyEffectToObject(DURATION_TYPE_PERMANENT, EffectVisualEffect($VFX), m);
+DestroyObject(m, $SECONDS);
+SetLocalString(OBJECT_SELF, "n5c_mark", ObjectToString(m));
+SendMessageToPC(OBJECT_SELF, "nwn5e: Prestidigitation - Magic Mark: a glowing mark there for an hour (three at a time).");
+)nss";
+
+void MarkOnWall(uint32_t self, void* caster, int tint, const MarkClick& click) {
+  const bool upright = rules::MarkStandsUpright(click.normal);
+  const rules::Vec3f at =
+      rules::Add(click.point, rules::Scale(rules::Normalized(click.normal), rules::kMarkSurfaceGap));
+  const float facing = upright ? rules::MarkFacingOf(click.normal) : static_cast<float>(RollEngineDice(1, 360) - 1);
+  std::string code = kMarkOnWall;
+  char number[32];
+  sprintf_s(number, "%.3f", at.x);
+  Replace(&code, "$X", number);
+  sprintf_s(number, "%.3f", at.y);
+  Replace(&code, "$Y", number);
+  sprintf_s(number, "%.3f", at.z);
+  Replace(&code, "$Z", number);
+  sprintf_s(number, "%.2f", facing);
+  Replace(&code, "$FACING", number);
+  sprintf_s(number, "%.1f", kMarkSeconds);
+  Replace(&code, "$SECONDS", number);
+  Replace(&code, "$VFX", std::to_string(rules::MagicMarkRow(RollEngineDice(1, rules::kMagicMarkVisuals), tint, upright)));
+  CreatingFireLight(true);  // light_sources.cpp: the invisible object a normal placeable, so the client gets its glow
+  Run(code, self, "Magic Mark on a wall");
+  CreatingFireLight(false);
+  char where[200];
+  sprintf_s(where, "%s, on a wall at %.2f %.2f %.2f, %s %.0f (where the cursor was; the game sent the floor behind it)",
+            kTintNames[tint], at.x, at.y, at.z, upright ? "upright facing" : "flat, turned", facing);
+  KeepMark(self, HolderMark(caster), where);
+}
+
 void PlaceMark(uint32_t self, void* caster) {
   const int tint = TintOfCast(caster);
-  if (MarkOnObject(self, caster, tint)) return;
+  const std::optional<MarkClick> click =
+      TakeMarkClick(self, static_cast<uint32_t>(Field<int32_t>(caster, ee::kObjectLastSpellId)));
+  if (MarkOnObject(self, caster, tint, click)) return;
+  if (click && click->wall) {
+    MarkOnWall(self, caster, tint, *click);
+    return;
+  }
   std::string code = kMark;
   char seconds[32];
   sprintf_s(seconds, "%.1f", kMarkSeconds);

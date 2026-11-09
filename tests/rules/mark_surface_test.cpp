@@ -159,4 +159,52 @@ TEST(SurfaceMarkRecord) {
   CHECK_EQ(CloseTo(read.eye, Vec3f{1, 2, 3}), true);
   record.fix->part = "a leaf";
   CHECK_EQ(MarkRecordText(record) == "e 12.500 -3.250 1.600", true);
+  // 0.96.3: the click's ray, before the fix.
+  MarkRecord clicked;
+  clicked.eye = {1, 2, 3};
+  clicked.click = MarkRay{{10, 20, 8.5f}, {12, 24, 1.25f}};
+  CHECK_EQ(MarkRecordText(clicked) == "e 1.000 2.000 3.000|c 10.000 20.000 8.500 12.000 24.000 1.250", true);
+  CHECK_EQ(ParseMarkRecord(MarkRecordText(clicked), &read), true);
+  CHECK_EQ(read.click.has_value(), true);
+  CHECK_EQ(CloseTo(read.click->from, Vec3f{10, 20, 8.5f}) && CloseTo(read.click->to, Vec3f{12, 24, 1.25f}), true);
+  CHECK_EQ(read.fix.has_value(), false);
+  clicked.fix = fix;
+  CHECK_EQ(ParseMarkRecord(MarkRecordText(clicked), &read), true);
+  CHECK_EQ(read.click.has_value() && read.fix.has_value(), true);
+  CHECK_EQ(read.fix->part == "plc_table_top", true);
+  CHECK_EQ(CloseTo(read.fix->position, fix.position), true);
+  CHECK_EQ(CloseTo(read.click->to, Vec3f{12, 24, 1.25f}), true);
+  CHECK_EQ(ParseMarkRecord("e 1 2 3|f leaf 1 2 3 1 0 0 0", &read), true);  // 0.96.2's: no click
+  CHECK_EQ(read.click.has_value(), false);
+  CHECK_EQ(read.fix.has_value() && read.fix->part == "leaf", true);
+}
+
+// 0.96.3 (owner, 2026-11-09: "A. but we should try to find a way to deal with walls that have floors behind them so
+// that the wall is marked and not the floor"): a click on a wall. Breaks caught: the ray not run on past the cursor,
+// a floor click taken for a wall (or a wall for the floor) across or up, the cast's point behind the wall or not at
+// the feet, a wall mark facing into the wall or along it, a flat surface given an upright mark.
+TEST(SurfaceMarkClicks) {
+  CHECK_EQ(CloseTo(MarkClickEnd(MarkRay{{0, 0, 10}, {0, 3, 6}}), Vec3f{0, 5.4f, 2.8f}), true);
+  // The game sends (10, 10, 0.3): the cursor on the floor there, or on a wall in front of it.
+  const Vec3f sent{10, 10, 0.3f};
+  CHECK_EQ(MarkClickOnFloor({10.4f, 9.6f, 0}, sent), true);
+  CHECK_EQ(MarkClickOnFloor({10, 9, 0}, sent), false);        // a metre short: a wall in front
+  CHECK_EQ(MarkClickOnFloor({10.2f, 10, 1.5f}, sent), false);  // right above it: the wall's face
+  CHECK_EQ(MarkClickOnFloor({10, 10.7f, 1.0f}, sent), true);    // within reach both ways
+  // A wall west of the camera's line: the cursor at (5, 0, 1.5), the camera at (5, -8, 9); the caster's feet at 0.
+  CHECK_EQ(CloseTo(MarkCastPointBefore({5, 0, 1.5f}, {5, -8, 9}, 0.25f), Vec3f{5, -0.6f, 0.25f}), true);
+  CHECK_EQ(CloseTo(MarkCastPointBefore({0, 0, 1}, {-3, -4, 6}, 0), Vec3f{-0.36f, -0.48f, 0}), true);
+  // The wall's face toward the camera: facing out of it.
+  CHECK_EQ(CloseTo(MarkFacingOf({0, -1, 0}), 270.0f), true);
+  CHECK_EQ(CloseTo(MarkFacingOf({1, 0, 0}), 0.0f), true);
+  CHECK_EQ(CloseTo(MarkFacingOf({-kHalfRoot2, kHalfRoot2, 0}), 135.0f), true);
+  CHECK_EQ(MarkStandsUpright({0, -1, 0}), true);
+  CHECK_EQ(MarkStandsUpright({0, -0.7f, 0.7f}), true);
+  CHECK_EQ(MarkStandsUpright({0, 0.1f, 0.99f}), false);  // a ledge's top
+  CHECK_EQ(MarkStandsUpright({0, 0, -1}), false);        // a ceiling
+  // The cursor on the caster's own body (feet at (3, 3, 0.5)): not a wall.
+  CHECK_EQ(MarkCursorOnCaster({3.3f, 2.8f, 1.7f}, {3, 3, 0.5f}), true);
+  CHECK_EQ(MarkCursorOnCaster({3.7f, 3, 1.7f}, {3, 3, 0.5f}), false);  // 0.7 m off: beside it
+  CHECK_EQ(MarkCursorOnCaster({3, 3, 2.9f}, {3, 3, 0.5f}), false);     // above its head
+  CHECK_EQ(MarkCursorOnCaster({3, 3, 0.2f}, {3, 3, 0.5f}), false);     // below its feet
 }

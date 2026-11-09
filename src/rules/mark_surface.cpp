@@ -154,6 +154,10 @@ MarkFix MarkFixInPart(const std::string& part, const Vec3f& hit, const Vec3f& no
   return fix;
 }
 
+Vec3f MarkClickEnd(const MarkRay& ray) {
+  return Add(ray.to, Scale(Normalized(Sub(ray.to, ray.from)), kMarkClickReach));
+}
+
 namespace {
 
 bool PlainPartName(const std::string& name) {
@@ -169,7 +173,13 @@ bool PlainPartName(const std::string& name) {
 std::string MarkRecordText(const MarkRecord& record) {
   char text[256];
   int used = snprintf(text, sizeof(text), "e %.3f %.3f %.3f", record.eye.x, record.eye.y, record.eye.z);
-  if (record.fix && PlainPartName(record.fix->part) && used > 0) {
+  if (record.click && used > 0) {
+    const MarkRay& c = *record.click;
+    const int more = snprintf(text + used, sizeof(text) - used, "|c %.3f %.3f %.3f %.3f %.3f %.3f", c.from.x, c.from.y,
+                              c.from.z, c.to.x, c.to.y, c.to.z);
+    if (more > 0) used += more;
+  }
+  if (record.fix && PlainPartName(record.fix->part) && used > 0 && used < static_cast<int>(sizeof(text))) {
     const MarkFix& f = *record.fix;
     snprintf(text + used, sizeof(text) - used, "|f %s %.4f %.4f %.4f %.5f %.5f %.5f %.5f", f.part.c_str(), f.position.x,
              f.position.y, f.position.z, f.turn.w, f.turn.x, f.turn.y, f.turn.z);
@@ -183,10 +193,19 @@ bool ParseMarkRecord(const std::string& text, MarkRecord* record) {
   int read = 0;
   if (sscanf_s(text.c_str(), "e %f %f %f%n", &eye.x, &eye.y, &eye.z, &read) < 3 || read <= 0) return false;
   record->eye = eye;
+  record->click.reset();
   record->fix.reset();
   const char* rest = text.c_str() + read;
   if (*rest == '\0') return true;
   if (*rest != '|') return false;
+  MarkRay click;
+  int click_read = 0;
+  if (sscanf_s(rest, "|c %f %f %f %f %f %f%n", &click.from.x, &click.from.y, &click.from.z, &click.to.x, &click.to.y,
+               &click.to.z, &click_read) == 6 &&
+      click_read > 0) {
+    record->click = click;
+    rest += click_read;
+  }
   char part[64] = {};
   MarkFix fix;
   if (sscanf_s(rest, "|f %63s %f %f %f %f %f %f %f", part, static_cast<unsigned>(sizeof(part)), &fix.position.x,
@@ -194,7 +213,31 @@ bool ParseMarkRecord(const std::string& text, MarkRecord* record) {
     fix.part = part;
     record->fix = fix;
   }
-  return true;  // a fix that doesn't read: the eyes only (the mark is placed again)
+  return true;  // a part that doesn't read: no fix (the mark is placed again)
+}
+
+bool MarkClickOnFloor(const Vec3f& cursor, const Vec3f& sent) {
+  const float across = sqrtf((cursor.x - sent.x) * (cursor.x - sent.x) + (cursor.y - sent.y) * (cursor.y - sent.y));
+  return across <= kMarkFloorNear && fabsf(cursor.z - sent.z) <= kMarkFloorNear;
+}
+
+Vec3f MarkCastPointBefore(const Vec3f& cursor, const Vec3f& camera, float feet_z) {
+  const Vec3f toward = Normalized(Vec3f{cursor.x - camera.x, cursor.y - camera.y, 0});
+  return {cursor.x - toward.x * kMarkWallStandOff, cursor.y - toward.y * kMarkWallStandOff, feet_z};
+}
+
+bool MarkStandsUpright(const Vec3f& normal) { return fabsf(Normalized(normal).z) <= kMarkFlatSurface; }
+
+bool MarkCursorOnCaster(const Vec3f& cursor, const Vec3f& feet) {
+  const float across = sqrtf((cursor.x - feet.x) * (cursor.x - feet.x) + (cursor.y - feet.y) * (cursor.y - feet.y));
+  const float up = cursor.z - feet.z;
+  return across <= kMarkBodyReach && up >= -0.2f && up <= kMarkBodyHeight;
+}
+
+float MarkFacingOf(const Vec3f& normal) {
+  float degrees = atan2f(normal.y, normal.x) * 180.0f / 3.14159265f;
+  if (degrees < 0.0f) degrees += 360.0f;
+  return degrees;
 }
 
 }  // namespace rules

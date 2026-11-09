@@ -4,6 +4,11 @@
 // model?"). The client finds the surface with the game's own hit test and fixes the mark to the part it hit
 // (core/magic_mark_surface.cpp); this is the geometry around it, and the record kept on the object.
 //
+// 0.96.3 (owner, 2026-11-09: "A" - the mark where you click - "but we should try to find a way to deal with walls
+// that have floors behind them so that the wall is marked and not the floor"): the line is the camera's ray through
+// the point under the cursor at the click (the game's own pick); the eyes' line is the fallback. A click on a wall
+// (the cursor's point isn't the floor the game sends) marks the wall, and the cast's point moves in front of it.
+//
 // Turns are quaternions in the game's order (w, x, y, z), turning a part's own frame into its parent's (the world's):
 // v' = q v q*. The mark's model is a square on its x-z plane, read from its +y side, its top +z.
 #pragma once
@@ -73,14 +78,42 @@ struct MarkFix {
 MarkFix MarkFixInPart(const std::string& part, const Vec3f& hit, const Vec3f& normal, const Vec3f& direction,
                       const Vec3f& part_position, const Quatf& part_turn);
 
-// The record kept on the object (a local string, saved with the game): the eyes at the cast and, once placed, the
-// part and the mark's place in it - "e <x> <y> <z>" or "e <x> <y> <z>|f <part> <px> <py> <pz> <qw> <qx> <qy> <qz>".
-// A part's name has no spaces or bars (else the record keeps the eyes only).
+// The camera's ray through the point under the cursor at the click (0.96.3): from the camera to that point.
+struct MarkRay {
+  Vec3f from;
+  Vec3f to;
+};
+constexpr float kMarkClickReach = 4.0f;  // the ray tested this far past the cursor's point (it was on something nearer)
+Vec3f MarkClickEnd(const MarkRay& ray);
+
+// The record kept on the object (a local string, saved with the game): the eyes at the cast, the click's ray (0.96.3)
+// and, once placed, the part and the mark's place in it - "e <x> <y> <z>", then "|c <fx> <fy> <fz> <tx> <ty> <tz>"
+// with a click, then "|f <part> <px> <py> <pz> <qw> <qx> <qy> <qz>" once placed. A part's name has no spaces or
+// bars (else the record keeps no fix).
 struct MarkRecord {
   Vec3f eye;
+  std::optional<MarkRay> click;
   std::optional<MarkFix> fix;
 };
 std::string MarkRecordText(const MarkRecord& record);
 bool ParseMarkRecord(const std::string& text, MarkRecord* record);
+
+// A click on the ground: the cursor's point is the floor the game sends (within kMarkFloorNear across and up or
+// down). Otherwise the cursor was on a wall (with floor behind it, which the game sends), a pillar, a ledge.
+constexpr float kMarkFloorNear = 0.75f;
+bool MarkClickOnFloor(const Vec3f& cursor, const Vec3f& sent);
+// The cast's point for a click on a wall: kMarkWallStandOff in front of the cursor's point, toward the camera, at
+// the caster's feet - so the caster doesn't walk around to the floor behind the wall.
+constexpr float kMarkWallStandOff = 0.6f;
+Vec3f MarkCastPointBefore(const Vec3f& cursor, const Vec3f& camera, float feet_z);
+// A mark on a wall stands upright when its surface isn't flat (kMarkFlatSurface), facing out along the normal: NWN
+// degrees (0 east, 90 north), the way the upright model's face looks when its object faces so.
+bool MarkStandsUpright(const Vec3f& normal);
+float MarkFacingOf(const Vec3f& normal);
+// The cursor's point on the caster's own body (within kMarkBodyReach across of its feet, up to kMarkBodyHeight
+// above them): a click at the floor just past it, not a wall.
+constexpr float kMarkBodyReach = 0.6f;
+constexpr float kMarkBodyHeight = 2.2f;
+bool MarkCursorOnCaster(const Vec3f& cursor, const Vec3f& feet);
 
 }  // namespace rules
