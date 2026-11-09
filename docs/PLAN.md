@@ -869,6 +869,8 @@ monster AC by CR.
     placeable on the walkmesh under the point (GetGroundHeight - the click's point is 0.3-0.4 m over it), a random
     turn, loaded as a normal placeable (light_sources.cpp's CreatingFireLight: the blueprints are static), plot, gone
     with the area effect; vfx_persistent row 103 without Grease's model; the dust heartbeat (n5c_dust_hb) gone.
+    *Tested 0.97.5 (owner, 2026-11-09): BW-1b and BW-2b passed - "make a note that we need a bigger puddle"* (on #143:
+    the owner's n5v_puddle bigger than NWN's Puddle 1, about 1.1 m; the game's Puddle 2 is about 1.7 by 1.6 m).
   - *0.94.1 (owner, 2026-11-08: "there should be 5 new magic mark symbols, all tga with no alpha. can you wire them up
     for a test as well?"):* Magic Mark shows one of the owner's symbols (data/files/n5t_mark01-05.tga, 256 x 256)
     at random, flat on the ground and turned a random way: models n5v_mark01-05 (a 0.6 m quad just above the ground,
