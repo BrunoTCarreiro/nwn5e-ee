@@ -1,0 +1,5 @@
+# spells.2da - 2026-11-09 (owner: "go with A" - a spell without a Verbal component cast from hiding keeps the hide):
+# the components where NWN's row and SRD 5.2 differ, for the spells SRD 5.2 has (served with the faithful
+# spellcasting rows, "cantrips2024"). Ray of Enfeeblement: V, S (NWN's says S).
+VS
+143 vs

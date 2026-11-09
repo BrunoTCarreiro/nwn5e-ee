@@ -884,6 +884,15 @@ HideAtAttack WhenAttackEndsHide(bool hiding, bool faithful) {
   return faithful ? HideAtAttack::kEndsAfterRoll : HideAtAttack::kEndsBeforeRoll;
 }
 
+bool SpellHasVerbal(const std::string& components) {
+  for (char c : components) {
+    if (c == 'v' || c == 'V') return true;
+  }
+  return false;
+}
+
+bool CastKeepsHiding(bool hiding, bool verbal, bool faithful) { return faithful && hiding && !verbal; }
+
 std::vector<int> GrantedFeats2024(const std::vector<ClassLevels>& classes) {
   std::vector<int> feats;
   for (const ClassLevels& c : classes) {

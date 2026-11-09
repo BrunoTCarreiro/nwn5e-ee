@@ -73,6 +73,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "ruleset.h"
+#include "cast_action.h"
 
 namespace {
 
@@ -89,6 +90,8 @@ GetEffectImmunityFn g_get_effect_immunity = nullptr;
 CodeRange g_defensive_effects_code;
 bool g_concealment_roll_removed = false;
 thread_local const void* t_entangling = nullptr;  // the object OnApplyEntangled is handling
+thread_local int t_cast_spell = -1;               // the spell AIActionCastSpell runs (cast_action.h)
+bool g_cast_action_failed = false;
 
 constexpr float kFiveFeet = 1.524f;  // metres, edge to edge
 constexpr int kEpicSelfConcealmentFirst = 0x2ec;  // feats 748-752 (Epic Self-Concealment 10-50%), as on 1.69
@@ -319,14 +322,22 @@ int OnApplyAbilityDecrease(void* handler, void* object, void* effect, int loadin
   return g_on_apply_ability_decrease(handler, object, effect, loading);
 }
 
-// CN8: a deafened caster's verbal spells don't fail (faithful).
+// CN8: a deafened caster's verbal spells don't fail (faithful). And the spell being cast kept for the call
+// (cast_action.h).
 uint32_t AIActionCastSpell(void* creature, void* action) {
-  if (!creature || !effects::HasType(creature, ee::kEffectTypeDeaf)) return g_ai_action_cast_spell(creature, action);
-  uint8_t& state = *reinterpret_cast<uint8_t*>(static_cast<uint8_t*>(creature) + ee::kCreatureAiState);
-  const bool set_by_us = (state & ee::kAiStateCanHear) == 0;
-  if (set_by_us) state |= ee::kAiStateCanHear;
-  const uint32_t result = g_ai_action_cast_spell(creature, action);
-  if (set_by_us) state &= static_cast<uint8_t>(~ee::kAiStateCanHear);
+  const int outer = t_cast_spell;
+  t_cast_spell = action ? static_cast<int>(Field<uint32_t>(action, ee::kCastSpell)) : -1;
+  uint32_t result = 0;
+  if (!Faithful() || !creature || !effects::HasType(creature, ee::kEffectTypeDeaf)) {
+    result = g_ai_action_cast_spell(creature, action);
+  } else {
+    uint8_t& state = *reinterpret_cast<uint8_t*>(static_cast<uint8_t*>(creature) + ee::kCreatureAiState);
+    const bool set_by_us = (state & ee::kAiStateCanHear) == 0;
+    if (set_by_us) state |= ee::kAiStateCanHear;
+    result = g_ai_action_cast_spell(creature, action);
+    if (set_by_us) state &= static_cast<uint8_t>(~ee::kAiStateCanHear);
+  }
+  t_cast_spell = outer;
   return result;
 }
 
@@ -471,6 +482,18 @@ std::string CheckDisadvantage(void* creature) {
   return std::string();
 }
 
+bool HookCastAction() {
+  if (g_ai_action_cast_spell) return true;
+  if (g_cast_action_failed) return false;
+  g_cast_action_failed = !HookExport(
+      "CNWSCreature::AIActionCastSpell (CN8: deafness adds no spell failure; the spell being cast)",
+      ee::kAIActionCastSpell, reinterpret_cast<void*>(&AIActionCastSpell),
+      reinterpret_cast<void**>(&g_ai_action_cast_spell));
+  return !g_cast_action_failed;
+}
+
+int CastingSpellNow() { return t_cast_spell; }
+
 void InstallConditionRules() {
   if (!Faithful()) return;
   HookExport("CNWSEffectListHandler::OnApplySetState (CN5 2024 fear)", ee::kOnApplySetState,
@@ -481,8 +504,7 @@ void InstallConditionRules() {
              reinterpret_cast<void*>(&OnApplyAttackDecrease), reinterpret_cast<void**>(&g_on_apply_attack_decrease));
   HookExport("CNWSEffectListHandler::OnApplyAbilityDecrease (CN1)", ee::kOnApplyAbilityDecrease,
              reinterpret_cast<void*>(&OnApplyAbilityDecrease), reinterpret_cast<void**>(&g_on_apply_ability_decrease));
-  HookExport("CNWSCreature::AIActionCastSpell (CN8: deafness adds no spell failure)", ee::kAIActionCastSpell,
-             reinterpret_cast<void*>(&AIActionCastSpell), reinterpret_cast<void**>(&g_ai_action_cast_spell));
+  HookCastAction();
   AnswerRulesetInt("COUP_DE_GRACE_LEVEL_LIMIT", "conditions: no coup de grace (2024)", [](int) { return -1; });
   // #106: the 2024 Charmed - no attack on the charmer, no harmful spell at it.
   const bool attack_guard = AddActionGuard(&CharmAttackGuard) && AddAttackRollSkipper(&CharmAttackRollSkip);

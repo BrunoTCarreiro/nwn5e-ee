@@ -81,6 +81,7 @@
 #include <vector>
 
 #include "chat.h"
+#include "cast_action.h"
 #include "condition_effects.h"
 #include "config.h"
 #include "creature.h"
@@ -96,6 +97,8 @@
 #include "rules/class_features.h"
 #include "rules/grenades.h"
 #include "rules/skills.h"
+#include "data/twoda.h"
+#include "rules_loaded.h"
 #include "skill_rank.h"
 
 bool StealthParts(void* creature, int* extra, bool* proficient);  // rules_skills.cpp
@@ -136,6 +139,11 @@ using AIActionItemCastSpellFn = uint32_t (*)(void* creature, void* node);
 constexpr const char* kAIActionItemCastSpell = "?AIActionItemCastSpell@CNWSCreature@@QEAAIPEAVCNWSObjectActionNode@@@Z";
 AIActionItemCastSpellFn g_item_cast_spell = nullptr;
 thread_local bool t_grenade_throw = false;
+// 2026-11-09 (A): the spells without a Verbal component (the served spells.2da's VS, read at the first rules load)
+// - cast from hiding they keep the hide.
+std::unordered_set<int> g_spells_without_verbal;
+bool g_spell_components_read = false;
+std::unordered_map<uint32_t, int64_t> g_cast_logged;  // id -> ms: once a cast (its ActivityManager(1) each tick)
 std::unordered_map<uint32_t, int64_t> g_throw_logged;  // id -> ms: ActivityManager(1) comes each tick of a cast (0.71.1)
 // #133: where each creature last heard each hider ((observer << 32) | hider -> x, y, z), the search's goal; and when
 // a creature last turned an attack into a search (id -> ms).
@@ -423,6 +431,26 @@ void ActivityManager(void* creature, uint32_t action) {
     }
     return;
   }
+  // 2026-11-09 (owner: "go with A"): a spell without a Verbal component cast from hiding keeps the hide - its
+  // cast's ActivityManager(1) leaves the stealth activity alone, as a grenade's.
+  const int spell = action == kActivityForCast && !t_grenade_throw ? CastingSpellNow() : -1;
+  if (creature && spell >= 0 && g_spell_components_read &&
+      rules::CastKeepsHiding(Hiding(creature), g_spells_without_verbal.count(spell) == 0, true) &&
+      (Field<uint32_t>(creature, kCreatureActivityBits) & kActivityStealth)) {
+    const uint32_t left = Field<uint32_t>(creature, kCreatureActivitiesLeft);
+    SetField<uint32_t>(creature, kCreatureActivitiesLeft, left | kActivityStealth);
+    g_activity_manager(creature, action);
+    SetField<uint32_t>(creature, kCreatureActivitiesLeft, left);
+    const int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now().time_since_epoch()).count();
+    int64_t& last = g_cast_logged[IdOf(creature)];
+    if (now - last > 3000 && LogSlot()) {
+      last = now;
+      Log("stealth: 0x%08X casts spell %d from hiding - no Verbal component, still hidden (2024's Hide)%s",
+          IdOf(creature), spell, Hiding(creature) ? "" : " - NOT hidden: the engine ended it anyway");
+    }
+    return;
+  }
   if (!creature || action != kActivityForAttack ||
       rules::WhenAttackEndsHide(Hiding(creature), true) != rules::HideAtAttack::kEndsAfterRoll ||
       !(Field<uint32_t>(creature, kCreatureActivityBits) & kActivityStealth)) {
@@ -434,6 +462,33 @@ void ActivityManager(void* creature, uint32_t action) {
   g_activity_manager(creature, action);
   SetField<uint32_t>(creature, kCreatureActivitiesLeft, left);
   g_hide_ends_after_attack.insert(IdOf(creature));
+}
+
+// 2026-11-09 (A): the served spells.2da's spells without a Verbal component (rules::SpellHasVerbal on VS), once.
+void ReadSpellComponents(void* /*rules*/, bool /*reload*/) {
+  if (g_spell_components_read) return;
+  std::string bytes, why, error;
+  data::TwoDA table;
+  if (!ReadGameResource("spells", ee::kResourceType2da, &bytes, &why) || !data::ParseTwoDA(bytes, &table, &error)) {
+    Log("SKIP stealth: spells.2da not read (%s%s) - every cast ends stealth mode", why.c_str(), error.c_str());
+    return;
+  }
+  size_t vs = table.columns.size();
+  for (size_t i = 0; i < table.columns.size(); ++i) {
+    if (table.columns[i] == "VS") vs = i;
+  }
+  if (vs == table.columns.size()) {
+    Log("SKIP stealth: spells.2da has no VS column - every cast ends stealth mode");
+    return;
+  }
+  for (size_t row = 0; row < table.rows.size(); ++row) {
+    if (vs < table.rows[row].size() && !rules::SpellHasVerbal(table.rows[row][vs])) {
+      g_spells_without_verbal.insert(static_cast<int>(row));
+    }
+  }
+  g_spell_components_read = true;
+  Log("stealth: %zu of %zu spells.2da rows have no Verbal component - cast from hiding, they keep the hide",
+      g_spells_without_verbal.size(), table.rows.size());
 }
 
 // #132: the item cast marks a grenade's throw for ActivityManager (above) while it runs.
@@ -850,6 +905,10 @@ void InstallPerceptionRules() {
              reinterpret_cast<void*>(&ActivityManager), reinterpret_cast<void**>(&g_activity_manager));
   HookExport("CNWSCreature::ResolveAttack (an attack from hiding ends the hide after its roll)", kResolveAttack,
              reinterpret_cast<void*>(&ResolveAttack), reinterpret_cast<void**>(&g_resolve_attack));
+  // 2026-11-09 (A): a spell without a Verbal component cast from hiding keeps the hide.
+  if (!HookCastAction() || !OnRulesLoaded(&ReadSpellComponents)) {
+    Log("SKIP stealth: the cast action or the rules load isn't hooked - every cast ends stealth mode");
+  }
   // #132: a grenade thrown from hiding keeps the hide.
   HookExport("CNWSCreature::AIActionItemCastSpell (a grenade thrown from hiding keeps the hide)", kAIActionItemCastSpell,
              reinterpret_cast<void*>(&AIActionItemCastSpell), reinterpret_cast<void**>(&g_item_cast_spell));

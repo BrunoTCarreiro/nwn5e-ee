@@ -496,6 +496,12 @@ bool StealthToggleAllowed(bool into_stealth, bool attack_target);
 // attack roll, the roll made hidden (Advantage while the target can't see you).
 enum class HideAtAttack { kNotHiding, kEndsBeforeRoll, kEndsAfterRoll };
 HideAtAttack WhenAttackEndsHide(bool hiding, bool faithful);
+// Casting from hiding (owner, 2026-11-09: "go with A", after "I don't see a way to cast it [Minor Illusion] in a way
+// to attract enemies away without being detected"): SRD 5.2's Hide ends on "a spell with a Verbal component", so a
+// spell without one keeps the hide (faithful); NWN's otherwise - every cast ends stealth mode. A spell attack's roll
+// still ends it after the roll (WhenAttackEndsHide). SpellHasVerbal: spells.2da's VS ("vs", "s"; "****" none).
+bool SpellHasVerbal(const std::string& components);
+bool CastKeepsHiding(bool hiding, bool verbal, bool faithful);
 // #129 (0.66.8): the Hide action's Invisible condition - Advantage on an attack against a creature that can't see
 // you (a hider its target doesn't see), faithful only.
 bool HiddenAttackAdvantage(bool hiding, bool target_sees, bool faithful);

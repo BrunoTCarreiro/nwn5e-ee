@@ -556,6 +556,15 @@ TEST(ExtraActions) {
   CHECK_EQ(WhenAttackEndsHide(false, true) == HideAtAttack::kNotHiding, true);
   CHECK_EQ(WhenAttackEndsHide(true, true) == HideAtAttack::kEndsAfterRoll, true);
   CHECK_EQ(WhenAttackEndsHide(true, false) == HideAtAttack::kEndsBeforeRoll, true);
+  // 2026-11-09 (A): a spell without a Verbal component keeps the hide, faithful only.
+  CHECK_EQ(SpellHasVerbal("vs"), true);
+  CHECK_EQ(SpellHasVerbal("V"), true);
+  CHECK_EQ(SpellHasVerbal("s"), false);
+  CHECK_EQ(SpellHasVerbal("****"), false);
+  CHECK_EQ(CastKeepsHiding(true, false, true), true);
+  CHECK_EQ(CastKeepsHiding(true, true, true), false);
+  CHECK_EQ(CastKeepsHiding(true, false, false), false);
+  CHECK_EQ(CastKeepsHiding(false, false, true), false);
   // 0.66.8: Advantage from hiding - only while hiding, only unseen by the target, faithful only.
   CHECK_EQ(HiddenAttackAdvantage(true, false, true), true);
   CHECK_EQ(HiddenAttackAdvantage(true, true, true), false);
