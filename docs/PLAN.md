@@ -1130,6 +1130,13 @@ monster AC by CR.
     default) keeping them; Q6 B - reactions (Shield, Feather Fall, Hellish Rebuke, Counterspell) and smites with their
     classes. #39 keeps what all the classes share (the save table, the retired spells, the house rule); each class
     issue takes its list.
+  - *Q1 changed (owner, 2026-11-09: "My point is that we're testing faithful classes with nwn spells, there might be
+    unintended interactions once we change to 2024 spells and that might require retesting everything all over again.
+    so yeah, go A, level by level"),* asked "shouldn't we rewrite all the spells before testing them with classes?"
+    after the Cleric's builds 1a-1c: the spells are built level by level for every class (2a level 1, 2b level 2 ...),
+    each spell once, on #39; the class briefs keep their features. The Cleric's Part 1 builds 2 and 3 (its level 1
+    spells, its list) fold into level 1's pass. Q2-Q5 stand; Q6 (reactions and smites with their classes) is asked
+    again in level 1's brief, as its Shield, Feather Fall, Hellish Rebuke and smites are level 1 spells.
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
   New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion
