@@ -1173,6 +1173,10 @@ monster AC by CR.
     feat menu's option - its param k * 65536 + the feat - is its own spells.2da row (FeatID = the param), with its own
     targets: a creature-targeted one opens the targeting cursor, and the cursor carries the option (the game passes
     a feat up to 0x430 to the cursor without it - Turn Undead's own spell at the click - but keeps it for feat 5's).
+    *Tested 0.98.1 (owner, 2026-11-09): "nope, still targets myself, no cursor"* - the log: the radial took the
+    option's row and started the feat cursor, and a use was queued at once: the feat cursor uses a feat whose
+    TARGETSELF is 1 on its user (Turn Undead's is), and nwn5e's radial leaves self-only class feats off another
+    creature's menu (CD-2c). 0.98.2: feat 294's TARGETSELF 0 in faithful (feat.cleric.if_classfeat2024.txt).
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's

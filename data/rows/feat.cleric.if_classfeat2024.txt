@@ -1,0 +1,7 @@
+# feat.2da - #42 Cleric Part 1 (0.98.2; owner, 2026-11-09, CD-2b: "nope, still targets myself, no cursor"): with
+# class_features faithful, Channel Divinity (feat 294, NWN's Turn Undead) isn't self-only. With TARGETSELF 1 the
+# game's feat cursor used it on its user at once, whichever option was picked, and a creature's own radial left
+# it off; Divine Spark aims at another creature. Its Turn Undead and Preserve Life options still target the
+# Cleric (their rows, spells.cleric.txt: yourself).
+TARGETSELF
+294 0
