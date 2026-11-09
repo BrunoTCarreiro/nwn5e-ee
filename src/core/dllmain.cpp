@@ -73,6 +73,7 @@ void InstallRestRules();
 void InstallConcentration();  // #37 (0.86.0): SRD 5.2's Concentration
 void InstallComponents();     // #38 (0.87.0): costly material components in gold
 void InstallCantrips();       // #39 (0.88.0): SRD 5.2's damage cantrips
+void InstallSpells2024();     // #39 Part 2a (0.99.0): SRD 5.2's levelled spells
 void InstallDyingRules();
 void InstallShortRestButton();
 void InstallLowHpLook();
@@ -107,7 +108,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.98.5";
+constexpr const char* kVersion = "0.99.0";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -179,6 +180,7 @@ void Start(HMODULE self) {
   InstallConcentration();  // #37 (0.86.0): before the panel's install (it gives a pool)
   InstallComponents();     // #38 (0.87.0)
   InstallCantrips();       // #39 (0.88.0)
+  InstallSpells2024();     // #39 Part 2a (0.99.0)
   InstallResourcePanel();  // after the class rules: they give its pools
   InstallHudClock();       // #105: the game time over the compass
   InstallRestRules();

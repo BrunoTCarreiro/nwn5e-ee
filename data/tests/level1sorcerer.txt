@@ -1,0 +1,15 @@
+# A !test profile ([debug] test_commands=1): type "!test level1sorcerer" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# #39 Part 2a build 1a: a Sorcerer 5, Charisma 16 - the level 1 Sorcerer and Wizard damage spells, with level 2
+# and 3 slots to upcast them (the radial's Level N).
+name = Level 1 spells (issue 39 2a): human Sorcerer 5, Charisma 16 - Burning Hands, Magic Missile, Ray of Sickness, False Life, Thunderwave, Ice Knife
+species = human
+swap_class = sorcerer
+class = sorcerer
+level = 5
+abilities = 8 14 14 10 10 16
+items = nw_wdbqs001 equip
+note = the Prepare spells window opens: Cantrips - any; Level 1 - Burning Hands, Magic Missile, Ray of Sickness, False Life, Thunderwave, Ice Knife; Accept
+note = !spawn nw_orcb gives you an enemy (spawn three for the areas); the radial's Level 2 and Level 3 upcast a spell

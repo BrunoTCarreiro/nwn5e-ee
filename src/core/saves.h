@@ -35,3 +35,6 @@ int SaveBonusFor(void* stats, rules::Ability ability);
 // it is casting (its last spell): PB + the casting ability of the class slot
 // or item it casts from — the C5 DC minus 8. False when not known.
 bool SpellAttackCasting(void* creature, int* bonus, const char** source);
+// #39 Part 2a: the spellcasting ability modifier of the spell `creature` is casting (the C5 DC - 8 - PB; a
+// scroll's, its table's); 0 when not known.
+int SpellcastingModifier2024(void* creature);

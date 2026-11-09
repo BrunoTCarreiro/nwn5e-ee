@@ -44,7 +44,8 @@ std::string PushOnHit(void* attacker, void* target, float metres = 3.0f);
 // G1: a Shove's push choice - straight away from the shover, on its feet (a
 // flinch, no fall), now. Empty when pushed (*pushed: how far - less when the
 // line is cut short), else why not ("no walkable ground behind it", ...).
-std::string ShovePush(void* attacker, void* target, float metres, float* pushed);
+// `any_size`: no Large limit (#39 2a: Thunderwave pushes a creature of any size).
+std::string ShovePush(void* attacker, void* target, float metres, float* pushed, bool any_size = false);
 // A Push hit waits for its damage to land (OnApplyDamage).
 bool PushAwaiting();
 // #11, 0.58.8: the push slides' times (rules/push_slide.h: a falling push's

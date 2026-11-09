@@ -485,6 +485,19 @@ bool SpellAttackCasting(void* creature, int* bonus, const char** source) {
   return true;
 }
 
+int SpellcastingModifier2024(void* creature) {
+  if (!creature) return 0;
+  const int spell_id = Field<int32_t>(creature, ee::kObjectLastSpellId);
+  static const auto unhooked = reinterpret_cast<SpellDcFn>(EngineExport(ee::kCalculateSpellSaveDC));
+  const SpellDcFn engine = g_calculate_spell_save_dc ? g_calculate_spell_save_dc : unhooked;
+  const int engine_dc = engine ? engine(creature, spell_id) : 10;
+  int dc = 0;
+  int pb = 0;
+  const char* source = "";
+  if (!SpellDc2024(creature, spell_id, engine_dc, &dc, &pb, &source)) return 0;
+  return dc - 8 - pb;
+}
+
 void InstallSaveRollRules() {
   if (g_config.saves == rules::RuleVariant::kOff) return;
   HookExport("CNWSCreature::CalculateSpellSaveDC (2024 spell DC)", ee::kCalculateSpellSaveDC,

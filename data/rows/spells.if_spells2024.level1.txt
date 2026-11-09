@@ -1,0 +1,14 @@
+# spells.2da - #39 Part 2a, build 1a (core/rules_spells2024.cpp; "spells2024" is served with spellcasting
+# faithful): NWN's level 1 damage and healing rows rewritten as SRD 5.2.1's - Burning Hands 10 (a 15-foot Cone),
+# Cure Wounds 32 (NWN's Cure Light Wounds), Magic Missile 107, Inflict Wounds 432 (NWN's Inflict Light Wounds: a
+# Constitution save now), Thunderwave 436 (NWN's Balagarn's Iron Horn: a 15-foot Cube from the caster, aimed),
+# Ice Knife 543 (NWN's Ice Dagger). Their scripts run in C++; NWN's animations, sounds and icons stay; their
+# schools, ranges (60 feet: M, 120 feet: L) and class lists the 2024 ones (Thunderwave level 1 for the Bard,
+# Druid, Sorcerer and Wizard; Ice Knife the Druid's too). The new rows: spells.if_spells2024.level1new.txt.
+Name School Range VS TargetType ImpactScript Bard Cleric Druid Paladin Ranger Wiz_Sorc Innate Category SpellDesc HostileSetting TargetShape TargetSizeX TargetSizeY TargetFlags
+10 760 V S vs 0x3E n5_s_burnhands **** **** **** **** **** 1 1 11 16000725 1 cone 4.57 **** 19
+32 16000717 A T vs 0x2B n5_s_curewounds 1 1 1 1 1 **** 1 5 16000718 0 **** **** **** ****
+107 857 V L vs 0x3A n5_s_magicmiss **** **** **** **** **** 1 1 2 16000726 1 **** **** **** ****
+432 16000719 N T vs 0x3A n5_s_inflict **** 1 **** **** **** **** 1 3 16000720 1 **** **** **** ****
+436 16000721 V S vs 0x3E n5_s_thunderwave 1 **** 1 **** **** 1 1 11 16000722 1 rectangle 4.57 4.57 19
+543 16000723 C M s 0x3A n5_s_iceknife **** **** 1 **** **** 1 1 2 16000724 1 **** **** **** ****
