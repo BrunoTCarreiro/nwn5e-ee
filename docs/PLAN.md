@@ -1553,7 +1553,8 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
       *Changed (owner, 2026-11-09: "go with A")* after "I'm checking the range of minor illusion vs the perception
       range of enemies and I don't see a way to cast it in a way to attract enemies away without being detected"
       (its 30 ft range and 60 ft draw against monsters' 28 m sight and 15 m hearing, the caster out of stealth mode):
-      0.96.10, faithful perception - a spell without a Verbal component (the served spells.2da's VS; rules::
+      0.96.10, faithful perception - a spell (UserType 1; a feat's or a creature's power keeps NWN's) without a
+      Verbal component (the served spells.2da's VS; rules::
       SpellHasVerbal) cast from hiding keeps the hide: the cast's ActivityManager(1) leaves the stealth activity alone
       (as a grenade's), the spell known from AIActionCastSpell's node (cast_action.h - its hook shared with CN8, on
       first use). A spell attack's roll still ends it after the roll. The class spells without one: Minor Illusion,

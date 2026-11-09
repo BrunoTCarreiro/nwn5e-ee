@@ -464,7 +464,8 @@ void ActivityManager(void* creature, uint32_t action) {
   g_hide_ends_after_attack.insert(IdOf(creature));
 }
 
-// 2026-11-09 (A): the served spells.2da's spells without a Verbal component (rules::SpellHasVerbal on VS), once.
+// 2026-11-09 (A): the served spells.2da's spells (UserType 1 - not a feat's or a creature's power, NWN's for those)
+// without a Verbal component (rules::SpellHasVerbal on VS), once.
 void ReadSpellComponents(void* /*rules*/, bool /*reload*/) {
   if (g_spell_components_read) return;
   std::string bytes, why, error;
@@ -473,21 +474,25 @@ void ReadSpellComponents(void* /*rules*/, bool /*reload*/) {
     Log("SKIP stealth: spells.2da not read (%s%s) - every cast ends stealth mode", why.c_str(), error.c_str());
     return;
   }
-  size_t vs = table.columns.size();
+  size_t vs = table.columns.size(), user_type = table.columns.size();
   for (size_t i = 0; i < table.columns.size(); ++i) {
     if (table.columns[i] == "VS") vs = i;
+    if (table.columns[i] == "UserType") user_type = i;
   }
-  if (vs == table.columns.size()) {
-    Log("SKIP stealth: spells.2da has no VS column - every cast ends stealth mode");
+  if (vs == table.columns.size() || user_type == table.columns.size()) {
+    Log("SKIP stealth: spells.2da has no VS or UserType column - every cast ends stealth mode");
     return;
   }
   for (size_t row = 0; row < table.rows.size(); ++row) {
-    if (vs < table.rows[row].size() && !rules::SpellHasVerbal(table.rows[row][vs])) {
+    const std::vector<std::string>& values = table.rows[row];
+    if (vs < values.size() && user_type < values.size() && values[user_type] == "1" &&
+        !rules::SpellHasVerbal(values[vs])) {
       g_spells_without_verbal.insert(static_cast<int>(row));
     }
   }
   g_spell_components_read = true;
-  Log("stealth: %zu of %zu spells.2da rows have no Verbal component - cast from hiding, they keep the hide",
+  Log("stealth: %zu of %zu spells.2da rows are spells with no Verbal component - cast from hiding, they keep the "
+      "hide",
       g_spells_without_verbal.size(), table.rows.size());
 }
 
