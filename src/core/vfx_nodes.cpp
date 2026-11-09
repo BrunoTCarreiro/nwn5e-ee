@@ -22,6 +22,9 @@
 // row's: its preview goes on the hand while it plays.
 //
 // `!vfxnode <row> [seconds]` (debug_test_commands) puts a row's visual effect on you; `!vfxnode off` ends it.
+//
+// 0.96.2 (#39): both attach hooks ask magic_mark_surface.cpp first - a Magic Mark put on a door or a placeable goes
+// on its model's surface, on the part the caster's eyes met (AttachMagicMark).
 
 #include <windows.h>
 
@@ -50,6 +53,7 @@
 #include "effects.h"
 #include "hooks.h"
 #include "log.h"
+#include "magic_mark_surface.h"
 #include "rules_loaded.h"
 
 namespace {
@@ -181,7 +185,16 @@ void* Redirect(void* self, void* target, const char* game_node, int game_mode, s
   return part;
 }
 
+// A Magic Mark put on a door's or a placeable's surface: attached in mode 0, the client's world alignment skipped.
+bool AttachedMark(void* self, void* target, int mode, void** result) {
+  if (!AttachMagicMark(self, target, mode, g_attach_to_part, result)) return false;
+  if (data::SkipsWorldAlignment(mode, data::kAttachTurning)) RememberTurning(self);
+  return true;
+}
+
 void* AttachToObject(void* self, void* target, const char* node, int mode) {
+  void* placed = nullptr;
+  if (AttachedMark(self, target, mode, &placed)) return placed;
   std::string moved;
   int moved_mode = mode;
   if (Redirect(self, target, node, mode, &moved, &moved_mode)) {
@@ -191,6 +204,8 @@ void* AttachToObject(void* self, void* target, const char* node, int mode) {
 }
 
 void* AttachToPart(void* self, void* target, void* part, int mode) {
+  void* placed = nullptr;
+  if (AttachedMark(self, target, mode, &placed)) return placed;
   std::string moved;
   int moved_mode = mode;
   if (void* other = Redirect(self, target, nullptr, mode, &moved, &moved_mode)) {
@@ -331,6 +346,7 @@ void InstallVfxNodes() {
     Log("SKIP effect nodes: Gob::SetPartPosition isn't as read (vtable +0x130) - a turning effect starts on the "
         "world's axes");
   }
+  InstallMagicMarkSurface();
   OnRulesLoaded(&LoadNodes);
   g_dev_seam.set_effect_node = &SetEffectNode;
   if (g_config.debug_test_commands) AddChatCommand("!vfxnode", &VfxNodeCommand);

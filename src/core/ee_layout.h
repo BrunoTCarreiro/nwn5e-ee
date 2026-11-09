@@ -204,6 +204,8 @@ constexpr const char* kVarTableGetInt = "?GetInt@CNWSScriptVarTable@@QEAAHAEAVCE
 constexpr const char* kVarTableSetInt = "?SetInt@CNWSScriptVarTable@@QEAAXAEAVCExoString@@HH@Z";
 // CExoString CNWSScriptVarTable::GetString(CExoString& name) - returned by value (hidden result pointer).
 constexpr const char* kVarTableGetString = "?GetString@CNWSScriptVarTable@@QEAA?AVCExoString@@AEAV2@@Z";
+// void CNWSScriptVarTable::SetString(CExoString& name, CExoString& value) (0.96.2).
+constexpr const char* kVarTableSetString = "?SetString@CNWSScriptVarTable@@QEAAXAEAVCExoString@@0@Z";
 constexpr const char* kGetSTRStat = "?GetSTRStat@CNWSCreatureStats@@QEAAEXZ";
 constexpr const char* kCalcStatModifier = "?CalcStatModifier@CNWSCreatureStats@@QEAADE@Z";
 constexpr const char* kGetDEXMod = "?GetDEXMod@CNWSCreatureStats@@QEAADH@Z";

@@ -1,5 +1,7 @@
 #include "rules/cantrips.h"
 
+#include <stdio.h>
+
 #include <algorithm>
 #include <cmath>
 
@@ -357,6 +359,38 @@ int MagicMarkTintOf(int row) {
   if (row == kMagicMarkWhite) return static_cast<int>(MarkTint::kWhite);
   if (row >= kMagicMarkGold && row < kMagicMarkGold + kMagicMarkTints - 1) return row - kMagicMarkGold + 1;
   return -1;
+}
+
+std::string MagicMarkModel(int symbol, int tint, bool upright) {
+  static const char* const kLetters[kMagicMarkTints] = {"", "g", "r", "n", "b", "v"};
+  if (symbol < 1 || symbol > kMagicMarkVisuals) symbol = 1;
+  if (tint < 0 || tint >= kMagicMarkTints) tint = 0;
+  char name[24];
+  snprintf(name, sizeof(name), "n5v_mark%02d%s%s", symbol, kLetters[tint], upright ? "u" : "");
+  return name;
+}
+
+namespace {
+
+std::vector<int> FreeSymbols(const std::vector<bool>& taken) {
+  std::vector<int> free;
+  for (int symbol = 1; symbol <= kMagicMarkVisuals; ++symbol) {
+    if (!(symbol - 1 < static_cast<int>(taken.size()) && taken[symbol - 1])) free.push_back(symbol);
+  }
+  if (free.empty()) {
+    for (int symbol = 1; symbol <= kMagicMarkVisuals; ++symbol) free.push_back(symbol);
+  }
+  return free;
+}
+
+}  // namespace
+
+int FreeMarkSymbols(const std::vector<bool>& taken) { return static_cast<int>(FreeSymbols(taken).size()); }
+
+int FreeMarkSymbol(int roll, const std::vector<bool>& taken) {
+  const std::vector<int> free = FreeSymbols(taken);
+  roll = std::clamp(roll, 1, static_cast<int>(free.size()));
+  return free[roll - 1];
 }
 
 int MagicMarkRow(int symbol, int tint, bool upright) {

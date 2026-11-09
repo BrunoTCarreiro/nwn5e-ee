@@ -905,6 +905,28 @@ monster AC by CR.
       and upright (n5v_markNN<g r n b v>[u]); the texture stays the owner's white symbol.
     - Rows: White 1860-1871 / 1880-1891; colour t at 1900 + (t - 1) * 40 flat, + 20 upright
       (rules::MagicMarkRow). The layout puts White exactly where colour 0 would fall.
+  - *Magic Mark on the model's surface - decided (owner, 2026-11-09: "go with 1"),* after MO-2 ("on a table it gets
+    placed somehow inside the model and is barely visible, only edges sticking out. I would assume it would be
+    projected on the surface of the model?") and MO-1 ("the door swings open but the magic mark stays in place").
+    0.96.2:
+    - The cast puts the mark's visual effect (upright, 1 hour, tagged n5c_mrk_<model>) on the door or placeable
+      itself, and a record on it, the local string n5m_<model>: the caster's eyes (its feet plus
+      rules::MarkEyeHeight by size). Its symbol is one not already on the object in that colour, so each mark there
+      has its own name. Three at a time per caster as before: the oldest's effect is removed.
+    - The client attaches the effect's model (core/magic_mark_surface.cpp, asked first by the attach hook of #144).
+      The target model's external data is its client door or placeable, whose id gives the server's object and
+      its record.
+    - Lines from the eyes toward the model's box (rules::MarkAimPoints: under the top seen from above, else at eye
+      height) go through the game's own hit test on the model's triangles (Gob::HitCheck; CHitInfo as the game
+      builds it). The first hit gives the point and the part. Two lines 2 cm beside it give the normal. If no line
+      hits a triangle, the same lines are tried on the parts' boxes.
+    - The mark attaches to that part, turning with it, so a door's leaf carries it. Its node sits 2 cm out from
+      the surface, facing out, its top up (on a top, away from the caster); rules::MarkFixInPart.
+    - The record then keeps the part and the place ("e x y z|f part px py pz qw qx qy qz"). When the client
+      attaches the mark again (a load, a return to the area), it goes back there, whatever the door's state.
+    - If the hit test isn't as read at the install (its slots and code, the client's door and placeable, the
+      game's turns checked with its own Quaternion * Vector), marks on objects keep 0.96.0's invisible object.
+    - Only where the game draws the scene: single player, a host's own client.
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's

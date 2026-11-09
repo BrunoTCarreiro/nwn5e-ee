@@ -10,6 +10,8 @@
 
 #include <stdint.h>
 
+#include <string>
+
 #include <vector>
 
 namespace rules {
@@ -275,6 +277,13 @@ int MagicMarkTintOf(int row);
 // The visualeffects row of `symbol` (1..kMagicMarkVisuals; out of range: the first) in colour `tint` (0..5; out of
 // range: White), flat on the ground or upright.
 int MagicMarkRow(int symbol, int tint, bool upright);
+// 0.96.2 (owner, 2026-11-09: "go with 1"): that row's model - n5v_markNN, the colour's letter (g r n b v; White
+// none), u upright. A mark on an object is named by its model (its effect's tag, its record).
+std::string MagicMarkModel(int symbol, int tint, bool upright);
+// A new mark's symbol on an object: the `roll`-th (1..FreeMarkSymbols; out of range: the nearest) of those not on
+// it already in that colour (taken[symbol - 1]); all of them taken, of all 12.
+int FreeMarkSymbols(const std::vector<bool>& taken);
+int FreeMarkSymbol(int roll, const std::vector<bool>& taken);
 
 // Where an upright mark stands: a point (the mark's centre) and the way it faces (NWN degrees: 0 east, 90 north).
 struct MarkSpot {

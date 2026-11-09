@@ -561,3 +561,31 @@ TEST(MagicMarkColours) {
     CHECK_EQ(ChoiceCantripOf(row) == presti, true);
   }
 }
+
+// 0.96.2 (owner, 2026-11-09: "go with 1"): a mark's model, and a symbol not on the object already. Breaks caught: a
+// colour's letter or the upright u wrong or missing, out-of-range symbols or colours not falling back, a taken
+// symbol picked, the roll counted over the wrong symbols, all taken leaving none.
+TEST(MagicMarkModels) {
+  CHECK_EQ(MagicMarkModel(3, 0, false) == "n5v_mark03", true);
+  CHECK_EQ(MagicMarkModel(3, 0, true) == "n5v_mark03u", true);
+  CHECK_EQ(MagicMarkModel(3, 1, true) == "n5v_mark03gu", true);
+  CHECK_EQ(MagicMarkModel(12, 2, false) == "n5v_mark12r", true);
+  CHECK_EQ(MagicMarkModel(10, 3, true) == "n5v_mark10nu", true);
+  CHECK_EQ(MagicMarkModel(7, 4, true) == "n5v_mark07bu", true);
+  CHECK_EQ(MagicMarkModel(12, 5, true) == "n5v_mark12vu", true);
+  CHECK_EQ(MagicMarkModel(13, 6, true) == "n5v_mark01u", true);
+  CHECK_EQ(MagicMarkModel(0, -1, false) == "n5v_mark01", true);
+  const std::vector<bool> none;
+  CHECK_EQ(FreeMarkSymbols(none), 12);
+  CHECK_EQ(FreeMarkSymbol(5, none), 5);
+  const std::vector<bool> some = {true, false, true};
+  CHECK_EQ(FreeMarkSymbols(some), 10);
+  CHECK_EQ(FreeMarkSymbol(1, some), 2);
+  CHECK_EQ(FreeMarkSymbol(2, some), 4);
+  CHECK_EQ(FreeMarkSymbol(10, some), 12);
+  CHECK_EQ(FreeMarkSymbol(0, some), 2);
+  CHECK_EQ(FreeMarkSymbol(99, some), 12);
+  const std::vector<bool> all(12, true);
+  CHECK_EQ(FreeMarkSymbols(all), 12);
+  CHECK_EQ(FreeMarkSymbol(5, all), 5);
+}

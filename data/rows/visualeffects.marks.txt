@@ -5,6 +5,8 @@
 # - 1880-1891: upright on a door or a placeable (n5v_markNNu, 0.5 m, two-sided; owner: "Go with A"), on an
 #   invisible object facing the caster.
 # Both turn with their object (OrientWithObject): core/rules_utility_cantrips.cpp picks one at random.
+# - 0.96.2 (owner, 2026-11-09: "go with 1"): the upright ones go on the door or the placeable itself, on its
+#   model's surface where the caster's eyes meet it (core/magic_mark_surface.cpp).
 # - 0.96.1 (owner, 2026-11-09: "Option b + random"): the same in gold, red, green, blue and violet - a colour t
 #   (1 Gold .. 5 Violet) from 1900 + (t - 1) * 40 flat (n5v_markNN<letter>: g r n b v), + 20 upright
 #   (n5v_markNN<letter>u). The colour is the material's; the texture stays the owner's white symbol.
