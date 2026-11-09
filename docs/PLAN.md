@@ -1177,6 +1177,10 @@ monster AC by CR.
     option's row and started the feat cursor, and a use was queued at once: the feat cursor uses a feat whose
     TARGETSELF is 1 on its user (Turn Undead's is), and nwn5e's radial leaves self-only class feats off another
     creature's menu (CD-2c). 0.98.2: feat 294's TARGETSELF 0 in faithful (feat.cleric.if_classfeat2024.txt).
+    *Tested 0.98.2 (owner, 2026-11-09): "CD matrix passes"* - the log: the engine spends the use before the menu's
+    script (the give-back right); Divine Spark Radiant 6 failed / Necrotic 2 saved (halved) / a heal of 8; Turn Undead
+    DC 14, Sear Undead 19, the skeleton turned and freed by damage; Preserve Life 6 (to half the maximum), and 0 given
+    back.
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's
