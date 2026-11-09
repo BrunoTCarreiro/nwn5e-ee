@@ -202,9 +202,38 @@ const std::vector<ClassFeature>& Monk() {
   return kFeatures;
 }
 
+// SRD 5.2.1 Cleric and the Life Domain (#42; owner, 2026-11-09: "A on all"; PLAN.md "Phase 4"), built part by part.
+const std::vector<ClassFeature>& Cleric() {
+  static const std::vector<ClassFeature> kFeatures = {
+      {1, "Spellcasting", false, "built: Wisdom; cantrips, prepared spells and slots (#36); the 2024 list's spells "
+                                 "level by level (#39 Part 2)"},
+      {1, "Divine Order", false, "next (Part 1 build 1b): Protector or Thaumaturge"},
+      {2, "Channel Divinity", false, "built: the Turn Undead button's menu - Divine Spark (heal, Radiant or "
+                                     "Necrotic), Turn Undead; 2 uses (3 at 6, 4 at 18), one back on a Short Rest"},
+      {3, "Life Domain", false, "built: granted at 3"},
+      {3, "Disciple of Life", true, "next (Part 1 build 1c)"},
+      {3, "Life Domain Spells", true, "with the spells (Part 1 build 2)"},
+      {3, "Preserve Life", true, "built: Channel Divinity - 5 x Cleric level among the Bloodied within 30 feet"},
+      {4, "Ability Score Improvement", false, "built (!asi)"},
+      {5, "Sear Undead", false, "built: Turn Undead's Wisdom-modifier d8s of Radiant damage"},
+      {6, "Blessed Healer", true, "next (Part 1 build 1c)"},
+      {7, "Blessed Strikes", false, "next (Part 1 build 1c): Divine Strike or Potent Spellcasting"},
+      {8, "Ability Score Improvement", false, "built (!asi)"},
+      {10, "Divine Intervention", false, "with the level 5 spells"},
+      {12, "Ability Score Improvement", false, "built (!asi)"},
+      {14, "Improved Blessed Strikes", false, "with Blessed Strikes"},
+      {16, "Ability Score Improvement", false, "built (!asi)"},
+      {17, "Supreme Healing", true, "Divine Spark built (the dice's maximum); the spells' with them"},
+      {19, "Epic Boon", false, "CM8"},
+      {20, "Greater Divine Intervention", false, "later (Wish)"},
+  };
+  return kFeatures;
+}
+
 bool HasFeatureList(CharacterClass character_class) {
   return character_class == CharacterClass::kFighter || character_class == CharacterClass::kBarbarian ||
-         character_class == CharacterClass::kRogue || character_class == CharacterClass::kMonk;
+         character_class == CharacterClass::kRogue || character_class == CharacterClass::kMonk ||
+         character_class == CharacterClass::kCleric;
 }
 
 bool HasDangerSense(int barbarian_level) { return barbarian_level >= 2; }
@@ -1024,6 +1053,7 @@ std::vector<ClassFeature> ClassFeatures2024(CharacterClass character_class, int 
                                            : character_class == CharacterClass::kBarbarian ? &Barbarian()
                                            : character_class == CharacterClass::kRogue     ? &Rogue()
                                            : character_class == CharacterClass::kMonk      ? &Monk()
+                                           : character_class == CharacterClass::kCleric    ? &Cleric()
                                                                                            : nullptr;
   if (!table) return features;
   for (const ClassFeature& feature : *table) {

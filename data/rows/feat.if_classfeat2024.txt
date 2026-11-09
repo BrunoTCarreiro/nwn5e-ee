@@ -16,3 +16,6 @@ FEAT DESCRIPTION
 213 16000509 16000510
 39 16000511 16000512
 204 16000513 16000514
+# #42 Cleric Part 1 build 1a (core/rules_cleric.cpp): Turn Undead is the 2024 Channel Divinity - its name and
+# description (the menu on its radial entry: Divine Spark, Turn Undead, Preserve Life).
+294 16000700 16000699

@@ -66,6 +66,22 @@ TEST(ClericLifeDomain) {
   CHECK_EQ(std::string(LifeDomainSpells(3)[2]) == "Cure Wounds", true);
 }
 
+// The Cleric's features as !features lists them: Channel Divinity from 2, the Life Domain at 3.
+TEST(ClericFeatureList) {
+  CHECK_EQ(HasFeatureList(CharacterClass::kCleric), true);
+  CHECK_EQ(ClassFeatures2024(CharacterClass::kCleric, 1).size(), 2u);
+  CHECK_EQ(ClassFeatures2024(CharacterClass::kCleric, 2).size(), 3u);  // Channel Divinity at 2
+  bool channel = false, domain = false;
+  for (const ClassFeature& f : ClassFeatures2024(CharacterClass::kCleric, 3)) {
+    channel = channel || std::string(f.name) == "Channel Divinity";
+    domain = domain || std::string(f.name) == "Life Domain";
+  }
+  CHECK_EQ(channel, true);
+  CHECK_EQ(domain, true);
+  CHECK_EQ(std::string(Subclass2024(CharacterClass::kCleric)) == "Life Domain", true);
+  CHECK_EQ(ClassFeatures2024(CharacterClass::kCleric, 20).size(), 19u);
+}
+
 TEST(ClericOrderAndStrikes) {
   // Thaumaturge: the Wisdom modifier on Arcana and Religion checks, at least +1.
   CHECK_EQ(ThaumaturgeCheckBonus(3), 3);

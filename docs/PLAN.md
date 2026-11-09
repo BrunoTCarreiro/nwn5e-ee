@@ -1151,6 +1151,22 @@ monster AC by CR.
     spells, then a part per spell level; Q2 A - Divine Order and Blessed Strikes as served feats in the bonus list
     with a bonus slot, existing Clerics Protector and Divine Strike, `!order` once; Q3 A - 2024's healing (no undead
     swap); Q4 A - Channel Divinity a menu on NWN's Turn Undead entry, its uses on the resource panel.
+  - *Part 1 in three builds:* 1 the features (1a Channel Divinity, 1b Divine Order, 1c the Life Domain's healing and
+    Blessed Strikes; the always-prepared domain spells with the spells, as #36 has no always-prepared list), 2 the
+    level 1 combat and healing spells, 3 the detection and utility ones and the 2024 list.
+  - *Built 0.98.0 (build 1a, Channel Divinity):* rules/cleric.{h,cpp} (ChannelDivinityUses, DivineSparkDice,
+    SearUndeadDice, LifeHealingBonus, PreserveLifePool / Room / Shares, LifeDomainSpells, ThaumaturgeCheckBonus,
+    DivineStrikeDice, PotentSpellcastingTempHp; the Cleric's rows in ClassFeatures2024 - tests ClericChannelDivinity,
+    ClericLifeDomain, ClericOrderAndStrikes, ClericFeatureList, 14 of 14 mutations caught); core/rules_cleric.cpp:
+    feat 294 at Cleric 2 (cls_feat_cler.if_classfeat2024.txt; a HasFeat filter for a Cleric 1 that has it, a
+    Paladin's left), named Channel Divinity (feat.if_classfeat2024.txt); a character's pool (X6, record
+    nwn5e_cd_spent: 2 / 3 / 4, a Short Rest's use back), on the resource panel; spell 308 (its script n5_cd_turn,
+    the AI's too) the master of rows 1142-1146 (spells.cleric.txt, FeatID 16019-16023 x 65536 + 294): Divine Spark
+    heal / Radiant / Necrotic (another creature, S range; d8s + Wisdom, Supreme Healing's maximum at 17; a
+    Constitution save, half), Turn Undead (the hostile Undead within 30 ft, a Wisdom save, NWN's EffectTurned
+    tagged nwn5e_turned for a minute - ended by damage or the Cleric down; Sear Undead's damage first), Preserve
+    Life (Cleric 3; friendly Bloodied within 30 ft, the most room first). The DC 8 + PB + Wisdom (Charisma for a
+    Paladin's NWN Turn Undead). A use the menu can't carry out is given back.
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's

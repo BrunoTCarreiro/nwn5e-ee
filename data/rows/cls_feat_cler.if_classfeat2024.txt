@@ -1,0 +1,5 @@
+# cls_feat_cler.2da - #42 Cleric Part 1 build 1a (core/rules_cleric.cpp; PLAN.md "Phase 4", the 2024 Cleric): with
+# class_features faithful, Turn Undead (Channel Divinity) comes at Cleric 2, as SRD 5.2.1's Channel Divinity - a
+# Cleric 1 that already has it can't use it until then (the HasFeat filter).
+FeatLabel FeatIndex List GrantedOnLevel OnMenu
+14 TurnUndead 294 3 2 1

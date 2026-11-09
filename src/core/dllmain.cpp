@@ -55,6 +55,7 @@ void InstallFeatureRules();
 void InstallFighterRules();
 void InstallBarbarianRules();
 void InstallMonkRules();
+void InstallClericRules();  // rules_cleric.cpp (#42)
 void InstallBonusActions();  // Phase 6 (#52)
 void InstallActionOrders();  // Phase 6 (#120)
 void InstallDefaultAttack();  // Phase 6 (#120)
@@ -106,7 +107,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.97.5";
+constexpr const char* kVersion = "0.98.0";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -162,6 +163,7 @@ void Start(HMODULE self) {
   InstallBarbarianRules();
   InstallBarbarianStrikes();
   InstallMonkRules();
+  InstallClericRules();
   InstallBonusActions();   // Phase 6 (#52): after the class rules
   InstallActionOrders();   // Phase 6 (#120): an order mid-round keeps the attack
   InstallDefaultAttack();  // Phase 6 (#120): a queue run dry in a fight attacks again
