@@ -983,6 +983,11 @@ monster AC by CR.
     pick stopping on a bench). 0.96.8: the cursor's surface tells (rules::ClassifyMarkClick) - steep, a wall's mark;
     flat but more than 0.25 m over the walkmesh under it (CNWSArea::ComputeHeight) or with none under it, a top's
     (flat there); else the floor's.
+    *Tested 0.96.8 (owner, 2026-11-09): MO-9b and MO-10b passed ("MO-9b and 10b are good"); MO-5 failed ("older
+    marks don't fade, they just pop out of existence").* When an effect ends the client plays its model's cessation
+    and keeps it 3 s more; the marks' was 0.5 s of alpha on an additive texture, and a mark on an invisible object
+    went with the object. 0.96.9: the cessation is 1.5 s, alpha and a shrink to 5%; the invisible objects' marks are
+    TEMPORARY effects, ended first (the oldest of three) or run out (the hour), the object destroyed 3 s after.
 - **A short cast for cantrips (#150).** *Decided (owner, 2026-11-09: "go with your recommendation for #150"),*
   after "most casting animations are very elaborate, especially for cantrips" (relayed from #149): every cantrip -
   the damage ones, the utility ones, Light, NWN's own - casts with no conjure, straight into #149's n5_cantrip
