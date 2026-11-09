@@ -1162,7 +1162,8 @@ monster AC by CR.
     radial's (#36); an area's damage rolled once, everyone in it; each spell on its 2024 classes' lists as built.
     Healing Word moves to build 1b with Chromatic Orb and Heroism: a Bonus Action spell spending a slot needs the
     Bonus Action casting the cantrips' doesn't give (built once there for every Bonus Action spell). Tests L1-1 to
-    L1-12 (!test level1sorcerer, level1cleric, level1bard).
+    L1-12 (!test level1sorcerer, level1cleric, level1bard). *Accepted (owner, 2026-11-09: "L1 matrix is
+    accepted").* Build 1b (Healing Word, Chromatic Orb, Heroism) next, on the owner's go.
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
   New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion
