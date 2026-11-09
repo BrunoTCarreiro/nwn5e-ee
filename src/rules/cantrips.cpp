@@ -538,6 +538,38 @@ const char* ImageBlueprintOf(ImageKind kind) {
 
 bool SeesThroughIllusion(int d20, int investigation_bonus, int dc) { return d20 + investigation_bonus >= dc; }
 
+bool IsSentient(int nwn_racial_type, int intelligence_score) {
+  switch (nwn_racial_type) {
+    case 8:   // animal
+    case 9:   // beast
+    case 10:  // construct
+    case 25:  // vermin
+    case 29:  // ooze
+      return false;
+    default: return intelligence_score >= 4;
+  }
+}
+
+ImageReaction ReactionToImage(ImageKind kind, bool sentient, bool hostile, int size, int image_size) {
+  switch (kind) {
+    case ImageKind::kObject: return sentient && hostile ? ImageReaction::kStudy : ImageReaction::kIgnore;
+    case ImageKind::kHumanoid:
+      if (sentient) return hostile ? ImageReaction::kStudy : ImageReaction::kIgnore;
+      return hostile ? ImageReaction::kAttack : ImageReaction::kFlee;
+    case ImageKind::kCreature:
+      if (!hostile || size < image_size) return sentient ? ImageReaction::kFleeThenStudy : ImageReaction::kFlee;
+      return sentient ? ImageReaction::kAttackThenSearch : ImageReaction::kAttack;
+    default: return ImageReaction::kIgnore;
+  }
+}
+
+AfterStudy AfterStudyOf(ImageKind kind, bool sees_through, bool hostile) {
+  if (sees_through) return hostile ? AfterStudy::kVanishThenSearch : AfterStudy::kVanishThenGoBack;
+  return kind == ImageKind::kCreature ? AfterStudy::kFleeAgain : AfterStudy::kGoBack;
+}
+
+bool SearchesAfterVanish(bool sentient, bool hostile) { return sentient && hostile; }
+
 bool DancingLightsMoveAllowed(float feet_from_lights, float feet_from_caster) {
   return feet_from_lights <= static_cast<float>(kDancingLightsMoveFeet) &&
          feet_from_caster <= static_cast<float>(kDancingLightsRangeFeet);
