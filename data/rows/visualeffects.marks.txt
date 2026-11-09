@@ -1,10 +1,157 @@
-# visualeffects.2da - #39 Part 1 (0.94.1; owner, 2026-11-08: "there should be 5 new magic mark symbols, all tga with
-# no alpha. can you wire them up for a test as well?"): Prestidigitation's Magic Mark - one of the owner's symbols
-# (data\files\n5t_mark01-05.tga, drawn additively: n5t_markNN.txi) on a flat 0.6 m model (n5v_mark01-05) on the
-# ground, turned with its object (core/rules_utility_cantrips.cpp picks one at random, at a random facing).
+# visualeffects.2da - #39 Part 1: Prestidigitation's Magic Mark, the owner's 12 symbols (0.96.0; owner, 2026-11-08:
+# "the new marks are in the x1 folder, you can delete the previous marks and add the new ones only"; the first five
+# were 0.94.1's rows 1840-1844). data\files\n5t_mark01-12.tga, drawn additively (n5t_markNN.txi).
+# - 1860-1871: flat on the ground (n5v_markNN, 0.6 m), on an invisible object at the point.
+# - 1880-1891: upright on a door or a placeable (n5v_markNNu, 0.5 m, two-sided; owner: "Go with A"), on an
+#   invisible object facing the caster.
+# Both turn with their object (OrientWithObject): core/rules_utility_cantrips.cpp picks one at random.
+# - 0.96.2 (owner, 2026-11-09: "go with 1"): the upright ones go on the door or the placeable itself, on its
+#   model's surface where the caster's eyes meet it (core/magic_mark_surface.cpp).
+# - 0.96.1 (owner, 2026-11-09: "Option b + random"): the same in gold, red, green, blue and violet - a colour t
+#   (1 Gold .. 5 Violet) from 1900 + (t - 1) * 40 flat (n5v_markNN<letter>: g r n b v), + 20 upright
+#   (n5v_markNN<letter>u). The colour is the material's; the texture stays the owner's white symbol.
 Label Type_FD OrientWithGround Imp_Root_S_Node Imp_Root_M_Node Imp_Root_L_Node Imp_Root_H_Node OrientWithObject
-1840 NWN5E_MAGIC_MARK_1 D 1 n5v_mark01 n5v_mark01 n5v_mark01 n5v_mark01 1
-1841 NWN5E_MAGIC_MARK_2 D 1 n5v_mark02 n5v_mark02 n5v_mark02 n5v_mark02 1
-1842 NWN5E_MAGIC_MARK_3 D 1 n5v_mark03 n5v_mark03 n5v_mark03 n5v_mark03 1
-1843 NWN5E_MAGIC_MARK_4 D 1 n5v_mark04 n5v_mark04 n5v_mark04 n5v_mark04 1
-1844 NWN5E_MAGIC_MARK_5 D 1 n5v_mark05 n5v_mark05 n5v_mark05 n5v_mark05 1
+1860 NWN5E_MAGIC_MARK_1 D 1 n5v_mark01 n5v_mark01 n5v_mark01 n5v_mark01 1
+1861 NWN5E_MAGIC_MARK_2 D 1 n5v_mark02 n5v_mark02 n5v_mark02 n5v_mark02 1
+1862 NWN5E_MAGIC_MARK_3 D 1 n5v_mark03 n5v_mark03 n5v_mark03 n5v_mark03 1
+1863 NWN5E_MAGIC_MARK_4 D 1 n5v_mark04 n5v_mark04 n5v_mark04 n5v_mark04 1
+1864 NWN5E_MAGIC_MARK_5 D 1 n5v_mark05 n5v_mark05 n5v_mark05 n5v_mark05 1
+1865 NWN5E_MAGIC_MARK_6 D 1 n5v_mark06 n5v_mark06 n5v_mark06 n5v_mark06 1
+1866 NWN5E_MAGIC_MARK_7 D 1 n5v_mark07 n5v_mark07 n5v_mark07 n5v_mark07 1
+1867 NWN5E_MAGIC_MARK_8 D 1 n5v_mark08 n5v_mark08 n5v_mark08 n5v_mark08 1
+1868 NWN5E_MAGIC_MARK_9 D 1 n5v_mark09 n5v_mark09 n5v_mark09 n5v_mark09 1
+1869 NWN5E_MAGIC_MARK_10 D 1 n5v_mark10 n5v_mark10 n5v_mark10 n5v_mark10 1
+1870 NWN5E_MAGIC_MARK_11 D 1 n5v_mark11 n5v_mark11 n5v_mark11 n5v_mark11 1
+1871 NWN5E_MAGIC_MARK_12 D 1 n5v_mark12 n5v_mark12 n5v_mark12 n5v_mark12 1
+1880 NWN5E_MAGIC_MARK_UP_1 D 0 n5v_mark01u n5v_mark01u n5v_mark01u n5v_mark01u 1
+1881 NWN5E_MAGIC_MARK_UP_2 D 0 n5v_mark02u n5v_mark02u n5v_mark02u n5v_mark02u 1
+1882 NWN5E_MAGIC_MARK_UP_3 D 0 n5v_mark03u n5v_mark03u n5v_mark03u n5v_mark03u 1
+1883 NWN5E_MAGIC_MARK_UP_4 D 0 n5v_mark04u n5v_mark04u n5v_mark04u n5v_mark04u 1
+1884 NWN5E_MAGIC_MARK_UP_5 D 0 n5v_mark05u n5v_mark05u n5v_mark05u n5v_mark05u 1
+1885 NWN5E_MAGIC_MARK_UP_6 D 0 n5v_mark06u n5v_mark06u n5v_mark06u n5v_mark06u 1
+1886 NWN5E_MAGIC_MARK_UP_7 D 0 n5v_mark07u n5v_mark07u n5v_mark07u n5v_mark07u 1
+1887 NWN5E_MAGIC_MARK_UP_8 D 0 n5v_mark08u n5v_mark08u n5v_mark08u n5v_mark08u 1
+1888 NWN5E_MAGIC_MARK_UP_9 D 0 n5v_mark09u n5v_mark09u n5v_mark09u n5v_mark09u 1
+1889 NWN5E_MAGIC_MARK_UP_10 D 0 n5v_mark10u n5v_mark10u n5v_mark10u n5v_mark10u 1
+1890 NWN5E_MAGIC_MARK_UP_11 D 0 n5v_mark11u n5v_mark11u n5v_mark11u n5v_mark11u 1
+1891 NWN5E_MAGIC_MARK_UP_12 D 0 n5v_mark12u n5v_mark12u n5v_mark12u n5v_mark12u 1
+1900 NWN5E_MAGIC_MARK_GOLD_1 D 1 n5v_mark01g n5v_mark01g n5v_mark01g n5v_mark01g 1
+1901 NWN5E_MAGIC_MARK_GOLD_2 D 1 n5v_mark02g n5v_mark02g n5v_mark02g n5v_mark02g 1
+1902 NWN5E_MAGIC_MARK_GOLD_3 D 1 n5v_mark03g n5v_mark03g n5v_mark03g n5v_mark03g 1
+1903 NWN5E_MAGIC_MARK_GOLD_4 D 1 n5v_mark04g n5v_mark04g n5v_mark04g n5v_mark04g 1
+1904 NWN5E_MAGIC_MARK_GOLD_5 D 1 n5v_mark05g n5v_mark05g n5v_mark05g n5v_mark05g 1
+1905 NWN5E_MAGIC_MARK_GOLD_6 D 1 n5v_mark06g n5v_mark06g n5v_mark06g n5v_mark06g 1
+1906 NWN5E_MAGIC_MARK_GOLD_7 D 1 n5v_mark07g n5v_mark07g n5v_mark07g n5v_mark07g 1
+1907 NWN5E_MAGIC_MARK_GOLD_8 D 1 n5v_mark08g n5v_mark08g n5v_mark08g n5v_mark08g 1
+1908 NWN5E_MAGIC_MARK_GOLD_9 D 1 n5v_mark09g n5v_mark09g n5v_mark09g n5v_mark09g 1
+1909 NWN5E_MAGIC_MARK_GOLD_10 D 1 n5v_mark10g n5v_mark10g n5v_mark10g n5v_mark10g 1
+1910 NWN5E_MAGIC_MARK_GOLD_11 D 1 n5v_mark11g n5v_mark11g n5v_mark11g n5v_mark11g 1
+1911 NWN5E_MAGIC_MARK_GOLD_12 D 1 n5v_mark12g n5v_mark12g n5v_mark12g n5v_mark12g 1
+1920 NWN5E_MAGIC_MARK_GOLD_UP_1 D 0 n5v_mark01gu n5v_mark01gu n5v_mark01gu n5v_mark01gu 1
+1921 NWN5E_MAGIC_MARK_GOLD_UP_2 D 0 n5v_mark02gu n5v_mark02gu n5v_mark02gu n5v_mark02gu 1
+1922 NWN5E_MAGIC_MARK_GOLD_UP_3 D 0 n5v_mark03gu n5v_mark03gu n5v_mark03gu n5v_mark03gu 1
+1923 NWN5E_MAGIC_MARK_GOLD_UP_4 D 0 n5v_mark04gu n5v_mark04gu n5v_mark04gu n5v_mark04gu 1
+1924 NWN5E_MAGIC_MARK_GOLD_UP_5 D 0 n5v_mark05gu n5v_mark05gu n5v_mark05gu n5v_mark05gu 1
+1925 NWN5E_MAGIC_MARK_GOLD_UP_6 D 0 n5v_mark06gu n5v_mark06gu n5v_mark06gu n5v_mark06gu 1
+1926 NWN5E_MAGIC_MARK_GOLD_UP_7 D 0 n5v_mark07gu n5v_mark07gu n5v_mark07gu n5v_mark07gu 1
+1927 NWN5E_MAGIC_MARK_GOLD_UP_8 D 0 n5v_mark08gu n5v_mark08gu n5v_mark08gu n5v_mark08gu 1
+1928 NWN5E_MAGIC_MARK_GOLD_UP_9 D 0 n5v_mark09gu n5v_mark09gu n5v_mark09gu n5v_mark09gu 1
+1929 NWN5E_MAGIC_MARK_GOLD_UP_10 D 0 n5v_mark10gu n5v_mark10gu n5v_mark10gu n5v_mark10gu 1
+1930 NWN5E_MAGIC_MARK_GOLD_UP_11 D 0 n5v_mark11gu n5v_mark11gu n5v_mark11gu n5v_mark11gu 1
+1931 NWN5E_MAGIC_MARK_GOLD_UP_12 D 0 n5v_mark12gu n5v_mark12gu n5v_mark12gu n5v_mark12gu 1
+1940 NWN5E_MAGIC_MARK_RED_1 D 1 n5v_mark01r n5v_mark01r n5v_mark01r n5v_mark01r 1
+1941 NWN5E_MAGIC_MARK_RED_2 D 1 n5v_mark02r n5v_mark02r n5v_mark02r n5v_mark02r 1
+1942 NWN5E_MAGIC_MARK_RED_3 D 1 n5v_mark03r n5v_mark03r n5v_mark03r n5v_mark03r 1
+1943 NWN5E_MAGIC_MARK_RED_4 D 1 n5v_mark04r n5v_mark04r n5v_mark04r n5v_mark04r 1
+1944 NWN5E_MAGIC_MARK_RED_5 D 1 n5v_mark05r n5v_mark05r n5v_mark05r n5v_mark05r 1
+1945 NWN5E_MAGIC_MARK_RED_6 D 1 n5v_mark06r n5v_mark06r n5v_mark06r n5v_mark06r 1
+1946 NWN5E_MAGIC_MARK_RED_7 D 1 n5v_mark07r n5v_mark07r n5v_mark07r n5v_mark07r 1
+1947 NWN5E_MAGIC_MARK_RED_8 D 1 n5v_mark08r n5v_mark08r n5v_mark08r n5v_mark08r 1
+1948 NWN5E_MAGIC_MARK_RED_9 D 1 n5v_mark09r n5v_mark09r n5v_mark09r n5v_mark09r 1
+1949 NWN5E_MAGIC_MARK_RED_10 D 1 n5v_mark10r n5v_mark10r n5v_mark10r n5v_mark10r 1
+1950 NWN5E_MAGIC_MARK_RED_11 D 1 n5v_mark11r n5v_mark11r n5v_mark11r n5v_mark11r 1
+1951 NWN5E_MAGIC_MARK_RED_12 D 1 n5v_mark12r n5v_mark12r n5v_mark12r n5v_mark12r 1
+1960 NWN5E_MAGIC_MARK_RED_UP_1 D 0 n5v_mark01ru n5v_mark01ru n5v_mark01ru n5v_mark01ru 1
+1961 NWN5E_MAGIC_MARK_RED_UP_2 D 0 n5v_mark02ru n5v_mark02ru n5v_mark02ru n5v_mark02ru 1
+1962 NWN5E_MAGIC_MARK_RED_UP_3 D 0 n5v_mark03ru n5v_mark03ru n5v_mark03ru n5v_mark03ru 1
+1963 NWN5E_MAGIC_MARK_RED_UP_4 D 0 n5v_mark04ru n5v_mark04ru n5v_mark04ru n5v_mark04ru 1
+1964 NWN5E_MAGIC_MARK_RED_UP_5 D 0 n5v_mark05ru n5v_mark05ru n5v_mark05ru n5v_mark05ru 1
+1965 NWN5E_MAGIC_MARK_RED_UP_6 D 0 n5v_mark06ru n5v_mark06ru n5v_mark06ru n5v_mark06ru 1
+1966 NWN5E_MAGIC_MARK_RED_UP_7 D 0 n5v_mark07ru n5v_mark07ru n5v_mark07ru n5v_mark07ru 1
+1967 NWN5E_MAGIC_MARK_RED_UP_8 D 0 n5v_mark08ru n5v_mark08ru n5v_mark08ru n5v_mark08ru 1
+1968 NWN5E_MAGIC_MARK_RED_UP_9 D 0 n5v_mark09ru n5v_mark09ru n5v_mark09ru n5v_mark09ru 1
+1969 NWN5E_MAGIC_MARK_RED_UP_10 D 0 n5v_mark10ru n5v_mark10ru n5v_mark10ru n5v_mark10ru 1
+1970 NWN5E_MAGIC_MARK_RED_UP_11 D 0 n5v_mark11ru n5v_mark11ru n5v_mark11ru n5v_mark11ru 1
+1971 NWN5E_MAGIC_MARK_RED_UP_12 D 0 n5v_mark12ru n5v_mark12ru n5v_mark12ru n5v_mark12ru 1
+1980 NWN5E_MAGIC_MARK_GREEN_1 D 1 n5v_mark01n n5v_mark01n n5v_mark01n n5v_mark01n 1
+1981 NWN5E_MAGIC_MARK_GREEN_2 D 1 n5v_mark02n n5v_mark02n n5v_mark02n n5v_mark02n 1
+1982 NWN5E_MAGIC_MARK_GREEN_3 D 1 n5v_mark03n n5v_mark03n n5v_mark03n n5v_mark03n 1
+1983 NWN5E_MAGIC_MARK_GREEN_4 D 1 n5v_mark04n n5v_mark04n n5v_mark04n n5v_mark04n 1
+1984 NWN5E_MAGIC_MARK_GREEN_5 D 1 n5v_mark05n n5v_mark05n n5v_mark05n n5v_mark05n 1
+1985 NWN5E_MAGIC_MARK_GREEN_6 D 1 n5v_mark06n n5v_mark06n n5v_mark06n n5v_mark06n 1
+1986 NWN5E_MAGIC_MARK_GREEN_7 D 1 n5v_mark07n n5v_mark07n n5v_mark07n n5v_mark07n 1
+1987 NWN5E_MAGIC_MARK_GREEN_8 D 1 n5v_mark08n n5v_mark08n n5v_mark08n n5v_mark08n 1
+1988 NWN5E_MAGIC_MARK_GREEN_9 D 1 n5v_mark09n n5v_mark09n n5v_mark09n n5v_mark09n 1
+1989 NWN5E_MAGIC_MARK_GREEN_10 D 1 n5v_mark10n n5v_mark10n n5v_mark10n n5v_mark10n 1
+1990 NWN5E_MAGIC_MARK_GREEN_11 D 1 n5v_mark11n n5v_mark11n n5v_mark11n n5v_mark11n 1
+1991 NWN5E_MAGIC_MARK_GREEN_12 D 1 n5v_mark12n n5v_mark12n n5v_mark12n n5v_mark12n 1
+2000 NWN5E_MAGIC_MARK_GREEN_UP_1 D 0 n5v_mark01nu n5v_mark01nu n5v_mark01nu n5v_mark01nu 1
+2001 NWN5E_MAGIC_MARK_GREEN_UP_2 D 0 n5v_mark02nu n5v_mark02nu n5v_mark02nu n5v_mark02nu 1
+2002 NWN5E_MAGIC_MARK_GREEN_UP_3 D 0 n5v_mark03nu n5v_mark03nu n5v_mark03nu n5v_mark03nu 1
+2003 NWN5E_MAGIC_MARK_GREEN_UP_4 D 0 n5v_mark04nu n5v_mark04nu n5v_mark04nu n5v_mark04nu 1
+2004 NWN5E_MAGIC_MARK_GREEN_UP_5 D 0 n5v_mark05nu n5v_mark05nu n5v_mark05nu n5v_mark05nu 1
+2005 NWN5E_MAGIC_MARK_GREEN_UP_6 D 0 n5v_mark06nu n5v_mark06nu n5v_mark06nu n5v_mark06nu 1
+2006 NWN5E_MAGIC_MARK_GREEN_UP_7 D 0 n5v_mark07nu n5v_mark07nu n5v_mark07nu n5v_mark07nu 1
+2007 NWN5E_MAGIC_MARK_GREEN_UP_8 D 0 n5v_mark08nu n5v_mark08nu n5v_mark08nu n5v_mark08nu 1
+2008 NWN5E_MAGIC_MARK_GREEN_UP_9 D 0 n5v_mark09nu n5v_mark09nu n5v_mark09nu n5v_mark09nu 1
+2009 NWN5E_MAGIC_MARK_GREEN_UP_10 D 0 n5v_mark10nu n5v_mark10nu n5v_mark10nu n5v_mark10nu 1
+2010 NWN5E_MAGIC_MARK_GREEN_UP_11 D 0 n5v_mark11nu n5v_mark11nu n5v_mark11nu n5v_mark11nu 1
+2011 NWN5E_MAGIC_MARK_GREEN_UP_12 D 0 n5v_mark12nu n5v_mark12nu n5v_mark12nu n5v_mark12nu 1
+2020 NWN5E_MAGIC_MARK_BLUE_1 D 1 n5v_mark01b n5v_mark01b n5v_mark01b n5v_mark01b 1
+2021 NWN5E_MAGIC_MARK_BLUE_2 D 1 n5v_mark02b n5v_mark02b n5v_mark02b n5v_mark02b 1
+2022 NWN5E_MAGIC_MARK_BLUE_3 D 1 n5v_mark03b n5v_mark03b n5v_mark03b n5v_mark03b 1
+2023 NWN5E_MAGIC_MARK_BLUE_4 D 1 n5v_mark04b n5v_mark04b n5v_mark04b n5v_mark04b 1
+2024 NWN5E_MAGIC_MARK_BLUE_5 D 1 n5v_mark05b n5v_mark05b n5v_mark05b n5v_mark05b 1
+2025 NWN5E_MAGIC_MARK_BLUE_6 D 1 n5v_mark06b n5v_mark06b n5v_mark06b n5v_mark06b 1
+2026 NWN5E_MAGIC_MARK_BLUE_7 D 1 n5v_mark07b n5v_mark07b n5v_mark07b n5v_mark07b 1
+2027 NWN5E_MAGIC_MARK_BLUE_8 D 1 n5v_mark08b n5v_mark08b n5v_mark08b n5v_mark08b 1
+2028 NWN5E_MAGIC_MARK_BLUE_9 D 1 n5v_mark09b n5v_mark09b n5v_mark09b n5v_mark09b 1
+2029 NWN5E_MAGIC_MARK_BLUE_10 D 1 n5v_mark10b n5v_mark10b n5v_mark10b n5v_mark10b 1
+2030 NWN5E_MAGIC_MARK_BLUE_11 D 1 n5v_mark11b n5v_mark11b n5v_mark11b n5v_mark11b 1
+2031 NWN5E_MAGIC_MARK_BLUE_12 D 1 n5v_mark12b n5v_mark12b n5v_mark12b n5v_mark12b 1
+2040 NWN5E_MAGIC_MARK_BLUE_UP_1 D 0 n5v_mark01bu n5v_mark01bu n5v_mark01bu n5v_mark01bu 1
+2041 NWN5E_MAGIC_MARK_BLUE_UP_2 D 0 n5v_mark02bu n5v_mark02bu n5v_mark02bu n5v_mark02bu 1
+2042 NWN5E_MAGIC_MARK_BLUE_UP_3 D 0 n5v_mark03bu n5v_mark03bu n5v_mark03bu n5v_mark03bu 1
+2043 NWN5E_MAGIC_MARK_BLUE_UP_4 D 0 n5v_mark04bu n5v_mark04bu n5v_mark04bu n5v_mark04bu 1
+2044 NWN5E_MAGIC_MARK_BLUE_UP_5 D 0 n5v_mark05bu n5v_mark05bu n5v_mark05bu n5v_mark05bu 1
+2045 NWN5E_MAGIC_MARK_BLUE_UP_6 D 0 n5v_mark06bu n5v_mark06bu n5v_mark06bu n5v_mark06bu 1
+2046 NWN5E_MAGIC_MARK_BLUE_UP_7 D 0 n5v_mark07bu n5v_mark07bu n5v_mark07bu n5v_mark07bu 1
+2047 NWN5E_MAGIC_MARK_BLUE_UP_8 D 0 n5v_mark08bu n5v_mark08bu n5v_mark08bu n5v_mark08bu 1
+2048 NWN5E_MAGIC_MARK_BLUE_UP_9 D 0 n5v_mark09bu n5v_mark09bu n5v_mark09bu n5v_mark09bu 1
+2049 NWN5E_MAGIC_MARK_BLUE_UP_10 D 0 n5v_mark10bu n5v_mark10bu n5v_mark10bu n5v_mark10bu 1
+2050 NWN5E_MAGIC_MARK_BLUE_UP_11 D 0 n5v_mark11bu n5v_mark11bu n5v_mark11bu n5v_mark11bu 1
+2051 NWN5E_MAGIC_MARK_BLUE_UP_12 D 0 n5v_mark12bu n5v_mark12bu n5v_mark12bu n5v_mark12bu 1
+2060 NWN5E_MAGIC_MARK_VIOLET_1 D 1 n5v_mark01v n5v_mark01v n5v_mark01v n5v_mark01v 1
+2061 NWN5E_MAGIC_MARK_VIOLET_2 D 1 n5v_mark02v n5v_mark02v n5v_mark02v n5v_mark02v 1
+2062 NWN5E_MAGIC_MARK_VIOLET_3 D 1 n5v_mark03v n5v_mark03v n5v_mark03v n5v_mark03v 1
+2063 NWN5E_MAGIC_MARK_VIOLET_4 D 1 n5v_mark04v n5v_mark04v n5v_mark04v n5v_mark04v 1
+2064 NWN5E_MAGIC_MARK_VIOLET_5 D 1 n5v_mark05v n5v_mark05v n5v_mark05v n5v_mark05v 1
+2065 NWN5E_MAGIC_MARK_VIOLET_6 D 1 n5v_mark06v n5v_mark06v n5v_mark06v n5v_mark06v 1
+2066 NWN5E_MAGIC_MARK_VIOLET_7 D 1 n5v_mark07v n5v_mark07v n5v_mark07v n5v_mark07v 1
+2067 NWN5E_MAGIC_MARK_VIOLET_8 D 1 n5v_mark08v n5v_mark08v n5v_mark08v n5v_mark08v 1
+2068 NWN5E_MAGIC_MARK_VIOLET_9 D 1 n5v_mark09v n5v_mark09v n5v_mark09v n5v_mark09v 1
+2069 NWN5E_MAGIC_MARK_VIOLET_10 D 1 n5v_mark10v n5v_mark10v n5v_mark10v n5v_mark10v 1
+2070 NWN5E_MAGIC_MARK_VIOLET_11 D 1 n5v_mark11v n5v_mark11v n5v_mark11v n5v_mark11v 1
+2071 NWN5E_MAGIC_MARK_VIOLET_12 D 1 n5v_mark12v n5v_mark12v n5v_mark12v n5v_mark12v 1
+2080 NWN5E_MAGIC_MARK_VIOLET_UP_1 D 0 n5v_mark01vu n5v_mark01vu n5v_mark01vu n5v_mark01vu 1
+2081 NWN5E_MAGIC_MARK_VIOLET_UP_2 D 0 n5v_mark02vu n5v_mark02vu n5v_mark02vu n5v_mark02vu 1
+2082 NWN5E_MAGIC_MARK_VIOLET_UP_3 D 0 n5v_mark03vu n5v_mark03vu n5v_mark03vu n5v_mark03vu 1
+2083 NWN5E_MAGIC_MARK_VIOLET_UP_4 D 0 n5v_mark04vu n5v_mark04vu n5v_mark04vu n5v_mark04vu 1
+2084 NWN5E_MAGIC_MARK_VIOLET_UP_5 D 0 n5v_mark05vu n5v_mark05vu n5v_mark05vu n5v_mark05vu 1
+2085 NWN5E_MAGIC_MARK_VIOLET_UP_6 D 0 n5v_mark06vu n5v_mark06vu n5v_mark06vu n5v_mark06vu 1
+2086 NWN5E_MAGIC_MARK_VIOLET_UP_7 D 0 n5v_mark07vu n5v_mark07vu n5v_mark07vu n5v_mark07vu 1
+2087 NWN5E_MAGIC_MARK_VIOLET_UP_8 D 0 n5v_mark08vu n5v_mark08vu n5v_mark08vu n5v_mark08vu 1
+2088 NWN5E_MAGIC_MARK_VIOLET_UP_9 D 0 n5v_mark09vu n5v_mark09vu n5v_mark09vu n5v_mark09vu 1
+2089 NWN5E_MAGIC_MARK_VIOLET_UP_10 D 0 n5v_mark10vu n5v_mark10vu n5v_mark10vu n5v_mark10vu 1
+2090 NWN5E_MAGIC_MARK_VIOLET_UP_11 D 0 n5v_mark11vu n5v_mark11vu n5v_mark11vu n5v_mark11vu 1
+2091 NWN5E_MAGIC_MARK_VIOLET_UP_12 D 0 n5v_mark12vu n5v_mark12vu n5v_mark12vu n5v_mark12vu 1

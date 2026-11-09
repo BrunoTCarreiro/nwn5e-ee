@@ -1,5 +1,5 @@
 #MAXMODEL ASCII
-# nwn5e (#39, Prestidigitation's Magic Mark): a 0.6 m mark on the ground - the owner's symbol n5t_mark05.
+# nwn5e (#39, Prestidigitation's Magic Mark): a 0.6 m mark flat on the ground - the owner's symbol n5t_mark05.
 newmodel n5v_mark05
 setsupermodel n5v_mark05 NULL
 classification effect
@@ -24,13 +24,13 @@ node trimesh n5v_mark05_mark
   selfillumcolor 1 1 1
   tilefade 0
   rotatetexture 0
-  position 0 0 0.03
+  position 0 0 0
   orientation 0 0 0 0
   verts 4
-    -0.3000 -0.3000 0.0000
-    0.3000 -0.3000 0.0000
-    0.3000 0.3000 0.0000
-    -0.3000 0.3000 0.0000
+    -0.3000 -0.3000 0.0300
+    0.3000 -0.3000 0.0300
+    0.3000 0.3000 0.0300
+    -0.3000 0.3000 0.0300
   tverts 4
     0.0000 0.0000 0
     1.0000 0.0000 0

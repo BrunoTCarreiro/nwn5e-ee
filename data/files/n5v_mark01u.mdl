@@ -1,0 +1,80 @@
+#MAXMODEL ASCII
+# nwn5e (#39, Prestidigitation's Magic Mark): a 0.5 m mark standing on a door or a placeable - the owner's symbol n5t_mark01.
+newmodel n5v_mark01u
+setsupermodel n5v_mark01u NULL
+classification effect
+setanimationscale 1
+beginmodelgeom n5v_mark01u
+node dummy n5v_mark01u
+  parent NULL
+endnode
+node trimesh n5v_mark01u_mark
+  parent n5v_mark01u
+  ambient 1 1 1
+  diffuse 1 1 1
+  specular 0 0 0
+  shininess 1
+  bitmap n5t_mark01
+  render 1
+  shadow 0
+  beaming 0
+  inheritcolor 0
+  alpha 0.8
+  transparencyhint 1
+  selfillumcolor 1 1 1
+  tilefade 0
+  rotatetexture 0
+  position 0 0 0
+  orientation 0 0 0 0
+  verts 4
+    0.2500 0.0000 -0.2500
+    -0.2500 0.0000 -0.2500
+    -0.2500 0.0000 0.2500
+    0.2500 0.0000 0.2500
+  tverts 4
+    0.0000 0.0000 0
+    1.0000 0.0000 0
+    1.0000 1.0000 0
+    0.0000 1.0000 0
+  faces 4
+    0 1 2 1 0 1 2 0
+    0 2 3 1 0 2 3 0
+    0 2 1 1 0 2 1 0
+    0 3 2 1 0 3 2 0
+endnode
+endmodelgeom n5v_mark01u
+
+newanim impact n5v_mark01u
+  length 0.1
+  transtime 0.25
+  animroot n5v_mark01u
+node dummy n5v_mark01u
+  parent NULL
+endnode
+doneanim impact n5v_mark01u
+
+newanim duration n5v_mark01u
+  length 1
+  transtime 0.25
+  animroot n5v_mark01u
+node dummy n5v_mark01u
+  parent NULL
+endnode
+doneanim duration n5v_mark01u
+
+newanim cessation n5v_mark01u
+  length 0.5
+  transtime 0.05
+  animroot n5v_mark01u
+node dummy n5v_mark01u
+  parent NULL
+endnode
+node trimesh n5v_mark01u_mark
+  parent n5v_mark01u
+  alphakey 2
+    0 0.8
+    0.5 0
+endnode
+doneanim cessation n5v_mark01u
+
+donemodel n5v_mark01u

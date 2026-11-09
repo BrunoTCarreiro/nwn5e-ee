@@ -39,3 +39,10 @@ struct SpellOrder {
 using SpellOrderGuard = bool (*)(void* creature, const SpellOrder& order);
 // The same hook as AddSpellCastGuard (asked after those guards); false (and logged) if it can't.
 bool AddSpellOrderGuard(SpellOrderGuard guard);
+
+// #39 0.96.3: an adjuster sees the order before the guards and may move its point (order->x, y, z: the order goes
+// on with it). `from_input`: a player's input message gave it (CNWSMessage::HandlePlayerToServerInputMessage called
+// AddCastSpellActions) - the click that ordered it, a frame ago, not a script's or the AI's.
+using SpellOrderAdjuster = void (*)(void* creature, SpellOrder* order, bool from_input);
+// The same hook; false (and logged) if it can't.
+bool AddSpellOrderAdjuster(SpellOrderAdjuster adjuster);

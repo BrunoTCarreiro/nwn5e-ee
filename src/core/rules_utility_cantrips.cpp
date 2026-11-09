@@ -59,9 +59,11 @@
 #include "light_sources.h"
 #include "log.h"
 #include "log_once.h"
+#include "magic_mark_surface.h"
 #include "script_hooks.h"
 #include "spell_impact.h"
 #include "rules/cantrips.h"
+#include "rules/mark_surface.h"
 #include "rules/skills.h"
 
 namespace {
@@ -82,7 +84,12 @@ bool LogSlot() {
 LogOnce g_once(500);
 
 std::unordered_map<uint32_t, uint64_t> g_booming;            // Booming Voice: until (game ms), by caster
-std::unordered_map<uint32_t, std::deque<uint32_t>> g_marks;  // Magic Mark: the marks' ids, oldest first
+// Magic Mark: a mark kept - the invisible object holding it (no tag), or its effect's tag on the object it's on.
+struct KeptMark {
+  uint32_t object = 0;
+  std::string tag;
+};
+std::unordered_map<uint32_t, std::deque<KeptMark>> g_marks;  // Magic Mark: each caster's, oldest first
 
 void Replace(std::string* text, const std::string& key, const std::string& value) {
   for (size_t at = text->find(key); at != std::string::npos; at = text->find(key, at + value.size())) {
@@ -175,10 +182,16 @@ int DoorAt(uint32_t id, DoorPlay play, std::string* name) {
 }
 
 // Magic Mark: one of the owner's symbols (0.94.1: rules::MagicMarkVisual, a random one) flat on the ground at the
-// point, turned a random way, for an hour of play; the caster's fourth takes its oldest away.
+// point, turned a random way, for an hour of play; the caster's fourth takes its oldest away. 0.95.10 (the owner,
+// UT-15: "the magic marks are not on the ground, they are floating"): the point goes down to the walkmesh
+// (GetGroundHeight) - a click can give a point above it - and how far it went is logged.
 const char* const kMark = R"nss(
 location l = GetLocalLocation(OBJECT_SELF, "n5c_at");
-l = Location(GetAreaFromLocation(l), GetPositionFromLocation(l), IntToFloat(Random(360)));
+vector p = GetPositionFromLocation(l);
+float g = GetGroundHeight(l);
+SetLocalString(OBJECT_SELF, "n5c_mark_drop", g > -6.0 ? FloatToString(p.z - g, 0, 2) : "no ground");
+if (g > -6.0) p.z = g;
+l = Location(GetAreaFromLocation(l), p, IntToFloat(Random(360)));
 object m = CreateObject(OBJECT_TYPE_PLACEABLE, "plc_invisobj", l, FALSE, "n5c_mark");
 ApplyEffectToObject(DURATION_TYPE_PERMANENT, EffectVisualEffect($VFX), m);
 DestroyObject(m, $SECONDS);
@@ -186,26 +199,289 @@ SetLocalString(OBJECT_SELF, "n5c_mark", ObjectToString(m));
 SendMessageToPC(OBJECT_SELF, "nwn5e: Prestidigitation - Magic Mark: a glowing mark there for an hour (three at a time).");
 )nss";
 
+// 0.96.0 (owner, 2026-11-08: "Go with A"; SRD 5.2's mark appears "on an object or a surface"): cast at a door or a
+// placeable, the mark stands on it, upright, on the caster's side - rules::MarkOnDoor / MarkOnPlaceable. A placeable's
+// surface is where its walkmesh starts on the line from the caster (the area's static-object line test, as Push's).
+// 0.96.2: and the caster's height and size (its eyes), and the marks already on the object (their models).
+const char* const kMarkTarget = R"nss(
+object t = StringToObject("$TARGET");
+vector p = GetPosition(t);
+vector c = GetPosition(OBJECT_SELF);
+string used = "";
+effect e = GetFirstEffect(t);
+while (GetIsEffectValid(e)) {
+  string g = GetEffectTag(e);
+  if (GetStringLeft(g, 8) == "n5c_mrk_") used += GetSubString(g, 8, GetStringLength(g) - 8) + " ";
+  e = GetNextEffect(t);
+}
+SetLocalString(OBJECT_SELF, "n5c_mark_used", used);
+SetLocalString(OBJECT_SELF, "n5c_mark_obj", IntToString(GetObjectType(t)) + " " + FloatToString(p.x, 0, 3) + " " +
+               FloatToString(p.y, 0, 3) + " " + FloatToString(p.z, 0, 3) + " " + FloatToString(GetFacing(t), 0, 2) +
+               " " + FloatToString(c.x, 0, 3) + " " + FloatToString(c.y, 0, 3) + " " + FloatToString(c.z, 0, 3) +
+               " " + IntToString(GetCreatureSize(OBJECT_SELF)) + " " + GetName(t));
+)nss";
+const char* const kMarkAt = R"nss(
+object a = GetArea(OBJECT_SELF);
+vector p = Vector($X, $Y, $Z);
+if ($ON_GROUND) {
+  float g = GetGroundHeight(Location(a, p, 0.0));
+  if (g > -6.0) p.z = g + $LIFT;
+}
+object m = CreateObject(OBJECT_TYPE_PLACEABLE, "plc_invisobj", Location(a, p, $FACING), FALSE, "n5c_mark");
+ApplyEffectToObject(DURATION_TYPE_PERMANENT, EffectVisualEffect($VFX), m);
+DestroyObject(m, $SECONDS);
+SetLocalString(OBJECT_SELF, "n5c_mark", ObjectToString(m));
+SendMessageToPC(OBJECT_SELF, "nwn5e: Prestidigitation - Magic Mark on $WHAT: a glowing mark for an hour (three at a time).");
+)nss";
+// 0.96.2 (owner, 2026-11-09: "go with 1"; MO-1: "the door swings open but the magic mark stays in place", MO-2: "on
+// a table it gets placed somehow inside the model"): the mark on the object itself, on its model's surface where the
+// caster's eyes meet it - magic_mark_surface.cpp places it as the client attaches it, from the record kept here (the
+// eyes). Each mark on an object is named by its model (its effect's tag, its record), so its symbol is one not on
+// the object already in that colour.
+const char* const kMarkOnSurface = R"nss(
+object t = StringToObject("$TARGET");
+SetLocalString(t, "$KEY", "$RECORD");
+ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(EffectVisualEffect($VFX), "$TAG"), t, $SECONDS);
+SendMessageToPC(OBJECT_SELF, "nwn5e: Prestidigitation - Magic Mark on $WHAT: a glowing mark for an hour (three at a time).");
+)nss";
+constexpr const char* kSurfaceMarkTag = "n5c_mrk_";     // + the model: the mark's effect on the object
+constexpr const char* kSurfaceMarkRecord = "n5m_";      // + the model: its record (rules/mark_surface.h)
+constexpr int kObjectTypeDoorScript = 8;        // OBJECT_TYPE_DOOR
+constexpr int kObjectTypePlaceableScript = 64;  // OBJECT_TYPE_PLACEABLE
+constexpr int kSurfaceSteps = 14;               // the walkmesh's start to within ~1/16000 of the line
+
+using StaticLineFn = int (*)(void* area, float x1, float y1, float x2, float y2, float z1, float z2, float radius,
+                             uint32_t exclude, uint32_t* blocker, int flag, void* exclude_list, int last);
+
+std::vector<uint32_t> ParseIds(const std::string& list);
+
+// The new mark into the caster's three (the oldest goes: its invisible object, or its effect on the object it's on).
+void KeepMark(uint32_t self, const KeptMark& mark, const std::string& where) {
+  if (!mark.object || mark.object == ee::kObjectInvalid) return;
+  std::deque<KeptMark>& marks = g_marks[self];
+  marks.push_back(mark);
+  while (marks.size() > static_cast<size_t>(rules::kMagicMarksAtOnce)) {
+    const KeptMark& oldest = marks.front();
+    char code[320];
+    if (oldest.tag.empty()) {
+      sprintf_s(code, "DestroyObject(StringToObject(\"%x\"));", oldest.object);
+    } else {
+      sprintf_s(code,
+                "object t = StringToObject(\"%x\"); effect e = GetFirstEffect(t); while (GetIsEffectValid(e)) { "
+                "if (GetEffectTag(e) == \"%s\") RemoveEffect(t, e); e = GetNextEffect(t); }",
+                oldest.object, oldest.tag.c_str());
+    }
+    Run(code, self, "Magic Mark's oldest");
+    marks.pop_front();
+  }
+  if (LogSlot()) {
+    Log("cantrips: 0x%08X Magic Mark %x%s%s (%zu up; %s)", self, mark.object, mark.tag.empty() ? "" : " ",
+        mark.tag.c_str(), marks.size(), where.c_str());
+  }
+}
+
+// The invisible object the cast's script just made (its id in the caster's "n5c_mark").
+KeptMark HolderMark(void* caster) {
+  const std::string mark = engine::GetLocalString(caster, "n5c_mark");
+  KeptMark kept;
+  if (!mark.empty()) kept.object = static_cast<uint32_t>(strtoul(mark.c_str(), nullptr, 16));
+  return kept;
+}
+
+std::string Quoteless(std::string text) {
+  for (char& c : text) {
+    if (c == '"' || c == '\\') c = '\'';
+  }
+  return text;
+}
+
+// 0.96.1 (owner, 2026-11-09: "Option b + random"): the mark's colour - the menu entry cast, Random one of the six.
+const char* const kTintNames[rules::kMagicMarkTints] = {"white", "gold", "red", "green", "blue", "violet"};
+
+int TintOfCast(void* caster) {
+  const int tint = rules::MagicMarkTintOf(Field<int32_t>(caster, ee::kObjectLastSpellId));
+  return tint >= 0 ? tint : RollEngineDice(1, rules::kMagicMarkTints) - 1;
+}
+
+// 0.96.2: the mark's effect on the object, a symbol not on it already in that colour; its record the caster's eyes.
+// 0.96.3: with the click's ray when the click was at this object.
+void MarkOnSurface(uint32_t self, void* caster, uint32_t target, const std::string& name, const char* kind, int tint,
+                   const rules::Vec3f& eye, const std::optional<MarkClick>& click) {
+  const std::string used = " " + engine::GetLocalString(caster, "n5c_mark_used");
+  std::vector<bool> taken(rules::kMagicMarkVisuals, false);
+  for (int symbol = 1; symbol <= rules::kMagicMarkVisuals; ++symbol) {
+    taken[symbol - 1] = used.find(" " + rules::MagicMarkModel(symbol, tint, true) + " ") != std::string::npos;
+  }
+  const int symbol = rules::FreeMarkSymbol(RollEngineDice(1, rules::FreeMarkSymbols(taken)), taken);
+  const std::string model = rules::MagicMarkModel(symbol, tint, true);
+  rules::MarkRecord record;
+  record.eye = eye;
+  const bool clicked = click && click->target == target;
+  if (clicked) record.click = rules::MarkRay{click->camera, click->point};
+  std::string code = kMarkOnSurface;
+  char number[32];
+  sprintf_s(number, "%x", target);
+  Replace(&code, "$TARGET", number);
+  Replace(&code, "$KEY", kSurfaceMarkRecord + model);
+  Replace(&code, "$RECORD", rules::MarkRecordText(record));
+  Replace(&code, "$TAG", kSurfaceMarkTag + model);
+  Replace(&code, "$VFX", std::to_string(rules::MagicMarkRow(symbol, tint, true)));
+  sprintf_s(number, "%.1f", kMarkSeconds);
+  Replace(&code, "$SECONDS", number);
+  Replace(&code, "$WHAT", name.empty() ? std::string("it") : name);
+  Run(code, self, "Magic Mark on an object's surface");
+  char where[240];
+  sprintf_s(where, "%s, on %s (a %s; %s - on its model's surface as the client attaches it)", kTintNames[tint],
+            name.empty() ? "it" : name.c_str(), kind, clicked ? "where the cursor was" : "aimed from the eyes");
+  KeptMark kept;
+  kept.object = target;
+  kept.tag = kSurfaceMarkTag + model;
+  KeepMark(self, kept, where);
+}
+
+// A door or a placeable cast at: the upright mark on it. False when the target is neither (the ground's mark then).
+// 0.96.2: on its model's surface (MarkOnSurface); 0.96.0's invisible object at its slab or walkmesh when the client's
+// hit test isn't as read (magic_mark_surface.cpp's install).
+bool MarkOnObject(uint32_t self, void* caster, int tint, const std::optional<MarkClick>& click) {
+  if (!engine::GetLocalInt(caster, "n5c_at_object")) return false;
+  const std::vector<uint32_t> ids = ParseIds(engine::GetLocalString(caster, "n5c_targets"));
+  if (ids.empty()) return false;
+  const uint32_t target = ids.front();
+  std::string code = kMarkTarget;
+  char id[16];
+  sprintf_s(id, "%x", target);
+  Replace(&code, "$TARGET", id);
+  Run(code, self, "Magic Mark's object");
+  const std::string facts = engine::GetLocalString(caster, "n5c_mark_obj");
+  int kind = 0, size = 0, name_at = 0;
+  float px = 0, py = 0, pz = 0, facing = 0, cx = 0, cy = 0, cz = 0;
+  if (sscanf_s(facts.c_str(), "%d %f %f %f %f %f %f %f %d %n", &kind, &px, &py, &pz, &facing, &cx, &cy, &cz, &size,
+               &name_at) < 9) {
+    return false;
+  }
+  if (kind != kObjectTypeDoorScript && kind != kObjectTypePlaceableScript) return false;
+  const std::string name = Quoteless(name_at > 0 && name_at <= static_cast<int>(facts.size()) ? facts.substr(name_at)
+                                                                                               : std::string());
+  if (MagicMarkSurfaceReady()) {
+    MarkOnSurface(self, caster, target, name, kind == kObjectTypeDoorScript ? "door" : "placeable", tint,
+                  rules::Vec3f{cx, cy, cz + rules::MarkEyeHeight(size)}, click);
+    return true;
+  }
+  rules::MarkSpot spot;
+  std::string how;
+  if (kind == kObjectTypeDoorScript) {
+    spot = rules::MarkOnDoor(px, py, pz, facing, cx, cy);
+    how = "a door";
+  } else {
+    static const StaticLineFn static_line = reinterpret_cast<StaticLineFn>(EngineExport(ee::kStaticObjectsOnLine));
+    void* area = engine::AreaOf(caster);
+    float surface = -1.0f;
+    if (static_line && area) {
+      surface = rules::ClearShare(
+          [&](float share) {
+            uint32_t blocker = ee::kObjectInvalid;
+            const int clear = static_line(area, cx, cy, cx + (px - cx) * share, cy + (py - cy) * share, pz - 0.1f,
+                                          pz + 1.8f, 0.01f, ee::kObjectInvalid, &blocker, 1, nullptr, 0);
+            return clear != 1 && blocker == target;
+          },
+          kSurfaceSteps);
+    }
+    spot = rules::MarkOnPlaceable(px, py, cx, cy, surface, pz);
+    char text[64];
+    if (surface >= 0.0f) {
+      sprintf_s(text, "a placeable, its walkmesh %.2f of the way", surface);
+    } else {
+      sprintf_s(text, "a placeable, no walkmesh found");
+    }
+    how = text;
+  }
+  std::string mark = kMarkAt;
+  char number[32];
+  sprintf_s(number, "%.3f", spot.x);
+  Replace(&mark, "$X", number);
+  sprintf_s(number, "%.3f", spot.y);
+  Replace(&mark, "$Y", number);
+  sprintf_s(number, "%.3f", spot.z);
+  Replace(&mark, "$Z", number);
+  sprintf_s(number, "%.2f", spot.facing);
+  Replace(&mark, "$FACING", number);
+  Replace(&mark, "$ON_GROUND", kind == kObjectTypePlaceableScript ? "TRUE" : "FALSE");
+  sprintf_s(number, "%.2f", rules::kMarkObjectHeight);
+  Replace(&mark, "$LIFT", number);
+  sprintf_s(number, "%.1f", kMarkSeconds);
+  Replace(&mark, "$SECONDS", number);
+  Replace(&mark, "$VFX",
+          std::to_string(rules::MagicMarkRow(RollEngineDice(1, rules::kMagicMarkVisuals), tint, true)));
+  Replace(&mark, "$WHAT", name.empty() ? std::string("it") : name);
+  CreatingFireLight(true);  // light_sources.cpp: the invisible object a normal placeable, so the client gets its glow
+  Run(mark, self, "Magic Mark on an object");
+  CreatingFireLight(false);
+  char where[160];
+  sprintf_s(where, "%s, on %s (%s) at %.2f %.2f %.2f facing %.0f", kTintNames[tint], name.empty() ? "it" : name.c_str(),
+            how.c_str(), spot.x, spot.y, spot.z, spot.facing);
+  KeepMark(self, HolderMark(caster), where);
+  return true;
+}
+
+// 0.96.3 (owner, 2026-11-09: "A. but we should try to find a way to deal with walls that have floors behind them so
+// that the wall is marked and not the floor"): a click on a wall - the cursor's point wasn't the floor the game sent
+// (magic_mark_surface.cpp moved the cast in front of it) - marks the wall at the cursor: upright, facing out of it
+// (flat on a ledge's top), on an invisible object there.
+const char* const kMarkOnWall = R"nss(
+object m = CreateObject(OBJECT_TYPE_PLACEABLE, "plc_invisobj", Location(GetArea(OBJECT_SELF), Vector($X, $Y, $Z), $FACING), FALSE, "n5c_mark");
+ApplyEffectToObject(DURATION_TYPE_PERMANENT, EffectVisualEffect($VFX), m);
+DestroyObject(m, $SECONDS);
+SetLocalString(OBJECT_SELF, "n5c_mark", ObjectToString(m));
+SendMessageToPC(OBJECT_SELF, "nwn5e: Prestidigitation - Magic Mark: a glowing mark there for an hour (three at a time).");
+)nss";
+
+void MarkOnWall(uint32_t self, void* caster, int tint, const MarkClick& click) {
+  const bool upright = rules::MarkStandsUpright(click.normal);
+  const rules::Vec3f at =
+      rules::Add(click.point, rules::Scale(rules::Normalized(click.normal), rules::kMarkSurfaceGap));
+  const float facing = upright ? rules::MarkFacingOf(click.normal) : static_cast<float>(RollEngineDice(1, 360) - 1);
+  std::string code = kMarkOnWall;
+  char number[32];
+  sprintf_s(number, "%.3f", at.x);
+  Replace(&code, "$X", number);
+  sprintf_s(number, "%.3f", at.y);
+  Replace(&code, "$Y", number);
+  sprintf_s(number, "%.3f", at.z);
+  Replace(&code, "$Z", number);
+  sprintf_s(number, "%.2f", facing);
+  Replace(&code, "$FACING", number);
+  sprintf_s(number, "%.1f", kMarkSeconds);
+  Replace(&code, "$SECONDS", number);
+  Replace(&code, "$VFX", std::to_string(rules::MagicMarkRow(RollEngineDice(1, rules::kMagicMarkVisuals), tint, upright)));
+  CreatingFireLight(true);  // light_sources.cpp: the invisible object a normal placeable, so the client gets its glow
+  Run(code, self, "Magic Mark on a wall");
+  CreatingFireLight(false);
+  char where[200];
+  sprintf_s(where, "%s, on a wall at %.2f %.2f %.2f, %s %.0f (where the cursor was; the game sent the floor behind it)",
+            kTintNames[tint], at.x, at.y, at.z, upright ? "upright facing" : "flat, turned", facing);
+  KeepMark(self, HolderMark(caster), where);
+}
+
 void PlaceMark(uint32_t self, void* caster) {
+  const int tint = TintOfCast(caster);
+  const std::optional<MarkClick> click =
+      TakeMarkClick(self, static_cast<uint32_t>(Field<int32_t>(caster, ee::kObjectLastSpellId)));
+  if (MarkOnObject(self, caster, tint, click)) return;
+  if (click && click->wall) {
+    MarkOnWall(self, caster, tint, *click);
+    return;
+  }
   std::string code = kMark;
   char seconds[32];
   sprintf_s(seconds, "%.1f", kMarkSeconds);
   Replace(&code, "$SECONDS", seconds);
-  Replace(&code, "$VFX", std::to_string(rules::MagicMarkVisual(RollEngineDice(1, rules::kMagicMarkVisuals))));
+  Replace(&code, "$VFX",
+          std::to_string(rules::MagicMarkRow(RollEngineDice(1, rules::kMagicMarkVisuals), tint, false)));
   CreatingFireLight(true);  // light_sources.cpp: the invisible object a normal placeable, so the client gets its glow
   Run(code, self, "Magic Mark");
   CreatingFireLight(false);
-  const std::string mark = engine::GetLocalString(caster, "n5c_mark");
-  if (mark.empty()) return;
-  std::deque<uint32_t>& marks = g_marks[self];
-  marks.push_back(static_cast<uint32_t>(strtoul(mark.c_str(), nullptr, 16)));
-  while (marks.size() > static_cast<size_t>(rules::kMagicMarksAtOnce)) {
-    char destroy[96];
-    sprintf_s(destroy, "DestroyObject(StringToObject(\"%x\"));", marks.front());
-    Run(destroy, self, "Magic Mark's oldest");
-    marks.pop_front();
-  }
-  if (LogSlot()) Log("cantrips: 0x%08X Magic Mark %s (%zu up)", self, mark.c_str(), marks.size());
+  KeepMark(self, HolderMark(caster), std::string(kTintNames[tint]) + ", on the ground; the point dropped " +
+                             engine::GetLocalString(caster, "n5c_mark_drop") + " m to it");
 }
 
 std::vector<uint32_t> ParseIds(const std::string& list) {

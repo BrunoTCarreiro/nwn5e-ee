@@ -248,7 +248,7 @@ TEST(UtilityCantrips) {
   CHECK_EQ(elementalism->options.size(), 4u);  // no Sculpt Element
   CHECK_EQ(strcmp(elementalism->options[2].label, "Beckon Fire"), 0);
   const ChoiceCantrip* prestidigitation = ChoiceCantripOf(kPrestidigitation);
-  CHECK_EQ(prestidigitation->options.size(), 2u);  // Fire Play and Magic Mark
+  CHECK_EQ(prestidigitation->options.size(), 8u);  // Fire Play and Magic Mark in seven colours (0.96.1)
   const ChoiceCantrip* thaumaturgy = ChoiceCantripOf(kThaumaturgy);
   CHECK_EQ(thaumaturgy->options.size(), 5u);  // no Altered Eyes or Tremors; Phantom Sound's whispers and thunder
   CHECK_EQ(thaumaturgy->options[3].spell, kPhantomWhispers);
@@ -289,11 +289,14 @@ TEST(UtilityCantripEffects) {
   CHECK_EQ(FillsElementCube(UtilityEffect::kFirePlay), false);
   CHECK_EQ(FillsElementCube(UtilityEffect::kMageHand), false);
   // 0.94.1: Magic Mark's five symbols, rows 1840-1844.
-  CHECK_EQ(MagicMarkVisual(1), 1840);
-  CHECK_EQ(MagicMarkVisual(5), 1844);
-  CHECK_EQ(MagicMarkVisual(3), 1842);
-  CHECK_EQ(MagicMarkVisual(0), 1840);  // out of range: the first
-  CHECK_EQ(MagicMarkVisual(6), 1840);
+  CHECK_EQ(MagicMarkVisual(1), 1860);  // 0.96.0: the owner's 12 symbols
+  CHECK_EQ(MagicMarkVisual(12), 1871);
+  CHECK_EQ(MagicMarkVisual(6), 1865);
+  CHECK_EQ(MagicMarkVisual(0), 1860);  // out of range: the first
+  CHECK_EQ(MagicMarkVisual(13), 1860);
+  CHECK_EQ(MagicMarkUprightVisual(1), 1880);  // upright on a door or a placeable
+  CHECK_EQ(MagicMarkUprightVisual(12), 1891);
+  CHECK_EQ(MagicMarkUprightVisual(13), 1880);
   CHECK_EQ(CantripRangeFeet(kDruidcraft), 30);
   CHECK_EQ(CantripRangeFeet(1112), 30);   // Elementalism
   CHECK_EQ(CantripRangeFeet(1115), 10);   // Prestidigitation
@@ -494,4 +497,95 @@ TEST(ResistanceAndSpareTheDying) {
   CHECK_EQ(SpareTheDyingRangeFeet(16), 60);
   CHECK_EQ(SpareTheDyingRangeFeet(17), 120);
   CHECK_EQ(SpareTheDyingRangeFeet(20), 120);
+}
+
+namespace {
+bool Near(float a, float b) { return a - b < 0.005f && b - a < 0.005f; }
+bool At(const MarkSpot& s, float x, float y, float z, float facing) {
+  return Near(s.x, x) && Near(s.y, y) && Near(s.z, z) && Near(s.facing, facing);
+}
+}  // namespace
+
+// 0.96.0 (owner, 2026-11-08: "Go with A"): where Magic Mark stands on a door or a placeable. Breaks caught: the door's
+// frame turned the wrong way, the face behind the door taken, an oblique look not landing on the front face, the
+// side face missed edge-on, the gap or the height dropped, the mark not facing out of its face or toward the caster,
+// a placeable's surface or its no-walkmesh reach wrong, the halving search off.
+TEST(MagicMarkOnObjects) {
+  // A door facing north (its frame the world's) at (10, 10, 0).
+  CHECK_EQ(At(MarkOnDoor(10, 10, 0, 90, 10, 15), 10, 10.18f, 1.4f, 90), true);     // the caster north: the front
+  CHECK_EQ(At(MarkOnDoor(10, 10, 0, 90, 10, 5), 10, 9.82f, 1.4f, 270), true);      // south: the back
+  CHECK_EQ(At(MarkOnDoor(10, 10, 0, 90, 15, 15), 10.15f, 10.18f, 1.4f, 90), true);  // north-east: still the front
+  CHECK_EQ(At(MarkOnDoor(10, 10, 0, 90, 20, 10), 11.08f, 10, 1.4f, 0), true);      // edge-on from the east: its side
+  // A door facing east: its front looks east.
+  CHECK_EQ(At(MarkOnDoor(10, 10, 2, 0, 20, 10), 10.18f, 10, 3.4f, 0), true);
+  CHECK_EQ(At(MarkOnDoor(10, 10, 2, 0, 0, 10), 9.82f, 10, 3.4f, 180), true);
+  // A placeable at the origin, the caster 5 m south; its walkmesh starts 0.9 of the way (0.5 m short of its centre).
+  CHECK_EQ(At(MarkOnPlaceable(0, 0, 0, -5, 0.9f, 1.0f), 0, -0.53f, 1.7f, 270), true);
+  CHECK_EQ(At(MarkOnPlaceable(0, 0, 0, -5, -1.0f, 0.0f), 0, -0.35f, 0.7f, 270), true);  // no walkmesh
+  CHECK_EQ(At(MarkOnPlaceable(0, 0, 5, 0, 0.9f, 0.0f), 0.53f, 0, 0.7f, 0), true);       // from the east: faces east
+  // The search for the walkmesh's start.
+  const float share = ClearShare([](float t) { return t > 0.6f; }, 14);
+  CHECK_EQ(Near(share, 0.6f), true);
+  CHECK_EQ(share <= 0.6f, true);  // the clear side of the edge
+  CHECK_EQ(Near(ClearShare([](float) { return false; }, 14), -1.0f), true);  // nothing in the way
+}
+
+// 0.96.1 (owner, 2026-11-09: "Option b + random"): Magic Mark's colour. Breaks caught: a colour's row read as another,
+// Random or another row taken for a colour, a colour's rows overlapping another's or the upright ones, White not
+// keeping its rows, the menu not fitting one radial page.
+TEST(MagicMarkColours) {
+  CHECK_EQ(MagicMarkTintOf(kMagicMarkWhite), 0);
+  CHECK_EQ(MagicMarkTintOf(kMagicMarkGold), 1);
+  CHECK_EQ(MagicMarkTintOf(1139), 5);  // Violet
+  CHECK_EQ(MagicMarkTintOf(kMagicMarkRandom), -1);
+  CHECK_EQ(MagicMarkTintOf(1115), -1);  // Fire Play
+  CHECK_EQ(MagicMarkRow(1, 0, false), 1860);  // White: 0.96.0's rows
+  CHECK_EQ(MagicMarkRow(12, 0, true), 1891);
+  CHECK_EQ(MagicMarkRow(1, 1, false), 1900);  // Gold
+  CHECK_EQ(MagicMarkRow(12, 1, false), 1911);
+  CHECK_EQ(MagicMarkRow(1, 1, true), 1920);
+  CHECK_EQ(MagicMarkRow(12, 1, true), 1931);
+  CHECK_EQ(MagicMarkRow(1, 2, false), 1940);  // Red
+  CHECK_EQ(MagicMarkRow(12, 5, true), 2091);  // Violet, upright, the last
+  CHECK_EQ(MagicMarkRow(13, 3, false), 1980);  // out of range: the first symbol
+  CHECK_EQ(MagicMarkRow(2, 6, false), 1861);  // out of range: White
+  CHECK_EQ(MagicMarkRow(2, -1, true), 1881);
+  // Prestidigitation's menu: Fire Play and the seven Magic Marks, one radial page; every Magic Mark row a Magic Mark.
+  const ChoiceCantrip* presti = ChoiceCantripOf(kPrestidigitation);
+  CHECK_EQ(presti != nullptr, true);
+  CHECK_EQ(static_cast<int>(presti->options.size()), 8);
+  CHECK_EQ(RadialChoicePage(8, 0).shown, 8);
+  CHECK_EQ(RadialChoicePage(8, 0).more, false);
+  for (int row : {kMagicMarkWhite, 1135, 1136, 1137, 1138, 1139, kMagicMarkRandom}) {
+    CHECK_EQ(UtilityEffectOf(row) == UtilityEffect::kMagicMark, true);
+    CHECK_EQ(ChoiceCantripOf(row) == presti, true);
+  }
+}
+
+// 0.96.2 (owner, 2026-11-09: "go with 1"): a mark's model, and a symbol not on the object already. Breaks caught: a
+// colour's letter or the upright u wrong or missing, out-of-range symbols or colours not falling back, a taken
+// symbol picked, the roll counted over the wrong symbols, all taken leaving none.
+TEST(MagicMarkModels) {
+  CHECK_EQ(MagicMarkModel(3, 0, false) == "n5v_mark03", true);
+  CHECK_EQ(MagicMarkModel(3, 0, true) == "n5v_mark03u", true);
+  CHECK_EQ(MagicMarkModel(3, 1, true) == "n5v_mark03gu", true);
+  CHECK_EQ(MagicMarkModel(12, 2, false) == "n5v_mark12r", true);
+  CHECK_EQ(MagicMarkModel(10, 3, true) == "n5v_mark10nu", true);
+  CHECK_EQ(MagicMarkModel(7, 4, true) == "n5v_mark07bu", true);
+  CHECK_EQ(MagicMarkModel(12, 5, true) == "n5v_mark12vu", true);
+  CHECK_EQ(MagicMarkModel(13, 6, true) == "n5v_mark01u", true);
+  CHECK_EQ(MagicMarkModel(0, -1, false) == "n5v_mark01", true);
+  const std::vector<bool> none;
+  CHECK_EQ(FreeMarkSymbols(none), 12);
+  CHECK_EQ(FreeMarkSymbol(5, none), 5);
+  const std::vector<bool> some = {true, false, true};
+  CHECK_EQ(FreeMarkSymbols(some), 10);
+  CHECK_EQ(FreeMarkSymbol(1, some), 2);
+  CHECK_EQ(FreeMarkSymbol(2, some), 4);
+  CHECK_EQ(FreeMarkSymbol(10, some), 12);
+  CHECK_EQ(FreeMarkSymbol(0, some), 2);
+  CHECK_EQ(FreeMarkSymbol(99, some), 12);
+  const std::vector<bool> all(12, true);
+  CHECK_EQ(FreeMarkSymbols(all), 12);
+  CHECK_EQ(FreeMarkSymbol(5, all), 5);
 }

@@ -47,6 +47,8 @@ int GetLocalInt(void* object, const char* name);
 void SetLocalInt(void* object, const char* name, int value);
 // Its GetString: "" when unset.
 std::string GetLocalString(void* object, const char* name);
+// Its SetString (0.96.2); nothing when the engine's isn't found.
+void SetLocalString(void* object, const char* name, const char* value);
 
 // Ability modifiers as the engine computes them.
 int StrengthModifier(void* stats);

@@ -75,6 +75,10 @@ constexpr const char* kAppManager = "?g_pAppManager@@3PEAVCAppManager@@EA";
 // through CServerExoAppInternal::MainLoop, its one caller).
 constexpr const char* kModuleLoadFinish = "?LoadModuleFinish@CNWSModule@@QEAAIXZ";
 constexpr size_t kAppManagerServerApp = 0x8;
+// int CNWSMessage::HandlePlayerToServerInputMessage(CNWSPlayer*, uchar minor): a player's orders (0.96.3: an order
+// adjuster tells a player's own click by its caller, action_guard.h).
+constexpr const char* kHandlePlayerToServerInputMessage =
+    "?HandlePlayerToServerInputMessage@CNWSMessage@@QEAAHPEAVCNWSPlayer@@E@Z";
 // CNWRules* g_pRules; its CNWBaseItemArray* is at +0x20 (UpdateCombatInformation +0x117e)
 constexpr const char* kRules = "?g_pRules@@3PEAVCNWRules@@EA";
 constexpr size_t kRulesBaseItems = 0x20;
@@ -204,6 +208,8 @@ constexpr const char* kVarTableGetInt = "?GetInt@CNWSScriptVarTable@@QEAAHAEAVCE
 constexpr const char* kVarTableSetInt = "?SetInt@CNWSScriptVarTable@@QEAAXAEAVCExoString@@HH@Z";
 // CExoString CNWSScriptVarTable::GetString(CExoString& name) - returned by value (hidden result pointer).
 constexpr const char* kVarTableGetString = "?GetString@CNWSScriptVarTable@@QEAA?AVCExoString@@AEAV2@@Z";
+// void CNWSScriptVarTable::SetString(CExoString& name, CExoString& value) (0.96.2).
+constexpr const char* kVarTableSetString = "?SetString@CNWSScriptVarTable@@QEAAXAEAVCExoString@@0@Z";
 constexpr const char* kGetSTRStat = "?GetSTRStat@CNWSCreatureStats@@QEAAEXZ";
 constexpr const char* kCalcStatModifier = "?CalcStatModifier@CNWSCreatureStats@@QEAADE@Z";
 constexpr const char* kGetDEXMod = "?GetDEXMod@CNWSCreatureStats@@QEAADH@Z";

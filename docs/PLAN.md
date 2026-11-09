@@ -870,6 +870,88 @@ monster AC by CR.
   - *0.94.3 (owner, 2026-11-08: "There's an issue with the last mark (05) where the square it's inscribed in can be
     seen"):* its background was dark grey (35, 31, 32), not black - drawn additively, a faint square. Levels: that
     grey to black, the rest stretched (white stays white).
+  - *0.95.9 (owner, 2026-11-08: "CB-3 fails, concentration on resistance slashind disappears immediately"):* the
+    log - "concentrates on Resistance: Slashing", then 3 s later "is over (none of its effects left here)", with
+    or without damage. Build 2's marker for Resistance and Guidance was the icon linked with
+    VFX_DUR_CESSATE_POSITIVE, the link 0.92.2's probe showed never stays. Concentration's check and Resistance's 1d4
+    both look for that effect. The marker is now the icon alone, a plain (magical) one as the conditions' icons are,
+    so Dispel Magic still ends it (owner: "why can't dispel magic remove resistance or guidance? wasn't it supposed
+    to?" - a first build made it supernatural, never installed). Retests: CB-3b, CB-4 (Guidance) and CB-11 (Dispel
+    Magic ends Resistance) on 0.95.9 - all three passed (owner: "they all pass now").
+  - *0.95.10 (owner, 2026-11-08, UT-15: "the magic marks are not on the ground, they are floating"):* the mark's
+    invisible object and its ground node are at the target point's height, so a point above the walkmesh (a click
+    can give one) floats the mark. The point now goes down to GetGroundHeight, and the drop is logged ("the point
+    dropped N m to the ground").
+  - *Magic Mark on doors and placeables - decided (owner, 2026-11-08: "is it not possible to add magic marks on
+    objects or walls?", then "Go with A"; SRD 5.2: "on an object or a surface").* Walls are out: NWN can't target
+    one (a click there lands on the floor). 0.96.0:
+    - A door: the mark stands on the slab's face on the caster's side (rules::MarkOnDoor; a closed door's
+      walkmesh is 2.1 x 0.3 x 2.97 m, T_Door01's), flat on it, 1.4 m up.
+    - A placeable: where its walkmesh starts on the line from the caster (the area's static-object line test,
+      CNWArea::NoNonWalkPolysInDoors, halved 14 times), 3 cm out, facing the caster, 0.7 m above the ground; none
+      found, 0.35 m from its centre (rules::MarkOnPlaceable).
+    - The ground: as before (0.95.10's snap).
+  - *The owner's 12 symbols (2026-11-08: "the new marks are in the x1 folder, you can delete the previous marks and
+    add the new ones only and then you can delete the x1 folder"):* Illustrator's PNGs (RGBA, 256-257 px) put on
+    black, cropped to 256 and saved as 24-bit TGAs, replacing the five. Rows 1860-1871 are flat (n5v_markNN) and
+    1880-1891 upright (n5v_markNNu, two-sided, neither mirrored nor upside down from the front); 1840-1844 are no
+    longer served. The 1x folder is removed.
+  - *Magic Mark's colour - decided (owner, 2026-11-08: "would it also be possible to add a tint to the marks so that
+    they're not always white?", then "Option b + random" - of B chosen when casting, A random, C one per symbol;
+    SRD 5.2: "a color, a small mark, or a symbol").* 0.96.1:
+    - Prestidigitation's menu is Fire Play and Magic Mark: White (1116), Gold, Red, Green, Blue, Violet
+      (1135-1139) and Random (1140, one of the six): eight entries, one radial page.
+    - Each colour is the material's colour (ambient, diffuse, self-illumination) on copies of the 12 marks, flat
+      and upright (n5v_markNN<g r n b v>[u]); the texture stays the owner's white symbol.
+    - Rows: White 1860-1871 / 1880-1891; colour t at 1900 + (t - 1) * 40 flat, + 20 upright
+      (rules::MagicMarkRow). The layout puts White exactly where colour 0 would fall.
+  - *Magic Mark on the model's surface - decided (owner, 2026-11-09: "go with 1"),* after MO-2 ("on a table it gets
+    placed somehow inside the model and is barely visible, only edges sticking out. I would assume it would be
+    projected on the surface of the model?") and MO-1 ("the door swings open but the magic mark stays in place").
+    0.96.2:
+    - The cast puts the mark's visual effect (upright, 1 hour, tagged n5c_mrk_<model>) on the door or placeable
+      itself, and a record on it, the local string n5m_<model>: the caster's eyes (its feet plus
+      rules::MarkEyeHeight by size). Its symbol is one not already on the object in that colour, so each mark there
+      has its own name. Three at a time per caster as before: the oldest's effect is removed.
+    - The client attaches the effect's model (core/magic_mark_surface.cpp, asked first by the attach hook of #144).
+      The target model's external data is its client door or placeable, whose id gives the server's object and
+      its record.
+    - Lines from the eyes toward the model's box (rules::MarkAimPoints: under the top seen from above, else at eye
+      height) go through the game's own hit test on the model's triangles (Gob::HitCheck; CHitInfo as the game
+      builds it). The first hit gives the point and the part. Two lines 2 cm beside it give the normal. If no line
+      hits a triangle, the same lines are tried on the parts' boxes.
+    - The mark attaches to that part, turning with it, so a door's leaf carries it. Its node sits 2 cm out from
+      the surface, facing out, its top up (on a top, away from the caster); rules::MarkFixInPart.
+    - The record then keeps the part and the place ("e x y z|f part px py pz qw qx qy qz"). When the client
+      attaches the mark again (a load, a return to the area), it goes back there, whatever the door's state.
+    - If the hit test isn't as read at the install (its slots and code, the client's door and placeable, the
+      game's turns checked with its own Quaternion * Vector), marks on objects keep 0.96.0's invisible object.
+    - Only where the game draws the scene: single player, a host's own client.
+  - *Tested (owner, 2026-11-09): MO-1b failed* - "if the door leads to a different area the mark is still placed in
+    the vertical transition surface, not on the door itself" (the eyes' line aimed at the middle of a model whose box
+    takes in the transition surface behind the leaf) - *and MO-2b* - "on tables I would expct to be able to at least
+    chance where on the top surface the mark would appear, but it always appears in the same place" (one spot per
+    place stood). The owner: "What is the issue with picking the wall and a specific place on the wall (or on a
+    placeable for that matter?)" - the cast message carries the object alone, the point only for the ground (its
+    flags byte); the client knows the spot under the cursor.
+  - *Magic Mark where you click - decided (owner, 2026-11-09: "A. but we should try to find a way to deal with walls
+    that have floors behind them so that the wall is marked and not the floor"),* over B (the eyes' line kept, aimed
+    at the nearest part). 0.96.3:
+    - The cast order's hook (action_guard.h's new adjuster; a player's own order, its caller the input handler)
+      takes, for Magic Mark in single player, the point under the cursor with the game's own pick: after
+      CGuiMan::GetMousePos, the world camera's HitCheck at the mouse (the camera's ray against the scene, tiles
+      included). Two picks 3 pixels beside it give the surface's normal. The path to the camera
+      (g_pAppManager +0, +8, +0x30, +0xe8) is checked against the game's own pick code at the install.
+    - A door or a placeable: the record keeps the camera's ray through the cursor's point ("|c"), and the client
+      tests the model along it (run on 4 m past the point, in case the cursor was on something nearer). If the ray
+      misses the model (a radial opened on the object puts the cursor on the menu), the eyes' lines are the
+      fallback.
+    - A point: if the cursor's point isn't the floor the game sent (more than 0.75 m off across or up/down, and not
+      on the caster's own body), the cursor was on a wall (with floor behind it, which the game sends), a pillar or
+      a ledge. The order's point moves 0.6 m in front of it, at the caster's feet, so the caster doesn't walk
+      around. The cast marks the wall at the cursor on an invisible object: upright, facing out along the normal
+      (flat on a ledge's top).
+    - The floor: as before.
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's

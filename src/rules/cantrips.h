@@ -10,6 +10,8 @@
 
 #include <stdint.h>
 
+#include <string>
+
 #include <vector>
 
 namespace rules {
@@ -244,11 +246,85 @@ constexpr int kBoomingVoiceSeconds = 60;  // "for 1 minute"
 constexpr int kElementCubeFeet = 5;       // Elementalism's 5-foot Cube
 constexpr int kBoomingVoiceIcon = 164;    // its effect icon (effecticons.2da)
 // 0.94.1 (owner, 2026-11-08: "there should be 5 new magic mark symbols ... can you wire them up for a test"): Magic
-// Mark's look - one of the owner's symbols, visualeffects.2da rows 1840-1844.
-constexpr int kMagicMarkFirstVisual = 1840;
-constexpr int kMagicMarkVisuals = 5;
+// Mark's look - one of the owner's symbols. 0.96.0 (owner, 2026-11-08: "the new marks are in the x1 folder, you can
+// delete the previous marks and add the new ones only"): 12 of them, visualeffects.2da rows 1860-1871 (the first five
+// were 1840-1844).
+constexpr int kMagicMarkFirstVisual = 1860;
+constexpr int kMagicMarkVisuals = 12;
 // The symbol for a roll of 1..kMagicMarkVisuals (out of range: the first).
 int MagicMarkVisual(int roll);
+
+// 0.96.0 (owner, 2026-11-08: "Go with A" - Magic Mark on a door or a placeable; SRD 5.2: "on an object or a
+// surface"): the same symbols upright (rows from kMagicMarkUprightFirstVisual), standing on the object.
+constexpr int kMagicMarkUprightFirstVisual = 1880;
+int MagicMarkUprightVisual(int roll);
+
+// 0.96.1 (owner, 2026-11-09: "Option b + random" - asked "would it also be possible to add a tint to the marks so
+// that they're not always white?"; SRD 5.2: "a color, a small mark, or a symbol"): the mark's colour, picked from
+// Prestidigitation's menu - Magic Mark: White (row 1116), Gold, Red, Green, Blue, Violet (1135-1139) or Random
+// (1140, one of the six). White's rows are the ones above; each other colour's flat ones from
+// kMagicMarkTintFirstVisual + (tint - 1) * kMagicMarkTintStride, its upright ones kMagicMarkUprightOffset on.
+enum class MarkTint { kWhite, kGold, kRed, kGreen, kBlue, kViolet };
+constexpr int kMagicMarkTints = 6;
+constexpr int kMagicMarkWhite = 1116;
+constexpr int kMagicMarkGold = 1135;
+constexpr int kMagicMarkRandom = 1140;
+constexpr int kMagicMarkTintFirstVisual = 1900;
+constexpr int kMagicMarkTintStride = 40;
+constexpr int kMagicMarkUprightOffset = 20;
+// A Magic Mark row's colour (0 White .. 5 Violet); -1 for Random, or a row that isn't one.
+int MagicMarkTintOf(int row);
+// The visualeffects row of `symbol` (1..kMagicMarkVisuals; out of range: the first) in colour `tint` (0..5; out of
+// range: White), flat on the ground or upright.
+int MagicMarkRow(int symbol, int tint, bool upright);
+// 0.96.2 (owner, 2026-11-09: "go with 1"): that row's model - n5v_markNN, the colour's letter (g r n b v; White
+// none), u upright. A mark on an object is named by its model (its effect's tag, its record).
+std::string MagicMarkModel(int symbol, int tint, bool upright);
+// A new mark's symbol on an object: the `roll`-th (1..FreeMarkSymbols; out of range: the nearest) of those not on
+// it already in that colour (taken[symbol - 1]); all of them taken, of all 12.
+int FreeMarkSymbols(const std::vector<bool>& taken);
+int FreeMarkSymbol(int roll, const std::vector<bool>& taken);
+
+// Where an upright mark stands: a point (the mark's centre) and the way it faces (NWN degrees: 0 east, 90 north).
+struct MarkSpot {
+  float x = 0, y = 0, z = 0;
+  float facing = 0;
+};
+constexpr float kMarkGap = 0.03f;          // metres off the surface
+constexpr float kMarkDoorHeight = 1.4f;    // a door's mark: its centre above the door's base
+constexpr float kMarkObjectHeight = 0.7f;  // a placeable's: above the ground
+constexpr float kMarkNoMeshReach = 0.35f;  // a placeable without a walkmesh: this far from its centre
+// A closed door's slab in its own frame (x across it, y through it, as NWN's door walkmeshes: T_Door01's is
+// 2.1 x 0.3 x 2.97 m).
+constexpr float kDoorHalfWidth = 1.05f;
+constexpr float kDoorHalfDepth = 0.15f;
+
+// A door at (dx, dy, dz) facing `facing`, the caster at (cx, cy): the mark on the slab's face toward the caster -
+// where the line from the door's centre to the caster leaves the slab - flat on that face (facing out of it),
+// kMarkGap off it, kMarkDoorHeight up. NWN models face +y: an object's +y points along its facing.
+MarkSpot MarkOnDoor(float dx, float dy, float dz, float facing, float cx, float cy);
+
+// A placeable at (px, py) and the caster at (cx, cy); `surface` the share of the way from the caster to it where its
+// walkmesh starts (0..1; below 0: none found). The mark kMarkGap before that point (or kMarkNoMeshReach from the
+// placeable's centre), facing the caster; z `ground` + kMarkObjectHeight.
+MarkSpot MarkOnPlaceable(float px, float py, float cx, float cy, float surface, float ground);
+
+// The largest share t in [0, 1] of a line that is still clear, by halving `steps` times: `blocked(t)` is whether the
+// line's first t is blocked (false at 0, true at 1). -1 when even the whole line is clear.
+template <typename Blocked>
+float ClearShare(Blocked blocked, int steps) {
+  if (!blocked(1.0f)) return -1.0f;
+  float clear = 0.0f, hit = 1.0f;
+  for (int i = 0; i < steps; ++i) {
+    const float mid = (clear + hit) * 0.5f;
+    if (blocked(mid)) {
+      hit = mid;
+    } else {
+      clear = mid;
+    }
+  }
+  return clear;
+}
 
 // A utility cantrip row's effect: a variant's; the cantrip cast with no choice, its first option's; Druidcraft's
 // (Fire Play) and Mage Hand's own; kNone for any other row.
