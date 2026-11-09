@@ -356,6 +356,57 @@ TEST(MinorIllusion) {
   CHECK_EQ(CantripRangeFeet(1108), 30);  // Animal Sound
 }
 
+// #152 (owner, 2026-11-09: "go for A on all"): who reacts to an image, and how - sentient, hostile, size.
+TEST(IllusionReactions) {
+  // Q1 A: sentient unless an animal, beast, construct, vermin or ooze, or Intelligence 3 or less.
+  CHECK_EQ(IsSentient(12, 10), true);   // goblinoid
+  CHECK_EQ(IsSentient(14, 4), true);    // orc, Intelligence 4
+  CHECK_EQ(IsSentient(14, 3), false);   // Intelligence 3
+  CHECK_EQ(IsSentient(8, 10), false);   // animal
+  CHECK_EQ(IsSentient(9, 10), false);   // beast
+  CHECK_EQ(IsSentient(10, 10), false);  // construct
+  CHECK_EQ(IsSentient(25, 10), false);  // vermin (NWN's giant spider has Intelligence 10)
+  CHECK_EQ(IsSentient(29, 10), false);  // ooze
+  CHECK_EQ(IsSentient(19, 10), true);   // magical beast
+  CHECK_EQ(IsSentient(24, 10), true);   // undead (NWN's zombie has 10)
+  // The humanoid: sentient - a hostile one studies it, others ignore it; not sentient - a hostile one attacks it,
+  // others flee.
+  const ImageKind man = ImageKind::kHumanoid;
+  CHECK_EQ(ReactionToImage(man, true, true, 2, 3) == ImageReaction::kStudy, true);
+  CHECK_EQ(ReactionToImage(man, true, false, 3, 3) == ImageReaction::kIgnore, true);
+  CHECK_EQ(ReactionToImage(man, false, true, 1, 3) == ImageReaction::kAttack, true);  // whatever its size
+  CHECK_EQ(ReactionToImage(man, false, false, 4, 3) == ImageReaction::kFlee, true);
+  // The leopard (Medium, 3): not hostile, or smaller - flees (a sentient one then studies it); hostile and its size
+  // or larger (Q3 A) - attacks it (a sentient one then searches).
+  const ImageKind cat = ImageKind::kCreature;
+  CHECK_EQ(ReactionToImage(cat, true, true, 2, 3) == ImageReaction::kFleeThenStudy, true);     // a goblin
+  CHECK_EQ(ReactionToImage(cat, false, true, 2, 3) == ImageReaction::kFlee, true);             // a badger
+  CHECK_EQ(ReactionToImage(cat, true, false, 4, 3) == ImageReaction::kFleeThenStudy, true);    // not hostile
+  CHECK_EQ(ReactionToImage(cat, false, false, 3, 3) == ImageReaction::kFlee, true);            // a deer
+  CHECK_EQ(ReactionToImage(cat, true, true, 3, 3) == ImageReaction::kAttackThenSearch, true);  // an orc
+  CHECK_EQ(ReactionToImage(cat, true, true, 4, 3) == ImageReaction::kAttackThenSearch, true);  // an ogre
+  CHECK_EQ(ReactionToImage(cat, false, true, 3, 3) == ImageReaction::kAttack, true);           // a wolf
+  // The barrel: only a sentient hostile one comes to study it.
+  const ImageKind barrel = ImageKind::kObject;
+  CHECK_EQ(ReactionToImage(barrel, true, true, 3, 0) == ImageReaction::kStudy, true);
+  CHECK_EQ(ReactionToImage(barrel, false, true, 3, 0) == ImageReaction::kIgnore, true);
+  CHECK_EQ(ReactionToImage(barrel, true, false, 3, 0) == ImageReaction::kIgnore, true);
+  CHECK_EQ(ReactionToImage(ImageKind::kNone, true, true, 3, 3) == ImageReaction::kIgnore, true);
+  // After a study (Q4 A): seen through, it vanishes - a hostile one searches, others go back; fooled, one flees the
+  // leopard again, else goes back.
+  CHECK_EQ(AfterStudyOf(man, true, true) == AfterStudy::kVanishThenSearch, true);
+  CHECK_EQ(AfterStudyOf(cat, true, false) == AfterStudy::kVanishThenGoBack, true);
+  CHECK_EQ(AfterStudyOf(cat, false, true) == AfterStudy::kFleeAgain, true);
+  CHECK_EQ(AfterStudyOf(man, false, true) == AfterStudy::kGoBack, true);
+  CHECK_EQ(AfterStudyOf(barrel, false, true) == AfterStudy::kGoBack, true);
+  // The image gone (seen through or hit): a sentient hostile one searches for the caster.
+  CHECK_EQ(SearchesAfterVanish(true, true), true);
+  CHECK_EQ(SearchesAfterVanish(false, true), false);
+  CHECK_EQ(SearchesAfterVanish(true, false), false);
+  CHECK_EQ(kIllusionSearchSeconds, 60);
+  CHECK_EQ(kIllusionSearchFeet, 30);
+}
+
 // #39 build 4b: Dancing Lights - 120 ft, its Move a Bonus Action up to 60 ft; the patches.
 TEST(DancingLightsAndPatches) {
   const ChoiceCantrip* lights = ChoiceCantripOf(kDancingLights);

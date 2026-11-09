@@ -999,6 +999,57 @@ monster AC by CR.
     (CNWSCreature::BroadcastSpellCast, once per cast), the animation session's RequestCastClip swaps castout for
     n5_cantrip and its held loop castoutlp for n5_cantriplp, for 1.6 s; another spell's cast ends a swap still
     standing (EndCastClip).
+- **Minor Illusion's creature images: reactions by kind (#152).** *Asked (owner, 2026-11-09):* "minor illusions that
+  are creatures should have a nuanced effect on other creatures depending on their type and alignment. a humanoid
+  illusion should be investigated by sentient creatures and then they should search around for who casted the
+  illusion once they figure out it's fake. It should scare non aggressive non sentient creatures and it should provoke
+  an attack by aggressive non sentient creatures. Neither of these last two should investigate. A minor illusion of a
+  leopard should scare non aggressive and creatures that are smaller than the illusion. Sentient creatures should
+  then investigate and search for the source. larger creatures should attack the illusion and then if they are
+  sentient investigate once the illusion disappears. illusions should probably disappear once investigated or
+  attacked".
+  - *Now (0.96.10):* the image (NWN's barrel, commoner nw_commale or leopard nw_cat - the menu's "Small Creature",
+    Medium in NWN as SRD 5.2.1's Panther) draws only the creatures hostile to the caster that see the spot. They come
+    to look, study it (d20 + Intelligence vs the spell save DC) and go back. It stays its minute. SRD 5.2.1's image is
+    an object's, and a creature that sees through it finds it "faint"; creature images are the build 4 house rule
+    (Q3, 2026-11-06).
+  - *The reading proposed:*
+    - **Humanoid.** A sentient hostile creature studies it; if it sees through it, the image vanishes and it
+      searches for you. A sentient creature that isn't hostile ignores it. A hostile creature that isn't sentient
+      attacks it: the swing passes through, the image vanishes and it goes back. One that is neither flees for 2
+      rounds.
+    - **Leopard.** A creature that isn't hostile, or is smaller than it, flees for 2 rounds. A sentient one then
+      comes back and studies it; a fooled one flees again. A hostile creature that isn't smaller attacks it; the
+      image vanishes, and a sentient one then searches.
+    - **Barrel.** As now; a creature that sees through it searches.
+    - **Searching:** for 1 minute the creature walks to points within 30 ft of the image, in search mode, rolling
+      Perception against your Stealth each round.
+  - *Brief (2026-11-09; recommendations A):*
+    - Q1, who is sentient. A: not an animal, beast, vermin, construct or ooze, and Intelligence 4 or more. B:
+      Intelligence alone (NWN gives zombies, skeletons and giant spiders 10).
+    - Q2, who is aggressive. A: hostile to you, by NWN's factions; alignment left out, since SRD 5.2's beasts are
+      Unaligned. B: as A, and evil sentient creatures attack a humanoid image instead of studying it.
+    - Q3, the leopard's own size (Medium). A: hostile ones attack it. B: they flee.
+    - Q4, when it vanishes. A: for everyone, once any creature sees through it or hits it. B: the SRD's way - only
+      the creature that saw through it ignores it.
+  - *Decided (owner, 2026-11-09: "by alignment I meant disposition towards the player, eg enemies. go for A on
+    all"):* Q1-Q4 A. "Aggressive" is the creature's disposition towards the caster - hostile to you (GetIsEnemy).
+  - *Built 0.97.0:* rules::IsSentient, ReactionToImage, AfterStudyOf, SearchesAfterVanish (test IllusionReactions, 13
+    of 13 mutations caught). rules_utility_cantrips.cpp: the creatures that see the image (60 ft, a line to it, none
+    fighting, talking, plot or the caster's; now the ones not hostile too) get its Intelligence score and size; each
+    that reacts is a Reactor whose steps run as its own scripts, its arrivals and timers calling back through script
+    handlers (ExecuteScript n5_mi_study / _strike / _back / _late / _done, each call marked with its serial).
+    - Study: it walks to the image in search mode, then d20 + Intelligence vs the spell save DC. Seen through, the
+      image is destroyed; fooled by the leopard, it flees again. Never there in 30 s, it studies from where it stands.
+    - Attack: it runs to the image; the image's Ethereal (now tagged n5c_ethereal) comes off and it attacks. An
+      attack-roll skipper makes any blow at an image a miss, and the image goes on the next update ("the blow passes
+      through it"). No blow in 4 s, it goes all the same.
+    - Search: 6 legs to random points 1.5-9 m round the image, in search mode (stealth_watch's Perception rolls), for
+      up to a minute; then home.
+    - A creature that finds the image gone (seen through, hit, recast or its minute over): a sentient hostile one
+      searches, others go back. One fighting is let go.
+    - The caster is told each step ("Orc studies the Commoner: sees through the illusion (Investigation 15 vs DC 14)
+      - the illusion fades; Orc searches for you").
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's

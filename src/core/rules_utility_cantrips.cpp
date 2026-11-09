@@ -23,9 +23,11 @@
 //   whispers draw the creatures hostile to the caster that hear them (60 ft): they come to look, as for a light put
 //   out (heard_investigates). A roar, thunder or the animal's sound makes animals, beasts and vermin flee for 2
 //   rounds (rules::FleesFromScaringSound); the others come to look. None fighting, talking or the caster's own.
-// - Minor Illusion's image (an object, a humanoid, a small creature: a barrel, a commoner, a cat) for 1 minute -
-//   inert, unseen by the AI, passed through; those hostile that see the point come to look and study it (d20 +
-//   Intelligence against the spell save DC: they see through it, or are fooled). Cast again, it ends.
+// - Minor Illusion's image (an object, a humanoid, a small creature: a barrel, a commoner, a leopard) for 1 minute -
+//   inert, unseen by the AI, passed through. #152: those that see it react by what they are (rules::ReactionToImage)
+//   - a sentient hostile one studies it (d20 + Intelligence against the spell save DC), an animal flees or attacks
+//   it, the leopard by size; seen through or hit, it vanishes, and a sentient hostile one searches for the caster.
+//   Cast again, it ends.
 // - Dancing Lights: four lights (NWN's 5 m yellow light and a glow) at the point, Concentration 1 minute; its
 //   Move a Bonus Action (bonus_actions.h), up to 60 ft and within 120 ft (the order's point, action_guard.h).
 // - Mage Hand at a lever (its OnUsed with you as its user) or a container (its inventory, as if you stood by it).
@@ -38,12 +40,14 @@
 
 #include <cmath>
 #include <deque>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "action_guard.h"
+#include "attack_roll.h"
 #include "bonus_actions.h"
 #include "cantrip_effects.h"
 #include "chat.h"
@@ -544,8 +548,9 @@ std::string Num(float value) {
 }
 
 // The creatures near the cast's point (n5c_at) that a sound or an image may move: not the caster's own (its party,
-// its associates), none fighting, talking or plot - "id:race:enemy:int;" (race NWN's racial type, enemy 1 when hostile
-// to the caster, int the Intelligence modifier); $SIGHT TRUE for those with a line to the point.
+// its associates), none fighting, talking or plot - "id:race:enemy:int:score:size;" (race NWN's racial type, enemy 1
+// when hostile to the caster, int the Intelligence modifier, score its Intelligence, size NWN's creature size); $SIGHT
+// TRUE for those with a line to the point.
 const char* const kNear = R"nss(
 location l = GetLocalLocation(OBJECT_SELF, "n5c_at");
 object u = OBJECT_SELF;
@@ -556,7 +561,8 @@ while (GetIsObjectValid(o)) {
       !GetPlotFlag(o) && !GetIsObjectValid(GetMaster(o)) && !GetFactionEqual(o, u) && !GetLocalInt(o, "nwn5e_seek") &&
       GetTag(o) != "n5c_image") {
     r += ObjectToString(o) + ":" + IntToString(GetRacialType(o)) + ":" + IntToString(GetIsEnemy(u, o)) + ":" +
-         IntToString(GetAbilityModifier(ABILITY_INTELLIGENCE, o)) + ";";
+         IntToString(GetAbilityModifier(ABILITY_INTELLIGENCE, o)) + ":" +
+         IntToString(GetAbilityScore(o, ABILITY_INTELLIGENCE)) + ":" + IntToString(GetCreatureSize(o)) + ";";
   }
   o = GetNextObjectInShape(SHAPE_SPHERE, $METRES, l, $SIGHT, OBJECT_TYPE_CREATURE);
 }
@@ -567,7 +573,9 @@ struct Near {
   uint32_t id = 0;
   int race = 0;
   bool enemy = false;
-  int intelligence = 0;
+  int intelligence = 0;  // its modifier
+  int intelligence_score = 10;
+  int size = 3;  // NWN's creature size (1 tiny .. 5 huge)
 };
 
 std::vector<Near> NearOf(void* caster, uint32_t self, float metres, bool sight) {
@@ -584,7 +592,8 @@ std::vector<Near> NearOf(void* caster, uint32_t self, float metres, bool sight) 
     Near n;
     unsigned int id = 0;
     int enemy = 0;
-    if (sscanf_s(list.substr(at, end - at).c_str(), "%x:%d:%d:%d", &id, &n.race, &enemy, &n.intelligence) == 4) {
+    if (sscanf_s(list.substr(at, end - at).c_str(), "%x:%d:%d:%d:%d:%d", &id, &n.race, &enemy, &n.intelligence,
+                 &n.intelligence_score, &n.size) == 6) {
       n.id = id;
       n.enemy = enemy != 0;
       nearby.push_back(n);
@@ -689,10 +698,9 @@ void PlaySoundAt(uint32_t self, void* caster, UtilityEffect effect, const std::s
   if (LogSlot()) Log("cantrips: 0x%08X %s (%s): %zu react", self, name.c_str(), rules::SoundResrefOf(effect), done.size());
 }
 
-// Minor Illusion's image at the point for 1 minute - the game's own barrel, commoner or cat, inert: plot, unseen by
-// the AI (EffectEthereal: no one attacks it) and passed through (EffectCutsceneGhost: "things can pass through it").
-// The creatures hostile to the caster that see the point come to look; the one that gets there studies it - d20 +
-// its Intelligence against the spell save DC (rules::SeesThroughIllusion) - and the caster is told which.
+// Minor Illusion's image at the point for 1 minute - the game's own barrel, commoner or leopard, inert: plot, unseen by
+// the AI (EffectEthereal, tagged: a creature that attacks it sees it for the blow, #152) and passed through
+// (EffectCutsceneGhost: "things can pass through it"). Its object, name and size are kept on the caster.
 const char* const kImage = R"nss(
 location l = GetLocalLocation(OBJECT_SELF, "n5c_at");
 object i;
@@ -701,7 +709,7 @@ if ($CREATURE) {
   ChangeToStandardFaction(i, STANDARD_FACTION_COMMONER);
   SetPlotFlag(i, TRUE);
   AssignCommand(i, ClearAllActions(TRUE));
-  ApplyEffectToObject(DURATION_TYPE_PERMANENT, SupernaturalEffect(EffectEthereal()), i);
+  ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(SupernaturalEffect(EffectEthereal()), "n5c_ethereal"), i);
   ApplyEffectToObject(DURATION_TYPE_PERMANENT, SupernaturalEffect(EffectCutsceneGhost()), i);
   SetCommandable(FALSE, i);
 } else {
@@ -712,7 +720,401 @@ if ($CREATURE) {
 SetLocalObject(OBJECT_SELF, "n5c_image", i);
 DestroyObject(i, $SECONDS);
 SetLocalString(OBJECT_SELF, "n5c_image_name", GetName(i));
+SetLocalString(OBJECT_SELF, "n5c_image_id", ObjectToString(i));
+SetLocalInt(OBJECT_SELF, "n5c_image_size", $CREATURE ? GetCreatureSize(i) : 0);
 )nss";
+
+// --- #152 (owner, 2026-11-09: "by alignment I meant disposition towards the player, eg enemies. go for A on all"):
+// the creatures that see the image react by what they are (rules::ReactionToImage) - a sentient hostile one comes to
+// study it, an animal flees or attacks it, the leopard by size. Each is a Reactor: its steps run as its own scripts,
+// and its arrivals and timers call back here through nwn5e's script handlers (ExecuteScript("n5_mi_...")), each call
+// marked with its serial (n5c_mi_ping) so that an older reaction's timer can't move a newer one. A blow at an image
+// misses (an attack-roll skipper: "things can pass through it") and the image vanishes for everyone (Q4 A), as it
+// does when a study sees through it.
+using rules::AfterStudy;
+using rules::ImageReaction;
+
+enum class Stage { kComing, kFleeing, kFledAgain, kCharging, kStriking, kSearching };
+
+struct Reactor {
+  uint32_t caster = 0;
+  uint32_t image = 0;
+  ImageKind kind = ImageKind::kNone;
+  ImageReaction reaction = ImageReaction::kIgnore;
+  bool hostile = false;
+  bool sentient = false;
+  int intelligence = 0;  // its modifier, for the study
+  int dc = 0;
+  int serial = 0;
+  Stage stage = Stage::kComing;
+  std::string name;
+  std::string image_name;
+};
+std::unordered_map<uint32_t, Reactor> g_reactors;  // by creature
+
+struct ImageMade {
+  uint32_t caster = 0;
+  std::string name;
+};
+std::unordered_map<uint32_t, ImageMade> g_images;     // by image object
+std::vector<std::pair<uint32_t, uint32_t>> g_struck;  // (image, attacker): blows at an image, for the next update
+int g_serial = 0;
+
+const char* const kStudyScript = "n5_mi_study";    // got there: it studies the image
+const char* const kStrikeScript = "n5_mi_strike";  // got there: it attacks it
+const char* const kBackScript = "n5_mi_back";      // its 2 rounds of flight are over
+const char* const kLateScript = "n5_mi_late";      // it never got there, or no blow landed
+const char* const kDoneScript = "n5_mi_done";      // its search is over
+constexpr float kLateSeconds = 30.0f;              // to get there
+constexpr float kBlowSeconds = 4.0f;               // for a blow to land
+
+// The handler `script`, called as the creature after `seconds` (not an action: ClearAllActions leaves it).
+std::string Later(float seconds, const char* script, int serial) {
+  return "DelayCommand(" + Num(seconds) + ", SetLocalInt(OBJECT_SELF, \"n5c_mi_ping\", " + std::to_string(serial) +
+         "));\nDelayCommand(" + Num(seconds + 0.05f) + ", ExecuteScript(\"" + script + "\", OBJECT_SELF));\n";
+}
+
+// The handler `script`, called as the creature's next action.
+std::string Next(const char* script, int serial) {
+  return "ActionDoCommand(SetLocalInt(OBJECT_SELF, \"n5c_mi_ping\", " + std::to_string(serial) +
+         "));\nActionDoCommand(ExecuteScript(\"" + script + "\", OBJECT_SELF));\n";
+}
+
+// The creature's reaction, when the call is its own (not an older reaction's timer).
+Reactor* ReactorCalled(uint32_t self) {
+  const auto found = g_reactors.find(self);
+  if (found == g_reactors.end()) return nullptr;
+  void* creature = CreatureById(self);
+  if (!creature || engine::GetLocalInt(creature, "n5c_mi_ping") != found->second.serial) return nullptr;
+  return &found->second;
+}
+
+// Whether it fights (or is dead or gone), and whether its image is still there.
+struct Check {
+  bool fighting = true;
+  bool image_there = false;
+};
+Check CheckOf(uint32_t self) {
+  Run("SetLocalInt(OBJECT_SELF, \"n5c_mi_fight\", GetIsInCombat(OBJECT_SELF) || GetIsDead(OBJECT_SELF));"
+      "SetLocalInt(OBJECT_SELF, \"n5c_mi_there\", GetIsObjectValid(GetLocalObject(OBJECT_SELF, \"n5c_mi_image\")));",
+      self, "an illusion's watcher checked");
+  Check check;
+  void* creature = CreatureById(self);
+  if (!creature) return check;
+  check.fighting = engine::GetLocalInt(creature, "n5c_mi_fight") != 0;
+  check.image_there = engine::GetLocalInt(creature, "n5c_mi_there") != 0;
+  return check;
+}
+
+std::string NameOf(uint32_t id) {
+  Run("SetLocalString(OBJECT_SELF, \"n5c_mi_name\", GetName(OBJECT_SELF));", id, "a name");
+  void* creature = CreatureById(id);
+  return creature ? engine::GetLocalString(creature, "n5c_mi_name") : std::string("something");
+}
+
+void Tell(uint32_t caster, const std::string& line) {
+  if (caster) TellPlayer(caster, "nwn5e: " + line + ".");
+}
+
+void Note(uint32_t self, const Reactor& r, const char* what) {
+  if (LogSlot()) Log("cantrips: 0x%08X Minor Illusion's %s: 0x%08X (%s) %s", r.caster, r.image_name.c_str(), self,
+                     r.name.c_str(), what);
+}
+
+// Left where it stands - fighting, or its flight over (`clear`: its orders ended too).
+void LetGo(uint32_t self, bool clear) {
+  Run(std::string(clear ? "ClearAllActions();" : "") + "DeleteLocalInt(OBJECT_SELF, \"nwn5e_seek\");", self,
+      "an illusion's watcher let go");
+  g_reactors.erase(self);
+}
+
+// Back where it stood (a look round first, if `look`), out of search mode.
+void GoBack(uint32_t self, bool look) {
+  std::string code = "ClearAllActions(TRUE);\n";
+  if (look) {
+    code +=
+        "ActionPlayAnimation(ANIMATION_FIREFORGET_HEAD_TURN_LEFT);\n"
+        "ActionPlayAnimation(ANIMATION_FIREFORGET_HEAD_TURN_RIGHT);\n"
+        "ActionWait(2.0);\n";
+  }
+  code +=
+      "ActionMoveToLocation(GetLocalLocation(OBJECT_SELF, \"n5c_mi_home\"));\n"
+      "ActionDoCommand(SetActionMode(OBJECT_SELF, ACTION_MODE_DETECT, FALSE));\n"
+      "ActionDoCommand(DeleteLocalInt(OBJECT_SELF, \"nwn5e_seek\"));\n";
+  Run(code, self, "an illusion's watcher going back");
+  g_reactors.erase(self);
+}
+
+// The image gone, for everyone (Q4 A).
+void Vanish(uint32_t image, uint32_t runner) {
+  Run("object i = StringToObject(\"" + Hex(image) + "\"); if (GetIsObjectValid(i)) DestroyObject(i);", runner,
+      "an illusion vanishing");
+  g_images.erase(image);
+}
+
+const char* const kComeToLook = R"nss(
+ClearAllActions();
+SetActionMode(OBJECT_SELF, ACTION_MODE_DETECT, TRUE);
+ActionMoveToLocation(GetLocalLocation(OBJECT_SELF, "n5c_mi_at"));
+)nss";
+
+void ComeToLook(uint32_t self, Reactor& r) {
+  r.stage = Stage::kComing;
+  Run(std::string(kComeToLook) + Next(kStudyScript, r.serial) + Later(kLateSeconds, kLateScript, r.serial), self,
+      "an illusion's watcher coming to look");
+}
+
+// Away from the image for 2 rounds (Q7's flight, as a scaring sound's).
+const char* const kFleeFrom = R"nss(
+ClearAllActions();
+SetActionMode(OBJECT_SELF, ACTION_MODE_DETECT, FALSE);
+ActionMoveAwayFromLocation(GetLocalLocation(OBJECT_SELF, "n5c_mi_at"), TRUE, 30.0);
+)nss";
+
+void Flee(uint32_t self, Reactor& r, bool again) {
+  r.stage = again ? Stage::kFledAgain : Stage::kFleeing;
+  Run(std::string(kFleeFrom) + Later(static_cast<float>(rules::kScareSeconds), kBackScript, r.serial), self,
+      "an illusion's watcher fleeing");
+}
+
+const char* const kCharge = R"nss(
+ClearAllActions();
+ActionMoveToLocation(GetLocalLocation(OBJECT_SELF, "n5c_mi_at"), TRUE);
+)nss";
+
+void Charge(uint32_t self, Reactor& r) {
+  r.stage = Stage::kCharging;
+  Run(std::string(kCharge) + Next(kStrikeScript, r.serial) + Later(kLateSeconds, kLateScript, r.serial), self,
+      "an illusion's watcher charging");
+}
+
+// At it: its Ethereal off (the attacker must see it to swing; the blow vanishes it) and attacked.
+const char* const kStrike = R"nss(
+object i = GetLocalObject(OBJECT_SELF, "n5c_mi_image");
+effect e = GetFirstEffect(i);
+while (GetIsEffectValid(e)) {
+  if (GetEffectTag(e) == "n5c_ethereal") RemoveEffect(i, e);
+  e = GetNextEffect(i);
+}
+SetIsTemporaryEnemy(i, OBJECT_SELF);
+ClearAllActions();
+ActionAttack(i);
+)nss";
+
+void Strike(uint32_t self, Reactor& r) {
+  r.stage = Stage::kStriking;
+  Run(std::string(kStrike) + Later(kBlowSeconds, kLateScript, r.serial), self, "an illusion's watcher striking");
+}
+
+// A minute round the image, within the spell's range of it (where its caster stood), in search mode - the hiding
+// rules' Perception against the caster's Stealth (stealth_watch.cpp) - then back.
+const char* const kSearch = R"nss(
+object a = GetArea(OBJECT_SELF);
+vector c = GetPositionFromLocation(GetLocalLocation(OBJECT_SELF, "n5c_mi_at"));
+ClearAllActions(TRUE);
+SetLocalInt(OBJECT_SELF, "nwn5e_seek", 120);
+SetActionMode(OBJECT_SELF, ACTION_MODE_DETECT, TRUE);
+int k;
+float f;
+float r;
+for (k = 0; k < $LEGS; k++) {
+  f = IntToFloat(Random(360));
+  r = 1.5 + IntToFloat(Random($SPREAD)) / 10.0;
+  ActionMoveToLocation(Location(a, Vector(c.x + cos(f) * r, c.y + sin(f) * r, c.z), f));
+  ActionPlayAnimation(ANIMATION_FIREFORGET_HEAD_TURN_LEFT);
+  ActionPlayAnimation(ANIMATION_FIREFORGET_HEAD_TURN_RIGHT);
+  ActionWait(3.0);
+}
+)nss";
+
+void Search(uint32_t self, Reactor& r) {
+  r.stage = Stage::kSearching;
+  std::string code = kSearch;
+  Replace(&code, "$LEGS", "6");
+  Replace(&code, "$SPREAD",
+          std::to_string(static_cast<int>((rules::kIllusionSearchFeet * kMetresPerFoot - 1.5f) * 10.0f)));
+  Run(code + Next(kDoneScript, r.serial) +
+          Later(static_cast<float>(rules::kIllusionSearchSeconds), kDoneScript, r.serial),
+      self, "an illusion's watcher searching");
+}
+
+// It got there (or never did, in kLateSeconds): it studies the image - or, finding it gone, a sentient hostile one
+// searches for its caster and any other goes back.
+void Study(uint32_t self, Reactor& r, const Check& check) {
+  const uint32_t caster = r.caster;
+  const std::string name = r.name;
+  const std::string image = r.image_name;
+  if (!check.image_there) {
+    Note(self, r, "finds the image gone");
+    if (!rules::SearchesAfterVanish(r.sentient, r.hostile)) return GoBack(self, true);
+    Tell(caster, name + " finds the " + image + " gone and searches for you");
+    return Search(self, r);
+  }
+  const int d20 = RollEngineDice(1, 20);
+  const bool through = rules::SeesThroughIllusion(d20, r.intelligence, r.dc);
+  char check_text[64];
+  sprintf_s(check_text, " (Investigation %d vs DC %d)", d20 + r.intelligence, r.dc);
+  const std::string line =
+      name + " studies the " + image + ": " + (through ? "sees through the illusion" : "is fooled") + check_text;
+  if (LogSlot()) {
+    Log("cantrips: 0x%08X Minor Illusion's %s: 0x%08X (%s) studies it - d20 %d %+d vs DC %d: %s", caster, image.c_str(),
+        self, name.c_str(), d20, r.intelligence, r.dc, through ? "sees through it" : "fooled");
+  }
+  switch (rules::AfterStudyOf(r.kind, through, r.hostile)) {
+    case AfterStudy::kVanishThenSearch:
+      Vanish(r.image, self);
+      Tell(caster, line + " - the illusion fades; " + name + " searches for you");
+      return Search(self, r);
+    case AfterStudy::kVanishThenGoBack:
+      Vanish(r.image, self);
+      Tell(caster, line + " - the illusion fades");
+      return GoBack(self, false);
+    case AfterStudy::kFleeAgain:
+      Tell(caster, line + " and flees");
+      return Flee(self, r, true);
+    case AfterStudy::kGoBack:
+      Tell(caster, line);
+      return GoBack(self, true);
+  }
+}
+
+// A blow at the image (or none in kBlowSeconds): it passes through, and the image vanishes; a sentient attacker then
+// searches for its caster, any other goes back.
+void Struck(uint32_t image, uint32_t attacker) {
+  const auto made = g_images.find(image);
+  if (made == g_images.end()) return;  // gone already
+  const ImageMade kept = made->second;
+  Vanish(image, attacker);
+  const auto found = g_reactors.find(attacker);
+  const bool ours = found != g_reactors.end() && found->second.image == image &&
+                    (found->second.stage == Stage::kCharging || found->second.stage == Stage::kStriking);
+  const std::string name = ours ? found->second.name : NameOf(attacker);
+  std::string line = name + " attacks the " + kept.name + ": the blow passes through it - the illusion fades";
+  if (LogSlot()) {
+    Log("cantrips: 0x%08X Minor Illusion's %s: 0x%08X (%s) attacks it - the image vanishes", kept.caster,
+        kept.name.c_str(), attacker, name.c_str());
+  }
+  if (ours && found->second.sentient) {
+    Tell(kept.caster, line + "; " + name + " searches for you");
+    return Search(attacker, found->second);
+  }
+  Tell(kept.caster, line);
+  if (ours) GoBack(attacker, false);
+}
+
+// The attack-roll skipper: a blow at an image misses ("things can pass through it"); the image vanishes on the next
+// update, out of the engine's attack.
+bool BlowAtImage(AttackRoll& roll, uintptr_t /*caller*/) {
+  if (g_images.empty() || !roll.attacker || !roll.target || !roll.data) return false;
+  const uint32_t image = Field<uint32_t>(roll.target, ee::kObjectId);
+  if (g_images.find(image) == g_images.end()) return false;
+  roll.data[ee::kAttackD20] = static_cast<uint8_t>(RollEngineDice(1, 20));
+  SetField<int32_t>(roll.data, ee::kAttackModifier, 0);
+  roll.data[ee::kAttackResult] = ee::kAttackResultMiss;
+  for (const auto& blow : g_struck) {
+    if (blow.first == image) return true;
+  }
+  g_struck.emplace_back(image, Field<uint32_t>(roll.attacker, ee::kObjectId));
+  return true;
+}
+
+void StruckUpdate(void* /*creature*/) {
+  if (g_struck.empty()) return;
+  std::vector<std::pair<uint32_t, uint32_t>> blows;
+  blows.swap(g_struck);
+  for (const auto& blow : blows) Struck(blow.first, blow.second);
+}
+
+// The handlers: each runs as the reacting creature.
+void OnStudyScript(uint32_t self) {
+  Reactor* r = ReactorCalled(self);
+  if (!r || r->stage != Stage::kComing) return;
+  const Check check = CheckOf(self);
+  if (check.fighting) {
+    Note(self, *r, "is fighting - no study");
+    return LetGo(self, false);
+  }
+  Study(self, *r, check);
+}
+
+void OnStrikeScript(uint32_t self) {
+  Reactor* r = ReactorCalled(self);
+  if (!r || r->stage != Stage::kCharging) return;
+  const Check check = CheckOf(self);
+  if (check.fighting) {
+    Note(self, *r, "is fighting - no blow at the image");
+    return LetGo(self, false);
+  }
+  if (check.image_there) return Strike(self, *r);
+  Note(self, *r, "finds the image gone");
+  if (!r->sentient) return GoBack(self, true);
+  Tell(r->caster, r->name + " finds the " + r->image_name + " gone and searches for you");
+  Search(self, *r);
+}
+
+void OnBackScript(uint32_t self) {
+  Reactor* r = ReactorCalled(self);
+  if (!r || (r->stage != Stage::kFleeing && r->stage != Stage::kFledAgain)) return;
+  const Check check = CheckOf(self);
+  if (check.fighting) return LetGo(self, false);
+  if (r->stage == Stage::kFleeing && r->reaction == ImageReaction::kFleeThenStudy) {
+    Note(self, *r, "comes back to look");
+    return ComeToLook(self, *r);
+  }
+  LetGo(self, true);
+}
+
+void OnLateScript(uint32_t self) {
+  Reactor* r = ReactorCalled(self);
+  if (!r) return;
+  if (r->stage == Stage::kStriking) {  // no blow landed: it vanishes all the same
+    Note(self, *r, "landed no blow in 4 s");
+    const uint32_t image = r->image;
+    Struck(image, self);
+    if (g_reactors.count(self) && g_reactors[self].stage == Stage::kStriking) GoBack(self, false);
+    return;
+  }
+  if (r->stage != Stage::kComing && r->stage != Stage::kCharging) return;
+  const Check check = CheckOf(self);
+  if (check.fighting) return LetGo(self, false);
+  if (r->stage == Stage::kComing) {
+    Note(self, *r, "never got there in 30 s - studies it from where it stands");
+    return Study(self, *r, check);
+  }
+  Note(self, *r, "never got there in 30 s - attacks it from where it stands");
+  if (check.image_there) return Strike(self, *r);
+  GoBack(self, true);
+}
+
+void OnDoneScript(uint32_t self) {
+  Reactor* r = ReactorCalled(self);
+  if (!r || r->stage != Stage::kSearching) return;
+  const Check check = CheckOf(self);
+  if (check.fighting) return LetGo(self, false);
+  Note(self, *r, "ends its search");
+  GoBack(self, false);
+}
+
+// Each reacting creature's start: where it stood, the image and its point, kept on it.
+const char* const kWatcher = R"nss(
+object u = StringToObject("$CASTER");
+SetLocalInt(OBJECT_SELF, "nwn5e_seek", 120);
+SetLocalLocation(OBJECT_SELF, "n5c_mi_home", GetLocation(OBJECT_SELF));
+SetLocalLocation(OBJECT_SELF, "n5c_mi_at", GetLocalLocation(u, "n5c_at"));
+SetLocalObject(OBJECT_SELF, "n5c_mi_image", GetLocalObject(u, "n5c_image"));
+SetLocalString(u, "n5c_name", GetName(OBJECT_SELF));
+)nss";
+
+const char* ReactionName(ImageReaction reaction) {
+  switch (reaction) {
+    case ImageReaction::kStudy: return "comes to study it";
+    case ImageReaction::kFlee: return "flees";
+    case ImageReaction::kFleeThenStudy: return "flees, then comes back to study it";
+    case ImageReaction::kAttack: return "attacks it";
+    case ImageReaction::kAttackThenSearch: return "attacks it, then searches";
+    default: return "ignores it";
+  }
+}
 
 void MakeImage(uint32_t self, void* caster, UtilityEffect effect, const std::string& name) {
   const ImageKind kind = rules::ImageKindOf(effect);
@@ -722,29 +1124,58 @@ void MakeImage(uint32_t self, void* caster, UtilityEffect effect, const std::str
   Replace(&code, "$SECONDS", std::to_string(rules::kMinorIllusionSeconds) + ".0");
   Run(code, self, "Minor Illusion's image");
   const std::string image = engine::GetLocalString(caster, "n5c_image_name");
+  const int image_size = engine::GetLocalInt(caster, "n5c_image_size");
+  unsigned int image_id = 0;
+  sscanf_s(engine::GetLocalString(caster, "n5c_image_id").c_str(), "%x", &image_id);
+  for (auto it = g_images.begin(); it != g_images.end();) {  // its earlier image ended with this cast
+    it = it->second.caster == self ? g_images.erase(it) : std::next(it);
+  }
+  if (image_id) g_images[image_id] = ImageMade{self, image};
   const int dc = engine::GetLocalInt(caster, "n5c_dc");
   std::vector<std::string> done;
   if (Investigates()) {
     for (const Near& n : NearOf(caster, self, rules::kImageSightFeet * kMetresPerFoot, true)) {
-      if (!n.enemy) continue;
-      const int d20 = RollEngineDice(1, 20);
-      const bool through = rules::SeesThroughIllusion(d20, n.intelligence, dc);
-      char id[16];
-      sprintf_s(id, "%x", n.id);
-      char arrive[400];
-      sprintf_s(arrive,
-                "AssignCommand(o, ActionDoCommand(SendMessageToPC(u, \"nwn5e: \" + GetName(o) + \" studies the %s: %s "
-                "(Investigation %d vs DC %d)\")));",
-                image.c_str(), through ? "sees through the illusion" : "is fooled", d20 + n.intelligence, dc);
-      std::string look = kLook;
-      Replace(&look, "$ID", id);
-      Replace(&look, "$ARRIVE", arrive);
-      Replace(&look, "$WAIT", through ? "2.0" : "6.0");
-      Run(look, self, "a creature coming to look");
-      done.push_back(engine::GetLocalString(caster, "n5c_name") + " comes to look");
+      const bool sentient = rules::IsSentient(n.race, n.intelligence_score);
+      const ImageReaction reaction = rules::ReactionToImage(kind, sentient, n.enemy, n.size, image_size);
+      if (reaction == ImageReaction::kIgnore) continue;
+      std::string start = kWatcher;
+      Replace(&start, "$CASTER", Hex(self));
+      Run(start, n.id, "an illusion's watcher");
+      Reactor r;
+      r.caster = self;
+      r.image = image_id;
+      r.kind = kind;
+      r.reaction = reaction;
+      r.hostile = n.enemy;
+      r.sentient = sentient;
+      r.intelligence = n.intelligence;
+      r.dc = dc;
+      r.serial = ++g_serial;
+      r.name = engine::GetLocalString(caster, "n5c_name");
+      r.image_name = image;
+      Reactor& kept = (g_reactors[n.id] = r);
       if (LogSlot()) {
-        Log("cantrips: 0x%08X Minor Illusion's %s: 0x%08X comes to look - d20 %d %+d vs DC %d: %s", self, image.c_str(),
-            n.id, d20, n.intelligence, dc, through ? "sees through it" : "fooled");
+        Log("cantrips: 0x%08X Minor Illusion's %s: 0x%08X (%s) %s - racial type %d, Intelligence %d (%s), %s, size %d "
+            "vs %d",
+            self, image.c_str(), n.id, r.name.c_str(), ReactionName(reaction), n.race, n.intelligence_score,
+            sentient ? "sentient" : "not sentient", n.enemy ? "hostile" : "not hostile", n.size, image_size);
+      }
+      switch (reaction) {
+        case ImageReaction::kStudy:
+          ComeToLook(n.id, kept);
+          done.push_back(r.name + " comes to look");
+          break;
+        case ImageReaction::kFlee:
+        case ImageReaction::kFleeThenStudy:
+          Flee(n.id, kept, false);
+          done.push_back(r.name + " flees");
+          break;
+        case ImageReaction::kAttack:
+        case ImageReaction::kAttackThenSearch:
+          Charge(n.id, kept);
+          done.push_back(r.name + " attacks it");
+          break;
+        default: break;
       }
     }
   }
@@ -1090,4 +1521,11 @@ void InstallUtilityCantrips() {
   Log("cantrips: build 4b - Minor Illusion, Phantom Sound, Animal Sound (sounds that draw or scare), the images, "
       "Dancing Lights (its Move a Bonus Action), Mage Hand at levers and containers, the patches (#39 Part 1)%s",
       scripts && hooks ? "" : " - SOME hooks missing");
+  const bool images = AddScriptHandler(kStudyScript, &OnStudyScript) && AddScriptHandler(kStrikeScript, &OnStrikeScript) &&
+                      AddScriptHandler(kBackScript, &OnBackScript) && AddScriptHandler(kLateScript, &OnLateScript) &&
+                      AddScriptHandler(kDoneScript, &OnDoneScript) && AddAttackRollSkipper(&BlowAtImage) &&
+                      AddCreatureUpdateListener(&StruckUpdate);
+  Log("cantrips: Minor Illusion's image - those that see it study it, flee it or attack it, by what they are; seen "
+      "through or hit, it vanishes and they search for its caster (#152)%s",
+      images ? "" : " - SOME hooks missing");
 }

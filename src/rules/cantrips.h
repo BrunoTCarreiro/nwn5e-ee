@@ -372,6 +372,30 @@ const char* ImageBlueprintOf(ImageKind kind);
 bool SeesThroughIllusion(int d20, int investigation_bonus, int dc);
 constexpr int kMinorIllusionSeconds = 60;
 constexpr int kImageSightFeet = 60;
+// #152 (owner, 2026-11-09: "by alignment I meant disposition towards the player, eg enemies. go for A on all"):
+// how a creature that sees the image reacts, by what it is.
+// Q1 A, sentient: not an animal (NWN's racial type 8), beast (9), construct (10), vermin (25) or ooze (29), and
+// Intelligence 4 or more.
+bool IsSentient(int nwn_racial_type, int intelligence_score);
+// Q2 A, aggressive: hostile to the caster. Q3 A: a hostile creature the leopard's size or larger attacks it.
+enum class ImageReaction {
+  kIgnore,            // pays it no mind
+  kStudy,             // comes to look and studies it
+  kFlee,              // flees for 2 rounds
+  kFleeThenStudy,     // flees for 2 rounds, then comes back and studies it
+  kAttack,            // attacks it, then goes back
+  kAttackThenSearch,  // attacks it, then searches round it for the caster
+};
+// `size` and `image_size`: NWN's creature sizes (1 tiny .. 5 huge).
+ImageReaction ReactionToImage(ImageKind kind, bool sentient, bool hostile, int size, int image_size);
+// After a study - Q4 A: an image seen through vanishes for everyone; a hostile creature then searches for the
+// caster, any other goes back. A fooled one flees a creature image again (and stays away), else goes back.
+enum class AfterStudy { kVanishThenSearch, kVanishThenGoBack, kFleeAgain, kGoBack };
+AfterStudy AfterStudyOf(ImageKind kind, bool sees_through, bool hostile);
+// Once the image is gone (seen through or hit), a sentient hostile creature searches for the caster.
+bool SearchesAfterVanish(bool sentient, bool hostile);
+constexpr int kIllusionSearchSeconds = 60;  // a minute
+constexpr int kIllusionSearchFeet = 30;     // round the image: the spell's range, where the caster stood
 // Dancing Lights: four lights at the point, Dim Light 10 ft each (NWN's 5 m light, the stealth rules' light), for
 // 1 minute on Concentration; a Bonus Action moves them up to 60 ft, and they go out more than 120 ft from the caster.
 constexpr int kDancingLightsCount = 4;
