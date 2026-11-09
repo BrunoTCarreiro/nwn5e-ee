@@ -451,7 +451,7 @@
 16000657 Elementalism: Beckon Water
 16000658 Prestidigitation
 16000659 Prestidigitation: Fire Play
-16000660 Prestidigitation: Magic Mark
+16000660 Prestidigitation: Magic Mark: White
 16000661 Thaumaturgy
 16000662 Thaumaturgy: Booming Voice
 16000663 Thaumaturgy: Fire Play
@@ -480,3 +480,9 @@
 16000684 Thaumaturgy: Phantom Sound (Thunder)
 16000685 Illusion Cantrip (Bard, Sorcerer, Warlock, Wizard)\nCasting Time: Action\nRange: 30 feet\nComponents: S, M (a bit of fleece)\nDuration: 1 minute\n\nYou create a sound or an image of an object within range that lasts for the duration. See the descriptions below for the effects of each. The illusion ends if you cast this spell again.\n\nIf a creature takes a Study action to examine the sound or image, the creature can determine that it is an illusion with a successful Intelligence (Investigation) check against your spell save DC. If a creature discerns the illusion for what it is, the illusion becomes faint to the creature.\n\nSound. If you create a sound, its volume can range from a whisper to a scream. It can be your voice, someone else's voice, a lion's roar, a beating of drums, or any other sound you choose. The sound continues unabated throughout the duration, or you can make discrete sounds at different times before the spell ends.\n\nImage. If you create an image of an object - such as a chair, muddy footprints, or a small chest - it must be no larger than a 5-foot Cube. The image can't create sound, light, smell, or any other sensory effect. Physical interaction with the image reveals it to be an illusion, since things can pass through it.\n\nnwn5e: its radial menu has four sounds and three images, cast at a point. Voices and footsteps draw the hostile creatures that hear them: they come to look. A roar or thunder makes animals, beasts and vermin flee for 2 rounds, and the others come to look. An image (a barrel, a humanoid, a small creature) stands there for a minute; the hostile creatures that see it come to look and study it, and an Intelligence check against your spell save DC sees through it.
 16000686 Illusion Cantrip (Bard, Sorcerer, Wizard)\nCasting Time: Action\nRange: 120 feet\nComponents: V, S, M (a bit of phosphorus)\nDuration: Concentration, up to 1 minute\n\nYou create up to four torch-size lights within range, making them appear as torches, lanterns, or glowing orbs that hover for the duration. Alternatively, you combine the four lights into one glowing Medium form that is vaguely humanlike. Whichever form you choose, each light sheds Dim Light in a 10-foot radius.\n\nAs a Bonus Action, you can move the lights up to 60 feet to a space within range. A light must be within 20 feet of another light created by this spell, and a light vanishes if it exceeds the spell's range.\n\nnwn5e: its radial menu has Lights (four lights at a point; their light counts for hiding) and Move (a Bonus Action: up to 60 feet, within 120 feet of you). They go out more than 120 feet from you, or when your Concentration ends. No humanlike form.
+16000687 Prestidigitation: Magic Mark: Gold
+16000688 Prestidigitation: Magic Mark: Red
+16000689 Prestidigitation: Magic Mark: Green
+16000690 Prestidigitation: Magic Mark: Blue
+16000691 Prestidigitation: Magic Mark: Violet
+16000692 Prestidigitation: Magic Mark: Random

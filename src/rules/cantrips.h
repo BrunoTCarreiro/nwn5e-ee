@@ -257,6 +257,25 @@ int MagicMarkVisual(int roll);
 constexpr int kMagicMarkUprightFirstVisual = 1880;
 int MagicMarkUprightVisual(int roll);
 
+// 0.96.1 (owner, 2026-11-09: "Option b + random" - asked "would it also be possible to add a tint to the marks so
+// that they're not always white?"; SRD 5.2: "a color, a small mark, or a symbol"): the mark's colour, picked from
+// Prestidigitation's menu - Magic Mark: White (row 1116), Gold, Red, Green, Blue, Violet (1135-1139) or Random
+// (1140, one of the six). White's rows are the ones above; each other colour's flat ones from
+// kMagicMarkTintFirstVisual + (tint - 1) * kMagicMarkTintStride, its upright ones kMagicMarkUprightOffset on.
+enum class MarkTint { kWhite, kGold, kRed, kGreen, kBlue, kViolet };
+constexpr int kMagicMarkTints = 6;
+constexpr int kMagicMarkWhite = 1116;
+constexpr int kMagicMarkGold = 1135;
+constexpr int kMagicMarkRandom = 1140;
+constexpr int kMagicMarkTintFirstVisual = 1900;
+constexpr int kMagicMarkTintStride = 40;
+constexpr int kMagicMarkUprightOffset = 20;
+// A Magic Mark row's colour (0 White .. 5 Violet); -1 for Random, or a row that isn't one.
+int MagicMarkTintOf(int row);
+// The visualeffects row of `symbol` (1..kMagicMarkVisuals; out of range: the first) in colour `tint` (0..5; out of
+// range: White), flat on the ground or upright.
+int MagicMarkRow(int symbol, int tint, bool upright);
+
 // Where an upright mark stands: a point (the mark's centre) and the way it faces (NWN degrees: 0 east, 90 north).
 struct MarkSpot {
   float x = 0, y = 0, z = 0;

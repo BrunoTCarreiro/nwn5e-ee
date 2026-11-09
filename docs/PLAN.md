@@ -896,6 +896,15 @@ monster AC by CR.
     black, cropped to 256 and saved as 24-bit TGAs, replacing the five. Rows 1860-1871 are flat (n5v_markNN) and
     1880-1891 upright (n5v_markNNu, two-sided, neither mirrored nor upside down from the front); 1840-1844 are no
     longer served. The 1x folder is removed.
+  - *Magic Mark's colour - decided (owner, 2026-11-08: "would it also be possible to add a tint to the marks so that
+    they're not always white?", then "Option b + random" - of B chosen when casting, A random, C one per symbol;
+    SRD 5.2: "a color, a small mark, or a symbol").* 0.96.1:
+    - Prestidigitation's menu is Fire Play and Magic Mark: White (1116), Gold, Red, Green, Blue, Violet
+      (1135-1139) and Random (1140, one of the six): eight entries, one radial page.
+    - Each colour is the material's colour (ambient, diffuse, self-illumination) on copies of the 12 marks, flat
+      and upright (n5v_markNN<g r n b v>[u]); the texture stays the owner's white symbol.
+    - Rows: White 1860-1871 / 1880-1891; colour t at 1900 + (t - 1) * 40 flat, + 20 upright
+      (rules::MagicMarkRow). The layout puts White exactly where colour 0 would fall.
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's

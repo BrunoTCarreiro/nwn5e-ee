@@ -247,8 +247,16 @@ std::string Quoteless(std::string text) {
   return text;
 }
 
+// 0.96.1 (owner, 2026-11-09: "Option b + random"): the mark's colour - the menu entry cast, Random one of the six.
+const char* const kTintNames[rules::kMagicMarkTints] = {"white", "gold", "red", "green", "blue", "violet"};
+
+int TintOfCast(void* caster) {
+  const int tint = rules::MagicMarkTintOf(Field<int32_t>(caster, ee::kObjectLastSpellId));
+  return tint >= 0 ? tint : RollEngineDice(1, rules::kMagicMarkTints) - 1;
+}
+
 // A door or a placeable cast at: the upright mark on it. False when the target is neither (the ground's mark then).
-bool MarkOnObject(uint32_t self, void* caster) {
+bool MarkOnObject(uint32_t self, void* caster, int tint) {
   if (!engine::GetLocalInt(caster, "n5c_at_object")) return false;
   const std::vector<uint32_t> ids = ParseIds(engine::GetLocalString(caster, "n5c_targets"));
   if (ids.empty()) return false;
@@ -310,30 +318,33 @@ bool MarkOnObject(uint32_t self, void* caster) {
   Replace(&mark, "$LIFT", number);
   sprintf_s(number, "%.1f", kMarkSeconds);
   Replace(&mark, "$SECONDS", number);
-  Replace(&mark, "$VFX", std::to_string(rules::MagicMarkUprightVisual(RollEngineDice(1, rules::kMagicMarkVisuals))));
+  Replace(&mark, "$VFX",
+          std::to_string(rules::MagicMarkRow(RollEngineDice(1, rules::kMagicMarkVisuals), tint, true)));
   Replace(&mark, "$WHAT", name.empty() ? std::string("it") : name);
   CreatingFireLight(true);  // light_sources.cpp: the invisible object a normal placeable, so the client gets its glow
   Run(mark, self, "Magic Mark on an object");
   CreatingFireLight(false);
   char where[160];
-  sprintf_s(where, "on %s (%s) at %.2f %.2f %.2f facing %.0f", name.empty() ? "it" : name.c_str(), how.c_str(),
-            spot.x, spot.y, spot.z, spot.facing);
+  sprintf_s(where, "%s, on %s (%s) at %.2f %.2f %.2f facing %.0f", kTintNames[tint], name.empty() ? "it" : name.c_str(),
+            how.c_str(), spot.x, spot.y, spot.z, spot.facing);
   KeepMark(self, caster, where);
   return true;
 }
 
 void PlaceMark(uint32_t self, void* caster) {
-  if (MarkOnObject(self, caster)) return;
+  const int tint = TintOfCast(caster);
+  if (MarkOnObject(self, caster, tint)) return;
   std::string code = kMark;
   char seconds[32];
   sprintf_s(seconds, "%.1f", kMarkSeconds);
   Replace(&code, "$SECONDS", seconds);
-  Replace(&code, "$VFX", std::to_string(rules::MagicMarkVisual(RollEngineDice(1, rules::kMagicMarkVisuals))));
+  Replace(&code, "$VFX",
+          std::to_string(rules::MagicMarkRow(RollEngineDice(1, rules::kMagicMarkVisuals), tint, false)));
   CreatingFireLight(true);  // light_sources.cpp: the invisible object a normal placeable, so the client gets its glow
   Run(code, self, "Magic Mark");
   CreatingFireLight(false);
-  KeepMark(self, caster, "on the ground; the point dropped " + engine::GetLocalString(caster, "n5c_mark_drop") +
-                             " m to it");
+  KeepMark(self, caster, std::string(kTintNames[tint]) + ", on the ground; the point dropped " +
+                             engine::GetLocalString(caster, "n5c_mark_drop") + " m to it");
 }
 
 std::vector<uint32_t> ParseIds(const std::string& list) {

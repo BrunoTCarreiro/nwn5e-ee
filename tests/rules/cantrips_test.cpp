@@ -248,7 +248,7 @@ TEST(UtilityCantrips) {
   CHECK_EQ(elementalism->options.size(), 4u);  // no Sculpt Element
   CHECK_EQ(strcmp(elementalism->options[2].label, "Beckon Fire"), 0);
   const ChoiceCantrip* prestidigitation = ChoiceCantripOf(kPrestidigitation);
-  CHECK_EQ(prestidigitation->options.size(), 2u);  // Fire Play and Magic Mark
+  CHECK_EQ(prestidigitation->options.size(), 8u);  // Fire Play and Magic Mark in seven colours (0.96.1)
   const ChoiceCantrip* thaumaturgy = ChoiceCantripOf(kThaumaturgy);
   CHECK_EQ(thaumaturgy->options.size(), 5u);  // no Altered Eyes or Tremors; Phantom Sound's whispers and thunder
   CHECK_EQ(thaumaturgy->options[3].spell, kPhantomWhispers);
@@ -528,4 +528,36 @@ TEST(MagicMarkOnObjects) {
   CHECK_EQ(Near(share, 0.6f), true);
   CHECK_EQ(share <= 0.6f, true);  // the clear side of the edge
   CHECK_EQ(Near(ClearShare([](float) { return false; }, 14), -1.0f), true);  // nothing in the way
+}
+
+// 0.96.1 (owner, 2026-11-09: "Option b + random"): Magic Mark's colour. Breaks caught: a colour's row read as another,
+// Random or another row taken for a colour, a colour's rows overlapping another's or the upright ones, White not
+// keeping its rows, the menu not fitting one radial page.
+TEST(MagicMarkColours) {
+  CHECK_EQ(MagicMarkTintOf(kMagicMarkWhite), 0);
+  CHECK_EQ(MagicMarkTintOf(kMagicMarkGold), 1);
+  CHECK_EQ(MagicMarkTintOf(1139), 5);  // Violet
+  CHECK_EQ(MagicMarkTintOf(kMagicMarkRandom), -1);
+  CHECK_EQ(MagicMarkTintOf(1115), -1);  // Fire Play
+  CHECK_EQ(MagicMarkRow(1, 0, false), 1860);  // White: 0.96.0's rows
+  CHECK_EQ(MagicMarkRow(12, 0, true), 1891);
+  CHECK_EQ(MagicMarkRow(1, 1, false), 1900);  // Gold
+  CHECK_EQ(MagicMarkRow(12, 1, false), 1911);
+  CHECK_EQ(MagicMarkRow(1, 1, true), 1920);
+  CHECK_EQ(MagicMarkRow(12, 1, true), 1931);
+  CHECK_EQ(MagicMarkRow(1, 2, false), 1940);  // Red
+  CHECK_EQ(MagicMarkRow(12, 5, true), 2091);  // Violet, upright, the last
+  CHECK_EQ(MagicMarkRow(13, 3, false), 1980);  // out of range: the first symbol
+  CHECK_EQ(MagicMarkRow(2, 6, false), 1861);  // out of range: White
+  CHECK_EQ(MagicMarkRow(2, -1, true), 1881);
+  // Prestidigitation's menu: Fire Play and the seven Magic Marks, one radial page; every Magic Mark row a Magic Mark.
+  const ChoiceCantrip* presti = ChoiceCantripOf(kPrestidigitation);
+  CHECK_EQ(presti != nullptr, true);
+  CHECK_EQ(static_cast<int>(presti->options.size()), 8);
+  CHECK_EQ(RadialChoicePage(8, 0).shown, 8);
+  CHECK_EQ(RadialChoicePage(8, 0).more, false);
+  for (int row : {kMagicMarkWhite, 1135, 1136, 1137, 1138, 1139, kMagicMarkRandom}) {
+    CHECK_EQ(UtilityEffectOf(row) == UtilityEffect::kMagicMark, true);
+    CHECK_EQ(ChoiceCantripOf(row) == presti, true);
+  }
 }

@@ -1,0 +1,78 @@
+#MAXMODEL ASCII
+# nwn5e (#39, Prestidigitation's Magic Mark, blue): a 0.6 m mark flat on the ground - the owner's symbol n5t_mark11.
+newmodel n5v_mark11b
+setsupermodel n5v_mark11b NULL
+classification effect
+setanimationscale 1
+beginmodelgeom n5v_mark11b
+node dummy n5v_mark11b
+  parent NULL
+endnode
+node trimesh n5v_mark11b_mark
+  parent n5v_mark11b
+  ambient 0.35 0.60 1.00
+  diffuse 0.35 0.60 1.00
+  specular 0 0 0
+  shininess 1
+  bitmap n5t_mark11
+  render 1
+  shadow 0
+  beaming 0
+  inheritcolor 0
+  alpha 0.8
+  transparencyhint 1
+  selfillumcolor 0.35 0.60 1.00
+  tilefade 0
+  rotatetexture 0
+  position 0 0 0
+  orientation 0 0 0 0
+  verts 4
+    -0.3000 -0.3000 0.0300
+    0.3000 -0.3000 0.0300
+    0.3000 0.3000 0.0300
+    -0.3000 0.3000 0.0300
+  tverts 4
+    0.0000 0.0000 0
+    1.0000 0.0000 0
+    1.0000 1.0000 0
+    0.0000 1.0000 0
+  faces 2
+    0 1 2 1 0 1 2 0
+    0 2 3 1 0 2 3 0
+endnode
+endmodelgeom n5v_mark11b
+
+newanim impact n5v_mark11b
+  length 0.1
+  transtime 0.25
+  animroot n5v_mark11b
+node dummy n5v_mark11b
+  parent NULL
+endnode
+doneanim impact n5v_mark11b
+
+newanim duration n5v_mark11b
+  length 1
+  transtime 0.25
+  animroot n5v_mark11b
+node dummy n5v_mark11b
+  parent NULL
+endnode
+doneanim duration n5v_mark11b
+
+newanim cessation n5v_mark11b
+  length 0.5
+  transtime 0.05
+  animroot n5v_mark11b
+node dummy n5v_mark11b
+  parent NULL
+endnode
+node trimesh n5v_mark11b_mark
+  parent n5v_mark11b
+  alphakey 2
+    0 0.8
+    0.5 0
+endnode
+doneanim cessation n5v_mark11b
+
+donemodel n5v_mark11b

@@ -105,7 +105,13 @@ std::vector<ChoiceCantrip> BuildChoiceCantrips() {
   all.push_back(elementalism);
   ChoiceCantrip prestidigitation{kPrestidigitation, "n5_c_utility", ChoiceKind::kMode,
                                  {{1115, effect(UtilityEffect::kFirePlay), "Fire Play"},
-                                  {1116, effect(UtilityEffect::kMagicMark), "Magic Mark"}}};
+                                  {kMagicMarkWhite, effect(UtilityEffect::kMagicMark), "Magic Mark: White"},
+                                  {kMagicMarkGold, effect(UtilityEffect::kMagicMark), "Magic Mark: Gold"},
+                                  {kMagicMarkGold + 1, effect(UtilityEffect::kMagicMark), "Magic Mark: Red"},
+                                  {kMagicMarkGold + 2, effect(UtilityEffect::kMagicMark), "Magic Mark: Green"},
+                                  {kMagicMarkGold + 3, effect(UtilityEffect::kMagicMark), "Magic Mark: Blue"},
+                                  {kMagicMarkGold + 4, effect(UtilityEffect::kMagicMark), "Magic Mark: Violet"},
+                                  {kMagicMarkRandom, effect(UtilityEffect::kMagicMark), "Magic Mark: Random"}}};
   all.push_back(prestidigitation);
   ChoiceCantrip thaumaturgy{kThaumaturgy, "n5_c_utility", ChoiceKind::kMode,
                             {{1118, effect(UtilityEffect::kBoomingVoice), "Booming Voice"},
@@ -345,6 +351,19 @@ int MagicMarkVisual(int roll) {
 int MagicMarkUprightVisual(int roll) {
   if (roll < 1 || roll > kMagicMarkVisuals) roll = 1;
   return kMagicMarkUprightFirstVisual + roll - 1;
+}
+
+int MagicMarkTintOf(int row) {
+  if (row == kMagicMarkWhite) return static_cast<int>(MarkTint::kWhite);
+  if (row >= kMagicMarkGold && row < kMagicMarkGold + kMagicMarkTints - 1) return row - kMagicMarkGold + 1;
+  return -1;
+}
+
+int MagicMarkRow(int symbol, int tint, bool upright) {
+  if (symbol < 1 || symbol > kMagicMarkVisuals) symbol = 1;
+  if (tint <= 0 || tint >= kMagicMarkTints) return upright ? MagicMarkUprightVisual(symbol) : MagicMarkVisual(symbol);
+  return kMagicMarkTintFirstVisual + (tint - 1) * kMagicMarkTintStride + (upright ? kMagicMarkUprightOffset : 0) +
+         symbol - 1;
 }
 
 namespace {
