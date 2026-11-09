@@ -1,0 +1,15 @@
+# A !test profile ([debug] test_commands=1): type "!test lifecleric" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# #42 Cleric Part 1 build 1c: a Cleric 7, Wisdom 16 - Disciple of Life (3), Blessed Healer (6), Blessed
+# Strikes (7: a Cleric from before it gets Divine Strike, 1d8 once a turn).
+name = Life Domain and Blessed Strikes (issue 42): human Cleric 7, Wisdom 16 - Disciple of Life, Blessed Healer, Divine Strike
+species = human
+swap_class = cleric
+class = cleric
+level = 7
+abilities = 14 10 14 10 16 12
+items = nw_wblml001 equip
+note = prepare Cure Light Wounds (Prepare spells window); !reflex 30 30 to lose Hit Points; !spawn nw_orcb ally to heal another
+note = Divine Strike: hit a !spawn nw_orcb with the mace; !strike necrotic changes its type
