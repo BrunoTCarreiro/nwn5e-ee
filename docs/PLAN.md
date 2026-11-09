@@ -1130,6 +1130,23 @@ monster AC by CR.
     default) keeping them; Q6 B - reactions (Shield, Feather Fall, Hellish Rebuke, Counterspell) and smites with their
     classes. #39 keeps what all the classes share (the save table, the retired spells, the house rule); each class
     issue takes its list.
+- **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
+  Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
+  New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion
+  checks), Channel Divinity (2: 2 uses, 3 at 6, 4 at 18; one back on a Short Rest) with Divine Spark (1d8 + Wis, more
+  d8s at 7 / 13 / 18, healed or a Con save against Necrotic or Radiant) and Turn Undead (a Wis save; Frightened and
+  Incapacitated for a minute, fleeing; ends on damage), the Life Domain (3: Disciple of Life, always-prepared domain
+  spells, Preserve Life; 6 Blessed Healer; 17 Supreme Healing), Sear Undead (5), Blessed Strikes (7 / 14: Divine
+  Strike or Potent Spellcasting), Divine Intervention (10), Greater Divine Intervention (20: Wish, later). Spells: the
+  2024 list's 102 (15, 17, 19, 9, 13, 11, 8, 5, 5) - 53 with an NWN version, 49 new; 56 of NWN's Cleric spells
+  leave faithful (9 Summon Creature, 18 folded tiers). Level 1: 7 kept and converted, 8 new, 8 leaving (Doom, Scare,
+  Remove Fear, Endure Elements, Entropic Shield, Summon Creature I; Divine Favor Paladin-only, Magic Weapon level 2).
+  - *Brief (2026-11-09):* Q1 parts - A the features of levels 1-7, the 2024 list and the level 1 spells, then a part
+    per spell level with its features, B features first. Q2 Divine Order and Blessed Strikes - A served feats in the
+    bonus list with a bonus slot (as F1), existing Clerics Protector and Divine Strike, `!order` once; B a window.
+    Q3 healing and Undead - A 2024's (Cure Wounds heals; Inflict Wounds harms anything), B NWN's swap as a house rule.
+    Q4 Channel Divinity's button - A NWN's Turn Undead entry becomes a menu (Divine Spark: Heal / Radiant / Necrotic,
+    Turn Undead, Preserve Life), uses on the resource panel; B separate buttons. Recommended A on all.
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's
