@@ -29,7 +29,7 @@ TEST(MaterialComponentCosts) {
   CHECK_EQ(ComponentAffordable(449, CostlyComponent(376)), false);  // the whole 450 on hand, not the 250
   CHECK_EQ(ComponentAffordable(0, CostlyComponent(107)), true);     // nothing to pay
   const std::vector<int>& all = CostlySpells();
-  CHECK_EQ(all.size(), 42u);
+  CHECK_EQ(all.size(), 49u);
   CHECK_EQ(std::is_sorted(all.begin(), all.end()), true);
   CHECK_EQ(std::adjacent_find(all.begin(), all.end()) == all.end(), true);
   for (int spell : all) CHECK_EQ(CostlyComponent(spell).consumed <= CostlyComponent(spell).needed, true);

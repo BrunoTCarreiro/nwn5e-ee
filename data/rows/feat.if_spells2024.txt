@@ -1,0 +1,6 @@
+# feat.2da - #39 Part 2a, build 1b (core/rules_spells2024.cpp; "spells2024" is served with spellcasting faithful):
+# Healing Word's Bonus Action - a feat casting its row 1152 (SPELLID), as the cantrips' Bonus Actions are
+# (bonus_actions.cpp makes it instant: ReqAction 0 in faithful `actions`). nwn5e grants it at the first cast; the
+# cast's spell slot is spent by its script. Used on its own (not from your spells), it does nothing.
+LABEL FEAT DESCRIPTION ICON GAINMULTIPLE EFFECTSSTACK ALLCLASSESCANUSE CATEGORY MAXCR SPELLID CRValue USESPERDAY TARGETSELF Constant TOOLSCATEGORIES PreReqEpic ReqAction
+1555 NWN5E_HEALING_WORD 16000727 16000739 n5_is_new 0 0 0 7 1 1152 0.5 **** 0 FEAT_NWN5E_HEALING_WORD 6 0 1

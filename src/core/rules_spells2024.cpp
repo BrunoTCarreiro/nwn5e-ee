@@ -24,6 +24,22 @@
 //   every dart at the creature targeted, each its own damage, none through NWN's Shield (417, until build 3).
 // - Healing: Cure Wounds 2d8 + the spellcasting ability modifier (the 2024 DC's: DC - 8 - PB); False Life's
 //   Temporary Hit Points replace those you have only when more (they don't stack), for 8 hours at most.
+// - Build 1b (owner, 2026-11-09: "go for 1b"):
+//   - Healing Word 1151, a Bonus Action spell: its order (the radial's, with its class and Level N) becomes its feat's
+//     use (1555, casting 1152: instant, the round's attacks go on - bonus_actions.cpp's one a round); the script
+//     spends the order's slot (rules_spell_slots.cpp: as the cast would) and heals 2d4 a level + the class's
+//     casting modifier (the Life Domain's Disciple of Life sees the slot's level). Refused, nothing spent, when the
+//     round's Bonus Action is spent, past 60 feet, or (SRD 5.2.1: One Spell with a Spell Slot per Turn) when a slot
+//     was spent this turn - and a slot spell is refused after it the same turn. With `actions` in NWN mode it's an
+//     action, as NWN casts it.
+//   - Chromatic Orb 1153: its type from the menu (1154-1159; cantrips.h's choices, each opening the slot levels);
+//     a spell attack, 3d8 a level; two of its d8s alike and the orb leaps - another attack and damage roll on the
+//     nearest enemy within 30 feet of the target not yet hit, as many leaps as the slot's level. A diamond worth
+//     50 GP (#38).
+//   - Heroism 1160 (Concentration, 1 minute): immune to Frightened (any fear on it ends) and, at the start of each
+//     of its turns (its round; out of combat every 6 s), Temporary Hit Points equal to the caster's spellcasting
+//     modifier (replacing fewer, as they don't stack); an upcast's extra creatures the nearest friends within 10
+//     feet of you (you first). Not on an enemy.
 // NWN mode: NWN's spells.
 
 #include <windows.h>
@@ -38,6 +54,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "action_guard.h"
+#include "bonus_actions.h"
 #include "chat.h"
 #include "config.h"
 #include "creature.h"
@@ -48,13 +66,19 @@
 #include "effects.h"
 #include "engine.h"
 #include "game_clock.h"
+#include "hooks.h"
 #include "log.h"
 #include "mastery.h"
 #include "reactions.h"
 #include "saves.h"
 #include "script_hooks.h"
 #include "rules/cantrips.h"
+#include "rules/spell_slots.h"
 #include "rules/spells2024.h"
+
+// rules_spell_slots.cpp (#39 2a build 1b): the slot a Bonus Action spell's order names - left, spent.
+int OrderSlotsLeft(void* creature, uint32_t spell, int class_slot, int domain_level, int metamagic);
+bool SpendOrderSlot(void* creature, uint32_t spell, int class_slot, int domain_level, int metamagic);
 
 namespace {
 
@@ -69,6 +93,37 @@ constexpr int kLogMax = 400;
 
 std::unordered_map<uint32_t, uint64_t> g_guided;  // Guiding Bolt: Advantage on the next attack roll against it, until
 std::unordered_set<uint32_t> g_glow_off;          // Guiding Bolt's glow to take off (the mark used)
+// Build 1b.
+using UseFeatFn = int (*)(void* creature, uint16_t feat, uint16_t subfeat, uint32_t target, uint32_t area,
+                          float* location);
+UseFeatFn g_use_feat = nullptr;  // CNWSCreature::UseFeat through its hook (bonus_actions.cpp: one a round)
+using SpellRowFn = void* (*)(const void* spells, int id);
+SpellRowFn g_spell_row = nullptr;
+void** g_rules_for_rows = nullptr;
+thread_local bool t_bonus_cast = false;   // Healing Word's feat being used
+thread_local bool t_bonus_spend = false;  // its slot being spent
+struct BonusCast {
+  uint32_t spell = 0;
+  int class_slot = 0;
+  int domain_level = 0;
+  int metamagic = 0;
+  uint64_t at = 0;
+};
+std::unordered_map<uint32_t, BonusCast> g_bonus_casts;  // Healing Word's order, for its feat's script
+struct SlotTurn {
+  uint32_t rounds = 0;
+  uint64_t at = 0;
+  bool bonus = false;  // spent by a Bonus Action spell
+};
+std::unordered_map<uint32_t, SlotTurn> g_slot_turns;  // a creature's last spell slot spent
+struct Hero {
+  uint32_t caster = 0;
+  int temporary = 0;
+  uint32_t rounds = 0;
+  uint64_t last = 0;
+};
+std::unordered_map<uint32_t, Hero> g_heroes;  // Heroism's creatures
+int g_hero_logs = 0;
 int g_logged = 0;
 
 bool Faithful() { return g_config.spellcasting == rules::RuleVariant::kFaithful; }
@@ -611,16 +666,381 @@ void FalseLife(uint32_t self, void* caster, const rules::Spell2024& spell, int s
   }
 }
 
+// --- Build 1b ------------------------------------------------------------------------------------------------------
+
+int InnateLevel(uint32_t spell) {
+  if (!g_spell_row || !g_rules_for_rows || !*g_rules_for_rows) return -1;
+  const void* row = g_spell_row(Field<void*>(*g_rules_for_rows, ee::kRulesSpells), static_cast<int>(spell));
+  return row ? Field<uint8_t>(row, ee::kSpellInnateLevel) : -1;
+}
+
+// SRD 5.2.1, One Spell with a Spell Slot per Turn: a slot spent this turn (`bonus`: by a Bonus Action spell).
+bool SpentThisTurn(uint32_t id, bool* bonus) {
+  const auto at = g_slot_turns.find(id);
+  if (at == g_slot_turns.end()) return false;
+  const long long since = static_cast<long long>(GameMs()) - static_cast<long long>(at->second.at);
+  if (!rules::SameTurn(at->second.rounds, CombatRoundsEnded(id), since)) return false;
+  if (bonus) *bonus = at->second.bonus;
+  return true;
+}
+
+// Healing Word's order becomes its feat's use (instant, a Bonus Action); a slot spell after a Bonus Action one the same
+// turn is refused. True: the order refused.
+bool OrderGuard(void* creature, const SpellOrder& order) {
+  if (!Faithful() || !ActionEconomyOn() || !creature || order.fake || t_bonus_cast || order.class_slot < 0 ||
+      order.class_slot > 7) {
+    return false;
+  }
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  if (static_cast<int>(order.spell) != rules::kHealingWord) {
+    bool bonus = false;
+    if (InnateLevel(order.spell) >= 1 && SpentThisTurn(id, &bonus) && bonus) {
+      TellPlayer(id, "nwn5e: you cast Healing Word with a spell slot this turn - one spell with a slot a turn; cast it "
+                     "next round.");
+      if (LogSlot()) Log("spells2024: 0x%08X spell %u refused - a Bonus Action spell spent a slot this turn", id, order.spell);
+      return true;
+    }
+    return false;
+  }
+  if (!g_use_feat) return false;  // cast as NWN casts it, an action
+  void* stats = StatsOf(creature);
+  void* target = CreatureById(order.target);
+  std::string refused;
+  if (SpentThisTurn(id, nullptr)) {
+    refused = "you've already spent a spell slot this turn (one spell with a slot a turn).";
+  } else if (BonusActionStatus(creature) != 0) {
+    refused = "it takes your Bonus Action, already spent this round.";
+  } else if (!target) {
+    refused = "a creature you can see within 60 feet.";
+  } else if (target != creature && engine::EdgeDistance(creature, target) > rules::FeetToMetres(rules::kHealingWordFeet)) {
+    refused = "out of range (60 feet).";
+  } else if (OrderSlotsLeft(creature, order.spell, order.class_slot, order.domain_level, order.metamagic) <= 0) {
+    refused = "no spell slot of that level left.";
+  } else if (!stats) {
+    refused = "no caster.";
+  }
+  if (!refused.empty()) {
+    TellPlayer(id, "nwn5e: Healing Word - " + refused);
+    if (LogSlot()) Log("spells2024: 0x%08X Healing Word refused - %s", id, refused.c_str());
+    return true;
+  }
+  if (!engine::HasFeat(stats, rules::kFeatHealingWord)) engine::AddFeat(stats, rules::kFeatHealingWord);
+  g_bonus_casts[id] = BonusCast{order.spell, order.class_slot, order.domain_level, order.metamagic, GameMs()};
+  float nowhere[3] = {0.0f, 0.0f, 0.0f};
+  t_bonus_cast = true;
+  const int used = g_use_feat(creature, static_cast<uint16_t>(rules::kFeatHealingWord), 0, order.target,
+                              ee::kObjectInvalid, nowhere);
+  t_bonus_cast = false;
+  if (!used) g_bonus_casts.erase(id);
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Healing Word at 0x%08X - a Bonus Action (feat %d, class slot %d, domain level %d): %s", id,
+        order.target, rules::kFeatHealingWord, order.class_slot, order.domain_level, used ? "used" : "refused");
+  }
+  return true;  // the cast refused: the feat's use runs it
+}
+
+void HealingWord(uint32_t self, void* caster, const rules::Spell2024& spell) {
+  const int row = Field<int32_t>(caster, ee::kObjectLastSpellId);
+  int slot = spell.level;
+  int modifier = 0;
+  if (row == rules::kHealingWordBonus) {
+    const auto at = g_bonus_casts.find(self);
+    if (at == g_bonus_casts.end() || GameMs() > at->second.at + 10000) {
+      if (at != g_bonus_casts.end()) g_bonus_casts.erase(at);
+      TellPlayer(self, "nwn5e: Healing Word - cast it from your spells (it spends a spell slot).");
+      return;
+    }
+    const BonusCast cast = at->second;
+    g_bonus_casts.erase(at);
+    t_bonus_spend = true;
+    const bool spent = SpendOrderSlot(caster, cast.spell, cast.class_slot, cast.domain_level, cast.metamagic);
+    t_bonus_spend = false;
+    if (!spent) {
+      TellPlayer(self, "nwn5e: Healing Word - no spell slot of that level left.");
+      if (LogSlot()) Log("spells2024: 0x%08X Healing Word - its slot couldn't be spent", self);
+      return;
+    }
+    const int chosen = rules::ChosenSlotLevel(spell.level, cast.domain_level);
+    slot = chosen >= spell.level ? chosen : spell.level;
+    modifier = CastingModifierOfClassSlot(caster, cast.class_slot);
+  } else {
+    slot = SlotLevelOf(caster, spell);
+    modifier = SpellcastingModifier2024(caster);
+  }
+  for (const Entry& one : OneTarget(self, spell, "0", 0, Look())) {
+    const int dice = rules::SpellDiceAt(spell, slot);
+    const int roll = RollEngineDice(dice, spell.die);
+    const int amount = roll + modifier > 0 ? roll + modifier : 0;
+    std::string code = kHeal;
+    Replace(&code, "$TARGET", one.target);
+    Replace(&code, "$AMOUNT", std::to_string(amount));
+    Replace(&code, "$ROW", std::to_string(row));
+    // The slot's level where the Life Domain's Disciple of Life reads a cast's (GetLastSpellLevel) while it lands.
+    const uint8_t before = Field<uint8_t>(caster, kCreatureLastSpellLevel);
+    SetField<uint8_t>(caster, kCreatureLastSpellLevel, static_cast<uint8_t>(slot));
+    Run(code, self, spell.script);
+    SetField<uint8_t>(caster, kCreatureLastSpellLevel, before);
+    if (LogSlot()) {
+      Log("spells2024: 0x%08X Healing Word (a level %d slot%s) on 0x%s: %s = %d + %d (spellcasting ability) = %d Hit "
+          "Points", self, slot, row == rules::kHealingWordBonus ? ", a Bonus Action" : "", one.target.c_str(),
+          Dice(dice, spell.die).c_str(), roll, modifier, amount);
+    }
+  }
+}
+
+struct OrbLook {
+  const char* missile;
+  const char* beam;
+  const char* vis;
+};
+
+OrbLook OrbLookOf(uint32_t type) {
+  switch (type) {
+    case rules::kDamageTypeFire: return {"VFX_IMP_MIRV_FLAME", "VFX_BEAM_FIRE", "VFX_IMP_FLAME_S"};
+    case rules::kDamageTypeLightning: return {"VFX_IMP_MIRV_ELECTRIC", "VFX_BEAM_LIGHTNING", "VFX_IMP_LIGHTNING_S"};
+    case rules::kDamageTypeCold: return {"VFX_IMP_MIRV", "VFX_BEAM_COLD", "VFX_IMP_FROST_S"};
+    case rules::kDamageTypeAcid: return {"VFX_IMP_MIRV", "VFX_BEAM_DISINTEGRATE", "VFX_IMP_ACID_S"};
+    case rules::kDamageTypePoison: return {"VFX_IMP_MIRV", "VFX_BEAM_EVIL", "VFX_IMP_POISON_S"};
+    default: return {"VFX_IMP_MIRV", "VFX_BEAM_MIND", "VFX_IMP_SONIC"};  // Thunder
+  }
+}
+
+// Chromatic Orb's leap: the nearest enemy within 30 feet of the creature it hit, not hit yet this casting.
+const char* const kLeapPick = R"nss(
+object c = StringToObject("$FROM"); string skip = "$SKIP"; string r = "";
+int i = 1;
+object n = GetNearestCreature(CREATURE_TYPE_IS_ALIVE, TRUE, c, i);
+while (GetIsObjectValid(n) && GetDistanceBetween(c, n) <= $RADIUS) {
+  if (n != OBJECT_SELF && GetIsEnemy(n, OBJECT_SELF) && FindSubString(skip, "|" + ObjectToString(n) + "|") < 0) {
+    r = ObjectToString(n) + ":0;";
+    break;
+  }
+  i++;
+  n = GetNearestCreature(CREATURE_TYPE_IS_ALIVE, TRUE, c, i);
+}
+SetLocalString(OBJECT_SELF, "n5s_hits", r);
+)nss";
+
+const char* const kLeapAttack = R"nss(
+object t = StringToObject("$TARGET"); string r = "";
+if (GetIsObjectValid(t)) {
+  SignalEvent(t, EventSpellCastAt(OBJECT_SELF, GetSpellId(), TRUE));
+  ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectBeam($BEAM, StringToObject("$FROM"), BODY_NODE_CHEST), t, 1.0);
+  r = ObjectToString(t) + ":" + IntToString(TouchAttackRanged(t)) + ";";
+}
+SetLocalString(OBJECT_SELF, "n5s_hits", r);
+)nss";
+
+void ChromaticOrb(uint32_t self, void* caster, const rules::Spell2024& spell, int slot) {
+  const int row = Field<int32_t>(caster, ee::kObjectLastSpellId);
+  const rules::CantripOption* option = rules::ChoiceOptionOf(row);
+  const rules::ChoiceCantrip* menu = rules::ChoiceCantripOf(row);
+  const uint32_t type =
+      option && menu && menu->master == rules::kChromaticOrb ? option->value : rules::kDamageTypeFire;  // no choice: Fire
+  const OrbLook orb = OrbLookOf(type);
+  Look look;
+  look.beam = std::string("ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(") + orb.missile + "), t);";
+  look.vis = orb.vis;
+  if (type == rules::kDamageTypePoison) look.immune = LookOf(rules::kRayOfSickness).immune;
+  std::vector<Entry> hits = OneTarget(self, spell, "TouchAttackRanged(t)", 1, look);
+  if (hits.empty()) return;
+  Entry hit = hits.front();
+  std::string skip = "|";
+  int leaps = rules::ChromaticOrbLeaps(slot);
+  std::string log;
+  for (;;) {
+    skip += hit.target + "|";
+    if (hit.value <= 0) {
+      log += " 0x" + hit.target + " missed;";
+      break;
+    }
+    const bool critical = hit.value == 2;
+    const int dice = rules::CriticalDice(rules::SpellDiceAt(spell, slot), critical);
+    std::vector<int> rolls;
+    int amount = 0;
+    std::string faces;
+    for (int i = 0; i < dice; ++i) {
+      const int roll = RollEngineDice(1, spell.die);
+      rolls.push_back(roll);
+      amount += roll;
+      faces += (i ? "," : "") + std::to_string(roll);
+    }
+    Look applied = look;
+    applied.beam.clear();
+    const bool landed = Damage(self, spell, hit.target, amount, type, orb.vis, applied);
+    log += " 0x" + hit.target + (critical ? " a Critical Hit " : " hit ") + Dice(dice, spell.die) + " (" + faces + ") = " +
+           std::to_string(amount) + " " + TypeName(type) + (landed ? "" : " - immune") + ";";
+    if (!rules::HasMatchingDice(rolls)) break;
+    if (leaps <= 0) {
+      log += " no leaps left;";
+      break;
+    }
+    std::string pick = kLeapPick;
+    Replace(&pick, "$FROM", hit.target);
+    Replace(&pick, "$SKIP", skip);
+    Replace(&pick, "$RADIUS", Float(rules::FeetToMetres(rules::kChromaticOrbLeapFeet) + 2.0f * kSlack));
+    Run(pick, self, spell.script);
+    const std::vector<Entry> next = Entries(caster);
+    if (next.empty()) {
+      log += " matching dice, no one to leap to;";
+      break;
+    }
+    --leaps;
+    std::string attack = kLeapAttack;
+    Replace(&attack, "$TARGET", next.front().target);
+    Replace(&attack, "$FROM", hit.target);
+    Replace(&attack, "$BEAM", orb.beam);
+    Run(attack, self, spell.script);
+    const std::vector<Entry> again = Entries(caster);
+    if (again.empty()) break;
+    log += " leaps ->";
+    hit = again.front();
+  }
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Chromatic Orb (a level %d slot, %s, %d leaps at most):%s", self, slot, TypeName(type),
+        rules::ChromaticOrbLeaps(slot), log.c_str());
+  }
+}
+
+// Heroism's creatures: the one touched, then an upcast's - the nearest friends within 10 feet (you first).
+const char* const kHeroismTargets = R"nss(
+object t = GetSpellTargetObject(); string r = "";
+if (GetIsObjectValid(t) && GetObjectType(t) == OBJECT_TYPE_CREATURE) r = ObjectToString(t) + ":" + IntToString(GetIsEnemy(t, OBJECT_SELF)) + ";";
+int left = $EXTRA;
+if (left > 0 && t != OBJECT_SELF) { r += ObjectToString(OBJECT_SELF) + ":0;"; left--; }
+int i = 1;
+object n = GetNearestCreature(CREATURE_TYPE_IS_ALIVE, TRUE, OBJECT_SELF, i);
+while (left > 0 && GetIsObjectValid(n) && GetDistanceBetween(OBJECT_SELF, n) <= $REACH) {
+  if (n != t && !GetIsEnemy(n, OBJECT_SELF) && (GetIsFriend(n, OBJECT_SELF) || GetFactionEqual(n, OBJECT_SELF))) {
+    r += ObjectToString(n) + ":0;";
+    left--;
+  }
+  i++;
+  n = GetNearestCreature(CREATURE_TYPE_IS_ALIVE, TRUE, OBJECT_SELF, i);
+}
+SetLocalString(OBJECT_SELF, "n5s_hits", r);
+)nss";
+
+// One creature's Heroism: any fear on it ends; immune to it while the spell lasts (Concentration, 1 minute).
+const char* const kHeroism = R"nss(
+object t = StringToObject("$TARGET");
+if (!GetIsObjectValid(t)) return;
+if (t != OBJECT_SELF) SignalEvent(t, EventSpellCastAt(OBJECT_SELF, GetSpellId(), FALSE));
+effect e = GetFirstEffect(t);
+while (GetIsEffectValid(e)) {
+  int k = GetEffectType(e);
+  if (GetEffectTag(e) == "n5s_heroism" || k == EFFECT_TYPE_FRIGHTENED ||
+      (k == EFFECT_TYPE_ICON && GetEffectInteger(e, 0) == EFFECT_ICON_FRIGHTENED)) RemoveEffect(t, e);
+  e = GetNextEffect(t);
+}
+ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(EffectImmunity(IMMUNITY_TYPE_FEAR), $ROW),
+                    "n5s_heroism"), t, RoundsToSeconds(10));
+ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_HEAD_HOLY), t);
+)nss";
+
+// Its turn's Temporary Hit Points (run as the creature: no spell's, so they stay when Heroism ends).
+const char* const kHeroTemporary = R"nss(
+effect e = GetFirstEffect(OBJECT_SELF);
+while (GetIsEffectValid(e)) {
+  if (GetEffectType(e) == EFFECT_TYPE_TEMPORARY_HITPOINTS) RemoveEffect(OBJECT_SELF, e);
+  e = GetNextEffect(OBJECT_SELF);
+}
+ApplyEffectToObject(DURATION_TYPE_TEMPORARY, SupernaturalEffect(EffectTemporaryHitpoints($AMOUNT)), OBJECT_SELF,
+                    HoursToSeconds(8));
+)nss";
+
+void Heroism(uint32_t self, void* caster, const rules::Spell2024& spell, int slot) {
+  const int temporary = rules::HeroismTemporaryHitPoints(SpellcastingModifier2024(caster));
+  std::string code = kHeroismTargets;
+  Replace(&code, "$EXTRA", std::to_string(rules::HeroismTargets(slot) - 1));
+  Replace(&code, "$REACH", Float(rules::FeetToMetres(rules::kHeroismReachFeet) + 2.0f * kSlack));
+  Run(code, self, spell.script);
+  std::string log;
+  for (const Entry& one : Entries(caster)) {
+    if (one.value != 0) {
+      TellPlayer(self, "nwn5e: Heroism - a willing creature, not an enemy.");
+      log += " 0x" + one.target + " (an enemy: not)";
+      continue;
+    }
+    std::string apply = kHeroism;
+    Replace(&apply, "$TARGET", one.target);
+    Replace(&apply, "$ROW", std::to_string(spell.row));
+    Run(apply, self, spell.script);
+    const uint32_t id = ParseId(one.target);
+    if (g_heroes.size() > 256) g_heroes.clear();
+    g_heroes[id] = Hero{self, temporary, CombatRoundsEnded(id), GameMs()};
+    log += " 0x" + one.target;
+  }
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Heroism (a level %d slot, %d creatures at most): %d Temporary Hit Points a turn -%s", self,
+        slot, rules::HeroismTargets(slot), temporary, log.c_str());
+  }
+}
+
+bool HasHeroismFrom(const void* creature, uint32_t caster) {
+  void* const* list = Field<void* const*>(creature, ee::kObjectEffects);
+  const int count = Field<int32_t>(creature, ee::kObjectEffectCount);
+  if (!list || count <= 0 || count > 4096) return false;
+  for (int i = 0; i < count; ++i) {
+    const void* effect = list[i];
+    if (effect && Field<int32_t>(effect, ee::kEffectSpellId) == rules::kHeroism &&
+        Field<uint32_t>(effect, ee::kEffectCreator) == caster) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Heroism's turns: the start of each of the creature's rounds (out of combat, every 6 s) - its Temporary Hit Points.
+void HeroUpdate(void* creature) {
+  if (g_heroes.empty() || !creature) return;
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  const auto at = g_heroes.find(id);
+  if (at == g_heroes.end()) return;
+  Hero& hero = at->second;
+  if (engine::IsDeadOrDying(creature) || !HasHeroismFrom(creature, hero.caster)) {
+    if (g_hero_logs < 40 && ++g_hero_logs) Log("spells2024: 0x%08X Heroism (0x%08X's) ended", id, hero.caster);
+    g_heroes.erase(at);
+    return;
+  }
+  const uint32_t rounds = CombatRoundsEnded(id);
+  const uint64_t now = GameMs();
+  if (rounds == hero.rounds && now < hero.last + kRoundMs) return;
+  hero.rounds = rounds;
+  hero.last = now;
+  const int current = Field<int16_t>(creature, ee::kObjectTemporaryHitPoints);
+  if (hero.temporary <= 0 || !rules::TemporaryHitPointsReplace(current, hero.temporary)) return;
+  std::string code = kHeroTemporary;
+  Replace(&code, "$AMOUNT", std::to_string(hero.temporary));
+  Run(code, id, "Heroism's Temporary Hit Points");
+  if (g_hero_logs < 40 && ++g_hero_logs) {
+    Log("spells2024: 0x%08X Heroism - its turn: %d Temporary Hit Points (had %d)", id, hero.temporary, current);
+  }
+}
+
 void Cast(uint32_t self, int row) {
   const rules::Spell2024* spell = rules::Spell2024Of(row);
   void* caster = CreatureById(self);
   if (!spell || !caster) return;
+  if (row == rules::kHealingWord) {
+    HealingWord(self, caster, *spell);  // its slot: the order's (a Bonus Action) or the cast's
+    return;
+  }
   const int slot = SlotLevelOf(caster, *spell);
+  if (row == rules::kChromaticOrb) {
+    ChromaticOrb(self, caster, *spell, slot);
+    return;
+  }
+  if (row == rules::kHeroism) {
+    Heroism(self, caster, *spell, slot);
+    return;
+  }
   switch (spell->effect) {
     case rules::SpellEffect2024::kSpellAttack: Attack(self, caster, *spell, slot); break;
     case rules::SpellEffect2024::kDarts: Darts(self, *spell, slot); break;
     case rules::SpellEffect2024::kHealing: CureWounds(self, caster, *spell, slot); break;
     case rules::SpellEffect2024::kTemporaryHitPoints: FalseLife(self, caster, *spell, slot); break;
+    case rules::SpellEffect2024::kBuff: break;
     case rules::SpellEffect2024::kSave:
       if (spell->shape == rules::SpellShape2024::kOne) {
         SaveOne(self, caster, *spell, slot);
@@ -648,6 +1068,9 @@ ScriptHandler HandlerOf(int row) {
     case rules::kRayOfSickness: return &SpellScript<rules::kRayOfSickness>;
     case rules::kFalseLife: return &SpellScript<rules::kFalseLife>;
     case rules::kDissonantWhispers: return &SpellScript<rules::kDissonantWhispers>;
+    case rules::kHealingWord: return &SpellScript<rules::kHealingWord>;
+    case rules::kChromaticOrb: return &SpellScript<rules::kChromaticOrb>;
+    case rules::kHeroism: return &SpellScript<rules::kHeroism>;
   }
   return nullptr;
 }
@@ -661,6 +1084,14 @@ void GlowUpdate(void* creature) {
 }
 
 }  // namespace
+
+// rules_spell_slots.cpp's UnReady: a spell slot spent - this turn's (One Spell with a Spell Slot per Turn).
+void NoteSlotSpent(void* creature, int level) {
+  if (!creature || level < 1) return;
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  if (g_slot_turns.size() > 512) g_slot_turns.clear();
+  g_slot_turns[id] = SlotTurn{CombatRoundsEnded(id), GameMs(), t_bonus_spend};
+}
 
 // rules_advantage.cpp: Guiding Bolt - Advantage on the next attack roll against `target` (used up by it).
 MasteryRollSources GuidingBoltRollSources(void* target) {
@@ -689,7 +1120,12 @@ void InstallSpells2024() {
     const ScriptHandler handler = HandlerOf(spell.row);
     scripts = handler && AddScriptHandler(spell.script, handler) && scripts;
   }
-  const bool update = AddCreatureUpdateListener(&GlowUpdate);
-  Log("spells2024: SRD 5.2's level 1 spells, build 1a - %zu damage and healing spells (#39 Part 2a)%s",
-      rules::Spells2024().size(), scripts && update ? "" : " - SOME hooks missing");
+  const bool update = AddCreatureUpdateListener(&GlowUpdate) && AddCreatureUpdateListener(&HeroUpdate);
+  g_use_feat = reinterpret_cast<UseFeatFn>(EngineExport(ee::kUseFeat));  // through its hook
+  g_spell_row = reinterpret_cast<SpellRowFn>(EngineExport(ee::kGetSpell));
+  g_rules_for_rows = reinterpret_cast<void**>(EngineExport(ee::kRules));
+  const bool guard = AddSpellOrderGuard(&OrderGuard) && g_use_feat && g_spell_row && g_rules_for_rows;
+  Log("spells2024: SRD 5.2's level 1 spells, builds 1a-1b - %zu spells: damage and healing, Healing Word a Bonus "
+      "Action, Chromatic Orb, Heroism; one spell with a slot a turn (#39 Part 2a)%s",
+      rules::Spells2024().size(), scripts && update && guard ? "" : " - SOME hooks missing");
 }

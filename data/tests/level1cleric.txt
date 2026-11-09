@@ -4,12 +4,13 @@
 #
 # #39 Part 2a build 1a: a Cleric 5, Wisdom 16 - Guiding Bolt, Inflict Wounds and Cure Wounds, with level 2 and 3
 # slots to upcast them. A Life Domain Cleric 3+: Disciple of Life adds 2 + the slot's level to Cure Wounds.
-name = Level 1 spells (issue 39 2a): human Cleric 5, Wisdom 16 - Guiding Bolt, Inflict Wounds, Cure Wounds
+# Build 1b: Healing Word (a Bonus Action).
+name = Level 1 spells (issue 39 2a): human Cleric 5, Wisdom 16 - Guiding Bolt, Inflict Wounds, Cure Wounds, Healing Word
 species = human
 swap_class = cleric
 class = cleric
 level = 5
 abilities = 14 10 14 10 16 12
 items = nw_wblml001 equip
-note = prepare Guiding Bolt, Inflict Wounds and Cure Wounds in the Prepare spells window and rest
+note = prepare Guiding Bolt, Inflict Wounds, Cure Wounds and Healing Word in the Prepare spells window and rest
 note = !spawn nw_orcb gives you an enemy; !reflex 30 30 to lose Hit Points; the radial's Level 2 and Level 3 upcast a spell

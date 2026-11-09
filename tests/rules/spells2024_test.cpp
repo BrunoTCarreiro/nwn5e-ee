@@ -1,14 +1,18 @@
 #include "check.h"
+#include "rules/action_economy.h"
 #include "rules/cantrips.h"
+#include "rules/concentration.h"
+#include "rules/material_components.h"
 #include "rules/spells2024.h"
 
 #include <string>
+#include <vector>
 
 using namespace rules;
 
 // #39 Part 2a build 1a: SRD 5.2.1's level 1 damage and healing spells (pp. 114-177).
 TEST(Spells2024Table) {
-  CHECK_EQ(static_cast<int>(Spells2024().size()), 10);
+  CHECK_EQ(static_cast<int>(Spells2024().size()), 13);
   for (size_t i = 1; i < Spells2024().size(); ++i) CHECK_EQ(Spells2024()[i - 1].row < Spells2024()[i].row, true);
   CHECK_EQ(Spell2024Of(1) == nullptr, true);
   const Spell2024* burning = Spell2024Of(kBurningHands);
@@ -125,4 +129,62 @@ TEST(Spells2024Areas) {
   CHECK_EQ(InCubeFromCaster(4.5f, 0.0f, fifteen, 0.0f), true);
   CHECK_EQ(InCubeFromCaster(4.7f, 0.0f, fifteen, 0.0f), false);
   CHECK_EQ(InCubeFromCaster(-0.6f, 0.0f, fifteen, 0.5f), false);
+}
+
+// Build 1b: Healing Word, Chromatic Orb, Heroism.
+TEST(Spells2024Build1b) {
+  const Spell2024* word = Spell2024Of(kHealingWord);
+  CHECK_EQ(word != nullptr, true);
+  CHECK_EQ(word->effect == SpellEffect2024::kHealing, true);
+  CHECK_EQ(word->bonus_action, true);
+  CHECK_EQ(word->melee, false);
+  CHECK_EQ(word->dice, 2);
+  CHECK_EQ(word->die, 4);
+  CHECK_EQ(SpellDiceAt(*word, 3), 6);
+  CHECK_EQ(Spell2024Of(kCureWounds)->bonus_action, false);
+  CHECK_EQ(Spell2024Of(kHealingWordBonus) == nullptr, true);  // its feat's row: cast as Healing Word
+  CHECK_EQ(IsBonusActionSpellFeat(kFeatHealingWord), true);
+  CHECK_EQ(TakesBonusAction(kFeatHealingWord), true);
+  CHECK_EQ(std::string(BonusActionName(kFeatHealingWord)) == "Healing Word", true);
+  CHECK_EQ(BonusActionFeatOfSpell(kHealingWord), -1);  // not the cantrips' way: its slot is spent
+  const Spell2024* orb = Spell2024Of(kChromaticOrb);
+  CHECK_EQ(orb->effect == SpellEffect2024::kSpellAttack, true);
+  CHECK_EQ(orb->dice, 3);
+  CHECK_EQ(orb->die, 8);
+  CHECK_EQ(SpellDiceAt(*orb, 2), 4);
+  const ChoiceCantrip* menu = ChoiceCantripOf(kChromaticOrbFire);
+  CHECK_EQ(menu != nullptr && menu->master == kChromaticOrb, true);
+  CHECK_EQ(menu->options.size(), 6u);
+  CHECK_EQ(ChoiceOptionOf(kChromaticOrbAcid)->value, kDamageTypeAcid);
+  CHECK_EQ(ChoiceOptionOf(kChromaticOrbCold)->value, kDamageTypeCold);
+  CHECK_EQ(ChoiceOptionOf(kChromaticOrbLightning)->value, kDamageTypeLightning);
+  CHECK_EQ(ChoiceOptionOf(kChromaticOrbPoison)->value, kDamageTypePoison);
+  CHECK_EQ(ChoiceOptionOf(kChromaticOrbThunder)->value, kDamageTypeThunder);
+  CHECK_EQ(ChoiceOptionOf(kChromaticOrb) == nullptr, true);
+  CHECK_EQ(CostlyComponent(kChromaticOrb).needed, 50);
+  CHECK_EQ(CostlyComponent(kChromaticOrb).consumed, 0);
+  CHECK_EQ(CostlyComponent(kChromaticOrbThunder).needed, 50);
+  CHECK_EQ(HasMatchingDice({1, 2, 3}), false);
+  CHECK_EQ(HasMatchingDice({4, 2, 4}), true);
+  CHECK_EQ(HasMatchingDice({8, 8}), true);
+  CHECK_EQ(HasMatchingDice({5}), false);
+  CHECK_EQ(HasMatchingDice({}), false);
+  CHECK_EQ(HasMatchingDice({1, 2, 3, 4, 5, 6, 7, 8}), false);
+  CHECK_EQ(ChromaticOrbLeaps(1), 1);
+  CHECK_EQ(ChromaticOrbLeaps(3), 3);
+  const Spell2024* heroism = Spell2024Of(kHeroism);
+  CHECK_EQ(heroism->effect == SpellEffect2024::kBuff, true);
+  CHECK_EQ(heroism->melee, true);
+  CHECK_EQ(IsConcentrationSpell(kHeroism), true);
+  CHECK_EQ(IsConcentrationSpell(kHealingWord), false);
+  CHECK_EQ(HeroismTargets(1), 1);
+  CHECK_EQ(HeroismTargets(3), 3);
+  CHECK_EQ(HeroismTemporaryHitPoints(3), 3);
+  CHECK_EQ(HeroismTemporaryHitPoints(-1), 0);
+  // One spell with a slot per turn: the same round, under 6 s.
+  CHECK_EQ(SameTurn(5, 5, 3000), true);
+  CHECK_EQ(SameTurn(5, 5, 5999), true);
+  CHECK_EQ(SameTurn(5, 5, 6000), false);
+  CHECK_EQ(SameTurn(5, 6, 1000), false);
+  CHECK_EQ(SameTurn(5, 5, -1), false);
 }

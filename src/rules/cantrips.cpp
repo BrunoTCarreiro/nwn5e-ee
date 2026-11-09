@@ -1,5 +1,7 @@
 #include "rules/cantrips.h"
 
+#include "rules/spells2024.h"
+
 #include <stdio.h>
 
 #include <algorithm>
@@ -85,6 +87,15 @@ std::vector<ChoiceCantrip> BuildChoiceCantrips() {
                        {1094, kDamageTypePsychic, "Psychic"},
                        {1095, kDamageTypeThunder, "Thunder"}}};
   all.push_back(burst);
+  // #39 2a build 1b: Chromatic Orb (a level 1 spell) the same way - its six types, each opening its slot levels.
+  ChoiceCantrip orb{kChromaticOrb, "n5_s_chromorb", ChoiceKind::kDamageType,
+                   {{kChromaticOrbAcid, kDamageTypeAcid, "Acid"},
+                    {kChromaticOrbCold, kDamageTypeCold, "Cold"},
+                    {kChromaticOrbFire, kDamageTypeFire, "Fire"},
+                    {kChromaticOrbLightning, kDamageTypeLightning, "Lightning"},
+                    {kChromaticOrbPoison, kDamageTypePoison, "Poison"},
+                    {kChromaticOrbThunder, kDamageTypeThunder, "Thunder"}}};
+  all.push_back(orb);
   ChoiceCantrip flame{kProduceFlame, "n5_c_produceflame", ChoiceKind::kMode,
                      {{kProduceFlameFlame, 0, "Flame"}, {kProduceFlameHurl, 1, "Hurl"}}};
   all.push_back(flame);
@@ -220,7 +231,8 @@ int BonusActionFeatOfSpell(int spell) {
 }
 
 bool IsBonusActionSpellFeat(int feat) {
-  return feat == kFeatProduceFlame || feat == kFeatShillelaghForce || feat == kFeatShillelaghWeapon;
+  return feat == kFeatProduceFlame || feat == kFeatShillelaghForce || feat == kFeatShillelaghWeapon ||
+         feat == kFeatHealingWord;  // #39 2a build 1b: its cast's slot spent by rules_spells2024.cpp
 }
 
 int SorcerousBurstDamage(int dice, int extra_cap, int (*roll_d8)(void* context), void* context, int* extra_out) {

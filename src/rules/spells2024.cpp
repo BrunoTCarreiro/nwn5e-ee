@@ -78,6 +78,13 @@ std::vector<Spell2024> Build() {
   spells.push_back(Saved(Damage(kDissonantWhispers, "Dissonant Whispers", "n5_s_dissonant", E::kSave, 3, 6, 1,
                                 kDamageTypePsychic),
                          Ability::kWisdom, true));
+  {
+    Spell2024 word = Damage(kHealingWord, "Healing Word", "n5_s_healword", E::kHealing, 2, 4, 2, 0);
+    word.bonus_action = true;
+    spells.push_back(word);
+  }
+  spells.push_back(Damage(kChromaticOrb, "Chromatic Orb", "n5_s_chromorb", E::kSpellAttack, 3, 8, 1, 0));
+  spells.push_back(Touch(Damage(kHeroism, "Heroism", "n5_s_heroism", E::kBuff, 0, 0, 0, 0)));
   std::sort(spells.begin(), spells.end(), [](const Spell2024& a, const Spell2024& b) { return a.row < b.row; });
   return spells;
 }
@@ -125,6 +132,25 @@ int FalseLifeTemporaryHitPoints(int roll, int slot_level) { return roll + 4 + 5 
 bool TemporaryHitPointsReplace(int current, int offered) { return offered > current; }
 
 int IceKnifeExplosionDice(int slot_level) { return DiceAtSlot(2, 1, 1, slot_level); }
+
+bool HasMatchingDice(const std::vector<int>& rolls) {
+  for (size_t i = 0; i < rolls.size(); ++i) {
+    for (size_t j = i + 1; j < rolls.size(); ++j) {
+      if (rolls[i] == rolls[j]) return true;
+    }
+  }
+  return false;
+}
+
+int ChromaticOrbLeaps(int slot_level) { return std::max(1, slot_level); }
+
+int HeroismTargets(int slot_level) { return 1 + std::max(0, slot_level - 1); }
+
+int HeroismTemporaryHitPoints(int modifier) { return std::max(0, modifier); }
+
+bool SameTurn(uint32_t rounds_then, uint32_t rounds_now, long long ms_since) {
+  return rounds_then == rounds_now && ms_since >= 0 && ms_since < 6000;
+}
 
 bool InCone(float along, float side, float length, float slack) {
   if (along < -slack || along > length + slack) return false;

@@ -59,6 +59,13 @@ const std::vector<Entry> kCosts = {
     {396, 1500,    0},  // Shapechange_IRON_GOLEM - Shapechange (a variant)
     {419,   50,   50},  // Continual_Flame - Continual Flame
     {549,  200,  200},  // Glyph_of_Warding - Glyph of Warding
+    {1153,  50,    0},  // nwn5e_Chromatic_Orb - Chromatic Orb (#39 2a build 1b; a diamond)
+    {1154,  50,    0},  // nwn5e_Chromatic_Orb_Acid - Chromatic Orb (a variant)
+    {1155,  50,    0},  // nwn5e_Chromatic_Orb_Cold - Chromatic Orb (a variant)
+    {1156,  50,    0},  // nwn5e_Chromatic_Orb_Fire - Chromatic Orb (a variant)
+    {1157,  50,    0},  // nwn5e_Chromatic_Orb_Lightning - Chromatic Orb (a variant)
+    {1158,  50,    0},  // nwn5e_Chromatic_Orb_Poison - Chromatic Orb (a variant)
+    {1159,  50,    0},  // nwn5e_Chromatic_Orb_Thunder - Chromatic Orb (a variant)
 };
 
 const Entry* Find(int spell) {

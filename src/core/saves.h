@@ -38,3 +38,5 @@ bool SpellAttackCasting(void* creature, int* bonus, const char** source);
 // #39 Part 2a: the spellcasting ability modifier of the spell `creature` is casting (the C5 DC - 8 - PB; a
 // scroll's, its table's); 0 when not known.
 int SpellcastingModifier2024(void* creature);
+// #39 2a build 1b: the casting ability modifier of `creature`'s class in `class_slot` (0-7); 0 when not known.
+int CastingModifierOfClassSlot(void* creature, int class_slot);

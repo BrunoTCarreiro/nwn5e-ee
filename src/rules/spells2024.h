@@ -11,6 +11,8 @@
 // `spellcasting` faithful: SRD 5.2.1's levelled spells, cast by core/rules_spells2024.cpp. Build 1a: the level 1
 // damage and healing spells - Burning Hands, Magic Missile, Guiding Bolt, Inflict Wounds, Ray of Sickness, Cure
 // Wounds, False Life, Dissonant Whispers, Thunderwave, Ice Knife. Their numbers, their areas and their upcasting.
+// Build 1b (owner, 2026-11-09: "go for 1b"): Healing Word (a Bonus Action spell that spends a slot), Chromatic Orb
+// (a damage-type menu, its orb leaping on matching dice), Heroism (Concentration: Temporary Hit Points each turn).
 
 namespace rules {
 
@@ -20,6 +22,7 @@ enum class SpellEffect2024 {
   kDarts,               // Magic Missile: darts that always hit, each its own damage
   kHealing,             // Hit Points regained: its dice + the spellcasting ability modifier
   kTemporaryHitPoints,  // False Life: its dice + `flat`
+  kBuff,                // Heroism: no roll
 };
 
 enum class SpellShape2024 {
@@ -45,6 +48,7 @@ struct Spell2024 {
   uint32_t damage_type = 0;  // the engine's damage type (cantrips.h's constants; 0: none)
   SpellShape2024 shape = SpellShape2024::kOne;
   int feet = 0;              // the area's size
+  bool bonus_action = false;  // cast with a Bonus Action (Healing Word)
 };
 
 // The spells built (ascending by row) and one by its row (null: not one of them).
@@ -64,6 +68,22 @@ constexpr int kInflictWounds = 432;  // NWN's Inflict Light Wounds
 constexpr int kThunderwave = 436;    // NWN's Balagarn's Iron Horn
 constexpr int kIceKnife = 543;       // NWN's Ice Dagger
 constexpr int kNwnShield = 417;      // NWN's Shield (until build 3): no Magic Missile damage while it lasts
+// Build 1b.
+constexpr int kHealingWord = 1151;
+constexpr int kHealingWordBonus = 1152;  // its Bonus Action: the row its feat casts (no class lists)
+constexpr int kFeatHealingWord = 1555;   // the feat carrying it (feat.2da SPELLID 1152)
+constexpr int kChromaticOrb = 1153;      // its six types, 1154-1159: cantrips.h's choice menus
+constexpr int kChromaticOrbAcid = 1154;
+constexpr int kChromaticOrbCold = 1155;
+constexpr int kChromaticOrbFire = 1156;
+constexpr int kChromaticOrbLightning = 1157;
+constexpr int kChromaticOrbPoison = 1158;
+constexpr int kChromaticOrbThunder = 1159;
+constexpr int kHeroism = 1160;
+constexpr int kHealingWordFeet = 60;
+constexpr int kChromaticOrbLeapFeet = 30;
+// nwn5e: an upcast Heroism's extra creatures - the friends this close to you ("a willing creature you touch").
+constexpr int kHeroismReachFeet = 10;
 
 // The slot level a cast spends: the one chosen (0: the spell's own), never below the spell's own, at most 9.
 int CastSlotLevel(int spell_level, int chosen);
@@ -85,6 +105,17 @@ bool TemporaryHitPointsReplace(int current, int offered);
 constexpr int kIceKnifeExplosionDie = 6;
 constexpr int kIceKnifeExplosionFeet = 5;
 int IceKnifeExplosionDice(int slot_level);
+// Chromatic Orb: two or more of its d8s alike - the orb leaps to another creature within 30 feet of the target (a
+// new attack roll, a new damage roll), at most as many times as the slot's level, each creature once a casting.
+bool HasMatchingDice(const std::vector<int>& rolls);
+int ChromaticOrbLeaps(int slot_level);
+// Heroism: one creature, one more for each slot level above 1; Temporary Hit Points equal to the spellcasting
+// ability modifier (none below 1) at the start of each of its turns.
+int HeroismTargets(int slot_level);
+int HeroismTemporaryHitPoints(int modifier);
+// SRD 5.2.1, One Spell with a Spell Slot per Turn: a turn is the creature's round - the same one when none of its
+// rounds ended since and less than a round's time (6 s, out of combat) went by.
+bool SameTurn(uint32_t rounds_then, uint32_t rounds_now, long long ms_since);
 // Dissonant Whispers: a failed save spends the target's Reaction moving away - as far as its Speed (nwn5e: 30
 // feet, everyone's) takes it.
 constexpr int kDissonantWhispersFleeFeet = 30;

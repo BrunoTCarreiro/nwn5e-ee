@@ -82,6 +82,9 @@
 #include "rules/spell_lists.h"
 #include "rules/spell_slots.h"
 
+// rules_spells2024.cpp (#39 2a build 1b): a spell slot spent (one spell with a slot per turn).
+void NoteSlotSpent(void* creature, int level);
+
 namespace {
 
 using GainFn = uint8_t (*)(void* stats, uint8_t slot, uint8_t spell_level);
@@ -302,6 +305,7 @@ int UnReady(void* stats, uint32_t spell_id, uint8_t slot, uint8_t domain_level, 
     PrepareSpellsNoteCast(creature);  // #36 Part 3: a Long Rest's change closes
     const int spent_level = upcast ? chosen : SlotLevel(row, spell_id, metamagic);
     if (creature && spent_level >= 0) engine::SetLocalInt(creature, kSlotLevelVar, spent_level);
+    if (creature && spent_level >= 1) NoteSlotSpent(creature, spent_level);  // #39 2a: one with a slot a turn
     if (!Memorizes(row)) MirrorSpend(stats, slot, spent_level);  // 4A: the other classes sharing the pool
     if (upcast && LogCast()) {
       Log("spells: object 0x%08X spell %u (level %d) cast with a level %d slot (chosen)", ObjectIdOf(stats), spell_id,
@@ -339,7 +343,15 @@ int SlotLevel(int nwn_class, uint32_t spell_id, int metamagic) {
   void* spells = Field<void*>(rules_object, ee::kRulesSpells);
   void* spell = spells ? g_get_spell(spells, static_cast<int>(spell_id)) : nullptr;
   if (!spell) return -1;
-  const int level = g_spell_level(spell, static_cast<uint8_t>(nwn_class));
+  int level = g_spell_level(spell, static_cast<uint8_t>(nwn_class));
+  // #39 2a build 1b: a levelled choice spell's variant (Chromatic Orb's types, on no class list) is its master's
+  // level - the engine spends the master's slot for it. A cantrip's variants stay unknown here, as before.
+  if (level == 0xFF && rules::ChoiceOptionOf(static_cast<int>(spell_id))) {
+    const rules::ChoiceCantrip* choice = rules::ChoiceCantripOf(static_cast<int>(spell_id));
+    void* master = choice ? g_get_spell(spells, choice->master) : nullptr;
+    const int master_level = master ? g_spell_level(master, static_cast<uint8_t>(nwn_class)) : 0xFF;
+    if (master_level >= 1 && master_level <= 9) level = master_level;
+  }
   if (level == 0xFF) return -1;
   return level + (metamagic ? g_metamagic_cost(rules_object, static_cast<uint8_t>(metamagic)) : 0);
 }
@@ -628,7 +640,16 @@ void* BuildChoiceMenu(void* handler, int64_t param) {
     void* spell = g_get_spell(spells, option.spell);
     char icon[17] = {};
     if (spell) memcpy(icon, static_cast<const uint8_t*>(spell) + ee::kSpellIconResRef, 16);
-    g_set_entry_text(menu, k, icon, option.label, handler, g_cast_callback, rules::RadialChoiceCast(param, option.spell));
+    const int64_t cast_param = rules::RadialChoiceCast(param, option.spell);
+    // #39 2a build 1b: a levelled choice spell's option (Chromatic Orb's Fire) opens its slot levels, as a spell does.
+    void* client_stats = nullptr;
+    rules::RadialCast cast;
+    int own = -1;
+    if (!UpcastLevels(cast_param, &client_stats, &cast, &own).empty()) {
+      g_set_creator_text(menu, k, icon, option.label, handler, reinterpret_cast<void*>(&LevelMenu), cast_param);
+    } else {
+      g_set_entry_text(menu, k, icon, option.label, handler, g_cast_callback, cast_param);
+    }
   }
   if (page.more) {
     void* master = g_get_spell(spells, cantrip->master);
@@ -760,6 +781,22 @@ bool HideCantripCounts() {
 }
 
 }  // namespace
+
+// #39 2a build 1b (rules_spells2024.cpp): a Bonus Action spell cast through its feat - the slot its order named,
+// left and spent as the cast would (the chosen level, the multiclass pool, the logs).
+int OrderSlotsLeft(void* creature, uint32_t spell, int class_slot, int domain_level, int metamagic) {
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  if (!stats || class_slot < 0 || class_slot >= ee::kMaxClassSlots || !g_uses_left) return 0;
+  return UsesLeftHook(stats, spell, static_cast<uint8_t>(class_slot), static_cast<uint8_t>(domain_level),
+                      static_cast<uint8_t>(metamagic));
+}
+
+bool SpendOrderSlot(void* creature, uint32_t spell, int class_slot, int domain_level, int metamagic) {
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  if (!stats || class_slot < 0 || class_slot >= ee::kMaxClassSlots || !g_unready) return false;
+  return UnReady(stats, spell, static_cast<uint8_t>(class_slot), static_cast<uint8_t>(domain_level),
+                 static_cast<uint8_t>(metamagic)) != 0;
+}
 
 void InstallSpellSlots() {
   if (g_config.spellcasting != rules::RuleVariant::kFaithful) {

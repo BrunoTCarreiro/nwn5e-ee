@@ -498,6 +498,12 @@ int SpellcastingModifier2024(void* creature) {
   return dc - 8 - pb;
 }
 
+int CastingModifierOfClassSlot(void* creature, int class_slot) {
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  if (!stats || class_slot < 0 || class_slot > 7 || !E().casting_mod) return 0;
+  return E().casting_mod(stats, static_cast<uint8_t>(class_slot));
+}
+
 void InstallSaveRollRules() {
   if (g_config.saves == rules::RuleVariant::kOff) return;
   HookExport("CNWSCreature::CalculateSpellSaveDC (2024 spell DC)", ee::kCalculateSpellSaveDC,
