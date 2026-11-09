@@ -1105,6 +1105,24 @@ monster AC by CR.
     sound's size comes to look); the test didn't: !spawn makes every creature hostile, so no test could have a deer
     that isn't. 0.97.4: "!spawn <blueprint> neutral" puts it in the commoners' faction; DR-1, MI-10, MI-11, MI-15,
     MI-23 and MI-28 set up with it (and away from hostile creatures, which would attack a commoner).
+- **#39 Part 2, the levelled spells (owner, 2026-11-09: "go for 39 part 2").** SRD 5.2.1 has 312 levelled spells, NWN
+  274 class spells; 129 of the SRD's have an NWN version (98 the same, 16 renamed - Cure Light Wounds is Cure Wounds -
+  15 close), 183 are new; 137 of NWN's have no 2024 version (30 fold into one: Cure Moderate Wounds is Cure Wounds at
+  level 2, Lesser Dispel Dispel Magic). Level 1: 57 SRD spells (23 with an NWN version); level 2: 57 (26). They need
+  reactions (Shield, Feather Fall, Hellish Rebuke; Counterspell at 3), 19 Bonus Action spells at levels 1-2, the
+  smites; Concentration (#37) and upcasting (#36) are built; 29 rituals (none for now, #38). As Part 1: served rows and
+  C++ rules, NWN's visuals, the placeholder icon; faithful only; saves on the 2024 ability (C1), effects in saves (C7),
+  2024 areas, one slot a turn. (The matrix: an untracked research table of the SRD 5.2.1 text against spells.2da.)
+  - *Brief (2026-11-09):* Q1 order - A by level (2a level 1, 2b level 2 ...; damage and healing, then buffs and
+    conditions, then the rest), B by class with its brief (#41-#48). Q2 which - A those that do something in an NWN
+    game (about 40 of level 1's 57; the out-of-combat ones later), B all, each at least a visual and a line. Q3 class
+    lists - A 2024's (Hold Person a Wizard's level 2, Magic Weapon level 2, Hideous Laughter level 1, Sleep off the
+    Druid and Ranger, Grease Sorcerer / Wizard; the Warlock's wait for #48), B NWN's. Q4 NWN's spells with no 2024
+    version (Doom, Scare, Endure Elements, Magic Fang, Ghoul Touch, Combust ... ) - A off the lists in faithful, the
+    tiers folded into upcasting, B kept. Q5 Summon Creature I-IX (no SRD line) - A off in faithful with a house rule
+    to keep them, B kept. Q6 reactions and smites - A automatic reactions (if prepared, a slot left, the reaction
+    unspent; the lowest slot; a switch each) and smites armed by the cast, delivered by the next hit; B with the
+    classes. Recommended A on all.
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's
