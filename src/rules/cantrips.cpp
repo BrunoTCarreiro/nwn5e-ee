@@ -1,6 +1,7 @@
 #include "rules/cantrips.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace rules {
 
@@ -339,6 +340,83 @@ DoorPlay DoorPlayOf(UtilityEffect effect) {
 int MagicMarkVisual(int roll) {
   if (roll < 1 || roll > kMagicMarkVisuals) roll = 1;
   return kMagicMarkFirstVisual + roll - 1;
+}
+
+int MagicMarkUprightVisual(int roll) {
+  if (roll < 1 || roll > kMagicMarkVisuals) roll = 1;
+  return kMagicMarkUprightFirstVisual + roll - 1;
+}
+
+namespace {
+
+constexpr float kPi = 3.14159265358979f;
+
+float Degrees(float radians) {
+  float d = radians * 180.0f / kPi;
+  while (d < 0.0f) d += 360.0f;
+  while (d >= 360.0f) d -= 360.0f;
+  return d;
+}
+
+}  // namespace
+
+MarkSpot MarkOnDoor(float dx, float dy, float dz, float facing, float cx, float cy) {
+  // The door's frame: its +y along its facing, so world = rotate(facing - 90) local.
+  const float a = (facing - 90.0f) * kPi / 180.0f;
+  const float ca = std::cos(a), sa = std::sin(a);
+  const float wx = cx - dx, wy = cy - dy;
+  float lx = wx * ca + wy * sa;  // the caster in the door's frame (rotate by -a)
+  float ly = -wx * sa + wy * ca;
+  const float length = std::sqrt(lx * lx + ly * ly);
+  if (length < 0.01f) {
+    lx = 0.0f;
+    ly = 1.0f;
+  } else {
+    lx /= length;
+    ly /= length;
+  }
+  // Where the line from the centre leaves the slab: through a side face (x) or the front / back face (y).
+  const float tx = lx != 0.0f ? kDoorHalfWidth / std::fabs(lx) : 1e9f;
+  const float ty = ly != 0.0f ? kDoorHalfDepth / std::fabs(ly) : 1e9f;
+  float hx, hy, nx, ny;
+  if (ty <= tx) {
+    hx = lx * ty;
+    hy = ly * ty;
+    nx = 0.0f;
+    ny = ly >= 0.0f ? 1.0f : -1.0f;
+  } else {
+    hx = lx * tx;
+    hy = ly * tx;
+    nx = lx >= 0.0f ? 1.0f : -1.0f;
+    ny = 0.0f;
+  }
+  hx += nx * kMarkGap;
+  hy += ny * kMarkGap;
+  MarkSpot spot;
+  spot.x = dx + hx * ca - hy * sa;
+  spot.y = dy + hx * sa + hy * ca;
+  spot.z = dz + kMarkDoorHeight;
+  spot.facing = Degrees(a + std::atan2(ny, nx));
+  return spot;
+}
+
+MarkSpot MarkOnPlaceable(float px, float py, float cx, float cy, float surface, float ground) {
+  const float wx = px - cx, wy = py - cy;
+  const float length = std::sqrt(wx * wx + wy * wy);
+  MarkSpot spot;
+  spot.z = ground + kMarkObjectHeight;
+  if (length < 0.01f) {  // the caster on it: the placeable's own spot
+    spot.x = px;
+    spot.y = py;
+    return spot;
+  }
+  const float ux = wx / length, uy = wy / length;  // from the caster to the placeable
+  float from_caster = surface >= 0.0f ? surface * length - kMarkGap : length - kMarkNoMeshReach;
+  if (from_caster < 0.0f) from_caster = 0.0f;
+  spot.x = cx + ux * from_caster;
+  spot.y = cy + uy * from_caster;
+  spot.facing = Degrees(std::atan2(-uy, -ux));  // toward the caster
+  return spot;
 }
 
 bool FillsElementCube(UtilityEffect effect) {

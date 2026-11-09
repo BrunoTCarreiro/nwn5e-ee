@@ -882,6 +882,20 @@ monster AC by CR.
     invisible object and its ground node are at the target point's height, so a point above the walkmesh (a click
     can give one) floats the mark. The point now goes down to GetGroundHeight, and the drop is logged ("the point
     dropped N m to the ground").
+  - *Magic Mark on doors and placeables - decided (owner, 2026-11-08: "is it not possible to add magic marks on
+    objects or walls?", then "Go with A"; SRD 5.2: "on an object or a surface").* Walls are out: NWN can't target
+    one (a click there lands on the floor). 0.96.0:
+    - A door: the mark stands on the slab's face on the caster's side (rules::MarkOnDoor; a closed door's
+      walkmesh is 2.1 x 0.3 x 2.97 m, T_Door01's), flat on it, 1.4 m up.
+    - A placeable: where its walkmesh starts on the line from the caster (the area's static-object line test,
+      CNWArea::NoNonWalkPolysInDoors, halved 14 times), 3 cm out, facing the caster, 0.7 m above the ground; none
+      found, 0.35 m from its centre (rules::MarkOnPlaceable).
+    - The ground: as before (0.95.10's snap).
+  - *The owner's 12 symbols (2026-11-08: "the new marks are in the x1 folder, you can delete the previous marks and
+    add the new ones only and then you can delete the x1 folder"):* Illustrator's PNGs (RGBA, 256-257 px) put on
+    black, cropped to 256 and saved as 24-bit TGAs, replacing the five. Rows 1860-1871 are flat (n5v_markNN) and
+    1880-1891 upright (n5v_markNNu, two-sided, neither mirrored nor upside down from the front); 1840-1844 are no
+    longer served. The 1x folder is removed.
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's

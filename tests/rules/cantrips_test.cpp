@@ -289,11 +289,14 @@ TEST(UtilityCantripEffects) {
   CHECK_EQ(FillsElementCube(UtilityEffect::kFirePlay), false);
   CHECK_EQ(FillsElementCube(UtilityEffect::kMageHand), false);
   // 0.94.1: Magic Mark's five symbols, rows 1840-1844.
-  CHECK_EQ(MagicMarkVisual(1), 1840);
-  CHECK_EQ(MagicMarkVisual(5), 1844);
-  CHECK_EQ(MagicMarkVisual(3), 1842);
-  CHECK_EQ(MagicMarkVisual(0), 1840);  // out of range: the first
-  CHECK_EQ(MagicMarkVisual(6), 1840);
+  CHECK_EQ(MagicMarkVisual(1), 1860);  // 0.96.0: the owner's 12 symbols
+  CHECK_EQ(MagicMarkVisual(12), 1871);
+  CHECK_EQ(MagicMarkVisual(6), 1865);
+  CHECK_EQ(MagicMarkVisual(0), 1860);  // out of range: the first
+  CHECK_EQ(MagicMarkVisual(13), 1860);
+  CHECK_EQ(MagicMarkUprightVisual(1), 1880);  // upright on a door or a placeable
+  CHECK_EQ(MagicMarkUprightVisual(12), 1891);
+  CHECK_EQ(MagicMarkUprightVisual(13), 1880);
   CHECK_EQ(CantripRangeFeet(kDruidcraft), 30);
   CHECK_EQ(CantripRangeFeet(1112), 30);   // Elementalism
   CHECK_EQ(CantripRangeFeet(1115), 10);   // Prestidigitation
@@ -494,4 +497,35 @@ TEST(ResistanceAndSpareTheDying) {
   CHECK_EQ(SpareTheDyingRangeFeet(16), 60);
   CHECK_EQ(SpareTheDyingRangeFeet(17), 120);
   CHECK_EQ(SpareTheDyingRangeFeet(20), 120);
+}
+
+namespace {
+bool Near(float a, float b) { return a - b < 0.005f && b - a < 0.005f; }
+bool At(const MarkSpot& s, float x, float y, float z, float facing) {
+  return Near(s.x, x) && Near(s.y, y) && Near(s.z, z) && Near(s.facing, facing);
+}
+}  // namespace
+
+// 0.96.0 (owner, 2026-11-08: "Go with A"): where Magic Mark stands on a door or a placeable. Breaks caught: the door's
+// frame turned the wrong way, the face behind the door taken, an oblique look not landing on the front face, the
+// side face missed edge-on, the gap or the height dropped, the mark not facing out of its face or toward the caster,
+// a placeable's surface or its no-walkmesh reach wrong, the halving search off.
+TEST(MagicMarkOnObjects) {
+  // A door facing north (its frame the world's) at (10, 10, 0).
+  CHECK_EQ(At(MarkOnDoor(10, 10, 0, 90, 10, 15), 10, 10.18f, 1.4f, 90), true);     // the caster north: the front
+  CHECK_EQ(At(MarkOnDoor(10, 10, 0, 90, 10, 5), 10, 9.82f, 1.4f, 270), true);      // south: the back
+  CHECK_EQ(At(MarkOnDoor(10, 10, 0, 90, 15, 15), 10.15f, 10.18f, 1.4f, 90), true);  // north-east: still the front
+  CHECK_EQ(At(MarkOnDoor(10, 10, 0, 90, 20, 10), 11.08f, 10, 1.4f, 0), true);      // edge-on from the east: its side
+  // A door facing east: its front looks east.
+  CHECK_EQ(At(MarkOnDoor(10, 10, 2, 0, 20, 10), 10.18f, 10, 3.4f, 0), true);
+  CHECK_EQ(At(MarkOnDoor(10, 10, 2, 0, 0, 10), 9.82f, 10, 3.4f, 180), true);
+  // A placeable at the origin, the caster 5 m south; its walkmesh starts 0.9 of the way (0.5 m short of its centre).
+  CHECK_EQ(At(MarkOnPlaceable(0, 0, 0, -5, 0.9f, 1.0f), 0, -0.53f, 1.7f, 270), true);
+  CHECK_EQ(At(MarkOnPlaceable(0, 0, 0, -5, -1.0f, 0.0f), 0, -0.35f, 0.7f, 270), true);  // no walkmesh
+  CHECK_EQ(At(MarkOnPlaceable(0, 0, 5, 0, 0.9f, 0.0f), 0.53f, 0, 0.7f, 0), true);       // from the east: faces east
+  // The search for the walkmesh's start.
+  const float share = ClearShare([](float t) { return t > 0.6f; }, 14);
+  CHECK_EQ(Near(share, 0.6f), true);
+  CHECK_EQ(share <= 0.6f, true);  // the clear side of the edge
+  CHECK_EQ(Near(ClearShare([](float) { return false; }, 14), -1.0f), true);  // nothing in the way
 }

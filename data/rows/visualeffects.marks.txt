@@ -1,10 +1,32 @@
-# visualeffects.2da - #39 Part 1 (0.94.1; owner, 2026-11-08: "there should be 5 new magic mark symbols, all tga with
-# no alpha. can you wire them up for a test as well?"): Prestidigitation's Magic Mark - one of the owner's symbols
-# (data\files\n5t_mark01-05.tga, drawn additively: n5t_markNN.txi) on a flat 0.6 m model (n5v_mark01-05) on the
-# ground, turned with its object (core/rules_utility_cantrips.cpp picks one at random, at a random facing).
+# visualeffects.2da - #39 Part 1: Prestidigitation's Magic Mark, the owner's 12 symbols (0.96.0; owner, 2026-11-08:
+# "the new marks are in the x1 folder, you can delete the previous marks and add the new ones only"; the first five
+# were 0.94.1's rows 1840-1844). data\files\n5t_mark01-12.tga, drawn additively (n5t_markNN.txi).
+# - 1860-1871: flat on the ground (n5v_markNN, 0.6 m), on an invisible object at the point.
+# - 1880-1891: upright on a door or a placeable (n5v_markNNu, 0.5 m, two-sided; owner: "Go with A"), on an
+#   invisible object facing the caster.
+# Both turn with their object (OrientWithObject): core/rules_utility_cantrips.cpp picks one at random.
 Label Type_FD OrientWithGround Imp_Root_S_Node Imp_Root_M_Node Imp_Root_L_Node Imp_Root_H_Node OrientWithObject
-1840 NWN5E_MAGIC_MARK_1 D 1 n5v_mark01 n5v_mark01 n5v_mark01 n5v_mark01 1
-1841 NWN5E_MAGIC_MARK_2 D 1 n5v_mark02 n5v_mark02 n5v_mark02 n5v_mark02 1
-1842 NWN5E_MAGIC_MARK_3 D 1 n5v_mark03 n5v_mark03 n5v_mark03 n5v_mark03 1
-1843 NWN5E_MAGIC_MARK_4 D 1 n5v_mark04 n5v_mark04 n5v_mark04 n5v_mark04 1
-1844 NWN5E_MAGIC_MARK_5 D 1 n5v_mark05 n5v_mark05 n5v_mark05 n5v_mark05 1
+1860 NWN5E_MAGIC_MARK_1 D 1 n5v_mark01 n5v_mark01 n5v_mark01 n5v_mark01 1
+1861 NWN5E_MAGIC_MARK_2 D 1 n5v_mark02 n5v_mark02 n5v_mark02 n5v_mark02 1
+1862 NWN5E_MAGIC_MARK_3 D 1 n5v_mark03 n5v_mark03 n5v_mark03 n5v_mark03 1
+1863 NWN5E_MAGIC_MARK_4 D 1 n5v_mark04 n5v_mark04 n5v_mark04 n5v_mark04 1
+1864 NWN5E_MAGIC_MARK_5 D 1 n5v_mark05 n5v_mark05 n5v_mark05 n5v_mark05 1
+1865 NWN5E_MAGIC_MARK_6 D 1 n5v_mark06 n5v_mark06 n5v_mark06 n5v_mark06 1
+1866 NWN5E_MAGIC_MARK_7 D 1 n5v_mark07 n5v_mark07 n5v_mark07 n5v_mark07 1
+1867 NWN5E_MAGIC_MARK_8 D 1 n5v_mark08 n5v_mark08 n5v_mark08 n5v_mark08 1
+1868 NWN5E_MAGIC_MARK_9 D 1 n5v_mark09 n5v_mark09 n5v_mark09 n5v_mark09 1
+1869 NWN5E_MAGIC_MARK_10 D 1 n5v_mark10 n5v_mark10 n5v_mark10 n5v_mark10 1
+1870 NWN5E_MAGIC_MARK_11 D 1 n5v_mark11 n5v_mark11 n5v_mark11 n5v_mark11 1
+1871 NWN5E_MAGIC_MARK_12 D 1 n5v_mark12 n5v_mark12 n5v_mark12 n5v_mark12 1
+1880 NWN5E_MAGIC_MARK_UP_1 D 0 n5v_mark01u n5v_mark01u n5v_mark01u n5v_mark01u 1
+1881 NWN5E_MAGIC_MARK_UP_2 D 0 n5v_mark02u n5v_mark02u n5v_mark02u n5v_mark02u 1
+1882 NWN5E_MAGIC_MARK_UP_3 D 0 n5v_mark03u n5v_mark03u n5v_mark03u n5v_mark03u 1
+1883 NWN5E_MAGIC_MARK_UP_4 D 0 n5v_mark04u n5v_mark04u n5v_mark04u n5v_mark04u 1
+1884 NWN5E_MAGIC_MARK_UP_5 D 0 n5v_mark05u n5v_mark05u n5v_mark05u n5v_mark05u 1
+1885 NWN5E_MAGIC_MARK_UP_6 D 0 n5v_mark06u n5v_mark06u n5v_mark06u n5v_mark06u 1
+1886 NWN5E_MAGIC_MARK_UP_7 D 0 n5v_mark07u n5v_mark07u n5v_mark07u n5v_mark07u 1
+1887 NWN5E_MAGIC_MARK_UP_8 D 0 n5v_mark08u n5v_mark08u n5v_mark08u n5v_mark08u 1
+1888 NWN5E_MAGIC_MARK_UP_9 D 0 n5v_mark09u n5v_mark09u n5v_mark09u n5v_mark09u 1
+1889 NWN5E_MAGIC_MARK_UP_10 D 0 n5v_mark10u n5v_mark10u n5v_mark10u n5v_mark10u 1
+1890 NWN5E_MAGIC_MARK_UP_11 D 0 n5v_mark11u n5v_mark11u n5v_mark11u n5v_mark11u 1
+1891 NWN5E_MAGIC_MARK_UP_12 D 0 n5v_mark12u n5v_mark12u n5v_mark12u n5v_mark12u 1
