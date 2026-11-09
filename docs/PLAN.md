@@ -1147,6 +1147,9 @@ monster AC by CR.
     (the class feature with the Wizard / Sorcerer briefs), B with the Wizard's. Q3 the Detect spells - A what's sensed
     glows and is named, B named only. Q4 Disguise Self and Silent Image - A real (another species' model; an image as
     #152's, up to a 15-foot Cube, moved while concentrating), B a visual and a line. Recommended A on all.
+  - *Decided (owner, 2026-11-09: "A on all, but mark featherfall for later removal"):* Q1-Q4 A - the reactions and
+    smites in level 1 (Feather Fall a visual and a line, to be removed later: #153), Find Familiar NWN's familiars,
+    the Detect spells' glow, Disguise Self and Silent Image real. Build 1 (damage and healing) next.
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
   New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion
