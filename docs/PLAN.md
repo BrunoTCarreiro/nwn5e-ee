@@ -1544,6 +1544,12 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
       marked while it runs: IsGrenadeCast), and #129's ActivityManager hook leaves the stealth activity alone for its
       ActivityManager(1) (+0x8E4 bit 0; the combat modes still turned off) - logged "throws a grenade from hiding -
       still hidden".
+    - *Casting from hiding - decided (owner, 2026-11-09: "no, let's keep the current behaviour. We're already
+      ignoring material costs for spells"),* asked whether a spell cast takes you out of stealth mode when no one
+      sees you. Every spell cast takes the caster out of stealth mode - NWN's, in both modes - over SRD 5.2's Hide
+      (its Invisible condition ends on "a spell with a Verbal component" or an attack roll, so a spell without a
+      Verbal component, e.g. Minor Illusion, would keep the caster hidden). Only a thrown grenade keeps the hide
+      (#132).
     - The descriptions: Caltrops, Choking Powder, the bombs and the patches say "anyone in it, you too"; the fire ones'
       light.
     - Test ThrowFromHiding (3 of 3 mutations caught).
