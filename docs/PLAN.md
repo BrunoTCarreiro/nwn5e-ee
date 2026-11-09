@@ -1071,6 +1071,21 @@ monster AC by CR.
     put. The image's point now goes down onto the walkmesh first (GetGroundHeight), logged with how far. The models
     sit on their own base (the corpse's lowest point 0.02 m, the treasure piles' 0-0.07 m). The treasure is the large
     pile (plc_treasurelrg, about 0.5 by 0.9 m, within the 5-foot Cube; the small one about 0.2 m, the medium 0.3 m).
+  - *The scaring sounds - decided (owner, 2026-11-09: "B"),* after "I would assume roar and thunder would have the
+    same efect as a leopard on weak goblins, what's the logic coded for the reaction?" (Q7 A's rule: animals, beasts
+    and vermin flee a roar or thunder for 2 rounds, every other hostile creature comes to look; no size, no mind). Over
+    A (the leopard's rule with what makes the sound Medium) and C (the roar only): the roar and thunder scare as the
+    leopard does, by the size of what seems to make them - the roar a Large beast's (the game's file is a bear's),
+    thunder Medium. A creature not hostile, or smaller, flees for 2 rounds; a sentient one then comes back, finds
+    nothing and, if hostile, searches for the caster. A hostile one that size or larger comes to look: a sentient one
+    searches, an animal looks round and goes back. Thaumaturgy's thunder is thunder (Medium); Druidcraft's animal
+    sound (a wolf's growl) Medium. Voices, footsteps and whispers as before.
+    *Built 0.97.3:* rules::SoundSizeOf (roar 4, thunder and the animal sound 3), ReactionToSound (kLook,
+    kLookThenSearch, kFlee, kFleeThenLook; FleesFromScaringSound gone). The core: every creature that hears it (60 ft)
+    and isn't ignoring it - the not-hostile ones too; a plain flight or look as before, and the two in steps as the
+    image's reactions (a Reactor with no image: coming back or getting there it finds nothing - "Orc finds nothing
+    where the sound was and searches for you"). Without heard_investigates (or faithful perception) only the flight.
+    The descriptions of Minor Illusion, Druidcraft and Thaumaturgy say so.
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's

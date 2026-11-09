@@ -502,8 +502,24 @@ SoundPlay SoundPlayOf(UtilityEffect effect) {
   }
 }
 
-bool FleesFromScaringSound(int nwn_racial_type) {
-  return nwn_racial_type == 8 || nwn_racial_type == 9 || nwn_racial_type == 25;
+int SoundSizeOf(UtilityEffect effect) {
+  switch (effect) {
+    case UtilityEffect::kIllusionRoar: return 4;  // a Large beast's (the bear's)
+    case UtilityEffect::kIllusionThunder:
+    case UtilityEffect::kPhantomThunder:
+    case UtilityEffect::kAnimalSound: return 3;  // Medium
+    default: return 0;
+  }
+}
+
+SoundReaction ReactionToSound(SoundPlay play, bool sentient, bool hostile, int size, int sound_size) {
+  switch (play) {
+    case SoundPlay::kDraws: return hostile ? SoundReaction::kLook : SoundReaction::kIgnore;
+    case SoundPlay::kScares:
+      if (!hostile || size < sound_size) return sentient ? SoundReaction::kFleeThenLook : SoundReaction::kFlee;
+      return sentient ? SoundReaction::kLookThenSearch : SoundReaction::kLook;
+    default: return SoundReaction::kIgnore;
+  }
 }
 
 const char* SoundResrefOf(UtilityEffect effect) {

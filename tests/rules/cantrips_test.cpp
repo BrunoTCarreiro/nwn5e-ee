@@ -307,7 +307,7 @@ TEST(UtilityCantripEffects) {
   CHECK_EQ(CantripRangeFeet(1050), 0);    // not one
 }
 
-// #39 build 4b: the sounds - which draw creatures, which scare beasts away (Q7 A), and who flees.
+// #39 build 4b: the sounds - which draw creatures, which scare (Q7 A); #152 B: who flees, by size.
 TEST(UtilitySounds) {
   CHECK_EQ(SoundPlayOf(UtilityEffect::kIllusionVoices) == SoundPlay::kDraws, true);
   CHECK_EQ(SoundPlayOf(UtilityEffect::kIllusionFootsteps) == SoundPlay::kDraws, true);
@@ -318,11 +318,32 @@ TEST(UtilitySounds) {
   CHECK_EQ(SoundPlayOf(UtilityEffect::kAnimalSound) == SoundPlay::kScares, true);
   CHECK_EQ(SoundPlayOf(UtilityEffect::kImageTreasure) == SoundPlay::kNone, true);
   CHECK_EQ(SoundPlayOf(UtilityEffect::kFirePlay) == SoundPlay::kNone, true);
-  CHECK_EQ(FleesFromScaringSound(8), true);    // animal
-  CHECK_EQ(FleesFromScaringSound(9), true);    // beast
-  CHECK_EQ(FleesFromScaringSound(25), true);   // vermin
-  CHECK_EQ(FleesFromScaringSound(19), false);  // magical beast
-  CHECK_EQ(FleesFromScaringSound(6), false);   // humanoid
+  // #152 B (owner: "B"): the roar a Large beast's, thunder Medium, the animal sound a wolf's (Medium).
+  CHECK_EQ(SoundSizeOf(UtilityEffect::kIllusionRoar), 4);
+  CHECK_EQ(SoundSizeOf(UtilityEffect::kIllusionThunder), 3);
+  CHECK_EQ(SoundSizeOf(UtilityEffect::kPhantomThunder), 3);
+  CHECK_EQ(SoundSizeOf(UtilityEffect::kAnimalSound), 3);
+  CHECK_EQ(SoundSizeOf(UtilityEffect::kIllusionVoices), 0);
+  // Voices: a hostile creature comes to look, whatever it is; others ignore them.
+  const SoundPlay draws = SoundPlay::kDraws;
+  CHECK_EQ(ReactionToSound(draws, true, true, 2, 0) == SoundReaction::kLook, true);
+  CHECK_EQ(ReactionToSound(draws, false, true, 3, 0) == SoundReaction::kLook, true);
+  CHECK_EQ(ReactionToSound(draws, true, false, 3, 0) == SoundReaction::kIgnore, true);
+  // The roar (Large): a goblin and an orc flee, then come back to look; an ogre comes to look and searches; a wolf
+  // flees; a bear comes to look and goes back; a deer and a commoner (not hostile) flee.
+  const SoundPlay scares = SoundPlay::kScares;
+  CHECK_EQ(ReactionToSound(scares, true, true, 2, 4) == SoundReaction::kFleeThenLook, true);   // goblin
+  CHECK_EQ(ReactionToSound(scares, true, true, 3, 4) == SoundReaction::kFleeThenLook, true);   // orc
+  CHECK_EQ(ReactionToSound(scares, true, true, 4, 4) == SoundReaction::kLookThenSearch, true); // ogre
+  CHECK_EQ(ReactionToSound(scares, false, true, 3, 4) == SoundReaction::kFlee, true);          // wolf
+  CHECK_EQ(ReactionToSound(scares, false, true, 4, 4) == SoundReaction::kLook, true);          // bear
+  CHECK_EQ(ReactionToSound(scares, false, false, 3, 4) == SoundReaction::kFlee, true);         // deer
+  CHECK_EQ(ReactionToSound(scares, true, false, 5, 4) == SoundReaction::kFleeThenLook, true);  // not hostile
+  // Thunder (Medium): an orc comes to look and searches, a goblin flees, a wolf comes to look.
+  CHECK_EQ(ReactionToSound(scares, true, true, 3, 3) == SoundReaction::kLookThenSearch, true);
+  CHECK_EQ(ReactionToSound(scares, true, true, 2, 3) == SoundReaction::kFleeThenLook, true);
+  CHECK_EQ(ReactionToSound(scares, false, true, 3, 3) == SoundReaction::kLook, true);
+  CHECK_EQ(ReactionToSound(SoundPlay::kNone, true, true, 3, 3) == SoundReaction::kIgnore, true);
   for (UtilityEffect e : {UtilityEffect::kIllusionVoices, UtilityEffect::kIllusionFootsteps,
                           UtilityEffect::kIllusionRoar, UtilityEffect::kIllusionThunder, UtilityEffect::kPhantomWhispers,
                           UtilityEffect::kPhantomThunder, UtilityEffect::kAnimalSound}) {

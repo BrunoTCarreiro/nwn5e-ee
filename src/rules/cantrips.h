@@ -354,12 +354,26 @@ int CantripRangeFeet(int spell);
 
 // --- Build 4b (owner, 2026-11-08: "go for 4b"): the sounds, the illusions, Dancing Lights, the patches ------------
 // Q7 A (owner, 2026-11-07: "A, but 2 turns"): voices, footsteps or whispers draw the creatures that hear them, which
-// come to look; a beast's roar or thunder (Druidcraft's Animal Sound too) makes animals, beasts and vermin flee from
-// it for 2 rounds, and the others come to look. A creature already fighting ignores either.
+// come to look; a beast's roar or thunder (Druidcraft's Animal Sound too) scares. A creature already fighting ignores
+// either.
 enum class SoundPlay { kNone, kDraws, kScares };
 SoundPlay SoundPlayOf(UtilityEffect effect);
-// NWN's racial types that flee a scaring sound: animal 8, beast 9, vermin 25.
-bool FleesFromScaringSound(int nwn_racial_type);
+// #152 B (owner, 2026-11-09: "B", after "I would assume roar and thunder would have the same efect as a leopard on
+// weak goblins"): a scaring sound scares as the leopard does, by the size of what seems to make it (NWN's creature
+// sizes) - the roar a Large beast's (4: the game's file is a bear's), thunder (Thaumaturgy's too) Medium (3), the
+// animal sound a wolf's growl, Medium; 0 for a sound that doesn't scare.
+int SoundSizeOf(UtilityEffect effect);
+// A drawing sound: a hostile creature comes to look. A scaring one: a creature not hostile, or smaller, flees for 2
+// rounds - a sentient one then comes back to look (finding nothing, a hostile one searches for the caster); a hostile
+// one that size or larger comes to look - a sentient one then searches, an animal goes back.
+enum class SoundReaction {
+  kIgnore,
+  kLook,            // comes to look, looks round, goes back
+  kLookThenSearch,  // comes to look, finds nothing, searches round it for the caster
+  kFlee,            // flees for 2 rounds
+  kFleeThenLook,    // flees for 2 rounds, then comes back to look
+};
+SoundReaction ReactionToSound(SoundPlay play, bool sentient, bool hostile, int size, int sound_size);
 // The game's own sound for an effect ("" none).
 const char* SoundResrefOf(UtilityEffect effect);
 constexpr int kSoundHearingFeet = 60;  // how far creatures hear it, for these rules

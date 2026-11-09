@@ -21,8 +21,10 @@
 // - Sounds at a point (Q6 A, Q7 A): Minor Illusion's (voices, footsteps, a roar, thunder), Thaumaturgy's Phantom
 //   Sound (whispers, thunder), Druidcraft's Animal Sound - the game's own sound files. Voices, footsteps and
 //   whispers draw the creatures hostile to the caster that hear them (60 ft): they come to look, as for a light put
-//   out (heard_investigates). A roar, thunder or the animal's sound makes animals, beasts and vermin flee for 2
-//   rounds (rules::FleesFromScaringSound); the others come to look. None fighting, talking or the caster's own.
+//   out (heard_investigates). #152 B: a roar, thunder or the animal's sound scares as the leopard does, by the size
+//   of what seems to make it (rules::ReactionToSound): one not hostile, or smaller, flees for 2 rounds (a sentient
+//   one comes back to look, and searches if hostile); a hostile one that size or larger comes to look (and searches,
+//   if sentient). None fighting, talking or the caster's own.
 // - Minor Illusion's image (treasure, a corpse, a humanoid, a small creature: the game's treasure pile, corpse,
 //   commoner and leopard) for 1 minute -
 //   inert, unseen by the AI, passed through. #152: those that see it react by what they are (rules::ReactionToImage)
@@ -534,6 +536,7 @@ const char* NothingLine(UtilityEffect effect) {
 
 using rules::ImageKind;
 using rules::SoundPlay;
+using rules::SoundReaction;
 
 bool Investigates() { return g_config.heard_investigates && g_config.perception == rules::RuleVariant::kFaithful; }
 
@@ -656,8 +659,7 @@ bool IsMinorIllusion(int row) {
   return cantrip && cantrip->master == rules::kMinorIllusion;
 }
 
-// A sound at the point (Q6 A, Q7 A): its creatures - animals, beasts and vermin flee a scaring one for 2 rounds;
-// the others hostile to the caster come to look (heard_investigates); none fighting.
+// A sound at the point (Q6 A, Q7 A; #152 B): the invisible object playing it (PlaySoundAt: who reacts, and how).
 const char* const kSound = R"nss(
 location l = GetLocalLocation(OBJECT_SELF, "n5c_at");
 object s = CreateObject(OBJECT_TYPE_PLACEABLE, "plc_invisobj", l, FALSE, "n5c_sound");
@@ -665,40 +667,6 @@ AssignCommand(s, PlaySound("$SOUND"));
 $MORE
 DestroyObject(s, 8.0);
 )nss";
-
-void PlaySoundAt(uint32_t self, void* caster, UtilityEffect effect, const std::string& name) {
-  const SoundPlay play = rules::SoundPlayOf(effect);
-  std::string code = kSound;
-  Replace(&code, "$SOUND", rules::SoundResrefOf(effect));
-  // Footsteps: a few, one after another.
-  Replace(&code, "$MORE", effect == UtilityEffect::kIllusionFootsteps
-                              ? "DelayCommand(0.6, AssignCommand(s, PlaySound(\"fs_dirt_hard2\")));"
-                                "DelayCommand(1.2, AssignCommand(s, PlaySound(\"fs_dirt_hard3\")));"
-                                "DelayCommand(1.8, AssignCommand(s, PlaySound(\"fs_dirt_hard1\")));"
-                              : "");
-  CreatingFireLight(true);  // light_sources.cpp: the invisible object a normal placeable, so the clients hear it
-  Run(code, self, "a sound");
-  CreatingFireLight(false);
-  std::vector<std::string> done;
-  for (const Near& n : NearOf(caster, self, rules::kSoundHearingFeet * kMetresPerFoot, false)) {
-    if (play == SoundPlay::kScares && rules::FleesFromScaringSound(n.race)) {
-      std::string flee = kFlee;
-      Replace(&flee, "$ID", Hex(n.id));
-      Replace(&flee, "$SECONDS", std::to_string(rules::kScareSeconds) + ".0");
-      Run(flee, self, "a creature fleeing");
-      done.push_back(engine::GetLocalString(caster, "n5c_name") + " flees");
-    } else if (n.enemy && Investigates()) {
-      std::string look = kLook;
-      Replace(&look, "$ID", Hex(n.id));
-      Replace(&look, "$ARRIVE", "");
-      Replace(&look, "$WAIT", "6.0");
-      Run(look, self, "a creature coming to look");
-      done.push_back(engine::GetLocalString(caster, "n5c_name") + " comes to look");
-    }
-  }
-  TellPlayer(self, "nwn5e: " + name + " - " + (done.empty() ? std::string("no one near reacts") : Joined(done)) + ".");
-  if (LogSlot()) Log("cantrips: 0x%08X %s (%s): %zu react", self, name.c_str(), rules::SoundResrefOf(effect), done.size());
-}
 
 // Minor Illusion's image at the point for 1 minute - the game's own treasure pile, corpse, commoner or leopard
 // (an object named for the menu), inert: plot, unseen by
@@ -766,6 +734,7 @@ struct Reactor {
   Stage stage = Stage::kComing;
   std::string name;
   std::string image_name;
+  bool sound = false;  // a sound's (#152 B): nothing there to study
 };
 std::unordered_map<uint32_t, Reactor> g_reactors;  // by creature
 
@@ -974,9 +943,10 @@ void Study(uint32_t self, Reactor& r, const Check& check) {
   const std::string name = r.name;
   const std::string image = r.image_name;
   if (!check.image_there) {
-    Note(self, r, "finds the image gone");
+    Note(self, r, r.sound ? "finds nothing there" : "finds the image gone");
     if (!rules::SearchesAfterVanish(r.sentient, r.hostile)) return GoBack(self, true);
-    Tell(caster, name + " finds the " + image + " gone and searches for you");
+    Tell(caster, name + (r.sound ? " finds nothing where the sound was" : " finds the " + image + " gone") +
+                     " and searches for you");
     return Search(self, r);
   }
   const int d20 = RollEngineDice(1, 20);
@@ -1155,7 +1125,7 @@ object u = StringToObject("$CASTER");
 SetLocalInt(OBJECT_SELF, "nwn5e_seek", 120);
 SetLocalLocation(OBJECT_SELF, "n5c_mi_home", GetLocation(OBJECT_SELF));
 SetLocalLocation(OBJECT_SELF, "n5c_mi_at", GetLocalLocation(u, "n5c_at"));
-SetLocalObject(OBJECT_SELF, "n5c_mi_image", GetLocalObject(u, "n5c_image"));
+SetLocalObject(OBJECT_SELF, "n5c_mi_image", $IMAGE);
 SetLocalString(u, "n5c_name", GetName(OBJECT_SELF));
 )nss";
 
@@ -1202,6 +1172,7 @@ void MakeImage(uint32_t self, void* caster, UtilityEffect effect, const std::str
       if (reaction == ImageReaction::kIgnore) continue;
       std::string start = kWatcher;
       Replace(&start, "$CASTER", Hex(self));
+      Replace(&start, "$IMAGE", "GetLocalObject(u, \"n5c_image\")");
       Run(start, n.id, "an illusion's watcher");
       Reactor r;
       r.caster = self;
@@ -1247,6 +1218,110 @@ void MakeImage(uint32_t self, void* caster, UtilityEffect effect, const std::str
   }
   TellPlayer(self, "nwn5e: " + name + " - a " + image + " there for a minute" +
                        (done.empty() ? std::string(".") : "; " + Joined(done) + "."));
+}
+
+// A sound at the point (Q6 A, Q7 A; #152 B, owner, 2026-11-09: "B"): a drawing one brings the hostile creatures that
+// hear it to look; a scaring one scares as the leopard does, by the size of what seems to make it
+// (rules::ReactionToSound) - one not hostile, or smaller, flees for 2 rounds (a sentient one then comes back to look,
+// and a hostile one finding nothing searches for the caster); a hostile one that size or larger comes to look (a
+// sentient one then searches). The coming to look is heard_investigates' (faithful perception); the fleeing isn't.
+const char* SoundReactionName(SoundReaction reaction) {
+  switch (reaction) {
+    case SoundReaction::kLook: return "comes to look";
+    case SoundReaction::kLookThenSearch: return "comes to look, then searches";
+    case SoundReaction::kFlee: return "flees";
+    case SoundReaction::kFleeThenLook: return "flees, then comes back to look";
+    default: return "ignores it";
+  }
+}
+
+// A creature that heard a sound and reacts in steps: a Reactor with nothing to study (its image none).
+Reactor& HeardBy(uint32_t self, void* caster, const Near& n, bool sentient, ImageReaction reaction) {
+  std::string start = kWatcher;
+  Replace(&start, "$CASTER", Hex(self));
+  Replace(&start, "$IMAGE", "OBJECT_INVALID");
+  Run(start, n.id, "a sound's listener");
+  Reactor r;
+  r.caster = self;
+  r.reaction = reaction;
+  r.hostile = n.enemy;
+  r.sentient = sentient;
+  r.intelligence = n.intelligence;
+  r.serial = ++g_serial;
+  r.name = engine::GetLocalString(caster, "n5c_name");
+  r.image_name = "sound";
+  r.sound = true;
+  return g_reactors[n.id] = r;
+}
+
+void PlaySoundAt(uint32_t self, void* caster, UtilityEffect effect, const std::string& name) {
+  const SoundPlay play = rules::SoundPlayOf(effect);
+  const int sound_size = rules::SoundSizeOf(effect);
+  std::string code = kSound;
+  Replace(&code, "$SOUND", rules::SoundResrefOf(effect));
+  // Footsteps: a few, one after another.
+  Replace(&code, "$MORE", effect == UtilityEffect::kIllusionFootsteps
+                              ? "DelayCommand(0.6, AssignCommand(s, PlaySound(\"fs_dirt_hard2\")));"
+                                "DelayCommand(1.2, AssignCommand(s, PlaySound(\"fs_dirt_hard3\")));"
+                                "DelayCommand(1.8, AssignCommand(s, PlaySound(\"fs_dirt_hard1\")));"
+                              : "");
+  CreatingFireLight(true);  // light_sources.cpp: the invisible object a normal placeable, so the clients hear it
+  Run(code, self, "a sound");
+  CreatingFireLight(false);
+  std::vector<std::string> done;
+  for (const Near& n : NearOf(caster, self, rules::kSoundHearingFeet * kMetresPerFoot, false)) {
+    const bool sentient = rules::IsSentient(n.race, n.intelligence_score);
+    SoundReaction reaction = rules::ReactionToSound(play, sentient, n.enemy, n.size, sound_size);
+    if (!Investigates()) {
+      reaction = reaction == SoundReaction::kFlee || reaction == SoundReaction::kFleeThenLook ? SoundReaction::kFlee
+                                                                                               : SoundReaction::kIgnore;
+    }
+    if (reaction == SoundReaction::kIgnore) continue;
+    std::string who;
+    switch (reaction) {
+      case SoundReaction::kFlee: {
+        std::string flee = kFlee;
+        Replace(&flee, "$ID", Hex(n.id));
+        Replace(&flee, "$SECONDS", std::to_string(rules::kScareSeconds) + ".0");
+        Run(flee, self, "a creature fleeing");
+        who = engine::GetLocalString(caster, "n5c_name");
+        done.push_back(who + " flees");
+        break;
+      }
+      case SoundReaction::kLook: {
+        std::string look = kLook;
+        Replace(&look, "$ID", Hex(n.id));
+        Replace(&look, "$ARRIVE", "");
+        Replace(&look, "$WAIT", "6.0");
+        Run(look, self, "a creature coming to look");
+        who = engine::GetLocalString(caster, "n5c_name");
+        done.push_back(who + " comes to look");
+        break;
+      }
+      case SoundReaction::kFleeThenLook: {
+        Reactor& r = HeardBy(self, caster, n, sentient, ImageReaction::kFleeThenStudy);
+        who = r.name;
+        Flee(n.id, r, false);
+        done.push_back(who + " flees");
+        break;
+      }
+      case SoundReaction::kLookThenSearch: {
+        Reactor& r = HeardBy(self, caster, n, sentient, ImageReaction::kStudy);
+        who = r.name;
+        ComeToLook(n.id, r);
+        done.push_back(who + " comes to look");
+        break;
+      }
+      default: break;
+    }
+    if (LogSlot()) {
+      Log("cantrips: 0x%08X %s: 0x%08X (%s) %s - racial type %d, Intelligence %d (%s), %s, size %d vs %d", self,
+          name.c_str(), n.id, who.c_str(), SoundReactionName(reaction), n.race, n.intelligence_score,
+          sentient ? "sentient" : "not sentient", n.enemy ? "hostile" : "not hostile", n.size, sound_size);
+    }
+  }
+  TellPlayer(self, "nwn5e: " + name + " - " + (done.empty() ? std::string("no one near reacts") : Joined(done)) + ".");
+  if (LogSlot()) Log("cantrips: 0x%08X %s (%s): %zu react", self, name.c_str(), rules::SoundResrefOf(effect), done.size());
 }
 
 // Dancing Lights: four lights at the point (NWN's 5 m yellow light - Dim Light for the stealth rules - and a glow for
