@@ -36,6 +36,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "anim_cast_clip.h"
 #include "anim_flourishes.h"
 #include "config.h"
 #include "creature.h"
@@ -232,6 +233,7 @@ void AnimLayersClient(void* client_creature) {
 
 void InstallAnimLayers() {
   InstallFlourish();  // #121, its own listener (not this hook)
+  InstallCastClip();  // #150, its own listener too
   if (!HookExport("Gob::PlayAnimation (stuck arm layers; the dev layer's trace)", kGobPlayAnimation,
                   reinterpret_cast<void*>(&PlayAnimation), reinterpret_cast<void**>(&g_play))) {
     g_play = nullptr;

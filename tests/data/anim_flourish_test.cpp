@@ -118,3 +118,15 @@ TEST(FlourishPauseCoversTheClip) {
   CHECK_EQ(data::FlourishPauseMs(0.0f), 75);
   CHECK_EQ(data::FlourishPauseMs(-1.0f), 75);
 }
+
+// #150: a cast clip's swap lasts the caller's seconds, held to 0.1 - 10 s; a time that isn't positive and finite swaps
+// nothing (0).
+TEST(CastClipLastsItsSeconds) {
+  CHECK_EQ(data::CastClipMs(1.6f), 1600);
+  CHECK_EQ(data::CastClipMs(0.05f), 100);
+  CHECK_EQ(data::CastClipMs(30.0f), 10000);
+  CHECK_EQ(data::CastClipMs(0.0f), 0);
+  CHECK_EQ(data::CastClipMs(-1.0f), 0);
+  CHECK_EQ(data::CastClipMs(NAN), 0);
+  CHECK_EQ(data::CastClipMs(INFINITY), 0);
+}
