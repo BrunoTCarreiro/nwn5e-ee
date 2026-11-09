@@ -246,7 +246,14 @@ void GenerateAnimationPacks(const std::wstring& served) {
         continue;
       }
       const bool has_mix = !recipe.second.mix.empty() && FindClip(entry.first, recipe.second.mix, &mix);
-      clips.push_back(data::DeriveAnimClip(recipe.second, base, has_mix ? &mix : nullptr, &library.library.bones));
+      data::AnimClip legs;  // #149: the legs from another animation
+      const bool has_legs = !recipe.second.legs.empty() && FindClip(entry.first, recipe.second.legs, &legs);
+      if (!recipe.second.legs.empty() && !has_legs) {
+        Log("anim packs: %s - %s has no %s (its legs stay the base's)", recipe.first.c_str(), entry.first.c_str(),
+            recipe.second.legs.c_str());
+      }
+      clips.push_back(data::DeriveAnimClip(recipe.second, base, has_mix ? &mix : nullptr, &library.library.bones,
+                                           has_legs ? &legs : nullptr));
       for (const char* hold : kHolds) {
         data::AnimClip layer, layer_mix;
         if (!FindClip(entry.first, recipe.second.base + "_" + hold, &layer)) continue;

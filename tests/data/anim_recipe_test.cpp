@@ -393,6 +393,107 @@ TEST(AnimRecipeMixesTrimsAndSpeeds) {
   CHECK_EQ(Has(pack, "  parent n5_ba"), true);
 }
 
+// #149 (owner: "castout with the combat ready legs"): a formula recipe's legs from another animation - written only
+// when set (a recipe without them reads and writes as before), and read back.
+TEST(AnimRecipeLegsRoundTrip) {
+  AnimRecipe r;
+  r.name = "n5_cast";
+  r.base = "castout";
+  r.speed = 1.5f;
+  r.legs = "1hreadyr";
+  const std::string text = WriteAnimRecipe(r);
+  CHECK_EQ(Has(text, "\nlean = 0\nlegs = 1hreadyr\n"), true);
+  AnimRecipe back;
+  std::string error;
+  CHECK_EQ(ReadAnimRecipe(text, &back, &error), true);
+  CHECK_EQ(back.legs == "1hreadyr" && back.base == "castout", true);
+  r.legs.clear();
+  CHECK_EQ(Has(WriteAnimRecipe(r), "legs"), false);
+}
+
+// #149: the legs half - the root's place, pelvis_g and everything under it - comes from the legs animation, from its
+// start at its own speed, looping over the recipe's length; the torso half (torso_g and under it) and the root's turn
+// stay the base's, trimmed and sped up. A leg bone the legs animation doesn't key keeps the base's.
+TEST(AnimRecipeLegsFromAnother) {
+  const auto keyed = [](const char* name, int parent, std::vector<float> times, std::vector<std::array<float, 4>> turns) {
+    AnimNode n;
+    n.name = name;
+    n.parent = parent;
+    n.has_orientation = true;
+    n.orientation.times = times;
+    n.orientation.values = turns;
+    return n;
+  };
+  const auto turn_z = [](float degrees) {
+    const float half = degrees * 3.14159265f / 360.0f;
+    return std::array<float, 4>{0.0f, 0.0f, sinf(half), cosf(half)};
+  };
+  const std::array<float, 4> still = {0.0f, 0.0f, 0.0f, 1.0f};
+  AnimClip base;  // castout, 1 s
+  base.name = "castout";
+  base.length = 1.0f;
+  base.animroot = "rootdummy";
+  AnimNode top;
+  top.name = "a_test";
+  base.nodes.push_back(top);
+  AnimNode root = keyed("rootdummy", 0, {0.0f, 1.0f}, {still, turn_z(30.0f)});
+  root.has_position = true;
+  root.position.times = {0.0f, 1.0f};
+  root.position.values = {{0.0f, 0.0f, 1.0f, 1.0f}, {0.5f, 0.0f, 1.0f, 1.0f}};
+  base.nodes.push_back(root);
+  base.nodes.push_back(keyed("pelvis_g", 1, {0.0f, 1.0f}, {still, TurnX(20.0f)}));
+  base.nodes.push_back(keyed("lthigh_g", 2, {0.0f, 1.0f}, {still, TurnX(40.0f)}));
+  base.nodes.push_back(keyed("torso_g", 1, {0.0f, 1.0f}, {still, turn_z(90.0f)}));
+  base.nodes.push_back(keyed("lbicep_g", 4, {0.0f, 1.0f}, {still, TurnX(60.0f)}));
+  AnimClip legs;  // 1hreadyr, 0.4 s: the hips bob, the pelvis rocks, the thigh holds
+  legs.name = "1hreadyr";
+  legs.length = 0.4f;
+  legs.animroot = "rootdummy";
+  legs.nodes.push_back(top);
+  AnimNode legs_root;
+  legs_root.name = "rootdummy";
+  legs_root.parent = 0;
+  legs_root.has_position = true;
+  legs_root.position.times = {0.0f, 0.4f};
+  legs_root.position.values = {{0.0f, 0.0f, 0.9f, 1.0f}, {0.0f, 0.0f, 0.98f, 1.0f}};
+  legs_root.has_orientation = true;  // the legs' root turns too: ignored, the root's turn is the base's
+  legs_root.orientation.times = {0.0f, 0.4f};
+  legs_root.orientation.values = {turn_z(-60.0f), turn_z(-60.0f)};
+  legs.nodes.push_back(legs_root);
+  legs.nodes.push_back(keyed("pelvis_g", 1, {0.0f, 0.2f, 0.4f}, {TurnX(-10.0f), TurnX(-20.0f), TurnX(-10.0f)}));
+  legs.nodes.push_back(keyed("lthigh_g", 2, {0.0f, 0.4f}, {TurnX(5.0f), TurnX(5.0f)}));
+  legs.nodes.push_back(keyed("torso_g", 1, {0.0f, 0.4f}, {turn_z(-45.0f), turn_z(-45.0f)}));  // ignored: the torso half
+  AnimRecipe r;
+  r.name = "n5_cast";
+  r.base = "castout";
+  r.speed = 2.0f;
+  r.legs = "1hreadyr";
+  const AnimClip out = DeriveAnimClip(r, base, nullptr, nullptr, &legs);
+  CHECK_EQ(Milli(out.length), 500);
+  CHECK_EQ(out.nodes.size(), 6u);
+  if (out.nodes.size() != 6u) return;
+  const auto first = [](const AnimKeys& k) { return k.values.front(); };
+  const auto last = [](const AnimKeys& k) { return k.values.back(); };
+  // The legs half: the legs animation's, looping - its 0.1 s at the clip's 0.5 s.
+  CHECK_EQ(Milli(first(out.nodes[1].position)[2]), 900);
+  CHECK_EQ(Milli(last(out.nodes[1].position)[2]), 920);
+  CHECK_EQ(Milli(out.nodes[1].position.times.back()), 500);
+  CHECK_EQ(Milli(first(out.nodes[2].orientation)[0]), Milli(TurnX(-10.0f)[0]));
+  CHECK_EQ(Milli(last(out.nodes[2].orientation)[0]), Milli(TurnX(-15.0f)[0]));
+  CHECK_EQ(Milli(last(out.nodes[3].orientation)[0]), Milli(TurnX(5.0f)[0]));
+  // The torso half and the root's turn: the base's, twice as fast - its end at 0.5 s.
+  CHECK_EQ(Milli(last(out.nodes[1].orientation)[2]), Milli(turn_z(30.0f)[2]));
+  CHECK_EQ(Milli(last(out.nodes[4].orientation)[2]), Milli(turn_z(90.0f)[2]));
+  CHECK_EQ(Milli(last(out.nodes[5].orientation)[0]), Milli(TurnX(60.0f)[0]));
+  // A leg bone the legs animation doesn't key keeps the base's; no legs animation, all the base's.
+  AnimClip partial = legs;
+  partial.nodes.erase(partial.nodes.begin() + 3);
+  const AnimClip kept = DeriveAnimClip(r, base, nullptr, nullptr, &partial);
+  CHECK_EQ(kept.nodes.size() == 6u && Milli(last(kept.nodes[3].orientation)[0]) == Milli(TurnX(40.0f)[0]), true);
+  const AnimClip plain = DeriveAnimClip(r, base, nullptr, nullptr, nullptr);
+  CHECK_EQ(plain.nodes.size() == 6u && Milli(last(plain.nodes[2].orientation)[0]) == Milli(TurnX(20.0f)[0]), true);
+}
+
 TEST(AnimRecipeReadsACompiledLibrary) {
   const std::string b = CompiledLibrary("a_test", "NULL", "idle");
   AnimLibrary library;
