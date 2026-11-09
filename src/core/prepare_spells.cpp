@@ -51,6 +51,8 @@
 #include "rules/spell_lists.h"
 #include "rules/spell_slots.h"
 
+int ClericExtraCantrips(void* stats, int class_row);  // rules_cleric.cpp (#42: Divine Order's Thaumaturge)
+
 namespace {
 
 constexpr const char* kWindow = "n5prep";
@@ -301,6 +303,7 @@ void LoadBase(void* creature, int slot, std::vector<int>* cantrips, std::vector<
 
 struct Session {
   CasterSlot caster;
+  int extra_cantrips = 0;  // #42: a Thaumaturge's
   int tab = kTabPrepared;
   std::vector<int> cantrips, prepared, book;           // being edited
   std::vector<int> base_cantrips, base_prepared;       // what may go: the lists when the change opened
@@ -322,7 +325,9 @@ struct PendingOpen {
 std::map<uint32_t, PendingOpen> g_open_pending;
 constexpr const char* kSeenVar = "nwn5e_prepare_seen";  // on a creature: its lists looked at (saved with it)
 
-int CantripLimit(const Session& s) { return rules::CantripsKnown2024(s.caster.row, s.caster.level); }
+int CantripLimit(const Session& s) {
+  return rules::CantripsKnown2024(s.caster.row, s.caster.level) + s.extra_cantrips;
+}
 int PreparedLimit(const Session& s) { return rules::PreparedSpells2024(s.caster.row, s.caster.level); }
 int BookLimit(const Session& s) {
   return s.caster.row == kNwnClassWizard ? std::max(rules::SpellbookSpells2024(s.caster.level),
@@ -547,6 +552,7 @@ void Open(uint32_t player, int slot, bool resting) {
   }
   Session s;
   s.caster = *caster;
+  s.extra_cantrips = ClericExtraCantrips(stats, s.caster.row);
   s.resting = resting;
   s.cantrips = Known(stats, s.caster.slot, 0);
   s.prepared = KnownFrom(stats, s.caster.slot, 1, 9);
@@ -793,7 +799,8 @@ bool NeedsPreparing(void* stats) {
     const int cantrips = static_cast<int>(Known(stats, c.slot, 0).size());
     const int prepared = static_cast<int>(KnownFrom(stats, c.slot, 1, 9).size());
     if (prepared == 0 && rules::PreparedSpells2024(c.row, c.level) > 0) return true;
-    if (cantrips > rules::CantripsKnown2024(c.row, c.level) || prepared > rules::PreparedSpells2024(c.row, c.level)) {
+    if (cantrips > rules::CantripsKnown2024(c.row, c.level) + ClericExtraCantrips(stats, c.row) ||
+        prepared > rules::PreparedSpells2024(c.row, c.level)) {
       return true;
     }
   }
@@ -805,7 +812,7 @@ bool HasEmptyPlaces(void* creature, void* stats) {
   for (const CasterSlot& c : CasterSlots(stats)) {
     const int cantrips = static_cast<int>(Known(stats, c.slot, 0).size());
     const int prepared = static_cast<int>(KnownFrom(stats, c.slot, 1, 9).size());
-    if (cantrips != rules::CantripsKnown2024(c.row, c.level)) return true;
+    if (cantrips != rules::CantripsKnown2024(c.row, c.level) + ClericExtraCantrips(stats, c.row)) return true;
     if (prepared != rules::PreparedSpells2024(c.row, c.level)) return true;
     if (c.row == kNwnClassWizard &&
         static_cast<int>(Book(creature).size()) < rules::SpellbookSpells2024(c.level)) {

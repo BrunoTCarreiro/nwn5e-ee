@@ -207,7 +207,8 @@ const std::vector<ClassFeature>& Cleric() {
   static const std::vector<ClassFeature> kFeatures = {
       {1, "Spellcasting", false, "built: Wisdom; cantrips, prepared spells and slots (#36); the 2024 list's spells "
                                  "level by level (#39 Part 2)"},
-      {1, "Divine Order", false, "next (Part 1 build 1b): Protector or Thaumaturge"},
+      {1, "Divine Order", false, "built: the Cleric 1 pick (or !order) - Protector (Martial weapons, Heavy armour) "
+                                 "or Thaumaturge (a cantrip more, Wisdom on Arcana and Religion checks)"},
       {2, "Channel Divinity", false, "built: the Turn Undead button's menu - Divine Spark (heal, Radiant or "
                                      "Necrotic), Turn Undead; 2 uses (3 at 6, 4 at 18), one back on a Short Rest"},
       {3, "Life Domain", false, "built: granted at 3"},

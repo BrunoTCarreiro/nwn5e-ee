@@ -34,8 +34,14 @@ std::vector<int> PreserveLifeShares(const std::vector<int>& rooms, int pool);
 // Cure Wounds (9) - SRD names.
 std::vector<const char*> LifeDomainSpells(int cleric_level);
 
-// Divine Order: Thaumaturge - its Arcana and Religion checks get the Wisdom modifier, at least +1.
+// Divine Order (Cleric 1; Q2 A: feats in the Cleric's bonus list, a bonus pick at Cleric 1 - data/rows/feat.cleric.txt):
+// Protector - Martial weapons and Heavy armour; Thaumaturge - one more Cleric cantrip, and the Wisdom modifier (at
+// least +1) on Arcana and Religion checks.
+constexpr int kFeatDivineOrderProtector = 1551;
+constexpr int kFeatDivineOrderThaumaturge = 1552;
+bool IsDivineOrderFeat(int feat);
 int ThaumaturgeCheckBonus(int wisdom_modifier);
+int ThaumaturgeExtraCantrips(bool thaumaturge);
 
 // Blessed Strikes (7): Divine Strike - once on each of your turns, a weapon hit deals 1d8 Necrotic or Radiant (2d8
 // from 14, Improved Blessed Strikes); 0 before 7. Potent Spellcasting at 14: Temporary Hit Points twice the Wisdom

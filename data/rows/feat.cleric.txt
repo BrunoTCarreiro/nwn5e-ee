@@ -1,0 +1,7 @@
+# feat.2da - #42 Cleric Part 1 build 1b (core/rules_cleric.cpp; owner, 2026-11-09: "go for 1b"): Divine Order's
+# two roles, offered only in the Cleric's bonus list (cls_feat_cler.if_classfeat2024.txt, List 2) at its own pick at
+# Cleric 1 (rules::BonusPicks2024's order). Protector: Martial weapons and Heavy armour (feats 45 and 2 answered
+# yes); Thaumaturge: a cantrip more and Wisdom on Arcana and Religion checks.
+LABEL FEAT DESCRIPTION ICON GAINMULTIPLE EFFECTSSTACK ALLCLASSESCANUSE CRValue Constant TOOLSCATEGORIES PreReqEpic ReqAction
+1551 NWN5E_DO_PROTECTOR 16000701 16000702 ife_armor_h 0 0 0 1 FEAT_NWN5E_DO_PROTECTOR 6 0 1
+1552 NWN5E_DO_THAUMATURGE 16000703 16000704 ife_foc_spel 0 0 0 1 FEAT_NWN5E_DO_THAUMATURGE 6 0 1

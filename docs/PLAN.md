@@ -1181,6 +1181,18 @@ monster AC by CR.
     script (the give-back right); Divine Spark Radiant 6 failed / Necrotic 2 saved (halved) / a heal of 8; Turn Undead
     DC 14, Sear Undead 19, the skeleton turned and freed by damage; Preserve Life 6 (to half the maximum), and 0 given
     back.
+  - *Built 0.98.3 (build 1b, Divine Order; owner, 2026-11-09: "go for 1b"):* feats 1551 Protector and 1552
+    Thaumaturge (feat.cleric.txt; in the Cleric's bonus list, cls_feat_cler.if_classfeat2024.txt List 2); rules:
+    BonusFeatGroup::kDivineOrder and BonusPicks::order (a pick of its own at Cleric 1, class_features faithful - not
+    the general pick, not taken by it), IsChoosableFeat2024; test ClericDivineOrderPick (7 of 7 mutations caught).
+    The level-up's count and its title ("Divine Order: choose 1"; rules_feats.cpp); the Cleric packages' default
+    Protector (packft_rows.py). rules_cleric.cpp: Protector answers feats 45 (Martial) and 2 (Heavy armour); NWN's
+    Heavy armour at Cleric 1 no longer granted, and answering no for a Cleric without Protector (no Fighter or
+    Paladin levels); a character Cleric without an order gets Protector at its first update in an area (the Heavy
+    armour it had); `!order [protector | thaumaturge]` switches once (record nwn5e_order_switched). Thaumaturge: the
+    Wisdom modifier (at least +1) on Arcana and Religion (rules_skills.cpp's effects) and a cantrip more in the
+    Prepare spells window (prepare_spells.cpp - its limit and the empty-place checks; the engine's per-class cap
+    stays: the client's level-up page offers 3 at Cleric 1, the window the 4th).
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's

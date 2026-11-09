@@ -1,5 +1,10 @@
 # cls_feat_cler.2da - #42 Cleric Part 1 build 1a (core/rules_cleric.cpp; PLAN.md "Phase 4", the 2024 Cleric): with
 # class_features faithful, Turn Undead (Channel Divinity) comes at Cleric 2, as SRD 5.2.1's Channel Divinity - a
-# Cleric 1 that already has it can't use it until then (the HasFeat filter).
+# Cleric 1 that already has it can't use it until then (the HasFeat filter). Build 1b: NWN's Heavy armour at Cleric 1
+# is Divine Order: Protector's (rules_cleric.cpp answers feat 2 for a Protector, and no for a Cleric without it -
+# no Fighter or Paladin levels); the two Divine Order feats in the bonus list (List 2: the bonus pick only).
 FeatLabel FeatIndex List GrantedOnLevel OnMenu
 14 TurnUndead 294 3 2 1
+12 ArmProfHvy 2 3 -1 0
++ NWN5E_DO_PROTECTOR 1551 2 -1 0
++ NWN5E_DO_THAUMATURGE 1552 2 -1 0

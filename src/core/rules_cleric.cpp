@@ -14,7 +14,14 @@
 //   to the Cleric within 30 feet (itself too), the most room first, none past half its maximum.
 // The DC is the Cleric's spell save DC: 8 + proficiency bonus + Wisdom. A use the menu can't carry out (no target,
 // no one Bloodied, Preserve Life before 3) is given back. Its uses show on the resource panel.
+// Build 1b, Divine Order (Q2 A; owner, 2026-11-09: "go for 1b"): its two feats (feat.cleric.txt) in the Cleric's
+// own pick at Cleric 1 (rules::BonusPicks2024). Protector: Martial weapons and Heavy armour - feats 45 and 2 answer
+// yes; NWN's Heavy armour at Cleric 1 is no longer granted, and answers no for a Cleric without Protector (no
+// Fighter or Paladin levels). Thaumaturge: the Wisdom modifier (at least +1) on Arcana and Religion checks
+// (rules_skills.cpp) and a cantrip more in the Prepare spells window (prepare_spells.cpp). A Cleric without either
+// (one from before) gets Protector - the Heavy armour it had - and `!order` switches the order once.
 
+#include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,6 +29,7 @@
 #include <algorithm>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "chat.h"
@@ -39,6 +47,7 @@
 #include "game_clock.h"
 #include "hooks.h"
 #include "log.h"
+#include "records.h"
 #include "resource_panel.h"
 #include "rest.h"
 #include "saves.h"
@@ -47,6 +56,7 @@
 #include "rules/cleric.h"
 #include "rules/hud_layout.h"
 #include "rules/nwn_conversion.h"
+#include "rules/skills.h"
 
 namespace {
 
@@ -54,6 +64,10 @@ using SaveRollFn = uint8_t (*)(void* creature, uint8_t save, uint16_t dc, uint8_
                                uint16_t feat, int from_combat);
 
 constexpr int kFeatTurnUndead = 294;
+constexpr int kFeatHeavyArmour = 2;      // NWN's Armor Proficiency (Heavy)
+constexpr int kFeatMartialWeapons = 45;  // NWN's Weapon Proficiency (Martial)
+constexpr int kNwnClassCleric = 2;       // classes.2da
+constexpr const char* kVarOrderSwitched = "nwn5e_order_switched";  // !order used (a record)
 constexpr const char* kVarChannelSpent = "nwn5e_cd_spent";  // the pool's spent uses (a record)
 constexpr const char* kTurnedTag = "nwn5e_turned";
 constexpr float kMetresPerFoot = 0.3048f;
@@ -70,6 +84,7 @@ struct Turned {
 };
 
 std::unordered_map<uint32_t, Turned> g_turned;  // by the undead; the engine's thread only
+std::unordered_set<uint32_t> g_order_checked;   // creatures looked at for a Divine Order
 int g_logged = 0;
 
 bool Faithful() { return g_config.class_features == rules::RuleVariant::kFaithful; }
@@ -434,7 +449,103 @@ void PreserveLife(uint32_t self) {
                    line + ".");
 }
 
+// --- Divine Order (build 1b) ----------------------------------------------------------------------------------
+
+bool HasOrder(void* stats, int feat) { return stats && engine::HasFeat(stats, feat); }
+
+// Protector: Martial weapons and Heavy armour. A Cleric's Heavy armour is a Protector's only (NWN gave it at 1) -
+// unless a Fighter's or a Paladin's levels give it.
+bool OrderFeatFilter(void* stats, int feat, uintptr_t /*caller*/, int* answer) {
+  if ((feat != kFeatHeavyArmour && feat != kFeatMartialWeapons) || !stats || !Faithful()) return false;
+  if (ClassLevel2024(stats, rules::CharacterClass::kCleric) <= 0 || !IsCharacter(stats)) return false;
+  if (HasOrder(stats, rules::kFeatDivineOrderProtector)) {
+    *answer = 1;
+    return true;
+  }
+  if (feat == kFeatHeavyArmour && ClassLevel2024(stats, rules::CharacterClass::kFighter) == 0 &&
+      ClassLevel2024(stats, rules::CharacterClass::kPaladin) == 0) {
+    *answer = 0;
+    return true;
+  }
+  return false;
+}
+
+// A Cleric from before Divine Order (or one levelled without the pick): Protector, which keeps the Heavy armour NWN
+// gave it (Q2 A) - once a creature, when it's in an area.
+void OrderUpdate(void* creature) {
+  if (!creature) return;
+  const uint32_t id = IdOf(creature);
+  void* stats = StatsOf(creature);
+  if (!stats || !engine::AreaOf(creature)) return;
+  if (ClassLevel2024(stats, rules::CharacterClass::kCleric) <= 0) return;  // not a Cleric (yet: !test, a level-up)
+  if (g_order_checked.count(id)) return;
+  g_order_checked.insert(id);
+  if (!IsCharacter(stats)) return;
+  if (HasOrder(stats, rules::kFeatDivineOrderProtector) || HasOrder(stats, rules::kFeatDivineOrderThaumaturge)) return;
+  if (!engine::AddFeat(stats, rules::kFeatDivineOrderProtector)) {
+    Log("cleric: 0x%08X has no Divine Order - Protector didn't take", id);
+    return;
+  }
+  Tell(creature, "Divine Order: Protector - Martial weapons and Heavy armour (a Cleric from before the 2024 "
+                 "Divine Order). !order thaumaturge switches it once: a cantrip more and Wisdom on Arcana and "
+                 "Religion checks.");
+  Log("cleric: 0x%08X given Divine Order: Protector (it had none)", id);
+}
+
+// !order [protector | thaumaturge]: the Divine Order, and switching it once.
+std::vector<std::string> OrderCommand(void* creature, const std::string& args) {
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  if (!stats || !Faithful() || ClassLevel2024(stats, rules::CharacterClass::kCleric) <= 0) {
+    return {"nwn5e: !order - a Cleric's Divine Order (class_features faithful)."};
+  }
+  EnsureRecords(creature);
+  const bool protector = HasOrder(stats, rules::kFeatDivineOrderProtector);
+  const bool thaumaturge = HasOrder(stats, rules::kFeatDivineOrderThaumaturge);
+  const std::string now = protector ? "Protector" : thaumaturge ? "Thaumaturge" : "none yet";
+  const bool switched = engine::GetLocalInt(creature, kVarOrderSwitched) != 0;
+  std::string lower = args;
+  for (char& c : lower) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+  const bool want_protector = lower.find("prot") != std::string::npos;
+  const bool want_thaumaturge = lower.find("thaum") != std::string::npos;
+  if (!want_protector && !want_thaumaturge) {
+    return {"nwn5e: Divine Order: " + now + ". Protector: Martial weapons and Heavy armour; Thaumaturge: a cantrip "
+            "more and Wisdom (at least +1) on Arcana and Religion checks. " +
+            (switched ? std::string("Switched once already.") : std::string("!order protector or !order thaumaturge "
+                                                                            "switches it, once."))};
+  }
+  if ((want_protector && protector) || (want_thaumaturge && thaumaturge)) {
+    return {"nwn5e: Divine Order is " + now + " already."};
+  }
+  if (switched) return {"nwn5e: Divine Order switches once - it stays " + now + "."};
+  const int from = protector ? rules::kFeatDivineOrderProtector : rules::kFeatDivineOrderThaumaturge;
+  const int to = want_protector ? rules::kFeatDivineOrderProtector : rules::kFeatDivineOrderThaumaturge;
+  if (protector || thaumaturge) engine::RemoveFeat(stats, from);
+  if (!engine::AddFeat(stats, to)) return {"nwn5e: !order - the feat didn't take; nothing changed."};
+  SetRecord(creature, kVarOrderSwitched, 1);
+  Log("cleric: 0x%08X Divine Order %s -> %s (!order)", IdOf(creature), now.c_str(),
+      want_protector ? "Protector" : "Thaumaturge");
+  return {std::string("nwn5e: Divine Order: ") +
+          (want_protector ? "Protector - Martial weapons and Heavy armour. A cantrip past your count goes in the "
+                            "Prepare spells window."
+                          : "Thaumaturge - Wisdom on Arcana and Religion checks; pick your extra cantrip in the "
+                            "Prepare spells window (the class abilities radial). Heavy armour goes.")};
+}
+
 }  // namespace
+
+// rules_skills.cpp: Thaumaturge's Wisdom modifier (at least +1) on Arcana and Religion checks.
+int ThaumaturgeSkillBonus(void* stats, rules::Skill2024 skill) {
+  if (!Faithful() || !stats || (skill != rules::Skill2024::kArcana && skill != rules::Skill2024::kReligion)) return 0;
+  if (ClassLevel2024(stats, rules::CharacterClass::kCleric) <= 0) return 0;
+  if (!HasOrder(stats, rules::kFeatDivineOrderThaumaturge)) return 0;
+  return rules::ThaumaturgeCheckBonus(engine::AbilityModifier(stats, kAbilityWisdom));
+}
+
+// prepare_spells.cpp: a Thaumaturge's cantrip more on its Cleric list.
+int ClericExtraCantrips(void* stats, int class_row) {
+  if (!Faithful() || !stats || class_row != kNwnClassCleric) return 0;
+  return rules::ThaumaturgeExtraCantrips(HasOrder(stats, rules::kFeatDivineOrderThaumaturge));
+}
 
 void InstallClericRules() {
   if (!Faithful()) return;
@@ -449,6 +560,12 @@ void InstallClericRules() {
   const bool turned = AddDamageListener(&TurnedHurt) && AddCreatureUpdateListener(&TurnedUpdate);
   AddShortRestListener(&ChannelShortRest);
   AddHudPool(&ChannelHudPool);
+  RegisterRecords({kVarOrderSwitched});
+  const bool order = AddFeatFilter(&OrderFeatFilter) && AddCreatureUpdateListener(&OrderUpdate);
+  AddChatCommand("!order", &OrderCommand);
+  Log("cleric: build 1b - Divine Order (the Cleric 1 pick: Protector - Martial weapons, Heavy armour - or Thaumaturge "
+      "- a cantrip more, Wisdom on Arcana and Religion; !order; Protector for a Cleric without one) (#42)%s",
+      order ? "" : " - SOME hooks missing");
   Log("cleric: build 1a - Channel Divinity (Turn Undead's menu: Divine Spark, Turn Undead with Sear Undead, Preserve "
       "Life; 2024 uses, a Short Rest's use back) (#42)%s%s%s%s",
       scripts ? "" : " - SOME scripts not hooked", uses ? "" : " - NWN's uses", level ? "" : " - from Cleric 1",

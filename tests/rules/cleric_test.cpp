@@ -1,6 +1,7 @@
 #include "check.h"
 #include "rules/class_features.h"
 #include "rules/cleric.h"
+#include "rules/feats2024.h"
 
 #include <string>
 #include <vector>
@@ -80,6 +81,30 @@ TEST(ClericFeatureList) {
   CHECK_EQ(domain, true);
   CHECK_EQ(std::string(Subclass2024(CharacterClass::kCleric)) == "Life Domain", true);
   CHECK_EQ(ClassFeatures2024(CharacterClass::kCleric, 20).size(), 19u);
+}
+
+// Divine Order (Q2 A): a bonus pick of its own at Cleric 1, its two feats offered there and nowhere else.
+TEST(ClericDivineOrderPick) {
+  CHECK_EQ(BonusPicks2024(CharacterClass::kCleric, 1, true, false).order, 1);
+  CHECK_EQ(BonusPicks2024(CharacterClass::kCleric, 1, true, false).Total(), 1);
+  CHECK_EQ(BonusPicks2024(CharacterClass::kCleric, 2, true, false).order, 0);
+  CHECK_EQ(BonusPicks2024(CharacterClass::kCleric, 1, false, false).order, 0);  // class_features NWN's
+  CHECK_EQ(BonusPicks2024(CharacterClass::kFighter, 1, true, false).order, 0);
+  CHECK_EQ(BonusFeatGroupOf(kFeatDivineOrderProtector) == BonusFeatGroup::kDivineOrder, true);
+  CHECK_EQ(BonusFeatGroupOf(kFeatDivineOrderThaumaturge) == BonusFeatGroup::kDivineOrder, true);
+  CHECK_EQ(IsChoosableFeat2024(kFeatDivineOrderThaumaturge, false), true);
+  CHECK_EQ(IsDivineOrderFeat(1550), false);
+  BonusPicks allowed = BonusPicks2024(CharacterClass::kCleric, 1, true, false);
+  BonusPicks taken;
+  taken.order = 1;
+  CHECK_EQ(FitsBonusPicks(taken, allowed), true);
+  taken.order = 2;
+  CHECK_EQ(FitsBonusPicks(taken, allowed), false);  // one order
+  BonusPicks asi = BonusPicks2024(CharacterClass::kCleric, 4, true, false);
+  taken.order = 1;
+  CHECK_EQ(FitsBonusPicks(taken, asi), false);  // not in the general pick
+  CHECK_EQ(ThaumaturgeExtraCantrips(true), 1);
+  CHECK_EQ(ThaumaturgeExtraCantrips(false), 0);
 }
 
 TEST(ClericOrderAndStrikes) {

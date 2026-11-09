@@ -53,7 +53,13 @@ std::vector<const char*> LifeDomainSpells(int cleric_level) {
   return spells;
 }
 
+bool IsDivineOrderFeat(int feat) {
+  return feat == kFeatDivineOrderProtector || feat == kFeatDivineOrderThaumaturge;
+}
+
 int ThaumaturgeCheckBonus(int wisdom_modifier) { return std::max(1, wisdom_modifier); }
+
+int ThaumaturgeExtraCantrips(bool thaumaturge) { return thaumaturge ? 1 : 0; }
 
 int DivineStrikeDice(int cleric_level) {
   if (cleric_level >= 14) return 2;
