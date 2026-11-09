@@ -53,7 +53,8 @@
 //   rows - "a Huge creature wasn't available"): a creature from its blueprint 5 m
 //   in front of the speaker, facing it, hostile - or with "ally" its henchman
 //   (one that fights the others). E.g. nw_gntfrost (Frost Giant, Huge),
-//   nw_gnthill (Hill Giant, Large), nw_orcb (Orc, Medium).
+//   nw_gnthill (Hill Giant, Large), nw_orcb (Orc, Medium). 0.97.4 (#152, owner: "DR-1 the deer came closer to
+//   inspect the sound"): "neutral" - in the commoners' faction, not hostile (a deer that flees a sound).
 // - 0.50.3 (owner: "can't create a situation where EL1 and SL1 are testable"):
 //   "!prone [seconds]" knocks the speaker down (6 s; at most 60) - attacks
 //   against a prone creature (Elusive); "!save <ability> <dc>" rolls that save
@@ -175,7 +176,8 @@ std::vector<std::string> GiveCommand(void* creature, const std::string& args) {
   return {};
 }
 
-// !spawn <blueprint> [ally] [dr] - dr: damage reduction 10/+5 (Monk part 1: Empowered
+// !spawn <blueprint> [ally | neutral] [dr] - neutral: the commoners' faction, not hostile (0.97.4); dr: damage
+// reduction 10/+5 (Monk part 1: Empowered
 // Strikes gets through it, a Monk 5's fists don't).
 std::vector<std::string> SpawnCommand(void* creature, const std::string& args) {
   std::string blueprint = args, rest;
@@ -186,14 +188,17 @@ std::vector<std::string> SpawnCommand(void* creature, const std::string& args) {
   }
   blueprint = Lower(blueprint);
   if (!IsResRef(blueprint)) {
-    return {"nwn5e: !spawn <creature blueprint> [ally] [dr] - e.g. !spawn nw_gntfrost (Frost Giant, Huge), "
-            "nw_gnthill (Hill Giant, Large), nw_orcb (Orc); ally: as your henchman; dr: damage reduction 10/+5."};
+    return {"nwn5e: !spawn <creature blueprint> [ally | neutral] [dr] - e.g. !spawn nw_gntfrost (Frost Giant, Huge), "
+            "nw_gnthill (Hill Giant, Large), nw_orcb (Orc); ally: as your henchman; neutral: not hostile (the "
+            "commoners' faction); dr: damage reduction 10/+5."};
   }
   const bool ally = Lower(rest).find("ally") != std::string::npos;
+  const bool neutral = !ally && Lower(rest).find("neutral") != std::string::npos;
   const bool reduction = Lower(rest).find("dr") != std::string::npos;
   const uint32_t id = ObjectIdOf(StatsOf(creature));
-  std::string join = ally ? "ChangeFaction(o, OBJECT_SELF); AddHenchman(OBJECT_SELF, o); "
-                          : "ChangeToStandardFaction(o, STANDARD_FACTION_HOSTILE); ";
+  std::string join = ally      ? "ChangeFaction(o, OBJECT_SELF); AddHenchman(OBJECT_SELF, o); "
+                     : neutral ? "ChangeToStandardFaction(o, STANDARD_FACTION_COMMONER); "
+                               : "ChangeToStandardFaction(o, STANDARD_FACTION_HOSTILE); ";
   if (reduction) {
     join += "ApplyEffectToObject(DURATION_TYPE_PERMANENT, SupernaturalEffect(EffectDamageReduction(10, "
             "DAMAGE_POWER_PLUS_FIVE)), o); ";
@@ -204,10 +209,12 @@ std::vector<std::string> SpawnCommand(void* creature, const std::string& args) {
       "object o = CreateObject(OBJECT_TYPE_CREATURE, \"" + blueprint + "\", Location(GetArea(OBJECT_SELF), p, f + 180.0)); "
       "if (GetIsObjectValid(o)) { SetLocalString(OBJECT_SELF, \"nwn5e_spawned\", ObjectToString(o)); " + join +
       "SendMessageToPC(OBJECT_SELF, \"nwn5e: spawned \" + GetName(o) + \"" +
-      (ally ? " (your henchman)" : " (hostile)") + (reduction ? ", damage reduction 10/+5" : "") +
+      (ally ? " (your henchman)" : neutral ? " (not hostile - the commoners' faction)" : " (hostile)") +
+      (reduction ? ", damage reduction 10/+5" : "") +
       ".\"); } else SendMessageToPC(OBJECT_SELF, \"nwn5e: no creature blueprint \\\"" + blueprint + "\\\".\");";
   RunScriptChunk(code.c_str(), id);
-  Log("spawn: 0x%08X asked for %s%s%s", id, blueprint.c_str(), ally ? " (ally)" : "", reduction ? " (DR 10/+5)" : "");
+  Log("spawn: 0x%08X asked for %s%s%s", id, blueprint.c_str(), ally ? " (ally)" : neutral ? " (neutral)" : "",
+      reduction ? " (DR 10/+5)" : "");
   // 0.72.1: the spawned creature gets the test hit point floor at once ([debug] creature_min_hp) - a grenade's patch
   // makes neither an attack roll nor a save; 0.73.1: an ally too.
   const std::string spawned = engine::GetLocalString(creature, "nwn5e_spawned");
@@ -1006,6 +1013,6 @@ void InstallTestCommands() {
   AddChatCommand("!reflex", &ReflexCommand);
   AddChatCommand("!level", &LevelCommand);
   Log("config: [debug] test_commands=1 - !test [profile] (data\\tests), !give <blueprint>, !feat add / remove <feat>, "
-      "!export, !spawn <blueprint> [ally], !prone [s], !save <ability> <dc>, !skill <skill> <dc>, !reflex <dc> <damage>, "
+      "!export, !spawn <blueprint> [ally | neutral], !prone [s], !save <ability> <dc>, !skill <skill> <dc>, !reflex <dc> <damage>, "
       "!level <n> [class], !time [hours], !fear [charm] [s]");
 }

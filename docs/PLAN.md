@@ -1086,6 +1086,11 @@ monster AC by CR.
     image's reactions (a Reactor with no image: coming back or getting there it finds nothing - "Orc finds nothing
     where the sound was and searches for you"). Without heard_investigates (or faithful perception) only the flight.
     The descriptions of Minor Illusion, Druidcraft and Thaumaturgy say so.
+    *Tested 0.97.3 (owner, 2026-11-09): "DR-1 the deer came closer to inspect the sound"* - the log: "Deer comes to
+    look - racial type 8, Intelligence 3 (not sentient), hostile, size 3 vs 3". The rule held (a hostile animal the
+    sound's size comes to look); the test didn't: !spawn makes every creature hostile, so no test could have a deer
+    that isn't. 0.97.4: "!spawn <blueprint> neutral" puts it in the commoners' faction; DR-1, MI-10, MI-11, MI-15,
+    MI-23 and MI-28 set up with it (and away from hostile creatures, which would attack a commoner).
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's
