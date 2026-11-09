@@ -977,6 +977,12 @@ monster AC by CR.
     point it gave - moves the cast in front of the wall and marks the wall. Benches and banners: the game's pick
     passes through them to the floor under or behind, and since 0.96.5 the cursor's own pick sees them (a wall's
     mark on them).
+    *Tested 0.96.7 (owner, 2026-11-09): "if the mark is targeted on a map edge wall or uninteractible object it get's
+    placed horizontally on the floor at that point"* - the click was taken, but the adjuster told the floor by the
+    point sent being near the cursor's, and that point is the cursor's own there (given by the pick, or the game's
+    pick stopping on a bench). 0.96.8: the cursor's surface tells (rules::ClassifyMarkClick) - steep, a wall's mark;
+    flat but more than 0.25 m over the walkmesh under it (CNWSArea::ComputeHeight) or with none under it, a top's
+    (flat there); else the floor's.
 - **A short cast for cantrips (#150).** *Decided (owner, 2026-11-09: "go with your recommendation for #150"),*
   after "most casting animations are very elaborate, especially for cantrips" (relayed from #149): every cantrip -
   the damage ones, the utility ones, Light, NWN's own - casts with no conjure, straight into #149's n5_cantrip

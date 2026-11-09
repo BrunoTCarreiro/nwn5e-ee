@@ -45,8 +45,14 @@
 // or an object (2) is taken - nothing (0) swallows the click. That pick tests the walkmesh and the plain walls, so
 // a wall with nothing behind gives 0. For Magic Mark (the target's commit the cast's, its row a Magic Mark) the pick
 // is filtered: on 0 the cursor's point with the visible meshes (PickAt) is given as the ground - the cursor shows the
-// spell's, the click is taken and the cast sent with that point, and the order's adjuster (knowing the point it
-// gave) moves it in front of the wall and marks the wall.
+// spell's, the click is taken and the cast sent with that point, and the order's adjuster moves it in front of
+// the wall and marks the wall.
+//
+// 0.96.8 (owner, 2026-11-09: "if the mark is targeted on a map edge wall or uninteractible object it get's placed
+// horizontally on the floor at that point"): the adjuster told the floor by the point the game sent being near the
+// cursor's - and the point sent is the cursor's own on such a wall (given above) or on a bench (the game's pick
+// stops on it). Now the cursor's surface tells (rules::ClassifyMarkClick): steep, a wall's mark; flat but over the
+// walkmesh under it (CNWSArea::ComputeHeight), a top's (flat there); else the floor's.
 
 #include "magic_mark_surface.h"
 
@@ -171,8 +177,7 @@ constexpr int kActionTargetClickSlot = 0x90 / 8;  // HandleLMouseDown
 constexpr size_t kGuiManCapture = 0x58;            // CGuiMan: the GUI object holding the mouse
 constexpr size_t kTargetCommit = 0xe8;             // the spell target's commit
 constexpr size_t kTargetSpell = 0x100;             // its order: the spells.2da row in the low 16 bits
-constexpr int64_t kGivenFreshMs = 15000;           // the point given waits this long for its order
-constexpr float kGivenSamePoint = 0.05f;           // metres: the order's point is the one given
+constexpr int kTargetLogCap = 6;                   // the spell cursor's pick: asked every frame while aimed
 
 using HitCheckFn = void* (*)(void* gob, float* start, float* end, float* hit, void* info);
 using HitInfoMakeFn = void* (*)(void* info, int kind, int64_t mask, int boxes);
@@ -191,6 +196,10 @@ using CameraPickFn = int (*)(void* camera, int x, int y, float* point, void* inf
 using IsMultiPlayerFn = int (*)(void* server);
 // The client's pick for the spell cursor: 0 nothing, 1 the floor (*position), 2 an object (*object).
 using ClientPickFn = int (*)(void* internal, void** object, float* position, int* flag, int with_player);
+struct GameVector {
+  float x, y, z;
+};
+using ComputeHeightFn = float (*)(void* area, GameVector at);  // CNWSArea::ComputeHeight; -6 off the tile grid
 
 struct Api {
   HitInfoMakeFn make_info = nullptr;
@@ -225,12 +234,8 @@ struct TargetApi {
   uintptr_t ability_commit = 0;
 };
 TargetApi g_target_api;
-struct GivenPoint {
-  Vec3f point;
-  int64_t when_ms = 0;
-};
-std::mutex g_given_mutex;
-std::optional<GivenPoint> g_given;  // the cursor's point the spell cursor's pick gave for a click
+std::atomic<int> g_target_logs{0};
+ComputeHeightFn g_compute_height = nullptr;
 
 bool ClickLogSlot() { return g_click_logs.fetch_add(1) < kClickLogCap; }
 
@@ -574,11 +579,7 @@ int TargetPick(void* internal, void** object, float* position, int* flag, int wi
     position[0] = point->x;
     position[1] = point->y;
     position[2] = point->z;
-    {
-      std::lock_guard<std::mutex> lock(g_given_mutex);
-      g_given = GivenPoint{*point, NowMs()};
-    }
-    if (ClickLogSlot()) {
+    if (g_target_logs.fetch_add(1) < kTargetLogCap) {
       Log("magic mark clicks: the spell cursor had nothing to aim at (a wall with nothing behind it?) - the cursor's "
           "point %.2f %.2f %.2f given as the ground",
           point->x, point->y, point->z);
@@ -587,15 +588,24 @@ int TargetPick(void* internal, void** object, float* position, int* flag, int wi
   return 1;
 }
 
-// The order's point is the one the spell cursor's pick gave (taken once).
-bool TookGivenPoint(const Vec3f& sent) {
-  std::lock_guard<std::mutex> lock(g_given_mutex);
-  if (!g_given) return false;
-  const GivenPoint given = *g_given;
-  const bool same = NowMs() - given.when_ms <= kGivenFreshMs &&
-                    rules::Length(rules::Sub(given.point, sent)) <= kGivenSamePoint;
-  if (same) g_given.reset();
-  return same;
+// The walkmesh's height under `point` in the creature's area; none off the tile grid (or not known).
+std::optional<float> GroundUnder(void* creature, const Vec3f& point) {
+  void* area = engine::AreaOf(creature);
+  if (!area || !g_compute_height) return std::nullopt;
+  const float height = g_compute_height(area, GameVector{point.x, point.y, point.z});
+  if (height <= ee::kAreaOffGridHeight + 0.01f) return std::nullopt;
+  return height;
+}
+
+const char* KindName(rules::MarkClickKind kind) {
+  switch (kind) {
+    case rules::MarkClickKind::kWall:
+      return "a wall's";
+    case rules::MarkClickKind::kTop:
+      return "a top's";
+    default:
+      return "the floor's";
+  }
 }
 
 // The cast order's adjuster (action_guard.h): a player's own Magic Mark click in single player - the point under the
@@ -628,27 +638,29 @@ void NoteMarkOrder(void* creature, SpellOrder* order, bool from_input) {
                    Field<float>(creature, ee::kObjectPositionZ)};
   const Vec3f sent{order->x, order->y, order->z};
   const bool at_point = order->target == ee::kObjectInvalid;
-  const bool given = at_point && TookGivenPoint(sent);  // 0.96.7: nothing behind the wall
-  if (at_point &&
-      (given || (!rules::MarkClickOnFloor(pick->point, sent) && !rules::MarkCursorOnCaster(pick->point, feet)))) {
+  const std::optional<float> ground = GroundUnder(creature, pick->point);
+  const rules::MarkClickKind kind = rules::ClassifyMarkClick(pick->point, pick->normal, ground);
+  if (at_point && kind != rules::MarkClickKind::kFloor && !rules::MarkCursorOnCaster(pick->point, feet)) {
     click.wall = true;
     const Vec3f before = rules::MarkCastPointBefore(pick->point, pick->camera, feet.z);
     order->x = before.x;
     order->y = before.y;
     order->z = before.z;
     if (ClickLogSlot()) {
-      Log("magic mark clicks: 0x%08X spell %u - the cursor at %.2f %.2f %.2f (facing %.2f %.2f %.2f) isn't the floor "
-          "sent (%.2f %.2f %.2f%s): a wall's mark; the cast moved to %.2f %.2f %.2f, in front of it (part \"%s\"; "
+      Log("magic mark clicks: 0x%08X spell %u - the cursor at %.2f %.2f %.2f (facing %.2f %.2f %.2f; the walkmesh %s): "
+          "%s mark there; the cast moved from %.2f %.2f %.2f to %.2f %.2f %.2f, in front of it (part \"%s\"; "
           "mouse %d %d)",
           caster, order->spell, pick->point.x, pick->point.y, pick->point.z, pick->normal.x, pick->normal.y,
-          pick->normal.z, sent.x, sent.y, sent.z, given ? ", given by the spell cursor's pick" : "", before.x,
-          before.y, before.z, pick->part.c_str(), pick->x, pick->y);
+          pick->normal.z, ground ? (std::to_string(*ground).substr(0, 5) + " under it").c_str() : "none under it",
+          KindName(kind), sent.x, sent.y, sent.z, before.x, before.y, before.z, pick->part.c_str(), pick->x, pick->y);
     }
   } else if (ClickLogSlot()) {
     Log("magic mark clicks: 0x%08X spell %u at 0x%08X - the cursor at %.2f %.2f %.2f, seen from %.2f %.2f %.2f "
-        "(the order's point %.2f %.2f %.2f; part \"%s\"; mouse %d %d)",
+        "(the order's point %.2f %.2f %.2f; %s; part \"%s\"; mouse %d %d)",
         caster, order->spell, order->target, pick->point.x, pick->point.y, pick->point.z, pick->camera.x,
-        pick->camera.y, pick->camera.z, sent.x, sent.y, sent.z, pick->part.c_str(), pick->x, pick->y);
+        pick->camera.y, pick->camera.z, sent.x, sent.y, sent.z,
+        at_point ? (std::string(KindName(kind)) + " (the floor's mark)").c_str() : "at an object",
+        pick->part.c_str(), pick->x, pick->y);
   }
   std::lock_guard<std::mutex> lock(g_clicks_mutex);
   g_clicks[caster] = click;
@@ -696,6 +708,7 @@ void InstallMarkClicks() {
   g_click_api.camera_hit_check = EngineExport(kCameraHitCheck);
   g_click_api.camera_position = EngineExport(kCameraPosition);
   g_click_api.static_trimesh = reinterpret_cast<int*>(EngineExport(kStaticTrimeshHits));
+  g_compute_height = reinterpret_cast<ComputeHeightFn>(EngineExport(ee::kComputeHeight));
   if (!g_click_api.mouse_pos || !g_click_api.multiplayer || !g_click_api.gui || !g_click_api.app_manager ||
       !g_click_api.camera_hit_check || !g_click_api.camera_position ||
       !GamePickAsRead(reinterpret_cast<uintptr_t>(g_click_api.mouse_pos),

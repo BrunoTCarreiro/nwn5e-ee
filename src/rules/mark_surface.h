@@ -98,10 +98,14 @@ struct MarkRecord {
 std::string MarkRecordText(const MarkRecord& record);
 bool ParseMarkRecord(const std::string& text, MarkRecord* record);
 
-// A click on the ground: the cursor's point is the floor the game sends (within kMarkFloorNear across and up or
-// down). Otherwise the cursor was on a wall (with floor behind it, which the game sends), a pillar, a ledge.
-constexpr float kMarkFloorNear = 0.75f;
-bool MarkClickOnFloor(const Vec3f& cursor, const Vec3f& sent);
+// 0.96.8 (owner, 2026-11-09: "if the mark is targeted on a map edge wall or uninteractible object it get's placed
+// horizontally on the floor at that point"): a click at a point is a wall's when the cursor's surface is steep
+// (MarkStandsUpright: a wall, a pillar, an object's side), a top's when it's flat but more than kMarkAboveGround over
+// the walkmesh under it (a bench's seat, a ledge; no walkmesh under it: a top too), else the floor's. The point the
+// game sends isn't asked: it can be the cursor's own (a wall with nothing behind it, a bench).
+enum class MarkClickKind { kFloor, kWall, kTop };
+constexpr float kMarkAboveGround = 0.25f;
+MarkClickKind ClassifyMarkClick(const Vec3f& cursor, const Vec3f& normal, const std::optional<float>& ground);
 // The cast's point for a click on a wall: kMarkWallStandOff in front of the cursor's point, toward the camera, at
 // the caster's feet - so the caster doesn't walk around to the floor behind the wall.
 constexpr float kMarkWallStandOff = 0.6f;

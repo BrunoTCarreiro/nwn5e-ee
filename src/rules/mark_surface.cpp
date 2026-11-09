@@ -217,9 +217,10 @@ bool ParseMarkRecord(const std::string& text, MarkRecord* record) {
   return true;  // a part that doesn't read: no fix (the mark is placed again)
 }
 
-bool MarkClickOnFloor(const Vec3f& cursor, const Vec3f& sent) {
-  const float across = sqrtf((cursor.x - sent.x) * (cursor.x - sent.x) + (cursor.y - sent.y) * (cursor.y - sent.y));
-  return across <= kMarkFloorNear && fabsf(cursor.z - sent.z) <= kMarkFloorNear;
+MarkClickKind ClassifyMarkClick(const Vec3f& cursor, const Vec3f& normal, const std::optional<float>& ground) {
+  if (MarkStandsUpright(normal)) return MarkClickKind::kWall;
+  if (!ground || cursor.z - *ground > kMarkAboveGround) return MarkClickKind::kTop;
+  return MarkClickKind::kFloor;
 }
 
 Vec3f MarkCastPointBefore(const Vec3f& cursor, const Vec3f& camera, float feet_z) {

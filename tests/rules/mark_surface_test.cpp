@@ -181,16 +181,19 @@ TEST(SurfaceMarkRecord) {
 
 // 0.96.3 (owner, 2026-11-09: "A. but we should try to find a way to deal with walls that have floors behind them so
 // that the wall is marked and not the floor"): a click on a wall. Breaks caught: the ray not run on past the cursor,
-// a floor click taken for a wall (or a wall for the floor) across or up, the cast's point behind the wall or not at
+// (0.96.8) a wall, a top or the floor told wrong (steep surfaces, the height over the walkmesh, none under it), the cast's point behind the wall or not at
 // the feet, a wall mark facing into the wall or along it, a flat surface given an upright mark.
 TEST(SurfaceMarkClicks) {
   CHECK_EQ(CloseTo(MarkClickEnd(MarkRay{{0, 0, 10}, {0, 3, 6}}), Vec3f{0, 5.4f, 2.8f}), true);
-  // The game sends (10, 10, 0.3): the cursor on the floor there, or on a wall in front of it.
-  const Vec3f sent{10, 10, 0.3f};
-  CHECK_EQ(MarkClickOnFloor({10.4f, 9.6f, 0}, sent), true);
-  CHECK_EQ(MarkClickOnFloor({10, 9, 0}, sent), false);        // a metre short: a wall in front
-  CHECK_EQ(MarkClickOnFloor({10.2f, 10, 1.5f}, sent), false);  // right above it: the wall's face
-  CHECK_EQ(MarkClickOnFloor({10, 10.7f, 1.0f}, sent), true);    // within reach both ways
+  // 0.96.8: by the cursor's surface and the walkmesh's height under it (0 here).
+  CHECK_EQ(ClassifyMarkClick({5, 0, 1.5f}, {0, -1, 0}, 0.0f) == MarkClickKind::kWall, true);  // a wall
+  CHECK_EQ(ClassifyMarkClick({5, 0, 0.1f}, {-0.7f, -0.7f, 0.1f}, 0.0f) == MarkClickKind::kWall, true);  // its foot
+  CHECK_EQ(ClassifyMarkClick({5, 0, 0.8f}, {0, -1, 0}, std::nullopt) == MarkClickKind::kWall, true);  // the map's edge
+  CHECK_EQ(ClassifyMarkClick({5, 0, 0.45f}, {0, 0, 1}, 0.0f) == MarkClickKind::kTop, true);  // a bench's seat
+  CHECK_EQ(ClassifyMarkClick({5, 0, 1.2f}, {0, 0, 1}, std::nullopt) == MarkClickKind::kTop, true);  // no walkmesh
+  CHECK_EQ(ClassifyMarkClick({5, 0, 0.2f}, {0, 0.1f, 0.99f}, 0.0f) == MarkClickKind::kFloor, true);  // a step up
+  CHECK_EQ(ClassifyMarkClick({5, 0, 0.02f}, {0, 0, 1}, 0.0f) == MarkClickKind::kFloor, true);
+  CHECK_EQ(ClassifyMarkClick({5, 0, -0.1f}, {0, 0, 1}, 0.0f) == MarkClickKind::kFloor, true);  // a dip
   // A wall west of the camera's line: the cursor at (5, 0, 1.5), the camera at (5, -8, 9); the caster's feet at 0.
   CHECK_EQ(CloseTo(MarkCastPointBefore({5, 0, 1.5f}, {5, -8, 9}, 0.25f), Vec3f{5, -0.6f, 0.25f}), true);
   CHECK_EQ(CloseTo(MarkCastPointBefore({0, 0, 1}, {-3, -4, 6}, 0), Vec3f{-0.36f, -0.48f, 0}), true);
