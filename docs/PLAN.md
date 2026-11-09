@@ -1197,6 +1197,19 @@ monster AC by CR.
     *Build 1b accepted (owner, 2026-11-09: "accepted"),* after DO-6's 4 places were found right for the Cleric 1
     tested (3 + 1; the Cleric 5's 5 after !test channelcleric) and the log showed DO-5's Thaumaturge +3 on Arcana. DO-1
     to DO-7 passed.
+  - *Built 0.98.5 (build 1c; owner, 2026-11-09: "move to 1c"):* rules: BonusFeatGroup::kBlessedStrikes and
+    BonusPicks::strikes (its own pick at Cleric 7), feats 1553 Divine Strike and 1554 Potent Spellcasting
+    (feat.cleric.txt, the Cleric's bonus list; packages default Divine Strike), DivineStrikeDiceRolled (twice on a
+    Critical Hit), the domains' powers 306-308 and 310-325 among rules::NwnOnlyClassFeats (CM9; removed from
+    characters as the other NWN-only feats); test ClericBlessedStrikesPick (6 of 6 mutations caught).
+    rules_cleric.cpp: Disciple of Life (Cleric 3) - rules_cantrips.cpp's heal hook: a spell (UserType 1) cast with a
+    slot, not from an item, its caster's last spell, heals 2 + the slot's level more (the slot: GetLastSpellLevel
+    +0x21C, else the spell's Cleric / innate level; none for a cantrip); Blessed Healer (6) - once a cast, the Cleric
+    regains as much when it heals another; Divine Strike (a ResolveDamage listener) - a weapon in hand, a hit, once in
+    6 seconds: 1d8 (2d8 at 14) Radiant, or Necrotic by `!strike necrotic` (record nwn5e_strike_necrotic); Potent
+    Spellcasting - Wisdom on Sacred Flame's damage, at 14 twice Wisdom in Temporary Hit Points to the Cleric; a
+    character Cleric 7+ without either gets Divine Strike; a character Cleric's spontaneous cast order refused (an
+    NPC's AI keeps NWN's). The domains' extra spell slots wait for the spells (build 2).
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's

@@ -69,4 +69,10 @@ int DivineStrikeDice(int cleric_level) {
 
 int PotentSpellcastingTempHp(int wisdom_modifier) { return std::max(0, 2 * wisdom_modifier); }
 
+int DivineStrikeDiceRolled(int cleric_level, bool critical) {
+  return DivineStrikeDice(cleric_level) * (critical ? 2 : 1);
+}
+
+bool IsBlessedStrikesFeat(int feat) { return feat == kFeatDivineStrike || feat == kFeatPotentSpellcasting; }
+
 }  // namespace rules

@@ -107,6 +107,36 @@ TEST(ClericDivineOrderPick) {
   CHECK_EQ(ThaumaturgeExtraCantrips(false), 0);
 }
 
+// Blessed Strikes (Q2 A): its own pick at Cleric 7; Divine Strike's dice twice on a Critical Hit; the NWN domains'
+// powers are NWN-only (CM9).
+TEST(ClericBlessedStrikesPick) {
+  CHECK_EQ(BonusPicks2024(CharacterClass::kCleric, 7, true, false).strikes, 1);
+  CHECK_EQ(BonusPicks2024(CharacterClass::kCleric, 6, true, false).strikes, 0);
+  CHECK_EQ(BonusPicks2024(CharacterClass::kCleric, 8, true, false).strikes, 0);
+  CHECK_EQ(BonusPicks2024(CharacterClass::kCleric, 7, false, false).strikes, 0);
+  CHECK_EQ(BonusPicks2024(CharacterClass::kCleric, 7, true, false).Total(), 1);
+  CHECK_EQ(BonusPicks2024(CharacterClass::kWizard, 7, true, false).strikes, 0);
+  CHECK_EQ(BonusFeatGroupOf(kFeatDivineStrike) == BonusFeatGroup::kBlessedStrikes, true);
+  CHECK_EQ(BonusFeatGroupOf(kFeatPotentSpellcasting) == BonusFeatGroup::kBlessedStrikes, true);
+  CHECK_EQ(IsChoosableFeat2024(kFeatPotentSpellcasting, false), true);
+  BonusPicks taken;
+  taken.strikes = 1;
+  CHECK_EQ(FitsBonusPicks(taken, BonusPicks2024(CharacterClass::kCleric, 7, true, false)), true);
+  CHECK_EQ(FitsBonusPicks(taken, BonusPicks2024(CharacterClass::kCleric, 1, true, false)), false);
+  CHECK_EQ(DivineStrikeDiceRolled(7, false), 1);
+  CHECK_EQ(DivineStrikeDiceRolled(7, true), 2);
+  CHECK_EQ(DivineStrikeDiceRolled(14, true), 4);
+  CHECK_EQ(DivineStrikeDiceRolled(6, true), 0);
+  bool war = false, water = false;
+  for (int feat : NwnOnlyClassFeats()) {
+    war = war || feat == 306;
+    water = water || feat == 325;
+  }
+  CHECK_EQ(war, true);
+  CHECK_EQ(water, true);
+  CHECK_EQ(std::string(NwnOnlyClassFeatName(318)) == "the domain powers", true);
+}
+
 TEST(ClericOrderAndStrikes) {
   // Thaumaturge: the Wisdom modifier on Arcana and Religion checks, at least +1.
   CHECK_EQ(ThaumaturgeCheckBonus(3), 3);

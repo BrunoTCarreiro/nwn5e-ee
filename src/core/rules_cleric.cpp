@@ -20,6 +20,14 @@
 // Fighter or Paladin levels). Thaumaturge: the Wisdom modifier (at least +1) on Arcana and Religion checks
 // (rules_skills.cpp) and a cantrip more in the Prepare spells window (prepare_spells.cpp). A Cleric without either
 // (one from before) gets Protector - the Heavy armour it had - and `!order` switches the order once.
+// Build 1c (owner, 2026-11-09: "move to 1c"): the Life Domain's Disciple of Life (3) and Blessed Healer (6) - a spell
+// cast with a slot (no item) that heals: 2 + the slot's level more on each creature it heals (the heal hook,
+// rules_cantrips.cpp), and once a cast as much to the Cleric when it heals another. Blessed Strikes (7), its own pick
+// (rules::BonusPicks2024's strikes): Divine Strike - a weapon hit's 1d8 (2d8 at 14) Radiant, or Necrotic by
+// `!strike necrotic`, once in 6 seconds (a turn), twice the dice on a Critical Hit; Potent Spellcasting - Wisdom on
+// Sacred Flame's damage, and at 14 twice Wisdom in Temporary Hit Points to the Cleric when it deals damage. A Cleric
+// 7+ without either gets Divine Strike. CM9: NWN's spontaneous Cure / Inflict (a Cleric's spontaneous cast order) is
+// refused; the domains' powers are NWN-only feats (rules::NwnOnlyClassFeats).
 
 #include <ctype.h>
 #include <stdint.h>
@@ -32,6 +40,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "action_guard.h"
+#include "attack_roll.h"
 #include "chat.h"
 #include "config.h"
 #include "creature.h"
@@ -49,14 +59,17 @@
 #include "log.h"
 #include "records.h"
 #include "resource_panel.h"
+#include "resolve_damage.h"
 #include "rest.h"
 #include "saves.h"
 #include "script_hooks.h"
+#include "rules/cantrips.h"
 #include "rules/class_features.h"
 #include "rules/cleric.h"
 #include "rules/hud_layout.h"
 #include "rules/nwn_conversion.h"
 #include "rules/skills.h"
+#include "rules/weapons.h"
 
 namespace {
 
@@ -68,6 +81,11 @@ constexpr int kFeatHeavyArmour = 2;      // NWN's Armor Proficiency (Heavy)
 constexpr int kFeatMartialWeapons = 45;  // NWN's Weapon Proficiency (Martial)
 constexpr int kNwnClassCleric = 2;       // classes.2da
 constexpr const char* kVarOrderSwitched = "nwn5e_order_switched";  // !order used (a record)
+constexpr const char* kVarStrikeNecrotic = "nwn5e_strike_necrotic";  // !strike necrotic (a record)
+constexpr size_t kCreatureLastSpellLevel = 0x21C;  // GetLastSpellLevel: the cast's slot level (0: its own)
+constexpr int kSacredFlame = 1054;                  // the SRD's damaging Cleric cantrip
+constexpr uint64_t kTurnMs = 6000;                  // "once on each of your turns": a round
+constexpr int kUserTypeSpell = 1;
 constexpr const char* kVarChannelSpent = "nwn5e_cd_spent";  // the pool's spent uses (a record)
 constexpr const char* kTurnedTag = "nwn5e_turned";
 constexpr float kMetresPerFoot = 0.3048f;
@@ -85,6 +103,13 @@ struct Turned {
 
 std::unordered_map<uint32_t, Turned> g_turned;  // by the undead; the engine's thread only
 std::unordered_set<uint32_t> g_order_checked;   // creatures looked at for a Divine Order
+std::unordered_map<uint32_t, uint64_t> g_divine_strike;  // a Cleric's last Divine Strike (game ms)
+struct Healed {
+  int spell = -1;
+  uint64_t at = 0;
+};
+std::unordered_map<uint32_t, Healed> g_blessed_healer;  // a Cleric's last Blessed Healer (once a cast)
+std::vector<std::string> g_user_types, g_cleric_levels, g_innate_levels;  // spells.2da, read on first use
 int g_logged = 0;
 
 bool Faithful() { return g_config.class_features == rules::RuleVariant::kFaithful; }
@@ -481,6 +506,14 @@ void OrderUpdate(void* creature) {
   if (g_order_checked.count(id)) return;
   g_order_checked.insert(id);
   if (!IsCharacter(stats)) return;
+  if (ClassLevel2024(stats, rules::CharacterClass::kCleric) >= 7 && !HasOrder(stats, rules::kFeatDivineStrike) &&
+      !HasOrder(stats, rules::kFeatPotentSpellcasting)) {
+    if (engine::AddFeat(stats, rules::kFeatDivineStrike)) {
+      Tell(creature, "Blessed Strikes: Divine Strike - a weapon hit's 1d8 Radiant once a turn (a Cleric from before "
+                     "the 2024 Blessed Strikes; !strike necrotic for Necrotic).");
+      Log("cleric: 0x%08X given Blessed Strikes: Divine Strike (it had none)", id);
+    }
+  }
   if (HasOrder(stats, rules::kFeatDivineOrderProtector) || HasOrder(stats, rules::kFeatDivineOrderThaumaturge)) return;
   if (!engine::AddFeat(stats, rules::kFeatDivineOrderProtector)) {
     Log("cleric: 0x%08X has no Divine Order - Protector didn't take", id);
@@ -536,7 +569,141 @@ std::vector<std::string> OrderCommand(void* creature, const std::string& args) {
                             "Prepare spells window (the class abilities radial). Heavy armour goes.")};
 }
 
+// --- The Life Domain's healing, Blessed Strikes, spontaneous casts (build 1c) -------------------------------------
+
+const std::vector<std::string>& SpellColumn(std::vector<std::string>* cache, const char* column) {
+  if (cache->empty()) *cache = GameTableColumn("spells", column);
+  return *cache;
+}
+
+bool IsSpellRow(int spell) {
+  const std::vector<std::string>& types = SpellColumn(&g_user_types, "UserType");
+  return spell >= 0 && static_cast<size_t>(spell) < types.size() && atoi(types[spell].c_str()) == kUserTypeSpell;
+}
+
+// A spell's own level (a Cleric's, else its innate one); -1 unknown.
+int SpellOwnLevel(int spell) {
+  const std::vector<std::string>& cleric = SpellColumn(&g_cleric_levels, "Cleric");
+  const std::vector<std::string>& innate = SpellColumn(&g_innate_levels, "Innate");
+  if (spell < 0) return -1;
+  const size_t row = static_cast<size_t>(spell);
+  if (row < cleric.size() && !cleric[row].empty() && cleric[row][0] != '*') return atoi(cleric[row].c_str());
+  if (row < innate.size() && !innate[row].empty() && innate[row][0] != '*') return atoi(innate[row].c_str());
+  return -1;
+}
+
+// Divine Strike: a weapon hit's d8s once a turn, in the damage the engine just rolled (ResolveDamage).
+void DivineStrikeHit(void* attacker, void* target) {
+  if (!Faithful() || !attacker || !target) return;
+  void* stats = StatsOf(attacker);
+  if (!stats || !HasOrder(stats, rules::kFeatDivineStrike)) return;
+  const int level = ClericLevelOf(stats);
+  if (rules::DivineStrikeDice(level) <= 0) return;
+  uint8_t* data = CurrentAttackData(attacker);
+  if (!data || !rules::MasteryAttackHit(data[ee::kAttackResult])) return;
+  if (!engine::ItemInSlot(attacker, ee::kSlotRightHand)) return;  // a weapon's (2024: an Unarmed Strike isn't one)
+  const uint32_t id = IdOf(attacker);
+  const uint64_t now = GameMs();
+  const auto last = g_divine_strike.find(id);
+  if (last != g_divine_strike.end() && now < last->second + kTurnMs) return;
+  g_divine_strike[id] = now;
+  const bool critical = data[ee::kAttackResult] == ee::kAttackResultCritical;
+  const int dice = rules::DivineStrikeDiceRolled(level, critical);
+  const int extra = RollEngineDice(dice, 8);
+  const bool necrotic = engine::GetLocalInt(attacker, kVarStrikeNecrotic) != 0;
+  auto* entries = reinterpret_cast<int16_t*>(data + ee::kAttackDamageEntries);
+  rules::AddDamage(entries, ee::kAttackDamageEntryCount,
+                   necrotic ? rules::kDamageTypeNecrotic : rules::kDamageTypeRadiant, extra);
+  if (LogSlot()) Log("cleric: 0x%08X Divine Strike on 0x%08X: %dd8 %s = %d%s", id, IdOf(target), dice,
+                     necrotic ? "Necrotic" : "Radiant", extra, critical ? " (a Critical Hit)" : "");
+}
+
+// !strike [radiant | necrotic]: Divine Strike's damage type.
+std::vector<std::string> StrikeCommand(void* creature, const std::string& args) {
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  if (!stats || !Faithful() || !HasOrder(stats, rules::kFeatDivineStrike)) {
+    return {"nwn5e: !strike - Divine Strike's damage type (a Cleric 7+ with Blessed Strikes: Divine Strike)."};
+  }
+  EnsureRecords(creature);
+  std::string lower = args;
+  for (char& c : lower) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+  if (lower.find("necro") != std::string::npos) SetRecord(creature, kVarStrikeNecrotic, 1);
+  if (lower.find("radiant") != std::string::npos) SetRecord(creature, kVarStrikeNecrotic, 0);
+  const bool necrotic = engine::GetLocalInt(creature, kVarStrikeNecrotic) != 0;
+  return {std::string("nwn5e: Divine Strike deals ") + (necrotic ? "Necrotic" : "Radiant") + " damage (" +
+          std::to_string(rules::DivineStrikeDice(ClericLevelOf(stats))) +
+          "d8 once a turn). !strike radiant or !strike necrotic changes it."};
+}
+
+// CM9: NWN's spontaneous Cure / Inflict - the 2024 Cleric casts its prepared spells, with any slot of their level or
+// higher (#36).
+bool SpontaneousGuard(void* creature, const SpellOrder& order) {
+  if (!order.spontaneous || !Faithful() || !creature) return false;
+  void* stats = StatsOf(creature);
+  if (!stats || ClericLevelOf(stats) <= 0 || !IsCharacter(stats)) return false;  // characters: an NPC's AI keeps it
+  Tell(creature, "a 2024 Cleric casts its prepared spells, with any slot of their level or higher - no spontaneous "
+                 "Cure or Inflict (NWN's).");
+  if (LogSlot()) Log("cleric: 0x%08X spontaneous cast of spell %u refused (2024)", IdOf(creature), order.spell);
+  return true;
+}
+
 }  // namespace
+
+// rules_cantrips.cpp's heal hook (#42 1c): Disciple of Life - a spell cast with a slot (not from an item) heals 2 +
+// the slot's level more; Blessed Healer - once a cast, the Cleric regains as much when it heals another.
+void ClericOnHeal(void* object, void* effect) {
+  if (!Faithful() || !object || !effect || Field<int32_t>(effect, ee::kEffectIntegerCount) <= 0) return;
+  int32_t* integers = Field<int32_t*>(effect, ee::kEffectIntegers);
+  if (!integers || integers[0] <= 0) return;
+  const uint32_t creator = Field<uint32_t>(effect, ee::kEffectCreator);
+  const int spell = Field<int32_t>(effect, ee::kEffectSpellId);
+  if (!IsSpellRow(spell)) return;
+  void* caster = CreatureById(creator);
+  void* stats = caster ? StatsOf(caster) : nullptr;
+  const int level = stats ? ClericLevelOf(stats) : 0;
+  if (level < 3) return;
+  if (Field<uint32_t>(caster, ee::kCreatureLastSpellCastItem) != ee::kObjectInvalid) return;  // a potion's, a scroll's
+  if (Field<int32_t>(caster, ee::kObjectLastSpellId) != spell) return;
+  const int chosen = Field<uint8_t>(caster, kCreatureLastSpellLevel);
+  const int slot = chosen > 0 ? chosen : SpellOwnLevel(spell);
+  const int bonus = rules::LifeHealingBonus(slot);
+  if (bonus <= 0) return;
+  const uint32_t target = IdOf(object);
+  integers[0] += bonus;
+  if (LogSlot()) Log("cleric: 0x%08X Disciple of Life: spell %d (a level %d slot) heals 0x%08X %d more", creator, spell,
+                     slot, target, bonus);
+  if (level < 6 || target == creator) return;
+  const uint64_t now = GameMs();
+  Healed& last = g_blessed_healer[creator];
+  if (last.spell == spell && now < last.at + 1000) return;  // once a cast
+  last = Healed{spell, now};
+  char heal[48];
+  sprintf_s(heal, "EffectHeal(%d)", bonus);
+  ApplyEffectAs(creator, creator, "DURATION_TYPE_INSTANT", heal, 0.0f, 0.0f);
+  Tell(caster, "Blessed Healer: you regain " + std::to_string(bonus) + " Hit Points.");
+  if (LogSlot()) Log("cleric: 0x%08X Blessed Healer: regains %d (spell %d)", creator, bonus, spell);
+}
+
+// rules_cantrips.cpp's Sacred Flame (#42 1c): Potent Spellcasting's Wisdom on its damage.
+int PotentSpellcastingBonus(void* caster, int spell) {
+  if (!Faithful() || !caster || spell != kSacredFlame) return 0;
+  void* stats = StatsOf(caster);
+  if (!stats || !HasOrder(stats, rules::kFeatPotentSpellcasting) || ClericLevelOf(stats) < 7) return 0;
+  return std::max(0, engine::AbilityModifier(stats, kAbilityWisdom));
+}
+
+// ... and at Cleric 14 (Improved Blessed Strikes): twice Wisdom in Temporary Hit Points to the Cleric.
+void PotentSpellcastingVitality(void* caster, int spell) {
+  if (!Faithful() || !caster || spell != kSacredFlame) return;
+  void* stats = StatsOf(caster);
+  if (!stats || !HasOrder(stats, rules::kFeatPotentSpellcasting) || ClericLevelOf(stats) < 14) return;
+  const int temporary = rules::PotentSpellcastingTempHp(engine::AbilityModifier(stats, kAbilityWisdom));
+  if (temporary <= 0) return;
+  char effect[64];
+  sprintf_s(effect, "EffectTemporaryHitpoints(%d)", temporary);
+  ApplyEffectAs(IdOf(caster), IdOf(caster), "DURATION_TYPE_TEMPORARY", effect, 3600.0f, 0.0f);
+  Tell(caster, "Potent Spellcasting: " + std::to_string(temporary) + " Temporary Hit Points.");
+}
 
 // rules_skills.cpp: Thaumaturge's Wisdom modifier (at least +1) on Arcana and Religion checks.
 int ThaumaturgeSkillBonus(void* stats, rules::Skill2024 skill) {
@@ -568,6 +735,14 @@ void InstallClericRules() {
   RegisterRecords({kVarOrderSwitched});
   const bool order = AddFeatFilter(&OrderFeatFilter) && AddCreatureUpdateListener(&OrderUpdate);
   AddChatCommand("!order", &OrderCommand);
+  RegisterRecords({kVarStrikeNecrotic});
+  const bool strikes = AddResolveDamageListener(&DivineStrikeHit);
+  const bool spontaneous = AddSpellOrderGuard(&SpontaneousGuard);
+  AddChatCommand("!strike", &StrikeCommand);
+  Log("cleric: build 1c - Disciple of Life and Blessed Healer (spells cast with a slot), Blessed Strikes (the Cleric 7 "
+      "pick: Divine Strike, !strike; Potent Spellcasting on Sacred Flame), no spontaneous Cure / Inflict, the domains' "
+      "powers NWN-only (#42)%s%s",
+      strikes ? "" : " - no Divine Strike", spontaneous ? "" : " - spontaneous casts stay");
   Log("cleric: build 1b - Divine Order (the Cleric 1 pick: Protector - Martial weapons, Heavy armour - or Thaumaturge "
       "- a cantrip more, Wisdom on Arcana and Religion; !order; Protector for a Cleric without one) (#42)%s",
       order ? "" : " - SOME hooks missing");

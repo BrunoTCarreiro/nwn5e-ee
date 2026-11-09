@@ -47,6 +47,11 @@ int ThaumaturgeExtraCantrips(bool thaumaturge);
 // from 14, Improved Blessed Strikes); 0 before 7. Potent Spellcasting at 14: Temporary Hit Points twice the Wisdom
 // modifier.
 int DivineStrikeDice(int cleric_level);
+int DivineStrikeDiceRolled(int cleric_level, bool critical);  // a Critical Hit rolls them twice
+// The choice (Q2 A: feats in the Cleric's bonus list, its own pick at Cleric 7; feat.cleric.txt).
+constexpr int kFeatDivineStrike = 1553;
+constexpr int kFeatPotentSpellcasting = 1554;
+bool IsBlessedStrikesFeat(int feat);
 int PotentSpellcastingTempHp(int wisdom_modifier);
 
 }  // namespace rules
