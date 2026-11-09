@@ -1147,6 +1147,10 @@ monster AC by CR.
     Q3 healing and Undead - A 2024's (Cure Wounds heals; Inflict Wounds harms anything), B NWN's swap as a house rule.
     Q4 Channel Divinity's button - A NWN's Turn Undead entry becomes a menu (Divine Spark: Heal / Radiant / Necrotic,
     Turn Undead, Preserve Life), uses on the resource panel; B separate buttons. Recommended A on all.
+  - *Decided (owner, 2026-11-09: "A on all"):* Q1 A - Part 1 the features of levels 1-7, the 2024 list and the level 1
+    spells, then a part per spell level; Q2 A - Divine Order and Blessed Strikes as served feats in the bonus list
+    with a bonus slot, existing Clerics Protector and Divine Strike, `!order` once; Q3 A - 2024's healing (no undead
+    swap); Q4 A - Channel Divinity a menu on NWN's Turn Undead entry, its uses on the resource panel.
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's
