@@ -63,7 +63,7 @@ endnode
 doneanim duration n5v_mark07gu
 
 newanim cessation n5v_mark07gu
-  length 0.5
+  length 1.5
   transtime 0.05
   animroot n5v_mark07gu
 node dummy n5v_mark07gu
@@ -73,7 +73,13 @@ node trimesh n5v_mark07gu_mark
   parent n5v_mark07gu
   alphakey 2
     0 0.8
-    0.5 0
+    1.5 0
+  selfillumcolorkey 2
+    0 1.00 0.80 0.30
+    1.5 0 0 0
+  scalekey 2
+    0 1
+    1.5 0.5
 endnode
 doneanim cessation n5v_mark07gu
 

@@ -74,6 +74,10 @@ using rules::UtilityEffect;
 
 constexpr float kMetresPerFoot = 0.3048f;
 constexpr float kMarkSeconds = 3600.0f;  // Magic Mark: an hour of play
+// 0.96.9 (MO-5; owner, 2026-11-09: "older marks don't fade, they just pop out of existence"): a mark's model fades
+// in 1.5 s when its effect ends (its cessation: alpha, glow, size; the client keeps it that long), so an invisible
+// object holding one is destroyed this long after - its effect ended first, never the object under it.
+constexpr float kMarkFadeLeft = 3.0f;
 
 int g_lines = 0;
 bool LogSlot() {
@@ -193,8 +197,8 @@ SetLocalString(OBJECT_SELF, "n5c_mark_drop", g > -6.0 ? FloatToString(p.z - g, 0
 if (g > -6.0) p.z = g;
 l = Location(GetAreaFromLocation(l), p, IntToFloat(Random(360)));
 object m = CreateObject(OBJECT_TYPE_PLACEABLE, "plc_invisobj", l, FALSE, "n5c_mark");
-ApplyEffectToObject(DURATION_TYPE_PERMANENT, EffectVisualEffect($VFX), m);
-DestroyObject(m, $SECONDS);
+ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectVisualEffect($VFX), m, $SECONDS);
+DestroyObject(m, $SECONDS + $FADE_LEFT);
 SetLocalString(OBJECT_SELF, "n5c_mark", ObjectToString(m));
 SendMessageToPC(OBJECT_SELF, "nwn5e: Prestidigitation - Magic Mark: a glowing mark there for an hour (three at a time).");
 )nss";
@@ -228,8 +232,8 @@ if ($ON_GROUND) {
   if (g > -6.0) p.z = g + $LIFT;
 }
 object m = CreateObject(OBJECT_TYPE_PLACEABLE, "plc_invisobj", Location(a, p, $FACING), FALSE, "n5c_mark");
-ApplyEffectToObject(DURATION_TYPE_PERMANENT, EffectVisualEffect($VFX), m);
-DestroyObject(m, $SECONDS);
+ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectVisualEffect($VFX), m, $SECONDS);
+DestroyObject(m, $SECONDS + $FADE_LEFT);
 SetLocalString(OBJECT_SELF, "n5c_mark", ObjectToString(m));
 SendMessageToPC(OBJECT_SELF, "nwn5e: Prestidigitation - Magic Mark on $WHAT: a glowing mark for an hour (three at a time).");
 )nss";
@@ -264,7 +268,10 @@ void KeepMark(uint32_t self, const KeptMark& mark, const std::string& where) {
     const KeptMark& oldest = marks.front();
     char code[320];
     if (oldest.tag.empty()) {
-      sprintf_s(code, "DestroyObject(StringToObject(\"%x\"));", oldest.object);
+      sprintf_s(code,
+                "object m = StringToObject(\"%x\"); effect e = GetFirstEffect(m); while (GetIsEffectValid(e)) { "
+                "RemoveEffect(m, e); e = GetNextEffect(m); } DestroyObject(m, %.1f);",
+                oldest.object, kMarkFadeLeft);
     } else {
       sprintf_s(code,
                 "object t = StringToObject(\"%x\"); effect e = GetFirstEffect(t); while (GetIsEffectValid(e)) { "
@@ -410,6 +417,8 @@ bool MarkOnObject(uint32_t self, void* caster, int tint, const std::optional<Mar
   Replace(&mark, "$LIFT", number);
   sprintf_s(number, "%.1f", kMarkSeconds);
   Replace(&mark, "$SECONDS", number);
+  sprintf_s(number, "%.1f", kMarkFadeLeft);
+  Replace(&mark, "$FADE_LEFT", number);
   Replace(&mark, "$VFX",
           std::to_string(rules::MagicMarkRow(RollEngineDice(1, rules::kMagicMarkVisuals), tint, true)));
   Replace(&mark, "$WHAT", name.empty() ? std::string("it") : name);
@@ -429,8 +438,8 @@ bool MarkOnObject(uint32_t self, void* caster, int tint, const std::optional<Mar
 // (flat on a ledge's top), on an invisible object there.
 const char* const kMarkOnWall = R"nss(
 object m = CreateObject(OBJECT_TYPE_PLACEABLE, "plc_invisobj", Location(GetArea(OBJECT_SELF), Vector($X, $Y, $Z), $FACING), FALSE, "n5c_mark");
-ApplyEffectToObject(DURATION_TYPE_PERMANENT, EffectVisualEffect($VFX), m);
-DestroyObject(m, $SECONDS);
+ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectVisualEffect($VFX), m, $SECONDS);
+DestroyObject(m, $SECONDS + $FADE_LEFT);
 SetLocalString(OBJECT_SELF, "n5c_mark", ObjectToString(m));
 SendMessageToPC(OBJECT_SELF, "nwn5e: Prestidigitation - Magic Mark: a glowing mark there for an hour (three at a time).");
 )nss";
@@ -452,6 +461,8 @@ void MarkOnWall(uint32_t self, void* caster, int tint, const MarkClick& click) {
   Replace(&code, "$FACING", number);
   sprintf_s(number, "%.1f", kMarkSeconds);
   Replace(&code, "$SECONDS", number);
+  sprintf_s(number, "%.1f", kMarkFadeLeft);
+  Replace(&code, "$FADE_LEFT", number);
   Replace(&code, "$VFX", std::to_string(rules::MagicMarkRow(RollEngineDice(1, rules::kMagicMarkVisuals), tint, upright)));
   CreatingFireLight(true);  // light_sources.cpp: the invisible object a normal placeable, so the client gets its glow
   Run(code, self, "Magic Mark on a wall");
@@ -475,6 +486,8 @@ void PlaceMark(uint32_t self, void* caster) {
   char seconds[32];
   sprintf_s(seconds, "%.1f", kMarkSeconds);
   Replace(&code, "$SECONDS", seconds);
+  sprintf_s(seconds, "%.1f", kMarkFadeLeft);
+  Replace(&code, "$FADE_LEFT", seconds);
   Replace(&code, "$VFX",
           std::to_string(rules::MagicMarkRow(RollEngineDice(1, rules::kMagicMarkVisuals), tint, false)));
   CreatingFireLight(true);  // light_sources.cpp: the invisible object a normal placeable, so the client gets its glow
