@@ -603,9 +603,55 @@ AnimKeys Looping(const AnimKeys& keys, float period, float length, bool quaterni
   return out;
 }
 
-// #149: the legs half - the root's place, pelvis_g and everything under it - from `legs`, looping over the clip;
-// the torso half (torso_g and under it) and the root's turn stay as they are. A bone it doesn't key keeps its own.
+// #149: the times of `tracks` together, from 0 to `length`.
+std::vector<float> KeyTimes(std::initializer_list<const AnimKeys*> tracks, float length) {
+  std::vector<float> all = {0.0f, length};
+  for (const AnimKeys* k : tracks) {
+    for (float t : k->times) {
+      if (t > 0.0f && t < length) all.push_back(t);
+    }
+  }
+  std::sort(all.begin(), all.end());
+  std::vector<float> out;
+  for (float t : all) {
+    if (out.empty() || t > out.back() + 1e-4f) out.push_back(t);
+  }
+  return out;
+}
+
+std::array<float, 4> TurnAt(const AnimKeys& keys, float t) {
+  return keys.times.empty() ? std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f} : Sample(keys, t, true);
+}
+
+// #149: the legs half - the root's place and turn, pelvis_g and everything under it - from `legs`, looping over the
+// clip; the torso half (torso_g and under it) stays the base's: torso_g is turned back by the root's difference, so
+// the chest keeps the base's direction in the world (owner: the feet floated - the base's root turn tipped the legs).
+// A legs animation that doesn't turn its root leaves the root's turn and the torso as they are; a bone it doesn't key
+// keeps its own.
 void SpliceLegs(AnimClip* clip, const AnimClip& legs) {
+  int root_at = -1;
+  for (size_t i = 0; i < clip->nodes.size(); ++i) {
+    if (Lower(clip->nodes[i].name) == "rootdummy") root_at = static_cast<int>(i);
+  }
+  const AnimNode* legs_root = root_at >= 0 ? FindNode(legs, clip->nodes[root_at].name) : nullptr;
+  if (legs_root && legs_root->has_orientation && !legs_root->orientation.times.empty()) {
+    const AnimKeys turn = Looping(legs_root->orientation, legs.length, clip->length, true);
+    AnimNode& r = clip->nodes[root_at];
+    const AnimKeys was = r.has_orientation ? r.orientation : AnimKeys();
+    for (AnimNode& n : clip->nodes) {
+      if (Lower(n.name) != "torso_g" || n.parent != root_at) continue;
+      const AnimKeys own = n.has_orientation ? n.orientation : AnimKeys();
+      AnimKeys back;
+      for (float t : KeyTimes({&own, &was, &turn}, clip->length)) {
+        back.times.push_back(t);
+        back.values.push_back(QNormalized(QMul(QConj(TurnAt(turn, t)), QMul(TurnAt(was, t), TurnAt(own, t)))));
+      }
+      n.orientation = back;
+      n.has_orientation = true;
+    }
+    r.orientation = turn;
+    r.has_orientation = true;
+  }
   for (size_t i = 0; i < clip->nodes.size(); ++i) {
     AnimNode& n = clip->nodes[i];
     const bool root = Lower(n.name) == "rootdummy";
