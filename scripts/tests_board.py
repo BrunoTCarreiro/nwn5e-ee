@@ -10,6 +10,8 @@ the whole test. docs/tests.csv is the archive (the tests passed, superseded or d
   python -I scripts/tests_board.py list [open|all]                  the board's tests
   python -I scripts/tests_board.py add <rows.csv>                   new tests (docs/tests.csv's columns) onto the board
   python -I scripts/tests_board.py set <#issue> <id> <status> [note]   a result, dated today ("Open" clears the date)
+  python -I scripts/tests_board.py edit <#issue> <id> <column> <text>   a text column (Setup, Do, Expect, Note ...)
+                                                                     changed, the item's title and description too
   python -I scripts/tests_board.py export                           docs/tests.csv = the archive + the board
   python -I scripts/tests_board.py move                             the register's Open and Failed rows not yet on it
 """
@@ -84,7 +86,7 @@ def items(pid):
     while True:
         data = gh("""query($id: ID!, $after: String) { node(id: $id) { ... on ProjectV2 {
                        items(first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes { id
-                         content { ... on DraftIssue { title body } }
+                         content { ... on DraftIssue { id title body } }
                          fieldValues(first: 30) { nodes {
                            ... on ProjectV2ItemFieldTextValue { text field { ... on ProjectV2FieldCommon { name } } }
                            ... on ProjectV2ItemFieldNumberValue { number field { ... on ProjectV2FieldCommon { name } } }
@@ -94,7 +96,8 @@ def items(pid):
                   {"id": pid, "after": after})
         page = data["node"]["items"]
         for node in page["nodes"]:
-            row = {"item": node["id"], "title": (node["content"] or {}).get("title", ""),
+            row = {"item": node["id"], "draft": (node["content"] or {}).get("id", ""),
+                   "title": (node["content"] or {}).get("title", ""),
                    "body": (node["content"] or {}).get("body", "")}
             for v in node["fieldValues"]["nodes"]:
                 if not v or "field" not in v:
@@ -228,7 +231,7 @@ def row_of_item(it, archive_row):
 def main():
     sys.stdout.reconfigure(encoding="utf-8")
     args = sys.argv[1:]
-    if not args or args[0] not in ("list", "add", "set", "export", "move"):
+    if not args or args[0] not in ("list", "add", "set", "edit", "export", "move"):
         sys.exit(__doc__)
     pid, fields = project()
     if args[0] == "list":
@@ -266,6 +269,21 @@ def main():
             values["Note"] = args[4]
         set_fields(pid, fields, hits[0]["item"], values)
         print(f"{issue} {rid}: {status}")
+    elif args[0] == "edit":
+        assert len(args) == 5, __doc__
+        issue, rid, column, text = args[1], args[2], args[3], args[4]
+        key = next((k for k, name in TEXT_COLUMNS.items() if name.lower() == column.lower()), None)
+        assert key and key != "id", f"column {column!r}: one of {list(TEXT_COLUMNS.values())}"
+        hits = [it for it in items(pid) if key_of_item(it) == (issue, rid)]
+        assert len(hits) == 1, f"{issue} {rid}: {len(hits)} items on the board"
+        it = hits[0]
+        set_fields(pid, fields, it["item"], {TEXT_COLUMNS[key]: text})
+        row = row_of_item(it, None)
+        row[key] = text
+        gh("mutation($d: ID!, $t: String!, $b: String!) { updateProjectV2DraftIssue(input: "
+           "{draftIssueId: $d, title: $t, body: $b}) { draftIssue { id } } }",
+           {"d": it["draft"], "t": title_of(row), "b": body_of(row)})
+        print(f"{issue} {rid}: {TEXT_COLUMNS[key]} set")
     elif args[0] == "export":
         archive = read_rows(REGISTER)
         by_key = {(r["issue"], r["id"]): r for r in archive}
