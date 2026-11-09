@@ -1123,6 +1123,13 @@ monster AC by CR.
     to keep them, B kept. Q6 reactions and smites - A automatic reactions (if prepared, a slot left, the reaction
     unspent; the lowest slot; a switch each) and smites armed by the cast, delivered by the next hit; B with the
     classes. Recommended A on all.
+  - *Decided (owner, 2026-11-09: "1.B 2.B 3.A 4.A 5.A 6.B"):* Q1 B - the spells built class by class, each with its
+    class's brief (#41-#48); Q2 B - every SRD spell on a class's list, each at least a visual and a line; Q3 A - 2024's
+    class lists and levels; Q4 A - NWN's spells with no 2024 version off the class lists in faithful, their tiers
+    folded into upcasting, NWN mode keeping them; Q5 A - Summon Creature I-IX off in faithful, a house rule (off by
+    default) keeping them; Q6 B - reactions (Shield, Feather Fall, Hellish Rebuke, Counterspell) and smites with their
+    classes. #39 keeps what all the classes share (the save table, the retired spells, the house rule); each class
+    issue takes its list.
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's
