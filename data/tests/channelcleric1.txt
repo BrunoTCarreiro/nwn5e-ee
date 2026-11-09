@@ -1,0 +1,13 @@
+# A !test profile ([debug] test_commands=1): type "!test channelcleric1" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# #42 Cleric Part 1 build 1a: a Cleric 1 has no Channel Divinity (it comes at 2).
+name = Channel Divinity at 2 (issue 42): human Cleric 1, Wisdom 16 - no Turn Undead button yet
+species = human
+swap_class = cleric
+class = cleric
+level = 1
+abilities = 10 10 14 10 16 12
+items = nw_wdbqs001 equip
+note = the class abilities radial has no Turn Undead or Channel Divinity button; !features lists level 1's
