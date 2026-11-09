@@ -963,6 +963,17 @@ monster AC by CR.
       the leaf behind it.
     - The cursor's pick sets hitcheck_static_trimesh_parts (and restores it), as the game's own picks do, so
       pillars and the area's other visible meshes are hit.
+  - *Walls at the map's edge and objects that can't be clicked - decided (owner, 2026-11-09: "A for walls"),* over
+    B (a placing step after casting on yourself) and C (left as is). For Magic Mark, the game's targeting accepts
+    such a click: the client's check that refuses the point under the cursor is found and Magic Mark let through,
+    the order carrying the floor in front of the spot (as for a wall with floor behind it); the mark goes on the
+    cursor's point.
+- **A short cast for cantrips (#150).** *Decided (owner, 2026-11-09: "go with your recommendation for #150"),*
+  after "most casting animations are very elaborate, especially for cantrips" (relayed from #149): every cantrip -
+  the damage ones, the utility ones, Light, NWN's own - casts with no conjure, straight into #149's n5_cantrip
+  (castout's arms and torso on the combat-ready stance's legs) in place of castout, about 1.5 s instead of 2.5-3.2
+  s. The game's part: the rows (ConjTime 0, CastAnim out, CastTime) and the call when a cantrip's cast starts;
+  the swap and the clip's look are the animation session's.
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's
