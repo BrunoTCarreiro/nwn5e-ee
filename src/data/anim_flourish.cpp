@@ -18,6 +18,12 @@ FlourishStep DecideFlourish(const FlourishTick& t) {
   return FlourishStep::PauseAndPlay;
 }
 
+int CastClipMs(float seconds) {
+  if (!(seconds > 0.0f) || !std::isfinite(seconds)) return 0;
+  const float held = seconds < 0.1f ? 0.1f : seconds > 10.0f ? 10.0f : seconds;
+  return static_cast<int>(std::lround(held * 1000.0f));
+}
+
 int FlourishPauseMs(float clip_seconds) {
   const float ms = clip_seconds > 0.0f && std::isfinite(clip_seconds) ? clip_seconds * 1000.0f : 0.0f;
   return static_cast<int>(std::lround(ms)) + kPadMs;

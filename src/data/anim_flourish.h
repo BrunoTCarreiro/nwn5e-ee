@@ -35,4 +35,8 @@ FlourishStep DecideFlourish(const FlourishTick& t);
 // comes after the clip.
 int FlourishPauseMs(float clip_seconds);
 
+// #150: how long a cast clip's swap stays (core/anim_cast_clip): the caller's `seconds` in ms, held to 0.1 - 10 s;
+// 0 - no swap - for a time that isn't positive and finite.
+int CastClipMs(float seconds);
+
 }  // namespace data
