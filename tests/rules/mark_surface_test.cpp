@@ -207,4 +207,11 @@ TEST(SurfaceMarkClicks) {
   CHECK_EQ(MarkCursorOnCaster({3.7f, 3, 1.7f}, {3, 3, 0.5f}), false);  // 0.7 m off: beside it
   CHECK_EQ(MarkCursorOnCaster({3, 3, 2.9f}, {3, 3, 0.5f}), false);     // above its head
   CHECK_EQ(MarkCursorOnCaster({3, 3, 0.2f}, {3, 3, 0.5f}), false);     // below its feet
+  // 0.96.5: a door's transition surface passed through, its leaf and others not.
+  CHECK_EQ(MarkPassesThrough("sam"), true);
+  CHECK_EQ(MarkPassesThrough("SAM"), true);
+  CHECK_EQ(MarkPassesThrough("Mesh05"), false);
+  CHECK_EQ(MarkPassesThrough("sample"), false);
+  CHECK_EQ(MarkPassesThrough("sap"), false);
+  CHECK_EQ(MarkPassesThrough(""), false);
 }

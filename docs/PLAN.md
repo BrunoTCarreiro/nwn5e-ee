@@ -952,6 +952,17 @@ monster AC by CR.
       around. The cast marks the wall at the cursor on an invisible object: upright, facing out along the normal
       (flat on a ledge's top).
     - The floor: as before.
+  - *Tested 0.96.3 (owner, 2026-11-09):* MO-6 passed ("On walls it only works if there's a floor behind").
+    MO-1c failed ("MO-1c still isn't placed on the door", then "can be fixed if the player manages to click on the
+    door itself and not on the transition surface"): the clicks hit the door model's part "sam". MO-7 failed
+    ("trying to apply the mark on pilars doesn't work, it gets applied on the wall and is hidden by the pillar"):
+    the scene's pick tests only the area's static BSP parts (the plain walls) unless hitcheck_static_trimesh_parts
+    is set. Walls at the map's edge and objects that can't be clicked (benches, banners) never reach the server:
+    the game refuses the click (a decision for the owner). 0.96.5:
+    - A door's "sam" (148 of the game's 237 door models) is passed through along every line, so the mark goes on
+      the leaf behind it.
+    - The cursor's pick sets hitcheck_static_trimesh_parts (and restores it), as the game's own picks do, so
+      pillars and the area's other visible meshes are hit.
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's
