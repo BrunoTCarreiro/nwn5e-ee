@@ -96,6 +96,8 @@ same time, what else can we use?" - "go with A", a GitHub Project).
   - `python -I scripts/tests_board.py list [open|all]` reads the board.
   - `add <rows.csv>` adds tests (in `docs/tests.csv`'s columns).
   - `set <#issue> <id> <status> [note]` records a result, dated today.
+  - `edit <#issue> <id> <column> <text>` changes a text column (Setup, Do,
+    Expect, Note) and rewrites the item's title and description to match.
   - `export` writes the board into `docs/tests.csv`.
 - **`docs/tests.csv`:** the archive (the tests passed, superseded or
   dropped before the board) and, after `export`, the board's record in
@@ -109,6 +111,12 @@ same time, what else can we use?" - "go with A", a GitHub Project).
   - A retest row: the old row becomes Superseded, its note naming the retest.
   - An accepted issue: its rows still Open become Passed.
   - After a batch of changes: `export`, and commit `docs/tests.csv`.
+- **Every test stands on its own** (owner, 2026-11-09: "when you add a new
+  test to gh, make sure to add any prerequisite !test command to each of them,
+  I cant guarantee that I'll still see the first test in the thread that has
+  the comman"). Its Setup names the `!test` profile (and what to pick in it),
+  any `!spawn`, the bench to open; no Setup or Do says "After X" or leans on
+  another row.
 
 ## Rules that always hold
 
