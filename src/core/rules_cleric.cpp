@@ -492,7 +492,8 @@ void OrderUpdate(void* creature) {
   Log("cleric: 0x%08X given Divine Order: Protector (it had none)", id);
 }
 
-// !order [protector | thaumaturge]: the Divine Order, and switching it once.
+// !order [protector | thaumaturge]: the Divine Order, and switching it once; with [debug] test_commands, "!order
+// reset" frees the switch again.
 std::vector<std::string> OrderCommand(void* creature, const std::string& args) {
   void* stats = creature ? StatsOf(creature) : nullptr;
   if (!stats || !Faithful() || ClassLevel2024(stats, rules::CharacterClass::kCleric) <= 0) {
@@ -505,6 +506,10 @@ std::vector<std::string> OrderCommand(void* creature, const std::string& args) {
   const bool switched = engine::GetLocalInt(creature, kVarOrderSwitched) != 0;
   std::string lower = args;
   for (char& c : lower) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+  if (lower.find("reset") != std::string::npos && g_config.debug_test_commands) {  // the tests' (0.98.4)
+    SetRecord(creature, kVarOrderSwitched, 0);
+    return {"nwn5e: !order reset - Divine Order (" + now + ") may switch once again ([debug] test_commands)."};
+  }
   const bool want_protector = lower.find("prot") != std::string::npos;
   const bool want_thaumaturge = lower.find("thaum") != std::string::npos;
   if (!want_protector && !want_thaumaturge) {

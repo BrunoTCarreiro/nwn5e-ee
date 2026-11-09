@@ -1192,7 +1192,8 @@ monster AC by CR.
     armour it had); `!order [protector | thaumaturge]` switches once (record nwn5e_order_switched). Thaumaturge: the
     Wisdom modifier (at least +1) on Arcana and Religion (rules_skills.cpp's effects) and a cantrip more in the
     Prepare spells window (prepare_spells.cpp - its limit and the empty-place checks; the engine's per-class cap
-    stays: the client's level-up page offers 3 at Cleric 1, the window the 4th).
+    stays: the client's level-up page offers 3 at Cleric 1, the window the 4th). 0.98.4: with [debug] test_commands,
+    `!order reset` frees the switch again (the tests).
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's
