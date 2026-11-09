@@ -481,15 +481,28 @@ TEST(AnimRecipeLegsFromAnother) {
   CHECK_EQ(Milli(first(out.nodes[2].orientation)[0]), Milli(TurnX(-10.0f)[0]));
   CHECK_EQ(Milli(last(out.nodes[2].orientation)[0]), Milli(TurnX(-15.0f)[0]));
   CHECK_EQ(Milli(last(out.nodes[3].orientation)[0]), Milli(TurnX(5.0f)[0]));
-  // The torso half and the root's turn: the base's, twice as fast - its end at 0.5 s.
-  CHECK_EQ(Milli(last(out.nodes[1].orientation)[2]), Milli(turn_z(30.0f)[2]));
-  CHECK_EQ(Milli(last(out.nodes[4].orientation)[2]), Milli(turn_z(90.0f)[2]));
+  // The root's turn: the legs' too, so they stand as they do there (owner: the feet floated - castout's turn tipped
+  // 1hreadyr's legs); the torso turned back by the difference, so the chest faces where the base has it in the world,
+  // twice as fast: none at the start, 30 + 90 degrees round z at 0.5 s. The arm hangs from it as in the base.
+  CHECK_EQ(Milli(last(out.nodes[1].orientation)[2]), Milli(turn_z(-60.0f)[2]));
+  const std::array<float, 4> chest = QMul(last(out.nodes[1].orientation), last(out.nodes[4].orientation));
+  CHECK_EQ(Milli(chest[2]) == Milli(turn_z(120.0f)[2]) && Milli(chest[3]) == Milli(turn_z(120.0f)[3]), true);
+  const std::array<float, 4> chest0 = QMul(first(out.nodes[1].orientation), first(out.nodes[4].orientation));
+  CHECK_EQ(Milli(chest0[2]) == 0 && Milli(chest0[3]) == 1000, true);
   CHECK_EQ(Milli(last(out.nodes[5].orientation)[0]), Milli(TurnX(60.0f)[0]));
   // A leg bone the legs animation doesn't key keeps the base's; no legs animation, all the base's.
   AnimClip partial = legs;
   partial.nodes.erase(partial.nodes.begin() + 3);
   const AnimClip kept = DeriveAnimClip(r, base, nullptr, nullptr, &partial);
   CHECK_EQ(kept.nodes.size() == 6u && Milli(last(kept.nodes[3].orientation)[0]) == Milli(TurnX(40.0f)[0]), true);
+  // A legs animation that doesn't turn its root: the root's turn and the torso stay the base's.
+  AnimClip unturned = legs;
+  unturned.nodes[1].has_orientation = false;
+  unturned.nodes[1].orientation = AnimKeys{};
+  const AnimClip as_base = DeriveAnimClip(r, base, nullptr, nullptr, &unturned);
+  CHECK_EQ(Milli(last(as_base.nodes[1].orientation)[2]) == Milli(turn_z(30.0f)[2]) &&
+               Milli(last(as_base.nodes[4].orientation)[2]) == Milli(turn_z(90.0f)[2]),
+           true);
   const AnimClip plain = DeriveAnimClip(r, base, nullptr, nullptr, nullptr);
   CHECK_EQ(plain.nodes.size() == 6u && Milli(last(plain.nodes[2].orientation)[0]) == Milli(TurnX(20.0f)[0]), true);
 }
