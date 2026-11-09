@@ -1167,6 +1167,12 @@ monster AC by CR.
     tagged nwn5e_turned for a minute - ended by damage or the Cleric down; Sear Undead's damage first), Preserve
     Life (Cleric 3; friendly Bloodied within 30 ft, the most room first). The DC 8 + PB + Wisdom (Charisma for a
     Paladin's NWN Turn Undead). A use the menu can't carry out is given back.
+    *Tested 0.98.0 (owner, 2026-11-09): CD-2 "can only cast channel divinity at self"* - the log: the radial on
+    yourself took Divine Spark (Radiant)'s leaf (param 0x3e940126) for feat 294's own spell 308 (TARGETSELF, an
+    area: "used at once"), so it was cast at the Cleric, refused and given back. 0.98.1 (radial_retarget.cpp): a
+    feat menu's option - its param k * 65536 + the feat - is its own spells.2da row (FeatID = the param), with its own
+    targets: a creature-targeted one opens the targeting cursor, and the cursor carries the option (the game passes
+    a feat up to 0x430 to the cursor without it - Turn Undead's own spell at the click - but keeps it for feat 5's).
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's

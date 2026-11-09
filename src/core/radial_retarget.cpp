@@ -77,6 +77,7 @@ void** g_app_manager = nullptr;
 struct Tables {
   bool read = false;
   std::vector<std::string> range, target_type, hostile, shape, feat_spell, feat_self;
+  std::vector<std::string> spell_feat;  // spells.2da FeatID: a feat's menu option is k * 65536 + the feat
 };
 Tables g_tables;
 int g_logged = 0;
@@ -94,6 +95,7 @@ const Tables& ReadTables() {
     g_tables.shape = GameTableColumn("spells", "TargetShape");
     g_tables.feat_spell = GameTableColumn("feat", "SPELLID");
     g_tables.feat_self = GameTableColumn("feat", "TARGETSELF");
+    g_tables.spell_feat = GameTableColumn("spells", "FeatID");
     Log("radial (#140): read %zu spells.2da rows (%zu with a TargetShape column), %zu feat.2da rows",
         g_tables.range.size(), g_tables.shape.size(), g_tables.feat_spell.size());
   }
@@ -118,6 +120,21 @@ int FeatSpell(int feat, bool* self_only) {
   if (feat < 0 || row >= t.feat_spell.size() || t.feat_spell[row].empty()) return -1;
   *self_only = row < t.feat_self.size() && t.feat_self[row] == "1";
   return atoi(t.feat_spell[row].c_str());
+}
+
+// 0.98.1 (#42, owner's CD-2: "can only cast channel divinity at self"): a feat menu's option - its leaf's param
+// k * 65536 + the feat (Channel Divinity's Divine Spark, Brutal Strike's effects) - is its own spells.2da row, the
+// one whose FeatID is that param: its own targets, not the feat's (Turn Undead: yourself). -1: not an option.
+int MenuOptionSpell(int64_t param) {
+  const uint32_t id = static_cast<uint32_t>(param);
+  if ((id >> 16) == 0) return -1;
+  const Tables& t = ReadTables();
+  for (size_t row = 0; row < t.spell_feat.size(); ++row) {
+    if (!t.spell_feat[row].empty() && strtoul(t.spell_feat[row].c_str(), nullptr, 10) == id) {
+      return static_cast<int>(row);
+    }
+  }
+  return -1;
 }
 
 // The client's controlled creature, as the game's `mov rax,[global]; mov rcx,[rax]; call`: the global holds a
@@ -264,7 +281,11 @@ bool FeatLeaf(void* handler, int64_t param, const Menu& menu, int64_t cursor_par
     if (param == mode) return false;  // a mode the game toggles before anything else
   }
   bool self_only = false;
-  const int spell = creature ? FeatSpell(static_cast<int>(param & 0xffff), &self_only) : -1;
+  int spell = creature ? MenuOptionSpell(param) : -1;  // a menu's option: its row's targets (0.98.1)
+  // ... and its cursor carries the option (feat | k << 16), as the game's own for feat 5's: the game passes a feat
+  // up to 0x430 to the feat cursor without it, which would use the feat itself (Turn Undead) at the click.
+  const int64_t cursor = spell >= 0 ? static_cast<int64_t>(use_param) : cursor_param;
+  if (spell < 0 && creature) spell = FeatSpell(static_cast<int>(param & 0xffff), &self_only);
   rules::RadialSpell facts;
   if (spell < 0 || !SpellFacts(spell, &facts)) return false;
   facts.at_once = facts.at_once || self_only;
@@ -272,7 +293,7 @@ bool FeatLeaf(void* handler, int64_t param, const Menu& menu, int64_t cursor_par
   uint8_t kind = 0;
   const rules::RadialOn on = Classify(target, Field<uint32_t>(creature, ee::kClientObjectId), &kind);
   if (rules::RadialRetargets(on, facts)) {
-    const bool started = StartFeatCursor(cursor_param);
+    const bool started = StartFeatCursor(cursor);
     Note("feat", spell, on, target, kind,
          !started      ? "no cursor (used at once)"
          : facts.area  ? "the targeting cursor, its area shown"
