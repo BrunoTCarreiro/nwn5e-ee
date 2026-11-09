@@ -64,6 +64,7 @@
 #include "mastery.h"
 #include "action_guard.h"
 #include "anim_cast_clip.h"
+#include "spell_cast_listeners.h"
 #include "cantrip_effects.h"
 #include "chat.h"
 #include "resistance.h"
@@ -80,15 +81,12 @@ namespace {
 
 // #150 (owner, 2026-11-09: "go with your recommendation for #150"): a cantrip's cast plays n5_cantrip in place of
 // castout (and its held loop's) - the animation session's RequestCastClip, asked when the cast is broadcast
-// (CNWSCreature::BroadcastSpellCast, once per cast from AIActionCastSpell); another spell's cast ends a swap still
+// (spell_cast_listeners.h: BroadcastSpellCast, once per cast from AIActionCastSpell); another spell's cast ends a swap still
 // standing. The rows (spells.if_cantrips2024.*) give every cantrip no conjure and castout for
 // rules::kCantripCastMs.
-constexpr const char* kBroadcastSpellCast = "?BroadcastSpellCast@CNWSCreature@@QEAAXIEG@Z";
 constexpr uint64_t kCastClipRepeatMs = 1000;  // a second broadcast of the same cast: the swap kept
 constexpr size_t kCastClipsKept = 256;
-using BroadcastSpellCastFn = void (*)(void* creature, uint32_t spell, uint8_t a, uint16_t b);
 using SpellRowFn = void* (*)(const void* spells, int id);
-BroadcastSpellCastFn g_broadcast_spell_cast = nullptr;
 SpellRowFn g_spell_row = nullptr;
 void** g_rules_for_rows = nullptr;
 struct CastClip {
@@ -104,7 +102,7 @@ bool IsCantripRow(uint32_t spell) {
   return row && Field<uint8_t>(row, ee::kSpellInnateLevel) == 0;
 }
 
-void BroadcastSpellCast(void* creature, uint32_t spell, uint8_t a, uint16_t b) {
+void CantripCastBroadcast(void* creature, uint32_t spell) {
   if (creature) {
     if (IsCantripRow(spell)) {
       const uint64_t now = GetTickCount64();
@@ -124,7 +122,6 @@ void BroadcastSpellCast(void* creature, uint32_t spell, uint8_t a, uint16_t b) {
       EndCastClip(creature);
     }
   }
-  g_broadcast_spell_cast(creature, spell, a, b);
 }
 
 constexpr uint64_t kRoundMs = 6000;
@@ -790,9 +787,7 @@ void InstallCantrips() {
   // #150: the short cast's clip.
   g_spell_row = reinterpret_cast<SpellRowFn>(EngineExport(ee::kGetSpell));
   g_rules_for_rows = reinterpret_cast<void**>(EngineExport(ee::kRules));
-  if (!g_spell_row || !g_rules_for_rows ||
-      !HookExport("CNWSCreature::BroadcastSpellCast (a cantrip's cast plays n5_cantrip, #150)", kBroadcastSpellCast,
-                  reinterpret_cast<void*>(&BroadcastSpellCast), reinterpret_cast<void**>(&g_broadcast_spell_cast))) {
+  if (!g_spell_row || !g_rules_for_rows || !AddSpellCastListener(&CantripCastBroadcast)) {
     Log("SKIP cantrips: a cantrip's cast isn't seen - it plays castout itself (still with no conjure)");
   }
   bool scripts = AddScriptHandler("n5_c_light", &LightScript) &&

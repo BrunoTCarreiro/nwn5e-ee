@@ -51,6 +51,7 @@
 #include "ruleset.h"
 #include "rules/skills.h"
 #include "skill_rank.h"
+#include "spell_cast_listeners.h"
 
 int SearchDie(void* searcher, bool worse);  // rules_perception.cpp (SK5)
 int ReliableTalentRoll(void* creature, int nwn_skill, int d20);  // rules_skills.cpp (Rogue R9)
@@ -135,6 +136,8 @@ std::vector<uintptr_t> g_search_dice;
 VmCommandFn g_skill_success_command = nullptr;
 VmCommandFn g_door_action_command = nullptr;
 SpellCastFn g_spell_cast = nullptr;
+std::vector<SpellCastListener> g_spell_cast_listeners;  // #150 (spell_cast_listeners.h)
+bool g_spell_cast_failed = false;
 CounterSpellFn g_counter_spell = nullptr;
 ExamineGuiFn g_examine_gui = nullptr;
 UpdateTrapCheckFn g_update_trap_check = nullptr;
@@ -329,6 +332,7 @@ constexpr ActionFn kActionWrappers[] = {&ActionWrapper<0>, &ActionWrapper<1>, &A
                                         &ActionWrapper<4>, &ActionWrapper<5>};
 
 void SpellCast(void* creature, uint32_t spell, uint8_t a, uint16_t b) {
+  for (SpellCastListener listener : g_spell_cast_listeners) listener(creature, spell);
   const int outer = t_spell_id;
   t_spell_id = static_cast<int>(spell);
   g_spell_cast(creature, spell, a, b);
@@ -550,7 +554,22 @@ bool Hook(const char* what, const char* export_name, Fn detour, Fn* original) {
   return HookExport(what, export_name, reinterpret_cast<void*>(detour), reinterpret_cast<void**>(original));
 }
 
+// BroadcastSpellCast hooked once: Spellcraft's DC (`skills` faithful) and the spell cast listeners share it.
+bool HookSpellCast() {
+  if (g_spell_cast) return true;
+  if (g_spell_cast_failed) return false;
+  g_spell_cast_failed = !Hook("CNWSCreature::BroadcastSpellCast (Spellcraft: 2024 DC; the spell cast listeners)",
+                              ee::kBroadcastSpellCast, &SpellCast, &g_spell_cast);
+  return !g_spell_cast_failed;
+}
+
 }  // namespace
+
+bool AddSpellCastListener(SpellCastListener listener) {
+  if (!listener || !HookSpellCast()) return false;
+  g_spell_cast_listeners.push_back(listener);
+  return true;
+}
 
 void InstallSkillDcRules() {
   if (g_config.skills != rules::RuleVariant::kFaithful) return;
@@ -578,8 +597,7 @@ void InstallSkillDcRules() {
   for (uintptr_t call : CallsIn(ee::kUpdateTrapCheck, ee::kRollDice)) g_search_dice.push_back(call + kCallLength);
   hooks += Hook("CNWSCreature::UpdateTrapCheck (Search: 2024 DC, conditions)", ee::kUpdateTrapCheck, &UpdateTrapCheck,
                 &g_update_trap_check) ? 1 : 0;
-  hooks += Hook("CNWSCreature::BroadcastSpellCast (Spellcraft: 2024 DC)", ee::kBroadcastSpellCast, &SpellCast,
-                &g_spell_cast) ? 1 : 0;
+  hooks += HookSpellCast() ? 1 : 0;
   hooks += Hook("CNWSObject::BroadcastCounterSpellData (Spellcraft: 2024 DC)", ee::kBroadcastCounterSpellData,
                 &CounterSpell, &g_counter_spell) ? 1 : 0;
   hooks += Hook("CNWSMessage::SendServerToPlayerExamineGui_TrapData (2024 DC)", ee::kExamineGuiTrapData, &ExamineGui,
