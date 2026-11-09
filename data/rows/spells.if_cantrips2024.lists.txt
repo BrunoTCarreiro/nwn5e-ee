@@ -2,13 +2,16 @@
 # Light, Ray of Frost and Acid Splash run nwn5e's scripts (Acid Splash aimed at a point: a 5-foot sphere); NWN's
 # own cantrips (Daze, Flare, Electric Jolt, Virtue, Cure / Inflict Minor Wounds) off the class lists (4A) -
 # monsters and items keep them. The new cantrips: spells.if_cantrips2024.new.txt.
-ImpactScript SpellDesc TargetType TargetShape TargetSizeX TargetFlags Bard Cleric Druid Paladin Ranger Wiz_Sorc
-33 NW_S0_CurMinW 6129 0x2B **** **** **** **** **** **** **** **** ****
-37 NW_S0_Daze 6133 0x2A **** **** **** **** **** **** **** **** ****
-100 n5_c_light 16000583 0x2B **** **** **** 0 0 **** **** **** 0
-144 n5_c_rayfrost 16000584 0x3A **** **** **** **** **** **** **** **** 0
-189 NW_S0_Virtue 6520 0x2B **** **** **** **** **** **** **** **** ****
-416 X0_S0_Flare 510 0x3A **** **** **** **** **** **** **** **** ****
-424 n5_c_acidsplash 16000585 0x3E sphere 1.52 0 **** **** **** **** **** 0
-431 x0_s0_inflict 1570 0x3A **** **** **** **** **** **** **** **** ****
-439 X0_S0_ElecJolt 1857 0x3A **** **** **** **** **** **** **** **** ****
+# #150 (owner, 2026-11-09: "go with your recommendation for #150"; relayed from #149: "most casting animations
+# are very elaborate, especially for cantrips"): every cantrip casts with no conjure (ConjTime 0, ConjAnim
+# none), straight into castout (CastAnim out) - n5_cantrip in its place - for 1500 ms (CastTime).
+ImpactScript SpellDesc TargetType TargetShape TargetSizeX TargetFlags Bard Cleric Druid Paladin Ranger Wiz_Sorc ConjTime ConjAnim CastAnim CastTime
+33 NW_S0_CurMinW 6129 0x2B **** **** **** **** **** **** **** **** **** 0 **** out 1500
+37 NW_S0_Daze 6133 0x2A **** **** **** **** **** **** **** **** **** 0 **** out 1500
+100 n5_c_light 16000583 0x2B **** **** **** 0 0 **** **** **** 0 0 **** out 1500
+144 n5_c_rayfrost 16000584 0x3A **** **** **** **** **** **** **** **** 0 0 **** out 1500
+189 NW_S0_Virtue 6520 0x2B **** **** **** **** **** **** **** **** **** 0 **** out 1500
+416 X0_S0_Flare 510 0x3A **** **** **** **** **** **** **** **** **** 0 **** out 1500
+424 n5_c_acidsplash 16000585 0x3E sphere 1.52 0 **** **** **** **** **** 0 0 **** out 1500
+431 x0_s0_inflict 1570 0x3A **** **** **** **** **** **** **** **** **** 0 **** out 1500
+439 X0_S0_ElecJolt 1857 0x3A **** **** **** **** **** **** **** **** **** 0 **** out 1500

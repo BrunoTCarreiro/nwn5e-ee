@@ -38,6 +38,15 @@
 // it); MO-7 (owner: "it gets applied on the wall and is hidden by the pillar") - the scene's pick tests the area's
 // visible meshes only while hitcheck_static_trimesh_parts is set (HitPartOnBSPNode's second list; otherwise its
 // static BSP parts, the plain walls), so the cursor's pick sets it, as the game's own picks do, and restores it.
+//
+// 0.96.7 (#39; owner, 2026-11-09: "A for walls"): a wall at the map's edge (nothing behind it) and things that can't
+// be clicked. While a spell is aimed, the GUI object holding the mouse is a CActionTarget (its vtable by RTTI); its
+// click asks the client's pick (not exported; found by its code) for what's under the cursor, and only a floor (1)
+// or an object (2) is taken - nothing (0) swallows the click. That pick tests the walkmesh and the plain walls, so
+// a wall with nothing behind gives 0. For Magic Mark (the target's commit the cast's, its row a Magic Mark) the pick
+// is filtered: on 0 the cursor's point with the visible meshes (PickAt) is given as the ground - the cursor shows the
+// spell's, the click is taken and the cast sent with that point, and the order's adjuster (knowing the point it
+// gave) moves it in front of the wall and marks the wall.
 
 #include "magic_mark_surface.h"
 
@@ -143,6 +152,28 @@ constexpr int kNormalPixels = 3;           // the two picks beside the cursor's
 constexpr int64_t kClickFreshMs = 120000;  // a click waits this long for its cast (the walk there included)
 constexpr int kClickLogCap = 40;
 
+// 0.96.7: the spell cursor's pick (see the top). Its code: a call to the CActionTarget getter (its GUI type 'AcTg'),
+// then the target's +0x138 tested; the click's call to it through a wrapper (mov rcx, [rcx+8]; jmp the pick); the
+// spell target's commit (the cast's, lea rcx) and a special ability's (lea rax) stored at +0xe8.
+constexpr const char* kTargetPickAnchor = "E8 ?? ?? ?? ?? 48 85 C0 74 ?? 83 B8 38 01 00 00 00 75 ?? 8B 44 24 60";
+constexpr uintptr_t kTargetPickAnchorAt = 0x20;
+constexpr uint8_t kActionTargetType[] = {0x3d, 0x67, 0x54, 0x63, 0x41};  // cmp eax, 'AcTg'
+constexpr const char* kClickPickAnchor =
+    "45 33 C9 4C 8D 45 DF 48 8D 55 97 48 8B 08 E8 ?? ?? ?? ?? 8B 4D 6F BA 02 00 00 00 83 F8 01 0F 44 CA";
+constexpr uintptr_t kClickPickCallAt = 14;
+constexpr uint8_t kPickWrapper[] = {0x48, 0x8b, 0x49, 0x08, 0xe9};
+constexpr const char* kCommitAnchor = "48 89 9B E0 00 00 00 48 8D 0D ?? ?? ?? ?? 48 0F 44 C1 48 89 83 E8 00 00 00";
+constexpr uint8_t kLeaRax[] = {0x48, 0x8d, 0x05};
+constexpr const char* kCaptureMouse = "?CaptureMouse@CGuiMan@@QEAAXPEAVCGuiObject@@H@Z";
+constexpr const char* kCaptureRead = "48 8B 49 58";  // CaptureMouse: mov rcx, [rcx+58h]
+constexpr const char* kRttiActionTarget = ".?AVCActionTarget@@";
+constexpr int kActionTargetClickSlot = 0x90 / 8;  // HandleLMouseDown
+constexpr size_t kGuiManCapture = 0x58;            // CGuiMan: the GUI object holding the mouse
+constexpr size_t kTargetCommit = 0xe8;             // the spell target's commit
+constexpr size_t kTargetSpell = 0x100;             // its order: the spells.2da row in the low 16 bits
+constexpr int64_t kGivenFreshMs = 15000;           // the point given waits this long for its order
+constexpr float kGivenSamePoint = 0.05f;           // metres: the order's point is the one given
+
 using HitCheckFn = void* (*)(void* gob, float* start, float* end, float* hit, void* info);
 using HitInfoMakeFn = void* (*)(void* info, int kind, int64_t mask, int boxes);
 using HitInfoFreeFn = void (*)(void* info);
@@ -158,6 +189,8 @@ using TurnVectorFn = float* (*)(float* out, const float* turn, const float* vect
 using MousePosFn = void (*)(void* gui, int* x, int* y);
 using CameraPickFn = int (*)(void* camera, int x, int y, float* point, void* info);
 using IsMultiPlayerFn = int (*)(void* server);
+// The client's pick for the spell cursor: 0 nothing, 1 the floor (*position), 2 an object (*object).
+using ClientPickFn = int (*)(void* internal, void** object, float* position, int* flag, int with_player);
 
 struct Api {
   HitInfoMakeFn make_info = nullptr;
@@ -184,6 +217,20 @@ ClickApi g_click_api;
 std::mutex g_clicks_mutex;
 std::map<uint32_t, MarkClick> g_clicks;  // each caster's last Magic Mark click
 std::atomic<int> g_click_logs{0};
+
+struct TargetApi {
+  ClientPickFn pick = nullptr;  // the original
+  uintptr_t action_target_vtable = 0;
+  uintptr_t cast_commit = 0;
+  uintptr_t ability_commit = 0;
+};
+TargetApi g_target_api;
+struct GivenPoint {
+  Vec3f point;
+  int64_t when_ms = 0;
+};
+std::mutex g_given_mutex;
+std::optional<GivenPoint> g_given;  // the cursor's point the spell cursor's pick gave for a click
 
 bool ClickLogSlot() { return g_click_logs.fetch_add(1) < kClickLogCap; }
 
@@ -499,6 +546,58 @@ std::optional<CursorPick> PickUnderCursor(std::string* why) {
   return pick;
 }
 
+// The spell cursor aiming Magic Mark (the CActionTarget holding the mouse, its commit a cast's, its row a Magic Mark).
+bool AimingMagicMark() {
+  void* gui = *g_click_api.gui;
+  void* captured = gui ? Field<void*>(gui, kGuiManCapture) : nullptr;
+  if (!captured || *static_cast<const uintptr_t*>(captured) != g_target_api.action_target_vtable) return false;
+  const uintptr_t commit = Field<uintptr_t>(captured, kTargetCommit);
+  if (commit != g_target_api.cast_commit && commit != g_target_api.ability_commit) return false;
+  return rules::UtilityEffectOf(Field<uint16_t>(captured, kTargetSpell)) == rules::UtilityEffect::kMagicMark;
+}
+
+// The spell cursor's pick: nothing under it while Magic Mark is aimed - the cursor's point (the visible meshes too)
+// given as the ground, and kept for the order's adjuster when it's a click (the cursor's update passes no point).
+int TargetPick(void* internal, void** object, float* position, int* flag, int with_player) {
+  const int found = g_target_api.pick(internal, object, position, flag, with_player);
+  if (found != 0 || !AimingMagicMark() || MultiPlayer()) return found;
+  void* camera = WorldCamera();
+  void* gui = *g_click_api.gui;
+  if (!camera || !gui) return found;
+  int x = 0, y = 0;
+  g_click_api.mouse_pos(gui, &x, &y);
+  const std::optional<Vec3f> point = PickAt(camera, x, y);
+  if (!point) return found;
+  if (object) *object = nullptr;
+  if (flag) *flag = 1;
+  if (position) {
+    position[0] = point->x;
+    position[1] = point->y;
+    position[2] = point->z;
+    {
+      std::lock_guard<std::mutex> lock(g_given_mutex);
+      g_given = GivenPoint{*point, NowMs()};
+    }
+    if (ClickLogSlot()) {
+      Log("magic mark clicks: the spell cursor had nothing to aim at (a wall with nothing behind it?) - the cursor's "
+          "point %.2f %.2f %.2f given as the ground",
+          point->x, point->y, point->z);
+    }
+  }
+  return 1;
+}
+
+// The order's point is the one the spell cursor's pick gave (taken once).
+bool TookGivenPoint(const Vec3f& sent) {
+  std::lock_guard<std::mutex> lock(g_given_mutex);
+  if (!g_given) return false;
+  const GivenPoint given = *g_given;
+  const bool same = NowMs() - given.when_ms <= kGivenFreshMs &&
+                    rules::Length(rules::Sub(given.point, sent)) <= kGivenSamePoint;
+  if (same) g_given.reset();
+  return same;
+}
+
 // The cast order's adjuster (action_guard.h): a player's own Magic Mark click in single player - the point under the
 // cursor kept for the cast; cast at a point the cursor wasn't on (a wall with floor behind it), the order's point
 // moved in front of the wall, at the caster's feet.
@@ -529,7 +628,9 @@ void NoteMarkOrder(void* creature, SpellOrder* order, bool from_input) {
                    Field<float>(creature, ee::kObjectPositionZ)};
   const Vec3f sent{order->x, order->y, order->z};
   const bool at_point = order->target == ee::kObjectInvalid;
-  if (at_point && !rules::MarkClickOnFloor(pick->point, sent) && !rules::MarkCursorOnCaster(pick->point, feet)) {
+  const bool given = at_point && TookGivenPoint(sent);  // 0.96.7: nothing behind the wall
+  if (at_point &&
+      (given || (!rules::MarkClickOnFloor(pick->point, sent) && !rules::MarkCursorOnCaster(pick->point, feet)))) {
     click.wall = true;
     const Vec3f before = rules::MarkCastPointBefore(pick->point, pick->camera, feet.z);
     order->x = before.x;
@@ -537,10 +638,11 @@ void NoteMarkOrder(void* creature, SpellOrder* order, bool from_input) {
     order->z = before.z;
     if (ClickLogSlot()) {
       Log("magic mark clicks: 0x%08X spell %u - the cursor at %.2f %.2f %.2f (facing %.2f %.2f %.2f) isn't the floor "
-          "sent (%.2f %.2f %.2f): a wall's mark; the cast moved to %.2f %.2f %.2f, in front of it (part \"%s\"; "
+          "sent (%.2f %.2f %.2f%s): a wall's mark; the cast moved to %.2f %.2f %.2f, in front of it (part \"%s\"; "
           "mouse %d %d)",
           caster, order->spell, pick->point.x, pick->point.y, pick->point.z, pick->normal.x, pick->normal.y,
-          pick->normal.z, sent.x, sent.y, sent.z, before.x, before.y, before.z, pick->part.c_str(), pick->x, pick->y);
+          pick->normal.z, sent.x, sent.y, sent.z, given ? ", given by the spell cursor's pick" : "", before.x,
+          before.y, before.z, pick->part.c_str(), pick->x, pick->y);
     }
   } else if (ClickLogSlot()) {
     Log("magic mark clicks: 0x%08X spell %u at 0x%08X - the cursor at %.2f %.2f %.2f, seen from %.2f %.2f %.2f "
@@ -550,6 +652,40 @@ void NoteMarkOrder(void* creature, SpellOrder* order, bool from_input) {
   }
   std::lock_guard<std::mutex> lock(g_clicks_mutex);
   g_clicks[caster] = click;
+}
+
+// The spell cursor's pick hooked (see the top), every step of the path to it checked; logged when not.
+void InstallMarkTargeting() {
+  const uintptr_t anchor = FindPattern("magic mark targeting: the client's pick", kTargetPickAnchor);
+  const uintptr_t pick = anchor ? anchor - kTargetPickAnchorAt : 0;
+  const uintptr_t type_getter = anchor ? CallTarget(anchor) : 0;
+  const uintptr_t click = FindPattern("magic mark targeting: the spell cursor's click", kClickPickAnchor);
+  const uintptr_t wrapper = click ? CallTarget(click + kClickPickCallAt) : 0;
+  const uintptr_t commit = FindPattern("magic mark targeting: the spell target's commit", kCommitAnchor);
+  g_target_api.action_target_vtable = FindVtable("magic mark targeting: CActionTarget", kRttiActionTarget);
+  const uintptr_t capture = EngineExport(kCaptureMouse);
+  const CodeRange capture_code = capture ? FunctionAt(capture) : CodeRange{};
+  const bool as_read =
+      pick && FunctionEntry(anchor) == pick && type_getter &&
+      ContainsBytes(type_getter, type_getter + 0x40, kActionTargetType, sizeof(kActionTargetType)) && wrapper &&
+      CodeIs(wrapper, kPickWrapper, sizeof(kPickWrapper)) && Rel32Target(wrapper + 5, wrapper + 9) == pick &&
+      g_target_api.action_target_vtable &&
+      VtableSlot(g_target_api.action_target_vtable, kActionTargetClickSlot) == FunctionEntry(click) && commit &&
+      CodeIs(commit - 7, kLeaRax, sizeof(kLeaRax)) && capture_code.Valid() &&
+      FindPatternIn("magic mark targeting: CaptureMouse's +0x58", capture_code, kCaptureRead);
+  if (!as_read) {
+    Log("SKIP magic mark targeting: the spell cursor's pick isn't as read - a wall with nothing behind it can't be "
+        "marked");
+    return;
+  }
+  g_target_api.cast_commit = Rel32Target(commit + 10, commit + 14);
+  g_target_api.ability_commit = Rel32Target(commit - 4, commit);
+  if (!HookAddress("the spell cursor's pick (Magic Mark on a wall with nothing behind it, #39)", pick,
+                   reinterpret_cast<void*>(&TargetPick), reinterpret_cast<void**>(&g_target_api.pick))) {
+    return;
+  }
+  Log("magic mark targeting: on - aiming Magic Mark at a wall with nothing behind it (or anything else the spell "
+      "cursor finds nothing at), the cursor's point is taken");
 }
 
 void InstallMarkClicks() {
@@ -576,6 +712,7 @@ void InstallMarkClicks() {
       "on a wall marks the wall%s",
       g_click_api.static_trimesh ? "; pillars and the area's other visible meshes are seen"
                                  : " - hitcheck_static_trimesh_parts not found: pillars aren't seen");
+  InstallMarkTargeting();
 }
 
 }  // namespace

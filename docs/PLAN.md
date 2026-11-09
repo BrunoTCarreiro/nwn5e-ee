@@ -968,12 +968,26 @@ monster AC by CR.
     such a click: the client's check that refuses the point under the cursor is found and Magic Mark let through,
     the order carrying the floor in front of the spot (as for a wall with floor behind it); the mark goes on the
     cursor's point.
+    0.96.7: while a spell is aimed, the GUI object holding the mouse is a CActionTarget; its click asks the client's
+    pick for what's under the cursor, and nothing (0) swallows the click - the pick tests the walkmesh and the plain
+    walls, so a wall with nothing behind it gives nothing (found by a read of the client's code, not exported:
+    anchored by its bytes, the click handler's vtable slot and its call through a wrapper). For Magic Mark (the
+    target's commit the cast's, its row a Magic Mark), on nothing the pick gives the cursor's point with the visible
+    meshes as the ground: the spell's cursor shows, the click is taken, and the order's adjuster - knowing the
+    point it gave - moves the cast in front of the wall and marks the wall. Benches and banners: the game's pick
+    passes through them to the floor under or behind, and since 0.96.5 the cursor's own pick sees them (a wall's
+    mark on them).
 - **A short cast for cantrips (#150).** *Decided (owner, 2026-11-09: "go with your recommendation for #150"),*
   after "most casting animations are very elaborate, especially for cantrips" (relayed from #149): every cantrip -
   the damage ones, the utility ones, Light, NWN's own - casts with no conjure, straight into #149's n5_cantrip
   (castout's arms and torso on the combat-ready stance's legs) in place of castout, about 1.5 s instead of 2.5-3.2
   s. The game's part: the rows (ConjTime 0, CastAnim out, CastTime) and the call when a cantrip's cast starts;
   the swap and the clip's look are the animation session's.
+  - 0.96.7: every cantrip row (102: the served cantrips and NWN's own) has ConjTime 0, no ConjAnim, CastAnim out
+    and CastTime 1500 (rules::kCantripCastMs; test CantripRowsCastShort). When a cantrip's cast is broadcast
+    (CNWSCreature::BroadcastSpellCast, once per cast), the animation session's RequestCastClip swaps castout for
+    n5_cantrip and its held loop castoutlp for n5_cantriplp, for 1.6 s; another spell's cast ends a swap still
+    standing (EndCastClip).
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's

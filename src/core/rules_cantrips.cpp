@@ -63,6 +63,7 @@
 #include "log.h"
 #include "mastery.h"
 #include "action_guard.h"
+#include "anim_cast_clip.h"
 #include "cantrip_effects.h"
 #include "chat.h"
 #include "resistance.h"
@@ -76,6 +77,55 @@ int StabilizeDownPlayer(uint32_t id);        // rules_dying.cpp: 1 made Stable, 
 bool IsDownHenchmanUnderRules(uint32_t id);  // rules_dying.cpp
 
 namespace {
+
+// #150 (owner, 2026-11-09: "go with your recommendation for #150"): a cantrip's cast plays n5_cantrip in place of
+// castout (and its held loop's) - the animation session's RequestCastClip, asked when the cast is broadcast
+// (CNWSCreature::BroadcastSpellCast, once per cast from AIActionCastSpell); another spell's cast ends a swap still
+// standing. The rows (spells.if_cantrips2024.*) give every cantrip no conjure and castout for
+// rules::kCantripCastMs.
+constexpr const char* kBroadcastSpellCast = "?BroadcastSpellCast@CNWSCreature@@QEAAXIEG@Z";
+constexpr uint64_t kCastClipRepeatMs = 1000;  // a second broadcast of the same cast: the swap kept
+constexpr size_t kCastClipsKept = 256;
+using BroadcastSpellCastFn = void (*)(void* creature, uint32_t spell, uint8_t a, uint16_t b);
+using SpellRowFn = void* (*)(const void* spells, int id);
+BroadcastSpellCastFn g_broadcast_spell_cast = nullptr;
+SpellRowFn g_spell_row = nullptr;
+void** g_rules_for_rows = nullptr;
+struct CastClip {
+  uint32_t spell = 0;
+  uint64_t when = 0;
+};
+std::unordered_map<void*, CastClip> g_cast_clips;  // each caster's last cantrip clip asked
+int g_cast_clip_logs = 0;
+
+bool IsCantripRow(uint32_t spell) {
+  if (!g_spell_row || !g_rules_for_rows || !*g_rules_for_rows) return false;
+  const void* row = g_spell_row(Field<void*>(*g_rules_for_rows, ee::kRulesSpells), static_cast<int>(spell));
+  return row && Field<uint8_t>(row, ee::kSpellInnateLevel) == 0;
+}
+
+void BroadcastSpellCast(void* creature, uint32_t spell, uint8_t a, uint16_t b) {
+  if (creature) {
+    if (IsCantripRow(spell)) {
+      const uint64_t now = GetTickCount64();
+      if (g_cast_clips.size() > kCastClipsKept) g_cast_clips.clear();
+      CastClip& last = g_cast_clips[creature];
+      if (last.spell != spell || now - last.when > kCastClipRepeatMs) {
+        RequestCastClip(creature, "castout", "n5_cantrip", rules::kCantripClipSeconds);
+        last.spell = spell;
+        last.when = now;
+        if (g_cast_clip_logs < 20) {
+          ++g_cast_clip_logs;
+          Log("cantrips: 0x%08X casts spell %u, a cantrip - castout asked as n5_cantrip for %.1f s (#150)",
+              Field<uint32_t>(creature, ee::kObjectId), spell, rules::kCantripClipSeconds);
+        }
+      }
+    } else if (g_cast_clips.erase(creature)) {
+      EndCastClip(creature);
+    }
+  }
+  g_broadcast_spell_cast(creature, spell, a, b);
+}
 
 constexpr uint64_t kRoundMs = 6000;
 constexpr uint64_t kUntilYourNextTurnMs = kRoundMs;           // "until the start of your next turn"
@@ -737,6 +787,14 @@ void InstallCantrips() {
     return;
   }
   ServeConditionalRows("cantrips2024");
+  // #150: the short cast's clip.
+  g_spell_row = reinterpret_cast<SpellRowFn>(EngineExport(ee::kGetSpell));
+  g_rules_for_rows = reinterpret_cast<void**>(EngineExport(ee::kRules));
+  if (!g_spell_row || !g_rules_for_rows ||
+      !HookExport("CNWSCreature::BroadcastSpellCast (a cantrip's cast plays n5_cantrip, #150)", kBroadcastSpellCast,
+                  reinterpret_cast<void*>(&BroadcastSpellCast), reinterpret_cast<void**>(&g_broadcast_spell_cast))) {
+    Log("SKIP cantrips: a cantrip's cast isn't seen - it plays castout itself (still with no conjure)");
+  }
   bool scripts = AddScriptHandler("n5_c_light", &LightScript) &&
                  AddScriptHandler("n5_c_rayfrost", &CantripScript<144>) &&
                  AddScriptHandler("n5_c_acidsplash", &CantripScript<424>) &&

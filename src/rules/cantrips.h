@@ -326,6 +326,13 @@ float ClearShare(Blocked blocked, int steps) {
   return clear;
 }
 
+// #150 (owner, 2026-11-09: "go with your recommendation for #150"; relayed from #149: "most casting animations are
+// very elaborate, especially for cantrips"): every cantrip casts with no conjure, straight into castout - played as
+// n5_cantrip, castout's arms on the combat-ready legs, then its held loop the same way (the animation session's
+// RequestCastClip) - for kCantripCastMs (spells.2da's CastTime; ConjTime 0); the swap stands kCantripClipSeconds.
+constexpr int kCantripCastMs = 1500;
+constexpr float kCantripClipSeconds = 1.6f;
+
 // A utility cantrip row's effect: a variant's; the cantrip cast with no choice, its first option's; Druidcraft's
 // (Fire Play) and Mage Hand's own; kNone for any other row.
 UtilityEffect UtilityEffectOf(int spell);
