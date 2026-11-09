@@ -223,9 +223,10 @@ enum class UtilityEffect : uint32_t {
   kIllusionFootsteps,
   kIllusionRoar,
   kIllusionThunder,
-  kImageObject,
+  kImageTreasure,  // #152: in the barrel's place (owner, 2026-11-09: "A, go with treasure and corpse")
   kImageHumanoid,
   kImageCreature,
+  kImageCorpse,  // #152
   kDancingLights,
   kDancingLightsMove,
 };
@@ -366,9 +367,13 @@ constexpr int kScareSeconds = 12;      // "flee ... for 2 rounds"
 // Minor Illusion's image (SRD 5.2.1: an object no larger than a 5-foot Cube; the owner's humanoid and small
 // creature fit it): the game's own blueprint ("" none), for 1 minute. Creatures that see it come to look; one that
 // gets there studies it - an Intelligence (Investigation) check against the spell save DC sees through it.
-enum class ImageKind { kNone, kObject, kHumanoid, kCreature };
+// #152 (owner, 2026-11-09: "A, go with treasure and corpse"): the objects are lures - a pile of treasure and a corpse
+// (the barrel drew no one), the game's placeables, named for the menu.
+enum class ImageKind { kNone, kTreasure, kCorpse, kHumanoid, kCreature };
 ImageKind ImageKindOf(UtilityEffect effect);
 const char* ImageBlueprintOf(ImageKind kind);
+bool ImageIsObject(ImageKind kind);       // a placeable (the treasure, the corpse), not a creature
+const char* ImageNameOf(ImageKind kind);  // an object's name ("Treasure Pile", "Corpse"); "" keeps the blueprint's
 bool SeesThroughIllusion(int d20, int investigation_bonus, int dc);
 constexpr int kMinorIllusionSeconds = 60;
 constexpr int kImageSightFeet = 60;
@@ -377,7 +382,9 @@ constexpr int kImageSightFeet = 60;
 // Q1 A, sentient: not an animal (NWN's racial type 8), beast (9), construct (10), vermin (25) or ooze (29), and
 // Intelligence 4 or more.
 bool IsSentient(int nwn_racial_type, int intelligence_score);
-// Q2 A, aggressive: hostile to the caster. Q3 A: a hostile creature the leopard's size or larger attacks it.
+// Q2 A, aggressive: hostile to the caster. Q3 A: a hostile creature the leopard's size or larger attacks it. The
+// treasure draws the sentient hostile ones, who reach for it; the corpse draws them to study it, and hostile
+// animals to feed on it.
 enum class ImageReaction {
   kIgnore,            // pays it no mind
   kStudy,             // comes to look and studies it
@@ -385,6 +392,8 @@ enum class ImageReaction {
   kFleeThenStudy,     // flees for 2 rounds, then comes back and studies it
   kAttack,            // attacks it, then goes back
   kAttackThenSearch,  // attacks it, then searches round it for the caster
+  kTouch,             // comes to it and touches it - which reveals it (SRD 5.2.1: "Physical interaction with
+                      // the image reveals it to be an illusion"): reaching for the treasure, feeding on the corpse
 };
 // `size` and `image_size`: NWN's creature sizes (1 tiny .. 5 huge).
 ImageReaction ReactionToImage(ImageKind kind, bool sentient, bool hostile, int size, int image_size);

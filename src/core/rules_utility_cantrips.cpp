@@ -23,10 +23,12 @@
 //   whispers draw the creatures hostile to the caster that hear them (60 ft): they come to look, as for a light put
 //   out (heard_investigates). A roar, thunder or the animal's sound makes animals, beasts and vermin flee for 2
 //   rounds (rules::FleesFromScaringSound); the others come to look. None fighting, talking or the caster's own.
-// - Minor Illusion's image (an object, a humanoid, a small creature: a barrel, a commoner, a leopard) for 1 minute -
+// - Minor Illusion's image (treasure, a corpse, a humanoid, a small creature: the game's treasure pile, corpse,
+//   commoner and leopard) for 1 minute -
 //   inert, unseen by the AI, passed through. #152: those that see it react by what they are (rules::ReactionToImage)
 //   - a sentient hostile one studies it (d20 + Intelligence against the spell save DC), an animal flees or attacks
-//   it, the leopard by size; seen through or hit, it vanishes, and a sentient hostile one searches for the caster.
+//   it, the leopard by size; the treasure drawing hands, the corpse a study or an animal's meal; seen through,
+//   hit or touched, it vanishes, and a sentient hostile one searches for the caster.
 //   Cast again, it ends.
 // - Dancing Lights: four lights (NWN's 5 m yellow light and a glow) at the point, Concentration 1 minute; its
 //   Move a Bonus Action (bonus_actions.h), up to 60 ft and within 120 ft (the order's point, action_guard.h).
@@ -698,7 +700,8 @@ void PlaySoundAt(uint32_t self, void* caster, UtilityEffect effect, const std::s
   if (LogSlot()) Log("cantrips: 0x%08X %s (%s): %zu react", self, name.c_str(), rules::SoundResrefOf(effect), done.size());
 }
 
-// Minor Illusion's image at the point for 1 minute - the game's own barrel, commoner or leopard, inert: plot, unseen by
+// Minor Illusion's image at the point for 1 minute - the game's own treasure pile, corpse, commoner or leopard
+// (an object named for the menu), inert: plot, unseen by
 // the AI (EffectEthereal, tagged: a creature that attacks it sees it for the blow, #152) and passed through
 // (EffectCutsceneGhost: "things can pass through it"). Its object, name and size are kept on the caster.
 const char* const kImage = R"nss(
@@ -716,6 +719,7 @@ if ($CREATURE) {
   i = CreateObject(OBJECT_TYPE_PLACEABLE, "$BLUEPRINT", l, FALSE, "n5c_image");
   SetUseableFlag(i, FALSE);
   SetPlotFlag(i, TRUE);
+  SetName(i, "$NAME");
 }
 SetLocalObject(OBJECT_SELF, "n5c_image", i);
 DestroyObject(i, $SECONDS);
@@ -734,7 +738,7 @@ SetLocalInt(OBJECT_SELF, "n5c_image_size", $CREATURE ? GetCreatureSize(i) : 0);
 using rules::AfterStudy;
 using rules::ImageReaction;
 
-enum class Stage { kComing, kFleeing, kFledAgain, kCharging, kStriking, kSearching };
+enum class Stage { kComing, kTouching, kFleeing, kFledAgain, kCharging, kStriking, kSearching };
 
 struct Reactor {
   uint32_t caster = 0;
@@ -877,6 +881,18 @@ void Flee(uint32_t self, Reactor& r, bool again) {
       "an illusion's watcher fleeing");
 }
 
+// Coming to touch it - to take the treasure, to feed on the corpse - walking, not searching.
+const char* const kApproach = R"nss(
+ClearAllActions();
+ActionMoveToLocation(GetLocalLocation(OBJECT_SELF, "n5c_mi_at"));
+)nss";
+
+void Approach(uint32_t self, Reactor& r) {
+  r.stage = Stage::kTouching;
+  Run(std::string(kApproach) + Next(kStudyScript, r.serial) + Later(kLateSeconds, kLateScript, r.serial), self,
+      "an illusion's watcher coming to it");
+}
+
 const char* const kCharge = R"nss(
 ClearAllActions();
 ActionMoveToLocation(GetLocalLocation(OBJECT_SELF, "n5c_mi_at"), TRUE);
@@ -978,6 +994,26 @@ void Study(uint32_t self, Reactor& r, const Check& check) {
   }
 }
 
+// At it, it touches it (SRD 5.2.1: "Physical interaction with the image reveals it to be an illusion"): a hand
+// through the treasure, nothing to bite in the corpse. The image vanishes (Q4 A); a sentient hostile one then
+// searches for its caster, any other goes back. Gone already: as a study finds it.
+void Touch(uint32_t self, Reactor& r, const Check& check) {
+  if (!check.image_there) return Study(self, r, check);
+  const std::string name = r.name;
+  const bool treasure = r.kind == ImageKind::kTreasure;
+  const std::string line = name + (treasure ? " reaches for the " : " comes to feed on the ") + r.image_name +
+                           (treasure ? ": its hand passes through it" : ": it finds nothing to bite") +
+                           " - the illusion fades";
+  Note(self, r, "touches it - the image vanishes");
+  Vanish(r.image, self);
+  if (rules::SearchesAfterVanish(r.sentient, r.hostile)) {
+    Tell(r.caster, line + "; " + name + " searches for you");
+    return Search(self, r);
+  }
+  Tell(r.caster, line);
+  GoBack(self, false);
+}
+
 // A blow at the image (or none in kBlowSeconds): it passes through, and the image vanishes; a sentient attacker then
 // searches for its caster, any other goes back.
 void Struck(uint32_t image, uint32_t attacker) {
@@ -1028,12 +1064,13 @@ void StruckUpdate(void* /*creature*/) {
 // The handlers: each runs as the reacting creature.
 void OnStudyScript(uint32_t self) {
   Reactor* r = ReactorCalled(self);
-  if (!r || r->stage != Stage::kComing) return;
+  if (!r || (r->stage != Stage::kComing && r->stage != Stage::kTouching)) return;
   const Check check = CheckOf(self);
   if (check.fighting) {
     Note(self, *r, "is fighting - no study");
     return LetGo(self, false);
   }
+  if (r->stage == Stage::kTouching) return Touch(self, *r, check);
   Study(self, *r, check);
 }
 
@@ -1074,9 +1111,13 @@ void OnLateScript(uint32_t self) {
     if (g_reactors.count(self) && g_reactors[self].stage == Stage::kStriking) GoBack(self, false);
     return;
   }
-  if (r->stage != Stage::kComing && r->stage != Stage::kCharging) return;
+  if (r->stage != Stage::kComing && r->stage != Stage::kCharging && r->stage != Stage::kTouching) return;
   const Check check = CheckOf(self);
   if (check.fighting) return LetGo(self, false);
+  if (r->stage == Stage::kTouching) {
+    Note(self, *r, "never got there in 30 s - goes back");
+    return GoBack(self, true);
+  }
   if (r->stage == Stage::kComing) {
     Note(self, *r, "never got there in 30 s - studies it from where it stands");
     return Study(self, *r, check);
@@ -1112,6 +1153,7 @@ const char* ReactionName(ImageReaction reaction) {
     case ImageReaction::kFleeThenStudy: return "flees, then comes back to study it";
     case ImageReaction::kAttack: return "attacks it";
     case ImageReaction::kAttackThenSearch: return "attacks it, then searches";
+    case ImageReaction::kTouch: return "comes to touch it";
     default: return "ignores it";
   }
 }
@@ -1119,7 +1161,8 @@ const char* ReactionName(ImageReaction reaction) {
 void MakeImage(uint32_t self, void* caster, UtilityEffect effect, const std::string& name) {
   const ImageKind kind = rules::ImageKindOf(effect);
   std::string code = kImage;
-  Replace(&code, "$CREATURE", kind == ImageKind::kObject ? "FALSE" : "TRUE");
+  Replace(&code, "$CREATURE", rules::ImageIsObject(kind) ? "FALSE" : "TRUE");
+  Replace(&code, "$NAME", rules::ImageNameOf(kind));
   Replace(&code, "$BLUEPRINT", rules::ImageBlueprintOf(kind));
   Replace(&code, "$SECONDS", std::to_string(rules::kMinorIllusionSeconds) + ".0");
   Run(code, self, "Minor Illusion's image");
@@ -1174,6 +1217,10 @@ void MakeImage(uint32_t self, void* caster, UtilityEffect effect, const std::str
         case ImageReaction::kAttackThenSearch:
           Charge(n.id, kept);
           done.push_back(r.name + " attacks it");
+          break;
+        case ImageReaction::kTouch:
+          Approach(n.id, kept);
+          done.push_back(r.name + (kind == ImageKind::kTreasure ? " comes for it" : " comes to feed"));
           break;
         default: break;
       }

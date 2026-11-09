@@ -132,7 +132,8 @@ std::vector<ChoiceCantrip> BuildChoiceCantrips() {
                           {1125, effect(UtilityEffect::kIllusionFootsteps), "Sound: Footsteps"},
                           {1126, effect(UtilityEffect::kIllusionRoar), "Sound: Roar"},
                           {1127, effect(UtilityEffect::kIllusionThunder), "Sound: Thunder"},
-                          {1128, effect(UtilityEffect::kImageObject), "Image: Barrel"},
+                          {1128, effect(UtilityEffect::kImageTreasure), "Image: Treasure"},
+                          {1141, effect(UtilityEffect::kImageCorpse), "Image: Corpse"},
                           {1129, effect(UtilityEffect::kImageHumanoid), "Image: Humanoid"},
                           {1130, effect(UtilityEffect::kImageCreature), "Image: Small Creature"}}};
   all.push_back(illusion);
@@ -520,7 +521,8 @@ const char* SoundResrefOf(UtilityEffect effect) {
 
 ImageKind ImageKindOf(UtilityEffect effect) {
   switch (effect) {
-    case UtilityEffect::kImageObject: return ImageKind::kObject;
+    case UtilityEffect::kImageTreasure: return ImageKind::kTreasure;
+    case UtilityEffect::kImageCorpse: return ImageKind::kCorpse;
     case UtilityEffect::kImageHumanoid: return ImageKind::kHumanoid;
     case UtilityEffect::kImageCreature: return ImageKind::kCreature;
     default: return ImageKind::kNone;
@@ -529,9 +531,20 @@ ImageKind ImageKindOf(UtilityEffect effect) {
 
 const char* ImageBlueprintOf(ImageKind kind) {
   switch (kind) {
-    case ImageKind::kObject: return "plc_barrel";
+    case ImageKind::kTreasure: return "plc_treasuresml";
+    case ImageKind::kCorpse: return "plc_corpse1";
     case ImageKind::kHumanoid: return "nw_commale";
     case ImageKind::kCreature: return "nw_cat";
+    default: return "";
+  }
+}
+
+bool ImageIsObject(ImageKind kind) { return kind == ImageKind::kTreasure || kind == ImageKind::kCorpse; }
+
+const char* ImageNameOf(ImageKind kind) {
+  switch (kind) {
+    case ImageKind::kTreasure: return "Treasure Pile";
+    case ImageKind::kCorpse: return "Corpse";
     default: return "";
   }
 }
@@ -552,7 +565,10 @@ bool IsSentient(int nwn_racial_type, int intelligence_score) {
 
 ImageReaction ReactionToImage(ImageKind kind, bool sentient, bool hostile, int size, int image_size) {
   switch (kind) {
-    case ImageKind::kObject: return sentient && hostile ? ImageReaction::kStudy : ImageReaction::kIgnore;
+    case ImageKind::kTreasure: return sentient && hostile ? ImageReaction::kTouch : ImageReaction::kIgnore;
+    case ImageKind::kCorpse:
+      if (!hostile) return ImageReaction::kIgnore;
+      return sentient ? ImageReaction::kStudy : ImageReaction::kTouch;
     case ImageKind::kHumanoid:
       if (sentient) return hostile ? ImageReaction::kStudy : ImageReaction::kIgnore;
       return hostile ? ImageReaction::kAttack : ImageReaction::kFlee;

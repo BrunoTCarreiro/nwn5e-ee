@@ -1050,6 +1050,21 @@ monster AC by CR.
       searches, others go back. One fighting is let go.
     - The caster is told each step ("Orc studies the Commoner: sees through the illusion (Investigation 15 vs DC 14)
       - the illusion fades; Orc searches for you").
+  - *The object image - decided (owner, 2026-11-09: "A, go with treasure and corpse"),* after "why a barrel? I don't
+    think that would make someone want to investigate or run away from. Maybe a pile of gold or a corpse, but a
+    barrel?" (the barrel was build 4b's stand-in for "an object"; nothing in the design asked for it). Over B (both
+    and the barrel: a ninth entry, a "More" page) and C (one of them): Treasure (NWN's small treasure pile) in the
+    barrel's row, and Corpse (NWN's corpse) a new row - 8 entries, one radial page. The treasure draws the sentient
+    hostile creatures, who reach for it: touching an image reveals it (SRD 5.2.1: "Physical interaction with the image
+    reveals it to be an illusion"), so no check - it vanishes and they search. The corpse: the sentient hostile ones
+    study it, as the humanoid; hostile animals come to feed on it, their touch revealing it, and go back. Others
+    ignore both.
+    *Built 0.97.1:* rules::ImageKind kTreasure (plc_treasuresml, row 1128 "Image: Treasure") and kCorpse
+    (plc_corpse1, row 1141 "Image: Corpse", string 16000693), ImageIsObject, ImageNameOf (the placeable named for
+    the menu), ImageReaction::kTouch. The core: a toucher walks to the image (not in search mode) and, there, its
+    touch vanishes it - "Orc reaches for the Treasure Pile: its hand passes through it - the illusion fades; Orc searches
+    for you", "Wolf comes to feed on the Corpse: it finds nothing to bite - the illusion fades"; not there in 30 s, it
+    goes back. Minor Illusion's description names the four images and the reactions.
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's
