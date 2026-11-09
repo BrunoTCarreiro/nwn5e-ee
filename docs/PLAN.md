@@ -1150,6 +1150,19 @@ monster AC by CR.
   - *Decided (owner, 2026-11-09: "A on all, but mark featherfall for later removal"):* Q1-Q4 A - the reactions and
     smites in level 1 (Feather Fall a visual and a line, to be removed later: #153), Find Familiar NWN's familiars,
     the Detect spells' glow, Disguise Self and Silent Image real. Build 1 (damage and healing) next.
+  - *Built 0.99.0 (build 1a, damage and healing):* rules/spells2024.h (the numbers, areas, upcasting),
+    core/rules_spells2024.cpp (the scripts, in C++). NWN's rows rewritten: Burning Hands 10 (a 15-foot Cone toward
+    the point aimed at, Dexterity half), Cure Wounds 32 (2d8 + the spellcasting modifier), Magic Missile 107 (three
+    darts of 1d4 + 1 Force, each its own damage, one more a slot level), Inflict Wounds 432 (a Constitution save
+    for half), Thunderwave 436 (a 15-foot Cube from the caster toward the point; a failure pushed 10 feet, any
+    size), Ice Knife 543 (1d10 Piercing, then a Dexterity save or 2d6 Cold within 5 feet of the target, hit or
+    miss); new: Guiding Bolt 1147 (the next attack roll against it has Advantage, its glow until then), Ray of
+    Sickness 1148 (Poisoned until the end of your next turn), False Life 1149 (Temporary Hit Points that don't
+    stack), Dissonant Whispers 1150 (a failure spends its Reaction running 30 feet away). The slot level the
+    radial's (#36); an area's damage rolled once, everyone in it; each spell on its 2024 classes' lists as built.
+    Healing Word moves to build 1b with Chromatic Orb and Heroism: a Bonus Action spell spending a slot needs the
+    Bonus Action casting the cantrips' doesn't give (built once there for every Bonus Action spell). Tests L1-1 to
+    L1-12 (!test level1sorcerer, level1cleric, level1bard).
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
   New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion
