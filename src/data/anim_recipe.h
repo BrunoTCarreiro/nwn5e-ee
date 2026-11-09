@@ -112,6 +112,8 @@ struct AnimRecipe {
   float end = 0.0f;          // 0: to its end
   float crouch = 0.0f;       // metres the hips drop, the legs bent to keep the footfalls (0 - 0.6)
   float lean = 0.0f;         // degrees the upper body leans forward, the head looking ahead (-45 - 90)
+  std::string legs;          // #149: the animation the legs come from ("" the base's own): the root's place,
+                             // pelvis_g and under it, looping at its own speed; the torso half stays the base's
   // kind = keys (Mocap mode) and kind = assembled:
   bool keyed = false;        // kind = keys only
   float length = 0.0f;
@@ -202,7 +204,7 @@ const char* AnimCoreStamp();
 // The recipe's animation, from its base clip and (when it names one) its mix
 // clip; the crouch step needs the library's bones (without them it's skipped).
 AnimClip DeriveAnimClip(const AnimRecipe& recipe, const AnimClip& base, const AnimClip* mix,
-                        const std::vector<AnimNode>* bones = nullptr);
+                        const std::vector<AnimNode>* bones = nullptr, const AnimClip* legs = nullptr);
 
 // A keys recipe's animation for one library: its bones with the recipe's keys
 // for that library (bones it doesn't key stay at rest); false when the recipe

@@ -1,0 +1,15 @@
+# nwn5e animation recipe (core/anim_packs.cpp builds it at startup, for every body) - a short cast for
+# cantrips (#149; owner, 2026-11-09: "castout with the combat ready legs"): castout's arms and torso on the
+# combat-ready stance's legs (1hreadyr, looping), so the legs stay as they stand in a fight. Tune its speed and
+# part in the Animation Recipe Bench (nwn5e-tools/recipe_bench); a copy saved there overrides this one. Which
+# spells play it is the game session's (#149's "then").
+name = n5_cantrip
+base = castout
+mix = 
+amount = 0
+speed = 1
+start = 0
+end = 0
+crouch = 0
+lean = 0
+legs = 1hreadyr

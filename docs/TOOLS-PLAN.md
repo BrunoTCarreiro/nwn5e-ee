@@ -1183,3 +1183,20 @@ library; five minors (on #145).
 *Tests:* test.bat 425/0 (7 light tests in vfx_model_test: the draft both ways, the writer, the ASCII and compiled
 readers, the flags); check_effect.js 45 light checks; 55 breaks caught across the tasks and the review. *In game:* L-0 passed on 0.95.3 (owner:
 "ok, it light's up" - the ASCII light loads and lights); L-1 (the fireball's own light read into the bench) on 0.95.4.
+
+### Formula recipes take their legs from another animation (2026-11-09, #149)
+
+*Asked (owner):* "most casting animations are very elaborate, especially for cantrips so I was thinking about making a
+shorter one, but I'd like the legs to stay mostly the same"; "castout with the combat ready legs"; "go with B" (B: a
+`legs` line in formula recipes - not the new mocap bench's sources, #92, which wait with the mocap work). *Built:*
+- src/data/anim_recipe: `AnimRecipe::legs`, written only when set (recipes without it unchanged); DeriveAnimClip splices
+  the legs half from that animation - NWN's own split (#84): rootdummy's place, `pelvis_g` and everything under it -
+  from its start at its own speed, looping over the recipe; the torso half (torso_g down) and the root's turn stay the
+  base's (trimmed, sped, mixed, leant); a bone it doesn't key keeps the base's; the crouch bends the legs it gets.
+  anim_packs loads it like the mix (a body without it logs "its legs stay the base's").
+- The Animation Recipe Bench: **Legs from** in the formula editor, previewed live (public/core.js's port; legs_check.js
+  holds the C++ test's numbers).
+- data/anims/n5_cantrip.recipe: castout on 1hreadyr's legs, speed 1 (castout is 0.5 s: the long part of a cast is the
+  conjure before it - which spells play n5_cantrip, and for how long, is the game session's).
+*Tests:* test.bat 429/0 (AnimRecipeLegsRoundTrip, AnimRecipeLegsFromAnother), legs_check.js; 11 breaks caught; on the
+real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso and right arm castout's at 1.5x.

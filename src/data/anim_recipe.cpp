@@ -374,7 +374,8 @@ std::string WriteAnimRecipe(const AnimRecipe& r) {
   return "# nwn5e animation recipe - key = value\n"
          "name = " + r.name + "\nbase = " + r.base + "\nmix = " + r.mix + "\namount = " + Num(r.amount) +
          "\nspeed = " + Num(r.speed) + "\nstart = " + Num(r.start) + "\nend = " + Num(r.end) +
-         "\ncrouch = " + Num(r.crouch) + "\nlean = " + Num(r.lean) + "\n";
+         "\ncrouch = " + Num(r.crouch) + "\nlean = " + Num(r.lean) + "\n" +
+         (r.legs.empty() ? std::string() : "legs = " + r.legs + "\n");  // #149: only when set
 }
 
 bool ReadAnimRecipe(const std::string& text, AnimRecipe* recipe, std::string* error) {
@@ -435,6 +436,7 @@ bool ReadAnimRecipe(const std::string& text, AnimRecipe* recipe, std::string* er
     if (key == "name") r.name = value;
     else if (key == "base") r.base = value;
     else if (key == "mix") r.mix = value;
+    else if (key == "legs") r.legs = value;  // #149
     else if (key == "amount") r.amount = static_cast<float>(atof(value.c_str()));
     else if (key == "speed") r.speed = static_cast<float>(atof(value.c_str()));
     else if (key == "start") r.start = static_cast<float>(atof(value.c_str()));
@@ -566,8 +568,65 @@ bool FindAnimClip(const AnimLibraryLookup& lookup, const std::string& library, c
   return false;
 }
 
+namespace {
+
+// #149: is node i of `clip` pelvis_g or under it (the legs half, NWN's own split: torso_g hangs from rootdummy
+// beside it)?
+bool InLegs(const AnimClip& clip, size_t i) {
+  int k = static_cast<int>(i);
+  for (int depth = 0; k >= 0 && k < static_cast<int>(clip.nodes.size()) && depth < 64; ++depth) {
+    if (Lower(clip.nodes[k].name) == "pelvis_g") return true;
+    k = clip.nodes[k].parent;
+  }
+  return false;
+}
+
+// #149: `keys` (of an animation `period` s long) played from its start at its own speed, looping, over `length` s:
+// its keys in each cycle, and the clip's end.
+AnimKeys Looping(const AnimKeys& keys, float period, float length, bool quaternion) {
+  const float p = std::max(period, 0.001f);
+  std::vector<float> times = {0.0f};
+  for (int cycle = 0; cycle * p < length - 1e-4f && cycle < 4096; ++cycle) {
+    for (float t : keys.times) {
+      const float at = cycle * p + t;
+      if (at > times.back() + 1e-4f && at < length - 1e-4f) times.push_back(at);
+    }
+  }
+  times.push_back(length);
+  AnimKeys out;
+  for (float at : times) {
+    // Within its cycle; the clip's end where the cycle it's in has got to (a whole cycle: the cycle's end).
+    const float local = at >= length - 1e-6f ? length - std::floor((length - 1e-6f) / p) * p : at - std::floor(at / p) * p;
+    out.times.push_back(at);
+    out.values.push_back(Sample(keys, local, quaternion));
+  }
+  return out;
+}
+
+// #149: the legs half - the root's place, pelvis_g and everything under it - from `legs`, looping over the clip;
+// the torso half (torso_g and under it) and the root's turn stay as they are. A bone it doesn't key keeps its own.
+void SpliceLegs(AnimClip* clip, const AnimClip& legs) {
+  for (size_t i = 0; i < clip->nodes.size(); ++i) {
+    AnimNode& n = clip->nodes[i];
+    const bool root = Lower(n.name) == "rootdummy";
+    if (!root && !InLegs(*clip, i)) continue;
+    const AnimNode* from = FindNode(legs, n.name);
+    if (!from) continue;
+    if (from->has_position && !from->position.times.empty()) {
+      n.position = Looping(from->position, legs.length, clip->length, false);
+      n.has_position = true;
+    }
+    if (!root && from->has_orientation && !from->orientation.times.empty()) {
+      n.orientation = Looping(from->orientation, legs.length, clip->length, true);
+      n.has_orientation = true;
+    }
+  }
+}
+
+}  // namespace
+
 AnimClip DeriveAnimClip(const AnimRecipe& recipe, const AnimClip& base, const AnimClip* mix,
-                        const std::vector<AnimNode>* bones) {
+                        const std::vector<AnimNode>* bones, const AnimClip* legs) {
   const float length = std::max(base.length, 0.001f);
   const float start = std::max(0.0f, std::min(recipe.start, length));
   float end = recipe.end > start ? std::min(recipe.end, length) : length;
@@ -609,6 +668,7 @@ AnimClip DeriveAnimClip(const AnimRecipe& recipe, const AnimClip& base, const An
     }
     out.nodes.push_back(n);
   }
+  if (legs && !recipe.legs.empty()) SpliceLegs(&out, *legs);  // #149: before the crouch, which bends the legs it gets
   if (bones) ApplyCrouch(&out, *bones, recipe.crouch, recipe.lean);
   return out;
 }
