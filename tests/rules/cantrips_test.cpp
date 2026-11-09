@@ -348,7 +348,7 @@ TEST(MinorIllusion) {
   CHECK_EQ(ChoiceCantripOf(1141)->master, kMinorIllusion);
   CHECK_EQ(ImageKindOf(UtilityEffectOf(1129)) == ImageKind::kHumanoid, true);
   CHECK_EQ(ImageKindOf(UtilityEffect::kIllusionVoices) == ImageKind::kNone, true);
-  CHECK_EQ(strcmp(ImageBlueprintOf(ImageKind::kTreasure), "plc_treasuresml"), 0);
+  CHECK_EQ(strcmp(ImageBlueprintOf(ImageKind::kTreasure), "plc_treasurelrg"), 0);  // the large pile (0.97.2)
   CHECK_EQ(strcmp(ImageBlueprintOf(ImageKind::kCorpse), "plc_corpse1"), 0);
   CHECK_EQ(ImageIsObject(ImageKind::kTreasure) && ImageIsObject(ImageKind::kCorpse), true);
   CHECK_EQ(ImageIsObject(ImageKind::kHumanoid) || ImageIsObject(ImageKind::kCreature), false);

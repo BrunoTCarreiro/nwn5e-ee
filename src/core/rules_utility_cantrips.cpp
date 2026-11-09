@@ -704,8 +704,21 @@ void PlaySoundAt(uint32_t self, void* caster, UtilityEffect effect, const std::s
 // (an object named for the menu), inert: plot, unseen by
 // the AI (EffectEthereal, tagged: a creature that attacks it sees it for the blow, #152) and passed through
 // (EffectCutsceneGhost: "things can pass through it"). Its object, name and size are kept on the caster.
+// 0.97.2 (owner, 2026-11-09: "the corpse and the treasure are floating"): a click on the floor sends a point 0.3-0.4 m
+// over the walkmesh (Magic Mark's logs: "the floor sent (54.42 10.20 0.30)" over a walkmesh at 0.00); a creature
+// lands on the walkmesh, a placeable stays where it's put - so the point goes down onto the walkmesh first
+// (GetGroundHeight; -6 off it), and how far is kept for the log.
 const char* const kImage = R"nss(
 location l = GetLocalLocation(OBJECT_SELF, "n5c_at");
+float g = GetGroundHeight(l);
+string lift = "";
+if (g > -5.9) {
+  vector p = GetPositionFromLocation(l);
+  lift = FloatToString(p.z - g, 0, 2);
+  l = Location(GetAreaFromLocation(l), Vector(p.x, p.y, g), GetFacingFromLocation(l));
+  SetLocalLocation(OBJECT_SELF, "n5c_at", l);
+}
+SetLocalString(OBJECT_SELF, "n5c_image_lift", lift);
 object i;
 if ($CREATURE) {
   i = CreateObject(OBJECT_TYPE_CREATURE, "$BLUEPRINT", l, FALSE, "n5c_image");
@@ -1168,6 +1181,12 @@ void MakeImage(uint32_t self, void* caster, UtilityEffect effect, const std::str
   Run(code, self, "Minor Illusion's image");
   const std::string image = engine::GetLocalString(caster, "n5c_image_name");
   const int image_size = engine::GetLocalInt(caster, "n5c_image_size");
+  const std::string lift = engine::GetLocalString(caster, "n5c_image_lift");
+  if (LogSlot()) {
+    Log("cantrips: 0x%08X Minor Illusion's %s %s", self, image.c_str(),
+        lift.empty() ? "where the cast's point is (no walkmesh under it)"
+                     : ("on the walkmesh - the cast's point was " + lift + " m over it").c_str());
+  }
   unsigned int image_id = 0;
   sscanf_s(engine::GetLocalString(caster, "n5c_image_id").c_str(), "%x", &image_id);
   for (auto it = g_images.begin(); it != g_images.end();) {  // its earlier image ended with this cast

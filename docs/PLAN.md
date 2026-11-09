@@ -1065,6 +1065,12 @@ monster AC by CR.
     touch vanishes it - "Orc reaches for the Treasure Pile: its hand passes through it - the illusion fades; Orc searches
     for you", "Wolf comes to feed on the Corpse: it finds nothing to bite - the illusion fades"; not there in 30 s, it
     goes back. Minor Illusion's description names the four images and the reactions.
+    *0.97.2 (owner, 2026-11-09: "the corpse and the treasure are floating, and is there a larger model to use as a
+    treasure?"):* a click on the floor sends a point 0.3-0.4 m over the walkmesh (Magic Mark's logs: "the floor sent
+    (54.42 10.20 0.30)", the walkmesh there at 0.00); a creature lands on the walkmesh, a placeable stays where it's
+    put. The image's point now goes down onto the walkmesh first (GetGroundHeight), logged with how far. The models
+    sit on their own base (the corpse's lowest point 0.02 m, the treasure piles' 0-0.07 m). The treasure is the large
+    pile (plc_treasurelrg, about 0.5 by 0.9 m, within the 5-foot Cube; the small one about 0.2 m, the medium 0.3 m).
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's

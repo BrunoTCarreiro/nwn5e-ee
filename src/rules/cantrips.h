@@ -368,7 +368,8 @@ constexpr int kScareSeconds = 12;      // "flee ... for 2 rounds"
 // creature fit it): the game's own blueprint ("" none), for 1 minute. Creatures that see it come to look; one that
 // gets there studies it - an Intelligence (Investigation) check against the spell save DC sees through it.
 // #152 (owner, 2026-11-09: "A, go with treasure and corpse"): the objects are lures - a pile of treasure and a corpse
-// (the barrel drew no one), the game's placeables, named for the menu.
+// (the barrel drew no one), the game's placeables (0.97.2: the large treasure pile, about 0.5 by 0.9 m - owner: "is
+// there a larger model to use as a treasure?"), named for the menu.
 enum class ImageKind { kNone, kTreasure, kCorpse, kHumanoid, kCreature };
 ImageKind ImageKindOf(UtilityEffect effect);
 const char* ImageBlueprintOf(ImageKind kind);

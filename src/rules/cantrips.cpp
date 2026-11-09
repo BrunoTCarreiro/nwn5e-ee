@@ -531,7 +531,7 @@ ImageKind ImageKindOf(UtilityEffect effect) {
 
 const char* ImageBlueprintOf(ImageKind kind) {
   switch (kind) {
-    case ImageKind::kTreasure: return "plc_treasuresml";
+    case ImageKind::kTreasure: return "plc_treasurelrg";
     case ImageKind::kCorpse: return "plc_corpse1";
     case ImageKind::kHumanoid: return "nw_commale";
     case ImageKind::kCreature: return "nw_cat";
