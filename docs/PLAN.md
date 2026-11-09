@@ -1194,6 +1194,9 @@ monster AC by CR.
     Prepare spells window (prepare_spells.cpp - its limit and the empty-place checks; the engine's per-class cap
     stays: the client's level-up page offers 3 at Cleric 1, the window the 4th). 0.98.4: with [debug] test_commands,
     `!order reset` frees the switch again (the tests).
+    *Build 1b accepted (owner, 2026-11-09: "accepted"),* after DO-6's 4 places were found right for the Cleric 1
+    tested (3 + 1; the Cleric 5's 5 after !test channelcleric) and the log showed DO-5's Thaumaturge +3 on Arcana. DO-1
+    to DO-7 passed.
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's
