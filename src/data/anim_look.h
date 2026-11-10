@@ -57,4 +57,26 @@ std::string WriteSpellLook(const SpellLook& look);
 // The row's parts: its section, else the defaults.
 const LookParts& LookPartsFor(const SpellLook& look, int row);
 
+// How long the game flies a MIRV-type missile (visualeffects Type_FD P, progfx Type 10 'log' - Magic Missile, the
+// orbs) over `metres`: d / max(1, 3 ln d + 2), the curve the game's own nw_s0_magmiss uses. The max keeps it positive
+// and continuous under a metre, where the divisor crosses zero. 0 for d <= 0.
+float MirvFlightSeconds(float metres);
+
+// When a look's missile leaves and its hit lands, in seconds from now, when the rule runs `since_cast` seconds after
+// the cast began: the release waits for its mark (never negative - `late` when the rule ran after it), the hit one
+// flight later (at once with no missile).
+struct LookTiming {
+  float release_in = 0.0f, hit_in = 0.0f;
+  bool late = false;
+};
+LookTiming LookHitTiming(const SpellLook& look, const LookParts& parts, float since_cast, float metres);
+
+// The script chunks that play a look (RunScriptChunk; ids as StringToObject("<hex>"), times %.2f). Every effect plays
+// through DelayCommand, so a chunk returns at once.
+std::string LookCastScript(const LookParts& parts);  // run as the caster, at the cast's start: its VFX, `cast` sounds
+std::string LookHitScript(const LookParts& parts, uint32_t target, const LookTiming& timing);  // run as the caster
+std::string LookLeapScript(const LookParts& parts, float leap_for, uint32_t from, uint32_t to, float beam_in,
+                           float hit_in);  // run as `from`: the beam to `to`, its hit and `hit` sounds
+std::string LookDistanceScript(uint32_t target);  // run as the caster: local string "n5look_d" = the metres to target
+
 }  // namespace data

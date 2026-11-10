@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include <algorithm>
+#include <cmath>
 #include <set>
 #include <sstream>
 
@@ -310,6 +311,92 @@ std::string WriteSpellLook(const SpellLook& look) {
 const LookParts& LookPartsFor(const SpellLook& look, int row) {
   const auto found = look.variants.find(row);
   return found == look.variants.end() ? look.parts : found->second;
+}
+
+float MirvFlightSeconds(float metres) {
+  if (!(metres > 0.0f)) return 0.0f;
+  return metres / std::max(1.0f, 3.0f * std::log(metres) + 2.0f);
+}
+
+LookTiming LookHitTiming(const SpellLook& look, const LookParts& parts, float since_cast, float metres) {
+  LookTiming timing;
+  timing.late = since_cast > look.release;
+  timing.release_in = std::max(0.0f, look.release - since_cast);
+  timing.hit_in = timing.release_in + (parts.missile ? MirvFlightSeconds(metres) : 0.0f);
+  return timing;
+}
+
+namespace {
+
+std::string Seconds(float value) {
+  char text[32];
+  snprintf(text, sizeof text, "%.2f", std::max(0.0f, value));
+  return text;
+}
+
+std::string Object(uint32_t id) {
+  char text[48];
+  snprintf(text, sizeof text, "StringToObject(\"%x\")", id);
+  return text;
+}
+
+std::string Sound(const char* on, float at, const std::string& resref) {  // `on` null: OBJECT_SELF
+  const std::string play = "DelayCommand(" + Seconds(at) + ", PlaySound(\"" + resref + "\"))";
+  return on ? std::string("AssignCommand(") + on + ", " + play + ");\n" : play + ";\n";
+}
+
+std::string Instant(float at, int row) {
+  return "DelayCommand(" + Seconds(at) + ", ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(" +
+         std::to_string(row) + "), t));\n";
+}
+
+}  // namespace
+
+std::string LookCastScript(const LookParts& parts) {
+  std::string code;
+  if (parts.cast_vfx) {
+    const std::string effect = "EffectVisualEffect(" + std::to_string(parts.cast_vfx) + ")";
+    code += "DelayCommand(" + Seconds(parts.cast_vfx_at) + ", ApplyEffectToObject(" +
+            (parts.cast_vfx_for > 0.0f ? "DURATION_TYPE_TEMPORARY, " + effect + ", OBJECT_SELF, " +
+                                             Seconds(parts.cast_vfx_for)
+                                       : "DURATION_TYPE_INSTANT, " + effect + ", OBJECT_SELF") +
+            "));\n";
+  }
+  for (const LookSound& sound : parts.sounds) {
+    if (sound.anchor == LookAnchor::kCast) code += Sound(nullptr, sound.at, sound.resref);
+  }
+  return code;
+}
+
+std::string LookHitScript(const LookParts& parts, uint32_t target, const LookTiming& timing) {
+  std::string code = "object t = " + Object(target) + ";\n";
+  if (parts.missile) code += Instant(timing.release_in, parts.missile);
+  if (parts.hit) code += Instant(timing.hit_in, parts.hit);
+  for (const LookSound& sound : parts.sounds) {
+    if (sound.anchor == LookAnchor::kRelease) code += Sound(nullptr, timing.release_in + sound.at, sound.resref);
+    if (sound.anchor == LookAnchor::kHit) code += Sound("t", timing.hit_in + sound.at, sound.resref);
+  }
+  return code;
+}
+
+std::string LookLeapScript(const LookParts& parts, float leap_for, uint32_t from, uint32_t to, float beam_in,
+                           float hit_in) {
+  std::string code = "object t = " + Object(to) + ";\n";
+  if (parts.leap_beam) {
+    code += "DelayCommand(" + Seconds(beam_in) + ", ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectBeam(" +
+            std::to_string(parts.leap_beam) + ", " + Object(from) + ", BODY_NODE_CHEST), t, " + Seconds(leap_for) +
+            "));\n";
+  }
+  if (parts.hit) code += Instant(hit_in, parts.hit);
+  for (const LookSound& sound : parts.sounds) {
+    if (sound.anchor == LookAnchor::kHit) code += Sound("t", hit_in + sound.at, sound.resref);
+  }
+  return code;
+}
+
+std::string LookDistanceScript(uint32_t target) {
+  return "SetLocalString(OBJECT_SELF, \"n5look_d\", FloatToString(GetDistanceBetween(OBJECT_SELF, " + Object(target) +
+         "), 0, 3));\n";
 }
 
 }  // namespace data
