@@ -942,7 +942,8 @@ void NwnOrbVisual(uint32_t self, const std::string& target, const std::string& f
 
 // #155 (the Spell & Attack Bench): a hit's look - the bench's for this row, when it has one - plays the orb (and each
 // leap's) and says when it lands; the damage waits for it. Every roll stays at the cast. No look: NWN's visuals as
-// before; a miss always NWN's (piece 1 has no miss design).
+// before. 0.99.9 (owner, 2026-11-10: "A", relayed by the animation session - SB-5's "flaming arrow" was a natural
+// 1): a miss plays the look too - the orb flies and fizzles at the target, no hit, no leap.
 void ChromaticOrb(uint32_t self, void* caster, const rules::Spell2024& spell, int slot) {
   const int row = Field<int32_t>(caster, ee::kObjectLastSpellId);
   const rules::CantripOption* option = rules::ChoiceOptionOf(row);
@@ -968,6 +969,9 @@ void ChromaticOrb(uint32_t self, void* caster, const rules::Spell2024& spell, in
     if (hit.value > 0) {
       lands = from.empty() ? PlaySpellLook(self, target_id, row)
                            : PlaySpellLookLeap(ParseId(from), target_id, row, after);
+    } else {  // a miss plays the look too (0.99.9): the orb flies and fizzles
+      lands = from.empty() ? PlaySpellLookMiss(self, target_id, row)
+                           : PlaySpellLookLeapMiss(ParseId(from), target_id, row, after);
     }
     if (lands <= 0.0f) NwnOrbVisual(self, hit.target, from, orb, after);
     const float when = lands > 0.0f ? lands : after;
