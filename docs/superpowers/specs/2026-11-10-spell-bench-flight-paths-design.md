@@ -148,3 +148,24 @@ Because the bench uses the same segments and the same easing formulas, the previ
 - The darts call's exact signature, agreed with the game session.
 - The Attack card's layout.
 - The proof's form (a dev-layer command or a bench Play in game) and how its result is logged.
+
+## Next: piece 2b, companions and trails (agreed, designed after 2a)
+
+Owner, 2026-11-10, after this design: "can we have multiple particles? think one main projectile and then 1, 2 or 3
+auxiliary particles that would accompany it. They could spiral around the main projectile for example" - "go with 2a
+first, then 2b". What the owner agreed in the playback (to be designed in its own short document once 2a is in game):
+
+- **Companions:** one to three around the main projectile, each its own element ("could be different elements").
+- **How they move**, picked per companion with a few settings:
+  - a **spiral** (radius, how fast it turns);
+  - a **jitter / zig-zag** ("jitter and zig-zag") - how far, how jumpy.
+- **Crackling lightning arcs** between the main projectile and its companions: an extra, switched on per look ("we can add
+  both").
+- **Trails** behind the main projectile and each companion, three styles, each tuned for length and colour / element:
+  - "a streak of fading sparks";
+  - "a line that gets thinner or fades";
+  - "particles affected by gravity".
+- *(my calls)*:
+  - The companions and trails end with the main projectile's hit (or fizzle) and don't hit on their own.
+  - They are parts of the missile's own model, built by the bench, so they ride any flight kind and the darts.
+  - The preview runs the same particle rules as the game.
