@@ -212,7 +212,7 @@ Each piece is useful on its own; each later one builds on the earlier.
    - The preview's real effects (owner, 2026-11-10: "go with A for now and then B with piece 2"): the cast effect,
      the hits and the orb run through the VFX Bench's particle simulation in the 3D stage, not as glows. Piece 1's
      stage became a 3D viewport (option A: orbit, zoom, pan, solid figures, shadows, depth; tools 6b059e1).
-3. **A test module of our own** (owner: "a simple map with well lit open areas, some obstacles but also at least a
+3. **A test module of our own** - issue #156, its design `2026-11-10-test-module-design.md` (owner: "a simple map with well lit open areas, some obstacles but also at least a
    section in deep shadow to test stealth and lighting effects", after "Look online to see if there are any testing
    maps available"). Nothing online fits (#154's notes: Sunjammer's VFX Browser, an EE VFX Tester whose page is gone,
    a spawner add-on, an old target-golem module). Ours:
