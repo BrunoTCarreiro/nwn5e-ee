@@ -225,6 +225,8 @@ Each piece is useful on its own; each later one builds on the earlier.
    - Apply effects: pitch, filters, echo, reverb. A sound is defined as "a game sound + effects" under its own name,
      and the DLL plays the original with those effects live, so no new audio files. This needs #154's proof to pass.
    - Fallback: bake a modified copy (a new file) when live effects can't do it.
+   - Per-sound volume, each sound its own (owner, 2026-11-10: "would it also be possible to add independent volume
+     settings per audio file if they are played at the same time?"): the same player, a volume per sound.
 5. **Weapon attacks** (the "attack bench"), later: melee and ranged weapon swings with on-hit effects and sounds, in
    the same scene and timeline.
 
