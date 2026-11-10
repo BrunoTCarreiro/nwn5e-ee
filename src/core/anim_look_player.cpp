@@ -18,8 +18,10 @@
 #include <vector>
 
 #include "anim_cast_clip.h"
+#include "anim_sound_player.h"
 #include "creature.h"
 #include "data/anim_look.h"
+#include "data/anim_look_sound.h"
 #include "ee_layout.h"
 #include "effects.h"
 #include "engine.h"
@@ -191,6 +193,7 @@ void StartLookCast(uint32_t caster, const data::SpellLook& look, int row) {
   if (creature && !swaps.empty()) RequestCastClips(creature, swaps, std::max(look.clip_seconds, look.rule_at + 0.5f));
   const std::string code = data::LookCastScript(data::LookPartsFor(look, row));
   if (!code.empty()) RunScriptChunk(code.c_str(), caster);
+  PlayLookSounds(data::LookCastCues(data::LookPartsFor(look, row), caster));  // its sounds with effects
   Log("look: 0x%08X %s row %d: the cast begins (clip %s)", caster, look.name.c_str(), row,
       look.clip.empty() ? "none" : look.clip.c_str());
 }
@@ -212,6 +215,7 @@ float PlayLookHit(uint32_t caster, uint32_t target, const data::SpellLook& look,
   const data::LookTiming timing = data::LookHitTiming(look, parts, since, metres);
   LookRowsMissing(caster, look, row);  // logs, once per row, what this install doesn't serve
   RunScriptChunk(data::LookHitScript(parts, target, timing).c_str(), caster);
+  PlayLookSounds(data::LookHitCues(parts, caster, target, timing));
   Log("look: 0x%08X %s row %d: the rule ran %.2f s after the cast began%s (the look expects %.2f); the missile leaves "
       "in %.2f s and lands in %.2f s (%.1f m)%s",
       caster, look.name.c_str(), row, since, seen ? "" : " (no cast seen: assumed)", look.rule_at, timing.release_in,
@@ -226,6 +230,7 @@ float PlayLookLeap(uint32_t from, uint32_t to, const data::SpellLook& look, int 
     Log("look: 0x%08X %s row %d: the script bridge isn't there - no leap played", from, look.name.c_str(), row);
     return 0.0f;
   }
+  PlayLookSounds(data::LookLeapCues(parts, from, to, lands));
   Log("look: 0x%08X %s row %d leaps to 0x%08X, landing in %.2f s", from, look.name.c_str(), row, to, lands);
   return std::max(kAtLeast, lands);
 }
