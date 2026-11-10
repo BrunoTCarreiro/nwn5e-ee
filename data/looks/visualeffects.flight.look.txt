@@ -1,0 +1,14 @@
+# visualeffects.2da - what a look's flight carries (the Spell & Attack Bench, piece 2a; data::FlightTwinRow): lasting-
+# effect (D) twins of the orbs and of the game's MIRV missiles, shown on the invisible carrier the flight moves with
+# SetObjectVisualTransform. Served by the game session's row server from data/looks (rows 2100-2199, empty rows only).
+Label Type_FD OrientWithGround Imp_Root_S_Node Imp_Root_M_Node Imp_Root_L_Node Imp_Root_H_Node OrientWithObject
+2190 NWN5E_FLY_ORB_FIRE D 0 vpr_ectofire01 vpr_ectofire01 vpr_ectofire01 vpr_ectofire01 0
+2191 NWN5E_FLY_ORB_COLD D 0 vpr_ectocold01 vpr_ectocold01 vpr_ectocold01 vpr_ectocold01 0
+2192 NWN5E_FLY_ORB_ACID D 0 vpr_ectoacid01 vpr_ectoacid01 vpr_ectoacid01 vpr_ectoacid01 0
+2193 NWN5E_FLY_ORB_ELEC D 0 vpr_ectoelec01 vpr_ectoelec01 vpr_ectoelec01 vpr_ectoelec01 0
+2194 NWN5E_FLY_ORB_POISON D 0 vpr_ectonatr01 vpr_ectonatr01 vpr_ectonatr01 vpr_ectonatr01 0
+2195 NWN5E_FLY_ORB_THUNDER D 0 vpr_ectosonc01 vpr_ectosonc01 vpr_ectosonc01 vpr_ectosonc01 0
+2196 NWN5E_FLY_MAGIC_MISSILE D 0 vpr_magmisl vpr_magmisl vpr_magmisl vpr_magmisl 0
+2197 NWN5E_FLY_FLAME_ARROW D 0 vpr_arofire vpr_arofire vpr_arofire vpr_arofire 0
+2198 NWN5E_FLY_ACID_ARROW D 0 vpr_aroacid vpr_aroacid vpr_aroacid vpr_aroacid 0
+2199 NWN5E_FLY_ELECTRIC D 0 vpr_ectoelectric vpr_ectoelectric vpr_ectoelectric vpr_ectoelectric 0

@@ -65,6 +65,21 @@ int RunScriptChunk(const char* code, uint32_t self) {
   return result;
 }
 
+int RunWholeScript(const char* code, uint32_t self) {  // RunScriptChunk with bWrapIntoMain 0: the code has its own main()
+  const Bridge& b = B();
+  if (!b.vm || !*b.vm || !b.run || !b.make || !b.destroy) return -1;
+  alignas(16) uint8_t text[32] = {};
+  b.make(text, code);
+  const int result = b.run(*b.vm, text, self, 1, 0);
+  b.destroy(text);
+  static int logged = 0;
+  if (result != 0 && logged < 3) {
+    ++logged;
+    Log("script bridge: RunWholeScript returned %d (self 0x%08X, %zu chars)", result, self, strlen(code));
+  }
+  return result;
+}
+
 void ApplyEffectAs(uint32_t creator, uint32_t target, const char* duration_type, const char* effect, float seconds,
                    float delay) {
   char script[512];
