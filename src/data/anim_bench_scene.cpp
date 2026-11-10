@@ -13,6 +13,7 @@ namespace {
 
 constexpr float kPi = 3.14159265358979f;
 constexpr float kLeapMetres = 9.144f;  // 30 feet
+constexpr float kTie = 0.001f;         // a millimetre: closer than that is a tie, the lower index wins
 const Spot kHuddle[] = {{0.0f, 0.0f}, {0.9f, 0.8f},  {-0.8f, 0.9f}, {0.7f, -0.9f},
                         {-0.9f, -0.7f}, {1.6f, 0.0f}, {-1.6f, 0.0f}, {0.0f, 1.6f}};
 
@@ -100,7 +101,8 @@ std::vector<int> LeapOrder(const std::vector<Spot>& spots, int target, int leaps
     for (int j = 0; j < static_cast<int>(spots.size()); ++j) {
       if (std::find(order.begin(), order.end(), j) != order.end()) continue;
       const float metres = std::hypot(spots[j].ahead - from.ahead, spots[j].right - from.right);
-      if (metres <= best_metres && (best < 0 || metres < best_metres)) {
+      // Within a millimetre is a tie (float sin/cos differ in the last bit from the JS twin's doubles).
+      if (best < 0 ? metres <= kLeapMetres + kTie : metres < best_metres - kTie) {
         best = j;
         best_metres = metres;
       }

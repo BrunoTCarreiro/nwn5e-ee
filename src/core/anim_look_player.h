@@ -8,6 +8,8 @@
 
 #include <stdint.h>
 
+#include <string>
+
 namespace data {
 struct SpellLook;
 }
@@ -24,5 +26,10 @@ float PlaySpellLookLeap(uint32_t from, uint32_t to, int row, float after);
 void StartLookCast(uint32_t caster, const data::SpellLook& look, int row);  // the clip and the caster's parts, now
 float PlayLookHit(uint32_t caster, uint32_t target, const data::SpellLook& look, int row);
 float PlayLookLeap(uint32_t from, uint32_t to, const data::SpellLook& look, int row, float after);
+
+// The visualeffects rows `row`'s look plays that the game doesn't serve (Type_FD empty: the orb rows before the game
+// session's looks row server is in the install), as "2100, 2101" - empty when all are there. Each row is asked once
+// (a script chunk run as `self`) and logged when missing.
+std::string LookRowsMissing(uint32_t self, const data::SpellLook& look, int row);
 
 void InstallLookPlayer();  // from InstallAnimLayers

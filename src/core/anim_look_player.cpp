@@ -36,6 +36,7 @@ constexpr float kAtLeast = 0.01f;         // a look that played answers more tha
 std::vector<data::SpellLook> g_looks;
 std::unordered_map<int, size_t> g_by_row;              // spells.2da row -> g_looks
 std::unordered_map<uint32_t, int64_t> g_cast_started;  // caster id -> game ms its look's cast began
+std::unordered_map<int, bool> g_row_served;            // visualeffects row -> the game serves it (asked once)
 bool g_installed = false;
 
 int64_t Now() { return static_cast<int64_t>(GameMs()); }
@@ -147,7 +148,32 @@ float Metres(uint32_t caster, uint32_t target) {
   return object ? static_cast<float>(atof(engine::GetLocalString(object, "n5look_d").c_str())) : 0.0f;
 }
 
+// Whether the game serves visualeffects `row` (asked once, through the script, as `self`; logged when it doesn't).
+bool RowServed(uint32_t self, int row) {
+  if (row <= 0) return true;
+  const auto known = g_row_served.find(row);
+  if (known != g_row_served.end()) return known->second;
+  void* object = CreatureById(self);
+  if (!object || RunScriptChunk(data::LookRowCheckScript(row).c_str(), self) == -1) return true;  // can't tell
+  const bool served = !engine::GetLocalString(object, "n5look_row").empty();
+  g_row_served[row] = served;
+  if (!served) {
+    Log("look: visualeffects row %d isn't served by this install - nothing shows for it (the orb rows need the game "
+        "session's looks row server)", row);
+  }
+  return served;
+}
+
 }  // namespace
+
+std::string LookRowsMissing(uint32_t self, const data::SpellLook& look, int row) {
+  const data::LookParts& parts = data::LookPartsFor(look, row);
+  std::string missing;
+  for (int r : {parts.cast_vfx, parts.missile, parts.hit, parts.leap_beam}) {
+    if (!RowServed(self, r)) missing += (missing.empty() ? "" : ", ") + std::to_string(r);
+  }
+  return missing;
+}
 
 void StartLookCast(uint32_t caster, const data::SpellLook& look, int row) {
   const int64_t now = Now();
@@ -180,6 +206,7 @@ float PlayLookHit(uint32_t caster, uint32_t target, const data::SpellLook& look,
     return 0.0f;
   }
   const data::LookTiming timing = data::LookHitTiming(look, parts, since, metres);
+  LookRowsMissing(caster, look, row);  // logs, once per row, what this install doesn't serve
   RunScriptChunk(data::LookHitScript(parts, target, timing).c_str(), caster);
   Log("look: 0x%08X %s row %d: the rule ran %.2f s after the cast began%s (the look expects %.2f); the missile leaves "
       "in %.2f s and lands in %.2f s (%.1f m)%s",

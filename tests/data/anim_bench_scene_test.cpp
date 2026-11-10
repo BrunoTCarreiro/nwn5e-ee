@@ -74,3 +74,12 @@ TEST(AnimBenchCastScript) {
   CHECK_EQ(s.find("object t = StringToObject(\"2c\");") != std::string::npos, true);
   CHECK_EQ(s.find("ActionCastFakeSpellAtObject(1156, t);") != std::string::npos, true);
 }
+
+TEST(AnimBenchLeapOrderTies) {  // equal neighbours by float sin/cos: the lower index, as the bench's JS (the review)
+  CHECK_EQ((data::LeapOrder(data::FormationSpots(data::Formation::kRing, 6, 9), 0, 3) == std::vector<int>{0, 1, 2, 3}),
+           true);
+  CHECK_EQ((data::LeapOrder(data::FormationSpots(data::Formation::kAround, 5, 4), 0, 3) == std::vector<int>{0, 1, 2, 3}),
+           true);
+  CHECK_EQ((data::LeapOrder(data::FormationSpots(data::Formation::kAround, 6, 4), 0, 3) == std::vector<int>{0, 1, 2, 3}),
+           true);
+}

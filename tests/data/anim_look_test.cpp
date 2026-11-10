@@ -129,3 +129,34 @@ TEST(AnimLookLeapScript) {
                std::string::npos,
            true);
 }
+
+// The final review's finds (2026-11-10). A variant's own cast-effect timing must survive Save when the defaults have no
+// cast effect (their timing isn't written, so the reader sees 0 there); the check for a row a look names must read the
+// row's Type_FD, so a row the game doesn't serve shows in the log.
+
+TEST(AnimLookVariantCastVfxSurvives) {
+  data::SpellLook look;
+  look.name = "x";
+  look.rows = {1153, 1155};
+  look.rule_at = 1.5f;
+  look.release = 1.6f;
+  look.parts.cast_vfx = 0;  // no shared cast effect, but timing left in memory from an edit
+  look.parts.cast_vfx_at = 0.5f;
+  look.parts.cast_vfx_for = 1.0f;
+  data::LookParts own = look.parts;
+  own.cast_vfx = 9;
+  look.variants[1155] = own;
+  data::SpellLook back;
+  std::string error;
+  CHECK_EQ(data::ReadSpellLook(data::WriteSpellLook(look), &back, &error), true);
+  CHECK_EQ(data::LookPartsFor(back, 1155).cast_vfx, 9);
+  CHECK_EQ(std::fabs(data::LookPartsFor(back, 1155).cast_vfx_at - 0.5f) < 0.001f, true);
+  CHECK_EQ(std::fabs(data::LookPartsFor(back, 1155).cast_vfx_for - 1.0f) < 0.001f, true);
+}
+
+TEST(AnimLookRowCheckScript) {
+  const std::string s = data::LookRowCheckScript(2100);
+  CHECK_EQ(s.find("SetLocalString(OBJECT_SELF, \"n5look_row\", Get2DAString(\"visualeffects\", \"Type_FD\", 2100));") !=
+               std::string::npos,
+           true);
+}

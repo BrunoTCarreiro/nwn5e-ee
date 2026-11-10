@@ -78,5 +78,8 @@ std::string LookHitScript(const LookParts& parts, uint32_t target, const LookTim
 std::string LookLeapScript(const LookParts& parts, float leap_for, uint32_t from, uint32_t to, float beam_in,
                            float hit_in);  // run as `from`: the beam to `to`, its hit and `hit` sounds
 std::string LookDistanceScript(uint32_t target);  // run as the caster: local string "n5look_d" = the metres to target
+// Run as anyone: local string "n5look_row" = visualeffects.2da's Type_FD for `row` - empty when the game doesn't serve
+// the row (the orb rows before the game session's looks row server is in the install).
+std::string LookRowCheckScript(int row);
 
 }  // namespace data

@@ -286,9 +286,11 @@ std::string WriteSpellLook(const SpellLook& look) {
   for (const auto& variant : look.variants) {
     const LookParts& v = variant.second;
     std::string keys;
+    // Against the defaults as the reader sees them: their timing isn't written without a cast effect, so it reads 0.
+    const float d_at = d.cast_vfx ? d.cast_vfx_at : 0.0f, d_for = d.cast_vfx ? d.cast_vfx_for : 0.0f;
     if (v.cast_vfx != d.cast_vfx) keys += "cast_vfx = " + std::to_string(v.cast_vfx) + "\n";
-    if (Number(v.cast_vfx_at) != Number(d.cast_vfx_at)) keys += "cast_vfx_at = " + Number(v.cast_vfx_at) + "\n";
-    if (Number(v.cast_vfx_for) != Number(d.cast_vfx_for)) keys += "cast_vfx_for = " + Number(v.cast_vfx_for) + "\n";
+    if (Number(v.cast_vfx_at) != Number(d_at)) keys += "cast_vfx_at = " + Number(v.cast_vfx_at) + "\n";
+    if (Number(v.cast_vfx_for) != Number(d_for)) keys += "cast_vfx_for = " + Number(v.cast_vfx_for) + "\n";
     if (v.missile != d.missile) keys += "missile = " + std::to_string(v.missile) + "\n";
     if (v.hit != d.hit) keys += "hit = " + std::to_string(v.hit) + "\n";
     if (v.leap_beam != d.leap_beam) keys += "leap_beam = " + std::to_string(v.leap_beam) + "\n";
@@ -392,6 +394,11 @@ std::string LookLeapScript(const LookParts& parts, float leap_for, uint32_t from
     if (sound.anchor == LookAnchor::kHit) code += Sound("t", hit_in + sound.at, sound.resref);
   }
   return code;
+}
+
+std::string LookRowCheckScript(int row) {
+  return "SetLocalString(OBJECT_SELF, \"n5look_row\", Get2DAString(\"visualeffects\", \"Type_FD\", " +
+         std::to_string(row) + "));\n";
 }
 
 std::string LookDistanceScript(uint32_t target) {
