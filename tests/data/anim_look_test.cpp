@@ -217,3 +217,20 @@ TEST(AnimLookConjureClip) {
   CHECK_EQ(data::WriteSpellLook(plain).find("conj_clip") == std::string::npos, true);
   CHECK_EQ(data::ReadSpellLook(head + "conj_clip = n5_cridle\nconj_clip_base = jump\n", &look, &error), false);
 }
+
+TEST(AnimLookMissScript) {  // a miss (owner, 2026-11-10: "A"): the orb flies as for a hit and fizzles - no hit effect or sound
+  data::LookParts p;
+  p.missile = 2100;
+  p.hit = 61;
+  p.leap_beam = 210;
+  p.sounds = {{data::LookAnchor::kRelease, 0, "spr_x"}, {data::LookAnchor::kHit, 0.05f, "sim_x"}};
+  const std::string s = data::LookMissScript(p, 0x1a2b, {0.10f, 1.22f, false});
+  CHECK_EQ(s.find("DelayCommand(0.10, ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(2100), t));") !=
+               std::string::npos,
+           true);
+  CHECK_EQ(s.find("PlaySound(\"spr_x\")") != std::string::npos, true);
+  CHECK_EQ(s.find("EffectVisualEffect(61)") == std::string::npos && s.find("sim_x") == std::string::npos, true);
+  const std::string l = data::LookLeapMissScript(p, 1.0f, 0x10, 0x11, 1.22f);
+  CHECK_EQ(l.find("EffectBeam(210, StringToObject(\"10\"), BODY_NODE_CHEST)") != std::string::npos, true);
+  CHECK_EQ(l.find("EffectVisualEffect(61)") == std::string::npos && l.find("sim_x") == std::string::npos, true);
+}

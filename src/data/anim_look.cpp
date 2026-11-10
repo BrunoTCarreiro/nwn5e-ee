@@ -437,31 +437,55 @@ std::string LookCastScript(const LookParts& parts) {
   return code;
 }
 
-std::string LookHitScript(const LookParts& parts, uint32_t target, const LookTiming& timing) {
+namespace {
+
+// The missile and the release, then - a hit - the hit effect and the `hit` sounds; a miss fizzles without them.
+std::string ArrivalScript(const LookParts& parts, uint32_t target, const LookTiming& timing, bool hits) {
   std::string code = "object t = " + Object(target) + ";\n";
   if (parts.missile) code += Instant(timing.release_in, parts.missile);
-  if (parts.hit) code += Instant(timing.hit_in, parts.hit);
+  if (parts.hit && hits) code += Instant(timing.hit_in, parts.hit);
   for (const LookSound& sound : parts.sounds) {
-    if (SoundHasEffects(sound)) continue;  // the sound player's (LookHitCues)
+    if (SoundHasEffects(sound)) continue;  // the sound player's (LookHitCues / LookMissCues)
     if (sound.anchor == LookAnchor::kRelease) code += Sound(nullptr, timing.release_in + sound.at, sound.resref, sound.voice);
-    if (sound.anchor == LookAnchor::kHit) code += Sound("t", timing.hit_in + sound.at, sound.resref, sound.voice);
+    if (sound.anchor == LookAnchor::kHit && hits) code += Sound("t", timing.hit_in + sound.at, sound.resref, sound.voice);
   }
   return code;
 }
 
-std::string LookLeapScript(const LookParts& parts, float leap_for, uint32_t from, uint32_t to, float beam_in,
-                           float hit_in) {
+// The leap's beam, then - a hit - its hit effect and the `hit` sounds.
+std::string LeapScript(const LookParts& parts, float leap_for, uint32_t from, uint32_t to, float beam_in, float hit_in,
+                       bool hits) {
   std::string code = "object t = " + Object(to) + ";\n";
   if (parts.leap_beam) {
     code += "DelayCommand(" + Seconds(beam_in) + ", ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectBeam(" +
             std::to_string(parts.leap_beam) + ", " + Object(from) + ", BODY_NODE_CHEST), t, " + Seconds(leap_for) +
             "));\n";
   }
+  if (!hits) return code;
   if (parts.hit) code += Instant(hit_in, parts.hit);
   for (const LookSound& sound : parts.sounds) {
     if (sound.anchor == LookAnchor::kHit && !SoundHasEffects(sound)) code += Sound("t", hit_in + sound.at, sound.resref, sound.voice);
   }
   return code;
+}
+
+}  // namespace
+
+std::string LookHitScript(const LookParts& parts, uint32_t target, const LookTiming& timing) {
+  return ArrivalScript(parts, target, timing, true);
+}
+
+std::string LookMissScript(const LookParts& parts, uint32_t target, const LookTiming& timing) {
+  return ArrivalScript(parts, target, timing, false);
+}
+
+std::string LookLeapScript(const LookParts& parts, float leap_for, uint32_t from, uint32_t to, float beam_in,
+                           float hit_in) {
+  return LeapScript(parts, leap_for, from, to, beam_in, hit_in, true);
+}
+
+std::string LookLeapMissScript(const LookParts& parts, float leap_for, uint32_t from, uint32_t to, float beam_in) {
+  return LeapScript(parts, leap_for, from, to, beam_in, 0.0f, false);
 }
 
 std::string LookRowCheckScript(int row) {

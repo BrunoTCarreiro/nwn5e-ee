@@ -33,9 +33,10 @@ struct BenchRequest {
   Formation formation = Formation::kOne;
   float distance = 9.0f;
   std::string enemy = "nw_goblina";
+  bool miss = false;  // the attack misses (owner, 2026-11-10: "A"): the orb flies and fizzles, no leaps
 };
-// "request = play <serial> row=<r> formation=<name> count=<n> distance=<m> target=<i> enemy=<resref> leaps=<k>" or
-// "request = stop <serial>". Unknown keys, out-of-range values and target >= count are errors.
+// "request = play <serial> row=<r> formation=<name> count=<n> distance=<m> target=<i> enemy=<resref> leaps=<k>
+// [miss=1]" or "request = stop <serial>". Unknown keys, out-of-range values and target >= count are errors.
 bool ReadBenchRequest(const std::string& first_line, BenchRequest* request, std::string* error);
 
 // Run as the player character: creates `enemy` at each spot (facing back), commoner faction and plot so they neither
