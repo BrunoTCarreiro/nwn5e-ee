@@ -91,5 +91,13 @@ else:
     crates = [p for p in hall["Placeable List"][1] if p["TemplateResRef"][1] == "x2_plc_bcrate1"]
     check("the hall: its crates are plot (they don't break)", crates and all(p["Plot"][1] == 1 for p in crates))
 
+    # The owner's softlock (2026-11-10): with the dying / death / respawn events empty, a PC who goes down with no
+    # henchman standing stays down for good. The module runs the game's standard scripts - the base game's own, so
+    # nothing is copied in - and each one must exist in the install.
+    events = {"Mod_OnPlrDying": "nw_o0_dying", "Mod_OnPlrDeath": "nw_o0_death", "Mod_OnSpawnBtnDn": "nw_o0_respawn"}
+    for field, script in events.items():
+        check("the module: %s runs %s" % (field, script), ifo[field][1] == script, ifo[field][1])
+        check("the game has %s.ncs" % script, game.resource(script, 2010) is not None)
+
 print(f"FAILED: {len(fails)}" if fails else "all build checks pass")
 sys.exit(1 if fails else 0)

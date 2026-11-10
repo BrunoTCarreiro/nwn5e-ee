@@ -130,8 +130,11 @@ def ifo_file(layout):
             "Mod_Entry_Dir_Y": [8, round(math.sin(a), 6)], "Mod_Expan_List": [15, []], "Mod_DawnHour": [0, 6],
             "Mod_DuskHour": [0, 18], "Mod_MinPerHour": [0, 2], "Mod_StartMonth": [0, 6], "Mod_StartDay": [0, 1],
             "Mod_StartHour": [0, 13], "Mod_StartYear": [4, 1372], "Mod_XPScale": [0, 10]}
+    # Dying, death and respawn run the game's standard scripts (its own compiled ones, nothing copied in): empty, a PC
+    # who goes down with no henchman standing never dies and never gets the respawn panel - a softlock.
+    standard = {"Mod_OnPlrDying": "nw_o0_dying", "Mod_OnPlrDeath": "nw_o0_death", "Mod_OnSpawnBtnDn": "nw_o0_respawn"}
     for s in scripts:
-        root[s] = [11, ""]
+        root[s] = [11, standard.get(s, "")]
     root.update({"Mod_StartMovie": [11, ""], "Mod_CutSceneList": [15, []], "Mod_GVar_List": [15, []],
                  "Mod_Area_list": [15, [{"__struct_id": 6, "Area_Name": [11, a["resref"]]} for a in layout["areas"]]]})
     return gff("IFO ", root)
