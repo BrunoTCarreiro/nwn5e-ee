@@ -103,8 +103,11 @@ TEST(AnimFlightScript) {  // the whole script that flies a dart: the carrier, th
            "void Seg(object o, float x, float y, float z, int a, int b, float s)",
            "SetObjectVisualTransform(o, OBJECT_VISUAL_TRANSFORM_TRANSLATE_Z, z, b, s);",
            "void main()",
+           // Facing north (90): a visual transform's translate runs along the carrier's own axes - forward is its +Y -
+           // so facing 90 lines them up with the world's (SB-21, owner 2026-11-10: at facing 0 "the projectile fly 90º
+           // the right of the character's facing direction").
            "CreateObject(OBJECT_TYPE_PLACEABLE, \"plc_invisobj\", Location(GetArea(OBJECT_SELF), Vector(1.000, 2.000, "
-           "3.000), 0.0), FALSE, \"n5_flight\")",
+           "3.000), 90.0), FALSE, \"n5_flight\")",
            "DelayCommand(0.500, ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectVisualEffect(2190), o, 0.956));",
            "DelayCommand(0.500, Seg(o, 1.000, 0.000, 1.500, 5, 5, 0.400));",
            "DelayCommand(0.900, Seg(o, 10.000, 0.000, 0.000, 6, 6, 0.456));",
