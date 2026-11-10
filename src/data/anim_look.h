@@ -7,7 +7,8 @@
 //
 // The file is line-based, `key = value`, `#` comments:
 //   name, rows (the spells.2da rows it dresses), rule_at (where the rule runs, seconds from the cast's start - the
-//   bench's assumption, ConjTime), clip / clip_base / clip_seconds (RequestCastClip's swap), release (the missile
+//   bench's assumption, ConjTime), clip / clip_base / clip_seconds (RequestCastClip's swap), conj_clip /
+//   conj_clip_base (the conjure's own swap: conjure1 for hand, conjure2 for head), release (the missile
 //   leaves the hand), leap_for / leap_after (a leap's beam, and how long after the hit before the next one lands),
 //   then the parts: cast_vfx / cast_vfx_at / cast_vfx_for, missile, hit, leap_beam (visualeffects rows; 0 = none),
 //   `sound = <cast|release|hit> <at> <resref>` (repeatable; `sound = none` for none), `table.<Column> = <value>`
