@@ -39,6 +39,7 @@
 #include "anim_cast_clip.h"
 #include "anim_flourishes.h"
 #include "anim_look_player.h"
+#include "anim_sound_player.h"
 #include "config.h"
 #include "creature.h"
 #include "ee_layout.h"
@@ -236,6 +237,7 @@ void InstallAnimLayers() {
   InstallFlourish();  // #121, its own listener (not this hook)
   InstallCastClip();  // #150, its own listener too
   InstallLookPlayer();  // spell looks (the Spell & Attack Bench): its own spell-cast listener
+  InstallLookSoundPlayer();  // their sounds with effects (OpenAL EFX): its own creature-update listener
   if (!HookExport("Gob::PlayAnimation (stuck arm layers; the dev layer's trace)", kGobPlayAnimation,
                   reinterpret_cast<void*>(&PlayAnimation), reinterpret_cast<void**>(&g_play))) {
     g_play = nullptr;

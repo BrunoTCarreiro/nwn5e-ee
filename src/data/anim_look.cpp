@@ -1,5 +1,7 @@
 #include "data/anim_look.h"
 
+#include "data/anim_look_sound.h"  // a sound with effects is the sound player's, not the script's
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -430,7 +432,7 @@ std::string LookCastScript(const LookParts& parts) {
             "));\n";
   }
   for (const LookSound& sound : parts.sounds) {
-    if (sound.anchor == LookAnchor::kCast) code += Sound(nullptr, sound.at, sound.resref, sound.voice);
+    if (sound.anchor == LookAnchor::kCast && !SoundHasEffects(sound)) code += Sound(nullptr, sound.at, sound.resref, sound.voice);
   }
   return code;
 }
@@ -440,6 +442,7 @@ std::string LookHitScript(const LookParts& parts, uint32_t target, const LookTim
   if (parts.missile) code += Instant(timing.release_in, parts.missile);
   if (parts.hit) code += Instant(timing.hit_in, parts.hit);
   for (const LookSound& sound : parts.sounds) {
+    if (SoundHasEffects(sound)) continue;  // the sound player's (LookHitCues)
     if (sound.anchor == LookAnchor::kRelease) code += Sound(nullptr, timing.release_in + sound.at, sound.resref, sound.voice);
     if (sound.anchor == LookAnchor::kHit) code += Sound("t", timing.hit_in + sound.at, sound.resref, sound.voice);
   }
@@ -456,7 +459,7 @@ std::string LookLeapScript(const LookParts& parts, float leap_for, uint32_t from
   }
   if (parts.hit) code += Instant(hit_in, parts.hit);
   for (const LookSound& sound : parts.sounds) {
-    if (sound.anchor == LookAnchor::kHit) code += Sound("t", hit_in + sound.at, sound.resref, sound.voice);
+    if (sound.anchor == LookAnchor::kHit && !SoundHasEffects(sound)) code += Sound("t", hit_in + sound.at, sound.resref, sound.voice);
   }
   return code;
 }
