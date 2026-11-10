@@ -5,6 +5,7 @@
 
 #include <math.h>
 
+#include <string>
 #include <vector>
 
 #include "check.h"
@@ -84,5 +85,30 @@ TEST(AnimFlightZeroDistance) {  // Review Focus 1: a target straight above - no 
     auto seg = data::FlightSegments(s, {1, 1, 0}, {1, 1, 3}, 1, 3);
     const data::FlightPoint p = data::FlightOffset(seg, data::FlightSeconds(seg));
     CHECK_EQ(!seg.empty() && data::FlightSeconds(seg) >= 0.05f && Near(p.z, 3) && p.x == p.x, true);
+  }
+}
+
+TEST(AnimFlightTwinRows) {  // the lasting-effect twin a missile flies on its carrier (data/looks/visualeffects.flight.look.txt)
+  CHECK_EQ(data::FlightTwinRow(2100) == 2190 && data::FlightTwinRow(2105) == 2195 && data::FlightTwinRow(181) == 2196, true);
+  CHECK_EQ(data::FlightTwinRow(503) == 2199 && data::FlightTwinRow(61) == 0, true);
+}
+
+TEST(AnimFlightScript) {  // the whole script that flies a dart: the carrier, the missile on it, the segments, the end
+  data::FlightSettings s;
+  s.kind = data::FlightKind::kRiseDash;
+  s.speed = 20;
+  const auto segs = data::FlightSegments(s, {0, 0, 0}, {10, 0, 0}, 0, 1);
+  const std::string code = data::FlightScript(segs, {1, 2, 3}, 2190, 0.5f);
+  for (const char* part : {
+           "void Seg(object o, float x, float y, float z, int a, int b, float s)",
+           "SetObjectVisualTransform(o, OBJECT_VISUAL_TRANSFORM_TRANSLATE_Z, z, b, s);",
+           "void main()",
+           "CreateObject(OBJECT_TYPE_PLACEABLE, \"plc_invisobj\", Location(GetArea(OBJECT_SELF), Vector(1.000, 2.000, "
+           "3.000), 0.0), FALSE, \"n5_flight\")",
+           "DelayCommand(0.500, ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectVisualEffect(2190), o, 0.956));",
+           "DelayCommand(0.500, Seg(o, 1.000, 0.000, 1.500, 5, 5, 0.400));",
+           "DelayCommand(0.900, Seg(o, 10.000, 0.000, 0.000, 6, 6, 0.456));",
+           "DestroyObject(o, 1.556);"}) {
+    CHECK_EQ(code.find(part) != std::string::npos, true);
   }
 }

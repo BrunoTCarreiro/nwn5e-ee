@@ -41,6 +41,9 @@ bool HasState(const void* object, int state);
 // wrapped into a main()). Returns the engine's result (logged the first time
 // it is seen, its meaning not yet known), or -1 when the bridge is missing.
 int RunScriptChunk(const char* code, uint32_t self);
+// RunScriptChunk without the wrapping: the code brings its own main(), so it can define void helpers DelayCommand can
+// time (a look's flight, #155). 0 is success; anything else is logged (the first three) - a compile error shows there.
+int RunWholeScript(const char* code, uint32_t self);
 
 // Applies an NWScript effect (e.g. "EffectKnockdown()") to `target`, created
 // by `creator` (the script runs as it), after `delay` seconds — always through

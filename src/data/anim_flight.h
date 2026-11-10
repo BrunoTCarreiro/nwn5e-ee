@@ -51,4 +51,14 @@ FlightPoint FlightOffset(const std::vector<FlightSegment>& segments, float t);
 // When dart `dart` leaves, in seconds after the first.
 float FlightStart(const FlightSettings& settings, int dart);
 
+// The lasting-effect twin (data/looks/visualeffects.flight.look.txt, rows 2190-2199) a missile row flies as on its
+// carrier: the orbs 2100-2105 -> 2190-2195, VFX_IMP_MIRV 181 -> 2196, VFX_IMP_MIRV_FLAME 233 -> 2197,
+// VFX_IMP_MIRV_ACID_ARROW 245 -> 2198, VFX_IMP_MIRV_ELECTRIC 503 -> 2199; 0 for any other (it flies the game's way).
+int FlightTwinRow(int missile_row);
+
+// The whole NWScript (its own main(): RunWholeScript, run as the caster) that flies one dart: an invisible carrier
+// (plc_invisobj, tag "n5_flight") at `from`, `twin_row` shown on it from `start` for the flight, each segment played by
+// SetObjectVisualTransform through a void helper DelayCommand times, the carrier gone after. Times and metres %.3f.
+std::string FlightScript(const std::vector<FlightSegment>& segments, FlightPoint from, int twin_row, float start);
+
 }  // namespace data

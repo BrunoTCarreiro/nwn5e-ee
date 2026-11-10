@@ -3,6 +3,7 @@
 #include "data/anim_flight.h"
 
 #include <math.h>
+#include <stdio.h>
 
 #include <algorithm>
 #include <string>
@@ -133,5 +134,44 @@ FlightPoint FlightOffset(const std::vector<FlightSegment>& segments, float t) {
 }
 
 float FlightStart(const FlightSettings& settings, int dart) { return static_cast<float>(std::max(0, dart)) * settings.stagger; }
+
+int FlightTwinRow(int missile_row) {
+  if (missile_row >= 2100 && missile_row <= 2105) return missile_row + 90;
+  switch (missile_row) {
+    case 181: return 2196;  // VFX_IMP_MIRV: vpr_magmisl
+    case 233: return 2197;  // VFX_IMP_MIRV_FLAME: vpr_arofire
+    case 245: return 2198;  // VFX_IMP_MIRV_ACID_ARROW: vpr_aroacid
+    case 503: return 2199;  // VFX_IMP_MIRV_ELECTRIC: vpr_ectoelectric
+    default: return 0;
+  }
+}
+
+std::string FlightScript(const std::vector<FlightSegment>& segments, FlightPoint from, int twin_row, float start) {
+  const auto number = [](float v) {
+    char text[32];
+    snprintf(text, sizeof text, "%.3f", v);
+    return std::string(text);
+  };
+  const float total = FlightSeconds(segments);
+  std::string code =
+      "void Seg(object o, float x, float y, float z, int a, int b, float s) {\n"
+      "  SetObjectVisualTransform(o, OBJECT_VISUAL_TRANSFORM_TRANSLATE_X, x, a, s);\n"
+      "  SetObjectVisualTransform(o, OBJECT_VISUAL_TRANSFORM_TRANSLATE_Y, y, a, s);\n"
+      "  SetObjectVisualTransform(o, OBJECT_VISUAL_TRANSFORM_TRANSLATE_Z, z, b, s);\n"
+      "}\n"
+      "void main() {\n";
+  code += "  object o = CreateObject(OBJECT_TYPE_PLACEABLE, \"plc_invisobj\", Location(GetArea(OBJECT_SELF), Vector(" +
+          number(from.x) + ", " + number(from.y) + ", " + number(from.z) + "), 0.0), FALSE, \"n5_flight\");\n";
+  code += "  DelayCommand(" + number(start) + ", ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectVisualEffect(" +
+          std::to_string(twin_row) + "), o, " + number(total + 0.1f) + "));\n";
+  float at = start;
+  for (const FlightSegment& s : segments) {
+    code += "  DelayCommand(" + number(at) + ", Seg(o, " + number(s.to.x) + ", " + number(s.to.y) + ", " + number(s.to.z) +
+            ", " + std::to_string(s.lerp_xy) + ", " + std::to_string(s.lerp_z) + ", " + number(s.seconds) + "));\n";
+    at += s.seconds;
+  }
+  code += "  DestroyObject(o, " + number(start + total + 0.2f) + ");\n}\n";
+  return code;
+}
 
 }  // namespace data
