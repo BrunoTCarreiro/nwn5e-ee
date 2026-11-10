@@ -269,9 +269,12 @@ bool ReadSpellLook(const std::string& text, SpellLook* look, std::string* error)
     if (key == "name") {
       if (!IsResref(value, 32)) return fail("the name must be 1-32 of a-z, 0-9 and _");
       l.name = value;
-    } else if (key == "clip" || key == "clip_base") {
+    } else if (key == "clip" || key == "clip_base" || key == "conj_clip") {
       if (!value.empty() && !IsResref(value, 16)) return fail(key + " must be 1-16 of a-z, 0-9 and _");
-      (key == "clip" ? l.clip : l.clip_base) = value;
+      (key == "clip" ? l.clip : key == "clip_base" ? l.clip_base : l.conj_clip) = value;
+    } else if (key == "conj_clip_base") {
+      if (value != "conjure1" && value != "conjure2") return fail("conj_clip_base is conjure1 (hand) or conjure2 (head)");
+      l.conj_clip_base = value;
     } else if (key == "rows") {
       std::istringstream words(value);
       std::string word;
@@ -319,6 +322,10 @@ std::string WriteSpellLook(const SpellLook& look) {
   for (int row : look.rows) out += " " + std::to_string(row);
   out += "\n";
   out += "rule_at = " + Number(look.rule_at) + "\n";
+  if (!look.conj_clip.empty()) {
+    out += "conj_clip = " + look.conj_clip + "\n";
+    out += "conj_clip_base = " + look.conj_clip_base + "\n";
+  }
   if (!look.clip.empty()) {
     out += "clip = " + look.clip + "\n";
     out += "clip_base = " + look.clip_base + "\n";

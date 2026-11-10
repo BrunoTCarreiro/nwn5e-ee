@@ -198,3 +198,22 @@ TEST(AnimLookVoiceInTheScript) {  // a voice line plays only for that voice (Get
                std::string::npos,
            true);
 }
+
+// A conjure of one's own (owner, 2026-11-10: "can I create other conjure setups?"): a recipe swapped for the conjure
+// (conjure1 for hand, conjure2 for head), as the clip is for the cast. Breaks caught: the conjure clip lost on the way
+// back or written elsewhere than the JS twin writes it, a base that isn't a conjure.
+
+TEST(AnimLookConjureClip) {
+  const std::string head = "name = x\nrows = 1153\nrule_at = 1.5\nrelease = 1.6\n";
+  data::SpellLook look;
+  std::string error;
+  CHECK_EQ(data::ReadSpellLook(head + "conj_clip = n5_cridle\nconj_clip_base = conjure2\n", &look, &error), true);
+  CHECK_EQ(look.conj_clip == "n5_cridle" && look.conj_clip_base == "conjure2", true);
+  const std::string text = data::WriteSpellLook(look);
+  CHECK_EQ(text.find("rule_at = 1.5\nconj_clip = n5_cridle\nconj_clip_base = conjure2\nrelease = 1.6\n") != std::string::npos, true);
+  data::SpellLook plain;
+  CHECK_EQ(data::ReadSpellLook(head, &plain, &error), true);
+  CHECK_EQ(plain.conj_clip.empty() && plain.conj_clip_base == "conjure1", true);
+  CHECK_EQ(data::WriteSpellLook(plain).find("conj_clip") == std::string::npos, true);
+  CHECK_EQ(data::ReadSpellLook(head + "conj_clip = n5_cridle\nconj_clip_base = jump\n", &look, &error), false);
+}

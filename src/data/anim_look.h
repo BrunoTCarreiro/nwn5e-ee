@@ -47,6 +47,9 @@ struct LookParts {  // what a [row] section may change
 
 struct SpellLook {
   std::string name, clip, clip_base = "castout";
+  // A conjure of one's own (owner, 2026-11-10: "can I create other conjure setups?"): a recipe swapped for the conjure
+  // animation (conjure1: hand, conjure2: head) as `clip` is for the cast; written only when set.
+  std::string conj_clip, conj_clip_base = "conjure1";
   std::vector<int> rows;
   float rule_at = 0.0f, clip_seconds = 0.0f, release = 0.0f, leap_for = 1.0f, leap_after = 0.3f;
   LookParts parts;                    // the defaults

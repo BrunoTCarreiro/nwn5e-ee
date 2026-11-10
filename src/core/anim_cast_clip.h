@@ -13,8 +13,17 @@
 // is the clip while the swap stands.
 
 #include <string>
+#include <vector>
 
 void RequestCastClip(void* creature, const char* base, const std::string& clip, float seconds);
+
+// Several at once - a look's conjure and cast (owner, 2026-11-10: "can I create other conjure setups?"): every pair
+// swapped for the same `seconds`, as one swap (RequestCastClip is this with one pair). A pair whose clip isn't built
+// keeps its base; nothing is swapped when none is.
+struct CastClipSwap {
+  std::string base, clip;
+};
+void RequestCastClips(void* creature, const std::vector<CastClipSwap>& swaps, float seconds);
 
 // Maps the creature's swap back at once (a spell that isn't a cantrip cast inside the swap's time); nothing if none.
 void EndCastClip(void* creature);

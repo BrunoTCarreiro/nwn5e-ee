@@ -55,44 +55,57 @@ void OnCreatureUpdate(void* creature) {
 }  // namespace
 
 void RequestCastClip(void* creature, const char* base, const std::string& clip, float seconds) {
-  if (!creature || !base || !*base || clip.empty()) return;
+  if (!base || !*base || clip.empty()) return;
+  RequestCastClips(creature, {{base, clip}}, seconds);
+}
+
+void RequestCastClips(void* creature, const std::vector<CastClipSwap>& swaps, float seconds) {
+  if (!creature || swaps.empty()) return;
   const uint32_t id = IdOf(creature);
   if (!g_installed) {
-    Log("cast clip: 0x%08X %s -> %s skipped - not installed", id, base, clip.c_str());
+    Log("cast clip: 0x%08X %s -> %s skipped - not installed", id, swaps[0].base.c_str(), swaps[0].clip.c_str());
     return;
   }
   EndCastClip(creature);  // a new request replaces the last
   const int ms = data::CastClipMs(seconds);
-  std::string text;
-  if (ms <= 0 || !AnimationRecipeBuilt(clip, &text)) {
-    Log("cast clip: 0x%08X plays %s - %s", id, base, ms <= 0 ? "no time given" : (clip + " isn't built").c_str());
+  if (ms <= 0) {
+    Log("cast clip: 0x%08X plays its own animations - no time given", id);
     return;
   }
-  // The cast's held loop too (castout, then castoutlp while the cast's time runs), when its clip was built.
-  const std::string loop_base = std::string(base) + "lp", loop_clip = clip + "lp";
-  const bool loop = AnimationRecipeBuilt(loop_clip, nullptr);
+  // Each pair, and its held loop too (castout, then castoutlp while the cast's time runs) when that clip was built.
+  Swap swap;
+  std::string replace, said;
+  for (const CastClipSwap& s : swaps) {
+    if (s.base.empty() || s.clip.empty()) continue;
+    if (!AnimationRecipeBuilt(s.clip, nullptr)) {
+      Log("cast clip: 0x%08X plays %s - %s isn't built", id, s.base.c_str(), s.clip.c_str());
+      continue;
+    }
+    const std::string loop_base = s.base + "lp", loop_clip = s.clip + "lp";
+    const bool loop = AnimationRecipeBuilt(loop_clip, nullptr);
+    replace += " ReplaceObjectAnimation(OBJECT_SELF, \"" + s.base + "\", \"" + s.clip + "\");";
+    if (loop) replace += " ReplaceObjectAnimation(OBJECT_SELF, \"" + loop_base + "\", \"" + loop_clip + "\");";
+    swap.bases.push_back(s.base);
+    if (loop) swap.bases.push_back(loop_base);
+    said += (said.empty() ? "" : ", ") + s.base + " as " + s.clip + (loop ? " (and " + loop_base + " as " + loop_clip + ")" : "");
+    if (swap.clip.empty()) swap.clip = s.clip;
+  }
+  if (replace.empty()) return;
   const std::string var = std::string("\"") + kSwapVar + "\"";
   RunScriptChunk(("SetLocalInt(OBJECT_SELF, " + var + ", 0);"
-                  " if (Get2DAString(\"appearance\", \"MODELTYPE\", GetAppearanceType(OBJECT_SELF)) == \"P\") {"
-                  " ReplaceObjectAnimation(OBJECT_SELF, \"" + std::string(base) + "\", \"" + clip + "\");" +
-                  (loop ? " ReplaceObjectAnimation(OBJECT_SELF, \"" + loop_base + "\", \"" + loop_clip + "\");" : std::string()) +
-                  " SetLocalInt(OBJECT_SELF, " + var + ", 1); }")
+                  " if (Get2DAString(\"appearance\", \"MODELTYPE\", GetAppearanceType(OBJECT_SELF)) == \"P\") {" +
+                  replace + " SetLocalInt(OBJECT_SELF, " + var + ", 1); }")
                      .c_str(),
                  id);
   const bool swapped = engine::GetLocalInt(creature, kSwapVar) == 1;
   RunScriptChunk(("DeleteLocalInt(OBJECT_SELF, " + var + ");").c_str(), id);
   if (!swapped) {
-    Log("cast clip: 0x%08X plays %s - not a part-based body", id, base);
+    Log("cast clip: 0x%08X plays %s - not a part-based body", id, swaps[0].base.c_str());
     return;
   }
-  Swap swap;
-  swap.bases.push_back(base);
-  if (loop) swap.bases.push_back(loop_base);
-  swap.clip = clip;
   swap.until = Now() + ms;
   g_swaps[id] = swap;
-  Log("cast clip: 0x%08X plays %s as %s%s for %.2f s", id, base, clip.c_str(), loop ? (" (and " + loop_base + " as " + loop_clip + ")").c_str() : "",
-      ms / 1000.0f);
+  Log("cast clip: 0x%08X plays %s for %.2f s", id, said.c_str(), ms / 1000.0f);
 }
 
 void EndCastClip(void* creature) {
