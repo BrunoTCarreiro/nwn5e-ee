@@ -1,0 +1,10 @@
+# visualeffects.2da - the orbs a spell look can fly (the Spell & Attack Bench, piece 1): missiles (Type_FD P) whose
+# progfx rows (progfx.look.txt) fly the game's vpr_ecto*01 orbs. A look names them as its `missile`. Served by the
+# game session's row server from data/looks (rows 2100-2199, empty rows only).
+Label Type_FD OrientWithGround ProgFX_Impact SoundDuration OrientWithObject
+2100 NWN5E_ORB_FIRE P 0 910 **** 0
+2101 NWN5E_ORB_COLD P 0 911 **** 0
+2102 NWN5E_ORB_ACID P 0 912 **** 0
+2103 NWN5E_ORB_ELEC P 0 913 **** 0
+2104 NWN5E_ORB_POISON P 0 914 **** 0
+2105 NWN5E_ORB_THUNDER P 0 915 **** 0

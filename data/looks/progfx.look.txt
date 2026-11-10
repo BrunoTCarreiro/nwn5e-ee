@@ -1,0 +1,10 @@
+# progfx.2da - the orbs a spell look can fly (the Spell & Attack Bench, piece 1): the game's own vpr_ecto*01 orbs,
+# flown as its MIRVs fly (Type 10; the values of progfx 905 MirvElectro, Param5 'log' = the Magic Missile curve,
+# data::MirvFlightSeconds). Served by the game session's row server from data/looks (rows 910-999, empty rows only).
+Label Type Param1 Param2 Param3 Param4 Param5
+910 N5OrbFire 10 vpr_ectofire01 340 0 4 log
+911 N5OrbCold 10 vpr_ectocold01 340 0 4 log
+912 N5OrbAcid 10 vpr_ectoacid01 340 0 4 log
+913 N5OrbElec 10 vpr_ectoelec01 340 0 4 log
+914 N5OrbPoison 10 vpr_ectonatr01 340 0 4 log
+915 N5OrbThunder 10 vpr_ectosonc01 340 0 4 log

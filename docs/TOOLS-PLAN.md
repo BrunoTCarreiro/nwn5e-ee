@@ -1200,3 +1200,21 @@ shorter one, but I'd like the legs to stay mostly the same"; "castout with the c
   conjure before it - which spells play n5_cantrip, and for how long, is the game session's).
 *Tests:* test.bat 429/0 (AnimRecipeLegsRoundTrip, AnimRecipeLegsFromAnother), legs_check.js; 11 breaks caught; on the
 real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso and right arm castout's at 1.5x.
+
+## Spell & Attack Bench - piece 1 (2026-11-10, #155)
+
+  Owner, 2026-11-10: "I think we will need a spell bench and eventually an 'attack' bench where mocap, VFX,
+  spell and perhaps sound will be combined for a final preview of the whole thing". Design (approved):
+  docs/superpowers/specs/2026-11-10-spell-attack-bench-design.md; plan: docs/superpowers/plans/2026-11-10-spell-
+  bench-piece1.md. Piece 1 is Chromatic Orb end to end:
+  - `nwn5e-tools/spell_bench/` (127.0.0.1:8768): the scene (formations), five part cards with a sound each, a
+    timeline snapped to the clip's frames, a preview, Save into build\spellbench\looks\ (never build\data\, which
+    installs overwrite), Play in game (dev/spell_bench_link.cpp: a staged replay against a spawned formation), and
+    `ship.js` (an accepted look into the repo's data/looks/, the draft deleted - the game session's ask).
+  - The look (`.look`, src/data/anim_look; the bench's public/look.js writes it byte for byte the same) and its
+    player (src/core/anim_look_player): the clip swap and the caster's parts at the cast (its own spell-cast
+    listener), the missile / hit / leap / sounds at the impact through `PlaySpellLook`, the rule's one line, which
+    returns when the hit lands so the damage waits for it.
+  - Six orbs, the game's vpr_ecto*01 flown as its MIRVs: visualeffects 2100-2105, progfx 910-915
+    (data/looks/*.look.txt; the game session's row server serves data\looks then spellbench\looks, empty rows only).
+  - Per-sound volume (owner, 2026-11-10, via the game session) comes with piece 4: the game's PlaySound has none.

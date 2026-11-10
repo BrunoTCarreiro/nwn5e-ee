@@ -1,0 +1,22 @@
+# nwn5e spell look - key = value
+name = chromatic_orb
+rows = 1153 1154 1155 1156 1157 1158 1159
+rule_at = 1.5
+clip = n5_cantrip
+clip_base = castout
+clip_seconds = 2.5
+release = 1.6
+leap_for = 1
+leap_after = 0.3
+missile = 2100
+hit = 61
+leap_beam = 210
+sound = cast 0.2 vs_chant_evoc_lm
+sound = hit 0.05 sim_explflame
+table.ConjAnim = hand
+
+[1155]
+missile = 2101
+hit = 63
+leap_beam = 211
+sound = hit 0.05 sim_explfrost
