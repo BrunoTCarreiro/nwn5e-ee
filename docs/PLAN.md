@@ -1207,6 +1207,10 @@ monster AC by CR.
     visuals at once. Retest L1-19b (no look: unchanged). Owner, 2026-11-10: "in these test matrices group the rows
     by class" - matrices are ordered and numbered by !test profile from now on; L2-4's setup fixed ("sorcerer
     cannot wear that armor": !feat add 3 first).
+  - *0.99.7 (owner, 2026-11-10: "game crashed, check the logs"):* an integer divide by zero in the engine's
+    ResolveRangedMiss - an orc's arrow lost to Sanctuary. A miss's missed-by (attack data +0x14, which the engine's
+    roll sets 1 or more) scales the stray arrow and divides; the skippers forcing a miss (Sanctuary, Charm, Minor
+    Illusion's image) left it 0. ForceAttackMiss (attack_roll.h) writes it 1, as a natural 1. Retest L2-7b.
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
   New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion
