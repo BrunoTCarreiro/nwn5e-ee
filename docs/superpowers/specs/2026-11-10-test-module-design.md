@@ -26,7 +26,7 @@ One module, **nwn5e Test Grounds** (`n5test.mod`), with three areas:
    - one stone-floored room inside walls, 6 by 4 tiles (60 m by 40 m), lit by the tiles' lights and four braziers;
    - two rows of pillars down its length, and two groups of crates, for obstacles, line of sight and cover;
    - a cast mark at the west end facing east.
-3. **The Dark Wing** (mines, `tdm01`):
+3. **The Dark Wing** (dungeon, `tde01`; the mines tileset `tdm01` builds no plain rooms):
    - one floored room inside walls, 4 by 4 tiles;
    - no light at all: the tiles' main and source lights off, the ambient and diffuse colours black, the area flagged
      interior and underground;

@@ -1,0 +1,78 @@
+{
+  "_": "nwn5e Test Grounds (#156; docs/superpowers/specs/2026-11-10-test-module-design.md): built by build.py. Metres, 10 a tile; x east, y north, row 0 of the corners the south. Colours are the game's 0xBBGGRR integers.",
+  "module": {
+    "name": "nwn5e Test Grounds",
+    "tag": "n5test",
+    "description": "nwn5e's test module: a sunlit field, a pillared hall and an unlit dungeon room, each with a cast mark (!go field / hall / dark, !reset). Built by nwn5e-ee tools/testmodule.",
+    "entry": "n5test_field"
+  },
+  "areas": [
+    {
+      "resref": "n5test_field",
+      "name": "The Field",
+      "tileset": "ttr01",
+      "terrain": {"g": "Grass"},
+      "corners": ["ggggggggg", "ggggggggg", "ggggggggg", "ggggggggg", "ggggggggg", "ggggggggg", "ggggggggg", "ggggggggg", "ggggggggg"],
+      "flags": 4,
+      "light": {"is_night": 0, "day_night": 0, "lighting_scheme": 0, "shadow_opacity": 40, "sun_shadows": 1,
+                "sun_ambient": 7895160, "sun_diffuse": 15263976, "sun_fog": 0, "sun_fog_color": 0,
+                "moon_ambient": 0, "moon_diffuse": 0, "moon_fog": 0, "moon_fog_color": 0,
+                "tile_main": [0, 0], "tile_src": [0, 0]},
+      "placeables": [
+        {"template": "plc_flag1", "x": 34, "y": 16, "bearing": 0},
+        {"template": "plc_flag1", "x": 34, "y": 26, "bearing": 0},
+        {"template": "plc_flag1", "x": 34, "y": 36, "bearing": 0}
+      ],
+      "waypoints": [{"tag": "n5test_cast_field", "name": "Cast mark: the field", "x": 40, "y": 6, "facing": 90}]
+    },
+    {
+      "resref": "n5test_hall",
+      "name": "The Hall",
+      "tileset": "tic01",
+      "terrain": {"#": "Wall", ".": "Stone"},
+      "corners": ["#######", "#.....#", "#.....#", "#.....#", "#######"],
+      "flags": 1,
+      "light": {"is_night": 1, "day_night": 0, "lighting_scheme": 17, "shadow_opacity": 60, "sun_shadows": 0,
+                "sun_ambient": 0, "sun_diffuse": 0, "sun_fog": 0, "sun_fog_color": 0,
+                "moon_ambient": 6316128, "moon_diffuse": 13158600, "moon_fog": 0, "moon_fog_color": 0,
+                "tile_main": [0, 17], "tile_src": [8, 8]},
+      "placeables": [
+        {"template": "plc_brazier", "x": 8, "y": 8, "bearing": 0},
+        {"template": "plc_brazier", "x": 52, "y": 8, "bearing": 0},
+        {"template": "plc_brazier", "x": 8, "y": 32, "bearing": 0},
+        {"template": "plc_brazier", "x": 52, "y": 32, "bearing": 0},
+        {"template": "plc_pillar1", "x": 10, "y": 13, "bearing": 0},
+        {"template": "plc_pillar1", "x": 20, "y": 13, "bearing": 0},
+        {"template": "plc_pillar1", "x": 30, "y": 13, "bearing": 0},
+        {"template": "plc_pillar1", "x": 40, "y": 13, "bearing": 0},
+        {"template": "plc_pillar1", "x": 50, "y": 13, "bearing": 0},
+        {"template": "plc_pillar1", "x": 10, "y": 27, "bearing": 0},
+        {"template": "plc_pillar1", "x": 20, "y": 27, "bearing": 0},
+        {"template": "plc_pillar1", "x": 30, "y": 27, "bearing": 0},
+        {"template": "plc_pillar1", "x": 40, "y": 27, "bearing": 0},
+        {"template": "plc_pillar1", "x": 50, "y": 27, "bearing": 0},
+        {"template": "x2_plc_bcrate1", "x": 24, "y": 19, "bearing": 0},
+        {"template": "x2_plc_bcrate1", "x": 26, "y": 20.5, "bearing": 30},
+        {"template": "x2_plc_bcrate1", "x": 25, "y": 22, "bearing": 60},
+        {"template": "x2_plc_bcrate1", "x": 44, "y": 19, "bearing": 15},
+        {"template": "x2_plc_bcrate1", "x": 46, "y": 21, "bearing": 45},
+        {"template": "x2_plc_bcrate1", "x": 45, "y": 17.5, "bearing": 75}
+      ],
+      "waypoints": [{"tag": "n5test_cast_hall", "name": "Cast mark: the hall", "x": 6, "y": 20, "facing": 0}]
+    },
+    {
+      "resref": "n5test_dark",
+      "name": "The Dark Wing",
+      "tileset": "tde01",
+      "terrain": {"#": "Wall", ".": "Floor"},
+      "corners": ["#####", "#...#", "#...#", "#...#", "#####"],
+      "flags": 3,
+      "light": {"is_night": 1, "day_night": 0, "lighting_scheme": 0, "shadow_opacity": 100, "sun_shadows": 0,
+                "sun_ambient": 0, "sun_diffuse": 0, "sun_fog": 0, "sun_fog_color": 0,
+                "moon_ambient": 0, "moon_diffuse": 0, "moon_fog": 0, "moon_fog_color": 0,
+                "tile_main": [0, 0], "tile_src": [0, 0]},
+      "placeables": [],
+      "waypoints": [{"tag": "n5test_cast_dark", "name": "Cast mark: the dark wing", "x": 20, "y": 8, "facing": 90}]
+    }
+  ]
+}

@@ -64,8 +64,8 @@ else:
     check("ttr01: 283 tiles, Grass, Water, Trees", len(rural["tiles"]) == 283 and rural["terrains"] == ["Grass", "Water", "Trees"],
           (len(rural["tiles"]), rural["terrains"]))
     check("tic01 has Stone", "Stone" in gamedata.read_set(game.resource("tic01", gamedata.SET).decode("latin1"))["terrains"])
-    mines = gamedata.read_set(game.resource("tdm01", gamedata.SET).decode("latin1"))["terrains"]
-    check("tdm01 has Floor and Wall", "Floor" in mines and "Wall" in mines, mines)
+    dungeon = gamedata.read_set(game.resource("tde01", gamedata.SET).decode("latin1"))["terrains"]
+    check("tde01 (the dark wing) has Floor and Wall", "Floor" in dungeon and "Wall" in dungeon, dungeon)
     pillar = game.resource("plc_pillar1", gamedata.UTP)
     check("a base blueprint reads (plc_pillar1.utp)", pillar is not None and pillar[:4] == b"UTP ", pillar[:8] if pillar else None)
     check("a missing one is None", game.resource("no_such_thing", gamedata.UTP) is None)
