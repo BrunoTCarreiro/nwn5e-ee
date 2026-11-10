@@ -6013,6 +6013,15 @@ animation session sent:
   own go - `!spawn`'s (now marked `nwn5e_test_spawn`, an ally included) and the bench's `n5sb_target` - so a stray
   `!reset` in a story module doesn't empty a town.
 - *Built 0.99.12.*
+- *0.99.14 (the owner's run in the Test Grounds, 2026-11-10; the log: three `!spawn nw_orcb ally`, only the first
+  a henchman):* the module allows one henchman, so the other two stayed in their hostile faction while the chat
+  said "your henchman". `!spawn ... ally` now raises the module's henchman cap to make room (as `!dying henchman` does)
+  and removes, with a message, a creature that still doesn't join.
+- *The owner's softlock (same run: "if an ally is down and my PC goes down while there are enemies alive the game
+  doesn't end"):* nwn5e saw no henchman standing and handed the player to the module's OnPlayerDying ("drops to
+  -1 HP with no henchman standing"), as decided for `dying` faithful; the Test Grounds left that script, and
+  OnPlayerDeath / OnPlayerRespawn, empty, so nothing ended it. The module's fix (the animation session's
+  generator): the game's standard nw_o0_dying, nw_o0_death and nw_o0_respawn.
 
 ## Test register — the owner's request (2026-11-08, #147)
 

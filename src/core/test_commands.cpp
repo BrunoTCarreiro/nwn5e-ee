@@ -200,7 +200,14 @@ std::vector<std::string> SpawnCommand(void* creature, const std::string& args) {
   const bool neutral = !ally && Lower(rest).find("neutral") != std::string::npos;
   const bool reduction = Lower(rest).find("dr") != std::string::npos;
   const uint32_t id = ObjectIdOf(StatsOf(creature));
-  std::string join = ally      ? "ChangeFaction(o, OBJECT_SELF); AddHenchman(OBJECT_SELF, o); "
+  // 0.99.14 (#156; the owner's run in the Test Grounds, 2026-11-10: of three ally orcs only the first joined - the
+  // module allows one henchman - and the others stayed in their hostile faction, though the chat said "your
+  // henchman"): the module's henchman cap is raised to make room (as !dying henchman does), and a creature
+  // that still doesn't join is removed, with a message, instead of left there hostile.
+  std::string join = ally      ? "int n = 1; while (GetIsObjectValid(GetHenchman(OBJECT_SELF, n))) n++; "
+                                 "if (GetMaxHenchmen() < n) SetMaxHenchmen(n); "
+                                 "ChangeFaction(o, OBJECT_SELF); AddHenchman(OBJECT_SELF, o); "
+                                 "SetLocalInt(OBJECT_SELF, \"nwn5e_test_joined\", GetMaster(o) == OBJECT_SELF); "
                      : neutral ? "ChangeToStandardFaction(o, STANDARD_FACTION_COMMONER); "
                                : "ChangeToStandardFaction(o, STANDARD_FACTION_HOSTILE); ";
   if (reduction) {
@@ -213,13 +220,20 @@ std::vector<std::string> SpawnCommand(void* creature, const std::string& args) {
       "object o = CreateObject(OBJECT_TYPE_CREATURE, \"" + blueprint + "\", Location(GetArea(OBJECT_SELF), p, f + 180.0)); "
       "if (GetIsObjectValid(o)) { SetLocalString(OBJECT_SELF, \"nwn5e_spawned\", ObjectToString(o)); "
       "SetLocalInt(o, \"nwn5e_test_spawn\", 1); " + join +  // #156: !reset finds it in any module
+      (ally ? "if (GetMaster(o) != OBJECT_SELF) { SendMessageToPC(OBJECT_SELF, \"nwn5e: \" + GetName(o) + "
+              "\" could not join you as a henchman - removed.\"); DeleteLocalString(OBJECT_SELF, \"nwn5e_spawned\"); "
+              "DestroyObject(o); } else "
+            : "") +
       "SendMessageToPC(OBJECT_SELF, \"nwn5e: spawned \" + GetName(o) + \"" +
       (ally ? " (your henchman)" : neutral ? " (not hostile - the commoners' faction)" : " (hostile)") +
       (reduction ? ", damage reduction 10/+5" : "") +
       ".\"); } else SendMessageToPC(OBJECT_SELF, \"nwn5e: no creature blueprint \\\"" + blueprint + "\\\".\");";
+  if (ally) engine::SetLocalInt(creature, "nwn5e_test_joined", -1);
   RunScriptChunk(code.c_str(), id);
-  Log("spawn: 0x%08X asked for %s%s%s", id, blueprint.c_str(), ally ? " (ally)" : neutral ? " (neutral)" : "",
-      reduction ? " (DR 10/+5)" : "");
+  const int joined = ally ? engine::GetLocalInt(creature, "nwn5e_test_joined") : -1;
+  Log("spawn: 0x%08X asked for %s%s%s%s", id, blueprint.c_str(), ally ? " (ally)" : neutral ? " (neutral)" : "",
+      reduction ? " (DR 10/+5)" : "",
+      joined == 1 ? " - joined as a henchman" : joined == 0 ? " - could not join (removed)" : "");
   // 0.72.1: the spawned creature gets the test hit point floor at once ([debug] creature_min_hp) - a grenade's patch
   // makes neither an attack roll nor a save; 0.73.1: an ally too.
   const std::string spawned = engine::GetLocalString(creature, "nwn5e_spawned");
