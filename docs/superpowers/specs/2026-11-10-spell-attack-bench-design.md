@@ -63,6 +63,14 @@ in game when the bench says, not when the engine happens to:
 - The rule's damage waits for that same moment: the rule asks the look how long until the hit, and applies the damage
   then. Today it lands at once, while the orb is still flying.
 - This is the one-line change in the game session's code (below), agreed with it before it lands.
+- How the game session does its side (mechanics, 2026-11-10, as Magic Missile already does):
+  - Every roll stays at the cast: the attack, the dice, the matching-dice check, and the leap's target, picked from
+    where the creatures stand at the cast.
+  - Each hit's damage is created at the cast and applied by a delayed command on the target. The caster keeps the
+    kill credit, and the damage still lands if the caster dies mid-flight.
+  - A leap's delay is the previous hit's time plus the leap's own flight.
+  - Picking the leap's target when the orb arrives would need a timer on its side. Not for the first version.
+    *(My call: at a flight of well under a second, nobody moves far enough to matter.)*
 
 **Save writes what the game needs:**
 - the spell's presentation: the clip, the cast and hit effects, the missile, the leap, the sounds and their timing
@@ -88,13 +96,29 @@ its timing and swaps live in the animation files." The bench extends that to the
 - The rule's code calls the animation side in one line, in place of `OrbLookOf`, and the look plays from that file.
 - Table columns the engine itself reads (the cast animation, the sounds of the conjure / cast phases) are written as a
   presentation overlay that the game session's served rows take in.
-- The exact API and the overlay's form are agreed with the game session in the plan, before any game file changes (its
-  rule: "A new hook in a game file is announced, with the lines, before it lands").
+- The exact signature and the game file's lines go to the game session before any game file changes (its rule: "A new
+  hook in a game file is announced, with the lines, before it lands").
 
-**Where Save writes** *(answered by the other benches)*. Like the Recipe Bench (`build\animedit\recipes\`, built at
-the next game start) and the VFX Bench (`build\vfxedit\saved\`), Save writes into the game checkout's `build\`, for
-the owner's game at the next start. Shipping a look into the repo's data, for every install, is a separate step taken
-once the owner accepts it, as with recipes moving into `data/anims/`.
+**What the game session asks of the function** (mechanics, 2026-11-10):
+- Safe to call from inside a spell's impact handler (the rule is inside a script run then), and never blocking.
+- With no look for that row, it returns 0 and plays nothing, so the rule's current visuals stay as the fallback.
+- Creatures are passed as object ids. The variant is the spells.2da row: 1153 is the master, and 1154-1159 are the
+  six types.
+- It lands only after Chromatic Orb's own open tests (L1-19, L1-20) pass. The change gets a retest row of its own.
+
+**The overlay** (agreed with mechanics, 2026-11-10):
+- One animation-owned file in the repo, `data/looks/spells.look.txt`, versioned and installed with everything else.
+  build.bat already copies all of `data/` into `build\`.
+- It uses the row format: a header naming its columns, then partial rows. The game session's row server merges it
+  last.
+- The server takes only presentation columns: CastAnim, ConjAnim, the Conj* / Cast* visuals and sounds, and Proj*.
+  Anything else (ImpactScript, class columns, Innate, ConjTime / CastTime, targeting) is refused and logged.
+- It's read at start-up, so a change needs a game restart.
+
+**Where Save writes.** While the owner works, Save writes into the game checkout's `build\` (the overlay into
+`build\data\looks\`, and the look files beside it). The owner's game then picks them up at the next start, as with the
+Recipe Bench (`build\animedit\recipes\`) and the VFX Bench (`build\vfxedit\saved\`). Once the owner accepts a look,
+it's copied into the repo's `data/looks/` and ships with every install, as recipes move into `data/anims/`.
 
 **Variants.** A spell with several looks (Chromatic Orb's six damage types) is one set of settings, with the parts
 that change per look picked per variant: the orb model, the hit effect, the sounds.
@@ -151,7 +175,10 @@ None named. Owner: "it's a first version, will keep at it until it works".
 - **Ownership** (CLAUDE.md, "Who owns what"):
   - The bench, the dev layer, the look files and their player are the animation session's.
   - The rules, the spell scripts and the served 2DA rows are the game session's.
-  - The one-line call and the overlay are agreed with the game session in the plan (see "Save writes a spell look").
+  - The one-line call and the overlay are agreed in principle with the game session (above). Its exact lines go to it
+    before they land.
+  - The overlay `data/looks/spells.look.txt` is the animation session's. The row server that merges it is the game
+    session's.
   - ConjTime and CastTime decide how long the caster is busy, so they stay the rule's. *(My call.)* The bench shows
     them as the span the cast must fit in, and warns when the animation runs past. A longer or shorter cast is a
     request to the game session.
