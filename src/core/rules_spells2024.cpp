@@ -74,6 +74,7 @@
 #include <vector>
 
 #include "action_guard.h"
+#include "anim_look_player.h"
 #include "attack_roll.h"
 #include "bonus_actions.h"
 #include "chat.h"
@@ -113,6 +114,7 @@ bool HoldsShieldOf(void* creature);
 int UnarmoredDefenseBonus(void* stats);
 // Below (build 2a): Hunter's Mark on a spell attack's hit.
 void HuntersMarkSpellHit(uint32_t caster, uint32_t target, bool critical);
+void HuntersMarkHit(uint32_t caster, uint32_t target, bool critical, float delay);  // #155: its damage delayed
 
 namespace {
 
@@ -333,8 +335,7 @@ const char* const kDamage = R"nss(
 object t = StringToObject("$TARGET");
 if (!GetIsObjectValid(t)) return;
 $IMMUNE
-ApplyEffectToObject(DURATION_TYPE_INSTANT, SetEffectSpellId(EffectLinkEffects(EffectDamage($AMOUNT, $TYPE),
-                    EffectVisualEffect($VIS)), $ROW), t);
+$APPLY
 $RIDER
 )nss";
 
@@ -440,13 +441,21 @@ Look LookOf(int row) {
 }
 
 // Applies `amount` of the spell's damage to `target` (nothing when 0); false when the target turned out immune.
+// `delay` > 0 (#155: a spell look's flight): the damage lands that many seconds from now, a command held by the
+// target (it lands though the caster dies meanwhile; the caster stays its creator), `vis` with it unless empty.
 bool Damage(uint32_t self, const rules::Spell2024& spell, const std::string& target, int amount, uint32_t type,
-            const std::string& vis, const Look& look) {
+            const std::string& vis, const Look& look, float delay = 0.0f) {
   if (amount <= 0) return true;
   void* caster = CreatureById(self);
   if (caster) engine::SetLocalInt(caster, kVarSave, 0);
   std::string code = kDamage;
   Replace(&code, "$IMMUNE", look.immune);
+  const std::string effect = vis.empty() ? "EffectDamage($AMOUNT, $TYPE)"
+                                         : "EffectLinkEffects(EffectDamage($AMOUNT, $TYPE), EffectVisualEffect($VIS))";
+  Replace(&code, "$APPLY",
+          delay > 0.0f ? "effect d = SetEffectSpellId(" + effect + ", $ROW); AssignCommand(t, DelayCommand(" +
+                             Float(delay) + ", ApplyEffectToObject(DURATION_TYPE_INSTANT, d, t)));"
+                       : "ApplyEffectToObject(DURATION_TYPE_INSTANT, SetEffectSpellId(" + effect + ", $ROW), t);");
   Replace(&code, "$RIDER", look.rider);
   Replace(&code, "$TARGET", target);
   Replace(&code, "$AMOUNT", std::to_string(amount));
@@ -912,12 +921,28 @@ const char* const kLeapAttack = R"nss(
 object t = StringToObject("$TARGET"); string r = "";
 if (GetIsObjectValid(t)) {
   SignalEvent(t, EventSpellCastAt(OBJECT_SELF, GetSpellId(), TRUE));
-  ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectBeam($BEAM, StringToObject("$FROM"), BODY_NODE_CHEST), t, 1.0);
   r = ObjectToString(t) + ":" + IntToString(TouchAttackRanged(t)) + ";";
 }
 SetLocalString(OBJECT_SELF, "n5s_hits", r);
 )nss";
 
+// NWN's own orb, when no look plays it: the missile from the caster, or the leap's beam from the creature it hit -
+// `after` seconds from now (a look's earlier hit).
+void NwnOrbVisual(uint32_t self, const std::string& target, const std::string& from, const OrbLook& orb, float after) {
+  std::string code = "object t = StringToObject(\"" + target + "\"); if (!GetIsObjectValid(t)) return; DelayCommand(" +
+                     Float(after) + ", ";
+  if (from.empty()) {
+    code += std::string("ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(") + orb.missile + "), t));";
+  } else {
+    code += std::string("ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectBeam(") + orb.beam + ", StringToObject(\"" +
+            from + "\"), BODY_NODE_CHEST), t, 1.0));";
+  }
+  Run(code, self, "n5_s_chromorb");
+}
+
+// #155 (the Spell & Attack Bench): a hit's look - the bench's for this row, when it has one - plays the orb (and each
+// leap's) and says when it lands; the damage waits for it. Every roll stays at the cast. No look: NWN's visuals as
+// before; a miss always NWN's (piece 1 has no miss design).
 void ChromaticOrb(uint32_t self, void* caster, const rules::Spell2024& spell, int slot) {
   const int row = Field<int32_t>(caster, ee::kObjectLastSpellId);
   const rules::CantripOption* option = rules::ChoiceOptionOf(row);
@@ -926,17 +951,26 @@ void ChromaticOrb(uint32_t self, void* caster, const rules::Spell2024& spell, in
       option && menu && menu->master == rules::kChromaticOrb ? option->value : rules::kDamageTypeFire;  // no choice: Fire
   const OrbLook orb = OrbLookOf(type);
   Look look;
-  look.beam = std::string("ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(") + orb.missile + "), t);";
   look.vis = orb.vis;
   if (type == rules::kDamageTypePoison) look.immune = LookOf(rules::kRayOfSickness).immune;
-  std::vector<Entry> hits = OneTarget(self, spell, "TouchAttackRanged(t)", 1, look);
+  std::vector<Entry> hits = OneTarget(self, spell, "TouchAttackRanged(t)", 1, Look());  // the roll; its orb after
   if (hits.empty()) return;
   Entry hit = hits.front();
+  std::string from;    // the creature the orb leaps from (none: the cast's)
+  float after = 0.0f;  // seconds from now the orb's last hit lands (a look's; 0: at once)
   std::string skip = "|";
   int leaps = rules::ChromaticOrbLeaps(slot);
   std::string log;
   for (;;) {
     skip += hit.target + "|";
+    const uint32_t target_id = ParseId(hit.target);
+    float lands = 0.0f;
+    if (hit.value > 0) {
+      lands = from.empty() ? PlaySpellLook(self, target_id, row)
+                           : PlaySpellLookLeap(ParseId(from), target_id, row, after);
+    }
+    if (lands <= 0.0f) NwnOrbVisual(self, hit.target, from, orb, after);
+    const float when = lands > 0.0f ? lands : after;
     if (hit.value <= 0) {
       log += " 0x" + hit.target + " missed;";
       break;
@@ -952,12 +986,12 @@ void ChromaticOrb(uint32_t self, void* caster, const rules::Spell2024& spell, in
       amount += roll;
       faces += (i ? "," : "") + std::to_string(roll);
     }
-    Look applied = look;
-    applied.beam.clear();
-    const bool landed = Damage(self, spell, hit.target, amount, type, orb.vis, applied);
-    if (landed) HuntersMarkSpellHit(self, ParseId(hit.target), critical);  // build 2a
+    const bool landed = Damage(self, spell, hit.target, amount, type, lands > 0.0f ? "" : orb.vis, look, when);
+    if (landed) HuntersMarkHit(self, target_id, critical, when);  // build 2a
     log += " 0x" + hit.target + (critical ? " a Critical Hit " : " hit ") + Dice(dice, spell.die) + " (" + faces + ") = " +
-           std::to_string(amount) + " " + TypeName(type) + (landed ? "" : " - immune") + ";";
+           std::to_string(amount) + " " + TypeName(type) + (landed ? "" : " - immune") +
+           (lands > 0.0f ? " (its look: lands in " + Float(lands) + " s)" : "") + ";";
+    after = when;
     if (!rules::HasMatchingDice(rolls)) break;
     if (leaps <= 0) {
       log += " no leaps left;";
@@ -976,12 +1010,11 @@ void ChromaticOrb(uint32_t self, void* caster, const rules::Spell2024& spell, in
     --leaps;
     std::string attack = kLeapAttack;
     Replace(&attack, "$TARGET", next.front().target);
-    Replace(&attack, "$FROM", hit.target);
-    Replace(&attack, "$BEAM", orb.beam);
     Run(attack, self, spell.script);
     const std::vector<Entry> again = Entries(caster);
     if (again.empty()) break;
     log += " leaps ->";
+    from = hit.target;
     hit = again.front();
   }
   if (LogSlot()) {
@@ -1724,8 +1757,10 @@ MasteryRollSources ProtectionRollSources(void* attacker, void* target) {
 }
 
 // Hunter's Mark on a spell attack's hit on the quarry (this file's spells, rules_cantrips.cpp's attack cantrips):
-// 1d6 Force, twice on a Critical Hit.
-void HuntersMarkSpellHit(uint32_t caster, uint32_t target, bool critical) {
+// 1d6 Force, twice on a Critical Hit - `delay` seconds from now when the spell's damage waits (#155: a look).
+void HuntersMarkSpellHit(uint32_t caster, uint32_t target, bool critical) { HuntersMarkHit(caster, target, critical, 0.0f); }
+
+void HuntersMarkHit(uint32_t caster, uint32_t target, bool critical, float delay) {
   if (g_quarries.empty()) return;
   const auto at = g_quarries.find(caster);
   if (at == g_quarries.end() || at->second.quarry != target) return;
@@ -1733,10 +1768,10 @@ void HuntersMarkSpellHit(uint32_t caster, uint32_t target, bool critical) {
   if (!creature || !HasSpellEffect(creature, rules::kHuntersMark, rules::kHuntersMarkBonus, caster)) return;
   const int dice = rules::CriticalDice(1, critical);
   const int extra = RollEngineDice(dice, rules::kHuntersMarkDie);
-  char code[256];
-  sprintf_s(code, "object t = StringToObject(\"%x\"); if (GetIsObjectValid(t)) "
-            "ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectDamage(%d, %u), t);", target, extra,
-            rules::kDamageTypeForce);
+  char code[320];
+  sprintf_s(code, "object t = StringToObject(\"%x\"); if (!GetIsObjectValid(t)) return; effect d = EffectDamage(%d, %u); "
+            "AssignCommand(t, DelayCommand(%.3f, ApplyEffectToObject(DURATION_TYPE_INSTANT, d, t)));", target, extra,
+            rules::kDamageTypeForce, delay);
   RunScriptChunk(code, caster);
   if (LogSlot()) Log("spells2024: 0x%08X Hunter's Mark on a spell attack: %dd6 Force = %d", caster, dice, extra);
 }

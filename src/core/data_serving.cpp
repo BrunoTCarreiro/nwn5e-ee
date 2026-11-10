@@ -22,6 +22,7 @@
 
 #include "config.h"
 #include "creature.h"
+#include "data/look_rows.h"
 #include "data/twoda.h"
 #include "ee_layout.h"
 #include "hooks.h"
@@ -210,10 +211,17 @@ bool ReadGameTable(const std::string& table, std::string* bytes, std::string* wh
   return ReadResource(table, ee::kResourceType2da, bytes, why);
 }
 
+// A rows file to merge: its path, its name in the log, and whether it's a look's (#155: checked first).
+struct RowFile {
+  std::wstring path;
+  std::string label;
+  bool look = false;
+};
+
 // Builds <dll>\served\<table>.2da for every table with rows. Returns the count.
 int BuildServedTables() {
   const std::wstring served = g_dll + L"\\served";
-  std::map<std::string, std::vector<std::pair<std::wstring, std::string>>> rows;  // table -> (file, label)
+  std::map<std::string, std::vector<RowFile>> rows;  // table -> its files, in merge order
   const std::pair<std::wstring, const char*> sources[] = {{g_dll + L"\\data\\rows", "data"},
                                                            {g_dll + L"\\data\\private\\rows", "private"}};
   for (const auto& source : sources) {
@@ -226,6 +234,19 @@ int BuildServedTables() {
       for (char& c : table) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
       if (table == "readme") continue;
       rows[table].push_back({source.first + L"\\" + name, std::string(source.second) + "\\rows\\" + Narrow(name)});
+    }
+  }
+  // #155, the Spell & Attack Bench (the animation session's): its looks - <dll>\data\looks (shipped), then
+  // <dll>\spellbench\looks (the bench's drafts), "<table>.look.txt" - merged after every rows file, the later
+  // winning row by row. data::CheckLookRows says what each may change: a file that steps outside is refused whole.
+  const std::pair<std::wstring, const char*> looks[] = {{g_dll + L"\\data\\looks", "data\\looks"},
+                                                         {g_dll + L"\\spellbench\\looks", "spellbench\\looks"}};
+  for (const auto& source : looks) {
+    for (const std::wstring& name : FilesIn(source.first, L"*.look.txt")) {
+      std::string table = Narrow(name);
+      table = table.substr(0, table.find('.'));
+      for (char& c : table) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+      rows[table].push_back({source.first + L"\\" + name, std::string(source.second) + "\\" + Narrow(name), true});
     }
   }
   if (g_config.debug_served_data_probe) rows["feat"];  // the probe needs feat.2da even without rows
@@ -277,15 +298,33 @@ int BuildServedTables() {
     const size_t original = table.rows.size();
     std::string applied;
     bool ok = true;
-    for (const auto& file : entry.second) {
+    data::TwoDA before_looks;  // the table the looks are checked against: the game's and nwn5e's rows
+    bool looks_seen = false;
+    for (const RowFile& file : entry.second) {
       std::string text;
       int changed = 0;
-      if (!ReadText(file.first, &text) || !data::ApplyRows(&table, text, &error, &changed)) {
-        Log("data: SKIP %s.2da: %s: %s", entry.first.c_str(), file.second.c_str(), error.c_str());
+      if (file.look) {
+        if (!looks_seen) {
+          before_looks = table;
+          looks_seen = true;
+        }
+        std::string why;
+        data::TwoDA trial = table;
+        if (!ReadText(file.path, &text) || !data::CheckLookRows(entry.first, before_looks, text, &why) ||
+            !data::ApplyRows(&trial, text, &why, &changed)) {
+          Log("data: SKIP the look rows %s (%s.2da): %s", file.label.c_str(), entry.first.c_str(), why.c_str());
+          continue;  // that file refused; the table goes on
+        }
+        table = trial;
+        applied += " + " + std::to_string(changed) + " look rows (" + file.label + ")";
+        continue;
+      }
+      if (!ReadText(file.path, &text) || !data::ApplyRows(&table, text, &error, &changed)) {
+        Log("data: SKIP %s.2da: %s: %s", entry.first.c_str(), file.label.c_str(), error.c_str());
         ok = false;
         break;
       }
-      applied += " + " + std::to_string(changed) + " rows (" + file.second + ")";
+      applied += " + " + std::to_string(changed) + " rows (" + file.label + ")";
     }
     if (!ok) continue;
     if (entry.first == "feat" && g_config.debug_served_data_probe) {
