@@ -1198,6 +1198,15 @@ monster AC by CR.
     1163-1169, feats 1556-1562; a spell's feat used alone refused before the Bonus Action is spent). Tests L2-1 to
     L2-12. Built with nwn5e-tools pinned at 88af842 (the tools HEAD needs anim's unmerged headers; installs use the
     tools commit the animation session announces).
+  - *0.99.5 (#155, the Spell & Attack Bench piece 1 - the animation session's; anim d8281b3, tools 7d14547):* the
+    game's part as agreed with it. The row server merges the looks' rows after every rows file - <dll>\data\looks
+    then <dll>\spellbench\looks (*.look.txt), the later winning - each checked by data::CheckLookRows: spells'
+    presentation columns on its own rows; visualeffects 2100-2199 and progfx 910-999 on empty rows; a file outside
+    that refused whole, logged. Chromatic Orb: a hit's look (PlaySpellLook / PlaySpellLookLeap) plays the orb and
+    says when it lands - the damage (and Hunter's Mark's) waits, held by the target; no look or a miss: NWN's
+    visuals at once. Retest L1-19b (no look: unchanged). Owner, 2026-11-10: "in these test matrices group the rows
+    by class" - matrices are ordered and numbered by !test profile from now on; L2-4's setup fixed ("sorcerer
+    cannot wear that armor": !feat add 3 first).
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
   New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion
