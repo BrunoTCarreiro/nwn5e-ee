@@ -1185,6 +1185,19 @@ monster AC by CR.
     Sleep), 2c areas (Entangle, Faerie Fire, Grease, Fog Cloud). Asked: Q1 Jump (NWN has no jumping) - A not built,
     off the lists, B a visual and a line; Q2 Hex (the Warlock's alone; NWN has none) - A not until a Warlock, B now,
     for items and monsters. Recommended A on both.
+  - *Built 0.99.4 (build 2a, the buffs):* each a mark on its creatures (an icon with the row cast - Concentration
+    finds it), its rule in the hooks. Bless 6 / Bane 449 (up to 3 + a level, the nearest friends / enemies to the
+    spot aimed at within 30 feet, Bane a Charisma save): 1d4 on / off attack rolls (weapon, spell) and saves (the
+    roll's DC moved, told). Shield of Faith 450 +2 AC; Mage Armor 102 base 13 + Dex unarmoured (characters;
+    Unarmored Defense counted against it); Divine Favor 414 1d4 Radiant on weapon hits; Hunter's Mark 1162 1d6
+    Force on attack-roll hits on the quarry, moved with a Bonus Action once it drops; Protection from Evil and Good
+    321 (one spell now): Disadvantage for Aberrations, Elementals, Fey, Outsiders, Undead, their fear and charm
+    refused (versus immunities); Sanctuary 154 (a Wisdom save or the attack / spell lost; ends when the warded
+    creature attacks, casts or deals damage); Expeditious Retreat 456 (Dash, then a Bonus Action Dash); Longstrider
+    1161 +10 ft. Healing Word's Bonus Action casting now every Bonus Action spell's (rules::BonusActionSpells; rows
+    1163-1169, feats 1556-1562; a spell's feat used alone refused before the Bonus Action is spent). Tests L2-1 to
+    L2-12. Built with nwn5e-tools pinned at 88af842 (the tools HEAD needs anim's unmerged headers; installs use the
+    tools commit the animation session announces).
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
   New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion
