@@ -84,6 +84,10 @@
 //   engine's own level-ups up to level n in the class (the first class when
 //   none is named; another one multiclasses), as !test's `level` makes them:
 //   only added, never taken away; abilities and items untouched.
+// - #156 (owner, 2026-11-10: "yes, open the issue and pass it to animation"): the Test Grounds (n5test.mod, the
+//   animation session's tools/testmodule) - "!go <field | hall | dark>" jumps to that area's cast mark (a
+//   waypoint tagged n5test_cast_<name>); "!reset" removes the area's creatures (in another module only the
+//   test's own: !spawn's, the bench's) and jumps back to the area's mark.
 
 #include <windows.h>
 
@@ -207,7 +211,8 @@ std::vector<std::string> SpawnCommand(void* creature, const std::string& args) {
       "DeleteLocalString(OBJECT_SELF, \"nwn5e_spawned\"); "
       "float f = GetFacing(OBJECT_SELF); vector p = GetPosition(OBJECT_SELF) + AngleToVector(f) * 5.0; "
       "object o = CreateObject(OBJECT_TYPE_CREATURE, \"" + blueprint + "\", Location(GetArea(OBJECT_SELF), p, f + 180.0)); "
-      "if (GetIsObjectValid(o)) { SetLocalString(OBJECT_SELF, \"nwn5e_spawned\", ObjectToString(o)); " + join +
+      "if (GetIsObjectValid(o)) { SetLocalString(OBJECT_SELF, \"nwn5e_spawned\", ObjectToString(o)); "
+      "SetLocalInt(o, \"nwn5e_test_spawn\", 1); " + join +  // #156: !reset finds it in any module
       "SendMessageToPC(OBJECT_SELF, \"nwn5e: spawned \" + GetName(o) + \"" +
       (ally ? " (your henchman)" : neutral ? " (not hostile - the commoners' faction)" : " (hostile)") +
       (reduction ? ", damage reduction 10/+5" : "") +
@@ -219,6 +224,65 @@ std::vector<std::string> SpawnCommand(void* creature, const std::string& args) {
   // makes neither an attack roll nor a save; 0.73.1: an ally too.
   const std::string spawned = engine::GetLocalString(creature, "nwn5e_spawned");
   if (!spawned.empty()) BoostTestCreatureById(static_cast<uint32_t>(strtoul(spawned.c_str(), nullptr, 16)), ally);
+  return {};
+}
+
+// #156 (owner, 2026-11-10: "yes, open the issue and pass it to animation"; the shapes from the animation session,
+// which builds the module): the Test Grounds (n5test.mod, tools/testmodule) mark each area's spot with a waypoint
+// tagged n5test_cast_<name> - field, hall, dark. "!go <name>" jumps the speaker to it, facing its way, from anywhere
+// in the module; in another module it says so.
+std::vector<std::string> GoCommand(void* creature, const std::string& args) {
+  const std::string tag = rules::CastMarkTag(args);
+  if (tag.empty()) return {"nwn5e: !go <field | hall | dark> - to that area's cast mark in the Test Grounds (n5test)."};
+  const uint32_t id = ObjectIdOf(StatsOf(creature));
+  const std::string code =
+      "object w = GetWaypointByTag(\"" + tag + "\"); SetLocalInt(OBJECT_SELF, \"nwn5e_test_go\", GetIsObjectValid(w)); "
+      "if (GetIsObjectValid(w)) { ClearAllActions(TRUE); JumpToLocation(GetLocation(w)); "
+      "SendMessageToPC(OBJECT_SELF, \"nwn5e: to " + tag + ".\"); } "
+      "else SendMessageToPC(OBJECT_SELF, \"nwn5e: not in the Test Grounds (no " + tag + ").\");";
+  engine::SetLocalInt(creature, "nwn5e_test_go", -1);
+  RunScriptChunk(code.c_str(), id);
+  Log("test: 0x%08X !go %s: %s", id, tag.c_str(),
+      engine::GetLocalInt(creature, "nwn5e_test_go") == 1 ? "jumps there" : "no such waypoint (not the Test Grounds)");
+  return {};
+}
+
+// "!reset" (#156): the speaker's area cleared of creatures, then back to its cast mark (the nearest waypoint tagged
+// n5test_cast_*). In the Test Grounds (the area has a mark) every creature goes that isn't a player character or a
+// player's associate - the bench's n5sb_target spawns, !spawn's, anything else. Elsewhere only a test's own go (a
+// !spawn creature - nwn5e_test_spawn on it, an ally too - or one tagged n5sb_target): a story module's people stay.
+// (My call: a stray !reset in a campaign mustn't empty a town.)
+std::vector<std::string> ResetCommand(void* creature, const std::string& args) {
+  if (!Trim(args).empty()) return {"nwn5e: !reset - no arguments: the area's test creatures removed, back to its cast mark."};
+  const uint32_t id = ObjectIdOf(StatsOf(creature));
+  const std::string code =
+      "object a = GetArea(OBJECT_SELF); object mark = OBJECT_INVALID; float best = 0.0; int n = 0; "
+      "object o = GetFirstObjectInArea(a); "
+      "while (GetIsObjectValid(o)) { "
+      "if (GetObjectType(o) == OBJECT_TYPE_WAYPOINT && GetStringLeft(GetTag(o), 12) == \"n5test_cast_\") { "
+      "float d = GetDistanceBetween(OBJECT_SELF, o); if (!GetIsObjectValid(mark) || d < best) { mark = o; best = d; } } "
+      "o = GetNextObjectInArea(a); } "
+      "int grounds = GetIsObjectValid(mark); "
+      "o = GetFirstObjectInArea(a); "
+      "while (GetIsObjectValid(o)) { "
+      "if (GetObjectType(o) == OBJECT_TYPE_CREATURE && !GetIsPC(o)) { "
+      "int test = GetLocalInt(o, \"nwn5e_test_spawn\") || GetTag(o) == \"n5sb_target\"; "
+      "if (test || (grounds && !GetIsPC(GetMaster(o)))) { "
+      "object m = GetMaster(o); if (GetIsObjectValid(m)) RemoveHenchman(m, o); "
+      "SetPlotFlag(o, FALSE); SetImmortal(o, FALSE); AssignCommand(o, SetIsDestroyable(TRUE, FALSE, FALSE)); "
+      "DestroyObject(o, 0.2); n++; } } "
+      "o = GetNextObjectInArea(a); } "
+      "SetLocalInt(OBJECT_SELF, \"nwn5e_test_reset\", n); SetLocalInt(OBJECT_SELF, \"nwn5e_test_reset_mark\", grounds); "
+      "if (grounds) { ClearAllActions(TRUE); JumpToLocation(GetLocation(mark)); "
+      "SendMessageToPC(OBJECT_SELF, \"nwn5e: reset - \" + IntToString(n) + \" creature(s) removed; back at \" + "
+      "GetTag(mark) + \".\"); } "
+      "else SendMessageToPC(OBJECT_SELF, \"nwn5e: reset - \" + IntToString(n) + \" test creature(s) removed (from "
+      "!spawn or the bench); no cast mark in this area, so the rest stay (not the Test Grounds).\");";
+  engine::SetLocalInt(creature, "nwn5e_test_reset", -1);
+  RunScriptChunk(code.c_str(), id);
+  const int mark = engine::GetLocalInt(creature, "nwn5e_test_reset_mark");
+  Log("test: 0x%08X !reset: %d creature(s) removed, %s", id, engine::GetLocalInt(creature, "nwn5e_test_reset"),
+      mark == 1 ? "back to the area's cast mark" : "no cast mark in the area (only test spawns removed)");
   return {};
 }
 
@@ -1012,7 +1076,9 @@ void InstallTestCommands() {
   AddChatCommand("!fear", &FearCommand);
   AddChatCommand("!reflex", &ReflexCommand);
   AddChatCommand("!level", &LevelCommand);
+  AddChatCommand("!go", &GoCommand);        // #156
+  AddChatCommand("!reset", &ResetCommand);  // #156
   Log("config: [debug] test_commands=1 - !test [profile] (data\\tests), !give <blueprint>, !feat add / remove <feat>, "
       "!export, !spawn <blueprint> [ally | neutral], !prone [s], !save <ability> <dc>, !skill <skill> <dc>, !reflex <dc> <damage>, "
-      "!level <n> [class], !time [hours], !fear [charm] [s]");
+      "!level <n> [class], !time [hours], !fear [charm] [s], !go <field | hall | dark>, !reset");
 }

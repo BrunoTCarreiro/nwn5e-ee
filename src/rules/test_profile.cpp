@@ -182,6 +182,17 @@ bool ParseGoldAmount(const std::string& text, int* gold) {
   return true;
 }
 
+std::string CastMarkTag(const std::string& text) {
+  std::istringstream words(Lower(text));
+  std::string word, extra;
+  if (!(words >> word) || (words >> extra)) return "";
+  if (word.size() > kCastMarkNameMax) return "";
+  for (char c : word) {
+    if (!isalnum(static_cast<unsigned char>(c)) && c != '_') return "";
+  }
+  return kCastMarkPrefix + word;
+}
+
 bool ParseFearArgs(const std::string& text, bool* charm, int* seconds) {
   bool want_charm = false;
   int want_seconds = 0;

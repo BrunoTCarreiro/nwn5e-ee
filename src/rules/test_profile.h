@@ -118,5 +118,12 @@ bool ParseClockHours(const std::string& text, int* hours);
 // else.
 constexpr int kTestGoldMax = 1000000;
 bool ParseGoldAmount(const std::string& text, int* gold);
+// #156 (owner, 2026-11-10: "yes, open the issue and pass it to animation"): the Test Grounds (n5test.mod) mark
+// each area's spot with a waypoint tagged kCastMarkPrefix + a name (field, hall, dark). "!go <name>"'s argument:
+// one word of letters, digits and '_' (any case, read lower), at most kCastMarkNameMax, so the tag fits NWN's 32.
+// The tag, or "" for anything else (nothing else reaches the script).
+constexpr const char* kCastMarkPrefix = "n5test_cast_";
+constexpr size_t kCastMarkNameMax = 20;
+std::string CastMarkTag(const std::string& text);
 
 }  // namespace rules

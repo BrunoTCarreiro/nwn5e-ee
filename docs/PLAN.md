@@ -5995,6 +5995,25 @@ tied to a level and may stay.
 *Accepted (owner, 2026-10-30: "2 and 82 accepted").* The test profiles (#82), 0.57.5-0.58.2, with the `cleric` profile
 for combat C2: TP1-TP18 seen in the owner's runs.
 
+### The Test Grounds' commands (#156)
+
+*Decided (owner, 2026-11-10): "Look online to see if there are any testing maps available", then "a simple map
+with well lit open areas, some obstacles but also at least a section in deep shadow to test stealth and lighting
+effects", then "yes, open the issue and pass it to animation".* The animation session builds the module
+("nwn5e Test Grounds", n5test.mod, by tools/testmodule; its design: docs/superpowers/specs/
+2026-11-10-test-module-design.md on `anim`). Each area has a cast mark, a waypoint tagged `n5test_cast_<name>`:
+field (the entry, sunlit), hall (pillars and crates), dark (no light). The game session's part, in the shapes the
+animation session sent:
+
+- `!go <field | hall | dark>`: jumps to that mark, facing its way, from anywhere in the module; in another module,
+  "not in the Test Grounds (no n5test_cast_<name>)". The name is one word of letters, digits and `_`
+  (rules::CastMarkTag), so a new area's mark needs no rebuild.
+- `!reset`: the speaker's area cleared, then back to its nearest mark. In the Test Grounds (the area has a mark)
+  every creature goes that isn't a player character or a player's associate. *(My call:)* elsewhere only a test's
+  own go - `!spawn`'s (now marked `nwn5e_test_spawn`, an ally included) and the bench's `n5sb_target` - so a stray
+  `!reset` in a story module doesn't empty a town.
+- *Built 0.99.12.*
+
 ## Test register — the owner's request (2026-11-08, #147)
 
 The owner, 2026-11-08: "instead of having ephemeral test matrices let's have an excel file where we keep all the

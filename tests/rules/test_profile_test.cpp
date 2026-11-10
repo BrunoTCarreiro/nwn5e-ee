@@ -229,3 +229,17 @@ TEST(TestProfileNames) {
   CHECK_EQ(IsTestProfileName("monk part"), false);
   CHECK_EQ(IsTestProfileName(std::string(33, 'a')), false);
 }
+
+// Breaks caught (#156): a name not lowered, a second word, a script character or a name past 20 let through,
+// the prefix wrong.
+TEST(CastMarks) {
+  CHECK_EQ(CastMarkTag("field") == "n5test_cast_field", true);
+  CHECK_EQ(CastMarkTag(" Hall ") == "n5test_cast_hall", true);
+  CHECK_EQ(CastMarkTag("dark_2") == "n5test_cast_dark_2", true);
+  CHECK_EQ(CastMarkTag(std::string(20, 'a')) == "n5test_cast_" + std::string(20, 'a'), true);
+  CHECK_EQ(CastMarkTag(std::string(21, 'a')).empty(), true);
+  CHECK_EQ(CastMarkTag("").empty(), true);
+  CHECK_EQ(CastMarkTag("field hall").empty(), true);
+  CHECK_EQ(CastMarkTag("dark\");").empty(), true);
+  CHECK_EQ(CastMarkTag("ha-ll").empty(), true);
+}
