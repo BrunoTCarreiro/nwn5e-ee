@@ -30,6 +30,11 @@ struct LookSound {
   LookAnchor anchor = LookAnchor::kCast;
   float at = 0.0f;
   std::string resref;
+  // Its effects (owner, 2026-11-10: "a way to add the effects we looked at earlier to each of the effects"; #154's
+  // proof): pitch 0.5-2 (faster and higher), shift -12-12 semitones (higher or lower, same speed), muffle 0-1 (a
+  // low-pass), echo 0-0.9 (feedback), reverb 0-1, volume 0-2. Written only when not the default.
+  float pitch = 1.0f, shift = 0.0f, muffle = 0.0f, echo = 0.0f, reverb = 0.0f, volume = 1.0f;
+  std::string voice;  // "" for every caster, "male" / "female": a chant moved from the spell row plays for its own voice
 };
 
 struct LookParts {  // what a [row] section may change

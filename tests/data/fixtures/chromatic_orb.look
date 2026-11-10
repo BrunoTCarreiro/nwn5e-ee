@@ -19,4 +19,4 @@ table.ConjAnim = hand
 missile = 2101
 hit = 63
 leap_beam = 211
-sound = hit 0.05 sim_explfrost
+sound = hit 0.05 sim_explfrost pitch=0.9 reverb=0.4
