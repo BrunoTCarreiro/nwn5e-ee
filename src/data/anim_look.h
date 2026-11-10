@@ -7,7 +7,8 @@
 //
 // The file is line-based, `key = value`, `#` comments:
 //   name, rows (the spells.2da rows it dresses), rule_at (where the rule runs, seconds from the cast's start - the
-//   bench's assumption, ConjTime), clip / clip_base / clip_seconds (RequestCastClip's swap), release (the missile
+//   bench's assumption, ConjTime), clip / clip_base / clip_seconds (RequestCastClip's swap), conj_clip /
+//   conj_clip_base (the conjure's own swap: conjure1 for hand, conjure2 for head), release (the missile
 //   leaves the hand), leap_for / leap_after (a leap's beam, and how long after the hit before the next one lands),
 //   then the parts: cast_vfx / cast_vfx_at / cast_vfx_for, missile, hit, leap_beam (visualeffects rows; 0 = none),
 //   `sound = <cast|release|hit> <at> <resref>` (repeatable; `sound = none` for none), `table.<Column> = <value>`
@@ -30,6 +31,11 @@ struct LookSound {
   LookAnchor anchor = LookAnchor::kCast;
   float at = 0.0f;
   std::string resref;
+  // Its effects (owner, 2026-11-10: "a way to add the effects we looked at earlier to each of the effects"; #154's
+  // proof): pitch 0.5-2 (faster and higher), shift -12-12 semitones (higher or lower, same speed), muffle 0-1 (a
+  // low-pass), echo 0-0.9 (feedback), reverb 0-1, volume 0-2. Written only when not the default.
+  float pitch = 1.0f, shift = 0.0f, muffle = 0.0f, echo = 0.0f, reverb = 0.0f, volume = 1.0f;
+  std::string voice;  // "" for every caster, "male" / "female": a chant moved from the spell row plays for its own voice
 };
 
 struct LookParts {  // what a [row] section may change
@@ -42,6 +48,9 @@ struct LookParts {  // what a [row] section may change
 
 struct SpellLook {
   std::string name, clip, clip_base = "castout";
+  // A conjure of one's own (owner, 2026-11-10: "can I create other conjure setups?"): a recipe swapped for the conjure
+  // animation (conjure1: hand, conjure2: head) as `clip` is for the cast; written only when set.
+  std::string conj_clip, conj_clip_base = "conjure1";
   std::vector<int> rows;
   float rule_at = 0.0f, clip_seconds = 0.0f, release = 0.0f, leap_for = 1.0f, leap_after = 0.3f;
   LookParts parts;                    // the defaults

@@ -184,7 +184,11 @@ void StartLookCast(uint32_t caster, const data::SpellLook& look, int row) {
   }
   g_cast_started[caster] = now;
   void* creature = CreatureById(caster);
-  if (creature && !look.clip.empty()) RequestCastClip(creature, look.clip_base.c_str(), look.clip, look.clip_seconds);
+  // The conjure's own clip and the cast's, swapped as one for the whole cast (at least the conjure and a moment).
+  std::vector<CastClipSwap> swaps;
+  if (!look.conj_clip.empty()) swaps.push_back({look.conj_clip_base, look.conj_clip});
+  if (!look.clip.empty()) swaps.push_back({look.clip_base, look.clip});
+  if (creature && !swaps.empty()) RequestCastClips(creature, swaps, std::max(look.clip_seconds, look.rule_at + 0.5f));
   const std::string code = data::LookCastScript(data::LookPartsFor(look, row));
   if (!code.empty()) RunScriptChunk(code.c_str(), caster);
   Log("look: 0x%08X %s row %d: the cast begins (clip %s)", caster, look.name.c_str(), row,

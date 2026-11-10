@@ -160,3 +160,60 @@ TEST(AnimLookRowCheckScript) {
                std::string::npos,
            true);
 }
+
+// Sound effects on a look's sounds (owner, 2026-11-10: "a way to add the effects we looked at earlier to each of the
+// effects" - pitch, pitch shift, muffle, echo, reverb, volume; #154's proof) and a sound's voice (a chant moved from the
+// spell row plays for the caster's own). Breaks caught: an effect lost or reordered on the way back (the JS twin writes
+// the same), a value out of range or an unknown one passed to the player, a voice line played for both.
+
+TEST(AnimLookSoundEffects) {
+  const std::string head = "name = x\nrows = 1153\nrule_at = 1.5\nrelease = 1.6\n";
+  data::SpellLook look;
+  std::string error;
+  CHECK_EQ(data::ReadSpellLook(head + "sound = hit 0 sim_x pitch=0.8 muffle=0.5 echo=0.3 reverb=0.4 shift=-3 volume=1.5\n"
+                                      "sound = cast 0 vs_chant_evoc_lf voice=female\n",
+                               &look, &error),
+           true);
+  const data::LookSound& s = look.parts.sounds[0];
+  CHECK_EQ(std::fabs(s.pitch - 0.8f) < 1e-4f && std::fabs(s.muffle - 0.5f) < 1e-4f && std::fabs(s.echo - 0.3f) < 1e-4f, true);
+  CHECK_EQ(std::fabs(s.reverb - 0.4f) < 1e-4f && std::fabs(s.shift + 3.0f) < 1e-4f && std::fabs(s.volume - 1.5f) < 1e-4f, true);
+  CHECK_EQ(look.parts.sounds[1].voice == "female", true);
+  const std::string text = data::WriteSpellLook(look);  // the canonical order: pitch shift muffle echo reverb volume voice
+  CHECK_EQ(text.find("sound = hit 0 sim_x pitch=0.8 shift=-3 muffle=0.5 echo=0.3 reverb=0.4 volume=1.5\n") != std::string::npos, true);
+  CHECK_EQ(text.find("sound = cast 0 vs_chant_evoc_lf voice=female\n") != std::string::npos, true);
+  data::SpellLook back;
+  CHECK_EQ(data::ReadSpellLook(text, &back, &error), true);
+  CHECK_EQ(data::WriteSpellLook(back) == text, true);
+  CHECK_EQ(data::ReadSpellLook(head + "sound = hit 0 sim_x pitch=9\n", &look, &error), false);  // out of range
+  CHECK_EQ(data::ReadSpellLook(head + "sound = hit 0 sim_x wobble=1\n", &look, &error), false);  // unknown
+  CHECK_EQ(data::ReadSpellLook(head + "sound = hit 0 sim_x voice=robot\n", &look, &error), false);
+}
+
+TEST(AnimLookVoiceInTheScript) {  // a voice line plays only for that voice (GetGender)
+  data::LookParts p;
+  p.sounds = {{data::LookAnchor::kCast, 0, "vs_chant_evoc_lf"}};
+  p.sounds[0].voice = "female";
+  const std::string s = data::LookCastScript(p);
+  CHECK_EQ(s.find("if (GetGender(OBJECT_SELF) == GENDER_FEMALE) DelayCommand(0.00, PlaySound(\"vs_chant_evoc_lf\"));") !=
+               std::string::npos,
+           true);
+}
+
+// A conjure of one's own (owner, 2026-11-10: "can I create other conjure setups?"): a recipe swapped for the conjure
+// (conjure1 for hand, conjure2 for head), as the clip is for the cast. Breaks caught: the conjure clip lost on the way
+// back or written elsewhere than the JS twin writes it, a base that isn't a conjure.
+
+TEST(AnimLookConjureClip) {
+  const std::string head = "name = x\nrows = 1153\nrule_at = 1.5\nrelease = 1.6\n";
+  data::SpellLook look;
+  std::string error;
+  CHECK_EQ(data::ReadSpellLook(head + "conj_clip = n5_cridle\nconj_clip_base = conjure2\n", &look, &error), true);
+  CHECK_EQ(look.conj_clip == "n5_cridle" && look.conj_clip_base == "conjure2", true);
+  const std::string text = data::WriteSpellLook(look);
+  CHECK_EQ(text.find("rule_at = 1.5\nconj_clip = n5_cridle\nconj_clip_base = conjure2\nrelease = 1.6\n") != std::string::npos, true);
+  data::SpellLook plain;
+  CHECK_EQ(data::ReadSpellLook(head, &plain, &error), true);
+  CHECK_EQ(plain.conj_clip.empty() && plain.conj_clip_base == "conjure1", true);
+  CHECK_EQ(data::WriteSpellLook(plain).find("conj_clip") == std::string::npos, true);
+  CHECK_EQ(data::ReadSpellLook(head + "conj_clip = n5_cridle\nconj_clip_base = jump\n", &look, &error), false);
+}

@@ -209,6 +209,9 @@ Each piece is useful on its own; each later one builds on the earlier.
    - Open and preview the game's projectile models: the flight from the spawn point to the target, homing or arcing.
    - Make or change one (as the VFX Bench does effects).
    - Later: beams between two creatures.
+   - The preview's real effects (owner, 2026-11-10: "go with A for now and then B with piece 2"): the cast effect,
+     the hits and the orb run through the VFX Bench's particle simulation in the 3D stage, not as glows. Piece 1's
+     stage became a 3D viewport (option A: orbit, zoom, pan, solid figures, shadows, depth; tools 6b059e1).
 3. **A test module of our own** (owner: "a simple map with well lit open areas, some obstacles but also at least a
    section in deep shadow to test stealth and lighting effects", after "Look online to see if there are any testing
    maps available"). Nothing online fits (#154's notes: Sunjammer's VFX Browser, an EE VFX Tester whose page is gone,
@@ -239,6 +242,17 @@ Each piece is useful on its own; each later one builds on the earlier.
 - **Chromatic Orb's first version uses the game's own orbs and hit effects;** custom orbs come with piece 2.
 - **Not the old Recipe Bench's "Mix legs and torso".** For the spell's animation, formula recipes' `legs` (#149) and
   the cast swap (#150) are what exist; the new Mocap Bench's sources stay on hold.
+- **Every cast animation, and a conjure of one's own** (owner, 2026-11-10: "so the casting animation is always one of
+  two?" - "can I create other conjure setups?" - "yes, build both, and add the presets too"):
+  - the Animation card picks the row's CastAnim (out, self, up, area, point, touch) and ConjAnim (hand, head);
+  - a look's `conj_clip` (with `conj_clip_base`: conjure1 for hand, conjure2 for head) swaps a recipe for the conjure
+    as `clip` does for the cast - RequestCastClips swaps both as one.
+- **Conjure presets** (same answer): a spell's conjure kept under a name and put on any spell. It holds ConjAnim,
+  `conj_clip`, the Conj* effects and sounds, and the look's own sounds before the rule. The bench keeps presets in
+  `build\spellbench\presets`, and it can start a look for any spell row to put one on. A look's conjure and cast play
+  in game for any spell; its hit needs the spell's rule to ask (Chromatic Orb's does).
+- **One spells overlay for every look:** it carries each column any look sets; a look's missing column takes the
+  game's own value.
 
 ## Left to the builder
 

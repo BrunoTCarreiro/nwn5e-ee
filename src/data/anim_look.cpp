@@ -83,8 +83,24 @@ std::string Number(float value) {  // at most 3 decimals, trailing zeros trimmed
   return out;
 }
 
+// A sound's effects as written: " pitch=0.8 shift=-3 ..." in this order, only those not at their default.
+std::string SoundEffects(const LookSound& s) {
+  std::string out;
+  auto add =[&out](const char* key, float value, float plain) {
+    if (Number(value) != Number(plain)) out += std::string(" ") + key + "=" + Number(value);
+  };
+  add("pitch", s.pitch, 1.0f);
+  add("shift", s.shift, 0.0f);
+  add("muffle", s.muffle, 0.0f);
+  add("echo", s.echo, 0.0f);
+  add("reverb", s.reverb, 0.0f);
+  add("volume", s.volume, 1.0f);
+  if (!s.voice.empty()) out += " voice=" + s.voice;
+  return out;
+}
+
 bool SameSound(const LookSound& a, const LookSound& b) {
-  return a.anchor == b.anchor && Number(a.at) == Number(b.at) && a.resref == b.resref;
+  return a.anchor == b.anchor && Number(a.at) == Number(b.at) && a.resref == b.resref && SoundEffects(a) == SoundEffects(b);
 }
 
 bool SameSounds(const std::vector<LookSound>& a, const std::vector<LookSound>& b) {
@@ -96,7 +112,43 @@ bool SameSounds(const std::vector<LookSound>& a, const std::vector<LookSound>& b
 }
 
 std::string SoundLine(const LookSound& sound) {
-  return std::string("sound = ") + AnchorName(sound.anchor) + " " + Number(sound.at) + " " + sound.resref + "\n";
+  return std::string("sound = ") + AnchorName(sound.anchor) + " " + Number(sound.at) + " " + sound.resref +
+         SoundEffects(sound) + "\n";
+}
+
+// One `key=value` of a sound's effects into *sound; false and *why on a bad one.
+bool ReadSoundEffect(const std::string& word, LookSound* sound, std::string* why) {
+  const size_t eq = word.find('=');
+  const std::string key = word.substr(0, eq), value = eq == std::string::npos ? "" : word.substr(eq + 1);
+  if (key == "voice") {
+    if (value != "male" && value != "female") {
+      *why = "a sound's voice is male or female";
+      return false;
+    }
+    sound->voice = value;
+    return true;
+  }
+  struct Range {
+    const char* key;
+    float LookSound::*field;
+    float low, high;
+  };
+  static const Range kRanges[] = {{"pitch", &LookSound::pitch, 0.5f, 2.0f},    {"shift", &LookSound::shift, -12.0f, 12.0f},
+                                  {"muffle", &LookSound::muffle, 0.0f, 1.0f},  {"echo", &LookSound::echo, 0.0f, 0.9f},
+                                  {"reverb", &LookSound::reverb, 0.0f, 1.0f},  {"volume", &LookSound::volume, 0.0f, 2.0f}};
+  for (const Range& r : kRanges) {
+    if (key != r.key) continue;
+    char* end = nullptr;
+    const float v = strtof(value.c_str(), &end);
+    if (value.empty() || *end != '\0' || !(v >= r.low && v <= r.high)) {
+      *why = std::string("a sound's ") + r.key + " is " + Number(r.low) + " to " + Number(r.high);
+      return false;
+    }
+    sound->*r.field = v;
+    return true;
+  }
+  *why = "a sound's effects are pitch, shift, muffle, echo, reverb, volume and voice - not '" + key + "'";
+  return false;
 }
 
 // A parts key (allowed in a section too). Returns false and sets *why when the line is bad; *known = false when the key
@@ -145,9 +197,12 @@ bool ReadPartsKey(const std::string& key, const std::string& value, bool* first_
       *why = "a sound's time must be 0-10 s";
       return false;
     }
-    if (!IsResref(resref, 16) || (words >> extra)) {
+    if (!IsResref(resref, 16)) {
       *why = "a sound's resref must be 1-16 of a-z, 0-9 and _";
       return false;
+    }
+    while (words >> extra) {
+      if (!ReadSoundEffect(extra, &sound, why)) return false;
     }
     sound.resref = resref;
     parts->sounds.push_back(sound);
@@ -214,9 +269,12 @@ bool ReadSpellLook(const std::string& text, SpellLook* look, std::string* error)
     if (key == "name") {
       if (!IsResref(value, 32)) return fail("the name must be 1-32 of a-z, 0-9 and _");
       l.name = value;
-    } else if (key == "clip" || key == "clip_base") {
+    } else if (key == "clip" || key == "clip_base" || key == "conj_clip") {
       if (!value.empty() && !IsResref(value, 16)) return fail(key + " must be 1-16 of a-z, 0-9 and _");
-      (key == "clip" ? l.clip : l.clip_base) = value;
+      (key == "clip" ? l.clip : key == "clip_base" ? l.clip_base : l.conj_clip) = value;
+    } else if (key == "conj_clip_base") {
+      if (value != "conjure1" && value != "conjure2") return fail("conj_clip_base is conjure1 (hand) or conjure2 (head)");
+      l.conj_clip_base = value;
     } else if (key == "rows") {
       std::istringstream words(value);
       std::string word;
@@ -264,6 +322,10 @@ std::string WriteSpellLook(const SpellLook& look) {
   for (int row : look.rows) out += " " + std::to_string(row);
   out += "\n";
   out += "rule_at = " + Number(look.rule_at) + "\n";
+  if (!look.conj_clip.empty()) {
+    out += "conj_clip = " + look.conj_clip + "\n";
+    out += "conj_clip_base = " + look.conj_clip_base + "\n";
+  }
   if (!look.clip.empty()) {
     out += "clip = " + look.clip + "\n";
     out += "clip_base = " + look.clip_base + "\n";
@@ -342,9 +404,12 @@ std::string Object(uint32_t id) {
   return text;
 }
 
-std::string Sound(const char* on, float at, const std::string& resref) {  // `on` null: OBJECT_SELF
+// `on` null: OBJECT_SELF. A voice line plays only for that voice: the caster's (OBJECT_SELF of the chunk).
+std::string Sound(const char* on, float at, const std::string& resref, const std::string& voice = "") {
   const std::string play = "DelayCommand(" + Seconds(at) + ", PlaySound(\"" + resref + "\"))";
-  return on ? std::string("AssignCommand(") + on + ", " + play + ");\n" : play + ";\n";
+  const std::string when =
+      voice.empty() ? "" : std::string("if (GetGender(OBJECT_SELF) == ") + (voice == "female" ? "GENDER_FEMALE" : "GENDER_MALE") + ") ";
+  return when + (on ? std::string("AssignCommand(") + on + ", " + play + ");\n" : play + ";\n");
 }
 
 std::string Instant(float at, int row) {
@@ -365,7 +430,7 @@ std::string LookCastScript(const LookParts& parts) {
             "));\n";
   }
   for (const LookSound& sound : parts.sounds) {
-    if (sound.anchor == LookAnchor::kCast) code += Sound(nullptr, sound.at, sound.resref);
+    if (sound.anchor == LookAnchor::kCast) code += Sound(nullptr, sound.at, sound.resref, sound.voice);
   }
   return code;
 }
@@ -375,8 +440,8 @@ std::string LookHitScript(const LookParts& parts, uint32_t target, const LookTim
   if (parts.missile) code += Instant(timing.release_in, parts.missile);
   if (parts.hit) code += Instant(timing.hit_in, parts.hit);
   for (const LookSound& sound : parts.sounds) {
-    if (sound.anchor == LookAnchor::kRelease) code += Sound(nullptr, timing.release_in + sound.at, sound.resref);
-    if (sound.anchor == LookAnchor::kHit) code += Sound("t", timing.hit_in + sound.at, sound.resref);
+    if (sound.anchor == LookAnchor::kRelease) code += Sound(nullptr, timing.release_in + sound.at, sound.resref, sound.voice);
+    if (sound.anchor == LookAnchor::kHit) code += Sound("t", timing.hit_in + sound.at, sound.resref, sound.voice);
   }
   return code;
 }
@@ -391,7 +456,7 @@ std::string LookLeapScript(const LookParts& parts, float leap_for, uint32_t from
   }
   if (parts.hit) code += Instant(hit_in, parts.hit);
   for (const LookSound& sound : parts.sounds) {
-    if (sound.anchor == LookAnchor::kHit) code += Sound("t", hit_in + sound.at, sound.resref);
+    if (sound.anchor == LookAnchor::kHit) code += Sound("t", hit_in + sound.at, sound.resref, sound.voice);
   }
   return code;
 }
