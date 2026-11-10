@@ -111,6 +111,14 @@ std::vector<SoundCue> LookHitCues(const LookParts& parts, uint32_t caster, uint3
   return out;
 }
 
+std::vector<SoundCue> LookMissCues(const LookParts& parts, uint32_t caster, const LookTiming& timing) {
+  std::vector<SoundCue> out;
+  for (const LookSound& s : parts.sounds) {
+    if (s.anchor == LookAnchor::kRelease && SoundHasEffects(s)) out.push_back(Cue(timing.release_in + s.at, caster, caster, s));
+  }
+  return out;
+}
+
 std::vector<SoundCue> LookLeapCues(const LookParts& parts, uint32_t from, uint32_t to, float hit_in) {
   std::vector<SoundCue> out;
   for (const LookSound& s : parts.sounds) {

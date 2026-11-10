@@ -84,6 +84,11 @@ LookTiming LookHitTiming(const SpellLook& look, const LookParts& parts, float si
 // through DelayCommand, so a chunk returns at once.
 std::string LookCastScript(const LookParts& parts);  // run as the caster, at the cast's start: its VFX, `cast` sounds
 std::string LookHitScript(const LookParts& parts, uint32_t target, const LookTiming& timing);  // run as the caster
+// A miss (owner, 2026-11-10: "A"): the missile and the `release` sounds as for a hit, then it fizzles at the target - no
+// hit effect, no `hit` sounds. Run as the caster.
+std::string LookMissScript(const LookParts& parts, uint32_t target, const LookTiming& timing);
+// A leap that misses: its beam, no hit effect, no `hit` sounds. Run as `from`.
+std::string LookLeapMissScript(const LookParts& parts, float leap_for, uint32_t from, uint32_t to, float beam_in);
 std::string LookLeapScript(const LookParts& parts, float leap_for, uint32_t from, uint32_t to, float beam_in,
                            float hit_in);  // run as `from`: the beam to `to`, its hit and `hit` sounds
 std::string LookDistanceScript(uint32_t target);  // run as the caster: local string "n5look_d" = the metres to target

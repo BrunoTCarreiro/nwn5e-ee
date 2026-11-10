@@ -30,6 +30,8 @@ struct SoundCue {
 std::vector<SoundCue> LookCastCues(const LookParts& parts, uint32_t caster);
 std::vector<SoundCue> LookHitCues(const LookParts& parts, uint32_t caster, uint32_t target, const LookTiming& timing);
 std::vector<SoundCue> LookLeapCues(const LookParts& parts, uint32_t from, uint32_t to, float hit_in);
+// A miss's (LookMissScript): the release ones only - it fizzles, no hit sounds.
+std::vector<SoundCue> LookMissCues(const LookParts& parts, uint32_t caster, const LookTiming& timing);
 
 // A sound's effects as OpenAL / EFX settings:
 //   pitch      AL_PITCH (faster and higher);  gain  AL_GAIN (the volume; the source's AL_MAX_GAIN raised to it);

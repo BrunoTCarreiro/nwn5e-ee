@@ -134,3 +134,15 @@ TEST(AnimLookSoundWav) {
   CHECK_EQ(data::DecodeWav("BMU V1.0" + std::string(32, '\0'), &pcm, &why), false);
   CHECK_EQ(why.find("RIFF") != std::string::npos, true);
 }
+
+TEST(AnimLookMissCues) {  // a miss keeps the release's sounds with effects, not the hit's
+  data::LookParts p;
+  data::LookSound release = Sound(data::LookAnchor::kRelease, 0.05f, "spr_fx");
+  release.echo = 0.3f;
+  data::LookSound hit = Sound(data::LookAnchor::kHit, 0.05f, "sim_fx");
+  hit.reverb = 0.4f;
+  p.sounds = {release, hit};
+  const std::vector<data::SoundCue> m = data::LookMissCues(p, 0x10, {0.10f, 1.22f, false});
+  CHECK_EQ(m.size(), 1u);
+  CHECK_EQ(m[0].sound.resref == "spr_fx" && Near(m[0].in, 0.15f) && m[0].at == 0x10u, true);
+}

@@ -50,6 +50,10 @@ TEST(AnimBenchRequest) {
   CHECK_EQ(data::ReadBenchRequest("request = play 9 row=1156 count=2 target=2", &r, &error), false);
   CHECK_EQ(data::ReadBenchRequest("request = play 9 row=1156 enemy=nw\"x", &r, &error), false);
   CHECK_EQ(data::ReadBenchRequest("request = play 9 row=1156 colour=red", &r, &error), false);
+  // A miss to preview (owner, 2026-11-10: "A"): miss=1; none, a hit.
+  CHECK_EQ(data::ReadBenchRequest("request = play 10 row=1156 miss=1", &r, &error) && r.miss, true);
+  CHECK_EQ(data::ReadBenchRequest("request = play 11 row=1156", &r, &error) && !r.miss, true);
+  CHECK_EQ(data::ReadBenchRequest("request = play 12 row=1156 miss=2", &r, &error), false);
 }
 
 TEST(AnimBenchSpawnScript) {

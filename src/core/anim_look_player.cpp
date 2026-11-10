@@ -198,7 +198,10 @@ void StartLookCast(uint32_t caster, const data::SpellLook& look, int row) {
       look.clip.empty() ? "none" : look.clip.c_str());
 }
 
-float PlayLookHit(uint32_t caster, uint32_t target, const data::SpellLook& look, int row) {
+namespace {
+
+// The missile's flight to `target` and, a hit, its hit; a miss fizzles there (owner, 2026-11-10: "A").
+float PlayLookArrival(uint32_t caster, uint32_t target, const data::SpellLook& look, int row, bool hits) {
   float since = look.rule_at;
   bool seen = false;
   const auto started = g_cast_started.find(caster);
@@ -214,25 +217,52 @@ float PlayLookHit(uint32_t caster, uint32_t target, const data::SpellLook& look,
   }
   const data::LookTiming timing = data::LookHitTiming(look, parts, since, metres);
   LookRowsMissing(caster, look, row);  // logs, once per row, what this install doesn't serve
-  RunScriptChunk(data::LookHitScript(parts, target, timing).c_str(), caster);
-  PlayLookSounds(data::LookHitCues(parts, caster, target, timing));
+  if (hits) {
+    RunScriptChunk(data::LookHitScript(parts, target, timing).c_str(), caster);
+    PlayLookSounds(data::LookHitCues(parts, caster, target, timing));
+  } else {
+    RunScriptChunk(data::LookMissScript(parts, target, timing).c_str(), caster);
+    PlayLookSounds(data::LookMissCues(parts, caster, timing));
+  }
   Log("look: 0x%08X %s row %d: the rule ran %.2f s after the cast began%s (the look expects %.2f); the missile leaves "
-      "in %.2f s and lands in %.2f s (%.1f m)%s",
+      "in %.2f s and %s in %.2f s (%.1f m)%s",
       caster, look.name.c_str(), row, since, seen ? "" : " (no cast seen: assumed)", look.rule_at, timing.release_in,
-      timing.hit_in, metres, timing.late ? " - late" : "");
+      hits ? "lands" : "misses - fizzles at the target -", timing.hit_in, metres, timing.late ? " - late" : "");
   return std::max(kAtLeast, timing.hit_in);
 }
 
-float PlayLookLeap(uint32_t from, uint32_t to, const data::SpellLook& look, int row, float after) {
+// A leap's beam from `from` to `to` and, a hit, its hit.
+float PlayLeapArrival(uint32_t from, uint32_t to, const data::SpellLook& look, int row, float after, bool hits) {
   const data::LookParts& parts = data::LookPartsFor(look, row);
   const float lands = std::max(0.0f, after) + look.leap_after;
-  if (RunScriptChunk(data::LookLeapScript(parts, look.leap_for, from, to, after, lands).c_str(), from) == -1) {
+  const std::string code = hits ? data::LookLeapScript(parts, look.leap_for, from, to, after, lands)
+                                : data::LookLeapMissScript(parts, look.leap_for, from, to, after);
+  if (RunScriptChunk(code.c_str(), from) == -1) {
     Log("look: 0x%08X %s row %d: the script bridge isn't there - no leap played", from, look.name.c_str(), row);
     return 0.0f;
   }
-  PlayLookSounds(data::LookLeapCues(parts, from, to, lands));
-  Log("look: 0x%08X %s row %d leaps to 0x%08X, landing in %.2f s", from, look.name.c_str(), row, to, lands);
+  if (hits) PlayLookSounds(data::LookLeapCues(parts, from, to, lands));
+  Log("look: 0x%08X %s row %d leaps to 0x%08X, %s in %.2f s", from, look.name.c_str(), row, to,
+      hits ? "landing" : "missing", lands);
   return std::max(kAtLeast, lands);
+}
+
+}  // namespace
+
+float PlayLookHit(uint32_t caster, uint32_t target, const data::SpellLook& look, int row) {
+  return PlayLookArrival(caster, target, look, row, true);
+}
+
+float PlayLookMiss(uint32_t caster, uint32_t target, const data::SpellLook& look, int row) {
+  return PlayLookArrival(caster, target, look, row, false);
+}
+
+float PlayLookLeap(uint32_t from, uint32_t to, const data::SpellLook& look, int row, float after) {
+  return PlayLeapArrival(from, to, look, row, after, true);
+}
+
+float PlayLookLeapMiss(uint32_t from, uint32_t to, const data::SpellLook& look, int row, float after) {
+  return PlayLeapArrival(from, to, look, row, after, false);
 }
 
 float PlaySpellLook(uint32_t caster, uint32_t target, int row) {
@@ -243,6 +273,16 @@ float PlaySpellLook(uint32_t caster, uint32_t target, int row) {
 float PlaySpellLookLeap(uint32_t from, uint32_t to, int row, float after) {
   const data::SpellLook* look = LookFor(row);
   return look ? PlayLookLeap(from, to, *look, row, after) : 0.0f;
+}
+
+float PlaySpellLookMiss(uint32_t caster, uint32_t target, int row) {
+  const data::SpellLook* look = LookFor(row);
+  return look ? PlayLookMiss(caster, target, *look, row) : 0.0f;
+}
+
+float PlaySpellLookLeapMiss(uint32_t from, uint32_t to, int row, float after) {
+  const data::SpellLook* look = LookFor(row);
+  return look ? PlayLookLeapMiss(from, to, *look, row, after) : 0.0f;
 }
 
 void InstallLookPlayer() {

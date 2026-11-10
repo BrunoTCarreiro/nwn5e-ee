@@ -149,6 +149,10 @@ bool ReadBenchRequest(const std::string& first_line, BenchRequest* request, std:
       r.enemy = value;
     } else if (key == "leaps") {
       ok = ParseInt(value, 0, 8, &r.leaps);
+    } else if (key == "miss") {
+      int miss = 0;
+      ok = ParseInt(value, 0, 1, &miss);
+      r.miss = miss == 1;
     } else {
       return fail("unknown request key '" + key + "'");
     }
