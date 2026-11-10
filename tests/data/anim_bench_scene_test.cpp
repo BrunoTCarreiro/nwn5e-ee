@@ -87,3 +87,17 @@ TEST(AnimBenchLeapOrderTies) {  // equal neighbours by float sin/cos: the lower 
   CHECK_EQ((data::LeapOrder(data::FormationSpots(data::Formation::kAround, 6, 4), 0, 3) == std::vector<int>{0, 1, 2, 3}),
            true);
 }
+
+TEST(AnimBenchMarkScript) {  // the Test Grounds' cast mark (#156): Play in game stands on it; elsewhere, as before
+  const std::string m = data::BenchMarkScript();
+  for (const char* part : {"GetNearestObjectByTag(\"n5test_cast_field\")", "GetNearestObjectByTag(\"n5test_cast_hall\")",
+                           "GetNearestObjectByTag(\"n5test_cast_dark\")", "SetLocalString(OBJECT_SELF, \"n5sb_mark\", \"\");",
+                           "SetLocalString(OBJECT_SELF, \"n5sb_mark\", GetTag(w));", "JumpToLocation(GetLocation(w));"}) {
+    CHECK_EQ(m.find(part) != std::string::npos, true);
+  }
+  // The formation is spawned round the mark when there is one (no mark: round the character, Review Focus 5).
+  const std::string s = data::BenchSpawnScript(data::FormationSpots(data::Formation::kLine, 3, 9.0f), "nw_goblina");
+  CHECK_EQ(s.find("object mark = GetNearestObjectByTag(GetLocalString(pc, \"n5sb_mark\"));") != std::string::npos, true);
+  CHECK_EQ(s.find("if (GetLocalString(pc, \"n5sb_mark\") != \"\" && GetIsObjectValid(mark)) { p = GetPosition(mark); f = "
+                  "GetFacing(mark); }") != std::string::npos, true);
+}

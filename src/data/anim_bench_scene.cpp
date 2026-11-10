@@ -170,7 +170,11 @@ bool ReadBenchRequest(const std::string& first_line, BenchRequest* request, std:
 std::string BenchSpawnScript(const std::vector<Spot>& spots, const std::string& enemy) {
   std::string code =
       "object pc = OBJECT_SELF;\nvector p = GetPosition(pc);\nfloat f = GetFacing(pc);\nstring ids = \"\";\n"
-      "location l;\nobject o;\n";
+      "location l;\nobject o;\n"
+      // Round the Test Grounds' mark when BenchMarkScript found one (#156), else round the player.
+      "object mark = GetNearestObjectByTag(GetLocalString(pc, \"n5sb_mark\"));\n"
+      "if (GetLocalString(pc, \"n5sb_mark\") != \"\" && GetIsObjectValid(mark)) { p = GetPosition(mark); f = "
+      "GetFacing(mark); }\n";
   for (const Spot& s : spots) {
     code += "l = Location(GetArea(pc), p + AngleToVector(f) * " + Fixed(s.ahead) + " + AngleToVector(f - 90.0) * " +
             Fixed(s.right) + ", f + 180.0);\n";
@@ -180,6 +184,18 @@ std::string BenchSpawnScript(const std::vector<Spot>& spots, const std::string& 
   }
   code += "SetLocalString(OBJECT_SELF, \"n5sb_spawned\", ids);\n";
   return code;
+}
+
+std::string BenchMarkScript() {
+  return "object w = GetNearestObjectByTag(\"n5test_cast_field\");\n"
+         "if (!GetIsObjectValid(w)) w = GetNearestObjectByTag(\"n5test_cast_hall\");\n"
+         "if (!GetIsObjectValid(w)) w = GetNearestObjectByTag(\"n5test_cast_dark\");\n"
+         "SetLocalString(OBJECT_SELF, \"n5sb_mark\", \"\");\n"
+         "if (GetIsObjectValid(w)) {\n"
+         "  SetLocalString(OBJECT_SELF, \"n5sb_mark\", GetTag(w));\n"
+         "  ClearAllActions();\n"
+         "  JumpToLocation(GetLocation(w));\n"
+         "}\n";
 }
 
 std::string BenchClearScript() {
