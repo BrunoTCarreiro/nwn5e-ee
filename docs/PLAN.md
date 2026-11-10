@@ -1174,7 +1174,17 @@ monster AC by CR.
     within 30 feet not yet targeted, as many leaps as the slot's level; its diamond (50 GP) in #38's table.
     Heroism 1160 (Concentration): Frightened immunity (fear on it ends), Temporary Hit Points equal to the caster's
     modifier at the start of each of its rounds; an upcast's extra creatures the nearest friends within 10 feet.
-    Tests L1-13 to L1-24.
+    Tests L1-13 to L1-24. *Accepted (owner, 2026-11-10: "L1 matrix passes").*
+  - *0.99.3 (owner, 2026-11-10: "why does heroism need to be cast first before checking if it's a willing target? Is
+    it the rules?"):* it isn't - Heroism takes "a willing creature", so an enemy is no target: the order is refused
+    before the cast, nothing spent (the script's check stays for a cast with no order). Retest L1-23b (passed, owner,
+    2026-11-10: "L1-23b passes").
+  - *Build 2 (owner, 2026-11-10: "go for build 2"):* split as build 1 was - 2a buffs (Bless, Bane, Shield of Faith,
+    Mage Armor, Divine Favor, Protection from Evil and Good, Sanctuary, Expeditious Retreat, Longstrider, Hunter's
+    Mark), 2b conditions on creatures (Command, Charm Person, Animal Friendship, Hideous Laughter, Color Spray,
+    Sleep), 2c areas (Entangle, Faerie Fire, Grease, Fog Cloud). Asked: Q1 Jump (NWN has no jumping) - A not built,
+    off the lists, B a visual and a line; Q2 Hex (the Warlock's alone; NWN has none) - A not until a Warlock, B now,
+    for items and monsters. Recommended A on both.
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
   New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion
