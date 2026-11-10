@@ -1,0 +1,132 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Spell bench mockup</title>
+<style>
+  :root { --bg:#0f1418; --panel:#161d23; --line:#2a343d; --ink:#d9e2ea; --muted:#8a99a6; --accent:#f0a33c; --cold:#7fc4ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; width:1400px; height:900px; background:var(--bg); color:var(--ink); font:13px/1.35 "Segoe UI", system-ui, sans-serif; }
+  header { height:52px; display:flex; align-items:center; gap:14px; padding:0 18px; border-bottom:1px solid var(--line); }
+  header h1 { font-size:17px; margin:0; font-weight:600; }
+  .tag { color:var(--muted); font-size:12px; border:1px dashed var(--line); padding:2px 8px; border-radius:10px; }
+  .spell { margin-left:8px; padding:5px 10px; background:var(--panel); border:1px solid var(--line); border-radius:6px; }
+  .btns { margin-left:auto; display:flex; gap:8px; }
+  .btn { padding:6px 12px; border:1px solid var(--line); border-radius:6px; background:var(--panel); }
+  .btn.primary { background:var(--accent); color:#1b1206; border-color:var(--accent); font-weight:600; }
+  main { display:grid; grid-template-columns:230px 1fr 330px; height:610px; }
+  aside { background:var(--panel); padding:14px; border-right:1px solid var(--line); overflow:hidden; }
+  aside.right { border-right:0; border-left:1px solid var(--line); }
+  h2 { font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:2px 0 10px; }
+  .row { margin-bottom:12px; }
+  .lbl { color:var(--muted); font-size:12px; margin-bottom:4px; }
+  .sel { border:1px solid var(--line); border-radius:6px; padding:6px 8px; background:#10161b; display:flex; justify-content:space-between; }
+  .sel::after { content:"▾"; color:var(--muted); }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { border:1px solid var(--line); border-radius:14px; padding:3px 9px; font-size:12px; }
+  .chip.on { border-color:var(--accent); color:var(--accent); }
+  .card { border:1px solid var(--line); border-radius:8px; padding:9px 10px; margin-bottom:9px; background:#121920; }
+  .card .t { font-weight:600; margin-bottom:6px; display:flex; justify-content:space-between; }
+  .card .t span { color:var(--muted); font-weight:400; font-size:11px; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .snd { margin-top:6px; color:var(--cold); font-size:12px; }
+  .stage { position:relative; background:radial-gradient(ellipse at 50% 60%, #1a242c 0%, #0c1013 75%); }
+  .stage svg { position:absolute; inset:0; }
+  .note { position:absolute; left:14px; top:12px; color:var(--muted); font-size:12px; }
+  footer { height:238px; border-top:1px solid var(--line); padding:10px 18px; }
+  .tl { display:grid; grid-template-columns:120px 1fr; row-gap:7px; align-items:center; }
+  .tl .name { color:var(--muted); font-size:12px; }
+  .track { position:relative; height:24px; background:#121920; border:1px solid var(--line); border-radius:5px; }
+  .bar { position:absolute; top:3px; height:16px; border-radius:4px; font-size:11px; padding-left:6px; color:#10161b; white-space:nowrap; overflow:hidden; }
+  .mark { position:absolute; top:-3px; width:3px; height:28px; background:var(--ink); border-radius:2px; }
+  .mark i { position:absolute; top:-15px; left:-24px; width:52px; text-align:center; font-style:normal; font-size:10px; color:var(--ink); }
+  .ruler { position:relative; height:16px; color:var(--muted); font-size:10px; }
+  .ruler span { position:absolute; transform:translateX(-50%); }
+  .playhead { position:absolute; top:0; bottom:0; width:2px; background:var(--accent); }
+</style></head>
+<body>
+<header>
+  <h1>Spell &amp; Attack Bench</h1><span class="tag">rough mockup - not built</span>
+  <span class="spell">Chromatic Orb · <b style="color:#ff8a3c">fire</b> ▾</span>
+  <div class="btns"><span class="btn">⟲ Restart</span><span class="btn">❚❚ Pause</span><span class="btn">0.5× speed ▾</span><span class="btn primary">▶ Play in game</span></div>
+</header>
+<main>
+  <aside>
+    <h2>The scene</h2>
+    <div class="row"><div class="lbl">Formation</div>
+      <div class="chips"><span class="chip">One</span><span class="chip on">Line of 3</span><span class="chip">Cluster of 5</span><span class="chip">Ring of 6</span><span class="chip">Around me</span></div></div>
+    <div class="row"><div class="lbl">Enemies</div><div class="sel">Goblin ×3</div></div>
+    <div class="row"><div class="lbl">Distance</div><div class="sel">9 m</div></div>
+    <div class="row"><div class="lbl">Target</div><div class="sel">the middle one</div></div>
+    <div class="row"><div class="lbl">The caster</div><div class="sel">Human male, combat ready</div></div>
+    <div class="row"><div class="lbl">Camera</div>
+      <div class="chips"><span class="chip on">Side</span><span class="chip">Above</span><span class="chip">Over the shoulder</span><span class="chip">Follow the orb</span></div></div>
+  </aside>
+  <section class="stage">
+    <div class="note">the PC (left) and the enemies in the chosen formation - the orb's flight, its hit and its leap drawn as they play</div>
+    <svg viewBox="0 0 840 610">
+      <!-- ground grid -->
+      <g stroke="#26313a" stroke-width="1">
+        <line x1="0" y1="470" x2="840" y2="470"/><line x1="40" y1="520" x2="800" y2="520"/><line x1="90" y1="570" x2="750" y2="570"/>
+        <line x1="420" y1="430" x2="420" y2="610"/><line x1="200" y1="430" x2="120" y2="610"/><line x1="640" y1="430" x2="720" y2="610"/>
+      </g>
+      <!-- PC -->
+      <g stroke="#cdd8e2" stroke-width="3" fill="none" stroke-linecap="round">
+        <circle cx="170" cy="300" r="16"/><line x1="170" y1="316" x2="170" y2="390"/>
+        <line x1="170" y1="390" x2="150" y2="470"/><line x1="170" y1="390" x2="192" y2="470"/>
+        <line x1="170" y1="335" x2="215" y2="318"/><line x1="170" y1="335" x2="140" y2="372"/>
+      </g>
+      <circle cx="222" cy="315" r="11" fill="#ff8a3c" opacity=".9"/><circle cx="222" cy="315" r="20" fill="#ff8a3c" opacity=".25"/>
+      <text x="140" y="500" fill="#8a99a6" font-size="13">You · n5_cantrip</text>
+      <!-- enemies: a line of 3 -->
+      <g stroke="#9fb0a0" stroke-width="3" fill="none" stroke-linecap="round">
+        <circle cx="610" cy="320" r="13"/><line x1="610" y1="333" x2="610" y2="395"/><line x1="610" y1="395" x2="594" y2="460"/><line x1="610" y1="395" x2="626" y2="460"/><line x1="610" y1="350" x2="586" y2="380"/><line x1="610" y1="350" x2="634" y2="380"/>
+        <circle cx="690" cy="300" r="13"/><line x1="690" y1="313" x2="690" y2="375"/><line x1="690" y1="375" x2="674" y2="440"/><line x1="690" y1="375" x2="706" y2="440"/><line x1="690" y1="330" x2="666" y2="360"/><line x1="690" y1="330" x2="714" y2="360"/>
+        <circle cx="760" cy="335" r="13"/><line x1="760" y1="348" x2="760" y2="410"/><line x1="760" y1="410" x2="744" y2="475"/><line x1="760" y1="410" x2="776" y2="475"/><line x1="760" y1="365" x2="736" y2="395"/><line x1="760" y1="365" x2="784" y2="395"/>
+      </g>
+      <text x="585" y="505" fill="#8a99a6" font-size="13">Goblins · line of 3 · 9 m</text>
+      <!-- the orb's flight (homing) -->
+      <path d="M232 312 Q 420 200 682 330" stroke="#ff8a3c" stroke-width="2" stroke-dasharray="6 6" fill="none"/>
+      <circle cx="455" cy="252" r="10" fill="#ffb066"/><circle cx="455" cy="252" r="22" fill="#ff8a3c" opacity=".25"/>
+      <text x="410" y="228" fill="#ffb066" font-size="12">the orb, flying (homing)</text>
+      <!-- hit on the middle one -->
+      <g transform="translate(690 340)"><circle r="26" fill="#ff8a3c" opacity=".22"/><circle r="12" fill="#ffd2a1" opacity=".7"/></g>
+      <text x="640" y="268" fill="#ffd2a1" font-size="12">hit VFX</text>
+      <!-- leap to a second target -->
+      <path d="M700 330 Q 735 280 760 340" stroke="#ff8a3c" stroke-width="2" stroke-dasharray="3 5" fill="none"/>
+      <text x="716" y="276" fill="#ff8a3c" font-size="11">leap (matching dice)</text>
+      <!-- area ring, off: shown faint -->
+      <ellipse cx="690" cy="460" rx="120" ry="30" stroke="#5a6a77" stroke-dasharray="4 6" fill="none"/>
+      <text x="740" y="500" fill="#5a6a77" font-size="11">area (when Area is on)</text>
+    </svg>
+  </section>
+  <aside class="right">
+    <h2>The caster (you)</h2>
+    <div class="card"><div class="t">1 · Animation <span>Recipe / Mocap bench</span></div>
+      <div class="sel">n5_cantrip (castout, ready legs)</div><div class="snd">♪ voice: "cast" grunt ▾</div></div>
+    <div class="card"><div class="t">2 · Cast VFX <span>VFX bench</span></div>
+      <div class="two"><div class="sel">fire glow</div><div class="sel">right hand</div></div><div class="snd">♪ sfx: fire whoosh ▾</div></div>
+    <div class="card"><div class="t">3 · Attack</div>
+      <div class="chips" style="margin-bottom:6px"><span class="chip on">Projectile</span><span class="chip">Beam</span><span class="chip">Touch</span><span class="chip">Melee</span><span class="chip">On the target</span></div>
+      <div class="two"><div class="sel">vpr_ectofire01</div><div class="sel">homing</div></div><div class="snd">♪ in flight: fire hum ▾</div></div>
+    <div class="card"><div class="t">4 · Target</div>
+      <div class="chips"><span class="chip on">Single</span><span class="chip">Area · 6 m</span><span class="chip">Chain / leap</span></div></div>
+    <div class="card"><div class="t">5 · Hit VFX <span>VFX bench</span></div>
+      <div class="sel">VFX_IMP_FLAME_S</div><div class="snd">♪ sfx: fire impact ▾</div></div>
+  </aside>
+</main>
+<footer>
+  <div class="tl">
+    <div></div>
+    <div class="ruler"><span style="left:0%">0 s</span><span style="left:25%">0.5</span><span style="left:50%">1.0</span><span style="left:75%">1.5</span><span style="left:100%">2.0</span></div>
+    <div class="name">Animation</div>
+    <div class="track"><div class="bar" style="left:0%;width:25%;background:#b9c7d3">castout</div><div class="bar" style="left:25%;width:50%;background:#8296a6">hold (castoutlp)</div><div class="playhead" style="left:35%"></div></div>
+    <div class="name">Cast VFX</div>
+    <div class="track"><div class="bar" style="left:4%;width:22%;background:#ff9d57">fire glow</div><div class="playhead" style="left:35%"></div></div>
+    <div class="name">Attack</div>
+    <div class="track"><div class="mark" style="left:22%"><i>release</i></div><div class="bar" style="left:22.5%;width:24%;background:#ffb066">orb in flight</div><div class="playhead" style="left:35%"></div></div>
+    <div class="name">Hit VFX</div>
+    <div class="track"><div class="bar" style="left:47%;width:18%;background:#ffd2a1">flame burst</div><div class="bar" style="left:55%;width:14%;background:#ffb98a;opacity:.7">leap + 2nd hit</div><div class="playhead" style="left:35%"></div></div>
+    <div class="name">Sounds</div>
+    <div class="track"><div class="mark" style="left:2%"><i>voice</i></div><div class="mark" style="left:22%"><i>whoosh</i></div><div class="mark" style="left:47%"><i>impact</i></div><div class="playhead" style="left:35%"></div></div>
+  </div>
+  <div style="color:var(--muted);font-size:12px;margin-top:10px">Drag a bar or a marker to retime it; the release, the hit and each sound snap to the animation's frames.</div>
+</footer>
+</body></html>
