@@ -1164,6 +1164,17 @@ monster AC by CR.
     Bonus Action casting the cantrips' doesn't give (built once there for every Bonus Action spell). Tests L1-1 to
     L1-12 (!test level1sorcerer, level1cleric, level1bard). *Accepted (owner, 2026-11-09: "L1 matrix is
     accepted").* Build 1b (Healing Word, Chromatic Orb, Heroism) next, on the owner's go.
+  - *Built 0.99.1 (build 1b; owner, 2026-11-09: "go for 1b"):* Healing Word 1151 a Bonus Action that spends a
+    slot - its order (class, the radial's Level N) becomes feat 1555's use (casting 1152: instant, the round's
+    attacks go on, one Bonus Action a round), its script spending the order's slot as the cast would; refused with
+    nothing spent past 60 feet, with the Bonus Action spent, or with a slot spent this turn. SRD 5.2.1's One Spell
+    with a Spell Slot per Turn: a slot spell after a Bonus Action one the same turn refused (the creature's round,
+    out of combat 6 s). Chromatic Orb 1153: its six types a choice menu (1154-1159), each opening its slot levels
+    (a levelled choice spell's variants take their master's level); matching d8s leap it to the nearest enemy
+    within 30 feet not yet targeted, as many leaps as the slot's level; its diamond (50 GP) in #38's table.
+    Heroism 1160 (Concentration): Frightened immunity (fear on it ends), Temporary Hit Points equal to the caster's
+    modifier at the start of each of its rounds; an upcast's extra creatures the nearest friends within 10 feet.
+    Tests L1-13 to L1-24.
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
   New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion
