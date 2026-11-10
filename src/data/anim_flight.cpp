@@ -160,8 +160,10 @@ std::string FlightScript(const std::vector<FlightSegment>& segments, FlightPoint
       "  SetObjectVisualTransform(o, OBJECT_VISUAL_TRANSFORM_TRANSLATE_Z, z, b, s);\n"
       "}\n"
       "void main() {\n";
+  // Facing north (90): the translates run along the carrier's own axes (forward is its +Y), and facing 90 lines them up
+  // with the world's - at 0 the flight went 90 degrees to the right (SB-21, owner 2026-11-10).
   code += "  object o = CreateObject(OBJECT_TYPE_PLACEABLE, \"plc_invisobj\", Location(GetArea(OBJECT_SELF), Vector(" +
-          number(from.x) + ", " + number(from.y) + ", " + number(from.z) + "), 0.0), FALSE, \"n5_flight\");\n";
+          number(from.x) + ", " + number(from.y) + ", " + number(from.z) + "), 90.0), FALSE, \"n5_flight\");\n";
   code += "  DelayCommand(" + number(start) + ", ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectVisualEffect(" +
           std::to_string(twin_row) + "), o, " + number(total + 0.1f) + "));\n";
   float at = start;
