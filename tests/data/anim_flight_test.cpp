@@ -1,0 +1,88 @@
+// A look's flight (owner, 2026-11-10: "yes, start piece 2 with flight paths"; the design:
+// docs/superpowers/specs/2026-11-10-spell-bench-flight-paths-design.md): the segments each kind is made of, as the game's
+// visual transforms play them (nwscript.nss's easings), and the darts' fan and stagger. The bench's flight.js is held to
+// the same numbers (spell_bench/checks/flight_check.js).
+
+#include <math.h>
+
+#include <vector>
+
+#include "check.h"
+#include "data/anim_flight.h"
+#include "data/anim_look.h"
+
+namespace {
+
+bool Near(float a, float b) { return fabsf(a - b) < 0.001f; }
+
+}  // namespace
+
+TEST(AnimFlightLerps) {  // nwscript.nss's formulas
+  CHECK_EQ(Near(data::FlightLerp(1, 0.5f), 0.5f) && Near(data::FlightLerp(2, 0.5f), 0.5f) && Near(data::FlightLerp(6, 0.5f), 0.25f), true);
+  CHECK_EQ(Near(data::FlightLerp(4, 0.5f), 0.29289f) && Near(data::FlightLerp(5, 0.5f), 0.70711f) && Near(data::FlightLerp(7, 0.5f), 0.5f), true);
+  CHECK_EQ(Near(data::FlightLerp(3, 0.25f), 0.32635f) && Near(data::FlightLerp(0, 0.01f), 1.0f) && Near(data::FlightLerp(0, 0.0f), 0.0f), true);
+}
+
+TEST(AnimFlightStraight) {
+  data::FlightSettings s;
+  s.kind = data::FlightKind::kStraight;
+  s.speed = 12;
+  auto seg = data::FlightSegments(s, {0, 0, 1}, {12, 0, 1}, 0, 1);
+  CHECK_EQ(seg.size() == 1 && Near(seg[0].seconds, 1.0f) && Near(seg[0].to.x, 12) && seg[0].lerp_xy == 1, true);
+  CHECK_EQ(Near(data::FlightOffset(seg, 0.5f).x, 6), true);
+  s.speedup = true;
+  CHECK_EQ(Near(data::FlightOffset(data::FlightSegments(s, {0, 0, 1}, {12, 0, 1}, 0, 1), 0.5f).x, 3), true);  // quadratic
+}
+
+TEST(AnimFlightArc) {
+  data::FlightSettings s;
+  s.kind = data::FlightKind::kArc;
+  s.speed = 10;
+  s.height = 2;
+  s.fall = 0.4f;
+  auto seg = data::FlightSegments(s, {0, 0, 0}, {10, 0, 0}, 0, 1);
+  CHECK_EQ(seg.size() == 2 && Near(seg[0].seconds, 0.6f) && Near(seg[0].to.x, 6) && Near(seg[0].to.z, 2) && seg[0].lerp_z == 5, true);
+  CHECK_EQ(Near(seg[1].seconds, 0.4f) && Near(seg[1].to.x, 10) && Near(seg[1].to.z, 0) && seg[1].lerp_z == 4, true);
+  const data::FlightPoint p = data::FlightOffset(seg, 0.3f);
+  CHECK_EQ(Near(p.x, 3) && Near(p.z, 1.41421f), true);
+}
+
+TEST(AnimFlightRiseDash) {
+  data::FlightSettings s;
+  s.kind = data::FlightKind::kRiseDash;
+  s.height = 1.5f;
+  s.rise = 0.4f;
+  s.speed = 20;
+  auto seg = data::FlightSegments(s, {0, 0, 0}, {10, 0, 0}, 0, 1);
+  CHECK_EQ(Near(seg[0].seconds, 0.4f) && Near(seg[0].to.x, 1.0f) && Near(seg[0].to.z, 1.5f) && seg[0].lerp_xy == 5, true);
+  CHECK_EQ(Near(seg[1].seconds, 0.45620f) && Near(seg[1].to.x, 10) && seg[1].lerp_xy == 6 && seg[1].lerp_z == 6, true);
+  CHECK_EQ(Near(data::FlightSeconds(seg), 0.85620f), true);
+}
+
+TEST(AnimFlightHoming) {  // the rebuilt homing: today's MIRV time, a lift of 5% of the way
+  data::FlightSettings s;
+  auto seg = data::FlightSegments(s, {0, 0, 0}, {10, 0, 0}, 0, 1);
+  CHECK_EQ(Near(seg[0].seconds, 0.5613f) && Near(seg[0].to.x, 5) && Near(seg[0].to.z, 0.5f) && seg[1].lerp_z == 4, true);
+  CHECK_EQ(Near(data::FlightSeconds(seg), data::MirvFlightSeconds(10)), true);
+}
+
+TEST(AnimFlightDartsFan) {
+  data::FlightSettings s;
+  s.kind = data::FlightKind::kRiseDash;
+  s.fan = 20;
+  auto a = data::FlightSegments(s, {0, 0, 0}, {10, 0, 0}, 0, 3), b = data::FlightSegments(s, {0, 0, 0}, {10, 0, 0}, 1, 3),
+       c = data::FlightSegments(s, {0, 0, 0}, {10, 0, 0}, 2, 3);
+  CHECK_EQ(Near(a[0].to.x, 0.93969f) && Near(a[0].to.y, -0.34202f) && Near(b[0].to.y, 0) && Near(c[0].to.y, 0.34202f), true);
+  CHECK_EQ(Near(a[1].to.x, 10) && Near(c[1].to.y, 0), true);  // each still lands on its target
+  CHECK_EQ(Near(data::FlightStart(s, 2), 0.08f), true);
+}
+
+TEST(AnimFlightZeroDistance) {  // Review Focus 1: a target straight above - no NaN, a valid flight
+  for (auto k : {data::FlightKind::kHoming, data::FlightKind::kArc, data::FlightKind::kStraight, data::FlightKind::kRiseDash}) {
+    data::FlightSettings s;
+    s.kind = k;
+    auto seg = data::FlightSegments(s, {1, 1, 0}, {1, 1, 3}, 1, 3);
+    const data::FlightPoint p = data::FlightOffset(seg, data::FlightSeconds(seg));
+    CHECK_EQ(!seg.empty() && data::FlightSeconds(seg) >= 0.05f && Near(p.z, 3) && p.x == p.x, true);
+  }
+}
