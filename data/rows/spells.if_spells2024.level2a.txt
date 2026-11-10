@@ -1,0 +1,16 @@
+# spells.2da - #39 Part 2a, build 2a (core/rules_spells2024.cpp; "spells2024" is served with spellcasting
+# faithful): NWN's buffs rewritten as SRD 5.2.1's - Bless 6 and Bane 449 (up to three creatures near the spot
+# aimed at: a small sphere), Shield of Faith 450 (60 feet, a Bonus Action), Mage Armor 102, Divine Favor 414 (a
+# Bonus Action; the Paladin's), Protection from Evil and Good 321 (NWN's Protection from Alignment, one spell now:
+# no sub-radial), Sanctuary 154 (30 feet, a Bonus Action), Expeditious Retreat 456 (a Bonus Action). Their 2024
+# classes' lists (NWN's Wiz_Sorc column is shared: the Sorcerer keeps Protection from Evil and Good and Longstrider
+# until the level 1 lists switch). The new rows: spells.if_spells2024.level2anew.txt.
+Name SpellDesc ImpactScript School Range VS TargetType Bard Cleric Druid Paladin Ranger Wiz_Sorc Innate Category HostileSetting TargetShape TargetSizeX TargetSizeY TargetFlags SubRadSpell1 SubRadSpell2
+6 756 16000741 n5_s_bless E S vs 0x2F **** 1 **** 1 **** **** 1 9 0 sphere 3.05 **** 4 **** ****
+449 2663 16000742 n5_s_bane E S vs 0x2F 1 1 **** **** **** **** 1 1 1 sphere 3.05 **** 1 **** ****
+450 2666 16000743 n5_s_shieldfaith A M vs 0x2B **** 1 **** 1 **** **** 1 13 0 **** **** **** **** **** ****
+102 852 16000744 n5_s_magearmor A T vs 0x2B **** **** **** **** **** 1 1 13 0 **** **** **** **** **** ****
+414 53 16000745 n5_s_divfavor T P vs 0x09 **** **** **** 1 **** **** 1 10 0 **** **** **** **** **** ****
+321 16000746 16000747 n5_s_protevil A T vs 0x2B **** 1 1 1 **** 1 1 13 0 **** **** **** **** **** ****
+154 904 16000748 n5_s_sanctuary A S vs 0x2B **** 1 **** **** **** **** 1 9 0 **** **** **** **** **** ****
+456 2675 16000749 n5_s_expretreat T P vs 0x09 **** **** **** **** **** 1 1 10 0 **** **** **** **** **** ****

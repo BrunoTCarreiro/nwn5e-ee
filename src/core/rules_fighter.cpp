@@ -169,13 +169,15 @@ int DefenseArmorClassBonus(void* stats) {
   return rules::kDefenseArmorClassBonus;
 }
 
+int SpellArmorClassBonus(void* stats, bool character);  // rules_spells2024.cpp (#39 2a: Shield of Faith, Mage Armor)
+
 namespace {
 
 int16_t CreatureArmorClass(void* creature) {
   const int16_t armor_class = g_creature_armor_class(creature);
   void* stats = StatsOf(creature);
   return static_cast<int16_t>(armor_class + DefenseArmorClassBonus(stats) + UnarmoredDefenseBonus(stats) +
-                              ArmorBaseAdjustment(stats));
+                              ArmorBaseAdjustment(stats) + SpellArmorClassBonus(stats, true));
 }
 
 // The sheet with class features in NWN mode and 2024 armour on: the armour only.

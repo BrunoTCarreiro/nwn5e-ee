@@ -69,6 +69,7 @@ void StunningStrikeSaveResult(void* target, uint32_t versus, int result);  // ru
 bool QuiveringPalmEngineSave(uint32_t versus, uintptr_t caller);  // rules_monk.cpp (OH4)
 void BoostTestCreatureForSave(void* creature, uint32_t versus);   // rules_debug.cpp (0.72.1: the test hit point floor)
 bool DisciplinedSurvivorReroll(void* creature);                          // rules_monk.cpp (M13)
+int BlessSaveDie(void* creature);  // rules_spells2024.cpp (#39 2a: Bless's +1d4, Bane's -1d4 on a save)
 
 namespace {
 
@@ -313,6 +314,10 @@ uint8_t SavingThrowRoll(void* creature, uint8_t save, uint16_t dc, uint8_t type,
                        rules::GrenadeSaveOnThrowerDc(rules::GrenadeForSpell(g_script_spell)) &&
                        GrenadeDcOf(versus, &grenade_dc);
   const int new_dc = stun ? stun_dc : grenade ? grenade_dc : spell_dc ? engine_dc : rules::ConvertNwnFixedDc(engine_dc);
+  // #39 2a build 2a: Bless adds 1d4 to the save and Bane takes 1d4 off - the roll's DC moved by it (the engine's
+  // line shows that DC; the player is told).
+  const int blessing = Faithful() && save >= 1 && save <= 3 ? BlessSaveDie(creature) : 0;
+  const int roll_dc = new_dc - blessing;
   const SaveContext outer = g_save;
   g_save = SaveContext();
   g_save.active = true;
@@ -328,7 +333,7 @@ uint8_t SavingThrowRoll(void* creature, uint8_t save, uint16_t dc, uint8_t type,
     g_save.condition = ConditionsForSave(creature, ability);
   }
   const SaveContext context = g_save;
-  uint8_t result = g_saving_throw_roll(creature, save, static_cast<uint16_t>(std::clamp(new_dc, 1, 0xFFFF)), type,
+  uint8_t result = g_saving_throw_roll(creature, save, static_cast<uint16_t>(std::clamp(roll_dc, 1, 0xFFFF)), type,
                                        versus, feedback, feat, from_combat);
   // Fighter F5 Indomitable: a failed save is rolled again, + the Fighter level.
   if (result == 0 && !context.condition.auto_fail) {
@@ -337,7 +342,7 @@ uint8_t SavingThrowRoll(void* creature, uint8_t save, uint16_t dc, uint8_t type,
       g_save = context;
       TellIfPlayer(IdOf(creature),
                    "nwn5e: Indomitable - the failed save is rolled again, +" + std::to_string(bonus) + ".");
-      result = g_saving_throw_roll(creature, save, static_cast<uint16_t>(std::clamp(new_dc - bonus, 1, 0xFFFF)),
+      result = g_saving_throw_roll(creature, save, static_cast<uint16_t>(std::clamp(roll_dc - bonus, 1, 0xFFFF)),
                                    type, versus, feedback, feat, from_combat);
     }
   }
@@ -352,14 +357,14 @@ uint8_t SavingThrowRoll(void* creature, uint8_t save, uint16_t dc, uint8_t type,
   // Monk M13 Disciplined Survivor: a failed save is rolled again for a Focus point.
   if (result == 0 && !context.condition.auto_fail && DisciplinedSurvivorReroll(creature)) {
     g_save = context;
-    result = g_saving_throw_roll(creature, save, static_cast<uint16_t>(std::clamp(new_dc, 1, 0xFFFF)), type, versus,
+    result = g_saving_throw_roll(creature, save, static_cast<uint16_t>(std::clamp(roll_dc, 1, 0xFFFF)), type, versus,
                                  feedback, feat, from_combat);
   }
   // Rogue R12 Stroke of Luck: the first failed save since a rest is rolled again with its d20 a 20.
   if (result == 0 && !context.condition.auto_fail && StrokeOfLuckReady(creature)) {
     g_save = context;
     g_save.force_twenty = true;
-    result = g_saving_throw_roll(creature, save, static_cast<uint16_t>(std::clamp(new_dc, 1, 0xFFFF)), type, versus,
+    result = g_saving_throw_roll(creature, save, static_cast<uint16_t>(std::clamp(roll_dc, 1, 0xFFFF)), type, versus,
                                  feedback, feat, from_combat);
     StrokeOfLuckUsed(creature, result != 0);
   }
@@ -496,6 +501,17 @@ int SpellcastingModifier2024(void* creature) {
   const char* source = "";
   if (!SpellDc2024(creature, spell_id, engine_dc, &dc, &pb, &source)) return 0;
   return dc - 8 - pb;
+}
+
+int SpellSaveDcForClassSlot(void* creature, int class_slot) {
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  if (!stats) return 10;
+  const CreatureFacts facts = ReadCreatureFacts(stats);
+  const int pb = rules::ProficiencyBonusForCreature(CountsAsCharacter(stats, facts), facts.level,
+                                                    facts.challenge_rating);
+  const int modifier = class_slot >= 0 && class_slot <= 7 ? CastingModifierOfClassSlot(creature, class_slot)
+                                                          : SpellcastingModifier2024(creature);
+  return rules::SaveDifficultyClass(modifier, pb);
 }
 
 int CastingModifierOfClassSlot(void* creature, int class_slot) {

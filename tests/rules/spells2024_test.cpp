@@ -12,7 +12,7 @@ using namespace rules;
 
 // #39 Part 2a build 1a: SRD 5.2.1's level 1 damage and healing spells (pp. 114-177).
 TEST(Spells2024Table) {
-  CHECK_EQ(static_cast<int>(Spells2024().size()), 13);
+  CHECK_EQ(static_cast<int>(Spells2024().size()), 23);
   for (size_t i = 1; i < Spells2024().size(); ++i) CHECK_EQ(Spells2024()[i - 1].row < Spells2024()[i].row, true);
   CHECK_EQ(Spell2024Of(1) == nullptr, true);
   const Spell2024* burning = Spell2024Of(kBurningHands);
@@ -187,4 +187,68 @@ TEST(Spells2024Build1b) {
   CHECK_EQ(SameTurn(5, 5, 6000), false);
   CHECK_EQ(SameTurn(5, 6, 1000), false);
   CHECK_EQ(SameTurn(5, 5, -1), false);
+}
+
+// Build 2a: the buffs' numbers and the Bonus Action spells' table.
+TEST(Spells2024Build2a) {
+  CHECK_EQ(BonusActionSpells().size(), 6u);
+  for (const BonusActionSpell& spell : BonusActionSpells()) {
+    CHECK_EQ(BonusActionSpellOf(spell.spell) == &spell, true);
+    CHECK_EQ(BonusActionSpellOf(spell.bonus_row) == &spell, true);
+    CHECK_EQ(IsBonusActionSpellFeat(spell.feat), true);
+    CHECK_EQ(TakesBonusAction(spell.feat), true);
+    CHECK_EQ(std::string(BonusActionName(spell.feat)) == spell.name, true);
+    CHECK_EQ(BonusActionFeatOfSpell(spell.spell), -1);  // not the cantrips' way: the slot is spent
+  }
+  CHECK_EQ(BonusActionSpellOf(kHealingWordBonus)->feat, kFeatHealingWord);
+  CHECK_EQ(BonusActionSpellOf(kShieldOfFaith)->feet, 60);
+  CHECK_EQ(BonusActionSpellOf(kSanctuary)->feet, 30);
+  CHECK_EQ(BonusActionSpellOf(kHuntersMark)->feet, 90);
+  CHECK_EQ(BonusActionSpellOf(kDivineFavor)->feet, 0);
+  CHECK_EQ(BonusActionSpellOf(kExpeditiousRetreat)->bonus_row, kExpeditiousRetreatBonus);
+  CHECK_EQ(BonusActionSpellOf(kBless) == nullptr, true);
+  CHECK_EQ(BonusActionSpellOf(kMageArmor) == nullptr, true);
+  CHECK_EQ(TakesBonusAction(kFeatExpeditiousDash), true);
+  CHECK_EQ(TakesBonusAction(kFeatHuntersMarkMove), true);
+  CHECK_EQ(std::string(BonusActionName(kFeatHuntersMarkMove)) == "Hunter's Mark: Move", true);
+  CHECK_EQ(IsSlotSpellBonusFeat(1554), false);
+  CHECK_EQ(BlessTargets(1), 3);
+  CHECK_EQ(BlessTargets(3), 5);
+  CHECK_EQ(MageArmorBaseAc(2), 15);
+  CHECK_EQ(MageArmorBaseAc(-1), 12);
+  CHECK_EQ(HuntersMarkHours(1), 1);
+  CHECK_EQ(HuntersMarkHours(2), 1);
+  CHECK_EQ(HuntersMarkHours(3), 8);
+  CHECK_EQ(HuntersMarkHours(4), 8);
+  CHECK_EQ(HuntersMarkHours(5), 24);
+  CHECK_EQ(LongstriderTargets(1), 1);
+  CHECK_EQ(LongstriderTargets(2), 2);
+  CHECK_EQ(WardedAgainstRacialType(24), true);   // Undead
+  CHECK_EQ(WardedAgainstRacialType(20), true);   // Outsider
+  CHECK_EQ(WardedAgainstRacialType(7), true);    // Aberration
+  CHECK_EQ(WardedAgainstRacialType(16), true);   // Elemental
+  CHECK_EQ(WardedAgainstRacialType(17), true);   // Fey
+  CHECK_EQ(WardedAgainstRacialType(6), false);   // Human
+  CHECK_EQ(WardedAgainstRacialType(8), false);   // Animal
+  CHECK_EQ(IsConcentrationSpell(kHuntersMark), true);
+  CHECK_EQ(IsConcentrationSpell(kHuntersMarkBonus), true);
+  CHECK_EQ(IsConcentrationSpell(kShieldOfFaithBonus), true);
+  CHECK_EQ(IsConcentrationSpell(kExpeditiousRetreatBonus), true);
+  CHECK_EQ(IsConcentrationSpell(kDivineFavorBonus), false);  // 1 minute, no Concentration (2024)
+  CHECK_EQ(IsConcentrationSpell(kSanctuaryBonus), false);
+  CHECK_EQ(IsConcentrationSpell(kBless), true);
+  CHECK_EQ(IsConcentrationSpell(kLongstrider), false);
+  // The table: each buff once, its script; the Bonus Action ones marked.
+  for (int row : {kBless, kBane, kShieldOfFaith, kMageArmor, kDivineFavor, kProtectionFromEvilAndGood, kSanctuary,
+                  kExpeditiousRetreat, kLongstrider, kHuntersMark}) {
+    const Spell2024* spell = Spell2024Of(row);
+    CHECK_EQ(spell != nullptr && spell->effect == SpellEffect2024::kBuff, true);
+    CHECK_EQ(spell->bonus_action, BonusActionSpellOf(row) != nullptr);
+  }
+  CHECK_EQ(Spell2024Of(kBane)->save == Ability::kCharisma, true);
+  CHECK_EQ(Spell2024Of(kMageArmor)->melee, true);
+  CHECK_EQ(Spell2024Of(kShieldOfFaith)->bonus_action, true);
+  CHECK_EQ(Spell2024Of(kBless)->bonus_action, false);
+  CHECK_EQ(std::string(Spell2024Of(kHuntersMark)->script) == "n5_s_huntmark", true);
+  CHECK_EQ(std::string(Spell2024Of(kSanctuary)->script) == "n5_s_sanctuary", true);
 }

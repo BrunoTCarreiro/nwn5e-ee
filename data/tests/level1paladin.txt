@@ -1,0 +1,15 @@
+# A !test profile ([debug] test_commands=1): type "!test level1paladin" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# #39 Part 2a build 2a: a Paladin 5, Charisma 16 - Bless, Shield of Faith, Divine Favor, Protection from Evil and
+# Good, with level 2 slots to upcast them.
+name = Level 1 buffs (issue 39 2a): human Paladin 5, Charisma 16 - Bless, Shield of Faith, Divine Favor, Protection from Evil and Good
+species = human
+swap_class = paladin
+class = paladin
+level = 5
+abilities = 16 10 14 8 10 16
+items = nw_wswls001 equip
+note = the Prepare spells window opens: pick Bless, Shield of Faith, Divine Favor and Protection from Evil and Good; Accept
+note = !spawn nw_orcb gives you an enemy; !spawn nw_orcb ally a friend

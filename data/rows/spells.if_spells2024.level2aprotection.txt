@@ -1,0 +1,4 @@
+# spells.2da - #39 Part 2a, build 2a: Protection from Evil and Good 321 casts itself now (NWN's Protection from
+# Alignment was a sub-radial menu with no animation of its own): Protection from Evil's (138).
+ConjAnim ConjHandVisual ConjSoundVFX CastAnim CastTime
+321 hand vco_smhanholy01 sco_mehanholy01 up 1000

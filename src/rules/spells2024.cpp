@@ -85,6 +85,24 @@ std::vector<Spell2024> Build() {
   }
   spells.push_back(Damage(kChromaticOrb, "Chromatic Orb", "n5_s_chromorb", E::kSpellAttack, 3, 8, 1, 0));
   spells.push_back(Touch(Damage(kHeroism, "Heroism", "n5_s_heroism", E::kBuff, 0, 0, 0, 0)));
+  // Build 2a: the buffs.
+  spells.push_back(Damage(kBless, "Bless", "n5_s_bless", E::kBuff, 0, 0, 0, 0));
+  spells.push_back(Saved(Damage(kBane, "Bane", "n5_s_bane", E::kBuff, 0, 0, 0, 0), Ability::kCharisma, false));
+  for (const BonusActionSpell& bonus : BonusActionSpells()) {
+    if (bonus.spell == kHealingWord) continue;
+    const char* script = bonus.spell == kShieldOfFaith ? "n5_s_shieldfaith"
+                         : bonus.spell == kDivineFavor ? "n5_s_divfavor"
+                         : bonus.spell == kSanctuary   ? "n5_s_sanctuary"
+                         : bonus.spell == kExpeditiousRetreat ? "n5_s_expretreat"
+                                                               : "n5_s_huntmark";
+    Spell2024 spell = Damage(bonus.spell, bonus.name, script, E::kBuff, 0, 0, 0, 0);
+    spell.bonus_action = true;
+    spells.push_back(spell);
+  }
+  spells.push_back(Touch(Damage(kMageArmor, "Mage Armor", "n5_s_magearmor", E::kBuff, 0, 0, 0, 0)));
+  spells.push_back(Touch(Damage(kProtectionFromEvilAndGood, "Protection from Evil and Good", "n5_s_protevil",
+                                E::kBuff, 0, 0, 0, 0)));
+  spells.push_back(Touch(Damage(kLongstrider, "Longstrider", "n5_s_longstrider", E::kBuff, 0, 0, 0, 0)));
   std::sort(spells.begin(), spells.end(), [](const Spell2024& a, const Spell2024& b) { return a.row < b.row; });
   return spells;
 }
@@ -143,6 +161,50 @@ bool HasMatchingDice(const std::vector<int>& rolls) {
 }
 
 int ChromaticOrbLeaps(int slot_level) { return std::max(1, slot_level); }
+
+const std::vector<BonusActionSpell>& BonusActionSpells() {
+  static const std::vector<BonusActionSpell> spells = {
+      {kHealingWord, kHealingWordBonus, kFeatHealingWord, kHealingWordFeet, "Healing Word"},
+      {kShieldOfFaith, kShieldOfFaithBonus, kFeatShieldOfFaith, 60, "Shield of Faith"},
+      {kDivineFavor, kDivineFavorBonus, kFeatDivineFavor, 0, "Divine Favor"},
+      {kSanctuary, kSanctuaryBonus, kFeatSanctuary, 30, "Sanctuary"},
+      {kExpeditiousRetreat, kExpeditiousRetreatBonus, kFeatExpeditiousRetreat, 0, "Expeditious Retreat"},
+      {kHuntersMark, kHuntersMarkBonus, kFeatHuntersMark, 90, "Hunter's Mark"},
+  };
+  return spells;
+}
+
+const BonusActionSpell* BonusActionSpellOf(int row) {
+  for (const BonusActionSpell& spell : BonusActionSpells()) {
+    if (spell.spell == row || spell.bonus_row == row) return &spell;
+  }
+  return nullptr;
+}
+
+bool IsSlotSpellBonusFeat(int feat) { return SlotSpellBonusFeatName(feat)[0] != '\0'; }
+
+const char* SlotSpellBonusFeatName(int feat) {
+  for (const BonusActionSpell& spell : BonusActionSpells()) {
+    if (spell.feat == feat) return spell.name;
+  }
+  if (feat == kFeatExpeditiousDash) return "Expeditious Retreat: Dash";
+  if (feat == kFeatHuntersMarkMove) return "Hunter's Mark: Move";
+  return "";
+}
+
+int BlessTargets(int slot_level) { return 3 + std::max(0, slot_level - 1); }
+
+int MageArmorBaseAc(int dexterity_modifier) { return 13 + dexterity_modifier; }
+
+int HuntersMarkHours(int slot_level) { return slot_level >= 5 ? 24 : slot_level >= 3 ? 8 : 1; }
+
+int LongstriderTargets(int slot_level) { return 1 + std::max(0, slot_level - 1); }
+
+bool WardedAgainstRacialType(int nwn_racial_type) {
+  // racialtypes.2da: 7 Aberration, 16 Elemental, 17 Fey, 20 Outsider, 24 Undead.
+  return nwn_racial_type == 7 || nwn_racial_type == 16 || nwn_racial_type == 17 || nwn_racial_type == 20 ||
+         nwn_racial_type == 24;
+}
 
 int HeroismTargets(int slot_level) { return 1 + std::max(0, slot_level - 1); }
 

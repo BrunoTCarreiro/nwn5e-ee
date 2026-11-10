@@ -1,0 +1,14 @@
+# A !test profile ([debug] test_commands=1): type "!test level1ranger" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# #39 Part 2a build 2a: a Ranger 5, Wisdom 16 - Hunter's Mark and Longstrider.
+name = Level 1 buffs (issue 39 2a): human Ranger 5, Wisdom 16 - Hunter's Mark, Longstrider
+species = human
+swap_class = ranger
+class = ranger
+level = 5
+abilities = 12 16 14 10 16 8
+items = nw_wbwln001 equip, nw_wamar001 x40
+note = the Prepare spells window opens: pick Hunter's Mark and Longstrider; Accept
+note = !spawn nw_orcb gives you an enemy (spawn two to move the mark)

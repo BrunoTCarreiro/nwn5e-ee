@@ -38,6 +38,8 @@ int DefenseArmorClassBonus(void* stats);    // rules_fighter.cpp (Fighter F1 Def
 int UnarmoredDefenseBonus(void* stats);     // rules_barbarian.cpp (Barbarian B4)
 int ArmorBaseAdjustment(void* stats);       // rules_armor.cpp (2024 armour, 0.46.0)
 int SunderingAttackBonus(void* stats, void* target);  // rules_barbarian_strikes.cpp (B10 Sundering Blow)
+int BlessAttackBonus(void* stats);                     // rules_spells2024.cpp (#39 2a: Bless, Bane)
+int SpellArmorClassBonus(void* stats, bool character);  // rules_spells2024.cpp (#39 2a: Shield of Faith, Mage Armor)
 
 namespace {
 
@@ -60,7 +62,8 @@ bool CurrentAttackIsRanged(void* stats) {
 int GetAttackModifierVersus(void* stats, void* target) {
   // Archery; Sundering Blow; #39 build 3b: Shillelagh's and True Strike's spellcasting ability.
   const int style =
-      FightingStyleAttackBonus(stats) + SunderingAttackBonus(stats, target) + WeaponCantripAttackBonus(stats);
+      FightingStyleAttackBonus(stats) + SunderingAttackBonus(stats, target) + WeaponCantripAttackBonus(stats) +
+      BlessAttackBonus(stats);  // #39 2a: Bless's +1d4, Bane's -1d4
   const int engine_modifier =
       g_get_attack_modifier_versus(stats, target) - RacialSlingBonusToRemove(stats, CurrentAttackIsRanged(stats));
   if (!g_config.attack_proficiency) return engine_modifier + style;
@@ -83,7 +86,7 @@ int16_t GetArmorClassVersus(void* stats, void* attacker, int touch) {
   // Defense: +1 in armour (not to a 3e touch AC, which leaves armour out).
   const int16_t gear_armor_class = static_cast<int16_t>(
       engine_armor_class + (touch ? 0 : DefenseArmorClassBonus(stats) + ArmorBaseAdjustment(stats)) +
-      UnarmoredDefenseBonus(stats));
+      UnarmoredDefenseBonus(stats) + SpellArmorClassBonus(stats, true));
   if (!g_config.creature_ac_by_cr && g_config.debug_creature_ac <= 0) return gear_armor_class;
   const CreatureFacts facts = ReadCreatureFacts(stats);
   if (facts.character) return gear_armor_class;  // players and henchmen keep their gear AC
@@ -103,7 +106,7 @@ int16_t GetArmorClassVersus(void* stats, void* attacker, int touch) {
     Log("AC: object 0x%08X creature CR %.2f%s: 3e %d -> 5e %d", ObjectIdOf(stats), facts.challenge_rating,
         touch ? " (touch)" : "", engine_armor_class, converted);
   }
-  return static_cast<int16_t>(converted);
+  return static_cast<int16_t>(converted + SpellArmorClassBonus(stats, false));  // #39 2a: Shield of Faith
 }
 
 }  // namespace

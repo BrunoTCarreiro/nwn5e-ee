@@ -40,3 +40,5 @@ bool SpellAttackCasting(void* creature, int* bonus, const char** source);
 int SpellcastingModifier2024(void* creature);
 // #39 2a build 1b: the casting ability modifier of `creature`'s class in `class_slot` (0-7); 0 when not known.
 int CastingModifierOfClassSlot(void* creature, int class_slot);
+// #39 2a build 2a: the 2024 spell save DC of `creature`'s class in `class_slot` (-1: the spell it's casting).
+int SpellSaveDcForClassSlot(void* creature, int class_slot);

@@ -57,8 +57,8 @@ TEST(ConcentrationSpellsAreSrd52) {
   CHECK_EQ(IsConcentrationSpell(325), false);  // a deleted row
   CHECK_EQ(IsConcentrationSpell(-1), false);
   const std::vector<int>& all = ConcentrationSpells();
-  CHECK_EQ(all.size(), 117u);  // 84 of NWN's rows, Guidance and 29 variants, Dancing Lights and its Lights,
-                               // Heroism (#39 2a build 1b)
+  CHECK_EQ(all.size(), 121u);  // 84 of NWN's rows, Guidance and 29 variants, Dancing Lights and its Lights,
+                               // Heroism (#39 2a build 1b), Hunter's Mark and three Bonus Action rows (2a)
   CHECK_EQ(IsConcentrationSpell(1131), true);
   CHECK_EQ(IsConcentrationSpell(1132), true);
   CHECK_EQ(IsConcentrationSpell(1133), false);  // the Move: a Bonus Action, no cast

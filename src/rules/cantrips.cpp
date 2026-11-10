@@ -232,7 +232,7 @@ int BonusActionFeatOfSpell(int spell) {
 
 bool IsBonusActionSpellFeat(int feat) {
   return feat == kFeatProduceFlame || feat == kFeatShillelaghForce || feat == kFeatShillelaghWeapon ||
-         feat == kFeatHealingWord;  // #39 2a build 1b: its cast's slot spent by rules_spells2024.cpp
+         IsSlotSpellBonusFeat(feat);  // #39 2a builds 1b, 2a: its cast's slot spent by rules_spells2024.cpp
 }
 
 int SorcerousBurstDamage(int dice, int extra_cap, int (*roll_d8)(void* context), void* context, int* extra_out) {

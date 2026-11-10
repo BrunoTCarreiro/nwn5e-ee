@@ -13,6 +13,8 @@
 // Wounds, False Life, Dissonant Whispers, Thunderwave, Ice Knife. Their numbers, their areas and their upcasting.
 // Build 1b (owner, 2026-11-09: "go for 1b"): Healing Word (a Bonus Action spell that spends a slot), Chromatic Orb
 // (a damage-type menu, its orb leaping on matching dice), Heroism (Concentration: Temporary Hit Points each turn).
+// Build 2a (owner, 2026-11-10: "go for build 2"): the buffs - Bless, Bane, Shield of Faith, Mage Armor, Divine
+// Favor, Protection from Evil and Good, Sanctuary, Expeditious Retreat, Longstrider, Hunter's Mark.
 
 namespace rules {
 
@@ -105,6 +107,71 @@ bool TemporaryHitPointsReplace(int current, int offered);
 constexpr int kIceKnifeExplosionDie = 6;
 constexpr int kIceKnifeExplosionFeet = 5;
 int IceKnifeExplosionDice(int slot_level);
+// Build 2a.
+constexpr int kBless = 6;
+constexpr int kBane = 449;
+constexpr int kShieldOfFaith = 450;
+constexpr int kMageArmor = 102;
+constexpr int kDivineFavor = 414;
+constexpr int kProtectionFromEvilAndGood = 321;  // NWN's Protection from Alignment, one spell now
+constexpr int kSanctuary = 154;
+constexpr int kExpeditiousRetreat = 456;
+constexpr int kLongstrider = 1161;
+constexpr int kHuntersMark = 1162;
+// The Bonus Action spells' rows their feats cast, and two Bonus Actions while a spell lasts.
+constexpr int kShieldOfFaithBonus = 1163;
+constexpr int kDivineFavorBonus = 1164;
+constexpr int kSanctuaryBonus = 1165;
+constexpr int kExpeditiousRetreatBonus = 1166;
+constexpr int kHuntersMarkBonus = 1167;
+constexpr int kExpeditiousRetreatDash = 1168;  // Expeditious Retreat's Dash, a Bonus Action each turn
+constexpr int kHuntersMarkMove = 1169;         // Hunter's Mark moved to a new creature
+constexpr int kFeatShieldOfFaith = 1556;
+constexpr int kFeatDivineFavor = 1557;
+constexpr int kFeatSanctuary = 1558;
+constexpr int kFeatExpeditiousRetreat = 1559;
+constexpr int kFeatHuntersMark = 1560;
+constexpr int kFeatExpeditiousDash = 1561;
+constexpr int kFeatHuntersMarkMove = 1562;
+
+// A spell cast with a Bonus Action that spends a slot (Healing Word's way, build 1b): its order becomes the use of
+// `feat`, which casts `bonus_row` (instant, one Bonus Action a round); the order's slot is spent by the script.
+struct BonusActionSpell {
+  int spell = -1;      // the row on the class lists
+  int bonus_row = -1;  // the row its feat casts
+  int feat = -1;
+  int feet = 0;        // its range (0: Self)
+  const char* name = "";
+};
+const std::vector<BonusActionSpell>& BonusActionSpells();
+// By its row or its feat's row (null: none).
+const BonusActionSpell* BonusActionSpellOf(int row);
+// The feats of those spells and of the Bonus Actions they give while they last (Expeditious Retreat's Dash,
+// Hunter's Mark's move) - each a Bonus Action (action_economy.h); "" / false for any other feat.
+bool IsSlotSpellBonusFeat(int feat);
+const char* SlotSpellBonusFeatName(int feat);
+
+// Bless and Bane: 1d4 added to (Bane: taken from) attack rolls and saving throws; three creatures, one more for
+// each slot level above 1 (nwn5e: the nearest to the spot aimed at, within 30 feet of you).
+constexpr int kBlessDie = 4;
+constexpr int kBlessFeet = 30;
+int BlessTargets(int slot_level);
+// Shield of Faith: +2 AC. Mage Armor: a base AC of 13 + Dexterity while no armour is worn.
+constexpr int kShieldOfFaithAc = 2;
+int MageArmorBaseAc(int dexterity_modifier);
+// Divine Favor: a weapon hit's extra 1d4 Radiant. Hunter's Mark: an attack roll's hit on the quarry, 1d6 Force.
+// A Critical Hit rolls them twice.
+constexpr int kDivineFavorDie = 4;
+constexpr int kHuntersMarkDie = 6;
+// Hunter's Mark's Concentration: 1 hour; 8 hours with a level 3-4 slot, 24 with a level 5+ one.
+int HuntersMarkHours(int slot_level);
+// Longstrider: +10 feet of Speed; one creature, one more for each slot level above 1.
+constexpr int kLongstriderFeet = 10;
+int LongstriderTargets(int slot_level);
+// Protection from Evil and Good: the creature types it wards against (NWN's racial types: Aberration, Elemental,
+// Fey, Outsider - a Celestial or a Fiend -, Undead).
+bool WardedAgainstRacialType(int nwn_racial_type);
+
 // Chromatic Orb: two or more of its d8s alike - the orb leaps to another creature within 30 feet of the target (a
 // new attack roll, a new damage roll), at most as many times as the slot's level, each creature once a casting.
 bool HasMatchingDice(const std::vector<int>& rolls);

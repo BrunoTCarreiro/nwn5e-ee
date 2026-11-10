@@ -689,6 +689,10 @@ std::vector<std::string> RageCommand(void* creature, const std::string& args) {
 
 }  // namespace
 
+// #39 2a build 2a (rules_spells2024.cpp: Mage Armor): the chest item's base AC, a shield in hand.
+int ChestArmorClassOf(void* creature) { return ChestArmorClass(creature); }
+bool HoldsShieldOf(void* creature) { return HoldsShield(creature); }
+
 // B4: the AC an unarmoured Barbarian adds (GetArmorClassVersus and the sheet).
 int UnarmoredDefenseBonus(void* stats) {
   if (BarbarianLevelOf(stats) < 1) return 0;

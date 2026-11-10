@@ -40,6 +40,7 @@
 
 int RollSpellAttackD20(void* caster, void* target, bool ranged, std::string* note);  // rules_advantage.cpp
 
+int BlessDie(void* creature, const char* what);  // rules_spells2024.cpp (#39 2a: Bless, Bane)
 namespace {
 
 using TouchCommandFn = int (*)(void* commands, int command, int parameters);
@@ -60,6 +61,8 @@ struct Touch {
   void* target = nullptr;
   int bonus = 0;
   bool bonus_known = false;
+  int blessing = 0;  // #39 2a: Bless's +1d4 / Bane's -1d4, rolled once a touch attack
+  bool blessing_rolled = false;
 };
 Touch g_touch;
 LogOnce g_logged(300);
@@ -123,7 +126,11 @@ int TouchAttackBonus(void* stats, int value, bool ranged) {
   const int effects = g_total_effect_bonus ? g_total_effect_bonus(creature, ee::kEffectBonusTypeTouchAttack, nullptr,
                                                                   0, 0, 0, 0, 0xFF, 0xFF, 0)
                                            : 0;
-  const int bonus = casting + effects;
+  if (!g_touch.blessing_rolled) {
+    g_touch.blessing = BlessDie(creature, "spell attack roll");
+    g_touch.blessing_rolled = true;
+  }
+  const int bonus = casting + effects + g_touch.blessing;
   g_touch.bonus = bonus;
   g_touch.bonus_known = true;
   if (g_config.log_attacks && g_logged.First(LogOnce::Key(ObjectIdOf(stats), value, bonus) ^ (ranged ? 1ull << 63 : 0))) {

@@ -81,6 +81,7 @@ bool IsDownHenchmanUnderRules(uint32_t id);  // rules_dying.cpp
 void ClericOnHeal(void* object, void* effect);
 int PotentSpellcastingBonus(void* caster, int spell);
 void PotentSpellcastingVitality(void* caster, int spell);
+void HuntersMarkSpellHit(uint32_t caster, uint32_t target, bool critical);  // rules_spells2024.cpp (#39 2a)
 namespace {
 
 // #150 (owner, 2026-11-09: "go with your recommendation for #150"): a cantrip's cast plays n5_cantrip in place of
@@ -319,6 +320,9 @@ void Cast(uint32_t self, int spell) {
     const uint32_t id = static_cast<uint32_t>(strtoul(target.c_str(), nullptr, 16));
     const uint64_t now = GameMs();
     if (amount > 0) PotentSpellcastingVitality(object, spell);  // #42 1c: Improved Blessed Strikes (14)
+    if (cantrip->roll == rules::CantripRoll::kRangedSpellAttack || cantrip->roll == rules::CantripRoll::kMeleeSpellAttack) {
+      HuntersMarkSpellHit(self, id, critical);  // #39 2a build 2a: an attack roll's hit on the quarry
+    }
     if (spell == 1051) g_no_healing[id] = now + kUntilEndOfNextTurnMs;
     if (spell == 1052) g_no_reactions[id] = now + kUntilYourNextTurnMs;
     if (spell == 1056) g_mocked[id] = now + kUntilEndOfNextTurnMs;

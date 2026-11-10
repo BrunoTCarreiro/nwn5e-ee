@@ -129,6 +129,10 @@ const std::vector<int> kSpells = {
     1131,  // nwn5e_Dancing_Lights - Dancing Lights (#39 build 4b)
     1132,  // nwn5e_Dancing_Lights_Lights - Dancing Lights (its Move, 1133, is no cast)
     1160,  // nwn5e_Heroism - Heroism (#39 2a build 1b)
+    1162,  // nwn5e_Hunters_Mark - Hunter's Mark (#39 2a build 2a)
+    1163,  // nwn5e_Shield_of_Faith_Bonus_Action - Shield of Faith (its Bonus Action's row)
+    1166,  // nwn5e_Expeditious_Retreat_Bonus_Action - Expeditious Retreat (its Bonus Action's row)
+    1167,  // nwn5e_Hunters_Mark_Bonus_Action - Hunter's Mark (its Bonus Action's row)
 };
 
 }  // namespace
