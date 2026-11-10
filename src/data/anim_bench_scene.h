@@ -43,6 +43,10 @@ bool ReadBenchRequest(const std::string& first_line, BenchRequest* request, std:
 // fight nor die, tagged "n5sb_target"; sets local string "n5sb_spawned" = "id;id;" in spot order.
 std::string BenchSpawnScript(const std::vector<Spot>& spots, const std::string& enemy);
 std::string BenchClearScript();  // destroys every "n5sb_target"
+// Run as the player before the spawn: the Test Grounds' cast mark in its area (#156; n5test_cast_field / _hall / _dark,
+// nearest first) - the player jumps onto it, and local string "n5sb_mark" is its tag, which BenchSpawnScript then
+// spawns the formation round (its position and facing); "" with no mark, and the formation goes round the player.
+std::string BenchMarkScript();
 std::string BenchCastScript(uint32_t target, int row);  // run as the PC: face the target, ActionCastFakeSpellAtObject
 
 }  // namespace data
