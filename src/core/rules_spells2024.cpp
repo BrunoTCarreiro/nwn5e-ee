@@ -687,11 +687,18 @@ bool SpentThisTurn(uint32_t id, bool* bonus) {
 // Healing Word's order becomes its feat's use (instant, a Bonus Action); a slot spell after a Bonus Action one the same
 // turn is refused. True: the order refused.
 bool OrderGuard(void* creature, const SpellOrder& order) {
-  if (!Faithful() || !ActionEconomyOn() || !creature || order.fake || t_bonus_cast || order.class_slot < 0 ||
-      order.class_slot > 7) {
-    return false;
-  }
+  if (!Faithful() || !creature || order.fake || t_bonus_cast) return false;
   const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  // 0.99.3 (owner, 2026-11-10: "why does heroism need to be cast first before checking if it's a willing target? Is
+  // it the rules?"): Heroism's "a willing creature" - an enemy isn't one, so it's no target: refused before the
+  // cast, nothing spent (the script's own check stays for a cast with no order).
+  if (static_cast<int>(order.spell) == rules::kHeroism && order.target != id && CreatureById(order.target) &&
+      engine::IsEnemy(creature, order.target)) {
+    TellPlayer(id, "nwn5e: Heroism - a willing creature, not an enemy.");
+    if (LogSlot()) Log("spells2024: 0x%08X Heroism at 0x%08X refused - an enemy (nothing spent)", id, order.target);
+    return true;
+  }
+  if (!ActionEconomyOn() || order.class_slot < 0 || order.class_slot > 7) return false;
   if (static_cast<int>(order.spell) != rules::kHealingWord) {
     bool bonus = false;
     if (InnateLevel(order.spell) >= 1 && SpentThisTurn(id, &bonus) && bonus) {
