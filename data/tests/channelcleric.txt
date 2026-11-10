@@ -1,0 +1,15 @@
+# A !test profile ([debug] test_commands=1): type "!test channelcleric" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# #42 Cleric Part 1 build 1a: Channel Divinity. Your first class becomes Cleric 5 (Sear Undead), Wisdom 16:
+# the DC 8 + 3 + 3 = 14, Sear Undead 3d8, Preserve Life 25 Hit Points.
+name = Channel Divinity (issue 42): human Cleric 5, Wisdom 16 - Divine Spark, Turn Undead, Sear Undead, Preserve Life
+species = human
+swap_class = cleric
+class = cleric
+level = 5
+abilities = 10 10 14 10 16 12
+items = nw_wdbqs001 equip
+note = the Turn Undead button (class abilities) is Channel Divinity and its menu; its uses show on the resource panel
+note = !spawn nw_skeleton for an undead; !spawn nw_orcb ally for a creature to heal; !reflex 30 25 to get Bloodied

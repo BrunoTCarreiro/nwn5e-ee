@@ -21,12 +21,16 @@
 // - Sounds at a point (Q6 A, Q7 A): Minor Illusion's (voices, footsteps, a roar, thunder), Thaumaturgy's Phantom
 //   Sound (whispers, thunder), Druidcraft's Animal Sound - the game's own sound files. Voices, footsteps and
 //   whispers draw the creatures hostile to the caster that hear them (60 ft): they come to look, as for a light put
-//   out (heard_investigates). A roar, thunder or the animal's sound makes animals, beasts and vermin flee for 2
-//   rounds (rules::FleesFromScaringSound); the others come to look. None fighting, talking or the caster's own.
-// - Minor Illusion's image (an object, a humanoid, a small creature: a barrel, a commoner, a leopard) for 1 minute -
+//   out (heard_investigates). #152 B: a roar, thunder or the animal's sound scares as the leopard does, by the size
+//   of what seems to make it (rules::ReactionToSound): one not hostile, or smaller, flees for 2 rounds (a sentient
+//   one comes back to look, and searches if hostile); a hostile one that size or larger comes to look (and searches,
+//   if sentient). None fighting, talking or the caster's own.
+// - Minor Illusion's image (treasure, a corpse, a humanoid, a small creature: the game's treasure pile, corpse,
+//   commoner and leopard) for 1 minute -
 //   inert, unseen by the AI, passed through. #152: those that see it react by what they are (rules::ReactionToImage)
 //   - a sentient hostile one studies it (d20 + Intelligence against the spell save DC), an animal flees or attacks
-//   it, the leopard by size; seen through or hit, it vanishes, and a sentient hostile one searches for the caster.
+//   it, the leopard by size; the treasure drawing hands, the corpse a study or an animal's meal; seen through,
+//   hit or touched, it vanishes, and a sentient hostile one searches for the caster.
 //   Cast again, it ends.
 // - Dancing Lights: four lights (NWN's 5 m yellow light and a glow) at the point, Concentration 1 minute; its
 //   Move a Bonus Action (bonus_actions.h), up to 60 ft and within 120 ft (the order's point, action_guard.h).
@@ -532,6 +536,7 @@ const char* NothingLine(UtilityEffect effect) {
 
 using rules::ImageKind;
 using rules::SoundPlay;
+using rules::SoundReaction;
 
 bool Investigates() { return g_config.heard_investigates && g_config.perception == rules::RuleVariant::kFaithful; }
 
@@ -654,8 +659,7 @@ bool IsMinorIllusion(int row) {
   return cantrip && cantrip->master == rules::kMinorIllusion;
 }
 
-// A sound at the point (Q6 A, Q7 A): its creatures - animals, beasts and vermin flee a scaring one for 2 rounds;
-// the others hostile to the caster come to look (heard_investigates); none fighting.
+// A sound at the point (Q6 A, Q7 A; #152 B): the invisible object playing it (PlaySoundAt: who reacts, and how).
 const char* const kSound = R"nss(
 location l = GetLocalLocation(OBJECT_SELF, "n5c_at");
 object s = CreateObject(OBJECT_TYPE_PLACEABLE, "plc_invisobj", l, FALSE, "n5c_sound");
@@ -664,45 +668,25 @@ $MORE
 DestroyObject(s, 8.0);
 )nss";
 
-void PlaySoundAt(uint32_t self, void* caster, UtilityEffect effect, const std::string& name) {
-  const SoundPlay play = rules::SoundPlayOf(effect);
-  std::string code = kSound;
-  Replace(&code, "$SOUND", rules::SoundResrefOf(effect));
-  // Footsteps: a few, one after another.
-  Replace(&code, "$MORE", effect == UtilityEffect::kIllusionFootsteps
-                              ? "DelayCommand(0.6, AssignCommand(s, PlaySound(\"fs_dirt_hard2\")));"
-                                "DelayCommand(1.2, AssignCommand(s, PlaySound(\"fs_dirt_hard3\")));"
-                                "DelayCommand(1.8, AssignCommand(s, PlaySound(\"fs_dirt_hard1\")));"
-                              : "");
-  CreatingFireLight(true);  // light_sources.cpp: the invisible object a normal placeable, so the clients hear it
-  Run(code, self, "a sound");
-  CreatingFireLight(false);
-  std::vector<std::string> done;
-  for (const Near& n : NearOf(caster, self, rules::kSoundHearingFeet * kMetresPerFoot, false)) {
-    if (play == SoundPlay::kScares && rules::FleesFromScaringSound(n.race)) {
-      std::string flee = kFlee;
-      Replace(&flee, "$ID", Hex(n.id));
-      Replace(&flee, "$SECONDS", std::to_string(rules::kScareSeconds) + ".0");
-      Run(flee, self, "a creature fleeing");
-      done.push_back(engine::GetLocalString(caster, "n5c_name") + " flees");
-    } else if (n.enemy && Investigates()) {
-      std::string look = kLook;
-      Replace(&look, "$ID", Hex(n.id));
-      Replace(&look, "$ARRIVE", "");
-      Replace(&look, "$WAIT", "6.0");
-      Run(look, self, "a creature coming to look");
-      done.push_back(engine::GetLocalString(caster, "n5c_name") + " comes to look");
-    }
-  }
-  TellPlayer(self, "nwn5e: " + name + " - " + (done.empty() ? std::string("no one near reacts") : Joined(done)) + ".");
-  if (LogSlot()) Log("cantrips: 0x%08X %s (%s): %zu react", self, name.c_str(), rules::SoundResrefOf(effect), done.size());
-}
-
-// Minor Illusion's image at the point for 1 minute - the game's own barrel, commoner or leopard, inert: plot, unseen by
+// Minor Illusion's image at the point for 1 minute - the game's own treasure pile, corpse, commoner or leopard
+// (an object named for the menu), inert: plot, unseen by
 // the AI (EffectEthereal, tagged: a creature that attacks it sees it for the blow, #152) and passed through
 // (EffectCutsceneGhost: "things can pass through it"). Its object, name and size are kept on the caster.
+// 0.97.2 (owner, 2026-11-09: "the corpse and the treasure are floating"): a click on the floor sends a point 0.3-0.4 m
+// over the walkmesh (Magic Mark's logs: "the floor sent (54.42 10.20 0.30)" over a walkmesh at 0.00); a creature
+// lands on the walkmesh, a placeable stays where it's put - so the point goes down onto the walkmesh first
+// (GetGroundHeight; -6 off it), and how far is kept for the log.
 const char* const kImage = R"nss(
 location l = GetLocalLocation(OBJECT_SELF, "n5c_at");
+float g = GetGroundHeight(l);
+string lift = "";
+if (g > -5.9) {
+  vector p = GetPositionFromLocation(l);
+  lift = FloatToString(p.z - g, 0, 2);
+  l = Location(GetAreaFromLocation(l), Vector(p.x, p.y, g), GetFacingFromLocation(l));
+  SetLocalLocation(OBJECT_SELF, "n5c_at", l);
+}
+SetLocalString(OBJECT_SELF, "n5c_image_lift", lift);
 object i;
 if ($CREATURE) {
   i = CreateObject(OBJECT_TYPE_CREATURE, "$BLUEPRINT", l, FALSE, "n5c_image");
@@ -716,6 +700,7 @@ if ($CREATURE) {
   i = CreateObject(OBJECT_TYPE_PLACEABLE, "$BLUEPRINT", l, FALSE, "n5c_image");
   SetUseableFlag(i, FALSE);
   SetPlotFlag(i, TRUE);
+  SetName(i, "$NAME");
 }
 SetLocalObject(OBJECT_SELF, "n5c_image", i);
 DestroyObject(i, $SECONDS);
@@ -734,7 +719,7 @@ SetLocalInt(OBJECT_SELF, "n5c_image_size", $CREATURE ? GetCreatureSize(i) : 0);
 using rules::AfterStudy;
 using rules::ImageReaction;
 
-enum class Stage { kComing, kFleeing, kFledAgain, kCharging, kStriking, kSearching };
+enum class Stage { kComing, kTouching, kFleeing, kFledAgain, kCharging, kStriking, kSearching };
 
 struct Reactor {
   uint32_t caster = 0;
@@ -749,6 +734,7 @@ struct Reactor {
   Stage stage = Stage::kComing;
   std::string name;
   std::string image_name;
+  bool sound = false;  // a sound's (#152 B): nothing there to study
 };
 std::unordered_map<uint32_t, Reactor> g_reactors;  // by creature
 
@@ -877,6 +863,18 @@ void Flee(uint32_t self, Reactor& r, bool again) {
       "an illusion's watcher fleeing");
 }
 
+// Coming to touch it - to take the treasure, to feed on the corpse - walking, not searching.
+const char* const kApproach = R"nss(
+ClearAllActions();
+ActionMoveToLocation(GetLocalLocation(OBJECT_SELF, "n5c_mi_at"));
+)nss";
+
+void Approach(uint32_t self, Reactor& r) {
+  r.stage = Stage::kTouching;
+  Run(std::string(kApproach) + Next(kStudyScript, r.serial) + Later(kLateSeconds, kLateScript, r.serial), self,
+      "an illusion's watcher coming to it");
+}
+
 const char* const kCharge = R"nss(
 ClearAllActions();
 ActionMoveToLocation(GetLocalLocation(OBJECT_SELF, "n5c_mi_at"), TRUE);
@@ -945,9 +943,10 @@ void Study(uint32_t self, Reactor& r, const Check& check) {
   const std::string name = r.name;
   const std::string image = r.image_name;
   if (!check.image_there) {
-    Note(self, r, "finds the image gone");
+    Note(self, r, r.sound ? "finds nothing there" : "finds the image gone");
     if (!rules::SearchesAfterVanish(r.sentient, r.hostile)) return GoBack(self, true);
-    Tell(caster, name + " finds the " + image + " gone and searches for you");
+    Tell(caster, name + (r.sound ? " finds nothing where the sound was" : " finds the " + image + " gone") +
+                     " and searches for you");
     return Search(self, r);
   }
   const int d20 = RollEngineDice(1, 20);
@@ -976,6 +975,26 @@ void Study(uint32_t self, Reactor& r, const Check& check) {
       Tell(caster, line);
       return GoBack(self, true);
   }
+}
+
+// At it, it touches it (SRD 5.2.1: "Physical interaction with the image reveals it to be an illusion"): a hand
+// through the treasure, nothing to bite in the corpse. The image vanishes (Q4 A); a sentient hostile one then
+// searches for its caster, any other goes back. Gone already: as a study finds it.
+void Touch(uint32_t self, Reactor& r, const Check& check) {
+  if (!check.image_there) return Study(self, r, check);
+  const std::string name = r.name;
+  const bool treasure = r.kind == ImageKind::kTreasure;
+  const std::string line = name + (treasure ? " reaches for the " : " comes to feed on the ") + r.image_name +
+                           (treasure ? ": its hand passes through it" : ": it finds nothing to bite") +
+                           " - the illusion fades";
+  Note(self, r, "touches it - the image vanishes");
+  Vanish(r.image, self);
+  if (rules::SearchesAfterVanish(r.sentient, r.hostile)) {
+    Tell(r.caster, line + "; " + name + " searches for you");
+    return Search(self, r);
+  }
+  Tell(r.caster, line);
+  GoBack(self, false);
 }
 
 // A blow at the image (or none in kBlowSeconds): it passes through, and the image vanishes; a sentient attacker then
@@ -1028,12 +1047,13 @@ void StruckUpdate(void* /*creature*/) {
 // The handlers: each runs as the reacting creature.
 void OnStudyScript(uint32_t self) {
   Reactor* r = ReactorCalled(self);
-  if (!r || r->stage != Stage::kComing) return;
+  if (!r || (r->stage != Stage::kComing && r->stage != Stage::kTouching)) return;
   const Check check = CheckOf(self);
   if (check.fighting) {
     Note(self, *r, "is fighting - no study");
     return LetGo(self, false);
   }
+  if (r->stage == Stage::kTouching) return Touch(self, *r, check);
   Study(self, *r, check);
 }
 
@@ -1074,9 +1094,13 @@ void OnLateScript(uint32_t self) {
     if (g_reactors.count(self) && g_reactors[self].stage == Stage::kStriking) GoBack(self, false);
     return;
   }
-  if (r->stage != Stage::kComing && r->stage != Stage::kCharging) return;
+  if (r->stage != Stage::kComing && r->stage != Stage::kCharging && r->stage != Stage::kTouching) return;
   const Check check = CheckOf(self);
   if (check.fighting) return LetGo(self, false);
+  if (r->stage == Stage::kTouching) {
+    Note(self, *r, "never got there in 30 s - goes back");
+    return GoBack(self, true);
+  }
   if (r->stage == Stage::kComing) {
     Note(self, *r, "never got there in 30 s - studies it from where it stands");
     return Study(self, *r, check);
@@ -1101,7 +1125,7 @@ object u = StringToObject("$CASTER");
 SetLocalInt(OBJECT_SELF, "nwn5e_seek", 120);
 SetLocalLocation(OBJECT_SELF, "n5c_mi_home", GetLocation(OBJECT_SELF));
 SetLocalLocation(OBJECT_SELF, "n5c_mi_at", GetLocalLocation(u, "n5c_at"));
-SetLocalObject(OBJECT_SELF, "n5c_mi_image", GetLocalObject(u, "n5c_image"));
+SetLocalObject(OBJECT_SELF, "n5c_mi_image", $IMAGE);
 SetLocalString(u, "n5c_name", GetName(OBJECT_SELF));
 )nss";
 
@@ -1112,6 +1136,7 @@ const char* ReactionName(ImageReaction reaction) {
     case ImageReaction::kFleeThenStudy: return "flees, then comes back to study it";
     case ImageReaction::kAttack: return "attacks it";
     case ImageReaction::kAttackThenSearch: return "attacks it, then searches";
+    case ImageReaction::kTouch: return "comes to touch it";
     default: return "ignores it";
   }
 }
@@ -1119,12 +1144,19 @@ const char* ReactionName(ImageReaction reaction) {
 void MakeImage(uint32_t self, void* caster, UtilityEffect effect, const std::string& name) {
   const ImageKind kind = rules::ImageKindOf(effect);
   std::string code = kImage;
-  Replace(&code, "$CREATURE", kind == ImageKind::kObject ? "FALSE" : "TRUE");
+  Replace(&code, "$CREATURE", rules::ImageIsObject(kind) ? "FALSE" : "TRUE");
+  Replace(&code, "$NAME", rules::ImageNameOf(kind));
   Replace(&code, "$BLUEPRINT", rules::ImageBlueprintOf(kind));
   Replace(&code, "$SECONDS", std::to_string(rules::kMinorIllusionSeconds) + ".0");
   Run(code, self, "Minor Illusion's image");
   const std::string image = engine::GetLocalString(caster, "n5c_image_name");
   const int image_size = engine::GetLocalInt(caster, "n5c_image_size");
+  const std::string lift = engine::GetLocalString(caster, "n5c_image_lift");
+  if (LogSlot()) {
+    Log("cantrips: 0x%08X Minor Illusion's %s %s", self, image.c_str(),
+        lift.empty() ? "where the cast's point is (no walkmesh under it)"
+                     : ("on the walkmesh - the cast's point was " + lift + " m over it").c_str());
+  }
   unsigned int image_id = 0;
   sscanf_s(engine::GetLocalString(caster, "n5c_image_id").c_str(), "%x", &image_id);
   for (auto it = g_images.begin(); it != g_images.end();) {  // its earlier image ended with this cast
@@ -1140,6 +1172,7 @@ void MakeImage(uint32_t self, void* caster, UtilityEffect effect, const std::str
       if (reaction == ImageReaction::kIgnore) continue;
       std::string start = kWatcher;
       Replace(&start, "$CASTER", Hex(self));
+      Replace(&start, "$IMAGE", "GetLocalObject(u, \"n5c_image\")");
       Run(start, n.id, "an illusion's watcher");
       Reactor r;
       r.caster = self;
@@ -1175,12 +1208,120 @@ void MakeImage(uint32_t self, void* caster, UtilityEffect effect, const std::str
           Charge(n.id, kept);
           done.push_back(r.name + " attacks it");
           break;
+        case ImageReaction::kTouch:
+          Approach(n.id, kept);
+          done.push_back(r.name + (kind == ImageKind::kTreasure ? " comes for it" : " comes to feed"));
+          break;
         default: break;
       }
     }
   }
   TellPlayer(self, "nwn5e: " + name + " - a " + image + " there for a minute" +
                        (done.empty() ? std::string(".") : "; " + Joined(done) + "."));
+}
+
+// A sound at the point (Q6 A, Q7 A; #152 B, owner, 2026-11-09: "B"): a drawing one brings the hostile creatures that
+// hear it to look; a scaring one scares as the leopard does, by the size of what seems to make it
+// (rules::ReactionToSound) - one not hostile, or smaller, flees for 2 rounds (a sentient one then comes back to look,
+// and a hostile one finding nothing searches for the caster); a hostile one that size or larger comes to look (a
+// sentient one then searches). The coming to look is heard_investigates' (faithful perception); the fleeing isn't.
+const char* SoundReactionName(SoundReaction reaction) {
+  switch (reaction) {
+    case SoundReaction::kLook: return "comes to look";
+    case SoundReaction::kLookThenSearch: return "comes to look, then searches";
+    case SoundReaction::kFlee: return "flees";
+    case SoundReaction::kFleeThenLook: return "flees, then comes back to look";
+    default: return "ignores it";
+  }
+}
+
+// A creature that heard a sound and reacts in steps: a Reactor with nothing to study (its image none).
+Reactor& HeardBy(uint32_t self, void* caster, const Near& n, bool sentient, ImageReaction reaction) {
+  std::string start = kWatcher;
+  Replace(&start, "$CASTER", Hex(self));
+  Replace(&start, "$IMAGE", "OBJECT_INVALID");
+  Run(start, n.id, "a sound's listener");
+  Reactor r;
+  r.caster = self;
+  r.reaction = reaction;
+  r.hostile = n.enemy;
+  r.sentient = sentient;
+  r.intelligence = n.intelligence;
+  r.serial = ++g_serial;
+  r.name = engine::GetLocalString(caster, "n5c_name");
+  r.image_name = "sound";
+  r.sound = true;
+  return g_reactors[n.id] = r;
+}
+
+void PlaySoundAt(uint32_t self, void* caster, UtilityEffect effect, const std::string& name) {
+  const SoundPlay play = rules::SoundPlayOf(effect);
+  const int sound_size = rules::SoundSizeOf(effect);
+  std::string code = kSound;
+  Replace(&code, "$SOUND", rules::SoundResrefOf(effect));
+  // Footsteps: a few, one after another.
+  Replace(&code, "$MORE", effect == UtilityEffect::kIllusionFootsteps
+                              ? "DelayCommand(0.6, AssignCommand(s, PlaySound(\"fs_dirt_hard2\")));"
+                                "DelayCommand(1.2, AssignCommand(s, PlaySound(\"fs_dirt_hard3\")));"
+                                "DelayCommand(1.8, AssignCommand(s, PlaySound(\"fs_dirt_hard1\")));"
+                              : "");
+  CreatingFireLight(true);  // light_sources.cpp: the invisible object a normal placeable, so the clients hear it
+  Run(code, self, "a sound");
+  CreatingFireLight(false);
+  std::vector<std::string> done;
+  for (const Near& n : NearOf(caster, self, rules::kSoundHearingFeet * kMetresPerFoot, false)) {
+    const bool sentient = rules::IsSentient(n.race, n.intelligence_score);
+    SoundReaction reaction = rules::ReactionToSound(play, sentient, n.enemy, n.size, sound_size);
+    if (!Investigates()) {
+      reaction = reaction == SoundReaction::kFlee || reaction == SoundReaction::kFleeThenLook ? SoundReaction::kFlee
+                                                                                               : SoundReaction::kIgnore;
+    }
+    if (reaction == SoundReaction::kIgnore) continue;
+    std::string who;
+    switch (reaction) {
+      case SoundReaction::kFlee: {
+        std::string flee = kFlee;
+        Replace(&flee, "$ID", Hex(n.id));
+        Replace(&flee, "$SECONDS", std::to_string(rules::kScareSeconds) + ".0");
+        Run(flee, self, "a creature fleeing");
+        who = engine::GetLocalString(caster, "n5c_name");
+        done.push_back(who + " flees");
+        break;
+      }
+      case SoundReaction::kLook: {
+        std::string look = kLook;
+        Replace(&look, "$ID", Hex(n.id));
+        Replace(&look, "$ARRIVE", "");
+        Replace(&look, "$WAIT", "6.0");
+        Run(look, self, "a creature coming to look");
+        who = engine::GetLocalString(caster, "n5c_name");
+        done.push_back(who + " comes to look");
+        break;
+      }
+      case SoundReaction::kFleeThenLook: {
+        Reactor& r = HeardBy(self, caster, n, sentient, ImageReaction::kFleeThenStudy);
+        who = r.name;
+        Flee(n.id, r, false);
+        done.push_back(who + " flees");
+        break;
+      }
+      case SoundReaction::kLookThenSearch: {
+        Reactor& r = HeardBy(self, caster, n, sentient, ImageReaction::kStudy);
+        who = r.name;
+        ComeToLook(n.id, r);
+        done.push_back(who + " comes to look");
+        break;
+      }
+      default: break;
+    }
+    if (LogSlot()) {
+      Log("cantrips: 0x%08X %s: 0x%08X (%s) %s - racial type %d, Intelligence %d (%s), %s, size %d vs %d", self,
+          name.c_str(), n.id, who.c_str(), SoundReactionName(reaction), n.race, n.intelligence_score,
+          sentient ? "sentient" : "not sentient", n.enemy ? "hostile" : "not hostile", n.size, sound_size);
+    }
+  }
+  TellPlayer(self, "nwn5e: " + name + " - " + (done.empty() ? std::string("no one near reacts") : Joined(done)) + ".");
+  if (LogSlot()) Log("cantrips: 0x%08X %s (%s): %zu react", self, name.c_str(), rules::SoundResrefOf(effect), done.size());
 }
 
 // Dancing Lights: four lights at the point (NWN's 5 m yellow light - Dim Light for the stealth rules - and a glow for
@@ -1385,25 +1526,41 @@ int HandAt(uint32_t self, uint32_t id, std::string* name) {
   return r;
 }
 
-// Q1 A: Beckon Water at the ground leaves a puddle for 1 minute, Beckon Earth a dust patch for 10 - looks for now
-// (vfx_persistent rows 103-104: Grease's slick; a dust puff a round, kDustHeartbeat), #142 their rules.
-constexpr const char* kDustHeartbeat = "n5c_dust_hb";
+// Q1 A: Beckon Water at the ground leaves a puddle for 1 minute, Beckon Earth a dust patch for 10 - an area effect
+// with no look (vfx_persistent rows 103-104) for #142's rules. 0.97.5 (owner, 2026-11-09: "swap them in, keep 10
+// minutes"): the look the game's own puddle or flat dirt patch (rules::PatchBlueprintOf, shrunk by PatchScaleOf), on
+// the walkmesh under the point (the click's point is 0.3-0.4 m over it), a random turn; its blueprint is static, so it
+// is loaded as a normal placeable (CreatingFireLight), plot. It goes with the area effect.
+const char* const kPatch = R"nss(
+location l = GetLocalLocation(OBJECT_SELF, "n5c_at");
+ApplyEffectAtLocation(DURATION_TYPE_TEMPORARY, EffectAreaOfEffect($AOE, "", "", ""), l, $SECONDS);
+vector p = GetPositionFromLocation(l);
+float g = GetGroundHeight(l);
+if (g > -5.9) p.z = g;
+object o = CreateObject(OBJECT_TYPE_PLACEABLE, "$BLUEPRINT", Location(GetAreaFromLocation(l), p, IntToFloat(Random(360))),
+                        FALSE, "n5c_patch");
+SetPlotFlag(o, TRUE);
+SetUseableFlag(o, FALSE);
+if ($SCALE != 1.0) SetObjectVisualTransform(o, OBJECT_VISUAL_TRANSFORM_SCALE, $SCALE);
+DestroyObject(o, $SECONDS);
+SetLocalInt(OBJECT_SELF, "n5c_patch_made", GetIsObjectValid(o));
+)nss";
 
 void PlacePatch(uint32_t self, UtilityEffect effect) {
-  char code[300];
-  sprintf_s(code,
-            "ApplyEffectAtLocation(DURATION_TYPE_TEMPORARY, EffectAreaOfEffect(%d, \"\", \"%s\", \"\"), "
-            "GetLocalLocation(OBJECT_SELF, \"n5c_at\"), %d.0);",
-            rules::PatchAreaEffectOf(effect), effect == UtilityEffect::kBeckonEarth ? kDustHeartbeat : "",
-            rules::PatchSecondsOf(effect));
+  std::string code = kPatch;
+  Replace(&code, "$AOE", std::to_string(rules::PatchAreaEffectOf(effect)));
+  Replace(&code, "$SECONDS", std::to_string(rules::PatchSecondsOf(effect)) + ".0");
+  Replace(&code, "$BLUEPRINT", rules::PatchBlueprintOf(effect));
+  Replace(&code, "$SCALE", Num(rules::PatchScaleOf(effect)));
+  CreatingFireLight(true);  // light_sources.cpp: the static blueprint loaded as a normal placeable
   Run(code, self, "a patch");
-  if (LogSlot()) Log("cantrips: 0x%08X a patch (area effect %d) for %d s", self, rules::PatchAreaEffectOf(effect),
-                     rules::PatchSecondsOf(effect));
-}
-
-void DustHeartbeat(uint32_t self) {
-  Run("ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_DUST_EXPLOSION), GetLocation(OBJECT_SELF));",
-      self, "the dust patch");
+  CreatingFireLight(false);
+  void* caster = CreatureById(self);
+  if (LogSlot()) {
+    Log("cantrips: 0x%08X a patch (area effect %d, %s x%.2f%s) for %d s", self, rules::PatchAreaEffectOf(effect),
+        rules::PatchBlueprintOf(effect), rules::PatchScaleOf(effect),
+        caster && engine::GetLocalInt(caster, "n5c_patch_made") ? "" : " - NOT made", rules::PatchSecondsOf(effect));
+  }
 }
 
 
@@ -1512,8 +1669,7 @@ bool BoomingVoiceAdvantage(void* creature, int nwn_skill) {
 }
 
 void InstallUtilityCantrips() {
-  const bool scripts = AddScriptHandler("n5_c_utility", &UtilityScript) &&
-                       AddScriptHandler(kDustHeartbeat, &DustHeartbeat);
+  const bool scripts = AddScriptHandler("n5_c_utility", &UtilityScript);
   const bool hooks = AddSpellOrderGuard(&DancingLightsMoveGuard) && AddCreatureUpdateListener(&LightsUpdate);
   Log("cantrips: build 4a - Druidcraft, Elementalism, Prestidigitation, Thaumaturgy, Mage Hand (Fire Play, the doors, "
       "Booming Voice, Magic Mark) (#39 Part 1)%s",

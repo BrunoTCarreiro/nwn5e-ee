@@ -2,6 +2,7 @@
 
 #include "rules/cantrips.h"
 #include "rules/class_features.h"
+#include "rules/spells2024.h"
 
 namespace rules {
 
@@ -39,6 +40,7 @@ const char* BonusActionName(int feat) {
   if (feat == kFeatStepOfTheWindFree) return "Step of the Wind: Dash";
   if (feat == kFeatProduceFlame) return "Produce Flame";  // #39 build 3a
   if (feat == kFeatShillelaghForce || feat == kFeatShillelaghWeapon) return "Shillelagh";  // #39 build 3b
+  if (feat == kFeatHealingWord) return "Healing Word";  // #39 2a build 1b
   return "";
 }
 

@@ -124,6 +124,9 @@ def rows_for(table):
     for prefix, names in MASTERIES.items():
         if table.startswith(prefix):
             rows += mastery_rows(names)
+    if table.startswith('PackFTCler'):  # #42: Divine Order at Cleric 1 - Protector the default
+        rows += [(1551, 'NWN5E_DO_PROTECTOR'), (1552, 'NWN5E_DO_THAUMATURGE')]
+        rows += [(1553, 'NWN5E_BS_DIVINE_STRIKE'), (1554, 'NWN5E_BS_POTENT_SPELLCASTING')]  # Blessed Strikes at 7
     for prefix, feats in ORIGIN.items():
         if table.startswith(prefix):
             rows += feats

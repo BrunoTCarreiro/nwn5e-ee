@@ -63,14 +63,19 @@ bool IsChoosableFeat2024(int feat, bool masteries);
 // Mastery kinds the level adds (`masteries`). feat_cadence writes their sum
 // as the class's bonus-feat slots; the screens' feat filter keeps each
 // group to its count.
-enum class BonusFeatGroup { kOther, kGeneral, kFightingStyle, kWeaponMastery, kOrigin };
+// #42 (0.98.3): a Cleric's Divine Order at Cleric 1 (`styles`: class_features faithful), a pick of its own -
+// neither the general pick nor taken by it.
+// #42 1c (0.98.5): its Blessed Strikes at Cleric 7, the same way.
+enum class BonusFeatGroup { kOther, kGeneral, kFightingStyle, kWeaponMastery, kOrigin, kDivineOrder, kBlessedStrikes };
 BonusFeatGroup BonusFeatGroupOf(int feat);
 struct BonusPicks {
   int general = 0;
   int style = 0;
   int mastery = 0;
   int origin = 0;  // Origin feats only: a Human's Versatile pick at level 1 (set by the caller)
-  int Total() const { return general + style + mastery + origin; }
+  int order = 0;   // Divine Order (Cleric 1)
+  int strikes = 0;  // Blessed Strikes (Cleric 7)
+  int Total() const { return general + style + mastery + origin + order + strikes; }
 };
 BonusPicks BonusPicks2024(CharacterClass character_class, int class_level, bool styles, bool masteries);
 // Whether this level's picks (`taken`, by group) fit `allowed`: each group

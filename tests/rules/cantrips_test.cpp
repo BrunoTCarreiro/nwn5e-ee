@@ -307,7 +307,7 @@ TEST(UtilityCantripEffects) {
   CHECK_EQ(CantripRangeFeet(1050), 0);    // not one
 }
 
-// #39 build 4b: the sounds - which draw creatures, which scare beasts away (Q7 A), and who flees.
+// #39 build 4b: the sounds - which draw creatures, which scare (Q7 A); #152 B: who flees, by size.
 TEST(UtilitySounds) {
   CHECK_EQ(SoundPlayOf(UtilityEffect::kIllusionVoices) == SoundPlay::kDraws, true);
   CHECK_EQ(SoundPlayOf(UtilityEffect::kIllusionFootsteps) == SoundPlay::kDraws, true);
@@ -316,13 +316,34 @@ TEST(UtilitySounds) {
   CHECK_EQ(SoundPlayOf(UtilityEffect::kIllusionThunder) == SoundPlay::kScares, true);
   CHECK_EQ(SoundPlayOf(UtilityEffect::kPhantomThunder) == SoundPlay::kScares, true);
   CHECK_EQ(SoundPlayOf(UtilityEffect::kAnimalSound) == SoundPlay::kScares, true);
-  CHECK_EQ(SoundPlayOf(UtilityEffect::kImageObject) == SoundPlay::kNone, true);
+  CHECK_EQ(SoundPlayOf(UtilityEffect::kImageTreasure) == SoundPlay::kNone, true);
   CHECK_EQ(SoundPlayOf(UtilityEffect::kFirePlay) == SoundPlay::kNone, true);
-  CHECK_EQ(FleesFromScaringSound(8), true);    // animal
-  CHECK_EQ(FleesFromScaringSound(9), true);    // beast
-  CHECK_EQ(FleesFromScaringSound(25), true);   // vermin
-  CHECK_EQ(FleesFromScaringSound(19), false);  // magical beast
-  CHECK_EQ(FleesFromScaringSound(6), false);   // humanoid
+  // #152 B (owner: "B"): the roar a Large beast's, thunder Medium, the animal sound a wolf's (Medium).
+  CHECK_EQ(SoundSizeOf(UtilityEffect::kIllusionRoar), 4);
+  CHECK_EQ(SoundSizeOf(UtilityEffect::kIllusionThunder), 3);
+  CHECK_EQ(SoundSizeOf(UtilityEffect::kPhantomThunder), 3);
+  CHECK_EQ(SoundSizeOf(UtilityEffect::kAnimalSound), 3);
+  CHECK_EQ(SoundSizeOf(UtilityEffect::kIllusionVoices), 0);
+  // Voices: a hostile creature comes to look, whatever it is; others ignore them.
+  const SoundPlay draws = SoundPlay::kDraws;
+  CHECK_EQ(ReactionToSound(draws, true, true, 2, 0) == SoundReaction::kLook, true);
+  CHECK_EQ(ReactionToSound(draws, false, true, 3, 0) == SoundReaction::kLook, true);
+  CHECK_EQ(ReactionToSound(draws, true, false, 3, 0) == SoundReaction::kIgnore, true);
+  // The roar (Large): a goblin and an orc flee, then come back to look; an ogre comes to look and searches; a wolf
+  // flees; a bear comes to look and goes back; a deer and a commoner (not hostile) flee.
+  const SoundPlay scares = SoundPlay::kScares;
+  CHECK_EQ(ReactionToSound(scares, true, true, 2, 4) == SoundReaction::kFleeThenLook, true);   // goblin
+  CHECK_EQ(ReactionToSound(scares, true, true, 3, 4) == SoundReaction::kFleeThenLook, true);   // orc
+  CHECK_EQ(ReactionToSound(scares, true, true, 4, 4) == SoundReaction::kLookThenSearch, true); // ogre
+  CHECK_EQ(ReactionToSound(scares, false, true, 3, 4) == SoundReaction::kFlee, true);          // wolf
+  CHECK_EQ(ReactionToSound(scares, false, true, 4, 4) == SoundReaction::kLook, true);          // bear
+  CHECK_EQ(ReactionToSound(scares, false, false, 3, 4) == SoundReaction::kFlee, true);         // deer
+  CHECK_EQ(ReactionToSound(scares, true, false, 5, 4) == SoundReaction::kFleeThenLook, true);  // not hostile
+  // Thunder (Medium): an orc comes to look and searches, a goblin flees, a wolf comes to look.
+  CHECK_EQ(ReactionToSound(scares, true, true, 3, 3) == SoundReaction::kLookThenSearch, true);
+  CHECK_EQ(ReactionToSound(scares, true, true, 2, 3) == SoundReaction::kFleeThenLook, true);
+  CHECK_EQ(ReactionToSound(scares, false, true, 3, 3) == SoundReaction::kLook, true);
+  CHECK_EQ(ReactionToSound(SoundPlay::kNone, true, true, 3, 3) == SoundReaction::kIgnore, true);
   for (UtilityEffect e : {UtilityEffect::kIllusionVoices, UtilityEffect::kIllusionFootsteps,
                           UtilityEffect::kIllusionRoar, UtilityEffect::kIllusionThunder, UtilityEffect::kPhantomWhispers,
                           UtilityEffect::kPhantomThunder, UtilityEffect::kAnimalSound}) {
@@ -333,19 +354,28 @@ TEST(UtilitySounds) {
   CHECK_EQ(kScareSeconds, 12);  // 2 rounds
 }
 
-// #39 build 4b: Minor Illusion's menu - four sounds and three images - and seeing through an image.
+// #39 build 4b: Minor Illusion's menu - four sounds and four images (#152: the treasure and the corpse in the
+// barrel's place) - and seeing through an image.
 TEST(MinorIllusion) {
   const ChoiceCantrip* illusion = ChoiceCantripOf(kMinorIllusion);
   CHECK_EQ(illusion != nullptr, true);
-  CHECK_EQ(illusion->options.size(), 7u);  // one radial page
-  CHECK_EQ(RadialChoicePage(7, 0).more, false);
+  CHECK_EQ(illusion->options.size(), 8u);  // one radial page
+  CHECK_EQ(RadialChoicePage(8, 0).more, false);
   CHECK_EQ(UtilityEffectOf(kMinorIllusion) == UtilityEffect::kIllusionVoices, true);  // no choice: the first
   CHECK_EQ(UtilityEffectOf(1127) == UtilityEffect::kIllusionThunder, true);
   CHECK_EQ(UtilityEffectOf(1130) == UtilityEffect::kImageCreature, true);
-  CHECK_EQ(ImageKindOf(UtilityEffectOf(1128)) == ImageKind::kObject, true);
+  CHECK_EQ(ImageKindOf(UtilityEffectOf(1128)) == ImageKind::kTreasure, true);
+  CHECK_EQ(ImageKindOf(UtilityEffectOf(1141)) == ImageKind::kCorpse, true);
+  CHECK_EQ(ChoiceCantripOf(1141)->master, kMinorIllusion);
   CHECK_EQ(ImageKindOf(UtilityEffectOf(1129)) == ImageKind::kHumanoid, true);
   CHECK_EQ(ImageKindOf(UtilityEffect::kIllusionVoices) == ImageKind::kNone, true);
-  CHECK_EQ(strcmp(ImageBlueprintOf(ImageKind::kObject), "plc_barrel"), 0);
+  CHECK_EQ(strcmp(ImageBlueprintOf(ImageKind::kTreasure), "plc_treasurelrg"), 0);  // the large pile (0.97.2)
+  CHECK_EQ(strcmp(ImageBlueprintOf(ImageKind::kCorpse), "plc_corpse1"), 0);
+  CHECK_EQ(ImageIsObject(ImageKind::kTreasure) && ImageIsObject(ImageKind::kCorpse), true);
+  CHECK_EQ(ImageIsObject(ImageKind::kHumanoid) || ImageIsObject(ImageKind::kCreature), false);
+  CHECK_EQ(strcmp(ImageNameOf(ImageKind::kTreasure), "Treasure Pile"), 0);
+  CHECK_EQ(strcmp(ImageNameOf(ImageKind::kCorpse), "Corpse"), 0);
+  CHECK_EQ(ImageNameOf(ImageKind::kCreature)[0], 0);  // the blueprint's own name
   CHECK_EQ(strcmp(ImageBlueprintOf(ImageKind::kHumanoid), "nw_commale"), 0);
   CHECK_EQ(strcmp(ImageBlueprintOf(ImageKind::kCreature), "nw_cat"), 0);
   CHECK_EQ(ImageBlueprintOf(ImageKind::kNone)[0], 0);
@@ -386,11 +416,18 @@ TEST(IllusionReactions) {
   CHECK_EQ(ReactionToImage(cat, true, true, 3, 3) == ImageReaction::kAttackThenSearch, true);  // an orc
   CHECK_EQ(ReactionToImage(cat, true, true, 4, 3) == ImageReaction::kAttackThenSearch, true);  // an ogre
   CHECK_EQ(ReactionToImage(cat, false, true, 3, 3) == ImageReaction::kAttack, true);           // a wolf
-  // The barrel: only a sentient hostile one comes to study it.
-  const ImageKind barrel = ImageKind::kObject;
-  CHECK_EQ(ReactionToImage(barrel, true, true, 3, 0) == ImageReaction::kStudy, true);
-  CHECK_EQ(ReactionToImage(barrel, false, true, 3, 0) == ImageReaction::kIgnore, true);
-  CHECK_EQ(ReactionToImage(barrel, true, false, 3, 0) == ImageReaction::kIgnore, true);
+  // The treasure (owner: "A, go with treasure and corpse"): a sentient hostile one comes to take it - touching it
+  // reveals it; others ignore it.
+  const ImageKind gold = ImageKind::kTreasure;
+  CHECK_EQ(ReactionToImage(gold, true, true, 3, 0) == ImageReaction::kTouch, true);
+  CHECK_EQ(ReactionToImage(gold, false, true, 3, 0) == ImageReaction::kIgnore, true);
+  CHECK_EQ(ReactionToImage(gold, true, false, 3, 0) == ImageReaction::kIgnore, true);
+  // The corpse: a sentient hostile one studies it, a hostile animal comes to feed on it (touching it); others ignore it.
+  const ImageKind corpse = ImageKind::kCorpse;
+  CHECK_EQ(ReactionToImage(corpse, true, true, 3, 0) == ImageReaction::kStudy, true);
+  CHECK_EQ(ReactionToImage(corpse, false, true, 3, 0) == ImageReaction::kTouch, true);
+  CHECK_EQ(ReactionToImage(corpse, true, false, 3, 0) == ImageReaction::kIgnore, true);
+  CHECK_EQ(ReactionToImage(corpse, false, false, 3, 0) == ImageReaction::kIgnore, true);
   CHECK_EQ(ReactionToImage(ImageKind::kNone, true, true, 3, 3) == ImageReaction::kIgnore, true);
   // After a study (Q4 A): seen through, it vanishes - a hostile one searches, others go back; fooled, one flees the
   // leopard again, else goes back.
@@ -398,7 +435,7 @@ TEST(IllusionReactions) {
   CHECK_EQ(AfterStudyOf(cat, true, false) == AfterStudy::kVanishThenGoBack, true);
   CHECK_EQ(AfterStudyOf(cat, false, true) == AfterStudy::kFleeAgain, true);
   CHECK_EQ(AfterStudyOf(man, false, true) == AfterStudy::kGoBack, true);
-  CHECK_EQ(AfterStudyOf(barrel, false, true) == AfterStudy::kGoBack, true);
+  CHECK_EQ(AfterStudyOf(corpse, false, true) == AfterStudy::kGoBack, true);  // fooled: a wary look round, back
   // The image gone (seen through or hit): a sentient hostile one searches for the caster.
   CHECK_EQ(SearchesAfterVanish(true, true), true);
   CHECK_EQ(SearchesAfterVanish(false, true), false);
@@ -427,6 +464,13 @@ TEST(DancingLightsAndPatches) {
   CHECK_EQ(PatchSecondsOf(UtilityEffect::kBeckonWater), 60);   // its water evaporates in 1 minute
   CHECK_EQ(PatchSecondsOf(UtilityEffect::kBeckonEarth), 600);  // the owner's 10 minutes
   CHECK_EQ(PatchSecondsOf(UtilityEffect::kBeckonAir), 0);
+  // 0.97.5 (owner: "swap them in, keep 10 minutes"): the game's puddle and its flat dirt patch, shrunk to 5 feet.
+  CHECK_EQ(strcmp(PatchBlueprintOf(UtilityEffect::kBeckonWater), "nw_plc_puddle1"), 0);
+  CHECK_EQ(strcmp(PatchBlueprintOf(UtilityEffect::kBeckonEarth), "x3_plc_dirt001"), 0);
+  CHECK_EQ(PatchBlueprintOf(UtilityEffect::kBeckonFire)[0], 0);
+  CHECK_EQ(PatchScaleOf(UtilityEffect::kBeckonEarth) * 2.5f > 1.45f && PatchScaleOf(UtilityEffect::kBeckonEarth) * 2.5f < 1.55f,
+           true);  // the 5-foot square
+  CHECK_EQ(PatchScaleOf(UtilityEffect::kBeckonWater), 1.0f);
 }
 
 // 0.90.1: the effect icon each shows while it lasts - effecticons.2da rows 130-160, past the game's 129.

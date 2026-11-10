@@ -44,6 +44,8 @@
 rules::SkillSet BackgroundSkills(void* creature);  // rules_abilities.cpp (CM5)
 int RageSkillAbility(void* creature, rules::Skill2024 skill, int modifier);  // rules_barbarian.cpp (B7)
 
+int ThaumaturgeSkillBonus(void* stats, rules::Skill2024 skill);  // rules_cleric.cpp (#42: Divine Order)
+
 namespace {
 
 using TotalEffectBonusFn = int (*)(void* creature, uint8_t type, void* vs, int a3, int a4, uint8_t a5, uint8_t a6,
@@ -256,9 +258,10 @@ bool SkillValue2024(void* stats, int skill, void* vs, int* value, SkillParts* pa
   }
   const int pb = rules::ProficiencyBonusForCreature(character, facts.level, facts.challenge_rating);
   const int effects =
-      g_total_effect_bonus ? g_total_effect_bonus(creature, ee::kEffectBonusTypeSkill, vs, 0, 0, 0, 0,
+      (g_total_effect_bonus ? g_total_effect_bonus(creature, ee::kEffectBonusTypeSkill, vs, 0, 0, 0, 0,
                                                   static_cast<uint8_t>(skill), 0xFF, 0)
-                           : 0;
+                           : 0) +
+      ThaumaturgeSkillBonus(stats, *mapped);  // #42: Divine Order: Thaumaturge's Wisdom on Arcana and Religion
   const int key_modifier = engine::AbilityModifier(stats, static_cast<int>(rules::AbilityFor(*mapped)));
   parts->ability = RageSkillAbility(creature, *mapped, key_modifier);  // Barbarian B7: Strength while raging
   parts->rage_strength = parts->ability != key_modifier;

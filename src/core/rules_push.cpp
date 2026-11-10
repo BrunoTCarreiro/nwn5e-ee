@@ -164,13 +164,13 @@ void* AreaOf(void* object) { return object ? E().get_area(object) : nullptr; }
 
 // The line straight away from the attacker, as far as walkable ground and
 // placeables allow (in 0.5 m steps, 3 m first).
-PushPlan PlanPush(void* target, void* attacker, float distance, bool corpse_ok = false) {
+PushPlan PlanPush(void* target, void* attacker, float distance, bool corpse_ok = false, bool any_size = false) {
   PushPlan plan;
   if (!corpse_ok && engine::IsDeadOrDying(target)) {
     plan.refused = "dead";
     return plan;
   }
-  if (Field<int32_t>(target, ee::kCreatureSize) > ee::kCreatureSizeLarge) {
+  if (!any_size && Field<int32_t>(target, ee::kCreatureSize) > ee::kCreatureSizeLarge) {
     plan.refused = "larger than Large";
     return plan;
   }
@@ -677,13 +677,13 @@ bool g_on = false;
 
 }  // namespace
 
-std::string ShovePush(void* attacker, void* target, float metres, float* pushed) {
+std::string ShovePush(void* attacker, void* target, float metres, float* pushed, bool any_size) {
   if (pushed) *pushed = 0.0f;
   if (!g_on) return "the push is off";
   if (!attacker || !target) return "no creature";
   const uint32_t attacker_id = IdOf(attacker);
   const uint32_t target_id = IdOf(target);
-  const PushPlan plan = PlanPush(target, attacker, metres);
+  const PushPlan plan = PlanPush(target, attacker, metres, false, any_size);
   if (plan.refused) {
     if (LogSlot()) Log("push: shove 0x%08X on 0x%08X: not pushed (%s)", attacker_id, target_id, plan.refused);
     return plan.refused;

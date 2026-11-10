@@ -1,0 +1,12 @@
+# spells.2da - #42 Cleric Part 1 build 1a (owner, 2026-11-09: "A on all"; core/rules_cleric.cpp; PLAN.md "Phase 4"):
+# Channel Divinity's menu (Q4 A). With class_features faithful, Turn Undead's spell 308 (feat 294, NWN's Turn Undead
+# entry on the radial) is the master of these SubRadSpell rows (spells.cleric.if_classfeat2024.txt) - Divine Spark
+# (heal, Radiant, Necrotic) at another creature within 30 feet, Turn Undead, Preserve Life (Life Domain, Cleric 3) -
+# each with Master 308 and FeatID = a unique number * 65536 + 294 (16019-16023, clear of the others' 16000-16018).
+# Instant conjure, NWN's Turn Undead cast; the n5_cd_* scripts are run in C++ (no .ncs exists for them).
+Label Name IconResRef School Range VS MetaMagic TargetType ImpactScript Innate ConjTime ConjAnim CastAnim CastTime Proj ItemImmunity SubRadSpell1 SubRadSpell2 SubRadSpell3 SubRadSpell4 SubRadSpell5 Category Master UserType SpellDesc UseConcentration SpontaneouslyCast HostileSetting FeatID HasProjectile
+1142 nwn5e_CD_SparkHeal 16000694 is_CurLgtW V S s 0x00 0x02 n5_cd_heal 1 0 **** up 500 0 1 **** **** **** **** **** 2 308 3 16000699 0 0 0 1049821478 0
+1143 nwn5e_CD_SparkRadiant 16000695 is_SearLght V S s 0x00 0x02 n5_cd_rad 1 0 **** up 500 0 1 **** **** **** **** **** 1 308 3 16000699 0 0 1 1049887014 0
+1144 nwn5e_CD_SparkNecrotic 16000696 is_NegRay V S s 0x00 0x02 n5_cd_nec 1 0 **** up 500 0 1 **** **** **** **** **** 1 308 3 16000699 0 0 1 1049952550 0
+1145 nwn5e_CD_TurnUndead 16000697 ife_turn V P s 0x00 0x01 n5_cd_turn 1 0 **** up 500 0 1 **** **** **** **** **** 1 308 3 16000699 0 0 1 1050018086 0
+1146 nwn5e_CD_PreserveLife 16000698 is_HealCirc V P s 0x00 0x01 n5_cd_pres 1 0 **** up 500 0 1 **** **** **** **** **** 2 308 3 16000699 0 0 0 1050083622 0

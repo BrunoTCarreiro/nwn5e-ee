@@ -1,0 +1,6 @@
+# spells.2da - #42 Cleric Part 1 build 1a (core/rules_cleric.cpp): with class_features faithful, Turn Undead's spell
+# 308 is Channel Divinity's menu - its SubRadSpell rows 1142-1146 (spells.cleric.txt) - and its own script, which the
+# AI's Turn Undead and a quickbar button for the whole feat run, is the 2024 Turn Undead (n5_cd_turn). NWN mode keeps
+# nw_s2_turndead.
+ImpactScript SubRadSpell1 SubRadSpell2 SubRadSpell3 SubRadSpell4 SubRadSpell5
+308 n5_cd_turn 1142 1143 1144 1145 1146

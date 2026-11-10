@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "rules/class_features.h"
+#include "rules/cleric.h"
 #include "rules/progression.h"
 #include "rules/weapons.h"
 
@@ -18,7 +19,9 @@ bool IsChoosableFeat2024(int feat, bool masteries) {
   if (IsOriginFeat2024(feat)) return true;
   if (masteries && WeaponKindOfMasteryFeat(feat) >= 0) return true;
   if (AsiFeatFromId(feat)) return true;  // C7: the ASI's choices (the older ASI rows are no longer taken)
-  return BonusFeatGroupOf(feat) == BonusFeatGroup::kFightingStyle;
+  const BonusFeatGroup group = BonusFeatGroupOf(feat);
+  return group == BonusFeatGroup::kFightingStyle || group == BonusFeatGroup::kDivineOrder ||
+         group == BonusFeatGroup::kBlessedStrikes;
 }
 
 AbilityIncrease AsiSplit(int split) {
@@ -70,6 +73,8 @@ BonusFeatGroup BonusFeatGroupOf(int feat) {
   if (IsOriginFeat2024(feat)) return BonusFeatGroup::kOrigin;
   if (feat >= kFeatFightingStyleArchery && feat <= kFeatFightingStyleTwoWeapon) return BonusFeatGroup::kFightingStyle;
   if (WeaponKindOfMasteryFeat(feat) >= 0) return BonusFeatGroup::kWeaponMastery;
+  if (IsDivineOrderFeat(feat)) return BonusFeatGroup::kDivineOrder;
+  if (IsBlessedStrikesFeat(feat)) return BonusFeatGroup::kBlessedStrikes;
   return BonusFeatGroup::kOther;
 }
 
@@ -77,6 +82,8 @@ BonusPicks BonusPicks2024(CharacterClass character_class, int class_level, bool 
   BonusPicks picks;
   picks.general = IsFeatLevel2024(character_class, class_level) ? 1 : 0;
   picks.style = styles && IsFightingStyleLevel2024(character_class, class_level) ? 1 : 0;
+  picks.order = styles && character_class == CharacterClass::kCleric && class_level == 1 ? 1 : 0;
+  picks.strikes = styles && character_class == CharacterClass::kCleric && class_level == 7 ? 1 : 0;
   if (masteries && class_level >= 1) {
     picks.mastery = WeaponMasterySlots(character_class, class_level) -
                     WeaponMasterySlots(character_class, class_level - 1);
@@ -86,7 +93,9 @@ BonusPicks BonusPicks2024(CharacterClass character_class, int class_level, bool 
 }
 
 bool FitsBonusPicks(const BonusPicks& taken, const BonusPicks& allowed) {
-  if (taken.mastery > allowed.mastery) return false;
+  if (taken.mastery > allowed.mastery || taken.order > allowed.order || taken.strikes > allowed.strikes) {
+    return false;
+  }
   // Styles and Origin feats past their own picks take the general one(s).
   const int overflow = std::max(0, taken.style - allowed.style) + std::max(0, taken.origin - allowed.origin);
   return taken.general + overflow <= allowed.general;

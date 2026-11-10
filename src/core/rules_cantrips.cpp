@@ -77,6 +77,10 @@
 int StabilizeDownPlayer(uint32_t id);        // rules_dying.cpp: 1 made Stable, 2 already, 0 not a down player
 bool IsDownHenchmanUnderRules(uint32_t id);  // rules_dying.cpp
 
+// rules_cleric.cpp (#42 1c): the Life Domain's healing, Potent Spellcasting.
+void ClericOnHeal(void* object, void* effect);
+int PotentSpellcastingBonus(void* caster, int spell);
+void PotentSpellcastingVitality(void* caster, int spell);
 namespace {
 
 // #150 (owner, 2026-11-09: "go with your recommendation for #150"): a cantrip's cast plays n5_cantrip in place of
@@ -303,6 +307,7 @@ void Cast(uint32_t self, int spell) {
     } else {
       amount = RollEngineDice(rules::CantripDiceRolled(level, critical), cantrip->die);
     }
+    amount += PotentSpellcastingBonus(object, spell);  // #42 1c: Blessed Strikes' Potent Spellcasting
     std::string apply = kDamage;
     Replace(&apply, "$TARGET", target);
     Replace(&apply, "$AMOUNT", std::to_string(amount));
@@ -313,6 +318,7 @@ void Cast(uint32_t self, int spell) {
     Run(apply, self, cantrip->script);
     const uint32_t id = static_cast<uint32_t>(strtoul(target.c_str(), nullptr, 16));
     const uint64_t now = GameMs();
+    if (amount > 0) PotentSpellcastingVitality(object, spell);  // #42 1c: Improved Blessed Strikes (14)
     if (spell == 1051) g_no_healing[id] = now + kUntilEndOfNextTurnMs;
     if (spell == 1052) g_no_reactions[id] = now + kUntilYourNextTurnMs;
     if (spell == 1056) g_mocked[id] = now + kUntilEndOfNextTurnMs;
@@ -723,8 +729,10 @@ void CantripScript(uint32_t self) {
   Cast(self, Spell);
 }
 
-// Chill Touch: a heal on a creature that can't regain Hit Points heals 0.
+// Chill Touch: a heal on a creature that can't regain Hit Points heals 0. #42 1c: the Life Domain's Disciple of
+// Life and Blessed Healer first (rules_cleric.cpp).
 int OnApplyHeal(void* handler, void* object, void* effect, int load) {
+  ClericOnHeal(object, effect);
   if (object && effect && !g_no_healing.empty()) {
     const uint32_t id = Field<uint32_t>(object, ee::kObjectId);
     if (Live(&g_no_healing, id) && Field<int32_t>(effect, ee::kEffectIntegerCount) > 0) {

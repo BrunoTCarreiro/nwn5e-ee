@@ -48,6 +48,8 @@ MasteryRollSources GrappleRollSources(void* attacker, void* target);
 MasteryRollSources MonkRollSources(void* attacker, void* target);
 // rules_cantrips.cpp (#39): Vicious Mockery - Disadvantage on the creature's next attack roll.
 MasteryRollSources MockeryRollSources(void* attacker);
+// rules_spells2024.cpp (#39 2a): Guiding Bolt - Advantage on the next attack roll against the target.
+MasteryRollSources GuidingBoltRollSources(void* target);
 // rules_rogue.cpp (R11): a Rogue 18+ not Incapacitated - no attack roll against it has Advantage.
 bool ElusiveTarget(void* creature);
 
@@ -166,6 +168,7 @@ void BeforeAttackRoll(AttackRoll& roll) {
   const MasteryRollSources steady = SteadyAimRollSources(roll.attacker);  // #53
   const MasteryRollSources hidden = HiddenAttackerRollSources(roll.attacker, target);  // #129
   const MasteryRollSources mocked = MockeryRollSources(roll.attacker);                 // #39
+  const MasteryRollSources guided = GuidingBoltRollSources(target);                    // #39 2a
   t_pending.conditions = conditions.note.empty() ? "" : "conditions: " + conditions.note;
   if (!mastery.note.empty()) {
     t_pending.conditions += (t_pending.conditions.empty() ? "mastery: " : "; mastery: ") + mastery.note;
@@ -187,6 +190,7 @@ void BeforeAttackRoll(AttackRoll& roll) {
     t_pending.conditions += (t_pending.conditions.empty() ? "hidden: " : "; hidden: ") + hidden.note;
   }
   if (!mocked.note.empty()) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + mocked.note;
+  if (!guided.note.empty()) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + guided.note;
   std::string heavy_note;
   const int heavy = HeavyWeaponDisadvantage(roll.attacker, terms.ranged, &heavy_note);
   if (heavy) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + heavy_note;
@@ -195,7 +199,7 @@ void BeforeAttackRoll(AttackRoll& roll) {
   t_pending.mode = rules::SituationalRollMode(
       terms, rules::RangedCloseCombat(terms.ranged, t_pending.point_blank_shot, t_pending.threats),
       conditions.advantage + mastery.advantage + studied.advantage + reckless.advantage + monk.advantage +
-          steady.advantage + hidden.advantage,
+          steady.advantage + hidden.advantage + guided.advantage,
       conditions.disadvantage + mastery.disadvantage + heavy + grappled.disadvantage + monk.disadvantage +
           mocked.disadvantage,
       elusive);
@@ -286,14 +290,16 @@ int RollSpellAttackD20(void* caster, void* target, bool ranged, std::string* not
     const bool point_blank_shot = ranged && engine::HasFeat(stats, ee::kFeatPointBlankShot);
     const int threats = ranged ? CountCloseCombatThreats(caster) : 0;
     const ConditionRollSources conditions = ConditionAttackRollSources(caster, target, ranged);
+    const MasteryRollSources guided = GuidingBoltRollSources(target);  // #39 2a
     const bool elusive = ElusiveTarget(target);
     mode = rules::SituationalRollMode(terms, rules::RangedCloseCombat(ranged, point_blank_shot, threats),
-                                      conditions.advantage, conditions.disadvantage, elusive);
+                                      conditions.advantage + guided.advantage, conditions.disadvantage, elusive);
     if (note) {
       *note = ModeName(mode);
       if (rules::NwnSituationalTotal(terms) != 0) *note += std::string(" (") + TermNames(terms) + ")";
       if (threats > 0) *note += "; close-combat enemies " + std::to_string(threats);
       if (!conditions.note.empty()) *note += "; conditions: " + conditions.note;
+      if (!guided.note.empty()) *note += "; " + guided.note;
       if (elusive) *note += "; Elusive: no Advantage";
     }
   }

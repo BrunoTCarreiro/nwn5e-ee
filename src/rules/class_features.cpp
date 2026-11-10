@@ -202,9 +202,41 @@ const std::vector<ClassFeature>& Monk() {
   return kFeatures;
 }
 
+// SRD 5.2.1 Cleric and the Life Domain (#42; owner, 2026-11-09: "A on all"; PLAN.md "Phase 4"), built part by part.
+const std::vector<ClassFeature>& Cleric() {
+  static const std::vector<ClassFeature> kFeatures = {
+      {1, "Spellcasting", false, "built: Wisdom; cantrips, prepared spells and slots (#36); the 2024 list's spells "
+                                 "level by level (#39 Part 2)"},
+      {1, "Divine Order", false, "built: the Cleric 1 pick (or !order) - Protector (Martial weapons, Heavy armour) "
+                                 "or Thaumaturge (a cantrip more, Wisdom on Arcana and Religion checks)"},
+      {2, "Channel Divinity", false, "built: the Turn Undead button's menu - Divine Spark (heal, Radiant or "
+                                     "Necrotic), Turn Undead; 2 uses (3 at 6, 4 at 18), one back on a Short Rest"},
+      {3, "Life Domain", false, "built: granted at 3"},
+      {3, "Disciple of Life", true, "built: a healing spell cast with a slot heals 2 + the slot's level more"},
+      {3, "Life Domain Spells", true, "with the spells (Part 1 build 2)"},
+      {3, "Preserve Life", true, "built: Channel Divinity - 5 x Cleric level among the Bloodied within 30 feet"},
+      {4, "Ability Score Improvement", false, "built (!asi)"},
+      {5, "Sear Undead", false, "built: Turn Undead's Wisdom-modifier d8s of Radiant damage"},
+      {6, "Blessed Healer", true, "built: healing others with a slot heals you 2 + the slot's level"},
+      {7, "Blessed Strikes", false, "built: the Cleric 7 pick - Divine Strike (a weapon hit's 1d8 Radiant or "
+                                    "Necrotic once a turn; !strike) or Potent Spellcasting (Wisdom on Sacred Flame)"},
+      {8, "Ability Score Improvement", false, "built (!asi)"},
+      {10, "Divine Intervention", false, "with the level 5 spells"},
+      {12, "Ability Score Improvement", false, "built (!asi)"},
+      {14, "Improved Blessed Strikes", false, "built: Divine Strike 2d8; Potent Spellcasting's Temporary Hit "
+                                              "Points (2 x Wisdom) when a Cleric cantrip deals damage"},
+      {16, "Ability Score Improvement", false, "built (!asi)"},
+      {17, "Supreme Healing", true, "Divine Spark built (the dice's maximum); the spells' with them"},
+      {19, "Epic Boon", false, "CM8"},
+      {20, "Greater Divine Intervention", false, "later (Wish)"},
+  };
+  return kFeatures;
+}
+
 bool HasFeatureList(CharacterClass character_class) {
   return character_class == CharacterClass::kFighter || character_class == CharacterClass::kBarbarian ||
-         character_class == CharacterClass::kRogue || character_class == CharacterClass::kMonk;
+         character_class == CharacterClass::kRogue || character_class == CharacterClass::kMonk ||
+         character_class == CharacterClass::kCleric;
 }
 
 bool HasDangerSense(int barbarian_level) { return barbarian_level >= 2; }
@@ -365,6 +397,8 @@ const std::vector<int>& NwnOnlyClassFeats() {
       834, 835, 836, 837, 838, 839, 840, 841, 842, 843,  // Epic Improved Sneak Attack 1-10
       208, 209, 214, 215, 216, 297,  // Still Mind, Purity of Body, Diamond Body, Diamond Soul, Perfect Self, Empty Body
       343, 344, 697, 698,            // Ki Strike 2-3, Epic Improved Ki Strike 4-5 (Ki Strike 213 stays: M10)
+      306, 307, 308, 310, 311, 312, 313, 314, 315, 316,  // the NWN Cleric domains' powers (#42 1c, CM9;
+      317, 318, 319, 320, 321, 322, 323, 324, 325,       // domains.2da GrantedFeat)
   };
   return kFeats;
 }
@@ -382,6 +416,9 @@ const char* NwnOnlyClassFeatName(int feat) {
     case 195: case 251: case 252: case 253: case 254: case 255: return "Uncanny Dodge";
     case 196: case 332: case 333: case 334: case 1067: return "Damage Reduction";
     case 206: return "Evasion";
+    case 306: case 307: case 308: case 310: case 311: case 312: case 313: case 314: case 315: case 316:
+    case 317: case 318: case 319: case 320: case 321: case 322: case 323: case 324: case 325:
+      return "the domain powers";
     case 222: return "Crippling Strike";
     case 223: return "Defensive Roll";
     case 224: return "Opportunist";
@@ -1024,6 +1061,7 @@ std::vector<ClassFeature> ClassFeatures2024(CharacterClass character_class, int 
                                            : character_class == CharacterClass::kBarbarian ? &Barbarian()
                                            : character_class == CharacterClass::kRogue     ? &Rogue()
                                            : character_class == CharacterClass::kMonk      ? &Monk()
+                                           : character_class == CharacterClass::kCleric    ? &Cleric()
                                                                                            : nullptr;
   if (!table) return features;
   for (const ClassFeature& feature : *table) {

@@ -53,6 +53,8 @@ void Count(rules::BonusPicks* taken, int feat) {
     case rules::BonusFeatGroup::kFightingStyle: ++taken->style; break;
     case rules::BonusFeatGroup::kWeaponMastery: ++taken->mastery; break;
     case rules::BonusFeatGroup::kOrigin: ++taken->origin; break;
+    case rules::BonusFeatGroup::kDivineOrder: ++taken->order; break;
+    case rules::BonusFeatGroup::kBlessedStrikes: ++taken->strikes; break;
     case rules::BonusFeatGroup::kOther: break;
   }
 }
@@ -200,6 +202,8 @@ std::string FeatPicksLine(void* stats, const void* chosen) {
   };
   part(human_first ? "Origin feat (Human)" : "Origin feat", allowed.origin - taken.origin, allowed.origin);
   part("Fighting Style", allowed.style - taken.style, allowed.style);
+  part("Divine Order", allowed.order - taken.order, allowed.order);
+  part("Blessed Strikes", allowed.strikes - taken.strikes, allowed.strikes);
   part("Weapon Masteries", allowed.mastery - taken.mastery, allowed.mastery);
   part("Ability Score Improvement or a feat", allowed.general - taken.general - overflow, allowed.general);
   return line.empty() ? "No feat choices at this level" : line;

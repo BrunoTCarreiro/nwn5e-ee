@@ -1,5 +1,7 @@
 #include "rules/cantrips.h"
 
+#include "rules/spells2024.h"
+
 #include <stdio.h>
 
 #include <algorithm>
@@ -85,6 +87,15 @@ std::vector<ChoiceCantrip> BuildChoiceCantrips() {
                        {1094, kDamageTypePsychic, "Psychic"},
                        {1095, kDamageTypeThunder, "Thunder"}}};
   all.push_back(burst);
+  // #39 2a build 1b: Chromatic Orb (a level 1 spell) the same way - its six types, each opening its slot levels.
+  ChoiceCantrip orb{kChromaticOrb, "n5_s_chromorb", ChoiceKind::kDamageType,
+                   {{kChromaticOrbAcid, kDamageTypeAcid, "Acid"},
+                    {kChromaticOrbCold, kDamageTypeCold, "Cold"},
+                    {kChromaticOrbFire, kDamageTypeFire, "Fire"},
+                    {kChromaticOrbLightning, kDamageTypeLightning, "Lightning"},
+                    {kChromaticOrbPoison, kDamageTypePoison, "Poison"},
+                    {kChromaticOrbThunder, kDamageTypeThunder, "Thunder"}}};
+  all.push_back(orb);
   ChoiceCantrip flame{kProduceFlame, "n5_c_produceflame", ChoiceKind::kMode,
                      {{kProduceFlameFlame, 0, "Flame"}, {kProduceFlameHurl, 1, "Hurl"}}};
   all.push_back(flame);
@@ -132,7 +143,8 @@ std::vector<ChoiceCantrip> BuildChoiceCantrips() {
                           {1125, effect(UtilityEffect::kIllusionFootsteps), "Sound: Footsteps"},
                           {1126, effect(UtilityEffect::kIllusionRoar), "Sound: Roar"},
                           {1127, effect(UtilityEffect::kIllusionThunder), "Sound: Thunder"},
-                          {1128, effect(UtilityEffect::kImageObject), "Image: Barrel"},
+                          {1128, effect(UtilityEffect::kImageTreasure), "Image: Treasure"},
+                          {1141, effect(UtilityEffect::kImageCorpse), "Image: Corpse"},
                           {1129, effect(UtilityEffect::kImageHumanoid), "Image: Humanoid"},
                           {1130, effect(UtilityEffect::kImageCreature), "Image: Small Creature"}}};
   all.push_back(illusion);
@@ -219,7 +231,8 @@ int BonusActionFeatOfSpell(int spell) {
 }
 
 bool IsBonusActionSpellFeat(int feat) {
-  return feat == kFeatProduceFlame || feat == kFeatShillelaghForce || feat == kFeatShillelaghWeapon;
+  return feat == kFeatProduceFlame || feat == kFeatShillelaghForce || feat == kFeatShillelaghWeapon ||
+         feat == kFeatHealingWord;  // #39 2a build 1b: its cast's slot spent by rules_spells2024.cpp
 }
 
 int SorcerousBurstDamage(int dice, int extra_cap, int (*roll_d8)(void* context), void* context, int* extra_out) {
@@ -501,8 +514,24 @@ SoundPlay SoundPlayOf(UtilityEffect effect) {
   }
 }
 
-bool FleesFromScaringSound(int nwn_racial_type) {
-  return nwn_racial_type == 8 || nwn_racial_type == 9 || nwn_racial_type == 25;
+int SoundSizeOf(UtilityEffect effect) {
+  switch (effect) {
+    case UtilityEffect::kIllusionRoar: return 4;  // a Large beast's (the bear's)
+    case UtilityEffect::kIllusionThunder:
+    case UtilityEffect::kPhantomThunder:
+    case UtilityEffect::kAnimalSound: return 3;  // Medium
+    default: return 0;
+  }
+}
+
+SoundReaction ReactionToSound(SoundPlay play, bool sentient, bool hostile, int size, int sound_size) {
+  switch (play) {
+    case SoundPlay::kDraws: return hostile ? SoundReaction::kLook : SoundReaction::kIgnore;
+    case SoundPlay::kScares:
+      if (!hostile || size < sound_size) return sentient ? SoundReaction::kFleeThenLook : SoundReaction::kFlee;
+      return sentient ? SoundReaction::kLookThenSearch : SoundReaction::kLook;
+    default: return SoundReaction::kIgnore;
+  }
 }
 
 const char* SoundResrefOf(UtilityEffect effect) {
@@ -520,7 +549,8 @@ const char* SoundResrefOf(UtilityEffect effect) {
 
 ImageKind ImageKindOf(UtilityEffect effect) {
   switch (effect) {
-    case UtilityEffect::kImageObject: return ImageKind::kObject;
+    case UtilityEffect::kImageTreasure: return ImageKind::kTreasure;
+    case UtilityEffect::kImageCorpse: return ImageKind::kCorpse;
     case UtilityEffect::kImageHumanoid: return ImageKind::kHumanoid;
     case UtilityEffect::kImageCreature: return ImageKind::kCreature;
     default: return ImageKind::kNone;
@@ -529,9 +559,20 @@ ImageKind ImageKindOf(UtilityEffect effect) {
 
 const char* ImageBlueprintOf(ImageKind kind) {
   switch (kind) {
-    case ImageKind::kObject: return "plc_barrel";
+    case ImageKind::kTreasure: return "plc_treasurelrg";
+    case ImageKind::kCorpse: return "plc_corpse1";
     case ImageKind::kHumanoid: return "nw_commale";
     case ImageKind::kCreature: return "nw_cat";
+    default: return "";
+  }
+}
+
+bool ImageIsObject(ImageKind kind) { return kind == ImageKind::kTreasure || kind == ImageKind::kCorpse; }
+
+const char* ImageNameOf(ImageKind kind) {
+  switch (kind) {
+    case ImageKind::kTreasure: return "Treasure Pile";
+    case ImageKind::kCorpse: return "Corpse";
     default: return "";
   }
 }
@@ -552,7 +593,10 @@ bool IsSentient(int nwn_racial_type, int intelligence_score) {
 
 ImageReaction ReactionToImage(ImageKind kind, bool sentient, bool hostile, int size, int image_size) {
   switch (kind) {
-    case ImageKind::kObject: return sentient && hostile ? ImageReaction::kStudy : ImageReaction::kIgnore;
+    case ImageKind::kTreasure: return sentient && hostile ? ImageReaction::kTouch : ImageReaction::kIgnore;
+    case ImageKind::kCorpse:
+      if (!hostile) return ImageReaction::kIgnore;
+      return sentient ? ImageReaction::kStudy : ImageReaction::kTouch;
     case ImageKind::kHumanoid:
       if (sentient) return hostile ? ImageReaction::kStudy : ImageReaction::kIgnore;
       return hostile ? ImageReaction::kAttack : ImageReaction::kFlee;
@@ -585,6 +629,17 @@ int PatchSecondsOf(UtilityEffect effect) {
   if (effect == UtilityEffect::kBeckonWater) return 60;
   if (effect == UtilityEffect::kBeckonEarth) return 600;
   return 0;
+}
+
+const char* PatchBlueprintOf(UtilityEffect effect) {
+  if (effect == UtilityEffect::kBeckonWater) return "nw_plc_puddle1";
+  if (effect == UtilityEffect::kBeckonEarth) return "x3_plc_dirt001";
+  return "";
+}
+
+float PatchScaleOf(UtilityEffect effect) {
+  if (effect == UtilityEffect::kBeckonEarth) return 0.6f;  // 2.5 m to 1.5 m
+  return 1.0f;
 }
 
 int MoveWeaponDamage(int16_t* entries, int count, uint32_t type) {

@@ -857,6 +857,20 @@ monster AC by CR.
     stays shut. Beckon Water at the ground: a puddle (vfx_persistent 103, Grease's slick) 1 minute; Beckon Earth: a
     dust patch (104, a dust puff a round) 10 minutes. Tests UtilitySounds, MinorIllusion, DancingLightsAndPatches; 16
     of 16 mutations caught.
+  - *The patches' looks - decided (owner, 2026-11-09: "swap them in, keep 10 minutes"),* after BW-1 ("we have to fix
+    the vfx for beckonwater") and BW-2 ("what sense does it make for a puff of dust to happen every turn? what's the
+    description for beckon earth anyway?" - SRD 5.2.1: "a thin shroud of dust or sand that covers surfaces in a
+    5-foot-square area", a still layer) and "beckon earth doesn't seem to stop" (its 10 minutes, Q1's). Until the
+    owner's n5v_puddle / n5v_dustpatch (#143), the game's own pieces stand in: the puddle NWN's Puddle 1
+    (nw_plc_puddle1, about 1.1 m across) for the minute, in place of Grease's slick (a stain made for Grease, far
+    wider than 5 feet); the dust NWN's flat Dirt Patch 1 (x3_plc_dirt001, 2.5 m, shrunk to 1.5 m - the 5-foot square)
+    for the 10 minutes, one dust burst at the cast and no puff a round. The area effects stay, with no look, for
+    #142's rules. *Built 0.97.5:* rules::PatchBlueprintOf, PatchScaleOf (test DancingLightsAndPatches); the patch's
+    placeable on the walkmesh under the point (GetGroundHeight - the click's point is 0.3-0.4 m over it), a random
+    turn, loaded as a normal placeable (light_sources.cpp's CreatingFireLight: the blueprints are static), plot, gone
+    with the area effect; vfx_persistent row 103 without Grease's model; the dust heartbeat (n5c_dust_hb) gone.
+    *Tested 0.97.5 (owner, 2026-11-09): BW-1b and BW-2b passed - "make a note that we need a bigger puddle"* (on #143:
+    the owner's n5v_puddle bigger than NWN's Puddle 1, about 1.1 m; the game's Puddle 2 is about 1.7 by 1.6 m).
   - *0.94.1 (owner, 2026-11-08: "there should be 5 new magic mark symbols, all tga with no alpha. can you wire them up
     for a test as well?"):* Magic Mark shows one of the owner's symbols (data/files/n5t_mark01-05.tga, 256 x 256)
     at random, flat on the ground and turned a random way: models n5v_mark01-05 (a 0.6 m quad just above the ground,
@@ -1050,6 +1064,197 @@ monster AC by CR.
       searches, others go back. One fighting is let go.
     - The caster is told each step ("Orc studies the Commoner: sees through the illusion (Investigation 15 vs DC 14)
       - the illusion fades; Orc searches for you").
+  - *The object image - decided (owner, 2026-11-09: "A, go with treasure and corpse"),* after "why a barrel? I don't
+    think that would make someone want to investigate or run away from. Maybe a pile of gold or a corpse, but a
+    barrel?" (the barrel was build 4b's stand-in for "an object"; nothing in the design asked for it). Over B (both
+    and the barrel: a ninth entry, a "More" page) and C (one of them): Treasure (NWN's small treasure pile) in the
+    barrel's row, and Corpse (NWN's corpse) a new row - 8 entries, one radial page. The treasure draws the sentient
+    hostile creatures, who reach for it: touching an image reveals it (SRD 5.2.1: "Physical interaction with the image
+    reveals it to be an illusion"), so no check - it vanishes and they search. The corpse: the sentient hostile ones
+    study it, as the humanoid; hostile animals come to feed on it, their touch revealing it, and go back. Others
+    ignore both.
+    *Built 0.97.1:* rules::ImageKind kTreasure (plc_treasuresml, row 1128 "Image: Treasure") and kCorpse
+    (plc_corpse1, row 1141 "Image: Corpse", string 16000693), ImageIsObject, ImageNameOf (the placeable named for
+    the menu), ImageReaction::kTouch. The core: a toucher walks to the image (not in search mode) and, there, its
+    touch vanishes it - "Orc reaches for the Treasure Pile: its hand passes through it - the illusion fades; Orc searches
+    for you", "Wolf comes to feed on the Corpse: it finds nothing to bite - the illusion fades"; not there in 30 s, it
+    goes back. Minor Illusion's description names the four images and the reactions.
+    *0.97.2 (owner, 2026-11-09: "the corpse and the treasure are floating, and is there a larger model to use as a
+    treasure?"):* a click on the floor sends a point 0.3-0.4 m over the walkmesh (Magic Mark's logs: "the floor sent
+    (54.42 10.20 0.30)", the walkmesh there at 0.00); a creature lands on the walkmesh, a placeable stays where it's
+    put. The image's point now goes down onto the walkmesh first (GetGroundHeight), logged with how far. The models
+    sit on their own base (the corpse's lowest point 0.02 m, the treasure piles' 0-0.07 m). The treasure is the large
+    pile (plc_treasurelrg, about 0.5 by 0.9 m, within the 5-foot Cube; the small one about 0.2 m, the medium 0.3 m).
+  - *The scaring sounds - decided (owner, 2026-11-09: "B"),* after "I would assume roar and thunder would have the
+    same efect as a leopard on weak goblins, what's the logic coded for the reaction?" (Q7 A's rule: animals, beasts
+    and vermin flee a roar or thunder for 2 rounds, every other hostile creature comes to look; no size, no mind). Over
+    A (the leopard's rule with what makes the sound Medium) and C (the roar only): the roar and thunder scare as the
+    leopard does, by the size of what seems to make them - the roar a Large beast's (the game's file is a bear's),
+    thunder Medium. A creature not hostile, or smaller, flees for 2 rounds; a sentient one then comes back, finds
+    nothing and, if hostile, searches for the caster. A hostile one that size or larger comes to look: a sentient one
+    searches, an animal looks round and goes back. Thaumaturgy's thunder is thunder (Medium); Druidcraft's animal
+    sound (a wolf's growl) Medium. Voices, footsteps and whispers as before.
+    *Built 0.97.3:* rules::SoundSizeOf (roar 4, thunder and the animal sound 3), ReactionToSound (kLook,
+    kLookThenSearch, kFlee, kFleeThenLook; FleesFromScaringSound gone). The core: every creature that hears it (60 ft)
+    and isn't ignoring it - the not-hostile ones too; a plain flight or look as before, and the two in steps as the
+    image's reactions (a Reactor with no image: coming back or getting there it finds nothing - "Orc finds nothing
+    where the sound was and searches for you"). Without heard_investigates (or faithful perception) only the flight.
+    The descriptions of Minor Illusion, Druidcraft and Thaumaturgy say so.
+    *Tested 0.97.3 (owner, 2026-11-09): "DR-1 the deer came closer to inspect the sound"* - the log: "Deer comes to
+    look - racial type 8, Intelligence 3 (not sentient), hostile, size 3 vs 3". The rule held (a hostile animal the
+    sound's size comes to look); the test didn't: !spawn makes every creature hostile, so no test could have a deer
+    that isn't. 0.97.4: "!spawn <blueprint> neutral" puts it in the commoners' faction; DR-1, MI-10, MI-11, MI-15,
+    MI-23 and MI-28 set up with it (and away from hostile creatures, which would attack a commoner).
+- **#39 Part 2, the levelled spells (owner, 2026-11-09: "go for 39 part 2").** SRD 5.2.1 has 312 levelled spells, NWN
+  274 class spells; 129 of the SRD's have an NWN version (98 the same, 16 renamed - Cure Light Wounds is Cure Wounds -
+  15 close), 183 are new; 137 of NWN's have no 2024 version (30 fold into one: Cure Moderate Wounds is Cure Wounds at
+  level 2, Lesser Dispel Dispel Magic). Level 1: 57 SRD spells (23 with an NWN version); level 2: 57 (26). They need
+  reactions (Shield, Feather Fall, Hellish Rebuke; Counterspell at 3), 19 Bonus Action spells at levels 1-2, the
+  smites; Concentration (#37) and upcasting (#36) are built; 29 rituals (none for now, #38). As Part 1: served rows and
+  C++ rules, NWN's visuals, the placeholder icon; faithful only; saves on the 2024 ability (C1), effects in saves (C7),
+  2024 areas, one slot a turn. (The matrix: an untracked research table of the SRD 5.2.1 text against spells.2da.)
+  - *Brief (2026-11-09):* Q1 order - A by level (2a level 1, 2b level 2 ...; damage and healing, then buffs and
+    conditions, then the rest), B by class with its brief (#41-#48). Q2 which - A those that do something in an NWN
+    game (about 40 of level 1's 57; the out-of-combat ones later), B all, each at least a visual and a line. Q3 class
+    lists - A 2024's (Hold Person a Wizard's level 2, Magic Weapon level 2, Hideous Laughter level 1, Sleep off the
+    Druid and Ranger, Grease Sorcerer / Wizard; the Warlock's wait for #48), B NWN's. Q4 NWN's spells with no 2024
+    version (Doom, Scare, Endure Elements, Magic Fang, Ghoul Touch, Combust ... ) - A off the lists in faithful, the
+    tiers folded into upcasting, B kept. Q5 Summon Creature I-IX (no SRD line) - A off in faithful with a house rule
+    to keep them, B kept. Q6 reactions and smites - A automatic reactions (if prepared, a slot left, the reaction
+    unspent; the lowest slot; a switch each) and smites armed by the cast, delivered by the next hit; B with the
+    classes. Recommended A on all.
+  - *Decided (owner, 2026-11-09: "1.B 2.B 3.A 4.A 5.A 6.B"):* Q1 B - the spells built class by class, each with its
+    class's brief (#41-#48); Q2 B - every SRD spell on a class's list, each at least a visual and a line; Q3 A - 2024's
+    class lists and levels; Q4 A - NWN's spells with no 2024 version off the class lists in faithful, their tiers
+    folded into upcasting, NWN mode keeping them; Q5 A - Summon Creature I-IX off in faithful, a house rule (off by
+    default) keeping them; Q6 B - reactions (Shield, Feather Fall, Hellish Rebuke, Counterspell) and smites with their
+    classes. #39 keeps what all the classes share (the save table, the retired spells, the house rule); each class
+    issue takes its list.
+  - *Q1 changed (owner, 2026-11-09: "My point is that we're testing faithful classes with nwn spells, there might be
+    unintended interactions once we change to 2024 spells and that might require retesting everything all over again.
+    so yeah, go A, level by level"),* asked "shouldn't we rewrite all the spells before testing them with classes?"
+    after the Cleric's builds 1a-1c: the spells are built level by level for every class (2a level 1, 2b level 2 ...),
+    each spell once, on #39; the class briefs keep their features. The Cleric's Part 1 builds 2 and 3 (its level 1
+    spells, its list) fold into level 1's pass. Q2-Q5 stand; Q6 (reactions and smites with their classes) is asked
+    again in level 1's brief, as its Shield, Feather Fall, Hellish Rebuke and smites are level 1 spells.
+  - *Part 2a brief, the level 1 spells (2026-11-09):* 57 (23 with an NWN version, 34 new); NWN's level 1 Doom, Scare,
+    Remove Fear, Endure Elements, Entropic Shield, Summon Creature I, Negative Energy Ray, Magic Fang, Amplify,
+    Horizikaul's Boom, Ironguts, Deafening Clang and Bless Weapon off the lists in faithful; the level 1 lists switch
+    at the pass's end. Builds: 1 damage and healing (14), 2 buffs and conditions (22), 3 reactions and smites (6),
+    4 detection and utility (15). Q1 reactions and smites - A in level 1 (automatic reactions with a switch each:
+    Shield on a hit it would turn, Hellish Rebuke on damage within 60 ft, Feather Fall a visual; smites armed by the
+    cast, delivered by the next weapon hit), B with their classes. Q2 Find Familiar - A NWN's familiars as its forms
+    (the class feature with the Wizard / Sorcerer briefs), B with the Wizard's. Q3 the Detect spells - A what's sensed
+    glows and is named, B named only. Q4 Disguise Self and Silent Image - A real (another species' model; an image as
+    #152's, up to a 15-foot Cube, moved while concentrating), B a visual and a line. Recommended A on all.
+  - *Decided (owner, 2026-11-09: "A on all, but mark featherfall for later removal"):* Q1-Q4 A - the reactions and
+    smites in level 1 (Feather Fall a visual and a line, to be removed later: #153), Find Familiar NWN's familiars,
+    the Detect spells' glow, Disguise Self and Silent Image real. Build 1 (damage and healing) next.
+  - *Built 0.99.0 (build 1a, damage and healing):* rules/spells2024.h (the numbers, areas, upcasting),
+    core/rules_spells2024.cpp (the scripts, in C++). NWN's rows rewritten: Burning Hands 10 (a 15-foot Cone toward
+    the point aimed at, Dexterity half), Cure Wounds 32 (2d8 + the spellcasting modifier), Magic Missile 107 (three
+    darts of 1d4 + 1 Force, each its own damage, one more a slot level), Inflict Wounds 432 (a Constitution save
+    for half), Thunderwave 436 (a 15-foot Cube from the caster toward the point; a failure pushed 10 feet, any
+    size), Ice Knife 543 (1d10 Piercing, then a Dexterity save or 2d6 Cold within 5 feet of the target, hit or
+    miss); new: Guiding Bolt 1147 (the next attack roll against it has Advantage, its glow until then), Ray of
+    Sickness 1148 (Poisoned until the end of your next turn), False Life 1149 (Temporary Hit Points that don't
+    stack), Dissonant Whispers 1150 (a failure spends its Reaction running 30 feet away). The slot level the
+    radial's (#36); an area's damage rolled once, everyone in it; each spell on its 2024 classes' lists as built.
+    Healing Word moves to build 1b with Chromatic Orb and Heroism: a Bonus Action spell spending a slot needs the
+    Bonus Action casting the cantrips' doesn't give (built once there for every Bonus Action spell). Tests L1-1 to
+    L1-12 (!test level1sorcerer, level1cleric, level1bard). *Accepted (owner, 2026-11-09: "L1 matrix is
+    accepted").* Build 1b (Healing Word, Chromatic Orb, Heroism) next, on the owner's go.
+  - *Built 0.99.1 (build 1b; owner, 2026-11-09: "go for 1b"):* Healing Word 1151 a Bonus Action that spends a
+    slot - its order (class, the radial's Level N) becomes feat 1555's use (casting 1152: instant, the round's
+    attacks go on, one Bonus Action a round), its script spending the order's slot as the cast would; refused with
+    nothing spent past 60 feet, with the Bonus Action spent, or with a slot spent this turn. SRD 5.2.1's One Spell
+    with a Spell Slot per Turn: a slot spell after a Bonus Action one the same turn refused (the creature's round,
+    out of combat 6 s). Chromatic Orb 1153: its six types a choice menu (1154-1159), each opening its slot levels
+    (a levelled choice spell's variants take their master's level); matching d8s leap it to the nearest enemy
+    within 30 feet not yet targeted, as many leaps as the slot's level; its diamond (50 GP) in #38's table.
+    Heroism 1160 (Concentration): Frightened immunity (fear on it ends), Temporary Hit Points equal to the caster's
+    modifier at the start of each of its rounds; an upcast's extra creatures the nearest friends within 10 feet.
+    Tests L1-13 to L1-24.
+- **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
+  Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
+  New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion
+  checks), Channel Divinity (2: 2 uses, 3 at 6, 4 at 18; one back on a Short Rest) with Divine Spark (1d8 + Wis, more
+  d8s at 7 / 13 / 18, healed or a Con save against Necrotic or Radiant) and Turn Undead (a Wis save; Frightened and
+  Incapacitated for a minute, fleeing; ends on damage), the Life Domain (3: Disciple of Life, always-prepared domain
+  spells, Preserve Life; 6 Blessed Healer; 17 Supreme Healing), Sear Undead (5), Blessed Strikes (7 / 14: Divine
+  Strike or Potent Spellcasting), Divine Intervention (10), Greater Divine Intervention (20: Wish, later). Spells: the
+  2024 list's 102 (15, 17, 19, 9, 13, 11, 8, 5, 5) - 53 with an NWN version, 49 new; 56 of NWN's Cleric spells
+  leave faithful (9 Summon Creature, 18 folded tiers). Level 1: 7 kept and converted, 8 new, 8 leaving (Doom, Scare,
+  Remove Fear, Endure Elements, Entropic Shield, Summon Creature I; Divine Favor Paladin-only, Magic Weapon level 2).
+  - *Brief (2026-11-09):* Q1 parts - A the features of levels 1-7, the 2024 list and the level 1 spells, then a part
+    per spell level with its features, B features first. Q2 Divine Order and Blessed Strikes - A served feats in the
+    bonus list with a bonus slot (as F1), existing Clerics Protector and Divine Strike, `!order` once; B a window.
+    Q3 healing and Undead - A 2024's (Cure Wounds heals; Inflict Wounds harms anything), B NWN's swap as a house rule.
+    Q4 Channel Divinity's button - A NWN's Turn Undead entry becomes a menu (Divine Spark: Heal / Radiant / Necrotic,
+    Turn Undead, Preserve Life), uses on the resource panel; B separate buttons. Recommended A on all.
+  - *Decided (owner, 2026-11-09: "A on all"):* Q1 A - Part 1 the features of levels 1-7, the 2024 list and the level 1
+    spells, then a part per spell level; Q2 A - Divine Order and Blessed Strikes as served feats in the bonus list
+    with a bonus slot, existing Clerics Protector and Divine Strike, `!order` once; Q3 A - 2024's healing (no undead
+    swap); Q4 A - Channel Divinity a menu on NWN's Turn Undead entry, its uses on the resource panel.
+  - *Part 1 in three builds:* 1 the features (1a Channel Divinity, 1b Divine Order, 1c the Life Domain's healing and
+    Blessed Strikes; the always-prepared domain spells with the spells, as #36 has no always-prepared list), 2 the
+    level 1 combat and healing spells, 3 the detection and utility ones and the 2024 list.
+  - *Built 0.98.0 (build 1a, Channel Divinity):* rules/cleric.{h,cpp} (ChannelDivinityUses, DivineSparkDice,
+    SearUndeadDice, LifeHealingBonus, PreserveLifePool / Room / Shares, LifeDomainSpells, ThaumaturgeCheckBonus,
+    DivineStrikeDice, PotentSpellcastingTempHp; the Cleric's rows in ClassFeatures2024 - tests ClericChannelDivinity,
+    ClericLifeDomain, ClericOrderAndStrikes, ClericFeatureList, 14 of 14 mutations caught); core/rules_cleric.cpp:
+    feat 294 at Cleric 2 (cls_feat_cler.if_classfeat2024.txt; a HasFeat filter for a Cleric 1 that has it, a
+    Paladin's left), named Channel Divinity (feat.if_classfeat2024.txt); a character's pool (X6, record
+    nwn5e_cd_spent: 2 / 3 / 4, a Short Rest's use back), on the resource panel; spell 308 (its script n5_cd_turn,
+    the AI's too) the master of rows 1142-1146 (spells.cleric.txt, FeatID 16019-16023 x 65536 + 294): Divine Spark
+    heal / Radiant / Necrotic (another creature, S range; d8s + Wisdom, Supreme Healing's maximum at 17; a
+    Constitution save, half), Turn Undead (the hostile Undead within 30 ft, a Wisdom save, NWN's EffectTurned
+    tagged nwn5e_turned for a minute - ended by damage or the Cleric down; Sear Undead's damage first), Preserve
+    Life (Cleric 3; friendly Bloodied within 30 ft, the most room first). The DC 8 + PB + Wisdom (Charisma for a
+    Paladin's NWN Turn Undead). A use the menu can't carry out is given back.
+    *Tested 0.98.0 (owner, 2026-11-09): CD-2 "can only cast channel divinity at self"* - the log: the radial on
+    yourself took Divine Spark (Radiant)'s leaf (param 0x3e940126) for feat 294's own spell 308 (TARGETSELF, an
+    area: "used at once"), so it was cast at the Cleric, refused and given back. 0.98.1 (radial_retarget.cpp): a
+    feat menu's option - its param k * 65536 + the feat - is its own spells.2da row (FeatID = the param), with its own
+    targets: a creature-targeted one opens the targeting cursor, and the cursor carries the option (the game passes
+    a feat up to 0x430 to the cursor without it - Turn Undead's own spell at the click - but keeps it for feat 5's).
+    *Tested 0.98.1 (owner, 2026-11-09): "nope, still targets myself, no cursor"* - the log: the radial took the
+    option's row and started the feat cursor, and a use was queued at once: the feat cursor uses a feat whose
+    TARGETSELF is 1 on its user (Turn Undead's is), and nwn5e's radial leaves self-only class feats off another
+    creature's menu (CD-2c). 0.98.2: feat 294's TARGETSELF 0 in faithful (feat.cleric.if_classfeat2024.txt).
+    *Tested 0.98.2 (owner, 2026-11-09): "CD matrix passes"* - the log: the engine spends the use before the menu's
+    script (the give-back right); Divine Spark Radiant 6 failed / Necrotic 2 saved (halved) / a heal of 8; Turn Undead
+    DC 14, Sear Undead 19, the skeleton turned and freed by damage; Preserve Life 6 (to half the maximum), and 0 given
+    back.
+  - *Built 0.98.3 (build 1b, Divine Order; owner, 2026-11-09: "go for 1b"):* feats 1551 Protector and 1552
+    Thaumaturge (feat.cleric.txt; in the Cleric's bonus list, cls_feat_cler.if_classfeat2024.txt List 2); rules:
+    BonusFeatGroup::kDivineOrder and BonusPicks::order (a pick of its own at Cleric 1, class_features faithful - not
+    the general pick, not taken by it), IsChoosableFeat2024; test ClericDivineOrderPick (7 of 7 mutations caught).
+    The level-up's count and its title ("Divine Order: choose 1"; rules_feats.cpp); the Cleric packages' default
+    Protector (packft_rows.py). rules_cleric.cpp: Protector answers feats 45 (Martial) and 2 (Heavy armour); NWN's
+    Heavy armour at Cleric 1 no longer granted, and answering no for a Cleric without Protector (no Fighter or
+    Paladin levels); a character Cleric without an order gets Protector at its first update in an area (the Heavy
+    armour it had); `!order [protector | thaumaturge]` switches once (record nwn5e_order_switched). Thaumaturge: the
+    Wisdom modifier (at least +1) on Arcana and Religion (rules_skills.cpp's effects) and a cantrip more in the
+    Prepare spells window (prepare_spells.cpp - its limit and the empty-place checks; the engine's per-class cap
+    stays: the client's level-up page offers 3 at Cleric 1, the window the 4th). 0.98.4: with [debug] test_commands,
+    `!order reset` frees the switch again (the tests).
+    *Build 1b accepted (owner, 2026-11-09: "accepted"),* after DO-6's 4 places were found right for the Cleric 1
+    tested (3 + 1; the Cleric 5's 5 after !test channelcleric) and the log showed DO-5's Thaumaturge +3 on Arcana. DO-1
+    to DO-7 passed.
+  - *Built 0.98.5 (build 1c; owner, 2026-11-09: "move to 1c"):* rules: BonusFeatGroup::kBlessedStrikes and
+    BonusPicks::strikes (its own pick at Cleric 7), feats 1553 Divine Strike and 1554 Potent Spellcasting
+    (feat.cleric.txt, the Cleric's bonus list; packages default Divine Strike), DivineStrikeDiceRolled (twice on a
+    Critical Hit), the domains' powers 306-308 and 310-325 among rules::NwnOnlyClassFeats (CM9; removed from
+    characters as the other NWN-only feats); test ClericBlessedStrikesPick (6 of 6 mutations caught).
+    rules_cleric.cpp: Disciple of Life (Cleric 3) - rules_cantrips.cpp's heal hook: a spell (UserType 1) cast with a
+    slot, not from an item, its caster's last spell, heals 2 + the slot's level more (the slot: GetLastSpellLevel
+    +0x21C, else the spell's Cleric / innate level; none for a cantrip); Blessed Healer (6) - once a cast, the Cleric
+    regains as much when it heals another; Divine Strike (a ResolveDamage listener) - a weapon in hand, a hit, once in
+    6 seconds: 1d8 (2d8 at 14) Radiant, or Necrotic by `!strike necrotic` (record nwn5e_strike_necrotic); Potent
+    Spellcasting - Wisdom on Sacred Flame's damage, at 14 twice Wisdom in Temporary Hit Points to the Cleric; a
+    character Cleric 7+ without either gets Divine Strike; a character Cleric's spontaneous cast order refused (an
+    NPC's AI keeps NWN's). The domains' extra spell slots wait for the spells (build 2).
 - **Visual effects that follow a body part (#144).** *Decided (owner, 2026-11-08: "I'd go for engine work as it
   allows for more flexibility with effects later by allowing nodes to follow body parts"),* over a held item (it
   takes the hand's slot) or an offset from the chest (it drifts as the character moves); asked for Produce Flame's
