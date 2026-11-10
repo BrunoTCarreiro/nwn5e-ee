@@ -1027,9 +1027,8 @@ bool BlowAtImage(AttackRoll& roll, uintptr_t /*caller*/) {
   if (g_images.empty() || !roll.attacker || !roll.target || !roll.data) return false;
   const uint32_t image = Field<uint32_t>(roll.target, ee::kObjectId);
   if (g_images.find(image) == g_images.end()) return false;
+  ForceAttackMiss(roll.data);  // 0.99.7: its missed-by set too (a ranged miss divides by it)
   roll.data[ee::kAttackD20] = static_cast<uint8_t>(RollEngineDice(1, 20));
-  SetField<int32_t>(roll.data, ee::kAttackModifier, 0);
-  roll.data[ee::kAttackResult] = ee::kAttackResultMiss;
   for (const auto& blow : g_struck) {
     if (blow.first == image) return true;
   }

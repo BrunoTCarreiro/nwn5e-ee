@@ -77,6 +77,14 @@ bool AddAttackRollSkipper(AttackRollSkipper skipper) {
 
 AttackRoll* CurrentAttackRoll() { return t_current; }
 
+void ForceAttackMiss(uint8_t* data) {
+  if (!data) return;
+  data[ee::kAttackD20] = 0;
+  *reinterpret_cast<int32_t*>(data + ee::kAttackModifier) = 0;
+  data[ee::kAttackResult] = ee::kAttackResultMiss;
+  data[ee::kAttackMissedBy] = 1;
+}
+
 uint8_t* CurrentAttackData(void* creature) {
   if (!g_get_attack) g_get_attack = reinterpret_cast<GetAttackFn>(EngineExport(ee::kGetAttack));
   return AttackDataFor(creature);

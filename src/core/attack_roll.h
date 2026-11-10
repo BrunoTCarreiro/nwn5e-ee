@@ -28,6 +28,11 @@ bool AddAttackRollListeners(AttackRollListener before, AttackRollListener after)
 using AttackRollSkipper = bool (*)(AttackRoll& roll, uintptr_t caller);
 bool AddAttackRollSkipper(AttackRollSkipper skipper);
 
+// A skipper's miss: no roll (the d20 and modifier 0, the combat log's "0 + 0"), the result a miss, its missed-by
+// (ee::kAttackMissedBy) 1 as a natural 1's. 0.99.7 (owner, 2026-11-10: "game crashed, check the logs"): left 0, a
+// ranged attack's skipped miss divided by zero in ResolveRangedMiss - an orc's arrow lost to Sanctuary.
+void ForceAttackMiss(uint8_t* data);
+
 // The attack being resolved on this thread, or nullptr.
 AttackRoll* CurrentAttackRoll();
 

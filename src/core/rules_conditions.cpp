@@ -240,9 +240,7 @@ bool CharmAttackRollSkip(AttackRoll& roll, uintptr_t /*caller*/) {
   if (!Faithful() || !roll.attacker || !roll.target || !roll.data) return false;
   const uint32_t target = Field<uint32_t>(roll.target, ee::kObjectId);
   if (!CharmedBy(roll.attacker, target)) return false;
-  roll.data[ee::kAttackD20] = 0;
-  SetField<int32_t>(roll.data, ee::kAttackModifier, 0);
-  roll.data[ee::kAttackResult] = ee::kAttackResultMiss;
+  ForceAttackMiss(roll.data);  // 0.99.7: its missed-by set too
   StopOrders(Field<uint32_t>(roll.attacker, ee::kObjectId));
   SayCharmRefusal(roll.attacker, target, "attack");
   return true;

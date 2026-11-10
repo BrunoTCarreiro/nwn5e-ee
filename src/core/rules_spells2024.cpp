@@ -1523,9 +1523,7 @@ bool SanctuarySkip(AttackRoll& roll, uintptr_t /*caller*/) {
   if (g_wards.count(attacker)) EndWard(attacker, "attacked");
   void* target = CreatureById(Field<uint32_t>(roll.target, ee::kObjectId));
   if (!target || SanctuaryLetsThrough(roll.attacker, target, "attack")) return false;
-  roll.data[ee::kAttackD20] = 0;
-  SetField<int32_t>(roll.data, ee::kAttackModifier, 0);
-  roll.data[ee::kAttackResult] = ee::kAttackResultMiss;
+  ForceAttackMiss(roll.data);  // 0.99.7: its missed-by set too (a ranged miss divides by it)
   return true;
 }
 

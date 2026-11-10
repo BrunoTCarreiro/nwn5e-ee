@@ -1566,6 +1566,9 @@ constexpr size_t kRoundCurrentAttack = 0x2f2c;
 // CNWSCombatAttackData (ResolveAttackRoll):
 constexpr size_t kAttackD20 = 0x0e;          // uint8, the attack d20 (+0x218)
 constexpr size_t kAttackModifier = 0x10;     // int32, the attack modifier (+0x201)
+// uint8, a miss's margin: ResolveAttackRoll writes 1 for a natural 1, else |total - AC|; ResolveRangedMiss scales
+// the stray arrow by it and divides by (int)(it / RANGED_MISS_DISTANCE_MODIFIER x 1000) - never 0 from the engine.
+constexpr size_t kAttackMissedBy = 0x14;
 constexpr size_t kAttackRanged = 0x5c;       // int32, non-zero for a ranged attack (+0x59)
 constexpr size_t kAttackType = 0x56;         // uint8, GetCurrentAttackWeapon's argument (GetDamageBonus +0x113)
 constexpr size_t kAttackKilledTarget = 0x68; // int32, 1 after the attack killed (ResolvePost{Melee,Ranged}Damage)
