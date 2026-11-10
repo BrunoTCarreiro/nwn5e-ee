@@ -80,6 +80,8 @@ def placeable(game, p):
     out["TemplateResRef"] = [11, p["template"]]
     out.update({"X": [8, float(p["x"])], "Y": [8, float(p["y"])], "Z": [8, 0.0],
                 "Bearing": [8, math.radians(p.get("bearing", 0))]})
+    if "plot" in p:  # the layout's say over the blueprint's (the hall's crates: cover that doesn't break)
+        out["Plot"] = [0, int(p["plot"])]
     return out
 
 

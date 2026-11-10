@@ -20,17 +20,20 @@ One module, **nwn5e Test Grounds** (`n5test.mod`), with three areas:
 
 1. **The Field** (rural, `ttr01`):
    - flat grass, 8 by 8 tiles (80 m), always day, no weather, bright sun;
-   - a cast mark near the south edge facing north, with 70 m of open ground ahead;
+   - a cast mark 20 m in from the south edge facing north, with 60 m of open ground ahead (and room behind and to the
+     sides for the bench's formations that go round it);
    - flags at 10 m, 20 m and 30 m ahead of the mark, off to the side, as distance markers.
 2. **The Hall** (castle interior, `tic01`):
-   - one stone-floored room inside walls, 6 by 4 tiles (60 m by 40 m), lit by the tiles' lights and four braziers;
-   - two rows of pillars down its length, and two groups of crates, for obstacles, line of sight and cover;
-   - a cast mark at the west end facing east.
+   - one stone-floored room inside walls, 6 by 4 tiles (60 m by 40 m), lit white by the tiles' lights (lightcolor
+     BrightWhite and White, the InteriorNormal scheme) and four braziers;
+   - two rows of pillars down its length, and two groups of crates (plot, so they don't break), for obstacles, line of
+     sight and cover;
+   - a cast mark 11 m in from the west wall facing east.
 3. **The Dark Wing** (dungeon, `tde01`; the mines tileset `tdm01` builds no plain rooms):
-   - one floored room inside walls, 4 by 4 tiles;
+   - one floored room inside walls, 4 by 7 tiles (a long room, so formations fit round its mark);
    - no light at all: the tiles' main and source lights off, the ambient and diffuse colours black, the area flagged
      interior and underground;
-   - a cast mark facing north. This is deep shadow for nwn5e's light-based stealth and for light spells.
+   - a cast mark 10 m in from the south wall, facing north. This is deep shadow for nwn5e's light-based stealth and for light spells.
 
 ## Decisions *(the designer's)*
 

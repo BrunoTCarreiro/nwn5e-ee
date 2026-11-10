@@ -7,7 +7,7 @@ A module for repeatable tests: the same light, the same ground and the same dist
 |---|---|---|
 | **The Field** | rural (`ttr01`) | Flat grass, always day, bright sun. Flags 10, 20 and 30 m ahead of the mark. |
 | **The Hall** | castle interior (`tic01`) | A lit stone hall: two rows of pillars, two groups of crates, four braziers. |
-| **The Dark Wing** | dungeon (`tde01`) | No light at all, for light-based stealth and light spells. |
+| **The Dark Wing** | dungeon (`tde01`) | A long room with no light at all, for light-based stealth and light spells. |
 
 Each area has a cast mark: a waypoint tagged `n5test_cast_field`, `n5test_cast_hall` or `n5test_cast_dark`. The module
 starts on the Field's mark.

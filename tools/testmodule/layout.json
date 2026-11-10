@@ -19,11 +19,11 @@
                 "moon_ambient": 0, "moon_diffuse": 0, "moon_fog": 0, "moon_fog_color": 0,
                 "tile_main": [0, 0], "tile_src": [0, 0]},
       "placeables": [
-        {"template": "plc_flag1", "x": 34, "y": 16, "bearing": 0},
-        {"template": "plc_flag1", "x": 34, "y": 26, "bearing": 0},
-        {"template": "plc_flag1", "x": 34, "y": 36, "bearing": 0}
+        {"template": "plc_flag1", "x": 34, "y": 30, "bearing": 0},
+        {"template": "plc_flag1", "x": 34, "y": 40, "bearing": 0},
+        {"template": "plc_flag1", "x": 34, "y": 50, "bearing": 0}
       ],
-      "waypoints": [{"tag": "n5test_cast_field", "name": "Cast mark: the field", "x": 40, "y": 6, "facing": 90}]
+      "waypoints": [{"tag": "n5test_cast_field", "name": "Cast mark: the field", "x": 40, "y": 20, "facing": 90}]
     },
     {
       "resref": "n5test_hall",
@@ -32,10 +32,10 @@
       "terrain": {"#": "Wall", ".": "Stone"},
       "corners": ["#######", "#.....#", "#.....#", "#.....#", "#######"],
       "flags": 1,
-      "light": {"is_night": 1, "day_night": 0, "lighting_scheme": 17, "shadow_opacity": 60, "sun_shadows": 0,
+      "light": {"is_night": 1, "day_night": 0, "lighting_scheme": 13, "shadow_opacity": 60, "sun_shadows": 0,
                 "sun_ambient": 0, "sun_diffuse": 0, "sun_fog": 0, "sun_fog_color": 0,
                 "moon_ambient": 6316128, "moon_diffuse": 13158600, "moon_fog": 0, "moon_fog_color": 0,
-                "tile_main": [0, 17], "tile_src": [8, 8]},
+                "tile_main": [3, 2], "tile_src": [1, 1]},
       "placeables": [
         {"template": "plc_brazier", "x": 8, "y": 8, "bearing": 0},
         {"template": "plc_brazier", "x": 52, "y": 8, "bearing": 0},
@@ -51,28 +51,28 @@
         {"template": "plc_pillar1", "x": 30, "y": 27, "bearing": 0},
         {"template": "plc_pillar1", "x": 40, "y": 27, "bearing": 0},
         {"template": "plc_pillar1", "x": 50, "y": 27, "bearing": 0},
-        {"template": "x2_plc_bcrate1", "x": 24, "y": 19, "bearing": 0},
-        {"template": "x2_plc_bcrate1", "x": 26, "y": 20.5, "bearing": 30},
-        {"template": "x2_plc_bcrate1", "x": 25, "y": 22, "bearing": 60},
-        {"template": "x2_plc_bcrate1", "x": 44, "y": 19, "bearing": 15},
-        {"template": "x2_plc_bcrate1", "x": 46, "y": 21, "bearing": 45},
-        {"template": "x2_plc_bcrate1", "x": 45, "y": 17.5, "bearing": 75}
+        {"template": "x2_plc_bcrate1", "x": 24, "y": 19, "bearing": 0, "plot": 1},
+        {"template": "x2_plc_bcrate1", "x": 26, "y": 20.5, "bearing": 30, "plot": 1},
+        {"template": "x2_plc_bcrate1", "x": 25, "y": 22, "bearing": 60, "plot": 1},
+        {"template": "x2_plc_bcrate1", "x": 44, "y": 19, "bearing": 15, "plot": 1},
+        {"template": "x2_plc_bcrate1", "x": 46, "y": 21, "bearing": 45, "plot": 1},
+        {"template": "x2_plc_bcrate1", "x": 45, "y": 17.5, "bearing": 75, "plot": 1}
       ],
-      "waypoints": [{"tag": "n5test_cast_hall", "name": "Cast mark: the hall", "x": 6, "y": 20, "facing": 0}]
+      "waypoints": [{"tag": "n5test_cast_hall", "name": "Cast mark: the hall", "x": 16, "y": 20, "facing": 0}]
     },
     {
       "resref": "n5test_dark",
       "name": "The Dark Wing",
       "tileset": "tde01",
       "terrain": {"#": "Wall", ".": "Floor"},
-      "corners": ["#####", "#...#", "#...#", "#...#", "#####"],
+      "corners": ["#####", "#...#", "#...#", "#...#", "#...#", "#...#", "#...#", "#####"],
       "flags": 3,
       "light": {"is_night": 1, "day_night": 0, "lighting_scheme": 0, "shadow_opacity": 100, "sun_shadows": 0,
                 "sun_ambient": 0, "sun_diffuse": 0, "sun_fog": 0, "sun_fog_color": 0,
                 "moon_ambient": 0, "moon_diffuse": 0, "moon_fog": 0, "moon_fog_color": 0,
                 "tile_main": [0, 0], "tile_src": [0, 0]},
       "placeables": [],
-      "waypoints": [{"tag": "n5test_cast_dark", "name": "Cast mark: the dark wing", "x": 20, "y": 8, "facing": 90}]
+      "waypoints": [{"tag": "n5test_cast_dark", "name": "Cast mark: the dark wing", "x": 20, "y": 15, "facing": 90}]
     }
   ]
 }
