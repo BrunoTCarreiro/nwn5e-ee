@@ -93,6 +93,10 @@ using AqIdFn = uint16_t (*)(void* object, uint16_t id, int feat);
 using CancelActionFn = int (*)(void* creature, uint16_t action, uint16_t id);
 constexpr uint64_t kHideHoldMs = 3000;  // the round's swings held at most this long for the cancel
 std::unordered_map<uint32_t, uint64_t> g_hide_hold;  // id -> held until (game ms)
+constexpr AttackStop kHideStop{"Cunning Action: Hide", "Cunning Action: Hide - hiding stops your attacks",
+                               " - hidden until it attacks",
+                               "Cunning Action: Hide - you stop attacking and stay hidden until you attack."};
+std::unordered_map<uint32_t, AttackStop> g_stops;  // id -> the stop on its way (whose messages)
 
 struct Start {
   float x = 0.0f, y = 0.0f;
@@ -211,19 +215,16 @@ void CunningHideScript(uint32_t self) {
   if (LogSlot()) Log("actions: 0x%08X Cunning Action: Hide - stealth mode on (a Bonus Action)", self);
   Tell(creature, "Cunning Action: Hide - into stealth mode (your Stealth check decides who still sees you).");
   // #129 A: the Hide stops your attacks - the default attack off now, the attack order cancelled in a moment.
-  StopDefaultAttack(creature, "Cunning Action: Hide - hiding stops your attacks");
-  bool attacking = false;
-  for (void* node : QueueNodes(creature)) {
-    if (Field<int32_t>(node, ee::kActionId) == ee::kActionAttackObject) attacking = true;
-  }
-  if (!attacking) return;
-  g_hide_hold[self] = GameMs() + kHideHoldMs;
-  RunScriptChunk("DelayCommand(0.0, ExecuteScript(\"n5_ca_hidestop\", OBJECT_SELF));", self);
+  StopOwnAttacks(creature, kHideStop);
 }
 
-// #129 A: the Hide's attack stop, outside the attack step - the attack order's groups cancelled.
+// #129 A: the Hide's attack stop, outside the attack step - the attack order's groups cancelled. StopOwnAttacks'
+// for any rule (0.99.15: Sanctuary on yourself), with that rule's messages.
 void HideStopScript(uint32_t self) {
   g_hide_hold.erase(self);
+  const auto named = g_stops.find(self);
+  const AttackStop stop = named != g_stops.end() ? named->second : kHideStop;
+  if (named != g_stops.end()) g_stops.erase(named);
   void* creature = CreatureById(self);
   if (!creature) return;
   static const auto aq_id = reinterpret_cast<AqIdFn>(EngineExport(ee::kGetAQActionIDByID));
@@ -239,11 +240,31 @@ void HideStopScript(uint32_t self) {
   int stopped = 0;
   for (uint16_t group : groups) stopped += cancel(creature, display, group) != 0 ? 1 : 0;
   if (LogSlot()) {
-    Log("actions: 0x%08X Cunning Action: Hide - its attack stopped (%d of %d attack order(s)) - hidden until it "
-        "attacks", self, stopped, static_cast<int>(groups.size()));
+    Log("actions: 0x%08X %s - its attack stopped (%d of %d attack order(s))%s", self, stop.name, stopped,
+        static_cast<int>(groups.size()), stop.log_tail);
   }
-  if (stopped > 0) Tell(creature, "Cunning Action: Hide - you stop attacking and stay hidden until you attack.");
+  if (stopped > 0) Tell(creature, stop.tell);
 }
+
+}  // namespace
+
+bool StopOwnAttacks(void* creature, const AttackStop& stop) {
+  if (!creature || !Faithful()) return false;
+  StopDefaultAttack(creature, stop.why);
+  bool attacking = false;
+  for (void* node : QueueNodes(creature)) {
+    if (Field<int32_t>(node, ee::kActionId) == ee::kActionAttackObject) attacking = true;
+  }
+  if (!attacking) return false;
+  const uint32_t self = IdOf(creature);
+  if (g_stops.size() > 64) g_stops.clear();
+  g_stops[self] = stop;
+  g_hide_hold[self] = GameMs() + kHideHoldMs;
+  RunScriptChunk("DelayCommand(0.0, ExecuteScript(\"n5_ca_hidestop\", OBJECT_SELF));", self);
+  return true;
+}
+
+namespace {
 
 // The stealth button, or a script's SetActionMode (a find): out of stealth mode even with an attack target.
 int ToggleMode(void* creature, uint8_t mode) {

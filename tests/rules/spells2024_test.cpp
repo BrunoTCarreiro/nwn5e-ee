@@ -230,6 +230,10 @@ TEST(Spells2024Build2a) {
   CHECK_EQ(WardedAgainstRacialType(17), true);   // Fey
   CHECK_EQ(WardedAgainstRacialType(6), false);   // Human
   CHECK_EQ(WardedAgainstRacialType(8), false);   // Animal
+  CHECK_EQ(SanctuaryStopsOwnAttacks(true, true), true);    // a player on itself (0.99.15)
+  CHECK_EQ(SanctuaryStopsOwnAttacks(false, true), false);  // a player on a henchman: its AI decides
+  CHECK_EQ(SanctuaryStopsOwnAttacks(true, false), false);  // a henchman on itself
+  CHECK_EQ(SanctuaryStopsOwnAttacks(false, false), false);
   CHECK_EQ(IsConcentrationSpell(kHuntersMark), true);
   CHECK_EQ(IsConcentrationSpell(kHuntersMarkBonus), true);
   CHECK_EQ(IsConcentrationSpell(kShieldOfFaithBonus), true);

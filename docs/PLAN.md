@@ -1211,6 +1211,16 @@ monster AC by CR.
     ResolveRangedMiss - an orc's arrow lost to Sanctuary. A miss's missed-by (attack data +0x14, which the engine's
     roll sets 1 or more) scales the stray arrow and divides; the skippers forcing a miss (Sanctuary, Charm, Minor
     Illusion's image) left it 0. ForceAttackMiss (attack_roll.h) writes it 1, as a natural 1. Retest L2-7b.
+  - *L2-1 to L2-11 (owner, 2026-11-10: "Tests 1-10 seem to pass, check #10 though"):* Bless, Bane, Shield of Faith
+    (its feat refused on its own), Protection from Evil and Good passed. L2-7 (Sanctuary): cast mid-melee, the
+    round's attack went on (a spell order mid-round keeps it) and ended the ward 2 s after the pause - the save
+    never came up. Asked: A - a player's Sanctuary on itself stops its attacks (a click on an enemy attacks again,
+    and ends it); B - as it is, the player stops attacking first.
+    *Decided (owner, 2026-11-11: "go with A for sanctuary").* *0.99.15:* the Cunning Action Hide's attack
+    stop (#129 A) made one function, StopOwnAttacks (extra_actions.h) - the default attack off, the attack order
+    cancelled a moment later as the action queue's click cancels it, the round's swings held until then - and
+    Sanctuary calls it when a player wards itself (rules::SanctuaryStopsOwnAttacks). On a henchman, or cast by
+    one, its AI decides. Retest L2-7c.
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
   New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion

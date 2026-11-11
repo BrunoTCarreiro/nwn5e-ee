@@ -54,6 +54,9 @@
 //     Disadvantage attacking it (rules_advantage.cpp) and can't Frighten or Charm it (versus immunities).
 //   - Sanctuary (a Bonus Action): an attack roll or a spell at the warded creature - the attacker's Wisdom save
 //     against the caster's DC, or it's lost; it ends when the warded creature attacks, casts or deals damage.
+//     0.99.15 (owner, 2026-11-11: "go with A for sanctuary"): a player's Sanctuary on itself stops its attacks
+//     (extra_actions' StopOwnAttacks, the Cunning Action Hide's stop) - NWN kept it swinging, and its next swing
+//     ended the ward.
 //   - Expeditious Retreat (a Bonus Action): a Dash now, and a Bonus Action's Dash while it lasts (feat 1561).
 //   - Longstrider: +10 feet of Speed (a third of 30 ft) for an hour; an upcast's extra creatures as Heroism's.
 //   The Bonus Action spells all cast as Healing Word does (rules::BonusActionSpells); their feats used on their own
@@ -84,6 +87,7 @@
 #include "damage_listeners.h"
 #include "data_serving.h"
 #include "dice.h"
+#include "extra_actions.h"
 #include "ee_layout.h"
 #include "effects.h"
 #include "engine.h"
@@ -1317,6 +1321,14 @@ void Sanctuary(uint32_t self, void* caster, const rules::Spell2024& spell, int r
     g_wards[id] = Ward{self, dc};
     g_ward_ends.erase(id);
     if (LogSlot()) Log("spells2024: 0x%08X Sanctuary on 0x%08X (DC %d, 1 minute)", self, id, dc);
+    // 0.99.15 (owner, 2026-11-11: "go with A for sanctuary"): a player's Sanctuary on itself stops its attacks.
+    void* stats = caster ? StatsOf(caster) : nullptr;
+    if (rules::SanctuaryStopsOwnAttacks(id == self, stats && ReadCreatureFacts(stats).is_player)) {
+      static constexpr AttackStop kSanctuaryStop{"Sanctuary", "Sanctuary on yourself - it stops your attacks",
+                                                 " - warded until it attacks",
+                                                 "Sanctuary - you stop attacking (an attack of yours ends it)."};
+      StopOwnAttacks(caster, kSanctuaryStop);
+    }
   }
 }
 

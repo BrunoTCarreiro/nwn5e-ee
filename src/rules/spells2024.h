@@ -171,6 +171,12 @@ int LongstriderTargets(int slot_level);
 // Protection from Evil and Good: the creature types it wards against (NWN's racial types: Aberration, Elemental,
 // Fey, Outsider - a Celestial or a Fiend -, Undead).
 bool WardedAgainstRacialType(int nwn_racial_type);
+// Sanctuary ends when the warded creature makes an attack roll. NWN keeps a player attacking its target until it
+// is given another order, so a player's Sanctuary on itself mid-fight ended at its next swing (the owner's L2-7,
+// 2026-11-10). #39 build 2a (owner, 2026-11-11: "go with A for sanctuary"): a player's Sanctuary on
+// itself stops its attacks; a click on an enemy attacks again (and ends it). On someone else - a henchman, whose
+// AI decides - or cast by a henchman: nothing stopped.
+bool SanctuaryStopsOwnAttacks(bool on_caster, bool caster_is_player);
 
 // Chromatic Orb: two or more of its d8s alike - the orb leaps to another creature within 30 feet of the target (a
 // new attack roll, a new damage roll), at most as many times as the slot's level, each creature once a casting.
