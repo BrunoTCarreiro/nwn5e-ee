@@ -41,6 +41,7 @@ std::vector<data::SpellLook> g_looks;
 std::unordered_map<int, size_t> g_by_row;              // spells.2da row -> g_looks
 std::unordered_map<uint32_t, int64_t> g_cast_started;  // caster id -> game ms its look's cast began
 std::unordered_map<int, bool> g_row_served;            // visualeffects row -> the game serves it (asked once)
+std::unordered_map<int, int> g_twin;                   // a missile row FlightTwinRow doesn't know -> its twin (asked once)
 bool g_installed = false;
 
 int64_t Now() { return static_cast<int64_t>(GameMs()); }
@@ -218,18 +219,33 @@ float SinceCast(uint32_t caster, const data::SpellLook& look, bool* seen) {
   return *seen ? static_cast<float>(Now() - started->second) / 1000.0f : look.rule_at;
 }
 
-// Flies `parts`' missile on its twin from the launch point (the caster standing at `at`) to `to`, as dart `dart` of
-// `darts` - it leaves FlightStart(dart) after the release. *timing becomes the flight's; *note says what flew.
-void Fly(uint32_t caster, const data::SpellLook& look, const data::LookParts& parts, float since, data::FlightPoint at,
-         data::FlightPoint to, int dart, int darts, data::LookTiming* timing, std::string* note) {
-  const int twin = data::FlightTwinRow(parts.missile);
+// The flight twin missile `row` flies on (0: none - the game's MIRV): FlightTwinRow's table, else by its projectile row
+// asked of the game once (a bench copy of a missile, its sound changed - the final review, 2026-11-11).
+int TwinFor(uint32_t self, int row) {
+  if (row <= 0) return 0;
+  if (const int twin = data::FlightTwinRow(row)) return twin;
+  const auto known = g_twin.find(row);
+  if (known != g_twin.end()) return known->second;
+  void* object = CreatureById(self);
+  if (!object || RunScriptChunk(data::LookProgfxScript(row).c_str(), self) == -1) return 0;  // can't tell: the MIRV
+  const int twin = data::FlightTwinForProgfx(atoi(engine::GetLocalString(object, "n5look_pfx").c_str()));
+  g_twin[row] = twin;
+  return twin;
+}
+
+// Flies `parts`' missile on `twin` from the launch point (the caster standing at `at`) to `to`, as dart `dart` of
+// `darts` - it leaves FlightStart(dart) after the release, with the missile row's own flight sound. *timing becomes
+// the flight's; *note says what flew.
+void Fly(uint32_t caster, const data::SpellLook& look, const data::LookParts& parts, int twin, float since,
+         data::FlightPoint at, data::FlightPoint to, int dart, int darts, data::LookTiming* timing, std::string* note) {
   const data::FlightPoint from = data::LaunchPoint(at, to, parts.launch);
   const std::vector<data::FlightSegment> segments = data::FlightSegments(parts.flight, from, to, dart, darts);
   *timing = data::LookFlightTiming(look, since, data::FlightSeconds(segments));
   const float shift = data::FlightStart(parts.flight, dart);
   timing->release_in += shift;
   timing->hit_in += shift;
-  const int result = RunWholeScript(data::FlightScript(segments, from, twin, timing->release_in).c_str(), caster);
+  const int result =
+      RunWholeScript(data::FlightScript(segments, from, twin, timing->release_in, parts.missile).c_str(), caster);
   char text[96];
   snprintf(text, sizeof text, ", flies %s (%.2f s)%s", data::FlightKindName(parts.flight.kind),
            data::FlightSeconds(segments), result == 0 ? "" : " - the flight script failed");
@@ -250,24 +266,26 @@ data::LookTiming PlayDart(uint32_t caster, uint32_t target, const data::SpellLoo
   }
   data::LookTiming timing = data::LookHitTiming(look, own, since, metres);
   note->clear();
+  const int twin = TwinFor(caster, own.missile);
   data::FlightPoint at, to;
-  if (own.missile && data::FlightTwinRow(own.missile)) {
-    if (Places(caster, target, &at, &to)) {
-      to.z += 1.0f;  // the chest
-      Fly(caster, look, own, since, at, to, dart, darts, &timing, note);
-    } else {
-      *note = " - where they stand isn't known: no missile shows";
-    }
-  } else if (dart > 0) {
-    const float shift = data::FlightStart(own.flight, dart);
+  bool flown = false;
+  if (twin && Places(caster, target, &at, &to)) {
+    to.z += 1.0f;  // the chest
+    Fly(caster, look, own, twin, since, at, to, dart, darts, &timing, note);
+    flown = true;
+  } else {
+    if (twin) *note = " - where they stand isn't known: the game's own missile instead";
+    const float shift = data::FlightStart(own.flight, dart);  // the MIRV darts staggered as the flight's would be
     timing.release_in += shift;
     timing.hit_in += shift;
   }
+  // The flight carries the missile when it ran (no MIRV on top); else the hit script fires the game's.
+  const data::LookParts shown = flown ? data::LookFlown(own) : own;
   if (hits) {
-    RunScriptChunk(data::LookHitScript(own, target, timing).c_str(), caster);
+    RunScriptChunk(data::LookHitScript(shown, target, timing).c_str(), caster);
     PlayLookSounds(data::LookHitCues(own, caster, target, timing));
   } else {
-    RunScriptChunk(data::LookMissScript(own, target, timing).c_str(), caster);
+    RunScriptChunk(data::LookMissScript(shown, target, timing).c_str(), caster);
     PlayLookSounds(data::LookMissCues(own, caster, timing));
   }
   return timing;
@@ -370,8 +388,8 @@ float PlayLookAt(uint32_t caster, data::FlightPoint point, const data::SpellLook
                                  (point.z - at.z) * (point.z - at.z));
   data::LookTiming timing = data::LookHitTiming(look, parts, since, metres);
   std::string flight;
-  if (parts.missile && data::FlightTwinRow(parts.missile)) {
-    Fly(caster, look, parts, since, at, point, 0, 1, &timing, &flight);
+  if (const int twin = TwinFor(caster, parts.missile)) {
+    Fly(caster, look, parts, twin, since, at, point, 0, 1, &timing, &flight);
   } else if (parts.missile) {
     flight = " - the game's own missile flies only to a creature: none shows";
   }

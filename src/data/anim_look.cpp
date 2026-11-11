@@ -530,8 +530,7 @@ namespace {
 // The missile and the release, then - a hit - the hit effect and the `hit` sounds; a miss fizzles without them.
 std::string ArrivalScript(const LookParts& parts, uint32_t target, const LookTiming& timing, bool hits) {
   std::string code = "object t = " + Object(target) + ";\n";
-  // A missile with a flight twin flies its flight (the look player runs FlightScript); any other, the game's MIRV.
-  if (parts.missile && !FlightTwinRow(parts.missile)) code += Instant(timing.release_in, parts.missile);
+  if (parts.missile) code += Instant(timing.release_in, parts.missile);  // 0 when the flight carries it (LookFlown)
   if (parts.hit && hits) code += Instant(timing.hit_in, parts.hit);
   for (const LookSound& sound : parts.sounds) {
     if (SoundHasEffects(sound)) continue;  // the sound player's (LookHitCues / LookMissCues)
@@ -592,6 +591,17 @@ std::string LookPlacesScript(uint32_t target) {
          "SetLocalString(OBJECT_SELF, \"n5look_p\", FloatToString(a.x, 0, 3) + \" \" + FloatToString(a.y, 0, 3) + \" \" + "
          "FloatToString(a.z, 0, 3) + \" \" + FloatToString(b.x, 0, 3) + \" \" + FloatToString(b.y, 0, 3) + \" \" + "
          "FloatToString(b.z, 0, 3));\n";
+}
+
+std::string LookProgfxScript(int row) {
+  return "SetLocalString(OBJECT_SELF, \"n5look_pfx\", Get2DAString(\"visualeffects\", \"ProgFX_Impact\", " +
+         std::to_string(row) + "));\n";
+}
+
+LookParts LookFlown(const LookParts& parts) {
+  LookParts flown = parts;
+  flown.missile = 0;
+  return flown;
 }
 
 bool ReadPlaces(const std::string& text, FlightPoint* caster, FlightPoint* target) {

@@ -95,6 +95,10 @@ FlightPoint LaunchPoint(FlightPoint caster, FlightPoint target, const std::strin
 // The script chunks that play a look (RunScriptChunk; ids as StringToObject("<hex>"), times %.2f). Every effect plays
 // through DelayCommand, so a chunk returns at once.
 std::string LookCastScript(const LookParts& parts);  // run as the caster, at the cast's start: its VFX, `cast` sounds
+// The hit and miss scripts fire the game's MIRV for whatever missile they're given. The look player decides who carries
+// it (the final review, 2026-11-11): when its flight ran, it hands them LookFlown(parts) - no MIRV on top, one orb; when
+// the flight couldn't (no twin, a place it couldn't read), the parts as they are - never no missile.
+LookParts LookFlown(const LookParts& parts);
 std::string LookHitScript(const LookParts& parts, uint32_t target, const LookTiming& timing);  // run as the caster
 // A miss (owner, 2026-11-10: "A"): the missile and the `release` sounds as for a hit, then it fizzles at the target - no
 // hit effect, no `hit` sounds. Run as the caster.
@@ -107,6 +111,9 @@ std::string LookDistanceScript(uint32_t target);  // run as the caster: local st
 // Run as the caster: local string "n5look_p" = where it and `target` stand, "x y z x y z" (any object, as the distance:
 // the look player's flight needs both). ReadPlaces parses it: false unless it holds six numbers.
 std::string LookPlacesScript(uint32_t target);
+// Run as anyone: local string "n5look_pfx" = visualeffects `row`'s ProgFX_Impact (a missile's projectile row - a bench
+// copy's flight twin is found by it, data::FlightTwinForProgfx).
+std::string LookProgfxScript(int row);
 bool ReadPlaces(const std::string& text, FlightPoint* caster, FlightPoint* target);
 // Run as anyone: local string "n5look_row" = visualeffects.2da's Type_FD for `row` - empty when the game doesn't serve
 // the row (the orb rows before the game session's looks row server is in the install).

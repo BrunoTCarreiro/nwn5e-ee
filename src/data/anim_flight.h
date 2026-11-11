@@ -52,14 +52,21 @@ FlightPoint FlightOffset(const std::vector<FlightSegment>& segments, float t);
 float FlightStart(const FlightSettings& settings, int dart);
 
 // The lasting-effect twin (data/looks/visualeffects.flight.look.txt, rows 2190-2199) a missile row flies as on its
-// carrier: the orbs 2100-2105 -> 2190-2195, VFX_IMP_MIRV 181 -> 2196, VFX_IMP_MIRV_FLAME 233 -> 2197,
-// VFX_IMP_MIRV_ACID_ARROW 245 -> 2198, VFX_IMP_MIRV_ELECTRIC 503 -> 2199; 0 for any other (it flies the game's way).
+// carrier: the orbs 2100-2105 -> 2190-2195, VFX_IMP_MIRV 181 -> 2196, VFX_IMP_MIRV_ELECTRIC 503 -> 2199; 0 for any
+// other (it flies the game's way). The arrows (233 fire, 245 acid; twins 2197, 2198) aren't mapped until the carrier
+// turns the model along its path - on it an arrow would point north whatever way it flew (the final review, 2026-11-11).
 int FlightTwinRow(int missile_row);
+// The same by the missile's projectile row (visualeffects ProgFX_Impact), for a row FlightTwinRow doesn't know - a bench
+// copy of a missile (its sound changed) has the same ProgFX_Impact: 910-915 -> 2190-2195, 900 -> 2196, 905 -> 2199.
+int FlightTwinForProgfx(int progfx_row);
 
 // The whole NWScript (its own main(): RunWholeScript, run as the caster) that flies one dart: an invisible carrier
 // (plc_invisobj, tag "n5_flight") at `from`, `twin_row` shown on it from `start` for the flight, each segment played by
 // SetObjectVisualTransform through a void helper DelayCommand times, the carrier gone after. Times and metres %.3f.
-std::string FlightScript(const std::vector<FlightSegment>& segments, FlightPoint from, int twin_row, float start);
+// `sound_row` (the look's missile row; 0 none): its own flight sound (visualeffects SoundDuration) plays from the carrier
+// as it leaves - the twin has none.
+std::string FlightScript(const std::vector<FlightSegment>& segments, FlightPoint from, int twin_row, float start,
+                         int sound_row = 0);
 
 // A flight's landing at a point (a spell aimed at the ground): a whole script (RunWholeScript, run as the caster) whose
 // helper Land(location, hit, sound) applies `hit_row` at the point (ApplyEffectAtLocation) and plays a plain sound

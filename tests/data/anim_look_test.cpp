@@ -320,15 +320,29 @@ TEST(AnimLookHitTimingUsesTheFlight) {  // Review Focus 4: the hit waits for the
   CHECK_EQ(late.release_in == 0.0f && late.late && std::fabs(late.hit_in - 2.4f) < 0.001f, true);
 }
 
-TEST(AnimLookHitScriptLeavesTheMissileToTheFlight) {  // 2100 flies on its twin (2190): no MIRV on top
+// Who carries the missile is the look player's call (the final review, 2026-11-11): it knows whether the flight ran.
+// When it did, the hit script gets LookFlown(parts) - no MIRV on top, one orb; when it couldn't (no twin, a place it
+// couldn't read), the parts as they are - the game's MIRV, never no missile (Review Focus 2).
+TEST(AnimLookHitScriptLeavesTheMissileToTheFlight) {
   data::LookParts p;
   p.missile = 2100;
   p.hit = 61;
   p.sounds = {{data::LookAnchor::kRelease, 0, "spr_x"}};
-  const std::string h = data::LookHitScript(p, 0x1a2b, {0.10f, 1.22f, false});
+  const std::string h = data::LookHitScript(data::LookFlown(p), 0x1a2b, {0.10f, 1.22f, false});
   CHECK_EQ(h.find("EffectVisualEffect(2100)") == std::string::npos, true);
   CHECK_EQ(h.find("EffectVisualEffect(61)") != std::string::npos && h.find("PlaySound(\"spr_x\")") != std::string::npos, true);
-  CHECK_EQ(data::LookMissScript(p, 0x1a2b, {0.10f, 1.22f, false}).find("EffectVisualEffect(2100)") == std::string::npos, true);
+  CHECK_EQ(data::LookMissScript(data::LookFlown(p), 0x1a2b, {0.10f, 1.22f, false}).find("EffectVisualEffect(2100)") ==
+               std::string::npos,
+           true);
+  // Not flown (the flight couldn't run): the MIRV still shows.
+  CHECK_EQ(data::LookHitScript(p, 0x1a2b, {0.10f, 1.22f, false}).find("EffectVisualEffect(2100), t));") != std::string::npos, true);
+}
+
+// A missile's projectile row, asked of the game (a bench copy isn't in FlightTwinRow's table): its ProgFX_Impact.
+TEST(AnimLookProgfxScript) {
+  CHECK_EQ(data::LookProgfxScript(2106) ==
+               "SetLocalString(OBJECT_SELF, \"n5look_pfx\", Get2DAString(\"visualeffects\", \"ProgFX_Impact\", 2106));\n",
+           true);
 }
 
 TEST(AnimLookHitScriptKeepsMirvWithoutTwin) {  // Review Focus 2: a missile with no twin keeps the game's own flight
