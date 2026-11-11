@@ -99,14 +99,14 @@ TEST(AnimLookLate) {
   CHECK_EQ(std::fabs(t.hit_in - 1.1226f) < 0.001f, true);
 }
 
-TEST(AnimLookHitScript) {
+TEST(AnimLookHitScript) {  // a missile with no flight twin: the game's MIRV, as before
   data::LookParts p;
-  p.missile = 2100;
+  p.missile = 9000;
   p.hit = 61;
   p.sounds = {{data::LookAnchor::kRelease, 0, "sco_x"}, {data::LookAnchor::kHit, 0.05f, "sim_explflame"}};
   const std::string s = data::LookHitScript(p, 0x1a2b, {0.10f, 1.22f, false});
   CHECK_EQ(s.find("object t = StringToObject(\"1a2b\");") != std::string::npos, true);
-  CHECK_EQ(s.find("DelayCommand(0.10, ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(2100), t));") !=
+  CHECK_EQ(s.find("DelayCommand(0.10, ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(9000), t));") !=
                std::string::npos,
            true);
   CHECK_EQ(s.find("DelayCommand(1.22, ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(61), t));") !=
@@ -115,7 +115,7 @@ TEST(AnimLookHitScript) {
   CHECK_EQ(s.find("DelayCommand(0.10, PlaySound(\"sco_x\"));") != std::string::npos, true);
   CHECK_EQ(s.find("AssignCommand(t, DelayCommand(1.27, PlaySound(\"sim_explflame\")));") != std::string::npos, true);
   p.missile = 0;
-  CHECK_EQ(data::LookHitScript(p, 0x1a2b, {0.10f, 0.10f, false}).find("EffectVisualEffect(2100)") == std::string::npos,
+  CHECK_EQ(data::LookHitScript(p, 0x1a2b, {0.10f, 0.10f, false}).find("EffectVisualEffect(9000)") == std::string::npos,
            true);
 }
 
@@ -221,12 +221,12 @@ TEST(AnimLookConjureClip) {
 
 TEST(AnimLookMissScript) {  // a miss (owner, 2026-11-10: "A"): the orb flies as for a hit and fizzles - no hit effect or sound
   data::LookParts p;
-  p.missile = 2100;
+  p.missile = 9000;  // no flight twin: the game's MIRV
   p.hit = 61;
   p.leap_beam = 210;
   p.sounds = {{data::LookAnchor::kRelease, 0, "spr_x"}, {data::LookAnchor::kHit, 0.05f, "sim_x"}};
   const std::string s = data::LookMissScript(p, 0x1a2b, {0.10f, 1.22f, false});
-  CHECK_EQ(s.find("DelayCommand(0.10, ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(2100), t));") !=
+  CHECK_EQ(s.find("DelayCommand(0.10, ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(9000), t));") !=
                std::string::npos,
            true);
   CHECK_EQ(s.find("PlaySound(\"spr_x\")") != std::string::npos, true);
@@ -293,4 +293,63 @@ TEST(AnimLookFlightDefaults) {  // Review Focus 5: a look without flight keys - 
                f.stagger == plain.stagger && look.parts.launch == "hand",
            true);
   CHECK_EQ(data::WriteSpellLook(look) == text, true);
+}
+
+// The look player flies the look's flight (Task 5). Breaks caught: the missile leaving from the feet or the wrong side
+// of the caster, a hit that lands on the MIRV time instead of the flight's, the game's MIRV fired on top of the flight
+// (two orbs), a missile with no twin left with no missile at all.
+
+TEST(AnimLookLaunchPoint) {
+  const auto at = [](data::FlightPoint p, float x, float y, float z) {
+    return std::fabs(p.x - x) < 0.001f && std::fabs(p.y - y) < 0.001f && std::fabs(p.z - z) < 0.001f;
+  };
+  CHECK_EQ(at(data::LaunchPoint({0, 0, 0}, {10, 0, 0}, "hand"), 0.3f, 0, 1.3f), true);
+  CHECK_EQ(at(data::LaunchPoint({0, 0, 0}, {10, 0, 0}, "head"), 0, 0, 1.8f), true);
+  CHECK_EQ(at(data::LaunchPoint({0, 0, 0}, {10, 0, 0}, "ground"), 0.3f, 0, 0.1f), true);
+  CHECK_EQ(at(data::LaunchPoint({1, 2, 0}, {1, 12, 0}, "hand"), 1, 2.3f, 1.3f), true);  // toward the target
+  CHECK_EQ(at(data::LaunchPoint({0, 0, 0}, {0, 0, 5}, "hand"), 0.3f, 0, 1.3f), true);   // straight above: along x
+}
+
+TEST(AnimLookHitTimingUsesTheFlight) {  // Review Focus 4: the hit waits for the flight, not the MIRV time
+  data::SpellLook look;
+  look.rule_at = 1.5f;
+  look.release = 1.6f;
+  const data::LookTiming t = data::LookFlightTiming(look, 1.5f, 2.4f);
+  CHECK_EQ(std::fabs(t.release_in - 0.1f) < 0.001f && std::fabs(t.hit_in - 2.5f) < 0.001f && !t.late, true);
+  const data::LookTiming late = data::LookFlightTiming(look, 2.0f, 2.4f);
+  CHECK_EQ(late.release_in == 0.0f && late.late && std::fabs(late.hit_in - 2.4f) < 0.001f, true);
+}
+
+TEST(AnimLookHitScriptLeavesTheMissileToTheFlight) {  // 2100 flies on its twin (2190): no MIRV on top
+  data::LookParts p;
+  p.missile = 2100;
+  p.hit = 61;
+  p.sounds = {{data::LookAnchor::kRelease, 0, "spr_x"}};
+  const std::string h = data::LookHitScript(p, 0x1a2b, {0.10f, 1.22f, false});
+  CHECK_EQ(h.find("EffectVisualEffect(2100)") == std::string::npos, true);
+  CHECK_EQ(h.find("EffectVisualEffect(61)") != std::string::npos && h.find("PlaySound(\"spr_x\")") != std::string::npos, true);
+  CHECK_EQ(data::LookMissScript(p, 0x1a2b, {0.10f, 1.22f, false}).find("EffectVisualEffect(2100)") == std::string::npos, true);
+}
+
+TEST(AnimLookHitScriptKeepsMirvWithoutTwin) {  // Review Focus 2: a missile with no twin keeps the game's own flight
+  data::LookParts p;
+  p.missile = 9000;
+  const std::string h = data::LookHitScript(p, 0x1a2b, {0.10f, 1.22f, false});
+  CHECK_EQ(h.find("DelayCommand(0.10, ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(9000), t));") !=
+               std::string::npos,
+           true);
+}
+
+// Where the caster and the target stand, through the script, so a flight works for any target the distance does (a
+// door, a placeable - not only creatures). Breaks caught: the target's position read off the caster, a short or garbled
+// answer taken as a position.
+TEST(AnimLookPlaces) {
+  const std::string s = data::LookPlacesScript(0x1a2b);
+  CHECK_EQ(s.find("vector a = GetPosition(OBJECT_SELF);") != std::string::npos, true);
+  CHECK_EQ(s.find("vector b = GetPosition(StringToObject(\"1a2b\"));") != std::string::npos, true);
+  CHECK_EQ(s.find("SetLocalString(OBJECT_SELF, \"n5look_p\", ") != std::string::npos, true);
+  data::FlightPoint caster, target;
+  CHECK_EQ(data::ReadPlaces("1.5 2 0.25 11.5 2 0", &caster, &target), true);
+  CHECK_EQ(caster.x == 1.5f && caster.y == 2.0f && caster.z == 0.25f && target.x == 11.5f && target.z == 0.0f, true);
+  CHECK_EQ(data::ReadPlaces("", &caster, &target) || data::ReadPlaces("1 2 3 4 5", &caster, &target), false);
 }

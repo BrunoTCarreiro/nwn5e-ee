@@ -86,6 +86,11 @@ struct LookTiming {
   bool late = false;
 };
 LookTiming LookHitTiming(const SpellLook& look, const LookParts& parts, float since_cast, float metres);
+// The same for a missile that flies its flight (piece 2a): the same release, the hit `flight_seconds` after it.
+LookTiming LookFlightTiming(const SpellLook& look, float since_cast, float flight_seconds);
+// Where a look's missile leaves: the caster's position plus dir * 0.3 + up * 1.3 for "hand", up * 1.8 for "head",
+// dir * 0.3 + up * 0.1 for "ground" - dir the unit ground-plane direction to the target, (1, 0) when straight above.
+FlightPoint LaunchPoint(FlightPoint caster, FlightPoint target, const std::string& launch);
 
 // The script chunks that play a look (RunScriptChunk; ids as StringToObject("<hex>"), times %.2f). Every effect plays
 // through DelayCommand, so a chunk returns at once.
@@ -99,6 +104,10 @@ std::string LookLeapMissScript(const LookParts& parts, float leap_for, uint32_t 
 std::string LookLeapScript(const LookParts& parts, float leap_for, uint32_t from, uint32_t to, float beam_in,
                            float hit_in);  // run as `from`: the beam to `to`, its hit and `hit` sounds
 std::string LookDistanceScript(uint32_t target);  // run as the caster: local string "n5look_d" = the metres to target
+// Run as the caster: local string "n5look_p" = where it and `target` stand, "x y z x y z" (any object, as the distance:
+// the look player's flight needs both). ReadPlaces parses it: false unless it holds six numbers.
+std::string LookPlacesScript(uint32_t target);
+bool ReadPlaces(const std::string& text, FlightPoint* caster, FlightPoint* target);
 // Run as anyone: local string "n5look_row" = visualeffects.2da's Type_FD for `row` - empty when the game doesn't serve
 // the row (the orb rows before the game session's looks row server is in the install).
 std::string LookRowCheckScript(int row);

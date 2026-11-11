@@ -462,11 +462,22 @@ float MirvFlightSeconds(float metres) {
 }
 
 LookTiming LookHitTiming(const SpellLook& look, const LookParts& parts, float since_cast, float metres) {
+  return LookFlightTiming(look, since_cast, parts.missile ? MirvFlightSeconds(metres) : 0.0f);
+}
+
+LookTiming LookFlightTiming(const SpellLook& look, float since_cast, float flight_seconds) {
   LookTiming timing;
   timing.late = since_cast > look.release;
   timing.release_in = std::max(0.0f, look.release - since_cast);
-  timing.hit_in = timing.release_in + (parts.missile ? MirvFlightSeconds(metres) : 0.0f);
+  timing.hit_in = timing.release_in + flight_seconds;
   return timing;
+}
+
+FlightPoint LaunchPoint(FlightPoint caster, FlightPoint target, const std::string& launch) {
+  if (launch == "head") return {caster.x, caster.y, caster.z + 1.8f};
+  const float dx = target.x - caster.x, dy = target.y - caster.y, ground = std::sqrt(dx * dx + dy * dy);
+  const float ux = ground < 0.001f ? 1.0f : dx / ground, uy = ground < 0.001f ? 0.0f : dy / ground;
+  return {caster.x + ux * 0.3f, caster.y + uy * 0.3f, caster.z + (launch == "ground" ? 0.1f : 1.3f)};
 }
 
 namespace {
@@ -519,7 +530,8 @@ namespace {
 // The missile and the release, then - a hit - the hit effect and the `hit` sounds; a miss fizzles without them.
 std::string ArrivalScript(const LookParts& parts, uint32_t target, const LookTiming& timing, bool hits) {
   std::string code = "object t = " + Object(target) + ";\n";
-  if (parts.missile) code += Instant(timing.release_in, parts.missile);
+  // A missile with a flight twin flies its flight (the look player runs FlightScript); any other, the game's MIRV.
+  if (parts.missile && !FlightTwinRow(parts.missile)) code += Instant(timing.release_in, parts.missile);
   if (parts.hit && hits) code += Instant(timing.hit_in, parts.hit);
   for (const LookSound& sound : parts.sounds) {
     if (SoundHasEffects(sound)) continue;  // the sound player's (LookHitCues / LookMissCues)
@@ -573,6 +585,22 @@ std::string LookRowCheckScript(int row) {
 std::string LookDistanceScript(uint32_t target) {
   return "SetLocalString(OBJECT_SELF, \"n5look_d\", FloatToString(GetDistanceBetween(OBJECT_SELF, " + Object(target) +
          "), 0, 3));\n";
+}
+
+std::string LookPlacesScript(uint32_t target) {
+  return "vector a = GetPosition(OBJECT_SELF);\nvector b = GetPosition(" + Object(target) + ");\n" +
+         "SetLocalString(OBJECT_SELF, \"n5look_p\", FloatToString(a.x, 0, 3) + \" \" + FloatToString(a.y, 0, 3) + \" \" + "
+         "FloatToString(a.z, 0, 3) + \" \" + FloatToString(b.x, 0, 3) + \" \" + FloatToString(b.y, 0, 3) + \" \" + "
+         "FloatToString(b.z, 0, 3));\n";
+}
+
+bool ReadPlaces(const std::string& text, FlightPoint* caster, FlightPoint* target) {
+  std::istringstream in(text);
+  FlightPoint a, b;
+  if (!(in >> a.x >> a.y >> a.z >> b.x >> b.y >> b.z)) return false;
+  *caster = a;
+  *target = b;
+  return true;
 }
 
 }  // namespace data

@@ -6,6 +6,7 @@
 #include <windows.h>
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
 
@@ -150,6 +151,13 @@ float Metres(uint32_t caster, uint32_t target) {
   return object ? static_cast<float>(atof(engine::GetLocalString(object, "n5look_d").c_str())) : 0.0f;
 }
 
+// Where the caster and the target stand, through the script (any target, as Metres); false when it can't tell.
+bool Places(uint32_t caster, uint32_t target, data::FlightPoint* at, data::FlightPoint* to) {
+  if (RunScriptChunk(data::LookPlacesScript(target).c_str(), caster) == -1) return false;
+  void* object = CreatureById(caster);
+  return object && data::ReadPlaces(engine::GetLocalString(object, "n5look_p"), at, to);
+}
+
 // Whether the game serves visualeffects `row` (asked once, through the script, as `self`; logged when it doesn't).
 bool RowServed(uint32_t self, int row) {
   if (row <= 0) return true;
@@ -215,7 +223,23 @@ float PlayLookArrival(uint32_t caster, uint32_t target, const data::SpellLook& l
     Log("look: 0x%08X %s row %d: the script bridge isn't there - nothing played", caster, look.name.c_str(), row);
     return 0.0f;
   }
-  const data::LookTiming timing = data::LookHitTiming(look, parts, since, metres);
+  data::LookTiming timing = data::LookHitTiming(look, parts, since, metres);
+  // A missile with a flight twin flies the look's flight (piece 2a) from the launch point to the target's chest, and
+  // the hit waits for it; any other keeps the game's MIRV (the hit script fires it).
+  const int twin = parts.missile ? data::FlightTwinRow(parts.missile) : 0;
+  char flight[96] = "";
+  data::FlightPoint at, to;
+  if (twin && Places(caster, target, &at, &to)) {
+    const data::FlightPoint from = data::LaunchPoint(at, to, parts.launch);
+    to.z += 1.0f;
+    const std::vector<data::FlightSegment> segments = data::FlightSegments(parts.flight, from, to, 0, 1);
+    timing = data::LookFlightTiming(look, since, data::FlightSeconds(segments));
+    const int result = RunWholeScript(data::FlightScript(segments, from, twin, timing.release_in).c_str(), caster);
+    snprintf(flight, sizeof flight, ", flies %s (%.2f s)%s", data::FlightKindName(parts.flight.kind),
+             data::FlightSeconds(segments), result == 0 ? "" : " - the flight script failed");
+  } else if (twin) {
+    snprintf(flight, sizeof flight, " - where they stand isn't known: no missile shows");
+  }
   LookRowsMissing(caster, look, row);  // logs, once per row, what this install doesn't serve
   if (hits) {
     RunScriptChunk(data::LookHitScript(parts, target, timing).c_str(), caster);
@@ -225,9 +249,9 @@ float PlayLookArrival(uint32_t caster, uint32_t target, const data::SpellLook& l
     PlayLookSounds(data::LookMissCues(parts, caster, timing));
   }
   Log("look: 0x%08X %s row %d: the rule ran %.2f s after the cast began%s (the look expects %.2f); the missile leaves "
-      "in %.2f s and %s in %.2f s (%.1f m)%s",
+      "in %.2f s%s and %s in %.2f s (%.1f m)%s",
       caster, look.name.c_str(), row, since, seen ? "" : " (no cast seen: assumed)", look.rule_at, timing.release_in,
-      hits ? "lands" : "misses - fizzles at the target -", timing.hit_in, metres, timing.late ? " - late" : "");
+      flight, hits ? "lands" : "misses - fizzles at the target -", timing.hit_in, metres, timing.late ? " - late" : "");
   return std::max(kAtLeast, timing.hit_in);
 }
 
