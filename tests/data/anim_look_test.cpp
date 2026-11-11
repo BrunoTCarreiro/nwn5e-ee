@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "check.h"
+#include "data/anim_flight.h"
 #include "data/anim_look.h"
 
 // Spell looks (data/anim_look.h): what the Spell & Attack Bench saves and the game plays. Breaks caught: a look that
@@ -233,4 +234,63 @@ TEST(AnimLookMissScript) {  // a miss (owner, 2026-11-10: "A"): the orb flies as
   const std::string l = data::LookLeapMissScript(p, 1.0f, 0x10, 0x11, 1.22f);
   CHECK_EQ(l.find("EffectBeam(210, StringToObject(\"10\"), BODY_NODE_CHEST)") != std::string::npos, true);
   CHECK_EQ(l.find("EffectVisualEffect(61)") == std::string::npos && l.find("sim_x") == std::string::npos, true);
+}
+
+// A look's flight (piece 2a, docs/superpowers/specs/2026-11-10-spell-bench-flight-paths-design.md): the kind, its
+// settings, the darts' fan and stagger and where the missile leaves from, as parts keys. Breaks caught: a key lost on
+// the way back or written out of the JS twin's order, a default written (every old look would change), a section's
+// flight leaking to the other rows, a value outside anim_flight.h's ranges let through.
+
+TEST(AnimLookFlightKeys) {
+  const std::string head = "name = x\nrows = 1153 1155\nrule_at = 1.5\nrelease = 1.6\n";
+  data::SpellLook look;
+  std::string error;
+  CHECK_EQ(data::ReadSpellLook(head + "flight = rise_dash\nflight_speed = 20\nflight_height = 1.5\nflight_rise = 0.4\n"
+                                      "darts_fan = 30\nlaunch = head\n",
+                               &look, &error),
+           true);
+  const data::FlightSettings& f = look.parts.flight;
+  CHECK_EQ(f.kind == data::FlightKind::kRiseDash && f.speed == 20.0f && f.fan == 30.0f && look.parts.launch == "head", true);
+  std::string text = data::WriteSpellLook(look);
+  CHECK_EQ(text.find("leap_beam = 0\nflight = rise_dash\nflight_speed = 20\ndarts_fan = 30\nlaunch = head\n") !=
+               std::string::npos,
+           true);
+  CHECK_EQ(text.find("flight_height") == std::string::npos && text.find("flight_rise") == std::string::npos, true);
+  // Every key, in the written order.
+  CHECK_EQ(data::ReadSpellLook(head + "launch = ground\ndarts_stagger = 0.1\nflight_speedup = 1\nflight_fall = 0.3\n"
+                                      "flight_rise = 1\nflight_height = 2\nflight = straight\n",
+                               &look, &error),
+           true);
+  text = data::WriteSpellLook(look);
+  CHECK_EQ(text.find("leap_beam = 0\nflight = straight\nflight_height = 2\nflight_rise = 1\nflight_fall = 0.3\n"
+                     "flight_speedup = 1\ndarts_stagger = 0.1\nlaunch = ground\n") != std::string::npos,
+           true);
+  // A section's flight holds for its row only.
+  CHECK_EQ(data::ReadSpellLook(head + "[1155]\nflight = arc\n", &look, &error), true);
+  CHECK_EQ(data::LookPartsFor(look, 1155).flight.kind == data::FlightKind::kArc &&
+               data::LookPartsFor(look, 1153).flight.kind == data::FlightKind::kHoming,
+           true);
+  CHECK_EQ(data::WriteSpellLook(look).find("[1155]\nflight = arc\n") != std::string::npos, true);
+  // Outside the ranges: refused, naming the key.
+  for (const char* bad : {"flight_fall = 0.95", "flight = zigzag", "flight_speed = 0.5", "flight_height = 11",
+                          "flight_rise = 0.01", "flight_speedup = 2", "darts_fan = 91", "darts_stagger = 0.6",
+                          "launch = feet"}) {
+    const std::string line = bad;
+    CHECK_EQ(data::ReadSpellLook(head + line + "\n", &look, &error), false);
+    CHECK_EQ(error.find(line.substr(0, line.find(' '))) != std::string::npos, true);
+  }
+}
+
+TEST(AnimLookFlightDefaults) {  // Review Focus 5: a look without flight keys - the rebuilt homing, from the hand
+  data::SpellLook look;
+  std::string error;
+  const std::string text = Fixture("chromatic_orb.look");
+  CHECK_EQ(data::ReadSpellLook(text, &look, &error), true);
+  const data::FlightSettings plain;
+  const data::FlightSettings& f = look.parts.flight;
+  CHECK_EQ(f.kind == data::FlightKind::kHoming && f.speed == plain.speed && f.height == plain.height &&
+               f.rise == plain.rise && f.fall == plain.fall && !f.speedup && f.fan == plain.fan &&
+               f.stagger == plain.stagger && look.parts.launch == "hand",
+           true);
+  CHECK_EQ(data::WriteSpellLook(look) == text, true);
 }

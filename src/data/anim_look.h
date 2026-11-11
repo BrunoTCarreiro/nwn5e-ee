@@ -23,6 +23,8 @@
 #include <string>
 #include <vector>
 
+#include "data/anim_flight.h"
+
 namespace data {
 
 enum class LookAnchor { kCast, kRelease, kHit };  // a sound's time counts from the cast's start, the release, or each hit
@@ -44,6 +46,11 @@ struct LookParts {  // what a [row] section may change
   int missile = 0, hit = 0, leap_beam = 0;  // visualeffects rows (0 = none; missile 0 = "on the target")
   std::vector<LookSound> sounds;
   std::map<std::string, std::string> table;  // spells.2da presentation columns
+  // Its flight (piece 2a): the kind and its settings, the darts' fan and stagger (anim_flight.h), and where the missile
+  // leaves from: hand, head or ground. Keys flight, flight_speed, flight_height, flight_rise, flight_fall,
+  // flight_speedup, darts_fan, darts_stagger, launch - written after leap_beam in that order, only when not the default.
+  FlightSettings flight;
+  std::string launch = "hand";
 };
 
 struct SpellLook {
