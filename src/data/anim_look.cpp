@@ -456,6 +456,8 @@ const LookParts& LookPartsFor(const SpellLook& look, int row) {
   return found == look.variants.end() ? look.parts : found->second;
 }
 
+bool LookFlies(const SpellLook& look, int row) { return LookPartsFor(look, row).missile != 0; }
+
 float MirvFlightSeconds(float metres) {
   if (!(metres > 0.0f)) return 0.0f;
   return metres / std::max(1.0f, 3.0f * std::log(metres) + 2.0f);

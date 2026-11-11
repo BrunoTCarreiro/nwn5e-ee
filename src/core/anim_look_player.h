@@ -35,6 +35,10 @@ float PlaySpellLookLeapMiss(uint32_t from, uint32_t to, int row, float after);
 // on its target. Returns each dart's arrival in seconds from now (its damage waits that long), in `targets`' order;
 // empty, and nothing played, without a look for `row`.
 std::vector<float> PlaySpellLookDarts(uint32_t caster, const std::vector<uint32_t>& targets, int row);
+// Whether spells.2da `row` has a look that flies something (a missile: its flight, or the game's MIRV for one without
+// a flight twin). False with no look, or a look whose missile is 0 (its hit lands on the target, nothing flies): a rule
+// that would replace the game's own missiles (Magic Missile's bolts) keeps them then.
+bool SpellLookFlies(int row);
 // A flight to a point on the ground (x, y, z: world metres; a spell aimed at a location, e.g. Fireball): on arrival the
 // hit effect at the location and the hit sounds there. Returns the seconds until it lands; 0 without a look for `row`.
 float PlaySpellLookAt(uint32_t caster, float x, float y, float z, int row);
