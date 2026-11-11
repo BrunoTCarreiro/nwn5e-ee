@@ -72,6 +72,9 @@ bool ReadSpellLook(const std::string& text, SpellLook* look, std::string* error)
 std::string WriteSpellLook(const SpellLook& look);
 // The row's parts: its section, else the defaults.
 const LookParts& LookPartsFor(const SpellLook& look, int row);
+// Whether the row's look flies something (its missile isn't 0) - its flight, or the game's MIRV for a missile without
+// a twin. A look with missile 0 lands its hit on the target at the release: nothing flies.
+bool LookFlies(const SpellLook& look, int row);
 
 // How long the game flies a MIRV-type missile (visualeffects Type_FD P, progfx Type 10 'log' - Magic Missile, the
 // orbs) over `metres`: d / max(1, 3 ln d + 2), the curve the game's own nw_s0_magmiss uses. The max keeps it positive

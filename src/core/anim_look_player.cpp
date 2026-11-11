@@ -434,6 +434,11 @@ std::vector<float> PlaySpellLookDarts(uint32_t caster, const std::vector<uint32_
   return look ? PlayLookDarts(caster, targets, *look, row) : std::vector<float>();
 }
 
+bool SpellLookFlies(int row) {
+  const data::SpellLook* look = LookFor(row);
+  return look && data::LookFlies(*look, row);
+}
+
 float PlaySpellLookAt(uint32_t caster, float x, float y, float z, int row) {
   const data::SpellLook* look = LookFor(row);
   return look ? PlayLookAt(caster, {x, y, z}, *look, row) : 0.0f;

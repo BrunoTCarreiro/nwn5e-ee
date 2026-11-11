@@ -367,3 +367,18 @@ TEST(AnimLookPlaces) {
   CHECK_EQ(caster.x == 1.5f && caster.y == 2.0f && caster.z == 0.25f && target.x == 11.5f && target.z == 0.0f, true);
   CHECK_EQ(data::ReadPlaces("", &caster, &target) || data::ReadPlaces("1 2 3 4 5", &caster, &target), false);
 }
+
+// Whether a row's look flies something (the game session, 2026-11-11: Magic Missile's darts go through the look only
+// when it does - a saved look with missile = 0 would otherwise replace NWN's bolts with nothing). Per row: a section
+// may set its own missile.
+TEST(AnimLookFlies) {
+  data::SpellLook look;
+  std::string error;
+  CHECK_EQ(data::ReadSpellLook("name = x\nrows = 1153 1155\nrule_at = 1.5\nrelease = 1.6\nmissile = 2100\n[1155]\nmissile = 0\n",
+                               &look, &error),
+           true);
+  CHECK_EQ(data::LookFlies(look, 1153) && !data::LookFlies(look, 1155), true);
+  data::SpellLook none;
+  CHECK_EQ(data::ReadSpellLook("name = y\nrows = 107\nrule_at = 1.5\nrelease = 1.6\n", &none, &error), true);
+  CHECK_EQ(data::LookFlies(none, 107), false);  // missile = 0: the hit on the target, nothing flies
+}
