@@ -119,6 +119,18 @@ std::vector<SoundCue> LookMissCues(const LookParts& parts, uint32_t caster, cons
   return out;
 }
 
+std::vector<SoundCue> LookPointCues(const LookParts& parts, uint32_t caster, FlightPoint point, const LookTiming& timing) {
+  std::vector<SoundCue> out = LookMissCues(parts, caster, timing);
+  for (const LookSound& s : parts.sounds) {
+    if (s.anchor != LookAnchor::kHit || !SoundHasEffects(s)) continue;
+    SoundCue c = Cue(timing.hit_in + s.at, caster, caster, s);
+    c.at_point = true;
+    c.point = point;
+    out.push_back(c);
+  }
+  return out;
+}
+
 std::vector<SoundCue> LookLeapCues(const LookParts& parts, uint32_t from, uint32_t to, float hit_in) {
   std::vector<SoundCue> out;
   for (const LookSound& s : parts.sounds) {

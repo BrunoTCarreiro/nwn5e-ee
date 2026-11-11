@@ -93,6 +93,28 @@ TEST(AnimFlightTwinRows) {  // the lasting-effect twin a missile flies on its ca
   CHECK_EQ(data::FlightTwinRow(503) == 2199 && data::FlightTwinRow(61) == 0, true);
 }
 
+// A flight to a point (a spell aimed at the ground, Task 6): its landing - the hit effect at the location, the plain
+// hit sounds from a short-lived invisible placeable there, each at its own time. Breaks caught: the hit on the caster
+// instead of the point, a sound with no object to play from, every sound bunched at the landing.
+TEST(AnimFlightLanding) {
+  const std::string code = data::FlightLandingScript({5, 0, 0}, 61, {{0.0f, "sim_explflame"}, {0.3f, "sim_x"}}, 1.25f);
+  for (const char* part : {
+           "void Land(location l, int hit, string s)",
+           "ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(hit), l);",
+           "CreateObject(OBJECT_TYPE_PLACEABLE, \"plc_invisobj\", l, FALSE, \"n5_land\")",
+           "AssignCommand(o, PlaySound(s));",
+           "void main()",
+           "DelayCommand(1.250, Land(Location(GetArea(OBJECT_SELF), Vector(5.000, 0.000, 0.000), 0.0), 61, \"sim_explflame\"));",
+           "DelayCommand(1.550, Land(Location(GetArea(OBJECT_SELF), Vector(5.000, 0.000, 0.000), 0.0), 0, \"sim_x\"));"}) {
+    CHECK_EQ(code.find(part) != std::string::npos, true);
+  }
+  // No sound at the landing itself: the hit still lands then, alone.
+  CHECK_EQ(data::FlightLandingScript({5, 0, 0}, 61, {}, 1.25f)
+                   .find("DelayCommand(1.250, Land(Location(GetArea(OBJECT_SELF), Vector(5.000, 0.000, 0.000), 0.0), 61, \"\"));") !=
+               std::string::npos,
+           true);
+}
+
 TEST(AnimFlightScript) {  // the whole script that flies a dart: the carrier, the missile on it, the segments, the end
   data::FlightSettings s;
   s.kind = data::FlightKind::kRiseDash;

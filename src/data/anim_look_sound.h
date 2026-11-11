@@ -24,6 +24,9 @@ struct SoundCue {
   float in = 0.0f;
   uint32_t at = 0, voice_of = 0;
   LookSound sound;
+  // A flight to a point (piece 2a): the sound plays at `point` (world metres, the ground there), not at an object.
+  bool at_point = false;
+  FlightPoint point;
 };
 // The sounds with effects of LookCastScript (at the caster), LookHitScript (release ones at the caster, hit ones at the
 // target) and LookLeapScript (hit ones at `to`), with the same times.
@@ -32,6 +35,8 @@ std::vector<SoundCue> LookHitCues(const LookParts& parts, uint32_t caster, uint3
 std::vector<SoundCue> LookLeapCues(const LookParts& parts, uint32_t from, uint32_t to, float hit_in);
 // A miss's (LookMissScript): the release ones only - it fizzles, no hit sounds.
 std::vector<SoundCue> LookMissCues(const LookParts& parts, uint32_t caster, const LookTiming& timing);
+// A flight to a point's (PlaySpellLookAt): the release ones at the caster, the hit ones at `point`.
+std::vector<SoundCue> LookPointCues(const LookParts& parts, uint32_t caster, FlightPoint point, const LookTiming& timing);
 
 // A sound's effects as OpenAL / EFX settings:
 //   pitch      AL_PITCH (faster and higher);  gain  AL_GAIN (the volume; the source's AL_MAX_GAIN raised to it);

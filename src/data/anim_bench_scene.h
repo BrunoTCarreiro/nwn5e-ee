@@ -34,9 +34,15 @@ struct BenchRequest {
   float distance = 9.0f;
   std::string enemy = "nw_goblina";
   bool miss = false;  // the attack misses (owner, 2026-11-10: "A"): the orb flies and fizzles, no leaps
+  // Darts (piece 2a): 1-8 missiles at once; spread "target" sends every dart at the target, "each" one per creature from
+  // the target on (wrapping). point: the flight lands on the ground at the target's spot instead of on the creature.
+  int darts = 1;
+  std::string spread = "target";
+  bool point = false;
 };
 // "request = play <serial> row=<r> formation=<name> count=<n> distance=<m> target=<i> enemy=<resref> leaps=<k>
-// [miss=1]" or "request = stop <serial>". Unknown keys, out-of-range values and target >= count are errors.
+// [miss=1] [darts=<1-8>] [spread=target|each] [point=0|1]" or "request = stop <serial>". Unknown keys, out-of-range
+// values and target >= count are errors.
 bool ReadBenchRequest(const std::string& first_line, BenchRequest* request, std::string* error);
 
 // Run as the player character: creates `enemy` at each spot (facing back), commoner faction and plot so they neither

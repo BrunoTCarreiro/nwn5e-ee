@@ -54,6 +54,16 @@ TEST(AnimBenchRequest) {
   CHECK_EQ(data::ReadBenchRequest("request = play 10 row=1156 miss=1", &r, &error) && r.miss, true);
   CHECK_EQ(data::ReadBenchRequest("request = play 11 row=1156", &r, &error) && !r.miss, true);
   CHECK_EQ(data::ReadBenchRequest("request = play 12 row=1156 miss=2", &r, &error), false);
+  // Darts and a point (piece 2a): darts 1-8, spread target (all at the target) or each (one per creature), point=1 the
+  // target spot's ground. None: one dart at the target creature.
+  CHECK_EQ(data::ReadBenchRequest("request = play 13 row=1156 count=3 darts=3 spread=each point=1", &r, &error), true);
+  CHECK_EQ(r.darts == 3 && r.spread == "each" && r.point, true);
+  CHECK_EQ(data::ReadBenchRequest("request = play 14 row=1156", &r, &error) && r.darts == 1 && r.spread == "target" &&
+               !r.point,
+           true);
+  CHECK_EQ(data::ReadBenchRequest("request = play 15 row=1156 darts=9", &r, &error), false);
+  CHECK_EQ(data::ReadBenchRequest("request = play 16 row=1156 spread=all", &r, &error), false);
+  CHECK_EQ(data::ReadBenchRequest("request = play 17 row=1156 point=2", &r, &error), false);
 }
 
 TEST(AnimBenchSpawnScript) {

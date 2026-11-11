@@ -176,4 +176,35 @@ std::string FlightScript(const std::vector<FlightSegment>& segments, FlightPoint
   return code;
 }
 
+std::string FlightLandingScript(FlightPoint at, int hit_row, const std::vector<FlightLandingSound>& sounds, float at_time) {
+  const auto number = [](float v) {
+    char text[32];
+    snprintf(text, sizeof text, "%.3f", v);
+    return std::string(text);
+  };
+  const std::string place = "Location(GetArea(OBJECT_SELF), Vector(" + number(at.x) + ", " + number(at.y) + ", " +
+                            number(at.z) + "), 0.0)";
+  const auto land = [&](float when, int hit, const std::string& sound) {
+    return "  DelayCommand(" + number(when) + ", Land(" + place + ", " + std::to_string(hit) + ", \"" + sound + "\"));\n";
+  };
+  std::string code =
+      "void Land(location l, int hit, string s) {\n"
+      "  if (hit != 0) ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(hit), l);\n"
+      "  if (s == \"\") return;\n"
+      "  object o = CreateObject(OBJECT_TYPE_PLACEABLE, \"plc_invisobj\", l, FALSE, \"n5_land\");\n"
+      "  AssignCommand(o, PlaySound(s));\n"
+      "  DestroyObject(o, 6.0);\n"
+      "}\n"
+      "void main() {\n";
+  // The hit rides with the first sound at the landing itself; it lands alone when there's none.
+  bool hit_placed = false;
+  for (const FlightLandingSound& s : sounds) {
+    const bool with_hit = !hit_placed && s.after <= 0.0f;
+    code += land(at_time + std::max(0.0f, s.after), with_hit ? hit_row : 0, s.resref);
+    hit_placed = hit_placed || with_hit;
+  }
+  if (!hit_placed && hit_row) code += land(at_time, hit_row, "");
+  return code + "}\n";
+}
+
 }  // namespace data

@@ -153,6 +153,15 @@ bool ReadBenchRequest(const std::string& first_line, BenchRequest* request, std:
       int miss = 0;
       ok = ParseInt(value, 0, 1, &miss);
       r.miss = miss == 1;
+    } else if (key == "darts") {
+      ok = ParseInt(value, 1, 8, &r.darts);
+    } else if (key == "spread") {
+      ok = value == "target" || value == "each";
+      r.spread = value;
+    } else if (key == "point") {
+      int point = 0;
+      ok = ParseInt(value, 0, 1, &point);
+      r.point = point == 1;
     } else {
       return fail("unknown request key '" + key + "'");
     }

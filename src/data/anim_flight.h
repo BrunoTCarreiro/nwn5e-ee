@@ -61,4 +61,14 @@ int FlightTwinRow(int missile_row);
 // SetObjectVisualTransform through a void helper DelayCommand times, the carrier gone after. Times and metres %.3f.
 std::string FlightScript(const std::vector<FlightSegment>& segments, FlightPoint from, int twin_row, float start);
 
+// A flight's landing at a point (a spell aimed at the ground): a whole script (RunWholeScript, run as the caster) whose
+// helper Land(location, hit, sound) applies `hit_row` at the point (ApplyEffectAtLocation) and plays a plain sound
+// there from a short-lived invisible placeable (tag "n5_land"). The hit lands at `at_time` with the sounds `after` 0;
+// each other sound at its own time after it.
+struct FlightLandingSound {
+  float after = 0.0f;  // s after the landing
+  std::string resref;
+};
+std::string FlightLandingScript(FlightPoint at, int hit_row, const std::vector<FlightLandingSound>& sounds, float at_time);
+
 }  // namespace data

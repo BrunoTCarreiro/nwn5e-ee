@@ -9,6 +9,9 @@
 #include <stdint.h>
 
 #include <string>
+#include <vector>
+
+#include "data/anim_flight.h"  // FlightPoint
 
 namespace data {
 struct SpellLook;
@@ -27,6 +30,14 @@ float PlaySpellLookLeap(uint32_t from, uint32_t to, int row, float after);
 float PlaySpellLookMiss(uint32_t caster, uint32_t target, int row);
 // A leap that misses: its beam from `from` to `to`, no hit. Returns the seconds until it would land, from now.
 float PlaySpellLookLeapMiss(uint32_t from, uint32_t to, int row, float after);
+// Darts (piece 2a; Magic Missile): one missile per entry of `targets` (a creature may repeat), dart i flying the look's
+// flight fanned out with its neighbours and leaving FlightStart(i) after the first; each dart's hit and hit sounds land
+// on its target. Returns each dart's arrival in seconds from now (its damage waits that long), in `targets`' order;
+// empty, and nothing played, without a look for `row`.
+std::vector<float> PlaySpellLookDarts(uint32_t caster, const std::vector<uint32_t>& targets, int row);
+// A flight to a point on the ground (x, y, z: world metres; a spell aimed at a location, e.g. Fireball): on arrival the
+// hit effect at the location and the hit sounds there. Returns the seconds until it lands; 0 without a look for `row`.
+float PlaySpellLookAt(uint32_t caster, float x, float y, float z, int row);
 
 // The same with a look in hand - the bench's staged replay (nwn5e-tools/dev/spell_bench_link.cpp).
 void StartLookCast(uint32_t caster, const data::SpellLook& look, int row);  // the clip and the caster's parts, now
@@ -34,6 +45,9 @@ float PlayLookHit(uint32_t caster, uint32_t target, const data::SpellLook& look,
 float PlayLookMiss(uint32_t caster, uint32_t target, const data::SpellLook& look, int row);
 float PlayLookLeap(uint32_t from, uint32_t to, const data::SpellLook& look, int row, float after);
 float PlayLookLeapMiss(uint32_t from, uint32_t to, const data::SpellLook& look, int row, float after);
+std::vector<float> PlayLookDarts(uint32_t caster, const std::vector<uint32_t>& targets, const data::SpellLook& look,
+                                 int row);
+float PlayLookAt(uint32_t caster, data::FlightPoint at, const data::SpellLook& look, int row);
 
 // The visualeffects rows `row`'s look plays that the game doesn't serve (Type_FD empty: the orb rows before the game
 // session's looks row server is in the install), as "2100, 2101" - empty when all are there. Each row is asked once
