@@ -1218,3 +1218,34 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
   - Six orbs, the game's vpr_ecto*01 flown as its MIRVs: visualeffects 2100-2105, progfx 910-915
     (data/looks/*.look.txt; the game session's row server serves data\looks then spellbench\looks, empty rows only).
   - Per-sound volume (owner, 2026-11-10, via the game session) comes with piece 4: the game's PlaySound has none.
+
+## Spell & Attack Bench - piece 2a: flight paths (2026-11-11, #155)
+
+  Owner, 2026-11-10: "yes, start piece 2 with flight paths"; design docs/superpowers/specs/2026-11-10-spell-bench-
+  flight-paths-design.md, plan docs/superpowers/plans/2026-11-10-spell-bench-flight-paths-2a.md (native execution, one
+  final review). The proof gated it (SB-21b, passed 2026-11-11).
+  - A look's flight: the kind (homing, an arc, straight, rise then dash), its settings, the darts' fan and stagger,
+    where it leaves (hand, head, ground) - parts keys, written after leap_beam only when not the default.
+  - In game a missile with a flight twin (visualeffects 2190-2199: the orbs, 181, 503; a bench copy by its projectile
+    row) flies an invisible carrier along the game's visual-transform easings, with the missile row's own flight sound;
+    the hit waits for it. The arrows (233, 245) keep the MIRV until the carrier turns the model.
+  - Rule calls: PlaySpellLookDarts (Magic Missile, wired 0.99.17 behind SpellLookFlies), PlaySpellLookAt (Fireball,
+    when its rule is written).
+  - The bench: the Attack card's flight controls; the scene's darts, spread and "aim at the ground"; the preview flies
+    each dart as the game does (public/flight.js, held to anim_flight's numbers).
+  - Open: SB-22..25, MMD-1/2; deferred minors on the ledger (darts capped at 8, fan per neighbour - the owner's call).
+  - Next: piece 2b, companions and trails.
+
+## Mocap Bench: RGBMocap's BVH takes (2026-11-11, #157)
+
+  Owner, 2026-11-11: "Let's go back to meshing RGB mocap with the bench", then "go with A" - a BVH take reader in the
+  bench (B, a pass through Blender for every take, set aside). RGBMocap (toyxyz, installed at E:\toyxyz_RGBMocap)
+  turns a video into SMPL-X motion and exports BVH (root Hips, Mixamo-style names, Y up, 30 fps).
+  - A recording folder holding a .bvh is a take (a FreeMoCap folder's own files still win). The reader runs the
+    skeleton forward per frame and maps the joints onto the body points (LeftArm is the shoulder); the nose and ears,
+    knuckles and thumb and the heels are placed from their joint's own turn, so the head's look and the wrist's roll
+    carry (fingers ignored: "nwn hands are just fists").
+  - A model's take skips the webcam clean-up (stray hands, outliers, swaps, lost limbs); its smoothing starts sharp.
+  - Fixtures: a hand-written BVH only - ExMR / GVHMR and SMPL-X's derived data are research and nonprofit use; no
+    export goes into git. Whether clips made from these takes may go into the public repo is the owner's call.
+  - nwn5e-tools a230df7; test rows RGB-1 (video to BVH in RGBMocap) and RGB-2 (the bench reads it).
