@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "check.h"
+#include "data/anim_flight.h"
 #include "data/anim_look.h"
 
 // Spell looks (data/anim_look.h): what the Spell & Attack Bench saves and the game plays. Breaks caught: a look that
@@ -98,14 +99,14 @@ TEST(AnimLookLate) {
   CHECK_EQ(std::fabs(t.hit_in - 1.1226f) < 0.001f, true);
 }
 
-TEST(AnimLookHitScript) {
+TEST(AnimLookHitScript) {  // a missile with no flight twin: the game's MIRV, as before
   data::LookParts p;
-  p.missile = 2100;
+  p.missile = 9000;
   p.hit = 61;
   p.sounds = {{data::LookAnchor::kRelease, 0, "sco_x"}, {data::LookAnchor::kHit, 0.05f, "sim_explflame"}};
   const std::string s = data::LookHitScript(p, 0x1a2b, {0.10f, 1.22f, false});
   CHECK_EQ(s.find("object t = StringToObject(\"1a2b\");") != std::string::npos, true);
-  CHECK_EQ(s.find("DelayCommand(0.10, ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(2100), t));") !=
+  CHECK_EQ(s.find("DelayCommand(0.10, ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(9000), t));") !=
                std::string::npos,
            true);
   CHECK_EQ(s.find("DelayCommand(1.22, ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(61), t));") !=
@@ -114,7 +115,7 @@ TEST(AnimLookHitScript) {
   CHECK_EQ(s.find("DelayCommand(0.10, PlaySound(\"sco_x\"));") != std::string::npos, true);
   CHECK_EQ(s.find("AssignCommand(t, DelayCommand(1.27, PlaySound(\"sim_explflame\")));") != std::string::npos, true);
   p.missile = 0;
-  CHECK_EQ(data::LookHitScript(p, 0x1a2b, {0.10f, 0.10f, false}).find("EffectVisualEffect(2100)") == std::string::npos,
+  CHECK_EQ(data::LookHitScript(p, 0x1a2b, {0.10f, 0.10f, false}).find("EffectVisualEffect(9000)") == std::string::npos,
            true);
 }
 
@@ -220,12 +221,12 @@ TEST(AnimLookConjureClip) {
 
 TEST(AnimLookMissScript) {  // a miss (owner, 2026-11-10: "A"): the orb flies as for a hit and fizzles - no hit effect or sound
   data::LookParts p;
-  p.missile = 2100;
+  p.missile = 9000;  // no flight twin: the game's MIRV
   p.hit = 61;
   p.leap_beam = 210;
   p.sounds = {{data::LookAnchor::kRelease, 0, "spr_x"}, {data::LookAnchor::kHit, 0.05f, "sim_x"}};
   const std::string s = data::LookMissScript(p, 0x1a2b, {0.10f, 1.22f, false});
-  CHECK_EQ(s.find("DelayCommand(0.10, ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(2100), t));") !=
+  CHECK_EQ(s.find("DelayCommand(0.10, ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(9000), t));") !=
                std::string::npos,
            true);
   CHECK_EQ(s.find("PlaySound(\"spr_x\")") != std::string::npos, true);
@@ -233,4 +234,136 @@ TEST(AnimLookMissScript) {  // a miss (owner, 2026-11-10: "A"): the orb flies as
   const std::string l = data::LookLeapMissScript(p, 1.0f, 0x10, 0x11, 1.22f);
   CHECK_EQ(l.find("EffectBeam(210, StringToObject(\"10\"), BODY_NODE_CHEST)") != std::string::npos, true);
   CHECK_EQ(l.find("EffectVisualEffect(61)") == std::string::npos && l.find("sim_x") == std::string::npos, true);
+}
+
+// A look's flight (piece 2a, docs/superpowers/specs/2026-11-10-spell-bench-flight-paths-design.md): the kind, its
+// settings, the darts' fan and stagger and where the missile leaves from, as parts keys. Breaks caught: a key lost on
+// the way back or written out of the JS twin's order, a default written (every old look would change), a section's
+// flight leaking to the other rows, a value outside anim_flight.h's ranges let through.
+
+TEST(AnimLookFlightKeys) {
+  const std::string head = "name = x\nrows = 1153 1155\nrule_at = 1.5\nrelease = 1.6\n";
+  data::SpellLook look;
+  std::string error;
+  CHECK_EQ(data::ReadSpellLook(head + "flight = rise_dash\nflight_speed = 20\nflight_height = 1.5\nflight_rise = 0.4\n"
+                                      "darts_fan = 30\nlaunch = head\n",
+                               &look, &error),
+           true);
+  const data::FlightSettings& f = look.parts.flight;
+  CHECK_EQ(f.kind == data::FlightKind::kRiseDash && f.speed == 20.0f && f.fan == 30.0f && look.parts.launch == "head", true);
+  std::string text = data::WriteSpellLook(look);
+  CHECK_EQ(text.find("leap_beam = 0\nflight = rise_dash\nflight_speed = 20\ndarts_fan = 30\nlaunch = head\n") !=
+               std::string::npos,
+           true);
+  CHECK_EQ(text.find("flight_height") == std::string::npos && text.find("flight_rise") == std::string::npos, true);
+  // Every key, in the written order.
+  CHECK_EQ(data::ReadSpellLook(head + "launch = ground\ndarts_stagger = 0.1\nflight_speedup = 1\nflight_fall = 0.3\n"
+                                      "flight_rise = 1\nflight_height = 2\nflight = straight\n",
+                               &look, &error),
+           true);
+  text = data::WriteSpellLook(look);
+  CHECK_EQ(text.find("leap_beam = 0\nflight = straight\nflight_height = 2\nflight_rise = 1\nflight_fall = 0.3\n"
+                     "flight_speedup = 1\ndarts_stagger = 0.1\nlaunch = ground\n") != std::string::npos,
+           true);
+  // A section's flight holds for its row only.
+  CHECK_EQ(data::ReadSpellLook(head + "[1155]\nflight = arc\n", &look, &error), true);
+  CHECK_EQ(data::LookPartsFor(look, 1155).flight.kind == data::FlightKind::kArc &&
+               data::LookPartsFor(look, 1153).flight.kind == data::FlightKind::kHoming,
+           true);
+  CHECK_EQ(data::WriteSpellLook(look).find("[1155]\nflight = arc\n") != std::string::npos, true);
+  // Outside the ranges: refused, naming the key.
+  for (const char* bad : {"flight_fall = 0.95", "flight = zigzag", "flight_speed = 0.5", "flight_height = 11",
+                          "flight_rise = 0.01", "flight_speedup = 2", "darts_fan = 91", "darts_stagger = 0.6",
+                          "launch = feet"}) {
+    const std::string line = bad;
+    CHECK_EQ(data::ReadSpellLook(head + line + "\n", &look, &error), false);
+    CHECK_EQ(error.find(line.substr(0, line.find(' '))) != std::string::npos, true);
+  }
+}
+
+TEST(AnimLookFlightDefaults) {  // Review Focus 5: a look without flight keys - the rebuilt homing, from the hand
+  data::SpellLook look;
+  std::string error;
+  const std::string text = Fixture("chromatic_orb.look");
+  CHECK_EQ(data::ReadSpellLook(text, &look, &error), true);
+  const data::FlightSettings plain;
+  const data::FlightSettings& f = look.parts.flight;
+  CHECK_EQ(f.kind == data::FlightKind::kHoming && f.speed == plain.speed && f.height == plain.height &&
+               f.rise == plain.rise && f.fall == plain.fall && !f.speedup && f.fan == plain.fan &&
+               f.stagger == plain.stagger && look.parts.launch == "hand",
+           true);
+  CHECK_EQ(data::WriteSpellLook(look) == text, true);
+}
+
+// The look player flies the look's flight (Task 5). Breaks caught: the missile leaving from the feet or the wrong side
+// of the caster, a hit that lands on the MIRV time instead of the flight's, the game's MIRV fired on top of the flight
+// (two orbs), a missile with no twin left with no missile at all.
+
+TEST(AnimLookLaunchPoint) {
+  const auto at = [](data::FlightPoint p, float x, float y, float z) {
+    return std::fabs(p.x - x) < 0.001f && std::fabs(p.y - y) < 0.001f && std::fabs(p.z - z) < 0.001f;
+  };
+  CHECK_EQ(at(data::LaunchPoint({0, 0, 0}, {10, 0, 0}, "hand"), 0.3f, 0, 1.3f), true);
+  CHECK_EQ(at(data::LaunchPoint({0, 0, 0}, {10, 0, 0}, "head"), 0, 0, 1.8f), true);
+  CHECK_EQ(at(data::LaunchPoint({0, 0, 0}, {10, 0, 0}, "ground"), 0.3f, 0, 0.1f), true);
+  CHECK_EQ(at(data::LaunchPoint({1, 2, 0}, {1, 12, 0}, "hand"), 1, 2.3f, 1.3f), true);  // toward the target
+  CHECK_EQ(at(data::LaunchPoint({0, 0, 0}, {0, 0, 5}, "hand"), 0.3f, 0, 1.3f), true);   // straight above: along x
+}
+
+TEST(AnimLookHitTimingUsesTheFlight) {  // Review Focus 4: the hit waits for the flight, not the MIRV time
+  data::SpellLook look;
+  look.rule_at = 1.5f;
+  look.release = 1.6f;
+  const data::LookTiming t = data::LookFlightTiming(look, 1.5f, 2.4f);
+  CHECK_EQ(std::fabs(t.release_in - 0.1f) < 0.001f && std::fabs(t.hit_in - 2.5f) < 0.001f && !t.late, true);
+  const data::LookTiming late = data::LookFlightTiming(look, 2.0f, 2.4f);
+  CHECK_EQ(late.release_in == 0.0f && late.late && std::fabs(late.hit_in - 2.4f) < 0.001f, true);
+}
+
+// Who carries the missile is the look player's call (the final review, 2026-11-11): it knows whether the flight ran.
+// When it did, the hit script gets LookFlown(parts) - no MIRV on top, one orb; when it couldn't (no twin, a place it
+// couldn't read), the parts as they are - the game's MIRV, never no missile (Review Focus 2).
+TEST(AnimLookHitScriptLeavesTheMissileToTheFlight) {
+  data::LookParts p;
+  p.missile = 2100;
+  p.hit = 61;
+  p.sounds = {{data::LookAnchor::kRelease, 0, "spr_x"}};
+  const std::string h = data::LookHitScript(data::LookFlown(p), 0x1a2b, {0.10f, 1.22f, false});
+  CHECK_EQ(h.find("EffectVisualEffect(2100)") == std::string::npos, true);
+  CHECK_EQ(h.find("EffectVisualEffect(61)") != std::string::npos && h.find("PlaySound(\"spr_x\")") != std::string::npos, true);
+  CHECK_EQ(data::LookMissScript(data::LookFlown(p), 0x1a2b, {0.10f, 1.22f, false}).find("EffectVisualEffect(2100)") ==
+               std::string::npos,
+           true);
+  // Not flown (the flight couldn't run): the MIRV still shows.
+  CHECK_EQ(data::LookHitScript(p, 0x1a2b, {0.10f, 1.22f, false}).find("EffectVisualEffect(2100), t));") != std::string::npos, true);
+}
+
+// A missile's projectile row, asked of the game (a bench copy isn't in FlightTwinRow's table): its ProgFX_Impact.
+TEST(AnimLookProgfxScript) {
+  CHECK_EQ(data::LookProgfxScript(2106) ==
+               "SetLocalString(OBJECT_SELF, \"n5look_pfx\", Get2DAString(\"visualeffects\", \"ProgFX_Impact\", 2106));\n",
+           true);
+}
+
+TEST(AnimLookHitScriptKeepsMirvWithoutTwin) {  // Review Focus 2: a missile with no twin keeps the game's own flight
+  data::LookParts p;
+  p.missile = 9000;
+  const std::string h = data::LookHitScript(p, 0x1a2b, {0.10f, 1.22f, false});
+  CHECK_EQ(h.find("DelayCommand(0.10, ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(9000), t));") !=
+               std::string::npos,
+           true);
+}
+
+// Where the caster and the target stand, through the script, so a flight works for any target the distance does (a
+// door, a placeable - not only creatures). Breaks caught: the target's position read off the caster, a short or garbled
+// answer taken as a position.
+TEST(AnimLookPlaces) {
+  const std::string s = data::LookPlacesScript(0x1a2b);
+  CHECK_EQ(s.find("vector a = GetPosition(OBJECT_SELF);") != std::string::npos, true);
+  CHECK_EQ(s.find("vector b = GetPosition(StringToObject(\"1a2b\"));") != std::string::npos, true);
+  CHECK_EQ(s.find("SetLocalString(OBJECT_SELF, \"n5look_p\", ") != std::string::npos, true);
+  data::FlightPoint caster, target;
+  CHECK_EQ(data::ReadPlaces("1.5 2 0.25 11.5 2 0", &caster, &target), true);
+  CHECK_EQ(caster.x == 1.5f && caster.y == 2.0f && caster.z == 0.25f && target.x == 11.5f && target.z == 0.0f, true);
+  CHECK_EQ(data::ReadPlaces("", &caster, &target) || data::ReadPlaces("1 2 3 4 5", &caster, &target), false);
 }

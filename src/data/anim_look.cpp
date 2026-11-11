@@ -153,6 +153,82 @@ bool ReadSoundEffect(const std::string& word, LookSound* sound, std::string* why
   return false;
 }
 
+// The flight's number keys (anim_flight.h's ranges), in the written order around flight_speedup.
+struct FlightKey {
+  const char* key;
+  float FlightSettings::*field;
+  float low, high;
+};
+const FlightKey kFlightKeys[] = {{"flight_speed", &FlightSettings::speed, 1.0f, 60.0f},
+                                 {"flight_height", &FlightSettings::height, 0.0f, 10.0f},
+                                 {"flight_rise", &FlightSettings::rise, 0.05f, 3.0f},
+                                 {"flight_fall", &FlightSettings::fall, 0.1f, 0.9f}};
+const FlightKey kDartKeys[] = {{"darts_fan", &FlightSettings::fan, 0.0f, 90.0f},
+                               {"darts_stagger", &FlightSettings::stagger, 0.0f, 0.5f}};
+
+bool ReadFlightNumber(const FlightKey& k, const std::string& value, LookParts* parts, std::string* why) {
+  char* end = nullptr;
+  const float v = strtof(value.c_str(), &end);
+  if (value.empty() || *end != '\0' || !(v >= k.low && v <= k.high)) {
+    *why = std::string(k.key) + " is " + Number(k.low) + " to " + Number(k.high);
+    return false;
+  }
+  parts->flight.*k.field = v;
+  return true;
+}
+
+// A flight key into *parts: false (and *why) on a bad value; *known = false when `key` isn't one.
+bool ReadFlightKey(const std::string& key, const std::string& value, LookParts* parts, bool* known, std::string* why) {
+  *known = true;
+  if (key == "flight") {
+    if (!FlightKindFromName(value, &parts->flight.kind)) {
+      *why = "flight is homing, arc, straight or rise_dash";
+      return false;
+    }
+    return true;
+  }
+  if (key == "flight_speedup") {
+    if (value != "0" && value != "1") {
+      *why = "flight_speedup is 0 or 1";
+      return false;
+    }
+    parts->flight.speedup = value == "1";
+    return true;
+  }
+  if (key == "launch") {
+    if (value != "hand" && value != "head" && value != "ground") {
+      *why = "launch is hand, head or ground";
+      return false;
+    }
+    parts->launch = value;
+    return true;
+  }
+  for (const FlightKey& k : kFlightKeys) {
+    if (key == k.key) return ReadFlightNumber(k, value, parts, why);
+  }
+  for (const FlightKey& k : kDartKeys) {
+    if (key == k.key) return ReadFlightNumber(k, value, parts, why);
+  }
+  *known = false;
+  return false;
+}
+
+// The flight keys where `p` differs from `base` (the defaults' own, or a section's against the look's defaults).
+std::string FlightLines(const LookParts& p, const LookParts& base) {
+  const FlightSettings &f = p.flight, &b = base.flight;
+  std::string out;
+  if (f.kind != b.kind) out += std::string("flight = ") + FlightKindName(f.kind) + "\n";
+  for (const FlightKey& k : kFlightKeys) {
+    if (Number(f.*k.field) != Number(b.*k.field)) out += std::string(k.key) + " = " + Number(f.*k.field) + "\n";
+  }
+  if (f.speedup != b.speedup) out += std::string("flight_speedup = ") + (f.speedup ? "1" : "0") + "\n";
+  for (const FlightKey& k : kDartKeys) {
+    if (Number(f.*k.field) != Number(b.*k.field)) out += std::string(k.key) + " = " + Number(f.*k.field) + "\n";
+  }
+  if (p.launch != base.launch) out += "launch = " + p.launch + "\n";
+  return out;
+}
+
 // A parts key (allowed in a section too). Returns false and sets *why when the line is bad; *known = false when the key
 // isn't a parts key at all.
 bool ReadPartsKey(const std::string& key, const std::string& value, bool* first_sound, LookParts* parts, bool* known,
@@ -223,8 +299,7 @@ bool ReadPartsKey(const std::string& key, const std::string& value, bool* first_
     parts->table[column] = value;
     return true;
   }
-  *known = false;
-  return false;
+  return ReadFlightKey(key, value, parts, known, why);
 }
 
 }  // namespace
@@ -345,6 +420,7 @@ std::string WriteSpellLook(const SpellLook& look) {
   out += "missile = " + std::to_string(d.missile) + "\n";
   out += "hit = " + std::to_string(d.hit) + "\n";
   out += "leap_beam = " + std::to_string(d.leap_beam) + "\n";
+  out += FlightLines(d, LookParts());
   for (const LookSound& sound : d.sounds) out += SoundLine(sound);
   for (const auto& cell : d.table) out += "table." + cell.first + " = " + cell.second + "\n";
   for (const auto& variant : look.variants) {
@@ -358,6 +434,7 @@ std::string WriteSpellLook(const SpellLook& look) {
     if (v.missile != d.missile) keys += "missile = " + std::to_string(v.missile) + "\n";
     if (v.hit != d.hit) keys += "hit = " + std::to_string(v.hit) + "\n";
     if (v.leap_beam != d.leap_beam) keys += "leap_beam = " + std::to_string(v.leap_beam) + "\n";
+    keys += FlightLines(v, d);
     if (!SameSounds(v.sounds, d.sounds)) {
       if (v.sounds.empty()) keys += "sound = none\n";
       for (const LookSound& sound : v.sounds) keys += SoundLine(sound);
@@ -385,11 +462,22 @@ float MirvFlightSeconds(float metres) {
 }
 
 LookTiming LookHitTiming(const SpellLook& look, const LookParts& parts, float since_cast, float metres) {
+  return LookFlightTiming(look, since_cast, parts.missile ? MirvFlightSeconds(metres) : 0.0f);
+}
+
+LookTiming LookFlightTiming(const SpellLook& look, float since_cast, float flight_seconds) {
   LookTiming timing;
   timing.late = since_cast > look.release;
   timing.release_in = std::max(0.0f, look.release - since_cast);
-  timing.hit_in = timing.release_in + (parts.missile ? MirvFlightSeconds(metres) : 0.0f);
+  timing.hit_in = timing.release_in + flight_seconds;
   return timing;
+}
+
+FlightPoint LaunchPoint(FlightPoint caster, FlightPoint target, const std::string& launch) {
+  if (launch == "head") return {caster.x, caster.y, caster.z + 1.8f};
+  const float dx = target.x - caster.x, dy = target.y - caster.y, ground = std::sqrt(dx * dx + dy * dy);
+  const float ux = ground < 0.001f ? 1.0f : dx / ground, uy = ground < 0.001f ? 0.0f : dy / ground;
+  return {caster.x + ux * 0.3f, caster.y + uy * 0.3f, caster.z + (launch == "ground" ? 0.1f : 1.3f)};
 }
 
 namespace {
@@ -442,7 +530,7 @@ namespace {
 // The missile and the release, then - a hit - the hit effect and the `hit` sounds; a miss fizzles without them.
 std::string ArrivalScript(const LookParts& parts, uint32_t target, const LookTiming& timing, bool hits) {
   std::string code = "object t = " + Object(target) + ";\n";
-  if (parts.missile) code += Instant(timing.release_in, parts.missile);
+  if (parts.missile) code += Instant(timing.release_in, parts.missile);  // 0 when the flight carries it (LookFlown)
   if (parts.hit && hits) code += Instant(timing.hit_in, parts.hit);
   for (const LookSound& sound : parts.sounds) {
     if (SoundHasEffects(sound)) continue;  // the sound player's (LookHitCues / LookMissCues)
@@ -496,6 +584,33 @@ std::string LookRowCheckScript(int row) {
 std::string LookDistanceScript(uint32_t target) {
   return "SetLocalString(OBJECT_SELF, \"n5look_d\", FloatToString(GetDistanceBetween(OBJECT_SELF, " + Object(target) +
          "), 0, 3));\n";
+}
+
+std::string LookPlacesScript(uint32_t target) {
+  return "vector a = GetPosition(OBJECT_SELF);\nvector b = GetPosition(" + Object(target) + ");\n" +
+         "SetLocalString(OBJECT_SELF, \"n5look_p\", FloatToString(a.x, 0, 3) + \" \" + FloatToString(a.y, 0, 3) + \" \" + "
+         "FloatToString(a.z, 0, 3) + \" \" + FloatToString(b.x, 0, 3) + \" \" + FloatToString(b.y, 0, 3) + \" \" + "
+         "FloatToString(b.z, 0, 3));\n";
+}
+
+std::string LookProgfxScript(int row) {
+  return "SetLocalString(OBJECT_SELF, \"n5look_pfx\", Get2DAString(\"visualeffects\", \"ProgFX_Impact\", " +
+         std::to_string(row) + "));\n";
+}
+
+LookParts LookFlown(const LookParts& parts) {
+  LookParts flown = parts;
+  flown.missile = 0;
+  return flown;
+}
+
+bool ReadPlaces(const std::string& text, FlightPoint* caster, FlightPoint* target) {
+  std::istringstream in(text);
+  FlightPoint a, b;
+  if (!(in >> a.x >> a.y >> a.z >> b.x >> b.y >> b.z)) return false;
+  *caster = a;
+  *target = b;
+  return true;
 }
 
 }  // namespace data

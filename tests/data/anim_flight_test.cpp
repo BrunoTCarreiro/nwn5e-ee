@@ -91,6 +91,40 @@ TEST(AnimFlightZeroDistance) {  // Review Focus 1: a target straight above - no 
 TEST(AnimFlightTwinRows) {  // the lasting-effect twin a missile flies on its carrier (data/looks/visualeffects.flight.look.txt)
   CHECK_EQ(data::FlightTwinRow(2100) == 2190 && data::FlightTwinRow(2105) == 2195 && data::FlightTwinRow(181) == 2196, true);
   CHECK_EQ(data::FlightTwinRow(503) == 2199 && data::FlightTwinRow(61) == 0, true);
+  // The final review (2026-11-11): the arrows (233 fire, 245 acid) don't fly a twin until the carrier turns the model
+  // along its path - on it an arrow would point north whatever way it flew; they keep the game's own MIRV, which does.
+  CHECK_EQ(data::FlightTwinRow(233) == 0 && data::FlightTwinRow(245) == 0, true);
+}
+
+// The twin by the missile's projectile row (visualeffects ProgFX_Impact), so a bench copy of a missile (its sound
+// changed: a new row, 2106 on, with the same ProgFX_Impact) still flies (the final review, 2026-11-11).
+TEST(AnimFlightTwinForProgfx) {
+  CHECK_EQ(data::FlightTwinForProgfx(910) == 2190 && data::FlightTwinForProgfx(915) == 2195, true);  // the orbs
+  CHECK_EQ(data::FlightTwinForProgfx(900) == 2196 && data::FlightTwinForProgfx(905) == 2199, true);  // MIRV, electric
+  CHECK_EQ(data::FlightTwinForProgfx(901) == 0 && data::FlightTwinForProgfx(902) == 0 && data::FlightTwinForProgfx(0) == 0,
+           true);  // the arrows, none
+}
+
+// A flight to a point (a spell aimed at the ground, Task 6): its landing - the hit effect at the location, the plain
+// hit sounds from a short-lived invisible placeable there, each at its own time. Breaks caught: the hit on the caster
+// instead of the point, a sound with no object to play from, every sound bunched at the landing.
+TEST(AnimFlightLanding) {
+  const std::string code = data::FlightLandingScript({5, 0, 0}, 61, {{0.0f, "sim_explflame"}, {0.3f, "sim_x"}}, 1.25f);
+  for (const char* part : {
+           "void Land(location l, int hit, string s)",
+           "ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(hit), l);",
+           "CreateObject(OBJECT_TYPE_PLACEABLE, \"plc_invisobj\", l, FALSE, \"n5_land\")",
+           "AssignCommand(o, PlaySound(s));",
+           "void main()",
+           "DelayCommand(1.250, Land(Location(GetArea(OBJECT_SELF), Vector(5.000, 0.000, 0.000), 0.0), 61, \"sim_explflame\"));",
+           "DelayCommand(1.550, Land(Location(GetArea(OBJECT_SELF), Vector(5.000, 0.000, 0.000), 0.0), 0, \"sim_x\"));"}) {
+    CHECK_EQ(code.find(part) != std::string::npos, true);
+  }
+  // No sound at the landing itself: the hit still lands then, alone.
+  CHECK_EQ(data::FlightLandingScript({5, 0, 0}, 61, {}, 1.25f)
+                   .find("DelayCommand(1.250, Land(Location(GetArea(OBJECT_SELF), Vector(5.000, 0.000, 0.000), 0.0), 61, \"\"));") !=
+               std::string::npos,
+           true);
 }
 
 TEST(AnimFlightScript) {  // the whole script that flies a dart: the carrier, the missile on it, the segments, the end
@@ -114,4 +148,15 @@ TEST(AnimFlightScript) {  // the whole script that flies a dart: the carrier, th
            "DestroyObject(o, 1.556);"}) {
     CHECK_EQ(code.find(part) != std::string::npos, true);
   }
+  CHECK_EQ(code.find("Get2DAString") == std::string::npos, true);  // no sound row: no flight sound
+}
+
+// The missile's own flight sound (visualeffects SoundDuration of the look's missile row - a copy's own too): the
+// twin has none, so the flight plays it from the carrier as it leaves (the final review, 2026-11-11: Magic Missile's
+// 181 flies with spr_magicmissile; a twin flew silent).
+TEST(AnimFlightScriptPlaysTheMissileSound) {
+  const auto segs = data::FlightSegments(data::FlightSettings(), {0, 0, 0}, {10, 0, 0}, 0, 1);
+  const std::string code = data::FlightScript(segs, {1, 2, 3}, 2196, 0.5f, 181);
+  CHECK_EQ(code.find("string s = Get2DAString(\"visualeffects\", \"SoundDuration\", 181);") != std::string::npos, true);
+  CHECK_EQ(code.find("if (s != \"\") DelayCommand(0.500, AssignCommand(o, PlaySound(s)));") != std::string::npos, true);
 }

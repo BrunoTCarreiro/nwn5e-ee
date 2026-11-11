@@ -139,14 +139,20 @@ int FlightTwinRow(int missile_row) {
   if (missile_row >= 2100 && missile_row <= 2105) return missile_row + 90;
   switch (missile_row) {
     case 181: return 2196;  // VFX_IMP_MIRV: vpr_magmisl
-    case 233: return 2197;  // VFX_IMP_MIRV_FLAME: vpr_arofire
-    case 245: return 2198;  // VFX_IMP_MIRV_ACID_ARROW: vpr_aroacid
     case 503: return 2199;  // VFX_IMP_MIRV_ELECTRIC: vpr_ectoelectric
-    default: return 0;
+    default: return 0;      // the arrows (233, 245) too: the carrier doesn't turn them yet
   }
 }
 
-std::string FlightScript(const std::vector<FlightSegment>& segments, FlightPoint from, int twin_row, float start) {
+int FlightTwinForProgfx(int progfx_row) {
+  if (progfx_row >= 910 && progfx_row <= 915) return progfx_row - 910 + 2190;  // the orbs
+  if (progfx_row == 900) return 2196;                                           // VFX_IMP_MIRV's vpr_magmisl
+  if (progfx_row == 905) return 2199;                                           // VFX_IMP_MIRV_ELECTRIC's
+  return 0;
+}
+
+std::string FlightScript(const std::vector<FlightSegment>& segments, FlightPoint from, int twin_row, float start,
+                         int sound_row) {
   const auto number = [](float v) {
     char text[32];
     snprintf(text, sizeof text, "%.3f", v);
@@ -166,6 +172,10 @@ std::string FlightScript(const std::vector<FlightSegment>& segments, FlightPoint
           number(from.x) + ", " + number(from.y) + ", " + number(from.z) + "), 90.0), FALSE, \"n5_flight\");\n";
   code += "  DelayCommand(" + number(start) + ", ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectVisualEffect(" +
           std::to_string(twin_row) + "), o, " + number(total + 0.1f) + "));\n";
+  if (sound_row > 0) {  // the missile's own flight sound (a bench copy's own too); "" when the row has none
+    code += "  string s = Get2DAString(\"visualeffects\", \"SoundDuration\", " + std::to_string(sound_row) + ");\n";
+    code += "  if (s != \"\") DelayCommand(" + number(start) + ", AssignCommand(o, PlaySound(s)));\n";
+  }
   float at = start;
   for (const FlightSegment& s : segments) {
     code += "  DelayCommand(" + number(at) + ", Seg(o, " + number(s.to.x) + ", " + number(s.to.y) + ", " + number(s.to.z) +
@@ -174,6 +184,37 @@ std::string FlightScript(const std::vector<FlightSegment>& segments, FlightPoint
   }
   code += "  DestroyObject(o, " + number(start + total + 0.2f) + ");\n}\n";
   return code;
+}
+
+std::string FlightLandingScript(FlightPoint at, int hit_row, const std::vector<FlightLandingSound>& sounds, float at_time) {
+  const auto number = [](float v) {
+    char text[32];
+    snprintf(text, sizeof text, "%.3f", v);
+    return std::string(text);
+  };
+  const std::string place = "Location(GetArea(OBJECT_SELF), Vector(" + number(at.x) + ", " + number(at.y) + ", " +
+                            number(at.z) + "), 0.0)";
+  const auto land = [&](float when, int hit, const std::string& sound) {
+    return "  DelayCommand(" + number(when) + ", Land(" + place + ", " + std::to_string(hit) + ", \"" + sound + "\"));\n";
+  };
+  std::string code =
+      "void Land(location l, int hit, string s) {\n"
+      "  if (hit != 0) ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(hit), l);\n"
+      "  if (s == \"\") return;\n"
+      "  object o = CreateObject(OBJECT_TYPE_PLACEABLE, \"plc_invisobj\", l, FALSE, \"n5_land\");\n"
+      "  AssignCommand(o, PlaySound(s));\n"
+      "  DestroyObject(o, 6.0);\n"
+      "}\n"
+      "void main() {\n";
+  // The hit rides with the first sound at the landing itself; it lands alone when there's none.
+  bool hit_placed = false;
+  for (const FlightLandingSound& s : sounds) {
+    const bool with_hit = !hit_placed && s.after <= 0.0f;
+    code += land(at_time + std::max(0.0f, s.after), with_hit ? hit_row : 0, s.resref);
+    hit_placed = hit_placed || with_hit;
+  }
+  if (!hit_placed && hit_row) code += land(at_time, hit_row, "");
+  return code + "}\n";
 }
 
 }  // namespace data

@@ -23,6 +23,8 @@
 #include <string>
 #include <vector>
 
+#include "data/anim_flight.h"
+
 namespace data {
 
 enum class LookAnchor { kCast, kRelease, kHit };  // a sound's time counts from the cast's start, the release, or each hit
@@ -44,6 +46,11 @@ struct LookParts {  // what a [row] section may change
   int missile = 0, hit = 0, leap_beam = 0;  // visualeffects rows (0 = none; missile 0 = "on the target")
   std::vector<LookSound> sounds;
   std::map<std::string, std::string> table;  // spells.2da presentation columns
+  // Its flight (piece 2a): the kind and its settings, the darts' fan and stagger (anim_flight.h), and where the missile
+  // leaves from: hand, head or ground. Keys flight, flight_speed, flight_height, flight_rise, flight_fall,
+  // flight_speedup, darts_fan, darts_stagger, launch - written after leap_beam in that order, only when not the default.
+  FlightSettings flight;
+  std::string launch = "hand";
 };
 
 struct SpellLook {
@@ -79,10 +86,19 @@ struct LookTiming {
   bool late = false;
 };
 LookTiming LookHitTiming(const SpellLook& look, const LookParts& parts, float since_cast, float metres);
+// The same for a missile that flies its flight (piece 2a): the same release, the hit `flight_seconds` after it.
+LookTiming LookFlightTiming(const SpellLook& look, float since_cast, float flight_seconds);
+// Where a look's missile leaves: the caster's position plus dir * 0.3 + up * 1.3 for "hand", up * 1.8 for "head",
+// dir * 0.3 + up * 0.1 for "ground" - dir the unit ground-plane direction to the target, (1, 0) when straight above.
+FlightPoint LaunchPoint(FlightPoint caster, FlightPoint target, const std::string& launch);
 
 // The script chunks that play a look (RunScriptChunk; ids as StringToObject("<hex>"), times %.2f). Every effect plays
 // through DelayCommand, so a chunk returns at once.
 std::string LookCastScript(const LookParts& parts);  // run as the caster, at the cast's start: its VFX, `cast` sounds
+// The hit and miss scripts fire the game's MIRV for whatever missile they're given. The look player decides who carries
+// it (the final review, 2026-11-11): when its flight ran, it hands them LookFlown(parts) - no MIRV on top, one orb; when
+// the flight couldn't (no twin, a place it couldn't read), the parts as they are - never no missile.
+LookParts LookFlown(const LookParts& parts);
 std::string LookHitScript(const LookParts& parts, uint32_t target, const LookTiming& timing);  // run as the caster
 // A miss (owner, 2026-11-10: "A"): the missile and the `release` sounds as for a hit, then it fizzles at the target - no
 // hit effect, no `hit` sounds. Run as the caster.
@@ -92,6 +108,13 @@ std::string LookLeapMissScript(const LookParts& parts, float leap_for, uint32_t 
 std::string LookLeapScript(const LookParts& parts, float leap_for, uint32_t from, uint32_t to, float beam_in,
                            float hit_in);  // run as `from`: the beam to `to`, its hit and `hit` sounds
 std::string LookDistanceScript(uint32_t target);  // run as the caster: local string "n5look_d" = the metres to target
+// Run as the caster: local string "n5look_p" = where it and `target` stand, "x y z x y z" (any object, as the distance:
+// the look player's flight needs both). ReadPlaces parses it: false unless it holds six numbers.
+std::string LookPlacesScript(uint32_t target);
+// Run as anyone: local string "n5look_pfx" = visualeffects `row`'s ProgFX_Impact (a missile's projectile row - a bench
+// copy's flight twin is found by it, data::FlightTwinForProgfx).
+std::string LookProgfxScript(int row);
+bool ReadPlaces(const std::string& text, FlightPoint* caster, FlightPoint* target);
 // Run as anyone: local string "n5look_row" = visualeffects.2da's Type_FD for `row` - empty when the game doesn't serve
 // the row (the orb rows before the game session's looks row server is in the install).
 std::string LookRowCheckScript(int row);

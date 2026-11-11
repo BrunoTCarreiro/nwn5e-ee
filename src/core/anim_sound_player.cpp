@@ -208,14 +208,28 @@ std::string Hex(uint32_t id) {
   return text;
 }
 
+// The script line that plays `cue` plainly after `delay` s: from its object, or - a cue at a point - from a short-lived
+// invisible placeable there (run as voice_of, for the area).
+std::string PlainLine(const data::SoundCue& cue, float delay) {
+  const std::string play = "PlaySound(\"" + cue.sound.resref + "\")";
+  const std::string timed = delay > 0.0f ? "DelayCommand(" + std::to_string(delay) + ", " + play + ")" : play;
+  if (!cue.at_point) return "AssignCommand(StringToObject(\"" + Hex(cue.at) + "\"), " + timed + ");";
+  char where[96];
+  snprintf(where, sizeof where, "Vector(%.3f, %.3f, %.3f)", cue.point.x, cue.point.y, cue.point.z);
+  return std::string("object o = CreateObject(OBJECT_TYPE_PLACEABLE, \"plc_invisobj\", Location(GetArea(OBJECT_SELF), ") +
+         where + ", 0.0), FALSE, \"n5_land\"); AssignCommand(o, " + timed + "); DestroyObject(o, " +
+         std::to_string(delay + 6.0f) + ");";
+}
+
 // The game's PlaySound at once, as the script would have played it (a voice line for its voice only).
 void PlayPlain(const data::SoundCue& cue, const std::string& why) {
   if (g_plain_logged.insert(cue.sound.resref).second) {
     Log("sound player: %s plays plain (the game's PlaySound, no effects) - %s", cue.sound.resref.c_str(), why.c_str());
   }
-  std::string code = "AssignCommand(StringToObject(\"" + Hex(cue.at) + "\"), PlaySound(\"" + cue.sound.resref + "\"));";
+  std::string code = PlainLine(cue, 0.0f);
   if (!cue.sound.voice.empty()) {
-    code = std::string("if (GetGender(OBJECT_SELF) == ") + (cue.sound.voice == "female" ? "GENDER_FEMALE" : "GENDER_MALE") + ") " + code;
+    code = std::string("if (GetGender(OBJECT_SELF) == ") + (cue.sound.voice == "female" ? "GENDER_FEMALE" : "GENDER_MALE") +
+           ") { " + code + " }";
   }
   RunScriptChunk(code.c_str(), cue.voice_of ? cue.voice_of : cue.at);
 }
@@ -232,8 +246,8 @@ bool VoiceMatches(const data::SoundCue& cue) {
 
 void Play(const data::SoundCue& cue) {
   if (!VoiceMatches(cue)) return;
-  void* object = CreatureById(cue.at);
-  if (!object) {
+  void* object = cue.at_point ? nullptr : CreatureById(cue.at);
+  if (!object && !cue.at_point) {
     Log("sound player: %s - its object 0x%08X is gone", cue.sound.resref.c_str(), cue.at);
     return;
   }
@@ -244,8 +258,10 @@ void Play(const data::SoundCue& cue) {
   const unsigned buffer = BufferFor(a, cue.sound.resref, &why);
   if (!buffer) return PlayPlain(cue, why);
 
-  const float x = Field<float>(object, ee::kObjectPositionX), y = Field<float>(object, ee::kObjectPositionY);
-  const float z = Field<float>(object, ee::kObjectPositionZ) + kAboveFeet;
+  // A cue at a point (a flight to the ground) plays there; any other at its object.
+  const float x = cue.at_point ? cue.point.x : Field<float>(object, ee::kObjectPositionX);
+  const float y = cue.at_point ? cue.point.y : Field<float>(object, ee::kObjectPositionY);
+  const float z = (cue.at_point ? cue.point.z : Field<float>(object, ee::kObjectPositionZ)) + kAboveFeet;
   if (!g_first_logged) {
     g_first_logged = true;
     float listener[3] = {0, 0, 0}, facing[6] = {0, 0, 0, 0, 0, 0};
@@ -404,11 +420,10 @@ void PlayLookSounds(const std::vector<data::SoundCue>& cues) {
   if (cues.empty()) return;
   if (!g_installed) {  // no update to time them by: the game's PlaySound, delayed, plain
     for (const data::SoundCue& cue : cues) {
-      std::string code = "AssignCommand(StringToObject(\"" + Hex(cue.at) + "\"), DelayCommand(" + std::to_string(cue.in) +
-                         ", PlaySound(\"" + cue.sound.resref + "\")));";
+      std::string code = PlainLine(cue, cue.in);
       if (!cue.sound.voice.empty()) {
         code = std::string("if (GetGender(OBJECT_SELF) == ") + (cue.sound.voice == "female" ? "GENDER_FEMALE" : "GENDER_MALE") +
-               ") " + code;
+               ") { " + code + " }";
       }
       RunScriptChunk(code.c_str(), cue.voice_of ? cue.voice_of : cue.at);
     }

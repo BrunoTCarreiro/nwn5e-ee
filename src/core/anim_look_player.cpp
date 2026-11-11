@@ -6,10 +6,12 @@
 #include <windows.h>
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
 
 #include <algorithm>
+#include <cmath>
 #include <fstream>
 #include <map>
 #include <sstream>
@@ -39,6 +41,7 @@ std::vector<data::SpellLook> g_looks;
 std::unordered_map<int, size_t> g_by_row;              // spells.2da row -> g_looks
 std::unordered_map<uint32_t, int64_t> g_cast_started;  // caster id -> game ms its look's cast began
 std::unordered_map<int, bool> g_row_served;            // visualeffects row -> the game serves it (asked once)
+std::unordered_map<int, int> g_twin;                   // a missile row FlightTwinRow doesn't know -> its twin (asked once)
 bool g_installed = false;
 
 int64_t Now() { return static_cast<int64_t>(GameMs()); }
@@ -150,6 +153,13 @@ float Metres(uint32_t caster, uint32_t target) {
   return object ? static_cast<float>(atof(engine::GetLocalString(object, "n5look_d").c_str())) : 0.0f;
 }
 
+// Where the caster and the target stand, through the script (any target, as Metres); false when it can't tell.
+bool Places(uint32_t caster, uint32_t target, data::FlightPoint* at, data::FlightPoint* to) {
+  if (RunScriptChunk(data::LookPlacesScript(target).c_str(), caster) == -1) return false;
+  void* object = CreatureById(caster);
+  return object && data::ReadPlaces(engine::GetLocalString(object, "n5look_p"), at, to);
+}
+
 // Whether the game serves visualeffects `row` (asked once, through the script, as `self`; logged when it doesn't).
 bool RowServed(uint32_t self, int row) {
   if (row <= 0) return true;
@@ -200,34 +210,105 @@ void StartLookCast(uint32_t caster, const data::SpellLook& look, int row) {
 
 namespace {
 
-// The missile's flight to `target` and, a hit, its hit; a miss fizzles there (owner, 2026-11-10: "A").
-float PlayLookArrival(uint32_t caster, uint32_t target, const data::SpellLook& look, int row, bool hits) {
-  float since = look.rule_at;
-  bool seen = false;
+constexpr uint32_t kObjectInvalid = 0x7F000000;
+
+// Seconds since `caster`'s cast began, as the rule runs now (the look's rule_at when no cast was seen: *seen false).
+float SinceCast(uint32_t caster, const data::SpellLook& look, bool* seen) {
   const auto started = g_cast_started.find(caster);
-  if (started != g_cast_started.end() && Now() - started->second < kCastMemoryMs) {
-    since = static_cast<float>(Now() - started->second) / 1000.0f;
-    seen = true;
+  *seen = started != g_cast_started.end() && Now() - started->second < kCastMemoryMs;
+  return *seen ? static_cast<float>(Now() - started->second) / 1000.0f : look.rule_at;
+}
+
+// The flight twin missile `row` flies on (0: none - the game's MIRV): FlightTwinRow's table, else by its projectile row
+// asked of the game once (a bench copy of a missile, its sound changed - the final review, 2026-11-11).
+int TwinFor(uint32_t self, int row) {
+  if (row <= 0) return 0;
+  if (const int twin = data::FlightTwinRow(row)) return twin;
+  const auto known = g_twin.find(row);
+  if (known != g_twin.end()) return known->second;
+  void* object = CreatureById(self);
+  if (!object || RunScriptChunk(data::LookProgfxScript(row).c_str(), self) == -1) return 0;  // can't tell: the MIRV
+  const int twin = data::FlightTwinForProgfx(atoi(engine::GetLocalString(object, "n5look_pfx").c_str()));
+  g_twin[row] = twin;
+  return twin;
+}
+
+// Flies `parts`' missile on `twin` from the launch point (the caster standing at `at`) to `to`, as dart `dart` of
+// `darts` - it leaves FlightStart(dart) after the release, with the missile row's own flight sound. *timing becomes
+// the flight's; *note says what flew.
+void Fly(uint32_t caster, const data::SpellLook& look, const data::LookParts& parts, int twin, float since,
+         data::FlightPoint at, data::FlightPoint to, int dart, int darts, data::LookTiming* timing, std::string* note) {
+  const data::FlightPoint from = data::LaunchPoint(at, to, parts.launch);
+  const std::vector<data::FlightSegment> segments = data::FlightSegments(parts.flight, from, to, dart, darts);
+  *timing = data::LookFlightTiming(look, since, data::FlightSeconds(segments));
+  const float shift = data::FlightStart(parts.flight, dart);
+  timing->release_in += shift;
+  timing->hit_in += shift;
+  const int result =
+      RunWholeScript(data::FlightScript(segments, from, twin, timing->release_in, parts.missile).c_str(), caster);
+  char text[96];
+  snprintf(text, sizeof text, ", flies %s (%.2f s)%s", data::FlightKindName(parts.flight.kind),
+           data::FlightSeconds(segments), result == 0 ? "" : " - the flight script failed");
+  *note = text;
+}
+
+// Dart `dart` of `darts` to `target`: a missile with a flight twin flies the look's flight (piece 2a) from the launch
+// point to the target's chest, any other the game's MIRV (the hit script fires it); then its hit or, a miss, its
+// fizzle (owner, 2026-11-10: "A"), with their sounds. A later dart leaves FlightStart(dart) after the first, and only
+// the first carries the release's sounds. Returns its timing; *note says how it flew.
+data::LookTiming PlayDart(uint32_t caster, uint32_t target, const data::SpellLook& look, const data::LookParts& parts,
+                          float since, float metres, int dart, int darts, bool hits, std::string* note) {
+  data::LookParts own = parts;
+  if (dart > 0) {
+    own.sounds.erase(std::remove_if(own.sounds.begin(), own.sounds.end(),
+                                    [](const data::LookSound& s) { return s.anchor == data::LookAnchor::kRelease; }),
+                     own.sounds.end());
   }
+  data::LookTiming timing = data::LookHitTiming(look, own, since, metres);
+  note->clear();
+  const int twin = TwinFor(caster, own.missile);
+  data::FlightPoint at, to;
+  bool flown = false;
+  if (twin && Places(caster, target, &at, &to)) {
+    to.z += 1.0f;  // the chest
+    Fly(caster, look, own, twin, since, at, to, dart, darts, &timing, note);
+    flown = true;
+  } else {
+    if (twin) *note = " - where they stand isn't known: the game's own missile instead";
+    const float shift = data::FlightStart(own.flight, dart);  // the MIRV darts staggered as the flight's would be
+    timing.release_in += shift;
+    timing.hit_in += shift;
+  }
+  // The flight carries the missile when it ran (no MIRV on top); else the hit script fires the game's.
+  const data::LookParts shown = flown ? data::LookFlown(own) : own;
+  if (hits) {
+    RunScriptChunk(data::LookHitScript(shown, target, timing).c_str(), caster);
+    PlayLookSounds(data::LookHitCues(own, caster, target, timing));
+  } else {
+    RunScriptChunk(data::LookMissScript(shown, target, timing).c_str(), caster);
+    PlayLookSounds(data::LookMissCues(own, caster, timing));
+  }
+  return timing;
+}
+
+// The missile's flight to `target` and, a hit, its hit; a miss fizzles there.
+float PlayLookArrival(uint32_t caster, uint32_t target, const data::SpellLook& look, int row, bool hits) {
+  bool seen = false;
+  const float since = SinceCast(caster, look, &seen);
   const data::LookParts& parts = data::LookPartsFor(look, row);
   const float metres = Metres(caster, target);
   if (metres < 0.0f) {
     Log("look: 0x%08X %s row %d: the script bridge isn't there - nothing played", caster, look.name.c_str(), row);
     return 0.0f;
   }
-  const data::LookTiming timing = data::LookHitTiming(look, parts, since, metres);
   LookRowsMissing(caster, look, row);  // logs, once per row, what this install doesn't serve
-  if (hits) {
-    RunScriptChunk(data::LookHitScript(parts, target, timing).c_str(), caster);
-    PlayLookSounds(data::LookHitCues(parts, caster, target, timing));
-  } else {
-    RunScriptChunk(data::LookMissScript(parts, target, timing).c_str(), caster);
-    PlayLookSounds(data::LookMissCues(parts, caster, timing));
-  }
+  std::string flight;
+  const data::LookTiming timing = PlayDart(caster, target, look, parts, since, metres, 0, 1, hits, &flight);
   Log("look: 0x%08X %s row %d: the rule ran %.2f s after the cast began%s (the look expects %.2f); the missile leaves "
-      "in %.2f s and %s in %.2f s (%.1f m)%s",
+      "in %.2f s%s and %s in %.2f s (%.1f m)%s",
       caster, look.name.c_str(), row, since, seen ? "" : " (no cast seen: assumed)", look.rule_at, timing.release_in,
-      hits ? "lands" : "misses - fizzles at the target -", timing.hit_in, metres, timing.late ? " - late" : "");
+      flight.c_str(), hits ? "lands" : "misses - fizzles at the target -", timing.hit_in, metres,
+      timing.late ? " - late" : "");
   return std::max(kAtLeast, timing.hit_in);
 }
 
@@ -265,6 +346,69 @@ float PlayLookLeapMiss(uint32_t from, uint32_t to, const data::SpellLook& look, 
   return PlayLeapArrival(from, to, look, row, after, false);
 }
 
+std::vector<float> PlayLookDarts(uint32_t caster, const std::vector<uint32_t>& targets, const data::SpellLook& look,
+                                 int row) {
+  std::vector<float> arrivals;
+  bool seen = false;
+  const float since = SinceCast(caster, look, &seen);
+  const data::LookParts& parts = data::LookPartsFor(look, row);
+  const int darts = static_cast<int>(targets.size());
+  std::string lands, flight;
+  for (int i = 0; i < darts; ++i) {
+    const float metres = Metres(caster, targets[i]);
+    if (metres < 0.0f) {
+      Log("look: 0x%08X %s row %d: the script bridge isn't there - no darts played", caster, look.name.c_str(), row);
+      return {};
+    }
+    if (i == 0) LookRowsMissing(caster, look, row);
+    const data::LookTiming t = PlayDart(caster, targets[i], look, parts, since, metres, i, darts, true, &flight);
+    arrivals.push_back(std::max(kAtLeast, t.hit_in));
+    char text[48];
+    snprintf(text, sizeof text, "%s0x%08X in %.2f s", i ? ", " : "", targets[i], t.hit_in);
+    lands += text;
+  }
+  if (darts) {
+    Log("look: 0x%08X %s row %d: %d darts%s land on %s", caster, look.name.c_str(), row, darts, flight.c_str(),
+        lands.c_str());
+  }
+  return arrivals;
+}
+
+float PlayLookAt(uint32_t caster, data::FlightPoint point, const data::SpellLook& look, int row) {
+  bool seen = false;
+  const float since = SinceCast(caster, look, &seen);
+  const data::LookParts& parts = data::LookPartsFor(look, row);
+  data::FlightPoint at, same;
+  if (!Places(caster, caster, &at, &same)) {
+    Log("look: 0x%08X %s row %d: the script bridge isn't there - nothing played", caster, look.name.c_str(), row);
+    return 0.0f;
+  }
+  LookRowsMissing(caster, look, row);
+  const float metres = std::sqrt((point.x - at.x) * (point.x - at.x) + (point.y - at.y) * (point.y - at.y) +
+                                 (point.z - at.z) * (point.z - at.z));
+  data::LookTiming timing = data::LookHitTiming(look, parts, since, metres);
+  std::string flight;
+  if (const int twin = TwinFor(caster, parts.missile)) {
+    Fly(caster, look, parts, twin, since, at, point, 0, 1, &timing, &flight);
+  } else if (parts.missile) {
+    flight = " - the game's own missile flies only to a creature: none shows";
+  }
+  data::LookParts released = parts;  // the release's plain sounds at the caster; there's no creature to fire at
+  released.missile = 0;
+  RunScriptChunk(data::LookMissScript(released, kObjectInvalid, timing).c_str(), caster);
+  std::vector<data::FlightLandingSound> landing;
+  for (const data::LookSound& s : parts.sounds) {
+    if (s.anchor == data::LookAnchor::kHit && !data::SoundHasEffects(s)) landing.push_back({s.at, s.resref});
+  }
+  const int result = RunWholeScript(data::FlightLandingScript(point, parts.hit, landing, timing.hit_in).c_str(), caster);
+  PlayLookSounds(data::LookPointCues(parts, caster, point, timing));
+  Log("look: 0x%08X %s row %d: to the point (%.1f, %.1f, %.1f), %.1f m: the missile leaves in %.2f s%s and lands in "
+      "%.2f s%s%s",
+      caster, look.name.c_str(), row, point.x, point.y, point.z, metres, timing.release_in, flight.c_str(),
+      timing.hit_in, timing.late ? " - late" : "", result == 0 ? "" : " - the landing script failed");
+  return std::max(kAtLeast, timing.hit_in);
+}
+
 float PlaySpellLook(uint32_t caster, uint32_t target, int row) {
   const data::SpellLook* look = LookFor(row);
   return look ? PlayLookHit(caster, target, *look, row) : 0.0f;
@@ -283,6 +427,16 @@ float PlaySpellLookMiss(uint32_t caster, uint32_t target, int row) {
 float PlaySpellLookLeapMiss(uint32_t from, uint32_t to, int row, float after) {
   const data::SpellLook* look = LookFor(row);
   return look ? PlayLookLeapMiss(from, to, *look, row, after) : 0.0f;
+}
+
+std::vector<float> PlaySpellLookDarts(uint32_t caster, const std::vector<uint32_t>& targets, int row) {
+  const data::SpellLook* look = LookFor(row);
+  return look ? PlayLookDarts(caster, targets, *look, row) : std::vector<float>();
+}
+
+float PlaySpellLookAt(uint32_t caster, float x, float y, float z, int row) {
+  const data::SpellLook* look = LookFor(row);
+  return look ? PlayLookAt(caster, {x, y, z}, *look, row) : 0.0f;
 }
 
 void InstallLookPlayer() {

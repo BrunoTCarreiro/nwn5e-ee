@@ -146,3 +146,18 @@ TEST(AnimLookMissCues) {  // a miss keeps the release's sounds with effects, not
   CHECK_EQ(m.size(), 1u);
   CHECK_EQ(m[0].sound.resref == "spr_fx" && Near(m[0].in, 0.15f) && m[0].at == 0x10u, true);
 }
+
+TEST(AnimLookPointCues) {  // a flight to a point (Task 6): the release's at the caster, the hit's at the point
+  data::LookParts p;
+  data::LookSound release = Sound(data::LookAnchor::kRelease, 0.05f, "spr_fx");
+  release.echo = 0.3f;
+  data::LookSound hit = Sound(data::LookAnchor::kHit, 0.05f, "sim_fx");
+  hit.reverb = 0.4f;
+  p.sounds = {release, hit, Sound(data::LookAnchor::kHit, 0, "sim_plain")};  // a plain one is the landing script's
+  const std::vector<data::SoundCue> c = data::LookPointCues(p, 0x10, {5, 6, 0}, {0.10f, 1.22f, false});
+  CHECK_EQ(c.size(), 2u);
+  CHECK_EQ(c[0].sound.resref == "spr_fx" && !c[0].at_point && c[0].at == 0x10u, true);
+  CHECK_EQ(c[1].sound.resref == "sim_fx" && c[1].at_point && c[1].point.x == 5.0f && c[1].point.y == 6.0f &&
+               Near(c[1].in, 1.27f) && c[1].voice_of == 0x10u,
+           true);
+}
