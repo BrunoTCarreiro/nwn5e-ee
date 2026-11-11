@@ -362,7 +362,8 @@ ApplyEffectToObject(DURATION_TYPE_TEMPORARY, SupernaturalEffect(SetEffectSpellId
 ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_EVIL_HELP), OBJECT_SELF);
 )nss";
 
-// Magic Missile: the darts, each its own damage, as NWN's own fly (VFX_IMP_MIRV, the travel time by distance).
+// Magic Missile: the darts, each its own damage, as NWN's own fly (VFX_IMP_MIRV, the travel time by distance) - unless
+// a look for its row flies something (0.99.17, Darts below).
 const char* const kDarts = R"nss(
 object t = StringToObject("$TARGET");
 if (!GetIsObjectValid(t)) return;
@@ -659,6 +660,33 @@ void Darts(uint32_t self, const rules::Spell2024& spell, int slot) {
       continue;
     }
     const int darts = rules::MagicMissileDarts(slot);
+    // 0.99.17 (#155; owner, 2026-11-11: "go with A for magic missile"): a look for the row that flies something
+    // (SpellLookFlies - its missile set) flies each dart, and each dart's damage lands as that dart does (held by
+    // the target, as Chromatic Orb's); its own hit effect plays there, so no VFX_IMP_MAGBLUE. No look, or one with
+    // no missile: NWN's own bolts below, as before.
+    if (SpellLookFlies(spell.row)) {
+      const std::vector<float> lands =
+          PlaySpellLookDarts(self, std::vector<uint32_t>(static_cast<size_t>(darts), ParseId(one.target)), spell.row);
+      if (lands.size() == static_cast<size_t>(darts)) {
+        std::string landed;
+        for (int i = 0; i < darts; ++i) {
+          const int amount = RollEngineDice(spell.dice, spell.die) + spell.flat;
+          Damage(self, spell, one.target, amount, spell.damage_type, "", Look(), lands[static_cast<size_t>(i)]);
+          char text[48];
+          snprintf(text, sizeof text, "%s%d in %.2f s", i ? ", " : "", amount, lands[static_cast<size_t>(i)]);
+          landed += text;
+        }
+        if (LogSlot()) {
+          Log("spells2024: 0x%08X Magic Missile (a level %d slot) at 0x%s: %d darts of its look, 1d4 + 1 Force each - "
+              "%s", self, slot, one.target.c_str(), darts, landed.c_str());
+        }
+        continue;
+      }
+      if (LogSlot()) {
+        Log("spells2024: 0x%08X Magic Missile: its look played %zu of %d darts - NWN's bolts instead", self,
+            lands.size(), darts);
+      }
+    }
     std::string lines, log;
     for (int i = 0; i < darts; ++i) {
       const int amount = RollEngineDice(spell.dice, spell.die) + spell.flat;

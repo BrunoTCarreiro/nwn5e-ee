@@ -1221,6 +1221,13 @@ monster AC by CR.
     cancelled a moment later as the action queue's click cancels it, the round's swings held until then - and
     Sanctuary calls it when a player wards itself (rules::SanctuaryStopsOwnAttacks). On a henchman, or cast by
     one, its AI decides. Retest L2-7c.
+  - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
+    spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
+    the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
+    (SpellLookFlies, anim ad605bf), else NWN's bolts; B - wait for a designed look; C - NWN's visuals only.
+    *Decided (owner, 2026-11-11: "go with A for magic missile").* *0.99.17:* Darts flies the look's darts
+    when SpellLookFlies(row), each dart's damage (its own 1d4 + 1) landing as that dart does - held by the target,
+    as Chromatic Orb's - with the look's hit effect, not VFX_IMP_MAGBLUE; otherwise NWN's MIRV bolts as before.
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
   New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion
