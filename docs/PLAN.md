@@ -1281,6 +1281,33 @@ monster AC by CR.
     the Help house rule keeps its henchman use. NWN's Wiz_Sorc column is shared: the Sorcerer keeps Hideous
     Laughter until the level 1 lists switch. Tests Spells2024Build2b (23 mutations caught), EveryoneCanShove (2);
     !test conditionbard. Matrix L2b-1 to L2b-14.
+  - *0.99.24 (the log of the owner's L2b run, 2026-11-12, "check the logs"):* a sleeper's damage wake told and
+    logged (NWN's own sleep came off it first); an upcast's extra creatures and Sleep's skip creatures you've charmed
+    (rules::PickedAgainst). *0.99.25 (owner, 2026-11-12, L2b-1: "the enemy not re-arming after Command: Drop. they
+    just stand there and combat ends"):* an NPC, its commanded turn over, re-equips what it dropped and is woken as
+    by a hostile spell from you (Drop, Flee, Halt).
+  - *Accepted (owner, 2026-11-12: "2b accepted, go for 2c").* Build 2b, 0.99.23-0.99.25: every row passed (L2b-1b,
+    L2b-2 to L2b-15).
+  - *Build 2c brief (2026-11-12; SRD 5.2.1, Open5e's srd-2024 text):* the areas. Entangle 53 (Druid, Ranger; a
+    20-foot square within 90 feet, Difficult Terrain; each creature in it at the cast a Strength save or Restrained
+    until the spell ends - an action's Strength (Athletics) check against your DC frees it; Concentration, 1 minute;
+    NWN's entangles anew every round). Grease 66 (Sorcerer, Wizard - off the Bard's, Druid's and Ranger's lists; a
+    10-foot square within 60 feet, Difficult Terrain; a Dexterity save or Prone when it appears, on entering and at
+    the end of a turn there; 1 minute, no Concentration). Faerie Fire (Bard, Druid; new: NWN has none; a 20-foot
+    Cube within 60 feet, a Dexterity save or outlined in blue, green or violet - dim light 10 feet, no benefit from
+    Invisible, attack rolls against it with Advantage; Concentration, 1 minute). Fog Cloud (Druid, Ranger, Sorcerer,
+    Wizard; new; a 20-foot-radius Sphere within 120 feet, Heavily Obscured, 20 feet more a slot level above 1;
+    Concentration, 1 hour). 2024's squares (NWN's areas are circles: vfx_persistent rectangles with NWN's own
+    looks); Difficult Terrain is new - half Speed inside (a movement rate factor); the hazard-avoiding AI (#131)
+    learns the new areas. Asked: Q1 Entangle's escape - A an Escape action for players (quickbar and radial, your
+    action: the check; the Grapple's G3 can reuse it), NPCs trying once a round in place of their attacks (a
+    grapple's way); B everyone tries at the end of each round, no action. Q2 Fog Cloud's Heavily Obscured - A NWN's
+    darkness on those inside (they can't see out, no one sees them: the attack rules' unseen terms, hiding as in the
+    dark); B concealment only (Disadvantage on attacks into it). Q3 Faerie Fire and Invisible - A the outline ends
+    its invisibility (NWN can't draw an invisible creature outlined; Invisibility Purge's way); B suppressed while
+    outlined, back for the time it had left. Q4 Faerie Fire's colour - A a menu (Blue, Green, Violet: Command's
+    way), B one colour. Recommended A on all. NWN has no plain fog look: a placeholder until the animation session
+    designs one.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
