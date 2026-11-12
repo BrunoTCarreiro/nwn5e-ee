@@ -18,6 +18,8 @@
 // Build 2b (owner, 2026-11-12: "2a accepted, go for 2b"): conditions on creatures - Command, Charm Person, Animal
 // Friendship, Hideous Laughter, Color Spray, Sleep.
 // Build 2c (owner, 2026-11-12: "2b accepted, go for 2c"): the areas - Entangle, Grease, Faerie Fire, Fog Cloud.
+// Build 3 (owner, 2026-11-12: "2c accepted, go for 3"): reactions and smites - Shield, Feather Fall, Divine Smite,
+// Searing Smite, Ensnaring Strike.
 
 namespace rules {
 
@@ -30,6 +32,8 @@ enum class SpellEffect2024 {
   kBuff,                // Heroism: no roll
   kCondition,           // build 2b: a condition on creatures - a save, no damage
   kArea,                // build 2c: an area that lasts (its creatures' saves at the cast, its terrain after)
+  kReaction,            // build 3: taken by its trigger (Shield), or a visual and a line (Feather Fall)
+  kSmite,               // build 3: armed by the cast, paid and delivered by the next qualifying hit
 };
 
 enum class SpellShape2024 {
@@ -269,6 +273,30 @@ int InvisibilityLeftSeconds(int left_when_suppressed, int seconds_suppressed);
 int FogCloudRadiusFeet(int slot_level);
 // The areas' ranges in feet: Entangle 90, Grease and Faerie Fire 60, Fog Cloud 120.
 int AreaSpellRangeFeet(int row);
+
+// Build 3: reactions and smites (owner, 2026-11-12: "go with A on all").
+constexpr int kShield = kNwnShield;     // NWN's Shield 417, SRD 5.2.1's now
+constexpr int kFeatherFall = 1182;      // a visual and a line - NWN has no falling (#153)
+constexpr int kDivineSmite = 1183;
+constexpr int kSearingSmite = 1184;
+constexpr int kEnsnaringStrike = 1185;
+// Shield: a Reaction when you're hit by an attack roll (or targeted by Magic Missile) - +5 AC until the start of
+// your next turn, the triggering attack included. nwn5e: taken when it would turn the hit - never a natural 20.
+constexpr int kShieldAc = 5;
+bool ShieldTurnsHit(int total, int armor_class, bool natural_twenty);
+// The smites (Q1 A): armed by the cast for nothing; the next qualifying hit, while you have the armed slot's level
+// and the Bonus Action, spends both and delivers it. Divine Smite and Searing Smite ride a melee weapon or an
+// Unarmed Strike; Ensnaring Strike any weapon (an Unarmed Strike isn't one).
+bool SmiteRidesOn(int row, bool ranged, bool unarmed);
+// Divine Smite: 2d8 Radiant, 1d8 more on a Fiend or an Undead and for each slot level above 1.
+bool FiendOrUndead(int nwn_racial_type, bool evil);
+int DivineSmiteDice(int slot_level, bool fiend_or_undead);
+// Searing Smite: 1d6 Fire on the hit and at the start of each of its turns (a Constitution save ends it); Ensnaring
+// Strike: Restrained on a failed Strength save - Advantage if Large or larger - and 1d6 Piercing at the start of each
+// of its turns. Each 1d6 more for each slot level above 1.
+int SearingSmiteDice(int slot_level);
+int EnsnaringStrikeDice(int slot_level);
+bool EnsnaringSaveAdvantage(int nwn_creature_size);
 constexpr int kRouseFeet = 5;
 
 // Chromatic Orb: two or more of its d8s alike - the orb leaps to another creature within 30 feet of the target (a

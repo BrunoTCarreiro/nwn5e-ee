@@ -130,6 +130,17 @@ std::vector<Spell2024> Build() {
                        SpellShape2024::kSquare, 20));
   spells.push_back(Area(Damage(kFogCloud, "Fog Cloud", "n5_s_fogcloud", E::kArea, 0, 0, 0, 0), SpellShape2024::kSphere,
                        20));
+  // Build 3: reactions and smites.
+  spells.push_back(Damage(kShield, "Shield", "n5_s_shield", E::kReaction, 0, 0, 0, 0));
+  spells.push_back(Damage(kFeatherFall, "Feather Fall", "n5_s_featherfall", E::kReaction, 0, 0, 0, 0));
+  for (Spell2024 smite : {Damage(kDivineSmite, "Divine Smite", "n5_s_divsmite", E::kSmite, 2, 8, 1, kDamageTypeRadiant),
+                         Damage(kSearingSmite, "Searing Smite", "n5_s_searsmite", E::kSmite, 1, 6, 1, kDamageTypeFire),
+                         Saved(Damage(kEnsnaringStrike, "Ensnaring Strike", "n5_s_ensnare", E::kSmite, 1, 6, 1,
+                                      kDamageTypePiercing),
+                               Ability::kStrength, false)}) {
+    smite.bonus_action = true;  // paid by the hit (Q1 A)
+    spells.push_back(smite);
+  }
   std::sort(spells.begin(), spells.end(), [](const Spell2024& a, const Spell2024& b) { return a.row < b.row; });
   return spells;
 }
@@ -338,6 +349,30 @@ int InvisibilityLeftSeconds(int left_when_suppressed, int seconds_suppressed) {
 }
 
 int FogCloudRadiusFeet(int slot_level) { return 20 + 20 * std::max(0, slot_level - 1); }
+
+bool ShieldTurnsHit(int total, int armor_class, bool natural_twenty) {
+  return !natural_twenty && total < armor_class + kShieldAc;
+}
+
+bool SmiteRidesOn(int row, bool ranged, bool unarmed) {
+  if (row == kEnsnaringStrike) return !unarmed;
+  if (row == kDivineSmite || row == kSearingSmite) return !ranged;
+  return false;
+}
+
+bool FiendOrUndead(int nwn_racial_type, bool evil) {
+  return nwn_racial_type == 24 || (nwn_racial_type == 20 && evil);  // racialtypes.2da: Undead, Outsider
+}
+
+int DivineSmiteDice(int slot_level, bool fiend_or_undead) {
+  return 2 + std::max(0, slot_level - 1) + (fiend_or_undead ? 1 : 0);
+}
+
+int SearingSmiteDice(int slot_level) { return 1 + std::max(0, slot_level - 1); }
+
+int EnsnaringStrikeDice(int slot_level) { return 1 + std::max(0, slot_level - 1); }
+
+bool EnsnaringSaveAdvantage(int nwn_creature_size) { return nwn_creature_size >= 4; }  // CREATURE_SIZE_LARGE
 
 int AreaSpellRangeFeet(int row) {
   switch (row) {

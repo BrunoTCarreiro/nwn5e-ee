@@ -138,6 +138,7 @@ const std::vector<int> kSpells = {
     1178,  // nwn5e_Faerie_Fire_Green - Faerie Fire
     1179,  // nwn5e_Faerie_Fire_Violet - Faerie Fire
     1180,  // nwn5e_Fog_Cloud - Fog Cloud (#39 2a build 2c)
+    1185,  // nwn5e_Ensnaring_Strike - Ensnaring Strike (#39 2a build 3)
 };
 
 }  // namespace

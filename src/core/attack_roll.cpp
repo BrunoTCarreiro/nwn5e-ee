@@ -69,6 +69,12 @@ bool AddAttackRollListeners(AttackRollListener before, AttackRollListener after)
   return true;
 }
 
+bool AddAttackRollListenerFirst(AttackRollListener after) {
+  if (!after || !AddAttackRollListeners(nullptr, nullptr)) return false;
+  g_after.insert(g_after.begin(), after);
+  return true;
+}
+
 bool AddAttackRollSkipper(AttackRollSkipper skipper) {
   if (!AddAttackRollListeners(nullptr, nullptr)) return false;
   g_skippers.push_back(skipper);

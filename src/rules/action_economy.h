@@ -113,8 +113,10 @@ bool IsPotionBaseItem(int base_item);
 // attacks, Uncanny Dodge, Deflect Attacks and Retaliation; off for Deflect
 // Attacks' redirect (it spends a Focus Point). One switched off is never taken -
 // the round's one reaction stays for the others. Monsters keep all theirs.
+// #39 2a build 3 (owner, 2026-11-12): Shield's - on by default (taken when prepared, with a slot, and when it would
+// turn the hit).
 enum class Reaction { kOpportunityAttack = 0, kUncannyDodge = 1, kDeflectAttacks = 2, kRetaliation = 3,
-                      kDeflectRedirect = 4 };
+                      kDeflectRedirect = 4, kShield = 5 };
 bool ReactionDefaultOn(Reaction reaction);
 bool ReactionOn(int record, Reaction reaction);
 int SetReactionOn(int record, Reaction reaction, bool on);

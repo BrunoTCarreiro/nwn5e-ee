@@ -12,7 +12,7 @@ using namespace rules;
 
 // #39 Part 2a build 1a: SRD 5.2.1's level 1 damage and healing spells (pp. 114-177).
 TEST(Spells2024Table) {
-  CHECK_EQ(static_cast<int>(Spells2024().size()), 33);
+  CHECK_EQ(static_cast<int>(Spells2024().size()), 38);
   for (size_t i = 1; i < Spells2024().size(); ++i) CHECK_EQ(Spells2024()[i - 1].row < Spells2024()[i].row, true);
   CHECK_EQ(Spell2024Of(1) == nullptr, true);
   const Spell2024* burning = Spell2024Of(kBurningHands);
@@ -416,4 +416,56 @@ TEST(Spells2024Build2c) {
   CHECK_EQ(IsConcentrationSpell(kFaerieFireViolet), true);
   CHECK_EQ(IsConcentrationSpell(kFogCloud), true);
   CHECK_EQ(IsConcentrationSpell(kGrease), false);
+}
+
+// Build 3: reactions and smites - Shield's turn, the smites' rides and dice.
+TEST(Spells2024Build3) {
+  CHECK_EQ(Spell2024Of(kShield) != nullptr && Spell2024Of(kShield)->effect == SpellEffect2024::kReaction, true);
+  CHECK_EQ(Spell2024Of(kFeatherFall) != nullptr && Spell2024Of(kFeatherFall)->effect == SpellEffect2024::kReaction,
+           true);
+  for (int row : {kDivineSmite, kSearingSmite, kEnsnaringStrike}) {
+    const Spell2024* smite = Spell2024Of(row);
+    CHECK_EQ(smite != nullptr && smite->effect == SpellEffect2024::kSmite, true);
+    CHECK_EQ(smite->bonus_action, true);
+    CHECK_EQ(smite->upcast_dice, 1);
+  }
+  CHECK_EQ(Spell2024Of(kDivineSmite)->damage_type, kDamageTypeRadiant);
+  CHECK_EQ(Spell2024Of(kDivineSmite)->die, 8);
+  CHECK_EQ(Spell2024Of(kSearingSmite)->damage_type, kDamageTypeFire);
+  CHECK_EQ(Spell2024Of(kEnsnaringStrike)->save == Ability::kStrength, true);
+  CHECK_EQ(kShield, 417);
+  // Shield: it turns a hit the +5 would miss, never a natural 20.
+  CHECK_EQ(ShieldTurnsHit(15, 14, false), true);
+  CHECK_EQ(ShieldTurnsHit(18, 14, false), true);
+  CHECK_EQ(ShieldTurnsHit(19, 14, false), false);
+  CHECK_EQ(ShieldTurnsHit(15, 14, true), false);
+  CHECK_EQ(ReactionDefaultOn(Reaction::kShield), true);
+  CHECK_EQ(ReactionOn(SetReactionOn(0, Reaction::kShield, false), Reaction::kShield), false);
+  // What each smite rides on.
+  CHECK_EQ(SmiteRidesOn(kDivineSmite, false, false), true);   // a melee weapon
+  CHECK_EQ(SmiteRidesOn(kDivineSmite, false, true), true);    // an Unarmed Strike
+  CHECK_EQ(SmiteRidesOn(kDivineSmite, true, false), false);   // a bow
+  CHECK_EQ(SmiteRidesOn(kSearingSmite, true, false), false);
+  CHECK_EQ(SmiteRidesOn(kEnsnaringStrike, true, false), true);   // any weapon
+  CHECK_EQ(SmiteRidesOn(kEnsnaringStrike, false, true), false);  // not an Unarmed Strike
+  CHECK_EQ(SmiteRidesOn(kBless, false, false), false);
+  // The dice.
+  CHECK_EQ(DivineSmiteDice(1, false), 2);
+  CHECK_EQ(DivineSmiteDice(1, true), 3);
+  CHECK_EQ(DivineSmiteDice(3, true), 5);
+  CHECK_EQ(DivineSmiteDice(0, false), 2);
+  CHECK_EQ(FiendOrUndead(24, false), true);  // Undead
+  CHECK_EQ(FiendOrUndead(20, true), true);   // an evil Outsider: a Fiend
+  CHECK_EQ(FiendOrUndead(20, false), false); // a Celestial
+  CHECK_EQ(FiendOrUndead(6, true), false);
+  CHECK_EQ(SearingSmiteDice(1), 1);
+  CHECK_EQ(SearingSmiteDice(3), 3);
+  CHECK_EQ(EnsnaringStrikeDice(2), 2);
+  CHECK_EQ(EnsnaringSaveAdvantage(4), true);   // Large
+  CHECK_EQ(EnsnaringSaveAdvantage(3), false);  // Medium
+  // Concentration: Ensnaring Strike only.
+  CHECK_EQ(IsConcentrationSpell(kEnsnaringStrike), true);
+  CHECK_EQ(IsConcentrationSpell(kDivineSmite), false);
+  CHECK_EQ(IsConcentrationSpell(kSearingSmite), false);
+  CHECK_EQ(IsConcentrationSpell(kShield), false);
 }

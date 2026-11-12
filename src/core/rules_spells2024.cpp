@@ -95,6 +95,17 @@
 //     on those inside (they can't see out, no one sees them; hiding there as in the dark - rules_perception.cpp).
 //   - Difficult Terrain: half Speed inside (a movement rate adjuster). The hazard-avoiding AI's reading of the 2c
 //     areas: hazard_watch.cpp.
+// - Build 3 (owner, 2026-11-12: "2c accepted, go for 3"; then "go with A on all"), reactions and smites:
+//   - Shield 417 (Sorcerer, Wizard): a Reaction with its switch (!options) - when a hit by an attack roll (or a
+//     spell attack: rules_spell_attack.cpp asks at its AC) would miss with +5 AC (never a natural 20), or Magic
+//     Missile is aimed at it, a creature with Shield prepared and a slot (the lowest that casts it; an NPC's own use
+//     too, Q3 A) takes it: +5 AC until its next round, the hit a miss. Not this turn's one spell with a slot. Cast
+//     from the spells: +5 AC for a round. Feather Fall: a visual and a line (#153).
+//   - The smites (Q1 A): Divine Smite, Searing Smite (Paladin), Ensnaring Strike (Ranger) - the cast arms it for
+//     nothing; the next hit it rides (a melee weapon or an Unarmed Strike; Ensnaring Strike any weapon), while the
+//     slot and the Bonus Action are there, spends both. Divine Smite 2d8 Radiant (+1d8 a Fiend or an Undead, +1d8 a
+//     level); Searing Smite 1d6 Fire and a burn each turn until a Constitution save; Ensnaring Strike a Strength
+//     save (Advantage if Large or larger) or Restrained (Concentration), 1d6 Piercing each turn, Escape (Q4 A).
 // NWN mode: NWN's spells.
 
 #include <windows.h>
@@ -140,6 +151,8 @@
 #include "spell_impact.h"
 #include "staple_actions.h"
 #include "rules/cantrips.h"
+#include "condition_effects.h"
+#include "rest.h"
 #include "rules/hazard_avoid.h"
 #include "rules/skills.h"
 #include "rules/spell_slots.h"
@@ -158,6 +171,7 @@ void HuntersMarkSpellHit(uint32_t caster, uint32_t target, bool critical);
 void HuntersMarkHit(uint32_t caster, uint32_t target, bool critical, float delay);  // #155: its damage delayed
 void* GameObjectById(uint32_t id);  // light_sources.cpp (build 2c: an area of effect by its id)
 bool InFogCloud(void* creature);    // below (build 2c; #160's fog search)
+void BeginConcentration(void* creature, int spell);  // rules_concentration.cpp (build 3: Ensnaring Strike's)
 
 namespace {
 
@@ -706,11 +720,15 @@ void SaveOne(uint32_t self, void* caster, const rules::Spell2024& spell, int slo
   }
 }
 
+bool TakeShield(void* defender, const char* what);  // build 3, below
+
 void Darts(uint32_t self, const rules::Spell2024& spell, int slot) {
   const std::vector<Entry> targets = OneTarget(self, spell, "GetHasSpellEffect(" + std::to_string(rules::kNwnShield) +
                                                               ", t)", 1, Look());
   for (const Entry& one : targets) {
-    if (one.value != 0) {
+    // Build 3: Shield's Reaction - "targeted by the Magic Missile spell".
+    void* aimed = one.value == 0 ? CreatureById(ParseId(one.target)) : nullptr;
+    if (one.value != 0 || (aimed && TakeShield(aimed, "Magic Missile"))) {
       std::string code = kShielded;
       Replace(&code, "$TARGET", one.target);
       Run(code, self, spell.script);
@@ -835,6 +853,7 @@ bool Refuse(uint32_t id, const std::string& name, const std::string& why, uint32
 }
 
 bool SanctuaryLetsThrough(void* attacker, void* target, const char* what);  // build 2a, below
+bool ArmSmite(void* creature, uint32_t id, const SpellOrder& order);         // build 3, below
 
 // Refused before the cast, nothing spent (true): a willing creature's spell at an enemy, Mage Armor on one wearing
 // armour, an enemy's spell at a creature its Sanctuary keeps it from. A Bonus Action spell's order becomes its feat's
@@ -845,6 +864,10 @@ bool OrderGuard(void* creature, const SpellOrder& order) {
   const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
   const int spell = static_cast<int>(order.spell);
   void* target = CreatureById(order.target);
+  // Build 3 (Q1 A): a smite's cast arms it, nothing spent - the next qualifying hit pays.
+  if (spell == rules::kDivineSmite || spell == rules::kSearingSmite || spell == rules::kEnsnaringStrike) {
+    return ArmSmite(creature, id, order);
+  }
   // 0.99.3 (owner, 2026-11-10: "why does heroism need to be cast first before checking if it's a willing target? Is
   // it the rules?"): "a willing creature" - an enemy isn't one, so it's no target (the script's check stays for a
   // cast with no order).
@@ -2219,6 +2242,8 @@ struct Entangled {
   int dc = 10;
   uint64_t next_try = 0;  // an NPC's next Escape try (game ms)
   bool feat = false;      // the Escape feat granted (a player's character)
+  int row = rules::kEntangle;           // the spell holding it (build 3: Ensnaring Strike's too)
+  const char* tag = kTagEntangled;      // its effect's tag
 };
 std::unordered_map<uint32_t, Entangled> g_entangled;                    // Entangle's Restrained creatures
 std::unordered_map<uint32_t, std::unordered_set<uint32_t>> g_terrain;  // creature -> the Difficult Terrain areas it's in
@@ -2344,10 +2369,10 @@ bool EscapeTry(uint32_t id, void* creature, const Entangled& held) {
 }
 
 void FreeFromEntangle(uint32_t id, void* creature) {
-  std::string code = kUnmark;
-  Replace(&code, "$TAG", kTagEntangled);
-  Run(code, id, "Entangle's hold");
   const auto it = g_entangled.find(id);
+  std::string code = kUnmark;
+  Replace(&code, "$TAG", it != g_entangled.end() ? it->second.tag : kTagEntangled);
+  Run(code, id, "the vines' hold");
   if (it == g_entangled.end()) return;
   if (it->second.feat) {
     if (void* stats = creature ? StatsOf(creature) : nullptr) engine::RemoveFeat(stats, rules::kFeatEscape);
@@ -2359,8 +2384,8 @@ void FreeFromEntangle(uint32_t id, void* creature) {
 void EscapeScript(uint32_t self) {
   void* creature = CreatureById(self);
   const auto it = g_entangled.find(self);
-  if (!creature || it == g_entangled.end() || !HasSpellEffect(creature, rules::kEntangle, -1, it->second.caster)) {
-    TellPlayer(self, "nwn5e: Escape - nothing holds you (the Entangle spell's plants).");
+  if (!creature || it == g_entangled.end() || !HasSpellEffect(creature, it->second.row, -1, it->second.caster)) {
+    TellPlayer(self, "nwn5e: Escape - nothing holds you (Entangle's plants or Ensnaring Strike's vines).");
     return;
   }
   if (EscapeTry(self, creature, it->second)) FreeFromEntangle(self, creature);
@@ -2757,7 +2782,7 @@ void AreaUpdate(void* creature) {
     const auto it = g_entangled.find(id);
     if (it != g_entangled.end()) {
       Entangled& held = it->second;
-      if (engine::IsDeadOrDying(creature) || !HasSpellEffect(creature, rules::kEntangle, -1, held.caster)) {
+      if (engine::IsDeadOrDying(creature) || !HasSpellEffect(creature, held.row, -1, held.caster)) {
         if (held.feat) {
           if (void* stats = StatsOf(creature)) engine::RemoveFeat(stats, rules::kFeatEscape);
         }
@@ -2788,6 +2813,458 @@ void AreaUpdate(void* creature) {
   }
 }
 
+thread_local bool t_reaction_spend = false;  // build 3: a Reaction's slot - not this turn's one spell with a slot
+
+// --- Build 3: reactions and smites -------------------------------------------------------------------------------------
+
+constexpr const char* kTagShield = "n5s_shield";
+constexpr const char* kTagSearing = "n5s_searing";
+constexpr const char* kTagEnsnared = "n5s_ensnared";
+constexpr int kNwnClassWizard = 10;  // a memorizer: its prepared copies only (no slot of another level)
+using IsKnownFn = int (*)(void* stats, uint8_t class_slot, uint32_t spell);
+using ArmorClassFn = int16_t (*)(void* stats, void* attacker, int touch);
+
+// --- Shield: a Reaction (Q3 A: an NPC caster's too) ---
+
+// Where a creature's Shield comes from: a class slot's lowest slot that casts it, or its own (innate) uses.
+struct ShieldSource {
+  int class_slot = -1;
+  int domain = 0;  // the slot level (0: the spell's own)
+  bool innate = false;
+};
+
+bool ShieldSourceOf(void* creature, ShieldSource* out) {
+  void* stats = StatsOf(creature);
+  if (!stats) return false;
+  static const auto known = reinterpret_cast<IsKnownFn>(EngineExport(ee::kIsInKnownSpellList));
+  const std::vector<rules::NwnClassSlot> slots = ReadClassSlots(stats);
+  for (size_t i = 0; i < slots.size() && i < 8; ++i) {
+    if (rules::CasterKindOfClass(slots[i].nwn_class_id) == rules::CasterKind::kNone) continue;
+    const uint8_t slot = static_cast<uint8_t>(i);
+    if (known && !known(stats, slot, static_cast<uint32_t>(rules::kShield))) continue;  // not prepared / known
+    if (OrderSlotsLeft(creature, rules::kShield, slot, 0, 0) > 0) {
+      out->class_slot = static_cast<int>(i);
+      out->domain = 0;
+      return true;
+    }
+    if (slots[i].nwn_class_id == kNwnClassWizard) continue;
+    for (int level = 2; level <= 9; ++level) {  // the lowest slot left that casts it
+      if (OrderSlotsLeft(creature, rules::kShield, slot, level, 0) > 0) {
+        out->class_slot = static_cast<int>(i);
+        out->domain = level;
+        return true;
+      }
+    }
+  }
+  // A creature's own Shield (a special ability, no class slots).
+  RunScriptChunk("SetLocalInt(OBJECT_SELF, \"n5s_has\", GetHasSpell(417));", Field<uint32_t>(creature, ee::kObjectId));
+  if (engine::GetLocalInt(creature, "n5s_has") > 0) {
+    out->innate = true;
+    return true;
+  }
+  return false;
+}
+
+// +5 AC until the start of its next turn (SpellArmorClassBonus counts it), no Magic Missile damage (Darts).
+void ShieldUp(uint32_t id) {
+  char code[640];
+  sprintf_s(code,
+            "effect e = GetFirstEffect(OBJECT_SELF); while (GetIsEffectValid(e)) { if (GetEffectTag(e) == \"%s\") "
+            "RemoveEffect(OBJECT_SELF, e); e = GetNextEffect(OBJECT_SELF); } "
+            "ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(EffectLinkEffects(EffectIcon("
+            "EFFECT_ICON_AC_INCREASE), EffectVisualEffect(VFX_DUR_GLOBE_MINOR)), %d), \"%s\"), OBJECT_SELF, 6.0); "
+            "ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_AC_BONUS), OBJECT_SELF);",
+            kTagShield, rules::kShield, kTagShield);
+  RunScriptChunk(code, id);
+}
+
+// The Reaction taken: its switch, the Reaction, the slot (not this turn's one spell with a slot), the +5.
+bool TakeShield(void* defender, const char* what) {
+  if (!Faithful() || !defender || HasSpellEffect(defender, rules::kShield)) return false;  // up already: counted
+  if (engine::IsDeadOrDying(defender) || IncapacitatedByCondition(defender) || !ReactionReady(defender)) return false;
+  if (!ReactionAllowed(defender, rules::Reaction::kShield)) return false;  // switched off: the Reaction kept
+  ShieldSource source;
+  if (!ShieldSourceOf(defender, &source)) return false;
+  if (!TakeReaction(defender)) return false;
+  const uint32_t id = Field<uint32_t>(defender, ee::kObjectId);
+  bool spent = true;
+  if (source.innate) {
+    RunScriptChunk("DecrementRemainingSpellUses(OBJECT_SELF, 417);", id);
+  } else {
+    t_reaction_spend = true;
+    spent = SpendOrderSlot(defender, rules::kShield, source.class_slot, source.domain, 0);
+    t_reaction_spend = false;
+  }
+  if (!spent) {
+    if (LogSlot()) Log("spells2024: 0x%08X Shield - its slot couldn't be spent (%s)", id, what);
+    return false;
+  }
+  ShieldUp(id);
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Shield (its Reaction, %s; %s) against %s", id,
+        source.innate ? "its own use" : source.domain > 0 ? "a higher slot" : "a level 1 slot",
+        source.innate ? "innate" : "class slot", what);
+  }
+  return true;
+}
+
+bool ShieldTurns(void* defender, void* attacker, int total, int armor_class, bool natural_twenty, const char* what) {
+  if (!defender || (!natural_twenty && total < armor_class)) return false;  // not a hit
+  if (!rules::ShieldTurnsHit(total, armor_class, natural_twenty)) return false;
+  if (!TakeShield(defender, what)) return false;
+  char line[200];
+  sprintf_s(line, "nwn5e: Shield (your Reaction) - +5 AC until your next round: the hit (%d vs AC %d) misses.", total,
+            armor_class);
+  TellPlayer(Field<uint32_t>(defender, ee::kObjectId), line);
+  (void)attacker;
+  return true;
+}
+
+// A weapon attack's hit Shield would turn: a miss (first of the attack roll's after-listeners - before a hit's riders).
+void ShieldAfterRoll(AttackRoll& roll) {
+  if (!Faithful() || !roll.data || !roll.target || !roll.attacker) return;
+  const uint8_t result = roll.data[ee::kAttackResult];
+  if (result != 1 && result != ee::kAttackResultCritical) return;
+  void* defender = CreatureById(Field<uint32_t>(roll.target, ee::kObjectId));
+  void* stats = defender ? StatsOf(defender) : nullptr;
+  if (!stats) return;
+  static const auto armor_class = reinterpret_cast<ArmorClassFn>(EngineExport(ee::kGetArmorClassVersus));
+  if (!armor_class) return;
+  const int d20 = roll.data[ee::kAttackD20];
+  const int total = d20 + *reinterpret_cast<int32_t*>(roll.data + ee::kAttackModifier);
+  const int ac = armor_class(stats, roll.attacker, 0);
+  if (!ShieldTurns(defender, roll.attacker, total, ac, d20 == 20, "an attack")) return;
+  roll.data[ee::kAttackResult] = ee::kAttackResultMiss;
+  roll.data[ee::kAttackMissedBy] = static_cast<uint8_t>(std::max(1, ac + rules::kShieldAc - total));
+  if (result == ee::kAttackResultCritical) {
+    *reinterpret_cast<int32_t*>(roll.data + ee::kAttackThreatFlag) = 0;
+    roll.data[ee::kAttackThreatRoll] = 0;
+  }
+}
+
+// Cast from the spells: Shield +5 until the next round; Feather Fall a visual and a line (#153).
+void ReactionSpell(uint32_t self, const rules::Spell2024& spell) {
+  if (spell.row == rules::kShield) {
+    ShieldUp(self);
+    TellPlayer(self, "nwn5e: Shield - +5 AC until your next round, and Magic Missile can't hurt you.");
+    if (LogSlot()) Log("spells2024: 0x%08X Shield cast from its spells: +5 AC for a round", self);
+    return;
+  }
+  RunScriptChunk("ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_PULSE_WIND), OBJECT_SELF);", self);
+  TellPlayer(self, "nwn5e: Feather Fall - NWN has no falling, so there's nothing to slow (#153).");
+  if (LogSlot()) Log("spells2024: 0x%08X Feather Fall: a visual and a line (#153)", self);
+}
+
+// --- The smites (Q1 A): armed by the cast for nothing, paid and delivered by the next qualifying hit ---
+
+struct Armed {
+  int row = 0;
+  int class_slot = -1;
+  int domain_level = 0;
+  int metamagic = 0;
+  int slot = 1;       // the slot level it's paid with
+  bool paid = false;  // armed by a cast that spent its slot already (an item's, a script's)
+  uint64_t told = 0;  // the last "it waits" line (game ms)
+};
+std::unordered_map<uint32_t, Armed> g_armed;  // the caster's armed smite
+struct SmitePending {  // a smite landed: its rider at the target's next update (not inside the damage's handling)
+  uint32_t caster = 0;
+  int row = 0;
+  int slot = 1;
+  int dc = 10;
+};
+std::unordered_map<uint32_t, SmitePending> g_smite_pending;  // by target
+struct Burning {  // Searing Smite
+  uint32_t caster = 0;
+  int dice = 1;
+  int dc = 10;
+  uint64_t next = 0;
+};
+std::unordered_map<uint32_t, Burning> g_burning;
+struct Ensnared {  // Ensnaring Strike's vines (its hold: g_entangled)
+  uint32_t caster = 0;
+  int dice = 1;
+  uint64_t next = 0;
+};
+std::unordered_map<uint32_t, Ensnared> g_ensnared;
+
+bool IsSmite(int row) {
+  return row == rules::kDivineSmite || row == rules::kSearingSmite || row == rules::kEnsnaringStrike;
+}
+
+const char* SmiteRide(int row) {
+  return row == rules::kEnsnaringStrike ? "a weapon" : "a melee weapon or an Unarmed Strike";
+}
+
+bool ArmSmite(void* creature, uint32_t id, const SpellOrder& order) {
+  const rules::Spell2024* spell = rules::Spell2024Of(static_cast<int>(order.spell));
+  if (!spell || order.class_slot < 0 || order.class_slot > 7) return false;  // not a class's: as the engine casts it
+  if (OrderSlotsLeft(creature, order.spell, order.class_slot, order.domain_level, order.metamagic) <= 0) {
+    return Refuse(id, spell->name, "no spell slot of that level left.", id);
+  }
+  Armed armed;
+  armed.row = spell->row;
+  armed.class_slot = order.class_slot;
+  armed.domain_level = order.domain_level;
+  armed.metamagic = order.metamagic;
+  const int chosen = rules::ChosenSlotLevel(spell->level, order.domain_level);
+  armed.slot = chosen >= spell->level ? chosen : spell->level;
+  if (g_armed.size() > 256) g_armed.clear();
+  g_armed[id] = armed;
+  char line[260];
+  sprintf_s(line, "nwn5e: %s armed (a level %d slot) - your next hit with %s, while you have the slot and your Bonus "
+                  "Action, spends both.", spell->name, armed.slot, SmiteRide(spell->row));
+  TellPlayer(id, line);
+  if (LogSlot()) Log("spells2024: 0x%08X %s armed (a level %d slot, class slot %d) - nothing spent", id, spell->name,
+                     armed.slot, armed.class_slot);
+  return true;  // the cast refused: nothing spent now
+}
+
+// A smite's cast that ran (an item's, a script's): armed, its slot spent by that cast.
+void ArmFromScript(uint32_t self, const rules::Spell2024& spell, int slot) {
+  Armed armed;
+  armed.row = spell.row;
+  armed.slot = slot;
+  armed.paid = true;
+  g_armed[self] = armed;
+  TellPlayer(self, std::string("nwn5e: ") + spell.name + " armed - your next qualifying hit delivers it (your Bonus Action).");
+  if (LogSlot()) Log("spells2024: 0x%08X %s armed by its cast (paid, a level %d slot)", self, spell.name, slot);
+}
+
+void SmiteVisual(uint32_t caster, uint32_t target, const char* vis) {
+  char code[260];
+  sprintf_s(code, "object t = StringToObject(\"%x\"); DelayCommand(0.1, ApplyEffectToObject(DURATION_TYPE_INSTANT, "
+                  "EffectVisualEffect(%s), t));", target, vis);
+  RunScriptChunk(code, caster);
+}
+
+// A hit: the armed smite's cost, then its damage on the hit (twice the dice on a Critical Hit) and its rider later.
+void SmiteHit(void* attacker, void* target) {
+  if (g_armed.empty() || !attacker || !target || !Faithful()) return;
+  const uint32_t id = Field<uint32_t>(attacker, ee::kObjectId);
+  const auto it = g_armed.find(id);
+  if (it == g_armed.end()) return;
+  uint8_t* data = CurrentAttackData(attacker);
+  if (!data || !rules::MasteryAttackHit(data[ee::kAttackResult])) return;
+  const uint32_t victim_id = Field<uint32_t>(target, ee::kObjectId);
+  void* victim = CreatureById(victim_id);
+  if (!victim) return;  // a creature's hit only
+  const bool ranged = *reinterpret_cast<int32_t*>(data + ee::kAttackRanged) != 0;
+  const bool unarmed = !ranged && AttackWeaponBaseItem(attacker) < 0;
+  Armed& armed = it->second;
+  if (!rules::SmiteRidesOn(armed.row, ranged, unarmed)) return;
+  const rules::Spell2024* spell = rules::Spell2024Of(armed.row);
+  if (!spell) return;
+  const uint64_t now = GameMs();
+  std::string waits;
+  if (BonusActionStatus(attacker) != 0) {
+    waits = "your Bonus Action is spent this round";
+  } else if (!armed.paid && SpentThisTurn(id, nullptr)) {
+    waits = "you've spent a spell slot this turn (one spell with a slot a turn)";
+  }
+  if (!waits.empty()) {
+    if (now >= armed.told + kRoundMs) {
+      armed.told = now;
+      TellPlayer(id, std::string("nwn5e: ") + spell->name + " waits - " + waits + "; it stays armed.");
+      if (LogSlot()) Log("spells2024: 0x%08X %s waits - %s", id, spell->name, waits.c_str());
+    }
+    return;
+  }
+  if (!armed.paid) {
+    if (OrderSlotsLeft(attacker, armed.row, armed.class_slot, armed.domain_level, armed.metamagic) <= 0) {
+      TellPlayer(id, std::string("nwn5e: ") + spell->name + " - no spell slot of that level left; it's disarmed.");
+      g_armed.erase(it);
+      return;
+    }
+    t_bonus_spend = true;  // a Bonus Action spell's slot (one spell with a slot a turn)
+    const bool spent = SpendOrderSlot(attacker, armed.row, armed.class_slot, armed.domain_level, armed.metamagic);
+    t_bonus_spend = false;
+    if (!spent) {
+      TellPlayer(id, std::string("nwn5e: ") + spell->name + " - its slot couldn't be spent; it's disarmed.");
+      g_armed.erase(it);
+      return;
+    }
+  }
+  SpendBonusAction(attacker, spell->name);
+  const Armed paid = armed;
+  g_armed.erase(it);
+  const bool critical = data[ee::kAttackResult] == ee::kAttackResultCritical;
+  auto* entries = reinterpret_cast<int16_t*>(data + ee::kAttackDamageEntries);
+  const int dc = SpellSaveDcForClassSlot(attacker, paid.class_slot);
+  std::string log;
+  switch (paid.row) {
+    case rules::kDivineSmite: {
+      void* stats = StatsOf(victim);
+      const int race = stats ? engine::RaceOf(stats) : -1;
+      bool evil = false;
+      if (race == 20) {  // an Outsider: a Fiend if evil
+        char code[200];
+        sprintf_s(code, "SetLocalInt(OBJECT_SELF, \"n5s_evil\", GetAlignmentGoodEvil(StringToObject(\"%x\")) == "
+                        "ALIGNMENT_EVIL);", victim_id);
+        RunScriptChunk(code, id);
+        evil = engine::GetLocalInt(attacker, "n5s_evil") == 1;
+      }
+      const bool fiend_or_undead = rules::FiendOrUndead(race, evil);
+      const int dice = rules::CriticalDice(rules::DivineSmiteDice(paid.slot, fiend_or_undead), critical);
+      const int amount = RollEngineDice(dice, 8);
+      rules::AddDamage(entries, ee::kAttackDamageEntryCount, rules::kDamageTypeRadiant, amount);
+      SmiteVisual(id, victim_id, "VFX_IMP_SUNSTRIKE");
+      char text[160];
+      sprintf_s(text, "%dd8 Radiant = %d%s", dice, amount, fiend_or_undead ? " (a Fiend or an Undead)" : "");
+      log = text;
+      break;
+    }
+    case rules::kSearingSmite: {
+      const int dice = rules::CriticalDice(rules::SearingSmiteDice(paid.slot), critical);
+      const int amount = RollEngineDice(dice, 6);
+      rules::AddDamage(entries, ee::kAttackDamageEntryCount, rules::kDamageTypeFire, amount);
+      SmiteVisual(id, victim_id, "VFX_IMP_FLAME_S");
+      g_smite_pending[victim_id] = SmitePending{id, paid.row, paid.slot, dc};
+      char text[120];
+      sprintf_s(text, "%dd6 Fire = %d, and it burns (Constitution save, DC %d)", dice, amount, dc);
+      log = text;
+      break;
+    }
+    case rules::kEnsnaringStrike:
+      g_smite_pending[victim_id] = SmitePending{id, paid.row, paid.slot, dc};
+      log = "its vines (Strength save, DC " + std::to_string(dc) + ")";
+      break;
+  }
+  TellPlayer(id, std::string("nwn5e: ") + spell->name + " (a level " + std::to_string(paid.slot) + " slot, your Bonus "
+                     "Action) - " + log + ".");
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X %s on 0x%08X (a level %d slot%s): %s", id, spell->name, victim_id, paid.slot,
+        critical ? ", a Critical Hit" : "", log.c_str());
+  }
+}
+
+uint8_t StrengthSave(void* creature, uint32_t caster, int dc, bool advantage) {
+  static const auto save_roll = reinterpret_cast<SaveRollFn>(EngineExport(ee::kSavingThrowRoll));  // through its hook
+  if (!save_roll) return 1;
+  RememberSaveDc2024(caster, dc);
+  SetForcedSaveAbility(rules::Ability::kStrength);
+  SetForcedSaveAdvantage(advantage);
+  const uint8_t save = save_roll(creature, ee::kSaveFortitude, static_cast<uint16_t>(dc), 0, caster, 1, 0, 0);
+  SetForcedSaveAdvantage(false);
+  SetForcedSaveAbility(std::nullopt);
+  return save;
+}
+
+// The riders, at the target's update: Searing Smite's burning; Ensnaring Strike's save and vines. Then each of its
+// turns: the burn (1d6 Fire, a Constitution save ends it), the vines' 1d6 Piercing.
+void SmiteUpdate(void* creature) {
+  if (!creature || (g_smite_pending.empty() && g_burning.empty() && g_ensnared.empty())) return;
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  const uint64_t now = GameMs();
+  if (!g_smite_pending.empty()) {
+    const auto at = g_smite_pending.find(id);
+    if (at != g_smite_pending.end()) {
+      const SmitePending pending = at->second;
+      g_smite_pending.erase(at);
+      void* caster = CreatureById(pending.caster);
+      if (caster && !engine::IsDeadOrDying(creature)) {
+        if (pending.row == rules::kSearingSmite) {
+          char code[420];
+          sprintf_s(code,
+                    "object t = StringToObject(\"%x\"); ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect("
+                    "SetEffectSpellId(EffectLinkEffects(EffectIcon(EFFECT_ICON_DAMAGE_DECREASE), EffectVisualEffect("
+                    "VFX_DUR_INFERNO_CHEST)), %d), \"%s\"), t, 60.0);",
+                    id, rules::kSearingSmite, kTagSearing);
+          RunScriptChunk(code, pending.caster);
+          g_burning[id] = Burning{pending.caster, rules::SearingSmiteDice(pending.slot), pending.dc, now + kRoundMs};
+        } else if (pending.row == rules::kEnsnaringStrike) {
+          const bool advantage = rules::EnsnaringSaveAdvantage(Field<int32_t>(creature, ee::kCreatureSize));
+          const uint8_t save = StrengthSave(creature, pending.caster, pending.dc, advantage);
+          if (LogSlot()) {
+            Log("spells2024: 0x%08X Ensnaring Strike's Strength save (DC %d%s): %s", id, pending.dc,
+                advantage ? ", Advantage: Large or larger" : "", save == 0 ? "failed - Restrained" : "succeeded");
+          }
+          if (save == 0) {
+            BeginConcentration(caster, rules::kEnsnaringStrike);
+            char code[420];
+            sprintf_s(code,
+                      "object t = StringToObject(\"%x\"); ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect("
+                      "SetEffectSpellId(EffectLinkEffects(EffectEntangle(), EffectVisualEffect(VFX_DUR_ENTANGLE)), %d), "
+                      "\"%s\"), t, 60.0);",
+                      id, rules::kEnsnaringStrike, kTagEnsnared);
+            RunScriptChunk(code, pending.caster);
+            Entangled held{pending.caster, pending.dc, now + kRoundMs, false, rules::kEnsnaringStrike, kTagEnsnared};
+            if (IsPlayerCreature(creature)) {
+              if (void* stats = StatsOf(creature)) {
+                if (!engine::HasFeat(stats, rules::kFeatEscape)) engine::AddFeat(stats, rules::kFeatEscape);
+                held.feat = true;
+                TellPlayer(id, "nwn5e: Ensnaring Strike's vines hold you Restrained - Escape (an Action: your quickbar, "
+                               "or the radial's Special Attacks page in Dash's place) tries to tear free.");
+              }
+            }
+            g_entangled[id] = held;
+            g_ensnared[id] = Ensnared{pending.caster, rules::EnsnaringStrikeDice(pending.slot), now + kRoundMs};
+          } else {
+            TellPlayer(pending.caster, "nwn5e: Ensnaring Strike - the vines shrivel away (it saved).");
+          }
+        }
+      }
+    }
+  }
+  if (!g_burning.empty()) {
+    const auto at = g_burning.find(id);
+    if (at != g_burning.end()) {
+      Burning& burn = at->second;
+      if (engine::IsDeadOrDying(creature) || !HasSpellEffect(creature, rules::kSearingSmite, -1, burn.caster)) {
+        g_burning.erase(at);
+      } else if (now >= burn.next) {
+        burn.next = now + kRoundMs;
+        const int amount = RollEngineDice(burn.dice, 6);
+        char code[300];
+        sprintf_s(code, "object t = StringToObject(\"%x\"); ApplyEffectToObject(DURATION_TYPE_INSTANT, "
+                        "EffectLinkEffects(EffectDamage(%d, DAMAGE_TYPE_FIRE), EffectVisualEffect(VFX_IMP_FLAME_S)), t);",
+                  id, amount);
+        RunScriptChunk(code, CreatureById(burn.caster) ? burn.caster : id);
+        static const auto save_roll = reinterpret_cast<SaveRollFn>(EngineExport(ee::kSavingThrowRoll));
+        uint8_t save = 1;
+        if (save_roll) {
+          RememberSaveDc2024(burn.caster, burn.dc);
+          save = save_roll(creature, ee::kSaveFortitude, static_cast<uint16_t>(burn.dc), 0, burn.caster, 1, 0, 0);
+        }
+        if (LogSlot()) {
+          Log("spells2024: 0x%08X Searing Smite burns: %dd6 Fire = %d; Constitution save (DC %d) %s", id, burn.dice,
+              amount, burn.dc, save == 0 ? "failed - it burns on" : "succeeded - it ends");
+        }
+        if (save != 0) {
+          std::string unmark = kUnmark;
+          Replace(&unmark, "$TAG", kTagSearing);
+          Run(unmark, id, "Searing Smite's end");
+          g_burning.erase(at);
+        }
+      }
+    }
+  }
+  if (!g_ensnared.empty()) {
+    const auto at = g_ensnared.find(id);
+    if (at != g_ensnared.end()) {
+      Ensnared& vines = at->second;
+      if (engine::IsDeadOrDying(creature) || !HasSpellEffect(creature, rules::kEnsnaringStrike, -1, vines.caster)) {
+        g_ensnared.erase(at);
+      } else if (now >= vines.next) {
+        vines.next = now + kRoundMs;
+        const int amount = RollEngineDice(vines.dice, 6);
+        char code[260];
+        sprintf_s(code, "object t = StringToObject(\"%x\"); ApplyEffectToObject(DURATION_TYPE_INSTANT, "
+                        "EffectDamage(%d, DAMAGE_TYPE_PIERCING), t);", id, amount);
+        RunScriptChunk(code, CreatureById(vines.caster) ? vines.caster : id);
+        if (LogSlot()) Log("spells2024: 0x%08X Ensnaring Strike's vines: %dd6 Piercing = %d", id, vines.dice, amount);
+      }
+    }
+  }
+}
+
+// A rest disarms a smite.
+void SmitesRest(void* stats) {
+  void* creature = stats ? CreatureOf(stats) : nullptr;
+  if (!creature || g_armed.empty()) return;
+  g_armed.erase(Field<uint32_t>(creature, ee::kObjectId));
+}
+
 void Cast(uint32_t self, int row) {
   const rules::Spell2024* spell = rules::Spell2024Of(row);
   void* caster = CreatureById(self);
@@ -2809,6 +3286,14 @@ void Cast(uint32_t self, int row) {
     AreaSpell(self, caster, *spell, slot);  // build 2c
     return;
   }
+  if (spell->effect == rules::SpellEffect2024::kReaction) {
+    ReactionSpell(self, *spell);  // build 3
+    return;
+  }
+  if (spell->effect == rules::SpellEffect2024::kSmite) {
+    ArmFromScript(self, *spell, slot);  // build 3: a cast that ran (an item's, a script's)
+    return;
+  }
   if (row == rules::kChromaticOrb) {
     ChromaticOrb(self, caster, *spell, slot);
     return;
@@ -2825,6 +3310,8 @@ void Cast(uint32_t self, int row) {
     case rules::SpellEffect2024::kBuff: break;
     case rules::SpellEffect2024::kCondition: break;
     case rules::SpellEffect2024::kArea: break;
+    case rules::SpellEffect2024::kReaction: break;
+    case rules::SpellEffect2024::kSmite: break;
     case rules::SpellEffect2024::kSave:
       if (spell->shape == rules::SpellShape2024::kOne) {
         SaveOne(self, caster, *spell, slot);
@@ -2875,6 +3362,11 @@ ScriptHandler HandlerOf(int row) {
     case rules::kGrease: return &SpellScript<rules::kGrease>;
     case rules::kFaerieFire: return &SpellScript<rules::kFaerieFire>;
     case rules::kFogCloud: return &SpellScript<rules::kFogCloud>;
+    case rules::kShield: return &SpellScript<rules::kShield>;
+    case rules::kFeatherFall: return &SpellScript<rules::kFeatherFall>;
+    case rules::kDivineSmite: return &SpellScript<rules::kDivineSmite>;
+    case rules::kSearingSmite: return &SpellScript<rules::kSearingSmite>;
+    case rules::kEnsnaringStrike: return &SpellScript<rules::kEnsnaringStrike>;
   }
   return nullptr;
 }
@@ -2940,6 +3432,25 @@ MasteryRollSources FaerieFireRollSources(void* target, bool cant_see) {
   return sources;
 }
 
+// rules_spell_attack.cpp (#39 build 3): a spell attack's hit that Shield would turn - its Reaction taken (true).
+bool ShieldReaction(void* defender, void* attacker, int total, int armor_class, bool natural_twenty) {
+  return Faithful() && ShieldTurns(defender, attacker, total, armor_class, natural_twenty, "a spell attack");
+}
+
+// combat_options.cpp (#39 build 3): Shield's switch shows for a creature with Shield prepared or known.
+bool ShieldKnown(void* creature) {
+  void* stats = creature && Faithful() ? StatsOf(creature) : nullptr;
+  if (!stats) return false;
+  static const auto known = reinterpret_cast<IsKnownFn>(EngineExport(ee::kIsInKnownSpellList));
+  if (!known) return false;
+  const std::vector<rules::NwnClassSlot> slots = ReadClassSlots(stats);
+  for (size_t i = 0; i < slots.size() && i < 8; ++i) {
+    if (rules::CasterKindOfClass(slots[i].nwn_class_id) == rules::CasterKind::kNone) continue;
+    if (known(stats, static_cast<uint8_t>(i), static_cast<uint32_t>(rules::kShield))) return true;
+  }
+  return false;
+}
+
 // rules_perception.cpp (#39 build 2c, Q2 A): a creature in a Fog Cloud - Heavily Obscured.
 bool InFogCloud(void* creature) {
   if (g_fogged.empty() || !creature) return false;
@@ -2949,7 +3460,7 @@ bool InFogCloud(void* creature) {
 
 // rules_spell_slots.cpp's UnReady: a spell slot spent - this turn's (One Spell with a Spell Slot per Turn).
 void NoteSlotSpent(void* creature, int level) {
-  if (!creature || level < 1) return;
+  if (!creature || level < 1 || t_reaction_spend) return;  // build 3: a Reaction's
   const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
   if (g_slot_turns.size() > 512) g_slot_turns.clear();
   g_slot_turns[id] = SlotTurn{CombatRoundsEnded(id), GameMs(), t_bonus_spend};
@@ -2997,6 +3508,7 @@ int SpellArmorClassBonus(void* stats, bool character) {
   void* creature = stats ? CreatureOf(stats) : nullptr;
   if (!Faithful() || !creature) return 0;
   int bonus = HasSpellEffect(creature, rules::kShieldOfFaith, rules::kShieldOfFaithBonus) ? rules::kShieldOfFaithAc : 0;
+  if (HasSpellEffect(creature, rules::kShield)) bonus += rules::kShieldAc;  // build 3: Shield's +5
   if (character && HasSpellEffect(creature, rules::kMageArmor) && ChestArmorClassOf(creature) <= 0) {
     const int monk_wis = ClassLevel2024(stats, rules::CharacterClass::kMonk) > 0 && !HoldsShieldOf(creature)
                              ? std::max(0, engine::AbilityModifier(stats, kAbilityWisdom))
@@ -3083,9 +3595,11 @@ void InstallSpells2024() {
                      AddScriptHandler("n5_s_fog1a", &FogEnter) && AddScriptHandler("n5_s_fog1b", &FogExit) && AddScriptHandler("n5_s_fog2a", &FogEnter) && AddScriptHandler("n5_s_fog2b", &FogExit) && AddScriptHandler("n5_s_fog3a", &FogEnter) && AddScriptHandler("n5_s_fog3b", &FogExit) && AddScriptHandler("n5_s_fog4a", &FogEnter) && AddScriptHandler("n5_s_fog4b", &FogExit) && AddScriptHandler("n5_s_fog5a", &FogEnter) && AddScriptHandler("n5_s_fog5b", &FogExit) && AddScriptHandler("n5_s_fog6a", &FogEnter) && AddScriptHandler("n5_s_fog6b", &FogExit) && AddScriptHandler("n5_s_fog7a", &FogEnter) && AddScriptHandler("n5_s_fog7b", &FogExit) && AddScriptHandler("n5_s_fog8a", &FogEnter) && AddScriptHandler("n5_s_fog8b", &FogExit) && AddScriptHandler("n5_s_fog9a", &FogEnter) && AddScriptHandler("n5_s_fog9b", &FogExit) && 
                      AddScriptHandler("n5_escape", &EscapeScript) && AddCreatureUpdateListener(&AreaUpdate) &&
                      AddMovementRateAdjuster(&TerrainSpeed);
-  Log("spells2024: SRD 5.2's level 1 spells, builds 1a-2c - %zu spells: damage and healing, Chromatic Orb, Heroism, "
-      "the buffs, the conditions on creatures, the areas; %zu Bonus Action spells; one spell with a slot a turn (#39 "
-      "Part 2a)%s",
+  const bool reactions = AddAttackRollListenerFirst(&ShieldAfterRoll) && AddResolveDamageListener(&SmiteHit) &&
+                         AddCreatureUpdateListener(&SmiteUpdate) && AddRestListener(&SmitesRest);
+  Log("spells2024: SRD 5.2's level 1 spells, builds 1a-3 - %zu spells: damage and healing, Chromatic Orb, Heroism, "
+      "the buffs, the conditions on creatures, the areas, Shield and the smites; %zu Bonus Action spells; one spell "
+      "with a slot a turn (#39 Part 2a)%s",
       rules::Spells2024().size(), rules::BonusActionSpells().size(),
-      scripts && update && guard && buffs && conditions && areas ? "" : " - SOME hooks missing");
+      scripts && update && guard && buffs && conditions && areas && reactions ? "" : " - SOME hooks missing");
 }

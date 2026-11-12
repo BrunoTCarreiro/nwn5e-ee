@@ -37,10 +37,13 @@
 #include "log.h"
 #include "log_once.h"
 #include "saves.h"
+#include "rules/spells2024.h"
 
 int RollSpellAttackD20(void* caster, void* target, bool ranged, std::string* note);  // rules_advantage.cpp
 
 int BlessDie(void* creature, const char* what);  // rules_spells2024.cpp (#39 2a: Bless, Bane)
+// rules_spells2024.cpp (#39 2a build 3): a spell attack's hit the target's Shield would turn - its Reaction taken.
+bool ShieldReaction(void* defender, void* attacker, int total, int armor_class, bool natural_twenty);
 namespace {
 
 using TouchCommandFn = int (*)(void* commands, int command, int parameters);
@@ -63,6 +66,9 @@ struct Touch {
   bool bonus_known = false;
   int blessing = 0;  // #39 2a: Bless's +1d4 / Bane's -1d4, rolled once a touch attack
   bool blessing_rolled = false;
+  int pre_d20 = 0;          // #39 2a build 3: the d20 rolled at the AC (Shield's look), the dice's then
+  bool pre_rolled = false;
+  std::string pre_note;
 };
 Touch g_touch;
 LogOnce g_logged(300);
@@ -97,8 +103,9 @@ bool TouchDice(uintptr_t caller, int count, int sides, int* result) {
     return true;
   }
   if (caller != g_d20_caller || !g_touch.caster || !g_touch.target) return false;
-  std::string note;
-  const int d20 = RollSpellAttackD20(g_touch.caster, g_touch.target, g_touch.ranged, &note);
+  std::string note = g_touch.pre_note;
+  const int d20 = g_touch.pre_rolled ? g_touch.pre_d20
+                                     : RollSpellAttackD20(g_touch.caster, g_touch.target, g_touch.ranged, &note);
   if (g_config.log_attacks && g_roll_lines < 300 && LogPlayerInvolved(g_touch.caster, g_touch.target)) {
     ++g_roll_lines;
     static const auto armor_class = reinterpret_cast<ArmorClassFn>(EngineExport(ee::kGetArmorClassVersus));
@@ -147,6 +154,22 @@ bool SpellAttackAgainstFullAc(void* target_stats, void* attacker) {
   g_touch.target = CreatureOf(target_stats);
   g_touch.caster = attacker;
   return true;
+}
+
+// rules_attack.cpp (#39 2a build 3): the AC a touch attack meets. The d20 is rolled here (the dice filter gives it
+// after: the log's roll is the true one); a hit the target's Shield would turn - its Reaction taken - meets AC + 5.
+int16_t SpellAttackShieldAc(void* target_stats, void* attacker, int16_t armor_class) {
+  if (!g_touch.active || !Faithful() || g_touch.pre_rolled || !g_touch.bonus_known || !attacker) return armor_class;
+  void* target = CreatureOf(target_stats);
+  if (!target) return armor_class;
+  g_touch.pre_d20 = RollSpellAttackD20(attacker, target, g_touch.ranged, &g_touch.pre_note);
+  g_touch.pre_rolled = true;
+  const int total = g_touch.pre_d20 + g_touch.bonus;
+  if (g_touch.pre_d20 != 1 &&
+      ShieldReaction(target, attacker, total, armor_class, g_touch.pre_d20 == 20)) {
+    return static_cast<int16_t>(armor_class + rules::kShieldAc);
+  }
+  return armor_class;
 }
 
 void InstallSpellAttackRules() {

@@ -36,6 +36,7 @@ rules::BrutalChoice BrutalStrikeChoice(void* creature);
 void PickBrutalStrike(void* creature, rules::BrutalEffect effect);
 // rules_cunning_strike.cpp
 int CunningStrikeRogueLevel(void* creature);
+bool ShieldKnown(void* creature);  // rules_spells2024.cpp (#39 2a build 3)
 rules::CunningChoice CunningStrikeChoice(void* creature);
 int CunningStrikeDcOf(void* creature);
 void PickCunningStrike(void* creature, rules::CunningEffect effect);
@@ -97,6 +98,9 @@ const Option kOptions[] = {
     {"o_re_redirect", Kind::kReaction, 4, "Deflect: redirect",
      "a hit taken to 0: a Focus point, its attacker saves (Dex) or takes 2 Martial Arts dice + Dex"},
     {"o_re_retal", Kind::kReaction, 3, "Retaliation", "an attack back at a creature in reach that damages you"},
+    // #39 2a build 3: Shield, on by default.
+    {"o_re_shield", Kind::kReaction, 5, "Shield",
+     "+5 AC against a hit it turns into a miss, or Magic Missile (a spell slot, your Reaction)"},
     {"o_reckless", Kind::kReckless, 0, "Reckless Attack",
      "Advantage on your Strength attacks; attacks against you have Advantage until a round after your last"},
     {"o_bs_force", Kind::kBrutal, 1, "Forceful Blow", "pushed 15 ft straight away from you"},
@@ -133,6 +137,7 @@ bool Available(void* creature, const Option& o) {
         case rules::Reaction::kDeflectAttacks:
         case rules::Reaction::kDeflectRedirect: return rules::HasDeflectAttacks(OpenHandMonkLevel(creature));
         case rules::Reaction::kRetaliation: return rules::HasRetaliation(BrutalStrikeBarbarianLevel(creature));
+        case rules::Reaction::kShield: return ShieldKnown(creature);  // #39 2a build 3
       }
       return false;
     }

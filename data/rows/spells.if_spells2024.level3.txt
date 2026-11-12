@@ -1,0 +1,5 @@
+# spells.2da - #39 Part 2a, build 3 (core/rules_spells2024.cpp; "spells2024" is served with spellcasting
+# faithful): NWN's Shield 417 rewritten as SRD 5.2.1's - a Reaction taken by itself on a hit it would turn (cast
+# from the spells, +5 AC until the next round). The new rows: spells.if_spells2024.level3new.txt.
+Name SpellDesc ImpactScript School Range VS TargetType Bard Cleric Druid Paladin Ranger Wiz_Sorc Innate Category HostileSetting TargetShape TargetSizeX TargetSizeY TargetFlags SubRadSpell1 SubRadSpell2
+417 57 16000782 n5_s_shield A P vs 0x09 **** **** **** **** **** 1 1 13 0 **** **** **** **** **** ****
