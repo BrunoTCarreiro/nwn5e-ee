@@ -1357,6 +1357,9 @@ monster AC by CR.
     each round, three rounds, then gives up), ranged or not; B NWN's own AI (no search). Q3 Grease (a fall, not only
     slow ground) - A a careful creature keeps out as of a hazard (ranged always, melee unless its target is inside)
     and a dumb one plows through and slips, B as Entangle's Difficult Terrain. Recommended A on all.
+    *Decided (owner, 2026-11-12: "go with A on all"):* Q1 A (careful: the Intelligence and Wisdom modifiers together
+    0 or more), Q2 A (the fog searched: three rounds about where the target was last seen), Q3 A (Grease a hazard to
+    the careful, plowed through by the dumb).
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
