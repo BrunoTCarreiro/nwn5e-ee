@@ -1308,6 +1308,17 @@ monster AC by CR.
     outlined, back for the time it had left. Q4 Faerie Fire's colour - A a menu (Blue, Green, Violet: Command's
     way), B one colour. Recommended A on all. NWN has no plain fog look: a placeholder until the animation session
     designs one.
+  - *Decided (owner, 2026-11-12: "Hazard avoidance, sentient creatures with ranged attacks should still try to avoid
+    these, but not as much melee only sentient creatures. / All recommended except Q3, go for B"):* Q1 A (an Escape
+    action; NPCs try once a round), Q2 A (NWN's darkness inside the fog), Q3 B (an outlined creature's invisibility
+    suppressed while outlined, back for the time it had left), Q4 A (a colour menu). The hazard-avoiding AI and the
+    2c areas (Entangle, Grease, Fog Cloud; Faerie Fire leaves none) - *my reading:* sentient is any creature but
+    animals, beasts, vermin and oozes (undead and constructs avoid nothing, #131); one holding a ranged weapon keeps
+    out of them as of any hazard (steps out, doesn't walk in); a melee-only one walks in after a target standing in
+    one and stays while its target is there, else steps out; the rest don't avoid them. The owner also asked:
+    "doesn't grease have a chance of making a creature fall prone if they fail a dex check?" - yes: SRD 5.2.1's
+    Grease is a Dexterity saving throw or Prone when it appears, on entering and at the end of a turn there (nwn5e's
+    Prone: a round's knockdown).
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
