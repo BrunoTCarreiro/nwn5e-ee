@@ -1342,6 +1342,21 @@ monster AC by CR.
     "we'll have to look at the entangled, grease and fog effects" - "I meant for later, not right now, it's just
     something I have to remember"):* the looks of Entangle's, Grease's and Fog Cloud's areas (the animation
     session's, when it's taken up).
+  - *#160, the hazard-avoiding AI and the 2c areas (owner, 2026-11-12: "We need to work on enemies avoiding hazard
+    areas, if it's just difficult terrain or low visibility an enemy probably shouldn't be running from it like the
+    plague. in fog I think enemies would walk around trying to find the player, if it's difficult terrain we would
+    probably need to take into account not only if they have ranged capabilities but also their int/wis. A dumb
+    sentient enemy would still try to plow through difficult terrain to go hit the player with a hammer").* Brief:
+    0.99.26 runs a sentient creature out of Entangle, Grease and Fog Cloud (a ranged one always, a melee-only one
+    unless its target is inside) each time the area's scripts run, at most once in 4 s - a held one too; NWN's AI
+    doesn't search for a target it lost (it stands, or walks at random). Planned: Fog Cloud no hazard; Difficult
+    Terrain walked out of once, not run from; held creatures left alone. Asked: Q1 who is dumb (plows through) - A
+    the Intelligence and Wisdom modifiers together below 0 (orcs, gnolls, ogres, trolls plow; bandits, hobgoblins,
+    cultists, mages are careful), B Intelligence below 10, C both Intelligence and Wisdom below 10. Q2 the fog - A a
+    creature that loses its target in it walks to where it last saw it and searches there (a step to a spot within 3 m
+    each round, three rounds, then gives up), ranged or not; B NWN's own AI (no search). Q3 Grease (a fall, not only
+    slow ground) - A a careful creature keeps out as of a hazard (ranged always, melee unless its target is inside)
+    and a dumb one plows through and slips, B as Entangle's Difficult Terrain. Recommended A on all.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
