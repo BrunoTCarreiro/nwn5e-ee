@@ -1368,6 +1368,8 @@ monster AC by CR.
     apart, three rounds). The stock creatures: nw_orca, nw_orcb (Int 9, Wis 8) and nw_gnoll001 dumb; nw_goblina,
     nw_kobold001, nw_bandit001 careful. Test TerrainAreaAvoidance (14 mutations caught). Matrix HZ-1 to HZ-5.
     *Accepted (owner, 2026-11-12: "I'll accept the test matrix").* #160: HZ-1 to HZ-5 passed.
+  - *Accepted (owner, 2026-11-12: "2c accepted, go for 3").* Build 2c, 0.99.26-0.99.28: every row passed (L2c-1 to
+    L2c-11; #160's HZ-1 to HZ-5). Build 3 (reactions and smites) next, its brief first.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
