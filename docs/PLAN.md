@@ -1403,6 +1403,20 @@ monster AC by CR.
     Action) on the next hit it rides and adds its dice; Searing Smite's burn and Ensnaring Strike's save (Concentration
     begun then: rules_concentration.cpp's BeginConcentration) at the target's next update; Ensnaring Strike's hold
     is build 2c's (Escape). Test Spells2024Build3 (16 mutations caught). Matrix L3-1 to L3-11.
+  - *Tested (owner, 2026-11-12):* L3-8 failed ("L3-8 castat isn't working"): the orc armed Ensnaring Strike by
+    !castat but went on fighting the henchman, so no hit came to the player; and its arming cast (a real cast, not
+    a player's refused order) began Concentration at once - lapsed with nothing held, and on the hit ended into the
+    new one. *Fixed 0.99.30:* rules::IsSmiteSpell - Concentration's spell-impact listener skips a smite (begun on
+    the hit); !castat <a smite> has the caster attack you once armed; a hold on a creature immune to entangling
+    (NWN's GetIsImmune: Freedom of Movement, its own) is said and logged; the hold's log lines name the spell.
+    Test 4 mutations caught. Retest L3-12.
+    *For later (owner, 2026-11-12):* Searing Smite's look ("L3-5 searing smite has a weird animation, note it down
+    do I can have a look at it") and Shield's ("L3-9 also have to change the shield animation, add it to the list,
+    needs to be snappier as it is a reaction") - the animation session's, when it's taken up.
+    *Asked (owner, 2026-11-12: "We need a way to show that a spell is prepared. Maybe it should also have a casting
+    animation so serve as a confirmation for the player that something happened. A weapon effect maybe?"):* an
+    armed smite shown - #162 (the game's indicator, waiting for the pick; the look forwarded to the animation
+    session).
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
