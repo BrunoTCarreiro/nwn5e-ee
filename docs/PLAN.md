@@ -1391,6 +1391,18 @@ monster AC by CR.
   - *Decided (owner, 2026-11-12: "go with A on all"):* Q1 A (a smite armed for nothing, paid by the hit), Q2 A
     (Hellish Rebuke waits for the Warlock), Q3 A (NPC casters' Shield their Reaction), Q4 A (Ensnaring Strike's
     escape the held creature's Escape).
+  - *Built 0.99.29 (build 3):* rules/spells2024.h (kReaction, kSmite; ShieldTurnsHit, SmiteRidesOn, the smites'
+    dice, FiendOrUndead, EnsnaringSaveAdvantage; rules::Reaction::kShield, on by default). Shield: the attack roll's
+    first after-listener (attack_roll.cpp's AddAttackRollListenerFirst - before a hit's riders) turns a weapon hit
+    +5 AC would miss (never a natural 20) into a miss; a spell attack's is decided at its AC (rules_attack.cpp's
+    GetArmorClassVersus asks rules_spell_attack.cpp, which rolls the d20 there and gives it to the dice after);
+    Magic Missile aimed at it. Its source: a class slot with it known (GetIsInKnownSpellList) and the lowest slot
+    that casts it (a Wizard's prepared copies), else a creature's own uses (GetHasSpell); the slot not this turn's
+    one spell with a slot. +5 AC a round (SpellArmorClassBonus), its switch in !options. The smites: OrderGuard
+    arms one (nothing spent); a ResolveDamage listener pays it (the slot as a Bonus Action spell's, the Bonus
+    Action) on the next hit it rides and adds its dice; Searing Smite's burn and Ensnaring Strike's save (Concentration
+    begun then: rules_concentration.cpp's BeginConcentration) at the target's next update; Ensnaring Strike's hold
+    is build 2c's (Escape). Test Spells2024Build3 (16 mutations caught). Matrix L3-1 to L3-11.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
