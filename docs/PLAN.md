@@ -1263,6 +1263,24 @@ monster AC by CR.
     renamed"):* Command's Drop puts what it holds into its inventory; the Help action (#56, feat 1324) becomes
     "Rouse", every character's: on a sleeping creature within 5 ft it wakes it (SRD 5.2, Sleep), and with the Help
     house rule on it gets a downed henchman up as before. *(My name for it: Rouse.)*
+  - *Built 0.99.23 (build 2b):* rules/spells2024.h's condition spells (Command's words, the creature types, the
+    saves' Advantage, Sleep's stages, the ranges and durations); core/rules_spells2024.cpp casts them, each a tagged
+    effect with the row cast, made by the caster (Concentration finds Hideous Laughter's and Sleep's). Command 1170
+    (Bard, Cleric, Paladin; its words 1171-1174 in cantrips.h's menu): a Wisdom save or, for its next round, Drop
+    (its hands emptied into its inventory, its actions locked), Flee (it runs 60 feet farther away), Grovel (a
+    round's knockdown) or Halt (held in place, locked); upcast, the enemies nearest the one aimed at. Charm Person 16
+    (Bard, Druid, Sorcerer, Wizard) and Animal Friendship 1175 (Bard, Druid, Ranger): a Wisdom save - Charm Person's
+    with Advantage against an enemy while you or it is in combat (the save roll's new SetForcedSaveAdvantage) - or
+    EffectCharmed (#106) for 1 / 24 game hours, ended by damage from its caster's side; another creature type is
+    refused before the cast; NWN's Charm Person or Animal 17 off the Druid's list. Hideous Laughter 457 (level 1;
+    Bard, Wizard): knocked down until a save at its round's end or on damage (that one with Advantage). Color Spray
+    24: the 15-foot Cone, a Constitution save or Blinded for two rounds. Sleep 165 (Bard, Sorcerer, Wizard; off the
+    Druid's and the Ranger's lists): the enemies in a 5-foot Sphere - dazed a round, then a second failure asleep
+    for the rest of the minute; damage or Rouse wakes it; elves, Constructs, Elementals, Oozes, Undead and NWN's
+    sleep-immune succeed. Rouse: feat 1324 for every character while the actions are faithful (staple_actions.cpp);
+    the Help house rule keeps its henchman use. NWN's Wiz_Sorc column is shared: the Sorcerer keeps Hideous
+    Laughter until the level 1 lists switch. Tests Spells2024Build2b (23 mutations caught), EveryoneCanShove (2);
+    !test conditionbard. Matrix L2b-1 to L2b-14.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
