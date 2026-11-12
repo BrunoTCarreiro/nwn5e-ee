@@ -1367,6 +1367,7 @@ monster AC by CR.
     last attack target kept while it has one; lost in a fog: ActionMoveToLocation to it, then within 3 m, a round
     apart, three rounds). The stock creatures: nw_orca, nw_orcb (Int 9, Wis 8) and nw_gnoll001 dumb; nw_goblina,
     nw_kobold001, nw_bandit001 careful. Test TerrainAreaAvoidance (14 mutations caught). Matrix HZ-1 to HZ-5.
+    *Accepted (owner, 2026-11-12: "I'll accept the test matrix").* #160: HZ-1 to HZ-5 passed.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
