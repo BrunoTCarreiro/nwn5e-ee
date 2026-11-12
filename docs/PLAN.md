@@ -1319,6 +1319,25 @@ monster AC by CR.
     "doesn't grease have a chance of making a creature fall prone if they fail a dex check?" - yes: SRD 5.2.1's
     Grease is a Dexterity saving throw or Prone when it appears, on entering and at the end of a turn there (nwn5e's
     Prone: a round's knockdown).
+  - *Built 0.99.26 (build 2c):* rules/spells2024.h's areas (kArea: kSquare, Fog Cloud's radius by slot level,
+    Difficult Terrain's half Speed, Faerie Fire's colours and its suppressed invisibility's time left);
+    core/rules_spells2024.cpp makes each area in the spell's context (vfx_persistent.if_spells2024.txt 105-115:
+    2024's squares with NWN's Entangle and Grease looks; Fog Cloud a placeholder, NWN's Mind Fog cloud) - Concentration
+    finds it and its effects. Entangle 53 (Druid, Ranger): Difficult Terrain; each creature in it at the cast but
+    you, a Strength save or Restrained (EffectEntangle) until the spell ends; Escape (feat 1563, row 1181, an Action
+    - granted while held: the quickbar's bit 41, the radial's Special Attacks slot 2 in Dash's place) makes the
+    Athletics check (the Grapple's EscapeSucceeds); an NPC tries once a round, its round paused for it. Grease 66
+    (Sorcerer, Wizard): Difficult Terrain; a Dexterity save or knocked down a round on entering (its appearing
+    included) and at each round's end inside. Faerie Fire 1176 (Bard, Druid; Blue, Green, Violet 1177-1179): each
+    creature in the 20-foot Cube, a Dexterity save or outlined (a glow and a light; NWN has no green light: white);
+    attack rolls against it with Advantage while the attacker can see it (rules_advantage.cpp); its invisibility
+    taken off with a holder in its place (its spell, creator and time: Concentration holds, and ends it) and put
+    back for the time it had left. Fog Cloud 1180 (Druid, Ranger, Sorcerer, Wizard): NWN's darkness on those
+    inside; hiding there as in the dark (rules_perception.cpp's LightTerm). The hazard-avoiding AI (hazard_watch.cpp,
+    rules::StepsOutOfTerrainArea). Tests Spells2024Build2c and TerrainAreaAvoidance (23 mutations caught), the
+    Concentration list, the quickbar's Escape (3); !test areadruid. *0.99.27:* `!castat <spell row> [self]` - the
+    nearest other creature casts a spell at you (or itself), for Escape's and the suppressed invisibility's tests.
+    Matrix L2c-1 to L2c-11.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
