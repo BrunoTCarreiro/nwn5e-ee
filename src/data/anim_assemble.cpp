@@ -42,6 +42,14 @@ float LoopWeight(const AnimRecipe& r, float t) {
   return Smoothstep((t - (r.length - span)) / span);
 }
 
+// The twist's share at clip time t (#159): 0 at the clip's first and last frames, so its ends stay the stance's - eased in
+// over the first 0.2 s and out over the last (half the clip each, at most, for a short one).
+float TwistFade(float t, float length) {
+  const float span = std::min(0.2f, 0.5f * length);
+  if (span <= 0.0f) return 0.0f;
+  return std::min(Smoothstep(t / span), Smoothstep((length - t) / span));
+}
+
 // A bone's value in the stance's first frame: the stance's key at 0, else the library's rest.
 Value StanceValue(const AnimClip& stance, const AnimNode& bone, bool position) {
   for (const AnimNode& node : stance.nodes) {
@@ -269,13 +277,57 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
     node.orientation = AnimKeys();
   }
   const int frames = std::max(1, static_cast<int>(lroundf(recipe.length * 30.0f)));
+  // #159, the legs from the stance: the root's place and pelvis_g with everything under it held at the stance's first
+  // frame; the take's tracks for them unused (its foot and hips targets and its leg / pelvis pose keys too, below).
+  std::vector<bool> stance_leg(bones.size(), false);
+  int stance_root = -1;
+  bool root_turned = false;  // the recipe keys the root's turn (then nothing is folded, as key_unkeyed_turns does)
+  if (recipe.stance_legs) {
+    for (size_t b = 0; b < bones.size(); ++b) {
+      if (LowerName(bones[b].name) == "rootdummy" && bones[b].parent >= 0) stance_root = static_cast<int>(b);
+      for (int at = static_cast<int>(b); at >= 0; at = bones[at].parent) {
+        if (LowerName(bones[at].name) == "pelvis_g") {
+          stance_leg[b] = true;
+          break;
+        }
+      }
+    }
+    for (const AnimKeyTrack& track : found->second) {
+      if (!track.position && LowerName(track.bone) == "rootdummy") root_turned = true;
+    }
+  }
+  AnimKeyTrack held_turn, held_place;  // the held bones' deltas: none
+  held_turn.keys.times = held_place.keys.times = {0.0f};
+  held_turn.keys.values = {{0.0f, 0.0f, 0.0f, 1.0f}};
+  held_place.position = true;
+  held_place.keys.values = {{0.0f, 0.0f, 0.0f, 0.0f}};
   std::vector<Bound> bound;
   for (const AnimKeyTrack& track : found->second) {
     if (track.keys.times.empty()) continue;
     size_t at = 0;
     while (at < bones.size() && LowerName(bones[at].name) != LowerName(track.bone)) ++at;
     if (at == bones.size()) continue;
+    if (track.position ? static_cast<int>(at) == stance_root : stance_leg[at]) continue;  // held instead (#159)
     bound.push_back({&track, at, StanceValue(stance, bones[at], track.position)});
+  }
+  if (recipe.stance_legs) {
+    // Held as the stance holds them - a child of the root with the stance's root turn folded in, as an unkeyed one is
+    // (key_unkeyed_turns: the root itself holds its rest turn), so a combat stance's root turn stays on the hips.
+    const auto rest_of = [&](size_t b) {
+      return bones[b].orientation.values.empty() ? Value{0.0f, 0.0f, 0.0f, 1.0f} : bones[b].orientation.values.front();
+    };
+    const bool fold = stance_root >= 0 && !root_turned;
+    const Value unturn = fold ? QMul(pose::QConj(rest_of(stance_root)), StanceValue(stance, bones[stance_root], false))
+                              : Value{0.0f, 0.0f, 0.0f, 1.0f};
+    for (size_t b = 0; b < bones.size(); ++b) {
+      if (!stance_leg[b]) continue;
+      Value held = StanceValue(stance, bones[b], false);
+      if (fold && bones[b].parent == stance_root) held = pose::QNormalized(QMul(unturn, held));
+      bound.push_back({&held_turn, b, held});
+    }
+    if (stance_root >= 0) {
+      bound.push_back({&held_place, static_cast<size_t>(stance_root), StanceValue(stance, bones[stance_root], true)});
+    }
   }
   if (bound.empty()) {
     if (err) *err = "none of its bones is in the library's tree";
@@ -291,7 +343,7 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
     if (part.second.empty()) continue;
     size_t at = 0;
     while (at < bones.size() && LowerName(bones[at].name) != part.first) ++at;
-    if (at == bones.size()) continue;
+    if (at == bones.size() || stance_leg[at]) continue;  // a held leg or the held pelvis takes no keys (#159)
     bool joined = false;
     for (Bound& b : bound) {
       if (b.at != at || b.track->position) continue;
@@ -370,6 +422,7 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
     const auto keys = recipe.targets.find(name);
     if (keys == recipe.targets.end() || keys->second.empty()) continue;
     if (grip && name == "left_hand") continue;  // the grip holds the left hand: its target does nothing (the grip wins)
+    if (recipe.stance_legs && name != "left_hand" && name != "right_hand") continue;  // the legs and hips are held (#159)
     Limb L;
     L.name = name;
     L.keys = &keys->second;
@@ -393,7 +446,7 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
 
   // A posed pelvis (#90) keeps the feet where the capture put them: the IK pass runs for it too.
   const std::vector<AnimPoseKey>* pelvis_keys = nullptr;
-  if (pelvis >= 0) {
+  if (pelvis >= 0 && !recipe.stance_legs) {  // a held pelvis takes no keys (#159)
     const auto found_pelvis = recipe.poses.find("pelvis_g");
     if (found_pelvis != recipe.poses.end() && !found_pelvis->second.empty()) pelvis_keys = &found_pelvis->second;
   }
@@ -641,7 +694,7 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
     }
   };
 
-  if (limbs.empty() && !pelvis_keys) {
+  if (limbs.empty() && !pelvis_keys && recipe.twist.empty()) {  // a twist (#159) needs the frames below
     // Steps 1, 4 and 6, then 9: each track on its own (phase 1's clip, exactly, without pose keys).
     for (const Bound& b : bound) {
       std::vector<Value> values;
@@ -699,6 +752,31 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
   const pose::Chain legs[2] = {pose::FindChain(bones, "lthigh_g", "lshin_g", "lfoot_g"),
                                pose::FindChain(bones, "rthigh_g", "rshin_g", "rfoot_g")};
   const char* leg_names[2] = {"left_foot", "right_foot"};
+  // Step 8b (#159), the twist at clip time t (take time T), after the hips and the legs: the torso turned by it about the
+  // world's up, the pelvis by 35% (the lean's hinge, about up), each at its own joint; both legs solved again to keep
+  // each foot where it was, its turn too. Faded to 0 at the clip's ends (TwistFade). True when it turned anything.
+  const auto twist_body = [&](Pose* now, float t, float T) {
+    if (recipe.twist.empty()) return false;
+    const float degrees = TwistAt(recipe.twist, T) * TwistFade(t, recipe.length);
+    if (fabsf(degrees) < 1e-4f) return false;
+    const Pose before = *now;
+    const auto turn = [&](int b, float share) {
+      if (b < 0 || bones[b].parent < 0) return;
+      const Quat about_up = pose::AxisAngleQ({0.0f, 0.0f, 1.0f}, degrees * share * pose::kPi / 180.0f);
+      now->lq[b] = pose::QNormalized(QMul(pose::QConj(now->wq[bones[b].parent]), QMul(about_up, now->wq[b])));
+      pose::Forward(bones, now);
+    };
+    turn(pelvis, 0.35f);
+    turn(torso, 1.0f);
+    for (const pose::Chain& leg : legs) {
+      if (leg.root < 0) continue;
+      const Quat foot = before.wq[leg.end];
+      pose::SolveTwoBone(bones, before, now, leg, before.wp[leg.end], pose::Rotate(now->wq[leg.root], {0.0f, 1.0f, 0.0f}), 0.0f,
+                         &foot);
+    }
+    pose::Forward(bones, now);
+    return true;
+  };
   // Whether a limb's place at T is fixed in the world: a held (pinned) key's, or easing toward another.
   const auto held_at = [&](const Limb& L, float T) {
     const std::vector<AnimTargetKey>& keys = *L.keys;
@@ -796,6 +874,7 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
       const Pose before = composed_pose(t);
       Pose p = before;
       stand(&p, before, pelvis_keys ? composed_pose(t, true, pelvis) : before, any_poses ? composed_pose(t, false) : before, k.t, false);
+      twist_body(&p, t, k.t);  // a hand's pinned place on the body as twisted there (#159)
       L.held.push_back(BodyPlace(L, k, p, home));
       if (foot) L.held_turn.push_back(p.wq[L.chain.end]);  // the foot's turn there, held with the place
     }
@@ -821,6 +900,14 @@ bool AssembleAnimClip(const AnimRecipe& recipe, const std::string& library, cons
     }
     // The hips' own gap: their target against where the root ended (the legs held it back).
     if (hips && s.hips_reach >= 0.999f) record("hips", pose::Length(pose::Sub(PlaceAt(*hips, T, now, home), now.wp[root])), T);
+    if (twist_body(&now, t, T)) {  // step 8b (#159): the twisted parts and the legs are written from the frames
+      for (int b : {pelvis, torso}) {
+        if (b >= 0) solved[b] = true;
+      }
+      for (const pose::Chain& leg : legs) {
+        if (leg.root >= 0) solved[leg.root] = solved[leg.mid] = solved[leg.end] = true;
+      }
+    }
     // The hands: blended toward their targets on the body as it now stands.
     const Pose moved = now;
     for (const Limb& L : limbs) {

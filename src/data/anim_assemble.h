@@ -33,6 +33,12 @@ namespace data {
 // The limbs keep the bend side they had and their ends' turn in the world, and soften near full
 // extension (pose::kLimbDamping). Take time is recipe.take_start + the clip's time. `report` (when
 // given) gets each limb's worst shortfall over 3 cm while its reach is full.
+//
+// #159, legs from the stance (`stance_legs`): rootdummy's place and pelvis_g with everything under it hold the stance's
+// first frame (the stance's root turn folded into the pelvis, as for an unkeyed child of the root) on every frame; the
+// take's tracks for them, its foot and hips targets and its leg and pelvis pose keys don't apply. Step 8b, the twist
+// (`twist` keys, TwistAt), after the legs: the torso turned by it about the world's up, the pelvis by 35%, the legs solved
+// again to keep each foot's place and turn; 0 at the clip's first and last frames (eased over 0.2 s at each end).
 struct AnimIkShort {
   std::string limb;
   float metres = 0.0f;

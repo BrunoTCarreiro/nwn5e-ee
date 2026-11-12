@@ -319,7 +319,63 @@ bool ReadPoseLine(const std::string& words_text, int line_number, AnimRecipe* r,
   return true;
 }
 
+// A `twist` line's words after "twist" (#159): three finite numbers - the take time, the degrees (clamped to -90 - 90)
+// and the ease (clamped to 0 - 2) - and nothing after; false (and the error) otherwise.
+bool ReadTwistLine(const std::string& words_text, int line_number, AnimRecipe* r, std::string* error) {
+  std::istringstream words(words_text);
+  const auto bad = [&](const std::string& why) {
+    if (error) *error = "line " + std::to_string(line_number) + ": " + why;
+    return false;
+  };
+  float v[3];
+  for (float& x : v) {
+    std::string word;
+    if (!(words >> word)) return bad("a twist line is 'twist <t> <degrees> <ease>'");
+    char* end = nullptr;
+    x = strtof(word.c_str(), &end);
+    if (end == word.c_str() || *end != '\0' || !isfinite(x)) return bad("'" + word + "' isn't a finite number (a twist line)");
+  }
+  std::string tail;
+  if (words >> tail) return bad("too many words on a twist line");
+  AnimTwistKey k;
+  k.t = v[0];
+  k.degrees = std::max(-90.0f, std::min(90.0f, v[1]));
+  k.ease = std::max(0.0f, std::min(2.0f, v[2]));
+  r->twist.push_back(k);
+  return true;
+}
+
+// An assembled recipe's twist keys (#159) by time, a line each; nothing without them.
+std::string TwistLines(const AnimRecipe& r) {
+  if (r.twist.empty()) return std::string();
+  std::vector<AnimTwistKey> keys = r.twist;
+  std::stable_sort(keys.begin(), keys.end(), [](const AnimTwistKey& a, const AnimTwistKey& b) { return a.t < b.t; });
+  std::string text = "# twist <take time> <degrees> <ease>: the upper body about the vertical, + to the left (#159)\n";
+  for (const AnimTwistKey& k : keys) text += "twist " + Num(k.t) + " " + Num(k.degrees) + " " + Num(k.ease) + "\n";
+  return text;
+}
+
 }  // namespace
+
+float TwistAt(const std::vector<AnimTwistKey>& keys, float T) {
+  if (keys.empty() || !isfinite(T)) return 0.0f;
+  constexpr float kHalfFrame = 0.5f / 30.0f;  // a key with no ease is its own frame (as a pose key, anim_assemble)
+  const auto smooth = [](float x) {
+    x = std::max(0.0f, std::min(1.0f, x));
+    return x * x * (3.0f - 2.0f * x);
+  };
+  const auto eased = [&](const AnimTwistKey& k, float away) {
+    return k.ease > kHalfFrame ? smooth(1.0f - away / k.ease) : (away <= kHalfFrame ? 1.0f : 0.0f);
+  };
+  const AnimTwistKey& first = keys.front();
+  const AnimTwistKey& last = keys.back();
+  if (T <= first.t) return first.degrees * eased(first, first.t - T);
+  if (T >= last.t || keys.size() < 2) return last.degrees * eased(last, T - last.t);
+  size_t i = 0;
+  while (i + 1 < keys.size() && keys[i + 1].t < T) ++i;
+  const float span = std::max(keys[i + 1].t - keys[i].t, 1e-6f);
+  return keys[i].degrees + (keys[i + 1].degrees - keys[i].degrees) * smooth((T - keys[i].t) / span);
+}
 
 const std::vector<std::string>& AnimPoseParts() {
   static const std::vector<std::string> parts = {
@@ -360,7 +416,8 @@ std::string WriteAnimRecipe(const AnimRecipe& r) {
            "\ntranstime = " + Num(r.transtime) + "\nblend_in = " + Num(r.blend_in) + "\nblend_out = " +
            Num(r.blend_out) + "\nloop = " + (r.loop ? "1" : "0") + "\nloop_blend = " + Num(r.loop_blend) +
            (r.grip ? "\ngrip = 1" : "") + (r.grip && r.grip_follow < 1.0f ? "\ngrip_follow = " + Num(r.grip_follow) : std::string()) +
-           "\nsource = " + r.source + "\n" + TargetLines(r) + PoseLines(r) +
+           (r.stance_legs ? "\nstance_legs = 1" : "") +  // #159: only when on
+           "\nsource = " + r.source + "\n" + TargetLines(r) + PoseLines(r) + TwistLines(r) +
            "# keys <library> <bone> o <time x y z w> ...: the turn from the stance's first frame (L = S * delta)"
            "\n# keys <library> rootdummy p <time x y z> ...: the offset from the stance's first-frame root\n" +
            KeyLines(r);
@@ -426,6 +483,10 @@ bool ReadAnimRecipe(const std::string& text, AnimRecipe* recipe, std::string* er
       if (!ReadPoseLine(line.substr(5), line_number, &r, error)) return false;
       continue;
     }
+    if (line.compare(0, 6, "twist ") == 0) {  // twist <t> <degrees> <ease> (#159)
+      if (!ReadTwistLine(line.substr(6), line_number, &r, error)) return false;
+      continue;
+    }
     const size_t eq = line.find('=');
     if (eq == std::string::npos) {
       if (error) *error = "line " + std::to_string(line_number) + ": no '='";
@@ -460,6 +521,7 @@ bool ReadAnimRecipe(const std::string& text, AnimRecipe* recipe, std::string* er
     else if (key == "loop_blend") r.loop_blend = std::max(0.0f, static_cast<float>(atof(value.c_str())));
     else if (key == "grip") r.grip = atoi(value.c_str()) != 0;
     else if (key == "grip_follow") r.grip_follow = std::max(0.0f, std::min(1.0f, static_cast<float>(atof(value.c_str()))));
+    else if (key == "stance_legs") r.stance_legs = atoi(value.c_str()) != 0;  // #159
     else if (key == "take_start") {
       r.take_start = static_cast<float>(atof(value.c_str()));
       if (!isfinite(r.take_start)) {
@@ -475,6 +537,7 @@ bool ReadAnimRecipe(const std::string& text, AnimRecipe* recipe, std::string* er
   for (auto& part : r.poses) {  // each part's keys by time
     std::stable_sort(part.second.begin(), part.second.end(), [](const AnimPoseKey& a, const AnimPoseKey& b) { return a.t < b.t; });
   }
+  std::stable_sort(r.twist.begin(), r.twist.end(), [](const AnimTwistKey& a, const AnimTwistKey& b) { return a.t < b.t; });
   if (r.kind == AnimRecipeKind::kAssembled) {
     if (r.stance.empty()) {
       if (error) *error = "an assembled recipe needs a stance (the animation its turns are relative to)";

@@ -873,3 +873,89 @@ TEST(AnimRecipeNoPosesUnchanged) {
   empty.poses["torso_g"] = {};  // a part with no keys writes nothing
   CHECK_EQ(WriteAnimRecipe(empty) == plain, true);
 }
+
+// Legs from the stance and the twist (#159; owner, 2026-11-12: "go with legs from the stance, but just like we have a
+// "lean" slider in the recipe bench allow for a twist here as well that can be keyframed"). Breaks caught: a line lost
+// on the way back or written for a recipe that has none (every saved recipe would change), keys out of time order, a
+// twist past the lean's kind of range let through, a malformed line read as something.
+TEST(AnimRecipeStanceLegsAndTwistRoundTrip) {
+  AnimRecipe r = AssembledFixture();
+  r.stance_legs = true;
+  AnimTwistKey a, b;
+  a.t = 2.5f;
+  a.degrees = 30.0f;
+  a.ease = 0.2f;
+  b.t = 1.9f;
+  b.degrees = -12.5f;
+  b.ease = 0.5f;
+  r.twist = {a, b};  // out of time order on purpose
+  AnimPoseKey p;
+  p.t = 2.0f;
+  r.poses["torso_g"] = {p};
+  const std::string text = WriteAnimRecipe(r);
+  AnimRecipe back;
+  std::string error;
+  CHECK_EQ(ReadAnimRecipe(text, &back, &error), true);
+  CHECK_EQ(back.stance_legs, true);
+  CHECK_EQ(back.twist.size(), static_cast<size_t>(2));
+  if (back.twist.size() == 2) {
+    CHECK_EQ(Scaled(back.twist[0].t, 1e4) == Scaled(1.9f, 1e4) && Scaled(back.twist[0].degrees, 1e3) == Scaled(-12.5f, 1e3) &&
+                 Scaled(back.twist[0].ease, 1e4) == Scaled(0.5f, 1e4),
+             true);
+    CHECK_EQ(Scaled(back.twist[1].degrees, 1e3), Scaled(30.0f, 1e3));
+  }
+  CHECK_EQ(Has(text, "\nstance_legs = 1\n") && Has(text, "\ntwist 1.9 -12.5 0.5\n"), true);
+  CHECK_EQ(text.find("pose torso_g") < text.find("twist ") && text.find("twist ") < text.find("# keys"), true);
+  CHECK_EQ(WriteAnimRecipe(back) == text, true);
+}
+
+TEST(AnimRecipeBadTwistRefused) {
+  const std::string head = "name = x\nkind = assembled\nstance = 1hreadyr\nlength = 1\nkeys a_ba torso_g o 0 0 0 0 1\n";
+  AnimRecipe back;
+  std::string error;
+  CHECK_EQ(ReadAnimRecipe(head + "twist 1 30\n", &back, &error), false);  // a number short
+  CHECK_EQ(Has(error, "line 6") && Has(error, "twist"), true);
+  CHECK_EQ(ReadAnimRecipe(head + "twist 1 nan 0.2\n", &back, &error), false);
+  CHECK_EQ(ReadAnimRecipe(head + "twist 1 30 0.2 more\n", &back, &error), false);
+  CHECK_EQ(ReadAnimRecipe(head + "twist x 30 0.2\n", &back, &error), false);
+  // Out of range: clamped, as the pose keys' ease and the lean are - degrees -90..90, ease 0..2.
+  CHECK_EQ(ReadAnimRecipe(head + "twist 1 120 5\ntwist 2 -100 -1\n", &back, &error), true);
+  CHECK_EQ(back.twist.size() == 2 && back.twist[0].degrees == 90.0f && back.twist[0].ease == 2.0f &&
+               back.twist[1].degrees == -90.0f && back.twist[1].ease == 0.0f,
+           true);
+  CHECK_EQ(ReadAnimRecipe(head + "stance_legs = 0\n", &back, &error) && !back.stance_legs, true);
+}
+
+TEST(AnimRecipeNoStanceLegsOrTwistUnchanged) {
+  const std::string plain = WriteAnimRecipe(AssembledFixture());
+  CHECK_EQ(Has(plain, "stance_legs") || Has(plain, "twist"), false);
+  AnimRecipe back;
+  std::string error;
+  CHECK_EQ(ReadAnimRecipe(plain, &back, &error) && !back.stance_legs && back.twist.empty(), true);
+}
+
+// The twist at take time T: a key's degrees at it; between two keys a smoothstep blend; before the first and after the
+// last it eases from 0 over that key's ease (0: its own frame only), as a pose key does.
+TEST(AnimTwistAt) {
+  AnimTwistKey a, b;
+  a.t = 1.0f;
+  a.degrees = 20.0f;
+  a.ease = 0.5f;
+  b.t = 2.0f;
+  b.degrees = 40.0f;
+  b.ease = 0.2f;
+  const std::vector<AnimTwistKey> keys = {a, b};
+  const auto near = [](float x, float y) { return fabsf(x - y) < 1e-3f; };
+  CHECK_EQ(near(TwistAt(keys, 1.0f), 20.0f) && near(TwistAt(keys, 2.0f), 40.0f), true);
+  CHECK_EQ(near(TwistAt(keys, 1.5f), 30.0f), true);    // halfway: smoothstep(0.5) = 0.5
+  CHECK_EQ(near(TwistAt(keys, 0.75f), 10.0f), true);   // half its ease before the first
+  CHECK_EQ(near(TwistAt(keys, 0.4f), 0.0f), true);     // past it
+  CHECK_EQ(near(TwistAt(keys, 2.1f), 20.0f), true);    // half its ease after the last
+  CHECK_EQ(near(TwistAt(keys, 2.3f), 0.0f), true);
+  AnimTwistKey step;
+  step.t = 1.0f;
+  step.degrees = 15.0f;
+  step.ease = 0.0f;
+  CHECK_EQ(near(TwistAt({step}, 1.01f), 15.0f) && near(TwistAt({step}, 1.05f), 0.0f), true);  // its own frame only
+  CHECK_EQ(TwistAt({}, 1.0f), 0.0f);
+}

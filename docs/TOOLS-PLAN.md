@@ -1249,3 +1249,24 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
   - Fixtures: a hand-written BVH only - ExMR / GVHMR and SMPL-X's derived data are research and nonprofit use; no
     export goes into git. Whether clips made from these takes may go into the public repo is the owner's call.
   - nwn5e-tools a230df7; test rows RGB-1 (video to BVH in RGBMocap) and RGB-2 (the bench reads it).
+
+## Mocap Bench: legs from the stance, with a keyframed twist (2026-11-12, #159)
+
+  Owner, 2026-11-12: "it's a bit hard to create a seamless attack loop because the legs (and therefore the starting and
+  ending position) don't match the selected stance. what can we do to simplify the process?", then "mostly planted, go
+  with legs from the stance, but just like we have a "lean" slider in the recipe bench allow for a twist here as well
+  that can be keyframed". Plan docs/superpowers/plans/2026-11-12-mocap-stance-legs-twist.md (native, one final review).
+  - Assembled recipes (src/data/anim_recipe, anim_assemble): `stance_legs = 1` holds rootdummy's place and pelvis_g with
+    everything under it at the stance's first frame on every frame (the stance's root turn folded into the pelvis, as
+    for an unkeyed child of the root); the take's leg tracks, foot and hips targets and leg / pelvis pose keys don't
+    apply. `twist <t> <degrees> <ease>` (step 8b, after the legs; under the stance's legs only, as the bench writes it):
+    the torso turned about the world's up by it, the pelvis by 35%, both legs solved again to keep each foot's place and
+    turn; 0 at the clip's first and last frames (0.2 s fades). Recipes without the lines are unchanged.
+  - The bench: a new clip starts on the stance's legs (an idle loop on the take's; an older project reads as the
+    take's). The Clip tab's legs switch, and under the stance's legs the twist slider keying the marker and the twist
+    row; no contact lanes, no foot or hips handles or rows, no foot lines in Save's report, and E / K / Shift+K /
+    simplify leave the pelvis and the legs out. Under the take's legs the twist keys stay, hidden.
+  - anim_helper: NWN5E_HELPER_OUT builds a branch's helper elsewhere, NWN5E_ANIM_HELPER runs the checks and the bench on it.
+  - The core changed: an install, then the bench's helper rebuilt from main (until then the bench can't preview a
+    stance's-legs clip). Test rows LT-1 (the bench) and LT-2 (`!anim` in game). Deferred minors on the plan's ledger
+    (the held legs 2-4 mm off on ready stances, an unreported foot slide at a large twist on straight-legged stances).
