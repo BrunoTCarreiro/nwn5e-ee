@@ -87,6 +87,8 @@
 // rules_spells2024.cpp (#39 2a build 1b): a spell slot spent (one spell with a slot per turn).
 void NoteSlotSpent(void* creature, int level);
 
+void* SpellMenuFeatLeaf();  // radial_retarget.cpp (0.99.20: Hunter's Mark: Move in the radial)
+
 namespace {
 
 using GainFn = uint8_t (*)(void* stats, uint8_t slot, uint8_t spell_level);
@@ -668,8 +670,6 @@ void* BuildChoiceMenu(void* handler, int64_t param) {
 // creature is in the same process), Hunter's Mark's entry opens a menu: its levels (or the cast itself), then
 // Hunter's Mark: Move - the spell menu's own feat leaf (radial_retarget.cpp): the cursor, or the use at once on a
 // creature the radial was opened on.
-void* SpellMenuFeatLeaf();  // radial_retarget.cpp
-
 bool ControlledHoldsFeat(int feat) {
   void* const holder = g_controlled_app ? *g_controlled_app : nullptr;
   void* const app = holder ? *static_cast<void**>(holder) : nullptr;
