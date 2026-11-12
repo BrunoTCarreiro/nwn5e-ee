@@ -1388,6 +1388,9 @@ monster AC by CR.
     would turn; B as their AI casts it, +5 AC for a round. Q4 Ensnaring Strike's escape - A the held creature's
     Escape (build 2c's: a player's Action, an NPC once a round), B also an ally's Action from within reach.
     Recommended A on all.
+  - *Decided (owner, 2026-11-12: "go with A on all"):* Q1 A (a smite armed for nothing, paid by the hit), Q2 A
+    (Hellish Rebuke waits for the Warlock), Q3 A (NPC casters' Shield their Reaction), Q4 A (Ensnaring Strike's
+    escape the held creature's Escape).
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
