@@ -1338,6 +1338,10 @@ monster AC by CR.
     Concentration list, the quickbar's Escape (3); !test areadruid. *0.99.27:* `!castat <spell row> [self]` - the
     nearest other creature casts a spell at you (or itself), for Escape's and the suppressed invisibility's tests.
     Matrix L2c-1 to L2c-11.
+  - *Tested (owner, 2026-11-12: "that test matrix passes"):* L2c-1 to L2c-11 passed. *For later (owner, 2026-11-12:
+    "we'll have to look at the entangled, grease and fog effects" - "I meant for later, not right now, it's just
+    something I have to remember"):* the looks of Entangle's, Grease's and Fog Cloud's areas (the animation
+    session's, when it's taken up).
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
