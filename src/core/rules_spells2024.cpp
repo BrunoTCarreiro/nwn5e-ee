@@ -1819,18 +1819,30 @@ void ApplyCondition(uint32_t self, const char* what, const std::string& target, 
 std::string Rounds(int rounds) { return "RoundsToSeconds(" + std::to_string(rounds) + ")"; }
 
 // Command's word on its next turn (nwn5e: the next round): its effect and its orders - its actions locked for the
-// round (Dissonant Whispers' way) after the word's own: Drop's hands emptied into its inventory (the owner's Q1 B: its
-// AI arms itself again later), Flee's run away from you (as far as a Dash takes it, 60 feet), Halt's wait in place.
-// Grovel: a round's knockdown (Prone, as Topple's).
+// round (Dissonant Whispers' way) after the word's own: Drop's hands emptied into its inventory (the owner's Q1 B),
+// Flee's run away from you (as far as a Dash takes it, 60 feet), Halt's wait in place. Grovel: a round's knockdown
+// (Prone, as Topple's).
+// 0.99.25 (owner, 2026-11-12, L2b-1: "the enemy not re-arming after Command: Drop. they just stand there and combat
+// ends"): ClearAllActions(TRUE) ends its fight, and once the round's lock was over nothing woke its AI (no hit, no new
+// sight of you; NWN's generic AI doesn't re-arm at once either). Now an NPC, its turn over, takes back what it
+// dropped and is woken as a hostile spell from you would wake it - its own AI fights on.
 struct CommandOrders {
   std::string effect;
   std::string after;
 };
 
 CommandOrders CommandOrdersOf(rules::CommandWord word) {
-  const std::string lock = "AssignCommand(t, ActionDoCommand(SetCommandable(TRUE, t)));\n"
-                           "AssignCommand(t, DelayCommand(6.5, SetCommandable(TRUE, t)));\n"
-                           "AssignCommand(t, SetCommandable(FALSE, t));\n";
+  const auto lock = [](const std::string& rearm) {
+    return "object c = OBJECT_SELF;\n"
+           "AssignCommand(t, ActionDoCommand(SetCommandable(TRUE, t)));\n"
+           "if (!GetIsPC(t)) {\n" +
+           rearm + "  AssignCommand(t, ActionDoCommand(SignalEvent(t, EventSpellCastAt(c, " +
+           std::to_string(rules::kCommand) +
+           ", TRUE))));\n"
+           "}\n"
+           "AssignCommand(t, DelayCommand(6.5, SetCommandable(TRUE, t)));\n"
+           "AssignCommand(t, SetCommandable(FALSE, t));\n";
+  };
   CommandOrders orders;
   switch (word) {
     case rules::CommandWord::kDrop:
@@ -1841,20 +1853,21 @@ CommandOrders CommandOrdersOf(rules::CommandWord word) {
                      "object h = GetItemInSlot(INVENTORY_SLOT_LEFTHAND, t);\n"
                      "if (GetIsObjectValid(h)) AssignCommand(t, ActionUnequipItem(h));\n"
                      "AssignCommand(t, ActionWait(6.0));\n" +
-                     lock;
+                     lock("  if (GetIsObjectValid(w)) AssignCommand(t, ActionEquipItem(w, INVENTORY_SLOT_RIGHTHAND));\n"
+                          "  if (GetIsObjectValid(h)) AssignCommand(t, ActionEquipItem(h, INVENTORY_SLOT_LEFTHAND));\n");
       break;
     case rules::CommandWord::kFlee:
       orders.effect = "EffectVisualEffect(VFX_DUR_MIND_AFFECTING_FEAR)";
       orders.after = "AssignCommand(t, ClearAllActions(TRUE));\n"
                      "AssignCommand(t, ActionMoveAwayFromObject(OBJECT_SELF, TRUE, GetDistanceBetween(t, OBJECT_SELF) + " +
-                     Float(rules::FeetToMetres(60)) + "));\n" + lock;
+                     Float(rules::FeetToMetres(60)) + "));\n" + lock("");
       break;
     case rules::CommandWord::kGrovel:
       orders.effect = "EffectKnockdown()";
       break;
     case rules::CommandWord::kHalt:
       orders.effect = "EffectLinkEffects(EffectCutsceneImmobilize(), EffectVisualEffect(VFX_DUR_MIND_AFFECTING_DISABLED))";
-      orders.after = "AssignCommand(t, ClearAllActions(TRUE));\nAssignCommand(t, ActionWait(6.0));\n" + lock;
+      orders.after = "AssignCommand(t, ClearAllActions(TRUE));\nAssignCommand(t, ActionWait(6.0));\n" + lock("");
       break;
   }
   return orders;
