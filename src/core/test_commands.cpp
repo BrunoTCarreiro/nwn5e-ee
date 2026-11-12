@@ -119,6 +119,7 @@
 #include "rules/feats2024.h"
 #include "rules/nwn_conversion.h"
 #include "rules/progression.h"
+#include "rules/spells2024.h"
 #include "prepare_spells.h"
 #include "rules/test_profile.h"
 #include "rules/weapons.h"
@@ -727,8 +728,11 @@ std::vector<std::string> CastAtCommand(void* creature, const std::string& args) 
             "e.g. !castat 53 (Entangle on you), !castat 90 self (Invisibility on itself)"};
   }
   const bool self = read == 2 && std::string(word) == "self";
+  // 0.99.30 (L3-8): a smite's cast only arms it - the caster then attacks you, so its hit lands on you, not on a
+  // henchman it was fighting.
+  const bool smite = !self && rules::IsSmiteSpell(row);
   const uint32_t id = ObjectIdOf(StatsOf(creature));
-  char code[1000];
+  char code[1200];
   sprintf_s(code,
             "object pc = OBJECT_SELF; object c = GetNearestCreature(CREATURE_TYPE_IS_ALIVE, TRUE, pc, 1);"
             " if (!GetIsObjectValid(c) || GetDistanceBetween(pc, c) > 30.0) { SendMessageToPC(pc, \"nwn5e: !castat - no "
@@ -736,10 +740,13 @@ std::vector<std::string> CastAtCommand(void* creature, const std::string& args) 
             " object t = %s; string at = \"you\"; if (t == c) at = \"itself\";"
             " AssignCommand(c, ClearAllActions(TRUE));"
             " AssignCommand(c, ActionCastSpellAtObject(%d, t, METAMAGIC_ANY, TRUE, 0, PROJECTILE_PATH_TYPE_DEFAULT, TRUE));"
-            " SendMessageToPC(pc, \"nwn5e: test - \" + GetName(c) + \" casts spell %d at \" + at + \" (!castat).\");",
-            self ? "c" : "pc", row, row);
+            "%s"
+            " SendMessageToPC(pc, \"nwn5e: test - \" + GetName(c) + \" casts spell %d at \" + at + \"%s (!castat).\");",
+            self ? "c" : "pc", row, smite ? " AssignCommand(c, ActionAttack(pc));" : "", row,
+            smite ? ", then attacks you with it armed" : "");
   RunScriptChunk(code, id);
-  Log("test: 0x%08X !castat %d%s - the nearest creature casts it", id, row, self ? " self" : "");
+  Log("test: 0x%08X !castat %d%s - the nearest creature casts it%s", id, row, self ? " self" : "",
+      smite ? ", then attacks you" : "");
   return {};
 }
 

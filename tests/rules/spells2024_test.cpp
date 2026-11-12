@@ -468,4 +468,10 @@ TEST(Spells2024Build3) {
   CHECK_EQ(IsConcentrationSpell(kDivineSmite), false);
   CHECK_EQ(IsConcentrationSpell(kSearingSmite), false);
   CHECK_EQ(IsConcentrationSpell(kShield), false);
+  // The smites: their Concentration (Ensnaring Strike's) begins on the hit, not at the arming cast (L3-8).
+  CHECK_EQ(IsSmiteSpell(kEnsnaringStrike), true);
+  CHECK_EQ(IsSmiteSpell(kDivineSmite), true);
+  CHECK_EQ(IsSmiteSpell(kSearingSmite), true);
+  CHECK_EQ(IsSmiteSpell(kShield), false);
+  CHECK_EQ(IsSmiteSpell(kEntangle), false);
 }

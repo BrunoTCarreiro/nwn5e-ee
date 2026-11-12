@@ -51,6 +51,7 @@
 #include "saves.h"
 #include "spell_impact.h"
 #include "rules/concentration.h"
+#include "rules/spells2024.h"
 
 bool BarbarianRaging(void* creature);  // rules_barbarian.cpp (B2: Rage ends Concentration)
 
@@ -188,6 +189,8 @@ void Begin(void* creature, int spell) {
 
 // A Concentration spell about to take effect for its caster (spell_impact.h).
 void Cast(void* creature, int spell) {
+  // 0.99.30 (L3-8): a smite's cast only arms it; its Concentration begins on the hit (BeginConcentration, below).
+  if (rules::IsSmiteSpell(spell)) return;
   if (!rules::ItemCastNeedsConcentration(SpellCastItemBase(creature))) {  // 3A: a potion's
     if (g_logged < 40) {
       ++g_logged;

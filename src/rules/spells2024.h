@@ -297,6 +297,9 @@ int DivineSmiteDice(int slot_level, bool fiend_or_undead);
 int SearingSmiteDice(int slot_level);
 int EnsnaringStrikeDice(int slot_level);
 bool EnsnaringSaveAdvantage(int nwn_creature_size);
+// The smites. A smite's cast only arms it (Q1 A): the spell is cast on the hit, so a Concentration smite's
+// Concentration begins there, never at the arming cast (0.99.30, L3-8).
+bool IsSmiteSpell(int row);
 constexpr int kRouseFeet = 5;
 
 // Chromatic Orb: two or more of its d8s alike - the orb leaps to another creature within 30 feet of the target (a

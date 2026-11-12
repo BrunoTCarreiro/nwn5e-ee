@@ -2246,6 +2246,12 @@ struct Entangled {
   const char* tag = kTagEntangled;      // its effect's tag
 };
 std::unordered_map<uint32_t, Entangled> g_entangled;                    // Entangle's Restrained creatures
+constexpr const char* kVarVinesImmune = "n5_vines_immune";            // set by Ensnaring Strike's hold (0.99.30)
+// The spell holding a creature, for the log (Entangle's or Ensnaring Strike's).
+const char* HoldName(int row) {
+  const rules::Spell2024* spell = rules::Spell2024Of(row);
+  return spell ? spell->name : "Entangle";
+}
 std::unordered_map<uint32_t, std::unordered_set<uint32_t>> g_terrain;  // creature -> the Difficult Terrain areas it's in
 std::unordered_map<uint32_t, uint32_t> g_fogged;                      // creature -> the Fog Cloud it's in
 std::unordered_map<uint64_t, int> g_area_dcs;                          // (caster, row) -> its cast's DC (Grease's saves)
@@ -2362,8 +2368,8 @@ bool EscapeTry(uint32_t id, void* creature, const Entangled& held) {
             free ? "you tear free of the plants." : "the plants hold; try again next round.");
   TellPlayer(id, line);
   if (LogSlot()) {
-    Log("spells2024: 0x%08X Escape from Entangle: Athletics %+d, %d vs DC %d - %s", id, athletics, d20 + athletics,
-        held.dc, free ? "free" : "still held");
+    Log("spells2024: 0x%08X Escape from %s: Athletics %+d, %d vs DC %d - %s", id, HoldName(held.row), athletics,
+        d20 + athletics, held.dc, free ? "free" : "still held");
   }
   return free;
 }
@@ -2786,8 +2792,9 @@ void AreaUpdate(void* creature) {
         if (held.feat) {
           if (void* stats = StatsOf(creature)) engine::RemoveFeat(stats, rules::kFeatEscape);
         }
+        const int row = held.row;
         g_entangled.erase(it);
-        if (LogSlot()) Log("spells2024: 0x%08X Entangle no longer holds it", id);
+        if (LogSlot()) Log("spells2024: 0x%08X %s no longer holds it", id, HoldName(row));
       } else if (!IsPlayerCreature(creature) && now >= held.next_try) {
         held.next_try = now + kRoundMs;
         const uint32_t caster = held.caster;
@@ -2988,9 +2995,7 @@ struct Ensnared {  // Ensnaring Strike's vines (its hold: g_entangled)
 };
 std::unordered_map<uint32_t, Ensnared> g_ensnared;
 
-bool IsSmite(int row) {
-  return row == rules::kDivineSmite || row == rules::kSearingSmite || row == rules::kEnsnaringStrike;
-}
+bool IsSmite(int row) { return rules::IsSmiteSpell(row); }
 
 const char* SmiteRide(int row) {
   return row == rules::kEnsnaringStrike ? "a weapon" : "a melee weapon or an Unarmed Strike";
@@ -3181,24 +3186,33 @@ void SmiteUpdate(void* creature) {
           }
           if (save == 0) {
             BeginConcentration(caster, rules::kEnsnaringStrike);
-            char code[420];
+            // 0.99.30 (L3-8): NWN's immunity to entangling (Freedom of Movement, a creature's own) refuses the hold -
+            // said, not left to vanish unexplained.
+            char code[600];
             sprintf_s(code,
-                      "object t = StringToObject(\"%x\"); ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect("
+                      "object t = StringToObject(\"%x\"); SetLocalInt(t, \"%s\", GetIsImmune(t, "
+                      "IMMUNITY_TYPE_ENTANGLE, OBJECT_SELF)); ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect("
                       "SetEffectSpellId(EffectLinkEffects(EffectEntangle(), EffectVisualEffect(VFX_DUR_ENTANGLE)), %d), "
                       "\"%s\"), t, 60.0);",
-                      id, rules::kEnsnaringStrike, kTagEnsnared);
+                      id, kVarVinesImmune, rules::kEnsnaringStrike, kTagEnsnared);
             RunScriptChunk(code, pending.caster);
-            Entangled held{pending.caster, pending.dc, now + kRoundMs, false, rules::kEnsnaringStrike, kTagEnsnared};
-            if (IsPlayerCreature(creature)) {
-              if (void* stats = StatsOf(creature)) {
-                if (!engine::HasFeat(stats, rules::kFeatEscape)) engine::AddFeat(stats, rules::kFeatEscape);
-                held.feat = true;
-                TellPlayer(id, "nwn5e: Ensnaring Strike's vines hold you Restrained - Escape (an Action: your quickbar, "
-                               "or the radial's Special Attacks page in Dash's place) tries to tear free.");
+            if (engine::GetLocalInt(creature, kVarVinesImmune) != 0) {
+              if (LogSlot()) Log("spells2024: 0x%08X immune to entangling - Ensnaring Strike's vines can't hold it", id);
+              TellPlayer(pending.caster, "nwn5e: Ensnaring Strike - the vines can't hold it (immune to entangling).");
+              TellPlayer(id, "nwn5e: Ensnaring Strike's vines can't hold you (immune to entangling).");
+            } else {
+              Entangled held{pending.caster, pending.dc, now + kRoundMs, false, rules::kEnsnaringStrike, kTagEnsnared};
+              if (IsPlayerCreature(creature)) {
+                if (void* stats = StatsOf(creature)) {
+                  if (!engine::HasFeat(stats, rules::kFeatEscape)) engine::AddFeat(stats, rules::kFeatEscape);
+                  held.feat = true;
+                  TellPlayer(id, "nwn5e: Ensnaring Strike's vines hold you Restrained - Escape (an Action: your "
+                                 "quickbar, or the radial's Special Attacks page in Dash's place) tries to tear free.");
+                }
               }
+              g_entangled[id] = held;
+              g_ensnared[id] = Ensnared{pending.caster, rules::EnsnaringStrikeDice(pending.slot), now + kRoundMs};
             }
-            g_entangled[id] = held;
-            g_ensnared[id] = Ensnared{pending.caster, rules::EnsnaringStrikeDice(pending.slot), now + kRoundMs};
           } else {
             TellPlayer(pending.caster, "nwn5e: Ensnaring Strike - the vines shrivel away (it saved).");
           }
