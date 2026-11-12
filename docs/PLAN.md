@@ -6053,10 +6053,14 @@ history, DoConsoleHist / g_listHistory, is its developer console's).
   all lines, 50, kept across restarts.)*
 - The history: data::ChatHistory (src/data/chat_history.*, unit-tested). The client: src/core/chat_input.cpp hooks
   CGuiEdit::HandleKeyPress and CGuiSingleLineEdit::HandleKeyPress (static analysis of 89.8193.37: the arrows come as
-  0x125 up / 0x127 down, a line up / down, nothing in a one-line box). Only the chat bar's box is touched - the one
+  0x126 up / 0x128 down, a line up / down, nothing in a one-line box). Only the chat bar's box is touched - the one
   whose Enter callback's owner (+0xA8) is the in-game chat panel (RTTI .?AVCGuiInGameChat...); its text is set
   through its CAuroraStringWrapper (+0x80, as CPanelGenericEditBox::SetEditText does), the caret at the end.
 - *Built 0.99.18.*
+- *0.99.19 (owner, 2026-11-12: "up does nothing in the chat"; the log: the chat bar's box found, the lines noted):*
+  the codes were swapped. HandleWMKeyDownMessage makes 0x126 for Up and 0x128 for Down (0x125 / 0x127 are Left /
+  Right); 0.99.18 read the text box's line and caret calls the wrong way round, so Left / Right walked the history
+  and Up did nothing. The caret is set through +0x168 (Home's call), not +0x158 (the line's).
 
 ## Test register — the owner's request (2026-11-08, #147)
 

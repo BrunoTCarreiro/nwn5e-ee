@@ -6,14 +6,17 @@
 //
 // Static analysis of 89.8193.37 (nwmain.exe):
 // - A text box's keys come to CGuiEdit::HandleKeyPress(int). CGuiSingleLineEdit's own comes first and keeps Enter
-//   (13 or 10) for itself; every other key goes on to CGuiEdit's. Keys that aren't characters come as codes: 0x125
-//   up, 0x127 down (a line up / down: nothing in a one-line box), 0x126 / 0x128 left / right, 0x124 home, 0x123
-//   delete; 27 Escape, 13 Enter.
+//   (13 or 10) for itself; every other key goes on to CGuiEdit's. Keys that aren't characters come as codes, made
+//   by HandleWMKeyDownMessage from SDL's (0x4222B: 0x126 for Up, then Left 0x125, Right 0x127, Down 0x128) and
+//   handed to CGuiMan::HandleKeyPress: 0x126 / 0x128 a line up / down (nothing in a one-line box), 0x125 / 0x127
+//   the caret left / right, 0x124 home, 0x123 delete; 27 Escape, 13 Enter. 0.99.19 (owner, 2026-11-12: "up does
+//   nothing in the chat"): 0.99.18 had Up / Down as 0x125 / 0x127 - Left / Right - reading the line and caret
+//   calls the wrong way round.
 // - A box's Enter callback: its owner at +0xA8, the function at +0xB0. The chat bar's owner is the in-game chat panel
 //   (RTTI .?AVCGuiInGameChatPrompt@@), so only a box whose owner's class starts .?AVCGuiInGameChat is touched.
 // - A box's text: CGuiEdit::GetText; set through its CAuroraStringWrapper (+0x80), as CPanelGenericEditBox::
-//   SetEditText sets its box; the caret through the text object at +0x90 (vtable +0x150 get, +0x158 set - the left /
-//   right keys' own calls).
+//   SetEditText sets its box; the caret through the text object at +0x90 (vtable +0x160 get, +0x168 set - the left /
+//   right keys' own calls, and Home's set to 0; +0x150 / +0x158 are the line's).
 #include "chat_input.h"
 
 #include <windows.h>
@@ -34,13 +37,13 @@ namespace {
 constexpr const char* kEditKeyPress = "?HandleKeyPress@CGuiEdit@@MEAAHH@Z";
 constexpr const char* kSingleLineKeyPress = "?HandleKeyPress@CGuiSingleLineEdit@@UEAAHH@Z";
 constexpr const char* kEditGetText = "?GetText@CGuiEdit@@QEAA?AVCExoString@@XZ";
-constexpr int kKeyUp = 0x125;
-constexpr int kKeyDown = 0x127;
+constexpr int kKeyUp = 0x126;
+constexpr int kKeyDown = 0x128;
 constexpr int kKeyEscape = 27;
 constexpr size_t kCallbackOwner = 0xA8;
 constexpr size_t kStringWrapper = 0x80;
 constexpr size_t kTextObject = 0x90;
-constexpr size_t kSetCaretSlot = 0x158 / sizeof(void*);
+constexpr size_t kSetCaretSlot = 0x168 / sizeof(void*);
 constexpr char kChatClassPrefix[] = ".?AVCGuiInGameChat";
 
 using KeyPressFn = int (*)(void* edit, int key);
