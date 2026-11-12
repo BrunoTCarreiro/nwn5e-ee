@@ -342,6 +342,10 @@ TEST(Spells2024Build2b) {
   for (int type : {1, 10, 16, 24, 29}) CHECK_EQ(SleepUnaffectedRacialType(type), true);
   for (int type : {0, 4, 6, 8, 12, 20}) CHECK_EQ(SleepUnaffectedRacialType(type), false);
   CHECK_EQ(kRouseFeet, 5);
+  // 0.99.24: your enemies, not one you've charmed.
+  CHECK_EQ(PickedAgainst(true, false), true);
+  CHECK_EQ(PickedAgainst(true, true), false);
+  CHECK_EQ(PickedAgainst(false, false), false);
   // Concentration: Hideous Laughter and Sleep; not Command, the charms or Color Spray.
   CHECK_EQ(IsConcentrationSpell(kHideousLaughter), true);
   CHECK_EQ(IsConcentrationSpell(kSleep), true);

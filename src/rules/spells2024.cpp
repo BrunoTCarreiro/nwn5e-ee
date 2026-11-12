@@ -301,6 +301,8 @@ bool SleepUnaffectedRacialType(int nwn_racial_type) {
          nwn_racial_type == 29;
 }
 
+bool PickedAgainst(bool enemy, bool charmed_by_caster) { return enemy && !charmed_by_caster; }
+
 int HeroismTargets(int slot_level) { return 1 + std::max(0, slot_level - 1); }
 
 int HeroismTemporaryHitPoints(int modifier) { return std::max(0, modifier); }

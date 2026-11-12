@@ -234,6 +234,10 @@ bool LaughterSaveAdvantage(bool after_damage);
 enum class SleepStage { kIncapacitated, kUnconscious, kAwake };
 SleepStage SleepAfterSecondSave(bool saved);
 bool SleepUnaffectedRacialType(int nwn_racial_type);
+// 0.99.24 (the owner's L2b run, 2026-11-12: an upcast Hideous Laughter knocked down the orc Charm Person had just
+// charmed): who an upcast's extra creatures and Sleep's creatures of your choice are picked from - your enemies, not
+// one you've charmed (Friendly to you; NWN's enemy test doesn't know it).
+bool PickedAgainst(bool enemy, bool charmed_by_caster);
 constexpr int kRouseFeet = 5;
 
 // Chromatic Orb: two or more of its d8s alike - the orb leaps to another creature within 30 feet of the target (a

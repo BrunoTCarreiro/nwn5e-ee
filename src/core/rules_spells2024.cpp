@@ -1779,6 +1779,12 @@ void Hold(uint32_t target, int spell, const Held& held) {
   g_held[HeldKey(target, spell)] = held;
 }
 
+// 0.99.24: a creature `caster` has charmed (Charm Person, Animal Friendship) - Friendly to it.
+bool CharmedBy(const std::string& target, uint32_t caster) {
+  void* creature = CreatureById(ParseId(target));
+  return creature && HasSpellEffect(creature, rules::kCharmPerson, rules::kAnimalFriendship, caster);
+}
+
 const char* HeldName(const Held& held) {
   const rules::Spell2024* spell = rules::Spell2024Of(held.row);
   return spell ? spell->name : "a spell";
@@ -1887,6 +1893,8 @@ void Targeted(uint32_t self, void* caster, const rules::Spell2024& spell, int ro
   const std::vector<Entry> entries = Entries(caster);
   std::vector<Entry> picked;
   for (size_t i = 0; i < entries.size() && static_cast<int>(picked.size()) < count; ++i) {
+    const bool chosen = i == 0 && aimed;  // the creature aimed at: yours to pick, charmed or not
+    if (!chosen && !rules::PickedAgainst(true, CharmedBy(entries[i].target, self))) continue;  // the script's: enemies
     if (rules::ConditionSpellTargetFits(spell.row, entries[i].value)) {
       picked.push_back(entries[i]);
     } else if (i == 0 && aimed) {
@@ -1999,6 +2007,10 @@ void SleepSpell(uint32_t self, void* caster, const rules::Spell2024& spell, int 
   const uint64_t now = GameMs();
   std::string log;
   for (const Entry& one : Entries(caster)) {
+    if (!rules::PickedAgainst(true, CharmedBy(one.target, self))) {  // the script's: enemies (0.99.24)
+      log += "; 0x" + one.target + " charmed by you - not chosen";
+      continue;
+    }
     if (rules::SleepUnaffectedRacialType(one.value)) {  // an elf, a Construct, an Elemental, an Ooze, an Undead
       log += "; 0x" + one.target + " doesn't sleep";
       TellPlayer(self, "nwn5e: Sleep - a creature that doesn't sleep (an elf, a Construct, an Elemental, an Ooze or an "
@@ -2081,6 +2093,13 @@ void ConditionUpdate(void* creature) {
     if (it == g_held.end()) continue;
     Held& held = it->second;
     const uint64_t now = GameMs();
+    // 0.99.24 (the owner's L2b run, 2026-11-12): damage wakes a sleeper - told and logged though NWN's own sleep
+    // effect came off it first (the engine wakes a sleeping creature it damages).
+    if (spell == rules::kSleep && held.woken && !engine::IsDeadOrDying(creature)) {
+      EndHeld(id, held, kTagSleep, "nwn5e: the blow wakes you (Sleep ends).", "it took damage");
+      g_held.erase(it);
+      continue;
+    }
     if (now >= held.until || engine::IsDeadOrDying(creature) || !HasSpellEffect(creature, held.row, -1, held.caster)) {
       g_held.erase(it);
       continue;
@@ -2113,12 +2132,7 @@ void ConditionUpdate(void* creature) {
       g_held.erase(it);
       continue;
     }
-    // Sleep.
-    if (held.woken) {
-      EndHeld(id, held, kTagSleep, "nwn5e: the blow wakes you (Sleep ends).", "it took damage");
-      g_held.erase(it);
-      continue;
-    }
+    // Sleep (woken: above).
     if (held.asleep || held.next_save == 0 || now < held.next_save) continue;
     held.next_save = 0;
     const uint8_t save = HeldSave(creature, held, false, static_cast<uint8_t>(ee::kSaveTypeMindSpells));
