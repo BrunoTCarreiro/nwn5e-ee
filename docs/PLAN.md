@@ -1360,6 +1360,13 @@ monster AC by CR.
     *Decided (owner, 2026-11-12: "go with A on all"):* Q1 A (careful: the Intelligence and Wisdom modifiers together
     0 or more), Q2 A (the fog searched: three rounds about where the target was last seen), Q3 A (Grease a hazard to
     the careful, plowed through by the dumb).
+    *Built 0.99.28:* hazard_avoid's kinds for the 2c areas (kDifficultTerrain, kGrease, kFog), rules::IsCarefulMind,
+    TerrainAreaStep (stay, walk out once, keep out) and SearchesFog; hazard_watch.cpp walks a careful avoider out of
+    Entangle once (ClearAllActions, ActionMoveAwayFromLocation at a walk), keeps it out of Grease as before (a run,
+    once in 4 s), leaves the fog and anyone Entangle holds alone; rules_spells2024.cpp's fog search (the creature's
+    last attack target kept while it has one; lost in a fog: ActionMoveToLocation to it, then within 3 m, a round
+    apart, three rounds). The stock creatures: nw_orca, nw_orcb (Int 9, Wis 8) and nw_gnoll001 dumb; nw_goblina,
+    nw_kobold001, nw_bandit001 careful. Test TerrainAreaAvoidance (14 mutations caught). Matrix HZ-1 to HZ-5.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
