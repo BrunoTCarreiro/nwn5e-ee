@@ -13,9 +13,13 @@
 //   outside, waits (action_order.cpp's AIActionAttackObject hook: HazardHoldsAttack) - a ranged attack goes on.
 // With the grenades faithful (the hazards that hurt allies are theirs).
 // #39 build 2c (owner, 2026-11-12: "Hazard avoidance, sentient creatures with ranged attacks should still try to avoid these, but not as much melee only sentient creatures."):
-// Entangle's, Grease's and Fog Cloud's areas (kTerrain, with spellcasting faithful) - a sentient avoider steps out
-// of one: holding a ranged weapon always, melee-only unless its attack target stands in it
-// (rules::StepsOutOfTerrainArea); no attack is held for them.
+// Entangle's, Grease's and Fog Cloud's areas (with spellcasting faithful). #160 (owner, 2026-11-12: "We need to work on
+// enemies avoiding hazard areas, if it's just difficult terrain or low visibility an enemy probably shouldn't be
+// running from it like the plague ...", then "go with A on all") - rules::TerrainAreaStep: no one leaves a Fog
+// Cloud (its lost targets are searched: rules_spells2024.cpp); a careful sentient avoider (the Intelligence and
+// Wisdom modifiers together 0+) walks out of Entangle's Difficult Terrain once - ranged, or melee with its target
+// not inside - and keeps out of Grease as of a hazard; a dumb one plows through; a held one is left alone. No
+// attack is held for them.
 
 #include <stdint.h>
 #include <stdio.h>
@@ -24,6 +28,7 @@
 #include <chrono>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "config.h"
 #include "creature.h"
@@ -49,6 +54,9 @@ struct Hazard {
 };
 std::unordered_map<uint32_t, Hazard> g_hazards;   // area of effect id -> what's in it
 std::unordered_map<uint32_t, int64_t> g_stepped;  // creature id -> when it last stepped out
+std::unordered_set<uint64_t> g_walked;            // #160: (creature, area) it walked out of once
+constexpr int kAbilityIntelligence = 3;           // NWN's ABILITY_* (#160)
+constexpr int kAbilityWisdom = 4;
 std::unordered_map<uint32_t, int64_t> g_held;     // creature id -> when its held attack was last logged
 int g_lines = 0;
 
@@ -117,7 +125,8 @@ SetLocalString(OBJECT_SELF, "nwn5e_hazard_by", ObjectToString(c));
 void HazardScriptRan(uint32_t aoe, const char* name) {
   const rules::HazardKind kind = rules::HazardOfScript(name);
   if (kind == rules::HazardKind::kNone) return;
-  const bool terrain = kind == rules::HazardKind::kTerrain;  // #39 build 2c
+  const bool terrain = kind == rules::HazardKind::kDifficultTerrain || kind == rules::HazardKind::kGrease ||
+                       kind == rules::HazardKind::kFog;  // #39 build 2c, #160
   if (terrain ? g_config.spellcasting != rules::RuleVariant::kFaithful : !GrenadesFaithful()) return;
   const std::string code = std::string(kListHead) +
                            (kind == rules::HazardKind::kSpell       ? kHurtBySpell
@@ -152,21 +161,36 @@ void HazardScriptRan(uint32_t aoe, const char* name) {
     if (!in.second) continue;
     void* creature = CreatureById(in.first);
     if (!creature || IsDownHenchmanUnderRules(in.first)) continue;  // 0.73.1: down can't move
-    void* stats = StatsOf(creature);
-    const bool steps =
-        terrain ? rules::StepsOutOfTerrainArea(Avoids(creature), stats ? engine::RaceOf(stats) : -1,
-                                               HoldsRangedWeapon(creature),
-                                               hazard.inside.count(Field<uint32_t>(creature, ee::kCreatureAttackTarget)) > 0)
-                : Avoids(creature);
-    if (!steps) continue;
+    bool walk = false;
+    if (terrain) {  // #160
+      void* stats = StatsOf(creature);
+      const bool careful = stats && rules::IsCarefulMind(engine::AbilityModifier(stats, kAbilityIntelligence),
+                                                         engine::AbilityModifier(stats, kAbilityWisdom));
+      const rules::TerrainStep step = rules::TerrainAreaStep(
+          kind, Avoids(creature), stats ? engine::RaceOf(stats) : -1, careful, HoldsRangedWeapon(creature),
+          hazard.inside.count(Field<uint32_t>(creature, ee::kCreatureAttackTarget)) > 0,
+          effects::HasType(creature, ee::kEffectTypeEntangle));
+      if (step == rules::TerrainStep::kStay) continue;
+      walk = step == rules::TerrainStep::kWalkOutOnce;
+      if (walk) {  // once for that area, at a walk
+        if (g_walked.size() > 2048) g_walked.clear();
+        if (!g_walked.insert((static_cast<uint64_t>(in.first) << 32) | aoe).second) continue;
+      }
+    } else if (!Avoids(creature)) {
+      continue;
+    }
     int64_t& last = g_stepped[in.first];
-    if (now - last < 4000) continue;
+    if (!walk && now - last < 4000) continue;
     last = now;
     char line[200];
     sprintf_s(line, "t = StringToObject(\"%x\"); AssignCommand(t, ClearAllActions());"
-                    " AssignCommand(t, ActionMoveAwayFromLocation(h, TRUE, %.2f));", in.first, metres);
+                    " AssignCommand(t, ActionMoveAwayFromLocation(h, %s, %.2f));", in.first, walk ? "FALSE" : "TRUE",
+              metres);
     moves += line;
-    if (LogSlot()) Log("hazards: 0x%08X steps out of 0x%08X (%s, %.1f m from its centre) (#131)", in.first, aoe, name, metres);
+    if (LogSlot()) {
+      Log("hazards: 0x%08X %s out of 0x%08X (%s, %.1f m from its centre) (%s)", in.first, walk ? "walks" : "steps", aoe,
+          name, metres, terrain ? "#160" : "#131");
+    }
   }
   if (!moves.empty()) RunScriptChunk(("location h = GetLocation(OBJECT_SELF); object t;" + moves).c_str(), aoe);
   // Hazards gone (or not heard from for a while) forgotten.
@@ -186,7 +210,10 @@ bool HazardHoldsAttack(void* creature, void* node) {
   for (const auto& entry : g_hazards) {
     const Hazard& hazard = entry.second;
     if (!hazard.inside.count(target)) continue;
-    if (hazard.kind == rules::HazardKind::kTerrain) continue;  // #39 build 2c: none held for these
+    if (hazard.kind == rules::HazardKind::kDifficultTerrain || hazard.kind == rules::HazardKind::kGrease ||
+        hazard.kind == rules::HazardKind::kFog) {
+      continue;  // #39 build 2c, #160: none held for these
+    }
     if (!checked) {
       checked = true;
       avoids = Avoids(creature);

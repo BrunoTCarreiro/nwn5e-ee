@@ -140,6 +140,7 @@
 #include "spell_impact.h"
 #include "staple_actions.h"
 #include "rules/cantrips.h"
+#include "rules/hazard_avoid.h"
 #include "rules/skills.h"
 #include "rules/spell_slots.h"
 #include "rules/spells2024.h"
@@ -156,6 +157,7 @@ int UnarmoredDefenseBonus(void* stats);
 void HuntersMarkSpellHit(uint32_t caster, uint32_t target, bool critical);
 void HuntersMarkHit(uint32_t caster, uint32_t target, bool critical, float delay);  // #155: its damage delayed
 void* GameObjectById(uint32_t id);  // light_sources.cpp (build 2c: an area of effect by its id)
+bool InFogCloud(void* creature);    // below (build 2c; #160's fog search)
 
 namespace {
 
@@ -2643,6 +2645,79 @@ void AreaSpell(uint32_t self, void* caster, const rules::Spell2024& spell, int s
   }
 }
 
+// #160 (owner, 2026-11-12: "in fog I think enemies would walk around trying to find the player", then "go with A on
+// all"), Q2 A: a creature the game moves that loses its enemy in a Fog Cloud walks to where it last saw it, then to a
+// spot within 3 m of that each round, three rounds, then gives up. Its last target is kept while it has one.
+struct FogSearch {
+  uint32_t target = 0;
+  int round = 0;
+  uint64_t next = 0;
+};
+std::unordered_map<uint32_t, uint32_t> g_last_target;  // a creature the game moves -> its last attack target
+std::unordered_map<uint32_t, FogSearch> g_fog_searches;
+
+bool InControl(void* creature) {
+  return !effects::HasState(creature, ee::kStateCharmed) && !effects::HasState(creature, 2) &&  // charmed, confused
+         !effects::HasState(creature, 7);                                                         // dominated
+}
+
+void FogSearchUpdate(void* creature, uint32_t id, uint64_t now) {
+  if (IsPlayerCreature(creature) || engine::IsDeadOrDying(creature)) return;
+  const uint32_t target = Field<uint32_t>(creature, ee::kCreatureAttackTarget);
+  void* fighting = target != 0 && target != ee::kObjectInvalid ? CreatureById(target) : nullptr;
+  auto search = g_fog_searches.find(id);
+  if (fighting) {  // it has a target: no search
+    if (g_last_target.size() > 1024) g_last_target.clear();
+    g_last_target[id] = target;
+    if (search != g_fog_searches.end()) {
+      if (LogSlot()) Log("spells2024: 0x%08X ends its fog search - it has a target (0x%08X)", id, target);
+      g_fog_searches.erase(search);
+    }
+    return;
+  }
+  if (search == g_fog_searches.end()) {
+    const auto last = g_last_target.find(id);
+    if (last == g_last_target.end() || g_fogged.empty()) return;
+    void* lost = CreatureById(last->second);
+    const bool in_fog = lost && InFogCloud(lost);
+    if (!rules::SearchesFog(true, InControl(creature), lost && engine::IsEnemy(creature, last->second), in_fog, false)) {
+      if (!in_fog) g_last_target.erase(last);
+      return;
+    }
+    g_fog_searches[id] = FogSearch{last->second, 0, now};
+    g_last_target.erase(last);
+    search = g_fog_searches.find(id);
+  }
+  FogSearch& seek = search->second;
+  if (now < seek.next) return;
+  if (seek.round >= rules::kFogSearchRounds) {
+    if (LogSlot()) Log("spells2024: 0x%08X gives up its fog search for 0x%08X", id, seek.target);
+    g_fog_searches.erase(search);
+    return;
+  }
+  char code[600];
+  if (seek.round == 0) {  // to where it last saw it
+    sprintf_s(code,
+              "object t = StringToObject(\"%x\"); if (!GetIsObjectValid(t)) return; SetLocalLocation(OBJECT_SELF, "
+              "\"n5s_seek\", GetLocation(t)); ClearAllActions(); ActionMoveToLocation(GetLocation(t));",
+              seek.target);
+  } else {  // a spot within 3 m of it
+    sprintf_s(code,
+              "location l = GetLocalLocation(OBJECT_SELF, \"n5s_seek\"); vector v = GetPositionFromLocation(l); "
+              "float a = IntToFloat(Random(360)); float d = %.2f * IntToFloat(Random(100) + 1) / 100.0; "
+              "v.x += d * cos(a); v.y += d * sin(a); ClearAllActions(); "
+              "ActionMoveToLocation(Location(GetAreaFromLocation(l), v, 0.0));",
+              rules::kFogSearchMetres);
+  }
+  RunScriptChunk(code, id);
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X searches the fog for 0x%08X (round %d of %d)", id, seek.target, seek.round + 1,
+        rules::kFogSearchRounds);
+  }
+  ++seek.round;
+  seek.next = now + kRoundMs;
+}
+
 // Difficult Terrain (Entangle, Grease): half Speed inside - Dash's and Longstrider's too (an adjuster, after them).
 float TerrainSpeed(void* creature, float factor) {
   if (g_terrain.empty() || !creature || !Faithful()) return factor;
@@ -2657,9 +2732,11 @@ float TerrainSpeed(void* creature, float factor) {
 // A creature's update: areas gone forgotten (a fog's darkness off); Entangle's hold over, or an NPC's Escape try;
 // Faerie Fire's outline over (its invisibility back), or a new invisibility suppressed.
 void AreaUpdate(void* creature) {
-  if (!creature || (g_terrain.empty() && g_fogged.empty() && g_entangled.empty() && g_outlined.empty())) return;
+  if (!creature || !Faithful()) return;
   const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
   const uint64_t now = GameMs();
+  FogSearchUpdate(creature, id, now);  // #160
+  if (g_terrain.empty() && g_fogged.empty() && g_entangled.empty() && g_outlined.empty()) return;
   if (!g_terrain.empty()) {
     const auto it = g_terrain.find(id);
     if (it != g_terrain.end()) {

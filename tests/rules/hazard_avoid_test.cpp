@@ -39,20 +39,51 @@ TEST(HazardAvoidance) {
 // #39 build 2c (owner, 2026-11-12: "Hazard avoidance, sentient creatures with ranged attacks should still try to
 // avoid these, but not as much melee only sentient creatures."): the 2c areas.
 TEST(TerrainAreaAvoidance) {
-  CHECK_EQ(HazardOfScript("n5_s_entanglea") == HazardKind::kTerrain, true);
-  CHECK_EQ(HazardOfScript("N5_S_GreaseC") == HazardKind::kTerrain, true);
-  CHECK_EQ(HazardOfScript("n5_s_fog1a") == HazardKind::kTerrain, true);
-  CHECK_EQ(HazardOfScript("n5_s_fog9b") == HazardKind::kTerrain, true);
+  CHECK_EQ(HazardOfScript("n5_s_entanglea") == HazardKind::kDifficultTerrain, true);
+  for (const char* name : {"n5_s_greasea", "n5_s_greaseb", "N5_S_GreaseC"}) {
+    CHECK_EQ(HazardOfScript(name) == HazardKind::kGrease, true);
+  }
+  for (const char* name : {"n5_s_entangleb", "n5_s_entanglec"}) {
+    CHECK_EQ(HazardOfScript(name) == HazardKind::kDifficultTerrain, true);
+  }
+  CHECK_EQ(HazardOfScript("n5_s_fog1a") == HazardKind::kFog, true);
+  CHECK_EQ(HazardOfScript("n5_s_fog9b") == HazardKind::kFog, true);
   CHECK_EQ(HazardOfScript("nw_s0_entanglea") == HazardKind::kSpell, true);  // NWN's own stays a harmful area
   CHECK_EQ(HazardStepOutMetres("n5_s_entanglea") > 5.7f && HazardStepOutMetres("n5_s_entanglea") < 5.9f, true);
   CHECK_EQ(HazardStepOutMetres("n5_s_fog2b") > 13.6f && HazardStepOutMetres("n5_s_fog2b") < 13.8f, true);
   const int orc = 14;
   for (int type : {0, 6, 7, 11, 12, 14, 18, 19, 20}) CHECK_EQ(IsSentientRacialType(type), true);
   for (int type : {8, 9, 25, 29}) CHECK_EQ(IsSentientRacialType(type), false);
-  CHECK_EQ(StepsOutOfTerrainArea(true, orc, true, false), true);   // an archer
-  CHECK_EQ(StepsOutOfTerrainArea(true, orc, true, true), true);    // ... even after its target
-  CHECK_EQ(StepsOutOfTerrainArea(true, orc, false, false), true);  // melee-only, nothing to go in for
-  CHECK_EQ(StepsOutOfTerrainArea(true, orc, false, true), false);  // melee-only, its target inside
-  CHECK_EQ(StepsOutOfTerrainArea(true, 8, true, false), false);    // an animal
-  CHECK_EQ(StepsOutOfTerrainArea(false, orc, true, false), false); // undead, charmed, a player's ...
+  // #160 (owner, 2026-11-12: "go with A on all"). Q1 A: careful - Intelligence and Wisdom modifiers together 0+.
+  CHECK_EQ(IsCarefulMind(0, 0), true);
+  CHECK_EQ(IsCarefulMind(-2, 2), true);
+  CHECK_EQ(IsCarefulMind(-2, 0), false);  // an orc (Int 7, Wis 11): plows through
+  CHECK_EQ(IsCarefulMind(1, -2), false);
+  using K = HazardKind;
+  using S = TerrainStep;
+  // Entangle's Difficult Terrain: a careful archer walks out once; a careful melee one too, unless its target is in.
+  CHECK_EQ(TerrainAreaStep(K::kDifficultTerrain, true, orc, true, true, false, false) == S::kWalkOutOnce, true);
+  CHECK_EQ(TerrainAreaStep(K::kDifficultTerrain, true, orc, true, true, true, false) == S::kWalkOutOnce, true);
+  CHECK_EQ(TerrainAreaStep(K::kDifficultTerrain, true, orc, true, false, false, false) == S::kWalkOutOnce, true);
+  CHECK_EQ(TerrainAreaStep(K::kDifficultTerrain, true, orc, true, false, true, false) == S::kStay, true);
+  CHECK_EQ(TerrainAreaStep(K::kDifficultTerrain, true, orc, false, true, false, false) == S::kStay, true);  // dumb
+  // Grease (Q3 A): the same creatures keep out of it; the dumb plow through.
+  CHECK_EQ(TerrainAreaStep(K::kGrease, true, orc, true, true, true, false) == S::kKeepOut, true);
+  CHECK_EQ(TerrainAreaStep(K::kGrease, true, orc, true, false, false, false) == S::kKeepOut, true);
+  CHECK_EQ(TerrainAreaStep(K::kGrease, true, orc, true, false, true, false) == S::kStay, true);
+  CHECK_EQ(TerrainAreaStep(K::kGrease, true, orc, false, true, false, false) == S::kStay, true);
+  // Never a held creature, an animal, a non-avoider (undead, charmed, a player's); the fog and NWN's areas: no step.
+  CHECK_EQ(TerrainAreaStep(K::kGrease, true, orc, true, true, false, true) == S::kStay, true);
+  CHECK_EQ(TerrainAreaStep(K::kGrease, true, 8, true, true, false, false) == S::kStay, true);
+  CHECK_EQ(TerrainAreaStep(K::kGrease, false, orc, true, true, false, false) == S::kStay, true);
+  CHECK_EQ(TerrainAreaStep(K::kFog, true, orc, true, true, false, false) == S::kStay, true);
+  CHECK_EQ(TerrainAreaStep(K::kSpell, true, orc, true, true, false, false) == S::kStay, true);
+  // Q2 A: who searches the fog - one the game moves, in control, whose enemy vanished into it.
+  CHECK_EQ(SearchesFog(true, true, true, true, false), true);
+  CHECK_EQ(SearchesFog(false, true, true, true, false), false);  // a player's character
+  CHECK_EQ(SearchesFog(true, false, true, true, false), false);  // charmed, dominated
+  CHECK_EQ(SearchesFog(true, true, false, true, false), false);  // not its enemy
+  CHECK_EQ(SearchesFog(true, true, true, false, false), false);  // not in a fog
+  CHECK_EQ(SearchesFog(true, true, true, true, true), false);    // it still has a target
+  CHECK_EQ(kFogSearchRounds, 3);
 }
