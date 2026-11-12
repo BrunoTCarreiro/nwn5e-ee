@@ -96,6 +96,11 @@ std::vector<ChoiceCantrip> BuildChoiceCantrips() {
                     {kChromaticOrbPoison, kDamageTypePoison, "Poison"},
                     {kChromaticOrbThunder, kDamageTypeThunder, "Thunder"}}};
   all.push_back(orb);
+  // #39 2a build 2b: Command's words (Approach left out - the owner's brief, 2026-11-12), each opening its slot levels.
+  ChoiceCantrip command{kCommand, "n5_s_command", ChoiceKind::kMode,
+                       {{kCommandDrop, 0, "Drop"}, {kCommandFlee, 1, "Flee"}, {kCommandGrovel, 2, "Grovel"},
+                        {kCommandHalt, 3, "Halt"}}};
+  all.push_back(command);
   ChoiceCantrip flame{kProduceFlame, "n5_c_produceflame", ChoiceKind::kMode,
                      {{kProduceFlameFlame, 0, "Flame"}, {kProduceFlameHurl, 1, "Hurl"}}};
   all.push_back(flame);

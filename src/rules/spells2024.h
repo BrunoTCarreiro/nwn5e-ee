@@ -15,6 +15,8 @@
 // (a damage-type menu, its orb leaping on matching dice), Heroism (Concentration: Temporary Hit Points each turn).
 // Build 2a (owner, 2026-11-10: "go for build 2"): the buffs - Bless, Bane, Shield of Faith, Mage Armor, Divine
 // Favor, Protection from Evil and Good, Sanctuary, Expeditious Retreat, Longstrider, Hunter's Mark.
+// Build 2b (owner, 2026-11-12: "2a accepted, go for 2b"): conditions on creatures - Command, Charm Person, Animal
+// Friendship, Hideous Laughter, Color Spray, Sleep.
 
 namespace rules {
 
@@ -25,12 +27,14 @@ enum class SpellEffect2024 {
   kHealing,             // Hit Points regained: its dice + the spellcasting ability modifier
   kTemporaryHitPoints,  // False Life: its dice + `flat`
   kBuff,                // Heroism: no roll
+  kCondition,           // build 2b: a condition on creatures - a save, no damage
 };
 
 enum class SpellShape2024 {
   kOne,             // one creature
   kCone,            // a Cone from the caster toward the point aimed at, `feet` long
   kCubeFromCaster,  // a Cube with one face on the caster, toward the point aimed at, `feet` on a side
+  kSphere,          // a Sphere centred on the point aimed at, `feet` its radius (Sleep)
 };
 
 struct Spell2024 {
@@ -182,6 +186,55 @@ bool SanctuaryStopsOwnAttacks(bool on_caster, bool caster_is_player);
 // the quarry drops, that round's Bonus Action), else refused (SRD 5.2: the mark moves only once the target drops).
 enum class MarkMove { kMove, kArm, kRefuse };
 MarkMove HuntersMarkMoveNow(bool quarry_down, bool keep_armed, bool other_creature_picked);
+
+// Build 2b: conditions on creatures.
+constexpr int kCharmPerson = 16;
+constexpr int kCharmPersonOrAnimal = 17;  // NWN's: off the faithful lists (Charm Person, Animal Friendship)
+constexpr int kColorSpray = 24;
+constexpr int kSleep = 165;
+constexpr int kHideousLaughter = 457;  // NWN's Tasha's Hideous Laughter (level 2 there)
+constexpr int kCommand = 1170;         // its four words, 1171-1174: cantrips.h's choice menus
+constexpr int kCommandDrop = 1171;
+constexpr int kCommandFlee = 1172;
+constexpr int kCommandGrovel = 1173;
+constexpr int kCommandHalt = 1174;
+constexpr int kAnimalFriendship = 1175;
+// Command: a failed Wisdom save and the target follows the word on its next turn (nwn5e: the next round) - Drop
+// (what it holds goes into its inventory, its AI arms itself again: owner, 2026-11-12: "go with B for Q1 and A for Q2. A for Q2 could be the same help action, just renamed",
+// Q1 B; then its turn ends), Flee (its turn spent moving away from you), Grovel (Prone, then its turn ends), Halt
+// (no move, no action). The master cast with no word chosen (an item's): Halt.
+enum class CommandWord { kDrop, kFlee, kGrovel, kHalt };
+CommandWord CommandWordOf(int row);
+const char* CommandWordName(CommandWord word);
+// Command, Charm Person, Animal Friendship, Hideous Laughter: one creature, one more for each slot level above 1
+// (nwn5e: the one aimed at, then the enemies nearest it within range).
+int ConditionSpellTargets(int slot_level);
+// Their ranges in feet (Color Spray 0: its Cone from you).
+int ConditionSpellRangeFeet(int row);
+// Their durations: in rounds (6 s) for a minute or less - Command 1 (its next turn), Color Spray 2 (to the end of
+// your next turn, the cantrips' reading), Hideous Laughter and Sleep 10 - else in hours (NWN's game hours, as Mage
+// Armor's 8): Charm Person 1, Animal Friendship 24. 0: not one of them, or not in that unit.
+int ConditionSpellRounds(int row);
+int ConditionSpellHours(int row);
+// Charm Person: a Humanoid (NWN's racial types: the seven player races, goblinoids, orcs, reptilians); Animal
+// Friendship: a Beast (animals, beasts, vermin). The others: any creature.
+bool IsHumanoidRacialType(int nwn_racial_type);
+bool IsBeastRacialType(int nwn_racial_type);
+bool ConditionSpellTargetFits(int row, int nwn_racial_type);
+// Charm Person's save has Advantage if you or your allies are fighting it (nwn5e: an enemy, while you or it is in
+// combat).
+bool CharmSaveAdvantage(bool enemy, bool fighting);
+// Hideous Laughter: a save at the end of each of its turns and each time it takes damage - that one with Advantage.
+bool LaughterSaveAdvantage(bool after_damage);
+// Sleep: a failed save - Incapacitated until the end of its next turn, then the save again: a failure Unconscious
+// for the duration, a success awake. Damage, or someone within 5 feet taking an action to shake it (Rouse, the
+// Help action renamed - owner, 2026-11-12: "go with B for Q1 and A for Q2. A for Q2 could be the same help action, just renamed",
+// Q2 A), ends it on that creature. Creatures that don't sleep (elves) or are immune to Exhaustion (Constructs,
+// Elementals, Oozes, Undead) succeed - and NWN's sleep immunity.
+enum class SleepStage { kIncapacitated, kUnconscious, kAwake };
+SleepStage SleepAfterSecondSave(bool saved);
+bool SleepUnaffectedRacialType(int nwn_racial_type);
+constexpr int kRouseFeet = 5;
 
 // Chromatic Orb: two or more of its d8s alike - the orb leaps to another creature within 30 feet of the target (a
 // new attack roll, a new damage roll), at most as many times as the slot's level, each creature once a casting.

@@ -103,6 +103,21 @@ std::vector<Spell2024> Build() {
   spells.push_back(Touch(Damage(kProtectionFromEvilAndGood, "Protection from Evil and Good", "n5_s_protevil",
                                 E::kBuff, 0, 0, 0, 0)));
   spells.push_back(Touch(Damage(kLongstrider, "Longstrider", "n5_s_longstrider", E::kBuff, 0, 0, 0, 0)));
+  // Build 2b: conditions on creatures (a save, no damage).
+  spells.push_back(Saved(Damage(kCommand, "Command", "n5_s_command", E::kCondition, 0, 0, 0, 0), Ability::kWisdom,
+                        false));
+  spells.push_back(Saved(Damage(kCharmPerson, "Charm Person", "n5_s_charmper", E::kCondition, 0, 0, 0, 0),
+                        Ability::kWisdom, false));
+  spells.push_back(Saved(Damage(kAnimalFriendship, "Animal Friendship", "n5_s_animalfr", E::kCondition, 0, 0, 0, 0),
+                        Ability::kWisdom, false));
+  spells.push_back(Saved(Damage(kHideousLaughter, "Hideous Laughter", "n5_s_laugh", E::kCondition, 0, 0, 0, 0),
+                        Ability::kWisdom, false));
+  spells.push_back(Area(Saved(Damage(kColorSpray, "Color Spray", "n5_s_colspray", E::kCondition, 0, 0, 0, 0),
+                             Ability::kConstitution, false),
+                       SpellShape2024::kCone, 15));
+  spells.push_back(Area(Saved(Damage(kSleep, "Sleep", "n5_s_sleep", E::kCondition, 0, 0, 0, 0), Ability::kWisdom,
+                             false),
+                       SpellShape2024::kSphere, 5));
   std::sort(spells.begin(), spells.end(), [](const Spell2024& a, const Spell2024& b) { return a.row < b.row; });
   return spells;
 }
@@ -211,6 +226,79 @@ bool SanctuaryStopsOwnAttacks(bool on_caster, bool caster_is_player) { return on
 MarkMove HuntersMarkMoveNow(bool quarry_down, bool keep_armed, bool other_creature_picked) {
   if (quarry_down) return MarkMove::kMove;
   return keep_armed && other_creature_picked ? MarkMove::kArm : MarkMove::kRefuse;
+}
+
+CommandWord CommandWordOf(int row) {
+  switch (row) {
+    case kCommandDrop: return CommandWord::kDrop;
+    case kCommandFlee: return CommandWord::kFlee;
+    case kCommandGrovel: return CommandWord::kGrovel;
+  }
+  return CommandWord::kHalt;
+}
+
+const char* CommandWordName(CommandWord word) {
+  switch (word) {
+    case CommandWord::kDrop: return "Drop";
+    case CommandWord::kFlee: return "Flee";
+    case CommandWord::kGrovel: return "Grovel";
+    case CommandWord::kHalt: return "Halt";
+  }
+  return "Halt";
+}
+
+int ConditionSpellTargets(int slot_level) { return 1 + std::max(0, slot_level - 1); }
+
+int ConditionSpellRangeFeet(int row) {
+  switch (row) {
+    case kCommand:
+    case kSleep: return 60;
+    case kCharmPerson:
+    case kAnimalFriendship:
+    case kHideousLaughter: return 30;
+  }
+  return 0;
+}
+
+int ConditionSpellRounds(int row) {
+  switch (row) {
+    case kCommand: return 1;
+    case kColorSpray: return 2;
+    case kHideousLaughter:
+    case kSleep: return 10;
+  }
+  return 0;
+}
+
+int ConditionSpellHours(int row) { return row == kCharmPerson ? 1 : row == kAnimalFriendship ? 24 : 0; }
+
+bool IsHumanoidRacialType(int nwn_racial_type) {
+  // racialtypes.2da: 0-6 the player races, 12 Humanoid_Goblinoid, 14 Humanoid_Orc, 15 Humanoid_Reptilian (13,
+  // Humanoid_Monstrous, is the 2024 Monstrosity).
+  return (nwn_racial_type >= 0 && nwn_racial_type <= 6) || nwn_racial_type == 12 || nwn_racial_type == 14 ||
+         nwn_racial_type == 15;
+}
+
+bool IsBeastRacialType(int nwn_racial_type) {
+  return nwn_racial_type == 8 || nwn_racial_type == 9 || nwn_racial_type == 25;  // Animal, Beast, Vermin
+}
+
+bool ConditionSpellTargetFits(int row, int nwn_racial_type) {
+  if (row == kCharmPerson) return IsHumanoidRacialType(nwn_racial_type);
+  if (row == kAnimalFriendship) return IsBeastRacialType(nwn_racial_type);
+  return true;
+}
+
+bool CharmSaveAdvantage(bool enemy, bool fighting) { return enemy && fighting; }
+
+bool LaughterSaveAdvantage(bool after_damage) { return after_damage; }
+
+SleepStage SleepAfterSecondSave(bool saved) { return saved ? SleepStage::kAwake : SleepStage::kUnconscious; }
+
+bool SleepUnaffectedRacialType(int nwn_racial_type) {
+  // 1 Elf, 10 Construct, 16 Elemental, 24 Undead, 29 Ooze (a half-elf sleeps).
+  return nwn_racial_type == 1 || nwn_racial_type == 10 || nwn_racial_type == 16 || nwn_racial_type == 24 ||
+         nwn_racial_type == 29;
 }
 
 int HeroismTargets(int slot_level) { return 1 + std::max(0, slot_level - 1); }

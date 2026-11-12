@@ -1,0 +1,15 @@
+# A !test profile ([debug] test_commands=1): type "!test conditionbard" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# #39 Part 2a build 2b: a Bard 5, Charisma 16 - the conditions on creatures, all on the Bard's list: Command,
+# Charm Person, Animal Friendship, Hideous Laughter, Color Spray and Sleep, with level 2 and 3 slots to upcast.
+name = Level 1 conditions (issue 39 2b): human Bard 5, Charisma 16 - Command, Charm Person, Animal Friendship, Hideous Laughter, Color Spray, Sleep
+species = human
+swap_class = bard
+class = bard
+level = 5
+abilities = 8 14 14 10 10 16
+items = nw_wswdg001 equip
+note = the Prepare spells window opens: Level 1 - Command, Charm Person, Animal Friendship, Hideous Laughter, Color Spray, Sleep; Accept
+note = !spawn nw_orcb an orc (a Humanoid), !spawn nw_wolf a wolf (a Beast), !spawn nw_skeleton a skeleton (Undead); add neutral for one that isn't hostile, ally for a henchman

@@ -455,11 +455,13 @@ constexpr int kFeatKnockdownShove = 23;  // kFeatShovePush: rules/grapple.h
 // page and the quickbar).
 constexpr int kFeatDisengage = 1321;
 // #56 (owner, 2026-11-02): Dodge and Dash too, while the actions are faithful;
-// Help only with the house rule on (help_house_rule).
+// and 1324, Help - since #39 build 2b Rouse, everyone's (owner, 2026-11-12: "A
+// for Q2 could be the same help action, just renamed"): a Sleep spell's sleeper
+// awake, and with the Help house rule on (help_house_rule) a downed henchman up.
 constexpr int kFeatDodge = 1322;
 constexpr int kFeatDash = 1323;
 constexpr int kFeatHelp = 1324;
-std::vector<int> FeatsEveryoneHas2024(bool shove_faithful, bool actions_faithful, bool help_house_rule);
+std::vector<int> FeatsEveryoneHas2024(bool shove_faithful, bool actions_faithful);
 
 // #53 (owner, 2026-11-03): the extra actions - class feats GrantedFeats2024 gives.
 constexpr int kFeatActionSurge = 1325;       // Fighter 2: instant (no action)

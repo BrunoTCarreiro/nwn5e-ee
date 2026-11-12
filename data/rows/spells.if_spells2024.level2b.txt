@@ -1,0 +1,13 @@
+# spells.2da - #39 Part 2a, build 2b (core/rules_spells2024.cpp; "spells2024" is served with spellcasting
+# faithful): NWN's conditions on creatures rewritten as SRD 5.2.1's - Charm Person 16 (Bard, Druid, Sorcerer,
+# Wizard), Color Spray 24 (a 15-foot Cone, a Constitution save), Sleep 165 (a 5-foot-radius Sphere; Bard,
+# Sorcerer, Wizard - off the Druid's and the Ranger's lists), Hideous Laughter 457 (NWN's Tasha's Hideous
+# Laughter: level 1 now, its name SRD 5.2's). NWN's Charm Person or Animal 17 leaves the Druid's list (Charm Person
+# and Animal Friendship replace it). NWN's Wiz_Sorc column is shared: the Sorcerer keeps Hideous Laughter until
+# the level 1 lists switch. The new rows: spells.if_spells2024.level2bnew.txt.
+Name SpellDesc ImpactScript School Range VS TargetType Bard Cleric Druid Paladin Ranger Wiz_Sorc Innate Category HostileSetting TargetShape TargetSizeX TargetSizeY TargetFlags SubRadSpell1 SubRadSpell2
+16 766 16000764 n5_s_charmper E S vs 0x2A 1 **** 1 **** **** 1 1 2 1 **** **** **** **** **** ****
+17 767 6113 NW_S0_CharmAni E S vs 0x2A **** **** **** **** **** **** 2 2 1 **** **** **** **** **** ****
+24 774 16000769 n5_s_colspray I S vs 0x2E 1 **** **** **** **** 1 1 11 1 cone 4.57 **** 19 **** ****
+165 915 16000770 n5_s_sleep E M vs 0x2E 1 **** **** **** **** 1 1 1 1 sphere 1.52 **** 3 **** ****
+457 16000767 16000768 n5_s_laugh E S vs 0x3A 1 **** **** **** **** 1 1 2 1 **** **** **** **** **** ****

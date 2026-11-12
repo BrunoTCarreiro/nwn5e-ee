@@ -159,7 +159,7 @@ std::vector<QuickbarAction> QuickbarActions2024(const QuickbarFacts& facts) {
   if (has(kFeatDisengage)) actions.push_back({kBitDisengage, kFeatDisengage, "Disengage"});  // #54 (3 B)
   if (has(kFeatDodge)) actions.push_back({kBitDodge, kFeatDodge, "Dodge"});                  // #56
   if (has(kFeatDash)) actions.push_back({kBitDash, kFeatDash, "Dash"});
-  if (has(kFeatHelp)) actions.push_back({kBitHelp, kFeatHelp, "Help"});
+  if (has(kFeatHelp)) actions.push_back({kBitHelp, kFeatHelp, "Rouse"});  // #39 build 2b: the Help action renamed
   // #53: the extra actions.
   if (has(kFeatActionSurge)) actions.push_back({kBitActionSurge, kFeatActionSurge, "Action Surge"});
   if (has(kFeatCunningDash)) actions.push_back({kBitCunningDash, kFeatCunningDash, "Cunning Action: Dash"});

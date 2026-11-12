@@ -12,7 +12,7 @@ using namespace rules;
 
 // #39 Part 2a build 1a: SRD 5.2.1's level 1 damage and healing spells (pp. 114-177).
 TEST(Spells2024Table) {
-  CHECK_EQ(static_cast<int>(Spells2024().size()), 23);
+  CHECK_EQ(static_cast<int>(Spells2024().size()), 29);
   for (size_t i = 1; i < Spells2024().size(); ++i) CHECK_EQ(Spells2024()[i - 1].row < Spells2024()[i].row, true);
   CHECK_EQ(Spell2024Of(1) == nullptr, true);
   const Spell2024* burning = Spell2024Of(kBurningHands);
@@ -261,4 +261,93 @@ TEST(Spells2024Build2a) {
   CHECK_EQ(Spell2024Of(kBless)->bonus_action, false);
   CHECK_EQ(std::string(Spell2024Of(kHuntersMark)->script) == "n5_s_huntmark", true);
   CHECK_EQ(std::string(Spell2024Of(kSanctuary)->script) == "n5_s_sanctuary", true);
+}
+
+// Build 2b: conditions on creatures - Command's words, the charms' creatures, the saves' Advantage, Sleep's stages.
+TEST(Spells2024Build2b) {
+  for (int row : {kCommand, kCharmPerson, kAnimalFriendship, kHideousLaughter, kColorSpray, kSleep}) {
+    const Spell2024* spell = Spell2024Of(row);
+    CHECK_EQ(spell != nullptr && spell->effect == SpellEffect2024::kCondition, true);
+    CHECK_EQ(spell->bonus_action, false);
+    CHECK_EQ(spell->half_on_save, false);
+    CHECK_EQ(spell->dice, 0);
+    CHECK_EQ(ConditionSpellRounds(row) > 0 || ConditionSpellHours(row) > 0, true);
+  }
+  for (int row : {kCommand, kCharmPerson, kAnimalFriendship, kHideousLaughter, kSleep}) {
+    CHECK_EQ(Spell2024Of(row)->save == Ability::kWisdom, true);
+  }
+  CHECK_EQ(Spell2024Of(kColorSpray)->save == Ability::kConstitution, true);
+  CHECK_EQ(Spell2024Of(kColorSpray)->shape == SpellShape2024::kCone, true);
+  CHECK_EQ(Spell2024Of(kColorSpray)->feet, 15);
+  CHECK_EQ(Spell2024Of(kSleep)->shape == SpellShape2024::kSphere, true);
+  CHECK_EQ(Spell2024Of(kSleep)->feet, 5);
+  CHECK_EQ(Spell2024Of(kCommand)->shape == SpellShape2024::kOne, true);
+  CHECK_EQ(std::string(Spell2024Of(kHideousLaughter)->script) == "n5_s_laugh", true);
+  CHECK_EQ(Spell2024Of(kCommandDrop) == nullptr, true);         // its words cast the master's script
+  CHECK_EQ(Spell2024Of(kCharmPersonOrAnimal) == nullptr, true);  // NWN's: off the lists, not converted
+  // Command's words: the radial's menu (no Approach), each word's row; no word - Halt.
+  const ChoiceCantrip* command = ChoiceCantripOf(kCommand);
+  CHECK_EQ(command != nullptr && command->options.size() == 4u, true);
+  CHECK_EQ(command != nullptr && std::string(command->script) == "n5_s_command", true);
+  CHECK_EQ(ChoiceCantripOf(kCommandGrovel) == command, true);
+  CHECK_EQ(CommandWordOf(kCommandDrop) == CommandWord::kDrop, true);
+  CHECK_EQ(CommandWordOf(kCommandFlee) == CommandWord::kFlee, true);
+  CHECK_EQ(CommandWordOf(kCommandGrovel) == CommandWord::kGrovel, true);
+  CHECK_EQ(CommandWordOf(kCommandHalt) == CommandWord::kHalt, true);
+  CHECK_EQ(CommandWordOf(kCommand) == CommandWord::kHalt, true);
+  for (const CantripOption& option : command->options) {
+    CHECK_EQ(std::string(CommandWordName(CommandWordOf(option.spell))) == option.label, true);
+  }
+  // One creature, one more for each slot level above 1.
+  CHECK_EQ(ConditionSpellTargets(1), 1);
+  CHECK_EQ(ConditionSpellTargets(2), 2);
+  CHECK_EQ(ConditionSpellTargets(4), 4);
+  CHECK_EQ(ConditionSpellTargets(0), 1);
+  // Ranges and durations (SRD 5.2.1).
+  CHECK_EQ(ConditionSpellRangeFeet(kCommand), 60);
+  CHECK_EQ(ConditionSpellRangeFeet(kSleep), 60);
+  CHECK_EQ(ConditionSpellRangeFeet(kCharmPerson), 30);
+  CHECK_EQ(ConditionSpellRangeFeet(kAnimalFriendship), 30);
+  CHECK_EQ(ConditionSpellRangeFeet(kHideousLaughter), 30);
+  CHECK_EQ(ConditionSpellRangeFeet(kColorSpray), 0);
+  CHECK_EQ(ConditionSpellRounds(kCommand), 1);
+  CHECK_EQ(ConditionSpellRounds(kColorSpray), 2);
+  CHECK_EQ(ConditionSpellRounds(kHideousLaughter), 10);
+  CHECK_EQ(ConditionSpellRounds(kSleep), 10);
+  CHECK_EQ(ConditionSpellRounds(kCharmPerson), 0);
+  CHECK_EQ(ConditionSpellHours(kCharmPerson), 1);
+  CHECK_EQ(ConditionSpellHours(kAnimalFriendship), 24);
+  CHECK_EQ(ConditionSpellHours(kSleep), 0);
+  // Charm Person a Humanoid, Animal Friendship a Beast; the others anything.
+  for (int type : {0, 1, 2, 3, 4, 5, 6, 12, 14, 15}) CHECK_EQ(IsHumanoidRacialType(type), true);
+  for (int type : {-1, 7, 8, 9, 13, 18, 24, 25}) CHECK_EQ(IsHumanoidRacialType(type), false);
+  for (int type : {8, 9, 25}) CHECK_EQ(IsBeastRacialType(type), true);
+  for (int type : {6, 7, 19, 24}) CHECK_EQ(IsBeastRacialType(type), false);  // 19: Magical Beast, a Monstrosity
+  CHECK_EQ(ConditionSpellTargetFits(kCharmPerson, 6), true);
+  CHECK_EQ(ConditionSpellTargetFits(kCharmPerson, 8), false);
+  CHECK_EQ(ConditionSpellTargetFits(kAnimalFriendship, 8), true);
+  CHECK_EQ(ConditionSpellTargetFits(kAnimalFriendship, 6), false);
+  CHECK_EQ(ConditionSpellTargetFits(kCommand, 24), true);  // no undead clause in 2024
+  CHECK_EQ(ConditionSpellTargetFits(kHideousLaughter, 10), true);
+  // Charm Person: Advantage when you or your allies are fighting it.
+  CHECK_EQ(CharmSaveAdvantage(true, true), true);
+  CHECK_EQ(CharmSaveAdvantage(true, false), false);
+  CHECK_EQ(CharmSaveAdvantage(false, true), false);
+  // Hideous Laughter: Advantage on the save damage brings, none at its turn's end.
+  CHECK_EQ(LaughterSaveAdvantage(true), true);
+  CHECK_EQ(LaughterSaveAdvantage(false), false);
+  // Sleep: the second save - a failure Unconscious, a success awake; who doesn't sleep.
+  CHECK_EQ(SleepAfterSecondSave(false) == SleepStage::kUnconscious, true);
+  CHECK_EQ(SleepAfterSecondSave(true) == SleepStage::kAwake, true);
+  for (int type : {1, 10, 16, 24, 29}) CHECK_EQ(SleepUnaffectedRacialType(type), true);
+  for (int type : {0, 4, 6, 8, 12, 20}) CHECK_EQ(SleepUnaffectedRacialType(type), false);
+  CHECK_EQ(kRouseFeet, 5);
+  // Concentration: Hideous Laughter and Sleep; not Command, the charms or Color Spray.
+  CHECK_EQ(IsConcentrationSpell(kHideousLaughter), true);
+  CHECK_EQ(IsConcentrationSpell(kSleep), true);
+  CHECK_EQ(IsConcentrationSpell(kCommand), false);
+  CHECK_EQ(IsConcentrationSpell(kCommandHalt), false);
+  CHECK_EQ(IsConcentrationSpell(kCharmPerson), false);
+  CHECK_EQ(IsConcentrationSpell(kAnimalFriendship), false);
+  CHECK_EQ(IsConcentrationSpell(kColorSpray), false);
 }
