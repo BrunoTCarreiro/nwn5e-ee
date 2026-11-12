@@ -1221,6 +1221,15 @@ monster AC by CR.
     cancelled a moment later as the action queue's click cancels it, the round's swings held until then - and
     Sanctuary calls it when a player wards itself (rules::SanctuaryStopsOwnAttacks). On a henchman, or cast by
     one, its AI decides. Retest L2-7c.
+  - *Hunter's Mark: Move (owner, 2026-11-12: "where is Hunter's mark: move?", then "I don't think hunter's mark
+    moved automatically"; the log: the quarry died, the mark stayed - SRD 5.2's "you can take a Bonus Action to
+    move the mark" - and the Move feat, granted at the cast, was never found).* Asked: A - the Move feat on the
+    quickbar and a chat line when the quarry drops; B - the mark moves to the next creature attacked, spending the
+    Bonus Action. *Decided (owner, 2026-11-12: "I'm not a fan of using bonus actions automatically. I favour A. If there's an empty slot available put it there, but also have it available in the radial menu next to the hunter's mark").*
+    *0.99.20:* Hunter's Mark: Move is one of nwn5e's quickbar actions (rules/quickbar, bit 40: an empty slot the
+    first time it's granted, never overwriting; it stays between casts); while it's held, Hunter's Mark's radial
+    entry opens its levels (or the cast) and Hunter's Mark: Move, the spell menu's own feat leaf; and when the
+    quarry drops the player is told once. Retest L2-10b.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something

@@ -1,6 +1,7 @@
 #include "check.h"
 #include "rules/class_features.h"
 #include "rules/quickbar.h"
+#include "rules/spells2024.h"
 
 using namespace rules;
 
@@ -183,6 +184,15 @@ TEST(QuickbarHighBits) {
   CHECK_EQ(static_cast<int>(PlanQuickbar(EmptyBar(), 0, QuickbarActions2024(cleric), &cleric_placed).size()), 1);
   CHECK_EQ(cleric_placed == (uint64_t{1} << 39), true);
   CHECK_EQ(Values(QuickbarActions2024(cleric)) == std::vector<int>{kFeatPrepareSpells}, true);
+  // #39 2a (0.99.20): Hunter's Mark: Move, while Hunter's Mark lasts - bit 40, asked about.
+  QuickbarFacts ranger;
+  ranger.feats = {kFeatHuntersMarkMove};
+  uint64_t ranger_placed = 0;
+  CHECK_EQ(static_cast<int>(PlanQuickbar(EmptyBar(), 0, QuickbarActions2024(ranger), &ranger_placed).size()), 1);
+  CHECK_EQ(ranger_placed == (uint64_t{1} << 40), true);
+  CHECK_EQ(Values(QuickbarActions2024(ranger)) == std::vector<int>{kFeatHuntersMarkMove}, true);
+  const std::vector<int>& asked = QuickbarActionFeats2024();
+  CHECK_EQ(std::find(asked.begin(), asked.end(), kFeatHuntersMarkMove) != asked.end(), true);
 }
 
 // New actions go in the first empty slots, keys 1-9 first, and are recorded;

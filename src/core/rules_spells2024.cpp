@@ -1311,6 +1311,7 @@ struct Quarry {
   uint32_t quarry = 0;
   int row = rules::kHuntersMark;  // the row cast (its marks carry it)
   int hours = 1;
+  bool told = false;  // 0.99.20: the player told its quarry dropped (Hunter's Mark: Move)
 };
 std::unordered_map<uint32_t, Quarry> g_quarries;    // Hunter's Mark: its caster -> the marked creature
 std::unordered_set<uint32_t> g_dashers;             // Expeditious Retreat's casters (its Dash feat granted)
@@ -1399,6 +1400,7 @@ void HuntersMarkMove(uint32_t self, void* caster, const rules::Spell2024& spell)
     Mark(self, spell, one.target, at->second.row,
          MarkLook{"n5s_quarry", "EffectIcon(EFFECT_ICON_ENEMY_ATTACK_BONUS)", seconds, "VFX_IMP_HEAD_ODD", "", true});
     at->second.quarry = ParseId(one.target);
+    at->second.told = false;
     TellPlayer(self, "nwn5e: Hunter's Mark moves to a new quarry.");
     if (LogSlot()) Log("spells2024: 0x%08X Hunter's Mark moved to 0x%s", self, one.target.c_str());
   }
@@ -1635,6 +1637,13 @@ void BuffUpdate(void* creature) {
       g_quarries.erase(at);
       if (void* stats = StatsOf(creature)) engine::RemoveFeat(stats, rules::kFeatHuntersMarkMove);
       if (LogSlot()) Log("spells2024: 0x%08X Hunter's Mark ended", id);
+    } else if (at != g_quarries.end() && !at->second.told && QuarryDown(at->second)) {
+      // 0.99.20 (owner, 2026-11-12: "I'm not a fan of using bonus actions automatically. I favour A. If there's an empty slot available put it there, but also have it available in the radial menu next to the hunter's mark"):
+      // the mark doesn't move by itself - the player is told once, the Move on the quickbar and in the radial.
+      at->second.told = true;
+      TellPlayer(id, "nwn5e: your quarry has dropped - Hunter's Mark: Move (a Bonus Action) marks a new creature: "
+                     "on your quickbar, or next to Hunter's Mark in the radial.");
+      if (LogSlot()) Log("spells2024: 0x%08X Hunter's Mark: its quarry 0x%08X dropped - told (Move)", id, at->second.quarry);
     }
   }
   if (!g_dashers.empty() && g_dashers.count(id) &&

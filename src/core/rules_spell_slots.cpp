@@ -79,6 +79,8 @@
 #include "spells_page.h"
 #include "rules/cantrips.h"
 #include "rules/nwn_conversion.h"
+#include "rules/radial_targeting.h"
+#include "rules/spells2024.h"
 #include "rules/spell_lists.h"
 #include "rules/spell_slots.h"
 
@@ -661,9 +663,66 @@ void* BuildChoiceMenu(void* handler, int64_t param) {
   return menu;
 }
 
+// 0.99.20 (#39 2a; owner, 2026-11-12: "I'm not a fan of using bonus actions automatically. I favour A. If there's an empty slot available put it there, but also have it available in the radial menu next to the hunter's mark"):
+// while the client's character holds Hunter's Mark: Move (the spell lasts - in a single-player game the server's
+// creature is in the same process), Hunter's Mark's entry opens a menu: its levels (or the cast itself), then
+// Hunter's Mark: Move - the spell menu's own feat leaf (radial_retarget.cpp): the cursor, or the use at once on a
+// creature the radial was opened on.
+void* SpellMenuFeatLeaf();  // radial_retarget.cpp
+
+bool ControlledHoldsFeat(int feat) {
+  void* const holder = g_controlled_app ? *g_controlled_app : nullptr;
+  void* const app = holder ? *static_cast<void**>(holder) : nullptr;
+  void* const client = app && g_controlled ? g_controlled(app) : nullptr;
+  if (!client) return false;
+  void* creature = CreatureById(rules::ServerObjectId(Field<uint32_t>(client, ee::kClientObjectId)));
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  return stats && engine::HasFeat(stats, feat);
+}
+
+bool HuntersMarkMoveShown(int64_t param) {
+  return rules::DecodeRadialCast(param).spell == static_cast<uint32_t>(rules::kHuntersMark) && SpellMenuFeatLeaf() &&
+         ControlledHoldsFeat(rules::kFeatHuntersMarkMove);
+}
+
+void* HuntersMarkMenu(void* handler, int64_t param) {
+  void* client_stats = nullptr;
+  rules::RadialCast cast;
+  int own = -1;
+  const std::vector<int> levels = UpcastLevels(param, &client_stats, &cast, &own);
+  void* menu = nullptr;
+  int next = 0;
+  void* rules_object = RulesObject();
+  void* spells = rules_object ? Field<void*>(rules_object, ee::kRulesSpells) : nullptr;
+  char icon[17] = {};
+  if (void* spell = spells && g_get_spell ? g_get_spell(spells, rules::kHuntersMark) : nullptr) {
+    memcpy(icon, static_cast<const uint8_t*>(spell) + ee::kSpellIconResRef, 16);
+  }
+  if (!levels.empty()) {
+    menu = BuildLevelMenu(handler, param, 0);
+    next = static_cast<int>(std::min(levels.size(), static_cast<size_t>(ee::kRadialMenuEntries)));
+  } else {
+    menu = g_game_new ? g_game_new(ee::kRadialMenuSize) : nullptr;
+    if (!menu) return nullptr;
+    g_radial_ctor(menu);
+    SetField<uint8_t>(menu, ee::kRadialMenuOwnedFlag, 1);
+    g_set_entry_text(menu, 0, icon, "Hunter's Mark", handler, g_cast_callback, param);
+    next = 1;
+  }
+  if (menu && next < ee::kRadialMenuEntries) {
+    g_set_entry_text(menu, next, icon, "Hunter's Mark: Move", handler, SpellMenuFeatLeaf(),
+                     static_cast<int64_t>(rules::kFeatHuntersMarkMove));
+  }
+  return menu;
+}
+
 // CRadialMenu::SetEntryx: a 2024 caster's spell leaf (the cast callback) with a higher level of slots becomes a
 // submenu of its levels - its icon, its name, the same param.
 void SetEntry(void* menu, int index, void* icon, uint32_t strref, void* handler, void* callback, int64_t param) {
+  if (callback == g_cast_callback && g_set_creator && HuntersMarkMoveShown(param)) {  // 0.99.20: Move beside it
+    g_set_creator(menu, index, icon, strref, handler, reinterpret_cast<void*>(&HuntersMarkMenu), param);
+    return;
+  }
   if (callback == g_cast_callback && g_set_creator && IsChoiceMaster(param)) {  // #39 build 2: its options
     g_set_creator(menu, index, icon, strref, handler, reinterpret_cast<void*>(&ChoiceMenu),
                   rules::RadialChoiceWithFirst(param, 0));

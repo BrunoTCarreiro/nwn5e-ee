@@ -59,6 +59,7 @@ using ValidTargetFn = int (*)(void* handler, int spell);
 LeafFn g_spell_leaf = nullptr;    // originals (trampolines)
 LeafFn g_ability_leaf = nullptr;
 LeafFn g_menu_feat_leaf = nullptr;
+uintptr_t g_menu_feat_leaf_address = 0;  // the leaf's own entry (a radial entry's callback; 0.99.20)
 LeafFn g_creature_feat_leaf = nullptr;
 LeafFn g_spontaneous_leaf = nullptr;
 ValidTargetFn g_valid_target = nullptr;
@@ -325,6 +326,11 @@ void CreatureFeatLeafHook(void* handler, int64_t param) {
 
 }  // namespace
 
+// 0.99.20 (#39 2a): the spell menu's feat leaf, for an entry of nwn5e's own (Hunter's Mark: Move in Hunter's Mark's
+// radial, rules_spell_slots.cpp) - the game's own for a feat: the cursor, or the use at once on a creature. Null with
+// radial_retarget off or the leaf not found.
+void* SpellMenuFeatLeaf() { return reinterpret_cast<void*>(g_menu_feat_leaf_address); }
+
 // The four leaves and the two cursors, found by their bytes; any missing: the radial stays the game's (logged).
 void InstallRadialRetarget() {
   if (!g_config.radial_retarget) {
@@ -335,6 +341,7 @@ void InstallRadialRetarget() {
   const uintptr_t ability_leaf = FindPattern("the radial's spell-like ability leaf (#140)",
                                              ee::kRadialAbilityCallbackPattern);
   const uintptr_t menu_feat_leaf = FindPattern("the spell menu's feat leaf (#140)", ee::kRadialMenuFeatPattern);
+  g_menu_feat_leaf_address = menu_feat_leaf;
   const uintptr_t creature_feat_leaf = FindPattern("the creature menu's RadialMenuUseFeat (#140)",
                                                    ee::kCreatureMenuUseFeatPattern);
   const uintptr_t spell_cursor = FindPattern("the quickbar's spell cursor (#140)", ee::kQuickbarSpellCursorPattern);

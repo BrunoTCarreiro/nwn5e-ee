@@ -49,7 +49,8 @@ const std::vector<int>& QuickbarActionFeats2024();
 // Blow from 9, Staggering and Sundering from 13, Off), Intimidating Presence;
 // Cunning Strike's options (Poison, Trip, Withdraw, Off, Combat options) and
 // Devious Strikes' (Daze, Knock Out, Obscure); then everyone's Shove, Shove:
-// push and Grapple; ...; last a caster's Prepare Spells (#36, 0.75.3).
+// push and Grapple; ...; Hunter's Mark: Move while Hunter's Mark lasts (#39 2a, 0.99.20); last a caster's Prepare
+// Spells (#36, 0.75.3).
 std::vector<QuickbarAction> QuickbarActions2024(const QuickbarFacts& facts);
 
 // Second Wind is three feats (its uses grow with Fighter level): a button
