@@ -35,3 +35,24 @@ TEST(HazardAvoidance) {
   CHECK_EQ(HazardHoldsAttack(false, true, true, false, false), false); // an undead attacker ...
   CHECK_EQ(HazardHoldsAttack(true, true, false, false, false), false); // the target not in one
 }
+
+// #39 build 2c (owner, 2026-11-12: "Hazard avoidance, sentient creatures with ranged attacks should still try to
+// avoid these, but not as much melee only sentient creatures."): the 2c areas.
+TEST(TerrainAreaAvoidance) {
+  CHECK_EQ(HazardOfScript("n5_s_entanglea") == HazardKind::kTerrain, true);
+  CHECK_EQ(HazardOfScript("N5_S_GreaseC") == HazardKind::kTerrain, true);
+  CHECK_EQ(HazardOfScript("n5_s_fog1a") == HazardKind::kTerrain, true);
+  CHECK_EQ(HazardOfScript("n5_s_fog9b") == HazardKind::kTerrain, true);
+  CHECK_EQ(HazardOfScript("nw_s0_entanglea") == HazardKind::kSpell, true);  // NWN's own stays a harmful area
+  CHECK_EQ(HazardStepOutMetres("n5_s_entanglea") > 5.7f && HazardStepOutMetres("n5_s_entanglea") < 5.9f, true);
+  CHECK_EQ(HazardStepOutMetres("n5_s_fog2b") > 13.6f && HazardStepOutMetres("n5_s_fog2b") < 13.8f, true);
+  const int orc = 14;
+  for (int type : {0, 6, 7, 11, 12, 14, 18, 19, 20}) CHECK_EQ(IsSentientRacialType(type), true);
+  for (int type : {8, 9, 25, 29}) CHECK_EQ(IsSentientRacialType(type), false);
+  CHECK_EQ(StepsOutOfTerrainArea(true, orc, true, false), true);   // an archer
+  CHECK_EQ(StepsOutOfTerrainArea(true, orc, true, true), true);    // ... even after its target
+  CHECK_EQ(StepsOutOfTerrainArea(true, orc, false, false), true);  // melee-only, nothing to go in for
+  CHECK_EQ(StepsOutOfTerrainArea(true, orc, false, true), false);  // melee-only, its target inside
+  CHECK_EQ(StepsOutOfTerrainArea(true, 8, true, false), false);    // an animal
+  CHECK_EQ(StepsOutOfTerrainArea(false, orc, true, false), false); // undead, charmed, a player's ...
+}

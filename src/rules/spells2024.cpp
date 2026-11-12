@@ -118,6 +118,18 @@ std::vector<Spell2024> Build() {
   spells.push_back(Area(Saved(Damage(kSleep, "Sleep", "n5_s_sleep", E::kCondition, 0, 0, 0, 0), Ability::kWisdom,
                              false),
                        SpellShape2024::kSphere, 5));
+  // Build 2c: the areas.
+  spells.push_back(Area(Saved(Damage(kEntangle, "Entangle", "n5_s_entangle", E::kArea, 0, 0, 0, 0), Ability::kStrength,
+                             false),
+                       SpellShape2024::kSquare, 20));
+  spells.push_back(Area(Saved(Damage(kGrease, "Grease", "n5_s_grease", E::kArea, 0, 0, 0, 0), Ability::kDexterity,
+                             false),
+                       SpellShape2024::kSquare, 10));
+  spells.push_back(Area(Saved(Damage(kFaerieFire, "Faerie Fire", "n5_s_faerie", E::kArea, 0, 0, 0, 0),
+                             Ability::kDexterity, false),
+                       SpellShape2024::kSquare, 20));
+  spells.push_back(Area(Damage(kFogCloud, "Fog Cloud", "n5_s_fogcloud", E::kArea, 0, 0, 0, 0), SpellShape2024::kSphere,
+                       20));
   std::sort(spells.begin(), spells.end(), [](const Spell2024& a, const Spell2024& b) { return a.row < b.row; });
   return spells;
 }
@@ -302,6 +314,40 @@ bool SleepUnaffectedRacialType(int nwn_racial_type) {
 }
 
 bool PickedAgainst(bool enemy, bool charmed_by_caster) { return enemy && !charmed_by_caster; }
+
+float DifficultTerrainFactor(float factor, bool inside) { return inside ? factor / 2.0f : factor; }
+
+FaerieColour FaerieColourOf(int row) {
+  if (row == kFaerieFireGreen) return FaerieColour::kGreen;
+  if (row == kFaerieFireViolet) return FaerieColour::kViolet;
+  return FaerieColour::kBlue;
+}
+
+const char* FaerieColourName(FaerieColour colour) {
+  switch (colour) {
+    case FaerieColour::kGreen: return "Green";
+    case FaerieColour::kViolet: return "Violet";
+    case FaerieColour::kBlue: return "Blue";
+  }
+  return "Blue";
+}
+
+int InvisibilityLeftSeconds(int left_when_suppressed, int seconds_suppressed) {
+  if (left_when_suppressed < 0) return -1;
+  return std::max(0, left_when_suppressed - std::max(0, seconds_suppressed));
+}
+
+int FogCloudRadiusFeet(int slot_level) { return 20 + 20 * std::max(0, slot_level - 1); }
+
+int AreaSpellRangeFeet(int row) {
+  switch (row) {
+    case kEntangle: return 90;
+    case kGrease:
+    case kFaerieFire: return 60;
+    case kFogCloud: return 120;
+  }
+  return 0;
+}
 
 int HeroismTargets(int slot_level) { return 1 + std::max(0, slot_level - 1); }
 

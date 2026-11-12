@@ -52,6 +52,8 @@ MasteryRollSources MockeryRollSources(void* attacker);
 MasteryRollSources GuidingBoltRollSources(void* target);
 // rules_spells2024.cpp (#39 2a build 2a): Protection from Evil and Good - Disadvantage for those creature types.
 MasteryRollSources ProtectionRollSources(void* attacker, void* target);
+// rules_spells2024.cpp (#39 2a build 2c): Faerie Fire - Advantage against an outlined creature the attacker sees.
+MasteryRollSources FaerieFireRollSources(void* target, bool cant_see);
 // rules_rogue.cpp (R11): a Rogue 18+ not Incapacitated - no attack roll against it has Advantage.
 bool ElusiveTarget(void* creature);
 
@@ -172,6 +174,7 @@ void BeforeAttackRoll(AttackRoll& roll) {
   const MasteryRollSources mocked = MockeryRollSources(roll.attacker);                 // #39
   const MasteryRollSources guided = GuidingBoltRollSources(target);                    // #39 2a
   const MasteryRollSources warded = ProtectionRollSources(roll.attacker, target);      // #39 2a build 2a
+  const MasteryRollSources outlined = FaerieFireRollSources(target, terms.cant_see_target);  // #39 2a build 2c
   t_pending.conditions = conditions.note.empty() ? "" : "conditions: " + conditions.note;
   if (!mastery.note.empty()) {
     t_pending.conditions += (t_pending.conditions.empty() ? "mastery: " : "; mastery: ") + mastery.note;
@@ -195,6 +198,7 @@ void BeforeAttackRoll(AttackRoll& roll) {
   if (!mocked.note.empty()) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + mocked.note;
   if (!guided.note.empty()) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + guided.note;
   if (!warded.note.empty()) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + warded.note;
+  if (!outlined.note.empty()) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + outlined.note;
   std::string heavy_note;
   const int heavy = HeavyWeaponDisadvantage(roll.attacker, terms.ranged, &heavy_note);
   if (heavy) t_pending.conditions += (t_pending.conditions.empty() ? "" : "; ") + heavy_note;
@@ -203,7 +207,7 @@ void BeforeAttackRoll(AttackRoll& roll) {
   t_pending.mode = rules::SituationalRollMode(
       terms, rules::RangedCloseCombat(terms.ranged, t_pending.point_blank_shot, t_pending.threats),
       conditions.advantage + mastery.advantage + studied.advantage + reckless.advantage + monk.advantage +
-          steady.advantage + hidden.advantage + guided.advantage,
+          steady.advantage + hidden.advantage + guided.advantage + outlined.advantage,
       conditions.disadvantage + mastery.disadvantage + heavy + grappled.disadvantage + monk.disadvantage +
           mocked.disadvantage + warded.disadvantage,
       elusive);
@@ -296,9 +300,10 @@ int RollSpellAttackD20(void* caster, void* target, bool ranged, std::string* not
     const ConditionRollSources conditions = ConditionAttackRollSources(caster, target, ranged);
     const MasteryRollSources guided = GuidingBoltRollSources(target);  // #39 2a
     const MasteryRollSources warded = ProtectionRollSources(caster, target);  // #39 2a build 2a
+    const MasteryRollSources outlined = FaerieFireRollSources(target, terms.cant_see_target);  // #39 2a build 2c
     const bool elusive = ElusiveTarget(target);
     mode = rules::SituationalRollMode(terms, rules::RangedCloseCombat(ranged, point_blank_shot, threats),
-                                      conditions.advantage + guided.advantage,
+                                      conditions.advantage + guided.advantage + outlined.advantage,
                                       conditions.disadvantage + warded.disadvantage, elusive);
     if (note) {
       *note = ModeName(mode);
@@ -307,6 +312,7 @@ int RollSpellAttackD20(void* caster, void* target, bool ranged, std::string* not
       if (!conditions.note.empty()) *note += "; conditions: " + conditions.note;
       if (!guided.note.empty()) *note += "; " + guided.note;
       if (!warded.note.empty()) *note += "; " + warded.note;
+      if (!outlined.note.empty()) *note += "; " + outlined.note;
       if (elusive) *note += "; Elusive: no Advantage";
     }
   }

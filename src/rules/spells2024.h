@@ -17,6 +17,7 @@
 // Favor, Protection from Evil and Good, Sanctuary, Expeditious Retreat, Longstrider, Hunter's Mark.
 // Build 2b (owner, 2026-11-12: "2a accepted, go for 2b"): conditions on creatures - Command, Charm Person, Animal
 // Friendship, Hideous Laughter, Color Spray, Sleep.
+// Build 2c (owner, 2026-11-12: "2b accepted, go for 2c"): the areas - Entangle, Grease, Faerie Fire, Fog Cloud.
 
 namespace rules {
 
@@ -28,6 +29,7 @@ enum class SpellEffect2024 {
   kTemporaryHitPoints,  // False Life: its dice + `flat`
   kBuff,                // Heroism: no roll
   kCondition,           // build 2b: a condition on creatures - a save, no damage
+  kArea,                // build 2c: an area that lasts (its creatures' saves at the cast, its terrain after)
 };
 
 enum class SpellShape2024 {
@@ -35,6 +37,7 @@ enum class SpellShape2024 {
   kCone,            // a Cone from the caster toward the point aimed at, `feet` long
   kCubeFromCaster,  // a Cube with one face on the caster, toward the point aimed at, `feet` on a side
   kSphere,          // a Sphere centred on the point aimed at, `feet` its radius (Sleep)
+  kSquare,          // a square on the ground centred on the point aimed at, `feet` on a side (a Cube's: its floor)
 };
 
 struct Spell2024 {
@@ -238,6 +241,34 @@ bool SleepUnaffectedRacialType(int nwn_racial_type);
 // charmed): who an upcast's extra creatures and Sleep's creatures of your choice are picked from - your enemies, not
 // one you've charmed (Friendly to you; NWN's enemy test doesn't know it).
 bool PickedAgainst(bool enemy, bool charmed_by_caster);
+
+// Build 2c: the areas (owner, 2026-11-12: "All recommended except Q3, go for B").
+constexpr int kEntangle = 53;
+constexpr int kGrease = 66;
+constexpr int kFaerieFire = 1176;        // its colours, 1177-1179: cantrips.h's choice menus (Q4 A)
+constexpr int kFaerieFireBlue = 1177;
+constexpr int kFaerieFireGreen = 1178;
+constexpr int kFaerieFireViolet = 1179;
+constexpr int kFogCloud = 1180;
+constexpr int kEscape = 1181;            // the Escape action's row (Q1 A)
+constexpr int kFeatEscape = 1563;
+// Entangle: each creature in its square at the cast but you, a Strength save or Restrained until the spell ends; an
+// action's Strength (Athletics) check against your spell save DC frees it (Q1 A: the Escape action; an NPC tries once
+// a round in place of its attacks). Grease: a Dexterity save or Prone when it appears, on entering and at the end of
+// a turn there. Both are Difficult Terrain - every foot of movement costs one more: nwn5e, half Speed inside. The
+// Escape check is the Grapple's (grapple.h: EscapeSucceeds, d20 + the bonus against the DC), with Athletics alone.
+float DifficultTerrainFactor(float factor, bool inside);
+// Faerie Fire's light (Q4 A): blue, green or violet - the master cast with none chosen (an item's): blue.
+enum class FaerieColour { kBlue, kGreen, kViolet };
+FaerieColour FaerieColourOf(int row);
+const char* FaerieColourName(FaerieColour colour);
+// Faerie Fire's outline (Q3 B): an outlined creature can't benefit from Invisible - its invisibility is suppressed
+// while it's outlined and comes back for the time it had left (-1: a permanent one, back for good; 0: it ran out).
+int InvisibilityLeftSeconds(int left_when_suppressed, int seconds_suppressed);
+// Fog Cloud: a 20-foot-radius Sphere, 20 feet more for each slot level above 1.
+int FogCloudRadiusFeet(int slot_level);
+// The areas' ranges in feet: Entangle 90, Grease and Faerie Fire 60, Fog Cloud 120.
+int AreaSpellRangeFeet(int row);
 constexpr int kRouseFeet = 5;
 
 // Chromatic Orb: two or more of its d8s alike - the orb leaps to another creature within 30 feet of the target (a

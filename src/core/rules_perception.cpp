@@ -103,6 +103,7 @@
 
 bool StealthParts(void* creature, int* extra, bool* proficient);  // rules_skills.cpp
 int ReliableTalentRoll(void* creature, int nwn_skill, int d20);    // rules_skills.cpp (Rogue R9)
+bool InFogCloud(void* creature);                                  // rules_spells2024.cpp (#39 build 2c)
 extern "C" __declspec(dllimport) unsigned short __stdcall RtlCaptureStackBackTrace(unsigned long skip, unsigned long count,
                                                                                  void** frames, unsigned long* hash);
 extern "C" __declspec(dllimport) unsigned long long __stdcall GetTickCount64();
@@ -645,6 +646,8 @@ int CarriedLightTerm(void* hider) {
 constexpr int kUnseen = -1000;
 int LightTerm(void* observer, void* hider) {
   if (!LightRule() || !hider || !Hiding(hider)) return 0;
+  // #39 build 2c (Q2 A): Fog Cloud is Heavily Obscured - a hider in it, or an observer in it, unseen.
+  if (InFogCloud(hider) || (observer && InFogCloud(observer))) return kUnseen;
   const int level = HiderLight(hider);
   if (level >= 2) return 0;
   if (level == 1) return -5;

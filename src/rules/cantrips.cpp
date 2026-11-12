@@ -101,6 +101,10 @@ std::vector<ChoiceCantrip> BuildChoiceCantrips() {
                        {{kCommandDrop, 0, "Drop"}, {kCommandFlee, 1, "Flee"}, {kCommandGrovel, 2, "Grovel"},
                         {kCommandHalt, 3, "Halt"}}};
   all.push_back(command);
+  // #39 2a build 2c (Q4 A): Faerie Fire's colours, each opening its slot levels.
+  ChoiceCantrip faerie{kFaerieFire, "n5_s_faerie", ChoiceKind::kMode,
+                      {{kFaerieFireBlue, 0, "Blue"}, {kFaerieFireGreen, 1, "Green"}, {kFaerieFireViolet, 2, "Violet"}}};
+  all.push_back(faerie);
   ChoiceCantrip flame{kProduceFlame, "n5_c_produceflame", ChoiceKind::kMode,
                      {{kProduceFlameFlame, 0, "Flame"}, {kProduceFlameHurl, 1, "Hurl"}}};
   all.push_back(flame);

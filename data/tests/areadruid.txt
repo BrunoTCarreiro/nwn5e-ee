@@ -1,0 +1,15 @@
+# A !test profile ([debug] test_commands=1): type "!test areadruid" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# #39 Part 2a build 2c: a Druid 5, Wisdom 16 - the areas on the Druid's list: Entangle, Faerie Fire and Fog Cloud,
+# with level 2 and 3 slots to upcast Fog Cloud. Grease is the Sorcerer's and the Wizard's: !test level1sorcerer.
+name = Level 1 areas (issue 39 2c): human Druid 5, Wisdom 16 - Entangle, Faerie Fire, Fog Cloud
+species = human
+swap_class = druid
+class = druid
+level = 5
+abilities = 10 14 14 10 16 10
+items = nw_wdbqs001 equip
+note = the Prepare spells window opens: Level 1 - Entangle, Faerie Fire, Fog Cloud; Accept
+note = !spawn nw_orcb an orc (a sentient melee creature), !spawn nw_wolf a wolf (an animal); add neutral for one that isn't hostile, ally for a henchman

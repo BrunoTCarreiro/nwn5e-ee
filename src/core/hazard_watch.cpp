@@ -12,6 +12,10 @@
 //   kept, and an avoiding creature's melee attack on a target standing in a hazard that would hurt it, while it stands
 //   outside, waits (action_order.cpp's AIActionAttackObject hook: HazardHoldsAttack) - a ranged attack goes on.
 // With the grenades faithful (the hazards that hurt allies are theirs).
+// #39 build 2c (owner, 2026-11-12: "Hazard avoidance, sentient creatures with ranged attacks should still try to avoid these, but not as much melee only sentient creatures."):
+// Entangle's, Grease's and Fog Cloud's areas (kTerrain, with spellcasting faithful) - a sentient avoider steps out
+// of one: holding a ranged weapon always, melee-only unless its attack target stands in it
+// (rules::StepsOutOfTerrainArea); no attack is held for them.
 
 #include <stdint.h>
 #include <stdio.h>
@@ -112,7 +116,9 @@ SetLocalString(OBJECT_SELF, "nwn5e_hazard_by", ObjectToString(c));
 // A hazard's script ran: what's in it, and who steps out.
 void HazardScriptRan(uint32_t aoe, const char* name) {
   const rules::HazardKind kind = rules::HazardOfScript(name);
-  if (kind == rules::HazardKind::kNone || !GrenadesFaithful()) return;
+  if (kind == rules::HazardKind::kNone) return;
+  const bool terrain = kind == rules::HazardKind::kTerrain;  // #39 build 2c
+  if (terrain ? g_config.spellcasting != rules::RuleVariant::kFaithful : !GrenadesFaithful()) return;
   const std::string code = std::string(kListHead) +
                            (kind == rules::HazardKind::kSpell       ? kHurtBySpell
                             : kind == rules::HazardKind::kHolyWater ? kHurtByHoly
@@ -145,7 +151,14 @@ void HazardScriptRan(uint32_t aoe, const char* name) {
   for (const auto& in : hazard.inside) {
     if (!in.second) continue;
     void* creature = CreatureById(in.first);
-    if (!creature || IsDownHenchmanUnderRules(in.first) || !Avoids(creature)) continue;  // 0.73.1: down can't move
+    if (!creature || IsDownHenchmanUnderRules(in.first)) continue;  // 0.73.1: down can't move
+    void* stats = StatsOf(creature);
+    const bool steps =
+        terrain ? rules::StepsOutOfTerrainArea(Avoids(creature), stats ? engine::RaceOf(stats) : -1,
+                                               HoldsRangedWeapon(creature),
+                                               hazard.inside.count(Field<uint32_t>(creature, ee::kCreatureAttackTarget)) > 0)
+                : Avoids(creature);
+    if (!steps) continue;
     int64_t& last = g_stepped[in.first];
     if (now - last < 4000) continue;
     last = now;
@@ -173,6 +186,7 @@ bool HazardHoldsAttack(void* creature, void* node) {
   for (const auto& entry : g_hazards) {
     const Hazard& hazard = entry.second;
     if (!hazard.inside.count(target)) continue;
+    if (hazard.kind == rules::HazardKind::kTerrain) continue;  // #39 build 2c: none held for these
     if (!checked) {
       checked = true;
       avoids = Avoids(creature);
@@ -203,7 +217,7 @@ bool HazardHoldsAttack(void* creature, void* node) {
 }
 
 void InstallHazardWatch() {
-  if (!GrenadesFaithful()) return;
+  if (!GrenadesFaithful() && g_config.spellcasting != rules::RuleVariant::kFaithful) return;
   static const char* const kNames[] = {
       "n5_fpacid_in",   "n5_fpacid_rd",    "n5_fpfire_in",    "n5_fpfire_rd",    "n5_fpholy_in",    "n5_fpholy_rd",
       "n5_bfire_in",    "n5_bfire_rd",     "n5_bacid_in",     "n5_bacid_rd",     "n5_bacid_out",    "x0_s3_calen",
@@ -213,7 +227,10 @@ void InstallHazardWatch() {
       "nw_s0_bladebara", "nw_s0_bladebarb", "nw_s0_bladebarc", "nw_s0_weba", "nw_s0_webb", "nw_s0_webc",
       "nw_s0_entanglea", "nw_s0_entangleb", "nw_s0_entanglec", "nw_s0_greasea", "nw_s0_greaseb", "nw_s0_greasec",
       "nw_s0_crpdooma", "nw_s0_crpdoomb", "nw_s0_crpdoomc", "nw_s0_evardsa", "nw_s0_evardsc", "nw_s0_stormvenc",
-      "x2_s0_cldbewlda", "x2_s0_cldbewldc", "x2_s0_stneholda", "x2_s0_stneholdc", "nw_s0_ghoultcha"};
+      "x2_s0_cldbewlda", "x2_s0_cldbewldc", "x2_s0_stneholda", "x2_s0_stneholdc", "nw_s0_ghoultcha",
+      // #39 build 2c: Entangle's, Grease's, Fog Cloud's (by slot level).
+      "n5_s_entanglea", "n5_s_entangleb", "n5_s_entanglec", "n5_s_greasea", "n5_s_greaseb", "n5_s_greasec",
+      "n5_s_fog1a", "n5_s_fog1b", "n5_s_fog2a", "n5_s_fog2b", "n5_s_fog3a", "n5_s_fog3b", "n5_s_fog4a", "n5_s_fog4b", "n5_s_fog5a", "n5_s_fog5b", "n5_s_fog6a", "n5_s_fog6b", "n5_s_fog7a", "n5_s_fog7b", "n5_s_fog8a", "n5_s_fog8b", "n5_s_fog9a", "n5_s_fog9b"};
   int watched = 0, missed = 0;
   for (const char* name : kNames) {
     if (rules::HazardOfScript(name) == rules::HazardKind::kNone) {

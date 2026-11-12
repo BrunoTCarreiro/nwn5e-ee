@@ -193,6 +193,14 @@ TEST(QuickbarHighBits) {
   CHECK_EQ(Values(QuickbarActions2024(ranger)) == std::vector<int>{kFeatHuntersMarkMove}, true);
   const std::vector<int>& asked = QuickbarActionFeats2024();
   CHECK_EQ(std::find(asked.begin(), asked.end(), kFeatHuntersMarkMove) != asked.end(), true);
+  // #39 2a build 2c: Escape, while Entangle holds you - bit 41, asked about.
+  QuickbarFacts held;
+  held.feats = {kFeatEscape};
+  uint64_t held_placed = 0;
+  CHECK_EQ(static_cast<int>(PlanQuickbar(EmptyBar(), 0, QuickbarActions2024(held), &held_placed).size()), 1);
+  CHECK_EQ(held_placed == (uint64_t{1} << 41), true);
+  CHECK_EQ(Values(QuickbarActions2024(held)) == std::vector<int>{kFeatEscape}, true);
+  CHECK_EQ(std::find(asked.begin(), asked.end(), kFeatEscape) != asked.end(), true);
 }
 
 // New actions go in the first empty slots, keys 1-9 first, and are recorded;

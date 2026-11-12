@@ -78,6 +78,23 @@
 //     the save again - a failure, asleep (Unconscious) for the rest of the minute; damage, or Rouse (the Help action
 //     renamed, everyone's: an Action on a sleeper within 5 feet - staple_actions.cpp), wakes it. Elves,
 //     Constructs, Elementals, Oozes, Undead and NWN's sleep-immune aren't affected.
+// - Build 2c (owner, 2026-11-12: "2b accepted, go for 2c"; then "All recommended except Q3, go for B"), the areas -
+//   each made in the spell's context (EffectAreaOfEffect, vfx_persistent.if_spells2024.txt's rows, its scripts
+//   ours): Concentration finds it and its effects.
+//   - Entangle 53: a 20-foot square of Difficult Terrain; each creature in it at the cast but you, a Strength save
+//     or Restrained (EffectEntangle) until the spell ends. Q1 A: Escape (feat 1563, an Action - granted while it's
+//     held: the quickbar, the radial's Special Attacks page in Dash's place) makes the Strength (Athletics) check;
+//     an NPC tries once a round in place of its attacks (the Grapple's way).
+//   - Grease 66: a 10-foot square of Difficult Terrain; a Dexterity save or Prone (a round knocked down) as it
+//     appears, on entering, at each round's end there.
+//   - Faerie Fire 1176 (its colour from the menu, Q4 A): each creature in the 20-foot Cube, a Dexterity save or
+//     outlined - a glow and a light; attack rolls against it with Advantage (rules_advantage.cpp) while the
+//     attacker can see it; Q3 B: its invisibility suppressed (a holder with its spell and time in its place:
+//     Concentration holds) and back for the time it had left.
+//   - Fog Cloud 1180: a 20-foot Sphere (20 more a slot level; vfx_persistent rows 107-115) - Q2 A: NWN's darkness
+//     on those inside (they can't see out, no one sees them; hiding there as in the dark - rules_perception.cpp).
+//   - Difficult Terrain: half Speed inside (a movement rate adjuster). The hazard-avoiding AI's reading of the 2c
+//     areas: hazard_watch.cpp.
 // NWN mode: NWN's spells.
 
 #include <windows.h>
@@ -123,6 +140,7 @@
 #include "spell_impact.h"
 #include "staple_actions.h"
 #include "rules/cantrips.h"
+#include "rules/skills.h"
 #include "rules/spell_slots.h"
 #include "rules/spells2024.h"
 #include "rules/weapons.h"
@@ -137,6 +155,7 @@ int UnarmoredDefenseBonus(void* stats);
 // Below (build 2a): Hunter's Mark on a spell attack's hit.
 void HuntersMarkSpellHit(uint32_t caster, uint32_t target, bool critical);
 void HuntersMarkHit(uint32_t caster, uint32_t target, bool critical, float delay);  // #155: its damage delayed
+void* GameObjectById(uint32_t id);  // light_sources.cpp (build 2c: an area of effect by its id)
 
 namespace {
 
@@ -250,6 +269,7 @@ int SlotLevelOf(void* caster, const rules::Spell2024& spell) { return SlotLevelA
 const char* SaveCall(rules::Ability ability) {
   switch (ability) {
     case rules::Ability::kConstitution: return "FortitudeSave";
+    case rules::Ability::kStrength: return "FortitudeSave";  // build 2c: the save roll makes it Strength's (SaveOf)
     case rules::Ability::kWisdom: return "WillSave";
     case rules::Ability::kCharisma: return "WillSave";  // C1 makes it Charisma for its spell (Bane)
     default: return "ReflexSave";
@@ -510,7 +530,9 @@ int SaveOf(uint32_t self, const rules::Spell2024& spell, rules::Ability ability,
   Replace(&code, "$HARMFUL", options.harmful ? "TRUE" : "FALSE");
   Replace(&code, "$IMMUNE", options.immune);
   SetForcedSaveAdvantage(options.advantage);
+  if (ability == rules::Ability::kStrength) SetForcedSaveAbility(rules::Ability::kStrength);  // build 2c: Entangle's
   Run(code, self, spell.script);
+  SetForcedSaveAbility(std::nullopt);
   SetForcedSaveAdvantage(false);
   return engine::GetLocalInt(caster, kVarSave);
 }
@@ -2176,6 +2198,519 @@ void ConditionUpdate(void* creature) {
   }
 }
 
+// --- Build 2c: the areas ------------------------------------------------------------------------------------------------
+
+constexpr int kAreaEntangle = 105;      // vfx_persistent.if_spells2024.txt
+constexpr int kAreaGrease = 106;
+constexpr int kAreaFogCloudBase = 106;  // + the slot level: 107-115
+constexpr const char* kTagEntangled = "n5s_entangled";
+constexpr const char* kTagFaerie = "n5s_faerie";
+constexpr const char* kTagFog = "n5s_fog";
+constexpr const char* kTagHidden = "n5s_hidden";
+constexpr int kStruggleMs = 3000;  // an NPC's Escape try, in place of its round's attacks (the Grapple's)
+constexpr int kEffectTypeImprovedInvisibility = 57;  // NWScript's EFFECT_TYPE_IMPROVEDINVISIBILITY
+
+using SkillRankFn = int8_t (*)(void* stats, uint8_t skill, void* vs, int base_only);
+
+struct Entangled {
+  uint32_t caster = 0;
+  int dc = 10;
+  uint64_t next_try = 0;  // an NPC's next Escape try (game ms)
+  bool feat = false;      // the Escape feat granted (a player's character)
+};
+std::unordered_map<uint32_t, Entangled> g_entangled;                    // Entangle's Restrained creatures
+std::unordered_map<uint32_t, std::unordered_set<uint32_t>> g_terrain;  // creature -> the Difficult Terrain areas it's in
+std::unordered_map<uint32_t, uint32_t> g_fogged;                      // creature -> the Fog Cloud it's in
+std::unordered_map<uint64_t, int> g_area_dcs;                          // (caster, row) -> its cast's DC (Grease's saves)
+struct Hidden {  // an invisibility Faerie Fire suppressed (Q3 B)
+  int type = 1;          // INVISIBILITY_TYPE_*
+  int spell = -1;
+  uint32_t creator = 0;
+  int left = -1;         // seconds left when suppressed (-1: permanent)
+  uint64_t at = 0;       // game ms
+};
+struct Outline {
+  uint32_t caster = 0;
+  int row = 0;             // the row cast (its colour)
+  uint64_t next_look = 0;  // a new invisibility looked for
+  std::vector<Hidden> hidden;
+};
+std::unordered_map<uint32_t, Outline> g_outlined;  // Faerie Fire's outlined creatures
+
+uint64_t CastKey(uint32_t caster, int row) {
+  return (static_cast<uint64_t>(caster) << 32) | static_cast<uint32_t>(row);
+}
+
+std::string Hex(uint32_t id) {
+  char text[16];
+  sprintf_s(text, "%x", id);
+  return text;
+}
+
+bool IsPlayerCreature(void* creature) {
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  return stats && ReadCreatureFacts(stats).is_player;
+}
+
+// An area at the point aimed at (a creature aimed at: where it stands), its scripts nwn5e's (the vfx_persistent rows
+// name none), made in the spell's context: it carries the spell's row and its caster - Concentration finds it.
+void MakeArea(uint32_t self, const rules::Spell2024& spell, int area, const char* enter, const char* round,
+              const char* exit, const std::string& seconds) {
+  char code[640];
+  sprintf_s(code,
+            "object c = GetSpellTargetObject(); location l = GetSpellTargetLocation(); if (GetIsObjectValid(c)) l = "
+            "GetLocation(c); ApplyEffectAtLocation(DURATION_TYPE_TEMPORARY, EffectAreaOfEffect(%d, \"%s\", \"%s\", "
+            "\"%s\"), l, %s);",
+            area, enter, round, exit, seconds.c_str());
+  Run(code, self, spell.script);
+}
+
+// The creatures in a square on the ground around the point aimed at, part of each in it ($SELF: the caster too).
+const char* const kSquare = R"nss(
+object c = GetSpellTargetObject();
+location l = GetSpellTargetLocation();
+if (GetIsObjectValid(c)) l = GetLocation(c);
+string r = "";
+object t = GetFirstObjectInShape(SHAPE_CUBE, $HALF, l, FALSE, OBJECT_TYPE_CREATURE);
+while (GetIsObjectValid(t)) {
+  if (($SELF || t != OBJECT_SELF) && !GetIsDead(t)) r += ObjectToString(t) + ":0;";
+  t = GetNextObjectInShape(SHAPE_CUBE, $HALF, l, FALSE, OBJECT_TYPE_CREATURE);
+}
+SetLocalString(OBJECT_SELF, "n5s_hits", r);
+)nss";
+
+std::vector<Entry> InSquare(uint32_t self, void* caster, const rules::Spell2024& spell, bool with_caster) {
+  std::string code = kSquare;
+  Replace(&code, "$HALF", Float(rules::FeetToMetres(spell.feet) / 2.0f + kSlack));
+  Replace(&code, "$SELF", with_caster ? "TRUE" : "FALSE");
+  Run(code, self, spell.script);
+  return Entries(caster);
+}
+
+// An area's creatures: the one entering, the one leaving, or all those in it (its scripts run as the area).
+const char* const kEntering = "SetLocalString(OBJECT_SELF, \"n5s_hits\", ObjectToString(GetEnteringObject()) + \":0;\");";
+const char* const kExiting = "SetLocalString(OBJECT_SELF, \"n5s_hits\", ObjectToString(GetExitingObject()) + \":0;\");";
+const char* const kInside = R"nss(
+string r = "";
+object t = GetFirstInPersistentObject(OBJECT_SELF, OBJECT_TYPE_CREATURE);
+while (GetIsObjectValid(t)) {
+  if (!GetIsDead(t)) r += ObjectToString(t) + ":0;";
+  t = GetNextInPersistentObject(OBJECT_SELF, OBJECT_TYPE_CREATURE);
+}
+SetLocalString(OBJECT_SELF, "n5s_hits", r);
+)nss";
+
+std::vector<uint32_t> AreaCreatures(uint32_t area, const char* which) {
+  Run(which, area, "an area's creatures");
+  std::vector<uint32_t> ids;
+  void* object = GameObjectById(area);
+  if (!object) return ids;
+  for (const Entry& one : Entries(object)) {
+    const uint32_t id = ParseId(one.target);
+    if (CreatureById(id)) ids.push_back(id);
+  }
+  return ids;
+}
+
+uint32_t AreaCreator(uint32_t area) {
+  void* object = GameObjectById(area);
+  return object ? Field<uint32_t>(object, ee::kAoeCreator) : 0;
+}
+
+// --- Entangle: Restrained, and the Escape ---
+
+int AthleticsOf(void* creature) {
+  static const auto skill_rank = reinterpret_cast<SkillRankFn>(EngineExport(ee::kGetSkillRank));
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  return stats && skill_rank ? skill_rank(stats, static_cast<uint8_t>(rules::kNwnAthletics), nullptr, 0) : 0;
+}
+
+// The Escape check (Q1 A): d20 + Athletics against the caster's DC - the Grapple's rule.
+bool EscapeTry(uint32_t id, void* creature, const Entangled& held) {
+  const int athletics = AthleticsOf(creature);
+  const int d20 = RollEngineDice(1, 20);
+  const bool free = rules::EscapeSucceeds(d20, athletics, held.dc);
+  char line[220];
+  sprintf_s(line, "nwn5e: Escape (Strength (Athletics) %+d: %d vs DC %d) - %s", athletics, d20 + athletics, held.dc,
+            free ? "you tear free of the plants." : "the plants hold; try again next round.");
+  TellPlayer(id, line);
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Escape from Entangle: Athletics %+d, %d vs DC %d - %s", id, athletics, d20 + athletics,
+        held.dc, free ? "free" : "still held");
+  }
+  return free;
+}
+
+void FreeFromEntangle(uint32_t id, void* creature) {
+  std::string code = kUnmark;
+  Replace(&code, "$TAG", kTagEntangled);
+  Run(code, id, "Entangle's hold");
+  const auto it = g_entangled.find(id);
+  if (it == g_entangled.end()) return;
+  if (it->second.feat) {
+    if (void* stats = creature ? StatsOf(creature) : nullptr) engine::RemoveFeat(stats, rules::kFeatEscape);
+  }
+  g_entangled.erase(it);
+}
+
+// The Escape action (feat 1563, its row 1181): a player held by Entangle.
+void EscapeScript(uint32_t self) {
+  void* creature = CreatureById(self);
+  const auto it = g_entangled.find(self);
+  if (!creature || it == g_entangled.end() || !HasSpellEffect(creature, rules::kEntangle, -1, it->second.caster)) {
+    TellPlayer(self, "nwn5e: Escape - nothing holds you (the Entangle spell's plants).");
+    return;
+  }
+  if (EscapeTry(self, creature, it->second)) FreeFromEntangle(self, creature);
+}
+
+void Entangle(uint32_t self, void* caster, const rules::Spell2024& spell, int row) {
+  MakeArea(self, spell, kAreaEntangle, "n5_s_entanglea", "n5_s_entanglec", "n5_s_entangleb", Rounds(10));
+  const int dc = SpellSaveDcForClassSlot(caster, -1);
+  const uint64_t now = GameMs();
+  std::string log;
+  for (const Entry& one : InSquare(self, caster, spell, false)) {  // "each creature (other than you)"
+    const int save = SaveOf(self, spell, rules::Ability::kStrength, one.target);
+    if (save < 0) continue;
+    log += "; 0x" + one.target + " " + SaveWord(save);
+    if (save != 0) continue;
+    ApplyCondition(self, spell.script, one.target, row, kTagEntangled,
+                   "EffectLinkEffects(EffectEntangle(), EffectVisualEffect(VFX_DUR_ENTANGLE))", Rounds(10), "VFX_IMP_SLOW");
+    const uint32_t id = ParseId(one.target);
+    void* target = CreatureById(id);
+    Entangled held{self, dc, now + kRoundMs};
+    if (target && IsPlayerCreature(target)) {
+      if (void* stats = StatsOf(target)) {
+        if (!engine::HasFeat(stats, rules::kFeatEscape)) engine::AddFeat(stats, rules::kFeatEscape);
+        held.feat = true;
+        TellPlayer(id, "nwn5e: Entangle holds you Restrained - Escape (an Action: your quickbar, or the radial's Special "
+                       "Attacks page in Dash's place) tries to tear free.");
+      }
+    }
+    if (g_entangled.size() > 256) g_entangled.clear();
+    g_entangled[id] = held;
+  }
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Entangle (Strength save, DC %d) - the 20-foot square, Difficult Terrain for a minute%s",
+        self, dc, log.empty() ? "; no one in it" : log.c_str());
+  }
+}
+
+// --- Grease: Prone on entering, at a turn's end there ---
+
+void GreaseSave(uint32_t area, uint32_t id, const char* when) {
+  void* creature = CreatureById(id);
+  if (!creature || engine::IsDeadOrDying(creature)) return;
+  const uint32_t creator = AreaCreator(area);
+  const auto at = g_area_dcs.find(CastKey(creator, rules::kGrease));
+  const int dc = at != g_area_dcs.end() ? at->second : 10;
+  static const auto save_roll = reinterpret_cast<SaveRollFn>(EngineExport(ee::kSavingThrowRoll));  // through its hook
+  if (!save_roll) return;
+  RememberSaveDc2024(creator, dc);
+  const uint8_t save = save_roll(creature, ee::kSaveReflex, static_cast<uint16_t>(dc), 0, creator, 1, 0, 0);
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Grease (%s): Dexterity save, DC %d - %s", id, when, dc, save == 0 ? "failed: Prone" : "succeeded");
+  }
+  if (save != 0) return;
+  char code[200];
+  sprintf_s(code, "ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectKnockdown(), StringToObject(\"%x\"), 6.0);", id);
+  RunScriptChunk(code, creator && GameObjectById(creator) ? creator : id);
+}
+
+void Grease(uint32_t self, void* caster, const rules::Spell2024& spell) {
+  const int dc = SpellSaveDcForClassSlot(caster, -1);
+  if (g_area_dcs.size() > 256) g_area_dcs.clear();
+  g_area_dcs[CastKey(self, rules::kGrease)] = dc;
+  MakeArea(self, spell, kAreaGrease, "n5_s_greasea", "n5_s_greasec", "n5_s_greaseb", Rounds(10));
+  if (LogSlot()) Log("spells2024: 0x%08X Grease (Dexterity save, DC %d) - the 10-foot square for a minute", self, dc);
+}
+
+// The areas' scripts: Difficult Terrain while inside (Entangle, Grease); Grease's saves.
+void TerrainIn(uint32_t area, uint32_t id) {
+  if (g_terrain.size() > 512) g_terrain.clear();
+  g_terrain[id].insert(area);
+}
+
+void EntangleEnter(uint32_t area) {
+  for (uint32_t id : AreaCreatures(area, kEntering)) TerrainIn(area, id);
+}
+
+void EntangleRound(uint32_t area) {
+  for (uint32_t id : AreaCreatures(area, kInside)) TerrainIn(area, id);
+}
+
+void TerrainExit(uint32_t area) {
+  for (uint32_t id : AreaCreatures(area, kExiting)) {
+    const auto it = g_terrain.find(id);
+    if (it == g_terrain.end()) continue;
+    it->second.erase(area);
+    if (it->second.empty()) g_terrain.erase(it);
+  }
+}
+
+void GreaseEnter(uint32_t area) {
+  for (uint32_t id : AreaCreatures(area, kEntering)) {
+    TerrainIn(area, id);
+    GreaseSave(area, id, "in it as it appears, or entering it");
+  }
+}
+
+void GreaseRound(uint32_t area) {
+  for (uint32_t id : AreaCreatures(area, kInside)) {
+    TerrainIn(area, id);
+    GreaseSave(area, id, "the end of its turn there");
+  }
+}
+
+// --- Fog Cloud: darkness inside (Q2 A) ---
+
+void Unfog(uint32_t id) {
+  std::string code = kUnmark;
+  Replace(&code, "$TAG", kTagFog);
+  Run(code, id, "Fog Cloud's darkness");
+}
+
+void FogEnter(uint32_t area) {
+  const uint32_t creator = AreaCreator(area);
+  for (uint32_t id : AreaCreatures(area, kEntering)) {
+    char code[420];
+    sprintf_s(code,
+              "object t = StringToObject(\"%x\"); effect e = GetFirstEffect(t); while (GetIsEffectValid(e)) { if "
+              "(GetEffectTag(e) == \"%s\") RemoveEffect(t, e); e = GetNextEffect(t); } "
+              "ApplyEffectToObject(DURATION_TYPE_PERMANENT, TagEffect(SetEffectSpellId(EffectDarkness(), %d), \"%s\"), t);",
+              id, kTagFog, rules::kFogCloud, kTagFog);
+    RunScriptChunk(code, creator && CreatureById(creator) ? creator : area);  // the caster's: Concentration ends it
+    if (g_fogged.size() > 512) g_fogged.clear();
+    g_fogged[id] = area;
+  }
+}
+
+void FogExit(uint32_t area) {
+  for (uint32_t id : AreaCreatures(area, kExiting)) {
+    const auto it = g_fogged.find(id);
+    if (it == g_fogged.end() || it->second != area) continue;
+    g_fogged.erase(it);
+    Unfog(id);
+  }
+}
+
+void FogCloud(uint32_t self, const rules::Spell2024& spell, int slot) {
+  static const char* const kEnter[] = {"n5_s_fog1a", "n5_s_fog2a", "n5_s_fog3a", "n5_s_fog4a", "n5_s_fog5a",
+                                       "n5_s_fog6a", "n5_s_fog7a", "n5_s_fog8a", "n5_s_fog9a"};
+  static const char* const kExit[] = {"n5_s_fog1b", "n5_s_fog2b", "n5_s_fog3b", "n5_s_fog4b", "n5_s_fog5b",
+                                      "n5_s_fog6b", "n5_s_fog7b", "n5_s_fog8b", "n5_s_fog9b"};
+  const int level = std::min(9, std::max(1, slot));
+  MakeArea(self, spell, kAreaFogCloudBase + level, kEnter[level - 1], "", kExit[level - 1], "HoursToSeconds(1)");
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Fog Cloud (a level %d slot): a %d-foot-radius Sphere, darkness inside, up to an hour", self,
+        level, rules::FogCloudRadiusFeet(level));
+  }
+}
+
+// --- Faerie Fire: outlined (Q3 B: its invisibility suppressed while it lasts) ---
+
+struct FaerieLook {
+  const char* glow;
+  const char* light;
+};
+
+FaerieLook FaerieLookOf(rules::FaerieColour colour) {
+  switch (colour) {
+    case rules::FaerieColour::kGreen: return {"VFX_DUR_GLOW_GREEN", "VFX_DUR_LIGHT_WHITE_5"};  // NWN has no green light
+    case rules::FaerieColour::kViolet: return {"VFX_DUR_GLOW_PURPLE", "VFX_DUR_LIGHT_PURPLE_5"};
+    case rules::FaerieColour::kBlue: break;
+  }
+  return {"VFX_DUR_GLOW_BLUE", "VFX_DUR_LIGHT_BLUE_5"};
+}
+
+// An outlined creature's invisibility effects taken off ("type spell creator left;"), as the creature.
+const char* const kSuppress = R"nss(
+string r = "";
+effect e = GetFirstEffect(OBJECT_SELF);
+while (GetIsEffectValid(e)) {
+  int k = GetEffectType(e);
+  if (k == EFFECT_TYPE_INVISIBILITY || k == EFFECT_TYPE_IMPROVEDINVISIBILITY) {
+    int left = -1;
+    if (GetEffectDurationType(e) == DURATION_TYPE_TEMPORARY) left = GetEffectDurationRemaining(e);
+    r += IntToString(k) + " " + IntToString(GetEffectSpellId(e)) + " " + ObjectToString(GetEffectCreator(e)) + " " +
+         IntToString(left) + ";";
+    RemoveEffect(OBJECT_SELF, e);
+  }
+  e = GetNextEffect(OBJECT_SELF);
+}
+SetLocalString(OBJECT_SELF, "n5s_hidden", r);
+)nss";
+
+// Who runs a restored effect: its creator while it's there (its Concentration and its spell find it), else the creature.
+uint32_t MakerOf(uint32_t creator, uint32_t id) { return creator && GameObjectById(creator) ? creator : id; }
+
+void SuppressInvisibility(uint32_t id, Outline& outline, uint64_t now) {
+  Run(kSuppress, id, "Faerie Fire's outline");
+  void* creature = CreatureById(id);
+  const std::string text = creature ? engine::GetLocalString(creature, "n5s_hidden") : std::string();
+  size_t at = 0;
+  while (at < text.size()) {
+    const size_t end = text.find(';', at);
+    if (end == std::string::npos) break;
+    int type = 0, spell = -1, left = -1;
+    char who[16] = {};
+    if (sscanf_s(text.substr(at, end - at).c_str(), "%d %d %15s %d", &type, &spell, who,
+                 static_cast<unsigned>(sizeof(who)), &left) == 4) {
+      Hidden hidden;
+      hidden.type = type == kEffectTypeImprovedInvisibility ? 4 : 1;  // INVISIBILITY_TYPE_IMPROVED : _NORMAL
+      hidden.spell = spell;
+      hidden.creator = ParseId(who);
+      hidden.left = left;
+      hidden.at = now;
+      // A holder in its place - its spell, its creator, its time: Concentration on it holds, and ends it.
+      std::string code = "object t = StringToObject(\"" + Hex(id) +
+                         "\"); effect v = TagEffect(SetEffectSpellId(EffectVisualEffect(VFX_DUR_CESSATE_NEUTRAL), " +
+                         std::to_string(spell) + "), \"" + kTagHidden + "\"); ApplyEffectToObject(" +
+                         (left < 0 ? std::string("DURATION_TYPE_PERMANENT, v, t);")
+                                   : "DURATION_TYPE_TEMPORARY, v, t, " + std::to_string(left) + ".0);");
+      RunScriptChunk(code.c_str(), MakerOf(hidden.creator, id));
+      outline.hidden.push_back(hidden);
+      TellPlayer(id, "nwn5e: Faerie Fire outlines you - your invisibility is suppressed while it lasts.");
+      if (LogSlot()) {
+        Log("spells2024: 0x%08X Faerie Fire suppresses its invisibility (spell %d by 0x%08X, %d s left)", id, spell,
+            hidden.creator, left);
+      }
+    }
+    at = end + 1;
+  }
+}
+
+void RestoreInvisibility(uint32_t id, void* creature, const Outline& outline, uint64_t now) {
+  for (const Hidden& hidden : outline.hidden) {
+    // Its holder still there: its Concentration held and its time hadn't run out.
+    const bool held = hidden.spell < 0 || HasSpellEffect(creature, hidden.spell, -1, hidden.creator);
+    const int left = rules::InvisibilityLeftSeconds(hidden.left, static_cast<int>((now - hidden.at) / 1000));
+    if (!held || left == 0) {
+      if (LogSlot()) Log("spells2024: 0x%08X its suppressed invisibility (spell %d) ended meanwhile", id, hidden.spell);
+      continue;
+    }
+    std::string code = "object t = StringToObject(\"" + Hex(id) + "\"); effect v = EffectInvisibility(" +
+                       std::to_string(hidden.type) + ");" +
+                       (hidden.type == 4 ? " v = EffectLinkEffects(v, EffectConcealment(50));" : "") +
+                       (hidden.spell >= 0 ? " v = SetEffectSpellId(v, " + std::to_string(hidden.spell) + ");" : "") +
+                       " ApplyEffectToObject(" +
+                       (left < 0 ? std::string("DURATION_TYPE_PERMANENT, v, t);")
+                                 : "DURATION_TYPE_TEMPORARY, v, t, " + std::to_string(left) + ".0);");
+    RunScriptChunk(code.c_str(), MakerOf(hidden.creator, id));
+    TellPlayer(id, "nwn5e: Faerie Fire ends - your invisibility is back.");
+    if (LogSlot()) Log("spells2024: 0x%08X its invisibility back (spell %d, %d s left)", id, hidden.spell, left);
+  }
+  std::string code = kUnmark;
+  Replace(&code, "$TAG", kTagHidden);
+  Run(code, id, "Faerie Fire's holders");
+}
+
+void FaerieFire(uint32_t self, void* caster, const rules::Spell2024& spell, int row) {
+  const rules::FaerieColour colour = rules::FaerieColourOf(row);
+  const FaerieLook look = FaerieLookOf(colour);
+  const std::string effect =
+      std::string("EffectLinkEffects(EffectVisualEffect(") + look.glow + "), EffectVisualEffect(" + look.light + "))";
+  const uint64_t now = GameMs();
+  const int dc = SpellSaveDcForClassSlot(caster, -1);
+  std::string log;
+  for (const Entry& one : InSquare(self, caster, spell, true)) {  // "each creature in the Cube"
+    const int save = SaveOf(self, spell, rules::Ability::kDexterity, one.target);
+    if (save < 0) continue;
+    log += "; 0x" + one.target + " " + SaveWord(save);
+    if (save != 0) continue;
+    ApplyCondition(self, spell.script, one.target, row, kTagFaerie, effect, Rounds(10), "VFX_IMP_MAGBLUE");
+    const uint32_t id = ParseId(one.target);
+    if (g_outlined.size() > 256) g_outlined.clear();
+    Outline& outline = g_outlined[id];
+    outline.caster = self;
+    outline.row = row;
+    outline.next_look = now + 1000;
+    SuppressInvisibility(id, outline, now);
+  }
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Faerie Fire (%s; Dexterity save, DC %d) - the 20-foot Cube%s", self,
+        rules::FaerieColourName(colour), dc, log.empty() ? "; no one in it" : log.c_str());
+  }
+}
+
+void AreaSpell(uint32_t self, void* caster, const rules::Spell2024& spell, int slot) {
+  const int row = Field<int32_t>(caster, ee::kObjectLastSpellId);  // Faerie Fire's colour's row
+  switch (spell.row) {
+    case rules::kEntangle: Entangle(self, caster, spell, row); return;
+    case rules::kGrease: Grease(self, caster, spell); return;
+    case rules::kFaerieFire: FaerieFire(self, caster, spell, row); return;
+    case rules::kFogCloud: FogCloud(self, spell, slot); return;
+  }
+}
+
+// Difficult Terrain (Entangle, Grease): half Speed inside - Dash's and Longstrider's too (an adjuster, after them).
+float TerrainSpeed(void* creature, float factor) {
+  if (g_terrain.empty() || !creature || !Faithful()) return factor;
+  const auto it = g_terrain.find(Field<uint32_t>(creature, ee::kObjectId));
+  if (it == g_terrain.end()) return factor;
+  for (uint32_t area : it->second) {
+    if (GameObjectById(area)) return rules::DifficultTerrainFactor(factor, true);
+  }
+  return factor;
+}
+
+// A creature's update: areas gone forgotten (a fog's darkness off); Entangle's hold over, or an NPC's Escape try;
+// Faerie Fire's outline over (its invisibility back), or a new invisibility suppressed.
+void AreaUpdate(void* creature) {
+  if (!creature || (g_terrain.empty() && g_fogged.empty() && g_entangled.empty() && g_outlined.empty())) return;
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  const uint64_t now = GameMs();
+  if (!g_terrain.empty()) {
+    const auto it = g_terrain.find(id);
+    if (it != g_terrain.end()) {
+      for (auto area = it->second.begin(); area != it->second.end();) {
+        area = GameObjectById(*area) ? std::next(area) : it->second.erase(area);
+      }
+      if (it->second.empty()) g_terrain.erase(it);
+    }
+  }
+  if (!g_fogged.empty()) {
+    const auto it = g_fogged.find(id);
+    if (it != g_fogged.end() && !GameObjectById(it->second)) {
+      g_fogged.erase(it);
+      Unfog(id);
+    }
+  }
+  if (!g_entangled.empty()) {
+    const auto it = g_entangled.find(id);
+    if (it != g_entangled.end()) {
+      Entangled& held = it->second;
+      if (engine::IsDeadOrDying(creature) || !HasSpellEffect(creature, rules::kEntangle, -1, held.caster)) {
+        if (held.feat) {
+          if (void* stats = StatsOf(creature)) engine::RemoveFeat(stats, rules::kFeatEscape);
+        }
+        g_entangled.erase(it);
+        if (LogSlot()) Log("spells2024: 0x%08X Entangle no longer holds it", id);
+      } else if (!IsPlayerCreature(creature) && now >= held.next_try) {
+        held.next_try = now + kRoundMs;
+        const uint32_t caster = held.caster;
+        const bool free = EscapeTry(id, creature, held);
+        PauseCombatRound(creature, caster, kStruggleMs);  // the try in place of its attacks (the Grapple's)
+        if (free) FreeFromEntangle(id, creature);
+      }
+    }
+  }
+  if (!g_outlined.empty()) {
+    const auto it = g_outlined.find(id);
+    if (it != g_outlined.end()) {
+      Outline& outline = it->second;
+      if (engine::IsDeadOrDying(creature) || !HasSpellEffect(creature, outline.row, -1, outline.caster)) {
+        const Outline done = outline;
+        g_outlined.erase(it);
+        RestoreInvisibility(id, creature, done, now);
+      } else if (now >= outline.next_look) {
+        outline.next_look = now + 1000;
+        SuppressInvisibility(id, outline, now);
+      }
+    }
+  }
+}
+
 void Cast(uint32_t self, int row) {
   const rules::Spell2024* spell = rules::Spell2024Of(row);
   void* caster = CreatureById(self);
@@ -2193,6 +2728,10 @@ void Cast(uint32_t self, int row) {
     Condition(self, caster, *spell, slot);  // build 2b
     return;
   }
+  if (spell->effect == rules::SpellEffect2024::kArea) {
+    AreaSpell(self, caster, *spell, slot);  // build 2c
+    return;
+  }
   if (row == rules::kChromaticOrb) {
     ChromaticOrb(self, caster, *spell, slot);
     return;
@@ -2208,6 +2747,7 @@ void Cast(uint32_t self, int row) {
     case rules::SpellEffect2024::kTemporaryHitPoints: FalseLife(self, caster, *spell, slot); break;
     case rules::SpellEffect2024::kBuff: break;
     case rules::SpellEffect2024::kCondition: break;
+    case rules::SpellEffect2024::kArea: break;
     case rules::SpellEffect2024::kSave:
       if (spell->shape == rules::SpellShape2024::kOne) {
         SaveOne(self, caster, *spell, slot);
@@ -2254,6 +2794,10 @@ ScriptHandler HandlerOf(int row) {
     case rules::kHideousLaughter: return &SpellScript<rules::kHideousLaughter>;
     case rules::kColorSpray: return &SpellScript<rules::kColorSpray>;
     case rules::kSleep: return &SpellScript<rules::kSleep>;
+    case rules::kEntangle: return &SpellScript<rules::kEntangle>;
+    case rules::kGrease: return &SpellScript<rules::kGrease>;
+    case rules::kFaerieFire: return &SpellScript<rules::kFaerieFire>;
+    case rules::kFogCloud: return &SpellScript<rules::kFogCloud>;
   }
   return nullptr;
 }
@@ -2305,6 +2849,25 @@ int WakeFromSleepSpell(uint32_t rouser, uint32_t target) {
   Log("spells2024: 0x%08X Rouse - shakes 0x%08X out of Sleep (%s, %.2f m)", rouser, target,
       asleep ? "Unconscious" : "Incapacitated", gap);
   return 1;
+}
+
+// rules_advantage.cpp (#39 build 2c): Faerie Fire - attack rolls against an outlined creature have Advantage if the
+// attacker can see it.
+MasteryRollSources FaerieFireRollSources(void* target, bool cant_see) {
+  MasteryRollSources sources;
+  if (g_outlined.empty() || !target || cant_see || !Faithful()) return sources;
+  const auto at = g_outlined.find(Field<uint32_t>(target, ee::kObjectId));
+  if (at == g_outlined.end() || !HasSpellEffect(target, at->second.row, -1, at->second.caster)) return sources;
+  sources.advantage = 1;
+  sources.note = "Faerie Fire";
+  return sources;
+}
+
+// rules_perception.cpp (#39 build 2c, Q2 A): a creature in a Fog Cloud - Heavily Obscured.
+bool InFogCloud(void* creature) {
+  if (g_fogged.empty() || !creature) return false;
+  const auto at = g_fogged.find(Field<uint32_t>(creature, ee::kObjectId));
+  return at != g_fogged.end() && GameObjectById(at->second) != nullptr;
 }
 
 // rules_spell_slots.cpp's UnReady: a spell slot spent - this turn's (One Spell with a Spell Slot per Turn).
@@ -2437,8 +3000,15 @@ void InstallSpells2024() {
   g_rules_for_rows = reinterpret_cast<void**>(EngineExport(ee::kRules));
   const bool guard = AddSpellOrderGuard(&OrderGuard) && g_use_feat && g_spell_row && g_rules_for_rows;
   const bool conditions = AddDamageListener(&ConditionDamageHeard) && AddCreatureUpdateListener(&ConditionUpdate);
-  Log("spells2024: SRD 5.2's level 1 spells, builds 1a-2b - %zu spells: damage and healing, Chromatic Orb, Heroism, "
-      "the buffs, the conditions on creatures; %zu Bonus Action spells; one spell with a slot a turn (#39 Part 2a)%s",
+  const bool areas = AddScriptHandler("n5_s_entanglea", &EntangleEnter) && AddScriptHandler("n5_s_entangleb", &TerrainExit) &&
+                     AddScriptHandler("n5_s_entanglec", &EntangleRound) && AddScriptHandler("n5_s_greasea", &GreaseEnter) &&
+                     AddScriptHandler("n5_s_greaseb", &TerrainExit) && AddScriptHandler("n5_s_greasec", &GreaseRound) &&
+                     AddScriptHandler("n5_s_fog1a", &FogEnter) && AddScriptHandler("n5_s_fog1b", &FogExit) && AddScriptHandler("n5_s_fog2a", &FogEnter) && AddScriptHandler("n5_s_fog2b", &FogExit) && AddScriptHandler("n5_s_fog3a", &FogEnter) && AddScriptHandler("n5_s_fog3b", &FogExit) && AddScriptHandler("n5_s_fog4a", &FogEnter) && AddScriptHandler("n5_s_fog4b", &FogExit) && AddScriptHandler("n5_s_fog5a", &FogEnter) && AddScriptHandler("n5_s_fog5b", &FogExit) && AddScriptHandler("n5_s_fog6a", &FogEnter) && AddScriptHandler("n5_s_fog6b", &FogExit) && AddScriptHandler("n5_s_fog7a", &FogEnter) && AddScriptHandler("n5_s_fog7b", &FogExit) && AddScriptHandler("n5_s_fog8a", &FogEnter) && AddScriptHandler("n5_s_fog8b", &FogExit) && AddScriptHandler("n5_s_fog9a", &FogEnter) && AddScriptHandler("n5_s_fog9b", &FogExit) && 
+                     AddScriptHandler("n5_escape", &EscapeScript) && AddCreatureUpdateListener(&AreaUpdate) &&
+                     AddMovementRateAdjuster(&TerrainSpeed);
+  Log("spells2024: SRD 5.2's level 1 spells, builds 1a-2c - %zu spells: damage and healing, Chromatic Orb, Heroism, "
+      "the buffs, the conditions on creatures, the areas; %zu Bonus Action spells; one spell with a slot a turn (#39 "
+      "Part 2a)%s",
       rules::Spells2024().size(), rules::BonusActionSpells().size(),
-      scripts && update && guard && buffs && conditions ? "" : " - SOME hooks missing");
+      scripts && update && guard && buffs && conditions && areas ? "" : " - SOME hooks missing");
 }

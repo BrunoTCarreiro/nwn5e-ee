@@ -133,6 +133,11 @@ const std::vector<int> kSpells = {
     1163,  // nwn5e_Shield_of_Faith_Bonus_Action - Shield of Faith (its Bonus Action's row)
     1166,  // nwn5e_Expeditious_Retreat_Bonus_Action - Expeditious Retreat (its Bonus Action's row)
     1167,  // nwn5e_Hunters_Mark_Bonus_Action - Hunter's Mark (its Bonus Action's row)
+    1176,  // nwn5e_Faerie_Fire - Faerie Fire (#39 2a build 2c)
+    1177,  // nwn5e_Faerie_Fire_Blue - Faerie Fire (its colours)
+    1178,  // nwn5e_Faerie_Fire_Green - Faerie Fire
+    1179,  // nwn5e_Faerie_Fire_Violet - Faerie Fire
+    1180,  // nwn5e_Fog_Cloud - Fog Cloud (#39 2a build 2c)
 };
 
 }  // namespace

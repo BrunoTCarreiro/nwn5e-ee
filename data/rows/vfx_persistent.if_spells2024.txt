@@ -1,0 +1,16 @@
+# vfx_persistent.2da - #39 Part 2a, build 2c (core/rules_spells2024.cpp names their scripts in EffectAreaOfEffect):
+# Entangle's 20-foot square (105) and Grease's 10-foot one (106) - NWN's own Entangle and Grease looks - and Fog
+# Cloud's Sphere by slot level (107-115: 20 feet, 20 more a level), a placeholder look (NWN's Mind Fog cloud) until
+# the animation session designs a fog.
+LABEL SHAPE RADIUS WIDTH LENGTH OrientWithGround DurationVFX MODEL01 MODEL02 MODEL03 NUMACT01 NUMACT02 NUMACT03 DURATION01 DURATION02 DURATION03 EDGEWGHT01 EDGEWGHT02 EDGEWGHT03 SoundImpact SoundDuration SoundCessation SoundOneShot SoundOneShotPercentage MODELMIN01 MODELMIN02 MODELMIN03
+105 NWN5E_ENTANGLE R **** 6.1 6.1 0 **** vps_entangle vps_entangle vps_entangle 5 5 5 2000 1500 2900 0 0 0 **** sps_entangle **** **** **** vps_entangle_L vps_entangle_L vps_entangle_L
+106 NWN5E_GREASE R **** 3.05 3.05 0 **** vps_grease vps_grease vps_grease 2 2 2 2000 1500 2900 0 0 0 sps_grease **** **** **** **** vps_grease_L vps_grease_L vps_grease_L
+107 NWN5E_FOG_CLOUD_1 C 6.10 **** **** 0 **** vps_fogmind vps_fogmind vps_fogmind 7 7 7 3400 1100 1900 0 0 0.25 **** sps_fog_loop **** sps_fog 0.3 vps_fogmind_L vps_fogmind_L vps_fogmind_L
+108 NWN5E_FOG_CLOUD_2 C 12.19 **** **** 0 **** vps_fogmind vps_fogmind vps_fogmind 12 12 12 3400 1100 1900 0 0 0.25 **** sps_fog_loop **** sps_fog 0.3 vps_fogmind_L vps_fogmind_L vps_fogmind_L
+109 NWN5E_FOG_CLOUD_3 C 18.29 **** **** 0 **** vps_fogmind vps_fogmind vps_fogmind 12 12 12 3400 1100 1900 0 0 0.25 **** sps_fog_loop **** sps_fog 0.3 vps_fogmind_L vps_fogmind_L vps_fogmind_L
+110 NWN5E_FOG_CLOUD_4 C 24.38 **** **** 0 **** vps_fogmind vps_fogmind vps_fogmind 12 12 12 3400 1100 1900 0 0 0.25 **** sps_fog_loop **** sps_fog 0.3 vps_fogmind_L vps_fogmind_L vps_fogmind_L
+111 NWN5E_FOG_CLOUD_5 C 30.48 **** **** 0 **** vps_fogmind vps_fogmind vps_fogmind 12 12 12 3400 1100 1900 0 0 0.25 **** sps_fog_loop **** sps_fog 0.3 vps_fogmind_L vps_fogmind_L vps_fogmind_L
+112 NWN5E_FOG_CLOUD_6 C 36.58 **** **** 0 **** vps_fogmind vps_fogmind vps_fogmind 12 12 12 3400 1100 1900 0 0 0.25 **** sps_fog_loop **** sps_fog 0.3 vps_fogmind_L vps_fogmind_L vps_fogmind_L
+113 NWN5E_FOG_CLOUD_7 C 42.67 **** **** 0 **** vps_fogmind vps_fogmind vps_fogmind 12 12 12 3400 1100 1900 0 0 0.25 **** sps_fog_loop **** sps_fog 0.3 vps_fogmind_L vps_fogmind_L vps_fogmind_L
+114 NWN5E_FOG_CLOUD_8 C 48.77 **** **** 0 **** vps_fogmind vps_fogmind vps_fogmind 12 12 12 3400 1100 1900 0 0 0.25 **** sps_fog_loop **** sps_fog 0.3 vps_fogmind_L vps_fogmind_L vps_fogmind_L
+115 NWN5E_FOG_CLOUD_9 C 54.86 **** **** 0 **** vps_fogmind vps_fogmind vps_fogmind 12 12 12 3400 1100 1900 0 0 0.25 **** sps_fog_loop **** sps_fog 0.3 vps_fogmind_L vps_fogmind_L vps_fogmind_L

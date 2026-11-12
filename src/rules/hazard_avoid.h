@@ -9,7 +9,9 @@ namespace rules {
 
 // What a hazard area hurts: the grenade hazards anyone (Holy Water's patch only undead and evil outsiders), the
 // harmful spell areas whom NWN's area-spell rule picks (x0_i0_spells' spellsIsTarget, SPELL_TARGET_STANDARDHOSTILE).
-enum class HazardKind { kNone, kAnyone, kHolyWater, kSpell };
+// #39 build 2c: kTerrain - Entangle's, Grease's and Fog Cloud's areas (anyone in them; who keeps out of one:
+// StepsOutOfTerrainArea).
+enum class HazardKind { kNone, kAnyone, kHolyWater, kSpell, kTerrain };
 
 // A hazard area by one of its scripts (the enter, exit or round script vfx_persistent.2da or EffectAreaOfEffect names;
 // case-blind): #130's flask patches, the Bombs' clouds, Caltrops, Choking Powder; Acid Fog, Incendiary Cloud, Stinking
@@ -32,5 +34,12 @@ bool AvoidsHazards(bool faithful, bool player_controlled, int racial_type, bool 
 // 3B: an avoiding creature's melee attack on a target standing in a hazard that would hurt the attacker, while the
 // attacker stands outside it, waits (the hazard is short); a ranged attack goes on.
 bool HazardHoldsAttack(bool avoids, bool would_be_hurt, bool target_inside, bool attacker_inside, bool ranged);
+
+// #39 build 2c (owner, 2026-11-12: "Hazard avoidance, sentient creatures with ranged attacks should still try to avoid these, but not as much melee only sentient creatures."):
+// the 2c areas (kTerrain). An avoiding creature that is sentient - not an animal, a beast, vermin or an ooze -
+// steps out of one: holding a ranged weapon, always (it keeps out, as of any hazard); melee-only, unless its attack
+// target stands in that area (it goes in after it). The rest don't avoid them; no attack is held for them.
+bool IsSentientRacialType(int nwn_racial_type);
+bool StepsOutOfTerrainArea(bool avoids, int racial_type, bool ranged, bool target_inside);
 
 }  // namespace rules

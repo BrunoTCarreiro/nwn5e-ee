@@ -68,6 +68,32 @@ constexpr HazardScript kScripts[] = {
     {"x2_s0_stneholda", HazardKind::kSpell, 10.0f},
     {"x2_s0_stneholdc", HazardKind::kSpell, 10.0f},
     {"nw_s0_ghoultcha", HazardKind::kSpell, 1.65f},
+    // #39 build 2c: the 2024 areas - Entangle's 20-foot square and Grease's 10-foot one (half their diagonal), Fog
+    // Cloud's Sphere by its slot level (20 feet more a level).
+    {"n5_s_entanglea", HazardKind::kTerrain, 4.31f},
+    {"n5_s_entangleb", HazardKind::kTerrain, 4.31f},
+    {"n5_s_entanglec", HazardKind::kTerrain, 4.31f},
+    {"n5_s_greasea", HazardKind::kTerrain, 2.16f},
+    {"n5_s_greaseb", HazardKind::kTerrain, 2.16f},
+    {"n5_s_greasec", HazardKind::kTerrain, 2.16f},
+    {"n5_s_fog1a", HazardKind::kTerrain, 6.10f},
+    {"n5_s_fog1b", HazardKind::kTerrain, 6.10f},
+    {"n5_s_fog2a", HazardKind::kTerrain, 12.19f},
+    {"n5_s_fog2b", HazardKind::kTerrain, 12.19f},
+    {"n5_s_fog3a", HazardKind::kTerrain, 18.29f},
+    {"n5_s_fog3b", HazardKind::kTerrain, 18.29f},
+    {"n5_s_fog4a", HazardKind::kTerrain, 24.38f},
+    {"n5_s_fog4b", HazardKind::kTerrain, 24.38f},
+    {"n5_s_fog5a", HazardKind::kTerrain, 30.48f},
+    {"n5_s_fog5b", HazardKind::kTerrain, 30.48f},
+    {"n5_s_fog6a", HazardKind::kTerrain, 36.58f},
+    {"n5_s_fog6b", HazardKind::kTerrain, 36.58f},
+    {"n5_s_fog7a", HazardKind::kTerrain, 42.67f},
+    {"n5_s_fog7b", HazardKind::kTerrain, 42.67f},
+    {"n5_s_fog8a", HazardKind::kTerrain, 48.77f},
+    {"n5_s_fog8b", HazardKind::kTerrain, 48.77f},
+    {"n5_s_fog9a", HazardKind::kTerrain, 54.86f},
+    {"n5_s_fog9b", HazardKind::kTerrain, 54.86f},
 };
 
 const HazardScript* Find(const std::string& name) {
@@ -100,6 +126,16 @@ bool AvoidsHazards(bool faithful, bool player_controlled, int racial_type, bool 
 
 bool HazardHoldsAttack(bool avoids, bool would_be_hurt, bool target_inside, bool attacker_inside, bool ranged) {
   return avoids && would_be_hurt && target_inside && !attacker_inside && !ranged;
+}
+
+bool IsSentientRacialType(int nwn_racial_type) {
+  // racialtypes.2da: 8 Animal, 9 Beast, 25 Vermin, 29 Ooze.
+  return nwn_racial_type != 8 && nwn_racial_type != 9 && nwn_racial_type != 25 && nwn_racial_type != 29;
+}
+
+bool StepsOutOfTerrainArea(bool avoids, int racial_type, bool ranged, bool target_inside) {
+  if (!avoids || !IsSentientRacialType(racial_type)) return false;
+  return ranged || !target_inside;
 }
 
 }  // namespace rules

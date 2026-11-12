@@ -68,6 +68,7 @@ enum Bit {
   kBitStepOfTheWindFree = 38,
   kBitPrepareSpells = 39,  // #36 Part 3a (0.75.3)
   kBitHuntersMarkMove = 40,  // #39 2a (0.99.20): while Hunter's Mark lasts
+  kBitEscape = 41,           // #39 2a build 2c: while Entangle holds you
 };
 
 bool IsSecondWind(int value) {
@@ -87,7 +88,7 @@ const std::vector<int>& QuickbarActionFeats2024() {
                                           kFeatDash,           kFeatHelp,         kFeatActionSurge,
                                           kFeatCunningDash,    kFeatCunningDisengage, kFeatCunningHide,
                                           kFeatSteadyAim,      kFeatPatientDefenseFree, kFeatStepOfTheWindFree,
-                                          kFeatPrepareSpells,  kFeatHuntersMarkMove};
+                                          kFeatPrepareSpells,  kFeatHuntersMarkMove, kFeatEscape};
   return kFeats;
 }
 
@@ -182,6 +183,8 @@ std::vector<QuickbarAction> QuickbarActions2024(const QuickbarFacts& facts) {
     actions.push_back({kBitHuntersMarkMove, kFeatHuntersMarkMove, "Hunter's Mark: Move"});
   }
   if (has(kFeatPrepareSpells)) actions.push_back({kBitPrepareSpells, kFeatPrepareSpells, "Prepare Spells"});
+  // #39 2a build 2c (owner, 2026-11-12: "All recommended except Q3, go for B"): Escape, the feat a creature Entangle holds has while it's held.
+  if (has(kFeatEscape)) actions.push_back({kBitEscape, kFeatEscape, "Escape"});
   return actions;
 }
 
