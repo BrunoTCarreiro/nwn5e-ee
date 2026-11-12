@@ -274,6 +274,11 @@ void PanelClicked(void* creature) {
 
 }  // namespace
 
+// rules_spells2024.cpp (#39 2a build 3): a spell delivered later than its cast (Ensnaring Strike's, on its hit).
+void BeginConcentration(void* creature, int spell) {
+  if (Faithful() && creature) Begin(creature, spell);
+}
+
 void InstallConcentration() {
   if (!Faithful()) {
     Log("concentration: NWN's - no Concentration on spells (key concentration)");

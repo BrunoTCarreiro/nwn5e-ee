@@ -38,6 +38,7 @@
 #include "log.h"
 #include "rules/class_features.h"
 #include "rules/grapple.h"
+#include "rules/spells2024.h"
 
 namespace {
 
@@ -81,6 +82,8 @@ constexpr Entry kEntries[] = {
     {rules::kFeatDisengage, 1, "Disengage", "Called Shot: Arm"},
     {rules::kFeatDodge, 0, "Dodge", "Parry"},
     {rules::kFeatDash, 2, "Dash", "Improved Power Attack"},
+    // #39 2a build 2c (Q1 A): Escape - the feat a creature Entangle holds has while it's held (Speed 0: no Dash).
+    {rules::kFeatEscape, 2, "Escape", "Dash"},
 };
 constexpr size_t kPlayerMayAttack = 0x37c;  // bit 0x80: the page is built at all
 constexpr size_t kClientCreatureStats = 0x3b0;

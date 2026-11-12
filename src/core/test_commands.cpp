@@ -715,6 +715,34 @@ std::vector<std::string> FearCommand(void* creature, const std::string& args) {
   return {};
 }
 
+// #39 2a build 2c (0.99.27): "!castat <spell row> [self]" - the nearest other creature (within 30 m) casts that
+// spell at you, or with self at itself, known or not (a cheat cast, instant): Entangle on you to try its Escape,
+// Invisibility on an enemy for Faerie Fire's outline.
+std::vector<std::string> CastAtCommand(void* creature, const std::string& args) {
+  int row = -1;
+  char word[16] = {};
+  const int read = sscanf_s(args.c_str(), "%d %15s", &row, word, static_cast<unsigned>(sizeof(word)));
+  if (read < 1 || row < 0 || row > 4000) {
+    return {"nwn5e: !castat <spell row> [self] - the nearest other creature casts that spell at you (self: at itself), "
+            "e.g. !castat 53 (Entangle on you), !castat 90 self (Invisibility on itself)"};
+  }
+  const bool self = read == 2 && std::string(word) == "self";
+  const uint32_t id = ObjectIdOf(StatsOf(creature));
+  char code[1000];
+  sprintf_s(code,
+            "object pc = OBJECT_SELF; object c = GetNearestCreature(CREATURE_TYPE_IS_ALIVE, TRUE, pc, 1);"
+            " if (!GetIsObjectValid(c) || GetDistanceBetween(pc, c) > 30.0) { SendMessageToPC(pc, \"nwn5e: !castat - no "
+            "creature within 30 m.\"); return; }"
+            " object t = %s; string at = \"you\"; if (t == c) at = \"itself\";"
+            " AssignCommand(c, ClearAllActions(TRUE));"
+            " AssignCommand(c, ActionCastSpellAtObject(%d, t, METAMAGIC_ANY, TRUE, 0, PROJECTILE_PATH_TYPE_DEFAULT, TRUE));"
+            " SendMessageToPC(pc, \"nwn5e: test - \" + GetName(c) + \" casts spell %d at \" + at + \" (!castat).\");",
+            self ? "c" : "pc", row, row);
+  RunScriptChunk(code, id);
+  Log("test: 0x%08X !castat %d%s - the nearest creature casts it", id, row, self ? " self" : "");
+  return {};
+}
+
 // #38 (0.87.0): "!gold [amount]" - your gold, or set to `amount` (0 to 1,000,000; the material components'
 // costs tested without hunting for gold).
 std::vector<std::string> GoldCommand(void* creature, const std::string& args) {
@@ -1088,11 +1116,13 @@ void InstallTestCommands() {
   AddChatCommand("!time", &TimeCommand);
   AddChatCommand("!gold", &GoldCommand);
   AddChatCommand("!fear", &FearCommand);
+  AddChatCommand("!castat", &CastAtCommand);  // #39 2a build 2c
   AddChatCommand("!reflex", &ReflexCommand);
   AddChatCommand("!level", &LevelCommand);
   AddChatCommand("!go", &GoCommand);        // #156
   AddChatCommand("!reset", &ResetCommand);  // #156
   Log("config: [debug] test_commands=1 - !test [profile] (data\\tests), !give <blueprint>, !feat add / remove <feat>, "
       "!export, !spawn <blueprint> [ally | neutral], !prone [s], !save <ability> <dc>, !skill <skill> <dc>, !reflex <dc> <damage>, "
-      "!level <n> [class], !time [hours], !fear [charm] [s], !go <field | hall | dark>, !reset");
+      "!level <n> [class], !time [hours], !fear [charm] [s], !go <field | hall | dark>, !reset, "
+      "!castat <spell row> [self]");
 }

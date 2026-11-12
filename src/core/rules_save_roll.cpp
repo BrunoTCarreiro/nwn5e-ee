@@ -160,6 +160,9 @@ int g_script_spell = -1;
 // SK6: the ability of the save being rolled when not NWN's default for it (a
 // Shove's Strength save), set around that one roll.
 std::optional<rules::Ability> g_forced_ability;
+// #39 2a build 2b: a spell's Advantage on the next save (Charm Person against a creature you're fighting, Hideous
+// Laughter's save on damage), set around that one roll.
+bool g_forced_advantage = false;
 struct LastSave {
   void* creature = nullptr;
   rules::Ability ability = rules::Ability::kDexterity;
@@ -425,8 +428,10 @@ bool SaveD20(uintptr_t caller, int count, int sides, int* result) {
       ClassSaveAdvantage(g_save.creature, g_save.ability.value_or(rules::AbilityForNwnSave(
                                               static_cast<rules::NwnSave>(g_save.save - 1)))) > 0;
   const int staggered = TakeStaggeredSave(g_save.creature);  // Brutal Strike's Staggering Blow
-  const rules::RollMode mode = rules::ResolveRollMode((species ? 1 : 0) + (class_feature ? 1 : 0),
-                                                      g_save.condition.disadvantage + staggered);
+  const bool spell_advantage = g_forced_advantage;  // #39 build 2b
+  const rules::RollMode mode =
+      rules::ResolveRollMode((species ? 1 : 0) + (class_feature ? 1 : 0) + (spell_advantage ? 1 : 0),
+                             g_save.condition.disadvantage + staggered);
   const bool advantage = mode == rules::RollMode::kAdvantage;
   const bool disadvantage = mode == rules::RollMode::kDisadvantage;
   if (advantage || disadvantage) {
@@ -438,10 +443,12 @@ bool SaveD20(uintptr_t caller, int count, int sides, int* result) {
     kept = RollEngineDice(1, 20);  // Halfling Luck: reroll a natural 1
     lucky = true;
   }
-  if ((species || class_feature || disadvantage || lucky) && g_config.log_attacks && g_save_log_lines < 300) {
+  if ((species || class_feature || spell_advantage || disadvantage || lucky) && g_config.log_attacks &&
+      g_save_log_lines < 300) {
     ++g_save_log_lines;
-    Log("save d20: object 0x%08X save %d type %d:%s%s%s%s%s%s -> %d", IdOf(g_save.creature), g_save.save,
+    Log("save d20: object 0x%08X save %d type %d:%s%s%s%s%s%s%s -> %d", IdOf(g_save.creature), g_save.save,
         g_save.type, species ? " species advantage" : "", class_feature ? " class advantage (Danger Sense / Rage)" : "",
+        spell_advantage ? " spell advantage" : "",
         g_save.condition.disadvantage > 0 ? " disadvantage (" : "",
         g_save.condition.disadvantage > 0 ? (g_save.condition.note + ")").c_str() : "",
         staggered ? " disadvantage (Staggering Blow)" : "", lucky ? " Halfling Luck reroll" : "", kept);
@@ -472,6 +479,8 @@ std::optional<rules::Ability> SaveAbilityOverride(void* stats) {
 bool SaveRollInProgressFor(void* stats) { return g_save.active && g_save.creature && StatsOf(g_save.creature) == stats; }
 
 void SetForcedSaveAbility(std::optional<rules::Ability> ability) { g_forced_ability = ability; }
+
+void SetForcedSaveAdvantage(bool on) { g_forced_advantage = on; }
 
 std::optional<rules::Ability> RecentSaveAbility(void* creature) {
   if (!creature || g_last_save.creature != creature || GetTickCount() - g_last_save.tick > 200) return std::nullopt;

@@ -19,7 +19,9 @@ std::vector<FeatUseHandler> g_handlers;    // the same
 bool g_hooked = false;
 bool g_hook_failed = false;
 
-int UseFeat(void* creature, uint16_t feat, uint16_t subfeat, uint32_t target, uint32_t area, void* location) {
+thread_local uint32_t t_target = ee::kObjectInvalid;  // 0.99.22: the use's target (CurrentFeatUseTarget)
+
+int UseFeatGuarded(void* creature, uint16_t feat, uint16_t subfeat, uint32_t target, uint32_t area, void* location) {
   if (creature) {
     for (FeatUseGuard guard : g_guards) {
       if (!guard(creature, feat)) return 0;
@@ -38,6 +40,14 @@ int UseFeat(void* creature, uint16_t feat, uint16_t subfeat, uint32_t target, ui
   if (result && creature) {
     for (FeatUseListener listener : g_listeners) listener(creature, feat);
   }
+  return result;
+}
+
+int UseFeat(void* creature, uint16_t feat, uint16_t subfeat, uint32_t target, uint32_t area, void* location) {
+  const uint32_t outer = t_target;
+  t_target = target;
+  const int result = UseFeatGuarded(creature, feat, subfeat, target, area, location);
+  t_target = outer;
   return result;
 }
 
@@ -63,6 +73,8 @@ bool AddFeatUseListener(FeatUseListener listener) {
   g_listeners.push_back(listener);
   return true;
 }
+
+uint32_t CurrentFeatUseTarget() { return t_target; }
 
 bool AddFeatUseHandler(FeatUseHandler handler) {
   if (!Hook()) return false;

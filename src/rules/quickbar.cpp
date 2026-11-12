@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "rules/class_features.h"
+#include "rules/spells2024.h"
 
 namespace rules {
 
@@ -66,6 +67,8 @@ enum Bit {
   kBitPatientDefenseFree = 37,  // #55
   kBitStepOfTheWindFree = 38,
   kBitPrepareSpells = 39,  // #36 Part 3a (0.75.3)
+  kBitHuntersMarkMove = 40,  // #39 2a (0.99.20): while Hunter's Mark lasts
+  kBitEscape = 41,           // #39 2a build 2c: while Entangle holds you
 };
 
 bool IsSecondWind(int value) {
@@ -85,7 +88,7 @@ const std::vector<int>& QuickbarActionFeats2024() {
                                           kFeatDash,           kFeatHelp,         kFeatActionSurge,
                                           kFeatCunningDash,    kFeatCunningDisengage, kFeatCunningHide,
                                           kFeatSteadyAim,      kFeatPatientDefenseFree, kFeatStepOfTheWindFree,
-                                          kFeatPrepareSpells};
+                                          kFeatPrepareSpells,  kFeatHuntersMarkMove, kFeatEscape};
   return kFeats;
 }
 
@@ -157,7 +160,7 @@ std::vector<QuickbarAction> QuickbarActions2024(const QuickbarFacts& facts) {
   if (has(kFeatDisengage)) actions.push_back({kBitDisengage, kFeatDisengage, "Disengage"});  // #54 (3 B)
   if (has(kFeatDodge)) actions.push_back({kBitDodge, kFeatDodge, "Dodge"});                  // #56
   if (has(kFeatDash)) actions.push_back({kBitDash, kFeatDash, "Dash"});
-  if (has(kFeatHelp)) actions.push_back({kBitHelp, kFeatHelp, "Help"});
+  if (has(kFeatHelp)) actions.push_back({kBitHelp, kFeatHelp, "Rouse"});  // #39 build 2b: the Help action renamed
   // #53: the extra actions.
   if (has(kFeatActionSurge)) actions.push_back({kBitActionSurge, kFeatActionSurge, "Action Surge"});
   if (has(kFeatCunningDash)) actions.push_back({kBitCunningDash, kFeatCunningDash, "Cunning Action: Dash"});
@@ -174,7 +177,14 @@ std::vector<QuickbarAction> QuickbarActions2024(const QuickbarFacts& facts) {
     actions.push_back({kBitStepOfTheWindFree, kFeatStepOfTheWindFree, "Step of the Wind: Dash"});
   }
   // #36 Part 3a (owner, 2026-11-05: "PR-4 where's the prepare spells in the radial menu?"): the window's button.
+  // #39 2a (0.99.20; owner 2026-11-12: "I'm not a fan of using bonus actions automatically. I favour A. If there's an empty slot available put it there, but also have it available in the radial menu next to the hunter's mark"):
+  // the feat Hunter's Mark grants while it lasts.
+  if (has(kFeatHuntersMarkMove)) {
+    actions.push_back({kBitHuntersMarkMove, kFeatHuntersMarkMove, "Hunter's Mark: Move"});
+  }
   if (has(kFeatPrepareSpells)) actions.push_back({kBitPrepareSpells, kFeatPrepareSpells, "Prepare Spells"});
+  // #39 2a build 2c (owner, 2026-11-12: "All recommended except Q3, go for B"): Escape, the feat a creature Entangle holds has while it's held.
+  if (has(kFeatEscape)) actions.push_back({kBitEscape, kFeatEscape, "Escape"});
   return actions;
 }
 

@@ -20,6 +20,9 @@ using AttackRollListener = void (*)(AttackRoll& roll);
 // Hooks ResolveAttackRoll on first use; either listener may be nullptr.
 // False (and logged) if the hook can't be made.
 bool AddAttackRollListeners(AttackRollListener before, AttackRollListener after);
+// #39 2a build 3: an after-listener that runs before every other one (Shield: a hit turned into a miss before the
+// riders that act on a hit - Topple, Brutal Strike ...).
+bool AddAttackRollListenerFirst(AttackRollListener after);
 
 // A rule that resolves an attack itself (SK6: a Shove makes no attack roll)
 // returns true from a skipper, after writing the attack data's result: the

@@ -232,7 +232,7 @@ void SetReactionSwitch(void* creature, rules::Reaction reaction, bool on) {
   const int record = rules::SetReactionOn(engine::GetLocalInt(creature, kVarReactions), reaction, on);
   SetRecord(creature, kVarReactions, record);
   static const char* const kNames[] = {"Opportunity attacks", "Uncanny Dodge", "Deflect Attacks", "Retaliation",
-                                       "Deflect Attacks' redirect"};
+                                       "Deflect Attacks' redirect", "Shield"};
   Log("reactions: 0x%08X %s %s (record %d)", Field<uint32_t>(creature, ee::kObjectId),
       kNames[static_cast<int>(reaction)], on ? "on" : "off", record);
 }

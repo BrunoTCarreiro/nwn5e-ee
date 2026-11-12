@@ -36,6 +36,7 @@ rules::BrutalChoice BrutalStrikeChoice(void* creature);
 void PickBrutalStrike(void* creature, rules::BrutalEffect effect);
 // rules_cunning_strike.cpp
 int CunningStrikeRogueLevel(void* creature);
+bool ShieldKnown(void* creature);  // rules_spells2024.cpp (#39 2a build 3)
 rules::CunningChoice CunningStrikeChoice(void* creature);
 int CunningStrikeDcOf(void* creature);
 void PickCunningStrike(void* creature, rules::CunningEffect effect);
@@ -49,6 +50,10 @@ int OpenHandMonkLevel(void* creature);
 rules::OpenHandTechnique OpenHandTechniqueOf(void* creature);
 int MonkFocusDc(void* creature);
 void PickOpenHandTechnique(void* creature, rules::OpenHandTechnique technique);
+// rules_spells2024.cpp (0.99.22, #39 2a)
+int HuntersMarkRangerLevel(void* creature);
+bool HuntersMarkArmOn(void* creature);
+void SetHuntersMarkArm(void* creature, bool on);
 
 namespace {
 
@@ -57,7 +62,7 @@ constexpr const char* kStatus = "o_status";
 constexpr float kRowHeight = 28.0f;
 constexpr float kCheckWidth = 190.0f;
 
-enum class Kind { kBonus, kReaction, kAutomatic, kDisplay, kReckless, kBrutal, kCunning, kOpenHand };
+enum class Kind { kBonus, kReaction, kAutomatic, kDisplay, kReckless, kBrutal, kCunning, kOpenHand, kRanger };
 
 struct Option {
   const char* bind;  // the checkbox's bool bind (and its id)
@@ -93,6 +98,9 @@ const Option kOptions[] = {
     {"o_re_redirect", Kind::kReaction, 4, "Deflect: redirect",
      "a hit taken to 0: a Focus point, its attacker saves (Dex) or takes 2 Martial Arts dice + Dex"},
     {"o_re_retal", Kind::kReaction, 3, "Retaliation", "an attack back at a creature in reach that damages you"},
+    // #39 2a build 3: Shield, on by default.
+    {"o_re_shield", Kind::kReaction, 5, "Shield",
+     "+5 AC against a hit it turns into a miss, or Magic Missile (a spell slot, your Reaction)"},
     {"o_reckless", Kind::kReckless, 0, "Reckless Attack",
      "Advantage on your Strength attacks; attacks against you have Advantage until a round after your last"},
     {"o_bs_force", Kind::kBrutal, 1, "Forceful Blow", "pushed 15 ft straight away from you"},
@@ -108,6 +116,10 @@ const Option kOptions[] = {
     {"o_oh_topple", Kind::kOpenHand, 1, "Topple", "Dexterity save or knocked prone for a round"},
     {"o_oh_push", Kind::kOpenHand, 2, "Push", "Strength save or pushed 15 ft away from you"},
     {"o_oh_addle", Kind::kOpenHand, 3, "Addle", "no opportunity attacks until its next turn"},
+    // 0.99.22 (owner, 2026-11-12: "give rangers an option to keep it armed"): off by default.
+    {"o_hm_arm", Kind::kRanger, 0, "Hunter's Mark: keep an early Move armed",
+     "Move used while your quarry stands waits for it to drop, then marks the creature you picked (your Bonus "
+     "Action that round)"},
 };
 
 bool g_syncing = false;  // the window's own bind updates: not the player's clicks
@@ -125,6 +137,7 @@ bool Available(void* creature, const Option& o) {
         case rules::Reaction::kDeflectAttacks:
         case rules::Reaction::kDeflectRedirect: return rules::HasDeflectAttacks(OpenHandMonkLevel(creature));
         case rules::Reaction::kRetaliation: return rules::HasRetaliation(BrutalStrikeBarbarianLevel(creature));
+        case rules::Reaction::kShield: return ShieldKnown(creature);  // #39 2a build 3
       }
       return false;
     }
@@ -136,6 +149,7 @@ bool Available(void* creature, const Option& o) {
     case Kind::kCunning:
       return rules::CunningEffectAvailable(static_cast<rules::CunningEffect>(o.effect), CunningStrikeRogueLevel(creature));
     case Kind::kOpenHand: return rules::HasOpenHandTechnique(OpenHandMonkLevel(creature));
+    case Kind::kRanger: return HuntersMarkRangerLevel(creature) > 0;
   }
   return false;
 }
@@ -162,6 +176,7 @@ bool Checked(void* creature, const Option& o) {
       return false;
     }
     case Kind::kOpenHand: return static_cast<int>(OpenHandTechniqueOf(creature)) == o.effect;
+    case Kind::kRanger: return HuntersMarkArmOn(creature);
   }
   return false;
 }
@@ -179,6 +194,7 @@ void Toggle(void* creature, const Option& o, bool on) {
     case Kind::kOpenHand:  // one of three: a click on the chosen one turns the technique off
       PickOpenHandTechnique(creature, on ? static_cast<rules::OpenHandTechnique>(o.effect) : rules::OpenHandTechnique::kOff);
       break;
+    case Kind::kRanger: SetHuntersMarkArm(creature, on); break;
   }
 }
 
@@ -305,6 +321,16 @@ std::string Layout(void* creature, int* rows) {
   }
   for (const Option& o : kOptions) {
     if (o.kind != Kind::kOpenHand || !Available(creature, o)) continue;
+    add(OptionRow(o));
+    ++count;
+  }
+  const int ranger = HuntersMarkRangerLevel(creature);  // 0.99.22
+  if (ranger > 0) {
+    add(Header("Ranger " + std::to_string(ranger) + " - Hunter's Mark:"));
+    ++count;
+  }
+  for (const Option& o : kOptions) {
+    if (o.kind != Kind::kRanger || !Available(creature, o)) continue;
     add(OptionRow(o));
     ++count;
   }

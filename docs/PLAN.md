@@ -1185,6 +1185,9 @@ monster AC by CR.
     Sleep), 2c areas (Entangle, Faerie Fire, Grease, Fog Cloud). Asked: Q1 Jump (NWN has no jumping) - A not built,
     off the lists, B a visual and a line; Q2 Hex (the Warlock's alone; NWN has none) - A not until a Warlock, B now,
     for items and monsters. Recommended A on both.
+    *Decided (owner, 2026-11-12: "go with A on both").* Jump is not built and is on no list (the 2024 lists hold only
+    spells that exist - it never was); Hex waits for a Warlock, and will reuse Hunter's Mark's pieces (the Move feat,
+    its quickbar slot and radial entry, the keep-it-armed option).
   - *Built 0.99.4 (build 2a, the buffs):* each a mark on its creatures (an icon with the row cast - Concentration
     finds it), its rule in the hooks. Bless 6 / Bane 449 (up to 3 + a level, the nearest friends / enemies to the
     spot aimed at within 30 feet, Bane a Charisma save): 1d4 on / off attack rolls (weapon, spell) and saves (the
@@ -1221,6 +1224,192 @@ monster AC by CR.
     cancelled a moment later as the action queue's click cancels it, the round's swings held until then - and
     Sanctuary calls it when a player wards itself (rules::SanctuaryStopsOwnAttacks). On a henchman, or cast by
     one, its AI decides. Retest L2-7c.
+  - *Hunter's Mark: Move (owner, 2026-11-12: "where is Hunter's mark: move?", then "I don't think hunter's mark
+    moved automatically"; the log: the quarry died, the mark stayed - SRD 5.2's "you can take a Bonus Action to
+    move the mark" - and the Move feat, granted at the cast, was never found).* Asked: A - the Move feat on the
+    quickbar and a chat line when the quarry drops; B - the mark moves to the next creature attacked, spending the
+    Bonus Action. *Decided (owner, 2026-11-12: "I'm not a fan of using bonus actions automatically. I favour A. If there's an empty slot available put it there, but also have it available in the radial menu next to the hunter's mark").*
+    *0.99.20:* Hunter's Mark: Move is one of nwn5e's quickbar actions (rules/quickbar, bit 40: an empty slot the
+    first time it's granted, never overwriting; it stays between casts); while it's held, Hunter's Mark's radial
+    entry opens its levels (or the cast) and Hunter's Mark: Move, the spell menu's own feat leaf; and when the
+    quarry drops the player is told once. Retest L2-10b.
+    *0.99.21 (owner, 2026-11-12: "check the logs, I don't think the mark moved"):* the log - the first run's mark
+    moved ("Hunter's Mark moved to 0x35f", its next hit +1d6); in the second, Move was pressed while the quarry
+    stood, waited for the next round's Bonus Action, was refused - and the round's Bonus Action stayed spent, so the
+    radial's Move then waited a round more. A waited Bonus Action feat that's refused now gives the Bonus Action
+    back (bonus_actions.cpp); Move's refusals are logged. Retest L2-10c.
+    Asked (owner, 2026-11-12: "so the move action isn't queued until the marked quarry dies?") - no: Move used
+    early is refused. *Decided (owner, 2026-11-12: "give rangers an option to keep it armed").* *0.99.22:* a Ranger's
+    option in the Combat configuration window (!options, "Hunter's Mark: keep an early Move armed", off by default,
+    a record per character): Move used while the quarry stands is armed on the creature picked (nothing spent);
+    when the quarry drops the armed Move is used at it through UseFeat - that round's Bonus Action, or waiting for
+    the next (rules::HuntersMarkMoveNow). With it, a waiting Bonus Action feat now keeps its target (feat_use's
+    CurrentFeatUseTarget; it was used on the creature itself - a waiting Move would have marked its caster).
+    Test L2-13.
+  - *Accepted (owner, 2026-11-12: "2a accepted, go for 2b").* Build 2a (the buffs), 0.99.4-0.99.22: every row passed
+    (L1-19b, Chromatic Orb with no look, deferred - owner: "defer it for now"). Build 2b (conditions on creatures:
+    Command, Charm Person, Animal Friendship, Hideous Laughter, Color Spray, Sleep) next, its brief first.
+  - *Build 2b brief (2026-11-12; SRD 5.2.1, Open5e's srd-2024 text):* Command (Bard, Cleric, Paladin; Drop, Flee,
+    Grovel, Halt - no Approach, no undead or language clause; +1 creature a level) new, its words a radial choice;
+    Charm Person 16 (a Humanoid, Advantage if fighting it, Charmed and Friendly for an hour, ends on your side's
+    damage) and Animal Friendship (a Beast, 24 hours; a new row - NWN's Charm Person or Animal 17 is off the faithful
+    lists) on #106's charm; Hideous Laughter 457 (Prone and Incapacitated, can't stand, a save at each of its turns'
+    ends and on damage with Advantage; Concentration); Color Spray 24 (a 15-ft Cone, Constitution or Blinded to the
+    end of your next turn); Sleep 165 (a 5-ft Sphere, Wisdom or Incapacitated, a second failure Unconscious; damage or
+    a shake wakes it; elves and the Exhaustion-immune unaffected; Concentration). Asked: Q1 Command's Drop - A to the
+    ground, B into its inventory (the AI re-equips); Q2 waking a sleeper - A a "Shake awake" action, B damage only.
+    Recommended B and A.
+  - *Decided (owner, 2026-11-12: "go with B for Q1 and A for Q2. A for Q2 could be the same help action, just
+    renamed"):* Command's Drop puts what it holds into its inventory; the Help action (#56, feat 1324) becomes
+    "Rouse", every character's: on a sleeping creature within 5 ft it wakes it (SRD 5.2, Sleep), and with the Help
+    house rule on it gets a downed henchman up as before. *(My name for it: Rouse.)*
+  - *Built 0.99.23 (build 2b):* rules/spells2024.h's condition spells (Command's words, the creature types, the
+    saves' Advantage, Sleep's stages, the ranges and durations); core/rules_spells2024.cpp casts them, each a tagged
+    effect with the row cast, made by the caster (Concentration finds Hideous Laughter's and Sleep's). Command 1170
+    (Bard, Cleric, Paladin; its words 1171-1174 in cantrips.h's menu): a Wisdom save or, for its next round, Drop
+    (its hands emptied into its inventory, its actions locked), Flee (it runs 60 feet farther away), Grovel (a
+    round's knockdown) or Halt (held in place, locked); upcast, the enemies nearest the one aimed at. Charm Person 16
+    (Bard, Druid, Sorcerer, Wizard) and Animal Friendship 1175 (Bard, Druid, Ranger): a Wisdom save - Charm Person's
+    with Advantage against an enemy while you or it is in combat (the save roll's new SetForcedSaveAdvantage) - or
+    EffectCharmed (#106) for 1 / 24 game hours, ended by damage from its caster's side; another creature type is
+    refused before the cast; NWN's Charm Person or Animal 17 off the Druid's list. Hideous Laughter 457 (level 1;
+    Bard, Wizard): knocked down until a save at its round's end or on damage (that one with Advantage). Color Spray
+    24: the 15-foot Cone, a Constitution save or Blinded for two rounds. Sleep 165 (Bard, Sorcerer, Wizard; off the
+    Druid's and the Ranger's lists): the enemies in a 5-foot Sphere - dazed a round, then a second failure asleep
+    for the rest of the minute; damage or Rouse wakes it; elves, Constructs, Elementals, Oozes, Undead and NWN's
+    sleep-immune succeed. Rouse: feat 1324 for every character while the actions are faithful (staple_actions.cpp);
+    the Help house rule keeps its henchman use. NWN's Wiz_Sorc column is shared: the Sorcerer keeps Hideous
+    Laughter until the level 1 lists switch. Tests Spells2024Build2b (23 mutations caught), EveryoneCanShove (2);
+    !test conditionbard. Matrix L2b-1 to L2b-14.
+  - *0.99.24 (the log of the owner's L2b run, 2026-11-12, "check the logs"):* a sleeper's damage wake told and
+    logged (NWN's own sleep came off it first); an upcast's extra creatures and Sleep's skip creatures you've charmed
+    (rules::PickedAgainst). *0.99.25 (owner, 2026-11-12, L2b-1: "the enemy not re-arming after Command: Drop. they
+    just stand there and combat ends"):* an NPC, its commanded turn over, re-equips what it dropped and is woken as
+    by a hostile spell from you (Drop, Flee, Halt).
+  - *Accepted (owner, 2026-11-12: "2b accepted, go for 2c").* Build 2b, 0.99.23-0.99.25: every row passed (L2b-1b,
+    L2b-2 to L2b-15).
+  - *Build 2c brief (2026-11-12; SRD 5.2.1, Open5e's srd-2024 text):* the areas. Entangle 53 (Druid, Ranger; a
+    20-foot square within 90 feet, Difficult Terrain; each creature in it at the cast a Strength save or Restrained
+    until the spell ends - an action's Strength (Athletics) check against your DC frees it; Concentration, 1 minute;
+    NWN's entangles anew every round). Grease 66 (Sorcerer, Wizard - off the Bard's, Druid's and Ranger's lists; a
+    10-foot square within 60 feet, Difficult Terrain; a Dexterity save or Prone when it appears, on entering and at
+    the end of a turn there; 1 minute, no Concentration). Faerie Fire (Bard, Druid; new: NWN has none; a 20-foot
+    Cube within 60 feet, a Dexterity save or outlined in blue, green or violet - dim light 10 feet, no benefit from
+    Invisible, attack rolls against it with Advantage; Concentration, 1 minute). Fog Cloud (Druid, Ranger, Sorcerer,
+    Wizard; new; a 20-foot-radius Sphere within 120 feet, Heavily Obscured, 20 feet more a slot level above 1;
+    Concentration, 1 hour). 2024's squares (NWN's areas are circles: vfx_persistent rectangles with NWN's own
+    looks); Difficult Terrain is new - half Speed inside (a movement rate factor); the hazard-avoiding AI (#131)
+    learns the new areas. Asked: Q1 Entangle's escape - A an Escape action for players (quickbar and radial, your
+    action: the check; the Grapple's G3 can reuse it), NPCs trying once a round in place of their attacks (a
+    grapple's way); B everyone tries at the end of each round, no action. Q2 Fog Cloud's Heavily Obscured - A NWN's
+    darkness on those inside (they can't see out, no one sees them: the attack rules' unseen terms, hiding as in the
+    dark); B concealment only (Disadvantage on attacks into it). Q3 Faerie Fire and Invisible - A the outline ends
+    its invisibility (NWN can't draw an invisible creature outlined; Invisibility Purge's way); B suppressed while
+    outlined, back for the time it had left. Q4 Faerie Fire's colour - A a menu (Blue, Green, Violet: Command's
+    way), B one colour. Recommended A on all. NWN has no plain fog look: a placeholder until the animation session
+    designs one.
+  - *Decided (owner, 2026-11-12: "Hazard avoidance, sentient creatures with ranged attacks should still try to avoid
+    these, but not as much melee only sentient creatures. / All recommended except Q3, go for B"):* Q1 A (an Escape
+    action; NPCs try once a round), Q2 A (NWN's darkness inside the fog), Q3 B (an outlined creature's invisibility
+    suppressed while outlined, back for the time it had left), Q4 A (a colour menu). The hazard-avoiding AI and the
+    2c areas (Entangle, Grease, Fog Cloud; Faerie Fire leaves none) - *my reading:* sentient is any creature but
+    animals, beasts, vermin and oozes (undead and constructs avoid nothing, #131); one holding a ranged weapon keeps
+    out of them as of any hazard (steps out, doesn't walk in); a melee-only one walks in after a target standing in
+    one and stays while its target is there, else steps out; the rest don't avoid them. The owner also asked:
+    "doesn't grease have a chance of making a creature fall prone if they fail a dex check?" - yes: SRD 5.2.1's
+    Grease is a Dexterity saving throw or Prone when it appears, on entering and at the end of a turn there (nwn5e's
+    Prone: a round's knockdown).
+  - *Built 0.99.26 (build 2c):* rules/spells2024.h's areas (kArea: kSquare, Fog Cloud's radius by slot level,
+    Difficult Terrain's half Speed, Faerie Fire's colours and its suppressed invisibility's time left);
+    core/rules_spells2024.cpp makes each area in the spell's context (vfx_persistent.if_spells2024.txt 105-115:
+    2024's squares with NWN's Entangle and Grease looks; Fog Cloud a placeholder, NWN's Mind Fog cloud) - Concentration
+    finds it and its effects. Entangle 53 (Druid, Ranger): Difficult Terrain; each creature in it at the cast but
+    you, a Strength save or Restrained (EffectEntangle) until the spell ends; Escape (feat 1563, row 1181, an Action
+    - granted while held: the quickbar's bit 41, the radial's Special Attacks slot 2 in Dash's place) makes the
+    Athletics check (the Grapple's EscapeSucceeds); an NPC tries once a round, its round paused for it. Grease 66
+    (Sorcerer, Wizard): Difficult Terrain; a Dexterity save or knocked down a round on entering (its appearing
+    included) and at each round's end inside. Faerie Fire 1176 (Bard, Druid; Blue, Green, Violet 1177-1179): each
+    creature in the 20-foot Cube, a Dexterity save or outlined (a glow and a light; NWN has no green light: white);
+    attack rolls against it with Advantage while the attacker can see it (rules_advantage.cpp); its invisibility
+    taken off with a holder in its place (its spell, creator and time: Concentration holds, and ends it) and put
+    back for the time it had left. Fog Cloud 1180 (Druid, Ranger, Sorcerer, Wizard): NWN's darkness on those
+    inside; hiding there as in the dark (rules_perception.cpp's LightTerm). The hazard-avoiding AI (hazard_watch.cpp,
+    rules::StepsOutOfTerrainArea). Tests Spells2024Build2c and TerrainAreaAvoidance (23 mutations caught), the
+    Concentration list, the quickbar's Escape (3); !test areadruid. *0.99.27:* `!castat <spell row> [self]` - the
+    nearest other creature casts a spell at you (or itself), for Escape's and the suppressed invisibility's tests.
+    Matrix L2c-1 to L2c-11.
+  - *Tested (owner, 2026-11-12: "that test matrix passes"):* L2c-1 to L2c-11 passed. *For later (owner, 2026-11-12:
+    "we'll have to look at the entangled, grease and fog effects" - "I meant for later, not right now, it's just
+    something I have to remember"):* the looks of Entangle's, Grease's and Fog Cloud's areas (the animation
+    session's, when it's taken up).
+  - *#160, the hazard-avoiding AI and the 2c areas (owner, 2026-11-12: "We need to work on enemies avoiding hazard
+    areas, if it's just difficult terrain or low visibility an enemy probably shouldn't be running from it like the
+    plague. in fog I think enemies would walk around trying to find the player, if it's difficult terrain we would
+    probably need to take into account not only if they have ranged capabilities but also their int/wis. A dumb
+    sentient enemy would still try to plow through difficult terrain to go hit the player with a hammer").* Brief:
+    0.99.26 runs a sentient creature out of Entangle, Grease and Fog Cloud (a ranged one always, a melee-only one
+    unless its target is inside) each time the area's scripts run, at most once in 4 s - a held one too; NWN's AI
+    doesn't search for a target it lost (it stands, or walks at random). Planned: Fog Cloud no hazard; Difficult
+    Terrain walked out of once, not run from; held creatures left alone. Asked: Q1 who is dumb (plows through) - A
+    the Intelligence and Wisdom modifiers together below 0 (orcs, gnolls, ogres, trolls plow; bandits, hobgoblins,
+    cultists, mages are careful), B Intelligence below 10, C both Intelligence and Wisdom below 10. Q2 the fog - A a
+    creature that loses its target in it walks to where it last saw it and searches there (a step to a spot within 3 m
+    each round, three rounds, then gives up), ranged or not; B NWN's own AI (no search). Q3 Grease (a fall, not only
+    slow ground) - A a careful creature keeps out as of a hazard (ranged always, melee unless its target is inside)
+    and a dumb one plows through and slips, B as Entangle's Difficult Terrain. Recommended A on all.
+    *Decided (owner, 2026-11-12: "go with A on all"):* Q1 A (careful: the Intelligence and Wisdom modifiers together
+    0 or more), Q2 A (the fog searched: three rounds about where the target was last seen), Q3 A (Grease a hazard to
+    the careful, plowed through by the dumb).
+    *Built 0.99.28:* hazard_avoid's kinds for the 2c areas (kDifficultTerrain, kGrease, kFog), rules::IsCarefulMind,
+    TerrainAreaStep (stay, walk out once, keep out) and SearchesFog; hazard_watch.cpp walks a careful avoider out of
+    Entangle once (ClearAllActions, ActionMoveAwayFromLocation at a walk), keeps it out of Grease as before (a run,
+    once in 4 s), leaves the fog and anyone Entangle holds alone; rules_spells2024.cpp's fog search (the creature's
+    last attack target kept while it has one; lost in a fog: ActionMoveToLocation to it, then within 3 m, a round
+    apart, three rounds). The stock creatures: nw_orca, nw_orcb (Int 9, Wis 8) and nw_gnoll001 dumb; nw_goblina,
+    nw_kobold001, nw_bandit001 careful. Test TerrainAreaAvoidance (14 mutations caught). Matrix HZ-1 to HZ-5.
+    *Accepted (owner, 2026-11-12: "I'll accept the test matrix").* #160: HZ-1 to HZ-5 passed.
+  - *Accepted (owner, 2026-11-12: "2c accepted, go for 3").* Build 2c, 0.99.26-0.99.28: every row passed (L2c-1 to
+    L2c-11; #160's HZ-1 to HZ-5). Build 3 (reactions and smites) next, its brief first.
+  - *Build 3 brief (2026-11-12; SRD 5.2.1, Open5e's srd-2024 text; the approach decided 2026-11-09: reactions
+    automatic with a switch each, smites armed by the cast and delivered by the next weapon hit):* Shield 417
+    (Sorcerer, Wizard; a Reaction when hit by an attack roll or targeted by Magic Missile: +5 AC until the start of
+    your next turn, the triggering attack included, no Magic Missile damage - nwn5e: when it would turn the hit, a
+    switch beside Uncanny Dodge's, Shield first when both could), Feather Fall (Bard, Sorcerer, Wizard; a visual
+    and a line, #153), Divine Smite (Paladin; 2d8 Radiant, 1d8 more on a Fiend or an Undead and a slot level),
+    Searing Smite (Paladin; 1d6 Fire, then 1d6 at the start of each of its turns until a Constitution save ends it;
+    1d6 more a level), Ensnaring Strike (Ranger; Concentration: a Strength save - Advantage if Large or larger - or
+    Restrained with 1d6 Piercing at the start of each of its turns; an Athletics check frees it). New rows but
+    Shield's. 2024's smites are a Bonus Action taken right after a hit. Thunderous and Wrathful Smite aren't in SRD
+    5.2.1 (not built); Paladin's Smite (a free one) is the Paladin's (#44). Asked: Q1 the smites' cost - A armed by
+    the cast for nothing, the slot and the Bonus Action spent by the next melee hit while you have both (2024's
+    after-the-hit choice, nothing lost); B both spent at the cast, the next hit before the end of your next turn
+    delivers it, else lost. Q2 Hellish Rebuke (the Warlock's alone) - A waits for the Warlock (#48), as Hex; B now,
+    for items and monsters. Q3 NPC casters' Shield (NWN's AI casts it as a buff) - A their Reaction too, on a hit it
+    would turn; B as their AI casts it, +5 AC for a round. Q4 Ensnaring Strike's escape - A the held creature's
+    Escape (build 2c's: a player's Action, an NPC once a round), B also an ally's Action from within reach.
+    Recommended A on all.
+  - *Decided (owner, 2026-11-12: "go with A on all"):* Q1 A (a smite armed for nothing, paid by the hit), Q2 A
+    (Hellish Rebuke waits for the Warlock), Q3 A (NPC casters' Shield their Reaction), Q4 A (Ensnaring Strike's
+    escape the held creature's Escape).
+  - *Built 0.99.29 (build 3):* rules/spells2024.h (kReaction, kSmite; ShieldTurnsHit, SmiteRidesOn, the smites'
+    dice, FiendOrUndead, EnsnaringSaveAdvantage; rules::Reaction::kShield, on by default). Shield: the attack roll's
+    first after-listener (attack_roll.cpp's AddAttackRollListenerFirst - before a hit's riders) turns a weapon hit
+    +5 AC would miss (never a natural 20) into a miss; a spell attack's is decided at its AC (rules_attack.cpp's
+    GetArmorClassVersus asks rules_spell_attack.cpp, which rolls the d20 there and gives it to the dice after);
+    Magic Missile aimed at it. Its source: a class slot with it known (GetIsInKnownSpellList) and the lowest slot
+    that casts it (a Wizard's prepared copies), else a creature's own uses (GetHasSpell); the slot not this turn's
+    one spell with a slot. +5 AC a round (SpellArmorClassBonus), its switch in !options. The smites: OrderGuard
+    arms one (nothing spent); a ResolveDamage listener pays it (the slot as a Bonus Action spell's, the Bonus
+    Action) on the next hit it rides and adds its dice; Searing Smite's burn and Ensnaring Strike's save (Concentration
+    begun then: rules_concentration.cpp's BeginConcentration) at the target's next update; Ensnaring Strike's hold
+    is build 2c's (Escape). Test Spells2024Build3 (16 mutations caught). Matrix L3-1 to L3-11.
+  - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
+    spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
+    the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
+    (SpellLookFlies, anim ad605bf), else NWN's bolts; B - wait for a designed look; C - NWN's visuals only.
+    *Decided (owner, 2026-11-11: "go with A for magic missile").* *0.99.17:* Darts flies the look's darts
+    when SpellLookFlies(row), each dart's damage (its own 1d4 + 1) landing as that dart does - held by the target,
+    as Chromatic Orb's - with the look's hit effect, not VFX_IMP_MAGBLUE; otherwise NWN's MIRV bolts as before.
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
   New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion
@@ -6032,6 +6221,28 @@ animation session sent:
   -1 HP with no henchman standing"), as decided for `dying` faithful; the Test Grounds left that script, and
   OnPlayerDeath / OnPlayerRespawn, empty, so nothing ended it. The module's fix (the animation session's
   generator): the game's standard nw_o0_dying, nw_o0_death and nw_o0_respawn.
+
+### The chat bar's history (#158)
+
+*Asked (owner, 2026-11-12):* "can we add a history to the chat input? since we're using it a lot for commands,
+having a way to repeat commands without having to type them all over again would be great. like when the chat input
+is active, pressing up would cycle through the previous commands". EE's chat bar keeps none (the engine's only
+history, DoConsoleHist / g_listHistory, is its developer console's).
+
+- Up shows the previous line sent, again the one before; Down goes back toward the newest, then to what was being
+  typed before the first Up. Every line sent from the chat bar (commands and chat), the newest 50, a repeat of the
+  newest not added twice; kept in `nwn5e_chat_history.txt` next to the DLL, so a restart keeps them. *(My defaults:
+  all lines, 50, kept across restarts.)*
+- The history: data::ChatHistory (src/data/chat_history.*, unit-tested). The client: src/core/chat_input.cpp hooks
+  CGuiEdit::HandleKeyPress and CGuiSingleLineEdit::HandleKeyPress (static analysis of 89.8193.37: the arrows come as
+  0x126 up / 0x128 down, a line up / down, nothing in a one-line box). Only the chat bar's box is touched - the one
+  whose Enter callback's owner (+0xA8) is the in-game chat panel (RTTI .?AVCGuiInGameChat...); its text is set
+  through its CAuroraStringWrapper (+0x80, as CPanelGenericEditBox::SetEditText does), the caret at the end.
+- *Built 0.99.18.*
+- *0.99.19 (owner, 2026-11-12: "up does nothing in the chat"; the log: the chat bar's box found, the lines noted):*
+  the codes were swapped. HandleWMKeyDownMessage makes 0x126 for Up and 0x128 for Down (0x125 / 0x127 are Left /
+  Right); 0.99.18 read the text box's line and caret calls the wrong way round, so Left / Right walked the history
+  and Up did nothing. The caret is set through +0x168 (Home's call), not +0x158 (the line's).
 
 ## Test register — the owner's request (2026-11-08, #147)
 

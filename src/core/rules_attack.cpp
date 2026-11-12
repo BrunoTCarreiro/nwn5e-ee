@@ -32,6 +32,7 @@
 int RacialSlingBonusToRemove(void* stats, bool ranged);  // rules_racial.cpp
 
 bool SpellAttackAgainstFullAc(void* target_stats, void* attacker);  // rules_spell_attack.cpp (SK10)
+int16_t SpellAttackShieldAc(void* target_stats, void* attacker, int16_t armor_class);  // rules_spell_attack.cpp
 
 int FightingStyleAttackBonus(void* stats);  // rules_fighter.cpp (Fighter F1 Archery)
 int DefenseArmorClassBonus(void* stats);    // rules_fighter.cpp (Fighter F1 Defense)
@@ -80,8 +81,7 @@ int GetAttackModifierVersus(void* stats, void* target) {
   return converted + style;
 }
 
-int16_t GetArmorClassVersus(void* stats, void* attacker, int touch) {
-  if (touch && SpellAttackAgainstFullAc(stats, attacker)) touch = 0;  // SK10: 2024 has no touch AC
+int16_t ArmorClassVersus(void* stats, void* attacker, int touch) {
   const int16_t engine_armor_class = g_get_armor_class_versus(stats, attacker, touch);
   // Defense: +1 in armour (not to a 3e touch AC, which leaves armour out).
   const int16_t gear_armor_class = static_cast<int16_t>(
@@ -107,6 +107,13 @@ int16_t GetArmorClassVersus(void* stats, void* attacker, int touch) {
         touch ? " (touch)" : "", engine_armor_class, converted);
   }
   return static_cast<int16_t>(converted + SpellArmorClassBonus(stats, false));  // #39 2a: Shield of Faith
+}
+
+int16_t GetArmorClassVersus(void* stats, void* attacker, int touch) {
+  const bool spell_touch = touch && SpellAttackAgainstFullAc(stats, attacker);  // SK10: 2024 has no touch AC
+  const int16_t armor_class = ArmorClassVersus(stats, attacker, spell_touch ? 0 : touch);
+  // #39 2a build 3: a spell attack the target's Shield would turn - its +5 counted against it.
+  return spell_touch ? SpellAttackShieldAc(stats, attacker, armor_class) : armor_class;
 }
 
 }  // namespace

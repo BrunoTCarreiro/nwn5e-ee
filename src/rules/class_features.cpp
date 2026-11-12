@@ -994,7 +994,7 @@ const std::vector<int>& GrantableFeats2024() {
   return kFeats;
 }
 
-std::vector<int> FeatsEveryoneHas2024(bool shove_faithful, bool actions_faithful, bool help_house_rule) {
+std::vector<int> FeatsEveryoneHas2024(bool shove_faithful, bool actions_faithful) {
   std::vector<int> feats;
   if (shove_faithful) {
     feats.push_back(kFeatKnockdownShove);
@@ -1005,7 +1005,7 @@ std::vector<int> FeatsEveryoneHas2024(bool shove_faithful, bool actions_faithful
     feats.push_back(kFeatDisengage);  // #54 (3 B)
     feats.push_back(kFeatDodge);      // #56
     feats.push_back(kFeatDash);
-    if (help_house_rule) feats.push_back(kFeatHelp);  // #56: the house rule, off by default
+    feats.push_back(kFeatHelp);       // #56; #39 build 2b: Rouse, everyone's
   }
   return feats;
 }

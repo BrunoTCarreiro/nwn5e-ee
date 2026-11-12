@@ -15,6 +15,11 @@
 // (a damage-type menu, its orb leaping on matching dice), Heroism (Concentration: Temporary Hit Points each turn).
 // Build 2a (owner, 2026-11-10: "go for build 2"): the buffs - Bless, Bane, Shield of Faith, Mage Armor, Divine
 // Favor, Protection from Evil and Good, Sanctuary, Expeditious Retreat, Longstrider, Hunter's Mark.
+// Build 2b (owner, 2026-11-12: "2a accepted, go for 2b"): conditions on creatures - Command, Charm Person, Animal
+// Friendship, Hideous Laughter, Color Spray, Sleep.
+// Build 2c (owner, 2026-11-12: "2b accepted, go for 2c"): the areas - Entangle, Grease, Faerie Fire, Fog Cloud.
+// Build 3 (owner, 2026-11-12: "2c accepted, go for 3"): reactions and smites - Shield, Feather Fall, Divine Smite,
+// Searing Smite, Ensnaring Strike.
 
 namespace rules {
 
@@ -25,12 +30,18 @@ enum class SpellEffect2024 {
   kHealing,             // Hit Points regained: its dice + the spellcasting ability modifier
   kTemporaryHitPoints,  // False Life: its dice + `flat`
   kBuff,                // Heroism: no roll
+  kCondition,           // build 2b: a condition on creatures - a save, no damage
+  kArea,                // build 2c: an area that lasts (its creatures' saves at the cast, its terrain after)
+  kReaction,            // build 3: taken by its trigger (Shield), or a visual and a line (Feather Fall)
+  kSmite,               // build 3: armed by the cast, paid and delivered by the next qualifying hit
 };
 
 enum class SpellShape2024 {
   kOne,             // one creature
   kCone,            // a Cone from the caster toward the point aimed at, `feet` long
   kCubeFromCaster,  // a Cube with one face on the caster, toward the point aimed at, `feet` on a side
+  kSphere,          // a Sphere centred on the point aimed at, `feet` its radius (Sleep)
+  kSquare,          // a square on the ground centred on the point aimed at, `feet` on a side (a Cube's: its floor)
 };
 
 struct Spell2024 {
@@ -177,6 +188,116 @@ bool WardedAgainstRacialType(int nwn_racial_type);
 // itself stops its attacks; a click on an enemy attacks again (and ends it). On someone else - a henchman, whose
 // AI decides - or cast by a henchman: nothing stopped.
 bool SanctuaryStopsOwnAttacks(bool on_caster, bool caster_is_player);
+// Hunter's Mark: Move used (0.99.22; owner, 2026-11-12: "give rangers an option to keep it armed"): its quarry down - the
+// mark moves; still standing - with the Ranger's option on and another creature picked it's armed (it goes once
+// the quarry drops, that round's Bonus Action), else refused (SRD 5.2: the mark moves only once the target drops).
+enum class MarkMove { kMove, kArm, kRefuse };
+MarkMove HuntersMarkMoveNow(bool quarry_down, bool keep_armed, bool other_creature_picked);
+
+// Build 2b: conditions on creatures.
+constexpr int kCharmPerson = 16;
+constexpr int kCharmPersonOrAnimal = 17;  // NWN's: off the faithful lists (Charm Person, Animal Friendship)
+constexpr int kColorSpray = 24;
+constexpr int kSleep = 165;
+constexpr int kHideousLaughter = 457;  // NWN's Tasha's Hideous Laughter (level 2 there)
+constexpr int kCommand = 1170;         // its four words, 1171-1174: cantrips.h's choice menus
+constexpr int kCommandDrop = 1171;
+constexpr int kCommandFlee = 1172;
+constexpr int kCommandGrovel = 1173;
+constexpr int kCommandHalt = 1174;
+constexpr int kAnimalFriendship = 1175;
+// Command: a failed Wisdom save and the target follows the word on its next turn (nwn5e: the next round) - Drop
+// (what it holds goes into its inventory, its AI arms itself again: owner, 2026-11-12: "go with B for Q1 and A for Q2. A for Q2 could be the same help action, just renamed",
+// Q1 B; then its turn ends), Flee (its turn spent moving away from you), Grovel (Prone, then its turn ends), Halt
+// (no move, no action). The master cast with no word chosen (an item's): Halt.
+enum class CommandWord { kDrop, kFlee, kGrovel, kHalt };
+CommandWord CommandWordOf(int row);
+const char* CommandWordName(CommandWord word);
+// Command, Charm Person, Animal Friendship, Hideous Laughter: one creature, one more for each slot level above 1
+// (nwn5e: the one aimed at, then the enemies nearest it within range).
+int ConditionSpellTargets(int slot_level);
+// Their ranges in feet (Color Spray 0: its Cone from you).
+int ConditionSpellRangeFeet(int row);
+// Their durations: in rounds (6 s) for a minute or less - Command 1 (its next turn), Color Spray 2 (to the end of
+// your next turn, the cantrips' reading), Hideous Laughter and Sleep 10 - else in hours (NWN's game hours, as Mage
+// Armor's 8): Charm Person 1, Animal Friendship 24. 0: not one of them, or not in that unit.
+int ConditionSpellRounds(int row);
+int ConditionSpellHours(int row);
+// Charm Person: a Humanoid (NWN's racial types: the seven player races, goblinoids, orcs, reptilians); Animal
+// Friendship: a Beast (animals, beasts, vermin). The others: any creature.
+bool IsHumanoidRacialType(int nwn_racial_type);
+bool IsBeastRacialType(int nwn_racial_type);
+bool ConditionSpellTargetFits(int row, int nwn_racial_type);
+// Charm Person's save has Advantage if you or your allies are fighting it (nwn5e: an enemy, while you or it is in
+// combat).
+bool CharmSaveAdvantage(bool enemy, bool fighting);
+// Hideous Laughter: a save at the end of each of its turns and each time it takes damage - that one with Advantage.
+bool LaughterSaveAdvantage(bool after_damage);
+// Sleep: a failed save - Incapacitated until the end of its next turn, then the save again: a failure Unconscious
+// for the duration, a success awake. Damage, or someone within 5 feet taking an action to shake it (Rouse, the
+// Help action renamed - owner, 2026-11-12: "go with B for Q1 and A for Q2. A for Q2 could be the same help action, just renamed",
+// Q2 A), ends it on that creature. Creatures that don't sleep (elves) or are immune to Exhaustion (Constructs,
+// Elementals, Oozes, Undead) succeed - and NWN's sleep immunity.
+enum class SleepStage { kIncapacitated, kUnconscious, kAwake };
+SleepStage SleepAfterSecondSave(bool saved);
+bool SleepUnaffectedRacialType(int nwn_racial_type);
+// 0.99.24 (the owner's L2b run, 2026-11-12: an upcast Hideous Laughter knocked down the orc Charm Person had just
+// charmed): who an upcast's extra creatures and Sleep's creatures of your choice are picked from - your enemies, not
+// one you've charmed (Friendly to you; NWN's enemy test doesn't know it).
+bool PickedAgainst(bool enemy, bool charmed_by_caster);
+
+// Build 2c: the areas (owner, 2026-11-12: "All recommended except Q3, go for B").
+constexpr int kEntangle = 53;
+constexpr int kGrease = 66;
+constexpr int kFaerieFire = 1176;        // its colours, 1177-1179: cantrips.h's choice menus (Q4 A)
+constexpr int kFaerieFireBlue = 1177;
+constexpr int kFaerieFireGreen = 1178;
+constexpr int kFaerieFireViolet = 1179;
+constexpr int kFogCloud = 1180;
+constexpr int kEscape = 1181;            // the Escape action's row (Q1 A)
+constexpr int kFeatEscape = 1563;
+// Entangle: each creature in its square at the cast but you, a Strength save or Restrained until the spell ends; an
+// action's Strength (Athletics) check against your spell save DC frees it (Q1 A: the Escape action; an NPC tries once
+// a round in place of its attacks). Grease: a Dexterity save or Prone when it appears, on entering and at the end of
+// a turn there. Both are Difficult Terrain - every foot of movement costs one more: nwn5e, half Speed inside. The
+// Escape check is the Grapple's (grapple.h: EscapeSucceeds, d20 + the bonus against the DC), with Athletics alone.
+float DifficultTerrainFactor(float factor, bool inside);
+// Faerie Fire's light (Q4 A): blue, green or violet - the master cast with none chosen (an item's): blue.
+enum class FaerieColour { kBlue, kGreen, kViolet };
+FaerieColour FaerieColourOf(int row);
+const char* FaerieColourName(FaerieColour colour);
+// Faerie Fire's outline (Q3 B): an outlined creature can't benefit from Invisible - its invisibility is suppressed
+// while it's outlined and comes back for the time it had left (-1: a permanent one, back for good; 0: it ran out).
+int InvisibilityLeftSeconds(int left_when_suppressed, int seconds_suppressed);
+// Fog Cloud: a 20-foot-radius Sphere, 20 feet more for each slot level above 1.
+int FogCloudRadiusFeet(int slot_level);
+// The areas' ranges in feet: Entangle 90, Grease and Faerie Fire 60, Fog Cloud 120.
+int AreaSpellRangeFeet(int row);
+
+// Build 3: reactions and smites (owner, 2026-11-12: "go with A on all").
+constexpr int kShield = kNwnShield;     // NWN's Shield 417, SRD 5.2.1's now
+constexpr int kFeatherFall = 1182;      // a visual and a line - NWN has no falling (#153)
+constexpr int kDivineSmite = 1183;
+constexpr int kSearingSmite = 1184;
+constexpr int kEnsnaringStrike = 1185;
+// Shield: a Reaction when you're hit by an attack roll (or targeted by Magic Missile) - +5 AC until the start of
+// your next turn, the triggering attack included. nwn5e: taken when it would turn the hit - never a natural 20.
+constexpr int kShieldAc = 5;
+bool ShieldTurnsHit(int total, int armor_class, bool natural_twenty);
+// The smites (Q1 A): armed by the cast for nothing; the next qualifying hit, while you have the armed slot's level
+// and the Bonus Action, spends both and delivers it. Divine Smite and Searing Smite ride a melee weapon or an
+// Unarmed Strike; Ensnaring Strike any weapon (an Unarmed Strike isn't one).
+bool SmiteRidesOn(int row, bool ranged, bool unarmed);
+// Divine Smite: 2d8 Radiant, 1d8 more on a Fiend or an Undead and for each slot level above 1.
+bool FiendOrUndead(int nwn_racial_type, bool evil);
+int DivineSmiteDice(int slot_level, bool fiend_or_undead);
+// Searing Smite: 1d6 Fire on the hit and at the start of each of its turns (a Constitution save ends it); Ensnaring
+// Strike: Restrained on a failed Strength save - Advantage if Large or larger - and 1d6 Piercing at the start of each
+// of its turns. Each 1d6 more for each slot level above 1.
+int SearingSmiteDice(int slot_level);
+int EnsnaringStrikeDice(int slot_level);
+bool EnsnaringSaveAdvantage(int nwn_creature_size);
+constexpr int kRouseFeet = 5;
 
 // Chromatic Orb: two or more of its d8s alike - the orb leaps to another creature within 30 feet of the target (a
 // new attack roll, a new damage roll), at most as many times as the slot's level, each creature once a casting.

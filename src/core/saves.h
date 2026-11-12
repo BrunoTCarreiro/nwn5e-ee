@@ -21,6 +21,9 @@ bool SaveRollInProgressFor(void* stats);
 void RememberSaveDc2024(uint32_t caster, int dc);
 // SK6: the next save rolls on `ability` (nullopt: back to the save's own).
 void SetForcedSaveAbility(std::optional<rules::Ability> ability);
+// #39 2a build 2b: the next save rolls with Advantage (a spell's own: Charm Person against a creature you're
+// fighting, Hideous Laughter's save on damage); false: back to the save's own.
+void SetForcedSaveAdvantage(bool on);
 
 // R8 (Rogue Evasion): the ability of the save `creature` rolled in the last
 // 200 ms (after C1's spell substitution and any forced ability), or none - the

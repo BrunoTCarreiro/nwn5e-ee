@@ -10,10 +10,12 @@
 // - Dash (feat 1323, n5_dash): its speed doubled for the round (a movement rate bonus: rules::DashMovementFactor -
 //   not an effect, so the engine's speed cap doesn't hold it back; the grapple's drag still halves it). Slot 2
 //   (Improved Power Attack's), and the quickbar.
-// - Help (feat 1324, n5_help) - the house rule, off by default ([house_rules] help; not SRD 5.2: the 2024 Help
-//   stabilizes a creature at 0 Hit Points, and nwn5e's downed henchmen make no death saves): on a downed henchman, a
-//   DC 10 Wisdom (Medicine) check (NWN's Heal, the 2024 skill value) - success, it gets up at 1 HP (rules_dying.cpp);
-//   failure, nothing. The quickbar (a target: the radial's page has no slot left).
+// - Rouse (feat 1324, n5_help; #39 build 2b - owner, 2026-11-12: "A for Q2 could be the same help action, just
+//   renamed" - the Help action, everyone's now): a creature under the Sleep spell within 5 feet is shaken awake
+//   (SRD 5.2.1, Sleep; rules_spells2024.cpp). With the Help house rule ([house_rules] help, off by default; not SRD
+//   5.2: the 2024 Help stabilizes a creature at 0 Hit Points, and nwn5e's downed henchmen make no death saves) also
+//   on a downed henchman, a DC 10 Wisdom (Medicine) check (NWN's Heal, the 2024 skill value) - success, it gets up
+//   at 1 HP (rules_dying.cpp); failure, nothing. The quickbar (a target: the radial's page has no slot left).
 
 #include "staple_actions.h"
 
@@ -40,6 +42,7 @@
 
 bool IsDownHenchmanUnderRules(uint32_t id);  // rules_dying.cpp
 bool HelpDownHenchmanUp(uint32_t id);        // rules_dying.cpp
+int WakeFromSleepSpell(uint32_t rouser, uint32_t target);  // rules_spells2024.cpp (#39 build 2b)
 
 namespace {
 
@@ -91,14 +94,28 @@ uint32_t SpellTarget(uint32_t self) {
   return text.empty() ? ee::kObjectInvalid : static_cast<uint32_t>(strtoul(text.c_str(), nullptr, 16));
 }
 
-void HelpScript(uint32_t self) {
+void HelpScript(uint32_t self) {  // Rouse
   void* creature = CreatureById(self);
   void* stats = creature ? StatsOf(creature) : nullptr;
   if (!stats) return;
   const uint32_t target = SpellTarget(self);
-  if (target == ee::kObjectInvalid || !IsDownHenchmanUnderRules(target)) {
-    Log("actions: 0x%08X Help on 0x%08X - not a downed henchman: nothing", self, target);
-    Tell(creature, self, "Help - only a downed henchman can be helped up (the house rule).");
+  const int woken = target == ee::kObjectInvalid ? 0 : WakeFromSleepSpell(self, target);
+  if (woken > 0) {
+    Tell(creature, self, "Rouse - you shake it awake (Sleep ends).");
+    return;
+  }
+  if (woken < 0) {
+    Tell(creature, self, "Rouse - get within 5 feet of the sleeper.");
+    return;
+  }
+  if (!g_config.help_house_rule || target == ee::kObjectInvalid || !IsDownHenchmanUnderRules(target)) {
+    Log("actions: 0x%08X Rouse on 0x%08X - not under the Sleep spell%s: nothing", self, target,
+        g_config.help_house_rule ? ", not a downed henchman" : "");
+    Tell(creature, self,
+         g_config.help_house_rule
+             ? "Rouse - a creature asleep from the Sleep spell within 5 feet, or a downed henchman (the Help house "
+               "rule)."
+             : "Rouse - a creature asleep from the Sleep spell within 5 feet.");
     return;
   }
   static const auto skill_rank = reinterpret_cast<SkillRankFn>(EngineExport(ee::kGetSkillRank));
@@ -108,9 +125,9 @@ void HelpScript(uint32_t self) {
   char check[96];
   sprintf_s(check, "Medicine %+d: %d vs DC %d", medicine, d20 + medicine, rules::kHelpMedicineDc);
   if (up) HelpDownHenchmanUp(target);
-  Log("actions: 0x%08X Help on the downed henchman 0x%08X (%s) - %s", self, target, check,
+  Log("actions: 0x%08X Rouse (the Help house rule) on the downed henchman 0x%08X (%s) - %s", self, target, check,
       up ? "it gets up at 1 HP" : "not this time");
-  Tell(creature, self, std::string("Help (") + check + ") - " +
+  Tell(creature, self, std::string("Rouse (the Help house rule; ") + check + ") - " +
                            (up ? "your henchman gets up at 1 HP." : "not this time; try again next round."));
 }
 
@@ -131,7 +148,8 @@ void InstallStapleActions() {
   const bool scripts = AddScriptHandler("n5_dodge", &DodgeScript) && AddScriptHandler("n5_dash", &DashScript) &&
                        AddScriptHandler("n5_help", &HelpScript);
   const bool dash = AddMovementRateBonus(&DashBonus);
-  Log("actions: staple actions - Dodge and Dash%s for every player character%s%s",
-      g_config.help_house_rule ? ", and Help (the house rule: a downed henchman up)" : " (Help: the house rule is off)",
+  Log("actions: staple actions - Dodge, Dash and Rouse (a Sleep spell's sleeper awake%s) for every player "
+      "character%s%s",
+      g_config.help_house_rule ? "; the Help house rule: a downed henchman up" : "; the Help house rule off",
       scripts ? "" : " - NOT available (no script hook)", dash ? "" : "; Dash NOT faster (no movement rate hook)");
 }

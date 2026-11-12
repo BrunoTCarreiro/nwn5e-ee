@@ -12,7 +12,7 @@ using namespace rules;
 
 // #39 Part 2a build 1a: SRD 5.2.1's level 1 damage and healing spells (pp. 114-177).
 TEST(Spells2024Table) {
-  CHECK_EQ(static_cast<int>(Spells2024().size()), 23);
+  CHECK_EQ(static_cast<int>(Spells2024().size()), 38);
   for (size_t i = 1; i < Spells2024().size(); ++i) CHECK_EQ(Spells2024()[i - 1].row < Spells2024()[i].row, true);
   CHECK_EQ(Spell2024Of(1) == nullptr, true);
   const Spell2024* burning = Spell2024Of(kBurningHands);
@@ -234,6 +234,12 @@ TEST(Spells2024Build2a) {
   CHECK_EQ(SanctuaryStopsOwnAttacks(false, true), false);  // a player on a henchman: its AI decides
   CHECK_EQ(SanctuaryStopsOwnAttacks(true, false), false);  // a henchman on itself
   CHECK_EQ(SanctuaryStopsOwnAttacks(false, false), false);
+  // 0.99.22: Hunter's Mark: Move - moves once the quarry is down; armed early only with the option and a creature.
+  CHECK_EQ(HuntersMarkMoveNow(true, false, false) == MarkMove::kMove, true);
+  CHECK_EQ(HuntersMarkMoveNow(true, true, true) == MarkMove::kMove, true);
+  CHECK_EQ(HuntersMarkMoveNow(false, true, true) == MarkMove::kArm, true);
+  CHECK_EQ(HuntersMarkMoveNow(false, false, true) == MarkMove::kRefuse, true);
+  CHECK_EQ(HuntersMarkMoveNow(false, true, false) == MarkMove::kRefuse, true);
   CHECK_EQ(IsConcentrationSpell(kHuntersMark), true);
   CHECK_EQ(IsConcentrationSpell(kHuntersMarkBonus), true);
   CHECK_EQ(IsConcentrationSpell(kShieldOfFaithBonus), true);
@@ -255,4 +261,211 @@ TEST(Spells2024Build2a) {
   CHECK_EQ(Spell2024Of(kBless)->bonus_action, false);
   CHECK_EQ(std::string(Spell2024Of(kHuntersMark)->script) == "n5_s_huntmark", true);
   CHECK_EQ(std::string(Spell2024Of(kSanctuary)->script) == "n5_s_sanctuary", true);
+}
+
+// Build 2b: conditions on creatures - Command's words, the charms' creatures, the saves' Advantage, Sleep's stages.
+TEST(Spells2024Build2b) {
+  for (int row : {kCommand, kCharmPerson, kAnimalFriendship, kHideousLaughter, kColorSpray, kSleep}) {
+    const Spell2024* spell = Spell2024Of(row);
+    CHECK_EQ(spell != nullptr && spell->effect == SpellEffect2024::kCondition, true);
+    CHECK_EQ(spell->bonus_action, false);
+    CHECK_EQ(spell->half_on_save, false);
+    CHECK_EQ(spell->dice, 0);
+    CHECK_EQ(ConditionSpellRounds(row) > 0 || ConditionSpellHours(row) > 0, true);
+  }
+  for (int row : {kCommand, kCharmPerson, kAnimalFriendship, kHideousLaughter, kSleep}) {
+    CHECK_EQ(Spell2024Of(row)->save == Ability::kWisdom, true);
+  }
+  CHECK_EQ(Spell2024Of(kColorSpray)->save == Ability::kConstitution, true);
+  CHECK_EQ(Spell2024Of(kColorSpray)->shape == SpellShape2024::kCone, true);
+  CHECK_EQ(Spell2024Of(kColorSpray)->feet, 15);
+  CHECK_EQ(Spell2024Of(kSleep)->shape == SpellShape2024::kSphere, true);
+  CHECK_EQ(Spell2024Of(kSleep)->feet, 5);
+  CHECK_EQ(Spell2024Of(kCommand)->shape == SpellShape2024::kOne, true);
+  CHECK_EQ(std::string(Spell2024Of(kHideousLaughter)->script) == "n5_s_laugh", true);
+  CHECK_EQ(Spell2024Of(kCommandDrop) == nullptr, true);         // its words cast the master's script
+  CHECK_EQ(Spell2024Of(kCharmPersonOrAnimal) == nullptr, true);  // NWN's: off the lists, not converted
+  // Command's words: the radial's menu (no Approach), each word's row; no word - Halt.
+  const ChoiceCantrip* command = ChoiceCantripOf(kCommand);
+  CHECK_EQ(command != nullptr && command->options.size() == 4u, true);
+  CHECK_EQ(command != nullptr && std::string(command->script) == "n5_s_command", true);
+  CHECK_EQ(ChoiceCantripOf(kCommandGrovel) == command, true);
+  CHECK_EQ(CommandWordOf(kCommandDrop) == CommandWord::kDrop, true);
+  CHECK_EQ(CommandWordOf(kCommandFlee) == CommandWord::kFlee, true);
+  CHECK_EQ(CommandWordOf(kCommandGrovel) == CommandWord::kGrovel, true);
+  CHECK_EQ(CommandWordOf(kCommandHalt) == CommandWord::kHalt, true);
+  CHECK_EQ(CommandWordOf(kCommand) == CommandWord::kHalt, true);
+  for (const CantripOption& option : command->options) {
+    CHECK_EQ(std::string(CommandWordName(CommandWordOf(option.spell))) == option.label, true);
+  }
+  // One creature, one more for each slot level above 1.
+  CHECK_EQ(ConditionSpellTargets(1), 1);
+  CHECK_EQ(ConditionSpellTargets(2), 2);
+  CHECK_EQ(ConditionSpellTargets(4), 4);
+  CHECK_EQ(ConditionSpellTargets(0), 1);
+  // Ranges and durations (SRD 5.2.1).
+  CHECK_EQ(ConditionSpellRangeFeet(kCommand), 60);
+  CHECK_EQ(ConditionSpellRangeFeet(kSleep), 60);
+  CHECK_EQ(ConditionSpellRangeFeet(kCharmPerson), 30);
+  CHECK_EQ(ConditionSpellRangeFeet(kAnimalFriendship), 30);
+  CHECK_EQ(ConditionSpellRangeFeet(kHideousLaughter), 30);
+  CHECK_EQ(ConditionSpellRangeFeet(kColorSpray), 0);
+  CHECK_EQ(ConditionSpellRounds(kCommand), 1);
+  CHECK_EQ(ConditionSpellRounds(kColorSpray), 2);
+  CHECK_EQ(ConditionSpellRounds(kHideousLaughter), 10);
+  CHECK_EQ(ConditionSpellRounds(kSleep), 10);
+  CHECK_EQ(ConditionSpellRounds(kCharmPerson), 0);
+  CHECK_EQ(ConditionSpellHours(kCharmPerson), 1);
+  CHECK_EQ(ConditionSpellHours(kAnimalFriendship), 24);
+  CHECK_EQ(ConditionSpellHours(kSleep), 0);
+  // Charm Person a Humanoid, Animal Friendship a Beast; the others anything.
+  for (int type : {0, 1, 2, 3, 4, 5, 6, 12, 14, 15}) CHECK_EQ(IsHumanoidRacialType(type), true);
+  for (int type : {-1, 7, 8, 9, 13, 18, 24, 25}) CHECK_EQ(IsHumanoidRacialType(type), false);
+  for (int type : {8, 9, 25}) CHECK_EQ(IsBeastRacialType(type), true);
+  for (int type : {6, 7, 19, 24}) CHECK_EQ(IsBeastRacialType(type), false);  // 19: Magical Beast, a Monstrosity
+  CHECK_EQ(ConditionSpellTargetFits(kCharmPerson, 6), true);
+  CHECK_EQ(ConditionSpellTargetFits(kCharmPerson, 8), false);
+  CHECK_EQ(ConditionSpellTargetFits(kAnimalFriendship, 8), true);
+  CHECK_EQ(ConditionSpellTargetFits(kAnimalFriendship, 6), false);
+  CHECK_EQ(ConditionSpellTargetFits(kCommand, 24), true);  // no undead clause in 2024
+  CHECK_EQ(ConditionSpellTargetFits(kHideousLaughter, 10), true);
+  // Charm Person: Advantage when you or your allies are fighting it.
+  CHECK_EQ(CharmSaveAdvantage(true, true), true);
+  CHECK_EQ(CharmSaveAdvantage(true, false), false);
+  CHECK_EQ(CharmSaveAdvantage(false, true), false);
+  // Hideous Laughter: Advantage on the save damage brings, none at its turn's end.
+  CHECK_EQ(LaughterSaveAdvantage(true), true);
+  CHECK_EQ(LaughterSaveAdvantage(false), false);
+  // Sleep: the second save - a failure Unconscious, a success awake; who doesn't sleep.
+  CHECK_EQ(SleepAfterSecondSave(false) == SleepStage::kUnconscious, true);
+  CHECK_EQ(SleepAfterSecondSave(true) == SleepStage::kAwake, true);
+  for (int type : {1, 10, 16, 24, 29}) CHECK_EQ(SleepUnaffectedRacialType(type), true);
+  for (int type : {0, 4, 6, 8, 12, 20}) CHECK_EQ(SleepUnaffectedRacialType(type), false);
+  CHECK_EQ(kRouseFeet, 5);
+  // 0.99.24: your enemies, not one you've charmed.
+  CHECK_EQ(PickedAgainst(true, false), true);
+  CHECK_EQ(PickedAgainst(true, true), false);
+  CHECK_EQ(PickedAgainst(false, false), false);
+  // Concentration: Hideous Laughter and Sleep; not Command, the charms or Color Spray.
+  CHECK_EQ(IsConcentrationSpell(kHideousLaughter), true);
+  CHECK_EQ(IsConcentrationSpell(kSleep), true);
+  CHECK_EQ(IsConcentrationSpell(kCommand), false);
+  CHECK_EQ(IsConcentrationSpell(kCommandHalt), false);
+  CHECK_EQ(IsConcentrationSpell(kCharmPerson), false);
+  CHECK_EQ(IsConcentrationSpell(kAnimalFriendship), false);
+  CHECK_EQ(IsConcentrationSpell(kColorSpray), false);
+}
+
+// Build 2c: the areas - their shapes and saves, the Escape check, Difficult Terrain, Faerie Fire's colours and its
+// suppressed invisibility, Fog Cloud's radius.
+TEST(Spells2024Build2c) {
+  for (int row : {kEntangle, kGrease, kFaerieFire, kFogCloud}) {
+    const Spell2024* spell = Spell2024Of(row);
+    CHECK_EQ(spell != nullptr && spell->effect == SpellEffect2024::kArea, true);
+    CHECK_EQ(spell->bonus_action, false);
+    CHECK_EQ(spell->dice, 0);
+    CHECK_EQ(AreaSpellRangeFeet(row) > 0, true);
+  }
+  CHECK_EQ(Spell2024Of(kEntangle)->save == Ability::kStrength, true);
+  CHECK_EQ(Spell2024Of(kEntangle)->shape == SpellShape2024::kSquare, true);
+  CHECK_EQ(Spell2024Of(kEntangle)->feet, 20);
+  CHECK_EQ(Spell2024Of(kGrease)->save == Ability::kDexterity, true);
+  CHECK_EQ(Spell2024Of(kGrease)->shape == SpellShape2024::kSquare, true);
+  CHECK_EQ(Spell2024Of(kGrease)->feet, 10);
+  CHECK_EQ(Spell2024Of(kFaerieFire)->save == Ability::kDexterity, true);
+  CHECK_EQ(Spell2024Of(kFaerieFire)->feet, 20);
+  CHECK_EQ(Spell2024Of(kFogCloud)->shape == SpellShape2024::kSphere, true);
+  CHECK_EQ(Spell2024Of(kFogCloud)->feet, 20);
+  CHECK_EQ(Spell2024Of(kFaerieFireBlue) == nullptr, true);  // its colours cast the master's script
+  CHECK_EQ(AreaSpellRangeFeet(kEntangle), 90);
+  CHECK_EQ(AreaSpellRangeFeet(kGrease), 60);
+  CHECK_EQ(AreaSpellRangeFeet(kFaerieFire), 60);
+  CHECK_EQ(AreaSpellRangeFeet(kFogCloud), 120);
+  // The Escape check (the Grapple's): d20 + Athletics against the DC, a tie frees.
+  CHECK_EQ(EscapeSucceeds(10, 3, 13), true);
+  CHECK_EQ(EscapeSucceeds(9, 3, 13), false);
+  CHECK_EQ(EscapeSucceeds(20, -1, 14), true);
+  // Difficult Terrain: half Speed inside.
+  CHECK_EQ(DifficultTerrainFactor(1.0f, true) == 0.5f, true);
+  CHECK_EQ(DifficultTerrainFactor(2.0f, true) == 1.0f, true);  // a Dash through it
+  CHECK_EQ(DifficultTerrainFactor(1.0f, false) == 1.0f, true);
+  // Faerie Fire's colour menu: Blue, Green, Violet; no colour chosen - blue.
+  const ChoiceCantrip* faerie = ChoiceCantripOf(kFaerieFire);
+  CHECK_EQ(faerie != nullptr && faerie->options.size() == 3u, true);
+  CHECK_EQ(faerie != nullptr && std::string(faerie->script) == "n5_s_faerie", true);
+  CHECK_EQ(FaerieColourOf(kFaerieFireGreen) == FaerieColour::kGreen, true);
+  CHECK_EQ(FaerieColourOf(kFaerieFireViolet) == FaerieColour::kViolet, true);
+  CHECK_EQ(FaerieColourOf(kFaerieFireBlue) == FaerieColour::kBlue, true);
+  CHECK_EQ(FaerieColourOf(kFaerieFire) == FaerieColour::kBlue, true);
+  for (const CantripOption& option : faerie->options) {
+    CHECK_EQ(std::string(FaerieColourName(FaerieColourOf(option.spell))) == option.label, true);
+  }
+  // Q3 B: the invisibility comes back for the time it had left.
+  CHECK_EQ(InvisibilityLeftSeconds(60, 24), 36);
+  CHECK_EQ(InvisibilityLeftSeconds(30, 60), 0);   // it ran out meanwhile
+  CHECK_EQ(InvisibilityLeftSeconds(-1, 60), -1);  // a permanent one: back for good
+  CHECK_EQ(InvisibilityLeftSeconds(10, -5), 10);
+  // Fog Cloud: 20 feet, 20 more a slot level.
+  CHECK_EQ(FogCloudRadiusFeet(1), 20);
+  CHECK_EQ(FogCloudRadiusFeet(2), 40);
+  CHECK_EQ(FogCloudRadiusFeet(9), 180);
+  CHECK_EQ(FogCloudRadiusFeet(0), 20);
+  // Concentration: Entangle, Faerie Fire, Fog Cloud; not Grease.
+  CHECK_EQ(IsConcentrationSpell(kEntangle), true);
+  CHECK_EQ(IsConcentrationSpell(kFaerieFire), true);
+  CHECK_EQ(IsConcentrationSpell(kFaerieFireViolet), true);
+  CHECK_EQ(IsConcentrationSpell(kFogCloud), true);
+  CHECK_EQ(IsConcentrationSpell(kGrease), false);
+}
+
+// Build 3: reactions and smites - Shield's turn, the smites' rides and dice.
+TEST(Spells2024Build3) {
+  CHECK_EQ(Spell2024Of(kShield) != nullptr && Spell2024Of(kShield)->effect == SpellEffect2024::kReaction, true);
+  CHECK_EQ(Spell2024Of(kFeatherFall) != nullptr && Spell2024Of(kFeatherFall)->effect == SpellEffect2024::kReaction,
+           true);
+  for (int row : {kDivineSmite, kSearingSmite, kEnsnaringStrike}) {
+    const Spell2024* smite = Spell2024Of(row);
+    CHECK_EQ(smite != nullptr && smite->effect == SpellEffect2024::kSmite, true);
+    CHECK_EQ(smite->bonus_action, true);
+    CHECK_EQ(smite->upcast_dice, 1);
+  }
+  CHECK_EQ(Spell2024Of(kDivineSmite)->damage_type, kDamageTypeRadiant);
+  CHECK_EQ(Spell2024Of(kDivineSmite)->die, 8);
+  CHECK_EQ(Spell2024Of(kSearingSmite)->damage_type, kDamageTypeFire);
+  CHECK_EQ(Spell2024Of(kEnsnaringStrike)->save == Ability::kStrength, true);
+  CHECK_EQ(kShield, 417);
+  // Shield: it turns a hit the +5 would miss, never a natural 20.
+  CHECK_EQ(ShieldTurnsHit(15, 14, false), true);
+  CHECK_EQ(ShieldTurnsHit(18, 14, false), true);
+  CHECK_EQ(ShieldTurnsHit(19, 14, false), false);
+  CHECK_EQ(ShieldTurnsHit(15, 14, true), false);
+  CHECK_EQ(ReactionDefaultOn(Reaction::kShield), true);
+  CHECK_EQ(ReactionOn(SetReactionOn(0, Reaction::kShield, false), Reaction::kShield), false);
+  // What each smite rides on.
+  CHECK_EQ(SmiteRidesOn(kDivineSmite, false, false), true);   // a melee weapon
+  CHECK_EQ(SmiteRidesOn(kDivineSmite, false, true), true);    // an Unarmed Strike
+  CHECK_EQ(SmiteRidesOn(kDivineSmite, true, false), false);   // a bow
+  CHECK_EQ(SmiteRidesOn(kSearingSmite, true, false), false);
+  CHECK_EQ(SmiteRidesOn(kEnsnaringStrike, true, false), true);   // any weapon
+  CHECK_EQ(SmiteRidesOn(kEnsnaringStrike, false, true), false);  // not an Unarmed Strike
+  CHECK_EQ(SmiteRidesOn(kBless, false, false), false);
+  // The dice.
+  CHECK_EQ(DivineSmiteDice(1, false), 2);
+  CHECK_EQ(DivineSmiteDice(1, true), 3);
+  CHECK_EQ(DivineSmiteDice(3, true), 5);
+  CHECK_EQ(DivineSmiteDice(0, false), 2);
+  CHECK_EQ(FiendOrUndead(24, false), true);  // Undead
+  CHECK_EQ(FiendOrUndead(20, true), true);   // an evil Outsider: a Fiend
+  CHECK_EQ(FiendOrUndead(20, false), false); // a Celestial
+  CHECK_EQ(FiendOrUndead(6, true), false);
+  CHECK_EQ(SearingSmiteDice(1), 1);
+  CHECK_EQ(SearingSmiteDice(3), 3);
+  CHECK_EQ(EnsnaringStrikeDice(2), 2);
+  CHECK_EQ(EnsnaringSaveAdvantage(4), true);   // Large
+  CHECK_EQ(EnsnaringSaveAdvantage(3), false);  // Medium
+  // Concentration: Ensnaring Strike only.
+  CHECK_EQ(IsConcentrationSpell(kEnsnaringStrike), true);
+  CHECK_EQ(IsConcentrationSpell(kDivineSmite), false);
+  CHECK_EQ(IsConcentrationSpell(kSearingSmite), false);
+  CHECK_EQ(IsConcentrationSpell(kShield), false);
 }

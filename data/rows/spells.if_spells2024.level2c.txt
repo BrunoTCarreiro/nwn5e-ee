@@ -1,0 +1,7 @@
+# spells.2da - #39 Part 2a, build 2c (core/rules_spells2024.cpp; "spells2024" is served with spellcasting
+# faithful): NWN's area rows rewritten as SRD 5.2.1's - Entangle 53 (a 20-foot square within 90 feet; Druid,
+# Ranger) and Grease 66 (a 10-foot square within 60 feet; Sorcerer, Wizard - off the Bard's, Druid's and Ranger's
+# lists). Their areas: vfx_persistent.if_spells2024.txt. The new rows: spells.if_spells2024.level2cnew.txt.
+Name SpellDesc ImpactScript School Range VS TargetType Bard Cleric Druid Paladin Ranger Wiz_Sorc Innate Category HostileSetting TargetShape TargetSizeX TargetSizeY TargetFlags SubRadSpell1 SubRadSpell2
+53 803 16000771 n5_s_entangle C L vs 0x2E **** **** 1 **** 1 **** 1 11 1 rectangle 6.1 6.1 3 **** ****
+66 816 16000772 n5_s_grease C M vs 0x2E **** **** **** **** **** 1 1 11 1 rectangle 3.05 3.05 3 **** ****
