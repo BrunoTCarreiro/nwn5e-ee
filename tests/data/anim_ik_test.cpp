@@ -1295,3 +1295,93 @@ TEST(AnimPoseChainKeyInertUnderTarget) {
     CHECK_EQ(SameTurn(PoseOf(both, bones, 0.5f).wq[i], PoseOf(targeted, bones, 0.5f).wq[i], 4e-4f), true);  // the chain's key: no effect
   }
 }
+
+// --- Legs from the stance and the twist (#159) ----------------------------------------------------------
+// Owner, 2026-11-12: "go with legs from the stance, but just like we have a "lean" slider in the recipe bench allow for a
+// twist here as well that can be keyframed". Breaks caught: the take's legs, root offset, foot target or pelvis key
+// leaking into the legs; the stance's root turn lost from the held hips (the fold - a combat stance's 17-27 degrees);
+// the upper body not the take's; the twist's split (the torso all, the pelvis 35%) wrong or about the wrong axis; the
+// feet dragged by the twist; a twist at the clip's ends (they must stay the stance's).
+
+TEST(AnimAssembleStanceLegsHoldTheStance) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimClip stance = IkStance(bones);
+  stance.nodes[IndexOf(bones, "rootdummy")].orientation.values = {TurnFromDegrees({0.0f, 0.0f, 20.0f})};  // the root turned
+  // The take: the left thigh and right shin kicking, the root moved, a foot target, a pelvis pose key, the torso turning.
+  AnimRecipe r = IkRecipe(bones, 30.0f);
+  for (AnimKeyTrack& track : r.keys["a_ik"]) {
+    if (track.bone == "lthigh_g") track.keys.values.back() = TurnX(40.0f);
+    if (track.bone == "rshin_g") track.keys.values.back() = TurnX(-35.0f);
+    if (track.position) track.keys.values = {{0.0f, 0.3f, -0.1f, 0.0f}};
+  }
+  r.targets["left_foot"] = {Key(2.5f, {0.1f, 0.3f, -0.7f})};
+  r.poses["pelvis_g"] = {PoseKey(2.5f, {0.0f, 0.0f, 25.0f})};
+  r.stance_legs = true;
+  AnimClip out;
+  std::string err;
+  CHECK_EQ(AssembleAnimClip(r, "a_ik", bones, stance, &out, &err), true);
+  const Pose held = PoseOf(stance, bones, 0.0f);  // the stance's own first frame, the root's turn and all
+  bool legs = true;
+  for (float t : {0.0f, 0.5f, 1.0f}) {
+    const Pose p = PoseOf(out, bones, t);
+    for (const char* name : {"pelvis_g", "lthigh_g", "lshin_g", "lfoot_g", "rthigh_g", "rfoot_g"}) {
+      const int i = IndexOf(bones, name);
+      legs = legs && Dist(p.wp[i], held.wp[i]) < 1e-4f && SameTurn(p.wq[i], held.wq[i], 2e-4f);
+    }
+  }
+  CHECK_EQ(legs, true);
+  // The upper body is the take's, as without legs from the stance.
+  AnimClip plain;
+  CHECK_EQ(AssembleAnimClip(IkRecipe(bones, 30.0f), "a_ik", bones, stance, &plain, &err), true);
+  const int torso = IndexOf(bones, "torso_g"), hand = IndexOf(bones, "rhand_g");
+  CHECK_EQ(SameTurn(PoseOf(out, bones, 1.0f).wq[torso], PoseOf(plain, bones, 1.0f).wq[torso], 2e-4f) &&
+               Dist(PoseOf(out, bones, 1.0f).wp[hand], PoseOf(plain, bones, 1.0f).wp[hand]) < 1e-4f,
+           true);
+}
+
+TEST(AnimAssembleTwistTurnsTheUpperBodyFeetStay) {
+  const std::vector<AnimNode> bones = WholeBody(1.0f);
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  r.stance_legs = true;
+  const AnimClip ref = Run(r, bones);
+  AnimTwistKey k;
+  k.t = 2.5f;  // the clip's middle (take_start 2 s)
+  k.degrees = 30.0f;
+  k.ease = 0.2f;
+  r.twist = {k};
+  const AnimClip twisted = Run(r, bones);
+  const Pose a = PoseOf(ref, bones, 0.5f), b = PoseOf(twisted, bones, 0.5f);
+  const int torso = IndexOf(bones, "torso_g"), pelvis = IndexOf(bones, "pelvis_g"), hand = IndexOf(bones, "lhand_g");
+  CHECK_EQ(SameTurn(b.wq[torso], QMul(TurnFromDegrees({0.0f, 0.0f, 30.0f}), a.wq[torso]), 1e-3f), true);   // all of it, about up
+  CHECK_EQ(SameTurn(b.wq[pelvis], QMul(TurnFromDegrees({0.0f, 0.0f, 10.5f}), a.wq[pelvis]), 1e-3f), true);  // 35% of it
+  for (const char* foot : {"lfoot_g", "rfoot_g"}) {
+    const int i = IndexOf(bones, foot);
+    CHECK_EQ(Dist(b.wp[i], a.wp[i]) < 1e-3f && SameTurn(b.wq[i], a.wq[i], 2e-3f), true);  // the feet stay
+  }
+  CHECK_EQ(Dist(b.wp[hand], a.wp[hand]) > 0.05f, true);  // the arms go with the torso
+  for (float t : {0.0f, 1.0f}) {  // the ends untouched
+    CHECK_EQ(SameTurn(PoseOf(twisted, bones, t).wq[torso], PoseOf(ref, bones, t).wq[torso], 1e-5f), true);
+  }
+  // A key on the clip's very first frame: still the stance's there - the twist fades in over the first 0.2 s.
+  AnimTwistKey early;
+  early.t = 2.0f;
+  early.degrees = 40.0f;
+  early.ease = 0.0f;
+  r.twist = {early};
+  const AnimClip fade = Run(r, bones);
+  CHECK_EQ(SameTurn(PoseOf(fade, bones, 0.0f).wq[torso], PoseOf(ref, bones, 0.0f).wq[torso], 1e-5f), true);
+}
+
+TEST(AnimAssembleTwistWithoutATorso) {  // Review Focus 4: a body missing a part - the twist skips it, no failure
+  std::vector<AnimNode> bones = WholeBody(1.0f);
+  bones.resize(9);  // the root, the pelvis and the legs only
+  AnimRecipe r = IkRecipe(bones, 0.0f);
+  r.stance_legs = true;
+  AnimTwistKey k;
+  k.t = 2.5f;
+  k.degrees = 30.0f;
+  r.twist = {k};
+  AnimClip out;
+  std::string err;
+  CHECK_EQ(AssembleAnimClip(r, "a_ik", bones, IkStance(bones), &out, &err), true);
+}
