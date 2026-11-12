@@ -1185,6 +1185,9 @@ monster AC by CR.
     Sleep), 2c areas (Entangle, Faerie Fire, Grease, Fog Cloud). Asked: Q1 Jump (NWN has no jumping) - A not built,
     off the lists, B a visual and a line; Q2 Hex (the Warlock's alone; NWN has none) - A not until a Warlock, B now,
     for items and monsters. Recommended A on both.
+    *Decided (owner, 2026-11-12: "go with A on both").* Jump is not built and is on no list (the 2024 lists hold only
+    spells that exist - it never was); Hex waits for a Warlock, and will reuse Hunter's Mark's pieces (the Move feat,
+    its quickbar slot and radial entry, the keep-it-armed option).
   - *Built 0.99.4 (build 2a, the buffs):* each a mark on its creatures (an icon with the row cast - Concentration
     finds it), its rule in the hooks. Bless 6 / Bane 449 (up to 3 + a level, the nearest friends / enemies to the
     spot aimed at within 30 feet, Bane a Charisma save): 1d4 on / off attack rolls (weapon, spell) and saves (the
