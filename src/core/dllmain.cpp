@@ -91,6 +91,7 @@ void InstallEquipCancelFix();
 void InstallQuickbar();
 void InstallNuiTest();
 void InstallClientUi();
+void InstallChatInput();  // chat_input.cpp (#158)
 void InstallCreationPages();
 void InstallCreationSteps();
 void InstallFeatRules();
@@ -108,7 +109,7 @@ void InstallPrivateRules();  // private/src (docs/PRIVATE-LAYER.md)
 
 namespace {
 
-constexpr const char* kVersion = "0.99.17";
+constexpr const char* kVersion = "0.99.18";
 
 void Start(HMODULE self) {
   wchar_t directory[MAX_PATH];
@@ -205,6 +206,7 @@ void Start(HMODULE self) {
 #endif
   InstallNuiTest();
   InstallClientUi();
+  InstallChatInput();
   InstallCreationPages();
   InstallCreationSteps();
   InstallFeatRules();

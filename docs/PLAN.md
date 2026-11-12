@@ -6040,6 +6040,24 @@ animation session sent:
   OnPlayerDeath / OnPlayerRespawn, empty, so nothing ended it. The module's fix (the animation session's
   generator): the game's standard nw_o0_dying, nw_o0_death and nw_o0_respawn.
 
+### The chat bar's history (#158)
+
+*Asked (owner, 2026-11-12):* "can we add a history to the chat input? since we're using it a lot for commands,
+having a way to repeat commands without having to type them all over again would be great. like when the chat input
+is active, pressing up would cycle through the previous commands". EE's chat bar keeps none (the engine's only
+history, DoConsoleHist / g_listHistory, is its developer console's).
+
+- Up shows the previous line sent, again the one before; Down goes back toward the newest, then to what was being
+  typed before the first Up. Every line sent from the chat bar (commands and chat), the newest 50, a repeat of the
+  newest not added twice; kept in `nwn5e_chat_history.txt` next to the DLL, so a restart keeps them. *(My defaults:
+  all lines, 50, kept across restarts.)*
+- The history: data::ChatHistory (src/data/chat_history.*, unit-tested). The client: src/core/chat_input.cpp hooks
+  CGuiEdit::HandleKeyPress and CGuiSingleLineEdit::HandleKeyPress (static analysis of 89.8193.37: the arrows come as
+  0x125 up / 0x127 down, a line up / down, nothing in a one-line box). Only the chat bar's box is touched - the one
+  whose Enter callback's owner (+0xA8) is the in-game chat panel (RTTI .?AVCGuiInGameChat...); its text is set
+  through its CAuroraStringWrapper (+0x80, as CPanelGenericEditBox::SetEditText does), the caret at the end.
+- *Built 0.99.18.*
+
 ## Test register — the owner's request (2026-11-08, #147)
 
 The owner, 2026-11-08: "instead of having ephemeral test matrices let's have an excel file where we keep all the
