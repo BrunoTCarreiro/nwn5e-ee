@@ -1270,3 +1270,17 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
   - The core changed: an install, then the bench's helper rebuilt from main (until then the bench can't preview a
     stance's-legs clip). Test rows LT-1 (the bench) and LT-2 (`!anim` in game). Deferred minors on the plan's ledger
     (the held legs 2-4 mm off on ready stances, an unreported foot slide at a large twist on straight-legged stances).
+
+## VFX Bench: area mode (planned 2026-11-12, #161)
+
+  Owner, 2026-11-12: "how can I create new effects for grease or fog or entangle for example?", then, on the options
+  (an area mode in the VFX Bench, recommended, or building it straight into the Spell & Attack Bench): "go with the area
+  mode, plan it as an issue". An area's look is a vfx_persistent.2da row: its shape and size, up to three effect models
+  copied across it (NUMACT, DURATION, EDGEWGHT), a low-detail model, a whole-duration effect and its sounds.
+  - Planned on #161, in order: a proof first (Play in game rewriting a reserved vfx_persistent row live, as row 1600
+    does for visualeffects, and measuring how the game scatters the copies); the game's area effects in the library;
+    the area on the stage; Play in game; Save; checks, the VFX Bench's first browser check among them.
+  - Recon: the fogs and Grease are particles; Entangle adds 6 flat textured planes; Web and Darkness are a
+    whole-duration effect only.
+  - Waiting on the owner: Q1, whether the bench draws Entangle's planes (static, shown only); Q2, whether a saved area
+    ships through the looks overlay (vfx_persistent rows in a bench range) or through Claude adding rows.
