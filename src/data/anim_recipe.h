@@ -96,6 +96,19 @@ struct AnimPoseKey {
   bool replace = false;
   float ease = 0.2f;
 };
+// An assembled recipe's twist key (#159; owner, 2026-11-12: "just like we have a "lean" slider in the recipe bench allow
+// for a twist here as well that can be keyframed"): at take time `t` the upper body turns `degrees` about the vertical -
+// positive counter-clockwise seen from above, to the performer's left - the torso all of it, the pelvis 35%, the legs
+// solved again so the feet stay (the lean's hinge, about up). Between two keys their degrees blend by smoothstep; before
+// the first and after the last it eases from 0 over the key's `ease` (0 - 2 s; 0: its own frame), as a pose key does.
+// Degrees -90 - 90 (clamped). Recipe line: `twist <t> <degrees> <ease>`.
+struct AnimTwistKey {
+  float t = 0.0f;
+  float degrees = 0.0f;
+  float ease = 0.2f;
+};
+// The twist at take time T from keys by time (0 with none).
+float TwistAt(const std::vector<AnimTwistKey>& keys, float T);
 // The parts a pose key can turn (lower case; a library's bones match in any case): torso_g neck_g head_g
 // pelvis_g, the arms (bicep, forearm, hand) and the legs (thigh, shin, foot). Not rootdummy: the hips'
 // place is the IK target's.
@@ -131,6 +144,11 @@ struct AnimRecipe {
   float grip_follow = 1.0f;  // #112 addendum 3: the weapon hand's share of the take's, against the torso (0: the stance's)
   std::map<std::string, std::vector<AnimTargetKey>> targets;  // limb -> its keys, by time
   std::map<std::string, std::vector<AnimPoseKey>> poses;      // part -> its keys, by time
+  // #159: the legs from the stance - the root's place, pelvis_g and everything under it held at the stance's first frame,
+  // the take driving only the upper body (torso_g down); its leg tracks, foot and hips targets and leg / pelvis pose
+  // keys don't apply. Recipe line `stance_legs = 1` (written only when on).
+  bool stance_legs = false;
+  std::vector<AnimTwistKey> twist;                            // #159: the upper body's twist about up, by time
 };
 
 std::string WriteAnimRecipe(const AnimRecipe& recipe);
