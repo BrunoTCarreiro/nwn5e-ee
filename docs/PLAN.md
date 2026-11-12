@@ -1249,6 +1249,20 @@ monster AC by CR.
   - *Accepted (owner, 2026-11-12: "2a accepted, go for 2b").* Build 2a (the buffs), 0.99.4-0.99.22: every row passed
     (L1-19b, Chromatic Orb with no look, deferred - owner: "defer it for now"). Build 2b (conditions on creatures:
     Command, Charm Person, Animal Friendship, Hideous Laughter, Color Spray, Sleep) next, its brief first.
+  - *Build 2b brief (2026-11-12; SRD 5.2.1, Open5e's srd-2024 text):* Command (Bard, Cleric, Paladin; Drop, Flee,
+    Grovel, Halt - no Approach, no undead or language clause; +1 creature a level) new, its words a radial choice;
+    Charm Person 16 (a Humanoid, Advantage if fighting it, Charmed and Friendly for an hour, ends on your side's
+    damage) and Animal Friendship (a Beast, 24 hours; a new row - NWN's Charm Person or Animal 17 is off the faithful
+    lists) on #106's charm; Hideous Laughter 457 (Prone and Incapacitated, can't stand, a save at each of its turns'
+    ends and on damage with Advantage; Concentration); Color Spray 24 (a 15-ft Cone, Constitution or Blinded to the
+    end of your next turn); Sleep 165 (a 5-ft Sphere, Wisdom or Incapacitated, a second failure Unconscious; damage or
+    a shake wakes it; elves and the Exhaustion-immune unaffected; Concentration). Asked: Q1 Command's Drop - A to the
+    ground, B into its inventory (the AI re-equips); Q2 waking a sleeper - A a "Shake awake" action, B damage only.
+    Recommended B and A.
+  - *Decided (owner, 2026-11-12: "go with B for Q1 and A for Q2. A for Q2 could be the same help action, just
+    renamed"):* Command's Drop puts what it holds into its inventory; the Help action (#56, feat 1324) becomes
+    "Rouse", every character's: on a sleeping creature within 5 ft it wakes it (SRD 5.2, Sleep), and with the Help
+    house rule on it gets a downed henchman up as before. *(My name for it: Rouse.)*
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
