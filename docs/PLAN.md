@@ -1370,6 +1370,24 @@ monster AC by CR.
     *Accepted (owner, 2026-11-12: "I'll accept the test matrix").* #160: HZ-1 to HZ-5 passed.
   - *Accepted (owner, 2026-11-12: "2c accepted, go for 3").* Build 2c, 0.99.26-0.99.28: every row passed (L2c-1 to
     L2c-11; #160's HZ-1 to HZ-5). Build 3 (reactions and smites) next, its brief first.
+  - *Build 3 brief (2026-11-12; SRD 5.2.1, Open5e's srd-2024 text; the approach decided 2026-11-09: reactions
+    automatic with a switch each, smites armed by the cast and delivered by the next weapon hit):* Shield 417
+    (Sorcerer, Wizard; a Reaction when hit by an attack roll or targeted by Magic Missile: +5 AC until the start of
+    your next turn, the triggering attack included, no Magic Missile damage - nwn5e: when it would turn the hit, a
+    switch beside Uncanny Dodge's, Shield first when both could), Feather Fall (Bard, Sorcerer, Wizard; a visual
+    and a line, #153), Divine Smite (Paladin; 2d8 Radiant, 1d8 more on a Fiend or an Undead and a slot level),
+    Searing Smite (Paladin; 1d6 Fire, then 1d6 at the start of each of its turns until a Constitution save ends it;
+    1d6 more a level), Ensnaring Strike (Ranger; Concentration: a Strength save - Advantage if Large or larger - or
+    Restrained with 1d6 Piercing at the start of each of its turns; an Athletics check frees it). New rows but
+    Shield's. 2024's smites are a Bonus Action taken right after a hit. Thunderous and Wrathful Smite aren't in SRD
+    5.2.1 (not built); Paladin's Smite (a free one) is the Paladin's (#44). Asked: Q1 the smites' cost - A armed by
+    the cast for nothing, the slot and the Bonus Action spent by the next melee hit while you have both (2024's
+    after-the-hit choice, nothing lost); B both spent at the cast, the next hit before the end of your next turn
+    delivers it, else lost. Q2 Hellish Rebuke (the Warlock's alone) - A waits for the Warlock (#48), as Hex; B now,
+    for items and monsters. Q3 NPC casters' Shield (NWN's AI casts it as a buff) - A their Reaction too, on a hit it
+    would turn; B as their AI casts it, +5 AC for a round. Q4 Ensnaring Strike's escape - A the held creature's
+    Escape (build 2c's: a player's Action, an NPC once a round), B also an ally's Action from within reach.
+    Recommended A on all.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
