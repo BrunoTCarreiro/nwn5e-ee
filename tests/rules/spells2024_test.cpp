@@ -234,6 +234,12 @@ TEST(Spells2024Build2a) {
   CHECK_EQ(SanctuaryStopsOwnAttacks(false, true), false);  // a player on a henchman: its AI decides
   CHECK_EQ(SanctuaryStopsOwnAttacks(true, false), false);  // a henchman on itself
   CHECK_EQ(SanctuaryStopsOwnAttacks(false, false), false);
+  // 0.99.22: Hunter's Mark: Move - moves once the quarry is down; armed early only with the option and a creature.
+  CHECK_EQ(HuntersMarkMoveNow(true, false, false) == MarkMove::kMove, true);
+  CHECK_EQ(HuntersMarkMoveNow(true, true, true) == MarkMove::kMove, true);
+  CHECK_EQ(HuntersMarkMoveNow(false, true, true) == MarkMove::kArm, true);
+  CHECK_EQ(HuntersMarkMoveNow(false, false, true) == MarkMove::kRefuse, true);
+  CHECK_EQ(HuntersMarkMoveNow(false, true, false) == MarkMove::kRefuse, true);
   CHECK_EQ(IsConcentrationSpell(kHuntersMark), true);
   CHECK_EQ(IsConcentrationSpell(kHuntersMarkBonus), true);
   CHECK_EQ(IsConcentrationSpell(kShieldOfFaithBonus), true);

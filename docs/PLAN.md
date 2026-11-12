@@ -1235,6 +1235,14 @@ monster AC by CR.
     stood, waited for the next round's Bonus Action, was refused - and the round's Bonus Action stayed spent, so the
     radial's Move then waited a round more. A waited Bonus Action feat that's refused now gives the Bonus Action
     back (bonus_actions.cpp); Move's refusals are logged. Retest L2-10c.
+    Asked (owner, 2026-11-12: "so the move action isn't queued until the marked quarry dies?") - no: Move used
+    early is refused. *Decided (owner, 2026-11-12: "give rangers an option to keep it armed").* *0.99.22:* a Ranger's
+    option in the Combat configuration window (!options, "Hunter's Mark: keep an early Move armed", off by default,
+    a record per character): Move used while the quarry stands is armed on the creature picked (nothing spent);
+    when the quarry drops the armed Move is used at it through UseFeat - that round's Bonus Action, or waiting for
+    the next (rules::HuntersMarkMoveNow). With it, a waiting Bonus Action feat now keeps its target (feat_use's
+    CurrentFeatUseTarget; it was used on the creature itself - a waiting Move would have marked its caster).
+    Test L2-13.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something

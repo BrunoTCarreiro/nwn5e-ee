@@ -177,6 +177,11 @@ bool WardedAgainstRacialType(int nwn_racial_type);
 // itself stops its attacks; a click on an enemy attacks again (and ends it). On someone else - a henchman, whose
 // AI decides - or cast by a henchman: nothing stopped.
 bool SanctuaryStopsOwnAttacks(bool on_caster, bool caster_is_player);
+// Hunter's Mark: Move used (0.99.22; owner, 2026-11-12: "give rangers an option to keep it armed"): its quarry down - the
+// mark moves; still standing - with the Ranger's option on and another creature picked it's armed (it goes once
+// the quarry drops, that round's Bonus Action), else refused (SRD 5.2: the mark moves only once the target drops).
+enum class MarkMove { kMove, kArm, kRefuse };
+MarkMove HuntersMarkMoveNow(bool quarry_down, bool keep_armed, bool other_creature_picked);
 
 // Chromatic Orb: two or more of its d8s alike - the orb leaps to another creature within 30 feet of the target (a
 // new attack roll, a new damage roll), at most as many times as the slot's level, each creature once a casting.

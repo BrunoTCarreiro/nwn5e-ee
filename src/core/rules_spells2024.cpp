@@ -92,6 +92,7 @@
 #include "effects.h"
 #include "engine.h"
 #include "feat_use.h"
+#include "records.h"
 #include "game_clock.h"
 #include "hooks.h"
 #include "log.h"
@@ -1312,6 +1313,7 @@ struct Quarry {
   int row = rules::kHuntersMark;  // the row cast (its marks carry it)
   int hours = 1;
   bool told = false;  // 0.99.20: the player told its quarry dropped (Hunter's Mark: Move)
+  uint32_t armed = 0;  // 0.99.22: an early Move's creature (the Ranger's option), 0: none
 };
 std::unordered_map<uint32_t, Quarry> g_quarries;    // Hunter's Mark: its caster -> the marked creature
 std::unordered_set<uint32_t> g_dashers;             // Expeditious Retreat's casters (its Dash feat granted)
@@ -1515,6 +1517,22 @@ void Buff(uint32_t self, void* caster, const rules::Spell2024& spell) {
 
 // A Bonus Action spell's feat used on its own (not from the spell), and the Bonus Actions a spell gives while it
 // lasts when it can't: refused before the Bonus Action is spent (false).
+// 0.99.22 (owner, 2026-11-12: "give rangers an option to keep it armed"): the Ranger's option - a record, off by default.
+constexpr const char* kVarHuntersMarkArm = "nwn5e_hm_arm";
+
+bool KeepMoveArmed(void* creature) {
+  if (!creature) return false;
+  EnsureRecords(creature);
+  return engine::GetLocalInt(creature, kVarHuntersMarkArm) == 1;
+}
+
+// A creature other than the caster and its quarry, standing: an early Move's pick.
+bool OtherCreature(uint32_t target, uint32_t self, uint32_t quarry) {
+  if (target == 0 || target == ee::kObjectInvalid || target == self || target == quarry) return false;
+  void* creature = CreatureById(target);
+  return creature && !engine::IsDeadOrDying(creature);
+}
+
 bool BuffFeatGuard(void* creature, int feat) {
   if (!Faithful() || !creature || t_bonus_cast) return true;
   const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
@@ -1535,12 +1553,24 @@ bool BuffFeatGuard(void* creature, int feat) {
       if (LogSlot()) Log("spells2024: 0x%08X Hunter's Mark: Move refused - no Hunter's Mark lasts", id);  // 0.99.21
       return false;
     }
-    if (!QuarryDown(at->second)) {
+    const uint32_t picked = CurrentFeatUseTarget();
+    const rules::MarkMove now = rules::HuntersMarkMoveNow(QuarryDown(at->second), KeepMoveArmed(creature),
+                                                         OtherCreature(picked, id, at->second.quarry));
+    if (now == rules::MarkMove::kArm) {  // 0.99.22: nothing spent now - it goes when the quarry drops
+      at->second.armed = picked;
+      TellPlayer(id, "nwn5e: Hunter's Mark: Move armed - when your quarry drops, the mark moves to the creature you "
+                     "picked (your Bonus Action then).");
+      if (LogSlot()) Log("spells2024: 0x%08X Hunter's Mark: Move armed on 0x%08X (its quarry 0x%08X stands)", id, picked,
+                         at->second.quarry);
+      return false;
+    }
+    if (now == rules::MarkMove::kRefuse) {
       TellPlayer(id, "nwn5e: Hunter's Mark: Move - your quarry still stands (the mark moves once it drops).");
       if (LogSlot()) Log("spells2024: 0x%08X Hunter's Mark: Move refused - its quarry 0x%08X still stands", id,
                          at->second.quarry);  // 0.99.21
       return false;
     }
+    at->second.armed = 0;  // moved by hand: an armed one is done with
   }
   return true;
 }
@@ -1644,9 +1674,22 @@ void BuffUpdate(void* creature) {
       // 0.99.20 (owner, 2026-11-12: "I'm not a fan of using bonus actions automatically. I favour A. If there's an empty slot available put it there, but also have it available in the radial menu next to the hunter's mark"):
       // the mark doesn't move by itself - the player is told once, the Move on the quickbar and in the radial.
       at->second.told = true;
-      TellPlayer(id, "nwn5e: your quarry has dropped - Hunter's Mark: Move (a Bonus Action) marks a new creature: "
-                     "on your quickbar, or next to Hunter's Mark in the radial.");
-      if (LogSlot()) Log("spells2024: 0x%08X Hunter's Mark: its quarry 0x%08X dropped - told (Move)", id, at->second.quarry);
+      const uint32_t armed = at->second.armed;  // 0.99.22: an early Move, kept armed (the Ranger's option)
+      at->second.armed = 0;
+      void* next = armed ? CreatureById(armed) : nullptr;
+      if (next && !engine::IsDeadOrDying(next) && g_use_feat) {
+        TellPlayer(id, "nwn5e: your quarry has dropped - your armed Hunter's Mark: Move goes (your Bonus Action).");
+        if (LogSlot()) Log("spells2024: 0x%08X Hunter's Mark: its quarry 0x%08X dropped - the armed Move at 0x%08X", id,
+                           at->second.quarry, armed);
+        float nowhere[3] = {0.0f, 0.0f, 0.0f};
+        g_use_feat(creature, static_cast<uint16_t>(rules::kFeatHuntersMarkMove), 0, armed, ee::kObjectInvalid,
+                   nowhere);  // through the hook: the Bonus Action spent, or waiting for the next round
+      } else {
+        TellPlayer(id, "nwn5e: your quarry has dropped - Hunter's Mark: Move (a Bonus Action) marks a new creature: "
+                       "on your quickbar, or next to Hunter's Mark in the radial.");
+        if (LogSlot()) Log("spells2024: 0x%08X Hunter's Mark: its quarry 0x%08X dropped - told (Move)", id,
+                           at->second.quarry);
+      }
     }
   }
   if (!g_dashers.empty() && g_dashers.count(id) &&
@@ -1737,6 +1780,20 @@ void GlowUpdate(void* creature) {
 }
 
 }  // namespace
+
+// combat_options.cpp (0.99.22): the Ranger's option, its section by Ranger level.
+int HuntersMarkRangerLevel(void* creature) {
+  void* stats = creature ? StatsOf(creature) : nullptr;
+  return stats && Faithful() ? ClassLevel2024(stats, rules::CharacterClass::kRanger) : 0;
+}
+bool HuntersMarkArmOn(void* creature) { return KeepMoveArmed(creature); }
+void SetHuntersMarkArm(void* creature, bool on) {
+  if (!creature) return;
+  EnsureRecords(creature);
+  SetRecord(creature, kVarHuntersMarkArm, on ? 1 : 0);
+  Log("spells2024: 0x%08X Hunter's Mark: keep an early Move armed %s", Field<uint32_t>(creature, ee::kObjectId),
+      on ? "on" : "off");
+}
 
 // rules_spell_slots.cpp's UnReady: a spell slot spent - this turn's (One Spell with a Spell Slot per Turn).
 void NoteSlotSpent(void* creature, int level) {
@@ -1852,6 +1909,7 @@ void InstallSpells2024() {
     return;
   }
   ServeConditionalRows("spells2024");  // spells.if_spells2024.level1.txt (rules_spell_slots.cpp asks too)
+  RegisterRecords({kVarHuntersMarkArm});  // 0.99.22: the Ranger's option
   bool scripts = true;
   for (const rules::Spell2024& spell : rules::Spells2024()) {
     const ScriptHandler handler = HandlerOf(spell.row);

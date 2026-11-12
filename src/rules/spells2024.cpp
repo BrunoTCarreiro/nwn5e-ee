@@ -208,6 +208,11 @@ bool WardedAgainstRacialType(int nwn_racial_type) {
 
 bool SanctuaryStopsOwnAttacks(bool on_caster, bool caster_is_player) { return on_caster && caster_is_player; }
 
+MarkMove HuntersMarkMoveNow(bool quarry_down, bool keep_armed, bool other_creature_picked) {
+  if (quarry_down) return MarkMove::kMove;
+  return keep_armed && other_creature_picked ? MarkMove::kArm : MarkMove::kRefuse;
+}
+
 int HeroismTargets(int slot_level) { return 1 + std::max(0, slot_level - 1); }
 
 int HeroismTemporaryHitPoints(int modifier) { return std::max(0, modifier); }

@@ -76,6 +76,7 @@ struct BonusState {
   uint32_t used_round = 0;  // CombatRoundsEnded when it was spent
   uint64_t used_at = 0;     // game ms
   int pending = -1;         // a Bonus Action feat waiting for the next round
+  uint32_t pending_target = 0;  // 0.99.22: its target (0: the creature itself)
   bool potion = false;      // #120: or a potion waiting (its use's order)
   ItemUseOrder potion_order;
   bool run_pending = false;  // the round's start spent the Bonus Action on it: run it now
@@ -230,6 +231,7 @@ bool BonusActionGuard(void* creature, int feat) {
     return true;
   }
   s.pending = feat;
+  s.pending_target = CurrentFeatUseTarget();  // 0.99.22: used on it when its round comes
   s.potion = false;
   if (LogSlot()) Log("actions: 0x%08X %s waits - the round's Bonus Action is spent", id, rules::BonusActionName(feat));
   Tell(creature, std::string(rules::BonusActionName(feat)) +
@@ -308,11 +310,14 @@ void BonusActionUpdate(void* creature) {
   }
   const int feat = s.pending;
   s.pending = -1;
+  // 0.99.22: the target it was used on (Hunter's Mark: Move's creature) - else, as before, the creature itself.
+  const uint32_t target = s.pending_target != 0 && s.pending_target != ee::kObjectInvalid ? s.pending_target : id;
+  s.pending_target = 0;
   static const auto use_feat = reinterpret_cast<UseFeatFn>(EngineExport(ee::kUseFeat));  // through the hook
   if (!use_feat) return;
   Vector3 nowhere{0.0f, 0.0f, 0.0f};
   t_running_pending = true;
-  const int done = use_feat(creature, static_cast<uint16_t>(feat), 0, id, ee::kObjectInvalid, &nowhere);
+  const int done = use_feat(creature, static_cast<uint16_t>(feat), 0, target, ee::kObjectInvalid, &nowhere);
   t_running_pending = false;
   if (!done) {
     // 0.99.21 (owner, 2026-11-12: "check the logs, I don't think the mark moved"; the log: a Hunter's Mark: Move
@@ -353,6 +358,7 @@ void BonusActionRoundStart(void* round) {
         rules::PlanDefaultBonus(choice, s.used, held >= 0 && FeatReady(creature, held, choice.feat));
     if (plan.fire_feat) {
       s.pending = held;
+      s.pending_target = 0;
       Spend(id, &s);
       s.run_pending = true;
     }

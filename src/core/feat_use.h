@@ -14,6 +14,10 @@ using FeatUseListener = void (*)(void* creature, int feat);
 // UseFeat is not called; -1 leaves the feat to the next handler / the engine.
 using FeatUseHandler = int (*)(void* creature, int feat, int subfeat, uint32_t target);
 
+// 0.99.22: the target of the UseFeat being guarded or handled (OBJECT_INVALID outside one) - a guard that queues
+// the use keeps it (bonus_actions.cpp), one that arms it reads it (Hunter's Mark: Move).
+uint32_t CurrentFeatUseTarget();
+
 // Hook UseFeat on first use; false (and logged) if it can't.
 bool AddFeatUseGuard(FeatUseGuard guard);
 bool AddFeatUseListener(FeatUseListener listener);
