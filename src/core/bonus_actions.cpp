@@ -314,8 +314,17 @@ void BonusActionUpdate(void* creature) {
   t_running_pending = true;
   const int done = use_feat(creature, static_cast<uint16_t>(feat), 0, id, ee::kObjectInvalid, &nowhere);
   t_running_pending = false;
+  if (!done) {
+    // 0.99.21 (owner, 2026-11-12: "check the logs, I don't think the mark moved"; the log: a Hunter's Mark: Move
+    // waited for round 4, was refused - its quarry still stood - and the next Move found round 4's Bonus Action
+    // spent): refused, nothing was done, so the round's Bonus Action is given back. An off-hand attack the round's
+    // start left out for it stays out (the round's attacks are already counted).
+    BonusState& back = g_state[id];
+    back.used = false;
+    back.spent_feat = -1;
+  }
   if (LogSlot()) Log("actions: 0x%08X %s, waited for this round's Bonus Action: %s", id, rules::BonusActionName(feat),
-                     done ? "used" : "refused");
+                     done ? "used" : "refused - the Bonus Action given back");
 }
 
 }  // namespace

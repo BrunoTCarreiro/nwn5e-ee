@@ -1532,10 +1532,13 @@ bool BuffFeatGuard(void* creature, int feat) {
     const auto at = g_quarries.find(id);
     if (at == g_quarries.end() || !HasSpellEffect(creature, rules::kHuntersMark, rules::kHuntersMarkBonus, id)) {
       TellPlayer(id, "nwn5e: Hunter's Mark: Move - no Hunter's Mark of yours lasts.");
+      if (LogSlot()) Log("spells2024: 0x%08X Hunter's Mark: Move refused - no Hunter's Mark lasts", id);  // 0.99.21
       return false;
     }
     if (!QuarryDown(at->second)) {
       TellPlayer(id, "nwn5e: Hunter's Mark: Move - your quarry still stands (the mark moves once it drops).");
+      if (LogSlot()) Log("spells2024: 0x%08X Hunter's Mark: Move refused - its quarry 0x%08X still stands", id,
+                         at->second.quarry);  // 0.99.21
       return false;
     }
   }

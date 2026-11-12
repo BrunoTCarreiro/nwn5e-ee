@@ -1230,6 +1230,11 @@ monster AC by CR.
     first time it's granted, never overwriting; it stays between casts); while it's held, Hunter's Mark's radial
     entry opens its levels (or the cast) and Hunter's Mark: Move, the spell menu's own feat leaf; and when the
     quarry drops the player is told once. Retest L2-10b.
+    *0.99.21 (owner, 2026-11-12: "check the logs, I don't think the mark moved"):* the log - the first run's mark
+    moved ("Hunter's Mark moved to 0x35f", its next hit +1d6); in the second, Move was pressed while the quarry
+    stood, waited for the next round's Bonus Action, was refused - and the round's Bonus Action stayed spent, so the
+    radial's Move then waited a round more. A waited Bonus Action feat that's refused now gives the Bonus Action
+    back (bonus_actions.cpp); Move's refusals are logged. Retest L2-10c.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
