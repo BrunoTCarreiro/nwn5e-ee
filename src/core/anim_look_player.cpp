@@ -32,6 +32,7 @@
 #include "game_clock.h"
 #include "log.h"
 #include "spell_cast_listeners.h"
+#include "spell_impact.h"
 
 namespace {
 
@@ -468,6 +469,11 @@ void ArmedUpdate(void* creature) {
   const std::string code = data::ArmedRefreshScript(it->second.look);
   if (!code.empty() && RunScriptChunk(code.c_str(), id) == -1) Log("look: 0x%08X the armed glow's refresh didn't run", id);
 }
+
+// A game started (a new one, or a save loaded): no creature is armed any more, so none is renewed - an id kept from the
+// last game would put a glow on whichever creature has it now (the player is 0x7FFFFFFF in every game). The rules' first
+// update after a load still sends armed = false, and that takes off a glow the save kept.
+void ArmedGameStarted() { g_armed.clear(); }
 }  // namespace
 
 void PlaySpellLookArmed(void* creature, int spell_row, bool armed) {
@@ -492,4 +498,5 @@ void InstallLookPlayer() {
   ReadLooks();
   if (!g_looks.empty()) AddSpellCastListener(&LookCastBroadcast);  // logs itself when it can't
   if (!AddCreatureUpdateListener(&ArmedUpdate)) Log("look: SKIP the armed smites' glow refresh (no creature update listener)");  // #162
+  if (!AddGameStartListener(&ArmedGameStarted)) Log("look: SKIP clearing the armed smites at a game start (no game start listener)");
 }
