@@ -63,3 +63,20 @@ TEST(LookRowsEffects) {
   CHECK_EQ(CheckLookRows("feat", progfx, "Label\n", &why), false);  // not even an empty file of it
   CHECK_EQ(CheckLookRows("visualeffects", effects, "# only a comment\n", &why), true);
 }
+
+// #161 Task 6 (the owner's Q2 A; the game session's OK, 2026-11-12: "vfx_persistent 200-299 is yours for the VFX Bench"):
+// a saved area's row - any of its look's columns, on an empty row 200-299; never its scripts (the rules').
+TEST(LookRowsAcceptAreaRange) {
+  TwoDA base = Table({"LABEL", "SHAPE", "RADIUS", "ONENTER", "ONEXIT", "HEARTBEAT", "MODEL01", "NUMACT01"}, 260);
+  base.rows[250][0] = "SOMEONES";  // a row in use
+  std::string why;
+  CHECK_EQ(CheckLookRows("vfx_persistent", base, "LABEL SHAPE RADIUS MODEL01 NUMACT01\n200 N5_FOG C 3 n5_fog_s1 5\n", &why), true);
+  CHECK_EQ(CheckLookRows("vfx_persistent", base, "SHAPE\n299 R\n", &why), true);  // past the table's end
+  CHECK_EQ(CheckLookRows("vfx_persistent", base, "SHAPE\n199 C\n", &why), false);  // the editor's preview row
+  CHECK_EQ(CheckLookRows("vfx_persistent", base, "SHAPE\n300 C\n", &why), false);
+  CHECK_EQ(CheckLookRows("vfx_persistent", base, "SHAPE\n100 C\n", &why), false);  // the game's own
+  CHECK_EQ(CheckLookRows("vfx_persistent", base, "SHAPE\n250 C\n", &why), false);  // in use
+  CHECK_EQ(CheckLookRows("vfx_persistent", base, "ONENTER\n200 n5_x\n", &why), false);
+  CHECK_EQ(why.find("ONENTER") != std::string::npos, true);
+  CHECK_EQ(CheckLookRows("vfx_persistent", base, "SHAPE HEARTBEAT\n200 C n5_x\n", &why), false);
+}
