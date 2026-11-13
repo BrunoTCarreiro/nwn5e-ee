@@ -344,6 +344,38 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
     lines.push_back("  color " + Num(l.color[0]) + " " + Num(l.color[1]) + " " + Num(l.color[2]));
     lines.push_back("endnode");
   }
+  // #161: each plane a plain trimesh node, as the game's own effect models have them (Entangle's vines): its vertices,
+  // UVs (the vertex's own index) and faces (smoothing group 1, material 1).
+  for (size_t i = 0; i < effect.planes.size(); ++i) {
+    const VfxPlane& p = effect.planes[i];
+    const auto it = p.parent.empty() ? by_name.end() : by_name.find(p.parent);
+    lines.push_back("node trimesh " + ModelNodeName(model, "p" + std::to_string(i), p.name));
+    lines.push_back("  parent " + (it == by_name.end() ? model : it->second));
+    lines.push_back("  position " + Num(p.position[0]) + " " + Num(p.position[1]) + " " + Num(p.position[2]));
+    lines.push_back("  orientation " + Num(p.orientation[0]) + " " + Num(p.orientation[1]) + " " + Num(p.orientation[2]) + " " +
+                    Num(p.orientation[3]));
+    lines.push_back("  wirecolor 1 1 1");
+    lines.push_back("  ambient 1 1 1");
+    lines.push_back("  diffuse 1 1 1");
+    lines.push_back("  specular 0 0 0");
+    lines.push_back("  shininess 1");
+    lines.push_back("  bitmap " + (p.bitmap.empty() ? std::string("NULL") : p.bitmap));
+    lines.push_back("  render 1");
+    lines.push_back("  shadow 0");
+    const size_t verts = p.verts.size() / 3;
+    lines.push_back("  verts " + std::to_string(verts));
+    for (size_t v = 0; v < verts; ++v) lines.push_back("    " + Num(p.verts[3 * v]) + " " + Num(p.verts[3 * v + 1]) + " " + Num(p.verts[3 * v + 2]));
+    const size_t uvs = std::min(verts, p.tverts.size() / 2);
+    lines.push_back("  tverts " + std::to_string(uvs));
+    for (size_t v = 0; v < uvs; ++v) lines.push_back("    " + Num(p.tverts[2 * v]) + " " + Num(p.tverts[2 * v + 1]) + " 0");
+    const size_t faces = p.faces.size() / 3;
+    lines.push_back("  faces " + std::to_string(faces));
+    for (size_t f = 0; f < faces; ++f) {
+      const std::string a = std::to_string(p.faces[3 * f]), b = std::to_string(p.faces[3 * f + 1]), c = std::to_string(p.faces[3 * f + 2]);
+      lines.push_back("    " + a + " " + b + " " + c + " 1 " + a + " " + b + " " + c + " 1");
+    }
+    lines.push_back("endnode");
+  }
   lines.push_back("endmodelgeom " + model);
   constexpr float kLightFadeOut = 0.4f;  // #145: how fast a light without an end of its own goes out
   // The impact: long enough for every emitter's emission (and, F, what it emitted to fade),
@@ -525,12 +557,30 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
     if (!l.fading) out += "fading = 0\n";
     out += DraftKeys(l.keys);
   }
+  // #161: the planes, after the lights (core.js writes the same bytes): kept whole, never edited.
+  for (const VfxPlane& p : effect.planes) {
+    out += "\n[plane " + p.name + "]\n";
+    if (!p.parent.empty()) out += "parent = " + p.parent + "\n";
+    out += "position = " + Num(p.position[0]) + " " + Num(p.position[1]) + " " + Num(p.position[2]) + "\n";
+    out += "orientation = " + Num(p.orientation[0]) + " " + Num(p.orientation[1]) + " " + Num(p.orientation[2]) + " " +
+           Num(p.orientation[3]) + "\n";
+    out += "bitmap = " + p.bitmap + "\n";
+    std::string list;
+    for (float v : p.verts) list += " " + Num(v);
+    out += "verts =" + list + "\n";
+    list.clear();
+    for (float v : p.tverts) list += " " + Num(v);
+    out += "tverts =" + list + "\n";
+    list.clear();
+    for (int f : p.faces) list += " " + std::to_string(f);
+    out += "faces =" + list + "\n";
+  }
   return out;
 }
 
 bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error) {
   VfxEffect result;
-  int emitter = -1, node = -1, light = -1;  // the section being read (indices: the lists grow)
+  int emitter = -1, node = -1, light = -1, plane = -1;  // the section being read (indices: the lists grow)
   std::istringstream in(text);
   std::string raw;
   int line_number = 0;
@@ -547,16 +597,23 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
         node = light = -1;
         result.emitters.back().name = Trim(inner.substr(7));
         if (result.emitters.back().name.empty()) result.emitters.back().name = "emitter";
+        plane = -1;
+      } else if (Lower(inner).rfind("plane", 0) == 0) {  // #161
+        result.planes.emplace_back();
+        plane = static_cast<int>(result.planes.size()) - 1;
+        emitter = node = light = -1;
+        result.planes.back().name = Trim(inner.substr(5));
+        if (result.planes.back().name.empty()) result.planes.back().name = "plane";
       } else if (Lower(inner).rfind("node", 0) == 0) {
         result.nodes.emplace_back();
         node = static_cast<int>(result.nodes.size()) - 1;
-        emitter = light = -1;
+        emitter = light = plane = -1;
         result.nodes.back().name = Trim(inner.substr(4));
         if (result.nodes.back().name.empty()) result.nodes.back().name = "node";
       } else if (Lower(inner).rfind("light", 0) == 0) {  // #145
         result.lights.emplace_back();
         light = static_cast<int>(result.lights.size()) - 1;
-        emitter = node = -1;
+        emitter = node = plane = -1;
         result.lights.back().name = Trim(inner.substr(5));
         if (result.lights.back().name.empty()) result.lights.back().name = "light";
       } else {
@@ -573,6 +630,22 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
     const std::string key = Lower(Trim(line.substr(0, eq)));
     const std::string value = Trim(line.substr(eq + 1));
     const std::vector<std::string> words = Words(value);
+    if (plane >= 0) {  // #161
+      VfxPlane& p = result.planes[plane];
+      if (key == "parent") p.parent = value;
+      else if (key == "position") ReadFloats(words, 0, p.position, 3);
+      else if (key == "orientation") ReadFloats(words, 0, p.orientation, 4);
+      else if (key == "bitmap") p.bitmap = VfxResRef(value, 64);
+      else if (key == "verts" || key == "tverts") {
+        std::vector<float>& list = key == "verts" ? p.verts : p.tverts;
+        list.clear();
+        for (const std::string& w : words) list.push_back(ToFloat(w));
+      } else if (key == "faces") {
+        p.faces.clear();
+        for (const std::string& w : words) p.faces.push_back(std::max(0, atoi(w.c_str())));
+      }
+      continue;
+    }
     if (light >= 0) {  // #145
       VfxLight& l = result.lights[light];
       if (key == "parent") l.parent = value;
@@ -708,7 +781,14 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
     bool shadow = false;
     bool ambient_only = false, dynamic = true, fading = true;
     int priority = 3;
+    // #161: a plain trimesh node, kept whole as a plane.
+    bool mesh = false;
+    std::string bitmap;
+    std::vector<float> verts, tverts;
+    std::vector<int> faces;
   };
+  std::string list_kind;  // a trimesh's verts / tverts / faces rows being read
+  int list_rows = 0;
   std::vector<Geo> geo;
   std::map<std::string, size_t> geo_at;  // lower-case name -> index
   int current = -1;                      // the geometry node being read / keyed
@@ -767,6 +847,22 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
     const std::vector<std::string> w = Words(raw.substr(0, raw.find('#')));
     if (w.empty()) continue;
     const std::string first = Lower(w[0]);
+    if (list_rows > 0) {  // #161: a trimesh's rows
+      if (current >= 0 && numeric(w[0])) {
+        Geo& g = geo[current];
+        if (list_kind == "verts" && w.size() >= 3) {
+          for (int k = 0; k < 3; ++k) g.verts.push_back(ToFloat(w[k]));
+        } else if (list_kind == "tverts" && w.size() >= 2) {
+          g.tverts.push_back(ToFloat(w[0]));
+          g.tverts.push_back(ToFloat(w[1]));
+        } else if (list_kind == "faces" && w.size() >= 3) {
+          for (int k = 0; k < 3; ++k) g.faces.push_back(std::max(0, atoi(w[k].c_str())));
+        }
+        --list_rows;
+        continue;
+      }
+      list_rows = 0;  // a list cut short
+    }
     if (key_rows != 0) {
       if (first == "endlist") {
         finish_keys();
@@ -804,6 +900,7 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
         current = static_cast<int>(geo.size()) - 1;
         geo_at.emplace(Lower(w[2]), geo.size() - 1);
         geo.back().light = Lower(w[1]) == "light";  // #145
+        geo.back().mesh = Lower(w[1]) == "trimesh";  // #161
         if (Lower(w[1]) == "emitter") {
           geo.back().emitter = true;
           result.emitters.emplace_back();
@@ -835,6 +932,14 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       else if (first == "position") ReadFloats(w, 1, g.position, 3);
       else if (first == "orientation") ReadFloats(w, 1, g.orientation, 4);
       else if (first == "refmodel") g.ref_model = w[1];
+      if (g.mesh) {  // #161
+        if (first == "bitmap") g.bitmap = Lower(w[1]) == "null" ? std::string() : VfxResRef(w[1], 64);
+        else if (first == "verts" || first == "tverts" || first == "faces") {
+          list_kind = first;
+          list_rows = std::max(0, std::min(65536, atoi(w[1].c_str())));
+        }
+        continue;
+      }
       if (g.light) {  // #145
         if (first == "color") ReadFloats(w, 1, g.color, 3);
         else if (first == "radius") g.radius = ToFloat(w[1]);
@@ -898,7 +1003,9 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
     }
   }
   if (key_rows != 0) finish_keys();
-  if (result.emitters.empty()) {
+  bool meshes = false;
+  for (const Geo& g : geo) meshes = meshes || (g.mesh && !g.verts.empty() && !g.faces.empty());
+  if (result.emitters.empty() && !meshes) {
     if (error) *error = "no emitters in that model (an ASCII effect model of nwn5e's is needed)";
     return false;
   }
@@ -910,7 +1017,7 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
   };
   std::set<std::string> keep;
   for (const Geo& g : geo) {
-    if (!g.emitter && !g.light) continue;  // #145: a light's ancestors too
+    if (!g.emitter && !g.light && !(g.mesh && !g.verts.empty())) continue;  // #145: a light's ancestors too; #161 a plane's
     std::string up = g.parent;
     for (int depth = 0; depth < 64 && !is_root(up) && geo_at.count(Lower(up)); ++depth) {
       const Geo& parent = geo[geo_at[Lower(up)]];
@@ -960,6 +1067,18 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       l.keys = g.keys;
       result.lights.push_back(l);
       continue;
+    }
+    if (g.mesh && !g.verts.empty() && !g.faces.empty()) {  // #161: a mesh with geometry is a plane (and a node too when
+      VfxPlane p;                                          // something hangs under it)
+      p.name = g.name;
+      p.parent = is_root(g.parent) ? std::string() : g.parent;
+      memcpy(p.position, g.position, sizeof(p.position));
+      memcpy(p.orientation, g.orientation, sizeof(p.orientation));
+      p.bitmap = g.bitmap;
+      p.verts = g.verts;
+      p.tverts = g.tverts;
+      p.faces = g.faces;
+      result.planes.push_back(p);
     }
     const bool target = targets.count(Lower(g.name)) > 0;
     if (!keep.count(Lower(g.name)) && !target) continue;
@@ -1241,7 +1360,14 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
     }
   }
   }
-  if (result.emitters.empty()) {
+  // #161: plain mesh nodes (flags 0x21: header | mesh - not skin, anim, dangly or walkmesh), kept whole as planes.
+  std::vector<size_t> plane_nodes;
+  for (const GeoNode& g : geometry) {
+    if (g.node != root_node && (m.U32(g.node + 0x5C) & ~0x1u) == 0x20 && m.U16(g.node + 0x60 + 0x1C0) > 0 && m.U32(g.node + 0x60 + 0x0C) > 0) {
+      plane_nodes.push_back(g.node);  // with vertices and faces
+    }
+  }
+  if (result.emitters.empty() && plane_nodes.empty()) {
     if (error) *error = "no emitters found in that model";
     return false;
   }
@@ -1256,6 +1382,7 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
   }
   std::vector<size_t> hung = nodes;
   hung.insert(hung.end(), light_nodes.begin(), light_nodes.end());
+  hung.insert(hung.end(), plane_nodes.begin(), plane_nodes.end());  // #161
   for (size_t node : hung) {
     if (!geo_at.count(node)) continue;
     for (size_t up = geometry[geo_at[node]].parent; up && up != root_node && geo_at.count(up) && ancestors.insert(up).second;
@@ -1297,6 +1424,36 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
     l.dynamic = m.U32(node + 0xA8) != 0;
     l.fading = m.U32(node + 0xB8) != 0;
     result.lights.push_back(l);
+  }
+  // #161: each plane - the mesh header at the node +0x60: its texture at +0x78 (64), faces at +0x08 (count +0x0C, 32
+  // bytes each, the vertex indices at +26 +28 +30), the vertices in the raw data (the file header's +4, past it) at
+  // +0x1BC (count, 16 bits, +0x1C0), the first UVs at +0x1C4 (0xFFFFFFFF: none). A mesh that runs past the file is skipped.
+  const size_t raw = kModelBase + m.U32(4);
+  for (size_t node : plane_nodes) {
+    const GeoNode& g = geometry[geo_at[node]];
+    const size_t mh = node + 0x60;
+    VfxPlane p;
+    p.name = g.name;
+    p.parent = parent_name(g);
+    memcpy(p.position, g.pos, sizeof(p.position));
+    float turn[4];
+    AxisAngle(g.rot, turn);
+    if (turn[3] > 1e-4f && (turn[0] || turn[1] || turn[2])) memcpy(p.orientation, turn, sizeof(turn));
+    p.bitmap = VfxResRef(m.Str(mh + 0x78, 64), 64);
+    const uint32_t v_at = m.U32(mh + 0x1BC), uv_at = m.U32(mh + 0x1C4), f_at = m.U32(mh + 0x08), f_count = m.U32(mh + 0x0C);
+    const uint16_t v_count = m.U16(mh + 0x1C0);
+    if (raw + v_at + 12ull * v_count > bytes.size() || f_count > 65536 || kModelBase + f_at + 32ull * f_count > bytes.size()) continue;
+    for (uint32_t v = 0; v < 3u * v_count; ++v) p.verts.push_back(m.F32(raw + v_at + 4ull * v));
+    if (uv_at != 0xFFFFFFFFu && raw + uv_at + 8ull * v_count <= bytes.size()) {
+      for (uint32_t v = 0; v < 2u * v_count; ++v) p.tverts.push_back(m.F32(raw + uv_at + 4ull * v));
+    }
+    for (uint32_t f = 0; f < f_count; ++f) {
+      const size_t at = kModelBase + f_at + 32ull * f;
+      const uint16_t a = m.U16(at + 26), b = m.U16(at + 28), c = m.U16(at + 30);
+      if (a >= v_count || b >= v_count || c >= v_count) continue;
+      p.faces.insert(p.faces.end(), {a, b, c});
+    }
+    result.planes.push_back(p);
   }
   // A point-to-point emitter's target: its first child that is a reference node (header flags
   // 0x10; the game's SetEmitterTarget takes the first child with a reference object), kept

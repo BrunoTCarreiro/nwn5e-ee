@@ -1,0 +1,14 @@
+# nwn5e VFX draft (!vfxedit) - key = value; one [emitter <name>] section per emitter
+name = n5_vines
+type = D
+seconds = 8
+attach = root
+lengths = 0 2 1
+
+[plane Plane01]
+position = 0.5 0 0
+orientation = 0 0 1 1.5708
+bitmap = fxpa_fern
+verts = -0.2 0 0 0.2 0 0 -0.2 0 0.4 0.2 0 0.4
+tverts = 0 0 1 0 0 1 1 1
+faces = 0 1 2 2 1 3
