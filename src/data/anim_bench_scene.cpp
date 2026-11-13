@@ -162,6 +162,10 @@ bool ReadBenchRequest(const std::string& first_line, BenchRequest* request, std:
       int point = 0;
       ok = ParseInt(value, 0, 1, &point);
       r.point = point == 1;
+    } else if (key == "self") {
+      int self = 0;
+      ok = ParseInt(value, 0, 1, &self);
+      r.self = self == 1;
     } else {
       return fail("unknown request key '" + key + "'");
     }
@@ -171,6 +175,9 @@ bool ReadBenchRequest(const std::string& first_line, BenchRequest* request, std:
     if (r.row == 0) return fail("a play request needs row=<spells.2da row>");
     const int spots = static_cast<int>(FormationSpots(r.formation, r.count, r.distance).size());
     if (r.target >= spots) return fail("target " + std::to_string(r.target) + " is past the formation's creatures");
+    if (r.self && (r.miss || r.darts > 1 || r.point || r.leaps > 0)) {
+      return fail("a look on its caster plays alone: no miss, darts, point or leaps");
+    }
   }
   *request = r;
   return true;
@@ -217,6 +224,10 @@ std::string BenchCastScript(uint32_t target, int row) {
   snprintf(text, sizeof text, "object t = StringToObject(\"%x\");\n", target);
   return std::string(text) + "ClearAllActions();\nSetFacingPoint(GetPosition(t));\nActionCastFakeSpellAtObject(" +
          std::to_string(row) + ", t);\n";
+}
+
+std::string BenchSelfCastScript(int row) {
+  return "ClearAllActions();\nActionCastFakeSpellAtObject(" + std::to_string(row) + ", OBJECT_SELF);\n";
 }
 
 }  // namespace data

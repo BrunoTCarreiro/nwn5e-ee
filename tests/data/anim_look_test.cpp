@@ -30,6 +30,30 @@ std::string Fixture(const char* name) {
 
 }  // namespace
 
+// #162 1A: a look on its caster (an armed smite; the bench's Personal rows): nothing flies to oneself - the missile goes,
+// in the defaults and every [row] section; the hit, the cast effect and the sounds stay.
+TEST(AnimLookOnCaster) {
+  data::SpellLook look;
+  look.rows = {1183, 1184};
+  look.parts.missile = 2100;
+  look.parts.hit = 71;
+  look.parts.cast_vfx = 44;
+  look.parts.sounds.push_back({});
+  data::LookParts own = look.parts;
+  own.missile = 2101;
+  own.hit = 61;
+  look.variants[1184] = own;
+  const data::SpellLook on = data::LookOnCaster(look);
+  CHECK_EQ(on.parts.missile, 0);
+  CHECK_EQ(on.parts.hit, 71);
+  CHECK_EQ(on.parts.cast_vfx, 44);
+  CHECK_EQ(static_cast<int>(on.parts.sounds.size()), 1);
+  CHECK_EQ(data::LookPartsFor(on, 1184).missile, 0);
+  CHECK_EQ(data::LookPartsFor(on, 1184).hit, 61);
+  CHECK_EQ(data::LookFlies(on, 1183) || data::LookFlies(on, 1184), false);
+  CHECK_EQ(data::LookFlies(look, 1183), true);  // the look itself is untouched
+}
+
 TEST(AnimLookReadsTheFixture) {
   data::SpellLook look;
   std::string error;

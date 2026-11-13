@@ -75,6 +75,9 @@ const LookParts& LookPartsFor(const SpellLook& look, int row);
 // Whether the row's look flies something (its missile isn't 0) - its flight, or the game's MIRV for a missile without
 // a twin. A look with missile 0 lands its hit on the target at the release: nothing flies.
 bool LookFlies(const SpellLook& look, int row);
+// The look played on its caster (#162 1A: an armed smite; the bench's Personal rows, Range P): nothing flies to oneself -
+// the missile is 0 in the defaults and every [row] section, so the hit lands on the caster at the release. The rest as is.
+SpellLook LookOnCaster(const SpellLook& look);
 
 // How long the game flies a MIRV-type missile (visualeffects Type_FD P, progfx Type 10 'log' - Magic Missile, the
 // orbs) over `metres`: d / max(1, 3 ln d + 2), the curve the game's own nw_s0_magmiss uses. The max keeps it positive

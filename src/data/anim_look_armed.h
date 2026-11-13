@@ -33,4 +33,22 @@ std::string ArmedRefreshScript(const ArmedLook& look);
 // The glow off the weapon kept - its tagged properties only - and the record gone.
 std::string ArmedOffScript();
 
+// #162 1A (owner, 2026-11-13: "1. A"): what an arming plays. With a look for the smite's row (made in the Spell & Attack
+// Bench): the look on the caster - its cast (the clip swap, the caster's parts and sounds, the gesture) and its hit on
+// the caster - instead of the fixed flash; only its hit when that look's cast already began for this caster (a cast that
+// ran - an item's, a script's - was broadcast, and the cast listener started the look then: never twice). Without a
+// look: the fixed flash. The glow is the same either way.
+struct ArmedPlay {
+  bool flash = false;  // the fixed flash (ArmedLook.flash)
+  bool cast = false;   // the look's cast and the gesture
+  bool hit = false;    // the look's hit on the caster
+};
+ArmedPlay ArmedPlayOf(bool has_look, bool cast_begun);
+// The arming's script, run on the creature: the flash (play.flash) or none, the glow, and the gesture when play.cast.
+std::string ArmedArmScript(const ArmedLook& look, const ArmedPlay& play, int spell_row);
+// The gesture: spells.2da `spell_row`'s own conjure and cast, faked at the caster (ActionCastFakeSpellAtObject: the
+// look's clips swapped in by its cast, nothing cast) - only when the caster isn't doing anything else, so it's never
+// queued behind an attack and never clears one. A player's arming cast is refused before it runs: this is its gesture.
+std::string ArmedGestureScript(int spell_row);
+
 }  // namespace data

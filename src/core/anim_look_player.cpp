@@ -43,6 +43,7 @@ constexpr float kAtLeast = 0.01f;         // a look that played answers more tha
 std::vector<data::SpellLook> g_looks;
 std::unordered_map<int, size_t> g_by_row;              // spells.2da row -> g_looks
 std::unordered_map<uint32_t, int64_t> g_cast_started;  // caster id -> game ms its look's cast began
+std::unordered_map<uint32_t, int> g_cast_row;          // caster id -> the spells.2da row that cast's look is for
 std::unordered_map<int, bool> g_row_served;            // visualeffects row -> the game serves it (asked once)
 std::unordered_map<int, int> g_twin;                   // a missile row FlightTwinRow doesn't know -> its twin (asked once)
 bool g_installed = false;
@@ -194,10 +195,12 @@ void StartLookCast(uint32_t caster, const data::SpellLook& look, int row) {
   const int64_t now = Now();
   if (g_cast_started.size() > 64) {  // forget casts long past
     for (auto it = g_cast_started.begin(); it != g_cast_started.end();) {
+      if (now - it->second > kCastMemoryMs) g_cast_row.erase(it->first);
       it = now - it->second > kCastMemoryMs ? g_cast_started.erase(it) : std::next(it);
     }
   }
   g_cast_started[caster] = now;
+  g_cast_row[caster] = row;
   void* creature = CreatureById(caster);
   // The conjure's own clip and the cast's, swapped as one for the whole cast (at least the conjure and a moment).
   std::vector<CastClipSwap> swaps;
@@ -482,9 +485,26 @@ void PlaySpellLookArmed(void* creature, int spell_row, bool armed) {
   const data::ArmedLook look = data::ArmedLookOf(spell_row);
   if (look.flash < 0 && look.glow < 0) return;
   if (armed) {
-    const bool ran = RunScriptChunk(data::ArmedOnScript(look).c_str(), id) != -1;
+    // #162 1A: the row's look from the Spell & Attack Bench, when it has one - on the caster (nothing flies to oneself);
+    // only its hit when this caster's cast of that look already began (a cast that ran was broadcast: LookCastBroadcast).
+    const data::SpellLook* own = LookFor(spell_row);
+    const auto started = g_cast_started.find(id);
+    const auto cast_row = g_cast_row.find(id);
+    const bool begun = own && started != g_cast_started.end() && Now() - started->second < kCastMemoryMs &&
+                       cast_row != g_cast_row.end() && cast_row->second == spell_row;
+    const data::ArmedPlay play = data::ArmedPlayOf(own != nullptr, begun);
+    const data::SpellLook on = own ? data::LookOnCaster(*own) : data::SpellLook();
+    if (play.cast) StartLookCast(id, on, spell_row);  // before the gesture: its fake cast's broadcast then finds it begun
+    const bool ran = RunScriptChunk(data::ArmedArmScript(look, play, spell_row).c_str(), id) != -1;
+    if (play.hit) PlayLookHit(id, id, on, spell_row);
     g_armed[id] = {spell_row, look, GetTickCount64() + data::kArmedRefreshMs};
-    Log("look: 0x%08X spell %d armed - flash %d, glow %d%s", id, spell_row, look.flash, look.glow, ran ? "" : " (its script didn't run)");
+    if (own) {
+      Log("look: 0x%08X spell %d armed - its look %s on the caster (%s), glow %d%s", id, spell_row, own->name.c_str(),
+          play.cast ? "its cast, the gesture when idle, its hit" : "its hit: the cast already began it", look.glow,
+          ran ? "" : " (its script didn't run)");
+    } else {
+      Log("look: 0x%08X spell %d armed - flash %d, glow %d%s", id, spell_row, look.flash, look.glow, ran ? "" : " (its script didn't run)");
+    }
   } else {
     g_armed.erase(id);
     const bool ran = RunScriptChunk(data::ArmedOffScript().c_str(), id) != -1;

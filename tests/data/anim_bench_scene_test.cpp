@@ -64,6 +64,22 @@ TEST(AnimBenchRequest) {
   CHECK_EQ(data::ReadBenchRequest("request = play 15 row=1156 darts=9", &r, &error), false);
   CHECK_EQ(data::ReadBenchRequest("request = play 16 row=1156 spread=all", &r, &error), false);
   CHECK_EQ(data::ReadBenchRequest("request = play 17 row=1156 point=2", &r, &error), false);
+  // A look on its caster (#162 1A: a Personal row, as the smites): self=1 - nothing spawned, it plays on the player. It
+  // plays alone: no miss, darts, point or leaps with it.
+  CHECK_EQ(data::ReadBenchRequest("request = play 18 row=1183 self=1", &r, &error) && r.self, true);
+  CHECK_EQ(data::ReadBenchRequest("request = play 19 row=1183", &r, &error) && !r.self, true);
+  CHECK_EQ(data::ReadBenchRequest("request = play 20 row=1183 self=2", &r, &error), false);
+  CHECK_EQ(data::ReadBenchRequest("request = play 21 row=1183 self=1 miss=1", &r, &error), false);
+  CHECK_EQ(data::ReadBenchRequest("request = play 22 row=1183 self=1 darts=2", &r, &error), false);
+  CHECK_EQ(data::ReadBenchRequest("request = play 23 row=1183 self=1 point=1", &r, &error), false);
+  CHECK_EQ(data::ReadBenchRequest("request = play 24 row=1183 self=1 leaps=1", &r, &error), false);
+}
+
+// The replay of a look on its caster: the row's conjure and cast faked at the player itself.
+TEST(AnimBenchSelfCastScript) {
+  const std::string s = data::BenchSelfCastScript(1183);
+  CHECK_EQ(s.find("ClearAllActions();") != std::string::npos, true);
+  CHECK_EQ(s.find("ActionCastFakeSpellAtObject(1183, OBJECT_SELF);") != std::string::npos, true);
 }
 
 TEST(AnimBenchSpawnScript) {

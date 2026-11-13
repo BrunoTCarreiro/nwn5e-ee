@@ -39,6 +39,43 @@ TEST(ArmedLookOnScript) {
   CHECK_EQ(Has(ArmedRefreshScript(ArmedLookOf(1184)), "ItemPropertyVisualEffect(3)"), true);
 }
 
+// #162 1A (owner, 2026-11-13: "1. A"): a smite whose row has a look made in the Spell & Attack Bench plays that look as
+// it arms - its cast (the clip swap, the caster's parts, the gesture) and its hit on the caster - instead of the fixed
+// flash; only its hit when that look's cast already began for the caster (a cast that ran: the cast listener started it,
+// so it never plays twice). No look: the fixed flash, as before.
+TEST(ArmedLookPlays) {
+  const ArmedPlay none = ArmedPlayOf(false, false);
+  CHECK_EQ(none.flash && !none.cast && !none.hit, true);
+  const ArmedPlay fresh = ArmedPlayOf(true, false);
+  CHECK_EQ(!fresh.flash && fresh.cast && fresh.hit, true);
+  const ArmedPlay begun = ArmedPlayOf(true, true);
+  CHECK_EQ(!begun.flash && !begun.cast && begun.hit, true);
+  CHECK_EQ(ArmedPlayOf(false, true).flash, true);  // no look: a cast seen changes nothing
+}
+
+// The arming's script: the fixed flash and the glow, or - with a look - the glow and the gesture, no flash.
+TEST(ArmedLookArmScript) {
+  const std::string flash = ArmedArmScript(ArmedLookOf(1183), ArmedPlayOf(false, false), 1183);
+  CHECK_EQ(Has(flash, "EffectVisualEffect(71)"), true);
+  CHECK_EQ(Has(flash, "ItemPropertyVisualEffect(5)"), true);
+  CHECK_EQ(Has(flash, "ActionCastFakeSpellAtObject"), false);
+  const std::string look = ArmedArmScript(ArmedLookOf(1183), ArmedPlayOf(true, false), 1183);
+  CHECK_EQ(Has(look, "EffectVisualEffect(71)"), false);
+  CHECK_EQ(Has(look, "ItemPropertyVisualEffect(5)"), true);
+  CHECK_EQ(Has(look, "ActionCastFakeSpellAtObject(1183, OBJECT_SELF)"), true);
+  const std::string begun = ArmedArmScript(ArmedLookOf(1184), ArmedPlayOf(true, true), 1184);
+  CHECK_EQ(Has(begun, "ItemPropertyVisualEffect(3)") && !Has(begun, "ActionCastFakeSpellAtObject"), true);
+}
+
+// The gesture: the row's own conjure and cast, faked at the caster (the look's clips swapped in), only when the caster
+// isn't doing anything else - never queued behind an attack, never clearing one.
+TEST(ArmedLookGesture) {
+  const std::string s = ArmedGestureScript(1185);
+  CHECK_EQ(Has(s, "GetCurrentAction(OBJECT_SELF) == ACTION_INVALID"), true);
+  CHECK_EQ(Has(s, "ActionCastFakeSpellAtObject(1185, OBJECT_SELF)"), true);
+  CHECK_EQ(Has(s, "ClearAllActions"), false);
+}
+
 // The glow comes off the weapon kept - its tagged properties only, never the weapon's own - and the record goes.
 TEST(ArmedLookOffScript) {
   const std::string s = ArmedOffScript();

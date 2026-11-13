@@ -56,4 +56,26 @@ std::string ArmedOnScript(const ArmedLook& look) {
 
 std::string ArmedOffScript() { return GlowOff() + "DeleteLocalObject(OBJECT_SELF, \"" + kArmedGlowTag + "\");\n"; }
 
+ArmedPlay ArmedPlayOf(bool has_look, bool cast_begun) {
+  ArmedPlay play;
+  if (!has_look) {
+    play.flash = true;
+    return play;
+  }
+  play.cast = !cast_begun;
+  play.hit = true;
+  return play;
+}
+
+std::string ArmedArmScript(const ArmedLook& look, const ArmedPlay& play, int spell_row) {
+  std::string out = play.flash ? ArmedOnScript(look) : ArmedRefreshScript(look);
+  if (play.cast) out += ArmedGestureScript(spell_row);
+  return out;
+}
+
+std::string ArmedGestureScript(int spell_row) {
+  return "if (GetCurrentAction(OBJECT_SELF) == ACTION_INVALID) ActionCastFakeSpellAtObject(" + std::to_string(spell_row) +
+         ", OBJECT_SELF);\n";
+}
+
 }  // namespace data

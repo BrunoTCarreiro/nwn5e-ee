@@ -39,10 +39,12 @@ struct BenchRequest {
   int darts = 1;
   std::string spread = "target";
   bool point = false;
+  // A look on its caster (#162 1A: a Personal row, as the smites): nothing spawned, it plays on the player.
+  bool self = false;
 };
 // "request = play <serial> row=<r> formation=<name> count=<n> distance=<m> target=<i> enemy=<resref> leaps=<k>
-// [miss=1] [darts=<1-8>] [spread=target|each] [point=0|1]" or "request = stop <serial>". Unknown keys, out-of-range
-// values and target >= count are errors.
+// [miss=1] [darts=<1-8>] [spread=target|each] [point=0|1] [self=0|1]" or "request = stop <serial>". Unknown keys,
+// out-of-range values and target >= count are errors; so is self=1 with a miss, darts, a point or leaps (it plays alone).
 bool ReadBenchRequest(const std::string& first_line, BenchRequest* request, std::string* error);
 
 // Run as the player character: creates `enemy` at each spot (facing back), commoner faction and plot so they neither
@@ -54,5 +56,6 @@ std::string BenchClearScript();  // destroys every "n5sb_target"
 // spawns the formation round (its position and facing); "" with no mark, and the formation goes round the player.
 std::string BenchMarkScript();
 std::string BenchCastScript(uint32_t target, int row);  // run as the PC: face the target, ActionCastFakeSpellAtObject
+std::string BenchSelfCastScript(int row);  // run as the PC: ActionCastFakeSpellAtObject at itself (a look on its caster)
 
 }  // namespace data

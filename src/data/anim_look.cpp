@@ -458,6 +458,13 @@ const LookParts& LookPartsFor(const SpellLook& look, int row) {
 
 bool LookFlies(const SpellLook& look, int row) { return LookPartsFor(look, row).missile != 0; }
 
+SpellLook LookOnCaster(const SpellLook& look) {
+  SpellLook on = look;
+  on.parts.missile = 0;
+  for (auto& [row, parts] : on.variants) parts.missile = 0;
+  return on;
+}
+
 float MirvFlightSeconds(float metres) {
   if (!(metres > 0.0f)) return 0.0f;
   return metres / std::max(1.0f, 3.0f * std::log(metres) + 2.0f);

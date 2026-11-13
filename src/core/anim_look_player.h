@@ -64,6 +64,10 @@ std::string LookRowsMissing(uint32_t self, const data::SpellLook& look, int row)
 // (data/anim_look_armed: Divine Smite holy, Searing Smite fire, Ensnaring Strike acid) - the glow put on again every few
 // seconds while armed (a save keeps it only briefly); false: the glow off the weapon kept. Any creature; any other row:
 // nothing. Logs "look: ... armed / no longer armed".
+// 1A (owner, 2026-11-13: "1. A"): when the row has a look (the Spell & Attack Bench's), the look plays on the caster
+// instead of the flash - its cast (the clip swap, the caster's parts and sounds), the gesture (the row's conjure and cast
+// faked at the caster, when it's idle: a player's arming cast is refused, so nothing else plays it) and its hit on the
+// caster; only its hit when this caster's cast of the look already began (a cast that ran was broadcast and started it).
 void PlaySpellLookArmed(void* creature, int spell_row, bool armed);
 
 void InstallLookPlayer();  // from InstallAnimLayers
