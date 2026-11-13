@@ -1345,3 +1345,163 @@ TEST(VfxBirthrateKeyedOffAtTheNextKey) {
   CHECK_EQ(ReadVfxAsciiModel(negative, &effect, &error), true);
   CHECK_EQ(Milli(effect.emitters[0].emit_seconds), 200);
 }
+
+// --- Planes (#161 Task 3; the owner's Q1 A: Entangle's vines are flat textured planes, drawn and kept, not edited) ---
+
+namespace {
+
+// A compiled model with a plain mesh node "Plane01" (flags 0x21: header | mesh) half a metre along x, turned 90 degrees
+// about z: a quad of 4 vertices (2 faces), its UVs, textured fxpa_fern - and, `with_emitter`, an emitter beside it.
+std::string PlaneModel(bool with_emitter) {
+  std::string b(0x2000, '\0');
+  const auto put32 = [&](size_t at, uint32_t v) { memcpy(&b[at], &v, 4); };
+  const auto put16 = [&](size_t at, uint16_t v) { memcpy(&b[at], &v, 2); };
+  const auto putf = [&](size_t at, float v) { memcpy(&b[at], &v, 4); };
+  const auto puts = [&](size_t at, const char* text) { memcpy(&b[at], text, strlen(text)); };
+  const size_t base = 12, raw = 0x1800;
+  put32(4, static_cast<uint32_t>(raw - base));  // the raw data's offset (vertices, UVs)
+  struct Ctrl {
+    uint32_t type;
+    int columns;
+    std::vector<float> values;
+  };
+  const auto node = [&](size_t at, const char* name, size_t keys, const std::vector<Ctrl>& ctrls) {
+    puts(at + 0x10, name);
+    const size_t data = keys + 0x40;
+    uint16_t used = 0;
+    put32(at + 0x44, static_cast<uint32_t>(keys - base));
+    put32(at + 0x48, static_cast<uint32_t>(ctrls.size()));
+    put32(at + 0x50, static_cast<uint32_t>(data - base));
+    for (size_t i = 0; i < ctrls.size(); ++i) {
+      const size_t k = keys + 12 * i;
+      put32(k, ctrls[i].type);
+      put16(k + 4, 1);
+      put16(k + 6, used);
+      putf(data + 4 * used++, 0.0f);
+      put16(k + 8, used);
+      for (float v : ctrls[i].values) putf(data + 4 * used++, v);
+      b[k + 10] = static_cast<char>(ctrls[i].columns);
+    }
+    put32(at + 0x54, used);
+  };
+  const auto children = [&](size_t at, size_t array, const std::vector<size_t>& kids) {
+    put32(at + 0x38, static_cast<uint32_t>(array - base));
+    put32(at + 0x3C, static_cast<uint32_t>(kids.size()));
+    for (size_t i = 0; i < kids.size(); ++i) put32(array + 4 * i, static_cast<uint32_t>(kids[i] - 0x10 - base));
+  };
+  puts(base + 8, "test_plane");
+  put32(base + 0x48, static_cast<uint32_t>(0x100 - 0x10 - base));
+  node(0x100, "test_plane", 0x900, {{8, 3, {0, 0, 0}}});
+  std::vector<size_t> kids = {0x200};
+  if (with_emitter) kids.push_back(0x600);
+  children(0x100, 0x1600, kids);
+  node(0x200, "Plane01", 0x980, {{8, 3, {0.5f, 0, 0}}, {20, 4, {0, 0, 0.70710678f, 0.70710678f}}});
+  put32(0x200 + 0x5C, 0x21);
+  const size_t mh = 0x200 + 0x60;
+  puts(mh + 0x78, "fxpa_fern");
+  put32(mh + 0x08, static_cast<uint32_t>(0x1400 - base));  // faces
+  put32(mh + 0x0C, 2);
+  const uint16_t faces[2][3] = {{0, 1, 2}, {2, 1, 3}};
+  for (int f = 0; f < 2; ++f)
+    for (int k = 0; k < 3; ++k) put16(0x1400 + 32 * f + 26 + 2 * k, faces[f][k]);
+  put32(mh + 0x1BC, 0);   // vertices at the raw data's start
+  put16(mh + 0x1C0, 4);
+  put32(mh + 0x1C4, 48);  // UVs after the 4 vertices
+  const float verts[4][3] = {{-0.2f, 0, 0}, {0.2f, 0, 0}, {-0.2f, 0, 0.4f}, {0.2f, 0, 0.4f}};
+  const float uvs[4][2] = {{0, 0}, {1, 0}, {0, 1}, {1, 1}};
+  for (int v = 0; v < 4; ++v) {
+    for (int c = 0; c < 3; ++c) putf(raw + 12 * v + 4 * c, verts[v][c]);
+    for (int c = 0; c < 2; ++c) putf(raw + 48 + 8 * v + 4 * c, uvs[v][c]);
+  }
+  if (with_emitter) {
+    node(0x600, "spores", 0xA00, {{8, 3, {0, 0, 0.1f}}});
+    puts(0x600 + 0x60 + 0x18, "Fountain");
+    puts(0x600 + 0x60 + 0x38, "Normal");
+    puts(0x600 + 0x60 + 0x78, "fxpa_mist");
+  }
+  return b;
+}
+
+bool SamePlane(const VfxPlane& a, const VfxPlane& b) {
+  const auto near = [](const std::vector<float>& x, const std::vector<float>& y) {
+    if (x.size() != y.size()) return false;
+    for (size_t i = 0; i < x.size(); ++i)
+      if (Milli(x[i]) != Milli(y[i])) return false;
+    return true;
+  };
+  bool same = a.name == b.name && a.parent == b.parent && a.bitmap == b.bitmap && near(a.verts, b.verts) && near(a.tverts, b.tverts) && a.faces == b.faces;
+  for (int k = 0; k < 3; ++k) same = same && Milli(a.position[k]) == Milli(b.position[k]);
+  for (int k = 0; k < 4; ++k) same = same && Milli(a.orientation[k]) == Milli(b.orientation[k]);
+  return same;
+}
+
+}  // namespace
+
+TEST(VfxModelPlanesRead) {
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxBinaryModel(PlaneModel(true), &effect, &error), true);
+  CHECK_EQ(effect.emitters.size(), 1u);
+  CHECK_EQ(effect.planes.size(), 1u);
+  if (effect.planes.size() != 1) return;
+  const VfxPlane& p = effect.planes[0];
+  CHECK_EQ(p.name == "Plane01" && p.parent.empty() && p.bitmap == "fxpa_fern", true);
+  CHECK_EQ(Milli(p.position[0]), 500);
+  CHECK_EQ(Milli(p.orientation[2]), 1000);  // about z ...
+  CHECK_EQ(Milli(p.orientation[3]), 1571);  // ... by 90 degrees
+  CHECK_EQ(p.verts.size(), 12u);
+  CHECK_EQ(p.tverts.size(), 8u);
+  CHECK_EQ(p.faces.size(), 6u);
+  CHECK_EQ(p.verts.size() == 12 && Milli(p.verts[11]) == 400 && Milli(p.verts[3]) == 200, true);
+  CHECK_EQ(p.tverts.size() == 8 && Milli(p.tverts[7]) == 1000, true);
+  CHECK_EQ(p.faces.size() == 6 && p.faces[3] == 2 && p.faces[5] == 3, true);
+}
+
+// A model of planes alone (no emitter) reads - its planes - where it used to fail "no emitters".
+TEST(VfxModelPlanesOnly) {
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxBinaryModel(PlaneModel(false), &effect, &error), true);
+  CHECK_EQ(effect.emitters.size(), 0u);
+  CHECK_EQ(effect.planes.size(), 1u);
+}
+
+// Through the draft (a [plane <name>] section) and the ASCII model (a trimesh node) the plane comes back the same: an
+// edited Entangle keeps its vines.
+TEST(VfxDraftPlanesRoundTrip) {
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxBinaryModel(PlaneModel(true), &effect, &error), true);
+  if (effect.planes.size() != 1) return;
+  const std::string draft = WriteVfxDraft(effect);
+  CHECK_EQ(draft.find("[plane Plane01]") != std::string::npos, true);
+  VfxEffect back;
+  CHECK_EQ(ReadVfxDraft(draft, &back, &error), true);
+  CHECK_EQ(back.planes.size() == 1 && SamePlane(back.planes[0], effect.planes[0]), true);
+  CHECK_EQ(WriteVfxDraft(back) == draft, true);
+  const std::string model = WriteVfxModel(back, "n5t");
+  CHECK_EQ(model.find("node trimesh n5t_p0_plane01") != std::string::npos && model.find("bitmap fxpa_fern") != std::string::npos, true);
+  VfxEffect again;
+  CHECK_EQ(ReadVfxAsciiModel(model, &again, &error), true);
+  CHECK_EQ(again.planes.size(), 1u);
+  if (again.planes.size() != 1) return;
+  CHECK_EQ(again.planes[0].name == "n5t_p0_plane01", true);  // the model's own node name (ModelNodeName)
+  again.planes[0].name = effect.planes[0].name;
+  CHECK_EQ(SamePlane(again.planes[0], effect.planes[0]), true);
+}
+
+// The VFX Bench's core.js writes the same bytes (its check_area.js reads this fixture too): a plane's draft section.
+TEST(VfxDraftPlaneFixture) {
+  std::ifstream file("tests/data/fixtures/plane_effect.vfx", std::ios::binary);
+  std::ostringstream read;
+  read << file.rdbuf();
+  std::string text;
+  for (char c : read.str())
+    if (c != '\r') text += c;
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(text, &effect, &error), true);
+  CHECK_EQ(effect.planes.size(), 1u);
+  CHECK_EQ(effect.emitters.size(), 0u);
+  CHECK_EQ(WriteVfxDraft(effect) == text, true);
+}

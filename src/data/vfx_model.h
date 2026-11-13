@@ -129,6 +129,20 @@ struct VfxEmitter {
   std::vector<VfxKeys> keys;  // its own move / turn in the animations
 };
 
+// #161 (the owner's Q1 A): a flat textured mesh of the effect - Entangle's vines, a plain trimesh node (flags 0x21) - kept
+// whole so an edited effect keeps it, and drawn by the VFX Bench; never edited. Its vertices (x y z each, under its node),
+// UVs (u v each, the same index as its vertex) and faces (three vertex indices each).
+struct VfxPlane {
+  std::string name = "plane";
+  std::string parent;  // "" = the model's root
+  float position[3] = {0.0f, 0.0f, 0.0f};
+  float orientation[4] = {0.0f, 0.0f, 0.0f, 0.0f};  // axis x y z, angle (radians), as a model writes it
+  std::string bitmap;
+  std::vector<float> verts;
+  std::vector<float> tverts;
+  std::vector<int> faces;
+};
+
 // The most deadspace a draft or a written model gets: above about 0.39 the game's turning loop
 // (randomDirection) never ends for some particles - the game would hang (simulated, 0.42.4; the
 // game's own effects use 0.0037, 0.1745 and 0.2094).
@@ -151,6 +165,7 @@ struct VfxEffect {
   std::vector<VfxNode> nodes;  // parents before children
   std::vector<VfxEmitter> emitters;
   std::vector<VfxLight> lights;  // #145
+  std::vector<VfxPlane> planes;  // #161
 };
 
 // The keys of `anim` in a list (created when `create`; nullptr when absent).

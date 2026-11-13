@@ -1,0 +1,9 @@
+# nwn5e area draft (the VFX Bench's area mode, #161) - key = value; slot <k> = model copies lifetime-s edge-0-1 [low-detail model]
+area = n5_fogcloud
+radius = 6
+slot 1 = n5_fog 12 3.4 0.25 n5_fog_l
+slot 2 = n5_fogwisp 5 1.1 0
+duration_effect = 230
+sound_duration = sps_fog_loop
+sound_oneshot = sps_fog 0.3
+orient_ground = 1

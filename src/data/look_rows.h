@@ -16,12 +16,18 @@ constexpr int kLookVisualEffectsFirst = 2100;
 constexpr int kLookVisualEffectsLast = 2199;
 constexpr int kLookProgFxFirst = 910;
 constexpr int kLookProgFxLast = 999;
+// #161: the VFX Bench's saved areas (vfx_persistent; the game keeps 100-199, 199 the editor's preview row).
+constexpr int kLookAreaFirst = 200;
+constexpr int kLookAreaLast = 299;
 
-// Whether a looks file for `table` ("spells", "visualeffects", "progfx") stays inside what a look may change:
+// Whether a looks file for `table` ("spells", "visualeffects", "progfx", "vfx_persistent") stays inside what a look may
+// change:
 // - spells: the presentation columns only (the cast's animations, visuals and sounds, the projectile), on rows the
 //   table has (no row added) - never the rule's columns (scripts, class lists, levels, timings, targeting);
 // - visualeffects 2100-2199 and progfx 910-999: any column, on a row empty in `base` (every value "****") or past its
-//   end - a row the game (or nwn5e's rows) already uses is refused.
+//   end - a row the game (or nwn5e's rows) already uses is refused;
+// - vfx_persistent 200-299 (#161, the VFX Bench's saved areas): the same, but never the scripts (ONENTER, ONEXIT,
+//   HEARTBEAT: the rules').
 // Any other table, column or row: false, `error` why (the file is refused whole).
 bool CheckLookRows(const std::string& table, const TwoDA& base, const std::string& rows_text, std::string* error);
 

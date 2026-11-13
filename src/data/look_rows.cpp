@@ -40,6 +40,9 @@ bool CheckLookRows(const std::string& table, const TwoDA& base, const std::strin
   } else if (_stricmp(table.c_str(), "progfx") == 0) {
     first = kLookProgFxFirst;
     last = kLookProgFxLast;
+  } else if (_stricmp(table.c_str(), "vfx_persistent") == 0) {  // #161
+    first = kLookAreaFirst;
+    last = kLookAreaLast;
   } else if (!spells) {
     if (error) *error = "a look changes no " + table + ".2da";
     return false;
@@ -59,6 +62,13 @@ bool CheckLookRows(const std::string& table, const TwoDA& base, const std::strin
       if (spells) {
         for (const std::string& column : tokens) {
           if (!IsLookSpellColumn(column)) return Fail(error, line_number, "spells.2da's " + column + " isn't a look's");
+        }
+      }
+      if (first == kLookAreaFirst) {  // #161: an area's scripts are the rules'
+        for (const std::string& column : tokens) {
+          if (_stricmp(column.c_str(), "ONENTER") == 0 || _stricmp(column.c_str(), "ONEXIT") == 0 || _stricmp(column.c_str(), "HEARTBEAT") == 0) {
+            return Fail(error, line_number, "vfx_persistent.2da's " + column + " is the rules', not a look's");
+          }
         }
       }
       header = true;

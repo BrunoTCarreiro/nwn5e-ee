@@ -1284,3 +1284,16 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     whole-duration effect only.
   - Waiting on the owner: Q1, whether the bench draws Entangle's planes (static, shown only); Q2, whether a saved area
     ships through the looks overlay (vfx_persistent rows in a bench range) or through Claude adding rows.
+  - *Built (2026-11-13; plan docs/superpowers/plans/2026-11-12-vfx-bench-area-mode.md, native, one final review):*
+    - The proof (VA-1 passed, "the one copy showed too"): vfx_persistent lives at the rules' 2DA arrays +0x120, read
+      for each new area, so the dev layer rewrites row 199 live; the client's scatter (delays 0.3 / 0.4 / 0.35 s per
+      slot, re-placed after the lifetime, the rim's share on it, inside ~0.5 m from it) is what the stage copies.
+    - src/data/vfx_area: an area's row columns (sizes 0.6-100 m: the game divides by the size x 100 when placing a
+      copy, so a tiny area crashes it), the .area draft (twin: vfx_bench/public/area.js), the bench's request, unique
+      library names (NWN5E_FOG_CLOUD_1..9). src/data/vfx_model: plain meshes kept as planes (Entangle's vines) through
+      the compiled and ASCII models and the draft. src/data/look_rows: vfx_persistent 200-299 (not the scripts).
+    - The VFX Bench: the Areas tab (the game's, yours), the area on the stage at its size, Play in game, Save (each
+      slot's effect its own saved draft, the row served at the next start), ship_area.js; `!vfxarea row <n>`.
+    - The final review's six Important findings fixed with tests; deferred minors on the plan's ledger (a Stop within
+      0.3 s of a Play missing the area, float-vs-double rounding at the fourth decimal, planes without their fade).
+    - Test rows VA-2 (the areas on the stage and in game), VA-3 (a saved area after a restart).

@@ -39,13 +39,38 @@ struct VfxArea {
 
 constexpr float kVfxAreaMinRadius = 0.6f;
 constexpr float kVfxAreaMinSide = 0.05f;
-constexpr float kVfxAreaMaxSize = 30.0f;
+constexpr float kVfxAreaMaxSize = 100.0f;  // nwn5e's own Fog Cloud reaches 54.86 m (the final review's I2)
 constexpr int kVfxAreaMaxCount = 30;
 constexpr float kVfxAreaMaxLifetime = 60.0f;
 
 // The row's columns, in vfx_persistent.2da's names, "****" for a blank. The shape's unused sizes are blank; a slot with
-// no model is blank throughout. Out-of-range values are clamped: circle radius 0.6-30 m, width and length 0.05-30 m
+// no model is blank throughout. Out-of-range values are clamped: circle radius 0.6-100 m, width and length 0.05-100 m
 // (not a number: the minimum), count 1-30, lifetime 0-60 s (written in ms), edge 0-1, the one-shot chance 0-1.
 std::vector<std::pair<std::string, std::string>> VfxAreaRowColumns(const VfxArea& area);
+
+// The library's names for the game's areas (rows with their LABELs), in order: each LABEL as a resref (lower case,
+// A-Z a-z 0-9 _, at most 16) - and where rows share one (NWN5E_FOG_CLOUD_1..9 all cut to "nwn5e_fog_cloud_"), each of
+// them its LABEL cut shorter with "_<row>" at the end: unique names, one draft file each (the final review's I1).
+std::vector<std::string> VfxAreaLibraryNames(const std::vector<std::pair<int, std::string>>& rows);
+
+// The area draft (.area, Task 2 of #161): the VFX Bench's area mode keeps an area as text, and its twin
+// (nwn5e-tools vfx_bench/public/area.js) writes the same bytes. `key = value` lines after kVfxAreaDraftHeader, in order:
+//   area = <name>                                      always
+//   shape = R, width = <m>, length = <m>               a rectangle; else radius = <m>
+//   slot <k> = <model> <copies> <lifetime s> <edge> [<low-detail model>]   k 1-3, each slot with a model
+//   duration_effect = <visualeffects row>, sound_impact / sound_duration / sound_cessation = <sound>,
+//   sound_oneshot = <sound> <chance 0-1>, orient_ground = 1                when set
+// Numbers as %g (at most 4 decimals), clamped as the row's columns are. Names are 1-16 of A-Z a-z 0-9 _.
+extern const char* const kVfxAreaDraftHeader;
+std::string WriteVfxAreaDraft(const VfxArea& area);
+// False with `err` ("line <n>: ...", or "no area name") for a malformed line, an unknown key, a slot past 3 or a bad
+// name; out-of-range numbers are clamped, not refused. Blank lines and # comments are skipped; CRLF is read as LF.
+bool ReadVfxAreaDraft(const std::string& text, VfxArea* area, std::string* err);
+
+// The VFX Bench's Play in game for an area (Task 5): the area's draft, then each slot's effect draft after a line
+// "### slot <k>" and a low-detail effect after "### low <k>" (k 1-3); a "request = ..." line before the area is skipped.
+// `parts`: ("slot 1", its text), ... in order. False with `err` for a part past the slots or an area part with nothing in it.
+bool SplitVfxAreaRequest(const std::string& text, std::string* area_text, std::vector<std::pair<std::string, std::string>>* parts,
+                         std::string* err);
 
 }  // namespace data
