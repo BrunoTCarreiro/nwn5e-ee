@@ -3260,10 +3260,11 @@ void SmitePanelClicked(void* creature) {
 }
 
 // A game started (a new one, a saved one loaded): the last game's armed smites go (a loaded icon is taken off at
-// its creature's first update).
+// its creature's first update). Their looks stay listed (0.99.34, AS-9: the owner, 2026-11-13: "the glow doesn't
+// disappear after load, it shouldn't even appear as the smite isn't armed"): the creature's first update then
+// sends the look its armed = false - the glow the save kept taken off at once.
 void SmitesGameStarted() {
   g_armed.clear();
-  g_armed_look.clear();
   g_armed_icon.clear();
   g_armed_seen.clear();
   g_icon_tried.clear();
