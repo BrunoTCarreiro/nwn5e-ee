@@ -3181,9 +3181,9 @@ int ArmedIconShown(const void* creature) {
 }
 
 // B, D: the look of an armed smite - the animation session's (a flash and the smite's sound as it arms; the weapon's
-// glow while armed), through its PlaySpellLookArmed once that lands in anim; until then, the log.
+// glow while armed), through its PlaySpellLookArmed (anim_look_player.h; anim 804dfc4).
 void ArmedLook(void* creature, uint32_t id, int row, bool armed) {
-  (void)creature;
+  PlaySpellLookArmed(creature, row, armed);
   const rules::Spell2024* spell = rules::Spell2024Of(row);
   if (LogSlot()) {
     Log("spells2024: 0x%08X %s %s (its look: #162)", id, spell ? spell->name : "a smite",
