@@ -22,7 +22,9 @@
 #include "anim_cast_clip.h"
 #include "anim_sound_player.h"
 #include "creature.h"
+#include "creature_update.h"
 #include "data/anim_look.h"
+#include "data/anim_look_armed.h"
 #include "data/anim_look_sound.h"
 #include "ee_layout.h"
 #include "effects.h"
@@ -444,9 +446,50 @@ float PlaySpellLookAt(uint32_t caster, float x, float y, float z, int row) {
   return look ? PlayLookAt(caster, {x, y, z}, *look, row) : 0.0f;
 }
 
+// --- #162: an armed smite's look --------------------------------------------------------------------------------------
+namespace {
+struct ArmedNow {
+  int row = 0;
+  data::ArmedLook look;
+  uint64_t next = 0;  // when its glow is put on again
+};
+std::unordered_map<uint32_t, ArmedNow> g_armed;  // by creature, the engine's thread only
+
+// The creature update: an armed creature's glow put on again (it lasts data::kArmedGlowSeconds) - a weapon swapped in
+// the meantime gets it.
+void ArmedUpdate(void* creature) {
+  if (g_armed.empty() || !creature) return;
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  const auto it = g_armed.find(id);
+  if (it == g_armed.end()) return;
+  const uint64_t now = GetTickCount64();
+  if (now < it->second.next) return;
+  it->second.next = now + data::kArmedRefreshMs;
+  const std::string code = data::ArmedRefreshScript(it->second.look);
+  if (!code.empty() && RunScriptChunk(code.c_str(), id) == -1) Log("look: 0x%08X the armed glow's refresh didn't run", id);
+}
+}  // namespace
+
+void PlaySpellLookArmed(void* creature, int spell_row, bool armed) {
+  if (!creature) return;
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  const data::ArmedLook look = data::ArmedLookOf(spell_row);
+  if (look.flash < 0 && look.glow < 0) return;
+  if (armed) {
+    const bool ran = RunScriptChunk(data::ArmedOnScript(look).c_str(), id) != -1;
+    g_armed[id] = {spell_row, look, GetTickCount64() + data::kArmedRefreshMs};
+    Log("look: 0x%08X spell %d armed - flash %d, glow %d%s", id, spell_row, look.flash, look.glow, ran ? "" : " (its script didn't run)");
+  } else {
+    g_armed.erase(id);
+    const bool ran = RunScriptChunk(data::ArmedOffScript().c_str(), id) != -1;
+    Log("look: 0x%08X spell %d no longer armed - its glow off%s", id, spell_row, ran ? "" : " (its script didn't run)");
+  }
+}
+
 void InstallLookPlayer() {
   if (g_installed) return;
   g_installed = true;
   ReadLooks();
   if (!g_looks.empty()) AddSpellCastListener(&LookCastBroadcast);  // logs itself when it can't
+  if (!AddCreatureUpdateListener(&ArmedUpdate)) Log("look: SKIP the armed smites' glow refresh (no creature update listener)");  // #162
 }

@@ -58,4 +58,12 @@ float PlayLookAt(uint32_t caster, data::FlightPoint at, const data::SpellLook& l
 // (a script chunk run as `self`) and logged when missing.
 std::string LookRowsMissing(uint32_t self, const data::SpellLook& look, int row);
 
+// #162 (owner, 2026-11-13: "go with G, B and D for #162"): an armed smite's look, called by the rules (ArmedLook in
+// rules_spells2024.cpp) at each change of `creature`'s armed smite `spell_row` - `armed` true when it arms, false when it's
+// delivered, disarmed, out of slot or replaced. Arming: a flash and its sound, and the weapon in the right hand glows
+// (data/anim_look_armed: Divine Smite holy, Searing Smite fire, Ensnaring Strike acid) - the glow put on again every few
+// seconds while armed (a save keeps it only briefly); false: the glow off the weapon kept. Any creature; any other row:
+// nothing. Logs "look: ... armed / no longer armed".
+void PlaySpellLookArmed(void* creature, int spell_row, bool armed);
+
 void InstallLookPlayer();  // from InstallAnimLayers
