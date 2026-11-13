@@ -298,7 +298,10 @@ TEST(VfxLightGoesOutWithItsEffect) {
   lasting.lights.push_back(glow);
   std::string model = WriteVfxModel(lasting, "n5o");
   CHECK_EQ(light_in(model, "cessation", "glow").find("  radiuskey 2\n    0 6\n    0.4 0\n") != std::string::npos, true);
-  CHECK_EQ(light_in(model, "duration", "glow").find("key") == std::string::npos, true);  // only at the end
+  // The fade only at the end: the duration just lights it at its radius (#161 VA-2: lit again after a cessation).
+  CHECK_EQ(light_in(model, "duration", "glow").find("  radiuskey 1\n    0 6\n") != std::string::npos &&
+               light_in(model, "duration", "glow").find(" 0\n", light_in(model, "duration", "glow").find("    0 6\n") + 8) == std::string::npos,
+           true);
   lasting.lengths[2] = 0.25f;  // a short end: the whole of it
   model = WriteVfxModel(lasting, "n5o");
   CHECK_EQ(light_in(model, "cessation", "glow").find("  radiuskey 2\n    0 6\n    0.25 0\n") != std::string::npos, true);
@@ -1504,4 +1507,41 @@ TEST(VfxDraftPlaneFixture) {
   CHECK_EQ(effect.planes.size(), 1u);
   CHECK_EQ(effect.emitters.size(), 0u);
   CHECK_EQ(WriteVfxDraft(effect) == text, true);
+}
+
+// #161 VA-2 (owner, 2026-11-13: "after a while the effects stop happening in the whole area and just focus in the
+// middle"): an area's copies run their animations again and again (moved, the cessation, then the impact and the
+// duration), so a lasting effect's emitter turned off in the cessation stays off unless the impact and the duration set
+// its birthrate again - the game's own vps_entangle has no birthrate keys at all, and its vines stay. A light the
+// cessation fades (#145) gets its radius back the same way. An emitter with its own emit time keeps its impact keys and
+// stays off in the duration, as before.
+TEST(VfxLastingEmittersRestartAfterCessation) {
+  VfxEffect effect;
+  effect.duration = true;
+  VfxEmitter vines;
+  vines.name = "vines";
+  vines.birthrate = 8.0f;
+  effect.emitters.push_back(vines);
+  VfxEmitter burst;
+  burst.name = "burst";
+  burst.birthrate = 20.0f;
+  burst.emit_seconds = 0.5f;
+  effect.emitters.push_back(burst);
+  VfxLight light;
+  light.name = "glow";
+  light.radius = 6.0f;
+  effect.lights.push_back(light);
+  const std::string model = WriteVfxModel(effect, "n5t");
+  const std::string impact = Section(model, "newanim impact n5t", "doneanim impact n5t");
+  const std::string duration = Section(model, "newanim duration n5t", "doneanim duration n5t");
+  const std::string cessation = Section(model, "newanim cessation n5t", "doneanim cessation n5t");
+  const auto in = [](const std::string& anim, const std::string& node) { return Section(anim, node, "endnode"); };
+  CHECK_EQ(in(impact, "node emitter n5t_0_vines").find("  birthratekey 1\n    0 8\n") != std::string::npos, true);
+  CHECK_EQ(in(duration, "node emitter n5t_0_vines").find("  birthratekey 1\n    0 8\n") != std::string::npos, true);
+  CHECK_EQ(in(cessation, "node emitter n5t_0_vines").find("  birthratekey 1\n    0 0\n") != std::string::npos, true);
+  CHECK_EQ(in(impact, "node emitter n5t_1_burst").find("  birthratekey 3\n    0 20\n    0.5 20\n    0.51 0\n") != std::string::npos, true);
+  CHECK_EQ(in(duration, "node emitter n5t_1_burst").find("birthratekey") == std::string::npos, true);
+  CHECK_EQ(in(impact, "node light n5t_l0_glow").find("  radiuskey 1\n    0 6\n") != std::string::npos, true);
+  CHECK_EQ(in(duration, "node light n5t_l0_glow").find("  radiuskey 1\n    0 6\n") != std::string::npos, true);
+  CHECK_EQ(in(cessation, "node light n5t_l0_glow").find("  radiuskey 2\n    0 6\n    0.4 0\n") != std::string::npos, true);
 }
