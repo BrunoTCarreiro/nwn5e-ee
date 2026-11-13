@@ -101,16 +101,19 @@ TEST(VfxAreaRowClamps) {
   CHECK_COL(c, "NUMACT03", "30");
   CHECK_COL(c, "DURATION03", "60000");
   CHECK_COL(c, "EDGEWGHT03", "1");
-  a.radius = 99.0f;
-  CHECK_COL(VfxAreaRowColumns(a), "RADIUS", "30");
+  // The upper end: 100 m - nwn5e's own Fog Cloud reaches 54.86 m at 9th level (rows 111-115; the final review's I2).
+  a.radius = 54.86f;
+  CHECK_COL(VfxAreaRowColumns(a), "RADIUS", "54.86");
+  a.radius = 150.0f;
+  CHECK_COL(VfxAreaRowColumns(a), "RADIUS", "100");
   a.radius = std::nanf("");
   CHECK_COL(VfxAreaRowColumns(a), "RADIUS", "0.6");
   a.shape = 'R';
   a.width = 0.01f;
-  a.length = 50.0f;
+  a.length = 150.0f;
   c = VfxAreaRowColumns(a);
   CHECK_COL(c, "WIDTH", "0.05");
-  CHECK_COL(c, "LENGTH", "30");
+  CHECK_COL(c, "LENGTH", "100");
   a.shape = 'x';  // anything but R is a circle
   CHECK_COL(VfxAreaRowColumns(a), "SHAPE", "C");
 }
@@ -258,4 +261,17 @@ TEST(VfxAreaRequestSplit) {
   // A part named past the slots, or none of the area, is refused.
   CHECK_EQ(SplitVfxAreaRequest(area + "### slot 4\nname = x\n", &area_text, &parts, &err), false);
   CHECK_EQ(SplitVfxAreaRequest("request = area 3\n### slot 1\nname = x\n", &area_text, &parts, &err), false);
+}
+
+// The library's area names (the final review's I1): each row's LABEL as a resref - nwn5e's NWN5E_FOG_CLOUD_1..9 (17
+// letters) all cut to "nwn5e_fog_cloud_", so a name rows share takes its row at the end instead; distinct names stay.
+TEST(VfxAreaLibraryNames) {
+  const std::vector<std::string> names =
+      VfxAreaLibraryNames({{107, "NWN5E_FOG_CLOUD_1"}, {108, "NWN5E_FOG_CLOUD_2"}, {32, "VFX_PER_GREASE"}, {9, "VFX_PER_ENTANGLE"}});
+  CHECK_EQ(names.size(), 4u);
+  if (names.size() != 4) return;
+  CHECK_TEXT(names[0], "nwn5e_fog_cl_107");
+  CHECK_TEXT(names[1], "nwn5e_fog_cl_108");
+  CHECK_TEXT(names[2], "vfx_per_grease");
+  CHECK_TEXT(names[3], "vfx_per_entangle");
 }

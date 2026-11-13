@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <map>
 #include <sstream>
 
 namespace data {
@@ -98,6 +99,31 @@ std::vector<std::pair<std::string, std::string>> VfxAreaRowColumns(const VfxArea
   out.emplace_back("SoundCessation", OrBlank(area.sound_cessation));
   out.emplace_back("SoundOneShot", OrBlank(area.sound_oneshot));
   out.emplace_back("SoundOneShotPercentage", area.sound_oneshot.empty() ? kBlank : Num(Edge(area.oneshot_chance)));
+  return out;
+}
+
+std::vector<std::string> VfxAreaLibraryNames(const std::vector<std::pair<int, std::string>>& rows) {
+  const auto resref = [](const std::string& text, size_t max) {
+    std::string out;
+    for (char c : text) {
+      const char l = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+      if (std::isalnum(static_cast<unsigned char>(l)) || l == '_') out += l;
+      if (out.size() >= max) break;
+    }
+    return out;
+  };
+  std::vector<std::string> plain;
+  std::map<std::string, int> uses;
+  for (const auto& r : rows) ++uses[plain.emplace_back(resref(r.second, 16))];
+  std::vector<std::string> out;
+  for (size_t i = 0; i < rows.size(); ++i) {
+    if (uses[plain[i]] == 1) {
+      out.push_back(plain[i]);
+      continue;
+    }
+    const std::string suffix = "_" + std::to_string(rows[i].first);
+    out.push_back(resref(rows[i].second, suffix.size() < 16 ? 16 - suffix.size() : 0) + suffix);
+  }
   return out;
 }
 
