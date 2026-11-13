@@ -1427,6 +1427,13 @@ monster AC by CR.
     its first update (the arming isn't saved; a game start clears them); the resource panel's "Armed: <smite> (a
     level N slot)", a click disarms ("smite"); ArmedLook, the look's call site (B, D), logs until the animation
     session's PlaySpellLookArmed lands. Test 5 mutations caught. Matrix AS-1 to AS-5.
+    *Tested (owner, 2026-11-13: "test matrix 162 seems good"):* AS-1 to AS-5 passed (G). *0.99.33:* B and D - anim
+    804dfc4, ArmedLook calls PlaySpellLookArmed. *Tested (owner, 2026-11-13):* the looks to the animation session
+    ("both smites need their "cast" animation fixed, divine is too long, searing is too short"; "The animation
+    needs to be changed and the bow doesn't glow green"); AS-9 failed ("the glow doesn't dis appear after load, it
+    shouldn't even appear as the smite isn't armed") - a game start cleared the list of armed looks, so no armed =
+    false was sent. *Fixed 0.99.34:* the list survives a game start; the creature's first update sends the false.
+    Retest AS-10. L3-12 passed ("L3-12: the entangle animation also needs work" - the look forwarded).
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
