@@ -5,7 +5,9 @@
 //
 // RequestCastClip swaps `base` for `clip` on `creature` at once - EE's ReplaceObjectAnimation, as the flourishes and
 // stance_look do - only when `clip`'s recipe was built and the body is part-based (appearance.2da MODELTYPE P: the
-// skeletons the animation packs serve); else nothing changes and `base` plays. It maps `base` back to itself after
+// skeletons the animation packs serve); else nothing changes and `base` plays. The game's own idle (data::
+// kStillAnimation, pause1) needs no recipe: a still look (the Bench's Animation None) swaps `base` and its held loop for
+// it, so the caster stands through the cast. It maps `base` back to itself after
 // `seconds` (data::CastClipMs: 0.1 - 10 s), or at once when a new request for the same creature replaces it or
 // EndCastClip ends it. A cast's held loop (`base`lp - castout, then castoutlp while the cast's time runs) is swapped
 // for `clip`lp the same way when that clip is built, so the body doesn't change between the two. It plays nothing

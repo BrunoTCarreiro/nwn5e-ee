@@ -449,6 +449,12 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
         lines.push_back("    0 " + Num(e.birthrate));
         lines.push_back("    " + Num(on) + " " + Num(e.birthrate));
         lines.push_back("    " + Num(on + 0.01f) + " 0");
+      } else if (effect.duration && e.emit_seconds <= 0.0f) {
+        // #161 VA-2: a lasting effect's emitter on again in its impact and duration - an area's copies run the cessation
+        // (which turns it off) and then these again, and a birthrate left at 0 stays there (the game's own lasting
+        // effects have no birthrate keys at all).
+        lines.push_back("  birthratekey 1");
+        lines.push_back("    0 " + Num(e.birthrate));
       }
       key_lines(e.keys, name);
       lines.push_back("endnode");
@@ -469,6 +475,9 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
         lines.push_back("  radiuskey 2");
         lines.push_back("    " + Num(effect.duration ? 0.0f : length - fade) + " " + Num(l.radius));
         lines.push_back("    " + Num(effect.duration ? fade : length) + " 0");
+      } else if (effect.duration && !last && !own) {  // #161 VA-2: lit again after a cessation, as the emitters
+        lines.push_back("  radiuskey 1");
+        lines.push_back("    0 " + Num(l.radius));
       }
       lines.push_back("endnode");
     }

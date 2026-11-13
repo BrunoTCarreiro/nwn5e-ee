@@ -202,10 +202,10 @@ void StartLookCast(uint32_t caster, const data::SpellLook& look, int row) {
   g_cast_started[caster] = now;
   g_cast_row[caster] = row;
   void* creature = CreatureById(caster);
-  // The conjure's own clip and the cast's, swapped as one for the whole cast (at least the conjure and a moment).
+  // The conjure's own clip and the cast's, swapped as one for the whole cast (at least the conjure and a moment); a
+  // still look (Animation None, AS-11): the conjure and the cast each swapped for the game's idle.
   std::vector<CastClipSwap> swaps;
-  if (!look.conj_clip.empty()) swaps.push_back({look.conj_clip_base, look.conj_clip});
-  if (!look.clip.empty()) swaps.push_back({look.clip_base, look.clip});
+  for (const auto& [base, clip] : data::LookClipSwaps(look)) swaps.push_back({base, clip});
   if (creature && !swaps.empty()) RequestCastClips(creature, swaps, std::max(look.clip_seconds, look.rule_at + 0.5f));
   const std::string code = data::LookCastScript(data::LookPartsFor(look, row));
   if (!code.empty()) RunScriptChunk(code.c_str(), caster);
@@ -492,7 +492,8 @@ void PlaySpellLookArmed(void* creature, int spell_row, bool armed) {
     const auto cast_row = g_cast_row.find(id);
     const bool begun = own && started != g_cast_started.end() && Now() - started->second < kCastMemoryMs &&
                        cast_row != g_cast_row.end() && cast_row->second == spell_row;
-    const data::ArmedPlay play = data::ArmedPlayOf(own != nullptr, begun);
+    // A still look (the Animation card's None; owner, AS-11): no gesture - its effects, sounds and hit only.
+    const data::ArmedPlay play = data::ArmedPlayOf(own != nullptr, begun, own && data::LookStill(*own));
     const data::SpellLook on = own ? data::LookOnCaster(*own) : data::SpellLook();
     if (play.cast) StartLookCast(id, on, spell_row);  // before the gesture: its fake cast's broadcast then finds it begun
     const bool ran = RunScriptChunk(data::ArmedArmScript(look, play, spell_row).c_str(), id) != -1;
@@ -500,7 +501,10 @@ void PlaySpellLookArmed(void* creature, int spell_row, bool armed) {
     g_armed[id] = {spell_row, look, GetTickCount64() + data::kArmedRefreshMs};
     if (own) {
       Log("look: 0x%08X spell %d armed - its look %s on the caster (%s), glow %d%s", id, spell_row, own->name.c_str(),
-          play.cast ? "its cast, the gesture when idle, its hit" : "its hit: the cast already began it", look.glow,
+          play.gesture ? "its cast, the gesture when idle, its hit"
+          : play.cast  ? "its cast's effects and its hit, no gesture: no animation"
+                       : "its hit: the cast already began it",
+          look.glow,
           ran ? "" : " (its script didn't run)");
     } else {
       Log("look: 0x%08X spell %d armed - flash %d, glow %d%s", id, spell_row, look.flash, look.glow, ran ? "" : " (its script didn't run)");

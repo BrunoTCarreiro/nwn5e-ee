@@ -56,20 +56,21 @@ std::string ArmedOnScript(const ArmedLook& look) {
 
 std::string ArmedOffScript() { return GlowOff() + "DeleteLocalObject(OBJECT_SELF, \"" + kArmedGlowTag + "\");\n"; }
 
-ArmedPlay ArmedPlayOf(bool has_look, bool cast_begun) {
+ArmedPlay ArmedPlayOf(bool has_look, bool cast_begun, bool still) {
   ArmedPlay play;
   if (!has_look) {
     play.flash = true;
     return play;
   }
   play.cast = !cast_begun;
+  play.gesture = play.cast && !still;
   play.hit = true;
   return play;
 }
 
 std::string ArmedArmScript(const ArmedLook& look, const ArmedPlay& play, int spell_row) {
   std::string out = play.flash ? ArmedOnScript(look) : ArmedRefreshScript(look);
-  if (play.cast) out += ArmedGestureScript(spell_row);
+  if (play.gesture) out += ArmedGestureScript(spell_row);
   return out;
 }
 

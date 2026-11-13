@@ -347,7 +347,10 @@ bool ReadSpellLook(const std::string& text, SpellLook* look, std::string* error)
       if (!IsResref(value, 32)) return fail("the name must be 1-32 of a-z, 0-9 and _");
       l.name = value;
     } else if (key == "clip" || key == "clip_base" || key == "conj_clip") {
-      if (!value.empty() && !IsResref(value, 16)) return fail(key + " must be 1-16 of a-z, 0-9 and _");
+      const bool none = key == "clip" && value == kNoClip;  // the Animation card's None (AS-11): no recipe is called that
+      if (!value.empty() && !none && !IsResref(value, 16)) {
+        return fail(key + (key == "clip" ? " must be (none) or 1-16 of a-z, 0-9 and _" : " must be 1-16 of a-z, 0-9 and _"));
+      }
       (key == "clip" ? l.clip : key == "clip_base" ? l.clip_base : l.conj_clip) = value;
     } else if (key == "conj_clip_base") {
       if (value != "conjure1" && value != "conjure2") return fail("conj_clip_base is conjure1 (hand) or conjure2 (head)");
@@ -462,7 +465,25 @@ SpellLook LookOnCaster(const SpellLook& look) {
   SpellLook on = look;
   on.parts.missile = 0;
   for (auto& [row, parts] : on.variants) parts.missile = 0;
+  if (LookStill(look)) {  // no gesture on oneself: nothing to swap
+    on.clip.clear();
+    on.conj_clip.clear();
+  }
   return on;
+}
+
+bool LookStill(const SpellLook& look) { return look.clip == kNoClip; }
+
+std::vector<std::pair<std::string, std::string>> LookClipSwaps(const SpellLook& look) {
+  std::vector<std::pair<std::string, std::string>> swaps;
+  if (LookStill(look)) {
+    for (const char* base : {"conjure1", "conjure2"}) swaps.emplace_back(base, kStillAnimation);
+    swaps.emplace_back(look.clip_base, kStillAnimation);
+    return swaps;
+  }
+  if (!look.conj_clip.empty()) swaps.emplace_back(look.conj_clip_base, look.conj_clip);
+  if (!look.clip.empty()) swaps.emplace_back(look.clip_base, look.clip);
+  return swaps;
 }
 
 float MirvFlightSeconds(float metres) {

@@ -79,6 +79,18 @@ bool LookFlies(const SpellLook& look, int row);
 // the missile is 0 in the defaults and every [row] section, so the hit lands on the caster at the release. The rest as is.
 SpellLook LookOnCaster(const SpellLook& look);
 
+// "No animation" (the Animation card's None; owner, 2026-11-13, AS-11: "there should be an option for no animation"):
+// clip = (none) - not a resref, so no recipe is ever taken for it (a recipe named none stays a recipe), and only the
+// cast's clip can be it. On its caster (a Personal row: the smites) no gesture plays, and LookOnCaster drops the clips;
+// cast at a target, the caster stands through the conjure and the cast - each swapped for the game's own idle.
+constexpr const char* kNoClip = "(none)";
+constexpr const char* kStillAnimation = "pause1";
+bool LookStill(const SpellLook& look);
+// The animation swaps a look's cast asks for, (base, clip) in order: its conjure's recipe (conj_clip_base, conj_clip),
+// then its cast's (clip_base, clip); a still look: conjure1, conjure2 and clip_base, each to kStillAnimation (its
+// conjure recipe ignored). None without clips.
+std::vector<std::pair<std::string, std::string>> LookClipSwaps(const SpellLook& look);
+
 // How long the game flies a MIRV-type missile (visualeffects Type_FD P, progfx Type 10 'log' - Magic Missile, the
 // orbs) over `metres`: d / max(1, 3 ln d + 2), the curve the game's own nw_s0_magmiss uses. The max keeps it positive
 // and continuous under a metre, where the divisor crosses zero. 0 for d <= 0.

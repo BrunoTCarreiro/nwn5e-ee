@@ -12,6 +12,7 @@
 #include "creature.h"
 #include "creature_update.h"
 #include "data/anim_flourish.h"
+#include "data/anim_look.h"  // kStillAnimation
 #include "ee_layout.h"
 #include "effects.h"
 #include "engine.h"
@@ -77,12 +78,15 @@ void RequestCastClips(void* creature, const std::vector<CastClipSwap>& swaps, fl
   std::string replace, said;
   for (const CastClipSwap& s : swaps) {
     if (s.base.empty() || s.clip.empty()) continue;
-    if (!AnimationRecipeBuilt(s.clip, nullptr)) {
+    // The game's own idle (a still look - the Bench's Animation None, AS-11): every body has it, and the held loop
+    // stands still too.
+    const bool still = s.clip == data::kStillAnimation;
+    if (!still && !AnimationRecipeBuilt(s.clip, nullptr)) {
       Log("cast clip: 0x%08X plays %s - %s isn't built", id, s.base.c_str(), s.clip.c_str());
       continue;
     }
-    const std::string loop_base = s.base + "lp", loop_clip = s.clip + "lp";
-    const bool loop = AnimationRecipeBuilt(loop_clip, nullptr);
+    const std::string loop_base = s.base + "lp", loop_clip = still ? s.clip : s.clip + "lp";
+    const bool loop = still || AnimationRecipeBuilt(loop_clip, nullptr);
     replace += " ReplaceObjectAnimation(OBJECT_SELF, \"" + s.base + "\", \"" + s.clip + "\");";
     if (loop) replace += " ReplaceObjectAnimation(OBJECT_SELF, \"" + loop_base + "\", \"" + loop_clip + "\");";
     swap.bases.push_back(s.base);
