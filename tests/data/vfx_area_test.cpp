@@ -2,11 +2,24 @@
 #include "data/vfx_area.h"
 
 #include <cmath>
+#include <fstream>
+#include <sstream>
 #include <string>
 
 using namespace data;
 
 namespace {
+
+// A fixture's text, its line ends as LF (a Windows checkout may have given it CRLF).
+std::string Fixture(const char* name) {
+  std::ifstream file(std::string("tests/data/fixtures/") + name, std::ios::binary);
+  std::ostringstream text;
+  text << file.rdbuf();
+  std::string out;
+  for (char c : text.str())
+    if (c != '\r') out += c;
+  return out;
+}
 
 std::string Col(const std::vector<std::pair<std::string, std::string>>& columns, const std::string& name) {
   for (const auto& c : columns)
@@ -120,4 +133,105 @@ TEST(VfxAreaRowNoModels) {
   CHECK_COL(c, "SoundOneShot", "sps_fog");
   CHECK_COL(c, "SoundOneShotPercentage", "0.3");
   CHECK_COL(c, "OrientWithGround", "1");
+}
+
+// --- The area draft (.area; Task 2): the VFX Bench's area-mode twin (vfx_bench/public/area.js) reads and writes the same
+// text byte for byte (its check_area.js reads this fixture too).
+
+#define CHECK_TEXT(got, want)                                                                         \
+  do {                                                                                                \
+    const std::string check_got_ = (got), check_want_ = (want);                                       \
+    if (check_got_ != check_want_) {                                                                  \
+      const std::string check_msg_ = "got [" + check_got_ + "] want [" + check_want_ + "]";          \
+      check::FailText(__FILE__, __LINE__, check_msg_.c_str());                                        \
+    }                                                                                                 \
+  } while (0)
+
+TEST(VfxAreaDraftRoundTrip) {
+  const std::string text = Fixture("fog_area.area");
+  VfxArea a;
+  std::string err;
+  CHECK_EQ(ReadVfxAreaDraft(text, &a, &err), true);
+  CHECK_TEXT(err, "");
+  CHECK_TEXT(a.name, "n5_fogcloud");
+  CHECK_EQ(a.shape == 'C', true);
+  CHECK_EQ(a.radius == 6.0f, true);
+  CHECK_TEXT(a.slots[0].model, "n5_fog");
+  CHECK_EQ(a.slots[0].count, 12);
+  CHECK_EQ(std::fabs(a.slots[0].lifetime - 3.4f) < 1e-6f, true);
+  CHECK_EQ(std::fabs(a.slots[0].edge - 0.25f) < 1e-6f, true);
+  CHECK_TEXT(a.slots[0].low_model, "n5_fog_l");
+  CHECK_TEXT(a.slots[1].model, "n5_fogwisp");
+  CHECK_TEXT(a.slots[1].low_model, "");
+  CHECK_TEXT(a.slots[2].model, "");
+  CHECK_TEXT(a.duration_effect, "230");
+  CHECK_TEXT(a.sound_duration, "sps_fog_loop");
+  CHECK_TEXT(a.sound_oneshot, "sps_fog");
+  CHECK_EQ(std::fabs(a.oneshot_chance - 0.3f) < 1e-6f, true);
+  CHECK_EQ(a.orient_ground, true);
+  CHECK_TEXT(WriteVfxAreaDraft(a), text);
+  const auto c = VfxAreaRowColumns(a);
+  CHECK_COL(c, "RADIUS", "6");
+  CHECK_COL(c, "NUMACT01", "12");
+  CHECK_COL(c, "DURATION01", "3400");
+  CHECK_COL(c, "EDGEWGHT01", "0.25");
+  CHECK_COL(c, "MODELMIN01", "n5_fog_l");
+  CHECK_COL(c, "MODEL02", "n5_fogwisp");
+  CHECK_COL(c, "DURATION02", "1100");
+  CHECK_COL(c, "MODELMIN02", "****");
+  CHECK_COL(c, "SoundOneShotPercentage", "0.3");
+}
+
+// A rectangle writes its width and length, not a radius; the shape line only for R. A minimal draft is three lines.
+TEST(VfxAreaDraftShapes) {
+  const std::string header = Fixture("fog_area.area").substr(0, Fixture("fog_area.area").find('\n') + 1);
+  const std::string rect = header + "area = n5_wall\nshape = R\nwidth = 10\nlength = 2\nslot 3 = vps_wallfire 6 0 0.5\n";
+  VfxArea a;
+  std::string err;
+  CHECK_EQ(ReadVfxAreaDraft(rect, &a, &err), true);
+  CHECK_EQ(a.shape == 'R', true);
+  CHECK_EQ(a.width == 10.0f && a.length == 2.0f, true);
+  CHECK_TEXT(a.slots[2].model, "vps_wallfire");
+  CHECK_TEXT(WriteVfxAreaDraft(a), rect);
+  const std::string minimal = header + "area = n5_a\nradius = 3\nslot 1 = n5_m 5 0 0\n";
+  VfxArea m;
+  CHECK_EQ(ReadVfxAreaDraft(minimal, &m, &err), true);
+  CHECK_TEXT(WriteVfxAreaDraft(m), minimal);
+}
+
+// Out of range in a draft: clamped as the row is (not refused), and written back clamped.
+TEST(VfxAreaDraftClamps) {
+  const std::string header = Fixture("fog_area.area").substr(0, Fixture("fog_area.area").find('\n') + 1);
+  VfxArea a;
+  std::string err;
+  CHECK_EQ(ReadVfxAreaDraft(header + "area = n5_a\nradius = 0.1\nslot 1 = n5_m 99 99 2\nsound_oneshot = sps_x 5\n", &a, &err), true);
+  CHECK_TEXT(WriteVfxAreaDraft(a), header + "area = n5_a\nradius = 0.6\nslot 1 = n5_m 30 60 1\nsound_oneshot = sps_x 1\n");
+}
+
+// A malformed line is refused, named by its number: a bad number, an unknown key, a slot past 3, no '=', a bad name,
+// no area name at all.
+TEST(VfxAreaDraftBadLineRefused) {
+  struct Case {
+    const char* text;
+    const char* says;
+  };
+  const Case cases[] = {
+      {"area = n5_a\nradius = x\n", "line 2"},
+      {"area = n5_a\ncolour = 1\n", "line 2"},
+      {"area = n5_a\nslot 4 = n5_m 1 0 0\n", "line 2"},
+      {"area = n5_a\nradius 3\n", "line 2"},
+      {"area = n5_a\nslot 1 = bad-name! 1 0 0\n", "line 2"},
+      {"area = n5_a\nslot 1 = n5_m 1\n", "line 2"},
+      {"area = n5_a\nshape = Q\n", "line 2"},
+      {"radius = 3\n", "no area name"},
+  };
+  for (const Case& c : cases) {
+    VfxArea a;
+    std::string err;
+    const bool ok = ReadVfxAreaDraft(c.text, &a, &err);
+    if (ok || err.find(c.says) == std::string::npos) {
+      const std::string msg = std::string("[") + c.text + "] read " + (ok ? "ok" : "refused: " + err) + ", want it refused naming " + c.says;
+      check::FailText(__FILE__, __LINE__, msg.c_str());
+    }
+  }
 }

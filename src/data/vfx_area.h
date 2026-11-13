@@ -48,4 +48,18 @@ constexpr float kVfxAreaMaxLifetime = 60.0f;
 // (not a number: the minimum), count 1-30, lifetime 0-60 s (written in ms), edge 0-1, the one-shot chance 0-1.
 std::vector<std::pair<std::string, std::string>> VfxAreaRowColumns(const VfxArea& area);
 
+// The area draft (.area, Task 2 of #161): the VFX Bench's area mode keeps an area as text, and its twin
+// (nwn5e-tools vfx_bench/public/area.js) writes the same bytes. `key = value` lines after kVfxAreaDraftHeader, in order:
+//   area = <name>                                      always
+//   shape = R, width = <m>, length = <m>               a rectangle; else radius = <m>
+//   slot <k> = <model> <copies> <lifetime s> <edge> [<low-detail model>]   k 1-3, each slot with a model
+//   duration_effect = <visualeffects row>, sound_impact / sound_duration / sound_cessation = <sound>,
+//   sound_oneshot = <sound> <chance 0-1>, orient_ground = 1                when set
+// Numbers as %g (at most 4 decimals), clamped as the row's columns are. Names are 1-16 of A-Z a-z 0-9 _.
+extern const char* const kVfxAreaDraftHeader;
+std::string WriteVfxAreaDraft(const VfxArea& area);
+// False with `err` ("line <n>: ...", or "no area name") for a malformed line, an unknown key, a slot past 3 or a bad
+// name; out-of-range numbers are clamped, not refused. Blank lines and # comments are skipped; CRLF is read as LF.
+bool ReadVfxAreaDraft(const std::string& text, VfxArea* area, std::string* err);
+
 }  // namespace data
