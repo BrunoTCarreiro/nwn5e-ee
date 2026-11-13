@@ -62,4 +62,10 @@ std::string WriteVfxAreaDraft(const VfxArea& area);
 // name; out-of-range numbers are clamped, not refused. Blank lines and # comments are skipped; CRLF is read as LF.
 bool ReadVfxAreaDraft(const std::string& text, VfxArea* area, std::string* err);
 
+// The VFX Bench's Play in game for an area (Task 5): the area's draft, then each slot's effect draft after a line
+// "### slot <k>" and a low-detail effect after "### low <k>" (k 1-3); a "request = ..." line before the area is skipped.
+// `parts`: ("slot 1", its text), ... in order. False with `err` for a part past the slots or an area part with nothing in it.
+bool SplitVfxAreaRequest(const std::string& text, std::string* area_text, std::vector<std::pair<std::string, std::string>>* parts,
+                         std::string* err);
+
 }  // namespace data

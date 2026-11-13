@@ -199,4 +199,43 @@ bool ReadVfxAreaDraft(const std::string& text, VfxArea* area, std::string* err) 
   return true;
 }
 
+bool SplitVfxAreaRequest(const std::string& text, std::string* area_text, std::vector<std::pair<std::string, std::string>>* parts,
+                         std::string* err) {
+  std::string area;
+  std::vector<std::pair<std::string, std::string>> out;
+  bool in_area = true, content = false;
+  std::istringstream in(text);
+  std::string raw;
+  while (std::getline(in, raw)) {
+    if (!raw.empty() && raw.back() == '\r') raw.pop_back();
+    if (raw.rfind("### ", 0) == 0) {
+      const std::vector<std::string> w = Words(raw.substr(4));
+      int k = 0;
+      if (w.size() != 2 || (w[0] != "slot" && w[0] != "low") || !ToInt(w[1], &k) || k < 1 || k > 3) {
+        if (err) *err = "\"" + raw + "\": a part is ### slot <1-3> or ### low <1-3>";
+        return false;
+      }
+      out.emplace_back(w[0] + " " + std::to_string(k), std::string());
+      in_area = false;
+      continue;
+    }
+    if (in_area) {
+      if (area.empty() && Trim(raw).rfind("request", 0) == 0) continue;  // the bench's request line
+      const std::string t = Trim(raw);
+      content = content || (!t.empty() && t[0] != '#');
+      area += raw + "\n";
+    } else {
+      out.back().second += raw + "\n";
+    }
+  }
+  if (!content) {
+    if (err) *err = "the request has no area before its parts";
+    return false;
+  }
+  *area_text = area;
+  *parts = out;
+  if (err) err->clear();
+  return true;
+}
+
 }  // namespace data

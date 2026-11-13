@@ -235,3 +235,27 @@ TEST(VfxAreaDraftBadLineRefused) {
     }
   }
 }
+
+// Play in game for an area (Task 5): the bench's request is the area's draft, then each slot's effect draft after a
+// "### slot <k>" line (its low-detail effect after "### low <k>"); the game splits it. A request line before it is skipped.
+TEST(VfxAreaRequestSplit) {
+  const std::string area = Fixture("fog_area.area");
+  const std::string text = "request = area 12 permanent\n" + area + "### slot 1\n# nwn5e VFX draft\nname = a\n\n[emitter e]\nbirthrate = 5\n" +
+                           "### low 1\nname = b\n### slot 2\nname = c\n";
+  std::string area_text, err;
+  std::vector<std::pair<std::string, std::string>> parts;
+  CHECK_EQ(SplitVfxAreaRequest(text, &area_text, &parts, &err), true);
+  CHECK_TEXT(area_text, area);
+  CHECK_EQ(parts.size(), 3u);
+  if (parts.size() != 3) return;
+  CHECK_TEXT(parts[0].first, "slot 1");
+  CHECK_TEXT(parts[0].second, "# nwn5e VFX draft\nname = a\n\n[emitter e]\nbirthrate = 5\n");
+  CHECK_TEXT(parts[1].first, "low 1");
+  CHECK_TEXT(parts[2].first, "slot 2");
+  CHECK_TEXT(parts[2].second, "name = c\n");
+  VfxArea a;
+  CHECK_EQ(ReadVfxAreaDraft(area_text, &a, &err), true);
+  // A part named past the slots, or none of the area, is refused.
+  CHECK_EQ(SplitVfxAreaRequest(area + "### slot 4\nname = x\n", &area_text, &parts, &err), false);
+  CHECK_EQ(SplitVfxAreaRequest("request = area 3\n### slot 1\nname = x\n", &area_text, &parts, &err), false);
+}
