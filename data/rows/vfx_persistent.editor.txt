@@ -1,0 +1,6 @@
+# vfx_persistent.2da - the VFX editor's area preview row (#161; the dev layer's !vfxarea and the VFX Bench's area mode,
+# nwn5e-tools/dev/vfx_editor.cpp): a 1 m circle with nothing in it here; in a dev build the editor rewrites it in the
+# loaded table while the game runs (the game reads the row for each new area). Its LABEL is the preview area's tag.
+# Rows 100-199 are the game's own, 200-299 the VFX Bench's saved areas (the game session, 2026-11-12).
+LABEL SHAPE RADIUS
+199 NWN5E_VFXED_AREA C 1
