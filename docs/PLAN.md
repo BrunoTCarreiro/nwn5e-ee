@@ -1417,6 +1417,16 @@ monster AC by CR.
     animation so serve as a confirmation for the player that something happened. A weapon effect maybe?"):* an
     armed smite shown - #162 (the game's indicator, waiting for the pick; the look forwarded to the animation
     session).
+    *Decided (owner, 2026-11-13: "go with G, B and D for #162"):* G - the effect bar's icon (one per smite, the
+    game's own) and the resource panel's line while armed, a click on it disarms (the game's); B - as it arms, a
+    flash and the smite's sound, no animation; D - while armed, the game's weapon glow (Holy, Fire, Acid) - B and D
+    the animation session's, through its PlaySpellLookArmed (called at each change, from the update).
+    *Built 0.99.32 (#162 G):* rules::SmiteArmedIconRow (effecticons.if_spells2024 225-227: the game's Smite Evil,
+    Flame Strike and Vine Mine icons); rules_spells2024.cpp's SyncArmed, from SmiteUpdate - the icon (a tagged
+    supernatural EffectIcon) on and off at each change of the creature's armed smite, a loaded save's taken off at
+    its first update (the arming isn't saved; a game start clears them); the resource panel's "Armed: <smite> (a
+    level N slot)", a click disarms ("smite"); ArmedLook, the look's call site (B, D), logs until the animation
+    session's PlaySpellLookArmed lands. Test 5 mutations caught. Matrix AS-1 to AS-5.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
