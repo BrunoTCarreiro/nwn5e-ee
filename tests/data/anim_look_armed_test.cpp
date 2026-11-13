@@ -44,27 +44,36 @@ TEST(ArmedLookOnScript) {
 // flash; only its hit when that look's cast already began for the caster (a cast that ran: the cast listener started it,
 // so it never plays twice). No look: the fixed flash, as before.
 TEST(ArmedLookPlays) {
-  const ArmedPlay none = ArmedPlayOf(false, false);
-  CHECK_EQ(none.flash && !none.cast && !none.hit, true);
-  const ArmedPlay fresh = ArmedPlayOf(true, false);
-  CHECK_EQ(!fresh.flash && fresh.cast && fresh.hit, true);
-  const ArmedPlay begun = ArmedPlayOf(true, true);
-  CHECK_EQ(!begun.flash && !begun.cast && begun.hit, true);
-  CHECK_EQ(ArmedPlayOf(false, true).flash, true);  // no look: a cast seen changes nothing
+  const ArmedPlay none = ArmedPlayOf(false, false, false);
+  CHECK_EQ(none.flash && !none.cast && !none.gesture && !none.hit, true);
+  const ArmedPlay fresh = ArmedPlayOf(true, false, false);
+  CHECK_EQ(!fresh.flash && fresh.cast && fresh.gesture && fresh.hit, true);
+  const ArmedPlay begun = ArmedPlayOf(true, true, false);
+  CHECK_EQ(!begun.flash && !begun.cast && !begun.gesture && begun.hit, true);
+  CHECK_EQ(ArmedPlayOf(false, true, false).flash, true);  // no look: a cast seen changes nothing
+  // A still look (the Animation card's None; owner, AS-11: "there should be an option for no animation"): its cast's
+  // effects and sounds and its hit, no gesture.
+  const ArmedPlay still = ArmedPlayOf(true, false, true);
+  CHECK_EQ(!still.flash && still.cast && !still.gesture && still.hit, true);
 }
 
-// The arming's script: the fixed flash and the glow, or - with a look - the glow and the gesture, no flash.
+// The arming's script: the fixed flash and the glow, or - with a look - the glow and the gesture (none for a still
+// look), no flash.
 TEST(ArmedLookArmScript) {
-  const std::string flash = ArmedArmScript(ArmedLookOf(1183), ArmedPlayOf(false, false), 1183);
+  const std::string flash = ArmedArmScript(ArmedLookOf(1183), ArmedPlayOf(false, false, false), 1183);
   CHECK_EQ(Has(flash, "EffectVisualEffect(71)"), true);
   CHECK_EQ(Has(flash, "ItemPropertyVisualEffect(5)"), true);
   CHECK_EQ(Has(flash, "ActionCastFakeSpellAtObject"), false);
-  const std::string look = ArmedArmScript(ArmedLookOf(1183), ArmedPlayOf(true, false), 1183);
+  const std::string look = ArmedArmScript(ArmedLookOf(1183), ArmedPlayOf(true, false, false), 1183);
   CHECK_EQ(Has(look, "EffectVisualEffect(71)"), false);
   CHECK_EQ(Has(look, "ItemPropertyVisualEffect(5)"), true);
   CHECK_EQ(Has(look, "ActionCastFakeSpellAtObject(1183, OBJECT_SELF)"), true);
-  const std::string begun = ArmedArmScript(ArmedLookOf(1184), ArmedPlayOf(true, true), 1184);
+  const std::string begun = ArmedArmScript(ArmedLookOf(1184), ArmedPlayOf(true, true, false), 1184);
   CHECK_EQ(Has(begun, "ItemPropertyVisualEffect(3)") && !Has(begun, "ActionCastFakeSpellAtObject"), true);
+  const std::string still = ArmedArmScript(ArmedLookOf(1183), ArmedPlayOf(true, false, true), 1183);
+  CHECK_EQ(Has(still, "ItemPropertyVisualEffect(5)") && !Has(still, "ActionCastFakeSpellAtObject") &&
+               !Has(still, "EffectVisualEffect(71)"),
+           true);
 }
 
 // The gesture: the row's own conjure and cast, faked at the caster (the look's clips swapped in), only when the caster

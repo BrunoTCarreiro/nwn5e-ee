@@ -1,0 +1,14 @@
+# nwn5e spell look - key = value
+name = divine_smite
+rows = 1183
+rule_at = 1.5
+clip = (none)
+clip_base = castself
+clip_seconds = 3
+release = 1.5
+leap_for = 1
+leap_after = 0.3
+missile = 0
+hit = 71
+leap_beam = 0
+sound = hit 0 sim_holy

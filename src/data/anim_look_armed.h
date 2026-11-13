@@ -39,12 +39,15 @@ std::string ArmedOffScript();
 // ran - an item's, a script's - was broadcast, and the cast listener started the look then: never twice). Without a
 // look: the fixed flash. The glow is the same either way.
 struct ArmedPlay {
-  bool flash = false;  // the fixed flash (ArmedLook.flash)
-  bool cast = false;   // the look's cast and the gesture
-  bool hit = false;    // the look's hit on the caster
+  bool flash = false;    // the fixed flash (ArmedLook.flash)
+  bool cast = false;     // the look's cast: its effects and sounds
+  bool gesture = false;  // the gesture (ArmedGestureScript) - none for a still look
+  bool hit = false;      // the look's hit on the caster
 };
-ArmedPlay ArmedPlayOf(bool has_look, bool cast_begun);
-// The arming's script, run on the creature: the flash (play.flash) or none, the glow, and the gesture when play.cast.
+// `still`: the look has no animation (data::LookStill - the Animation card's None; owner, AS-11: "there should be an
+// option for no animation"): its cast's effects and sounds and its hit, no gesture.
+ArmedPlay ArmedPlayOf(bool has_look, bool cast_begun, bool still);
+// The arming's script, run on the creature: the flash (play.flash) or none, the glow, and the gesture when play.gesture.
 std::string ArmedArmScript(const ArmedLook& look, const ArmedPlay& play, int spell_row);
 // The gesture: spells.2da `spell_row`'s own conjure and cast, faked at the caster (ActionCastFakeSpellAtObject: the
 // look's clips swapped in by its cast, nothing cast) - only when the caster isn't doing anything else, so it's never

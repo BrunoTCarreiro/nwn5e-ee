@@ -54,6 +54,55 @@ TEST(AnimLookOnCaster) {
   CHECK_EQ(data::LookFlies(look, 1183), true);  // the look itself is untouched
 }
 
+// "No animation" (owner, 2026-11-13, AS-11: "there should be an option for no animation"): clip = (none), which isn't a
+// resref - no recipe can be taken for it, and a recipe named none stays a recipe. The fixture is the JS twin's too.
+TEST(AnimLookStill) {
+  const std::string text = Fixture("still_smite.look");
+  data::SpellLook look;
+  std::string error;
+  CHECK_EQ(data::ReadSpellLook(text, &look, &error), true);
+  CHECK_EQ(data::LookStill(look), true);
+  CHECK_EQ(data::WriteSpellLook(look) == text, true);
+  std::string recipe = text;
+  recipe.replace(recipe.find("(none)"), 6, "none");
+  data::SpellLook named;
+  CHECK_EQ(data::ReadSpellLook(recipe, &named, &error) && named.clip == "none" && !data::LookStill(named), true);
+  // Only the cast's clip can be (none): the conjure's clip and the bases are recipes or animations.
+  data::SpellLook bad;
+  CHECK_EQ(data::ReadSpellLook(text + "conj_clip = (none)\n", &bad, &error), false);
+  std::string base = text;
+  base.replace(base.find("castself"), 8, "(none)");
+  CHECK_EQ(data::ReadSpellLook(base, &bad, &error), false);
+}
+
+// The swaps a look's cast asks for (StartLookCast): its recipes; a still look, the conjure (hand and head) and the
+// cast's base each to the game's own idle - the caster stands through the cast, its conjure recipe ignored. On its
+// caster a still look plays no gesture: nothing to swap.
+TEST(AnimLookClipSwaps) {
+  data::SpellLook look;
+  look.clip = "n5_cast";
+  look.clip_base = "castout";
+  look.conj_clip = "n5_conj";
+  look.conj_clip_base = "conjure2";
+  auto swaps = data::LookClipSwaps(look);
+  CHECK_EQ(static_cast<int>(swaps.size()), 2);
+  CHECK_EQ(swaps[0].first == "conjure2" && swaps[0].second == "n5_conj", true);
+  CHECK_EQ(swaps[1].first == "castout" && swaps[1].second == "n5_cast", true);
+  look.clip = data::kNoClip;
+  look.clip_base = "castself";
+  swaps = data::LookClipSwaps(look);
+  CHECK_EQ(static_cast<int>(swaps.size()), 3);
+  CHECK_EQ(swaps[0].first == "conjure1" && swaps[1].first == "conjure2" && swaps[2].first == "castself", true);
+  bool still = true;
+  for (const auto& s : swaps) still = still && s.second == data::kStillAnimation;
+  CHECK_EQ(still, true);
+  CHECK_EQ(data::LookClipSwaps(data::SpellLook()).empty(), true);
+  const data::SpellLook on = data::LookOnCaster(look);
+  CHECK_EQ(on.clip.empty() && on.conj_clip.empty() && data::LookClipSwaps(on).empty(), true);
+  look.clip = "n5_cast";
+  CHECK_EQ(data::LookOnCaster(look).clip == "n5_cast", true);  // a recipe on its caster stays: the gesture swaps it
+}
+
 TEST(AnimLookReadsTheFixture) {
   data::SpellLook look;
   std::string error;
