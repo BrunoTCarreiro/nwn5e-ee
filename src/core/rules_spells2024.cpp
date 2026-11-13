@@ -1291,6 +1291,19 @@ bool HasSpellEffect(const void* creature, int spell_a, int spell_b = -1, uint32_
   return false;
 }
 
+// The creator of a creature's first effect of `spell` (0xFFFFFFFF: none) - for the log (0.99.36, L3-5).
+uint32_t SpellEffectCreator(const void* creature, int spell) {
+  if (!creature) return 0xFFFFFFFFu;
+  void* const* list = Field<void* const*>(creature, ee::kObjectEffects);
+  const int count = Field<int32_t>(creature, ee::kObjectEffectCount);
+  if (!list || count <= 0 || count > 4096) return 0xFFFFFFFFu;
+  for (int i = 0; i < count; ++i) {
+    const void* effect = list[i];
+    if (effect && Field<int32_t>(effect, ee::kEffectSpellId) == spell) return Field<uint32_t>(effect, ee::kEffectCreator);
+  }
+  return 0xFFFFFFFFu;
+}
+
 // A spell's mark on a creature: its effect (an icon - Protection from Evil and Good's with its immunities), tagged,
 // with the row cast (Concentration finds it by that row and its caster); an earlier one of the same spell on it ends.
 const char* const kMark = R"nss(
@@ -3291,8 +3304,15 @@ void SmiteUpdate(void* creature) {
                     "SetEffectSpellId(EffectLinkEffects(EffectIcon(EFFECT_ICON_DAMAGE_DECREASE), EffectVisualEffect("
                     "VFX_DUR_INFERNO_CHEST)), %d), \"%s\"), t, 60.0);",
                     id, rules::kSearingSmite, kTagSearing);
-          RunScriptChunk(code, pending.caster);
+          const int ran = RunScriptChunk(code, pending.caster);
           g_burning[id] = Burning{pending.caster, rules::SearingSmiteDice(pending.slot), pending.dc, now + kRoundMs};
+          // 0.99.36 (L3-5: no burn round came): the mark as it went on, for the log.
+          if (LogSlot()) {
+            Log("spells2024: 0x%08X Searing Smite's mark put on by 0x%08X (its script %d): the first effect of spell %d "
+                "on it is 0x%08X's; the next burn at game %.1f s",
+                id, pending.caster, ran, rules::kSearingSmite, SpellEffectCreator(creature, rules::kSearingSmite),
+                static_cast<double>(now + kRoundMs) / 1000.0);
+          }
         } else if (pending.row == rules::kEnsnaringStrike) {
           const bool advantage = rules::EnsnaringSaveAdvantage(Field<int32_t>(creature, ee::kCreatureSize));
           const uint8_t save = StrengthSave(creature, pending.caster, pending.dc, advantage);
@@ -3340,7 +3360,14 @@ void SmiteUpdate(void* creature) {
     const auto at = g_burning.find(id);
     if (at != g_burning.end()) {
       Burning& burn = at->second;
-      if (engine::IsDeadOrDying(creature) || !HasSpellEffect(creature, rules::kSearingSmite, -1, burn.caster)) {
+      const bool down = engine::IsDeadOrDying(creature);
+      if (down || !HasSpellEffect(creature, rules::kSearingSmite, -1, burn.caster)) {
+        if (LogSlot()) {  // 0.99.36 (L3-5): why a burn ends without its save
+          Log("spells2024: 0x%08X Searing Smite's burn ends - %s (game %.1f s; the first effect of spell %d on it is "
+              "0x%08X's, the burn's caster 0x%08X)",
+              id, down ? "it's down" : "its mark is gone", static_cast<double>(now) / 1000.0, rules::kSearingSmite,
+              SpellEffectCreator(creature, rules::kSearingSmite), burn.caster);
+        }
         g_burning.erase(at);
       } else if (now >= burn.next) {
         burn.next = now + kRoundMs;
