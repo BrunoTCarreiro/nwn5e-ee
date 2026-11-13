@@ -145,6 +145,7 @@
 #include "movement_rate.h"
 #include "reactions.h"
 #include "resolve_damage.h"
+#include "resource_panel.h"
 #include "saves.h"
 #include "script_hooks.h"
 #include "spell_cast_listeners.h"
@@ -3157,9 +3158,123 @@ uint8_t StrengthSave(void* creature, uint32_t caster, int dc, bool advantage) {
 
 // The riders, at the target's update: Searing Smite's burning; Ensnaring Strike's save and vines. Then each of its
 // turns: the burn (1d6 Fire, a Constitution save ends it), the vines' 1d6 Piercing.
-void SmiteUpdate(void* creature) {
-  if (!creature || (g_smite_pending.empty() && g_burning.empty() && g_ensnared.empty())) return;
+// #162 (owner, 2026-11-13: "go with G, B and D for #162"): an armed smite shown. Kept in step from the creature's
+// update - never inside an attack's damage - so every way a smite ends (its hit, a rest, a click, no slot left,
+// another smite cast) and a load (the icon saved, the arming not) is followed.
+constexpr const char* kTagArmedIcon = "n5s_armed";
+std::unordered_map<uint32_t, int> g_armed_look;  // creature -> the smite whose look is on (B, D)
+std::unordered_map<uint32_t, int> g_armed_icon;  // creature -> the armed icon on its effect bar (G)
+std::unordered_set<uint32_t> g_armed_seen;       // creatures updated this game (a loaded save's icon looked for once)
+struct IconTry {
+  int want = -1;
+  uint64_t at = 0;
+};
+std::unordered_map<uint32_t, IconTry> g_icon_tried;
+
+int ArmedIconShown(const void* creature) {
+  int shown = 0;
+  effects::ForEachOfType(creature, ee::kEffectTypeIcon, [&](const void* effect) {
+    const int icon = effects::Integer(effect, 0);
+    if (icon >= rules::kSmiteArmedIconFirst && icon <= rules::kSmiteArmedIconLast) shown = icon;
+  });
+  return shown;
+}
+
+// B, D: the look of an armed smite - the animation session's (a flash and the smite's sound as it arms; the weapon's
+// glow while armed), through its PlaySpellLookArmed once that lands in anim; until then, the log.
+void ArmedLook(void* creature, uint32_t id, int row, bool armed) {
+  (void)creature;
+  const rules::Spell2024* spell = rules::Spell2024Of(row);
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X %s %s (its look: #162)", id, spell ? spell->name : "a smite",
+        armed ? "armed" : "no longer armed");
+  }
+}
+
+void SyncArmed(void* creature, uint32_t id, bool fresh) {
+  const auto armed = g_armed.find(id);
+  const int row = armed != g_armed.end() ? armed->second.row : 0;
+  // B, D: at each change of the armed smite.
+  const auto look = g_armed_look.find(id);
+  const int looked = look != g_armed_look.end() ? look->second : 0;
+  if (looked != row) {
+    if (looked) ArmedLook(creature, id, looked, false);
+    if (row) ArmedLook(creature, id, row, true);
+    if (row) {
+      g_armed_look[id] = row;
+    } else {
+      g_armed_look.erase(id);
+    }
+  }
+  // G: its icon on the effect bar.
+  const int want = rules::SmiteArmedIconRow(row);
+  const auto on = g_armed_icon.find(id);
+  const int have = fresh ? ArmedIconShown(creature) : (on != g_armed_icon.end() ? on->second : 0);
+  if (want == have) return;
+  const uint64_t now = GetTickCount64();
+  IconTry& tried = g_icon_tried[id];
+  if (tried.want == want && now < tried.at + 1000) return;  // the same change at most once a second
+  tried.want = want;
+  tried.at = now;
+  std::string code = std::string("effect e = GetFirstEffect(OBJECT_SELF); while (GetIsEffectValid(e)) { if (GetEffectTag(e) == \"") +
+                     kTagArmedIcon + "\") RemoveEffect(OBJECT_SELF, e); e = GetNextEffect(OBJECT_SELF); }";
+  if (want > 0) {
+    code += " ApplyEffectToObject(DURATION_TYPE_PERMANENT, SupernaturalEffect(TagEffect(EffectIcon(" +
+            std::to_string(want) + "), \"" + kTagArmedIcon + "\")), OBJECT_SELF);";
+  }
+  RunScriptChunk(code.c_str(), id);
+  if (want > 0) {
+    g_armed_icon[id] = want;
+  } else {
+    g_armed_icon.erase(id);
+  }
+}
+
+// G: the resource panel's line while a smite is armed; a click disarms it.
+bool SmiteHudPool(void* creature, rules::HudPool* pool) {
+  if (!creature || g_armed.empty()) return false;
+  const auto it = g_armed.find(Field<uint32_t>(creature, ee::kObjectId));
+  if (it == g_armed.end()) return false;
+  const rules::Spell2024* spell = rules::Spell2024Of(it->second.row);
+  if (!spell) return false;
+  pool->name = std::string("Armed: ") + spell->name + " (a level " + std::to_string(it->second.slot) + " slot)";
+  pool->line = true;
+  pool->click = "smite";
+  pool->tooltip = std::string(spell->name) + " is armed: your next hit with " + SmiteRide(spell->row) +
+                  ", while you have the slot and your Bonus Action, spends both and delivers it. A rest disarms "
+                  "it.\n\nClick to disarm it now.";
+  return true;
+}
+
+void SmitePanelClicked(void* creature) {
+  if (!creature) return;
   const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  const auto it = g_armed.find(id);
+  if (it == g_armed.end()) return;
+  const rules::Spell2024* spell = rules::Spell2024Of(it->second.row);
+  const bool paid = it->second.paid;
+  g_armed.erase(it);
+  const std::string name = spell ? spell->name : "The smite";
+  TellPlayer(id, "nwn5e: " + name + " disarmed - " + (paid ? "its slot was spent by its cast." : "nothing spent."));
+  if (LogSlot()) Log("spells2024: 0x%08X %s disarmed (the resource panel)", id, name.c_str());
+}
+
+// A game started (a new one, a saved one loaded): the last game's armed smites go (a loaded icon is taken off at
+// its creature's first update).
+void SmitesGameStarted() {
+  g_armed.clear();
+  g_armed_look.clear();
+  g_armed_icon.clear();
+  g_armed_seen.clear();
+  g_icon_tried.clear();
+}
+
+void SmiteUpdate(void* creature) {
+  if (!creature) return;
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  const bool fresh = g_armed_seen.size() < 100000 && g_armed_seen.insert(id).second;
+  if (fresh || !g_armed.empty() || !g_armed_look.empty() || !g_armed_icon.empty()) SyncArmed(creature, id, fresh);
+  if (g_smite_pending.empty() && g_burning.empty() && g_ensnared.empty()) return;
   const uint64_t now = GameMs();
   if (!g_smite_pending.empty()) {
     const auto at = g_smite_pending.find(id);
@@ -3610,7 +3725,12 @@ void InstallSpells2024() {
                      AddScriptHandler("n5_escape", &EscapeScript) && AddCreatureUpdateListener(&AreaUpdate) &&
                      AddMovementRateAdjuster(&TerrainSpeed);
   const bool reactions = AddAttackRollListenerFirst(&ShieldAfterRoll) && AddResolveDamageListener(&SmiteHit) &&
-                         AddCreatureUpdateListener(&SmiteUpdate) && AddRestListener(&SmitesRest);
+                         AddCreatureUpdateListener(&SmiteUpdate) && AddRestListener(&SmitesRest) &&
+                         AddGameStartListener(&SmitesGameStarted);
+  if (reactions) {  // #162 G
+    AddHudPool(&SmiteHudPool);
+    AddHudClick("smite", &SmitePanelClicked);
+  }
   Log("spells2024: SRD 5.2's level 1 spells, builds 1a-3 - %zu spells: damage and healing, Chromatic Orb, Heroism, "
       "the buffs, the conditions on creatures, the areas, Shield and the smites; %zu Bonus Action spells; one spell "
       "with a slot a turn (#39 Part 2a)%s",

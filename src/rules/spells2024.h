@@ -300,6 +300,11 @@ bool EnsnaringSaveAdvantage(int nwn_creature_size);
 // The smites. A smite's cast only arms it (Q1 A): the spell is cast on the hit, so a Concentration smite's
 // Concentration begins there, never at the arming cast (0.99.30, L3-8).
 bool IsSmiteSpell(int row);
+// #162 G (owner, 2026-11-13: "go with G, B and D for #162"): an armed smite's icon on the effect bar -
+// effecticons 225-227 (data/rows/effecticons.if_spells2024.txt), the game's own icons; 0 for any other spell.
+constexpr int kSmiteArmedIconFirst = 225;
+constexpr int kSmiteArmedIconLast = 227;
+int SmiteArmedIconRow(int row);
 constexpr int kRouseFeet = 5;
 
 // Chromatic Orb: two or more of its d8s alike - the orb leaps to another creature within 30 feet of the target (a

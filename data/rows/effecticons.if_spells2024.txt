@@ -1,0 +1,7 @@
+# effecticons.2da - #39 Part 2a, #162 (owner, 2026-11-13: "go with G, B and D for #162"): an armed smite's icon on
+# the effect bar while it waits for its hit (rules::SmiteArmedIconRow; rules_spells2024.cpp) - the game's own icons:
+# Smite Evil's (ife_hitevil), Flame Strike's (is_FlmStrike), Vine Mine's (is_X2VineMEnt).
+Label Icon StrRef
+225 NWN5E_DIVINE_SMITE_ARMED ife_hitevil 16000791
+226 NWN5E_SEARING_SMITE_ARMED is_FlmStrike 16000792
+227 NWN5E_ENSNARING_STRIKE_ARMED is_X2VineMEnt 16000793

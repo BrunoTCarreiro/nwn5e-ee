@@ -474,4 +474,11 @@ TEST(Spells2024Build3) {
   CHECK_EQ(IsSmiteSpell(kSearingSmite), true);
   CHECK_EQ(IsSmiteSpell(kShield), false);
   CHECK_EQ(IsSmiteSpell(kEntangle), false);
+  // #162 G: an armed smite's effect-bar icon (effecticons 225-227), one per smite.
+  CHECK_EQ(SmiteArmedIconRow(kDivineSmite), 225);
+  CHECK_EQ(SmiteArmedIconRow(kSearingSmite), 226);
+  CHECK_EQ(SmiteArmedIconRow(kEnsnaringStrike), 227);
+  CHECK_EQ(SmiteArmedIconRow(kShield), 0);
+  CHECK_EQ(SmiteArmedIconRow(kEntangle), 0);
+  CHECK_EQ(kSmiteArmedIconLast - kSmiteArmedIconFirst + 1, 3);
 }

@@ -356,6 +356,15 @@ bool ShieldTurnsHit(int total, int armor_class, bool natural_twenty) {
 
 bool IsSmiteSpell(int row) { return row == kDivineSmite || row == kSearingSmite || row == kEnsnaringStrike; }
 
+int SmiteArmedIconRow(int row) {
+  switch (row) {
+    case kDivineSmite: return kSmiteArmedIconFirst;
+    case kSearingSmite: return kSmiteArmedIconFirst + 1;
+    case kEnsnaringStrike: return kSmiteArmedIconLast;
+    default: return 0;
+  }
+}
+
 bool SmiteRidesOn(int row, bool ranged, bool unarmed) {
   if (row == kEnsnaringStrike) return !unarmed;
   if (row == kDivineSmite || row == kSearingSmite) return !ranged;
