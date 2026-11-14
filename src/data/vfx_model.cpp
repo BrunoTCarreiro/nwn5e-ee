@@ -302,6 +302,19 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
       "  parent NULL",
       "endnode",
   };
+  // Bursts that start late (the owner's phases, 2026-11-14): each gets a detonate event 0.01 s after its start (one for
+  // starts closer than kVfxBurstWindow), and every burst's rate is keyed on only round its own event.
+  const auto is_burst = [](const VfxEmitter& e) { return Lower(e.update) == "explosion"; };
+  std::vector<float> burst_events;
+  for (const VfxEmitter& e : effect.emitters) {
+    if (!is_burst(e) || e.start_seconds <= 0.0f) continue;
+    const float at = e.start_seconds + 0.01f;
+    bool near = false;
+    for (float other : burst_events) near = near || std::fabs(other - at) < kVfxBurstWindow;
+    if (!near) burst_events.push_back(at);
+  }
+  std::sort(burst_events.begin(), burst_events.end());
+  const bool late_burst = !burst_events.empty();
   for (size_t k : order) {
     if (k < node_count) {
       const VfxNode& n = effect.nodes[k];
@@ -317,8 +330,8 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
       continue;
     }
     const VfxEmitter& e = effect.emitters[k - node_count];
-    // An emitter that switches off is keyed in the impact; F's always-on ones are too.
-    const bool keyed = e.emit_seconds > 0.0f || !effect.duration;
+    // An emitter that switches off is keyed in the impact; F's always-on ones are too, and one that starts late.
+    const bool keyed = e.emit_seconds > 0.0f || !effect.duration || e.start_seconds > 0.0f || (late_burst && is_burst(e));
     for (const std::string& line : EmitterLines(e, names[k], parent_line(k), keyed, has_target(e))) {
       if (!line.empty()) lines.push_back(line);
     }
@@ -383,7 +396,9 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
   // effect has them (2 s / 1 s if not given) and their keys.
   float impact = 0.2f;
   for (const VfxEmitter& e : effect.emitters) {
-    const float on = e.emit_seconds > 0.0f ? e.emit_seconds : (effect.duration ? 0.0f : effect.seconds);
+    // When it goes off in the impact (a lasting one always on: when it comes on), from its start.
+    const float s = e.start_seconds;
+    const float on = e.emit_seconds > 0.0f ? s + e.emit_seconds : (effect.duration ? s : std::max(s, effect.seconds));
     impact = std::max(impact, on + 0.01f + (effect.duration ? 0.0f : e.life));
   }
   impact = std::max({impact, effect.lengths[0], LastKeyTime(effect, "impact")});
@@ -424,8 +439,11 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
     lines.push_back("  length " + Num(length));
     lines.push_back("  transtime 0.25");
     lines.push_back("  animroot " + model);
-    // Explosion emitters burst on the impact's detonate event (the game's own models have it).
-    if (std::string(name) == "impact") lines.push_back("  event 0 detonate");
+    // Explosion emitters burst on the impact's detonate event (the game's own models have it); late bursts on their own.
+    if (std::string(name) == "impact") {
+      lines.push_back("  event 0 detonate");
+      for (float at : burst_events) lines.push_back("  event " + Num(at) + " detonate");
+    }
     lines.push_back("node dummy " + model);
     lines.push_back("  parent NULL");
     lines.push_back("endnode");
@@ -443,6 +461,40 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
       if (keys_off) {
         lines.push_back("  birthratekey 1");
         lines.push_back("    0 0");
+      } else if (keys_on && late_burst && is_burst(e)) {
+        // A burst in an effect with late ones: its rate on only round its own detonate event (0 s, or 0.01 s after
+        // its start), so another's event doesn't set it off again.
+        const float s = e.start_seconds;
+        if (s > 0.0f) {
+          lines.push_back("  birthratekey 5");
+          lines.push_back("    0 0");
+          lines.push_back("    " + Num(s) + " 0");
+          lines.push_back("    " + Num(s + 0.01f) + " " + Num(e.birthrate));
+          lines.push_back("    " + Num(s + 0.01f + kVfxBurstWindow) + " " + Num(e.birthrate));
+          lines.push_back("    " + Num(s + 0.02f + kVfxBurstWindow) + " 0");
+        } else {
+          lines.push_back("  birthratekey 3");
+          lines.push_back("    0 " + Num(e.birthrate));
+          lines.push_back("    " + Num(kVfxBurstWindow) + " " + Num(e.birthrate));
+          lines.push_back("    " + Num(kVfxBurstWindow + 0.01f) + " 0");
+        }
+      } else if (keys_on && e.start_seconds > 0.0f) {
+        // The owner's phases (2026-11-14): off until its start, then on - a lasting effect's always-on one stays on (the
+        // duration's restore key below keeps it), else off again after its On for (a one-shot's: at the effect's end).
+        const float s = e.start_seconds;
+        if (effect.duration && e.emit_seconds <= 0.0f) {
+          lines.push_back("  birthratekey 3");
+        } else {
+          lines.push_back("  birthratekey 5");
+        }
+        lines.push_back("    0 0");
+        lines.push_back("    " + Num(s) + " 0");
+        lines.push_back("    " + Num(s + 0.01f) + " " + Num(e.birthrate));
+        if (!effect.duration || e.emit_seconds > 0.0f) {
+          const float off = e.emit_seconds > 0.0f ? s + e.emit_seconds : std::max(s + 0.01f, effect.seconds);
+          lines.push_back("    " + Num(off) + " " + Num(e.birthrate));
+          lines.push_back("    " + Num(off + 0.01f) + " 0");
+        }
       } else if (keys_on && (e.emit_seconds > 0.0f || !effect.duration)) {
         const float on = e.emit_seconds > 0.0f ? e.emit_seconds : effect.seconds;
         lines.push_back("  birthratekey 3");
@@ -522,7 +574,9 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
     out += "orientation = " + Num(e.orientation[0]) + " " + Num(e.orientation[1]) + " " + Num(e.orientation[2]) + " " +
            Num(e.orientation[3]) + "\n";
     if (!e.parent.empty()) out += "parent = " + e.parent + "\n";
-    out += "birthrate = " + Num(e.birthrate) + "\nemit_seconds = " + Num(e.emit_seconds) + "\nlife = " + Num(e.life) + "\n";
+    out += "birthrate = " + Num(e.birthrate) + "\nemit_seconds = " + Num(e.emit_seconds) + "\n";
+    if (e.start_seconds > 0.0f) out += "start_seconds = " + Num(e.start_seconds) + "\n";  // the owner's phases (2026-11-14)
+    out += "life = " + Num(e.life) + "\n";
     out += "velocity = " + Num(e.velocity) + "\nrandvel = " + Num(e.randvel) + "\nspread = " + Num(e.spread) + "\n";
     out += "mass = " + Num(e.mass) + "\nsize = " + Num(e.size_start) + " " + Num(e.size_end) + "\n";
     out += "color_start = " + Num(e.color_start[0]) + " " + Num(e.color_start[1]) + " " + Num(e.color_start[2]) + "\n";
@@ -705,6 +759,7 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
     else if (key == "orientation") ReadFloats(words, 0, e->orientation, 4);
     else if (key == "birthrate") e->birthrate = ToFloat(value);
     else if (key == "emit_seconds") e->emit_seconds = ToFloat(value);
+    else if (key == "start_seconds") e->start_seconds = std::min(10.0f, std::max(0.0f, ToFloat(value)));
     else if (key == "life") e->life = ToFloat(value);
     else if (key == "velocity") e->velocity = ToFloat(value);
     else if (key == "randvel") e->randvel = ToFloat(value);

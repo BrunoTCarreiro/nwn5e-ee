@@ -1545,3 +1545,92 @@ TEST(VfxLastingEmittersRestartAfterCessation) {
   CHECK_EQ(in(duration, "node light n5t_l0_glow").find("  radiuskey 1\n    0 6\n") != std::string::npos, true);
   CHECK_EQ(in(cessation, "node light n5t_l0_glow").find("  radiuskey 2\n    0 6\n    0.4 0\n") != std::string::npos, true);
 }
+
+// The owner, 2026-11-14: "is it possible to have an effect that has multiple phases? ... there should be some sort of
+// delay attached to emitters", then "go with all three": an emitter's start (start_seconds) - off until then, then on,
+// its On for counted from there. In the draft only when set (older drafts unchanged); in the model, its impact keys.
+TEST(VfxEmitterStartsAfter) {
+  VfxEffect effect;
+  effect.duration = false;  // a one-shot (F)
+  effect.seconds = 2.0f;
+  VfxEmitter late;
+  late.name = "late";
+  late.birthrate = 20.0f;
+  late.start_seconds = 0.5f;
+  late.emit_seconds = 1.0f;
+  late.life = 1.0f;
+  effect.emitters.push_back(late);
+  VfxEmitter now;
+  now.name = "now";
+  now.life = 0.25f;
+  effect.emitters.push_back(now);
+  const std::string draft = WriteVfxDraft(effect);
+  CHECK_EQ(draft.find("emit_seconds = 1\nstart_seconds = 0.5\nlife = 1\n") != std::string::npos, true);
+  CHECK_EQ(draft.find("start_seconds", draft.find("[emitter now]")) == std::string::npos, true);  // unset: no line
+  VfxEffect back;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(draft, &back, &error), true);
+  CHECK_EQ(back.emitters.size(), 2u);
+  CHECK_EQ(back.emitters[0].start_seconds, 0.5f);
+  CHECK_EQ(back.emitters[1].start_seconds, 0.0f);
+  // A one-shot: off, on at 0.5 s, off after its second on; the impact long enough for it and its particles' life.
+  std::string model = WriteVfxModel(effect, "n5t");
+  std::string impact = Section(model, "newanim impact n5t", "doneanim impact n5t");
+  CHECK_EQ(Section(impact, "node emitter n5t_0_late", "endnode")
+                   .find("  birthratekey 5\n    0 0\n    0.5 0\n    0.51 20\n    1.5 20\n    1.51 0\n") != std::string::npos,
+           true);
+  CHECK_EQ(impact.find("  length 2.51\n") != std::string::npos, true);  // its off at 1.5 s + its particles' 1 s
+  // A lasting effect: an always-on emitter off until 0.3 s, then on through the impact and (its restore key) the duration.
+  VfxEffect lasting;
+  lasting.duration = true;
+  VfxEmitter vines;
+  vines.name = "vines";
+  vines.birthrate = 8.0f;
+  vines.start_seconds = 0.3f;
+  lasting.emitters.push_back(vines);
+  model = WriteVfxModel(lasting, "n5t");
+  impact = Section(model, "newanim impact n5t", "doneanim impact n5t");
+  const std::string duration = Section(model, "newanim duration n5t", "doneanim duration n5t");
+  CHECK_EQ(Section(impact, "node emitter n5t_0_vines", "endnode").find("  birthratekey 3\n    0 0\n    0.3 0\n    0.31 8\n") !=
+               std::string::npos,
+           true);
+  CHECK_EQ(Section(duration, "node emitter n5t_0_vines", "endnode").find("  birthratekey 1\n    0 8\n") != std::string::npos, true);
+  CHECK_EQ(Section(Section(model, "beginmodelgeom n5t", "endmodelgeom n5t"), "node emitter n5t_0_vines", "endnode")
+                   .find("  birthrate 0\n") != std::string::npos,
+           true);  // keyed: off until the impact turns it on
+}
+
+// A burst (Explosion) that starts late: the game bursts an Explosion on the impact's detonate event with its birthrate
+// then, so a late one gets its own event (0.01 s after its start) and each Explosion's rate is on only round its own
+// event (kVfxBurstWindow), so no burst goes off twice. Without a late burst: written as ever.
+TEST(VfxExplosionStartsAfter) {
+  VfxEffect effect;
+  effect.duration = false;
+  effect.seconds = 2.0f;
+  VfxEmitter bang;
+  bang.name = "bang";
+  bang.update = "Explosion";
+  bang.birthrate = 30.0f;
+  effect.emitters.push_back(bang);
+  std::string impact = Section(WriteVfxModel(effect, "n5t"), "newanim impact n5t", "doneanim impact n5t");
+  CHECK_EQ(Section(impact, "node emitter n5t_0_bang", "endnode").find("  birthratekey 3\n    0 30\n    2 30\n    2.01 0\n") !=
+               std::string::npos,
+           true);  // alone: unchanged
+  CHECK_EQ(impact.find("  event 0 detonate\n") != std::string::npos && impact.find("detonate", impact.find("detonate") + 1) == std::string::npos,
+           true);
+  VfxEmitter echo;
+  echo.name = "echo";
+  echo.update = "Explosion";
+  echo.birthrate = 12.0f;
+  echo.start_seconds = 0.5f;
+  effect.emitters.push_back(echo);
+  impact = Section(WriteVfxModel(effect, "n5t"), "newanim impact n5t", "doneanim impact n5t");
+  CHECK_EQ(impact.find("  event 0 detonate\n") != std::string::npos && impact.find("  event 0.51 detonate\n") != std::string::npos, true);
+  CHECK_EQ(Section(impact, "node emitter n5t_0_bang", "endnode").find("  birthratekey 3\n    0 30\n    0.05 30\n    0.06 0\n") !=
+               std::string::npos,
+           true);
+  CHECK_EQ(Section(impact, "node emitter n5t_1_echo", "endnode")
+                   .find("  birthratekey 5\n    0 0\n    0.5 0\n    0.51 12\n    0.56 12\n    0.57 0\n") != std::string::npos,
+           true);
+  CHECK_EQ(kVfxBurstWindow, 0.05f);
+}

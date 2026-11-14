@@ -73,6 +73,7 @@ struct VfxEmitter {
   float orientation[4] = {0.0f, 0.0f, 0.0f, 0.0f};
   float birthrate = 10.0f;                 // particles a second
   float emit_seconds = 0.0f;               // on this long, then off (0: all the time)
+  float start_seconds = 0.0f;              // off until this far into the effect, then on (the owner's phases, 2026-11-14)
   float life = 1.0f;                       // seconds
   float velocity = 1.0f;
   float randvel = 0.5f;
@@ -147,6 +148,11 @@ struct VfxPlane {
 // (randomDirection) never ends for some particles - the game would hang (simulated, 0.42.4; the
 // game's own effects use 0.0037, 0.1745 and 0.2094).
 constexpr float kVfxDeadspaceMax = 0.39f;
+
+// A burst's (Explosion's) rate is on this long round its own detonate event when an effect has a burst that starts late
+// (the owner's phases, 2026-11-14): longer than a frame, so the event finds it on; short, so another burst's event
+// doesn't set it off again.
+constexpr float kVfxBurstWindow = 0.05f;
 
 struct VfxEffect {
   std::string name = "n5_new";
