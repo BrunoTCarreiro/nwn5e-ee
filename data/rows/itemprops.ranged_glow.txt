@@ -1,0 +1,6 @@
+# itemprops.2da: the Visual Effect property (row 83, ITEM_PROPERTY_VISUALEFFECT) allowed on ranged weapons too, so an
+# armed Ensnaring Strike's acid glow (#162 D) goes on a bow, crossbow or sling. The game drops an item property whose
+# cell for the item's baseitems PropColumn is empty (CNWSEffectListHandler::OnApplyItemProperty), and row 83 allowed only
+# 0_Melee - the glow probe's AS-15 run showed the bow never asked for one. Its glow models: <ItemClass>_fx<suffix>.
+1_Ranged
+83 1
