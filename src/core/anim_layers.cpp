@@ -36,6 +36,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "anim_area_scatter.h"
 #include "anim_cast_clip.h"
 #include "anim_flourishes.h"
 #include "anim_look_player.h"
@@ -238,6 +239,7 @@ void InstallAnimLayers() {
   InstallCastClip();  // #150, its own listener too
   InstallLookPlayer();  // spell looks (the Spell & Attack Bench): its own spell-cast listener
   InstallLookSoundPlayer();  // their sounds with effects (OpenAL EFX): its own creature-update listener
+  InstallAreaScatter();  // #161 VA-5: an area's first copy placed like the others (its own hook)
   if (!HookExport("Gob::PlayAnimation (stuck arm layers; the dev layer's trace)", kGobPlayAnimation,
                   reinterpret_cast<void*>(&PlayAnimation), reinterpret_cast<void**>(&g_play))) {
     g_play = nullptr;
