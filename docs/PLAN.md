@@ -2995,6 +2995,8 @@ scripted moments, ambient effects):
 - Languages.
 (All added by the owner, 2026-10-24: "add 58 to the RP list along with all
 the other recommendations you listed".)
+*Decided (owner, 2026-11-15, #73: "hmmmmm, keep them listed for now. after we're done with the spell work we can go
+look through the game for areas where they can eb applied"):* listed; looked at after the spell work.
 
 - R6, R7, R9-R12, T1-T4 A (R6 picked through X8, the Poisoner's Kit waived;
   R7 automatic on the first seen hit each round, using the round's
@@ -3941,6 +3943,8 @@ three-quarters or total cover. nwn5e doesn't end hiding on an attack (2024's
 Hide does), and NWN has no cover data. Recommendation: later, with an
 "attacking ends hiding" rule (a perception decision of its own); until then it
 has nothing to keep.
+*Decided (owner, 2026-11-15, #33: "yes, leave this for later when we revisit perception, especially after the
+vision cone work as that will affect this"):* later, with perception, after the vision cones' work (#9).
 
 **T4. Use Magic Device (13).** Attune up to four items (NWN has no
 attunement); a property that spends charges spends none on a 6 on 1d6; any
@@ -4724,6 +4728,11 @@ the rolls and a status icon indicating how many levels of exhaustion"; then
   environment objects, but I guess that's fine for now"): the wedges are flat
   models, so placeables, walls and uneven ground cut through them or hide
   parts; a stepped cone cut at walls (line-of-sight slices) stays the option.
+  *Decided (owner, 2026-11-15, #9):* a) "Sure, let's trial a light gem" - the light level where the hiding character
+  stands (bright / dim / dark) on the HUD, a trial; b) "no NWN mode so nothing to do here" - dropped; c) "yes" -
+  the cones cut at walls (owner: "How hard to do is this though?" - answered in chat: the rule already needs a
+  clear line; the drawing is the work); d) "yes, sounds fun but we have to tune this" - idle guards looking
+  about, tuned in play.
 - **Light where you hide** (0.32.0; owner: "do the sensible distances, I'll add
   light queries down the line"). The !light readings (Training Halls, night,
   interior): moon ambient 58 (dim), braziers / torch brackets found lit by
@@ -5462,6 +5471,8 @@ hear"; NWN mode unchanged. Petrified stays NWN for now; resistance to all
 damage is a later decision. CN7 is built with Phase 5. Build order: CN8
 Deafened, then CN3/CN2 saves, CN2 crits, CN4, CN6, CN1, CN5 (by size and
 risk, adjusted after recon).
+*Decided (owner, 2026-11-15, #4: "Yes, add it"):* Petrified's Resistance to all damage, faithful (the shared 2024
+Resistance: halved, rounded down, not stacking); NWN mode unchanged.
 
 
 The last open Phase 1 item. Phase 1b (B1) already turned NWN's attack terms
@@ -5995,6 +6006,7 @@ width). A click calls CNWSCreature::CancelAction(display id, group or special-at
 portrait panel's own call (a matching special attack comes off the round, else the group) -
 and RemoveSpecialAttack for nwn5e's own special attacks.
 Later, if wanted: henchmen's queues; the round's attack count; a fully clear background.
+*Decided (owner, 2026-11-15, #60: "none, this is good for now"):* none of the three.
 *0.54.1 (owner: with two actions queued "the scrollbars ... rapidly appear and disappear alternatingly
 horizontal and vertical"):* the hidden slots still take room in NUI's row, so it overflowed the window
 sized to the shown ones and each scrollbar took room for the other. The row sits in a group without

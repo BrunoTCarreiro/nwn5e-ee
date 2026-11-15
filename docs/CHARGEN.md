@@ -698,6 +698,8 @@ and the dummy fight's raise happened in the engine after nwn5e's roll
 100 and is replaced by MinPCDamagePercent only for a PC hitting a non-PC
 creature). Why the dummy got it at Easy and the mages didn't is not known;
 left as an engine quirk — test at Normal.
+*Decided (owner, 2026-11-15, #3: "Let's not mess with rolls. if we see that the game is too hard or too easy we can make
+adjustments later"):* no rule key - NWN's difficulty stays as it is, its dice weighting included.
 
 *0.13.3 (owner, 2026-10-22: O1 "I think Alert is being shown as Improved
 Initiative"; O2, O4 correct).* Feat 377 kept NWN's name and +4 description
