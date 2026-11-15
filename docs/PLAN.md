@@ -5476,6 +5476,8 @@ Resistance: halved, rounded down, not stacking); NWN mode unchanged.
 *Built 0.99.40:* rules::ConditionResistedDamageTypes (Conditions.petrified, NWN state 15; all damage types,
 kAllDamageTypes 0xFFF), rules_conditions.cpp's PetrifiedResistance on the shared Resistance (resistance.h);
 !petrify (the nearest creature Petrified 60 s, no save) to try it. Test PetrifiedResistsAllDamage. Row PT-1.
+*Accepted (owner, 2026-11-15: "check the logs and you can close pt1 and cv1"):* PT-1 passed (the log: each hit
+halved, rounded down).
 
 **Cover (#166)** (owner, 2026-11-15: "what about half-cover?" - "go with your recommendations"). SRD 5.2:
 Half Cover +2 to AC and Dexterity saves (an obstacle blocking at least half the target - a low wall, furniture, a
@@ -5490,6 +5492,10 @@ the line, between the attacker's and the target's own space); rules_cover.cpp's 
 rules_attack.cpp's GetArmorClassVersus before Shield weighs the hit: another living creature, not Tiny, in the
 way gives +2 AC; the attacker and the target told once a round ("... Half Cover (+2 AC) ..."), logged "cover:".
 Faithful (the master mode). Tests CoverDegrees, CoverCreatureInTheWay, CoverSizes. Rows CV-1, CV-2.
+*Tested (owner, 2026-11-15):* CV-1 passed ("you can close pt1 and cv1"); CV-2 couldn't happen - the orc archer
+shot the neutral goblin (a neutral blocker is its enemy) - so CV-3, two orc archers, passed by the log. The chat's
+"Versus AC" is the engine's display number (it never shows nwn5e's AC: the CR AC, cover); the decision uses the
+hooked AC. Part 1 done; part 2 with #9.
 
 
 The last open Phase 1 item. Phase 1b (B1) already turned NWN's attack terms
