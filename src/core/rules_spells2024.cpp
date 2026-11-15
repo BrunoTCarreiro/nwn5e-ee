@@ -3298,12 +3298,16 @@ void SmiteUpdate(void* creature) {
       void* caster = CreatureById(pending.caster);
       if (caster && !engine::IsDeadOrDying(creature)) {
         if (pending.row == rules::kSearingSmite) {
-          char code[420];
+          // 0.99.41 (L3-13: the burn's log showed no effect of the spell on the target): an EffectIcon linked with a
+          // visual never stays (0.92.2's probe; Resistance's marker, 0.95.9) - the icon (the burn's mark) and the
+          // flames go on as two effects, both with the row and the tag, so the save's end takes both.
+          char code[600];
           sprintf_s(code,
                     "object t = StringToObject(\"%x\"); ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect("
-                    "SetEffectSpellId(EffectLinkEffects(EffectIcon(EFFECT_ICON_DAMAGE_DECREASE), EffectVisualEffect("
-                    "VFX_DUR_INFERNO_CHEST)), %d), \"%s\"), t, 60.0);",
-                    id, rules::kSearingSmite, kTagSearing);
+                    "SetEffectSpellId(EffectIcon(EFFECT_ICON_DAMAGE_DECREASE), %d), \"%s\"), t, 60.0);"
+                    " ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId("
+                    "EffectVisualEffect(VFX_DUR_INFERNO_CHEST), %d), \"%s\"), t, 60.0);",
+                    id, rules::kSearingSmite, kTagSearing, rules::kSearingSmite, kTagSearing);
           const int ran = RunScriptChunk(code, pending.caster);
           g_burning[id] = Burning{pending.caster, rules::SearingSmiteDice(pending.slot), pending.dc, now + kRoundMs};
           // 0.99.36 (L3-5: no burn round came): the mark as it went on, for the log.
