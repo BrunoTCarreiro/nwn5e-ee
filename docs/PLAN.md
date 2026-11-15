@@ -1439,6 +1439,30 @@ monster AC by CR.
     once. *Fixed 0.99.41:* the icon and the flames as two effects. L3-14 passed ("L3-14 works, the burning animation
     is aggressive, I'll need to tweak it" - its look, for later). All of build 3's rows passed (L3-1 to L3-11 with
     L3-12 for L3-8 and L3-14 for L3-5).
+  - *Build 3 accepted (owner, 2026-11-15: "I think they're accepted, yes. go for build 4").*
+  - *Build 4 brief (2026-11-15): detection and utility, 15 spells* - Alarm, Comprehend Languages, Create or Destroy
+    Water, Detect Evil and Good, Detect Magic, Detect Poison and Disease, Disguise Self, Find Familiar, Goodberry
+    (never placed in a build: Jump's place - Jump isn't built, owner 2026-11-12), Identify, Illusory Script, Purify
+    Food and Drink, Silent Image, Speak with Animals, Unseen Servant; ten carry the Ritual tag. Standing: the Detect
+    spells' glow and name, Disguise Self and Silent Image real, Find Familiar NWN's familiars (2026-11-09, Q2-Q4 A).
+    How each goes: Alarm - a ward on a point (a 20-foot Cube) whose entering creature alerts you, audible (a bell and
+    a line) or mental (a line; it ends a rest), its menu; the Detects - 10 minutes' Concentration, what each senses
+    within 30 ft and in sight glows and is named (Evil and Good: Aberrations, Celestials, Elementals, Fey, Fiends,
+    Undead; Magic: creatures, items and areas with magic, the spell's school; Poison and Disease: poisonous creatures,
+    poisons, diseases); Disguise Self - another species' look for an hour (its menu); Find Familiar - NWN's familiar
+    forms; Goodberry - ten berries, each a Bonus Action for 1 HP, gone in 24 hours; Identify - an item touched
+    identified (NWN's flag), or a creature's spells listed (NWN's Identify, +Lore, replaced); Silent Image - #152's
+    image up to a 15-foot Cube, moved as a Magic action while concentrating. Asked: Q1 rituals (#38's "A, for now"):
+    A a Ritual way to cast them - no slot, out of combat, the clock 10 minutes on - B still none. Q2 Comprehend
+    Languages, Illusory Script, Purify Food and Drink, Speak with Animals (no NWN use): A castable, a line and a flag
+    a module can read (#73), B off the lists as Jump, C a visual and a line. Q3 Find Familiar's familiar: A 2024's -
+    a CR 0 creature's numbers in an NWN familiar's look, can't attack, its eyes through NWN's possession (a Bonus
+    Action), touch spells delivered (its Reaction) - B NWN's levelled familiar as it is. Q4 Unseen Servant: A real (an
+    invisible 1-HP helper that follows; a Bonus Action sends it to open a door or fetch an item), B a visual and a
+    line. Q5 Create or Destroy Water: A real (destroy: Fog Cloud and fog areas in a 30-foot Cube end; create: rain
+    puts out exposed flames there - Alchemist's Fire burning, lit torches), B a visual and a line. Recommended: Q1 A,
+    Q2 A, Q3 A, Q4 B, Q5 A. Builds: 4a the Detects, Identify, Alarm, Goodberry, Create or Destroy Water and Q2's
+    four; 4b Find Familiar, Disguise Self, Silent Image, Unseen Servant; rituals with 4a if Q1 A.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
