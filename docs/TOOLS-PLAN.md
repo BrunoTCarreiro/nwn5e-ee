@@ -1342,7 +1342,11 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     - R7: a body move passes only `start` (retime sets an end only on an end-handle edit), so an always-on beat
       stays always-on when moved.
     - R8: the old Emitters list card is left hidden, not deleted (owner's OK first).
-    - R9: a beat's remembered look is per open effect, cleared when another opens.
+    - R9: a beat's remembered look was per open effect, cleared when another opened. Changed by the owner, 2026-11-15
+      ("let's try your suggestion, if it feels off we'll make changes"; nwn5e-tools 1411581): remembered for the
+      session, keyed by the effect (its library name, each New effect its own, an area's slot) and the beat - another
+      effect's same-named beat has its own; Save carries them to the saved name; dropping unsaved changes or Apply the
+      text forgets them.
     - R10: the browser fixture area VFX_PER_TRIPLE (three model slots) tests "a row per slot".
     - R11: the spell timeline snaps to key times within 6 px, else the 0.05 s grid (today's rule), not strictly to frames.
     - R12: the five spell lanes scroll inside the timeline box when they don't fit (all five fit at the default since F6).
