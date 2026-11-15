@@ -5473,6 +5473,23 @@ Deafened, then CN3/CN2 saves, CN2 crits, CN4, CN6, CN1, CN5 (by size and
 risk, adjusted after recon).
 *Decided (owner, 2026-11-15, #4: "Yes, add it"):* Petrified's Resistance to all damage, faithful (the shared 2024
 Resistance: halved, rounded down, not stacking); NWN mode unchanged.
+*Built 0.99.40:* rules::ConditionResistedDamageTypes (Conditions.petrified, NWN state 15; all damage types,
+kAllDamageTypes 0xFFF), rules_conditions.cpp's PetrifiedResistance on the shared Resistance (resistance.h);
+!petrify (the nearest creature Petrified 60 s, no save) to try it. Test PetrifiedResistsAllDamage. Row PT-1.
+
+**Cover (#166)** (owner, 2026-11-15: "what about half-cover?" - "go with your recommendations"). SRD 5.2:
+Half Cover +2 to AC and Dexterity saves (an obstacle blocking at least half the target - a low wall, furniture, a
+narrow trunk, a creature, friend or foe), Three-Quarters Cover +5, Total Cover no direct attack or spell; only the
+most protective. NWN has none (line of sight only). *Decided (the recommendations):* part 1, creatures in the way
+(Half Cover against attacks, faithful); part 2 with #9's cut cones (sight lines to points of the target - half /
+three-quarters; a research step first: placeables, low walls, height); Dexterity saves with part 2 (an effect's
+point of origin). Supreme Sneak (#33) with part 2.
+*Built 0.99.40 (part 1):* rules/cover.{h,cpp} (Cover, CoverArmorClassBonus, MoreCover, CreatureBodyRadius - Tiny
+0.2 m, Small / Medium 0.4, Large 0.8, Huge 1.2, to tune - SizeGivesCover, CreatureInTheWay: the body touching
+the line, between the attacker's and the target's own space); rules_cover.cpp's CoverArmorClassBonus, added in
+rules_attack.cpp's GetArmorClassVersus before Shield weighs the hit: another living creature, not Tiny, in the
+way gives +2 AC; the attacker and the target told once a round ("... Half Cover (+2 AC) ..."), logged "cover:".
+Faithful (the master mode). Tests CoverDegrees, CoverCreatureInTheWay, CoverSizes. Rows CV-1, CV-2.
 
 
 The last open Phase 1 item. Phase 1b (B1) already turned NWN's attack terms
