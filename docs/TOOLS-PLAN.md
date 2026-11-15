@@ -1319,7 +1319,21 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     - Mocap Bench: the frame (no drawer); #89's fixed-height timeline box kept - rows scroll inside it, so the stage
       never moves under a drag.
     - Test rows BF-1 (VFX Bench, #164), BF-2 (Spell & Attack Bench, #155), BF-3 (Mocap Bench, #89).
-  - Rulings (the plan's ledger, R1-R16):
+  - *The final whole-branch review (2026-11-15: "ready with fixes"), fixed in one wave (nwn5e-tools 9596dc8..050fd3e),
+    each with a check step watched failing first:*
+    - F1: the timeline's ruler and header stay pinned while its rows scroll (common/timeline.js, VFX and Spell); the
+      VFX Bench's rows scroll in a box of their own, so the transport and "+ new beat" never scroll away.
+    - F2: Ctrl+Z / Ctrl+Y undo with a dropdown, slider or checkbox focused (`BenchHistory.typingIn`: only typing in a
+      text field keeps the browser's own undo); Space and R keep their rule.
+    - F3: renaming an emitter through another's name (`x` -> `glow3` past `glow`) leaves that emitter its target node
+      and lights.
+    - F4: the VFX status line shows a long message whole, on a row of its own in the bar.
+    - F5: every bench's check measures at the 1100 x 700 minimum (no page scroll, the stage at least 320 x 240, the
+      transport and ruler in view).
+    - F6: the Spell & Attack Bench's timeline starts at 235 px, so all five lanes show.
+    - F7: the Spell & Attack Bench snaps a drag once (the widget's 6 px), no second 0.05 s pull onto a key.
+    - F8: the Mocap Bench's check gains the spec's stage-stays-in-view step.
+  - Rulings (the plan's ledger, R1-R17):
     - R1: the timeline's onEdit is `onEdit(label, edit = {row, item, start, end}, phase)`; the bench applies the edit.
     - R2: spell_bench/public/timeline.js is no longer loaded but not deleted - the owner's OK first.
     - R3: work committed on nwn5e-tools main, no branches. R4: the .superpowers workspace is excluded locally.
@@ -1331,22 +1345,31 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     - R9: a beat's remembered look is per open effect, cleared when another opens.
     - R10: the browser fixture area VFX_PER_TRIPLE (three model slots) tests "a row per slot".
     - R11: the spell timeline snaps to key times within 6 px, else the 0.05 s grid (today's rule), not strictly to frames.
-    - R12: the five spell lanes (152 px) scroll inside the timeline box (~125 px at the default split).
+    - R12: the five spell lanes scroll inside the timeline box when they don't fit (all five fit at the default since F6).
     - R13: seeking only from the ruler; a click on an empty track selects nothing (as in every bench).
     - R14: the Mocap timeline's first height is round(clamp(0.30 x window height, 180, 280)), the old box's look, within [160, 420].
     - R15: no issue exists for the frame, so BF-1 files under #164, BF-2 under #155, BF-3 under #89; opening one is the owner's call.
     - R16: BF-3 makes a row appear (an IK key) and checks the stage, box and timeline keep their sizes; a contact adds no row.
-  - Deferred minors (the ledger has the full list):
+    - R17: the final review ran while Task 13's test rows were being fixed (the rows were outside the code it read).
+  - Deferred minors (the plan's ledger had the full list):
     - Timeline core and widget: pointercancel commits the partial edit; double-click toggles a row label twice; wheel
-      ignores deltaMode; wheel is swallowed over the tracks (rows scroll from the gutter only); double snap in the spell
-      timeline (zoom-aware snapping defeated); the timeline canvas is ~125 px at the 190 px default.
+      ignores deltaMode; wheel is swallowed over the tracks (rows scroll from the gutter only); every draw (now every
+      scroll too) reallocates the canvas and reads the theme 8 times; hover can be a frame stale after a scroll; a
+      bar under ~10 px can only be trimmed, not moved; opening another effect / area / look keeps the old zoom.
     - Frame and servers: serveCommon is copy-pasted in three servers (a shared helper would avoid drift); %00 in a
-      /common path may 500; /common/checks/* is served too; the frame check drags only the panel split; the page-scroll
-      check measures at 1400 x 900, not the 1100 x 700 minimum; window resize redraws twice.
-    - VFX groups and undo: a one-shot always-on bar's body drag can pass Seconds; the 10 s cap squeezes copy offsets;
-      looks are not dropped on Remove or kept on rename; Copy is refused for names ending in a digit; Undo does not
-      clear sim.hidden or the beat looks; the area playhead wraps at the play length, out of phase with the stage
-      when lifetimes don't divide it; the whole VFX timeline box scrolls (transport and ruler scroll away).
-    - Spell: a fast Undo during a clip load can leave two loads in flight; muted sound lines are not in the undo snapshots.
+      /common path may 500; /common/checks/* is served too; the frame check drags only the panel split;
+      common/checks/run.js doesn't run timeline_browser.mjs / frame_browser.mjs; window resize redraws twice; a long
+      status row plus a tall saved timeline at 700 px high can shrink the stage under 240 px.
+    - VFX: a one-shot's bars and ends can be dragged past Seconds, and On for clears at the timeline's end, not at
+      Seconds; a group's start-handle drag gives every copy the group's latest end; zero-padded names group oddly
+      (`spark02` joins `spark`); backwards scrubbing restarts the sim on every pointer move; "+ new beat" reports the
+      uncapped playhead time; the 10 s cap squeezes copy offsets; looks are not dropped on Remove or kept on rename;
+      Copy is refused for names ending in a digit; Undo does not clear sim.hidden or the beat looks; the area playhead
+      wraps at the play length; areaRowsLocked can't fail on the lock; the default timeline (200 px) shows ~3 rows -
+      drag the split taller (remembered); VFX and Spell keep their own status code rather than frame.setStatus.
+    - Spell: a fast Undo during a clip load can leave two loads in flight; muted sound lines are not in the undo
+      snapshots; clicking a lane's label or empty track doesn't open its card (its bars do).
     - Mocap: the default timeline now holds the transport too, so its rows get ~49 px less than the old box at first
-      look (the owner to judge).
+      look (the owner to judge); New's name error says "letters" though names are lowercase only.
+  - Follow-up: #165, condition looks (a saved VFX Bench effect shown while a condition lasts; Poisoned's green first),
+    to be planned next.
