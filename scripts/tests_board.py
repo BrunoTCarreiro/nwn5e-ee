@@ -132,7 +132,13 @@ def write_rows(path, rows):
 
 
 def fit(text):
-    return text if len(text) <= TEXT_LIMIT else text[:TEXT_LIMIT - len(CUT)] + CUT
+    """A text column's value. GitHub counts the limit in UTF-8 bytes, so a longer text is cut by bytes (never inside
+    a character) and ends with CUT; the whole text stays in the item's description."""
+    data = text.encode("utf-8")
+    if len(data) <= TEXT_LIMIT:
+        return text
+    room = TEXT_LIMIT - len(CUT.encode("utf-8"))
+    return data[:room].decode("utf-8", "ignore") + CUT
 
 
 def body_of(row):
@@ -179,6 +185,13 @@ def set_fields(pid, fields, item, values):
 
 
 def add_rows(pid, fields, rows, batch=10):
+    # Checked before any draft is made: a select value the board doesn't have would stop a batch half-filled.
+    for row in rows:
+        for name, value in (("Status", row["status"]), ("Stream", row["stream"] or "game")):
+            options = fields[name][1]
+            if options and value not in options:
+                sys.exit(f"{row['id']}: {name} {value!r} isn't one of the board's ({', '.join(options)}) - nothing added")
+    failed = []
     for start in range(0, len(rows), batch):
         chunk = rows[start:start + batch]
         decl, body, variables = ["$p: ID!"], [], {"p": pid}
@@ -197,8 +210,13 @@ def add_rows(pid, fields, rows, batch=10):
             for key, name in DATE_COLUMNS.items():
                 if row[key]:
                     values[name] = row[key]
-            set_fields(pid, fields, item, values)
+            try:
+                set_fields(pid, fields, item, values)
+            except SystemExit as stop:  # gh() exits on an error: the batch's other drafts still get theirs
+                failed.append(f"{row['id']} (item {item}): {stop}")
         print(f"  {min(start + batch, len(rows))} of {len(rows)} on the board", flush=True)
+    if failed:
+        sys.exit("fields not set - these drafts are on the board without them:\n  " + "\n  ".join(failed))
 
 
 def key_of_item(it):
