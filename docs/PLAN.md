@@ -1434,6 +1434,11 @@ monster AC by CR.
     shouldn't even appear as the smite isn't armed") - a game start cleared the list of armed looks, so no armed =
     false was sent. *Fixed 0.99.34:* the list survives a game start; the creature's first update sends the false.
     Retest AS-10. L3-12 passed ("L3-12: the entangle animation also needs work" - the look forwarded).
+  - *L3-5's burn (owner, 2026-11-15):* L3-5 / L3-13 - no Fire after the hit; the 0.99.36 log: the mark (an EffectIcon
+    linked with VFX_DUR_INFERNO_CHEST - a link that never stays, 0.92.2 / 0.95.9) never landed, so the burn ended at
+    once. *Fixed 0.99.41:* the icon and the flames as two effects. L3-14 passed ("L3-14 works, the burning animation
+    is aggressive, I'll need to tweak it" - its look, for later). All of build 3's rows passed (L3-1 to L3-11 with
+    L3-12 for L3-8 and L3-14 for L3-5).
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
