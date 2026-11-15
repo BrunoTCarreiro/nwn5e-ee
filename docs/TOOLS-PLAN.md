@@ -1297,3 +1297,56 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     - The final review's six Important findings fixed with tests; deferred minors on the plan's ledger (a Stop within
       0.3 s of a Play missing the area, float-vs-double rounding at the fourth decimal, planes without their fade).
     - Test rows VA-2 (the areas on the stage and in game), VA-3 (a saved area after a restart).
+
+## The benches' frame and timeline (2026-11-15; spec docs/superpowers/specs/2026-11-15-bench-frame-timeline-design.md)
+
+  Owner, 2026-11-15: "we need to make the benches in general more user friendly. the previews shoudl always be visible,
+  organizing timing for the effects/attacks or major motions for the mocap should be first and foremost", then "the beats
+  in time first, then the look of each piece", then, on the layout mock-up: "looks right, go with that layout for all
+  benches". Three benches on one page frame: a bar on top, an always-visible stage, a side panel that scrolls on its own
+  and a timeline along the bottom, with splits the page remembers.
+  - *Built (2026-11-15; plan docs/superpowers/plans/2026-11-15-bench-frame-timeline.md, spec as above; nwn5e-tools, 13 tasks, each reviewed):*
+    - common/ (nwn5e-tools): frame.js + frame.css (the layout, the drag splits, double-click to reset, sizes kept per
+      bench in the browser, the page never scrolls), the theme tokens (light and dark), history.js (undo: last 100
+      steps), timeline.js (the core: zoom about the pointer, Shift+wheel pan, F fit, snapping) and its canvas widget,
+      and /common/ served by all three servers and in their stale-code check.
+    - VFX Bench (vfx_bench/public/beats.js, app.js): the frame; a beats lane (a row per beat, bars dragged to move or
+      stretch Starts after / On for); copies added together form a group (`glow`, `glow2`...) with one bar and shared
+      settings (a differing value shows "mixed"); the panel is what is selected on the timeline; Undo / Redo (Ctrl+Z,
+      Ctrl+Y); area mode on the frame (a row per slot with a model).
+    - Spell & Attack Bench: the frame (the scene panel is the drawer) and the shared timeline in place of its own
+      (five lanes, dragging the release, a sound or the Cast VFX bar), Undo / Redo in the bar.
+    - Mocap Bench: the frame (no drawer); #89's fixed-height timeline box kept - rows scroll inside it, so the stage
+      never moves under a drag.
+    - Test rows BF-1 (VFX Bench, #164), BF-2 (Spell & Attack Bench, #155), BF-3 (Mocap Bench, #89).
+  - Rulings (the plan's ledger, R1-R16):
+    - R1: the timeline's onEdit is `onEdit(label, edit = {row, item, start, end}, phase)`; the bench applies the edit.
+    - R2: spell_bench/public/timeline.js is no longer loaded but not deleted - the owner's OK first.
+    - R3: work committed on nwn5e-tools main, no branches. R4: the .superpowers workspace is excluded locally.
+    - R5: the panel's size variable is `--panel-size` (`--panel` is the colour token).
+    - R6: rowsOf(fx, duration, hidden) takes the page's set of hidden emitters for the row's muted flag.
+    - R7: a body move passes only `start` (retime sets an end only on an end-handle edit), so an always-on beat
+      stays always-on when moved.
+    - R8: the old Emitters list card is left hidden, not deleted (owner's OK first).
+    - R9: a beat's remembered look is per open effect, cleared when another opens.
+    - R10: the browser fixture area VFX_PER_TRIPLE (three model slots) tests "a row per slot".
+    - R11: the spell timeline snaps to key times within 6 px, else the 0.05 s grid (today's rule), not strictly to frames.
+    - R12: the five spell lanes (152 px) scroll inside the timeline box (~125 px at the default split).
+    - R13: seeking only from the ruler; a click on an empty track selects nothing (as in every bench).
+    - R14: the Mocap timeline's first height is round(clamp(0.30 x window height, 180, 280)), the old box's look, within [160, 420].
+    - R15: no issue exists for the frame, so BF-1 files under #164, BF-2 under #155, BF-3 under #89; opening one is the owner's call.
+    - R16: BF-3 makes a row appear (an IK key) and checks the stage, box and timeline keep their sizes; a contact adds no row.
+  - Deferred minors (the ledger has the full list):
+    - Timeline core and widget: pointercancel commits the partial edit; double-click toggles a row label twice; wheel
+      ignores deltaMode; wheel is swallowed over the tracks (rows scroll from the gutter only); double snap in the spell
+      timeline (zoom-aware snapping defeated); the timeline canvas is ~125 px at the 190 px default.
+    - Frame and servers: serveCommon is copy-pasted in three servers (a shared helper would avoid drift); %00 in a
+      /common path may 500; /common/checks/* is served too; the frame check drags only the panel split; the page-scroll
+      check measures at 1400 x 900, not the 1100 x 700 minimum; window resize redraws twice.
+    - VFX groups and undo: a one-shot always-on bar's body drag can pass Seconds; the 10 s cap squeezes copy offsets;
+      looks are not dropped on Remove or kept on rename; Copy is refused for names ending in a digit; Undo does not
+      clear sim.hidden or the beat looks; the area playhead wraps at the play length, out of phase with the stage
+      when lifetimes don't divide it; the whole VFX timeline box scrolls (transport and ruler scroll away).
+    - Spell: a fast Undo during a clip load can leave two loads in flight; muted sound lines are not in the undo snapshots.
+    - Mocap: the default timeline now holds the transport too, so its rows get ~49 px less than the old box at first
+      look (the owner to judge).
