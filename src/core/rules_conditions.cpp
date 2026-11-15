@@ -72,6 +72,7 @@
 #include "engine.h"
 #include "hooks.h"
 #include "log.h"
+#include "resistance.h"
 #include "ruleset.h"
 #include "cast_action.h"
 
@@ -420,7 +421,15 @@ rules::Conditions ReadConditions(void* creature) {
   conditions.asleep = effects::HasState(creature, ee::kStateAsleep) || player_down;
   conditions.restrained = effects::HasType(creature, ee::kEffectTypeEntangle);
   conditions.poisoned = effects::HasType(creature, ee::kEffectTypePoison) || HasPoisonIcon(creature);
+  conditions.petrified = effects::HasState(creature, ee::kStatePetrified);
   return conditions;
+}
+
+// #4 (0.99.40): 2024 Petrified - Resistance to all damage (the shared Resistance, resistance.h).
+uint32_t PetrifiedResistance(void* object) {
+  void* creature = object ? CreatureById(Field<uint32_t>(object, ee::kObjectId)) : nullptr;
+  if (!creature || !effects::HasState(creature, ee::kStatePetrified)) return 0;
+  return rules::ConditionResistedDamageTypes(ReadConditions(creature), g_config.conditions);
 }
 
 bool IncapacitatedByCondition(void* creature) {
@@ -494,6 +503,9 @@ int CastingSpellNow() { return t_cast_spell; }
 
 void InstallConditionRules() {
   if (!Faithful()) return;
+  Log(AddResistanceProvider(&PetrifiedResistance)
+          ? "conditions: Petrified has Resistance to all damage (faithful, #4)"
+          : "SKIP conditions: no DoDamageImmunity hook - Petrified gives no Resistance (#4)");
   HookExport("CNWSEffectListHandler::OnApplySetState (CN5 2024 fear)", ee::kOnApplySetState,
              reinterpret_cast<void*>(&OnApplySetState), reinterpret_cast<void**>(&g_on_apply_set_state));
   HookExport("CNWSEffectListHandler::OnApplyEntangled (CN1: no -2 attack / -4 Dex)", ee::kOnApplyEntangled,

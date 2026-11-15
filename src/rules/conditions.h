@@ -19,6 +19,7 @@ struct Conditions {
   bool poisoned = false;    // an NWN poison effect is on it
   bool frightened_source_in_sight = false;  // frightened, and it can see the source
   bool concealed = false;   // an NWN concealment effect (Blur, Displacement, ...)
+  bool petrified = false;   // NWN state 15 (Flesh to Stone and the like)
 };
 
 enum class SaveOutcome { kRoll, kAutoFail };
@@ -31,6 +32,11 @@ SaveOutcome ConditionSaveOutcome(const Conditions& creature, Ability ability, Ru
 
 // CN1: a restrained creature has disadvantage on Dexterity saves (faithful).
 int ConditionSaveDisadvantage(const Conditions& creature, Ability ability, RuleVariant variant);
+
+// #4 (owner, 2026-11-15: "Yes, add it"): 2024 Petrified has Resistance to all damage - faithful; NWN mode none.
+// The NWN damage-type bits resisted (DAMAGE_TYPE_*: bludgeoning 1 ... sonic 2048), 0 for none.
+constexpr unsigned kAllDamageTypes = 0xFFF;
+unsigned ConditionResistedDamageTypes(const Conditions& creature, RuleVariant variant);
 
 // Advantage / disadvantage sources that conditions add to one attack roll,
 // counted like the situational ones (rules::SituationalRollMode extras).

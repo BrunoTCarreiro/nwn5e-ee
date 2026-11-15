@@ -105,6 +105,22 @@ TEST(MeleeHitsOnHelplessTargetsAreCriticals) {
 // expects NWN's), the 2024 charm in NWN mode or with conditions off, an attack
 // or a harmful spell on the charmer allowed, an order against another creature
 // or a helpful spell on the charmer refused.
+// #4: 2024 Petrified - Resistance to all damage (faithful only). Breaks caught: the resistance in NWN mode or with
+// conditions off, on a creature that isn't petrified, or missing a damage type.
+TEST(PetrifiedResistsAllDamage) {
+  Conditions stone;
+  stone.petrified = true;
+  CHECK_EQ(ConditionResistedDamageTypes(stone, RuleVariant::kFaithful), kAllDamageTypes);
+  CHECK_EQ(ConditionResistedDamageTypes(stone, RuleVariant::kNwn), 0u);
+  CHECK_EQ(ConditionResistedDamageTypes(stone, RuleVariant::kOff), 0u);
+  Conditions flesh;
+  flesh.paralyzed = true;
+  CHECK_EQ(ConditionResistedDamageTypes(flesh, RuleVariant::kFaithful), 0u);
+  CHECK_EQ(kAllDamageTypes & 1u, 1u);        // bludgeoning
+  CHECK_EQ(kAllDamageTypes & 8u, 8u);        // magical (Force)
+  CHECK_EQ(kAllDamageTypes & 2048u, 2048u);  // sonic (Thunder)
+}
+
 TEST(ConditionsCharmed2024) {
   CHECK_EQ(Charm2024(true, RuleVariant::kFaithful), true);
   CHECK_EQ(Charm2024(false, RuleVariant::kFaithful), false);

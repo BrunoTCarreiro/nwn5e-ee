@@ -33,6 +33,8 @@ int RacialSlingBonusToRemove(void* stats, bool ranged);  // rules_racial.cpp
 
 bool SpellAttackAgainstFullAc(void* target_stats, void* attacker);  // rules_spell_attack.cpp (SK10)
 int16_t SpellAttackShieldAc(void* target_stats, void* attacker, int16_t armor_class);  // rules_spell_attack.cpp
+bool CoverOn();                                                      // rules_cover.cpp (#166)
+int CoverArmorClassBonus(void* target_stats, void* attacker);        // rules_cover.cpp (#166)
 
 int FightingStyleAttackBonus(void* stats);  // rules_fighter.cpp (Fighter F1 Archery)
 int DefenseArmorClassBonus(void* stats);    // rules_fighter.cpp (Fighter F1 Defense)
@@ -111,7 +113,9 @@ int16_t ArmorClassVersus(void* stats, void* attacker, int touch) {
 
 int16_t GetArmorClassVersus(void* stats, void* attacker, int touch) {
   const bool spell_touch = touch && SpellAttackAgainstFullAc(stats, attacker);  // SK10: 2024 has no touch AC
-  const int16_t armor_class = ArmorClassVersus(stats, attacker, spell_touch ? 0 : touch);
+  // #166: Half Cover from a creature in the way - counted before Shield weighs the hit.
+  const int16_t armor_class =
+      static_cast<int16_t>(ArmorClassVersus(stats, attacker, spell_touch ? 0 : touch) + CoverArmorClassBonus(stats, attacker));
   // #39 2a build 3: a spell attack the target's Shield would turn - its +5 counted against it.
   return spell_touch ? SpellAttackShieldAc(stats, attacker, armor_class) : armor_class;
 }
@@ -137,8 +141,13 @@ void InstallAttackRules() {
   }
   if (g_config.creature_ac_by_cr || g_config.debug_creature_ac > 0 ||
       g_config.spell_attacks == rules::RuleVariant::kFaithful || fighter ||
-      g_config.armor == rules::RuleVariant::kFaithful) {
+      g_config.armor == rules::RuleVariant::kFaithful || CoverOn()) {
     HookExport("CNWSCreatureStats::GetArmorClassVersus", ee::kGetArmorClassVersus,
                reinterpret_cast<void*>(&GetArmorClassVersus), reinterpret_cast<void**>(&g_get_armor_class_versus));
+    if (CoverOn()) {
+      Log(g_get_armor_class_versus ? "cover: 2024 Half Cover - a creature in the way gives +2 AC against an attack "
+                                     "(faithful, #166)"
+                                   : "SKIP cover: no GetArmorClassVersus hook - no cover (#166)");
+    }
   }
 }

@@ -21,6 +21,10 @@ int ConditionSaveDisadvantage(const Conditions& creature, Ability ability, RuleV
   return variant == RuleVariant::kFaithful && creature.restrained && ability == Ability::kDexterity ? 1 : 0;
 }
 
+unsigned ConditionResistedDamageTypes(const Conditions& creature, RuleVariant variant) {
+  return variant == RuleVariant::kFaithful && creature.petrified ? kAllDamageTypes : 0u;
+}
+
 RollSources ConditionAttackSources(const Conditions& attacker, const Conditions& target, RuleVariant variant) {
   RollSources sources;
   if (variant == RuleVariant::kOff) return sources;

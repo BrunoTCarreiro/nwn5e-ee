@@ -750,6 +750,23 @@ std::vector<std::string> CastAtCommand(void* creature, const std::string& args) 
   return {};
 }
 
+// #4 (0.99.40): "!petrify" - the nearest other creature (within 30 m) Petrified for 60 s, no save: to try
+// Petrified's Resistance to all damage.
+std::vector<std::string> PetrifyCommand(void* creature, const std::string& args) {
+  (void)args;
+  const uint32_t id = ObjectIdOf(StatsOf(creature));
+  RunScriptChunk(
+      "object pc = OBJECT_SELF; object t = GetNearestCreature(CREATURE_TYPE_IS_ALIVE, TRUE, pc, 1);"
+      " if (!GetIsObjectValid(t) || GetDistanceBetween(pc, t) > 30.0) { SendMessageToPC(pc, \"nwn5e: !petrify - no "
+      "creature within 30 m.\"); return; }"
+      " ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectPetrify(), t, 60.0);"
+      " SendMessageToPC(pc, \"nwn5e: test - \" + GetName(t) + \" is Petrified for 60 s (!petrify): Resistance "
+      "to all damage.\");",
+      id);
+  Log("test: 0x%08X !petrify - the nearest creature Petrified for 60 s", id);
+  return {};
+}
+
 // #38 (0.87.0): "!gold [amount]" - your gold, or set to `amount` (0 to 1,000,000; the material components'
 // costs tested without hunting for gold).
 std::vector<std::string> GoldCommand(void* creature, const std::string& args) {
@@ -1124,6 +1141,7 @@ void InstallTestCommands() {
   AddChatCommand("!gold", &GoldCommand);
   AddChatCommand("!fear", &FearCommand);
   AddChatCommand("!castat", &CastAtCommand);  // #39 2a build 2c
+  AddChatCommand("!petrify", &PetrifyCommand);  // #4
   AddChatCommand("!reflex", &ReflexCommand);
   AddChatCommand("!level", &LevelCommand);
   AddChatCommand("!go", &GoCommand);        // #156
@@ -1131,5 +1149,5 @@ void InstallTestCommands() {
   Log("config: [debug] test_commands=1 - !test [profile] (data\\tests), !give <blueprint>, !feat add / remove <feat>, "
       "!export, !spawn <blueprint> [ally | neutral], !prone [s], !save <ability> <dc>, !skill <skill> <dc>, !reflex <dc> <damage>, "
       "!level <n> [class], !time [hours], !fear [charm] [s], !go <field | hall | dark>, !reset, "
-      "!castat <spell row> [self]");
+      "!castat <spell row> [self], !petrify");
 }
