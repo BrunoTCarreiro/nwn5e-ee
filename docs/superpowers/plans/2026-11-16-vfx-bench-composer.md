@@ -820,3 +820,1072 @@ Working folder: `C:\Users\Bruno\Desktop\Projects\nwn5e-tools`.
 - [ ] **Step 4: Report** the commits and the test rows. The bench changes need a restart of `vfx_bench.bat`. The generator
   changes reach the game session with the next "anim ready". They change nothing it builds, so no install is needed for
   them.
+
+---
+
+## Addendum 2026-11-16: a general Composer
+
+**Spec:** the design's "Addendum 2026-11-16: a general Composer". The owner said "go with A and those outputs" and yes to
+Q1 and Q2.
+
+This addendum replaces the task list above. **Build from the final order below, taking each task whole from here.** A1
+and A2 are Tasks 1 and 2 above, unchanged. Every other task's full text is in this addendum.
+
+### What happens to the tasks above
+
+| task above | now |
+|---|---|
+| 1 floatdisk.js in a page, model lists, compositionText | **kept**: A1 (take Task 1's text above as it is) |
+| 2 reader.js, build.js --json, check_build.js | **kept**: A2 (Task 2's text above) |
+| 3 the server's routes | **changed**: A5 (projects) |
+| 4 the server's Save | **changed**: A6 (per kind; spell meshes listed as chunks) |
+| 5 the page's pure parts | **changed**: A7 (projects, variants, the guide, the disk's adapter) |
+| 6 the stage | **changed**: A9 (no disk; the mesh texture loader) |
+| 7 the mode | **changed**: A10 (projects, variants, the guide card replaces the disk card) |
+| 8 the parts list | **changed**: A11 |
+| 9 the handles | **changed**: A12 (plus the use point) |
+| 10 Save in the page | **changed**: A13 |
+| 11 DDS (was only on a yes) | **changed, now core**: A14 |
+| 12 Play in game (was only on a yes) | **changed, now core**: A15 (any kind's variant) |
+| 13 docs and tests | **changed**: A17 |
+| none | **new**: A3 the project generator; A4 planes that fade (C++); A8 core.js's planes; A16 mesh beats |
+
+### Global constraints (added)
+
+The plan's Global Constraints hold for every task here, plus these:
+
+- **A4 runs `test.bat`** in the anim worktree with `NWN5E_PRIVATE` unset. The worktree has no `private\`, and nothing reads
+  `private/`. Its last line is `<n> tests, <failed> failed`.
+- **A4 changes `src/data/vfx_model.*`**, the VFX reader and writer (the animation session's, as 7b3d4b5 was). The next
+  "anim ready" names it. Its fades reach the game only with the game session's install of a DLL built from it.
+- **No check writes the real worktree's `tools/data/composer/` or `data/`, or the bench's real `vfxedit\`.** Every check
+  works on temporary copies (`vfx_bench/composer_fixture.js`, `tools/data/composer/check_build.js`).
+- **Placeable rows come only from 14100-14199.**
+- **Ports:** the server check uses 18776, the Composer's browser check 18778, and the effect mode's `browser_check.mjs`
+  18766.
+
+### Review Focus (added)
+
+8. **A placeable's row is free everywhere:** `data/rows`, `data/looks`, the game's table and the served table. Tests:
+   A3 `a row another rows file sets is refused`, A6 `rowTakenElsewhereSkipped`.
+9. **Blocks is the guide's outline as material 7 faces;** Walk-through has no ground mesh. Test: A3's pwk checks.
+10. **A plane without the new keys writes the draft and the model it wrote before.** Tests: A4
+    `VfxModelPlaneWithoutKeysUnchanged`, A8 `plane beat: the defaults write no new lines`.
+11. **A mesh beat is dark before its start and fades as a light does,** on the bench and in its keys. Tests: A16
+    `meshKeys`, `meshBeatDrawn`.
+12. **The Floating Disk's adapter gives back composition.json** (but for `0.0`), and its 13 files stay unchanged.
+    Tests: A7 `the disk's adapter round trip`, A2 / A3 `check_build.js`.
+
+### Final order
+
+1. **A1** (Task 1): floatdisk.js in a page, model lists, compositionText. Anim.
+2. **A2** (Task 2): reader.js, build.js --json, check_build.js. Anim.
+3. **A3:** the project generator: a placeable's model, use point, walkmesh and rows; a spell mesh's draft. Anim.
+4. **A4:** planes that fade: the draft's plane keys and the model writer's alphakey. Anim, C++, test.bat.
+5. **A5:** the server's Composer routes: projects, the parts list, parts, textures, thumbnails.
+6. **A6:** the server's Save per kind; spell meshes listed as chunks.
+7. **A7:** the page's pure parts: projects, variants, the guide, the disk's adapter.
+8. **A8:** core.js's planes as mesh beats (A4's draft keys, byte for byte).
+9. **A9:** the stage: one mesh path, the mesh texture loader, pointer handlers, the ray.
+10. **A10:** the mode: projects, variants, the guide card, the kind's card, the part card, undo.
+11. **A11:** the parts list and its thumbnails.
+12. **A12:** the handles and the use point.
+13. **A13:** Save and build in the page.
+14. **A14:** DDS textures.
+15. **A15:** Play in game for a variant.
+16. **A16:** mesh beats in the effect editor.
+17. **A17:** the READMEs, TOOLS-PLAN and the owner's tests.
+
+---
+
+### Task A3: The project generator (nwn5e-ee, anim)
+
+Working folder: the anim worktree (`/c/Users/Bruno/Desktop/Projects/nwn5e-ee-anim`). Needs A1 and A2.
+
+**Files:**
+- Create: `tools/data/composer/project.js`, `tools/data/composer/build.js`, `tools/data/composer/check.js`,
+  `tools/data/composer/check_build.js`, `tools/data/composer/README.md`
+- Modify: `tools/data/floatdisk/floatdisk.js`, `tools/data/floatdisk/check.js`
+
+**Interfaces:**
+- **floatdisk.js:** each new argument's default gives today's bytes.
+  - `readPart(p, where, baseDir)`: one part read and checked, factored out of `readComposition`, with the same errors.
+  - `pileModelText(name, meshes, lo, hi, about, mark = MARK)`.
+  - `pileWalkmeshText(name, lo, hi, { mark = MARK, use = null, block = null } = {})`:
+    - `use` is `[[x, y], ...]`; null gives today's two use points.
+    - `block` is `[[x, y], ...]`, a convex outline. Before the use points it writes, as the game's PLC_A03.pwk has it:
+      - `node trimesh <NAME>_wg` (the model's name upper-cased) under `<name>_pwk`;
+      - `position 0 0 0`, `orientation 0 0 0 0`, `bitmap NULL`;
+      - `verts`: the outline at z 0;
+      - `faces`: a fan, each face `a b c  1  0 0 0  7` (material 7, non-walkable; counter-clockwise from above);
+      - `endnode`.
+    - The use points are named `<short>_pwk_use01`, `_use02`...
+  - `rowsText(table, sourceRow, entries, { ..., mark = MARK })`.
+  - `carriesMark(bytes, mark = MARK)`.
+- **project.js** is UMD (`root.ComposerProject`), with no `require` at its top, as floatdisk.js after A1.
+  - **Constants:**
+    - `MARK = "# made by nwn5e-ee tools/data/composer/build.js from a Composer project - change it in the VFX Bench and
+      save, not this file"`;
+    - `KINDS = ["placeable", "spellmesh"]`;
+    - `NAME = /^[a-z0-9]{1,8}$/`, `VARIANT = /^[a-z0-9]{1,4}$/`;
+    - `ROWS = [14100, 14199]`, `SOURCE_ROW = 189`.
+  - **`readProject(json, baseDir, F)`** gives `{ kind, name, guide: { shape, diameter, width, length, height },
+    placeable: { copy, use, walk } | null, variants: [{ name, model, row, parts }] }`.
+    - Parts are read through `F.readPart`.
+    - Each error names its field: `guide.diameter: a number above 0`, `variants[1].name: 1-4 letters or digits,
+      unique`, `variants[0].row: 14100-14199`, `placeable.walk: through or blocks`, `variants[0].parts[2].scale: a number
+      above 0`.
+  - **`modelName(kind, name, k, count)`:** `plc_n5<name>` / `n5m_<name>`, with `_<k>` (from 1) when `count` > 1.
+  - **`labelOf(name, k, count)`:** `N5_<Name>` / `N5_<Name>_<k>`.
+  - **`outline(guide, sides = 16)`:** a circle's 16 points at its radius (the first at +x, counter-clockwise); a
+    rectangle's 4 corners (`width` along x, `length` along y); `[]` with no guide.
+  - **`defaultUse(guide)`:** `[0, -(front + 0.1)]`, where `front` is the radius or half the length; `[0, -0.5]` with no
+    guide.
+  - **`newScale(lo, hi, guide)`:** `min(1, 0.4 x span / max(dx, dy))`, where `span` is the diameter or the longer side,
+    rounded 0.001; 1 with no guide.
+  - **`newProject(name, kind)`:** the JSON of a new project:
+    - `_about`, `kind`, `name`;
+    - a circle guide at 0, 1 m for a placeable and 0.5 m for a spell mesh;
+    - for a placeable, `placeable: { copy: null, use: null, walk: "through" }`;
+    - one variant `{ "name": "1", "parts": [] }`.
+  - **`projectText(json)`:** compositionText's layout (two-space indents, `_about` a line each, a part a line, LF, a
+    final newline).
+  - **`rowsUsed(text)`:** the rows a rows file sets (a line starting with a number that has a value other than `****`).
+  - **`freeRows(taken, count, own = [])`:** keeps `own`, and gives the rest from the lowest free of `ROWS`. Short of
+    rows, it throws `the Composer's placeable rows (14100-14199) are all taken`.
+- **build.js** (Node): `node tools/data/composer/build.js <project.json> [--check] [--json] [--saved <folder>] [--tools
+  <nwn5e-tools>] [--game <folder>] [--reader <exe>] [--files <folder>] [--rows <folder>]`.
+  - The defaults are floatdisk build.js's: files `data/files`, rows `data/rows`, the reader through `reader.js`'s
+    `ensureReader`.
+  - It reads parts through `reader.js` `create(...).part`, an own file resolved from the project's folder.
+  - It places each part with `F.placePart(part, model, i, guide.height, "j")`, then lowers it by `guide.height`, so the
+    model's base is at its own z 0.
+  - **Placeable, per variant:**
+    - `<files>/<model>.mdl`: `F.pileModelText(model, F.uniqueNames(meshes, []), lo, hi, about, P.MARK)`;
+    - `<files>/<model>.pwk`: `F.pileWalkmeshText(model, lo, hi, { mark: P.MARK, use: [use ?? P.defaultUse(guide)],
+      block: walk === "blocks" ? P.outline(guide) : null })`;
+    - `<rows>/placeables.<name>.txt`: `F.rowsText(the game's placeables table, copy ?? the first placeable part's row ??
+      189, entries, { labelColumn: "Label", modelColumn: "ModelName", mark: P.MARK, about })`.
+
+      The first placeable part's row is the lowest `placeables.2da` row whose `ModelName` is its model.
+  - **Spell mesh, per variant:**
+    - `<saved>/<model>.vfx` = `P.MARK + "\n" + core.writeDraft(core.effect({ name: model, duration: true, seconds: 2,
+      attach: "root", planes }))`, CRLF as the bench writes drafts;
+    - `--saved` is required;
+    - textures found beside the owner's files are copied into `<saved>`.
+  - **It refuses, writing nothing:**
+    - a placeable's variant with no row, a row outside `ROWS`, or a row used twice;
+    - a row that any other `<rows>/placeables*.txt` or `<repo>/data/looks/placeables*` sets;
+    - a model name the game has (`res(model, 2002)`), unless the file here carries the mark;
+    - Blocks with no guide;
+    - a file in its way without `P.MARK` (texts) or not listed in `tools/data/composer/made.txt` (textures).
+  - **`--json`** prints one line: `{ kind, check, variants: [{ name, model, row, parts, meshes, triangles, size, past }],
+    files: [{ state, file }] }`. An error prints `{ "error": message }` and exits 1, with `composer: <message>` on
+    stderr.
+
+- [ ] **Step 1: Write the checks.**
+  - **`tools/data/composer/check.js`** (no game; `check(name, fn)` as floatdisk's; last line `composer check: <n> checks
+    pass`):
+    - `project.js loads in a page (no require, no module, no Buffer)`;
+    - `readProject: a placeable and a spell mesh`;
+    - `readProject: each error names its field`;
+    - `model names and labels fit (16 characters)`;
+    - `freeRows: the lowest free, own rows kept, never a taken one`;
+    - `outline: a circle's 16 points, a rectangle's 4, none`;
+    - `defaultUse: 0.1 m past the guide's front, at -y`;
+    - `newScale: within 0.4 of the guide, never above 1`;
+    - `a walk-through pwk: its use point, no ground mesh`;
+    - `a blocking pwk: the outline as faces of material 7, then the use point`;
+    - `a placeable's model and rows carry the Composer's mark; the rows copy the source row`;
+    - `a spell mesh's draft reads back with its meshes as planes`;
+    - `projectText: a part a line, and a round trip`.
+  - **`tools/data/floatdisk/check.js`:** `the new arguments' defaults give today's text`. pileModelText, pileWalkmeshText,
+    rowsText and carriesMark give the same with the defaults left out and spelled out.
+  - **`tools/data/composer/check_build.js`** (needs the game; prints `skip: no game at <dir>` without it). It works on a
+    temporary copy of `tools/data/floatdisk` and `tools/data/composer`, with empty `data/files`, `data/rows` and
+    `data/looks`. Its last line is `composer build check: all pass`. Its checks:
+    - `a placeable builds its model, pwk and rows`: a two-variant project (`plc_b04`; `plc_a03` with `plc_b06`), rows
+      14100 and 14101. It writes four model files and `placeables.<name>.txt`, each with the mark. The rows are
+      LootBag1's (row 13, the first placeable part's) with Label and ModelName changed.
+    - `a second build changes nothing`;
+    - `a row another rows file sets is refused, nothing written`;
+    - `Blocks with no guide is refused`;
+    - `a spell mesh writes its draft into --saved`;
+    - `a file in the way it didn't make is refused`.
+- [ ] **Step 2: Run them.**
+  - `node tools/data/composer/check.js`. Expected: `Error: Cannot find module './project.js'`.
+  - `node tools/data/floatdisk/check.js`. Expected: `FAIL the new arguments' defaults give today's text`, then
+    `floatdisk check: FAILED (26 passed)`.
+  - `node tools/data/composer/check_build.js`. Expected: `Cannot find module` (no build.js yet).
+- [ ] **Step 3: Implement.** README.md covers the project file, the two kinds and what each builds, the row range and the
+  command.
+- [ ] **Step 4: Run.**
+  - `node tools/data/composer/check.js`. Expected: `composer check: 13 checks pass`.
+  - `node tools/data/floatdisk/check.js`. Expected: `floatdisk check: 27 checks pass`.
+  - `node tools/data/floatdisk/check_build.js`. Expected: `build check: all pass`; the disk's 13 files are unchanged.
+  - `node tools/data/composer/check_build.js`. Expected: `composer build check: all pass`.
+  - `git status --short`. Expected: the five new files, floatdisk.js and check.js; nothing in `data/`.
+- [ ] **Step 5: Commit.**
+  - `git add tools/data/composer/project.js tools/data/composer/build.js tools/data/composer/check.js tools/data/composer/check_build.js tools/data/composer/README.md`;
+  - `git branch --show-current` (anim);
+  - `git commit --only` those five and `tools/data/floatdisk/floatdisk.js tools/data/floatdisk/check.js` `-F -`, with
+    "feat: the Composer's project generator - a placeable's model, use point, walkmesh and rows (14100-14199), a spell
+    mesh's draft; floatdisk.js shares its placement and texts (#39)".
+
+### Task A4: Planes that fade - the draft and the model writer (nwn5e-ee, anim, C++)
+
+Working folder: the anim worktree. Independent of A1-A3.
+
+**Files:**
+- Modify: `src/data/vfx_model.h`, `src/data/vfx_model.cpp`, `tests/data/vfx_model_test.cpp`
+- Create: `tests/data/fixtures/plane_beat.vfx` (LF, as `plane_material.vfx`)
+
+**Interfaces:**
+- **`VfxKeys`** gains `std::vector<float> alpha;` (rows `t a`).
+- **`VfxPlane`** gains:
+  - `std::string mesh;` (the spell mesh it came from: the bench's);
+  - `float scale = 1.0f;` (the bench's; its verts are already scaled);
+  - `float start_seconds = 0.0f;` and `float emit_seconds = 0.0f;` (the bench's, as a light's);
+  - `std::vector<VfxKeys> keys;`
+- **The draft's `[plane <name>]`:**
+  - after `render` and before `verts`, each only when it isn't the default: `mesh = <name>`, `scale = <s>`,
+    `start_seconds = <s>`, `emit_seconds = <s>`, then `DraftKeys(p.keys)`;
+  - read back the same way, `<anim>_alpha` through `DraftKeyLine`;
+  - a draft without them keeps its bytes.
+- **`DraftKeys` / `DraftKeyLine`** gain `<anim>_alpha = t a t a ...`. **`LastKeyTime`** scans the planes' alpha rows too.
+- **`WriteVfxModel`:** in each animation, after the lights, each plane with alpha keys in it gets:
+  - `node trimesh <its geometry node name>` (`ModelNodeName(model, "p" + i, p.name)`, as in the geometry);
+  - `  parent <its geometry parent>`;
+  - `  alphakey <n>` with its rows `    t a`;
+  - `endnode`.
+
+  `mesh`, `scale` and the seconds aren't written into the model. A plane without keys appears in no animation, as now.
+
+- [ ] **Step 1: Write the tests** in vfx_model_test.cpp's `TEST(...)` style, and the fixture: one effect with a node
+  `ring` and a plane `beat` under it, carrying every new key: `mesh = n5m_test`, `scale = 0.5`, `start_seconds = 0.3`,
+  `emit_seconds = 1.2`, and `impact_alpha = 0 0 0.3 0 0.5 0.8 1.3 0.8 1.5 0`. Written in WriteVfxDraft's order.
+  - `VfxDraftPlaneBeatRoundTrip`: the plane through WriteVfxDraft and ReadVfxDraft comes back equal, its lines in order.
+  - `VfxDraftPlaneBeatFixture`: `plane_beat.vfx` read and written is the file, byte for byte.
+  - `VfxModelPlaneAlphaKeys`:
+    - inside `newanim impact` there's a `node trimesh` for the plane, with `alphakey 5` and its rows;
+    - no other animation has it;
+    - the geometry's trimesh is as before;
+    - the impact's length is at least 1.5.
+  - `VfxModelPlaneWithoutKeysUnchanged`: `plane_material.vfx`'s model has no `node trimesh` after its first `newanim`.
+- [ ] **Step 2: Run** `cmd //c test.bat`. Expected: the compile fails (`'mesh': is not a member of 'data::VfxPlane'`),
+  and compile.log is printed.
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run** `cmd //c test.bat`. Expected: `<n> tests, 0 failed`, with n four more than before this task.
+- [ ] **Step 5: Commit.**
+  - `git add tests/data/fixtures/plane_beat.vfx`;
+  - `git branch --show-current` (anim);
+  - `git commit --only src/data/vfx_model.h src/data/vfx_model.cpp tests/data/vfx_model_test.cpp tests/data/fixtures/plane_beat.vfx -F -`,
+    with "feat: a plane can fade - the draft's planes keep alpha keys per animation (and, for the VFX Bench, the mesh they
+    came from, their scale and timing); the model writer keys their alpha (#39)".
+  - The next "anim ready" names `src/data/vfx_model.*`: the fades need the game session's next install.
+
+### Task A5: The server's Composer routes - projects, the parts list, parts, textures, thumbnails (nwn5e-tools)
+
+Working folder: `/c/Users/Bruno/Desktop/Projects/nwn5e-tools`. Needs A1-A3.
+
+**Files:**
+- Create: `vfx_bench/composer_server.js`, `vfx_bench/composer_fixture.js`, `vfx_bench/check_composer_server.js`
+- Modify: `vfx_bench/server.js`:
+  - the `--ee <checkout>` and `--game <folder>` options;
+  - `/api/composer*` and `/composer/floatdisk.js` / `/composer/project.js` handed to `composer_server.js`;
+  - the stale list `CODE` gains `composer_server.js` and the checkout's `floatdisk.js`, `reader.js` and `project.js`
+    (when found).
+
+**Interfaces:**
+- **`composer_server.js`:** `create({ build, ee, game, tools })` returns `{ code(), handle(req, res, url, h) ->
+  Promise<boolean> }`, where `h = { send, readBody, fromPage, writeWhole }`.
+  - It loads lazily, on the first Composer request:
+    - the checkout's `floatdisk.js`, `reader.js` and `project.js`;
+    - `../spell_bench/game_data.js`;
+    - the game (`--game`, else `anim_helper/helper.js` `findGameDir({ buildDir: build })`);
+    - `reader.create(...)` with `ensureReader({ repo, reader: process.env.NWN5E_MDLMESH })`.
+
+    A failure is reported by `GET /api/composer` as `{ ok: false, error }`. The effect mode never loads any of it.
+- **`findCheckout({ ee, tools })`:**
+  - `ee` when given;
+  - else `<tools>\..\nwn5e-ee-anim` when it has `tools\data\floatdisk\composition.json`;
+  - else `<tools>\..\nwn5e-ee`.
+- **`branchOf(dir)`:**
+  - `.git` a folder: its `HEAD`;
+  - `.git` a file `gitdir: X`: `X\HEAD`;
+  - `ref: refs/heads/anim` gives `anim`, and a detached HEAD its first 7 characters;
+  - no git command.
+- **Routes:**
+  - **`GET /api/composer`:** `{ ok, ee, branch, warnBranch: branch !== "anim", projects, partsFolders, game }`.
+    - `projects`: `{ id, kind, title, file }`. The Floating Disk comes first, `{ id: "floatdisk", kind: "floatdisk",
+      title: "Floating Disk (#39)" }`, when composition.json exists. Then every `tools/data/composer/*.json`: `id` its
+      name, `kind` from the file; one that doesn't read is listed with `error`.
+    - `partsFolders`: `["composer/parts", "floatdisk/parts"]` (those that exist), from `tools/data/`.
+  - **`GET /api/composer/project?id=<id>`:** `{ id, kind, folder (from tools/data/), text, hash (sha1 of text) }`.
+  - **`POST /api/composer/new`** (`application/json`, from the page) takes `{ name, kind }`:
+    - writes `tools/data/composer/<name>.json` as `P.projectText(P.newProject(name, kind))`, then 200 `{ id }`;
+    - a bad name or kind gives 400; an existing project gives 409.
+  - **`GET /api/composer/catalog`:** `{ placeables, items, yours }`, each a list of `{ id, label, models | path, kind,
+    search }`, sorted by label.
+    - **Placeables:** the models `placeables.2da`'s `ModelName` names that the archives have, one entry a model, labelled
+      by its first row's `Label`, every label in `search`.
+    - **Items, from `baseitems.2da`:**
+      - `ModelType` 2: each number N with `<class>_b_N`, `_m_N` and `_t_N`, labelled `<label> N`, kind `weapon`, three
+        models;
+      - `ModelType` 0 / 1: `<class>_N`, kind `item` / `helmet`;
+      - then `it_*` and `gi_*` models not already placeables, minus `gi_sound*`, `gi_waypoint*` and `gi_store`.
+    - **Yours:** the `.mdl` files in `partsFolders`, `{ id: "own_" + sha1(path + mtime).slice(0, 12), path:
+      "composer/parts/<name>.mdl", label, mtime }`.
+  - **`GET /api/composer/part?models=a[,b,c]`** (each a resref) or **`?file=<path>&project=<id>`**:
+    - the file is resolved by `F.resolvePartFile` from the project's folder, as the generators resolve it (a `.mdl`
+      anywhere a project may name one);
+    - answers `{ key, label, meshes, lo, hi, textures: { <bitmap>: { draw: "texture" | "flat", why: "dds-only" | "plt"
+      | "missing" | "", shine } } }`;
+    - `shine` is true when the texture's TXI has an `envmaptexture` line (draw it opaque);
+    - kept in memory by key (an own file by path and mtime);
+    - a bad name (not a resref, not a `.mdl`) gives 400; a missing file or a reader error gives 404 `{ error }`.
+  - **`GET /api/composer/texture/<name>[?file=<path>&project=<id>]`:** the TGA (`application/octet-stream`), or 404
+    `{ error, flat: "dds-only" | "plt" | "missing" }`. A14 adds DDS.
+  - **`GET /api/composer/thumb/<key>`** (`/^[a-z0-9_+]{1,64}$/`): the PNG, or 404.
+  - **`POST /api/composer/thumb/<key>`** (`image/png`, from the page, up to 262144 bytes): writes
+    `<build>\vfxedit\composer\thumbs\<key>.png` whole.
+  - **`GET /composer/floatdisk.js`** and **`/composer/project.js`:** the checkout's files, as `text/javascript`.
+- **`composer_fixture.js`** (Node, for the checks):
+  - `tempCheckout({ ee })` copies `tools/data/floatdisk`, `tools/data/composer` and the disk's committed outputs into
+    `os.tmpdir()/n5_composer-*/repo`. It also:
+    - writes `.git` as `gitdir: <tmp>/gitdir`, with `HEAD` `ref: refs/heads/anim`;
+    - adds `tools/data/composer/testpile.json`: a placeable, circle guide 1 m, variants `1` (`plc_b04`) and `2`
+      (`plc_a03`, `plc_b06`), no rows yet;
+    - adds `tools/data/composer/testmesh.json`: a spell mesh, one variant (`plc_b06`);
+    - adds `tools/data/composer/parts/n5_testcrate.mdl` (an ASCII 12-triangle cube, `bitmap n5_testcrate`) with a 2 x 2
+      `n5_testcrate.tga` beside it;
+    - returns `{ repo, cleanup() }`.
+  - `tempBuild()` gives an empty bench build folder, with `vfxedit\saved\`.
+
+- [ ] **Step 1: Write `check_composer_server.js`** in browser_check.mjs's ok / FAIL style (`skip: no game at <dir>`
+  without the game). It starts the server on 18776 with `--build <tempBuild> --ee <tempCheckout> --no-open`, and
+  `NWN5E_MDLMESH=<anim>\build\floatdisk\mdlmesh.exe`. Its steps:
+  - `composerState`: ok, `ee` the copy, branch `anim`.
+  - `projectsListed`: `floatdisk` first, then `testmesh` and `testpile`, each with its kind.
+  - `projectRead`: `testpile`'s text, and `hash` its sha1.
+  - `newProject`:
+    - `{ name: "crates", kind: "placeable" }` writes `crates.json` with one empty variant;
+    - the same again gives 409;
+    - `"Bad-Name"` gives 400.
+  - `branchOf`: a `.git` folder whose HEAD is `ref: refs/heads/main` gives `main`; a 40-hex HEAD gives 7 characters.
+  - `checkoutDefault`: `findCheckout({ tools })` is `...\Projects\nwn5e-ee-anim` (read-only).
+  - `catalogKinds`:
+    - placeables over 1,000, with `{ id: "plc_b04", label: "LootBag1" }`;
+    - a weapon whose models are `wswls_b_011`, `wswls_m_011` and `wswls_t_011`;
+    - no `gi_waypoint`;
+    - Yours `composer/parts/n5_testcrate.mdl`.
+  - `partMeshesAreTheGenerators`: `part?models=plc_b04`'s meshes deep-equal `reader.create(...).part(...)`'s.
+  - `weaponPieces`: three pieces' meshes, as many as the three read alone.
+  - `ownFile`: `part?file=parts/n5_testcrate.mdl&project=testpile` gives 12 triangles and its texture from beside it.
+  - `badNames`: `models=../x` and `file=parts/x.txt` give 400; `file=../../nothing.mdl` gives 404.
+  - `textures`:
+    - `plc_rugdmtlbrk` decodes (`core.decodeTga`) at 512 x 512;
+    - `tno01_post` gives 404 with flat `dds-only`;
+    - `part?models=plc_c07` has `plc_gold` with shine true.
+  - `thumbCache`: 404, then a POST with the page's Origin gives 200, then a GET returns the same bytes. A POST without an
+    Origin gives 403.
+  - `scriptsServed`: `/composer/floatdisk.js` and `/composer/project.js` give 200 `text/javascript`, containing
+    `placePart` and `outline`.
+  - `staleGuard`: the copy's `project.js` touched 5 s ahead gives `POST /api/composer/thumb/...` 409 with
+    `vfx_bench.bat again`; its time is restored after.
+  - `effectModeUnchanged`: `/api/state` has exactly the keys it had before this task.
+- [ ] **Step 2: Run** `node vfx_bench/check_composer_server.js`. Expected: `composerState` FAIL (404 not found), the rest
+  FAIL, then `<n> failed`.
+- [ ] **Step 3: Implement** `composer_server.js`, `composer_fixture.js` and the server.js wiring.
+- [ ] **Step 4: Run.**
+  - `node vfx_bench/check_composer_server.js`. Expected: `all composer server checks pass`.
+  - `node vfx_bench/browser_check.mjs`. Expected: `all passed`.
+  - `node vfx_bench/check.js`. Expected: as before.
+- [ ] **Step 5: Commit.**
+  - `git add vfx_bench/composer_server.js vfx_bench/composer_fixture.js vfx_bench/check_composer_server.js`;
+  - then `git commit --only` those three with `vfx_bench/server.js` `-F -`, with "feat: the VFX Bench's Composer, the
+    server - projects, the parts list, a part's meshes through the generator's reader, textures, thumbnails (nwn5e-ee
+    #39)".
+
+### Task A6: The server's Save per kind; spell meshes as chunks (nwn5e-tools)
+
+Needs A5.
+
+**Files:**
+- Modify: `vfx_bench/composer_server.js`, `vfx_bench/server.js` (`state()` and `/api/draft` for the spell meshes),
+  `vfx_bench/check_composer_server.js`
+
+**Interfaces:**
+- **`POST /api/composer/save`** (`application/json`, from the page) takes `{ id, project, base, force? }`. For
+  `floatdisk`, `project` is the composition object. In order:
+  1. **Read it:** `F.readComposition` (floatdisk) or `P.readProject` (the others). If it throws: 400 `{ error }`.
+  2. **Changed on disk:** if the file's text no longer hashes to `base` and `force` isn't set: 409 `{ error: "<file>
+     changed on disk since you opened it", changed: true }`.
+  3. **Running:** if a save is running: 409 `{ error: "a save is running" }`.
+  4. **Placeable rows:** variants without a row are given rows by `P.freeRows`. The rows taken are:
+     - those set in `data/rows/placeables*.txt` (but its own `placeables.<name>.txt`);
+     - those in `data/looks/placeables*`;
+     - the game table's rows in the range that aren't blank or `USER`;
+     - those in `<build>/served/placeables.2da`, when it's there.
+  5. **The temporary file:** the text (`F.compositionText` or `P.projectText`) goes to `os.tmpdir()/n5_composer-<n>.json`.
+  6. **The build** (`execFile`, cwd the checkout, 120 s):
+     - floatdisk: `node tools/data/floatdisk/build.js --json --composition <temp> --tools <nwn5e-tools> --game <game>
+       --reader <exe>`;
+     - placeable: `node tools/data/composer/build.js <temp> --json --tools ... --game ... --reader ...`;
+     - spell mesh: the same, plus `--saved <build>/vfxedit/saved`.
+  7. **Exit 0:**
+     - the file is written whole with the temp's text (a placeable's with its rows), and the temp is deleted;
+     - a spell mesh's models join `<build>/vfxedit/meshes.txt` (one a line, sorted, unique);
+     - 200 `{ ok: true, result, hash, text }`.
+  8. **Otherwise:** the temp is deleted, then 422 `{ error: <its "floatdisk: ..." / "composer: ..." line>, output }`. The
+     file is untouched.
+- **server.js:**
+  - `state().meshes` is meshes.txt's names;
+  - `state().chunks` is the library's chunks plus those names;
+  - `state().saved` leaves them out;
+  - `GET /api/draft?source=chunks&name=<n>` serves `saved/<n>.vfx` when `<n>` is in meshes.txt and the library has
+    none.
+
+- [ ] **Step 1: Add steps** to `check_composer_server.js` (on the copy):
+  - `saveWritesAndRebuilds` (floatdisk): Medium's first part turned 30 more degrees gives 200. The copy's composition.json
+    is `compositionText` of what was posted. `c_n5fd_med.mdl` and `plc_n5fd_med.mdl` are rebuilt, the other 11
+    unchanged.
+  - `saveUnchangedIsUnchanged`: the file's own composition gives all 13 unchanged.
+  - `refusedBuildChangesNothing`: a part `plc_nope` gives 422 matching `/no such model/`. The file's bytes and
+    `data/files`' times are unchanged.
+  - `invalidRefused`: `scale: 0` gives 400 matching `/scale/`.
+  - `changedFileRefused`: the copy's file rewritten gives 409 `changed`; then `force: true` gives 200.
+  - `placeableSaveBuilds`:
+    - `testpile` gives 200, and its file now has rows 14100 and 14101;
+    - `data/files/plc_n5testpile_1.mdl`, `_2.mdl` and their `.pwk`, and `data/rows/placeables.testpile.txt`, are new;
+    - the rows file's rows are 14100 and 14101.
+  - `placeableRowsStay`: saved again, the same rows, and every file unchanged.
+  - `rowTakenElsewhereSkipped`: with the copy's `data/rows/placeables.other.txt` setting 14100 before `crates`' first
+    save, `crates` gets 14101.
+  - `spellMeshSaves`:
+    - `testmesh` gives 200, and `<tempBuild>/vfxedit/saved/n5m_testmesh.vfx` starts with the Composer's mark;
+    - `meshes.txt` lists `n5m_testmesh`;
+    - `/api/state` has it in `chunks` and `meshes`, not in `saved`;
+    - `/api/draft?source=chunks&name=n5m_testmesh` gives 200.
+  - `saveFromElsewhereRefused`: no Origin gives 403.
+  - `realWorktreeUntouched`: at the end of the check, these are as they were at its start:
+    - the real anim worktree's `composition.json` sha1;
+    - its `tools/data/composer/` listing;
+    - its `data/files` times;
+    - the real bench build's `vfxedit/saved` listing.
+- [ ] **Step 2: Run** `node vfx_bench/check_composer_server.js`. Expected: the new steps FAIL (404); only
+  `realWorktreeUntouched` passes.
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run.**
+  - `node vfx_bench/check_composer_server.js`. Expected: `all composer server checks pass`.
+  - `node vfx_bench/browser_check.mjs`. Expected: `all passed`.
+- [ ] **Step 5: Commit** `vfx_bench/composer_server.js vfx_bench/server.js vfx_bench/check_composer_server.js`, with
+  "feat: the VFX Bench's Composer saves each kind - the Floating Disk through its generator, a placeable's files and rows
+  (14100-14199), a spell mesh into saved\ and listed as a chunk; a refused build writes nothing (nwn5e-ee #39)".
+
+### Task A7: The page's pure parts - projects, variants, the guide, the disk's adapter (nwn5e-tools)
+
+Needs A1 and A3 (the checkout's floatdisk.js and project.js).
+
+**Files:**
+- Create: `vfx_bench/public/composer.js` (UMD, `root.VfxComposer`), `vfx_bench/check_composer.js`
+- Modify:
+  - `vfx_bench/server.js`: `FILES` and `CODE` gain `composer.js`;
+  - `vfx_bench/check_composer_server.js`: `summaryMatchesGenerator`.
+
+**Interfaces:**
+- **`VfxComposer.with(F, P)`** binds the checkout's FloatDisk and ComposerProject. In Node, they're required from `--ee`
+  (default `../../nwn5e-ee-anim`).
+- **The Floating Disk's adapter:**
+  - `fromComposition(comp)` gives `{ kind: "floatdisk", name: "floatdisk", folder: "floatdisk", guide: { shape: "circle",
+    diameter: disk.diameter, height: disk.height }, variants }`:
+    - `variants` are `empty` (locked, no parts), `small`, `medium` and `large`;
+    - each `{ name, parts, locked? }` from `stages`.
+  - `toComposition(project, comp)` gives a copy of `comp` with `stages` and `disk.diameter` / `disk.height` from the
+    project. Every other key is kept.
+- **A project and its parts:**
+  - `fromProject(json, id)`: the project for the page.
+  - `toProject(project)`: its file's JSON.
+  - `keyOf(raw)`: the server's part key.
+  - `norm(raw)` / `clean(raw)`: defaults, and rounding as before (`at` 0.001, turns 0.1, `scale` 0.001; a `[0, 0]` tilt
+    dropped).
+  - `relFile(projectFolder, path)`: a part's `file` from the project's folder (`parts/x.mdl`, `../composer/parts/x.mdl`).
+- **Variants:**
+  - `addVariant(project)` (the next free name, `1`, `2`...);
+  - `removeVariant(project, v)` (never the disk's);
+  - `ghosts(project, v)`: the previous variant's parts;
+  - `copyPrevious(project, v)`.
+- **The variant on the stage:**
+  - `placed(project, v, models)`: through `F.placePart(norm(raw), model, i, guide.height, "j")`. Missing models are
+    skipped and listed.
+  - `summary(project, v, models)`: `{ parts, meshes, triangles, tall, top, list: [{ label, size, from, to, past }] }`.
+    - `past` is how far the part reaches past the guide: a circle's `reach - r`; a rectangle's largest corner overshoot;
+      0 with no guide.
+    - For the Floating Disk the disk's own mesh (`F.diskMesh`) is counted in `meshes` and `triangles`, as build.js
+      counts it.
+- **Picking, resting and the handles:**
+  - `pick(ray, placedList)`;
+  - `restHeight(moving, others, floor)` (floor the guide's height);
+  - `moveBy`, `ringOf`, `turnBy`, `scaleBy`, `liftBy`: as Task 5 above;
+  - `newScale` is `P.newScale`; `layFlat(lo, hi)`;
+  - `partFrom(entry, [x, y], box, project)`.
+- **The use point:** `useOf(project)` (`placeable.use` or `P.defaultUse(guide)`) and `moveUse(project, [x, y])`.
+- **Undo and the frame:**
+  - `changedVariant(a, b)`: the first variant that differs (the guide or the kind's settings: the variant shown), or
+    null;
+  - `snapshot(project)`: its JSON;
+  - `frameBox(lo, hi)`.
+
+- [ ] **Step 1: Write `check_composer.js`** (ok / FAIL lines, last line `all composer checks pass`). Synthetic cubes and
+  the real composition.json; no game.
+  - `composer.js loads under node and in a page`;
+  - `placed equals placePart, the floor the guide's height`;
+  - `the summary as the generators print it (a circle guide, a rectangle guide)`;
+  - `pick: the nearest part under the ray, none off it`;
+  - the rest checks:
+    - `rest on the guide's height: z 0`;
+    - `rest on a part: its top under the footprint`;
+    - `rest beside a part: back on the floor`;
+    - `rest on the higher of two`;
+  - the handles:
+    - `move keeps the grab offset`;
+    - `turn by the angle swept; step 15 rounds`;
+    - `scale by the distance ratio, clamped`;
+    - `lift along the vertical, never below the floor`;
+  - `layFlat lays a standing weapon down`;
+  - `a new part's scale within 0.4 of the guide`;
+  - `variants: add, remove, the disk's fixed, Empty takes no parts`;
+  - `ghosts and copyPrevious`;
+  - `the use point: the guide's front by default, moved`;
+  - `relFile from a project's folder`;
+  - `clean rounds and drops a zero tilt`;
+  - `changedVariant names the variant an undo shows`;
+  - `frameBox keeps the box in view`;
+  - `the disk's adapter round trip`: composition.json through `fromComposition`, `toComposition` and `F.compositionText`
+    is the file but for `0.0`.
+
+  In `check_composer_server.js`, `summaryMatchesGenerator`: for the copy's Floating Disk (against `build.js --check
+  --json`) and `testpile` (against `composer/build.js --check --json`), `summary` with the server's meshes equals the
+  generator's. Triangles and meshes are exact; the lengths within 0.001.
+- [ ] **Step 2: Run** `node vfx_bench/check_composer.js`. Expected: `FAIL composer.js loads ...: Cannot find module`, the
+  rest FAIL, then `<n> failed`. `node vfx_bench/check_composer_server.js`. Expected: `summaryMatchesGenerator` FAIL.
+- [ ] **Step 3: Implement** `public/composer.js`.
+- [ ] **Step 4: Run.**
+  - `node vfx_bench/check_composer.js`. Expected: `all composer checks pass`.
+  - `node vfx_bench/check_composer_server.js`. Expected: `all composer server checks pass`.
+- [ ] **Step 5: Commit.**
+  - `git add vfx_bench/public/composer.js vfx_bench/check_composer.js`;
+  - then commit them with `vfx_bench/server.js vfx_bench/check_composer_server.js`, with "feat: the VFX Bench's
+    Composer, its pure parts - projects and variants, the guide, the Floating Disk's adapter, placement through the
+    generator's placePart, resting, the handles' maths (nwn5e-ee #39)".
+
+### Task A8: core.js's planes as mesh beats (nwn5e-tools)
+
+Needs A4 (its fixture).
+
+**Files:**
+- Modify: `vfx_bench/public/core.js`, `vfx_bench/check_chunks.js`
+
+**Interfaces:**
+- **`core.plane()`'s defaults** gain `mesh: ""`, `scale: 1`, `start_seconds: 0`, `emit_seconds: 0` and `keys: []`.
+- **`writeDraft` / `readDraft`** write and read them in A4's order, only when they aren't the default. `<anim>_alpha`
+  joins the key lines (`draftKeys`, `draftKeyLine`).
+
+- [ ] **Step 1: Add** to `check_chunks.js`, beside the `plane_material.vfx` check:
+  - `plane beat: nwn5e-ee's plane_beat.vfx read and written byte for byte`;
+  - `plane beat: the defaults write no new lines` (the material fixture's bytes unchanged).
+- [ ] **Step 2: Run** `node vfx_bench/check_chunks.js`. Expected: `FAIL plane beat: nwn5e-ee's plane_beat.vfx ...`, the
+  line `mesh = n5m_test` missing.
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run.**
+  - `node vfx_bench/check_chunks.js`. Expected: `all chunk checks pass`.
+  - `node vfx_bench/check.js`. Expected: as before: every draft round trips, every texture decodes.
+- [ ] **Step 5: Commit** `vfx_bench/public/core.js vfx_bench/check_chunks.js`, with "feat: the VFX Bench's drafts keep a
+  plane's mesh, scale, timing and alpha keys - core.js in step with vfx_model.cpp (nwn5e-ee #39)".
+
+### Task A9: The stage - one mesh path, the mesh texture loader, pointer handlers, the ray (nwn5e-tools)
+
+**Files:**
+- Modify: `vfx_bench/public/view.js`, `vfx_bench/public/app.js` (the View's loaders), `vfx_bench/check_chunks.js`,
+  `vfx_bench/check_composer.js`
+
+**Interfaces:**
+- **`meshData(mesh, place)`:** chunkMeshes' per-particle vertex data, factored out. `chunkMeshes` calls it per particle,
+  and its output doesn't change.
+- **`worldMeshes(list)`:** the same data for meshes already placed in the world. An item may carry `opaque` (the
+  texture's alpha ignored) and `ghost` (a pale tint at alpha 0.25, blended, no depth write).
+- **The fragment shader** gains `u_opaque` (`if (u_opaque > 0.5) c.a = v_color.a;`).
+- **`View.drawMeshes(list, cam)`:** opaque and cut-out meshes first, then those under alpha 1 (blended), then ghosts.
+  `draw()` uses it for chunks.
+- **`View.drawScene({ figure, meshes, ghosts, lines })`:** the Composer's frame. It draws the ground, the figure, the
+  meshes, the ghosts, then the lines (the guide's outline, the use point and the handles) with the depth test off. No
+  disk.
+- **`View.putTexture(name, image)`.**
+- **Mesh textures:** `new View(canvas, loadTexture, loadChunk, loadMeshTexture)`.
+  - Meshes (chunks, the Composer's, planes) take their textures through `meshTexture(name)` with `loadMeshTexture`.
+  - Particles keep `loadTexture`, the library's.
+  - app.js gives `chainLoaders(libraryImage, gameImage)`: the library's copy, else `/api/composer/texture/<name>`.
+    `chainLoaders` is a pure export of view.js.
+- **Pointer:** `view.handlers = { grab, drag, drop, click }` as Task 6 above; `view.minDistance` (1; the Composer 0.6).
+- **Pure helpers:** `rayAt(camera, w, h, x, y)`, `projectAt(camera, w, h, p)`; `View.ray(x, y)`, `View.project(p)`.
+
+- [ ] **Step 1: Add checks.**
+  - `check_chunks.js`:
+    - `a world mesh draws as a still chunk`;
+    - `chainLoaders: the library first, then the game, then missing`.
+  - `check_composer.js`:
+    - `rayAt and projectAt round trip`;
+    - `the centre ray is the camera's forward`.
+- [ ] **Step 2: Run** `node vfx_bench/check_chunks.js` and `node vfx_bench/check_composer.js`. Expected: the four new
+  steps FAIL (`V.worldMeshes is not a function`, `V.chainLoaders is not a function`, `V.rayAt is not a function`).
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run.**
+  - `node vfx_bench/check_chunks.js`. Expected: `all chunk checks pass`.
+  - `node vfx_bench/check_composer.js`. Expected: `all composer checks pass`.
+  - `node vfx_bench/browser_check.mjs`. Expected: `all passed`.
+- [ ] **Step 5: Commit** `vfx_bench/public/view.js vfx_bench/public/app.js vfx_bench/check_chunks.js
+  vfx_bench/check_composer.js`, with "feat: the VFX Bench's stage - one mesh path for chunks and placed meshes, their
+  textures from the library or the game, pointer handlers for handles, a ray from the pointer (nwn5e-ee #39)".
+
+### Task A10: The mode - projects, variants, the guide card, the kind's card, undo (nwn5e-tools)
+
+Needs A5, A6, A7 and A9.
+
+**Files:**
+- Create: `vfx_bench/public/composer_page.js` (`root.VfxComposerPage`), `vfx_bench/composer_check.mjs`
+- Modify: `vfx_bench/public/index.html`, `vfx_bench/public/style.css`, `vfx_bench/public/app.js`, `vfx_bench/server.js`
+  (`FILES` and `CODE`: `composer_page.js`)
+
+**Interfaces:**
+- **index.html** (no existing id changes; `body.composer` shows `.composer-only` and hides `.effect-only`):
+  - **the bar:** `#composer-open` "Composer"; Composer only: `#comp-project` (a select), `#comp-new` "New project",
+    `#composer-save` "Save and build", `#composer-close` "Back to effects";
+  - **the drawer:** `#parts` (A11);
+  - **the panel:**
+    - `#comp-card`: what's open, "Saving to <folder> (<branch>)" with a warning off `anim`, the last result;
+    - `#guide-card`: `#guide-shape` (circle / rectangle / none), `#guide-diameter`, `#guide-width`, `#guide-length`,
+      `#guide-height`;
+    - `#variant-card`: name, Remove, Copy the previous one in;
+    - `#placeable-card`: the variant's model and row (shown), `#plc-copy` (the row copied), `#plc-use-x`, `#plc-use-y`,
+      `#plc-walk` (Walk-through / Blocks);
+    - `#mesh-card-c`: the variants' mesh names;
+    - `#part-card`;
+    - `#stage-card`: the summary;
+  - **the stage:** `#variant-tabs` (and `#variant-add`);
+  - **the footer:** `#comp-foot` (`#comp-onion`, `#comp-rest`, `#comp-view-34`, `-side`, `-top`, `-front`,
+    `#comp-strip`).
+- **composer_page.js:** `VfxComposerPage.mount({ view, image, setStatus, getJson, postJson, history: { push, clear,
+  setDragging } })` returns `{ enter(id?, variant?), leave(), frame(dt), snapshot(), restore(text), dirty(), save(),
+  key(ev) -> bool, hook() }`.
+  - `enter` loads `/composer/floatdisk.js` and `/composer/project.js` (script tags, once), `GET /api/composer`, then the
+    project (the last one opened, else the Floating Disk) and its variant's part meshes.
+- **New project:** a name and kind asked in a small dialog, `POST /api/composer/new`, then opened.
+- **Opening a project** (or leaving the Composer) clears the history.
+- **Variant tabs:** a tab per variant, with its part count. A switch isn't an undo step. For the Floating Disk, Empty,
+  Small N, Medium N, Large N, fixed, and Empty takes no parts.
+- **Cards:**
+  - the guide card's fields change `project.guide` (rounded); the outline follows;
+  - the placeable card's fields change `placeable`;
+  - the strip: a chip per part; a click selects it;
+  - the part card is as before;
+  - every field is one undo step on change.
+- **The figure:**
+  - a placeable's stands on the use point, facing the guide's centre;
+  - the others' stand 0.85 m to the left, facing +y.
+- **The stage draws:** the variant's parts (`worldMeshes`), the ghosts (Onion skin, on by default), and the guide's
+  outline (amber where a part reaches past it).
+- **app.js:**
+  - `state.composer`;
+  - the Composer button runs `leaveOk()`, then `enter`;
+  - `tick` hands the frame over while it's open;
+  - snapshots carry `{ composer }`;
+  - `save()`, `leaveOk()`, `beforeunload` and `keydown` go to the Composer while it's open;
+  - `?compose=<id>[&variant=<name>]` opens it at start;
+  - Back to effects restores the effect as it was.
+- **Undo:** `restore` switches to `changedVariant(now, restored)` when there is one, and keeps the selection by index.
+- **`window.vfxBench.composer()`:** `{ open, project: { id, kind }, variant, variants: [{ name, parts }], parts: [{
+  key, at, turn, scale, tilt, note }], selected, ghosts, guide, use, past, drawn: { parts, triangles, textured, flat,
+  names }, dirty, ee, branch, screenOf(i), handle(kind), last }`.
+  - `handle(kind)` covers `"ring"`, `"scale"`, `"lift"` and `"use"`;
+  - `names` are the drawn meshes' names.
+
+- [ ] **Step 1: Write `composer_check.mjs`**: headless Chrome as browser_check.mjs, port 18778, `tempBuild` and
+  `tempCheckout`, `NWN5E_MDLMESH`, and `window.confirm` stubbed to answer true. It prints `skip: no Chrome or Edge` or
+  `skip: no game at <dir>` when it can't run. Its steps:
+  - `composerOpens`: `?compose=floatdisk&variant=medium` gives `open`, the variant `medium`, 7 parts drawn textured, and
+    no `forcedisk` in `names`.
+  - `projectsListed`: `#comp-project` holds Floating Disk (#39), `testmesh` and `testpile`.
+  - `newProject`: `crates` (placeable) opens with one empty variant; `crates.json` is in the copy.
+  - `variantsAndCounts`:
+    - the Floating Disk's tabs read `Empty`, `Small 2`, `Medium 7`, `Large 12`;
+    - `testpile`'s read `1 1`, `2 2`;
+    - `+ variant` gives a third.
+  - `onionSkin`: on Large, `ghosts` 7; Onion skin off gives 0; on Small, 0.
+  - `guideCard`: the Floating Disk's diameter 1 gives `guide.diameter` 1 and the outline's radius 0.5. Saved,
+    `disk.diameter` would be 1 (`toComposition` through the hook).
+  - `emptyTakesNoParts`: on Empty, the parts can't be added and the card says why.
+  - `placeableCard`:
+    - `testpile`'s use point is `[0, -0.6]` (the default);
+    - Blocks sets `walk`;
+    - the figure stands at the use point.
+  - `partFieldsEdit`: the strip's first chip, Turn 45, gives `parts[0].turn` 45. Ctrl+Z gives the old turn, and Ctrl+Y
+    45.
+  - `undoShowsTheVariant`: an edit on Large, a switch to Small, then Ctrl+Z gives the variant `large` and the edit undone.
+  - `backToEffects`: `body.composer` is gone, the effect is as before, and `#undo` is disabled.
+  - `frameNoPageScroll` (in the Composer).
+  - `no errors in the page`.
+- [ ] **Step 2: Run** `node vfx_bench/composer_check.mjs`. Expected: `composerOpens` FAIL (`vfxBench.composer is not a
+  function`), the rest FAIL, then `<n> failed`.
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run.**
+  - `node vfx_bench/composer_check.mjs`. Expected: `all passed`.
+  - `node vfx_bench/browser_check.mjs`. Expected: `all passed`.
+  - `node common/checks/run.js`. Expected: `all common checks pass`.
+  - `node vfx_bench/check_composer.js`. Expected: `all composer checks pass`.
+- [ ] **Step 5: Commit.**
+  - `git add vfx_bench/public/composer_page.js vfx_bench/composer_check.mjs`;
+  - then commit them with `vfx_bench/public/index.html vfx_bench/public/style.css vfx_bench/public/app.js
+    vfx_bench/server.js`, with "feat: the VFX Bench's Composer mode - projects and their variants, the guide on the
+    ground, a placeable's use point and walk, the onion skin, undo across variants (nwn5e-ee #39)".
+
+### Task A11: The parts list and its thumbnails (nwn5e-tools)
+
+Needs A10.
+
+**Files:**
+- Modify: `vfx_bench/public/composer_page.js`, `vfx_bench/public/index.html`, `vfx_bench/public/style.css`,
+  `vfx_bench/composer_check.mjs`
+
+**Interfaces:**
+- **`#parts`:**
+  - tabs Placeables / Items / Yours, with counts;
+  - `#parts-search`, matching each entry's `search`, label and model names;
+  - `#parts-list`: an entry is a thumbnail, its label, its model(s) and its kind;
+  - Yours' note names the folders (`tools\data\composer\parts\`, and `tools\data\floatdisk\parts\` when there), with
+    `#parts-reload`.
+- **Thumbnails:**
+  - entries coming into view (an IntersectionObserver) queue, four at a time;
+  - `GET thumb/<id>` first;
+  - on a 404, the page fetches the part's meshes, waits for its textures, and draws them on one offscreen 128 x 128
+    canvas of its own (a second `View`, no ground or figure, `frameBox`'s camera);
+  - the PNG is posted, then shown.
+- **Adding a part:**
+  - a click adds `partFrom(entry, [0, 0], box, project)` on the current variant (not a locked one), rests it when Rests
+    is on, and selects it: one undo step;
+  - an own file's `file` is `relFile(project's folder, path)`;
+  - an entry dragged onto the stage (`dragover` / `drop` on `#canvas`) adds it at the ray's point on the guide's plane.
+
+- [ ] **Step 1: Add steps** to `composer_check.mjs`:
+  - `listKinds`:
+    - Placeables count over 1,000;
+    - "LootBag1" finds `plc_b04` first;
+    - Items with "longsword" finds entries of three models;
+    - Yours lists `n5_testcrate`.
+  - `thumbnailDrawnAndKept`: the first entry's thumbnail is set, and `<tempBuild>\vfxedit\composer\thumbs\<id>.png`
+    exists.
+  - `addByClick`: on the Floating Disk's Medium, LootBag1 gives 8 parts. The new one is selected, at x 0 y 0, its height
+    the surface there, and its footprint within 0.4 x 0.9 m.
+  - `addByDrag`: LootBag3 dropped on a stage point lands within 2 cm of the guide-plane point under the drop.
+  - `weaponLiesFlat`: "longsword 011" added has tilt `[0, 90]`, and its box's z is no longer its longest side.
+  - `undoAdd`: Ctrl+Z removes the last add, one step each.
+  - `ownFileAdds`: in `testpile`, Yours' `n5_testcrate` is added with `file` `parts/n5_testcrate.mdl` and drawn
+    textured. In the Floating Disk its `file` is `../composer/parts/n5_testcrate.mdl`.
+- [ ] **Step 2: Run** `node vfx_bench/composer_check.mjs`. Expected: the new steps FAIL (no `#parts-list` entries).
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run** `node vfx_bench/composer_check.mjs`. Expected: `all passed`.
+- [ ] **Step 5: Commit** the four files with "feat: the VFX Bench's Composer, the parts list - the game's placeables
+  and items and your own files, searched, with thumbnails drawn once and kept; added by a click or dragged onto the
+  stage (nwn5e-ee #39)".
+
+### Task A12: The handles and the use point (nwn5e-tools)
+
+Needs A11.
+
+**Files:**
+- Modify: `vfx_bench/public/composer_page.js`, `vfx_bench/public/view.js` (only if the lines need more than `lines`),
+  `vfx_bench/composer_check.mjs`
+
+**Interfaces:**
+- **Selection:** a click on a part (`pick`) or on its chip selects it; a click on empty space, or Esc, deselects.
+- **The selected part's lines:**
+  - its box;
+  - the ring (64 segments at `ringOf`);
+  - a 3 cm square on the ring at 45 degrees;
+  - the lift arrow from 5 to 20 cm above its top.
+- **The use point** (placeables): a 10 cm cross on the ground with a ring, always shown. Dragging it moves `placeable.use`
+  on the ground: one undo step. The figure follows.
+- **`grab`, in order:**
+  1. within 8 px of the use point: use;
+  2. within 8 px of the square: scale;
+  3. within 7 px of the ring: turn;
+  4. within 8 px of the arrow: lift;
+  5. else `pick` on the selected part: move;
+  6. else no grab (the view orbits).
+- **A drag:** `setDragging(true)` on the grab; then on each move `moveBy`, `turnBy` (Shift: 15), `scaleBy`, `liftBy` or
+  `moveUse`. While Rests is on, a move or a scale rests the part again (`restHeight`, the floor the guide's height). On
+  drop: `setDragging(false)` and one push.
+- **The guide's outline** is amber while any part reaches past it; the stage card lists them by how much.
+- **The part card's buttons:** Drop it, Duplicate, Remove.
+- **Keys:** Delete removes; Ctrl+D duplicates (+0.05 m x, rested); the arrows nudge 0.01 m (Shift 0.05 m); Esc
+  deselects. They're ignored while typing in a field.
+
+- [ ] **Step 1: Add steps** to `composer_check.mjs`:
+  - `clickSelects`: `screenOf(3)` clicked gives `selected` 3; empty space gives null.
+  - `dragMoves`: a part dragged 80 px right has its x grown, and its height is the surface under it.
+  - `restsOnPart`: on Medium, the small bag moved over the crate's centre has its height at the crate's top (0.31 m)
+    within 0.01.
+  - `ringTurns`: a quarter of the ring gives +90 within 3.
+  - `shiftTurnSteps`: with Shift, a multiple of 15.
+  - `squareScales`: dragged out to 1.5 times its distance, the scale grows x1.5 within 0.05.
+  - `arrowLifts`: 40 px up raises the height; Drop it returns it.
+  - `restOffKeepsHeight`: with Rests off, a lifted part moved keeps its height.
+  - `useHandleDrags`: in `testpile`, the use point dragged moves `use` (y more negative) and the figure with it; Ctrl+Z
+    returns it.
+  - `pastGuideIsAmber`: a part moved 1 m out gives `past` naming it.
+  - `deleteAndDuplicate`: Delete gives n-1, Ctrl+Z n, Ctrl+D n+1 at +0.05 x.
+  - `nudges`: ArrowRight gives x +0.01.
+  - `oneDragOneUndo`: a drag, then Ctrl+Z, gives exactly the `at` before it.
+  - `emptyDragOrbits`: a drag on empty space changes the camera's yaw and no part.
+- [ ] **Step 2: Run** `node vfx_bench/composer_check.mjs`. Expected: the new steps FAIL (`selected` stays null).
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run.**
+  - `node vfx_bench/composer_check.mjs`. Expected: `all passed`.
+  - `node vfx_bench/browser_check.mjs`. Expected: `all passed`.
+- [ ] **Step 5: Commit** with "feat: the VFX Bench's Composer, the handles - move on the guide's plane, the ring turns,
+  the square scales, the arrow lifts, a placeable's use point drags; a part rests on what's below (nwn5e-ee #39)".
+
+### Task A13: Save and build in the page (nwn5e-tools)
+
+Needs A12.
+
+**Files:**
+- Modify: `vfx_bench/public/composer_page.js`, `vfx_bench/public/app.js` (if routing needs more than A10 gave),
+  `vfx_bench/composer_check.mjs`
+
+**Interfaces:**
+- **Save and build:** `POST /api/composer/save { id, project, base }` (`toComposition(...)` for the Floating Disk,
+  `toProject(...)` for the others).
+- **200:** the status says:
+  - **Floating Disk:** "Saved and rebuilt in <folder> (<branch>): <files rebuilt>, <n> unchanged. For the game: the
+    animation session commits it on anim; the game session merges and installs."
+  - **Placeable:** "Saved and built in <folder> (<branch>): <model files> and placeables.<name>.txt (rows <rows>). For
+    the game: as the disk's - commit on anim, merge, install."
+  - **Spell mesh:** "Saved your meshes <models> in vfxedit\saved. The game writes their models when it runs. Use one as
+    an emitter's Chunk model, or with + mesh in an effect."
+
+  The Composer card shows each variant's parts, triangles and height from `result`. The project takes the saved text
+  (a placeable's rows), and the page isn't dirty after.
+- **409 `changed`:** asks "<file> changed on disk since you opened it: save over it?" Yes posts again with `force`. No
+  leaves it, and **Reload** (in the Composer card) reads the file again, after asking about unsaved changes.
+- **422 / 400:** the status says "Not built: <message>. Nothing was written." in the bad style.
+- **Dirty:** the snapshot differs from the one last opened or saved. The title starts `•`, and leaving or reloading asks.
+
+- [ ] **Step 1: Add steps** to `composer_check.mjs`:
+  - `saveRebuilds` (Floating Disk): a part moved on Medium, then Save, gives a good status. The copy's composition.json
+    parses to the page's. `last.result.files` has `c_n5fd_med.mdl` rebuilt, and `dirty` is false.
+  - `placeableSaves`: `testpile` saved, the hook's variants have rows 14100 and 14101, and the status names
+    `plc_n5testpile_1.mdl`.
+  - `spellMeshSaves`: `testmesh` saved, the status names `n5m_testmesh`. After Back to effects, `vfxBench`'s server state
+    lists it among the chunks.
+  - `saveRefusedSaysWhy`: `n5_testcrate.mdl` added, then deleted from disk, then Save, gives a bad status matching `/no
+    such file/`. The project file is unchanged.
+  - `changedOnDiskAsks`: the check rewrites the copy's file, then Save with `confirm` answering false. The status says it
+    changed, and nothing is written.
+  - `reloadReadsTheFile`: Reload shows the file's project.
+- [ ] **Step 2: Run** `node vfx_bench/composer_check.mjs`. Expected: the new steps FAIL.
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run.**
+  - `node vfx_bench/composer_check.mjs`. Expected: `all passed`.
+  - `node vfx_bench/check_composer_server.js`. Expected: `all composer server checks pass`.
+  - `node vfx_bench/browser_check.mjs`. Expected: `all passed`.
+- [ ] **Step 5: Commit** with "feat: the VFX Bench's Composer, Save and build - per kind, the generator's summary, a
+  changed file asked about, a refused build shown and nothing written (nwn5e-ee #39)".
+
+### Task A14: DDS textures (nwn5e-tools)
+
+Needs A5 and A9.
+
+**Files:**
+- Modify: `vfx_bench/public/core.js` (`decodeDds`), `vfx_bench/composer_server.js` (the texture route),
+  `vfx_bench/public/composer_page.js` and `vfx_bench/public/app.js` (decode by the header),
+  `vfx_bench/check_composer.js`, `vfx_bench/check_composer_server.js`, `vfx_bench/composer_check.mjs`
+
+**Interfaces:**
+- **`core.decodeDds(bytes)`** gives `{ width, height, data }` (RGBA, rows top-down as `decodeTga`'s), mip 0 only. It
+  reads:
+  - Bioware's 20-byte header (u32 width, u32 height, u32 bytes a pixel: 3 is DXT1, 4 is DXT5; u32 size; f32);
+  - a standard `DDS ` header with FourCC `DXT1` / `DXT5`.
+- **`GET /api/composer/texture/<name>`** serves the DDS when the game has one (what the game draws, often the bigger
+  copy), with `X-Texture: dds`, else the TGA (`X-Texture: tga`). The `flat` reason `dds-only` goes.
+- **The page's game loader** (A9's `gameImage`, used by the Composer and the effect mode's meshes) decodes by that
+  header.
+
+- [ ] **Step 1: Add checks:**
+  - `check_composer.js`:
+    - `decodeDds: a DXT1 block` (colour0 0xF800, colour1 0x001F, indices 0, gives 4 x 4 red);
+    - `decodeDds: a DXT5 block's alpha` (alpha0 255, alpha1 0, indices 1, gives alpha 0);
+    - `decodeDds: Bioware's header and the standard one`.
+  - `check_composer_server.js`: `ddsServed` (`tno01_post` gives 200 `dds` at 256 x 256; `plc_gold` gives `dds` at 64 x
+    64).
+  - `composer_check.mjs`: `ddsDraws` (the Floating Disk's Large: `tnp_barrel_002` is drawn textured).
+- [ ] **Step 2: Run** the three. Expected: the new steps FAIL (`core.decodeDds is not a function`; 404).
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run** the three, and `node vfx_bench/check.js` (every library texture still decodes). Expected: all
+  pass.
+- [ ] **Step 5: Commit** with "feat: the VFX Bench reads DDS textures - DXT1 and DXT5, the copy the game draws, for the
+  Composer and the effects' meshes (nwn5e-ee #39)".
+
+### Task A15: Play in game for a variant (nwn5e-tools)
+
+Needs A13.
+
+**Files:**
+- Modify: `vfx_bench/public/composer_page.js`, `vfx_bench/public/app.js` (Play / Stop in the Composer),
+  `vfx_bench/server.js` (`/api/play` takes up to 1 MB), `vfx_bench/composer_check.mjs`
+
+**Interfaces:**
+- **Play in game** in the Composer posts the selected variant as a draft: `core.effect({ name: "n5_composer", duration:
+  true, seconds: 10, attach: "root", planes })`.
+  - There's one `core.plane` per placed mesh. For the Floating Disk the disk mesh (`F.diskMesh`, its texture
+    `n5t_forcedisk`) is added last, as its creature model has it.
+  - Each is moved +0.85 m along x and +0.15 m along y, beside the character.
+  - Permanent applies as in the effect mode.
+- **Stop in game** is as now. The status follows the game's answer as the effect mode's does.
+
+- [ ] **Step 1: Add steps** to `composer_check.mjs`:
+  - `playSendsTheVariant`: the Floating Disk's Large, Play gives the temp build's `vfxedit\bench\request.vfx` starting
+    `request = play`. Its draft reads with 31 planes and 1095 triangles, as `c_n5fd_large` has.
+  - `playAnyKind`: `testpile`'s variant 2 gives its parts' planes (no disk).
+  - `stopStops`: Stop writes `request = stop`.
+- [ ] **Step 2: Run.** Expected: FAIL (no request written).
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run** `node vfx_bench/composer_check.mjs` and `node vfx_bench/browser_check.mjs`. Expected: `all passed`.
+  The in-game look is the owner's test (CO-6).
+- [ ] **Step 5: Commit** with "feat: the VFX Bench's Composer plays a variant in game - what would be built, beside your
+  character, before any install (nwn5e-ee #39)".
+
+### Task A16: Mesh beats in the effect editor (nwn5e-tools)
+
+Needs A6, A8 and A9. Its fades work in the game after A4's install.
+
+**Files:**
+- Modify:
+  - `vfx_bench/public/app.js`, `vfx_bench/public/index.html`, `vfx_bench/public/style.css`;
+  - `vfx_bench/public/beats.js`, `vfx_bench/public/parts.js`, `vfx_bench/public/sim.js`;
+  - `vfx_bench/check_beats.js`, `vfx_bench/check_effect.js`, `vfx_bench/browser_check.mjs`.
+
+**Interfaces:**
+- **`+ mesh`** (`#mesh-new`, under the timeline beside `+ light`) lists the bench's spell meshes (`state.server.meshes`).
+  - One picked is read (`/api/draft?source=chunks&name=<mesh>`), and its planes are copied into the open effect.
+  - They're named `<mesh>`, `<mesh>2`... (`B.freshBase` / `B.copyName`), with `mesh` set, scale 1, at the effect's
+    point, hanging under nothing.
+  - They're selected: `state.selection = { kind: "mesh", key }`, `key` the group's.
+- **beats.js:**
+  - `groupsOf` works on planes too;
+  - `rowsOf` adds a row per mesh group (`id = "mesh:" + key`): a bar from its start to its end (start + On for, else the
+    effect's end, open for a lasting one), its fades drawn as a light's, `edits: ["move", "start", "end"]`;
+  - `retimeMesh(fx, key, { start, end })` sets every plane of the group.
+- **parts.js:**
+  - `meshKeys(fx, impact, alpha, timing)`: `lightKeys`' rows with alpha in place of the radius, an unset fade out none
+    (it goes out at the effect's end);
+  - `meshFadesOf(fx, plane)`: the fades read back as `fadesOf` reads a light's.
+- **The mesh card** (`#mesh-card`):
+  - Hangs under, x y z, Turn (degrees about z: the planes' orientation), Scale;
+  - Starts after, On for (0: while the effect plays), Fade in, Fade out;
+  - **Refresh from the mesh**, Remove.
+
+  Every change sets every plane of the group and is one undo step. Scale rewrites each plane's verts as its mesh's
+  verts times the scale (the mesh's draft read again); `scale` is kept on the plane. Timing writes the planes'
+  `start_seconds`, `emit_seconds` and `<anim>_alpha` keys (`meshKeys`).
+- **sim.js `planesAt(t)`:** each plane's world triangles at time t. Its parent's place comes from the node places, then
+  its own position and turn. Its alpha comes from its keys in the animation playing at t (linear between rows), else its
+  own alpha.
+- **The stage in the effect mode** draws `sim.planesAt(sim.time)` through `view.drawMeshes` (textures through A9's mesh
+  loader). Every effect's planes draw now, a saved one's too.
+- **`window.vfxBench.planesDrawn()`:** `{ planes, triangles, alpha: { <name>: a } }`.
+
+- [ ] **Step 1: Add checks.**
+  - `check_beats.js`:
+    - `mesh rows: a bar per mesh group, its fades`;
+    - `retimeMesh moves every plane of the group`.
+  - `check_effect.js`:
+    - `meshKeys: off until its start, up over the fade in, down over the fade out (as a light's)`;
+    - `meshKeys: a lasting effect's always-on mesh fades out in the cessation`;
+    - `planesAt: a plane hangs under its node and fades with its keys`.
+  - `browser_check.mjs`. The fixture puts `n5m_test` (two planes) in the temp build's `vfxedit\saved\` and
+    `vfxedit\meshes.txt`. Its steps:
+    - `meshBeatAdds`: + mesh, `n5m_test`, gives 2 planes added, selected, a `mesh:` row;
+    - `meshBeatDrawn`: Starts after 0.5 gives `planesDrawn()` 0 triangles at 0.2 s and more than 0 at 0.8 s;
+    - `meshBeatTiming`: dragging the bar moves every plane's `start_seconds`; Fade in 0.3 writes `impact_alpha` rows
+      rising over 0.3 s in the draft;
+    - `meshBeatScale`: Scale 2 gives every vert twice the mesh's;
+    - `meshBeatUndo`: Ctrl+Z after Scale gives the verts back;
+    - `meshBeatRefresh`: the mesh's draft changed on disk, then Refresh from the mesh, gives the new verts.
+- [ ] **Step 2: Run** the three. Expected: the new steps FAIL (`B.retimeMesh is not a function`,
+  `parts.meshKeys is not a function`, no `#mesh-new`).
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run.**
+  - `node vfx_bench/check_beats.js` (`all beats checks pass`);
+  - `node vfx_bench/check_effect.js` (`all effect checks pass`);
+  - `node vfx_bench/check_parts.js` (`all parts checks pass`);
+  - `node vfx_bench/browser_check.mjs` (`all passed`);
+  - `node vfx_bench/check.js` (as before).
+- [ ] **Step 5: Commit** with "feat: the VFX Bench's mesh beats - a spell mesh placed, turned and scaled in an effect,
+  with Starts after, On for and fades as a light's; the stage draws an effect's meshes (nwn5e-ee #39)".
+
+### Task A17: The READMEs, TOOLS-PLAN and the owner's tests
+
+**Files:**
+- Modify:
+  - `nwn5e-tools/vfx_bench/README.md`: "The Composer" (projects, kinds, variants, guide, outputs, Play in game) and
+    "Mesh beats", the options `--ee` / `--game`, and the new files;
+  - nwn5e-ee-anim `tools/data/floatdisk/README.md`: "Compose it in the VFX Bench" at the top;
+  - nwn5e-ee-anim `tools/data/composer/README.md`: the bench's side;
+  - nwn5e-ee-anim `docs/TOOLS-PLAN.md`: a section, "The VFX Bench's Composer and mesh beats, built".
+- Create: the owner's test rows, a CSV in the job's tmp folder; the parent session adds them to the board. Each row
+  stands on its own: the bench restart, what to do, what to see.
+  - **CO-1, open it:** close the VFX Bench window and double-click `vfx_bench.bat`, then press Composer. Expect the
+    Floating Disk's Small (two bags on a 0.9 m circle at 0.9 m, no disk) and "Saving to ...nwn5e-ee-anim (anim)".
+  - **CO-2, build:** on Medium, search "barrel", click it, drag it, turn it with the ring, stack a bag on it.
+  - **CO-3:** the onion skin on Large; Undo and Redo across variants.
+  - **CO-4, a placeable:** New project, Placeable; a few parts; move the use point; Blocks. Save and build, and read the
+    files and rows it names.
+  - **CO-5, a spell mesh:** New project, Spell mesh. Save, then in an effect use it as a Chunk model and with + mesh
+    (Starts after, fades).
+  - **CO-6, Play in game:** a variant beside your character (the game running, a character in play).
+  - **After the install carrying A4:** a mesh beat fades in the game. Before it, it shows for the whole effect.
+
+- [ ] **Step 1: Run every check once more:**
+  - nwn5e-ee-anim:
+    - `node tools/data/floatdisk/check.js` (`floatdisk check: 27 checks pass`);
+    - `node tools/data/floatdisk/check_build.js` (`build check: all pass`);
+    - `node tools/data/composer/check.js` (`composer check: 13 checks pass`);
+    - `node tools/data/composer/check_build.js` (`composer build check: all pass`);
+    - `cmd //c test.bat` (`<n> tests, 0 failed`).
+  - nwn5e-tools:
+    - `node vfx_bench/check_composer.js`;
+    - `node vfx_bench/check_composer_server.js`;
+    - `node vfx_bench/composer_check.mjs`;
+    - `node vfx_bench/browser_check.mjs`;
+    - `node vfx_bench/check.js`;
+    - `node vfx_bench/check_area.js`;
+    - `node vfx_bench/check_parts.js`;
+    - `node vfx_bench/check_effect.js`;
+    - `node vfx_bench/check_beats.js`;
+    - `node vfx_bench/check_chunks.js`;
+    - `node common/checks/run.js`.
+
+  Expected: all pass.
+- [ ] **Step 2: Write** the READMEs, the TOOLS-PLAN section and the CSV.
+- [ ] **Step 3: Commit.**
+  - In nwn5e-tools: `vfx_bench/README.md`, with "docs: the VFX Bench's Composer and mesh beats in the README (nwn5e-ee
+    #39)".
+  - In the anim worktree, after `git branch --show-current` (anim): `tools/data/floatdisk/README.md
+    tools/data/composer/README.md docs/TOOLS-PLAN.md`, with "docs: the Composer and mesh beats - READMEs, TOOLS-PLAN
+    (#39)".
+- [ ] **Step 4: Report:**
+  - the commits and the test rows;
+  - the bench changes need a restart of `vfx_bench.bat`;
+  - the "anim ready" must name A4's `src/data/vfx_model.*` change: the mesh beats' fades need the game session's next
+    install;
+  - the generators' changes build nothing new for the disk.

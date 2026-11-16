@@ -436,3 +436,300 @@ again, and Save isn't undone.
 
 Each step leaves the bench and the generator working with their checks green. **Effort:** about two sessions for tasks
 1-10 and 13; Q1 and Q2 add a few hours each.
+
+---
+
+## Addendum 2026-11-16: a general Composer
+
+The owner reviewed this design and changed its scope. Where this addendum and the sections above disagree, the
+addendum wins. The sections above stay as they were written.
+
+### The owner's words, in order
+
+1. "let's do something here, instead of buiding something specific for the disk, let's build something more versatile
+   that will allow other things to be built. The disk doesn't need to be rendered. at most a circle, other shapes can be
+   used as needed. Regarding your questions, sure, yes to both"
+2. Asked what the other things should become in game: "I think placeables and meshes for spells"
+3. Choosing between a mode in the VFX Bench (A) and a separate Model Bench (B), and approving the outputs below: "go
+   with A and those outputs"
+
+### What changes
+
+- **A project, not the disk's composition.**
+  - Parts come from the game's placeables and items and from the owner's `.mdl` files, as before.
+  - They are placed, turned, scaled and stacked as before.
+- **Variants, not stages.** A project holds one or more versions of a model. The onion skin shows the previous variant,
+  and **Copy the previous one in** starts from it.
+- **A guide on the ground:**
+  - a circle, a rectangle or none, sized by numbers, at a height;
+  - drawn as an outline, never part of the model;
+  - parts reaching past it light it amber, as the rim did.
+
+  "Other shapes" are guide outlines, not solid shapes to build with (the coordinator's reading, which the owner didn't
+  correct).
+- **No disk is drawn.** The Floating Disk is one project: a 0.9 m circle guide at 0.9 m with four variants. Its
+  generator still adds the disk mesh and writes the creature looks, the piles and the rows. build.js and its 13 files
+  are unchanged.
+- **Q1 and Q2 are yes.**
+  - DDS textures are read.
+  - **Play in game** shows the selected variant of any kind beside the character.
+- **Approach A stands:** the Composer is a mode of the VFX Bench.
+
+Superseded above:
+
+- the four fixed stage tabs (now the project's variants);
+- the Empty tab's disk card (now the guide card; the disk's look stays in composition.json);
+- the rim drawn on the disk (now the guide's outline);
+- the open questions (both answered yes);
+- "Other compositions than the Floating Disk's" under non-goals.
+
+Everything else stands: the reader, the placement, the parts list, thumbnails, handles, resting, Save's all-or-nothing,
+undo and the checks.
+
+### What the owner sees
+
+```
++-----------------------------------------------------------------------------------------------------------------+
+| VFX Bench [Open]  Composer: [crates (placeable) v] [New project]  [Save and build] [Play in game] [Stop] [Undo] |
+| [Redo] [Back to effects]   status ...                                                                    (o)    |
++--------------------+------------------------------------------------------------+-------------------------------+
+| PARTS              | [1] [2] [3] [+ variant]                                    | GUIDE                         |
+| Placeables | Items |                                                            |  Shape [Circle v]             |
+|  | Yours           |                    .------------.                          |  Diameter [1.2]  Height [0]   |
+| [crate           ] |                 .-'   the parts  '-.                       +-------------------------------+
+| +----+ Box1        |                (    ( guide circle ) )                     | PLACEABLE                     |
+| |    | plc_a03     |                 '-.______________.-'                       |  plc_n5crates_2, row 14101    |
+| +----+             |                         x  <- use point     O              |  Copies row 2 (Box1)          |
+| ...                |                                            /|\  figure     |  Use point x [0] y [-0.7]     |
+|                    |                                            / \  at the use |  (o) Walk-through ( ) Blocks  |
+|                    |                                                 point      +-------------------------------+
+|                    |                                                            | PART: Box1 (card as before)   |
++--------------------+------------------------------------------------------------+-------------------------------+
+| [x] Figure  Backdrop [Dark] [x] Onion skin (1)  [x] Rests on what's below  View: [3/4] [Side] [Top] [Front]     |
+| On 2: [crate] [crate] [sack]                                                                                    |
++-----------------------------------------------------------------------------------------------------------------+
+```
+
+**Projects.**
+- The bar's project list holds the Floating Disk (#39) and every project in the checkout's `tools\data\composer\`.
+- **New project** asks for a name (up to 8 letters and digits) and a kind, Placeable or Spell mesh. It writes the file
+  with one empty variant.
+- Opening a project starts the undo history again, as opening an effect does.
+
+**Variants.**
+- The tabs along the stage's top are the project's variants. **+ variant** adds one; a variant's card renames or removes
+  it.
+- The Floating Disk's variants are fixed to its four stages. Its Empty takes no parts: the generator makes it, the disk
+  alone.
+
+**The guide card.**
+- Its fields are the shape (circle, rectangle, none), its diameter (or width and length) and its height.
+- The parts' heights are measured from the guide's height (the generator's `at` z), and resting stops on it.
+- For the Floating Disk, the guide's diameter and height are `disk.diameter` and `disk.height`. The disk's other
+  settings (colour, rim, see-through, glow, thickness, sides) stay in composition.json and aren't shown.
+
+**The figure** stands where it helps:
+- a placeable's figure stands on the use point, facing the placeable;
+- the Floating Disk's and a spell mesh's figure stands 0.85 m to the left, as before.
+
+**Save and build** builds per kind (below) and says what it wrote. **Play in game** sends the selected variant to the
+running game beside the character (the dev layer's Play in game). **Stop in game** removes it.
+
+### The kinds and what they build
+
+**Placeable.** Each variant becomes one of the game's placeables.
+
+- **The model:**
+  - `data\files\plc_n5<name>.mdl`, or `plc_n5<name>_<k>.mdl` with more than one variant;
+  - laid out as the game's junk placeables are (the pile models' layout: the parts' meshes, the `_hand`, `_head`,
+    `_head_hit`, `_impact` and `_ground` nodes);
+  - its base on the ground at the guide's height.
+- **The walkmesh file** (`.pwk`, the game's `#MAXDOOR ASCII` as its own placeables have) holds:
+  - **the use point**, where a creature walks to use it. It defaults to 0.1 m past the guide's front, and the owner can
+    drag it on the stage or type it. A placeable's front is -y: the game's own use points and hands are there (PLC_A03's
+    use point at y -0.91, PLC_B04's hand at -0.5).
+  - **with Blocks,** a ground mesh of the guide's outline, faces material 7 (non-walkable), named `<MODEL>_wg`, as the
+    game's crates and barrels block (PLC_A03, PLC_H07).
+  - **with Walk-through** (the default), no ground mesh, as the game's junk has none.
+- **The row:**
+  - in `data\rows\placeables.<name>.txt`, one row a variant, in nwn5e's rows format;
+  - each row is a copy of a game row with Label (`N5_<Name>_<k>`) and ModelName changed;
+  - the copied row defaults to the first placeable part's own row (a pile of crates sounds like a crate), else 189
+    (TreasureSml, as the disk's piles);
+  - the card can name another.
+- **Row numbers come from 14100-14199,** given at the first save and kept in the project after.
+  - Checked free: in `data\rows` (only the disk's 14001-14003 now), in `data\looks` (no placeables rows), in the game's
+    own table (1000-14999 are its users' blank rows) and in the main checkout's served table (14001-14003 only).
+  - Checking every folder is the visualeffects lesson: a row taken in two files makes the launch check skip one of them
+    whole.
+- The files go to the checkout's `data\files` and `data\rows`. They reach the game as the disk's did: the animation
+  session commits, the game session merges and installs. The UTP blueprint isn't ours.
+
+**Spell mesh.** Each variant becomes a mesh for spells, `n5m_<name>[_<k>]`.
+
+- **Where it's saved:** in the bench's `vfxedit\saved\` as a draft of its meshes. The game writes its model
+  (`saved\n5m_<name>.mdl`) when it runs, as it does for every saved draft.
+  - The saved folder is registered with the game as a resource folder (dev\vfx_editor.cpp, `RegisterFolder`), so the
+    game finds the model by its name.
+  - The bench lists it in `vfxedit\meshes.txt`, its own file.
+  - Not the library: the export rewrites `library\chunks.txt` whole on every run (`vfx_editor.cpp`), so a mesh put there
+    would drop out of the list.
+  - Yours (the effects) doesn't list the meshes; the Composer does.
+- **Use (a), as a chunk:** an emitter's **Chunk model** may name it.
+  - The stage draws it through the chunk path: the server lists the meshes with the library's chunks and serves their
+    drafts the same way.
+  - In the game the emitter throws it, once the game has written its model.
+- **Use (b), as a mesh beat** in an effect: **+ mesh** under the timeline (beside **+ light**) adds the mesh to the open
+  effect.
+  - Its row on the timeline and its card work like a light's:
+    - where it hangs, its place, turn and scale;
+    - Starts after, On for, Fade in, Fade out.
+  - **Refresh from the mesh** brings in later edits of the mesh. The effect holds a copy of the mesh: an effect model
+    must carry its own meshes.
+- **The mesh's origin** is the guide's centre at its height. A spell mesh's guide may sit below 0, so a chunk can turn
+  about its middle.
+
+**Floating Disk.** Saved through its own generator as this design planned: composition.json written by
+`compositionText`, then `build.js`.
+
+### Can a mesh fade in an effect? Checked
+
+- **The game can.**
+  - 22 of the game's effect models key a mesh's alpha (controller 128, one value) in their animations, for example:
+    - vdr_globemin, vdr_globemax and vdr_globe01;
+    - vdr_magearmor2;
+    - vdr_web;
+    - vdr_stone01;
+    - vdr_eleshield;
+    - vdr_freemove.
+
+    They key it in the impact, the duration and the cessation.
+  - The game's chunk models fx_rockchunklg / med / sml fade their rock 1 to 0 in their impact.
+  - Read from the game's own files, through the binary layout `vfx_model.cpp` uses.
+- **nwn5e's writer can't yet:**
+  - `WriteVfxModel` puts a plane in the geometry only, never in an animation;
+  - `VfxPlane` has no keys;
+  - the draft has no key lines for planes.
+- **So the plan adds them** (Task A4, on anim):
+  - a plane may carry alpha keys per animation (`<anim>_alpha = t a ...`, as a light's `<anim>_radius`);
+  - the writer writes them as `alphakey` on the plane's node in that animation;
+  - a plane also keeps, for the bench only, the mesh it came from, its scale, and its Starts after and On for.
+
+  The bench makes the keys as it makes a light's (`parts.lightKeys`, with alpha in place of the radius).
+- **Until the game session installs a DLL with Task A4,** a mesh beat shows for the whole effect in the game, from its
+  start and with no fade. Its timing works on the bench at once.
+  - Its scale is right either way: the bench writes the mesh's vertices already scaled, so an older DLL draws it at its
+    size.
+  - The DLL's reader skips plane keys it doesn't know.
+
+### The project file
+
+**Where projects live:** `<checkout>\tools\data\composer\<name>.json`, committed with what they build. The owner's own
+`.mdl` parts for any project go in `tools\data\composer\parts\`. The Floating Disk's `tools\data\floatdisk\parts\` is
+listed too.
+
+**Kind `placeable`:**
+
+```json
+{
+  "_about": ["..."],
+  "kind": "placeable",
+  "name": "crates",
+  "guide": { "shape": "circle", "diameter": 1.2, "height": 0 },
+  "placeable": { "copy": 2, "use": [0, -0.7], "walk": "blocks" },
+  "variants": [
+    { "name": "1", "model": "plc_n5crates_1", "row": 14100, "parts": [
+      { "note": "a crate", "model": "plc_a03", "at": [0, 0, 0], "turn": 15, "scale": 0.5 }
+    ] }
+  ]
+}
+```
+
+**Kind `spellmesh`:** the same, without `placeable` and `row`. Its models are `n5m_<name>[_<k>]`.
+
+**The parts** are composition.json's (`note`, `model` (or a list: a weapon), `file`, `at`, `turn`, `scale`, `tilt`).
+`at` z is measured from the guide's height. `guide.shape` is `circle` (`diameter`), `rect` (`width` along x, `length`
+along y) or `none`.
+
+**The Floating Disk stays in composition.json, read through an adapter in the page:**
+- a circle guide from `disk.diameter` at `disk.height`;
+- variants Empty, Small, Medium, Large from `stages`;
+- written back by `compositionText` with only those changed.
+
+*Why an adapter, not a migration:* the generator, its README, its checks and the owner's knowledge of composition.json
+stay as they are, and build.js and its 13 files don't change.
+
+### The generator for projects
+
+`tools\data\composer\build.js <project.json>` with the same options and refusals as the disk's build.js (`--check`,
+`--json`, `--tools`, `--game`, `--reader`, plus `--saved <folder>` for spell meshes).
+
+- It reads parts through `reader.js` and places them with `floatdisk.js`'s `placePart`, so a project and the disk share
+  one placement.
+- Its pure parts are `tools\data\composer\project.js`. It loads in a page as `floatdisk.js` does: the bench uses the same
+  outline, use point and model names. It holds:
+  - reading a project;
+  - the model names;
+  - the free rows;
+  - the guide's outline;
+  - the use point;
+  - the project file's text.
+- It writes only files carrying its own mark line.
+- `floatdisk.js` gains optional arguments (a mark, use points, a blocking outline) whose defaults leave the disk's 13
+  files byte for byte (`check_build.js`).
+
+### Calls I made (the addendum's)
+
+1. **Projects live in the checkout, beside what they build** (`tools\data\composer\`). *Why:* a placeable's model and
+   rows are committed; their source must be too, as composition.json is the disk's.
+2. **The Floating Disk is read through an adapter, not migrated.** *Why:* the approved "keep build.js and its 13 files
+   unchanged" holds trivially, and composition.json stays the file README.md documents.
+3. **Spell meshes are saved in `vfxedit\saved\`, not the library.** *Why:* the export rewrites `library\chunks.txt` whole.
+   The saved folder is already one the game reads models from by name, which is exactly what a chunk or a Play in game
+   needs.
+4. **A mesh beat is a group of the effect's planes, named as copies are** (`n5m_x`, `n5m_x2`... by beats.js), each
+   carrying `mesh`, `scale`, `start_seconds`, `emit_seconds` and alpha keys. *Why:*
+   - planes are the effect format's meshes already, and grouping by name is how beats already work;
+   - the vertices are written scaled, so a DLL without A4 still draws the right size.
+5. **A mesh beat's timing reuses the lights' key maker** (`lightKeys`), alpha for radius. With no fade out of its own, it
+   goes out at the effect's end. *Why:* one rule for timed things; the owner already knows how lights behave.
+6. **Placeable rows: 14100-14199,** given at the first save, kept in the project. *Why:* free in all four places checked,
+   next to nwn5e's 14000s, clear of the game's BD_RESERVED rows (5000, 7001, 9002, 11003, 13004).
+7. **A placeable's row copies a game row** (the first placeable part's, else 189), with Label and ModelName changed.
+   *Why:* sound, shadow, reflection and the rest come from a real placeable of its kind. The UTP isn't ours.
+8. **Blocks makes a 16-sided outline for a circle guide** (4 corners for a rectangle). *Why:* the game's own blockers are
+   simple quads; 16 sides follow a circle within 2 % of its radius. None with Blocks is refused at save.
+9. **Model names:**
+   - `plc_n5<name>` and `n5m_<name>`, with `_<k>` past one variant;
+   - a name is up to 8 letters and digits, so every model fits 16 characters;
+   - a name the game already has is refused.
+
+   *Why:* nwn5e's `n5` keeps them clear of the game's names (as `plc_n5fd_*`).
+10. **A new part's scale** keeps its footprint within 0.4 of the guide's diameter (or longer side), never above 1. With
+    no guide it's 1. *Why:* this is the 0.35 m rule above (0.4 x 0.9 m), now for any size of guide.
+11. **Play in game sends what would be built.** For the Floating Disk that's the creature model's meshes (the parts and
+    the disk). For the other kinds it's the variant's meshes. All of it goes 0.85 m beside the character. *Why:* the
+    in-game look should be the built look; the disk's texture ships with the install.
+12. **DDS first.** When the game has a texture as DDS and TGA, the bench draws the DDS, the copy the game draws (often the
+    bigger one). The same loader serves the meshes in the effect mode (chunks and mesh beats). The particles keep the
+    library's textures.
+
+### Limits (added)
+
+- **Mesh beats in the game** fade only after an install carrying Task A4. Before that they show for the whole effect.
+- **A mesh beat is a copy.** It follows an edited spell mesh only after **Refresh from the mesh**.
+- **A spell mesh is a chunk in the game** only once the game has written its model, when it runs after the save.
+- **Blocks** is the guide's outline, not the parts' shape. A guide much bigger than the parts blocks more than they
+  cover.
+- **Lighting and shine:** the stage's lighting and the environment-map limit stand. DDS is now read.
+
+### Size
+
+17 tasks in the plan's addendum, about **4 sessions**: more than the 2½ the owner was told.
+
+| part | about |
+|---|---|
+| the Composer as first planned (now with projects and variants) | 2 sessions |
+| DDS and Play in game | ½ |
+| the project generator (placeables, spell meshes, rows, use point, walkmesh) and the project format | ¾ |
+| mesh beats: the writer and draft on anim (C++, test.bat), core.js, the effect editor | ¾ |
