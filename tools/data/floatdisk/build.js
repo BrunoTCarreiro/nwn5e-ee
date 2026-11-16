@@ -259,10 +259,11 @@ function main() {
   const appearance = gameData.gameTable(GAME, "appearance"), placeables = gameData.gameTable(GAME, "placeables");
   text(path.join(ROWS_DIR, "appearance.floatdisk.txt"), F.rowsText(appearance, F.SOURCE_ROWS.appearance,
     F.STAGES.map((st) => ({ row: F.ROWS.appearance[st], label: F.LABELS.appearance[st], model: F.creatureModel(st) })),
-    { labelColumn: "LABEL", modelColumn: "RACE", overrides: { TARGETABLE: "1" }, about: [
+    { labelColumn: "LABEL", modelColumn: "RACE", overrides: F.APPEARANCE_OVERRIDES, about: [
       "appearance.2da: Floating Disk's four stages (#39) - the disk a henchman, its stage swapped by SetCreatureAppearanceType.",
-      `Each row is the game's row ${F.SOURCE_ROWS.appearance} (Invisible_Human_Male) with its LABEL and model (RACE) changed, and TARGETABLE 1:`,
-      `${F.SOURCE_ROWS.appearance}'s 0 would make the disk unclickable, and its inventory opens on a click.`] }));
+      `Each row is the game's row ${F.SOURCE_ROWS.appearance} (Invisible_Human_Male) with its LABEL and model (RACE) changed, TARGETABLE 1`,
+      `(${F.SOURCE_ROWS.appearance}'s 0 would make the disk unclickable, and its inventory opens on a click) and FOOTSTEPTYPE -1`,
+      "(it floats: no footsteps, as the game's floating creatures)."] }));
   text(path.join(ROWS_DIR, "placeables.floatdisk.txt"), F.rowsText(placeables, F.SOURCE_ROWS.placeables,
     F.PILES.map((st) => ({ row: F.ROWS.placeables[st], label: F.LABELS.placeables[st], model: F.pileModel(st) })),
     { labelColumn: "Label", modelColumn: "ModelName", about: [

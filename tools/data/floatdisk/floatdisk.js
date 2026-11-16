@@ -17,6 +17,9 @@ const RESREF = /^[a-z0-9_]{1,16}$/;
 // USER_RESERVED / ModelName USER); a stage's pile has its creature's number.
 const SUPERMODEL = "c_invsguy";  // appearance 298, Invisible_Human_Male: the walk, the idles, the nodes
 const SOURCE_ROWS = { appearance: 298, placeables: 189 };  // 189 TreasureSml
+// Where the disk's appearance rows differ from 298's: TARGETABLE 1, so a click opens its inventory (298's 0 hides it);
+// FOOTSTEPTYPE -1, no footsteps, as the game's floating creatures (Lantern Archon 103, Will-o-Wisp, Shadow, Allip).
+const APPEARANCE_OVERRIDES = { TARGETABLE: "1", FOOTSTEPTYPE: "-1" };
 const ROWS = {
   appearance: { empty: 14000, small: 14001, medium: 14002, large: 14003 },
   placeables: { small: 14001, medium: 14002, large: 14003 },
@@ -493,7 +496,8 @@ const sameText = (a, b) => Buffer.from(a).toString("latin1").replace(/\r\n/g, "\
 const crlf = (text) => text.replace(/\r?\n/g, "\r\n");
 
 module.exports = {
-  MARK, TEXTURE_MARK, STAGES, PILES, SUFFIX, RESREF, SUPERMODEL, SOURCE_ROWS, ROWS, LABELS, creatureModel, pileModel,
+  MARK, TEXTURE_MARK, STAGES, PILES, SUFFIX, RESREF, SUPERMODEL, SOURCE_ROWS, APPEARANCE_OVERRIDES, ROWS, LABELS,
+  creatureModel, pileModel,
   resolvePartFile, readComposition, partKey, partLabel, quat, axisAngle, qrot, round, num, modelSpaceMeshes, placePart,
   lowered, uniqueNames, diskMesh, diskTexture, modelNodes, creatureModelText, pileNodes, pileModelText,
   pileWalkmeshText, rowsText, readableAscii, texturesBeside, carriesMark, sameText, crlf,

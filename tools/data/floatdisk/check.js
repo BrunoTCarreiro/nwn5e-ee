@@ -261,6 +261,22 @@ check("ours: the mark on the first line, or the second after the format's", () =
   assert.ok(F.sameText(Buffer.from("a\r\nb\r\n"), Buffer.from("a\nb\n")));
   assert.strictEqual(F.crlf("a\nb\r\nc"), "a\r\nb\r\nc");
 });
+check("the shipped disk rows: clickable, and silent underfoot like the game's floating creatures", () => {
+  // TARGETABLE 1: the disk's inventory opens on a click (row 298's 0 would hide it). FOOTSTEPTYPE -1: the disk floats,
+  // so its walk and run make no footsteps (the Lantern Archon 103, Will-o-Wisp, Shadow and Allip are -1; 298 is 0).
+  const fs = require("fs");
+  const file = path.join(__dirname, "..", "..", "..", "data", "rows", "appearance.floatdisk.txt");
+  const tok = (s) => [...s.matchAll(/"([^"]*)"|(\S+)/g)].map((m) => (m[1] !== undefined ? m[1] : m[2]));
+  const l = fs.readFileSync(file, "utf8").split(/\r?\n/).filter((x) => x.trim() && !x.startsWith("#"));
+  const head = tok(l[0]);
+  const rows = l.slice(1).map((x) => tok(x));
+  assert.strictEqual(rows.length, F.STAGES.length);
+  for (const r of rows) {
+    assert.strictEqual(r[head.indexOf("TARGETABLE") + 1], "1", `row ${r[0]} TARGETABLE`);
+    assert.strictEqual(r[head.indexOf("FOOTSTEPTYPE") + 1], "-1", `row ${r[0]} FOOTSTEPTYPE`);
+  }
+  assert.deepStrictEqual(F.APPEARANCE_OVERRIDES, { TARGETABLE: "1", FOOTSTEPTYPE: "-1" });
+});
 check("the stages' names fit a resref", () => {
   for (const s of F.STAGES) assert.ok(F.RESREF.test(F.creatureModel(s)));
   for (const s of F.PILES) assert.ok(F.RESREF.test(F.pileModel(s)) && F.ROWS.placeables[s] === F.ROWS.appearance[s]);
