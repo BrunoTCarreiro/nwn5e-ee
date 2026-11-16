@@ -35,4 +35,27 @@ DiskOrder DiskOrderOf(int listen_pattern) {
   }
 }
 
+DiskStage DiskStageOf(int weight_tenths) {
+  if (weight_tenths <= 0) return DiskStage::kEmpty;
+  const int limit = kFloatingDiskPounds * 10;
+  if (weight_tenths * 3 <= limit) return DiskStage::kSmall;
+  if (weight_tenths * 3 <= limit * 2) return DiskStage::kMedium;
+  return DiskStage::kLarge;
+}
+
+DiskLook DiskStageLook(DiskStage stage) {
+  DiskLook look;
+  look.scale = kFloatingDiskScale + 0.1f * static_cast<float>(static_cast<int>(stage));
+  return look;
+}
+
+const char* DiskPileBlueprint(DiskStage stage) {
+  switch (stage) {
+    case DiskStage::kSmall: return "plc_treasuresml";
+    case DiskStage::kMedium: return "plc_treasuremed";
+    case DiskStage::kLarge: return "plc_treasurelrg";
+    default: return nullptr;
+  }
+}
+
 }  // namespace rules

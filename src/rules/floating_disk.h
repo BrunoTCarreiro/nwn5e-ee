@@ -34,4 +34,23 @@ enum class DiskOrder { kNone, kOpen, kStay, kFollow, kEnd };
 // Leave the party ends the spell (its load falls). Other commands (attack, guard, heal ...) it can't do.
 DiskOrder DiskOrderOf(int listen_pattern);
 
+// 0.99.55 (owner, 2026-11-16: "4 stages to it: empty - just the disk; 0-33%, 33%-66%, 66%-99% of the weight they
+// would have 3 different meshes of increasing size of random junk on top. once the disk either is unsummoned or
+// breaks the mesh that was on top is placed where the disk was and works as a container"; "go with all your
+// recommendations"): its look shows its load, and its load falls into that stage's pile - a container, gone once
+// emptied.
+enum class DiskStage { kEmpty = 0, kSmall = 1, kMedium = 2, kLarge = 3 };
+// Nothing on it: empty; up to a third of 500 pounds: small; up to two thirds: medium; more: large.
+DiskStage DiskStageOf(int weight_tenths);
+struct DiskLook {
+  int appearance = kFloatingDiskAppearance;
+  float scale = kFloatingDiskScale;
+};
+// A stage's look - placeholders until the animation session's four appearance rows (the disk and its junk as the
+// creature's own meshes): the Lantern Archon a little larger each stage.
+DiskLook DiskStageLook(DiskStage stage);
+// The container a stage's load falls into where the disk floated (null for an empty disk) - placeholders until the
+// animation session's three piles: the game's small, medium and large treasure piles (placeables 189-191).
+const char* DiskPileBlueprint(DiskStage stage);
+
 }  // namespace rules

@@ -12,7 +12,11 @@
 //   caster. Stand your ground: it stays; Follow me: it follows again; Leave the party: the spell ends.
 // - Every second (and its heartbeat, and its inventory's disturbance): it waits within 20 feet of its caster and
 //   follows farther; its hour up (its mark), more than 500 pounds on it (GetWeight), more than 100 feet off (or another
-//   area), or its caster gone - the spell ends: everything on it falls where it floats (CopyObject to the ground).
+//   area), or its caster gone - the spell ends: everything on it falls where it floats.
+// - 0.99.55 (owner, 2026-11-16: "4 stages to it ... the mesh that was on top is placed where the disk was and works
+//   as a container"; "go with all your recommendations"): its look shows its load's stage (rules::DiskStageOf -
+//   swapped as it changes), and its load falls into that stage's pile, a container where it floated, gone once
+//   closed empty (n5_d_pile). Placeholders until the animation session's appearance and placeables rows.
 // - A new casting with a disk out renews its hour.
 // - Kill XP goes to a party's player characters alone (CNWSCreature::ApplyDeathExperience's IsPlayerCharacter check):
 //   the disk takes none.
@@ -88,6 +92,7 @@ if (GetIsObjectValid(d) && GetLocalInt(d, "n5d_disk") && GetMaster(d) == m) {
   if (GetIsObjectValid(d)) {
     SetCreatureAppearanceType(d, $APP);
     SetObjectVisualTransform(d, OBJECT_VISUAL_TRANSFORM_SCALE, $SCALE);
+    SetLocalInt(d, "n5d_stage", 0);
     SetName(d, "Floating Disk");
     int ev;
     for (ev = 5000; ev <= 5012; ev++) SetEventScript(d, ev, "");
@@ -134,10 +139,21 @@ if (GetLocalInt(mod, "n5d_disks") > 0 && GetMaxHenchmen() < want) SetMaxHenchmen
 const char* const kEnd = R"nss(
 object d = OBJECT_SELF; object m = GetLocalObject(d, "n5d_master"); location l = GetLocation(d);
 int n = 0; object i;
+object pile = OBJECT_INVALID;
+if ("$PILE" != "") {
+  pile = CreateObject(OBJECT_TYPE_PLACEABLE, "$PILE", l, FALSE, "n5s_diskpile");
+  if (GetIsObjectValid(pile)) {
+    SetName(pile, "Floating Disk's load");
+    SetEventScript(pile, EVENT_SCRIPT_PLACEABLE_ON_CLOSED, "n5_d_pile");
+    SetLocalInt(pile, "n5d_pile", 1);
+  }
+}
 i = GetFirstItemInInventory(d);
-while (GetIsObjectValid(i)) { CopyObject(i, l, OBJECT_INVALID, "", TRUE); SetPlotFlag(i, FALSE); DestroyObject(i); n++; i = GetNextItemInInventory(d); }
+while (GetIsObjectValid(i)) { CopyObject(i, l, pile, "", TRUE); SetPlotFlag(i, FALSE); DestroyObject(i); n++; i = GetNextItemInInventory(d); }
 int s;
-for (s = 0; s < 14; s++) { i = GetItemInSlot(s, d); if (GetIsObjectValid(i)) { CopyObject(i, l, OBJECT_INVALID, "", TRUE); SetPlotFlag(i, FALSE); DestroyObject(i); n++; } }
+for (s = 0; s < 14; s++) { i = GetItemInSlot(s, d); if (GetIsObjectValid(i)) { CopyObject(i, l, pile, "", TRUE); SetPlotFlag(i, FALSE); DestroyObject(i); n++; } }
+SetLocalInt(d, "n5d_piled", GetIsObjectValid(pile));
+if (GetIsObjectValid(pile) && n == 0) DestroyObject(pile);
 if (GetGold(d) > 0 && GetIsObjectValid(m)) GiveGoldToCreature(m, GetGold(d));
 SetLocalInt(d, "n5d_dropped", n);
 if (GetIsObjectValid(m)) { if (GetMaster(d) == m) RemoveHenchman(m, d); DeleteLocalObject(m, "n5d_disk"); }
@@ -157,9 +173,10 @@ std::string Script(const char* code) {
   Replace(&text, "$ROW", std::to_string(rules::kFloatingDisk));
   Replace(&text, "$HOURS", std::to_string(rules::kFloatingDiskHours));
   Replace(&text, "$BLUEPRINT", kDiskBlueprint);
-  Replace(&text, "$APP", std::to_string(rules::kFloatingDiskAppearance));
+  const rules::DiskLook empty = rules::DiskStageLook(rules::DiskStage::kEmpty);
+  Replace(&text, "$APP", std::to_string(empty.appearance));
   char scale[16];
-  sprintf_s(scale, "%.2f", rules::kFloatingDiskScale);
+  sprintf_s(scale, "%.2f", empty.scale);
   Replace(&text, "$SCALE", scale);
   return text;
 }
@@ -168,18 +185,31 @@ void EndDisk(uint32_t disk, rules::DiskEnd why) {
   void* creature = CreatureById(disk);
   g_disks.erase(disk);
   if (!creature || engine::GetLocalInt(creature, "n5d_disk") != 1) return;
-  const uint32_t master = ParseHex(engine::GetLocalString(creature, "n5d_mid"));
-  Run(Script(kEnd), disk, "the disk's end");
+  Run(Script(kState), disk, "the disk's last look");  // its load now (Leave the party comes between looks)
+  uint32_t master = ParseHex(engine::GetLocalString(creature, "n5d_mid"));
+  if (!master && why == rules::DiskEnd::kSentAway) master = ParseHex(engine::GetLocalString(creature, "n5d_talker"));
+  const int weight = engine::GetLocalInt(creature, "n5d_wt");
+  const rules::DiskStage stage = rules::DiskStageOf(weight);
+  const char* pile = rules::DiskPileBlueprint(stage);
+  std::string code = Script(kEnd);
+  Replace(&code, "$PILE", pile ? pile : "");
+  Run(code, disk, "the disk's end");
   const int dropped = engine::GetLocalInt(creature, "n5d_dropped");
+  const bool piled = engine::GetLocalInt(creature, "n5d_piled") != 0;
   if (master) {
-    TellPlayer(master, std::string("nwn5e: Floating Disk ends - ") + rules::DiskEndText(why) +
-                           (dropped > 0 ? "; everything on it (" + std::to_string(dropped) + (dropped == 1 ? " item" : " items") +
-                                              ") falls to the ground."
-                                        : "."));
+    std::string words = std::string("nwn5e: Floating Disk ends - ") + rules::DiskEndText(why);
+    if (dropped > 0) {
+      words += "; everything on it (" + std::to_string(dropped) + (dropped == 1 ? " item" : " items") +
+               (piled ? ") falls in a pile where it floated - open it to take them back." : ") falls to the ground.");
+    } else {
+      words += ".";
+    }
+    TellPlayer(master, words);
   }
   if (LogSlot()) {
-    Log("floating disk: 0x%08X (caster 0x%08X) ends - %s; %d items fall to the ground", disk, master,
-        rules::DiskEndText(why), dropped);
+    Log("floating disk: 0x%08X (caster 0x%08X) ends - %s; %d items (%.1f pounds, stage %d) %s", disk, master,
+        rules::DiskEndText(why), dropped, weight / 10.0, static_cast<int>(stage),
+        piled ? (std::string("in a pile (") + pile + ")").c_str() : "on the ground");
   }
 }
 
@@ -201,6 +231,22 @@ void CheckDisk(uint32_t disk) {
     EndDisk(disk, why);
     return;
   }
+  const int weight = engine::GetLocalInt(creature, "n5d_wt");
+  const rules::DiskStage stage = rules::DiskStageOf(weight);
+  if (static_cast<int>(stage) != engine::GetLocalInt(creature, "n5d_stage")) {
+    const rules::DiskLook look = rules::DiskStageLook(stage);
+    char code[220];
+    sprintf_s(code,
+              "SetCreatureAppearanceType(OBJECT_SELF, %d); SetObjectVisualTransform(OBJECT_SELF, "
+              "OBJECT_VISUAL_TRANSFORM_SCALE, %.2f);",
+              look.appearance, look.scale);
+    Run(code, disk, "the disk's stage");
+    if (LogSlot()) {
+      Log("floating disk: 0x%08X its load %.1f pounds - stage %d (appearance %d at %.2f)", disk, weight / 10.0,
+          static_cast<int>(stage), look.appearance, look.scale);
+    }
+    engine::SetLocalInt(creature, "n5d_stage", static_cast<int>(stage));
+  }
   if (rules::DiskFollows(feet, engine::GetLocalInt(creature, "n5d_stay") != 0)) {
     Run("if (GetCurrentAction() == ACTION_INVALID) ActionMoveToObject(GetLocalObject(OBJECT_SELF, \"n5d_master\"), TRUE, "
         "4.0);",
@@ -217,6 +263,7 @@ void DiskTalk(uint32_t self) {
   if (!creature || engine::GetLocalInt(creature, "n5d_disk") != 1) return;
   Run("SetLocalInt(OBJECT_SELF, \"n5d_pat\", GetListenPatternNumber()); SetLocalInt(OBJECT_SELF, \"n5d_bymaster\", "
       "GetLastSpeaker() == GetLocalObject(OBJECT_SELF, \"n5d_master\")); SetLocalString(OBJECT_SELF, \"n5d_mid\", "
+      "ObjectToString(GetLocalObject(OBJECT_SELF, \"n5d_master\"))); SetLocalString(OBJECT_SELF, \"n5d_talker\", "
       "ObjectToString(GetLocalObject(OBJECT_SELF, \"n5d_master\")));",
       self, "the disk's listening");
   const int pattern = engine::GetLocalInt(creature, "n5d_pat");
@@ -259,6 +306,13 @@ void DiskUpdate(void* creature) {
   CheckDisk(id);
 }
 
+// The pile, closed: gone once empty.
+void PileClosed(uint32_t self) {
+  Run("if (GetLocalInt(OBJECT_SELF, \"n5d_pile\") && !GetIsObjectValid(GetFirstItemInInventory(OBJECT_SELF)) && "
+      "GetGold(OBJECT_SELF) == 0) DestroyObject(OBJECT_SELF, 0.5);",
+      self, "the disk's pile");
+}
+
 void DisksGameStarted() { g_disks.clear(); }  // a loaded game's disks: their heartbeat finds them again
 
 }  // namespace
@@ -291,7 +345,8 @@ void FloatingDiskSpell(uint32_t self, void* caster, int) {
   TellPlayer(self, "nwn5e: Floating Disk - a disk of force follows you for an hour: your henchman (it takes no "
                    "henchman's place). Click it, or Inventory on your associate radial, to load it - up to 500 pounds; "
                    "more and the spell ends, everything falling. It stays within 20 feet of you; more than 100 feet "
-                   "from it, the spell ends. Leave the party (your radial) ends it.");
+                   "from it, the spell ends. Leave the party (your radial) ends it. Its load shows on it, and falls in "
+                   "a pile where it floated when the spell ends.");
   if (LogSlot()) {
     Log("floating disk: 0x%08X Floating Disk - 0x%08X, its henchman (the module's limit now %d); appearance %d at "
         "%.2f, Strength %d",
@@ -301,10 +356,11 @@ void FloatingDiskSpell(uint32_t self, void* caster, int) {
 
 bool InstallFloatingDisk() {
   const bool ok = AddScriptHandler("n5_d_hb", &DiskHeartbeat) && AddScriptHandler("n5_d_dist", &DiskDisturbed) &&
-                  AddScriptHandler("n5_d_talk", &DiskTalk) && AddCreatureUpdateListener(&DiskUpdate) &&
+                  AddScriptHandler("n5_d_talk", &DiskTalk) && AddScriptHandler("n5_d_pile", &PileClosed) &&
+                  AddCreatureUpdateListener(&DiskUpdate) &&
                   AddGameStartListener(&DisksGameStarted);
   Log("floating disk: Floating Disk (#39 build 4d) - a henchman disk: its inventory up to 500 pounds, it follows past "
-      "20 feet, ends past 100%s",
+      "20 feet, ends past 100; its look its load's stage, its load a pile when it ends%s",
       ok ? "" : " - SOME hooks missing");
   return ok;
 }

@@ -2,6 +2,8 @@
 #include "rules/floating_disk.h"
 #include "rules/spells2024.h"
 
+#include <string>
+
 using namespace rules;
 
 // #39 Part 2a build 4d (owner, 2026-11-16: "go with the henchman disk"): Floating Disk, SRD 5.2.1.
@@ -35,6 +37,27 @@ TEST(FloatingDiskFollowsAndOrders) {
   CHECK_EQ(DiskOrderOf(0) == DiskOrder::kNone, true);
   CHECK_EQ(kFloatingDiskPounds, 500);
   CHECK_EQ(kFloatingDiskStrength >= 26, true);  // 500 pounds stay a normal load (encumbrance.2da's 26: 613 pounds)
+}
+
+// 0.99.55: its stages and its pile.
+TEST(FloatingDiskStages) {
+  CHECK_EQ(DiskStageOf(0) == DiskStage::kEmpty, true);
+  CHECK_EQ(DiskStageOf(1) == DiskStage::kSmall, true);
+  CHECK_EQ(DiskStageOf(1666) == DiskStage::kSmall, true);   // a third of 500 pounds: 166.7
+  CHECK_EQ(DiskStageOf(1667) == DiskStage::kMedium, true);
+  CHECK_EQ(DiskStageOf(3333) == DiskStage::kMedium, true);  // two thirds: 333.3
+  CHECK_EQ(DiskStageOf(3334) == DiskStage::kLarge, true);
+  CHECK_EQ(DiskStageOf(5000) == DiskStage::kLarge, true);
+  CHECK_EQ(DiskStageOf(5400) == DiskStage::kLarge, true);   // an overload: its last pile
+  CHECK_EQ(DiskPileBlueprint(DiskStage::kEmpty) == nullptr, true);  // nothing on it, nothing left
+  CHECK_EQ(std::string(DiskPileBlueprint(DiskStage::kSmall)) == "plc_treasuresml", true);
+  CHECK_EQ(std::string(DiskPileBlueprint(DiskStage::kMedium)) == "plc_treasuremed", true);
+  CHECK_EQ(std::string(DiskPileBlueprint(DiskStage::kLarge)) == "plc_treasurelrg", true);
+  CHECK_EQ(DiskStageLook(DiskStage::kEmpty).appearance, kFloatingDiskAppearance);
+  CHECK_EQ(DiskStageLook(DiskStage::kSmall).scale < DiskStageLook(DiskStage::kMedium).scale &&
+               DiskStageLook(DiskStage::kMedium).scale < DiskStageLook(DiskStage::kLarge).scale &&
+               DiskStageLook(DiskStage::kEmpty).scale < DiskStageLook(DiskStage::kSmall).scale,
+           true);
 }
 
 TEST(FloatingDiskSpell) {
