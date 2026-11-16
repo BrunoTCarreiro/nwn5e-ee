@@ -3680,8 +3680,9 @@ const std::string& DetectScan(int row) {
     Replace(&classify, "$SCHOOL", SchoolScript());
     filter = "OBJECT_TYPE_CREATURE | OBJECT_TYPE_ITEM | OBJECT_TYPE_PLACEABLE | OBJECT_TYPE_AREA_OF_EFFECT";
     // 0.99.46 (owner, 2026-11-16: "Can we use a vfx effect for the detect magic glow?"): the owner's VFX Bench
-    // effect - visualeffects 2100 NWN5E_DETECT_MAGIC (data/rows/visualeffects.detect.txt, the animation session's).
-    glow = "2100";
+    // effect - visualeffects 2092 NWN5E_DETECT_MAGIC (data/rows/visualeffects.detect.txt, the animation session's;
+    // 2100 is the looks' orb row - anim 1b21980).
+    glow = "2092";
   } else {
     classify = kPoisonSense;
     Replace(&classify, "$POISON", PoisonScript());
