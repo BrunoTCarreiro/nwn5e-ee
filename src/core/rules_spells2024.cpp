@@ -3570,13 +3570,18 @@ $POISON          ip = GetNextItemProperty(w);
 // Magic's $SIGHT drops what the caster can't see (L4-2: nothing from inside a Fog Cloud - n5d_blind, set by the
 // DLL -, no creature unseen, no object inside a Fog Cloud - $FOGS lists those near) and says once that it senses
 // magic it can't see; the glows added and taken go to n5d_chg for the log (L4-1: the sword's glow blinked).
+// 0.99.44 (L4-14's log: the sword's glow added one look, taken the next, every 2 s): an item lying there that
+// glows isn't always returned by the shape search (the area's position-sorted list), so a glowing item the search
+// missed keeps its glow while it's still on the ground, in range, in sight and (Detect Magic) not in a Fog Cloud
+// - $KEEP; logged once as "~X (missed by the search)". One found and not sensed loses it.
 const char* const kDetectScan = R"nss(
 object me = OBJECT_SELF; int row = $ROW; string told = GetLocalString(me, "n5d_told"); string seen = ""; string aoes = "";
 string chg = ""; int n = 0; int hidden = 0; int blind = GetLocalInt(me, "n5d_blind"); location here = GetLocation(me);
+string found = "";
 $FOGS
 object o = GetFirstObjectInShape(SHAPE_SPHERE, $RADIUS, here, TRUE, $FILTER);
 while (GetIsObjectValid(o)) {
-  string what = "";
+  string what = ""; found += "|" + ObjectToString(o) + "|";
   if (o != me) {
 $CLASSIFY
 $SIGHT
@@ -3589,7 +3594,7 @@ $SIGHT
   }
   o = GetNextObjectInShape(SHAPE_SPHERE, $RADIUS, here, TRUE, $FILTER);
 }
-string old = GetLocalString(me, "n5d_glow");
+string old = GetLocalString(me, "n5d_glow"); string kept0 = GetLocalString(me, "n5d_kept"); string kept = "";
 int p = FindSubString(old, "|");
 while (p >= 0) {
   int q = FindSubString(old, "|", p + 1);
@@ -3597,19 +3602,36 @@ while (p >= 0) {
   string key = GetSubString(old, p, q - p + 1);
   if (FindSubString(seen, key) < 0) {
     object g = StringToObject(GetSubString(key, 1, q - p - 1));
-    effect e = GetFirstEffect(g);
-    while (GetIsEffectValid(e)) {
-      if (GetEffectTag(e) == "n5s_detglow" && GetEffectCreator(e) == me) RemoveEffect(g, e);
-      e = GetNextEffect(g);
+    int keep = GetIsObjectValid(g) && GetObjectType(g) == OBJECT_TYPE_ITEM && FindSubString(found, key) < 0 && !GetIsObjectValid(GetItemPossessor(g)) && GetArea(g) == GetArea(me) && GetDistanceBetween(me, g) <= $RADIUS && LineOfSightObject(me, g);
+$KEEP
+    if (keep) {
+      seen += key; kept += key;
+      if (FindSubString(kept0, key) < 0) chg += " ~" + GetName(g) + " (missed by the search)";
+    } else {
+      effect e = GetFirstEffect(g);
+      while (GetIsEffectValid(e)) {
+        if (GetEffectTag(e) == "n5s_detglow" && GetEffectCreator(e) == me) RemoveEffect(g, e);
+        e = GetNextEffect(g);
+      }
+      if (GetIsObjectValid(g)) chg += " -" + GetName(g) + (FindSubString(found, key) >= 0 ? " (found, not sensed)" : "");
     }
-    if (GetIsObjectValid(g)) chg += " -" + GetName(g);
   }
   p = FindSubString(old, "|", q + 1);
 }
 if (hidden > 0 && !GetLocalInt(me, "n5d_hid")) SendMessageToPC(me, "nwn5e: $NAME - you sense magic within $FEET feet that you can't see.");
 SetLocalInt(me, "n5d_hid", hidden > 0);
 SetLocalString(me, "n5d_told", told); SetLocalString(me, "n5d_glow", seen); SetLocalString(me, "n5d_aoes", aoes);
-SetLocalString(me, "n5d_chg", chg);
+SetLocalString(me, "n5d_chg", chg); SetLocalString(me, "n5d_kept", kept);
+)nss";
+
+// Detect Magic: a kept item (kDetectScan's $KEEP) is seen too - not from inside a Fog Cloud, nor in one.
+const char* const kDetectKeepSight = R"nss(
+    if (keep && blind) keep = FALSE;
+    int f2;
+    for (f2 = 0; f2 < nf && keep; f2++) {
+      object fk = GetLocalObject(me, "n5d_fog" + IntToString(f2));
+      if (GetIsObjectValid(fk) && GetDistanceBetween(fk, g) <= GetLocalFloat(me, "n5d_fr" + IntToString(f2))) keep = FALSE;
+    }
 )nss";
 
 // Detect Magic (rules::DetectNeedsSight): the Fog Clouds near the caster (their tag NWN5E_FOG_CLOUD_<slot>, the
@@ -3674,9 +3696,11 @@ const std::string& DetectScan(int row) {
     Replace(&code, "$FOGRADII", radii);
     Replace(&code, "$FOGREACH", Float(rules::FeetToMetres(rules::kDetectFeet + widest)));
     Replace(&code, "$SIGHT", kDetectSight);
+    Replace(&code, "$KEEP", kDetectKeepSight);
   } else {
     Replace(&code, "$FOGS", "int nf = 0;");
     Replace(&code, "$SIGHT", "");
+    Replace(&code, "$KEEP", "");
   }
   Replace(&code, "$FEET", std::to_string(rules::kDetectFeet));
   Replace(&code, "$ROW", std::to_string(row));
@@ -3699,7 +3723,8 @@ void DetectBegin(uint32_t self, int row) {
   sprintf_s(code,
             "ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(EffectIcon(%d), %d), \"%s\"), "
             "OBJECT_SELF, TurnsToSeconds(%d)); DeleteLocalString(OBJECT_SELF, \"n5d_told\"); DeleteLocalString(OBJECT_SELF, "
-            "\"n5d_glow\"); DeleteLocalInt(OBJECT_SELF, \"n5d_hid\"); ApplyEffectToObject(DURATION_TYPE_INSTANT, "
+            "\"n5d_glow\"); DeleteLocalString(OBJECT_SELF, \"n5d_kept\"); DeleteLocalInt(OBJECT_SELF, \"n5d_hid\"); "
+            "ApplyEffectToObject(DURATION_TYPE_INSTANT, "
             "EffectVisualEffect(VFX_IMP_MAGICAL_VISION), OBJECT_SELF);",
             UtilityIconRow(row), row, kTagDetectMark, rules::kDetectMinutes);
   Run(code, self, "a Detect's mark");
