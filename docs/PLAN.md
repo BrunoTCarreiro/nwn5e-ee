@@ -1524,6 +1524,13 @@ monster AC by CR.
     Test Spells2024Build4aFixes (9 mutations caught). Retests L4-14 to L4-19.
     *For later (owner, 2026-11-16):* a look for Alarm's ward ("note for vfx, a way to see the warded area") and
     for Create Water's rain ("there's no rain vfx, make note") - the animation session's, when it's taken up.
+  - *Tested (owner, 2026-11-16, 0.99.43):* "L4-14 sword still blinks. everything else seems good" - L4-15 to L4-19
+    pass. L4-14's log: "Detect Magic's look - glows -Longsword +1" and "+Longsword +1" by turns every 2 s, the
+    orc's glow kept - the look missed the sword whenever it glowed. *Fixed 0.99.44:* a glowing item lying there
+    isn't always returned by GetFirstObjectInShape (the area's position-sorted list, binary-searched - the search
+    disassembled); one the search missed keeps its glow while it's still on the ground, in range, in sight
+    (LineOfSightObject) and, for Detect Magic, not in a Fog Cloud - logged once, "~X (missed by the search)". One
+    the search found that the look no longer senses still loses it, "-X (found, not sensed)". Retest L4-20.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
