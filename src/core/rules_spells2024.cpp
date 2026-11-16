@@ -4090,7 +4090,8 @@ DeleteLocalInt(me, "n5s_disg"); DeleteLocalInt(me, "n5s_disg_app"); DeleteLocalI
 )nss";
 
 // The outfit (RunWholeScript: its helpers): Mod - an item's appearance changed (NWN's CopyItemAndModify: a copy, the
-// old one gone); Pick - a random piece of a parts table whose model the species has (the torso, its armour value).
+// old one gone); Pick - a random piece of a parts table whose model the species has (the torso, its armour value) -
+// each fitting row as likely (0.99.51: clothing has 11 torsos of 201 rows, too few for random tries).
 const char* const kOutfitHelpers = R"nss(
 object Mod(object o, int t, int i, int v) {
   if (GetItemAppearance(o, t, i) == v) return o;
@@ -4101,18 +4102,16 @@ object Mod(object o, int t, int i, int v) {
 }
 int Pick(string table, string model, string pre, float ac, int torso) {
   int rows = Get2DARowCount(table);
-  if (rows <= 0) return -1;
-  int k;
-  for (k = 0; k < 40; k++) {
-    int r = Random(rows);
+  int found = 0; int pick = -1; int r;
+  for (r = 0; r < rows; r++) {
     string a = Get2DAString(table, "ACBONUS", r);
     if (a != "" && (!torso || StringToFloat(a) == ac)) {
       string num = IntToString(r);
       while (GetStringLength(num) < 3) num = "0" + num;
-      if (ResManGetAliasFor(pre + model + num, 2002) != "") return r;
+      if (ResManGetAliasFor(pre + model + num, 2002) != "") { found++; if (Random(found) == 0) pick = r; }
     }
   }
-  return -1;
+  return pick;
 }
 )nss";
 
