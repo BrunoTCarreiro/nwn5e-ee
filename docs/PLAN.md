@@ -1619,6 +1619,17 @@ monster AC by CR.
     heartbeat (n5_f_hb) follows its master unless told to stand its ground or possessed, its casts refused; the
     touch spells it doesn't deliver logged with why; the damage it takes logged; sizes - the cat 0.5, the lizard
     0.35, the spider 0.3, the rat 0.6. 6 mutations caught. Retests L4-39 to L4-44.
+  - *Built 0.99.50 / 0.99.51 (Q5 A, Disguise Self's random look):* a random head of the species and gender - one of its
+    head models the game has (character creation's: rules::PlayerModelPrefix + headNNN, ResManGetAliasFor); skin and
+    hair among its people's (rules::DisguiseSkinColours / HairColours - the game's blueprints' colours with the common
+    natural ones; an orc's grey-green); tattoos any. The worn outfit re-skinned (rules::DisguiseArmourPieces): each
+    piece one of its parts table's whose model the species has, the two sides alike, the torso one of its armour value
+    (parts_chest ACBONUS - the AC stays), colours any; NWN's CopyItemAndModify (a copy, re-equipped), the robe kept.
+    Its own look kept (the caster's locals, the outfit's own on it) and given back when the spell ends - the outfit worn
+    or in the pack. 0.99.51: each fitting piece as likely (clothing has 11 torsos of 201 rows - random tries missed
+    some); illusionwizard wears nw_cloth001 (the profile empties the slots). 4 mutations caught. Retests L4-45 to
+    L4-47 (L4-22 to L4-24, untested, superseded). The dev layer from nwn5e-tools 24bccfe (the VFX Bench's chunk
+    models, the animation session's).
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
