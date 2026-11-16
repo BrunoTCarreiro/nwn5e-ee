@@ -1,10 +1,10 @@
 {
   "_about": [
     "Floating Disk's four looks (#39): the disk, and the junk piled on it at 0-33% (small), 33-66% (medium) and 66-99% (large) of its load.",
-    "Edit this, then run: node tools\\data\\floatdisk\\build.js --reader <mdlmesh.exe> (it rebuilds the four n5_floatdisk_<stage>.vfx drafts).",
+    "Edit this, then run from the repo's root: node tools\\data\\floatdisk\\build.js (it rebuilds the four creature models, the three piles, the disk's texture in data\\files and their rows in data\\rows; README.md beside this file).",
     "disk: diameter, thickness and height (its top above the ground) in metres; sides round; colour and rim (r g b, 0-1) its texture's body and edge; alpha how solid it is (0-1); selfillum its glow; texture the TGA made for it.",
-    "A part: model - a placeable's model from placeables.2da's ModelName (plc_b04 is LootBag1); at [x, y, z] - x to the disk's right, y to its front, metres from its centre: where the middle of the part's footprint goes; z how high its lowest point sits above the disk's top (0: on the disk; on top of another part: that part's height there); turn - degrees about the vertical, counter-clockwise from above; scale - 1 is the game's own size; tilt (optional) - [degrees about x, degrees about y], leaning it before the turn. note is for you.",
-    "The disk is 0.9 m across: a part's footprint inside 0.45 m of the centre stays on it."
+    "A part: model - a placeable's model from placeables.2da's ModelName (plc_b04 is LootBag1) - or file - your own .mdl, ASCII or compiled, its path from this folder (parts/my_pile.mdl; metres, z up, the base at z 0); at [x, y, z] - x to the disk's right, y to its front, metres from its centre: where the middle of the part's footprint goes; z how high its lowest point sits above the disk's top (0: on the disk; on top of another part: that part's height there); turn - degrees about the vertical, counter-clockwise from above; scale - 1 is the model's own size; tilt (optional) - [degrees about x, degrees about y], leaning it before the turn. note is for you.",
+    "The disk is 0.9 m across: a part's footprint inside 0.45 m of the centre stays on it. A whole pile of your own: one part, its file, at [0, 0, 0]."
   ],
   "disk": {
     "diameter": 0.9,
