@@ -184,6 +184,8 @@ uint32_t MoveSilentImage(uint32_t self, void* caster, float x, float y, float z)
 // rules_familiar.cpp (build 4c): Find Familiar.
 void FindFamiliarSpell(uint32_t self, void* caster, int row);
 bool InstallFindFamiliar();
+void FloatingDiskSpell(uint32_t self, void* caster, int row);  // rules_floating_disk.cpp (build 4d)
+bool InstallFloatingDisk();
 
 namespace {
 
@@ -4440,6 +4442,7 @@ void UtilitySpell(uint32_t self, void* caster, const rules::Spell2024& spell, in
     case rules::kDisguiseSelf: DisguiseSpell(self, caster, row); break;  // build 4b
     case rules::kSilentImage: SilentImageSpell(self, caster, row); break;
     case rules::kFindFamiliar: FindFamiliarSpell(self, caster, row); break;  // build 4c
+    case rules::kFloatingDisk: FloatingDiskSpell(self, caster, row); break;  // build 4d
     default: FlagSpell(self, spell); break;
   }
 }
@@ -4632,6 +4635,7 @@ ScriptHandler HandlerOf(int row) {
     case rules::kDisguiseSelf: return &SpellScript<rules::kDisguiseSelf>;  // build 4b
     case rules::kSilentImage: return &SpellScript<rules::kSilentImage>;
     case rules::kFindFamiliar: return &SpellScript<rules::kFindFamiliar>;  // build 4c
+    case rules::kFloatingDisk: return &SpellScript<rules::kFloatingDisk>;  // build 4d
   }
   return nullptr;
 }
@@ -4898,14 +4902,14 @@ void InstallSpells2024() {
                        AddCreatureUpdateListener(&DetectUpdate) && AddGameStartListener(&DetectsGameStarted) &&
                        AddCreatureUpdateListener(&DisguiseUpdate) && AddCreatureUpdateListener(&SilentImageUpdate) &&
                        AddGameStartListener(&IllusionsGameStarted) &&  // build 4b
-                       InstallFindFamiliar();                         // build 4c
+                       InstallFindFamiliar() && InstallFloatingDisk();  // builds 4c, 4d
   if (reactions) {  // #162 G
     AddHudPool(&SmiteHudPool);
     AddHudClick("smite", &SmitePanelClicked);
   }
-  Log("spells2024: SRD 5.2's level 1 spells, builds 1a-4c - %zu spells: damage and healing, Chromatic Orb, Heroism, "
+  Log("spells2024: SRD 5.2's level 1 spells, builds 1a-4d - %zu spells: damage and healing, Chromatic Orb, Heroism, "
       "the buffs, the conditions on creatures, the areas, Shield and the smites, detection and utility, Disguise "
-      "Self and Silent Image, Find Familiar; Rituals out of combat; %zu Bonus Action spells; one spell with a slot a turn (#39 Part 2a)%s",
+      "Self and Silent Image, Find Familiar, Floating Disk; Rituals out of combat; %zu Bonus Action spells; one spell with a slot a turn (#39 Part 2a)%s",
       rules::Spells2024().size(), rules::BonusActionSpells().size(),
       scripts && update && guard && buffs && conditions && areas && reactions && utility ? "" : " - SOME hooks missing");
 }
