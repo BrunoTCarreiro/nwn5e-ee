@@ -1,0 +1,9 @@
+# visualeffects.2da - Detect Magic's glow (owner, 2026-11-16: "Can we use a vfx effect for the detect magic glow?",
+# then "option 1, I'll make it in the bench" and, on large creatures, "let's test it"): the owner's VFX Bench effect
+# n5_detmagicef, a lasting effect on the root node, in four sizes - the game picks the model by the target's size:
+# S smaller (small creatures, and likely items), M as made, L and H wider, taller and denser so a large or huge body
+# doesn't hide it. Models data\files\n5_detmag_<s|m|l|h>.mdl, written by nwn5e's model writer (WriteVfxModel) from
+# the drafts tools/data/vfx/n5_detmag_<s|m|l|h>.vfx. Detect Magic (core/rules_spells2024.cpp, $GLOW) puts it on what
+# it senses in place of VFX_DUR_GLOW_LIGHT_BLUE.
+Label Type_FD OrientWithGround Imp_Root_S_Node Imp_Root_M_Node Imp_Root_L_Node Imp_Root_H_Node
+2100 NWN5E_DETECT_MAGIC D 0 n5_detmag_s n5_detmag_m n5_detmag_l n5_detmag_h
