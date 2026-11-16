@@ -1677,6 +1677,27 @@ monster AC by CR.
     renews its hour. Kill XP goes to a party's player characters alone (ApplyDeathExperience): none to it.
     rules/floating_disk.h, core/rules_floating_disk.cpp; !test diskwizard (12 tower shields). 5 mutations caught;
     568 tests pass. Tests FD-1 to FD-5; LS-6 and LS-7 count it (the Wizard's 29).
+  - *Asked (owner, 2026-11-16):* "ok, I think we'll need special 3d objects for this. I'm imagining an actual disk and
+    there would be 4 stages to it: empty - just the disk; 0-33%, 33%-66%, 66%-99% of the weight they would have 3
+    different meshes of increasing size of random junk on top. once the disk either is unsummoned or breaks the mesh
+    that was on top is placed where the disk was and works as a container so the player can access all the contents.
+    what do you think?" The animation session's take: four creature appearances (the disk and its junk as the
+    creature's own meshes, supermodel c_invsguy - clickable, a stage one SetCreatureAppearanceType), the junk built
+    from the game's own meshes, three placeables.2da rows for the piles; mine: the stage by its load, the pile a
+    container where it floated, gone once emptied; the mechanics now with placeholders. *Decided (owner, 2026-11-16:
+    "go with all your recommendations, let them compose it"):* all of it - the animation session composes the
+    stages (screenshots first). Asked on: "If I don't like the compositions, is there a way to compose them
+    myself?" (the animation session's to answer).
+    The animation session's answer: yes - each stage's composition is a small editable list in the repo (the game
+    models, where on the disk, turned, scaled; the generator rebuilds the models and screenshots); later, if wanted,
+    a Composer in the VFX Bench (about 1-2 sessions).
+  - *Built 0.99.55 (the disk's stages):* rules::DiskStageOf - nothing on it empty, up to a third of 500 pounds small,
+    up to two thirds medium, more large - checked every second and on its inventory's disturbance, a change swapping
+    its look (rules::DiskStageLook); at the end its load falls into its stage's pile where it floated
+    (rules::DiskPileBlueprint), a container named "Floating Disk's load", gone once closed empty (n5_d_pile); an empty
+    disk leaves nothing. Placeholders until the animation session's four appearance rows and three placeables rows:
+    the Lantern Archon at 0.5 / 0.6 / 0.7 / 0.8, the game's small, medium and large treasure piles. 4 mutations
+    caught; 569 tests pass. Tests FD-6 to FD-10 (FD-2 to FD-5, untested, superseded: their load fell loose).
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
