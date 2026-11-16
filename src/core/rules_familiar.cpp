@@ -13,7 +13,11 @@
 //   ComputeSpellRange asks FamiliarTouchRangeMetres), and the cast takes its Reaction.
 // - Dismiss (to a pocket dimension) and Recall (within 30 feet): feats casting rows 1225 / 1226 (a Magic action each),
 //   in Find Familiar's menu while held; its hit points kept while it's away. At 0 HP it disappears.
-// - Celestial, Fey or Fiend: the player's pick in !options (Spellcasting; a record), else by alignment.
+// - Celestial, Fey or Fiend: picked in its menu, between the form and the slot level (0.99.49; a form's own row: by
+//   alignment).
+// - 0.99.49 (owner, 2026-11-16, L4-31: the raven used its fear gaze and swung at an orc): NWN's associate heartbeat
+//   fights for its master - the familiar's own follows it (n5_f_hb: not when told to stand its ground, nor while
+//   possessed), and its casts (the blueprint's gaze) are refused.
 
 #include <windows.h>
 
@@ -30,6 +34,7 @@
 #include "attack_roll.h"
 #include "bonus_actions.h"
 #include "chat.h"
+#include "damage_listeners.h"
 #include "config.h"
 #include "creature.h"
 #include "creature_update.h"
@@ -54,16 +59,12 @@ int FamiliarMaxHitPoints(void* creature);                         // rules_hit_p
 float FamiliarTouchRangeMetres(void* creature, uint32_t spell);   // rules_cantrips.cpp
 void FindFamiliarSpell(uint32_t self, void* caster, int row);     // rules_spells2024.cpp (UtilitySpell)
 void FinishSummon(uint32_t self);                                 // below (n5_f_summon)
-bool FamiliarCaster(void* creature);                              // combat_options.cpp
-int FamiliarKindPick(void* creature);
-void SetFamiliarKindPick(void* creature, int pick);
 bool InstallFindFamiliar();                                       // rules_spells2024.cpp's install
 
 namespace {
 
 constexpr size_t kStatsFamiliarType = 0xe34;  // int32, hen_familiar.2da's row (GetFamiliarCreatureType; SummonFamiliar)
 constexpr int32_t kBatFamiliarType = 0;       // hen_familiar 0: NW_FM_BAT - the familiar Find Familiar remakes
-constexpr const char* kVarFamiliarKind = "nwn5e_familiar_kind";  // a record: 0 by alignment, 1 Celestial, 2 Fey, 3 Fiend
 constexpr float kMetresPerFoot = 0.3048f;
 constexpr ULONGLONG kTouchWaitMs = 15000;     // a delivered touch's order, until it's cast
 
@@ -159,6 +160,7 @@ void Remake(uint32_t familiar, const Familiar& f) {
             " SetEventScript(f, EVENT_SCRIPT_CREATURE_ON_MELEE_ATTACKED, \"\");"
             " SetEventScript(f, EVENT_SCRIPT_CREATURE_ON_DAMAGED, \"\");"
             " SetEventScript(f, EVENT_SCRIPT_CREATURE_ON_SPELLCASTAT, \"\");"
+            " SetEventScript(f, EVENT_SCRIPT_CREATURE_ON_HEARTBEAT, \"n5_f_hb\");"
             " SetLocalInt(f, \"n5f_familiar\", 1); SetLocalInt(f, \"n5f_form\", %d); SetLocalInt(f, \"n5f_kind\", %d);"
             " ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_POLYMORPH), f);",
             s.appearance, s.scale, FamiliarName(f).c_str(), AlignmentConstant(f.kind), static_cast<int>(f.form),
@@ -362,7 +364,15 @@ bool FamiliarTouchOrder(void* creature, const SpellOrder& order) {
   const float from_caster = FeetBetween(creature, target);
   const float from_familiar = FeetBetween(familiar, target);
   const float familiar_off = FeetBetween(familiar, creature);
-  if (!rules::FamiliarDeliversTouch(from_caster, from_familiar, familiar_off, ReactionReady(familiar))) return false;
+  const bool ready = ReactionReady(familiar);
+  if (!rules::FamiliarDeliversTouch(from_caster, from_familiar, familiar_off, ready)) {
+    if (LogSlot()) {
+      Log("familiar: 0x%08X touch spell %u at 0x%08X not delivered - the target %.0f ft from you, %.0f ft from your "
+          "familiar (its reach 5 ft), the familiar %.0f ft from you (100 at most), its Reaction %s",
+          id, order.spell, order.target, from_caster, from_familiar, familiar_off, ready ? "ready" : "spent");
+    }
+    return false;
+  }
   g_touch[id] = Touch{order.spell, it->second.creature, GetTickCount64() + kTouchWaitMs};
   if (LogSlot()) {
     Log("familiar: 0x%08X spell %u at 0x%08X - its familiar delivers the touch (target %.0f ft off, %.0f ft from the "
@@ -388,6 +398,33 @@ void FamiliarTouchCast(void* creature, uint32_t spell) {
   const auto f = g_familiars.find(id);
   TellPlayer(id, "nwn5e: Find Familiar - your " + (f != g_familiars.end() ? FamiliarName(f->second) : std::string("familiar")) +
                      " delivers the touch (its Reaction).");
+}
+
+// 0.99.49: its heartbeat - it follows its master (closer than 3 m it waits), unless told to stand its ground
+// (x0_i0_assoc's NW_ASC_MODE_STAND_GROUND in NW_ASSOCIATE_MASTER) or possessed; no fight, no ability.
+const char* const kFollowOnly = R"nss(
+object m = GetMaster(OBJECT_SELF);
+if (GetIsObjectValid(m) && !GetIsPossessedFamiliar(OBJECT_SELF) && !(GetLocalInt(OBJECT_SELF, "NW_ASSOCIATE_MASTER") & 0x08000000)) {
+  if (GetCurrentAction() == ACTION_INVALID && GetDistanceToObject(m) > 3.0) ActionForceFollowObject(m, 2.0);
+}
+)nss";
+
+void FamiliarHeartbeat(uint32_t self) { Run(kFollowOnly, self, "the familiar's heartbeat"); }
+
+// Its own casts (the blueprint's gaze): refused - it can't attack.
+bool FamiliarCastGuard(void* creature, const SpellOrder& order) {
+  if (g_forms.empty() || !creature || order.fake || !g_forms.count(ObjId(creature))) return false;
+  if (LogSlot()) Log("familiar: 0x%08X a familiar's cast refused (spell %u)", ObjId(creature), order.spell);
+  return true;
+}
+
+// The damage it takes, logged (0.99.49: L4-36 - an orc's crossbow hits and no damage).
+void FamiliarDamaged(uint32_t creator, void* target, int damage) {
+  if (g_forms.empty() || !target || !g_forms.count(ObjId(target))) return;
+  if (LogSlot()) {
+    Log("familiar: 0x%08X takes %d damage from 0x%08X (%d of %d hit points before)", ObjId(target), damage, creator,
+        static_cast<int>(Field<int16_t>(target, ee::kObjectCurrentHitPoints)), g_forms[ObjId(target)].hit_points);
+  }
 }
 
 // Dismiss with a familiar here; Recall with one away.
@@ -442,25 +479,6 @@ float FamiliarTouchRangeMetres(void* creature, uint32_t spell) {
   return static_cast<float>(rules::kFamiliarTelepathyFeet) * kMetresPerFoot;
 }
 
-bool FamiliarCaster(void* creature) {
-  void* stats = creature && Faithful() ? StatsOf(creature) : nullptr;
-  return stats && ClassLevel2024(stats, rules::CharacterClass::kWizard) > 0;
-}
-
-int FamiliarKindPick(void* creature) {
-  if (!creature) return rules::kFamiliarByAlignment;
-  EnsureRecords(creature);
-  return engine::GetLocalInt(creature, kVarFamiliarKind);
-}
-
-void SetFamiliarKindPick(void* creature, int pick) {
-  if (!creature) return;
-  EnsureRecords(creature);
-  SetRecord(creature, kVarFamiliarKind, pick);
-  Log("familiar: 0x%08X its familiar's kind - %s", ObjId(creature),
-      pick == 0 ? "by alignment" : rules::FamiliarKindName(static_cast<rules::FamiliarKind>(pick)));
-}
-
 void FindFamiliarSpell(uint32_t self, void* caster, int row) {
   if (row == rules::kFamiliarDismiss) return Dismiss(self, caster);
   if (row == rules::kFamiliarRecall) return Recall(self, caster);
@@ -471,7 +489,7 @@ void FindFamiliarSpell(uint32_t self, void* caster, int row) {
   }
   Familiar& f = g_familiars[self];
   f.form = form;
-  f.kind = rules::FamiliarKindFor(FamiliarKindPick(caster), GoodEvilOf(self, caster));
+  f.kind = rules::FamiliarKindFor(rules::FamiliarKindOfRow(row), GoodEvilOf(self, caster));  // 0.99.49: the menu's
   // One familiar: one of this spell's out takes the new form (away, it changes there).
   if (f.dismissed) {
     TellPlayer(self, "nwn5e: Find Familiar - your familiar, away in its pocket dimension, becomes a " + FamiliarName(f) + ".");
@@ -516,7 +534,7 @@ void FinishSummon(uint32_t self) {
   GrantFeat(caster, rules::kFeatFamiliarRecall, false);
   TellPlayer(self, "nwn5e: Find Familiar - a " + FamiliarName(f) + " serves you. It can't attack; Possess Familiar (your "
                    "radial) looks through its eyes - a Bonus Action; it delivers your touch spells within 100 feet (its "
-                   "Reaction); Dismiss and Recall are in Find Familiar's menu.");
+                   "Reaction); Dismiss and Recall are in Find Familiar's menu (its second page).");
   if (LogSlot()) {
     const rules::FamiliarStats& s = rules::FamiliarStatsOf(form);
     Log("familiar: 0x%08X Find Familiar - 0x%08X a %s: AC %d, %d HP, appearance %d at %.2f", self, familiar,
@@ -525,8 +543,8 @@ void FinishSummon(uint32_t self) {
 }
 
 bool InstallFindFamiliar() {
-  RegisterRecords({kVarFamiliarKind});
-  const bool waits = AddScriptHandler("n5_f_summon", &FinishSummon);
+  const bool waits = AddScriptHandler("n5_f_summon", &FinishSummon) && AddScriptHandler("n5_f_hb", &FamiliarHeartbeat) &&
+                     AddSpellOrderGuard(&FamiliarCastGuard) && AddDamageListener(&FamiliarDamaged);
   const bool max_hp = g_config.hit_points == rules::RuleVariant::kFaithful ||  // rules_hit_points.cpp's hook asks
                       HookExport("CNWSCreature::GetMaxHitPoints (Find Familiar's forms, #39 4c)", ee::kGetMaxHitPoints,
                                  reinterpret_cast<void*>(&MaxHitPoints), reinterpret_cast<void**>(&g_max_hit_points));

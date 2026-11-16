@@ -638,14 +638,26 @@ void* BuildChoiceMenu(void* handler, int64_t param) {
   void* rules_object = RulesObject();
   void* spells = rules_object ? Field<void*>(rules_object, ee::kRulesSpells) : nullptr;
   if (!cantrip || !spells || !g_get_spell) return menu;
-  const int count = static_cast<int>(cantrip->options.size());
+  // 0.99.49 (owner, 2026-11-16: "The type of familiar should be an option between type and level"): a menu level at
+  // a time - the master's top options, or an option's own (Find Familiar's form -> Celestial, Fey, Fiend).
+  const int at = static_cast<int>(param & 0xFFFF);
+  const int parent = rules::ChoiceOptionOf(at) ? at : 0;
+  const std::vector<rules::CantripOption> shown = rules::ChoiceMenuOptions(*cantrip, parent);
+  const int count = static_cast<int>(shown.size());
   const int first = rules::RadialChoiceFirst(param);
   const rules::RadialPage page = rules::RadialChoicePage(count, first);
   for (int k = 0; k < page.shown; ++k) {
-    const rules::CantripOption& option = cantrip->options[static_cast<size_t>(first + k)];
+    const rules::CantripOption& option = shown[static_cast<size_t>(first + k)];
     void* spell = g_get_spell(spells, option.spell);
     char icon[17] = {};
     if (spell) memcpy(icon, static_cast<const uint8_t*>(spell) + ee::kSpellIconResRef, 16);
+    if (!rules::ChoiceMenuOptions(*cantrip, option.spell).empty()) {  // 0.99.49: its own options, a level down
+      char sub_icon[17] = {};
+      if (void* row = g_get_spell(spells, option.spell)) memcpy(sub_icon, static_cast<const uint8_t*>(row) + ee::kSpellIconResRef, 16);
+      g_set_creator_text(menu, k, sub_icon, option.label, handler, reinterpret_cast<void*>(&ChoiceMenu),
+                         rules::RadialChoiceWithFirst(rules::RadialChoiceCast(param, option.spell), 0));
+      continue;
+    }
     // 0.99.47 (L4-27: "I don't see the option"): a menu row taken as a feat (Silent Image's Move) - its feat's leaf,
     // while the character holds it (its image lasts), as Hunter's Mark: Move's; none otherwise.
     if (const int feat = rules::ChoiceOptionFeat(option.spell)) {

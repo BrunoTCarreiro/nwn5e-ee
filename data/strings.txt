@@ -637,7 +637,7 @@
 16000838 Silent Image: Move the image
 16000839 While your Silent Image lasts: a Magic action (your Action) - the image moves to a spot within 60 feet of you (a creature image walks there). No spell slot.
 16000840 Find Familiar
-16000841 Level 1 Conjuration (Wizard)\nCasting Time: 1 hour or Ritual\nRange: 10 feet\nComponents: V, S, M (burning incense worth 10+ GP, which the spell consumes)\nDuration: Instantaneous\n\nYou gain the service of a familiar, a spirit that takes an animal form you choose: Bat, Cat, Frog, Hawk, Lizard, Octopus, Owl, Rat, Raven, Spider, Weasel, or another Beast that has a Challenge Rating of 0. Appearing in an unoccupied space within range, the familiar has the statistics of the chosen form (see "Monsters"), though it is a Celestial, Fey, or Fiend (your choice) instead of a Beast. Your familiar acts independently of you, but it obeys your commands.\n\nTelepathic Connection. While your familiar is within 100 feet of you, you can communicate with it telepathically. Additionally, as a Bonus Action, you can see through the familiar's eyes and hear what it hears until the start of your next turn, gaining the benefits of any special senses it has.\n\nFinally, when you cast a spell with a range of touch, your familiar can deliver the touch. Your familiar must be within 100 feet of you, and it must take a Reaction to deliver the touch when you cast the spell.\n\nCombat. The familiar is an ally to you and your allies. It rolls its own Initiative and acts on its own turn. A familiar can't attack, but it can take other actions as normal.\n\nDisappearance of the Familiar. When the familiar drops to 0 Hit Points, it disappears. It reappears after you cast this spell again. As a Magic action, you can temporarily dismiss the familiar to a pocket dimension. Alternatively, you can dismiss it forever. As a Magic action while it is temporarily dismissed, you can cause it to reappear in an unoccupied space within 30 feet of you. Whenever the familiar drops to 0 Hit Points or disappears into the pocket dimension, it leaves behind in its space anything it was wearing or carrying.\n\nOne Familiar Only. You can't have more than one familiar at a time. If you cast this spell while you have a familiar, you instead cause it to adopt a new eligible form.\n\nnwn5e: the Bat, Cat, Hawk, Lizard, Rat, Raven, Spider or Weasel (its menu); a Celestial, Fey or Fiend by your alignment, or as you pick it in !options. Possess Familiar (your radial) looks through its eyes.
+16000841 Level 1 Conjuration (Wizard)\nCasting Time: 1 hour or Ritual\nRange: 10 feet\nComponents: V, S, M (burning incense worth 10+ GP, which the spell consumes)\nDuration: Instantaneous\n\nYou gain the service of a familiar, a spirit that takes an animal form you choose: Bat, Cat, Frog, Hawk, Lizard, Octopus, Owl, Rat, Raven, Spider, Weasel, or another Beast that has a Challenge Rating of 0. Appearing in an unoccupied space within range, the familiar has the statistics of the chosen form (see "Monsters"), though it is a Celestial, Fey, or Fiend (your choice) instead of a Beast. Your familiar acts independently of you, but it obeys your commands.\n\nTelepathic Connection. While your familiar is within 100 feet of you, you can communicate with it telepathically. Additionally, as a Bonus Action, you can see through the familiar's eyes and hear what it hears until the start of your next turn, gaining the benefits of any special senses it has.\n\nFinally, when you cast a spell with a range of touch, your familiar can deliver the touch. Your familiar must be within 100 feet of you, and it must take a Reaction to deliver the touch when you cast the spell.\n\nCombat. The familiar is an ally to you and your allies. It rolls its own Initiative and acts on its own turn. A familiar can't attack, but it can take other actions as normal.\n\nDisappearance of the Familiar. When the familiar drops to 0 Hit Points, it disappears. It reappears after you cast this spell again. As a Magic action, you can temporarily dismiss the familiar to a pocket dimension. Alternatively, you can dismiss it forever. As a Magic action while it is temporarily dismissed, you can cause it to reappear in an unoccupied space within 30 feet of you. Whenever the familiar drops to 0 Hit Points or disappears into the pocket dimension, it leaves behind in its space anything it was wearing or carrying.\n\nOne Familiar Only. You can't have more than one familiar at a time. If you cast this spell while you have a familiar, you instead cause it to adopt a new eligible form.\n\nnwn5e: the Bat, Cat, Hawk, Lizard, Rat, Raven, Spider or Weasel (its menu); a Celestial, Fey or Fiend as you pick it in its menu, after the form. Possess Familiar (your radial) looks through its eyes.
 16000842 Find Familiar: Bat
 16000843 Find Familiar: Cat
 16000844 Find Familiar: Hawk
@@ -650,3 +650,27 @@
 16000851 Your familiar here: a Magic action (your Action) - it goes to a pocket dimension until you recall it (its hit points kept). NWN's Unsummon dismisses it for good.
 16000852 Find Familiar: Recall
 16000853 Your familiar away in its pocket dimension: a Magic action (your Action) - it reappears at a spot within 30 feet of you.
+16000854 Find Familiar: Bat (Celestial)
+16000855 Find Familiar: Bat (Fey)
+16000856 Find Familiar: Bat (Fiend)
+16000857 Find Familiar: Cat (Celestial)
+16000858 Find Familiar: Cat (Fey)
+16000859 Find Familiar: Cat (Fiend)
+16000860 Find Familiar: Hawk (Celestial)
+16000861 Find Familiar: Hawk (Fey)
+16000862 Find Familiar: Hawk (Fiend)
+16000863 Find Familiar: Lizard (Celestial)
+16000864 Find Familiar: Lizard (Fey)
+16000865 Find Familiar: Lizard (Fiend)
+16000866 Find Familiar: Rat (Celestial)
+16000867 Find Familiar: Rat (Fey)
+16000868 Find Familiar: Rat (Fiend)
+16000869 Find Familiar: Raven (Celestial)
+16000870 Find Familiar: Raven (Fey)
+16000871 Find Familiar: Raven (Fiend)
+16000872 Find Familiar: Spider (Celestial)
+16000873 Find Familiar: Spider (Fey)
+16000874 Find Familiar: Spider (Fiend)
+16000875 Find Familiar: Weasel (Celestial)
+16000876 Find Familiar: Weasel (Fey)
+16000877 Find Familiar: Weasel (Fiend)

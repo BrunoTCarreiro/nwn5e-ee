@@ -19,6 +19,17 @@ TEST(FindFamiliarForms) {
   CHECK_EQ(FamiliarFormOf(kFamiliarWeasel) == FamiliarForm::kWeasel, true);
   CHECK_EQ(FamiliarFormOf(kFindFamiliar) == FamiliarForm::kNone, true);
   CHECK_EQ(FamiliarFormOf(kFamiliarDismiss) == FamiliarForm::kNone, true);
+  // 0.99.49: each form's Celestial, Fey and Fiend rows
+  CHECK_EQ(FamiliarVariantRow(kFamiliarBat, 1), 1227);
+  CHECK_EQ(FamiliarVariantRow(kFamiliarWeasel, 3), 1250);
+  CHECK_EQ(FamiliarVariantRow(kFindFamiliar, 1), 0);
+  CHECK_EQ(FamiliarFormOf(FamiliarVariantRow(kFamiliarRaven, 2)) == FamiliarForm::kRaven, true);
+  CHECK_EQ(FamiliarFormOf(FamiliarVariantRow(kFamiliarCat, 3)) == FamiliarForm::kCat, true);
+  CHECK_EQ(FamiliarKindOfRow(FamiliarVariantRow(kFamiliarRaven, 1)), 1);
+  CHECK_EQ(FamiliarKindOfRow(FamiliarVariantRow(kFamiliarSpider, 3)), 3);
+  CHECK_EQ(FamiliarKindOfRow(kFamiliarRaven), 0);  // the form's own row: by alignment
+  CHECK_EQ(IsFamiliarCastRow(1240) && IsRitualSpell(1240) && CastingMinutes(1240) == 60 && WizardOnlySpell(1240), true);
+  CHECK_EQ(IsFamiliarCastRow(kFamiliarDismiss), false);
   // SRD 5.2.1's numbers
   const FamiliarStats& bat = FamiliarStatsOf(FamiliarForm::kBat);
   CHECK_EQ(bat.armor_class, 12);
@@ -32,6 +43,8 @@ TEST(FindFamiliarForms) {
   CHECK_EQ(FamiliarStatsOf(FamiliarForm::kCat).hit_points, 2);
   CHECK_EQ(FamiliarStatsOf(FamiliarForm::kCat).appearance, 203);  // the cougar, shrunk
   CHECK_EQ(FamiliarStatsOf(FamiliarForm::kCat).scale < 1.0f, true);
+  CHECK_EQ(FamiliarStatsOf(FamiliarForm::kRat).scale < 1.0f, true);  // 0.99.49: "Rat is too big"
+  CHECK_EQ(FamiliarStatsOf(FamiliarForm::kSpider).scale > FamiliarStatsOf(FamiliarForm::kLizard).scale - 0.1f, true);
   CHECK_EQ(FamiliarStatsOf(FamiliarForm::kLizard).armor_class, 10);
   CHECK_EQ(FamiliarStatsOf(FamiliarForm::kLizard).appearance, 369);  // the basilisk, shrunk
   CHECK_EQ(FamiliarStatsOf(FamiliarForm::kRat).abilities[2], 9);     // Constitution

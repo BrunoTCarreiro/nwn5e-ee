@@ -266,7 +266,7 @@ int LongstriderTargets(int slot_level) { return 1 + std::max(0, slot_level - 1);
 bool IsRitualSpell(int row) {
   const Spell2024* spell = Spell2024Of(row);
   if (spell) return spell->ritual;
-  return AlarmModeOf(row) != AlarmMode::kNone || IsFamiliarFormRow(row);  // Alarm's kinds, Find Familiar's forms
+  return AlarmModeOf(row) != AlarmMode::kNone || IsFamiliarCastRow(row);  // Alarm's kinds, Find Familiar's forms
 }
 
 bool CastAsRitual(bool ritual_spell, bool switch_on, bool in_combat, bool class_cast) {
@@ -275,8 +275,17 @@ bool CastAsRitual(bool ritual_spell, bool switch_on, bool in_combat, bool class_
 
 bool IsFamiliarFormRow(int row) { return row >= kFamiliarBat && row <= kFamiliarWeasel; }
 
+int FamiliarVariantRow(int form_row, int kind) {
+  if (!IsFamiliarFormRow(form_row) || kind < 1 || kind > 3) return 0;
+  return kFamiliarVariantFirst + (form_row - kFamiliarBat) * 3 + (kind - 1);
+}
+
+bool IsFamiliarCastRow(int row) {
+  return IsFamiliarFormRow(row) || (row >= kFamiliarVariantFirst && row <= kFamiliarVariantLast);
+}
+
 int CastingMinutes(int row) {
-  if (row == kFindFamiliar || IsFamiliarFormRow(row)) return 60;  // build 4c: an hour
+  if (row == kFindFamiliar || IsFamiliarCastRow(row)) return 60;  // build 4c: an hour
   return AlarmModeOf(row) != AlarmMode::kNone || row == kAlarm || row == kIdentify || row == kIllusoryScript ? 1 : 0;
 }
 
@@ -389,7 +398,7 @@ int ChoiceOptionFeat(int row) {
 
 bool WizardOnlySpell(int row) {
   return row == kAlarm || AlarmModeOf(row) != AlarmMode::kNone || row == kIdentify || row == kIllusoryScript ||
-         row == kUnseenServant || row == kFindFamiliar || IsFamiliarFormRow(row);  // build 4c: Find Familiar
+         row == kUnseenServant || row == kFindFamiliar || IsFamiliarCastRow(row);  // build 4c: Find Familiar
 }
 
 bool WardedAgainstRacialType(int nwn_racial_type) {

@@ -446,6 +446,13 @@ constexpr int kFamiliarRecall = 1226;
 constexpr int kFeatFamiliarDismiss = 1565;
 constexpr int kFeatFamiliarRecall = 1566;
 bool IsFamiliarFormRow(int row);
+// 0.99.49 (owner, 2026-11-16: "The type of familiar should be an option between type and level, not in !options"):
+// each form's Celestial, Fey and Fiend - rows 1227-1250 (Bat Celestial, Bat Fey, Bat Fiend, Cat Celestial ...), in
+// its menu under the form, each opening its slot levels.
+constexpr int kFamiliarVariantFirst = 1227;
+constexpr int kFamiliarVariantLast = 1250;
+int FamiliarVariantRow(int form_row, int kind);  // kind 1 Celestial, 2 Fey, 3 Fiend; 0 for none
+bool IsFamiliarCastRow(int row);                 // a form's or a form-and-kind's row: Find Familiar cast
 constexpr int kRouseFeet = 5;
 
 // Chromatic Orb: two or more of its d8s alike - the orb leaps to another creature within 30 feet of the target (a

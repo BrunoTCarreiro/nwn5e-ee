@@ -9,8 +9,11 @@
 namespace rules {
 
 enum class FamiliarForm { kNone, kBat, kCat, kHawk, kLizard, kRat, kRaven, kSpider, kWeasel };
-// Find Familiar's menu row (kFamiliarBat ... kFamiliarWeasel): its form; kNone for any other row.
+// Find Familiar's menu row (kFamiliarBat ... kFamiliarWeasel, or a form-and-kind row): its form; kNone for any other.
 FamiliarForm FamiliarFormOf(int row);
+// A form-and-kind row's kind (0.99.49: picked in the menu, between the form and the slot level): 1 Celestial, 2 Fey,
+// 3 Fiend; 0 for a form's own row (by alignment) or any other.
+int FamiliarKindOfRow(int row);
 
 // A form's numbers (SRD 5.2.1's Bat, Cat, Hawk, Lizard, Rat, Raven, Spider, Weasel) and its NWN look: the game's
 // creature model (appearance.2da) and how it's scaled to the form's size - the bat, falcon, rat and raven as they
@@ -23,10 +26,12 @@ struct FamiliarStats {
   int appearance = 0;
   float scale = 1.0f;
 };
+// 0.99.49 (owner, 2026-11-16: "Cat, lizard and spider are very small, especially the lizard and spider familiars. Rat
+// is too big"): the cat 0.5, the lizard 0.35, the spider 0.3, the rat 0.6.
 const FamiliarStats& FamiliarStatsOf(FamiliarForm form);
 
-// Celestial, Fey or Fiend. The pick (a character's record): 0 by its alignment - good a Celestial, evil a Fiend,
-// else a Fey - or the kind itself (1-3).
+// Celestial, Fey or Fiend. The pick (the menu's, FamiliarKindOfRow): 0 by its alignment - good a Celestial, evil a
+// Fiend, else a Fey - or the kind itself (1-3).
 enum class FamiliarKind { kCelestial = 1, kFey = 2, kFiend = 3 };
 constexpr int kFamiliarByAlignment = 0;
 FamiliarKind FamiliarKindFor(int pick, int nwn_good_evil);

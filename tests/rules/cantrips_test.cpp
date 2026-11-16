@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include <algorithm>
+#include <string>
 #include <vector>
 
 using namespace rules;
@@ -400,8 +401,16 @@ TEST(MinorIllusion) {
   CHECK_EQ(ChoiceCantripOf(kDisguiseOrc)->master, kDisguiseSelf);
   // #39 build 4c: Find Familiar's eight forms and its familiar's Dismiss and Recall - two radial pages.
   const ChoiceCantrip* familiar = ChoiceCantripOf(kFindFamiliar);
-  CHECK_EQ(familiar != nullptr && familiar->options.size() == 10u, true);
+  CHECK_EQ(familiar != nullptr && familiar->options.size() == 34u, true);  // 0.99.49: and each form's three kinds
+  CHECK_EQ(ChoiceMenuOptions(*familiar, 0).size(), 10u);                   // the top: eight forms, Dismiss, Recall
   CHECK_EQ(RadialChoicePage(10, 0).more, true);
+  const std::vector<CantripOption> raven = ChoiceMenuOptions(*familiar, kFamiliarRaven);
+  CHECK_EQ(raven.size() == 3u && raven[0].spell == FamiliarVariantRow(kFamiliarRaven, 1) &&
+               std::string(raven[2].label) == "Fiend",
+           true);
+  CHECK_EQ(ChoiceParentOf(FamiliarVariantRow(kFamiliarCat, 2)), kFamiliarCat);
+  CHECK_EQ(ChoiceParentOf(kFamiliarCat), 0);
+  CHECK_EQ(ChoiceOptionOf(FamiliarVariantRow(kFamiliarCat, 2)) != nullptr, true);  // its master's slot level
   CHECK_EQ(ChoiceCantripOf(kFamiliarRecall)->master, kFindFamiliar);
   CHECK_EQ(ImageBlueprintOf(ImageKind::kNone)[0], 0);
   CHECK_EQ(SeesThroughIllusion(10, 2, 12), true);   // meets the DC

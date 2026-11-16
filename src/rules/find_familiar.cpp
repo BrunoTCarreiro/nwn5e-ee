@@ -5,6 +5,7 @@
 namespace rules {
 
 FamiliarForm FamiliarFormOf(int row) {
+  if (row >= kFamiliarVariantFirst && row <= kFamiliarVariantLast) row = kFamiliarBat + (row - kFamiliarVariantFirst) / 3;
   switch (row) {
     case kFamiliarBat: return FamiliarForm::kBat;
     case kFamiliarCat: return FamiliarForm::kCat;
@@ -18,16 +19,21 @@ FamiliarForm FamiliarFormOf(int row) {
   }
 }
 
+int FamiliarKindOfRow(int row) {
+  if (row < kFamiliarVariantFirst || row > kFamiliarVariantLast) return 0;
+  return (row - kFamiliarVariantFirst) % 3 + 1;
+}
+
 const FamiliarStats& FamiliarStatsOf(FamiliarForm form) {
   // SRD 5.2.1: AC, HP, Str Dex Con Int Wis Cha; appearance.2da: 10 Bat, 203 Cat_Cougar, 144 Falcon, 369 Basilisk,
   // 386 Rat, 145 Raven, 159 Spider_Giant, 8 Badger.
   static const FamiliarStats kBat{"Bat", 12, 1, {2, 15, 8, 2, 12, 4}, 10, 1.0f};
-  static const FamiliarStats kCat{"Cat", 12, 2, {3, 15, 10, 3, 12, 7}, 203, 0.35f};
+  static const FamiliarStats kCat{"Cat", 12, 2, {3, 15, 10, 3, 12, 7}, 203, 0.5f};
   static const FamiliarStats kHawk{"Hawk", 13, 1, {5, 16, 8, 2, 14, 6}, 144, 1.0f};
-  static const FamiliarStats kLizard{"Lizard", 10, 2, {2, 11, 10, 1, 8, 3}, 369, 0.15f};
-  static const FamiliarStats kRat{"Rat", 10, 1, {2, 11, 9, 2, 10, 4}, 386, 1.0f};
+  static const FamiliarStats kLizard{"Lizard", 10, 2, {2, 11, 10, 1, 8, 3}, 369, 0.35f};
+  static const FamiliarStats kRat{"Rat", 10, 1, {2, 11, 9, 2, 10, 4}, 386, 0.6f};
   static const FamiliarStats kRaven{"Raven", 12, 2, {2, 14, 10, 5, 13, 6}, 145, 1.0f};
-  static const FamiliarStats kSpider{"Spider", 12, 1, {2, 14, 8, 1, 10, 2}, 159, 0.12f};
+  static const FamiliarStats kSpider{"Spider", 12, 1, {2, 14, 8, 1, 10, 2}, 159, 0.3f};
   static const FamiliarStats kWeasel{"Weasel", 13, 1, {3, 16, 8, 2, 12, 3}, 8, 0.6f};
   static const FamiliarStats kNoForm{};
   switch (form) {

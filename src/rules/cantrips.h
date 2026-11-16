@@ -389,6 +389,10 @@ constexpr int kScareSeconds = 12;      // "flee ... for 2 rounds"
 enum class ImageKind { kNone, kTreasure, kCorpse, kHumanoid, kCreature, kLargeCreature };
 ImageKind ImageKindOf(UtilityEffect effect);
 ImageKind SilentImageKindOf(int row);  // Silent Image's menu rows: their image; kNone for any other row
+// 0.99.49: a menu option's parent - an option shown one level down, under another (Find Familiar's Celestial, Fey
+// and Fiend under each form); 0 for a top-level option. The options a menu level shows (parent 0: the top).
+int ChoiceParentOf(int row);
+std::vector<CantripOption> ChoiceMenuOptions(const ChoiceCantrip& cantrip, int parent);
 const char* ImageBlueprintOf(ImageKind kind);
 bool ImageIsObject(ImageKind kind);       // a placeable (the treasure, the corpse), not a creature
 const char* ImageNameOf(ImageKind kind);  // an object's name ("Treasure Pile", "Corpse"); "" keeps the blueprint's

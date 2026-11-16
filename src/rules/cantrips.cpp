@@ -128,6 +128,12 @@ std::vector<ChoiceCantrip> BuildChoiceCantrips() {
                           {kFamiliarLizard, 3, "Lizard"}, {kFamiliarRat, 4, "Rat"}, {kFamiliarRaven, 5, "Raven"},
                           {kFamiliarSpider, 6, "Spider"}, {kFamiliarWeasel, 7, "Weasel"},
                           {kFamiliarDismiss, 8, "Dismiss your familiar"}, {kFamiliarRecall, 9, "Recall your familiar"}}};
+  // 0.99.49: each form's Celestial, Fey and Fiend, under it (ChoiceParentOf).
+  for (int form = kFamiliarBat; form <= kFamiliarWeasel; ++form) {
+    familiar.options.push_back({FamiliarVariantRow(form, 1), 1, "Celestial"});
+    familiar.options.push_back({FamiliarVariantRow(form, 2), 2, "Fey"});
+    familiar.options.push_back({FamiliarVariantRow(form, 3), 3, "Fiend"});
+  }
   all.push_back(familiar);
   ChoiceCantrip flame{kProduceFlame, "n5_c_produceflame", ChoiceKind::kMode,
                      {{kProduceFlameFlame, 0, "Flame"}, {kProduceFlameHurl, 1, "Hurl"}}};
@@ -588,6 +594,19 @@ ImageKind ImageKindOf(UtilityEffect effect) {
     case UtilityEffect::kImageCreature: return ImageKind::kCreature;
     default: return ImageKind::kNone;
   }
+}
+
+int ChoiceParentOf(int row) {
+  if (row >= kFamiliarVariantFirst && row <= kFamiliarVariantLast) return kFamiliarBat + (row - kFamiliarVariantFirst) / 3;
+  return 0;
+}
+
+std::vector<CantripOption> ChoiceMenuOptions(const ChoiceCantrip& cantrip, int parent) {
+  std::vector<CantripOption> shown;
+  for (const CantripOption& option : cantrip.options) {
+    if (ChoiceParentOf(option.spell) == parent) shown.push_back(option);
+  }
+  return shown;
 }
 
 ImageKind SilentImageKindOf(int row) {
