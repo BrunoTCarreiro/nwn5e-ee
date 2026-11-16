@@ -19,6 +19,11 @@
 //   stage), its piles nwn5e's blueprints n5_fd_pile1-3 on their placeables rows (0.99.55's treasure-pile placeholders
 //   ran NWN's random-treasure scripts on opening).
 // - A new casting with a disk out renews its hour.
+// - 0.99.57 (owner, 2026-11-16, FD-9: "loading a save makes the floating shield uninteractible and stuck in place"):
+//   the save had the disk intact (its scripts, locals and load, told to stand its ground in FD-8) but after the load
+//   no handler of it logged anything - clicks unanswered, !time 2 not ending its hour. Its handlers now log their
+//   first calls after a game starts (and why one stops), and its caster looks after it too: every second a player
+//   character's disk (its local n5d_disk) is checked - its end, its stage, its following - whatever its own scripts do.
 // - Kill XP goes to a party's player characters alone (CNWSCreature::ApplyDeathExperience's IsPlayerCharacter check):
 //   the disk takes none.
 
@@ -54,6 +59,8 @@ constexpr ULONGLONG kCheckEveryMs = 1000;
 constexpr const char* kDiskBlueprint = "nw_s_clantern";  // NWN's summoned Lantern Archon: no items, no conversation
 
 std::unordered_map<uint32_t, ULONGLONG> g_disks;  // a disk out -> its next check
+std::unordered_map<uint32_t, ULONGLONG> g_caster_look;  // a player character -> its next look for its disk
+int g_calls_logged = 0;  // since the game started: the handlers' first calls (0.99.57)
 
 int g_logged = 0;
 bool LogSlot() { return g_logged < 300 && ++g_logged; }
@@ -157,7 +164,7 @@ SetLocalInt(d, "n5d_piled", GetIsObjectValid(pile));
 if (GetIsObjectValid(pile) && n == 0) DestroyObject(pile);
 if (GetGold(d) > 0 && GetIsObjectValid(m)) GiveGoldToCreature(m, GetGold(d));
 SetLocalInt(d, "n5d_dropped", n);
-if (GetIsObjectValid(m)) { if (GetMaster(d) == m) RemoveHenchman(m, d); DeleteLocalObject(m, "n5d_disk"); }
+if (GetIsObjectValid(m)) { if (GetMaster(d) == m) RemoveHenchman(m, d); DeleteLocalObject(m, "n5d_disk"); DeleteLocalInt(m, "n5d_has"); }
 object mod = GetModule();
 int k = GetLocalInt(mod, "n5d_disks") - 1;
 if (k < 0) k = 0;
@@ -215,11 +222,20 @@ void EndDisk(uint32_t disk, rules::DiskEnd why) {
 }
 
 // Its look at its caster: the spell ends, or it follows (unless told to stand its ground).
-void CheckDisk(uint32_t disk) {
+void CheckDisk(uint32_t disk, const char* by) {
   void* creature = CreatureById(disk);
   if (!creature || engine::GetLocalInt(creature, "n5d_disk") != 1) {
+    if (g_calls_logged < 40 && ++g_calls_logged) {
+      Log("floating disk: 0x%08X (%s) not looked at - %s", disk, by,
+          !creature ? "no creature by that id" : "its n5d_disk local isn't 1");
+    }
     g_disks.erase(disk);
     return;
+  }
+  if (g_calls_logged < 40 && ++g_calls_logged) {
+    Log("floating disk: 0x%08X looked at (%s) - stay %d, stage %d, load %d tenths of a pound", disk, by,
+        engine::GetLocalInt(creature, "n5d_stay"), engine::GetLocalInt(creature, "n5d_stage"),
+        engine::GetLocalInt(creature, "n5d_wt"));
   }
   g_disks[disk] = GetTickCount64() + kCheckEveryMs;
   Run(Script(kState), disk, "the disk's look");
@@ -255,13 +271,19 @@ void CheckDisk(uint32_t disk) {
   }
 }
 
-void DiskHeartbeat(uint32_t self) { CheckDisk(self); }
-void DiskDisturbed(uint32_t self) { CheckDisk(self); }  // something put on it: more than 500 pounds ends it at once
+void DiskHeartbeat(uint32_t self) { CheckDisk(self, "its heartbeat"); }
+void DiskDisturbed(uint32_t self) { CheckDisk(self, "its inventory"); }  // more than 500 pounds ends it at once
 
 // Its caster's word: a click or Inventory opens it; Stand your ground, Follow me; Leave the party ends it.
 void DiskTalk(uint32_t self) {
   void* creature = CreatureById(self);
-  if (!creature || engine::GetLocalInt(creature, "n5d_disk") != 1) return;
+  if (!creature || engine::GetLocalInt(creature, "n5d_disk") != 1) {
+    if (g_calls_logged < 40 && ++g_calls_logged) {
+      Log("floating disk: 0x%08X a word not heard - %s", self,
+          !creature ? "no creature by that id" : "its n5d_disk local isn't 1");
+    }
+    return;
+  }
   Run("SetLocalInt(OBJECT_SELF, \"n5d_pat\", GetListenPatternNumber()); SetLocalInt(OBJECT_SELF, \"n5d_bymaster\", "
       "GetLastSpeaker() == GetLocalObject(OBJECT_SELF, \"n5d_master\")); SetLocalString(OBJECT_SELF, \"n5d_mid\", "
       "ObjectToString(GetLocalObject(OBJECT_SELF, \"n5d_master\"))); SetLocalString(OBJECT_SELF, \"n5d_talker\", "
@@ -300,11 +322,36 @@ void DiskTalk(uint32_t self) {
 
 // Every creature update: a disk out looks at its caster every second.
 void DiskUpdate(void* creature) {
-  if (g_disks.empty() || !creature) return;
+  if (!creature) return;
   const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  const ULONGLONG now = GetTickCount64();
+  // 0.99.57: a player character with a disk out looks after it every second (its local n5d_disk), whatever the
+  // disk's own scripts do - after a loaded game too.
+  // Its first update after a game starts looks too: a disk from a save before 0.99.57 has no n5d_has on its caster.
+  if (Field<int32_t>(creature, ee::kCreatureIsPlayerCharacter) != 0 &&
+      (engine::GetLocalInt(creature, "n5d_has") == 1 || !g_caster_look.count(id))) {
+    ULONGLONG& next = g_caster_look[id];
+    if (now >= next) {
+      next = now + kCheckEveryMs;
+      Run("object d = GetLocalObject(OBJECT_SELF, \"n5d_disk\"); SetLocalString(OBJECT_SELF, \"n5d_find\", "
+          "GetIsObjectValid(d) ? ObjectToString(d) : \"\");",
+          id, "the caster's look for its disk");
+      const uint32_t disk = ParseHex(engine::GetLocalString(creature, "n5d_find"));
+      if (!disk) {
+        engine::SetLocalInt(creature, "n5d_has", 0);  // gone
+      } else {
+        engine::SetLocalInt(creature, "n5d_has", 1);
+        if (!g_disks.count(disk) && g_calls_logged < 40 && ++g_calls_logged) {
+          Log("floating disk: 0x%08X its caster 0x%08X finds it (a loaded game, or its own update missed)", disk, id);
+        }
+        CheckDisk(disk, "its caster");
+      }
+    }
+  }
+  if (g_disks.empty()) return;
   const auto it = g_disks.find(id);
-  if (it == g_disks.end() || GetTickCount64() < it->second) return;
-  CheckDisk(id);
+  if (it == g_disks.end() || now < it->second) return;
+  CheckDisk(id, "its update");
 }
 
 // The pile, closed: gone once empty.
@@ -314,7 +361,12 @@ void PileClosed(uint32_t self) {
       self, "the disk's pile");
 }
 
-void DisksGameStarted() { g_disks.clear(); }  // a loaded game's disks: their heartbeat finds them again
+void DisksGameStarted() {  // a loaded game's disks: their caster (or heartbeat) finds them again
+  if (!g_disks.empty()) Log("floating disk: a game started - %zu disks forgotten until found again", g_disks.size());
+  g_disks.clear();
+  g_caster_look.clear();
+  g_calls_logged = 0;
+}
 
 }  // namespace
 
@@ -342,6 +394,7 @@ void FloatingDiskSpell(uint32_t self, void* caster, int) {
     return;
   }
   SetStrength(creature, rules::kFloatingDiskStrength);
+  engine::SetLocalInt(caster, "n5d_has", 1);  // its caster looks after it (0.99.57)
   g_disks[disk] = GetTickCount64() + kCheckEveryMs;
   TellPlayer(self, "nwn5e: Floating Disk - a disk of force follows you for an hour: your henchman (it takes no "
                    "henchman's place). Click it, or Inventory on your associate radial, to load it - up to 500 pounds; "
