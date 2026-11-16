@@ -1630,6 +1630,13 @@ monster AC by CR.
     some); illusionwizard wears nw_cloth001 (the profile empties the slots). 4 mutations caught. Retests L4-45 to
     L4-47 (L4-22 to L4-24, untested, superseded). The dev layer from nwn5e-tools 24bccfe (the VFX Bench's chunk
     models, the animation session's).
+  - *0.99.51 seen (owner, 2026-11-16: "check the logs, specifically the many \"lost item\" lines"):* 164 "Lost Item:
+    Woodsman Outfit" lines, 22 to 24 a cast and at the end - CopyItemAndModify changes one thing a copy, and the
+    engine's destroy of each replaced copy (CNWSItem::EventHandler +0xdbf: RemoveItem(item, 0, 1, 0, 1)) tells its owner
+    (SetPossessor's feedback 0x33). The rest of the session clean: the five species each "outfit re-skinned", a save
+    and load, the end. *Fixed 0.99.52:* the script keeps each replaced copy's id and, before the destroy runs,
+    TakeOutOldCopies removes it with RemoveItem(item, 0, 0, 0, 1) - no feedback; the destroy then finds no owner and
+    only deletes it. Retest L4-48; L4-45 to L4-47 (the look) still open.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
