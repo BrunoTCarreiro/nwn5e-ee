@@ -508,6 +508,28 @@ TEST(Spells2024Build4b) {
   CHECK_EQ(PlayerHeadModel(false, 1, 0, 3) == "pme0_head003", true);
   CHECK_EQ(PlayerHeadModel(false, 6, 0, 3) == "pmh0_head003", true);
   CHECK_EQ(PlayerHeadModel(false, 7, 0, 1).empty(), true);  // a parrot: no player model
+  // 0.99.50: its random look (Q5 A)
+  CHECK_EQ(PlayerModelPrefix(false, 6, 0) == "pmh0_", true);
+  CHECK_EQ(PlayerModelPrefix(true, 5, 2) == "pfo2_", true);
+  CHECK_EQ(PlayerModelPrefix(false, 3, 0) == "pma0_", true);
+  CHECK_EQ(PlayerModelPrefix(false, 7, 0).empty(), true);
+  CHECK_EQ(DisguiseSkinColours(5) == std::vector<int>({30, 41}), true);  // an orc's grey-green
+  CHECK_EQ(DisguiseSkinColours(6).size(), 8u);
+  CHECK_EQ(DisguiseSkinColours(4) == DisguiseSkinColours(6), true);     // a half-elf's model is a human's
+  CHECK_EQ(DisguiseSkinColours(7).empty() && DisguiseHairColours(7).empty(), true);
+  CHECK_EQ(DisguiseHairColours(0).size(), 7u);
+  CHECK_EQ(DisguiseHairColours(6).size(), 10u);
+  CHECK_EQ(DisguiseHairColours(1).size(), 6u);
+  CHECK_EQ(DisguiseHairColours(5).back(), 53);
+  const std::vector<ArmourPiece>& pieces = DisguiseArmourPieces();
+  CHECK_EQ(pieces.size(), 11u);
+  CHECK_EQ(pieces[0].index == kArmourTorso && std::string(pieces[0].table) == "parts_chest" &&
+               std::string(pieces[0].model) == "chest",
+           true);
+  int mirrored = 0;
+  for (const ArmourPiece& piece : pieces) mirrored += piece.mirror >= 0;
+  CHECK_EQ(mirrored, 7);  // feet, shins, thighs, forearms, biceps, shoulders, hands
+  CHECK_EQ(pieces[6].index == 5 && pieces[6].mirror == 4, true);  // the right thigh, the left alike
   CHECK_EQ(kDisguiseSelfHours, 1);
   CHECK_EQ(kSilentImageSeconds, 600);
   CHECK_EQ(SilentImageMoveAllowed(60.0f), true);

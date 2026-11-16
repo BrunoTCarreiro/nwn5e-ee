@@ -415,6 +415,25 @@ int DisguiseAppearanceOf(int row);
 // A player model's head, p<gender><race><phenotype>_head<NNN> ("pmd0_head001"): the disguise keeps the head
 // when the new species' model has it, else head 1. "" for an appearance that isn't a player model.
 std::string PlayerHeadModel(bool female, int nwn_appearance, int phenotype, int head);
+// 0.99.50 (owner, 2026-11-16: "disguice self should give a random appearance of the selected species, random clothing
+// as well, probably can be picked from the options available at character creation"; "go with A"): its random look.
+// A player model's name start ("pmh0_"; "" for none) - its head and armour parts are that and part and number.
+std::string PlayerModelPrefix(bool female, int nwn_appearance, int phenotype);
+// Skin and hair among the game's own people of the species (its blueprints' colours, with the common natural ones);
+// empty for an appearance that isn't a player model.
+const std::vector<int>& DisguiseSkinColours(int nwn_appearance);
+const std::vector<int>& DisguiseHairColours(int nwn_appearance);
+// The worn outfit's pieces it re-skins (ITEM_APPR_ARMOR_MODEL_*): a piece's parts table and model name, and its other
+// side's (-1 for none) - the two sides alike. The torso keeps its armour value (parts_chest's ACBONUS), so the AC
+// doesn't change; the robe stays.
+struct ArmourPiece {
+  int index = 0;
+  int mirror = -1;
+  const char* table = "";
+  const char* model = "";
+};
+const std::vector<ArmourPiece>& DisguiseArmourPieces();
+constexpr int kArmourTorso = 7;  // ITEM_APPR_ARMOR_MODEL_TORSO
 // Silent Image: an image no larger than a 15-foot Cube within 60 feet, for 10 minutes (Concentration). Its Move
 // (a Magic action) takes it to any spot within range - 60 feet of the caster.
 constexpr int kSilentImageSeconds = 600;

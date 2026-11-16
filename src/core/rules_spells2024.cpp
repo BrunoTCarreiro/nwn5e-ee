@@ -4025,8 +4025,13 @@ void FlagSpell(uint32_t self, const rules::Spell2024& spell) {
 }
 
 // Build 4b: Disguise Self (Q4 A, real) - another species' model for an hour (its menu). The caster's own look is
-// kept on it (n5s_disg_app, n5s_disg_head) and given back when the spell's mark is gone (its hour, a dispel ...);
-// the head stays when the new species' model has it (rules::PlayerHeadModel, the game's files), else head 1.
+// kept on it (n5s_disg_app, n5s_disg_head, its colours) and given back when the spell's mark is gone (its hour, a
+// dispel ...). 0.99.50 (owner, 2026-11-16: "disguice self should give a random appearance of the selected species,
+// random clothing as well, probably can be picked from the options available at character creation"; "go with A"):
+// a random head of the species (one of its models the game has: character creation's), skin and hair among its
+// people's (rules::DisguiseSkinColours / HairColours), tattoos any; the worn outfit re-skinned - random pieces whose
+// models the species has (the torso to one of its armour value: the AC stays) and colours - its own look kept on it
+// and given back when the spell ends (worn or not).
 constexpr const char* kTagDisguise = "n5s_disguise";
 std::unordered_map<uint32_t, ULONGLONG> g_disguised;          // a disguised creature -> its next look
 std::unordered_map<uint32_t, ULONGLONG> g_disguise_pc_look;   // a player character -> its next look for one kept in a save
@@ -4039,6 +4044,10 @@ SetLocalInt(me, "n5s_disg_poly", poly);
 if (!poly && !GetLocalInt(me, "n5s_disg")) {
   SetLocalInt(me, "n5s_disg_app", GetAppearanceType(me));
   SetLocalInt(me, "n5s_disg_head", GetCreatureBodyPart(CREATURE_PART_HEAD, me));
+  SetLocalInt(me, "n5s_disg_skin", GetColor(me, COLOR_CHANNEL_SKIN));
+  SetLocalInt(me, "n5s_disg_hair", GetColor(me, COLOR_CHANNEL_HAIR));
+  SetLocalInt(me, "n5s_disg_tat1", GetColor(me, COLOR_CHANNEL_TATTOO_1));
+  SetLocalInt(me, "n5s_disg_tat2", GetColor(me, COLOR_CHANNEL_TATTOO_2));
 }
 SetLocalInt(me, "n5s_disg_female", GetGender(me) == GENDER_FEMALE);
 SetLocalInt(me, "n5s_disg_pheno", GetPhenoType(me));
@@ -4052,9 +4061,18 @@ SetLocalInt(me, "n5s_disg", 1);
 ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(EffectIcon($ICON), $ROW), "$TAG"), me, HoursToSeconds($HOURS));
 ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_POLYMORPH), me);
 SetCreatureAppearanceType(me, $APP);
-int head = GetLocalInt(me, "n5s_disg_head");
-if (ResManGetAliasFor("$MODEL", 2002) == "") head = 1;
+int heads = 0; int head = 1; int n;
+for (n = 1; n < 256; n++) {
+  string num = IntToString(n);
+  while (GetStringLength(num) < 3) num = "0" + num;
+  if (ResManGetAliasFor("$PREhead" + num, 2002) != "") { heads++; if (Random(heads) == 0) head = n; }
+}
 SetCreatureBodyPart(CREATURE_PART_HEAD, head, me);
+SetLocalInt(me, "n5s_disg_newhead", head); SetLocalInt(me, "n5s_disg_heads", heads);
+SetColor(me, COLOR_CHANNEL_SKIN, $SKIN);
+SetColor(me, COLOR_CHANNEL_HAIR, $HAIR);
+SetColor(me, COLOR_CHANNEL_TATTOO_1, Random(176));
+SetColor(me, COLOR_CHANNEL_TATTOO_2, Random(176));
 )nss";
 
 const char* const kDisguiseOff = R"nss(
@@ -4062,10 +4080,100 @@ object me = OBJECT_SELF;
 if (GetLocalInt(me, "n5s_disg")) {
   SetCreatureAppearanceType(me, GetLocalInt(me, "n5s_disg_app"));
   SetCreatureBodyPart(CREATURE_PART_HEAD, GetLocalInt(me, "n5s_disg_head"), me);
+  SetColor(me, COLOR_CHANNEL_SKIN, GetLocalInt(me, "n5s_disg_skin"));
+  SetColor(me, COLOR_CHANNEL_HAIR, GetLocalInt(me, "n5s_disg_hair"));
+  SetColor(me, COLOR_CHANNEL_TATTOO_1, GetLocalInt(me, "n5s_disg_tat1"));
+  SetColor(me, COLOR_CHANNEL_TATTOO_2, GetLocalInt(me, "n5s_disg_tat2"));
   ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_POLYMORPH), me);
 }
 DeleteLocalInt(me, "n5s_disg"); DeleteLocalInt(me, "n5s_disg_app"); DeleteLocalInt(me, "n5s_disg_head");
 )nss";
+
+// The outfit (RunWholeScript: its helpers): Mod - an item's appearance changed (NWN's CopyItemAndModify: a copy, the
+// old one gone); Pick - a random piece of a parts table whose model the species has (the torso, its armour value).
+const char* const kOutfitHelpers = R"nss(
+object Mod(object o, int t, int i, int v) {
+  if (GetItemAppearance(o, t, i) == v) return o;
+  object n = CopyItemAndModify(o, t, i, v, TRUE);
+  if (!GetIsObjectValid(n)) return o;
+  DestroyObject(o);
+  return n;
+}
+int Pick(string table, string model, string pre, float ac, int torso) {
+  int rows = Get2DARowCount(table);
+  if (rows <= 0) return -1;
+  int k;
+  for (k = 0; k < 40; k++) {
+    int r = Random(rows);
+    string a = Get2DAString(table, "ACBONUS", r);
+    if (a != "" && (!torso || StringToFloat(a) == ac)) {
+      string num = IntToString(r);
+      while (GetStringLength(num) < 3) num = "0" + num;
+      if (ResManGetAliasFor(pre + model + num, 2002) != "") return r;
+    }
+  }
+  return -1;
+}
+)nss";
+
+const char* const kOutfitOn = R"nss(
+void main() {
+  object me = OBJECT_SELF;
+  object o = GetItemInSlot(INVENTORY_SLOT_CHEST, me);
+  SetLocalInt(me, "n5s_disg_outfit", 0);
+  if (!GetIsObjectValid(o)) return;
+  string pre = "$PRE";
+  int i;
+  if (!GetLocalInt(o, "n5s_disg_item")) {
+    for (i = 0; i < 19; i++) SetLocalInt(o, "n5s_m" + IntToString(i), GetItemAppearance(o, ITEM_APPR_TYPE_ARMOR_MODEL, i));
+    for (i = 0; i < 6; i++) SetLocalInt(o, "n5s_c" + IntToString(i), GetItemAppearance(o, ITEM_APPR_TYPE_ARMOR_COLOR, i));
+    SetLocalInt(o, "n5s_disg_item", 1);
+  }
+  float ac = StringToFloat(Get2DAString("parts_chest", "ACBONUS", GetItemAppearance(o, ITEM_APPR_TYPE_ARMOR_MODEL, 7)));
+  int p;
+$PIECES  for (i = 0; i < 6; i++) o = Mod(o, ITEM_APPR_TYPE_ARMOR_COLOR, i, Random(176));
+  AssignCommand(me, ActionEquipItem(o, INVENTORY_SLOT_CHEST));
+  SetLocalInt(me, "n5s_disg_outfit", 1);
+}
+)nss";
+
+const char* const kOutfitOff = R"nss(
+void main() {
+  object me = OBJECT_SELF;
+  object o = GetItemInSlot(INVENTORY_SLOT_CHEST, me);
+  int worn = GetIsObjectValid(o) && GetLocalInt(o, "n5s_disg_item");
+  if (!worn) {
+    o = GetFirstItemInInventory(me);
+    while (GetIsObjectValid(o) && !GetLocalInt(o, "n5s_disg_item")) o = GetNextItemInInventory(me);
+  }
+  if (!GetIsObjectValid(o)) return;
+  int i;
+  for (i = 0; i < 19; i++) o = Mod(o, ITEM_APPR_TYPE_ARMOR_MODEL, i, GetLocalInt(o, "n5s_m" + IntToString(i)));
+  for (i = 0; i < 6; i++) o = Mod(o, ITEM_APPR_TYPE_ARMOR_COLOR, i, GetLocalInt(o, "n5s_c" + IntToString(i)));
+  DeleteLocalInt(o, "n5s_disg_item");
+  if (worn) AssignCommand(me, ActionEquipItem(o, INVENTORY_SLOT_CHEST));
+}
+)nss";
+
+std::string OutfitOnScript(const std::string& prefix) {
+  std::string pieces;
+  for (const rules::ArmourPiece& piece : rules::DisguiseArmourPieces()) {
+    pieces += std::string("  p = Pick(\"") + piece.table + "\", \"" + piece.model + "\", pre, ac, " +
+              (piece.index == rules::kArmourTorso ? "TRUE" : "FALSE") + "); if (p >= 0) { o = Mod(o, "
+              "ITEM_APPR_TYPE_ARMOR_MODEL, " + std::to_string(piece.index) + ", p);";
+    if (piece.mirror >= 0) pieces += " o = Mod(o, ITEM_APPR_TYPE_ARMOR_MODEL, " + std::to_string(piece.mirror) + ", p);";
+    pieces += " }\n";
+  }
+  std::string code = std::string(kOutfitHelpers) + kOutfitOn;
+  Replace(&code, "$PIECES", pieces);
+  Replace(&code, "$PRE", prefix);
+  return code;
+}
+
+int RandomOf(const std::vector<int>& values) {
+  if (values.empty()) return 0;
+  return values[static_cast<size_t>(RollEngineDice(1, static_cast<int>(values.size())) - 1)];
+}
 
 const char* SpeciesName(int appearance) {
   switch (appearance) {
@@ -4094,21 +4202,31 @@ void DisguiseSpell(uint32_t self, void* caster, int row) {
   const bool female = engine::GetLocalInt(caster, "n5s_disg_female") != 0;
   const int phenotype = engine::GetLocalInt(caster, "n5s_disg_pheno");
   const int head = engine::GetLocalInt(caster, "n5s_disg_head");
-  const std::string model = rules::PlayerHeadModel(female, appearance, phenotype, head);
+  const std::string prefix = rules::PlayerModelPrefix(female, appearance, phenotype);
+  const int skin = RandomOf(rules::DisguiseSkinColours(appearance));
+  const int hair = RandomOf(rules::DisguiseHairColours(appearance));
   std::string code = kDisguiseOn;
   Replace(&code, "$TAG", kTagDisguise);
   Replace(&code, "$ICON", std::to_string(UtilityIconRow(rules::kDisguiseSelf)));
   Replace(&code, "$ROW", std::to_string(rules::kDisguiseSelf));
   Replace(&code, "$HOURS", std::to_string(rules::kDisguiseSelfHours));
   Replace(&code, "$APP", std::to_string(appearance));
-  Replace(&code, "$MODEL", model);
+  Replace(&code, "$PRE", prefix);
+  Replace(&code, "$SKIN", std::to_string(skin));
+  Replace(&code, "$HAIR", std::to_string(hair));
   Run(code, self, "Disguise Self");
+  RunWholeScript(OutfitOnScript(prefix).c_str(), self);
   g_disguised[self] = 0;
   TellPlayer(self, std::string("nwn5e: Disguise Self - for an hour you look like ") + SpeciesName(appearance) +
                        "; a creature that studies you closely (Intelligence (Investigation) against your spell "
                        "save DC) can tell.");
-  if (LogSlot()) Log("spells2024: 0x%08X Disguise Self - appearance %d (own %d), head %d (%s)", self, appearance, own,
-                     head, model.c_str());
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Disguise Self - appearance %d (own %d), head %d of %d (%s; own %d), skin %d, hair %d, "
+        "outfit %s",
+        self, appearance, own, engine::GetLocalInt(caster, "n5s_disg_newhead"),
+        engine::GetLocalInt(caster, "n5s_disg_heads"), prefix.c_str(), head, skin, hair,
+        engine::GetLocalInt(caster, "n5s_disg_outfit") ? "re-skinned" : "none worn");
+  }
 }
 
 // Every creature update: a disguised creature looks every 2 s; its mark gone, its own look back. A player character
@@ -4131,6 +4249,7 @@ void DisguiseUpdate(void* creature) {
   if (HasSpellEffect(creature, rules::kDisguiseSelf)) return;
   g_disguised.erase(it);
   Run(kDisguiseOff, id, "Disguise Self's end");
+  RunWholeScript((std::string(kOutfitHelpers) + kOutfitOff).c_str(), id);  // 0.99.50: its outfit back
   TellPlayer(id, "nwn5e: Disguise Self ends - you look like yourself again.");
   if (LogSlot()) Log("spells2024: 0x%08X Disguise Self ends - its own look back", id);
 }

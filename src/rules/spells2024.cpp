@@ -373,12 +373,72 @@ int DisguiseAppearanceOf(int row) {
   }
 }
 
-std::string PlayerHeadModel(bool female, int nwn_appearance, int phenotype, int head) {
+std::string PlayerModelPrefix(bool female, int nwn_appearance, int phenotype) {
   static const char kRace[] = {'d', 'e', 'g', 'a', 'h', 'o', 'h'};  // appearance.2da's RACE: D E G A H O H
-  if (nwn_appearance < 0 || nwn_appearance > 6 || phenotype < 0 || phenotype > 9 || head < 0 || head > 999) return "";
-  char text[24];
-  snprintf(text, sizeof text, "p%c%c%d_head%03d", female ? 'f' : 'm', kRace[nwn_appearance], phenotype, head);
+  if (nwn_appearance < 0 || nwn_appearance > 6 || phenotype < 0 || phenotype > 9) return "";
+  char text[8];
+  snprintf(text, sizeof text, "p%c%c%d_", female ? 'f' : 'm', kRace[nwn_appearance], phenotype);
   return text;
+}
+
+std::string PlayerHeadModel(bool female, int nwn_appearance, int phenotype, int head) {
+  const std::string prefix = PlayerModelPrefix(female, nwn_appearance, phenotype);
+  if (prefix.empty() || head < 0 || head > 999) return "";
+  char text[8];
+  snprintf(text, sizeof text, "%03d", head);
+  return prefix + "head" + text;
+}
+
+const std::vector<int>& DisguiseSkinColours(int nwn_appearance) {
+  // pal_skin01 rows the game's people of each species wear (their blueprints'), with the common natural ones.
+  static const std::vector<int> kDwarf{1, 2, 3, 13, 18};
+  static const std::vector<int> kElf{1, 2, 13, 29, 30};
+  static const std::vector<int> kSmall{1, 2, 3, 13, 16};  // gnome, halfling
+  static const std::vector<int> kOrc{30, 41};
+  static const std::vector<int> kHuman{1, 2, 3, 13, 16, 24, 44, 47};
+  static const std::vector<int> kNone;
+  switch (nwn_appearance) {
+    case 0: return kDwarf;
+    case 1: return kElf;
+    case 2:
+    case 3: return kSmall;
+    case 5: return kOrc;
+    case 4:
+    case 6: return kHuman;
+    default: return kNone;
+  }
+}
+
+const std::vector<int>& DisguiseHairColours(int nwn_appearance) {
+  static const std::vector<int> kDwarf{1, 4, 5, 16, 17, 18, 20};
+  static const std::vector<int> kElf{1, 3, 4, 5, 16, 23};
+  static const std::vector<int> kSmall{1, 3, 4, 5, 16, 17, 18, 20};  // gnome, halfling
+  static const std::vector<int> kOrc{1, 4, 18, 53};
+  static const std::vector<int> kHuman{1, 3, 4, 5, 16, 17, 18, 20, 23, 46};
+  static const std::vector<int> kNone;
+  switch (nwn_appearance) {
+    case 0: return kDwarf;
+    case 1: return kElf;
+    case 2:
+    case 3: return kSmall;
+    case 5: return kOrc;
+    case 4:
+    case 6: return kHuman;
+    default: return kNone;
+  }
+}
+
+const std::vector<ArmourPiece>& DisguiseArmourPieces() {
+  // ITEM_APPR_ARMOR_MODEL_*: 0/1 feet, 2/3 shins, 5/4 thighs, 6 pelvis, 7 torso, 8 belt, 9 neck, 10/11 forearms,
+  // 12/13 biceps, 14/15 shoulders, 16/17 hands (the right side first, the left alike).
+  static const std::vector<ArmourPiece> kPieces{
+      {kArmourTorso, -1, "parts_chest", "chest"}, {6, -1, "parts_pelvis", "pelvis"},
+      {8, -1, "parts_belt", "belt"},                {9, -1, "parts_neck", "neck"},
+      {0, 1, "parts_foot", "footr"},                {2, 3, "parts_shin", "shinr"},
+      {5, 4, "parts_legs", "legr"},                 {10, 11, "parts_forearm", "forer"},
+      {12, 13, "parts_bicep", "bicepr"},            {14, 15, "parts_shoulder", "shor"},
+      {16, 17, "parts_hand", "handr"}};
+  return kPieces;
 }
 
 bool SilentImageMoveAllowed(float feet_from_caster) {
