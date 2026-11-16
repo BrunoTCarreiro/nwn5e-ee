@@ -1463,6 +1463,12 @@ monster AC by CR.
     puts out exposed flames there - Alchemist's Fire burning, lit torches), B a visual and a line. Recommended: Q1 A,
     Q2 A, Q3 A, Q4 B, Q5 A. Builds: 4a the Detects, Identify, Alarm, Goodberry, Create or Destroy Water and Q2's
     four; 4b Find Familiar, Disguise Self, Silent Image, Unseen Servant; rituals with 4a if Q1 A.
+    *Decided (owner, 2026-11-16: "I accepted your recommendations, except for Q4, there might be some
+    gameplay/roleplay use for invisible servant. Keep it in the roleplay list"):* Q1 A (rituals: no slot, out of
+    combat, the clock 10 minutes on), Q2 A (castable, a line and a module-readable effect), Q3 A (2024 familiars),
+    Q5 A (Create or Destroy Water real); Q4 - Unseen Servant goes Q2's way (castable, a line, its effect) and onto
+    the RP list (#73) for a real use later. Build 4a: the Detects, Identify, Alarm, Goodberry, Create or Destroy
+    Water, Q2's four and Unseen Servant, rituals; 4b: Find Familiar, Disguise Self, Silent Image.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
@@ -3022,6 +3028,8 @@ scripted moments, ambient effects):
 - The Monk's artisan's tool or musical instrument (M17).
 - Survival (Primal Knowledge, B7).
 - Languages.
+- Unseen Servant (#39 build 4: owner, 2026-11-16, "there might be some gameplay/roleplay use for invisible
+  servant. Keep it in the roleplay list").
 (All added by the owner, 2026-10-24: "add 58 to the RP list along with all
 the other recommendations you listed".)
 *Decided (owner, 2026-11-15, #73: "hmmmmm, keep them listed for now. after we're done with the spell work we can go
