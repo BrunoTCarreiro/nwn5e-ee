@@ -631,6 +631,7 @@ TEST(Spells2024Build4a) {
                WizardOnlySpell(kIllusoryScript) && WizardOnlySpell(kUnseenServant),
            true);
   CHECK_EQ(WizardOnlySpell(kDetectMagic), false);
+  CHECK_EQ(WizardOnlySpell(kChromaticOrb) || WizardOnlySpell(kSleep) || WizardOnlySpell(kCharmPerson), false);
   CHECK_EQ(WizardOnlySpell(kComprehendLanguages), false);
   CHECK_EQ(kGoodberryCount, 10);
   CHECK_EQ(kGoodberryHours, 24);

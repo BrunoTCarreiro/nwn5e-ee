@@ -456,9 +456,17 @@ int ChoiceOptionFeat(int row) {
   }
 }
 
+const std::vector<int>& WizardOnlyRows() {
+  static const std::vector<int> kRows{kIdentify,        kRayOfEnfeeblement, kProtectionFromEvilAndGood,
+                                      kHideousLaughter, kLongstrider,       kAlarm,
+                                      kIllusoryScript,  kUnseenServant,     kFindFamiliar};
+  return kRows;
+}
+
 bool WizardOnlySpell(int row) {
-  return row == kAlarm || AlarmModeOf(row) != AlarmMode::kNone || row == kIdentify || row == kIllusoryScript ||
-         row == kUnseenServant || row == kFindFamiliar || IsFamiliarCastRow(row);  // build 4c: Find Familiar
+  const std::vector<int>& rows = WizardOnlyRows();
+  return std::find(rows.begin(), rows.end(), row) != rows.end() || AlarmModeOf(row) != AlarmMode::kNone ||
+         IsFamiliarCastRow(row);  // build 4c: Find Familiar's forms and kinds
 }
 
 bool WardedAgainstRacialType(int nwn_racial_type) {

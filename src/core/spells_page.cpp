@@ -214,14 +214,15 @@ bool IsSorcererOnly(const void* spell) {
   return spells && g_get_spell && spell == g_get_spell(spells, rules::kSorcerousBurst);
 }
 
-// #39 build 4a: Alarm, Identify, Illusory Script and Unseen Servant are the Wizard's alone (rules::WizardOnlySpell) -
-// not the Sorcerer's, though NWN's one Wiz_Sorc column holds them.
+// #39 build 4a: the Wizard's alone (rules::WizardOnlyRows) - not the Sorcerer's, though NWN's one Wiz_Sorc column
+// holds them: Alarm, Identify, Illusory Script, Unseen Servant; build 4c's Find Familiar and the level 1 list switch's
+// Hideous Laughter, Longstrider, Protection from Evil and Good, Ray of Enfeeblement (0.99.53).
 bool IsWizardOnly(const void* spell) {
   void* rules_object = RulesObject();
   void* spells = rules_object ? Field<void*>(rules_object, ee::kRulesSpells) : nullptr;
   if (!spells || !g_get_spell) return false;
-  for (int row : {rules::kAlarm, rules::kIdentify, rules::kIllusoryScript, rules::kUnseenServant}) {
-    if (rules::WizardOnlySpell(row) && spell == g_get_spell(spells, row)) return true;
+  for (int row : rules::WizardOnlyRows()) {
+    if (spell == g_get_spell(spells, row)) return true;
   }
   return false;
 }

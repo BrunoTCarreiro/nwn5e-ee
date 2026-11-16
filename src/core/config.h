@@ -238,6 +238,11 @@ struct Config {
   // house rule, not SRD 5.2 - with spellcasting faithful, spells' costly material components cost no gold.
   // [house_rules] free_material_components; 1 (the default for now, at the owner's word): free; 0: SRD 5.2's costs.
   bool free_material_components = true;
+  // #39 Part 2a's level 1 list switch (owner, 2026-11-09, Part 2's brief: "5.A" - Summon Creature I-IX off in
+  // faithful, a house rule (off by default) keeping them): a house rule, not SRD 5.2 - with spellcasting faithful,
+  // NWN's Summon Creature spells stay on the class lists. [house_rules] summon_creature; 0 (the default): off them
+  // (spells.if_retiresummons.txt).
+  bool summon_creature = false;
   // #124 (owner, 2026-11-04: "good recs, go with them"): NWN's grenades as 2024 gear - faithful: the flasks (Acid,
   // Alchemist's Fire, Holy Water) a Dexterity save on the thrower's DC (8 + Dex + PB) for 2024's damage, no splash;
   // burning 3 rounds; the bombs 10d6, Dexterity half; Tanglefoot Bag, Thunderstone, Choking Powder and the clouds on

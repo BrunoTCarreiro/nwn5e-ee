@@ -157,6 +157,7 @@
 #include "condition_effects.h"
 #include "rest.h"
 #include "rules/hazard_avoid.h"
+#include "rules/level_lists.h"
 #include "rules/skills.h"
 #include "rules/spell_slots.h"
 #include "rules/spells2024.h"
@@ -4855,6 +4856,17 @@ void InstallSpells2024() {
     return;
   }
   ServeConditionalRows("spells2024");  // spells.if_spells2024.level1.txt (rules_spell_slots.cpp asks too)
+  // Part 2a's end, the level 1 list switch (rules/level_lists.h): spells.if_spells2024.lists1.txt with the rows above;
+  // Summon Creature I off too unless the house rule keeps it.
+  if (!g_config.summon_creature) ServeConditionalRows("retiresummons");
+  {
+    int retired = 0;
+    for (const rules::ClassListRow& row : rules::Level1ListSwitch()) retired += row.change == rules::ListSwitch::kRetired;
+    Log("spells2024: the level 1 lists are SRD 5.2.1's - %d NWN spells off the class lists, %zu moved to their 2024 "
+        "level; Summon Creature I %s; %zu Wiz_Sorc spells the Wizard's alone",
+        retired, rules::Level1ListSwitch().size() - retired,
+        g_config.summon_creature ? "kept (house rule summon_creature)" : "off too", rules::WizardOnlyRows().size());
+  }
   RegisterRecords({kVarHuntersMarkArm});  // 0.99.22: the Ranger's option
   RegisterRecords({kVarRitualOff});       // build 4a: the Ritual switch
   bool scripts = true;

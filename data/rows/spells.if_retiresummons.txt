@@ -1,0 +1,5 @@
+# spells.2da - #39 Part 2a's end (rules/level_lists.h; "retiresummons" is served with spellcasting faithful unless
+# [house_rules] summon_creature; owner, 2026-11-09: Q5 A "Summon Creature I-IX off in faithful, a house rule (off by
+# default) keeping them"): NWN's Summon Creature I off the class lists - II to IX with their levels' passes.
+Bard Cleric Druid Paladin Ranger Wiz_Sorc
+174 **** **** **** **** **** ****

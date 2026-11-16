@@ -112,6 +112,7 @@ void ConfigLoad(const wchar_t* directory) {
   g_config.long_rest_any_time = ReadBool(ini, L"long_rest_any_time", g_config.long_rest_any_time, L"house_rules");
   g_config.free_material_components =
       ReadBool(ini, L"free_material_components", g_config.free_material_components, L"house_rules");  // #38
+  g_config.summon_creature = ReadBool(ini, L"summon_creature", g_config.summon_creature, L"house_rules");  // #39
   g_config.grenades = ReadVariant(ini, L"grenades", g_config.mode);                         // #124
   g_config.spellcasting = ReadVariant(ini, L"spellcasting", g_config.mode);                 // #36
   g_config.rest_clock = ReadBool(ini, L"rest_clock", g_config.rest_clock);
@@ -192,9 +193,10 @@ void ConfigLoad(const wchar_t* directory) {
       VariantName(g_config.rests), g_config.rest_clock, VariantName(g_config.dying), g_config.served_data,
       VariantName(g_config.armor), VariantName(g_config.quickbar), VariantName(g_config.actions),
       VariantName(g_config.grenades));
-  Log("config: house rules: help=%d flask_patches=%d long_rest_any_time=%d free_material_components=%d",
+  Log("config: house rules: help=%d flask_patches=%d long_rest_any_time=%d free_material_components=%d "
+      "summon_creature=%d",
       g_config.help_house_rule, g_config.flask_patches, g_config.long_rest_any_time,
-      g_config.free_material_components);
+      g_config.free_material_components, g_config.summon_creature);
   Log("config: spellcasting=%s", VariantName(g_config.spellcasting));
   if (g_config.perception == rules::RuleVariant::kFaithful) {
     Log("config: hiding_needs_15=%d found_up_close=%d alert_creatures_search=%d hiders_need_search=%d vision_cone=%d "

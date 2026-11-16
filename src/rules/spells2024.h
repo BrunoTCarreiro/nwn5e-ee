@@ -203,6 +203,9 @@ constexpr int kCharmPersonOrAnimal = 17;  // NWN's: off the faithful lists (Char
 constexpr int kColorSpray = 24;
 constexpr int kSleep = 165;
 constexpr int kHideousLaughter = 457;  // NWN's Tasha's Hideous Laughter (level 2 there)
+// The level 1 list switch (rules/level_lists.h): NWN's level 1 Ray of Enfeeblement is SRD 5.2.1's level 2, the
+// Wizard's (and the Warlock's) - NWN's script until level 2's pass.
+constexpr int kRayOfEnfeeblement = 143;
 constexpr int kCommand = 1170;         // its four words, 1171-1174: cantrips.h's choice menus
 constexpr int kCommandDrop = 1171;
 constexpr int kCommandFlee = 1172;
@@ -403,9 +406,13 @@ constexpr int kGoodberryHitPoints = 1;
 // (GetHasSpellEffect(row)): its minutes, 0 for none (instantaneous, or on writing, not on the caster).
 int UtilityEffectMinutes(int row);
 
-// The Wizard's alone of the arcane spells NWN's one Wiz_Sorc column shares (Alarm, Identify, Illusory Script,
-// Unseen Servant): not the Sorcerer's.
+// The Wizard's alone of the arcane spells NWN's one Wiz_Sorc column shares: not the Sorcerer's. Build 4a's Alarm,
+// Identify, Illusory Script and Unseen Servant, 4c's Find Familiar; the level 1 list switch (0.99.53): SRD 5.2.1's
+// Hideous Laughter, Longstrider, Protection from Evil and Good and (level 2) Ray of Enfeeblement too. A choice
+// spell's variants follow their master (Alarm's two, Find Familiar's forms and kinds).
 bool WizardOnlySpell(int row);
+// Its class-list rows (each a master: spells_page.cpp's GetSpellLevel answers the Sorcerer none for them).
+const std::vector<int>& WizardOnlyRows();
 
 // Disguise Self: another species' look for an hour (its menu - the 2024 species NWN has a player model for):
 // NWN's appearance - 0 Dwarf, 1 Elf, 2 Gnome, 3 Halfling, 6 Human, 5 for an Orc (the Half-Orc's model); -1 for

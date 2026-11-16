@@ -1,0 +1,26 @@
+# spells.2da - #39 Part 2a's end, the level 1 list switch (rules/level_lists.h; "spells2024" is served with
+# spellcasting faithful; owner, 2026-11-09: Q3 A "2024's class lists and levels", Q4 A "NWN's spells with no 2024
+# version off the class lists in faithful"). Every NWN row a class had at level 1 that SRD 5.2.1 hasn't there: retired
+# (no 2024 version - on no class's list; monsters, items and NWN mode keep them) or moved to its 2024 level and
+# classes (Ray of Enfeeblement, Darkvision - NWN's Ultravision -, Magic Weapon: level 2, NWN's scripts until level 2's
+# pass). The Sorcerer's half of Wiz_Sorc: rules::WizardOnlySpell. Summon Creature I: spells.if_retiresummons.txt.
+Bard Cleric Druid Paladin Ranger Wiz_Sorc
+46 **** **** **** **** **** ****
+50 **** **** **** **** **** ****
+94 **** **** **** **** **** ****
+143 **** **** **** **** **** 2
+148 **** **** **** **** **** ****
+150 **** **** **** **** **** ****
+155 **** **** **** **** **** ****
+365 **** **** 2 **** 2 2
+371 **** **** **** **** **** ****
+418 **** **** **** **** **** ****
+421 **** **** **** **** **** ****
+442 **** **** **** **** **** ****
+452 **** **** **** **** **** ****
+521 **** **** **** **** **** ****
+522 **** **** **** **** **** ****
+534 **** **** **** **** **** ****
+536 **** **** **** **** **** ****
+537 **** **** **** **** **** ****
+544 **** **** **** 2 2 2
