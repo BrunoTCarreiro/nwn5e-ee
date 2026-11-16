@@ -374,6 +374,8 @@ bool SilentImageMoveAllowed(float feet_from_caster) {
 
 bool IsNoSlotOption(int row) { return row == kSilentImageMove; }
 
+int ChoiceOptionFeat(int row) { return row == kSilentImageMove ? kFeatSilentImageMove : 0; }
+
 bool WizardOnlySpell(int row) {
   return row == kAlarm || AlarmModeOf(row) != AlarmMode::kNone || row == kIdentify || row == kIllusoryScript ||
          row == kUnseenServant;

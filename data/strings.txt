@@ -635,3 +635,4 @@
 16000836 Silent Image: Small Creature
 16000837 Silent Image: Large Creature
 16000838 Silent Image: Move the image
+16000839 While your Silent Image lasts: a Magic action (your Action) - the image moves to a spot within 60 feet of you (a creature image walks there). No spell slot.

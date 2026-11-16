@@ -514,6 +514,9 @@ TEST(Spells2024Build4b) {
   CHECK_EQ(SilentImageMoveAllowed(61.0f), false);
   CHECK_EQ(IsNoSlotOption(kSilentImageMove), true);
   CHECK_EQ(IsNoSlotOption(kSilentImageLarge) || IsNoSlotOption(kDisguiseElf), false);
+  CHECK_EQ(ChoiceOptionFeat(kSilentImageMove), kFeatSilentImageMove);  // 0.99.47 (L4-27)
+  CHECK_EQ(ChoiceOptionFeat(kSilentImageLarge), 0);
+  CHECK_EQ(kFeatSilentImageMove, 1564);
 }
 
 TEST(Spells2024Build4aFixes) {

@@ -69,6 +69,7 @@ enum Bit {
   kBitPrepareSpells = 39,  // #36 Part 3a (0.75.3)
   kBitHuntersMarkMove = 40,  // #39 2a (0.99.20): while Hunter's Mark lasts
   kBitEscape = 41,           // #39 2a build 2c: while Entangle holds you
+  kBitSilentImageMove = 42,  // #39 2a build 4b (0.99.47): while your Silent Image lasts
 };
 
 bool IsSecondWind(int value) {
@@ -88,7 +89,8 @@ const std::vector<int>& QuickbarActionFeats2024() {
                                           kFeatDash,           kFeatHelp,         kFeatActionSurge,
                                           kFeatCunningDash,    kFeatCunningDisengage, kFeatCunningHide,
                                           kFeatSteadyAim,      kFeatPatientDefenseFree, kFeatStepOfTheWindFree,
-                                          kFeatPrepareSpells,  kFeatHuntersMarkMove, kFeatEscape};
+                                          kFeatPrepareSpells,  kFeatHuntersMarkMove, kFeatEscape,
+                                          kFeatSilentImageMove};
   return kFeats;
 }
 
@@ -185,6 +187,8 @@ std::vector<QuickbarAction> QuickbarActions2024(const QuickbarFacts& facts) {
   if (has(kFeatPrepareSpells)) actions.push_back({kBitPrepareSpells, kFeatPrepareSpells, "Prepare Spells"});
   // #39 2a build 2c (owner, 2026-11-12: "All recommended except Q3, go for B"): Escape, the feat a creature Entangle holds has while it's held.
   if (has(kFeatEscape)) actions.push_back({kBitEscape, kFeatEscape, "Escape"});
+  // #39 2a build 4b (0.99.47, L4-27): Silent Image's Move, the feat its image grants while it lasts.
+  if (has(kFeatSilentImageMove)) actions.push_back({kBitSilentImageMove, kFeatSilentImageMove, "Silent Image: Move"});
   return actions;
 }
 

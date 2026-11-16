@@ -201,6 +201,15 @@ TEST(QuickbarHighBits) {
   CHECK_EQ(held_placed == (uint64_t{1} << 41), true);
   CHECK_EQ(Values(QuickbarActions2024(held)) == std::vector<int>{kFeatEscape}, true);
   CHECK_EQ(std::find(asked.begin(), asked.end(), kFeatEscape) != asked.end(), true);
+  // #39 2a build 4b (0.99.47): Silent Image's Move, while its image lasts - bit 42, asked about.
+  QuickbarFacts illusionist;
+  illusionist.feats = {kFeatSilentImageMove};
+  uint64_t illusionist_placed = 0;
+  CHECK_EQ(static_cast<int>(PlanQuickbar(EmptyBar(), 0, QuickbarActions2024(illusionist), &illusionist_placed).size()),
+           1);
+  CHECK_EQ(illusionist_placed == (uint64_t{1} << 42), true);
+  CHECK_EQ(Values(QuickbarActions2024(illusionist)) == std::vector<int>{kFeatSilentImageMove}, true);
+  CHECK_EQ(std::find(asked.begin(), asked.end(), kFeatSilentImageMove) != asked.end(), true);
 }
 
 // New actions go in the first empty slots, keys 1-9 first, and are recorded;

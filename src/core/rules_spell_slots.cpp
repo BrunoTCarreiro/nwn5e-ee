@@ -622,6 +622,7 @@ void* BuildLevelMenu(void* handler, int64_t param, int from_level) {
 // quickbar's assign mode and #140's retargeting as any spell's): eight to a page, or seven and "More".
 void* BuildChoiceMenu(void* handler, int64_t param);
 void* ChoiceMenu(void* handler, int64_t param) { return BuildChoiceMenu(handler, param); }
+bool ControlledHoldsFeat(int feat);  // below (Hunter's Mark: Move's)
 
 bool IsChoiceMaster(int64_t param) {
   const int spell = static_cast<int>(param & 0xFFFF);
@@ -645,6 +646,14 @@ void* BuildChoiceMenu(void* handler, int64_t param) {
     void* spell = g_get_spell(spells, option.spell);
     char icon[17] = {};
     if (spell) memcpy(icon, static_cast<const uint8_t*>(spell) + ee::kSpellIconResRef, 16);
+    // 0.99.47 (L4-27: "I don't see the option"): a menu row taken as a feat (Silent Image's Move) - its feat's leaf,
+    // while the character holds it (its image lasts), as Hunter's Mark: Move's; none otherwise.
+    if (const int feat = rules::ChoiceOptionFeat(option.spell)) {
+      if (SpellMenuFeatLeaf() && ControlledHoldsFeat(feat)) {
+        g_set_entry_text(menu, k, icon, option.label, handler, SpellMenuFeatLeaf(), static_cast<int64_t>(feat));
+      }
+      continue;
+    }
     const int64_t cast_param = rules::RadialChoiceCast(param, option.spell);
     // #39 2a build 1b: a levelled choice spell's option (Chromatic Orb's Fire) opens its slot levels, as a spell does.
     void* client_stats = nullptr;

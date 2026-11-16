@@ -863,6 +863,7 @@ bool SanctuaryLetsThrough(void* attacker, void* target, const char* what);  // b
 bool ArmSmite(void* creature, uint32_t id, const SpellOrder& order);         // build 3, below
 bool RitualOrder(void* creature, uint32_t id, const SpellOrder& order);      // build 4a, below
 bool SilentImageMoveOrder(void* creature, uint32_t id, const SpellOrder& order);  // build 4b, below
+bool SilentImageLasts(uint32_t id);                                               // build 4b (0.99.47), below
 
 // Refused before the cast, nothing spent (true): a willing creature's spell at an enemy, Mage Armor on one wearing
 // armour, an enemy's spell at a creature its Sanctuary keeps it from. A Bonus Action spell's order becomes its feat's
@@ -1660,6 +1661,12 @@ bool BuffFeatGuard(void* creature, int feat) {
   if (feat == rules::kFeatExpeditiousDash &&
       !HasSpellEffect(creature, rules::kExpeditiousRetreat, rules::kExpeditiousRetreatBonus, id)) {
     TellPlayer(id, "nwn5e: Expeditious Retreat: Dash - no Expeditious Retreat lasts.");
+    return false;
+  }
+  // Build 4b (0.99.47, L4-27): Silent Image's Move - only while its image lasts.
+  if (feat == rules::kFeatSilentImageMove && !SilentImageLasts(id)) {
+    TellPlayer(id, "nwn5e: Silent Image: Move - no image of yours lasts.");
+    if (void* stats = StatsOf(creature)) engine::RemoveFeat(stats, rules::kFeatSilentImageMove);
     return false;
   }
   if (feat == rules::kFeatHuntersMarkMove) {
@@ -4145,6 +4152,12 @@ void SilentImageMoved(uint32_t self, void* caster) {
       self, "Silent Image's Move point");
   float x = 0.0f, y = 0.0f, z = 0.0f;
   if (sscanf_s(engine::GetLocalString(caster, "n5c_xyz").c_str(), "%f %f %f", &x, &y, &z) != 3) return;
+  const float dx = x - Field<float>(caster, ee::kObjectPositionX);
+  const float dy = y - Field<float>(caster, ee::kObjectPositionY);
+  if (!rules::SilentImageMoveAllowed(std::sqrt(dx * dx + dy * dy) / rules::FeetToMetres(1))) {
+    TellPlayer(self, "nwn5e: Silent Image - it moves to a spot within 60 feet of you.");
+    return;
+  }
   const uint32_t moved = MoveSilentImage(self, caster, x, y, z);
   if (!moved) {
     TellPlayer(self, "nwn5e: Silent Image - your image is gone.");
@@ -4175,6 +4188,10 @@ void SilentImageSpell(uint32_t self, void* caster, int row) {
   Run(code, self, "Silent Image's point and mark");
   const uint32_t image = MakeSilentImage(self, caster, kind, "Silent Image");
   g_silent[self] = SilentImageCast{row, image, 0};
+  // 0.99.47 (L4-27): its Move - the feat while the image lasts (the spell's menu, the quickbar).
+  if (void* stats = StatsOf(caster)) {
+    if (!engine::HasFeat(stats, rules::kFeatSilentImageMove)) engine::AddFeat(stats, rules::kFeatSilentImageMove);
+  }
   if (LogSlot()) Log("spells2024: 0x%08X Silent Image (row %d) - image 0x%08X", self, row, image);
 }
 
@@ -4225,14 +4242,21 @@ void SilentImageUpdate(void* creature) {
   if (!HasSpellEffect(creature, it->second.row)) {
     EndSilentImage(id);
     g_silent.erase(it);
+    if (void* stats = StatsOf(creature)) engine::RemoveFeat(stats, rules::kFeatSilentImageMove);
     TellPlayer(id, "nwn5e: Silent Image ends - your Concentration on it ended.");
     if (LogSlot()) Log("spells2024: 0x%08X Silent Image ends - its mark gone", id);
     return;
   }
   if (!GameObjectById(it->second.image)) {
     g_silent.erase(it);
+    if (void* stats = StatsOf(creature)) engine::RemoveFeat(stats, rules::kFeatSilentImageMove);
     if (LogSlot()) Log("spells2024: 0x%08X Silent Image's image is gone (seen through or struck)", id);
   }
+}
+
+bool SilentImageLasts(uint32_t id) {
+  const auto it = g_silent.find(id);
+  return it != g_silent.end() && GameObjectById(it->second.image) != nullptr;
 }
 
 void IllusionsGameStarted() {

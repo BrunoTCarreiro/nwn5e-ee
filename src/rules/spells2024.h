@@ -422,6 +422,12 @@ constexpr int kSilentImageRangeFeet = 60;
 bool SilentImageMoveAllowed(float feet_from_caster);
 // A menu row cast for no slot (Silent Image's Move): its radial entry opens no slot levels.
 bool IsNoSlotOption(int row);
+// 0.99.47 (L4-27, owner: "how do I move the illusion? I don't see the option" - a levelled spell's slotless leaf
+// isn't shown): Silent Image's Move is a feat, as Hunter's Mark's is - granted while the image lasts, casting its
+// Move row (1215) with the Action (feat.2da ReqAction 1), in the spell's menu and the quickbar. The feat of a menu
+// row taken as a feat (0: none).
+constexpr int kFeatSilentImageMove = 1564;
+int ChoiceOptionFeat(int row);
 constexpr int kRouseFeet = 5;
 
 // Chromatic Orb: two or more of its d8s alike - the orb leaps to another creature within 30 feet of the target (a
