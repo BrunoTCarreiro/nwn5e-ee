@@ -1,0 +1,13 @@
+#MAXDOOR ASCII
+# made by nwn5e-ee tools/data/floatdisk/build.js from composition.json - edit that and rebuild, not this file
+# model: plc_n5fd_small_pwk
+node dummy n5fd_small_pwk_use01
+  parent plc_n5fd_small_pwk
+  position 0 -0.30532 0
+  orientation 0 0 0 0
+endnode
+node dummy n5fd_small_pwk_use02
+  parent plc_n5fd_small_pwk
+  position 0 0.30532 0
+  orientation 0 0 0 0
+endnode

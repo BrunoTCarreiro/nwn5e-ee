@@ -1,0 +1,7 @@
+# made by nwn5e-ee tools/data/floatdisk/build.js from composition.json - edit that and rebuild, not this file
+# placeables.2da: Floating Disk's piles (#39) - its load, fallen where it floated when it ends, a container.
+# Each row is the game's row 189 (TreasureSml) with its Label and ModelName changed; a pile's row is its stage's appearance row.
+       Label                    StrRef  ModelName       LightColor  LightOffsetX  LightOffsetY  LightOffsetZ  SoundAppType  ShadowSize  BodyBag  LowGore  Reflection  Static
+14001  N5_FloatDiskPile_Small   63232   plc_n5fd_small  ****        ****          ****          ****          21            1           0        ****     PLC_G_ENV   1
+14002  N5_FloatDiskPile_Medium  63232   plc_n5fd_med    ****        ****          ****          ****          21            1           0        ****     PLC_G_ENV   1
+14003  N5_FloatDiskPile_Large   63232   plc_n5fd_large  ****        ****          ****          ****          21            1           0        ****     PLC_G_ENV   1
