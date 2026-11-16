@@ -46,6 +46,10 @@ void ReadFloats(const std::vector<std::string>& words, size_t from, float* out, 
   for (int i = 0; i < count && from + i < words.size(); ++i) out[i] = ToFloat(words[from + i]);
 }
 
+// Three numbers as a draft or a model writes them ("r g b"): a plane's material is compared with its default this way,
+// so a value that reads back the same writes the same (core.js compares the same text).
+std::string Num3(const float v[3]) { return Num(v[0]) + " " + Num(v[1]) + " " + Num(v[2]); }
+
 std::vector<std::string> EmitterLines(const VfxEmitter& e, const std::string& node, const std::string& parent,
                                       bool keyed_birthrate, bool has_target) {
   const auto flag = [](const char* name, bool on) { return std::string("  ") + name + (on ? " 1" : " 0"); };
@@ -358,7 +362,10 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
     lines.push_back("endnode");
   }
   // #161: each plane a plain trimesh node, as the game's own effect models have them (Entangle's vines): its vertices,
-  // UVs (the vertex's own index) and faces (smoothing group 1, material 1).
+  // UVs (the vertex's own index) and faces (smoothing group 1, material 1). Its material (the owner, 2026-11-16) where
+  // it has one of its own; a plane with the defaults' ambient and diffuse - every one before the material was kept - is
+  // written as nwn5e always wrote planes, full ambient and diffuse, so those effects keep their look in the game.
+  const VfxPlane plane_defaults;
   for (size_t i = 0; i < effect.planes.size(); ++i) {
     const VfxPlane& p = effect.planes[i];
     const auto it = p.parent.empty() ? by_name.end() : by_name.find(p.parent);
@@ -368,13 +375,16 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
     lines.push_back("  orientation " + Num(p.orientation[0]) + " " + Num(p.orientation[1]) + " " + Num(p.orientation[2]) + " " +
                     Num(p.orientation[3]));
     lines.push_back("  wirecolor 1 1 1");
-    lines.push_back("  ambient 1 1 1");
-    lines.push_back("  diffuse 1 1 1");
+    const bool own = Num3(p.ambient) != Num3(plane_defaults.ambient) || Num3(p.diffuse) != Num3(plane_defaults.diffuse);
+    lines.push_back("  ambient " + (own ? Num3(p.ambient) : std::string("1 1 1")));
+    lines.push_back("  diffuse " + (own ? Num3(p.diffuse) : std::string("1 1 1")));
     lines.push_back("  specular 0 0 0");
     lines.push_back("  shininess 1");
     lines.push_back("  bitmap " + (p.bitmap.empty() ? std::string("NULL") : p.bitmap));
-    lines.push_back("  render 1");
+    lines.push_back(std::string("  render ") + (p.render ? "1" : "0"));
     lines.push_back("  shadow 0");
+    if (Num3(p.selfillum) != Num3(plane_defaults.selfillum)) lines.push_back("  selfillumcolor " + Num3(p.selfillum));
+    if (Num(p.alpha) != Num(plane_defaults.alpha)) lines.push_back("  alpha " + Num(p.alpha));
     const size_t verts = p.verts.size() / 3;
     lines.push_back("  verts " + std::to_string(verts));
     for (size_t v = 0; v < verts; ++v) lines.push_back("    " + Num(p.verts[3 * v]) + " " + Num(p.verts[3 * v + 1]) + " " + Num(p.verts[3 * v + 2]));
@@ -621,6 +631,7 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
     out += DraftKeys(l.keys);
   }
   // #161: the planes, after the lights (core.js writes the same bytes): kept whole, never edited.
+  const VfxPlane plane_defaults;
   for (const VfxPlane& p : effect.planes) {
     out += "\n[plane " + p.name + "]\n";
     if (!p.parent.empty()) out += "parent = " + p.parent + "\n";
@@ -628,6 +639,12 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
     out += "orientation = " + Num(p.orientation[0]) + " " + Num(p.orientation[1]) + " " + Num(p.orientation[2]) + " " +
            Num(p.orientation[3]) + "\n";
     out += "bitmap = " + p.bitmap + "\n";
+    // Its material (the owner, 2026-11-16): only what isn't the default, so every draft before it keeps its bytes.
+    if (Num3(p.diffuse) != Num3(plane_defaults.diffuse)) out += "diffuse = " + Num3(p.diffuse) + "\n";
+    if (Num3(p.ambient) != Num3(plane_defaults.ambient)) out += "ambient = " + Num3(p.ambient) + "\n";
+    if (Num3(p.selfillum) != Num3(plane_defaults.selfillum)) out += "selfillum = " + Num3(p.selfillum) + "\n";
+    if (Num(p.alpha) != Num(plane_defaults.alpha)) out += "alpha = " + Num(p.alpha) + "\n";
+    if (!p.render) out += "render = 0\n";
     std::string list;
     for (float v : p.verts) list += " " + Num(v);
     out += "verts =" + list + "\n";
@@ -699,6 +716,11 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
       else if (key == "position") ReadFloats(words, 0, p.position, 3);
       else if (key == "orientation") ReadFloats(words, 0, p.orientation, 4);
       else if (key == "bitmap") p.bitmap = VfxResRef(value, 64);
+      else if (key == "diffuse") ReadFloats(words, 0, p.diffuse, 3);  // its material (the owner, 2026-11-16)
+      else if (key == "ambient") ReadFloats(words, 0, p.ambient, 3);
+      else if (key == "selfillum") ReadFloats(words, 0, p.selfillum, 3);
+      else if (key == "alpha") p.alpha = ToFloat(value);
+      else if (key == "render") p.render = Trim(value) != "0";
       else if (key == "verts" || key == "tverts") {
         std::vector<float>& list = key == "verts" ? p.verts : p.tverts;
         list.clear();
@@ -850,6 +872,7 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
     std::string bitmap;
     std::vector<float> verts, tverts;
     std::vector<int> faces;
+    VfxPlane material;  // its diffuse, ambient, selfillumcolor, alpha and render (the owner, 2026-11-16)
   };
   std::string list_kind;  // a trimesh's verts / tverts / faces rows being read
   int list_rows = 0;
@@ -998,6 +1021,11 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       else if (first == "refmodel") g.ref_model = w[1];
       if (g.mesh) {  // #161
         if (first == "bitmap") g.bitmap = Lower(w[1]) == "null" ? std::string() : VfxResRef(w[1], 64);
+        else if (first == "diffuse") ReadFloats(w, 1, g.material.diffuse, 3);
+        else if (first == "ambient") ReadFloats(w, 1, g.material.ambient, 3);
+        else if (first == "selfillumcolor") ReadFloats(w, 1, g.material.selfillum, 3);
+        else if (first == "alpha") g.material.alpha = ToFloat(w[1]);
+        else if (first == "render") g.material.render = w[1] != "0";
         else if (first == "verts" || first == "tverts" || first == "faces") {
           list_kind = first;
           list_rows = std::max(0, std::min(65536, atoi(w[1].c_str())));
@@ -1142,6 +1170,11 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       p.verts = g.verts;
       p.tverts = g.tverts;
       p.faces = g.faces;
+      memcpy(p.diffuse, g.material.diffuse, sizeof(p.diffuse));
+      memcpy(p.ambient, g.material.ambient, sizeof(p.ambient));
+      memcpy(p.selfillum, g.material.selfillum, sizeof(p.selfillum));
+      p.alpha = g.material.alpha;
+      p.render = g.material.render;
       result.planes.push_back(p);
     }
     const bool target = targets.count(Lower(g.name)) > 0;
@@ -1356,7 +1389,7 @@ void ApplyController(const Controller& c, VfxEmitter* e) {
 
 }  // namespace
 
-bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string* error) {
+bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string* error, bool any_mesh) {
   const Bytes m{bytes};
   if (bytes.size() < 0x200 || m.U32(0) != 0) {
     if (error) *error = "not a compiled model";
@@ -1424,10 +1457,15 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
     }
   }
   }
-  // #161: plain mesh nodes (flags 0x21: header | mesh - not skin, anim, dangly or walkmesh), kept whole as planes.
+  // #161: plain mesh nodes (flags 0x21: header | mesh - not skin, anim, dangly or walkmesh), kept whole as planes. With
+  // any_mesh (a chunk model; the owner, 2026-11-16) skin (0x40), animated (0x80) and dangly (0x100) meshes too - each
+  // starts with the same mesh header, its own vertices the rest pose - but never a walkmesh (0x200).
+  const auto is_mesh = [&](uint32_t flags) {
+    return any_mesh ? (flags & 0x20) != 0 && (flags & 0x200) == 0 : (flags & ~0x1u) == 0x20;
+  };
   std::vector<size_t> plane_nodes;
   for (const GeoNode& g : geometry) {
-    if (g.node != root_node && (m.U32(g.node + 0x5C) & ~0x1u) == 0x20 && m.U16(g.node + 0x60 + 0x1C0) > 0 && m.U32(g.node + 0x60 + 0x0C) > 0) {
+    if (g.node != root_node && is_mesh(m.U32(g.node + 0x5C)) && m.U16(g.node + 0x60 + 0x1C0) > 0 && m.U32(g.node + 0x60 + 0x0C) > 0) {
       plane_nodes.push_back(g.node);  // with vertices and faces
     }
   }
@@ -1492,6 +1530,9 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
   // #161: each plane - the mesh header at the node +0x60: its texture at +0x78 (64), faces at +0x08 (count +0x0C, 32
   // bytes each, the vertex indices at +26 +28 +30), the vertices in the raw data (the file header's +4, past it) at
   // +0x1BC (count, 16 bits, +0x1C0), the first UVs at +0x1C4 (0xFFFFFFFF: none). A mesh that runs past the file is skipped.
+  // Its material (the owner, 2026-11-16; Torlack's binary MDL notes, the mesh header): diffuse at +0x3C, ambient at
+  // +0x48 (3 floats each), render at +0x6C (0: not drawn); and the node's selfillumcolor (controller 100, 3 values) and
+  // alpha (128) - a mesh's: on an emitter 128 is its fps, on a light 100 its vertical displacement.
   const size_t raw = kModelBase + m.U32(4);
   for (size_t node : plane_nodes) {
     const GeoNode& g = geometry[geo_at[node]];
@@ -1504,6 +1545,19 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
     AxisAngle(g.rot, turn);
     if (turn[3] > 1e-4f && (turn[0] || turn[1] || turn[2])) memcpy(p.orientation, turn, sizeof(turn));
     p.bitmap = VfxResRef(m.Str(mh + 0x78, 64), 64);
+    p.flags = m.U32(node + 0x5C);
+    for (int k = 0; k < 3; ++k) {
+      p.diffuse[k] = m.F32(mh + 0x3C + 4 * k);
+      p.ambient[k] = m.F32(mh + 0x48 + 4 * k);
+    }
+    p.render = m.U32(mh + 0x6C) != 0;
+    std::vector<Controller> controllers;
+    if (ReadControllers(m, node, &controllers)) {
+      for (const Controller& c : controllers) {
+        if (c.type == 100 && c.columns == 3 && c.values.size() >= 3) memcpy(p.selfillum, c.values.data(), sizeof(p.selfillum));
+        if (c.type == 128 && c.columns == 1 && !c.values.empty()) p.alpha = c.values[0];
+      }
+    }
     const uint32_t v_at = m.U32(mh + 0x1BC), uv_at = m.U32(mh + 0x1C4), f_at = m.U32(mh + 0x08), f_count = m.U32(mh + 0x0C);
     const uint16_t v_count = m.U16(mh + 0x1C0);
     if (raw + v_at + 12ull * v_count > bytes.size() || f_count > 65536 || kModelBase + f_at + 32ull * f_count > bytes.size()) continue;
