@@ -1706,6 +1706,13 @@ monster AC by CR.
     pile's, on the new rows, not static, plot, no treasure scripts - 0.99.55's plc_treasure* placeholders ran NWN's
     random-treasure script on opening). 2 mutations caught (the incremental runner: ~10 s a break); 569 tests pass.
     FD-6 to FD-10 name 0.99.56.
+  - *FD-9 failed (owner, 2026-11-16: "FD-9 loading a save makes the floating shield uninteractible and stuck in
+    place"):* the save (made in FD-8, the disk told to stand its ground - so it stayed) held the disk intact in the
+    player's AssociateList: its scripts n5_d_hb / n5_d_talk / n5_d_dist, its locals, 10 items, faction 5 as the
+    player's, its hour's effect. After the load no handler of it logged anything: clicks unanswered, two !time 2 not
+    ending its hour. Cause not yet known. *0.99.57:* its caster looks after it every second (its local n5d_disk; the
+    first update after a game starts too) - its end, stage and following whatever its own scripts do; its handlers
+    log their first calls after a game starts and why one stops. Retest FD-11.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
