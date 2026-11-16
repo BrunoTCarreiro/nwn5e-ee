@@ -3522,12 +3522,18 @@ const char* const kMagicSense = R"nss(
         e = GetNextEffect(o);
       }
       int magic = FALSE;
-      if (t == OBJECT_TYPE_ITEM) magic = GetIsItemPropertyValid(GetFirstItemProperty(o));
+      if (t == OBJECT_TYPE_ITEM) {
+        itemproperty mp = GetFirstItemProperty(o); int mi;
+        for (mi = 0; mi < 8 && !magic; mi++) { if (GetIsItemPropertyValid(mp)) magic = TRUE; mp = GetNextItemProperty(o); }
+      }
       if (t == OBJECT_TYPE_CREATURE) {
         int s;
         for (s = 0; s < 14 && !magic; s++) {
           object it = GetItemInSlot(s, o);
-          if (GetIsObjectValid(it) && GetIsItemPropertyValid(GetFirstItemProperty(it))) magic = TRUE;
+          if (GetIsObjectValid(it)) {
+            itemproperty cp = GetFirstItemProperty(it); int ci;
+            for (ci = 0; ci < 8 && !magic; ci++) { if (GetIsItemPropertyValid(cp)) magic = TRUE; cp = GetNextItemProperty(it); }
+          }
         }
       }
       if (sp != "") what = GetName(o) + " - under " + sp;
@@ -3556,9 +3562,11 @@ const char* const kPoisonSense = R"nss(
       else w = GetItemInSlot(i == 0 ? 14 : (i == 1 ? 15 : (i == 2 ? 16 : (i == 3 ? 4 : 5))), o);
       if (GetIsObjectValid(w)) {
         int natural = t == OBJECT_TYPE_CREATURE && i < 3;
-        itemproperty ip = GetFirstItemProperty(w);
-        while (GetIsItemPropertyValid(ip)) {
-$POISON          ip = GetNextItemProperty(w);
+        itemproperty ip = GetFirstItemProperty(w); int pw;
+        for (pw = 0; pw < 8; pw++) {
+          if (GetIsItemPropertyValid(ip)) {
+$POISON          }
+          ip = GetNextItemProperty(w);
         }
       }
     }
@@ -3570,10 +3578,12 @@ $POISON          ip = GetNextItemProperty(w);
 // Magic's $SIGHT drops what the caster can't see (L4-2: nothing from inside a Fog Cloud - n5d_blind, set by the
 // DLL -, no creature unseen, no object inside a Fog Cloud - $FOGS lists those near) and says once that it senses
 // magic it can't see; the glows added and taken go to n5d_chg for the log (L4-1: the sword's glow blinked).
-// 0.99.44 (L4-14's log: the sword's glow added one look, taken the next, every 2 s): an item lying there that
-// glows isn't always returned by the shape search (the area's position-sorted list), so a glowing item the search
-// missed keeps its glow while it's still on the ground, in range, in sight and (Detect Magic) not in a Fog Cloud
-// - $KEEP; logged once as "~X (missed by the search)". One found and not sensed loses it.
+// 0.99.45 (L4-14 and L4-20: the sword's glow added one look and taken the next, every 2 s - "found, not sensed"):
+// an item's properties are effects in its applied-effects list, and the engine's GetFirst/NextItemProperty walk
+// returns any exposed temporary or permanent effect there but type 67 (nwmain disassembled) - the glow (a visual
+// effect, type 30, temporary) came first, GetIsItemPropertyValid (type 91) said no, and the sword was no magic
+// item while it glowed. Every property walk here steps past what isn't a property, 8 entries at most (the walk
+// starts over after its end; an item lying there carries a Detect's glow or two).
 const char* const kDetectScan = R"nss(
 object me = OBJECT_SELF; int row = $ROW; string told = GetLocalString(me, "n5d_told"); string seen = ""; string aoes = "";
 string chg = ""; int n = 0; int hidden = 0; int blind = GetLocalInt(me, "n5d_blind"); location here = GetLocation(me);
@@ -3594,7 +3604,7 @@ $SIGHT
   }
   o = GetNextObjectInShape(SHAPE_SPHERE, $RADIUS, here, TRUE, $FILTER);
 }
-string old = GetLocalString(me, "n5d_glow"); string kept0 = GetLocalString(me, "n5d_kept"); string kept = "";
+string old = GetLocalString(me, "n5d_glow");
 int p = FindSubString(old, "|");
 while (p >= 0) {
   int q = FindSubString(old, "|", p + 1);
@@ -3602,36 +3612,19 @@ while (p >= 0) {
   string key = GetSubString(old, p, q - p + 1);
   if (FindSubString(seen, key) < 0) {
     object g = StringToObject(GetSubString(key, 1, q - p - 1));
-    int keep = GetIsObjectValid(g) && GetObjectType(g) == OBJECT_TYPE_ITEM && FindSubString(found, key) < 0 && !GetIsObjectValid(GetItemPossessor(g)) && GetArea(g) == GetArea(me) && GetDistanceBetween(me, g) <= $RADIUS && LineOfSightObject(me, g);
-$KEEP
-    if (keep) {
-      seen += key; kept += key;
-      if (FindSubString(kept0, key) < 0) chg += " ~" + GetName(g) + " (missed by the search)";
-    } else {
-      effect e = GetFirstEffect(g);
-      while (GetIsEffectValid(e)) {
-        if (GetEffectTag(e) == "n5s_detglow" && GetEffectCreator(e) == me) RemoveEffect(g, e);
-        e = GetNextEffect(g);
-      }
-      if (GetIsObjectValid(g)) chg += " -" + GetName(g) + (FindSubString(found, key) >= 0 ? " (found, not sensed)" : "");
+    effect e = GetFirstEffect(g);
+    while (GetIsEffectValid(e)) {
+      if (GetEffectTag(e) == "n5s_detglow" && GetEffectCreator(e) == me) RemoveEffect(g, e);
+      e = GetNextEffect(g);
     }
+    if (GetIsObjectValid(g)) chg += " -" + GetName(g) + (FindSubString(found, key) >= 0 ? " (found, not sensed)" : "");
   }
   p = FindSubString(old, "|", q + 1);
 }
 if (hidden > 0 && !GetLocalInt(me, "n5d_hid")) SendMessageToPC(me, "nwn5e: $NAME - you sense magic within $FEET feet that you can't see.");
 SetLocalInt(me, "n5d_hid", hidden > 0);
 SetLocalString(me, "n5d_told", told); SetLocalString(me, "n5d_glow", seen); SetLocalString(me, "n5d_aoes", aoes);
-SetLocalString(me, "n5d_chg", chg); SetLocalString(me, "n5d_kept", kept);
-)nss";
-
-// Detect Magic: a kept item (kDetectScan's $KEEP) is seen too - not from inside a Fog Cloud, nor in one.
-const char* const kDetectKeepSight = R"nss(
-    if (keep && blind) keep = FALSE;
-    int f2;
-    for (f2 = 0; f2 < nf && keep; f2++) {
-      object fk = GetLocalObject(me, "n5d_fog" + IntToString(f2));
-      if (GetIsObjectValid(fk) && GetDistanceBetween(fk, g) <= GetLocalFloat(me, "n5d_fr" + IntToString(f2))) keep = FALSE;
-    }
+SetLocalString(me, "n5d_chg", chg);
 )nss";
 
 // Detect Magic (rules::DetectNeedsSight): the Fog Clouds near the caster (their tag NWN5E_FOG_CLOUD_<slot>, the
@@ -3696,11 +3689,9 @@ const std::string& DetectScan(int row) {
     Replace(&code, "$FOGRADII", radii);
     Replace(&code, "$FOGREACH", Float(rules::FeetToMetres(rules::kDetectFeet + widest)));
     Replace(&code, "$SIGHT", kDetectSight);
-    Replace(&code, "$KEEP", kDetectKeepSight);
   } else {
     Replace(&code, "$FOGS", "int nf = 0;");
     Replace(&code, "$SIGHT", "");
-    Replace(&code, "$KEEP", "");
   }
   Replace(&code, "$FEET", std::to_string(rules::kDetectFeet));
   Replace(&code, "$ROW", std::to_string(row));
@@ -3723,7 +3714,7 @@ void DetectBegin(uint32_t self, int row) {
   sprintf_s(code,
             "ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(EffectIcon(%d), %d), \"%s\"), "
             "OBJECT_SELF, TurnsToSeconds(%d)); DeleteLocalString(OBJECT_SELF, \"n5d_told\"); DeleteLocalString(OBJECT_SELF, "
-            "\"n5d_glow\"); DeleteLocalString(OBJECT_SELF, \"n5d_kept\"); DeleteLocalInt(OBJECT_SELF, \"n5d_hid\"); "
+            "\"n5d_glow\"); DeleteLocalInt(OBJECT_SELF, \"n5d_hid\"); "
             "ApplyEffectToObject(DURATION_TYPE_INSTANT, "
             "EffectVisualEffect(VFX_IMP_MAGICAL_VISION), OBJECT_SELF);",
             UtilityIconRow(row), row, kTagDetectMark, rules::kDetectMinutes);
@@ -3796,8 +3787,8 @@ if (k == OBJECT_TYPE_ITEM) {
   int c = GetItemCharges(t);
   if (c > 0) s += "; " + IntToString(c) + " charges";
   int temp = FALSE;
-  itemproperty ip = GetFirstItemProperty(t);
-  while (GetIsItemPropertyValid(ip)) { if (GetItemPropertyDurationType(ip) == DURATION_TYPE_TEMPORARY) temp = TRUE; ip = GetNextItemProperty(t); }
+  itemproperty ip = GetFirstItemProperty(t); int iw;  // 0.99.45: past a Detect's glow (kDetectScan's note)
+  for (iw = 0; iw < 8; iw++) { if (GetIsItemPropertyValid(ip) && GetItemPropertyDurationType(ip) == DURATION_TYPE_TEMPORARY) temp = TRUE; ip = GetNextItemProperty(t); }
   if (temp) s += "; a spell is affecting it (a temporary property)";
   if (GetLocalInt(t, "n5_goodberry_until") > 0) s += "; made by the Goodberry spell";
   SendMessageToPC(OBJECT_SELF, s + ".");
