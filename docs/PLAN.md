@@ -1548,6 +1548,27 @@ monster AC by CR.
   - *Build 4a accepted (owner, 2026-11-16: "yes, 4a accepted. go for 4b").* L4-21 passed ("ok, they seem to
     work"); every 4a row passed. Asked the same day, "Can we use a vfx effect for the detect magic glow?" - the
     look, forwarded to the animation session; the game's side is the $GLOW swap once it gives a row.
+  - *Build 4b started (owner, 2026-11-16: "yes, 4a accepted. go for 4b").* Disguise Self and Silent Image (Q4 A of
+    2026-11-09, real) built first; Find Familiar's four picks asked on #39 (forms and looks, Celestial / Fey / Fiend,
+    NWN's Summon Familiar feat, 4b / 4c), waiting. Defaults taken for the illusions (said on #39): Disguise Self's
+    menu Dwarf, Elf, Gnome, Halfling, Human, Orc (the 2024 species with an NWN player model); Silent Image's
+    Minor Illusion's four images and a Large Creature (an ogre), its Move a menu row.
+  - *Built 0.99.46 (build 4b, part 1):* rules/spells2024.h (rows 1202-1215; DisguiseAppearanceOf, PlayerHeadModel,
+    kSilentImageSeconds / kSilentImageRangeFeet, SilentImageMoveAllowed, IsNoSlotOption - the Move's radial entry
+    opens no slot levels), cantrips (the two menus; ImageKind::kLargeCreature, nw_ogre01, reacting as the small
+    creature by size; SilentImageKindOf), concentration (Silent Image and its five images; 136).
+    Disguise Self: the caster's own appearance and head kept in locals, SetCreatureAppearanceType to the species'
+    player model (an orc the half-orc's), the head kept when the new species' model has it (ResManGetAliasFor of
+    p<g><r><p>_headNNN) else head 1; a mark (effecticons 234) for the hour; its end (the mark gone - the hour, a
+    dispel) gives the look back (DisguiseUpdate; a player character loaded disguised found by its local). Silent
+    Image: Minor Illusion's image made general (rules_utility_cantrips.cpp: its slot on the caster, duration,
+    wording and log name by spell; MakeSilentImage / EndSilentImage / MoveSilentImage), 10 minutes, a mark on the
+    caster (235, the cast row's - Concentration's holder); the image goes with the mark. Its Move: the order
+    refused (no slot) and the Move row (1215) cheat-cast at the point, not instant (the cast takes the action - the
+    Magic action); a creature image walks there, an object is put there anew; within 60 feet of the caster.
+    Detect Magic's glow: visualeffects 2092 (the owner's VFX Bench effect, merged from anim 76fe697 and 1b21980 -
+    its 2100 was the looks' orb row: the first launch check skipped the look rows). Test
+    Spells2024Build4b (12 mutations caught); !test illusionwizard. Matrix L4-22 to L4-28.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
