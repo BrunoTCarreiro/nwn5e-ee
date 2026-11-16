@@ -26,6 +26,12 @@ bool Paused() {
   return app && g_pause_state(app) != 0;
 }
 
+}  // namespace
+
+bool GamePaused() { return Paused(); }
+
+namespace {
+
 bool g_was_paused = false;
 int g_pause_lines = 0;
 

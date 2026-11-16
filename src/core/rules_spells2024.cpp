@@ -3483,6 +3483,24 @@ std::string EvilAndGoodScript() {
   return code + " if (k != \"\") what = GetName(o) + \", \" + k;\n";
 }
 
+// NWScript: the kind Detect Poison and Disease reads off item property `ip` of a weapon (`natural`: a creature's
+// own), added to `k` (rules::PoisonSenseKind - a weapon's On Hit and a creature weapon's On Monster Hit; 0.99.43,
+// L4-9: the giant spider's bite is the second).
+std::string PoisonScript() {
+  std::string code = "          int pt = GetItemPropertyType(ip); int st = GetItemPropertySubType(ip); string pk = \"\";";
+  for (int property : {rules::kItemPropertyOnHit, rules::kItemPropertyOnMonsterHit}) {
+    for (int subtype = 0; subtype < 64; ++subtype) {
+      for (int natural = 0; natural < 2; ++natural) {
+        const char* kind = rules::PoisonSenseKind(property, subtype, natural != 0);
+        if (!kind) continue;
+        code += " if (pt == " + std::to_string(property) + " && st == " + std::to_string(subtype) +
+                " && natural == " + std::to_string(natural) + ") pk = \"" + kind + "\";";
+      }
+    }
+  }
+  return code + "\n          if (pk != \"\" && FindSubString(k, pk) < 0) k += (k == \"\" ? \"\" : \", \") + pk;\n";
+}
+
 // Detect Magic: creatures and objects under spells (each named with its school), items and creatures bearing magic
 // items; its areas go to `aoes` (named from their spell by the DLL: a script can't read an area's spell).
 const char* const kMagicSense = R"nss(
@@ -3518,7 +3536,8 @@ const char* const kMagicSense = R"nss(
 )nss";
 
 // Detect Poison and Disease: poisoned or diseased creatures, venomous ones (natural weapons that poison), poisoned
-// weapons (held, or lying there), attacks that spread disease.
+// weapons (held, or lying there), attacks that spread disease - each weapon's properties read by $POISON
+// (PoisonScript).
 const char* const kPoisonSense = R"nss(
     int t = GetObjectType(o); string k = "";
     if (t == OBJECT_TYPE_CREATURE) {
@@ -3539,13 +3558,7 @@ const char* const kPoisonSense = R"nss(
         int natural = t == OBJECT_TYPE_CREATURE && i < 3;
         itemproperty ip = GetFirstItemProperty(w);
         while (GetIsItemPropertyValid(ip)) {
-          if (GetItemPropertyType(ip) == ITEM_PROPERTY_ON_HIT_PROPERTIES) {
-            int st = GetItemPropertySubType(ip);
-            if (st == IP_CONST_ONHIT_ITEMPOISON && natural && FindSubString(k, "venomous") < 0) k += (k == "" ? "" : ", ") + "venomous (its natural weapons poison)";
-            if (st == IP_CONST_ONHIT_ITEMPOISON && !natural && FindSubString(k, "a poisoned weapon") < 0) k += (k == "" ? "" : ", ") + "a poisoned weapon";
-            if (st == IP_CONST_ONHIT_DISEASE && FindSubString(k, "disease") < 0) k += (k == "" ? "" : ", ") + "its attacks spread disease";
-          }
-          ip = GetNextItemProperty(w);
+$POISON          ip = GetNextItemProperty(w);
         }
       }
     }
@@ -3553,20 +3566,25 @@ const char* const kPoisonSense = R"nss(
 )nss";
 
 // One look of a Detect: what it senses within its range and in a clear line glows (an effect of the spell by the
-// caster - Concentration's end takes it) and is named once; what no longer is loses the glow.
+// caster - Concentration's end takes it) and is named once; what no longer is loses the glow. 0.99.43: Detect
+// Magic's $SIGHT drops what the caster can't see (L4-2: nothing from inside a Fog Cloud - n5d_blind, set by the
+// DLL -, no creature unseen, no object inside a Fog Cloud - $FOGS lists those near) and says once that it senses
+// magic it can't see; the glows added and taken go to n5d_chg for the log (L4-1: the sword's glow blinked).
 const char* const kDetectScan = R"nss(
 object me = OBJECT_SELF; int row = $ROW; string told = GetLocalString(me, "n5d_told"); string seen = ""; string aoes = "";
-int n = 0; location here = GetLocation(me);
+string chg = ""; int n = 0; int hidden = 0; int blind = GetLocalInt(me, "n5d_blind"); location here = GetLocation(me);
+$FOGS
 object o = GetFirstObjectInShape(SHAPE_SPHERE, $RADIUS, here, TRUE, $FILTER);
 while (GetIsObjectValid(o)) {
   string what = "";
   if (o != me) {
 $CLASSIFY
+$SIGHT
   }
   if (what != "") {
     string key = "|" + ObjectToString(o) + "|";
     seen += key;
-    if (!GetHasSpellEffect(row, o)) ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(EffectVisualEffect($GLOW), row), "n5s_detglow"), o, TurnsToSeconds(10));
+    if (!GetHasSpellEffect(row, o)) { ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(EffectVisualEffect($GLOW), row), "n5s_detglow"), o, TurnsToSeconds(10)); chg += " +" + GetName(o); }
     if (FindSubString(told, key) < 0) { told += key; if (n < 8) SendMessageToPC(me, "nwn5e: $NAME - " + what + "."); n++; }
   }
   o = GetNextObjectInShape(SHAPE_SPHERE, $RADIUS, here, TRUE, $FILTER);
@@ -3584,10 +3602,42 @@ while (p >= 0) {
       if (GetEffectTag(e) == "n5s_detglow" && GetEffectCreator(e) == me) RemoveEffect(g, e);
       e = GetNextEffect(g);
     }
+    if (GetIsObjectValid(g)) chg += " -" + GetName(g);
   }
   p = FindSubString(old, "|", q + 1);
 }
+if (hidden > 0 && !GetLocalInt(me, "n5d_hid")) SendMessageToPC(me, "nwn5e: $NAME - you sense magic within $FEET feet that you can't see.");
+SetLocalInt(me, "n5d_hid", hidden > 0);
 SetLocalString(me, "n5d_told", told); SetLocalString(me, "n5d_glow", seen); SetLocalString(me, "n5d_aoes", aoes);
+SetLocalString(me, "n5d_chg", chg);
+)nss";
+
+// Detect Magic (rules::DetectNeedsSight): the Fog Clouds near the caster (their tag NWN5E_FOG_CLOUD_<slot>, the
+// radius rules::FogCloudRadiusFeet's), listed before the look - a second shape search inside the first would end it.
+const char* const kDetectFogs = R"nss(
+int nf = 0;
+object fz = GetFirstObjectInShape(SHAPE_SPHERE, $FOGREACH, here, FALSE, OBJECT_TYPE_AREA_OF_EFFECT);
+while (GetIsObjectValid(fz) && nf < 8) {
+  string tz = GetStringUpperCase(GetTag(fz));
+  if (GetStringLeft(tz, 16) == "NWN5E_FOG_CLOUD_") {
+    int sz = StringToInt(GetSubString(tz, 16, 2)); float rz = 0.0;
+$FOGRADII
+    SetLocalObject(me, "n5d_fog" + IntToString(nf), fz); SetLocalFloat(me, "n5d_fr" + IntToString(nf), rz); nf++;
+  }
+  fz = GetNextObjectInShape(SHAPE_SPHERE, $FOGREACH, here, FALSE, OBJECT_TYPE_AREA_OF_EFFECT);
+}
+)nss";
+
+const char* const kDetectSight = R"nss(
+    if (what != "") {
+      int unseen = blind; int ot = GetObjectType(o); int f;
+      if (!unseen && ot == OBJECT_TYPE_CREATURE) unseen = !GetObjectSeen(o, me);
+      for (f = 0; f < nf && !unseen && ot != OBJECT_TYPE_CREATURE; f++) {
+        object fg = GetLocalObject(me, "n5d_fog" + IntToString(f));
+        if (GetIsObjectValid(fg) && GetDistanceBetween(fg, o) <= GetLocalFloat(me, "n5d_fr" + IntToString(f))) unseen = TRUE;
+      }
+      if (unseen) { hidden++; what = ""; }
+    }
 )nss";
 
 const std::string& DetectScan(int row) {
@@ -3607,10 +3657,28 @@ const std::string& DetectScan(int row) {
     glow = "VFX_DUR_GLOW_LIGHT_BLUE";
   } else {
     classify = kPoisonSense;
+    Replace(&classify, "$POISON", PoisonScript());
     filter = "OBJECT_TYPE_CREATURE | OBJECT_TYPE_ITEM";
     glow = "VFX_DUR_GLOW_GREEN";
   }
   Replace(&code, "$CLASSIFY", classify);
+  if (rules::DetectNeedsSight(row)) {
+    std::string radii;
+    int widest = 0;
+    for (int slot = 1; slot <= 9; ++slot) {
+      const int feet = rules::FogCloudRadiusFeet(slot);
+      widest = std::max(widest, feet);
+      radii += " if (sz == " + std::to_string(slot) + ") rz = " + Float(rules::FeetToMetres(feet)) + ";";
+    }
+    Replace(&code, "$FOGS", kDetectFogs);
+    Replace(&code, "$FOGRADII", radii);
+    Replace(&code, "$FOGREACH", Float(rules::FeetToMetres(rules::kDetectFeet + widest)));
+    Replace(&code, "$SIGHT", kDetectSight);
+  } else {
+    Replace(&code, "$FOGS", "int nf = 0;");
+    Replace(&code, "$SIGHT", "");
+  }
+  Replace(&code, "$FEET", std::to_string(rules::kDetectFeet));
   Replace(&code, "$ROW", std::to_string(row));
   Replace(&code, "$RADIUS", Float(rules::FeetToMetres(rules::kDetectFeet)));
   Replace(&code, "$FILTER", filter);
@@ -3631,7 +3699,8 @@ void DetectBegin(uint32_t self, int row) {
   sprintf_s(code,
             "ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(EffectIcon(%d), %d), \"%s\"), "
             "OBJECT_SELF, TurnsToSeconds(%d)); DeleteLocalString(OBJECT_SELF, \"n5d_told\"); DeleteLocalString(OBJECT_SELF, "
-            "\"n5d_glow\"); ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_MAGICAL_VISION), OBJECT_SELF);",
+            "\"n5d_glow\"); DeleteLocalInt(OBJECT_SELF, \"n5d_hid\"); ApplyEffectToObject(DURATION_TYPE_INSTANT, "
+            "EffectVisualEffect(VFX_IMP_MAGICAL_VISION), OBJECT_SELF);",
             UtilityIconRow(row), row, kTagDetectMark, rules::kDetectMinutes);
   Run(code, self, "a Detect's mark");
   g_detecting[self] = Detecting{row, 0, {}};
@@ -3680,7 +3749,12 @@ void DetectUpdate(void* creature) {
     g_detecting.erase(it);
     return;
   }
+  if (rules::DetectNeedsSight(detect.row)) engine::SetLocalInt(creature, "n5d_blind", InFogCloud(creature) ? 1 : 0);
   Run(DetectScan(detect.row), id, "a Detect's look");
+  const std::string changed = engine::GetLocalString(creature, "n5d_chg");
+  if (!changed.empty() && LogSlot()) {
+    Log("spells2024: 0x%08X %s's look - glows%s", id, SpellNameOf(detect.row).c_str(), changed.c_str());
+  }
   if (detect.row == rules::kDetectMagic) NameDetectedAreas(id, creature, detect);
 }
 
@@ -3708,7 +3782,8 @@ if (k == OBJECT_TYPE_ITEM) {
   effect e = GetFirstEffect(t);
   while (GetIsEffectValid(e)) {
     int id = GetEffectSpellId(e);
-    if (id >= 0 && FindSubString(ids, "|" + IntToString(id) + "|") < 0) {
+    // 0.99.43 (L4-4: "affected by Detect Magic, Bless" - a Detect's glow isn't a spell on the creature)
+    if (id >= 0 && GetEffectTag(e) != "n5s_detglow" && FindSubString(ids, "|" + IntToString(id) + "|") < 0) {
       ids += "|" + IntToString(id) + "|";
       list += (list == "" ? "" : ", ") + GetStringByStrRef(StringToInt(Get2DAString("spells", "Name", id)));
     }
@@ -3726,8 +3801,7 @@ const char* const kAlarmTrip = R"nss(
 object w = OBJECT_SELF; object c = GetAreaOfEffectCreator(w); object e = StringToObject("$ID");
 if (!GetIsObjectValid(e) || e == c || GetFactionEqual(e, c) || GetMaster(e) == c || GetFactionEqual(GetMaster(e), c)) return;
 if ($AUDIBLE) {
-  AssignCommand(e, PlaySound("as_cv_bell1"));
-  object pc = GetFirstPC();
+$BELL  object pc = GetFirstPC();
   while (GetIsObjectValid(pc)) {
     if (GetArea(pc) == GetArea(w) && GetDistanceBetweenLocations(GetLocation(pc), GetLocation(w)) <= $HEARD) SendMessageToPC(pc, "nwn5e: Alarm - a handbell rings at the ward.");
     pc = GetNextPC();
@@ -3738,6 +3812,17 @@ if ($AUDIBLE) {
 }
 )nss";
 
+// Alarm's handbell (0.99.43, L4-5: no sound - PlaySound is an action, and the intruder's AI held its queue): an
+// invisible object at the ward rings the game's as_cv_bell1 (2.5 s) for the rule's 10 seconds, then goes.
+std::string AlarmBellScript() {
+  constexpr float kRing = 2.5f;
+  std::string code = "  object bell = CreateObject(OBJECT_TYPE_PLACEABLE, \"plc_invisobj\", GetLocation(w));\n";
+  for (float at = 0.0f; at < static_cast<float>(rules::kAlarmBellSeconds); at += kRing) {
+    code += "  AssignCommand(bell, DelayCommand(" + Float(at) + ", PlaySound(\"as_cv_bell1\")));\n";
+  }
+  return code + "  DestroyObject(bell, " + Float(rules::kAlarmBellSeconds + 1.0f) + ");\n";
+}
+
 void AlarmTrip(uint32_t area, bool audible) {
   for (uint32_t id : AreaCreatures(area, kEntering)) {
     std::string code = kAlarmTrip;
@@ -3745,6 +3830,7 @@ void AlarmTrip(uint32_t area, bool audible) {
     sprintf_s(hex, "%x", id);
     Replace(&code, "$ID", hex);
     Replace(&code, "$AUDIBLE", audible ? "TRUE" : "FALSE");
+    Replace(&code, "$BELL", AlarmBellScript());
     Replace(&code, "$HEARD", Float(rules::FeetToMetres(rules::kAlarmAudibleFeet)));
     Run(code, area, "Alarm's ward");
     if (LogSlot()) Log("spells2024: 0x%08X entered Alarm's ward 0x%08X (%s)", id, area, audible ? "audible" : "mental");
@@ -3831,18 +3917,18 @@ itemproperty ip = GetFirstItemProperty(b);
 while (GetIsItemPropertyValid(ip)) { RemoveItemProperty(b, ip); ip = GetNextItemProperty(b); }
 AddItemProperty(DURATION_TYPE_PERMANENT, ItemPropertyCastSpell($POWER, IP_CONST_CASTSPELL_NUMUSES_SINGLE_USE), b);
 SetName(b, "Goodberry"); SetIdentified(b, TRUE); SetItemStackSize(b, $COUNT);
-SetDescription(b, "A berry infused with magic by the Goodberry spell. Eating it (a Bonus Action) restores 1 Hit Point. It withers 24 hours after the spell.", TRUE);
+SetDescription(b, "A berry infused with magic by the Goodberry spell. Eating it (a Bonus Action) restores 1 Hit Point. Uneaten, it disappears when the spell ends, 24 hours after it.", TRUE);
 SetLocalInt(b, "n5_goodberry_until", now + $HOURS);
 DelayCommand(HoursToSeconds($HOURS), DestroyObject(b));
 ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_HEALING_S), OBJECT_SELF);
-SendMessageToPC(OBJECT_SELF, "nwn5e: Goodberry - ten berries in your pack; eat one (a Bonus Action) for 1 Hit Point. They wither in 24 hours.");
+SendMessageToPC(OBJECT_SELF, "nwn5e: Goodberry - ten berries in your pack; eat one (a Bonus Action) for 1 Hit Point. Uneaten, they disappear in 24 hours.");
 )nss";
 
 const char* const kGoodberryEat = R"nss(
 object b = GetSpellCastItem();
 int now = (GetCalendarYear() * 336 + (GetCalendarMonth() - 1) * 28 + GetCalendarDay() - 1) * 24 + GetTimeHour();
 int until = GetLocalInt(b, "n5_goodberry_until");
-if (until > 0 && now >= until) { SendMessageToPC(OBJECT_SELF, "nwn5e: the Goodberry has withered (24 hours)."); DestroyObject(b); return; }
+if (until > 0 && now >= until) { SendMessageToPC(OBJECT_SELF, "nwn5e: the Goodberry is gone - the spell ended (24 hours)."); DestroyObject(b); return; }
 ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectLinkEffects(EffectHeal($HP), EffectVisualEffect(VFX_IMP_HEALING_S)), OBJECT_SELF);
 SendMessageToPC(OBJECT_SELF, "nwn5e: Goodberry - $HP Hit Point.");
 )nss";

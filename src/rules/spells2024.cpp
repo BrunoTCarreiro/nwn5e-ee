@@ -320,6 +320,23 @@ const char* SpellSchoolName(char letter) {
   }
 }
 
+const char* PoisonSenseKind(int item_property, int subtype, bool natural) {
+  bool poison = false;
+  bool disease = false;
+  if (item_property == kItemPropertyOnHit) {
+    poison = subtype == 19;
+    disease = subtype == 20;
+  } else if (item_property == kItemPropertyOnMonsterHit) {
+    poison = subtype == 6;
+    disease = subtype == 2;
+  }
+  if (poison) return natural ? "venomous (its natural weapons poison)" : "a poisoned weapon";
+  if (disease) return "its attacks spread disease";
+  return nullptr;
+}
+
+bool DetectNeedsSight(int row) { return row == kDetectMagic; }
+
 int UtilityEffectMinutes(int row) {
   if (row == kComprehendLanguages || row == kUnseenServant) return 60;
   if (row == kSpeakWithAnimals) return 10;

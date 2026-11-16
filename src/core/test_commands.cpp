@@ -109,6 +109,7 @@
 #include "ee_layout.h"
 #include "effects.h"
 #include "engine.h"
+#include "game_clock.h"
 #include "hooks.h"
 #include "log.h"
 #include "clock_panel.h"
@@ -209,7 +210,13 @@ std::vector<std::string> SpawnCommand(void* creature, const std::string& args) {
                                  "if (GetMaxHenchmen() < n) SetMaxHenchmen(n); "
                                  "ChangeFaction(o, OBJECT_SELF); AddHenchman(OBJECT_SELF, o); "
                                  "SetLocalInt(OBJECT_SELF, \"nwn5e_test_joined\", GetMaster(o) == OBJECT_SELF); "
-                     : neutral ? "ChangeToStandardFaction(o, STANDARD_FACTION_COMMONER); "
+                     // 0.99.43 (L4-13: a neutral wolf attacked - the owner's Alchemist's Fire at a neutral orc
+                     // had turned the whole commoners' faction hostile to them): the commoners neutral again.
+                     : neutral ? "if (GetStandardFactionReputation(STANDARD_FACTION_COMMONER, OBJECT_SELF) <= 10) { "
+                                 "SetStandardFactionReputation(STANDARD_FACTION_COMMONER, 50, OBJECT_SELF); "
+                                 "SendMessageToPC(OBJECT_SELF, \"nwn5e: the commoners had turned hostile to you (one "
+                                 "was attacked) - neutral again.\"); } "
+                                 "ChangeToStandardFaction(o, STANDARD_FACTION_COMMONER); "
                                : "ChangeToStandardFaction(o, STANDARD_FACTION_HOSTILE); ";
   if (reduction) {
     join += "ApplyEffectToObject(DURATION_TYPE_PERMANENT, SupernaturalEffect(EffectDamageReduction(10, "
@@ -797,6 +804,12 @@ std::vector<std::string> TimeCommand(void* creature, const std::string& args) {
   int move = 0;
   if (!rules::ParseClockHours(args, &move)) {
     return {"nwn5e: !time [hours] - the game time, or the clock moved 1 to 48 hours (e.g. !time 16)"};
+  }
+  if (move > 0 && GamePaused()) {
+    // 0.99.43 (L4-12: the owner's !time 25 typed while paused moved nothing): the engine keeps the paused time.
+    Log("test: 0x%08X !time %d refused - the game is paused", id, move);
+    return {"nwn5e: the clock can't move while the game is paused - unpause, then type !time " + std::to_string(move) +
+            " again."};
   }
   if (move > 0) {
     char code[256];

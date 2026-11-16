@@ -486,6 +486,27 @@ TEST(Spells2024Build3) {
 // #39 2a build 4a: detection and utility, rituals. Breaks caught: a ritual tag lost or added, a Ritual cast in
 // combat, with the switch off or not from a class, the 10 minutes, a mode's row, the Cube's growth, a Detect's
 // kinds, a school's name, an effect's minutes, a Wizard-only spell given the Sorcerer.
+TEST(Spells2024Build4aFixes) {
+  const auto poison = [](int property, int subtype, bool natural) {
+    const char* k = PoisonSenseKind(property, subtype, natural);
+    return std::string(k ? k : "-");
+  };
+  // L4-9: the giant spider's bite - On Monster Hit, Poison.
+  CHECK_EQ(poison(kItemPropertyOnMonsterHit, 6, true) == "venomous (its natural weapons poison)", true);
+  CHECK_EQ(poison(kItemPropertyOnMonsterHit, 2, true) == "its attacks spread disease", true);
+  CHECK_EQ(poison(kItemPropertyOnHit, 19, true) == "venomous (its natural weapons poison)", true);
+  CHECK_EQ(poison(kItemPropertyOnHit, 19, false) == "a poisoned weapon", true);
+  CHECK_EQ(poison(kItemPropertyOnHit, 20, false) == "its attacks spread disease", true);
+  CHECK_EQ(poison(kItemPropertyOnHit, 6, true) == "-", true);          // On Hit 6 is Doom
+  CHECK_EQ(poison(kItemPropertyOnMonsterHit, 19, true) == "-", true);  // no such monster hit
+  CHECK_EQ(poison(kItemPropertyOnMonsterHit, 8, true) == "-", true);   // Stun
+  CHECK_EQ(poison(15, 6, true) == "-", true);
+  CHECK_EQ(DetectNeedsSight(kDetectMagic), true);
+  CHECK_EQ(DetectNeedsSight(kDetectEvilAndGood), false);
+  CHECK_EQ(DetectNeedsSight(kDetectPoisonAndDisease), false);
+  CHECK_EQ(kAlarmBellSeconds, 10);
+}
+
 TEST(Spells2024Build4a) {
   CHECK_EQ(Spell2024Of(kDetectMagic) != nullptr && Spell2024Of(kDetectMagic)->effect == SpellEffect2024::kUtility, true);
   CHECK_EQ(Spell2024Of(kDetectMagic)->ritual, true);

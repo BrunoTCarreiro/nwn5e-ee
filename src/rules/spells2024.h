@@ -342,6 +342,7 @@ int RitualCastingMinutes(int casting_minutes);  // its casting time + 10
 constexpr int kAlarmCubeFeet = 20;
 constexpr int kAlarmHours = 8;
 constexpr int kAlarmAudibleFeet = 60;
+constexpr int kAlarmBellSeconds = 10;  // the handbell's sound lasts 10 seconds
 enum class AlarmMode { kNone, kAudible, kMental };
 AlarmMode AlarmModeOf(int row);
 
@@ -362,6 +363,17 @@ bool IsDetectSpell(int row);
 const char* DetectEvilAndGoodKind(int nwn_racial_type, int nwn_good_evil);
 // A spell's school by spells.2da's School letter (Detect Magic names it); nullptr for none.
 const char* SpellSchoolName(char letter);
+// Detect Poison and Disease (0.99.43; L4-9, the giant spider's bite): what a weapon's item property tells it. NWN
+// keeps a poison or a disease two ways - a weapon's On Hit (itemprops 48: 19 poison, 20 disease) and a creature
+// weapon's On Monster Hit (72: 6 poison, 2 disease). `natural`: a creature's own weapon (a bite, a claw). nullptr:
+// nothing it senses.
+constexpr int kItemPropertyOnHit = 48;
+constexpr int kItemPropertyOnMonsterHit = 72;
+const char* PoisonSenseKind(int item_property, int subtype, bool natural);
+// Detect Magic's aura shows only on what the caster sees (SRD 5.2: "any visible creature or object") - nothing in
+// a Fog Cloud (Heavily Obscured) or from inside one, no creature unseen (0.99.43, L4-2). Detect Evil and Good and
+// Detect Poison and Disease sense locations, seen or not.
+bool DetectNeedsSight(int row);
 
 // Goodberry: ten berries for 24 hours, each eaten (a Bonus Action) for 1 Hit Point.
 constexpr int kGoodberryCount = 10;

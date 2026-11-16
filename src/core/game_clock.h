@@ -9,5 +9,10 @@
 // after one). rules_dying keeps its own clock (Phase 5b).
 uint64_t GameMs();
 
+// The game is paused (a single-player pause). The engine keeps the paused time while it lasts, so a SetTime then
+// is lost when it resumes (0.99.43: CWorldTimer::AdvanceToTime writes the running clock's offsets, which the
+// unpause resets) - !time refuses.
+bool GamePaused();
+
 // Starts the clock (hooks the creature update); false (and logged) if it can't.
 bool StartGameClock();
