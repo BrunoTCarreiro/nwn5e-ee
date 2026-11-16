@@ -141,6 +141,7 @@
 #include "records.h"
 #include "game_clock.h"
 #include "hooks.h"
+#include "item_use.h"
 #include "log.h"
 #include "mastery.h"
 #include "movement_rate.h"
@@ -4090,13 +4091,14 @@ DeleteLocalInt(me, "n5s_disg"); DeleteLocalInt(me, "n5s_disg_app"); DeleteLocalI
 )nss";
 
 // The outfit (RunWholeScript: its helpers): Mod - an item's appearance changed (NWN's CopyItemAndModify: a copy, the
-// old one gone); Pick - a random piece of a parts table whose model the species has (the torso, its armour value) -
+// old one gone - its id kept in n5s_disg_old, for TakeOutOldCopies; 0.99.52); Pick - a random piece of a parts table whose model the species has (the torso, its armour value) -
 // each fitting row as likely (0.99.51: clothing has 11 torsos of 201 rows, too few for random tries).
 const char* const kOutfitHelpers = R"nss(
 object Mod(object o, int t, int i, int v) {
   if (GetItemAppearance(o, t, i) == v) return o;
   object n = CopyItemAndModify(o, t, i, v, TRUE);
   if (!GetIsObjectValid(n)) return o;
+  SetLocalString(OBJECT_SELF, "n5s_disg_old", GetLocalString(OBJECT_SELF, "n5s_disg_old") + ObjectToString(o) + " ");
   DestroyObject(o);
   return n;
 }
@@ -4169,6 +4171,38 @@ std::string OutfitOnScript(const std::string& prefix) {
   return code;
 }
 
+// 0.99.52 (owner, 2026-11-16: "check the logs, specifically the many \"lost item\" lines"): each copy Mod replaced
+// left its owner through DestroyObject, and the engine's destroy says "Lost Item: <name>" (ee::kCreatureRemoveItem) -
+// 22 to 24 lines a cast. Right after the outfit's script (its DestroyObjects wait for the next AI update), each old
+// copy is taken out of the inventory without it; the destroy then finds it with no owner and says nothing. Returns
+// how many.
+int TakeOutOldCopies(void* creature) {
+  using RemoveItemFn = int(__fastcall*)(void* creature, void* item, int a, int feedback, int keep, int possessor);
+  static const auto remove_item = reinterpret_cast<RemoveItemFn>(EngineExport(ee::kCreatureRemoveItem));
+  if (!creature) return 0;
+  const std::string olds = engine::GetLocalString(creature, "n5s_disg_old");
+  if (olds.empty()) return 0;
+  engine::SetLocalString(creature, "n5s_disg_old", "");
+  if (!remove_item) {
+    static bool told = false;
+    if (!told) Log("spells2024: Disguise Self's outfit - CNWSCreature::RemoveItem not found; its copies say Lost Item");
+    told = true;
+    return 0;
+  }
+  int taken = 0;
+  const char* at = olds.c_str();
+  while (*at) {
+    char* end = nullptr;
+    const unsigned long id = strtoul(at, &end, 16);
+    if (end == at) break;
+    at = end;
+    while (*at == ' ') ++at;
+    void* item = ItemById(static_cast<uint32_t>(id));
+    if (item && remove_item(creature, item, 0, 0, 0, 1)) ++taken;
+  }
+  return taken;
+}
+
 int RandomOf(const std::vector<int>& values) {
   if (values.empty()) return 0;
   return values[static_cast<size_t>(RollEngineDice(1, static_cast<int>(values.size())) - 1)];
@@ -4215,16 +4249,17 @@ void DisguiseSpell(uint32_t self, void* caster, int row) {
   Replace(&code, "$HAIR", std::to_string(hair));
   Run(code, self, "Disguise Self");
   RunWholeScript(OutfitOnScript(prefix).c_str(), self);
+  const int taken = TakeOutOldCopies(caster);
   g_disguised[self] = 0;
   TellPlayer(self, std::string("nwn5e: Disguise Self - for an hour you look like ") + SpeciesName(appearance) +
                        "; a creature that studies you closely (Intelligence (Investigation) against your spell "
                        "save DC) can tell.");
   if (LogSlot()) {
     Log("spells2024: 0x%08X Disguise Self - appearance %d (own %d), head %d of %d (%s; own %d), skin %d, hair %d, "
-        "outfit %s",
+        "outfit %s (%d old copies taken out quietly)",
         self, appearance, own, engine::GetLocalInt(caster, "n5s_disg_newhead"),
         engine::GetLocalInt(caster, "n5s_disg_heads"), prefix.c_str(), head, skin, hair,
-        engine::GetLocalInt(caster, "n5s_disg_outfit") ? "re-skinned" : "none worn");
+        engine::GetLocalInt(caster, "n5s_disg_outfit") ? "re-skinned" : "none worn", taken);
   }
 }
 
@@ -4249,8 +4284,9 @@ void DisguiseUpdate(void* creature) {
   g_disguised.erase(it);
   Run(kDisguiseOff, id, "Disguise Self's end");
   RunWholeScript((std::string(kOutfitHelpers) + kOutfitOff).c_str(), id);  // 0.99.50: its outfit back
+  const int taken = TakeOutOldCopies(creature);
   TellPlayer(id, "nwn5e: Disguise Self ends - you look like yourself again.");
-  if (LogSlot()) Log("spells2024: 0x%08X Disguise Self ends - its own look back", id);
+  if (LogSlot()) Log("spells2024: 0x%08X Disguise Self ends - its own look back (%d old copies taken out quietly)", id, taken);
 }
 
 // Build 4b: Silent Image (Q4 A, real) - Minor Illusion's image (rules_utility_cantrips.cpp; a Large Creature too)

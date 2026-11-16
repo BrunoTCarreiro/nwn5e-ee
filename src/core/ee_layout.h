@@ -930,6 +930,14 @@ constexpr size_t kCreatureCastUseSpent = 0x81c;
 constexpr const char* kCreatureSendFeedbackMessage =
     "?SendFeedbackMessage@CNWSCreature@@QEAAXGPEAVCNWCCMessageData@@PEAVCNWSPlayer@@@Z";
 constexpr uint16_t kFeedbackNoSpellUses = 0x16;
+// int CNWSCreature::RemoveItem(CNWSItem*, int a, int feedback, int keep_in_inventory, int set_possessor): unequips it
+// when worn (RunUnequip, `a` its 5th), takes it out of the inventory unless keep_in_inventory (RemoveItemFromRepository),
+// and clears its possessor when set_possessor - CNWSItem::SetPossessor(0x7F000000, 1, feedback, 0), whose feedback 1
+// is the owner's "Lost Item: <name>" (SendFeedbackMessage 0x33, SetPossessor +0x429). A destroyed item (DestroyObject:
+// CNWSItem::EventHandler +0xdbf) is removed with (0, 1, 0, 1); one already out of the inventory, with no possessor,
+// is destroyed without it (+0xdb0's GetGameObject of its possessor finds none).
+constexpr const char* kCreatureRemoveItem = "?RemoveItem@CNWSCreature@@QEAAHPEAVCNWSItem@@HHHH@Z";
+constexpr uint16_t kFeedbackItemLost = 0x33;
 // #36 SL-3, a cantrip's button with no number: the client's CNWCCreatureStats::GetSpellUsesLeft(spell, class
 // slot, domain level, metamagic) (not exported; this pattern is at its +0x1E) gives the uses its five callers
 // (the quickbar's refresh and one-button setter, two spell panels, the spontaneous-cure menu) then write with
