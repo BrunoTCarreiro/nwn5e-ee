@@ -18,10 +18,16 @@ node tools\data\floatdisk\build.js
 - It reads the game's models from your own install. It builds its mesh reader (`mdlmesh`) on the first run, which
   needs the VS 2019 Build Tools that `build.bat` uses.
 - `--check` prints what it would build and writes nothing.
+- `--json` prints the summary as one line of JSON instead of text (an error as `{ "error": ... }`); the VFX Bench's
+  Composer reads it.
 - It never overwrites a file it didn't make.
 - The new files reach the game at the next install.
 
 `node tools\data\floatdisk\check.js` checks the generator's own parts. It doesn't need the game.
+
+`node tools\data\floatdisk\check_build.js` rebuilds on a temporary copy and checks the whole generator: a rebuild
+changes nothing, `--json` agrees with the text, a weapon's pieces read as one, a refused build writes nothing. It needs
+the game (it prints `skip` without it).
 
 ## Swap in your own pile
 
@@ -81,5 +87,7 @@ Then rebuild.
 | `build.js` | the generator |
 | `floatdisk.js` | its pure parts: placing, the disk, the models' and rows' text |
 | `check.js` | checks `floatdisk.js` |
+| `reader.js` | reads the parts' meshes and the textures from the game or beside a file (what `build.js` and the VFX Bench share) |
+| `check_build.js` | checks `build.js` end to end on a temporary copy (needs the game) |
 | `mdlmesh.cpp`, `build_mdlmesh.bat` | the mesh reader, built from the repo's `src\data\vfx_model.cpp` into `build\floatdisk\` |
 | `made.txt` | the textures the generator wrote (they can't carry its mark) |

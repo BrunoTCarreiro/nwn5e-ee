@@ -25,6 +25,8 @@
 //     --reader <exe>        the mesh reader (default: NWN5E_MDLMESH, else build\floatdisk\mdlmesh.exe, built if needed)
 //     --files <folder>      where the models and textures go (default: data\files)
 //     --rows <folder>       where the rows files go (default: data\rows)
+//     --json                the summary as one line of JSON on stdout (what the VFX Bench's Composer reads); an error as
+//                           { "error": message }
 //     --check               read and place everything, print the summary, write nothing
 //     --drafts              also the stages as VFX Bench drafts (phase 1's previews): n5_floatdisk_<stage>.vfx into
 //                           <build>\vfxedit\saved and the texture into its library (--build <nwn5e build folder>,
@@ -34,10 +36,9 @@
 // made.txt (beside this file: the files it wrote that can't carry a mark). Every file is checked before any is written.
 "use strict";
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
-const { execFileSync } = require("child_process");
 const F = require("./floatdisk.js");
+const R = require("./reader.js");
 
 const REPO = path.resolve(__dirname, "..", "..", "..");
 const MANIFEST = path.join(__dirname, "made.txt");
@@ -57,7 +58,8 @@ const ROWS_DIR = path.resolve(option("rows", path.join(REPO, "data", "rows")));
 const DRAFT_OUT = path.resolve(option("out", path.join(BUILD, "vfxedit", "saved")));
 const DRAFT_TEXTURES = path.resolve(option("textures", path.join(BUILD, "vfxedit", "library", "textures")));
 const COMPOSITION = path.resolve(option("composition", path.join(__dirname, "composition.json")));
-const READER = path.resolve(option("reader", process.env.NWN5E_MDLMESH || path.join(REPO, "build", "floatdisk", "mdlmesh.exe")));
+const READER = option("reader", process.env.NWN5E_MDLMESH || "");
+const JSON_OUT = argv.includes("--json");
 
 function need(file, what) {
   if (!fs.existsSync(file)) throw new Error(`${what} isn't there: ${file}`);
@@ -68,59 +70,6 @@ const core = require(need(path.join(TOOLS, "vfx_bench", "public", "core.js"), "n
 const gameData = require(need(path.join(TOOLS, "spell_bench", "game_data.js"), "nwn5e-tools' game data reader (--tools)"));
 const helper = require(need(path.join(TOOLS, "anim_helper", "helper.js"), "nwn5e-tools' anim helper (--tools)"));
 const GAME = helper.findGameDir({ game: option("game", ""), buildDir: BUILD });
-
-// --- the mesh reader ----------------------------------------------------------------------------------------------
-// The default mdlmesh is built here when it's missing or older than its sources (VS 2019 Build Tools, as build.bat).
-function ensureReader() {
-  const own = path.join(REPO, "build", "floatdisk", "mdlmesh.exe");
-  if (READER !== own) return need(READER, "the mesh reader (--reader / NWN5E_MDLMESH)");
-  const sources = [path.join(__dirname, "mdlmesh.cpp"), path.join(REPO, "src", "data", "vfx_model.cpp"), path.join(REPO, "src", "data", "vfx_model.h")];
-  const built = fs.existsSync(own) ? fs.statSync(own).mtimeMs : 0;
-  if (built && sources.every((s) => fs.statSync(s).mtimeMs <= built)) return own;
-  console.log(built ? "mdlmesh is older than its sources: rebuilding" : "building mdlmesh (build_mdlmesh.bat)");
-  try {
-    execFileSync("cmd.exe", ["/d", "/c", path.join(__dirname, "build_mdlmesh.bat")], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
-  } catch (e) {
-    throw new Error("build_mdlmesh.bat failed:\n" + String((e.stdout || "") + (e.stderr || "")).trim());
-  }
-  return need(own, "mdlmesh after build_mdlmesh.bat");
-}
-
-// --- the parts: their meshes in their models' space --------------------------------------------------------------------
-// A game model by name, or a model file of yours (ASCII - made readable for the reader first - or compiled).
-function readPart(part, res, reader, tmp) {
-  const label = F.partLabel(part);
-  let bytes;
-  if (part.source.kind === "model") {
-    bytes = res(part.source.model, 2002);
-    if (!bytes) throw new Error(`${label}: no such model in the game (${GAME})`);
-  } else {
-    if (!fs.existsSync(part.source.file)) throw new Error(`${label}: no such file (${part.source.file})`);
-    bytes = fs.readFileSync(part.source.file);
-    if (bytes.length >= 4 && bytes.readUInt32LE(0) !== 0) bytes = Buffer.from(F.readableAscii(bytes.toString("latin1"), label), "latin1");
-  }
-  const file = path.join(tmp, "part" + fs.readdirSync(tmp).length + ".mdl");
-  fs.writeFileSync(file, bytes);
-  let text;
-  try {
-    text = execFileSync(reader, [file], { encoding: "utf8", maxBuffer: 64 << 20, windowsHide: true });
-  } catch (e) {
-    throw new Error(`${label}: the reader couldn't read it - ${String(e.stderr || e.message).trim()}`);
-  }
-  return F.modelSpaceMeshes(core.readDraft(text.replace(/\r/g, "")), label);
-}
-
-// A texture by name: the game's (its archives or ovr\: TGA, DDS or PLT), else beside a part's own file - then shipped
-// beside the models. -> { where: "game" } | { where: "beside", copies: [paths] }; throws when it's nowhere.
-function findTexture(name, res, besideDirs) {
-  if (res(name, 3) || res(name, 2033) || res(name, 6)) return { where: "game" };
-  for (const ext of [".tga", ".dds", ".plt"]) if (fs.existsSync(path.join(GAME, "ovr", name + ext))) return { where: "game" };
-  for (const dir of besideDirs) {
-    const found = F.texturesBeside(name, fs.existsSync(dir) ? fs.readdirSync(dir) : []);
-    if (found.image) return { where: "beside", copies: [found.image, found.txi].filter(Boolean).map((f) => path.join(dir, f)) };
-  }
-  return null;
-}
 
 // --- writing ----------------------------------------------------------------------------------------------------------
 // A file in this repo by its path from the repo's root ("data/files/x.tga"); null outside it.
@@ -170,17 +119,17 @@ function writeAll(writes, manifest) {
 function main() {
   const comp = F.readComposition(JSON.parse(fs.readFileSync(COMPOSITION, "utf8")), __dirname);
   if (!fs.existsSync(path.join(GAME, "data", "nwn_base.key"))) throw new Error("no game at " + GAME + " (--game <folder>)");
-  const reader = ensureReader();
-  const res = gameData.resources(GAME);
+  const reader = R.ensureReader({ repo: REPO, reader: READER, log: JSON_OUT ? console.error : console.log });
+  const rd = R.create({ game: GAME, core, gameData, reader });
+  const res = rd.res;
   const disk = comp.disk;
 
-  // The parts, read once each.
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "n5_floatdisk-"));
+  // The parts, read once each (a game model, a weapon's pieces or a file of yours: reader.js).
   const models = new Map();
   try {
-    for (const stage of F.PILES) for (const p of comp.stages[stage]) if (!models.has(F.partKey(p))) models.set(F.partKey(p), readPart(p, res, reader, tmp));
+    for (const stage of F.PILES) for (const p of comp.stages[stage]) if (!models.has(F.partKey(p))) models.set(F.partKey(p), rd.part(p));
   } finally {
-    fs.rmSync(tmp, { recursive: true, force: true });
+    rd.close();
   }
 
   // c_invsguy's nodes (the creature models copy them where they are).
@@ -210,7 +159,7 @@ function main() {
       if (x.part.source.kind !== "file") continue;
       for (const m of x.meshes) {
         if (!m.bitmap || ship.has(m.bitmap)) continue;
-        const found = findTexture(m.bitmap, res, [path.dirname(x.part.source.file)]);
+        const found = rd.findTexture(m.bitmap, [path.dirname(x.part.source.file)]);
         if (!found) throw new Error(`${F.partLabel(x.part)}: texture ${m.bitmap} is neither in the game nor beside the file (${m.bitmap}.tga / .dds)`);
         if (found.where === "beside") ship.set(m.bitmap, found.copies);
       }
@@ -219,21 +168,28 @@ function main() {
 
   // The summary: per stage its parts, triangles, how high the pile goes and how far it reaches.
   const r = disk.diameter / 2;
+  const round3 = (v) => Math.round(v * 1000) / 1000;
+  const say = JSON_OUT ? () => {} : console.log;
+  const summary = {};
   for (const stage of F.STAGES) {
     const { parts, creature, hi } = stages[stage];
     const tris = creature.reduce((n, m) => n + m.faces.length / 3, 0);
     const top = parts.length ? hi[2] : disk.height;
-    console.log(`${F.creatureModel(stage)}: ${parts.length} part${parts.length === 1 ? "" : "s"}, ${creature.length} meshes, ${tris} triangles; ` +
+    say(`${F.creatureModel(stage)}: ${parts.length} part${parts.length === 1 ? "" : "s"}, ${creature.length} meshes, ${tris} triangles; ` +
       `the pile ${(top - disk.height).toFixed(2)} m tall, its top ${top.toFixed(2)} m above the ground` +
       (parts.length ? `; ${F.pileModel(stage)} ${(hi[2] - disk.height).toFixed(2)} m tall on the ground` : ""));
+    summary[stage] = { model: F.creatureModel(stage), parts: parts.length, meshes: creature.length, triangles: tris, top: round3(top), tall: round3(top - disk.height),
+      pile: parts.length ? { model: F.pileModel(stage), tall: round3(hi[2] - disk.height) } : null, list: [] };
     for (const x of parts) {
       const over = x.reach - r;
-      console.log(`  ${F.partLabel(x.part).padEnd(16)} ${(x.hi[0] - x.lo[0]).toFixed(2)} x ${(x.hi[1] - x.lo[1]).toFixed(2)} x ${(x.hi[2] - x.lo[2]).toFixed(2)} m, ` +
+      say(`  ${F.partLabel(x.part).padEnd(16)} ${(x.hi[0] - x.lo[0]).toFixed(2)} x ${(x.hi[1] - x.lo[1]).toFixed(2)} x ${(x.hi[2] - x.lo[2]).toFixed(2)} m, ` +
         `${(x.lo[2] - disk.height).toFixed(2)}..${(x.hi[2] - disk.height).toFixed(2)} above the disk` +
         (over > 0.005 ? `, reaches ${(over * 100).toFixed(0)} cm past the rim` : ""));
+      summary[stage].list.push({ label: F.partLabel(x.part), size: [0, 1, 2].map((k) => round3(x.hi[k] - x.lo[k])),
+        from: round3(x.lo[2] - disk.height), to: round3(x.hi[2] - disk.height), past: round3(Math.max(0, over)) });
     }
   }
-  for (const [name, copies] of ship) console.log(`  texture ${name}: not in the game - shipped from ${copies.join(", ")}`);
+  for (const [name, copies] of ship) say(`  texture ${name}: not in the game - shipped from ${copies.join(", ")}`);
 
   // The files.
   const writes = [];
@@ -279,25 +235,36 @@ function main() {
     }
     writes.push({ file: path.join(DRAFT_TEXTURES, disk.texture + ".tga"), bytes: F.diskTexture(disk, F.TEXTURE_MARK), kind: "library" });
   }
+  const result = { check: CHECK, stages: summary, shipped: [...ship].map(([texture, from]) => ({ texture, from })), files: [], wouldWrite: writes.length, unused: [] };
+  const finish = () => { if (JSON_OUT) console.log(JSON.stringify(result)); };
   if (CHECK) {
-    console.log(`--check: nothing written (${writes.length} files would be)`);
+    say(`--check: nothing written (${writes.length} files would be)`);
+    finish();
     return;
   }
   const manifest = readManifest();
   const results = writeAll(writes, manifest);
-  for (const [state, file] of results) console.log(state.padEnd(9), repoPath(file) || file);
+  for (const [state, file] of results) {
+    say(state.padEnd(9) + " " + (repoPath(file) || file));
+    result.files.push({ state, file: repoPath(file) || file });
+  }
   const body = ["# made by nwn5e-ee tools/data/floatdisk/build.js: the files it wrote in this repo that can't carry its mark (textures) -",
     "# it may rewrite these; it refuses any other file in its way", ...[...manifest].sort()].join("\n") + "\n";
   const had = fs.existsSync(MANIFEST);
   if ((had || manifest.size) && (!had || fs.readFileSync(MANIFEST, "utf8").replace(/\r\n/g, "\n") !== body)) fs.writeFileSync(MANIFEST, body);
   for (const f of manifest) {
-    if (!writes.some((w) => repoPath(w.file) === f)) console.log(`no longer used: ${f} (made by this generator) - delete it and its made.txt line if nothing needs it`);
+    if (!writes.some((w) => repoPath(w.file) === f)) {
+      say(`no longer used: ${f} (made by this generator) - delete it and its made.txt line if nothing needs it`);
+      result.unused.push(f);
+    }
   }
+  finish();
 }
 
 try {
   main();
 } catch (e) {
+  if (JSON_OUT) console.log(JSON.stringify({ error: e.message }));
   console.error("floatdisk: " + e.message);
   process.exit(1);
 }
