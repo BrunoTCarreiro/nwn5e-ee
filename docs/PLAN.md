@@ -1531,6 +1531,20 @@ monster AC by CR.
     disassembled); one the search missed keeps its glow while it's still on the ground, in range, in sight
     (LineOfSightObject) and, for Detect Magic, not in a Fog Cloud - logged once, "~X (missed by the search)". One
     the search found that the look no longer senses still loses it, "-X (found, not sensed)". Retest L4-20.
+  - *Tested (owner, 2026-11-16, 0.99.44):* "L4-20: the sword still blinks (even when the game is paused), walking
+    away removed glows, returning makes the sword's glow blink again but the orc's glow doesn't return"; "the other
+    tests had already passed" (L4-3, L4-4, L4-6, L4-7). The log: every drop "-Longsword +1 (found, not sensed)" - the
+    search found the sword each look, so 0.99.44's premise was wrong; the magic-item check failed while it glowed.
+    The looks run on the creature updates, which go on while paused - so the blink did too.
+    *Fixed 0.99.45:* an item's properties are effects in its applied-effects list, and the engine's GetFirst/
+    NextItemProperty walk returns any exposed temporary or permanent effect there but type 67 (nwmain
+    disassembled): the glow (a visual effect, type 30, temporary) came first and GetIsItemPropertyValid (type 91)
+    said no. Detect Magic's check (items lying there and equipped), Detect Poison and Disease's and Identify's walks
+    step past what isn't a property, 8 entries at most (the walk starts over after its end). 0.99.44's keep is out.
+    The orc: its Bless ended ("Bless is over", 11:35:54) - cast before the Ritual, whose 10 game minutes are 20 real
+    seconds on the owner's module clock (2 minutes an hour), while Bless's minute is 60 (rounds are real time): a
+    jump ages timed effects by its real length, as a rest's does (the clock notes, Phase 5). Retest L4-21 casts
+    Bless after the Ritual.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
