@@ -1657,6 +1657,26 @@ monster AC by CR.
     A a disk that carries - for the hour up to 500 pounds of what you carry don't count toward your load, the disk
     following you; B a container - a disk you open and fill, following you, its contents dropped when it ends; C a
     visual and a line (Q2's way, a module-readable effect); D off the lists as Jump. Recommended A.
+    The owner asked (2026-11-16: "for the floating disk, can it work like a henchman? They have their own inventory,
+    right?"): yes - and only a henchman: the engine's OpenInventory opens a player's own, a DM's any, or the player's
+    henchman's (ExecuteCommandOpenInventory: the master and associate type 1; not a familiar's or a summon's, whatever
+    nwscript.nss says). *Decided (owner, 2026-11-16: "go with the henchman disk"):* the disk a henchman of yours (a
+    henchman's place not taken) that follows within 20 feet, can't fight and isn't attacked; clicked, its inventory
+    opens - up to 500 pounds, more handed back; it ends after the hour or past 100 feet from you, its load dropped
+    where it floats. Its look the animation session's (a placeholder body until then).
+  - *Built 0.99.54 (build 4d, Floating Disk - the last level 1 spell):* row 1251, the Wizard's, a Ritual. The disk a
+    henchman made from nw_s_clantern (a placeholder body: the Lantern Archon at 0.5; the animation session's plan,
+    2026-11-16: an invisible body - appearance 298 - with visualeffects row 2095 on it once the owner's happy with its
+    look), plot, Ethereal (enemies don't see it), Strength 30 (its load never slows it), its own event scripts. It
+    takes no henchman's place: CNWSCreature::AddAssociate refuses a henchman past the module's limit (feedback 0x31),
+    so the limit is the module's own plus one per disk out (module locals, put back by its heartbeat after a load).
+    A click or the associate radial's Inventory opens it; Stand your ground keeps it, Follow me brings it along,
+    Leave the party ends the spell. As SRD 5.2.1 (not the "handed back" of the question's answer - mine): more than
+    500 pounds on it ends the spell and everything falls; it waits within 20 feet and follows farther; past 100 feet
+    (or another area), its hour, or its caster gone - the spell ends, its load falling where it floats. A new casting
+    renews its hour. Kill XP goes to a party's player characters alone (ApplyDeathExperience): none to it.
+    rules/floating_disk.h, core/rules_floating_disk.cpp; !test diskwizard (12 tower shields). 5 mutations caught;
+    568 tests pass. Tests FD-1 to FD-5; LS-6 and LS-7 count it (the Wizard's 29).
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
