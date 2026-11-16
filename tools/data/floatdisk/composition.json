@@ -1,0 +1,49 @@
+{
+  "_about": [
+    "Floating Disk's four looks (#39): the disk, and the junk piled on it at 0-33% (small), 33-66% (medium) and 66-99% (large) of its load.",
+    "Edit this, then run from the repo's root: node tools\\data\\floatdisk\\build.js (it rebuilds the four creature models, the three piles, the disk's texture in data\\files and their rows in data\\rows; README.md beside this file).",
+    "disk: diameter, thickness and height (its top above the ground) in metres; sides round; colour and rim (r g b, 0-1) its texture's body and edge; alpha how solid it is (0-1); selfillum its glow; texture the TGA made for it.",
+    "A part: model - a placeable's model from placeables.2da's ModelName (plc_b04 is LootBag1) - or file - your own .mdl, ASCII or compiled, its path from this folder (parts/my_pile.mdl; metres, z up, the base at z 0); at [x, y, z] - x to the disk's right, y to its front, metres from its centre: where the middle of the part's footprint goes; z how high its lowest point sits above the disk's top (0: on the disk; on top of another part: that part's height there); turn - degrees about the vertical, counter-clockwise from above; scale - 1 is the model's own size; tilt (optional) - [degrees about x, degrees about y], leaning it before the turn. note is for you.",
+    "The disk is 0.9 m across: a part's footprint inside 0.45 m of the centre stays on it. A whole pile of your own: one part, its file, at [0, 0, 0]."
+  ],
+  "disk": {
+    "diameter": 0.9,
+    "thickness": 0.025,
+    "height": 0.9,
+    "sides": 40,
+    "colour": [0.42, 0.62, 0.95],
+    "rim": [0.8, 0.92, 1.0],
+    "alpha": 0.6,
+    "selfillum": [0.25, 0.42, 0.75],
+    "texture": "n5t_forcedisk"
+  },
+  "stages": {
+    "small": [
+      { "note": "a loot bag", "model": "plc_b04", "at": [-0.07, 0.03, 0], "turn": 20, "scale": 0.85 },
+      { "note": "a smaller one beside it", "model": "plc_b06", "at": [0.15, -0.09, 0], "turn": -35, "scale": 0.8 }
+    ],
+    "medium": [
+      { "note": "a crate", "model": "plc_a03", "at": [-0.12, -0.13, 0], "turn": 12, "scale": 0.42 },
+      { "note": "a big sack", "model": "plc_b05", "at": [0.19, -0.08, 0], "turn": -25, "scale": 0.48 },
+      { "note": "a small bag beside the crate", "model": "plc_b06", "at": [-0.3, -0.15, 0], "turn": 40, "scale": 0.7 },
+      { "note": "a bedroll in front", "model": "plc_b08", "at": [-0.08, 0.2, 0], "turn": 90, "scale": 0.8 },
+      { "note": "a book on the bedroll", "model": "px2_f04", "at": [-0.1, 0.2, 0.07], "turn": 75, "scale": 0.26 },
+      { "note": "coins and gems", "model": "gi_tresur", "at": [0.2, 0.2, 0], "turn": 30, "scale": 0.42 },
+      { "note": "a bottle", "model": "dag_btlgreen", "at": [-0.33, 0.06, 0], "turn": 0, "scale": 0.75 }
+    ],
+    "large": [
+      { "note": "a barrel on its side, at the back", "model": "tnp_barrel_002", "at": [0.02, -0.21, 0], "turn": 0, "scale": 0.45 },
+      { "note": "a crate", "model": "plc_a03", "at": [-0.2, 0.13, 0], "turn": 20, "scale": 0.42 },
+      { "note": "a big sack", "model": "plc_b05", "at": [0.2, 0.12, 0], "turn": -20, "scale": 0.52 },
+      { "note": "coins and gems spilling in front", "model": "gi_tresur", "at": [0.0, 0.32, 0], "turn": 0, "scale": 0.45 },
+      { "note": "a bottle", "model": "dag_btlblue", "at": [0.37, -0.06, 0], "turn": 0, "scale": 0.75 },
+      { "note": "a clay pot", "model": "dag_claysm", "at": [-0.35, -0.12, 0], "turn": 0, "scale": 0.5 },
+      { "note": "a backpack on the barrel", "model": "plc_b09", "at": [0.15, -0.2, 0.31], "turn": 160, "scale": 0.65 },
+      { "note": "armour thrown on the barrel", "model": "gi_armor02", "at": [-0.12, -0.2, 0.27], "turn": 90, "scale": 0.45 },
+      { "note": "a book on the crate", "model": "px2_f04", "at": [-0.2, 0.13, 0.315], "turn": 10, "scale": 0.28 },
+      { "note": "a cooking pot on the book", "model": "plc_x0_pot", "at": [-0.2, 0.13, 0.348], "turn": -25, "scale": 0.35 },
+      { "note": "a little bag on the big sack", "model": "plc_b06", "at": [0.2, 0.11, 0.34], "turn": 30, "scale": 0.75 },
+      { "note": "a bag on top of it all", "model": "plc_b04", "at": [-0.04, -0.04, 0.33], "turn": -15, "scale": 0.62 }
+    ]
+  }
+}

@@ -1,0 +1,303 @@
+#!/usr/bin/env node
+// Floating Disk's four looks (#39; the owner, 2026-11-16: "I'm imagining an actual disk and there would be 4 stages to
+// it: empty - just the disk; 0-33%, 33%-66%, 66%-99% of the weight they would have 3 different meshes of increasing size
+// of random junk on top" - then "go with all your recommendations, let them compose it. If I don't like the
+// compositions, is there a way to compose them myself?"). This is that way: composition.json beside this file says what
+// each pile is made of - the game's own placeable models, or your own model files (README.md), each placed, turned,
+// tilted and scaled on the disk's top - and this generator rebuilds the game's files from it:
+//
+// - data\files: the four creature models c_n5fd_empty / _small / _med / _large (supermodel c_invsguy - the invisible
+//   man's walk and idles - with his nodes, the junk and the disk floating at its height), the three piles without the
+//   disk plc_n5fd_small / _med / _large (their base on the ground) with their .pwk use points, and the disk's texture
+//   n5t_forcedisk.tga; with your own files' textures the game doesn't have, copied from beside them.
+// - data\rows: appearance.floatdisk.txt (rows 14000-14003, each appearance 298's) and placeables.floatdisk.txt (14001-
+//   14003, each 189 TreasureSml's), floatdisk.js's ROWS.
+//
+// Nothing of the game's is kept in the repo: the parts, c_invsguy and the rows copied are read from the player's own
+// game at build time (its KEY / BIF archives and ovr\, through nwn5e-tools' spell_bench\game_data.js) and the meshes
+// through nwn5e-ee's own model reader (src\data\vfx_model.cpp) compiled into mdlmesh (mdlmesh.cpp, build_mdlmesh.bat;
+// built into build\floatdisk\ when missing or older than its sources).
+//
+//   node tools\data\floatdisk\build.js [options]
+//     --composition <file>  default: composition.json beside this file
+//     --game <folder>       the game (default: NWN_GAME_DIR, nwn5e.ini's [loader] game_dir, the Steam folder)
+//     --tools <folder>      nwn5e-tools (default: NWN5E_TOOLS, else beside this repo)
+//     --reader <exe>        the mesh reader (default: NWN5E_MDLMESH, else build\floatdisk\mdlmesh.exe, built if needed)
+//     --files <folder>      where the models and textures go (default: data\files)
+//     --rows <folder>       where the rows files go (default: data\rows)
+//     --check               read and place everything, print the summary, write nothing
+//     --drafts              also the stages as VFX Bench drafts (phase 1's previews): n5_floatdisk_<stage>.vfx into
+//                           <build>\vfxedit\saved and the texture into its library (--build <nwn5e build folder>,
+//                           default NWN5E_BUILD or ..\nwn5e-ee\build beside nwn5e-tools; --out, --textures)
+//
+// It never overwrites a file it didn't make: a model, .pwk or rows file must carry the MARK line; a texture must be in
+// made.txt (beside this file: the files it wrote that can't carry a mark). Every file is checked before any is written.
+"use strict";
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const { execFileSync } = require("child_process");
+const F = require("./floatdisk.js");
+
+const REPO = path.resolve(__dirname, "..", "..", "..");
+const MANIFEST = path.join(__dirname, "made.txt");
+
+// --- options ------------------------------------------------------------------------------------------------------
+const argv = process.argv.slice(2);
+const option = (name, fallback) => {
+  const i = argv.indexOf("--" + name);
+  return i >= 0 && i + 1 < argv.length ? argv[i + 1] : fallback;
+};
+const CHECK = argv.includes("--check");
+const DRAFTS = argv.includes("--drafts");
+const TOOLS = path.resolve(option("tools", process.env.NWN5E_TOOLS || path.join(REPO, "..", "nwn5e-tools")));
+const BUILD = path.resolve(option("build", process.env.NWN5E_BUILD || path.join(TOOLS, "..", "nwn5e-ee", "build")));
+const FILES = path.resolve(option("files", path.join(REPO, "data", "files")));
+const ROWS_DIR = path.resolve(option("rows", path.join(REPO, "data", "rows")));
+const DRAFT_OUT = path.resolve(option("out", path.join(BUILD, "vfxedit", "saved")));
+const DRAFT_TEXTURES = path.resolve(option("textures", path.join(BUILD, "vfxedit", "library", "textures")));
+const COMPOSITION = path.resolve(option("composition", path.join(__dirname, "composition.json")));
+const READER = path.resolve(option("reader", process.env.NWN5E_MDLMESH || path.join(REPO, "build", "floatdisk", "mdlmesh.exe")));
+
+function need(file, what) {
+  if (!fs.existsSync(file)) throw new Error(`${what} isn't there: ${file}`);
+  return file;
+}
+global.window = global.window || {};  // core.js runs in the page and under node
+const core = require(need(path.join(TOOLS, "vfx_bench", "public", "core.js"), "nwn5e-tools' VFX Bench core (--tools)"));
+const gameData = require(need(path.join(TOOLS, "spell_bench", "game_data.js"), "nwn5e-tools' game data reader (--tools)"));
+const helper = require(need(path.join(TOOLS, "anim_helper", "helper.js"), "nwn5e-tools' anim helper (--tools)"));
+const GAME = helper.findGameDir({ game: option("game", ""), buildDir: BUILD });
+
+// --- the mesh reader ----------------------------------------------------------------------------------------------
+// The default mdlmesh is built here when it's missing or older than its sources (VS 2019 Build Tools, as build.bat).
+function ensureReader() {
+  const own = path.join(REPO, "build", "floatdisk", "mdlmesh.exe");
+  if (READER !== own) return need(READER, "the mesh reader (--reader / NWN5E_MDLMESH)");
+  const sources = [path.join(__dirname, "mdlmesh.cpp"), path.join(REPO, "src", "data", "vfx_model.cpp"), path.join(REPO, "src", "data", "vfx_model.h")];
+  const built = fs.existsSync(own) ? fs.statSync(own).mtimeMs : 0;
+  if (built && sources.every((s) => fs.statSync(s).mtimeMs <= built)) return own;
+  console.log(built ? "mdlmesh is older than its sources: rebuilding" : "building mdlmesh (build_mdlmesh.bat)");
+  try {
+    execFileSync("cmd.exe", ["/d", "/c", path.join(__dirname, "build_mdlmesh.bat")], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+  } catch (e) {
+    throw new Error("build_mdlmesh.bat failed:\n" + String((e.stdout || "") + (e.stderr || "")).trim());
+  }
+  return need(own, "mdlmesh after build_mdlmesh.bat");
+}
+
+// --- the parts: their meshes in their models' space --------------------------------------------------------------------
+// A game model by name, or a model file of yours (ASCII - made readable for the reader first - or compiled).
+function readPart(part, res, reader, tmp) {
+  const label = F.partLabel(part);
+  let bytes;
+  if (part.source.kind === "model") {
+    bytes = res(part.source.model, 2002);
+    if (!bytes) throw new Error(`${label}: no such model in the game (${GAME})`);
+  } else {
+    if (!fs.existsSync(part.source.file)) throw new Error(`${label}: no such file (${part.source.file})`);
+    bytes = fs.readFileSync(part.source.file);
+    if (bytes.length >= 4 && bytes.readUInt32LE(0) !== 0) bytes = Buffer.from(F.readableAscii(bytes.toString("latin1"), label), "latin1");
+  }
+  const file = path.join(tmp, "part" + fs.readdirSync(tmp).length + ".mdl");
+  fs.writeFileSync(file, bytes);
+  let text;
+  try {
+    text = execFileSync(reader, [file], { encoding: "utf8", maxBuffer: 64 << 20, windowsHide: true });
+  } catch (e) {
+    throw new Error(`${label}: the reader couldn't read it - ${String(e.stderr || e.message).trim()}`);
+  }
+  return F.modelSpaceMeshes(core.readDraft(text.replace(/\r/g, "")), label);
+}
+
+// A texture by name: the game's (its archives or ovr\: TGA, DDS or PLT), else beside a part's own file - then shipped
+// beside the models. -> { where: "game" } | { where: "beside", copies: [paths] }; throws when it's nowhere.
+function findTexture(name, res, besideDirs) {
+  if (res(name, 3) || res(name, 2033) || res(name, 6)) return { where: "game" };
+  for (const ext of [".tga", ".dds", ".plt"]) if (fs.existsSync(path.join(GAME, "ovr", name + ext))) return { where: "game" };
+  for (const dir of besideDirs) {
+    const found = F.texturesBeside(name, fs.existsSync(dir) ? fs.readdirSync(dir) : []);
+    if (found.image) return { where: "beside", copies: [found.image, found.txi].filter(Boolean).map((f) => path.join(dir, f)) };
+  }
+  return null;
+}
+
+// --- writing ----------------------------------------------------------------------------------------------------------
+// A file in this repo by its path from the repo's root ("data/files/x.tga"); null outside it.
+const repoPath = (file) => {
+  const rel = path.relative(REPO, file);
+  return rel.startsWith("..") || path.isAbsolute(rel) ? null : rel.split(path.sep).join("/");
+};
+function readManifest() {
+  if (!fs.existsSync(MANIFEST)) return new Set();
+  return new Set(fs.readFileSync(MANIFEST, "utf8").split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith("#")));
+}
+// Each write { file, bytes, kind }: "text" (a model, .pwk, rows or draft: ours when it carries MARK), "binary" (a texture
+// shipped in this repo: ours when made.txt lists it; outside the repo only an identical one is), "library" (the bench
+// library's disk texture: ours when its TGA image ID is TEXTURE_MARK). Every one checked before any is written; ->
+// [[ "new" | "rebuilt" | "unchanged", file ]], `manifest` gaining the binary files written in the repo.
+function writeAll(writes, manifest) {
+  const owned = (w, old) => {
+    if (w.kind === "text") return F.carriesMark(old);
+    if (w.kind === "library") return old.length > 18 && old.toString("latin1", 18, 18 + old[0]) === F.TEXTURE_MARK;
+    return repoPath(w.file) !== null && manifest.has(repoPath(w.file));
+  };
+  for (const w of writes) {
+    if (!fs.existsSync(w.file)) continue;
+    const old = fs.readFileSync(w.file);
+    if (!owned(w, old) && !old.equals(w.bytes)) {
+      throw new Error(`${w.file} is there and wasn't made by this generator: nothing written - move it away or rename it`);
+    }
+  }
+  const results = [];
+  for (const w of writes) {
+    let state = "new";
+    if (fs.existsSync(w.file)) {
+      const old = fs.readFileSync(w.file);
+      state = old.equals(w.bytes) || (w.kind === "text" && F.sameText(old, w.bytes)) ? "unchanged" : "rebuilt";
+    }
+    if (state !== "unchanged") {
+      fs.mkdirSync(path.dirname(w.file), { recursive: true });
+      fs.writeFileSync(w.file, w.bytes);
+    }
+    if (w.kind === "binary" && repoPath(w.file) !== null) manifest.add(repoPath(w.file));
+    results.push([state, w.file]);
+  }
+  return results;
+}
+
+// --- main -----------------------------------------------------------------------------------------------------------
+function main() {
+  const comp = F.readComposition(JSON.parse(fs.readFileSync(COMPOSITION, "utf8")), __dirname);
+  if (!fs.existsSync(path.join(GAME, "data", "nwn_base.key"))) throw new Error("no game at " + GAME + " (--game <folder>)");
+  const reader = ensureReader();
+  const res = gameData.resources(GAME);
+  const disk = comp.disk;
+
+  // The parts, read once each.
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "n5_floatdisk-"));
+  const models = new Map();
+  try {
+    for (const stage of F.PILES) for (const p of comp.stages[stage]) if (!models.has(F.partKey(p))) models.set(F.partKey(p), readPart(p, res, reader, tmp));
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+
+  // c_invsguy's nodes (the creature models copy them where they are).
+  const invs = res(F.SUPERMODEL, 2002);
+  if (!invs) throw new Error(`${F.SUPERMODEL}: not in the game`);
+  const nodes = F.modelNodes(invs);
+  const taken = nodes.map((n) => n.name);
+
+  // Each stage: its parts placed on the disk's top; the creature's meshes (the junk, then the disk: see-through, drawn
+  // over it) and the pile's (the junk lowered by the disk's height, its base on the ground).
+  const diskMesh = F.diskMesh(disk);
+  const stages = {};
+  for (const stage of F.STAGES) {
+    const parts = comp.stages[stage].map((p, i) => Object.assign(F.placePart(p, models.get(F.partKey(p)), i, disk.height, "j"), { part: p }));
+    const junk = [].concat(...parts.map((x) => x.meshes));
+    const creature = F.uniqueNames([...junk, diskMesh], taken);
+    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+    for (const x of parts) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], x.lo[k]); hi[k] = Math.max(hi[k], x.hi[k]); }
+    const pile = parts.length ? F.uniqueNames(F.lowered(junk, disk.height), []) : [];
+    stages[stage] = { parts, creature, pile, lo, hi };
+  }
+
+  // Textures: a part from the game has the game's; one of your own files' is looked up (the game, then beside the file).
+  const ship = new Map();  // texture name -> its copies beside a file
+  for (const stage of F.PILES) {
+    for (const x of stages[stage].parts) {
+      if (x.part.source.kind !== "file") continue;
+      for (const m of x.meshes) {
+        if (!m.bitmap || ship.has(m.bitmap)) continue;
+        const found = findTexture(m.bitmap, res, [path.dirname(x.part.source.file)]);
+        if (!found) throw new Error(`${F.partLabel(x.part)}: texture ${m.bitmap} is neither in the game nor beside the file (${m.bitmap}.tga / .dds)`);
+        if (found.where === "beside") ship.set(m.bitmap, found.copies);
+      }
+    }
+  }
+
+  // The summary: per stage its parts, triangles, how high the pile goes and how far it reaches.
+  const r = disk.diameter / 2;
+  for (const stage of F.STAGES) {
+    const { parts, creature, hi } = stages[stage];
+    const tris = creature.reduce((n, m) => n + m.faces.length / 3, 0);
+    const top = parts.length ? hi[2] : disk.height;
+    console.log(`${F.creatureModel(stage)}: ${parts.length} part${parts.length === 1 ? "" : "s"}, ${creature.length} meshes, ${tris} triangles; ` +
+      `the pile ${(top - disk.height).toFixed(2)} m tall, its top ${top.toFixed(2)} m above the ground` +
+      (parts.length ? `; ${F.pileModel(stage)} ${(hi[2] - disk.height).toFixed(2)} m tall on the ground` : ""));
+    for (const x of parts) {
+      const over = x.reach - r;
+      console.log(`  ${F.partLabel(x.part).padEnd(16)} ${(x.hi[0] - x.lo[0]).toFixed(2)} x ${(x.hi[1] - x.lo[1]).toFixed(2)} x ${(x.hi[2] - x.lo[2]).toFixed(2)} m, ` +
+        `${(x.lo[2] - disk.height).toFixed(2)}..${(x.hi[2] - disk.height).toFixed(2)} above the disk` +
+        (over > 0.005 ? `, reaches ${(over * 100).toFixed(0)} cm past the rim` : ""));
+    }
+  }
+  for (const [name, copies] of ship) console.log(`  texture ${name}: not in the game - shipped from ${copies.join(", ")}`);
+
+  // The files.
+  const writes = [];
+  const text = (file, body) => writes.push({ file, bytes: Buffer.from(F.crlf(body), "latin1"), kind: "text" });
+  for (const stage of F.STAGES) {
+    const s = stages[stage], name = F.creatureModel(stage);
+    text(path.join(FILES, name + ".mdl"), F.creatureModelText(name, nodes, s.creature, [
+      `Floating Disk (#39), the ${stage} stage${stage === "empty" ? "" : " (" + { small: "0-33%", medium: "33-66%", large: "66-99%" }[stage] + " of its load)"}:`,
+      `the disk of force, its top ${disk.height} m up, ${s.parts.length ? "and the junk on it, " : ""}straight under the root - it floats level while`,
+      `rootdummy walks. ${F.SUPERMODEL}'s nodes as dummies where his are. The game's textures by name. Appearance row ${F.ROWS.appearance[stage]}.`]));
+    if (stage === "empty") continue;
+    const pile = F.pileModel(stage);
+    const lo = [s.lo[0], s.lo[1], s.lo[2] - disk.height], hi = [s.hi[0], s.hi[1], s.hi[2] - disk.height];
+    text(path.join(FILES, pile + ".mdl"), F.pileModelText(pile, s.pile, lo, hi, [
+      `Floating Disk (#39): the ${stage} stage's junk without the disk, its base on the ground - what falls where the disk`,
+      `floated, a container. Laid out as the game's junk placeables (PLC_B04, PLC_C07). Placeables row ${F.ROWS.placeables[stage]}.`]));
+    text(path.join(FILES, pile + ".pwk"), F.pileWalkmeshText(pile, lo, hi));
+  }
+  writes.push({ file: path.join(FILES, disk.texture + ".tga"), bytes: F.diskTexture(disk), kind: "binary" });
+  for (const [name, copies] of ship) {
+    for (const c of copies) writes.push({ file: path.join(FILES, name + path.extname(c).toLowerCase()), bytes: fs.readFileSync(c), kind: "binary" });
+  }
+  const appearance = gameData.gameTable(GAME, "appearance"), placeables = gameData.gameTable(GAME, "placeables");
+  text(path.join(ROWS_DIR, "appearance.floatdisk.txt"), F.rowsText(appearance, F.SOURCE_ROWS.appearance,
+    F.STAGES.map((st) => ({ row: F.ROWS.appearance[st], label: F.LABELS.appearance[st], model: F.creatureModel(st) })),
+    { labelColumn: "LABEL", modelColumn: "RACE", overrides: F.APPEARANCE_OVERRIDES, about: [
+      "appearance.2da: Floating Disk's four stages (#39) - the disk a henchman, its stage swapped by SetCreatureAppearanceType.",
+      `Each row is the game's row ${F.SOURCE_ROWS.appearance} (Invisible_Human_Male) with its LABEL and model (RACE) changed, TARGETABLE 1`,
+      `(${F.SOURCE_ROWS.appearance}'s 0 would make the disk unclickable, and its inventory opens on a click) and FOOTSTEPTYPE -1`,
+      "(it floats: no footsteps, as the game's floating creatures)."] }));
+  text(path.join(ROWS_DIR, "placeables.floatdisk.txt"), F.rowsText(placeables, F.SOURCE_ROWS.placeables,
+    F.PILES.map((st) => ({ row: F.ROWS.placeables[st], label: F.LABELS.placeables[st], model: F.pileModel(st) })),
+    { labelColumn: "Label", modelColumn: "ModelName", about: [
+      "placeables.2da: Floating Disk's piles (#39) - its load, fallen where it floated when it ends, a container.",
+      `Each row is the game's row ${F.SOURCE_ROWS.placeables} (TreasureSml) with its Label and ModelName changed; a pile's row is its stage's appearance row.`] }));
+  if (DRAFTS) {
+    for (const stage of F.STAGES) {
+      const planes = stages[stage].creature.map((m) => core.plane({ name: m.name, bitmap: m.bitmap || "null", verts: m.verts, tverts: m.tverts,
+        faces: m.faces, diffuse: m.diffuse, ambient: m.ambient, selfillum: m.selfillum, alpha: m.alpha }));
+      const name = "n5_floatdisk_" + stage;
+      const draft = F.MARK + "\n" + core.writeDraft(core.effect({ name, duration: true, seconds: 2, attach: "root", planes }));
+      writes.push({ file: path.join(DRAFT_OUT, name + ".vfx"), bytes: Buffer.from(F.crlf(draft), "latin1"), kind: "text" });
+    }
+    writes.push({ file: path.join(DRAFT_TEXTURES, disk.texture + ".tga"), bytes: F.diskTexture(disk, F.TEXTURE_MARK), kind: "library" });
+  }
+  if (CHECK) {
+    console.log(`--check: nothing written (${writes.length} files would be)`);
+    return;
+  }
+  const manifest = readManifest();
+  const results = writeAll(writes, manifest);
+  for (const [state, file] of results) console.log(state.padEnd(9), repoPath(file) || file);
+  const body = ["# made by nwn5e-ee tools/data/floatdisk/build.js: the files it wrote in this repo that can't carry its mark (textures) -",
+    "# it may rewrite these; it refuses any other file in its way", ...[...manifest].sort()].join("\n") + "\n";
+  const had = fs.existsSync(MANIFEST);
+  if ((had || manifest.size) && (!had || fs.readFileSync(MANIFEST, "utf8").replace(/\r\n/g, "\n") !== body)) fs.writeFileSync(MANIFEST, body);
+  for (const f of manifest) {
+    if (!writes.some((w) => repoPath(w.file) === f)) console.log(`no longer used: ${f} (made by this generator) - delete it and its made.txt line if nothing needs it`);
+  }
+}
+
+try {
+  main();
+} catch (e) {
+  console.error("floatdisk: " + e.message);
+  process.exit(1);
+}
