@@ -1569,6 +1569,12 @@ monster AC by CR.
     Detect Magic's glow: visualeffects 2092 (the owner's VFX Bench effect, merged from anim 76fe697 and 1b21980 -
     its 2100 was the looks' orb row: the first launch check skipped the look rows). Test
     Spells2024Build4b (12 mutations caught); !test illusionwizard. Matrix L4-22 to L4-28.
+  - *Decided (owner, 2026-11-16: "go with your recommendations for find familiar, excep allow the player to pick
+    alignment too"):* Find Familiar - Q1 A (the eight SRD 5.2 forms NWN can show: Bat, Hawk (the falcon), Rat and
+    Raven as they are; Cat, Lizard, Spider and Weasel - the cougar, basilisk, giant spider and badger - shrunk to
+    size; no Frog, Octopus or Owl); Q2 its type (Celestial, Fey or Fiend) by the caster's alignment (good Celestial,
+    evil Fiend, else Fey), and the player can pick it too; Q3 A (NWN's Summon Familiar feat kept until the Wizard and
+    Sorcerer briefs - casting Find Familiar replaces its familiar, one at a time); Q4 A (Find Familiar is build 4c).
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
