@@ -35,6 +35,7 @@ bool SpellAttackAgainstFullAc(void* target_stats, void* attacker);  // rules_spe
 int16_t SpellAttackShieldAc(void* target_stats, void* attacker, int16_t armor_class);  // rules_spell_attack.cpp
 bool CoverOn();                                                      // rules_cover.cpp (#166)
 int CoverArmorClassBonus(void* target_stats, void* attacker);        // rules_cover.cpp (#166)
+int FamiliarArmorClass(void* stats);                                  // rules_familiar.cpp (#39 build 4c)
 
 int FightingStyleAttackBonus(void* stats);  // rules_fighter.cpp (Fighter F1 Archery)
 int DefenseArmorClassBonus(void* stats);    // rules_fighter.cpp (Fighter F1 Defense)
@@ -89,6 +90,8 @@ int16_t ArmorClassVersus(void* stats, void* attacker, int touch) {
   const int16_t gear_armor_class = static_cast<int16_t>(
       engine_armor_class + (touch ? 0 : DefenseArmorClassBonus(stats) + ArmorBaseAdjustment(stats)) +
       UnarmoredDefenseBonus(stats) + SpellArmorClassBonus(stats, true));
+  // #39 build 4c: a Find Familiar familiar's form (SRD 5.2.1: a Bat's 12, a Hawk's 13 ...).
+  if (const int form = FamiliarArmorClass(stats)) return static_cast<int16_t>(form + SpellArmorClassBonus(stats, false));
   if (!g_config.creature_ac_by_cr && g_config.debug_creature_ac <= 0) return gear_armor_class;
   const CreatureFacts facts = ReadCreatureFacts(stats);
   if (facts.character) return gear_armor_class;  // players and henchmen keep their gear AC

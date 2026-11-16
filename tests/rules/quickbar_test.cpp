@@ -210,6 +210,13 @@ TEST(QuickbarHighBits) {
   CHECK_EQ(illusionist_placed == (uint64_t{1} << 42), true);
   CHECK_EQ(Values(QuickbarActions2024(illusionist)) == std::vector<int>{kFeatSilentImageMove}, true);
   CHECK_EQ(std::find(asked.begin(), asked.end(), kFeatSilentImageMove) != asked.end(), true);
+  // #39 2a build 4c: Find Familiar's Dismiss and Recall - bits 43 and 44, asked about.
+  QuickbarFacts wizard;
+  wizard.feats = {kFeatFamiliarDismiss, kFeatFamiliarRecall};
+  uint64_t wizard_placed = 0;
+  CHECK_EQ(static_cast<int>(PlanQuickbar(EmptyBar(), 0, QuickbarActions2024(wizard), &wizard_placed).size()), 2);
+  CHECK_EQ(wizard_placed == ((uint64_t{1} << 43) | (uint64_t{1} << 44)), true);
+  CHECK_EQ(std::find(asked.begin(), asked.end(), kFeatFamiliarRecall) != asked.end(), true);
 }
 
 // New actions go in the first empty slots, keys 1-9 first, and are recorded;

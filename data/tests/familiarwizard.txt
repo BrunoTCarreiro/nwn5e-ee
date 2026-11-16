@@ -1,0 +1,16 @@
+# A !test profile ([debug] test_commands=1): type "!test familiarwizard" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# #39 Part 2a build 4c: a Wizard 5, Intelligence 16 - Find Familiar, with Mage Armor and Shocking Grasp for its
+# touch.
+name = Find Familiar (issue 39 4c): human Wizard 5, Intelligence 16 - Find Familiar, Mage Armor, Shocking Grasp
+species = human
+swap_class = wizard
+class = wizard
+level = 5
+abilities = 8 14 14 16 12 10
+items = nw_wdbqs001 equip
+note = the Prepare spells window opens: Cantrips - Shocking Grasp; Spellbook tab - add Find Familiar and Mage Armor; Prepared - the same two; Accept
+note = Find Familiar: its menu picks the form (an hour - or 70 minutes as a Ritual); Dismiss and Recall are in its menu and on your quickbar; !options, Spellcasting, picks a Celestial, Fey or Fiend
+note = !spawn nw_orcb an enemy; !spawn nw_orca ally a henchman for Mage Armor's touch

@@ -70,6 +70,8 @@ enum Bit {
   kBitHuntersMarkMove = 40,  // #39 2a (0.99.20): while Hunter's Mark lasts
   kBitEscape = 41,           // #39 2a build 2c: while Entangle holds you
   kBitSilentImageMove = 42,  // #39 2a build 4b (0.99.47): while your Silent Image lasts
+  kBitFamiliarDismiss = 43,  // #39 2a build 4c: while your familiar is here
+  kBitFamiliarRecall = 44,   // #39 2a build 4c: while it's away
 };
 
 bool IsSecondWind(int value) {
@@ -90,7 +92,7 @@ const std::vector<int>& QuickbarActionFeats2024() {
                                           kFeatCunningDash,    kFeatCunningDisengage, kFeatCunningHide,
                                           kFeatSteadyAim,      kFeatPatientDefenseFree, kFeatStepOfTheWindFree,
                                           kFeatPrepareSpells,  kFeatHuntersMarkMove, kFeatEscape,
-                                          kFeatSilentImageMove};
+                                          kFeatSilentImageMove, kFeatFamiliarDismiss, kFeatFamiliarRecall};
   return kFeats;
 }
 
@@ -189,6 +191,11 @@ std::vector<QuickbarAction> QuickbarActions2024(const QuickbarFacts& facts) {
   if (has(kFeatEscape)) actions.push_back({kBitEscape, kFeatEscape, "Escape"});
   // #39 2a build 4b (0.99.47, L4-27): Silent Image's Move, the feat its image grants while it lasts.
   if (has(kFeatSilentImageMove)) actions.push_back({kBitSilentImageMove, kFeatSilentImageMove, "Silent Image: Move"});
+  // #39 2a build 4c: Find Familiar's Dismiss (its familiar here) and Recall (away).
+  if (has(kFeatFamiliarDismiss)) {
+    actions.push_back({kBitFamiliarDismiss, kFeatFamiliarDismiss, "Find Familiar: Dismiss"});
+  }
+  if (has(kFeatFamiliarRecall)) actions.push_back({kBitFamiliarRecall, kFeatFamiliarRecall, "Find Familiar: Recall"});
   return actions;
 }
 

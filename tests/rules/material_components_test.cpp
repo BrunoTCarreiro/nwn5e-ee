@@ -31,7 +31,8 @@ TEST(MaterialComponentCosts) {
   CHECK_EQ(ComponentAffordable(449, CostlyComponent(376)), false);  // the whole 450 on hand, not the 250
   CHECK_EQ(ComponentAffordable(0, CostlyComponent(107)), true);     // nothing to pay
   const std::vector<int>& all = CostlySpells();
-  CHECK_EQ(all.size(), 50u);  // #39 build 4a: Illusory Script
+  CHECK_EQ(CostlyComponent(1222).consumed, 10);  // #39 build 4c: Find Familiar's incense, each form's row
+  CHECK_EQ(all.size(), 59u);  // #39 build 4a: Illusory Script; 4c: Find Familiar and its eight forms
   CHECK_EQ(std::is_sorted(all.begin(), all.end()), true);
   CHECK_EQ(std::adjacent_find(all.begin(), all.end()) == all.end(), true);
   for (int spell : all) CHECK_EQ(CostlyComponent(spell).consumed <= CostlyComponent(spell).needed, true);

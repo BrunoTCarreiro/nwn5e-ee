@@ -428,6 +428,24 @@ bool IsNoSlotOption(int row);
 // row taken as a feat (0: none).
 constexpr int kFeatSilentImageMove = 1564;
 int ChoiceOptionFeat(int row);
+
+// Build 4c (owner, 2026-11-16: "go with your recommendations for find familiar, excep allow the player to pick
+// alignment too"): Find Familiar (rules/find_familiar.h) - its eight forms (its menu, each a Ritual), and its
+// familiar's Dismiss and Recall: feats casting rows 1225 / 1226 (a Magic action each), in its menu while held.
+constexpr int kFindFamiliar = 1216;
+constexpr int kFamiliarBat = 1217;
+constexpr int kFamiliarCat = 1218;
+constexpr int kFamiliarHawk = 1219;
+constexpr int kFamiliarLizard = 1220;
+constexpr int kFamiliarRat = 1221;
+constexpr int kFamiliarRaven = 1222;
+constexpr int kFamiliarSpider = 1223;
+constexpr int kFamiliarWeasel = 1224;
+constexpr int kFamiliarDismiss = 1225;
+constexpr int kFamiliarRecall = 1226;
+constexpr int kFeatFamiliarDismiss = 1565;
+constexpr int kFeatFamiliarRecall = 1566;
+bool IsFamiliarFormRow(int row);
 constexpr int kRouseFeet = 5;
 
 // Chromatic Orb: two or more of its d8s alike - the orb leaps to another creature within 30 feet of the target (a

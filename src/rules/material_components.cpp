@@ -67,6 +67,15 @@ const std::vector<Entry> kCosts = {
     {1158,  50,    0},  // nwn5e_Chromatic_Orb_Poison - Chromatic Orb (a variant)
     {1159,  50,    0},  // nwn5e_Chromatic_Orb_Thunder - Chromatic Orb (a variant)
     {1198,  10,   10},  // nwn5e_Illusory_Script - Illusory Script: ink, consumed (#39 build 4a)
+    {1216,  10,   10},  // nwn5e_Find_Familiar - Find Familiar: burning incense, consumed (#39 build 4c)
+    {1217,  10,   10},  // its forms (each the cast row)
+    {1218,  10,   10},
+    {1219,  10,   10},
+    {1220,  10,   10},
+    {1221,  10,   10},
+    {1222,  10,   10},
+    {1223,  10,   10},
+    {1224,  10,   10},
 };
 
 const Entry* Find(int spell) {

@@ -121,6 +121,14 @@ std::vector<ChoiceCantrip> BuildChoiceCantrips() {
                         {kSilentImageHumanoid, 2, "Humanoid"}, {kSilentImageCreature, 3, "Small Creature"},
                         {kSilentImageLarge, 4, "Large Creature"}, {kSilentImageMove, 5, "Move the image"}}};
   all.push_back(silent);
+  // #39 build 4c: Find Familiar's forms (a Ritual each, opening its slot levels), and its familiar's Dismiss and
+  // Recall (feats, shown while held: rules::ChoiceOptionFeat).
+  ChoiceCantrip familiar{kFindFamiliar, "n5_s_findfam", ChoiceKind::kMode,
+                         {{kFamiliarBat, 0, "Bat"}, {kFamiliarCat, 1, "Cat"}, {kFamiliarHawk, 2, "Hawk"},
+                          {kFamiliarLizard, 3, "Lizard"}, {kFamiliarRat, 4, "Rat"}, {kFamiliarRaven, 5, "Raven"},
+                          {kFamiliarSpider, 6, "Spider"}, {kFamiliarWeasel, 7, "Weasel"},
+                          {kFamiliarDismiss, 8, "Dismiss your familiar"}, {kFamiliarRecall, 9, "Recall your familiar"}}};
+  all.push_back(familiar);
   ChoiceCantrip flame{kProduceFlame, "n5_c_produceflame", ChoiceKind::kMode,
                      {{kProduceFlameFlame, 0, "Flame"}, {kProduceFlameHurl, 1, "Hurl"}}};
   all.push_back(flame);

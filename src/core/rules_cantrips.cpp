@@ -82,6 +82,8 @@ void ClericOnHeal(void* object, void* effect);
 int PotentSpellcastingBonus(void* caster, int spell);
 void PotentSpellcastingVitality(void* caster, int spell);
 void HuntersMarkSpellHit(uint32_t caster, uint32_t target, bool critical);  // rules_spells2024.cpp (#39 2a)
+float FamiliarTouchRangeMetres(void* creature, uint32_t spell);  // rules_familiar.cpp (#39 build 4c)
+
 namespace {
 
 // #150 (owner, 2026-11-09: "go with your recommendation for #150"): a cantrip's cast plays n5_cantrip in place of
@@ -530,6 +532,8 @@ ComputeSpellRangeFn g_compute_spell_range = nullptr;
 
 float ComputeSpellRange(void* creature, void* range_code, uint32_t spell) {
   const float range = g_compute_spell_range(creature, range_code, spell);
+  // #39 build 4c: a touch spell its Find Familiar familiar delivers - the familiar's reach, within 100 feet.
+  if (const float familiar = FamiliarTouchRangeMetres(creature, spell)) return familiar;
   if (const int feet = rules::CantripRangeFeet(static_cast<int>(spell))) {
     return static_cast<float>(feet) * kMetresPerFoot;  // #39 build 4a: the utility cantrips' 30 / 10 feet
   }

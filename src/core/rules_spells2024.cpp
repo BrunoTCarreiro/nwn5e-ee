@@ -179,6 +179,9 @@ int AreaOfEffectSpellId(uint32_t id);               // rules_concentration.cpp (
 uint32_t MakeSilentImage(uint32_t self, void* caster, rules::ImageKind kind, const std::string& name);
 void EndSilentImage(uint32_t self);
 uint32_t MoveSilentImage(uint32_t self, void* caster, float x, float y, float z);
+// rules_familiar.cpp (build 4c): Find Familiar.
+void FindFamiliarSpell(uint32_t self, void* caster, int row);
+bool InstallFindFamiliar();
 
 namespace {
 
@@ -864,6 +867,7 @@ bool ArmSmite(void* creature, uint32_t id, const SpellOrder& order);         // 
 bool RitualOrder(void* creature, uint32_t id, const SpellOrder& order);      // build 4a, below
 bool SilentImageMoveOrder(void* creature, uint32_t id, const SpellOrder& order);  // build 4b, below
 bool SilentImageLasts(uint32_t id);                                               // build 4b (0.99.47), below
+bool LongCastOrder(void* creature, uint32_t id, const SpellOrder& order);        // build 4c, below
 
 // Refused before the cast, nothing spent (true): a willing creature's spell at an enemy, Mage Armor on one wearing
 // armour, an enemy's spell at a creature its Sanctuary keeps it from. A Bonus Action spell's order becomes its feat's
@@ -882,6 +886,8 @@ bool OrderGuard(void* creature, const SpellOrder& order) {
   if (RitualOrder(creature, id, order)) return true;
   // Build 4b: Silent Image's Move - a Magic action while concentrating, no slot.
   if (SilentImageMoveOrder(creature, id, order)) return true;
+  // Build 4c: an hour's casting (Find Familiar) - not in a fight; out of one, the clock its hour on.
+  if (LongCastOrder(creature, id, order)) return true;
   // 0.99.3 (owner, 2026-11-10: "why does heroism need to be cast first before checking if it's a willing target? Is
   // it the rules?"): "a willing creature" - an enemy isn't one, so it's no target (the script's check stays for a
   // cast with no order).
@@ -4278,6 +4284,7 @@ void UtilitySpell(uint32_t self, void* caster, const rules::Spell2024& spell, in
     case rules::kGoodberryEat: GoodberryEaten(self, spell); break;
     case rules::kDisguiseSelf: DisguiseSpell(self, caster, row); break;  // build 4b
     case rules::kSilentImage: SilentImageSpell(self, caster, row); break;
+    case rules::kFindFamiliar: FindFamiliarSpell(self, caster, row); break;  // build 4c
     default: FlagSpell(self, spell); break;
   }
 }
@@ -4321,6 +4328,30 @@ bool RitualOrder(void* creature, uint32_t id, const SpellOrder& order) {
                      " minutes pass, no spell slot.");
   if (LogSlot()) Log("spells2024: 0x%08X %s cast as a Ritual - %d minutes, no slot", id, SpellNameOf(row).c_str(), minutes);
   return true;
+}
+
+// Build 4c: a spell an hour or more to cast (Find Familiar) from a class, not as a Ritual: not in a fight (refused,
+// nothing spent); out of one, the clock moves its hour as it's cast.
+bool LongCastOrder(void* creature, uint32_t id, const SpellOrder& order) {
+  const int row = static_cast<int>(order.spell);
+  const int minutes = rules::CastingMinutes(row);
+  const bool class_cast = order.class_slot >= 0 && order.class_slot <= 7;
+  if (minutes < 60 || !class_cast || !IsPlayerCreature(creature)) return false;
+  if (InFightNow(id, creature)) {
+    TellPlayer(id, "nwn5e: " + SpellNameOf(row) + " takes an hour to cast - not in a fight.");
+    return true;
+  }
+  char code[600];
+  sprintf_s(code,
+            "int per = FloatToInt(HoursToSeconds(1) * 1000.0); int add = per * %d / 60;"
+            " int ms = (GetTimeMinute() * 60 + GetTimeSecond()) * 1000 + GetTimeMillisecond() + add; int h = GetTimeHour();"
+            " while (ms >= per) { ms -= per; h++; }"
+            " DelayCommand(0.0, SetTime(h, ms / 60000, (ms / 1000) %% 60, ms %% 1000));",
+            minutes);
+  Run(code, id, "an hour's casting");
+  TellPlayer(id, "nwn5e: " + SpellNameOf(row) + " - " + std::to_string(minutes) + " minutes pass as you cast it.");
+  if (LogSlot()) Log("spells2024: 0x%08X %s cast with a slot - %d minutes", id, SpellNameOf(row).c_str(), minutes);
+  return false;
 }
 
 void Cast(uint32_t self, int row) {
@@ -4445,6 +4476,7 @@ ScriptHandler HandlerOf(int row) {
     case rules::kUnseenServant: return &SpellScript<rules::kUnseenServant>;
     case rules::kDisguiseSelf: return &SpellScript<rules::kDisguiseSelf>;  // build 4b
     case rules::kSilentImage: return &SpellScript<rules::kSilentImage>;
+    case rules::kFindFamiliar: return &SpellScript<rules::kFindFamiliar>;  // build 4c
   }
   return nullptr;
 }
@@ -4699,14 +4731,15 @@ void InstallSpells2024() {
                        AddScriptHandler("n5_s_alarmmen", &AlarmEnterMental) &&
                        AddCreatureUpdateListener(&DetectUpdate) && AddGameStartListener(&DetectsGameStarted) &&
                        AddCreatureUpdateListener(&DisguiseUpdate) && AddCreatureUpdateListener(&SilentImageUpdate) &&
-                       AddGameStartListener(&IllusionsGameStarted);  // build 4b
+                       AddGameStartListener(&IllusionsGameStarted) &&  // build 4b
+                       InstallFindFamiliar();                         // build 4c
   if (reactions) {  // #162 G
     AddHudPool(&SmiteHudPool);
     AddHudClick("smite", &SmitePanelClicked);
   }
-  Log("spells2024: SRD 5.2's level 1 spells, builds 1a-4b - %zu spells: damage and healing, Chromatic Orb, Heroism, "
+  Log("spells2024: SRD 5.2's level 1 spells, builds 1a-4c - %zu spells: damage and healing, Chromatic Orb, Heroism, "
       "the buffs, the conditions on creatures, the areas, Shield and the smites, detection and utility, Disguise "
-      "Self and Silent Image; Rituals out of combat; %zu Bonus Action spells; one spell with a slot a turn (#39 Part 2a)%s",
+      "Self and Silent Image, Find Familiar; Rituals out of combat; %zu Bonus Action spells; one spell with a slot a turn (#39 Part 2a)%s",
       rules::Spells2024().size(), rules::BonusActionSpells().size(),
       scripts && update && guard && buffs && conditions && areas && reactions && utility ? "" : " - SOME hooks missing");
 }

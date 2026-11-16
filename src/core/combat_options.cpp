@@ -55,6 +55,9 @@ int HuntersMarkRangerLevel(void* creature);
 bool HuntersMarkArmOn(void* creature);
 void SetHuntersMarkArm(void* creature, bool on);
 bool RitualCaster(void* creature);  // rules_spells2024.cpp (build 4a)
+bool FamiliarCaster(void* creature);  // rules_familiar.cpp (build 4c)
+int FamiliarKindPick(void* creature);
+void SetFamiliarKindPick(void* creature, int pick);
 bool RitualSwitch(void* creature);
 void SetRitualSwitch(void* creature, bool on);
 
@@ -65,7 +68,8 @@ constexpr const char* kStatus = "o_status";
 constexpr float kRowHeight = 28.0f;
 constexpr float kCheckWidth = 190.0f;
 
-enum class Kind { kBonus, kReaction, kAutomatic, kDisplay, kReckless, kBrutal, kCunning, kOpenHand, kRanger, kRitual };
+enum class Kind { kBonus, kReaction, kAutomatic, kDisplay, kReckless, kBrutal, kCunning, kOpenHand, kRanger, kRitual,
+                  kFamiliar };
 
 struct Option {
   const char* bind;  // the checkbox's bool bind (and its id)
@@ -126,6 +130,12 @@ const Option kOptions[] = {
     // #39 build 4a (owner, 2026-11-16, Q1 A): Rituals, on by default.
     {"o_ritual", Kind::kRitual, 0, "Rituals out of combat",
      "a Ritual spell cast out of a fight takes no spell slot; 10 minutes pass (11 for a 1-minute spell)"},
+    // #39 build 4c (owner, 2026-11-16: "go with your recommendations for find familiar, excep allow the player to pick
+    // alignment too"): Find Familiar's kind - none ticked, by your alignment.
+    {"o_fam_cel", Kind::kFamiliar, 1, "Find Familiar: a Celestial",
+     "your next familiar a Celestial (none ticked: by your alignment - good a Celestial, evil a Fiend, else a Fey)"},
+    {"o_fam_fey", Kind::kFamiliar, 2, "Find Familiar: a Fey", "your next familiar a Fey"},
+    {"o_fam_fie", Kind::kFamiliar, 3, "Find Familiar: a Fiend", "your next familiar a Fiend"},
 };
 
 bool g_syncing = false;  // the window's own bind updates: not the player's clicks
@@ -157,6 +167,7 @@ bool Available(void* creature, const Option& o) {
     case Kind::kOpenHand: return rules::HasOpenHandTechnique(OpenHandMonkLevel(creature));
     case Kind::kRanger: return HuntersMarkRangerLevel(creature) > 0;
     case Kind::kRitual: return RitualCaster(creature);
+    case Kind::kFamiliar: return FamiliarCaster(creature);
   }
   return false;
 }
@@ -185,6 +196,7 @@ bool Checked(void* creature, const Option& o) {
     case Kind::kOpenHand: return static_cast<int>(OpenHandTechniqueOf(creature)) == o.effect;
     case Kind::kRanger: return HuntersMarkArmOn(creature);
     case Kind::kRitual: return RitualSwitch(creature);
+    case Kind::kFamiliar: return FamiliarKindPick(creature) == o.effect;
   }
   return false;
 }
@@ -204,6 +216,7 @@ void Toggle(void* creature, const Option& o, bool on) {
       break;
     case Kind::kRanger: SetHuntersMarkArm(creature, on); break;
     case Kind::kRitual: SetRitualSwitch(creature, on); break;
+    case Kind::kFamiliar: SetFamiliarKindPick(creature, on ? o.effect : 0); break;
   }
 }
 
@@ -349,6 +362,11 @@ std::string Layout(void* creature, int* rows) {
   }
   for (const Option& o : kOptions) {
     if (o.kind != Kind::kRitual || !Available(creature, o)) continue;
+    add(OptionRow(o));
+    ++count;
+  }
+  for (const Option& o : kOptions) {  // build 4c
+    if (o.kind != Kind::kFamiliar || !Available(creature, o)) continue;
     add(OptionRow(o));
     ++count;
   }

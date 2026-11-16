@@ -165,6 +165,7 @@ std::vector<Spell2024> Build() {
   // Build 4b: the illusions.
   spells.push_back(utility(kDisguiseSelf, "Disguise Self", "n5_s_disguise", false));
   spells.push_back(utility(kSilentImage, "Silent Image", "n5_s_silentimg", false));
+  spells.push_back(utility(kFindFamiliar, "Find Familiar", "n5_s_findfam", true));  // build 4c
   std::sort(spells.begin(), spells.end(), [](const Spell2024& a, const Spell2024& b) { return a.row < b.row; });
   return spells;
 }
@@ -265,14 +266,17 @@ int LongstriderTargets(int slot_level) { return 1 + std::max(0, slot_level - 1);
 bool IsRitualSpell(int row) {
   const Spell2024* spell = Spell2024Of(row);
   if (spell) return spell->ritual;
-  return AlarmModeOf(row) != AlarmMode::kNone;  // Alarm's kinds are its menu's
+  return AlarmModeOf(row) != AlarmMode::kNone || IsFamiliarFormRow(row);  // Alarm's kinds, Find Familiar's forms
 }
 
 bool CastAsRitual(bool ritual_spell, bool switch_on, bool in_combat, bool class_cast) {
   return ritual_spell && switch_on && !in_combat && class_cast;
 }
 
+bool IsFamiliarFormRow(int row) { return row >= kFamiliarBat && row <= kFamiliarWeasel; }
+
 int CastingMinutes(int row) {
+  if (row == kFindFamiliar || IsFamiliarFormRow(row)) return 60;  // build 4c: an hour
   return AlarmModeOf(row) != AlarmMode::kNone || row == kAlarm || row == kIdentify || row == kIllusoryScript ? 1 : 0;
 }
 
@@ -372,13 +376,20 @@ bool SilentImageMoveAllowed(float feet_from_caster) {
   return feet_from_caster <= static_cast<float>(kSilentImageRangeFeet);
 }
 
-bool IsNoSlotOption(int row) { return row == kSilentImageMove; }
+bool IsNoSlotOption(int row) { return row == kSilentImageMove || row == kFamiliarDismiss || row == kFamiliarRecall; }
 
-int ChoiceOptionFeat(int row) { return row == kSilentImageMove ? kFeatSilentImageMove : 0; }
+int ChoiceOptionFeat(int row) {
+  switch (row) {
+    case kSilentImageMove: return kFeatSilentImageMove;
+    case kFamiliarDismiss: return kFeatFamiliarDismiss;  // build 4c
+    case kFamiliarRecall: return kFeatFamiliarRecall;
+    default: return 0;
+  }
+}
 
 bool WizardOnlySpell(int row) {
   return row == kAlarm || AlarmModeOf(row) != AlarmMode::kNone || row == kIdentify || row == kIllusoryScript ||
-         row == kUnseenServant;
+         row == kUnseenServant || row == kFindFamiliar || IsFamiliarFormRow(row);  // build 4c: Find Familiar
 }
 
 bool WardedAgainstRacialType(int nwn_racial_type) {

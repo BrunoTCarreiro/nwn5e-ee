@@ -398,6 +398,11 @@ TEST(MinorIllusion) {
   const ChoiceCantrip* disguise = ChoiceCantripOf(kDisguiseSelf);
   CHECK_EQ(disguise != nullptr && disguise->options.size() == 6u, true);
   CHECK_EQ(ChoiceCantripOf(kDisguiseOrc)->master, kDisguiseSelf);
+  // #39 build 4c: Find Familiar's eight forms and its familiar's Dismiss and Recall - two radial pages.
+  const ChoiceCantrip* familiar = ChoiceCantripOf(kFindFamiliar);
+  CHECK_EQ(familiar != nullptr && familiar->options.size() == 10u, true);
+  CHECK_EQ(RadialChoicePage(10, 0).more, true);
+  CHECK_EQ(ChoiceCantripOf(kFamiliarRecall)->master, kFindFamiliar);
   CHECK_EQ(ImageBlueprintOf(ImageKind::kNone)[0], 0);
   CHECK_EQ(SeesThroughIllusion(10, 2, 12), true);   // meets the DC
   CHECK_EQ(SeesThroughIllusion(10, 1, 12), false);
