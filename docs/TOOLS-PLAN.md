@@ -1377,3 +1377,19 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
       look (the owner to judge); New's name error says "letters" though names are lowercase only.
   - Follow-up: #165, condition looks (a saved VFX Bench effect shown while a condition lasts; Poisoned's green first),
     to be planned next.
+
+## A saved VFX Bench effect shipped as nwn5e's own: Detect Magic's glow (2026-11-16, #39)
+
+  Owner, 2026-11-16: "Can we use a vfx effect for the detect magic glow?", then "option 1, I'll make it in the bench";
+  on large creatures, "wouldn't a smaller area be obscured by the creature's body? but let's test it". The first saved
+  bench effect shipped as a game effect - the way #165's condition looks will go.
+  - The owner's n5_detmagicef (a lasting effect on the root: star motes rising from a patch, a soft flickering light) in
+    the four model columns of one visualeffects row - S / M / L / H, the game picking by the target's size: M as made,
+    S smaller, L and H wider, taller and denser (area x0.55 / 1.7 / 2.5, the light's reach the same, rate x0.6 / 1.8 /
+    2.8) so a large body doesn't hide it. data/rows/visualeffects.detect.txt row 2092 NWN5E_DETECT_MAGIC; models
+    data/files/n5_detmag_<s|m|l|h>.mdl written by the game's own writer (WriteVfxModel, via mdl2draft --model) from the
+    drafts tools/data/vfx/n5_detmag_<s|m|l|h>.vfx. The mechanics session points Detect Magic's $GLOW at it (0.99.46).
+  - Rows: nwn5e's visualeffects rows live in data/rows and data/looks - the looks own 2100-2199; 2100 at first collided
+    and the launch check dropped the looks' whole file, so 2092 (2093-2099 kept for the other Detects).
+  - L4-29 passed (owner: "looks good, both the detect magic and the silent image"). Open: which column the game uses for
+    an item on the ground or a placeable (all four are filled, so it shows either way).
