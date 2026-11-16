@@ -2,8 +2,10 @@
 // composition, the maths that places the junk, the disk's mesh and texture, the game files' text (the creature and pile
 // models, the piles' use points, the 2da rows), a compiled model's node tree, and an ASCII model made readable by the
 // mesh reader. Nothing here touches the disk or the game.
+// Plain UMD: Node's require, or a page's self.FloatDisk (the Composer). modelNodes, carriesMark and sameText use Buffer
+// and stay Node-only; diskTexture gives a Buffer in Node and a Uint8Array in a page.
+(function (root) {
 "use strict";
-const path = require("path");
 
 const MARK = "# made by nwn5e-ee tools/data/floatdisk/build.js from composition.json - edit that and rebuild, not this file";
 const TEXTURE_MARK = "nwn5e floatdisk build.js";  // the bench library's copy of the disk's texture: its TGA image ID
@@ -39,7 +41,7 @@ const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 function resolvePartFile(baseDir, file) {
   if (typeof file !== "string" || !file.trim()) throw new Error("a part's file: a path to a .mdl, relative to tools\\data\\floatdisk");
   if (!/\.mdl$/i.test(file.trim())) throw new Error(`a part's file: ${file} - a .mdl model (ASCII or compiled)`);
-  return path.resolve(baseDir, file.trim());
+  return require("path").resolve(baseDir, file.trim());  // Node only: a page has no files of its own
 }
 
 // composition.json's object -> { disk, stages: { empty: [], small: [part], ... } }; a part { source: { kind: "model",
@@ -68,9 +70,10 @@ function readComposition(c, baseDir) {
       if (hasModel === hasFile) throw new Error(`${where}: either "model" (a game model) or "file" (your own .mdl), not both or neither`);
       let source;
       if (hasModel) {
-        const model = String(p.model || "").toLowerCase();
-        if (!RESREF.test(model)) throw new Error(`${where}.model: a model's resref`);
-        source = { kind: "model", model };
+        const list = Array.isArray(p.model) ? p.model : [p.model];
+        const models = list.map((m) => String(m || "").toLowerCase());
+        if (!list.length || list.length > 4 || !models.every((m) => RESREF.test(m))) throw new Error(`${where}.model: a model's resref, or a list of them (a weapon's pieces)`);
+        source = models.length === 1 ? { kind: "model", model: models[0] } : { kind: "models", models };
       } else {
         let file;
         try { file = resolvePartFile(baseDir, p.file); } catch (e) { throw new Error(`${where}.file: ${e.message}`); }
@@ -87,8 +90,50 @@ function readComposition(c, baseDir) {
   }
   return { disk, stages };
 }
-const partKey = (part) => (part.source.kind === "model" ? "model:" + part.source.model : "file:" + part.source.file.toLowerCase());
-const partLabel = (part) => (part.source.kind === "model" ? part.source.model : part.source.given);
+const partKey = (part) => (part.source.kind === "model" ? "model:" + part.source.model
+  : part.source.kind === "models" ? "models:" + part.source.models.join("+") : "file:" + part.source.file.toLowerCase());
+const partLabel = (part) => (part.source.kind === "model" ? part.source.model
+  : part.source.kind === "models" ? part.source.models.join(" + ") : part.source.given);
+
+// A list of modelSpaceMeshes results (a weapon's pieces) as one model: the meshes in order, the box their union.
+function mergeModels(list) {
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  for (const m of list) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], m.lo[k]); hi[k] = Math.max(hi[k], m.hi[k]); }
+  return { meshes: [].concat(...list.map((m) => m.meshes)), lo, hi };
+}
+
+// composition.json's text in its own layout (the Composer saves it): two-space indents, _about a string a line, the disk
+// a key a line, each stage a part a line (note, model | file, at, turn, scale, tilt, then any other key); arrays inline.
+const inline = (v) => (Array.isArray(v) ? "[" + v.map(inline).join(", ") + "]" : JSON.stringify(v));
+function compositionText(c) {
+  const PART_KEYS = ["note", "model", "file", "at", "turn", "scale", "tilt"];
+  const part = (p) => {
+    const keys = PART_KEYS.filter((k) => p[k] !== undefined).concat(Object.keys(p).filter((k) => !PART_KEYS.includes(k) && p[k] !== undefined));
+    return "{ " + keys.map((k) => JSON.stringify(k) + ": " + inline(p[k])).join(", ") + " }";
+  };
+  const block = (o, indent, line) => Object.keys(o).filter((k) => o[k] !== undefined).map((k, i, a) => indent + line(k, o[k]) + (i < a.length - 1 ? "," : ""));
+  const top = Object.keys(c).filter((k) => c[k] !== undefined).map((k) => {
+    const v = c[k], key = JSON.stringify(k) + ": ";
+    if (k === "_about" && Array.isArray(v)) return [key + "[", ...v.map((s, i) => "    " + JSON.stringify(s) + (i < v.length - 1 ? "," : "")), "  ]"];
+    if (k === "disk") return [key + "{", ...block(v, "    ", (kk, vv) => JSON.stringify(kk) + ": " + inline(vv)), "  }"];
+    if (k === "stages") {
+      return [key + "{",
+        ...Object.keys(v).flatMap((stage, i, a) => {
+          const parts = v[stage];
+          const rows = parts.map((p, j) => "      " + part(p) + (j < parts.length - 1 ? "," : ""));
+          const tail = i < a.length - 1 ? "]," : "]";
+          return [`    ${JSON.stringify(stage)}: [`, ...rows, "    " + tail];
+        }), "  }"];
+    }
+    return [key + inline(v)];
+  });
+  const lines = ["{"];
+  top.forEach((chunk, i) => {
+    chunk.forEach((l, j) => lines.push((j === 0 ? "  " : "") + l + (j === chunk.length - 1 && i < top.length - 1 ? "," : "")));
+  });
+  lines.push("}", "");
+  return lines.join("\n");
+}
 
 // --- maths ----------------------------------------------------------------------------------------------------------
 function quat(o) {  // axis-angle (x y z radians, as a model writes it) -> quaternion (x y z w)
@@ -228,10 +273,11 @@ function diskMesh(disk) {
 // (the mesh's own alpha on top). 128 x 128, 32-bit, rows bottom-up as the game's TGAs are (descriptor 0x08). `id`: the
 // TGA's image ID ("" for the shipped copy, as nwn5e's other TGAs; TEXTURE_MARK for the bench library's).
 function diskTexture(disk, id = "") {
-  const size = 128, idBytes = Buffer.from(id, "latin1");
-  const head = Buffer.alloc(18);
-  head[0] = idBytes.length; head[2] = 2; head.writeUInt16LE(size, 12); head.writeUInt16LE(size, 14); head[16] = 32; head[17] = 0x08;
-  const body = Buffer.alloc(size * size * 4);
+  const size = 128, idLen = id.length;
+  const bytes = new Uint8Array(18 + idLen + size * size * 4);
+  bytes[0] = idLen; bytes[2] = 2; bytes[12] = size & 255; bytes[13] = size >> 8; bytes[14] = size & 255; bytes[15] = size >> 8; bytes[16] = 32; bytes[17] = 0x08;
+  for (let i = 0; i < idLen; i++) bytes[18 + i] = id.charCodeAt(i) & 255;  // latin1
+  const body = bytes.subarray(18 + idLen);
   const mix = (a, b, t) => a + (b - a) * t;
   const smooth = (e0, e1, x) => { const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
   for (let row = 0; row < size; row++) {
@@ -245,7 +291,7 @@ function diskTexture(disk, id = "") {
       body[o] = Math.round(rgb[2] * 255); body[o + 1] = Math.round(rgb[1] * 255); body[o + 2] = Math.round(rgb[0] * 255); body[o + 3] = Math.round(alpha * 255);
     }
   }
-  return Buffer.concat([head, idBytes, body]);
+  return typeof Buffer === "function" ? Buffer.from(bytes.buffer, bytes.byteOffset, bytes.length) : bytes;
 }
 
 // --- a compiled model's node tree ---------------------------------------------------------------------------------
@@ -495,10 +541,13 @@ function carriesMark(bytes) {
 const sameText = (a, b) => Buffer.from(a).toString("latin1").replace(/\r\n/g, "\n") === Buffer.from(b).toString("latin1").replace(/\r\n/g, "\n");
 const crlf = (text) => text.replace(/\r?\n/g, "\r\n");
 
-module.exports = {
+const api = {
   MARK, TEXTURE_MARK, STAGES, PILES, SUFFIX, RESREF, SUPERMODEL, SOURCE_ROWS, APPEARANCE_OVERRIDES, ROWS, LABELS,
   creatureModel, pileModel,
   resolvePartFile, readComposition, partKey, partLabel, quat, axisAngle, qrot, round, num, modelSpaceMeshes, placePart,
   lowered, uniqueNames, diskMesh, diskTexture, modelNodes, creatureModelText, pileNodes, pileModelText,
-  pileWalkmeshText, rowsText, readableAscii, texturesBeside, carriesMark, sameText, crlf,
+  pileWalkmeshText, rowsText, readableAscii, texturesBeside, carriesMark, sameText, crlf, mergeModels, compositionText,
 };
+if (typeof module === "object" && module.exports) module.exports = api;
+else root.FloatDisk = api;
+})(typeof self !== "undefined" ? self : this);

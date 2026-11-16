@@ -282,4 +282,54 @@ check("the stages' names fit a resref", () => {
   for (const s of F.PILES) assert.ok(F.RESREF.test(F.pileModel(s)) && F.ROWS.placeables[s] === F.ROWS.appearance[s]);
 });
 
+// --- the Composer's page and the weapon's pieces ---------------------------------------------------------------------
+check("floatdisk.js loads in a page (no require, no module, no Buffer)", () => {
+  const src = require("fs").readFileSync(path.join(__dirname, "floatdisk.js"), "utf8");
+  const self = {};
+  new Function("self", "require", "module", "Buffer", src)(self);
+  assert.strictEqual(typeof self.FloatDisk.placePart, "function");
+});
+check("the disk's texture: the same bytes in a page", () => {
+  const src = require("fs").readFileSync(path.join(__dirname, "floatdisk.js"), "utf8");
+  const self = {};
+  new Function("self", "require", "module", "Buffer", src)(self);
+  const page = self.FloatDisk.diskTexture(DISK);
+  assert.ok(page instanceof Uint8Array && !Buffer.isBuffer(page));
+  assert.ok(Buffer.from(page).equals(F.diskTexture(DISK)));
+  const library = self.FloatDisk.diskTexture(DISK, F.TEXTURE_MARK);
+  assert.ok(Buffer.from(library).equals(F.diskTexture(DISK, F.TEXTURE_MARK)));
+});
+check("a part's model may be a list (a weapon's pieces)", () => {
+  const c = F.readComposition(comp([{ model: ["WSWLS_B_011", "wswls_m_011", "wswls_t_011"], at: [0, 0, 0] }, { model: ["plc_b04"], at: [0, 0, 0] }]), BASE);
+  assert.deepStrictEqual(c.stages.small[0].source, { kind: "models", models: ["wswls_b_011", "wswls_m_011", "wswls_t_011"] });
+  assert.strictEqual(F.partKey(c.stages.small[0]), "models:wswls_b_011+wswls_m_011+wswls_t_011");
+  assert.strictEqual(F.partLabel(c.stages.small[0]), "wswls_b_011 + wswls_m_011 + wswls_t_011");
+  assert.deepStrictEqual(c.stages.small[1].source, { kind: "model", model: "plc_b04" });
+  assert.throws(() => F.readComposition(comp([{ model: [], at: [0, 0, 0] }]), BASE), /a list of them/);
+  assert.throws(() => F.readComposition(comp([{ model: ["a", "b", "c", "d", "e"], at: [0, 0, 0] }]), BASE), /a list of them/);
+});
+check("mergeModels: a weapon's pieces as one model", () => {
+  const a = cube(), b = cube();
+  b.meshes[0].verts = b.meshes[0].verts.map((v, i) => (i % 3 === 2 ? v + 1 : v));
+  const merged = F.mergeModels([{ meshes: a.meshes, lo: [1.5, -0.5, 0], hi: [2.5, 0.5, 1] }, { meshes: b.meshes, lo: [1.5, -0.5, 1], hi: [2.5, 0.5, 2] }]);
+  assert.strictEqual(merged.meshes.length, 2);
+  near(merged.lo[2], 0);
+  near(merged.hi[2], 2);
+  const placed = F.placePart({ at: [0, 0, 0], turn: 0, scale: 0.5, tilt: [0, 0] }, merged, 0, 0.9, "j");
+  near(placed.meshes[1].verts[2] - placed.meshes[0].verts[2], 0.5);
+});
+const COMPOSITION_TEXT = require("fs").readFileSync(path.join(__dirname, "composition.json"), "utf8").replace(/\r\n/g, "\n");
+check("compositionText gives back composition.json (0.0 and 1.0 written 0 and 1)", () => {
+  assert.strictEqual(F.compositionText(JSON.parse(COMPOSITION_TEXT)),
+    COMPOSITION_TEXT.replace("[0.8, 0.92, 1.0]", "[0.8, 0.92, 1]").replace("[0.0, 0.32, 0]", "[0, 0.32, 0]"));
+});
+check("compositionText: a part's keys in order, tilt only when given, an own file", () => {
+  const out = F.compositionText({ _about: ["a"], disk: { diameter: 0.9 }, stages: {
+    small: [{ scale: 1, at: [0, 0, 0], model: "plc_b04", note: "n", extra: 1 }, { file: "parts/x.mdl", at: [0, 0, 0], tilt: [0, 90], turn: 5 }], medium: [], large: [] } });
+  const l = out.split("\n");
+  assert.ok(l.includes('      { "note": "n", "model": "plc_b04", "at": [0, 0, 0], "scale": 1, "extra": 1 },'));
+  assert.ok(l.includes('      { "file": "parts/x.mdl", "at": [0, 0, 0], "turn": 5, "tilt": [0, 90] }'));
+  assert.ok(out.endsWith("}\n") && !out.includes("\r"));
+});
+
 console.log(process.exitCode ? `floatdisk check: FAILED (${count} passed)` : `floatdisk check: ${count} checks pass`);

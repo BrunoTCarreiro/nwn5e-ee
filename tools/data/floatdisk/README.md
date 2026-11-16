@@ -30,7 +30,10 @@ A part names either a game model or a model file of your own:
 ```json
 { "model": "plc_b04", "at": [-0.07, 0.03, 0], "turn": 20, "scale": 0.85 }
 { "file": "parts/my_pile.mdl", "at": [0, 0, 0] }
+{ "model": ["wswls_b_011", "wswls_m_011", "wswls_t_011"], "at": [0, 0, 0], "tilt": [0, 90] }
 ```
+
+The last is a weapon: its three pieces, read as one model.
 
 To make a whole stage your own pile, give that stage a single part:
 
