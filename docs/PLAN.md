@@ -1545,6 +1545,9 @@ monster AC by CR.
     seconds on the owner's module clock (2 minutes an hour), while Bless's minute is 60 (rounds are real time): a
     jump ages timed effects by its real length, as a rest's does (the clock notes, Phase 5). Retest L4-21 casts
     Bless after the Ritual.
+  - *Build 4a accepted (owner, 2026-11-16: "yes, 4a accepted. go for 4b").* L4-21 passed ("ok, they seem to
+    work"); every 4a row passed. Asked the same day, "Can we use a vfx effect for the detect magic glow?" - the
+    look, forwarded to the animation session; the game's side is the $GLOW swap once it gives a row.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
