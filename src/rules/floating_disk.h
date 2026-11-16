@@ -12,8 +12,11 @@ constexpr int kFloatingDiskFollowFeet = 20;
 constexpr int kFloatingDiskBreakFeet = 100;
 constexpr int kFloatingDiskHours = 1;
 constexpr int kFloatingDiskStrength = 30;      // its own load never slows it (encumbrance.2da: 1,213 pounds at 30)
-constexpr int kFloatingDiskAppearance = 103;   // a placeholder body - NWN's Lantern Archon - until the animation
-constexpr float kFloatingDiskScale = 0.5f;     // session's disk
+// 0.99.56: the animation session's disk (anim 3d49e05, data/rows/appearance.floatdisk.txt): appearance 14000 the empty
+// disk, 14001-14003 with small, medium and large junk - each the disk and its junk as the creature's own meshes on
+// c_invsguy (clickable, it walks), at scale 1.
+constexpr int kFloatingDiskAppearance = 14000;
+constexpr float kFloatingDiskScale = 1.0f;
 
 enum class DiskEnd { kNone, kMasterGone, kHourUp, kOverloaded, kTooFar, kSentAway };
 
@@ -46,11 +49,12 @@ struct DiskLook {
   int appearance = kFloatingDiskAppearance;
   float scale = kFloatingDiskScale;
 };
-// A stage's look - placeholders until the animation session's four appearance rows (the disk and its junk as the
+// A stage's look: its appearance row (14000 + the stage) - the animation session's four (the disk and its junk as the
 // creature's own meshes): the Lantern Archon a little larger each stage.
 DiskLook DiskStageLook(DiskStage stage);
-// The container a stage's load falls into where the disk floated (null for an empty disk) - placeholders until the
-// animation session's three piles: the game's small, medium and large treasure piles (placeables 189-191).
+// The container a stage's load falls into where the disk floated (null for an empty disk): nwn5e's blueprints
+// n5_fd_pile1-3 (data/files) - the animation session's piles (placeables 14001-14003, the stage's junk without the
+// disk), usable, an inventory, plot, no treasure scripts.
 const char* DiskPileBlueprint(DiskStage stage);
 
 }  // namespace rules

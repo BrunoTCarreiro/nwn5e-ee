@@ -2,9 +2,8 @@
 // inventory, right?" - "go with the henchman disk"): Floating Disk (SRD 5.2.1; rules/floating_disk.h).
 // - The disk is a henchman of its caster's: NWN's OpenInventory opens a player's henchman's inventory and no other
 //   associate's (ExecuteCommandOpenInventory: the master and associate type 1). It's made from NWN's summoned Lantern
-//   Archon (no items, no conversation) - a placeholder body until the animation session's disk (2026-11-16: an
-//   invisible body with visualeffects row 2095 on it, once the owner's happy with its look) - plot, Ethereal (enemies
-//   don't see it), Strength 30 (its load never slows it), its event scripts its own.
+//   Archon (no items, no conversation) and given the animation session's disk (0.99.56: appearance 14000-14003) -
+//   plot, Ethereal (enemies don't see it), Strength 30 (its load never slows it), its event scripts its own.
 // - It takes no henchman's place: CNWSCreature::AddAssociate refuses a henchman past the module's limit (feedback
 //   0x31), so the limit is the module's own plus one for each disk out (module locals n5d_base, n5d_disks; put back
 //   by its heartbeat after a load).
@@ -16,7 +15,9 @@
 // - 0.99.55 (owner, 2026-11-16: "4 stages to it ... the mesh that was on top is placed where the disk was and works
 //   as a container"; "go with all your recommendations"): its look shows its load's stage (rules::DiskStageOf -
 //   swapped as it changes), and its load falls into that stage's pile, a container where it floated, gone once
-//   closed empty (n5_d_pile). Placeholders until the animation session's appearance and placeables rows.
+//   closed empty (n5_d_pile). 0.99.56: the animation session's art - the disk's four appearance rows (14000 + its
+//   stage), its piles nwn5e's blueprints n5_fd_pile1-3 on their placeables rows (0.99.55's treasure-pile placeholders
+//   ran NWN's random-treasure scripts on opening).
 // - A new casting with a disk out renews its hour.
 // - Kill XP goes to a party's player characters alone (CNWSCreature::ApplyDeathExperience's IsPlayerCharacter check):
 //   the disk takes none.

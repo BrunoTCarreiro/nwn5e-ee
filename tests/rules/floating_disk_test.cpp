@@ -50,14 +50,15 @@ TEST(FloatingDiskStages) {
   CHECK_EQ(DiskStageOf(5000) == DiskStage::kLarge, true);
   CHECK_EQ(DiskStageOf(5400) == DiskStage::kLarge, true);   // an overload: its last pile
   CHECK_EQ(DiskPileBlueprint(DiskStage::kEmpty) == nullptr, true);  // nothing on it, nothing left
-  CHECK_EQ(std::string(DiskPileBlueprint(DiskStage::kSmall)) == "plc_treasuresml", true);
-  CHECK_EQ(std::string(DiskPileBlueprint(DiskStage::kMedium)) == "plc_treasuremed", true);
-  CHECK_EQ(std::string(DiskPileBlueprint(DiskStage::kLarge)) == "plc_treasurelrg", true);
-  CHECK_EQ(DiskStageLook(DiskStage::kEmpty).appearance, kFloatingDiskAppearance);
-  CHECK_EQ(DiskStageLook(DiskStage::kSmall).scale < DiskStageLook(DiskStage::kMedium).scale &&
-               DiskStageLook(DiskStage::kMedium).scale < DiskStageLook(DiskStage::kLarge).scale &&
-               DiskStageLook(DiskStage::kEmpty).scale < DiskStageLook(DiskStage::kSmall).scale,
-           true);
+  // 0.99.56: the animation session's art - appearance 14000-14003, piles n5_fd_pile1-3 (placeables 14001-14003).
+  CHECK_EQ(std::string(DiskPileBlueprint(DiskStage::kSmall)) == "n5_fd_pile1", true);
+  CHECK_EQ(std::string(DiskPileBlueprint(DiskStage::kMedium)) == "n5_fd_pile2", true);
+  CHECK_EQ(std::string(DiskPileBlueprint(DiskStage::kLarge)) == "n5_fd_pile3", true);
+  CHECK_EQ(DiskStageLook(DiskStage::kEmpty).appearance, 14000);
+  CHECK_EQ(DiskStageLook(DiskStage::kSmall).appearance, 14001);
+  CHECK_EQ(DiskStageLook(DiskStage::kMedium).appearance, 14002);
+  CHECK_EQ(DiskStageLook(DiskStage::kLarge).appearance, 14003);
+  CHECK_EQ(DiskStageLook(DiskStage::kLarge).scale == 1.0f && DiskStageLook(DiskStage::kEmpty).scale == 1.0f, true);
 }
 
 TEST(FloatingDiskSpell) {
