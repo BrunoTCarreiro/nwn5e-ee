@@ -50,6 +50,7 @@
 #include "rules/spells2024.h"
 
 int FamiliarArmorClass(void* stats);                              // rules_attack.cpp
+int FamiliarMaxHitPoints(void* creature);                         // rules_hit_points.cpp
 float FamiliarTouchRangeMetres(void* creature, uint32_t spell);   // rules_cantrips.cpp
 void FindFamiliarSpell(uint32_t self, void* caster, int row);     // rules_spells2024.cpp (UtilitySpell)
 void FinishSummon(uint32_t self);                                 // below (n5_f_summon)
@@ -315,7 +316,9 @@ void FamiliarUpdate(void* creature) {
   if (LogSlot()) Log("familiar: 0x%08X its familiar is gone (%s)", id, familiar ? "0 hit points" : "unsummoned");
 }
 
-// Its hit points: the form's (SRD 5.2.1) - CNWSCreature::GetMaxHitPoints answered for a Find Familiar familiar.
+// Its hit points: the form's (SRD 5.2.1) - CNWSCreature::GetMaxHitPoints answered for a Find Familiar familiar: by
+// rules_hit_points.cpp's hook (FamiliarMaxHitPoints) with hit points faithful, else by this one (0.99.48's launch
+// check: two hooks on it fail - MH_ERROR_ALREADY_CREATED).
 using MaxHitPointsFn = int16_t (*)(void* creature, int toughness);
 MaxHitPointsFn g_max_hit_points = nullptr;
 int16_t MaxHitPoints(void* creature, int toughness) {
@@ -415,6 +418,12 @@ void FamiliarsGameStarted() {
 }
 
 }  // namespace
+
+int FamiliarMaxHitPoints(void* creature) {
+  if (g_forms.empty() || !creature) return 0;
+  const auto it = g_forms.find(ObjId(creature));
+  return it == g_forms.end() ? 0 : it->second.hit_points;
+}
 
 int FamiliarArmorClass(void* stats) {
   if (g_forms.empty() || !stats) return 0;
@@ -518,7 +527,8 @@ void FinishSummon(uint32_t self) {
 bool InstallFindFamiliar() {
   RegisterRecords({kVarFamiliarKind});
   const bool waits = AddScriptHandler("n5_f_summon", &FinishSummon);
-  const bool max_hp = HookExport("CNWSCreature::GetMaxHitPoints (Find Familiar's forms, #39 4c)", ee::kGetMaxHitPoints,
+  const bool max_hp = g_config.hit_points == rules::RuleVariant::kFaithful ||  // rules_hit_points.cpp's hook asks
+                      HookExport("CNWSCreature::GetMaxHitPoints (Find Familiar's forms, #39 4c)", ee::kGetMaxHitPoints,
                                  reinterpret_cast<void*>(&MaxHitPoints), reinterpret_cast<void**>(&g_max_hit_points));
   const bool possess = HookExport("CNWSCreature::PossessFamiliar (its eyes a Bonus Action, #39 4c)",
                                   "?PossessFamiliar@CNWSCreature@@QEAAXXZ", reinterpret_cast<void*>(&Possess),

@@ -24,6 +24,8 @@
 #include "rules/nwn_conversion.h"
 #include "rules/progression.h"
 
+int FamiliarMaxHitPoints(void* creature);  // rules_familiar.cpp (#39 build 4c): a Find Familiar familiar's form
+
 namespace {
 
 using GetMaxHitPointsFn = int16_t (*)(void* creature, int include_toughness);
@@ -65,6 +67,7 @@ std::vector<int> LevelDice(void* stats, int level) {
 }
 
 int16_t GetMaxHitPoints(void* creature, int include_toughness) {
+  if (const int familiar = FamiliarMaxHitPoints(creature)) return static_cast<int16_t>(familiar);  // #39 build 4c
   const int16_t nwn = g_get_max_hit_points(creature, include_toughness);
   void* stats = creature ? StatsOf(creature) : nullptr;
   if (!stats) return nwn;
