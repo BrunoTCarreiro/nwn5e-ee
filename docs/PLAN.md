@@ -1487,6 +1487,43 @@ monster AC by CR.
     (231-233) for their minutes and a line. Wizard-only: spells_page.cpp's SpellLevel hook for the Sorcerer.
     Illusory Script's ink in material_components (10 GP, consumed). Test Spells2024Build4a (13 mutations caught);
     !test utilitywizard. Matrix L4-1 to L4-13.
+  - *Tested (owner, 2026-11-16, 0.99.42):* "L4-1: the sword's glow blinks / L4-2: why can I see the sword within
+    the mist but not enemies? Also, shouldn't detect magic help show enemies in the fog? Like, increase their
+    visibility? / L4-5: Shouldn't there be an actual sound for the audible alarm? Also, note for vfx, a way to see
+    the warded area. / L4-9: Spider does not glow / L4-11: there's no rain vfx, make note / L4-12: goodberries
+    should not wither, the rules state they lose their potency so they would be just... berries? Also goodberries
+    are mostly a hunger mechanic thing right? they should also go into the RP list. / L4-13: not a spell specific
+    bug, a neutral wolf seems to still be hostile". The log: L4-8, L4-10 and L4-11 pass.
+    *Fixed 0.99.43:*
+    - L4-9: the giant spider's poison is an On Monster Hit property (itemprops 72, subtype 6, on its bite
+      nw_it_crewps018), not the On Hit 48/19 the look read. rules::PoisonSenseKind reads both kinds (disease 72/2,
+      48/20); the look's checks are generated from it.
+    - L4-2: SRD 5.2's Detect Magic shows its aura on "any visible creature or object" (Detect Evil and Good and
+      Detect Poison and Disease sense locations). rules::DetectNeedsSight: from inside a Fog Cloud nothing glows
+      or is named, nor a creature unseen (GetObjectSeen - the fog's perception rule) or an object inside a Fog
+      Cloud; one line instead, "you sense magic within 30 feet that you can't see". Areas are still named (the
+      fog is what you see). The sword showed because NWN draws an item whoever sees it; it no longer glows there.
+      Showing creatures in the fog isn't Detect Magic's in 2024 - a house rule, if wanted.
+    - L4-1: GetHasSpellEffect reads any object (the engine's AsNWSObject; nwmain disassembled), so the look
+      doesn't re-add an item's glow for that reason. Each look now logs the glows it adds and takes ("Detect
+      Magic's look - glows +X -Y"): the retest tells a re-added glow (the code) from the glow's own look on an
+      item on the ground (the animation session's).
+    - L4-5: PlaySound is an action (ExecuteCommandPlaySound -> AddAction) and was run by the intruder, whose AI
+      held it. An invisible object (plc_invisobj) at the ward rings as_cv_bell1 every 2.5 s for the rule's 10
+      seconds, then goes.
+    - L4-12: the first !time 25 was typed while paused (PAUSED 09:58:20 - 09:58:26) and was lost:
+      CWorldTimer::AdvanceToTime, the clock paused, writes only the running clock's offsets, which the unpause
+      resets (an hour past 23 carries into days, so SetTime(hour + 25) itself is right). !time now refuses while
+      paused (GamePaused, game_clock.h). The second !time 25 moved 25 hours and the stack went, as built. SRD 5.2:
+      "Uneaten berries disappear when the spell ends" (24 hours) - kept ("lose their potency" is the older
+      text); "wither" reworded. The berries' day of nourishment goes on the role-play list.
+    - L4-13: the Alchemist's Fire thrown at the neutral orc (L4-11) turned the whole commoners' faction hostile
+      (NWN's faction reputation), so the next neutral spawn, the wolf, attacked - and Speak with Animals was no
+      Ritual (an enemy in sight). !spawn ... neutral sets the commoners neutral again (50) when they're hostile.
+    - Identify (L4-4's log, "affected by Detect Magic, Bless"): a Detect's glow isn't counted.
+    Test Spells2024Build4aFixes (9 mutations caught). Retests L4-14 to L4-19.
+    *For later (owner, 2026-11-16):* a look for Alarm's ward ("note for vfx, a way to see the warded area") and
+    for Create Water's rain ("there's no rain vfx, make note") - the animation session's, when it's taken up.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
@@ -3048,6 +3085,8 @@ scripted moments, ambient effects):
 - Languages.
 - Unseen Servant (#39 build 4: owner, 2026-11-16, "there might be some gameplay/roleplay use for invisible
   servant. Keep it in the roleplay list").
+- Goodberry's day of nourishment (#39 build 4: owner, 2026-11-16, "goodberries are mostly a hunger mechanic
+  thing right? they should also go into the RP list"): its 1 Hit Point is built; the nourishment waits for food.
 (All added by the owner, 2026-10-24: "add 58 to the RP list along with all
 the other recommendations you listed".)
 *Decided (owner, 2026-11-15, #73: "hmmmmm, keep them listed for now. after we're done with the spell work we can go
