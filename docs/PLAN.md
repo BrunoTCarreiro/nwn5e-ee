@@ -1469,6 +1469,24 @@ monster AC by CR.
     Q5 A (Create or Destroy Water real); Q4 - Unseen Servant goes Q2's way (castable, a line, its effect) and onto
     the RP list (#73) for a real use later. Build 4a: the Detects, Identify, Alarm, Goodberry, Create or Destroy
     Water, Q2's four and Unseen Servant, rituals; 4b: Find Familiar, Disguise Self, Silent Image.
+  - *Built 0.99.42 (build 4a):* rules/spells2024.h (kUtility, the Ritual tag; IsRitualSpell, CastAsRitual,
+    CastingMinutes / RitualCastingMinutes, AlarmModeOf, WaterModeOf / WaterCubeFeet, IsDetectSpell,
+    DetectEvilAndGoodKind - Protection from Evil and Good's types -, SpellSchoolName, UtilityEffectMinutes,
+    WizardOnlySpell; Alarm's and Water's menus, cantrips.cpp). Rituals: the OrderGuard's RitualOrder - a class's
+    cast of a Ritual spell by a player out of a fight (GetIsInCombat, or an enemy in sight), the switch on
+    (!options, Spellcasting; a record) - refuses the order, moves the clock 10 minutes (11), cheat-casts the row
+    (no slot, its level); the components guard runs first, so a costly component is still checked and used up.
+    The Detects: a mark on the caster (an icon, effecticons 228-230; Concentration's check), a look every 2 s
+    (GetFirstObjectInShape with line of sight; the kinds sorted in the script, generated from the rules), the
+    glow an effect of the spell by the caster (Concentration's end takes it), Detect Magic's areas named from the
+    spell the DLL reads off each (rules_concentration.cpp's AreaOfEffectSpellId). Identify 86: SetIdentified,
+    charges, a spell's temporary property, Goodberry's making; a creature's spells. Alarm: vfx_persistent 116 (no
+    look), n5_s_alarmaud / n5_s_alarmmen. Water: Destroy ends areas tagged FOG centred in the Cube; Create's rain
+    the burning (grenade_gear.cpp's burn rounds now n5_g_burn, skipped once doused) and lit placeables. Goodberry:
+    nw_it_mpotion001 made over (iprp_spells 600 casting 1197), its 24 hours a stamp. The flag spells: an icon
+    (231-233) for their minutes and a line. Wizard-only: spells_page.cpp's SpellLevel hook for the Sorcerer.
+    Illusory Script's ink in material_components (10 GP, consumed). Test Spells2024Build4a (13 mutations caught);
+    !test utilitywizard. Matrix L4-1 to L4-13.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
