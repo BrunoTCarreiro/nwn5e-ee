@@ -1575,6 +1575,12 @@ monster AC by CR.
     size; no Frog, Octopus or Owl); Q2 its type (Celestial, Fey or Fiend) by the caster's alignment (good Celestial,
     evil Fiend, else Fey), and the player can pick it too; Q3 A (NWN's Summon Familiar feat kept until the Wizard and
     Sorcerer briefs - casting Find Familiar replaces its familiar, one at a time); Q4 A (Find Familiar is build 4c).
+  - *Asked (owner, 2026-11-16, 0.99.46): "L4-27: how do I move the illusion? I don't see the option".* The log: the
+    menu opened (14:06:17), nothing picked - its Move, a levelled spell's leaf with no slot level, wasn't shown.
+    *Fixed 0.99.47:* as Hunter's Mark: Move - feat 1564 (ReqAction 1: the Action) casting the Move row 1215,
+    granted while the image lasts and taken when it ends; Silent Image's menu shows it as the feat's leaf while held
+    (rules::ChoiceOptionFeat), the quickbar too (bit 42); the 60 feet checked at its impact. 3 mutations caught.
+    Retest L4-30.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
