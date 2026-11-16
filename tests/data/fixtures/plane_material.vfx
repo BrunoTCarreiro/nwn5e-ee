@@ -1,0 +1,27 @@
+# nwn5e VFX draft (!vfxedit) - key = value; one [emitter <name>] section per emitter
+name = fx_n5skull
+type = D
+seconds = 8
+attach = root
+lengths = 0 2 1
+
+[plane skull]
+position = 0 0 0.1
+orientation = 0 0 1 1.5708
+bitmap = null
+diffuse = 0.5 0.25 1
+ambient = 0.1 0.2 0.3
+selfillum = 0 1 0.5
+alpha = 0.6
+verts = 0 0 0 0.1 0 0 0 0.1 0
+tverts = 0 0 1 0 0 1
+faces = 0 1 2
+
+[plane hidden]
+position = 0 0 0
+orientation = 0 0 0 0
+bitmap = null
+render = 0
+verts = 0 0 0 0.1 0 0 0 0.1 0
+tverts = 0 0 1 0 0 1
+faces = 0 1 2

@@ -1355,7 +1355,10 @@ namespace {
 
 // A compiled model with a plain mesh node "Plane01" (flags 0x21: header | mesh) half a metre along x, turned 90 degrees
 // about z: a quad of 4 vertices (2 faces), its UVs, textured fxpa_fern - and, `with_emitter`, an emitter beside it.
-std::string PlaneModel(bool with_emitter) {
+// Its material the game's defaults (Torlack's mesh header: diffuse 0.8, ambient 0.2, drawn) - or, `material`, a
+// material of its own: diffuse 0.5 0.25 1 (+0x3C), ambient 0.1 0.2 0.3 (+0x48) and its controllers selfillumcolor 0 1
+// 0.5 (100) and alpha 0.6 (128). `flags`: its node's (0xA1 an animated mesh, 0x61 skin, 0x121 dangly, 0x221 walkmesh).
+std::string PlaneModel(bool with_emitter, uint32_t flags = 0x21, bool material = false) {
   std::string b(0x2000, '\0');
   const auto put32 = [&](size_t at, uint32_t v) { memcpy(&b[at], &v, 4); };
   const auto put16 = [&](size_t at, uint16_t v) { memcpy(&b[at], &v, 2); };
@@ -1398,9 +1401,21 @@ std::string PlaneModel(bool with_emitter) {
   std::vector<size_t> kids = {0x200};
   if (with_emitter) kids.push_back(0x600);
   children(0x100, 0x1600, kids);
-  node(0x200, "Plane01", 0x980, {{8, 3, {0.5f, 0, 0}}, {20, 4, {0, 0, 0.70710678f, 0.70710678f}}});
-  put32(0x200 + 0x5C, 0x21);
+  std::vector<Ctrl> plane_ctrls = {{8, 3, {0.5f, 0, 0}}, {20, 4, {0, 0, 0.70710678f, 0.70710678f}}};
+  if (material) {
+    plane_ctrls.push_back({100, 3, {0, 1, 0.5f}});
+    plane_ctrls.push_back({128, 1, {0.6f}});
+  }
+  node(0x200, "Plane01", 0x980, plane_ctrls);
+  put32(0x200 + 0x5C, flags);
   const size_t mh = 0x200 + 0x60;
+  const float diffuse[3] = {material ? 0.5f : 0.8f, material ? 0.25f : 0.8f, material ? 1.0f : 0.8f};
+  const float ambient[3] = {material ? 0.1f : 0.2f, 0.2f, material ? 0.3f : 0.2f};
+  for (int k = 0; k < 3; ++k) {
+    putf(mh + 0x3C + 4 * k, diffuse[k]);
+    putf(mh + 0x48 + 4 * k, ambient[k]);
+  }
+  put32(mh + 0x6C, 1);  // render
   puts(mh + 0x78, "fxpa_fern");
   put32(mh + 0x08, static_cast<uint32_t>(0x1400 - base));  // faces
   put32(mh + 0x0C, 2);
@@ -1506,6 +1521,144 @@ TEST(VfxDraftPlaneFixture) {
   CHECK_EQ(ReadVfxDraft(text, &effect, &error), true);
   CHECK_EQ(effect.planes.size(), 1u);
   CHECK_EQ(effect.emitters.size(), 0u);
+  CHECK_EQ(WriteVfxDraft(effect) == text, true);
+}
+
+// --- A mesh's material, and the mesh kinds a chunk has (the owner, 2026-11-16: "fear skulls in
+// VFX_DUR_MIND_AFFECTING_FEAR are untextured and in VFX_DUR_PDK_FEAR don't even show the mesh") ---
+
+// An untextured mesh is drawn in its material: the compiled mesh header's diffuse (+0x3C) and ambient (+0x48), whether
+// it's drawn (+0x6C), and the node's selfillumcolor (100) and alpha (128) controllers - read into the plane.
+TEST(VfxModelPlaneMaterialRead) {
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxBinaryModel(PlaneModel(true, 0x21, true), &effect, &error), true);
+  CHECK_EQ(effect.planes.size(), 1u);
+  if (effect.planes.size() != 1) return;
+  const VfxPlane& p = effect.planes[0];
+  CHECK_EQ(Milli(p.diffuse[0]) == 500 && Milli(p.diffuse[1]) == 250 && Milli(p.diffuse[2]) == 1000, true);
+  CHECK_EQ(Milli(p.ambient[0]) == 100 && Milli(p.ambient[1]) == 200 && Milli(p.ambient[2]) == 300, true);
+  CHECK_EQ(Milli(p.selfillum[0]) == 0 && Milli(p.selfillum[1]) == 1000 && Milli(p.selfillum[2]) == 500, true);
+  CHECK_EQ(Milli(p.alpha), 600);
+  CHECK_EQ(p.render, true);
+  CHECK_EQ(p.flags, 0x21u);
+  CHECK_EQ(Milli(p.position[0]), 500);  // the other controllers still read
+  // The game's defaults read as they are: no selfillum or alpha controller - none, and fully there.
+  VfxEffect plain;
+  CHECK_EQ(ReadVfxBinaryModel(PlaneModel(true), &plain, &error), true);
+  CHECK_EQ(plain.planes.size(), 1u);
+  if (plain.planes.size() != 1) return;
+  const VfxPlane& d = plain.planes[0];
+  CHECK_EQ(Milli(d.diffuse[1]) == 800 && Milli(d.ambient[1]) == 200 && Milli(d.selfillum[1]) == 0 && Milli(d.alpha) == 1000, true);
+  // A mesh with render 0 isn't drawn.
+  std::string hidden = PlaneModel(true);
+  const uint32_t off = 0;
+  memcpy(&hidden[0x200 + 0x60 + 0x6C], &off, 4);
+  VfxEffect h;
+  CHECK_EQ(ReadVfxBinaryModel(hidden, &h, &error) && h.planes.size() == 1 && !h.planes[0].render, true);
+}
+
+// A chunk's meshes of any kind (an animated, skin or dangly mesh: its own vertices, the rest pose) read with the option;
+// an effect read without it keeps the plain-mesh rule (re-saving one would turn such a mesh into a static one). A
+// walkmesh never.
+TEST(VfxModelAnyMeshKind) {
+  for (const uint32_t flags : {0xA1u, 0x61u, 0x121u}) {
+    VfxEffect effect;
+    std::string error;
+    CHECK_EQ(ReadVfxBinaryModel(PlaneModel(true, flags), &effect, &error), true);  // an effect: its emitter, no plane
+    CHECK_EQ(effect.emitters.size() == 1 && effect.planes.empty(), true);
+    VfxEffect alone;
+    CHECK_EQ(ReadVfxBinaryModel(PlaneModel(false, flags), &alone, &error), false);  // nothing else in it: not read, as before
+    VfxEffect chunk;
+    CHECK_EQ(ReadVfxBinaryModel(PlaneModel(false, flags), &chunk, &error, true), true);
+    CHECK_EQ(chunk.planes.size(), 1u);
+    if (chunk.planes.size() != 1) continue;
+    const VfxPlane& p = chunk.planes[0];
+    CHECK_EQ(p.flags, flags);
+    CHECK_EQ(p.name == "Plane01" && p.verts.size() == 12 && p.tverts.size() == 8 && p.faces.size() == 6, true);
+    CHECK_EQ(Milli(p.verts[11]), 400);
+  }
+  VfxEffect walk;
+  std::string error;
+  CHECK_EQ(ReadVfxBinaryModel(PlaneModel(false, 0x221), &walk, &error, true), false);
+  CHECK_EQ(walk.planes.empty(), true);
+  // A plain mesh reads the same with the option as without it.
+  VfxEffect a, b;
+  CHECK_EQ(ReadVfxBinaryModel(PlaneModel(true, 0x21, true), &a, &error) && ReadVfxBinaryModel(PlaneModel(true, 0x21, true), &b, &error, true), true);
+  CHECK_EQ(WriteVfxDraft(a) == WriteVfxDraft(b), true);
+}
+
+// The material through the draft: only what isn't the default - "diffuse = ", "ambient = ", "selfillum = ", "alpha = ",
+// "render = 0" after the bitmap (core.js writes the same bytes) - and back; a plane with the defaults writes none (every
+// draft before them keeps its bytes). The model's trimesh carries them (the default's ambient / diffuse 1 1 1 as before),
+// and the ASCII reader reads them back.
+const char* const kPlaneMaterial = "bitmap = fxpa_fern\ndiffuse = 0.5 0.25 1\nambient = 0.1 0.2 0.3\nselfillum = 0 1 0.5\nalpha = 0.6\nverts =";
+
+TEST(VfxDraftPlaneMaterial) {
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxBinaryModel(PlaneModel(true, 0x21, true), &effect, &error), true);
+  if (effect.planes.size() != 1) return;
+  const std::string draft = WriteVfxDraft(effect);
+  CHECK_EQ(Contains(draft, kPlaneMaterial), true);
+  CHECK_EQ(Contains(draft.substr(draft.find("[plane")), "render"), false);  // drawn: the default
+  VfxEffect back;
+  CHECK_EQ(ReadVfxDraft(draft, &back, &error), true);
+  CHECK_EQ(back.planes.size(), 1u);
+  if (back.planes.size() != 1) return;
+  const VfxPlane& p = back.planes[0];
+  CHECK_EQ(Milli(p.diffuse[1]) == 250 && Milli(p.ambient[2]) == 300 && Milli(p.selfillum[2]) == 500 && Milli(p.alpha) == 600 && p.render, true);
+  CHECK_EQ(WriteVfxDraft(back) == draft, true);
+  // Not drawn: "render = 0", and back.
+  back.planes[0].render = false;
+  const std::string hidden = WriteVfxDraft(back);
+  CHECK_EQ(Contains(hidden, "alpha = 0.6\nrender = 0\nverts ="), true);
+  VfxEffect again;
+  CHECK_EQ(ReadVfxDraft(hidden, &again, &error) && again.planes.size() == 1 && !again.planes[0].render && WriteVfxDraft(again) == hidden, true);
+  // The game's defaults: no material lines (the fixture's plane, above, keeps its bytes).
+  VfxEffect plain;
+  CHECK_EQ(ReadVfxBinaryModel(PlaneModel(true), &plain, &error), true);
+  const std::string text = WriteVfxDraft(plain), section = text.substr(text.find("[plane"));
+  for (const char* key : {"diffuse", "ambient", "selfillum", "alpha", "render"}) CHECK_EQ(Contains(section, key), false);
+  CHECK_EQ(Contains(text, "bitmap = fxpa_fern\nverts ="), true);
+  // The model: a trimesh with the material (selfillumcolor, alpha after its shadow line), and the ASCII reader's way back.
+  const std::string model = WriteVfxModel(effect, "n5t");
+  CHECK_EQ(Contains(model, "  ambient 0.1 0.2 0.3\n  diffuse 0.5 0.25 1\n"), true);
+  CHECK_EQ(Contains(model, "  render 1\n  shadow 0\n  selfillumcolor 0 1 0.5\n  alpha 0.6\n"), true);
+  VfxEffect read;
+  CHECK_EQ(ReadVfxAsciiModel(model, &read, &error) && read.planes.size() == 1, true);
+  if (read.planes.size() == 1) {
+    const VfxPlane& r = read.planes[0];
+    CHECK_EQ(Milli(r.diffuse[0]) == 500 && Milli(r.ambient[0]) == 100 && Milli(r.selfillum[1]) == 1000 && Milli(r.alpha) == 600 && r.render, true);
+  }
+  const std::string hidden_model = WriteVfxModel(again, "n5t");
+  VfxEffect hidden_read;
+  CHECK_EQ(Contains(hidden_model, "  render 0\n") && ReadVfxAsciiModel(hidden_model, &hidden_read, &error) && hidden_read.planes.size() == 1 &&
+               !hidden_read.planes[0].render, true);
+  // A plane with the defaults: its trimesh as nwn5e has always written it (no selfillumcolor or alpha line).
+  const std::string plain_model = WriteVfxModel(plain, "n5t");
+  CHECK_EQ(Contains(plain_model, "  wirecolor 1 1 1\n  ambient 1 1 1\n  diffuse 1 1 1\n  specular 0 0 0\n  shininess 1\n  bitmap fxpa_fern\n  render 1\n  shadow 0\n  verts 4\n"), true);
+}
+
+// The VFX Bench's core.js reads and writes the same bytes (its check_chunks.js reads this fixture too): an untextured
+// plane with a material of its own, and one that isn't drawn.
+TEST(VfxDraftPlaneMaterialFixture) {
+  std::ifstream file("tests/data/fixtures/plane_material.vfx", std::ios::binary);
+  std::ostringstream read;
+  read << file.rdbuf();
+  std::string text;
+  for (char c : read.str())
+    if (c != '\r') text += c;
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(text, &effect, &error), true);
+  CHECK_EQ(effect.planes.size(), 2u);
+  if (effect.planes.size() != 2) return;
+  const VfxPlane& skull = effect.planes[0];
+  CHECK_EQ(skull.bitmap == "null" && Milli(skull.diffuse[2]) == 1000 && Milli(skull.ambient[0]) == 100 && Milli(skull.selfillum[1]) == 1000 &&
+               Milli(skull.alpha) == 600 && skull.render, true);
+  const VfxPlane& hidden = effect.planes[1];
+  CHECK_EQ(!hidden.render && Milli(hidden.diffuse[0]) == 800 && Milli(hidden.ambient[0]) == 200 && Milli(hidden.alpha) == 1000, true);
   CHECK_EQ(WriteVfxDraft(effect) == text, true);
 }
 

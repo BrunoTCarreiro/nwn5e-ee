@@ -142,6 +142,17 @@ struct VfxPlane {
   std::vector<float> verts;
   std::vector<float> tverts;
   std::vector<int> faces;
+  // Its material (the owner, 2026-11-16: "fear skulls ... are untextured" - the game draws a mesh without a bitmap in
+  // these): diffuse and ambient (the defaults what the game's model compiler gives a mesh without them - Torlack's
+  // binary MDL notes), its own glow (selfillumcolor), alpha, and whether it's drawn at all (render 0: not).
+  float diffuse[3] = {0.8f, 0.8f, 0.8f};
+  float ambient[3] = {0.2f, 0.2f, 0.2f};
+  float selfillum[3] = {0.0f, 0.0f, 0.0f};
+  float alpha = 1.0f;
+  bool render = true;
+  // Its node's flags as the compiled model has them (0x21 a plain mesh; 0x61 skin, 0xA1 animated, 0x121 dangly - read
+  // with any_mesh); 0 from a draft or an ASCII model. Never written: the dev layer logs it.
+  uint32_t flags = 0;
 };
 
 // The most deadspace a draft or a written model gets: above about 0.39 the game's turning loop
@@ -195,7 +206,12 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
 // +0x38, blend +0x58, texture +0x78, x grid +0x0C, flags +0xD4) and its
 // controllers (keys at node +0x44, values at +0x50, offsets from byte 12); an
 // animation's copy of the node with a birthrate keyed to 0 gives emit_seconds.
-bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string* error);
+// Its meshes are planes: plain ones (flags 0x21) - re-saving an effect would turn an
+// animated, skin or dangly mesh into a static one - or, `any_mesh` (a chunk model,
+// only drawn by the VFX Bench; the owner, 2026-11-16: "in VFX_DUR_PDK_FEAR don't even
+// show the mesh"), those too, as their own vertices (the rest / bind pose); never a
+// walkmesh (0x200).
+bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string* error, bool any_mesh = false);
 
 // A name usable as a resref and file name: letters, digits, '_', lower case,
 // at most `max` characters ("" when nothing is left).
