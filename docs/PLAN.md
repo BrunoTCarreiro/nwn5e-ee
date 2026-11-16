@@ -1603,6 +1603,22 @@ monster AC by CR.
     Spellcasting (a record; none ticked: by alignment). An hour's casting with a slot (the Ritual switch off): not in a
     fight, else the clock its hour on. Tests FindFamiliarForms / Kind / TouchAndRows (13 mutations caught);
     !test familiarwizard. Matrix L4-31 to L4-38.
+  - *Decided (owner, 2026-11-16: "go with A for disguise self"):* Q5 A - Disguise Self's random look, part-based as
+    character creation: a random head of the species and gender, random skin and hair among the game's own people's,
+    the worn outfit re-skinned (the torso only to pieces of its armour value) and given back when the spell ends.
+  - *Tested (owner, 2026-11-16, 0.99.48):* "The type of familiar should be an option between type and level, not in
+    !options / L4-34: Can't seem to use the familiar to cast a spell / L4-35, nothing was denied? maybe I didn't
+    perform this test correctly / L4-36/37: didn't die when attacked / Cat, lizard and spider are very small,
+    especially the lizard and spider familiars. Rat is too big". The log: L4-33 passes (the Bonus Action, the second
+    refused); the raven used its blueprint's fear gaze and swung ("0 + 0") - NWN's associate heartbeat fights;
+    L4-35's two disappearances were NWN's Unsummon ("Unsummoning Lizard"), Find Familiar's Dismiss is on its menu's
+    second page and quickbar F4; L4-34 - no delivery looked at (the familiar walks back after possession); L4-36 - an
+    orc's crossbow hit the rat three times, no damage line (its bolts' damage never landed - not yet known why).
+    *Fixed 0.99.49:* the kind a menu level under the form (rows 1227-1250: each form's Celestial, Fey, Fiend -
+    rules::ChoiceParentOf / ChoiceMenuOptions; the radial a level at a time), out of !options; the familiar's own
+    heartbeat (n5_f_hb) follows its master unless told to stand its ground or possessed, its casts refused; the
+    touch spells it doesn't deliver logged with why; the damage it takes logged; sizes - the cat 0.5, the lizard
+    0.35, the spider 0.3, the rat 0.6. 6 mutations caught. Retests L4-39 to L4-44.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
