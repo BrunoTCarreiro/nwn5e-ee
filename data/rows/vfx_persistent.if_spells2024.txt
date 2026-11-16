@@ -14,3 +14,5 @@ LABEL SHAPE RADIUS WIDTH LENGTH OrientWithGround DurationVFX MODEL01 MODEL02 MOD
 113 NWN5E_FOG_CLOUD_7 C 42.67 **** **** 0 **** vps_fogmind vps_fogmind vps_fogmind 12 12 12 3400 1100 1900 0 0 0.25 **** sps_fog_loop **** sps_fog 0.3 vps_fogmind_L vps_fogmind_L vps_fogmind_L
 114 NWN5E_FOG_CLOUD_8 C 48.77 **** **** 0 **** vps_fogmind vps_fogmind vps_fogmind 12 12 12 3400 1100 1900 0 0 0.25 **** sps_fog_loop **** sps_fog 0.3 vps_fogmind_L vps_fogmind_L vps_fogmind_L
 115 NWN5E_FOG_CLOUD_9 C 54.86 **** **** 0 **** vps_fogmind vps_fogmind vps_fogmind 12 12 12 3400 1100 1900 0 0 0.25 **** sps_fog_loop **** sps_fog 0.3 vps_fogmind_L vps_fogmind_L vps_fogmind_L
+# 116: build 4a, Alarm's ward - a 20-foot square, no look (its scripts named by rules_spells2024.cpp).
+116 NWN5E_ALARM R **** 6.1 6.1 0 **** **** **** **** 0 0 0 0 0 0 0 0 0 **** **** **** **** **** **** **** ****

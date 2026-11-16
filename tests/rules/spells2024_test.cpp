@@ -12,7 +12,7 @@ using namespace rules;
 
 // #39 Part 2a build 1a: SRD 5.2.1's level 1 damage and healing spells (pp. 114-177).
 TEST(Spells2024Table) {
-  CHECK_EQ(static_cast<int>(Spells2024().size()), 38);
+  CHECK_EQ(static_cast<int>(Spells2024().size()), 51);
   for (size_t i = 1; i < Spells2024().size(); ++i) CHECK_EQ(Spells2024()[i - 1].row < Spells2024()[i].row, true);
   CHECK_EQ(Spell2024Of(1) == nullptr, true);
   const Spell2024* burning = Spell2024Of(kBurningHands);
@@ -481,4 +481,87 @@ TEST(Spells2024Build3) {
   CHECK_EQ(SmiteArmedIconRow(kShield), 0);
   CHECK_EQ(SmiteArmedIconRow(kEntangle), 0);
   CHECK_EQ(kSmiteArmedIconLast - kSmiteArmedIconFirst + 1, 3);
+}
+
+// #39 2a build 4a: detection and utility, rituals. Breaks caught: a ritual tag lost or added, a Ritual cast in
+// combat, with the switch off or not from a class, the 10 minutes, a mode's row, the Cube's growth, a Detect's
+// kinds, a school's name, an effect's minutes, a Wizard-only spell given the Sorcerer.
+TEST(Spells2024Build4a) {
+  CHECK_EQ(Spell2024Of(kDetectMagic) != nullptr && Spell2024Of(kDetectMagic)->effect == SpellEffect2024::kUtility, true);
+  CHECK_EQ(Spell2024Of(kDetectMagic)->ritual, true);
+  CHECK_EQ(Spell2024Of(kIdentify)->ritual, true);
+  CHECK_EQ(Spell2024Of(kDetectEvilAndGood)->ritual, false);
+  CHECK_EQ(Spell2024Of(kCreateOrDestroyWater)->ritual, false);
+  CHECK_EQ(Spell2024Of(kGoodberry)->ritual, false);
+  CHECK_EQ(Spell2024Of(kUnseenServant)->ritual, true);
+  CHECK_EQ(IsRitualSpell(kAlarmAudible), true);
+  CHECK_EQ(IsRitualSpell(kAlarmMental), true);
+  CHECK_EQ(IsRitualSpell(kCreateWater), false);
+  CHECK_EQ(IsRitualSpell(kShield), false);
+  CHECK_EQ(CastAsRitual(true, true, false, true), true);
+  CHECK_EQ(CastAsRitual(false, true, false, true), false);
+  CHECK_EQ(CastAsRitual(true, false, false, true), false);
+  CHECK_EQ(CastAsRitual(true, true, true, true), false);
+  CHECK_EQ(CastAsRitual(true, true, false, false), false);
+  CHECK_EQ(CastingMinutes(kAlarm), 1);
+  CHECK_EQ(CastingMinutes(kAlarmMental), 1);
+  CHECK_EQ(CastingMinutes(kIdentify), 1);
+  CHECK_EQ(CastingMinutes(kIllusoryScript), 1);
+  CHECK_EQ(CastingMinutes(kDetectMagic), 0);
+  CHECK_EQ(RitualCastingMinutes(0), 10);
+  CHECK_EQ(RitualCastingMinutes(1), 11);
+  CHECK_EQ(AlarmModeOf(kAlarmAudible) == AlarmMode::kAudible, true);
+  CHECK_EQ(AlarmModeOf(kAlarmMental) == AlarmMode::kMental, true);
+  CHECK_EQ(AlarmModeOf(kAlarm) == AlarmMode::kNone, true);
+  CHECK_EQ(WaterModeOf(kCreateWater) == WaterMode::kCreate, true);
+  CHECK_EQ(WaterModeOf(kDestroyWater) == WaterMode::kDestroy, true);
+  CHECK_EQ(WaterModeOf(kCreateOrDestroyWater) == WaterMode::kNone, true);
+  CHECK_EQ(WaterCubeFeet(1), 30);
+  CHECK_EQ(WaterCubeFeet(2), 35);
+  CHECK_EQ(WaterCubeFeet(3), 40);
+  CHECK_EQ(IsDetectSpell(kDetectEvilAndGood) && IsDetectSpell(kDetectMagic) && IsDetectSpell(kDetectPoisonAndDisease),
+           true);
+  CHECK_EQ(IsDetectSpell(kIdentify), false);
+  const auto kind = [](int race, int good_evil) {
+    const char* k = DetectEvilAndGoodKind(race, good_evil);
+    return std::string(k ? k : "-");
+  };
+  CHECK_EQ(kind(24, 1) == "an Undead", true);
+  CHECK_EQ(kind(20, 5) == "a Fiend", true);
+  CHECK_EQ(kind(20, 4) == "a Celestial", true);
+  CHECK_EQ(kind(20, 1) == "a Celestial or a Fiend", true);
+  CHECK_EQ(kind(7, 1) == "an Aberration", true);
+  CHECK_EQ(kind(16, 1) == "an Elemental", true);
+  CHECK_EQ(kind(17, 4) == "a Fey", true);
+  CHECK_EQ(kind(6, 5) == "-", true);   // a human, evil or not
+  CHECK_EQ(kind(8, 1) == "-", true);   // an animal
+  CHECK_EQ(kind(11, 5) == "-", true);  // a dragon
+  const auto school = [](char letter) {
+    const char* s = SpellSchoolName(letter);
+    return std::string(s ? s : "-");
+  };
+  CHECK_EQ(school('V') == "Evocation", true);
+  CHECK_EQ(school('D') == "Divination", true);
+  CHECK_EQ(school('A') == "Abjuration", true);
+  CHECK_EQ(school('T') == "Transmutation", true);
+  CHECK_EQ(school('E') == "Enchantment", true);
+  CHECK_EQ(school('X') == "-", true);
+  CHECK_EQ(UtilityEffectMinutes(kComprehendLanguages), 60);
+  CHECK_EQ(UtilityEffectMinutes(kSpeakWithAnimals), 10);
+  CHECK_EQ(UtilityEffectMinutes(kUnseenServant), 60);
+  CHECK_EQ(UtilityEffectMinutes(kPurifyFoodAndDrink), 0);
+  CHECK_EQ(UtilityEffectMinutes(kIllusoryScript), 0);
+  CHECK_EQ(WizardOnlySpell(kAlarm) && WizardOnlySpell(kAlarmAudible) && WizardOnlySpell(kIdentify) &&
+               WizardOnlySpell(kIllusoryScript) && WizardOnlySpell(kUnseenServant),
+           true);
+  CHECK_EQ(WizardOnlySpell(kDetectMagic), false);
+  CHECK_EQ(WizardOnlySpell(kComprehendLanguages), false);
+  CHECK_EQ(kGoodberryCount, 10);
+  CHECK_EQ(kGoodberryHours, 24);
+  CHECK_EQ(kGoodberryHitPoints, 1);
+  CHECK_EQ(IsConcentrationSpell(kDetectEvilAndGood) && IsConcentrationSpell(kDetectMagic) &&
+               IsConcentrationSpell(kDetectPoisonAndDisease),
+           true);
+  CHECK_EQ(IsConcentrationSpell(kIdentify), false);
+  CHECK_EQ(IsConcentrationSpell(kAlarm), false);
 }

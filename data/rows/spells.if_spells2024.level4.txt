@@ -1,0 +1,5 @@
+# spells.2da - #39 Part 2a, build 4a: NWN's Identify 86 rewritten as SRD 5.2.1's (core/rules_spells2024.cpp): touch
+# an item - identified - or a creature - its spells named; a Ritual; the Bard's and the Wizard's (not the
+# Sorcerer's: spells_page.cpp). Its +Lore gone.
+Name SpellDesc ImpactScript School Range VS TargetType Bard Cleric Druid Paladin Ranger Wiz_Sorc Innate Category HostileSetting
+86 836 16000814 n5_s_identify D T vs 0x3A 1 **** **** **** **** 1 1 **** 0

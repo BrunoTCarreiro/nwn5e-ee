@@ -141,6 +141,25 @@ std::vector<Spell2024> Build() {
     smite.bonus_action = true;  // paid by the hit (Q1 A)
     spells.push_back(smite);
   }
+  // Build 4a: detection and utility.
+  const auto utility = [](int row, const char* name, const char* script, bool ritual) {
+    Spell2024 spell = Damage(row, name, script, E::kUtility, 0, 0, 0, 0);
+    spell.ritual = ritual;
+    return spell;
+  };
+  spells.push_back(utility(kIdentify, "Identify", "n5_s_identify", true));
+  spells.push_back(utility(kAlarm, "Alarm", "n5_s_alarm", true));
+  spells.push_back(utility(kComprehendLanguages, "Comprehend Languages", "n5_s_comprehend", true));
+  spells.push_back(utility(kCreateOrDestroyWater, "Create or Destroy Water", "n5_s_water", false));
+  spells.push_back(utility(kDetectEvilAndGood, "Detect Evil and Good", "n5_s_detectevil", false));
+  spells.push_back(utility(kDetectMagic, "Detect Magic", "n5_s_detectmagic", true));
+  spells.push_back(utility(kDetectPoisonAndDisease, "Detect Poison and Disease", "n5_s_detpoison", true));
+  spells.push_back(utility(kGoodberry, "Goodberry", "n5_s_goodberry", false));
+  spells.push_back(utility(kGoodberryEat, "Goodberry", "n5_s_berryeat", false));
+  spells.push_back(utility(kIllusoryScript, "Illusory Script", "n5_s_illscript", true));
+  spells.push_back(utility(kPurifyFoodAndDrink, "Purify Food and Drink", "n5_s_purify", true));
+  spells.push_back(utility(kSpeakWithAnimals, "Speak with Animals", "n5_s_speakanimal", true));
+  spells.push_back(utility(kUnseenServant, "Unseen Servant", "n5_s_servant", true));
   std::sort(spells.begin(), spells.end(), [](const Spell2024& a, const Spell2024& b) { return a.row < b.row; });
   return spells;
 }
@@ -237,6 +256,80 @@ int MageArmorBaseAc(int dexterity_modifier) { return 13 + dexterity_modifier; }
 int HuntersMarkHours(int slot_level) { return slot_level >= 5 ? 24 : slot_level >= 3 ? 8 : 1; }
 
 int LongstriderTargets(int slot_level) { return 1 + std::max(0, slot_level - 1); }
+
+bool IsRitualSpell(int row) {
+  const Spell2024* spell = Spell2024Of(row);
+  if (spell) return spell->ritual;
+  return AlarmModeOf(row) != AlarmMode::kNone;  // Alarm's kinds are its menu's
+}
+
+bool CastAsRitual(bool ritual_spell, bool switch_on, bool in_combat, bool class_cast) {
+  return ritual_spell && switch_on && !in_combat && class_cast;
+}
+
+int CastingMinutes(int row) {
+  return AlarmModeOf(row) != AlarmMode::kNone || row == kAlarm || row == kIdentify || row == kIllusoryScript ? 1 : 0;
+}
+
+int RitualCastingMinutes(int casting_minutes) { return casting_minutes + kRitualMinutes; }
+
+AlarmMode AlarmModeOf(int row) {
+  if (row == kAlarmAudible) return AlarmMode::kAudible;
+  if (row == kAlarmMental) return AlarmMode::kMental;
+  return AlarmMode::kNone;
+}
+
+WaterMode WaterModeOf(int row) {
+  if (row == kCreateWater) return WaterMode::kCreate;
+  if (row == kDestroyWater) return WaterMode::kDestroy;
+  return WaterMode::kNone;
+}
+
+int WaterCubeFeet(int slot_level) { return 30 + 5 * std::max(0, slot_level - 1); }
+
+bool IsDetectSpell(int row) {
+  return row == kDetectEvilAndGood || row == kDetectMagic || row == kDetectPoisonAndDisease;
+}
+
+const char* DetectEvilAndGoodKind(int nwn_racial_type, int nwn_good_evil) {
+  if (!WardedAgainstRacialType(nwn_racial_type)) return nullptr;
+  switch (nwn_racial_type) {
+    case 7: return "an Aberration";
+    case 16: return "an Elemental";
+    case 17: return "a Fey";
+    case 24: return "an Undead";
+    case 20:
+      if (nwn_good_evil == 5) return "a Fiend";
+      if (nwn_good_evil == 4) return "a Celestial";
+      return "a Celestial or a Fiend";
+    default: return nullptr;
+  }
+}
+
+const char* SpellSchoolName(char letter) {
+  switch (letter) {
+    case 'A': return "Abjuration";
+    case 'C': return "Conjuration";
+    case 'D': return "Divination";
+    case 'E': return "Enchantment";
+    case 'V': return "Evocation";
+    case 'I': return "Illusion";
+    case 'N': return "Necromancy";
+    case 'T': return "Transmutation";
+    default: return nullptr;
+  }
+}
+
+int UtilityEffectMinutes(int row) {
+  if (row == kComprehendLanguages || row == kUnseenServant) return 60;
+  if (row == kSpeakWithAnimals) return 10;
+  return 0;
+}
+
+bool WizardOnlySpell(int row) {
+  return row == kAlarm || AlarmModeOf(row) != AlarmMode::kNone || row == kIdentify || row == kIllusoryScript ||
+         row == kUnseenServant;
+}
 
 bool WardedAgainstRacialType(int nwn_racial_type) {
   // racialtypes.2da: 7 Aberration, 16 Elemental, 17 Fey, 20 Outsider, 24 Undead.

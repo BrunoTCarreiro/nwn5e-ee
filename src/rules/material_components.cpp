@@ -66,6 +66,7 @@ const std::vector<Entry> kCosts = {
     {1157,  50,    0},  // nwn5e_Chromatic_Orb_Lightning - Chromatic Orb (a variant)
     {1158,  50,    0},  // nwn5e_Chromatic_Orb_Poison - Chromatic Orb (a variant)
     {1159,  50,    0},  // nwn5e_Chromatic_Orb_Thunder - Chromatic Orb (a variant)
+    {1198,  10,   10},  // nwn5e_Illusory_Script - Illusory Script: ink, consumed (#39 build 4a)
 };
 
 const Entry* Find(int spell) {

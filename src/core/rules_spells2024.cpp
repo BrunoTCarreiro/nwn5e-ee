@@ -173,6 +173,7 @@ void HuntersMarkHit(uint32_t caster, uint32_t target, bool critical, float delay
 void* GameObjectById(uint32_t id);  // light_sources.cpp (build 2c: an area of effect by its id)
 bool InFogCloud(void* creature);    // below (build 2c; #160's fog search)
 void BeginConcentration(void* creature, int spell);  // rules_concentration.cpp (build 3: Ensnaring Strike's)
+int AreaOfEffectSpellId(uint32_t id);               // rules_concentration.cpp (build 4a: Detect Magic's areas)
 
 namespace {
 
@@ -855,6 +856,7 @@ bool Refuse(uint32_t id, const std::string& name, const std::string& why, uint32
 
 bool SanctuaryLetsThrough(void* attacker, void* target, const char* what);  // build 2a, below
 bool ArmSmite(void* creature, uint32_t id, const SpellOrder& order);         // build 3, below
+bool RitualOrder(void* creature, uint32_t id, const SpellOrder& order);      // build 4a, below
 
 // Refused before the cast, nothing spent (true): a willing creature's spell at an enemy, Mage Armor on one wearing
 // armour, an enemy's spell at a creature its Sanctuary keeps it from. A Bonus Action spell's order becomes its feat's
@@ -869,6 +871,8 @@ bool OrderGuard(void* creature, const SpellOrder& order) {
   if (spell == rules::kDivineSmite || spell == rules::kSearingSmite || spell == rules::kEnsnaringStrike) {
     return ArmSmite(creature, id, order);
   }
+  // Build 4a (Q1 A): a Ritual spell from a class out of a fight, the switch on - a Ritual: no slot, 10 minutes.
+  if (RitualOrder(creature, id, order)) return true;
   // 0.99.3 (owner, 2026-11-10: "why does heroism need to be cast first before checking if it's a willing target? Is
   // it the rules?"): "a willing creature" - an enemy isn't one, so it's no target (the script's check stays for a
   // cast with no order).
@@ -3426,6 +3430,528 @@ void SmitesRest(void* stats) {
   g_armed.erase(Field<uint32_t>(creature, ee::kObjectId));
 }
 
+// ===== #39 Part 2a build 4a (owner, 2026-11-15: "go for build 4"; 2026-11-16: "I accepted your recommendations,
+// except for Q4 ... Keep it in the roleplay list"): detection and utility, and rituals.
+constexpr int kAlarmArea = 116;        // vfx_persistent.if_spells2024.txt: the ward (no look)
+constexpr int kGoodberryPower = 600;   // iprp_spells.if_spells2024.txt: the berries' Cast Spell (spell 1197)
+constexpr ULONGLONG kDetectEveryMs = 2000;
+constexpr const char* kTagDetectMark = "n5s_detect";
+constexpr const char* kTagUtility = "n5s_utility";
+constexpr const char* kVarRitualOff = "nwn5e_ritual_off";  // a record: 1 - Rituals cast with a slot (Q1 A's switch)
+
+// The effect icons (effecticons.if_spells2024.txt 228-233) of the spells' marks on the caster.
+int UtilityIconRow(int row) {
+  switch (row) {
+    case rules::kDetectEvilAndGood: return 228;
+    case rules::kDetectMagic: return 229;
+    case rules::kDetectPoisonAndDisease: return 230;
+    case rules::kComprehendLanguages: return 231;
+    case rules::kSpeakWithAnimals: return 232;
+    case rules::kUnseenServant: return 233;
+    default: return 0;
+  }
+}
+
+// A duration in a script: hours as the game's hours (HoursToSeconds), minutes as turns - nwn5e's way (Mage Armor's 8
+// hours, Shield of Faith's 10 minutes).
+std::string DurationScript(int minutes) {
+  return minutes % 60 == 0 ? "HoursToSeconds(" + std::to_string(minutes / 60) + ")"
+                           : "TurnsToSeconds(" + std::to_string(minutes) + ")";
+}
+
+// NWScript (a script has no functions of its own): `sn`, the school (rules::SpellSchoolName) of spell row `id`.
+std::string SchoolScript() {
+  std::string code = "string sl = Get2DAString(\"spells\", \"School\", id); string sn = \"\";";
+  for (char letter : std::string("ACDEVINT")) {
+    const char* name = rules::SpellSchoolName(letter);
+    if (name) code += std::string(" if (sl == \"") + letter + "\") sn = \"" + name + "\";";
+  }
+  return code;
+}
+
+// NWScript: `what` for a creature `o` Detect Evil and Good senses (rules::DetectEvilAndGoodKind).
+std::string EvilAndGoodScript() {
+  std::string code = "    int race = GetRacialType(o); int ge = GetAlignmentGoodEvil(o); string k = \"\";";
+  for (int race = 0; race < 32; ++race) {
+    for (int ge : {1, 4, 5}) {
+      const char* kind = rules::DetectEvilAndGoodKind(race, ge);
+      if (kind) {
+        code += " if (race == " + std::to_string(race) + " && ge == " + std::to_string(ge) + ") k = \"" + kind + "\";";
+      }
+    }
+  }
+  return code + " if (k != \"\") what = GetName(o) + \", \" + k;\n";
+}
+
+// Detect Magic: creatures and objects under spells (each named with its school), items and creatures bearing magic
+// items; its areas go to `aoes` (named from their spell by the DLL: a script can't read an area's spell).
+const char* const kMagicSense = R"nss(
+    int t = GetObjectType(o);
+    if (t == OBJECT_TYPE_AREA_OF_EFFECT) aoes += "|" + ObjectToString(o) + "|";
+    else {
+      string sp = ""; string ids = "";
+      effect e = GetFirstEffect(o);
+      while (GetIsEffectValid(e)) {
+        int id = GetEffectSpellId(e);
+        if (id >= 0 && id != row && FindSubString(ids, "|" + IntToString(id) + "|") < 0) {
+          ids += "|" + IntToString(id) + "|";
+          if (GetStringLength(sp) < 160) {
+            $SCHOOL
+            string nm = GetStringByStrRef(StringToInt(Get2DAString("spells", "Name", id)));
+            sp += (sp == "" ? "" : ", ") + nm + (sn == "" ? "" : " (" + sn + ")");
+          }
+        }
+        e = GetNextEffect(o);
+      }
+      int magic = FALSE;
+      if (t == OBJECT_TYPE_ITEM) magic = GetIsItemPropertyValid(GetFirstItemProperty(o));
+      if (t == OBJECT_TYPE_CREATURE) {
+        int s;
+        for (s = 0; s < 14 && !magic; s++) {
+          object it = GetItemInSlot(s, o);
+          if (GetIsObjectValid(it) && GetIsItemPropertyValid(GetFirstItemProperty(it))) magic = TRUE;
+        }
+      }
+      if (sp != "") what = GetName(o) + " - under " + sp;
+      if (magic) what = (what == "" ? GetName(o) + " - " : what + "; ") + (t == OBJECT_TYPE_ITEM ? "a magic item" : "it bears magic items");
+    }
+)nss";
+
+// Detect Poison and Disease: poisoned or diseased creatures, venomous ones (natural weapons that poison), poisoned
+// weapons (held, or lying there), attacks that spread disease.
+const char* const kPoisonSense = R"nss(
+    int t = GetObjectType(o); string k = "";
+    if (t == OBJECT_TYPE_CREATURE) {
+      effect e = GetFirstEffect(o);
+      while (GetIsEffectValid(e)) {
+        int et = GetEffectType(e);
+        if (et == EFFECT_TYPE_POISON && FindSubString(k, "poisoned") < 0) k += (k == "" ? "" : ", ") + "poisoned";
+        if (et == EFFECT_TYPE_DISEASE && FindSubString(k, "diseased") < 0) k += (k == "" ? "" : ", ") + "diseased (a contagion)";
+        e = GetNextEffect(o);
+      }
+    }
+    int i;
+    for (i = 0; i < 5; i++) {
+      object w = OBJECT_INVALID;
+      if (t == OBJECT_TYPE_ITEM) { if (i == 0) w = o; }
+      else w = GetItemInSlot(i == 0 ? 14 : (i == 1 ? 15 : (i == 2 ? 16 : (i == 3 ? 4 : 5))), o);
+      if (GetIsObjectValid(w)) {
+        int natural = t == OBJECT_TYPE_CREATURE && i < 3;
+        itemproperty ip = GetFirstItemProperty(w);
+        while (GetIsItemPropertyValid(ip)) {
+          if (GetItemPropertyType(ip) == ITEM_PROPERTY_ON_HIT_PROPERTIES) {
+            int st = GetItemPropertySubType(ip);
+            if (st == IP_CONST_ONHIT_ITEMPOISON && natural && FindSubString(k, "venomous") < 0) k += (k == "" ? "" : ", ") + "venomous (its natural weapons poison)";
+            if (st == IP_CONST_ONHIT_ITEMPOISON && !natural && FindSubString(k, "a poisoned weapon") < 0) k += (k == "" ? "" : ", ") + "a poisoned weapon";
+            if (st == IP_CONST_ONHIT_DISEASE && FindSubString(k, "disease") < 0) k += (k == "" ? "" : ", ") + "its attacks spread disease";
+          }
+          ip = GetNextItemProperty(w);
+        }
+      }
+    }
+    if (k != "") what = GetName(o) + " - " + k;
+)nss";
+
+// One look of a Detect: what it senses within its range and in a clear line glows (an effect of the spell by the
+// caster - Concentration's end takes it) and is named once; what no longer is loses the glow.
+const char* const kDetectScan = R"nss(
+object me = OBJECT_SELF; int row = $ROW; string told = GetLocalString(me, "n5d_told"); string seen = ""; string aoes = "";
+int n = 0; location here = GetLocation(me);
+object o = GetFirstObjectInShape(SHAPE_SPHERE, $RADIUS, here, TRUE, $FILTER);
+while (GetIsObjectValid(o)) {
+  string what = "";
+  if (o != me) {
+$CLASSIFY
+  }
+  if (what != "") {
+    string key = "|" + ObjectToString(o) + "|";
+    seen += key;
+    if (!GetHasSpellEffect(row, o)) ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(EffectVisualEffect($GLOW), row), "n5s_detglow"), o, TurnsToSeconds(10));
+    if (FindSubString(told, key) < 0) { told += key; if (n < 8) SendMessageToPC(me, "nwn5e: $NAME - " + what + "."); n++; }
+  }
+  o = GetNextObjectInShape(SHAPE_SPHERE, $RADIUS, here, TRUE, $FILTER);
+}
+string old = GetLocalString(me, "n5d_glow");
+int p = FindSubString(old, "|");
+while (p >= 0) {
+  int q = FindSubString(old, "|", p + 1);
+  if (q < 0) break;
+  string key = GetSubString(old, p, q - p + 1);
+  if (FindSubString(seen, key) < 0) {
+    object g = StringToObject(GetSubString(key, 1, q - p - 1));
+    effect e = GetFirstEffect(g);
+    while (GetIsEffectValid(e)) {
+      if (GetEffectTag(e) == "n5s_detglow" && GetEffectCreator(e) == me) RemoveEffect(g, e);
+      e = GetNextEffect(g);
+    }
+  }
+  p = FindSubString(old, "|", q + 1);
+}
+SetLocalString(me, "n5d_told", told); SetLocalString(me, "n5d_glow", seen); SetLocalString(me, "n5d_aoes", aoes);
+)nss";
+
+const std::string& DetectScan(int row) {
+  static std::unordered_map<int, std::string> built;
+  const auto at = built.find(row);
+  if (at != built.end()) return at->second;
+  std::string code = kDetectScan;
+  std::string classify, filter, glow;
+  if (row == rules::kDetectEvilAndGood) {
+    classify = EvilAndGoodScript();
+    filter = "OBJECT_TYPE_CREATURE";
+    glow = "VFX_DUR_GLOW_LIGHT_YELLOW";
+  } else if (row == rules::kDetectMagic) {
+    classify = kMagicSense;
+    Replace(&classify, "$SCHOOL", SchoolScript());
+    filter = "OBJECT_TYPE_CREATURE | OBJECT_TYPE_ITEM | OBJECT_TYPE_PLACEABLE | OBJECT_TYPE_AREA_OF_EFFECT";
+    glow = "VFX_DUR_GLOW_LIGHT_BLUE";
+  } else {
+    classify = kPoisonSense;
+    filter = "OBJECT_TYPE_CREATURE | OBJECT_TYPE_ITEM";
+    glow = "VFX_DUR_GLOW_GREEN";
+  }
+  Replace(&code, "$CLASSIFY", classify);
+  Replace(&code, "$ROW", std::to_string(row));
+  Replace(&code, "$RADIUS", Float(rules::FeetToMetres(rules::kDetectFeet)));
+  Replace(&code, "$FILTER", filter);
+  Replace(&code, "$GLOW", glow);
+  Replace(&code, "$NAME", SpellNameOf(row));
+  return built[row] = code;
+}
+
+struct Detecting {
+  int row = 0;
+  ULONGLONG next = 0;
+  std::unordered_set<uint32_t> told_areas;  // Detect Magic's areas already named
+};
+std::unordered_map<uint32_t, Detecting> g_detecting;  // by caster
+
+void DetectBegin(uint32_t self, int row) {
+  char code[640];
+  sprintf_s(code,
+            "ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(EffectIcon(%d), %d), \"%s\"), "
+            "OBJECT_SELF, TurnsToSeconds(%d)); DeleteLocalString(OBJECT_SELF, \"n5d_told\"); DeleteLocalString(OBJECT_SELF, "
+            "\"n5d_glow\"); ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_MAGICAL_VISION), OBJECT_SELF);",
+            UtilityIconRow(row), row, kTagDetectMark, rules::kDetectMinutes);
+  Run(code, self, "a Detect's mark");
+  g_detecting[self] = Detecting{row, 0, {}};
+  TellPlayer(self, "nwn5e: " + SpellNameOf(row) + " - for 10 minutes (your Concentration) what it senses within 30 feet, in "
+                   "a clear line, glows and is named.");
+  if (LogSlot()) Log("spells2024: 0x%08X %s begins (10 minutes, Concentration)", self, SpellNameOf(row).c_str());
+}
+
+// Detect Magic's areas, named from the spell the DLL reads off each.
+void NameDetectedAreas(uint32_t self, void* caster, Detecting& detect) {
+  const std::string areas = engine::GetLocalString(caster, "n5d_aoes");
+  std::string code;
+  int named = 0;
+  for (size_t at = areas.find('|'); at != std::string::npos && named < 6;) {
+    const size_t end = areas.find('|', at + 1);
+    if (end == std::string::npos) break;
+    const uint32_t id = ParseId(areas.substr(at + 1, end - at - 1));
+    at = areas.find('|', end + 1);
+    if (!id || !detect.told_areas.insert(id).second) continue;
+    const int row = AreaOfEffectSpellId(id);
+    ++named;
+    if (row < 0) {
+      code += " SendMessageToPC(OBJECT_SELF, \"nwn5e: Detect Magic - a magical area.\");";
+      continue;
+    }
+    code += " { int id = " + std::to_string(row) + "; " + SchoolScript() +
+            " SendMessageToPC(OBJECT_SELF, \"nwn5e: Detect Magic - an area of \" + GetStringByStrRef(StringToInt("
+            "Get2DAString(\"spells\", \"Name\", id))) + (sn == \"\" ? \"\" : \" (\" + sn + \")\") + \".\"); }";
+  }
+  if (!code.empty()) Run(code, self, "Detect Magic's areas");
+}
+
+// Every creature update: a detecting caster looks again every 2 seconds, until its mark is gone (its Concentration
+// ended: the sweep took the glows too).
+void DetectUpdate(void* creature) {
+  if (g_detecting.empty() || !creature) return;
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  const auto it = g_detecting.find(id);
+  if (it == g_detecting.end()) return;
+  Detecting& detect = it->second;
+  const ULONGLONG now = GetTickCount64();
+  if (now < detect.next) return;
+  detect.next = now + kDetectEveryMs;
+  if (engine::IsDeadOrDying(creature) || !HasSpellEffect(creature, detect.row, -1, id)) {
+    if (LogSlot()) Log("spells2024: 0x%08X %s ends", id, SpellNameOf(detect.row).c_str());
+    g_detecting.erase(it);
+    return;
+  }
+  Run(DetectScan(detect.row), id, "a Detect's look");
+  if (detect.row == rules::kDetectMagic) NameDetectedAreas(id, creature, detect);
+}
+
+void DetectsGameStarted() { g_detecting.clear(); }
+
+// Identify: an item touched - identified, its charges told, a spell's temporary property or making named - or a
+// creature's spells named.
+const char* const kIdentifyScript = R"nss(
+object t = GetSpellTargetObject();
+int k = GetObjectType(t);
+if (k == OBJECT_TYPE_ITEM) {
+  SetIdentified(t, TRUE);
+  string s = "nwn5e: Identify - " + GetName(t) + ": its properties are on its examine window";
+  int c = GetItemCharges(t);
+  if (c > 0) s += "; " + IntToString(c) + " charges";
+  int temp = FALSE;
+  itemproperty ip = GetFirstItemProperty(t);
+  while (GetIsItemPropertyValid(ip)) { if (GetItemPropertyDurationType(ip) == DURATION_TYPE_TEMPORARY) temp = TRUE; ip = GetNextItemProperty(t); }
+  if (temp) s += "; a spell is affecting it (a temporary property)";
+  if (GetLocalInt(t, "n5_goodberry_until") > 0) s += "; made by the Goodberry spell";
+  SendMessageToPC(OBJECT_SELF, s + ".");
+  ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_MAGICAL_VISION), OBJECT_SELF);
+} else if (k == OBJECT_TYPE_CREATURE) {
+  string list = ""; string ids = "";
+  effect e = GetFirstEffect(t);
+  while (GetIsEffectValid(e)) {
+    int id = GetEffectSpellId(e);
+    if (id >= 0 && FindSubString(ids, "|" + IntToString(id) + "|") < 0) {
+      ids += "|" + IntToString(id) + "|";
+      list += (list == "" ? "" : ", ") + GetStringByStrRef(StringToInt(Get2DAString("spells", "Name", id)));
+    }
+    e = GetNextEffect(t);
+  }
+  SendMessageToPC(OBJECT_SELF, "nwn5e: Identify - " + GetName(t) + (list == "" ? ": no spells are affecting it." : ": affected by " + list + "."));
+  ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_MAGICAL_VISION), t);
+} else {
+  SendMessageToPC(OBJECT_SELF, "nwn5e: Identify - touch an item (your inventory's too) or a creature.");
+}
+)nss";
+
+// Alarm's ward entered: a creature outside the caster's party sets it off.
+const char* const kAlarmTrip = R"nss(
+object w = OBJECT_SELF; object c = GetAreaOfEffectCreator(w); object e = StringToObject("$ID");
+if (!GetIsObjectValid(e) || e == c || GetFactionEqual(e, c) || GetMaster(e) == c || GetFactionEqual(GetMaster(e), c)) return;
+if ($AUDIBLE) {
+  AssignCommand(e, PlaySound("as_cv_bell1"));
+  object pc = GetFirstPC();
+  while (GetIsObjectValid(pc)) {
+    if (GetArea(pc) == GetArea(w) && GetDistanceBetweenLocations(GetLocation(pc), GetLocation(w)) <= $HEARD) SendMessageToPC(pc, "nwn5e: Alarm - a handbell rings at the ward.");
+    pc = GetNextPC();
+  }
+} else {
+  SendMessageToPC(c, "nwn5e: Alarm - a mental ping: a creature has entered your ward.");
+  if (GetIsResting(c)) { AssignCommand(c, ClearAllActions()); SendMessageToPC(c, "nwn5e: Alarm - the ping wakes you."); }
+}
+)nss";
+
+void AlarmTrip(uint32_t area, bool audible) {
+  for (uint32_t id : AreaCreatures(area, kEntering)) {
+    std::string code = kAlarmTrip;
+    char hex[16];
+    sprintf_s(hex, "%x", id);
+    Replace(&code, "$ID", hex);
+    Replace(&code, "$AUDIBLE", audible ? "TRUE" : "FALSE");
+    Replace(&code, "$HEARD", Float(rules::FeetToMetres(rules::kAlarmAudibleFeet)));
+    Run(code, area, "Alarm's ward");
+    if (LogSlot()) Log("spells2024: 0x%08X entered Alarm's ward 0x%08X (%s)", id, area, audible ? "audible" : "mental");
+  }
+}
+void AlarmEnterAudible(uint32_t area) { AlarmTrip(area, true); }
+void AlarmEnterMental(uint32_t area) { AlarmTrip(area, false); }
+
+void AlarmSpell(uint32_t self, const rules::Spell2024& spell, int row) {
+  const rules::AlarmMode mode = rules::AlarmModeOf(row);
+  if (mode == rules::AlarmMode::kNone) {
+    TellPlayer(self, "nwn5e: Alarm - pick Audible or Mental from its menu.");
+    return;
+  }
+  const bool audible = mode == rules::AlarmMode::kAudible;
+  char code[640];
+  sprintf_s(code,
+            "object t = GetSpellTargetObject(); location l = GetSpellTargetLocation(); if (GetIsObjectValid(t) && "
+            "GetObjectType(t) != OBJECT_TYPE_CREATURE) l = GetLocation(t); ApplyEffectAtLocation(DURATION_TYPE_TEMPORARY, "
+            "EffectAreaOfEffect(%d, \"%s\", \"\", \"\"), l, HoursToSeconds(%d)); ApplyEffectAtLocation("
+            "DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_MAGIC_PROTECTION), l);",
+            kAlarmArea, audible ? "n5_s_alarmaud" : "n5_s_alarmmen", rules::kAlarmHours);
+  Run(code, self, spell.script);
+  TellPlayer(self, std::string("nwn5e: Alarm (") + (audible ? "Audible" : "Mental") +
+                       ") - a 20-foot ward for 8 hours; a creature outside your party entering it sets it off.");
+  if (LogSlot()) Log("spells2024: 0x%08X Alarm (%s) set", self, audible ? "audible" : "mental");
+}
+
+// Create or Destroy Water: Destroy - the fog areas centred in the Cube end; Create - rain there puts out exposed
+// flames (Alchemist's Fire's burning on creatures, lit torches and braziers).
+const char* const kDestroyFog = R"nss(
+location l = GetSpellTargetLocation(); int n = 0;
+object a = GetFirstObjectInShape(SHAPE_CUBE, $HALF, l, FALSE, OBJECT_TYPE_AREA_OF_EFFECT);
+while (GetIsObjectValid(a)) {
+  if (FindSubString(GetStringUpperCase(GetTag(a)), "FOG") >= 0) { DestroyObject(a); n++; }
+  a = GetNextObjectInShape(SHAPE_CUBE, $HALF, l, FALSE, OBJECT_TYPE_AREA_OF_EFFECT);
+}
+ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_FNF_DISPEL), l);
+SendMessageToPC(OBJECT_SELF, n > 0 ? "nwn5e: Destroy Water - the fog in the $FEET-foot Cube is gone (" + IntToString(n) + (n == 1 ? " area)." : " areas).") : "nwn5e: Destroy Water - no fog there.");
+)nss";
+
+const char* const kRain = R"nss(
+location l = GetSpellTargetLocation(); int doused = 0; int lights = 0;
+ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_PULSE_WATER), l);
+object o = GetFirstObjectInShape(SHAPE_CUBE, $HALF, l, FALSE, OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE);
+while (GetIsObjectValid(o)) {
+  if (GetObjectType(o) == OBJECT_TYPE_CREATURE) {
+    int was = FALSE;
+    effect e = GetFirstEffect(o);
+    while (GetIsEffectValid(e)) { if (GetEffectTag(e) == "n5g_burning") { RemoveEffect(o, e); was = TRUE; } e = GetNextEffect(o); }
+    if (was) { SetLocalInt(o, "n5g_doused", 1); doused++; }
+  } else if (GetPlaceableIllumination(o)) {
+    SetPlaceableIllumination(o, FALSE); AssignCommand(o, PlayAnimation(ANIMATION_PLACEABLE_DEACTIVATE)); lights++;
+  }
+  o = GetNextObjectInShape(SHAPE_CUBE, $HALF, l, FALSE, OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE);
+}
+if (lights > 0) RecomputeStaticLighting(GetArea(OBJECT_SELF));
+string s = "nwn5e: Create Water - rain falls in a $FEET-foot Cube";
+if (doused + lights == 0) s += "; no exposed flames there."; else s += ": " + IntToString(doused) + " burning creature(s) and " + IntToString(lights) + " light(s) put out.";
+SendMessageToPC(OBJECT_SELF, s);
+)nss";
+
+void WaterSpell(uint32_t self, const rules::Spell2024& spell, int row, int slot) {
+  const rules::WaterMode mode = rules::WaterModeOf(row);
+  if (mode == rules::WaterMode::kNone) {
+    TellPlayer(self, "nwn5e: Create or Destroy Water - pick Create (rain) or Destroy (fog) from its menu.");
+    return;
+  }
+  const int feet = rules::WaterCubeFeet(slot);
+  std::string code = mode == rules::WaterMode::kDestroy ? kDestroyFog : kRain;
+  Replace(&code, "$HALF", Float(rules::FeetToMetres(feet) / 2.0f));
+  Replace(&code, "$FEET", std::to_string(feet));
+  Run(code, self, spell.script);
+  if (LogSlot()) Log("spells2024: 0x%08X %s, a %d-foot Cube", self, mode == rules::WaterMode::kDestroy ? "Destroy Water" : "Create Water", feet);
+}
+
+// Goodberry: ten berries in the caster's pack (one stack - a potion's, so eating one is a Bonus Action), gone after 24
+// hours; each the "Goodberry" power (spell 1197, below).
+const char* const kGoodberries = R"nss(
+int now = (GetCalendarYear() * 336 + (GetCalendarMonth() - 1) * 28 + GetCalendarDay() - 1) * 24 + GetTimeHour();
+object b = CreateItemOnObject("nw_it_mpotion001", OBJECT_SELF, 1, "n5_goodberry_" + IntToString(now));
+if (!GetIsObjectValid(b)) { SendMessageToPC(OBJECT_SELF, "nwn5e: Goodberry - no room for the berries."); return; }
+itemproperty ip = GetFirstItemProperty(b);
+while (GetIsItemPropertyValid(ip)) { RemoveItemProperty(b, ip); ip = GetNextItemProperty(b); }
+AddItemProperty(DURATION_TYPE_PERMANENT, ItemPropertyCastSpell($POWER, IP_CONST_CASTSPELL_NUMUSES_SINGLE_USE), b);
+SetName(b, "Goodberry"); SetIdentified(b, TRUE); SetItemStackSize(b, $COUNT);
+SetDescription(b, "A berry infused with magic by the Goodberry spell. Eating it (a Bonus Action) restores 1 Hit Point. It withers 24 hours after the spell.", TRUE);
+SetLocalInt(b, "n5_goodberry_until", now + $HOURS);
+DelayCommand(HoursToSeconds($HOURS), DestroyObject(b));
+ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_HEALING_S), OBJECT_SELF);
+SendMessageToPC(OBJECT_SELF, "nwn5e: Goodberry - ten berries in your pack; eat one (a Bonus Action) for 1 Hit Point. They wither in 24 hours.");
+)nss";
+
+const char* const kGoodberryEat = R"nss(
+object b = GetSpellCastItem();
+int now = (GetCalendarYear() * 336 + (GetCalendarMonth() - 1) * 28 + GetCalendarDay() - 1) * 24 + GetTimeHour();
+int until = GetLocalInt(b, "n5_goodberry_until");
+if (until > 0 && now >= until) { SendMessageToPC(OBJECT_SELF, "nwn5e: the Goodberry has withered (24 hours)."); DestroyObject(b); return; }
+ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectLinkEffects(EffectHeal($HP), EffectVisualEffect(VFX_IMP_HEALING_S)), OBJECT_SELF);
+SendMessageToPC(OBJECT_SELF, "nwn5e: Goodberry - $HP Hit Point.");
+)nss";
+
+void GoodberrySpell(uint32_t self, const rules::Spell2024& spell) {
+  std::string code = kGoodberries;
+  Replace(&code, "$POWER", std::to_string(kGoodberryPower));
+  Replace(&code, "$COUNT", std::to_string(rules::kGoodberryCount));
+  Replace(&code, "$HOURS", std::to_string(rules::kGoodberryHours));
+  Run(code, self, spell.script);
+  if (LogSlot()) Log("spells2024: 0x%08X Goodberry - %d berries", self, rules::kGoodberryCount);
+}
+
+void GoodberryEaten(uint32_t self, const rules::Spell2024& spell) {
+  std::string code = kGoodberryEat;
+  Replace(&code, "$HP", std::to_string(rules::kGoodberryHitPoints));
+  Run(code, self, spell.script);
+  if (LogSlot()) Log("spells2024: 0x%08X ate a Goodberry", self);
+}
+
+// Q2 A and Unseen Servant (Q4): no NWN use - a line, and the spell's effect on the caster for its duration (a module
+// can check GetHasSpellEffect(row)).
+void FlagSpell(uint32_t self, const rules::Spell2024& spell) {
+  const int minutes = rules::UtilityEffectMinutes(spell.row);
+  if (minutes > 0) {
+    char code[480];
+    sprintf_s(code,
+              "ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(EffectIcon(%d), %d), \"%s\"), "
+              "OBJECT_SELF, %s); ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_MAGICAL_VISION), "
+              "OBJECT_SELF);",
+              UtilityIconRow(spell.row), spell.row, kTagUtility, DurationScript(minutes).c_str());
+    Run(code, self, spell.script);
+  }
+  std::string line;
+  switch (spell.row) {
+    case rules::kComprehendLanguages:
+      line = "for an hour you understand any language you hear or read (NWN has no languages; a module can check for "
+             "the spell).";
+      break;
+    case rules::kSpeakWithAnimals:
+      line = "for 10 minutes you can talk with Beasts (NWN's animals don't talk; a module can check for the spell).";
+      break;
+    case rules::kUnseenServant:
+      line = "an invisible servant for an hour (none in NWN yet - it's on the role-play list; a module can check for "
+             "the spell).";
+      break;
+    case rules::kIllusoryScript: line = "NWN has no writing to hide; its ink is used up."; break;
+    default: line = "the food and drink there is clean (NWN has none to spoil)."; break;
+  }
+  TellPlayer(self, std::string("nwn5e: ") + spell.name + " - " + line);
+  if (LogSlot()) Log("spells2024: 0x%08X %s (%d minutes on it)", self, spell.name, minutes);
+}
+
+void UtilitySpell(uint32_t self, void* caster, const rules::Spell2024& spell, int slot) {
+  const int row = Field<int32_t>(caster, ee::kObjectLastSpellId);  // a menu's choice: Alarm's kind, Water's way
+  switch (spell.row) {
+    case rules::kIdentify: Run(kIdentifyScript, self, spell.script); break;
+    case rules::kAlarm: AlarmSpell(self, spell, row); break;
+    case rules::kCreateOrDestroyWater: WaterSpell(self, spell, row, slot); break;
+    case rules::kDetectEvilAndGood:
+    case rules::kDetectMagic:
+    case rules::kDetectPoisonAndDisease: DetectBegin(self, spell.row); break;
+    case rules::kGoodberry: GoodberrySpell(self, spell); break;
+    case rules::kGoodberryEat: GoodberryEaten(self, spell); break;
+    default: FlagSpell(self, spell); break;
+  }
+}
+
+// Rituals (Q1 A): the character's switch (!options, on by default) and whether it's in a fight.
+bool RitualSwitchOn(void* creature) {
+  if (!creature) return false;
+  EnsureRecords(creature);
+  return engine::GetLocalInt(creature, kVarRitualOff) != 1;
+}
+
+bool InFightNow(uint32_t id, void* creature) {
+  RunScriptChunk("SetLocalInt(OBJECT_SELF, \"n5_rit_fight\", GetIsInCombat() || GetIsObjectValid(GetNearestCreature("
+                 "CREATURE_TYPE_REPUTATION, REPUTATION_TYPE_ENEMY, OBJECT_SELF, 1, CREATURE_TYPE_PERCEPTION, "
+                 "PERCEPTION_SEEN)));",
+                 id);
+  return engine::GetLocalInt(creature, "n5_rit_fight") != 0;
+}
+
+// A class's cast of a Ritual spell out of a fight, the switch on: a Ritual - no slot (the order refused), the clock
+// 10 minutes on (11 for a 1-minute spell), the spell cast at its level for nothing.
+bool RitualOrder(void* creature, uint32_t id, const SpellOrder& order) {
+  const int row = static_cast<int>(order.spell);
+  const bool class_cast = order.class_slot >= 0 && order.class_slot <= 7;
+  if (!rules::IsRitualSpell(row) || !class_cast || !IsPlayerCreature(creature)) return false;
+  if (!rules::CastAsRitual(true, RitualSwitchOn(creature), InFightNow(id, creature), true)) return false;
+  const int minutes = rules::RitualCastingMinutes(rules::CastingMinutes(row));
+  char code[1100];
+  sprintf_s(code,
+            "int per = FloatToInt(HoursToSeconds(1) * 1000.0); int add = per * %d / 60;"
+            " int ms = (GetTimeMinute() * 60 + GetTimeSecond()) * 1000 + GetTimeMillisecond() + add; int h = GetTimeHour();"
+            " while (ms >= per) { ms -= per; h++; }"
+            " DelayCommand(0.0, SetTime(h, ms / 60000, (ms / 1000) %% 60, ms %% 1000));"
+            " object t = StringToObject(\"%x\");"
+            " if (GetIsObjectValid(t)) ActionCastSpellAtObject(%d, t, METAMAGIC_NONE, TRUE, 0, PROJECTILE_PATH_TYPE_DEFAULT, TRUE);"
+            " else ActionCastSpellAtLocation(%d, Location(GetArea(OBJECT_SELF), Vector(%.3f, %.3f, %.3f), 0.0), METAMAGIC_NONE,"
+            " TRUE, PROJECTILE_PATH_TYPE_DEFAULT, TRUE);",
+            minutes, order.target, row, row, order.x, order.y, order.z);
+  Run(code, id, "a Ritual");
+  TellPlayer(id, "nwn5e: " + SpellNameOf(row) + " - cast as a Ritual: " + std::to_string(minutes) +
+                     " minutes pass, no spell slot.");
+  if (LogSlot()) Log("spells2024: 0x%08X %s cast as a Ritual - %d minutes, no slot", id, SpellNameOf(row).c_str(), minutes);
+  return true;
+}
+
 void Cast(uint32_t self, int row) {
   const rules::Spell2024* spell = rules::Spell2024Of(row);
   void* caster = CreatureById(self);
@@ -3445,6 +3971,10 @@ void Cast(uint32_t self, int row) {
   }
   if (spell->effect == rules::SpellEffect2024::kArea) {
     AreaSpell(self, caster, *spell, slot);  // build 2c
+    return;
+  }
+  if (spell->effect == rules::SpellEffect2024::kUtility) {
+    UtilitySpell(self, caster, *spell, slot);  // build 4a
     return;
   }
   if (spell->effect == rules::SpellEffect2024::kReaction) {
@@ -3473,6 +4003,7 @@ void Cast(uint32_t self, int row) {
     case rules::SpellEffect2024::kArea: break;
     case rules::SpellEffect2024::kReaction: break;
     case rules::SpellEffect2024::kSmite: break;
+    case rules::SpellEffect2024::kUtility: break;
     case rules::SpellEffect2024::kSave:
       if (spell->shape == rules::SpellShape2024::kOne) {
         SaveOne(self, caster, *spell, slot);
@@ -3528,6 +4059,19 @@ ScriptHandler HandlerOf(int row) {
     case rules::kDivineSmite: return &SpellScript<rules::kDivineSmite>;
     case rules::kSearingSmite: return &SpellScript<rules::kSearingSmite>;
     case rules::kEnsnaringStrike: return &SpellScript<rules::kEnsnaringStrike>;
+    case rules::kIdentify: return &SpellScript<rules::kIdentify>;
+    case rules::kAlarm: return &SpellScript<rules::kAlarm>;
+    case rules::kComprehendLanguages: return &SpellScript<rules::kComprehendLanguages>;
+    case rules::kCreateOrDestroyWater: return &SpellScript<rules::kCreateOrDestroyWater>;
+    case rules::kDetectEvilAndGood: return &SpellScript<rules::kDetectEvilAndGood>;
+    case rules::kDetectMagic: return &SpellScript<rules::kDetectMagic>;
+    case rules::kDetectPoisonAndDisease: return &SpellScript<rules::kDetectPoisonAndDisease>;
+    case rules::kGoodberry: return &SpellScript<rules::kGoodberry>;
+    case rules::kGoodberryEat: return &SpellScript<rules::kGoodberryEat>;
+    case rules::kIllusoryScript: return &SpellScript<rules::kIllusoryScript>;
+    case rules::kPurifyFoodAndDrink: return &SpellScript<rules::kPurifyFoodAndDrink>;
+    case rules::kSpeakWithAnimals: return &SpellScript<rules::kSpeakWithAnimals>;
+    case rules::kUnseenServant: return &SpellScript<rules::kUnseenServant>;
   }
   return nullptr;
 }
@@ -3548,6 +4092,24 @@ int HuntersMarkRangerLevel(void* creature) {
   return stats && Faithful() ? ClassLevel2024(stats, rules::CharacterClass::kRanger) : 0;
 }
 bool HuntersMarkArmOn(void* creature) { return KeepMoveArmed(creature); }
+// combat_options.cpp (build 4a, Q1 A): the Ritual switch - for a 2024 caster.
+bool RitualCaster(void* creature) {
+  void* stats = creature && Faithful() ? StatsOf(creature) : nullptr;
+  if (!stats) return false;
+  for (rules::CharacterClass c : {rules::CharacterClass::kBard, rules::CharacterClass::kCleric, rules::CharacterClass::kDruid,
+                                  rules::CharacterClass::kPaladin, rules::CharacterClass::kRanger,
+                                  rules::CharacterClass::kSorcerer, rules::CharacterClass::kWizard}) {
+    if (ClassLevel2024(stats, c) > 0) return true;
+  }
+  return false;
+}
+bool RitualSwitch(void* creature) { return RitualSwitchOn(creature); }
+void SetRitualSwitch(void* creature, bool on) {
+  if (!creature) return;
+  EnsureRecords(creature);
+  SetRecord(creature, kVarRitualOff, on ? 0 : 1);
+  Log("spells2024: 0x%08X Rituals out of combat %s", Field<uint32_t>(creature, ee::kObjectId), on ? "on" : "off");
+}
 void SetHuntersMarkArm(void* creature, bool on) {
   if (!creature) return;
   EnsureRecords(creature);
@@ -3735,6 +4297,7 @@ void InstallSpells2024() {
   }
   ServeConditionalRows("spells2024");  // spells.if_spells2024.level1.txt (rules_spell_slots.cpp asks too)
   RegisterRecords({kVarHuntersMarkArm});  // 0.99.22: the Ranger's option
+  RegisterRecords({kVarRitualOff});       // build 4a: the Ritual switch
   bool scripts = true;
   for (const rules::Spell2024& spell : rules::Spells2024()) {
     const ScriptHandler handler = HandlerOf(spell.row);
@@ -3759,13 +4322,16 @@ void InstallSpells2024() {
   const bool reactions = AddAttackRollListenerFirst(&ShieldAfterRoll) && AddResolveDamageListener(&SmiteHit) &&
                          AddCreatureUpdateListener(&SmiteUpdate) && AddRestListener(&SmitesRest) &&
                          AddGameStartListener(&SmitesGameStarted);
+  const bool utility = AddScriptHandler("n5_s_alarmaud", &AlarmEnterAudible) &&  // build 4a
+                       AddScriptHandler("n5_s_alarmmen", &AlarmEnterMental) &&
+                       AddCreatureUpdateListener(&DetectUpdate) && AddGameStartListener(&DetectsGameStarted);
   if (reactions) {  // #162 G
     AddHudPool(&SmiteHudPool);
     AddHudClick("smite", &SmitePanelClicked);
   }
-  Log("spells2024: SRD 5.2's level 1 spells, builds 1a-3 - %zu spells: damage and healing, Chromatic Orb, Heroism, "
-      "the buffs, the conditions on creatures, the areas, Shield and the smites; %zu Bonus Action spells; one spell "
-      "with a slot a turn (#39 Part 2a)%s",
+  Log("spells2024: SRD 5.2's level 1 spells, builds 1a-4a - %zu spells: damage and healing, Chromatic Orb, Heroism, "
+      "the buffs, the conditions on creatures, the areas, Shield and the smites, detection and utility; Rituals out "
+      "of combat; %zu Bonus Action spells; one spell with a slot a turn (#39 Part 2a)%s",
       rules::Spells2024().size(), rules::BonusActionSpells().size(),
-      scripts && update && guard && buffs && conditions && areas && reactions ? "" : " - SOME hooks missing");
+      scripts && update && guard && buffs && conditions && areas && reactions && utility ? "" : " - SOME hooks missing");
 }

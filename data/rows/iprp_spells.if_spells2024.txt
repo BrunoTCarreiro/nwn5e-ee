@@ -1,0 +1,4 @@
+# iprp_spells.2da - #39 Part 2a, build 4a: Goodberry's berries - their Cast Spell (spells.2da 1197: 1 Hit Point),
+# on a potion's base item, so eating one is a Bonus Action (bonus_actions.cpp's potions).
+Label Name CasterLvl InnateLvl Cost SpellIndex PotionUse WandUse GeneralUse Icon
+600 NWN5E_Goodberry 16000812 1 1 0 1197 1 0 1 iss_CurLgtW

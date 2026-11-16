@@ -34,6 +34,7 @@ enum class SpellEffect2024 {
   kArea,                // build 2c: an area that lasts (its creatures' saves at the cast, its terrain after)
   kReaction,            // build 3: taken by its trigger (Shield), or a visual and a line (Feather Fall)
   kSmite,               // build 3: armed by the cast, paid and delivered by the next qualifying hit
+  kUtility,             // build 4: detection and utility - its own effect, no damage
 };
 
 enum class SpellShape2024 {
@@ -62,6 +63,7 @@ struct Spell2024 {
   SpellShape2024 shape = SpellShape2024::kOne;
   int feet = 0;              // the area's size
   bool bonus_action = false;  // cast with a Bonus Action (Healing Word)
+  bool ritual = false;        // build 4: the Ritual tag (Q1 A: a Ritual out of combat, no slot)
 };
 
 // The spells built (ascending by row) and one by its row (null: not one of them).
@@ -305,6 +307,75 @@ bool IsSmiteSpell(int row);
 constexpr int kSmiteArmedIconFirst = 225;
 constexpr int kSmiteArmedIconLast = 227;
 int SmiteArmedIconRow(int row);
+
+// Build 4a (owner, 2026-11-15: "go for build 4"; 2026-11-16: "I accepted your recommendations, except for Q4 ...
+// Keep it in the roleplay list"): detection and utility. New rows; Identify is NWN's row, rewritten.
+constexpr int kAlarm = 1186;
+constexpr int kAlarmAudible = 1187;
+constexpr int kAlarmMental = 1188;
+constexpr int kComprehendLanguages = 1189;
+constexpr int kCreateOrDestroyWater = 1190;
+constexpr int kCreateWater = 1191;
+constexpr int kDestroyWater = 1192;
+constexpr int kDetectEvilAndGood = 1193;
+constexpr int kDetectMagic = 1194;
+constexpr int kDetectPoisonAndDisease = 1195;
+constexpr int kGoodberry = 1196;
+constexpr int kGoodberryEat = 1197;  // the berries' power (their Cast Spell property): on no class list
+constexpr int kIllusoryScript = 1198;
+constexpr int kPurifyFoodAndDrink = 1199;
+constexpr int kSpeakWithAnimals = 1200;
+constexpr int kUnseenServant = 1201;
+constexpr int kIdentify = 86;  // NWN's row, rewritten (its +Lore gone)
+
+// Rituals (Q1 A, #38's "A for now" revisited): a prepared spell with the Ritual tag can be cast as a Ritual - no
+// spell slot (so never above its level), 10 minutes longer. nwn5e: a class's cast out of combat, while the
+// character's switch is on (!options, on by default); in combat it takes a slot as usual.
+constexpr int kRitualMinutes = 10;
+bool IsRitualSpell(int row);  // the row, or its menu's master, has the tag
+bool CastAsRitual(bool ritual_spell, bool switch_on, bool in_combat, bool class_cast);
+int CastingMinutes(int row);                    // 1: Alarm, Identify, Illusory Script; 0: an Action
+int RitualCastingMinutes(int casting_minutes);  // its casting time + 10
+
+// Alarm: a ward (a 20-foot Cube) for 8 hours; a creature not designated (nwn5e: the caster's party) entering it
+// alerts - Audible (a handbell heard within 60 feet) or Mental (the caster, waking it).
+constexpr int kAlarmCubeFeet = 20;
+constexpr int kAlarmHours = 8;
+constexpr int kAlarmAudibleFeet = 60;
+enum class AlarmMode { kNone, kAudible, kMental };
+AlarmMode AlarmModeOf(int row);
+
+// Create or Destroy Water: Create's rain in a 30-foot Cube puts out exposed flames there; Destroy's ends the fog
+// there. The Cube 5 feet more for each slot level above 1.
+enum class WaterMode { kNone, kCreate, kDestroy };
+WaterMode WaterModeOf(int row);
+int WaterCubeFeet(int slot_level);
+
+// The Detects: 10 minutes' Concentration; what each senses within 30 feet, in sight (1 foot of stone blocks it),
+// glows and is named (Q3 A, 2026-11-09).
+constexpr int kDetectFeet = 30;
+constexpr int kDetectMinutes = 10;
+bool IsDetectSpell(int row);
+// Detect Evil and Good: an Aberration, Celestial, Elemental, Fey, Fiend or Undead (Protection from Evil and Good's
+// types) - the kind named; nullptr: not sensed. NWN's Outsider (`nwn_good_evil`: ALIGNMENT_GOOD 4, ALIGNMENT_EVIL
+// 5): a Fiend if evil, a Celestial if good.
+const char* DetectEvilAndGoodKind(int nwn_racial_type, int nwn_good_evil);
+// A spell's school by spells.2da's School letter (Detect Magic names it); nullptr for none.
+const char* SpellSchoolName(char letter);
+
+// Goodberry: ten berries for 24 hours, each eaten (a Bonus Action) for 1 Hit Point.
+constexpr int kGoodberryCount = 10;
+constexpr int kGoodberryHours = 24;
+constexpr int kGoodberryHitPoints = 1;
+
+// Q2 A (Comprehend Languages, Illusory Script, Purify Food and Drink, Speak with Animals) and Unseen Servant (Q4):
+// no NWN use - castable, a line, and an effect on the caster for its duration that a module can read
+// (GetHasSpellEffect(row)): its minutes, 0 for none (instantaneous, or on writing, not on the caster).
+int UtilityEffectMinutes(int row);
+
+// The Wizard's alone of the arcane spells NWN's one Wiz_Sorc column shares (Alarm, Identify, Illusory Script,
+// Unseen Servant): not the Sorcerer's.
+bool WizardOnlySpell(int row);
 constexpr int kRouseFeet = 5;
 
 // Chromatic Orb: two or more of its d8s alike - the orb leaps to another creature within 30 feet of the target (a

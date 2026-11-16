@@ -105,6 +105,12 @@ std::vector<ChoiceCantrip> BuildChoiceCantrips() {
   ChoiceCantrip faerie{kFaerieFire, "n5_s_faerie", ChoiceKind::kMode,
                       {{kFaerieFireBlue, 0, "Blue"}, {kFaerieFireGreen, 1, "Green"}, {kFaerieFireViolet, 2, "Violet"}}};
   all.push_back(faerie);
+  // #39 build 4a: Alarm's kinds and Create or Destroy Water's ways, each opening its slot levels.
+  ChoiceCantrip alarm{kAlarm, "n5_s_alarm", ChoiceKind::kMode, {{kAlarmAudible, 0, "Audible"}, {kAlarmMental, 1, "Mental"}}};
+  all.push_back(alarm);
+  ChoiceCantrip water{kCreateOrDestroyWater, "n5_s_water", ChoiceKind::kMode,
+                      {{kCreateWater, 0, "Create Water (rain)"}, {kDestroyWater, 1, "Destroy Water (fog)"}}};
+  all.push_back(water);
   ChoiceCantrip flame{kProduceFlame, "n5_c_produceflame", ChoiceKind::kMode,
                      {{kProduceFlameFlame, 0, "Flame"}, {kProduceFlameHurl, 1, "Hurl"}}};
   all.push_back(flame);

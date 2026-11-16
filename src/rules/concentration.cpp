@@ -139,6 +139,9 @@ const std::vector<int> kSpells = {
     1179,  // nwn5e_Faerie_Fire_Violet - Faerie Fire
     1180,  // nwn5e_Fog_Cloud - Fog Cloud (#39 2a build 2c)
     1185,  // nwn5e_Ensnaring_Strike - Ensnaring Strike (#39 2a build 3)
+    1193,  // nwn5e_Detect_Evil_and_Good - Detect Evil and Good (#39 2a build 4a)
+    1194,  // nwn5e_Detect_Magic - Detect Magic (#39 2a build 4a)
+    1195,  // nwn5e_Detect_Poison_and_Disease - Detect Poison and Disease (#39 2a build 4a)
 };
 
 }  // namespace

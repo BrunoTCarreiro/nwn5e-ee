@@ -84,6 +84,7 @@
 #include "log.h"
 #include "prepare_spells.h"
 #include "rules/cantrips.h"
+#include "rules/spells2024.h"
 #include "rules/spell_lists.h"
 #include "rules/spell_slots.h"
 
@@ -108,6 +109,7 @@ using UpdateOkFn = void (*)(void* page);  // the page's OK button from its level
 using RemoveFromPanelFn = void (*)(void* object);  // CGuiObject::RemoveFromPanel
 using ClientCreatureFn = void* (*)(uint32_t id);
 constexpr int kNwnClassWizard = 10;
+constexpr int kNwnClassSorcerer = 9;
 
 SpellsLeftFn g_spells_left = nullptr;
 KnownCountFn g_known_count = nullptr;
@@ -212,10 +214,23 @@ bool IsSorcererOnly(const void* spell) {
   return spells && g_get_spell && spell == g_get_spell(spells, rules::kSorcerousBurst);
 }
 
+// #39 build 4a: Alarm, Identify, Illusory Script and Unseen Servant are the Wizard's alone (rules::WizardOnlySpell) -
+// not the Sorcerer's, though NWN's one Wiz_Sorc column holds them.
+bool IsWizardOnly(const void* spell) {
+  void* rules_object = RulesObject();
+  void* spells = rules_object ? Field<void*>(rules_object, ee::kRulesSpells) : nullptr;
+  if (!spells || !g_get_spell) return false;
+  for (int row : {rules::kAlarm, rules::kIdentify, rules::kIllusoryScript, rules::kUnseenServant}) {
+    if (rules::WizardOnlySpell(row) && spell == g_get_spell(spells, row)) return true;
+  }
+  return false;
+}
+
 // 3b-2: a spell already in the levelled Wizard's book isn't offered on the page's Available list again.
 uint8_t SpellLevel(void* spell, uint8_t nwn_class) {
   const uint8_t level = g_spell_level(spell, nwn_class);
   if (nwn_class == kNwnClassWizard && level != 0xFF && IsSorcererOnly(spell)) return 0xFF;  // #39 build 2
+  if (nwn_class == kNwnClassSorcerer && level != 0xFF && IsWizardOnly(spell)) return 0xFF;  // #39 build 4a
   if (reinterpret_cast<uintptr_t>(_ReturnAddress()) != g_avail_site || nwn_class != kNwnClassWizard || level == 0 ||
       level > 9 || !t_page_stats) {
     return level;

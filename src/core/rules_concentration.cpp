@@ -282,6 +282,15 @@ void BeginConcentration(void* creature, int spell) {
   if (Faithful() && creature) Begin(creature, spell);
 }
 
+// rules_spells2024.cpp (#39 build 4a, Detect Magic): an area of effect's spell row by its id (-1: none or not one).
+int AreaOfEffectSpellId(uint32_t id) {
+  void* app = ServerApp();
+  void* aoe = app && g_get_aoe ? g_get_aoe(app, id) : nullptr;
+  if (!aoe) return -1;
+  const int spell = Field<int32_t>(aoe, ee::kAoeEffectSpellId);
+  return spell >= 0 ? spell : Field<int32_t>(aoe, ee::kObjectLastSpellId);
+}
+
 void InstallConcentration() {
   if (!Faithful()) {
     Log("concentration: NWN's - no Concentration on spells (key concentration)");

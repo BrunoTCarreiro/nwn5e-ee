@@ -135,14 +135,31 @@ if (k == OBJECT_TYPE_ITEM) {
 // 3A: burning - 1d4 Fire at the start of each of its next rounds.
 const char* const kBurning = R"nss(
 if (k == OBJECT_TYPE_CREATURE) {
-  ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectVisualEffect(VFX_DUR_INFERNO_CHEST), t, RoundsToSeconds($ROUNDS));
+  ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(EffectVisualEffect(VFX_DUR_INFERNO_CHEST), "n5g_burning"), t,
+                      RoundsToSeconds($ROUNDS));
+  SetLocalObject(t, "n5g_burn_by", OBJECT_SELF);
+  DeleteLocalInt(t, "n5g_doused");
   int i;
-  for (i = 1; i <= $ROUNDS; i++) {
-    DelayCommand(RoundsToSeconds(i), ApplyEffectToObject(DURATION_TYPE_INSTANT,
-                 EffectLinkEffects(EffectDamage(d$SIDES(), DAMAGE_TYPE_FIRE), EffectVisualEffect(VFX_IMP_FLAME_S)), t));
-  }
+  for (i = 1; i <= $ROUNDS; i++) DelayCommand(RoundsToSeconds(i), ExecuteScript("n5_g_burn", t));
 }
 )nss";
+
+// #39 build 4a (Create Water's rain puts out exposed flames): each burning round its own script, which a doused
+// creature skips; the damage the thrower's.
+const char* const kBurnTick = R"nss(
+object me = OBJECT_SELF;
+if (GetIsDead(me) || GetLocalInt(me, "n5g_doused")) return;
+object by = GetLocalObject(me, "n5g_burn_by");
+effect d = EffectLinkEffects(EffectDamage(d$SIDES(), DAMAGE_TYPE_FIRE), EffectVisualEffect(VFX_IMP_FLAME_S));
+if (GetIsObjectValid(by)) AssignCommand(by, ApplyEffectToObject(DURATION_TYPE_INSTANT, d, me));
+else ApplyEffectToObject(DURATION_TYPE_INSTANT, d, me);
+)nss";
+
+void BurnTick(uint32_t self) {
+  std::string code = kBurnTick;
+  Replace(&code, "$SIDES", std::to_string(rules::kBurningDieSides));
+  RunScriptChunk(code.c_str(), self);
+}
 
 // Holy Water: undead and evil outsiders only (2024's Undead and Fiends).
 const char* const kHolyOnly = R"nss(
@@ -526,7 +543,7 @@ void InstallGrenades() {
   }
   // 0.69.1: the aiming circles as the 2024 areas (data/rows/spells.if_grenades2024.txt) - NWN's were its splash.
   ServeConditionalRows("grenades2024");
-  const bool scripts = AddScriptHandler("x0_s3_acid", &AcidScript) &&
+  const bool scripts = AddScriptHandler("x0_s3_acid", &AcidScript) && AddScriptHandler("n5_g_burn", &BurnTick) &&
                        AddScriptHandler("x0_s3_alchem", &AlchemistsFireScript) &&
                        AddScriptHandler("x0_s3_holy", &HolyWaterScript) && AddScriptHandler("x2_s3_bomb", &BombScript) &&
                        AddScriptHandler("x0_s3_calen", &CaltropsEnterScript) &&

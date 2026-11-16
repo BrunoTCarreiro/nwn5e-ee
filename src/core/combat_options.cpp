@@ -54,6 +54,9 @@ void PickOpenHandTechnique(void* creature, rules::OpenHandTechnique technique);
 int HuntersMarkRangerLevel(void* creature);
 bool HuntersMarkArmOn(void* creature);
 void SetHuntersMarkArm(void* creature, bool on);
+bool RitualCaster(void* creature);  // rules_spells2024.cpp (build 4a)
+bool RitualSwitch(void* creature);
+void SetRitualSwitch(void* creature, bool on);
 
 namespace {
 
@@ -62,7 +65,7 @@ constexpr const char* kStatus = "o_status";
 constexpr float kRowHeight = 28.0f;
 constexpr float kCheckWidth = 190.0f;
 
-enum class Kind { kBonus, kReaction, kAutomatic, kDisplay, kReckless, kBrutal, kCunning, kOpenHand, kRanger };
+enum class Kind { kBonus, kReaction, kAutomatic, kDisplay, kReckless, kBrutal, kCunning, kOpenHand, kRanger, kRitual };
 
 struct Option {
   const char* bind;  // the checkbox's bool bind (and its id)
@@ -120,6 +123,9 @@ const Option kOptions[] = {
     {"o_hm_arm", Kind::kRanger, 0, "Hunter's Mark: keep an early Move armed",
      "Move used while your quarry stands waits for it to drop, then marks the creature you picked (your Bonus "
      "Action that round)"},
+    // #39 build 4a (owner, 2026-11-16, Q1 A): Rituals, on by default.
+    {"o_ritual", Kind::kRitual, 0, "Rituals out of combat",
+     "a Ritual spell cast out of a fight takes no spell slot; 10 minutes pass (11 for a 1-minute spell)"},
 };
 
 bool g_syncing = false;  // the window's own bind updates: not the player's clicks
@@ -150,6 +156,7 @@ bool Available(void* creature, const Option& o) {
       return rules::CunningEffectAvailable(static_cast<rules::CunningEffect>(o.effect), CunningStrikeRogueLevel(creature));
     case Kind::kOpenHand: return rules::HasOpenHandTechnique(OpenHandMonkLevel(creature));
     case Kind::kRanger: return HuntersMarkRangerLevel(creature) > 0;
+    case Kind::kRitual: return RitualCaster(creature);
   }
   return false;
 }
@@ -177,6 +184,7 @@ bool Checked(void* creature, const Option& o) {
     }
     case Kind::kOpenHand: return static_cast<int>(OpenHandTechniqueOf(creature)) == o.effect;
     case Kind::kRanger: return HuntersMarkArmOn(creature);
+    case Kind::kRitual: return RitualSwitch(creature);
   }
   return false;
 }
@@ -195,6 +203,7 @@ void Toggle(void* creature, const Option& o, bool on) {
       PickOpenHandTechnique(creature, on ? static_cast<rules::OpenHandTechnique>(o.effect) : rules::OpenHandTechnique::kOff);
       break;
     case Kind::kRanger: SetHuntersMarkArm(creature, on); break;
+    case Kind::kRitual: SetRitualSwitch(creature, on); break;
   }
 }
 
@@ -331,6 +340,15 @@ std::string Layout(void* creature, int* rows) {
   }
   for (const Option& o : kOptions) {
     if (o.kind != Kind::kRanger || !Available(creature, o)) continue;
+    add(OptionRow(o));
+    ++count;
+  }
+  if (RitualCaster(creature)) {  // build 4a
+    add(Header("Spellcasting:"));
+    ++count;
+  }
+  for (const Option& o : kOptions) {
+    if (o.kind != Kind::kRitual || !Available(creature, o)) continue;
     add(OptionRow(o));
     ++count;
   }

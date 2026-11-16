@@ -11,6 +11,8 @@ TEST(MaterialComponentCosts) {
   CHECK_EQ(CostlyComponent(142).consumed, 500);
   CHECK_EQ(CostlyComponent(86).needed, 100);    // Identify: a pearl, kept
   CHECK_EQ(CostlyComponent(86).consumed, 0);
+  CHECK_EQ(CostlyComponent(1198).needed, 10);   // Illusory Script: ink, consumed (#39 build 4a)
+  CHECK_EQ(CostlyComponent(1198).consumed, 10);
   CHECK_EQ(CostlyComponent(6).needed, 5);       // Bless: a holy symbol, kept (the table's first)
   CHECK_EQ(CostlyComponent(6).consumed, 0);
   CHECK_EQ(CostlyComponent(376).needed, 450);   // Legend Lore: 250 consumed of 450
@@ -29,7 +31,7 @@ TEST(MaterialComponentCosts) {
   CHECK_EQ(ComponentAffordable(449, CostlyComponent(376)), false);  // the whole 450 on hand, not the 250
   CHECK_EQ(ComponentAffordable(0, CostlyComponent(107)), true);     // nothing to pay
   const std::vector<int>& all = CostlySpells();
-  CHECK_EQ(all.size(), 49u);
+  CHECK_EQ(all.size(), 50u);  // #39 build 4a: Illusory Script
   CHECK_EQ(std::is_sorted(all.begin(), all.end()), true);
   CHECK_EQ(std::adjacent_find(all.begin(), all.end()) == all.end(), true);
   for (int spell : all) CHECK_EQ(CostlyComponent(spell).consumed <= CostlyComponent(spell).needed, true);
