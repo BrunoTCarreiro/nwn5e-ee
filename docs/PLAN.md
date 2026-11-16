@@ -1698,6 +1698,14 @@ monster AC by CR.
     disk leaves nothing. Placeholders until the animation session's four appearance rows and three placeables rows:
     the Lantern Archon at 0.5 / 0.6 / 0.7 / 0.8, the game's small, medium and large treasure piles. 4 mutations
     caught; 569 tests pass. Tests FD-6 to FD-10 (FD-2 to FD-5, untested, superseded: their load fell loose).
+  - *0.99.55 tried (owner, 2026-11-16: "I don't see any changes, the \"disk\" is still just a floating light"):* the
+    stages worked (the log: 45 pounds stage 1, 180 stage 2); the scaled Lantern Archon placeholder didn't show them.
+    *Built 0.99.56:* the animation session's art merged (anim 3d49e05: appearance 14000-14003 - the disk and its junk
+    on c_invsguy -, placeables 14001-14003, the generator tools/data/floatdisk); its look SetCreatureAppearanceType
+    (14000 + its stage) at scale 1; its piles nwn5e's blueprints n5_fd_pile1-3 (data/files: the game's small treasure
+    pile's, on the new rows, not static, plot, no treasure scripts - 0.99.55's plc_treasure* placeholders ran NWN's
+    random-treasure script on opening). 2 mutations caught (the incremental runner: ~10 s a break); 569 tests pass.
+    FD-6 to FD-10 name 0.99.56.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
