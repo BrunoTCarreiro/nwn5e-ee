@@ -1,6 +1,7 @@
 #include "check.h"
 #include "rules/cantrips.h"
 #include "rules/skills.h"
+#include "rules/spells2024.h"
 
 #include <string.h>
 
@@ -378,6 +379,25 @@ TEST(MinorIllusion) {
   CHECK_EQ(ImageNameOf(ImageKind::kCreature)[0], 0);  // the blueprint's own name
   CHECK_EQ(strcmp(ImageBlueprintOf(ImageKind::kHumanoid), "nw_commale"), 0);
   CHECK_EQ(strcmp(ImageBlueprintOf(ImageKind::kCreature), "nw_cat"), 0);
+  // #39 build 4b: Silent Image's menu - Minor Illusion's four and a Large Creature (an ogre), and its Move.
+  const ChoiceCantrip* silent = ChoiceCantripOf(kSilentImage);
+  CHECK_EQ(silent != nullptr && silent->options.size() == 6u, true);
+  CHECK_EQ(SilentImageKindOf(kSilentImageTreasure) == ImageKind::kTreasure, true);
+  CHECK_EQ(SilentImageKindOf(kSilentImageCorpse) == ImageKind::kCorpse, true);
+  CHECK_EQ(SilentImageKindOf(kSilentImageHumanoid) == ImageKind::kHumanoid, true);
+  CHECK_EQ(SilentImageKindOf(kSilentImageCreature) == ImageKind::kCreature, true);
+  CHECK_EQ(SilentImageKindOf(kSilentImageLarge) == ImageKind::kLargeCreature, true);
+  CHECK_EQ(SilentImageKindOf(kSilentImageMove) == ImageKind::kNone, true);
+  CHECK_EQ(SilentImageKindOf(kSilentImage) == ImageKind::kNone, true);
+  CHECK_EQ(strcmp(ImageBlueprintOf(ImageKind::kLargeCreature), "nw_ogre01"), 0);
+  CHECK_EQ(ImageIsObject(ImageKind::kLargeCreature), false);
+  // the ogre (Large, 4) scares a Medium (3) hostile; a Huge (5) one attacks it
+  CHECK_EQ(ReactionToImage(ImageKind::kLargeCreature, true, true, 3, 4) == ImageReaction::kFleeThenStudy, true);
+  CHECK_EQ(ReactionToImage(ImageKind::kLargeCreature, false, true, 5, 4) == ImageReaction::kAttack, true);
+  CHECK_EQ(AfterStudyOf(ImageKind::kLargeCreature, false, true) == AfterStudy::kFleeAgain, true);
+  const ChoiceCantrip* disguise = ChoiceCantripOf(kDisguiseSelf);
+  CHECK_EQ(disguise != nullptr && disguise->options.size() == 6u, true);
+  CHECK_EQ(ChoiceCantripOf(kDisguiseOrc)->master, kDisguiseSelf);
   CHECK_EQ(ImageBlueprintOf(ImageKind::kNone)[0], 0);
   CHECK_EQ(SeesThroughIllusion(10, 2, 12), true);   // meets the DC
   CHECK_EQ(SeesThroughIllusion(10, 1, 12), false);

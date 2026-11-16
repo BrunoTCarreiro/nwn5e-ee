@@ -142,6 +142,12 @@ const std::vector<int> kSpells = {
     1193,  // nwn5e_Detect_Evil_and_Good - Detect Evil and Good (#39 2a build 4a)
     1194,  // nwn5e_Detect_Magic - Detect Magic (#39 2a build 4a)
     1195,  // nwn5e_Detect_Poison_and_Disease - Detect Poison and Disease (#39 2a build 4a)
+    1209,  // nwn5e_Silent_Image - Silent Image (#39 2a build 4b)
+    1210,  // nwn5e_Silent_Image_Treasure - Silent Image (its images; not its Move)
+    1211,  // nwn5e_Silent_Image_Corpse - Silent Image
+    1212,  // nwn5e_Silent_Image_Humanoid - Silent Image
+    1213,  // nwn5e_Silent_Image_Creature - Silent Image
+    1214,  // nwn5e_Silent_Image_Large - Silent Image
 };
 
 }  // namespace

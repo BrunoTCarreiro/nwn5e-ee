@@ -1,0 +1,15 @@
+# A !test profile ([debug] test_commands=1): type "!test illusionwizard" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# #39 Part 2a build 4b: a Wizard 5, Intelligence 16 - Disguise Self and Silent Image.
+name = Level 1 illusions (issue 39 4b): human Wizard 5, Intelligence 16 - Disguise Self, Silent Image
+species = human
+swap_class = wizard
+class = wizard
+level = 5
+abilities = 8 14 14 16 12 10
+items = nw_wdbqs001 equip
+note = the Prepare spells window opens: Spellbook tab - add Disguise Self and Silent Image; Prepared - the same two; Accept
+note = Disguise Self: its menu picks the species, for an hour. Silent Image: its menu picks the image (10 minutes, Concentration); its Move the image takes it up to 60 feet from you (a Magic action, no slot)
+note = !spawn nw_orcb an enemy (it comes to look at an image), add neutral for one that isn't hostile

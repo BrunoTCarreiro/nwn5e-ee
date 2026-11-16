@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 
+#include <string>
 #include <vector>
 
 #include "rules/grapple.h"  // FeetToMetres
@@ -328,6 +329,23 @@ constexpr int kSpeakWithAnimals = 1200;
 constexpr int kUnseenServant = 1201;
 constexpr int kIdentify = 86;  // NWN's row, rewritten (its +Lore gone)
 
+// Build 4b (owner, 2026-11-16: "yes, 4a accepted. go for 4b"): Disguise Self and Silent Image, real (Q4 A,
+// 2026-11-09); Find Familiar waits for its picks. New rows; each menu's rows on no class list.
+constexpr int kDisguiseSelf = 1202;
+constexpr int kDisguiseDwarf = 1203;
+constexpr int kDisguiseElf = 1204;
+constexpr int kDisguiseGnome = 1205;
+constexpr int kDisguiseHalfling = 1206;
+constexpr int kDisguiseHuman = 1207;
+constexpr int kDisguiseOrc = 1208;
+constexpr int kSilentImage = 1209;
+constexpr int kSilentImageTreasure = 1210;
+constexpr int kSilentImageCorpse = 1211;
+constexpr int kSilentImageHumanoid = 1212;
+constexpr int kSilentImageCreature = 1213;
+constexpr int kSilentImageLarge = 1214;
+constexpr int kSilentImageMove = 1215;  // its Move: a Magic action while concentrating, no slot
+
 // Rituals (Q1 A, #38's "A for now" revisited): a prepared spell with the Ritual tag can be cast as a Ritual - no
 // spell slot (so never above its level), 10 minutes longer. nwn5e: a class's cast out of combat, while the
 // character's switch is on (!options, on by default); in combat it takes a slot as usual.
@@ -388,6 +406,22 @@ int UtilityEffectMinutes(int row);
 // The Wizard's alone of the arcane spells NWN's one Wiz_Sorc column shares (Alarm, Identify, Illusory Script,
 // Unseen Servant): not the Sorcerer's.
 bool WizardOnlySpell(int row);
+
+// Disguise Self: another species' look for an hour (its menu - the 2024 species NWN has a player model for):
+// NWN's appearance - 0 Dwarf, 1 Elf, 2 Gnome, 3 Halfling, 6 Human, 5 for an Orc (the Half-Orc's model); -1 for
+// any other row (the master: no species picked).
+constexpr int kDisguiseSelfHours = 1;
+int DisguiseAppearanceOf(int row);
+// A player model's head, p<gender><race><phenotype>_head<NNN> ("pmd0_head001"): the disguise keeps the head
+// when the new species' model has it, else head 1. "" for an appearance that isn't a player model.
+std::string PlayerHeadModel(bool female, int nwn_appearance, int phenotype, int head);
+// Silent Image: an image no larger than a 15-foot Cube within 60 feet, for 10 minutes (Concentration). Its Move
+// (a Magic action) takes it to any spot within range - 60 feet of the caster.
+constexpr int kSilentImageSeconds = 600;
+constexpr int kSilentImageRangeFeet = 60;
+bool SilentImageMoveAllowed(float feet_from_caster);
+// A menu row cast for no slot (Silent Image's Move): its radial entry opens no slot levels.
+bool IsNoSlotOption(int row);
 constexpr int kRouseFeet = 5;
 
 // Chromatic Orb: two or more of its d8s alike - the orb leaps to another creature within 30 feet of the target (a

@@ -384,8 +384,11 @@ constexpr int kScareSeconds = 12;      // "flee ... for 2 rounds"
 // #152 (owner, 2026-11-09: "A, go with treasure and corpse"): the objects are lures - a pile of treasure and a corpse
 // (the barrel drew no one), the game's placeables (0.97.2: the large treasure pile, about 0.5 by 0.9 m - owner: "is
 // there a larger model to use as a treasure?"), named for the menu.
-enum class ImageKind { kNone, kTreasure, kCorpse, kHumanoid, kCreature };
+// #39 build 4b: Silent Image's Large Creature (an ogre: its Cube is 15 feet) - a creature image as the small one,
+// the reactions by size.
+enum class ImageKind { kNone, kTreasure, kCorpse, kHumanoid, kCreature, kLargeCreature };
 ImageKind ImageKindOf(UtilityEffect effect);
+ImageKind SilentImageKindOf(int row);  // Silent Image's menu rows: their image; kNone for any other row
 const char* ImageBlueprintOf(ImageKind kind);
 bool ImageIsObject(ImageKind kind);       // a placeable (the treasure, the corpse), not a creature
 const char* ImageNameOf(ImageKind kind);  // an object's name ("Treasure Pile", "Corpse"); "" keeps the blueprint's

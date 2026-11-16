@@ -115,6 +115,7 @@
 #include <stdlib.h>
 
 #include <algorithm>
+#include <cmath>
 #include <iterator>
 #include <string>
 #include <unordered_map>
@@ -174,6 +175,10 @@ void* GameObjectById(uint32_t id);  // light_sources.cpp (build 2c: an area of e
 bool InFogCloud(void* creature);    // below (build 2c; #160's fog search)
 void BeginConcentration(void* creature, int spell);  // rules_concentration.cpp (build 3: Ensnaring Strike's)
 int AreaOfEffectSpellId(uint32_t id);               // rules_concentration.cpp (build 4a: Detect Magic's areas)
+// rules_utility_cantrips.cpp (build 4b): Silent Image's image - made, ended, moved (Minor Illusion's machinery).
+uint32_t MakeSilentImage(uint32_t self, void* caster, rules::ImageKind kind, const std::string& name);
+void EndSilentImage(uint32_t self);
+uint32_t MoveSilentImage(uint32_t self, void* caster, float x, float y, float z);
 
 namespace {
 
@@ -857,6 +862,7 @@ bool Refuse(uint32_t id, const std::string& name, const std::string& why, uint32
 bool SanctuaryLetsThrough(void* attacker, void* target, const char* what);  // build 2a, below
 bool ArmSmite(void* creature, uint32_t id, const SpellOrder& order);         // build 3, below
 bool RitualOrder(void* creature, uint32_t id, const SpellOrder& order);      // build 4a, below
+bool SilentImageMoveOrder(void* creature, uint32_t id, const SpellOrder& order);  // build 4b, below
 
 // Refused before the cast, nothing spent (true): a willing creature's spell at an enemy, Mage Armor on one wearing
 // armour, an enemy's spell at a creature its Sanctuary keeps it from. A Bonus Action spell's order becomes its feat's
@@ -873,6 +879,8 @@ bool OrderGuard(void* creature, const SpellOrder& order) {
   }
   // Build 4a (Q1 A): a Ritual spell from a class out of a fight, the switch on - a Ritual: no slot, 10 minutes.
   if (RitualOrder(creature, id, order)) return true;
+  // Build 4b: Silent Image's Move - a Magic action while concentrating, no slot.
+  if (SilentImageMoveOrder(creature, id, order)) return true;
   // 0.99.3 (owner, 2026-11-10: "why does heroism need to be cast first before checking if it's a willing target? Is
   // it the rules?"): "a willing creature" - an enemy isn't one, so it's no target (the script's check stays for a
   // cast with no order).
@@ -3448,6 +3456,8 @@ int UtilityIconRow(int row) {
     case rules::kComprehendLanguages: return 231;
     case rules::kSpeakWithAnimals: return 232;
     case rules::kUnseenServant: return 233;
+    case rules::kDisguiseSelf: return 234;  // build 4b: the disguise's hour
+    case rules::kSilentImage: return 235;   // Silent Image's mark (its Concentration)
     default: return 0;
   }
 }
@@ -3669,7 +3679,9 @@ const std::string& DetectScan(int row) {
     classify = kMagicSense;
     Replace(&classify, "$SCHOOL", SchoolScript());
     filter = "OBJECT_TYPE_CREATURE | OBJECT_TYPE_ITEM | OBJECT_TYPE_PLACEABLE | OBJECT_TYPE_AREA_OF_EFFECT";
-    glow = "VFX_DUR_GLOW_LIGHT_BLUE";
+    // 0.99.46 (owner, 2026-11-16: "Can we use a vfx effect for the detect magic glow?"): the owner's VFX Bench
+    // effect - visualeffects 2100 NWN5E_DETECT_MAGIC (data/rows/visualeffects.detect.txt, the animation session's).
+    glow = "2100";
   } else {
     classify = kPoisonSense;
     Replace(&classify, "$POISON", PoisonScript());
@@ -3998,6 +4010,236 @@ void FlagSpell(uint32_t self, const rules::Spell2024& spell) {
   if (LogSlot()) Log("spells2024: 0x%08X %s (%d minutes on it)", self, spell.name, minutes);
 }
 
+// Build 4b: Disguise Self (Q4 A, real) - another species' model for an hour (its menu). The caster's own look is
+// kept on it (n5s_disg_app, n5s_disg_head) and given back when the spell's mark is gone (its hour, a dispel ...);
+// the head stays when the new species' model has it (rules::PlayerHeadModel, the game's files), else head 1.
+constexpr const char* kTagDisguise = "n5s_disguise";
+std::unordered_map<uint32_t, ULONGLONG> g_disguised;          // a disguised creature -> its next look
+std::unordered_map<uint32_t, ULONGLONG> g_disguise_pc_look;   // a player character -> its next look for one kept in a save
+
+const char* const kDisguiseRead = R"nss(
+object me = OBJECT_SELF; int poly = FALSE;
+effect e = GetFirstEffect(me);
+while (GetIsEffectValid(e)) { if (GetEffectType(e) == EFFECT_TYPE_POLYMORPH) poly = TRUE; e = GetNextEffect(me); }
+SetLocalInt(me, "n5s_disg_poly", poly);
+if (!poly && !GetLocalInt(me, "n5s_disg")) {
+  SetLocalInt(me, "n5s_disg_app", GetAppearanceType(me));
+  SetLocalInt(me, "n5s_disg_head", GetCreatureBodyPart(CREATURE_PART_HEAD, me));
+}
+SetLocalInt(me, "n5s_disg_female", GetGender(me) == GENDER_FEMALE);
+SetLocalInt(me, "n5s_disg_pheno", GetPhenoType(me));
+)nss";
+
+const char* const kDisguiseOn = R"nss(
+object me = OBJECT_SELF;
+effect e = GetFirstEffect(me);
+while (GetIsEffectValid(e)) { if (GetEffectTag(e) == "$TAG") RemoveEffect(me, e); e = GetNextEffect(me); }
+SetLocalInt(me, "n5s_disg", 1);
+ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(EffectIcon($ICON), $ROW), "$TAG"), me, HoursToSeconds($HOURS));
+ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_POLYMORPH), me);
+SetCreatureAppearanceType(me, $APP);
+int head = GetLocalInt(me, "n5s_disg_head");
+if (ResManGetAliasFor("$MODEL", 2002) == "") head = 1;
+SetCreatureBodyPart(CREATURE_PART_HEAD, head, me);
+)nss";
+
+const char* const kDisguiseOff = R"nss(
+object me = OBJECT_SELF;
+if (GetLocalInt(me, "n5s_disg")) {
+  SetCreatureAppearanceType(me, GetLocalInt(me, "n5s_disg_app"));
+  SetCreatureBodyPart(CREATURE_PART_HEAD, GetLocalInt(me, "n5s_disg_head"), me);
+  ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_POLYMORPH), me);
+}
+DeleteLocalInt(me, "n5s_disg"); DeleteLocalInt(me, "n5s_disg_app"); DeleteLocalInt(me, "n5s_disg_head");
+)nss";
+
+const char* SpeciesName(int appearance) {
+  switch (appearance) {
+    case 0: return "a dwarf";
+    case 1: return "an elf";
+    case 2: return "a gnome";
+    case 3: return "a halfling";
+    case 5: return "an orc";
+    default: return "a human";
+  }
+}
+
+void DisguiseSpell(uint32_t self, void* caster, int row) {
+  const int appearance = rules::DisguiseAppearanceOf(row);
+  if (appearance < 0) {
+    TellPlayer(self, "nwn5e: Disguise Self - pick a species from its menu.");
+    return;
+  }
+  Run(kDisguiseRead, self, "Disguise Self's look");
+  const int own = engine::GetLocalInt(caster, "n5s_disg_app");
+  if (engine::GetLocalInt(caster, "n5s_disg_poly") || rules::PlayerHeadModel(false, own, 0, 1).empty()) {
+    TellPlayer(self, "nwn5e: Disguise Self - your form isn't one it can change (a changed shape, or no player "
+                     "model).");
+    return;
+  }
+  const bool female = engine::GetLocalInt(caster, "n5s_disg_female") != 0;
+  const int phenotype = engine::GetLocalInt(caster, "n5s_disg_pheno");
+  const int head = engine::GetLocalInt(caster, "n5s_disg_head");
+  const std::string model = rules::PlayerHeadModel(female, appearance, phenotype, head);
+  std::string code = kDisguiseOn;
+  Replace(&code, "$TAG", kTagDisguise);
+  Replace(&code, "$ICON", std::to_string(UtilityIconRow(rules::kDisguiseSelf)));
+  Replace(&code, "$ROW", std::to_string(rules::kDisguiseSelf));
+  Replace(&code, "$HOURS", std::to_string(rules::kDisguiseSelfHours));
+  Replace(&code, "$APP", std::to_string(appearance));
+  Replace(&code, "$MODEL", model);
+  Run(code, self, "Disguise Self");
+  g_disguised[self] = 0;
+  TellPlayer(self, std::string("nwn5e: Disguise Self - for an hour you look like ") + SpeciesName(appearance) +
+                       "; a creature that studies you closely (Intelligence (Investigation) against your spell "
+                       "save DC) can tell.");
+  if (LogSlot()) Log("spells2024: 0x%08X Disguise Self - appearance %d (own %d), head %d (%s)", self, appearance, own,
+                     head, model.c_str());
+}
+
+// Every creature update: a disguised creature looks every 2 s; its mark gone, its own look back. A player character
+// loaded disguised (the save keeps the look and its locals) is found by its local, looked for every 5 s.
+void DisguiseUpdate(void* creature) {
+  if (!creature) return;
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  const ULONGLONG now = GetTickCount64();
+  auto it = g_disguised.find(id);
+  if (it == g_disguised.end()) {
+    if (!IsPlayerCreature(creature)) return;
+    ULONGLONG& next = g_disguise_pc_look[id];
+    if (now < next) return;
+    next = now + 5000;
+    if (engine::GetLocalInt(creature, "n5s_disg") != 1) return;
+    it = g_disguised.emplace(id, 0).first;
+  }
+  if (now < it->second) return;
+  it->second = now + kDetectEveryMs;
+  if (HasSpellEffect(creature, rules::kDisguiseSelf)) return;
+  g_disguised.erase(it);
+  Run(kDisguiseOff, id, "Disguise Self's end");
+  TellPlayer(id, "nwn5e: Disguise Self ends - you look like yourself again.");
+  if (LogSlot()) Log("spells2024: 0x%08X Disguise Self ends - its own look back", id);
+}
+
+// Build 4b: Silent Image (Q4 A, real) - Minor Illusion's image (rules_utility_cantrips.cpp; a Large Creature too)
+// for 10 minutes' Concentration: a mark on the caster (effecticons 235, the cast row's) holds it, and the image goes
+// when the mark does. Its Move (a Magic action, no slot): the order refused and the Move row cheat-cast at the point
+// (the cast takes the caster's action); a creature image walks there, an object is put there.
+struct SilentImageCast {
+  int row = 0;
+  uint32_t image = 0;
+  ULONGLONG next = 0;
+};
+std::unordered_map<uint32_t, SilentImageCast> g_silent;  // by caster
+constexpr const char* kTagSilentMark = "n5s_simark";
+
+void SilentImageMoved(uint32_t self, void* caster) {
+  const auto it = g_silent.find(self);
+  if (it == g_silent.end()) {
+    TellPlayer(self, "nwn5e: Silent Image - no image of yours to move.");
+    return;
+  }
+  Run("vector v = GetPositionFromLocation(GetSpellTargetLocation()); SetLocalString(OBJECT_SELF, \"n5c_xyz\", "
+      "FloatToString(v.x, 0, 2) + \" \" + FloatToString(v.y, 0, 2) + \" \" + FloatToString(v.z, 0, 2));",
+      self, "Silent Image's Move point");
+  float x = 0.0f, y = 0.0f, z = 0.0f;
+  if (sscanf_s(engine::GetLocalString(caster, "n5c_xyz").c_str(), "%f %f %f", &x, &y, &z) != 3) return;
+  const uint32_t moved = MoveSilentImage(self, caster, x, y, z);
+  if (!moved) {
+    TellPlayer(self, "nwn5e: Silent Image - your image is gone.");
+    g_silent.erase(it);
+    return;
+  }
+  it->second.image = moved;
+  TellPlayer(self, "nwn5e: Silent Image - the image moves.");
+  if (LogSlot()) Log("spells2024: 0x%08X Silent Image moved to %.1f, %.1f (image 0x%08X)", self, x, y, moved);
+}
+
+void SilentImageSpell(uint32_t self, void* caster, int row) {
+  if (row == rules::kSilentImageMove) {
+    SilentImageMoved(self, caster);
+    return;
+  }
+  rules::ImageKind kind = rules::SilentImageKindOf(row);
+  if (kind == rules::ImageKind::kNone) kind = rules::ImageKind::kHumanoid;  // the master, no image picked
+  char code[900];
+  sprintf_s(code,
+            "object t = GetSpellTargetObject(); location l = GetSpellTargetLocation(); if (GetIsObjectValid(t)) l = "
+            "GetLocation(t); SetLocalLocation(OBJECT_SELF, \"n5c_at\", l); SetLocalInt(OBJECT_SELF, \"n5c_dc\", "
+            "GetSpellSaveDC()); effect e = GetFirstEffect(OBJECT_SELF); while (GetIsEffectValid(e)) { if "
+            "(GetEffectTag(e) == \"%s\") RemoveEffect(OBJECT_SELF, e); e = GetNextEffect(OBJECT_SELF); } "
+            "ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(EffectIcon(%d), %d), \"%s\"), "
+            "OBJECT_SELF, TurnsToSeconds(%d));",
+            kTagSilentMark, UtilityIconRow(rules::kSilentImage), row, kTagSilentMark, rules::kSilentImageSeconds / 60);
+  Run(code, self, "Silent Image's point and mark");
+  const uint32_t image = MakeSilentImage(self, caster, kind, "Silent Image");
+  g_silent[self] = SilentImageCast{row, image, 0};
+  if (LogSlot()) Log("spells2024: 0x%08X Silent Image (row %d) - image 0x%08X", self, row, image);
+}
+
+// The Move's order: refused (no slot) - the Move row cheat-cast at the point instead, within 60 feet of the caster.
+bool SilentImageMoveOrder(void* creature, uint32_t id, const SpellOrder& order) {
+  if (static_cast<int>(order.spell) != rules::kSilentImageMove) return false;
+  if (order.class_slot < 0 || order.class_slot > 7) return false;  // its own cheat cast, going through
+  const auto it = g_silent.find(id);
+  if (it == g_silent.end() || !GameObjectById(it->second.image)) {
+    TellPlayer(id, "nwn5e: Silent Image - no image of yours to move: cast Silent Image first.");
+    return true;
+  }
+  float x = order.x, y = order.y, z = order.z;
+  if (order.target != ee::kObjectInvalid && order.target != id) {
+    if (void* object = GameObjectById(order.target)) {
+      x = Field<float>(object, ee::kObjectPositionX);
+      y = Field<float>(object, ee::kObjectPositionY);
+      z = Field<float>(object, ee::kObjectPositionY + 4);
+    }
+  }
+  const float dx = x - Field<float>(creature, ee::kObjectPositionX);
+  const float dy = y - Field<float>(creature, ee::kObjectPositionY);
+  const float feet = std::sqrt(dx * dx + dy * dy) / rules::FeetToMetres(1);
+  if (!rules::SilentImageMoveAllowed(feet)) {
+    TellPlayer(id, "nwn5e: Silent Image - it moves to a spot within 60 feet of you.");
+    return true;
+  }
+  char code[400];
+  sprintf_s(code,
+            "ActionCastSpellAtLocation(%d, Location(GetArea(OBJECT_SELF), Vector(%.3f, %.3f, %.3f), 0.0), METAMAGIC_NONE, "
+            "TRUE, PROJECTILE_PATH_TYPE_DEFAULT, FALSE);",
+            rules::kSilentImageMove, x, y, z);
+  Run(code, id, "Silent Image's Move");
+  if (LogSlot()) Log("spells2024: 0x%08X Silent Image's Move - %.0f ft from the caster, its cast queued", id, feet);
+  return true;
+}
+
+// Every creature update: a caster's image looks every second - its mark gone (Concentration ended, or its 10
+// minutes), the image goes; the image gone (seen through, struck), it's let go.
+void SilentImageUpdate(void* creature) {
+  if (g_silent.empty() || !creature) return;
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  const auto it = g_silent.find(id);
+  if (it == g_silent.end()) return;
+  const ULONGLONG now = GetTickCount64();
+  if (now < it->second.next) return;
+  it->second.next = now + 1000;
+  if (!HasSpellEffect(creature, it->second.row)) {
+    EndSilentImage(id);
+    g_silent.erase(it);
+    TellPlayer(id, "nwn5e: Silent Image ends - your Concentration on it ended.");
+    if (LogSlot()) Log("spells2024: 0x%08X Silent Image ends - its mark gone", id);
+    return;
+  }
+  if (!GameObjectById(it->second.image)) {
+    g_silent.erase(it);
+    if (LogSlot()) Log("spells2024: 0x%08X Silent Image's image is gone (seen through or struck)", id);
+  }
+}
+
+void IllusionsGameStarted() {
+  g_disguised.clear();
+  g_disguise_pc_look.clear();
+  g_silent.clear();
+}
+
 void UtilitySpell(uint32_t self, void* caster, const rules::Spell2024& spell, int slot) {
   const int row = Field<int32_t>(caster, ee::kObjectLastSpellId);  // a menu's choice: Alarm's kind, Water's way
   switch (spell.row) {
@@ -4009,6 +4251,8 @@ void UtilitySpell(uint32_t self, void* caster, const rules::Spell2024& spell, in
     case rules::kDetectPoisonAndDisease: DetectBegin(self, spell.row); break;
     case rules::kGoodberry: GoodberrySpell(self, spell); break;
     case rules::kGoodberryEat: GoodberryEaten(self, spell); break;
+    case rules::kDisguiseSelf: DisguiseSpell(self, caster, row); break;  // build 4b
+    case rules::kSilentImage: SilentImageSpell(self, caster, row); break;
     default: FlagSpell(self, spell); break;
   }
 }
@@ -4174,6 +4418,8 @@ ScriptHandler HandlerOf(int row) {
     case rules::kPurifyFoodAndDrink: return &SpellScript<rules::kPurifyFoodAndDrink>;
     case rules::kSpeakWithAnimals: return &SpellScript<rules::kSpeakWithAnimals>;
     case rules::kUnseenServant: return &SpellScript<rules::kUnseenServant>;
+    case rules::kDisguiseSelf: return &SpellScript<rules::kDisguiseSelf>;  // build 4b
+    case rules::kSilentImage: return &SpellScript<rules::kSilentImage>;
   }
   return nullptr;
 }
@@ -4426,14 +4672,16 @@ void InstallSpells2024() {
                          AddGameStartListener(&SmitesGameStarted);
   const bool utility = AddScriptHandler("n5_s_alarmaud", &AlarmEnterAudible) &&  // build 4a
                        AddScriptHandler("n5_s_alarmmen", &AlarmEnterMental) &&
-                       AddCreatureUpdateListener(&DetectUpdate) && AddGameStartListener(&DetectsGameStarted);
+                       AddCreatureUpdateListener(&DetectUpdate) && AddGameStartListener(&DetectsGameStarted) &&
+                       AddCreatureUpdateListener(&DisguiseUpdate) && AddCreatureUpdateListener(&SilentImageUpdate) &&
+                       AddGameStartListener(&IllusionsGameStarted);  // build 4b
   if (reactions) {  // #162 G
     AddHudPool(&SmiteHudPool);
     AddHudClick("smite", &SmitePanelClicked);
   }
-  Log("spells2024: SRD 5.2's level 1 spells, builds 1a-4a - %zu spells: damage and healing, Chromatic Orb, Heroism, "
-      "the buffs, the conditions on creatures, the areas, Shield and the smites, detection and utility; Rituals out "
-      "of combat; %zu Bonus Action spells; one spell with a slot a turn (#39 Part 2a)%s",
+  Log("spells2024: SRD 5.2's level 1 spells, builds 1a-4b - %zu spells: damage and healing, Chromatic Orb, Heroism, "
+      "the buffs, the conditions on creatures, the areas, Shield and the smites, detection and utility, Disguise "
+      "Self and Silent Image; Rituals out of combat; %zu Bonus Action spells; one spell with a slot a turn (#39 Part 2a)%s",
       rules::Spells2024().size(), rules::BonusActionSpells().size(),
       scripts && update && guard && buffs && conditions && areas && reactions && utility ? "" : " - SOME hooks missing");
 }

@@ -12,7 +12,7 @@ using namespace rules;
 
 // #39 Part 2a build 1a: SRD 5.2.1's level 1 damage and healing spells (pp. 114-177).
 TEST(Spells2024Table) {
-  CHECK_EQ(static_cast<int>(Spells2024().size()), 51);
+  CHECK_EQ(static_cast<int>(Spells2024().size()), 53);
   for (size_t i = 1; i < Spells2024().size(); ++i) CHECK_EQ(Spells2024()[i - 1].row < Spells2024()[i].row, true);
   CHECK_EQ(Spell2024Of(1) == nullptr, true);
   const Spell2024* burning = Spell2024Of(kBurningHands);
@@ -486,6 +486,36 @@ TEST(Spells2024Build3) {
 // #39 2a build 4a: detection and utility, rituals. Breaks caught: a ritual tag lost or added, a Ritual cast in
 // combat, with the switch off or not from a class, the 10 minutes, a mode's row, the Cube's growth, a Detect's
 // kinds, a school's name, an effect's minutes, a Wizard-only spell given the Sorcerer.
+TEST(Spells2024Build4b) {
+  CHECK_EQ(Spell2024Of(kDisguiseSelf) != nullptr && Spell2024Of(kDisguiseSelf)->effect == SpellEffect2024::kUtility,
+           true);
+  CHECK_EQ(Spell2024Of(kSilentImage) != nullptr && Spell2024Of(kSilentImage)->effect == SpellEffect2024::kUtility,
+           true);
+  CHECK_EQ(Spell2024Of(kDisguiseSelf)->ritual || Spell2024Of(kSilentImage)->ritual, false);
+  CHECK_EQ(DisguiseAppearanceOf(kDisguiseDwarf), 0);
+  CHECK_EQ(DisguiseAppearanceOf(kDisguiseElf), 1);
+  CHECK_EQ(DisguiseAppearanceOf(kDisguiseGnome), 2);
+  CHECK_EQ(DisguiseAppearanceOf(kDisguiseHalfling), 3);
+  CHECK_EQ(DisguiseAppearanceOf(kDisguiseHuman), 6);
+  CHECK_EQ(DisguiseAppearanceOf(kDisguiseOrc), 5);  // the Half-Orc's model
+  CHECK_EQ(DisguiseAppearanceOf(kDisguiseSelf), -1);
+  CHECK_EQ(DisguiseAppearanceOf(kSilentImageHumanoid), -1);
+  CHECK_EQ(PlayerHeadModel(false, 0, 0, 1) == "pmd0_head001", true);
+  CHECK_EQ(PlayerHeadModel(true, 3, 0, 12) == "pfa0_head012", true);  // a halfling's is "a"
+  CHECK_EQ(PlayerHeadModel(false, 4, 2, 105) == "pmh2_head105", true);  // a half-elf's is a human's
+  CHECK_EQ(PlayerHeadModel(false, 5, 0, 7) == "pmo0_head007", true);
+  CHECK_EQ(PlayerHeadModel(false, 2, 0, 3) == "pmg0_head003", true);
+  CHECK_EQ(PlayerHeadModel(false, 1, 0, 3) == "pme0_head003", true);
+  CHECK_EQ(PlayerHeadModel(false, 6, 0, 3) == "pmh0_head003", true);
+  CHECK_EQ(PlayerHeadModel(false, 7, 0, 1).empty(), true);  // a parrot: no player model
+  CHECK_EQ(kDisguiseSelfHours, 1);
+  CHECK_EQ(kSilentImageSeconds, 600);
+  CHECK_EQ(SilentImageMoveAllowed(60.0f), true);
+  CHECK_EQ(SilentImageMoveAllowed(61.0f), false);
+  CHECK_EQ(IsNoSlotOption(kSilentImageMove), true);
+  CHECK_EQ(IsNoSlotOption(kSilentImageLarge) || IsNoSlotOption(kDisguiseElf), false);
+}
+
 TEST(Spells2024Build4aFixes) {
   const auto poison = [](int property, int subtype, bool natural) {
     const char* k = PoisonSenseKind(property, subtype, natural);

@@ -111,6 +111,16 @@ std::vector<ChoiceCantrip> BuildChoiceCantrips() {
   ChoiceCantrip water{kCreateOrDestroyWater, "n5_s_water", ChoiceKind::kMode,
                       {{kCreateWater, 0, "Create Water (rain)"}, {kDestroyWater, 1, "Destroy Water (fog)"}}};
   all.push_back(water);
+  // #39 build 4b: Disguise Self's species and Silent Image's images, each opening its slot levels, and its Move.
+  ChoiceCantrip disguise{kDisguiseSelf, "n5_s_disguise", ChoiceKind::kMode,
+                         {{kDisguiseDwarf, 0, "Dwarf"}, {kDisguiseElf, 1, "Elf"}, {kDisguiseGnome, 2, "Gnome"},
+                          {kDisguiseHalfling, 3, "Halfling"}, {kDisguiseHuman, 4, "Human"}, {kDisguiseOrc, 5, "Orc"}}};
+  all.push_back(disguise);
+  ChoiceCantrip silent{kSilentImage, "n5_s_silentimg", ChoiceKind::kMode,
+                       {{kSilentImageTreasure, 0, "Treasure"}, {kSilentImageCorpse, 1, "Corpse"},
+                        {kSilentImageHumanoid, 2, "Humanoid"}, {kSilentImageCreature, 3, "Small Creature"},
+                        {kSilentImageLarge, 4, "Large Creature"}, {kSilentImageMove, 5, "Move the image"}}};
+  all.push_back(silent);
   ChoiceCantrip flame{kProduceFlame, "n5_c_produceflame", ChoiceKind::kMode,
                      {{kProduceFlameFlame, 0, "Flame"}, {kProduceFlameHurl, 1, "Hurl"}}};
   all.push_back(flame);
@@ -572,12 +582,24 @@ ImageKind ImageKindOf(UtilityEffect effect) {
   }
 }
 
+ImageKind SilentImageKindOf(int row) {
+  switch (row) {
+    case kSilentImageTreasure: return ImageKind::kTreasure;
+    case kSilentImageCorpse: return ImageKind::kCorpse;
+    case kSilentImageHumanoid: return ImageKind::kHumanoid;
+    case kSilentImageCreature: return ImageKind::kCreature;
+    case kSilentImageLarge: return ImageKind::kLargeCreature;
+    default: return ImageKind::kNone;
+  }
+}
+
 const char* ImageBlueprintOf(ImageKind kind) {
   switch (kind) {
     case ImageKind::kTreasure: return "plc_treasurelrg";
     case ImageKind::kCorpse: return "plc_corpse1";
     case ImageKind::kHumanoid: return "nw_commale";
     case ImageKind::kCreature: return "nw_cat";
+    case ImageKind::kLargeCreature: return "nw_ogre01";
     default: return "";
   }
 }
@@ -616,6 +638,7 @@ ImageReaction ReactionToImage(ImageKind kind, bool sentient, bool hostile, int s
       if (sentient) return hostile ? ImageReaction::kStudy : ImageReaction::kIgnore;
       return hostile ? ImageReaction::kAttack : ImageReaction::kFlee;
     case ImageKind::kCreature:
+    case ImageKind::kLargeCreature:
       if (!hostile || size < image_size) return sentient ? ImageReaction::kFleeThenStudy : ImageReaction::kFlee;
       return sentient ? ImageReaction::kAttackThenSearch : ImageReaction::kAttack;
     default: return ImageReaction::kIgnore;
@@ -624,7 +647,7 @@ ImageReaction ReactionToImage(ImageKind kind, bool sentient, bool hostile, int s
 
 AfterStudy AfterStudyOf(ImageKind kind, bool sees_through, bool hostile) {
   if (sees_through) return hostile ? AfterStudy::kVanishThenSearch : AfterStudy::kVanishThenGoBack;
-  return kind == ImageKind::kCreature ? AfterStudy::kFleeAgain : AfterStudy::kGoBack;
+  return kind == ImageKind::kCreature || kind == ImageKind::kLargeCreature ? AfterStudy::kFleeAgain : AfterStudy::kGoBack;
 }
 
 bool SearchesAfterVanish(bool sentient, bool hostile) { return sentient && hostile; }

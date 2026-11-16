@@ -73,6 +73,7 @@
 #include "rules/cantrips.h"
 #include "rules/mark_surface.h"
 #include "rules/skills.h"
+#include "rules/spells2024.h"
 
 namespace {
 
@@ -648,11 +649,14 @@ std::string Joined(const std::vector<std::string>& parts) {
 }
 
 // Minor Illusion's earlier image ends with a new cast (SRD 5.2.1: "The illusion ends if you cast this spell again").
-void EndImage(uint32_t self) {
-  Run("object old = GetLocalObject(OBJECT_SELF, \"n5c_image\"); if (GetIsObjectValid(old)) DestroyObject(old);"
-      "DeleteLocalObject(OBJECT_SELF, \"n5c_image\");",
-      self, "Minor Illusion's earlier image");
+// #39 build 4b: by its slot on the caster (Silent Image's n5s_image).
+void EndImageIn(uint32_t self, const char* slot) {
+  Run(std::string("object old = GetLocalObject(OBJECT_SELF, \"") + slot + "\"); if (GetIsObjectValid(old)) DestroyObject(old);"
+      "DeleteLocalObject(OBJECT_SELF, \"" + slot + "\");",
+      self, "an earlier image");
 }
+
+void EndImage(uint32_t self) { EndImageIn(self, "n5c_image"); }
 
 bool IsMinorIllusion(int row) {
   const rules::ChoiceCantrip* cantrip = rules::ChoiceCantripOf(row);
@@ -702,7 +706,7 @@ if ($CREATURE) {
   SetPlotFlag(i, TRUE);
   SetName(i, "$NAME");
 }
-SetLocalObject(OBJECT_SELF, "n5c_image", i);
+SetLocalObject(OBJECT_SELF, "$SLOT", i);
 DestroyObject(i, $SECONDS);
 SetLocalString(OBJECT_SELF, "n5c_image_name", GetName(i));
 SetLocalString(OBJECT_SELF, "n5c_image_id", ObjectToString(i));
@@ -734,6 +738,7 @@ struct Reactor {
   Stage stage = Stage::kComing;
   std::string name;
   std::string image_name;
+  const char* label = "Minor Illusion";  // its spell, for the log (#39 build 4b: Silent Image's too)
   bool sound = false;  // a sound's (#152 B): nothing there to study
 };
 std::unordered_map<uint32_t, Reactor> g_reactors;  // by creature
@@ -741,6 +746,8 @@ std::unordered_map<uint32_t, Reactor> g_reactors;  // by creature
 struct ImageMade {
   uint32_t caster = 0;
   std::string name;
+  std::string slot = "n5c_image";       // #39 build 4b: the caster's local holding it (Silent Image's n5s_image)
+  const char* label = "Minor Illusion";
 };
 std::unordered_map<uint32_t, ImageMade> g_images;     // by image object
 std::vector<std::pair<uint32_t, uint32_t>> g_struck;  // (image, attacker): blows at an image, for the next update
@@ -803,7 +810,7 @@ void Tell(uint32_t caster, const std::string& line) {
 }
 
 void Note(uint32_t self, const Reactor& r, const char* what) {
-  if (LogSlot()) Log("cantrips: 0x%08X Minor Illusion's %s: 0x%08X (%s) %s", r.caster, r.image_name.c_str(), self,
+  if (LogSlot()) Log("cantrips: 0x%08X %s's %s: 0x%08X (%s) %s", r.caster, r.label, r.image_name.c_str(), self,
                      r.name.c_str(), what);
 }
 
@@ -956,7 +963,7 @@ void Study(uint32_t self, Reactor& r, const Check& check) {
   const std::string line =
       name + " studies the " + image + ": " + (through ? "sees through the illusion" : "is fooled") + check_text;
   if (LogSlot()) {
-    Log("cantrips: 0x%08X Minor Illusion's %s: 0x%08X (%s) studies it - d20 %d %+d vs DC %d: %s", caster, image.c_str(),
+    Log("cantrips: 0x%08X %s's %s: 0x%08X (%s) studies it - d20 %d %+d vs DC %d: %s", caster, r.label, image.c_str(),
         self, name.c_str(), d20, r.intelligence, r.dc, through ? "sees through it" : "fooled");
   }
   switch (rules::AfterStudyOf(r.kind, through, r.hostile)) {
@@ -1010,7 +1017,7 @@ void Struck(uint32_t image, uint32_t attacker) {
   const std::string name = ours ? found->second.name : NameOf(attacker);
   std::string line = name + " attacks the " + kept.name + ": the blow passes through it - the illusion fades";
   if (LogSlot()) {
-    Log("cantrips: 0x%08X Minor Illusion's %s: 0x%08X (%s) attacks it - the image vanishes", kept.caster,
+    Log("cantrips: 0x%08X %s's %s: 0x%08X (%s) attacks it - the image vanishes", kept.caster, kept.label,
         kept.name.c_str(), attacker, name.c_str());
   }
   if (ours && found->second.sentient) {
@@ -1140,28 +1147,38 @@ const char* ReactionName(ImageReaction reaction) {
   }
 }
 
-void MakeImage(uint32_t self, void* caster, UtilityEffect effect, const std::string& name) {
-  const ImageKind kind = rules::ImageKindOf(effect);
+// #39 build 4b: an image spell - Minor Illusion's (a minute; its slot on the caster n5c_image) or Silent Image's
+// (10 minutes' Concentration, n5s_image; a Large Creature too). The same image, the same reactions.
+struct ImageSpell {
+  const char* label;
+  const char* slot;
+  int seconds;
+  const char* lasts;
+};
+const ImageSpell kMinorIllusionImage{"Minor Illusion", "n5c_image", rules::kMinorIllusionSeconds, "for a minute"};
+
+void MakeImageOf(uint32_t self, void* caster, ImageKind kind, const std::string& name, const ImageSpell& spell) {
   std::string code = kImage;
+  Replace(&code, "$SLOT", spell.slot);
   Replace(&code, "$CREATURE", rules::ImageIsObject(kind) ? "FALSE" : "TRUE");
   Replace(&code, "$NAME", rules::ImageNameOf(kind));
   Replace(&code, "$BLUEPRINT", rules::ImageBlueprintOf(kind));
-  Replace(&code, "$SECONDS", std::to_string(rules::kMinorIllusionSeconds) + ".0");
-  Run(code, self, "Minor Illusion's image");
+  Replace(&code, "$SECONDS", std::to_string(spell.seconds) + ".0");
+  Run(code, self, (std::string(spell.label) + "'s image").c_str());
   const std::string image = engine::GetLocalString(caster, "n5c_image_name");
   const int image_size = engine::GetLocalInt(caster, "n5c_image_size");
   const std::string lift = engine::GetLocalString(caster, "n5c_image_lift");
   if (LogSlot()) {
-    Log("cantrips: 0x%08X Minor Illusion's %s %s", self, image.c_str(),
+    Log("cantrips: 0x%08X %s's %s %s", self, spell.label, image.c_str(),
         lift.empty() ? "where the cast's point is (no walkmesh under it)"
                      : ("on the walkmesh - the cast's point was " + lift + " m over it").c_str());
   }
   unsigned int image_id = 0;
   sscanf_s(engine::GetLocalString(caster, "n5c_image_id").c_str(), "%x", &image_id);
   for (auto it = g_images.begin(); it != g_images.end();) {  // its earlier image ended with this cast
-    it = it->second.caster == self ? g_images.erase(it) : std::next(it);
+    it = it->second.caster == self && it->second.slot == spell.slot ? g_images.erase(it) : std::next(it);
   }
-  if (image_id) g_images[image_id] = ImageMade{self, image};
+  if (image_id) g_images[image_id] = ImageMade{self, image, spell.slot, spell.label};
   const int dc = engine::GetLocalInt(caster, "n5c_dc");
   std::vector<std::string> done;
   if (Investigates()) {
@@ -1171,7 +1188,7 @@ void MakeImage(uint32_t self, void* caster, UtilityEffect effect, const std::str
       if (reaction == ImageReaction::kIgnore) continue;
       std::string start = kWatcher;
       Replace(&start, "$CASTER", Hex(self));
-      Replace(&start, "$IMAGE", "GetLocalObject(u, \"n5c_image\")");
+      Replace(&start, "$IMAGE", std::string("GetLocalObject(u, \"") + spell.slot + "\")");
       Run(start, n.id, "an illusion's watcher");
       Reactor r;
       r.caster = self;
@@ -1185,11 +1202,12 @@ void MakeImage(uint32_t self, void* caster, UtilityEffect effect, const std::str
       r.serial = ++g_serial;
       r.name = engine::GetLocalString(caster, "n5c_name");
       r.image_name = image;
+      r.label = spell.label;
       Reactor& kept = (g_reactors[n.id] = r);
       if (LogSlot()) {
-        Log("cantrips: 0x%08X Minor Illusion's %s: 0x%08X (%s) %s - racial type %d, Intelligence %d (%s), %s, size %d "
+        Log("cantrips: 0x%08X %s's %s: 0x%08X (%s) %s - racial type %d, Intelligence %d (%s), %s, size %d "
             "vs %d",
-            self, image.c_str(), n.id, r.name.c_str(), ReactionName(reaction), n.race, n.intelligence_score,
+            self, spell.label, image.c_str(), n.id, r.name.c_str(), ReactionName(reaction), n.race, n.intelligence_score,
             sentient ? "sentient" : "not sentient", n.enemy ? "hostile" : "not hostile", n.size, image_size);
       }
       switch (reaction) {
@@ -1215,9 +1233,44 @@ void MakeImage(uint32_t self, void* caster, UtilityEffect effect, const std::str
       }
     }
   }
-  TellPlayer(self, "nwn5e: " + name + " - a " + image + " there for a minute" +
+  TellPlayer(self, "nwn5e: " + name + " - a " + image + " there " + spell.lasts +
                        (done.empty() ? std::string(".") : "; " + Joined(done) + "."));
 }
+
+void MakeImage(uint32_t self, void* caster, UtilityEffect effect, const std::string& name) {
+  MakeImageOf(self, caster, rules::ImageKindOf(effect), name, kMinorIllusionImage);
+}
+
+// #39 build 4b: Silent Image's Move - a creature image walks to the point (things pass through it), an object is put
+// there; the image's object (an object's a new one) in n5c_image_id.
+const char* const kMoveImage = R"nss(
+object i = GetLocalObject(OBJECT_SELF, "$SLOT");
+SetLocalString(OBJECT_SELF, "n5c_image_id", "");
+if (GetIsObjectValid(i)) {
+  location l = Location(GetArea(OBJECT_SELF), Vector($X, $Y, $Z), GetFacing(i));
+  float g = GetGroundHeight(l);
+  if (g > -5.9) l = Location(GetArea(OBJECT_SELF), Vector($X, $Y, g), GetFacing(i));
+  if (GetObjectType(i) == OBJECT_TYPE_CREATURE) {
+    SetCommandable(TRUE, i);
+    AssignCommand(i, ClearAllActions(TRUE));
+    AssignCommand(i, ActionMoveToLocation(l));
+    AssignCommand(i, ActionDoCommand(SetCommandable(FALSE)));
+  } else {
+    object n = CreateObject(OBJECT_TYPE_PLACEABLE, GetResRef(i), l, FALSE, "n5c_image");
+    SetUseableFlag(n, FALSE);
+    SetPlotFlag(n, TRUE);
+    SetName(n, GetName(i));
+    DestroyObject(n, $SECONDS);
+    DestroyObject(i);
+    i = n;
+    SetLocalObject(OBJECT_SELF, "$SLOT", i);
+  }
+  SetLocalString(OBJECT_SELF, "n5c_image_id", ObjectToString(i));
+}
+)nss";
+
+const ImageSpell kSilentImageSpell{"Silent Image", "n5s_image", rules::kSilentImageSeconds,
+                                   "for up to 10 minutes (your Concentration)"};
 
 // A sound at the point (Q6 A, Q7 A; #152 B, owner, 2026-11-09: "B"): a drawing one brings the hostile creatures that
 // hear it to look; a scaring one scares as the leopard does, by the size of what seems to make it
@@ -1648,6 +1701,54 @@ void UtilityScript(uint32_t self) {
 }
 
 }  // namespace
+
+// #39 build 4b (rules_spells2024.cpp): Silent Image's image - Minor Illusion's, for 10 minutes' Concentration, at
+// the point in n5c_at (its Investigation DC in n5c_dc), in its own slot: a new one ends the earlier. Its object, 0
+// for none.
+uint32_t MakeSilentImage(uint32_t self, void* caster, rules::ImageKind kind, const std::string& name) {
+  EndImageIn(self, kSilentImageSpell.slot);
+  MakeImageOf(self, caster, kind, name, kSilentImageSpell);
+  unsigned int id = 0;
+  sscanf_s(engine::GetLocalString(caster, "n5c_image_id").c_str(), "%x", &id);
+  return id;
+}
+
+void EndSilentImage(uint32_t self) {
+  EndImageIn(self, kSilentImageSpell.slot);
+  for (auto it = g_images.begin(); it != g_images.end();) {
+    it = it->second.caster == self && it->second.slot == kSilentImageSpell.slot ? g_images.erase(it) : std::next(it);
+  }
+}
+
+// Its Move: the image to (x, y, z); its object now (an object's a new one), 0 if it was gone.
+uint32_t MoveSilentImage(uint32_t self, void* caster, float x, float y, float z) {
+  std::string code = kMoveImage;
+  Replace(&code, "$SLOT", kSilentImageSpell.slot);
+  Replace(&code, "$SECONDS", std::to_string(kSilentImageSpell.seconds) + ".0");
+  char at[32];
+  sprintf_s(at, "%.2f", x);
+  Replace(&code, "$X", at);
+  sprintf_s(at, "%.2f", y);
+  Replace(&code, "$Y", at);
+  sprintf_s(at, "%.2f", z);
+  Replace(&code, "$Z", at);
+  unsigned int before = 0;
+  for (const auto& made : g_images) {
+    if (made.second.caster == self && made.second.slot == kSilentImageSpell.slot) before = made.first;
+  }
+  Run(code, self, "Silent Image's Move");
+  unsigned int id = 0;
+  sscanf_s(engine::GetLocalString(caster, "n5c_image_id").c_str(), "%x", &id);
+  if (id && before && id != before) {  // an object put there anew: the same image
+    const auto old = g_images.find(before);
+    if (old != g_images.end()) {
+      ImageMade made = old->second;
+      g_images.erase(old);
+      g_images[id] = made;
+    }
+  }
+  return id;
+}
 
 // cantrip_effects.h: Booming Voice's Advantage on Intimidation checks.
 bool BoomingVoiceAdvantage(void* creature, int nwn_skill) {

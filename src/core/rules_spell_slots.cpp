@@ -542,6 +542,7 @@ void* ClientControlledStats() {
 std::vector<int> UpcastLevels(int64_t param, void** client_stats_out, rules::RadialCast* cast_out, int* own_out) {
   const rules::RadialCast cast = rules::DecodeRadialCast(param);
   if (cast.other || cast.domain_level != 0 || cast.metamagic != 0) return {};
+  if (rules::IsNoSlotOption(static_cast<int>(cast.spell))) return {};  // #39 build 4b: Silent Image's Move
   void* const client_stats = ClientControlledStats();
   if (!client_stats || cast.class_slot >= ee::kClientStatsClassSlots ||
       cast.class_slot >= Field<uint8_t>(client_stats, ee::kClientStatsClassCount)) {

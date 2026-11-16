@@ -1,5 +1,7 @@
 #include "rules/spells2024.h"
 
+#include <stdio.h>
+
 #include <algorithm>
 #include <cmath>
 
@@ -160,6 +162,9 @@ std::vector<Spell2024> Build() {
   spells.push_back(utility(kPurifyFoodAndDrink, "Purify Food and Drink", "n5_s_purify", true));
   spells.push_back(utility(kSpeakWithAnimals, "Speak with Animals", "n5_s_speakanimal", true));
   spells.push_back(utility(kUnseenServant, "Unseen Servant", "n5_s_servant", true));
+  // Build 4b: the illusions.
+  spells.push_back(utility(kDisguiseSelf, "Disguise Self", "n5_s_disguise", false));
+  spells.push_back(utility(kSilentImage, "Silent Image", "n5_s_silentimg", false));
   std::sort(spells.begin(), spells.end(), [](const Spell2024& a, const Spell2024& b) { return a.row < b.row; });
   return spells;
 }
@@ -342,6 +347,32 @@ int UtilityEffectMinutes(int row) {
   if (row == kSpeakWithAnimals) return 10;
   return 0;
 }
+
+int DisguiseAppearanceOf(int row) {
+  switch (row) {
+    case kDisguiseDwarf: return 0;
+    case kDisguiseElf: return 1;
+    case kDisguiseGnome: return 2;
+    case kDisguiseHalfling: return 3;
+    case kDisguiseHuman: return 6;
+    case kDisguiseOrc: return 5;
+    default: return -1;
+  }
+}
+
+std::string PlayerHeadModel(bool female, int nwn_appearance, int phenotype, int head) {
+  static const char kRace[] = {'d', 'e', 'g', 'a', 'h', 'o', 'h'};  // appearance.2da's RACE: D E G A H O H
+  if (nwn_appearance < 0 || nwn_appearance > 6 || phenotype < 0 || phenotype > 9 || head < 0 || head > 999) return "";
+  char text[24];
+  snprintf(text, sizeof text, "p%c%c%d_head%03d", female ? 'f' : 'm', kRace[nwn_appearance], phenotype, head);
+  return text;
+}
+
+bool SilentImageMoveAllowed(float feet_from_caster) {
+  return feet_from_caster <= static_cast<float>(kSilentImageRangeFeet);
+}
+
+bool IsNoSlotOption(int row) { return row == kSilentImageMove; }
 
 bool WizardOnlySpell(int row) {
   return row == kAlarm || AlarmModeOf(row) != AlarmMode::kNone || row == kIdentify || row == kIllusoryScript ||
