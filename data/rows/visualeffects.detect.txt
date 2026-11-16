@@ -4,6 +4,7 @@
 # S smaller (small creatures, and likely items), M as made, L and H wider, taller and denser so a large or huge body
 # doesn't hide it. Models data\files\n5_detmag_<s|m|l|h>.mdl, written by nwn5e's model writer (WriteVfxModel) from
 # the drafts tools/data/vfx/n5_detmag_<s|m|l|h>.vfx. Detect Magic (core/rules_spells2024.cpp, $GLOW) puts it on what
-# it senses in place of VFX_DUR_GLOW_LIGHT_BLUE.
+# it senses in place of VFX_DUR_GLOW_LIGHT_BLUE. Row 2092 (2092-2099 free: 2100-2199 are the spell looks' rows,
+# data/looks/visualeffects.look.txt - 2100 at first, which dropped the looks' file at the 0.99.46 launch check).
 Label Type_FD OrientWithGround Imp_Root_S_Node Imp_Root_M_Node Imp_Root_L_Node Imp_Root_H_Node
-2100 NWN5E_DETECT_MAGIC D 0 n5_detmag_s n5_detmag_m n5_detmag_l n5_detmag_h
+2092 NWN5E_DETECT_MAGIC D 0 n5_detmag_s n5_detmag_m n5_detmag_l n5_detmag_h
