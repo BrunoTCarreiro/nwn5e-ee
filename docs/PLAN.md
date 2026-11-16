@@ -1637,6 +1637,26 @@ monster AC by CR.
     and load, the end. *Fixed 0.99.52:* the script keeps each replaced copy's id and, before the destroy runs,
     TakeOutOldCopies removes it with RemoveItem(item, 0, 0, 0, 1) - no feedback; the destroy then finds no owner and
     only deletes it. Retest L4-48; L4-45 to L4-47 (the look) still open.
+  - *Built 0.99.53 (Part 2a's end, the level 1 list switch; owner, 2026-11-16: "yes, build the list switch" - its
+    rules Part 2's Q3 A, Q4 A and Q5 A, 2026-11-09):* the served lists (the game's spells.2da with every rows file)
+    against SRD 5.2.1's level 1 lists. 16 NWN spells retired - on no class's list in faithful; monsters, items and NWN
+    mode keep them: Doom, Endure Elements, Lesser Dispel, Remove Fear, Resist Elements, Scare, Negative Energy Ray,
+    Entropic Shield, Camouflage, Amplify, Magic Fang, Horizikaul's Boom, Ironguts, Shelgarn's Persistent Blade,
+    Deafening Clang, Bless Weapon. 3 moved to SRD 5.2.1's level 2 and classes, NWN's scripts until level 2's pass: Ray
+    of Enfeeblement (Wizard), Darkvision - NWN's Ultravision - (Druid, Ranger, Sorcerer, Wizard), Magic Weapon
+    (Paladin, Ranger, Sorcerer, Wizard). Summon Creature I off unless [house_rules] summon_creature=1 (off by default,
+    Q5 A; II to IX with their levels). NWN's one Wiz_Sorc column: the Wizard's alone also Hideous Laughter,
+    Longstrider, Protection from Evil and Good, Find Familiar (4c's: the Sorcerer was offered it) and Ray of
+    Enfeeblement (rules::WizardOnlyRows; the Spells page's GetSpellLevel answers the Sorcerer none). rules/level_lists.h,
+    spells.if_spells2024.lists1.txt, spells.if_retiresummons.txt; the queue profile's note (Doom, Cure Light Wounds)
+    2024's. The served table read back: each class's level 1 count is SRD 5.2.1's - Bard 23, Cleric 15, Druid 17,
+    Paladin 13, Ranger 12, Wiz_Sorc 28 (Jump not built; Floating Disk below). 6 mutations caught; 565 tests pass (anim
+    7b3d4b5 merged). Tests LS-1 to LS-8.
+  - *Found: Floating Disk* - SRD 5.2.1's level 1 Wizard Ritual (a disk of force following you within 20 feet for an
+    hour, carrying up to 500 pounds) was in no build: build 4's brief listed 15 spells without it. Asked (2026-11-16):
+    A a disk that carries - for the hour up to 500 pounds of what you carry don't count toward your load, the disk
+    following you; B a container - a disk you open and fill, following you, its contents dropped when it ends; C a
+    visual and a line (Q2's way, a module-readable effect); D off the lists as Jump. Recommended A.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
