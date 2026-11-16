@@ -1581,6 +1581,28 @@ monster AC by CR.
     granted while the image lasts and taken when it ends; Silent Image's menu shows it as the feat's leaf while held
     (rules::ChoiceOptionFeat), the quickbar too (bit 42); the 60 feet checked at its impact. 3 mutations caught.
     Retest L4-30.
+  - *Tested (owner, 2026-11-16, 0.99.47): "looks good, both the detect magic and the silent image"* - L4-25, L4-26,
+    L4-28, L4-29, L4-30 pass. *Asked:* "disguice self should give a random appearance of the selected species,
+    random clothing as well, probably can be picked from the options available at character creation" - Q5 on #39
+    (A part-based: a random chargen head, colours, the worn outfit re-skinned and given back; B the townsfolk NPC
+    models), waiting.
+  - *Built 0.99.48 (build 4c: Find Familiar):* rules/find_familiar.{h,cpp} (FamiliarFormOf, FamiliarStatsOf - SRD
+    5.2.1's numbers, the NWN model and its scale -, FamiliarKindFor, FamiliarRacialType / FamiliarGoodEvil,
+    FamiliarDeliversTouch), rows 1216-1226 (its eight forms a Ritual each, 60 minutes' casting; Dismiss 1225 and
+    Recall 1226 cast by feats 1565 / 1566, in its menu while held - rules::ChoiceOptionFeat; quickbar bits 43 / 44),
+    the Wizard's alone, 10 GP of incense consumed. rules_familiar.cpp: the engine's SummonFamiliar with the master's
+    familiar type (CNWSCreatureStats +0xE34) the bat's for the call, its own put back - NWN's own familiar goes first
+    (the summoning half a second after: n5_f_summon) -, then remade: the form's model scaled, name "Raven (Fey)",
+    the ability bases, its kind's racial type (Outsider 20, Fey 17) and alignment, size Tiny, its combat scripts
+    cleared and its blows skipped (it can't attack); its hit points (GetMaxHitPoints hooked for it) and AC
+    (rules_attack.cpp's FamiliarArmorClass) the form's. Possession (its eyes) a Bonus Action (PossessFamiliar hooked).
+    A touch spell (spells.2da's Range T) cast at a creature in the familiar's reach, out of the caster's, within 100
+    feet, its Reaction ready: the order goes ahead with 100 feet of range (ComputeSpellRange) and the cast takes its
+    Reaction. Dismiss (its hit points kept), Recall within 30 feet. At 0 HP it disappears. A save keeps it (its form
+    and kind on it, or on the master while it's away; found again on the master's updates). The kind: !options,
+    Spellcasting (a record; none ticked: by alignment). An hour's casting with a slot (the Ritual switch off): not in a
+    fight, else the clock its hour on. Tests FindFamiliarForms / Kind / TouchAndRows (13 mutations caught);
+    !test familiarwizard. Matrix L4-31 to L4-38.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
