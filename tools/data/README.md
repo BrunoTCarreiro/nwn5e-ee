@@ -24,8 +24,11 @@ remove the six files from main"**:
 - any baked texture: `n5p_*`.
 
 The generators' own runs (the VFX Bench's Save and build) still write them into `data\files`, where they stay,
-ignored. What's made from scratch stays committed: `c_n5fd_empty.mdl`, the `.pwk` files, `n5t_forcedisk.tga`, the
-rows.
+ignored. These stay committed:
+
+- what's made from scratch: the `.pwk` files, `n5t_forcedisk.tga`, the rows;
+- `c_n5fd_empty.mdl`: its disk mesh is original, but it carries `c_invsguy`'s node names and positions, which its
+  supermodel needs.
 
 ## In build.bat
 
@@ -51,11 +54,17 @@ node tools\data\build_derived.js --out <folder> [--game <folder>] [--tools <nwn5
   `--out`.
 - **Spell meshes are skipped**, and it says so. Their drafts live in the VFX Bench's saved folder, and the dev layer
   writes their models when the game runs.
+- **A project never built is skipped**, and it says so. That's one with no `data\rows\placeables.<name>.txt` and no
+  variant with a row, as the VFX Bench's New project writes it until its first Save and build. Nothing installed uses
+  its models. A project with either is built, and a refusal stops the build.
 - **The rows stay the repo's.** `data\rows\appearance.floatdisk.txt`, `placeables.floatdisk.txt` and each project's
   `placeables.<name>.txt` are committed text that names the models. It never writes them. It checks that the rows each
-  recipe gives equal the committed ones; if they don't (or one is missing), it stops and writes nothing - a recipe
-  changed without its rows. The message gives the command that rebuilds them (`--files <a scratch folder>` keeps that
-  generator's models out of `data\files`); the VFX Bench's Save rebuilds them too. Commit them with the recipe.
+  recipe gives equal the committed ones. If they don't (or one is missing), it stops and writes nothing. Either a
+  recipe changed without its rows, or a game update changed the game's `appearance.2da` or `placeables.2da` (the rows
+  copy the game's rows).
+  - The message gives the command that rebuilds them (`--files <a scratch folder>` keeps that generator's models out
+    of `data\files`); the VFX Bench's Save rebuilds them too. Commit them with the recipe.
+  - For a build that won't be installed, `NWN5E_DERIVED=skip` gets past it (build.bat).
 - **Never a file it didn't make.** In `--out` it keeps the generators' rule: a model or `.pwk` is overwritten only
   when it carries its generator's mark, a texture only when that generator's `made.txt` lists it. Any other file in
   the way stops it. Every file is checked before any is written.

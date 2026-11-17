@@ -9,13 +9,15 @@
 //
 // - The Floating Disk's generator (floatdisk\build.js) and the Composer's (composer\build.js) for every placeable project
 //   in composer\*.json, each run with --json into a scratch folder of its own; their models, walkmeshes and textures are
-//   then written into --out (build.bat: the build's data\files) - never into this repo's data\ (refused). A spell
-//   mesh's project is skipped, and said so: its drafts live in the VFX Bench's saved folder, and the dev layer writes its
-//   models when the game runs.
+//   then written into --out (build.bat: the build's data\files) - never into this repo's data\ (refused). Skipped, and
+//   said so: a spell mesh's project (its drafts live in the VFX Bench's saved folder, and the dev layer writes its models
+//   when the game runs), and a project never built - no data\rows\placeables.<name>.txt and no variant with a row, as
+//   the bench's New project writes it - whose models nothing installed names.
 // - The rows stay the repo's: data\rows' appearance.floatdisk.txt, placeables.floatdisk.txt and each project's
 //   placeables.<name>.txt are committed text that names the models. Each generator writes its rows over a copy of
 //   data\rows, and they must come out unchanged: rows that differ (or are missing) stop the build, nothing written -
-//   so it never ships models whose rows disagree.
+//   so it never ships models whose rows disagree. A recipe changed without its rows does that, and so does a game
+//   update that changes the game's rows they copy.
 // - In --out, the generators' one ownership rule (floatdisk\files.js): a model or .pwk there is overwritten only when it
 //   carries its generator's mark, a texture only when that generator's made.txt lists it as data/files/<name>; any other
 //   file in the way that differs stops it all. Every file is checked before any is written.
@@ -61,7 +63,9 @@ function prerequisites() {
   }
   const game = require(path.join(TOOLS, "anim_helper", "helper.js")).findGameDir({ game: option("game", ""), buildDir: BUILD });
   if (!fs.existsSync(path.join(game, "data", "nwn_base.key"))) {
-    throw new Missing(`no game at ${game} (no data\\nwn_base.key) - pass --game <folder>, or set NWN_GAME_DIR or nwn5e.ini's [loader] game_dir`);
+    const ini = path.join(BUILD, "nwn5e.ini");  // the one findGameDir read
+    throw new Missing(`no game at ${game} (no data\\nwn_base.key) - pass --game <folder>, or set NWN_GAME_DIR, or game_dir under [loader] in ` +
+      `${ini}${fs.existsSync(ini) ? "" : " (not there: the Steam folder is the default)"}`);
   }
   let reader;
   try {
@@ -74,7 +78,8 @@ function prerequisites() {
 }
 
 // --- the generators -------------------------------------------------------------------------------------------------------
-// The Floating Disk, then each Composer project in composer\*.json by name: a placeable's generator, a spell mesh's skip.
+// The Floating Disk, then each Composer project in composer\*.json by name: a placeable's generator; skipped, a spell
+// mesh, and a project never built. -> { list, skipped: [{ file, why }] }
 // A generator: { label, script, recipe, args, mark, made (its made.txt: the textures it wrote in data\files) }.
 function generators() {
   const floatdisk = path.join(__dirname, "floatdisk"), composer = path.join(__dirname, "composer");
@@ -92,7 +97,16 @@ function generators() {
       throw new Error(`${shown(file)}: not a project's JSON - ${e.message}`);
     }
     if (json && json.kind === "spellmesh") {
-      skipped.push(file);
+      skipped.push({ file, why: "a spell mesh: its drafts live in the VFX Bench's saved folder, and the dev layer writes its models when the game runs" });
+      continue;
+    }
+    // A project never built - the VFX Bench's New project writes it at once, one empty variant and no row - has no rows
+    // file and no row: nothing installed names its models. Skipped; a project with either is built (and may be refused).
+    const rowsFile = json && typeof json.name === "string" ? `placeables.${json.name}.txt` : null;
+    const hasRow = json && Array.isArray(json.variants) && json.variants.some((v) => v && v.row !== undefined && v.row !== null);
+    if (!hasRow && (!rowsFile || !fs.existsSync(path.join(ROWS, rowsFile)))) {
+      skipped.push({ file, why: `never built: no data/rows/${rowsFile || "placeables.<name>.txt"} and no variant with a row ` +
+        "(the VFX Bench gives rows at its first Save and build), so nothing installed uses its models" });
       continue;
     }
     const name = json && typeof json.name === "string" ? json.name : path.parse(f).name;
@@ -168,9 +182,7 @@ function main() {
   const pre = prerequisites();
   const { list, skipped } = generators();
   const say = console.log;
-  for (const file of skipped) {
-    say(`build_derived: skipped ${shown(file)} - a spell mesh: its drafts live in the VFX Bench's saved folder, and the dev layer writes its models when the game runs`);
-  }
+  for (const { file, why } of skipped) say(`build_derived: skipped ${shown(file)} - ${why}`);
 
   // Every generator built and its rows checked before anything is written.
   const built = [];
@@ -188,8 +200,11 @@ function main() {
   }
   if (disagree.length) {
     throw new Error(["the rows don't match their recipes - nothing written:", ...disagree,
-      "a recipe or its generator changed without its rows - rebuild them (each command rewrites its rows in data\\rows; --files keeps its models " +
-      "out of data\\files; the VFX Bench's Save does the same) and commit them with the recipe:", ...again].join("\n"));
+      "either a recipe or its generator changed without its rows, or a game update changed the game's appearance.2da or placeables.2da " +
+      "(the rows copy the game's rows).",
+      "rebuild the rows and commit them (each command rewrites its rows in data\\rows; --files keeps its models out of data\\files; " +
+      "the VFX Bench's Save does the same):", ...again,
+      "or, for a build that won't be installed, NWN5E_DERIVED=skip builds without the game-derived models (build.bat)."].join("\n"));
   }
 
   // The files into --out, under the generators' ownership rule: a model or .pwk carrying its generator's mark, a texture

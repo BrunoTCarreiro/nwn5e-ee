@@ -10,7 +10,13 @@
 Six of those models are made of the game's own meshes: `c_n5fd_small`, `_med`, `_large` and `plc_n5fd_small`, `_med`,
 `_large`. They're never committed (the owner, 2026-11-17: "go with 1, remove the six files from main"; `.gitignore`).
 `build.bat` makes them for every build from this file and your own game (`tools\data\build_derived.js`,
-`tools\data\README.md`). `c_n5fd_empty`, the `.pwk` files, the texture and the rows are committed.
+`tools\data\README.md`).
+
+These stay committed:
+
+- the `.pwk` files, the texture and the rows, made from scratch;
+- `c_n5fd_empty`: its disk mesh is original, but it carries `c_invsguy`'s node names and positions, which its
+  supermodel needs.
 
 ## Compose it in the VFX Bench
 

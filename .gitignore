@@ -26,8 +26,10 @@ __pycache__/
 /data/files/plc_n5fd_small.mdl
 /data/files/plc_n5fd_med.mdl
 /data/files/plc_n5fd_large.mdl
-# A Composer placeable's model, plc_n5<name>[_<k>].mdl, built from the game's parts (its .pwk, a use point and an
-# outline, stays committable, as the disk's c_n5fd_empty.mdl, .pwk files and n5t_forcedisk.tga, made from scratch):
+# A Composer placeable's model, plc_n5<name>[_<k>].mdl, built from the game's parts. Its .pwk (a use point and an
+# outline) stays committable, as do the disk's .pwk files and n5t_forcedisk.tga (made from scratch) and
+# c_n5fd_empty.mdl (its disk mesh is original, but it carries c_invsguy's node names and positions, which its
+# supermodel needs):
 /data/files/plc_n5*.mdl
 # A dyed part's baked texture, n5p_<hash>, made from the game's PLT and palettes:
 /data/files/n5p_*

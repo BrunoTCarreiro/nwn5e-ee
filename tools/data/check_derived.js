@@ -76,7 +76,8 @@ for (const rel of [...markedAtHead(F.MARK), ...madeAtHead("floatdisk"), ...marke
   EXPECTED.set(path.posix.basename(rel), checkedOut(rel));
 }
 // The Floating Disk's files. The six models made of the game's meshes are never committed (the owner, 2026-11-17: "go
-// with 1, remove the six files from main"): git-ignored, built at build time. The rest is made from scratch, committed.
+// with 1, remove the six files from main"): git-ignored, built at build time. The rest is committed: the .pwk files and
+// the texture made from scratch, and c_n5fd_empty.mdl (its disk mesh original, with c_invsguy's nodes its supermodel needs).
 const FLOATDISK = ["c_n5fd_empty.mdl", "c_n5fd_large.mdl", "c_n5fd_med.mdl", "c_n5fd_small.mdl", "n5t_forcedisk.tga",
   "plc_n5fd_large.mdl", "plc_n5fd_large.pwk", "plc_n5fd_med.mdl", "plc_n5fd_med.pwk", "plc_n5fd_small.mdl", "plc_n5fd_small.pwk"];
 const GAME_DERIVED = ["c_n5fd_large.mdl", "c_n5fd_med.mdl", "c_n5fd_small.mdl", "plc_n5fd_large.mdl", "plc_n5fd_med.mdl", "plc_n5fd_small.mdl"];
@@ -161,7 +162,7 @@ function check(name, fn) {
 }
 
 try {
-  check("HEAD's data\\files: the Floating Disk's 5 made from scratch committed, its 6 game-derived models not, git-ignored", () => {
+  check("HEAD's data\\files: the Floating Disk's 5 others committed, its 6 game-derived models not, git-ignored", () => {
     assert.deepStrictEqual(FLOATDISK_AT_HEAD.sort(), FLOATDISK.filter((f) => !GAME_DERIVED.includes(f)));
     for (const f of GAME_DERIVED) {
       assert.ok(!AT_HEAD.has(f), f + " is committed at HEAD");
@@ -249,7 +250,11 @@ try {
         const r = derive(["--out", OUT, ...args]);
         assert.strictEqual(r.code, 1, "exit " + r.code);
         assert.match(r.err, /^build_derived: the rows don't match their recipes - nothing written:\r?\n  data\/rows\/placeables\.floatdisk\.txt: line 6 differs from what tools\/data\/floatdisk\/composition\.json gives\r?\n/);
-        assert.match(r.err, /a recipe or its generator changed without its rows/);
+        // Why it may be: a recipe changed without its rows, or a game update changed the game's tables the rows copy;
+        // and what to do: rebuild and commit them, or skip for a build that won't be installed.
+        assert.match(r.err, /a recipe or its generator changed without its rows, or a game update changed the game's appearance\.2da or placeables\.2da/);
+        assert.match(r.err, /\nrebuild the rows and commit them /);
+        assert.match(r.err, /\nor, for a build that won't be installed, NWN5E_DERIVED=skip builds without the game-derived models/);
         assert.ok(!/^(written|would write) /m.test(r.out), "it said it wrote: " + r.out);
       }
       assert.deepStrictEqual(snapshot(OUT), before);
@@ -314,6 +319,40 @@ try {
     }
   });
 
+  check("a project never built (the VFX Bench's New project: no rows file, no row) is skipped and said so; one with rows still stops it", () => {
+    const file = path.join(COMPOSER, "chknew.json"), rows = path.join(ROWS, "placeables.chknew.txt");
+    const fresh = () => P.newProject("chknew", "placeable");  // what New project writes: one empty variant, no row
+    try {
+      fs.writeFileSync(file, P.projectText(fresh()));
+      const before = snapshot(OUT), copy = repoCopy();
+      for (const args of [[], ["--check"]]) {
+        const r = derive(["--out", OUT, ...args]);
+        done(r);
+        assert.match(r.out, /^build_derived: skipped tools\/data\/composer\/chknew\.json - never built: no data\/rows\/placeables\.chknew\.txt and no variant with a row/m);
+        assert.deepStrictEqual(Object.keys(states(r)).sort(), NAMES);
+      }
+      assert.deepStrictEqual(snapshot(OUT), before);
+      assert.deepStrictEqual(repoCopy(), copy);
+      // A variant with a row: it has rows, so it's built - and refused (no parts yet).
+      const withRow = fresh();
+      withRow.variants[0].row = 14175;
+      fs.writeFileSync(file, P.projectText(withRow));
+      const a = derive(["--out", OUT]);
+      assert.strictEqual(a.code, 1, "a row: exit " + a.code);
+      assert.match(a.err, /^build_derived: the Composer's project chknew \(tools\/data\/composer\/chknew\.json\): variants\[0\]\.parts: at least one part/);
+      // A rows file, no row in the recipe: built - and refused.
+      fs.writeFileSync(file, P.projectText(fresh()));
+      fs.writeFileSync(rows, P.MARK + "\r\n       Label     ModelName\r\n14176  N5_Chknew plc_n5chknew\r\n");
+      const b = derive(["--out", OUT]);
+      assert.strictEqual(b.code, 1, "a rows file: exit " + b.code);
+      assert.match(b.err, /^build_derived: the Composer's project chknew \(tools\/data\/composer\/chknew\.json\): /);
+      assert.deepStrictEqual(snapshot(OUT), before);
+    } finally {
+      fs.rmSync(file, { force: true });
+      fs.rmSync(rows, { force: true });
+    }
+  });
+
   check("a refused build: exit 1, the generator's reason, nothing written", () => {
     const file = project("chknope", { kind: "placeable", guide: CIRCLE, placeable: THROUGH, variants: [{ name: "1", row: 14160, parts: [{ model: "plc_nope", at: [0, 0, 0] }] }] });
     try {
@@ -347,7 +386,7 @@ try {
   check("a prerequisite missing: exit 2, one line saying which and how to fix it, nothing written", () => {
     const nowhere = path.join(root, "build3", "files");
     for (const [over, pattern] of [
-      [{ game: path.join(root, "no-game") }, /^build_derived: no game at .*no-game \(no data\\nwn_base\.key\) - pass --game <folder>/],
+      [{ game: path.join(root, "no-game") }, /^build_derived: no game at .*no-game \(no data\\nwn_base\.key\) - pass --game <folder>, or set NWN_GAME_DIR, or game_dir under \[loader\] in .*nwn5e\.ini/],
       [{ tools: path.join(root, "no-tools") }, /^build_derived: nwn5e-tools isn't at .*no-tools .* - .*--tools <folder>/],
       [{ reader: path.join(root, "no-mdlmesh.exe") }, /^build_derived: the mesh reader isn't there .*no-mdlmesh\.exe.* - pass --reader <mdlmesh\.exe>/],
     ]) {
@@ -357,6 +396,9 @@ try {
         const lines = r.err.split(/\r?\n/).filter(Boolean);
         assert.strictEqual(lines.length, 1, lines.length + " lines: " + r.err.trim());
         assert.match(lines[0], pattern);
+        // The game: the nwn5e.ini it read named in full (the generators' build folder's, as findGameDir reads it).
+        const ini = path.join(path.resolve(process.env.NWN5E_BUILD || path.join(TOOLS, "..", "nwn5e-ee", "build")), "nwn5e.ini");
+        if (over.game) assert.ok(lines[0].includes(" in " + ini), "the line doesn't name " + ini + ": " + lines[0]);
       }
     }
     assert.ok(!fs.existsSync(path.join(root, "build3")));
