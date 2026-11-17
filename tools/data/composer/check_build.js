@@ -226,7 +226,7 @@ try {
     fs.writeFileSync(theirs, "#MAXMODEL ASCII\r\n# someone's model\r\nnewmodel plc_n5chkway\r\n");
     const before = snapshot();
     const way = project("chkway", { kind: "placeable", guide: CIRCLE, placeable: THROUGH, variants: [{ name: "1", row: 14160, parts: [{ model: "plc_b04", at: [0, 0, 0] }] }] });
-    refused(build(way, ["--json"]), /plc_n5chkway\.mdl is there and wasn't made by this generator/);
+    refused(build(way, ["--json"]), /^data\/files\/plc_n5chkway\.mdl is there and wasn't made by this generator/);
     assert.deepStrictEqual(snapshot(), before);
     assert.ok(!fs.existsSync(path.join(FILES, "plc_n5chkway.pwk")) && !fs.existsSync(path.join(ROWS, "placeables.chkway.txt")));
   });

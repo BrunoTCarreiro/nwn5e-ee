@@ -12,7 +12,8 @@
 //   writes its model when it runs), with your own files' textures beside it.
 //
 // The parts are read and placed as the Floating Disk's (..\floatdisk\reader.js and floatdisk.js), through the player's
-// own game and nwn5e-ee's mesh reader; nothing of the game's is kept in the repo.
+// own game and nwn5e-ee's mesh reader; nothing of the game's is kept in the repo. The files are written by its files.js,
+// under the same ownership rule.
 //
 //   node tools\data\composer\build.js <project.json> [options]
 //     --check             read and place everything, print the summary, write nothing (a placeable's variant may have no
@@ -34,6 +35,7 @@ const fs = require("fs");
 const path = require("path");
 const F = require("../floatdisk/floatdisk.js");
 const R = require("../floatdisk/reader.js");
+const W = require("../floatdisk/files.js");
 const P = require("./project.js");
 
 const REPO = path.resolve(__dirname, "..", "..", "..");
@@ -43,10 +45,7 @@ const LOOKS = path.join(REPO, "data", "looks");
 // --- options ------------------------------------------------------------------------------------------------------
 const argv = process.argv.slice(2);
 const VALUED = ["saved", "game", "tools", "reader", "files", "rows"];
-const option = (name, fallback) => {
-  const i = argv.indexOf("--" + name);
-  return i >= 0 && i + 1 < argv.length ? argv[i + 1] : fallback;
-};
+const option = (name, fallback) => W.option(argv, name, fallback);
 const PROJECT = argv.find((a, i) => !a.startsWith("--") && !(i > 0 && argv[i - 1].startsWith("--") && VALUED.includes(argv[i - 1].slice(2))));
 const CHECK = argv.includes("--check");
 const JSON_OUT = argv.includes("--json");
@@ -57,64 +56,23 @@ const ROWS_DIR = path.resolve(option("rows", path.join(REPO, "data", "rows")));
 const SAVED = option("saved", "") ? path.resolve(option("saved", "")) : null;
 const READER = option("reader", process.env.NWN5E_MDLMESH || "");
 
-function need(file, what) {
-  if (!fs.existsSync(file)) throw new Error(`${what} isn't there: ${file}`);
-  return file;
-}
 // What the nwn5e-tools folder gives, loaded when main starts (a bad --tools is an error like any other, JSON included).
 let core, gameData, GAME;
 function setup() {
-  global.window = global.window || {};  // core.js runs in the page and under node
-  core = require(need(path.join(TOOLS, "vfx_bench", "public", "core.js"), "nwn5e-tools' VFX Bench core (--tools)"));
-  gameData = require(need(path.join(TOOLS, "spell_bench", "game_data.js"), "nwn5e-tools' game data reader (--tools)"));
-  const helper = require(need(path.join(TOOLS, "anim_helper", "helper.js"), "nwn5e-tools' anim helper (--tools)"));
-  GAME = helper.findGameDir({ game: option("game", ""), buildDir: BUILD });
+  ({ core, gameData, game: GAME } = W.loadTools({ tools: TOOLS, game: option("game", ""), build: BUILD }));
 }
 
 // --- writing ----------------------------------------------------------------------------------------------------------
-// A file in this repo by its path from the repo's root ("data/files/x.tga"); null outside it.
-const repoPath = (file) => {
-  const rel = path.relative(REPO, file);
-  return rel.startsWith("..") || path.isAbsolute(rel) ? null : rel.split(path.sep).join("/");
-};
-const shown = (file) => repoPath(file) || file;
+const shown = (file) => W.shown(REPO, file);  // a repo file from the repo's root, else in full
 const listing = (dir) => (dir && fs.existsSync(dir) ? fs.readdirSync(dir).sort() : []);
-function readManifest() {
-  if (!fs.existsSync(MANIFEST)) return new Set();
-  return new Set(fs.readFileSync(MANIFEST, "utf8").split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith("#")));
-}
-// Each write { file, bytes, kind }: "text" (a model, .pwk, rows or draft: ours when it carries P.MARK), "binary" (a
-// texture in this repo: ours when made.txt lists it), "saved" (a texture beside a spell mesh's draft: ours when one of
-// this project's marked drafts there names it, `named`); outside the repo an identical one is anyone's. Every one checked
-// before any is written; -> [[ "new" | "rebuilt" | "unchanged", file ]], `manifest` gaining the binary files written.
+// Each write { file, bytes, kind }, through floatdisk\files.js's one ownership rule: "text" (a model, .pwk, rows or
+// draft: ours when it carries P.MARK), "binary" (a texture in this repo: ours when made.txt lists it), "saved" (a texture
+// beside a spell mesh's draft: ours when one of this project's marked drafts there names it, `named`); an identical one
+// is anyone's. -> [[ "new" | "rebuilt" | "unchanged", file ]], `manifest` gaining the binary files written.
 function writeAll(writes, manifest, named) {
-  const owned = (w, old) => {
-    if (w.kind === "text") return F.carriesMark(old, P.MARK);
-    if (w.kind === "saved") return named.has(path.parse(w.file).name.toLowerCase());
-    return repoPath(w.file) !== null && manifest.has(repoPath(w.file));
-  };
-  for (const w of writes) {
-    if (!fs.existsSync(w.file)) continue;
-    const old = fs.readFileSync(w.file);
-    if (!owned(w, old) && !old.equals(w.bytes)) {
-      throw new Error(`${shown(w.file)} is there and wasn't made by this generator: nothing written - move it away or rename it`);
-    }
-  }
-  const results = [];
-  for (const w of writes) {
-    let state = "new";
-    if (fs.existsSync(w.file)) {
-      const old = fs.readFileSync(w.file);
-      state = old.equals(w.bytes) || (w.kind === "text" && F.sameText(old, w.bytes)) ? "unchanged" : "rebuilt";
-    }
-    if (state !== "unchanged") {
-      fs.mkdirSync(path.dirname(w.file), { recursive: true });
-      fs.writeFileSync(w.file, w.bytes);
-    }
-    if (w.kind === "binary" && repoPath(w.file) !== null) manifest.add(repoPath(w.file));
-    results.push([state, w.file]);
-  }
-  return results;
+  const owned = W.ownership({ repo: REPO, manifest, mark: P.MARK, kinds: {
+    saved: (w) => named.has(path.parse(w.file).name.toLowerCase()) } });
+  return W.writeAll(writes, owned, { repo: REPO, manifest });
 }
 
 // --- main -----------------------------------------------------------------------------------------------------------
@@ -198,18 +156,7 @@ function main() {
   });
 
   // Textures: a game model's are the game's; one of your own files' is looked up (the game, then beside the file).
-  const ship = new Map();  // texture name -> its copies beside a file
-  for (const b of built) {
-    for (const x of b.parts) {
-      if (x.part.source.kind !== "file") continue;
-      for (const m of x.meshes) {
-        if (!m.bitmap || ship.has(m.bitmap)) continue;
-        const found = rd.findTexture(m.bitmap, [path.dirname(x.part.source.file)]);
-        if (!found) throw new Error(`${F.partLabel(x.part)}: texture ${m.bitmap} is neither in the game nor beside the file (${m.bitmap}.tga / .dds)`);
-        if (found.where === "beside") ship.set(m.bitmap, found.copies);
-      }
-    }
-  }
+  const ship = W.shipTextures([].concat(...built.map((b) => b.parts)), rd);  // texture name -> its copies beside a file
 
   // The summary: per variant what the VFX Bench's stage shows (A2's stage fields: the parts, meshes, triangles, how tall
   // above the guide, its top as the stage has it, and each part's size, height and reach past the guide).
@@ -290,16 +237,14 @@ function main() {
     finish();
     return;
   }
-  const manifest = readManifest();
+  const manifest = W.readManifest(MANIFEST);
   const results = writeAll(writes, manifest, named);
   for (const [state, to] of results) {
     say(state.padEnd(9) + " " + shown(to));
     result.files.push({ state, file: shown(to) });
   }
-  const body = ["# made by nwn5e-ee tools/data/composer/build.js: the files it wrote in this repo for the Composer's projects that can't",
-    "# carry its mark (textures) - it may rewrite these; it refuses any other file in its way", ...[...manifest].sort()].join("\n") + "\n";
-  const had = fs.existsSync(MANIFEST);
-  if ((had || manifest.size) && (!had || fs.readFileSync(MANIFEST, "utf8").replace(/\r\n/g, "\n") !== body)) fs.writeFileSync(MANIFEST, body);
+  W.writeManifest(MANIFEST, manifest, ["# made by nwn5e-ee tools/data/composer/build.js: the files it wrote in this repo for the Composer's projects that can't",
+    "# carry its mark (textures) - it may rewrite these; it refuses any other file in its way"]);
   finish();
 }
 

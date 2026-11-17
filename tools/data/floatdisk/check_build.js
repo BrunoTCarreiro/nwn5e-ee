@@ -145,6 +145,32 @@ try {
     assert.match(json(r).error, /.*no such model/);
     assert.deepStrictEqual(snapshot(), before);
   });
+  check("a file in the way it didn't make is refused, named from the repo's root", () => {
+    // One ownership rule with the Composer's build.js (files.js): a repo file is named by its path from the root, as the
+    // state lines and --json name it.
+    const file = path.join(FILES, "plc_n5fd_small.pwk");
+    const kept = fs.readFileSync(file);
+    fs.writeFileSync(file, "#MAXDOOR ASCII\r\n# someone's walkmesh\r\n");
+    try {
+      const before = snapshot();
+      const r = build(["--json"]);
+      assert.strictEqual(r.code, 1, "build.js exited " + r.code);
+      assert.strictEqual(json(r).error, "data/files/plc_n5fd_small.pwk is there and wasn't made by this generator: nothing written - move it away or rename it");
+      assert.deepStrictEqual(snapshot(), before);
+    } finally {
+      fs.writeFileSync(file, kept);
+    }
+  });
+  check("a file it made that changed is rebuilt", () => {
+    const file = path.join(FILES, "plc_n5fd_small.pwk");
+    const kept = fs.readFileSync(file);
+    fs.writeFileSync(file, Buffer.concat([kept, Buffer.from("# an edit\r\n")]));  // still carries the mark
+    const r = build(["--json"]);
+    assert.strictEqual(r.code, 0, "build.js exited " + r.code + ": " + r.err.trim());
+    const states = json(r).files.filter((f) => f.state !== "unchanged");
+    assert.deepStrictEqual(states, [{ state: "rebuilt", file: "data/files/plc_n5fd_small.pwk" }]);
+    assert.ok(fs.readFileSync(file).equals(kept), "rebuilt as it was");
+  });
   check("a setup failure is still one JSON error line", () => {
     const r = spawnSync(process.execPath, [path.join(folder, "build.js"), "--check", "--json", "--tools", path.join(root, "no-such-tools")],
       { encoding: "utf8", windowsHide: true });

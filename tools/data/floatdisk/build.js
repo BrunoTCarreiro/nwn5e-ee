@@ -39,16 +39,14 @@ const fs = require("fs");
 const path = require("path");
 const F = require("./floatdisk.js");
 const R = require("./reader.js");
+const W = require("./files.js");
 
 const REPO = path.resolve(__dirname, "..", "..", "..");
 const MANIFEST = path.join(__dirname, "made.txt");
 
 // --- options ------------------------------------------------------------------------------------------------------
 const argv = process.argv.slice(2);
-const option = (name, fallback) => {
-  const i = argv.indexOf("--" + name);
-  return i >= 0 && i + 1 < argv.length ? argv[i + 1] : fallback;
-};
+const option = (name, fallback) => W.option(argv, name, fallback);
 const CHECK = argv.includes("--check");
 const DRAFTS = argv.includes("--drafts");
 const TOOLS = path.resolve(option("tools", process.env.NWN5E_TOOLS || path.join(REPO, "..", "nwn5e-tools")));
@@ -61,62 +59,23 @@ const COMPOSITION = path.resolve(option("composition", path.join(__dirname, "com
 const READER = option("reader", process.env.NWN5E_MDLMESH || "");
 const JSON_OUT = argv.includes("--json");
 
-function need(file, what) {
-  if (!fs.existsSync(file)) throw new Error(`${what} isn't there: ${file}`);
-  return file;
-}
 // What the nwn5e-tools folder gives, loaded when main starts (a bad --tools is an error like any other, JSON included).
 let core, gameData, GAME;
 function setup() {
-  global.window = global.window || {};  // core.js runs in the page and under node
-  core = require(need(path.join(TOOLS, "vfx_bench", "public", "core.js"), "nwn5e-tools' VFX Bench core (--tools)"));
-  gameData = require(need(path.join(TOOLS, "spell_bench", "game_data.js"), "nwn5e-tools' game data reader (--tools)"));
-  const helper = require(need(path.join(TOOLS, "anim_helper", "helper.js"), "nwn5e-tools' anim helper (--tools)"));
-  GAME = helper.findGameDir({ game: option("game", ""), buildDir: BUILD });
+  ({ core, gameData, game: GAME } = W.loadTools({ tools: TOOLS, game: option("game", ""), build: BUILD }));
 }
 
 // --- writing ----------------------------------------------------------------------------------------------------------
 // A file in this repo by its path from the repo's root ("data/files/x.tga"); null outside it.
-const repoPath = (file) => {
-  const rel = path.relative(REPO, file);
-  return rel.startsWith("..") || path.isAbsolute(rel) ? null : rel.split(path.sep).join("/");
-};
-function readManifest() {
-  if (!fs.existsSync(MANIFEST)) return new Set();
-  return new Set(fs.readFileSync(MANIFEST, "utf8").split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith("#")));
-}
-// Each write { file, bytes, kind }: "text" (a model, .pwk, rows or draft: ours when it carries MARK), "binary" (a texture
-// shipped in this repo: ours when made.txt lists it; outside the repo only an identical one is), "library" (the bench
-// library's disk texture: ours when its TGA image ID is TEXTURE_MARK). Every one checked before any is written; ->
-// [[ "new" | "rebuilt" | "unchanged", file ]], `manifest` gaining the binary files written in the repo.
+const repoPath = (file) => W.repoPath(REPO, file);
+// Each write { file, bytes, kind }, through files.js's one ownership rule: "text" (a model, .pwk, rows or draft: ours
+// when it carries MARK), "binary" (a texture shipped in this repo: ours when made.txt lists it; outside the repo only
+// an identical one is), "library" (the bench library's disk texture: ours when its TGA image ID is TEXTURE_MARK).
+// -> [[ "new" | "rebuilt" | "unchanged", file ]], `manifest` gaining the binary files written in the repo.
 function writeAll(writes, manifest) {
-  const owned = (w, old) => {
-    if (w.kind === "text") return F.carriesMark(old);
-    if (w.kind === "library") return old.length > 18 && old.toString("latin1", 18, 18 + old[0]) === F.TEXTURE_MARK;
-    return repoPath(w.file) !== null && manifest.has(repoPath(w.file));
-  };
-  for (const w of writes) {
-    if (!fs.existsSync(w.file)) continue;
-    const old = fs.readFileSync(w.file);
-    if (!owned(w, old) && !old.equals(w.bytes)) {
-      throw new Error(`${w.file} is there and wasn't made by this generator: nothing written - move it away or rename it`);
-    }
-  }
-  const results = [];
-  for (const w of writes) {
-    let state = "new";
-    if (fs.existsSync(w.file)) {
-      const old = fs.readFileSync(w.file);
-      state = old.equals(w.bytes) || (w.kind === "text" && F.sameText(old, w.bytes)) ? "unchanged" : "rebuilt";
-    }
-    if (state !== "unchanged") {
-      fs.mkdirSync(path.dirname(w.file), { recursive: true });
-      fs.writeFileSync(w.file, w.bytes);
-    }
-    if (w.kind === "binary" && repoPath(w.file) !== null) manifest.add(repoPath(w.file));
-    results.push([state, w.file]);
-  }
-  return results;
+  const owned = W.ownership({ repo: REPO, manifest, mark: F.MARK, kinds: {
+    library: (w, old) => old.length > 18 && old.toString("latin1", 18, 18 + old[0]) === F.TEXTURE_MARK } });
+  return W.writeAll(writes, owned, { repo: REPO, manifest });
 }
 
 // --- main -----------------------------------------------------------------------------------------------------------
@@ -158,18 +117,7 @@ function main() {
   }
 
   // Textures: a part from the game has the game's; one of your own files' is looked up (the game, then beside the file).
-  const ship = new Map();  // texture name -> its copies beside a file
-  for (const stage of F.PILES) {
-    for (const x of stages[stage].parts) {
-      if (x.part.source.kind !== "file") continue;
-      for (const m of x.meshes) {
-        if (!m.bitmap || ship.has(m.bitmap)) continue;
-        const found = rd.findTexture(m.bitmap, [path.dirname(x.part.source.file)]);
-        if (!found) throw new Error(`${F.partLabel(x.part)}: texture ${m.bitmap} is neither in the game nor beside the file (${m.bitmap}.tga / .dds)`);
-        if (found.where === "beside") ship.set(m.bitmap, found.copies);
-      }
-    }
-  }
+  const ship = W.shipTextures([].concat(...F.PILES.map((stage) => stages[stage].parts)), rd);  // texture name -> its copies beside a file
 
   // The summary: per stage its parts, triangles, how high the pile goes and how far it reaches.
   const r = disk.diameter / 2;
@@ -247,16 +195,14 @@ function main() {
     finish();
     return;
   }
-  const manifest = readManifest();
+  const manifest = W.readManifest(MANIFEST);
   const results = writeAll(writes, manifest);
   for (const [state, file] of results) {
-    say(state.padEnd(9) + " " + (repoPath(file) || file));
-    result.files.push({ state, file: repoPath(file) || file });
+    say(state.padEnd(9) + " " + W.shown(REPO, file));
+    result.files.push({ state, file: W.shown(REPO, file) });
   }
-  const body = ["# made by nwn5e-ee tools/data/floatdisk/build.js: the files it wrote in this repo that can't carry its mark (textures) -",
-    "# it may rewrite these; it refuses any other file in its way", ...[...manifest].sort()].join("\n") + "\n";
-  const had = fs.existsSync(MANIFEST);
-  if ((had || manifest.size) && (!had || fs.readFileSync(MANIFEST, "utf8").replace(/\r\n/g, "\n") !== body)) fs.writeFileSync(MANIFEST, body);
+  W.writeManifest(MANIFEST, manifest, ["# made by nwn5e-ee tools/data/floatdisk/build.js: the files it wrote in this repo that can't carry its mark (textures) -",
+    "# it may rewrite these; it refuses any other file in its way"]);
   for (const f of manifest) {
     if (!writes.some((w) => repoPath(w.file) === f)) {
       say(`no longer used: ${f} (made by this generator) - delete it and its made.txt line if nothing needs it`);
