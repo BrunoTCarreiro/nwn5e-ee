@@ -1477,3 +1477,43 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
   - Test rows CO-1 (open it: the Floating Disk's Small), CO-2 (build: the parts list and its thumbnails, a drag from
     it, the handles, stacking), CO-3 (the onion skin, undo across variants), CO-4 (a placeable saved and built), CO-5 (a
     spell mesh as a chunk and as a mesh beat), CO-6 (Play in game, and what differs from the installed result).
+
+## The Composer's dyed parts: PLT textures baked (planned 2026-11-17, #39)
+
+  Owner, 2026-11-17: "helms don't have textures? Not in the bench and not in-game". After the explanation - a PLT is
+  NWN's dyeable texture: each pixel is a shade and a layer, painted from an item's or a creature's colours; placeables
+  and effects have none, so the game binds no texture; helm_001/002/003/011/012 have their texture only as a PLT - "go
+  with A, per-part colours" (also a #39 comment).
+  - *Decision A:*
+    - a part whose texture exists only as a PLT is baked: painted with the game's palettes into an ordinary texture of
+      its own, shipped beside the model (placeables, spell meshes, the Floating Disk);
+    - the VFX Bench draws the same baked picture;
+    - each such part gets colour fields in the Composer's part card (Metal 1, Metal 2, Leather 1, Leather 2, Cloth 1,
+      Cloth 2, as palette numbers) with neutral defaults;
+    - test-first.
+  - *Spec and plan:* the "Addendum 2026-11-17: PLT parts baked" in docs/superpowers/specs/2026-11-16-vfx-bench-composer-design.md
+    and in docs/superpowers/plans/2026-11-16-vfx-bench-composer.md. Four tasks:
+    - P1, the bake in floatdisk.js;
+    - P2, the generators bake (reader.js, files.js, both build.js);
+    - P3, the server;
+    - P4, the page.
+
+    About one session.
+  - *What the game's files say:*
+    - a PLT is `PLT V1  `, then its width and height, then a shade and a layer a pixel, rows bottom-up;
+    - the palettes are seven 256 x 176 TGAs: a colour is a row from the top, a shade a column, and the alpha is shine;
+    - 34 of the parts list's 2,171 entries are dyed: 33 helmets and gi_cloak01.
+  - *Calls:*
+    - one bake (floatdisk.js), used by the generators, the server and the page;
+    - a baked texture is named `n5p_` and a 12-digit hash of its PLT and colours (helm_001 at the defaults:
+      `n5p_2cd3d725dedb`);
+    - the defaults: Metal 1 0, Metal 2 3, Leather 1 3, Leather 2 2, Cloth 1 22, Cloth 2 23;
+    - only colours off the defaults are written (`"colours": { "metal1": 5 }`);
+    - the page bakes from the PLT and palettes the bench serves; Play in game bakes on the server first;
+    - no dev-layer or game change.
+  - *Where the baked textures live:* the bench build's `vfxedit\saved\`, made from the owner's own game, which the dev
+    layer serves at every start; never a repo. A baked texture is art made from the game's files, which CLAUDE.md never
+    commits.
+  - *Open, the owner's:* Q3. Keep them in `vfxedit\saved\` (a build without the dev layer draws dyed parts untextured),
+    or commit them in `data\files` against that rule? The disk's committed models already carry the game's meshes.
+  - *Limits:* matte metal (no shine); metal 2's palette is the documented one, to be confirmed in game.
