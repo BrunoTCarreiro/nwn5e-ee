@@ -66,6 +66,12 @@ int g_calls_logged = 0;  // since the game started: the handlers' first calls (0
 // 0.99.60 (FD-9): the disks this game made (cast, or made again) - any other its caster finds came with a save.
 std::set<uint32_t> g_made;
 std::set<uint32_t> g_heartbeats;  // the disks whose heartbeat ran this game (logged once each)
+// 0.99.61: a disk from a save is made again once the game has loaded - 0.99.60 tried at the first update, still
+// under the loading screen, and its CreateObject gave nothing (the owner's log, 2026-11-17 09:27).
+std::unordered_map<uint32_t, ULONGLONG> g_found_at;  // a disk from a save: when its caster first found it
+std::unordered_map<uint32_t, int> g_remake_tries;
+constexpr ULONGLONG kRemakeAfterMs = 3000;
+constexpr int kRemakeTries = 5;  // a look a second
 
 int g_logged = 0;
 bool LogSlot() { return g_logged < 300 && ++g_logged; }
@@ -190,8 +196,14 @@ while (GetIsEffectValid(e)) { if (GetEffectTag(e) == "n5s_disk") left = GetEffec
 SetLocalInt(OBJECT_SELF, "n5d_left", left);
 SetLocalInt(OBJECT_SELF, "n5d_ai", GetAILevel(OBJECT_SELF));
 SetLocalInt(OBJECT_SELF, "n5d_cmd", GetCommandable(OBJECT_SELF));
+object a = GetArea(OBJECT_SELF);
+SetLocalInt(OBJECT_SELF, "n5d_inarea", GetIsObjectValid(a) && a == GetArea(GetLocalObject(OBJECT_SELF, "n5d_master")));
 SetIsDestroyable(TRUE, FALSE, FALSE);
 )nss";
+
+// 0.99.61: a disk's AI level and whether it takes orders, for the log (a fresh one's, against one from a save).
+const char* const kLookAt = "SetLocalInt(OBJECT_SELF, \"n5d_ai\", GetAILevel(OBJECT_SELF)); "
+                            "SetLocalInt(OBJECT_SELF, \"n5d_cmd\", GetCommandable(OBJECT_SELF));";
 
 // 0.99.60 (FD-9): the disk made again, run as its caster - a fresh one where the old floats, as the cast makes it,
 // with the old one's look, order (n5d_stay), load and gold, and the rest of its hour; the old one leaves the party
@@ -199,7 +211,9 @@ SetIsDestroyable(TRUE, FALSE, FALSE);
 const char* const kRemake = R"nss(
 object m = OBJECT_SELF; object old = GetLocalObject(m, "n5d_disk");
 SetLocalString(m, "n5d_new", ""); SetLocalInt(m, "n5d_moved", 0);
-object d = CreateObject(OBJECT_TYPE_CREATURE, "$BLUEPRINT", GetLocation(old), FALSE, "n5s_floatdisk");
+location l = GetLocation(old);
+if (!GetIsObjectValid(GetAreaFromLocation(l))) l = GetLocation(m);
+object d = CreateObject(OBJECT_TYPE_CREATURE, "$BLUEPRINT", l, FALSE, "n5s_floatdisk");
 if (GetIsObjectValid(d)) {
   SetCreatureAppearanceType(d, GetAppearanceType(old));
   SetObjectVisualTransform(d, OBJECT_VISUAL_TRANSFORM_SCALE, $SCALE);
@@ -397,29 +411,45 @@ void DiskTalk(uint32_t self) {
 // the rest of its hour. The disk to look at now (0: none).
 uint32_t FoundFromSave(void* caster, uint32_t caster_id, uint32_t disk) {
   void* old = CreatureById(disk);
-  g_made.insert(disk);  // looked at once: not again
-  if (!old) return disk;
+  if (!old) {
+    g_made.insert(disk);
+    return disk;
+  }
+  const ULONGLONG now = GetTickCount64();
+  const ULONGLONG found = g_found_at.emplace(disk, now).first->second;
+  if (now < found + kRemakeAfterMs) return disk;  // the game still loading
   Run(kProbe, disk, "the disk from a save");
+  int& tries = g_remake_tries[disk];
+  if (!engine::GetLocalInt(old, "n5d_inarea") && ++tries < kRemakeTries) return disk;  // not in its caster's area yet
   const int left = engine::GetLocalInt(old, "n5d_left");
   const rules::DiskFound action = rules::DiskFoundAction(false, left);
-  Log("floating disk: 0x%08X from a save - AI level %d, commandable %d, %d s of its hour left: %s", disk,
-      engine::GetLocalInt(old, "n5d_ai"), engine::GetLocalInt(old, "n5d_cmd"), left,
+  Log("floating disk: 0x%08X from a save - AI level %d, commandable %d, in its caster's area %d, %d s of its hour "
+      "left: %s", disk, engine::GetLocalInt(old, "n5d_ai"), engine::GetLocalInt(old, "n5d_cmd"),
+      engine::GetLocalInt(old, "n5d_inarea"), left,
       action == rules::DiskFound::kRemake ? "made again" : "not made again (its hour is up)");
-  if (action != rules::DiskFound::kRemake) return disk;
+  if (action != rules::DiskFound::kRemake) {
+    g_made.insert(disk);
+    return disk;
+  }
   Run(Script(kRemake), caster_id, "the disk made again");
   const uint32_t fresh = ParseHex(engine::GetLocalString(caster, "n5d_new"));
   void* creature = fresh ? CreatureById(fresh) : nullptr;
   if (!creature) {
-    Log("floating disk: 0x%08X - CreateObject(%s) gave no creature; the disk from the save 0x%08X stays", caster_id,
-        kDiskBlueprint, disk);
+    const bool last = ++tries >= kRemakeTries;
+    Log("floating disk: 0x%08X - CreateObject(%s) gave no creature (try %d of %d)%s", caster_id, kDiskBlueprint,
+        tries, kRemakeTries, last ? "; the disk from the save stays" : "");
+    if (last) g_made.insert(disk);
     return disk;
   }
+  g_made.insert(disk);
   g_made.insert(fresh);
   g_disks.erase(disk);
   SetStrength(creature, rules::kFloatingDiskStrength);
   const bool joined = engine::GetLocalInt(caster, "n5d_joined") != 0;
-  Log("floating disk: 0x%08X made again as 0x%08X - %d items moved, stay %d, %s", disk, fresh,
-      engine::GetLocalInt(caster, "n5d_moved"), engine::GetLocalInt(creature, "n5d_stay"),
+  Run(kLookAt, fresh, "the disk made again, looked at");
+  Log("floating disk: 0x%08X made again as 0x%08X - %d items moved, stay %d, AI level %d, commandable %d, %s", disk,
+      fresh, engine::GetLocalInt(caster, "n5d_moved"), engine::GetLocalInt(creature, "n5d_stay"),
+      engine::GetLocalInt(creature, "n5d_ai"), engine::GetLocalInt(creature, "n5d_cmd"),
       joined ? "its caster's henchman" : "NOT in the party: it ends");
   if (!joined) {
     EndDisk(fresh, rules::DiskEnd::kMasterGone);
@@ -477,6 +507,8 @@ void DisksGameStarted() {  // a loaded game's disks: their caster (or heartbeat)
   g_calls_logged = 0;
   g_made.clear();
   g_heartbeats.clear();
+  g_found_at.clear();
+  g_remake_tries.clear();
 }
 
 }  // namespace
@@ -509,10 +541,12 @@ void FloatingDiskSpell(uint32_t self, void* caster, int) {
   g_disks[disk] = GetTickCount64() + kCheckEveryMs;
   g_made.insert(disk);
   TellPlayer(self, PlayerText("disk.cast"));
+  Run(kLookAt, disk, "the disk, looked at");
   if (LogSlot()) {
     Log("floating disk: 0x%08X Floating Disk - 0x%08X, its henchman (the module's limit now %d); appearance %d at "
-        "%.2f, Strength %d",
-        self, disk, limit, rules::kFloatingDiskAppearance, rules::kFloatingDiskScale, rules::kFloatingDiskStrength);
+        "%.2f, Strength %d; AI level %d, commandable %d",
+        self, disk, limit, rules::kFloatingDiskAppearance, rules::kFloatingDiskScale, rules::kFloatingDiskStrength,
+        engine::GetLocalInt(creature, "n5d_ai"), engine::GetLocalInt(creature, "n5d_cmd"));
   }
 }
 
