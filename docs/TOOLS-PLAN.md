@@ -1609,7 +1609,8 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     - a 4.57 m dome reaches through low ceilings and walls, and uneven ground cuts its ring;
     - a big shape round other parts takes the click: pick those by their chips;
     - untested in game: the draw order against other see-through things (transparencyhint on planes would be a small,
-      announced game-side change), and whether the game tiles a texture past 1 as the bench does (SH-3 step 4);
+      announced game-side change), and whether the game tiles a texture past 1 as the bench does (SH-3 step 4: Repeat
+      up 2 on Soft - tiled, a second bright band starts halfway up; clamped, the upper half stays evenly faint);
     - if the game's loader welded vertices by position, a two-sided mesh's normals could cancel (dark at a low glow);
     - Play in game's effect follows the character: `!vfxarea <effect> 0.6 1 0` puts it down for 60 s;
     - a library texture's own alpha isn't known to the generator: a textured shape is always drawn see-through;
@@ -1621,5 +1622,7 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     its texture, a visualeffects row of type D at a free row), and the game session builds the spell: its spells.2da row,
     a vfx_persistent area of 4.57 m whose DurationVFX is that row, the Charisma save, 10 minutes. S5 adds the sphere,
     cylinder, cone, disc and ring.
-  - Test rows SH-1 (the bench: the dome, its card, inside and out, Repeat around, From above, a library texture), SH-2
-    (saved, and a mesh beat fading in), SH-3 (Play in game, and the repeats in game), SH-4 (`!vfxarea` at your feet).
+  - Test rows SH-1 (the bench: the dome, its card, inside and out, Repeat up, From above, a library texture, then saved),
+    SH-2 (a mesh beat fading in), SH-3 (Play in game, and Repeat up 2 in game), SH-4 (`!vfxarea` at your feet).
+  - *The review of S4 (nwn5e-tools 1ef7da0):* a shape field past its bounds is refused as typed, never rounded
+    into them first (Opacity 0.015 was saved as 0.02); the rows made self-contained.
