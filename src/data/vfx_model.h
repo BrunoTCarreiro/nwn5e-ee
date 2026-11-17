@@ -229,8 +229,8 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
 // A compiled (binary) model's emitters - the game's own effects, read where
 // the player's game has them, nothing of them kept in nwn5e: each emitter node
 // (node header 0x60 bytes, then the emitter header: deadspace +0x00, blast radius
-// +0x04, blast length +0x08, update +0x18, render +0x38, blend +0x58, texture
-// +0x78, x grid +0x0C, y grid +0x10, flags +0xD4) and its
+// +0x04, blast length +0x08, x grid +0x0C, y grid +0x10, update +0x18, render
+// +0x38, blend +0x58, texture +0x78, flags +0xD4) and its
 // controllers (keys at node +0x44, values at +0x50, offsets from byte 12); an
 // animation's copy of the node with a birthrate keyed to 0 gives emit_seconds.
 // Its meshes are planes: plain ones (flags 0x21) - re-saving an effect would turn an

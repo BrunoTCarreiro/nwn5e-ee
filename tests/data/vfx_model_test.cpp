@@ -2210,7 +2210,7 @@ TEST(VfxGameEffectsStartFrame) {
 // wind - for the length. ---
 
 // The draft: "blast_radius = R" and "blast_length = L" right after "deadspace = ", each only when it isn't 0 - every draft
-// before them keeps its bytes - and back as written, never below 0.
+// before them keeps its bytes - and back as written, by the rule every reader keeps (below 0, not finite or past 1000: 0).
 TEST(VfxBlastThroughTheDraft) {
   VfxEffect effect = Sample();  // deadspace 0.2, no point to point: the flags next
   effect.emitters[0].update = "Explosion";
@@ -2241,14 +2241,26 @@ TEST(VfxBlastThroughTheDraft) {
   CHECK_EQ(ReadVfxDraft(plain, &back, &error) && back.emitters.size() == 1 && back.emitters[0].blast_radius == 0.0f &&
                back.emitters[0].blast_length == 0.0f,
            true);
-  // Below 0, or not a number: 0.
-  CHECK_EQ(ReadVfxDraft("name = x\n[emitter a]\nblast_radius = -3\nblast_length = nan\n", &back, &error), true);
-  if (!back.emitters.empty()) CHECK_EQ(back.emitters[0].blast_radius == 0.0f && back.emitters[0].blast_length == 0.0f, true);
+  // Below 0, not a number, not finite or past 1000: 0 - the binary reader's rule, the same in every reader (the bench's
+  // core.js keeps it too). 1000 itself is kept.
+  CHECK_EQ(ReadVfxDraft("name = x\n[emitter a]\nblast_radius = -3\nblast_length = nan\n", &back, &error) &&
+               back.emitters.size() == 1 && back.emitters[0].blast_radius == 0.0f && back.emitters[0].blast_length == 0.0f,
+           true);
+  CHECK_EQ(ReadVfxDraft("name = x\n[emitter a]\nblast_radius = inf\nblast_length = 1e30\n", &back, &error) &&
+               back.emitters.size() == 1 && back.emitters[0].blast_radius == 0.0f && back.emitters[0].blast_length == 0.0f,
+           true);
+  CHECK_EQ(ReadVfxDraft("name = x\n[emitter a]\nblast_radius = 1e30\nblast_length = inf\n", &back, &error) &&
+               back.emitters.size() == 1 && back.emitters[0].blast_radius == 0.0f && back.emitters[0].blast_length == 0.0f,
+           true);
+  CHECK_EQ(ReadVfxDraft("name = x\n[emitter a]\nblast_radius = 1000\nblast_length = 1000\n", &back, &error) &&
+               back.emitters.size() == 1 && Milli(back.emitters[0].blast_radius) == 1000000 &&
+               Milli(back.emitters[0].blast_length) == 1000000,
+           true);
 }
 
 // The model: "blastRadius" and "blastLength" (the game's spelling - 2,430 of each in its ASCII models; its parser takes
 // any case) carry the blast. A model without one keeps its bytes: nwn5e always wrote both lines as 0. The ASCII reader
-// takes them back, any case, never below 0.
+// takes them back, any case, by the rule every reader keeps (below 0, not finite or past 1000: 0).
 TEST(VfxModelWritesBlast) {
   VfxEffect effect = Sample();
   effect.emitters[0].update = "Explosion";
@@ -2284,6 +2296,11 @@ TEST(VfxModelWritesBlast) {
   CHECK_EQ(e.update == "Explosion" && Milli(e.blast_radius) == 15000 && Milli(e.blast_length) == 1200, true);
   e = one("  update Explosion\n  blastRadius -2\n  blastLength -1\n");
   CHECK_EQ(e.update == "Explosion" && e.blast_radius == 0.0f && e.blast_length == 0.0f, true);
+  // Not finite or past 1000: 0, as every reader has it; 1000 kept.
+  e = one("  update Explosion\n  blastRadius inf\n  blastLength 1e30\n");
+  CHECK_EQ(e.update == "Explosion" && e.blast_radius == 0.0f && e.blast_length == 0.0f, true);
+  e = one("  update Explosion\n  blastRadius 1000\n  blastLength 1000\n");
+  CHECK_EQ(e.update == "Explosion" && Milli(e.blast_radius) == 1000000 && Milli(e.blast_length) == 1000000, true);
 }
 
 // A compiled model's: the emitter header's floats at +0x04 (blast radius) and +0x08 (blast length), between deadspace

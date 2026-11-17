@@ -42,6 +42,11 @@ std::vector<std::string> Words(const std::string& text) {
 
 float ToFloat(const std::string& text) { return static_cast<float>(atof(text.c_str())); }
 
+// An emitter's blast radius (metres) or length (seconds) as every reader takes it - the draft, the ASCII model and the
+// compiled one (the bench's core.js keeps the same rule): below 0, not a number, not finite or past 1000 is 0. The game's
+// own reach 20 m and 4 s; an animation's copy of a compiled node can hold other bytes there.
+float BlastValue(float v) { return std::isfinite(v) && v > 0.0f && v <= 1000.0f ? v : 0.0f; }
+
 void ReadFloats(const std::vector<std::string>& words, size_t from, float* out, int count) {
   for (int i = 0; i < count && from + i < words.size(); ++i) out[i] = ToFloat(words[from + i]);
 }
@@ -873,8 +878,8 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
     else if (key == "blur_length") e->blur_length = ToFloat(value);
     else if (key == "bounce_co") e->bounce_co = ToFloat(value);
     else if (key == "deadspace") e->deadspace = std::min(std::max(ToFloat(value), 0.0f), kVfxDeadspaceMax);
-    else if (key == "blast_radius") e->blast_radius = std::max(0.0f, ToFloat(value));  // never below 0 (not a number: 0)
-    else if (key == "blast_length") e->blast_length = std::max(0.0f, ToFloat(value));
+    else if (key == "blast_radius") e->blast_radius = BlastValue(ToFloat(value));  // every reader's rule
+    else if (key == "blast_length") e->blast_length = BlastValue(ToFloat(value));
     else if (key == "p2p") e->p2p = Lower(value) == "bezier" || Lower(value) == "gravity" ? Lower(value) : std::string();
     else if (key == "p2p_bezier") {
       float bezier[2] = {e->p2p_bezier2, e->p2p_bezier3};
@@ -1153,8 +1158,8 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       else if (first == "inherit_part") e->inherit_part = v != "0";
       else if (first == "twosidedtex") e->twosidedtex = v != "0";
       else if (first == "deadspace") e->deadspace = ToFloat(v);  // radians, as the game reads it (%f)
-      else if (first == "blastradius") e->blast_radius = std::max(0.0f, ToFloat(v));  // as the draft: never below 0
-      else if (first == "blastlength") e->blast_length = std::max(0.0f, ToFloat(v));
+      else if (first == "blastradius") e->blast_radius = BlastValue(ToFloat(v));  // every reader's rule
+      else if (first == "blastlength") e->blast_length = BlastValue(ToFloat(v));
       else if (first == "p2p_bezier2") e->p2p_bezier2 = ToFloat(v);
       else if (first == "p2p_bezier3") e->p2p_bezier3 = ToFloat(v);
       else if (first == "combinetime") e->combinetime = ToFloat(v);
@@ -1524,12 +1529,9 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
       e.inherit_local = (flags & 0x100) != 0;
       e.inherit_part = (flags & 0x400) != 0;
       e.deadspace = m.F32(emitter);                   // node +0xa0 in the game
-      // Its blast beside it (the game's parser: blastRadius node +0xa4, blastLength +0xa8): metres and seconds - the game's
-      // own reach 20 m and 4 s. Below 0, not a number or past 1000 (no emitter's - an animation's copy of a node can hold
-      // other bytes there): 0.
-      const auto blast = [](float v) { return std::isfinite(v) && v > 0.0f && v <= 1000.0f ? v : 0.0f; };
-      e.blast_radius = blast(m.F32(emitter + 0x04));
-      e.blast_length = blast(m.F32(emitter + 0x08));
+      // Its blast beside it (the game's parser: blastRadius node +0xa4, blastLength +0xa8), by every reader's rule.
+      e.blast_radius = BlastValue(m.F32(emitter + 0x04));
+      e.blast_length = BlastValue(m.F32(emitter + 0x08));
       e.twosidedtex = m.U32(emitter + 0xC8) != 0;    // node +0x168
       if (flags & 0x1) e.p2p = (flags & 0x2) ? "bezier" : "gravity";  // p2p, p2p_sel
       if (pass == 0) {  // under its parent, as the model has it
