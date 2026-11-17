@@ -793,8 +793,8 @@ check("a soft texture's name fixes its bytes: the colour is painted as it's name
 // --- the Composer's shapes: sphere, cylinder, cone, disc and ring (S5) ---------------------------------------------------
 // Each on its defaults at radius 1 - 32 segments, both sides - by the dome's rules: its base at z 0, centred, each side its
 // own vertices, the inside first, counter-clockwise seen from outside (a flat one's outside its top), each ring's seam
-// column twice. Wrapped: u round it from +x, v from its base up - a disc's and a ring's from the middle out (addendum
-// (b)); From above as the dome's.
+// column twice. Wrapped: u round it from +x, v from its base up - a disc's and a ring's from the rim in, so the soft
+// texture glows at the rim as a dome's at its ground ring (the coordinator's ruling on S5); From above as the dome's.
 const shapeOf = (type, o) => F.shapeModel(F.readShape(Object.assign({ type, radius: 1 }, o), "s"));
 const LOOK = { segments: 32, sides: "both", mapping: "wrap", repeat_around: 1, repeat_up: 1, colour: [0.6, 0.8, 1], alpha: 0.35, glow: 1, texture: "soft" };
 // Both sides of `type`'s mesh, the inside first: `count` vertices and `tris` triangles a side, the inside's facing in (each
@@ -843,6 +843,8 @@ check("the other shapes: six types, their labels and fields; a sphere's, a cylin
     ring: ["radius", "inner", "segments", "sides"] });
   assert.deepStrictEqual(F.SHAPE_FLAT, ["disc", "ring"]);
   assert.deepStrictEqual(F.SHAPE_INFO.inner, { label: "Inner radius (m)", min: 0.01, max: 100, step: 0.05 });
+  // Smoothness's tooltip true of every type (the card shows one for each).
+  assert.strictEqual(F.SHAPE_INFO.segments.title, "Segments round it; a dome's rings up it are a quarter of that, a sphere's half");
   // The defaults, in SHAPE_KEYS' order; each read as its defaults and written as its type and radius alone.
   const want = {
     sphere: { type: "sphere", radius: 4.57, height: 9.14 }, cylinder: { type: "cylinder", radius: 4.57, height: 9.14 }, cone: { type: "cone", radius: 4.57, height: 9.14 },
@@ -908,28 +910,29 @@ check("a cone: a ring to a point, 130 vertices and 64 triangles, the point at it
   assert.deepStrictEqual(uvsAt(m, [1, 0, 0]), [[0, 0], [1, 0]]);
   assert.strictEqual(Math.max(...zsOf(m)), 2);
 });
-check("a disc: flat at 0, 130 vertices and 64 triangles, its outside facing up, v from the centre to the rim", () => {
+check("a disc: flat at 0, 130 vertices and 64 triangles, its outside facing up, v from the rim to the centre", () => {
   const m = twoSided("disc", 65, 32, (x) => normals(x, "z")), model = shapeOf("disc");
   assert.deepStrictEqual([model.lo, model.hi], [[-1, -1, 0], [1, 1, 0]]);
   assert.ok(zsOf(m).every((z) => z === 0), "a vertex off the ground");
-  // Wrapped at one repeat, from the middle out (addendum (b)): its centre a vertex a segment at v 0, its rim at v 1.
-  poleAt(m, [0, 0, 0], 0);
-  assert.deepStrictEqual(uvsAt(m, [1, 0, 0]), [[0, 1], [1, 1]]);
+  // Wrapped at one repeat, from the rim in: its rim at v 0 (where the soft texture glows), its centre a vertex a segment
+  // at v 1.
+  poleAt(m, [0, 0, 0], 1);
+  assert.deepStrictEqual(uvsAt(m, [1, 0, 0]), [[0, 0], [1, 0]]);
   const rim = Array.from({ length: 65 }, (_, i) => 65 + i).filter((i) => vertOf(m, i)[0] !== 0 || vertOf(m, i)[1] !== 0);
   assert.strictEqual(rim.length, 33);
-  rim.forEach((i) => { const [x, y] = vertOf(m, i); near(x * x + y * y, 1); assert.strictEqual(uvOf(m, i)[1], 1); });
+  rim.forEach((i) => { const [x, y] = vertOf(m, i); near(x * x + y * y, 1); assert.strictEqual(uvOf(m, i)[1], 0); });
 });
 check("a ring: a flat band, 132 vertices and 128 triangles, its inner edge 0.85 of the radius, v across the band", () => {
   const m = twoSided("ring", 66, 64, (x) => normals(x, "z")), model = shapeOf("ring");
   assert.deepStrictEqual([model.lo, model.hi], [[-1, -1, 0], [1, 1, 0]]);
   assert.ok(zsOf(m).every((z) => z === 0), "a vertex off the ground");
-  // Its outer edge at the radius, its inner at 0.85 of it, 33 vertices each a side; wrapped at one repeat, from the middle
-  // out (addendum (b)): v 0 at the inner edge, 1 at the outer.
+  // Its outer edge at the radius, its inner at 0.85 of it, 33 vertices each a side; wrapped at one repeat, from the rim
+  // in: v 0 at the outer edge (where the soft texture glows), 1 at the inner.
   const edge = (r) => Array.from({ length: 66 }, (_, i) => 66 + i).filter((i) => { const [x, y] = vertOf(m, i); return Math.abs(Math.hypot(x, y) - r) < 1e-4; });
   assert.deepStrictEqual([edge(1).length, edge(0.85).length], [33, 33]);
-  assert.ok(edge(1).every((i) => uvOf(m, i)[1] === 1) && edge(0.85).every((i) => uvOf(m, i)[1] === 0));
-  assert.deepStrictEqual(uvsAt(m, [1, 0, 0]), [[0, 1], [1, 1]]);
-  assert.deepStrictEqual(uvsAt(m, [0.85, 0, 0]), [[0, 0], [1, 0]]);
+  assert.ok(edge(1).every((i) => uvOf(m, i)[1] === 0) && edge(0.85).every((i) => uvOf(m, i)[1] === 1));
+  assert.deepStrictEqual(uvsAt(m, [1, 0, 0]), [[0, 0], [1, 0]]);
+  assert.deepStrictEqual(uvsAt(m, [0.85, 0, 0]), [[0, 1], [1, 1]]);
   // Its inner given: kept when it isn't the default (0.85 of the radius, to the millimetre); from 0.01 to below the radius.
   const narrow = shapeOf("ring", { inner: 0.5 }).meshes[0];
   assert.strictEqual(outsideAt(narrow, [0.5, 0, 0]).length, 2);
@@ -952,8 +955,8 @@ const MAPPED = {
   sphere: { wrap: "v from the bottom pole (0) through the equator (1) to the top (2)", seams: [[[1, 0, 1], 0.5]], poles: [[[0, 0, 0], 0], [[0, 0, 2], 1]], z: 1 },
   cylinder: { wrap: "v from the ground (0) to the top (2)", seams: [[[1, 0, 0], 0], [[1, 0, 2], 1]], poles: [], z: 0 },
   cone: { wrap: "v from the ground (0) to the point (2)", seams: [[[1, 0, 0], 0]], poles: [[[0, 0, 2], 1]], z: 0 },
-  disc: { wrap: "v from the centre (0) to the rim (2)", seams: [[[1, 0, 0], 1]], poles: [[[0, 0, 0], 0]], z: 0 },
-  ring: { wrap: "v from the inner edge (0) to the outer (2)", seams: [[[0.85, 0, 0], 0], [[1, 0, 0], 1]], poles: [], z: 0 },
+  disc: { wrap: "v from the rim (0) to the centre (2)", seams: [[[1, 0, 0], 0]], poles: [[[0, 0, 0], 1]], z: 0 },
+  ring: { wrap: "v from the outer edge (0) to the inner (2)", seams: [[[1, 0, 0], 0], [[0.85, 0, 0], 1]], poles: [], z: 0 },
 };
 for (const [type, t] of Object.entries(MAPPED)) {
   check(`a ${type} Wrapped, Repeat around 3 and up 2: u round it from +x to 3, ${t.wrap}`, () => {

@@ -199,14 +199,14 @@ from the defaults is written; a key not its type's (a disc's `height`, a dome's 
 - **How its texture lies on it** (`mapping`):
   - `wrap` (the default) goes round it from +x and up it from its base: a dome's and a cone's from the ground ring to
     the top, a sphere's from its bottom to its top, a cylinder's from the ground to its top. A disc's and a ring's run
-    from the middle out: from a disc's centre, or a ring's inner edge, to its rim. `repeat_around` (1-32) and
-    `repeat_up` (1-16) tile it, so a pattern keeps its size on a big shape.
+    from the rim in: from the rim (a ring's outer edge) to a disc's centre, or a ring's inner edge. `repeat_around`
+    (1-32) and `repeat_up` (1-16) tile it, so a pattern keeps its size on a big shape.
   - `above` lays it on from overhead, the picture's square across the shape's width (a ring's outer). The repeats don't
     apply there, and aren't written. It suits a low dome, a disc or a ring: a glyph shows as a sigil seen from above.
 - **Its texture** (`texture`):
   - `soft` is generated: its colour, brighter and more opaque where `wrap` starts (the ground ring; a sphere's bottom,
-    a disc's centre, a ring's inner edge), fading towards where it ends, made for `wrap`. It's named `n5s_` and 12
-    hex digits of its colour (to 0.001: `n5s_8c757fb28f99` for the default colour),
+    a disc's rim, a ring's outer edge: an area's edge), fading towards where it ends, made for `wrap`. It's named `n5s_`
+    and 12 hex digits of its colour (to 0.001: `n5s_8c757fb28f99` for the default colour),
     and it's original, made from numbers. It's painted from the colour as it's named, so a name fixes the picture.
   - `none` is its colour only.
   - A texture's name (lower-case letters, digits and `_`, at most 16: the game's own, from the bench's library) is

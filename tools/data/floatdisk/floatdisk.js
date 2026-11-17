@@ -452,7 +452,7 @@ const SHAPE_INFO = {
   radius: { label: "Radius (m)", min: 0.05, max: 100, step: 0.05 },
   height: { label: "Height (m)", min: 0.05, max: 100, step: 0.05 },
   inner: { label: "Inner radius (m)", min: 0.01, max: 100, step: 0.05 },  // a ring's, below its radius too (readShape)
-  segments: { label: "Smoothness", min: 8, max: 96, step: 4, whole: true, title: "Segments round it; the rings up it are a quarter of that" },
+  segments: { label: "Smoothness", min: 8, max: 96, step: 4, whole: true, title: "Segments round it; a dome's rings up it are a quarter of that, a sphere's half" },
   sides: { label: "Sides", choices: [["both", "Both: seen from inside too"], ["outside", "Outside only"]] },
   mapping: { label: "Mapping", choices: [["wrap", "Wrapped: round it and up it"], ["above", "From above: laid on from overhead"]] },
   repeat_around: { label: "Repeat around", min: 1, max: 32, step: 1, whole: true, title: "How many times the texture goes round it" },
@@ -561,8 +561,9 @@ function shapeTexture({ colour: given }) {
 //   from the bottom (0) to the top (1).
 // - cylinder: an open tube, a ring at 0 (v 0) and one at h (v 1). cone: a ring at 0 (v 0) to a point at h (v 1), its
 //   base open.
-// - disc: its rim (v 1) to a point at its centre (v 0), flat at 0. ring: its rim (v 1) to its inner edge (v 0). A flat
-//   one's v runs from the middle out (addendum (b)): the soft texture is brightest at a disc's middle, a ring's inner edge.
+// - disc: its rim (v 0) to a point at its centre (v 1), flat at 0. ring: its rim (v 0) to its inner edge (v 1). A flat
+//   one's v runs from the rim in, so the soft texture glows at its rim - the area's edge - as a dome's at its ground ring
+//   (the coordinator's ruling on S5).
 function profileOf(shape) {
   const r = shape.radius, h = shape.height, n = shape.segments, m = Math.max(2, Math.round(n / 4));
   const latitude = (phi, z0, up, v) => ({ r: r * Math.cos(phi), z: z0 + up * Math.sin(phi), v });
@@ -575,8 +576,8 @@ function profileOf(shape) {
   }
   if (shape.type === "cylinder") return [{ r, z: 0, v: 0 }, { r, z: h, v: 1 }];
   if (shape.type === "cone") return [{ r, z: 0, v: 0 }, { pole: true, z: h, v: 1 }];
-  if (shape.type === "disc") return [{ r, z: 0, v: 1 }, { pole: true, z: 0, v: 0 }];
-  if (shape.type === "ring") return [{ r, z: 0, v: 1 }, { r: shape.inner, z: 0, v: 0 }];
+  if (shape.type === "disc") return [{ r, z: 0, v: 0 }, { pole: true, z: 0, v: 1 }];
+  if (shape.type === "ring") return [{ r, z: 0, v: 0 }, { r: shape.inner, z: 0, v: 1 }];
   throw new Error(`shapeModel: no ${shape.type}`);
 }
 // One side of a shape: its profile (profileOf) turned round z, n segments - a ring's vertex i at angle 2 PI i / n, u i / n,
@@ -617,7 +618,7 @@ function bothSides(side) {
 // y 0) -> { meshes: [{ name (its type), bitmap, verts, tverts, faces, groups (each face's smoothing group: meshLines),
 // diffuse, ambient, selfillum, alpha, transparent }], lo, hi, textures: [{ name, colour }] (the soft texture to make, or
 // none) }.
-// - Its UVs: Wrapped, u round it from +x and v from its base up (a disc's and a ring's from the middle out), times its
+// - Its UVs: Wrapped, u round it from +x and v from its base up (a disc's and a ring's from the rim in), times its
 //   repeats; From above, laid on from overhead, its width the picture's square ((0.5 + x / 2r, 0.5 + y / 2r): r its
 //   radius, a ring's outer).
 // - Its material: soft, the texture's colour lit by its glow; none, its own colour; a library texture, tinted by its
