@@ -39,7 +39,8 @@ The Floating Disk isn't one of these files. It keeps `tools\data\floatdisk\compo
 - **`variants`:** 1 to 9, each named with 1-4 letters or digits.
   - Each `model` is made from the project's name and isn't read back: `plc_n5<name>` or `n5m_<name>`, with `_<k>`
     (from 1) when there's more than one variant. Every model name fits 16 characters.
-  - A variant with no parts can be saved in the file but isn't built.
+  - A variant with no parts can be in the file (New project writes one), but `build.js` refuses the whole build
+    while one has none (`variants[k].parts: at least one part`): add a part before the first Save and build.
 - **The parts** are composition.json's: `note`, `model` (a game model, or a list of them for a weapon's pieces) or
   `file`, `at`, `turn`, `scale`, `tilt`.
   - A `file` is your own `.mdl`, relative to this folder, so `parts/my_crate.mdl` is `tools\data\composer\parts\my_crate.mdl`.
@@ -76,7 +77,45 @@ A row must be free everywhere except this project's own rows file. `build.js` re
 - a `data\looks\placeables*` file;
 - the game's own `placeables.2da` (its blank user rows don't count).
 
-A row taken twice makes the launch check skip a whole file.
+A row taken twice makes the launch check skip a whole file. When the VFX Bench gives rows, it also skips those the
+bench's build folder serves (`<build>\served\placeables.2da`).
+
+## In the VFX Bench
+
+The bench's Composer is where a project is made and edited (nwn5e-tools `vfx_bench\README.md`, "The Composer"):
+
+- **The checkout:** it reads and saves the projects of the checkout it's started with (`--ee`; by default
+  `..\nwn5e-ee-anim` beside nwn5e-tools), and its Composer card names that folder and its branch. The projects and
+  what they build are committed on anim.
+- **New project** (a name, then Placeable or Spell mesh) writes `<name>.json` here with one empty variant and a guide:
+  a placeable's a 1 m circle, a spell mesh's a 0.5 m one, both at height 0. A placeable's `copy` and `use` start
+  `null`, its `walk` `"through"`.
+- **Opening** a project reads its file as it is on disk; the Composer card's **Reload** reads it again.
+- **Your own parts** go in `parts\` here (make the folder). The bench lists them under Yours, with the Floating Disk's
+  `parts\`, and writes a part's `file` from this folder.
+- **The stage** loads this folder's `project.js`, and the Floating Disk's `floatdisk.js`, as the bench serves them.
+  The guide's outline, the use point, the model names and the placement are the generator's own. A change to either,
+  or to `reader.js`, refuses the Composer until the bench restarts (close its window, double-click
+  `vfx_bench.bat`).
+- **Save and build:**
+  1. The page posts the project with the hash of the text it opened. The bench refuses it when it doesn't read as
+     `readProject` reads it, or when the file changed on disk since (unless you say to save over it). One save runs
+     at a time.
+  2. A placeable's variants without a row get the lowest free ones (Rows, above), and each variant's `model` is set
+     from its place.
+  3. That text goes to a temporary file. The bench runs `node tools\data\composer\build.js <temp> --json --tools
+     <nwn5e-tools> --game <game> --reader <mdlmesh>` in the checkout (a spell mesh with `--saved <build>\vfxedit\saved`),
+     for at most 120 s.
+  4. Only when it exits 0 is `<name>.json` written, with the rows and models. A spell mesh's models are added to
+     `<build>\vfxedit\meshes.txt`, the bench's list of them. A refused build writes nothing.
+
+  The bench shows `--json`'s summary (each variant's parts, triangles and height; the files) and its `unused`, as "no
+  longer used, and not deleted".
+- **Play in game** sends a variant to the running game as `build.js` would build it (lowered to the guide's height),
+  0.85 m beside the character, before any install.
+- **For the game:** a placeable's files and rows reach it as the Floating Disk's do: the animation session commits
+  them on anim, and the game session merges and installs. A spell mesh's draft stays in the bench's `vfxedit\saved\`;
+  the game writes its model there when it runs.
 
 ## Build
 

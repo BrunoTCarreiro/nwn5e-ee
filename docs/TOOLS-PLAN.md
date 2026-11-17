@@ -1393,3 +1393,87 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     and the launch check dropped the looks' whole file, so 2092 (2093-2099 kept for the other Detects).
   - L4-29 passed (owner: "looks good, both the detect magic and the silent image"). Open: which column the game uses for
     an item on the ground or a placeable (all four are filled, so it shows either way).
+
+## The VFX Bench's Composer and mesh beats, built (2026-11-17, #39)
+
+  Spec docs/superpowers/specs/2026-11-16-vfx-bench-composer-design.md (its "Addendum 2026-11-16: a general Composer"
+  wins); plan docs/superpowers/plans/2026-11-16-vfx-bench-composer.md (17 tasks, each reviewed; the ledger under
+  .superpowers/sdd/2026-11-16-vfx-bench-composer/).
+  Owner, 2026-11-16, on the Floating Disk's piles: "If I don't like the compositions, is there a way to compose them
+  myself?"; then, on the design: "let's do something here, instead of buiding something specific for the disk, let's
+  build something more versatile that will allow other things to be built. The disk doesn't need to be rendered."; "I
+  think placeables and meshes for spells"; "go with A and those outputs" (a mode of the VFX Bench, not a separate Model
+  Bench); "go for all 17".
+  - *Built (anim 88a2ea6..d329e3a, nwn5e-tools 8a975ad..3cd3e86):*
+    - The generators (tools/data/, anim):
+      - floatdisk.js loads in a page (window.FloatDisk);
+      - a part's model may be a weapon's three pieces;
+      - compositionText writes composition.json in its own layout;
+      - reader.js holds the part and texture reading build.js and the bench share;
+      - build.js --json prints the summary as one line;
+      - files.js holds one ownership rule for both build.js files;
+      - composer/ (project.js, build.js, check.js, check_build.js): a placeable's model, its .pwk (the use point;
+        Blocks as a ground mesh of the guide's outline, material 7) and its rows, from 14100-14199; a spell mesh's draft,
+        into the bench's vfxedit\saved\.
+      - The disk's 13 files are unchanged (check_build.js).
+    - src/data/vfx_model.* (A4, anim d329e3a):
+      - a plane keeps alpha keys per animation (`<anim>_alpha`), and, for the bench, its mesh, scale, Starts after and On
+        for;
+      - WriteVfxModel writes the keys as `alphakey` on the plane's node, and LastKeyTime counts them;
+      - test.bat 564 -> 568.
+    - The VFX Bench (nwn5e-tools):
+      - composer_server.js: the checkout (--ee) and its projects; the parts list (the game's 1268 placeables and 903
+        items, your own files); a part's meshes through reader.js; textures, DDS first; thumbnails, kept in the build
+        folder; Save per kind, all or nothing.
+      - The Composer mode (public/composer.js, composer_page.js): projects and variants, the guide, a placeable's card
+        (use point, walk, copied row), the parts list with thumbnails, the handles and resting, undo across variants,
+        Save and build, Reload, Play in game.
+      - DDS textures: core.decodeDds, DXT1 and DXT5, under Bioware's header and the standard one.
+      - Mesh beats in the effect editor: + mesh, a row and a card as a light's (parts.meshKeys), and sim.planesAt, the
+        one planes path.
+  - *Rulings worth keeping (the ledger has them all):*
+    - F1: composition.json has two numbers JSON writes otherwise (the rim's `1.0`, the large stage's `0.0`). The first
+      Save rewrites both: a one-time diff to commit.
+    - F17: one sim.planesAt, through the chunks' mesh path, for effects and areas. Every effect's own planes draw in the
+      effect mode, the game's too, not only mesh beats.
+    - F23: the Composer opens on the first variant that takes parts (the disk's Small).
+    - A5: a change to the checkout's generator parts refuses only the Composer's routes; the effect mode goes on.
+    - A8: check.js compares a draft as the game reads it - CRLF as LF, a generator's draft by its body under its mark
+      line.
+    - A10: the Composer button asks nothing and keeps the effect; entering it clears the history; one Backdrop for
+      both modes.
+    - A11: a weapon is laid flat by turning its thinnest side vertical (the game models them lying on an edge).
+    - A12: resting over overlapping parts lifts them (the design's call 11).
+    - A13: a save is never undone: the rows and models it gives are no undo step.
+    - A14: mesh textures ask the game first (its DDS, else its TGA), the library only when the game has none; the
+      particles keep the library's. Assumed, not checked in game: the game draws a DDS over a TGA of the same name
+      wherever each is.
+    - A16: a plane with no keys at its own alpha 0 draws (Entangle's vines); only a plane its keys fade is hidden by
+      its alpha.
+  - *Visible changes in the effect mode, for the owner:*
+    - every effect's planes draw, textured and shaded as chunks, under their parents - a game effect's too (Entangle's
+      vines; Mage Armor's shields, solid, since the library keeps none of their keys);
+    - in area mode the planes are shaded, not flat white, follow their parents' turns (Wall of Blades' swords now sit
+      where the model puts them), and a render 0 one isn't drawn;
+    - mesh and plane textures come from the game first; a see-through chunk mesh draws after every opaque one;
+    - a lasting effect's always-on mesh beat with a Starts after and a Fade out shows in the end if the spell ends
+      before its start (a light does the same).
+  - *For the owner in the Composer:*
+    - a thumbnail drawn before DDS was read stays as it was: delete `<build>\vfxedit\composer\thumbs\` once;
+    - with Rests on, a nudge lifts one of the Floating Disk's Medium parts onto its neighbour (they overlap): untick
+      Rests to nudge in place;
+    - the first Save of the Floating Disk rewrites the two numbers (F1).
+  - *For the game:*
+    - the next "anim ready" names A4's src/data/vfx_model.* change. A mesh beat fades in the game only after the game
+      session's install of a DLL built from it; before, it shows for the whole effect;
+    - the generators' changes build nothing new for the disk.
+  - *Open:*
+    - walking into a Blocks placeable and using it in game (A3's ruling) waits for a way to put one in an area: no
+      blueprint (UTP) is ours, and no chat command places a placeable;
+    - for the final review: the thumbnails keep every decoded texture and about 2,200 object URLs for the page's life;
+      Ctrl+Z during a drag undoes the previous edit and drops the drag;
+    - one spell mesh's save reads singular ("Saved your mesh ..."): the owner to confirm;
+    - deferred minors on the ledger.
+  - Test rows CO-1 (open it: the Floating Disk's Small), CO-2 (build: the parts list and its thumbnails, a drag from
+    it, the handles, stacking), CO-3 (the onion skin, undo across variants), CO-4 (a placeable saved and built), CO-5 (a
+    spell mesh as a chunk and as a mesh beat), CO-6 (Play in game, and what differs from the installed result).
