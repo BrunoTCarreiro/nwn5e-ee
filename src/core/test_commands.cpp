@@ -1138,8 +1138,12 @@ std::vector<std::string> TestCommand(void* creature, const std::string& args) {
       lines.push_back(line);
     }
   }
-  // 6b. A built character starts rested (#102).
-  if (rules::TestProfileBuildsCharacter(profile)) lines.push_back(RestAfterRebuild(id));
+  // 6b. A built character starts rested (#102) - and with the profile's spells set, that rest opens no window
+  // (#169, 0.99.71: its RestDone did, 0.1 s after the lists were set).
+  if (rules::TestProfileBuildsCharacter(profile)) {
+    lines.push_back(RestAfterRebuild(id));
+    if (!profile.spells.empty() || !profile.spellbook.empty()) PrepareSpellsKeepShut(creature);
+  }
   // 7. What the profile can't do itself.
   for (const std::string& note : profile.notes) lines.push_back("  note: " + note);
   Log("test: 0x%08X applied data\\tests\\%s.txt (%s)", id, name.c_str(), profile.name.c_str());

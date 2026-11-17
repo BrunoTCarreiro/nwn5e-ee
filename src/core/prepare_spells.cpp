@@ -1097,6 +1097,14 @@ std::vector<std::string> PrepareSpellsReset(void* creature, const std::vector<st
           " - the Prepare spells window opens"};
 }
 
+void PrepareSpellsKeepShut(void* creature) {
+  if (g_config.spellcasting != rules::RuleVariant::kFaithful || !creature) return;
+  const uint32_t id = IdOf(creature);
+  if (g_open_pending.erase(id) && LogLine()) {
+    Log("prepare: 0x%08X !test - the rebuild's rest opens no window (the profile set the spells)", id);
+  }
+}
+
 void InstallPrepareSpells() {
   if (g_config.spellcasting != rules::RuleVariant::kFaithful) return;
   g_add_known = reinterpret_cast<AddKnownFn>(EngineExport(ee::kClassInfoAddKnownSpell));

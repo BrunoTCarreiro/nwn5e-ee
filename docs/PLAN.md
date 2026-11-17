@@ -6638,6 +6638,13 @@ profile keys, the lists set as the window's Accept sets them, the window shut, e
   2024 name since the level 1 switch). The animation session's SB-17, SB-24, AS-13 and AS-18 are its own to change.
 - Tests TestProfileSpellsParse, ProfileSpellsPicked, ProfileSpellsMulticlass; 19 of 19 mutations caught.
 
+*0.99.71 (the owner's 0.99.70 session log, read at the next install: each `!test cantripwizard` - "set by the profile:
+cantrips 4 of 4, prepared 9 of 9, spellbook 14 of 14", then 0.1 s later "window opened ... a Long Rest's change
+open"):* the lists were set and the window still opened. `!test`'s rest after the rebuild (ForceRest) ends in
+RestDone, which opens the window for a rest that had none at its start - after the preset had cleared its open. Now
+`!test` drops that window after a profile that set the spells (PrepareSpellsKeepShut); the Long Rest's change stays
+open, the rebuild's rest being one.
+
 ### `!spawn <blueprint> away` (#170)
 
 *Asked (owner, 2026-11-17, #152's blocks A-C passed):* "I need to find a better map to test with aggressive creatures
