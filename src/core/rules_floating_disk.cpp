@@ -102,8 +102,6 @@ object m = OBJECT_SELF;
 object d = GetLocalObject(m, "n5d_disk");
 SetLocalString(m, "n5d_new", ""); SetLocalString(m, "n5d_renewed", "");
 if (GetIsObjectValid(d) && GetLocalInt(d, "n5d_disk") && GetMaster(d) == m) {
-  effect e = GetFirstEffect(d);
-  while (GetIsEffectValid(e)) { if (GetEffectTag(e) == "n5s_disk") RemoveEffect(d, e); e = GetNextEffect(d); }
   ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(SupernaturalEffect(EffectCutsceneGhost()), $ROW), "n5s_disk"), d, HoursToSeconds($HOURS));
   SetLocalString(m, "n5d_renewed", ObjectToString(d));
 } else {
@@ -192,7 +190,10 @@ SetPlotFlag(d, FALSE); SetIsDestroyable(TRUE, FALSE, FALSE); DestroyObject(d, 0.
 // of its hour, its AI level and whether it takes orders, for the log; destroyable, to be made again.
 const char* const kProbe = R"nss(
 int left = 0; effect e = GetFirstEffect(OBJECT_SELF);
-while (GetIsEffectValid(e)) { if (GetEffectTag(e) == "n5s_disk") left = GetEffectDurationRemaining(e); e = GetNextEffect(OBJECT_SELF); }
+while (GetIsEffectValid(e)) {
+  if (GetEffectTag(e) == "n5s_disk" && GetEffectDurationRemaining(e) > left) left = GetEffectDurationRemaining(e);
+  e = GetNextEffect(OBJECT_SELF);
+}
 SetLocalInt(OBJECT_SELF, "n5d_left", left);
 SetLocalInt(OBJECT_SELF, "n5d_ai", GetAILevel(OBJECT_SELF));
 SetLocalInt(OBJECT_SELF, "n5d_cmd", GetCommandable(OBJECT_SELF));
@@ -249,6 +250,16 @@ if (GetIsObjectValid(d)) {
 }
 )nss";
 
+// 0.99.67: its hour's marks (n5s_disk) for the log - how many, the longest's seconds left (a renewal, an hour's end).
+const char* const kMarks = R"nss(
+int n = 0; int most = 0; effect e = GetFirstEffect(OBJECT_SELF);
+while (GetIsEffectValid(e)) {
+  if (GetEffectTag(e) == "n5s_disk") { n++; if (GetEffectDurationRemaining(e) > most) most = GetEffectDurationRemaining(e); }
+  e = GetNextEffect(OBJECT_SELF);
+}
+SetLocalInt(OBJECT_SELF, "n5d_marks", n); SetLocalInt(OBJECT_SELF, "n5d_marks_left", most);
+)nss";
+
 // A player text inside an NWScript string (#168): its quotes and backslashes escaped.
 std::string Nss(const std::string& text) {
   std::string out;
@@ -280,6 +291,11 @@ void EndDisk(uint32_t disk, rules::DiskEnd why) {
   g_disks.erase(disk);
   if (!creature || engine::GetLocalInt(creature, "n5d_disk") != 1) return;
   Run(Script(kState), disk, "the disk's last look");  // its load now (Leave the party comes between looks)
+  if (why == rules::DiskEnd::kHourUp) {  // 0.99.67: the marks it had (a renewal's ended it at once - the owner, 2026-11-17)
+    Run(kMarks, disk, "the disk's marks");
+    Log("floating disk: 0x%08X its hour is up - %d hour marks on it, the longest %d s left", disk,
+        engine::GetLocalInt(creature, "n5d_marks"), engine::GetLocalInt(creature, "n5d_marks_left"));
+  }
   uint32_t master = ParseHex(engine::GetLocalString(creature, "n5d_mid"));
   if (!master && why == rules::DiskEnd::kSentAway) master = ParseHex(engine::GetLocalString(creature, "n5d_talker"));
   const int weight = engine::GetLocalInt(creature, "n5d_wt");
@@ -518,7 +534,11 @@ void FloatingDiskSpell(uint32_t self, void* caster, int) {
   const uint32_t renewed = ParseHex(engine::GetLocalString(caster, "n5d_renewed"));
   if (renewed) {
     TellPlayer(self, PlayerText("disk.renewed"));
-    if (LogSlot()) Log("floating disk: 0x%08X renews its disk 0x%08X", self, renewed);
+    if (void* disk = CreatureById(renewed)) {
+      Run(kMarks, renewed, "the disk's marks");
+      Log("floating disk: 0x%08X renews its disk 0x%08X - %d hour marks on it, the longest %d s left", self, renewed,
+          engine::GetLocalInt(disk, "n5d_marks"), engine::GetLocalInt(disk, "n5d_marks_left"));
+    }
     return;
   }
   const uint32_t disk = ParseHex(engine::GetLocalString(caster, "n5d_new"));
