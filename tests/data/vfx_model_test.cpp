@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <fstream>
@@ -6,6 +8,7 @@
 #include <string>
 
 #include "check.h"
+#include "data/game_resources.h"
 #include "data/vfx_model.h"
 
 // The VFX editor's effect (data/vfx_model.h). Breaks caught: a draft that
@@ -1944,4 +1947,201 @@ TEST(VfxExplosionStartsAfter) {
                    .find("  birthratekey 5\n    0 0\n    0.5 0\n    0.51 12\n    0.56 12\n    0.57 0\n") != std::string::npos,
            true);
   CHECK_EQ(kVfxBurstWindow, 0.05f);
+}
+
+// --- An emitter's start frame and its sheet's frames down (the owner, 2026-11-17: "I'm trying to understand how vfx 145
+// works, it calls down a magic circle from somewhere, selecting one of the quadrants from the texture file, but I can't
+// seem to alter these configurations" - vim_protevil's OmenEmitter01 shows one frame of a 2 x 2 sheet, its start frame,
+// which nothing of nwn5e's read) ---
+
+// The draft: "grid_down = N" right after "grid = " only when it isn't 0 or the grid (frames across), "frame_start = N"
+// right after "frame_end = " only when it isn't 0 - every draft before them keeps its bytes - and back as written (a start
+// past the end too: the draft keeps what it says; frames down and the start never below 0).
+TEST(VfxFrameStartAndGridDownThroughTheDraft) {
+  VfxEffect effect = Sample();  // fps 16
+  effect.emitters[0].grid = 4;
+  effect.emitters[0].grid_down = 2;
+  effect.emitters[0].frame_end = 7;
+  effect.emitters[0].frame_start = 3;
+  const std::string draft = WriteVfxDraft(effect);
+  CHECK_EQ(Contains(draft, "\ngrid = 4\ngrid_down = 2\nframe_end = 7\nframe_start = 3\nfps = 16\n"), true);
+  VfxEffect back;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(draft, &back, &error) && back.emitters.size() == 1, true);
+  if (back.emitters.size() != 1) return;
+  CHECK_EQ(back.emitters[0].grid, 4);
+  CHECK_EQ(back.emitters[0].grid_down, 2);
+  CHECK_EQ(back.emitters[0].frame_end, 7);
+  CHECK_EQ(back.emitters[0].frame_start, 3);
+  CHECK_EQ(WriteVfxDraft(back) == draft, true);
+  // The defaults - and frames down the same as across - write no line: the bytes nwn5e wrote before.
+  const std::string plain = WriteVfxDraft(Sample());
+  CHECK_EQ(Contains(plain, "\ngrid = 2\nframe_end = 3\nfps = 16\n"), true);
+  CHECK_EQ(Contains(plain, "grid_down") || Contains(plain, "frame_start"), false);
+  VfxEffect square = Sample();
+  square.emitters[0].grid_down = 2;
+  CHECK_EQ(WriteVfxDraft(square) == plain, true);
+  CHECK_EQ(ReadVfxDraft(plain, &back, &error) && back.emitters.size() == 1 && back.emitters[0].grid_down == 0 &&
+               back.emitters[0].frame_start == 0,
+           true);
+  // As written: a start past the end kept; below 0 read as 0.
+  CHECK_EQ(ReadVfxDraft("name = x\n[emitter a]\nframe_end = 1\nframe_start = 5\ngrid_down = -2\n", &back, &error), true);
+  if (!back.emitters.empty()) CHECK_EQ(back.emitters[0].frame_start == 5 && back.emitters[0].grid_down == 0, true);
+  CHECK_EQ(ReadVfxDraft("name = x\n[emitter a]\nframe_start = -1\n", &back, &error), true);
+  if (!back.emitters.empty()) CHECK_EQ(back.emitters[0].frame_start, 0);
+}
+
+// The model: "ygrid" is the frames down (the grid when 0) and "frameStart" the start frame (0 before: always). The ASCII
+// reader takes them back - ygrid the same as xgrid, in either order, as 0 (the draft stays as it was).
+TEST(VfxModelWritesFrameStartAndGridDown) {
+  VfxEffect effect = Sample();
+  effect.emitters[0].grid = 4;
+  effect.emitters[0].grid_down = 2;
+  effect.emitters[0].frame_end = 7;
+  effect.emitters[0].frame_start = 3;
+  const std::string model = WriteVfxModel(effect, "n5t");
+  CHECK_EQ(Contains(model, "  xgrid 4\n  ygrid 2\n"), true);
+  CHECK_EQ(Contains(model, "  frameStart 3\n  frameEnd 7\n"), true);
+  VfxEffect back;
+  std::string error;
+  CHECK_EQ(ReadVfxAsciiModel(model, &back, &error) && back.emitters.size() == 1, true);
+  if (back.emitters.size() == 1) {
+    CHECK_EQ(back.emitters[0].grid, 4);
+    CHECK_EQ(back.emitters[0].grid_down, 2);
+    CHECK_EQ(back.emitters[0].frame_end, 7);
+    CHECK_EQ(back.emitters[0].frame_start, 3);
+  }
+  const std::string plain = WriteVfxModel(Sample(), "n5t");
+  CHECK_EQ(Contains(plain, "  xgrid 2\n  ygrid 2\n") && Contains(plain, "  frameStart 0\n  frameEnd 3\n"), true);
+  CHECK_EQ(ReadVfxAsciiModel(plain, &back, &error) && back.emitters.size() == 1, true);
+  if (back.emitters.size() == 1) CHECK_EQ(back.emitters[0].grid == 2 && back.emitters[0].grid_down == 0 && back.emitters[0].frame_start == 0, true);
+  const auto one = [&](const std::string& lines) {
+    VfxEffect e;
+    std::string why;
+    const bool ok = ReadVfxAsciiModel("newmodel t\nbeginmodelgeom t\nnode dummy t\n  parent NULL\nendnode\nnode emitter e\n"
+                                      "  parent t\n" + lines + "endnode\nendmodelgeom t\ndonemodel t\n", &e, &why);
+    return ok && e.emitters.size() == 1 ? e.emitters[0] : VfxEmitter();
+  };
+  VfxEmitter e = one("  ygrid 3\n  xgrid 3\n  framestart 2\n  frameend 2\n");  // another writer's order
+  CHECK_EQ(e.grid == 3 && e.grid_down == 0 && e.frame_start == 2 && e.frame_end == 2, true);
+  e = one("  ygrid 1\n  xgrid 2\n  frameEnd 1\n");
+  CHECK_EQ(e.grid == 2 && e.grid_down == 1 && e.frame_start == 0, true);
+}
+
+// A compiled model's: the emitter header's y grid at +0x10, beside the x grid at +0x0C (the game's own sheets that aren't
+// square: head_01's fxpa_flame03 8 x 4, frames 0..31; tin01_b02_03's fxpa_candle01 4 x 2, 0..7; vim_rayblack's
+// fxpa_beam02 2 x 1, 0..1), and controller 136, frameStart (the field offset - 28, as 128 fps and 132 frameEnd).
+TEST(VfxReadsFrameStartAndGridDownFromACompiledModel) {
+  const auto read = [](uint32_t xgrid, uint32_t ygrid, bool keyed, float start) {
+    std::string b(0x400, '\0');
+    const auto put32 = [&](size_t at, uint32_t v) { memcpy(&b[at], &v, 4); };
+    const auto putf = [&](size_t at, float v) { memcpy(&b[at], &v, 4); };
+    const auto puts = [&](size_t at, const char* text) { memcpy(&b[at], text, strlen(text)); };
+    const size_t base = 12, node = 0x100, emitter = node + 0x60;
+    puts(base + 8, "test_fx");
+    puts(node + 0x10, "omen");
+    put32(emitter + 0x0C, xgrid);
+    put32(emitter + 0x10, ygrid);
+    puts(emitter + 0x18, "Fountain");
+    puts(emitter + 0x38, "Normal");
+    puts(emitter + 0x78, "fxpa_symbl_001");
+    const size_t keys = 0x300, data = 0x340;
+    const uint32_t count = keyed ? 3 : 2;
+    put32(node + 0x44, static_cast<uint32_t>(keys - base));
+    put32(node + 0x48, count);
+    put32(node + 0x50, static_cast<uint32_t>(data - base));
+    put32(node + 0x54, count + 1);
+    // birthrate (88), frameEnd (132), frameStart (136): 1 row each, the time at 0, 1 column.
+    const uint32_t types[3] = {88, 132, 136};
+    for (uint32_t k = 0; k < count; ++k) {
+      put32(keys + 12 * k, types[k]);
+      b[keys + 12 * k + 4] = 1;
+      b[keys + 12 * k + 8] = static_cast<char>(k + 1);
+      b[keys + 12 * k + 10] = 1;
+    }
+    putf(data + 4, 10.0f);
+    putf(data + 8, 3.0f);
+    putf(data + 12, start);
+    VfxEffect effect;
+    std::string error;
+    return ReadVfxBinaryModel(b, &effect, &error) && effect.emitters.size() == 1 ? effect.emitters[0] : VfxEmitter();
+  };
+  VfxEmitter e = read(4, 2, true, 3.0f);
+  CHECK_EQ(e.name == "omen", true);
+  CHECK_EQ(e.grid, 4);
+  CHECK_EQ(e.grid_down, 2);
+  CHECK_EQ(e.frame_end, 3);
+  CHECK_EQ(e.frame_start, 3);
+  e = read(2, 2, true, 1.0f);  // a square sheet: frames down 0, as a draft has it
+  CHECK_EQ(e.grid == 2 && e.grid_down == 0 && e.frame_start == 1, true);
+  e = read(2, 2, false, 0.0f);  // no controller 136: frame 0
+  CHECK_EQ(e.name == "omen" && e.frame_start == 0 && e.grid_down == 0, true);
+}
+
+// The drafts nwn5e keeps - the tests' fixtures, and Detect Magic's four (tools/data/vfx; their models in data/files,
+// written by WriteVfxModel) - have neither: each draft writes back its own bytes, each model the committed one.
+TEST(VfxKeptDraftsWithoutFramesUnchanged) {
+  for (const char* path : {"tests/data/fixtures/plane_beat.vfx", "tests/data/fixtures/plane_effect.vfx",
+                           "tests/data/fixtures/plane_material.vfx"}) {
+    const std::string text = FixtureText(path);
+    VfxEffect effect;
+    std::string error;
+    CHECK_EQ(!text.empty() && ReadVfxDraft(text, &effect, &error) && WriteVfxDraft(effect) == text, true);
+  }
+  for (const char* size : {"h", "l", "m", "s"}) {
+    const std::string name = std::string("n5_detmag_") + size;
+    const std::string text = FixtureText(("tools/data/vfx/" + name + ".vfx").c_str());
+    VfxEffect effect;
+    std::string error;
+    CHECK_EQ(ReadVfxDraft(text, &effect, &error) && !effect.emitters.empty(), true);
+    CHECK_EQ(Contains(text, "frame_start") || Contains(text, "grid_down"), false);
+    CHECK_EQ(WriteVfxDraft(effect) == text, true);
+    const std::string model = FixtureText(("data/files/" + name + ".mdl").c_str());
+    CHECK_EQ(!model.empty() && WriteVfxModel(effect, name) == model, true);
+  }
+}
+
+// The anchor (the owner's question - visual effect row 145, VFX_IMP_GOOD_HELP): the game's own vim_protevil as the VFX
+// Bench reads it - OmenEmitter01 shows the last quadrant of fxpa_Symbl_001 (2 x 2, frames 3..3, still) - and vim_rayblack's
+// beam sheet, 2 across and 1 down. Only where the game is (NWN_GAME_DIR, or Steam's folder); nothing of it is kept.
+TEST(VfxGameEffectsStartFrame) {
+  const char* given = getenv("NWN_GAME_DIR");
+  const std::string game = given && *given ? given : "X:\\SteamLibrary\\steamapps\\common\\Neverwinter Nights";
+  if (!std::ifstream(game + "\\data\\nwn_base.key")) {
+    printf("    (no game at %s: skipped)\n", game.c_str());
+    return;
+  }
+  const std::wstring dir(game.begin(), game.end());
+  GameResources resources(dir, GameResources::EeKeyFiles(), {dir + L"\\ovr"});
+  const auto emitter = [&](const char* model, const char* name, VfxEffect* effect) -> const VfxEmitter* {
+    std::string bytes, source, error;
+    if (!resources.Read(model, kResourceTypeMdl, &bytes, &source) || !ReadVfxBinaryModel(bytes, effect, &error)) return nullptr;
+    for (const VfxEmitter& e : effect->emitters) {
+      if (e.name == name) return &e;
+    }
+    return nullptr;
+  };
+  VfxEffect protevil;
+  const VfxEmitter* omen = emitter("vim_protevil", "OmenEmitter01", &protevil);
+  CHECK_EQ(omen != nullptr, true);
+  if (omen) {
+    printf("    vim_protevil OmenEmitter01: %s, grid %d, grid_down %d, frames %d..%d, fps %g\n", omen->texture.c_str(), omen->grid,
+           omen->grid_down, omen->frame_start, omen->frame_end, omen->fps);
+    CHECK_EQ(omen->texture == "fxpa_Symbl_001", true);
+    CHECK_EQ(omen->grid, 2);
+    CHECK_EQ(omen->grid_down, 0);
+    CHECK_EQ(omen->frame_end, 3);
+    CHECK_EQ(omen->frame_start, 3);
+    CHECK_EQ(Milli(omen->fps), 0);
+    CHECK_EQ(Contains(WriteVfxDraft(protevil), "\ngrid = 2\nframe_end = 3\nframe_start = 3\n"), true);
+  }
+  VfxEffect ray;
+  const VfxEmitter* beam = emitter("vim_rayblack", "OmenEmitter03", &ray);
+  CHECK_EQ(beam != nullptr, true);
+  if (beam) {
+    CHECK_EQ(beam->grid, 2);
+    CHECK_EQ(beam->grid_down, 1);
+    CHECK_EQ(beam->frame_end, 1);
+    CHECK_EQ(Contains(WriteVfxModel(ray, "n5t"), "  xgrid 2\n  ygrid 1\n"), true);
+  }
 }
