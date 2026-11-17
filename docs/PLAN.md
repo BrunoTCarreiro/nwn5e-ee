@@ -6621,6 +6621,35 @@ a GitHub Project, Google Sheets, a claude.ai page with a database, or keeping Ex
 - scripts/tests_board.py (list, add, set, export, move) replaces tests_sheet.py, and TESTS.xlsx is retired. The
   owner's last Excel results were carried over.
 
+## Player text — the owner's rule (2026-11-16, #168)
+
+- *Asked (owner, 2026-11-16, after "did you write the familiar dialog text?" - no: NWN's nw_g_fam):* "I just want to
+  make sure that any new text is either written by me, or copied verbatim from the SRD. If you have to generate new
+  text we'll need a document to keep track of it, maybe in an i18n style". The text then: ~240 chat messages (158
+  TellPlayer, ~80 SendMessageToPC in scripts), 629 strings (names and descriptions; most spell descriptions SRD
+  5.2.1's, some reworded, 89 with an "nwn5e:" note), the interface's labels - all but the SRD's generated.
+  Proposed: one catalogue (a key, its source - owner, srd:<entry> verbatim, generated - and the text; the code by
+  key); new text only through it; the existing text migrated as generated for review. Asked: the scope
+  (player-facing only), the existing text (migrate it, or only new), new text meanwhile (generated and marked, or a
+  placeholder until the owner writes it). Recommended: player-facing; migrate; generated and marked.
+- *Decided (owner, 2026-11-16: "go with your recommendations"):* all three. The form (mine, data/strings.txt kept
+  as served - tools/data's asi_feats.py and mastery_feats.py write their sections into it): data/text/en.txt the
+  catalogue (`<key> <source> <text>`, `{name}` placeholders), data/text/strings_sources.txt each strings.txt
+  entry's source (an SRD part checked word for word against SRD 5.2.1; a description's "nwn5e:" note generated),
+  docs/TEXT-REVIEW.md every generated piece for the owner (scripts/text_review.py), a test holding the chat
+  messages written outside the catalogue to fewer each time. Order: the strings' sources and the newest messages
+  (Floating Disk, Find Familiar) first; the rest file by file.
+- *Built 0.99.58:* data/text/en.txt (`<key> | <source> | <text>`; PlayerText, src/core/player_text.h; parsed by
+  data/text_catalog.h) - Floating Disk's and Find Familiar's messages moved word for word (34 generated, the disk's
+  name srd:Floating Disk), rules::DiskEndText now DiskEndKey, the piles' name and description from it (their
+  blueprints' cleared). data/text/strings_sources.txt: data/strings.txt's 629 checked against SRD 5.2.1 word for
+  word (letters and digits in order - its PDF's line breaks, page footers and hyphenation aside) - 106 srd, 59 srd
+  with a generated "nwn5e:" note, 456 generated, 8 symbols ("+2"). docs/TEXT-REVIEW.md (scripts/text_review.py) lists
+  every generated piece and how to make one the owner's. Tests TextCatalogParses, TextCatalogFile,
+  TextKeysInCodeExist, StringsHaveSources, NoNewLiteralPlayerText (121 TellPlayer literals and 84 SendMessageToPC
+  in 40 files still in the code - only fewer: tests/data/fixtures/text_literals.txt, scripts/text_literals.py). 5
+  mutations caught; 574 tests pass. The launch: "text: 35 player texts from data	ext\en.txt". Tests TX-1, TX-2.
+
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
 Walked through one by one (issue, what NWN does, what 2024 does, what to
