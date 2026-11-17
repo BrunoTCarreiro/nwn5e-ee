@@ -1713,6 +1713,11 @@ monster AC by CR.
     ending its hour. Cause not yet known. *0.99.57:* its caster looks after it every second (its local n5d_disk; the
     first update after a game starts too) - its end, stage and following whatever its own scripts do; its handlers
     log their first calls after a game starts and why one stops. Retest FD-11.
+  - *Decided (owner, 2026-11-17, on "anything that needs a decision?" - "2 & 3. Keep it"):* Floating Disk keeps SRD
+    5.2.1's overload (more than 500 pounds ends the spell, everything falling - no house rule handing it back); the
+    familiar keeps NWN's own dialog (nw_g_fam: not new text). "4. Once the animation session is done with the
+    placement bench I'll make some changes but for now their composition had been accepted" - the disk's four
+    stages and three piles (anim 3d49e05) accepted for now.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
@@ -6649,6 +6654,8 @@ a GitHub Project, Google Sheets, a claude.ai page with a database, or keeping Ex
   TextKeysInCodeExist, StringsHaveSources, NoNewLiteralPlayerText (121 TellPlayer literals and 84 SendMessageToPC
   in 40 files still in the code - only fewer: tests/data/fixtures/text_literals.txt, scripts/text_literals.py). 5
   mutations caught; 574 tests pass. The launch: "text: 35 player texts from data	ext\en.txt". Tests TX-1, TX-2.
+- *Next (owner, 2026-11-17: "1.(A)"):* the remaining messages (121 TellPlayer literals, 84 SendMessageToPC in
+  scripts) moved into the catalogue word for word, file by file, while the owner is away from the game.
 
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
