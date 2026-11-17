@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // build_derived.js end to end (D1), on temporary copies only - needs the game, prints "skip" without it:
 //   node tools\data\check_derived.js [--game <folder>] [--tools <nwn5e-tools>]
+// A dyed part's baked texture (n5p_*, git-ignored) comes out with its model, the same bytes build after build.
 // The copy is <tmp>\n5_derived-*\: build_derived.js and the generators' code (*.js, *.bat, *.cpp) from this worktree;
 // everything else under tools\data\floatdisk and \composer - the recipes (composition.json, the projects), made.txt -
 // and data\rows, data\looks from HEAD as git checks them out (git cat-file --filters), never the worktree's: the owner's
@@ -102,6 +103,21 @@ function lastCommitted() {
 }
 const LAST = lastCommitted();
 let NAMES = [...EXPECTED.keys()].sort();  // what a build makes: HEAD's, and the git-ignored ones (the first build says)
+// The game's reading, as the generators have it (reader.js without its build.js): a dyed part's baked texture.
+global.window = global.window || {};  // core.js runs in the page and under node
+const CORE = require(path.join(TOOLS, "vfx_bench", "public", "core.js"));
+const GAME_DATA = require(path.join(TOOLS, "spell_bench", "game_data.js"));
+const RD = R.create({ game: GAME, core: CORE, gameData: GAME_DATA, reader: READER });
+// The baked textures HEAD's composition gives: each part's meshes read through reader.js, its dyed ones named by
+// floatdisk.js's bakeBitmaps - the names, sorted.
+function diskBakes() {
+  const comp = F.readComposition(JSON.parse(checkedOut("tools/data/floatdisk/composition.json").toString("utf8")), path.join(REPO, "tools", "data", "floatdisk"));
+  const names = new Set();
+  for (const stage of F.PILES) {
+    for (const p of comp.stages[stage]) for (const b of F.bakeBitmaps(RD.part(p).meshes, p.colours, RD.pltOnly).bakes) names.add(b.name);
+  }
+  return [...names].sort();
+}
 
 // --- the copy -------------------------------------------------------------------------------------------------------------
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "n5_derived-"));
@@ -200,16 +216,28 @@ try {
       const text = F.carriesMark(got, F.MARK) || F.carriesMark(got, P.MARK);
       assert.ok((text ? lf(got) : got).equals(stored("data/files/" + name)), `${name} isn't git show HEAD:data/files/${name}${text ? " (CRLF as LF)" : ""}`);
     }
-    // What's built but not committed: git-ignored, and a generator's.
+    // What's built but not committed: git-ignored, and a generator's - a model carrying its mark, or a dyed part's baked
+    // texture (n5p_ and 12 hex digits: only the bake makes such a name) that a built model names.
+    const baked = (name) => F.BAKED.test(name.replace(/\.tga$/, ""));
     for (const name of NAMES.filter((n) => !EXPECTED.has(n))) {
       assert.ok(ignored(name), `${name}: built, not committed at HEAD, and not git-ignored`);
       const got = fs.readFileSync(path.join(OUT, name));
-      assert.ok(F.carriesMark(got, F.MARK) || F.carriesMark(got, P.MARK), name + " carries no generator's mark");
+      if (baked(name)) {
+        const by = NAMES.filter((m) => m.endsWith(".mdl") && fs.readFileSync(path.join(OUT, m), "latin1").includes(`\r\n  bitmap ${name.replace(/\.tga$/, "")}\r\n`));
+        assert.ok(by.length, name + ": no built model names it");
+      } else {
+        assert.ok(F.carriesMark(got, F.MARK) || F.carriesMark(got, P.MARK), name + " carries no generator's mark");
+      }
     }
     for (const { name, rev, bytes } of LAST) {
       if (bytes) assert.ok(fs.readFileSync(path.join(OUT, name)).equals(bytes), `${name} isn't ${rev}^'s, as checked out`);
     }
-    assert.match(r.out, /the Floating Disk \(tools\/data\/floatdisk\/composition\.json\): 11 files; its rows agree/);
+    // The Floating Disk's: its 4 committed files, its 7 models, and a texture a dyed part its recipe holds (the owner's
+    // Large: helm_001 at the defaults, n5p_2cd3d725dedb).
+    const bakes = diskBakes(), disk = [...FLOATDISK, ...bakes.map((b) => b + ".tga")];
+    console.log(`     the Floating Disk's dyed parts baked: ${bakes.join(", ") || "none"}`);
+    for (const name of disk) assert.ok(NAMES.includes(name), name + " wasn't built");
+    assert.match(r.out, new RegExp(`the Floating Disk \\(tools/data/floatdisk/composition\\.json\\): ${disk.length} files; its rows agree`));
     assert.match(total(r), new RegExp(`^build_derived: ${NAMES.length} files in build/data/files: ${NAMES.length} written, 0 unchanged$`));
     assert.deepStrictEqual(repoCopy(), before, "the copy's tools\\ or data\\ changed");
   });
@@ -311,6 +339,52 @@ try {
       fs.rmSync(file, { force: true });
       fs.rmSync(path.join(ROWS, "placeables.chkdrv.txt"), { force: true });
       for (const f of own) for (const dir of [FILES, OUT]) fs.rmSync(path.join(dir, f), { force: true });
+    }
+  });
+
+  check("a dyed part's baked texture comes out with its model into --out, the bake's bytes, the same on a second build", () => {
+    // A project of two helmets: helm_001 at the defaults - the bake the owner's Large makes too: two generators make it,
+    // alike, and it's written once - and helm_011 in leather 1 7.
+    const DEF = "n5p_2cd3d725dedb", LEATHER = F.bakedName("helm_011", { leather1: 7 });
+    const file = project("chkdye", { kind: "placeable", guide: CIRCLE, placeable: THROUGH, variants: [{ name: "1", row: 14152, parts: [
+      { model: "helm_001", at: [0, 0, 0] }, { model: "helm_011", at: [0.3, 0, 0], colours: { leather1: 7 } }] }] });
+    const own = ["plc_n5chkdye.mdl", "plc_n5chkdye.pwk", DEF + ".tga", LEATHER + ".tga"];
+    const disks = NAMES.includes(DEF + ".tga");
+    try {
+      // "Committed": the Composer's build.js into the copy's data\files and data\rows, as the VFX Bench's Save does - its
+      // bakes beside the model in data\files (git-ignored), none in made.txt.
+      const g = spawnSync(process.execPath, [path.join(COMPOSER, "build.js"), file, "--json", "--game", GAME, "--tools", TOOLS, "--reader", READER],
+        { encoding: "utf8", maxBuffer: 64 << 20, windowsHide: true });
+      assert.strictEqual(g.status, 0, "composer build.js: " + (g.stdout + g.stderr).trim());
+      for (const f of own) assert.ok(fs.existsSync(path.join(FILES, f)), f + " isn't in the copy's data\\files");
+      const made = path.join(COMPOSER, "made.txt");
+      assert.ok(!fs.existsSync(made) || !/n5p_/.test(fs.readFileSync(made, "utf8")), "made.txt lists a bake");
+      const r = derive(["--out", OUT]);
+      done(r);
+      assert.deepStrictEqual(Object.entries(states(r)).filter(([, s]) => s !== "unchanged").map(([f]) => f).sort(),
+        own.filter((f) => !(disks && f === DEF + ".tga")).sort());
+      assert.match(r.out, /the Composer's project chkdye \(tools\/data\/composer\/chkdye\.json\): 4 files; its rows agree/);
+      const mdl = fs.readFileSync(path.join(OUT, "plc_n5chkdye.mdl"), "latin1");
+      for (const name of [DEF, LEATHER]) assert.ok(mdl.includes(`\r\n  bitmap ${name}\r\n`), "plc_n5chkdye.mdl doesn't name " + name);
+      for (const [name, plt, colours] of [[DEF, "helm_001", F.readColours()], [LEATHER, "helm_011", F.readColours({ leather1: 7 })]]) {
+        assert.ok(fs.readFileSync(path.join(OUT, name + ".tga")).equals(RD.bake(plt, colours).bytes), name + " isn't reader.js's bake");
+      }
+      // A second build: every file unchanged, none touched.
+      const before = snapshot(OUT);
+      const s = derive(["--out", OUT]);
+      done(s);
+      assert.ok(Object.values(states(s)).every((x) => x === "unchanged"), JSON.stringify(states(s)));
+      assert.deepStrictEqual(snapshot(OUT), before);
+      // A file of a baked name in --out is the bake's (only the bake makes the name, and the name fixes its bytes).
+      fs.writeFileSync(path.join(OUT, LEATHER + ".tga"), "not a bake");
+      const w = derive(["--out", OUT]);
+      done(w);
+      assert.deepStrictEqual(Object.entries(states(w)).filter(([, x]) => x !== "unchanged"), [[LEATHER + ".tga", "written"]]);
+    } finally {
+      fs.rmSync(file, { force: true });
+      fs.rmSync(path.join(ROWS, "placeables.chkdye.txt"), { force: true });
+      for (const f of own) fs.rmSync(path.join(FILES, f), { force: true });
+      for (const f of own.filter((x) => !(disks && x === DEF + ".tga"))) fs.rmSync(path.join(OUT, f), { force: true });
     }
   });
 
@@ -430,6 +504,7 @@ try {
     assert.deepStrictEqual(worktreeState(), WORKTREE);
   });
 } finally {
+  RD.close();
   fs.rmSync(root, { recursive: true, force: true });
 }
 

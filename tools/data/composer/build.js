@@ -11,6 +11,11 @@
 // - a spell mesh: per variant a VFX Bench draft of its meshes, <saved>\<model>.vfx (the bench's vfxedit\saved: the game
 //   writes its model when it runs), with your own files' textures beside it.
 //
+// A dyed part's textures (a helmet's: the game has them only as a PLT) are baked from the game's palettes in the part's
+// colours into n5p_<12 hex digits>.tga, which the models and drafts name instead: beside a placeable's models in
+// data\files (git-ignored: build.bat makes them for every build, tools\data\build_derived.js), beside a spell mesh's
+// drafts in <saved>.
+//
 // The parts are read and placed as the Floating Disk's (..\floatdisk\reader.js and floatdisk.js), through the player's
 // own game and nwn5e-ee's mesh reader; nothing of the game's is kept in the repo. The files are written by its files.js,
 // under the same ownership rule.
@@ -19,7 +24,7 @@
 //     --check             read and place everything, print the summary, write nothing (a placeable's variant may have no
 //                         row yet: the VFX Bench gives it one at Save)
 //     --json              the summary as one line of JSON on stdout (what the VFX Bench reads); an error as { "error" }
-//     --saved <folder>    where a spell mesh's drafts go (needed to build one)
+//     --saved <folder>    where a spell mesh's drafts go, with their textures and bakes (needed to build one)
 //     --game <folder>     the game (default: NWN_GAME_DIR, nwn5e.ini's [loader] game_dir, the Steam folder)
 //     --tools <folder>    nwn5e-tools (default: NWN5E_TOOLS, else beside this repo)
 //     --reader <exe>      the mesh reader (default: NWN5E_MDLMESH, else build\floatdisk\mdlmesh.exe, built if needed)
@@ -28,8 +33,8 @@
 //
 // An own file's path (a part's "file") is relative to this folder, whatever folder the project comes from. It never
 // overwrites a file it didn't make: a model, .pwk, rows file or draft must carry project.js's MARK line; a texture in
-// this repo must be in made.txt, one in <saved> named by this project's marked draft there. Every file is checked
-// before any is written.
+// this repo must be in made.txt, one in <saved> named by this project's marked draft there, a baked one have a bake's
+// name (n5p_ and 12 hex digits: only the bake makes them). Every file is checked before any is written.
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -67,8 +72,9 @@ const shown = (file) => W.shown(REPO, file);  // a repo file from the repo's roo
 const listing = (dir) => (dir && fs.existsSync(dir) ? fs.readdirSync(dir).sort() : []);
 // Each write { file, bytes, kind }, through floatdisk\files.js's one ownership rule: "text" (a model, .pwk, rows or
 // draft: ours when it carries P.MARK), "binary" (a texture in this repo: ours when made.txt lists it), "saved" (a texture
-// beside a spell mesh's draft: ours when one of this project's marked drafts there names it, `named`); an identical one
-// is anyone's. -> [[ "new" | "rebuilt" | "unchanged", file ]], `manifest` gaining the binary files written.
+// beside a spell mesh's draft: ours when one of this project's marked drafts there names it, `named`), "baked" (a dyed
+// part's texture: ours by its name); an identical one is anyone's. -> [[ "new" | "rebuilt" | "unchanged", file ]],
+// `manifest` gaining the binary files written.
 function writeAll(writes, manifest, named) {
   const owned = W.ownership({ repo: REPO, manifest, mark: P.MARK, kinds: {
     saved: (w) => named.has(path.parse(w.file).name.toLowerCase()) } });
@@ -144,19 +150,25 @@ function main() {
     rd.close();
   }
 
-  // Each variant: its parts placed on the guide's height, as the stage shows them; then lowered by it, so the model's
-  // origin is the guide's centre at its height (a placeable's base on the ground).
+  // Each variant: its parts placed on the guide's height, as the stage shows them, a dyed part's textures renamed and
+  // baked (`baked`); then lowered by it, so the model's origin is the guide's centre at its height (a placeable's base on
+  // the ground).
   const h = guide.height;
+  const baked = new Map();  // a baked texture's name -> { plt, colours, bytes, label } (files.js's bakeParts)
   const built = project.variants.map((v) => {
     const parts = v.parts.map((p, i) => Object.assign(F.placePart(p, models.get(F.partKey(p)), i, h, "j"), { part: p }));
+    W.bakeParts(parts, rd, baked);
     const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
     for (const x of parts) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], x.lo[k]); hi[k] = Math.max(hi[k], x.hi[k]); }
     const meshes = F.uniqueNames(F.lowered([].concat(...parts.map((x) => x.meshes)), h), []);
     return { v, parts, meshes, lo, hi, low: [lo[0], lo[1], lo[2] - h], high: [hi[0], hi[1], hi[2] - h] };
   });
 
-  // Textures: a game model's are the game's; one of your own files' is looked up (the game, then beside the file).
-  const ship = W.shipTextures([].concat(...built.map((b) => b.parts)), rd);  // texture name -> its copies beside a file
+  // Textures: a game model's are the game's (a dyed one's baked, above); one of your own files' is looked up (the game,
+  // then beside the file).
+  const ship = W.shipTextures([].concat(...built.map((b) => b.parts)), rd, baked);  // texture name -> its copies beside a file
+  // Where the bakes go: beside a placeable's models, or a spell mesh's drafts (--check without --saved: nothing is written).
+  const bakeDir = placeable ? FILES : SAVED || path.resolve("saved");
 
   // The summary: per variant what the VFX Bench's stage shows (A2's stage fields: the parts, meshes, triangles, how tall
   // above the guide, its top as the stage has it, and each part's size, height and reach past the guide).
@@ -175,6 +187,7 @@ function main() {
     return { name: v.name, model: v.model, row: v.row, parts: parts.length, meshes: meshes.length, triangles, tall: round3(hi[2] - h), top: round3(hi[2]), list };
   });
   for (const [texture, copies] of ship) say(`  texture ${texture}: not in the game - shipped from ${copies.join(", ")}`);
+  W.bakedLines(baked, placeable ? shown(FILES) : SAVED || "the --saved folder").forEach((l) => say(l));
 
   // The files.
   const writes = [];
@@ -201,7 +214,7 @@ function main() {
         `placeables.2da: the Composer's project ${name} (${from}), a row a variant.`,
         `Each row is the game's row ${source}${label && label !== "****" ? " (" + label + ")" : ""} with its Label and ModelName changed.`] }));
   } else {
-    const dir = SAVED || path.resolve("saved");  // --check without --saved: nothing is written
+    const dir = bakeDir;  // <saved> (--check without --saved: nothing is written)
     for (const b of built) {
       writes.push({ file: path.join(dir, b.v.model + ".vfx"), bytes: Buffer.from(F.crlf(P.draftText(core, b.v.model, b.meshes)), "latin1"), kind: "text" });
     }
@@ -209,6 +222,7 @@ function main() {
       for (const c of copies) writes.push({ file: path.join(dir, texture + path.extname(c).toLowerCase()), bytes: fs.readFileSync(c), kind: "saved" });
     }
   }
+  writes.push(...W.bakedWrites(baked, bakeDir));  // never in made.txt: whose they are, their names say
 
   // The marked files this project made under another model name (its variants counted 1 and then 2, or back): listed,
   // never deleted (F15). And, beside a spell mesh's drafts, the textures its marked drafts name (ours to rewrite).
@@ -227,7 +241,8 @@ function main() {
     if (!writing.has(path.resolve(at).toLowerCase())) unused.push(shown(at));
   }
 
-  const result = { kind, check: CHECK, variants, files: [], unused, shipped: [...ship].map(([texture, copies]) => ({ texture, from: copies })), wouldWrite: writes.length };
+  const result = { kind, check: CHECK, variants, files: [], unused, shipped: [...ship].map(([texture, copies]) => ({ texture, from: copies })),
+    baked: W.bakedJson(baked), wouldWrite: writes.length };
   const finish = () => {
     for (const f of unused) say(`no longer used: ${f} (made by this generator for ${name} under an earlier name) - delete it if nothing needs it`);
     if (JSON_OUT) console.log(JSON.stringify(result));

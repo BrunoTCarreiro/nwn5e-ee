@@ -3,8 +3,9 @@
 // (tools\data\composer\<name>.json, README.md), the model names and labels, the free rows, the guide's outline, the use
 // point, a new part's scale, a spell mesh's draft and the project file's text. build.js beside this file builds a
 // project; the VFX Bench's Composer edits one, with these same parts. Nothing here touches the disk or the game.
-// Plain UMD: Node's require, or a page's self.ComposerProject. Nothing is required: floatdisk.js (F) and the bench's
-// core.js are passed in where they're needed.
+// Plain UMD: Node's require, or a page's self.ComposerProject. Nothing is required when it loads: floatdisk.js (F) and the
+// bench's core.js are passed in where they're needed - but for projectText, which writes with floatdisk.js's inline (the
+// one JSON writer, composition.json's too), found when it runs: the page's self.FloatDisk, else Node's require.
 (function (root) {
 "use strict";
 
@@ -205,14 +206,13 @@ function newProject(name, kind) {
 const PART_KEYS = ["note", "model", "file", "at", "turn", "scale", "tilt"];
 const VARIANT_KEYS = ["name", "model", "row"];
 const ordered = (o, first) => first.filter((k) => o[k] !== undefined).concat(Object.keys(o).filter((k) => !first.includes(k) && o[k] !== undefined));
-function inline(v) {
-  if (Array.isArray(v)) return "[" + v.map(inline).join(", ") + "]";
-  if (v && typeof v === "object") {
-    const keys = Object.keys(v).filter((k) => v[k] !== undefined);
-    return keys.length ? "{ " + keys.map((k) => JSON.stringify(k) + ": " + inline(v[k])).join(", ") + " }" : "{}";
-  }
-  return JSON.stringify(v);
+// A value on one line: floatdisk.js's inline ({} when empty, an undefined key left out), the page's or Node's.
+function floatDisk() {
+  if (root.FloatDisk) return root.FloatDisk;
+  if (typeof require === "function") return require("../floatdisk/floatdisk.js");
+  throw new Error("project.js's projectText needs floatdisk.js (self.FloatDisk): load it first");
 }
+const inline = (v) => floatDisk().inline(v);
 function projectText(json) {
   const pair = (k, v) => JSON.stringify(k) + ": " + v;
   const part = (p) => "{ " + ordered(p, PART_KEYS).map((k) => pair(k, inline(p[k]))).join(", ") + " }";

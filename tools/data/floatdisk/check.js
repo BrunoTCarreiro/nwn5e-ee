@@ -442,6 +442,30 @@ check("the bake in a page: the same name and bytes", () => {
   assert.ok(Buffer.from(t).equals(F.tgaBytes(F.bakePlt(F.readPlt(PLT2), PALS, DYE()))));
   assert.strictEqual(P.bakedName("helm_001", {}), F.bakedName("helm_001", {}));
 });
+check("bakePlt and bakedName: a colour left out or undefined is its default - one rule, so a name matches its pixels", () => {
+  const plt = F.readPlt(PLT2), full = (c) => [...F.bakePlt(plt, PALS, F.readColours(c)).data];
+  // Left out: the default's row, not row 0 (or black) - as the name has it.
+  assert.deepStrictEqual([...F.bakePlt(plt, PALS, { metal1: 7 }).data], full({ metal1: 7 }));
+  assert.deepStrictEqual([...F.bakePlt(plt, PALS, {}).data], full(undefined));
+  assert.deepStrictEqual([...F.bakePlt(plt, PALS, undefined).data], full(undefined));
+  // Undefined: the default too, in both.
+  const gaps = Object.assign(F.readColours({ metal1: 7 }), { metal2: undefined, cloth1: undefined });
+  assert.deepStrictEqual([...F.bakePlt(plt, PALS, gaps).data], full({ metal1: 7 }));
+  assert.strictEqual(F.bakedName("helm_001", { metal1: undefined }), "n5p_2cd3d725dedb");
+  assert.strictEqual(F.bakedName("helm_001", gaps), F.bakedName("helm_001", { metal1: 7 }));
+});
+check("one JSON writer (inline): {} when empty, an undefined key left out - compositionText's colours read back", () => {
+  assert.strictEqual(F.inline({}), "{}");
+  assert.strictEqual(F.inline({ metal1: 5, cloth1: undefined }), '{ "metal1": 5 }');
+  assert.strictEqual(F.inline([1, { a: [0, 0.5] }, "x", null]), '[1, { "a": [0, 0.5] }, "x", null]');
+  const text = F.compositionText({ stages: { small: [
+    { model: "helm_001", at: [0, 0, 0], colours: {} },
+    { model: "helm_002", at: [0, 0, 0], colours: { metal1: undefined, metal2: 5 } }] } });
+  const l = text.split("\n");
+  assert.ok(l.includes('      { "model": "helm_001", "at": [0, 0, 0], "colours": {} },'), text);
+  assert.ok(l.includes('      { "model": "helm_002", "at": [0, 0, 0], "colours": { "metal2": 5 } }'), text);
+  assert.deepStrictEqual(JSON.parse(text).stages.small.map((p) => p.colours), [{}, { metal2: 5 }]);
+});
 
 // --- files.js's writing (build_derived.js --check: dry) -----------------------------------------------------------------
 check("writeAll dry: the states and the ownership rule as written, nothing written", () => {

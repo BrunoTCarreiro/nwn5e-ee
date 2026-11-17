@@ -14,6 +14,7 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 const P = require("./project.js");
 const F = require("../floatdisk/floatdisk.js");
+const R = require("../floatdisk/reader.js");
 
 const REPO = path.resolve(__dirname, "..", "..", "..");
 const argv = process.argv.slice(2);
@@ -298,6 +299,60 @@ try {
     const empty = project("chknew", { kind: "placeable", guide: CIRCLE, placeable: THROUGH, variants: [{ name: "1", row: 14180, parts: [] }] });
     refused(build(empty, ["--check", "--json"]), /variants\[0\]\.parts: at least one part/);
     assert.deepStrictEqual(snapshot(), before);
+  });
+
+  // A dyed part (its texture the game has only as a PLT): baked from the game's palettes into a texture of its own.
+  const DEF = "n5p_2cd3d725dedb", LEATHER = F.bakedName("helm_011", { leather1: 7 });  // helm_001 at the defaults; helm_011 leather 1 7
+  const rd = R.create({ game: GAME, core, gameData, reader: null });
+  const byName = (j) => Object.fromEntries(j.files.map((x) => [path.basename(x.file), x.state]));
+  check("a placeable's dyed part is baked into data\\files beside its model; the model names it, made.txt doesn't list it", () => {
+    const made = path.join(folder, "made.txt"), madeText = () => (fs.existsSync(made) ? fs.readFileSync(made, "utf8") : "");
+    const kept = madeText();
+    // Row 14151: 14150 is chkblock's now (Blocks, above), and a row another rows file sets is refused.
+    const helm = project("chkhelm", { kind: "placeable", guide: CIRCLE, placeable: THROUGH, variants: [{ name: "1", row: 14151, parts: [
+      { model: "helm_001", at: [0, 0, 0] }, { model: "helm_011", at: [0.3, 0, 0], colours: { leather1: 7 } }] }] });
+    const said = build(helm, ["--check"]).out;
+    for (const line of [`  texture ${DEF}: helm_001 dyed with metal 1 0, metal 2 3, leather 1 3, leather 2 2, cloth 1 22, cloth 2 23 - baked into data/files`,
+      `  texture ${LEATHER}: helm_011 dyed with metal 1 0, metal 2 3, leather 1 7, leather 2 2, cloth 1 22, cloth 2 23 - baked into data/files`]) {
+      assert.ok(said.split(/\r?\n/).includes(line), "no line: " + line + "\n" + said);
+    }
+    const j = ok(build(helm, ["--json"]));
+    assert.deepStrictEqual(j.baked, [{ texture: DEF, plt: "helm_001", colours: {} }, { texture: LEATHER, plt: "helm_011", colours: { leather1: 7 } }]);
+    const mdl = fs.readFileSync(path.join(FILES, "plc_n5chkhelm.mdl"), "latin1");
+    for (const name of [DEF, LEATHER]) assert.ok(mdl.includes(`\r\n  bitmap ${name}\r\n`), "plc_n5chkhelm.mdl doesn't name " + name);
+    assert.ok(!/\r\n  bitmap helm_0(01|11)\r\n/i.test(mdl), "plc_n5chkhelm.mdl still names a PLT");
+    // Both in data\files, new, reader.js's bakes; neither in saved\ nor made.txt.
+    const states = byName(j);
+    for (const [name, plt, colours] of [[DEF, "helm_001", F.readColours()], [LEATHER, "helm_011", F.readColours({ leather1: 7 })]]) {
+      assert.strictEqual(states[name + ".tga"], "new", name);
+      assert.ok(j.files.some((x) => x.file === `data/files/${name}.tga`), name + " isn't named from the repo's root");
+      assert.ok(fs.readFileSync(path.join(FILES, name + ".tga")).equals(rd.bake(plt, colours).bytes), name + " isn't reader.js's bake");
+      assert.ok(!fs.existsSync(path.join(SAVED, name + ".tga")), name + " is in saved\\");
+    }
+    assert.strictEqual(madeText(), kept, "made.txt changed");
+    // Built again: every state unchanged.
+    const again = ok(build(helm, ["--json"]));
+    assert.ok(again.files.length && again.files.every((x) => x.state === "unchanged"), JSON.stringify(again.files));
+  });
+
+  check("a spell mesh's dyed part: its draft names the baked texture, baked beside it into --saved", () => {
+    const mesh = project("chkhelmm", { kind: "spellmesh", guide: { shape: "circle", diameter: 0.5, height: 0 }, variants: [{ name: "1", parts: [{ model: "helm_001", at: [0, 0, 0] }] }] });
+    assert.ok(build(mesh, ["--check", "--saved", SAVED]).out.split(/\r?\n/).includes(
+      `  texture ${DEF}: helm_001 dyed with metal 1 0, metal 2 3, leather 1 3, leather 2 2, cloth 1 22, cloth 2 23 - baked into ${SAVED}`));
+    const files = snapshot();
+    const j = ok(build(mesh, ["--json", "--saved", SAVED]));
+    assert.deepStrictEqual(j.baked, [{ texture: DEF, plt: "helm_001", colours: {} }]);
+    const planes = core.readDraft(fs.readFileSync(path.join(SAVED, "n5m_chkhelmm.vfx"), "latin1").replace(/\r/g, "")).planes;
+    assert.ok(planes.some((p) => p.bitmap === DEF) && !planes.some((p) => /^helm_001$/i.test(p.bitmap)), "the draft's bitmaps: " + planes.map((p) => p.bitmap));
+    assert.deepStrictEqual(byName(j), { "n5m_chkhelmm.vfx": "new", [DEF + ".tga"]: "new" });
+    assert.ok(fs.readFileSync(path.join(SAVED, DEF + ".tga")).equals(rd.bake("helm_001", F.readColours()).bytes));
+    // Nothing in data\ for a spell mesh.
+    const after = snapshot();
+    for (const f of Object.keys(after)) if (!f.startsWith(SAVED)) assert.strictEqual(after[f], files[f], f);
+    // Built again: unchanged. A file of the baked name there is the bake's (the name fixes its bytes): rewritten.
+    assert.deepStrictEqual(byName(ok(build(mesh, ["--json", "--saved", SAVED]))), { "n5m_chkhelmm.vfx": "unchanged", [DEF + ".tga"]: "unchanged" });
+    fs.writeFileSync(path.join(SAVED, DEF + ".tga"), "not a bake");
+    assert.deepStrictEqual(byName(ok(build(mesh, ["--json", "--saved", SAVED]))), { "n5m_chkhelmm.vfx": "unchanged", [DEF + ".tga"]: "rebuilt" });
   });
 } finally {
   fs.rmSync(root, { recursive: true, force: true });

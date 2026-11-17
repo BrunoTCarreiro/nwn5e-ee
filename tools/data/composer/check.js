@@ -324,6 +324,22 @@ check("a spell mesh's draft reads back with its meshes as planes", () => {
 });
 
 // --- the project file -----------------------------------------------------------------------------------------------
+check("projectText writes its values with floatdisk.js's inline - one JSON writer with compositionText", () => {
+  const json = { name: "helms", variants: [{ name: "1", parts: [{ model: "helm_001", at: [0, 0, 0], colours: { metal1: 5, cloth1: undefined } },
+    { model: "helm_002", at: [0, 0, 0], colours: {} }] }] };
+  const kept = F.inline;
+  let calls = 0;
+  F.inline = (v) => { calls++; return kept(v); };
+  let text;
+  try {
+    text = P.projectText(json);
+  } finally {
+    F.inline = kept;
+  }
+  assert.ok(calls > 0, "projectText didn't call F.inline");
+  assert.ok(text.split("\n").includes('      { "model": "helm_001", "at": [0, 0, 0], "colours": { "metal1": 5 } },'), text);
+  assert.ok(text.split("\n").includes('      { "model": "helm_002", "at": [0, 0, 0], "colours": {} }'), text);
+});
 check("projectText: a part a line, and a round trip", () => {
   const json = copy(CRATES);
   json.variants[1] = { parts: [], name: "2" };

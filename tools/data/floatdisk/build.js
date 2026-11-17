@@ -9,14 +9,17 @@
 // - data\files: the four creature models c_n5fd_empty / _small / _med / _large (supermodel c_invsguy - the invisible
 //   man's walk and idles - with his nodes, the junk and the disk floating at its height), the three piles without the
 //   disk plc_n5fd_small / _med / _large (their base on the ground) with their .pwk use points, and the disk's texture
-//   n5t_forcedisk.tga; with your own files' textures the game doesn't have, copied from beside them.
+//   n5t_forcedisk.tga; with your own files' textures the game doesn't have, copied from beside them; and a dyed part's
+//   textures (a helmet's: the game has them only as a PLT), baked from the game's palettes in the part's colours into
+//   n5p_<12 hex digits>.tga, which the models name instead (files.js's bakeParts).
 // - data\rows: appearance.floatdisk.txt (rows 14000-14003, each appearance 298's) and placeables.floatdisk.txt (14001-
 //   14003, each 189 TreasureSml's), floatdisk.js's ROWS.
 //
 // Nothing of the game's is kept in the repo: the parts, c_invsguy and the rows copied are read from the player's own
 // game at build time (its KEY / BIF archives and ovr\, through nwn5e-tools' spell_bench\game_data.js) and the meshes
 // through nwn5e-ee's own model reader (src\data\vfx_model.cpp) compiled into mdlmesh (mdlmesh.cpp, build_mdlmesh.bat;
-// built into build\floatdisk\ when missing or older than its sources).
+// built into build\floatdisk\ when missing or older than its sources). The models and the baked textures it writes into
+// data\files are git-ignored: build.bat makes them for every build (tools\data\build_derived.js).
 //
 //   node tools\data\floatdisk\build.js [options]
 //     --composition <file>  default: composition.json beside this file
@@ -33,7 +36,8 @@
 //                           default NWN5E_BUILD or ..\nwn5e-ee\build beside nwn5e-tools; --out, --textures)
 //
 // It never overwrites a file it didn't make: a model, .pwk or rows file must carry the MARK line; a texture must be in
-// made.txt (beside this file: the files it wrote that can't carry a mark). Every file is checked before any is written.
+// made.txt (beside this file: the files it wrote that can't carry a mark), a baked one have a bake's name (n5p_ and 12
+// hex digits: only the bake makes them). Every file is checked before any is written.
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -70,7 +74,8 @@ function setup() {
 const repoPath = (file) => W.repoPath(REPO, file);
 // Each write { file, bytes, kind }, through files.js's one ownership rule: "text" (a model, .pwk, rows or draft: ours
 // when it carries MARK), "binary" (a texture shipped in this repo: ours when made.txt lists it; outside the repo only
-// an identical one is), "library" (the bench library's disk texture: ours when its TGA image ID is TEXTURE_MARK).
+// an identical one is), "baked" (a dyed part's texture: ours by its name, n5p_ and 12 hex digits), "library" (the bench
+// library's disk texture: ours when its TGA image ID is TEXTURE_MARK).
 // -> [[ "new" | "rebuilt" | "unchanged", file ]], `manifest` gaining the binary files written in the repo.
 function writeAll(writes, manifest) {
   const owned = W.ownership({ repo: REPO, manifest, mark: F.MARK, kinds: {
@@ -102,12 +107,15 @@ function main() {
   const nodes = F.modelNodes(invs);
   const taken = nodes.map((n) => n.name);
 
-  // Each stage: its parts placed on the disk's top; the creature's meshes (the junk, then the disk: see-through, drawn
-  // over it) and the pile's (the junk lowered by the disk's height, its base on the ground).
+  // Each stage: its parts placed on the disk's top, a dyed part's textures renamed and baked (`baked`); the creature's
+  // meshes (the junk, then the disk: see-through, drawn over it) and the pile's (the junk lowered by the disk's height,
+  // its base on the ground).
   const diskMesh = F.diskMesh(disk);
   const stages = {};
+  const baked = new Map();  // a baked texture's name -> { plt, colours, bytes, label } (files.js's bakeParts)
   for (const stage of F.STAGES) {
     const parts = comp.stages[stage].map((p, i) => Object.assign(F.placePart(p, models.get(F.partKey(p)), i, disk.height, "j"), { part: p }));
+    W.bakeParts(parts, rd, baked);
     const junk = [].concat(...parts.map((x) => x.meshes));
     const creature = F.uniqueNames([...junk, diskMesh], taken);
     const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
@@ -116,8 +124,9 @@ function main() {
     stages[stage] = { parts, creature, pile, lo, hi };
   }
 
-  // Textures: a part from the game has the game's; one of your own files' is looked up (the game, then beside the file).
-  const ship = W.shipTextures([].concat(...F.PILES.map((stage) => stages[stage].parts)), rd);  // texture name -> its copies beside a file
+  // Textures: a part from the game has the game's (a dyed one's baked, above); one of your own files' is looked up (the
+  // game, then beside the file).
+  const ship = W.shipTextures([].concat(...F.PILES.map((stage) => stages[stage].parts)), rd, baked);  // texture name -> its copies beside a file
 
   // The summary: per stage its parts, triangles, how high the pile goes and how far it reaches.
   const r = disk.diameter / 2;
@@ -143,6 +152,7 @@ function main() {
     }
   }
   for (const [name, copies] of ship) say(`  texture ${name}: not in the game - shipped from ${copies.join(", ")}`);
+  W.bakedLines(baked, W.shown(REPO, FILES)).forEach((l) => say(l));
 
   // The files.
   const writes = [];
@@ -165,6 +175,7 @@ function main() {
   for (const [name, copies] of ship) {
     for (const c of copies) writes.push({ file: path.join(FILES, name + path.extname(c).toLowerCase()), bytes: fs.readFileSync(c), kind: "binary" });
   }
+  writes.push(...W.bakedWrites(baked, FILES));  // beside the models that name them, git-ignored; never in made.txt
   const appearance = gameData.gameTable(GAME, "appearance"), placeables = gameData.gameTable(GAME, "placeables");
   text(path.join(ROWS_DIR, "appearance.floatdisk.txt"), F.rowsText(appearance, F.SOURCE_ROWS.appearance,
     F.STAGES.map((st) => ({ row: F.ROWS.appearance[st], label: F.LABELS.appearance[st], model: F.creatureModel(st) })),
@@ -187,8 +198,10 @@ function main() {
       writes.push({ file: path.join(DRAFT_OUT, name + ".vfx"), bytes: Buffer.from(F.crlf(draft), "latin1"), kind: "text" });
     }
     writes.push({ file: path.join(DRAFT_TEXTURES, disk.texture + ".tga"), bytes: F.diskTexture(disk, F.TEXTURE_MARK), kind: "library" });
+    writes.push(...W.bakedWrites(baked, DRAFT_OUT));  // the drafts name them: beside them, where the game reads the bench's
   }
-  const result = { check: CHECK, stages: summary, shipped: [...ship].map(([texture, from]) => ({ texture, from })), files: [], wouldWrite: writes.length, unused: [] };
+  const result = { check: CHECK, stages: summary, shipped: [...ship].map(([texture, from]) => ({ texture, from })), baked: W.bakedJson(baked),
+    files: [], wouldWrite: writes.length, unused: [] };
   const finish = () => { if (JSON_OUT) console.log(JSON.stringify(result)); };
   if (CHECK) {
     say(`--check: nothing written (${writes.length} files would be)`);

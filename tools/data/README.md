@@ -1,7 +1,8 @@
 # The game-derived files: build_derived.js
 
 `build_derived.js` builds the models made from the game's own art - the Floating Disk's and the Composer's placeables -
-from their recipes, from your own game, into a build's folder. The repo doesn't keep them.
+and a dyed part's baked texture, from their recipes, from your own game, into a build's folder. The repo doesn't keep
+them.
 
 ## Why
 
@@ -11,8 +12,9 @@ remove the six files from main"**:
 
 - The repo keeps only the recipes (`floatdisk\composition.json`, the Composer's `composer\<project>.json`), the
   generators and original art.
-- The game-derived models (and, later, baked PLT textures) are built on the owner's machine at build time, from the
-  owner's own game, into the build's `data\files`.
+- The game-derived models, and the baked PLT textures they name (a dyed part's: a helmet's, painted from the game's
+  PLT and palettes), are built on the owner's machine at build time, from the owner's own game, into the build's
+  `data\files`.
 
 ## What git keeps out
 
@@ -23,7 +25,7 @@ remove the six files from main"**:
 - `c_n5fd_empty.mdl`: its disk mesh is original, but it carries `c_invsguy`'s node names and positions, which its
   supermodel needs (the owner, 2026-11-17: "go with your recs for the three questions");
 - any Composer placeable's model: `plc_n5*.mdl`;
-- any baked texture: `n5p_*`.
+- any baked texture: `n5p_*` (`n5p_` and 12 hex digits, `.tga`: the Floating Disk's README, "Dyed parts").
 
 The generators' own runs (the VFX Bench's Save and build) still write them into `data\files`, where they stay,
 ignored. What's made from scratch stays committed: the `.pwk` files, `n5t_forcedisk.tga`, the rows.
@@ -49,7 +51,8 @@ node tools\data\build_derived.js --out <folder> [--game <folder>] [--tools <nwn5
   build.bat). Never this repo's `data\`: that's refused.
 - **What it builds:** the Floating Disk (`floatdisk\build.js`), and every placeable project in `composer\*.json`
   (`composer\build.js`). Each generator runs into a scratch folder of its own, then what it made is written into
-  `--out`.
+  `--out`: the models, the walkmeshes, the textures, and a dyed part's baked texture (`n5p_*.tga`) with the models
+  that name it. Two generators may bake the same texture (the same PLT and colours): it's written once.
 - **Spell meshes are skipped**, and it says so. Their drafts live in the VFX Bench's saved folder, and the dev layer
   writes their models when the game runs.
 - **A project never built is skipped**, and it says so. That's one with no `data\rows\placeables.<name>.txt` and no
@@ -64,8 +67,9 @@ node tools\data\build_derived.js --out <folder> [--game <folder>] [--tools <nwn5
     of `data\files`); the VFX Bench's Save rebuilds them too. Commit them with the recipe.
   - For a build that won't be installed, `NWN5E_DERIVED=skip` gets past it (build.bat).
 - **Never a file it didn't make.** In `--out` it keeps the generators' rule: a model or `.pwk` is overwritten only
-  when it carries its generator's mark, a texture only when that generator's `made.txt` lists it. Any other file in
-  the way stops it. Every file is checked before any is written.
+  when it carries its generator's mark, a texture only when that generator's `made.txt` lists it, a baked texture by
+  its name (only the bake makes `n5p_` names, and the name fixes the picture). Any other file in the way stops it.
+  Every file is checked before any is written.
 - **What it says:** a line per generator (its files, whether its rows agree), a line per file (`written` or
   `unchanged`), then a total.
 - **`--check`** builds and checks everything in the scratch folders, writes nothing into `--out`, and says what it
@@ -97,8 +101,10 @@ build.bat stops on either (above).
   - the committed recipes build `HEAD`'s `data\files` byte for byte (the Floating Disk's 4 committed files and every
     committed placeable project's), into `--out` only. What's built but not committed is git-ignored. Each removed model
     comes out byte for byte as it was last committed, while the recipe and the generator are unchanged since its
-    removal;
+    removal. The Floating Disk's dyed parts' bakes come out with its models, which name them;
   - a second build leaves every file unchanged;
+  - a placeable project's dyed parts: their bakes come out with its model into `--out`, the bake's bytes, unchanged on
+    a second build; one the Floating Disk also makes is written once; a file of a bake's name in `--out` is rewritten;
   - `--check` writes nothing;
   - rows that disagree, or a recipe edited without its rows, give exit 1 and say which;
   - a spell mesh is skipped, a refused build and a file in the way give exit 1, and each missing prerequisite gives
