@@ -65,11 +65,15 @@ function need(file, what) {
   if (!fs.existsSync(file)) throw new Error(`${what} isn't there: ${file}`);
   return file;
 }
-global.window = global.window || {};  // core.js runs in the page and under node
-const core = require(need(path.join(TOOLS, "vfx_bench", "public", "core.js"), "nwn5e-tools' VFX Bench core (--tools)"));
-const gameData = require(need(path.join(TOOLS, "spell_bench", "game_data.js"), "nwn5e-tools' game data reader (--tools)"));
-const helper = require(need(path.join(TOOLS, "anim_helper", "helper.js"), "nwn5e-tools' anim helper (--tools)"));
-const GAME = helper.findGameDir({ game: option("game", ""), buildDir: BUILD });
+// What the nwn5e-tools folder gives, loaded when main starts (a bad --tools is an error like any other, JSON included).
+let core, gameData, GAME;
+function setup() {
+  global.window = global.window || {};  // core.js runs in the page and under node
+  core = require(need(path.join(TOOLS, "vfx_bench", "public", "core.js"), "nwn5e-tools' VFX Bench core (--tools)"));
+  gameData = require(need(path.join(TOOLS, "spell_bench", "game_data.js"), "nwn5e-tools' game data reader (--tools)"));
+  const helper = require(need(path.join(TOOLS, "anim_helper", "helper.js"), "nwn5e-tools' anim helper (--tools)"));
+  GAME = helper.findGameDir({ game: option("game", ""), buildDir: BUILD });
+}
 
 // --- writing ----------------------------------------------------------------------------------------------------------
 // A file in this repo by its path from the repo's root ("data/files/x.tga"); null outside it.
@@ -117,6 +121,7 @@ function writeAll(writes, manifest) {
 
 // --- main -----------------------------------------------------------------------------------------------------------
 function main() {
+  setup();
   const comp = F.readComposition(JSON.parse(fs.readFileSync(COMPOSITION, "utf8")), __dirname);
   if (!fs.existsSync(path.join(GAME, "data", "nwn_base.key"))) throw new Error("no game at " + GAME + " (--game <folder>)");
   const reader = R.ensureReader({ repo: REPO, reader: READER, log: JSON_OUT ? console.error : console.log });

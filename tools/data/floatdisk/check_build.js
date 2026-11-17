@@ -145,6 +145,14 @@ try {
     assert.match(json(r).error, /.*no such model/);
     assert.deepStrictEqual(snapshot(), before);
   });
+  check("a setup failure is still one JSON error line", () => {
+    const r = spawnSync(process.execPath, [path.join(folder, "build.js"), "--check", "--json", "--tools", path.join(root, "no-such-tools")],
+      { encoding: "utf8", windowsHide: true });
+    assert.strictEqual(r.status, 1, "exit " + r.status);
+    const lines = r.stdout.split(/\r?\n/).filter(Boolean);
+    assert.strictEqual(lines.length, 1, lines.length + " lines on stdout: " + r.stdout.trim().slice(0, 200));
+    assert.strictEqual(typeof JSON.parse(lines[0]).error, "string");
+  });
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }
