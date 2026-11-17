@@ -55,17 +55,20 @@ std::vector<std::string> EmitterLines(const VfxEmitter& e, const std::string& no
   const auto flag = [](const char* name, bool on) { return std::string("  ") + name + (on ? " 1" : " 0"); };
   // Point to point only with a target (the game calls into a missing one); p2p_sel 1: bezier.
   const bool p2p = has_target && (e.p2p == "bezier" || e.p2p == "gravity");
+  // A random frame each is frameStart + rand() % (frameEnd - frameStart + 1) in the game (chkRandom; nwn5e-tools
+  // PARTICLES.md): a start one past the end divides by 0, so no random frame then (the draft keeps its flag).
+  const bool random = e.random && e.frame_start != e.frame_end + 1;
   return {
       "node emitter " + node,
       "  parent " + parent,
       flag("p2p", p2p), flag("p2p_sel", !p2p || e.p2p == "bezier"), "  affectedByWind 0", "  m_isTinted 0", flag("bounce", e.bounce),
-      flag("random", e.random), flag("inherit", e.inherit), "  inheritvel 0", flag("inherit_local", e.inherit_local),
+      flag("random", random), flag("inherit", e.inherit), "  inheritvel 0", flag("inherit_local", e.inherit_local),
       flag("splat", e.splat), flag("inherit_part", e.inherit_part), "  renderorder 0", "  spawntype 0",
       "  update " + e.update,
       "  render " + e.render,
       "  blend " + e.blend,
       "  texture " + e.texture,
-      "  xgrid " + std::to_string(e.grid), "  ygrid " + std::to_string(e.grid), "  loop 0",
+      "  xgrid " + std::to_string(e.grid), "  ygrid " + std::to_string(e.grid_down ? e.grid_down : e.grid), "  loop 0",
       "  deadspace " + Num(std::min(std::max(e.deadspace, 0.0f), kVfxDeadspaceMax)), flag("twosidedtex", e.twosidedtex),
       "  blastRadius 0", "  blastLength 0",
       "  position " + Num(e.position[0]) + " " + Num(e.position[1]) + " " + Num(e.position[2]),
@@ -76,7 +79,7 @@ std::vector<std::string> EmitterLines(const VfxEmitter& e, const std::string& no
       "  alphaStart " + Num(e.alpha_start), "  alphaEnd " + Num(e.alpha_end),
       "  sizeStart " + Num(e.size_start), "  sizeEnd " + Num(e.size_end),
       "  sizeStart_y 0", "  sizeEnd_y 0",
-      "  frameStart 0", "  frameEnd " + std::to_string(e.frame_end),
+      "  frameStart " + std::to_string(e.frame_start), "  frameEnd " + std::to_string(e.frame_end),
       "  birthrate " + Num(keyed_birthrate ? 0.0f : e.birthrate),
       "  lifeExp " + Num(e.life),
       "  mass " + Num(e.mass), "  spread " + Num(e.spread), "  particleRot " + Num(e.particle_rot),
@@ -631,7 +634,11 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
     out += "color_end = " + Num(e.color_end[0]) + " " + Num(e.color_end[1]) + " " + Num(e.color_end[2]) + "\n";
     out += "alpha = " + Num(e.alpha_start) + " " + Num(e.alpha_end) + "\n";
     out += "area = " + Num(e.xsize) + " " + Num(e.ysize) + "\n";
-    out += "grid = " + std::to_string(e.grid) + "\nframe_end = " + std::to_string(e.frame_end) + "\n";
+    // Frames down and the start frame (the owner, 2026-11-17) only when set - every draft before them keeps its bytes.
+    out += "grid = " + std::to_string(e.grid) + "\n";
+    if (e.grid_down != 0 && e.grid_down != e.grid) out += "grid_down = " + std::to_string(e.grid_down) + "\n";
+    out += "frame_end = " + std::to_string(e.frame_end) + "\n";
+    if (e.frame_start != 0) out += "frame_start = " + std::to_string(e.frame_start) + "\n";
     out += "fps = " + Num(e.fps) + "\nparticle_rot = " + Num(e.particle_rot) + "\n";
     out += "blur_length = " + Num(e.blur_length) + "\nbounce_co = " + Num(e.bounce_co) + "\n";
     out += "deadspace = " + Num(e.deadspace) + "\n";
@@ -854,7 +861,9 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
       e->xsize = area[0];
       e->ysize = area[1];
     } else if (key == "grid") e->grid = std::max(1, atoi(value.c_str()));
+    else if (key == "grid_down") e->grid_down = std::max(0, atoi(value.c_str()));
     else if (key == "frame_end") e->frame_end = std::max(0, atoi(value.c_str()));
+    else if (key == "frame_start") e->frame_start = std::max(0, atoi(value.c_str()));  // past frame_end too: as written
     else if (key == "fps") e->fps = ToFloat(value);
     else if (key == "particle_rot") e->particle_rot = ToFloat(value);
     else if (key == "blur_length") e->blur_length = ToFloat(value);
@@ -889,6 +898,10 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
         e->twosidedtex = e->twosidedtex || f == "twosidedtex";
       }
     } else DraftKeyLine(key, words, &e->keys);
+  }
+  // Frames down the same as across (either line first): 0, as both model readers have it - then it follows the grid.
+  for (VfxEmitter& e : result.emitters) {
+    if (e.grid_down == e.grid) e.grid_down = 0;
   }
   *effect = result;
   return true;
@@ -1119,7 +1132,9 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       else if (first == "xsize") e->xsize = ToFloat(v);
       else if (first == "ysize") e->ysize = ToFloat(v);
       else if (first == "xgrid") e->grid = std::max(1, atoi(v.c_str()));
+      else if (first == "ygrid") e->grid_down = std::max(0, atoi(v.c_str()));  // 0 when it's xgrid: after the read
       else if (first == "frameend") e->frame_end = std::max(0, atoi(v.c_str()));
+      else if (first == "framestart") e->frame_start = std::max(0, atoi(v.c_str()));
       else if (first == "fps") e->fps = ToFloat(v);
       else if (first == "particlerot") e->particle_rot = ToFloat(v);
       else if (first == "blurlength") e->blur_length = ToFloat(v);
@@ -1144,6 +1159,10 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
     }
   }
   if (key_rows != 0) finish_keys();
+  // Frames down the same as across (in either order in the model): 0, as a draft has it - a square sheet stays default.
+  for (VfxEmitter& e : result.emitters) {
+    if (e.grid_down == e.grid) e.grid_down = 0;
+  }
   bool meshes = false;
   for (const Geo& g : geo) meshes = meshes || (g.mesh && !g.verts.empty() && !g.faces.empty());
   if (result.emitters.empty() && !meshes) {
@@ -1411,7 +1430,8 @@ void ApplyController(const Controller& c, VfxEmitter* e) {
     case 96: e->color_end[0] = v(0); e->color_end[1] = v(1); e->color_end[2] = v(2); break;
     case 108: e->color_start[0] = v(0); e->color_start[1] = v(1); e->color_start[2] = v(2); break;
     case 128: e->fps = v(0); break;  // PartEmitter +0x9c (controller = field offset - 28)
-    case 132: e->frame_end = static_cast<int>(v(0)); break;
+    case 132: e->frame_end = std::max(0, static_cast<int>(v(0))); break;  // as the ASCII and draft readers: never below 0
+    case 136: e->frame_start = std::max(0, static_cast<int>(v(0))); break;  // frameStart (vim_protevil's OmenEmitter01: 3)
     case 160: e->particle_rot = v(0); break;  // +0xbc
     case 144: e->life = v(0); break;
     case 148: e->mass = v(0); break;
@@ -1482,6 +1502,11 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
       e.texture = m.Str(emitter + 0x78, 64);
       e.chunk = VfxResRef(m.Str(emitter + 0xB8, 16), 16);  // node +0x158 (0.42.6); a resref: any case
       e.grid = std::max<int>(1, static_cast<int>(m.U32(emitter + 0x0C)));
+      // y grid beside it (the game's sheets that aren't square: head_01's 8 x 4, frames 0..31; vim_rayblack's 2 x 1, 0..1):
+      // the frames down, 0 when it's the grid (as a draft has a square sheet) - or no sheet's: 0, or past 64 (the game's
+      // own go to 8).
+      const uint32_t ygrid = m.U32(emitter + 0x10);
+      e.grid_down = ygrid == 0 || ygrid > 64 || static_cast<int>(ygrid) == e.grid ? 0 : static_cast<int>(ygrid);
       const uint32_t flags = m.U32(emitter + 0xD4);
       e.bounce = (flags & 0x010) != 0;
       e.random = (flags & 0x020) != 0;

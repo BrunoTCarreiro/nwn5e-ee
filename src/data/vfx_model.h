@@ -90,8 +90,14 @@ struct VfxEmitter {
   float alpha_end = 0.0f;
   float xsize = 0.0f;  // spawn area, centimetres
   float ysize = 0.0f;
-  int grid = 1;       // a texture sheet of grid x grid frames
-  int frame_end = 0;  // frames 0..frame_end
+  int grid = 1;       // a texture sheet of grid frames across (and down, unless grid_down says otherwise)
+  int frame_end = 0;  // frames frame_start..frame_end
+  // The owner, 2026-11-17 (vfx 145: "selecting one of the quadrants from the texture file, but I can't seem to alter
+  // these configurations"): the frame it starts at (the model's frameStart, controller 136 - vim_protevil's OmenEmitter01
+  // shows frame 3 of its 2 x 2 sheet), and the sheet's frames down (the model's ygrid; 0: the same as grid - a square
+  // sheet needs neither, and a draft without them writes the bytes it did before).
+  int frame_start = 0;
+  int grid_down = 0;
   float blur_length = 0.0f;
   // 0.42.2, as the game draws them (PartEmitter::RenderEmitter): the sheet's frames a second
   // (0: the frame stays - what nwn5e wrote before) and the particles' spin, radians a second.
@@ -215,7 +221,7 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
 // A compiled (binary) model's emitters - the game's own effects, read where
 // the player's game has them, nothing of them kept in nwn5e: each emitter node
 // (node header 0x60 bytes, then the emitter header: update +0x18, render
-// +0x38, blend +0x58, texture +0x78, x grid +0x0C, flags +0xD4) and its
+// +0x38, blend +0x58, texture +0x78, x grid +0x0C, y grid +0x10, flags +0xD4) and its
 // controllers (keys at node +0x44, values at +0x50, offsets from byte 12); an
 // animation's copy of the node with a birthrate keyed to 0 gives emit_seconds.
 // Its meshes are planes: plain ones (flags 0x21) - re-saving an effect would turn an
