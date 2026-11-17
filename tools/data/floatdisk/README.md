@@ -53,6 +53,8 @@ node tools\data\floatdisk\build.js
   Composer reads it.
 - It never overwrites a file it didn't make.
 - The new files reach the game at the next install.
+- A build can make the models itself, from this recipe and your own game, into its own folder:
+  `tools\data\build_derived.js` (`tools\data\README.md`).
 
 `node tools\data\floatdisk\check.js` checks the generator's own parts. It doesn't need the game.
 

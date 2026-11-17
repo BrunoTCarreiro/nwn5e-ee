@@ -82,8 +82,9 @@ function ownership({ repo, manifest, mark, kinds = {} }) {
 }
 // Every write checked before any is written: a file there that isn't ours (`owned`, as ownership gives it) and isn't
 // what would be written stops it all; then each written unless unchanged (a text the same but for its line ends is).
-// -> [[ "new" | "rebuilt" | "unchanged", file ]], `manifest` gaining the binary files written in the repo.
-function writeAll(writes, owned, { repo, manifest }) {
+// -> [[ "new" | "rebuilt" | "unchanged", file ]], `manifest` gaining the binary files written in the repo. `dry`: the
+// same checks and states, nothing written and the manifest left as it is (tools\data\build_derived.js --check).
+function writeAll(writes, owned, { repo, manifest, dry = false }) {
   for (const w of writes) {
     if (!fs.existsSync(w.file)) continue;
     const old = fs.readFileSync(w.file);
@@ -98,11 +99,11 @@ function writeAll(writes, owned, { repo, manifest }) {
       const old = fs.readFileSync(w.file);
       state = old.equals(w.bytes) || (w.kind === "text" && F.sameText(old, w.bytes)) ? "unchanged" : "rebuilt";
     }
-    if (state !== "unchanged") {
+    if (state !== "unchanged" && !dry) {
       fs.mkdirSync(path.dirname(w.file), { recursive: true });
       fs.writeFileSync(w.file, w.bytes);
     }
-    if (w.kind === "binary" && repoPath(repo, w.file) !== null) manifest.add(repoPath(repo, w.file));
+    if (!dry && w.kind === "binary" && repoPath(repo, w.file) !== null) manifest.add(repoPath(repo, w.file));
     results.push([state, w.file]);
   }
   return results;

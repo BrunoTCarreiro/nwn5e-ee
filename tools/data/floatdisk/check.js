@@ -357,4 +357,41 @@ check("the new arguments' defaults give today's text", () => {
   assert.ok(F.carriesMark(Buffer.from(rows)) && !F.carriesMark(Buffer.from("# someone's rows\n")));
 });
 
+// --- files.js's writing (build_derived.js --check: dry) -----------------------------------------------------------------
+check("writeAll dry: the states and the ownership rule as written, nothing written", () => {
+  const fs = require("fs");
+  const os = require("os");
+  const W = require("./files.js");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "n5_fdfiles-"));
+  try {
+    const model = (body) => Buffer.from("#MAXMODEL ASCII\r\n" + F.MARK + "\r\n" + body + "\r\n", "latin1");
+    const mine = path.join(dir, "a.mdl"), same = path.join(dir, "b.mdl"), fresh = path.join(dir, "sub", "c.tga");
+    fs.writeFileSync(mine, model("old"));
+    fs.writeFileSync(same, model("kept"));
+    const writes = [{ file: mine, bytes: model("new"), kind: "text" }, { file: same, bytes: model("kept"), kind: "text" },
+      { file: fresh, bytes: Buffer.from([1, 2, 3]), kind: "binary" }];
+    const owned = W.ownership({ repo: dir, manifest: new Set(), mark: F.MARK });
+    const manifest = new Set();
+    const states = [["rebuilt", mine], ["unchanged", same], ["new", fresh]];
+    assert.deepStrictEqual(W.writeAll(writes, owned, { repo: dir, manifest, dry: true }), states);
+    assert.ok(fs.readFileSync(mine).equals(model("old")), "dry rewrote a.mdl");
+    assert.ok(!fs.existsSync(path.dirname(fresh)), "dry made a folder");
+    assert.strictEqual(manifest.size, 0, "dry noted a texture in made.txt's list");
+    // A file in the way it didn't make: refused, dry or not, nothing written.
+    const theirs = path.join(dir, "d.mdl");
+    fs.writeFileSync(theirs, "#MAXMODEL ASCII\r\n# someone's model\r\n");
+    for (const dry of [true, false]) {
+      assert.throws(() => W.writeAll([...writes, { file: theirs, bytes: model("d"), kind: "text" }], owned, { repo: dir, manifest, dry }),
+        /^Error: d\.mdl is there and wasn't made by this generator: nothing written/);
+    }
+    assert.ok(fs.readFileSync(mine).equals(model("old")) && !fs.existsSync(fresh));
+    // Without it, the same writes are written, as they were before dry.
+    assert.deepStrictEqual(W.writeAll(writes, owned, { repo: dir, manifest }), states);
+    assert.ok(fs.readFileSync(mine).equals(model("new")) && fs.readFileSync(fresh).equals(Buffer.from([1, 2, 3])));
+    assert.deepStrictEqual([...manifest], ["sub/c.tga"]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 console.log(process.exitCode ? `floatdisk check: FAILED (${count} passed)` : `floatdisk check: ${count} checks pass`);
