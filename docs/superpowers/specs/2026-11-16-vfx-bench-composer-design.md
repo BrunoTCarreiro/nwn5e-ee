@@ -733,3 +733,192 @@ stay as they are, and build.js and its 13 files don't change.
 | DDS and Play in game | ½ |
 | the project generator (placeables, spell meshes, rows, use point, walkmesh) and the project format | ¾ |
 | mesh beats: the writer and draft on anim (C++, test.bat), core.js, the effect editor | ¾ |
+
+---
+
+## Addendum 2026-11-17: PLT parts baked
+
+The owner found the helmets untextured, on the stage and in the game. This addendum adds dyed parts to the Composer. Where
+it and the sections above disagree, it wins; they stay as they were written.
+
+### The owner's words, in order
+
+1. "helms don't have textures? Not in the bench and not in-game"
+2. After the explanation - a PLT is NWN's dyeable texture: each pixel is a shade and a layer, painted from an item's or a
+   creature's colours; placeables and effects have no colours, so the game binds no texture; helm_001/002/003/011/012
+   have their texture only as a PLT - he picked: "go with A, per-part colours".
+
+**Decision A** (also a #39 comment):
+- a part whose texture exists only as a PLT is baked: painted with the game's palettes into an ordinary texture of its
+  own, shipped beside the model (placeables, spell meshes, the Floating Disk);
+- the VFX Bench draws the same baked picture;
+- each such part gets colour fields in its part card (Metal 1, Metal 2, Leather 1, Leather 2, Cloth 1, Cloth 2, as palette
+  numbers) with neutral defaults;
+- test-first.
+
+### What the game's files say
+
+Read 2026-11-17 through `spell_bench\game_data.js` (probes in the job's tmp folder, nothing kept).
+
+- **A PLT** (helm_001, helm_002, helm_011, pmh0_chest001 decoded):
+  - the header `PLT V1  `, then u32 10 (its layers), u32 0, the width (u32 at 16) and the height (u32 at 20);
+  - then a 2-byte pixel each: its **shade** (0 dark to 255 light), then its **layer** (0-9);
+  - 24 + 2 x width x height bytes in all;
+  - **the rows run bottom-up**, as a TGA's with descriptor 0x08. The game has 17 PLTs also as small TGAs (pmh0_*,
+    pmd0_*). For 15 of them, the PLT's shade matches the picture's brightness with the PLT's first row at the picture's
+    bottom (correlation 0.46-0.88, against -0.36-0.37 the other way up); the other two are too flat to tell.
+- **The layers:** 0 skin, 1 hair, 2 metal 1, 3 metal 2, 4 cloth 1, 5 cloth 2, 6 leather 1, 7 leather 2, 8 tattoo 1,
+  9 tattoo 2 (NWN's order). helm_001 uses metal 1 and 2; helm_011 metal 2, cloth 1 and leather 1 and 2.
+- **The palettes:** seven TGAs, each 256 x 176, 32-bit, bottom-up, no DDS copies: pal_skin01, pal_hair01, pal_armor01,
+  pal_armor02, pal_cloth01, pal_leath01, pal_tattoo01. pal_cloth01, pal_leath01 and pal_tattoo01 are the same file.
+  - **A colour number is a row, counted from the top as the picture is seen.** The first 64 rows are the original
+    game's (its special colours at 56-63: 61 is alpha 0 everywhere); the 1.69 colours 64-175 are under them. Skin 0 is a
+    light skin, cloth 0 a cream.
+  - **A shade is a column**, 0 dark to 255 light.
+  - **Which palette a layer takes:** skin, hair and tattoo their own; metal 1 pal_armor01; metal 2 pal_armor02; cloth 1
+    and 2 pal_cloth01; leather 1 and 2 pal_leath01. This is the documented mapping. The files can't prove metal 2's:
+    pal_armor02 holds paler, opaque versions of pal_armor01's hues.
+  - **The alpha is shine, not see-through.** pal_armor01's falls as the shade rises (silver: 181 at shade 64, 71 at 192,
+    0 at 255), and the cloth and leather rows 44-59 carry it too. A helmet that light makes see-through would be absurd:
+    it's the environment map's share.
+- **The parts:** of the parts list's 2,171 entries, each read through reader.js as the stage reads it, **34 have a
+  texture the game has only as a PLT**:
+  - 33 of the 35 helmets, through 24 PLTs (helm_001 to helm_034; some helmets share one: helm_006 draws helm_003's);
+  - one loose item, gi_cloak01;
+  - no placeable and no weapon.
+
+  Those PLTs use metal 1 (23 of them), metal 2 (24), cloth 1 (9), cloth 2 (7), leather 1 and 2 (2 each); none uses skin,
+  hair or tattoo, none has a TXI, and none has a shade-255 pixel. 23 are 128 x 128, one 256, one 512.
+
+### What the owner sees
+
+- **On the stage, in the parts list's thumbnails and in Play in game, a dyed part is textured**: by default steel with a
+  darker steel trim, brown leather, dark grey cloth.
+- **A dyed part's card gains Colours**: Metal 1, Metal 2, Leather 1, Leather 2, Cloth 1, Cloth 2.
+  - Each is a palette number 0-175, with a swatch of its colour beside it.
+  - The stage re-bakes as he changes one; each field is one undo step.
+  - A note says the part is dyed (its PLT's name) and that colours left at the defaults aren't written.
+- **Save** writes only the colours that differ from the defaults, in the part's line: `"colours": { "metal1": 5 }`. Its
+  status names the baked textures.
+- **In the game:** the built models name the baked textures, and the textures are made from his own game into the bench
+  build's `vfxedit\saved\`, which the dev layer serves at every start. After a Save, the next start shows them (with the
+  models from the next install); Play in game shows them at once.
+
+### How it works
+
+- **floatdisk.js** (pure, Node and page): the PLT constants (layers, palettes, the six fields, the defaults);
+  `readColours` (readPart reads a part's `colours` with it); `cleanColours`; `readPlt`; `bakePlt`; `bakedName`;
+  `tgaBytes`; `bakeBitmaps` (a part's meshes with their dyed textures renamed).
+- **reader.js** (Node): `image()` gives the PLT's bytes; `pltOnly(name)`; `bake(plt, colours)` from the game's PLT and
+  palettes.
+- **files.js**: `bakeParts` (both generators rename and bake through it); the ownership kind `baked`; `shipTextures`
+  leaves baked names alone.
+- **Both build.js:** `--saved <folder>` takes the baked textures; the summary lists them (`baked` in `--json`).
+- **composer_server.js:**
+  - the texture route serves a PLT-only texture as itself (`X-Texture: plt`), the page bakes it;
+  - a part's textures say `draw: "plt"`;
+  - the route also looks in `vfxedit\saved\`, where the baked textures are;
+  - `POST /api/composer/bake` bakes Play in game's textures into `vfxedit\saved\`;
+  - Save gives every kind's build `--saved`;
+  - the thumbnails move to `thumbs\v2\`.
+- **The page:**
+  - composer.js's placement renames the dyed textures as the generators do;
+  - a loader ahead of the game's bakes each baked name in the page;
+  - the part card's Colours;
+  - Play in game sends its bakes first.
+
+### Calls I made (this addendum's)
+
+1. **The bake has one implementation:** floatdisk.js paints, reader.js reads the game for it. *Why:*
+   - floatdisk.js already loads in the page and in both generators, is served at `/composer/floatdisk.js` and sits on
+     the server's stale list: no new route, script tag or stale entry;
+   - reader.js already owns "a texture's pictures from the game", ovr\ first.
+2. **The name:** `n5p_` and 12 hex digits of a 53-bit string hash (cyrb53) of the PLT's name and its ten layers'
+   colours. helm_001 at the defaults is `n5p_2cd3d725dedb`. *Why:*
+   - a resref is 16 characters: no room for a PLT's name and six numbers;
+   - the hash is plain JavaScript, the same in Node and the page;
+   - other colours give another name, so the game never shows a picture it cached under the old ones, and parts with the
+     same PLT and colours share one file;
+   - `n5p` is free: no game resource and no nwn5e file starts with it.
+3. **Baked textures live in the bench build's `vfxedit\saved\`, for every kind, never in a repo.** *Why:*
+   - a baked texture is a picture made from the game's PLT and palettes, and CLAUDE.md's rule is "Game files (and art
+     made from them) ... are never committed";
+   - `saved\` is the dev layer's NWN5EVFXS folder, registered at every start (with `vfx_bench` on, the default) and
+     watched for changes: the game finds a texture there by name, as it finds a saved spell mesh's model;
+   - so the models in `data\files` name them and nothing else is installed.
+
+   "Shipped beside the model" is read as "made beside where the game reads the bench's models", not `data\files`. Q3
+   asks the owner.
+4. **Whose a baked file is: its name says.** `n5p_` and 12 hex digits are made only by the bake, and the name fixes what's
+   in it. It isn't listed in made.txt (nothing is in a repo). Old ones stay in `saved\`, the bench's own folder.
+5. **A build writes baked textures only into a `--saved` it's given.** A dyed part without one is refused, and nothing is
+   written. *Why:* a default would let a check, or a bench not yet updated, write the real build's `saved\`. The bench
+   passes it; a build by hand says what to add.
+6. **Colours in the files:** a part's `colours` holds only the fields that differ from the defaults, and no key when none
+   do. readPart reads it: the six names only, whole numbers 0-175, anything else refused with its place. *Why:* a part at
+   the defaults keeps its line as it was; an unknown name or a number out of range is a typo.
+7. **The defaults:** Metal 1 0 (steel: the game's own colour 0), Metal 2 3 (a darker steel trim), Leather 1 3 and
+   Leather 2 2 (browns), Cloth 1 22 and Cloth 2 23 (dark grey, charcoal). Skin, hair and tattoo stay 0: no PLT-only part
+   uses them, and the card doesn't offer them. *Why:* picked from bakes of helm_001, 002, 011, 021 and gi_cloak01 side by
+   side; the owner asked for neutral.
+8. **The bake:**
+   - each pixel from its layer's palette, the row its colour and the column its shade;
+   - the PLT's first row is the picture's bottom;
+   - RGB only, opaque: the palettes' alpha is shine, which a plain texture would turn into see-through;
+   - written as a 24-bit TGA, rows bottom-up as the game's;
+   - a layer past 9 is painted as skin and a colour past 175 as 175 (neither occurs in the game's files).
+9. **The page bakes**, from the PLT and the palettes the texture route serves (a PLT-only texture as itself, the palettes
+   as TGAs). A loader ahead of the game's gives each baked name its picture. *Why:* a colour typed re-bakes at once, the
+   thumbnails bake the same way, and it's the generators' own function.
+10. **Play in game:** before its request, the page sends the variant's bakes (PLT and colours) to `POST
+    /api/composer/bake`. The server bakes them through reader.js into `vfxedit\saved\`, then the play goes as now. *Why:*
+    the same file a Save would make, in a folder the game reads by name and watches; the dev layer doesn't change.
+11. **The Floating Disk's generator** renames the dyed textures in the creature and pile models, writes the baked
+    textures into `--saved`, and lists them in its summary. Its 13 repo files stay 13. The models of a stage holding a
+    dyed part change: the owner's Large, with helm_001.
+12. **Thumbnails move to `thumbs\v2\`.** *Why:* the 34 dyed entries' thumbnails were drawn flat and would stay so. v2
+    redraws every entry once, as it scrolls into view. The first folder is the bench's own cache, left as it is.
+13. **No change to the dev layer or the game's code.**
+
+Superseded above: call 6's "PLT ... draws flat" and the limit "DDS-only and PLT textures draw flat" (DDS went in A14).
+A texture the game doesn't have at all still draws flat.
+
+### Limits (added)
+
+- **Matte metal:** a baked texture shows the palette's colour without the shine the game gives a dyed item.
+- **Metal 2's palette** is the documented one (pal_armor02); the files can't prove it. If the game's helmets show metal 2
+  otherwise, it's one line to change.
+- **Only with the dev layer:** a build without it (a public one) has no `saved\` folder, and dyed parts draw untextured
+  there (Q3).
+- **Play in game** relies on the game noticing a texture written into `saved\` while it runs (the folder's watch). If it
+  doesn't, the next Play or start shows it.
+- **Other default colours** rename every default-coloured texture: the models change at their next Save.
+
+### Checks (added)
+
+- **The pure parts** (`tools\data\floatdisk\check.js`, no game): a part's colours; cleanColours; readPlt; bakePlt on a
+  2 x 2 PLT and synthetic palettes; the name's known answers; the TGA's bytes; bakeBitmaps; compositionText's colours;
+  the same name and bytes in a page.
+- **The generators against the game** (both check_build.js, on copies): a dyed part baked into `--saved` and named by
+  the models, not in `data\` or made.txt; without `--saved`, refused and nothing written; the real build's `saved\`
+  untouched.
+- **The server** (`check_composer_server.js`): the PLT served as itself; Play's bake, byte for byte the page's bake of the
+  served PLT and palettes; a baked texture served from `saved\`; Save bakes into the temporary build.
+- **The page** (`check_composer.js`, `composer_check.mjs`): the dyed meshes renamed for their colours; the default
+  colours dropped; a helmet drawn baked; a colour typed re-bakes, one undo step; the page's bake equals reader.js's; Play
+  bakes before it plays; a dyed thumbnail in its colours.
+
+### Size
+
+Four tasks in the plan's addendum (P1-P4), **about one session**: the bake and its checks (anim), the generators
+(anim), the server and the page (nwn5e-tools).
+
+### Open question (only the owner can answer)
+
+- **Q3. Where do baked textures live?** I recommend (a).
+  - **(a) Planned:** in your build's `vfxedit\saved\`, made from your own game. Your game shows them; the repo holds no
+    game art. A build without the dev layer has none, and its dyed parts draw untextured until a release step bakes
+    them on the player's machine.
+  - **(b)** In `data\files`, committed and installed as the disk's texture is. Works in any build, but it commits art
+    made from the game's files, against the repo's rule.
+  - Note: the disk's committed models (`data\files\c_n5fd_*`, `plc_n5fd_*`) already carry the game's placeable meshes.

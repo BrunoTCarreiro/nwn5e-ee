@@ -1889,3 +1889,560 @@ Needs A6, A8 and A9. Its fades work in the game after A4's install.
   - the "anim ready" must name A4's `src/data/vfx_model.*` change: the mesh beats' fades need the game session's next
     install;
   - the generators' changes build nothing new for the disk.
+
+---
+
+## Addendum 2026-11-17: PLT parts baked
+
+**Spec:** the design's "Addendum 2026-11-17: PLT parts baked". The owner: "helms don't have textures? Not in the bench
+and not in-game", then "go with A, per-part colours".
+
+Four tasks, after A17: **P1** the bake (anim), **P2** the generators bake (anim), **P3** the server (nwn5e-tools), **P4**
+the page (nwn5e-tools). Each task's full text is here.
+
+### Before starting
+
+- **The owner's piles are saved but uncommitted** in the anim worktree (2026-11-17): `tools/data/floatdisk/composition.json`
+  and the 8 rebuilt `data/files/c_n5fd_*` / `plc_n5fd_*` files. Their Large holds `helm_001`.
+  - P1 doesn't touch them.
+  - **P2 rebuilds them, so it starts only once they are committed** (the coordinator commits them as their own commit).
+    If `git status --short` lists any of them when P2 starts, stop and report.
+- **Known answers** (computed 2026-11-17 by a prototype of P1's functions on the game's files):
+  - `bakedName("helm_001", the defaults)` is `n5p_2cd3d725dedb`;
+  - with `metal1` 5 it is `n5p_f15efdade06c`;
+  - helm_001 baked is 128 x 128, so its TGA is 49170 bytes (18 + 128 x 128 x 3).
+
+### Global constraints (added)
+
+The plan's Global Constraints and the first addendum's hold, plus these:
+
+- **No baked texture is ever written into a repo or committed** (CLAUDE.md: "Game files (and art made from them) ... are
+  never committed"). The generators write them only into the `--saved` they're given: the bench build's
+  `vfxedit\saved\`, or a check's temporary folder.
+  - `git status --short` after each anim task shows no `n5p_*` file.
+- **No check writes the real bench build** (`..\nwn5e-ee\build`). The generators' checks pass `--saved <their copy>` and
+  compare the real `vfxedit\saved\` listing before and after.
+- **The disk's repo files stay 13.** A stage holding a dyed part changes its models, and nothing else changes.
+- **The Composer's checks read the anim worktree's composition** (composer_fixture copies it). The owner's piles of
+  2026-11-17 changed Small and Large, so steps that count the committed piles' parts (variantsAndCounts,
+  playSendsTheVariant's 31 planes and 1095 triangles...) may already be red.
+  - P3 and P4 run their checks once before any change (step 0) and keep the ok / FAIL list.
+  - "Expected" after a change means: every step that was ok in step 0 is ok, and the new steps are ok.
+
+### Review Focus (added)
+
+13. **What you see is what's built, for dyed parts.**
+    - The page's bake of helm_001 equals reader.js's (P4 `pltBakeIsTheGenerators`).
+    - The server's bake for Play is byte for byte the page's function applied to the served PLT and palettes (P3
+      `bakeForPlay`).
+    - Play's draft names the textures the built model names (P4 `playSendsTheVariant`).
+14. **Nothing of the game's in a repo:** P2's checks and `git status`; no `n5p_` in `data/` or made.txt.
+15. **The real build untouched by checks:** P2's real-saved comparison; `realWorktreeUntouched` (it already compares the
+    real `vfxedit\saved\` listing).
+16. **A default colour isn't written:** P1 `cleanColours`, P4 `pltColoursRebake` (toSave after an undo).
+
+### Order
+
+1. **P1:** floatdisk.js - a part's colours, the PLT reader, the bake, the name, the TGA. Anim; no game needed.
+2. **P2:** the generators bake - reader.js, files.js, both build.js (`--saved`), both check_build.js, and the real
+   rebuild of the disk's Large. Anim; needs the game and the owner's piles committed.
+3. **P3:** the server - the PLT served, Play's bake route, Save's `--saved`, the thumbnails' v2. nwn5e-tools.
+4. **P4:** the page - the dyed meshes renamed, the bake loader, the Colours card, Play's bakes; the READMEs, TOOLS-PLAN
+   and the owner's test rows. nwn5e-tools, and TOOLS-PLAN on anim.
+
+---
+
+### Task P1: The bake - a part's colours, the PLT reader, the painting, the name, the TGA (nwn5e-ee, anim)
+
+Working folder: the anim worktree (`/c/Users/Bruno/Desktop/Projects/nwn5e-ee-anim`). Needs nothing else.
+
+**Files:**
+- Modify: `tools/data/floatdisk/floatdisk.js`, `tools/data/floatdisk/check.js`, `tools/data/composer/check.js`,
+  `tools/data/floatdisk/README.md` (a part's `colours`)
+
+**Interfaces** (floatdisk.js, all pure: they load in a page as the rest does, no Buffer but in `tgaBytes`' return):
+- **Constants:**
+  - `PLT_LAYERS = ["skin", "hair", "metal1", "metal2", "cloth1", "cloth2", "leather1", "leather2", "tattoo1",
+    "tattoo2"]`: a PLT's layer ids 0-9;
+  - `PLT_PALETTES = { skin: "pal_skin01", hair: "pal_hair01", metal1: "pal_armor01", metal2: "pal_armor02", cloth1:
+    "pal_cloth01", cloth2: "pal_cloth01", leather1: "pal_leath01", leather2: "pal_leath01", tattoo1: "pal_tattoo01",
+    tattoo2: "pal_tattoo01" }`;
+  - `PLT_FIELDS = ["metal1", "metal2", "leather1", "leather2", "cloth1", "cloth2"]`: the card's, in the owner's order;
+  - `PLT_LABELS = { metal1: "Metal 1", metal2: "Metal 2", leather1: "Leather 1", leather2: "Leather 2", cloth1: "Cloth 1",
+    cloth2: "Cloth 2" }`;
+  - `PLT_DEFAULTS = { skin: 0, hair: 0, metal1: 0, metal2: 3, cloth1: 22, cloth2: 23, leather1: 3, leather2: 2,
+    tattoo1: 0, tattoo2: 0 }`;
+  - `PLT_MAX = 175`;
+  - `BAKED = /^n5p_[0-9a-f]{12}$/`.
+- **`readColours(c, where)`** gives the ten layers' colours: `PLT_DEFAULTS` with `c`'s over them.
+  - `c` undefined or null gives the defaults.
+  - Otherwise `c` must be a plain object whose keys are among `PLT_FIELDS`, each a whole number 0-175.
+  - Else it throws `` `${where}: { "metal1": 0-175, ... } - metal1, metal2, leather1, leather2, cloth1 or cloth2, each a
+    palette number 0-175` ``.
+- **`readPart`** gives `colours: readColours(p.colours, `${where}.colours`)` too. Nothing else changes; `partKey` doesn't
+  look at colours (a part's meshes don't hang on them).
+- **`cleanColours(c)`** gives the `PLT_FIELDS` whose value differs from `PLT_DEFAULTS`, in `PLT_FIELDS`' order, or
+  `undefined` when none does (or `c` is undefined).
+- **`readPlt(bytes)`** (a Buffer or Uint8Array) gives `{ width, height, shade, layer }`.
+  - `shade` and `layer` are Uint8Arrays of width x height, in the file's order: its first row is the picture's bottom.
+  - The header is `PLT V1  `; the width is the u32 at 16 and the height the u32 at 20, read little-endian by hand.
+  - Errors: `not a PLT (no "PLT V1  " header)`; `` `a PLT cut short: ${w} x ${h} needs ${24 + 2 * w * h} bytes, it has
+    ${n}` ``.
+- **`bakePlt(plt, palettes, colours)`** gives `{ width, height, data }`: a Uint8ClampedArray RGBA, rows top-down (as
+  core.decodeTga gives a picture).
+  - `palettes` is `{ <palette name>: { width, height, data } }`, decoded top-down.
+  - The pixel at column x of the picture's row y is file row `height - 1 - y`'s pixel `i`. Its layer `L =
+    PLT_LAYERS[layer[i]]` (a layer id past 9 counts as `skin`). From `palettes[PLT_PALETTES[L]]` it takes the RGB at row
+    `min(colours[L], its height - 1)`, column `shade[i]`. Alpha is 255.
+  - A palette missing throws `` `${name}: a palette the bake needs` ``.
+- **`bakedName(plt, colours)`** gives `"n5p_" + cyrb53(key).toString(16).padStart(14, "0").slice(-12)`.
+  - `key` is `` `${plt.toLowerCase()}:${PLT_LAYERS.map((l) => full[l]).join(",")}` ``, where `full` is `Object.assign({},
+    PLT_DEFAULTS, colours)`.
+  - cyrb53, verbatim:
+
+    ```js
+    function cyrb53(str, seed = 0) {
+      let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+      for (let i = 0, ch; i < str.length; i++) { ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); }
+      h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507); h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+      h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507); h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+      return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+    }
+    ```
+- **`tgaBytes(image)`** gives a 24-bit uncompressed TGA of a top-down RGBA picture.
+  - The header is `[0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, w & 255, w >> 8, h & 255, h >> 8, 24, 0]`: no image ID, rows
+    bottom-up as the game's.
+  - Then BGR, the picture's bottom row first.
+  - It returns a Buffer under Node (`typeof Buffer === "function"`), else the Uint8Array, as `diskTexture` does.
+- **`bakeBitmaps(meshes, colours, isPlt)`** gives `{ meshes, bakes }`.
+  - `meshes` are copies: a mesh whose lower-case bitmap `isPlt(bitmap)` holds gets `bitmap: bakedName(bitmap,
+    colours)`; the others keep theirs. The input isn't changed.
+  - `bakes` is `[{ name, plt, colours: cleanColours(colours) || {} }]`, each name once, in the meshes' order.
+- **`compositionText`** writes a plain object value inline as `{ "metal1": 5 }` (keys in the object's order), as
+  project.js's `projectText` does. Arrays and the rest are as before, and `colours` follows a part's known keys.
+- **The api** gains every name above (cyrb53 stays private).
+
+- [ ] **Step 1: Write the failing checks.** In `tools/data/floatdisk/check.js` (its `check(name, fn)` style), with these
+  helpers:
+  - `pltOf(w, h, pixels)`: a Buffer, `PLT V1  ` with u32 10 at 8, 0 at 12, w at 16, h at 20, then each `[shade, layer]`;
+  - `PLT2 = pltOf(2, 2, [[10, 2], [20, 3], [30, 4], [40, 6]])`;
+  - `palette(id)`: 256 x 176, each pixel `[row, column, id, 255 - id]`;
+  - `PALS`: `pal_armor01` 1, `pal_armor02` 2, `pal_cloth01` 3, `pal_leath01` 4, `pal_skin01` 5, `pal_hair01` 6,
+    `pal_tattoo01` 7.
+
+  The checks:
+  - `a part's colours: the six fields as palette numbers, the defaults filled`:
+    - `{ model: "helm_001", at: [0, 0, 0] }` reads `colours` deep-equal to `F.PLT_DEFAULTS`;
+    - with `colours: { metal1: 5, cloth2: 40 }`, the defaults with those two;
+    - `{ metal1: 176 }`, `{ metal1: 1.5 }`, `{ skin: 3 }` and `[]` each throw `/stages\.small\[0\]\.colours: .*0-175/`.
+  - `cleanColours: only what differs from the defaults, in the card's order`:
+    - `{ cloth2: 40, metal1: 0, metal2: 5 }` gives `{ metal2: 5, cloth2: 40 }`, keys in that order;
+    - `F.PLT_DEFAULTS` and `undefined` give `undefined`.
+  - `readPlt: the header, the size, a shade and a layer a pixel, in the file's order`:
+    - PLT2 gives width 2, height 2, shade `[10, 20, 30, 40]`, layer `[2, 3, 4, 6]` (the same from a Uint8Array);
+    - `PLT V2  ` throws `/not a PLT/`;
+    - PLT2 less its last byte throws `/cut short: 2 x 2 needs 32 bytes, it has 31/`.
+  - `bakePlt: each pixel its layer's palette, the row its colour, the column its shade; the first row at the bottom`:
+    - with `readColours({ metal1: 7, metal2: 8, cloth1: 9, leather1: 11 })`, PLT2's data is `[9, 30, 3, 255, 11, 40, 4,
+      255, 7, 10, 1, 255, 8, 20, 2, 255]`;
+    - a layer-12 pixel `[5, 12]` gives `[0, 5, 5, 255]` (skin's palette, row 0);
+    - `metal1` 200 (given directly) takes row 175;
+    - without `pal_armor02` it throws `/pal_armor02: a palette the bake needs/`.
+  - `bakedName: n5p_ and 12 hex digits, one per PLT and colours`:
+    - `bakedName("helm_001", F.PLT_DEFAULTS)` and `bakedName("HELM_001", {})` are `n5p_2cd3d725dedb`;
+    - `bakedName("helm_001", { metal1: 5 })` is `n5p_f15efdade06c`;
+    - `helm_002`'s differs;
+    - each matches `F.BAKED`.
+  - `tgaBytes: a 24-bit TGA, rows bottom-up as the game's`: of PLT2's bake (the colours above), a Buffer of 30 bytes. Its
+    header is `[0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 24, 0]`, then `[1, 10, 7, 2, 20, 8, 3, 30, 9, 4, 40, 11]`.
+  - `bakeBitmaps: a PLT-only texture named for its colours, the others kept, each bake once`: meshes with bitmaps
+    `helm_001`, `plc_x`, `HELM_001` and `""`, with `isPlt = (b) => b === "helm_001"` and `readColours({ metal1: 5 })`.
+    - The bitmaps become `n5p_f15efdade06c`, `plc_x`, `n5p_f15efdade06c`, `""`.
+    - `bakes` is `[{ name: "n5p_f15efdade06c", plt: "helm_001", colours: { metal1: 5 } }]`.
+    - The input meshes keep their bitmaps.
+  - `compositionText: a part's colours inline, after its known keys`: the small stage's one part `{ colours: { metal1: 5
+    }, model: "helm_001", at: [0, 0, 0], tilt: [0, 90] }` gives the line `      { "model": "helm_001", "at": [0, 0, 0],
+    "tilt": [0, 90], "colours": { "metal1": 5 } }`.
+  - `the bake in a page: the same name and bytes`: floatdisk.js loaded through `new Function("self", "require",
+    "module", "Buffer", src)`.
+    - Its `tgaBytes(bakePlt(readPlt(new Uint8Array(PLT2)), PALS, colours))` is a Uint8Array, not a Buffer, with Node's
+      bytes.
+    - Its `bakedName("helm_001", {})` is Node's.
+
+  In `tools/data/composer/check.js`: `readProject: a part's colours, read as the disk's`.
+  - A placeable whose part has `colours: { leather1: 7 }` reads `variants[0].parts[0].colours.leather1` 7 and `.metal2` 3.
+  - `{ leather1: -1 }` throws `/variants\[0\]\.parts\[0\]\.colours: /`.
+- [ ] **Step 2: Run them.**
+  - `node tools/data/floatdisk/check.js`. Expected: nine FAIL lines, among them `FAIL readPlt: ... F.readPlt is not a
+    function`, then `floatdisk check: FAILED (27 passed)`.
+  - `node tools/data/composer/check.js`. Expected: `FAIL readProject: a part's colours, read as the disk's: ...`, then
+    `composer check: FAILED (13 passed)`.
+- [ ] **Step 3: Implement** the interfaces in floatdisk.js. In README.md's part description, add `colours`: "a dyed part's
+  (a helmet's: its texture is a PLT) colours, palette numbers 0-175 for metal1, metal2, leather1, leather2, cloth1 and
+  cloth2; left out, the defaults (steel, a darker steel trim, browns, dark grey)".
+- [ ] **Step 4: Run.**
+  - `node tools/data/floatdisk/check.js`. Expected: `floatdisk check: 36 checks pass`.
+  - `node tools/data/composer/check.js`. Expected: `composer check: 14 checks pass`.
+  - `node tools/data/floatdisk/build.js --check`. Expected: the summary as before (no part has colours, and nothing bakes
+    yet).
+  - `node tools/data/floatdisk/check_build.js`. Expected: `build check: all pass`.
+  - `node tools/data/composer/check_build.js`. Expected: `composer build check: all pass`.
+  - `git status --short`. Expected: this task's four files modified; the owner's piles as they were.
+- [ ] **Step 5: Commit.**
+  - `git branch --show-current` (anim);
+  - `git commit --only tools/data/floatdisk/floatdisk.js tools/data/floatdisk/check.js tools/data/composer/check.js
+    tools/data/floatdisk/README.md -F -`, with "feat: the Composer's dyed parts, the bake - floatdisk.js reads a PLT and
+    paints it from the game's palettes into a texture of its own (n5p_ and a hash of its colours); a part's colours
+    (#39)".
+
+### Task P2: The generators bake - reader.js, files.js, both build.js (nwn5e-ee, anim)
+
+Working folder: the anim worktree. Needs P1, the game, and **the owner's piles committed** (Before starting).
+
+**Files:**
+- Modify:
+  - `tools/data/floatdisk/reader.js`, `tools/data/floatdisk/files.js`;
+  - `tools/data/floatdisk/build.js`, `tools/data/composer/build.js`;
+  - `tools/data/floatdisk/check_build.js`, `tools/data/composer/check_build.js`;
+  - `tools/data/floatdisk/README.md`, `tools/data/composer/README.md` (dyed parts, `--saved`).
+- Rebuilt by Step 4's real build: the models of the stages holding a dyed part. With the owner's piles of 2026-11-17
+  that's `data/files/c_n5fd_large.mdl` and `data/files/plc_n5fd_large.mdl`.
+
+**Interfaces:**
+- **reader.js:**
+  - `image(name, dirs)`'s `plt` is the PLT's bytes (ovr\ first, then `res(name, 6)`), or null; it was true / false. A
+    texture beside a file has `plt: null`.
+  - **`pltOnly(name)`:** true when the game has `name` (lower-cased) only as a PLT: `image(name, [])` is the game's with
+    `plt` and neither `tga` nor `dds`. Kept per name.
+  - **`bake(plt, colours)`** gives `{ name: F.bakedName(plt, colours), image: F.bakePlt(F.readPlt(PLT), palettes,
+    colours), bytes: F.tgaBytes(image) }`.
+    - The palettes are read once per reader through `image(pal, [])`: a DDS by `core.decodeDds`, else the TGA by
+      `core.decodeTga`.
+    - Errors: `` `${plt}: not a texture the game has only as a PLT` ``; `` `${pal}: no such palette in the game` ``.
+- **files.js:**
+  - **`bakeParts(placed, rd, baked = new Map())`:** for each `x` of `placed` (`{ part, meshes }`, placePart's with its
+    part), `b = F.bakeBitmaps(x.meshes, x.part.colours, rd.pltOnly)` and `x.meshes = b.meshes`. Each bake `baked` lacks is
+    set: `name -> { plt, colours (b's), bytes: rd.bake(plt, x.part.colours).bytes, label: F.partLabel(x.part) }`.
+    Returns `baked`.
+  - **`shipTextures(placed, rd, baked = new Map())`** passes over a bitmap `baked` has (it was renamed, so the game
+    lookup would miss it).
+  - **`ownership`** knows the kind `baked`: ours when the file's name without `.tga` matches `F.BAKED`. The name fixes
+    the bytes, and only the bake makes such names.
+  - **`bakedWrites(baked, saved)`** gives `[{ file: <saved>\<name>.tga, bytes, kind: "baked" }]`.
+  - **`needSaved(baked, saved, check)`** throws when `baked` has any, `saved` is empty and it isn't `--check`: `` `${label}:
+    its texture ${plt} is dyed (a PLT) - its baked copy (${name}.tga) goes into the bench build's vfxedit\saved: give
+    --saved <folder>` ``.
+- **floatdisk build.js:**
+  - **`--saved <folder>`:** where the baked textures go; no default.
+  - In each stage, right after its parts are placed, `W.bakeParts(parts, rd, baked)`, before the creature's and the
+    pile's meshes are made of them. `shipTextures` gets `baked`.
+  - Then `W.needSaved(...)`, before anything is written.
+  - The writes gain `W.bakedWrites(baked, SAVED)`.
+  - The text summary gains, per baked texture: `` `  texture ${name}: ${plt} dyed with metal 1 0, metal 2 3, leather 1 3,
+    leather 2 2, cloth 1 22, cloth 2 23 - baked into ${SAVED}` `` (the part's numbers, by `PLT_FIELDS` and
+    `PLT_LABELS` lower-cased).
+  - `--json` gains `baked: [{ texture, plt, colours }]` (`colours` as bakeBitmaps gives it).
+  - The files' states name a saved file in full (outside the repo).
+- **composer build.js:** the same, in `built`, before its meshes are lowered. Baked textures go into `--saved` for both
+  kinds (a spell mesh already needs it).
+- **Neither** puts a baked texture in made.txt or `data\`.
+
+- [ ] **Step 1: Write the checks.**
+  - **floatdisk `check_build.js`:**
+    - `SAVED = <root>\saved` (made empty);
+    - `build(args, saved = SAVED)` adds `--saved <saved>` when `saved` is given;
+    - `snapshot(dirs = [FILES, ROWS, SAVED])`;
+    - `REAL_SAVED = <NWN5E_BUILD or ..\nwn5e-ee\build>\vfxedit\saved`, its listing taken when the check starts.
+
+    The first check becomes `a full rebuild of the committed composition changes nothing (13 repo files unchanged)`:
+    - the lines naming `data/...` are 13, all `unchanged`;
+    - `snapshot([FILES, ROWS])` is as before;
+    - a baked texture (the owner's helmet) may be `new` in SAVED.
+
+    New, last:
+    - `a dyed part is baked into --saved; the models name it, data\ doesn't hold it`: a composition whose medium is
+      `helm_001` at `[0, 0, 0]` and `helm_001` at `[0.2, 0, 0]` with `colours: { metal1: 5 }`, built with `--json`.
+      - `j.baked` deep-equals `[{ texture: "n5p_2cd3d725dedb", plt: "helm_001", colours: {} }, { texture:
+        "n5p_f15efdade06c", plt: "helm_001", colours: { metal1: 5 } }]`.
+      - The copy's `c_n5fd_med.mdl` and `plc_n5fd_med.mdl` contain `\r\n  bitmap n5p_2cd3d725dedb\r\n` and `\r\n  bitmap
+        n5p_f15efdade06c\r\n`, and no `bitmap helm_001`.
+      - SAVED holds both, 49170 bytes each, with byte 16 being 24. Its `n5p_2cd3d725dedb.tga` equals
+        `reader.create({ game, core, gameData, reader: null }).bake("helm_001", F.readColours()).bytes`.
+      - No `n5p_` file in FILES; made.txt as it was.
+      - Built again: both `unchanged`.
+      - The real `vfxedit\saved\` listing as at the start.
+    - `a dyed part without --saved is refused, nothing written`: the same composition, built with `saved` null.
+      - Exit 1, the error matching `/helm_001: its texture helm_001 is dyed \(a PLT\).*give --saved/`.
+      - `snapshot()` unchanged.
+  - **composer `check_build.js`**, new, last, each build with `--saved SAVED` but the third:
+    - `a placeable's dyed part is baked into --saved; its model names it`: `chkhelm` (placeable, row 14150) with
+      `helm_001` and `helm_011` (`colours: { leather1: 7 }`).
+      - `j.baked`'s textures are `n5p_2cd3d725dedb` and `F.bakedName("helm_011", { leather1: 7 })`.
+      - `plc_n5chkhelm.mdl` names both.
+      - SAVED holds both; FILES and made.txt hold neither.
+      - Built again: every state `unchanged`.
+    - `a spell mesh's dyed part: its draft names the baked texture beside it`: `chkhelmm` (spell mesh, `helm_001`).
+      - Its draft's plane bitmap is `n5p_2cd3d725dedb`.
+      - The texture's state is `unchanged`: the same file, ours by its name.
+    - `a dyed part without --saved is refused, nothing written`: `chkhelm` without `--saved` exits 1 with `/give
+      --saved/`, and `snapshot()` is unchanged.
+- [ ] **Step 2: Run them.** (Before Step 3 the generators bake nothing, so nothing reaches any `saved\`.)
+  - `node tools/data/floatdisk/check_build.js`. Expected: the two new checks FAIL (`j.baked` undefined, `bitmap helm_001`
+    still there; exit 0 where 1 was expected), then `build check: 2 failed`.
+  - `node tools/data/composer/check_build.js`. Expected: the three new checks FAIL, then `composer build check: 3 failed`.
+- [ ] **Step 3: Implement.** The READMEs:
+  - floatdisk: "Dyed parts", with the command `node tools\data\floatdisk\build.js --saved ..\nwn5e-ee\build\vfxedit\saved`
+    for a composition with one;
+  - composer: `--saved` for dyed parts.
+- [ ] **Step 4: Run, then the real rebuild.**
+  - `node tools/data/floatdisk/build.js --check`. Expected: the summary, plus `  texture n5p_2cd3d725dedb: helm_001 dyed
+    with metal 1 0, metal 2 3, leather 1 3, leather 2 2, cloth 1 22, cloth 2 23 - baked into ...`.
+  - **The real rebuild:** `node tools/data/floatdisk/build.js --saved ../nwn5e-ee/build/vfxedit/saved` (the bench
+    build's own folder, where the bench's Save writes it too). Expected:
+    - `rebuilt` for `data/files/c_n5fd_large.mdl` and `data/files/plc_n5fd_large.mdl`;
+    - `unchanged` for the other 11 `data/` files;
+    - `new` (or `unchanged`, if the bench baked it first) for
+      `C:\Users\Bruno\Desktop\Projects\nwn5e-ee\build\vfxedit\saved\n5p_2cd3d725dedb.tga`.
+
+    If the owner's piles changed since, the stages holding a dyed part are the ones rebuilt.
+  - `node tools/data/floatdisk/check_build.js`. Expected: `build check: all pass`.
+  - `node tools/data/composer/check_build.js`. Expected: `composer build check: all pass`.
+  - `node tools/data/floatdisk/check.js` (36) and `node tools/data/composer/check.js` (14): all pass.
+  - `git status --short`. Expected: the eight files above and the rebuilt models; no `n5p_` anywhere; made.txt unchanged.
+- [ ] **Step 5: Commit.**
+  - `git branch --show-current` (anim);
+  - `git commit --only` the eight files and the rebuilt `data/files/*.mdl` `-F -`, with "feat: the Composer's dyed parts,
+    the generators - a PLT-only part's texture baked from your game into the bench build's vfxedit\saved (--saved),
+    never into the repo; the models name it; the Floating Disk's Large rebuilt for its helmet (#39)".
+  - The next "anim ready" says: the disk's Large names `n5p_2cd3d725dedb`; the game shows it through the dev layer's
+    `saved\` folder (nothing else to install).
+
+### Task P3: The server - the PLT served, Play's bake, Save's --saved, thumbnails v2 (nwn5e-tools)
+
+Working folder: `/c/Users/Bruno/Desktop/Projects/nwn5e-tools`. Needs P1 and P2.
+
+**Files:**
+- Modify: `vfx_bench/composer_server.js`, `vfx_bench/check_composer_server.js`, `vfx_bench/composer_check.mjs` (only
+  `thumbnailDrawnAndKept`'s path)
+
+**Interfaces:**
+- **A part's textures:** a PLT-only texture is `{ draw: "plt", why: "", shine: false }`. `flat` is only for one the game
+  doesn't have (`missing`).
+- **`GET /api/composer/texture/<name>`:**
+  - a PLT-only texture is 200 with its PLT's bytes and `X-Texture: plt`;
+  - without `?file=`, the lookup beside goes through the parts folders, then `<build>\vfxedit\saved\` (a baked texture:
+    the effect mode's spell meshes and mesh beats draw it);
+  - the rest is as now.
+- **`POST /api/composer/bake`** (from the page; `application/json`, up to 65536 bytes) takes `{ textures: [{ plt,
+  colours }] }`, 1 to 64 of them. For each, in order:
+  - `plt` must be a resref and `pltOnly`. Else 400: `` `textures[${i}].plt: ${plt} isn't a texture the game has only as
+    a PLT` ``.
+  - `colours` goes through `F.readColours(colours, `textures[${i}].colours`)`; its error is a 400.
+  - Then `loadImages().bake(plt, colours)`. Its file `<build>\vfxedit\saved\<name>.tga` is written whole when missing or
+    different.
+  - Answer: 200 `{ ok: true, textures: [{ plt, name, state: "new" | "rebuilt" | "unchanged" }] }`. The server logs
+    `composer: baked <names> for Play in game`.
+  - No Origin from the page: 403. More than 64: 400 `at most 64 textures`.
+- **Save:** every kind's build gets `--saved <build>\vfxedit\saved`: the Floating Disk's, a placeable's and a spell
+  mesh's (as now).
+- **Thumbnails:** `<build>\vfxedit\composer\thumbs\v2\`. The first folder stays, the bench's own cache.
+
+- [ ] **Step 0: Record today's runs.** `node vfx_bench/check_composer_server.js > /tmp/p3_server_before.txt` and `node
+  vfx_bench/composer_check.mjs > /tmp/p3_browser_before.txt`.
+- [ ] **Step 1: Add steps** to `check_composer_server.js`.
+  - `pltServed`:
+    - `texture/helm_001` is 200 with `X-Texture: plt`; its bytes equal the copy's reader.js `image("helm_001",
+      []).plt`, and `F.readPlt` of them is 128 x 128;
+    - `part?models=helm_001`'s `textures.helm_001` deep-equals `{ draw: "plt", why: "", shine: false }`;
+    - `texture/pal_armor01` is 200 `tga`, decoding at 256 x 176.
+  - `bakeForPlay`: POST `{ textures: [{ plt: "helm_001", colours: {} }, { plt: "helm_001", colours: { metal1: 5 } }] }`.
+    - It gives 200, the names `n5p_2cd3d725dedb` and `n5p_f15efdade06c`, both `new`.
+    - `<tempBuild>\vfxedit\saved\` holds both, 49170 bytes each.
+    - The first equals `F.tgaBytes(F.bakePlt(F.readPlt(<the served PLT>), <the seven palettes decoded from their served
+      TGAs>, F.readColours({})))`: the page's path.
+    - Posted again: both `unchanged`, their times kept.
+    - No Origin: 403. `{ plt: "plc_rugdmtlbrk" }`: 400 `/only as a PLT/`. `colours: { metal1: 176 }`: 400 `/0-175/`.
+  - `bakedServedFromSaved`: `texture/n5p_2cd3d725dedb` is 200 `tga`, its bytes the saved file's.
+  - `saveBakesIntoSaved`, after the other save steps: the copy's Floating Disk with `{ note: "a helmet", model:
+    "helm_001", at: [0.2, 0.2, 0] }` added to Medium.
+    - It gives 200, and `result.baked` has `n5p_2cd3d725dedb`.
+    - The copy's `data/files/c_n5fd_med.mdl` contains `  bitmap n5p_2cd3d725dedb`.
+    - `<tempBuild>\vfxedit\saved\n5p_2cd3d725dedb.tga` is there.
+    - No `n5p_` file is in the copy's `data/files`.
+  - **Changed:** `saveWritesAndRebuilds` and `saveUnchangedIsUnchanged` count only the states of `data/` files (13). A
+    baked texture's own state, outside the repo, may be `new` on the first save.
+
+  In `composer_check.mjs`, `thumbnailDrawnAndKept` looks for `thumbs\v2\<id>.png`.
+- [ ] **Step 2: Run** `node vfx_bench/check_composer_server.js`. Expected:
+  - the four new steps FAIL: `pltServed` (404, `"flat":"plt"`), `bakeForPlay` (404 not found), `bakedServedFromSaved`
+    (404 missing), `saveBakesIntoSaved` (422 `floatdisk: helm_001: its texture helm_001 is dyed ... give --saved`);
+  - with the owner's helmet on the copy's Large, every save of the Floating Disk is that same 422 (P2's refusal) until
+    Step 3.
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run.**
+  - `node vfx_bench/check_composer_server.js`. Expected: every step ok in Step 0's run, and the four new ones; with
+    nothing else red, `all composer server checks pass`.
+  - `node vfx_bench/composer_check.mjs`. Expected: every step ok in Step 0's run (thumbnailDrawnAndKept on v2).
+    `ddsDraws` stays red if Step 0 had it red with `helm_001` among its flat textures: P4 draws it.
+  - `node vfx_bench/browser_check.mjs`. Expected: `all passed`.
+- [ ] **Step 5: Commit** `vfx_bench/composer_server.js vfx_bench/check_composer_server.js vfx_bench/composer_check.mjs`,
+  with "feat: the VFX Bench's Composer, dyed parts on the server - a PLT-only texture served as itself for the page to
+  bake, Play in game's textures baked into vfxedit\saved, every Save given --saved, the thumbnails drawn again once
+  (nwn5e-ee #39)".
+
+### Task P4: The page - dyed meshes renamed, the bake loader, the Colours card, Play's bakes (nwn5e-tools)
+
+Needs P3.
+
+**Files:**
+- Modify:
+  - `vfx_bench/public/composer.js`, `vfx_bench/public/composer_page.js`, `vfx_bench/public/app.js`;
+  - `vfx_bench/public/index.html`, `vfx_bench/public/style.css`;
+  - `vfx_bench/check_composer.js`, `vfx_bench/composer_check.mjs`;
+  - `vfx_bench/README.md`;
+  - nwn5e-ee-anim `docs/TOOLS-PLAN.md`.
+- Create: the owner's test rows, a CSV in the job's tmp folder (the parent session adds them to the board).
+
+**Interfaces:**
+- **composer.js:**
+  - **`placeOne`** renames dyed textures as the generators do. With `answer = modelOf(models, key)`, `F.bakeBitmaps(p.meshes,
+    F.readColours(raw.colours, "colours"), (b) => !!(answer.textures && answer.textures[b] && answer.textures[b].draw ===
+    "plt"))`. It returns those meshes and `bakes`.
+  - **`bakesOf(list)`:** a `placed()` list's bakes, each name once.
+  - **`clean(raw)`:** `colours` through `F.cleanColours`; the key is dropped when it gives undefined.
+- **composer_page.js:**
+  - **The bake loader `bakedImage(name)`** (returned by `mount`):
+    - a name met in a scene's or a thumbnail's bakes resolves to `F.bakePlt(F.readPlt(<the PLT's bytes>), palettes,
+      F.readColours(colours))`;
+    - the PLT's bytes come from `fetch("/api/composer/texture/<plt>")` (`X-Texture: plt`), kept per PLT;
+    - the palettes come through `image(<palette>)`, the page's mesh loader;
+    - each name is baked once;
+    - an unknown name is rejected, so the chain goes on.
+  - **`build()`** registers each placed part's bakes, the ghosts' too. The stage note's "Drawn flat" is only for missing
+    textures.
+  - **The part card's Colours** (`#part-colours`, a fieldset):
+    - shown when the selected part's answer has a texture with `draw: "plt"`;
+    - six number fields `#part-metal1`, `#part-metal2`, `#part-leather1`, `#part-leather2`, `#part-cloth1`,
+      `#part-cloth2` (min 0, max 175, step 1), labelled by `F.PLT_LABELS`, showing the part's colours with the defaults
+      filled;
+    - beside each, `#part-<field>-swatch`: its palette's colour at that row, shade 160;
+    - `#part-colours-note`: "<plt names> is dyed (a PLT): the game paints it from these colours, as an item's. Colours
+      left at the defaults aren't saved."
+    - A change sets `raw.colours = F.cleanColours(...)` (no key at the defaults): one undo step.
+    - A number that isn't a whole 0-175 puts the field back, with the status "<label>: a palette number, 0 to 175."
+  - **Thumbnails:** `drawThumb` renames the answer's meshes with `F.bakeBitmaps(..., F.readColours(), plt test)`,
+    registers their bakes, and waits for them as for any texture.
+  - **`toPlay()`** also gives `bakes: [{ plt, colours }]`: the variant's, each once.
+  - **Save's status** for any kind adds "Dyed textures baked into vfxedit\saved: <name> (<plt>), ..." when
+    `result.baked` has any.
+  - **The hook:**
+    - `parts[i].colours`: the part's own, or null;
+    - `drawn.baked`: `[{ name, plt }]`;
+    - `bakedImage(name)`: the loader.
+- **app.js:**
+  - the mesh loader is `chainLoaders((n) => (comp ? comp.bakedImage(n) : Promise.reject(new Error("no Composer"))),
+    gameImage, image)`;
+  - `gameImage` rejects `X-Texture: plt` (`<name>: dyed (a PLT) - the Composer bakes it`);
+  - in the Composer, Play in game posts `/api/composer/bake { textures: play.bakes }` first when there are any. An error
+    gives "Not sent: <error>".
+- **index.html / style.css:** the fieldset in `#part-card` after the tilt row; `.swatch` (14 x 14 px, a 1 px border).
+
+- [ ] **Step 0: Record today's run.** `node vfx_bench/composer_check.mjs > /tmp/p4_browser_before.txt`.
+- [ ] **Step 1: Write the checks.**
+  - **`check_composer.js`**, with a model answer whose cube's bitmap is `helm_x` and `textures: { helm_x: { draw: "plt"
+    } }`:
+    - `placed: a dyed texture named for its part's colours`:
+      - at the defaults the bitmap is `F.bakedName("helm_x", F.PLT_DEFAULTS)`, and `bakes` is `[{ name, plt:
+        "helm_x", colours: {} }]`;
+      - with `colours: { metal1: 5 }`, `F.bakedName("helm_x", { metal1: 5 })`;
+      - `draw: "texture"` keeps `helm_x`;
+      - the summary is the same either way.
+    - `clean: default colours dropped, the rest in the card's order`: `{ cloth2: 40, metal1: 0 }` gives `{ cloth2: 40
+      }`; all at the defaults gives no `colours` key.
+    - `bakesOf: each bake once`: two parts with the same PLT and colours give one.
+  - **`composer_check.mjs`**: these steps after `saveIsntUndone`, then Ctrl+Z until testpile's variant 1 has its one part
+    again:
+    - `pltDrawsBaked`: testpile, variant 1; Items, "helmet 001" (`helm_001`) clicked gives 2 parts, the new one
+      selected. Once settled:
+      - `drawn.textured` is true and `drawn.flat` empty;
+      - `drawn.baked` has `{ name: "n5p_2cd3d725dedb", plt: "helm_001" }`;
+      - `parts[1].colours` is null;
+      - `#part-colours` is shown, its six fields reading 0, 3, 3, 2, 22, 23;
+      - `#part-colours-note` names helm_001.
+    - `pltColoursRebake`: the canvas pixel at `screenOf(1)` read, then Metal 1 set to 8 (gold).
+      - `parts[1].colours` is `{ metal1: 8 }`, and `drawn.baked` has `F.bakedName("helm_001", { metal1: 8 })` (the
+        copy's floatdisk.js, in Node).
+      - The pixel differs from before by more than 12 in some channel.
+      - Ctrl+Z gives null and `n5p_2cd3d725dedb`; Ctrl+Y gives `{ metal1: 8 }`.
+      - Metal 1 176 leaves `{ metal1: 8 }`, with the status `Metal 1: a palette number, 0 to 175.`
+      - `toSave()`'s part has `"colours": { "metal1": 8 }`.
+    - `pltBakeIsTheGenerators`: in the page, `await vfxBench.composer().bakedImage("n5p_2cd3d725dedb")` gives width,
+      height, the sum of its data and its first 16 values. They equal the copy's reader.js `bake("helm_001",
+      F.readColours()).image`'s, in Node.
+    - `playSendsBakes`: Play in game on that variant.
+      - `<tempBuild>\vfxedit\saved\<the metal1-8 name>.tga` is 49170 bytes, its time not after `request.vfx`'s.
+      - The request's draft has a plane with that bitmap, and none with `helm_001`.
+    - `pltThumbBaked`: Items, "helmet 011" (`helm_011`).
+      - Its thumbnail becomes ready, and some pixel of it is brown (R - B > 40: the leather cap at Leather 1 3).
+      - `<tempBuild>\vfxedit\composer\thumbs\v2\helm_011.png` is there.
+  - **Changed:** `playSendsTheVariant` also checks that the draft's planes' bitmaps, in order, are the copy's
+    `c_n5fd_large.mdl` trimeshes' (`trimeshes` reads `bitmap` too): a dyed part plays under the name the built model
+    gives it.
+- [ ] **Step 2: Run.**
+  - `node vfx_bench/check_composer.js`. Expected: the three new steps FAIL (`C.bakesOf is not a function`, the bitmap
+    still `helm_x`), then `3 failed`.
+  - `node vfx_bench/composer_check.mjs`. Expected: the five new steps FAIL (no `drawn.baked`, no `#part-colours`).
+    `playSendsTheVariant` FAILs if the copy's Large holds a dyed part (the draft says `helm_001`, the model
+    `n5p_2cd3d725dedb`).
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run.**
+  - `node vfx_bench/check_composer.js`. Expected: `all composer checks pass`.
+  - `node vfx_bench/composer_check.mjs`. Expected:
+    - every step ok in Step 0's run, and the five new ones;
+    - `ddsDraws` too, if Step 0 had it red with `helm_001` flat;
+    - `playSendsTheVariant`'s bitmaps match.
+  - `node vfx_bench/check_composer_server.js`. Expected: as after P3.
+  - `node vfx_bench/browser_check.mjs`. Expected: `all passed`.
+  - `node common/checks/run.js`. Expected: `all common checks pass`.
+- [ ] **Step 5: Write the docs and the rows.**
+  - **README.md** (the Composer): "Dyed parts". A helmet's texture is a PLT, baked from your game. Its Colours card.
+    Where the baked textures live (`vfxedit\saved\`, never a repo), and that the game reads them through the dev layer.
+    The thumbnails folder `thumbs\v2\`.
+  - **TOOLS-PLAN.md:** under "The Composer's dyed parts", a *Built* list: the commits; the defaults; the limits (matte
+    metal, metal 2's palette, dev layer only).
+  - **The rows (CSV):** CO-7 to CO-10 (#39, stream animation). Each stands on its own:
+    - **CO-7 (the bench):**
+      - Setup: close the VFX Bench window and double-click `vfx_bench.bat`; press Composer (the Floating Disk opens);
+        pick Large.
+      - Do: look at the helmet on the pile. Then Items, search "helmet 011", click it.
+      - Expect: the helmet is textured (steel, a darker trim), not white. Helmet 011 comes as a brown leather cap. Its
+        card shows Colours: Metal 1 0, Metal 2 3, Leather 1 3, Leather 2 2, Cloth 1 22, Cloth 2 23, with swatches. The
+        helmets' thumbnails show their colours.
+    - **CO-8 (the bench):**
+      - Setup: as CO-7's, Large picked.
+      - Do: click the helmet; set Metal 1 to 8; Ctrl+Z, Ctrl+Y; Save and build.
+      - Expect: the helmet turns gold as you type, and back and forth with Undo and Redo. The status names the baked
+        texture (`n5p_...`) in vfxedit\saved. composition.json's helmet line ends `"colours": { "metal1": 8 }`.
+    - **CO-9 (in game, Play in game):**
+      - Setup: the game running a development build of nwn5e with a character in play; the bench as CO-7's, Large
+        picked.
+      - Do: Play in game.
+      - Expect: beside you, the pile's helmet is textured in its colours (its texture written into vfxedit\saved just
+        before).
+    - **CO-10 (in game, installed):**
+      - Setup: after the game session's install carrying anim's rebuilt `c_n5fd_large`; the game started fresh; the
+        Floating Disk loaded to Large (the parent copies the disk's own setup from its #39 rows).
+      - Do: look at the pile.
+      - Expect: its helmet is textured as on the bench, not white.
+- [ ] **Step 6: Commit.**
+  - In nwn5e-tools: `vfx_bench/public/composer.js vfx_bench/public/composer_page.js vfx_bench/public/app.js
+    vfx_bench/public/index.html vfx_bench/public/style.css vfx_bench/check_composer.js vfx_bench/composer_check.mjs
+    vfx_bench/README.md`, with "feat: the VFX Bench's Composer draws dyed parts - a helmet's PLT baked in the page as the
+    generators bake it, a Colours card per part (palette numbers, the defaults unsaved), Play in game sends its baked
+    textures (nwn5e-ee #39)".
+  - In the anim worktree, after `git branch --show-current` (anim): `docs/TOOLS-PLAN.md`, with "docs: the Composer's dyed
+    parts built - TOOLS-PLAN (#39)".
+- [ ] **Step 7: Report:**
+  - the commits and the rows;
+  - the bench needs a restart of `vfx_bench.bat`;
+  - the "anim ready" for P2 (the disk's Large rebuilt) and the textures' home in `vfxedit\saved\` (Q3 still open).
