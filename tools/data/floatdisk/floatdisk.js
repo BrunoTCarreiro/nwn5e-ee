@@ -156,7 +156,8 @@ function bakeBitmaps(meshes, colours, isPlt) {
 // One part of a composition (or of a Composer project: tools\data\composer\project.js) read and checked -> { source:
 // { kind: "model", model } | { kind: "models", models } (a weapon's pieces) | { kind: "file", file (absolute), given }
 // | { kind: "shape", shape (readShape's: every key) }, at, turn, scale, tilt, note, colours (the ten layers') }. `where`
-// names it in an error (stages.small[0]); `baseDir` resolves its file. A shape has no scale: its radius and height size it.
+// names it in an error (stages.small[0]); `baseDir` resolves its file. A shape has no scale (its radius and height size
+// it) and no dyes (its colour is on the shape): its colours are the defaults.
 function readPart(p, where, baseDir) {
   if (!p || typeof p !== "object" || Array.isArray(p)) throw new Error(`${where}: a part ({ "model": ..., "at": [x, y, z] })`);
   const hasModel = p.model !== undefined, hasFile = p.file !== undefined, hasShape = p.shape !== undefined;
@@ -176,6 +177,7 @@ function readPart(p, where, baseDir) {
   } else {
     source = { kind: "shape", shape: readShape(p.shape, `${where}.shape`) };
     if (p.scale !== undefined) throw new Error(`${where}.scale: a shape has no scale - its radius and height size it`);
+    if (p.colours !== undefined) throw new Error(`${where}.colours: a shape has no dyes - its colour is on the shape`);
   }
   if (!Array.isArray(p.at) || p.at.length !== 3 || !p.at.every(isNum)) throw new Error(`${where}.at: [x, y, z] in metres`);
   const turn = p.turn === undefined ? 0 : p.turn, scale = p.scale === undefined ? 1 : p.scale;
@@ -464,7 +466,8 @@ function shapeDefaults(type, radius) {
 // Whether `v` is a right value for field `k` (by SHAPE_INFO's bounds), and the error naming the field when it isn't.
 function shapeFieldOk(k, v) {
   const info = SHAPE_INFO[k];
-  if (k === "texture") return info.choices.some((c) => c[0] === v) || (typeof v === "string" && RESREF.test(v) && !SHAPE_TEXTURE.test(v));
+  // A library texture's name: never n5s_ (those are made, not picked), nor null (the game reads "bitmap null" as none).
+  if (k === "texture") return info.choices.some((c) => c[0] === v) || (typeof v === "string" && RESREF.test(v) && !v.startsWith("n5s_") && v !== "null");
   if (info.colour) return Array.isArray(v) && v.length === 3 && v.every((c) => isNum(c) && c >= 0 && c <= 1);
   if (info.choices) return info.choices.some((c) => c[0] === v);
   return isNum(v) && v >= info.min && v <= info.max && (!info.whole || Number.isInteger(v));
@@ -530,12 +533,13 @@ function shapeTexture({ colour }) {
 }
 
 // One side of a dome: rings up it and n vertices at its top, its faces counter-clockwise seen from outside.
-// -> { verts, tverts, faces }, its vertices and UVs rounded as diskMesh's. `uv(x, y, u, v)`: a vertex's UV from its
-// position and its wrapped (u, v) at one repeat.
+// -> { verts, tverts, faces }, its vertices and UVs rounded as diskMesh's, never -0 (so the mesh through JSON is the
+// same mesh). `uv(x, y, u, v)`: a vertex's UV from its position and its wrapped (u, v) at one repeat.
 function domeSide(shape, uv) {
   const r = shape.radius, h = shape.height, n = shape.segments, m = Math.max(2, Math.round(n / 4));
   const verts = [], tverts = [], faces = [];
-  const vertex = (x, y, z, u, v) => { verts.push(round(x), round(y), round(z)); tverts.push(...uv(x, y, u, v).map(round)); return verts.length / 3 - 1; };
+  const tidy = (v) => round(v) + 0;  // -0 + 0 is 0
+  const vertex = (x, y, z, u, v) => { verts.push(tidy(x), tidy(y), tidy(z)); tverts.push(...uv(x, y, u, v).map(tidy)); return verts.length / 3 - 1; };
   const ring = [];
   for (let j = 0; j < m; j++) {  // ring j at latitude (PI / 2) j / m; vertex i at angle 2 PI i / n, the seam's twice (0 and n)
     const phi = (Math.PI / 2) * j / m, c = Math.cos(phi), s = Math.sin(phi);
@@ -555,16 +559,19 @@ function domeSide(shape, uv) {
   return { verts, tverts, faces };
 }
 // Both sides: a copy of the vertices with the inside's faces (each outside face's first, third and second) - the inside
-// first, then the outside.
+// first, then the outside. -> { verts, tverts, faces, groups }: the inside's faces in smoothing group 2, the outside's in
+// 1 - the sides share their positions, and a loader merging normals by position within a group would cancel them.
 function bothSides(side) {
-  const count = side.verts.length / 3, faces = [];
+  const count = side.verts.length / 3, faces = [], half = side.faces.length / 3;
   for (let f = 0; f < side.faces.length; f += 3) faces.push(side.faces[f], side.faces[f + 2], side.faces[f + 1]);
   for (const v of side.faces) faces.push(v + count);
-  return { verts: side.verts.concat(side.verts), tverts: side.tverts.concat(side.tverts), faces };
+  return { verts: side.verts.concat(side.verts), tverts: side.tverts.concat(side.tverts), faces,
+    groups: new Array(half).fill(2).concat(new Array(half).fill(1)) };
 }
 // A shape (readShape's) as a model, in the model's space as modelSpaceMeshes gives one (its base at z 0, centred on x 0
-// y 0) -> { meshes: [{ name (its type), bitmap, verts, tverts, faces, diffuse, ambient, selfillum, alpha, transparent }],
-// lo, hi, textures: [{ name, colour }] (the soft texture to make, or none) }.
+// y 0) -> { meshes: [{ name (its type), bitmap, verts, tverts, faces, groups (each face's smoothing group: meshLines),
+// diffuse, ambient, selfillum, alpha, transparent }], lo, hi, textures: [{ name, colour }] (the soft texture to make, or
+// none) }.
 // - Its UVs: Wrapped, u round it from +x and v from the ground ring up, times its repeats; From above, laid on from
 //   overhead, its width the picture's square ((0.5 + x / 2r, 0.5 + y / 2r)).
 // - Its material: soft, the texture's colour lit by its glow; none, its own colour; a library texture, tinted by its
@@ -574,10 +581,10 @@ function shapeModel(shape) {
   const uv = shape.mapping === "above" ? (x, y) => [0.5 + x / (2 * r), 0.5 + y / (2 * r)]
     : (x, y, u, v) => [u * shape.repeat_around, v * shape.repeat_up];
   const side = domeSide(shape, uv);
-  const { verts, tverts, faces } = shape.sides === "both" ? bothSides(side) : side;
+  const { verts, tverts, faces, groups } = shape.sides === "both" ? bothSides(side) : Object.assign({ groups: new Array(side.faces.length / 3).fill(1) }, side);
   const soft = shape.texture === "soft", colour = shape.colour, glow = shape.glow;
   const bitmap = soft ? shapeTextureName(shape) : shape.texture === "none" ? "" : shape.texture;
-  const mesh = { name: shape.type, bitmap, verts, tverts, faces,
+  const mesh = { name: shape.type, bitmap, verts, tverts, faces, groups,
     diffuse: soft ? [1, 1, 1] : colour.slice(), ambient: soft ? [1, 1, 1] : colour.slice(),
     selfillum: soft ? [glow, glow, glow] : colour.map((c) => round(c * glow)),
     alpha: shape.alpha, transparent: shape.texture !== "none" || shape.alpha < 1 };
@@ -630,7 +637,8 @@ function meshLines(m, parent) {
   lines.push(`  faces ${faces}`);
   for (let f = 0; f < faces; f++) {
     const [a, b, c] = [m.faces[3 * f], m.faces[3 * f + 1], m.faces[3 * f + 2]];
-    lines.push(`    ${a} ${b} ${c} 1 ${a} ${b} ${c} 0`);  // smoothing group 1; the UVs the vertex's own
+    const group = m.groups && m.groups[f] !== undefined ? m.groups[f] : 1;  // the mesh's own (a shape's inside 2), else 1
+    lines.push(`    ${a} ${b} ${c} ${group} ${a} ${b} ${c} 0`);  // the UVs the vertex's own
   }
   lines.push(`  tverts ${count}`);
   for (let i = 0; i < count; i++) lines.push(`    ${num(m.tverts[2 * i] || 0)} ${num(m.tverts[2 * i + 1] || 0)} 0`);

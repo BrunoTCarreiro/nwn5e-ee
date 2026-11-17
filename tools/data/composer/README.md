@@ -63,12 +63,12 @@ A part's `shape` is a shape the generator makes instead of a model - a dome (a h
 { "note": "zone", "shape": { "type": "dome", "radius": 4.57 }, "at": [0, 0, 0] }
 ```
 
-- It has no `scale`: its radius and height size it.
+- It has no `scale` (its radius and height size it) and no `colours` (its colour is on the shape).
 - Only what differs from the defaults is written; under `above` the repeats aren't written either.
 - A shape's soft texture is generated from numbers (original, nothing of the game's): it's named `n5s_` and 12 hex
   digits of its colour (`n5s_8c757fb28f99` for the default colour), so shapes of one colour share it.
-- `none` is its colour only. A library texture (the game's own, by name) is tinted by `colour`; nothing is generated
-  or copied for it.
+- `none` is its colour only. A library texture (the game's own, by name; never `null` or an `n5s_` name) is tinted by
+  `colour`; nothing is generated or copied for it.
 
 The Floating Disk's README ("Shapes") has every field and its bounds.
 

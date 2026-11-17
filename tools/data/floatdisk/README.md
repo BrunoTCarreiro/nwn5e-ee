@@ -168,7 +168,8 @@ they differ from the defaults:
 - `mapping` (`wrap`), `repeat_around` (1), `repeat_up` (1);
 - `colour` (`[0.6, 0.8, 1]`), `alpha` (0.35), `glow` (1), `texture` (`soft`).
 
-It has no `scale`: its radius and height size it. Only what differs from the defaults is written.
+It has no `scale` (its radius and height size it) and no `colours` (its colour is on the shape). Only what differs
+from the defaults is written.
 
 ```json
 { "note": "zone", "shape": { "type": "dome", "radius": 4.57 }, "at": [0, 0, 0] }
@@ -178,7 +179,7 @@ It has no `scale`: its radius and height size it. Only what differs from the def
 - **The dome** (`"type": "dome"`, a half sphere): its base on the ground at z 0, centred on the origin, `height` up.
   - `segments` (8-96) go round it, and a quarter of that many rings go up it.
   - `sides: "both"` (the default) is seen from inside too: the inside's faces come first, each side with its own
-    vertices. `"outside"` is seen from outside only.
+    vertices and its own smoothing group (the inside 2, the outside 1). `"outside"` is seen from outside only.
 - **How its texture lies on it** (`mapping`):
   - `wrap` (the default) goes round it from +x and up it from the ground ring to the top. `repeat_around` (1-32) and
     `repeat_up` (1-16) tile it, so a pattern keeps its size on a big dome.
@@ -190,7 +191,8 @@ It has no `scale`: its radius and height size it. Only what differs from the def
     original, made from numbers.
   - `none` is its colour only.
   - A texture's name (lower-case letters, digits and `_`, at most 16: the game's own, from the bench's library) is
-    tinted by `colour` and glows by `glow`. Nothing is generated or copied for it.
+    tinted by `colour` and glows by `glow`. Nothing is generated or copied for it. It can't be `null` (the game reads
+    that as no texture: use `none`) or start `n5s_` (those names are made, not picked).
 - **Its look:** `colour` `[r, g, b]` (each 0-1), `alpha` (0.02-1: the game's globes go to about 0.3), `glow` (0-1: how
   much it lights itself, at 1 the same by day and night). A soft or library texture, or an alpha below 1, is drawn
   see-through.
