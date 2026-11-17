@@ -94,6 +94,15 @@ To make a whole stage your own pile, give that stage a single part:
 
 Then rebuild.
 
+**Colours**
+
+A dyed part's (a helmet's: its texture is a PLT) `colours`: palette numbers 0-175 for `metal1`, `metal2`, `leather1`,
+`leather2`, `cloth1` and `cloth2`. Left out, the defaults (steel, a darker steel trim, browns, dark grey).
+
+```json
+{ "model": "helm_001", "at": [0, 0, 0], "colours": { "metal1": 5, "cloth2": 40 } }
+```
+
 **The file**
 
 - The path is relative to this folder: `parts/my_pile.mdl` is `tools\data\floatdisk\parts\my_pile.mdl`.

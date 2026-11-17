@@ -357,6 +357,92 @@ check("the new arguments' defaults give today's text", () => {
   assert.ok(F.carriesMark(Buffer.from(rows)) && !F.carriesMark(Buffer.from("# someone's rows\n")));
 });
 
+// --- the PLT bake (dyed parts) --------------------------------------------------------------------------------------------
+function pltOf(w, h, pixels) {
+  const b = Buffer.alloc(24 + 2 * w * h);
+  b.write("PLT V1  ", 0, "latin1"); b.writeUInt32LE(10, 8); b.writeUInt32LE(0, 12); b.writeUInt32LE(w, 16); b.writeUInt32LE(h, 20);
+  pixels.forEach(([shade, layer], i) => { b[24 + 2 * i] = shade; b[25 + 2 * i] = layer; });
+  return b;
+}
+const PLT2 = pltOf(2, 2, [[10, 2], [20, 3], [30, 4], [40, 6]]);
+function palette(id) {
+  const data = new Uint8ClampedArray(256 * 176 * 4);
+  for (let r = 0; r < 176; r++) for (let c = 0; c < 256; c++) data.set([r, c, id, 255 - id], (r * 256 + c) * 4);
+  return { width: 256, height: 176, data };
+}
+const PALS = { pal_armor01: palette(1), pal_armor02: palette(2), pal_cloth01: palette(3), pal_leath01: palette(4), pal_skin01: palette(5),
+  pal_hair01: palette(6), pal_tattoo01: palette(7) };
+const DYE = () => F.readColours({ metal1: 7, metal2: 8, cloth1: 9, leather1: 11 });
+
+check("a part's colours: the six fields as palette numbers, the defaults filled", () => {
+  const read = (colours) => F.readComposition(comp([{ model: "helm_001", at: [0, 0, 0], colours }]), BASE).stages.small[0].colours;
+  assert.deepStrictEqual(F.readComposition(comp([{ model: "helm_001", at: [0, 0, 0] }]), BASE).stages.small[0].colours, F.PLT_DEFAULTS);
+  assert.deepStrictEqual(read({ metal1: 5, cloth2: 40 }), Object.assign({}, F.PLT_DEFAULTS, { metal1: 5, cloth2: 40 }));
+  for (const bad of [{ metal1: 176 }, { metal1: 1.5 }, { skin: 3 }, []]) {
+    assert.throws(() => read(bad), /stages\.small\[0\]\.colours: .*0-175/);
+  }
+});
+check("cleanColours: only what differs from the defaults, in the card's order", () => {
+  const c = F.cleanColours({ cloth2: 40, metal1: 0, metal2: 5 });
+  assert.deepStrictEqual(c, { metal2: 5, cloth2: 40 });
+  assert.deepStrictEqual(Object.keys(c), ["metal2", "cloth2"]);
+  assert.strictEqual(F.cleanColours(F.PLT_DEFAULTS), undefined);
+  assert.strictEqual(F.cleanColours(undefined), undefined);
+});
+check("readPlt: the header, the size, a shade and a layer a pixel, in the file's order", () => {
+  for (const bytes of [PLT2, new Uint8Array(PLT2)]) {
+    const p = F.readPlt(bytes);
+    assert.deepStrictEqual([p.width, p.height, [...p.shade], [...p.layer]], [2, 2, [10, 20, 30, 40], [2, 3, 4, 6]]);
+  }
+  const v2 = Buffer.from(PLT2); v2.write("PLT V2  ", 0, "latin1");
+  assert.throws(() => F.readPlt(v2), /not a PLT/);
+  assert.throws(() => F.readPlt(PLT2.subarray(0, PLT2.length - 1)), /cut short: 2 x 2 needs 32 bytes, it has 31/);
+});
+check("bakePlt: each pixel its layer's palette, the row its colour, the column its shade; the first row at the bottom", () => {
+  const img = F.bakePlt(F.readPlt(PLT2), PALS, DYE());
+  assert.deepStrictEqual([img.width, img.height, [...img.data]], [2, 2, [9, 30, 3, 255, 11, 40, 4, 255, 7, 10, 1, 255, 8, 20, 2, 255]]);
+  assert.ok(img.data instanceof Uint8ClampedArray);
+  assert.deepStrictEqual([...F.bakePlt(F.readPlt(pltOf(1, 1, [[5, 12]])), PALS, DYE()).data], [0, 5, 5, 255]);
+  assert.deepStrictEqual([...F.bakePlt(F.readPlt(pltOf(1, 1, [[5, 2]])), PALS, Object.assign({}, DYE(), { metal1: 200 })).data], [175, 5, 1, 255]);
+  const { pal_armor02, ...fewer } = PALS;
+  assert.throws(() => F.bakePlt(F.readPlt(PLT2), fewer, DYE()), /pal_armor02: a palette the bake needs/);
+});
+check("bakedName: n5p_ and 12 hex digits, one per PLT and colours", () => {
+  assert.strictEqual(F.bakedName("helm_001", F.PLT_DEFAULTS), "n5p_2cd3d725dedb");
+  assert.strictEqual(F.bakedName("HELM_001", {}), "n5p_2cd3d725dedb");
+  assert.strictEqual(F.bakedName("helm_001", { metal1: 5 }), "n5p_f15efdade06c");
+  assert.notStrictEqual(F.bakedName("helm_002", {}), F.bakedName("helm_001", {}));
+  for (const n of [F.bakedName("helm_001", {}), F.bakedName("helm_002", { cloth1: 9 })]) assert.ok(F.BAKED.test(n), n);
+});
+check("tgaBytes: a 24-bit TGA, rows bottom-up as the game's", () => {
+  const t = F.tgaBytes(F.bakePlt(F.readPlt(PLT2), PALS, DYE()));
+  assert.ok(Buffer.isBuffer(t));
+  assert.strictEqual(t.length, 30);
+  assert.deepStrictEqual([...t.subarray(0, 18)], [0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 24, 0]);
+  assert.deepStrictEqual([...t.subarray(18)], [1, 10, 7, 2, 20, 8, 3, 30, 9, 4, 40, 11]);
+});
+check("bakeBitmaps: a PLT-only texture named for its colours, the others kept, each bake once", () => {
+  const meshes = ["helm_001", "plc_x", "HELM_001", ""].map((bitmap) => ({ name: "m", bitmap }));
+  const out = F.bakeBitmaps(meshes, F.readColours({ metal1: 5 }), (b) => b === "helm_001");
+  assert.deepStrictEqual(out.meshes.map((m) => m.bitmap), ["n5p_f15efdade06c", "plc_x", "n5p_f15efdade06c", ""]);
+  assert.deepStrictEqual(out.bakes, [{ name: "n5p_f15efdade06c", plt: "helm_001", colours: { metal1: 5 } }]);
+  assert.deepStrictEqual(meshes.map((m) => m.bitmap), ["helm_001", "plc_x", "HELM_001", ""]);
+});
+check("compositionText: a part's colours inline, after its known keys", () => {
+  const text = F.compositionText({ stages: { small: [{ colours: { metal1: 5 }, model: "helm_001", at: [0, 0, 0], tilt: [0, 90] }] } });
+  assert.ok(text.split("\n").includes('      { "model": "helm_001", "at": [0, 0, 0], "tilt": [0, 90], "colours": { "metal1": 5 } }'), text);
+});
+check("the bake in a page: the same name and bytes", () => {
+  const src = require("fs").readFileSync(path.join(__dirname, "floatdisk.js"), "utf8");
+  const self = {};
+  new Function("self", "require", "module", "Buffer", src)(self);
+  const P = self.FloatDisk;
+  const t = P.tgaBytes(P.bakePlt(P.readPlt(new Uint8Array(PLT2)), PALS, DYE()));
+  assert.ok(t instanceof Uint8Array && !Buffer.isBuffer(t));
+  assert.ok(Buffer.from(t).equals(F.tgaBytes(F.bakePlt(F.readPlt(PLT2), PALS, DYE()))));
+  assert.strictEqual(P.bakedName("helm_001", {}), F.bakedName("helm_001", {}));
+});
+
 // --- files.js's writing (build_derived.js --check: dry) -----------------------------------------------------------------
 check("writeAll dry: the states and the ownership rule as written, nothing written", () => {
   const fs = require("fs");

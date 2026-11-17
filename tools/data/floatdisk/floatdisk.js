@@ -44,9 +44,106 @@ function resolvePartFile(baseDir, file) {
   return require("path").resolve(baseDir, file.trim());  // Node only: a page has no files of its own
 }
 
+// --- a dyed part's colours (a PLT texture baked from the game's palettes) ----------------------------------------------
+const PLT_LAYERS = ["skin", "hair", "metal1", "metal2", "cloth1", "cloth2", "leather1", "leather2", "tattoo1", "tattoo2"];  // a PLT's layer ids 0-9
+const PLT_PALETTES = { skin: "pal_skin01", hair: "pal_hair01", metal1: "pal_armor01", metal2: "pal_armor02", cloth1: "pal_cloth01",
+  cloth2: "pal_cloth01", leather1: "pal_leath01", leather2: "pal_leath01", tattoo1: "pal_tattoo01", tattoo2: "pal_tattoo01" };
+const PLT_FIELDS = ["metal1", "metal2", "leather1", "leather2", "cloth1", "cloth2"];  // the card's, in the owner's order
+const PLT_LABELS = { metal1: "Metal 1", metal2: "Metal 2", leather1: "Leather 1", leather2: "Leather 2", cloth1: "Cloth 1", cloth2: "Cloth 2" };
+const PLT_DEFAULTS = { skin: 0, hair: 0, metal1: 0, metal2: 3, cloth1: 22, cloth2: 23, leather1: 3, leather2: 2, tattoo1: 0, tattoo2: 0 };
+const PLT_MAX = 175;
+const BAKED = /^n5p_[0-9a-f]{12}$/;
+
+// The ten layers' colours: PLT_DEFAULTS with `c`'s over them. `c`: undefined, or { metal1: 0-175, ... } (PLT_FIELDS only).
+function readColours(c, where) {
+  if (c === undefined || c === null) return Object.assign({}, PLT_DEFAULTS);
+  const ok = c && typeof c === "object" && !Array.isArray(c) && Object.keys(c).every((k) => PLT_FIELDS.includes(k) && Number.isInteger(c[k]) && c[k] >= 0 && c[k] <= PLT_MAX);
+  if (!ok) throw new Error(`${where}: { "metal1": 0-${PLT_MAX}, ... } - metal1, metal2, leather1, leather2, cloth1 or cloth2, each a palette number 0-${PLT_MAX}`);
+  return Object.assign({}, PLT_DEFAULTS, c);
+}
+// The PLT_FIELDS whose colour differs from the defaults (the card's order), or undefined when none does.
+function cleanColours(c) {
+  if (!c) return undefined;
+  const out = {};
+  for (const k of PLT_FIELDS) if (c[k] !== undefined && c[k] !== PLT_DEFAULTS[k]) out[k] = c[k];
+  return Object.keys(out).length ? out : undefined;
+}
+
+// A PLT file (a Buffer or Uint8Array): "PLT V1  ", u32 width at 16, u32 height at 20, then a [shade, layer] byte pair a
+// pixel, the picture's bottom row first -> { width, height, shade, layer } (Uint8Arrays in the file's order).
+function readPlt(bytes) {
+  const u = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  if (u.length < 24 || String.fromCharCode(...u.subarray(0, 8)) !== "PLT V1  ") throw new Error('not a PLT (no "PLT V1  " header)');
+  const u32 = (o) => (u[o] | (u[o + 1] << 8) | (u[o + 2] << 16) | (u[o + 3] << 24)) >>> 0;
+  const w = u32(16), h = u32(20), need = 24 + 2 * w * h;
+  if (u.length < need) throw new Error(`a PLT cut short: ${w} x ${h} needs ${need} bytes, it has ${u.length}`);
+  const shade = new Uint8Array(w * h), layer = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) { shade[i] = u[24 + 2 * i]; layer[i] = u[25 + 2 * i]; }
+  return { width: w, height: h, shade, layer };
+}
+
+// A PLT painted from the game's palettes ({ name: { width, height, data } }, decoded top-down) in `colours` (all ten
+// layers, as readColours gives) -> { width, height, data: Uint8ClampedArray RGBA, rows top-down }. A layer id past 9 is skin.
+function bakePlt(plt, palettes, colours) {
+  const { width, height, shade, layer } = plt;
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (height - 1 - y) * width + x;
+      const L = PLT_LAYERS[layer[i]] || "skin", name = PLT_PALETTES[L], pal = palettes[name];
+      if (!pal) throw new Error(`${name}: a palette the bake needs`);
+      const row = Math.min(colours[L], pal.height - 1);
+      const from = (row * pal.width + shade[i]) * 4, to = (y * width + x) * 4;
+      data[to] = pal.data[from]; data[to + 1] = pal.data[from + 1]; data[to + 2] = pal.data[from + 2]; data[to + 3] = 255;
+    }
+  }
+  return { width, height, data };
+}
+
+function cyrb53(str, seed = 0) {
+  let h1 = 0xdeadbeef ^ seed, h2 = 0x41c6ce57 ^ seed;
+  for (let i = 0, ch; i < str.length; i++) { ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507); h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507); h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+}
+// A PLT baked in these colours is a texture of its own: n5p_ and 12 hex digits of its name and ten colours.
+function bakedName(plt, colours) {
+  const full = Object.assign({}, PLT_DEFAULTS, colours);
+  return "n5p_" + cyrb53(`${plt.toLowerCase()}:${PLT_LAYERS.map((l) => full[l]).join(",")}`).toString(16).padStart(14, "0").slice(-12);
+}
+
+// A top-down RGBA picture as a 24-bit uncompressed TGA, rows bottom-up as the game's (a Buffer in Node, else a Uint8Array).
+function tgaBytes(image) {
+  const { width: w, height: h, data } = image;
+  const bytes = new Uint8Array(18 + w * h * 3);
+  bytes.set([0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, w & 255, w >> 8, h & 255, h >> 8, 24, 0]);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const from = ((h - 1 - y) * w + x) * 4, to = 18 + (y * w + x) * 3;
+      bytes[to] = data[from + 2]; bytes[to + 1] = data[from + 1]; bytes[to + 2] = data[from];
+    }
+  }
+  return typeof Buffer === "function" ? Buffer.from(bytes.buffer, bytes.byteOffset, bytes.length) : bytes;
+}
+
+// Meshes with each PLT-only bitmap (isPlt(lower-case name)) renamed for its colours -> { meshes (copies), bakes: [{ name,
+// plt, colours: only what isn't a default }] }, each name once in the meshes' order.
+function bakeBitmaps(meshes, colours, isPlt) {
+  const bakes = [], seen = new Set();
+  const out = meshes.map((m) => {
+    const plt = String(m.bitmap || "").toLowerCase();
+    if (!plt || !isPlt(plt)) return Object.assign({}, m);
+    const name = bakedName(plt, colours);
+    if (!seen.has(name)) { seen.add(name); bakes.push({ name, plt, colours: cleanColours(colours) || {} }); }
+    return Object.assign({}, m, { bitmap: name });
+  });
+  return { meshes: out, bakes };
+}
+
 // One part of a composition (or of a Composer project: tools\data\composer\project.js) read and checked -> { source:
 // { kind: "model", model } | { kind: "models", models } (a weapon's pieces) | { kind: "file", file (absolute), given },
-// at, turn, scale, tilt, note }. `where` names it in an error (stages.small[0]); `baseDir` resolves its file.
+// at, turn, scale, tilt, note, colours (the ten layers') }. `where` names it in an error (stages.small[0]); `baseDir` resolves its file.
 function readPart(p, where, baseDir) {
   if (!p || typeof p !== "object" || Array.isArray(p)) throw new Error(`${where}: a part ({ "model": ..., "at": [x, y, z] })`);
   const hasModel = p.model !== undefined, hasFile = p.file !== undefined;
@@ -68,7 +165,7 @@ function readPart(p, where, baseDir) {
   if (!isNum(turn)) throw new Error(`${where}.turn: degrees`);
   if (!isNum(scale) || scale <= 0) throw new Error(`${where}.scale: a number above 0`);
   if (!Array.isArray(tilt) || tilt.length !== 2 || !tilt.every(isNum)) throw new Error(`${where}.tilt: [degrees about x, degrees about y]`);
-  return { source, at: p.at, turn, scale, tilt, note: p.note || "" };
+  return { source, at: p.at, turn, scale, tilt, note: p.note || "", colours: readColours(p.colours, `${where}.colours`) };
 }
 
 // composition.json's object -> { disk, stages: { empty: [], small: [part], ... } }, each part as readPart gives it.
@@ -109,9 +206,10 @@ function mergeModels(list) {
 
 // composition.json's text in its own layout (the Composer saves it): two-space indents, _about a string a line, the disk
 // a key a line, each stage a part a line (note, model | file, at, turn, scale, tilt, then any other key); arrays inline.
-const inline = (v) => (Array.isArray(v) ? "[" + v.map(inline).join(", ") + "]" : JSON.stringify(v));
+const inline = (v) => (Array.isArray(v) ? "[" + v.map(inline).join(", ") + "]"
+  : v && typeof v === "object" ? "{ " + Object.keys(v).map((k) => JSON.stringify(k) + ": " + inline(v[k])).join(", ") + " }" : JSON.stringify(v));
 function compositionText(c) {
-  const PART_KEYS = ["note", "model", "file", "at", "turn", "scale", "tilt"];
+  const PART_KEYS = ["note", "model", "file", "at", "turn", "scale", "tilt", "colours"];
   const part = (p) => {
     const keys = PART_KEYS.filter((k) => p[k] !== undefined).concat(Object.keys(p).filter((k) => !PART_KEYS.includes(k) && p[k] !== undefined));
     return "{ " + keys.map((k) => JSON.stringify(k) + ": " + inline(p[k])).join(", ") + " }";
@@ -561,6 +659,8 @@ const crlf = (text) => text.replace(/\r?\n/g, "\r\n");
 const api = {
   MARK, TEXTURE_MARK, STAGES, PILES, SUFFIX, RESREF, SUPERMODEL, SOURCE_ROWS, APPEARANCE_OVERRIDES, ROWS, LABELS,
   creatureModel, pileModel,
+  PLT_LAYERS, PLT_PALETTES, PLT_FIELDS, PLT_LABELS, PLT_DEFAULTS, PLT_MAX, BAKED,
+  readColours, cleanColours, readPlt, bakePlt, bakedName, tgaBytes, bakeBitmaps,
   resolvePartFile, readPart, readComposition, partKey, partLabel, quat, axisAngle, qrot, round, num, modelSpaceMeshes, placePart,
   lowered, uniqueNames, diskMesh, diskTexture, modelNodes, creatureModelText, pileNodes, pileModelText,
   pileWalkmeshText, rowsText, readableAscii, texturesBeside, carriesMark, sameText, crlf, mergeModels, compositionText,
