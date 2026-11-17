@@ -1619,6 +1619,15 @@ monster AC by CR.
     heartbeat (n5_f_hb) follows its master unless told to stand its ground or possessed, its casts refused; the
     touch spells it doesn't deliver logged with why; the damage it takes logged; sizes - the cat 0.5, the lizard
     0.35, the spider 0.3, the rat 0.6. 6 mutations caught. Retests L4-39 to L4-44.
+    *L4-39 / L4-41 failed (owner, 2026-11-17, on 0.99.61: "did not follow unless instructed to and then it did fight
+    without being asked to."; "still did not cast shocking grasp, my PC went over and cast it themselves"):* the
+    familiar kept NWN's associate conversation script (it answers the radial and starts combat rounds - its gaze tried
+    six times, refused); Shocking Grasp's target an archer 8 ft from the raven centre to centre, Mage Armor cast at
+    the enemy (refused: not willing). *Fixed 0.99.62:* its listening nwn5e's (n5_f_talk, rules::FamiliarOrderOf - a
+    click its dialog, Stand your ground, Follow me; nothing else, no one else's shout); its master looks after it every
+    second as its heartbeat does (an attack or a cast of its own cleared; it follows past 3 m unless told to stand its
+    ground or possessed); the touch's distances edge to edge. 4 mutations caught. Retests L4-49, L4-50 (a neutral orc
+    that stands still). LS-8 dropped (owner: "Will not test LS-8 as that's a regression").
   - *Built 0.99.50 / 0.99.51 (Q5 A, Disguise Self's random look):* a random head of the species and gender - one of its
     head models the game has (character creation's: rules::PlayerModelPrefix + headNNN, ResManGetAliasFor); skin and
     hair among its people's (rules::DisguiseSkinColours / HairColours - the game's blueprints' colours with the common
