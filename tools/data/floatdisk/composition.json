@@ -44,7 +44,7 @@
       { "note": "a book on the crate", "model": "px2_f04", "at": [-0.2, 0.13, 0.315], "turn": 10, "scale": 0.28 },
       { "note": "a cooking pot on the book", "model": "plc_x0_pot", "at": [-0.236, 0.147, 0.346], "turn": -25, "scale": 0.35 },
       { "note": "greataxe 011", "model": ["waxgr_b_011", "waxgr_m_011", "waxgr_t_011"], "at": [-0.012, 0.109, 0], "turn": 20, "scale": 0.75, "tilt": [90, 170] },
-      { "note": "helmet 001", "model": "helm_001", "at": [-0.083, 0.078, 0.682], "turn": -20, "scale": 1, "tilt": [20, -15] }
+      { "note": "helmet 001", "model": "helm_001", "at": [-0.083, 0.078, 0.682], "turn": -20, "scale": 1, "tilt": [20, -15], "colours": { "metal1": 51, "metal2": 22 } }
     ]
   }
 }
