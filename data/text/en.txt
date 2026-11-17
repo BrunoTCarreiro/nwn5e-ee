@@ -708,3 +708,6 @@ skills.choose_elf | generated | , 1 of Insight, Perception or Survival (Elf)
 skills.choose_skilled | generated | , {count} more (Skilled)
 skills.choose_always | generated | ; always: {names}
 skills.choose_expertise | generated | ; Expertise in {count}
+
+# --- src/core/rules_concentration.cpp (by hand) ---------------------------------------------------------------
+concentration.why_rest | generated | the rest outlasts it

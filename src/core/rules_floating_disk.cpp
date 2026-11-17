@@ -49,6 +49,7 @@
 #include "script_hooks.h"
 #include "spell_impact.h"
 #include "rules/floating_disk.h"
+#include "rules/spell_time.h"
 #include "rules/spells2024.h"
 
 void FloatingDiskSpell(uint32_t self, void* caster, int row);  // rules_spells2024.cpp (UtilitySpell)
@@ -102,7 +103,7 @@ object m = OBJECT_SELF;
 object d = GetLocalObject(m, "n5d_disk");
 SetLocalString(m, "n5d_new", ""); SetLocalString(m, "n5d_renewed", "");
 if (GetIsObjectValid(d) && GetLocalInt(d, "n5d_disk") && GetMaster(d) == m) {
-  ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(SupernaturalEffect(EffectCutsceneGhost()), $ROW), "n5s_disk"), d, HoursToSeconds($HOURS));
+  ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(SupernaturalEffect(EffectCutsceneGhost()), $ROW), "n5s_disk"), d, $DISKSECONDS);
   SetLocalString(m, "n5d_renewed", ObjectToString(d));
 } else {
   d = CreateObject(OBJECT_TYPE_CREATURE, "$BLUEPRINT", GetLocation(m), FALSE, "n5s_floatdisk");
@@ -118,7 +119,7 @@ if (GetIsObjectValid(d) && GetLocalInt(d, "n5d_disk") && GetMaster(d) == m) {
     SetEventScript(d, EVENT_SCRIPT_CREATURE_ON_DIALOGUE, "n5_d_talk");
     SetListening(d, TRUE);
     ApplyEffectToObject(DURATION_TYPE_PERMANENT, SupernaturalEffect(EffectEthereal()), d);
-    ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(SupernaturalEffect(EffectCutsceneGhost()), $ROW), "n5s_disk"), d, HoursToSeconds($HOURS));
+    ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(SupernaturalEffect(EffectCutsceneGhost()), $ROW), "n5s_disk"), d, $DISKSECONDS);
     SetPlotFlag(d, TRUE);
     SetLocalInt(d, "n5d_disk", 1);
     SetLocalObject(d, "n5d_master", m);
@@ -277,6 +278,8 @@ std::string Script(const char* code) {
   Replace(&text, "$PILEDESC", Nss(PlayerText("disk.pile.description")));
   Replace(&text, "$ROW", std::to_string(rules::kFloatingDisk));
   Replace(&text, "$HOURS", std::to_string(rules::kFloatingDiskHours));
+  // its hour in real seconds (owner, 2026-11-17: "go with A. no real-time clock") - not the module's 2-minute hour
+  Replace(&text, "$DISKSECONDS", std::to_string(rules::SpellSeconds(rules::kFloatingDiskHours * 60)) + ".0");
   Replace(&text, "$BLUEPRINT", kDiskBlueprint);
   const rules::DiskLook empty = rules::DiskStageLook(rules::DiskStage::kEmpty);
   Replace(&text, "$APP", std::to_string(empty.appearance));

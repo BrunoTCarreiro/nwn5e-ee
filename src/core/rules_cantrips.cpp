@@ -351,10 +351,10 @@ object t = GetSpellTargetObject();
 if (!GetIsObjectValid(t)) return;
 if (GetObjectType(t) == OBJECT_TYPE_ITEM) {
   AddItemProperty(DURATION_TYPE_TEMPORARY, TagItemProperty(ItemPropertyLight(IP_CONST_LIGHTBRIGHTNESS_NORMAL,
-                  IP_CONST_LIGHTCOLOR_WHITE), "n5c_light"), t, HoursToSeconds(1));
+                  IP_CONST_LIGHTCOLOR_WHITE), "n5c_light"), t, 3600.0);  // an hour, real time (#39)
 } else {
   effect l = EffectLinkEffects(EffectVisualEffect(VFX_DUR_LIGHT_WHITE_15), EffectVisualEffect(VFX_DUR_CESSATE_POSITIVE));
-  ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(l, 100), "n5c_light"), t, HoursToSeconds(1));
+  ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(l, 100), "n5c_light"), t, 3600.0);
 }
 SetLocalString(OBJECT_SELF, "n5c_light", ObjectToString(t));
 )nss";

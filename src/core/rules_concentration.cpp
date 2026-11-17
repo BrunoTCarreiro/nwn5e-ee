@@ -278,6 +278,12 @@ void PanelClicked(void* creature) {
 
 }  // namespace
 
+// rules_rest.cpp (#39, owner 2026-11-17: "go with A. no real-time clock"): a rest outlasts a Concentration spell -
+// none at level 1 lasts more than an hour.
+void EndConcentrationOnRest(void* creature) {
+  if (Faithful() && creature && Find(creature)) End(creature, PlayerText("concentration.why_rest"));
+}
+
 // rules_spells2024.cpp (#39 2a build 3): a spell delivered later than its cast (Ensnaring Strike's, on its hit).
 void BeginConcentration(void* creature, int spell) {
   if (Faithful() && creature) Begin(creature, spell);

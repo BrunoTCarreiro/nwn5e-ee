@@ -161,6 +161,7 @@
 #include "rules/level_lists.h"
 #include "rules/skills.h"
 #include "rules/spell_slots.h"
+#include "rules/spell_time.h"
 #include "rules/spells2024.h"
 #include "rules/weapons.h"
 
@@ -189,6 +190,10 @@ void FloatingDiskSpell(uint32_t self, void* caster, int row);  // rules_floating
 bool InstallFloatingDisk();
 
 namespace {
+
+// #39 (owner, 2026-11-17: "go with A. no real-time clock"): a spell's duration in a script is real seconds
+// (rules::SpellSeconds) - not the module's clock (HoursToSeconds: an hour 2 real minutes here).
+std::string SecondsScript(int minutes) { return std::to_string(rules::SpellSeconds(minutes)) + ".0"; }
 
 constexpr size_t kCreatureLastSpellLevel = 0x21C;  // GetLastSpellLevel(): the cast's slot level (0: its own)
 constexpr uint64_t kRoundMs = 6000;
@@ -428,7 +433,7 @@ while (GetIsEffectValid(e)) {
   e = GetNextEffect(OBJECT_SELF);
 }
 ApplyEffectToObject(DURATION_TYPE_TEMPORARY, SupernaturalEffect(SetEffectSpellId(EffectTemporaryHitpoints($AMOUNT),
-                    $ROW)), OBJECT_SELF, HoursToSeconds(8));
+                    $ROW)), OBJECT_SELF, 28800.0);  // 8 hours, real time
 ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_EVIL_HELP), OBJECT_SELF);
 )nss";
 
@@ -1215,7 +1220,7 @@ while (GetIsEffectValid(e)) {
   e = GetNextEffect(OBJECT_SELF);
 }
 ApplyEffectToObject(DURATION_TYPE_TEMPORARY, SupernaturalEffect(EffectTemporaryHitpoints($AMOUNT)), OBJECT_SELF,
-                    HoursToSeconds(8));
+                    28800.0);  // 8 hours, real time
 )nss";
 
 void Heroism(uint32_t self, void* caster, const rules::Spell2024& spell, int slot) {
@@ -1489,7 +1494,7 @@ void Sanctuary(uint32_t self, void* caster, const rules::Spell2024& spell, int r
 
 void HuntersMark(uint32_t self, void* caster, const rules::Spell2024& spell, int row, int slot) {
   const int hours = rules::HuntersMarkHours(slot);
-  const std::string seconds = "HoursToSeconds(" + std::to_string(hours) + ")";
+  const std::string seconds = SecondsScript(hours * 60);
   for (const Entry& one : OneTarget(self, spell, "0", -1, Look())) {
     char me[16];
     sprintf_s(me, "%x", self);
@@ -1521,7 +1526,7 @@ void HuntersMarkMove(uint32_t self, void* caster, const rules::Spell2024& spell)
     TellPlayer(self, PlayerText("spells2024.hunter_s_mark_move_your"));
     return;
   }
-  const std::string seconds = "HoursToSeconds(" + std::to_string(at->second.hours) + ")";
+  const std::string seconds = SecondsScript(at->second.hours * 60);
   for (const Entry& one : OneTarget(self, spell, "0", -1, Look())) {
     Mark(self, spell, one.target, at->second.row,
          MarkLook{"n5s_quarry", "EffectIcon(EFFECT_ICON_ENEMY_ATTACK_BONUS)", seconds, "VFX_IMP_HEAD_ODD", "", true});
@@ -1589,7 +1594,7 @@ void Buff(uint32_t self, void* caster, const rules::Spell2024& spell) {
           continue;
         }
         Mark(self, spell, one.target, row,
-             MarkLook{"n5s_magearmor", "EffectIcon(EFFECT_ICON_AC_INCREASE)", "HoursToSeconds(8)", "VFX_IMP_AC_BONUS"});
+             MarkLook{"n5s_magearmor", "EffectIcon(EFFECT_ICON_AC_INCREASE)", SecondsScript(480), "VFX_IMP_AC_BONUS"});
         if (LogSlot()) Log("spells2024: 0x%08X Mage Armor on 0x%s: base AC 13 + Dexterity, 8 hours", self, one.target.c_str());
       }
       return;
@@ -1624,7 +1629,7 @@ void Buff(uint32_t self, void* caster, const rules::Spell2024& spell) {
       std::string log;
       for (const Entry& one : Entries(caster)) {
         Mark(self, spell, one.target, row,
-             MarkLook{"n5s_strider", "EffectIcon(EFFECT_ICON_MOVEMENT_SPEED_INCREASE)", "HoursToSeconds(1)",
+             MarkLook{"n5s_strider", "EffectIcon(EFFECT_ICON_MOVEMENT_SPEED_INCREASE)", SecondsScript(60),
                       "VFX_IMP_HASTE"});
         g_striders.insert(ParseId(one.target));
         log += " 0x" + one.target;
@@ -2032,7 +2037,7 @@ void Targeted(uint32_t self, void* caster, const rules::Spell2024& spell, int ro
       case rules::kAnimalFriendship:
         ApplyCondition(self, spell.script, one.target, row, kTagCharm,
                        "EffectLinkEffects(EffectCharmed(), EffectVisualEffect(VFX_DUR_MIND_AFFECTING_DISABLED))",
-                       "HoursToSeconds(" + std::to_string(rules::ConditionSpellHours(spell.row)) + ")", "VFX_IMP_CHARM");
+                       SecondsScript(rules::ConditionSpellHours(spell.row) * 60), "VFX_IMP_CHARM");
         Hold(id, spell.row, Held{self, row, dc, kWhileItsEffectLasts});
         break;
       case rules::kHideousLaughter:
@@ -2565,7 +2570,7 @@ void FogCloud(uint32_t self, const rules::Spell2024& spell, int slot) {
   static const char* const kExit[] = {"n5_s_fog1b", "n5_s_fog2b", "n5_s_fog3b", "n5_s_fog4b", "n5_s_fog5b",
                                       "n5_s_fog6b", "n5_s_fog7b", "n5_s_fog8b", "n5_s_fog9b"};
   const int level = std::min(9, std::max(1, slot));
-  MakeArea(self, spell, kAreaFogCloudBase + level, kEnter[level - 1], "", kExit[level - 1], "HoursToSeconds(1)");
+  MakeArea(self, spell, kAreaFogCloudBase + level, kEnter[level - 1], "", kExit[level - 1], SecondsScript(60));
   if (LogSlot()) {
     Log("spells2024: 0x%08X Fog Cloud (a level %d slot): a %d-foot-radius Sphere, darkness inside, up to an hour", self,
         level, rules::FogCloudRadiusFeet(level));
@@ -3464,12 +3469,9 @@ int UtilityIconRow(int row) {
   }
 }
 
-// A duration in a script: hours as the game's hours (HoursToSeconds), minutes as turns - nwn5e's way (Mage Armor's 8
-// hours, Shield of Faith's 10 minutes).
-std::string DurationScript(int minutes) {
-  return minutes % 60 == 0 ? "HoursToSeconds(" + std::to_string(minutes / 60) + ")"
-                           : "TurnsToSeconds(" + std::to_string(minutes) + ")";
-}
+// A duration in a script (Shield of Faith's 10 minutes, Comprehend Languages' hour): real seconds - #39 (owner,
+// 2026-11-17: "go with A. no real-time clock"). Before, hours were the module's (HoursToSeconds), minutes turns.
+std::string DurationScript(int minutes) { return SecondsScript(minutes); }
 
 // NWScript (a script has no functions of its own): `sn`, the school (rules::SpellSchoolName) of spell row `id`.
 std::string SchoolScript() {
@@ -3880,9 +3882,9 @@ void AlarmSpell(uint32_t self, const rules::Spell2024& spell, int row) {
   sprintf_s(code,
             "object t = GetSpellTargetObject(); location l = GetSpellTargetLocation(); if (GetIsObjectValid(t) && "
             "GetObjectType(t) != OBJECT_TYPE_CREATURE) l = GetLocation(t); ApplyEffectAtLocation(DURATION_TYPE_TEMPORARY, "
-            "EffectAreaOfEffect(%d, \"%s\", \"\", \"\"), l, HoursToSeconds(%d)); ApplyEffectAtLocation("
+            "EffectAreaOfEffect(%d, \"%s\", \"\", \"\"), l, %d.0); ApplyEffectAtLocation("
             "DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_MAGIC_PROTECTION), l);",
-            kAlarmArea, audible ? "n5_s_alarmaud" : "n5_s_alarmmen", rules::kAlarmHours);
+            kAlarmArea, audible ? "n5_s_alarmaud" : "n5_s_alarmmen", rules::SpellSeconds(rules::kAlarmHours * 60));
   Run(code, self, spell.script);
   TellPlayer(self, PlayerText(audible ? "spells2024.alarm_set_audible" : "spells2024.alarm_set_mental"));
   if (LogSlot()) Log("spells2024: 0x%08X Alarm (%s) set", self, audible ? "audible" : "mental");
@@ -3947,15 +3949,14 @@ while (GetIsItemPropertyValid(ip)) { RemoveItemProperty(b, ip); ip = GetNextItem
 AddItemProperty(DURATION_TYPE_PERMANENT, ItemPropertyCastSpell($POWER, IP_CONST_CASTSPELL_NUMUSES_SINGLE_USE), b);
 SetName(b, "Goodberry"); SetIdentified(b, TRUE); SetItemStackSize(b, $COUNT);
 SetDescription(b, "A berry infused with magic by the Goodberry spell. Eating it (a Bonus Action) restores 1 Hit Point. Uneaten, it disappears when the spell ends, 24 hours after it.", TRUE);
-SetLocalInt(b, "n5_goodberry_until", now + $HOURS);
-DelayCommand(HoursToSeconds($HOURS), DestroyObject(b));
+SetLocalInt(b, "n5_goodberry_until", GetLocalInt(OBJECT_SELF, "n5_spell_clock") + $SECONDS);
 ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_HEALING_S), OBJECT_SELF);
 SendMessageToPC(OBJECT_SELF, "nwn5e: Goodberry - ten berries in your pack; eat one (a Bonus Action) for 1 Hit Point. Uneaten, they disappear in 24 hours.");
 )nss";
 
 const char* const kGoodberryEat = R"nss(
 object b = GetSpellCastItem();
-int now = (GetCalendarYear() * 336 + (GetCalendarMonth() - 1) * 28 + GetCalendarDay() - 1) * 24 + GetTimeHour();
+int now = GetLocalInt(OBJECT_SELF, "n5_spell_clock");
 int until = GetLocalInt(b, "n5_goodberry_until");
 if (until > 0 && now >= until) { SendMessageToPC(OBJECT_SELF, "nwn5e: the Goodberry is gone - the spell ended (24 hours)."); DestroyObject(b); return; }
 ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectLinkEffects(EffectHeal($HP), EffectVisualEffect(VFX_IMP_HEALING_S)), OBJECT_SELF);
@@ -3967,6 +3968,7 @@ void GoodberrySpell(uint32_t self, const rules::Spell2024& spell) {
   Replace(&code, "$POWER", std::to_string(kGoodberryPower));
   Replace(&code, "$COUNT", std::to_string(rules::kGoodberryCount));
   Replace(&code, "$HOURS", std::to_string(rules::kGoodberryHours));
+  Replace(&code, "$SECONDS", std::to_string(rules::SpellSeconds(rules::kGoodberryHours * 60)));
   Run(code, self, spell.script);
   if (LogSlot()) Log("spells2024: 0x%08X Goodberry - %d berries", self, rules::kGoodberryCount);
 }
@@ -4037,7 +4039,7 @@ object me = OBJECT_SELF;
 effect e = GetFirstEffect(me);
 while (GetIsEffectValid(e)) { if (GetEffectTag(e) == "$TAG") RemoveEffect(me, e); e = GetNextEffect(me); }
 SetLocalInt(me, "n5s_disg", 1);
-ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(EffectIcon($ICON), $ROW), "$TAG"), me, HoursToSeconds($HOURS));
+ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(EffectIcon($ICON), $ROW), "$TAG"), me, $DISGSECONDS);
 ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_POLYMORPH), me);
 SetCreatureAppearanceType(me, $APP);
 int heads = 0; int head = 1; int n;
@@ -4220,6 +4222,7 @@ void DisguiseSpell(uint32_t self, void* caster, int row) {
   Replace(&code, "$ICON", std::to_string(UtilityIconRow(rules::kDisguiseSelf)));
   Replace(&code, "$ROW", std::to_string(rules::kDisguiseSelf));
   Replace(&code, "$HOURS", std::to_string(rules::kDisguiseSelfHours));
+  Replace(&code, "$DISGSECONDS", SecondsScript(rules::kDisguiseSelfHours * 60));
   Replace(&code, "$APP", std::to_string(appearance));
   Replace(&code, "$PRE", prefix);
   Replace(&code, "$SKIN", std::to_string(skin));
