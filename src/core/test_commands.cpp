@@ -129,6 +129,7 @@ void SetTestAbilityScores(void* creature, const int scores[6]);  // rules_abilit
 void ForgetQuickbarPlacements(void* creature);                    // rules_quickbar.cpp
 void RememberQuickbarForRebuild(void* creature);                  // rules_quickbar.cpp (#102)
 void EndRageOnRebuild(void* creature);                            // rules_barbarian.cpp (#96)
+void EndFamiliarOnRebuild(void* creature);                        // rules_familiar.cpp (#39 L4-42)
 bool SkillTotal2024(void* creature, int nwn_skill, int* total, int* ability_modifier,
                     bool* rage_strength);                         // rules_skills.cpp (#96)
 
@@ -1029,6 +1030,7 @@ std::vector<std::string> TestCommand(void* creature, const std::string& args) {
   if (rules::TestProfileBuildsCharacter(profile)) {
     RememberQuickbarForRebuild(creature);  // #102: its buttons back in their slots after the rebuild
     EndRageOnRebuild(creature);
+    EndFamiliarOnRebuild(creature);
     lines.push_back(ResetToLevelOne(stats, id));
   }
   // 1a'. The profile's scores before the levels: a new class needs 13 in its main ability (CM2).

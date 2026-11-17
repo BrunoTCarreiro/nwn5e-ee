@@ -56,4 +56,10 @@ bool FamiliarDeliversTouch(float target_from_caster_feet, float target_from_fami
 enum class FamiliarOrder { kNone, kTalk, kStay, kFollow };
 FamiliarOrder FamiliarOrderOf(int listen_pattern);
 
+// What a cast of Find Familiar does - one familiar at a time (SRD 5.2.1: "If you cast this spell while you have a
+// familiar, you instead cause it to adopt a new eligible form"): none - a new one; one here - its new form; one away
+// in its pocket dimension - its new form, and it comes back beside you (owner, 2026-11-17, L4-42: "go with A").
+enum class FamiliarCast { kSummon, kNewForm, kNewFormBack };
+FamiliarCast FamiliarCastOutcome(bool familiar_here, bool familiar_away);
+
 }  // namespace rules

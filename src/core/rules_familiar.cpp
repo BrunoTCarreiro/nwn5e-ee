@@ -573,16 +573,26 @@ void FindFamiliarSpell(uint32_t self, void* caster, int row) {
   Familiar& f = g_familiars[self];
   f.form = form;
   f.kind = rules::FamiliarKindFor(rules::FamiliarKindOfRow(row), GoodEvilOf(self, caster));  // 0.99.49: the menu's
-  // One familiar: one of this spell's out takes the new form (away, it changes there).
-  if (f.dismissed) {
-    TellPlayer(self, PlayerText("familiar.becomes_away", {{"name", FamiliarName(f)}}));
-    return;
-  }
-  if (f.creature && CreatureById(f.creature) && !engine::IsDeadOrDying(CreatureById(f.creature))) {
-    Remake(f.creature, f);
-    TellPlayer(self, PlayerText("familiar.becomes", {{"name", FamiliarName(f)}}));
-    if (LogSlot()) Log("familiar: 0x%08X its familiar 0x%08X becomes a %s", self, f.creature, FamiliarName(f).c_str());
-    return;
+  // One familiar (rules::FamiliarCastOutcome): one here takes the new form; one away (0.99.65, owner 2026-11-17: "go
+  // with A") takes it and comes back beside you - summoned below, as a new one is.
+  const bool here = f.creature && CreatureById(f.creature) && !engine::IsDeadOrDying(CreatureById(f.creature));
+  switch (rules::FamiliarCastOutcome(here, f.dismissed)) {
+    case rules::FamiliarCast::kNewForm:
+      Remake(f.creature, f);
+      TellPlayer(self, PlayerText("familiar.becomes", {{"name", FamiliarName(f)}}));
+      if (LogSlot()) {
+        Log("familiar: 0x%08X its familiar 0x%08X becomes a %s", self, f.creature, FamiliarName(f).c_str());
+      }
+      return;
+    case rules::FamiliarCast::kNewFormBack:
+      f.dismissed = false;
+      f.creature = 0;
+      engine::SetLocalInt(caster, "n5f_away", 0);
+      if (LogSlot()) {
+        Log("familiar: 0x%08X its familiar, away, comes back as a %s (a cast)", self, FamiliarName(f).c_str());
+      }
+      break;
+    case rules::FamiliarCast::kSummon: break;
   }
   // NWN's own familiar (the Summon Familiar feat) goes - one familiar at a time; it's gone at the frame's end, so
   // the summoning waits a moment (n5_f_summon).
@@ -594,6 +604,25 @@ void FindFamiliarSpell(uint32_t self, void* caster, int row) {
     return;
   }
   FinishSummon(self);
+}
+
+// 0.99.65 (L4-42, owner 2026-11-17: "even after running the test command again ... can't bring out the familiar
+// again"): !test's rebuild (test_commands.cpp) starts with no familiar - one here goes, one away is forgotten.
+void EndFamiliarOnRebuild(void* creature) {
+  if (!creature) return;
+  const uint32_t id = ObjId(creature);
+  const auto it = g_familiars.find(id);
+  const bool away = engine::GetLocalInt(creature, "n5f_away") == 1;
+  if (it == g_familiars.end() && !away) return;
+  if (it != g_familiars.end() && it->second.creature && CreatureById(it->second.creature)) {
+    Run("SetIsDestroyable(TRUE, FALSE, FALSE); DestroyObject(OBJECT_SELF);", it->second.creature, "the familiar's end");
+    g_forms.erase(it->second.creature);
+  }
+  if (it != g_familiars.end()) g_familiars.erase(it);
+  engine::SetLocalInt(creature, "n5f_away", 0);
+  GrantFeat(creature, rules::kFeatFamiliarDismiss, false);
+  GrantFeat(creature, rules::kFeatFamiliarRecall, false);
+  Log("familiar: 0x%08X !test's rebuild - its familiar ends (a fresh start)", id);
 }
 
 // The summoning (its form and kind picked by the cast).
