@@ -1718,6 +1718,17 @@ monster AC by CR.
     familiar keeps NWN's own dialog (nw_g_fam: not new text). "4. Once the animation session is done with the
     placement bench I'll make some changes but for now their composition had been accepted" - the disk's four
     stages and three piles (anim 3d49e05) accepted for now.
+  - *FD-9's cause (2026-11-17, the owner's logs):* a disk a loaded game brings back runs none of its own scripts.
+    On 0.99.56 the loaded disk heard no click and two !time 2 didn't end it; on 0.99.57 (the owner loading the FD-9
+    save, 2026-11-16 23:30) its heartbeat never ran in the 38 s logged, while its caster's look found it, ended its
+    hour and made its pile. The save keeps it whole (module.ifo's AssociateList: its scripts, its locals - n5d_stay
+    1, the save made after "stand your ground", which is why it stayed put). Why the engine leaves it idle isn't
+    known. *Fixed 0.99.60:* the caster's look makes a disk it finds that this game didn't make again
+    (rules::DiskFoundAction) - a fresh disk where it floats, as the cast makes one, with its look, order, load, gold
+    and the rest of its hour; the old one leaves the party and goes; one with no time left ends. Logged: the old
+    disk's AI level and whether it takes orders (for the cause), each disk's first heartbeat. Test
+    FloatingDiskFoundAfterLoad, 3 mutations caught; 580 tests pass. FD-11 superseded by FD-12 (FD-11's steps) and
+    FD-13 (FD-9's: stand your ground, save, load).
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
