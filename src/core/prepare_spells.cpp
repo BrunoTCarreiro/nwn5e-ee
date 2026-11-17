@@ -51,6 +51,7 @@
 #include "rules/nwn_conversion.h"
 #include "rules/spell_lists.h"
 #include "rules/spell_slots.h"
+#include "rules/test_profile.h"
 
 int ClericExtraCantrips(void* stats, int class_row);  // rules_cleric.cpp (#42: Divine Order's Thaumaturge)
 
@@ -959,6 +960,93 @@ std::vector<std::string> PrepareCommand(void* creature, const std::string&) {
   return {};
 }
 
+// #169: names joined for the player, in the lists' order.
+std::string SpellNames(int row, const std::vector<int>& ids) {
+  std::string names;
+  for (int id : ids) {
+    const SpellEntry* e = EntryOf(row, id);
+    if (e) names += (names.empty() ? "" : ", ") + e->name;
+  }
+  return names;
+}
+
+std::string SkipWhy(const rules::ProfileSpellSkipped& skip) {
+  switch (skip.why) {
+    case rules::ProfileSpellSkip::kNotOnList: return PlayerText("prepare_spells.preset_not_on_list");
+    case rules::ProfileSpellSkip::kTooHigh:
+      return PlayerText("prepare_spells.preset_too_high", {{"level", std::to_string(skip.level)}});
+    case rules::ProfileSpellSkip::kCantripsFull: return PlayerText("prepare_spells.preset_cantrips_full");
+    case rules::ProfileSpellSkip::kPreparedFull: return PlayerText("prepare_spells.preset_prepared_full");
+    case rules::ProfileSpellSkip::kBookFull: return PlayerText("prepare_spells.preset_book_full");
+    case rules::ProfileSpellSkip::kNoSpellbook: return PlayerText("prepare_spells.preset_no_book");
+    case rules::ProfileSpellSkip::kCantripInBook: return PlayerText("prepare_spells.preset_cantrip_in_book");
+  }
+  return {};
+}
+
+// #169: a !test profile's spells onto the emptied lists - as the window's Accept puts them (Commit), a Wizard's
+// Spellbook written - and the window left shut: no open pending, the levels as seen (no level-up opening), the
+// lists looked at (no first sight opening).
+std::vector<std::string> SetProfileSpells(void* creature, void* stats, const std::vector<std::string>& spells,
+                                          const std::vector<std::string>& spellbook) {
+  const uint32_t id = IdOf(creature);
+  const std::vector<CasterSlot> casters = CasterSlots(stats);
+  std::vector<rules::ProfileCaster> classes;
+  for (const CasterSlot& c : casters) {
+    rules::ProfileCaster p;
+    p.top_level = TopLevel(c.row, c.level);
+    p.cantrips = rules::CantripsKnown2024(c.row, c.level) + ClericExtraCantrips(stats, c.row);
+    p.prepared = rules::PreparedSpells2024(c.row, c.level);
+    p.book = c.row == kNwnClassWizard ? rules::SpellbookSpells2024(c.level) : 0;
+    for (const SpellEntry& e : ClassSpells(c.row)) p.list.push_back({e.id, e.level, e.name});
+    classes.push_back(p);
+  }
+  std::vector<rules::ProfileSpellSkipped> skipped;
+  const std::vector<rules::ProfileCasterLists> lists = rules::PickProfileSpells(classes, spells, spellbook, &skipped);
+  std::vector<std::string> lines;
+  for (size_t i = 0; i < casters.size() && i < lists.size(); ++i) {
+    const CasterSlot& c = casters[i];
+    void* info = ClassInfoOf(stats, c.slot);
+    for (int spell : lists[i].cantrips) g_add_known(info, 0, static_cast<uint32_t>(spell));
+    for (int spell : lists[i].prepared) {
+      const SpellEntry* e = EntryOf(c.row, spell);
+      if (e) g_add_known(info, static_cast<uint8_t>(e->level), static_cast<uint32_t>(spell));
+    }
+    if (c.row == kNwnClassWizard) WriteBook(creature, lists[i].book);
+    std::string parts;
+    if (!lists[i].cantrips.empty()) {
+      parts += PlayerText("prepare_spells.preset_cantrips", {{"names", SpellNames(c.row, lists[i].cantrips)}});
+    }
+    if (!lists[i].prepared.empty()) {
+      parts += (parts.empty() ? "" : "; ") +
+               PlayerText("prepare_spells.preset_prepared", {{"names", SpellNames(c.row, lists[i].prepared)}});
+    }
+    if (c.row == kNwnClassWizard) {
+      parts += (parts.empty() ? "" : "; ") +
+               PlayerText("prepare_spells.preset_book", {{"count", std::to_string(lists[i].book.size())}});
+    }
+    lines.push_back("  " + PlayerText("prepare_spells.preset_lists", {{"class", ClassName(c.row)}, {"lists", parts}}));
+    if (LogLine()) {
+      Log("prepare: 0x%08X !test - %s %d set by the profile: cantrips %zu of %d, prepared %zu of %d%s", id,
+          ClassName(c.row), c.level, lists[i].cantrips.size(), classes[i].cantrips, lists[i].prepared.size(),
+          classes[i].prepared,
+          c.row == kNwnClassWizard
+              ? (", spellbook " + std::to_string(lists[i].book.size()) + " of " + std::to_string(classes[i].book)).c_str()
+              : "");
+    }
+  }
+  for (const rules::ProfileSpellSkipped& skip : skipped) {
+    lines.push_back("  " + PlayerText("prepare_spells.preset_skipped", {{"name", skip.name}, {"why", SkipWhy(skip)}}));
+    if (LogLine()) Log("prepare: 0x%08X !test - profile spell \"%s\" skipped (%d)", id, skip.name.c_str(),
+                      static_cast<int>(skip.why));
+  }
+  g_open_pending.erase(id);
+  g_levels[id] = CasterLevels(stats);
+  engine::SetLocalInt(creature, kSeenVar, 1);
+  GrantPrepareSpells(creature, stats);
+  return lines;
+}
+
 }  // namespace
 
 std::vector<int> PrepareSpellsPlayerBook() {
@@ -972,7 +1060,8 @@ void PrepareSpellsNoteCast(void* creature) {
   if (LogLine()) Log("prepare: 0x%08X cast a spell - the Long Rest's change is closed", IdOf(creature));
 }
 
-std::string PrepareSpellsReset(void* creature) {
+std::vector<std::string> PrepareSpellsReset(void* creature, const std::vector<std::string>& spells,
+                                            const std::vector<std::string>& spellbook) {
   void* stats = StatsOf(creature);
   if (g_config.spellcasting != rules::RuleVariant::kFaithful || !g_number_known || !stats || !IsPlayer(creature)) {
     return {};
@@ -998,10 +1087,14 @@ std::string PrepareSpellsReset(void* creature) {
   SetChangeOpen(creature, false);
   g_sessions.erase(id);
   if (CasterSlots(stats).empty()) return {};
+  if (!spells.empty() || !spellbook.empty()) {  // #169
+    if (LogLine()) Log("prepare: 0x%08X !test - lists emptied (%d spells), the profile's spells set", id, removed);
+    return SetProfileSpells(creature, stats, spells, spellbook);
+  }
   g_open_pending[id] = {-1, false};
   if (LogLine()) Log("prepare: 0x%08X !test - lists emptied (%d spells), the window opens", id, removed);
-  return "  spells: cantrips and prepared spells empty" + std::string(wizard ? ", an empty Spellbook" : "") +
-         " - the Prepare spells window opens";
+  return {"  spells: cantrips and prepared spells empty" + std::string(wizard ? ", an empty Spellbook" : "") +
+          " - the Prepare spells window opens"};
 }
 
 void InstallPrepareSpells() {

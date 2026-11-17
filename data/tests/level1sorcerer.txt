@@ -11,5 +11,6 @@ class = sorcerer
 level = 5
 abilities = 8 14 14 10 10 16
 items = nw_wdbqs001 equip
-note = the Prepare spells window opens: Cantrips - any; Level 1 - Burning Hands, Magic Missile, Ray of Sickness, False Life, Thunderwave, Ice Knife, Chromatic Orb; Accept
+spells = Fire Bolt, Ray of Frost, Shocking Grasp, Sorcerous Burst, Acid Splash
+spells = Burning Hands, Magic Missile, Ray of Sickness, False Life, Thunderwave, Ice Knife, Chromatic Orb, Shield, Mage Armor
 note = !spawn nw_orcb gives you an enemy (spawn three for the areas); the radial's Level 2 and Level 3 upcast a spell

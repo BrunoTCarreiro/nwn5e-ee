@@ -1119,10 +1119,12 @@ std::vector<std::string> TestCommand(void* creature, const std::string& args) {
   }
   // 6. Test switches for this session: the ini's values back, then the profile's.
   for (const std::string& line : ApplySwitches(id, profile.switches)) lines.push_back(line);
-  // 6a. A built 2024 caster's lists start empty, the Prepare spells window opening (#36; 0.75.1).
+  // 6a. A built 2024 caster's lists start empty, the Prepare spells window opening (#36; 0.75.1) - or set to the
+  // profile's spells, the window shut (#169).
   if (rules::TestProfileBuildsCharacter(profile)) {
-    const std::string spells = PrepareSpellsReset(creature);
-    if (!spells.empty()) lines.push_back(spells);
+    for (const std::string& line : PrepareSpellsReset(creature, profile.spells, profile.spellbook)) {
+      lines.push_back(line);
+    }
   }
   // 6b. A built character starts rested (#102).
   if (rules::TestProfileBuildsCharacter(profile)) lines.push_back(RestAfterRebuild(id));

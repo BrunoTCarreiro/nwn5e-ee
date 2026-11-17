@@ -342,6 +342,19 @@ extra_actions.action_surge_many | generated | Action Surge - your Attack action 
 # --- src/core/prepare_spells.cpp (by hand) --------------------------------------------------------------------
 prepare_spells.already_in_book | generated | nwn5e: {spell} is already in your Spellbook - the scroll is kept.
 prepare_spells.that_spell | generated | that spell
+# #169: !test's lines for a profile's spells (after two spaces, as its other lines).
+prepare_spells.preset_lists | generated | spells ({class}): {lists} - set by the profile, no window (the radial's Prepare Spells changes them)
+prepare_spells.preset_cantrips | generated | cantrips {names}
+prepare_spells.preset_prepared | generated | prepared {names}
+prepare_spells.preset_book | generated | Spellbook {count} spells
+prepare_spells.preset_skipped | generated | spells: {name} skipped - {why}
+prepare_spells.preset_not_on_list | generated | not on your classes' lists
+prepare_spells.preset_too_high | generated | a level {level} spell, and no slots of that level yet
+prepare_spells.preset_cantrips_full | generated | the cantrips are full
+prepare_spells.preset_prepared_full | generated | the prepared spells are full
+prepare_spells.preset_book_full | generated | the Spellbook is full
+prepare_spells.preset_no_book | generated | only a Wizard has a Spellbook
+prepare_spells.preset_cantrip_in_book | generated | a cantrip - the Spellbook holds level 1+ spells
 
 # --- src/core/rules_rest.cpp (by hand) ------------------------------------------------------------------------
 rest.hour | generated | {hours} hour

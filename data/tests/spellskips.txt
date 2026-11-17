@@ -1,0 +1,18 @@
+# A !test profile ([debug] test_commands=1): type "!test spellskips" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# A profile's spells that can't go in (issue 169): your first class becomes Wizard 1, Intelligence 16 - three
+# cantrips, four prepared spells, a Spellbook of six. Some names below are meant to be skipped, each with its reason
+# in the chat: a fourth cantrip, a 3rd-level spell, a name on no list, a fifth prepared spell, a cantrip for the book.
+name = Profile spells skipped (issue 169): human Wizard 1 - names that can't go in, and why
+species = human
+swap_class = wizard
+class = wizard
+level = 1
+abilities = 8 14 14 16 10 10
+items = nw_wdbqs001 equip
+spells = Fire Bolt, Ray of Frost, Light, Mage Hand
+spells = Fireball, Wish, Magic Missile, Shield, Mage Armor, Sleep, Burning Hands
+spellbook = Thunderwave, Light
+note = skipped on purpose: Mage Hand (the cantrips are full), Fireball (level 3), Wish (on no list), Burning Hands (the prepared spells are full), Light for the Spellbook (a cantrip)

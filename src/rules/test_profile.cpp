@@ -297,12 +297,130 @@ TestProfile ParseTestProfile(const std::string& text) {
       }
     } else if (key == "note") {
       if (!value.empty()) profile.notes.push_back(value);
+    } else if (key == "spells" || key == "spellbook") {  // #169
+      for (const std::string& part : SplitCommas(value)) {
+        if (SpellNameKey(part).empty()) {
+          profile.errors.push_back(where + "\"" + part + "\" is not a spell's name");
+        } else {
+          (key == "spells" ? profile.spells : profile.spellbook).push_back(part);
+        }
+      }
     } else {
       profile.errors.push_back(where + "unknown key");
     }
   }
   if (profile.level > 0 && profile.nwn_class < 0) profile.errors.push_back("a level needs a class");
+  if ((!profile.spells.empty() || !profile.spellbook.empty()) && !TestProfileBuildsCharacter(profile)) {
+    profile.errors.push_back("spells need a built character (swap_class, class or levels)");
+  }
   return profile;
+}
+
+std::string SpellNameKey(const std::string& name) {
+  std::string key;
+  for (char c : name) {
+    if (isalnum(static_cast<unsigned char>(c))) key += static_cast<char>(tolower(static_cast<unsigned char>(c)));
+  }
+  return key;
+}
+
+namespace {
+
+bool Holds(const std::vector<int>& ids, int id) {
+  for (int held : ids) {
+    if (held == id) return true;
+  }
+  return false;
+}
+
+const ProfileListSpell* OnList(const ProfileCaster& caster, const std::string& key) {
+  for (const ProfileListSpell& entry : caster.list) {
+    if (SpellNameKey(entry.name) == key) return &entry;
+  }
+  return nullptr;
+}
+
+// A `spells` name into one caster's lists: true placed (or there already), else `why` says what stopped it.
+bool PlaceSpell(const ProfileCaster& caster, const ProfileListSpell& entry, ProfileCasterLists* lists,
+                ProfileSpellSkip* why) {
+  if (entry.level == 0) {
+    if (Holds(lists->cantrips, entry.id)) return true;
+    if (static_cast<int>(lists->cantrips.size()) >= caster.cantrips) {
+      *why = ProfileSpellSkip::kCantripsFull;
+      return false;
+    }
+    lists->cantrips.push_back(entry.id);
+    return true;
+  }
+  if (Holds(lists->prepared, entry.id)) return true;
+  if (entry.level > caster.top_level) {
+    *why = ProfileSpellSkip::kTooHigh;
+    return false;
+  }
+  if (static_cast<int>(lists->prepared.size()) >= caster.prepared) {
+    *why = ProfileSpellSkip::kPreparedFull;
+    return false;
+  }
+  const bool to_book = caster.book > 0 && !Holds(lists->book, entry.id);
+  if (to_book && static_cast<int>(lists->book.size()) >= caster.book) {
+    *why = ProfileSpellSkip::kBookFull;
+    return false;
+  }
+  lists->prepared.push_back(entry.id);
+  if (to_book) lists->book.push_back(entry.id);
+  return true;
+}
+
+// A `spellbook` name into one caster's Spellbook.
+bool PlaceInBook(const ProfileCaster& caster, const ProfileListSpell& entry, ProfileCasterLists* lists,
+                 ProfileSpellSkip* why) {
+  if (entry.level == 0) {
+    *why = ProfileSpellSkip::kCantripInBook;
+    return false;
+  }
+  if (Holds(lists->book, entry.id)) return true;
+  if (entry.level > caster.top_level) {
+    *why = ProfileSpellSkip::kTooHigh;
+    return false;
+  }
+  if (static_cast<int>(lists->book.size()) >= caster.book) {
+    *why = ProfileSpellSkip::kBookFull;
+    return false;
+  }
+  lists->book.push_back(entry.id);
+  return true;
+}
+
+}  // namespace
+
+std::vector<ProfileCasterLists> PickProfileSpells(const std::vector<ProfileCaster>& casters,
+                                                  const std::vector<std::string>& spells,
+                                                  const std::vector<std::string>& spellbook,
+                                                  std::vector<ProfileSpellSkipped>* skipped) {
+  std::vector<ProfileCasterLists> lists(casters.size());
+  for (int pass = 0; pass < 2; ++pass) {
+    const bool book_pass = pass == 1;
+    for (const std::string& name : book_pass ? spellbook : spells) {
+      const std::string key = SpellNameKey(name);
+      bool placed = false, found = false, any_book = false;
+      ProfileSpellSkipped first{name, book_pass ? ProfileSpellSkip::kNoSpellbook : ProfileSpellSkip::kNotOnList, 0};
+      for (size_t i = 0; i < casters.size() && !placed; ++i) {
+        if (book_pass && casters[i].book <= 0) continue;
+        any_book = true;
+        const ProfileListSpell* entry = OnList(casters[i], key);
+        if (!entry) continue;
+        ProfileSpellSkip why = ProfileSpellSkip::kNotOnList;
+        placed = book_pass ? PlaceInBook(casters[i], *entry, &lists[i], &why)
+                           : PlaceSpell(casters[i], *entry, &lists[i], &why);
+        if (!placed && !found) first = {name, why, entry->level};
+        found = true;
+      }
+      if (placed) continue;
+      if (book_pass && any_book && !found) first.why = ProfileSpellSkip::kNotOnList;
+      if (skipped) skipped->push_back(first);
+    }
+  }
+  return lists;
 }
 
 }  // namespace rules

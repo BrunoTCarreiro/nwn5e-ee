@@ -6607,6 +6607,37 @@ tied to a level and may stay.
 *Accepted (owner, 2026-10-30: "2 and 82 accepted").* The test profiles (#82), 0.57.5-0.58.2, with the `cleric` profile
 for combat C2: TP1-TP18 seen in the owner's runs.
 
+### A built caster's spells set by its profile (#169)
+
+*Asked (owner, 2026-11-17, after #152's run order):* "is it possible for the !commands to give em a character that
+already has spellbok/cantrip/prepared spells ready?" Before, a profile that builds a character emptied a 2024
+caster's lists and the Prepare spells window opened (#36, 0.75.1); its Accept needs every list full, so each `!test`
+meant picking 3-14 spells by hand - 30 profiles build a caster, and 44 open rows started with a pick. Proposed: two
+profile keys, the lists set as the window's Accept sets them, the window shut, every caster profile given full lists.
+*Decided (owner, 2026-11-17): "make the changes, it'll make testing so MUCH easier".*
+
+*Built 0.99.70:*
+- **The keys** (rules/test_profile.h): `spells = <names>` - cantrips and prepared spells, a Wizard's in its Spellbook
+  too; `spellbook = <names>` - a Wizard's Spellbook only. Comma lists, as many lines as needed; a profile that doesn't
+  build a character can't have them (test.bat's profile test fails it).
+- **Picking** (rules::PickProfileSpells): a name matches the class's list as the window shows it (rules::SpellNameKey:
+  letters and digits, any case). Each `spells` name goes to the first class whose list has it and has room - a
+  multiclass character's too; then each `spellbook` name to a class with a Spellbook. A name off the lists, of a
+  level with no slots yet, or past a list's count is skipped, with the first class's reason.
+- **In game** (core/prepare_spells.cpp, PrepareSpellsReset): with names, `!test` empties the lists as before, then puts
+  the picks in with the engine's own calls (the window's Commit) and writes the Wizard's Spellbook item. The window
+  stays shut: no open pending, the caster levels marked seen (the level-up check), the lists marked looked at (the
+  first sight). The chat lists each class's picks and any skip (new text, generated: `prepare_spells.preset_*`, 12
+  entries). The radial's Prepare Spells, `!prepare` and a Long Rest open the window as before; a profile with no
+  names behaves as before.
+- **The profiles:** all 30 that build a caster name full lists - the spells their notes and open rows use first,
+  then level 1 spells to the counts, so a Long Rest's window can Accept as it is. Checked against the served class
+  lists before the build (every name found, every list full). The notes that said to pick are gone.
+- **The rows:** 40 open game rows lose their "pick ... in the Prepare spells window" step (their setups now say
+  what the profile has prepared, "The install 0.99.70 or later"); LD-1 to LD-3 cast Cure Wounds (Cure Light Wounds'
+  2024 name since the level 1 switch). The animation session's SB-17, SB-24, AS-13 and AS-18 are its own to change.
+- Tests TestProfileSpellsParse, ProfileSpellsPicked, ProfileSpellsMulticlass; 19 of 19 mutations caught.
+
 ### The Test Grounds' commands (#156)
 
 *Decided (owner, 2026-11-10): "Look online to see if there are any testing maps available", then "a simple map

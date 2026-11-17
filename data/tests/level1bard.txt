@@ -11,5 +11,6 @@ class = bard
 level = 5
 abilities = 8 14 14 10 10 16
 items = nw_wswdg001 equip
-note = the Prepare spells window opens: Cantrips - any; Level 1 - Dissonant Whispers, Thunderwave, Cure Wounds, Healing Word, Heroism; Accept
+spells = Vicious Mockery, Starry Wisp, True Strike
+spells = Dissonant Whispers, Thunderwave, Cure Wounds, Healing Word, Heroism, Command, Charm Person, Faerie Fire, Sleep
 note = !spawn nw_orcb gives you an enemy; the radial's Level 2 and Level 3 upcast a spell

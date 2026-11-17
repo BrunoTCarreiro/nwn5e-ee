@@ -11,5 +11,7 @@ class = cleric
 level = 5
 abilities = 10 10 14 10 16 12
 items = nw_wdbqs001 equip
+spells = Sacred Flame, Guidance, Light, Thaumaturgy
+spells = Bless, Bane, Command, Cure Wounds, Guiding Bolt, Healing Word, Inflict Wounds, Shield of Faith, Sanctuary
 note = the Turn Undead button (class abilities) is Channel Divinity and its menu; its uses show on the resource panel
 note = !spawn nw_skeleton for an undead; !spawn nw_orcb ally for a creature to heal; !reflex 30 25 to get Bloodied

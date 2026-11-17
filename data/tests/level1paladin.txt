@@ -11,5 +11,5 @@ class = paladin
 level = 5
 abilities = 16 10 14 8 10 16
 items = nw_wswls001 equip
-note = the Prepare spells window opens: pick Bless, Shield of Faith, Divine Favor and Protection from Evil and Good; Accept
+spells = Bless, Shield of Faith, Divine Favor, Protection from Evil and Good, Divine Smite, Searing Smite
 note = !spawn nw_orcb gives you an enemy; !spawn nw_orcb ally a friend

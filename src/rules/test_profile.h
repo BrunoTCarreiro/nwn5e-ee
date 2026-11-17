@@ -26,9 +26,16 @@
 //               session only (TestSwitchRange); every !test <name> first puts
 //               back the ini's values, then sets these
 //   note      = a line shown after the profile is applied (one per line)
+//   spells    = a comma list of spell names, as the Prepare spells window
+//               shows them (any case; punctuation and spaces ignored): a
+//               built 2024 caster's cantrips and prepared spells - a
+//               Wizard's in its Spellbook too - set instead of the window
+//               opening (#169); more lines add to it
+//   spellbook = a comma list of names: a Wizard's Spellbook only (#169)
 // A profile that sets swap_class, class or levels builds a character: it
 // starts from level 1 (TestProfileBuildsCharacter; 0.57.6, owner: "go with
 // a"), so it gives the same character whatever the character was before.
+// Spells need one (a profile that doesn't build a character keeps its lists).
 
 #include <string>
 #include <vector>
@@ -68,8 +75,58 @@ struct TestProfile {
   std::vector<TestLevels> levels;
   std::vector<TestSwitch> switches;
   std::vector<std::string> notes;
+  std::vector<std::string> spells;     // #169: names, as written
+  std::vector<std::string> spellbook;  // #169: a Wizard's Spellbook only
   std::vector<std::string> errors;  // lines that didn't parse
 };
+
+// #169 (owner, 2026-11-17: "is it possible for the !commands to give em a character that already has
+// spellbok/cantrip/prepared spells ready?", then "make the changes, it'll make testing so MUCH easier"): a profile's
+// spells sorted into a built caster's lists, as the Prepare spells window's Accept would hold them.
+struct ProfileListSpell {  // an entry of a class's list (spells.2da row, its level for the class, its name)
+  int id = 0;
+  int level = 0;
+  std::string name;
+};
+struct ProfileCaster {  // one of the character's 2024 casting classes
+  int top_level = 0;    // the highest spell level it has slots for (0: cantrips only)
+  int cantrips = 0;     // its counts: cantrips, prepared spells
+  int prepared = 0;
+  int book = 0;         // a Wizard's Spellbook (0: the class has none)
+  std::vector<ProfileListSpell> list;
+};
+struct ProfileCasterLists {  // spells.2da rows, in the profile's order
+  std::vector<int> cantrips;
+  std::vector<int> prepared;
+  std::vector<int> book;  // a Wizard's: its prepared spells and its `spellbook` names
+};
+enum class ProfileSpellSkip {
+  kNotOnList,      // on none of the classes' lists
+  kTooHigh,        // a level the class has no slots for yet
+  kCantripsFull,
+  kPreparedFull,
+  kBookFull,
+  kNoSpellbook,    // a `spellbook` name, and no class with a Spellbook
+  kCantripInBook,  // a `spellbook` name that is a cantrip
+};
+struct ProfileSpellSkipped {
+  std::string name;  // as the profile wrote it
+  ProfileSpellSkip why = ProfileSpellSkip::kNotOnList;
+  int level = 0;     // kTooHigh: the spell's level
+};
+
+// A name as the lists are searched: lower case, letters and digits only ("Hunter's Mark" = "hunters mark").
+std::string SpellNameKey(const std::string& name);
+
+// Each `spells` name, in order, goes to the first class whose list has it and whose list has room - a cantrip to its
+// cantrips, another to its prepared spells (and a Spellbook's, if the class has one and it isn't there). Then each
+// `spellbook` name to the first class with a Spellbook whose list has it, below its count. A name placed already is
+// passed over; a name that can't go anywhere is skipped, with the first class's reason (`skipped`, may be null).
+// One result per caster, in order.
+std::vector<ProfileCasterLists> PickProfileSpells(const std::vector<ProfileCaster>& casters,
+                                                  const std::vector<std::string>& spells,
+                                                  const std::vector<std::string>& spellbook,
+                                                  std::vector<ProfileSpellSkipped>* skipped);
 
 TestProfile ParseTestProfile(const std::string& text);
 

@@ -11,5 +11,6 @@ class = bard
 level = 5
 abilities = 8 14 14 10 10 16
 items = nw_wswdg001 equip
-note = the Prepare spells window opens: Level 1 - Command, Charm Person, Animal Friendship, Hideous Laughter, Color Spray, Sleep; Accept
+spells = Vicious Mockery, Starry Wisp, True Strike
+spells = Command, Charm Person, Animal Friendship, Hideous Laughter, Color Spray, Sleep, Dissonant Whispers, Healing Word, Cure Wounds
 note = !spawn nw_orcb an orc (a Humanoid), !spawn nw_wolf a wolf (a Beast), !spawn nw_skeleton a skeleton (Undead); add neutral for one that isn't hostile, ally for a henchman
