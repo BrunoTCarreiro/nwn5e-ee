@@ -6638,6 +6638,24 @@ profile keys, the lists set as the window's Accept sets them, the window shut, e
   2024 name since the level 1 switch). The animation session's SB-17, SB-24, AS-13 and AS-18 are its own to change.
 - Tests TestProfileSpellsParse, ProfileSpellsPicked, ProfileSpellsMulticlass; 19 of 19 mutations caught.
 
+### `!spawn <blueprint> away` (#170)
+
+*Asked (owner, 2026-11-17, #152's blocks A-C passed):* "I need to find a better map to test with aggressive creatures
+without them seeing me". `!spawn` puts the creature 5 m ahead facing you, and a calm creature sees a hider inside its
+120-degree vision cone (rules_perception.cpp E) - so a hostile one starts with you in sight. Offered: A `!spawn ...
+away`; B a stealth corner in the Test Grounds (the animation session's module) and `!spawn ... at <mark>`; C another
+map. *Decided (owner, 2026-11-17): "A is good".*
+
+*Built 0.99.71:*
+- `away`: the same spot 5 m ahead, the creature facing your way - its back to you (rules::SpawnTurnDegrees). In
+  stealth mode first, then the spawn: you start outside its cone; a spot 3-4 m in front of it is in its sight and
+  within Minor Illusion's 30 feet of you. It can still hear you (hiders_need_search: it comes to look, searching).
+- `!spawn`'s words are read whole (rules::ParseSpawnOptions: ally, neutral, dr, away; ally wins over neutral); an
+  unknown word shows the usage line instead of being ignored.
+- The usage line moved to the catalogue (test_commands.spawn_usage; "[away]" and its note new) and the spawned
+  line's note for away (test_commands.spawn_away, ", its back to you") - generated, for review.
+- #152's open rows D-G and #151's SH-1 / SH-2 are set up with `away`. Test SpawnOptionsParse.
+
 ### The Test Grounds' commands (#156)
 
 *Decided (owner, 2026-11-10): "Look online to see if there are any testing maps available", then "a simple map

@@ -193,6 +193,30 @@ std::string CastMarkTag(const std::string& text) {
   return kCastMarkPrefix + word;
 }
 
+bool ParseSpawnOptions(const std::string& text, SpawnOptions* options) {
+  SpawnOptions read;
+  std::istringstream words(Lower(text));
+  std::string word;
+  while (words >> word) {
+    if (word == "ally") {
+      read.ally = true;
+    } else if (word == "neutral") {
+      read.neutral = true;
+    } else if (word == "dr") {
+      read.reduction = true;
+    } else if (word == "away") {
+      read.away = true;
+    } else {
+      return false;
+    }
+  }
+  if (read.ally) read.neutral = false;
+  *options = read;
+  return true;
+}
+
+int SpawnTurnDegrees(const SpawnOptions& options) { return options.away ? 0 : 180; }
+
 bool ParseFearArgs(const std::string& text, bool* charm, int* seconds) {
   bool want_charm = false;
   int want_seconds = 0;

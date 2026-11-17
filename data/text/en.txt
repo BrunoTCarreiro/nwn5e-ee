@@ -724,3 +724,8 @@ skills.choose_expertise | generated | ; Expertise in {count}
 
 # --- src/core/rules_concentration.cpp (by hand) ---------------------------------------------------------------
 concentration.why_rest | generated | the rest outlasts it
+
+# --- src/core/test_commands.cpp (by hand) ---------------------------------------------------------------------
+# #170: the usage line (moved from the code, "[away]" and its note new) and the spawned line's note for away.
+test_commands.spawn_usage | generated | nwn5e: !spawn <creature blueprint> [ally | neutral] [dr] [away] - e.g. !spawn nw_gntfrost (Frost Giant, Huge), nw_gnthill (Hill Giant, Large), nw_orcb (Orc); ally: as your henchman; neutral: not hostile (the commoners' faction); dr: damage reduction 10/+5; away: with its back to you (for stealth tests).
+test_commands.spawn_away | generated | , its back to you

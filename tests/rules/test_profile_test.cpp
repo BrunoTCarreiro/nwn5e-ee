@@ -359,3 +359,26 @@ TEST(ProfileSpellsMulticlass) {
   CHECK_EQ(no_book.size(), 1u);
   if (no_book.size() == 1u) CHECK_EQ(no_book[0].why == ProfileSpellSkip::kNoSpellbook, true);
 }
+
+// Breaks caught (#170): away not read, or read inside another word; a word's case kept; ally not winning over
+// neutral; an unknown word ignored instead of refused; a refused line setting anything; the creature turned the
+// wrong way (facing you while away, or its back to you without it).
+TEST(SpawnOptionsParse) {
+  SpawnOptions o;
+  CHECK_EQ(ParseSpawnOptions("", &o), true);
+  CHECK_EQ(o.ally || o.neutral || o.reduction || o.away, false);
+  CHECK_EQ(SpawnTurnDegrees(o), 180);  // facing you, as before
+  CHECK_EQ(ParseSpawnOptions("AWAY", &o), true);
+  CHECK_EQ(o.away, true);
+  CHECK_EQ(SpawnTurnDegrees(o), 0);  // its back to you
+  CHECK_EQ(ParseSpawnOptions("neutral away", &o), true);
+  CHECK_EQ(o.neutral && o.away && !o.ally, true);
+  CHECK_EQ(ParseSpawnOptions("ally neutral dr", &o), true);
+  CHECK_EQ(o.ally && !o.neutral && o.reduction && !o.away, true);
+  SpawnOptions kept;
+  kept.away = true;
+  CHECK_EQ(ParseSpawnOptions("away behind", &kept), false);  // an unknown word: refused
+  CHECK_EQ(kept.away && !kept.ally, true);                     // nothing changed
+  CHECK_EQ(ParseSpawnOptions("faraway", &o), false);           // a whole word only
+  CHECK_EQ(ParseSpawnOptions("drake", &o), false);
+}

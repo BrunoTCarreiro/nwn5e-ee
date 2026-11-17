@@ -183,4 +183,19 @@ constexpr const char* kCastMarkPrefix = "n5test_cast_";
 constexpr size_t kCastMarkNameMax = 20;
 std::string CastMarkTag(const std::string& text);
 
+// "!spawn <blueprint> [ally | neutral] [dr] [away]"'s words after the blueprint, whole words in any case and order:
+// ally - your henchman (it wins over neutral); neutral - the commoners' faction, not hostile; dr - damage reduction
+// 10/+5; away (#170; owner, 2026-11-17: "I need to find a better map to test with aggressive creatures without them
+// seeing me", then "A is good") - with its back to you, so a stealth test starts outside its vision cone. False for
+// any other word (nothing set).
+struct SpawnOptions {
+  bool ally = false;
+  bool neutral = false;
+  bool reduction = false;
+  bool away = false;
+};
+bool ParseSpawnOptions(const std::string& text, SpawnOptions* options);
+// The degrees a spawned creature's facing is turned from the speaker's: 180 (facing the speaker), 0 away.
+int SpawnTurnDegrees(const SpawnOptions& options);
+
 }  // namespace rules

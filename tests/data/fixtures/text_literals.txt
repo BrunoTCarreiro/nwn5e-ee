@@ -19,5 +19,5 @@ rules_spells2024.cpp 0 0 20 0
 rules_utility_cantrips.cpp 0 0 6 0
 rules_weapon_cantrips.cpp 0 0 1 0
 stealth_watch.cpp 0 0 2 0
-test_commands.cpp 0 0 19 33
+test_commands.cpp 0 0 19 32
 vfx_nodes.cpp 0 0 0 3
