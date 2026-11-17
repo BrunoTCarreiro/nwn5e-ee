@@ -42,12 +42,35 @@ made of the game's parts), which `.gitignore` keeps out and `build.bat` makes fo
     (from 1) when there's more than one variant. Every model name fits 16 characters.
   - A variant with no parts can be in the file (New project writes one), but `build.js` refuses the whole build
     while one has none (`variants[k].parts: at least one part`): add a part before the first Save and build.
-- **The parts** are composition.json's: `note`, `model` (a game model, or a list of them for a weapon's pieces) or
-  `file`, `at`, `turn`, `scale`, `tilt`, and a dyed part's `colours`.
+- **The parts** are composition.json's: `note`, `model` (a game model, or a list of them for a weapon's pieces),
+  `file` or `shape` (Shapes, below), `at`, `turn`, `scale`, `tilt`, and a dyed part's `colours`.
   - A `file` is your own `.mdl`, relative to this folder, so `parts/my_crate.mdl` is `tools\data\composer\parts\my_crate.mdl`.
   - The rules for your own files (units, axes, textures) are the Floating Disk's (`tools\data\floatdisk\README.md`).
   - A dyed part (a helmet: the game has its texture only as a PLT) is baked into a texture of its own, `n5p_` and 12
     hex digits, in its `colours` (the Floating Disk's README, "Dyed parts"). The model or draft names the bake.
+
+## Shapes
+
+A part's `shape` is a shape the generator makes instead of a model - a dome (a half sphere) to show a spell's area, say:
+`{ "type": "dome", "radius": <m> }` and, where they differ from the defaults:
+
+- `height` (the radius: a half sphere), `segments` (32), `sides` (`both`: seen from inside too; or `outside`);
+- `mapping` (`wrap`: round it and up it; or `above`: laid on from overhead), `repeat_around` (1, up to 32) and
+  `repeat_up` (1, up to 16), which tile a wrapped texture;
+- `colour` (`[0.6, 0.8, 1]`), `alpha` (0.35), `glow` (1), `texture` (`soft`, `none`, or a library texture's name).
+
+```json
+{ "note": "zone", "shape": { "type": "dome", "radius": 4.57 }, "at": [0, 0, 0] }
+```
+
+- It has no `scale`: its radius and height size it.
+- Only what differs from the defaults is written; under `above` the repeats aren't written either.
+- A shape's soft texture is generated from numbers (original, nothing of the game's): it's named `n5s_` and 12 hex
+  digits of its colour (`n5s_8c757fb28f99` for the default colour), so shapes of one colour share it.
+- `none` is its colour only. A library texture (the game's own, by name) is tinted by `colour`; nothing is generated
+  or copied for it.
+
+The Floating Disk's README ("Shapes") has every field and its bounds.
 
 ## What each kind builds
 

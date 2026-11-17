@@ -78,15 +78,16 @@ real `data\files` or the bench build's `vfxedit\saved\`. It needs the game (it p
 
 ## Swap in your own pile
 
-A part names either a game model or a model file of your own:
+A part names a game model, a model file of your own, or a shape - just one of them:
 
 ```json
 { "model": "plc_b04", "at": [-0.07, 0.03, 0], "turn": 20, "scale": 0.85 }
 { "file": "parts/my_pile.mdl", "at": [0, 0, 0] }
 { "model": ["wswls_b_011", "wswls_m_011", "wswls_t_011"], "at": [0, 0, 0], "tilt": [0, 90] }
+{ "shape": { "type": "dome", "radius": 0.3 }, "at": [0, 0, 0] }
 ```
 
-The last is a weapon: its three pieces, read as one model.
+The third is a weapon: its three pieces, read as one model. The last is a shape the generator makes (Shapes, below).
 
 To make a whole stage your own pile, give that stage a single part:
 
@@ -158,13 +159,49 @@ dyeable texture, painted from an item's colours, and placeables have none - so t
   name in the way is rewritten. Bakes of colours no longer used stay in `data\files` (ignored, never installed: the
   build makes its own).
 
+## Shapes
+
+A part's `shape` is a shape the generator makes instead of a model: `{ "type": "dome", "radius": <m> }` and, where
+they differ from the defaults:
+
+- `height` (the radius: a half sphere), `segments` (32), `sides` (`both`);
+- `mapping` (`wrap`), `repeat_around` (1), `repeat_up` (1);
+- `colour` (`[0.6, 0.8, 1]`), `alpha` (0.35), `glow` (1), `texture` (`soft`).
+
+It has no `scale`: its radius and height size it. Only what differs from the defaults is written.
+
+```json
+{ "note": "zone", "shape": { "type": "dome", "radius": 4.57 }, "at": [0, 0, 0] }
+{ "shape": { "type": "dome", "radius": 1, "height": 0.4, "colour": [1, 0.85, 0.4] }, "at": [0, 0, 0] }
+```
+
+- **The dome** (`"type": "dome"`, a half sphere): its base on the ground at z 0, centred on the origin, `height` up.
+  - `segments` (8-96) go round it, and a quarter of that many rings go up it.
+  - `sides: "both"` (the default) is seen from inside too: the inside's faces come first, each side with its own
+    vertices. `"outside"` is seen from outside only.
+- **How its texture lies on it** (`mapping`):
+  - `wrap` (the default) goes round it from +x and up it from the ground ring to the top. `repeat_around` (1-32) and
+    `repeat_up` (1-16) tile it, so a pattern keeps its size on a big dome.
+  - `above` lays it on from overhead, the picture's square across the shape's width. The repeats don't apply there,
+    and aren't written.
+- **Its texture** (`texture`):
+  - `soft` is generated: its colour, brighter and more opaque at the ground ring, fading towards the top, made for
+    `wrap`. It's named `n5s_` and 12 hex digits of its colour (`n5s_8c757fb28f99` for the default colour), and it's
+    original, made from numbers.
+  - `none` is its colour only.
+  - A texture's name (lower-case letters, digits and `_`, at most 16: the game's own, from the bench's library) is
+    tinted by `colour` and glows by `glow`. Nothing is generated or copied for it.
+- **Its look:** `colour` `[r, g, b]` (each 0-1), `alpha` (0.02-1: the game's globes go to about 0.3), `glow` (0-1: how
+  much it lights itself, at 1 the same by day and night). A soft or library texture, or an alpha below 1, is drawn
+  see-through.
+
 ## The files here
 
 | file | what it is |
 |---|---|
 | `composition.json` | the stages (yours to edit) |
 | `build.js` | the generator |
-| `floatdisk.js` | its pure parts: placing, the disk, the models' and rows' text (it loads in a page too: the VFX Bench's Composer places with it) |
+| `floatdisk.js` | its pure parts: placing, the disk, the shapes (their meshes and soft textures), the models' and rows' text (it loads in a page too: the VFX Bench's Composer places with it) |
 | `check.js` | checks `floatdisk.js` |
 | `reader.js` | reads the parts' meshes and the textures from the game or beside a file, and bakes a dyed part's PLT (what `build.js` and the VFX Bench share) |
 | `files.js` | the file plumbing this `build.js` and the Composer's share: the options, loading nwn5e-tools, a dyed part's bakes, shipping your own textures, the one ownership rule they write by |

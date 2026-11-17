@@ -504,4 +504,227 @@ check("writeAll dry: the states and the ownership rule as written, nothing writt
   }
 });
 
+// --- the Composer's shapes: the dome ------------------------------------------------------------------------------------
+const vertOf = (m, i) => [m.verts[3 * i], m.verts[3 * i + 1], m.verts[3 * i + 2]];
+const uvOf = (m, i) => [m.tverts[2 * i], m.tverts[2 * i + 1]];
+// Each triangle's (b - a) x (c - a) dotted with its centroid (a dome's centre is the origin): its sign says which way it
+// faces, out (+) or in (-).
+function normals(m) {
+  const out = [];
+  for (let f = 0; f < m.faces.length; f += 3) {
+    const [a, b, c] = [0, 1, 2].map((k) => vertOf(m, m.faces[f + k]));
+    const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+    const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    out.push([0, 1, 2].reduce((s, k) => s + n[k] * (a[k] + b[k] + c[k]) / 3, 0));
+  }
+  return out;
+}
+const dome = (o) => Object.assign({ type: "dome", radius: 2 }, o);
+const domeModel = (o) => F.shapeModel(F.readShape(dome(o), "s"));
+const pageFloatDisk = () => {
+  const self = {};
+  new Function("self", "require", "module", "Buffer", require("fs").readFileSync(path.join(__dirname, "floatdisk.js"), "utf8"))(self);
+  return self.FloatDisk;
+};
+
+check("a shape: read with its defaults, written without them", () => {
+  const s = F.readShape({ type: "dome", radius: 4.57 }, "s");
+  assert.deepStrictEqual(s, { type: "dome", radius: 4.57, height: 4.57, segments: 32, sides: "both", mapping: "wrap", repeat_around: 1, repeat_up: 1,
+    colour: [0.6, 0.8, 1], alpha: 0.35, glow: 1, texture: "soft" });
+  assert.deepStrictEqual(F.shapeDefaults("dome", 4.57), s);
+  assert.deepStrictEqual(F.cleanShape(s), { type: "dome", radius: 4.57 });
+  const c = F.cleanShape(Object.assign({}, s, { colour: [1, 0.85, 0.4], height: 3 }));
+  assert.deepStrictEqual(c, { type: "dome", radius: 4.57, height: 3, colour: [1, 0.85, 0.4] });
+  assert.deepStrictEqual(Object.keys(c), ["type", "radius", "height", "colour"]);
+  // Its colour is its own: copied in, copied out.
+  const given = [1, 0.85, 0.4], read = F.readShape({ type: "dome", radius: 1, colour: given }, "s");
+  assert.ok(read.colour !== given && F.cleanShape(read).colour !== read.colour);
+  assert.ok(F.shapeDefaults("dome", 1).colour !== F.shapeDefaults("dome", 1).colour);
+  // Whole or not: a key left out is its default.
+  assert.deepStrictEqual(F.cleanShape({ type: "dome", radius: 1, sides: "outside", glow: 1 }), { type: "dome", radius: 1, sides: "outside" });
+  // Mapping: written only when not wrap; the repeats when not 1, and never under From above (they mean nothing there).
+  assert.deepStrictEqual(F.cleanShape(Object.assign({}, s, { repeat_up: 2, repeat_around: 3 })), { type: "dome", radius: 4.57, repeat_around: 3, repeat_up: 2 });
+  const above = F.cleanShape(Object.assign({}, s, { mapping: "above", repeat_around: 3, repeat_up: 2, glow: 0.5 }));
+  assert.deepStrictEqual(above, { type: "dome", radius: 4.57, mapping: "above", glow: 0.5 });
+  assert.deepStrictEqual(Object.keys(above), ["type", "radius", "mapping", "glow"]);
+  assert.deepStrictEqual(F.cleanShape(F.readShape({ type: "dome", radius: 1, texture: "fxpa_symbl_001" }, "s")), { type: "dome", radius: 1, texture: "fxpa_symbl_001" });
+});
+check("a shape's errors name the field", () => {
+  const bad = (s, expected) => assert.throws(() => F.readShape(s, "s"), expected);
+  const one = (o) => Object.assign({ type: "dome", radius: 1 }, o);
+  bad({ type: "cube", radius: 1 }, /^Error: s\.type: dome/);
+  for (const radius of [0, 101]) bad(one({ radius }), /^Error: s\.radius: a number from 0\.05 to 100 \(metres\)$/);
+  bad({ type: "dome" }, /^Error: s\.radius: a number from 0\.05 to 100 \(metres\)$/);
+  bad(one({ height: 0.04 }), /^Error: s\.height: a number from 0\.05 to 100 \(metres\)$/);
+  for (const segments of [7, 97, 12.5]) bad(one({ segments }), /^Error: s\.segments: a whole number from 8 to 96$/);
+  bad(one({ sides: "inside" }), /^Error: s\.sides: both or outside$/);
+  for (const colour of [[1, 1], [2, 0, 0], "blue"]) bad(one({ colour }), /^Error: s\.colour: \[r, g, b\], each 0 to 1$/);
+  bad(one({ alpha: 0 }), /^Error: s\.alpha: a number from 0\.02 to 1$/);
+  bad(one({ glow: 1.5 }), /^Error: s\.glow: a number from 0 to 1$/);
+  bad(one({ mapping: "below" }), /^Error: s\.mapping: wrap or above$/);
+  for (const repeat_around of [0, 33, 1.5]) bad(one({ repeat_around }), /^Error: s\.repeat_around: a whole number from 1 to 32$/);
+  for (const repeat_up of [0, 17]) bad(one({ repeat_up }), /^Error: s\.repeat_up: a whole number from 1 to 16$/);
+  // A texture: soft, none or a library texture's name - never a made one (n5s_), nor a name the game can't have.
+  for (const texture of ["Glyph", "fx-glyph", "x".repeat(17), "", "n5s_8c757fb28f99", 3]) {
+    bad(one({ texture }), (e) => e.message === "s.texture: soft, none or a texture's name (lower-case letters, digits and _, at most 16)");
+  }
+  bad(one({ size: 2 }), /^Error: s\.size: not a dome's/);
+  for (const s of [[], null, "dome"]) bad(s, /^Error: s: a shape/);
+  // What reads: a library texture's name, the bounds themselves.
+  assert.strictEqual(F.readShape(one({ texture: "fxpa_symbl_001" }), "s").texture, "fxpa_symbl_001");
+  const edge = F.readShape({ type: "dome", radius: 0.05, height: 100, segments: 96, sides: "outside", mapping: "above", repeat_around: 32, repeat_up: 16,
+    colour: [0, 1, 0], alpha: 0.02, glow: 0, texture: "none" }, "s");
+  assert.deepStrictEqual([edge.radius, edge.height, edge.segments, edge.alpha, edge.glow], [0.05, 100, 96, 0.02, 0]);
+});
+check("a part may be a shape: its source, key and label; never a scale", () => {
+  const part = F.readPart({ shape: { type: "dome", radius: 4.57 }, at: [0, 0, 0] }, "stages.small[0]", BASE);
+  assert.deepStrictEqual(part.source, { kind: "shape", shape: F.shapeDefaults("dome", 4.57) });
+  assert.strictEqual(part.scale, 1);
+  assert.strictEqual(part.turn, 0);
+  assert.strictEqual(F.partKey(part), 'shape:{ "type": "dome", "radius": 4.57 }');
+  assert.strictEqual(F.partLabel(part), "dome 4.57 m");
+  assert.throws(() => F.readPart({ shape: { type: "dome", radius: 4.57 }, at: [0, 0, 0], scale: 2 }, "stages.small[0]", BASE),
+    /^Error: stages\.small\[0\]\.scale: a shape has no scale - its radius and height size it$/);
+  assert.throws(() => F.readPart({ model: "plc_b04", shape: { type: "dome", radius: 4.57 }, at: [0, 0, 0] }, "stages.small[0]", BASE), /either "model"/);
+  assert.throws(() => F.readPart({ at: [0, 0, 0] }, "p", BASE),
+    (e) => e.message === 'p: either "model" (a game model), "file" (your own .mdl) or "shape" (a dome and the like) - just one');
+  assert.throws(() => F.readPart({ shape: { type: "dome", radius: 0 }, at: [0, 0, 0] }, "stages.small[0]", BASE), /^Error: stages\.small\[0\]\.shape\.radius: /);
+  // The key is the shape as written: what differs from the defaults changes it, the repeats under From above don't.
+  const key = (shape) => F.partKey(F.readPart({ shape, at: [0, 0, 0] }, "p", BASE));
+  assert.strictEqual(key({ type: "dome", radius: 4.57, height: 3 }), 'shape:{ "type": "dome", "radius": 4.57, "height": 3 }');
+  assert.strictEqual(key({ type: "dome", radius: 1, mapping: "above", repeat_up: 4 }), key({ type: "dome", radius: 1, mapping: "above" }));
+  assert.strictEqual(F.partLabel(F.readPart({ shape: { type: "dome", radius: 0.5 }, at: [0, 0, 0] }, "p", BASE)), "dome 0.5 m");
+  // In a composition, as any part.
+  assert.deepStrictEqual(F.readComposition(comp([{ shape: { type: "dome", radius: 0.3 }, at: [0, 0, 0] }]), BASE).stages.small[0].source.shape,
+    F.shapeDefaults("dome", 0.3));
+});
+check("the dome: 32 segments, 8 rings, both sides - 592 vertices, 960 triangles, the inside first", () => {
+  const model = domeModel();
+  assert.strictEqual(model.meshes.length, 1);
+  const m = model.meshes[0];
+  assert.strictEqual(m.name, "dome");
+  assert.strictEqual(m.verts.length / 3, 592);
+  assert.strictEqual(m.tverts.length / 2, 592);
+  assert.strictEqual(m.faces.length / 3, 960);
+  assert.deepStrictEqual(model.lo, [-2, -2, 0]);
+  assert.deepStrictEqual(model.hi, [2, 2, 2]);
+  normals(m).forEach((d, t) => assert.ok(t < 480 ? d < 0 : d > 0, `triangle ${t} faces ${d < 0 ? "in" : "out"}`));
+  m.faces.forEach((v, k) => assert.ok(k < 3 * 480 ? v >= 0 && v < 296 : v >= 296 && v < 592, `triangle ${Math.floor(k / 3)} uses vertex ${v}`));
+  for (let i = 0; i < 592; i++) {
+    const [x, y, z] = vertOf(m, i);
+    near((x * x + y * y) / 4 + (z * z) / 4, 1);
+    assert.ok(z >= 0, `vertex ${i} below the ground`);
+  }
+  // Each side its own vertices: the inside's are the outside's, in the same order.
+  assert.deepStrictEqual(m.verts.slice(0, 3 * 296), m.verts.slice(3 * 296));
+  assert.deepStrictEqual(m.tverts.slice(0, 2 * 296), m.tverts.slice(2 * 296));
+});
+check("the dome's UVs: u round it from +x, v from the ground ring (0) to the top (1); Repeat around and up tile it, From above lays it on from overhead", () => {
+  const m = domeModel().meshes[0];
+  const outside = Array.from({ length: 296 }, (_, i) => 296 + i);
+  const at = (mesh, p) => outside.filter((i) => vertOf(mesh, i).every((c, k) => Math.abs(c - p[k]) < 1e-4));
+  assert.deepStrictEqual(at(m, [2, 0, 0]).map((i) => uvOf(m, i)), [[0, 0], [1, 0]]);
+  const tops = Array.from({ length: 592 }, (_, i) => i).filter((i) => vertOf(m, i)[2] === 2);
+  assert.strictEqual(tops.length, 64);
+  for (const i of tops) {
+    const [u, v] = uvOf(m, i), k = Math.round(u * 32 - 0.5);  // u rounded to 0.00001, as every UV
+    assert.strictEqual(v, 1);
+    assert.ok(Math.abs(u - (k + 0.5) / 32) <= 1e-5 && k >= 0 && k < 32, `top u ${u}`);
+  }
+  assert.deepStrictEqual(at(m, [1.41421, 0, 1.41421]).map((i) => uvOf(m, i)[1]), [0.5, 0.5]);
+  assert.ok(m.tverts.every((t) => t >= 0 && t <= 1));
+  // Wrapped, Repeat around 3 and up 2: the first ring's last vertex (the seam's second) at u 3, the top at v 2.
+  const w = domeModel({ repeat_around: 3, repeat_up: 2 }).meshes[0];
+  assert.deepStrictEqual(uvOf(w, 296 + 32), [3, 0]);
+  assert.deepStrictEqual(at(w, [2, 0, 0]).map((i) => uvOf(w, i)), [[0, 0], [3, 0]]);
+  assert.ok(outside.filter((i) => vertOf(w, i)[2] === 2).every((i) => uvOf(w, i)[1] === 2));
+  assert.deepStrictEqual(at(w, [1.41421, 0, 1.41421]).map((i) => uvOf(w, i)[1]), [1, 1]);
+  // From above: the picture's square spans its width - the rim at angle 0 is (1, 0.5), at 90 degrees (0.5, 1), the top
+  // (0.5, 0.5); the repeats don't apply.
+  for (const o of [{ mapping: "above" }, { mapping: "above", repeat_around: 3, repeat_up: 2 }]) {
+    const a = domeModel(o).meshes[0];
+    assert.deepStrictEqual(at(a, [2, 0, 0]).map((i) => uvOf(a, i)), [[1, 0.5], [1, 0.5]]);
+    assert.deepStrictEqual(uvOf(a, at(a, [0, 2, 0])[0]), [0.5, 1]);
+    assert.ok(outside.filter((i) => vertOf(a, i)[2] === 2).every((i) => uvOf(a, i)[0] === 0.5 && uvOf(a, i)[1] === 0.5));
+    for (let i = 0; i < 592; i++) {
+      const [x, y] = vertOf(a, i), [u, v] = uvOf(a, i);
+      near(u, 0.5 + x / 4);
+      near(v, 0.5 + y / 4);
+    }
+    assert.deepStrictEqual(a.tverts.slice(0, 2 * 296), a.tverts.slice(2 * 296));  // the inside keeps its vertex's UV
+  }
+});
+check("a lower dome, outside only, 8 segments: 26 vertices, 24 triangles, all facing out", () => {
+  const model = F.shapeModel(F.readShape({ type: "dome", radius: 1, height: 0.4, segments: 8, sides: "outside" }, "s"));
+  const m = model.meshes[0];
+  assert.strictEqual(m.verts.length / 3, 26);
+  assert.strictEqual(m.faces.length / 3, 24);
+  assert.strictEqual(model.hi[2], 0.4);
+  normals(m).forEach((d, t) => assert.ok(d > 0, `triangle ${t} faces in`));
+  near(Math.max(...m.verts.filter((_, i) => i % 3 === 2)), 0.4);
+});
+check("the dome's material: its texture's colour lit by its glow (soft), its own colour (none), or a library texture tinted by it", () => {
+  const soft = F.shapeModel(F.readShape({ type: "dome", radius: 1 }, "s")), m = soft.meshes[0];
+  assert.deepStrictEqual(Object.keys(m), ["name", "bitmap", "verts", "tverts", "faces", "diffuse", "ambient", "selfillum", "alpha", "transparent"]);
+  assert.deepStrictEqual([m.bitmap, m.diffuse, m.ambient, m.selfillum, m.alpha, m.transparent],
+    ["n5s_8c757fb28f99", [1, 1, 1], [1, 1, 1], [1, 1, 1], 0.35, true]);
+  assert.deepStrictEqual(soft.textures, [{ name: "n5s_8c757fb28f99", colour: [0.6, 0.8, 1] }]);
+  const none = F.shapeModel(F.readShape({ type: "dome", radius: 1, texture: "none", colour: [1, 0.85, 0.4], glow: 0.5, alpha: 1 }, "s")), n = none.meshes[0];
+  assert.deepStrictEqual([n.bitmap, n.diffuse, n.ambient, n.selfillum, n.alpha, n.transparent],
+    ["", [1, 0.85, 0.4], [1, 0.85, 0.4], [0.5, 0.425, 0.2], 1, false]);
+  assert.deepStrictEqual(none.textures, []);
+  assert.strictEqual(F.shapeModel(F.readShape({ type: "dome", radius: 1, texture: "none", alpha: 0.5 }, "s")).meshes[0].transparent, true);
+  // A library texture: named as it is, tinted by its colour, glowing by its glow, see-through (its own alpha isn't
+  // known); nothing generated.
+  const lib = F.shapeModel(F.readShape({ type: "dome", radius: 1, texture: "fxpa_symbl_001", colour: [1, 0.85, 0.4], glow: 0.5, alpha: 1 }, "s"));
+  const l = lib.meshes[0];
+  assert.deepStrictEqual([l.bitmap, l.diffuse, l.ambient, l.selfillum, l.alpha, l.transparent],
+    ["fxpa_symbl_001", [1, 0.85, 0.4], [1, 0.85, 0.4], [0.5, 0.425, 0.2], 1, true]);
+  assert.deepStrictEqual(lib.textures, []);
+  // Soft in another colour: its own texture.
+  assert.deepStrictEqual(F.shapeModel(F.readShape({ type: "dome", radius: 1, colour: [1, 0.85, 0.4] }, "s")).textures,
+    [{ name: "n5s_a3caa0709dda", colour: [1, 0.85, 0.4] }]);
+});
+check("shapeTexture: 128 x 128, brighter and more opaque at the ground, seamless round it; its name n5s_ and a hash of its colour", () => {
+  const t = F.shapeTexture({ colour: [0.6, 0.8, 1] });
+  assert.deepStrictEqual([t.width, t.height, t.data.length], [128, 128, 65536]);
+  assert.ok(t.data instanceof Uint8ClampedArray);
+  const px = (x, y) => [...t.data.subarray((y * 128 + x) * 4, (y * 128 + x) * 4 + 4)];
+  const mean = (y, f) => Array.from({ length: 128 }, (_, x) => f(px(x, y))).reduce((a, b) => a + b, 0) / 128;
+  assert.ok(mean(127, (p) => p[3]) - mean(0, (p) => p[3]) > 100, "the ground ring's alpha");
+  assert.ok(mean(127, (p) => p[0] + p[1] + p[2]) > mean(0, (p) => p[0] + p[1] + p[2]), "the ground ring's brightness");
+  for (let y = 0; y < 128; y++) for (let c = 0; c < 4; c++) assert.ok(Math.abs(px(0, y)[c] - px(127, y)[c]) < 12, `row ${y} channel ${c} at the seam`);
+  assert.strictEqual(F.shapeTextureName({ colour: [0.6, 0.8, 1] }), "n5s_8c757fb28f99");
+  assert.strictEqual(F.shapeTextureName({ colour: [1, 0.85, 0.4] }), "n5s_a3caa0709dda");
+  for (const n of ["n5s_8c757fb28f99", "n5s_a3caa0709dda"]) assert.ok(F.SHAPE_TEXTURE.test(n), n);
+  assert.ok(!F.SHAPE_TEXTURE.test("n5p_2cd3d725dedb"));
+  assert.strictEqual(F.tgaBytes(t, { alpha: true }).length, 65554);
+});
+check("tgaBytes with alpha: a 32-bit TGA, 8 alpha bits, rows bottom-up", () => {
+  const img = { width: 2, height: 2, data: new Uint8ClampedArray([10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160]) };
+  const t = F.tgaBytes(img, { alpha: true });
+  assert.strictEqual(t.length, 34);
+  assert.deepStrictEqual([...t.subarray(0, 18)], [0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 32, 8]);
+  assert.deepStrictEqual([...t.subarray(18)], [110, 100, 90, 120, 150, 140, 130, 160, 30, 20, 10, 40, 70, 60, 50, 80]);
+  const plain = F.tgaBytes(img);
+  assert.strictEqual(plain.length, 30);
+  assert.strictEqual(plain[16], 24);
+  assert.ok(F.tgaBytes(img, {}).equals(plain));
+});
+check("compositionText: a shape part on one line, its shape after note", () => {
+  const text = F.compositionText({ stages: { small: [{ at: [0, 0, 0], shape: { type: "dome", radius: 4.57 }, note: "zone" }] } });
+  assert.ok(text.split("\n").includes('      { "note": "zone", "shape": { "type": "dome", "radius": 4.57 }, "at": [0, 0, 0] }'), text);
+});
+check("shapes in a page: the same mesh, texture bytes and name", () => {
+  const P = pageFloatDisk();
+  for (const o of [{}, { mapping: "above", texture: "none", sides: "outside" }]) {
+    assert.deepStrictEqual(P.shapeModel(P.readShape(dome(o), "s")), F.shapeModel(F.readShape(dome(o), "s")));
+  }
+  const page = P.tgaBytes(P.shapeTexture({ colour: [0.6, 0.8, 1] }), { alpha: true });
+  assert.ok(page instanceof Uint8Array && !Buffer.isBuffer(page));
+  assert.ok(Buffer.from(page).equals(F.tgaBytes(F.shapeTexture({ colour: [0.6, 0.8, 1] }), { alpha: true })));
+  assert.strictEqual(P.shapeTextureName({ colour: [1, 0.85, 0.4] }), F.shapeTextureName({ colour: [1, 0.85, 0.4] }));
+  assert.strictEqual(P.shapeTextureName({ colour: [0.6, 0.8, 1] }), "n5s_8c757fb28f99");
+});
+
 console.log(process.exitCode ? `floatdisk check: FAILED (${count} passed)` : `floatdisk check: ${count} checks pass`);

@@ -1,9 +1,10 @@
 // The Floating Disk generator's pure parts (#39; build.js does the reading and writing, check.js tests these): the
-// composition, the maths that places the junk, the disk's mesh and texture, the game files' text (the creature and pile
-// models, the piles' use points, the 2da rows), a compiled model's node tree, and an ASCII model made readable by the
-// mesh reader. Nothing here touches the disk or the game.
+// composition, the maths that places the junk, the disk's mesh and texture, the Composer's shapes (a dome: its mesh and
+// generated texture), the game files' text (the creature and pile models, the piles' use points, the 2da rows), a
+// compiled model's node tree, and an ASCII model made readable by the mesh reader. Nothing here touches the disk or the
+// game.
 // Plain UMD: Node's require, or a page's self.FloatDisk (the Composer). modelNodes, carriesMark and sameText use Buffer
-// and stay Node-only; diskTexture gives a Buffer in Node and a Uint8Array in a page.
+// and stay Node-only; tgaBytes and diskTexture give a Buffer in Node and a Uint8Array in a page.
 (function (root) {
 "use strict";
 
@@ -122,15 +123,17 @@ function bakedName(plt, colours) {
   return "n5p_" + cyrb53(`${plt.toLowerCase()}:${PLT_LAYERS.map((l) => full[l]).join(",")}`).toString(16).padStart(14, "0").slice(-12);
 }
 
-// A top-down RGBA picture as a 24-bit uncompressed TGA, rows bottom-up as the game's (a Buffer in Node, else a Uint8Array).
-function tgaBytes(image) {
-  const { width: w, height: h, data } = image;
-  const bytes = new Uint8Array(18 + w * h * 3);
-  bytes.set([0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, w & 255, w >> 8, h & 255, h >> 8, 24, 0]);
+// A top-down RGBA picture as an uncompressed TGA, rows bottom-up as the game's (a Buffer in Node, else a Uint8Array):
+// 24-bit, or with `alpha` 32-bit BGRA with 8 alpha bits (a shape's soft texture).
+function tgaBytes(image, { alpha = false } = {}) {
+  const { width: w, height: h, data } = image, depth = alpha ? 4 : 3;
+  const bytes = new Uint8Array(18 + w * h * depth);
+  bytes.set([0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, w & 255, w >> 8, h & 255, h >> 8, alpha ? 32 : 24, alpha ? 8 : 0]);
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      const from = ((h - 1 - y) * w + x) * 4, to = 18 + (y * w + x) * 3;
+      const from = ((h - 1 - y) * w + x) * 4, to = 18 + (y * w + x) * depth;
       bytes[to] = data[from + 2]; bytes[to + 1] = data[from + 1]; bytes[to + 2] = data[from];
+      if (alpha) bytes[to + 3] = data[from + 3];
     }
   }
   return typeof Buffer === "function" ? Buffer.from(bytes.buffer, bytes.byteOffset, bytes.length) : bytes;
@@ -151,22 +154,28 @@ function bakeBitmaps(meshes, colours, isPlt) {
 }
 
 // One part of a composition (or of a Composer project: tools\data\composer\project.js) read and checked -> { source:
-// { kind: "model", model } | { kind: "models", models } (a weapon's pieces) | { kind: "file", file (absolute), given },
-// at, turn, scale, tilt, note, colours (the ten layers') }. `where` names it in an error (stages.small[0]); `baseDir` resolves its file.
+// { kind: "model", model } | { kind: "models", models } (a weapon's pieces) | { kind: "file", file (absolute), given }
+// | { kind: "shape", shape (readShape's: every key) }, at, turn, scale, tilt, note, colours (the ten layers') }. `where`
+// names it in an error (stages.small[0]); `baseDir` resolves its file. A shape has no scale: its radius and height size it.
 function readPart(p, where, baseDir) {
   if (!p || typeof p !== "object" || Array.isArray(p)) throw new Error(`${where}: a part ({ "model": ..., "at": [x, y, z] })`);
-  const hasModel = p.model !== undefined, hasFile = p.file !== undefined;
-  if (hasModel === hasFile) throw new Error(`${where}: either "model" (a game model) or "file" (your own .mdl), not both or neither`);
+  const hasModel = p.model !== undefined, hasFile = p.file !== undefined, hasShape = p.shape !== undefined;
+  if ([hasModel, hasFile, hasShape].filter(Boolean).length !== 1) {
+    throw new Error(`${where}: either "model" (a game model), "file" (your own .mdl) or "shape" (a dome and the like) - just one`);
+  }
   let source;
   if (hasModel) {
     const list = Array.isArray(p.model) ? p.model : [p.model];
     const models = list.map((m) => String(m || "").toLowerCase());
     if (!list.length || list.length > 4 || !models.every((m) => RESREF.test(m))) throw new Error(`${where}.model: a model's resref, or a list of them (a weapon's pieces)`);
     source = models.length === 1 ? { kind: "model", model: models[0] } : { kind: "models", models };
-  } else {
+  } else if (hasFile) {
     let file;
     try { file = resolvePartFile(baseDir, p.file); } catch (e) { throw new Error(`${where}.file: ${e.message}`); }
     source = { kind: "file", file, given: String(p.file) };
+  } else {
+    source = { kind: "shape", shape: readShape(p.shape, `${where}.shape`) };
+    if (p.scale !== undefined) throw new Error(`${where}.scale: a shape has no scale - its radius and height size it`);
   }
   if (!Array.isArray(p.at) || p.at.length !== 3 || !p.at.every(isNum)) throw new Error(`${where}.at: [x, y, z] in metres`);
   const turn = p.turn === undefined ? 0 : p.turn, scale = p.scale === undefined ? 1 : p.scale;
@@ -201,10 +210,13 @@ function readComposition(c, baseDir) {
   }
   return { disk, stages };
 }
+// A part's source as one string (a shape's as it's written: cleanShape's), and its name on the page (dome 4.57 m).
 const partKey = (part) => (part.source.kind === "model" ? "model:" + part.source.model
-  : part.source.kind === "models" ? "models:" + part.source.models.join("+") : "file:" + part.source.file.toLowerCase());
+  : part.source.kind === "models" ? "models:" + part.source.models.join("+")
+    : part.source.kind === "shape" ? "shape:" + inline(cleanShape(part.source.shape)) : "file:" + part.source.file.toLowerCase());
 const partLabel = (part) => (part.source.kind === "model" ? part.source.model
-  : part.source.kind === "models" ? part.source.models.join(" + ") : part.source.given);
+  : part.source.kind === "models" ? part.source.models.join(" + ")
+    : part.source.kind === "shape" ? `${part.source.shape.type} ${num(part.source.shape.radius)} m` : part.source.given);
 
 // A list of modelSpaceMeshes results (a weapon's pieces) as one model: the meshes in order, the box their union.
 function mergeModels(list) {
@@ -224,9 +236,10 @@ function inline(v) {
   return JSON.stringify(v);
 }
 // composition.json's text in its own layout (the Composer saves it): two-space indents, _about a string a line, the disk
-// a key a line, each stage a part a line (note, model | file, at, turn, scale, tilt, then any other key); arrays inline.
+// a key a line, each stage a part a line (note, model | file | shape, at, turn, scale, tilt, colours, then any other
+// key); arrays and a shape inline.
 function compositionText(c) {
-  const PART_KEYS = ["note", "model", "file", "at", "turn", "scale", "tilt", "colours"];
+  const PART_KEYS = ["note", "model", "file", "shape", "at", "turn", "scale", "tilt", "colours"];
   const part = (p) => {
     const keys = PART_KEYS.filter((k) => p[k] !== undefined).concat(Object.keys(p).filter((k) => !PART_KEYS.includes(k) && p[k] !== undefined));
     return "{ " + keys.map((k) => JSON.stringify(k) + ": " + inline(p[k])).join(", ") + " }";
@@ -272,6 +285,8 @@ function qrot(q, v) {
   const c2 = [q[1] * c1[2] - q[2] * c1[1], q[2] * c1[0] - q[0] * c1[2], q[0] * c1[1] - q[1] * c1[0]];
   return [v[0] + 2 * (q[3] * c1[0] + c2[0]), v[1] + 2 * (q[3] * c1[1] + c2[1]), v[2] + 2 * (q[3] * c1[2] + c2[2])];
 }
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+const smooth = (e0, e1, x) => { const t = clamp01((x - e0) / (e1 - e0)); return t * t * (3 - 2 * t); };  // smoothstep: the textures' soft edges
 const round = (v) => Math.round(v * 1e5) / 1e5;  // 0.01 mm
 function num(v) {  // a model's number: up to 5 decimals, no exponent, no -0
   const r = round(v);
@@ -399,7 +414,6 @@ function diskTexture(disk, id = "") {
   for (let i = 0; i < idLen; i++) bytes[18 + i] = id.charCodeAt(i) & 255;  // latin1
   const body = bytes.subarray(18 + idLen);
   const mix = (a, b, t) => a + (b - a) * t;
-  const smooth = (e0, e1, x) => { const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
   for (let row = 0; row < size; row++) {
     for (let col = 0; col < size; col++) {
       const x = (col + 0.5) / size * 2 - 1, y = (row + 0.5) / size * 2 - 1, d = Math.min(1, Math.hypot(x, y)), a = Math.atan2(y, x);
@@ -412,6 +426,162 @@ function diskTexture(disk, id = "") {
     }
   }
   return typeof Buffer === "function" ? Buffer.from(bytes.buffer, bytes.byteOffset, bytes.length) : bytes;
+}
+
+// --- the Composer's shapes ------------------------------------------------------------------------------------------
+// A part may be a shape the generator makes instead of a model (the owner, 2026-11-17: "a translucent sphere so the
+// player could see the affected area"): { "type": "dome", "radius": <m> }, and the rest only where it differs from
+// shapeDefaults. Its mesh is made here from numbers, and so is its soft texture (n5s_ and a hash of its colour): both
+// original.
+const SHAPE_TYPES = ["dome"];
+const SHAPE_LABELS = { dome: "Dome (half sphere)" };
+const SHAPE_KEYS = ["type", "radius", "height", "segments", "sides", "mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture"];  // the order they're written in
+const SHAPE_FIELDS = { dome: ["radius", "height", "segments", "sides"] };  // a type's own fields, the card's order
+const LOOK_FIELDS = ["mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture"];  // every type's
+// A field's card label and bounds: what readShape enforces, and what the page shows.
+const SHAPE_INFO = {
+  radius: { label: "Radius (m)", min: 0.05, max: 100, step: 0.05 },
+  height: { label: "Height (m)", min: 0.05, max: 100, step: 0.05 },
+  segments: { label: "Smoothness", min: 8, max: 96, step: 4, whole: true, title: "Segments round it; the rings up it are a quarter of that" },
+  sides: { label: "Sides", choices: [["both", "Both: seen from inside too"], ["outside", "Outside only"]] },
+  mapping: { label: "Mapping", choices: [["wrap", "Wrapped: round it and up it"], ["above", "From above: laid on from overhead"]] },
+  repeat_around: { label: "Repeat around", min: 1, max: 32, step: 1, whole: true, title: "How many times the texture goes round it" },
+  repeat_up: { label: "Repeat up", min: 1, max: 16, step: 1, whole: true, title: "How many times the texture repeats from the ground to the top" },
+  colour: { label: "Colour", colour: true },
+  alpha: { label: "Opacity", min: 0.02, max: 1, step: 0.05, title: "Its alpha: 1 is solid; the game's globes go to about 0.3" },
+  glow: { label: "Glow", min: 0, max: 1, step: 0.05, title: "How much it lights itself (selfillum): at 1 it looks the same by day and night" },
+  // Soft or none, or a library texture's name (the game's own, named: nothing generated or copied).
+  texture: { label: "Texture", choices: [["soft", "Soft: brighter at the ground"], ["none", "None: its colour only"]],
+    title: "Soft is made for Wrapped; a texture from the library is tinted by Colour" },
+};
+const SHAPE_TEXTURE = /^n5s_[0-9a-f]{12}$/;  // a soft texture's name: made, never picked
+const orList = (list) => (list.length > 1 ? list.slice(0, -1).join(", ") + " or " + list[list.length - 1] : list.join(""));
+
+function shapeDefaults(type, radius) {
+  return { type, radius, height: radius, segments: 32, sides: "both", mapping: "wrap", repeat_around: 1, repeat_up: 1,
+    colour: [0.6, 0.8, 1], alpha: 0.35, glow: 1, texture: "soft" };
+}
+// Whether `v` is a right value for field `k` (by SHAPE_INFO's bounds), and the error naming the field when it isn't.
+function shapeFieldOk(k, v) {
+  const info = SHAPE_INFO[k];
+  if (k === "texture") return info.choices.some((c) => c[0] === v) || (typeof v === "string" && RESREF.test(v) && !SHAPE_TEXTURE.test(v));
+  if (info.colour) return Array.isArray(v) && v.length === 3 && v.every((c) => isNum(c) && c >= 0 && c <= 1);
+  if (info.choices) return info.choices.some((c) => c[0] === v);
+  return isNum(v) && v >= info.min && v <= info.max && (!info.whole || Number.isInteger(v));
+}
+function shapeFieldError(where, k) {
+  const info = SHAPE_INFO[k];
+  if (k === "texture") return `${where}.texture: soft, none or a texture's name (lower-case letters, digits and _, at most 16)`;
+  if (info.colour) return `${where}.${k}: [r, g, b], each 0 to 1`;
+  if (info.choices) return `${where}.${k}: ${orList(info.choices.map((c) => c[0]))}`;
+  return `${where}.${k}: ${info.whole ? "a whole number" : "a number"} from ${info.min} to ${info.max}${/\(m\)$/.test(info.label) ? " (metres)" : ""}`;
+}
+// A shape as a part gives it -> the full shape: shapeDefaults(type, radius) with its keys over it (its colour copied).
+// `where` names it in an error (stages.small[0].shape); each error names its field.
+function readShape(s, where) {
+  if (!s || typeof s !== "object" || Array.isArray(s)) throw new Error(`${where}: a shape ({ "type": "dome", "radius": <metres> })`);
+  if (!SHAPE_TYPES.includes(s.type)) throw new Error(`${where}.type: ${orList(SHAPE_TYPES)}`);
+  const own = ["type", ...SHAPE_FIELDS[s.type], ...LOOK_FIELDS];
+  const given = Object.keys(s).filter((k) => s[k] !== undefined);
+  for (const k of given) {
+    if (!own.includes(k)) throw new Error(`${where}.${k}: not a ${s.type}'s - ${orList(SHAPE_KEYS.filter((f) => own.includes(f)))}`);
+  }
+  if (s.radius === undefined) throw new Error(shapeFieldError(where, "radius"));
+  for (const k of SHAPE_KEYS) if (k !== "type" && given.includes(k) && !shapeFieldOk(k, s[k])) throw new Error(shapeFieldError(where, k));
+  const out = shapeDefaults(s.type, s.radius);
+  for (const k of given) out[k] = k === "colour" ? s[k].slice() : s[k];
+  return out;
+}
+// A shape as it's written (`s` a right shape, whole or not): type and radius, then each other key whose value differs
+// from shapeDefaults' (a colour by its three numbers), in SHAPE_KEYS' order. Under From above the repeats are left out:
+// they mean nothing there.
+function cleanShape(s) {
+  const d = shapeDefaults(s.type, s.radius), out = { type: s.type, radius: s.radius };
+  for (const k of SHAPE_KEYS) {
+    const v = s[k];
+    if (k === "type" || k === "radius" || v === undefined) continue;
+    if (s.mapping === "above" && (k === "repeat_around" || k === "repeat_up")) continue;
+    const same = k === "colour" ? Array.isArray(v) && v.length === 3 && v.every((c, i) => c === d.colour[i]) : v === d[k];
+    if (!same) out[k] = k === "colour" ? v.slice() : v;
+  }
+  return out;
+}
+
+// A soft texture's name: n5s_ and 12 hex digits of its colour (to 0.001) - one per colour, the same in a page.
+function shapeTextureName({ colour }) {
+  return "n5s_" + cyrb53("soft:" + colour.map((c) => String(Math.round(c * 1000) / 1000)).join(",")).toString(16).padStart(14, "0").slice(-12);
+}
+// The soft texture, made for Wrapped: its colour, brighter and more opaque at the ground ring (v 0) and fading towards
+// the top (v 1), with a faint shimmer of whole turns in u, so it wraps round seamlessly. 128 x 128 -> { width, height,
+// data: Uint8ClampedArray RGBA, rows top-down } (as bakePlt gives a picture; tgaBytes with alpha writes it).
+function shapeTexture({ colour }) {
+  const size = 128, data = new Uint8ClampedArray(size * size * 4);
+  for (let y = 0; y < size; y++) {
+    const v = 1 - (y + 0.5) / size, ground = 1 - smooth(0, 0.2, v);  // 1 at the ground ring, 0 from a fifth up
+    for (let x = 0; x < size; x++) {
+      const u = (x + 0.5) / size;
+      const shimmer = 0.05 * Math.sin(2 * Math.PI * 3 * u + 7 * v) * Math.sin(2 * Math.PI * 5 * u - 3 * v);
+      const o = (y * size + x) * 4;
+      for (let c = 0; c < 3; c++) data[o + c] = Math.round(clamp01(colour[c] * (0.75 + 0.25 * (1 - v)) + 0.35 * ground + shimmer) * 255);
+      data[o + 3] = Math.round(clamp01(0.3 + 0.5 * (1 - v) * (1 - v) + 0.2 * ground + 0.5 * shimmer) * 255);
+    }
+  }
+  return { width: size, height: size, data };
+}
+
+// One side of a dome: rings up it and n vertices at its top, its faces counter-clockwise seen from outside.
+// -> { verts, tverts, faces }, its vertices and UVs rounded as diskMesh's. `uv(x, y, u, v)`: a vertex's UV from its
+// position and its wrapped (u, v) at one repeat.
+function domeSide(shape, uv) {
+  const r = shape.radius, h = shape.height, n = shape.segments, m = Math.max(2, Math.round(n / 4));
+  const verts = [], tverts = [], faces = [];
+  const vertex = (x, y, z, u, v) => { verts.push(round(x), round(y), round(z)); tverts.push(...uv(x, y, u, v).map(round)); return verts.length / 3 - 1; };
+  const ring = [];
+  for (let j = 0; j < m; j++) {  // ring j at latitude (PI / 2) j / m; vertex i at angle 2 PI i / n, the seam's twice (0 and n)
+    const phi = (Math.PI / 2) * j / m, c = Math.cos(phi), s = Math.sin(phi);
+    ring.push(Array.from({ length: n + 1 }, (_, i) => {
+      const theta = (2 * Math.PI * i) / n;
+      return vertex(r * c * Math.cos(theta), r * c * Math.sin(theta), h * s, i / n, j / m);
+    }));
+  }
+  const top = Array.from({ length: n }, (_, i) => vertex(0, 0, h, (i + 0.5) / n, 1));
+  for (let j = 0; j < m - 1; j++) {
+    for (let i = 0; i < n; i++) {
+      const a = ring[j][i], b = ring[j][i + 1], c = ring[j + 1][i + 1], d = ring[j + 1][i];
+      faces.push(a, b, c, a, c, d);
+    }
+  }
+  for (let i = 0; i < n; i++) faces.push(ring[m - 1][i], ring[m - 1][i + 1], top[i]);
+  return { verts, tverts, faces };
+}
+// Both sides: a copy of the vertices with the inside's faces (each outside face's first, third and second) - the inside
+// first, then the outside.
+function bothSides(side) {
+  const count = side.verts.length / 3, faces = [];
+  for (let f = 0; f < side.faces.length; f += 3) faces.push(side.faces[f], side.faces[f + 2], side.faces[f + 1]);
+  for (const v of side.faces) faces.push(v + count);
+  return { verts: side.verts.concat(side.verts), tverts: side.tverts.concat(side.tverts), faces };
+}
+// A shape (readShape's) as a model, in the model's space as modelSpaceMeshes gives one (its base at z 0, centred on x 0
+// y 0) -> { meshes: [{ name (its type), bitmap, verts, tverts, faces, diffuse, ambient, selfillum, alpha, transparent }],
+// lo, hi, textures: [{ name, colour }] (the soft texture to make, or none) }.
+// - Its UVs: Wrapped, u round it from +x and v from the ground ring up, times its repeats; From above, laid on from
+//   overhead, its width the picture's square ((0.5 + x / 2r, 0.5 + y / 2r)).
+// - Its material: soft, the texture's colour lit by its glow; none, its own colour; a library texture, tinted by its
+//   colour and see-through (its own alpha isn't known here).
+function shapeModel(shape) {
+  const r = shape.radius;
+  const uv = shape.mapping === "above" ? (x, y) => [0.5 + x / (2 * r), 0.5 + y / (2 * r)]
+    : (x, y, u, v) => [u * shape.repeat_around, v * shape.repeat_up];
+  const side = domeSide(shape, uv);
+  const { verts, tverts, faces } = shape.sides === "both" ? bothSides(side) : side;
+  const soft = shape.texture === "soft", colour = shape.colour, glow = shape.glow;
+  const bitmap = soft ? shapeTextureName(shape) : shape.texture === "none" ? "" : shape.texture;
+  const mesh = { name: shape.type, bitmap, verts, tverts, faces,
+    diffuse: soft ? [1, 1, 1] : colour.slice(), ambient: soft ? [1, 1, 1] : colour.slice(),
+    selfillum: soft ? [glow, glow, glow] : colour.map((c) => round(c * glow)),
+    alpha: shape.alpha, transparent: shape.texture !== "none" || shape.alpha < 1 };
+  return { meshes: [mesh], lo: [-r, -r, 0], hi: [r, r, shape.height], textures: soft ? [{ name: bitmap, colour: colour.slice() }] : [] };
 }
 
 // --- a compiled model's node tree ---------------------------------------------------------------------------------
@@ -681,6 +851,8 @@ const api = {
   resolvePartFile, readPart, readComposition, partKey, partLabel, quat, axisAngle, qrot, round, num, modelSpaceMeshes, placePart,
   lowered, uniqueNames, diskMesh, diskTexture, modelNodes, creatureModelText, pileNodes, pileModelText,
   pileWalkmeshText, rowsText, readableAscii, texturesBeside, carriesMark, sameText, crlf, mergeModels, inline, compositionText,
+  SHAPE_TYPES, SHAPE_LABELS, SHAPE_KEYS, SHAPE_FIELDS, LOOK_FIELDS, SHAPE_INFO, SHAPE_TEXTURE,
+  shapeDefaults, readShape, cleanShape, shapeModel, shapeTexture, shapeTextureName,
 };
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.FloatDisk = api;
