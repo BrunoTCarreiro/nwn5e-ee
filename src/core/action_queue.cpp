@@ -108,6 +108,7 @@
 #include "default_attack.h"
 #include "nui.h"
 #include "records.h"
+#include "player_text.h"
 #include "rules/queue_strip.h"
 
 bool ResourcePanelUnderStrip();  // resource_panel.cpp (0.57.4: leaving tiles fade in place)
@@ -958,9 +959,9 @@ bool NoOverQueuedUses(void* creature, uint32_t item_id, void* item) {
                                             engine::GetLocalInt(creature, "nwn5e_aq_day"));
   if (left < 0 || queued < left) return true;
   const std::string name = engine::GetLocalString(creature, "nwn5e_aq_name");
-  TellPlayer(id, "nwn5e: " + (name.empty() ? std::string("that item") : name) + " - " +
-                     (left == 1 ? std::string("its one use is") : "all " + std::to_string(left) + " uses are") +
-                     " already queued.");
+  TellPlayer(id, PlayerText(left == 1 ? "action_queue.queued_one" : "action_queue.queued_all",
+                            {{"item", name.empty() ? PlayerText("action_queue.that_item") : name},
+                             {"left", std::to_string(left)}}));
   Log("queue: 0x%08X refused another use of item 0x%08X (power %d): %d queued, %d left", id, item_id,
       active_property, queued, left);
   return false;

@@ -181,8 +181,8 @@ void ActionSurgeScript(uint32_t self) {
       AddRoundSwings(round, target, attacks)) {
     if (LogSlot()) Log("actions: 0x%08X Action Surge - the Attack action again: %d attack(s) added to this round at "
                        "0x%08X, swings of their own", self, attacks, target);
-    Tell(creature, "Action Surge - your Attack action again: " + std::to_string(attacks) + " more attack" +
-                       (attacks == 1 ? "" : "s") + " this round.");
+    Tell(creature, PlayerText(attacks == 1 ? "extra_actions.action_surge_one" : "extra_actions.action_surge_many",
+                              {{"attacks", std::to_string(attacks)}}));
     return;
   }
   g_surge_pending[self] = attacks;

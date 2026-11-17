@@ -927,8 +927,8 @@ int LearnScroll(void* creature, uint32_t item) {
   const int scroll_spell = engine::GetLocalInt(creature, "nwn5e_scroll_spell");
   if (scroll_spell >= 0 && Contains(Book(creature), scroll_spell)) {
     const SpellEntry* e = EntryOf(kNwnClassWizard, scroll_spell);
-    TellPlayer(IdOf(creature), "nwn5e: " + (e ? e->name : std::string("that spell")) +
-                                   " is already in your Spellbook - the scroll is kept.");
+    TellPlayer(IdOf(creature), PlayerText("prepare_spells.already_in_book",
+                                          {{"spell", e ? e->name : PlayerText("prepare_spells.that_spell")}}));
     if (LogLine()) Log("prepare: 0x%08X scroll of spell %d refused - already in the Spellbook", IdOf(creature), scroll_spell);
     return 0;
   }

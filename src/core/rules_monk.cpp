@@ -841,7 +841,9 @@ std::unordered_map<uint32_t, uint64_t> g_restoration_due;  // M12: the end of th
 
 int WisdomOf(void* stats) { return stats ? engine::AbilityModifier(stats, 4) : 0; }
 
-const char* SaveOutcome(uint8_t save) { return save == 2 ? "immune" : save == 0 ? "failed" : "made"; }
+std::string SaveOutcome(uint8_t save) {
+  return PlayerText(save == 2 ? "monk.save_immune" : save == 0 ? "monk.save_failed" : "monk.save_made");
+}
 
 // A save against the Monk's Focus DC (already 2024: not converted) - Dexterity as NWN's Reflex, Strength
 // riding on it (rules_shove's way), Constitution as Fortitude.
@@ -880,9 +882,10 @@ void WholenessScript(uint32_t self) {
   const int left = std::max(0, rules::WholenessOfBodyUses(wisdom) - SpentFeatUses(creature, kVarWholenessSpent));
   Log("monk: 0x%08X Wholeness of Body - d%d %d + Wis %d: %d healed (%d use%s left)", self, die, roll, wisdom, healed,
       left, left == 1 ? "" : "s");
-  Tell(creature, "Wholeness of Body - d" + std::to_string(die) + " (" + std::to_string(roll) + ") + Wisdom " +
-                     std::to_string(wisdom) + ": " + std::to_string(healed) + " hit points. " + std::to_string(left) +
-                     (left == 1 ? " use" : " uses") + " left until a Long Rest.");
+  Tell(creature, PlayerText(left == 1 ? "monk.wholeness_one_left" : "monk.wholeness_left",
+                            {{"die", std::to_string(die)}, {"roll", std::to_string(roll)},
+                             {"wisdom", std::to_string(wisdom)}, {"healed", std::to_string(healed)},
+                             {"left", std::to_string(left)}}));
 }
 
 // OH4 Quivering Palm (Open Hand 17), the owner's (a): the engine spends the feat's use in
@@ -907,10 +910,10 @@ bool QuiveringPalmSpend(void* creature, uint8_t* data) {
                 ("EffectDamage(" + std::to_string(damage) + ", DAMAGE_TYPE_MAGICAL)").c_str(), 0.0f, kSwingDelay);
   ApplyEffectAs(id, target_id, "DURATION_TYPE_INSTANT", "EffectVisualEffect(VFX_IMP_MAGBLUE)", 0.0f, kSwingDelay);
   Log("monk: 0x%08X Quivering Palm on 0x%08X - 4 Focus points; Constitution save DC %d %s: 10d12 %d -> %d force", id,
-      target_id, dc, SaveOutcome(save), rolled, damage);
-  Tell(creature, std::string("Quivering Palm (4 Focus points) - its Constitution save (DC ") + std::to_string(dc) +
-                     ") " + SaveOutcome(save) + ": " + std::to_string(damage) + " force damage (10d12: " +
-                     std::to_string(rolled) + (save != 0 ? ", halved" : "") + ").");
+      target_id, dc, SaveOutcome(save).c_str(), rolled, damage);
+  Tell(creature, PlayerText(save != 0 ? "monk.quivering_palm_halved" : "monk.quivering_palm",
+                            {{"dc", std::to_string(dc)}, {"outcome", SaveOutcome(save)},
+                             {"damage", std::to_string(damage)}, {"rolled", std::to_string(rolled)}}));
   return true;
 }
 
@@ -979,7 +982,6 @@ std::vector<std::string> TechniqueCommand(void* creature, const std::string& arg
 void ApplyTechnique(void* monk, void* target, rules::OpenHandTechnique technique) {
   const uint32_t monk_id = IdOf(monk), target_id = IdOf(target);
   const int dc = FocusDcOf(monk);
-  const std::string dcs = " DC " + std::to_string(dc) + " ";
   std::string what;
   switch (technique) {
     case rules::OpenHandTechnique::kTopple: {
@@ -987,21 +989,23 @@ void ApplyTechnique(void* monk, void* target, rules::OpenHandTechnique technique
       if (save == 0) {
         ApplyEffectAs(monk_id, target_id, "DURATION_TYPE_TEMPORARY", "EffectKnockdown()", 6.0f, kSwingDelay);
       }
-      what = "Topple - Dexterity save" + dcs + SaveOutcome(save) + (save == 0 ? ": knocked prone for a round" : "");
+      what = PlayerText(save == 0 ? "monk.topple_prone" : "monk.topple",
+                        {{"dc", std::to_string(dc)}, {"outcome", SaveOutcome(save)}});
       break;
     }
     case rules::OpenHandTechnique::kPush: {
       const uint8_t save = FocusSave(target, monk_id, dc, rules::Ability::kStrength);
-      what = "Push - Strength save" + dcs + SaveOutcome(save);
+      what = PlayerText("monk.push", {{"dc", std::to_string(dc)}, {"outcome", SaveOutcome(save)}});
       if (save == 0) {
         const std::string push = PushOnHit(monk, target, rules::kOpenHandPushMetres);
-        what += push.empty() ? " (no push: rules_push is off in this game build)" : ": pushed 15 ft (" + push + ")";
+        what = PlayerText(push.empty() ? "monk.push_off" : "monk.pushed",
+                          {{"dc", std::to_string(dc)}, {"outcome", SaveOutcome(save)}, {"push", push}});
       }
       break;
     }
     case rules::OpenHandTechnique::kAddle:
       g_addled[target_id] = GameMs() + kRoundMs;
-      what = "Addle - no opportunity attacks until its next turn";
+      what = PlayerText("monk.addle");
       break;
     case rules::OpenHandTechnique::kOff:
       return;
@@ -1086,10 +1090,11 @@ void DeflectRedirect(void* monk, void* attacker, const uint8_t* data, const int1
                   kSwingDelay);
   }
   Log("monk: 0x%08X Deflect Attacks' redirect at 0x%08X (1 Focus point) - Dexterity save DC %d %s: 2d%d %d + Dex %d "
-      "= %d damage (type bit %d)", monk_id, attacker_id, dc, SaveOutcome(save), die, rolled, dexterity, damage, index);
-  Tell(monk, std::string("Deflect Attacks' redirect (1 Focus point) - its Dexterity save (DC ") + std::to_string(dc) +
-                 ") " + SaveOutcome(save) + (save == 0 ? ": " + std::to_string(damage) + " damage back at it."
-                                                       : ": no damage."));
+      "= %d damage (type bit %d)", monk_id, attacker_id, dc, SaveOutcome(save).c_str(), die, rolled, dexterity, damage,
+      index);
+  Tell(monk, PlayerText(save == 0 ? "monk.redirect_damage" : "monk.redirect_none",
+                        {{"dc", std::to_string(dc)}, {"outcome", SaveOutcome(save)},
+                         {"damage", std::to_string(damage)}}));
 }
 
 // M8 (resolve_damage.h: after ResolveDamage put a hit's damage in the attacker's attack data): the first hit

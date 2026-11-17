@@ -814,10 +814,12 @@ int RelentlessRage(void* creature) {
   const int hit_points = rules::RelentlessRageHitPoints(rage->level);
   Log("barbarian: 0x%08X Relentless Rage - Constitution save %d %+d = %d vs DC %d: %s", IdOf(creature), d20, bonus,
       d20 + bonus, dc, saved ? "back up" : "down");
-  Tell(creature, "Relentless Rage - Constitution save " + std::to_string(d20) + (bonus < 0 ? " - " : " + ") +
-                     std::to_string(bonus < 0 ? -bonus : bonus) + " = " + std::to_string(d20 + bonus) + " vs DC " +
-                     std::to_string(dc) +
-                     (saved ? ": you stay up with " + std::to_string(hit_points) + " HP." : ": a failure, you drop."));
+  const char* sign = bonus < 0 ? "-" : "+";
+  Tell(creature, PlayerText(saved ? "barbarian.relentless_saved" : "barbarian.relentless_failed",
+                            {{"d20", std::to_string(d20)}, {"sign", sign},
+                             {"bonus", std::to_string(bonus < 0 ? -bonus : bonus)},
+                             {"total", std::to_string(d20 + bonus)}, {"dc", std::to_string(dc)},
+                             {"hp", std::to_string(hit_points)}}));
   return saved ? hit_points : 0;
 }
 

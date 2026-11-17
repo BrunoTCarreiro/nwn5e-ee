@@ -269,3 +269,158 @@ staple_actions.dodge_until_your_next_round | generated | Dodge - until your next
 staple_actions.rouse_you_shake_it_awake | generated | Rouse - you shake it awake (Sleep ends).
 staple_actions.rouse_get_within_5_feet | generated | Rouse - get within 5 feet of the sleeper.
 staple_actions.dash_twice_as_fast_this | generated | Dash - twice as fast this round.
+
+# --- src/core/rules_spells2024.cpp (by hand) ------------------------------------------------------------------
+spells2024.refused | generated | nwn5e: {name} - {why}
+spells2024.refuse_willing | generated | a willing creature, not an enemy.
+spells2024.refuse_armoured | generated | a creature who isn't wearing armour.
+spells2024.refuse_humanoid | generated | a Humanoid (the player races, goblinoids, orcs, reptilians).
+spells2024.refuse_beast | generated | a Beast (an animal, a beast or vermin).
+spells2024.refuse_slot_this_turn | generated | you've already spent a spell slot this turn (one spell with a slot a turn).
+spells2024.refuse_bonus_spent | generated | it takes your Bonus Action, already spent this round.
+spells2024.refuse_no_creature | generated | a creature you can see within {feet} feet.
+spells2024.refuse_out_of_range | generated | out of range ({feet} feet).
+spells2024.refuse_no_slot | generated | no spell slot of that level left.
+spells2024.refuse_no_caster | generated | no caster.
+spells2024.only_humanoid | generated | nwn5e: {name} - a Humanoid only: no effect on it.
+spells2024.only_beast | generated | nwn5e: {name} - a Beast only: no effect on it.
+spells2024.the_smite | generated | The smite
+spells2024.smite_disarmed_paid | generated | nwn5e: {name} disarmed - its slot was spent by its cast.
+spells2024.smite_disarmed_free | generated | nwn5e: {name} disarmed - nothing spent.
+spells2024.alarm_set_audible | generated | nwn5e: Alarm (Audible) - a 20-foot ward for 8 hours; a creature outside your party entering it sets it off.
+spells2024.alarm_set_mental | generated | nwn5e: Alarm (Mental) - a 20-foot ward for 8 hours; a creature outside your party entering it sets it off.
+spells2024.flag_comprehend | generated | nwn5e: {name} - for an hour you understand any language you hear or read (NWN has no languages; a module can check for the spell).
+spells2024.flag_speak_animals | generated | nwn5e: {name} - for 10 minutes you can talk with Beasts (NWN's animals don't talk; a module can check for the spell).
+spells2024.flag_unseen_servant | generated | nwn5e: {name} - an invisible servant for an hour (none in NWN yet - it's on the role-play list; a module can check for the spell).
+spells2024.flag_illusory_script | generated | nwn5e: {name} - NWN has no writing to hide; its ink is used up.
+spells2024.flag_purify | generated | nwn5e: {name} - the food and drink there is clean (NWN has none to spoil).
+
+# --- src/core/rules_utility_cantrips.cpp (by hand) ------------------------------------------------------------
+chat.and | generated | {first} and {last}
+utility_cantrips.nothing_fire_play | generated | no light there to light or snuff (a lamp, a brazier, a torch, a candle)
+utility_cantrips.nothing_thaumaturgy_fire | generated | no burning light there to dim
+utility_cantrips.nothing_beckon_fire | generated | no unlit light within 5 feet for its embers
+utility_cantrips.nothing_beckon_water | generated | no burning light within 5 feet for its mist
+utility_cantrips.nothing_beckon_air | generated | no open door within 5 feet for its breeze
+utility_cantrips.nothing_invisible_hand | generated | no door there
+utility_cantrips.nothing_mage_hand | generated | nothing there the hand can work - a door, a light, a lever or a container
+utility_cantrips.nothing_happens | generated | nothing happens
+utility_cantrips.search_sound | generated | {name} finds nothing where the sound was and searches for you
+utility_cantrips.search_image | generated | {name} finds the {image} gone and searches for you
+utility_cantrips.lasts_minute | generated | for a minute
+utility_cantrips.lasts_silent_image | generated | for up to 10 minutes (your Concentration)
+utility_cantrips.reacts_look | generated | {name} comes to look
+utility_cantrips.reacts_flee | generated | {name} flees
+utility_cantrips.reacts_attack | generated | {name} attacks it
+utility_cantrips.reacts_treasure | generated | {name} comes for it
+utility_cantrips.reacts_feed | generated | {name} comes to feed
+utility_cantrips.image_made | generated | nwn5e: {name} - a {image} there {lasts}.
+utility_cantrips.image_made_reacts | generated | nwn5e: {name} - a {image} there {lasts}; {reacts}.
+utility_cantrips.sound_no_one | generated | nwn5e: {name} - no one near reacts.
+utility_cantrips.sound_reacts | generated | nwn5e: {name} - {reacts}.
+utility_cantrips.door_flies_open | generated | {what} flies open
+utility_cantrips.door_slams_shut | generated | {what} slams shut
+utility_cantrips.is_locked | generated | {what} is locked
+utility_cantrips.it | generated | it
+utility_cantrips.hand_opens | generated | {what} opens
+utility_cantrips.hand_works | generated | the hand works {what}
+utility_cantrips.light_lit | generated | {what} is lit
+utility_cantrips.light_dims | generated | {what} dims out for a minute
+utility_cantrips.light_out | generated | {what} goes out
+utility_cantrips.light_out_already | generated | {what} is out already
+utility_cantrips.effect_result | generated | nwn5e: {name} - {result}.
+
+# --- src/core/action_queue.cpp (by hand) ----------------------------------------------------------------------
+action_queue.queued_one | generated | nwn5e: {item} - its one use is already queued.
+action_queue.queued_all | generated | nwn5e: {item} - all {left} uses are already queued.
+action_queue.that_item | generated | that item
+
+# --- src/core/extra_actions.cpp (by hand) ---------------------------------------------------------------------
+extra_actions.action_surge_one | generated | Action Surge - your Attack action again: {attacks} more attack this round.
+extra_actions.action_surge_many | generated | Action Surge - your Attack action again: {attacks} more attacks this round.
+
+# --- src/core/prepare_spells.cpp (by hand) --------------------------------------------------------------------
+prepare_spells.already_in_book | generated | nwn5e: {spell} is already in your Spellbook - the scroll is kept.
+prepare_spells.that_spell | generated | that spell
+
+# --- src/core/rules_rest.cpp (by hand) ------------------------------------------------------------------------
+rest.hour | generated | {hours} hour
+rest.hours | generated | {hours} hours
+rest.long_rest_down | generated | not while down - a Long Rest needs at least 1 hit point.
+rest.long_rest_wait | generated | no Long Rest yet - {hours} more to wait (16 hours must pass after a Long Rest ends).
+
+# --- src/core/rules_barbarian.cpp (by hand) -------------------------------------------------------------------
+barbarian.relentless_saved | generated | Relentless Rage - Constitution save {d20} {sign} {bonus} = {total} vs DC {dc}: you stay up with {hp} HP.
+barbarian.relentless_failed | generated | Relentless Rage - Constitution save {d20} {sign} {bonus} = {total} vs DC {dc}: a failure, you drop.
+
+# --- src/core/rules_barbarian_strikes.cpp (by hand) -----------------------------------------------------------
+chat.off | generated | off
+barbarian_strikes.reckless_on | generated | Reckless Attack on - Advantage on your Strength attacks; attack rolls against you have Advantage until a round after your last attack.
+barbarian_strikes.reckless_off | generated | Reckless Attack off.
+barbarian_strikes.brutal | generated | Brutal Strike: {effects}.
+barbarian_strikes.brutal_another | generated | Brutal Strike: {effects} (pick another for two).
+barbarian_strikes.brutal_reckless | generated | Brutal Strike: {effects} - it needs Reckless Attack on.
+barbarian_strikes.brutal_another_reckless | generated | Brutal Strike: {effects} (pick another for two) - it needs Reckless Attack on.
+
+# --- src/core/rules_cunning_strike.cpp (by hand) --------------------------------------------------------------
+cunning_strike.off | generated | Cunning Strike: {effects} - your Sneak Attacks keep all their dice.
+cunning_strike.paid | generated | Cunning Strike: {effects} - paid with Sneak Attack dice on your next Sneak Attacks (DC {dc}).
+cunning_strike.paid_another | generated | Cunning Strike: {effects} - paid with Sneak Attack dice on your next Sneak Attacks (DC {dc}); pick another for two.
+
+# --- src/core/rules_cleric.cpp (by hand) ----------------------------------------------------------------------
+damage.radiant | srd:Damage Types | Radiant
+damage.necrotic | srd:Damage Types | Necrotic
+cleric.spark_heal | generated | Divine Spark: {name} regains {total} Hit Points ({rolled}).
+cleric.spark_heal_supreme | generated | Divine Spark: {name} regains {total} Hit Points ({rolled}, Supreme Healing).
+cleric.spark_damage_saved | generated | Divine Spark ({type}): {name} - Constitution save DC {dc}, saved: {damage} {type} damage ({rolled}, halved).
+cleric.spark_damage_failed | generated | Divine Spark ({type}): {name} - Constitution save DC {dc}, failed: {damage} {type} damage ({rolled}).
+cleric.turn_saves | generated | {name} saves
+cleric.turn_fails | generated | {name} fails - turned for a minute
+cleric.turn_fails_sear | generated | {name} fails - turned for a minute, {sear} Radiant
+cleric.turn_undead | generated | Turn Undead (Wisdom save DC {dc}): {line}.
+cleric.turn_undead_sear | generated | Turn Undead (Wisdom save DC {dc}, Sear Undead {dice}d8 = {sear}): {line}.
+
+# --- src/core/rules_monk.cpp (by hand) ------------------------------------------------------------------------
+monk.save_immune | generated | immune
+monk.save_failed | generated | failed
+monk.save_made | generated | made
+monk.wholeness_one_left | generated | Wholeness of Body - d{die} ({roll}) + Wisdom {wisdom}: {healed} hit points. {left} use left until a Long Rest.
+monk.wholeness_left | generated | Wholeness of Body - d{die} ({roll}) + Wisdom {wisdom}: {healed} hit points. {left} uses left until a Long Rest.
+monk.quivering_palm | generated | Quivering Palm (4 Focus points) - its Constitution save (DC {dc}) {outcome}: {damage} force damage (10d12: {rolled}).
+monk.quivering_palm_halved | generated | Quivering Palm (4 Focus points) - its Constitution save (DC {dc}) {outcome}: {damage} force damage (10d12: {rolled}, halved).
+monk.redirect_damage | generated | Deflect Attacks' redirect (1 Focus point) - its Dexterity save (DC {dc}) {outcome}: {damage} damage back at it.
+monk.redirect_none | generated | Deflect Attacks' redirect (1 Focus point) - its Dexterity save (DC {dc}) {outcome}: no damage.
+monk.topple | generated | Topple - Dexterity save DC {dc} {outcome}
+monk.topple_prone | generated | Topple - Dexterity save DC {dc} {outcome}: knocked prone for a round
+monk.push | generated | Push - Strength save DC {dc} {outcome}
+monk.push_off | generated | Push - Strength save DC {dc} {outcome} (no push: rules_push is off in this game build)
+monk.pushed | generated | Push - Strength save DC {dc} {outcome}: pushed 15 ft ({push})
+monk.addle | generated | Addle - no opportunity attacks until its next turn
+
+# --- src/core/rules_rogue.cpp (by hand) -----------------------------------------------------------------------
+rogue.stroke_of_luck_save_succeeds | generated | nwn5e: Stroke of Luck - the failed save's d20 becomes a 20: it succeeds. Again after a Short or Long Rest.
+rogue.stroke_of_luck_save_fails | generated | nwn5e: Stroke of Luck - the failed save's d20 becomes a 20, and it still fails. Again after a Short or Long Rest.
+
+# --- src/core/rules_thief.cpp (by hand) -----------------------------------------------------------------------
+thief.umd_read | generated | Use Magic Device: {roll} - you read the scroll.
+thief.umd_crumbles | generated | Use Magic Device: {roll} - the scroll crumbles to dust in your hands.
+
+# --- src/core/rules_features.cpp (by hand) --------------------------------------------------------------------
+features.not_2024_one | generated | nwn5e: NWN's {what} isn't a 2024 class feature - removed (2024 rules). !features lists yours.
+features.not_2024_many | generated | nwn5e: NWN's {what} aren't 2024 class features - removed (2024 rules). !features lists yours.
+
+# --- src/core/rules_nwn_skills.cpp (by hand) ------------------------------------------------------------------
+nwn_skills.no_parry | generated | nwn5e: there is no parry mode in the 2024 rules; you keep fighting normally.
+nwn_skills.no_defensive_casting | generated | nwn5e: there is no defensive casting in the 2024 rules - casting draws no opportunity attacks, so you need none.
+
+# --- src/core/rules_weapon_cantrips.cpp (by hand) -------------------------------------------------------------
+weapon_cantrips.true_strike_radiant | generated | nwn5e: True Strike - your next round is one attack at it: {ability} {mod} for its attack and damage, Radiant damage.
+weapon_cantrips.true_strike_radiant_dice | generated | nwn5e: True Strike - your next round is one attack at it: {ability} {mod} for its attack and damage, Radiant damage and {dice}d6 Radiant more.
+weapon_cantrips.true_strike_weapon | generated | nwn5e: True Strike - your next round is one attack at it: {ability} {mod} for its attack and damage, the weapon's damage.
+weapon_cantrips.true_strike_weapon_dice | generated | nwn5e: True Strike - your next round is one attack at it: {ability} {mod} for its attack and damage, the weapon's damage and {dice}d6 Radiant more.
+
+# --- src/core/staple_actions.cpp (by hand) --------------------------------------------------------------------
+staple_actions.rouse_who_help | generated | Rouse - a creature asleep from the Sleep spell within 5 feet, or a downed henchman (the Help house rule).
+staple_actions.rouse_who | generated | Rouse - a creature asleep from the Sleep spell within 5 feet.
+staple_actions.rouse_up | generated | Rouse (the Help house rule; {check}) - your henchman gets up at 1 HP.
+staple_actions.rouse_not_yet | generated | Rouse (the Help house rule; {check}) - not this time; try again next round.

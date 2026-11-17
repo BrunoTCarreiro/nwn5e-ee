@@ -133,7 +133,7 @@ std::string EffectNames(const std::vector<rules::CunningEffect>& effects, bool c
     names += (names.empty() ? "" : " + ") + std::string(rules::CunningEffectName(e));
     if (costs) names += " (" + std::to_string(rules::CunningEffectCost(e)) + "d6)";
   }
-  return names.empty() ? "off" : names;
+  return names.empty() ? PlayerText("chat.off") : names;
 }
 
 // The icon on the character (its tag), on or off.
@@ -176,14 +176,11 @@ void PickCunning(void* creature, rules::CunningEffect effect) {
   const std::vector<rules::CunningEffect> active = rules::ActiveCunningEffects(choice, level);
   ShowIcon(id, !active.empty());
   Log("rogue: 0x%08X Cunning Strike: %s", id, EffectNames(active, true).c_str());
-  std::string line = "Cunning Strike: " + EffectNames(active, true);
-  if (active.empty()) {
-    line += " - your Sneak Attacks keep all their dice";
-  } else {
-    line += " - paid with Sneak Attack dice on your next Sneak Attacks (DC " + std::to_string(DcOf(creature)) + ")";
-    if (rules::CunningStrikeEffectCount(level) > 1 && active.size() < 2) line += "; pick another for two";
-  }
-  Tell(creature, PlayerText("chat.period", {{"line", std::string(line)}}));
+  const bool another = !active.empty() && rules::CunningStrikeEffectCount(level) > 1 && active.size() < 2;
+  const char* key = active.empty() ? "cunning_strike.off"
+                    : another      ? "cunning_strike.paid_another"
+                                   : "cunning_strike.paid";
+  Tell(creature, PlayerText(key, {{"effects", EffectNames(active, true)}, {"dc", std::to_string(DcOf(creature))}}));
   RefreshCombatOptions(id);
 }
 

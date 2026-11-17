@@ -112,10 +112,7 @@ void HelpScript(uint32_t self) {  // Rouse
     Log("actions: 0x%08X Rouse on 0x%08X - not under the Sleep spell%s: nothing", self, target,
         g_config.help_house_rule ? ", not a downed henchman" : "");
     Tell(creature, self,
-         g_config.help_house_rule
-             ? "Rouse - a creature asleep from the Sleep spell within 5 feet, or a downed henchman (the Help house "
-               "rule)."
-             : "Rouse - a creature asleep from the Sleep spell within 5 feet.");
+         PlayerText(g_config.help_house_rule ? "staple_actions.rouse_who_help" : "staple_actions.rouse_who"));
     return;
   }
   static const auto skill_rank = reinterpret_cast<SkillRankFn>(EngineExport(ee::kGetSkillRank));
@@ -127,8 +124,7 @@ void HelpScript(uint32_t self) {  // Rouse
   if (up) HelpDownHenchmanUp(target);
   Log("actions: 0x%08X Rouse (the Help house rule) on the downed henchman 0x%08X (%s) - %s", self, target, check,
       up ? "it gets up at 1 HP" : "not this time");
-  Tell(creature, self, std::string("Rouse (the Help house rule; ") + check + ") - " +
-                           (up ? "your henchman gets up at 1 HP." : "not this time; try again next round."));
+  Tell(creature, self, PlayerText(up ? "staple_actions.rouse_up" : "staple_actions.rouse_not_yet", {{"check", check}}));
 }
 
 }  // namespace

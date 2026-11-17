@@ -157,7 +157,7 @@ std::unordered_map<uint32_t, Mark> g_sundered;             // by target
 std::string EffectNames(const std::vector<rules::BrutalEffect>& effects) {
   std::string names;
   for (rules::BrutalEffect e : effects) names += (names.empty() ? "" : " + ") + std::string(rules::BrutalEffectName(e));
-  return names.empty() ? "off" : names;
+  return names.empty() ? PlayerText("chat.off") : names;
 }
 
 // The icon on the character (its tag), on or off.
@@ -179,9 +179,7 @@ void SetReckless(void* creature, bool on) {
   engine::SetLocalInt(creature, kVarReckless, on ? 1 : 0);
   ShowIcon(id, kRecklessTag, kRecklessIconRow, on);
   Log("barbarian: 0x%08X Reckless Attack %s", id, on ? "on" : "off");
-  Tell(creature, on ? "Reckless Attack on - Advantage on your Strength attacks; attack rolls against you have "
-                      "Advantage until a round after your last attack."
-                    : "Reckless Attack off.");
+  Tell(creature, PlayerText(on ? "barbarian_strikes.reckless_on" : "barbarian_strikes.reckless_off"));
   RefreshCombatOptions(id);
 }
 
@@ -211,10 +209,12 @@ void PickBrutal(void* creature, rules::BrutalEffect effect) {
   const std::vector<rules::BrutalEffect> active = rules::ActiveBrutalEffects(choice, level);
   ShowIcon(IdOf(creature), kBrutalTag, kBrutalIconRow, !active.empty());
   Log("barbarian: 0x%08X Brutal Strike: %s", IdOf(creature), EffectNames(active).c_str());
-  std::string line = "Brutal Strike: " + EffectNames(active);
-  if (!active.empty() && rules::BrutalStrikeEffectCount(level) > 1 && active.size() < 2) line += " (pick another for two)";
-  if (!active.empty() && engine::GetLocalInt(creature, kVarReckless) == 0) line += " - it needs Reckless Attack on";
-  Tell(creature, PlayerText("chat.period", {{"line", std::string(line)}}));
+  const bool another = !active.empty() && rules::BrutalStrikeEffectCount(level) > 1 && active.size() < 2;
+  const bool reckless = !active.empty() && engine::GetLocalInt(creature, kVarReckless) == 0;
+  const char* key = another ? (reckless ? "barbarian_strikes.brutal_another_reckless"
+                                        : "barbarian_strikes.brutal_another")
+                            : (reckless ? "barbarian_strikes.brutal_reckless" : "barbarian_strikes.brutal");
+  Tell(creature, PlayerText(key, {{"effects", EffectNames(active)}}));
   RefreshCombatOptions(IdOf(creature));
 }
 

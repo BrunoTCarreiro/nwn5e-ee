@@ -40,6 +40,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "records.h"
+#include "player_text.h"
 #include "rules/class_features.h"
 #include "rules/nwn_conversion.h"
 
@@ -106,8 +107,8 @@ void RemoveNwnOnlyFeats(void* stats, const CreatureFacts& facts, uint32_t id) {
     for (size_t i = 0; i < names.size(); ++i) {
       what += (i == 0 ? "" : i + 1 == names.size() ? " and " : ", ") + names[i];
     }
-    TellPlayer(id, "nwn5e: NWN's " + what + (names.size() == 1 ? " isn't a" : " aren't") + " 2024 class feature" +
-                   (names.size() == 1 ? "" : "s") + " - removed (2024 rules). !features lists yours.");
+    TellPlayer(id, PlayerText(names.size() == 1 ? "features.not_2024_one" : "features.not_2024_many",
+                              {{"what", what}}));
   }
 }
 

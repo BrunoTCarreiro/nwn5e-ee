@@ -142,8 +142,7 @@ bool ScrollGuard(void* creature, uint32_t item_id, void* item) {
             dc);
   if (LogSlot()) Log("thief: 0x%08X Use Magic Device - scroll 0x%08X, spell level %d: %s - %s", id, item_id, level,
                      roll, success ? "read" : "it crumbles");
-  Tell(creature, std::string("Use Magic Device: ") + roll +
-                     (success ? " - you read the scroll." : " - the scroll crumbles to dust in your hands."));
+  Tell(creature, PlayerText(success ? "thief.umd_read" : "thief.umd_crumbles", {{"roll", roll}}));
   if (success) return true;
   Crumble(id, item_id);
   return false;

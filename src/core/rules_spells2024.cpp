@@ -860,7 +860,7 @@ bool WillingSpell(int spell) {
 }
 
 bool Refuse(uint32_t id, const std::string& name, const std::string& why, uint32_t target) {
-  TellPlayer(id, "nwn5e: " + name + " - " + why);
+  TellPlayer(id, PlayerText("spells2024.refused", {{"name", name}, {"why", why}}));
   if (LogSlot()) Log("spells2024: 0x%08X %s at 0x%08X refused - %s", id, name.c_str(), target, why.c_str());
   return true;
 }
@@ -895,18 +895,17 @@ bool OrderGuard(void* creature, const SpellOrder& order) {
   // it the rules?"): "a willing creature" - an enemy isn't one, so it's no target (the script's check stays for a
   // cast with no order).
   if (WillingSpell(spell) && target && target != creature && engine::IsEnemy(creature, order.target)) {
-    return Refuse(id, SpellNameOf(spell), "a willing creature, not an enemy.", order.target);
+    return Refuse(id, SpellNameOf(spell), PlayerText("spells2024.refuse_willing"), order.target);
   }
   if (spell == rules::kMageArmor && target && ChestArmorClassOf(target) > 0) {
-    return Refuse(id, "Mage Armor", "a creature who isn't wearing armour.", order.target);
+    return Refuse(id, SpellNameOf(rules::kMageArmor), PlayerText("spells2024.refuse_armoured"), order.target);
   }
   // Build 2b: Charm Person a Humanoid, Animal Friendship a Beast - another creature is refused, nothing spent.
   if ((spell == rules::kCharmPerson || spell == rules::kAnimalFriendship) && target && target != creature) {
     void* target_stats = StatsOf(target);
     if (target_stats && !rules::ConditionSpellTargetFits(spell, engine::RaceOf(target_stats))) {
       return Refuse(id, SpellNameOf(spell),
-                    spell == rules::kCharmPerson ? "a Humanoid (the player races, goblinoids, orcs, reptilians)."
-                                                 : "a Beast (an animal, a beast or vermin).",
+                    PlayerText(spell == rules::kCharmPerson ? "spells2024.refuse_humanoid" : "spells2024.refuse_beast"),
                     order.target);
     }
   }
@@ -932,17 +931,17 @@ bool OrderGuard(void* creature, const SpellOrder& order) {
   const std::string feet = std::to_string(bonus->feet);
   std::string refused;
   if (SpentThisTurn(id, nullptr)) {
-    refused = "you've already spent a spell slot this turn (one spell with a slot a turn).";
+    refused = PlayerText("spells2024.refuse_slot_this_turn");
   } else if (BonusActionStatus(creature) != 0) {
-    refused = "it takes your Bonus Action, already spent this round.";
+    refused = PlayerText("spells2024.refuse_bonus_spent");
   } else if (!on) {
-    refused = "a creature you can see within " + feet + " feet.";
+    refused = PlayerText("spells2024.refuse_no_creature", {{"feet", feet}});
   } else if (on != creature && engine::EdgeDistance(creature, on) > rules::FeetToMetres(bonus->feet)) {
-    refused = "out of range (" + feet + " feet).";
+    refused = PlayerText("spells2024.refuse_out_of_range", {{"feet", feet}});
   } else if (OrderSlotsLeft(creature, order.spell, order.class_slot, order.domain_level, order.metamagic) <= 0) {
-    refused = "no spell slot of that level left.";
+    refused = PlayerText("spells2024.refuse_no_slot");
   } else if (!stats) {
-    refused = "no caster.";
+    refused = PlayerText("spells2024.refuse_no_caster");
   }
   if (!refused.empty()) return Refuse(id, bonus->name, refused, at);
   if (!engine::HasFeat(stats, bonus->feat)) engine::AddFeat(stats, bonus->feat);
@@ -1995,8 +1994,8 @@ void Targeted(uint32_t self, void* caster, const rules::Spell2024& spell, int ro
     if (rules::ConditionSpellTargetFits(spell.row, entries[i].value)) {
       picked.push_back(entries[i]);
     } else if (i == 0 && aimed) {
-      TellPlayer(self, std::string("nwn5e: ") + spell.name + " - " +
-                           (spell.row == rules::kCharmPerson ? "a Humanoid" : "a Beast") + " only: no effect on it.");
+      const char* key = spell.row == rules::kCharmPerson ? "spells2024.only_humanoid" : "spells2024.only_beast";
+      TellPlayer(self, PlayerText(key, {{"name", spell.name}}));
     }
   }
   const rules::CommandWord word = rules::CommandWordOf(row);
@@ -3039,7 +3038,7 @@ bool ArmSmite(void* creature, uint32_t id, const SpellOrder& order) {
   const rules::Spell2024* spell = rules::Spell2024Of(static_cast<int>(order.spell));
   if (!spell || order.class_slot < 0 || order.class_slot > 7) return false;  // not a class's: as the engine casts it
   if (OrderSlotsLeft(creature, order.spell, order.class_slot, order.domain_level, order.metamagic) <= 0) {
-    return Refuse(id, spell->name, "no spell slot of that level left.", id);
+    return Refuse(id, spell->name, PlayerText("spells2024.refuse_no_slot"), id);
   }
   Armed armed;
   armed.row = spell->row;
@@ -3286,8 +3285,9 @@ void SmitePanelClicked(void* creature) {
   const rules::Spell2024* spell = rules::Spell2024Of(it->second.row);
   const bool paid = it->second.paid;
   g_armed.erase(it);
-  const std::string name = spell ? spell->name : "The smite";
-  TellPlayer(id, "nwn5e: " + name + " disarmed - " + (paid ? "its slot was spent by its cast." : "nothing spent."));
+  const std::string name = spell ? std::string(spell->name) : PlayerText("spells2024.the_smite");
+  TellPlayer(id, PlayerText(paid ? "spells2024.smite_disarmed_paid" : "spells2024.smite_disarmed_free",
+                            {{"name", name}}));
   if (LogSlot()) Log("spells2024: 0x%08X %s disarmed (the resource panel)", id, name.c_str());
 }
 
@@ -3888,8 +3888,7 @@ void AlarmSpell(uint32_t self, const rules::Spell2024& spell, int row) {
             "DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_MAGIC_PROTECTION), l);",
             kAlarmArea, audible ? "n5_s_alarmaud" : "n5_s_alarmmen", rules::kAlarmHours);
   Run(code, self, spell.script);
-  TellPlayer(self, std::string("nwn5e: Alarm (") + (audible ? "Audible" : "Mental") +
-                       ") - a 20-foot ward for 8 hours; a creature outside your party entering it sets it off.");
+  TellPlayer(self, PlayerText(audible ? "spells2024.alarm_set_audible" : "spells2024.alarm_set_mental"));
   if (LogSlot()) Log("spells2024: 0x%08X Alarm (%s) set", self, audible ? "audible" : "mental");
 }
 
@@ -3996,23 +3995,15 @@ void FlagSpell(uint32_t self, const rules::Spell2024& spell) {
               UtilityIconRow(spell.row), spell.row, kTagUtility, DurationScript(minutes).c_str());
     Run(code, self, spell.script);
   }
-  std::string line;
+  const char* key = "spells2024.flag_purify";
   switch (spell.row) {
-    case rules::kComprehendLanguages:
-      line = "for an hour you understand any language you hear or read (NWN has no languages; a module can check for "
-             "the spell).";
-      break;
-    case rules::kSpeakWithAnimals:
-      line = "for 10 minutes you can talk with Beasts (NWN's animals don't talk; a module can check for the spell).";
-      break;
-    case rules::kUnseenServant:
-      line = "an invisible servant for an hour (none in NWN yet - it's on the role-play list; a module can check for "
-             "the spell).";
-      break;
-    case rules::kIllusoryScript: line = "NWN has no writing to hide; its ink is used up."; break;
-    default: line = "the food and drink there is clean (NWN has none to spoil)."; break;
+    case rules::kComprehendLanguages: key = "spells2024.flag_comprehend"; break;
+    case rules::kSpeakWithAnimals: key = "spells2024.flag_speak_animals"; break;
+    case rules::kUnseenServant: key = "spells2024.flag_unseen_servant"; break;
+    case rules::kIllusoryScript: key = "spells2024.flag_illusory_script"; break;
+    default: break;
   }
-  TellPlayer(self, std::string("nwn5e: ") + spell.name + " - " + line);
+  TellPlayer(self, PlayerText(key, {{"name", spell.name}}));
   if (LogSlot()) Log("spells2024: 0x%08X %s (%d minutes on it)", self, spell.name, minutes);
 }
 

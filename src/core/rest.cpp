@@ -6,6 +6,7 @@
 #include "creature.h"
 #include "ee_layout.h"
 #include "hooks.h"
+#include "player_text.h"
 
 namespace {
 
@@ -37,7 +38,7 @@ void Rest(void* creature, int associate, int enemy_line_of_sight) {
     const std::string why = creature ? gate(creature) : std::string();
     if (why.empty()) continue;
     if (Field<int32_t>(creature, ee::kCreatureIsPlayerCharacter) != 0) {
-      TellPlayer(Field<uint32_t>(creature, ee::kObjectId), "nwn5e: " + why);
+      TellPlayer(Field<uint32_t>(creature, ee::kObjectId), PlayerText("chat.line", {{"line", why}}));
     }
     return;  // the rest doesn't start
   }

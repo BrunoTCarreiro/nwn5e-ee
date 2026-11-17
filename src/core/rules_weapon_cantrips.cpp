@@ -340,10 +340,12 @@ bool OrderTrueStrike(void* creature, int row, uint32_t target, int class_slot) {
   const int ordered = g_add_attack_actions(creature, target, 0, 1, 0);  // as a click on it
   const bool radiant = rules::WeaponCantripDamageType(s.row) == rules::kDamageTypeRadiant;
   const int dice = rules::TrueStrikeExtraDice(s.level, false);
-  TellPlayer(id, std::string("nwn5e: True Strike - your next round is one attack at it: ") + AbilityName(s.ability) +
-                     " " + Signed(s.casting) + " for its attack and damage, " +
-                     (radiant ? "Radiant damage" : "the weapon's damage") +
-                     (dice > 0 ? " and " + std::to_string(dice) + "d6 Radiant more." : "."));
+  const char* key = radiant ? (dice > 0 ? "weapon_cantrips.true_strike_radiant_dice"
+                                        : "weapon_cantrips.true_strike_radiant")
+                            : (dice > 0 ? "weapon_cantrips.true_strike_weapon_dice"
+                                        : "weapon_cantrips.true_strike_weapon");
+  TellPlayer(id, PlayerText(key, {{"ability", AbilityName(s.ability)}, {"mod", Signed(s.casting)},
+                                  {"dice", std::to_string(dice)}}));
   Log("cantrips: 0x%08X True Strike (row %d, class slot %d) at 0x%08X - %s %+d, level %d (%d d6 Radiant): attack "
       "ordered %d", id, s.row, class_slot, target, AbilityName(s.ability), s.casting, s.level, dice, ordered);
   return true;

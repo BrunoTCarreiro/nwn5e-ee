@@ -323,8 +323,7 @@ void StrokeOfLuckUsed(void* creature, bool succeeded) {
   const uint32_t id = IdOf(creature);
   Log("rogue: 0x%08X Stroke of Luck - a failed save rolled again as a 20: %s", id, succeeded ? "success" : "still fails");
   if (IsPlayer(creature)) {
-    TellPlayer(id, std::string("nwn5e: Stroke of Luck - the failed save's d20 becomes a 20") +
-                       (succeeded ? ": it succeeds." : ", and it still fails.") + " Again after a Short or Long Rest.");
+    TellPlayer(id, PlayerText(succeeded ? "rogue.stroke_of_luck_save_succeeds" : "rogue.stroke_of_luck_save_fails"));
   }
 }
 

@@ -254,8 +254,8 @@ void DivineSpark(uint32_t self, Spark spark) {
     Run(t + "ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectHeal(" + std::to_string(total) + "), t); "
             "ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_HEALING_M), t);",
         self, "Divine Spark's healing");
-    Tell(caster, "Divine Spark: " + name + " regains " + std::to_string(total) + " Hit Points (" + rolled +
-                     (supreme ? ", Supreme Healing" : "") + ").");
+    Tell(caster, PlayerText(supreme ? "cleric.spark_heal_supreme" : "cleric.spark_heal",
+                            {{"name", name}, {"total", std::to_string(total)}, {"rolled", rolled}}));
     if (LogSlot()) Log("cleric: 0x%08X Divine Spark heals 0x%08X %d (%s)", self, target_id, total, rolled);
     return;
   }
@@ -268,10 +268,9 @@ void DivineSpark(uint32_t self, Spark spark) {
           "ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(" +
           (radiant ? "VFX_IMP_SUNSTRIKE" : "VFX_IMP_NEGATIVE_ENERGY") + "), t);",
       self, "Divine Spark's damage");
-  Tell(caster, std::string("Divine Spark (") + (radiant ? "Radiant" : "Necrotic") + "): " + name +
-                   " - Constitution save DC " + std::to_string(dc) + (saved != 0 ? ", saved" : ", failed") + ": " +
-                   std::to_string(damage) + (radiant ? " Radiant" : " Necrotic") + " damage (" + rolled +
-                   (saved != 0 ? ", halved" : "") + ").");
+  Tell(caster, PlayerText(saved != 0 ? "cleric.spark_damage_saved" : "cleric.spark_damage_failed",
+                          {{"type", PlayerText(radiant ? "damage.radiant" : "damage.necrotic")}, {"name", name},
+                           {"dc", std::to_string(dc)}, {"damage", std::to_string(damage)}, {"rolled", rolled}}));
   if (LogSlot()) Log("cleric: 0x%08X Divine Spark %s at 0x%08X: DC %d, %s, %d damage (%s)", self,
                      radiant ? "Radiant" : "Necrotic", target_id, dc, saved != 0 ? "saved" : "failed", damage, rolled);
 }
@@ -350,7 +349,7 @@ void TurnUndead(uint32_t self) {
     const std::string name = NameOf(id);
     if (!line.empty()) line += "; ";
     if (saved != 0) {
-      line += name + " saves";
+      line += PlayerText("cleric.turn_saves", {{"name", name}});
       continue;
     }
     std::string effects = "object t = StringToObject(\"" + Hex(id) + "\"); ";
@@ -364,10 +363,12 @@ void TurnUndead(uint32_t self) {
                "ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_HEAD_HOLY), t);";
     Run(effects, self, "Turn Undead's turn");
     g_turned[id] = Turned{self, until, false};
-    line += name + " fails - turned for a minute" + (sear > 0 ? ", " + std::to_string(sear) + " Radiant" : "");
+    line += PlayerText(sear > 0 ? "cleric.turn_fails_sear" : "cleric.turn_fails",
+                       {{"name", name}, {"sear", std::to_string(sear)}});
   }
-  Tell(caster, "Turn Undead (Wisdom save DC " + std::to_string(dc) + (sear > 0 ? ", Sear Undead " +
-               std::to_string(sear_dice) + "d8 = " + std::to_string(sear) : std::string()) + "): " + line + ".");
+  Tell(caster, PlayerText(sear > 0 ? "cleric.turn_undead_sear" : "cleric.turn_undead",
+                          {{"dc", std::to_string(dc)}, {"dice", std::to_string(sear_dice)},
+                           {"sear", std::to_string(sear)}, {"line", line}}));
   if (LogSlot()) Log("cleric: 0x%08X Turn Undead: DC %d, Sear %d - %s", self, dc, sear, line.c_str());
 }
 

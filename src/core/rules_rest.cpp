@@ -49,6 +49,7 @@
 #include "log.h"
 #include "records.h"
 #include "rest.h"
+#include "player_text.h"
 #include "rules/class_features.h"
 #include "rules/nwn_conversion.h"
 #include "rules/hit_dice.h"
@@ -125,7 +126,9 @@ int LongRestWaitLeft(void* creature) {
   return rules::LongRestWaitLeft(Faithful(), g_config.long_rest_any_time, last, GameHourNow(creature));
 }
 
-std::string HoursText(int hours) { return std::to_string(hours) + (hours == 1 ? " hour" : " hours"); }
+std::string HoursText(int hours) {
+  return PlayerText(hours == 1 ? "rest.hour" : "rest.hours", {{"hours", std::to_string(hours)}});
+}
 
 // #135: the gate on a rest's start (rest.h) - b: not while down; a: the 16-hour wait.
 std::string LongRestGate(void* creature) {
@@ -137,13 +140,13 @@ std::string LongRestGate(void* creature) {
                      "a Short Rest), then rest.\");",
                      IdOf(creature));
     }
-    return "not while down - a Long Rest needs at least 1 hit point.";
+    return PlayerText("rest.long_rest_down");
   }
   const int left = LongRestWaitLeft(creature);
   if (left <= 0) return "";
   Log("rests: 0x%08X Long Rest refused - %d of the 16 hours after the last one still to pass (#135)", IdOf(creature),
       left);
-  return "no Long Rest yet - " + HoursText(left) + " more to wait (16 hours must pass after a Long Rest ends).";
+  return PlayerText("rest.long_rest_wait", {{"hours", HoursText(left)}});
 }
 
 void MoveClock(uint32_t creature_id, int hours) {

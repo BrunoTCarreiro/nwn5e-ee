@@ -520,16 +520,16 @@ std::vector<uint32_t> ParseIds(const std::string& list) {
 }
 
 // What the effect says when it found nothing to work on.
-const char* NothingLine(UtilityEffect effect) {
+std::string NothingLine(UtilityEffect effect) {
   switch (effect) {
-    case UtilityEffect::kFirePlay: return "no light there to light or snuff (a lamp, a brazier, a torch, a candle)";
-    case UtilityEffect::kThaumaturgyFirePlay: return "no burning light there to dim";
-    case UtilityEffect::kBeckonFire: return "no unlit light within 5 feet for its embers";
-    case UtilityEffect::kBeckonWater: return "no burning light within 5 feet for its mist";
-    case UtilityEffect::kBeckonAir: return "no open door within 5 feet for its breeze";
-    case UtilityEffect::kInvisibleHand: return "no door there";
-    case UtilityEffect::kMageHand: return "nothing there the hand can work - a door, a light, a lever or a container";
-    default: return "nothing happens";
+    case UtilityEffect::kFirePlay: return PlayerText("utility_cantrips.nothing_fire_play");
+    case UtilityEffect::kThaumaturgyFirePlay: return PlayerText("utility_cantrips.nothing_thaumaturgy_fire");
+    case UtilityEffect::kBeckonFire: return PlayerText("utility_cantrips.nothing_beckon_fire");
+    case UtilityEffect::kBeckonWater: return PlayerText("utility_cantrips.nothing_beckon_water");
+    case UtilityEffect::kBeckonAir: return PlayerText("utility_cantrips.nothing_beckon_air");
+    case UtilityEffect::kInvisibleHand: return PlayerText("utility_cantrips.nothing_invisible_hand");
+    case UtilityEffect::kMageHand: return PlayerText("utility_cantrips.nothing_mage_hand");
+    default: return PlayerText("utility_cantrips.nothing_happens");
   }
 }
 
@@ -645,8 +645,9 @@ SetLocalString(OBJECT_SELF, "n5c_name", GetName(o));
 
 std::string Joined(const std::vector<std::string>& parts) {
   std::string line;
-  for (size_t i = 0; i < parts.size(); ++i) line += (i == 0 ? "" : i + 1 == parts.size() ? " and " : ", ") + parts[i];
-  return line;
+  if (parts.size() < 2) return parts.empty() ? line : parts[0];
+  for (size_t i = 0; i + 1 < parts.size(); ++i) line += (i == 0 ? std::string() : std::string(", ")) + parts[i];
+  return PlayerText("chat.and", {{"first", line}, {"last", parts.back()}});  // #168: "{first} and {last}"
 }
 
 // Minor Illusion's earlier image ends with a new cast (SRD 5.2.1: "The illusion ends if you cast this spell again").
@@ -953,8 +954,8 @@ void Study(uint32_t self, Reactor& r, const Check& check) {
   if (!check.image_there) {
     Note(self, r, r.sound ? "finds nothing there" : "finds the image gone");
     if (!rules::SearchesAfterVanish(r.sentient, r.hostile)) return GoBack(self, true);
-    Tell(caster, name + (r.sound ? " finds nothing where the sound was" : " finds the " + image + " gone") +
-                     " and searches for you");
+    Tell(caster, PlayerText(r.sound ? "utility_cantrips.search_sound" : "utility_cantrips.search_image",
+                            {{"name", name}, {"image", image}}));
     return Search(self, r);
   }
   const int d20 = RollEngineDice(1, 20);
@@ -1156,7 +1157,8 @@ struct ImageSpell {
   int seconds;
   const char* lasts;
 };
-const ImageSpell kMinorIllusionImage{"Minor Illusion", "n5c_image", rules::kMinorIllusionSeconds, "for a minute"};
+const ImageSpell kMinorIllusionImage{"Minor Illusion", "n5c_image", rules::kMinorIllusionSeconds,
+                                     "utility_cantrips.lasts_minute"};  // lasts: a player text's key (#168)
 
 void MakeImageOf(uint32_t self, void* caster, ImageKind kind, const std::string& name, const ImageSpell& spell) {
   std::string code = kImage;
@@ -1214,28 +1216,31 @@ void MakeImageOf(uint32_t self, void* caster, ImageKind kind, const std::string&
       switch (reaction) {
         case ImageReaction::kStudy:
           ComeToLook(n.id, kept);
-          done.push_back(r.name + " comes to look");
+          done.push_back(PlayerText("utility_cantrips.reacts_look", {{"name", r.name}}));
           break;
         case ImageReaction::kFlee:
         case ImageReaction::kFleeThenStudy:
           Flee(n.id, kept, false);
-          done.push_back(r.name + " flees");
+          done.push_back(PlayerText("utility_cantrips.reacts_flee", {{"name", r.name}}));
           break;
         case ImageReaction::kAttack:
         case ImageReaction::kAttackThenSearch:
           Charge(n.id, kept);
-          done.push_back(r.name + " attacks it");
+          done.push_back(PlayerText("utility_cantrips.reacts_attack", {{"name", r.name}}));
           break;
         case ImageReaction::kTouch:
           Approach(n.id, kept);
-          done.push_back(r.name + (kind == ImageKind::kTreasure ? " comes for it" : " comes to feed"));
+          done.push_back(PlayerText(kind == ImageKind::kTreasure ? "utility_cantrips.reacts_treasure"
+                                                                 : "utility_cantrips.reacts_feed",
+                                    {{"name", r.name}}));
           break;
         default: break;
       }
     }
   }
-  TellPlayer(self, "nwn5e: " + name + " - a " + image + " there " + spell.lasts +
-                       (done.empty() ? std::string(".") : "; " + Joined(done) + "."));
+  TellPlayer(self, PlayerText(done.empty() ? "utility_cantrips.image_made" : "utility_cantrips.image_made_reacts",
+                              {{"name", name}, {"image", image}, {"lasts", PlayerText(spell.lasts)},
+                               {"reacts", Joined(done)}}));
 }
 
 void MakeImage(uint32_t self, void* caster, UtilityEffect effect, const std::string& name) {
@@ -1271,7 +1276,7 @@ if (GetIsObjectValid(i)) {
 )nss";
 
 const ImageSpell kSilentImageSpell{"Silent Image", "n5s_image", rules::kSilentImageSeconds,
-                                   "for up to 10 minutes (your Concentration)"};
+                                   "utility_cantrips.lasts_silent_image"};
 
 // A sound at the point (Q6 A, Q7 A; #152 B, owner, 2026-11-09: "B"): a drawing one brings the hostile creatures that
 // hear it to look; a scaring one scares as the leopard does, by the size of what seems to make it
@@ -1338,7 +1343,7 @@ void PlaySoundAt(uint32_t self, void* caster, UtilityEffect effect, const std::s
         Replace(&flee, "$SECONDS", std::to_string(rules::kScareSeconds) + ".0");
         Run(flee, self, "a creature fleeing");
         who = engine::GetLocalString(caster, "n5c_name");
-        done.push_back(who + " flees");
+        done.push_back(PlayerText("utility_cantrips.reacts_flee", {{"name", who}}));
         break;
       }
       case SoundReaction::kLook: {
@@ -1348,21 +1353,21 @@ void PlaySoundAt(uint32_t self, void* caster, UtilityEffect effect, const std::s
         Replace(&look, "$WAIT", "6.0");
         Run(look, self, "a creature coming to look");
         who = engine::GetLocalString(caster, "n5c_name");
-        done.push_back(who + " comes to look");
+        done.push_back(PlayerText("utility_cantrips.reacts_look", {{"name", who}}));
         break;
       }
       case SoundReaction::kFleeThenLook: {
         Reactor& r = HeardBy(self, caster, n, sentient, ImageReaction::kFleeThenStudy);
         who = r.name;
         Flee(n.id, r, false);
-        done.push_back(who + " flees");
+        done.push_back(PlayerText("utility_cantrips.reacts_flee", {{"name", who}}));
         break;
       }
       case SoundReaction::kLookThenSearch: {
         Reactor& r = HeardBy(self, caster, n, sentient, ImageReaction::kStudy);
         who = r.name;
         ComeToLook(n.id, r);
-        done.push_back(who + " comes to look");
+        done.push_back(PlayerText("utility_cantrips.reacts_look", {{"name", who}}));
         break;
       }
       default: break;
@@ -1373,7 +1378,8 @@ void PlaySoundAt(uint32_t self, void* caster, UtilityEffect effect, const std::s
           sentient ? "sentient" : "not sentient", n.enemy ? "hostile" : "not hostile", n.size, sound_size);
     }
   }
-  TellPlayer(self, "nwn5e: " + name + " - " + (done.empty() ? std::string("no one near reacts") : Joined(done)) + ".");
+  TellPlayer(self, PlayerText(done.empty() ? "utility_cantrips.sound_no_one" : "utility_cantrips.sound_reacts",
+                              {{"name", name}, {"reacts", Joined(done)}}));
   if (LogSlot()) Log("cantrips: 0x%08X %s (%s): %zu react", self, name.c_str(), rules::SoundResrefOf(effect), done.size());
 }
 
@@ -1670,34 +1676,34 @@ void UtilityScript(uint32_t self) {
     std::string what;
     if (door != DoorPlay::kNone) {
       const int r = DoorAt(id, door, &what);
-      if (r == 1) done.push_back(what + " flies open");
-      if (r == 2) done.push_back(what + " slams shut");
-      if (r == 3) done.push_back(what + " is locked");
+      if (r == 1) done.push_back(PlayerText("utility_cantrips.door_flies_open", {{"what", what}}));
+      if (r == 2) done.push_back(PlayerText("utility_cantrips.door_slams_shut", {{"what", what}}));
+      if (r == 3) done.push_back(PlayerText("utility_cantrips.is_locked", {{"what", what}}));
       if (r >= 0) continue;  // a door
     }
     if (fire == FirePlay::kNone) continue;
     const int r = FirePlayAt(self, id, fire, rules::kFirePlayDimSeconds);
     void* object = GameObjectById(id);
-    what = object ? engine::GetLocalString(object, "n5c_name") : std::string("it");
+    what = object ? engine::GetLocalString(object, "n5c_name") : PlayerText("utility_cantrips.it");
     if (r < 0 && effect == UtilityEffect::kMageHand) {  // build 4b: a lever or a container
       const int used = HandAt(self, id, &what);
-      if (used == 3) done.push_back(what + " is locked");
-      if (used == 4) done.push_back(what + " opens");
-      if (used == 5) done.push_back("the hand works " + what);
+      if (used == 3) done.push_back(PlayerText("utility_cantrips.is_locked", {{"what", what}}));
+      if (used == 4) done.push_back(PlayerText("utility_cantrips.hand_opens", {{"what", what}}));
+      if (used == 5) done.push_back(PlayerText("utility_cantrips.hand_works", {{"what", what}}));
       continue;
     }
-    if (r == 1) done.push_back(what + " is lit");
-    if (r == 2) done.push_back(what + (fire == FirePlay::kDim ? " dims out for a minute" : " goes out"));
-    if (r == 0 && fire != FirePlay::kLight && fire != FirePlay::kSnuff) done.push_back(what + " is out already");
+    if (r == 1) done.push_back(PlayerText("utility_cantrips.light_lit", {{"what", what}}));
+    if (r == 2) {
+      done.push_back(PlayerText(fire == FirePlay::kDim ? "utility_cantrips.light_dims" : "utility_cantrips.light_out",
+                                {{"what", what}}));
+    }
+    if (r == 0 && fire != FirePlay::kLight && fire != FirePlay::kSnuff) {
+      done.push_back(PlayerText("utility_cantrips.light_out_already", {{"what", what}}));
+    }
   }
-  std::string line = "nwn5e: " + name + " - ";
-  if (done.empty()) {
-    line += NothingLine(effect);
-  } else {
-    for (size_t i = 0; i < done.size(); ++i) line += (i == 0 ? "" : i + 1 == done.size() ? " and " : ", ") + done[i];
-  }
-  TellPlayer(self, PlayerText("chat.period", {{"line", std::string(line)}}));
-  if (LogSlot()) Log("cantrips: 0x%08X %s (row %d): %s", self, name.c_str(), row, line.c_str() + 7);
+  const std::string result = done.empty() ? NothingLine(effect) : Joined(done);
+  TellPlayer(self, PlayerText("utility_cantrips.effect_result", {{"name", name}, {"result", result}}));
+  if (LogSlot()) Log("cantrips: 0x%08X %s (row %d): %s", self, name.c_str(), row, result.c_str());
 }
 
 }  // namespace
