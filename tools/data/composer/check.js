@@ -141,6 +141,16 @@ check("readProject: each error names its field", () => {
   bad((j) => { j.variants[1].parts[0].file = "x.obj"; }, /^Error: variants\[1\]\.parts\[0\]\.file: /);
 });
 
+check("readProject: a part's colours, read as the disk's", () => {
+  const j = copy(CRATES);
+  j.variants[0].parts[0].colours = { leather1: 7 };
+  const c = P.readProject(j, BASE, F).variants[0].parts[0].colours;
+  assert.strictEqual(c.leather1, 7);
+  assert.strictEqual(c.metal2, 3);
+  j.variants[0].parts[0].colours = { leather1: -1 };
+  assert.throws(() => P.readProject(j, BASE, F), /variants\[0\]\.parts\[0\]\.colours: /);
+});
+
 // --- names, rows ----------------------------------------------------------------------------------------------------
 check("model names and labels fit (16 characters)", () => {
   assert.strictEqual(P.modelName("placeable", "crates", 1, 1), "plc_n5crates");

@@ -3,11 +3,11 @@
 # model: plc_n5fd_med_pwk
 node dummy n5fd_med_pwk_use01
   parent plc_n5fd_med_pwk
-  position 0 -0.45214 0
+  position 0 -0.48928 0
   orientation 0 0 0 0
 endnode
 node dummy n5fd_med_pwk_use02
   parent plc_n5fd_med_pwk
-  position 0 0.45214 0
+  position 0 0.48928 0
   orientation 0 0 0 0
 endnode

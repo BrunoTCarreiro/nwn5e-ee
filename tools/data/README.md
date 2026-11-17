@@ -20,15 +20,13 @@ remove the six files from main"**:
 
 - the Floating Disk's six models made of the game's meshes: `c_n5fd_small`, `_med`, `_large`, and `plc_n5fd_small`,
   `_med`, `_large`;
+- `c_n5fd_empty.mdl`: its disk mesh is original, but it carries `c_invsguy`'s node names and positions, which its
+  supermodel needs (the owner, 2026-11-17: "go with your recs for the three questions");
 - any Composer placeable's model: `plc_n5*.mdl`;
 - any baked texture: `n5p_*`.
 
 The generators' own runs (the VFX Bench's Save and build) still write them into `data\files`, where they stay,
-ignored. These stay committed:
-
-- what's made from scratch: the `.pwk` files, `n5t_forcedisk.tga`, the rows;
-- `c_n5fd_empty.mdl`: its disk mesh is original, but it carries `c_invsguy`'s node names and positions, which its
-  supermodel needs.
+ignored. What's made from scratch stays committed: the `.pwk` files, `n5t_forcedisk.tga`, the rows.
 
 ## In build.bat
 
@@ -94,11 +92,12 @@ build.bat stops on either (above).
 - The copy's recipes and `made.txt` come from `HEAD` (`git cat-file --filters`), never the worktree, so uncommitted
   Composer edits are never the baseline. The generators' code comes from the worktree.
 - It checks that:
-  - the six game-derived models aren't at `HEAD` and are git-ignored, as are a placeable's model and a baked texture,
-    while the original art isn't;
-  - the committed recipes build `HEAD`'s `data\files` byte for byte (the Floating Disk's 5 committed files and every
-    committed placeable project's), into `--out` only. What's built but not committed is git-ignored. While the recipe
-    and the generator are unchanged, the six come out byte for byte as they were last committed;
+  - the Floating Disk's seven game-derived models (the six and `c_n5fd_empty.mdl`) aren't at `HEAD` and are
+    git-ignored, as are a placeable's model and a baked texture, while the original art isn't;
+  - the committed recipes build `HEAD`'s `data\files` byte for byte (the Floating Disk's 4 committed files and every
+    committed placeable project's), into `--out` only. What's built but not committed is git-ignored. Each removed model
+    comes out byte for byte as it was last committed, while the recipe and the generator are unchanged since its
+    removal;
   - a second build leaves every file unchanged;
   - `--check` writes nothing;
   - rows that disagree, or a recipe edited without its rows, give exit 1 and say which;

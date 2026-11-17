@@ -12,7 +12,7 @@
     "height": 0.9,
     "sides": 40,
     "colour": [0.42, 0.62, 0.95],
-    "rim": [0.8, 0.92, 1.0],
+    "rim": [0.8, 0.92, 1],
     "alpha": 0.6,
     "selfillum": [0.25, 0.42, 0.75],
     "texture": "n5t_forcedisk"
@@ -20,30 +20,31 @@
   "stages": {
     "small": [
       { "note": "a loot bag", "model": "plc_b04", "at": [-0.07, 0.03, 0], "turn": 20, "scale": 0.85 },
-      { "note": "a smaller one beside it", "model": "plc_b06", "at": [0.15, -0.09, 0], "turn": -35, "scale": 0.8 }
+      { "note": "a smaller one beside it", "model": "plc_b06", "at": [0.15, -0.09, 0], "turn": -35, "scale": 0.8 },
+      { "note": "bastardsword 011", "model": ["wswbs_b_011", "wswbs_m_011", "wswbs_t_011"], "at": [0.08, 0.128, 0], "turn": 49.3, "scale": 0.324, "tilt": [0, 90] }
     ],
     "medium": [
       { "note": "a crate", "model": "plc_a03", "at": [-0.12, -0.13, 0], "turn": 12, "scale": 0.42 },
       { "note": "a big sack", "model": "plc_b05", "at": [0.19, -0.08, 0], "turn": -25, "scale": 0.48 },
       { "note": "a small bag beside the crate", "model": "plc_b06", "at": [-0.3, -0.15, 0], "turn": 40, "scale": 0.7 },
-      { "note": "a bedroll in front", "model": "plc_b08", "at": [-0.08, 0.2, 0], "turn": 90, "scale": 0.8 },
-      { "note": "a book on the bedroll", "model": "px2_f04", "at": [-0.1, 0.2, 0.07], "turn": 75, "scale": 0.26 },
-      { "note": "coins and gems", "model": "gi_tresur", "at": [0.2, 0.2, 0], "turn": 30, "scale": 0.42 },
-      { "note": "a bottle", "model": "dag_btlgreen", "at": [-0.33, 0.06, 0], "turn": 0, "scale": 0.75 }
+      { "note": "a book on the bedroll", "model": "px2_f04", "at": [-0.212, -0.061, 0.313], "turn": 101.3, "scale": 0.26 },
+      { "note": "a bottle", "model": "dag_btlgreen", "at": [-0.355, -0.035, 0], "turn": 0, "scale": 0.75 },
+      { "note": "gi_armor04", "model": "gi_armor04", "at": [-0.101, 0.206, 0], "turn": -70.5, "scale": 0.592 },
+      { "note": "Bottle, Blue", "model": "dag_btlblue", "at": [0.192, 0.229, 0], "turn": 217.4, "scale": 1, "tilt": [90, 0] }
     ],
     "large": [
       { "note": "a barrel on its side, at the back", "model": "tnp_barrel_002", "at": [0.02, -0.21, 0], "turn": 0, "scale": 0.45 },
       { "note": "a crate", "model": "plc_a03", "at": [-0.2, 0.13, 0], "turn": 20, "scale": 0.42 },
-      { "note": "a big sack", "model": "plc_b05", "at": [0.2, 0.12, 0], "turn": -20, "scale": 0.52 },
-      { "note": "coins and gems spilling in front", "model": "gi_tresur", "at": [0.0, 0.32, 0], "turn": 0, "scale": 0.45 },
+      { "note": "a big sack", "model": "plc_b05", "at": [0.234, 0.15, 0], "turn": -20, "scale": 0.52 },
+      { "note": "coins and gems spilling in front", "model": "gi_tresur", "at": [0, 0.32, 0], "turn": 0, "scale": 0.45 },
       { "note": "a bottle", "model": "dag_btlblue", "at": [0.37, -0.06, 0], "turn": 0, "scale": 0.75 },
       { "note": "a clay pot", "model": "dag_claysm", "at": [-0.35, -0.12, 0], "turn": 0, "scale": 0.5 },
       { "note": "a backpack on the barrel", "model": "plc_b09", "at": [0.15, -0.2, 0.31], "turn": 160, "scale": 0.65 },
       { "note": "armour thrown on the barrel", "model": "gi_armor02", "at": [-0.12, -0.2, 0.27], "turn": 90, "scale": 0.45 },
       { "note": "a book on the crate", "model": "px2_f04", "at": [-0.2, 0.13, 0.315], "turn": 10, "scale": 0.28 },
-      { "note": "a cooking pot on the book", "model": "plc_x0_pot", "at": [-0.2, 0.13, 0.348], "turn": -25, "scale": 0.35 },
-      { "note": "a little bag on the big sack", "model": "plc_b06", "at": [0.2, 0.11, 0.34], "turn": 30, "scale": 0.75 },
-      { "note": "a bag on top of it all", "model": "plc_b04", "at": [-0.04, -0.04, 0.33], "turn": -15, "scale": 0.62 }
+      { "note": "a cooking pot on the book", "model": "plc_x0_pot", "at": [-0.236, 0.147, 0.346], "turn": -25, "scale": 0.35 },
+      { "note": "greataxe 011", "model": ["waxgr_b_011", "waxgr_m_011", "waxgr_t_011"], "at": [-0.012, 0.109, 0], "turn": 20, "scale": 0.75, "tilt": [90, 170] },
+      { "note": "helmet 001", "model": "helm_001", "at": [-0.083, 0.078, 0.682], "turn": -20, "scale": 1, "tilt": [20, -15] }
     ]
   }
 }
