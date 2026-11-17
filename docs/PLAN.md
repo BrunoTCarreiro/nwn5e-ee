@@ -1734,6 +1734,11 @@ monster AC by CR.
     the player joined: CreateObject gave nothing. It now waits 3 s and for the disk to be in its caster's area (else
     the caster's spot), up to 5 tries; a fresh disk's AI level and commandable are logged against it. Also in 0.99.61:
     the dev layer at nwn5e-tools 45b898d (the Composer's Play in game plays a variant of meshes only).
+  - *Decided (owner, 2026-11-17: "go with 1, remove the six files from main"):* the six game-derived disk models
+    (c_n5fd_small/med/large, plc_n5fd_small/med/large) leave the repo, built on the owner's machine by build.bat from
+    the generators (the animation session's step; the build fails without them unless NWN5E_DERIVED=skip). The piles'
+    blueprints n5_fd_pile1-3.utp (settings only: no text, no art, a game portrait's name) - *decided (owner,
+    2026-11-17: "keep the UTPs")*: they stay.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
