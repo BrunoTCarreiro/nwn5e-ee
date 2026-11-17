@@ -1517,3 +1517,42 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
   - *Open, the owner's:* Q3. Keep them in `vfxedit\saved\` (a build without the dev layer draws dyed parts untextured),
     or commit them in `data\files` against that rule? The disk's committed models already carry the game's meshes.
   - *Limits:* matte metal (no shine); metal 2's palette is the documented one, to be confirmed in game.
+  - *Built (2026-11-17; anim 7b3adaf, 65d560d; nwn5e-tools 7f979ad, 73f5448, ad07fc8):*
+    - P1 (anim 7b3adaf): floatdisk.js has a part's `colours` (readColours, cleanColours, fullColours), the PLT reader,
+      the bake (bakePlt), its name (bakedName), the TGA writer (tgaBytes) and bakeBitmaps. It loads in a page.
+    - P2 (anim 65d560d):
+      - reader.js's pltOnly and bake;
+      - both build.js bake a dyed part's texture beside the models they write (files.js bakeParts), and the models name
+        it;
+      - build_derived.js carries the bakes into every build;
+      - the Floating Disk's Large is rebuilt: its helmet names `n5p_2cd3d725dedb`.
+    - P3 (nwn5e-tools 7f979ad, 73f5448):
+      - the texture route serves a PLT as itself (X-Texture: plt), and the palettes;
+      - POST /api/composer/bake bakes Play in game's textures;
+      - Save passes --saved only for a spell mesh;
+      - the thumbnails are kept in `thumbs\v2\`;
+      - the Composer's checks build a fixed test recipe in their copy.
+    - P4 (nwn5e-tools ad07fc8), the page:
+      - it renames a dyed part's texture as the generators do and bakes it itself, for the stage, the ghosts and the
+        thumbnails (the page's bake of helm_001 equals reader.js's);
+      - the part card's Colours: six palette numbers with swatches, live as you type, one undo step a change, the
+        defaults never saved;
+      - Play in game posts its bakes before the request, and its draft names them as the built model does;
+      - Save's status names the bakes;
+      - in the effect mode, a mesh that names a PLT itself is drawn baked at the defaults;
+      - checks: check_composer.js +3, composer_check.mjs +8, among them that floatdisk.js runs before project.js in the
+        page.
+    - *Where the bakes live:* the owner's option 1 (2026-11-17), which answers Q3 above. A bake is never committed.
+      - A Save bakes it beside the models in the checkout's `data\files` (git-ignored: `/data/files/n5p_*`).
+      - build.bat's build_derived.js bakes it again for every build, so an install has it.
+      - A spell mesh's bake goes in the bench's `vfxedit\saved\`; Play in game's goes in `<build>\vfxedit\`.
+      - The "Where the baked textures live" paragraph above (`vfxedit\saved\` only) is superseded.
+    - *The defaults:* Metal 1 0, Metal 2 3, Leather 1 3, Leather 2 2, Cloth 1 22, Cloth 2 23 (helm_001:
+      `n5p_2cd3d725dedb`). Only colours off the defaults are written (`"colours": { "metal1": 8 }`).
+    - *Limits:*
+      - metal is matte: a palette's alpha is shine, and the bake draws none;
+      - metal 2's palette is pal_armor02, as documented, still to be confirmed in game;
+      - Play in game's bakes and a spell mesh's reach the game through the dev layer only. The Floating Disk's and a
+        placeable's reach it through the build.
+    - Test rows: CO-8 (the bench: the helmet textured, its Colours, the thumbnails), CO-9 (Metal 1 gold, Undo, Save),
+      CO-10 (Play in game), CO-11 (installed).
