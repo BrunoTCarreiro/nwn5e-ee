@@ -3,8 +3,8 @@
 `composition.json` says what each stage's pile is made of. `build.js` turns it into the game's files:
 
 - `data\files`: the four creature models (`c_n5fd_empty`, `_small`, `_med`, `_large`), the three piles that fall
-  when the disk ends (`plc_n5fd_small`, `_med`, `_large`, with their `.pwk`), and the disk's texture
-  (`n5t_forcedisk.tga`);
+  when the disk ends (`plc_n5fd_small`, `_med`, `_large`, with their `.pwk`), the disk's texture
+  (`n5t_forcedisk.tga`), and a dyed part's baked texture (`n5p_*.tga`, Dyed parts below);
 - `data\rows`: `appearance.floatdisk.txt` (rows 14000-14003) and `placeables.floatdisk.txt` (rows 14001-14003).
 
 The seven models are made from the game's files, and none is committed (the owner, 2026-11-17: "go with 1, remove the
@@ -15,8 +15,9 @@ six files from main", then "go with your recs for the three questions"; `.gitign
 - `c_n5fd_empty`'s disk mesh is original, but it carries `c_invsguy`'s node names and positions, which its
   supermodel needs.
 
-`build.bat` makes all seven for every build from this file and your own game (`tools\data\build_derived.js`,
-`tools\data\README.md`). The `.pwk` files, the texture and the rows are made from scratch and stay committed.
+Nor is a baked texture: it's painted from the game's own PLT and palettes. `build.bat` makes all of them for every
+build from this file and your own game (`tools\data\build_derived.js`, `tools\data\README.md`). The `.pwk` files,
+the disk's texture and the rows are made from scratch and stay committed.
 
 ## Compose it in the VFX Bench
 
@@ -48,7 +49,7 @@ The VFX Bench's Composer edits `composition.json` on a stage and rebuilds from i
 that once. After it, a Save with nothing changed leaves the file as it is.
 
 The Composer's generator changes left the disk's files as they were: a full rebuild of the committed composition still
-reports all 13 files unchanged (`check_build.js`).
+reports all 13 files unchanged, and its baked textures (`check_build.js`).
 
 ## Rebuild
 
@@ -71,8 +72,9 @@ node tools\data\floatdisk\build.js
 
 `node tools\data\floatdisk\check_build.js` rebuilds on a temporary copy and checks the whole generator: a rebuild
 changes nothing, `--json` agrees with the text, a weapon's pieces read as one, a refused build writes nothing, a file in
-the way it didn't make is refused (named from the repo's root), a file it made that changed is rebuilt, and a setup
-failure is still one JSON error line. It needs the game (it prints `skip` without it).
+the way it didn't make is refused (named from the repo's root), a file it made that changed is rebuilt, a setup
+failure is still one JSON error line, and a dyed part is baked beside the models, which name it. It never writes the
+real `data\files` or the bench build's `vfxedit\saved\`. It needs the game (it prints `skip` without it).
 
 ## Swap in your own pile
 
@@ -92,16 +94,7 @@ To make a whole stage your own pile, give that stage a single part:
 "medium": [ { "file": "parts/medium_pile.mdl", "at": [0, 0, 0] } ]
 ```
 
-Then rebuild.
-
-**Colours**
-
-A dyed part's (a helmet's: its texture is a PLT) `colours`: palette numbers 0-175 for `metal1`, `metal2`, `leather1`,
-`leather2`, `cloth1` and `cloth2`. Left out, the defaults (steel, a darker steel trim, browns, dark grey).
-
-```json
-{ "model": "helm_001", "at": [0, 0, 0], "colours": { "metal1": 5, "cloth2": 40 } }
-```
+Then rebuild. A helmet (a dyed part) takes its colours in the same line: Dyed parts, below.
 
 **The file**
 
@@ -135,6 +128,36 @@ A dyed part's (a helmet's: its texture is a PLT) `colours`: palette numbers 0-17
 - A pile that reaches past 0.45 m from the centre hangs over the rim. The summary says by how much.
 - The figure beside it is 2 m tall.
 
+## Dyed parts
+
+A dyed part is one whose texture the game has only as a PLT: 33 of its helmets, and `gi_cloak01`. A PLT is NWN's
+dyeable texture, painted from an item's colours, and placeables have none - so the game would draw it untextured.
+
+- **Its colours:** `colours` holds palette numbers 0-175 for `metal1`, `metal2`, `leather1`, `leather2`, `cloth1` and
+  `cloth2`. Left out, the defaults (steel, a darker steel trim, browns, dark grey). Only the ones that differ are
+  written.
+
+  ```json
+  { "model": "helm_001", "at": [0, 0, 0], "colours": { "metal1": 5, "cloth2": 40 } }
+  ```
+
+- **The bake:** `build.js` paints the PLT from your game's palettes in the part's colours into a texture of its own,
+  `n5p_` and 12 hex digits of the PLT's name and its colours (`helm_001` at the defaults is `n5p_2cd3d725dedb`). The
+  models name it instead of the PLT. Other colours make another name, and parts with the same PLT and colours share
+  one file.
+- **Where it goes:** into `data\files` beside the models, with nothing more to give (`node tools\data\floatdisk\build.js`
+  as ever). It's art made from the game's files, so `.gitignore` keeps it out of the repo (`/data/files/n5p_*`), and
+  `made.txt` doesn't list it. Like the models, `build.bat` makes it for every build (`tools\data\build_derived.js`).
+- **The summary** names each bake, `--json` lists them under `baked`:
+
+  ```
+    texture n5p_2cd3d725dedb: helm_001 dyed with metal 1 0, metal 2 3, leather 1 3, leather 2 2, cloth 1 22, cloth 2 23 - baked into data/files
+  ```
+
+- **Whose it is:** its name says. Only the bake makes such names, and the name fixes the picture, so a file of that
+  name in the way is rewritten. Bakes of colours no longer used stay in `data\files` (ignored, never installed: the
+  build makes its own).
+
 ## The files here
 
 | file | what it is |
@@ -143,8 +166,8 @@ A dyed part's (a helmet's: its texture is a PLT) `colours`: palette numbers 0-17
 | `build.js` | the generator |
 | `floatdisk.js` | its pure parts: placing, the disk, the models' and rows' text (it loads in a page too: the VFX Bench's Composer places with it) |
 | `check.js` | checks `floatdisk.js` |
-| `reader.js` | reads the parts' meshes and the textures from the game or beside a file (what `build.js` and the VFX Bench share) |
-| `files.js` | the file plumbing this `build.js` and the Composer's share: the options, loading nwn5e-tools, shipping your own textures, the one ownership rule they write by |
+| `reader.js` | reads the parts' meshes and the textures from the game or beside a file, and bakes a dyed part's PLT (what `build.js` and the VFX Bench share) |
+| `files.js` | the file plumbing this `build.js` and the Composer's share: the options, loading nwn5e-tools, a dyed part's bakes, shipping your own textures, the one ownership rule they write by |
 | `check_build.js` | checks `build.js` end to end on a temporary copy (needs the game) |
 | `mdlmesh.cpp`, `build_mdlmesh.bat` | the mesh reader, built from the repo's `src\data\vfx_model.cpp` into `build\floatdisk\` |
 | `made.txt` | the textures the generator wrote (they can't carry its mark) |

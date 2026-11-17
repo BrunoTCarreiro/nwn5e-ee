@@ -61,6 +61,13 @@ function readColours(c, where) {
   if (!ok) throw new Error(`${where}: { "metal1": 0-${PLT_MAX}, ... } - metal1, metal2, leather1, leather2, cloth1 or cloth2, each a palette number 0-${PLT_MAX}`);
   return Object.assign({}, PLT_DEFAULTS, c);
 }
+// The ten layers' colours the bake and its name use: `c`'s, each layer it leaves out (undefined or null, or no `c`) its
+// default - one rule for bakePlt and bakedName, so a name always matches its pixels.
+function fullColours(c) {
+  const out = {};
+  for (const l of PLT_LAYERS) out[l] = c && c[l] !== undefined && c[l] !== null ? c[l] : PLT_DEFAULTS[l];
+  return out;
+}
 // The PLT_FIELDS whose colour differs from the defaults (the card's order), or undefined when none does.
 function cleanColours(c) {
   if (!c) return undefined;
@@ -82,10 +89,12 @@ function readPlt(bytes) {
   return { width: w, height: h, shade, layer };
 }
 
-// A PLT painted from the game's palettes ({ name: { width, height, data } }, decoded top-down) in `colours` (all ten
-// layers, as readColours gives) -> { width, height, data: Uint8ClampedArray RGBA, rows top-down }. A layer id past 9 is skin.
-function bakePlt(plt, palettes, colours) {
+// A PLT painted from the game's palettes ({ name: { width, height, data } }, decoded top-down) in `colours` (a layer
+// left out or undefined is its default: fullColours) -> { width, height, data: Uint8ClampedArray RGBA, rows top-down }.
+// A layer id past 9 is skin.
+function bakePlt(plt, palettes, given) {
   const { width, height, shade, layer } = plt;
+  const colours = fullColours(given);
   const data = new Uint8ClampedArray(width * height * 4);
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -107,9 +116,9 @@ function cyrb53(str, seed = 0) {
   h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507); h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
   return 4294967296 * (2097151 & h2) + (h1 >>> 0);
 }
-// A PLT baked in these colours is a texture of its own: n5p_ and 12 hex digits of its name and ten colours.
+// A PLT baked in these colours is a texture of its own: n5p_ and 12 hex digits of its name and ten colours (fullColours).
 function bakedName(plt, colours) {
-  const full = Object.assign({}, PLT_DEFAULTS, colours);
+  const full = fullColours(colours);
   return "n5p_" + cyrb53(`${plt.toLowerCase()}:${PLT_LAYERS.map((l) => full[l]).join(",")}`).toString(16).padStart(14, "0").slice(-12);
 }
 
@@ -204,10 +213,18 @@ function mergeModels(list) {
   return { meshes: [].concat(...list.map((m) => m.meshes)), lo, hi };
 }
 
+// A value as JSON on one line: [a, b], { "k": v } ({} when empty, an undefined key left out), else JSON.stringify's. The
+// one writer for composition.json and the Composer's projects (project.js's projectText calls it).
+function inline(v) {
+  if (Array.isArray(v)) return "[" + v.map(inline).join(", ") + "]";
+  if (v && typeof v === "object") {
+    const keys = Object.keys(v).filter((k) => v[k] !== undefined);
+    return keys.length ? "{ " + keys.map((k) => JSON.stringify(k) + ": " + inline(v[k])).join(", ") + " }" : "{}";
+  }
+  return JSON.stringify(v);
+}
 // composition.json's text in its own layout (the Composer saves it): two-space indents, _about a string a line, the disk
 // a key a line, each stage a part a line (note, model | file, at, turn, scale, tilt, then any other key); arrays inline.
-const inline = (v) => (Array.isArray(v) ? "[" + v.map(inline).join(", ") + "]"
-  : v && typeof v === "object" ? "{ " + Object.keys(v).map((k) => JSON.stringify(k) + ": " + inline(v[k])).join(", ") + " }" : JSON.stringify(v));
 function compositionText(c) {
   const PART_KEYS = ["note", "model", "file", "at", "turn", "scale", "tilt", "colours"];
   const part = (p) => {
@@ -660,10 +677,10 @@ const api = {
   MARK, TEXTURE_MARK, STAGES, PILES, SUFFIX, RESREF, SUPERMODEL, SOURCE_ROWS, APPEARANCE_OVERRIDES, ROWS, LABELS,
   creatureModel, pileModel,
   PLT_LAYERS, PLT_PALETTES, PLT_FIELDS, PLT_LABELS, PLT_DEFAULTS, PLT_MAX, BAKED,
-  readColours, cleanColours, readPlt, bakePlt, bakedName, tgaBytes, bakeBitmaps,
+  readColours, fullColours, cleanColours, readPlt, bakePlt, bakedName, tgaBytes, bakeBitmaps,
   resolvePartFile, readPart, readComposition, partKey, partLabel, quat, axisAngle, qrot, round, num, modelSpaceMeshes, placePart,
   lowered, uniqueNames, diskMesh, diskTexture, modelNodes, creatureModelText, pileNodes, pileModelText,
-  pileWalkmeshText, rowsText, readableAscii, texturesBeside, carriesMark, sameText, crlf, mergeModels, compositionText,
+  pileWalkmeshText, rowsText, readableAscii, texturesBeside, carriesMark, sameText, crlf, mergeModels, inline, compositionText,
 };
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.FloatDisk = api;

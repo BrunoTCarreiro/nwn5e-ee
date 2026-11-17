@@ -1,11 +1,12 @@
 // The Floating Disk's part and texture reading (#39), moved out of build.js so the VFX Bench's Composer reads the same
-// way: a part's meshes in its model's space (a game model, a weapon's pieces, or a model file of yours), and a texture
-// found in the game or beside a part's file. Node only: it runs the mesh reader (mdlmesh.exe, README.md).
+// way: a part's meshes in its model's space (a game model, a weapon's pieces, or a model file of yours), a texture found
+// in the game or beside a part's file, and a dyed texture (one the game has only as a PLT) baked from the game's palettes.
+// Node only: it runs the mesh reader (mdlmesh.exe, README.md).
 //
 //   const R = require("./reader.js");
 //   const exe = R.ensureReader({ repo, reader });
 //   const rd = R.create({ game, core, gameData, reader: exe });   // core: the bench's core.js; gameData: spell_bench\game_data.js
-//   rd.part(part)  rd.findTexture(name, besideDirs)  rd.image(name, besideDirs)  rd.close()
+//   rd.part(part)  rd.findTexture(name, besideDirs)  rd.image(name, besideDirs)  rd.pltOnly(name)  rd.bake(plt, colours)  rd.close()
 "use strict";
 const fs = require("fs");
 const os = require("os");
@@ -83,24 +84,57 @@ function create({ game, core, gameData, reader }) {
   }
 
   // A texture's pictures, for the bench: the game's (ovr\ first, then its archives: TGA 3, DDS 2033, PLT 6, TXI 2022), else
-  // beside a part's file. -> { where, tga, dds, plt, txi } | null
+  // beside a part's file. -> { where, tga, dds, plt (the PLT's bytes, or null), txi } | null
   function image(name, besideDirs) {
     const ovr = (ext) => {
       const file = path.join(game, "ovr", name + ext);
       return fs.existsSync(file) ? fs.readFileSync(file) : null;
     };
     const tga = ovr(".tga") || res(name, 3) || null, dds = ovr(".dds") || res(name, 2033) || null;
-    const plt = !!(ovr(".plt") || res(name, 6)), txi = ovr(".txi") || res(name, 2022) || null;
+    const plt = ovr(".plt") || res(name, 6) || null, txi = ovr(".txi") || res(name, 2022) || null;
     if (tga || dds || plt) return { where: "game", tga, dds, plt, txi: txi ? txi.toString("latin1") : "" };
     for (const dir of besideDirs || []) {
       const found = F.texturesBeside(name, fs.existsSync(dir) ? fs.readdirSync(dir) : []);
       if (!found.image) continue;
       const bytes = fs.readFileSync(path.join(dir, found.image));
       const isDds = found.image.toLowerCase().endsWith(".dds");
-      return { where: "beside", tga: isDds ? null : bytes, dds: isDds ? bytes : null, plt: false,
+      return { where: "beside", tga: isDds ? null : bytes, dds: isDds ? bytes : null, plt: null,
         txi: found.txi ? fs.readFileSync(path.join(dir, found.txi)).toString("latin1") : "" };
     }
     return null;
+  }
+
+  // --- dyed textures ------------------------------------------------------------------------------------------------
+  // True when the game has `name` only as a PLT (a dyed texture: no TGA, no DDS), as image(name, []) finds it. Kept per name.
+  const onlyPlt = new Map();
+  function pltOnly(name) {
+    const key = String(name).toLowerCase();
+    if (!onlyPlt.has(key)) {
+      const img = image(key, []);
+      onlyPlt.set(key, !!(img && img.plt && !img.tga && !img.dds));
+    }
+    return onlyPlt.get(key);
+  }
+  // The game's palettes the bake paints from (floatdisk.js's PLT_PALETTES), read once: name -> its picture, top-down
+  // RGBA - the DDS when there is one (core.decodeDds), else the TGA (core.decodeTga).
+  let palettes = null;
+  function gamePalettes() {
+    if (palettes) return palettes;
+    const out = {};
+    for (const pal of new Set(Object.values(F.PLT_PALETTES))) {
+      const img = image(pal, []);
+      if (!img || (!img.dds && !img.tga)) throw new Error(`${pal}: no such palette in the game`);
+      out[pal] = img.dds ? core.decodeDds(img.dds) : core.decodeTga(img.tga);
+    }
+    return (palettes = out);
+  }
+  // A PLT-only texture baked in `colours` (a layer left out is its default) -> { name (F.bakedName), image (top-down
+  // RGBA), bytes (its 24-bit TGA) }.
+  function bake(plt, colours) {
+    const name = String(plt).toLowerCase();
+    if (!pltOnly(name)) throw new Error(`${plt}: not a texture the game has only as a PLT`);
+    const picture = F.bakePlt(F.readPlt(image(name, []).plt), gamePalettes(), colours);
+    return { name: F.bakedName(name, colours), image: picture, bytes: F.tgaBytes(picture) };
   }
 
   function close() {
@@ -108,7 +142,7 @@ function create({ game, core, gameData, reader }) {
     tmp = null;
   }
 
-  return { res, part, findTexture, image, close };
+  return { res, part, findTexture, image, pltOnly, bake, close };
 }
 
 module.exports = { ensureReader, create };

@@ -1,9 +1,11 @@
 // The generators' file plumbing (#39), shared by the Floating Disk's build.js and the Composer's
-// (tools\data\composer\build.js): their options, loading nwn5e-tools, a repo file's path, the textures a part's own file
-// brings, and writing only files that are the generator's own - one ownership rule for both. Node only.
+// (tools\data\composer\build.js): their options, loading nwn5e-tools, a repo file's path, a dyed part's baked textures,
+// the textures a part's own file brings, and writing only files that are the generator's own - one ownership rule for
+// both. Node only.
 //
 //   const W = require("./files.js");
-//   W.option(argv, "game", "")   W.loadTools({ tools, game, build })   W.shipTextures(placed, rd)
+//   W.option(argv, "game", "")   W.loadTools({ tools, game, build })   W.bakeParts(placed, rd, baked)   W.shipTextures(placed, rd, baked)
+//   W.bakedWrites(baked, dir)   W.bakedLines(baked, where)   W.bakedJson(baked)
 //   W.writeAll(writes, W.ownership({ repo, manifest, mark, kinds }), { repo, manifest })   W.writeManifest(file, manifest, header)
 "use strict";
 const fs = require("fs");
@@ -40,16 +42,41 @@ function repoPath(repo, file) {
 // A file as the generators name it in what they print: from the repo's root, else in full.
 const shown = (repo, file) => repoPath(repo, file) || file;
 
+// --- dyed parts -------------------------------------------------------------------------------------------------------
+// A dyed part's textures - the game has them only as a PLT - renamed for its colours and baked from the game's palettes
+// (floatdisk.js's bakeBitmaps, reader.js's bake): each placed part's meshes replaced by their renamed copies (x.meshes),
+// and each bake `baked` lacks added. `placed`: [{ part, meshes }] (placePart's, with its part). -> `baked`: Map(name ->
+// { plt, colours (only what isn't a default), bytes (its TGA), label (the part's) }), in the parts' order.
+function bakeParts(placed, rd, baked = new Map()) {
+  for (const x of placed) {
+    const b = F.bakeBitmaps(x.meshes, x.part.colours, rd.pltOnly);
+    x.meshes = b.meshes;
+    for (const k of b.bakes) {
+      if (!baked.has(k.name)) baked.set(k.name, { plt: k.plt, colours: k.colours, bytes: rd.bake(k.plt, x.part.colours).bytes, label: F.partLabel(x.part) });
+    }
+  }
+  return baked;
+}
+// The bakes as writes into `dir` (the models' folder, or a spell mesh's drafts'): <dir>\<name>.tga, kind "baked" - not
+// noted in made.txt: whose it is, its name says (ownership).
+const bakedWrites = (baked, dir) => [...baked].map(([name, b]) => ({ file: path.join(dir, name + ".tga"), bytes: b.bytes, kind: "baked" }));
+// The summary's line a bake: its PLT and the part's six colours, in the card's order, and where it goes.
+const bakedLines = (baked, where) => [...baked].map(([name, b]) => `  texture ${name}: ${b.plt} dyed with ` +
+  F.PLT_FIELDS.map((k) => `${F.PLT_LABELS[k].toLowerCase()} ${b.colours[k] !== undefined ? b.colours[k] : F.PLT_DEFAULTS[k]}`).join(", ") + ` - baked into ${where}`);
+// --json's: [{ texture, plt, colours (only what isn't a default) }].
+const bakedJson = (baked) => [...baked].map(([texture, b]) => ({ texture, plt: b.plt, colours: b.colours }));
+
 // --- textures ---------------------------------------------------------------------------------------------------------
 // The textures that the placed parts' own files bring and the game doesn't have: each mesh's, looked up in the game,
-// then beside its file (reader.js's findTexture). `placed`: [{ part, meshes }] (placePart's, with the part). -> Map(name
-// -> its copies beside a file: the image, and its .txi), in the parts' order. A texture found nowhere stops the build.
-function shipTextures(placed, rd) {
+// then beside its file (reader.js's findTexture); a baked one (`baked`, bakeParts' - renamed, so the game hasn't it) is
+// passed over. `placed`: [{ part, meshes }] (placePart's, with the part). -> Map(name -> its copies beside a file: the
+// image, and its .txi), in the parts' order. A texture found nowhere stops the build.
+function shipTextures(placed, rd, baked = new Map()) {
   const ship = new Map();
   for (const x of placed) {
     if (x.part.source.kind !== "file") continue;
     for (const m of x.meshes) {
-      if (!m.bitmap || ship.has(m.bitmap)) continue;
+      if (!m.bitmap || ship.has(m.bitmap) || baked.has(m.bitmap)) continue;
       const found = rd.findTexture(m.bitmap, [path.dirname(x.part.source.file)]);
       if (!found) throw new Error(`${F.partLabel(x.part)}: texture ${m.bitmap} is neither in the game nor beside the file (${m.bitmap}.tga / .dds)`);
       if (found.where === "beside") ship.set(m.bitmap, found.copies);
@@ -71,11 +98,13 @@ function writeManifest(file, manifest, header) {
   if ((had || manifest.size) && (!had || fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n") !== body)) fs.writeFileSync(file, body);
 }
 // The rule for a file already where a write { file, bytes, kind } goes: "text" (a model, .pwk, rows file or draft) is
-// ours when it carries `mark`; a kind in `kinds` by its own test (w, old); any other (a texture in the repo) when made.txt
-// (`manifest`) lists it. -> (w, old) => true when it's ours.
+// ours when it carries `mark`; "baked" (a dyed part's texture) when its name without .tga is a bake's (F.BAKED: only the
+// bake makes such names, and the name fixes the bytes); a kind in `kinds` by its own test (w, old); any other (a texture
+// in the repo) when made.txt (`manifest`) lists it. -> (w, old) => true when it's ours.
 function ownership({ repo, manifest, mark, kinds = {} }) {
   return (w, old) => {
     if (w.kind === "text") return F.carriesMark(old, mark);
+    if (w.kind === "baked") return F.BAKED.test(path.basename(w.file).replace(/\.tga$/i, ""));
     if (kinds[w.kind]) return kinds[w.kind](w, old);
     return repoPath(repo, w.file) !== null && manifest.has(repoPath(repo, w.file));
   };
@@ -109,4 +138,5 @@ function writeAll(writes, owned, { repo, manifest, dry = false }) {
   return results;
 }
 
-module.exports = { option, loadTools, repoPath, shown, shipTextures, readManifest, writeManifest, ownership, writeAll };
+module.exports = { option, loadTools, repoPath, shown, bakeParts, bakedWrites, bakedLines, bakedJson, shipTextures, readManifest, writeManifest,
+  ownership, writeAll };

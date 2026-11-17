@@ -43,9 +43,11 @@ made of the game's parts), which `.gitignore` keeps out and `build.bat` makes fo
   - A variant with no parts can be in the file (New project writes one), but `build.js` refuses the whole build
     while one has none (`variants[k].parts: at least one part`): add a part before the first Save and build.
 - **The parts** are composition.json's: `note`, `model` (a game model, or a list of them for a weapon's pieces) or
-  `file`, `at`, `turn`, `scale`, `tilt`.
+  `file`, `at`, `turn`, `scale`, `tilt`, and a dyed part's `colours`.
   - A `file` is your own `.mdl`, relative to this folder, so `parts/my_crate.mdl` is `tools\data\composer\parts\my_crate.mdl`.
   - The rules for your own files (units, axes, textures) are the Floating Disk's (`tools\data\floatdisk\README.md`).
+  - A dyed part (a helmet: the game has its texture only as a PLT) is baked into a texture of its own, `n5p_` and 12
+    hex digits, in its `colours` (the Floating Disk's README, "Dyed parts"). The model or draft names the bake.
 
 ## What each kind builds
 
@@ -64,10 +66,14 @@ made of the game's parts), which `.gitignore` keeps out and `build.bat` makes fo
   - The row copied is `placeable.copy` when set. Otherwise it's the first placeable part's own row (the lowest
     `placeables.2da` row with its model), else 189 (TreasureSml). A pile of crates sounds like a crate.
 - Textures of your own files' parts that the game doesn't have are copied into `data\files`, and `made.txt` notes them.
+- A dyed part's baked texture goes into `data\files` too, beside the model. It's made from the game's PLT, so
+  `.gitignore` keeps it out (`/data/files/n5p_*`) and `made.txt` doesn't list it; `build.bat` makes it with the
+  models for every build.
 
 **A spell mesh:** each variant becomes a draft of its meshes, `<saved>\<model>.vfx`, in the VFX Bench's
 `vfxedit\saved\`. The game writes its model there when it runs. An emitter's chunk can name it, and an effect can
-carry it as a mesh beat. Textures of your own files' parts are copied in beside the draft.
+carry it as a mesh beat. Textures of your own files' parts are copied in beside the draft, and so are a dyed part's
+baked textures: `--saved` takes them all.
 
 ## Rows: 14100-14199
 
@@ -128,13 +134,15 @@ node tools\data\composer\build.js tools\data\composer\crates.json
 node tools\data\composer\build.js tools\data\composer\web.json --saved <nwn5e build>\vfxedit\saved
 ```
 
+- `--saved` is where a spell mesh's drafts go, with their textures and a dyed part's bakes; a spell mesh needs it. A
+  placeable doesn't: its bakes go beside its models in `data\files` (or `--files`).
 - `--check` prints what it would build and writes nothing. A variant without a row yet is fine there.
 - `--json` prints the summary as one line of JSON instead of text (an error as `{ "error": ... }`). Its variants carry
   what the bench's stage shows: parts, meshes, triangles, how tall, the top, and each part's size and reach past the
-  guide.
+  guide. Its `baked` lists a dyed part's textures (`texture`, `plt`, `colours`), as the text's `texture n5p_...` lines.
 - `--game`, `--tools`, `--reader`, `--files` and `--rows` work as the Floating Disk's `build.js` options.
 - It never overwrites a file it didn't make: a model, `.pwk`, rows file or draft must carry its mark line. A texture
-  must be listed in `made.txt` or, beside a draft, named by this project's draft.
+  must be listed in `made.txt` or, beside a draft, named by this project's draft; a baked one is ours by its name.
 - Every file is checked before any is written: a refused build writes nothing.
 - When a model's name changes (a second variant added: `plc_n5crates` becomes `plc_n5crates_1`), the old files are
   listed as no longer used. They aren't deleted.
@@ -142,5 +150,5 @@ node tools\data\composer\build.js tools\data\composer\web.json --saved <nwn5e bu
 
 `node tools\data\composer\check.js` checks the pure parts (`project.js`). It doesn't need the game.
 
-`node tools\data\composer\check_build.js` builds on a temporary copy and checks the whole generator. It needs the
-game, and prints `skip` without it.
+`node tools\data\composer\check_build.js` builds on a temporary copy and checks the whole generator, a dyed part's
+bakes too. It needs the game, and prints `skip` without it.
