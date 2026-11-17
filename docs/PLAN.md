@@ -1757,6 +1757,26 @@ monster AC by CR.
     the generators (the animation session's step; the build fails without them unless NWN5E_DERIVED=skip). The piles'
     blueprints n5_fd_pile1-3.utp (settings only: no text, no art, a game portrait's name) - *decided (owner,
     2026-11-17: "keep the UTPs")*: they stay.
+  - *A recast despawned the disk (owner, 2026-11-17: "when I recast to extend the life of a disk the current disk
+    just despawns apparently"):* the log - "renews its disk", then 0.4 s later "its hour is up": the renewal removed
+    the hour's mark and applied a new one in the same script, the Ritual's clock jump right after; the new mark went
+    too. *Fixed (d2e74ad, 0.99.67):* a renewal only adds its new mark (any mark keeps it); the log lists the marks.
+  - *Spell durations (owner, 2026-11-17: "every minute in-game is 2 seconds, so that means that the disk lasts 2
+    minutes as it has a 1 hour duration. this seems way too short to even be worth the bother of having to recast, and
+    manage the inventory between the PC and the disk"):* hours were the module's clock (HoursToSeconds: 2 real minutes
+    an hour), minutes real time (rounds), so a 10-minute spell outlasted a 1-hour one. Asked: A - durations in real
+    time, rests ending what they outlast; B - without the rests; C - Floating Disk alone (until dismissed or a Long
+    Rest); then, on "what would be the implications of changing the clock to a real-time clock?", the clock at 60
+    minutes an hour (day and night 24 real hours, the Long Rest's 16-hour wait 16 real hours, NWN mode needing the old
+    clock, engine work). *Decided (owner, 2026-11-17: "go with A. no real-time clock").* *Built 0.99.67:* with
+    spellcasting faithful a duration is real time on the round's scale (rules::SpellSeconds) - Light, Floating Disk,
+    False Life, Hunter's Mark, Mage Armor, Longstrider, the charms, Fog Cloud, Alarm, Disguise Self, Goodberry and
+    every DurationScript; a rest is the time it says (rules::kShortRestSeconds / kLongRestSeconds): every spell's
+    effect in the area with that long or less left ends, nwn5e's spell areas it outlasts go (rules::RestEndsSpellArea:
+    Entangle, Grease, Fog Cloud at any rest, Alarm at a Long Rest), Concentration ends ("the rest outlasts it" - new
+    text, generated); a Long Rest counts only when a rest began within 5 minutes; Goodberry on a spell clock of its own
+    (n5_spell_clock: real time played, the rests' hours). The clock's pace is untouched. 7 mutations caught; 585 tests
+    pass. Tests FD-14 (FD-10's retest), FD-15, DU-1 to DU-4.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
