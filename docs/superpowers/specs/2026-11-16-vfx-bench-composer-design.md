@@ -1247,3 +1247,36 @@ The dome is usable in the bench after S4. S5 adds the rest, in that order:
 - **Q6. Shapes with a texture of your own** (a glyph for Zone of Truth's ground, as docs/spells-needing-vfx.md asks)?
   - That would be a `texture` naming a TGA in tools\data\composer\parts\: one more small task.
   - I recommend after the dome's in-game test.
+
+## Addendum 2026-11-17 (b): the owner's answers, and how a texture lies on a shape
+
+### The owner's words
+- On Q4-Q6: "1. hide them, we want the bench to reflect the game as much as possible 2. no, only exploring visuals for
+  now 3. wait".
+- Then: "is it possible to project texture on the surface of the 3d mesh?" → three ways offered (wrapped with repeats,
+  from above, scrolling) and the recommendation (the first two in the dome now, a texture picker from the bench's library,
+  scrolling after the in-game test) → **"go with your recommendation"**.
+
+### Decided
+- **Q4: front faces only, everywhere** the bench draws a mesh (the stage, the area mode, the Composer, thumbnails) - as
+  the game draws them. S4 is already written that way.
+- **Q5: no Zone of Truth rules** - only its look is explored for now. The recipe above stays a recipe; no visualeffects
+  row, no area, no scripts.
+- **Q6: no texture art of the owner's yet** - after the dome's in-game test.
+- **How a texture lies on a shape (new, every shape type):**
+  - **Mapping: Wrapped** (the default, as planned) - round the shape and up it, like a label round a jar. Two new whole
+    numbers, **Repeat around** (1-32) and **Repeat up** (1-16), tile it so a pattern keeps a sensible size instead of
+    one picture stretched round the whole dome (29 m round at Zone of Truth's 4.57 m). It bunches towards the top.
+  - **Mapping: From above** - laid on as if projected straight down: the picture's square spans the shape's width, its
+    middle at the shape's middle. A round picture (a glyph) shows as a sigil seen from overhead; it stretches on the
+    steep sides near the ground, so it suits a low dome, a disc or a ring. The repeats don't apply.
+  - **Texture: soft, none, or a texture from the bench's library** (the game's own, named - nothing copied into the
+    repo). A library texture is tinted by Colour and glows by Glow; the soft one is made for Wrapped.
+- **Later, not in S1-S5:** a scrolling texture (the game's water and lava move theirs) - our writers don't write it, and a
+  spell mesh would need a small game-side change; after the dome's in-game test.
+
+### Limits (added)
+- Whether the game tiles a texture whose UVs pass 1 the way the bench does is confirmed by the in-game test (the game's
+  tilesets rely on it, so it is expected).
+- A library texture's own alpha isn't known to the generator: the shape is drawn as see-through whenever it has a
+  texture or an Opacity below 1.
