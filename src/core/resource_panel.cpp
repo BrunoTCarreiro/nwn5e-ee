@@ -76,6 +76,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "records.h"
+#include "player_text.h"
 
 bool ActionQueueStripOff(void* creature);  // action_queue.cpp (!queue)
 bool RoundBarEnabled(void* creature);      // round_bar_window.cpp (#127: the panel goes under it)
@@ -637,9 +638,8 @@ std::vector<std::string> HudCommand(void* creature, const std::string& /*args*/)
   g_players[id].signature = "-";  // redrawn (or closed) at the next check
   g_players[id].next = 0;
   Log("hud: 0x%08X the resource panel turned %s", id, off ? "off" : "on");
-  return {off ? "nwn5e: the resource panel is off (!hud turns it back on)."
-              : "nwn5e: the resource panel is on - your class's points above the quickbar; hover it for what they pay "
-                "for (!hud turns it off)."};
+  return {off ? PlayerText("resource_panel.the_resource_panel_is_off")
+              : PlayerText("resource_panel.the_resource_panel_is_on")};
 }
 
 }  // namespace

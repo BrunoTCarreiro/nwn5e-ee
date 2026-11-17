@@ -31,8 +31,10 @@ for line in (ROOT / "data/text/strings_sources.txt").read_text(encoding="utf-8")
 literals = []
 for line in (ROOT / "tests/data/fixtures/text_literals.txt").read_text(encoding="utf-8").splitlines():
     if line and not line.startswith("#"):
-        name, tells, helpers, sends = line.split()
-        literals.append((name, int(tells) + int(helpers), int(sends)))
+        fields = line.split()  # <file> <TellPlayer> <Tell helper> <SendMessageToPC> [<"nwn5e: " literals>]
+        name, tells, helpers, sends = fields[:4]
+        chat_lines = int(fields[4]) if len(fields) > 4 else 0
+        literals.append((name, int(tells) + int(helpers) + chat_lines, int(sends)))
 
 
 def kind(source):

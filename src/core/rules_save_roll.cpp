@@ -56,6 +56,7 @@
 #include "rules/nwn_conversion.h"
 #include "rules/saves.h"
 #include "saves.h"
+#include "player_text.h"
 
 int IndomitableReroll(void* creature);  // rules_fighter.cpp (Fighter F5)
 int ClassSaveAdvantage(void* creature, rules::Ability ability);  // rules_barbarian.cpp (B5 Danger Sense, B2 Rage)
@@ -344,7 +345,7 @@ uint8_t SavingThrowRoll(void* creature, uint8_t save, uint16_t dc, uint8_t type,
     if (bonus > 0) {
       g_save = context;
       TellIfPlayer(IdOf(creature),
-                   "nwn5e: Indomitable - the failed save is rolled again, +" + std::to_string(bonus) + ".");
+                   PlayerText("save_roll.indomitable_the_failed_save_is", {{"bonus", std::to_string(bonus)}}));
       result = g_saving_throw_roll(creature, save, static_cast<uint16_t>(std::clamp(roll_dc - bonus, 1, 0xFFFF)),
                                    type, versus, feedback, feat, from_combat);
     }
@@ -355,7 +356,7 @@ uint8_t SavingThrowRoll(void* creature, uint8_t save, uint16_t dc, uint8_t type,
           rules::Ability::kStrength &&
       IndomitableMightSucceeds(creature, new_dc)) {
     result = 1;
-    TellIfPlayer(IdOf(creature), "nwn5e: Indomitable Might - your Strength score meets the DC: the save succeeds.");
+    TellIfPlayer(IdOf(creature), PlayerText("save_roll.indomitable_might_your_strength_score"));
   }
   // Monk M13 Disciplined Survivor: a failed save is rolled again for a Focus point.
   if (result == 0 && !context.condition.auto_fail && DisciplinedSurvivorReroll(creature)) {
@@ -380,14 +381,16 @@ uint8_t SavingThrowRoll(void* creature, uint8_t save, uint16_t dc, uint8_t type,
   const uint32_t creature_id = IdOf(creature);
   if (context.condition.auto_fail && result != 2) {
     result = 0;  // a failure; the engine's own line may still read "success" when its total beat the DC
-    TellIfPlayer(creature_id, "nwn5e: that save fails automatically (" + context.condition.note + ")");
+    TellIfPlayer(creature_id, PlayerText("save_roll.that_save_fails_automatically",
+                                         {{"note", context.condition.note}}));
   }
   if (stun) StunningStrikeSaveResult(creature, versus, result);
   if (context.ability && save >= 1 && save <= 3 &&
       *context.ability != rules::AbilityForNwnSave(static_cast<rules::NwnSave>(save - 1))) {
     static const char* const kNwnNames[] = {"Fortitude", "Reflex", "Will"};
-    const std::string line = std::string("nwn5e: that ") + kNwnNames[save - 1] + " save was a " +
-                             AbilityName(*context.ability) + " save (the spell's ability).";
+    const std::string line = PlayerText("save_roll.that_save_was_a_save",
+                                        {{"save", kNwnNames[save - 1]},
+                                         {"ability_name", AbilityName(*context.ability)}});
     TellIfPlayer(creature_id, line);
     if (versus != creature_id) TellIfPlayer(versus, line);
   }

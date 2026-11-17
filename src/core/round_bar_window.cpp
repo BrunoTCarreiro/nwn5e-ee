@@ -41,6 +41,7 @@
 #include "log.h"
 #include "reactions.h"
 #include "records.h"
+#include "player_text.h"
 #include "rules/round_bar.h"
 
 bool ActionQueueStripOff(void* creature);  // action_queue.cpp (!queue)
@@ -323,10 +324,7 @@ void RoundBarTick() {
 std::vector<std::string> RoundBarCommand(void* creature, const std::string&) {
   const bool on = !RoundBarEnabled(creature);
   SetRoundBar(creature, on);
-  return {std::string("nwn5e: the round bar is ") +
-          (on ? "on - in a fight, under the action queue strip: your round, its swings, and what's left (Action, "
-                "Bonus Action, Reaction)."
-              : "off (!roundbar or Combat configuration turns it on).")};
+  return {PlayerText(on ? "round_bar_window.on" : "round_bar_window.off")};
 }
 
 }  // namespace

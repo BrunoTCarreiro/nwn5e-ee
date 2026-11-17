@@ -224,20 +224,19 @@ void QuickbarCreatureUpdate(void* creature) {
 // !quickbar [reset]
 std::vector<std::string> QuickbarCommand(void* creature, const std::string& args) {
   if (g_config.quickbar != rules::RuleVariant::kFaithful) {
-    return {"nwn5e: !quickbar - the quickbar's number keys and placed actions are faithful-only (quickbar=faithful)."};
+    return {PlayerText("quickbar.quickbar_the_quickbar_s_number")};
   }
   void* stats = StatsOf(creature);
-  if (!stats) return {"nwn5e: no character."};
+  if (!stats) return {PlayerText("features.no_character")};
   EnsureRecords(creature);
   std::vector<std::string> lines;
   if (args == "reset") {
     SetPlaced(creature, 0);
     const int written = PlaceActions(creature, 0, true);
-    lines.push_back("nwn5e: quickbar record cleared - " + std::to_string(written) +
-                    " action(s) put back on empty slots.");
+    lines.push_back(PlayerText("quickbar.quickbar_record_cleared_action_s", {{"written", std::to_string(written)}}));
   }
-  lines.push_back(QuickbarNumberKeysOn() ? "nwn5e: keys 1-9 press quickbar slots 1-9 (as F1-F9) when no text box has the keyboard."
-                                         : "nwn5e: the number keys aren't hooked (see the log) - F1-F12 as usual.");
+  lines.push_back(QuickbarNumberKeysOn() ? PlayerText("quickbar.keys_1_9_press_quickbar")
+                                         : PlayerText("quickbar.the_number_keys_aren_t"));
   std::vector<rules::QuickbarSlot> bar;
   const bool have_bar = ReadBar(creature, &bar);
   const uint64_t placed = PlacedOf(creature);

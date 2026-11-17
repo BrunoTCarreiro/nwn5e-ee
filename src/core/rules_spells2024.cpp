@@ -2142,7 +2142,7 @@ void Condition(uint32_t self, void* caster, const rules::Spell2024& spell, int s
 }
 
 // A held condition ends on its creature: its effects off (a script run as it), it told.
-void EndHeld(uint32_t id, const Held& held, const char* tag, const char* line, const char* why) {
+void EndHeld(uint32_t id, const Held& held, const char* tag, const std::string& line, const char* why) {
   std::string code = kUnmark;
   Replace(&code, "$TAG", tag);
   Run(code, id, why);
@@ -2191,7 +2191,7 @@ void ConditionUpdate(void* creature) {
     // 0.99.24 (the owner's L2b run, 2026-11-12): damage wakes a sleeper - told and logged though NWN's own sleep
     // effect came off it first (the engine wakes a sleeping creature it damages).
     if (spell == rules::kSleep && held.woken && !engine::IsDeadOrDying(creature)) {
-      EndHeld(id, held, kTagSleep, "nwn5e: the blow wakes you (Sleep ends).", "it took damage");
+      EndHeld(id, held, kTagSleep, PlayerText("spells2024.the_blow_wakes_you_sleep"), "it took damage");
       g_held.erase(it);
       continue;
     }
@@ -2201,7 +2201,7 @@ void ConditionUpdate(void* creature) {
     }
     if (spell == rules::kCharmPerson || spell == rules::kAnimalFriendship) {
       if (!held.side_damage) continue;
-      EndHeld(id, held, kTagCharm, "nwn5e: the charm on you breaks - its caster's side hurt you.",
+      EndHeld(id, held, kTagCharm, PlayerText("spells2024.the_charm_on_you_breaks"),
               "damaged by its caster's side");
       TellPlayer(held.caster, PlayerText("spells2024.ends_you_or_your_allies", {{"held_name", std::string(HeldName(held))}}));
       g_held.erase(it);
@@ -2223,7 +2223,7 @@ void ConditionUpdate(void* creature) {
             save == 0 ? "failed, still laughing" : "succeeded");
       }
       if (save == 0) continue;
-      EndHeld(id, held, kTagLaugh, "nwn5e: you stop laughing (Hideous Laughter ends).", "it saved");
+      EndHeld(id, held, kTagLaugh, PlayerText("spells2024.you_stop_laughing_hideous_laughter"), "it saved");
       g_held.erase(it);
       continue;
     }
@@ -2232,12 +2232,12 @@ void ConditionUpdate(void* creature) {
     held.next_save = 0;
     const uint8_t save = HeldSave(creature, held, false, static_cast<uint8_t>(ee::kSaveTypeMindSpells));
     if (rules::SleepAfterSecondSave(save != 0) == rules::SleepStage::kAwake) {
-      EndHeld(id, held, kTagSleep, "nwn5e: you shake off the Sleep spell.", "its second save succeeded");
+      EndHeld(id, held, kTagSleep, PlayerText("spells2024.you_shake_off_the_sleep"), "its second save succeeded");
       g_held.erase(it);
       continue;
     }
     if (!CreatureById(held.caster)) {
-      EndHeld(id, held, kTagSleep, "nwn5e: the Sleep spell fades.", "its caster is gone");
+      EndHeld(id, held, kTagSleep, PlayerText("spells2024.the_sleep_spell_fades"), "its caster is gone");
       g_held.erase(it);
       continue;
     }
@@ -2397,10 +2397,9 @@ bool EscapeTry(uint32_t id, void* creature, const Entangled& held) {
   const int athletics = AthleticsOf(creature);
   const int d20 = RollEngineDice(1, 20);
   const bool free = rules::EscapeSucceeds(d20, athletics, held.dc);
-  char line[220];
-  sprintf_s(line, "nwn5e: Escape (Strength (Athletics) %+d: %d vs DC %d) - %s", athletics, d20 + athletics, held.dc,
-            free ? "you tear free of the plants." : "the plants hold; try again next round.");
-  TellPlayer(id, line);
+  TellPlayer(id, PlayerText(free ? "spells2024.escape_free" : "spells2024.escape_held",
+                            {{"bonus", (athletics >= 0 ? "+" : "") + std::to_string(athletics)},
+                             {"total", std::to_string(d20 + athletics)}, {"dc", std::to_string(held.dc)}}));
   if (LogSlot()) {
     Log("spells2024: 0x%08X Escape from %s: Athletics %+d, %d vs DC %d - %s", id, HoldName(held.row), athletics,
         d20 + athletics, held.dc, free ? "free" : "still held");
@@ -2952,10 +2951,9 @@ bool ShieldTurns(void* defender, void* attacker, int total, int armor_class, boo
   if (!defender || (!natural_twenty && total < armor_class)) return false;  // not a hit
   if (!rules::ShieldTurnsHit(total, armor_class, natural_twenty)) return false;
   if (!TakeShield(defender, what)) return false;
-  char line[200];
-  sprintf_s(line, "nwn5e: Shield (your Reaction) - +5 AC until your next round: the hit (%d vs AC %d) misses.", total,
-            armor_class);
-  TellPlayer(Field<uint32_t>(defender, ee::kObjectId), line);
+  TellPlayer(Field<uint32_t>(defender, ee::kObjectId),
+             PlayerText("spells2024.shield_reaction",
+                        {{"total", std::to_string(total)}, {"ac", std::to_string(armor_class)}}));
   (void)attacker;
   return true;
 }
@@ -3049,10 +3047,8 @@ bool ArmSmite(void* creature, uint32_t id, const SpellOrder& order) {
   armed.slot = chosen >= spell->level ? chosen : spell->level;
   if (g_armed.size() > 256) g_armed.clear();
   g_armed[id] = armed;
-  char line[260];
-  sprintf_s(line, "nwn5e: %s armed (a level %d slot) - your next hit with %s, while you have the slot and your Bonus "
-                  "Action, spends both.", spell->name, armed.slot, SmiteRide(spell->row));
-  TellPlayer(id, line);
+  TellPlayer(id, PlayerText("spells2024.smite_armed", {{"spell", spell->name}, {"slot", std::to_string(armed.slot)},
+                                                      {"ride", SmiteRide(spell->row)}}));
   if (LogSlot()) Log("spells2024: 0x%08X %s armed (a level %d slot, class slot %d) - nothing spent", id, spell->name,
                      armed.slot, armed.class_slot);
   return true;  // the cast refused: nothing spent now
@@ -4757,9 +4753,8 @@ int BlessAttackBonus(void* stats) {
 int BlessSaveDie(void* creature) {
   const int die = BlessDie(creature, "save");
   if (die != 0) {
-    char line[160];
-    sprintf_s(line, "nwn5e: Bless / Bane: %+d on that save (the DC it shows is moved by that).", die);
-    TellPlayer(Field<uint32_t>(creature, ee::kObjectId), line);
+    TellPlayer(Field<uint32_t>(creature, ee::kObjectId),
+               PlayerText("spells2024.bless_bane_save", {{"die", (die >= 0 ? "+" : "") + std::to_string(die)}}));
   }
   return die;
 }

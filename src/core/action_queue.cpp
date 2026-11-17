@@ -975,9 +975,8 @@ std::vector<std::string> QueueCommand(void* creature, const std::string& /*args*
   g_players[id].signature = "-";  // redraw (or close) at the next check
   g_next_check[id] = 0;
   Log("queue: 0x%08X the strip turned %s", id, off ? "off" : "on");
-  return {off ? "nwn5e: the action queue strip is off (!queue turns it back on)."
-              : "nwn5e: the action queue strip is on - your queued actions at the top of the screen; click one to "
-                "cancel it (!queue turns it off)."};
+  return {off ? PlayerText("action_queue.the_action_queue_strip_is")
+              : PlayerText("action_queue.the_action_queue_strip_is_2")};
 }
 
 }  // namespace

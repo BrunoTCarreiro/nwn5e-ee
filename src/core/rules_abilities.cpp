@@ -426,7 +426,7 @@ std::vector<std::string> Words(const std::string& text) {
 
 // !asi [<ability> [<ability>] | undo]
 std::vector<std::string> AsiCommand(void* creature, const std::string& args) {
-  if (!g_faithful) return {"nwn5e: !asi is for the 2024 rules (ability_scores=faithful)."};
+  if (!g_faithful) return {PlayerText("abilities.asi_is_for_the_2024")};
   void* stats = StatsOf(creature);
   if (!stats) return {};
   std::vector<AsiSlot> slots = PlayerAsis(creature, stats);
@@ -434,38 +434,37 @@ std::vector<std::string> AsiCommand(void* creature, const std::string& args) {
   int unspent = 0;
   for (const AsiSlot& slot : slots) unspent += slot.choice ? 0 : 1;
   auto describe = [&]() {
-    std::string line = "nwn5e: " + ScoresLine(stats) + ". Ability Score Improvements: " + std::to_string(slots.size()) +
-                       " (" + std::to_string(unspent) + " unspent).";
+    std::string line = PlayerText("abilities.ability_score_improvements_unspent",
+                                  {{"scores_line", ScoresLine(stats)}, {"size", std::to_string(slots.size())},
+                                   {"unspent", std::to_string(unspent)}});
     if (unspent) line += " Choose with !asi str (+2) or !asi str con (+1 each).";
     line += " !asi change str [con] changes the last one.";
     return line;
   };
   if (words.empty()) {
     if (slots.empty()) {
-      return {describe(), "nwn5e: you get one at each feat level of your class (4, 8, 12, 16, 19; Fighter 6, 14; "
-                          "Rogue 10) - take \"Ability Score Improvement\" in the feat slot and pick its abilities "
-                          "there."};
+      return {describe(), PlayerText("abilities.you_get_one_at_each")};
     }
     return {describe()};
   }
   if (words[0] == "change") {  // C7a: the last ASI's abilities, swapped
-    if (words.size() < 2 || words.size() > 3) return {"nwn5e: !asi change str (+2) or !asi change str con (+1 each)."};
+    if (words.size() < 2 || words.size() > 3) return {PlayerText("abilities.asi_change_str_2_or")};
     const auto first = rules::ParseAbility(words[1].c_str());
     const auto second = words.size() == 3 ? rules::ParseAbility(words[2].c_str()) : std::nullopt;
     if (!first || (words.size() == 3 && (!second || *second == *first))) {
-      return {"nwn5e: abilities are str, dex, con, int, wis, cha (two different ones for +1 each)."};
+      return {PlayerText("abilities.abilities_are_str_dex_con")};
     }
     for (auto it = slots.rbegin(); it != slots.rend(); ++it) {
       if (!it->choice) continue;
       if (it->feat >= 0) {
         const int split = rules::AsiSplitIndex({*first, second});
         const int feat = rules::AsiSplitFeat(it->k, split);
-        if (feat < 0) return {"nwn5e: that isn't an Ability Score Improvement."};
+        if (feat < 0) return {PlayerText("abilities.that_isn_t_an_ability")};
         if (feat != it->feat) {
           engine::RemoveFeat(stats, it->feat);
           if (!engine::AddFeat(stats, feat)) {
             engine::AddFeat(stats, it->feat);
-            return {"nwn5e: the change didn't take."};
+            return {PlayerText("abilities.the_change_didn_t_take")};
           }
         }
       } else {
@@ -474,11 +473,12 @@ std::vector<std::string> AsiCommand(void* creature, const std::string& args) {
       Sync(creature, true);
       Log("abilities: 0x%08X ASI changed to %s%s%s", IdOf(creature), rules::AbilityName(*first), second ? " + " : "",
           second ? rules::AbilityName(*second) : "");
-      return {"nwn5e: your last Ability Score Improvement is now " + std::string(rules::AbilityName(*first)) +
-                  (second ? std::string(" +1, ") + rules::AbilityName(*second) + " +1." : " +2."),
+      return {second ? PlayerText("abilities.asi_now_split", {{"first", rules::AbilityName(*first)},
+                                                              {"second", rules::AbilityName(*second)}})
+                     : PlayerText("abilities.asi_now_two", {{"first", rules::AbilityName(*first)}}),
               describe()};
     }
-    return {"nwn5e: no Ability Score Improvement to change.", describe()};
+    return {PlayerText("abilities.no_ability_score_improvement_to"), describe()};
   }
   if (words[0] == "undo") {
     for (auto it = slots.rbegin(); it != slots.rend(); ++it) {
@@ -487,15 +487,15 @@ std::vector<std::string> AsiCommand(void* creature, const std::string& args) {
       it->choice = 0;
       ++unspent;
       Sync(creature, true);
-      return {"nwn5e: the last Ability Score Improvement is unspent again.", describe()};
+      return {PlayerText("abilities.the_last_ability_score_improvement"), describe()};
     }
-    return {"nwn5e: nothing to undo.", describe()};
+    return {PlayerText("abilities.nothing_to_undo"), describe()};
   }
-  if (words.size() > 2) return {"nwn5e: name one ability (+2) or two (+1 each)."};
+  if (words.size() > 2) return {PlayerText("abilities.name_one_ability_2_or")};
   const auto first = rules::ParseAbility(words[0].c_str());
   const auto second = words.size() == 2 ? rules::ParseAbility(words[1].c_str()) : std::nullopt;
-  if (!first || (words.size() == 2 && !second)) return {"nwn5e: abilities are str, dex, con, int, wis, cha."};
-  if (second && *second == *first) return {"nwn5e: for +2 to one ability, name it once: !asi " + words[0] + "."};
+  if (!first || (words.size() == 2 && !second)) return {PlayerText("abilities.abilities_are_str_dex_con_2")};
+  if (second && *second == *first) return {PlayerText("abilities.for_2_to_one_ability", {{"words", words[0]}})};
   for (AsiSlot& slot : slots) {
     if (slot.choice) continue;
     slot.choice = rules::EncodeAsi({*first, second});
@@ -504,17 +504,17 @@ std::vector<std::string> AsiCommand(void* creature, const std::string& args) {
     Sync(creature, true);
     Log("abilities: 0x%08X ASI %s%d = %s%s%s", IdOf(creature), slot.legacy ? "legacy " : "", slot.k,
         rules::AbilityName(*first), second ? " + " : "", second ? rules::AbilityName(*second) : "");
-    return {"nwn5e: Ability Score Improvement: " + std::string(rules::AbilityName(*first)) +
-                (second ? std::string(" +1, ") + rules::AbilityName(*second) + " +1" : " +2") +
-                " (no score goes above 20).",
+    return {second ? PlayerText("abilities.asi_split", {{"first", rules::AbilityName(*first)},
+                                                        {"second", rules::AbilityName(*second)}})
+                   : PlayerText("abilities.asi_two", {{"first", rules::AbilityName(*first)}}),
             describe()};
   }
-  return {"nwn5e: no unspent Ability Score Improvement - take one at your class's next feat level.", describe()};
+  return {PlayerText("abilities.no_unspent_ability_score_improvement"), describe()};
 }
 
 // !background [<name> <ability> <ability> [<ability>]]
 std::vector<std::string> BackgroundCommand(void* creature, const std::string& args) {
-  if (!g_faithful) return {"nwn5e: !background is for the 2024 rules (ability_scores=faithful)."};
+  if (!g_faithful) return {PlayerText("abilities.background_is_for_the_2024")};
   void* stats = StatsOf(creature);
   if (!stats) return {};
   const std::vector<std::string> words = Words(args);
@@ -522,28 +522,29 @@ std::vector<std::string> BackgroundCommand(void* creature, const std::string& ar
     std::vector<std::string> lines;
     const CurrentBackground chosen = ReadBackground(creature, stats);
     const rules::BackgroundInfo* current = rules::BackgroundData(chosen.background);
-    lines.push_back(current ? "nwn5e: your background is " + std::string(current->name) +
-                                  (chosen.feat >= 0 ? " (its feat is on your character sheet)." : ".")
-                            : "nwn5e: choose your background (2024): !background <name> <+2 ability> <+1 ability>, "
-                              "or three abilities for +1 each.");
+    lines.push_back(!current ? PlayerText("abilities.choose_your_background_2024_background")
+                             : PlayerText(chosen.feat >= 0 ? "abilities.background_is_feat" : "abilities.background_is",
+                                          {{"background", current->name}}));
     for (const rules::BackgroundInfo& b : rules::Backgrounds2024()) {
-      lines.push_back(std::string(b.name) + ": " + rules::AbilityShortName(b.abilities[0]) + " / " +
-                      rules::AbilityShortName(b.abilities[1]) + " / " + rules::AbilityShortName(b.abilities[2]) +
-                      "; Origin feat " + b.origin_feat + "; tool " + b.tool + ".");
+      lines.push_back(PlayerText("abilities.background_row",
+                                 {{"background", b.name}, {"first", rules::AbilityShortName(b.abilities[0])},
+                                  {"second", rules::AbilityShortName(b.abilities[1])},
+                                  {"third", rules::AbilityShortName(b.abilities[2])}, {"feat", b.origin_feat},
+                                  {"tool", b.tool}}));
     }
     return lines;
   }
   const auto background = rules::ParseBackground(words[0]);
-  if (!background) return {"nwn5e: the backgrounds are Acolyte, Criminal, Sage and Soldier (SRD 5.2)."};
+  if (!background) return {PlayerText("abilities.the_backgrounds_are_acolyte_criminal")};
   std::vector<rules::Ability> chosen;
   for (size_t i = 1; i < words.size(); ++i) {
     const auto ability = rules::ParseAbility(words[i].c_str());
-    if (!ability) return {"nwn5e: abilities are str, dex, con, int, wis, cha."};
+    if (!ability) return {PlayerText("abilities.abilities_are_str_dex_con_2")};
     chosen.push_back(*ability);
   }
   int amounts[6];
   const std::string error = rules::BackgroundIncreases(*background, chosen, amounts);
-  if (!error.empty()) return {"nwn5e: " + error + "."};
+  if (!error.empty()) return {PlayerText("chat.line_period", {{"line", error}})};
   SetBackground(creature, stats, *background, amounts);
   Sync(creature, true);
   const rules::BackgroundInfo* info = rules::BackgroundData(*background);
@@ -554,10 +555,10 @@ std::vector<std::string> BackgroundCommand(void* creature, const std::string& ar
                  " +" + std::to_string(amounts[i]);
   }
   Log("abilities: 0x%08X background %s (%s)", IdOf(creature), info->name, increases.c_str());
-  return {"nwn5e: background " + std::string(info->name) + ": " + increases + "; Origin feat " + info->origin_feat +
-              (*background == rules::Background::kCriminal ? " (works now)" : " (works when that feat is built)") +
-              "; its skills are proficient.",
-          "nwn5e: " + ScoresLine(stats) + "."};
+  return {PlayerText(*background == rules::Background::kCriminal ? "abilities.background_set_works"
+                                                                 : "abilities.background_set_later",
+                     {{"background", info->name}, {"increases", increases}, {"feat", info->origin_feat}}),
+          PlayerText("chat.line_period", {{"line", ScoresLine(stats)}})};
 }
 
 }  // namespace

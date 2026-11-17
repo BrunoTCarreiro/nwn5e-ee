@@ -527,7 +527,7 @@ void OrderUpdate(void* creature) {
 std::vector<std::string> OrderCommand(void* creature, const std::string& args) {
   void* stats = creature ? StatsOf(creature) : nullptr;
   if (!stats || !Faithful() || ClassLevel2024(stats, rules::CharacterClass::kCleric) <= 0) {
-    return {"nwn5e: !order - a Cleric's Divine Order (class_features faithful)."};
+    return {PlayerText("cleric.order_a_cleric_s_divine")};
   }
   EnsureRecords(creature);
   const bool protector = HasOrder(stats, rules::kFeatDivineOrderProtector);
@@ -538,32 +538,25 @@ std::vector<std::string> OrderCommand(void* creature, const std::string& args) {
   for (char& c : lower) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
   if (lower.find("reset") != std::string::npos && g_config.debug_test_commands) {  // the tests' (0.98.4)
     SetRecord(creature, kVarOrderSwitched, 0);
-    return {"nwn5e: !order reset - Divine Order (" + now + ") may switch once again ([debug] test_commands)."};
+    return {PlayerText("cleric.order_reset_divine_order_may", {{"now", now}})};
   }
   const bool want_protector = lower.find("prot") != std::string::npos;
   const bool want_thaumaturge = lower.find("thaum") != std::string::npos;
   if (!want_protector && !want_thaumaturge) {
-    return {"nwn5e: Divine Order: " + now + ". Protector: Martial weapons and Heavy armour; Thaumaturge: a cantrip "
-            "more and Wisdom (at least +1) on Arcana and Religion checks. " +
-            (switched ? std::string("Switched once already.") : std::string("!order protector or !order thaumaturge "
-                                                                            "switches it, once."))};
+    return {PlayerText(switched ? "cleric.order_status_switched" : "cleric.order_status", {{"now", now}})};
   }
   if ((want_protector && protector) || (want_thaumaturge && thaumaturge)) {
-    return {"nwn5e: Divine Order is " + now + " already."};
+    return {PlayerText("cleric.divine_order_is_already", {{"now", now}})};
   }
-  if (switched) return {"nwn5e: Divine Order switches once - it stays " + now + "."};
+  if (switched) return {PlayerText("cleric.divine_order_switches_once_it", {{"now", now}})};
   const int from = protector ? rules::kFeatDivineOrderProtector : rules::kFeatDivineOrderThaumaturge;
   const int to = want_protector ? rules::kFeatDivineOrderProtector : rules::kFeatDivineOrderThaumaturge;
   if (protector || thaumaturge) engine::RemoveFeat(stats, from);
-  if (!engine::AddFeat(stats, to)) return {"nwn5e: !order - the feat didn't take; nothing changed."};
+  if (!engine::AddFeat(stats, to)) return {PlayerText("cleric.order_the_feat_didn_t")};
   SetRecord(creature, kVarOrderSwitched, 1);
   Log("cleric: 0x%08X Divine Order %s -> %s (!order)", IdOf(creature), now.c_str(),
       want_protector ? "Protector" : "Thaumaturge");
-  return {std::string("nwn5e: Divine Order: ") +
-          (want_protector ? "Protector - Martial weapons and Heavy armour. A cantrip past your count goes in the "
-                            "Prepare spells window."
-                          : "Thaumaturge - Wisdom on Arcana and Religion checks; pick your extra cantrip in the "
-                            "Prepare spells window (the class abilities radial). Heavy armour goes.")};
+  return {PlayerText(want_protector ? "cleric.order_now_protector" : "cleric.order_now_thaumaturge")};
 }
 
 // --- The Life Domain's healing, Blessed Strikes, spontaneous casts (build 1c) -------------------------------------
@@ -619,7 +612,7 @@ void DivineStrikeHit(void* attacker, void* target) {
 std::vector<std::string> StrikeCommand(void* creature, const std::string& args) {
   void* stats = creature ? StatsOf(creature) : nullptr;
   if (!stats || !Faithful() || !HasOrder(stats, rules::kFeatDivineStrike)) {
-    return {"nwn5e: !strike - Divine Strike's damage type (a Cleric 7+ with Blessed Strikes: Divine Strike)."};
+    return {PlayerText("cleric.strike_divine_strike_s_damage")};
   }
   EnsureRecords(creature);
   std::string lower = args;
@@ -627,9 +620,9 @@ std::vector<std::string> StrikeCommand(void* creature, const std::string& args) 
   if (lower.find("necro") != std::string::npos) SetRecord(creature, kVarStrikeNecrotic, 1);
   if (lower.find("radiant") != std::string::npos) SetRecord(creature, kVarStrikeNecrotic, 0);
   const bool necrotic = engine::GetLocalInt(creature, kVarStrikeNecrotic) != 0;
-  return {std::string("nwn5e: Divine Strike deals ") + (necrotic ? "Necrotic" : "Radiant") + " damage (" +
-          std::to_string(rules::DivineStrikeDice(ClericLevelOf(stats))) +
-          "d8 once a turn). !strike radiant or !strike necrotic changes it."};
+  const std::string dice = std::to_string(rules::DivineStrikeDice(ClericLevelOf(stats)));
+  return {PlayerText("cleric.divine_strike_deals",
+                     {{"type", PlayerText(necrotic ? "damage.necrotic" : "damage.radiant")}, {"dice", dice}})};
 }
 
 // CM9: NWN's spontaneous Cure / Inflict - the 2024 Cleric casts its prepared spells, with any slot of their level or

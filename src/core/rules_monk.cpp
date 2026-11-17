@@ -680,7 +680,7 @@ bool FocusHudPool(void* creature, rules::HudPool* pool) {
 // back with Uncanny Metabolism ready (and the next initiative a new fight).
 std::vector<std::string> FocusCommand(void* creature, const std::string& args) {
   const int level = MonkLevelOf(StatsOf(creature));
-  if (rules::FocusPoints(level) <= 0) return {"nwn5e: !focus - a Monk's Focus points (Monk 2+, class_features faithful)."};
+  if (rules::FocusPoints(level) <= 0) return {PlayerText("monk.focus_a_monk_s_focus")};
   EnsureRecords(creature);
   if (g_config.debug_test_commands && !args.empty()) {
     char word[16] = {};
@@ -694,12 +694,13 @@ std::vector<std::string> FocusCommand(void* creature, const std::string& args) {
       SetRecord(creature, kVarMetabolismUsed, 0);
       g_initiative.erase(IdOf(creature));
     } else {
-      return {"nwn5e: !focus [left <n> | reset]"};
+      return {PlayerText("monk.focus_left_n_reset")};
     }
   }
-  std::string line = "nwn5e: Focus " + std::to_string(FocusLeft(creature)) + " of " +
-                     std::to_string(rules::FocusPoints(level)) + " points, DC " + std::to_string(FocusDcOf(creature)) +
-                     ". Flurry of Blows 1 a round in its mode; Patient Defense, Step of the Wind 1";
+  std::string line = PlayerText("monk.focus_of_points_dc_flurry",
+                                {{"focus_left", std::to_string(FocusLeft(creature))},
+                                 {"focus_points", std::to_string(rules::FocusPoints(level))},
+                                 {"focus_dc", std::to_string(FocusDcOf(creature))}});
   if (rules::HasStunningStrike(level)) line += "; Stunning Strike 1 (none on a miss)";
   if (rules::HasDisciplinedSurvivor(level)) line += "; a failed save rolled again 1";
   if (rules::HasSuperiorDefense(level)) line += "; Superior Defense 3";
@@ -957,7 +958,7 @@ void PickTechniqueScript(uint32_t self) {
 
 std::vector<std::string> TechniqueCommand(void* creature, const std::string& args) {
   if (!rules::HasOpenHandTechnique(MonkLevelOf(StatsOf(creature)))) {
-    return {"nwn5e: Open Hand Technique comes at Monk 3 (Warrior of the Open Hand; class_features faithful)."};
+    return {PlayerText("monk.open_hand_technique_comes_at_2")};
   }
   static const struct {
     const char* word;
@@ -973,10 +974,11 @@ std::vector<std::string> TechniqueCommand(void* creature, const std::string& arg
   }
   EnsureRecords(creature);
   const rules::OpenHandTechnique now = TechniqueOf(creature);
-  return {std::string("nwn5e: Open Hand Technique: ") + rules::OpenHandTechniqueName(now) +
-          (now == rules::OpenHandTechnique::kOff ? "" : std::string(" - ") + TechniqueText(now)) +
-          ", on each Flurry of Blows hit (DC " + std::to_string(FocusDcOf(creature)) +
-          "). !technique topple | push | addle | off (or its radial menu, or !options)."};
+  const bool off = now == rules::OpenHandTechnique::kOff;
+  return {PlayerText(off ? "monk.technique_status_off" : "monk.technique_status",
+                     {{"technique", rules::OpenHandTechniqueName(now)},
+                      {"text", off ? std::string() : TechniqueText(now)},
+                      {"dc", std::to_string(FocusDcOf(creature))}})};
 }
 
 void ApplyTechnique(void* monk, void* target, rules::OpenHandTechnique technique) {

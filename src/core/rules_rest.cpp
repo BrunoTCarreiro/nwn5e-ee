@@ -190,14 +190,14 @@ void LookForEnemy(void* context, uint32_t id, void* other) {
 
 // Why the creature can't rest now ("" when it can).
 std::string CantRest(void* creature) {
-  if (engine::IsDeadOrDying(creature)) return "not while down";
-  if (Field<uint32_t>(creature, ee::kCreatureActivities) & ee::kActivityResting) return "already resting";
+  if (engine::IsDeadOrDying(creature)) return PlayerText("rest.cant_down");
+  if (Field<uint32_t>(creature, ee::kCreatureActivities) & ee::kActivityResting) return PlayerText("rest.cant_resting");
   if (Field<int32_t>(creature, ee::kCreatureExcitedTimer) > 0) {
-    return "not so soon after fighting (damage taken or a spell cast in the last 10 seconds)";
+    return PlayerText("rest.cant_fighting");
   }
   EnemySearch search{creature, IdOf(creature), 0};
   engine::ForEachOtherCreatureInArea(creature, &LookForEnemy, &search);
-  if (search.found) return "an enemy can see you";
+  if (search.found) return PlayerText("rest.cant_enemy");
   return "";
 }
 
@@ -208,7 +208,7 @@ std::string ShortRestOf(void* creature, const std::string& who) {
   const rules::HitDice all = rules::HitDiceOf(ClassLevelsOf(stats));
   const rules::HitDice spent = SpentHitDice(creature);
   const rules::HitDice left = rules::Remaining(all, spent);
-  if (left.Total() == 0) return who + ": no Hit Dice left - a Long Rest gives them back.";
+  if (left.Total() == 0) return PlayerText("rest.no_hit_dice", {{"who", who}});
   const int max_hp = g_max_hit_points ? g_max_hit_points(creature, 1) : CurrentHitPoints(creature);
   const rules::ShortRest rest =
       rules::ShortRestDice(left, CurrentHitPoints(creature), max_hp, engine::AbilityModifier(stats, kAbilityConstitution),
@@ -235,7 +235,7 @@ std::string ShortRestOf(void* creature, const std::string& who) {
   for (int feat = rules::kFeatSecondWind2; feat <= rules::kFeatSecondWind4; ++feat) {
     if (engine::HasFeat(stats, feat) && g_feat_use_back) {
       g_feat_use_back(stats, static_cast<uint16_t>(feat));
-      features = " Second Wind: a use back.";
+      features = " " + PlayerText("rest.second_wind_back");
       break;
     }
   }
@@ -243,25 +243,26 @@ std::string ShortRestOf(void* creature, const std::string& who) {
   Log("rests: 0x%08X Short Rest - %s (Con %+d): +%d HP; Hit Dice left %s", IdOf(creature), rolls.c_str(),
       engine::AbilityModifier(stats, kAbilityConstitution), rest.healed,
       DiceText(rules::Remaining(all, now_spent)).c_str());
-  return who + ": " + rolls + " - +" + std::to_string(rest.healed) + " HP." + features +
-         " Hit Dice left: " + DiceText(rules::Remaining(all, now_spent)) + ".";
+  return PlayerText("rest.short_rest_of", {{"who", who}, {"rolls", rolls}, {"healed", std::to_string(rest.healed)},
+                                          {"features", features},
+                                          {"left", DiceText(rules::Remaining(all, now_spent))}});
 }
 
 }  // namespace
 
 // The Short Rest of `player` and its henchmen (the HUD button, !shortrest).
 std::vector<std::string> TakeShortRest(void* player) {
-  if (!Faithful() || !player) return {"nwn5e: the Short Rest comes with rests faithful."};
+  if (!Faithful() || !player) return {PlayerText("rest.the_short_rest_comes_with")};
   const std::string why = CantRest(player);
-  if (!why.empty()) return {"nwn5e: no Short Rest - " + why + "."};
-  std::vector<std::string> lines = {"nwn5e: Short Rest."};
-  lines.push_back(ShortRestOf(player, "You"));
+  if (!why.empty()) return {PlayerText("rest.no_short_rest", {{"why", why}})};
+  std::vector<std::string> lines = {PlayerText("rest.short_rest")};
+  lines.push_back(ShortRestOf(player, PlayerText("rest.who_you")));
   for (int nth = 1; g_associate_id && nth <= 8; ++nth) {
     const uint32_t id = g_associate_id(player, ee::kAssociateTypeHenchman, nth);
     if (!id || id == ee::kObjectInvalid) break;
     void* henchman = CreatureById(id);
     if (!henchman || !CantRest(henchman).empty()) continue;
-    lines.push_back(ShortRestOf(henchman, "Henchman"));
+    lines.push_back(ShortRestOf(henchman, PlayerText("rest.who_henchman")));
   }
   if (g_config.rest_clock) MoveClock(IdOf(player), 1);
   return lines;
@@ -287,17 +288,16 @@ std::vector<std::string> RestCommand(void* creature, const std::string&) {
   if (!stats) return {};
   const rules::HitDice all = rules::HitDiceOf(ClassLevelsOf(stats));
   std::vector<std::string> lines = {
-      "nwn5e: Hit Dice " + DiceText(rules::Remaining(all, SpentHitDice(creature))) + " left of " + DiceText(all) +
-      ". A Short Rest (the button next to Rest, or !shortrest) spends at least one, out of combat; a Long Rest "
-      "(Rest) gives them all back."};
+      PlayerText("rest.hit_dice_left_of_a",
+                 {{"dice_text", DiceText(rules::Remaining(all, SpentHitDice(creature)))},
+                  {"dice_text2", DiceText(all)}})};
   if (const int exhaustion = ExhaustionLevel(creature)) {
-    lines.push_back("nwn5e: Exhaustion " + std::to_string(exhaustion) + " - a Long Rest removes it (!dying).");
+    lines.push_back(PlayerText("rest.exhaustion_a_long_rest_removes", {{"exhaustion", std::to_string(exhaustion)}}));
   }
   const int wait = LongRestWaitLeft(creature);  // #135
-  lines.push_back(wait > 0 ? "nwn5e: the next Long Rest in " + HoursText(wait) + " (16 hours after the last one ends)."
-                           : std::string(g_config.long_rest_any_time
-                                             ? "nwn5e: a Long Rest any time (house rule long_rest_any_time)."
-                                             : "nwn5e: a Long Rest may start now."));
+  lines.push_back(wait > 0 ? PlayerText("rest.the_next_long_rest_in", {{"hours_text", HoursText(wait)}})
+                           : PlayerText(g_config.long_rest_any_time ? "rest.long_rest_any_time"
+                                                                    : "rest.long_rest_now"));
   return lines;
 }
 

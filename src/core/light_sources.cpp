@@ -203,6 +203,7 @@
 #include "light_sources.h"
 #include "log.h"
 #include "script_hooks.h"
+#include "player_text.h"
 
 namespace {
 
@@ -913,16 +914,14 @@ void Update(void* creature) {
 std::vector<std::string> MapLightCommand(void* creature, const std::string& args) {
   const int percent = atoi(args.c_str());
   if (percent < 10 || percent > 100) {
-    return {"nwn5e: !maplight <10-100> - the areas' light as a % of the module's (now " + std::to_string(g_map_light) +
-            "%)"};
+    return {PlayerText("light_sources.maplight_10_100_the_areas", {{"light", std::to_string(g_map_light)}})};
   }
   g_map_light = percent;
   WritePrivateProfileStringW(L"rules", L"map_light", std::to_wstring(percent).c_str(), ConfigPath());
   g_lit_areas.clear();  // other areas take it when entered
   void* area = engine::AreaOf(creature);
   if (area) SetUpArea(creature, Field<uint32_t>(creature, ee::kObjectId), area, true);
-  return {"nwn5e: the light here is now " + std::to_string(percent) +
-          "% of the module's (saved to nwn5e.ini; other areas take it when you enter them)"};
+  return {PlayerText("light_sources.the_light_here_is_now", {{"percent", std::to_string(percent)}})};
 }
 
 }  // namespace

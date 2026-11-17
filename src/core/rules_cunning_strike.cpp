@@ -149,11 +149,13 @@ void ShowIcon(uint32_t id, bool on) {
 }
 
 // Removes the effects with `tag` from the creature `id` (run as it).
-void RemoveTagged(uint32_t id, const char* tag, const char* message) {
+void RemoveTagged(uint32_t id, const char* tag, const std::string& message) {
   std::string script = std::string("effect e = GetFirstEffect(OBJECT_SELF); while (GetIsEffectValid(e)) { if ("
                                    "GetEffectTag(e) == \"") + tag + "\") { RemoveEffect(OBJECT_SELF, e); e = "
                                    "GetFirstEffect(OBJECT_SELF); } else e = GetNextEffect(OBJECT_SELF); }";
-  if (message) script += std::string(" if (GetIsPC(OBJECT_SELF)) SendMessageToPC(OBJECT_SELF, \"") + message + "\");";
+  if (!message.empty()) {
+    script += std::string(" if (GetIsPC(OBJECT_SELF)) SendMessageToPC(OBJECT_SELF, \"") + message + "\");";
+  }
   RunScriptChunk(script.c_str(), id);
 }
 
@@ -191,7 +193,9 @@ void PickCunningScript(uint32_t self) {
 
 std::vector<std::string> CunningCommand(void* creature, const std::string& args) {
   const int level = RogueLevelOf(creature);
-  if (!Faithful() || !rules::HasCunningStrike(level)) return {"nwn5e: Cunning Strike comes at Rogue 5."};
+  if (!Faithful() || !rules::HasCunningStrike(level)) {
+    return {PlayerText("cunning_strike.cunning_strike_comes_at_rogue_2")};
+  }
   struct Word {
     const char* word;
     rules::CunningEffect effect;
@@ -209,13 +213,14 @@ std::vector<std::string> CunningCommand(void* creature, const std::string& args)
   }
   if (picked) return {};
   EnsureRecords(creature);
-  return {"nwn5e: Cunning Strike (Rogue " + std::to_string(level) + ", " +
-          std::to_string(rules::CunningStrikeEffectCount(level)) + " effect" +
-          (rules::CunningStrikeEffectCount(level) > 1 ? "s" : "") + " per Sneak Attack, DC " +
-          std::to_string(DcOf(creature)) + "): " +
-          EffectNames(rules::ActiveCunningEffects(ChoiceOf(creature), level), true) +
-          ". !cunning poison | trip | withdraw" + (rules::HasDeviousStrikes(level) ? " | daze | knock out | obscure" : "") +
-          " | off (or its radial menu, or !options)."};
+  const bool several = rules::CunningStrikeEffectCount(level) > 1;
+  const char* key = rules::HasDeviousStrikes(level)
+                        ? (several ? "cunning_strike.status_several_devious" : "cunning_strike.status_one_devious")
+                        : (several ? "cunning_strike.status_several" : "cunning_strike.status_one");
+  return {PlayerText(key, {{"level", std::to_string(level)},
+                           {"count", std::to_string(rules::CunningStrikeEffectCount(level))},
+                           {"dc", std::to_string(DcOf(creature))},
+                           {"effects", EffectNames(rules::ActiveCunningEffects(ChoiceOf(creature), level), true)}})};
 }
 
 // --- Paying for the effects (rules_rogue.cpp's sneak dice) -------------------------
@@ -379,7 +384,7 @@ void LastingUpdate(void* creature) {
       continue;
     }
     if (lasting.woken) {
-      RemoveTagged(id, kKnockOutTag, "nwn5e: the blow wakes you.");
+      RemoveTagged(id, kKnockOutTag, PlayerText("cunning_strike.the_blow_wakes_you"));
       g_lasting.erase(it);
       continue;
     }
@@ -395,7 +400,7 @@ void LastingUpdate(void* creature) {
         Save(creature, lasting.by, lasting.dc, ee::kSaveFortitude, poisoned ? ee::kSaveTypePoison : 0, 0);
     if (save == 0) continue;
     RemoveTagged(id, poisoned ? kPoisonTag : kKnockOutTag,
-                 poisoned ? "nwn5e: you shake off the poison." : "nwn5e: you come round.");
+                 PlayerText(poisoned ? "cunning_strike.you_shake_off_the_poison" : "cunning_strike.you_come_round"));
     Log("rogue: 0x%08X saved against 0x%08X's Cunning Strike - no longer %s", id, lasting.by,
         poisoned ? "poisoned" : "knocked out");
     g_lasting.erase(it);

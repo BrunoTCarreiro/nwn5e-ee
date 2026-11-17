@@ -316,7 +316,7 @@ int ScriptScale(const SkillQuery& query, int value) {
 std::vector<std::string> SkillsCommand(void* creature, const std::string& args) {
   std::vector<std::string> lines;
   if (!Faithful()) {
-    lines.push_back("nwn5e: skills follow NWN's rules (skills=nwn); nothing to choose.");
+    lines.push_back(PlayerText("skills.skills_follow_nwn_s_rules"));
     return lines;
   }
   void* stats = creature ? StatsOf(creature) : nullptr;
@@ -330,36 +330,36 @@ std::vector<std::string> SkillsCommand(void* creature, const std::string& args) 
   if (expertise) rest = rest.substr(9);
   if (rest.find_first_not_of(' ') == std::string::npos) {
     if (expertise) {
-      lines.push_back("nwn5e: Expertise (" + std::to_string(rules::CountSkills(profile.expertise)) + " of " +
-                      std::to_string(allowance.expertise) + "): " + Names(profile.expertise) +
-                      ". Set with !skills expertise <skill> ...");
+      lines.push_back(PlayerText("skills.expertise_of_set_with_skills",
+                                 {{"count_skills", std::to_string(rules::CountSkills(profile.expertise))},
+                                  {"expertise", std::to_string(allowance.expertise)},
+                                  {"names", Names(profile.expertise)}}));
       return lines;
     }
-    lines.push_back("nwn5e: 2024 skills - proficient: " + Names(profile.proficient) + "; Expertise: " +
-                    Names(profile.expertise) + ".");
-    lines.push_back("nwn5e: you choose " + std::to_string(allowance.class_skills) + " from your class (" +
-                    Names(allowance.class_list) + ")" +
-                    (allowance.multiclass_skills ? ", " + std::to_string(allowance.multiclass_skills) +
-                                                       " from your other classes" : std::string()) +
-                    ", " + std::to_string(allowance.background_skills) + " more and 1 tool (background)" +
-                    (allowance.species_any_skill ? ", 1 more (Human)" : std::string()) +
-                    (allowance.species_list ? ", 1 of Insight, Perception or Survival (Elf)" : std::string()) +
-                    (allowance.feat_skills ? ", " + std::to_string(allowance.feat_skills) + " more (Skilled)"
-                                           : std::string()) +
-                    (allowance.granted ? "; always: " + Names(allowance.granted) : std::string()) +
-                    (allowance.expertise ? "; Expertise in " + std::to_string(allowance.expertise) : std::string()) +
-                    ".");
-    lines.push_back("nwn5e: set them with !skills <skill> <skill> ... (replaces the list), Expertise with "
-                    "!skills expertise <skill> ...");
+    lines.push_back(PlayerText("skills.2024_skills_proficient_expertise",
+                               {{"names", Names(profile.proficient)}, {"names2", Names(profile.expertise)}}));
+    // the choices, piece by piece (each piece its own entry)
+    std::string choose = PlayerText("skills.choose_class", {{"count", std::to_string(allowance.class_skills)},
+                                                            {"list", Names(allowance.class_list)}});
+    if (allowance.multiclass_skills) {
+      choose += PlayerText("skills.choose_multiclass", {{"count", std::to_string(allowance.multiclass_skills)}});
+    }
+    choose += PlayerText("skills.choose_background", {{"count", std::to_string(allowance.background_skills)}});
+    if (allowance.species_any_skill) choose += PlayerText("skills.choose_human");
+    if (allowance.species_list) choose += PlayerText("skills.choose_elf");
+    if (allowance.feat_skills) choose += PlayerText("skills.choose_skilled",
+                                                    {{"count", std::to_string(allowance.feat_skills)}});
+    if (allowance.granted) choose += PlayerText("skills.choose_always", {{"names", Names(allowance.granted)}});
+    if (allowance.expertise) choose += PlayerText("skills.choose_expertise",
+                                                  {{"count", std::to_string(allowance.expertise)}});
+    lines.push_back(PlayerText("chat.period", {{"line", choose}}));
+    lines.push_back(PlayerText("skills.set_them_with_skills_skill"));
     return lines;
   }
   std::vector<rules::Skill2024> chosen;
   std::string unknown;
   if (!rules::ParseSkill2024List(rest, &chosen, &unknown)) {
-    lines.push_back("nwn5e: unknown skill \"" + unknown + "\" (2024 names: Acrobatics, Animal Handling, Arcana, "
-                    "Athletics, Deception, History, Insight, Intimidation, Investigation, Medicine, Nature, "
-                    "Perception, Performance, Persuasion, Religion, Sleight of Hand, Stealth, Survival, Thieves' "
-                    "Tools, Smith's Tools).");
+    lines.push_back(PlayerText("skills.unknown_skill_2024_names_acrobatics", {{"unknown", unknown}}));
     return lines;
   }
   rules::SkillSet set = 0;
@@ -367,7 +367,7 @@ std::vector<std::string> SkillsCommand(void* creature, const std::string& args) 
   if (expertise) {
     const std::string problem = rules::CheckExpertiseChoice(allowance, profile.proficient, set);
     if (!problem.empty()) {
-      lines.push_back("nwn5e: Expertise not changed - " + problem + ".");
+      lines.push_back(PlayerText("skills.expertise_not_changed", {{"problem", problem}}));
       return lines;
     }
     profile.expertise = set;
@@ -375,7 +375,7 @@ std::vector<std::string> SkillsCommand(void* creature, const std::string& args) 
     set |= allowance.granted;
     const std::string problem = rules::CheckSkillChoice(allowance, set);
     if (!problem.empty()) {
-      lines.push_back("nwn5e: skills not changed - " + problem + ".");
+      lines.push_back(PlayerText("skills.skills_not_changed", {{"problem", problem}}));
       return lines;
     }
     profile.proficient = set;
@@ -384,8 +384,8 @@ std::vector<std::string> SkillsCommand(void* creature, const std::string& args) 
   StoreProfile(creature, id, profile);
   Log("skills: 0x%08X chose - proficient: %s; Expertise: %s", id, Names(profile.proficient).c_str(),
       Names(profile.expertise).c_str());
-  lines.push_back("nwn5e: 2024 skills - proficient: " + Names(profile.proficient) + "; Expertise: " +
-                  Names(profile.expertise) + ".");
+  lines.push_back(PlayerText("skills.2024_skills_proficient_expertise",
+                             {{"names", Names(profile.proficient)}, {"names2", Names(profile.expertise)}}));
   return lines;
 }
 

@@ -100,6 +100,7 @@
 #include "data/twoda.h"
 #include "rules_loaded.h"
 #include "skill_rank.h"
+#include "player_text.h"
 
 bool StealthParts(void* creature, int* extra, bool* proficient);  // rules_skills.cpp
 int ReliableTalentRoll(void* creature, int nwn_skill, int d20);    // rules_skills.cpp (Rogue R9)
@@ -260,23 +261,14 @@ int RollStealth(void* creature, const char* when) {
     g_not_hidden.insert(id);
   }
   if (IsPlayer(creature)) {
-    char line[256];
-    if (!g_config.hiding_needs_15 && g_config.hiders_need_search) {
-      sprintf_s(line, "nwn5e: hidden - Stealth %d (d20 %d %+d); enemies that search roll Perception against it", total,
-                roll, skill);
-    } else if (!g_config.hiding_needs_15) {
-      sprintf_s(line, "nwn5e: Stealth %d (d20 %d %+d), kept while you stay hidden", total, roll, skill);
-    } else if (hidden) {
-      sprintf_s(line, "nwn5e: Stealth %d (d20 %d %+d) - hidden; that roll holds while you stay hidden", total, roll,
-                skill);
-    } else {
-      sprintf_s(line, "nwn5e: Stealth %d (d20 %d %+d) - below 15, you are not hidden (stop and hide again to retry)",
-                total, roll, skill);
-    }
+    const char* key = !g_config.hiding_needs_15 && g_config.hiders_need_search ? "perception.hidden_search"
+                      : !g_config.hiding_needs_15                             ? "perception.stealth_kept"
+                      : hidden                                                ? "perception.stealth_hidden"
+                                                                              : "perception.stealth_not_hidden";
+    std::string line = PlayerText(key, {{"total", std::to_string(total)}, {"roll", std::to_string(roll)},
+                                        {"bonus", (skill >= 0 ? "+" : "") + std::to_string(skill)}});
     if (roll != rolled) {
-      char reliable[80];
-      sprintf_s(reliable, " - Reliable Talent: your d20 of %d counts as 10", rolled);
-      strcat_s(line, reliable);
+      line = PlayerText("perception.reliable_talent", {{"line", line}, {"rolled", std::to_string(rolled)}});
     }
     TellPlayer(id, line);
   }

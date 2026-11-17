@@ -657,19 +657,20 @@ void RageLongRest(void* stats) {
 std::vector<std::string> RageCommand(void* creature, const std::string& args) {
   void* stats = StatsOf(creature);
   const int level = BarbarianLevelOf(stats);
-  if (level < 1) return {"nwn5e: Rage - you have no Barbarian levels (or class_features isn't faithful)."};
+  if (level < 1) return {PlayerText("barbarian.rage_you_have_no_barbarian")};
   EnsureRecords(creature);
   if (args == "reset") {
     SetSpentFeatUses(creature, kVarRageSpent, 0);
     ClearRecord(creature, kVarRelentless);
     ClearRecord(creature, kVarPersistentUsed);
-    return {"nwn5e: Rage - every use back, Relentless Rage's DC 10, Persistent Rage ready (a test command)."};
+    return {PlayerText("barbarian.rage_every_use_back_relentless")};
   }
   const int total = rules::RageUses2024(level);
   const int left = std::max(0, total - SpentFeatUses(creature, kVarRageSpent));
-  std::string line = "nwn5e: Rage - " + std::to_string(left) + " of " + std::to_string(total) +
-                     " uses left (Barbarian " + std::to_string(level) + "), Rage Damage +" +
-                     std::to_string(rules::RageDamage2024(level));
+  std::string line = PlayerText("barbarian.rage_of_uses_left_barbarian",
+                                {{"left", std::to_string(left)}, {"total", std::to_string(total)},
+                                 {"level", std::to_string(level)},
+                                 {"rage_damage2024", std::to_string(rules::RageDamage2024(level))}});
   if (const Rage* rage = RageOf(creature)) {
     const uint64_t now = GameMs();
     line += "; raging for " + std::to_string((now - rage->started) / 1000) + " s";

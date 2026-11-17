@@ -53,6 +53,7 @@
 #include "rules/grapple.h"
 #include "saves.h"
 #include "skill_rank.h"
+#include "player_text.h"
 
 void ShoveSwing(uint32_t server_id);  // anim_layers.cpp: the player's next swing is nwstab (0.45.5)
 int MartialArtsLevel(void* creature);  // rules_monk.cpp: Monk M1, Dexterous Attacks for the DC
@@ -167,13 +168,13 @@ int ShoveSave(const SkillQuery& query, int value) {
 void ResolveShovePush(void* attacker, void* target) {
   void* creature = CreatureById(IdOf(target));
   if (!creature) {
-    TellUnarmed(attacker, "nwn5e: Shove: push - only a creature can be shoved.");
+    TellUnarmed(attacker, PlayerText("shove.shove_push_only_a_creature"));
     return;
   }
   const int shover_size = Field<int32_t>(attacker, ee::kCreatureSize);
   const int target_size = Field<int32_t>(creature, ee::kCreatureSize);
   if (!rules::ShoveSizeAllowed(shover_size, target_size)) {
-    TellUnarmed(attacker, "nwn5e: Shove: push - too big to shove (at most one size larger than you).");
+    TellUnarmed(attacker, PlayerText("shove.shove_push_too_big_to"));
     if (LogSlot()) Log("shove: 0x%08X push on 0x%08X: too big (%d vs %d)", IdOf(attacker), IdOf(creature),
                        target_size, shover_size);
     return;
@@ -211,7 +212,7 @@ int UseUnarmedOption(void* creature, int feat, uint32_t target) {
   void* round = Field<void*>(creature, ee::kCreatureCombatRound);
   if (!add_attack_actions || !ranged || !round || !CreatureById(target)) return 0;
   if (ranged(creature)) {
-    TellUnarmed(creature, std::string("nwn5e: ") + option->name + " - not with a ranged weapon in hand.");
+    TellUnarmed(creature, PlayerText("shove.not_with_a_ranged_weapon", {{"option_name", option->name}}));
     return 0;
   }
   if (option->start) {
@@ -237,7 +238,7 @@ bool RangedShoveGuard(void* creature, int feat) {
   if (!IsKnockdown(feat) || !IsPlayer(creature)) return true;
   static const auto ranged = reinterpret_cast<CreatureCheckFn>(EngineExport(ee::kGetRangeWeaponEquipped));
   if (!ranged || !ranged(creature)) return true;
-  TellUnarmed(creature, "nwn5e: Shove - not with a ranged weapon in hand (a melee weapon or empty hands).");
+  TellUnarmed(creature, PlayerText("shove.shove_not_with_a_ranged"));
   if (LogSlot()) Log("shove: 0x%08X Shove refused: a ranged weapon in hand", IdOf(creature));
   return false;
 }
@@ -247,14 +248,13 @@ bool RangedShoveGuard(void* creature, int feat) {
 std::vector<std::string> ShoveCommand(void* creature, const std::string& args) {
   const bool push = args.find("push") != std::string::npos;
   const uint32_t target = Field<uint32_t>(creature, ee::kCreatureAttackTarget);
-  if (!CreatureById(target)) return {"nwn5e: !shove: attack a creature first - or use Shove on the radial."};
+  if (!CreatureById(target)) return {PlayerText("shove.shove_attack_a_creature_first")};
   static const auto use_feat = reinterpret_cast<UseFeatFn>(EngineExport(ee::kUseFeat));  // through the hook
-  if (!use_feat) return {"nwn5e: !shove: no UseFeat in this game build."};
+  if (!use_feat) return {PlayerText("shove.shove_no_usefeat_in_this")};
   Vector3 nowhere{0.0f, 0.0f, 0.0f};
   const int feat = push ? rules::kFeatShovePush : ee::kFeatKnockdown;
   if (!use_feat(creature, static_cast<uint16_t>(feat), 0, target, ee::kObjectInvalid, &nowhere)) {
-    return {std::string("nwn5e: !shove: the ") + (push ? "push" : "Shove") + " couldn't start (you need the feat, a "
-            "melee weapon or empty hands, and a hostile living target)."};
+    return {PlayerText(push ? "shove.push_couldnt_start" : "shove.shove_couldnt_start")};
   }
   return {};
 }
@@ -321,7 +321,8 @@ void ReportUnarmed(void* attacker, void* target, const char* option, const Unarm
   const uint32_t target_id = IdOf(target);
   const bool attacker_player = IsPlayer(attacker);
   const bool target_player = IsPlayer(target);
-  const std::string line = std::string("nwn5e: ") + option + ": " + save.text + " " + outcome;
+  const std::string line = PlayerText("shove.unarmed_line",
+                                      {{"option", option}, {"save", save.text}, {"outcome", outcome}});
   if (attacker_player) TellPlayer(attacker_id, line);
   if (target_player && target_id != attacker_id) TellPlayer(target_id, line);
   if ((attacker_player || target_player) && LogSlot()) {

@@ -8,8 +8,9 @@
 #include <string>
 
 // #168: chat messages still written in the code (a TellPlayer call, or a file's Tell helper's, with a string literal
-// and no PlayerText; a SendMessageToPC in a script) - each file's count only goes down (tests/data/fixtures/text_literals.txt; lower it
-// when a file's messages move to data/text/en.txt). New text goes through the catalogue.
+// and no PlayerText; a SendMessageToPC in a script; a literal starting "nwn5e: " - a command's line, a helper's
+// message) - each file's count only goes down (tests/data/fixtures/text_literals.txt; lower it when a file's
+// messages move to data/text/en.txt). New text goes through the catalogue.
 
 namespace {
 
@@ -55,6 +56,28 @@ int LiteralCalls(const std::string& text, const std::string& name) {
   return count;
 }
 
+// String literals in code (not in a comment, nor escaped inside another string) whose text starts "nwn5e: ".
+int ChatLineLiterals(const std::string& text) {
+  int count = 0;
+  for (size_t i = 0; i < text.size(); ++i) {
+    const char c = text[i];
+    if (c == '/' && i + 1 < text.size() && text[i + 1] == '/') {
+      i = text.find('\n', i);
+      if (i == std::string::npos) break;
+    } else if (c == '/' && i + 1 < text.size() && text[i + 1] == '*') {
+      i = text.find("*/", i + 2);
+      if (i == std::string::npos) break;
+      ++i;
+    } else if (c == '\'' || c == '"') {
+      if (c == '"' && text.compare(i + 1, 7, "nwn5e: ") == 0) ++count;
+      for (++i; i < text.size() && text[i] != c; ++i) {
+        if (text[i] == '\\') ++i;
+      }
+    }
+  }
+  return count;
+}
+
 int Count(const std::string& text, const std::string& what) {
   int count = 0;
   for (size_t at = text.find(what); at != std::string::npos; at = text.find(what, at + 1)) ++count;
@@ -63,8 +86,21 @@ int Count(const std::string& text, const std::string& what) {
 
 }  // namespace
 
+TEST(ChatLineLiteralsCounted) {
+  // two lines in code; one in a comment, one escaped in a script, one after a quote character - not counted
+  const std::string text =
+      "return {\"nwn5e: a\"}; // \"nwn5e: b\"\n"
+      "/* \"nwn5e: c\" */ Run(\"SendMessageToPC(m, \\\"nwn5e: d\\\")\");\n"
+      "char q = '\"'; push_back(\"nwn5e: e\" + x);";
+  CHECK_EQ(ChatLineLiterals(text), 2);
+  CHECK_EQ(ChatLineLiterals("\"nwn5e:x\" \"nwn5e : y\""), 0);
+}
+
 TEST(NoNewLiteralPlayerText) {
-  std::map<std::string, std::pair<int, int>> baseline;
+  struct Limits {
+    int tells = 0, sends = 0, lines = 0;
+  };
+  std::map<std::string, Limits> baseline;
   std::istringstream file(ReadFile("tests/data/fixtures/text_literals.txt"));
   std::string line;
   while (std::getline(file, line)) {
@@ -72,9 +108,9 @@ TEST(NoNewLiteralPlayerText) {
     if (line.empty() || line[0] == '#') continue;
     std::istringstream fields(line);
     std::string name;
-    int tells = 0, helpers = 0, sends = 0;
-    fields >> name >> tells >> helpers >> sends;
-    baseline[name] = {tells + helpers, sends};
+    int tells = 0, helpers = 0, sends = 0, lines = 0;
+    fields >> name >> tells >> helpers >> sends >> lines;
+    baseline[name] = {tells + helpers, sends, lines};
   }
   CHECK_EQ(baseline.empty(), false);
   int over = 0, files = 0;
@@ -85,14 +121,14 @@ TEST(NoNewLiteralPlayerText) {
     const std::string text = ReadFile(entry.path().string());
     const int tells = LiteralCalls(text, "TellPlayer") + LiteralCalls(text, "Tell");
     const int sends = Count(text, "SendMessageToPC(");
+    const int lines = ChatLineLiterals(text);
     const auto known = baseline.find(name);
-    const int max_tells = known == baseline.end() ? 0 : known->second.first;
-    const int max_sends = known == baseline.end() ? 0 : known->second.second;
-    if (tells > max_tells || sends > max_sends) {
+    const Limits limit = known == baseline.end() ? Limits{} : known->second;
+    if (tells > limit.tells || sends > limit.sends || lines > limit.lines) {
       ++over;
-      printf("  %s: %d TellPlayer / Tell literals (at most %d), %d SendMessageToPC (at most %d) - new player text goes in "
-             "data/text/en.txt\n",
-             name.c_str(), tells, max_tells, sends, max_sends);
+      printf("  %s: %d TellPlayer / Tell literals (at most %d), %d SendMessageToPC (at most %d), %d \"nwn5e: \" "
+             "lines (at most %d) - new player text goes in data/text/en.txt\n",
+             name.c_str(), tells, limit.tells, sends, limit.sends, lines, limit.lines);
     }
   }
   CHECK_EQ(over, 0);
