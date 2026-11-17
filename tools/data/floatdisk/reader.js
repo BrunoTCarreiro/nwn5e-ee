@@ -1,7 +1,7 @@
 // The Floating Disk's part and texture reading (#39), moved out of build.js so the VFX Bench's Composer reads the same
-// way: a part's meshes in its model's space (a game model, a weapon's pieces, or a model file of yours), a texture found
-// in the game or beside a part's file, and a dyed texture (one the game has only as a PLT) baked from the game's palettes.
-// Node only: it runs the mesh reader (mdlmesh.exe, README.md).
+// way: a part's meshes in its model's space (a game model, a weapon's pieces, a model file of yours, or a shape), a
+// texture found in the game or beside a part's file, and a dyed texture (one the game has only as a PLT) baked from the
+// game's palettes. Node only: it runs the mesh reader (mdlmesh.exe, README.md).
 //
 //   const R = require("./reader.js");
 //   const exe = R.ensureReader({ repo, reader });
@@ -59,9 +59,11 @@ function create({ game, core, gameData, reader }) {
     return read(bytes, name === label ? label : `${label} (${name})`);
   };
 
-  // A part's meshes and box: a game model, a weapon's pieces read one by one and merged, or a model file of yours (ASCII -
-  // made readable for the reader first - or compiled). -> { meshes, lo, hi }
+  // A part's meshes and box: a game model, a weapon's pieces read one by one and merged, a model file of yours (ASCII -
+  // made readable for the reader first - or compiled), or a shape (floatdisk.js makes it from its numbers: no mesh
+  // reader, no game; its `textures` too, the soft one files.js's shapeTextures writes). -> { meshes, lo, hi }
   function part(p) {
+    if (p.source.kind === "shape") return F.shapeModel(p.source.shape);
     const label = F.partLabel(p);
     if (p.source.kind === "model") return gameModel(p.source.model, label);
     if (p.source.kind === "models") return F.mergeModels(p.source.models.map((m) => gameModel(m, label)));

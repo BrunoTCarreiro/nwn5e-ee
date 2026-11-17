@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // build_derived.js end to end (D1), on temporary copies only - needs the game, prints "skip" without it:
 //   node tools\data\check_derived.js [--game <folder>] [--tools <nwn5e-tools>]
-// A dyed part's baked texture (n5p_*, git-ignored) comes out with its model, the same bytes build after build.
+// A dyed part's baked texture (n5p_*, git-ignored) and a shape's soft texture (n5s_*, original) come out with their
+// models, the same bytes build after build.
 // The copy is <tmp>\n5_derived-*\: build_derived.js and the generators' code (*.js, *.bat, *.cpp) from this worktree;
 // everything else under tools\data\floatdisk and \composer - the recipes (composition.json, the projects), made.txt -
 // and data\rows, data\looks from HEAD as git checks them out (git cat-file --filters), never the worktree's: the owner's
@@ -498,6 +499,48 @@ try {
     }
     assert.deepStrictEqual(repoCopy(), copy);
     assert.ok(!fs.existsSync(path.join(DATA, "files", "sub")));
+  });
+
+  check("a placeable project's dome: its model and its shape texture come out into --out, the same on a second build", () => {
+    // A 1 m dome in gold: a shape part (no game model), its soft texture n5s_a3caa0709dda generated from its colour -
+    // original, beside the model in data\files, owned by its name as a bake is.
+    const GOLD = "n5s_a3caa0709dda", colour = [1, 0.85, 0.4];
+    const file = project("chkdome", { kind: "placeable", guide: CIRCLE, placeable: THROUGH, variants: [{ name: "1", row: 14153, parts: [
+      { shape: { type: "dome", radius: 1, colour }, at: [0, 0, 0] }] }] });
+    const own = ["plc_n5chkdome.mdl", "plc_n5chkdome.pwk", GOLD + ".tga"];
+    try {
+      // "Committed": the Composer's build.js into the copy's data\files and data\rows, as the VFX Bench's Save does - its
+      // shape texture beside the model, not in made.txt.
+      const g = spawnSync(process.execPath, [path.join(COMPOSER, "build.js"), file, "--json", "--game", GAME, "--tools", TOOLS, "--reader", READER],
+        { encoding: "utf8", maxBuffer: 64 << 20, windowsHide: true });
+      assert.strictEqual(g.status, 0, "composer build.js: " + (g.stdout + g.stderr).trim());
+      for (const f of own) assert.ok(fs.existsSync(path.join(FILES, f)), f + " isn't in the copy's data\\files");
+      const made = path.join(COMPOSER, "made.txt");
+      assert.ok(!fs.existsSync(made) || !/n5s_/.test(fs.readFileSync(made, "utf8")), "made.txt lists a shape's texture");
+      const r = derive(["--out", OUT]);
+      done(r);
+      assert.deepStrictEqual(Object.entries(states(r)).filter(([, s]) => s !== "unchanged").sort(), own.map((f) => [f, "written"]).sort());
+      assert.match(r.out, /the Composer's project chkdome \(tools\/data\/composer\/chkdome\.json\): 3 files; its rows agree/);
+      assert.ok(fs.readFileSync(path.join(OUT, "plc_n5chkdome.mdl"), "latin1").includes(`\r\n  bitmap ${GOLD}\r\n`), "plc_n5chkdome.mdl doesn't name " + GOLD);
+      assert.ok(fs.readFileSync(path.join(OUT, GOLD + ".tga")).equals(F.tgaBytes(F.shapeTexture({ colour }), { alpha: true })), GOLD + " isn't the generator's");
+      // A second build: both unchanged, none touched.
+      const before = snapshot(OUT);
+      const s = derive(["--out", OUT]);
+      done(s);
+      assert.deepStrictEqual([states(s)["plc_n5chkdome.mdl"], states(s)[GOLD + ".tga"]], ["unchanged", "unchanged"]);
+      assert.ok(Object.values(states(s)).every((x) => x === "unchanged"), JSON.stringify(states(s)));
+      assert.deepStrictEqual(snapshot(OUT), before);
+      // A file of a shape texture's name in --out is the generator's (only it makes n5s_ names, and the name fixes the
+      // bytes): rewritten.
+      fs.writeFileSync(path.join(OUT, GOLD + ".tga"), "not a texture");
+      const w = derive(["--out", OUT]);
+      done(w);
+      assert.deepStrictEqual(Object.entries(states(w)).filter(([, x]) => x !== "unchanged"), [[GOLD + ".tga", "written"]]);
+    } finally {
+      fs.rmSync(file, { force: true });
+      fs.rmSync(path.join(ROWS, "placeables.chkdome.txt"), { force: true });
+      for (const f of own) for (const dir of [FILES, OUT]) fs.rmSync(path.join(dir, f), { force: true });
+    }
   });
 
   check("the real worktree is untouched (composition.json's hash, data\\files' and data\\rows' mtimes)", () => {

@@ -9,11 +9,12 @@
 //
 // - The Floating Disk's generator (floatdisk\build.js) and the Composer's (composer\build.js) for every placeable project
 //   in composer\*.json, each run with --json into a scratch folder of its own; their models, walkmeshes and textures - a
-//   dyed part's baked texture (n5p_<12 hex digits>.tga, from the game's PLT and palettes) with the models that name it -
-//   are then written into --out (build.bat: the build's data\files) - never into this repo's data\ (refused). Skipped, and
-//   said so: a spell mesh's project (its drafts live in the VFX Bench's saved folder, and the dev layer writes its models
-//   when the game runs), and a project never built - no data\rows\placeables.<name>.txt and no variant with a row, as
-//   the bench's New project writes it - whose models nothing installed names.
+//   dyed part's baked texture (n5p_<12 hex digits>.tga, from the game's PLT and palettes) and a shape's soft texture
+//   (n5s_<12 hex digits>.tga, original) with the models that name them - are then written into --out (build.bat: the
+//   build's data\files) - never into this repo's data\ (refused). Skipped, and said so: a spell mesh's project (its
+//   drafts live in the VFX Bench's saved folder, and the dev layer writes its models when the game runs), and a project
+//   never built - no data\rows\placeables.<name>.txt and no variant with a row, as the bench's New project writes it -
+//   whose models nothing installed names.
 // - The rows stay the repo's: data\rows' appearance.floatdisk.txt, placeables.floatdisk.txt and each project's
 //   placeables.<name>.txt are committed text that names the models. Each generator writes its rows over a copy of
 //   data\rows, and they must come out unchanged: rows that differ (or are missing) stop the build, nothing written -
@@ -21,8 +22,9 @@
 //   update that changes the game's rows they copy.
 // - In --out, the generators' one ownership rule (floatdisk\files.js): a model or .pwk there is overwritten only when it
 //   carries its generator's mark, a texture only when that generator's made.txt lists it as data/files/<name>, a baked
-//   texture by its name (only the bake makes it, and the name fixes its bytes); any other file in the way that differs
-//   stops it all. Every file is checked before any is written. Two generators may make the same bake: written once.
+//   texture or a shape's soft texture by its name (only the generators make them, and the name fixes the bytes); any
+//   other file in the way that differs stops it all. Every file is checked before any is written. Two generators may
+//   make the same bake (or soft texture): written once.
 // - One line a file (written / unchanged), then a total. --check: the same builds and checks, in the scratch folders
 //   only; nothing written into --out, each file said as it would be (would write / unchanged).
 // - --game, --tools and --reader default as the generators': the game NWN_GAME_DIR, nwn5e.ini's [loader] game_dir, the
@@ -210,9 +212,10 @@ function main() {
   }
 
   // The files into --out, under the generators' ownership rule: a model or .pwk carrying its generator's mark, a texture
-  // its made.txt lists in data\files, a baked texture by its name (files.js's "baked"). Kind "texture", not files.js's
-  // "binary": nothing is noted in any made.txt.
+  // its made.txt lists in data\files, a baked texture by its name (files.js's "baked"), a shape's soft texture by its
+  // name (files.js's "shape"). Kind "texture", not files.js's "binary": nothing is noted in any made.txt.
   const isBake = (name) => /\.tga$/i.test(name) && F.BAKED.test(name.replace(/\.tga$/i, ""));
+  const isShape = (name) => /\.tga$/i.test(name) && F.SHAPE_TEXTURE.test(name.replace(/\.tga$/i, ""));
   const writes = [], byName = new Map();
   for (const { gen, files } of built) {
     const owned = W.ownership({ repo: REPO, manifest: gen.made, mark: gen.mark, kinds: { texture: (w) => gen.made.has("data/files/" + path.basename(w.file)) } });
@@ -222,7 +225,7 @@ function main() {
         if (!had.bytes.equals(f.bytes)) throw new Error(`${f.name}: ${had.gen.label} and ${gen.label} both make it, differently`);
         continue;
       }
-      const kind = F.carriesMark(f.bytes, gen.mark) ? "text" : isBake(f.name) ? "baked" : "texture";
+      const kind = F.carriesMark(f.bytes, gen.mark) ? "text" : isBake(f.name) ? "baked" : isShape(f.name) ? "shape" : "texture";
       const w = { file: path.join(OUT, f.name), bytes: f.bytes, kind, owned, gen };
       byName.set(f.name.toLowerCase(), w);
       writes.push(w);

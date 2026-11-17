@@ -4,7 +4,8 @@
 
 - `data\files`: the four creature models (`c_n5fd_empty`, `_small`, `_med`, `_large`), the three piles that fall
   when the disk ends (`plc_n5fd_small`, `_med`, `_large`, with their `.pwk`), the disk's texture
-  (`n5t_forcedisk.tga`), and a dyed part's baked texture (`n5p_*.tga`, Dyed parts below);
+  (`n5t_forcedisk.tga`), a dyed part's baked texture (`n5p_*.tga`, Dyed parts below), and a shape's soft texture
+  (`n5s_*.tga`, Shapes below);
 - `data\rows`: `appearance.floatdisk.txt` (rows 14000-14003) and `placeables.floatdisk.txt` (rows 14001-14003).
 
 The seven models are made from the game's files, and none is committed (the owner, 2026-11-17: "go with 1, remove the
@@ -197,6 +198,23 @@ from the defaults is written.
   much it lights itself, at 1 the same by day and night). A soft or library texture, or an alpha below 1, is drawn
   see-through.
 
+**A shape's texture**
+
+- **Where it goes:** `build.js` makes the mesh from the shape's numbers (no game model, no mesh reader). It writes a
+  soft texture beside what names it: into `data\files` with the models (or `--files`), and with `--drafts` beside the
+  stages' drafts too. Shapes of one colour share one file.
+- **It's original,** generated from numbers, so `.gitignore` doesn't keep it out: it may be committed. `made.txt`
+  doesn't list it, and `build.bat` makes it with the models for every build (`tools\data\build_derived.js`).
+- **Whose it is:** its name says. Only the generator makes `n5s_` names, and the name fixes the picture, so a file of
+  that name in the way is rewritten.
+- **The summary** names it, and `--json` lists it under `shapes` (`texture`, `colour`):
+
+  ```
+    texture n5s_a3caa0709dda: a shape's soft texture, colour 1 0.85 0.4 - written into data/files
+  ```
+
+- `none` and a library texture write nothing: the model names the library's texture, and the game has it.
+
 ## The files here
 
 | file | what it is |
@@ -205,8 +223,8 @@ from the defaults is written.
 | `build.js` | the generator |
 | `floatdisk.js` | its pure parts: placing, the disk, the shapes (their meshes and soft textures), the models' and rows' text (it loads in a page too: the VFX Bench's Composer places with it) |
 | `check.js` | checks `floatdisk.js` |
-| `reader.js` | reads the parts' meshes and the textures from the game or beside a file, and bakes a dyed part's PLT (what `build.js` and the VFX Bench share) |
-| `files.js` | the file plumbing this `build.js` and the Composer's share: the options, loading nwn5e-tools, a dyed part's bakes, shipping your own textures, the one ownership rule they write by |
+| `reader.js` | reads the parts' meshes (a shape's from `floatdisk.js`) and the textures from the game or beside a file, and bakes a dyed part's PLT (what `build.js` and the VFX Bench share) |
+| `files.js` | the file plumbing this `build.js` and the Composer's share: the options, loading nwn5e-tools, a dyed part's bakes, a shape's soft texture, shipping your own textures, the one ownership rule they write by |
 | `check_build.js` | checks `build.js` end to end on a temporary copy (needs the game) |
 | `mdlmesh.cpp`, `build_mdlmesh.bat` | the mesh reader, built from the repo's `src\data\vfx_model.cpp` into `build\floatdisk\` |
 | `made.txt` | the textures the generator wrote (they can't carry its mark) |
