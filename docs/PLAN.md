@@ -6653,9 +6653,23 @@ a GitHub Project, Google Sheets, a claude.ai page with a database, or keeping Ex
   every generated piece and how to make one the owner's. Tests TextCatalogParses, TextCatalogFile,
   TextKeysInCodeExist, StringsHaveSources, NoNewLiteralPlayerText (121 TellPlayer literals and 84 SendMessageToPC
   in 40 files still in the code - only fewer: tests/data/fixtures/text_literals.txt, scripts/text_literals.py). 5
-  mutations caught; 574 tests pass. The launch: "text: 35 player texts from data	ext\en.txt". Tests TX-1, TX-2.
+  mutations caught; 574 tests pass. The launch: "text: 35 player texts from data\text\en.txt". Tests TX-1, TX-2.
 - *Next (owner, 2026-11-17: "1.(A)"):* the remaining messages (121 TellPlayer literals, 84 SendMessageToPC in
   scripts) moved into the catalogue word for word, file by file, while the owner is away from the game.
+- *Built 0.99.59 (batches 1-3):* the chat messages the code wrote moved into data/text/en.txt word for word, file
+  by file - every TellPlayer and Tell-helper message (batch 1 by script, 183 calls; batch 2 by hand, the ones
+  assembled from pieces, 121 entries) and the text the code returns or collects for chat: the chat commands'
+  lines, the rest gate's reasons and the Short Rest lines, the conditions' end lines, the Stealth rolls, the
+  sprintf_s lines (batch 3, 206 entries: 129 sites by script, 33 by hand). A message with variants is an entry per
+  variant, its full text (one use / several, saved / failed); a list of optional pieces an entry per piece (the
+  !skills choices, the Short Rest's features). All generated but Radiant and Necrotic (srd:Damage Types); no new
+  wording. Checked: each entry's words against the code it came from; every PlayerText call supplies its entry's
+  placeholders (481 calls). The guard (NoNewLiteralPlayerText) also counts the literals starting "nwn5e: "
+  (ChatLineLiterals) - none left but the debug commands' (!test, !vfxnode, the NUI probe: not player-facing). 575
+  tests pass, 7 mutations caught; the launch: "text: 528 player texts". Tests TX-3 to TX-11.
+- *Left:* the 84 SendMessageToPC calls in script code (next: one expansion for scripts, so a script names a key);
+  the words the rules layer gives the messages (ability, effect, style and technique names, the exhaustion and
+  save texts - src/rules); the NUI windows' and radial menus' labels.
 
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 
