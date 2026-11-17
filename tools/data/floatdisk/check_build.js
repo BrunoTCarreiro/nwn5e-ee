@@ -122,7 +122,7 @@ try {
     assert.strictEqual(repo.length, 13, repo.length + " repo files reported");
     assert.ok(repo.every(([, f]) => f.startsWith("data/")), "outside data/: " + repo.map(([, f]) => f).join(", "));
     assert.ok(states.every(([s]) => s === "unchanged"), "not unchanged: " + states.filter(([s]) => s !== "unchanged").map(([s, f]) => s + " " + f).join(", "));
-    // The bakes are the composition's, one a texture (the owner's Large holds helm_001: n5p_2cd3d725dedb).
+    // The bakes are the composition's, one a texture (the owner's Large dyes its helm_001: its colours name it).
     assert.deepStrictEqual(baked.map(([, f]) => path.posix.basename(f, ".tga")).sort(), bakes(build(["--check", "--json"])).map((b) => b.texture).sort());
     assert.deepStrictEqual(snapshot(), before);
   });
@@ -216,54 +216,87 @@ try {
   });
 
   check("a dyed part is baked into data\\files beside the models; the models name it, made.txt doesn't list it", () => {
-    const DEF = "n5p_2cd3d725dedb", FIVE = "n5p_f15efdade06c";  // helm_001 at the defaults, and with metal 1 5
+    // The check's own medium: helm_001 at the defaults, and with metal 1 5 - their names are the bake's rule, fixed.
+    const DEF = "n5p_2cd3d725dedb", FIVE = "n5p_f15efdade06c";
     const file = withComposition("dyed.json", (c) => {
       c.stages.medium = [{ model: "helm_001", at: [0, 0, 0] }, { model: "helm_001", at: [0.2, 0, 0], colours: { metal1: 5 } }];
     });
-    const made = fs.readFileSync(path.join(folder, "made.txt"));
-    // --check: a summary line a bake, the part's six numbers in the card's order, where it goes.
-    const c = build(["--composition", file, "--check"]);
-    assert.strictEqual(c.code, 0, "build.js --check exited " + c.code + ": " + c.err.trim());
-    const said = c.out.split(/\r?\n/);
-    for (const [name, metal1] of [[DEF, 0], [FIVE, 5]]) {
-      const line = `  texture ${name}: helm_001 dyed with metal 1 ${metal1}, metal 2 3, leather 1 3, leather 2 2, cloth 1 22, cloth 2 23 - baked into data/files`;
-      assert.ok(said.includes(line), "no line: " + line + "\n" + c.out);
-    }
-    const had = fs.existsSync(path.join(FILES, DEF + ".tga"));  // the owner's Large has it (built first, above)
-    const r = build(["--composition", file, "--json"]);
-    assert.strictEqual(r.code, 0, "build.js exited " + r.code + ": " + r.err.trim());
-    const j = json(r);
-    assert.deepStrictEqual(j.baked, [{ texture: DEF, plt: "helm_001", colours: {} }, { texture: FIVE, plt: "helm_001", colours: { metal1: 5 } }]);
-    // The medium stage's creature and pile name both, and no longer helm_001.
-    for (const m of ["c_n5fd_med.mdl", "plc_n5fd_med.mdl"]) {
-      const t = fs.readFileSync(path.join(FILES, m), "latin1");
-      for (const name of [DEF, FIVE]) assert.ok(t.includes(`\r\n  bitmap ${name}\r\n`), `${m} doesn't name ${name}`);
-      assert.ok(!/\r\n  bitmap helm_001\r\n/i.test(t), m + " still names helm_001");
-    }
-    // Each in data\files: 128 x 128 at 24 bits (18 + 128 x 128 x 3 bytes), reader.js's bake of the game's helm_001.
-    const states = Object.fromEntries(j.files.map((f) => [f.file, f.state]));
-    assert.deepStrictEqual([states[`data/files/${DEF}.tga`], states[`data/files/${FIVE}.tga`]], [had ? "unchanged" : "new", "new"]);
     const core = (global.window = global.window || {}, require(path.join(TOOLS, "vfx_bench", "public", "core.js")));
     const gameData = require(path.join(TOOLS, "spell_bench", "game_data.js"));
-    const rd = R.create({ game: GAME, core, gameData, reader: null });
-    for (const [name, colours] of [[DEF, F.readColours()], [FIVE, F.readColours({ metal1: 5 })]]) {
-      const t = fs.readFileSync(path.join(FILES, name + ".tga"));
-      assert.strictEqual(t.length, 49170, name + ": " + t.length + " bytes");
-      assert.strictEqual(t[16], 24, name + ": " + t[16] + " bits");
-      const b = rd.bake("helm_001", colours);
-      assert.strictEqual(b.name, name);
-      assert.ok(t.equals(b.bytes), name + " isn't reader.js's bake");
+    const rd = R.create({ game: GAME, core, gameData, reader: READER });
+    try {
+      // Every bake this recipe gives - the medium above and whatever the owner's other stages dye (the Large's helmet,
+      // recoloured 2026-11-17: a recolour is a new name) - from the recipe itself, as check_derived.js's diskBakes: each
+      // part read through reader.js, its PLT-only bitmaps named by floatdisk.js's bakeBitmaps (F.bakedName of the PLT and
+      // the part's colours). In the build's order (the stages, their parts, their meshes), each name once, with its
+      // part's ten colours and the stages that name it.
+      const comp = F.readComposition(JSON.parse(fs.readFileSync(file, "utf8")), folder);
+      const expected = new Map();  // name -> { plt, colours (only what isn't a default), full (the ten layers'), stages }
+      for (const stage of F.STAGES) {
+        for (const p of comp.stages[stage]) {
+          for (const b of F.bakeBitmaps(rd.part(p).meshes, p.colours, rd.pltOnly).bakes) {
+            if (!expected.has(b.name)) expected.set(b.name, { plt: b.plt, colours: b.colours, full: p.colours, stages: new Set() });
+            expected.get(b.name).stages.add(stage);
+          }
+        }
+      }
+      assert.ok(expected.has(DEF) && expected.get(DEF).stages.has("medium"), "the recipe gives no " + DEF + " in the medium");
+      assert.ok(expected.has(FIVE) && expected.get(FIVE).stages.has("medium"), "the recipe gives no " + FIVE + " in the medium");
+      console.log("     the recipe's bakes: " + [...expected].map(([name, b]) => `${name} (${b.plt} ${JSON.stringify(b.colours)}, ${[...b.stages].join(" ")})`).join("; "));
+      const made = fs.readFileSync(path.join(folder, "made.txt"));
+      // --check: a summary line a bake, the part's six numbers in the card's order, where it goes.
+      const c = build(["--composition", file, "--check"]);
+      assert.strictEqual(c.code, 0, "build.js --check exited " + c.code + ": " + c.err.trim());
+      const said = c.out.split(/\r?\n/);
+      for (const [name, metal1] of [[DEF, 0], [FIVE, 5]]) {
+        const line = `  texture ${name}: helm_001 dyed with metal 1 ${metal1}, metal 2 3, leather 1 3, leather 2 2, cloth 1 22, cloth 2 23 - baked into data/files`;
+        assert.ok(said.includes(line), "no line: " + line + "\n" + c.out);
+      }
+      for (const [name, b] of expected) {
+        const line = `  texture ${name}: ${b.plt} dyed with ` + F.PLT_FIELDS.map((k) => `${F.PLT_LABELS[k].toLowerCase()} ${b.full[k]}`).join(", ") + " - baked into data/files";
+        assert.ok(said.includes(line), "no line: " + line + "\n" + c.out);
+      }
+      const had = fs.existsSync(path.join(FILES, DEF + ".tga"));  // an earlier build's bake may be there (copied above)
+      const r = build(["--composition", file, "--json"]);
+      assert.strictEqual(r.code, 0, "build.js exited " + r.code + ": " + r.err.trim());
+      const j = json(r);
+      assert.deepStrictEqual(j.baked, [...expected].map(([texture, b]) => ({ texture, plt: b.plt, colours: b.colours })));
+      assert.deepStrictEqual(j.baked.slice(0, 2), [{ texture: DEF, plt: "helm_001", colours: {} }, { texture: FIVE, plt: "helm_001", colours: { metal1: 5 } }]);
+      // Each stage's creature and pile name each of its bakes, and no longer the PLT it was baked from.
+      for (const [name, b] of expected) {
+        for (const stage of b.stages) {
+          for (const m of [F.creatureModel(stage), F.pileModel(stage)].map((s) => s + ".mdl")) {
+            const t = fs.readFileSync(path.join(FILES, m), "latin1");
+            assert.ok(t.includes(`\r\n  bitmap ${name}\r\n`), `${m} doesn't name ${name}`);
+            assert.ok(!t.toLowerCase().includes(`\r\n  bitmap ${b.plt}\r\n`), `${m} still names ${b.plt}`);
+          }
+        }
+      }
+      // Each in data\files at 24 bits, reader.js's bake of the game's PLT in its part's colours (helm_001's: 128 x 128, 18 +
+      // 128 x 128 x 3 bytes).
+      const states = Object.fromEntries(j.files.map((f) => [f.file, f.state]));
+      assert.deepStrictEqual([states[`data/files/${DEF}.tga`], states[`data/files/${FIVE}.tga`]], [had ? "unchanged" : "new", "new"]);
+      for (const [name, b] of expected) {
+        const t = fs.readFileSync(path.join(FILES, name + ".tga"));
+        if (b.plt === "helm_001") assert.strictEqual(t.length, 49170, name + ": " + t.length + " bytes");
+        assert.strictEqual(t[16], 24, name + ": " + t[16] + " bits");
+        const baked = rd.bake(b.plt, b.full);
+        assert.strictEqual(baked.name, name);
+        assert.ok(t.equals(baked.bytes), name + " isn't reader.js's bake");
+      }
+      // Nothing noted in made.txt, and no bake but in data\files.
+      assert.ok(fs.readFileSync(path.join(folder, "made.txt")).equals(made), "made.txt changed");
+      for (const dir of [ROWS, folder]) assert.ok(!fs.readdirSync(dir).some((f) => /^n5p_/i.test(f)), "a bake in " + dir);
+      // Built again: every bake unchanged. A file of a baked name is the bake's (the name fixes its bytes): rewritten.
+      const again = Object.fromEntries(json(build(["--composition", file, "--json"])).files.map((f) => [f.file, f.state]));
+      assert.deepStrictEqual([...expected.keys()].map((name) => again[`data/files/${name}.tga`]), [...expected.keys()].map(() => "unchanged"));
+      fs.writeFileSync(path.join(FILES, FIVE + ".tga"), "not a bake");
+      const fixed = json(build(["--composition", file, "--json"])).files.filter((f) => f.state !== "unchanged");
+      assert.deepStrictEqual(fixed, [{ state: "rebuilt", file: `data/files/${FIVE}.tga` }]);
+      assert.ok(fs.readFileSync(path.join(FILES, FIVE + ".tga")).equals(rd.bake("helm_001", F.readColours({ metal1: 5 })).bytes));
+    } finally {
+      rd.close();
     }
-    // Nothing noted in made.txt, and no bake but in data\files.
-    assert.ok(fs.readFileSync(path.join(folder, "made.txt")).equals(made), "made.txt changed");
-    for (const dir of [ROWS, folder]) assert.ok(!fs.readdirSync(dir).some((f) => /^n5p_/i.test(f)), "a bake in " + dir);
-    // Built again: both unchanged. A file of a baked name is the bake's (the name fixes its bytes): rewritten.
-    const again = Object.fromEntries(json(build(["--composition", file, "--json"])).files.map((f) => [f.file, f.state]));
-    assert.deepStrictEqual([again[`data/files/${DEF}.tga`], again[`data/files/${FIVE}.tga`]], ["unchanged", "unchanged"]);
-    fs.writeFileSync(path.join(FILES, FIVE + ".tga"), "not a bake");
-    const fixed = json(build(["--composition", file, "--json"])).files.filter((f) => f.state !== "unchanged");
-    assert.deepStrictEqual(fixed, [{ state: "rebuilt", file: `data/files/${FIVE}.tga` }]);
-    assert.ok(fs.readFileSync(path.join(FILES, FIVE + ".tga")).equals(rd.bake("helm_001", F.readColours({ metal1: 5 })).bytes));
   });
 
   check("the real worktree's data\\files and the real build's vfxedit\\saved\\ are as they were", () => {
