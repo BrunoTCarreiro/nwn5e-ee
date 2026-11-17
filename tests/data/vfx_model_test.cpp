@@ -1662,6 +1662,164 @@ TEST(VfxDraftPlaneMaterialFixture) {
   CHECK_EQ(WriteVfxDraft(effect) == text, true);
 }
 
+// --- A mesh beat (the Composer, #39): a spell mesh placed in an effect as planes, timed and faded as a light is ---
+
+namespace {
+
+// A fixture's text with its line ends as LF (as the bench reads it).
+std::string FixtureText(const char* path) {
+  std::ifstream file(path, std::ios::binary);
+  std::ostringstream read;
+  read << file.rdbuf();
+  std::string text;
+  for (char c : read.str())
+    if (c != '\r') text += c;
+  return text;
+}
+
+// The same plane, and the same bench-only keys: the mesh it came from, its scale and timing, its alpha keys.
+bool SameBeat(const VfxPlane& a, const VfxPlane& b) {
+  bool same = SamePlane(a, b) && a.mesh == b.mesh && Milli(a.scale) == Milli(b.scale) &&
+              Milli(a.start_seconds) == Milli(b.start_seconds) && Milli(a.emit_seconds) == Milli(b.emit_seconds) &&
+              a.keys.size() == b.keys.size();
+  for (size_t k = 0; same && k < a.keys.size(); ++k) {
+    same = a.keys[k].anim == b.keys[k].anim && a.keys[k].alpha.size() == b.keys[k].alpha.size();
+    for (size_t i = 0; same && i < a.keys[k].alpha.size(); ++i) same = Milli(a.keys[k].alpha[i]) == Milli(b.keys[k].alpha[i]);
+  }
+  return same;
+}
+
+// plane_beat.vfx's effect: a 0.2 m quad (a 0.4 m spell mesh at scale 0.5) under the node ring, on from 0.3 s for 1.2 s,
+// fading in to 0.8 and out again over 0.2 s.
+VfxEffect BeatEffect() {
+  VfxEffect effect;
+  effect.name = "n5_beat";
+  VfxNode ring;
+  ring.name = "ring";
+  ring.position[2] = 1.0f;
+  effect.nodes.push_back(ring);
+  VfxPlane beat;
+  beat.name = "beat";
+  beat.parent = "ring";
+  beat.orientation[2] = 1.0f;
+  beat.orientation[3] = 1.5708f;
+  beat.bitmap = "fxpa_fern";
+  beat.verts = {-0.1f, 0, 0, 0.1f, 0, 0, -0.1f, 0, 0.2f, 0.1f, 0, 0.2f};
+  beat.tverts = {0, 0, 1, 0, 0, 1, 1, 1};
+  beat.faces = {0, 1, 2, 2, 1, 3};
+  beat.mesh = "n5m_test";
+  beat.scale = 0.5f;
+  beat.start_seconds = 0.3f;
+  beat.emit_seconds = 1.2f;
+  VfxKeys fade;
+  fade.anim = "impact";
+  fade.alpha = {0, 0, 0.3f, 0, 0.5f, 0.8f, 1.3f, 0.8f, 1.5f, 0};
+  beat.keys.push_back(fade);
+  effect.planes.push_back(beat);
+  return effect;
+}
+
+}  // namespace
+
+// A mesh beat through the draft: after the plane's render line and before its verts, each only when it isn't the
+// default - "mesh = ", "scale = ", "start_seconds = ", "emit_seconds = ", then "<anim>_alpha = t a ..." per animation, in
+// the animations' order (core.js writes the same bytes) - and back the same.
+TEST(VfxDraftPlaneBeatRoundTrip) {
+  VfxEffect effect = BeatEffect();
+  VfxKeys out;
+  out.anim = "cessation";
+  out.alpha = {0, 0.8f, 0.4f, 0};
+  effect.planes[0].keys.push_back(out);
+  effect.planes[0].render = false;
+  const std::string draft = WriteVfxDraft(effect);
+  CHECK_EQ(Contains(draft, "[plane beat]\nparent = ring\nposition = 0 0 0\norientation = 0 0 1 1.5708\nbitmap = fxpa_fern\nrender = 0\n"
+                           "mesh = n5m_test\nscale = 0.5\nstart_seconds = 0.3\nemit_seconds = 1.2\n"
+                           "impact_alpha = 0 0 0.3 0 0.5 0.8 1.3 0.8 1.5 0\ncessation_alpha = 0 0.8 0.4 0\nverts = "),
+           true);
+  VfxEffect back;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(draft, &back, &error), true);
+  CHECK_EQ(back.planes.size(), 1u);
+  if (back.planes.size() != 1) return;
+  CHECK_EQ(SameBeat(back.planes[0], effect.planes[0]) && !back.planes[0].render, true);
+  CHECK_EQ(WriteVfxDraft(back) == draft, true);
+}
+
+// The VFX Bench's core.js reads and writes the same bytes (check_chunks.js reads this fixture too): a mesh beat.
+TEST(VfxDraftPlaneBeatFixture) {
+  const std::string text = FixtureText("tests/data/fixtures/plane_beat.vfx");
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(text, &effect, &error), true);
+  CHECK_EQ(effect.nodes.size() == 1 && effect.emitters.empty() && effect.planes.size() == 1, true);
+  if (effect.planes.size() != 1) return;
+  CHECK_EQ(SameBeat(effect.planes[0], BeatEffect().planes[0]), true);
+  CHECK_EQ(WriteVfxDraft(effect) == text, true);
+  CHECK_EQ(WriteVfxDraft(BeatEffect()) == text, true);  // the fixture is in WriteVfxDraft's order
+}
+
+// The model keys a beat's alpha (alphakey: controller 128, as 22 of the game's own effect models key a mesh's): in each
+// animation with alpha keys for it, after the lights, a trimesh node of its geometry's name, under its geometry's
+// parent, with its rows; none in the others, nor for a plane without keys. Its geometry as before; its mesh, scale and
+// timing never in the model; the animation as long as its keys.
+TEST(VfxModelPlaneAlphaKeys) {
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(FixtureText("tests/data/fixtures/plane_beat.vfx"), &effect, &error), true);
+  CHECK_EQ(effect.planes.size(), 1u);
+  if (effect.planes.size() != 1) return;
+  const std::string model = WriteVfxModel(effect, "n5t");
+  const std::string impact = Section(model, "newanim impact n5t", "doneanim impact n5t");
+  CHECK_EQ(Section(impact, "node trimesh n5t_p0_beat", "endnode") ==
+               "node trimesh n5t_p0_beat\n  parent n5t_n0_ring\n  alphakey 5\n    0 0\n    0.3 0\n    0.5 0.8\n    1.3 0.8\n    1.5 0\n",
+           true);
+  for (const char* other : {"duration", "cessation"}) {
+    const std::string anim = Section(model, std::string("newanim ") + other + " n5t", std::string("doneanim ") + other + " n5t");
+    CHECK_EQ(!anim.empty() && !Contains(anim, "trimesh") && !Contains(anim, "alphakey"), true);
+  }
+  const size_t length = impact.find("  length ");
+  CHECK_EQ(length != std::string::npos && std::stof(impact.substr(length + 9)) >= 1.5f, true);
+  // Its geometry: the trimesh the same plane without the new keys writes.
+  VfxEffect plain = effect;
+  VfxPlane& p = plain.planes[0];
+  p.mesh.clear();
+  p.scale = 1.0f;
+  p.start_seconds = p.emit_seconds = 0.0f;
+  p.keys.clear();
+  const auto geometry = [](const std::string& m) { return Section(m, "beginmodelgeom n5t", "endmodelgeom n5t"); };
+  CHECK_EQ(Contains(geometry(model), "node trimesh n5t_p0_beat\n  parent n5t_n0_ring\n"), true);
+  CHECK_EQ(geometry(model) == geometry(WriteVfxModel(plain, "n5t")), true);
+  CHECK_EQ(Contains(model, "n5m_test") || Contains(model, "  scale") || Contains(model, "_seconds"), false);
+  // After the lights; a plane without keys in no animation.
+  VfxEffect lit = effect;
+  lit.lights.emplace_back();
+  lit.planes.push_back(plain.planes[0]);
+  lit.planes.back().name = "still";
+  const std::string lit_model = WriteVfxModel(lit, "n5t");
+  const std::string lit_impact = Section(lit_model, "newanim impact n5t", "doneanim impact n5t");
+  const size_t light = lit_impact.find("node light n5t_l0_light"), mesh = lit_impact.find("node trimesh n5t_p0_beat");
+  CHECK_EQ(light != std::string::npos && mesh != std::string::npos && light < mesh, true);
+  CHECK_EQ(Contains(geometry(lit_model), "node trimesh n5t_p1_still"), true);
+  CHECK_EQ(lit_model.find("n5t_p1_still", lit_model.find("newanim")) == std::string::npos, true);
+}
+
+// Review Focus 10: a plane without the new keys writes the draft and the model it wrote before - plane_material.vfx's
+// draft is the file, and its model keys no mesh: no trimesh in any animation, as nwn5e has always written planes.
+TEST(VfxModelPlaneWithoutKeysUnchanged) {
+  const std::string text = FixtureText("tests/data/fixtures/plane_material.vfx");
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(text, &effect, &error) && effect.planes.size() == 2, true);
+  for (const VfxPlane& p : effect.planes) {
+    CHECK_EQ(p.mesh.empty() && p.scale == 1.0f && p.start_seconds == 0.0f && p.emit_seconds == 0.0f && p.keys.empty(), true);
+  }
+  CHECK_EQ(WriteVfxDraft(effect) == text, true);
+  const std::string model = WriteVfxModel(effect, "n5t");
+  const size_t first = model.find("newanim");
+  CHECK_EQ(first != std::string::npos && model.find("node trimesh", first) == std::string::npos, true);
+  CHECK_EQ(Contains(model, "alphakey"), false);
+}
+
 // #161 VA-2 (owner, 2026-11-13: "after a while the effects stop happening in the whole area and just focus in the
 // middle"): an area's copies run their animations again and again (moved, the cessation, then the impact and the
 // duration), so a lasting effect's emitter turned off in the cessation stays off unless the impact and the duration set

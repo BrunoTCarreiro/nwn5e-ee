@@ -23,6 +23,9 @@ struct VfxKeys {
   // #145, a light's: its colour (t r g b) and radius (t m) - what the game's own effects key (a flicker, a fade).
   std::vector<float> color;
   std::vector<float> radius;
+  // #39, a plane's (a mesh beat's fade): its alpha (t a), as 22 of the game's own effect models key a mesh's (controller
+  // 128, alphakey).
+  std::vector<float> alpha;
 };
 
 // #145: a light of the effect (a light node of its model): where it hangs, its colour, radius (metres) and
@@ -153,6 +156,15 @@ struct VfxPlane {
   // Its node's flags as the compiled model has them (0x21 a plain mesh; 0x61 skin, 0xA1 animated, 0x121 dangly - read
   // with any_mesh); 0 from a draft or an ASCII model. Never written: the dev layer logs it.
   uint32_t flags = 0;
+  // #39, a mesh beat (the VFX Bench's Composer: a spell mesh placed in an effect), the bench's own: the spell mesh it came
+  // from ("" = none: the effect's own plane), the scale it was placed at (its verts are already scaled), and its Starts
+  // after and On for (seconds, as the bench's lights keep them) - in the draft only, never in the model.
+  std::string mesh;
+  float scale = 1.0f;
+  float start_seconds = 0.0f;
+  float emit_seconds = 0.0f;
+  // Its keys in the animations: its alpha (a fade), written into the model as alphakey on its node there.
+  std::vector<VfxKeys> keys;
 };
 
 // The most deadspace a draft or a written model gets: above about 0.39 the game's turning loop
