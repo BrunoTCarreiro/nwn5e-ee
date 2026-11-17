@@ -68,9 +68,9 @@ const withComposition = (name, edit) => {
   fs.writeFileSync(file, JSON.stringify(c));
   return file;
 };
-// The six models made of the game's meshes aren't committed (the owner, 2026-11-17; tools\data\README.md): a checkout
-// without them - main after the merge, a fresh clone - gets them from one build first, so the full rebuild below still
-// checks that every file comes out the same.
+// The models made from the game's files - the six of its meshes and c_n5fd_empty - aren't committed (the owner,
+// 2026-11-17; tools\data\README.md): a checkout without them - main after the merge, a fresh clone - gets them from one
+// build first, so the full rebuild below still checks that every file comes out the same.
 const F = require("./floatdisk.js");
 const absent = [...F.STAGES.map((s) => F.creatureModel(s)), ...F.PILES.map((s) => F.pileModel(s))].map((m) => m + ".mdl")
   .filter((f) => !fs.existsSync(path.join(FILES, f)));

@@ -75,25 +75,30 @@ const EXPECTED = new Map();  // name -> HEAD's data\files copy, as checked out
 for (const rel of [...markedAtHead(F.MARK), ...madeAtHead("floatdisk"), ...markedAtHead(P.MARK), ...madeAtHead("composer")]) {
   EXPECTED.set(path.posix.basename(rel), checkedOut(rel));
 }
-// The Floating Disk's files. The six models made of the game's meshes are never committed (the owner, 2026-11-17: "go
-// with 1, remove the six files from main"): git-ignored, built at build time. The rest is committed: the .pwk files and
-// the texture made from scratch, and c_n5fd_empty.mdl (its disk mesh original, with c_invsguy's nodes its supermodel needs).
+// The Floating Disk's files. Its models made from the game's files are never committed (the owner, 2026-11-17: "go with
+// 1, remove the six files from main", then "go with your recs for the three questions"): the six of the game's meshes,
+// and c_n5fd_empty.mdl - its disk original, but carrying c_invsguy's node names and positions. Git-ignored, built at
+// build time. The rest is committed: the .pwk files and the texture, made from scratch.
 const FLOATDISK = ["c_n5fd_empty.mdl", "c_n5fd_large.mdl", "c_n5fd_med.mdl", "c_n5fd_small.mdl", "n5t_forcedisk.tga",
   "plc_n5fd_large.mdl", "plc_n5fd_large.pwk", "plc_n5fd_med.mdl", "plc_n5fd_med.pwk", "plc_n5fd_small.mdl", "plc_n5fd_small.pwk"];
-const GAME_DERIVED = ["c_n5fd_large.mdl", "c_n5fd_med.mdl", "c_n5fd_small.mdl", "plc_n5fd_large.mdl", "plc_n5fd_med.mdl", "plc_n5fd_small.mdl"];
+const GAME_DERIVED = ["c_n5fd_empty.mdl", "c_n5fd_large.mdl", "c_n5fd_med.mdl", "c_n5fd_small.mdl", "plc_n5fd_large.mdl", "plc_n5fd_med.mdl",
+  "plc_n5fd_small.mdl"];
 const AT_HEAD = new Set(headFiles("data/files").map((rel) => path.posix.basename(rel)));
 // .gitignore's rules for a data\files name (--no-index: the rule, whether or not the file is tracked).
 const ignored = (name) => spawnSync("git", ["check-ignore", "-q", "--no-index", "data/files/" + name], { cwd: REPO, windowsHide: true }).status === 0;
-// The six as last committed - the parent of the commit that removed them - while the recipe and the generator are what
-// they were then: the build must give them back byte for byte. null before they were removed; not compared once either
-// changed.
+// Each game-derived model as last committed - the parent of the commit that removed it - while the recipe and the
+// generator are what they were then: the build must give it back byte for byte. [{ name, rev, bytes }], bytes null once
+// either changed (not compared); a model not removed yet isn't listed.
 function lastCommitted() {
-  const gone = git(["log", "-1", "--format=%H", "--diff-filter=D", "HEAD", "--", "data/files/c_n5fd_small.mdl"], "utf8").trim();
-  if (!gone) return null;
   const blobs = (rev) => ["composition.json", "floatdisk.js", "build.js", "reader.js", "files.js"]
     .map((f) => git(["rev-parse", `${rev}:tools/data/floatdisk/${f}`], "utf8").trim()).join(" ");
-  if (blobs(gone + "^") !== blobs("HEAD")) return { rev: gone.slice(0, 7), changed: true };
-  return { rev: gone.slice(0, 7), changed: false, files: new Map(GAME_DERIVED.map((n) => [n, git(["cat-file", "--filters", `${gone}^:data/files/${n}`])])) };
+  const now = blobs("HEAD"), out = [];
+  for (const name of GAME_DERIVED) {
+    const gone = git(["log", "-1", "--format=%H", "--diff-filter=D", "HEAD", "--", "data/files/" + name], "utf8").trim();
+    if (!gone) continue;
+    out.push({ name, rev: gone.slice(0, 7), bytes: blobs(gone + "^") === now ? git(["cat-file", "--filters", `${gone}^:data/files/${name}`]) : null });
+  }
+  return out;
 }
 const LAST = lastCommitted();
 let NAMES = [...EXPECTED.keys()].sort();  // what a build makes: HEAD's, and the git-ignored ones (the first build says)
@@ -162,20 +167,23 @@ function check(name, fn) {
 }
 
 try {
-  check("HEAD's data\\files: the Floating Disk's 5 others committed, its 6 game-derived models not, git-ignored", () => {
+  check("HEAD's data\\files: the Floating Disk's 4 made from scratch committed, its 7 game-derived models not, git-ignored", () => {
     assert.deepStrictEqual(FLOATDISK_AT_HEAD.sort(), FLOATDISK.filter((f) => !GAME_DERIVED.includes(f)));
     for (const f of GAME_DERIVED) {
       assert.ok(!AT_HEAD.has(f), f + " is committed at HEAD");
       assert.ok(ignored(f), f + " isn't git-ignored");
     }
     // A Composer placeable's model (built from the game's parts) and a baked PLT texture are ignored too; the original
-    // art - the empty disk, a walkmesh, the disk's texture, a project's own .pwk, nwn5e's other files - isn't.
+    // art - a walkmesh, the disk's texture, a project's own .pwk, nwn5e's other files - isn't.
     for (const f of ["plc_n5crates.mdl", "plc_n5crates_1.mdl", "PLC_N5CRATES_2.MDL", "n5p_2cd3d725dedb.tga"]) assert.ok(ignored(f), f + " isn't git-ignored");
-    for (const f of ["c_n5fd_empty.mdl", "plc_n5fd_small.pwk", "n5t_forcedisk.tga", "plc_n5crates_1.pwk", "n5_bleed.mdl", "n5t_mark01.tga"]) {
+    for (const f of ["plc_n5fd_small.pwk", "n5t_forcedisk.tga", "plc_n5crates_1.pwk", "n5_bleed.mdl", "n5t_mark01.tga"]) {
       assert.ok(!ignored(f), f + " is git-ignored");
     }
+    const say = (list) => [...new Set(list.map((x) => x.rev))].map((rev) => list.filter((x) => x.rev === rev).map((x) => x.name).join(", ") + ` at ${rev}^`).join("; ");
+    const compared = LAST.filter((x) => x.bytes), not = LAST.filter((x) => !x.bytes);
     console.log(`     ${EXPECTED.size} files at HEAD made by a generator (${EXPECTED.size - FLOATDISK_AT_HEAD.length} by the Composer's placeable projects)` +
-      (LAST ? `; the six last committed at ${LAST.rev}^${LAST.changed ? " - the recipe or the generator changed since: not compared" : ""}` : ""));
+      (compared.length ? `; as last committed, compared: ${say(compared)}` : "") +
+      (not.length ? `; not compared (the recipe or the generator changed since): ${say(not)}` : ""));
   });
 
   check("the committed recipes build HEAD's data\\files byte for byte, and the git-ignored ones, into --out only", () => {
@@ -198,8 +206,8 @@ try {
       const got = fs.readFileSync(path.join(OUT, name));
       assert.ok(F.carriesMark(got, F.MARK) || F.carriesMark(got, P.MARK), name + " carries no generator's mark");
     }
-    if (LAST && !LAST.changed) {
-      for (const [name, bytes] of LAST.files) assert.ok(fs.readFileSync(path.join(OUT, name)).equals(bytes), `${name} isn't ${LAST.rev}^'s, as checked out`);
+    for (const { name, rev, bytes } of LAST) {
+      if (bytes) assert.ok(fs.readFileSync(path.join(OUT, name)).equals(bytes), `${name} isn't ${rev}^'s, as checked out`);
     }
     assert.match(r.out, /the Floating Disk \(tools\/data\/floatdisk\/composition\.json\): 11 files; its rows agree/);
     assert.match(total(r), new RegExp(`^build_derived: ${NAMES.length} files in build/data/files: ${NAMES.length} written, 0 unchanged$`));
