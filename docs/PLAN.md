@@ -1628,6 +1628,15 @@ monster AC by CR.
     second as its heartbeat does (an attack or a cast of its own cleared; it follows past 3 m unless told to stand its
     ground or possessed); the touch's distances edge to edge. 4 mutations caught. Retests L4-49, L4-50 (a neutral orc
     that stands still). LS-8 dropped (owner: "Will not test LS-8 as that's a regression").
+    *L4-40 / L4-42 failed (owner, 2026-11-17, on 0.99.64: "cat should be smaller"; "lizard should be smaller, also
+    can't bring it back out after dismissing" ... "even after running the test command again and making 2 hours pass
+    can't bring out the familiar again"):* the log - dismissed, no Recall used (F4 or its menu's More -> Recall, then a
+    spot within 30 feet), four casts changing its form in the pocket dimension (SRD 5.2.1: a cast with a familiar
+    "instead cause[s] it to adopt a new eligible form"), !test keeping it away. Asked: A - a cast while it's away also
+    brings it back; B - as is, with a clearer message. *Decided (owner, 2026-11-17: "go with A, I didn't try F4").*
+    *Fixed 0.99.65:* a cast while it's away gives it its new form and brings it back beside you
+    (rules::FamiliarCastOutcome); !test's rebuild ends the familiar (EndFamiliarOnRebuild); the cat 0.42 and the
+    lizard 0.25 (between 0.99.48's and 0.99.49's). 4 mutations caught. Retests L4-51, L4-52.
   - *Built 0.99.50 / 0.99.51 (Q5 A, Disguise Self's random look):* a random head of the species and gender - one of its
     head models the game has (character creation's: rules::PlayerModelPrefix + headNNN, ResManGetAliasFor); skin and
     hair among its people's (rules::DisguiseSkinColours / HairColours - the game's blueprints' colours with the common
