@@ -46,6 +46,7 @@
 #include "nui.h"
 #include "rest.h"
 #include "script_hooks.h"
+#include "player_text.h"
 #include "rules/class_features.h"
 #include "rules/nwn_conversion.h"
 #include "rules/spell_lists.h"
@@ -543,7 +544,7 @@ void Open(uint32_t player, int slot, bool resting) {
   if (!stats) return;
   const std::vector<CasterSlot> casters = CasterSlots(stats);
   if (casters.empty()) {
-    TellPlayer(player, "nwn5e: Prepare spells - you have no spellcasting class.");
+    TellPlayer(player, PlayerText("prepare_spells.prepare_spells_you_have_no"));
     return;
   }
   const CasterSlot* caster = &casters[0];
@@ -892,7 +893,7 @@ void Update(void* creature) {
       !(Field<uint32_t>(creature, ee::kCreatureActivities) & ee::kActivityResting)) {
     g_sessions.erase(found);
     NuiClose(id, kWindow);
-    TellPlayer(id, "nwn5e: the rest was interrupted - your spells stay as they were.");
+    TellPlayer(id, PlayerText("prepare_spells.the_rest_was_interrupted_your"));
     if (LogLine()) Log("prepare: 0x%08X the rest was interrupted - the window closed, no change", id);
   }
 }

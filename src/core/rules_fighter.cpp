@@ -63,6 +63,7 @@
 #include "rules_loaded.h"
 #include "weapon_cantrips.h"
 #include "weapon_size.h"
+#include "player_text.h"
 
 // Savage Attacker (rules_origin_feats.cpp): true once per turn for a
 // character who has it and hits with a weapon now.
@@ -426,7 +427,7 @@ void HeroicRally(void* creature) {
   ApplyEffectAs(id, id, "DURATION_TYPE_INSTANT", ("EffectHeal(" + std::to_string(healed) + ")").c_str(), 0.0f, 0.0f);
   Log("fighter: 0x%08X Heroic Rally: %d -> %d HP (max %d)", id, hit_points, hit_points + healed, max_hit_points);
   if (ReadCreatureFacts(stats).is_player) {
-    TellPlayer(id, "nwn5e: Heroic Rally - you regain " + std::to_string(healed) + " hit points.");
+    TellPlayer(id, PlayerText("fighter.heroic_rally_you_regain_hit", {{"healed", std::string(std::to_string(healed))}}));
   }
 }
 

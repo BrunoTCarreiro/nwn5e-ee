@@ -35,6 +35,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "records.h"
+#include "player_text.h"
 #include "rules/nwn_conversion.h"
 #include "rules/quickbar.h"
 
@@ -137,7 +138,7 @@ int PlaceActions(void* creature, uint64_t placed, bool tell) {
     line += (line.empty() ? "" : ", ") + std::string(name) + " (" + rules::QuickbarSlotKeys(c.slot, QuickbarNumberKeysOn()) + ")";
   }
   if (now_placed != placed) SetPlaced(creature, now_placed);
-  if (tell && !line.empty()) TellPlayer(id, "nwn5e: on your quickbar - " + line + ".");
+  if (tell && !line.empty()) TellPlayer(id, PlayerText("quickbar.on_your_quickbar", {{"line", std::string(line)}}));
   for (const rules::QuickbarAction& a : actions) {  // a full bar: said once a session in the log
     if (!(now_placed & (uint64_t{1} << a.record_bit)) && !g_full_logged) {
       g_full_logged = true;
@@ -169,8 +170,7 @@ int EmptyLostActions(void* creature) {
   g_send_button(message, player, 0, 1);  // all 36: the engine's own full update
   Log("quickbar: 0x%08X the whole bar sent again (%zu emptied)", IdOf(creature), lost.size());
   if (!lost.empty()) {
-    TellPlayer(IdOf(creature), "nwn5e: quickbar - " + std::to_string(lost.size()) +
-                                   " action(s) of a class you no longer have taken off.");
+    TellPlayer(IdOf(creature), PlayerText("quickbar.quickbar_action_s_of_a", {{"size", std::string(std::to_string(lost.size()))}}));
   }
   return static_cast<int>(lost.size());
 }

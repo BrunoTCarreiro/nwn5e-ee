@@ -51,6 +51,7 @@
 #include "mastery.h"
 #include "records.h"
 #include "rules_loaded.h"
+#include "player_text.h"
 #include "rules/action_economy.h"
 #include "rules/class_features.h"
 #include "rules/weapons.h"
@@ -113,7 +114,7 @@ bool IsPlayer(void* creature) {
 }
 
 void Tell(void* creature, const std::string& line) {
-  if (IsPlayer(creature)) TellPlayer(IdOf(creature), "nwn5e: " + line);
+  if (IsPlayer(creature)) TellPlayer(IdOf(creature), PlayerText("chat.line", {{"line", std::string(line)}}));
 }
 
 rules::DefaultBonus DefaultOf(void* creature) {
@@ -234,8 +235,7 @@ bool BonusActionGuard(void* creature, int feat) {
   s.pending_target = CurrentFeatUseTarget();  // 0.99.22: used on it when its round comes
   s.potion = false;
   if (LogSlot()) Log("actions: 0x%08X %s waits - the round's Bonus Action is spent", id, rules::BonusActionName(feat));
-  Tell(creature, std::string(rules::BonusActionName(feat)) +
-                     " - your Bonus Action is spent this round; it goes at the start of your next round.");
+  Tell(creature, PlayerText("bonus_actions.your_bonus_action_is_spent", {{"feat", std::string(std::string(rules::BonusActionName(feat)))}}));
   return false;
 }
 
@@ -253,7 +253,7 @@ void BonusActionUsed(void* creature, int feat) {
       Log("actions: 0x%08X %s - Fleet Step: right after the round's Bonus Action, not another", id,
           rules::BonusActionName(feat));
     }
-    Tell(creature, std::string("Fleet Step - ") + rules::BonusActionName(feat) + " right after your Bonus Action.");
+    Tell(creature, PlayerText("bonus_actions.fleet_step_right_after_your", {{"bonus_action_name", std::string(rules::BonusActionName(feat))}}));
     return;
   }
   s.fleet_pass = false;
@@ -273,8 +273,7 @@ bool PotionGuard(void* creature, uint32_t, void* item) {
   s.potion_order = *order;
   s.pending = -1;
   if (LogSlot()) Log("actions: 0x%08X a potion waits - the round's Bonus Action is spent", id);
-  Tell(creature, "Drinking a potion takes your Bonus Action, already spent this round; you drink it at the start of "
-                 "your next round.");
+  Tell(creature, PlayerText("bonus_actions.drinking_a_potion_takes_your"));
   return false;
 }
 
@@ -411,13 +410,11 @@ void SetDefaultBonusKey(void* creature, int key) {
   Log("actions: 0x%08X default Bonus Action: %s", id,
       choice.kind == rules::DefaultBonusAction::kNone ? "none" : name.empty() ? "the bonus attack" : name.c_str());
   if (choice.kind == rules::DefaultBonusAction::kNone) {
-    Tell(creature, "Default Bonus Action: none - your bonus attack is left out, the Bonus Action kept for one you use.");
+    Tell(creature, PlayerText("bonus_actions.default_bonus_action_none_your"));
   } else if (choice.kind == rules::DefaultBonusAction::kFeat) {
-    Tell(creature, "Default Bonus Action: " + name + " - at the start of each of your rounds in a fight while your "
-                   "Bonus Action is free (skipped when it can't be used or would do nothing: then your bonus attack).");
+    Tell(creature, PlayerText("bonus_actions.default_bonus_action_at_the", {{"name", std::string(name)}}));
   } else {
-    Tell(creature, "Default Bonus Action: your bonus attack each round (the off-hand attack, Martial Arts' strike or "
-                   "Flurry of Blows).");
+    Tell(creature, PlayerText("bonus_actions.default_bonus_action_your_bonus"));
   }
   RefreshCombatOptions(id);
 }
@@ -458,7 +455,7 @@ bool SpendBonusAction(void* creature, const char* what) {
   BonusState& s = g_state[id];
   if (!Free(id, s)) {
     if (LogSlot()) Log("actions: 0x%08X %s refused - the round's Bonus Action is spent", id, what);
-    Tell(creature, std::string(what) + " - your Bonus Action is spent this round.");
+    Tell(creature, PlayerText("bonus_actions.your_bonus_action_is_spent_2", {{"what", std::string(std::string(what))}}));
     return false;
   }
   Spend(id, &s);

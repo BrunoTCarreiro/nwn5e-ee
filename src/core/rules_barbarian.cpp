@@ -106,6 +106,7 @@
 #include "rules/skills.h"
 #include "saves.h"
 #include "script_hooks.h"
+#include "player_text.h"
 #include "rules/weapons.h"
 #include "data/anim_recipe.h"
 
@@ -235,7 +236,7 @@ bool IsPlayerCreature(void* creature) {
 }
 
 void Tell(void* creature, const std::string& line) {
-  if (IsPlayerCreature(creature)) TellPlayer(IdOf(creature), "nwn5e: " + line);
+  if (IsPlayerCreature(creature)) TellPlayer(IdOf(creature), PlayerText("chat.line", {{"line", std::string(line)}}));
 }
 
 // The level a Rage runs at: any raging creature's Barbarian level (spell 307 is everyone's).
@@ -351,7 +352,7 @@ void EndRage(void* creature, const char* why) {
             rules::kSpellRage, kRageTag);
   RunScriptChunk(script, id);
   Log("barbarian: 0x%08X Rage ends after %llu s - %s", id, seconds, why);
-  Tell(creature, std::string("your Rage ends - ") + why + ".");
+  Tell(creature, PlayerText("barbarian.your_rage_ends", {{"why", std::string(why)}}));
 }
 
 // What ends a Rage now, or nullptr.
@@ -553,7 +554,7 @@ bool RageGuard(void* creature, int feat) {
   if (!rules::IsRageFeat(feat)) return true;
   if (RageOf(creature)) {
     if (HasRageIcon(creature)) {
-      Tell(creature, "you are already raging.");
+      Tell(creature, PlayerText("barbarian.you_are_already_raging"));
       static int logged = 0;  // a henchman's refusal is told to no one (0.50.2)
       if (!IsPlayerCreature(creature) && logged < 40 && ++logged) {
         Log("barbarian: 0x%08X Rage refused - already raging (nothing spent)", IdOf(creature));
@@ -563,7 +564,7 @@ bool RageGuard(void* creature, int feat) {
     g_raging.erase(IdOf(creature));  // its effects are gone (dispelled): a new Rage may start
   }
   if (InHeavyArmour(creature) && IsPlayerCreature(creature)) {
-    Tell(creature, "you can't rage in Heavy armour.");
+    Tell(creature, PlayerText("barbarian.you_can_t_rage_in"));
     return false;
   }
   return true;
@@ -593,7 +594,7 @@ int SpellUserType(uint32_t spell) {
 bool RageRefusesSpell(void* creature, uint32_t spell, uint32_t) {
   if (!creature || !RageOf(creature) || SpellUserType(spell) != kUserTypeSpell) return false;
   Log("barbarian: 0x%08X raging - spell %u refused", IdOf(creature), spell);
-  Tell(creature, "you can't cast spells while raging.");
+  Tell(creature, PlayerText("barbarian.you_can_t_cast_spells"));
   return true;
 }
 
@@ -613,7 +614,7 @@ int AddItemCastSpellActions(void* creature, uint32_t item, int property, int sub
                             uint32_t target, int area_target, int flag) {
   if (creature && RageOf(creature) && CastsSpells(item)) {
     Log("barbarian: 0x%08X raging - item 0x%08X (casts a spell) refused", IdOf(creature), item);
-    Tell(creature, "you can't cast spells while raging - scrolls, wands, rods and staffs included.");
+    Tell(creature, PlayerText("barbarian.you_can_t_cast_spells_2"));
     return 0;
   }
   return g_add_item_cast_spell_actions(creature, item, property, sub_property, location, target, area_target, flag);
@@ -830,7 +831,7 @@ void PersistentRageOnInitiative(void* creature) {
   SetSpentFeatUses(creature, kVarRageSpent, 0);
   SetRecord(creature, kVarPersistentUsed, 1);
   Log("barbarian: 0x%08X Persistent Rage - every Rage use back", IdOf(creature));
-  Tell(creature, "Persistent Rage - every Rage use comes back (once per Long Rest).");
+  Tell(creature, PlayerText("barbarian.persistent_rage_every_rage_use"));
 }
 
 // --- BZ4 Intimidating Presence (Berserker 14; owner's decision A) ------------------------
@@ -882,7 +883,7 @@ void UseIntimidatingPresence(uint32_t self) {
   if (!stats) return;
   const int level = BarbarianLevelOf(stats);
   if (!Faithful() || !rules::HasIntimidatingPresence(level)) {
-    Tell(creature, "Intimidating Presence comes at Barbarian 14 (Path of the Berserker).");
+    Tell(creature, PlayerText("barbarian.intimidating_presence_comes_at_barbarian"));
     return;
   }
   EnsureRecords(creature);
@@ -890,7 +891,7 @@ void UseIntimidatingPresence(uint32_t self) {
   if (engine::GetLocalInt(creature, kVarPresenceUsed) != 0) {
     const int spent = SpentFeatUses(creature, kVarRageSpent);
     if (spent >= rules::RageUses2024(level)) {
-      Tell(creature, "Intimidating Presence - used since your last Long Rest: it takes a Rage use, and none is left.");
+      Tell(creature, PlayerText("barbarian.intimidating_presence_used_since_your"));
       return;
     }
     SetSpentFeatUses(creature, kVarRageSpent, spent + 1);
@@ -923,9 +924,7 @@ void UseIntimidatingPresence(uint32_t self) {
   Log("barbarian: 0x%08X Intimidating Presence (%s): DC %d Wisdom save - %zu enemies within 30 ft, %d frightened%s",
       self, cost.c_str(), dc, search.targets.size(), frightened,
       immune ? (", " + std::to_string(immune) + " immune").c_str() : "");
-  Tell(creature, "Intimidating Presence (" + cost + "): DC " + std::to_string(dc) + " Wisdom save - " +
-                     std::to_string(frightened) + " of " + std::to_string(search.targets.size()) +
-                     " enemies within 30 ft frightened for a minute (each saves again every round).");
+  Tell(creature, PlayerText("barbarian.intimidating_presence_dc_wisdom_save", {{"cost", std::string(cost)}, {"dc", std::string(std::to_string(dc))}, {"frightened", std::string(std::to_string(frightened))}, {"size", std::string(std::to_string(search.targets.size()))}}));
 }
 
 void IntimidatingPresenceScript(uint32_t self) { UseIntimidatingPresence(self); }
@@ -1049,7 +1048,7 @@ void RetaliationOnDamage(uint32_t creator, void* target, int damage) {
   SetField<int32_t>(target, kCreatureOpportunityMade, 1);
   Log("barbarian: 0x%08X Retaliation - hurt by 0x%08X (%d), strikes back (its reaction)%s", id, creator, damage,
       idle ? " - it wasn't attacking: it turns on it" : "");
-  Tell(target, "Retaliation - you strike back (your reaction this round).");
+  Tell(target, PlayerText("barbarian.retaliation_you_strike_back_your"));
 }
 
 // A henchman with Rage rages as a fight starts (0.46.1; owner's BS13 test - the OC's Daelan

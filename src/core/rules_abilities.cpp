@@ -57,6 +57,7 @@
 #include "rules/skills.h"
 #include "rules_loaded.h"
 #include "ruleset.h"
+#include "player_text.h"
 
 void GiveBackgroundKit(uint32_t creature_id, rules::Background background);  // rules_equipment.cpp (C2)
 
@@ -366,10 +367,7 @@ void LevelUp(void* stats, void* level_stats, uint8_t a, uint8_t b, uint8_t c, in
   const int bumped = level_stats ? Field<uint8_t>(level_stats, ee::kLevelStatsAbility) : 6;
   Sync(creature, true);
   if (g_faithful && bumped >= 0 && bumped < 6 && ReadCreatureFacts(stats).is_player) {
-    TellPlayer(IdOf(creature), std::string("nwn5e: the 2024 rules have no ability +1 every 4 levels - your ") +
-                                   rules::AbilityName(static_cast<rules::Ability>(bumped)) +
-                                   " +1 was taken back. Your class's feat levels offer Ability Score Improvement "
-                                   "(choose its abilities with !asi).");
+    TellPlayer(IdOf(creature), PlayerText("abilities.the_2024_rules_have_no", {{"ability_name", std::string(rules::AbilityName(static_cast<rules::Ability>(bumped)))}}));
   }
 }
 

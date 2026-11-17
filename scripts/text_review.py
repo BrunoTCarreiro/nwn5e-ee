@@ -31,8 +31,8 @@ for line in (ROOT / "data/text/strings_sources.txt").read_text(encoding="utf-8")
 literals = []
 for line in (ROOT / "tests/data/fixtures/text_literals.txt").read_text(encoding="utf-8").splitlines():
     if line and not line.startswith("#"):
-        name, tells, sends = line.split()
-        literals.append((name, int(tells), int(sends)))
+        name, tells, helpers, sends = line.split()
+        literals.append((name, int(tells) + int(helpers), int(sends)))
 
 
 def kind(source):

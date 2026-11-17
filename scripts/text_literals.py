@@ -6,11 +6,13 @@ import sys
 root, out = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
 
 
-def literal_tells(text):
-    count, at = 0, text.find("TellPlayer(")
+def literal_calls(text, name):
+    count, opener = 0, name + "("
+    at = text.find(opener)
     while at != -1:
-        if not (at >= 5 and text[at - 5:at] == "void "):
-            i, depth, in_string, args = at + 11, 1, False, []
+        boundary = at == 0 or not (text[at - 1].isalnum() or text[at - 1] == "_")
+        if boundary and not (at >= 5 and text[at - 5:at] == "void "):
+            i, depth, in_string, args = at + len(opener), 1, False, []
             while i < len(text) and depth > 0:
                 c = text[i]
                 if in_string:
@@ -34,20 +36,21 @@ def literal_tells(text):
             a = "".join(args)
             if '"' in a and "PlayerText(" not in a:
                 count += 1
-        at = text.find("TellPlayer(", at + 1)
+        at = text.find(opener, at + 1)
     return count
 
 
-rows, total_t, total_s = [], 0, 0
+rows, total_t, total_h, total_s = [], 0, 0, 0
 for p in sorted((root / "src/core").glob("*.cpp")):
     text = p.read_text(encoding="utf-8", errors="replace")
-    t, s = literal_tells(text), text.count("SendMessageToPC(")
-    if t or s:
-        rows.append("%s %d %d" % (p.name, t, s))
+    t, h, s = literal_calls(text, "TellPlayer"), literal_calls(text, "Tell"), text.count("SendMessageToPC(")
+    if t or h or s:
+        rows.append("%s %d %d %d" % (p.name, t, h, s))
         total_t += t
+        total_h += h
         total_s += s
 out.write_text("# #168: each src/core file's chat messages still written in the code - <file> <TellPlayer literals>\n"
                "# <SendMessageToPC calls>. tests/data/text_literals_test.cpp holds each at most this: lower a file's\n"
                "# numbers when its messages move to data/text/en.txt (scripts/text_literals.py).\n"
                + "\n".join(rows) + "\n", encoding="utf-8", newline="\n")
-print(len(rows), "files,", total_t, "TellPlayer literals,", total_s, "SendMessageToPC")
+print(len(rows), "files,", total_t, "TellPlayer literals,", total_h, "Tell helper literals,", total_s, "SendMessageToPC")

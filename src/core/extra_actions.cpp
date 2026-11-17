@@ -64,6 +64,7 @@
 #include "round_swings.h"
 #include "script_hooks.h"
 #include "staple_actions.h"
+#include "player_text.h"
 #include "rules/class_features.h"
 #include "rules/combat.h"
 
@@ -124,7 +125,7 @@ bool IsPlayer(void* creature) {
 }
 
 void Tell(void* creature, const std::string& line) {
-  if (IsPlayer(creature)) TellPlayer(IdOf(creature), "nwn5e: " + line);
+  if (IsPlayer(creature)) TellPlayer(IdOf(creature), PlayerText("chat.line", {{"line", std::string(line)}}));
 }
 
 int ClassLevel(void* stats, rules::CharacterClass which) {
@@ -186,7 +187,7 @@ void ActionSurgeScript(uint32_t self) {
   }
   g_surge_pending[self] = attacks;
   if (LogSlot()) Log("actions: 0x%08X Action Surge - %d attack(s) added to the next round it starts", self, attacks);
-  Tell(creature, "Action Surge - your next round has your Attack action twice.");
+  Tell(creature, PlayerText("extra_actions.action_surge_your_next_round"));
 }
 
 // --- Cunning Action, Steady Aim -------------------------------------------------------------------------------------
@@ -200,7 +201,7 @@ void CunningHideScript(uint32_t self) {
   static const auto set_activity = reinterpret_cast<SetActivityFn>(EngineExport(kSetActivity));
   if (!set_activity) return;
   if (Field<uint8_t>(creature, kCreatureStealthMode) == 1) {
-    Tell(creature, "Cunning Action: Hide - you're already in stealth mode.");
+    Tell(creature, PlayerText("extra_actions.cunning_action_hide_you_re"));
     return;
   }
   // The engine's way in: the stealth activity bit, then SetStealthMode (rules_perception.cpp's hook: Stealth rolled
@@ -209,11 +210,11 @@ void CunningHideScript(uint32_t self) {
   if (Field<uint8_t>(creature, kCreatureStealthMode) != 1) {
     if (LogSlot()) Log("actions: 0x%08X Cunning Action: Hide - the engine kept it out of stealth mode (activities 0x%X)",
                        self, Field<uint32_t>(creature, kCreatureActivities));
-    Tell(creature, "Cunning Action: Hide - you can't go into stealth mode now.");
+    Tell(creature, PlayerText("extra_actions.cunning_action_hide_you_can"));
     return;
   }
   if (LogSlot()) Log("actions: 0x%08X Cunning Action: Hide - stealth mode on (a Bonus Action)", self);
-  Tell(creature, "Cunning Action: Hide - into stealth mode (your Stealth check decides who still sees you).");
+  Tell(creature, PlayerText("extra_actions.cunning_action_hide_into_stealth"));
   // #129 A: the Hide stops your attacks - the default attack off now, the attack order cancelled in a moment.
   StopOwnAttacks(creature, kHideStop);
 }
@@ -309,7 +310,7 @@ bool SteadyAimGuard(void* creature, int feat) {
   if (SteadyAimReady(creature)) return true;
   if (LogSlot()) Log("actions: 0x%08X Steady Aim refused - it moved %.1f m this round", IdOf(creature),
                      MovedSinceRoundStart(creature));
-  Tell(creature, "Steady Aim - only if you haven't moved this round.");
+  Tell(creature, PlayerText("extra_actions.steady_aim_only_if_you"));
   return false;
 }
 
@@ -319,7 +320,7 @@ void SteadyAimScript(uint32_t self) {
   g_steady[self] = Steady{RoundsOf(self), GameMs() + kRoundMs, true};
   ApplyEffectAs(self, self, "DURATION_TYPE_TEMPORARY", "EffectCutsceneImmobilize()", 6.0f, 0.0f);
   if (LogSlot()) Log("actions: 0x%08X Steady Aim - Advantage on its next attack, no moving this round", self);
-  Tell(creature, "Steady Aim - Advantage on your next attack; you can't move until your next round.");
+  Tell(creature, PlayerText("extra_actions.steady_aim_advantage_on_your"));
 }
 
 }  // namespace
@@ -355,7 +356,7 @@ void ExtraActionsRoundStart(void* round) {
   SetField<int32_t>(round, ee::kRoundExtraAttacks, Field<int32_t>(round, ee::kRoundExtraAttacks) + extra);
   if (LogSlot()) Log("actions: 0x%08X %s - %d more attack(s) this round", id, why, extra);
   if (why && std::string(why).find("Thief") != std::string::npos) {
-    Tell(creature, "Thief's Reflexes - your Attack action twice in the fight's first round.");
+    Tell(creature, PlayerText("extra_actions.thief_s_reflexes_your_attack"));
   }
 }
 

@@ -82,6 +82,7 @@
 #include "data_serving.h"
 #include "records.h"
 #include "rest.h"
+#include "player_text.h"
 #include "rules/death_saves.h"
 
 int RelentlessRage(void* creature);  // rules_barbarian.cpp (Barbarian B11)
@@ -203,7 +204,7 @@ void SetHitPoints(void* creature, int value) { SetField<int32_t>(creature, ee::k
 int MaxHitPoints(void* creature) { return g_max_hit_points ? g_max_hit_points(creature, 1) : HitPoints(creature); }
 bool IsPlayer(const void* creature) { return Field<int32_t>(creature, ee::kCreatureIsPlayerCharacter) != 0; }
 
-void Tell(uint32_t player, const std::string& line) { TellPlayer(player, "nwn5e: " + line); }
+void Tell(uint32_t player, const std::string& line) { TellPlayer(player, PlayerText("chat.line", {{"line", std::string(line)}})); }
 void Later(uint32_t player, const std::string& line) { g_lines.emplace_back(player, "nwn5e: " + line); }
 
 // The player character a henchman serves (0 if it is no player's henchman).
@@ -405,7 +406,7 @@ void ClearExhaustion(void* player, const char* why) {
   if (level == 0) return;
   SetExhaustion(player, 0);
   Log("dying: 0x%08X %s - Exhaustion %d removed", IdOf(player), why, level);
-  Tell(IdOf(player), std::string(why) + ": your Exhaustion is gone.");
+  Tell(IdOf(player), PlayerText("dying.your_exhaustion_is_gone", {{"why", std::string(std::string(why))}}));
 }
 
 void GainExhaustion(void* player) {
@@ -414,12 +415,11 @@ void GainExhaustion(void* player) {
   SetExhaustion(player, level);
   Log("dying: 0x%08X back from 0 HP - Exhaustion %d", id, level);
   if (rules::IsDeadFromExhaustion(level)) {
-    Tell(id, "Coming back from 0 HP once more: Exhaustion 6 - you die.");
+    Tell(id, PlayerText("dying.coming_back_from_0_hp"));
     Kill(id);
     return;
   }
-  Tell(id, "Coming back from 0 HP leaves you exhausted: Exhaustion " + std::to_string(level) + " (" +
-               ExhaustionText(level) + "; 6 is death). A Long Rest removes it.");
+  Tell(id, PlayerText("dying.coming_back_from_0_hp_2", {{"level", std::string(std::to_string(level))}, {"exhaustion_text", std::string(ExhaustionText(level))}}));
 }
 
 // --- A player at 0 HP --------------------------------------------------------------
@@ -580,7 +580,7 @@ bool UpdateDownPlayer(uint32_t id, DownPlayer& state, uint64_t now) {
     engine::SetLocalInt(player, kVarDown, 0);
     ClearDownVisuals(id);
     Log("dying: 0x%08X back up at %d HP", id, hit_points);
-    Tell(id, "You're back up at " + std::to_string(hit_points) + " HP.");
+    Tell(id, PlayerText("dying.you_re_back_up_at", {{"hit_points", std::string(std::to_string(hit_points))}}));
     GainExhaustion(player);
     return false;
   }
@@ -598,7 +598,7 @@ bool UpdateDownPlayer(uint32_t id, DownPlayer& state, uint64_t now) {
     }
   }
   if (StandingHenchmen(player) == 0) {
-    Tell(id, "No henchman is left standing - you die.");
+    Tell(id, PlayerText("dying.no_henchman_is_left_standing"));
     Log("dying: 0x%08X no henchman standing - dies", id);
     Kill(id);
     state.pending_at = now;
@@ -607,7 +607,7 @@ bool UpdateDownPlayer(uint32_t id, DownPlayer& state, uint64_t now) {
   }
   FightScan scan;
   if (const char* over = FightOver(player, player, state.fight, now, &scan)) {
-    Tell(id, "The fight is over - you come to at 1 HP.");
+    Tell(id, PlayerText("dying.the_fight_is_over_you"));
     Log("dying: 0x%08X the fight is over (%s; now %s) - wakes", id, over, ScanText(scan).c_str());
     Heal(id, 1);
     state.pending_at = now;

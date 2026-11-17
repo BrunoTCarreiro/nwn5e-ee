@@ -1,43 +1,32 @@
 # #168: each src/core file's chat messages still written in the code - <file> <TellPlayer literals>
 # <SendMessageToPC calls>. tests/data/text_literals_test.cpp holds each at most this: lower a file's
 # numbers when its messages move to data/text/en.txt (scripts/text_literals.py).
-action_queue.cpp 1 0
-bonus_actions.cpp 1 0
-chat.cpp 0 1
-combat_options.cpp 1 0
-disengage.cpp 2 0
-extra_actions.cpp 1 0
-light_sources.cpp 0 14
-nui.cpp 0 1
-nui_test.cpp 1 0
-prepare_spells.cpp 3 0
-rest.cpp 1 0
-rules_abilities.cpp 1 0
-rules_barbarian.cpp 1 1
-rules_barbarian_strikes.cpp 1 0
-rules_cantrips.cpp 3 4
-rules_cleric.cpp 1 0
-rules_components.cpp 2 0
-rules_concentration.cpp 2 0
-rules_conditions.cpp 1 2
-rules_cover.cpp 2 0
-rules_cunning_strike.cpp 1 2
-rules_dying.cpp 1 6
-rules_features.cpp 1 0
-rules_fighter.cpp 1 0
-rules_grapple.cpp 0 1
-rules_mastery.cpp 1 0
-rules_monk.cpp 1 1
-rules_nwn_skills.cpp 1 0
-rules_perception.cpp 0 2
-rules_quickbar.cpp 2 0
-rules_rest.cpp 0 1
-rules_rogue.cpp 2 0
-rules_skills.cpp 2 0
-rules_spells2024.cpp 65 20
-rules_thief.cpp 1 0
-rules_utility_cantrips.cpp 10 6
-rules_weapon_cantrips.cpp 6 1
-staple_actions.cpp 1 0
-stealth_watch.cpp 0 2
-test_commands.cpp 0 19
+action_queue.cpp 1 0 0
+chat.cpp 0 0 1
+extra_actions.cpp 0 1 0
+light_sources.cpp 0 0 14
+nui.cpp 0 0 1
+nui_test.cpp 1 0 0
+prepare_spells.cpp 1 0 0
+rest.cpp 1 0 0
+rules_barbarian.cpp 0 1 1
+rules_barbarian_strikes.cpp 0 1 0
+rules_cantrips.cpp 0 0 4
+rules_cleric.cpp 0 3 0
+rules_conditions.cpp 0 0 2
+rules_cunning_strike.cpp 0 0 2
+rules_dying.cpp 0 0 6
+rules_features.cpp 1 0 0
+rules_grapple.cpp 0 0 1
+rules_monk.cpp 0 3 1
+rules_nwn_skills.cpp 1 0 0
+rules_perception.cpp 0 0 2
+rules_rest.cpp 0 0 1
+rules_rogue.cpp 1 0 0
+rules_spells2024.cpp 5 0 20
+rules_thief.cpp 0 1 0
+rules_utility_cantrips.cpp 2 1 6
+rules_weapon_cantrips.cpp 1 0 1
+staple_actions.cpp 0 2 0
+stealth_watch.cpp 0 0 2
+test_commands.cpp 0 0 19

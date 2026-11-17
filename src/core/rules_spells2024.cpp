@@ -156,6 +156,7 @@
 #include "rules/cantrips.h"
 #include "condition_effects.h"
 #include "rest.h"
+#include "player_text.h"
 #include "rules/hazard_avoid.h"
 #include "rules/level_lists.h"
 #include "rules/skills.h"
@@ -673,8 +674,7 @@ void Attack(uint32_t self, void* caster, const rules::Spell2024& spell, int slot
         }
         g_guided[id] = now + kUntilEndOfNextTurnMs;
         g_glow_off.erase(id);
-        TellPlayer(self, "nwn5e: Guiding Bolt - the next attack roll against it before the end of your next turn "
-                         "has Advantage.");
+        TellPlayer(self, PlayerText("spells2024.guiding_bolt_the_next_attack"));
         log += "; the next attack roll against it has Advantage";
       }
       if (spell.row == rules::kRayOfSickness && landed) log += "; Poisoned until the end of your next turn";
@@ -821,14 +821,13 @@ void FalseLife(uint32_t self, void* caster, const rules::Spell2024& spell, int s
   const int amount = rules::FalseLifeTemporaryHitPoints(roll, slot);
   const int current = Field<int16_t>(caster, ee::kObjectTemporaryHitPoints);
   if (!rules::TemporaryHitPointsReplace(current, amount)) {
-    TellPlayer(self, "nwn5e: False Life - " + std::to_string(amount) + " Temporary Hit Points, but you keep your " +
-                         std::to_string(current) + " (they don't stack).");
+    TellPlayer(self, PlayerText("spells2024.false_life_temporary_hit_points", {{"amount", std::string(std::to_string(amount))}, {"current", std::string(std::to_string(current))}}));
   } else {
     std::string code = kTemporary;
     Replace(&code, "$AMOUNT", std::to_string(amount));
     Replace(&code, "$ROW", std::to_string(spell.row));
     Run(code, self, spell.script);
-    TellPlayer(self, "nwn5e: False Life - " + std::to_string(amount) + " Temporary Hit Points.");
+    TellPlayer(self, PlayerText("spells2024.false_life_temporary_hit_points_2", {{"amount", std::string(std::to_string(amount))}}));
   }
   if (LogSlot()) {
     Log("spells2024: 0x%08X False Life (a level %d slot): 2d4 = %d + 4 + %d = %d Temporary Hit Points (had %d)", self,
@@ -920,8 +919,7 @@ bool OrderGuard(void* creature, const SpellOrder& order) {
   if (!bonus || bonus->spell != spell) {
     bool spent_bonus = false;
     if (InnateLevel(order.spell) >= 1 && SpentThisTurn(id, &spent_bonus) && spent_bonus) {
-      TellPlayer(id, "nwn5e: you cast a Bonus Action spell with a spell slot this turn - one spell with a slot a "
-                     "turn; cast it next round.");
+      TellPlayer(id, PlayerText("spells2024.you_cast_a_bonus_action"));
       if (LogSlot()) Log("spells2024: 0x%08X spell %u refused - a Bonus Action spell spent a slot this turn", id, order.spell);
       return true;
     }
@@ -982,7 +980,7 @@ CastInfo CastInfoOf(uint32_t self, void* caster, int level, const char* name) {
   if (at == g_bonus_casts.end() || GameMs() > at->second.at + 10000 ||
       static_cast<int>(at->second.spell) != bonus->spell) {
     if (at != g_bonus_casts.end()) g_bonus_casts.erase(at);
-    TellPlayer(self, std::string("nwn5e: ") + name + " - cast it from your spells (it spends a spell slot).");
+    TellPlayer(self, PlayerText("spells2024.cast_it_from_your_spells", {{"name", std::string(name)}}));
     info.ok = false;
     return info;
   }
@@ -992,7 +990,7 @@ CastInfo CastInfoOf(uint32_t self, void* caster, int level, const char* name) {
   const bool spent = SpendOrderSlot(caster, cast.spell, cast.class_slot, cast.domain_level, cast.metamagic);
   t_bonus_spend = false;
   if (!spent) {
-    TellPlayer(self, std::string("nwn5e: ") + name + " - no spell slot of that level left.");
+    TellPlayer(self, PlayerText("spells2024.no_spell_slot_of_that", {{"name", std::string(name)}}));
     if (LogSlot()) Log("spells2024: 0x%08X %s - its slot couldn't be spent", self, name);
     info.ok = false;
     return info;
@@ -1230,7 +1228,7 @@ void Heroism(uint32_t self, void* caster, const rules::Spell2024& spell, int slo
   std::string log;
   for (const Entry& one : Entries(caster)) {
     if (one.value != 0) {
-      TellPlayer(self, "nwn5e: Heroism - a willing creature, not an enemy.");
+      TellPlayer(self, PlayerText("spells2024.heroism_a_willing_creature_not"));
       log += " 0x" + one.target + " (an enemy: not)";
       continue;
     }
@@ -1464,7 +1462,7 @@ bool Warded(const void* creature, Ward* ward) {
 void EndWard(uint32_t id, const char* why) {
   if (!g_wards.erase(id)) return;
   g_ward_ends.insert(id);
-  TellPlayer(id, std::string("nwn5e: Sanctuary ends - you ") + why + ".");
+  TellPlayer(id, PlayerText("spells2024.sanctuary_ends_you", {{"why", std::string(why)}}));
   if (LogSlot()) Log("spells2024: 0x%08X Sanctuary ends - it %s", id, why);
 }
 
@@ -1517,11 +1515,11 @@ bool QuarryDown(const Quarry& quarry) {
 void HuntersMarkMove(uint32_t self, void* caster, const rules::Spell2024& spell) {
   const auto at = g_quarries.find(self);
   if (at == g_quarries.end() || !HasSpellEffect(caster, rules::kHuntersMark, rules::kHuntersMarkBonus, self)) {
-    TellPlayer(self, "nwn5e: Hunter's Mark: Move - no Hunter's Mark of yours lasts.");
+    TellPlayer(self, PlayerText("spells2024.hunter_s_mark_move_no"));
     return;
   }
   if (!QuarryDown(at->second)) {
-    TellPlayer(self, "nwn5e: Hunter's Mark: Move - your quarry still stands.");
+    TellPlayer(self, PlayerText("spells2024.hunter_s_mark_move_your"));
     return;
   }
   const std::string seconds = "HoursToSeconds(" + std::to_string(at->second.hours) + ")";
@@ -1530,7 +1528,7 @@ void HuntersMarkMove(uint32_t self, void* caster, const rules::Spell2024& spell)
          MarkLook{"n5s_quarry", "EffectIcon(EFFECT_ICON_ENEMY_ATTACK_BONUS)", seconds, "VFX_IMP_HEAD_ODD", "", true});
     at->second.quarry = ParseId(one.target);
     at->second.told = false;
-    TellPlayer(self, "nwn5e: Hunter's Mark moves to a new quarry.");
+    TellPlayer(self, PlayerText("spells2024.hunter_s_mark_moves_to"));
     if (LogSlot()) Log("spells2024: 0x%08X Hunter's Mark moved to 0x%s", self, one.target.c_str());
   }
 }
@@ -1544,14 +1542,13 @@ void ExpeditiousRetreat(uint32_t self, void* caster, const rules::Spell2024& spe
   void* stats = StatsOf(caster);
   if (stats && !engine::HasFeat(stats, rules::kFeatExpeditiousDash)) engine::AddFeat(stats, rules::kFeatExpeditiousDash);
   g_dashers.insert(self);
-  TellPlayer(self, "nwn5e: Expeditious Retreat - you Dash, and while it lasts you can Dash as a Bonus Action "
-                   "(Expeditious Retreat: Dash).");
+  TellPlayer(self, PlayerText("spells2024.expeditious_retreat_you_dash_and"));
   if (LogSlot()) Log("spells2024: 0x%08X Expeditious Retreat - Dash now, a Bonus Action's Dash while it lasts", self);
 }
 
 void ExpeditiousDash(uint32_t self, void* caster) {
   if (!HasSpellEffect(caster, rules::kExpeditiousRetreat, rules::kExpeditiousRetreatBonus, self)) {
-    TellPlayer(self, "nwn5e: Expeditious Retreat: Dash - no Expeditious Retreat lasts.");
+    TellPlayer(self, PlayerText("spells2024.expeditious_retreat_dash_no_expeditious"));
     return;
   }
   StartDash(self);
@@ -1589,7 +1586,7 @@ void Buff(uint32_t self, void* caster, const rules::Spell2024& spell) {
       for (const Entry& one : OneTarget(self, spell, "0", -1, Look())) {
         void* target = CreatureById(ParseId(one.target));
         if (target && ChestArmorClassOf(target) > 0) {
-          TellPlayer(self, "nwn5e: Mage Armor - a creature who isn't wearing armour.");
+          TellPlayer(self, PlayerText("spells2024.mage_armor_a_creature_who"));
           continue;
         }
         Mark(self, spell, one.target, row,
@@ -1606,7 +1603,7 @@ void Buff(uint32_t self, void* caster, const rules::Spell2024& spell) {
       for (const Entry& one : OneTarget(self, spell, "0", -1, Look())) {
         void* target = CreatureById(ParseId(one.target));
         if (target && target != caster && engine::IsEnemy(caster, ParseId(one.target))) {
-          TellPlayer(self, "nwn5e: Protection from Evil and Good - a willing creature, not an enemy.");
+          TellPlayer(self, PlayerText("spells2024.protection_from_evil_and_good"));
           continue;
         }
         Mark(self, spell, one.target, row,
@@ -1665,24 +1662,24 @@ bool BuffFeatGuard(void* creature, int feat) {
   const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
   for (const rules::BonusActionSpell& spell : rules::BonusActionSpells()) {
     if (feat != spell.feat) continue;
-    TellPlayer(id, std::string("nwn5e: ") + spell.name + " - cast it from your spells (it spends a spell slot).");
+    TellPlayer(id, PlayerText("spells2024.cast_it_from_your_spells", {{"name", std::string(spell.name)}}));
     return false;
   }
   if (feat == rules::kFeatExpeditiousDash &&
       !HasSpellEffect(creature, rules::kExpeditiousRetreat, rules::kExpeditiousRetreatBonus, id)) {
-    TellPlayer(id, "nwn5e: Expeditious Retreat: Dash - no Expeditious Retreat lasts.");
+    TellPlayer(id, PlayerText("spells2024.expeditious_retreat_dash_no_expeditious"));
     return false;
   }
   // Build 4b (0.99.47, L4-27): Silent Image's Move - only while its image lasts.
   if (feat == rules::kFeatSilentImageMove && !SilentImageLasts(id)) {
-    TellPlayer(id, "nwn5e: Silent Image: Move - no image of yours lasts.");
+    TellPlayer(id, PlayerText("spells2024.silent_image_move_no_image"));
     if (void* stats = StatsOf(creature)) engine::RemoveFeat(stats, rules::kFeatSilentImageMove);
     return false;
   }
   if (feat == rules::kFeatHuntersMarkMove) {
     const auto at = g_quarries.find(id);
     if (at == g_quarries.end() || !HasSpellEffect(creature, rules::kHuntersMark, rules::kHuntersMarkBonus, id)) {
-      TellPlayer(id, "nwn5e: Hunter's Mark: Move - no Hunter's Mark of yours lasts.");
+      TellPlayer(id, PlayerText("spells2024.hunter_s_mark_move_no"));
       if (LogSlot()) Log("spells2024: 0x%08X Hunter's Mark: Move refused - no Hunter's Mark lasts", id);  // 0.99.21
       return false;
     }
@@ -1691,14 +1688,13 @@ bool BuffFeatGuard(void* creature, int feat) {
                                                          OtherCreature(picked, id, at->second.quarry));
     if (now == rules::MarkMove::kArm) {  // 0.99.22: nothing spent now - it goes when the quarry drops
       at->second.armed = picked;
-      TellPlayer(id, "nwn5e: Hunter's Mark: Move armed - when your quarry drops, the mark moves to the creature you "
-                     "picked (your Bonus Action then).");
+      TellPlayer(id, PlayerText("spells2024.hunter_s_mark_move_armed"));
       if (LogSlot()) Log("spells2024: 0x%08X Hunter's Mark: Move armed on 0x%08X (its quarry 0x%08X stands)", id, picked,
                          at->second.quarry);
       return false;
     }
     if (now == rules::MarkMove::kRefuse) {
-      TellPlayer(id, "nwn5e: Hunter's Mark: Move - your quarry still stands (the mark moves once it drops).");
+      TellPlayer(id, PlayerText("spells2024.hunter_s_mark_move_your_2"));
       if (LogSlot()) Log("spells2024: 0x%08X Hunter's Mark: Move refused - its quarry 0x%08X still stands", id,
                          at->second.quarry);  // 0.99.21
       return false;
@@ -1718,8 +1714,7 @@ bool SanctuaryLetsThrough(void* attacker, void* target, const char* what) {
   const uint8_t save = save_roll(attacker, ee::kSaveWill, static_cast<uint16_t>(ward.dc), 0, ward.caster, 1, 0, 1);
   if (save != 0) return true;
   const uint32_t id = Field<uint32_t>(attacker, ee::kObjectId);
-  TellPlayer(id, std::string("nwn5e: Sanctuary - you can't bring yourself to ") + what +
-                     " the warded creature; choose another target.");
+  TellPlayer(id, PlayerText("spells2024.sanctuary_you_can_t_bring", {{"what", std::string(what)}}));
   if (LogSlot()) {
     Log("spells2024: 0x%08X Sanctuary keeps 0x%08X from it (%s; Wisdom save failed, DC %d)", Field<uint32_t>(target, ee::kObjectId),
         id, what, ward.dc);
@@ -1811,15 +1806,14 @@ void BuffUpdate(void* creature) {
       at->second.armed = 0;
       void* next = armed ? CreatureById(armed) : nullptr;
       if (next && !engine::IsDeadOrDying(next) && g_use_feat) {
-        TellPlayer(id, "nwn5e: your quarry has dropped - your armed Hunter's Mark: Move goes (your Bonus Action).");
+        TellPlayer(id, PlayerText("spells2024.your_quarry_has_dropped_your"));
         if (LogSlot()) Log("spells2024: 0x%08X Hunter's Mark: its quarry 0x%08X dropped - the armed Move at 0x%08X", id,
                            at->second.quarry, armed);
         float nowhere[3] = {0.0f, 0.0f, 0.0f};
         g_use_feat(creature, static_cast<uint16_t>(rules::kFeatHuntersMarkMove), 0, armed, ee::kObjectInvalid,
                    nowhere);  // through the hook: the Bonus Action spent, or waiting for the next round
       } else {
-        TellPlayer(id, "nwn5e: your quarry has dropped - Hunter's Mark: Move (a Bonus Action) marks a new creature: "
-                       "on your quickbar, or next to Hunter's Mark in the radial.");
+        TellPlayer(id, PlayerText("spells2024.your_quarry_has_dropped_hunter"));
         if (LogSlot()) Log("spells2024: 0x%08X Hunter's Mark: its quarry 0x%08X dropped - told (Move)", id,
                            at->second.quarry);
       }
@@ -2116,8 +2110,7 @@ void SleepSpell(uint32_t self, void* caster, const rules::Spell2024& spell, int 
     }
     if (rules::SleepUnaffectedRacialType(one.value)) {  // an elf, a Construct, an Elemental, an Ooze, an Undead
       log += "; 0x" + one.target + " doesn't sleep";
-      TellPlayer(self, "nwn5e: Sleep - a creature that doesn't sleep (an elf, a Construct, an Elemental, an Ooze or an "
-                       "Undead) is unaffected.");
+      TellPlayer(self, PlayerText("spells2024.sleep_a_creature_that_doesn"));
       continue;
     }
     SaveOptions options;
@@ -2211,7 +2204,7 @@ void ConditionUpdate(void* creature) {
       if (!held.side_damage) continue;
       EndHeld(id, held, kTagCharm, "nwn5e: the charm on you breaks - its caster's side hurt you.",
               "damaged by its caster's side");
-      TellPlayer(held.caster, std::string("nwn5e: ") + HeldName(held) + " ends - you or your allies damaged it.");
+      TellPlayer(held.caster, PlayerText("spells2024.ends_you_or_your_allies", {{"held_name", std::string(HeldName(held))}}));
       g_held.erase(it);
       continue;
     }
@@ -2260,8 +2253,7 @@ void ConditionUpdate(void* creature) {
               "ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_SLEEP), t);",
               id, kTagSleep, held.row, kTagSleep, left);
     Run(code, held.caster, "Sleep's second save");  // made by the caster: Concentration still finds it
-    TellPlayer(id, "nwn5e: you fall asleep (Sleep: Unconscious) - damage, or a Rouse from someone within 5 feet, wakes "
-                   "you.");
+    TellPlayer(id, PlayerText("spells2024.you_fall_asleep_sleep_unconscious"));
     if (LogSlot()) Log("spells2024: 0x%08X Sleep - its second save failed (DC %d): Unconscious for %.0f s", id, held.dc, left);
   }
 }
@@ -2434,7 +2426,7 @@ void EscapeScript(uint32_t self) {
   void* creature = CreatureById(self);
   const auto it = g_entangled.find(self);
   if (!creature || it == g_entangled.end() || !HasSpellEffect(creature, it->second.row, -1, it->second.caster)) {
-    TellPlayer(self, "nwn5e: Escape - nothing holds you (Entangle's plants or Ensnaring Strike's vines).");
+    TellPlayer(self, PlayerText("spells2024.escape_nothing_holds_you_entangle"));
     return;
   }
   if (EscapeTry(self, creature, it->second)) FreeFromEntangle(self, creature);
@@ -2459,8 +2451,7 @@ void Entangle(uint32_t self, void* caster, const rules::Spell2024& spell, int ro
       if (void* stats = StatsOf(target)) {
         if (!engine::HasFeat(stats, rules::kFeatEscape)) engine::AddFeat(stats, rules::kFeatEscape);
         held.feat = true;
-        TellPlayer(id, "nwn5e: Entangle holds you Restrained - Escape (an Action: your quickbar, or the radial's Special "
-                       "Attacks page in Dash's place) tries to tear free.");
+        TellPlayer(id, PlayerText("spells2024.entangle_holds_you_restrained_escape"));
       }
     }
     if (g_entangled.size() > 256) g_entangled.clear();
@@ -2646,7 +2637,7 @@ void SuppressInvisibility(uint32_t id, Outline& outline, uint64_t now) {
                                    : "DURATION_TYPE_TEMPORARY, v, t, " + std::to_string(left) + ".0);");
       RunScriptChunk(code.c_str(), MakerOf(hidden.creator, id));
       outline.hidden.push_back(hidden);
-      TellPlayer(id, "nwn5e: Faerie Fire outlines you - your invisibility is suppressed while it lasts.");
+      TellPlayer(id, PlayerText("spells2024.faerie_fire_outlines_you_your"));
       if (LogSlot()) {
         Log("spells2024: 0x%08X Faerie Fire suppresses its invisibility (spell %d by 0x%08X, %d s left)", id, spell,
             hidden.creator, left);
@@ -2673,7 +2664,7 @@ void RestoreInvisibility(uint32_t id, void* creature, const Outline& outline, ui
                        (left < 0 ? std::string("DURATION_TYPE_PERMANENT, v, t);")
                                  : "DURATION_TYPE_TEMPORARY, v, t, " + std::to_string(left) + ".0);");
     RunScriptChunk(code.c_str(), MakerOf(hidden.creator, id));
-    TellPlayer(id, "nwn5e: Faerie Fire ends - your invisibility is back.");
+    TellPlayer(id, PlayerText("spells2024.faerie_fire_ends_your_invisibility"));
     if (LogSlot()) Log("spells2024: 0x%08X its invisibility back (spell %d, %d s left)", id, hidden.spell, left);
   }
   std::string code = kUnmark;
@@ -2996,12 +2987,12 @@ void ShieldAfterRoll(AttackRoll& roll) {
 void ReactionSpell(uint32_t self, const rules::Spell2024& spell) {
   if (spell.row == rules::kShield) {
     ShieldUp(self);
-    TellPlayer(self, "nwn5e: Shield - +5 AC until your next round, and Magic Missile can't hurt you.");
+    TellPlayer(self, PlayerText("spells2024.shield_5_ac_until_your"));
     if (LogSlot()) Log("spells2024: 0x%08X Shield cast from its spells: +5 AC for a round", self);
     return;
   }
   RunScriptChunk("ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_PULSE_WIND), OBJECT_SELF);", self);
-  TellPlayer(self, "nwn5e: Feather Fall - NWN has no falling, so there's nothing to slow (#153).");
+  TellPlayer(self, PlayerText("spells2024.feather_fall_nwn_has_no"));
   if (LogSlot()) Log("spells2024: 0x%08X Feather Fall: a visual and a line (#153)", self);
 }
 
@@ -3075,7 +3066,7 @@ void ArmFromScript(uint32_t self, const rules::Spell2024& spell, int slot) {
   armed.slot = slot;
   armed.paid = true;
   g_armed[self] = armed;
-  TellPlayer(self, std::string("nwn5e: ") + spell.name + " armed - your next qualifying hit delivers it (your Bonus Action).");
+  TellPlayer(self, PlayerText("spells2024.armed_your_next_qualifying_hit", {{"name", std::string(spell.name)}}));
   if (LogSlot()) Log("spells2024: 0x%08X %s armed by its cast (paid, a level %d slot)", self, spell.name, slot);
 }
 
@@ -3113,14 +3104,14 @@ void SmiteHit(void* attacker, void* target) {
   if (!waits.empty()) {
     if (now >= armed.told + kRoundMs) {
       armed.told = now;
-      TellPlayer(id, std::string("nwn5e: ") + spell->name + " waits - " + waits + "; it stays armed.");
+      TellPlayer(id, PlayerText("spells2024.waits_it_stays_armed", {{"name", std::string(spell->name)}, {"waits", std::string(waits)}}));
       if (LogSlot()) Log("spells2024: 0x%08X %s waits - %s", id, spell->name, waits.c_str());
     }
     return;
   }
   if (!armed.paid) {
     if (OrderSlotsLeft(attacker, armed.row, armed.class_slot, armed.domain_level, armed.metamagic) <= 0) {
-      TellPlayer(id, std::string("nwn5e: ") + spell->name + " - no spell slot of that level left; it's disarmed.");
+      TellPlayer(id, PlayerText("spells2024.no_spell_slot_of_that_2", {{"name", std::string(spell->name)}}));
       g_armed.erase(it);
       return;
     }
@@ -3128,7 +3119,7 @@ void SmiteHit(void* attacker, void* target) {
     const bool spent = SpendOrderSlot(attacker, armed.row, armed.class_slot, armed.domain_level, armed.metamagic);
     t_bonus_spend = false;
     if (!spent) {
-      TellPlayer(id, std::string("nwn5e: ") + spell->name + " - its slot couldn't be spent; it's disarmed.");
+      TellPlayer(id, PlayerText("spells2024.its_slot_couldn_t_be", {{"name", std::string(spell->name)}}));
       g_armed.erase(it);
       return;
     }
@@ -3178,8 +3169,7 @@ void SmiteHit(void* attacker, void* target) {
       log = "its vines (Strength save, DC " + std::to_string(dc) + ")";
       break;
   }
-  TellPlayer(id, std::string("nwn5e: ") + spell->name + " (a level " + std::to_string(paid.slot) + " slot, your Bonus "
-                     "Action) - " + log + ".");
+  TellPlayer(id, PlayerText("spells2024.a_level_slot_your_bonus", {{"name", std::string(spell->name)}, {"slot", std::string(std::to_string(paid.slot))}, {"log", std::string(log)}}));
   if (LogSlot()) {
     Log("spells2024: 0x%08X %s on 0x%08X (a level %d slot%s): %s", id, spell->name, victim_id, paid.slot,
         critical ? ", a Critical Hit" : "", log.c_str());
@@ -3367,23 +3357,22 @@ void SmiteUpdate(void* creature) {
             RunScriptChunk(code, pending.caster);
             if (engine::GetLocalInt(creature, kVarVinesImmune) != 0) {
               if (LogSlot()) Log("spells2024: 0x%08X immune to entangling - Ensnaring Strike's vines can't hold it", id);
-              TellPlayer(pending.caster, "nwn5e: Ensnaring Strike - the vines can't hold it (immune to entangling).");
-              TellPlayer(id, "nwn5e: Ensnaring Strike's vines can't hold you (immune to entangling).");
+              TellPlayer(pending.caster, PlayerText("spells2024.ensnaring_strike_the_vines_can"));
+              TellPlayer(id, PlayerText("spells2024.ensnaring_strike_s_vines_can"));
             } else {
               Entangled held{pending.caster, pending.dc, now + kRoundMs, false, rules::kEnsnaringStrike, kTagEnsnared};
               if (IsPlayerCreature(creature)) {
                 if (void* stats = StatsOf(creature)) {
                   if (!engine::HasFeat(stats, rules::kFeatEscape)) engine::AddFeat(stats, rules::kFeatEscape);
                   held.feat = true;
-                  TellPlayer(id, "nwn5e: Ensnaring Strike's vines hold you Restrained - Escape (an Action: your "
-                                 "quickbar, or the radial's Special Attacks page in Dash's place) tries to tear free.");
+                  TellPlayer(id, PlayerText("spells2024.ensnaring_strike_s_vines_hold"));
                 }
               }
               g_entangled[id] = held;
               g_ensnared[id] = Ensnared{pending.caster, rules::EnsnaringStrikeDice(pending.slot), now + kRoundMs};
             }
           } else {
-            TellPlayer(pending.caster, "nwn5e: Ensnaring Strike - the vines shrivel away (it saved).");
+            TellPlayer(pending.caster, PlayerText("spells2024.ensnaring_strike_the_vines_shrivel"));
           }
         }
       }
@@ -3750,8 +3739,7 @@ void DetectBegin(uint32_t self, int row) {
             UtilityIconRow(row), row, kTagDetectMark, rules::kDetectMinutes);
   Run(code, self, "a Detect's mark");
   g_detecting[self] = Detecting{row, 0, {}};
-  TellPlayer(self, "nwn5e: " + SpellNameOf(row) + " - for 10 minutes (your Concentration) what it senses within 30 feet, in "
-                   "a clear line, glows and is named.");
+  TellPlayer(self, PlayerText("spells2024.for_10_minutes_your_concentration", {{"spell_name", std::string(SpellNameOf(row))}}));
   if (LogSlot()) Log("spells2024: 0x%08X %s begins (10 minutes, Concentration)", self, SpellNameOf(row).c_str());
 }
 
@@ -3888,7 +3876,7 @@ void AlarmEnterMental(uint32_t area) { AlarmTrip(area, false); }
 void AlarmSpell(uint32_t self, const rules::Spell2024& spell, int row) {
   const rules::AlarmMode mode = rules::AlarmModeOf(row);
   if (mode == rules::AlarmMode::kNone) {
-    TellPlayer(self, "nwn5e: Alarm - pick Audible or Mental from its menu.");
+    TellPlayer(self, PlayerText("spells2024.alarm_pick_audible_or_mental"));
     return;
   }
   const bool audible = mode == rules::AlarmMode::kAudible;
@@ -3942,7 +3930,7 @@ SendMessageToPC(OBJECT_SELF, s);
 void WaterSpell(uint32_t self, const rules::Spell2024& spell, int row, int slot) {
   const rules::WaterMode mode = rules::WaterModeOf(row);
   if (mode == rules::WaterMode::kNone) {
-    TellPlayer(self, "nwn5e: Create or Destroy Water - pick Create (rain) or Destroy (fog) from its menu.");
+    TellPlayer(self, PlayerText("spells2024.create_or_destroy_water_pick"));
     return;
   }
   const int feet = rules::WaterCubeFeet(slot);
@@ -4225,14 +4213,13 @@ const char* SpeciesName(int appearance) {
 void DisguiseSpell(uint32_t self, void* caster, int row) {
   const int appearance = rules::DisguiseAppearanceOf(row);
   if (appearance < 0) {
-    TellPlayer(self, "nwn5e: Disguise Self - pick a species from its menu.");
+    TellPlayer(self, PlayerText("spells2024.disguise_self_pick_a_species"));
     return;
   }
   Run(kDisguiseRead, self, "Disguise Self's look");
   const int own = engine::GetLocalInt(caster, "n5s_disg_app");
   if (engine::GetLocalInt(caster, "n5s_disg_poly") || rules::PlayerHeadModel(false, own, 0, 1).empty()) {
-    TellPlayer(self, "nwn5e: Disguise Self - your form isn't one it can change (a changed shape, or no player "
-                     "model).");
+    TellPlayer(self, PlayerText("spells2024.disguise_self_your_form_isn"));
     return;
   }
   const bool female = engine::GetLocalInt(caster, "n5s_disg_female") != 0;
@@ -4254,9 +4241,7 @@ void DisguiseSpell(uint32_t self, void* caster, int row) {
   RunWholeScript(OutfitOnScript(prefix).c_str(), self);
   const int taken = TakeOutOldCopies(caster);
   g_disguised[self] = 0;
-  TellPlayer(self, std::string("nwn5e: Disguise Self - for an hour you look like ") + SpeciesName(appearance) +
-                       "; a creature that studies you closely (Intelligence (Investigation) against your spell "
-                       "save DC) can tell.");
+  TellPlayer(self, PlayerText("spells2024.disguise_self_for_an_hour", {{"species_name", std::string(SpeciesName(appearance))}}));
   if (LogSlot()) {
     Log("spells2024: 0x%08X Disguise Self - appearance %d (own %d), head %d of %d (%s; own %d), skin %d, hair %d, "
         "outfit %s (%d old copies taken out quietly)",
@@ -4288,7 +4273,7 @@ void DisguiseUpdate(void* creature) {
   Run(kDisguiseOff, id, "Disguise Self's end");
   RunWholeScript((std::string(kOutfitHelpers) + kOutfitOff).c_str(), id);  // 0.99.50: its outfit back
   const int taken = TakeOutOldCopies(creature);
-  TellPlayer(id, "nwn5e: Disguise Self ends - you look like yourself again.");
+  TellPlayer(id, PlayerText("spells2024.disguise_self_ends_you_look"));
   if (LogSlot()) Log("spells2024: 0x%08X Disguise Self ends - its own look back (%d old copies taken out quietly)", id, taken);
 }
 
@@ -4307,7 +4292,7 @@ constexpr const char* kTagSilentMark = "n5s_simark";
 void SilentImageMoved(uint32_t self, void* caster) {
   const auto it = g_silent.find(self);
   if (it == g_silent.end()) {
-    TellPlayer(self, "nwn5e: Silent Image - no image of yours to move.");
+    TellPlayer(self, PlayerText("spells2024.silent_image_no_image_of"));
     return;
   }
   Run("vector v = GetPositionFromLocation(GetSpellTargetLocation()); SetLocalString(OBJECT_SELF, \"n5c_xyz\", "
@@ -4318,17 +4303,17 @@ void SilentImageMoved(uint32_t self, void* caster) {
   const float dx = x - Field<float>(caster, ee::kObjectPositionX);
   const float dy = y - Field<float>(caster, ee::kObjectPositionY);
   if (!rules::SilentImageMoveAllowed(std::sqrt(dx * dx + dy * dy) / rules::FeetToMetres(1))) {
-    TellPlayer(self, "nwn5e: Silent Image - it moves to a spot within 60 feet of you.");
+    TellPlayer(self, PlayerText("spells2024.silent_image_it_moves_to"));
     return;
   }
   const uint32_t moved = MoveSilentImage(self, caster, x, y, z);
   if (!moved) {
-    TellPlayer(self, "nwn5e: Silent Image - your image is gone.");
+    TellPlayer(self, PlayerText("spells2024.silent_image_your_image_is"));
     g_silent.erase(it);
     return;
   }
   it->second.image = moved;
-  TellPlayer(self, "nwn5e: Silent Image - the image moves.");
+  TellPlayer(self, PlayerText("spells2024.silent_image_the_image_moves"));
   if (LogSlot()) Log("spells2024: 0x%08X Silent Image moved to %.1f, %.1f (image 0x%08X)", self, x, y, moved);
 }
 
@@ -4364,7 +4349,7 @@ bool SilentImageMoveOrder(void* creature, uint32_t id, const SpellOrder& order) 
   if (order.class_slot < 0 || order.class_slot > 7) return false;  // its own cheat cast, going through
   const auto it = g_silent.find(id);
   if (it == g_silent.end() || !GameObjectById(it->second.image)) {
-    TellPlayer(id, "nwn5e: Silent Image - no image of yours to move: cast Silent Image first.");
+    TellPlayer(id, PlayerText("spells2024.silent_image_no_image_of_2"));
     return true;
   }
   float x = order.x, y = order.y, z = order.z;
@@ -4379,7 +4364,7 @@ bool SilentImageMoveOrder(void* creature, uint32_t id, const SpellOrder& order) 
   const float dy = y - Field<float>(creature, ee::kObjectPositionY);
   const float feet = std::sqrt(dx * dx + dy * dy) / rules::FeetToMetres(1);
   if (!rules::SilentImageMoveAllowed(feet)) {
-    TellPlayer(id, "nwn5e: Silent Image - it moves to a spot within 60 feet of you.");
+    TellPlayer(id, PlayerText("spells2024.silent_image_it_moves_to"));
     return true;
   }
   char code[400];
@@ -4406,7 +4391,7 @@ void SilentImageUpdate(void* creature) {
     EndSilentImage(id);
     g_silent.erase(it);
     if (void* stats = StatsOf(creature)) engine::RemoveFeat(stats, rules::kFeatSilentImageMove);
-    TellPlayer(id, "nwn5e: Silent Image ends - your Concentration on it ended.");
+    TellPlayer(id, PlayerText("spells2024.silent_image_ends_your_concentration"));
     if (LogSlot()) Log("spells2024: 0x%08X Silent Image ends - its mark gone", id);
     return;
   }
@@ -4482,8 +4467,7 @@ bool RitualOrder(void* creature, uint32_t id, const SpellOrder& order) {
             " TRUE, PROJECTILE_PATH_TYPE_DEFAULT, TRUE);",
             minutes, order.target, row, row, order.x, order.y, order.z);
   Run(code, id, "a Ritual");
-  TellPlayer(id, "nwn5e: " + SpellNameOf(row) + " - cast as a Ritual: " + std::to_string(minutes) +
-                     " minutes pass, no spell slot.");
+  TellPlayer(id, PlayerText("spells2024.cast_as_a_ritual_minutes", {{"spell_name", std::string(SpellNameOf(row))}, {"minutes", std::string(std::to_string(minutes))}}));
   if (LogSlot()) Log("spells2024: 0x%08X %s cast as a Ritual - %d minutes, no slot", id, SpellNameOf(row).c_str(), minutes);
   return true;
 }
@@ -4496,7 +4480,7 @@ bool LongCastOrder(void* creature, uint32_t id, const SpellOrder& order) {
   const bool class_cast = order.class_slot >= 0 && order.class_slot <= 7;
   if (minutes < 60 || !class_cast || !IsPlayerCreature(creature)) return false;
   if (InFightNow(id, creature)) {
-    TellPlayer(id, "nwn5e: " + SpellNameOf(row) + " takes an hour to cast - not in a fight.");
+    TellPlayer(id, PlayerText("spells2024.takes_an_hour_to_cast", {{"spell_name", std::string(SpellNameOf(row))}}));
     return true;
   }
   char code[600];
@@ -4507,7 +4491,7 @@ bool LongCastOrder(void* creature, uint32_t id, const SpellOrder& order) {
             " DelayCommand(0.0, SetTime(h, ms / 60000, (ms / 1000) %% 60, ms %% 1000));",
             minutes);
   Run(code, id, "an hour's casting");
-  TellPlayer(id, "nwn5e: " + SpellNameOf(row) + " - " + std::to_string(minutes) + " minutes pass as you cast it.");
+  TellPlayer(id, PlayerText("spells2024.minutes_pass_as_you_cast", {{"spell_name", std::string(SpellNameOf(row))}, {"minutes", std::string(std::to_string(minutes))}}));
   if (LogSlot()) Log("spells2024: 0x%08X %s cast with a slot - %d minutes", id, SpellNameOf(row).c_str(), minutes);
   return false;
 }
@@ -4701,7 +4685,7 @@ int WakeFromSleepSpell(uint32_t rouser, uint32_t target) {
   std::string code = kUnmark;
   Replace(&code, "$TAG", kTagSleep);
   Run(code, target, "Rouse");
-  TellPlayer(target, "nwn5e: someone shakes you awake (Sleep ends).");
+  TellPlayer(target, PlayerText("spells2024.someone_shakes_you_awake_sleep"));
   Log("spells2024: 0x%08X Rouse - shakes 0x%08X out of Sleep (%s, %.2f m)", rouser, target,
       asleep ? "Unconscious" : "Incapacitated", gap);
   return 1;

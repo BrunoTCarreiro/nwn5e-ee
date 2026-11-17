@@ -47,3 +47,225 @@ familiar.becomes | generated | nwn5e: Find Familiar - your familiar becomes a {n
 familiar.failed | generated | nwn5e: Find Familiar - no familiar came (see nwn5e.log).
 familiar.serves | generated | nwn5e: Find Familiar - a {name} serves you. It can't attack; Possess Familiar (your radial) looks through its eyes - a Bonus Action; it delivers your touch spells within 100 feet (its Reaction); Dismiss and Recall are in Find Familiar's menu (its second page).
 familiar.eyes | generated | Find Familiar: through its eyes
+
+# --- chat formats --------------------------------------------------------------------------------------------
+chat.line | generated | nwn5e: {line}
+chat.period | generated | {line}.
+chat.line_period | generated | nwn5e: {line}.
+
+# --- src/core/bonus_actions.cpp ------------------------------------------------------------------------------
+bonus_actions.your_bonus_action_is_spent | generated | {feat} - your Bonus Action is spent this round; it goes at the start of your next round.
+bonus_actions.fleet_step_right_after_your | generated | Fleet Step - {bonus_action_name} right after your Bonus Action.
+bonus_actions.drinking_a_potion_takes_your | generated | Drinking a potion takes your Bonus Action, already spent this round; you drink it at the start of your next round.
+bonus_actions.default_bonus_action_none_your | generated | Default Bonus Action: none - your bonus attack is left out, the Bonus Action kept for one you use.
+bonus_actions.default_bonus_action_at_the | generated | Default Bonus Action: {name} - at the start of each of your rounds in a fight while your Bonus Action is free (skipped when it can't be used or would do nothing: then your bonus attack).
+bonus_actions.default_bonus_action_your_bonus | generated | Default Bonus Action: your bonus attack each round (the off-hand attack, Martial Arts' strike or Flurry of Blows).
+bonus_actions.your_bonus_action_is_spent_2 | generated | {what} - your Bonus Action is spent this round.
+
+# --- src/core/combat_options.cpp -----------------------------------------------------------------------------
+combat_options.no_combat_configuration_yet_the | generated | nwn5e: no combat configuration yet - the Bonus Action and reactions (actions faithful), Reckless Attack (Barbarian 2), Brutal Strike (Barbarian 9), Cunning Strike (Rogue 5), Open Hand Technique (Monk 3).
+
+# --- src/core/disengage.cpp ----------------------------------------------------------------------------------
+disengage.disengage_until_your_next_round | generated | nwn5e: Disengage - until your next round, moving away provokes no opportunity attacks.
+disengage.this_round_moving_provokes_no | generated | nwn5e: {why} - this round, moving provokes no opportunity attacks.
+
+# --- src/core/extra_actions.cpp ------------------------------------------------------------------------------
+extra_actions.action_surge_your_next_round | generated | Action Surge - your next round has your Attack action twice.
+extra_actions.cunning_action_hide_you_re | generated | Cunning Action: Hide - you're already in stealth mode.
+extra_actions.cunning_action_hide_you_can | generated | Cunning Action: Hide - you can't go into stealth mode now.
+extra_actions.cunning_action_hide_into_stealth | generated | Cunning Action: Hide - into stealth mode (your Stealth check decides who still sees you).
+extra_actions.steady_aim_only_if_you | generated | Steady Aim - only if you haven't moved this round.
+extra_actions.steady_aim_advantage_on_your | generated | Steady Aim - Advantage on your next attack; you can't move until your next round.
+extra_actions.thief_s_reflexes_your_attack | generated | Thief's Reflexes - your Attack action twice in the fight's first round.
+
+# --- src/core/prepare_spells.cpp -----------------------------------------------------------------------------
+prepare_spells.prepare_spells_you_have_no | generated | nwn5e: Prepare spells - you have no spellcasting class.
+prepare_spells.the_rest_was_interrupted_your | generated | nwn5e: the rest was interrupted - your spells stay as they were.
+
+# --- src/core/rules_abilities.cpp ----------------------------------------------------------------------------
+abilities.the_2024_rules_have_no | generated | nwn5e: the 2024 rules have no ability +1 every 4 levels - your {ability_name} +1 was taken back. Your class's feat levels offer Ability Score Improvement (choose its abilities with !asi).
+
+# --- src/core/rules_barbarian.cpp ----------------------------------------------------------------------------
+barbarian.your_rage_ends | generated | your Rage ends - {why}.
+barbarian.you_are_already_raging | generated | you are already raging.
+barbarian.you_can_t_rage_in | generated | you can't rage in Heavy armour.
+barbarian.you_can_t_cast_spells | generated | you can't cast spells while raging.
+barbarian.you_can_t_cast_spells_2 | generated | you can't cast spells while raging - scrolls, wands, rods and staffs included.
+barbarian.persistent_rage_every_rage_use | generated | Persistent Rage - every Rage use comes back (once per Long Rest).
+barbarian.intimidating_presence_comes_at_barbarian | generated | Intimidating Presence comes at Barbarian 14 (Path of the Berserker).
+barbarian.intimidating_presence_used_since_your | generated | Intimidating Presence - used since your last Long Rest: it takes a Rage use, and none is left.
+barbarian.intimidating_presence_dc_wisdom_save | generated | Intimidating Presence ({cost}): DC {dc} Wisdom save - {frightened} of {size} enemies within 30 ft frightened for a minute (each saves again every round).
+barbarian.retaliation_you_strike_back_your | generated | Retaliation - you strike back (your reaction this round).
+
+# --- src/core/rules_barbarian_strikes.cpp --------------------------------------------------------------------
+barbarian_strikes.reckless_attack_comes_at_barbarian | generated | Reckless Attack comes at Barbarian 2.
+barbarian_strikes.brutal_strike_comes_at_barbarian | generated | Brutal Strike comes at Barbarian 9.
+barbarian_strikes.comes_at_barbarian_13 | generated | {effect} comes at Barbarian 13.
+barbarian_strikes.brutal_strike | generated | Brutal Strike: {effect_names}.
+
+# --- src/core/rules_cantrips.cpp -----------------------------------------------------------------------------
+cantrips.produce_flame_no_flame_in | generated | nwn5e: Produce Flame - no flame in your hand to hurl.
+cantrips.produce_flame_no_flame_in_2 | generated | nwn5e: Produce Flame - no flame in your hand to hurl: cast its Flame first (a Bonus Action).
+cantrips.shillelagh_no_club_or_quarterstaff | generated | nwn5e: Shillelagh - no Club or Quarterstaff in your hand.
+
+# --- src/core/rules_cleric.cpp -------------------------------------------------------------------------------
+cleric.divine_spark_at_another_creature | generated | Divine Spark - at another creature within 30 feet (the use is given back).
+cleric.turn_undead_no_hostile_undead | generated | Turn Undead - no hostile Undead within 30 feet (the use is given back).
+cleric.is_no_longer_turned | generated | {name} is no longer turned ({why}).
+cleric.preserve_life_comes_with_the | generated | Preserve Life comes with the Life Domain, at Cleric 3 (the use is given back).
+cleric.preserve_life_no_bloodied_creature | generated | Preserve Life - no Bloodied creature friendly to you within 30 feet, none below half its Hit Points (the use is given back).
+cleric.preserve_life_hit_points_to | generated | Preserve Life ({pool} Hit Points to share, up to half each one's maximum): {line}.
+cleric.blessed_strikes_divine_strike_a | generated | Blessed Strikes: Divine Strike - a weapon hit's 1d8 Radiant once a turn (a Cleric from before the 2024 Blessed Strikes; !strike necrotic for Necrotic).
+cleric.divine_order_protector_martial_weapons | generated | Divine Order: Protector - Martial weapons and Heavy armour (a Cleric from before the 2024 Divine Order). !order thaumaturge switches it once: a cantrip more and Wisdom on Arcana and Religion checks.
+cleric.a_2024_cleric_casts_its | generated | a 2024 Cleric casts its prepared spells, with any slot of their level or higher - no spontaneous Cure or Inflict (NWN's).
+cleric.blessed_healer_you_regain_hit | generated | Blessed Healer: you regain {bonus} Hit Points.
+cleric.potent_spellcasting_temporary_hit_points | generated | Potent Spellcasting: {temporary} Temporary Hit Points.
+
+# --- src/core/rules_components.cpp ---------------------------------------------------------------------------
+components.needs_you_have | generated | nwn5e: {spell_name} needs {cost_words} - you have {gp}.
+components.used_up_its_material_component | generated | nwn5e: {spell_name} used up its material component - {gp}.
+
+# --- src/core/rules_concentration.cpp ------------------------------------------------------------------------
+concentration.concentration_on_ends | generated | nwn5e: Concentration on {name} ends - {why}.
+concentration.concentration_on_kept_constitution_save | generated | nwn5e: Concentration on {name} kept (Constitution save, DC {dc}).
+
+# --- src/core/rules_conditions.cpp ---------------------------------------------------------------------------
+conditions.you_re_charmed_by_it | generated | nwn5e: you're charmed by it - you can't {what} the creature that charmed you.
+
+# --- src/core/rules_cover.cpp --------------------------------------------------------------------------------
+cover.your_target_has_half_cover | generated | nwn5e: your target has Half Cover (+2 AC) - a creature stands in the way.
+cover.half_cover_2_ac_a | generated | nwn5e: Half Cover (+2 AC) - a creature stands between you and the attack.
+
+# --- src/core/rules_cunning_strike.cpp -----------------------------------------------------------------------
+cunning_strike.cunning_strike_comes_at_rogue | generated | Cunning Strike comes at Rogue 5.
+cunning_strike.comes_at_rogue_14_devious | generated | {effect} comes at Rogue 14 (Devious Strikes).
+cunning_strike.cunning_strike_d6_given_up | generated | Cunning Strike ({forgone}d6 given up): {what}.
+
+# --- src/core/rules_dying.cpp --------------------------------------------------------------------------------
+dying.your_exhaustion_is_gone | generated | {why}: your Exhaustion is gone.
+dying.coming_back_from_0_hp | generated | Coming back from 0 HP once more: Exhaustion 6 - you die.
+dying.coming_back_from_0_hp_2 | generated | Coming back from 0 HP leaves you exhausted: Exhaustion {level} ({exhaustion_text}; 6 is death). A Long Rest removes it.
+dying.you_re_back_up_at | generated | You're back up at {hit_points} HP.
+dying.no_henchman_is_left_standing | generated | No henchman is left standing - you die.
+dying.the_fight_is_over_you | generated | The fight is over - you come to at 1 HP.
+
+# --- src/core/rules_fighter.cpp ------------------------------------------------------------------------------
+fighter.heroic_rally_you_regain_hit | generated | nwn5e: Heroic Rally - you regain {healed} hit points.
+
+# --- src/core/rules_mastery.cpp ------------------------------------------------------------------------------
+mastery.rested_you_can_swap_one | generated | nwn5e: rested - you can swap one weapon mastery: !mastery <old weapon> for <new weapon>
+
+# --- src/core/rules_monk.cpp ---------------------------------------------------------------------------------
+monk.stunning_strike_missed_no_focus | generated | Stunning Strike missed - no Focus point spent.
+monk.stunning_strike_needs_an_unarmed | generated | Stunning Strike needs an Unarmed Strike or a Monk weapon (no armour, no shield).
+monk.stunning_strike_once_a_turn | generated | Stunning Strike - once a turn.
+monk.step_of_the_wind_you | generated | Step of the Wind - you Disengage and Dash: twice as fast this round, no opportunity attacks.
+monk.superior_defense_resistance_to_every | generated | Superior Defense - Resistance to every damage but Force for a minute (Incapacitated ends it).
+monk.stunning_strike_it_fails_its | generated | Stunning Strike - it fails its save: Stunned until your next round.
+monk.stunning_strike_it_saves_half | generated | Stunning Strike - it saves: half speed, and the next attack on it has Advantage.
+monk.disciplined_survivor_the_failed_save | generated | Disciplined Survivor - the failed save is rolled again (1 Focus point).
+monk.uncanny_metabolism_every_focus_point | generated | Uncanny Metabolism - every Focus point back and {healed} hit points (once per Long Rest).
+monk.perfect_focus_your_focus_rises | generated | Perfect Focus - your Focus rises to 4 points.
+monk.quivering_palm_missed_no_focus | generated | Quivering Palm missed - no Focus points spent.
+monk.open_hand_technique_comes_at | generated | Open Hand Technique comes at Monk 3 (Warrior of the Open Hand).
+monk.open_hand_technique_off_your | generated | Open Hand Technique: off - your Flurry of Blows hits impose nothing.
+monk.open_hand_technique_on_each | generated | Open Hand Technique: {open_hand_technique_name} on each Flurry of Blows hit ({technique_text}; DC {focus_dc}).
+monk.open_hand_technique | generated | Open Hand Technique: {what}.
+monk.deflect_attacks_the_hit_s | generated | Deflect Attacks - the hit's {total} damage less {reduction} (1d10 + Dex + Monk level): {after}; your reaction this round.
+
+# --- src/core/rules_quickbar.cpp -----------------------------------------------------------------------------
+quickbar.on_your_quickbar | generated | nwn5e: on your quickbar - {line}.
+quickbar.quickbar_action_s_of_a | generated | nwn5e: quickbar - {size} action(s) of a class you no longer have taken off.
+
+# --- src/core/rules_rogue.cpp --------------------------------------------------------------------------------
+rogue.uncanny_dodge_you_halve_the | generated | nwn5e: Uncanny Dodge - you halve the hit ({total} -> {halved}); your reaction this round.
+
+# --- src/core/rules_skills.cpp -------------------------------------------------------------------------------
+skills.your_2024_skills_were_taken | generated | nwn5e: your 2024 skills were taken from your ranks - proficient: {names}; Expertise: {names2}. Change them with !skills.
+skills.skilled_its_skills_weren_t | generated | nwn5e: Skilled - its skills weren't chosen on the Skills page, so you have the usual ones: {names}. Change them with !skills.
+
+# --- src/core/rules_spells2024.cpp ---------------------------------------------------------------------------
+spells2024.guiding_bolt_the_next_attack | generated | nwn5e: Guiding Bolt - the next attack roll against it before the end of your next turn has Advantage.
+spells2024.false_life_temporary_hit_points | generated | nwn5e: False Life - {amount} Temporary Hit Points, but you keep your {current} (they don't stack).
+spells2024.false_life_temporary_hit_points_2 | generated | nwn5e: False Life - {amount} Temporary Hit Points.
+spells2024.you_cast_a_bonus_action | generated | nwn5e: you cast a Bonus Action spell with a spell slot this turn - one spell with a slot a turn; cast it next round.
+spells2024.cast_it_from_your_spells | generated | nwn5e: {name} - cast it from your spells (it spends a spell slot).
+spells2024.no_spell_slot_of_that | generated | nwn5e: {name} - no spell slot of that level left.
+spells2024.heroism_a_willing_creature_not | generated | nwn5e: Heroism - a willing creature, not an enemy.
+spells2024.sanctuary_ends_you | generated | nwn5e: Sanctuary ends - you {why}.
+spells2024.hunter_s_mark_move_no | generated | nwn5e: Hunter's Mark: Move - no Hunter's Mark of yours lasts.
+spells2024.hunter_s_mark_move_your | generated | nwn5e: Hunter's Mark: Move - your quarry still stands.
+spells2024.hunter_s_mark_moves_to | generated | nwn5e: Hunter's Mark moves to a new quarry.
+spells2024.expeditious_retreat_you_dash_and | generated | nwn5e: Expeditious Retreat - you Dash, and while it lasts you can Dash as a Bonus Action (Expeditious Retreat: Dash).
+spells2024.expeditious_retreat_dash_no_expeditious | generated | nwn5e: Expeditious Retreat: Dash - no Expeditious Retreat lasts.
+spells2024.mage_armor_a_creature_who | generated | nwn5e: Mage Armor - a creature who isn't wearing armour.
+spells2024.protection_from_evil_and_good | generated | nwn5e: Protection from Evil and Good - a willing creature, not an enemy.
+spells2024.silent_image_move_no_image | generated | nwn5e: Silent Image: Move - no image of yours lasts.
+spells2024.hunter_s_mark_move_armed | generated | nwn5e: Hunter's Mark: Move armed - when your quarry drops, the mark moves to the creature you picked (your Bonus Action then).
+spells2024.hunter_s_mark_move_your_2 | generated | nwn5e: Hunter's Mark: Move - your quarry still stands (the mark moves once it drops).
+spells2024.sanctuary_you_can_t_bring | generated | nwn5e: Sanctuary - you can't bring yourself to {what} the warded creature; choose another target.
+spells2024.your_quarry_has_dropped_your | generated | nwn5e: your quarry has dropped - your armed Hunter's Mark: Move goes (your Bonus Action).
+spells2024.your_quarry_has_dropped_hunter | generated | nwn5e: your quarry has dropped - Hunter's Mark: Move (a Bonus Action) marks a new creature: on your quickbar, or next to Hunter's Mark in the radial.
+spells2024.sleep_a_creature_that_doesn | generated | nwn5e: Sleep - a creature that doesn't sleep (an elf, a Construct, an Elemental, an Ooze or an Undead) is unaffected.
+spells2024.ends_you_or_your_allies | generated | nwn5e: {held_name} ends - you or your allies damaged it.
+spells2024.you_fall_asleep_sleep_unconscious | generated | nwn5e: you fall asleep (Sleep: Unconscious) - damage, or a Rouse from someone within 5 feet, wakes you.
+spells2024.escape_nothing_holds_you_entangle | generated | nwn5e: Escape - nothing holds you (Entangle's plants or Ensnaring Strike's vines).
+spells2024.entangle_holds_you_restrained_escape | generated | nwn5e: Entangle holds you Restrained - Escape (an Action: your quickbar, or the radial's Special Attacks page in Dash's place) tries to tear free.
+spells2024.faerie_fire_outlines_you_your | generated | nwn5e: Faerie Fire outlines you - your invisibility is suppressed while it lasts.
+spells2024.faerie_fire_ends_your_invisibility | generated | nwn5e: Faerie Fire ends - your invisibility is back.
+spells2024.shield_5_ac_until_your | generated | nwn5e: Shield - +5 AC until your next round, and Magic Missile can't hurt you.
+spells2024.feather_fall_nwn_has_no | generated | nwn5e: Feather Fall - NWN has no falling, so there's nothing to slow (#153).
+spells2024.armed_your_next_qualifying_hit | generated | nwn5e: {name} armed - your next qualifying hit delivers it (your Bonus Action).
+spells2024.waits_it_stays_armed | generated | nwn5e: {name} waits - {waits}; it stays armed.
+spells2024.no_spell_slot_of_that_2 | generated | nwn5e: {name} - no spell slot of that level left; it's disarmed.
+spells2024.its_slot_couldn_t_be | generated | nwn5e: {name} - its slot couldn't be spent; it's disarmed.
+spells2024.a_level_slot_your_bonus | generated | nwn5e: {name} (a level {slot} slot, your Bonus Action) - {log}.
+spells2024.ensnaring_strike_the_vines_can | generated | nwn5e: Ensnaring Strike - the vines can't hold it (immune to entangling).
+spells2024.ensnaring_strike_s_vines_can | generated | nwn5e: Ensnaring Strike's vines can't hold you (immune to entangling).
+spells2024.ensnaring_strike_s_vines_hold | generated | nwn5e: Ensnaring Strike's vines hold you Restrained - Escape (an Action: your quickbar, or the radial's Special Attacks page in Dash's place) tries to tear free.
+spells2024.ensnaring_strike_the_vines_shrivel | generated | nwn5e: Ensnaring Strike - the vines shrivel away (it saved).
+spells2024.for_10_minutes_your_concentration | generated | nwn5e: {spell_name} - for 10 minutes (your Concentration) what it senses within 30 feet, in a clear line, glows and is named.
+spells2024.alarm_pick_audible_or_mental | generated | nwn5e: Alarm - pick Audible or Mental from its menu.
+spells2024.create_or_destroy_water_pick | generated | nwn5e: Create or Destroy Water - pick Create (rain) or Destroy (fog) from its menu.
+spells2024.disguise_self_pick_a_species | generated | nwn5e: Disguise Self - pick a species from its menu.
+spells2024.disguise_self_your_form_isn | generated | nwn5e: Disguise Self - your form isn't one it can change (a changed shape, or no player model).
+spells2024.disguise_self_for_an_hour | generated | nwn5e: Disguise Self - for an hour you look like {species_name}; a creature that studies you closely (Intelligence (Investigation) against your spell save DC) can tell.
+spells2024.disguise_self_ends_you_look | generated | nwn5e: Disguise Self ends - you look like yourself again.
+spells2024.silent_image_no_image_of | generated | nwn5e: Silent Image - no image of yours to move.
+spells2024.silent_image_it_moves_to | generated | nwn5e: Silent Image - it moves to a spot within 60 feet of you.
+spells2024.silent_image_your_image_is | generated | nwn5e: Silent Image - your image is gone.
+spells2024.silent_image_the_image_moves | generated | nwn5e: Silent Image - the image moves.
+spells2024.silent_image_no_image_of_2 | generated | nwn5e: Silent Image - no image of yours to move: cast Silent Image first.
+spells2024.silent_image_ends_your_concentration | generated | nwn5e: Silent Image ends - your Concentration on it ended.
+spells2024.cast_as_a_ritual_minutes | generated | nwn5e: {spell_name} - cast as a Ritual: {minutes} minutes pass, no spell slot.
+spells2024.takes_an_hour_to_cast | generated | nwn5e: {spell_name} takes an hour to cast - not in a fight.
+spells2024.minutes_pass_as_you_cast | generated | nwn5e: {spell_name} - {minutes} minutes pass as you cast it.
+spells2024.someone_shakes_you_awake_sleep | generated | nwn5e: someone shakes you awake (Sleep ends).
+
+# --- src/core/rules_thief.cpp --------------------------------------------------------------------------------
+thief.use_magic_device_you_read | generated | Use Magic Device: you read the scroll (a spell of level {level}: no check).
+
+# --- src/core/rules_utility_cantrips.cpp ---------------------------------------------------------------------
+utility_cantrips.the_illusion_fades_searches_for | generated | {line} - the illusion fades; {name} searches for you
+utility_cantrips.the_illusion_fades | generated | {line} - the illusion fades
+utility_cantrips.and_flees | generated | {line} and flees
+utility_cantrips.searches_for_you | generated | {line}; {name} searches for you
+utility_cantrips.finds_the_gone_and_searches | generated | {name} finds the {image_name} gone and searches for you
+utility_cantrips.dancing_lights_go_out | generated | nwn5e: Dancing Lights go out - {why}.
+utility_cantrips.dancing_lights_four_lights_for | generated | nwn5e: Dancing Lights - four lights for 1 minute (Concentration); its Move takes them up to 60 feet (a Bonus Action).
+utility_cantrips.dancing_lights_no_lights_of | generated | nwn5e: Dancing Lights - no lights of yours to move: cast its Lights first.
+utility_cantrips.dancing_lights_they_move_up | generated | nwn5e: Dancing Lights - they move up to 60 feet, and stay within 120 feet of you.
+utility_cantrips.dancing_lights_they_move | generated | nwn5e: Dancing Lights - they move.
+utility_cantrips.dancing_lights_move_them_from | generated | nwn5e: Dancing Lights - Move them from its menu (a Bonus Action).
+
+# --- src/core/rules_weapon_cantrips.cpp ----------------------------------------------------------------------
+weapon_cantrips.shillelagh_ends_its_minute_is | generated | nwn5e: Shillelagh ends - its minute is over.
+weapon_cantrips.shillelagh_ends_you_let_go | generated | nwn5e: Shillelagh ends - you let go of the weapon.
+weapon_cantrips.true_strike_cast_it_at | generated | nwn5e: True Strike - cast it at a creature: it becomes your attack at it.
+weapon_cantrips.true_strike_no_weapon_in | generated | nwn5e: True Strike - no weapon in your hand: it is an attack with one.
+
+# --- src/core/staple_actions.cpp -----------------------------------------------------------------------------
+staple_actions.dodge_until_your_next_round | generated | Dodge - until your next round, attacks against you have Disadvantage and your Dexterity saves Advantage.
+staple_actions.rouse_you_shake_it_awake | generated | Rouse - you shake it awake (Sleep ends).
+staple_actions.rouse_get_within_5_feet | generated | Rouse - get within 5 feet of the sleeper.
+staple_actions.dash_twice_as_fast_this | generated | Dash - twice as fast this round.

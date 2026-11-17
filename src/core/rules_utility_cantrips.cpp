@@ -70,6 +70,7 @@
 #include "magic_mark_surface.h"
 #include "script_hooks.h"
 #include "spell_impact.h"
+#include "player_text.h"
 #include "rules/cantrips.h"
 #include "rules/mark_surface.h"
 #include "rules/skills.h"
@@ -806,7 +807,7 @@ std::string NameOf(uint32_t id) {
 }
 
 void Tell(uint32_t caster, const std::string& line) {
-  if (caster) TellPlayer(caster, "nwn5e: " + line + ".");
+  if (caster) TellPlayer(caster, PlayerText("chat.line_period", {{"line", std::string(line)}}));
 }
 
 void Note(uint32_t self, const Reactor& r, const char* what) {
@@ -969,14 +970,14 @@ void Study(uint32_t self, Reactor& r, const Check& check) {
   switch (rules::AfterStudyOf(r.kind, through, r.hostile)) {
     case AfterStudy::kVanishThenSearch:
       Vanish(r.image, self);
-      Tell(caster, line + " - the illusion fades; " + name + " searches for you");
+      Tell(caster, PlayerText("utility_cantrips.the_illusion_fades_searches_for", {{"line", std::string(line)}, {"name", std::string(name)}}));
       return Search(self, r);
     case AfterStudy::kVanishThenGoBack:
       Vanish(r.image, self);
-      Tell(caster, line + " - the illusion fades");
+      Tell(caster, PlayerText("utility_cantrips.the_illusion_fades", {{"line", std::string(line)}}));
       return GoBack(self, false);
     case AfterStudy::kFleeAgain:
-      Tell(caster, line + " and flees");
+      Tell(caster, PlayerText("utility_cantrips.and_flees", {{"line", std::string(line)}}));
       return Flee(self, r, true);
     case AfterStudy::kGoBack:
       Tell(caster, line);
@@ -997,7 +998,7 @@ void Touch(uint32_t self, Reactor& r, const Check& check) {
   Note(self, r, "touches it - the image vanishes");
   Vanish(r.image, self);
   if (rules::SearchesAfterVanish(r.sentient, r.hostile)) {
-    Tell(r.caster, line + "; " + name + " searches for you");
+    Tell(r.caster, PlayerText("utility_cantrips.searches_for_you", {{"line", std::string(line)}, {"name", std::string(name)}}));
     return Search(self, r);
   }
   Tell(r.caster, line);
@@ -1021,7 +1022,7 @@ void Struck(uint32_t image, uint32_t attacker) {
         kept.name.c_str(), attacker, name.c_str());
   }
   if (ours && found->second.sentient) {
-    Tell(kept.caster, line + "; " + name + " searches for you");
+    Tell(kept.caster, PlayerText("utility_cantrips.searches_for_you", {{"line", std::string(line)}, {"name", std::string(name)}}));
     return Search(attacker, found->second);
   }
   Tell(kept.caster, line);
@@ -1074,7 +1075,7 @@ void OnStrikeScript(uint32_t self) {
   if (check.image_there) return Strike(self, *r);
   Note(self, *r, "finds the image gone");
   if (!r->sentient) return GoBack(self, true);
-  Tell(r->caster, r->name + " finds the " + r->image_name + " gone and searches for you");
+  Tell(r->caster, PlayerText("utility_cantrips.finds_the_gone_and_searches", {{"name", std::string(r->name)}, {"image_name", std::string(r->image_name)}}));
   Search(self, *r);
 }
 
@@ -1438,7 +1439,7 @@ void EndLights(uint32_t self, const char* why) {
   if (found == g_lights.end()) return;
   Run(DestroyCode(found->second.ids), self, "Dancing Lights out");
   g_lights.erase(found);
-  TellPlayer(self, std::string("nwn5e: Dancing Lights go out - ") + why + ".");
+  TellPlayer(self, PlayerText("utility_cantrips.dancing_lights_go_out", {{"why", std::string(why)}}));
   if (LogSlot()) Log("cantrips: 0x%08X Dancing Lights out - %s", self, why);
 }
 
@@ -1459,8 +1460,7 @@ void PlaceLights(uint32_t self, void* caster, int row) {
   if (sscanf_s(engine::GetLocalString(caster, "n5c_xyz").c_str(), "%f %f %f", &x, &y, &z) != 3) return;
   LightsAt(self, caster, &lights, x, y, z);
   g_lights[self] = lights;
-  TellPlayer(self, "nwn5e: Dancing Lights - four lights for 1 minute (Concentration); its Move takes them up to 60 feet "
-                   "(a Bonus Action).");
+  TellPlayer(self, PlayerText("utility_cantrips.dancing_lights_four_lights_for"));
   if (LogSlot()) Log("cantrips: 0x%08X Dancing Lights (row %d): %zu lights at %.1f, %.1f", self, row, lights.ids.size(), x, y);
 }
 
@@ -1472,7 +1472,7 @@ bool DancingLightsMoveGuard(void* creature, const SpellOrder& order) {
   const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
   const auto found = g_lights.find(id);
   if (found == g_lights.end()) {
-    TellPlayer(id, "nwn5e: Dancing Lights - no lights of yours to move: cast its Lights first.");
+    TellPlayer(id, PlayerText("utility_cantrips.dancing_lights_no_lights_of"));
     return true;
   }
   float x = order.x, y = order.y, z = order.z;
@@ -1488,12 +1488,12 @@ bool DancingLightsMoveGuard(void* creature, const SpellOrder& order) {
   const float from_caster =
       Feet(x - Field<float>(creature, ee::kObjectPositionX), y - Field<float>(creature, ee::kObjectPositionY));
   if (!rules::DancingLightsMoveAllowed(from_lights, from_caster)) {
-    TellPlayer(id, "nwn5e: Dancing Lights - they move up to 60 feet, and stay within 120 feet of you.");
+    TellPlayer(id, PlayerText("utility_cantrips.dancing_lights_they_move_up"));
     return true;
   }
   if (g_config.actions == rules::RuleVariant::kFaithful && !SpendBonusAction(creature, "Dancing Lights: Move")) return true;
   LightsAt(id, creature, &lights, x, y, z);
-  TellPlayer(id, "nwn5e: Dancing Lights - they move.");
+  TellPlayer(id, PlayerText("utility_cantrips.dancing_lights_they_move"));
   if (LogSlot()) Log("cantrips: 0x%08X Dancing Lights moved %.0f ft (%.0f ft from the caster)", id, from_lights, from_caster);
   return true;
 }
@@ -1655,7 +1655,7 @@ void UtilityScript(uint32_t self) {
     return;
   }
   if (effect == UtilityEffect::kDancingLightsMove) {  // the order guard moves them; a script's cast can't
-    TellPlayer(self, "nwn5e: Dancing Lights - Move them from its menu (a Bonus Action).");
+    TellPlayer(self, PlayerText("utility_cantrips.dancing_lights_move_them_from"));
     return;
   }
   if (rules::PatchAreaEffectOf(effect) >= 0 && !engine::GetLocalInt(caster, "n5c_at_object")) PlacePatch(self, effect);
@@ -1696,7 +1696,7 @@ void UtilityScript(uint32_t self) {
   } else {
     for (size_t i = 0; i < done.size(); ++i) line += (i == 0 ? "" : i + 1 == done.size() ? " and " : ", ") + done[i];
   }
-  TellPlayer(self, line + ".");
+  TellPlayer(self, PlayerText("chat.period", {{"line", std::string(line)}}));
   if (LogSlot()) Log("cantrips: 0x%08X %s (row %d): %s", self, name.c_str(), row, line.c_str() + 7);
 }
 

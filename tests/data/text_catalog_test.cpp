@@ -73,6 +73,8 @@ TEST(TextKeysInCodeExist) {
       for (auto it = std::sregex_iterator(text.begin(), text.end(), literal); it != std::sregex_iterator(); ++it) {
         const std::string key = (*it)[1];
         if (!parts.count(key.substr(0, key.find('.')))) continue;
+        static const std::set<std::string> kFiles = {"h", "cpp", "txt", "2da", "mdl", "utp", "tga", "nss", "ini", "log"};
+        if (kFiles.count(key.substr(key.rfind('.') + 1))) continue;  // a file's name (#include "chat.h")
         ++named;
         if (!catalog.count(key)) {
           ++missing;

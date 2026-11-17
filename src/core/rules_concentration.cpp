@@ -50,6 +50,7 @@
 #include "resource_panel.h"
 #include "saves.h"
 #include "spell_impact.h"
+#include "player_text.h"
 #include "rules/concentration.h"
 #include "rules/spells2024.h"
 
@@ -168,7 +169,7 @@ void End(void* creature, std::string why) {  // (a copy: the reason may be its r
   engine::SetLocalInt(creature, kVarHeld, 0);
   const int swept = Sweep(creature, spell, true);
   const std::string name = SpellNameOf(spell);
-  if (IsPlayer(creature)) TellPlayer(id, "nwn5e: Concentration on " + name + " ends - " + why + ".");
+  if (IsPlayer(creature)) TellPlayer(id, PlayerText("concentration.concentration_on_ends", {{"name", std::string(name)}, {"why", std::string(why)}}));
   Log("concentration: 0x%08X %s ends - %s (%d holder(s) cleared)", id, name.c_str(), why.c_str(), swept);
 }
 
@@ -219,7 +220,7 @@ void Damaged(uint32_t creator, void* target, int damage) {
   (void)creator;
   if (result != 0) {
     if (IsPlayer(target)) {
-      TellPlayer(id, "nwn5e: Concentration on " + name + " kept (Constitution save, DC " + std::to_string(dc) + ").");
+      TellPlayer(id, PlayerText("concentration.concentration_on_kept_constitution_save", {{"name", std::string(name)}, {"dc", std::string(std::to_string(dc))}}));
     }
     Log("concentration: 0x%08X keeps %s - %d damage, DC %d made", id, name.c_str(), damage, dc);
     return;

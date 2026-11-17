@@ -40,6 +40,7 @@
 #include "rules/nwn_conversion.h"
 #include "rules/skills.h"
 #include "skill_rank.h"
+#include "player_text.h"
 
 rules::SkillSet BackgroundSkills(void* creature);  // rules_abilities.cpp (CM5)
 int RageSkillAbility(void* creature, rules::Skill2024 skill, int modifier);  // rules_barbarian.cpp (B7)
@@ -220,9 +221,7 @@ Profile CharacterProfile(void* creature, void* stats, bool is_player) {
     cached.told = true;
     Log("skills: 0x%08X 2024 proficiencies taken from its ranks: %s; Expertise: %s", id,
         Names(cached.profile.proficient).c_str(), Names(cached.profile.expertise).c_str());
-    TellPlayer(id, "nwn5e: your 2024 skills were taken from your ranks - proficient: " +
-                       Names(cached.profile.proficient) + "; Expertise: " + Names(cached.profile.expertise) +
-                       ". Change them with !skills.");
+    TellPlayer(id, PlayerText("skills.your_2024_skills_were_taken", {{"names", std::string(Names(cached.profile.proficient))}, {"names2", std::string(Names(cached.profile.expertise))}}));
   }
   return cached.profile;
 }
@@ -468,8 +467,7 @@ void FillSkilledPicks(void* creature) {
   }
   last = RankFingerprint(stats) ^ (static_cast<uint32_t>(skilled) * 2654435761u);
   Log("skills: 0x%08X Skilled's picks made for it (not chosen on the Skills page): %s", id, Names(added).c_str());
-  TellPlayer(id, "nwn5e: Skilled - its skills weren't chosen on the Skills page, so you have the usual ones: " +
-                     Names(added) + ". Change them with !skills.");
+  TellPlayer(id, PlayerText("skills.skilled_its_skills_weren_t", {{"names", std::string(Names(added))}}));
 }
 
 }  // namespace

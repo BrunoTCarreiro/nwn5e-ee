@@ -80,6 +80,7 @@
 #include "log.h"
 #include "mastery.h"
 #include "reactions.h"
+#include "player_text.h"
 #include "rules/class_features.h"
 #include "rules/weapons.h"
 
@@ -285,8 +286,7 @@ void UncannyDodge(void* attacker, void* target) {
   if (LogSlot()) Log("rogue: 0x%08X Uncanny Dodge - the hit by 0x%08X halved, %d -> %d (its reaction)", rogue_id,
                      attacker_id, total, halved);
   if (IsPlayer(rogue)) {
-    TellPlayer(rogue_id, "nwn5e: Uncanny Dodge - you halve the hit (" + std::to_string(total) + " -> " +
-                             std::to_string(halved) + "); your reaction this round.");
+    TellPlayer(rogue_id, PlayerText("rogue.uncanny_dodge_you_halve_the", {{"total", std::string(std::to_string(total))}, {"halved", std::string(std::to_string(halved))}}));
   }
 }
 

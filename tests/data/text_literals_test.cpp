@@ -1,13 +1,14 @@
 #include "check.h"
 
+#include <cctype>
 #include <filesystem>
 #include <fstream>
 #include <map>
 #include <sstream>
 #include <string>
 
-// #168: chat messages still written in the code (a TellPlayer call with a string literal and no PlayerText, a
-// SendMessageToPC in a script) - each file's count only goes down (tests/data/fixtures/text_literals.txt; lower it
+// #168: chat messages still written in the code (a TellPlayer call, or a file's Tell helper's, with a string literal
+// and no PlayerText; a SendMessageToPC in a script) - each file's count only goes down (tests/data/fixtures/text_literals.txt; lower it
 // when a file's messages move to data/text/en.txt). New text goes through the catalogue.
 
 namespace {
@@ -19,12 +20,14 @@ std::string ReadFile(const std::string& path) {
   return bytes.str();
 }
 
-// TellPlayer calls whose arguments hold a string literal and no PlayerText(...); its definition skipped.
-int LiteralTells(const std::string& text) {
+// Calls of `name` (a whole word) whose arguments hold a string literal and no PlayerText(...); a definition skipped.
+int LiteralCalls(const std::string& text, const std::string& name) {
   int count = 0;
-  for (size_t at = text.find("TellPlayer("); at != std::string::npos; at = text.find("TellPlayer(", at + 1)) {
+  const std::string open = name + "(";
+  for (size_t at = text.find(open); at != std::string::npos; at = text.find(open, at + 1)) {
+    if (at > 0 && (std::isalnum(static_cast<unsigned char>(text[at - 1])) || text[at - 1] == '_')) continue;
     if (at >= 5 && text.compare(at - 5, 5, "void ") == 0) continue;
-    size_t i = at + 11;
+    size_t i = at + open.size();
     int depth = 1;
     bool in_string = false;
     std::string args;
@@ -69,9 +72,9 @@ TEST(NoNewLiteralPlayerText) {
     if (line.empty() || line[0] == '#') continue;
     std::istringstream fields(line);
     std::string name;
-    int tells = 0, sends = 0;
-    fields >> name >> tells >> sends;
-    baseline[name] = {tells, sends};
+    int tells = 0, helpers = 0, sends = 0;
+    fields >> name >> tells >> helpers >> sends;
+    baseline[name] = {tells + helpers, sends};
   }
   CHECK_EQ(baseline.empty(), false);
   int over = 0, files = 0;
@@ -80,14 +83,14 @@ TEST(NoNewLiteralPlayerText) {
     ++files;
     const std::string name = entry.path().filename().string();
     const std::string text = ReadFile(entry.path().string());
-    const int tells = LiteralTells(text);
+    const int tells = LiteralCalls(text, "TellPlayer") + LiteralCalls(text, "Tell");
     const int sends = Count(text, "SendMessageToPC(");
     const auto known = baseline.find(name);
     const int max_tells = known == baseline.end() ? 0 : known->second.first;
     const int max_sends = known == baseline.end() ? 0 : known->second.second;
     if (tells > max_tells || sends > max_sends) {
       ++over;
-      printf("  %s: %d TellPlayer literals (at most %d), %d SendMessageToPC (at most %d) - new player text goes in "
+      printf("  %s: %d TellPlayer / Tell literals (at most %d), %d SendMessageToPC (at most %d) - new player text goes in "
              "data/text/en.txt\n",
              name.c_str(), tells, max_tells, sends, max_sends);
     }

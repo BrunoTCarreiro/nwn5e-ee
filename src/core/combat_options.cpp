@@ -26,6 +26,7 @@
 #include "extra_actions.h"
 #include "reactions.h"
 #include "script_hooks.h"
+#include "player_text.h"
 #include "rules/class_features.h"
 
 // rules_barbarian_strikes.cpp
@@ -380,10 +381,7 @@ void Open(uint32_t player) {
   void* creature = CreatureById(player);
   if (!creature) return;
   if (!Faithful() || !HasAnyOption(creature)) {
-    TellPlayer(player, "nwn5e: no combat configuration yet - the Bonus Action and reactions (actions faithful), "
-                       "Reckless Attack "
-                       "(Barbarian 2), Brutal Strike (Barbarian 9), Cunning Strike (Rogue 5), Open Hand Technique "
-                       "(Monk 3).");
+    TellPlayer(player, PlayerText("combat_options.no_combat_configuration_yet_the"));
     return;
   }
   int rows = 0;

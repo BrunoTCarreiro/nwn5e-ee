@@ -60,6 +60,7 @@
 #include "rules/nwn_conversion.h"
 #include "rules/weapons.h"
 #include "saves.h"
+#include "player_text.h"
 
 // rules_barbarian_strikes.cpp (B10 Staggering Blow, 0.45.4): this hit's Staggering
 // Blow set before Topple's save.
@@ -225,7 +226,7 @@ void OnRest(void* stats) {
   SetRecord(creature, kSwapVar, 1);
   if (g_config.log_attacks) Log("mastery: object 0x%08X rested: one swap available", IdOf(creature));
   if (facts.is_player && rules::FreeMasterySlot(slots.chosen, slots.count) < 0) {
-    TellPlayer(IdOf(creature), "nwn5e: rested - you can swap one weapon mastery: !mastery <old weapon> for <new weapon>");
+    TellPlayer(IdOf(creature), PlayerText("mastery.rested_you_can_swap_one"));
   }
 }
 

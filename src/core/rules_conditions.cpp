@@ -75,6 +75,7 @@
 #include "resistance.h"
 #include "ruleset.h"
 #include "cast_action.h"
+#include "player_text.h"
 
 namespace {
 
@@ -180,7 +181,7 @@ void SayCharmRefusal(void* creature, uint32_t charmer, const char* what) {
   if (now - last < kCharmWordMs) return;
   last = now;
   if (Field<int32_t>(creature, ee::kCreatureIsPlayerCharacter) != 0) {
-    TellPlayer(id, std::string("nwn5e: you're charmed by it - you can't ") + what + " the creature that charmed you.");
+    TellPlayer(id, PlayerText("conditions.you_re_charmed_by_it", {{"what", std::string(what)}}));
   }
   if (LogSlot()) Log("conditions: 0x%08X charmed by 0x%08X - %s refused (2024 Charmed)", id, charmer, what);
 }

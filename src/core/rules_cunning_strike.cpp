@@ -51,6 +51,7 @@
 #include "resolve_damage.h"
 #include "saves.h"
 #include "script_hooks.h"
+#include "player_text.h"
 #include "rules/class_features.h"
 #include "rules/nwn_conversion.h"
 
@@ -111,7 +112,7 @@ bool IsPlayer(void* creature) {
 }
 
 void Tell(void* creature, const std::string& line) {
-  if (IsPlayer(creature)) TellPlayer(IdOf(creature), "nwn5e: " + line);
+  if (IsPlayer(creature)) TellPlayer(IdOf(creature), PlayerText("chat.line", {{"line", std::string(line)}}));
 }
 
 rules::CunningChoice ChoiceOf(void* creature) {
@@ -161,13 +162,13 @@ void RemoveTagged(uint32_t id, const char* tag, const char* message) {
 void PickCunning(void* creature, rules::CunningEffect effect) {
   const int level = RogueLevelOf(creature);
   if (!Faithful() || !rules::HasCunningStrike(level)) {
-    Tell(creature, "Cunning Strike comes at Rogue 5.");
+    Tell(creature, PlayerText("cunning_strike.cunning_strike_comes_at_rogue"));
     return;
   }
   EnsureRecords(creature);
   rules::CunningChoice choice = ChoiceOf(creature);
   if (rules::PickCunningEffect(&choice, effect, level) == rules::CunningPick::kLocked) {
-    Tell(creature, std::string(rules::CunningEffectName(effect)) + " comes at Rogue 14 (Devious Strikes).");
+    Tell(creature, PlayerText("cunning_strike.comes_at_rogue_14_devious", {{"effect", std::string(std::string(rules::CunningEffectName(effect)))}}));
     return;
   }
   const uint32_t id = IdOf(creature);
@@ -182,7 +183,7 @@ void PickCunning(void* creature, rules::CunningEffect effect) {
     line += " - paid with Sneak Attack dice on your next Sneak Attacks (DC " + std::to_string(DcOf(creature)) + ")";
     if (rules::CunningStrikeEffectCount(level) > 1 && active.size() < 2) line += "; pick another for two";
   }
-  Tell(creature, line + ".");
+  Tell(creature, PlayerText("chat.period", {{"line", std::string(line)}}));
   RefreshCombatOptions(id);
 }
 
@@ -325,7 +326,7 @@ void ApplyEffects(void* rogue, void* target, const Pending& pending) {
   if (!script.empty()) ApplyLater(rogue_id, target_id, script);
   if (LogSlot()) Log("rogue: 0x%08X Cunning Strike on 0x%08X (%dd6 given up): %s", rogue_id, target_id, pending.forgone,
                      what.c_str());
-  Tell(rogue, "Cunning Strike (" + std::to_string(pending.forgone) + "d6 given up): " + what + ".");
+  Tell(rogue, PlayerText("cunning_strike.cunning_strike_d6_given_up", {{"forgone", std::string(std::to_string(pending.forgone))}, {"what", std::string(what)}}));
 }
 
 void OnDamage(uint32_t creator, void* target, int damage) {
