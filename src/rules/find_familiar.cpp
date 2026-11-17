@@ -83,4 +83,13 @@ bool FamiliarDeliversTouch(float target_from_caster_feet, float target_from_fami
          familiar_from_caster_feet <= static_cast<float>(kFamiliarTelepathyFeet);
 }
 
+FamiliarOrder FamiliarOrderOf(int listen_pattern) {
+  switch (listen_pattern) {
+    case -1: return FamiliarOrder::kTalk;
+    case -2: return FamiliarOrder::kStay;
+    case -5: return FamiliarOrder::kFollow;
+    default: return FamiliarOrder::kNone;
+  }
+}
+
 }  // namespace rules

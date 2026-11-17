@@ -50,4 +50,10 @@ constexpr int kFamiliarReachFeet = 5;
 bool FamiliarDeliversTouch(float target_from_caster_feet, float target_from_familiar_feet,
                            float familiar_from_caster_feet, bool reaction_ready);
 
+// 0.99.62 (L4-39, owner 2026-11-17: "did not follow unless instructed to and then it did fight without being asked
+// to"): its master's word, by NWN's listen pattern - a click (-1) its dialog (NWN's, owner 2026-11-17: kept);
+// Stand your ground (-2); Follow me (-5). Nothing else: a familiar can't attack, guard or heal for its master.
+enum class FamiliarOrder { kNone, kTalk, kStay, kFollow };
+FamiliarOrder FamiliarOrderOf(int listen_pattern);
+
 }  // namespace rules

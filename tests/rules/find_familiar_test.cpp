@@ -103,3 +103,14 @@ TEST(FindFamiliarTouchAndRows) {
   CHECK_EQ(IsNoSlotOption(kFamiliarDismiss) && IsNoSlotOption(kFamiliarRecall), true);
   CHECK_EQ(Spell2024Of(kFindFamiliar) != nullptr && Spell2024Of(kFindFamiliar)->ritual, true);
 }
+
+TEST(FindFamiliarOrders) {  // 0.99.62, L4-39: only its dialog, Stand your ground and Follow me
+  CHECK_EQ(FamiliarOrderOf(-1) == FamiliarOrder::kTalk, true);
+  CHECK_EQ(FamiliarOrderOf(-2) == FamiliarOrder::kStay, true);
+  CHECK_EQ(FamiliarOrderOf(-5) == FamiliarOrder::kFollow, true);
+  CHECK_EQ(FamiliarOrderOf(-3) == FamiliarOrder::kNone, true);   // attack the nearest
+  CHECK_EQ(FamiliarOrderOf(-6) == FamiliarOrder::kNone, true);   // guard me
+  CHECK_EQ(FamiliarOrderOf(-19) == FamiliarOrder::kNone, true);  // inventory
+  CHECK_EQ(FamiliarOrderOf(0) == FamiliarOrder::kNone, true);
+  CHECK_EQ(FamiliarOrderOf(1) == FamiliarOrder::kNone, true);    // a shout
+}

@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <cmath>
 #include <string>
+#include <set>
 #include <unordered_map>
 
 #include "action_guard.h"
@@ -94,6 +95,11 @@ std::unordered_map<uint32_t, Touch> g_touch;  // by master: the touch spell its 
 
 int g_logged = 0;
 bool LogSlot() { return g_logged < 400 && ++g_logged; }
+// 0.99.62: its look's lines (a few each), its first heartbeat, and others' shouts it ignores (a few)
+std::unordered_map<uint32_t, int> g_tend_logged;
+std::set<uint32_t> g_heartbeats;
+int g_others_heard = 0;
+void Tend(uint32_t familiar, void* creature, const char* by);  // its look (below)
 
 bool Faithful() { return g_config.spellcasting == rules::RuleVariant::kFaithful; }
 
@@ -152,7 +158,7 @@ void Remake(uint32_t familiar, const Familiar& f) {
   if (!stats) return;
   const rules::FamiliarStats& s = rules::FamiliarStatsOf(f.form);
   g_forms[familiar] = FormNumbers{s.hit_points, s.armor_class};
-  char code[1400];
+  char code[1800];
   sprintf_s(code,
             "object f = OBJECT_SELF; SetCreatureAppearanceType(f, %d);"
             " SetObjectVisualTransform(f, OBJECT_VISUAL_TRANSFORM_SCALE, %.2f); SetName(f, \"%s\");"
@@ -163,6 +169,10 @@ void Remake(uint32_t familiar, const Familiar& f) {
             " SetEventScript(f, EVENT_SCRIPT_CREATURE_ON_DAMAGED, \"\");"
             " SetEventScript(f, EVENT_SCRIPT_CREATURE_ON_SPELLCASTAT, \"\");"
             " SetEventScript(f, EVENT_SCRIPT_CREATURE_ON_HEARTBEAT, \"n5_f_hb\");"
+            " SetEventScript(f, EVENT_SCRIPT_CREATURE_ON_DIALOGUE, \"n5_f_talk\");"
+            " SetEventScript(f, EVENT_SCRIPT_CREATURE_ON_USER_DEFINED_EVENT, \"\");"
+            " SetEventScript(f, EVENT_SCRIPT_CREATURE_ON_BLOCKED_BY_DOOR, \"\");"
+            " SetEventScript(f, EVENT_SCRIPT_CREATURE_ON_RESTED, \"\");"
             " SetLocalInt(f, \"n5f_familiar\", 1); SetLocalInt(f, \"n5f_form\", %d); SetLocalInt(f, \"n5f_kind\", %d);"
             " ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_POLYMORPH), f);",
             s.appearance, s.scale, FamiliarName(f).c_str(), AlignmentConstant(f.kind), static_cast<int>(f.form),
@@ -308,7 +318,10 @@ void FamiliarUpdate(void* creature) {
   f.next = now + 1000;
   if (f.dismissed || !f.creature) return;
   void* familiar = CreatureById(f.creature);
-  if (familiar && !engine::IsDeadOrDying(familiar)) return;
+  if (familiar && !engine::IsDeadOrDying(familiar)) {
+    Tend(f.creature, familiar, "its master");  // 0.99.62
+    return;
+  }
   if (familiar) Run("SetIsDestroyable(TRUE, FALSE, FALSE); DestroyObject(OBJECT_SELF);", f.creature, "the familiar's end");
   g_forms.erase(f.creature);
   const std::string name = FamiliarName(f);
@@ -362,14 +375,15 @@ bool FamiliarTouchOrder(void* creature, const SpellOrder& order) {
   sprintf_s(code, "SetLocalString(OBJECT_SELF, \"n5f_rng\", Get2DAString(\"spells\", \"Range\", %u));", order.spell);
   Run(code, id, "the spell's range");
   if (engine::GetLocalString(creature, "n5f_rng") != "T") return false;
-  const float from_caster = FeetBetween(creature, target);
-  const float from_familiar = FeetBetween(familiar, target);
+  // 0.99.62 (L4-41): edge to edge, as reach is - a Tiny raven by a Medium orc 8 ft centre to centre is nearer
+  const float from_caster = engine::EdgeDistance(creature, target) / kMetresPerFoot;
+  const float from_familiar = engine::EdgeDistance(familiar, target) / kMetresPerFoot;
   const float familiar_off = FeetBetween(familiar, creature);
   const bool ready = ReactionReady(familiar);
   if (!rules::FamiliarDeliversTouch(from_caster, from_familiar, familiar_off, ready)) {
     if (LogSlot()) {
       Log("familiar: 0x%08X touch spell %u at 0x%08X not delivered - the target %.0f ft from you, %.0f ft from your "
-          "familiar (its reach 5 ft), the familiar %.0f ft from you (100 at most), its Reaction %s",
+          "familiar (edge to edge; its reach 5 ft), the familiar %.0f ft from you (100 at most), its Reaction %s",
           id, order.spell, order.target, from_caster, from_familiar, familiar_off, ready ? "ready" : "spent");
     }
     return false;
@@ -401,16 +415,81 @@ void FamiliarTouchCast(void* creature, uint32_t spell) {
                                                                          : PlayerText("familiar.your_familiar")}}));
 }
 
-// 0.99.49: its heartbeat - it follows its master (closer than 3 m it waits), unless told to stand its ground
-// (x0_i0_assoc's NW_ASC_MODE_STAND_GROUND in NW_ASSOCIATE_MASTER) or possessed; no fight, no ability.
-const char* const kFollowOnly = R"nss(
+// 0.99.49: its heartbeat follows its master. 0.99.62 (L4-39, owner 2026-11-17: "did not follow unless instructed to
+// and then it did fight without being asked to"): its master looks after it every second too (FamiliarUpdate), the
+// same look - an attack or a cast of its own cleared (a familiar can't attack), and it follows (closer than 3 m it
+// waits) unless told to stand its ground (x0_i0_assoc's NW_ASC_MODE_STAND_GROUND in NW_ASSOCIATE_MASTER: the radial's
+// word, n5_f_talk, and NWN's familiar dialog set it alike) or possessed.
+const char* const kTend = R"nss(
 object m = GetMaster(OBJECT_SELF);
-if (GetIsObjectValid(m) && !GetIsPossessedFamiliar(OBJECT_SELF) && !(GetLocalInt(OBJECT_SELF, "NW_ASSOCIATE_MASTER") & 0x08000000)) {
-  if (GetCurrentAction() == ACTION_INVALID && GetDistanceToObject(m) > 3.0) ActionForceFollowObject(m, 2.0);
+int a = GetCurrentAction();
+int cleared = 0; int followed = 0;
+if (!GetIsPossessedFamiliar(OBJECT_SELF)) {
+  if (a == ACTION_ATTACKOBJECT || a == ACTION_CASTSPELL || a == ACTION_ITEMCASTSPELL || a == ACTION_COUNTERSPELL) {
+    ClearAllActions(TRUE); cleared = a; a = ACTION_INVALID;
+  }
+  if (GetIsObjectValid(m) && !(GetLocalInt(OBJECT_SELF, "NW_ASSOCIATE_MASTER") & 0x08000000) &&
+      GetArea(m) == GetArea(OBJECT_SELF) && GetDistanceToObject(m) > 3.0 && a != ACTION_FOLLOW) {
+    ActionForceFollowObject(m, 2.0); followed = 1;
+  }
 }
+SetLocalInt(OBJECT_SELF, "n5f_cleared", cleared);
+SetLocalInt(OBJECT_SELF, "n5f_followed", followed);
 )nss";
 
-void FamiliarHeartbeat(uint32_t self) { Run(kFollowOnly, self, "the familiar's heartbeat"); }
+void Tend(uint32_t familiar, void* creature, const char* by) {
+  if (!creature) return;
+  Run(kTend, familiar, "the familiar's look");
+  const int cleared = engine::GetLocalInt(creature, "n5f_cleared");
+  const bool followed = engine::GetLocalInt(creature, "n5f_followed") != 0;
+  int& logged = g_tend_logged[familiar];
+  if (cleared && logged < 12 && ++logged) {
+    Log("familiar: 0x%08X (%s) its own action %d cleared - a familiar can't attack", familiar, by, cleared);
+  }
+  if (followed && logged < 12 && ++logged) Log("familiar: 0x%08X (%s) follows its master", familiar, by);
+}
+
+void FamiliarHeartbeat(uint32_t self) {
+  if (g_heartbeats.insert(self).second) Log("familiar: 0x%08X its heartbeat runs (its first this game)", self);
+  Tend(self, CreatureById(self), "its heartbeat");
+}
+
+// 0.99.62: its listening is nwn5e's (n5_f_talk) - NWN's associate script fought for its master (L4-39). Its
+// master's word only (rules::FamiliarOrderOf): a click its dialog, Stand your ground, Follow me; no one else's shout.
+void FamiliarTalk(uint32_t self) {
+  void* creature = CreatureById(self);
+  if (!creature) return;
+  Run("SetLocalInt(OBJECT_SELF, \"n5f_pat\", GetListenPatternNumber()); SetLocalInt(OBJECT_SELF, \"n5f_bymaster\", "
+      "GetLastSpeaker() == GetMaster(OBJECT_SELF));",
+      self, "the familiar's listening");
+  const int pattern = engine::GetLocalInt(creature, "n5f_pat");
+  const bool by_master = engine::GetLocalInt(creature, "n5f_bymaster") != 0;
+  const rules::FamiliarOrder order = by_master ? rules::FamiliarOrderOf(pattern) : rules::FamiliarOrder::kNone;
+  if (by_master ? LogSlot() : (g_others_heard < 5 && ++g_others_heard)) {
+    Log("familiar: 0x%08X hears %d (%s)%s", self, pattern,
+        order == rules::FamiliarOrder::kTalk     ? "its dialog"
+        : order == rules::FamiliarOrder::kStay   ? "stay"
+        : order == rules::FamiliarOrder::kFollow ? "follow"
+                                                 : "nothing it does",
+        by_master ? "" : " - not its master's");
+  }
+  switch (order) {
+    case rules::FamiliarOrder::kTalk:
+      Run("if (!BeginConversation()) ActionStartConversation(GetLastSpeaker());", self, "the familiar's dialog");
+      break;
+    case rules::FamiliarOrder::kStay:
+      Run("SetLocalInt(OBJECT_SELF, \"NW_ASSOCIATE_MASTER\", GetLocalInt(OBJECT_SELF, \"NW_ASSOCIATE_MASTER\") | "
+          "0x08000000); ClearAllActions();",
+          self, "the familiar's stay");
+      break;
+    case rules::FamiliarOrder::kFollow:
+      Run("SetLocalInt(OBJECT_SELF, \"NW_ASSOCIATE_MASTER\", GetLocalInt(OBJECT_SELF, \"NW_ASSOCIATE_MASTER\") & "
+          "~0x08000000); ClearAllActions(); ActionForceFollowObject(GetMaster(OBJECT_SELF), 2.0);",
+          self, "the familiar's follow");
+      break;
+    default: break;
+  }
+}
 
 // Its own casts (the blueprint's gaze): refused - it can't attack.
 bool FamiliarCastGuard(void* creature, const SpellOrder& order) {
@@ -453,6 +532,9 @@ void FamiliarsGameStarted() {
   g_reload_look.clear();
   g_forms.clear();
   g_touch.clear();
+  g_tend_logged.clear();
+  g_heartbeats.clear();
+  g_others_heard = 0;
 }
 
 }  // namespace
@@ -543,6 +625,7 @@ void FinishSummon(uint32_t self) {
 
 bool InstallFindFamiliar() {
   const bool waits = AddScriptHandler("n5_f_summon", &FinishSummon) && AddScriptHandler("n5_f_hb", &FamiliarHeartbeat) &&
+                     AddScriptHandler("n5_f_talk", &FamiliarTalk) &&
                      AddSpellOrderGuard(&FamiliarCastGuard) && AddDamageListener(&FamiliarDamaged);
   const bool max_hp = g_config.hit_points == rules::RuleVariant::kFaithful ||  // rules_hit_points.cpp's hook asks
                       HookExport("CNWSCreature::GetMaxHitPoints (Find Familiar's forms, #39 4c)", ee::kGetMaxHitPoints,
