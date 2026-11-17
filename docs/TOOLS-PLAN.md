@@ -1556,3 +1556,70 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
         placeable's reach it through the build.
     - Test rows: CO-8 (the bench: the helmet textured, its Colours, the thumbnails), CO-9 (Metal 1 gold, Undo, Save),
       CO-10 (Play in game), CO-11 (installed).
+
+## The Composer's shapes: the dome (2026-11-17, #39)
+
+  Spec: the design's "Addendum 2026-11-17: basic shapes" and "Addendum 2026-11-17 (b)" in
+  docs/superpowers/specs/2026-11-16-vfx-bench-composer-design.md; plan docs/superpowers/plans/2026-11-16-vfx-bench-composer.md
+  (S1-S5; addendum (b) amends them).
+  Owner, 2026-11-17: "is it possible to use basic 3d geometry for VFX? ... I was trying to create something for the Zone
+  of Truth watch is a half sphere area and I wanted to have a translucent sphere so the player could see the affected
+  area", then "go with the shapes, start with the dome". On Q4-Q6: "1. hide them, we want the bench to reflect the game as
+  much as possible 2. no, only exploring visuals for now 3. wait". On "is it possible to project texture on the surface of
+  the 3d mesh?": "go with your recommendation".
+  - *Calls (short; the design has them all):*
+    - a shape is a part of a fourth source kind, `"shape": { "type": "dome", "radius": 4.57, ... }`: no scale, no dyes,
+      only what isn't a default written;
+    - one implementation, floatdisk.js: its mesh, its material and its soft texture, for the page, reader.js, both
+      generators and build_derived;
+    - the dome: radius (a new one the guide's), height (default its radius), smoothness 32 (8-96), both sides by default
+      (one mesh, each side its own vertices, the inside first), its bottom open;
+    - its look: Mapping Wrapped (Repeat around 1-32, Repeat up 1-16) or From above; Colour `#99ccff`, Opacity 0.35, Glow
+      1; Texture Soft, None or a texture from the bench's library (the game's, by name: nothing copied);
+    - the soft texture: `n5s_` and 12 hex digits of its colour (the default `n5s_8c757fb28f99`), 128 x 128 with alpha,
+      generated from numbers (original). Build output beside what names it, never committed: data\files is git-ignored
+      and built by build.bat (build_derived); a spell mesh's goes in vfxedit\saved\, Play in game's in vfxedit\;
+    - the bench draws only front faces, everywhere, and tiles mesh textures past 1, as the game does;
+    - no game-side change.
+  - *Built:*
+    - docs: anim 5d390a6 (the design and plan addenda), 02882fe (addendum (b): the owner's answers, Mapping, the repeats,
+      a library texture);
+    - S1 (anim fa2ca10, 0ebd84b): floatdisk.js's shape tables, readShape and cleanShape, the dome's mesh and material,
+      its soft texture and name; a part may be a shape;
+    - S2 (anim afd705a, d9983b7): both generators build a shape's mesh and write its soft texture beside what names it;
+      build_derived carries it; a PLT-only library texture refused;
+    - S3 (nwn5e-tools 733a12d, 4b31661): the texture route serves `n5s_`, POST /api/composer/bake makes Play's;
+      composer.js places a shape with no part request, cleans it, adds it sized to the guide;
+    - S4 (nwn5e-tools 15d7f34), the page:
+      - the parts list's Shapes tab (its thumbnail drawn on the spot, never kept);
+      - a shape's card: the fields from floatdisk.js's SHAPE_INFO, each one undo step, refused out of bounds; no Scale and
+        no scale square; Texture From the library... through the emitter's texture picker;
+      - its soft texture made in the page for the stage, the ghosts and the thumbnails; Save's status names it; Play in
+        game makes it first;
+      - view.js: front faces only (cullBack) and repeating mesh textures (a picture not a power of two stretched first);
+      - the view buttons fit a big variant (frameBox, up to 40 m);
+      - composer_check.mjs +10 (88 steps); browser_check.mjs unchanged (95: no step relied on a mesh's back).
+  - *The owner's answers:*
+    - Q4: front faces only, everywhere the bench draws a mesh (the stage, area mode, the Composer, the thumbnails). A
+      game mesh's back no longer shows in the effect mode either.
+    - Q5 (Zone of Truth's rules): no, for now - the recipe stays a recipe; open for later.
+    - Q6 (a texture of the owner's own, a glyph): waits for the dome's in-game test.
+  - *Limits:*
+    - the bench shades a textured shape by its faces' turn; the game lights it by its glow;
+    - a 4.57 m dome reaches through low ceilings and walls, and uneven ground cuts its ring;
+    - a big shape round other parts takes the click: pick those by their chips;
+    - untested in game: the draw order against other see-through things (transparencyhint on planes would be a small,
+      announced game-side change), and whether the game tiles a texture past 1 as the bench does (SH-3 step 4);
+    - if the game's loader welded vertices by position, a two-sided mesh's normals could cancel (dark at a low glow);
+    - Play in game's effect follows the character: `!vfxarea <effect> 0.6 1 0` puts it down for 60 s;
+    - a library texture's own alpha isn't known to the generator: a textured shape is always drawn see-through;
+    - no scrolling texture (a later task, after the in-game test: our writers write no UV animation).
+  - *For the bench:* restart vfx_bench.bat. *For the game:* nothing for the DLL - the "anim ready" for S1, S2 and these
+    docs carries tools only.
+  - *Next for Zone of Truth (the design's recipe):* the owner tries the look (SH-1 to SH-4). If he likes it and Q5 turns
+    to yes, the animation session ships `n5_zotruth` as Detect Magic's glow was (its draft, its model by WriteVfxModel,
+    its texture, a visualeffects row of type D at a free row), and the game session builds the spell: its spells.2da row,
+    a vfx_persistent area of 4.57 m whose DurationVFX is that row, the Charisma save, 10 minutes. S5 adds the sphere,
+    cylinder, cone, disc and ring.
+  - Test rows SH-1 (the bench: the dome, its card, inside and out, Repeat around, From above, a library texture), SH-2
+    (saved, and a mesh beat fading in), SH-3 (Play in game, and the repeats in game), SH-4 (`!vfxarea` at your feet).
