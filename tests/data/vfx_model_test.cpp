@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include <fstream>
+#include <limits>
 #include <set>
 #include <sstream>
 #include <string>
@@ -2199,4 +2200,193 @@ TEST(VfxGameEffectsStartFrame) {
     CHECK_EQ(beam->frame_end, 1);
     CHECK_EQ(Contains(WriteVfxModel(ray, "n5t"), "  xgrid 2\n  ygrid 1\n"), true);
   }
+}
+
+// --- An emitter's blast (the owner, 2026-11-17, on row 145's WIND_Dummy: "nor most of the properties of the "WIND_Dummy"
+// emitter which I assume is something that generates a shockwave on elements in the environment?" - then "go with all
+// three"): the emitter header's blast radius (metres) and blast length (seconds), which nothing of nwn5e's read. When an
+// Explosion emitter detonates with a radius (ExplosionEmitter::Update), the game adds a wind there
+// (WindManager::AddPointSourceWind) that pushes what is within the radius away from it - grass, trees, particles that take
+// wind - for the length. ---
+
+// The draft: "blast_radius = R" and "blast_length = L" right after "deadspace = ", each only when it isn't 0 - every draft
+// before them keeps its bytes - and back as written, by the rule every reader keeps (below 0, not finite or past 1000: 0).
+TEST(VfxBlastThroughTheDraft) {
+  VfxEffect effect = Sample();  // deadspace 0.2, no point to point: the flags next
+  effect.emitters[0].update = "Explosion";
+  effect.emitters[0].blast_radius = 8.0f;
+  effect.emitters[0].blast_length = 1.3f;
+  const std::string draft = WriteVfxDraft(effect);
+  CHECK_EQ(Contains(draft, "\ndeadspace = 0.2\nblast_radius = 8\nblast_length = 1.3\nflags = splat random twosidedtex\n"), true);
+  VfxEffect back;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(draft, &back, &error) && back.emitters.size() == 1, true);
+  if (back.emitters.size() != 1) return;
+  CHECK_EQ(Milli(back.emitters[0].blast_radius), 8000);
+  CHECK_EQ(Milli(back.emitters[0].blast_length), 1300);
+  CHECK_EQ(WriteVfxDraft(back) == draft, true);
+  // Each on its own: a length without a radius (some of the game's door explosions have one), a radius without a length.
+  VfxEffect one = Sample();
+  one.emitters[0].blast_length = 0.3f;
+  CHECK_EQ(Contains(WriteVfxDraft(one), "\ndeadspace = 0.2\nblast_length = 0.3\nflags ="), true);
+  CHECK_EQ(Contains(WriteVfxDraft(one), "blast_radius"), false);
+  one = Sample();
+  one.emitters[0].blast_radius = 0.2f;
+  CHECK_EQ(Contains(WriteVfxDraft(one), "\ndeadspace = 0.2\nblast_radius = 0.2\nflags ="), true);
+  CHECK_EQ(Contains(WriteVfxDraft(one), "blast_length"), false);
+  // None: no line - the bytes nwn5e wrote before.
+  const std::string plain = WriteVfxDraft(Sample());
+  CHECK_EQ(Contains(plain, "\ndeadspace = 0.2\nflags = "), true);
+  CHECK_EQ(Contains(plain, "blast"), false);
+  CHECK_EQ(ReadVfxDraft(plain, &back, &error) && back.emitters.size() == 1 && back.emitters[0].blast_radius == 0.0f &&
+               back.emitters[0].blast_length == 0.0f,
+           true);
+  // Below 0, not a number, not finite or past 1000: 0 - the binary reader's rule, the same in every reader (the bench's
+  // core.js keeps it too). 1000 itself is kept.
+  CHECK_EQ(ReadVfxDraft("name = x\n[emitter a]\nblast_radius = -3\nblast_length = nan\n", &back, &error) &&
+               back.emitters.size() == 1 && back.emitters[0].blast_radius == 0.0f && back.emitters[0].blast_length == 0.0f,
+           true);
+  CHECK_EQ(ReadVfxDraft("name = x\n[emitter a]\nblast_radius = inf\nblast_length = 1e30\n", &back, &error) &&
+               back.emitters.size() == 1 && back.emitters[0].blast_radius == 0.0f && back.emitters[0].blast_length == 0.0f,
+           true);
+  CHECK_EQ(ReadVfxDraft("name = x\n[emitter a]\nblast_radius = 1e30\nblast_length = inf\n", &back, &error) &&
+               back.emitters.size() == 1 && back.emitters[0].blast_radius == 0.0f && back.emitters[0].blast_length == 0.0f,
+           true);
+  CHECK_EQ(ReadVfxDraft("name = x\n[emitter a]\nblast_radius = 1000\nblast_length = 1000\n", &back, &error) &&
+               back.emitters.size() == 1 && Milli(back.emitters[0].blast_radius) == 1000000 &&
+               Milli(back.emitters[0].blast_length) == 1000000,
+           true);
+}
+
+// The model: "blastRadius" and "blastLength" (the game's spelling - 2,430 of each in its ASCII models; its parser takes
+// any case) carry the blast. A model without one keeps its bytes: nwn5e always wrote both lines as 0. The ASCII reader
+// takes them back, any case, by the rule every reader keeps (below 0, not finite or past 1000: 0).
+TEST(VfxModelWritesBlast) {
+  VfxEffect effect = Sample();
+  effect.emitters[0].update = "Explosion";
+  effect.emitters[0].blast_radius = 8.0f;
+  effect.emitters[0].blast_length = 1.3f;
+  const std::string model = WriteVfxModel(effect, "n5t");
+  CHECK_EQ(Contains(model, "  twosidedtex 1\n  blastRadius 8\n  blastLength 1.3\n  position "), true);
+  VfxEffect back;
+  std::string error;
+  CHECK_EQ(ReadVfxAsciiModel(model, &back, &error) && back.emitters.size() == 1, true);
+  if (back.emitters.size() == 1) {
+    CHECK_EQ(Milli(back.emitters[0].blast_radius), 8000);
+    CHECK_EQ(Milli(back.emitters[0].blast_length), 1300);
+    CHECK_EQ(Contains(WriteVfxDraft(back), "\nblast_radius = 8\nblast_length = 1.3\n"), true);
+  }
+  const std::string plain = WriteVfxModel(Sample(), "n5t");
+  CHECK_EQ(Contains(plain, "  twosidedtex 1\n  blastRadius 0\n  blastLength 0\n  position "), true);
+  CHECK_EQ(ReadVfxAsciiModel(plain, &back, &error) && back.emitters.size() == 1 && back.emitters[0].blast_radius == 0.0f &&
+               back.emitters[0].blast_length == 0.0f,
+           true);
+  VfxEffect negative = Sample();  // never from a reader: written as 0, as a draft reads it
+  negative.emitters[0].blast_radius = -1.0f;
+  negative.emitters[0].blast_length = -2.0f;
+  CHECK_EQ(Contains(WriteVfxModel(negative, "n5t"), "  blastRadius 0\n  blastLength 0\n"), true);
+  const auto one = [&](const std::string& lines) {
+    VfxEffect e;
+    std::string why;
+    const bool ok = ReadVfxAsciiModel("newmodel t\nbeginmodelgeom t\nnode dummy t\n  parent NULL\nendnode\nnode emitter e\n"
+                                      "  parent t\n" + lines + "endnode\nendmodelgeom t\ndonemodel t\n", &e, &why);
+    return ok && e.emitters.size() == 1 ? e.emitters[0] : VfxEmitter();
+  };
+  VfxEmitter e = one("  update Explosion\n  BLASTRADIUS 15\n  blastlength 1.2\n");
+  CHECK_EQ(e.update == "Explosion" && Milli(e.blast_radius) == 15000 && Milli(e.blast_length) == 1200, true);
+  e = one("  update Explosion\n  blastRadius -2\n  blastLength -1\n");
+  CHECK_EQ(e.update == "Explosion" && e.blast_radius == 0.0f && e.blast_length == 0.0f, true);
+  // Not finite or past 1000: 0, as every reader has it; 1000 kept.
+  e = one("  update Explosion\n  blastRadius inf\n  blastLength 1e30\n");
+  CHECK_EQ(e.update == "Explosion" && e.blast_radius == 0.0f && e.blast_length == 0.0f, true);
+  e = one("  update Explosion\n  blastRadius 1000\n  blastLength 1000\n");
+  CHECK_EQ(e.update == "Explosion" && Milli(e.blast_radius) == 1000000 && Milli(e.blast_length) == 1000000, true);
+}
+
+// A compiled model's: the emitter header's floats at +0x04 (blast radius) and +0x08 (blast length), between deadspace
+// (+0x00) and the x grid (+0x0C) - the game's parser (MdlNodeEmitter::InternalParseField) puts blastRadius at node +0xa4
+// and blastLength at +0xa8, beside deadspace's +0xa0. Below 0, not a number or past 1000 (no game emitter's goes past 20 m
+// or 4 s; an animation's copy of a node can hold other bytes there): 0.
+TEST(VfxReadsBlastFromACompiledModel) {
+  const auto read = [](float deadspace, float radius, float length) {
+    std::string b(0x400, '\0');
+    const auto put32 = [&](size_t at, uint32_t v) { memcpy(&b[at], &v, 4); };
+    const auto putf = [&](size_t at, float v) { memcpy(&b[at], &v, 4); };
+    const auto puts = [&](size_t at, const char* text) { memcpy(&b[at], text, strlen(text)); };
+    const size_t base = 12, node = 0x100, emitter = node + 0x60;
+    puts(base + 8, "test_fx");
+    puts(node + 0x10, "wind");
+    putf(emitter, deadspace);
+    putf(emitter + 0x04, radius);
+    putf(emitter + 0x08, length);
+    put32(emitter + 0x0C, 1);
+    put32(emitter + 0x10, 1);
+    puts(emitter + 0x18, "Explosion");
+    puts(emitter + 0x38, "Normal");
+    puts(emitter + 0x78, "NULL");
+    const size_t keys = 0x300, data = 0x340;
+    put32(node + 0x44, static_cast<uint32_t>(keys - base));
+    put32(node + 0x48, 1);
+    put32(node + 0x50, static_cast<uint32_t>(data - base));
+    put32(node + 0x54, 2);
+    put32(keys, 88);  // birthrate: 1 row, the time at 0, the value at 1, 1 column
+    b[keys + 4] = 1;
+    b[keys + 8] = 1;
+    b[keys + 10] = 1;
+    putf(data + 4, 1.0f);
+    VfxEffect effect;
+    std::string error;
+    return ReadVfxBinaryModel(b, &effect, &error) && effect.emitters.size() == 1 ? effect.emitters[0] : VfxEmitter();
+  };
+  VfxEmitter e = read(0.1f, 8.0f, 1.3f);
+  CHECK_EQ(e.name == "wind" && e.update == "Explosion", true);
+  CHECK_EQ(Milli(e.deadspace), 100);
+  CHECK_EQ(Milli(e.blast_radius), 8000);
+  CHECK_EQ(Milli(e.blast_length), 1300);
+  e = read(0.0f, 0.0f, 0.0f);  // none
+  CHECK_EQ(e.name == "wind" && e.blast_radius == 0.0f && e.blast_length == 0.0f, true);
+  e = read(0.0f, 0.0f, 0.3f);  // a length without a radius: kept, as the game's models have it
+  CHECK_EQ(e.name == "wind" && e.blast_radius == 0.0f && Milli(e.blast_length) == 300, true);
+  float vim;  // "vim_" read as a float: an animation copy's bytes
+  memcpy(&vim, "vim_", 4);
+  for (const float junk : {-1.0f, std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity(), 1000.5f, vim}) {
+    e = read(0.0f, junk, junk);
+    CHECK_EQ(e.name == "wind" && e.blast_radius == 0.0f && e.blast_length == 0.0f, true);
+  }
+  e = read(0.0f, 1000.0f, 1000.0f);  // the most kept
+  CHECK_EQ(Milli(e.blast_radius) == 1000000 && Milli(e.blast_length) == 1000000, true);
+}
+
+// The anchor (the owner's row 145, VFX_IMP_GOOD_HELP): vim_protevil's WIND_Dummy - an Explosion that draws nothing
+// (texture NULL) - blasts 8 m round for 1.3 s; its OmenEmitter01 (the Single that draws the symbol) has none. Only where
+// the game is (NWN_GAME_DIR, or Steam's folder); nothing of it is kept.
+TEST(VfxGameEffectsBlast) {
+  const char* given = getenv("NWN_GAME_DIR");
+  const std::string game = given && *given ? given : "X:\\SteamLibrary\\steamapps\\common\\Neverwinter Nights";
+  if (!std::ifstream(game + "\\data\\nwn_base.key")) {
+    printf("    (no game at %s: skipped)\n", game.c_str());
+    return;
+  }
+  const std::wstring dir(game.begin(), game.end());
+  GameResources resources(dir, GameResources::EeKeyFiles(), {dir + L"\\ovr"});
+  std::string bytes, source, error;
+  VfxEffect protevil;
+  CHECK_EQ(resources.Read("vim_protevil", kResourceTypeMdl, &bytes, &source) && ReadVfxBinaryModel(bytes, &protevil, &error),
+           true);
+  const VfxEmitter* wind = nullptr;
+  const VfxEmitter* omen = nullptr;
+  for (const VfxEmitter& e : protevil.emitters) {
+    if (e.name == "WIND_Dummy") wind = &e;
+    if (e.name == "OmenEmitter01") omen = &e;
+  }
+  CHECK_EQ(wind != nullptr && omen != nullptr, true);
+  if (!wind || !omen) return;
+  printf("    vim_protevil WIND_Dummy: %s, texture %s, blast radius %g, blast length %g\n", wind->update.c_str(),
+         wind->texture.c_str(), wind->blast_radius, wind->blast_length);
+  CHECK_EQ(wind->update == "Explosion" && wind->texture == "NULL", true);
+  CHECK_EQ(Milli(wind->blast_radius), 8000);
+  CHECK_EQ(Milli(wind->blast_length), 1300);
+  CHECK_EQ(omen->blast_radius == 0.0f && omen->blast_length == 0.0f, true);
+  CHECK_EQ(Contains(WriteVfxDraft(protevil), "\ndeadspace = 0\nblast_radius = 8\nblast_length = 1.3\n"), true);
+  CHECK_EQ(Contains(WriteVfxModel(protevil, "n5t"), "  blastRadius 8\n  blastLength 1.3\n"), true);
 }
