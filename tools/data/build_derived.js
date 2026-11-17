@@ -26,7 +26,8 @@
 //   mdlmesh.exe, built with floatdisk\build_mdlmesh.bat (VS 2019 Build Tools) when missing or older than its sources.
 //
 // Exit codes: 0 done; 2 a prerequisite missing - nwn5e-tools, the game, the mesh reader - one line saying which and how
-// to fix it; 1 anything else (a refused build, rows that disagree, a file in the way). build.bat decides what 2 means.
+// to fix it; 1 anything else (a refused build, rows that disagree, a file in the way). build.bat stops on either, unless
+// NWN5E_DERIVED=skip.
 "use strict";
 const fs = require("fs");
 const os = require("os");

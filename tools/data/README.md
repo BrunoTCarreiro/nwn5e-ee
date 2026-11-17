@@ -14,6 +14,28 @@ remove the six files from main"**:
 - The game-derived models (and, later, baked PLT textures) are built on the owner's machine at build time, from the
   owner's own game, into the build's `data\files`.
 
+## What git keeps out
+
+`.gitignore` keeps these out of the repo:
+
+- the Floating Disk's six models made of the game's meshes: `c_n5fd_small`, `_med`, `_large`, and `plc_n5fd_small`,
+  `_med`, `_large`;
+- any Composer placeable's model: `plc_n5*.mdl`;
+- any baked texture: `n5p_*`.
+
+The generators' own runs (the VFX Bench's Save and build) still write them into `data\files`, where they stay,
+ignored. What's made from scratch stays committed: `c_n5fd_empty.mdl`, the `.pwk` files, `n5t_forcedisk.tga`, the
+rows.
+
+## In build.bat
+
+`build.bat` runs it once, right after copying `data\` into its output, with `--out "%OUT%\data\files"`. So
+`NWN5E_OUT` scratch builds get the models too, and so does `build.bat public`.
+
+- **It stops the build** when anything is missing (Node on PATH, the game, nwn5e-tools, the mesh reader) or anything
+  else fails (exit 1 or 2), naming what and how to fix it. An install must never lack the Floating Disk's models.
+- **`NWN5E_DERIVED=skip`** builds without them, with a warning. It's for a build not meant to be installed.
+
 ## Run
 
 From the repo's root:
@@ -53,7 +75,7 @@ node tools\data\build_derived.js --out <folder> [--game <folder>] [--tools <nwn5
 | 2 | a prerequisite is missing: nwn5e-tools, the game or the mesh reader. One line says which and how to fix it. |
 | 1 | anything else: a refused build, rows that disagree, a file in `--out` it didn't make, no `--out` |
 
-build.bat decides whether 2 fails the build or only warns.
+build.bat stops on either (above).
 
 ## Check
 
@@ -63,8 +85,11 @@ build.bat decides whether 2 fails the build or only warns.
 - The copy's recipes and `made.txt` come from `HEAD` (`git cat-file --filters`), never the worktree, so uncommitted
   Composer edits are never the baseline. The generators' code comes from the worktree.
 - It checks that:
-  - the committed recipes build `HEAD`'s `data\files` byte for byte (the Floating Disk's 11 files and every committed
-    placeable project's), into `--out` only;
+  - the six game-derived models aren't at `HEAD` and are git-ignored, as are a placeable's model and a baked texture,
+    while the original art isn't;
+  - the committed recipes build `HEAD`'s `data\files` byte for byte (the Floating Disk's 5 committed files and every
+    committed placeable project's), into `--out` only. What's built but not committed is git-ignored. While the recipe
+    and the generator are unchanged, the six come out byte for byte as they were last committed;
   - a second build leaves every file unchanged;
   - `--check` writes nothing;
   - rows that disagree, or a recipe edited without its rows, give exit 1 and say which;

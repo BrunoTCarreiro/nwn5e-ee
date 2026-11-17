@@ -68,6 +68,15 @@ if exist "%OUT%\data" rmdir /s /q "%OUT%\data"
 xcopy /e /i /q /y data "%OUT%\data" >nul || exit /b 1
 if defined PRIVATE_SRC if exist %PRIV%\data xcopy /e /i /q /y %PRIV%\data "%OUT%\data\private" >nul
 
+rem The models made of the game's own art (tools\data\README.md) are never committed (the owner, 2026-11-17:
+rem "go with 1, remove the six files from main"): the recipes and the player's own game make them here, into
+rem %OUT%\data\files. Anything missing - Node, the game, nwn5e-tools, the mesh reader - or any other failure stops
+rem the build: an install must never lack the Floating Disk's models. NWN5E_DERIVED=skip builds without them, for a
+rem build not meant to be installed.
+if /i "%NWN5E_DERIVED%"=="skip" echo warning: NWN5E_DERIVED=skip - this build has no game-derived models, the Floating Disk's - don't install it
+if /i not "%NWN5E_DERIVED%"=="skip" where node >nul 2>nul || (echo the game-derived models need Node.js: node isn't on PATH - install it, or set NWN5E_DERIVED=skip for a build not meant to be installed& exit /b 1)
+if /i not "%NWN5E_DERIVED%"=="skip" node tools\data\build_derived.js --out "%OUT%\data\files" --tools "%TOOLS%" || (echo the game-derived models weren't built: the line above says why - fix it, or set NWN5E_DERIVED=skip for a build not meant to be installed& exit /b 1)
+
 rem build\nwn5e.ini holds the player's settings: only create it, never overwrite it.
 if not exist "%OUT%\nwn5e.ini" copy nwn5e.ini "%OUT%\nwn5e.ini" >nul
 if defined PRIVATE_SRC echo built %OUT%\nwn5e.exe %OUT%\nwn5e.dll WITH the private layer (personal use only)

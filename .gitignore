@@ -15,3 +15,19 @@ backup/
 private/
 # Python caches from the tools (tools/data, tools/gff).
 __pycache__/
+# Art made from the game's files, built at build time, never committed (the owner, 2026-11-17: "go with 1, remove the
+# six files from main"; CLAUDE.md: "Game files (and art made from them), logs and saves are never committed or
+# attached"). build.bat makes them into the build's data\files with tools/data/build_derived.js (tools/data/README.md);
+# the generators' own runs (the VFX Bench's Save and build) still write them here, and they stay here, ignored.
+# The Floating Disk's models of the game's placeable meshes:
+/data/files/c_n5fd_small.mdl
+/data/files/c_n5fd_med.mdl
+/data/files/c_n5fd_large.mdl
+/data/files/plc_n5fd_small.mdl
+/data/files/plc_n5fd_med.mdl
+/data/files/plc_n5fd_large.mdl
+# A Composer placeable's model, plc_n5<name>[_<k>].mdl, built from the game's parts (its .pwk, a use point and an
+# outline, stays committable, as the disk's c_n5fd_empty.mdl, .pwk files and n5t_forcedisk.tga, made from scratch):
+/data/files/plc_n5*.mdl
+# A dyed part's baked texture, n5p_<hash>, made from the game's PLT and palettes:
+/data/files/n5p_*

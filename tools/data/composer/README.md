@@ -9,7 +9,8 @@ The Floating Disk isn't one of these files. It keeps `tools\data\floatdisk\compo
 
 ## The project file
 
-`tools\data\composer\<name>.json`, committed with what it builds:
+`tools\data\composer\<name>.json`, committed with what it builds - except a placeable's models (`plc_n5<name>*.mdl`,
+made of the game's parts), which `.gitignore` keeps out and `build.bat` makes for every build (`tools\data\README.md`):
 
 ```json
 {
@@ -86,7 +87,7 @@ The bench's Composer is where a project is made and edited (nwn5e-tools `vfx_ben
 
 - **The checkout:** it reads and saves the projects of the checkout it's started with (`--ee`; by default
   `..\nwn5e-ee-anim` beside nwn5e-tools), and its Composer card names that folder and its branch. The projects and
-  what they build are committed on anim.
+  what they build are committed on anim, but for the models git ignores (made of the game's parts).
 - **New project** (a name, then Placeable or Spell mesh) writes `<name>.json` here with one empty variant and a guide:
   a placeable's a 1 m circle, a spell mesh's a 0.5 m one, both at height 0. A placeable's `copy` and `use` start
   `null`, its `walk` `"through"`.
@@ -114,7 +115,8 @@ The bench's Composer is where a project is made and edited (nwn5e-tools `vfx_ben
 - **Play in game** sends a variant to the running game as `build.js` would build it (lowered to the guide's height),
   0.85 m beside the character, before any install.
 - **For the game:** a placeable's files and rows reach it as the Floating Disk's do: the animation session commits
-  them on anim, and the game session merges and installs. A spell mesh's draft stays in the bench's `vfxedit\saved\`;
+  the project, its rows and its `.pwk` files on anim, the game session merges, and its build makes the models from the
+  project and the owner's own game (`tools\data\build_derived.js`) before it installs. A spell mesh's draft stays in the bench's `vfxedit\saved\`;
   the game writes its model there when it runs.
 
 ## Build

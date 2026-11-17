@@ -7,6 +7,11 @@
   (`n5t_forcedisk.tga`);
 - `data\rows`: `appearance.floatdisk.txt` (rows 14000-14003) and `placeables.floatdisk.txt` (rows 14001-14003).
 
+Six of those models are made of the game's own meshes: `c_n5fd_small`, `_med`, `_large` and `plc_n5fd_small`, `_med`,
+`_large`. They're never committed (the owner, 2026-11-17: "go with 1, remove the six files from main"; `.gitignore`).
+`build.bat` makes them for every build from this file and your own game (`tools\data\build_derived.js`,
+`tools\data\README.md`). `c_n5fd_empty`, the `.pwk` files, the texture and the rows are committed.
+
 ## Compose it in the VFX Bench
 
 The VFX Bench's Composer edits `composition.json` on a stage and rebuilds from it (nwn5e-tools `vfx_bench\README.md`,
@@ -28,8 +33,9 @@ The VFX Bench's Composer edits `composition.json` on a stage and rebuilds from i
    says what was rebuilt.
    - If the build is refused, its reason is shown, and neither `composition.json` nor any built file changes.
    - If the file changed on disk since the bench opened it, you're asked before it's saved over.
-7. For the game: the animation session commits `composition.json` and the rebuilt files on anim; the game session
-   merges and installs.
+7. For the game: the animation session commits `composition.json` and the rebuilt files git doesn't ignore (the rows,
+   the `.pwk` files, `c_n5fd_empty`, the texture) on anim; the game session merges, and its build makes the six
+   game-derived models before it installs.
 
 **The first Save rewrites two numbers.** `compositionText` writes a number as JSON does, so the first Save changes
 `"rim": [0.8, 0.92, 1.0]` to `[0.8, 0.92, 1]` and the large stage's `"at": [0.0, 0.32, 0]` to `[0, 0.32, 0]`. Commit
@@ -52,9 +58,8 @@ node tools\data\floatdisk\build.js
 - `--json` prints the summary as one line of JSON instead of text (an error as `{ "error": ... }`); the VFX Bench's
   Composer reads it.
 - It never overwrites a file it didn't make.
-- The new files reach the game at the next install.
-- A build can make the models itself, from this recipe and your own game, into its own folder:
-  `tools\data\build_derived.js` (`tools\data\README.md`).
+- The new files reach the game at the next install: `build.bat` makes the models from this recipe and your own game
+  into its own folder (`tools\data\build_derived.js`, `tools\data\README.md`).
 
 `node tools\data\floatdisk\check.js` checks the generator's own parts. It doesn't need the game.
 
