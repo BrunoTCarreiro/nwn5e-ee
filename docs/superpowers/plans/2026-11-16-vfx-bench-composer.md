@@ -2446,3 +2446,736 @@ Needs P3.
   - the commits and the rows;
   - the bench needs a restart of `vfx_bench.bat`;
   - the "anim ready" for P2 (the disk's Large rebuilt) and the textures' home in `vfxedit\saved\` (Q3 still open).
+
+---
+
+## Addendum 2026-11-17: basic shapes
+
+**Spec:** the design's "Addendum 2026-11-17: basic shapes". The owner: "is it possible to use basic 3d geometry for VFX?
+... I wanted to have a translucent sphere so the player could see the affected area", then "go with the shapes, start
+with the dome".
+
+Five tasks, after P4. Each task's full text is here.
+
+1. **S1:** the dome and its texture in floatdisk.js; a shape part (anim).
+2. **S2:** the generators and build_derived (anim).
+3. **S3:** the server and the page's pure parts (nwn5e-tools).
+4. **S4:** the page, the stage's front faces, the docs and the test rows (nwn5e-tools, TOOLS-PLAN on anim).
+5. **S5:** sphere, cylinder, cone, disc and ring (anim, nwn5e-tools).
+
+### Before starting
+
+- **Q4 is answered before S4 starts** (the coordinator asks the owner): whether the bench draws only front faces
+  everywhere, or only in the Composer. S4 is written for the recommendation, everywhere. The other answer is one line:
+  the effect mode sets `view.cullBack = false`.
+- **Another job is working in both repos** (an emitter's blast radius and length).
+  - Its C++ is committed on anim (9934e61).
+  - Its bench side is uncommitted in nwn5e-tools, as of 2026-11-17: `vfx_bench/public/app.js`, `core.js`, `sim.js`,
+    `view.js`, `vfx_bench/check.js`, `check_effect.js`, `browser_check.mjs` and `dev/*`.
+  - S1-S3 and S5 touch none of them.
+  - **S4 edits view.js and app.js** (and may adjust browser_check.mjs). It starts only once `git status --short --
+    vfx_bench/public/view.js vfx_bench/public/app.js vfx_bench/browser_check.mjs` prints nothing. If it prints any of
+    them, stop and report.
+  - `git commit --only <file>` takes the whole file, so it would commit the other job's lines with this task's.
+  - On anim, the same job's `src/data/vfx_model.*` and `tests/data/vfx_model_test.cpp` may be uncommitted too (they
+    were when this plan was written). Never commit them: each commit here names only its own paths.
+- **Known answers** (computed 2026-11-17 with floatdisk.js's cyrb53):
+  - `shapeTextureName({ colour: [0.6, 0.8, 1] })` (the default) is `n5s_8c757fb28f99`;
+  - `[1, 0.85, 0.4]` gives `n5s_a3caa0709dda`;
+  - a 128 x 128 texture with alpha is a 65554-byte TGA (18 + 128 x 128 x 4);
+  - the default dome is 296 vertices and 480 triangles a side: 592 and 960 with both sides.
+- **Today's counts:** `floatdisk check: 39 checks pass` and `composer check: 15 checks pass`. If they've moved by the
+  time a task starts, its expected numbers move with them.
+
+### Global constraints (added)
+
+The plan's Global Constraints and the earlier addenda's hold, plus these:
+
+- **No game-side change** (the design's call 7).
+  - No commit here names a file under `src` or `tests`.
+  - `git diff --stat -- src` is the same before and after each anim task (the other job's uncommitted lines may be
+    in it: not this task's). Each anim task records it in its first step.
+  - test.bat isn't needed.
+- **floatdisk.js stays loadable in a page:** no `require` at its top, and Buffer only in what tgaBytes and diskTexture
+  return.
+- **mdlmesh rebuilds itself** whenever vfx_model.* is newer than it (the other job is changing them): `ensureReader`
+  runs build_mdlmesh.bat into the anim worktree's `build\floatdisk\`. That's expected.
+- **Shape textures are original** (generated from numbers).
+  - The generators write them beside what names them: the checkout's data\files (committable), a spell mesh's
+    `--saved`.
+  - Checks write only into their temporary copies. No check writes the real worktree or the real bench build, as
+    before.
+- **Before each nwn5e-tools commit:** `git status --short`, and each committed file's `git diff` checked to be only this
+  task's.
+
+### Review Focus (added)
+
+17. **What you see is what's built, for shapes:**
+    - S1 `shapes in a page`;
+    - S3 `shapeSummaryMatchesGenerator`;
+    - S4 `domeSaves` (the saved draft's plane is the stage's mesh).
+18. **Both sides, the inside first, each side its own vertices:** S1's dome checks; S4 `domeInsideAndOut`.
+19. **Defaults never written:** S1 `a shape: read with its defaults, written without them`; S3 `clean: a shape's
+    numbers rounded ...`; S4 `domeCardEdits` (back to `{ type, radius }` after the undos).
+20. **No game-side change:** no commit names `src` or `tests`, and `git diff --stat -- src` is as it was before each
+    anim task; S2's draft carries the material WriteVfxModel writes.
+21. **The other job's lines never committed:** S4's Step 0 and each commit's diff check.
+
+---
+
+### Task S1: The dome - floatdisk.js's shape, its mesh and texture; a shape part (nwn5e-ee, anim)
+
+Working folder: the anim worktree (`/c/Users/Bruno/Desktop/Projects/nwn5e-ee-anim`). Needs nothing else.
+
+**Files:**
+- Modify:
+  - `tools/data/floatdisk/floatdisk.js`, `tools/data/floatdisk/check.js`, `tools/data/floatdisk/README.md` (a part's
+    `shape`);
+  - `tools/data/composer/project.js` (projectText's part keys), `tools/data/composer/check.js`,
+    `tools/data/composer/README.md` (shapes).
+
+**Interfaces** (floatdisk.js, all pure; they load in a page as the rest does):
+- **Constants:**
+  - `SHAPE_TYPES = ["dome"]` (S5 adds the rest);
+  - `SHAPE_LABELS = { dome: "Dome (half sphere)" }`;
+  - `SHAPE_KEYS = ["type", "radius", "height", "segments", "sides", "colour", "alpha", "glow", "texture"]`: the order
+    they're written in;
+  - `SHAPE_FIELDS = { dome: ["radius", "height", "segments", "sides"] }`: a type's own fields, the card's order;
+  - `LOOK_FIELDS = ["colour", "alpha", "glow", "texture"]`: every type's;
+  - `SHAPE_INFO`, a field's card label and bounds (what readShape enforces, and what the page shows):
+    - `radius: { label: "Radius (m)", min: 0.05, max: 100, step: 0.05 }`;
+    - `height: { label: "Height (m)", min: 0.05, max: 100, step: 0.05 }`;
+    - `segments: { label: "Smoothness", min: 8, max: 96, step: 4, whole: true, title: "Segments round it; the rings up
+      it are a quarter of that" }`;
+    - `sides: { label: "Sides", choices: [["both", "Both: seen from inside too"], ["outside", "Outside only"]] }`;
+    - `colour: { label: "Colour", colour: true }`;
+    - `alpha: { label: "Opacity", min: 0.02, max: 1, step: 0.05, title: "Its alpha: 1 is solid; the game's globes go to
+      about 0.3" }`;
+    - `glow: { label: "Glow", min: 0, max: 1, step: 0.05, title: "How much it lights itself (selfillum): at 1 it looks
+      the same by day and night" }`;
+    - `texture: { label: "Texture", choices: [["soft", "Soft: brighter at the ground"], ["none", "None: its colour
+      only"]] }`;
+  - `SHAPE_TEXTURE = /^n5s_[0-9a-f]{12}$/`.
+- **`shapeDefaults(type, radius)`:** `{ type, radius, height: radius, segments: 32, sides: "both", colour: [0.6, 0.8, 1],
+  alpha: 0.35, glow: 1, texture: "soft" }`.
+- **`readShape(s, where)`** gives the full shape: `shapeDefaults(s.type, s.radius)` with `s`'s keys over it (`colour`
+  copied). Each error names its field:
+  - not a plain object: `` `${where}: a shape ({ "type": "dome", "radius": <metres> })` ``;
+  - `type`: `` `${where}.type: dome` `` (the types, with "or" before the last);
+  - a key that isn't `type`, its type's fields or LOOK_FIELDS: `` `${where}.${k}: not a dome's - type, radius, height,
+    segments, sides, colour, alpha, glow or texture` ``;
+  - `radius` (required) and `height`: `` `${where}.radius: a number from 0.05 to 100 (metres)` ``;
+  - `segments`: `` `${where}.segments: a whole number from 8 to 96` ``;
+  - `sides`: `` `${where}.sides: both or outside` ``;
+  - `colour`: `` `${where}.colour: [r, g, b], each 0 to 1` ``;
+  - `alpha`: `` `${where}.alpha: a number from 0.02 to 1` ``;
+  - `glow`: `` `${where}.glow: a number from 0 to 1` ``;
+  - `texture`: `` `${where}.texture: soft or none` ``.
+- **`cleanShape(s)`** (`s` a valid shape, whole or not) gives `type` and `radius`, then each other key whose value
+  differs from `shapeDefaults(s.type, s.radius)`'s (a colour by its three numbers), in SHAPE_KEYS' order.
+- **`shapeModel(shape)`** (readShape's) gives `{ meshes: [mesh], lo, hi, textures }`, in the model's space, its base
+  at z 0, centred on x 0 y 0 (as modelSpaceMeshes gives a model).
+  - **The dome:**
+    - `n = segments`, `m = max(2, round(n / 4))` rings.
+    - Ring `j` (0 to m - 1) is at latitude `phi = (PI / 2) j / m`. Its vertex `i` (0 to n: the seam's twice) is at
+      angle `theta = 2 PI i / n`: `(r cos(phi) cos(theta), r cos(phi) sin(theta), h sin(phi))`, UV `(i / n, j / m)`.
+    - Then the top: n vertices at `(0, 0, h)`, UV `((i + 0.5) / n, 1)`.
+    - That's `(n + 1) m + n` vertices a side.
+    - **The outside faces** (counter-clockwise from outside):
+      - for each band `j` (0 to m - 2) and segment `i`, with `a = v(j, i)`, `b = v(j, i + 1)`, `c = v(j + 1, i + 1)`,
+        `d = v(j + 1, i)`: `(a, b, c)` and `(a, c, d)`;
+      - then the top fan: `(v(m - 1, i), v(m - 1, i + 1), top(i))`;
+      - that's `n (2m - 1)` triangles a side.
+    - **Both sides:** a copy of the vertices with the inside faces (each outside face's first, third and second). The
+      inside's vertices and faces come first, then the outside's.
+    - Vertices and UVs rounded as diskMesh's (`round`).
+    - `lo = [-r, -r, 0]`, `hi = [r, r, h]`.
+  - **The mesh:** `{ name: <its type>, bitmap, verts, tverts, faces, diffuse, ambient, selfillum, alpha, transparent }`.
+    - Textured (`texture: "soft"`): `bitmap` is `shapeTextureName(shape)`; diffuse and ambient `[1, 1, 1]`; selfillum
+      `[glow, glow, glow]`.
+    - `texture: "none"`: `bitmap` is `""`; diffuse and ambient the colour; selfillum the colour times the glow.
+    - `alpha` is the shape's. `transparent` is `texture === "soft" || alpha < 1`.
+  - `textures` is `[{ name, colour }]` for a textured shape, else `[]`.
+- **`shapeTexture({ colour })`** gives `{ width: 128, height: 128, data }`: a Uint8ClampedArray RGBA, rows top-down (as
+  bakePlt gives a picture).
+  - At the picture's row `y` (0 the top) and column `x`: `u = (x + 0.5) / 128`, `v = 1 - (y + 0.5) / 128`.
+  - `ground = 1 - smooth(0, 0.2, v)` (diskTexture's `smooth`): 1 at the ground ring, 0 from a fifth up.
+  - `shimmer = 0.05 sin(2 PI 3u + 7v) sin(2 PI 5u - 3v)`: whole turns in u, so it wraps round seamlessly.
+  - Each colour channel: `clamp01(colour[c] (0.75 + 0.25 (1 - v)) + 0.35 ground + shimmer)`.
+  - Alpha: `clamp01(0.3 + 0.5 (1 - v)^2 + 0.2 ground + 0.5 shimmer)`.
+  - Each value rounded to 0-255.
+- **`shapeTextureName({ colour })`:** `"n5s_" + cyrb53(key).toString(16).padStart(14, "0").slice(-12)`, where `key =
+  "soft:" + colour.map((c) => String(Math.round(c * 1000) / 1000)).join(",")`.
+- **`tgaBytes(image, { alpha = false } = {})`:**
+  - with `alpha`, a 32-bit TGA: header `[0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, w & 255, w >> 8, h & 255, h >> 8, 32,
+    8]`, then BGRA, the picture's bottom row first;
+  - without it, P1's 24-bit bytes, as now.
+- **`readPart`** takes a third source, `shape`:
+  - `source: { kind: "shape", shape: readShape(p.shape, `${where}.shape`) }`;
+  - exactly one of `model`, `file` and `shape`, else `` `${where}: either "model" (a game model), "file" (your own
+    .mdl) or "shape" (a dome and the like) - just one` `` (it still starts `either "model"`, so the existing checks
+    hold);
+  - `scale` given on a shape: `` `${where}.scale: a shape has no scale - its radius and height size it` ``; its scale
+    is 1.
+- **`partKey`:** `"shape:" + inline(cleanShape(source.shape))`. **`partLabel`:** `` `${type} ${num(radius)} m` ``
+  (`dome 4.57 m`).
+- **`compositionText`'s part keys:** `["note", "model", "file", "shape", "at", "turn", "scale", "tilt", "colours"]`.
+- **The api** gains every name above (cyrb53 stays private).
+- **project.js `projectText`'s `PART_KEYS`:** `["note", "model", "file", "shape", "at", "turn", "scale", "tilt"]`.
+
+- [ ] **Step 0: Record** `git diff --stat -- src > /tmp/s1_src_before.txt` (the other job's lines, if any).
+- [ ] **Step 1: Write the failing checks.** In `tools/data/floatdisk/check.js` (its `check(name, fn)` style), with
+  `normals(mesh)`: each triangle's `(b - a) x (c - a)` dotted with its centroid (the dome's centre is the origin), its
+  sign a triangle.
+  - `a shape: read with its defaults, written without them`:
+    - `F.readShape({ type: "dome", radius: 4.57 }, "s")` deep-equals `{ type: "dome", radius: 4.57, height: 4.57,
+      segments: 32, sides: "both", colour: [0.6, 0.8, 1], alpha: 0.35, glow: 1, texture: "soft" }`;
+    - `F.cleanShape` of it is `{ type: "dome", radius: 4.57 }`;
+    - of that with `height: 3` and `colour: [1, 0.85, 0.4]`, `{ type: "dome", radius: 4.57, height: 3, colour: [1, 0.85,
+      0.4] }`, keys in that order.
+  - `a shape's errors name the field`:
+    - `{ type: "cube", radius: 1 }` throws `/^Error: s\.type: dome/` (S5's longer list still matches);
+    - radius `0`, `101` and none throw `/s\.radius: a number from 0\.05 to 100/`;
+    - segments `7`, `97` and `12.5` throw `/s\.segments: a whole number from 8 to 96/`;
+    - sides `"inside"` throws `/s\.sides: both or outside/`;
+    - colour `[1, 1]` and `[2, 0, 0]` throw `/s\.colour: \[r, g, b\], each 0 to 1/`;
+    - alpha `0` throws `/s\.alpha: a number from 0\.02 to 1/`; glow `1.5` throws `/s\.glow: a number from 0 to 1/`;
+    - texture `"glyph"` throws `/s\.texture: soft or none/`;
+    - `{ type: "dome", radius: 1, size: 2 }` throws `/s\.size: not a dome's/`;
+    - `[]` throws `/^Error: s: a shape/`.
+  - `a part may be a shape: its source, key and label; never a scale`:
+    - `F.readPart({ shape: { type: "dome", radius: 4.57 }, at: [0, 0, 0] }, "stages.small[0]", BASE)` has `source`
+      deep-equal to `{ kind: "shape", shape: F.shapeDefaults("dome", 4.57) }`, scale 1 and turn 0;
+    - `F.partKey` of it is `shape:{ "type": "dome", "radius": 4.57 }`, and `F.partLabel` is `dome 4.57 m`;
+    - with `scale: 2` it throws `/stages\.small\[0\]\.scale: a shape has no scale/`;
+    - with `model: "plc_b04"` beside its shape it throws `/either "model"/`.
+  - `the dome: 32 segments, 8 rings, both sides - 592 vertices, 960 triangles, the inside first`:
+    - `F.shapeModel(F.readShape({ type: "dome", radius: 2 }, "s"))` has one mesh, named `dome`, with 592 vertices and
+      960 triangles;
+    - `lo` is `[-2, -2, 0]` and `hi` `[2, 2, 2]`;
+    - `normals` is negative for triangles 0-479 and positive for 480-959;
+    - triangles 0-479 use only vertices 0-295, and the rest only 296-591;
+    - every vertex has `(x^2 + y^2) / 4 + z^2 / 4` within 1e-4 of 1 and z at least 0.
+  - `the dome's UVs: u round it from +x, v from the ground ring (0) to the top (1)`:
+    - on that dome, the outside's vertices at `(2, 0, 0)` have UVs `(0, 0)` and `(1, 0)`;
+    - every vertex with z 2 has v 1, and its u is `(i + 0.5) / 32` for some i;
+    - the outside's vertex at `(1.41421, 0, 1.41421)` has v 0.5;
+    - every u and v is in 0..1.
+  - `a lower dome, outside only, 8 segments: 26 vertices, 24 triangles, all facing out`: `{ type: "dome", radius: 1,
+    height: 0.4, segments: 8, sides: "outside" }` gives 26 vertices and 24 triangles, `hi[2]` 0.4, and every `normals`
+    positive.
+  - `the dome's material: its texture's colour lit by its glow (soft), or its own colour (none)`:
+    - radius 1 at the defaults: bitmap `n5s_8c757fb28f99`, diffuse and ambient `[1, 1, 1]`, selfillum `[1, 1, 1]`, alpha
+      0.35, transparent true, and `textures` `[{ name: "n5s_8c757fb28f99", colour: [0.6, 0.8, 1] }]`;
+    - `{ texture: "none", colour: [1, 0.85, 0.4], glow: 0.5, alpha: 1 }`: bitmap `""`, diffuse and ambient `[1, 0.85,
+      0.4]`, selfillum `[0.5, 0.425, 0.2]`, alpha 1, transparent false, `textures` `[]`.
+  - `shapeTexture: 128 x 128, brighter and more opaque at the ground, seamless round it; its name n5s_ and a hash of its
+    colour`:
+    - `F.shapeTexture({ colour: [0.6, 0.8, 1] })` is 128 x 128 with 65536 values;
+    - the bottom row's mean alpha is over the top row's by more than 100, and its mean R + G + B is over the top's;
+    - on every row, columns 0 and 127 differ by less than 12 in each channel;
+    - `F.shapeTextureName({ colour: [0.6, 0.8, 1] })` is `n5s_8c757fb28f99`, and `[1, 0.85, 0.4]` gives
+      `n5s_a3caa0709dda`;
+    - `F.SHAPE_TEXTURE` matches both and not `n5p_2cd3d725dedb`.
+  - `tgaBytes with alpha: a 32-bit TGA, 8 alpha bits, rows bottom-up`:
+    - the 2 x 2 picture with rows top-down `[10, 20, 30, 40, 50, 60, 70, 80]` and `[90, 100, 110, 120, 130, 140, 150,
+      160]`;
+    - `F.tgaBytes(img, { alpha: true })` is 34 bytes: the header `[0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 32,
+      8]`, then `[110, 100, 90, 120, 150, 140, 130, 160, 30, 20, 10, 40, 70, 60, 50, 80]`;
+    - `F.tgaBytes(img)` is 30 bytes with byte 16 being 24, as before.
+  - `compositionText: a shape part on one line, its shape after note`: the small stage's one part `{ at: [0, 0, 0],
+    shape: { type: "dome", radius: 4.57 }, note: "zone" }` gives the line `      { "note": "zone", "shape": { "type":
+    "dome", "radius": 4.57 }, "at": [0, 0, 0] }`.
+  - `shapes in a page: the same mesh, texture bytes and name`:
+    - floatdisk.js loaded through `new Function("self", "require", "module", "Buffer", src)`, as P1's check does;
+    - its `shapeModel(readShape({ type: "dome", radius: 2 }, "s"))` deep-equals Node's;
+    - its `tgaBytes(shapeTexture({ colour: [0.6, 0.8, 1] }), { alpha: true })` is a Uint8Array, not a Buffer, with
+      Node's bytes;
+    - its `shapeTextureName` is Node's.
+
+  In `tools/data/composer/check.js`, `readProject: a spell mesh's dome; projectText writes its shape after note, without
+  its defaults`:
+  - `{ kind: "spellmesh", name: "zotest", guide: { shape: "circle", diameter: 9.14, height: 0 }, variants: [{ name: "1",
+    parts: [{ note: "zone", shape: { type: "dome", radius: 4.57 }, at: [0, 0, 0] }] }] }` reads, and its
+    `variants[0].parts[0].source.shape.height` is 4.57;
+  - `P.projectText` of it has the line `      { "note": "zone", "shape": { "type": "dome", "radius": 4.57 }, "at": [0,
+    0, 0] }`;
+  - radius 0 throws `/variants\[0\]\.parts\[0\]\.shape\.radius: a number from 0\.05 to 100/`.
+- [ ] **Step 2: Run them.**
+  - `node tools/data/floatdisk/check.js`. Expected: eleven FAIL lines, among them `FAIL a shape: read with its
+    defaults, written without them: F.readShape is not a function`, then `floatdisk check: FAILED (39 passed)`.
+  - `node tools/data/composer/check.js`. Expected: `FAIL readProject: a spell mesh's dome ...`, then `composer check:
+    FAILED (15 passed)`.
+- [ ] **Step 3: Implement** the interfaces in floatdisk.js and project.js.
+  - floatdisk README.md, a part's description: `shape`, "a shape the generator makes instead of a model: { "type":
+    "dome", "radius": <m> } and, where they differ from the defaults, height (the radius: a half sphere), segments (32),
+    sides (both), colour ([0.6, 0.8, 1]), alpha (0.35), glow (1), texture (soft); no scale".
+  - composer README.md: "Shapes", the same, and that a shape's soft texture is named `n5s_` and a hash of its colour.
+- [ ] **Step 4: Run.**
+  - `node tools/data/floatdisk/check.js`. Expected: `floatdisk check: 50 checks pass`.
+  - `node tools/data/composer/check.js`. Expected: `composer check: 16 checks pass`.
+  - `node tools/data/floatdisk/build.js --check`. Expected: the summary as before (the disk has no shape).
+  - `node tools/data/floatdisk/check_build.js`. Expected: `build check: all pass`.
+  - `node tools/data/composer/check_build.js`. Expected: `composer build check: all pass`.
+  - `node tools/data/check_derived.js`. Expected: `derived check: all pass`.
+  - `git diff --stat -- src`. Expected: what Step 0 recorded.
+  - `git status --short`. Expected: this task's six files modified; anything else listed is the other job's, as
+    before.
+- [ ] **Step 5: Commit.**
+  - `git branch --show-current` (anim);
+  - `git commit --only tools/data/floatdisk/floatdisk.js tools/data/floatdisk/check.js tools/data/floatdisk/README.md
+    tools/data/composer/project.js tools/data/composer/check.js tools/data/composer/README.md -F -`, with "feat: the
+    Composer's shapes, the dome - floatdisk.js makes a dome's mesh (both sides, the inside first, UVs up from the ground
+    ring) and its soft texture (n5s_, original); a part may be a shape, its defaults unwritten (#39)".
+
+### Task S2: The generators - a shape's mesh and its texture, build_derived (nwn5e-ee, anim)
+
+Working folder: the anim worktree. Needs S1 and the game.
+
+**Files:**
+- Modify:
+  - `tools/data/floatdisk/reader.js`, `tools/data/floatdisk/files.js`;
+  - `tools/data/floatdisk/build.js`, `tools/data/composer/build.js`, `tools/data/build_derived.js`;
+  - `tools/data/composer/check_build.js`, `tools/data/check_derived.js`;
+  - `tools/data/floatdisk/README.md`, `tools/data/composer/README.md`, `tools/data/README.md` (shape textures).
+
+**Interfaces:**
+- **reader.js `part(p)`:** a `shape` source gives `F.shapeModel(p.source.shape)`, with no mesh reader and no game.
+- **files.js:**
+  - **`shapeTextures(placed, made = new Map())`:** for each `x` of `placed` whose part is a shape, each of
+    `F.shapeModel(x.part.source.shape).textures` that `made` lacks is set: `name -> { colour, bytes:
+    F.tgaBytes(F.shapeTexture({ colour }), { alpha: true }), label: F.partLabel(x.part) }`. Returns `made`.
+  - **`shapeWrites(made, dir)`:** `[{ file: <dir>\<name>.tga, bytes, kind: "shape" }]`.
+  - **`shapeLines(made, where)`:** `` `  texture ${name}: a shape's soft texture, colour ${colour.join(" ")} - written
+    into ${where}` ``.
+  - **`shapeJson(made)`:** `[{ texture, colour }]`.
+  - **`ownership`** knows the kind `shape`: ours when the file's name without `.tga` matches `F.SHAPE_TEXTURE`. Only the
+    generator makes such names, and the name fixes the bytes. Never in made.txt.
+- **composer build.js:**
+  - In `built`, right after a variant's parts are placed, `W.shapeTextures(parts, shaped)` (one `shaped` for the
+    project).
+  - The writes gain `W.shapeWrites(shaped, placeable ? FILES : SAVED)`. Under `--check` without `--saved`, nothing is
+    written, as now.
+  - The text summary gains `W.shapeLines`, and `--json` gains `shapes: W.shapeJson(shaped)`.
+- **floatdisk build.js:** the same, into FILES.
+- **build_derived.js:** a file the generator wrote whose name matches `F.SHAPE_TEXTURE` is kind `shape` (after `text`
+  and `baked`, before `texture`), owned by its name through `W.ownership`.
+
+- [ ] **Step 0: Record** `git diff --stat -- src data > /tmp/s2_before.txt` (the other job's lines, if any).
+- [ ] **Step 1: Write the checks.**
+  - **composer `check_build.js`**, new, last:
+    - `a spell mesh's dome: its draft and its soft texture into --saved`:
+      - the project is `chkdome`: a spell mesh, guide circle 9.14 at 0, one variant `{ note: "zone", shape: { type:
+        "dome", radius: 4.57 }, at: [0, 0, 0] }`;
+      - built with `--json --saved SAVED`, `j.variants[0]` has meshes 1, triangles 960, tall 4.57;
+      - `j.shapes` deep-equals `[{ texture: "n5s_8c757fb28f99", colour: [0.6, 0.8, 1] }]`;
+      - `SAVED\n5m_chkdome.vfx` read by `core.readDraft` after its mark line has one plane: bitmap `n5s_8c757fb28f99`,
+        alpha 0.35, selfillum `[1, 1, 1]`, 592 vertices and 960 faces;
+      - `SAVED\n5s_8c757fb28f99.tga` is 65554 bytes, bytes 16 and 17 are 32 and 8, and it equals
+        `F.tgaBytes(F.shapeTexture({ colour: [0.6, 0.8, 1] }), { alpha: true })`;
+      - built again, every state is `unchanged`;
+      - FILES and made.txt are as they were.
+    - `a placeable's dome: its model is see-through (transparencyhint 1) and names its texture, written beside it`:
+      - the project is `chkdomep`: a placeable, guide circle 2, row 14152, one variant `{ shape: { type: "dome",
+        radius: 1, colour: [1, 0.85, 0.4] }, at: [0, 0, 0] }`;
+      - `plc_n5chkdomep.mdl` contains `\r\n  bitmap n5s_a3caa0709dda\r\n`, `\r\n  alpha 0.35\r\n`, `\r\n
+        transparencyhint 1\r\n` and `\r\n  selfillumcolor 1 1 1\r\n`;
+      - FILES holds `n5s_a3caa0709dda.tga`, and made.txt is as it was;
+      - built again, every state is `unchanged`.
+    - `a dome without a texture: bitmap NULL, its colour as its material, no texture written`: `chkdomep` with `texture:
+      "none"`.
+      - The model has `\r\n  bitmap NULL\r\n` and `\r\n  diffuse 1 0.85 0.4\r\n`.
+      - `j.shapes` is `[]`, and no `n5s_` file is in FILES or SAVED.
+  - **`check_derived.js`**, new, before the real-worktree check: `a placeable project's dome: its model and its shape
+    texture come out into --out, the same on a second build`.
+    - Set up as its `a placeable project: ...` check does (a project and its rows in the temporary copy), with a dome
+      part.
+    - `--out` gains its model and `n5s_a3caa0709dda.tga`, its bytes the generator's.
+    - A second build says both `unchanged`.
+- [ ] **Step 2: Run them.**
+  - `node tools/data/composer/check_build.js`. Expected: the three new checks FAIL (the build exits 1: reader.js reads
+    a shape as a file), then `composer build check: 3 failed`.
+  - `node tools/data/check_derived.js`. Expected: the new check FAILs, then `derived check: 1 failed`.
+- [ ] **Step 3: Implement.** The READMEs:
+  - floatdisk and composer: "A shape's texture", where it goes and that its name says whose it is;
+  - tools/data/README.md: build_derived carries `n5s_` textures as it carries bakes.
+- [ ] **Step 4: Run.**
+  - `node tools/data/composer/check_build.js`. Expected: `composer build check: all pass`.
+  - `node tools/data/check_derived.js`. Expected: `derived check: all pass`.
+  - `node tools/data/floatdisk/check_build.js`. Expected: `build check: all pass`.
+  - `node tools/data/floatdisk/check.js` (50) and `node tools/data/composer/check.js` (16): all pass.
+  - `git diff --stat -- src data`. Expected: what Step 0 recorded (the checks build in copies).
+  - `git status --short`. Expected: this task's ten files; anything else listed is the other job's, as before.
+- [ ] **Step 5: Commit.**
+  - `git branch --show-current` (anim);
+  - `git commit --only` the ten files `-F -`, with "feat: the Composer's shapes, the generators - a shape part's
+    mesh from floatdisk.js (no mesh reader), its soft texture written beside what names it (data\files, or a spell
+    mesh's --saved) and owned by its name; build_derived carries it (#39)".
+  - The next "anim ready" says: tools only, nothing for the game's DLL; shape textures are original and may be
+    committed.
+
+### Task S3: The server and the page's pure parts (nwn5e-tools)
+
+Working folder: `/c/Users/Bruno/Desktop/Projects/nwn5e-tools`. Needs S1 and S2.
+
+**Files:**
+- Modify: `vfx_bench/public/composer.js`, `vfx_bench/composer_server.js`, `vfx_bench/check_composer.js`,
+  `vfx_bench/check_composer_server.js`
+
+**Interfaces:**
+- **composer.js:**
+  - **`sourceOf(raw)`:** `raw.shape` gives `{ kind: "shape", shape: F.readShape(raw.shape, "shape") }`. So `keyOf` is
+    F.partKey's `shape:...`, and `labelOf` F.partLabel's.
+  - **`shapeAnswer(raw)`:** `F.shapeModel` of its shape as a part's answer: `{ key, label, meshes, lo, hi, textures: {
+    <name>: { draw: "shape", colour } } }`. It's kept by key (the last 64).
+  - **`placeOne`** places a shape from `shapeAnswer(raw)`, never from `models`. It also returns `shapes: [{ name,
+    colour }]`, the textures the page draws from F.shapeTexture.
+  - **`shapesOf(list)`:** a `placed()` list's shapes, each name once.
+  - **`clean(raw)`:** a shape's radius and height to the millimetre, its colour to 0.001, its alpha and glow to 0.01,
+    then `F.cleanShape`; any `scale` dropped.
+  - **`shapeRadius(guide)`:** a circle's radius, half a rectangle's shorter side, 1 with no guide; to the millimetre.
+  - **`shapeEntries()`:** `F.SHAPE_TYPES` as parts list entries: `{ id: "shape_" + type, label: F.SHAPE_LABELS[type],
+    kind: "shape", shape: type, models: [], search: type + " " + label }`.
+  - **`partFrom(entry, at, box, project)`** for a `shape` entry: `{ note: entry.label, shape:
+    F.cleanShape(F.shapeDefaults(entry.shape, shapeRadius(project.guide))), at: [x, y, 0], turn: 0 }`. `box` isn't
+    used.
+- **composer_server.js:**
+  - **`besideDirs(name)`:** a name matching `F.SHAPE_TEXTURE` is also looked for in the checkout's data\files and the
+    build's `vfxedit\saved\`, as a bake's.
+  - **`POST /api/composer/bake`** takes `{ textures?, shapes? }`, 1 to 64 entries between them.
+    - Each `shapes[i]` is `{ colour }`, checked by `F.readShape({ type: "dome", radius: 1, colour }, `shapes[${i}]`)`
+      (a bad colour is a 400 naming `shapes[i].colour`).
+    - Each is written into `<build>\vfxedit\<F.shapeTextureName>.tga` as `F.tgaBytes(F.shapeTexture({ colour }), {
+      alpha: true })`, whole when missing or different.
+    - The answer's `textures` gain `{ shape: true, name, state }`. The server logs `composer: made <names> for Play in
+      game`.
+    - The error for an empty or wrong body: `` `{ textures: [{ plt, colours }], shapes: [{ colour }] }, 1 to 64 of
+      them` ``.
+
+- [ ] **Step 0: Record today's runs.** `node vfx_bench/check_composer.js > /tmp/s3_pure_before.txt` and `node
+  vfx_bench/check_composer_server.js > /tmp/s3_server_before.txt`.
+- [ ] **Step 1: Add steps.**
+  - **`check_composer.js`** (the copy's floatdisk.js and project.js, as its other checks):
+    - `a shape part: its key and label, placed from floatdisk.js's own mesh - no server answer`:
+      - a spell mesh project, guide circle 1 at 0.2; raw `{ shape: { type: "dome", radius: 0.5 }, at: [0.1, 0, 0] }`;
+      - `keyOf` is `shape:{ "type": "dome", "radius": 0.5 }`, and `labelOf` is `dome 0.5 m`;
+      - `placeOne(project, raw, new Map())` isn't null: its mesh `j01_dome`, 960 triangles, `lo` `[-0.4, -0.5, 0.2]`,
+        `hi[2]` 0.7;
+      - its `shapes` is `[{ name: "n5s_8c757fb28f99", colour: [0.6, 0.8, 1] }]`;
+      - `placed()`'s `missing` is empty.
+    - `clean: a shape's numbers rounded, its defaults and any scale dropped`: `{ shape: { type: "dome", radius:
+      4.5700004, height: 4.57, alpha: 0.3049, colour: [0.6, 0.8, 1] }, at: [0, 0, 0], scale: 1 }` gives `{ shape: {
+      type: "dome", radius: 4.57, alpha: 0.3 }, at: [0, 0, 0] }`.
+    - `partFrom: a Shapes entry sized to the guide, no scale`:
+      - circle 9.14: `shape` `{ type: "dome", radius: 4.57 }`, `at` `[0, 0, 0]`, no `scale`, `note` `Dome (half
+        sphere)`;
+      - a rectangle 2 x 3: radius 1;
+      - no guide: radius 1.
+    - `shapeEntries and shapesOf: the types listed, each texture once`:
+      - `shapeEntries()` is one entry, `shape_dome`;
+      - two domes of the default colour, placed, give one shape texture.
+    - `the summary counts a shape as the generators do`: a variant of the dome and nothing else: parts 1, meshes 1,
+      triangles 960, tall 0.5, its list's label `dome 0.5 m`.
+  - **`check_composer_server.js`**, after the save steps:
+    - `shapeSummaryMatchesGenerator`:
+      - the copy gains `tools/data/composer/zotest.json`: a spell mesh, guide circle 9.14, one variant with `{ note:
+        "zone", shape: { type: "dome", radius: 4.57 }, at: [0, 0, 0] }` and `{ model: "plc_b06", at: [1, 0, 0], scale:
+        0.5 }`;
+      - the page's `summary` (the server's meshes for plc_b06, none asked for the dome) equals `composer/build.js
+        --check --json`'s, as summaryMatchesGenerator compares.
+    - `shapeTextureServedFromSaved`:
+      - `zotest` saved gives 200, `result.shapes` has `n5s_8c757fb28f99`, and `<tempBuild>\vfxedit\saved\` holds it;
+      - `GET /api/composer/texture/n5s_8c757fb28f99` is 200 with `X-Texture: tga` and its bytes.
+    - `bakeShapesForPlay`:
+      - POST `{ shapes: [{ colour: [0.6, 0.8, 1] }] }` gives 200, `textures` `[{ shape: true, name:
+        "n5s_8c757fb28f99", state: "new" }]`;
+      - `<tempBuild>\vfxedit\n5s_8c757fb28f99.tga` is 65554 bytes, equal to the copy's F's bytes;
+      - posted again: `unchanged`, its time kept;
+      - `{ shapes: [{ colour: [2, 0, 0] }] }` gives 400 `/shapes\[0\]\.colour/`;
+      - no Origin: 403;
+      - `{ textures: [{ plt: "helm_001", colours: {} }], shapes: [{ colour: [0.6, 0.8, 1] }] }` gives both.
+- [ ] **Step 2: Run.**
+  - `node vfx_bench/check_composer.js`. Expected: the five new steps FAIL (the shape's key `model:`, placeOne null,
+    `C.shapeEntries is not a function`), then `5 failed`.
+  - `node vfx_bench/check_composer_server.js`. Expected: `shapeSummaryMatchesGenerator` FAIL (the page places no dome),
+    `shapeTextureServedFromSaved` FAIL (404 missing), `bakeShapesForPlay` FAIL (400).
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run.**
+  - `node vfx_bench/check_composer.js`. Expected: every step ok in Step 0's run, and the five new ones.
+  - `node vfx_bench/check_composer_server.js`. Expected: every step ok in Step 0's run, and the three new ones.
+  - `node vfx_bench/composer_check.mjs`. Expected: as before this task (the page doesn't use these yet).
+- [ ] **Step 5: Commit** `vfx_bench/public/composer.js vfx_bench/composer_server.js vfx_bench/check_composer.js
+  vfx_bench/check_composer_server.js`, after the diff check, with "feat: the VFX Bench's Composer, shapes on the server
+  and in the page's pure parts - a shape placed from floatdisk.js with no part request, cleaned, added sized to the
+  guide; its texture served from where it's built and written for Play in game (nwn5e-ee #39)".
+
+### Task S4: The page - the Shapes tab, a shape's card, the stage's front faces; the docs and the rows (nwn5e-tools)
+
+Needs S3, Q4's answer, and the other job's bench work committed (Before starting).
+
+**Files:**
+- Modify:
+  - `vfx_bench/public/composer_page.js`, `vfx_bench/public/index.html`, `vfx_bench/public/style.css`;
+  - `vfx_bench/public/view.js` (front faces), `vfx_bench/public/app.js` (Play's shapes);
+  - `vfx_bench/composer_check.mjs`, `vfx_bench/README.md`;
+  - `vfx_bench/browser_check.mjs`, only if a step that was ok in Step 0 needs its expectation changed by the front
+    faces (said in the report);
+  - nwn5e-ee-anim `docs/TOOLS-PLAN.md`.
+- Create: the owner's test rows, a CSV in the job's tmp folder (the parent session adds them to the board).
+
+**Interfaces:**
+- **view.js:**
+  - `View.cullBack` (default true).
+  - While it's true, `drawMeshes` draws with `gl.enable(gl.CULL_FACE)` and `gl.cullFace(gl.BACK)` (front faces
+    counter-clockwise, as the game's are from outside; the stage's lookAt keeps the world's turn), and disables it
+    after.
+  - Every mesh drawMeshes draws is culled: the Composer's parts and ghosts, the thumbnails, the effect mode's chunks and
+    planes. Particles, lines, the ground and the figure aren't.
+  - With Q4's other answer, app.js sets `view.cullBack = false` outside the Composer.
+- **composer_page.js:**
+  - **The parts list:** `PART_TABS` gains `shapes` ("Shapes"), its entries `C.shapeEntries()`. They're listed whether or
+    not the server's catalog came.
+    - A shape entry's thumbnail is drawn from `C.shapeAnswer` at the defaults (radius 1), and never posted (cheap, and
+      it follows floatdisk.js).
+    - Its line says "a shape: made by the generator".
+  - **Adding a shape** (a click, or a drag onto the stage): no part request. `C.partFrom(e, at, null, project)`, rested
+    when Rests is on, selected; one undo step. The status: "Added a dome (radius 4.57 m) to variant 1 at x 0 y 0."
+  - **`fetchPart` and `meshesOf`** pass over a shape (composer.js places it itself).
+  - **The part card**, for a shape:
+    - `#part-what`: "<label> - <x> x <y> x <z> m, <n> triangles";
+    - the Scale field's label `#part-scale-l` is hidden;
+    - `#part-shape` (a fieldset, its legend the type's label) holds a control per field of `F.SHAPE_FIELDS[type]`, then
+      `F.LOOK_FIELDS`, each from `F.SHAPE_INFO`:
+      - a number: `#part-shape-<field>`, its min, max and step;
+      - choices: a select;
+      - colour: `<input type="color">` (hex to `[r, g, b]` to 0.001, and back);
+      - the input's title from the field's `title`.
+    - A change sets `raw.shape = F.cleanShape(Object.assign(F.readShape(raw.shape, "shape"), { [field]: value }))`
+      (rounded as `clean`): one undo step, and the stage redraws.
+    - A value out of bounds puts the field back, with the status `` `${label}: ${min} to ${max}.` ``.
+  - **Handles:** no scale square for a shape (`handlesOf` leaves it out; `handle("scale")` is null), so grabbing never
+    scales one.
+  - **The mesh loader** `bakedImage(name)` (P4's) also resolves a registered shape texture: `F.shapeTexture({ colour
+    })`, each made once. `build()` registers the placed shapes and the ghosts' (`C.shapesOf`); thumbnails register
+    theirs.
+  - **`toPlay()`** also gives `shapes: [{ colour }]`, the variant's, each once.
+  - **Save's status**, for any kind, adds "Shape textures: <names> (beside the models | in vfxedit\saved)." when
+    `result.shapes` has any.
+  - **The view buttons** (3/4, side, top, front) fit the variant: when its box is bigger than the default view, the
+    distance grows to `C.frameBox`'s for it, at most 40 m.
+  - **The hook:**
+    - `parts[i].shape`: the part's own, or null;
+    - `drawn.shapes`: `[{ name, colour }]`;
+    - `setCamera({ yaw, pitch, distance, target })`, for the checks.
+- **app.js:** in the Composer, Play in game posts `/api/composer/bake { textures: play.bakes, shapes: play.shapes }`
+  first when either has any (P4's line, widened).
+- **index.html / style.css:**
+  - the Shapes tab button in `#parts-tabs`, after Yours;
+  - `#part-shape` in `#part-card` after the tilt row, before Colours;
+  - `id="part-scale-l"` on the Scale label;
+  - `.shape-grid` as `.colours-grid`; the colour input 2.5 em wide.
+
+- [ ] **Step 0: Check and record.**
+  - `git status --short -- vfx_bench/public/view.js vfx_bench/public/app.js vfx_bench/browser_check.mjs` prints
+    nothing. If it prints any, stop and report: the other job's bench work isn't committed yet.
+  - Re-read view.js `drawMeshes` and app.js's Play in game: the other job changed both files.
+  - `node vfx_bench/composer_check.mjs > /tmp/s4_composer_before.txt` and `node vfx_bench/browser_check.mjs >
+    /tmp/s4_browser_before.txt`.
+- [ ] **Step 1: Add steps** to `composer_check.mjs`, last:
+  - `shapesTab`: Shapes lists one entry, "Dome (half sphere)", its thumbnail ready, and no `shape_dome.png` in
+    `<tempBuild>\vfxedit\composer\thumbs\v2\`.
+  - `domeAdds`:
+    - New project `zotest`, Spell mesh; the guide's Diameter 9.14; Shapes, Dome clicked.
+    - `parts` is one part, its `shape` `{ type: "dome", radius: 4.57 }`, at `[0, 0, 0]`, selected.
+    - `drawn.triangles` is 960, `drawn.textured` true, and `drawn.shapes` `[{ name: "n5s_8c757fb28f99", colour: [0.6,
+      0.8, 1] }]`.
+    - `#part-shape` is shown: Radius 4.57, Height 4.57, Smoothness 32, Sides both, Colour `#99ccff`, Opacity 0.35, Glow
+      1, Texture soft.
+    - `#part-scale-l` is hidden, and `handle("scale")` is null.
+  - `domeCardEdits`:
+    - Height 3 gives `parts[0].shape` `{ type: "dome", radius: 4.57, height: 3 }`.
+    - Colour `#ffd966` gives `colour` `[1, 0.851, 0.4]`, and `drawn.shapes[0].name` is
+      `F.shapeTextureName({ colour: [1, 0.851, 0.4] })` (the copy's floatdisk.js, in Node).
+    - Ctrl+Z twice gives `{ type: "dome", radius: 4.57 }`. Ctrl+Y gives the height 3 back, and Ctrl+Z again.
+    - Radius 0 leaves it 4.57, with the status `Radius (m): 0.05 to 100.`
+  - `domeInsideAndOut`:
+    - `#comp-figure` unticked. The camera inside, almost level (`setCamera({ yaw: -0.9, pitch: 0.05, distance: 1, target: [0,
+      0, 1.5] })`), so the middle ray meets the wall, not the ground. The stage's middle `pixel` with the dome is P_both,
+      and with it removed (Delete, read, Ctrl+Z) P_none.
+    - Sides Outside only: P_out.
+    - Expected: P_both differs from P_none by more than 8 in some channel. P_out is within 2 of P_none in every
+      channel: its faces are backs from inside.
+    - The camera outside (distance 25): P_out differs from P_none by more than 8.
+    - Ctrl+Z back to both sides.
+  - `domeSaves`:
+    - Save and build gives the status naming `n5m_zotest` and `n5s_8c757fb28f99`.
+    - `<tempBuild>\vfxedit\saved\n5s_8c757fb28f99.tga` is 65554 bytes.
+    - `saved\n5m_zotest.vfx`, read after its mark line, has one plane: bitmap `n5s_8c757fb28f99`, alpha 0.35, 960
+      faces.
+  - `domePlays`:
+    - Play in game writes `<tempBuild>\vfxedit\n5s_8c757fb28f99.tga`, its time not after `vfxedit\bench\request.vfx`'s.
+    - The request's draft has a plane with that bitmap and 960 faces.
+  - `domeAsMeshBeat`:
+    - Back to effects; New; Type Stays (D); + mesh, `n5m_zotest`; Fade in 0.5.
+    - `vfxBench.planesDrawn()` at 1.0 s: at least 960 triangles, the dome's plane at alpha 0.35.
+    - At 0.1 s: its alpha above 0 and below 0.35. The time is set as browser_check's `meshBeatDrawn` sets it.
+- [ ] **Step 2: Run** `node vfx_bench/composer_check.mjs`. Expected: the seven new steps FAIL (no
+  `#parts-tabs [data-tab=shapes]`).
+- [ ] **Step 3: Implement.**
+- [ ] **Step 4: Run.**
+  - `node vfx_bench/composer_check.mjs`. Expected: every step ok in Step 0's run, and the seven new ones.
+  - `node vfx_bench/browser_check.mjs`. Expected: every step ok in Step 0's run.
+    - If one fails only because a game mesh's back is no longer drawn, change its expectation to the game's (front
+      faces only) and say which in the report.
+  - `node vfx_bench/check_composer.js`, `node vfx_bench/check_composer_server.js`, `node vfx_bench/check_chunks.js`,
+    `node common/checks/run.js`. Expected: as after S3, `all chunk checks pass`, `all common checks pass`.
+- [ ] **Step 5: Write the docs and the rows.**
+  - **README.md** (the Composer): "Shapes":
+    - the tab;
+    - the card's fields and their defaults;
+    - no Scale;
+    - both sides and the front faces;
+    - the soft texture: `n5s_`, where it's written, original;
+    - Play in game;
+    - Zone of Truth's recipe (the design's).
+  - **TOOLS-PLAN.md:** a section "The Composer's shapes: the dome (2026-11-17, #39)":
+    - the owner's words;
+    - the calls, short;
+    - *Built:* the commits;
+    - Q4's answer, and Q5 and Q6 open;
+    - the limits.
+  - **The rows (CSV):** SH-1 to SH-4 (#39, stream animation). Each stands on its own:
+    - **SH-1 (the bench, the dome):**
+      - Setup: close the VFX Bench window and double-click `vfx_bench.bat`; press Composer; New project `zotruth`,
+        Spell mesh; on the guide card, Diameter 9.14.
+      - Do: Parts, Shapes, click Dome. Change its Colour, Opacity 0.25, Height 3, then Height 4.57. Orbit round it and
+        zoom into it. Ctrl+Z and Ctrl+Y.
+      - Expect: a see-through dome 9.14 m across round the figure, brighter and more solid near the ground, fading up.
+        Seen from inside, its inner side shows. Each change is one undo step. Its card has no Scale.
+    - **SH-2 (the bench, a mesh beat):**
+      - Setup: close the VFX Bench window and double-click `vfx_bench.bat`; Composer; open `zotruth` (SH-1 made it;
+        if it isn't there, make it as SH-1 says); Save and build.
+      - Do: Back to effects; New; Type Stays (D); + mesh, `n5m_zotruth`; Fade in 0.6, Fade out 0.8; play the
+        preview.
+      - Expect: the dome fades in over 0.6 s and stays. The timeline shows its row with both fades. The Save status
+        named its `n5s_` texture.
+    - **SH-3 (in game, Play in game):**
+      - Setup: the game running a development build of nwn5e with a character in play; the VFX Bench with SH-2's
+        effect open (made as SH-2 says) and Permanent ticked.
+      - Do: Play in game. Zoom the game's camera out, then in close to your character. Stop in game.
+      - Expect: the dome round your character, see-through and brighter at the ground; its inside shows from inside;
+        nothing flickers or goes dark. Stop fades it out. Note any other effect drawn wrongly through it.
+    - **SH-4 (in game, at your feet):**
+      - Setup: the game running a development build of nwn5e with a character in play; SH-2's effect saved in the VFX
+        Bench as `n5_zotruth` (made as SH-2 says, then Save).
+      - Do: in chat, `!vfxarea n5_zotruth 0.6 1 0`. Walk out of the dome and back in.
+      - Expect: the dome stays where it was put for 60 s, see-through from outside and from inside.
+- [ ] **Step 6: Commit.**
+  - In nwn5e-tools, after the diff check (each file only this task's): `vfx_bench/public/composer_page.js
+    vfx_bench/public/index.html vfx_bench/public/style.css vfx_bench/public/view.js vfx_bench/public/app.js
+    vfx_bench/composer_check.mjs vfx_bench/README.md` (and `vfx_bench/browser_check.mjs` if Step 4 changed it), with
+    "feat: the VFX Bench's Composer builds with shapes - the Shapes tab, a dome sized to the guide, its card (radius,
+    height, smoothness, sides, colour, opacity, glow, texture), its texture drawn in the page and sent with Play in
+    game; the stage draws only front faces, as the game (nwn5e-ee #39)".
+  - In the anim worktree, after `git branch --show-current` (anim): `docs/TOOLS-PLAN.md`, with "docs: the Composer's
+    shapes, the dome built - TOOLS-PLAN (#39)".
+- [ ] **Step 7: Report:**
+  - the commits and the rows;
+  - the bench needs a restart of `vfx_bench.bat`;
+  - nothing for the game's DLL: the "anim ready" for S1, S2 and S4's docs carries tools only;
+  - Zone of Truth's next steps (the design's recipe), Q5 and Q6.
+
+### Task S5: Sphere, cylinder, cone, disc and ring (nwn5e-ee anim, nwn5e-tools)
+
+Needs S4. The page shows each new type with no page change (F.SHAPE_TYPES, F.SHAPE_FIELDS), but for the flat ones'
+lift.
+
+**Files:**
+- Modify:
+  - nwn5e-ee-anim: `tools/data/floatdisk/floatdisk.js`, `tools/data/floatdisk/check.js`,
+    `tools/data/floatdisk/README.md`, `docs/TOOLS-PLAN.md`;
+  - nwn5e-tools: `vfx_bench/public/composer.js`, `vfx_bench/public/composer_page.js`, `vfx_bench/check_composer.js`,
+    `vfx_bench/composer_check.mjs`, `vfx_bench/README.md`.
+- Create: the owner's test row SH-5, in the job's tmp folder.
+
+**Interfaces:**
+- **floatdisk.js:**
+  - `SHAPE_TYPES = ["dome", "sphere", "cylinder", "cone", "disc", "ring"]`;
+  - `SHAPE_LABELS` gains `sphere: "Sphere"`, `cylinder: "Cylinder (open)"`, `cone: "Cone (point up)"`, `disc: "Disc
+    (flat, on the ground)"`, `ring: "Ring (flat band)"`;
+  - `SHAPE_KEYS` gains `inner` after `height`;
+  - `SHAPE_INFO.inner = { label: "Inner radius (m)", min: 0.01, max: 100, step: 0.05 }`;
+  - `SHAPE_FIELDS`: sphere, cylinder and cone `["radius", "height", "segments", "sides"]`; disc `["radius", "segments",
+    "sides"]`; ring `["radius", "inner", "segments", "sides"]`;
+  - `SHAPE_FLAT = ["disc", "ring"]`.
+  - **`shapeDefaults`:** height is 2 x the radius for a sphere, cylinder and cone. A ring's inner is 0.85 x the radius,
+    to the millimetre. A disc and a ring have no height, and only a ring has an inner (readShape refuses the key, as
+    any key not in its type's fields). Everything else as the dome's.
+  - **`readShape`:** a ring's `inner` must be from 0.01 to below its radius: `` `${where}.inner: a number from 0.01 to
+    below the radius` ``.
+  - **`shapeModel`** for each type: its base at z 0, centred, each side its own vertices, the inside first (as the
+    dome's), `n` segments, the seam's column twice, `m = max(2, round(n / 4))`. Counts with both sides at 32 segments:
+
+    | type | the mesh | UV v | vertices, triangles (both sides) |
+    |---|---|---|---|
+    | sphere | the dome's rings mirrored below: a bottom point a segment, 2m - 1 rings, a top point a segment; height h, centre at h / 2 | 0 at the bottom, 1 at the top | 1118, 1920 |
+    | cylinder | an open tube: a ring at 0 and one at h | 0 at the ground, 1 at the top | 132, 128 |
+    | cone | a ring at 0 to a point a segment at h, its base open | 0 at the ground, 1 at the point | 130, 64 |
+    | disc | flat at z 0, the rim to a centre point a segment; its outside faces up | 0 at the rim, 1 at the centre | 130, 64 |
+    | ring | flat at z 0, the rim to the inner edge; its outside faces up | 0 at the rim, 1 at the inner edge | 132, 128 |
+
+    So the soft texture is brightest at the ground, a disc's rim and a ring's outer edge.
+- **composer.js:** **`liftOf(raw)`** is 0.02 for a disc or ring, else 0. `partFrom` sets their `at` z to it.
+- **composer_page.js:** resting a part (an add, a move, Drop it) adds `C.liftOf(raw)` to `C.restHeight`. *Why:* a flat
+  shape at the ground's own height flickers with it. The vision cones were lifted for the same reason (PLAN 0.31.1).
+
+- [ ] **Step 0: Record** `git diff --stat -- src > /tmp/s5_src_before.txt` in the anim worktree, and `node
+  vfx_bench/composer_check.mjs > /tmp/s5_composer_before.txt` in nwn5e-tools.
+- [ ] **Step 1: Write the checks.**
+  - **floatdisk `check.js`**, one a type, each on its defaults at radius 1, 32 segments, both sides, with the dome
+    checks' `normals` (about the shape's centre: `[0, 0, h / 2]` for the sphere, the origin for the rest; for the flat
+    ones, the normal's z):
+    - `a sphere: 1118 vertices and 1920 triangles, the inside first, its lowest point at 0, v from the bottom pole` (lo
+      z 0, hi z 2);
+    - `a cylinder: an open tube, 132 vertices and 128 triangles, v up its side` (every vertex at radius 1, z 0 or 2);
+    - `a cone: a ring to a point, 130 vertices and 64 triangles, the point at its height`;
+    - `a disc: flat at 0, 130 vertices and 64 triangles, its outside facing up, v from the rim to the centre` (the last
+      32 triangles' normals have z > 0);
+    - `a ring: a flat band, 132 vertices and 128 triangles, its inner edge 0.85 of the radius, v across the band`. Inner
+      1 or 0 throws `/inner: a number from 0\.01 to below the radius/`.
+  - **`check_composer.js`:** `a flat shape rests 2 cm up: liftOf, and partFrom's at`. A disc's `liftOf` is 0.02 and its
+    `partFrom` at is `[0, 0, 0.02]`; a dome's is 0.
+  - **`composer_check.mjs`**, last: `otherShapes`. In `zotest`, each of Sphere, Cylinder, Cone, Disc and Ring is
+    clicked in Shapes.
+    - Each adds a part drawing its triangles (1920, 128, 64, 64, 128).
+    - Its card shows its own fields (the Ring's Inner radius 3.885 at the guide's 4.57).
+    - The disc rests 0.02 m up.
+- [ ] **Step 2: Run.**
+  - `node tools/data/floatdisk/check.js`. Expected: the five new checks FAIL (`s.type: dome` refuses them), then
+    `floatdisk check: FAILED (50 passed)`.
+  - `node vfx_bench/check_composer.js`. Expected: the new step FAILs (`C.liftOf is not a function`).
+  - `node vfx_bench/composer_check.mjs`. Expected: `otherShapes` FAILs (Shapes lists one entry).
+- [ ] **Step 3: Implement**, type by type in the table's order (each type's check green before the next).
+- [ ] **Step 4: Run.**
+  - `node tools/data/floatdisk/check.js`. Expected: `floatdisk check: 55 checks pass`.
+  - `node tools/data/composer/check.js`, `node tools/data/composer/check_build.js`, `node tools/data/check_derived.js`.
+    Expected: all pass.
+  - `node vfx_bench/check_composer.js`, `node vfx_bench/check_composer_server.js`, `node vfx_bench/composer_check.mjs`,
+    `node vfx_bench/browser_check.mjs`. Expected: all as after S4, and the new steps.
+  - `git diff --stat -- src` in the anim worktree. Expected: what Step 0 recorded.
+- [ ] **Step 5: Write** the READMEs' new types, TOOLS-PLAN's *Built* line, and the row:
+  - **SH-5 (the bench, the other shapes):**
+    - Setup: close the VFX Bench window and double-click `vfx_bench.bat`; press Composer; New project `shapes`, Spell
+      mesh; on the guide card, Diameter 3.
+    - Do: Parts, Shapes: add Sphere, Cylinder, Cone, Disc and Ring one by one, moving each aside with its handles. Tilt
+      the cone 90 degrees about x.
+    - Expect: each is see-through and brighter at the ground (a disc at its rim, a ring at its outer edge). The disc
+      and the ring sit just above the ground without flicker. The tilted cone lies on its side.
+- [ ] **Step 6: Commit.**
+  - In the anim worktree, after `git branch --show-current` (anim): `tools/data/floatdisk/floatdisk.js
+    tools/data/floatdisk/check.js tools/data/floatdisk/README.md docs/TOOLS-PLAN.md`, with "feat: the Composer's shapes,
+    the rest - sphere, cylinder, cone, disc and ring, each both sides and textured from the ground up (#39)".
+  - In nwn5e-tools, after the diff check: `vfx_bench/public/composer.js vfx_bench/public/composer_page.js
+    vfx_bench/check_composer.js vfx_bench/composer_check.mjs vfx_bench/README.md`, with "feat: the VFX Bench's Composer,
+    the other shapes - a flat shape rests 2 cm up; the Shapes tab and the card follow floatdisk.js (nwn5e-ee #39)".
+- [ ] **Step 7: Report:** the commits and SH-5; the bench needs a restart of `vfx_bench.bat`.

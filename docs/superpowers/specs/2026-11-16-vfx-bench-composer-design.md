@@ -922,3 +922,328 @@ Four tasks in the plan's addendum (P1-P4), **about one session**: the bake and i
   - **(b)** In `data\files`, committed and installed as the disk's texture is. Works in any build, but it commits art
     made from the game's files, against the repo's rule.
   - Note: the disk's committed models (`data\files\c_n5fd_*`, `plc_n5fd_*`) already carry the game's placeable meshes.
+
+---
+
+## Addendum 2026-11-17: basic shapes
+
+The owner wants simple 3D shapes to build with, a translucent dome first, for Zone of Truth. This addendum adds them to
+the Composer. Where it and the sections above disagree, it wins; they stay as they were written.
+
+### The owner's words, in order
+
+1. "is it possible to use basic 3d geometry for VFX? ... I was trying to create something for the Zone of Truth watch is
+   a half sphere area and I wanted to have a translucent sphere so the player could see the affected area"
+2. The proposal he answered:
+   - a **Shapes** tab in the Composer's parts list, its shapes made by the generator, as the Floating Disk's disc is;
+   - the shapes: dome (half sphere), sphere, cylinder, cone, disc, ring;
+   - radius, height and smoothness on the part card;
+   - a material: colour, see-through, glow, and an optional generated soft texture, brighter near the ground ring;
+   - original geometry, so it can be committed;
+   - Zone of Truth as a 4.57 m (15 ft) dome spell mesh, used as a mesh beat in a Stays (D) effect that fades in, stays
+     and fades out, with the area route checked.
+
+   He said: **"go with the shapes, start with the dome"**.
+
+### What the game's files say
+
+Read 2026-11-17 through `spell_bench\game_data.js` and the binary layout `vfx_model.cpp` reads. The probes are in the
+job's tmp folder; nothing was kept.
+
+- **The game's globes are one-sided spheres.**
+  - vdr_globemin and vdr_globemax (Minor Globe and Globe of Invulnerability) are each one sphere mesh: 460 vertices,
+    440 faces, every face pointing out.
+  - Their alpha is 0 in the geometry and keyed in the animations (controller 128). selfillumcolor 1 1 1, ambient 0.
+  - transparencyhint 0 (globemin) or 1 (globemax).
+  - vim_cntglobe is a 2.6 m sphere standing on the ground: one-sided, alpha 0.8, transparencyhint 1, its colour in
+    diffuse and selfillum.
+- **The game's two-sided meshes are one mesh, inside first.**
+  - Elemental Shield's flame ring (vdr_eleshield, Cylinder02) has 72 faces in back-to-back pairs.
+  - It's one mesh, and each side has its own vertices: no face shares its three indices with another.
+  - Its 36 inside faces come first, then the 36 outside ones. transparencyhint 0.
+  - Mage Armor's eight shields (vdr_magearmor2) are back to back too, with transparencyhint 2.
+  - So the game draws only front faces (or its artists wouldn't double them). A see-through mesh works at hint 0, 1 or
+    2.
+- **nwn5e's own see-through meshes, tested in game:**
+  - The vision cones (tools/data/stealth_rings.py, data/files/n5_rc0_*): a generated TGA with alpha, `alpha 1`,
+    `transparencyhint 1`, `selfillumcolor 1 1 1`, ambient and diffuse 1 1 1.
+  - The Floating Disk's disk: `transparencyhint 1` (floatdisk.js meshLines).
+- **What nwn5e's writers write:**
+  - WriteVfxModel writes a plane's ambient and diffuse (1 1 1 when they're the old defaults), bitmap, render,
+    `shadow 0`, and selfillumcolor and alpha when they aren't the defaults. Its faces are smoothing group 1. It writes
+    no transparencyhint.
+  - A plane's alpha keys (A4, anim d329e3a) are on main and installed (0.99.68).
+  - meshLines (the placeables' and the creature models' writer) writes `transparencyhint 1` for a mesh marked
+    transparent, and its selfillumcolor and alpha.
+- **Zone of Truth isn't in nwn5e.**
+  - docs/spells-needing-vfx.md (2026-11-15): "Needs: area of truth, glyph on the ground. nwn5e: not in nwn5e."
+  - No rows and no issue name it.
+  - SRD 5.2: Level 2 Enchantment, a 15-foot-radius Sphere centred on a point within range, 10 minutes. That's 4.57 m.
+- **nwn5e's areas centre an effect through DurationVFX.**
+  - vfx_persistent row 102 (NWN5E_FLASK_HOLY, Holy Water's patch) has DurationVFX 148 and nothing else: a
+    whole-duration effect at the area's centre.
+  - The game scatters a slot's copies (TOOLS-PLAN, #161), so a slot can't hold a centred dome.
+- **The dev layer and the bench's areas:**
+  - The dev layer writes an area slot's effect with WriteVfxModel (WriteAreaModel), so its planes and keys go in.
+  - DurationVFX goes to the game as a row number. The bench's area Play in game can only use a row the game has.
+  - The bench's area stage draws the whole-duration effect's planes at the centre (app.js `state.areaDvfx`,
+    `sim.planesAt`).
+- **`n5s` is free:** no game TGA, DDS, PLT, MDL or TXI starts with `n5`, and nwn5e's data\files has no `n5s_` file.
+
+### What the owner sees
+
+```
++--------------------+------------------------------------------------------------+-------------------------------+
+| PARTS              | [1 1] [+ variant]                                          | PART: the zone                |
+| Placeables | Items |                .  -  ~ ~ ~ ~ ~  -  .                       |  dome 4.57 m - 9.14 x 9.14 x  |
+| Yours | [Shapes]   |           .  '    see-through, both    ' .                 |  4.57 m, 960 triangles        |
+| [                ] |         /      sides; brighter near        \               |  Note [the zone            ]  |
+| +----+ Dome (half  |        |         the ground ring    O        |              |  x [0]  y [0]  Height [0]     |
+| |(  )| sphere)     |        |                           /|\       |              |  Turn [0]  Tilt x [0]  y [0]  |
+| +----+             |   _____|__________________________/_\_______|_____         |  DOME                         |
+|                    |        '------- the guide: 9.14 m -------'                 |   Radius (m)  [4.57]          |
+| (after S5: Sphere, |                                                            |   Height (m)  [4.57]          |
+|  Cylinder, Cone,   |                                                            |   Smoothness  [32]            |
+|  Disc, Ring)       |                                                            |   Sides [Both: inside too  v] |
+|                    |                                                            |   Colour [####]               |
+|                    |                                                            |   Opacity [0.35]  Glow [1]    |
+|                    |                                                            |   Texture [Soft            v] |
++--------------------+------------------------------------------------------------+-------------------------------+
+```
+
+- **The Shapes tab:**
+  - It's the parts list's fourth tab: Dome (half sphere) at first; Sphere, Cylinder, Cone, Disc and Ring after S5.
+  - Each entry's thumbnail is drawn on the spot.
+  - A click adds the shape at the guide's centre, sized to the guide (a dome's radius is the guide's), and selects it.
+    A drag onto the stage puts it where it lands.
+- **A shape's card:**
+  - Note, its place (x, y, height), Turn and Tilt, as any part's. No Scale: its own sizes size it.
+  - Then the shape's fields: Radius, Height, Smoothness and Sides, then Colour, Opacity, Glow and Texture.
+  - Each field is one undo step, and the stage redraws as he types.
+- **On the stage:**
+  - A shape is drawn see-through, both sides. Orbit or zoom into the dome and its inner side shows.
+  - The scale square isn't drawn for a shape. The ring turns it, the arrow lifts it.
+- **Save and build** works as for any part:
+  - a placeable's model names the shape's texture, written beside it in data\files;
+  - a spell mesh's draft and the texture go into vfxedit\saved;
+  - the status names the textures.
+- **Play in game** shows it beside the character, its texture written first.
+
+### The Zone of Truth recipe
+
+**In the bench (the owner):**
+
+1. Composer, **New project**: `zotruth`, Spell mesh.
+2. The guide: Circle, Diameter **9.14** (the spell's 15-foot radius), Height 0.
+3. Parts, **Shapes**, **Dome**: a dome of radius 4.57 m round the figure. On its card:
+   - Colour: the truth's colour;
+   - Opacity: about 0.25;
+   - Glow 1, Texture Soft;
+   - a lower Height, if he finds the full 4.57 m too tall indoors (his look to pick).
+4. **Save and build**: `n5m_zotruth` in vfxedit\saved, its texture beside it.
+5. **Back to effects**, then New effect `n5_zotruth`: Type **Stays (D)**, on the root (at the feet).
+   - **+ mesh**, `n5m_zotruth`. On its card: On for 0 (while the effect plays), Fade in 0.6, Fade out 0.8.
+   - Motes or a light, if he wants them.
+   - The preview fades it in, keeps it, and fades it out at the end.
+6. **Play in game** with Permanent: the dome on his character.
+   - Zoom out to see it from outside, in close to see it from inside.
+   - Stop fades it out.
+   - Save the effect.
+7. **To walk in and out of it:** in game, `!vfxarea n5_zotruth 0.6 1 0`. It puts the effect at his feet (within 0.6 m)
+   for 60 s, and it stays where it is: a 0.6 m area, one copy, lifetime 0. Play in game's effect follows the character.
+
+**For the game, once he likes the look (Q5):**
+
+- **The animation session ships the effect**, as Detect Magic's glow was:
+  - the draft as `tools/data/vfx/n5_zotruth.vfx`;
+  - `data/files/n5_zotruth.mdl`, written by WriteVfxModel;
+  - its texture in `data/files` (original, committed);
+  - a visualeffects row of type D, the model in its four size columns, at a row checked free in data/rows, data/looks
+    and the game's table. 1848-1859 are free today; 2093-2099 are kept for the Detects.
+- **The game session builds Zone of Truth itself** (its rules are the game's):
+  - its spells.2da row;
+  - an area: a vfx_persistent row, circle 4.57 m, DurationVFX that row (as row 102 names 148), and its scripts. A
+    creature that enters or starts its turn there makes a Charisma save (SRD 5.2). It lasts 10 minutes.
+  - The area stays where it's cast. The dome fades in with it, and fades out when it ends if the game plays the
+    effect's cessation then (to be seen in game).
+- **The bench's area mode then shows it:** an area whose whole-duration effect is that row draws the dome at its
+  centre (the row's model, from saved\ or the game).
+
+### How it works
+
+- **floatdisk.js** (pure, Node and page; it already holds the bake for the same reasons, P1's call 1):
+  - the shape tables: SHAPE_TYPES, SHAPE_LABELS, SHAPE_KEYS, SHAPE_FIELDS, LOOK_FIELDS, SHAPE_INFO and SHAPE_TEXTURE;
+  - `shapeDefaults`, `readShape`, `cleanShape`;
+  - `shapeModel` (the mesh, its material and the texture it names), `shapeTexture`, `shapeTextureName`;
+  - `tgaBytes` with an alpha option;
+  - readPart takes `shape`; partKey and partLabel know it; compositionText writes it after `note`.
+- **project.js:** projectText writes `shape` after `note`.
+- **reader.js:** `part()` gives a shape's mesh from floatdisk.js. No mesh reader, no game.
+- **files.js:**
+  - `shapeTextures`, `shapeWrites`, `shapeLines`, `shapeJson`;
+  - the ownership kind `shape`: ours by its name.
+- **Both build.js:** write a shape's texture beside what names it (`--files`, or a spell mesh's `--saved`). The summary
+  and `--json` list them (`shapes`).
+- **build_derived.js** carries them into a build as it carries bakes.
+- **composer_server.js:**
+  - the texture route also looks for an `n5s_` name in the checkout's data\files and in vfxedit\saved;
+  - `POST /api/composer/bake` takes `shapes: [{ colour }]` beside its `textures`, for Play in game.
+- **The page:**
+  - composer.js makes a shape's meshes itself (no part request) and cleans and adds shapes;
+  - composer_page.js has the Shapes tab, the shape's card, its texture in the mesh loader and Play's shapes;
+  - view.js draws only front faces.
+
+### Calls I made (this addendum's)
+
+1. **A shape is a part, of a fourth source kind, `shape`** (beside model, models and file).
+   - In a project or composition.json: `"shape": { "type": "dome", "radius": 4.57, ... }`, one object for its geometry
+     and its look, beside the part's `note`, `at`, `turn` and `tilt`.
+   - **No scale:** `scale` on a shape is refused.
+   - *Why:* placing, resting, variants, the onion skin, Save, undo, Play and mesh beats all work on parts already. A
+     scale on top of a radius would give a shape two sizes.
+2. **Defaults aren't written.**
+   - `cleanShape` keeps `type` and `radius` (always), and any other key only where it differs from `shapeDefaults(type,
+     radius)`.
+   - A dome at the defaults is `{ "type": "dome", "radius": 4.57 }`.
+   - *Why:* as the dyed parts' colours (P1's call 6): a part's line stays short, and a later change of default reaches
+     the parts that kept it.
+3. **The key** is `shape:` and its cleaned object on one line (`F.inline`): `shape:{ "type": "dome", "radius": 4.57 }`.
+   - Its label is `dome 4.57 m`.
+   - *Why:* the whole object decides the mesh and its material, and equal shapes share one.
+4. **One implementation, in floatdisk.js.** The page, reader.js, both generators and build_derived use it.
+   - The page makes a shape's mesh itself, so typing a radius redraws at once, with no server round trip.
+   - *Why:* as P1's bake, floatdisk.js already loads in the page and in both generators and is on the stale list: no
+     new route, script tag or stale entry. Its name is historical now; it is the Composer's shared module.
+5. **The dome:**
+   - **Radius** is required. A new one takes the guide's (a circle's radius; a rectangle's shorter half side; 1 m with
+     no guide).
+   - **Height** defaults to the radius: a half sphere.
+     - A lower or taller dome is allowed (0.05-100 m), as the top half of an ellipsoid.
+     - *Why:* its wall meets the ground upright whatever the height, so the zone's edge reads where it is.
+   - **Smoothness** is the segments round it: 32 by default, 8-96. The rings up it are a quarter of that, at least 2.
+   - **The bottom is open.** The ground shows, and the zone has no floor.
+   - **Sides: both by default** (or Outside only).
+     - Each side has its own vertices, in one mesh, the inside faces first, as Elemental Shield's ring is built.
+     - Inside first: from outside, a see-through dome draws its far side before its near one.
+     - Own vertices: the game's smoothing (group 1, which both writers give every face) never averages a face with its
+       back.
+   - **UVs:**
+     - u runs round it from +x, counter-clockwise from above, its seam's column twice (u 0 and 1);
+     - v is the latitude: 0 at the ground ring, 1 at the top;
+     - the top is a vertex per segment, at that segment's middle u.
+   - **No normals** are written: the game makes them, as for every plane nwn5e writes.
+   - The default dome: 296 vertices and 480 triangles a side, 592 and 960 with both.
+6. **The material:**
+   - **Colour** (default `[0.6, 0.8, 1]`, a pale blue: `#99ccff` exactly);
+   - **Opacity** (the mesh's alpha, 0.02-1, default 0.35: the globes key theirs to about that);
+   - **Glow** (0-1, default 1: lit by itself, as the cones and the globes are);
+   - **Texture**: Soft (the default) or None.
+   - **Textured:** the colour is in the texture. Ambient and diffuse are 1 1 1 and selfillum is the glow, as the
+     cones'. *Why:* the game doesn't tint it twice, and the bench draws a textured mesh by its texture.
+   - **Untextured:** ambient and diffuse are the colour, and selfillum is the colour times the glow.
+   - It's see-through (`transparent`) when textured or under alpha 1.
+7. **No game-side change.**
+   - WriteVfxModel already writes what a see-through mesh needs: the bitmap, the material, the alpha and its keys.
+   - It writes no transparencyhint (0). The game's own Minor Globe is the same recipe: one mesh, hint 0, alpha keyed,
+     selfillum 1 1 1.
+   - meshLines writes `transparencyhint 1` for a placeable's or a creature's see-through mesh, as the disk and the
+     cones have it.
+   - If the in-game test shows the dome drawn in the wrong order against other see-through things, `transparencyhint`
+     on planes is a small change to src/data/vfx_model.* (announced first). It isn't planned.
+8. **The texture is generated and original.**
+   - Name: `n5s_` and 12 hex digits of cyrb53(`soft:<r>,<g>,<b>`), the colour to 0.001. The default is
+     `n5s_8c757fb28f99`; `[1, 0.85, 0.4]` is `n5s_a3caa0709dda`.
+   - The picture: 128 x 128, 32-bit, rows bottom-up (the disk's format). The colour, whiter and more opaque at the
+     ground ring, fading up, with a faint shimmer that wraps round seamlessly.
+   - Its name changes with its colour, so the game never shows one it cached under the old name (P's call 2).
+   - **Where it goes:** beside what names it. A placeable's or the disk's in data\files (committable: original, as
+     n5t_forcedisk.tga); a spell mesh's in vfxedit\saved; Play in game's in vfxedit\.
+   - **Whose it is:** its name says. Only the generator makes `n5s_` names, and the name fixes the bytes. It's never in
+     made.txt.
+9. **The bench draws only front faces, as the game does** (view.js drawMeshes culls back faces).
+   - *Why:* without it a two-sided dome draws its sides twice, and a player-eye view inside a one-sided one shows
+     faces the game hides.
+   - It shows in the effect mode too: a game mesh's back is no longer drawn there, as in the game. Q4 asks the owner to
+     confirm.
+10. **The Shapes tab is the page's own** (F.SHAPE_TYPES): no server catalog, and its thumbnails aren't kept.
+    - The card's fields come from F.SHAPE_FIELDS and F.SHAPE_INFO, so a type added to floatdisk.js shows up with no page
+      change (S5).
+    - *Why:* the shapes come from floatdisk.js, not the game, and a thumbnail drawn on the spot follows its look.
+11. **Play in game sends the shapes' colours with its bakes** (`POST /api/composer/bake { textures, shapes }`). The
+    server writes their textures beside the play's model, where it writes the bakes. *Why:* one route for "the
+    textures this play needs".
+12. **Zone of Truth's route:**
+    - **The look, now:** a spell mesh with a dome, a mesh beat in a Stays (D) effect, then Play in game or `!vfxarea
+      <effect> 0.6 1 0`.
+    - **The game:** the effect shipped as Detect Magic's, as the whole-duration effect (DurationVFX) of Zone of Truth's
+      area.
+    - Not a slot: the game scatters a slot's copies.
+    - *Why:* the effect fades in, stays and fades out with A4 and A16's keys (installed). The area keeps it where the
+      spell was cast. Row 102 already works this way.
+
+### Limits (added)
+
+- **Lighting on the bench:** a textured shape is shaded by its faces' turn; the game lights it by its glow. The
+  stage's lighting limit stands.
+- **Indoors and on slopes:** a 4.57 m dome reaches through low ceilings and walls, and uneven ground cuts its ring, as
+  with the vision cones (accepted 2026-10-25).
+- **Picking:** a big shape round other parts takes the click. Pick those by their chips.
+- **Draw order in game is untested** (call 7).
+- **Normals:** if the game's loader welded vertices by position, a two-sided mesh's normals could cancel, dark at a low
+  glow. The fallback is the inside as a mesh of its own.
+- **Play in game's effect follows the character.** `!vfxarea <effect> 0.6 1 0` puts it down for 60 s.
+- **An area's whole-duration effect** on the bench's area Play in game must be a row the game has (the dev layer sends
+  the number).
+- **Generated textures only:** no glyph art (Q6).
+
+### Checks (added)
+
+- **The pure parts** (`tools\data\floatdisk\check.js`, `tools\data\composer\check.js`, no game): reading and cleaning a
+  shape; its errors; a shape part's source, key, label and no scale; the dome's counts, winding (inside first), UVs, a
+  lower one-sided dome; the material; the texture and its name; the 32-bit TGA; compositionText and projectText; the
+  same mesh, bytes and name in a page.
+- **The generators** (`tools\data\composer\check_build.js`, `tools\data\check_derived.js`, on copies):
+  - a spell mesh's dome: its draft and its texture in `--saved`;
+  - a placeable's dome: see-through in its model, its texture beside it;
+  - a dome with no texture;
+  - build_derived carries a shape's texture.
+- **The server** (`check_composer_server.js`): the page's summary of a dome equals the generator's; a spell mesh's
+  shape texture served from saved\; Play's shape textures written.
+- **The page** (`check_composer.js`, `composer_check.mjs`):
+  - a shape placed with no server answer; cleaned; added sized to the guide;
+  - the Shapes tab; a dome added at the guide's radius; its card's edits, each one undo step;
+  - the dome seen from inside, and not from inside when Outside only;
+  - Save, Play in game, and the dome as a mesh beat fading in.
+
+### Size
+
+Five tasks in the plan's addendum (S1-S5), **about two sessions**:
+
+| task | what | where | about |
+|---|---|---|---|
+| S1 | the dome and its texture in floatdisk.js, a shape part | anim | 2 h |
+| S2 | the generators and build_derived | anim | 1½ h |
+| S3 | the server and the page's pure parts | nwn5e-tools | 1½ h |
+| S4 | the page, the stage's front faces, the docs and the test rows | nwn5e-tools, TOOLS-PLAN | ½ session |
+| S5 | sphere, cylinder, cone, disc, ring | anim, nwn5e-tools | ½ session |
+
+The dome is usable in the bench after S4. S5 adds the rest, in that order:
+
+1. **sphere:** the dome's code with a lower half (globes, Resilient Sphere);
+2. **cylinder:** an open tube (Moonbeam's and Flame Strike's columns);
+3. **cone:** a ring to a point (cone spells, tilted onto their side);
+4. **disc:** a flat circle on the ground (a glyph's place);
+5. **ring:** a flat band (a zone's edge on the ground, as Zone of Truth's could use).
+
+### Open questions (only the owner can answer)
+
+- **Q4. Should the bench draw only front faces everywhere, as the game does?** I recommend yes.
+  - **Why it's needed:** a two-sided dome looks right on the stage only then, from inside and outside.
+  - **What changes in the effect mode:** the game's one-sided meshes (a flat plane, a globe's far half) stop showing
+    their backs, as in the game.
+  - **The other way:** only the Composer's shapes and mesh beats, which keeps the effect mode as it is.
+- **Q5. Zone of Truth isn't in nwn5e. Should the game session build it** (an area that stays where it's cast, the dome
+  as its whole-duration effect, the Charisma save), **and when?** The look can be designed and played now either way.
+- **Q6. Shapes with a texture of your own** (a glyph for Zone of Truth's ground, as docs/spells-needing-vfx.md asks)?
+  - That would be a `texture` naming a TGA in tools\data\composer\parts\: one more small task.
+  - I recommend after the dome's in-game test.
