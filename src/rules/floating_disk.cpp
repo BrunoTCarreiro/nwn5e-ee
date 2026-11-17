@@ -58,4 +58,9 @@ const char* DiskPileBlueprint(DiskStage stage) {
   }
 }
 
+DiskFound DiskFoundAction(bool made_this_game, int seconds_left) {
+  if (made_this_game) return DiskFound::kKeep;
+  return seconds_left > 0 ? DiskFound::kRemake : DiskFound::kEnd;
+}
+
 }  // namespace rules

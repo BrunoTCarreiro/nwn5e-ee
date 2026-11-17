@@ -71,3 +71,12 @@ TEST(FloatingDiskSpell) {
   CHECK_EQ(RitualCastingMinutes(CastingMinutes(kFloatingDisk)), 10);
   CHECK_EQ(WizardOnlySpell(kFloatingDisk), true);  // the Wizard's alone of the Wiz_Sorc column
 }
+
+TEST(FloatingDiskFoundAfterLoad) {  // 0.99.60, FD-9: a disk from a save is made again
+  CHECK_EQ(DiskFoundAction(true, 1800) == DiskFound::kKeep, true);
+  CHECK_EQ(DiskFoundAction(true, 0) == DiskFound::kKeep, true);  // this game's: its own look ends it
+  CHECK_EQ(DiskFoundAction(false, 1800) == DiskFound::kRemake, true);
+  CHECK_EQ(DiskFoundAction(false, 1) == DiskFound::kRemake, true);
+  CHECK_EQ(DiskFoundAction(false, 0) == DiskFound::kEnd, true);  // no time left: not made again
+  CHECK_EQ(DiskFoundAction(false, -6) == DiskFound::kEnd, true);
+}

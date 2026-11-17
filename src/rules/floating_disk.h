@@ -57,4 +57,12 @@ DiskLook DiskStageLook(DiskStage stage);
 // disk), usable, an inventory, plot, no treasure scripts.
 const char* DiskPileBlueprint(DiskStage stage);
 
+// 0.99.60 (#39 FD-9, owner 2026-11-16: "loading a save makes the floating shield uninteractible and stuck in
+// place"): a disk a loaded game brings back runs none of its own scripts - no heartbeat, no word heard (the logs of
+// 0.99.56 and 0.99.57) - so its caster's look makes it again: a fresh disk where it floats, with its load, its order
+// and what is left of its hour. One this game made is kept; one with no time left isn't made again (the look ends
+// it: its hour is up).
+enum class DiskFound { kKeep, kRemake, kEnd };
+DiskFound DiskFoundAction(bool made_this_game, int seconds_left);
+
 }  // namespace rules
