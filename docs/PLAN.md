@@ -1729,6 +1729,11 @@ monster AC by CR.
     disk's AI level and whether it takes orders (for the cause), each disk's first heartbeat. Test
     FloatingDiskFoundAfterLoad, 3 mutations caught; 580 tests pass. FD-11 superseded by FD-12 (FD-11's steps) and
     FD-13 (FD-9's: stand your ground, save, load).
+    *0.99.61:* in the owner's 0.99.60 sessions (2026-11-17 09:27, 09:41) the disk from the save had AI level 0 (very
+    low) and commandable 0 - no heartbeat, no order taken - and its remake came at the first update, a second before
+    the player joined: CreateObject gave nothing. It now waits 3 s and for the disk to be in its caster's area (else
+    the caster's spot), up to 5 tries; a fresh disk's AI level and commandable are logged against it. Also in 0.99.61:
+    the dev layer at nwn5e-tools 45b898d (the Composer's Play in game plays a variant of meshes only).
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
