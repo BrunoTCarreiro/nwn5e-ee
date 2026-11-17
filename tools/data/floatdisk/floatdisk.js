@@ -44,8 +44,35 @@ function resolvePartFile(baseDir, file) {
   return require("path").resolve(baseDir, file.trim());  // Node only: a page has no files of its own
 }
 
-// composition.json's object -> { disk, stages: { empty: [], small: [part], ... } }; a part { source: { kind: "model",
-// model } | { kind: "file", file (absolute), given }, at, turn, scale, tilt, note }. `baseDir` resolves a part's file.
+// One part of a composition (or of a Composer project: tools\data\composer\project.js) read and checked -> { source:
+// { kind: "model", model } | { kind: "models", models } (a weapon's pieces) | { kind: "file", file (absolute), given },
+// at, turn, scale, tilt, note }. `where` names it in an error (stages.small[0]); `baseDir` resolves its file.
+function readPart(p, where, baseDir) {
+  if (!p || typeof p !== "object" || Array.isArray(p)) throw new Error(`${where}: a part ({ "model": ..., "at": [x, y, z] })`);
+  const hasModel = p.model !== undefined, hasFile = p.file !== undefined;
+  if (hasModel === hasFile) throw new Error(`${where}: either "model" (a game model) or "file" (your own .mdl), not both or neither`);
+  let source;
+  if (hasModel) {
+    const list = Array.isArray(p.model) ? p.model : [p.model];
+    const models = list.map((m) => String(m || "").toLowerCase());
+    if (!list.length || list.length > 4 || !models.every((m) => RESREF.test(m))) throw new Error(`${where}.model: a model's resref, or a list of them (a weapon's pieces)`);
+    source = models.length === 1 ? { kind: "model", model: models[0] } : { kind: "models", models };
+  } else {
+    let file;
+    try { file = resolvePartFile(baseDir, p.file); } catch (e) { throw new Error(`${where}.file: ${e.message}`); }
+    source = { kind: "file", file, given: String(p.file) };
+  }
+  if (!Array.isArray(p.at) || p.at.length !== 3 || !p.at.every(isNum)) throw new Error(`${where}.at: [x, y, z] in metres`);
+  const turn = p.turn === undefined ? 0 : p.turn, scale = p.scale === undefined ? 1 : p.scale;
+  const tilt = p.tilt === undefined ? [0, 0] : p.tilt;
+  if (!isNum(turn)) throw new Error(`${where}.turn: degrees`);
+  if (!isNum(scale) || scale <= 0) throw new Error(`${where}.scale: a number above 0`);
+  if (!Array.isArray(tilt) || tilt.length !== 2 || !tilt.every(isNum)) throw new Error(`${where}.tilt: [degrees about x, degrees about y]`);
+  return { source, at: p.at, turn, scale, tilt, note: p.note || "" };
+}
+
+// composition.json's object -> { disk, stages: { empty: [], small: [part], ... } }, each part as readPart gives it.
+// `baseDir` resolves a part's file.
 function readComposition(c, baseDir) {
   const d = (c && c.disk) || {};
   const disk = {
@@ -64,29 +91,7 @@ function readComposition(c, baseDir) {
   for (const stage of PILES) {
     const list = ((c && c.stages) || {})[stage];
     if (!Array.isArray(list)) throw new Error(`stages.${stage}: a list of parts`);
-    stages[stage] = list.map((p, i) => {
-      const where = `stages.${stage}[${i}]`;
-      const hasModel = p.model !== undefined, hasFile = p.file !== undefined;
-      if (hasModel === hasFile) throw new Error(`${where}: either "model" (a game model) or "file" (your own .mdl), not both or neither`);
-      let source;
-      if (hasModel) {
-        const list = Array.isArray(p.model) ? p.model : [p.model];
-        const models = list.map((m) => String(m || "").toLowerCase());
-        if (!list.length || list.length > 4 || !models.every((m) => RESREF.test(m))) throw new Error(`${where}.model: a model's resref, or a list of them (a weapon's pieces)`);
-        source = models.length === 1 ? { kind: "model", model: models[0] } : { kind: "models", models };
-      } else {
-        let file;
-        try { file = resolvePartFile(baseDir, p.file); } catch (e) { throw new Error(`${where}.file: ${e.message}`); }
-        source = { kind: "file", file, given: String(p.file) };
-      }
-      if (!Array.isArray(p.at) || p.at.length !== 3 || !p.at.every(isNum)) throw new Error(`${where}.at: [x, y, z] in metres`);
-      const turn = p.turn === undefined ? 0 : p.turn, scale = p.scale === undefined ? 1 : p.scale;
-      const tilt = p.tilt === undefined ? [0, 0] : p.tilt;
-      if (!isNum(turn)) throw new Error(`${where}.turn: degrees`);
-      if (!isNum(scale) || scale <= 0) throw new Error(`${where}.scale: a number above 0`);
-      if (!Array.isArray(tilt) || tilt.length !== 2 || !tilt.every(isNum)) throw new Error(`${where}.tilt: [degrees about x, degrees about y]`);
-      return { source, at: p.at, turn, scale, tilt, note: p.note || "" };
-    });
+    stages[stage] = list.map((p, i) => readPart(p, `stages.${stage}[${i}]`, baseDir));
   }
   return { disk, stages };
 }
@@ -351,7 +356,7 @@ function dummyLines(name, parent, position, axis) {
   return [`node dummy ${name}`, `  parent ${parent}`, `  position ${position.map(num).join(" ")}`,
     `  orientation ${(axis || [0, 0, 0, 0]).map(num).join(" ")}`, "endnode"];
 }
-const header = (name, supermodel, classification, about) => ["#MAXMODEL ASCII", MARK, ...about.map((a) => "# " + a),
+const header = (name, supermodel, classification, about, mark = MARK) => ["#MAXMODEL ASCII", mark, ...about.map((a) => "# " + a),
   `newmodel ${name}`, `setsupermodel ${name} ${supermodel}`, `classification ${classification}`, "setanimationscale 1",
   `beginmodelgeom ${name}`, `node dummy ${name}`, "  parent NULL", "endnode"];
 
@@ -384,27 +389,39 @@ function pileNodes(name, lo, hi) {
     { name: short + "_ground", position: [0, 0, 0] },
   ];
 }
-function pileModelText(name, meshes, lo, hi, about) {
-  const lines = header(name, "NULL", "character", about);
+// `mark`: whose it is (MARK; the Composer's projects pass theirs, tools\data\composer\project.js).
+function pileModelText(name, meshes, lo, hi, about, mark = MARK) {
+  const lines = header(name, "NULL", "character", about, mark);
   for (const m of meshes) lines.push(...meshLines(m, name));
   for (const n of pileNodes(name, lo, hi)) lines.push(...dummyLines(n.name, name, n.position));
   lines.push(`endmodelgeom ${name}`, "", `donemodel ${name}`, "");
   return lines.join("\n");
 }
-// Its walkmesh file (.pwk), as the game's junk has it: no walkable faces, only the two use points a creature walks to
-// (behind and in front, past the pile's edge).
-function pileWalkmeshText(name, lo, hi) {
+// Its walkmesh file (.pwk), as the game's junk has it: no walkable faces, only the use points a creature walks to -
+// `use` [[x, y], ...] (<short>_pwk_use01, _use02 ...), by default two, behind and in front, past the pile's edge.
+// `block` [[x, y], ...], a convex outline counter-clockwise from above (a Composer placeable's Blocks): before them, a
+// ground mesh of it that nothing walks through, as the game's crates and barrels have (PLC_A03.pwk: PLC_A03_wg under
+// PLC_A03_pwk, its faces material 7, non-walkable).
+function pileWalkmeshText(name, lo, hi, { mark = MARK, use = null, block = null } = {}) {
   const short = name.replace(/^plc_/, ""), depth = Math.max(Math.abs(lo[1]), Math.abs(hi[1])) + 0.1;
-  const lines = ["#MAXDOOR ASCII", MARK, `# model: ${name}_pwk`];
-  [[0, -depth, 0], [0, depth, 0]].forEach((at, i) => lines.push(...dummyLines(`${short}_pwk_use0${i + 1}`, name + "_pwk", at)));
+  const lines = ["#MAXDOOR ASCII", mark, `# model: ${name}_pwk`];
+  if (block) {
+    if (!Array.isArray(block) || block.length < 3) throw new Error("a blocking outline: 3 points or more");
+    lines.push(`node trimesh ${name.toUpperCase()}_wg`, `  parent ${name}_pwk`, "  position 0 0 0", "  orientation 0 0 0 0", "  bitmap NULL",
+      `  verts ${block.length}`, ...block.map((p) => `    ${num(p[0])} ${num(p[1])} 0`), `  faces ${block.length - 2}`);
+    for (let i = 1; i + 1 < block.length; i++) lines.push(`    0 ${i} ${i + 1}  1  0 0 0  7`);  // a fan; smoothing group 1, material 7
+    lines.push("endnode");
+  }
+  const points = use ? use.map((p) => [p[0], p[1], 0]) : [[0, -depth, 0], [0, depth, 0]];
+  points.forEach((at, i) => lines.push(...dummyLines(`${short}_pwk_use${String(i + 1).padStart(2, "0")}`, name + "_pwk", at)));
   lines.push("");
   return lines.join("\n");
 }
 
 // nwn5e's rows (data/README.md) copying one row of the game's `table` ({ columns, rows: Map(row -> { column: value }) })
 // into `entries` [{ row, label, model }]: every column named (a row inside the table changes only those), the label
-// and model columns changed, `overrides` { column: value } for every entry too.
-function rowsText(table, sourceRow, entries, { labelColumn, modelColumn, overrides = {}, about = [] }) {
+// and model columns changed, `overrides` { column: value } for every entry too. `mark`: whose it is.
+function rowsText(table, sourceRow, entries, { labelColumn, modelColumn, overrides = {}, about = [], mark = MARK }) {
   const source = table.rows.get(sourceRow);
   if (!source) throw new Error(`the game's table has no row ${sourceRow}`);
   const columns = table.columns;
@@ -419,7 +436,7 @@ function rowsText(table, sourceRow, entries, { labelColumn, modelColumn, overrid
     table2.push([String(e.row), ...columns.map((c) => cell(row[c]))]);
   }
   const widths = table2[0].map((_, k) => Math.max(...table2.map((r) => r[k].length)));
-  const lines = [MARK, ...about.map((a) => "# " + a)];
+  const lines = [mark, ...about.map((a) => "# " + a)];
   table2.forEach((r) => lines.push(r.map((v, k) => (k === r.length - 1 ? v : v.padEnd(widths[k]))).join("  ").trimEnd()));
   lines.push("");
   return lines.join("\n");
@@ -533,10 +550,10 @@ function texturesBeside(name, listing) {
 
 // --- whose a file is --------------------------------------------------------------------------------------------------
 // A text file of ours carries MARK on its first line, or on its second after the format's own first line (#MAXMODEL
-// ASCII, #MAXDOOR ASCII); a draft for the bench likewise.
-function carriesMark(bytes) {
+// ASCII, #MAXDOOR ASCII); a draft for the bench likewise. `mark`: whose (MARK, or a Composer project's).
+function carriesMark(bytes, mark = MARK) {
   const lines = Buffer.from(bytes).toString("latin1").split(/\r?\n/, 2);
-  return lines[0] === MARK || (/^#MAX(MODEL|DOOR) ASCII$/.test(lines[0]) && lines[1] === MARK);
+  return lines[0] === mark || (/^#MAX(MODEL|DOOR) ASCII$/.test(lines[0]) && lines[1] === mark);
 }
 const sameText = (a, b) => Buffer.from(a).toString("latin1").replace(/\r\n/g, "\n") === Buffer.from(b).toString("latin1").replace(/\r\n/g, "\n");
 const crlf = (text) => text.replace(/\r?\n/g, "\r\n");
@@ -544,7 +561,7 @@ const crlf = (text) => text.replace(/\r?\n/g, "\r\n");
 const api = {
   MARK, TEXTURE_MARK, STAGES, PILES, SUFFIX, RESREF, SUPERMODEL, SOURCE_ROWS, APPEARANCE_OVERRIDES, ROWS, LABELS,
   creatureModel, pileModel,
-  resolvePartFile, readComposition, partKey, partLabel, quat, axisAngle, qrot, round, num, modelSpaceMeshes, placePart,
+  resolvePartFile, readPart, readComposition, partKey, partLabel, quat, axisAngle, qrot, round, num, modelSpaceMeshes, placePart,
   lowered, uniqueNames, diskMesh, diskTexture, modelNodes, creatureModelText, pileNodes, pileModelText,
   pileWalkmeshText, rowsText, readableAscii, texturesBeside, carriesMark, sameText, crlf, mergeModels, compositionText,
 };

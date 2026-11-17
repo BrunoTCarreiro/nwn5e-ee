@@ -332,4 +332,29 @@ check("compositionText: a part's keys in order, tilt only when given, an own fil
   assert.ok(out.endsWith("}\n") && !out.includes("\r"));
 });
 
+// --- the Composer's arguments (tools\data\composer\build.js) -----------------------------------------------------------
+check("the new arguments' defaults give today's text", () => {
+  // A guard: the mark, the use points and the blocking outline the Composer passes are optional; left out or spelled
+  // out as their defaults, the disk's piles, walkmeshes, rows and ownership test are what they were.
+  const mesh = { name: "j01_Box", bitmap: "plc_x", verts: [-0.2, -0.3, 0, 0.2, 0.3, 0, 0, 0, 0.5], tverts: [0, 0, 1, 0, 0, 1], faces: [0, 1, 2],
+    diffuse: [1, 1, 1], ambient: [1, 1, 1], selfillum: [0, 0, 0], alpha: 1 };
+  const lo = [-0.2, -0.3, 0], hi = [0.2, 0.3, 0.5];
+  const model = F.pileModelText("plc_n5fd_med", [mesh], lo, hi, ["about"]);
+  assert.strictEqual(F.pileModelText("plc_n5fd_med", [mesh], lo, hi, ["about"], F.MARK), model);
+  const pwk = F.pileWalkmeshText("plc_n5fd_med", lo, hi);
+  assert.strictEqual(pwk, ["#MAXDOOR ASCII", F.MARK, "# model: plc_n5fd_med_pwk",
+    "node dummy n5fd_med_pwk_use01", "  parent plc_n5fd_med_pwk", "  position 0 -0.4 0", "  orientation 0 0 0 0", "endnode",
+    "node dummy n5fd_med_pwk_use02", "  parent plc_n5fd_med_pwk", "  position 0 0.4 0", "  orientation 0 0 0 0", "endnode", ""].join("\n"));
+  assert.strictEqual(F.pileWalkmeshText("plc_n5fd_med", lo, hi, {}), pwk);
+  assert.strictEqual(F.pileWalkmeshText("plc_n5fd_med", lo, hi, { mark: F.MARK, use: null, block: null }), pwk);
+  const table = { columns: ["Label", "ModelName", "Static"], rows: new Map([[189, { Label: "TreasureSml", ModelName: "PLC_C07", Static: "1" }]]) };
+  const entries = [{ row: 14001, label: "N5_A", model: "plc_a" }];
+  const rows = F.rowsText(table, 189, entries, { labelColumn: "Label", modelColumn: "ModelName", about: ["why"] });
+  assert.strictEqual(F.rowsText(table, 189, entries, { labelColumn: "Label", modelColumn: "ModelName", about: ["why"], mark: F.MARK }), rows);
+  for (const bytes of [Buffer.from(model), Buffer.from(pwk), Buffer.from(rows), Buffer.from("# someone's rows\n")]) {
+    assert.strictEqual(F.carriesMark(bytes, F.MARK), F.carriesMark(bytes));
+  }
+  assert.ok(F.carriesMark(Buffer.from(rows)) && !F.carriesMark(Buffer.from("# someone's rows\n")));
+});
+
 console.log(process.exitCode ? `floatdisk check: FAILED (${count} passed)` : `floatdisk check: ${count} checks pass`);
