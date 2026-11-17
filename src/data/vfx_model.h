@@ -116,6 +116,14 @@ struct VfxEmitter {
   // camera is turned toward it at birth (Particle::randomDirection; only with a spread).
   bool twosidedtex = false;
   float deadspace = 0.0f;
+  // The owner, 2026-11-17 (row 145's WIND_Dummy: "something that generates a shockwave on elements in the environment?" -
+  // "go with all three"): its blast - an Explosion emitter that detonates with a radius adds a wind there
+  // (ExplosionEmitter::Update -> WindManager::AddPointSourceWind) pushing what is within blast_radius metres away from it
+  // (grass, trees, particles that take wind) for blast_length seconds. The model's blastRadius / blastLength (the emitter
+  // header's +0x04 / +0x08; vim_protevil's WIND_Dummy: 8 m, 1.3 s); 0: none - a draft without them writes the bytes it did
+  // before.
+  float blast_radius = 0.0f;
+  float blast_length = 0.0f;
   // 0.42.5: point to point - its particles go to its target, the first node under it
   // ("" = off). "bezier": along a curve from the emitter to the target, p2p_bezier2 metres
   // out along the emitter's z and p2p_bezier3 back along the target's; how much of the way
@@ -220,8 +228,9 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
 
 // A compiled (binary) model's emitters - the game's own effects, read where
 // the player's game has them, nothing of them kept in nwn5e: each emitter node
-// (node header 0x60 bytes, then the emitter header: update +0x18, render
-// +0x38, blend +0x58, texture +0x78, x grid +0x0C, y grid +0x10, flags +0xD4) and its
+// (node header 0x60 bytes, then the emitter header: deadspace +0x00, blast radius
+// +0x04, blast length +0x08, update +0x18, render +0x38, blend +0x58, texture
+// +0x78, x grid +0x0C, y grid +0x10, flags +0xD4) and its
 // controllers (keys at node +0x44, values at +0x50, offsets from byte 12); an
 // animation's copy of the node with a birthrate keyed to 0 gives emit_seconds.
 // Its meshes are planes: plain ones (flags 0x21) - re-saving an effect would turn an

@@ -70,7 +70,8 @@ std::vector<std::string> EmitterLines(const VfxEmitter& e, const std::string& no
       "  texture " + e.texture,
       "  xgrid " + std::to_string(e.grid), "  ygrid " + std::to_string(e.grid_down ? e.grid_down : e.grid), "  loop 0",
       "  deadspace " + Num(std::min(std::max(e.deadspace, 0.0f), kVfxDeadspaceMax)), flag("twosidedtex", e.twosidedtex),
-      "  blastRadius 0", "  blastLength 0",
+      // Its blast (the owner, 2026-11-17): 0 when none - the lines nwn5e always wrote, so a model without one keeps its bytes.
+      "  blastRadius " + Num(std::max(0.0f, e.blast_radius)), "  blastLength " + Num(std::max(0.0f, e.blast_length)),
       "  position " + Num(e.position[0]) + " " + Num(e.position[1]) + " " + Num(e.position[2]),
       "  orientation " + Num(e.orientation[0]) + " " + Num(e.orientation[1]) + " " + Num(e.orientation[2]) + " " +
           Num(e.orientation[3]),
@@ -642,6 +643,9 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
     out += "fps = " + Num(e.fps) + "\nparticle_rot = " + Num(e.particle_rot) + "\n";
     out += "blur_length = " + Num(e.blur_length) + "\nbounce_co = " + Num(e.bounce_co) + "\n";
     out += "deadspace = " + Num(e.deadspace) + "\n";
+    // Its blast (the owner, 2026-11-17) only when set, each on its own - every draft before them keeps its bytes.
+    if (e.blast_radius != 0.0f) out += "blast_radius = " + Num(e.blast_radius) + "\n";
+    if (e.blast_length != 0.0f) out += "blast_length = " + Num(e.blast_length) + "\n";
     if (!e.p2p.empty()) {
       out += "p2p = " + e.p2p + "\np2p_bezier = " + Num(e.p2p_bezier2) + " " + Num(e.p2p_bezier3) + "\n";
       out += "combinetime = " + Num(e.combinetime) + "\ngrav = " + Num(e.grav) + "\ndrag = " + Num(e.drag) + "\n";
@@ -869,6 +873,8 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
     else if (key == "blur_length") e->blur_length = ToFloat(value);
     else if (key == "bounce_co") e->bounce_co = ToFloat(value);
     else if (key == "deadspace") e->deadspace = std::min(std::max(ToFloat(value), 0.0f), kVfxDeadspaceMax);
+    else if (key == "blast_radius") e->blast_radius = std::max(0.0f, ToFloat(value));  // never below 0 (not a number: 0)
+    else if (key == "blast_length") e->blast_length = std::max(0.0f, ToFloat(value));
     else if (key == "p2p") e->p2p = Lower(value) == "bezier" || Lower(value) == "gravity" ? Lower(value) : std::string();
     else if (key == "p2p_bezier") {
       float bezier[2] = {e->p2p_bezier2, e->p2p_bezier3};
@@ -1147,6 +1153,8 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       else if (first == "inherit_part") e->inherit_part = v != "0";
       else if (first == "twosidedtex") e->twosidedtex = v != "0";
       else if (first == "deadspace") e->deadspace = ToFloat(v);  // radians, as the game reads it (%f)
+      else if (first == "blastradius") e->blast_radius = std::max(0.0f, ToFloat(v));  // as the draft: never below 0
+      else if (first == "blastlength") e->blast_length = std::max(0.0f, ToFloat(v));
       else if (first == "p2p_bezier2") e->p2p_bezier2 = ToFloat(v);
       else if (first == "p2p_bezier3") e->p2p_bezier3 = ToFloat(v);
       else if (first == "combinetime") e->combinetime = ToFloat(v);
@@ -1516,6 +1524,12 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
       e.inherit_local = (flags & 0x100) != 0;
       e.inherit_part = (flags & 0x400) != 0;
       e.deadspace = m.F32(emitter);                   // node +0xa0 in the game
+      // Its blast beside it (the game's parser: blastRadius node +0xa4, blastLength +0xa8): metres and seconds - the game's
+      // own reach 20 m and 4 s. Below 0, not a number or past 1000 (no emitter's - an animation's copy of a node can hold
+      // other bytes there): 0.
+      const auto blast = [](float v) { return std::isfinite(v) && v > 0.0f && v <= 1000.0f ? v : 0.0f; };
+      e.blast_radius = blast(m.F32(emitter + 0x04));
+      e.blast_length = blast(m.F32(emitter + 0x08));
       e.twosidedtex = m.U32(emitter + 0xC8) != 0;    // node +0x168
       if (flags & 0x1) e.p2p = (flags & 0x2) ? "bezier" : "gravity";  // p2p, p2p_sel
       if (pass == 0) {  // under its parent, as the model has it
