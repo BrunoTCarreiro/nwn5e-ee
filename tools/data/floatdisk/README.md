@@ -164,33 +164,49 @@ dyeable texture, painted from an item's colours, and placeables have none - so t
 
 ## Shapes
 
-A part's `shape` is a shape the generator makes instead of a model: `{ "type": "dome", "radius": <m> }` and, where
-they differ from the defaults:
+A part's `shape` is a shape the generator makes instead of a model: `{ "type": <dome, sphere, cylinder, cone, disc or
+ring>, "radius": <m> }` and, where they differ from the defaults:
 
-- `height` (the radius: a half sphere), `segments` (32), `sides` (`both`);
-- `mapping` (`wrap`), `repeat_around` (1), `repeat_up` (1);
-- `colour` (`[0.6, 0.8, 1]`), `alpha` (0.35), `glow` (1), `texture` (`soft`).
+- its own fields: `height` (a dome's the radius, a sphere's, a cylinder's and a cone's twice it; a disc and a ring have
+  none), a ring's `inner` (0.85 of the radius, to the millimetre), `segments` (32), `sides` (`both`);
+- every type's: `mapping` (`wrap`), `repeat_around` (1), `repeat_up` (1), `colour` (`[0.6, 0.8, 1]`), `alpha` (0.35),
+  `glow` (1), `texture` (`soft`).
 
 It has no `scale` (its radius and height size it) and no `colours` (its colour is on the shape). Only what differs
-from the defaults is written.
+from the defaults is written; a key not its type's (a disc's `height`, a dome's `inner`) is refused.
 
 ```json
 { "note": "zone", "shape": { "type": "dome", "radius": 4.57 }, "at": [0, 0, 0] }
 { "shape": { "type": "dome", "radius": 1, "height": 0.4, "colour": [1, 0.85, 0.4] }, "at": [0, 0, 0] }
+{ "note": "edge", "shape": { "type": "ring", "radius": 4.57, "inner": 4.2 }, "at": [0, 0, 0.02] }
 ```
 
-- **The dome** (`"type": "dome"`, a half sphere): its base on the ground at z 0, centred on the origin, `height` up.
-  - `segments` (8-96) go round it, and a quarter of that many rings go up it.
-  - `sides: "both"` (the default) is seen from inside too: the inside's faces come first, each side with its own
-    vertices and its own smoothing group (the inside 2, the outside 1). `"outside"` is seen from outside only.
+- **The types**, each with its base on the ground at z 0, centred on the origin:
+  - `dome`, a half sphere, `height` up;
+  - `sphere`, the dome's rings mirrored below it: `height` tall (twice the radius: a ball), its middle at half that;
+  - `cylinder`, an open tube `height` tall (Moonbeam's and Flame Strike's columns);
+  - `cone`, a ring on the ground to a point `height` up, its base open (a cone spell's, tilted onto its side);
+  - `disc`, flat on the ground (a glyph's place);
+  - `ring`, a flat band from its radius in to `inner` (0.01 to below the radius): a zone's edge on the ground.
+  - A disc and a ring are flat: their outside is their top. Their `at` is 2 cm up in the VFX Bench's Composer, so they
+    don't flicker with the ground at its own height.
+- **Its mesh:**
+  - `segments` (8-96) go round it, and a dome has a quarter of that many rings up it (a sphere twice that, less one, and
+    a point at each end); a cylinder, a cone, a disc and a ring have their two edges only.
+  - `sides: "both"` (the default) is seen from inside too (a flat one's from below): the inside's faces come first, each
+    side with its own vertices and its own smoothing group (the inside 2, the outside 1). `"outside"` is seen from
+    outside only.
 - **How its texture lies on it** (`mapping`):
-  - `wrap` (the default) goes round it from +x and up it from the ground ring to the top. `repeat_around` (1-32) and
-    `repeat_up` (1-16) tile it, so a pattern keeps its size on a big dome.
-  - `above` lays it on from overhead, the picture's square across the shape's width. The repeats don't apply there,
-    and aren't written.
+  - `wrap` (the default) goes round it from +x and up it from its base: a dome's and a cone's from the ground ring to
+    the top, a sphere's from its bottom to its top, a cylinder's from the ground to its top. A disc's and a ring's run
+    from the middle out: from a disc's centre, or a ring's inner edge, to its rim. `repeat_around` (1-32) and
+    `repeat_up` (1-16) tile it, so a pattern keeps its size on a big shape.
+  - `above` lays it on from overhead, the picture's square across the shape's width (a ring's outer). The repeats don't
+    apply there, and aren't written. It suits a low dome, a disc or a ring: a glyph shows as a sigil seen from above.
 - **Its texture** (`texture`):
-  - `soft` is generated: its colour, brighter and more opaque at the ground ring, fading towards the top, made for
-    `wrap`. It's named `n5s_` and 12 hex digits of its colour (to 0.001: `n5s_8c757fb28f99` for the default colour),
+  - `soft` is generated: its colour, brighter and more opaque where `wrap` starts (the ground ring; a sphere's bottom,
+    a disc's centre, a ring's inner edge), fading towards where it ends, made for `wrap`. It's named `n5s_` and 12
+    hex digits of its colour (to 0.001: `n5s_8c757fb28f99` for the default colour),
     and it's original, made from numbers. It's painted from the colour as it's named, so a name fixes the picture.
   - `none` is its colour only.
   - A texture's name (lower-case letters, digits and `_`, at most 16: the game's own, from the bench's library) is

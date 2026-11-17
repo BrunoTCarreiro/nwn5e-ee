@@ -1,8 +1,8 @@
 // The Floating Disk generator's pure parts (#39; build.js does the reading and writing, check.js tests these): the
-// composition, the maths that places the junk, the disk's mesh and texture, the Composer's shapes (a dome: its mesh and
-// generated texture), the game files' text (the creature and pile models, the piles' use points, the 2da rows), a
-// compiled model's node tree, and an ASCII model made readable by the mesh reader. Nothing here touches the disk or the
-// game.
+// composition, the maths that places the junk, the disk's mesh and texture, the Composer's shapes (a dome, a sphere, a
+// cylinder, a cone, a disc and a ring: their meshes and generated texture), the game files' text (the creature and pile
+// models, the piles' use points, the 2da rows), a compiled model's node tree, and an ASCII model made readable by the
+// mesh reader. Nothing here touches the disk or the game.
 // Plain UMD: Node's require, or a page's self.FloatDisk (the Composer). modelNodes, carriesMark and sameText use Buffer
 // and stay Node-only; tgaBytes and diskTexture give a Buffer in Node and a Uint8Array in a page.
 (function (root) {
@@ -435,15 +435,23 @@ function diskTexture(disk, id = "") {
 // player could see the affected area"): { "type": "dome", "radius": <m> }, and the rest only where it differs from
 // shapeDefaults. Its mesh is made here from numbers, and so is its soft texture (n5s_ and a hash of its colour): both
 // original.
-const SHAPE_TYPES = ["dome"];
-const SHAPE_LABELS = { dome: "Dome (half sphere)" };
-const SHAPE_KEYS = ["type", "radius", "height", "segments", "sides", "mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture"];  // the order they're written in
-const SHAPE_FIELDS = { dome: ["radius", "height", "segments", "sides"] };  // a type's own fields, the card's order
+// S5 adds the rest (the design's list): a sphere (globes, Resilient Sphere), an open cylinder (Moonbeam's and Flame
+// Strike's columns), a cone (cone spells, tilted onto their side), a disc (a glyph's place) and a ring (a zone's edge on
+// the ground). A disc and a ring are flat (SHAPE_FLAT): no height, on the ground.
+const SHAPE_TYPES = ["dome", "sphere", "cylinder", "cone", "disc", "ring"];
+const SHAPE_LABELS = { dome: "Dome (half sphere)", sphere: "Sphere", cylinder: "Cylinder (open)", cone: "Cone (point up)", disc: "Disc (flat, on the ground)",
+  ring: "Ring (flat band)" };
+const SHAPE_KEYS = ["type", "radius", "height", "inner", "segments", "sides", "mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture"];  // the order they're written in
+const SOLID = () => ["radius", "height", "segments", "sides"];
+const SHAPE_FIELDS = { dome: SOLID(), sphere: SOLID(), cylinder: SOLID(), cone: SOLID(),  // a type's own fields, the card's order
+  disc: ["radius", "segments", "sides"], ring: ["radius", "inner", "segments", "sides"] };
+const SHAPE_FLAT = ["disc", "ring"];
 const LOOK_FIELDS = ["mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture"];  // every type's
 // A field's card label and bounds: what readShape enforces, and what the page shows.
 const SHAPE_INFO = {
   radius: { label: "Radius (m)", min: 0.05, max: 100, step: 0.05 },
   height: { label: "Height (m)", min: 0.05, max: 100, step: 0.05 },
+  inner: { label: "Inner radius (m)", min: 0.01, max: 100, step: 0.05 },  // a ring's, below its radius too (readShape)
   segments: { label: "Smoothness", min: 8, max: 96, step: 4, whole: true, title: "Segments round it; the rings up it are a quarter of that" },
   sides: { label: "Sides", choices: [["both", "Both: seen from inside too"], ["outside", "Outside only"]] },
   mapping: { label: "Mapping", choices: [["wrap", "Wrapped: round it and up it"], ["above", "From above: laid on from overhead"]] },
@@ -459,9 +467,14 @@ const SHAPE_INFO = {
 const SHAPE_TEXTURE = /^n5s_[0-9a-f]{12}$/;  // a soft texture's name: made, never picked
 const orList = (list) => (list.length > 1 ? list.slice(0, -1).join(", ") + " or " + list[list.length - 1] : list.join(""));
 
+// A type's defaults, in SHAPE_KEYS' order: a dome as tall as its radius; a sphere, a cylinder and a cone twice that (a
+// sphere's a ball); a disc and a ring no height; a ring's inner edge 0.85 of its radius, to the millimetre.
 function shapeDefaults(type, radius) {
-  return { type, radius, height: radius, segments: 32, sides: "both", mapping: "wrap", repeat_around: 1, repeat_up: 1,
-    colour: [0.6, 0.8, 1], alpha: 0.35, glow: 1, texture: "soft" };
+  const out = { type, radius };
+  if (!SHAPE_FLAT.includes(type)) out.height = type === "dome" ? radius : 2 * radius;
+  if (type === "ring") out.inner = Math.round(0.85 * radius * 1000) / 1000;
+  return Object.assign(out, { segments: 32, sides: "both", mapping: "wrap", repeat_around: 1, repeat_up: 1,
+    colour: [0.6, 0.8, 1], alpha: 0.35, glow: 1, texture: "soft" });
 }
 // Whether `v` is a right value for field `k` (by SHAPE_INFO's bounds), and the error naming the field when it isn't.
 function shapeFieldOk(k, v) {
@@ -475,12 +488,14 @@ function shapeFieldOk(k, v) {
 function shapeFieldError(where, k) {
   const info = SHAPE_INFO[k];
   if (k === "texture") return `${where}.texture: soft, none or a texture's name (lower-case letters, digits and _, at most 16)`;
+  if (k === "inner") return `${where}.inner: a number from ${info.min} to below the radius`;
   if (info.colour) return `${where}.${k}: [r, g, b], each 0 to 1`;
   if (info.choices) return `${where}.${k}: ${orList(info.choices.map((c) => c[0]))}`;
   return `${where}.${k}: ${info.whole ? "a whole number" : "a number"} from ${info.min} to ${info.max}${/\(m\)$/.test(info.label) ? " (metres)" : ""}`;
 }
 // A shape as a part gives it -> the full shape: shapeDefaults(type, radius) with its keys over it (its colour copied).
-// `where` names it in an error (stages.small[0].shape); each error names its field.
+// `where` names it in an error (stages.small[0].shape); each error names its field. A key not its type's is refused (a
+// disc's height, a dome's inner); a ring's inner is below its radius.
 function readShape(s, where) {
   if (!s || typeof s !== "object" || Array.isArray(s)) throw new Error(`${where}: a shape ({ "type": "dome", "radius": <metres> })`);
   if (!SHAPE_TYPES.includes(s.type)) throw new Error(`${where}.type: ${orList(SHAPE_TYPES)}`);
@@ -493,6 +508,7 @@ function readShape(s, where) {
   for (const k of SHAPE_KEYS) if (k !== "type" && given.includes(k) && !shapeFieldOk(k, s[k])) throw new Error(shapeFieldError(where, k));
   const out = shapeDefaults(s.type, s.radius);
   for (const k of given) out[k] = k === "colour" ? s[k].slice() : s[k];
+  if (out.type === "ring" && !(out.inner < out.radius)) throw new Error(shapeFieldError(where, "inner"));
   return out;
 }
 // A shape as it's written (`s` a right shape, whole or not): type and radius, then each other key whose value differs
@@ -536,30 +552,55 @@ function shapeTexture({ colour: given }) {
   return { width: size, height: size, data };
 }
 
-// One side of a dome: rings up it and n vertices at its top, its faces counter-clockwise seen from outside.
-// -> { verts, tverts, faces }, its vertices and UVs rounded as diskMesh's, never -0 (so the mesh through JSON is the
-// same mesh). `uv(x, y, u, v)`: a vertex's UV from its position and its wrapped (u, v) at one repeat.
-function domeSide(shape, uv) {
+// A shape's profile, turned round z to make it: its stations from its base onwards, each a ring { r, z, v } or a point a
+// segment { pole: true, z, v } (r 0), `v` its wrapped v at one repeat. Each goes on from the one before it so its
+// outside is the profile's outward side; a flat one's runs in from its rim, so its outside is its top. `n` segments,
+// `m = max(2, round(n / 4))` rings to a quarter turn.
+// - dome: m rings up from the ground ring (latitude (PI / 2) j / m), then its top; v j / m, then 1.
+// - sphere: the dome's rings mirrored below - its bottom point, 2m - 1 rings, its top point; its middle at h / 2, v
+//   from the bottom (0) to the top (1).
+// - cylinder: an open tube, a ring at 0 (v 0) and one at h (v 1). cone: a ring at 0 (v 0) to a point at h (v 1), its
+//   base open.
+// - disc: its rim (v 1) to a point at its centre (v 0), flat at 0. ring: its rim (v 1) to its inner edge (v 0). A flat
+//   one's v runs from the middle out (addendum (b)): the soft texture is brightest at a disc's middle, a ring's inner edge.
+function profileOf(shape) {
   const r = shape.radius, h = shape.height, n = shape.segments, m = Math.max(2, Math.round(n / 4));
-  const verts = [], tverts = [], faces = [];
+  const latitude = (phi, z0, up, v) => ({ r: r * Math.cos(phi), z: z0 + up * Math.sin(phi), v });
+  if (shape.type === "dome") {
+    return [...Array.from({ length: m }, (_, j) => latitude((Math.PI / 2) * j / m, 0, h, j / m)), { pole: true, z: h, v: 1 }];
+  }
+  if (shape.type === "sphere") {
+    return [{ pole: true, z: 0, v: 0 }, ...Array.from({ length: 2 * m - 1 }, (_, k) => latitude(-Math.PI / 2 + (Math.PI / 2) * (k + 1) / m, h / 2, h / 2, (k + 1) / (2 * m))),
+      { pole: true, z: h, v: 1 }];
+  }
+  if (shape.type === "cylinder") return [{ r, z: 0, v: 0 }, { r, z: h, v: 1 }];
+  if (shape.type === "cone") return [{ r, z: 0, v: 0 }, { pole: true, z: h, v: 1 }];
+  if (shape.type === "disc") return [{ r, z: 0, v: 1 }, { pole: true, z: 0, v: 0 }];
+  if (shape.type === "ring") return [{ r, z: 0, v: 1 }, { r: shape.inner, z: 0, v: 0 }];
+  throw new Error(`shapeModel: no ${shape.type}`);
+}
+// One side of a shape: its profile (profileOf) turned round z, n segments - a ring's vertex i at angle 2 PI i / n, u i / n,
+// the seam's twice (0 and n); a pole's vertex i at its segment's middle, u (i + 0.5) / n - its faces counter-clockwise
+// seen from outside. -> { verts, tverts, faces }, its vertices and UVs rounded as diskMesh's, never -0 (so the mesh
+// through JSON is the same mesh). `uv(x, y, u, v)`: a vertex's UV from its position and its wrapped (u, v) at one repeat.
+function shapeSide(shape, uv) {
+  const n = shape.segments, verts = [], tverts = [], faces = [];
   const tidy = (v) => round(v) + 0;  // -0 + 0 is 0
   const vertex = (x, y, z, u, v) => { verts.push(tidy(x), tidy(y), tidy(z)); tverts.push(...uv(x, y, u, v).map(tidy)); return verts.length / 3 - 1; };
-  const ring = [];
-  for (let j = 0; j < m; j++) {  // ring j at latitude (PI / 2) j / m; vertex i at angle 2 PI i / n, the seam's twice (0 and n)
-    const phi = (Math.PI / 2) * j / m, c = Math.cos(phi), s = Math.sin(phi);
-    ring.push(Array.from({ length: n + 1 }, (_, i) => {
+  const profile = profileOf(shape);
+  const stations = profile.map((s) => (s.pole ? Array.from({ length: n }, (_, i) => vertex(0, 0, s.z, (i + 0.5) / n, s.v))
+    : Array.from({ length: n + 1 }, (_, i) => {
       const theta = (2 * Math.PI * i) / n;
-      return vertex(r * c * Math.cos(theta), r * c * Math.sin(theta), h * s, i / n, j / m);
-    }));
-  }
-  const top = Array.from({ length: n }, (_, i) => vertex(0, 0, h, (i + 0.5) / n, 1));
-  for (let j = 0; j < m - 1; j++) {
+      return vertex(s.r * Math.cos(theta), s.r * Math.sin(theta), s.z, i / n, s.v);
+    })));
+  for (let j = 0; j + 1 < stations.length; j++) {
+    const a = stations[j], b = stations[j + 1];
     for (let i = 0; i < n; i++) {
-      const a = ring[j][i], b = ring[j][i + 1], c = ring[j + 1][i + 1], d = ring[j + 1][i];
-      faces.push(a, b, c, a, c, d);
+      if (profile[j].pole) faces.push(a[i], b[i + 1], b[i]);  // from a point: its segment's triangle
+      else if (profile[j + 1].pole) faces.push(a[i], a[i + 1], b[i]);  // to a point
+      else faces.push(a[i], a[i + 1], b[i + 1], a[i], b[i + 1], b[i]);
     }
   }
-  for (let i = 0; i < n; i++) faces.push(ring[m - 1][i], ring[m - 1][i + 1], top[i]);
   return { verts, tverts, faces };
 }
 // Both sides: a copy of the vertices with the inside's faces (each outside face's first, third and second) - the inside
@@ -576,15 +617,17 @@ function bothSides(side) {
 // y 0) -> { meshes: [{ name (its type), bitmap, verts, tverts, faces, groups (each face's smoothing group: meshLines),
 // diffuse, ambient, selfillum, alpha, transparent }], lo, hi, textures: [{ name, colour }] (the soft texture to make, or
 // none) }.
-// - Its UVs: Wrapped, u round it from +x and v from the ground ring up, times its repeats; From above, laid on from
-//   overhead, its width the picture's square ((0.5 + x / 2r, 0.5 + y / 2r)).
+// - Its UVs: Wrapped, u round it from +x and v from its base up (a disc's and a ring's from the middle out), times its
+//   repeats; From above, laid on from overhead, its width the picture's square ((0.5 + x / 2r, 0.5 + y / 2r): r its
+//   radius, a ring's outer).
 // - Its material: soft, the texture's colour lit by its glow; none, its own colour; a library texture, tinted by its
 //   colour and see-through (its own alpha isn't known here).
+// - Its box: a flat one's (a disc, a ring) is 0 high.
 function shapeModel(shape) {
   const r = shape.radius;
   const uv = shape.mapping === "above" ? (x, y) => [0.5 + x / (2 * r), 0.5 + y / (2 * r)]
     : (x, y, u, v) => [u * shape.repeat_around, v * shape.repeat_up];
-  const side = domeSide(shape, uv);
+  const side = shapeSide(shape, uv);
   const { verts, tverts, faces, groups } = shape.sides === "both" ? bothSides(side) : Object.assign({ groups: new Array(side.faces.length / 3).fill(1) }, side);
   const soft = shape.texture === "soft", colour = shape.colour, glow = shape.glow;
   const bitmap = soft ? shapeTextureName(shape) : shape.texture === "none" ? "" : shape.texture;
@@ -592,7 +635,7 @@ function shapeModel(shape) {
     diffuse: soft ? [1, 1, 1] : colour.slice(), ambient: soft ? [1, 1, 1] : colour.slice(),
     selfillum: soft ? [glow, glow, glow] : colour.map((c) => round(c * glow)),
     alpha: shape.alpha, transparent: shape.texture !== "none" || shape.alpha < 1 };
-  return { meshes: [mesh], lo: [-r, -r, 0], hi: [r, r, shape.height], textures: soft ? [{ name: bitmap, colour: colour.slice() }] : [] };
+  return { meshes: [mesh], lo: [-r, -r, 0], hi: [r, r, SHAPE_FLAT.includes(shape.type) ? 0 : shape.height], textures: soft ? [{ name: bitmap, colour: colour.slice() }] : [] };
 }
 
 // --- a compiled model's node tree ---------------------------------------------------------------------------------
@@ -863,7 +906,7 @@ const api = {
   resolvePartFile, readPart, readComposition, partKey, partLabel, quat, axisAngle, qrot, round, num, modelSpaceMeshes, placePart,
   lowered, uniqueNames, diskMesh, diskTexture, modelNodes, creatureModelText, pileNodes, pileModelText,
   pileWalkmeshText, rowsText, readableAscii, texturesBeside, carriesMark, sameText, crlf, mergeModels, inline, compositionText,
-  SHAPE_TYPES, SHAPE_LABELS, SHAPE_KEYS, SHAPE_FIELDS, LOOK_FIELDS, SHAPE_INFO, SHAPE_TEXTURE,
+  SHAPE_TYPES, SHAPE_LABELS, SHAPE_KEYS, SHAPE_FIELDS, SHAPE_FLAT, LOOK_FIELDS, SHAPE_INFO, SHAPE_TEXTURE,
   shapeDefaults, readShape, cleanShape, shapeModel, shapeTexture, shapeTextureName,
 };
 if (typeof module === "object" && module.exports) module.exports = api;

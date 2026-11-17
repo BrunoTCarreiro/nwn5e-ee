@@ -1599,6 +1599,17 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
       - view.js: front faces only (cullBack) and repeating mesh textures (a picture not a power of two stretched first);
       - the view buttons fit a big variant (frameBox, up to 40 m);
       - composer_check.mjs +10 (88 steps); browser_check.mjs unchanged (95: no step relied on a mesh's back).
+    - S5 (anim, the commit carrying this line; nwn5e-tools 8272de9), the other shapes:
+      - floatdisk.js: Sphere, Cylinder (open), Cone (point up), Disc (flat, on the ground), Ring (flat band) - one turned
+        profile for every type (the dome's mesh as before), each both sides, the inside first, its base at z 0, each with
+        Mapping and the repeats: Wrapped from its base up, a disc's and a ring's from the middle out (addendum (b)); a
+        sphere's, a cylinder's and a cone's Height twice the radius, a flat one none; a ring's Inner radius 0.85 of the
+        radius to the millimetre, always below it;
+      - composer.js liftOf: a disc or a ring rests 2 cm up wherever the page rests a part (an add, a move, a nudge, Drop
+        it, Duplicate), as the vision cones were lifted (PLAN 0.31.1); the page's card refuses an Inner radius at or past
+        the Radius;
+      - floatdisk check +16 (68: a check a type, and one a type for each mapping), check_composer +1 (38),
+        composer_check.mjs +1 (89 steps: otherShapes); browser_check.mjs unchanged (95).
   - *The owner's answers:*
     - Q4: front faces only, everywhere the bench draws a mesh (the stage, area mode, the Composer, the thumbnails). A
       game mesh's back no longer shows in the effect mode either.
@@ -1614,15 +1625,21 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     - if the game's loader welded vertices by position, a two-sided mesh's normals could cancel (dark at a low glow);
     - Play in game's effect follows the character: `!vfxarea <effect> 0.6 1 0` puts it down for 60 s;
     - a library texture's own alpha isn't known to the generator: a textured shape is always drawn see-through;
-    - no scrolling texture (a later task, after the in-game test: our writers write no UV animation).
+    - no scrolling texture (a later task, after the in-game test: our writers write no UV animation);
+    - a disc's and a ring's Soft is brightest at the middle (a disc's centre, a ring's inner edge): addendum (b) runs
+      their Wrapped from the middle out, where S5's own table had v from the rim in. SH-5 asks the owner; the other way
+      is one line each in floatdisk.js's profileOf;
+    - the 2 cm is the Composer's: a flat shape typed or lifted back to 0 sits at the ground's own height;
+    - a sphere, a cylinder or a cone of radius over 50 m has a default Height past the field's 100 m (it builds).
   - *For the bench:* restart vfx_bench.bat. *For the game:* nothing for the DLL - the "anim ready" for S1, S2 and these
     docs carries tools only.
   - *Next for Zone of Truth (the design's recipe):* the owner tries the look (SH-1 to SH-4). If he likes it and Q5 turns
     to yes, the animation session ships `n5_zotruth` as Detect Magic's glow was (its draft, its model by WriteVfxModel,
     its texture, a visualeffects row of type D at a free row), and the game session builds the spell: its spells.2da row,
-    a vfx_persistent area of 4.57 m whose DurationVFX is that row, the Charisma save, 10 minutes. S5 adds the sphere,
+    a vfx_persistent area of 4.57 m whose DurationVFX is that row, the Charisma save, 10 minutes. S5 added the sphere,
     cylinder, cone, disc and ring.
   - Test rows SH-1 (the bench: the dome, its card, inside and out, Repeat up, From above, a library texture, then saved),
-    SH-2 (a mesh beat fading in), SH-3 (Play in game, and Repeat up 2 in game), SH-4 (`!vfxarea` at your feet).
+    SH-2 (a mesh beat fading in), SH-3 (Play in game, and Repeat up 2 in game), SH-4 (`!vfxarea` at your feet), SH-5 (the
+    bench: the other five shapes, the flat ones just above the ground, a cone tilted onto its side).
   - *The review of S4 (nwn5e-tools 1ef7da0):* a shape field past its bounds is refused as typed, never rounded
     into them first (Opacity 0.015 was saved as 0.02); the rows made self-contained.

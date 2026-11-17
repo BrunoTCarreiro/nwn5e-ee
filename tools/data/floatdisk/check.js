@@ -507,15 +507,16 @@ check("writeAll dry: the states and the ownership rule as written, nothing writt
 // --- the Composer's shapes: the dome ------------------------------------------------------------------------------------
 const vertOf = (m, i) => [m.verts[3 * i], m.verts[3 * i + 1], m.verts[3 * i + 2]];
 const uvOf = (m, i) => [m.tverts[2 * i], m.tverts[2 * i + 1]];
-// Each triangle's (b - a) x (c - a) dotted with its centroid (a dome's centre is the origin): its sign says which way it
-// faces, out (+) or in (-).
-function normals(m) {
+// Each triangle's (b - a) x (c - a) dotted with its centroid less `centre` (a dome's centre is the origin, a sphere's its
+// middle): its sign says which way it faces, out (+) or in (-). `centre` "z": the normal's z (a flat shape's: up + or
+// down -).
+function normals(m, centre = [0, 0, 0]) {
   const out = [];
   for (let f = 0; f < m.faces.length; f += 3) {
     const [a, b, c] = [0, 1, 2].map((k) => vertOf(m, m.faces[f + k]));
     const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
     const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
-    out.push([0, 1, 2].reduce((s, k) => s + n[k] * (a[k] + b[k] + c[k]) / 3, 0));
+    out.push(centre === "z" ? n[2] : [0, 1, 2].reduce((s, k) => s + n[k] * ((a[k] + b[k] + c[k]) / 3 - centre[k]), 0));
   }
   return out;
 }
@@ -766,8 +767,12 @@ check("compositionText: a shape part on one line, its shape after note", () => {
 });
 check("shapes in a page: the same mesh, texture bytes and name", () => {
   const P = pageFloatDisk();
-  for (const o of [{}, { mapping: "above", texture: "none", sides: "outside" }]) {
-    assert.deepStrictEqual(P.shapeModel(P.readShape(dome(o), "s")), F.shapeModel(F.readShape(dome(o), "s")));
+  assert.deepStrictEqual(P.SHAPE_TYPES, F.SHAPE_TYPES);
+  for (const type of F.SHAPE_TYPES) {  // every type (S5)
+    for (const o of [{}, { mapping: "above", texture: "none", sides: "outside" }, { repeat_around: 3, repeat_up: 2 }]) {
+      const s = Object.assign({ type, radius: 2 }, o);
+      assert.deepStrictEqual(P.shapeModel(P.readShape(s, "s")), F.shapeModel(F.readShape(s, "s")), `${type} ${JSON.stringify(o)}`);
+    }
   }
   const page = P.tgaBytes(P.shapeTexture({ colour: [0.6, 0.8, 1] }), { alpha: true });
   assert.ok(page instanceof Uint8Array && !Buffer.isBuffer(page));
@@ -784,5 +789,201 @@ check("a soft texture's name fixes its bytes: the colour is painted as it's name
   assert.notStrictEqual(F.shapeTextureName({ colour: [0.61, 0.8, 1] }), "n5s_8c757fb28f99");
   assert.ok(!soft([0.61, 0.8, 1]).equals(soft([0.6, 0.8, 1])));
 });
+
+// --- the Composer's shapes: sphere, cylinder, cone, disc and ring (S5) ---------------------------------------------------
+// Each on its defaults at radius 1 - 32 segments, both sides - by the dome's rules: its base at z 0, centred, each side its
+// own vertices, the inside first, counter-clockwise seen from outside (a flat one's outside its top), each ring's seam
+// column twice. Wrapped: u round it from +x, v from its base up - a disc's and a ring's from the middle out (addendum
+// (b)); From above as the dome's.
+const shapeOf = (type, o) => F.shapeModel(F.readShape(Object.assign({ type, radius: 1 }, o), "s"));
+const LOOK = { segments: 32, sides: "both", mapping: "wrap", repeat_around: 1, repeat_up: 1, colour: [0.6, 0.8, 1], alpha: 0.35, glow: 1, texture: "soft" };
+// Both sides of `type`'s mesh, the inside first: `count` vertices and `tris` triangles a side, the inside's facing in (each
+// triangle's sign by `face`), each side its own vertices (the inside's the outside's, in the same order, UVs too), the
+// inside in smoothing group 2; rounded, no -0. Outside only: one side, every triangle facing out. -> the mesh.
+function twoSided(type, count, tris, face) {
+  const model = shapeOf(type), m = model.meshes[0];
+  assert.strictEqual(model.meshes.length, 1);
+  assert.strictEqual(m.name, type);
+  assert.deepStrictEqual([m.verts.length / 3, m.tverts.length / 2, m.faces.length / 3], [2 * count, 2 * count, 2 * tris]);
+  face(m).forEach((d, t) => assert.ok(t < tris ? d < 0 : d > 0, `triangle ${t} faces ${d < 0 ? "in" : "out"}`));
+  m.faces.forEach((v, k) => assert.ok(k < 3 * tris ? v >= 0 && v < count : v >= count && v < 2 * count, `triangle ${Math.floor(k / 3)} uses vertex ${v}`));
+  assert.deepStrictEqual(m.verts.slice(0, 3 * count), m.verts.slice(3 * count));
+  assert.deepStrictEqual(m.tverts.slice(0, 2 * count), m.tverts.slice(2 * count));
+  assert.deepStrictEqual(m.groups, new Array(tris).fill(2).concat(new Array(tris).fill(1)));
+  rounded(m);
+  noNegativeZero(model);
+  const out = shapeOf(type, { sides: "outside" }).meshes[0];
+  assert.deepStrictEqual([out.verts.length / 3, out.faces.length / 3], [count, tris]);
+  face(out).forEach((d, t) => assert.ok(d > 0, `outside only: triangle ${t} faces in`));
+  assert.deepStrictEqual(out.groups, new Array(tris).fill(1));
+  return m;
+}
+// The outside's vertices at point p (the second half of a mesh with both sides), and their UVs.
+const outsideAt = (m, p) => { const half = m.verts.length / 6; return Array.from({ length: half }, (_, i) => half + i).filter((i) => vertOf(m, i).every((c, k) => Math.abs(c - p[k]) < 1e-4)); };
+const uvsAt = (m, p) => outsideAt(m, p).map((i) => uvOf(m, i));
+// A pole at p: a vertex a segment, each at its segment's middle u (times `around`), all at v `v`.
+function poleAt(m, p, v, around = 1) {
+  const at = outsideAt(m, p);
+  assert.strictEqual(at.length, 32, `${at.length} vertices at ${p}`);
+  at.forEach((i, k) => {
+    const [u, w] = uvOf(m, i);
+    assert.strictEqual(w, v, `pole ${p} v ${w}`);
+    assert.ok(Math.abs(u - ((k + 0.5) / 32) * around) <= 1e-5, `pole ${p} u ${u}`);
+  });
+}
+const zsOf = (m) => m.verts.filter((_, i) => i % 3 === 2);
+
+check("the other shapes: six types, their labels and fields; a sphere's, a cylinder's and a cone's height twice the radius, a flat one's none, a ring's inner 0.85 of it", () => {
+  assert.deepStrictEqual(F.SHAPE_TYPES, ["dome", "sphere", "cylinder", "cone", "disc", "ring"]);
+  assert.deepStrictEqual(F.SHAPE_LABELS, { dome: "Dome (half sphere)", sphere: "Sphere", cylinder: "Cylinder (open)", cone: "Cone (point up)",
+    disc: "Disc (flat, on the ground)", ring: "Ring (flat band)" });
+  assert.deepStrictEqual(F.SHAPE_KEYS, ["type", "radius", "height", "inner", "segments", "sides", "mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture"]);
+  const solid = ["radius", "height", "segments", "sides"];
+  assert.deepStrictEqual(F.SHAPE_FIELDS, { dome: solid, sphere: solid, cylinder: solid, cone: solid, disc: ["radius", "segments", "sides"],
+    ring: ["radius", "inner", "segments", "sides"] });
+  assert.deepStrictEqual(F.SHAPE_FLAT, ["disc", "ring"]);
+  assert.deepStrictEqual(F.SHAPE_INFO.inner, { label: "Inner radius (m)", min: 0.01, max: 100, step: 0.05 });
+  // The defaults, in SHAPE_KEYS' order; each read as its defaults and written as its type and radius alone.
+  const want = {
+    sphere: { type: "sphere", radius: 4.57, height: 9.14 }, cylinder: { type: "cylinder", radius: 4.57, height: 9.14 }, cone: { type: "cone", radius: 4.57, height: 9.14 },
+    disc: { type: "disc", radius: 4.57 }, ring: { type: "ring", radius: 4.57, inner: 3.885 },
+  };
+  for (const [type, own] of Object.entries(want)) {
+    const d = F.shapeDefaults(type, 4.57), whole = Object.assign({}, own, LOOK);
+    assert.deepStrictEqual(d, whole, type);
+    assert.deepStrictEqual(Object.keys(d), Object.keys(whole), type);
+    assert.deepStrictEqual(F.readShape({ type, radius: 4.57 }, "s"), d, type);
+    assert.deepStrictEqual(F.cleanShape(d), { type, radius: 4.57 }, type);
+    assert.strictEqual(F.partLabel(F.readPart({ shape: { type, radius: 4.57 }, at: [0, 0, 0] }, "p", BASE)), `${type} 4.57 m`);
+  }
+  // A height given is kept when it isn't the default; a flat shape has none, and only a ring has an inner.
+  assert.deepStrictEqual(F.cleanShape(F.readShape({ type: "cylinder", radius: 1, height: 3 }, "s")), { type: "cylinder", radius: 1, height: 3 });
+  assert.deepStrictEqual(F.cleanShape(F.readShape({ type: "cone", radius: 1, height: 2 }, "s")), { type: "cone", radius: 1 });
+  const keys = "type, radius, segments, sides, mapping, repeat_around, repeat_up, colour, alpha, glow or texture";
+  assert.throws(() => F.readShape({ type: "disc", radius: 1, height: 1 }, "s"), (e) => e.message === `s.height: not a disc's - ${keys}`);
+  assert.throws(() => F.readShape({ type: "ring", radius: 1, height: 1 }, "s"), /^Error: s\.height: not a ring's - type, radius, inner, segments, /);
+  for (const type of ["dome", "sphere", "cylinder", "cone", "disc"]) assert.throws(() => F.readShape({ type, radius: 1, inner: 0.5 }, "s"), new RegExp(`^Error: s\\.inner: not a ${type}'s - `));
+  assert.throws(() => F.readShape({ type: "cube", radius: 1 }, "s"), (e) => e.message === "s.type: dome, sphere, cylinder, cone, disc or ring");
+});
+check("a sphere: 1118 vertices and 1920 triangles, the inside first, its lowest point at 0, v from the bottom pole", () => {
+  const m = twoSided("sphere", 559, 960, (x) => normals(x, [0, 0, 1])), model = shapeOf("sphere");
+  assert.deepStrictEqual([model.lo, model.hi], [[-1, -1, 0], [1, 1, 2]]);
+  for (let i = 0; i < 1118; i++) { const [x, y, z] = vertOf(m, i); near(x * x + y * y + (z - 1) * (z - 1), 1); }
+  assert.deepStrictEqual([Math.min(...zsOf(m)), Math.max(...zsOf(m))], [0, 2]);
+  // Wrapped at one repeat: v 0 at the bottom pole, 0.5 at the equator, 1 at the top - each ring's v its latitude's share
+  // of the half turn; u round it from +x.
+  poleAt(m, [0, 0, 0], 0);
+  poleAt(m, [0, 0, 2], 1);
+  assert.deepStrictEqual(uvsAt(m, [1, 0, 1]), [[0, 0.5], [1, 0.5]]);
+  for (let i = 559; i < 1118; i++) {
+    const [x, y, z] = vertOf(m, i);
+    if (x !== 0 || y !== 0) near(uvOf(m, i)[1], 0.5 + Math.asin(Math.max(-1, Math.min(1, z - 1))) / Math.PI, 1e-3);
+  }
+  assert.ok(m.tverts.every((t) => t >= 0 && t <= 1));
+  // Its height given: still standing on 0, its middle at half of it.
+  const low = shapeOf("sphere", { height: 1 }), l = low.meshes[0];
+  assert.deepStrictEqual(low.hi, [1, 1, 1]);
+  for (let i = 0; i < l.verts.length / 3; i++) { const [x, y, z] = vertOf(l, i); near(x * x + y * y + 4 * (z - 0.5) * (z - 0.5), 1); }
+});
+check("a cylinder: an open tube, 132 vertices and 128 triangles, v up its side", () => {
+  const m = twoSided("cylinder", 66, 64, (x) => normals(x)), model = shapeOf("cylinder");
+  assert.deepStrictEqual([model.lo, model.hi], [[-1, -1, 0], [1, 1, 2]]);
+  for (let i = 0; i < 132; i++) {
+    const [x, y, z] = vertOf(m, i);
+    near(x * x + y * y, 1);
+    assert.ok(z === 0 || z === 2, `vertex ${i} at z ${z}`);
+    assert.strictEqual(uvOf(m, i)[1], z / 2);  // v 0 at the ground, 1 at the top
+  }
+  assert.deepStrictEqual(uvsAt(m, [1, 0, 0]), [[0, 0], [1, 0]]);
+  assert.deepStrictEqual(uvsAt(m, [1, 0, 2]), [[0, 1], [1, 1]]);
+});
+check("a cone: a ring to a point, 130 vertices and 64 triangles, the point at its height", () => {
+  const m = twoSided("cone", 65, 32, (x) => normals(x)), model = shapeOf("cone");
+  assert.deepStrictEqual([model.lo, model.hi], [[-1, -1, 0], [1, 1, 2]]);
+  // Its ring on the ground at its radius (the seam's twice), its point a vertex a segment at its height; its base open.
+  const half = Array.from({ length: 65 }, (_, i) => 65 + i), ground = half.filter((i) => vertOf(m, i)[2] === 0);
+  assert.strictEqual(ground.length, 33);
+  ground.forEach((i) => { const [x, y] = vertOf(m, i); near(x * x + y * y, 1); assert.strictEqual(uvOf(m, i)[1], 0); });
+  poleAt(m, [0, 0, 2], 1);
+  assert.deepStrictEqual(uvsAt(m, [1, 0, 0]), [[0, 0], [1, 0]]);
+  assert.strictEqual(Math.max(...zsOf(m)), 2);
+});
+check("a disc: flat at 0, 130 vertices and 64 triangles, its outside facing up, v from the centre to the rim", () => {
+  const m = twoSided("disc", 65, 32, (x) => normals(x, "z")), model = shapeOf("disc");
+  assert.deepStrictEqual([model.lo, model.hi], [[-1, -1, 0], [1, 1, 0]]);
+  assert.ok(zsOf(m).every((z) => z === 0), "a vertex off the ground");
+  // Wrapped at one repeat, from the middle out (addendum (b)): its centre a vertex a segment at v 0, its rim at v 1.
+  poleAt(m, [0, 0, 0], 0);
+  assert.deepStrictEqual(uvsAt(m, [1, 0, 0]), [[0, 1], [1, 1]]);
+  const rim = Array.from({ length: 65 }, (_, i) => 65 + i).filter((i) => vertOf(m, i)[0] !== 0 || vertOf(m, i)[1] !== 0);
+  assert.strictEqual(rim.length, 33);
+  rim.forEach((i) => { const [x, y] = vertOf(m, i); near(x * x + y * y, 1); assert.strictEqual(uvOf(m, i)[1], 1); });
+});
+check("a ring: a flat band, 132 vertices and 128 triangles, its inner edge 0.85 of the radius, v across the band", () => {
+  const m = twoSided("ring", 66, 64, (x) => normals(x, "z")), model = shapeOf("ring");
+  assert.deepStrictEqual([model.lo, model.hi], [[-1, -1, 0], [1, 1, 0]]);
+  assert.ok(zsOf(m).every((z) => z === 0), "a vertex off the ground");
+  // Its outer edge at the radius, its inner at 0.85 of it, 33 vertices each a side; wrapped at one repeat, from the middle
+  // out (addendum (b)): v 0 at the inner edge, 1 at the outer.
+  const edge = (r) => Array.from({ length: 66 }, (_, i) => 66 + i).filter((i) => { const [x, y] = vertOf(m, i); return Math.abs(Math.hypot(x, y) - r) < 1e-4; });
+  assert.deepStrictEqual([edge(1).length, edge(0.85).length], [33, 33]);
+  assert.ok(edge(1).every((i) => uvOf(m, i)[1] === 1) && edge(0.85).every((i) => uvOf(m, i)[1] === 0));
+  assert.deepStrictEqual(uvsAt(m, [1, 0, 0]), [[0, 1], [1, 1]]);
+  assert.deepStrictEqual(uvsAt(m, [0.85, 0, 0]), [[0, 0], [1, 0]]);
+  // Its inner given: kept when it isn't the default (0.85 of the radius, to the millimetre); from 0.01 to below the radius.
+  const narrow = shapeOf("ring", { inner: 0.5 }).meshes[0];
+  assert.strictEqual(outsideAt(narrow, [0.5, 0, 0]).length, 2);
+  assert.deepStrictEqual(F.cleanShape(F.readShape({ type: "ring", radius: 4.57, inner: 2 }, "s")), { type: "ring", radius: 4.57, inner: 2 });
+  assert.deepStrictEqual(F.cleanShape(F.readShape({ type: "ring", radius: 4.57, inner: 3.885 }, "s")), { type: "ring", radius: 4.57 });
+  for (const inner of [1, 0, 1.5, 0.005, -1, "0.5"]) {
+    assert.throws(() => F.readShape({ type: "ring", radius: 1, inner }, "s"), /^Error: s\.inner: a number from 0\.01 to below the radius$/, `inner ${inner}`);
+  }
+  for (const inner of [0.01, 0.999]) assert.strictEqual(F.readShape({ type: "ring", radius: 1, inner }, "s").inner, inner);
+  // The smallest ring's default inner still reads.
+  assert.strictEqual(F.readShape({ type: "ring", radius: 0.05 }, "s").inner, 0.043);
+});
+// Each type Wrapped and From above (addendum (b): one check per type for each mapping), at radius 1.
+// - Wrapped, Repeat around 3 and up 2: at each of its `seams` ([x, y, z] at angle 0, its v at one repeat) the seam's two
+//   vertices, u 0 and 3, at twice that v; each of its `poles` a vertex a segment at its segment's middle u three times
+//   round, at twice its v; every UV within [0, 3] x [0, 2].
+// - From above (with the repeats or without: the same mesh): every vertex at (0.5 + x / 2, 0.5 + y / 2) from its own
+//   place, the inside's as its vertex's - its `rim` at angle 0 (1, 0.5), at 90 degrees (0.5, 1), a pole (0.5, 0.5).
+const MAPPED = {
+  sphere: { wrap: "v from the bottom pole (0) through the equator (1) to the top (2)", seams: [[[1, 0, 1], 0.5]], poles: [[[0, 0, 0], 0], [[0, 0, 2], 1]], z: 1 },
+  cylinder: { wrap: "v from the ground (0) to the top (2)", seams: [[[1, 0, 0], 0], [[1, 0, 2], 1]], poles: [], z: 0 },
+  cone: { wrap: "v from the ground (0) to the point (2)", seams: [[[1, 0, 0], 0]], poles: [[[0, 0, 2], 1]], z: 0 },
+  disc: { wrap: "v from the centre (0) to the rim (2)", seams: [[[1, 0, 0], 1]], poles: [[[0, 0, 0], 0]], z: 0 },
+  ring: { wrap: "v from the inner edge (0) to the outer (2)", seams: [[[0.85, 0, 0], 0], [[1, 0, 0], 1]], poles: [], z: 0 },
+};
+for (const [type, t] of Object.entries(MAPPED)) {
+  check(`a ${type} Wrapped, Repeat around 3 and up 2: u round it from +x to 3, ${t.wrap}`, () => {
+    const model = shapeOf(type, { repeat_around: 3, repeat_up: 2 }), m = model.meshes[0];
+    rounded(m);
+    noNegativeZero(model);
+    for (const [p, v] of t.seams) assert.deepStrictEqual(uvsAt(m, p), [[0, 2 * v], [3, 2 * v]], `the seam at ${p}`);
+    for (const [p, v] of t.poles) poleAt(m, p, 2 * v, 3);
+    for (let i = 0; i < m.tverts.length; i += 2) assert.ok(m.tverts[i] >= 0 && m.tverts[i] <= 3 && m.tverts[i + 1] >= 0 && m.tverts[i + 1] <= 2, `UV ${i / 2}`);
+    assert.ok(m.tverts.some((x, i) => i % 2 === 0 && x === 3) && m.tverts.some((x, i) => i % 2 === 1 && x === 2), "the repeats not reached");
+    // The repeats only tile the UVs: the same vertices and faces as at one repeat.
+    const one = shapeOf(type).meshes[0];
+    assert.deepStrictEqual([m.verts, m.faces], [one.verts, one.faces]);
+  });
+  check(`a ${type} From above: laid on from overhead, its rim at angle 0 (1, 0.5)${t.poles.length ? ", a pole (0.5, 0.5)" : ""}; the repeats don't apply`, () => {
+    const model = shapeOf(type, { mapping: "above" }), m = model.meshes[0], count = m.verts.length / 3;
+    rounded(m);
+    noNegativeZero(model);
+    assert.deepStrictEqual(shapeOf(type, { mapping: "above", repeat_around: 3, repeat_up: 2 }), model);
+    for (let i = 0; i < count; i++) {
+      const [x, y] = vertOf(m, i), [u, v] = uvOf(m, i);
+      near(u, 0.5 + x / 2);
+      near(v, 0.5 + y / 2);
+    }
+    assert.deepStrictEqual(m.tverts.slice(0, count), m.tverts.slice(count));  // the inside keeps its vertex's UV
+    assert.deepStrictEqual(uvsAt(m, [1, 0, t.z]), [[1, 0.5], [1, 0.5]]);
+    assert.deepStrictEqual(uvOf(m, outsideAt(m, [0, 1, t.z])[0]), [0.5, 1]);
+    for (const [p] of t.poles) assert.ok(outsideAt(m, p).every((i) => uvOf(m, i)[0] === 0.5 && uvOf(m, i)[1] === 0.5), `the pole at ${p}`);
+    if (type === "ring") assert.deepStrictEqual(uvsAt(m, [0.85, 0, 0]), [[0.925, 0.5], [0.925, 0.5]]);  // its r the outer radius
+  });
+}
 
 console.log(process.exitCode ? `floatdisk check: FAILED (${count} passed)` : `floatdisk check: ${count} checks pass`);
