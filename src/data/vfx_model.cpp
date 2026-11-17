@@ -55,11 +55,14 @@ std::vector<std::string> EmitterLines(const VfxEmitter& e, const std::string& no
   const auto flag = [](const char* name, bool on) { return std::string("  ") + name + (on ? " 1" : " 0"); };
   // Point to point only with a target (the game calls into a missing one); p2p_sel 1: bezier.
   const bool p2p = has_target && (e.p2p == "bezier" || e.p2p == "gravity");
+  // A random frame each is frameStart + rand() % (frameEnd - frameStart + 1) in the game (chkRandom; nwn5e-tools
+  // PARTICLES.md): a start one past the end divides by 0, so no random frame then (the draft keeps its flag).
+  const bool random = e.random && e.frame_start != e.frame_end + 1;
   return {
       "node emitter " + node,
       "  parent " + parent,
       flag("p2p", p2p), flag("p2p_sel", !p2p || e.p2p == "bezier"), "  affectedByWind 0", "  m_isTinted 0", flag("bounce", e.bounce),
-      flag("random", e.random), flag("inherit", e.inherit), "  inheritvel 0", flag("inherit_local", e.inherit_local),
+      flag("random", random), flag("inherit", e.inherit), "  inheritvel 0", flag("inherit_local", e.inherit_local),
       flag("splat", e.splat), flag("inherit_part", e.inherit_part), "  renderorder 0", "  spawntype 0",
       "  update " + e.update,
       "  render " + e.render,

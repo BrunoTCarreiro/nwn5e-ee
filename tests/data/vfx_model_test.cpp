@@ -1991,6 +1991,32 @@ TEST(VfxFrameStartAndGridDownThroughTheDraft) {
   if (!back.emitters.empty()) CHECK_EQ(back.emitters[0].frame_start, 0);
 }
 
+// A random frame each (chkRandom) is frameStart + rand() % (frameEnd - frameStart + 1) in the game (nwn5e-tools
+// PARTICLES.md, from the decompile): a start one past the end divides by 0. The model writes "random 0" then - the draft
+// keeps the flag as written; a span of 1 or more frames keeps "random 1".
+TEST(VfxModelRandomWithoutFramesOff) {
+  VfxEffect effect = Sample();  // random, frames 0..3
+  effect.emitters[0].frame_start = 4;
+  const std::string draft = WriteVfxDraft(effect);
+  CHECK_EQ(Contains(draft, "\nframe_end = 3\nframe_start = 4\n") && Contains(draft, "\nflags = splat random twosidedtex\n"), true);
+  VfxEffect back;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(draft, &back, &error) && back.emitters.size() == 1 && back.emitters[0].random, true);
+  CHECK_EQ(WriteVfxDraft(back) == draft, true);
+  const std::string model = WriteVfxModel(back, "n5t");
+  CHECK_EQ(Contains(model, "  random 0\n"), true);
+  CHECK_EQ(Contains(model, "  random 1\n"), false);
+  for (const int start : {0, 3}) {  // frames 0..3, and the one frame 3..3
+    VfxEffect span = Sample();
+    span.emitters[0].frame_start = start;
+    CHECK_EQ(Contains(WriteVfxModel(span, "n5t"), "  random 1\n"), true);
+  }
+  VfxEffect plain = Sample();
+  plain.emitters[0].random = false;
+  plain.emitters[0].frame_start = 4;
+  CHECK_EQ(Contains(WriteVfxModel(plain, "n5t"), "  random 0\n"), true);
+}
+
 // A draft's frames down the same as across reads as 0, after the whole section (either line first) - the rule of both
 // model readers, so the three agree - and then follows the grid: a square sheet stays square when the grid changes.
 TEST(VfxDraftGridDownSameAsGridReadsAsZero) {
