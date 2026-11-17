@@ -896,6 +896,10 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
       }
     } else DraftKeyLine(key, words, &e->keys);
   }
+  // Frames down the same as across (either line first): 0, as both model readers have it - then it follows the grid.
+  for (VfxEmitter& e : result.emitters) {
+    if (e.grid_down == e.grid) e.grid_down = 0;
+  }
   *effect = result;
   return true;
 }
@@ -1423,7 +1427,7 @@ void ApplyController(const Controller& c, VfxEmitter* e) {
     case 96: e->color_end[0] = v(0); e->color_end[1] = v(1); e->color_end[2] = v(2); break;
     case 108: e->color_start[0] = v(0); e->color_start[1] = v(1); e->color_start[2] = v(2); break;
     case 128: e->fps = v(0); break;  // PartEmitter +0x9c (controller = field offset - 28)
-    case 132: e->frame_end = static_cast<int>(v(0)); break;
+    case 132: e->frame_end = std::max(0, static_cast<int>(v(0))); break;  // as the ASCII and draft readers: never below 0
     case 136: e->frame_start = std::max(0, static_cast<int>(v(0))); break;  // frameStart (vim_protevil's OmenEmitter01: 3)
     case 160: e->particle_rot = v(0); break;  // +0xbc
     case 144: e->life = v(0); break;
@@ -1496,9 +1500,10 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
       e.chunk = VfxResRef(m.Str(emitter + 0xB8, 16), 16);  // node +0x158 (0.42.6); a resref: any case
       e.grid = std::max<int>(1, static_cast<int>(m.U32(emitter + 0x0C)));
       // y grid beside it (the game's sheets that aren't square: head_01's 8 x 4, frames 0..31; vim_rayblack's 2 x 1, 0..1):
-      // the frames down, 0 when it's the grid (as a draft has a square sheet).
-      const int ygrid = std::max<int>(0, static_cast<int>(m.U32(emitter + 0x10)));
-      e.grid_down = ygrid == e.grid ? 0 : ygrid;
+      // the frames down, 0 when it's the grid (as a draft has a square sheet) - or no sheet's: 0, or past 64 (the game's
+      // own go to 8).
+      const uint32_t ygrid = m.U32(emitter + 0x10);
+      e.grid_down = ygrid == 0 || ygrid > 64 || static_cast<int>(ygrid) == e.grid ? 0 : static_cast<int>(ygrid);
       const uint32_t flags = m.U32(emitter + 0xD4);
       e.bounce = (flags & 0x010) != 0;
       e.random = (flags & 0x020) != 0;

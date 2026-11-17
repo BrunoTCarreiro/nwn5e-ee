@@ -1991,6 +1991,26 @@ TEST(VfxFrameStartAndGridDownThroughTheDraft) {
   if (!back.emitters.empty()) CHECK_EQ(back.emitters[0].frame_start, 0);
 }
 
+// A draft's frames down the same as across reads as 0, after the whole section (either line first) - the rule of both
+// model readers, so the three agree - and then follows the grid: a square sheet stays square when the grid changes.
+TEST(VfxDraftGridDownSameAsGridReadsAsZero) {
+  VfxEffect back;
+  std::string error;
+  for (const char* text : {"name = x\n[emitter a]\ngrid = 2\ngrid_down = 2\n", "name = x\n[emitter a]\ngrid_down = 2\ngrid = 2\n"}) {
+    CHECK_EQ(ReadVfxDraft(text, &back, &error) && back.emitters.size() == 1, true);
+    if (back.emitters.size() != 1) continue;
+    CHECK_EQ(back.emitters[0].grid, 2);
+    CHECK_EQ(back.emitters[0].grid_down, 0);
+    VfxEffect bigger = back;
+    bigger.emitters[0].grid = 4;  // 4 x 4 now: no frames-down line, ygrid 4
+    CHECK_EQ(Contains(WriteVfxDraft(bigger), "grid_down"), false);
+    CHECK_EQ(Contains(WriteVfxModel(bigger, "n5t"), "  xgrid 4\n  ygrid 4\n"), true);
+  }
+  CHECK_EQ(ReadVfxDraft("name = x\n[emitter a]\ngrid = 4\ngrid_down = 2\n", &back, &error) && back.emitters.size() == 1 &&
+               back.emitters[0].grid_down == 2,
+           true);  // not square: kept
+}
+
 // The model: "ygrid" is the frames down (the grid when 0) and "frameStart" the start frame (0 before: always). The ASCII
 // reader takes them back - ygrid the same as xgrid, in either order, as 0 (the draft stays as it was).
 TEST(VfxModelWritesFrameStartAndGridDown) {
@@ -2030,9 +2050,10 @@ TEST(VfxModelWritesFrameStartAndGridDown) {
 
 // A compiled model's: the emitter header's y grid at +0x10, beside the x grid at +0x0C (the game's own sheets that aren't
 // square: head_01's fxpa_flame03 8 x 4, frames 0..31; tin01_b02_03's fxpa_candle01 4 x 2, 0..7; vim_rayblack's
-// fxpa_beam02 2 x 1, 0..1), and controller 136, frameStart (the field offset - 28, as 128 fps and 132 frameEnd).
+// fxpa_beam02 2 x 1, 0..1), and controller 136, frameStart (the field offset - 28, as 128 fps and 132 frameEnd). A y grid
+// of 0 or past 64 (no game sheet has more than 8) is no sheet's: 0, the same as across. A frame below 0 is 0.
 TEST(VfxReadsFrameStartAndGridDownFromACompiledModel) {
-  const auto read = [](uint32_t xgrid, uint32_t ygrid, bool keyed, float start) {
+  const auto read = [](uint32_t xgrid, uint32_t ygrid, bool keyed, float start, float end = 3.0f) {
     std::string b(0x400, '\0');
     const auto put32 = [&](size_t at, uint32_t v) { memcpy(&b[at], &v, 4); };
     const auto putf = [&](size_t at, float v) { memcpy(&b[at], &v, 4); };
@@ -2060,7 +2081,7 @@ TEST(VfxReadsFrameStartAndGridDownFromACompiledModel) {
       b[keys + 12 * k + 10] = 1;
     }
     putf(data + 4, 10.0f);
-    putf(data + 8, 3.0f);
+    putf(data + 8, end);
     putf(data + 12, start);
     VfxEffect effect;
     std::string error;
@@ -2076,11 +2097,20 @@ TEST(VfxReadsFrameStartAndGridDownFromACompiledModel) {
   CHECK_EQ(e.grid == 2 && e.grid_down == 0 && e.frame_start == 1, true);
   e = read(2, 2, false, 0.0f);  // no controller 136: frame 0
   CHECK_EQ(e.name == "omen" && e.frame_start == 0 && e.grid_down == 0, true);
+  for (const uint32_t junk : {0xFFFFFFFFu, 0u, 1000u, 65u}) {  // no sheet's: the same as across
+    e = read(4, junk, true, 0.0f);
+    CHECK_EQ(e.name == "omen" && e.grid == 4 && e.grid_down == 0, true);
+  }
+  e = read(4, 64, true, 0.0f);  // the most kept
+  CHECK_EQ(e.grid_down, 64);
+  e = read(2, 2, true, -2.0f, -1.0f);  // below 0: frame 0
+  CHECK_EQ(e.name == "omen" && e.frame_start == 0 && e.frame_end == 0, true);
 }
 
 // The drafts nwn5e keeps - the tests' fixtures, and Detect Magic's four (tools/data/vfx; their models in data/files,
-// written by WriteVfxModel) - have neither: each draft writes back its own bytes, each model the committed one.
-TEST(VfxKeptDraftsWithoutFramesUnchanged) {
+// written by WriteVfxModel): each draft writes back its own bytes, each model the committed one - with a start frame or
+// frames down set in the bench or without (before them, none had either).
+TEST(VfxKeptDraftsUnchanged) {
   for (const char* path : {"tests/data/fixtures/plane_beat.vfx", "tests/data/fixtures/plane_effect.vfx",
                            "tests/data/fixtures/plane_material.vfx"}) {
     const std::string text = FixtureText(path);
@@ -2094,7 +2124,6 @@ TEST(VfxKeptDraftsWithoutFramesUnchanged) {
     VfxEffect effect;
     std::string error;
     CHECK_EQ(ReadVfxDraft(text, &effect, &error) && !effect.emitters.empty(), true);
-    CHECK_EQ(Contains(text, "frame_start") || Contains(text, "grid_down"), false);
     CHECK_EQ(WriteVfxDraft(effect) == text, true);
     const std::string model = FixtureText(("data/files/" + name + ".mdl").c_str());
     CHECK_EQ(!model.empty() && WriteVfxModel(effect, name) == model, true);
