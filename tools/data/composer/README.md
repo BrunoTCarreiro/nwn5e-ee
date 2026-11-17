@@ -10,7 +10,8 @@ The Floating Disk isn't one of these files. It keeps `tools\data\floatdisk\compo
 ## The project file
 
 `tools\data\composer\<name>.json`, committed with what it builds - except a placeable's models (`plc_n5<name>*.mdl`,
-made of the game's parts), which `.gitignore` keeps out and `build.bat` makes for every build (`tools\data\README.md`):
+made of the game's parts) and the textures it generates (`n5p_*`, `n5s_*`), which `.gitignore` keeps out and
+`build.bat` makes for every build (`tools\data\README.md`):
 
 ```json
 {
@@ -73,13 +74,19 @@ A part's `shape` is a shape the generator makes instead of a model - a dome (a h
 **A shape's texture.** `build.js` makes the shape's mesh from its numbers (no game model, no mesh reader), and writes
 its soft texture beside what names it:
 
-- a placeable's beside its model, in `data\files` (or `--files`). It's original, so `.gitignore` doesn't keep it out:
-  commit it with the project. `made.txt` doesn't list it;
+- a placeable's beside its model, in `data\files` (or `--files`). It's build output, as a bake is: `.gitignore` keeps
+  it out (`/data/files/n5s_*`), `made.txt` doesn't list it, and `build.bat` makes it for every build. Its bytes follow
+  from the recipe's colour alone, so the project is all that's committed; while you try colours, no stale texture
+  piles up in the repo;
 - a spell mesh's beside its draft, in `--saved`.
 
 Its name says whose it is: only the generator makes `n5s_` names, and the name fixes the picture, so a file of that
 name in the way is rewritten. `none` and a library texture write nothing: a library texture is only named, in the
-model or the draft (the game has it).
+model or the draft (the game has it). A library texture the game has only as a PLT (a dyed texture: a helmet's) is
+refused - a shape takes no dyes; pick a TGA or DDS.
+
+**Limits** (the in-game test decides; no game-side change): a spell mesh's draft carries neither the dome's smoothing
+groups nor `transparencyhint`, since the game's model writer (`WriteVfxModel`) writes neither for a plane.
 
 The Floating Disk's README ("Shapes") has every field and its bounds.
 
@@ -103,8 +110,9 @@ The Floating Disk's README ("Shapes") has every field and its bounds.
 - A dyed part's baked texture goes into `data\files` too, beside the model. It's made from the game's PLT, so
   `.gitignore` keeps it out (`/data/files/n5p_*`) and `made.txt` doesn't list it; `build.bat` makes it with the
   models for every build.
-- A shape's soft texture (`n5s_*.tga`) goes into `data\files` beside the model too. It's original, so it may be
-  committed; `made.txt` doesn't list it, and `build.bat` makes it with the models.
+- A shape's soft texture (`n5s_*.tga`) goes into `data\files` beside the model too. Like a bake it's build output:
+  `.gitignore` keeps it out (`/data/files/n5s_*`), `made.txt` doesn't list it, and `build.bat` makes it with the
+  models for every build.
 
 **A spell mesh:** each variant becomes a draft of its meshes, `<saved>\<model>.vfx`, in the VFX Bench's
 `vfxedit\saved\`. The game writes its model there when it runs. An emitter's chunk can name it, and an effect can
@@ -129,7 +137,8 @@ The bench's Composer is where a project is made and edited (nwn5e-tools `vfx_ben
 
 - **The checkout:** it reads and saves the projects of the checkout it's started with (`--ee`; by default
   `..\nwn5e-ee-anim` beside nwn5e-tools), and its Composer card names that folder and its branch. The projects and
-  what they build are committed on anim, but for the models git ignores (made of the game's parts).
+  what they build are committed on anim, but for what git ignores (the models, made of the game's parts, and the
+  generated textures).
 - **New project** (a name, then Placeable or Spell mesh) writes `<name>.json` here with one empty variant and a guide:
   a placeable's a 1 m circle, a spell mesh's a 0.5 m one, both at height 0. A placeable's `copy` and `use` start
   `null`, its `walk` `"through"`.
@@ -157,9 +166,10 @@ The bench's Composer is where a project is made and edited (nwn5e-tools `vfx_ben
 - **Play in game** sends a variant to the running game as `build.js` would build it (lowered to the guide's height),
   0.85 m beside the character, before any install.
 - **For the game:** a placeable's files and rows reach it as the Floating Disk's do: the animation session commits
-  the project, its rows, its `.pwk` files and a shape's soft texture (`n5s_*.tga`) on anim, the game session
-  merges, and its build makes the models from the project and the owner's own game (`tools\data\build_derived.js`) before it installs. A spell mesh's draft stays in the bench's `vfxedit\saved\`;
-  the game writes its model there when it runs.
+  the project, its rows and its `.pwk` files on anim, the game session merges, and its build makes the models and
+  the generated textures (`n5p_*`, `n5s_*`) from the project and the owner's own game (`tools\data\build_derived.js`)
+  before it installs. A spell mesh's draft stays in the bench's `vfxedit\saved\`; the game writes its model there
+  when it runs.
 
 ## Build
 
@@ -190,5 +200,5 @@ node tools\data\composer\build.js tools\data\composer\web.json --saved <nwn5e bu
 `node tools\data\composer\check.js` checks the pure parts (`project.js`). It doesn't need the game.
 
 `node tools\data\composer\check_build.js` builds on a temporary copy and checks the whole generator, a dyed part's
-bakes and a dome's mesh and texture too (a spell mesh's and a placeable's; soft, none, and a library texture). It
-needs the game, and prints `skip` without it.
+bakes and a dome's mesh and texture too (a spell mesh's and a placeable's; soft, none, a library texture, and a
+PLT-only one refused). It needs the game, and prints `skip` without it.

@@ -16,9 +16,10 @@ six files from main", then "go with your recs for the three questions"; `.gitign
 - `c_n5fd_empty`'s disk mesh is original, but it carries `c_invsguy`'s node names and positions, which its
   supermodel needs.
 
-Nor is a baked texture: it's painted from the game's own PLT and palettes. `build.bat` makes all of them for every
-build from this file and your own game (`tools\data\build_derived.js`, `tools\data\README.md`). The `.pwk` files,
-the disk's texture and the rows are made from scratch and stay committed.
+Nor is a baked texture: it's painted from the game's own PLT and palettes. Nor is a shape's soft texture: it's
+original, but build output, its bytes a pure function of its colour (Shapes, below). `build.bat` makes all of them for
+every build from this file and your own game (`tools\data\build_derived.js`, `tools\data\README.md`). The `.pwk`
+files, the disk's texture and the rows are made from scratch and stay committed.
 
 ## Compose it in the VFX Bench
 
@@ -50,7 +51,7 @@ The VFX Bench's Composer edits `composition.json` on a stage and rebuilds from i
 that once. After it, a Save with nothing changed leaves the file as it is.
 
 The Composer's generator changes left the disk's files as they were: a full rebuild of the committed composition still
-reports all 13 files unchanged, and its baked textures (`check_build.js`).
+reports all 13 files unchanged, and its generated textures (`check_build.js`).
 
 ## Rebuild
 
@@ -74,8 +75,9 @@ node tools\data\floatdisk\build.js
 `node tools\data\floatdisk\check_build.js` rebuilds on a temporary copy and checks the whole generator: a rebuild
 changes nothing, `--json` agrees with the text, a weapon's pieces read as one, a refused build writes nothing, a file in
 the way it didn't make is refused (named from the repo's root), a file it made that changed is rebuilt, a setup
-failure is still one JSON error line, and a dyed part is baked beside the models, which name it. It never writes the
-real `data\files` or the bench build's `vfxedit\saved\`. It needs the game (it prints `skip` without it).
+failure is still one JSON error line, a dyed part is baked beside the models, which name it, and a dome's soft
+texture is written beside the models and (with `--drafts`) the drafts, owned by its name. It never writes the real
+`data\files` or the bench build's `vfxedit\saved\`. It needs the game (it prints `skip` without it).
 
 ## Swap in your own pile
 
@@ -188,12 +190,13 @@ from the defaults is written.
     and aren't written.
 - **Its texture** (`texture`):
   - `soft` is generated: its colour, brighter and more opaque at the ground ring, fading towards the top, made for
-    `wrap`. It's named `n5s_` and 12 hex digits of its colour (`n5s_8c757fb28f99` for the default colour), and it's
-    original, made from numbers.
+    `wrap`. It's named `n5s_` and 12 hex digits of its colour (to 0.001: `n5s_8c757fb28f99` for the default colour),
+    and it's original, made from numbers. It's painted from the colour as it's named, so a name fixes the picture.
   - `none` is its colour only.
   - A texture's name (lower-case letters, digits and `_`, at most 16: the game's own, from the bench's library) is
     tinted by `colour` and glows by `glow`. Nothing is generated or copied for it. It can't be `null` (the game reads
-    that as no texture: use `none`) or start `n5s_` (those names are made, not picked).
+    that as no texture: use `none`) or start `n5s_` (those names are made, not picked). One the game has only as a
+    PLT (a dyed texture: a helmet's) is refused at build time: a shape takes no dyes, so pick a TGA or DDS.
 - **Its look:** `colour` `[r, g, b]` (each 0-1), `alpha` (0.02-1: the game's globes go to about 0.3), `glow` (0-1: how
   much it lights itself, at 1 the same by day and night). A soft or library texture, or an alpha below 1, is drawn
   see-through.
@@ -203,8 +206,10 @@ from the defaults is written.
 - **Where it goes:** `build.js` makes the mesh from the shape's numbers (no game model, no mesh reader). It writes a
   soft texture beside what names it: into `data\files` with the models (or `--files`), and with `--drafts` beside the
   stages' drafts too. Shapes of one colour share one file.
-- **It's original,** generated from numbers, so `.gitignore` doesn't keep it out: it may be committed. `made.txt`
-  doesn't list it, and `build.bat` makes it with the models for every build (`tools\data\build_derived.js`).
+- **It's build output,** like a bake: original (generated from numbers), but its bytes follow from the recipe's
+  colour alone, so `.gitignore` keeps it out (`/data/files/n5s_*`) and only the recipe is committed - no stale
+  textures pile up while colours are tried. `made.txt` doesn't list it, and `build.bat` makes it with the models for
+  every build (`tools\data\build_derived.js`).
 - **Whose it is:** its name says. Only the generator makes `n5s_` names, and the name fixes the picture, so a file of
   that name in the way is rewritten.
 - **The summary** names it, and `--json` lists it under `shapes` (`texture`, `colour`):

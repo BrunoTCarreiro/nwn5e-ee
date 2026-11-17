@@ -61,10 +61,17 @@ function create({ game, core, gameData, reader }) {
 
   // A part's meshes and box: a game model, a weapon's pieces read one by one and merged, a model file of yours (ASCII -
   // made readable for the reader first - or compiled), or a shape (floatdisk.js makes it from its numbers: no mesh
-  // reader, no game; its `textures` too, the soft one files.js's shapeTextures writes). -> { meshes, lo, hi }
+  // reader; its `textures` too, the soft one files.js's shapeTextures writes). A shape's library texture the game has
+  // only as a PLT (a dyed texture) is refused - a shape takes no dyes, so nothing would bake it. -> { meshes, lo, hi }
   function part(p) {
-    if (p.source.kind === "shape") return F.shapeModel(p.source.shape);
     const label = F.partLabel(p);
+    if (p.source.kind === "shape") {
+      const t = p.source.shape.texture;
+      if (t !== "soft" && t !== "none" && pltOnly(t)) {
+        throw new Error(`${label}: texture ${t} is one the game has only as a PLT (a dyed texture); a shape takes no dyes - pick a TGA or DDS`);
+      }
+      return F.shapeModel(p.source.shape);
+    }
     if (p.source.kind === "model") return gameModel(p.source.model, label);
     if (p.source.kind === "models") return F.mergeModels(p.source.models.map((m) => gameModel(m, label)));
     if (!fs.existsSync(p.source.file)) throw new Error(`${label}: no such file (${p.source.file})`);

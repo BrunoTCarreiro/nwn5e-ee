@@ -775,5 +775,14 @@ check("shapes in a page: the same mesh, texture bytes and name", () => {
   assert.strictEqual(P.shapeTextureName({ colour: [1, 0.85, 0.4] }), F.shapeTextureName({ colour: [1, 0.85, 0.4] }));
   assert.strictEqual(P.shapeTextureName({ colour: [0.6, 0.8, 1] }), "n5s_8c757fb28f99");
 });
+check("a soft texture's name fixes its bytes: the colour is painted as it's named, to 0.001", () => {
+  const soft = (colour) => F.tgaBytes(F.shapeTexture({ colour }), { alpha: true });
+  // [0.6001, 0.8, 1] is named as [0.6, 0.8, 1]: the same picture (a file of the name is rewritten as the generator's).
+  assert.strictEqual(F.shapeTextureName({ colour: [0.6001, 0.8, 1] }), "n5s_8c757fb28f99");
+  assert.ok(soft([0.6001, 0.8, 1]).equals(soft([0.6, 0.8, 1])), "one name, two pictures");
+  // A colour named otherwise is painted otherwise.
+  assert.notStrictEqual(F.shapeTextureName({ colour: [0.61, 0.8, 1] }), "n5s_8c757fb28f99");
+  assert.ok(!soft([0.61, 0.8, 1]).equals(soft([0.6, 0.8, 1])));
+});
 
 console.log(process.exitCode ? `floatdisk check: FAILED (${count} passed)` : `floatdisk check: ${count} checks pass`);

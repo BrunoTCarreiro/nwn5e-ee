@@ -19,8 +19,9 @@
 // Nothing of the game's is kept in the repo: the parts, c_invsguy and the rows copied are read from the player's own
 // game at build time (its KEY / BIF archives and ovr\, through nwn5e-tools' spell_bench\game_data.js) and the meshes
 // through nwn5e-ee's own model reader (src\data\vfx_model.cpp) compiled into mdlmesh (mdlmesh.cpp, build_mdlmesh.bat;
-// built into build\floatdisk\ when missing or older than its sources). The models and the baked textures it writes into
-// data\files are git-ignored: build.bat makes them for every build (tools\data\build_derived.js).
+// built into build\floatdisk\ when missing or older than its sources). The models, the baked textures and the shapes'
+// soft textures (original, but build output: a pure function of their colour) it writes into data\files are
+// git-ignored: build.bat makes them for every build (tools\data\build_derived.js).
 //
 //   node tools\data\floatdisk\build.js [options]
 //     --composition <file>  default: composition.json beside this file
@@ -182,7 +183,7 @@ function main() {
     for (const c of copies) writes.push({ file: path.join(FILES, name + path.extname(c).toLowerCase()), bytes: fs.readFileSync(c), kind: "binary" });
   }
   writes.push(...W.bakedWrites(baked, FILES));  // beside the models that name them, git-ignored; never in made.txt
-  writes.push(...W.shapeWrites(shaped, FILES));  // likewise, original (committable); never in made.txt
+  writes.push(...W.shapeWrites(shaped, FILES));  // likewise: build output, git-ignored; never in made.txt
   const appearance = gameData.gameTable(GAME, "appearance"), placeables = gameData.gameTable(GAME, "placeables");
   text(path.join(ROWS_DIR, "appearance.floatdisk.txt"), F.rowsText(appearance, F.SOURCE_ROWS.appearance,
     F.STAGES.map((st) => ({ row: F.ROWS.appearance[st], label: F.LABELS.appearance[st], model: F.creatureModel(st) })),

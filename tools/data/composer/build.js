@@ -17,8 +17,9 @@
 // drafts in <saved>.
 //
 // A shape part (a dome: floatdisk.js makes its mesh from its numbers) with a soft texture names n5s_<12 hex digits of
-// its colour>.tga, generated here from its colour - original - and written beside what names it: a placeable's models in
-// data\files (committable), a spell mesh's drafts in <saved>. A library texture is named only; none is written for it.
+// its colour>.tga, generated here from its colour - original, but build output like a bake - and written beside what
+// names it: a placeable's models in data\files (git-ignored: build.bat makes it for every build), a spell mesh's drafts
+// in <saved>. A library texture is named only; none is written for it (one the game has only as a PLT is refused).
 //
 // The parts are read and placed as the Floating Disk's (..\floatdisk\reader.js and floatdisk.js), through the player's
 // own game and nwn5e-ee's mesh reader; nothing of the game's is kept in the repo. The files are written by its files.js,
@@ -232,7 +233,7 @@ function main() {
     }
   }
   writes.push(...W.bakedWrites(baked, bakeDir));  // never in made.txt: whose they are, their names say
-  writes.push(...W.shapeWrites(shaped, bakeDir));  // likewise; original, so data\files' may be committed
+  writes.push(...W.shapeWrites(shaped, bakeDir));  // likewise: build output, git-ignored in data\files
 
   // The marked files this project made under another model name (its variants counted 1 and then 2, or back): listed,
   // never deleted (F15). And, beside a spell mesh's drafts, the textures its marked drafts name (ours to rewrite).

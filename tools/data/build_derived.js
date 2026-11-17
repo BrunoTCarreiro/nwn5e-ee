@@ -10,11 +10,11 @@
 // - The Floating Disk's generator (floatdisk\build.js) and the Composer's (composer\build.js) for every placeable project
 //   in composer\*.json, each run with --json into a scratch folder of its own; their models, walkmeshes and textures - a
 //   dyed part's baked texture (n5p_<12 hex digits>.tga, from the game's PLT and palettes) and a shape's soft texture
-//   (n5s_<12 hex digits>.tga, original) with the models that name them - are then written into --out (build.bat: the
-//   build's data\files) - never into this repo's data\ (refused). Skipped, and said so: a spell mesh's project (its
-//   drafts live in the VFX Bench's saved folder, and the dev layer writes its models when the game runs), and a project
-//   never built - no data\rows\placeables.<name>.txt and no variant with a row, as the bench's New project writes it -
-//   whose models nothing installed names.
+//   (n5s_<12 hex digits>.tga, from its colour; both git-ignored) with the models that name them - are then written
+//   into --out (build.bat: the build's data\files) - never into this repo's data\ (refused). Skipped, and said so: a
+//   spell mesh's project (its drafts live in the VFX Bench's saved folder, and the dev layer writes its models when the
+//   game runs), and a project never built - no data\rows\placeables.<name>.txt and no variant with a row, as the
+//   bench's New project writes it - whose models nothing installed names.
 // - The rows stay the repo's: data\rows' appearance.floatdisk.txt, placeables.floatdisk.txt and each project's
 //   placeables.<name>.txt are committed text that names the models. Each generator writes its rows over a copy of
 //   data\rows, and they must come out unchanged: rows that differ (or are missing) stop the build, nothing written -

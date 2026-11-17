@@ -414,6 +414,12 @@ try {
     const j = ok(build(file, ["--json"]));
     assert.deepStrictEqual(j.shapes, [{ texture: GOLD, colour: [1, 0.85, 0.4] }]);
     lines(path.join(FILES, "plc_n5chkdomep.mdl"), ["  bitmap " + GOLD, "  alpha 0.35", "  transparencyhint 1", "  selfillumcolor 1 1 1"]);
+    // Its two sides' smoothing groups reach the model: the inside's 480 faces in group 2, and first.
+    const mdl = fs.readFileSync(path.join(FILES, "plc_n5chkdomep.mdl"), "latin1").split("\r\n");
+    const at = mdl.indexOf("  faces 960");
+    assert.ok(at > 0, "plc_n5chkdomep.mdl has no \"faces 960\"");
+    const groups = mdl.slice(at + 1, at + 961).map((l) => l.trim().split(/\s+/)[3]);
+    assert.deepStrictEqual([groups.filter((g) => g === "2").length, groups.filter((g) => g === "1").length, groups[0]], [480, 480, "2"]);
     // Its texture in data\files, new, named from the repo's root; not in saved\, not in made.txt.
     assert.ok(j.files.some((x) => x.state === "new" && x.file === `data/files/${GOLD}.tga`), JSON.stringify(j.files));
     assert.ok(fs.readFileSync(path.join(FILES, GOLD + ".tga")).equals(softBytes([1, 0.85, 0.4])), GOLD + ".tga isn't floatdisk.js's soft texture");
@@ -443,6 +449,15 @@ try {
     assert.deepStrictEqual(draftPlanes(path.join(SAVED, "n5m_chkdome.vfx")).map((p) => p.bitmap), [LIB]);
     assert.ok(![...j.files, ...m.files].some((x) => /n5s_/i.test(x.file)), JSON.stringify([...j.files, ...m.files]));
     assert.deepStrictEqual(shapeFiles(), []);
+  });
+
+  check("a dome with a texture the game has only as a PLT is refused (a shape takes no dyes), nothing written", () => {
+    const before = snapshot(), kept = madeTxt();
+    for (const r of [build(gold({ texture: "helm_001" }), ["--json"]), build(zone({ texture: "helm_001" }), ["--json", "--saved", SAVED])]) {
+      refused(r, /^dome [\d.]+ m: texture helm_001 is one the game has only as a PLT \(a dyed texture\); a shape takes no dyes - pick a TGA or DDS$/);
+    }
+    assert.deepStrictEqual(snapshot(), before);
+    assert.strictEqual(madeTxt(), kept, "made.txt changed");
   });
 } finally {
   fs.rmSync(root, { recursive: true, force: true });

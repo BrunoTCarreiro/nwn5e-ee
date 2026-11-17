@@ -25,11 +25,13 @@ remove the six files from main"**:
 - `c_n5fd_empty.mdl`: its disk mesh is original, but it carries `c_invsguy`'s node names and positions, which its
   supermodel needs (the owner, 2026-11-17: "go with your recs for the three questions");
 - any Composer placeable's model: `plc_n5*.mdl`;
-- any baked texture: `n5p_*` (`n5p_` and 12 hex digits, `.tga`: the Floating Disk's README, "Dyed parts").
+- any baked texture: `n5p_*` (`n5p_` and 12 hex digits, `.tga`: the Floating Disk's README, "Dyed parts");
+- any shape's soft texture: `n5s_*` (the Floating Disk's README, "Shapes"). It's original, but build output like a
+  bake: its bytes follow from the recipe's colour alone, so only the recipe is committed, and no stale ones pile up
+  while colours are tried.
 
 The generators' own runs (the VFX Bench's Save and build) still write them into `data\files`, where they stay,
-ignored. What's made from scratch stays committed: the `.pwk` files, `n5t_forcedisk.tga`, the rows, and a shape's
-soft texture (`n5s_*.tga`: generated from its colour, the Floating Disk's README, "Shapes").
+ignored. What's made from scratch stays committed: the `.pwk` files, `n5t_forcedisk.tga`, the rows.
 
 ## In build.bat
 
@@ -55,8 +57,8 @@ node tools\data\build_derived.js --out <folder> [--game <folder>] [--tools <nwn5
   `--out`: the models, the walkmeshes, the textures, and a dyed part's baked texture (`n5p_*.tga`) with the models
   that name it. Two generators may bake the same texture (the same PLT and colours): it's written once.
 - **A shape's soft texture** (`n5s_*.tga`, a dome's) comes out with the model that names it, as a bake does: the
-  same name, the same bytes, written once. Unlike a bake it's original, so it may be committed too; either way the
-  build writes it. A library texture is only named: the game has it.
+  same name, the same bytes, written once, git-ignored and rebuilt for every build. A library texture is only named:
+  the game has it.
 - **Spell meshes are skipped**, and it says so. Their drafts live in the VFX Bench's saved folder, and the dev layer
   writes their models when the game runs.
 - **A project never built is skipped**, and it says so. That's one with no `data\rows\placeables.<name>.txt` and no
@@ -101,16 +103,17 @@ build.bat stops on either (above).
   Composer edits are never the baseline. The generators' code comes from the worktree.
 - It checks that:
   - the Floating Disk's seven game-derived models (the six and `c_n5fd_empty.mdl`) aren't at `HEAD` and are
-    git-ignored, as are a placeable's model and a baked texture, while the original art isn't;
+    git-ignored, as are a placeable's model, a baked texture and a shape's soft texture, while the original art isn't;
   - the committed recipes build `HEAD`'s `data\files` byte for byte (the Floating Disk's 4 committed files and every
     committed placeable project's), into `--out` only. What's built but not committed is git-ignored. Each removed model
     comes out byte for byte as it was last committed, while the recipe and the generator are unchanged since its
-    removal. The Floating Disk's dyed parts' bakes come out with its models, which name them;
+    removal. The Floating Disk's dyed parts' bakes and its shapes' soft textures come out with its models, which name
+    them;
   - a second build leaves every file unchanged;
   - a placeable project's dyed parts: their bakes come out with its model into `--out`, the bake's bytes, unchanged on
     a second build; one the Floating Disk also makes is written once; a file of a bake's name in `--out` is rewritten;
-  - a placeable project's dome: its model and its soft texture come out into `--out`, the generator's bytes, unchanged
-    on a second build; a file of the texture's name in `--out` is rewritten;
+  - a placeable project's dome: its model and its soft texture (git-ignored) come out into `--out`, the generator's
+    bytes, unchanged on a second build; a file of the texture's name in `--out` is rewritten;
   - `--check` writes nothing;
   - rows that disagree, or a recipe edited without its rows, give exit 1 and say which;
   - a spell mesh is skipped, a refused build and a file in the way give exit 1, and each missing prerequisite gives

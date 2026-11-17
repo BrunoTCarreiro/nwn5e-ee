@@ -510,15 +510,19 @@ function cleanShape(s) {
   return out;
 }
 
-// A soft texture's name: n5s_ and 12 hex digits of its colour (to 0.001) - one per colour, the same in a page.
+// A soft texture's colour as its name and its picture both take it: each channel to 0.001. One rule, so a name fixes
+// its bytes (a file of that name is rewritten as the generator's).
+const softColour = (colour) => colour.map((c) => Math.round(c * 1000) / 1000);
+// A soft texture's name: n5s_ and 12 hex digits of its colour (softColour's) - one per colour, the same in a page.
 function shapeTextureName({ colour }) {
-  return "n5s_" + cyrb53("soft:" + colour.map((c) => String(Math.round(c * 1000) / 1000)).join(",")).toString(16).padStart(14, "0").slice(-12);
+  return "n5s_" + cyrb53("soft:" + softColour(colour).map(String).join(",")).toString(16).padStart(14, "0").slice(-12);
 }
-// The soft texture, made for Wrapped: its colour, brighter and more opaque at the ground ring (v 0) and fading towards
-// the top (v 1), with a faint shimmer of whole turns in u, so it wraps round seamlessly. 128 x 128 -> { width, height,
-// data: Uint8ClampedArray RGBA, rows top-down } (as bakePlt gives a picture; tgaBytes with alpha writes it).
-function shapeTexture({ colour }) {
-  const size = 128, data = new Uint8ClampedArray(size * size * 4);
+// The soft texture, made for Wrapped: its colour (softColour's, as its name has it), brighter and more opaque at the
+// ground ring (v 0) and fading towards the top (v 1), with a faint shimmer of whole turns in u, so it wraps round
+// seamlessly. 128 x 128 -> { width, height, data: Uint8ClampedArray RGBA, rows top-down } (as bakePlt gives a picture;
+// tgaBytes with alpha writes it).
+function shapeTexture({ colour: given }) {
+  const colour = softColour(given), size = 128, data = new Uint8ClampedArray(size * size * 4);
   for (let y = 0; y < size; y++) {
     const v = 1 - (y + 0.5) / size, ground = 1 - smooth(0, 0.2, v);  // 1 at the ground ring, 0 from a fifth up
     for (let x = 0; x < size; x++) {

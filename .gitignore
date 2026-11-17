@@ -34,3 +34,7 @@ __pycache__/
 /data/files/plc_n5*.mdl
 # A dyed part's baked texture, n5p_<hash>, made from the game's PLT and palettes:
 /data/files/n5p_*
+# A Composer shape's soft texture, n5s_<hash>: original, but build output like a bake - its bytes a pure function of
+# the recipe's colour, rebuilt for every build (tools/data/build_derived.js); committing them would pile up stale ones
+# while colours are explored:
+/data/files/n5s_*
