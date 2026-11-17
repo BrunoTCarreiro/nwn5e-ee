@@ -44,6 +44,7 @@
 #include "engine.h"
 #include "hooks.h"
 #include "log.h"
+#include "player_text.h"
 #include "script_hooks.h"
 #include "spell_impact.h"
 #include "rules/floating_disk.h"
@@ -101,7 +102,7 @@ if (GetIsObjectValid(d) && GetLocalInt(d, "n5d_disk") && GetMaster(d) == m) {
     SetCreatureAppearanceType(d, $APP);
     SetObjectVisualTransform(d, OBJECT_VISUAL_TRANSFORM_SCALE, $SCALE);
     SetLocalInt(d, "n5d_stage", 0);
-    SetName(d, "Floating Disk");
+    SetName(d, "$DISKNAME");
     int ev;
     for (ev = 5000; ev <= 5012; ev++) SetEventScript(d, ev, "");
     SetEventScript(d, EVENT_SCRIPT_CREATURE_ON_HEARTBEAT, "n5_d_hb");
@@ -151,7 +152,8 @@ object pile = OBJECT_INVALID;
 if ("$PILE" != "") {
   pile = CreateObject(OBJECT_TYPE_PLACEABLE, "$PILE", l, FALSE, "n5s_diskpile");
   if (GetIsObjectValid(pile)) {
-    SetName(pile, "Floating Disk's load");
+    SetName(pile, "$PILENAME");
+    SetDescription(pile, "$PILEDESC");
     SetEventScript(pile, EVENT_SCRIPT_PLACEABLE_ON_CLOSED, "n5_d_pile");
     SetLocalInt(pile, "n5d_pile", 1);
   }
@@ -176,8 +178,21 @@ ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_UNSUMMON
 SetPlotFlag(d, FALSE); SetIsDestroyable(TRUE, FALSE, FALSE); DestroyObject(d, 0.2);
 )nss";
 
+// A player text inside an NWScript string (#168): its quotes and backslashes escaped.
+std::string Nss(const std::string& text) {
+  std::string out;
+  for (char c : text) {
+    if (c == '"' || c == '\\') out += '\\';
+    out += c == '\n' ? ' ' : c;
+  }
+  return out;
+}
+
 std::string Script(const char* code) {
   std::string text = code;
+  Replace(&text, "$DISKNAME", Nss(PlayerText("disk.name")));
+  Replace(&text, "$PILENAME", Nss(PlayerText("disk.pile.name")));
+  Replace(&text, "$PILEDESC", Nss(PlayerText("disk.pile.description")));
   Replace(&text, "$ROW", std::to_string(rules::kFloatingDisk));
   Replace(&text, "$HOURS", std::to_string(rules::kFloatingDiskHours));
   Replace(&text, "$BLUEPRINT", kDiskBlueprint);
@@ -205,18 +220,15 @@ void EndDisk(uint32_t disk, rules::DiskEnd why) {
   const int dropped = engine::GetLocalInt(creature, "n5d_dropped");
   const bool piled = engine::GetLocalInt(creature, "n5d_piled") != 0;
   if (master) {
-    std::string words = std::string("nwn5e: Floating Disk ends - ") + rules::DiskEndText(why);
-    if (dropped > 0) {
-      words += "; everything on it (" + std::to_string(dropped) + (dropped == 1 ? " item" : " items") +
-               (piled ? ") falls in a pile where it floated - open it to take them back." : ") falls to the ground.");
-    } else {
-      words += ".";
-    }
-    TellPlayer(master, words);
+    const std::string reason = PlayerText(rules::DiskEndKey(why));
+    const std::string items = dropped == 1 ? PlayerText("disk.items.one")
+                                           : PlayerText("disk.items.many", {{"count", std::to_string(dropped)}});
+    TellPlayer(master, PlayerText(dropped <= 0 ? "disk.end" : piled ? "disk.end.pile" : "disk.end.ground",
+                                  {{"why", reason}, {"items", items}}));
   }
   if (LogSlot()) {
     Log("floating disk: 0x%08X (caster 0x%08X) ends - %s; %d items (%.1f pounds, stage %d) %s", disk, master,
-        rules::DiskEndText(why), dropped, weight / 10.0, static_cast<int>(stage),
+        rules::DiskEndKey(why), dropped, weight / 10.0, static_cast<int>(stage),
         piled ? (std::string("in a pile (") + pile + ")").c_str() : "on the ground");
   }
 }
@@ -309,11 +321,11 @@ void DiskTalk(uint32_t self) {
     case rules::DiskOrder::kStay:
       engine::SetLocalInt(creature, "n5d_stay", 1);
       Run("ClearAllActions();", self, "the disk's stay");
-      TellPlayer(master, "nwn5e: Floating Disk - it stays where it is (more than 100 feet from it, the spell ends).");
+      TellPlayer(master, PlayerText("disk.stay"));
       break;
     case rules::DiskOrder::kFollow:
       engine::SetLocalInt(creature, "n5d_stay", 0);
-      TellPlayer(master, "nwn5e: Floating Disk - it follows you again (within 20 feet).");
+      TellPlayer(master, PlayerText("disk.follow"));
       break;
     case rules::DiskOrder::kEnd: EndDisk(self, rules::DiskEnd::kSentAway); break;
     default: break;
@@ -374,14 +386,14 @@ void FloatingDiskSpell(uint32_t self, void* caster, int) {
   Run(Script(kCast), self, "Floating Disk");
   const uint32_t renewed = ParseHex(engine::GetLocalString(caster, "n5d_renewed"));
   if (renewed) {
-    TellPlayer(self, "nwn5e: Floating Disk - your disk's hour starts again.");
+    TellPlayer(self, PlayerText("disk.renewed"));
     if (LogSlot()) Log("floating disk: 0x%08X renews its disk 0x%08X", self, renewed);
     return;
   }
   const uint32_t disk = ParseHex(engine::GetLocalString(caster, "n5d_new"));
   void* creature = disk ? CreatureById(disk) : nullptr;
   if (!creature) {
-    TellPlayer(self, "nwn5e: Floating Disk - no disk came (see nwn5e.log).");
+    TellPlayer(self, PlayerText("disk.failed"));
     Log("floating disk: 0x%08X - CreateObject(%s) gave no creature", self, kDiskBlueprint);
     return;
   }
@@ -390,17 +402,13 @@ void FloatingDiskSpell(uint32_t self, void* caster, int) {
     engine::SetLocalString(creature, "n5d_mid", "");
     Log("floating disk: 0x%08X - its disk 0x%08X didn't join the party (henchman limit %d)", self, disk, limit);
     EndDisk(disk, rules::DiskEnd::kMasterGone);
-    TellPlayer(self, "nwn5e: Floating Disk - the disk couldn't join your party (see nwn5e.log).");
+    TellPlayer(self, PlayerText("disk.no_party"));
     return;
   }
   SetStrength(creature, rules::kFloatingDiskStrength);
   engine::SetLocalInt(caster, "n5d_has", 1);  // its caster looks after it (0.99.57)
   g_disks[disk] = GetTickCount64() + kCheckEveryMs;
-  TellPlayer(self, "nwn5e: Floating Disk - a disk of force follows you for an hour: your henchman (it takes no "
-                   "henchman's place). Click it, or Inventory on your associate radial, to load it - up to 500 pounds; "
-                   "more and the spell ends, everything falling. It stays within 20 feet of you; more than 100 feet "
-                   "from it, the spell ends. Leave the party (your radial) ends it. Its load shows on it, and falls in "
-                   "a pile where it floated when the spell ends.");
+  TellPlayer(self, PlayerText("disk.cast"));
   if (LogSlot()) {
     Log("floating disk: 0x%08X Floating Disk - 0x%08X, its henchman (the module's limit now %d); appearance %d at "
         "%.2f, Strength %d",
@@ -414,7 +422,7 @@ bool InstallFloatingDisk() {
                   AddCreatureUpdateListener(&DiskUpdate) &&
                   AddGameStartListener(&DisksGameStarted);
   Log("floating disk: Floating Disk (#39 build 4d) - a henchman disk: its inventory up to 500 pounds, it follows past "
-      "20 feet, ends past 100; its look its load's stage, its load a pile when it ends%s",
-      ok ? "" : " - SOME hooks missing");
+      "20 feet, ends past 100; its look its load's stage, its load a pile when it ends; %d player texts (#168)%s",
+      PlayerTextEntries(), ok ? "" : " - SOME hooks missing");
   return ok;
 }

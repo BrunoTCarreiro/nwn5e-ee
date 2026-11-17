@@ -1,0 +1,49 @@
+# nwn5e's player text (#168; owner, 2026-11-16: "any new text is either written by me, or copied verbatim from the
+# SRD. If you have to generate new text we'll need a document to keep track of it, maybe in an i18n style").
+#
+# One entry a line: <key> | <source> | <text>
+#   key     a-z, 0-9 and _ in dotted parts - the code asks for the text by it (PlayerText, src/core/player_text.h)
+#   source  owner (the owner's words) | srd:<SRD 5.2.1 entry> (its text word for word) | generated (nwn5e's
+#           wording, waiting for the owner: docs/TEXT-REVIEW.md lists it)
+#   text    \n a line break; {name} a value the code fills in (a number, a creature's name ...)
+# To make a generated entry yours: rewrite its text as you like and change its source to owner.
+# data/strings.txt (the names and descriptions served to the game) has its sources in data/text/strings_sources.txt.
+
+# --- Floating Disk (#39 build 4d) ---------------------------------------------------------------------------------
+disk.name | srd:Floating Disk | Floating Disk
+disk.cast | generated | nwn5e: Floating Disk - a disk of force follows you for an hour: your henchman (it takes no henchman's place). Click it, or Inventory on your associate radial, to load it - up to 500 pounds; more and the spell ends, everything falling. It stays within 20 feet of you; more than 100 feet from it, the spell ends. Leave the party (your radial) ends it. Its load shows on it, and falls in a pile where it floated when the spell ends.
+disk.renewed | generated | nwn5e: Floating Disk - your disk's hour starts again.
+disk.failed | generated | nwn5e: Floating Disk - no disk came (see nwn5e.log).
+disk.no_party | generated | nwn5e: Floating Disk - the disk couldn't join your party (see nwn5e.log).
+disk.stay | generated | nwn5e: Floating Disk - it stays where it is (more than 100 feet from it, the spell ends).
+disk.follow | generated | nwn5e: Floating Disk - it follows you again (within 20 feet).
+disk.end | generated | nwn5e: Floating Disk ends - {why}.
+disk.end.pile | generated | nwn5e: Floating Disk ends - {why}; everything on it ({items}) falls in a pile where it floated - open it to take them back.
+disk.end.ground | generated | nwn5e: Floating Disk ends - {why}; everything on it ({items}) falls to the ground.
+disk.items.one | generated | 1 item
+disk.items.many | generated | {count} items
+disk.why.caster_gone | generated | its caster is gone
+disk.why.hour | generated | its hour is up
+disk.why.overloaded | generated | more than 500 pounds was put on it
+disk.why.too_far | generated | you are more than 100 feet from it
+disk.why.sent_away | generated | you sent it away
+disk.pile.name | generated | Floating Disk's load
+disk.pile.description | generated | What a Floating Disk carried, fallen where it floated. An emptied pile goes.
+
+# --- Find Familiar (#39 build 4c) ---------------------------------------------------------------------------------
+familiar.name | generated | {form} ({kind})
+familiar.none_here | generated | nwn5e: Find Familiar - no familiar of yours is here to dismiss.
+familiar.dismissed | generated | nwn5e: Find Familiar - your {name} goes to a pocket dimension (its Recall brings it back within 30 feet).
+familiar.none_away | generated | nwn5e: Find Familiar - no familiar of yours is away to recall.
+familiar.recall_far | generated | nwn5e: Find Familiar - it comes back to a spot within 30 feet of you.
+familiar.recall_failed | generated | nwn5e: Find Familiar - your familiar didn't come back (see nwn5e.log).
+familiar.back | generated | nwn5e: Find Familiar - your {name} is back.
+familiar.gone | generated | nwn5e: Find Familiar - your {name} is gone; cast Find Familiar again for another.
+familiar.touch | generated | nwn5e: Find Familiar - your {name} delivers the touch (its Reaction).
+familiar.your_familiar | generated | familiar
+familiar.pick_form | generated | nwn5e: Find Familiar - pick a form from its menu.
+familiar.becomes_away | generated | nwn5e: Find Familiar - your familiar, away in its pocket dimension, becomes a {name}.
+familiar.becomes | generated | nwn5e: Find Familiar - your familiar becomes a {name}.
+familiar.failed | generated | nwn5e: Find Familiar - no familiar came (see nwn5e.log).
+familiar.serves | generated | nwn5e: Find Familiar - a {name} serves you. It can't attack; Possess Familiar (your radial) looks through its eyes - a Bonus Action; it delivers your touch spells within 100 feet (its Reaction); Dismiss and Recall are in Find Familiar's menu (its second page).
+familiar.eyes | generated | Find Familiar: through its eyes

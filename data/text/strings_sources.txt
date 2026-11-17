@@ -1,0 +1,634 @@
+# data/strings.txt's sources (#168; owner, 2026-11-16: "any new text is either written by me, or copied verbatim
+# from the SRD"): <id> <source> - owner (the owner's words); srd:<SRD 5.2.1 entry> (its text word for word -
+# line breaks, quotes and dashes aside); srd:<entry>+note (SRD 5.2.1's text, then a generated "nwn5e:" note);
+# generated (nwn5e's wording, for the owner's review: docs/TEXT-REVIEW.md); symbol (no words: "+2").
+# Every strings.txt id has one.
+16000100 generated
+16000101 generated
+16000102 generated
+16000103 generated
+16000104 generated
+16000105 generated
+16000106 generated
+16000107 generated
+16000110 generated
+16000111 generated
+16000112 generated
+16000113 generated
+16000114 generated
+16000115 generated
+16000116 generated
+16000117 generated
+16000120 srd:Second Wind
+16000121 generated
+16000200 generated
+16000204 generated
+16000210 generated
+16000211 generated
+16000212 generated
+16000213 generated
+16000214 generated
+16000215 generated
+16000216 generated
+16000201 generated
+16000205 generated
+16000217 generated
+16000218 generated
+16000219 generated
+16000220 generated
+16000221 generated
+16000222 generated
+16000223 generated
+16000202 generated
+16000206 generated
+16000224 generated
+16000225 generated
+16000226 generated
+16000227 generated
+16000228 generated
+16000229 generated
+16000230 generated
+16000203 generated
+16000207 generated
+16000231 generated
+16000232 generated
+16000233 generated
+16000234 generated
+16000235 generated
+16000236 generated
+16000237 generated
+16000240 srd:Background
+16000241 generated
+16000242 generated
+16000243 generated
+16000244 srd:Acolyte
+16000245 srd:Criminal
+16000246 srd:Sage
+16000247 srd:Soldier
+16000248 generated
+16000249 generated
+16000250 symbol
+16000251 symbol
+16000252 symbol
+16000253 symbol
+16000254 symbol
+16000255 symbol
+16000256 symbol
+16000257 symbol
+16000260 generated
+16000261 generated
+16000262 generated
+16000263 generated
+16000264 srd:Orc
+16000265 generated
+16000266 generated
+16000270 generated
+16000271 generated
+16000272 generated
+16000273 generated
+16000274 generated
+16000275 generated
+16000276 generated
+16000280 srd:Ability Scores
+16000300 srd:Barbarian
+16000301 generated
+16000302 srd:Bard
+16000303 generated
+16000304 srd:Cleric
+16000305 generated
+16000306 srd:Druid
+16000307 generated
+16000308 generated
+16000309 generated
+16000310 generated
+16000311 generated
+16000312 srd:Monk
+16000313 generated
+16000314 srd:Paladin
+16000315 generated
+16000316 srd:Ranger
+16000317 generated
+16000318 srd:Rogue
+16000319 generated
+16000320 srd:Sorcerer
+16000321 generated
+16000322 srd:Wizard
+16000323 generated
+16000390 srd:Savage Attacker
+16000391 generated
+16000392 srd:Skilled
+16000393 generated
+16000394 srd:Alert
+16000395 generated
+16000396 generated
+16000397 generated
+16000398 srd:History
+16000399 generated
+16000400 generated
+16000401 generated
+16000402 generated
+16000403 generated
+16000404 srd:Nature
+16000405 generated
+16000406 srd:Religion
+16000407 generated
+16000408 generated
+16000409 generated
+16000330 srd:Weapon Mastery
+16000331 generated
+16000332 generated
+16000333 generated
+16000334 generated
+16000335 generated
+16000336 generated
+16000337 generated
+16000338 generated
+16000339 generated
+16000340 generated
+16000341 generated
+16000342 generated
+16000343 generated
+16000344 generated
+16000345 generated
+16000346 generated
+16000347 generated
+16000348 generated
+16000349 generated
+16000350 generated
+16000351 generated
+16000352 generated
+16000353 generated
+16000354 generated
+16000355 generated
+16000356 generated
+16000357 generated
+16000358 generated
+16000359 generated
+16000360 generated
+16000361 generated
+16000362 generated
+16000363 generated
+16000364 generated
+16000365 generated
+16000366 generated
+16000367 generated
+16000368 generated
+16000369 generated
+16000370 generated
+16000371 generated
+16000372 generated
+16000373 generated
+16000374 generated
+16000375 generated
+16000376 generated
+16000377 generated
+16000378 generated
+16000379 generated
+16000410 generated
+16000411 generated
+16000412 generated
+16000413 generated
+16000414 generated
+16000415 generated
+16000416 generated
+16000417 generated
+16000418 generated
+16000419 generated
+16000420 generated
+16000421 generated
+16000422 generated
+16000423 generated
+16000424 generated
+16000425 generated
+16000426 generated
+16000427 generated
+16000428 generated
+16000429 generated
+16000430 generated
+16000431 generated
+16000432 srd:Ability Score Improvement
+16000433 generated
+16000434 generated
+16000435 generated
+16000436 generated
+16000437 generated
+16000438 srd:Short Rest
+16000439 generated
+16000440 generated
+16000441 generated
+16000442 generated
+16000443 generated
+16000444 generated
+16000450 generated
+16000451 srd:Light
+16000460 generated
+16000461 generated
+16000462 generated
+16000463 generated
+16000464 generated
+16000465 generated
+16000466 generated
+16000467 generated
+16000468 generated
+16000470 generated
+16000471 generated
+16000480 generated
+16000481 generated
+16000484 generated
+16000486 generated
+16000487 generated
+16000488 generated
+16000489 srd:Evasion
+16000490 generated
+16000491 generated
+16000492 generated
+16000493 generated
+16000494 generated
+16000495 generated
+16000496 generated
+16000497 generated
+16000498 generated
+16000499 generated
+16000500 generated
+16000501 generated
+16000502 generated
+16000503 generated
+16000504 generated
+16000485 generated
+16000482 generated
+16000483 generated
+16000505 generated
+16000506 generated
+16000507 srd:Unarmored Movement
+16000508 generated
+16000509 generated
+16000510 generated
+16000511 generated
+16000512 generated
+16000513 generated
+16000514 generated
+16000515 generated
+16000516 generated
+16000517 generated
+16000518 generated
+16000519 srd:Superior Defense
+16000520 generated
+16000521 generated
+16000522 generated
+16000523 generated
+16000524 generated
+16000525 generated
+16000526 generated
+16000527 generated
+16000528 generated
+16000529 generated
+16000530 generated
+16000531 generated
+16000532 generated
+16000533 generated
+16000541 generated
+16000542 generated
+16000543 generated
+16000544 generated
+16000545 generated
+16000546 generated
+16000547 generated
+16000548 generated
+16000549 generated
+16000550 generated
+16000551 generated
+16000552 generated
+16000553 generated
+16000554 generated
+16000555 generated
+16000556 generated
+16000557 generated
+16000558 generated
+16000559 generated
+16000560 generated
+16000561 generated
+16000562 generated
+16000563 generated
+16000564 generated
+16000565 generated
+16000566 generated
+16000535 srd:Dodge
+16000536 generated
+16000537 srd:Dash
+16000538 generated
+16000539 generated
+16000540 generated
+16000534 generated
+16000567 generated
+16000568 generated
+16000569 srd:Fire Bolt
+16000570 srd:Fire Bolt
+16000571 srd:Chill Touch
+16000572 srd:Chill Touch+note
+16000573 srd:Shocking Grasp
+16000574 srd:Shocking Grasp+note
+16000575 srd:Poison Spray
+16000576 srd:Poison Spray+note
+16000577 srd:Sacred Flame
+16000578 srd:Sacred Flame+note
+16000579 srd:Starry Wisp
+16000580 srd:Starry Wisp+note
+16000581 srd:Vicious Mockery
+16000582 srd:Vicious Mockery
+16000583 generated
+16000584 srd:Ray of Frost
+16000585 srd:Acid Splash
+16000586 srd:Poison
+16000587 srd:Force
+16000588 generated
+16000589 generated
+16000590 srd:Guidance
+16000591 generated
+16000592 srd:Spare the Dying
+16000593 srd:Spare the Dying+note
+16000594 srd:Sorcerous Burst
+16000595 generated
+16000596 generated
+16000597 generated
+16000598 generated
+16000599 generated
+16000600 generated
+16000601 generated
+16000602 generated
+16000603 generated
+16000604 generated
+16000605 generated
+16000606 generated
+16000607 generated
+16000608 generated
+16000609 generated
+16000610 generated
+16000611 generated
+16000612 generated
+16000613 generated
+16000614 generated
+16000615 generated
+16000616 generated
+16000617 generated
+16000618 generated
+16000619 generated
+16000620 generated
+16000621 generated
+16000622 generated
+16000623 generated
+16000624 generated
+16000625 generated
+16000626 generated
+16000627 generated
+16000628 generated
+16000629 generated
+16000630 generated
+16000631 generated
+16000632 srd:Produce Flame
+16000633 srd:Produce Flame+note
+16000634 generated
+16000635 generated
+16000636 generated
+16000637 generated
+16000638 srd:Shillelagh
+16000639 srd:Shillelagh+note
+16000640 generated
+16000641 generated
+16000642 generated
+16000643 generated
+16000644 generated
+16000645 srd:True Strike+note
+16000646 generated
+16000647 generated
+16000648 srd:Druidcraft
+16000649 generated
+16000650 generated
+16000651 generated
+16000652 generated
+16000653 srd:Elementalism
+16000654 generated
+16000655 generated
+16000656 generated
+16000657 generated
+16000658 srd:Prestidigitation
+16000659 generated
+16000660 generated
+16000661 srd:Thaumaturgy
+16000662 generated
+16000663 generated
+16000664 generated
+16000665 generated
+16000666 srd:Mage Hand
+16000667 srd:Druidcraft+note
+16000668 srd:Elementalism+note
+16000669 srd:Prestidigitation+note
+16000670 srd:Thaumaturgy+note
+16000671 srd:Mage Hand+note
+16000672 generated
+16000673 srd:Minor Illusion
+16000674 generated
+16000675 generated
+16000676 generated
+16000677 generated
+16000678 generated
+16000679 generated
+16000680 generated
+16000681 srd:Dancing Lights
+16000682 generated
+16000683 generated
+16000684 generated
+16000685 srd:Minor Illusion+note
+16000686 srd:Dancing Lights+note
+16000687 generated
+16000688 generated
+16000689 generated
+16000690 generated
+16000691 generated
+16000692 generated
+16000693 generated
+16000694 generated
+16000695 generated
+16000696 generated
+16000697 generated
+16000698 generated
+16000699 generated
+16000700 srd:Channel Divinity
+16000701 generated
+16000702 generated
+16000703 generated
+16000704 generated
+16000705 generated
+16000706 generated
+16000707 generated
+16000708 generated
+16000709 srd:Guiding Bolt
+16000710 srd:Guiding Bolt+note
+16000711 srd:Ray of Sickness
+16000712 srd:Ray of Sickness
+16000713 srd:False Life
+16000714 srd:False Life+note
+16000715 srd:Dissonant Whispers
+16000716 srd:Dissonant Whispers+note
+16000717 srd:Cure Wounds
+16000718 srd:Cure Wounds
+16000719 srd:Inflict Wounds
+16000720 srd:Inflict Wounds
+16000721 srd:Thunderwave
+16000722 srd:Thunderwave+note
+16000723 srd:Ice Knife
+16000724 srd:Ice Knife
+16000725 srd:Burning Hands+note
+16000726 srd:Magic Missile+note
+16000727 srd:Healing Word
+16000728 srd:Healing Word+note
+16000729 srd:Chromatic Orb
+16000730 srd:Chromatic Orb+note
+16000731 generated
+16000732 generated
+16000733 generated
+16000734 generated
+16000735 generated
+16000736 generated
+16000737 srd:Heroism
+16000738 srd:Heroism+note
+16000739 generated
+16000740 generated
+16000741 srd:Bless+note
+16000742 srd:Bane+note
+16000743 srd:Shield of Faith
+16000744 srd:Mage Armor+note
+16000745 srd:Divine Favor
+16000746 srd:Protection from Evil and Good
+16000747 srd:Protection from Evil and Good+note
+16000748 srd:Sanctuary+note
+16000749 srd:Expeditious Retreat+note
+16000750 srd:Longstrider
+16000751 srd:Longstrider+note
+16000752 srd:Hunter's Mark
+16000753 srd:Hunter's Mark+note
+16000754 generated
+16000755 generated
+16000756 generated
+16000757 generated
+16000758 srd:Command
+16000759 srd:Command+note
+16000760 generated
+16000761 generated
+16000762 generated
+16000763 generated
+16000764 srd:Charm Person+note
+16000765 srd:Animal Friendship
+16000766 generated
+16000767 srd:Hideous Laughter
+16000768 srd:Hideous Laughter+note
+16000769 srd:Color Spray+note
+16000770 srd:Sleep+note
+16000771 srd:Entangle+note
+16000772 srd:Grease+note
+16000773 srd:Faerie Fire
+16000774 srd:Faerie Fire+note
+16000775 generated
+16000776 generated
+16000777 generated
+16000778 srd:Fog Cloud
+16000779 srd:Fog Cloud+note
+16000780 generated
+16000781 generated
+16000782 srd:Shield+note
+16000783 srd:Feather Fall
+16000784 srd:Feather Fall+note
+16000785 srd:Divine Smite
+16000786 generated
+16000787 srd:Searing Smite
+16000788 generated
+16000789 srd:Ensnaring Strike
+16000790 srd:Ensnaring Strike+note
+16000791 generated
+16000792 generated
+16000793 generated
+16000794 srd:Alarm
+16000795 srd:Alarm+note
+16000796 generated
+16000797 generated
+16000798 srd:Comprehend Languages
+16000799 srd:Comprehend Languages+note
+16000800 srd:Create or Destroy Water
+16000801 srd:Create or Destroy Water+note
+16000802 generated
+16000803 generated
+16000804 srd:Detect Evil and Good
+16000805 srd:Detect Evil and Good+note
+16000806 srd:Detect Magic
+16000807 srd:Detect Magic+note
+16000808 srd:Detect Poison and Disease
+16000809 srd:Detect Poison and Disease+note
+16000810 srd:Goodberry
+16000811 srd:Goodberry+note
+16000812 srd:Goodberry
+16000813 generated
+16000814 srd:Identify+note
+16000815 srd:Illusory Script
+16000816 srd:Illusory Script+note
+16000817 srd:Purify Food and Drink
+16000818 srd:Purify Food and Drink+note
+16000819 srd:Speak with Animals
+16000820 srd:Speak with Animals+note
+16000821 srd:Unseen Servant
+16000822 srd:Unseen Servant+note
+16000823 srd:Disguise Self
+16000824 srd:Disguise Self
+16000825 generated
+16000826 generated
+16000827 generated
+16000828 generated
+16000829 generated
+16000830 generated
+16000831 srd:Silent Image
+16000832 srd:Silent Image
+16000833 generated
+16000834 generated
+16000835 generated
+16000836 generated
+16000837 generated
+16000838 generated
+16000839 generated
+16000840 srd:Find Familiar
+16000841 srd:Find Familiar+note
+16000842 generated
+16000843 generated
+16000844 generated
+16000845 generated
+16000846 generated
+16000847 generated
+16000848 generated
+16000849 generated
+16000850 generated
+16000851 generated
+16000852 generated
+16000853 generated
+16000854 generated
+16000855 generated
+16000856 generated
+16000857 generated
+16000858 generated
+16000859 generated
+16000860 generated
+16000861 generated
+16000862 generated
+16000863 generated
+16000864 generated
+16000865 generated
+16000866 generated
+16000867 generated
+16000868 generated
+16000869 generated
+16000870 generated
+16000871 generated
+16000872 generated
+16000873 generated
+16000874 generated
+16000875 generated
+16000876 generated
+16000877 generated
+16000878 srd:Floating Disk
+16000879 srd:Floating Disk+note

@@ -24,8 +24,8 @@ enum class DiskEnd { kNone, kMasterGone, kHourUp, kOverloaded, kTooFar, kSentAwa
 // area (another area is past 100 feet); feet: its distance from the caster; weight_tenths: what it carries
 // (GetWeight's tenths of pounds); hour_left: its mark still on it.
 DiskEnd DiskEndReason(bool master_here, bool same_area, float feet, int weight_tenths, bool hour_left);
-// The end's words to the caster ("" for kNone).
-const char* DiskEndText(DiskEnd why);
+// The end's reason, its player text's key (data/text/en.txt, #168): "" for kNone.
+const char* DiskEndKey(DiskEnd why);
 
 // It moves to its caster once farther than 20 feet - unless told to stand its ground.
 bool DiskFollows(float feet, bool standing);

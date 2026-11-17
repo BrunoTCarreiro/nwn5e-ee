@@ -10,13 +10,13 @@ DiskEnd DiskEndReason(bool master_here, bool same_area, float feet, int weight_t
   return DiskEnd::kNone;
 }
 
-const char* DiskEndText(DiskEnd why) {
+const char* DiskEndKey(DiskEnd why) {
   switch (why) {
-    case DiskEnd::kMasterGone: return "its caster is gone";
-    case DiskEnd::kHourUp: return "its hour is up";
-    case DiskEnd::kOverloaded: return "more than 500 pounds was put on it";
-    case DiskEnd::kTooFar: return "you are more than 100 feet from it";
-    case DiskEnd::kSentAway: return "you sent it away";
+    case DiskEnd::kMasterGone: return "disk.why.caster_gone";
+    case DiskEnd::kHourUp: return "disk.why.hour";
+    case DiskEnd::kOverloaded: return "disk.why.overloaded";
+    case DiskEnd::kTooFar: return "disk.why.too_far";
+    case DiskEnd::kSentAway: return "disk.why.sent_away";
     default: return "";
   }
 }

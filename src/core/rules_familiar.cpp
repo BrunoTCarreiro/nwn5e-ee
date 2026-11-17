@@ -45,6 +45,7 @@
 #include "hooks.h"
 #include "light_sources.h"
 #include "log.h"
+#include "player_text.h"
 #include "reactions.h"
 #include "records.h"
 #include "script_hooks.h"
@@ -140,7 +141,8 @@ const char* AlignmentConstant(rules::FamiliarKind kind) {
 }
 
 std::string FamiliarName(const Familiar& f) {
-  return std::string(rules::FamiliarStatsOf(f.form).name) + " (" + rules::FamiliarKindName(f.kind) + ")";
+  return PlayerText("familiar.name",
+                    {{"form", rules::FamiliarStatsOf(f.form).name}, {"kind", rules::FamiliarKindName(f.kind)}});
 }
 
 // The familiar remade to its form and kind; its hit points the kept ones (0: the form's).
@@ -199,7 +201,7 @@ int GoodEvilOf(uint32_t master, void* caster) {
 void Dismiss(uint32_t self, void* caster) {
   const auto it = g_familiars.find(self);
   if (it == g_familiars.end() || it->second.dismissed || !CreatureById(it->second.creature)) {
-    TellPlayer(self, "nwn5e: Find Familiar - no familiar of yours is here to dismiss.");
+    TellPlayer(self, PlayerText("familiar.none_here"));
     return;
   }
   Familiar& f = it->second;
@@ -216,15 +218,14 @@ void Dismiss(uint32_t self, void* caster) {
   engine::SetLocalInt(caster, "n5f_hp", f.hit_points);
   GrantFeat(caster, rules::kFeatFamiliarDismiss, false);
   GrantFeat(caster, rules::kFeatFamiliarRecall, true);
-  TellPlayer(self, "nwn5e: Find Familiar - your " + FamiliarName(f) + " goes to a pocket dimension (its Recall brings it "
-                   "back within 30 feet).");
+  TellPlayer(self, PlayerText("familiar.dismissed", {{"name", FamiliarName(f)}}));
   if (LogSlot()) Log("familiar: 0x%08X dismissed its familiar (%d hit points kept)", self, f.hit_points);
 }
 
 void Recall(uint32_t self, void* caster) {
   const auto it = g_familiars.find(self);
   if (it == g_familiars.end() || !it->second.dismissed) {
-    TellPlayer(self, "nwn5e: Find Familiar - no familiar of yours is away to recall.");
+    TellPlayer(self, PlayerText("familiar.none_away"));
     return;
   }
   Run("vector v = GetPositionFromLocation(GetSpellTargetLocation()); SetLocalString(OBJECT_SELF, \"n5f_at\", "
@@ -235,13 +236,13 @@ void Recall(uint32_t self, void* caster) {
   const float dx = x - Field<float>(caster, ee::kObjectPositionX);
   const float dy = y - Field<float>(caster, ee::kObjectPositionY);
   if (std::sqrt(dx * dx + dy * dy) / kMetresPerFoot > static_cast<float>(rules::kFamiliarRecallFeet)) {
-    TellPlayer(self, "nwn5e: Find Familiar - it comes back to a spot within 30 feet of you.");
+    TellPlayer(self, PlayerText("familiar.recall_far"));
     return;
   }
   Familiar& f = it->second;
   const uint32_t familiar = Summon(self, caster);
   if (!familiar) {
-    TellPlayer(self, "nwn5e: Find Familiar - your familiar didn't come back (see nwn5e.log).");
+    TellPlayer(self, PlayerText("familiar.recall_failed"));
     Log("familiar: 0x%08X Recall - SummonFamiliar gave no familiar", self);
     return;
   }
@@ -256,7 +257,7 @@ void Recall(uint32_t self, void* caster) {
   engine::SetLocalInt(caster, "n5f_away", 0);
   GrantFeat(caster, rules::kFeatFamiliarRecall, false);
   GrantFeat(caster, rules::kFeatFamiliarDismiss, true);
-  TellPlayer(self, "nwn5e: Find Familiar - your " + FamiliarName(f) + " is back.");
+  TellPlayer(self, PlayerText("familiar.back", {{"name", FamiliarName(f)}}));
   if (LogSlot()) Log("familiar: 0x%08X recalled its familiar 0x%08X", self, familiar);
 }
 
@@ -314,7 +315,7 @@ void FamiliarUpdate(void* creature) {
   g_familiars.erase(it);
   GrantFeat(creature, rules::kFeatFamiliarDismiss, false);
   GrantFeat(creature, rules::kFeatFamiliarRecall, false);
-  TellPlayer(id, "nwn5e: Find Familiar - your " + name + " is gone; cast Find Familiar again for another.");
+  TellPlayer(id, PlayerText("familiar.gone", {{"name", name}}));
   if (LogSlot()) Log("familiar: 0x%08X its familiar is gone (%s)", id, familiar ? "0 hit points" : "unsummoned");
 }
 
@@ -336,7 +337,7 @@ using PossessFn = void (*)(void* creature);
 PossessFn g_possess = nullptr;
 void Possess(void* creature) {
   if (creature && Faithful() && ActionEconomyOn() && g_familiars.count(ObjId(creature)) &&
-      !SpendBonusAction(creature, "Find Familiar: through its eyes")) {
+      !SpendBonusAction(creature, PlayerText("familiar.eyes").c_str())) {
     return;  // told
   }
   g_possess(creature);
@@ -396,8 +397,8 @@ void FamiliarTouchCast(void* creature, uint32_t spell) {
   Run("ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_HEAD_ODD), OBJECT_SELF);", familiar,
       "the familiar's touch");
   const auto f = g_familiars.find(id);
-  TellPlayer(id, "nwn5e: Find Familiar - your " + (f != g_familiars.end() ? FamiliarName(f->second) : std::string("familiar")) +
-                     " delivers the touch (its Reaction).");
+  TellPlayer(id, PlayerText("familiar.touch", {{"name", f != g_familiars.end() ? FamiliarName(f->second)
+                                                                         : PlayerText("familiar.your_familiar")}}));
 }
 
 // 0.99.49: its heartbeat - it follows its master (closer than 3 m it waits), unless told to stand its ground
@@ -435,12 +436,12 @@ bool FamiliarFeatGuard(void* creature, int feat) {
   const bool away = it != g_familiars.end() && it->second.dismissed;
   const bool here = it != g_familiars.end() && !it->second.dismissed && CreatureById(it->second.creature);
   if (feat == rules::kFeatFamiliarDismiss && !here) {
-    TellPlayer(id, "nwn5e: Find Familiar - no familiar of yours is here to dismiss.");
+    TellPlayer(id, PlayerText("familiar.none_here"));
     GrantFeat(creature, rules::kFeatFamiliarDismiss, false);
     return false;
   }
   if (feat == rules::kFeatFamiliarRecall && !away) {
-    TellPlayer(id, "nwn5e: Find Familiar - no familiar of yours is away to recall.");
+    TellPlayer(id, PlayerText("familiar.none_away"));
     GrantFeat(creature, rules::kFeatFamiliarRecall, false);
     return false;
   }
@@ -484,7 +485,7 @@ void FindFamiliarSpell(uint32_t self, void* caster, int row) {
   if (row == rules::kFamiliarRecall) return Recall(self, caster);
   const rules::FamiliarForm form = rules::FamiliarFormOf(row);
   if (form == rules::FamiliarForm::kNone) {
-    TellPlayer(self, "nwn5e: Find Familiar - pick a form from its menu.");
+    TellPlayer(self, PlayerText("familiar.pick_form"));
     return;
   }
   Familiar& f = g_familiars[self];
@@ -492,12 +493,12 @@ void FindFamiliarSpell(uint32_t self, void* caster, int row) {
   f.kind = rules::FamiliarKindFor(rules::FamiliarKindOfRow(row), GoodEvilOf(self, caster));  // 0.99.49: the menu's
   // One familiar: one of this spell's out takes the new form (away, it changes there).
   if (f.dismissed) {
-    TellPlayer(self, "nwn5e: Find Familiar - your familiar, away in its pocket dimension, becomes a " + FamiliarName(f) + ".");
+    TellPlayer(self, PlayerText("familiar.becomes_away", {{"name", FamiliarName(f)}}));
     return;
   }
   if (f.creature && CreatureById(f.creature) && !engine::IsDeadOrDying(CreatureById(f.creature))) {
     Remake(f.creature, f);
-    TellPlayer(self, "nwn5e: Find Familiar - your familiar becomes a " + FamiliarName(f) + ".");
+    TellPlayer(self, PlayerText("familiar.becomes", {{"name", FamiliarName(f)}}));
     if (LogSlot()) Log("familiar: 0x%08X its familiar 0x%08X becomes a %s", self, f.creature, FamiliarName(f).c_str());
     return;
   }
@@ -523,7 +524,7 @@ void FinishSummon(uint32_t self) {
   const uint32_t familiar = Summon(self, caster);
   if (!familiar) {
     g_familiars.erase(self);
-    TellPlayer(self, "nwn5e: Find Familiar - no familiar came (see nwn5e.log).");
+    TellPlayer(self, PlayerText("familiar.failed"));
     Log("familiar: 0x%08X SummonFamiliar gave no familiar", self);
     return;
   }
@@ -532,9 +533,7 @@ void FinishSummon(uint32_t self) {
   Remake(familiar, f);
   GrantFeat(caster, rules::kFeatFamiliarDismiss, true);
   GrantFeat(caster, rules::kFeatFamiliarRecall, false);
-  TellPlayer(self, "nwn5e: Find Familiar - a " + FamiliarName(f) + " serves you. It can't attack; Possess Familiar (your "
-                   "radial) looks through its eyes - a Bonus Action; it delivers your touch spells within 100 feet (its "
-                   "Reaction); Dismiss and Recall are in Find Familiar's menu (its second page).");
+  TellPlayer(self, PlayerText("familiar.serves", {{"name", FamiliarName(f)}}));
   if (LogSlot()) {
     const rules::FamiliarStats& s = rules::FamiliarStatsOf(form);
     Log("familiar: 0x%08X Find Familiar - 0x%08X a %s: AC %d, %d HP, appearance %d at %.2f", self, familiar,

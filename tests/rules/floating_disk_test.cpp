@@ -20,8 +20,10 @@ TEST(FloatingDiskEnds) {
   CHECK_EQ(DiskEndReason(true, true, 10.0f, 0, false) == DiskEnd::kHourUp, true);
   CHECK_EQ(DiskEndReason(false, true, 10.0f, 9999, true) == DiskEnd::kMasterGone, true);
   CHECK_EQ(DiskEndReason(true, false, 0.0f, 9999, false) == DiskEnd::kHourUp, true);  // the hour first
-  CHECK_EQ(DiskEndText(DiskEnd::kNone)[0] == '\0', true);
-  CHECK_EQ(DiskEndText(DiskEnd::kOverloaded)[0] != '\0' && DiskEndText(DiskEnd::kSentAway)[0] != '\0', true);
+  // #168: its words in data/text/en.txt by key (tests/data/text_catalog_test.cpp: every key there).
+  CHECK_EQ(DiskEndKey(DiskEnd::kNone)[0] == '\0', true);
+  CHECK_EQ(std::string(DiskEndKey(DiskEnd::kOverloaded)) == "disk.why.overloaded", true);
+  CHECK_EQ(std::string(DiskEndKey(DiskEnd::kSentAway)) == "disk.why.sent_away", true);
 }
 
 TEST(FloatingDiskFollowsAndOrders) {
