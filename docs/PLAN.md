@@ -6706,6 +6706,9 @@ RestDone, which opens the window for a rest that had none at its start - after t
 `!test` drops that window after a profile that set the spells (PrepareSpellsKeepShut); the Long Rest's change stays
 open, the rebuild's rest being one.
 
+*Accepted (owner, 2026-11-18: "spells set by !test have been fine so 169 can also be accepted").* PL-1 to PL-6
+passed.
+
 ### `!spawn <blueprint> away` (#170)
 
 *Asked (owner, 2026-11-17, #152's blocks A-C passed):* "I need to find a better map to test with aggressive creatures
@@ -6729,6 +6732,8 @@ map. *Decided (owner, 2026-11-17): "A is good".*
 reaction the creature had queued (its study) ran in between, on a creature being removed. `!reset` now marks what
 it removes (nwn5e_test_removed) at once, and the illusion's handlers drop a marked creature's reaction
 (ReactorCalled).
+
+*Accepted (owner, 2026-11-18: "170 seems fine").* AW-1 to AW-3 passed; #152's runs used `away` throughout.
 
 ### The Test Grounds' commands (#156)
 
