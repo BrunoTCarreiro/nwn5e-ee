@@ -845,6 +845,9 @@ check("the other shapes: six types, their labels and fields; a sphere's, a cylin
   assert.deepStrictEqual(F.SHAPE_INFO.inner, { label: "Inner radius (m)", min: 0.01, max: 100, step: 0.05 });
   // Smoothness's tooltip true of every type (the card shows one for each).
   assert.strictEqual(F.SHAPE_INFO.segments.title, "Segments round it; a dome's rings up it are a quarter of that, a sphere's half");
+  // Opacity's true with a texture too (the final review): a Soft or library texture's own alpha still shows through at 1.
+  assert.strictEqual(F.SHAPE_INFO.alpha.title,
+    "Its alpha: at 1 it's as solid as its texture (Soft and library textures still show through where their own alpha does); the game's globes go to about 0.3");
   // The defaults, in SHAPE_KEYS' order; each read as its defaults and written as its type and radius alone.
   const want = {
     sphere: { type: "sphere", radius: 4.57, height: 9.14 }, cylinder: { type: "cylinder", radius: 4.57, height: 9.14 }, cone: { type: "cone", radius: 4.57, height: 9.14 },

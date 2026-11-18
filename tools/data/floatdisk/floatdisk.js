@@ -459,7 +459,8 @@ const SHAPE_INFO = {
   repeat_up: { label: "Repeat up", min: 1, max: 16, step: 1, whole: true,
     title: "How many times the texture repeats from its base to its top (a flat one's: from its rim in)" },
   colour: { label: "Colour", colour: true },
-  alpha: { label: "Opacity", min: 0.02, max: 1, step: 0.05, title: "Its alpha: 1 is solid; the game's globes go to about 0.3" },
+  alpha: { label: "Opacity", min: 0.02, max: 1, step: 0.05,
+    title: "Its alpha: at 1 it's as solid as its texture (Soft and library textures still show through where their own alpha does); the game's globes go to about 0.3" },
   glow: { label: "Glow", min: 0, max: 1, step: 0.05, title: "How much it lights itself (selfillum): at 1 it looks the same by day and night" },
   // Soft or none, or a library texture's name (the game's own, named: nothing generated or copied).
   texture: { label: "Texture", choices: [["soft", "Soft: brighter at its base (a flat one's rim)"], ["none", "None: its colour only"]],
