@@ -2486,6 +2486,8 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
       first use). A spell attack's roll still ends it after the roll. The class spells without one: Minor Illusion,
       True Strike, Lesser Dispel, Clarity, Ethereal Visage; Ray of Enfeeblement is V, S as SRD 5.2 has it (NWN's row
       says S: spells.if_cantrips2024.components.txt).
+      *Accepted (owner, 2026-11-18: "I've seen the tests for 151 being passed as I did other tests so consider them
+      accepted").* SH-1 to SH-3 and VC-1 (the vision cones) passed.
     - The descriptions: Caltrops, Choking Powder, the bombs and the patches say "anyone in it, you too"; the fire ones'
       light.
     - Test ThrowFromHiding (3 of 3 mutations caught).
