@@ -2,7 +2,8 @@
 
 `build_derived.js` builds the models made from the game's own art - the Floating Disk's and the Composer's placeables -
 and a dyed part's baked texture, from their recipes, from your own game, into a build's folder. The repo doesn't keep
-them. It carries a shape's soft texture (`n5s_*`) with the models too, as it carries a bake.
+them. It carries a shape's soft texture (`n5s_*`) with the models too, as it carries a bake, and a moving texture's
+material (`n5u_*.mtr`) with the shader it names.
 
 ## Why
 
@@ -28,10 +29,13 @@ remove the six files from main"**:
 - any baked texture: `n5p_*` (`n5p_` and 12 hex digits, `.tga`: the Floating Disk's README, "Dyed parts");
 - any shape's soft texture: `n5s_*` (the Floating Disk's README, "Shapes"). It's original, but build output like a
   bake: its bytes follow from the recipe's colour alone, so only the recipe is committed, and no stale ones pile up
-  while colours are tried.
+  while colours are tried;
+- any moving texture's material: `n5u_*` (the Floating Disk's README, "Moving textures"), build output as a soft
+  texture is.
 
 The generators' own runs (the VFX Bench's Save and build) still write them into `data\files`, where they stay,
-ignored. What's made from scratch stays committed: the `.pwk` files, `n5t_forcedisk.tga`, the rows.
+ignored. What's made from scratch stays committed: the `.pwk` files, `n5t_forcedisk.tga`, the rows, and the moving
+textures' shader, `vsn5uvmove.shd` (the Floating Disk's `made.txt` lists it).
 
 ## In build.bat
 
@@ -59,6 +63,8 @@ node tools\data\build_derived.js --out <folder> [--game <folder>] [--tools <nwn5
 - **A shape's soft texture** (`n5s_*.tga`, a dome's) comes out with the model that names it, as a bake does: the
   same name, the same bytes, written once, git-ignored and rebuilt for every build. A library texture is only named:
   the game has it.
+- **A moving texture's material** (`n5u_*.mtr`) comes out with the model that names it, and the shader it names
+  (`vsn5uvmove.shd`) with it - the committed one, byte for byte (build.bat's copy of `data\` has it already).
 - **Spell meshes are skipped**, and it says so. Their drafts live in the VFX Bench's saved folder, and the dev layer
   writes their models when the game runs.
 - **A project never built is skipped**, and it says so. That's one with no `data\rows\placeables.<name>.txt` and no
@@ -73,8 +79,9 @@ node tools\data\build_derived.js --out <folder> [--game <folder>] [--tools <nwn5
     of `data\files`); the VFX Bench's Save rebuilds them too. Commit them with the recipe.
   - For a build that won't be installed, `NWN5E_DERIVED=skip` gets past it (build.bat).
 - **Never a file it didn't make.** In `--out` it keeps the generators' rule: a model or `.pwk` is overwritten only
-  when it carries its generator's mark, a texture only when that generator's `made.txt` lists it, a baked texture or a
-  shape's soft texture by its name (only the generators make `n5p_` and `n5s_` names, and the name fixes the picture).
+  when it carries its generator's mark, a texture only when that generator's `made.txt` lists it, a baked texture, a
+  shape's soft texture or a moving texture's material by its name (only the generators make `n5p_`, `n5s_` and `n5u_`
+  names, and the name fixes the bytes), the shader by its first line.
   Any other file in the way stops it. Every file is checked before any is written.
 - **What it says:** a line per generator (its files, whether its rows agree), a line per file (`written` or
   `unchanged`), then a total.
@@ -114,6 +121,9 @@ build.bat stops on either (above).
     a second build; one the Floating Disk also makes is written once; a file of a bake's name in `--out` is rewritten;
   - a placeable project's dome: its model and its soft texture (git-ignored) come out into `--out`, the generator's
     bytes, unchanged on a second build; a file of the texture's name in `--out` is rewritten;
+  - a placeable project's moving dome: its material and the shader come out beside its model, the shader the
+    committed one; a material of its name or a shader with its first line in `--out` is rewritten, someone's
+    `vsn5uvmove.shd` stops it;
   - `--check` writes nothing;
   - rows that disagree, or a recipe edited without its rows, give exit 1 and say which;
   - a spell mesh is skipped, a refused build and a file in the way give exit 1, and each missing prerequisite gives

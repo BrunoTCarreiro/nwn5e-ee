@@ -177,12 +177,14 @@ std::string DraftKeys(const std::vector<VfxKeys>& keys) {
       if (!k.color.empty()) out += std::string(anim) + "_color = " + Row(k.color) + "\n";  // #145, a light's
       if (!k.radius.empty()) out += std::string(anim) + "_radius = " + Row(k.radius) + "\n";
       if (!k.alpha.empty()) out += std::string(anim) + "_alpha = " + Row(k.alpha) + "\n";  // #39, a plane's
+      // #39 (M4), a plane's scale: after its alpha, so every draft before it keeps its bytes.
+      if (!k.scale.empty()) out += std::string(anim) + "_scale = " + Row(k.scale) + "\n";
     }
   }
   return out;
 }
 
-// A draft line that is a key list ("<anim>_position" / "_orientation" / "_color" / "_radius" / "_alpha").
+// A draft line that is a key list ("<anim>_position" / "_orientation" / "_color" / "_radius" / "_alpha" / "_scale").
 bool DraftKeyLine(const std::string& key, const std::vector<std::string>& words, std::vector<VfxKeys>* keys) {
   for (const char* anim : kAnims) {
     const std::string a(anim);
@@ -206,12 +208,16 @@ bool DraftKeyLine(const std::string& key, const std::vector<std::string>& words,
       ReadAll(words, &FindKeys(keys, a, true)->alpha);
       return true;
     }
+    if (key == a + "_scale") {  // #39 (M4), a plane's
+      ReadAll(words, &FindKeys(keys, a, true)->scale);
+      return true;
+    }
   }
   return false;
 }
 
 // The last key's time in one animation, over the effect's nodes, emitters and lights (#145: their colour and radius)
-// and its planes' alpha (#39: what the model keys of them).
+// and its planes' position, orientation, scale and alpha (#39: what the model keys of them).
 float LastKeyTime(const VfxEffect& effect, const std::string& anim) {
   float last = 0.0f;
   const auto scan = [&](const std::vector<VfxKeys>& keys) {
@@ -229,6 +235,9 @@ float LastKeyTime(const VfxEffect& effect, const std::string& anim) {
   for (const VfxPlane& p : effect.planes) {
     for (const VfxKeys& k : p.keys) {
       if (k.anim != anim) continue;
+      for (size_t i = 0; i + 3 < k.position.size(); i += 4) last = std::max(last, k.position[i]);  // M4
+      for (size_t i = 0; i + 4 < k.orientation.size(); i += 5) last = std::max(last, k.orientation[i]);
+      for (size_t i = 0; i + 1 < k.scale.size(); i += 2) last = std::max(last, k.scale[i]);
       for (size_t i = 0; i + 1 < k.alpha.size(); i += 2) last = std::max(last, k.alpha[i]);
     }
   }
@@ -456,32 +465,24 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
   const float duration = std::max(effect.lengths[1] > 0.0f ? effect.lengths[1] : 2.0f, LastKeyTime(effect, "duration"));
   const float cessation =
       std::max(effect.lengths[2] > 0.0f ? effect.lengths[2] : 1.0f, LastKeyTime(effect, "cessation"));
+  // One key list: "  <word> <rows>", then its whole rows of `width` numbers, the time first (t x y z, t ax ay az angle,
+  // t r g b, t m, t s, t a) - nothing without a whole row. Every node's, emitter's, light's and plane's lists.
+  const auto list_lines = [&](const char* word, const std::vector<float>& values, size_t width) {
+    if (values.size() < width) return;
+    lines.push_back(std::string("  ") + word + " " + std::to_string(values.size() / width));
+    for (size_t i = 0; i + width <= values.size(); i += width) {
+      std::string row = "   ";
+      for (size_t c = 0; c < width; ++c) row += " " + Num(values[i + c]);
+      lines.push_back(row);
+    }
+  };
   const auto key_lines = [&](const std::vector<VfxKeys>& keys, const char* anim) {
     for (const VfxKeys& k : keys) {
       if (k.anim != anim) continue;
-      if (k.position.size() >= 4) {
-        lines.push_back("  positionkey " + std::to_string(k.position.size() / 4));
-        for (size_t i = 0; i + 3 < k.position.size(); i += 4) {
-          lines.push_back("    " + Num(k.position[i]) + " " + Num(k.position[i + 1]) + " " + Num(k.position[i + 2]) + " " +
-                          Num(k.position[i + 3]));
-        }
-      }
-      if (k.orientation.size() >= 5) {
-        lines.push_back("  orientationkey " + std::to_string(k.orientation.size() / 5));
-        for (size_t i = 0; i + 4 < k.orientation.size(); i += 5) {
-          lines.push_back("    " + Num(k.orientation[i]) + " " + turn(&k.orientation[i + 1]));
-        }
-      }
-      if (k.color.size() >= 4) {  // #145, a light's
-        lines.push_back("  colorkey " + std::to_string(k.color.size() / 4));
-        for (size_t i = 0; i + 3 < k.color.size(); i += 4) {
-          lines.push_back("    " + Num(k.color[i]) + " " + Num(k.color[i + 1]) + " " + Num(k.color[i + 2]) + " " + Num(k.color[i + 3]));
-        }
-      }
-      if (k.radius.size() >= 2) {
-        lines.push_back("  radiuskey " + std::to_string(k.radius.size() / 2));
-        for (size_t i = 0; i + 1 < k.radius.size(); i += 2) lines.push_back("    " + Num(k.radius[i]) + " " + Num(k.radius[i + 1]));
-      }
+      list_lines("positionkey", k.position, 4);
+      list_lines("orientationkey", k.orientation, 5);
+      list_lines("colorkey", k.color, 4);  // #145, a light's
+      list_lines("radiuskey", k.radius, 2);
     }
   };
   const auto anim = [&](const char* name, float length, bool keys_on, bool keys_off) {
@@ -584,22 +585,30 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
       }
       lines.push_back("endnode");
     }
-    // #39: a plane with alpha keys in this animation (a mesh beat's fade) keys it there, as the game's own effect models
-    // key a mesh's (alphakey, controller 128); one without is in no animation, as before. Its mesh, scale and timing are
-    // the bench's, never written; unlike a light it gets no fade of its own at the effect's end (its keys say it all).
+    // #39: a plane with keys in this animation keys them there, on a node of its geometry's name under its geometry's
+    // parent: a mesh beat's move and turn (positionkey, orientationkey, as a node's - M4), its scale (scalekey, controller
+    // 36, one value a row, as the game's own vdr_bigby_int keys its hand's - M4) and its fade (alphakey, controller 128, as
+    // the game's own effect models key a mesh's). A plane without any is in no animation, as before - every model written
+    // before keeps its bytes. Of each kind the first list in this animation with a whole row (a draft has one list an
+    // animation). Its mesh, scale, timing and tint are the bench's, never written; unlike a light it gets no fade of its
+    // own at the effect's end (its keys say it all).
     for (size_t i = 0; i < effect.planes.size(); ++i) {
       const VfxPlane& p = effect.planes[i];
-      const VfxKeys* fade = nullptr;
+      const VfxKeys *move = nullptr, *turn_keys = nullptr, *grow = nullptr, *fade = nullptr;
       for (const VfxKeys& k : p.keys) {
-        if (!fade && k.anim == name && k.alpha.size() >= 2) fade = &k;
+        if (k.anim != name) continue;
+        if (!move && k.position.size() >= 4) move = &k;
+        if (!turn_keys && k.orientation.size() >= 5) turn_keys = &k;
+        if (!grow && k.scale.size() >= 2) grow = &k;
+        if (!fade && k.alpha.size() >= 2) fade = &k;
       }
-      if (!fade) continue;
+      if (!move && !turn_keys && !grow && !fade) continue;
       lines.push_back("node trimesh " + plane_names[i]);
       lines.push_back("  parent " + plane_parent(p));
-      lines.push_back("  alphakey " + std::to_string(fade->alpha.size() / 2));
-      for (size_t r = 0; r + 1 < fade->alpha.size(); r += 2) {
-        lines.push_back("    " + Num(fade->alpha[r]) + " " + Num(fade->alpha[r + 1]));
-      }
+      if (move) list_lines("positionkey", move->position, 4);
+      if (turn_keys) list_lines("orientationkey", turn_keys->orientation, 5);
+      if (grow) list_lines("scalekey", grow->scale, 2);
+      if (fade) list_lines("alphakey", fade->alpha, 2);
       lines.push_back("endnode");
     }
     lines.push_back(std::string("doneanim ") + name + " " + model);
@@ -714,11 +723,12 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
     // Its transparencyhint (the owner, 2026-11-18) the same way: only when it isn't 0.
     if (HintValue(p.transparency_hint)) out += "transparencyhint = " + std::to_string(HintValue(p.transparency_hint)) + "\n";
     // #39, a mesh beat's (the bench's): the same rule - only what isn't the default, so every draft before it keeps its
-    // bytes - then its alpha keys.
+    // bytes - its tint too (M4), then its keys.
     if (!p.mesh.empty()) out += "mesh = " + p.mesh + "\n";
     if (Num(p.scale) != Num(plane_defaults.scale)) out += "scale = " + Num(p.scale) + "\n";
     if (p.start_seconds > 0.0f) out += "start_seconds = " + Num(p.start_seconds) + "\n";
     if (p.emit_seconds > 0.0f) out += "emit_seconds = " + Num(p.emit_seconds) + "\n";
+    if (Num3(p.tint) != Num3(plane_defaults.tint)) out += "tint = " + Num3(p.tint) + "\n";
     out += DraftKeys(p.keys);
     std::string list;
     for (float v : p.verts) list += " " + Num(v);
@@ -801,6 +811,7 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
       else if (key == "scale") p.scale = ToFloat(value);
       else if (key == "start_seconds") p.start_seconds = std::min(10.0f, std::max(0.0f, ToFloat(value)));  // as core.js reads a light's
       else if (key == "emit_seconds") p.emit_seconds = std::max(0.0f, ToFloat(value));
+      else if (key == "tint") ReadFloats(words, 0, p.tint, 3);  // M4, as its material's colours are read
       else if (key == "verts" || key == "tverts") {
         std::vector<float>& list = key == "verts" ? p.verts : p.tverts;
         list.clear();

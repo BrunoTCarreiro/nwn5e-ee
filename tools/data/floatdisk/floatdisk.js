@@ -1,8 +1,8 @@
 // The Floating Disk generator's pure parts (#39; build.js does the reading and writing, check.js tests these): the
 // composition, the maths that places the junk, the disk's mesh and texture, the Composer's shapes (a dome, a sphere, a
-// cylinder, a cone, a disc and a ring: their meshes and generated texture), the game files' text (the creature and pile
-// models, the piles' use points, the 2da rows), a compiled model's node tree, and an ASCII model made readable by the
-// mesh reader. Nothing here touches the disk or the game.
+// cylinder, a cone, a disc and a ring: their meshes and generated texture), a moving texture's maths, material and
+// shader (M2), the game files' text (the creature and pile models, the piles' use points, the 2da rows), a compiled
+// model's node tree, and an ASCII model made readable by the mesh reader. Nothing here touches the disk or the game.
 // Plain UMD: Node's require, or a page's self.FloatDisk (the Composer). modelNodes, carriesMark and sameText use Buffer
 // and stay Node-only; tgaBytes and diskTexture give a Buffer in Node and a Uint8Array in a page.
 (function (root) {
@@ -165,9 +165,10 @@ function bakeBitmaps(meshes, colours, isPlt) {
 // One part of a composition (or of a Composer project: tools\data\composer\project.js) read and checked -> { source:
 // { kind: "model", model } | { kind: "models", models } (a weapon's pieces) | { kind: "file", file (absolute), given }
 // | { kind: "shape", shape (readShape's: every key) }, at, turn, scale, tilt, note, colours (the ten layers'), tint
-// (readTint's: white without one) }. `where` names it in an error (stages.small[0]); `baseDir` resolves its file. A shape
-// has no scale (its radius and height size it), no dyes and no tint (its colour is on the shape): its colours are the
-// defaults, its tint white.
+// (readTint's: white without one), motion (readMotion's, M2: still without one) }. `where` names it in an error
+// (stages.small[0]); `baseDir` resolves its file. A shape has no scale (its radius and height size it), no dyes and no
+// tint (its colour is on the shape): its colours are the defaults, its tint white. Any part may carry a motion, a shape
+// too: it moves the part's textured meshes.
 function readPart(p, where, baseDir) {
   if (!p || typeof p !== "object" || Array.isArray(p)) throw new Error(`${where}: a part ({ "model": ..., "at": [x, y, z] })`);
   const hasModel = p.model !== undefined, hasFile = p.file !== undefined, hasShape = p.shape !== undefined;
@@ -196,7 +197,8 @@ function readPart(p, where, baseDir) {
   if (!isNum(turn)) throw new Error(`${where}.turn: degrees`);
   if (!isNum(scale) || scale <= 0) throw new Error(`${where}.scale: a number above 0`);
   if (!Array.isArray(tilt) || tilt.length !== 2 || !tilt.every(isNum)) throw new Error(`${where}.tilt: [degrees about x, degrees about y]`);
-  return { source, at: p.at, turn, scale, tilt, note: p.note || "", colours: readColours(p.colours, `${where}.colours`), tint: readTint(p.tint, where) };
+  return { source, at: p.at, turn, scale, tilt, note: p.note || "", colours: readColours(p.colours, `${where}.colours`), tint: readTint(p.tint, where),
+    motion: readMotion(p.motion, where) };
 }
 
 // composition.json's object -> { disk, stages: { empty: [], small: [part], ... } }, each part as readPart gives it.
@@ -250,13 +252,14 @@ function inline(v) {
 }
 // composition.json's text in its own layout (the Composer saves it): two-space indents, _about a string a line, the disk
 // a key a line, each stage a part a line (note, model | file | shape, at, turn, scale, tilt, colours, tint - never white,
-// which is no tint - then any other key); arrays and a shape inline.
+// which is no tint - motion - its non-zero keys, cleanMotion's, never a still one - then any other key); arrays and a
+// shape inline.
 function compositionText(c) {
-  const PART_KEYS = ["note", "model", "file", "shape", "at", "turn", "scale", "tilt", "colours", "tint"];
+  const PART_KEYS = ["note", "model", "file", "shape", "at", "turn", "scale", "tilt", "colours", "tint", "motion"];
   const part = (p) => {
-    const written = (k) => p[k] !== undefined && !(k === "tint" && isWhite(p[k]));
+    const written = (k) => p[k] !== undefined && !(k === "tint" && isWhite(p[k])) && !(k === "motion" && !hasMotion(p[k]));
     const keys = PART_KEYS.filter(written).concat(Object.keys(p).filter((k) => !PART_KEYS.includes(k) && written(k)));
-    return "{ " + keys.map((k) => JSON.stringify(k) + ": " + inline(p[k])).join(", ") + " }";
+    return "{ " + keys.map((k) => JSON.stringify(k) + ": " + inline(k === "motion" ? cleanMotion(p[k]) : p[k])).join(", ") + " }";
   };
   const block = (o, indent, line) => Object.keys(o).filter((k) => o[k] !== undefined).map((k, i, a) => indent + line(k, o[k]) + (i < a.length - 1 ? "," : ""));
   const top = Object.keys(c).filter((k) => c[k] !== undefined).map((k) => {
@@ -743,6 +746,183 @@ function shapeModel(shape) {
     textures: soft ? [{ name: bitmap, colour: colour.slice(), blend }] : [] };
 }
 
+// --- textures that move (M2) ----------------------------------------------------------------------------------------
+// The owner, 2026-11-18: "for the animated textures: 1. scrolling, scaling (breathing), rotating" - "the textures on the
+// meshes". A part's `motion` { scroll: [u, v] (repeats a second along u, then v), turn (degrees a second), breathe (how
+// much bigger and smaller the picture gets, 0 to 0.9), rate (breaths a second, while it breathes) } moves every textured
+// mesh of the part - a shape's too; absent or still, nothing written changes. NWN:EE has no UV-motion setting (the
+// design's "Texture motion"), so a moving texture reaches the game as an EE material: the mesh's bitmap becomes
+// n5u_<12 hex digits> (motionName), and n5u_<...>.mtr - the game attaches a material by its mesh's texture name - names
+// our vertex shader (vsn5uvmove.shd, motionShaderText) with the game's lit fragment shader and gives the motion as its
+// parameters (motionMaterialText). Data files: no DLL change. The stage moves its UVs by the same maths (uvMotion).
+const MOTION_KEYS = ["scroll", "turn", "breathe", "rate"];
+const MOTION_RATE = 0.5;  // a breath every 2 s, when a motion gives no rate
+// A field's card label(s) and bounds: what readMotion enforces, and what the page shows (the design's sketch).
+const MOTION_INFO = {
+  scroll: { labels: ["Scroll round", "Scroll up"], min: -10, max: 10, step: 0.05,
+    title: "Repeats a second: + round it counter-clockwise seen from above (u), + up it (v)" },
+  turn: { label: "Turn (°/s)", min: -720, max: 720, step: 5, title: "Degrees a second: + counter-clockwise seen from above, round the texture's middle" },
+  breathe: { label: "Breathe", min: 0, max: 0.9, step: 0.05, title: "How much bigger and smaller the picture gets (0 to 0.9) - the mesh stays as it is" },
+  rate: { label: "Breaths (/s)", min: 0.05, max: 5, step: 0.05, title: "How often it breathes: breaths a second (with Breathe above 0)" },
+};
+const MOTION_ERRORS = { scroll: "[u, v], each a number from -10 to 10 (repeats a second)", turn: "a number from -720 to 720 (degrees a second)",
+  breathe: "a number from 0 to 0.9 (how much bigger and smaller it gets)", rate: "a number from 0.05 to 5 (breaths a second)" };
+const MOTION_TEXTURE = /^n5u_[0-9a-f]{12}$/;  // a moving texture's material: made, never picked
+const MOTION_SHADER = "vsn5uvmove";  // our vertex shader, data\files\vsn5uvmove.shd (committed; made.txt lists it)
+// The material's parameters, in its order: the shader's uniforms of these names (a material's "parameter float <name>
+// <value>" is a uniform of that name, as the game's inc_material reads Specularity).
+const MOTION_PARAMS = ["n5ScrollU", "n5ScrollV", "n5Turn", "n5Breathe", "n5Rate", "n5PivotU", "n5PivotV"];
+const inMotionRange = (v, k) => isNum(v) && v >= MOTION_INFO[k].min && v <= MOTION_INFO[k].max;
+// A part's motion -> { scroll: [u, v] (its own copy), turn, breathe, rate }: absent (undefined or null) or a key left out,
+// 0 - the rate MOTION_RATE. `where` names it in an error (stages.small[0]); each error names its field.
+function readMotion(m, where) {
+  const out = { scroll: [0, 0], turn: 0, breathe: 0, rate: MOTION_RATE };
+  if (m === undefined || m === null) return out;
+  if (typeof m !== "object" || Array.isArray(m)) {
+    throw new Error(`${where}.motion: { "scroll": [u, v], "turn": <degrees a second>, "breathe": 0-0.9, "rate": <breaths a second> }`);
+  }
+  for (const k of Object.keys(m)) {
+    const v = m[k];
+    if (v === undefined) continue;
+    if (!MOTION_KEYS.includes(k)) throw new Error(`${where}.motion.${k}: not a motion's - ${orList(MOTION_KEYS)}`);
+    const ok = k === "scroll" ? Array.isArray(v) && v.length === 2 && v.every((c) => inMotionRange(c, "scroll")) : inMotionRange(v, k);
+    if (!ok) throw new Error(`${where}.motion.${k}: ${MOTION_ERRORS[k]}`);
+    out[k] = k === "scroll" ? v.slice() : v;
+  }
+  return out;
+}
+const moves = (v) => isNum(v) && v !== 0;
+// Whether a motion (read or as given) moves anything: it scrolls, turns or breathes - a rate alone moves nothing.
+function hasMotion(m) {
+  if (!m || typeof m !== "object" || Array.isArray(m)) return false;
+  return (Array.isArray(m.scroll) && m.scroll.some(moves)) || moves(m.turn) || moves(m.breathe);
+}
+// A motion as it's written: its non-zero keys in MOTION_KEYS' order - the rate only while it breathes (meaningless
+// without) and not at its default, MOTION_RATE (a default is never written) - or undefined when it doesn't move (nothing
+// is written).
+function cleanMotion(m) {
+  if (!hasMotion(m)) return undefined;
+  const out = {};
+  if (Array.isArray(m.scroll) && m.scroll.some(moves)) out.scroll = m.scroll.slice();
+  if (moves(m.turn)) out.turn = m.turn;
+  if (moves(m.breathe)) {
+    out.breathe = m.breathe;
+    if (m.rate !== undefined && m.rate !== null && m.rate !== MOTION_RATE) out.rate = m.rate;
+  }
+  return out;
+}
+// A mesh's pivot (the design's call 5): the middle of its UV box, [(umin + umax) / 2, (vmin + vmax) / 2], through round -
+// From above's middle is the shape's centre (a glyph turns and breathes round it), a Wrapped shape with repeats turns round
+// the middle of its repeats. No UVs: the picture's middle. Never -0.
+function uvPivot(tverts) {
+  const t = tverts || [], lo = [Infinity, Infinity], hi = [-Infinity, -Infinity];
+  for (let i = 0; i + 1 < t.length; i += 2) {
+    for (let k = 0; k < 2; k++) if (isNum(t[i + k])) { lo[k] = Math.min(lo[k], t[i + k]); hi[k] = Math.max(hi[k], t[i + k]); }
+  }
+  if (!(lo[0] <= hi[0] && lo[1] <= hi[1])) return [0.5, 0.5];
+  return [round((lo[0] + hi[0]) / 2) + 0, round((lo[1] + hi[1]) / 2) + 0];
+}
+// The UVs at time t (seconds) as a matrix [a, b, c, d, e, f] - u' = a u + b v + c, v' = d u + e v + f - round the pivot p:
+// s = 1 + breathe x sin(2 pi rate t), th = -turn x t x pi / 180, uv' = R(th) (uv - p) / s + p - scroll x t. So + scroll
+// moves the picture along +u / +v, + turn turns it counter-clockwise (From above, seen from above), and breathing grows
+// and shrinks the picture, not the mesh. The numbers are the material's (motionNumbers: the motion and the pivot each to
+// 0.001), so the stage moves exactly as the game's shader is told to. No motion: [1, 0, 0, 0, 1, 0] exactly. Never -0.
+function uvMotion(motion, pivot, t) {
+  const [su, sv, turn, breathe, rate, pu, pv] = motionNumbers(motion, pivot);
+  if (!su && !sv && !turn && !breathe) return [1, 0, 0, 0, 1, 0];
+  const s = 1 + breathe * Math.sin(2 * Math.PI * rate * t), th = (-turn * t * Math.PI) / 180;
+  const a = Math.cos(th) / s, b = -Math.sin(th) / s, d = Math.sin(th) / s, e = Math.cos(th) / s;
+  return [a, b, pu - a * pu - b * pv - su * t, d, e, pv - d * pu - e * pv - sv * t].map((v) => v + 0);
+}
+// A moving texture's seven numbers, as its name and its material both take them (one rule, so a name fixes its bytes):
+// MOTION_PARAMS' order, each to 0.001, the rate MOTION_RATE while it doesn't breathe (it means nothing then).
+const to3 = (v) => Math.round(v * 1000) / 1000 + 0;
+function motionNumbers(motion, pivot) {
+  const m = readMotion(motion, "material"), breathe = to3(m.breathe);
+  return [to3(m.scroll[0]), to3(m.scroll[1]), to3(m.turn), breathe, breathe ? to3(m.rate) : MOTION_RATE, to3(pivot[0]), to3(pivot[1])];
+}
+// A moving texture's material name - the mesh's bitmap: n5u_ and 12 hex digits of its texture (lower-case), its motion
+// and its pivot (motionNumbers), as shapeTextureName makes an n5s_ name. One per texture, motion and pivot.
+function motionName(texture, motion, pivot) {
+  return "n5u_" + cyrb53(`uv:${String(texture).toLowerCase()}:${motionNumbers(motion, pivot).join(",")}`).toString(16).padStart(14, "0").slice(-12);
+}
+// Its material, n5u_<...>.mtr ({ texture, motion, pivot }: moveTextures' material): our vertex shader with the game's lit
+// fragment shader (the pair the game's vslit / fslit are), the real texture as texture0 - left out with `copy`, the
+// route where the texture is copied under the material's own name (TMO-1 decides) - and a "parameter float" line a
+// MOTION_PARAMS name. LF line ends.
+function motionMaterialText({ texture, motion, pivot }, { copy = false } = {}) {
+  const n = motionNumbers(motion, pivot);
+  return ["customshadervs " + MOTION_SHADER, "customshaderfs fslit", ...(copy ? [] : ["texture0 " + String(texture).toLowerCase()]),
+    ...MOTION_PARAMS.map((p, i) => `parameter float ${p} ${n[i]}`), ""].join("\n");
+}
+// The shader, vsn5uvmove.shd: original text (nothing of the game's copied; its include named), LF - written with the
+// generators' line ends (crlf) into data\files, where it's committed, and beside what needs it. Its first line is its
+// mark: files.js owns a vsn5uvmove.shd carrying it (isMotionShader).
+const MOTION_SHADER_MARK = "// vsn5uvmove.shd - nwn5e's moving mesh textures (nwn5e-ee #39): a texture scrolled, turned and breathing with the game's clock";
+function motionShaderText() {
+  return [
+    MOTION_SHADER_MARK,
+    "// Made by nwn5e-ee tools/data/floatdisk/floatdisk.js (motionShaderText): change it there and rebuild, not here. A moving",
+    "// texture's material, n5u_<12 hex digits>.mtr, pairs this vertex shader with the game's lit fragment shader (fslit) and",
+    "// gives the motion below as its parameters. The game's standard vertex setup first (its own include, by name); then the",
+    "// texture's coordinates moved round the pivot p: uv' = R(-turn t) (uv - p) / s + p - scroll t, s = 1 + breathe",
+    "// sin(2 pi rate t), t the game's world clock in seconds (floatdisk.js uvMotion: the same maths). t itself is a float:",
+    "// late in a game day (near 2880 s) it holds to about a quarter of a millisecond, the motion's own limit. The scroll,",
+    "// the turn and the breath are each taken within one repeat, one turn and one breath, so the coordinates stay small and",
+    "// lose nothing more on top of that: the same picture, as the texture repeats.",
+    "",
+    "#define SHADER_TYPE 1",
+    "#define FOG 1",
+    "#define KEYHOLING 1",
+    "#define NORMAL_MAP 0",
+    "#define ENVIRONMENT_MAP 0",
+    "#define LIGHTING 1",
+    "",
+    '#include "inc_standard"',
+    '#include "inc_uniforms"',
+    "",
+    ...MOTION_PARAMS.map((p) => `uniform float ${p};`),
+    "",
+    "void main ()",
+    "{",
+    "    ApplyStandardShader();",
+    "    float t = float(worldtimerTimeOfDay) * 0.001;",
+    "    float s = 1.0 + n5Breathe * sin(6.28318531 * fract(n5Rate * t));",
+    "    float a = radians(-mod(n5Turn * t, 360.0));",
+    "    float du = (vVertexTexCoords.x - n5PivotU) / s;",
+    "    float dv = (vVertexTexCoords.y - n5PivotV) / s;",
+    "    vVertexTexCoords = vec2(cos(a) * du - sin(a) * dv + n5PivotU - fract(n5ScrollU * t),",
+    "        sin(a) * du + cos(a) * dv + n5PivotV - fract(n5ScrollV * t));",
+    "}",
+    "",
+  ].join("\n");
+}
+// Whether a text (a string or bytes) is the shader the generators write, this version's or an earlier one's: its first line
+// is MOTION_SHADER_MARK (either line end).
+function isMotionShader(text) {
+  if (text === undefined || text === null) return false;
+  const head = typeof text === "string" ? text : String.fromCharCode(...(text instanceof Uint8Array ? text : new Uint8Array(text)).subarray(0, 512));
+  return head.split("\n", 1)[0].replace(/\r$/, "") === MOTION_SHADER_MARK;
+}
+// Meshes with each textured one's bitmap renamed for the motion (motionName: its texture, the motion, its pivot - uvPivot
+// of its UVs) -> { meshes (copies), materials: [{ name, texture, motion (readMotion's), pivot }] }, each name once in the
+// meshes' order. An untextured mesh, and one naming a moving texture's material already, as it is. No motion: the same
+// meshes, no materials. Called after a part's bakes and soft textures are named (files.js motionMaterials), so its texture
+// - texture0 - is the real one.
+function moveTextures(meshes, motion) {
+  const m = readMotion(motion, "moveTextures");
+  if (!hasMotion(m)) return { meshes, materials: [] };
+  const materials = [], seen = new Set();
+  const out = meshes.map((mesh) => {
+    const texture = String(mesh.bitmap || "").toLowerCase();
+    if (!texture || texture === "null" || MOTION_TEXTURE.test(texture)) return Object.assign({}, mesh);
+    const pivot = uvPivot(mesh.tverts), name = motionName(texture, m, pivot);
+    if (!seen.has(name)) { seen.add(name); materials.push({ name, texture, motion: m, pivot }); }
+    return Object.assign({}, mesh, { bitmap: name });
+  });
+  return { meshes: out, materials };
+}
+
 // --- a compiled model's node tree ---------------------------------------------------------------------------------
 // [{ name, parent ("" for the root), position, rotation (quaternion x y z w), flags }], parents before children, in the
 // file's order - the geometry's nodes with their places (controller 8) and turns (20) as the model has them (Torlack's
@@ -1014,6 +1194,8 @@ const api = {
   pileWalkmeshText, rowsText, readableAscii, texturesBeside, carriesMark, sameText, crlf, mergeModels, inline, compositionText,
   SHAPE_TYPES, SHAPE_LABELS, SHAPE_KEYS, SHAPE_FIELDS, SHAPE_FLAT, LOOK_FIELDS, SHAPE_INFO, SHAPE_TEXTURE,
   shapeDefaults, readShape, cleanShape, shapeModel, shapeTexture, shapeTextureName, SOFT_TXI, txiAdditive,
+  MOTION_KEYS, MOTION_RATE, MOTION_INFO, MOTION_TEXTURE, MOTION_SHADER, MOTION_PARAMS, MOTION_SHADER_MARK, readMotion, hasMotion, cleanMotion,
+  uvPivot, uvMotion, motionName, motionMaterialText, motionShaderText, isMotionShader, moveTextures,
 };
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.FloatDisk = api;

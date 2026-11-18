@@ -1320,4 +1320,301 @@ check("Blend in a page: the same name, model and TXI", () => {
   assert.strictEqual(P.txiAdditive("blending additive"), true);
 });
 
+// --- M2: textures that move (the design's "Texture motion"; the owner, 2026-11-18: "for the animated textures: 1.
+// scrolling, scaling (breathing), rotating" - "the textures on the meshes"; Q1: route A) --------------------------------
+// A part's "motion": { scroll: [u, v] (repeats a second), turn (degrees a second), breathe (0-0.9: how much bigger and
+// smaller), rate (breaths a second) }. NWN:EE has no UV-motion setting, so a moving texture reaches the game as an EE
+// material, n5u_<hash>.mtr - the mesh's bitmap, named for its texture, motion and pivot - driving our vertex shader,
+// vsn5uvmove.shd, with the game's lit fragment shader. One maths (uvMotion) for the shader and the stage.
+const STILL = { scroll: [0, 0], turn: 0, breathe: 0, rate: 0.5 };
+const applyUv = (mx, uv) => [mx[0] * uv[0] + mx[1] * uv[1] + mx[2], mx[3] * uv[0] + mx[4] * uv[1] + mx[5]];
+check("motion: read, defaulted, cleaned to its non-zero keys, each error", () => {
+  assert.deepStrictEqual(F.MOTION_KEYS, ["scroll", "turn", "breathe", "rate"]);
+  assert.deepStrictEqual(Object.keys(F.MOTION_INFO), F.MOTION_KEYS);
+  const I = F.MOTION_INFO;
+  assert.deepStrictEqual([I.scroll.min, I.scroll.max, I.turn.min, I.turn.max, I.breathe.min, I.breathe.max, I.rate.min, I.rate.max], [-10, 10, -720, 720, 0, 0.9, 0.05, 5]);
+  // The card's labels, as the design's sketch has them.
+  assert.deepStrictEqual([I.scroll.labels, I.turn.label, I.breathe.label, I.rate.label], [["Scroll round", "Scroll up"], "Turn (°/s)", "Breathe", "Breaths (/s)"]);
+  // None, or keys left out: all 0, rate 0.5.
+  for (const none of [undefined, null, {}, { turn: undefined }]) assert.deepStrictEqual(F.readMotion(none, "p"), STILL, JSON.stringify(none));
+  const given = { scroll: [0, 0.25], breathe: 0.3 }, read = F.readMotion(given, "p");
+  assert.deepStrictEqual(read, { scroll: [0, 0.25], turn: 0, breathe: 0.3, rate: 0.5 });
+  assert.ok(read.scroll !== given.scroll, "readMotion's own copy");
+  assert.deepStrictEqual(F.readMotion({ scroll: [-10, 10], turn: -720, breathe: 0.9, rate: 5 }, "p"), { scroll: [-10, 10], turn: -720, breathe: 0.9, rate: 5 });
+  assert.deepStrictEqual(F.readMotion({ turn: 720, rate: 0.05 }, "p"), { scroll: [0, 0], turn: 720, breathe: 0, rate: 0.05 });
+  // It moves when it scrolls, turns or breathes; a rate alone moves nothing.
+  for (const m of [undefined, null, {}, STILL, { rate: 2 }, { scroll: [0, 0] }, "fast", 3]) assert.strictEqual(F.hasMotion(m), false, JSON.stringify(m));
+  for (const m of [{ turn: 1 }, { scroll: [0.01, 0] }, { scroll: [0, -1] }, { breathe: 0.1 }]) assert.strictEqual(F.hasMotion(m), true, JSON.stringify(m));
+  // Cleaned: its non-zero keys in MOTION_KEYS' order - the rate only while it breathes (nothing without) and not at its
+  // default, 0.5 (a default is never written) - or undefined when it doesn't move.
+  for (const m of [undefined, null, {}, STILL, { rate: 2 }]) assert.strictEqual(F.cleanMotion(m), undefined, JSON.stringify(m));
+  assert.deepStrictEqual(F.cleanMotion({ scroll: [0, 0.25], turn: 0, breathe: 0, rate: 0.5 }), { scroll: [0, 0.25] });
+  assert.deepStrictEqual(F.cleanMotion({ rate: 2, turn: 30, scroll: [0, 0] }), { turn: 30 });
+  assert.deepStrictEqual(Object.keys(F.cleanMotion({ rate: 1, breathe: 0.3, turn: -5, scroll: [1, 0] })), ["scroll", "turn", "breathe", "rate"]);
+  assert.deepStrictEqual(F.cleanMotion(F.readMotion({ breathe: 0.3 }, "p")), { breathe: 0.3 });
+  assert.deepStrictEqual(F.cleanMotion({ breathe: 0.3, rate: 0.5 }), { breathe: 0.3 });
+  assert.deepStrictEqual(F.cleanMotion({ breathe: 0.3, rate: 1 }), { breathe: 0.3, rate: 1 });
+  // Each error names its field.
+  const says = (m, message) => assert.throws(() => F.readMotion(m, "stages.small[0]"), (e) => e.message === message, JSON.stringify(m));
+  for (const m of ["fast", 3, [0, 0.25], true]) says(m, 'stages.small[0].motion: { "scroll": [u, v], "turn": <degrees a second>, "breathe": 0-0.9, "rate": <breaths a second> }');
+  says({ spin: 1 }, "stages.small[0].motion.spin: not a motion's - scroll, turn, breathe or rate");
+  for (const scroll of [[0], [0, 0, 0], [0, 11], [-10.5, 0], ["0", 0], [NaN, 0], 0.25, null]) {
+    says({ scroll }, "stages.small[0].motion.scroll: [u, v], each a number from -10 to 10 (repeats a second)");
+  }
+  for (const turn of [721, -721, "30", NaN, Infinity, null]) says({ turn }, "stages.small[0].motion.turn: a number from -720 to 720 (degrees a second)");
+  for (const breathe of [-0.1, 0.91, "0.2", null]) says({ breathe }, "stages.small[0].motion.breathe: a number from 0 to 0.9 (how much bigger and smaller it gets)");
+  for (const rate of [0, 0.04, 5.1, "1", null]) says({ rate }, "stages.small[0].motion.rate: a number from 0.05 to 5 (breaths a second)");
+});
+check("uvMotion: none is identity; scroll [0, 0.25] at t 2 moves v by -0.5; turn 90 at t 1 maps p + (1, 0) to p + (0, -1) (the picture turned counter-clockwise); breathe 0.5 rate 1 at t 0.25 divides uv - p by 1.5", () => {
+  const p = [0.5, 0.5];
+  for (const none of [undefined, STILL, { rate: 3 }]) for (const t of [0, 1.7, 100]) assert.deepStrictEqual(F.uvMotion(none, p, t), [1, 0, 0, 0, 1, 0]);
+  // u' = a u + b v + c, v' = d u + e v + f. Scroll: the picture moves along +u / +v, so the UVs read go back.
+  const s = F.uvMotion({ scroll: [0, 0.25] }, p, 2);
+  nearAll(s, [1, 0, 0, 0, 1, -0.5], 1e-12);
+  nearAll(applyUv(s, [0.3, 0.9]), [0.3, 0.4], 1e-12);
+  nearAll(applyUv(F.uvMotion({ scroll: [0.5, 0] }, p, 3), [0, 0]), [-1.5, 0], 1e-12);
+  // Turn, round the pivot: + is counter-clockwise (the picture), so the UV read at p + (1, 0) is p + (0, -1).
+  const pv = [1.5, 1], tm = F.uvMotion({ turn: 90 }, pv, 1);
+  nearAll(applyUv(tm, [2.5, 1]), [1.5, 0], 1e-12);
+  nearAll(applyUv(tm, [1.5, 2]), [2.5, 1], 1e-12);
+  nearAll(applyUv(tm, pv), pv, 1e-12);
+  nearAll(applyUv(F.uvMotion({ turn: -90 }, pv, 1), [2.5, 1]), [1.5, 2], 1e-12);
+  nearAll(applyUv(F.uvMotion({ turn: 30 }, pv, 3), [2.5, 1]), [1.5, 0], 1e-12);  // 30 a second for 3 s: 90
+  // Breathe, round the pivot: s = 1 + breathe sin(2 pi rate t) - the picture grows by s (the UVs read shrink by it).
+  const b = F.uvMotion({ breathe: 0.5, rate: 1 }, p, 0.25);
+  nearAll(b, [1 / 1.5, 0, 0.5 - 0.5 / 1.5, 0, 1 / 1.5, 0.5 - 0.5 / 1.5], 1e-12);
+  nearAll(applyUv(b, [2, -1]), [0.5 + 1.5 / 1.5, 0.5 - 1.5 / 1.5], 1e-12);
+  nearAll(applyUv(F.uvMotion({ breathe: 0.5, rate: 1 }, p, 0.75), [0.6, 0.5]), [0.7, 0.5], 1e-12);  // s 0.5
+  // All at once: uv' = R(-turn t) (uv - p) / s + p - scroll t.
+  const all = { scroll: [0.1, -0.2], turn: 45, breathe: 0.2, rate: 0.5 }, t = 1.3, uv = [0.9, 0.2];
+  const sc = 1 + 0.2 * Math.sin(2 * Math.PI * 0.5 * t), th = (-45 * t * Math.PI) / 180, d = [uv[0] - 0.5, uv[1] - 0.5];
+  nearAll(applyUv(F.uvMotion(all, p, t), uv), [(Math.cos(th) * d[0] - Math.sin(th) * d[1]) / sc + 0.5 - 0.1 * t, (Math.sin(th) * d[0] + Math.cos(th) * d[1]) / sc + 0.5 + 0.2 * t], 1e-12);
+  // Never -0 (a matrix through JSON is the same matrix).
+  for (const m of [{ turn: 30 }, { scroll: [0, 0.25] }, all]) assert.ok(!F.uvMotion(m, p, 0).some((x) => Object.is(x, -0)), JSON.stringify(m));
+});
+check("uvMotion moves by its material's numbers - each to 0.001, the pivot too - so the stage and the game can't drift", () => {
+  // The material carries the motion and the pivot to 0.001 (motionNumbers); the stage's maths takes the same numbers.
+  nearAll(F.uvMotion({ scroll: [0, 0.12345] }, [0.5, 0.5], 1), [1, 0, 0, 0, 1, -0.123], 1e-12);
+  for (const t of [0.7, 13, 2879.5]) {
+    assert.deepStrictEqual(F.uvMotion({ turn: 30.0004, breathe: 0.30049, rate: 0.50001 }, [0.33333, 1.00049], t), F.uvMotion({ turn: 30, breathe: 0.3, rate: 0.5 }, [0.333, 1], t));
+    assert.deepStrictEqual(F.uvMotion({ scroll: [0.1234, -2.0004] }, [0.5, 0.5], t), F.uvMotion({ scroll: [0.123, -2] }, [0.5, 0.5], t));
+  }
+  // What the material says is what the stage moves by.
+  const m = { scroll: [0.0123456, 0], turn: -17.77777, breathe: 0.123456, rate: 1.23456 }, pivot = [0.123456, 0.654321];
+  const params = Object.fromEntries(F.motionMaterialText({ texture: "x", motion: m, pivot }).split("\n").filter((l) => l.startsWith("parameter float "))
+    .map((l) => l.split(" ").slice(2)));
+  const said = { scroll: [Number(params.n5ScrollU), Number(params.n5ScrollV)], turn: Number(params.n5Turn), breathe: Number(params.n5Breathe), rate: Number(params.n5Rate) };
+  assert.deepStrictEqual(F.uvMotion(m, pivot, 3.3), F.uvMotion(said, [Number(params.n5PivotU), Number(params.n5PivotV)], 3.3));
+});
+check("uvPivot: a Wrapped dome with repeats 3 / 2 gives [1.5, 1]; From above gives [0.5, 0.5]", () => {
+  assert.deepStrictEqual(F.uvPivot(domeModel({ repeat_around: 3, repeat_up: 2 }).meshes[0].tverts), [1.5, 1]);
+  assert.deepStrictEqual(F.uvPivot(domeModel({ mapping: "above" }).meshes[0].tverts), [0.5, 0.5]);
+  assert.deepStrictEqual(F.uvPivot(domeModel().meshes[0].tverts), [0.5, 0.5]);
+  // The middle of the UV box (not their mean), through round; none: the picture's middle; never -0.
+  assert.deepStrictEqual(F.uvPivot([0.2, -1, 0.8, 3, 0.3, 0]), [0.5, 1]);
+  assert.deepStrictEqual(F.uvPivot([0, 0, 1 / 3, 1 / 3]), [0.16667, 0.16667]);
+  assert.deepStrictEqual(F.uvPivot([]), [0.5, 0.5]);
+  assert.deepStrictEqual(F.uvPivot(undefined), [0.5, 0.5]);
+  assert.ok(!F.uvPivot([-1, -1, 1, 1]).some((x) => Object.is(x, -0)));
+});
+check("motionName: n5u_ and 12 hex, the same for the same texture, motion and pivot, another for each change", () => {
+  const m = { scroll: [0, 0.25] }, p = [0.5, 0.5], name = F.motionName("fxpa_globe", m, p);
+  assert.ok(/^n5u_[0-9a-f]{12}$/.test(name) && F.MOTION_TEXTURE.test(name), name);
+  assert.ok(!F.MOTION_TEXTURE.test("n5u_" + "0".repeat(11)) && !F.MOTION_TEXTURE.test("n5s_8c757fb28f99") && !F.SHAPE_TEXTURE.test(name) && !F.BAKED.test(name));
+  // The same: read or as given, the texture in any case, each number to 0.001 (one rule with its material's text), a rate
+  // that means nothing (no breathing).
+  for (const [t, mm, pp] of [["fxpa_globe", F.readMotion(m, "p"), p], ["FXPA_Globe", m, p], ["fxpa_globe", { scroll: [0.0001, 0.2502] }, [0.5001, 0.4999]],
+    ["fxpa_globe", { scroll: [0, 0.25], rate: 3 }, p]]) assert.strictEqual(F.motionName(t, mm, pp), name, JSON.stringify([t, mm, pp]));
+  // Another for each change.
+  const others = [["fxpa_globe2", m, p], ["fxpa_globe", { scroll: [0.25, 0] }, p], ["fxpa_globe", { scroll: [0, 0.251] }, p], ["fxpa_globe", { scroll: [0, 0.25], turn: 1 }, p],
+    ["fxpa_globe", { scroll: [0, 0.25], breathe: 0.1 }, p], ["fxpa_globe", { scroll: [0, 0.25], breathe: 0.1, rate: 1 }, p], ["fxpa_globe", m, [0.5, 1]],
+    ["fxpa_globe", m, [1.5, 0.5]], ["fxpa_globe", { scroll: [0, -0.25] }, p], ["fxpa_globe", { turn: 30 }, p], ["fxpa_globe", { turn: -30 }, p]];
+  const names = others.map((a) => F.motionName(...a));
+  assert.strictEqual(new Set([name, ...names]).size, others.length + 1, names.join(" "));
+  assert.strictEqual(name, "n5u_31e9f07948e1");  // the recipe pinned: cyrb53 of "uv:fxpa_globe:0,0.25,0,0,0.5,0.5,0.5"
+});
+check("motionMaterialText: its lines, texture0 left out with copy, every MOTION_PARAMS name once", () => {
+  assert.deepStrictEqual(F.MOTION_PARAMS, ["n5ScrollU", "n5ScrollV", "n5Turn", "n5Breathe", "n5Rate", "n5PivotU", "n5PivotV"]);
+  assert.strictEqual(F.MOTION_SHADER, "vsn5uvmove");
+  const m = { texture: "fxpa_globe", motion: { scroll: [0, 0.25], turn: -30, breathe: 0.3, rate: 0.5 }, pivot: [1.5, 1] };
+  const text = F.motionMaterialText(m);
+  assert.strictEqual(text, ["customshadervs vsn5uvmove", "customshaderfs fslit", "texture0 fxpa_globe", "parameter float n5ScrollU 0",
+    "parameter float n5ScrollV 0.25", "parameter float n5Turn -30", "parameter float n5Breathe 0.3", "parameter float n5Rate 0.5",
+    "parameter float n5PivotU 1.5", "parameter float n5PivotV 1", ""].join("\n"));
+  const copy = F.motionMaterialText(m, { copy: true });
+  assert.strictEqual(copy, text.replace("texture0 fxpa_globe\n", ""));
+  assert.strictEqual(F.motionMaterialText(m, {}), text);
+  for (const t of [text, copy]) {
+    assert.ok(!t.includes("\r"), "LF line ends");
+    for (const name of F.MOTION_PARAMS) assert.strictEqual(t.split("\n").filter((l) => l.split(" ")[2] === name).length, 1, name);
+  }
+  // Its numbers as its name has them (to 0.001, the rate its default while it doesn't breathe): the name fixes the bytes.
+  const fine = F.motionMaterialText({ texture: "FXPA_Globe", motion: { scroll: [-0.00001, 0.12345], turn: 0, rate: 3 }, pivot: [0.5, 0.33333] });
+  for (const l of ["texture0 fxpa_globe", "parameter float n5ScrollU 0", "parameter float n5ScrollV 0.123", "parameter float n5Rate 0.5", "parameter float n5PivotV 0.333"]) {
+    assert.ok(fine.split("\n").includes(l), l + "\n" + fine);
+  }
+  assert.throws(() => F.motionMaterialText({ texture: "x", motion: { turn: 999 }, pivot: [0.5, 0.5] }), /motion\.turn: a number from -720 to 720/);
+});
+check("motionShaderText: declares every MOTION_PARAMS name, calls ApplyStandardShader before the UVs, reads worldtimerTimeOfDay, has no backtick; its main moves a UV as uvMotion does, to whole repeats", () => {
+  const text = F.motionShaderText(), l = text.split("\n");
+  assert.ok(/^\/\/ .*nwn5e.*#39/.test(l[0]), "its first line, a comment naming nwn5e and #39: " + l[0]);
+  assert.ok(!text.includes("`") && !text.includes("\r"), "a backtick, or not LF");
+  const at = (line) => { const i = l.indexOf(line); assert.ok(i >= 0, "no line: " + line); return i; };
+  const include = at('#include "inc_standard"');
+  for (const d of ["SHADER_TYPE 1", "FOG 1", "KEYHOLING 1", "NORMAL_MAP 0", "ENVIRONMENT_MAP 0", "LIGHTING 1"]) assert.ok(at("#define " + d) < include, d + " after the include");
+  for (const name of F.MOTION_PARAMS) {
+    assert.strictEqual(l.filter((x) => x === `uniform float ${name};`).length, 1, name + " declared once");
+    assert.ok(at(`uniform float ${name};`) > include);
+  }
+  const main = text.slice(text.indexOf("void main"));
+  const standard = main.indexOf("ApplyStandardShader();"), moved = main.indexOf("vVertexTexCoords =");
+  assert.ok(standard > 0 && moved > standard, "ApplyStandardShader() before the UVs are moved");
+  assert.ok(main.includes("float(worldtimerTimeOfDay) * 0.001"), "t from the world clock");
+  for (const name of F.MOTION_PARAMS) assert.ok(main.includes(name), name + " not used");
+  assert.strictEqual((text.match(/\{/g) || []).length, (text.match(/\}/g) || []).length);
+  // Ours: its first line says so (files.js's ownership), any other text isn't.
+  assert.ok(F.isMotionShader(text) && F.isMotionShader(Buffer.from(F.crlf(text), "latin1")) && F.isMotionShader(l[0] + "\n"));
+  for (const other of ["", "// vslit.shd\n", "#define SHADER_TYPE 1\n", null]) assert.strictEqual(F.isMotionShader(other), false, JSON.stringify(other));
+  // Its main run as JS (GLSL's float, sin, cos, fract, mod and radians; vec2 as { x, y }): each UV where uvMotion puts it,
+  // give or take whole repeats (it wraps the scroll, the turn and the breath for a float's precision late in a game day).
+  const body = main.slice(standard + "ApplyStandardShader();".length, main.lastIndexOf("}")).replace(/\bfloat (?=\w+ =)/g, "let ");
+  const run = new Function("worldtimerTimeOfDay", ...F.MOTION_PARAMS, "uv", "float", "sin", "cos", "fract", "mod", "radians", "vec2",
+    "let vVertexTexCoords = uv;" + body + "; return vVertexTexCoords;");
+  const glsl = [(v) => v, Math.sin, Math.cos, (v) => v - Math.floor(v), (a, b) => a - b * Math.floor(a / b), (d) => (d * Math.PI) / 180, (x, y) => ({ x, y })];
+  for (const motion of [{ scroll: [0, 0.25] }, { turn: 30 }, { breathe: 0.3, rate: 0.5 }, { scroll: [-1.7, 3.2], turn: -125, breathe: 0.9, rate: 4.5 }]) {
+    const r = F.readMotion(motion, "m"), pivot = [1.5, 0.5];
+    for (const ms of [0, 250, 1300, 61234, 2879999]) {
+      for (const uv of [[0, 0], [0.9, 0.2], [3, 1]]) {
+        const got = run(ms, r.scroll[0], r.scroll[1], r.turn, r.breathe, r.rate, pivot[0], pivot[1], { x: uv[0], y: uv[1] }, ...glsl);
+        const want = applyUv(F.uvMotion(r, pivot, ms * 0.001), uv);
+        for (const [g, w] of [[got.x, want[0]], [got.y, want[1]]]) assert.ok(Math.abs(g - w - Math.round(g - w)) < 1e-6, `${JSON.stringify(motion)} at ${ms} ms: ${g} for ${w}`);
+      }
+    }
+  }
+});
+check("moveTextures: renames textured meshes, leaves untextured ones, one material a name", () => {
+  const mesh = (name, bitmap, tverts) => ({ name, bitmap, verts: [0, 0, 0, 1, 0, 0, 0, 1, 0], tverts, faces: [0, 1, 2], diffuse: [1, 1, 1], ambient: [1, 1, 1],
+    selfillum: [0, 0, 0], alpha: 0.5, transparencyhint: 1 });
+  const meshes = [mesh("a", "fxpa_globe", [0, 0, 1, 0, 0, 1]), mesh("b", "", [0, 0, 1, 0, 0, 1]), mesh("c", "fxpa_globe", [0, 0, 1, 1, 0.5, 0.5]),
+    mesh("d", "fxpa_globe", [0, 0, 3, 0, 0, 2]), mesh("e", "plc_a03", [0, 0, 1, 0, 0, 1]), mesh("f", "null", [0, 0, 1, 0, 0, 1]),
+    mesh("g", "n5u_0123456789ab", [0, 0, 1, 0, 0, 1])];
+  const kept = JSON.parse(JSON.stringify(meshes));
+  const motion = F.readMotion({ turn: 30 }, "p"), out = F.moveTextures(meshes, motion);
+  const a = F.motionName("fxpa_globe", motion, [0.5, 0.5]), d = F.motionName("fxpa_globe", motion, [1.5, 1]), e = F.motionName("plc_a03", motion, [0.5, 0.5]);
+  // Each textured mesh's bitmap is its material's name (its texture, the motion, its UV box's middle); untextured ones,
+  // and one naming a moving texture's material already, as they were.
+  assert.deepStrictEqual(out.meshes.map((m) => m.bitmap), [a, "", a, d, e, "null", "n5u_0123456789ab"]);
+  assert.deepStrictEqual(out.materials, [{ name: a, texture: "fxpa_globe", motion, pivot: [0.5, 0.5] }, { name: d, texture: "fxpa_globe", motion, pivot: [1.5, 1] },
+    { name: e, texture: "plc_a03", motion, pivot: [0.5, 0.5] }]);
+  // Copies, all else of each mesh kept; the meshes given untouched.
+  assert.deepStrictEqual(out.meshes.map((m) => Object.assign({}, m, { bitmap: null })), meshes.map((m) => Object.assign({}, m, { bitmap: null })));
+  assert.ok(out.meshes.every((m, i) => m !== meshes[i]));
+  assert.deepStrictEqual(meshes, kept);
+  // A motion as given is read (the same materials); no motion: the same meshes, no materials.
+  assert.deepStrictEqual(F.moveTextures(meshes, { turn: 30 }), out);
+  for (const none of [undefined, null, STILL, { rate: 2 }]) {
+    const still = F.moveTextures(meshes, none);
+    assert.ok(still.meshes === meshes && Array.isArray(still.materials) && still.materials.length === 0, JSON.stringify(none));
+  }
+  // A placed shape part (placePart: its tverts as the generators write them), then moved: its pivot from those.
+  const dome = F.readPart({ shape: { type: "dome", radius: 1, repeat_around: 3, repeat_up: 2 }, at: [0, 0, 0], motion: { scroll: [0, 0.25] } }, "p", BASE);
+  const placed = F.placePart(dome, F.shapeModel(dome.source.shape), 0, 0, "j", true);
+  const moved = F.moveTextures(placed.meshes, dome.motion);
+  assert.deepStrictEqual(moved.materials.map((x) => [x.texture, x.pivot]), [["n5s_8c757fb28f99", [1.5, 1]]]);
+  assert.strictEqual(moved.meshes[0].bitmap, F.motionName("n5s_8c757fb28f99", { scroll: [0, 0.25] }, [1.5, 1]));
+});
+check("compositionText and readPart carry motion", () => {
+  // readPart: none is still; a model's, a file's and a shape's read; each error naming its part.
+  assert.deepStrictEqual(F.readPart({ model: "plc_a03", at: [0, 0, 0] }, "p", BASE).motion, STILL);
+  assert.deepStrictEqual(F.readPart({ model: "plc_a03", at: [0, 0, 0], motion: { turn: 30 } }, "p", BASE).motion, { scroll: [0, 0], turn: 30, breathe: 0, rate: 0.5 });
+  assert.deepStrictEqual(F.readPart({ file: "parts/x.mdl", at: [0, 0, 0], motion: { scroll: [0, 0.25] } }, "p", BASE).motion.scroll, [0, 0.25]);
+  assert.deepStrictEqual(F.readPart({ shape: { type: "dome", radius: 1 }, at: [0, 0, 0], motion: { breathe: 0.3 } }, "p", BASE).motion, { scroll: [0, 0], turn: 0, breathe: 0.3, rate: 0.5 });
+  assert.throws(() => F.readPart({ model: "plc_a03", at: [0, 0, 0], motion: { turn: 800 } }, "stages.small[1]", BASE),
+    (e) => e.message === "stages.small[1].motion.turn: a number from -720 to 720 (degrees a second)");
+  assert.deepStrictEqual(F.readComposition(comp([{ model: "plc_a03", at: [0, 0, 0], motion: { turn: -45 } }]), BASE).stages.small[0].motion.turn, -45);
+  // The same model read once, whatever its motion (partKey is its source's).
+  assert.strictEqual(F.partKey(F.readPart({ model: "plc_a03", at: [0, 0, 0], motion: { turn: 30 } }, "p", BASE)), "model:plc_a03");
+  // compositionText: after tint, inline, its non-zero keys (cleanMotion's); never a still one.
+  const text = F.compositionText({ stages: { small: [
+    { motion: { scroll: [0, 0.25], turn: 0, breathe: 0, rate: 0.5 }, extra: 1, tint: [0.5, 1, 0.25], model: "plc_a03", at: [0, 0, 0] },
+    { motion: STILL, model: "plc_a03", at: [0, 0, 0] },
+    { shape: { type: "dome", radius: 1 }, at: [0, 0, 0], motion: { breathe: 0.3, rate: 0.5, turn: 10 } }] } });
+  const l = text.split("\n");
+  assert.ok(l.includes('      { "model": "plc_a03", "at": [0, 0, 0], "tint": [0.5, 1, 0.25], "motion": { "scroll": [0, 0.25] }, "extra": 1 },'), text);
+  assert.ok(l.includes('      { "model": "plc_a03", "at": [0, 0, 0] },'), text);
+  assert.ok(l.includes('      { "shape": { "type": "dome", "radius": 1 }, "at": [0, 0, 0], "motion": { "turn": 10, "breathe": 0.3 } }'), text);
+  // Read back: the same motions.
+  assert.deepStrictEqual(F.readComposition(comp(JSON.parse(text).stages.small), BASE).stages.small.map((p) => p.motion),
+    [{ scroll: [0, 0.25], turn: 0, breathe: 0, rate: 0.5 }, STILL, { scroll: [0, 0], turn: 10, breathe: 0.3, rate: 0.5 }]);
+});
+check("files.js: a moving part's materials and the shader as writes beside what names them, owned by the n5u_ name and the shader's mark; still parts none", () => {
+  const fs = require("fs");
+  const os = require("os");
+  const W = require("./files.js");
+  const part = (o) => F.readPart(Object.assign({ shape: { type: "dome", radius: 1, mapping: "above", texture: "fxpa_globe" }, at: [0, 0, 0] }, o), "p", BASE);
+  const placed = [{ part: part({ motion: { turn: 30 } }) }, { part: part({}) }, { part: part({ motion: { turn: 30 } }) }, { part: part({ motion: { scroll: [0, 0.25] } }) }];
+  for (const x of placed) x.meshes = F.placePart(x.part, F.shapeModel(x.part.source.shape), 0, 0, "j", true).meshes;
+  const materials = W.motionMaterials(placed);
+  const turn = F.motionName("fxpa_globe", { turn: 30 }, [0.5, 0.5]), scroll = F.motionName("fxpa_globe", { scroll: [0, 0.25] }, [0.5, 0.5]);
+  // Each moving part's meshes renamed in place (x.meshes), the still one's kept; each material once, in the parts' order.
+  assert.deepStrictEqual(placed.map((x) => x.meshes[0].bitmap), [turn, "fxpa_globe", turn, scroll]);
+  assert.deepStrictEqual([...materials.keys()], [turn, scroll]);
+  assert.deepStrictEqual(Object.assign({}, materials.get(turn), { motion: null }), { texture: "fxpa_globe", motion: null, pivot: [0.5, 0.5],
+    text: F.motionMaterialText({ texture: "fxpa_globe", motion: { turn: 30 }, pivot: [0.5, 0.5] }), label: "dome 1 m" });
+  assert.deepStrictEqual(W.motionJson(materials), [{ material: turn, texture: "fxpa_globe", motion: { turn: 30 }, pivot: [0.5, 0.5] },
+    { material: scroll, texture: "fxpa_globe", motion: { scroll: [0, 0.25] }, pivot: [0.5, 0.5] }]);
+  assert.deepStrictEqual(W.motionLines(materials, "data/files"), [
+    `  material ${turn}: fxpa_globe turns 30 degrees a second, round 0.5 0.5 - written into data/files, with vsn5uvmove.shd`,
+    `  material ${scroll}: fxpa_globe scrolls 0 0.25 a second, round 0.5 0.5 - written into data/files, with vsn5uvmove.shd`]);
+  assert.strictEqual(W.motionMaterials([{ part: part({}), meshes: [] }]).size, 0);
+  assert.deepStrictEqual(W.motionWrites(new Map(), "x"), [], "no material: no shader either");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "n5_fduv-"));
+  try {
+    const writes = W.motionWrites(materials, dir);
+    assert.deepStrictEqual(writes.map((w) => [path.basename(w.file), w.kind]), [[turn + ".mtr", "material"], [scroll + ".mtr", "material"], ["vsn5uvmove.shd", "shader"]]);
+    assert.strictEqual(writes[0].bytes.toString("latin1"), materials.get(turn).text);
+    assert.ok(writes[2].bytes.equals(Buffer.from(F.crlf(F.motionShaderText()), "latin1")), "the shader CRLF, as the generators write text");
+    // Ours: a material (or a copy-route texture or TXI) by its n5u_ name; the shader when made.txt lists it or it carries
+    // the shader's first line (an earlier version's too) - another file of that name isn't.
+    const owned = W.ownership({ repo: dir, manifest: new Set(["listed/vsn5uvmove.shd"]), mark: F.MARK });
+    for (const ext of [".mtr", ".tga", ".dds", ".txi"]) assert.strictEqual(owned({ file: path.join(dir, turn + ext), kind: "material" }, Buffer.from("x")), true, ext);
+    for (const name of ["n5u_mine.mtr", "tti01_iceclear.mtr", turn + ".shd"]) assert.strictEqual(owned({ file: path.join(dir, name), kind: "material" }, Buffer.from("x")), false, name);
+    const shader = (file, old) => owned({ file: path.join(dir, file), kind: "shader" }, Buffer.from(old, "latin1"));
+    assert.strictEqual(shader("vsn5uvmove.shd", F.MOTION_SHADER_MARK + "\r\n// an earlier one\r\n"), true);
+    assert.strictEqual(shader("vsn5uvmove.shd", "// someone's shader\r\n"), false);
+    assert.strictEqual(shader("listed/vsn5uvmove.shd", "// someone's shader, but made.txt lists it\r\n"), true);
+    fs.writeFileSync(path.join(dir, turn + ".mtr"), "customshadervs vslit\n");
+    fs.writeFileSync(path.join(dir, "vsn5uvmove.shd"), F.MOTION_SHADER_MARK + "\r\n// an earlier one\r\n");
+    assert.deepStrictEqual(W.writeAll(writes, owned, { repo: dir, manifest: new Set() }).map(([s, f]) => [s, path.basename(f)]),
+      [["rebuilt", turn + ".mtr"], ["new", scroll + ".mtr"], ["rebuilt", "vsn5uvmove.shd"]]);
+    // The shader as text, as "text" is: the same but for its line ends (an LF checkout's) is unchanged, not rewritten.
+    fs.writeFileSync(path.join(dir, "vsn5uvmove.shd"), F.motionShaderText());
+    const lf = fs.statSync(path.join(dir, "vsn5uvmove.shd")).mtimeMs;
+    assert.deepStrictEqual(W.writeAll(writes, owned, { repo: dir, manifest: new Set() }).map(([s, f]) => [s, path.basename(f)]),
+      [["unchanged", turn + ".mtr"], ["unchanged", scroll + ".mtr"], ["unchanged", "vsn5uvmove.shd"]]);
+    assert.strictEqual(fs.statSync(path.join(dir, "vsn5uvmove.shd")).mtimeMs, lf, "the LF shader was rewritten");
+    fs.writeFileSync(path.join(dir, "vsn5uvmove.shd"), "// someone's shader\r\n");
+    assert.throws(() => W.writeAll(writes, owned, { repo: dir, manifest: new Set() }), /^Error: vsn5uvmove\.shd is there and wasn't made by this generator/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+check("motion in a page: the same maths, names, material and shader", () => {
+  const P = pageFloatDisk();
+  for (const k of ["MOTION_KEYS", "MOTION_INFO", "MOTION_PARAMS", "MOTION_SHADER"]) assert.deepStrictEqual(P[k], F[k], k);
+  assert.strictEqual(String(P.MOTION_TEXTURE), String(F.MOTION_TEXTURE));
+  const m = { scroll: [0.1, -0.2], turn: 45, breathe: 0.2, rate: 0.5 };
+  assert.deepStrictEqual(P.readMotion(m, "p"), F.readMotion(m, "p"));
+  assert.deepStrictEqual(P.cleanMotion(m), F.cleanMotion(m));
+  for (const t of [0, 1.3, 77]) assert.deepStrictEqual(P.uvMotion(m, [1.5, 1], t), F.uvMotion(m, [1.5, 1], t));
+  const tverts = domeModel({ repeat_around: 3, repeat_up: 2 }).meshes[0].tverts;
+  assert.deepStrictEqual(P.uvPivot(tverts), F.uvPivot(tverts));
+  assert.strictEqual(P.motionName("fxpa_globe", m, [1.5, 1]), F.motionName("fxpa_globe", m, [1.5, 1]));
+  assert.strictEqual(P.motionMaterialText({ texture: "fxpa_globe", motion: m, pivot: [1.5, 1] }), F.motionMaterialText({ texture: "fxpa_globe", motion: m, pivot: [1.5, 1] }));
+  assert.strictEqual(P.motionShaderText(), F.motionShaderText());
+  assert.strictEqual(P.isMotionShader(F.motionShaderText()), true);
+  const model = domeModel({ mapping: "above" });
+  assert.deepStrictEqual(P.moveTextures(model.meshes, m), F.moveTextures(model.meshes, m));
+});
+
 console.log(process.exitCode ? `floatdisk check: FAILED (${count} passed)` : `floatdisk check: ${count} checks pass`);

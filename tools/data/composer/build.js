@@ -24,6 +24,13 @@
 // cut - written wherever its texture is (files.js shapeWrites). A library texture is named only; none is written for it
 // (one the game has only as a PLT is refused).
 //
+// A part with a motion (M2: scroll, turn, breathe) has its textured meshes name a material instead, n5u_<12 hex digits>
+// (its texture, motion and pivot): n5u_<...>.mtr pairs our vertex shader, vsn5uvmove.shd, with the game's lit fragment
+// shader, the real texture its texture0 - NWN:EE has no UV-motion setting. Both are written beside what names them (a
+// placeable's models in data\files - the materials git-ignored, the shader committed there and listed in
+// ..\floatdisk\made.txt - a spell mesh's drafts in <saved>); each material is ours by its name, the shader by its first
+// line (files.js motionWrites). No motion: neither is written, and every file is as before.
+//
 // The parts are read and placed as the Floating Disk's (..\floatdisk\reader.js and floatdisk.js), through the player's
 // own game and nwn5e-ee's mesh reader; nothing of the game's is kept in the repo. The files are written by its files.js,
 // under the same ownership rule.
@@ -166,19 +173,28 @@ function main() {
   const h = guide.height;
   const baked = new Map();  // a baked texture's name -> { plt, colours, bytes, label } (files.js's bakeParts)
   const shaped = new Map();  // a shape's soft texture's name -> { colour, bytes, label } (files.js's shapeTextures)
-  const built = project.variants.map((v) => {
+  const placed = project.variants.map((v) => {
     const parts = v.parts.map((p, i) => Object.assign(F.placePart(p, models.get(F.partKey(p)), i, h, "j", !placeable), { part: p }));
     W.shapeTextures(parts, shaped);
     W.bakeParts(parts, rd, baked);
+    return { v, parts };
+  });
+
+  // Textures: a game model's are the game's (a dyed one's baked, above); one of your own files' is looked up (the game,
+  // then beside the file).
+  const ship = W.shipTextures([].concat(...placed.map((b) => b.parts)), rd, baked);  // texture name -> its copies beside a file
+
+  // A moving part's textured meshes (M2): each bitmap renamed for its material, n5u_ and 12 hex digits (files.js's
+  // motionMaterials, after the bakes and the textures shipped: its texture0 is the real texture). Then each variant's
+  // meshes lowered by the guide's height, named unique.
+  const moved = new Map();  // a material's name -> { texture, motion, pivot, text, label } (files.js's motionMaterials)
+  const built = placed.map(({ v, parts }) => {
+    W.motionMaterials(parts, moved);
     const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
     for (const x of parts) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], x.lo[k]); hi[k] = Math.max(hi[k], x.hi[k]); }
     const meshes = F.uniqueNames(F.lowered([].concat(...parts.map((x) => x.meshes)), h), []);
     return { v, parts, meshes, lo, hi, low: [lo[0], lo[1], lo[2] - h], high: [hi[0], hi[1], hi[2] - h] };
   });
-
-  // Textures: a game model's are the game's (a dyed one's baked, above); one of your own files' is looked up (the game,
-  // then beside the file).
-  const ship = W.shipTextures([].concat(...built.map((b) => b.parts)), rd, baked);  // texture name -> its copies beside a file
   // Where the bakes and the shapes' soft textures go: beside a placeable's models, or a spell mesh's drafts (--check
   // without --saved: nothing is written).
   const bakeDir = placeable ? FILES : SAVED || path.resolve("saved");
@@ -202,6 +218,7 @@ function main() {
   for (const [texture, copies] of ship) say(`  texture ${texture}: not in the game - shipped from ${copies.join(", ")}`);
   W.bakedLines(baked, placeable ? shown(FILES) : SAVED || "the --saved folder").forEach((l) => say(l));
   W.shapeLines(shaped, placeable ? shown(FILES) : SAVED || "the --saved folder").forEach((l) => say(l));
+  W.motionLines(moved, placeable ? shown(FILES) : SAVED || "the --saved folder").forEach((l) => say(l));
 
   // The files.
   const writes = [];
@@ -238,9 +255,11 @@ function main() {
   }
   writes.push(...W.bakedWrites(baked, bakeDir));  // never in made.txt: whose they are, their names say
   writes.push(...W.shapeWrites(shaped, bakeDir));  // likewise: build output, git-ignored in data\files
+  writes.push(...W.motionWrites(moved, bakeDir));  // a moving texture's materials (git-ignored in data\files) and the shader
 
   // The marked files this project made under another model name (its variants counted 1 and then 2, or back): listed,
-  // never deleted (F15). And, beside a spell mesh's drafts, the textures its marked drafts name (ours to rewrite).
+  // never deleted (F15). And, beside a spell mesh's drafts, the textures its marked drafts name (ours to rewrite) - a
+  // moving texture's through its material there (M2: the draft names the material, whose texture0 names the texture).
   const outDir = placeable ? FILES : SAVED;
   const mine = new RegExp(`^${placeable ? "plc_n5" : "n5m_"}${name}(_[1-9])?\\.(${placeable ? "mdl|pwk" : "vfx"})$`, "i");
   const writing = new Set(writes.map((w) => path.resolve(w.file).toLowerCase()));
@@ -251,13 +270,18 @@ function main() {
     if (!placeable) {
       let planes = [];
       try { planes = core.readDraft(fs.readFileSync(at, "latin1").replace(/\r/g, "")).planes; } catch (e) { /* a draft that doesn't read names nothing */ }
-      for (const pl of planes) named.add(String(pl.bitmap).toLowerCase());
+      for (const pl of planes) {
+        const bitmap = String(pl.bitmap).toLowerCase(), mtr = path.join(outDir, bitmap + ".mtr");
+        named.add(bitmap);
+        const texture0 = F.MOTION_TEXTURE.test(bitmap) && fs.existsSync(mtr) ? /^texture0[ \t]+(\S+)/im.exec(fs.readFileSync(mtr, "latin1")) : null;
+        if (texture0) named.add(texture0[1].toLowerCase());
+      }
     }
     if (!writing.has(path.resolve(at).toLowerCase())) unused.push(shown(at));
   }
 
   const result = { kind, check: CHECK, variants, files: [], unused, shipped: [...ship].map(([texture, copies]) => ({ texture, from: copies })),
-    baked: W.bakedJson(baked), shapes: W.shapeJson(shaped), wouldWrite: writes.length };
+    baked: W.bakedJson(baked), shapes: W.shapeJson(shaped), materials: W.motionJson(moved), wouldWrite: writes.length };
   const finish = () => {
     for (const f of unused) say(`no longer used: ${f} (made by this generator for ${name} under an earlier name) - delete it if nothing needs it`);
     if (JSON_OUT) console.log(JSON.stringify(result));

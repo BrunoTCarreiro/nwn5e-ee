@@ -1766,3 +1766,136 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
   - Test row (for the board: #39, stream animation): BL-1 - a dome at Opacity 0.1, Soft, Additive, with the new effect's
     sparks inside, Play in game: faint and glowing, the sparks seen through it; then Normal: cut at alpha 0.2 as before
     (at Opacity 0.1 all or nearly all of it), whatever's drawn hiding the sparks.
+
+## Moving textures in the generators (2026-11-18, #39; M2)
+
+  Spec: the design's "Texture motion", "Calls I made" and addenda (a) and (b)
+  (docs/superpowers/specs/2026-11-18-mesh-texture-animation-and-tint-design.md); plan Task M2. The owner, 2026-11-18:
+  "for the animated textures: 1. scrolling, scaling (breathing), rotating", "for the breathing and rotating I was
+  thinking about the textures on the meshes though"; Q1 route A (an EE material and a shader of ours; a flipbook, B, the
+  fallback if TMO-1 fails). NWN:EE has no UV-motion setting (`animateuv` & co. are KotOR's).
+  - *Calls:*
+    - a part's `"motion"`: `{ "scroll": [u, v] (repeats a second, -10..10), "turn": <degrees a second, -720..720>,
+      "breathe": 0..0.9, "rate": <breaths a second, 0.05..5> }`, any part, a shape too: it moves every textured mesh of the
+      part. Absent or still: nothing written changes. Written after `tint`, its non-zero keys only (the rate while it
+      breathes, and not at its default, 0.5);
+    - one maths, floatdisk.js `uvMotion`, round the pivot p - the middle of the mesh's UV box (`uvPivot`): s = 1 + breathe
+      sin(2 pi rate t), uv' = R(-turn t) (uv - p) / s + p - scroll t. + scroll moves the picture along +u / +v, + turn
+      turns it counter-clockwise (seen from above, From above), breathing grows and shrinks the picture, not the mesh. It
+      takes the material's numbers (the motion and the pivot each to 0.001), so the stage and the game can't drift;
+    - in game: each textured mesh's bitmap becomes `n5u_` + 12 hex digits of its texture, the motion and its pivot (each
+      number to 0.001: one rule with the material's text, so the name fixes the bytes); `n5u_<...>.mtr` says
+      `customshadervs vsn5uvmove`, `customshaderfs fslit` (the game's lit fragment shader), `texture0 <the real
+      texture>`, and `parameter float` n5ScrollU, n5ScrollV, n5Turn, n5Breathe, n5Rate, n5PivotU, n5PivotV. The game
+      attaches a material by its mesh's texture name (its ice tiles, oldf_head, gui_cg_color);
+    - `data\files\vsn5uvmove.shd`, ours, committed and listed in floatdisk\made.txt: original text (`motionShaderText`)
+      - its first line its mark - with the defines the game's lit vertex shader takes, `#include "inc_standard"` (and
+      `inc_uniforms`, guarded), the seven uniforms, `ApplyStandardShader()`, then `vVertexTexCoords` moved by the maths
+      with t = `float(worldtimerTimeOfDay) * 0.001` - the game's world clock, as its water's shader takes it. t itself is
+      a float32: late in a game day (near 2880 s) it holds to about a quarter of a millisecond, the motion's limit. The
+      scroll, the turn and the breath are taken within one repeat, one turn and one breath (`fract`, `mod`), so the
+      coordinates stay small and lose nothing more: the same picture, as the texture repeats (floatdisk check runs its
+      main as JS against uvMotion);
+    - the materials and the shader go beside what names them: a placeable's or the disk's models in data\files (the
+      materials git-ignored, `/data/files/n5u_*`), `--drafts`, a spell mesh's `--saved`. A material is ours by its name,
+      the shader by its first line or made.txt, and compared as text (line ends aside) as a model is (files.js);
+      build_derived carries both. The Floating Disk's own build never calls the listed shader unused;
+    - the probe (TMO-1) decides the route before the bench's side (M3): `n5m_uvprobe`, seven faint domes (radius 0.4: 0.8
+      m wide; alpha 0.3), 1 m apart along x and clear of the character. The texture0 route, 0.4 m high, x -3, -2, -1:
+      1 Soft Additive Wrapped scrolling up (0, 0.25), 2 fxpa_symbl_003 (a glyph, additive by its TXI) From above turning 30
+      a second, 3 Soft Additive From above breathing 0.3 at 0.5 a second; the copy route, 0.7 m high, x 3, 2, 1 (no
+      texture0: the texture copied under the material's name with its TXI - the soft one made again, fxpa_symbl_003's from
+      the game), the same the other way: 4 scrolling down, 5 turning -30, 6 breathing at 1 a second; and 7, x -4, 0.4 m
+      high, the texture0 route with the texture's TXI beside the material under its n5u_ name (no texture there):
+      fxpa_symbl_003 turning 90 a second. Each side reads scroll, turn, breathe from its outer end in, so a side that
+      moves says which it is, and the heights tell the routes apart when nothing does. Every texture is additive (the Soft
+      one's n5s_ TXI, fxpa_symbl_003's own), so it also shows whether, and where, a TXI's blending survives the material
+      (the owner's 0.99.72 finding: only an additive TXI escapes the 0.2 cut and the depth writing). fxpa_symbl_003, not
+      fxpa_globe: the globe's own arturo ripple would muddy the turn;
+    - no game-side change: `git diff --stat -- src` on anim empty before and after.
+  - *Built (anim 7d092f2; its review's fixes c7c3de1):* floatdisk.js MOTION_KEYS / MOTION_INFO / MOTION_PARAMS /
+    MOTION_TEXTURE / MOTION_SHADER, readMotion, hasMotion, cleanMotion, uvPivot, uvMotion, motionName,
+    motionMaterialText, motionShaderText, isMotionShader, moveTextures; readPart's and compositionText's `motion`.
+    files.js motionMaterials, motionWrites, motionLines, motionJson and the "material" / "shader" ownership; both
+    build.js (after the bakes and the shipped textures, so texture0 is the real one; `--json`'s `materials`; the
+    Composer's spell mesh counts a material's texture0 as named by its draft); project.js projectText; build_derived's
+    kinds; `data/files/vsn5uvmove.shd`; `.gitignore`; `tools/data/composer/uvprobe.js`. floatdisk check +11 (97), composer
+    check +2 (24), build check +1 (12), composer build check +6 (26), derived check +1 (17); each new check seen failing
+    first. The Floating Disk's 13 files unchanged.
+  - *What changes:* nothing for a part without a motion (every model, draft and project byte for byte). The bench's
+    Composer doesn't know `motion` yet (M3: the card, the stage, Play in game): a part with one shows and plays unmoved
+    there, and only build.js writes its material.
+  - *Limits:* untested in game until TMO-1 - our shader compiling and running on an effect's mesh and a placeable's,
+    `texture0` binding, the texture's TXI (additive, a library texture's own procedure) applying under the material. A
+    moving texture's material forces the vslit / fslit pair, so it drops a game texture's own `.mtr` and any
+    `envmaptexture` its TXI asks for. The motion runs on the world clock: it doesn't start with the effect, and may jump
+    once a game day when the clock wraps (inferred). Each mesh turns and breathes round its own UV box's middle: a game
+    model's meshes that share a texture get a material each (plc_a03's three meshes, two textures: three materials). A
+    clamped texture (the GUI's) would wrap where the stage's maths slides it off. A changed shader may need the game
+    restarted.
+  - *Native option, not built:* fxpa_globe already animates in game by its TXI's `proceduretype arturo` (the game's own
+    ripple; `cycle` is its flipbook) - a texture with such a TXI moves with no material at all.
+  - *For the bench:* nothing until M3. *For the game:* nothing for the DLL; the probe's files go into the bench build only.
+  - *TMO-1's setup:* from the anim worktree, `node tools\data\composer\uvprobe.js --saved ..\nwn5e-ee\build\vfxedit\saved`
+    (the bench build's; it refuses any other folder, writes only its own files there - each "new" - and adds
+    `n5m_uvprobe` to vfxedit\meshes.txt - "rebuilt": it lists n5m_test already), then restart vfx_bench.bat.
+  - Test rows (for the board: #39, stream animation; TMO-2 and TMO-3 after M3):
+
+    | ID | Setup | Do | Expect |
+    |---|---|---|---|
+    | TMO-1 | The probe written (above); VFX Bench restarted: New, Type Stays (D), + mesh `n5m_uvprobe`, Permanent (until Stop), Name `n5_uvprobe`, Save; the game started, `!test level1ranger` | Play in game; watch each dome; look along the row from each end (the new effect's sparks behind the domes); Stop in game, quit; before the next start, search `Documents\Neverwinter Nights\logs\nwclientLog1.txt` and `nwengineLog.txt` for `Failed to`, `shader`, `vsn5uvmove`, `n5u_` | Per dome: textured, moving as named, faint with the sparks seen through it; no "Failed to compile shader:", "Failed to link shader program", "Failed to load the shader:" or "Failed to link material custom parameter" line. Then: a log error, or solid magenta domes (the engine's fs_invalid) - the shader failed: fix vsn5uvmove and probe again. No error and nothing moving - route B (a flipbook). Domes 1-3 moving, see-through - route A as built (texture0). 1-3 hiding the sparks, 7 see-through - texture0 plus the TXI beside the n5u_ material (dome 7's). 1-3 and 7 hiding the sparks, 4-6 see-through - the copy route (the texture and its TXI copied under the n5u_ name). All moving, every dome hiding the sparks - no TXI placement survives a material: route B, a flipbook TXI (`proceduretype cycle`, `blending additive`, as fxpa_flame02's). Low domes flat white (no texture), tall ones textured and see-through - texture0 doesn't bind: the copy route |
+    | TMO-2 | (after M3) the Composer: a dome, Texture `fxpa_symbl_003`, From above; Texture motion: Turn 30, Breathe 0.2 | Play in game | the glyph turns and pulses, additive as the game's own globe |
+    | TMO-3 | (after M3) a placeable with a moving texture | Save and build; after the next install, place it | it moves (the data\files route) |
+
+## A mesh beat's keys in the effect model (2026-11-18, #39; M4 - game-side)
+
+  Spec: the design's "Keys on a mesh beat" (docs/superpowers/specs/2026-11-18-mesh-texture-animation-and-tint-design.md);
+  plan Task M4. The owner, 2026-11-18: "is it possible to add keyframes to animate the shapes? Or make them follow
+  emitters, just like other elements". The one game-side change of the plan, announced to the game session before its
+  first edit: src/data/vfx_model.h, src/data/vfx_model.cpp, tests/data/vfx_model_test.cpp and a new fixture,
+  tests/data/fixtures/plane_moves.vfx; no model written today changes.
+  - *Calls:*
+    - `VfxKeys.scale`: rows t s, one value (the same in x, y and z) - the model's `scalekey`, controller 36 with one
+      column, as the game's own vdr_bigby_int keys its hand (a plain mesh: 1 to 10 over its 0.333 s impact, held at 10,
+      10 to 1 over its 0.3 s cessation). Of the game's 25,305 compiled models two key a scale, both on a mesh, both one
+      column (vdr_bigby_int and the door tn_sdoor_24); its ASCII models key none, but the exe's base-node keyword table
+      reads `scale` / `scalekey` / `scalebezierkey` beside `position` / `positionkey` and `orientation` /
+      `orientationkey`, and nwn5e's own shipped ASCII models already key a trimesh with exactly `scalekey N` and N rows
+      of `t s` in an animation (n5_lb* / n5_ld* / n5_rs* / n5_rh* / n5_rc*, stealth_rings.py, since 0.40.4, tested in
+      game; n5v_mark* since 0.96.9). Only a plane's reaches the model: a node's scale keys are kept in the draft and
+      not written (controller 36 appears only on meshes in the game's models);
+    - `VfxPlane.tint`: r g b, 1 1 1 none - the bench's (a mesh beat's material is already multiplied by it), in the
+      draft only, never in the model;
+    - the draft: `<anim>_scale = t s ...` after `<anim>_alpha` (in any section, as every key list); a plane's
+      `tint = r g b` after its `emit_seconds`, before its keys, only when it isn't 1 1 1 (read as its material's colours
+      are). A draft without them is written back byte for byte;
+    - WriteVfxModel's animations: a plane with any keys there - position (a whole row: 4 numbers), orientation (5),
+      scale (2) or alpha (2) - gets `node trimesh <its name>`, `parent <its parent>`, then `positionkey`,
+      `orientationkey`, `scalekey` and `alphakey`, each only when it has a row, and `endnode` (of each kind the first list
+      in that animation: a draft has one an animation). A plane with only move keys gets its node too. A plane without
+      keys there is in no animation, as before; its geometry unchanged. Every key list of the model - a node's, an
+      emitter's, a light's, a plane's - is written by one helper, the bytes as before;
+    - `LastKeyTime` counts a plane's position, orientation and scale keys beside its alpha: an animation lasts as long as
+      its planes' keys.
+  - *Built (anim, the commit carrying this section):* the two fields, the draft's lines, LastKeyTime, the plane's
+    animation node; plane_moves.vfx (plane_beat's beat, tinted 1 0.5 0.5, dropping in from 3 m while it turns half round
+    and grows from 0.2 to 1 in the impact, with plane_beat's fade; a whole turn in thirds over 3 s in the duration).
+    test.bat 583 -> 588: VfxModelPlaneMoveKeys, VfxModelPlaneMoveKeysLength, VfxDraftScaleAndTint,
+    VfxModelUnchangedWithoutPlaneKeys and the game anchor VfxGameEffectsScaleKeys (vdr_bigby_int's hand read from the
+    game: controller 36, one column; its rows as a plane's keys written as `scalekey 2` with `t s` rows; it skips
+    cleanly without the game). The model readers are unchanged.
+  - *What changes:* nothing for an effect without a plane's move, turn or scale keys or a tint. HEAD's code and this
+    write the same drafts and models (hashes) for every draft kept and every game model the bench reads.
+  - *Not read back (as before):* neither model reader keeps a plane's keys - its alpha, move, turn or scale. A game
+    effect re-read in the bench (vdr_bigby_int's growing hand) shows the plane unmoved, and a re-save writes none.
+  - *For the bench:* nothing until M5 (core.js reads and writes the same bytes; plane_moves.vfx is its round trip).
+  - *What a plane's keys mean (for M5):* its position and orientation keys are a node's - absolute in its parent's
+    frame, replacing the plane's own `position` and `orientation` while the animation plays (so M5's sim, Drop in and
+    Make it spin build them around the plane's own pose, or it snaps to them); its scale keys multiply the mesh as
+    placed (its verts are already scaled), 1 = as placed - M5 bounds scale above 0 (nwn5e's own models shrink to 0.05
+    or 0.001, never 0). A turn of 180 degrees or more is split into steps of 120 or less, as the game's quaternions
+    take the short way.
+  - *For the game:* the next install carries it: a mesh beat's move, turn and scale keys play in game. Nothing changes
+    for existing effects. Until the install, the game's DLL writes only a beat's alpha keys, so the beat shows unmoved
+    in game; an older draft reader skips `_scale` and `tint` without an error. MBK-1 to MBK-3 (the design's rows) wait
+    for M5 and the install.

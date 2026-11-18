@@ -82,6 +82,7 @@ const snapshot = () => {
   return s;
 };
 const marked = (file) => F.carriesMark(fs.readFileSync(file), P.MARK);
+const near = (a, b, eps) => assert.ok(Math.abs(a - b) <= eps, `${a} is not ${b}`);
 const tok = (s) => [...s.matchAll(/"([^"]*)"|(\S+)/g)].map((m) => (m[1] !== undefined ? m[1] : m[2]));
 // A model's or a draft's vertices' lowest z.
 const lowestZ = (text) => {
@@ -592,6 +593,261 @@ try {
     assert.deepStrictEqual([read.ambient, read.diffuse], [[1, 1, Math.fround(0.999)], [1, 1, Math.fround(0.999)]]);
     ok(build(project("chkplp", { kind: "placeable", guide, placeable: THROUGH, variants: [{ name: "1", row: 14157, parts: plain(TINT) }] }), ["--json"]));
     lines(path.join(FILES, "plc_n5chkplp.mdl"), ["  ambient 0.2 0.2 0.1998", "  diffuse 0.8 0.8 0.7992"]);
+  });
+
+  // M2 (#39; the owner, 2026-11-18: "for the animated textures: 1. scrolling, scaling (breathing), rotating"): a part's
+  // motion moves its textured meshes' pictures in game through an EE material - each mesh's bitmap becomes n5u_ and 12
+  // hex digits (floatdisk.js motionName), and n5u_<...>.mtr names our vertex shader, vsn5uvmove.shd, with the real texture
+  // as texture0. Both go beside what names them: a spell mesh's draft in --saved; a placeable's model in data\files, where
+  // the shader is committed (floatdisk\made.txt lists it). A build with no motion writes neither.
+  const SHADER = "vsn5uvmove.shd", shaderBytes = Buffer.from(F.crlf(F.motionShaderText()), "latin1");
+  const ADD = "n5s_617b220c1144";  // the default colour's soft texture, Additive
+  const movingFiles = (dir) => fs.readdirSync(dir).filter((f) => /^n5u_/i.test(f) || f.toLowerCase() === SHADER).sort();
+  const clearMoving = () => { for (const dir of [FILES, SAVED]) for (const f of movingFiles(dir)) fs.rmSync(path.join(dir, f)); };
+  const uvDome = (motion) => project("chkuv", { kind: "spellmesh", guide: { shape: "circle", diameter: 1, height: 0 }, variants: [{ name: "1", parts: [
+    { shape: { type: "dome", radius: 0.4, alpha: 0.3, blend: "additive" }, at: [0, 0, 0], motion }] }] });
+  // Variant 1 moving (or not), variant 2 the same crate still: mesh by mesh, the one's bitmaps against the other's.
+  const uvCrate = (motion) => project("chkuvp", { kind: "placeable", guide: { shape: "circle", diameter: 2, height: 0 }, placeable: THROUGH, variants: [
+    { name: "1", row: 14158, parts: [{ model: "plc_a03", at: [0, 0, 0], motion }] }, { name: "2", row: 14159, parts: [{ model: "plc_a03", at: [0, 0, 0] }] }] });
+
+  check("a build with no motion writes no material and no shader", () => {
+    clearMoving();
+    for (const f of shapeFiles()) fs.rmSync(f);
+    const m = ok(build(uvDome(undefined), ["--json", "--saved", SAVED]));
+    const p = ok(build(uvCrate(undefined), ["--json"]));
+    for (const j of [m, p]) {
+      assert.deepStrictEqual(j.materials, []);
+      assert.ok(!j.files.some((x) => /\.(mtr|shd)$/i.test(x.file) || /n5u_/i.test(x.file)), JSON.stringify(j.files));
+    }
+    assert.deepStrictEqual([movingFiles(FILES), movingFiles(SAVED)], [[], []]);
+    assert.deepStrictEqual(draftPlanes(path.join(SAVED, "n5m_chkuv.vfx")).map((x) => x.bitmap), [ADD]);
+    assert.ok(!/\r\n  bitmap n5u_/i.test(fs.readFileSync(path.join(FILES, "plc_n5chkuvp_1.mdl"), "latin1")), "a still crate names a material");
+    assert.ok(!fs.readFileSync(path.join(folder, "chkuv.json"), "utf8").includes("motion"), "the project file has a motion");
+  });
+
+  check("a spell mesh with a moving Soft dome: its draft's bitmap is the material's name; the .mtr and the shader beside it in --saved; the soft texture too", () => {
+    clearMoving();
+    for (const f of shapeFiles()) fs.rmSync(f);
+    const files = snapshot(), kept = madeTxt();
+    const motion = { scroll: [0, 0.25] }, pivot = [0.5, 0.5], MAT = F.motionName(ADD, motion, pivot);
+    const file = uvDome(motion);
+    assert.ok(build(file, ["--check", "--saved", SAVED]).out.split(/\r?\n/).includes(
+      `  material ${MAT}: ${ADD} scrolls 0 0.25 a second, round 0.5 0.5 - written into ${SAVED}, with ${SHADER}`), "no summary line for " + MAT);
+    const j = ok(build(file, ["--json", "--saved", SAVED]));
+    assert.deepStrictEqual(j.materials, [{ material: MAT, texture: ADD, motion, pivot }]);
+    assert.deepStrictEqual(j.shapes, [{ texture: ADD, colour: [0.6, 0.8, 1], blend: "additive" }]);
+    const states = byName(j);
+    delete states["n5m_chkuv.vfx"];  // (the check above's still dome: rebuilt)
+    assert.deepStrictEqual(states, { [ADD + ".tga"]: "new", [ADD + ".txi"]: "new", [MAT + ".mtr"]: "new", [SHADER]: "new" });
+    // The draft's plane names the material; its UVs are the dome's (the shader moves them in game).
+    assert.deepStrictEqual(draftPlanes(path.join(SAVED, "n5m_chkuv.vfx")).map((x) => [x.bitmap, x.transparencyhint, x.tverts.length / 2]), [[MAT, 1, 592]]);
+    // The material: our shader, the game's lit fragment shader, the soft texture as texture0, the motion; the shader beside it.
+    const mtr = fs.readFileSync(path.join(SAVED, MAT + ".mtr"), "latin1");
+    assert.strictEqual(mtr, F.motionMaterialText({ texture: ADD, motion, pivot }));
+    assert.ok(mtr.split("\n").includes("texture0 " + ADD) && mtr.split("\n").includes("parameter float n5ScrollV 0.25"), mtr);
+    assert.ok(fs.readFileSync(path.join(SAVED, SHADER)).equals(shaderBytes), SHADER + " isn't floatdisk.js's (CRLF)");
+    // The texture it names beside it, an Additive soft texture's TGA and TXI.
+    assert.ok(fs.readFileSync(path.join(SAVED, ADD + ".tga")).equals(softBytes([0.6, 0.8, 1])));
+    assert.strictEqual(fs.readFileSync(path.join(SAVED, ADD + ".txi"), "latin1"), "blending additive\n");
+    // Nothing in data\ for a spell mesh, nothing in made.txt; the project keeps its motion as written.
+    const after = snapshot();
+    for (const f of Object.keys(after)) if (!f.startsWith(SAVED)) assert.strictEqual(after[f], files[f], f);
+    assert.strictEqual(madeTxt(), kept, "made.txt changed");
+    assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(folder, "chkuv.json"), "utf8")).variants[0].parts[0].motion, motion);
+  });
+
+  check("a placeable with a moving crate: n5u_ materials in data\\files, the shader there, made.txt lists the shader", () => {
+    clearMoving();
+    // The shader as the checkout commits it, in data\files: the build finds it its own and leaves it as it is.
+    const committed = path.join(REPO, "data", "files", SHADER);
+    assert.ok(fs.existsSync(committed), "the checkout has no data\\files\\" + SHADER);
+    fs.copyFileSync(committed, path.join(FILES, SHADER));
+    const kept = madeTxt(), motion = { turn: 30 };
+    const j = ok(build(uvCrate(motion), ["--json"]));
+    const meshesOf = (file) => fs.readFileSync(file, "latin1").split("\r\nnode trimesh ").slice(1).map((n) => {
+      const l = n.split("\r\n"), at = l.findIndex((x) => /^  tverts \d+$/.test(x)), count = Number(l[at].slice(9));
+      return { name: l[0], bitmap: l.find((x) => x.startsWith("  bitmap ")).slice(9),
+        tverts: [].concat(...l.slice(at + 1, at + 1 + count).map((x) => x.trim().split(/\s+/).slice(0, 2).map(Number))) };
+    });
+    const moved = meshesOf(path.join(FILES, "plc_n5chkuvp_1.mdl")), still = meshesOf(path.join(FILES, "plc_n5chkuvp_2.mdl"));
+    assert.strictEqual(moved.length, still.length);
+    // Mesh by mesh: the moving one's bitmap is the material of the still one's texture and UV box; untextured, none.
+    const want = new Map();
+    still.forEach((m, i) => {
+      if (m.bitmap === "NULL") return assert.strictEqual(moved[i].bitmap, "NULL", m.name);
+      const pivot = F.uvPivot(m.tverts), name = F.motionName(m.bitmap, motion, pivot);
+      assert.strictEqual(moved[i].bitmap, name, m.name);
+      if (!want.has(name)) want.set(name, { material: name, texture: m.bitmap.toLowerCase(), motion, pivot });
+    });
+    assert.ok(want.size > 0, "plc_a03 has no textured mesh");
+    assert.deepStrictEqual(j.materials, [...want.values()]);
+    console.log(`     plc_a03 moving: ${moved.length} meshes, ${want.size} material(s): ` + [...want.values()].map((m) => `${m.material} (${m.texture}, round ${m.pivot.join(" ")})`).join(", "));
+    // Each beside the model in data\files, floatdisk.js's text, texture0 the crate's own; the committed shader unchanged.
+    const states = byName(j);
+    for (const m of want.values()) {
+      assert.strictEqual(states[m.material + ".mtr"], "new", m.material);
+      assert.ok(j.files.some((x) => x.file === `data/files/${m.material}.mtr`), m.material + " isn't named from the repo's root");
+      assert.strictEqual(fs.readFileSync(path.join(FILES, m.material + ".mtr"), "latin1"), F.motionMaterialText(m));
+      assert.ok(!fs.existsSync(path.join(SAVED, m.material + ".mtr")), m.material + " is in saved\\");
+    }
+    assert.strictEqual(states[SHADER], "unchanged");
+    assert.ok(fs.readFileSync(path.join(FILES, SHADER)).equals(shaderBytes), "the committed shader isn't floatdisk.js's, CRLF");
+    // The shader is listed in the Floating Disk's made.txt (the generators' committed file); the Composer's made.txt lists
+    // neither it nor a material. Git ignores the materials (build output), not the shader.
+    assert.ok(fs.readFileSync(path.join(root, "tools", "data", "floatdisk", "made.txt"), "utf8").split(/\r?\n/).includes("data/files/" + SHADER), "made.txt doesn't list the shader");
+    assert.strictEqual(madeTxt(), kept, "the Composer's made.txt changed");
+    const ignored = (f) => spawnSync("git", ["check-ignore", "-q", "--no-index", "data/files/" + f], { cwd: REPO, windowsHide: true }).status === 0;
+    assert.ok(ignored([...want.keys()][0] + ".mtr"), "a material isn't git-ignored");
+    assert.ok(!ignored(SHADER), "the shader is git-ignored");
+  });
+
+  check("a moving build built again changes nothing; a material or our shader in the way is rewritten, someone's shader refused", () => {
+    ok(build(uvDome({ scroll: [0, 0.25] }), ["--json", "--saved", SAVED]));  // (the crate's check above cleared the dome's files)
+    ok(build(uvCrate({ turn: 30 }), ["--json"]));
+    const before = snapshot();
+    const a = ok(build(uvDome({ scroll: [0, 0.25] }), ["--json", "--saved", SAVED]));
+    const b = ok(build(uvCrate({ turn: 30 }), ["--json"]));
+    for (const j of [a, b]) {
+      assert.ok(j.files.some((x) => /\.mtr$/.test(x.file)), "no material: " + JSON.stringify(j.files));
+      assert.ok(j.files.every((x) => x.state === "unchanged"), JSON.stringify(j.files.filter((x) => x.state !== "unchanged")));
+    }
+    assert.deepStrictEqual(snapshot(), before);
+    // A file of a material's name is the generator's (the name fixes its bytes), and so is a shader carrying the shader's
+    // first line (an earlier version): both rewritten. Someone's vsn5uvmove.shd is refused, nothing written.
+    const MAT = a.materials[0].material;
+    fs.writeFileSync(path.join(SAVED, MAT + ".mtr"), "customshadervs vslit\r\n");
+    fs.writeFileSync(path.join(SAVED, SHADER), F.MOTION_SHADER_MARK + "\r\n// an earlier version\r\n");
+    const fixed = byName(ok(build(uvDome({ scroll: [0, 0.25] }), ["--json", "--saved", SAVED])));
+    assert.deepStrictEqual([fixed[MAT + ".mtr"], fixed[SHADER]], ["rebuilt", "rebuilt"]);
+    fs.writeFileSync(path.join(SAVED, SHADER), "// someone's own shader\r\n");
+    const kept = snapshot();
+    refused(build(uvDome({ scroll: [0, 0.25] }), ["--json", "--saved", SAVED]), /vsn5uvmove\.shd is there and wasn't made by this generator/);
+    assert.deepStrictEqual(snapshot(), kept);
+    fs.writeFileSync(path.join(SAVED, SHADER), shaderBytes);
+  });
+
+  check("a spell mesh's moving own file: its texture copied beside the draft stays its own (the draft's material names it)", () => {
+    // The own-file check's crate (parts\n5_chkcrate.mdl, its texture a TGA beside it), breathing.
+    const parts = path.join(folder, "parts");
+    const tga = (shade) => Buffer.concat([Buffer.from([0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 32, 8]), Buffer.alloc(16, shade)]);
+    fs.writeFileSync(path.join(parts, "n5_chkcrate.tga"), tga(0x11));
+    fs.rmSync(path.join(SAVED, "n5_chkcrate.tga"), { force: true });
+    const file = project("chkuvo", { kind: "spellmesh", guide: CIRCLE, variants: [{ name: "1", parts: [
+      { file: "parts/n5_chkcrate.mdl", at: [0, 0, 0], motion: { breathe: 0.2, rate: 1 } }] }] });
+    const j = ok(build(file, ["--json", "--saved", SAVED]));
+    assert.deepStrictEqual([j.materials.map((m) => m.texture), j.shipped.map((s) => s.texture)], [["n5_chkcrate"], ["n5_chkcrate"]]);
+    const MAT = j.materials[0].material;
+    assert.deepStrictEqual(draftPlanes(path.join(SAVED, "n5m_chkuvo.vfx")).map((p) => p.bitmap), [MAT]);
+    assert.ok(fs.readFileSync(path.join(SAVED, "n5_chkcrate.tga")).equals(tga(0x11)));
+    assert.ok(fs.readFileSync(path.join(SAVED, MAT + ".mtr"), "latin1").split("\n").includes("texture0 n5_chkcrate"));
+    // Changed beside the part: rewritten beside the draft - its marked draft names the material, and the material the texture.
+    fs.writeFileSync(path.join(parts, "n5_chkcrate.tga"), tga(0x22));
+    assert.strictEqual(byName(ok(build(file, ["--json", "--saved", SAVED])))["n5_chkcrate.tga"], "rebuilt");
+    assert.ok(fs.readFileSync(path.join(SAVED, "n5_chkcrate.tga")).equals(tga(0x22)));
+  });
+
+  // The probe (TMO-1's): tools\data\composer\uvprobe.js writes n5m_uvprobe - seven domes in a row, three moving by the
+  // texture0 route (the material names the texture), three by the copy route (the texture copied under the material's
+  // name, its TXI with it) and a seventh by the texture0 route with the texture's TXI beside the material under its n5u_
+  // name (no TGA) - with their materials, the shader, the soft texture, the copies and that TXI, into a bench build's
+  // vfxedit\saved only, and adds it to the bench's list of spell meshes (vfxedit\meshes.txt) for + mesh.
+  check("the probe writes seven domes, seven materials - four with texture0 - the shader, three copies and an n5u_ TXI without its TGA, into a temporary saved\\ only", () => {
+    const vfxedit = path.join(root, "build", "vfxedit"), saved = path.join(vfxedit, "saved");
+    fs.mkdirSync(saved, { recursive: true });
+    fs.writeFileSync(path.join(vfxedit, "meshes.txt"), "n5m_other\n");
+    const probe = (args) => {
+      const r = spawnSync(process.execPath, [path.join(folder, "uvprobe.js"), ...args, "--game", GAME, "--tools", TOOLS], { encoding: "utf8", maxBuffer: 64 << 20, windowsHide: true });
+      return { code: r.status, out: r.stdout || "", err: r.stderr || "" };
+    };
+    const tree = () => {
+      const s = {};
+      const walk = (dir) => {
+        for (const f of fs.readdirSync(dir)) {
+          const at = path.join(dir, f), st = fs.statSync(at);
+          if (st.isDirectory()) walk(at);
+          else s[at] = st.mtimeMs + ":" + crypto.createHash("sha1").update(fs.readFileSync(at)).digest("hex");
+        }
+      };
+      walk(root);
+      return s;
+    };
+    // Refused: no --saved, a folder that isn't a build's vfxedit\saved (<copy>\saved, the vfxedit folder), one not there.
+    const before = tree();
+    for (const args of [[], ["--saved", SAVED], ["--saved", vfxedit], ["--saved", path.join(root, "nope", "vfxedit", "saved")]]) {
+      const r = probe(args);
+      assert.strictEqual(r.code, 1, JSON.stringify(args) + ": exit " + r.code);
+      assert.match(r.err, /^uvprobe: --saved <folder>: a bench build's vfxedit\\saved/m, r.err);
+    }
+    assert.deepStrictEqual(tree(), before);
+    const r = probe(["--saved", saved]);
+    assert.strictEqual(r.code, 0, "uvprobe.js exited " + r.code + ": " + r.err.trim());
+    const after = tree();
+    const changed = Object.keys(after).filter((f) => after[f] !== before[f]).map((f) => path.relative(vfxedit, f).split(path.sep).join("/")).sort();
+    // The draft: the Composer's mark, seven domes, each naming its own material.
+    const planes = draftPlanes(path.join(saved, "n5m_uvprobe.vfx"));
+    const mats = planes.map((p) => p.bitmap);
+    assert.ok(mats.length === 7 && mats.every((m) => F.MOTION_TEXTURE.test(m)) && new Set(mats).size === 7, mats.join(" "));
+    const copies = mats.slice(3, 6), seventh = mats[6];
+    // Written: these, into that saved\ (and the bench's list beside it) - nothing else anywhere; the seventh's TXI and no TGA.
+    assert.deepStrictEqual(changed, ["meshes.txt", "saved/n5m_uvprobe.vfx", `saved/${ADD}.tga`, `saved/${ADD}.txi`, `saved/${SHADER}`,
+      ...mats.map((m) => `saved/${m}.mtr`), ...copies.flatMap((m) => [`saved/${m}.tga`, `saved/${m}.txi`]), `saved/${seventh}.txi`].sort());
+    assert.ok(!fs.readdirSync(saved).some((f) => f.toLowerCase().startsWith(seventh + ".") && !/\.(mtr|txi)$/i.test(f)), "the seventh has a texture under its name");
+    // meshes.txt was there (listing another spell mesh): rewritten with n5m_uvprobe added, the others kept.
+    assert.ok(r.out.split(/\r?\n/).includes("rebuilt   meshes.txt"), r.out);
+    assert.strictEqual(fs.readFileSync(path.join(vfxedit, "meshes.txt"), "utf8"), "n5m_other\nn5m_uvprobe\n");
+    // Domes 1-3 and 7 the texture0 route (the material names the texture), 4-6 the copy route (none). The motions: 1 / 4
+    // scroll up / down, 2 / 5 turn 30 / -30 (fxpa_symbl_003, a glyph, additive by its TXI), 3 / 6 breathe 0.3 at 0.5 / 1 a
+    // second, 7 turns 90 (fxpa_symbl_003). Each floatdisk.js's material, named for its texture, motion and pivot (the
+    // middle of the picture: Wrapped 0..1, From above 0..1).
+    const SYM = "fxpa_symbl_003";
+    const motions = [{ scroll: [0, 0.25] }, { turn: 30 }, { breathe: 0.3, rate: 0.5 }, { scroll: [0, -0.25] }, { turn: -30 }, { breathe: 0.3, rate: 1 }, { turn: 90 }];
+    const textures = [ADD, SYM, ADD, ADD, SYM, ADD, SYM];
+    mats.forEach((m, k) => {
+      const mat = { texture: textures[k], motion: motions[k], pivot: [0.5, 0.5] };
+      assert.strictEqual(m, F.motionName(mat.texture, mat.motion, mat.pivot), "dome " + (k + 1));
+      assert.strictEqual(fs.readFileSync(path.join(saved, m + ".mtr"), "latin1"), F.motionMaterialText(mat, { copy: k >= 3 && k <= 5 }), "dome " + (k + 1));
+    });
+    // The copies: the soft texture made again with its TXI (Additive); fxpa_symbl_003's from the game with its own TXI
+    // (decal, additive). The seventh: fxpa_symbl_003's TXI alone under its material's name. The texture0 route's soft
+    // texture beside them; the shader.
+    const sym = rd.image(SYM, []);
+    assert.ok(sym && sym.tga && F.txiAdditive(sym.txi), "the game's fxpa_symbl_003: a TGA and an additive TXI");
+    for (const k of [0, 2]) {
+      assert.ok(fs.readFileSync(path.join(saved, copies[k] + ".tga")).equals(softBytes([0.6, 0.8, 1])), "dome " + (k + 4));
+      assert.strictEqual(fs.readFileSync(path.join(saved, copies[k] + ".txi"), "latin1"), "blending additive\n", "dome " + (k + 4));
+    }
+    assert.ok(fs.readFileSync(path.join(saved, copies[1] + ".tga")).equals(sym.tga));
+    assert.strictEqual(fs.readFileSync(path.join(saved, copies[1] + ".txi"), "latin1"), sym.txi);
+    assert.strictEqual(fs.readFileSync(path.join(saved, seventh + ".txi"), "latin1"), sym.txi);
+    assert.ok(fs.readFileSync(path.join(saved, ADD + ".tga")).equals(softBytes([0.6, 0.8, 1])));
+    assert.strictEqual(fs.readFileSync(path.join(saved, ADD + ".txi"), "latin1"), "blending additive\n");
+    assert.ok(fs.readFileSync(path.join(saved, SHADER)).equals(shaderBytes));
+    // The domes: radius 0.4 (0.8 m wide), faint (alpha 0.3), see-through, 1 m apart along x and clear of the character -
+    // the texture0 route's at -3, -2, -1 (1, 2, 3) and its seventh at -4, the copy route's at 3, 2, 1 (4, 5, 6), so each
+    // side reads scroll, turn, breathe from its end in - the texture0 route's 0.4 m high, the copy route's 0.7.
+    const box = (p) => { const xs = [], zs = []; for (let i = 0; i < p.verts.length; i += 3) { xs.push(p.verts[i]); zs.push(p.verts[i + 2]); } return [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)]; };
+    planes.forEach((p, k) => {
+      const [x0, x1, z0, z1] = box(p), centre = [-3, -2, -1, 3, 2, 1, -4][k];
+      near((x0 + x1) / 2, centre, 1e-4);
+      near(x1 - x0, 0.8, 1e-4);
+      near(z0, 0, 1e-4);
+      near(z1, k >= 3 && k <= 5 ? 0.7 : 0.4, 1e-4);
+      assert.ok(Math.min(Math.abs(x0), Math.abs(x1)) >= 0.6 - 1e-4, `dome ${k + 1} reaches within ${Math.min(Math.abs(x0), Math.abs(x1))} m of the character`);
+      assert.deepStrictEqual([p.alpha, p.transparencyhint], [Math.fround(0.3), 1], "dome " + (k + 1));
+    });
+    // Again: every file unchanged, none touched.
+    const again = probe(["--saved", saved]);
+    assert.strictEqual(again.code, 0, again.err);
+    const states = again.out.split(/\r?\n/).map((l) => l.match(/^(new|rebuilt|unchanged)\s+(\S+)$/)).filter(Boolean).map((x) => x[1]);
+    assert.ok(states.length === changed.length && states.every((s) => s === "unchanged"), again.out);
+    assert.deepStrictEqual(tree(), after);
+    // A file in its way it didn't make: refused, nothing written.
+    fs.writeFileSync(path.join(saved, "n5m_uvprobe.vfx"), "# someone's draft\r\n");
+    const kept = tree();
+    const no = probe(["--saved", saved]);
+    assert.strictEqual(no.code, 1, "exit " + no.code);
+    assert.match(no.err, /n5m_uvprobe\.vfx is there and wasn't made by this generator/);
+    assert.deepStrictEqual(tree(), kept);
   });
 } finally {
   fs.rmSync(root, { recursive: true, force: true });

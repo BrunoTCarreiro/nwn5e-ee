@@ -1,3 +1,4 @@
 # made by nwn5e-ee tools/data/floatdisk/build.js: the files it wrote in this repo that can't carry its mark (textures) -
 # it may rewrite these; it refuses any other file in its way
 data/files/n5t_forcedisk.tga
+data/files/vsn5uvmove.shd

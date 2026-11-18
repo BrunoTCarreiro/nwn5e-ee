@@ -1,12 +1,16 @@
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <filesystem>
 #include <fstream>
 #include <limits>
+#include <map>
 #include <set>
 #include <sstream>
 #include <string>
+#include <vector>
 
 #include "check.h"
 #include "data/game_resources.h"
@@ -2591,4 +2595,370 @@ TEST(VfxGameEffectsTransparencyHint) {
   CHECK_EQ(Contains(WriteVfxModel(globe, "n5t"), "\n  transparencyhint 1\n  verts "), true);
   CHECK_EQ(Contains(WriteVfxDraft(entangle), "transparencyhint") || Contains(WriteVfxModel(entangle, "n5t"), "transparencyhint"),
            false);
+}
+
+// --- A mesh beat's keys (#39, M4; the owner, 2026-11-18: "is it possible to add keyframes to animate the shapes? Or make
+// them follow emitters, just like other elements"): a plane's own move, turn and scale keys, written beside its alpha in
+// each animation - positionkey and orientationkey as a node's, and scalekey (controller 36, one value a row, as the game's
+// own vdr_bigby_int keys its hand) - and a mesh beat's tint, the bench's, in the draft only. ---
+
+namespace {
+
+// plane_moves.vfx's effect: plane_beat's beat (BeatEffect, its fade kept) tinted 1 0.5 0.5, dropping in from 3 m over
+// 0.5 s while it turns half round (in 1 s) and grows from 0.2 to 1 (in 0.5 s); in the duration a whole turn, in thirds,
+// over 3 s.
+VfxEffect MovesEffect() {
+  VfxEffect effect = BeatEffect();
+  effect.name = "n5_moves";
+  VfxPlane& beat = effect.planes[0];
+  beat.tint[1] = beat.tint[2] = 0.5f;
+  VfxKeys& impact = beat.keys[0];
+  impact.position = {0, 0, 0, 3, 0.5f, 0, 0, 0};
+  impact.orientation = {0, 0, 0, 1, 0, 1, 0, 0, 1, 3.14159f};
+  impact.scale = {0, 0.2f, 0.5f, 1};
+  VfxKeys turn;
+  turn.anim = "duration";
+  turn.orientation = {0, 0, 0, 1, 0, 1, 0, 0, 1, 2.0944f, 2, 0, 0, 1, 4.18879f, 3, 0, 0, 1, 6.28319f};
+  beat.keys.push_back(turn);
+  return effect;
+}
+
+// An animation of a model named n5t, from its newanim line to its doneanim ("" when it has none).
+std::string Anim(const std::string& model, const char* anim) {
+  return Section(model, std::string("newanim ") + anim + " n5t", std::string("doneanim ") + anim + " n5t");
+}
+
+// That animation's length (-1 when it has none).
+float AnimLength(const std::string& model, const char* anim) {
+  const std::string text = Anim(model, anim);
+  const size_t at = text.find("  length ");
+  return at == std::string::npos ? -1.0f : std::stof(text.substr(at + 9));
+}
+
+// The names of the trimesh nodes in a text, in order.
+std::vector<std::string> Trimeshes(const std::string& text) {
+  std::vector<std::string> names;
+  for (size_t at = text.find("node trimesh "); at != std::string::npos; at = text.find("node trimesh ", at + 1)) {
+    const size_t from = at + 13;
+    names.push_back(text.substr(from, text.find('\n', from) - from));
+  }
+  return names;
+}
+
+}  // namespace
+
+// The model: in each animation with keys of the plane (any of its position, orientation, scale or alpha), a trimesh node
+// of its geometry's name under its geometry's parent - its positionkey and orientationkey as a node's, then its scalekey
+// (t s a row), then its alphakey as before; none in an animation without them. A plane keyed by one kind alone gets its
+// node (one with only position keys too); a list too short for a row is no keys. Its geometry as before; its tint never in
+// the model.
+TEST(VfxModelPlaneMoveKeys) {
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(FixtureText("tests/data/fixtures/plane_moves.vfx"), &effect, &error) && effect.planes.size() == 1, true);
+  if (effect.planes.size() != 1) return;
+  const std::string model = WriteVfxModel(effect, "n5t");
+  CHECK_EQ(Section(Anim(model, "impact"), "node trimesh n5t_p0_beat", "endnode") ==
+               "node trimesh n5t_p0_beat\n  parent n5t_n0_ring\n"
+               "  positionkey 2\n    0 0 0 3\n    0.5 0 0 0\n"
+               "  orientationkey 2\n    0 0 0 1 0\n    1 0 0 1 3.14159\n"
+               "  scalekey 2\n    0 0.2\n    0.5 1\n"
+               "  alphakey 5\n    0 0\n    0.3 0\n    0.5 0.8\n    1.3 0.8\n    1.5 0\n",
+           true);
+  CHECK_EQ(Section(Anim(model, "duration"), "node trimesh n5t_p0_beat", "endnode") ==
+               "node trimesh n5t_p0_beat\n  parent n5t_n0_ring\n"
+               "  orientationkey 4\n    0 0 0 1 0\n    1 0 0 1 2.0944\n    2 0 0 1 4.18879\n    3 0 0 1 6.28319\n",
+           true);
+  const std::string cessation = Anim(model, "cessation");
+  CHECK_EQ(!cessation.empty() && Trimeshes(cessation).empty() && !Contains(cessation, "key"), true);
+  // Its geometry: the trimesh the plane without keys writes. Its tint, as its mesh and timing, never in the model.
+  VfxEffect still = effect;
+  still.planes[0].keys.clear();
+  const auto geometry = [](const std::string& m) { return Section(m, "beginmodelgeom n5t", "endmodelgeom n5t"); };
+  CHECK_EQ(!geometry(model).empty() && geometry(model) == geometry(WriteVfxModel(still, "n5t")), true);
+  CHECK_EQ(Contains(model, "tint") || Contains(model, "1 0.5 0.5"), false);
+  // Each kind alone (in the cessation, the impact's fade kept): its node, its parent and that one list.
+  const char* const alone[] = {"  positionkey 1\n    0.5 0 0 1\n", "  orientationkey 1\n    0.5 0 0 1 1\n",
+                               "  scalekey 1\n    0.5 2\n", "  alphakey 1\n    0.5 0\n"};
+  for (int kind = 0; kind < 4; ++kind) {
+    VfxEffect one = BeatEffect();
+    VfxKeys k;
+    k.anim = "cessation";
+    if (kind == 0) k.position = {0.5f, 0, 0, 1};
+    if (kind == 1) k.orientation = {0.5f, 0, 0, 1, 1};
+    if (kind == 2) k.scale = {0.5f, 2};
+    if (kind == 3) k.alpha = {0.5f, 0};
+    one.planes[0].keys.push_back(k);
+    CHECK_EQ(Section(Anim(WriteVfxModel(one, "n5t"), "cessation"), "node trimesh n5t_p0_beat", "endnode") ==
+                 std::string("node trimesh n5t_p0_beat\n  parent n5t_n0_ring\n") + alone[kind],
+             true);
+  }
+  // Too few numbers for a row of any kind: no keys there, no node.
+  VfxEffect few = BeatEffect();
+  VfxKeys short_lists;
+  short_lists.anim = "cessation";
+  short_lists.position = {0.5f, 0, 0};
+  short_lists.orientation = {0.5f, 0, 0, 1};
+  short_lists.scale = {0.5f};
+  short_lists.alpha = {0.5f};
+  few.planes[0].keys.push_back(short_lists);
+  CHECK_EQ(Trimeshes(Anim(WriteVfxModel(few, "n5t"), "cessation")).empty(), true);
+}
+
+// The animations last the plane's keys: the fixture's impact at least as long as its last key (the fade's 1.5 s), its
+// duration as long as its turn (3 s; else 2). Each kind alone, its last key at 4 s, makes the impact, the duration and the
+// cessation 4 s long.
+TEST(VfxModelPlaneMoveKeysLength) {
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(FixtureText("tests/data/fixtures/plane_moves.vfx"), &effect, &error), true);
+  const std::string model = WriteVfxModel(effect, "n5t");
+  CHECK_EQ(AnimLength(model, "impact") >= 1.5f, true);
+  CHECK_EQ(Milli(AnimLength(model, "duration")), 3000);
+  for (int kind = 0; kind < 4; ++kind) {
+    VfxEffect one = BeatEffect();
+    one.planes[0].keys.clear();
+    for (const char* anim : {"impact", "duration", "cessation"}) {
+      VfxKeys k;
+      k.anim = anim;
+      if (kind == 0) k.position = {0, 0, 0, 0, 4, 0, 0, 1};
+      if (kind == 1) k.orientation = {0, 0, 0, 1, 0, 4, 0, 0, 1, 1};
+      if (kind == 2) k.scale = {0, 1, 4, 2};
+      if (kind == 3) k.alpha = {0, 1, 4, 0};
+      one.planes[0].keys.push_back(k);
+    }
+    const std::string m = WriteVfxModel(one, "n5t");
+    CHECK_EQ(Milli(AnimLength(m, "impact")) == 4000 && Milli(AnimLength(m, "duration")) == 4000 &&
+                 Milli(AnimLength(m, "cessation")) == 4000,
+             true);
+  }
+}
+
+// The draft: a plane's "tint = r g b" after its emit_seconds (before its keys), only when it isn't 1 1 1, and
+// "<anim>_scale = t s ..." after its "<anim>_alpha" (in any section, as every key list) - and back as written;
+// plane_moves.vfx is MovesEffect's draft. A draft without them writes the bytes it did before.
+TEST(VfxDraftScaleAndTint) {
+  const std::string text = FixtureText("tests/data/fixtures/plane_moves.vfx");
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(text, &effect, &error) && effect.planes.size() == 1, true);
+  if (effect.planes.size() != 1) return;
+  VfxPlane& p = effect.planes[0];
+  CHECK_EQ(Milli(p.tint[0]) == 1000 && Milli(p.tint[1]) == 500 && Milli(p.tint[2]) == 500, true);
+  const VfxKeys* impact = FindKeys(&p.keys, "impact", false);
+  CHECK_EQ(impact != nullptr && impact->scale.size() == 4 && impact->position.size() == 8 &&
+               impact->orientation.size() == 10 && impact->alpha.size() == 10,
+           true);
+  if (impact && impact->scale.size() == 4) {
+    CHECK_EQ(Milli(impact->scale[0]) == 0 && Milli(impact->scale[1]) == 200 && Milli(impact->scale[2]) == 500 &&
+                 Milli(impact->scale[3]) == 1000,
+             true);
+  }
+  const VfxKeys* duration = FindKeys(&p.keys, "duration", false);
+  CHECK_EQ(duration != nullptr && duration->orientation.size() == 20 && duration->scale.empty(), true);
+  CHECK_EQ(WriteVfxDraft(effect) == text, true);
+  CHECK_EQ(WriteVfxDraft(MovesEffect()) == text, true);  // the fixture is in WriteVfxDraft's order
+  CHECK_EQ(Contains(text, "\nemit_seconds = 1.2\ntint = 1 0.5 0.5\nimpact_position = "), true);
+  CHECK_EQ(Contains(text, "\nimpact_alpha = 0 0 0.3 0 0.5 0.8 1.3 0.8 1.5 0\nimpact_scale = 0 0.2 0.5 1\nduration_orientation = "),
+           true);
+  // No tint (1 1 1): no line - only that line less.
+  VfxEffect plain = MovesEffect();
+  plain.planes[0].tint[1] = plain.planes[0].tint[2] = 1.0f;
+  const size_t at = text.find("tint = 1 0.5 0.5\n");
+  CHECK_EQ(at != std::string::npos && WriteVfxDraft(plain) == text.substr(0, at) + text.substr(at + 17), true);
+  // A plane without a beat's other fields: after its bitmap, before its verts; back the same.
+  VfxEffect vines;
+  CHECK_EQ(ReadVfxDraft(FixtureText("tests/data/fixtures/plane_effect.vfx"), &vines, &error) && vines.planes.size() == 1, true);
+  if (vines.planes.size() == 1) {
+    vines.planes[0].tint[0] = 0.2f;
+    vines.planes[0].tint[1] = 0.4f;
+    vines.planes[0].tint[2] = 0.6f;
+    const std::string tinted = WriteVfxDraft(vines);
+    CHECK_EQ(Contains(tinted, "\nbitmap = fxpa_fern\ntint = 0.2 0.4 0.6\nverts = "), true);
+    VfxEffect back;
+    CHECK_EQ(ReadVfxDraft(tinted, &back, &error) && back.planes.size() == 1 && Milli(back.planes[0].tint[0]) == 200 &&
+                 Milli(back.planes[0].tint[1]) == 400 && Milli(back.planes[0].tint[2]) == 600 && WriteVfxDraft(back) == tinted,
+             true);
+  }
+  // Scale keys in any section, as every key list: a node's read and written back; only a plane's reach the model.
+  VfxEffect spun;
+  CHECK_EQ(ReadVfxDraft("name = x\n[node spin]\nimpact_scale = 0 1 1 2\n", &spun, &error) && spun.nodes.size() == 1, true);
+  if (spun.nodes.size() == 1) {
+    const VfxKeys* k = FindKeys(&spun.nodes[0].keys, "impact", false);
+    CHECK_EQ(k != nullptr && k->scale.size() == 4, true);
+    CHECK_EQ(Contains(WriteVfxDraft(spun), "\n[node spin]\nposition = 0 0 0\norientation = 0 0 0 0\nimpact_scale = 0 1 1 2\n"), true);
+    CHECK_EQ(Contains(WriteVfxModel(spun, "n5t"), "scalekey"), false);
+  }
+}
+
+// Review focus 2 (M4): nothing written today changes - every fixture draft but plane_moves.vfx (none keys a plane's move,
+// turn or scale) writes a model with no scalekey whose animations' trimesh nodes are exactly its planes with alpha keys
+// there, each its parent and alphakey only, as before (plane_beat's golden model: VfxModelPlaneAlphaKeys).
+TEST(VfxModelUnchangedWithoutPlaneKeys) {
+  int read = 0;
+  for (const auto& entry : std::filesystem::directory_iterator("tests/data/fixtures")) {
+    if (entry.path().extension() != ".vfx" || entry.path().filename() == "plane_moves.vfx") continue;
+    const std::string path = entry.path().generic_string();
+    VfxEffect effect;
+    std::string error;
+    const bool ok = ReadVfxDraft(FixtureText(path.c_str()), &effect, &error);
+    CHECK_EQ(ok, true);
+    if (!ok) continue;
+    ++read;
+    bool moves = false;
+    for (const VfxPlane& p : effect.planes) {
+      for (const VfxKeys& k : p.keys) moves = moves || !k.position.empty() || !k.orientation.empty() || !k.scale.empty();
+    }
+    CHECK_EQ(moves, false);
+    const std::string model = WriteVfxModel(effect, "n5t");
+    CHECK_EQ(Contains(model, "scalekey"), false);
+    const std::vector<std::string> planes = Trimeshes(Section(model, "beginmodelgeom n5t", "endmodelgeom n5t"));
+    CHECK_EQ(planes.size(), effect.planes.size());
+    if (planes.size() != effect.planes.size()) continue;
+    for (const char* anim : {"impact", "duration", "cessation"}) {
+      const std::string text = Anim(model, anim);
+      std::vector<std::string> faded;
+      for (size_t i = 0; i < effect.planes.size() && !text.empty(); ++i) {
+        const VfxKeys* k = FindKeys(&effect.planes[i].keys, anim, false);
+        if (k && k->alpha.size() >= 2) faded.push_back(planes[i]);
+      }
+      CHECK_EQ(Trimeshes(text) == faded, true);
+      for (const std::string& name : faded) {
+        const std::string node = Section(text, "node trimesh " + name + "\n", "endnode");
+        CHECK_EQ(Contains(node, "\n  parent ") && Contains(node, "\n  alphakey ") && !Contains(node, "positionkey") &&
+                     !Contains(node, "orientationkey"),
+                 true);
+      }
+    }
+  }
+  CHECK_EQ(read >= 3, true);
+}
+
+namespace {
+
+template <typename T>
+T BytesAt(const std::string& b, size_t at) {
+  T v{};
+  if (at + sizeof(T) <= b.size()) memcpy(&v, b.data() + at, sizeof(T));
+  return v;
+}
+
+// A compiled model's node name (lower case).
+std::string NameAt(const std::string& b, size_t at) {
+  std::string name;
+  for (size_t i = 0; i < 32 && at + i < b.size() && b[at + i]; ++i) {
+    name += static_cast<char>(tolower(static_cast<unsigned char>(b[at + i])));
+  }
+  return name;
+}
+
+// A compiled model's controller `type` on the node `node` (lower case) in each of its animations: by the animation's
+// name, rows of t and its values (*columns of them: the controller's columns, 0 when nothing keys it). Laid out as
+// ReadVfxBinaryModel reads it, offsets from byte 12: the model's animations at +0x78 (header offsets, count +0x7C); an
+// animation's name at +8, its root node at +0x48; a node (its header + 0x10): name +0x10, children +0x38 (count +0x3C),
+// controller keys +0x44 (count +0x48), values +0x50; a key 12 bytes - type, rows (16 bits, +4), its first time (+6) and
+// value (+8) as indices into the values, columns (+10, the low 4 bits).
+std::map<std::string, std::vector<float>> CompiledKeys(const std::string& b, const std::string& node, uint32_t type,
+                                                       int* columns) {
+  constexpr size_t kBase = 12;
+  std::map<std::string, std::vector<float>> out;
+  *columns = 0;
+  const uint32_t anims = BytesAt<uint32_t>(b, kBase + 0x78), anim_count = BytesAt<uint32_t>(b, kBase + 0x7C);
+  for (uint32_t a = 0; a < anim_count && a < 256; ++a) {
+    const size_t header = kBase + BytesAt<uint32_t>(b, kBase + anims + 4ull * a);
+    const std::string anim = NameAt(b, header + 8);
+    std::vector<size_t> stack = {kBase + BytesAt<uint32_t>(b, header + 0x48) + 0x10};
+    std::set<size_t> seen;
+    while (!stack.empty() && seen.size() < 4096) {
+      const size_t at = stack.back();
+      stack.pop_back();
+      if (at + 0x60 > b.size() || !seen.insert(at).second) continue;
+      const uint32_t children = BytesAt<uint32_t>(b, at + 0x38), count = BytesAt<uint32_t>(b, at + 0x3C);
+      for (uint32_t c = 0; c < count && c < 1024; ++c) {
+        stack.push_back(kBase + BytesAt<uint32_t>(b, kBase + children + 4ull * c) + 0x10);
+      }
+      if (NameAt(b, at + 0x10) != node) continue;
+      const uint32_t keys = BytesAt<uint32_t>(b, at + 0x44), key_count = BytesAt<uint32_t>(b, at + 0x48);
+      const uint32_t values = BytesAt<uint32_t>(b, at + 0x50);
+      for (uint32_t k = 0; k < key_count && k < 96; ++k) {
+        const size_t key = kBase + keys + 12ull * k;
+        if (BytesAt<uint32_t>(b, key) != type) continue;
+        const int rows = BytesAt<uint16_t>(b, key + 4), time = BytesAt<uint16_t>(b, key + 6), value = BytesAt<uint16_t>(b, key + 8);
+        const int cols = BytesAt<uint8_t>(b, key + 10) & 0x0F;
+        *columns = cols;
+        std::vector<float>& list = out[anim];
+        for (int r = 0; r < rows; ++r) {
+          list.push_back(BytesAt<float>(b, kBase + values + 4ull * (time + r)));
+          for (int c = 0; c < cols; ++c) list.push_back(BytesAt<float>(b, kBase + values + 4ull * (value + r * cols + c)));
+        }
+      }
+    }
+  }
+  return out;
+}
+
+}  // namespace
+
+// The anchor (the design's "Keys on a mesh beat": a scale as the game's own effects key it): vdr_bigby_int's hand - a plain
+// mesh, read as a plane - grows in its impact and shrinks back in its cessation by its scale, controller 36, one value a
+// row (1 to 10 over 0.333 s; 10 to 1 over 0.3 s). Those rows as the plane's scale keys are the model's scalekey on its
+// node in each animation, t s a row; the plane as read (no keys: the model readers keep none of a plane's) writes no node
+// there, as before. Only where the game is (NWN_GAME_DIR, or Steam's folder); nothing of it is kept.
+TEST(VfxGameEffectsScaleKeys) {
+  const char* given = getenv("NWN_GAME_DIR");
+  const std::string game = given && *given ? given : "X:\\SteamLibrary\\steamapps\\common\\Neverwinter Nights";
+  if (!std::ifstream(game + "\\data\\nwn_base.key")) {
+    printf("    (no game at %s: skipped)\n", game.c_str());
+    return;
+  }
+  const std::wstring dir(game.begin(), game.end());
+  GameResources resources(dir, GameResources::EeKeyFiles(), {dir + L"\\ovr"});
+  std::string bytes, source, error;
+  CHECK_EQ(resources.Read("vdr_bigby_int", kResourceTypeMdl, &bytes, &source), true);
+  int columns = 0;
+  const std::map<std::string, std::vector<float>> scale = CompiledKeys(bytes, "hand", 36, &columns);
+  const auto rows = [&](const char* anim) {
+    const auto it = scale.find(anim);
+    return it == scale.end() ? std::vector<float>() : it->second;
+  };
+  const std::vector<float> grow = rows("impact"), shrink = rows("cessation");
+  printf("    vdr_bigby_int hand, controller 36 (%d column): impact", columns);
+  for (float v : grow) printf(" %g", v);
+  printf(", cessation");
+  for (float v : shrink) printf(" %g", v);
+  printf("\n");
+  CHECK_EQ(columns, 1);
+  CHECK_EQ(grow.size() == 4 && Milli(grow[0]) == 0 && Milli(grow[1]) == 1000 && Milli(grow[2]) == 333 && Milli(grow[3]) == 10000,
+           true);
+  CHECK_EQ(shrink.size() == 4 && Milli(shrink[0]) == 0 && Milli(shrink[1]) == 10000 && Milli(shrink[2]) == 300 &&
+               Milli(shrink[3]) == 1000,
+           true);
+  VfxEffect bigby;
+  CHECK_EQ(ReadVfxBinaryModel(bytes, &bigby, &error) && bigby.duration, true);
+  int hand = -1;
+  for (size_t i = 0; i < bigby.planes.size(); ++i) {
+    if (NameAt(bigby.planes[i].name, 0) == "hand") hand = static_cast<int>(i);
+  }
+  CHECK_EQ(hand >= 0, true);
+  if (hand < 0 || grow.size() != 4 || shrink.size() != 4) return;
+  const std::string node = "node trimesh n5t_p" + std::to_string(hand) + "_hand\n";
+  const std::string as_read = WriteVfxModel(bigby, "n5t");
+  CHECK_EQ(as_read.find(node, as_read.find("\nnewanim ")) == std::string::npos, true);
+  VfxKeys in, out;
+  in.anim = "impact";
+  in.scale = grow;
+  out.anim = "cessation";
+  out.scale = shrink;
+  bigby.planes[hand].keys = {in, out};
+  const std::string model = WriteVfxModel(bigby, "n5t");
+  const auto row = [](float t, float s) {
+    char text[64];
+    snprintf(text, sizeof(text), "    %g %g\n", t, s);
+    return std::string(text);
+  };
+  CHECK_EQ(Contains(Section(Anim(model, "impact"), node, "endnode"), "\n  scalekey 2\n" + row(grow[0], grow[1]) + row(grow[2], grow[3])),
+           true);
+  CHECK_EQ(Contains(Section(Anim(model, "cessation"), node, "endnode"),
+                    "\n  scalekey 2\n" + row(shrink[0], shrink[1]) + row(shrink[2], shrink[3])),
+           true);
 }

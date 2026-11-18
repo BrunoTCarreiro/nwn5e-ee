@@ -38,3 +38,7 @@ __pycache__/
 # the recipe's colour, rebuilt for every build (tools/data/build_derived.js); committing them would pile up stale ones
 # while colours are explored:
 /data/files/n5s_*
+# A moving texture's material, n5u_<hash>.mtr (M2: its texture, motion and pivot) - build output as a soft texture is -
+# and, on the copy route, the texture copied under its name (from the game's, for a library texture). The shader they
+# name, vsn5uvmove.shd, is ours and committed (tools/data/floatdisk/made.txt lists it):
+/data/files/n5u_*
