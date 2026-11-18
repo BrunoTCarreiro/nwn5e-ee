@@ -1948,6 +1948,12 @@ monster AC by CR.
       catalogue lines, generated, for review (docs/TEXT-REVIEW.md).
     - Profiles: level2wizard, level2sorcerer, level2paladin, level2cleric. Tests S2-1 to S2-15 (L2- is level 1's
       build 2a).
+    - *0.99.82 (owner, 2026-11-18, on S2-5: "the only thing that wasn't confirmed was shatter breaking light sources
+      (candelabra and wall tourches) or even putting them out. can break other placeables sometimes like doors,
+      tables or flags"):* lamps and candelabras are often plot, and wall torches are tiles' flames (nwn5e's
+      stand-ins), so Shatter's object damage skipped them. Shatter now puts out the lights in its Sphere as the
+      bombs' blast and the Thunderstone's bang do (light_sources.cpp's BlastPutsOutLights). The other S2 rows passed;
+      S2-5's retest is S2-16.
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
   New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion

@@ -142,6 +142,7 @@
 #include "game_clock.h"
 #include "hooks.h"
 #include "item_use.h"
+#include "light_sources.h"
 #include "log.h"
 #include "mastery.h"
 #include "movement_rate.h"
@@ -4676,6 +4677,11 @@ void Shatter(uint32_t self, void* caster, const rules::Spell2024& spell, int slo
         "and %d object(s) in the 10-foot Sphere%s",
         self, slot, Dice(dice, spell.die).c_str(), full, creatures, objects, log.c_str());
   }
+  // 0.99.82 (owner, 2026-11-18, on S2-5: "the only thing that wasn't confirmed was shatter breaking light sources
+  // (candelabra and wall tourches) or even putting them out"): a lamp or a candelabra is often plot, and a wall torch
+  // is a tile's flame (its nwn5e stand-in), so the damage above skipped them. The lights in the Sphere go out as a
+  // bomb's blast and the Thunderstone's bang put them out (light_sources.cpp).
+  BlastPutsOutLights(self, rules::FeetToMetres(spell.feet) + kSlack, "Shatter's noise");
 }
 
 // Prayer of Healing: the caster and its party within 30 feet ("id:prayed:metres;"), the caster first.
