@@ -335,6 +335,9 @@ try {
     const core = (global.window = global.window || {}, require(path.join(TOOLS, "vfx_bench", "public", "core.js")));
     const planes = core.readDraft(fs.readFileSync(path.join(drafts, "n5_floatdisk_medium.vfx"), "latin1").replace(/\r/g, "")).planes;
     assert.ok(planes.some((p) => p.bitmap === GOLD), "the medium's draft doesn't name " + GOLD);
+    // T1b: the draft's planes see-through as the models' meshes are (meshHint): the dome's and the disk's 1.
+    assert.deepStrictEqual(planes.filter((p) => p.bitmap === GOLD || p.name === "forcedisk").map((p) => [p.name, p.transparencyhint]),
+      [["j01_dome", 1], ["forcedisk", 1]]);
     // Nothing noted in made.txt.
     assert.ok(fs.readFileSync(path.join(folder, "made.txt")).equals(made), "made.txt changed");
     // Built again: every file unchanged. A file of its name, either place, is the generator's (the name fixes its

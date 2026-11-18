@@ -391,6 +391,10 @@ try {
     assert.strictEqual(planes.length, 1);
     const p = planes[0];
     assert.deepStrictEqual([p.bitmap, p.alpha, p.selfillum, p.verts.length / 3, p.faces.length / 3], [SOFT, Math.fround(0.35), [1, 1, 1], 592, 960]);
+    // T1b: see-through in game - "transparencyhint = 1" (T1's draft line), as a placeable's dome model has it.
+    assert.ok(fs.readFileSync(path.join(SAVED, "n5m_chkdome.vfx"), "latin1").includes("\r\nalpha = 0.35\r\ntransparencyhint = 1\r\nverts = "),
+      "n5m_chkdome.vfx's dome has no \"transparencyhint = 1\" after its alpha");
+    assert.strictEqual(p.transparencyhint, 1);
     // Its texture beside it: 128 x 128 with 8 alpha bits (18 + 128 x 128 x 4 bytes), floatdisk.js's own.
     const tga = fs.readFileSync(path.join(SAVED, SOFT + ".tga"));
     assert.deepStrictEqual([tga.length, tga[16], tga[17]], [65554, 32, 8]);
@@ -458,6 +462,30 @@ try {
     }
     assert.deepStrictEqual(snapshot(), before);
     assert.strictEqual(madeTxt(), kept, "made.txt changed");
+  });
+
+  // T1b (the owner, 2026-11-18: see-through meshes cut away in game - "go"): a game part's meshes keep their model's own
+  // transparencyhint, through the mesh reader (vfx_model.cpp reads the compiled header's) - ptm_lantern03, the game's
+  // lantern: its inner panes 2, its outer panes 1, the rest 0 (its damage box, render 0, isn't drawn) - in a placeable's
+  // model and in a spell mesh's draft alike.
+  check("a game part's meshes keep their model's transparencyhint (ptm_lantern03: inner panes 2, outer panes 1, the rest 0)", () => {
+    const parts = [{ model: "ptm_lantern03", at: [0, 0, 0], scale: 0.5 }];
+    const want = (name) => (/glass\di_lntrn3$/i.test(name) ? 2 : /glass\d_lntrn3$/i.test(name) ? 1 : 0);
+    const counts = (list) => [list.length, list.filter(([, h]) => h === 2).length, list.filter(([, h]) => h === 1).length];
+    ok(build(project("chklamp", { kind: "placeable", guide: { shape: "circle", diameter: 2, height: 0 }, placeable: THROUGH, variants: [
+      { name: "1", row: 14154, parts }] }), ["--json"]));
+    const nodes = fs.readFileSync(path.join(FILES, "plc_n5chklamp.mdl"), "latin1").split("\r\nnode trimesh ").slice(1).map((n) => {
+      const l = n.split("\r\n"), hint = l.filter((x) => x.startsWith("  transparencyhint "));
+      assert.strictEqual(hint.length, 1, l[0] + ": " + hint.length + " transparencyhint lines");
+      return [l[0], Number(hint[0].slice(19))];
+    });
+    for (const [name, hint] of nodes) assert.strictEqual(hint, want(name), name);
+    assert.deepStrictEqual(counts(nodes), [34, 6, 6]);  // 35 meshes, the damage box not drawn
+    ok(build(project("chklampm", { kind: "spellmesh", guide: { shape: "circle", diameter: 0.5, height: 0 }, variants: [{ name: "1", parts }] }),
+      ["--json", "--saved", SAVED]));
+    const planes = draftPlanes(path.join(SAVED, "n5m_chklampm.vfx")).map((p) => [p.name, p.transparencyhint]);
+    for (const [name, hint] of planes) assert.strictEqual(hint, want(name), name);
+    assert.deepStrictEqual(counts(planes), [34, 6, 6]);
   });
 } finally {
   fs.rmSync(root, { recursive: true, force: true });

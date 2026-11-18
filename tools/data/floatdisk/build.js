@@ -200,7 +200,8 @@ function main() {
   if (DRAFTS) {
     for (const stage of F.STAGES) {
       const planes = stages[stage].creature.map((m) => core.plane({ name: m.name, bitmap: m.bitmap || "null", verts: m.verts, tverts: m.tverts,
-        faces: m.faces, diffuse: m.diffuse, ambient: m.ambient, selfillum: m.selfillum, alpha: m.alpha }));
+        faces: m.faces, diffuse: m.diffuse, ambient: m.ambient, selfillum: m.selfillum, alpha: m.alpha,
+        transparencyhint: F.meshHint(m) }));  // T1b: as the models' meshLines writes it
       const name = "n5_floatdisk_" + stage;
       const draft = F.MARK + "\n" + core.writeDraft(core.effect({ name, duration: true, seconds: 2, attach: "root", planes }));
       writes.push({ file: path.join(DRAFT_OUT, name + ".vfx"), bytes: Buffer.from(F.crlf(draft), "latin1"), kind: "text" });

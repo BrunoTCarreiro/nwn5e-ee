@@ -85,8 +85,15 @@ name in the way is rewritten. `none` and a library texture write nothing: a libr
 model or the draft (the game has it). A library texture the game has only as a PLT (a dyed texture: a helmet's) is
 refused - a shape takes no dyes; pick a TGA or DDS.
 
-**Limits** (the in-game test decides; no game-side change): a spell mesh's draft carries neither the dome's smoothing
-groups nor `transparencyhint`, since the game's model writer (`WriteVfxModel`) writes neither for a plane.
+**See-through in game** (the owner, 2026-11-18): every mesh carries a `transparencyhint`, the game's word for a
+see-through mesh (without one the game cuts a mesh at alpha 0.2 and draws the rest solid). A shape's is 1 when it's
+see-through (a soft or library texture, or an alpha below 1), else 0; a game part's or your own file's mesh keeps its
+model's own (0 to 5: the game's lanterns have 2 on their inner panes, 1 on their outer). A placeable's model and a spell
+mesh's draft (`transparencyhint = N`, which the game's model writer, `WriteVfxModel`, writes onto the plane) both carry
+it, by one rule (floatdisk.js `meshHint`).
+
+**Limits** (the in-game test decides; no game-side change): a spell mesh's draft doesn't carry the dome's smoothing
+groups, since the game's model writer (`WriteVfxModel`) writes none for a plane.
 
 The Floating Disk's README ("Shapes") has every field and its bounds.
 

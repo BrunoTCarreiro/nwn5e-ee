@@ -295,10 +295,28 @@ function num(v) {  // a model's number: up to 5 decimals, no exponent, no -0
   return Object.is(r, -0) || r === 0 ? "0" : String(r);
 }
 
+// A mesh's transparencyhint (T1b; the owner, 2026-11-18: n5_zot's see-through meshes cut away in game - "go"): the game's
+// word for a see-through mesh, kept as nwn5e-ee's vfx_model.cpp keeps one - a whole number, 0 to HINT_MAX (the game's own
+// models' range): text by its leading digits, base 10, as the game's parser reads an integer ("1.7" is 1, "+2" 2; not a
+// number 0), a number by its whole part (not finite 0); below 0 is 0, above HINT_MAX the most.
+const HINT_MAX = 5;
+function hintValue(v) {
+  const n = typeof v === "number" ? (Number.isFinite(v) ? Math.trunc(v) : 0) : parseInt(String(v).trim(), 10);
+  return Number.isNaN(n) ? 0 : Math.min(HINT_MAX, Math.max(0, n));
+}
+// What both writers write for a mesh - meshLines (a placeable's model, the Floating Disk's) and a draft's plane (the
+// Composer's project.js draftText, build.js's drafts): its own transparencyhint (every mesh the generator gives carries
+// one: a model's its model's, a shape's and the disk's from their see-through-ness), else - a mesh without one - 1 when
+// it's see-through (transparent), else 0.
+function meshHint(m) {
+  const own = m.transparencyhint;
+  return typeof own === "number" && Number.isFinite(own) ? hintValue(own) : m.transparent ? 1 : 0;
+}
+
 // A read model (a draft's nodes and planes, as core.readDraft gives them) -> its drawn meshes with every vertex in the
 // model's space (each mesh's own turn and place, then each parent's; a parent the draft doesn't have is the root). A
 // render-0 mesh (a damage box, a shadow mesh) is left out. { meshes: [{ name, bitmap, verts, tverts, faces, diffuse,
-// ambient, selfillum, alpha }], lo, hi }
+// ambient, selfillum, alpha, transparencyhint (the model's own, by hintValue; a plane without one 0) }], lo, hi }
 function modelSpaceMeshes(fx, label) {
   const parents = new Map();
   for (const n of fx.nodes || []) if (!parents.has(n.name)) parents.set(n.name, n);
@@ -325,7 +343,7 @@ function modelSpaceMeshes(fx, label) {
     const bitmap = String(p.bitmap || "").toLowerCase();
     meshes.push({ name: p.name, bitmap: bitmap === "null" ? "" : bitmap, verts, tverts: (p.tverts || []).slice(), faces: p.faces.slice(),
       diffuse: p.diffuse || [0.8, 0.8, 0.8], ambient: p.ambient || [0.2, 0.2, 0.2], selfillum: p.selfillum || [0, 0, 0],
-      alpha: p.alpha === undefined ? 1 : p.alpha });
+      alpha: p.alpha === undefined ? 1 : p.alpha, transparencyhint: hintValue(p.transparencyhint === undefined ? 0 : p.transparencyhint) });
   }
   if (!meshes.length) throw new Error(`${label}: no mesh the game draws`);
   return { meshes, lo, hi };
@@ -403,7 +421,7 @@ function diskMesh(disk) {
   const bottomCentre = vertex(0, 0, bottom, 0.5, 0.5), bottomRing = ring(bottom);
   for (let i = 0; i < n; i++) faces.push(bottomCentre, bottomRing[(i + 1) % n], bottomRing[i]);
   return { name: "forcedisk", bitmap: disk.texture, verts, tverts, faces, diffuse: disk.colour, ambient: disk.colour.map((c) => round(c * 0.4)),
-    selfillum: disk.selfillum, alpha: disk.alpha, transparent: true };
+    selfillum: disk.selfillum, alpha: disk.alpha, transparent: true, transparencyhint: 1 };
 }
 
 // The disk's texture: soft force-blue, a faint shimmer, a brighter rim band; its alpha the texture's see-through-ness
@@ -618,8 +636,8 @@ function bothSides(side) {
 }
 // A shape (readShape's) as a model, in the model's space as modelSpaceMeshes gives one (its base at z 0, centred on x 0
 // y 0) -> { meshes: [{ name (its type), bitmap, verts, tverts, faces, groups (each face's smoothing group: meshLines),
-// diffuse, ambient, selfillum, alpha, transparent }], lo, hi, textures: [{ name, colour }] (the soft texture to make, or
-// none) }.
+// diffuse, ambient, selfillum, alpha, transparent, transparencyhint (1 when transparent, else 0) }], lo, hi, textures:
+// [{ name, colour }] (the soft texture to make, or none) }.
 // - Its UVs: Wrapped, u round it from +x and v from its base up (a disc's and a ring's from the rim in), times its
 //   repeats; From above, laid on from overhead, its width the picture's square ((0.5 + x / 2r, 0.5 + y / 2r): r its
 //   radius, a ring's outer).
@@ -634,10 +652,11 @@ function shapeModel(shape) {
   const { verts, tverts, faces, groups } = shape.sides === "both" ? bothSides(side) : Object.assign({ groups: new Array(side.faces.length / 3).fill(1) }, side);
   const soft = shape.texture === "soft", colour = shape.colour, glow = shape.glow;
   const bitmap = soft ? shapeTextureName(shape) : shape.texture === "none" ? "" : shape.texture;
+  const transparent = shape.texture !== "none" || shape.alpha < 1;
   const mesh = { name: shape.type, bitmap, verts, tverts, faces, groups,
     diffuse: soft ? [1, 1, 1] : colour.slice(), ambient: soft ? [1, 1, 1] : colour.slice(),
     selfillum: soft ? [glow, glow, glow] : colour.map((c) => round(c * glow)),
-    alpha: shape.alpha, transparent: shape.texture !== "none" || shape.alpha < 1 };
+    alpha: shape.alpha, transparent, transparencyhint: transparent ? 1 : 0 };  // T1b: see-through in game when it is
   return { meshes: [mesh], lo: [-r, -r, 0], hi: [r, r, SHAPE_FLAT.includes(shape.type) ? 0 : shape.height], textures: soft ? [{ name: bitmap, colour: colour.slice() }] : [] };
 }
 
@@ -679,7 +698,7 @@ function meshLines(m, parent) {
   const lines = [`node trimesh ${m.name}`, `  parent ${parent}`, "  position 0 0 0", "  orientation 0 0 0 0", "  wirecolor 1 1 1",
     `  ambient ${m.ambient.map(num).join(" ")}`, `  diffuse ${m.diffuse.map(num).join(" ")}`, "  specular 0 0 0", "  shininess 1",
     `  bitmap ${m.bitmap || "NULL"}`, "  render 1", "  shadow 0", "  beaming 0", "  inheritcolor 0", `  alpha ${num(m.alpha)}`,
-    `  transparencyhint ${m.transparent ? 1 : 0}`, `  selfillumcolor ${m.selfillum.map(num).join(" ")}`, "  tilefade 0", "  rotatetexture 0"];
+    `  transparencyhint ${meshHint(m)}`, `  selfillumcolor ${m.selfillum.map(num).join(" ")}`, "  tilefade 0", "  rotatetexture 0"];
   const count = m.verts.length / 3;
   lines.push(`  verts ${count}`);
   for (let i = 0; i < count; i++) lines.push(`    ${num(m.verts[3 * i])} ${num(m.verts[3 * i + 1])} ${num(m.verts[3 * i + 2])}`);
@@ -833,7 +852,7 @@ function readableAscii(text, label) {
     else if (k === "selfillumcolor" && nums.length >= 3) cur.selfillum = nums.slice(0, 3);
     else if (k === "alpha" && nums.length >= 1) cur.alpha = nums[0];
     else if (k === "render" && w[1]) cur.render = w[1] !== "0";
-    else if (k === "transparencyhint" && w[1]) cur.transparencyhint = Number(w[1]) || 0;
+    else if (k === "transparencyhint" && w[1]) cur.transparencyhint = hintValue(w[1]);  // as the game reads it (T1b)
     else if ((k === "verts" || k === "tverts" || k === "faces") && Number.isInteger(nums[0])) { list = k; left = nums[0]; }
     else if (Number.isInteger(nums[0]) && nums.length === 1) { list = null; left = nums[0]; }  // another list (weights, constraints, ...): skipped
   }
@@ -874,6 +893,7 @@ function readableAscii(text, label) {
     if (n.ambient) out.push(`  ambient ${n.ambient.join(" ")}`);
     if (n.selfillum) out.push(`  selfillumcolor ${n.selfillum.join(" ")}`);
     if (n.alpha !== null) out.push(`  alpha ${n.alpha}`);
+    if (n.transparencyhint) out.push(`  transparencyhint ${n.transparencyhint}`);  // T1b: the mesh reader keeps it
     out.push(`  verts ${verts.length}`, ...verts.map((v) => `    ${v.join(" ")}`));
     out.push(`  faces ${faces.length / 3}`);
     for (let i = 0; i < faces.length; i += 3) out.push(`    ${faces[i]} ${faces[i + 1]} ${faces[i + 2]} 1 ${faces[i]} ${faces[i + 1]} ${faces[i + 2]} 0`);
@@ -906,7 +926,7 @@ const api = {
   creatureModel, pileModel,
   PLT_LAYERS, PLT_PALETTES, PLT_FIELDS, PLT_LABELS, PLT_DEFAULTS, PLT_MAX, BAKED,
   readColours, fullColours, cleanColours, readPlt, bakePlt, bakedName, tgaBytes, bakeBitmaps,
-  resolvePartFile, readPart, readComposition, partKey, partLabel, quat, axisAngle, qrot, round, num, modelSpaceMeshes, placePart,
+  resolvePartFile, readPart, readComposition, partKey, partLabel, quat, axisAngle, qrot, round, num, HINT_MAX, hintValue, meshHint, modelSpaceMeshes, placePart,
   lowered, uniqueNames, diskMesh, diskTexture, modelNodes, creatureModelText, pileNodes, pileModelText,
   pileWalkmeshText, rowsText, readableAscii, texturesBeside, carriesMark, sameText, crlf, mergeModels, inline, compositionText,
   SHAPE_TYPES, SHAPE_LABELS, SHAPE_KEYS, SHAPE_FIELDS, SHAPE_FLAT, LOOK_FIELDS, SHAPE_INFO, SHAPE_TEXTURE,
