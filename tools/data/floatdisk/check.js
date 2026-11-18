@@ -836,15 +836,15 @@ function poleAt(m, p, v, around = 1) {
 }
 const zsOf = (m) => m.verts.filter((_, i) => i % 3 === 2);
 
-check("the other shapes: six types, their labels and fields; a sphere's, a cylinder's and a cone's height twice the radius, a flat one's none, a ring's inner 0.85 of it", () => {
+check("the other shapes: six types, their labels and fields; a sphere's, a cylinder's and a cone's height twice the radius, a cylinder's top its radius, a flat one's none, a ring's inner 0.85 of it", () => {
   assert.deepStrictEqual(F.SHAPE_TYPES, ["dome", "sphere", "cylinder", "cone", "disc", "ring"]);
   assert.deepStrictEqual(F.SHAPE_LABELS, { dome: "Dome (half sphere)", sphere: "Sphere", cylinder: "Cylinder (open)", cone: "Cone (point up)",
     disc: "Disc (flat, on the ground)", ring: "Ring (flat band)" });
-  assert.deepStrictEqual(F.SHAPE_KEYS, ["type", "radius", "height", "inner", "segments", "sides", "mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture",
-    "blend"]);
+  assert.deepStrictEqual(F.SHAPE_KEYS, ["type", "radius", "height", "inner", "top", "segments", "sides", "mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow",
+    "texture", "blend"]);
   const solid = ["radius", "height", "segments", "sides"];
-  assert.deepStrictEqual(F.SHAPE_FIELDS, { dome: solid, sphere: solid, cylinder: solid, cone: solid, disc: ["radius", "segments", "sides"],
-    ring: ["radius", "inner", "segments", "sides"] });
+  assert.deepStrictEqual(F.SHAPE_FIELDS, { dome: solid, sphere: solid, cylinder: ["radius", "top", "height", "segments", "sides"], cone: solid,
+    disc: ["radius", "segments", "sides"], ring: ["radius", "inner", "segments", "sides"] });
   assert.deepStrictEqual(F.SHAPE_FLAT, ["disc", "ring"]);
   assert.deepStrictEqual(F.SHAPE_INFO.inner, { label: "Inner radius (m)", min: 0.01, max: 100, step: 0.05 });
   // Smoothness's tooltip true of every type (the card shows one for each).
@@ -854,7 +854,7 @@ check("the other shapes: six types, their labels and fields; a sphere's, a cylin
     "Its alpha: at 1 it's as solid as its texture (Soft and library textures still show through where their own alpha does); the game's globes go to about 0.3");
   // The defaults, in SHAPE_KEYS' order; each read as its defaults and written as its type and radius alone.
   const want = {
-    sphere: { type: "sphere", radius: 4.57, height: 9.14 }, cylinder: { type: "cylinder", radius: 4.57, height: 9.14 }, cone: { type: "cone", radius: 4.57, height: 9.14 },
+    sphere: { type: "sphere", radius: 4.57, height: 9.14 }, cylinder: { type: "cylinder", radius: 4.57, height: 9.14, top: 4.57 }, cone: { type: "cone", radius: 4.57, height: 9.14 },
     disc: { type: "disc", radius: 4.57 }, ring: { type: "ring", radius: 4.57, inner: 3.885 },
   };
   for (const [type, own] of Object.entries(want)) {
@@ -995,6 +995,176 @@ for (const [type, t] of Object.entries(MAPPED)) {
     if (type === "ring") assert.deepStrictEqual(uvsAt(m, [0.85, 0, 0]), [[0.925, 0.5], [0.925, 0.5]]);  // its r the outer radius
   });
 }
+
+// --- the Cylinder's Top radius (TR; the owner, 2026-11-18, on Elemental Shield's flame ring - "it looks like a flame
+// texture on a truncated upside down cone" - "yes" to a Top radius that makes the Cylinder a truncated cone either way up) -
+// A cylinder's profile runs from (radius, 0) to (top, height): at top = radius the cylinder before it, byte for byte; wider
+// flares out (vdr_eleshield's Cylinder02: 1.00 m at the ground, 1.17 m at 0.6 m), narrower leans in. Its default is its
+// radius, never written, so a Top left at its default follows the Radius as a Height does.
+const FLARE = { top: 1.17, height: 0.6, segments: 36 };  // radius 1 (shapeOf's): Elemental Shield's flame ring
+const sha256 = (text) => require("crypto").createHash("sha256").update(text).digest("hex");
+// Each triangle's normal against the axis: (b - a) x (c - a) dotted with its centroid's (x, y, 0) - + facing away from
+// the axis (out), - towards it (in), whichever way the wall leans.
+function radial(m) {
+  const out = [];
+  for (let f = 0; f < m.faces.length; f += 3) {
+    const [a, b, c] = [0, 1, 2].map((k) => vertOf(m, m.faces[f + k]));
+    const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+    const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    out.push(n[0] * (a[0] + b[0] + c[0]) / 3 + n[1] * (a[1] + b[1] + c[1]) / 3);
+  }
+  return out;
+}
+// The signed volume its triangles `from` to `to` (face indices) sweep from the origin: a . (b x c) / 6 each. A wall facing
+// out encloses + (with its caps: the ground's adds nothing, the origin on its plane), facing in -.
+function signedVolume(m, from, to) {
+  let sum = 0;
+  for (let f = from; f < to; f++) {
+    const [a, b, c] = [0, 1, 2].map((k) => vertOf(m, m.faces[3 * f + k]));
+    sum += (a[0] * (b[1] * c[2] - b[2] * c[1]) + a[1] * (b[2] * c[0] - b[0] * c[2]) + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6;
+  }
+  return sum;
+}
+// A frustum's wall with n segments, r at 0 and t at h: the solid's h k (r^2 + r t + t^2) / 3 less its top cap's h k t^2 / 3
+// (k: a regular n-gon's area for a radius of 1).
+const wallVolume = (n, r, t, h) => (h * (n / 2) * Math.sin((2 * Math.PI) / n) * (r * r + r * t)) / 3;
+// The outside's rings: [z, its vertices, their least and greatest distance from the axis (to 0.0001)], from the ground up.
+const ringsOf = (m) => {
+  const half = m.verts.length / 6, at = new Map();
+  for (let i = half; i < 2 * half; i++) {
+    const [x, y, z] = vertOf(m, i), key = String(z);
+    if (!at.has(key)) at.set(key, []);
+    at.get(key).push(Math.round(Math.hypot(x, y) * 1e4) / 1e4);
+  }
+  return [...at.entries()].map(([z, rs]) => [Number(z), rs.length, Math.min(...rs), Math.max(...rs)]).sort((a, b) => a[0] - b[0]);
+};
+
+check("TR: the Cylinder's Top radius - its field after Radius on its card, its key after inner; its default the Radius, never written, following the Radius; below 0.01 or past 100 refused, naming it; no other type's", () => {
+  assert.deepStrictEqual(F.SHAPE_INFO.top, { label: "Top radius (m)", min: 0.01, max: 100, step: 0.05,
+    title: "The radius at its top: the same as Radius is a cylinder; wider flares out (a lampshade upside down), narrower leans in" });
+  assert.deepStrictEqual(F.SHAPE_FIELDS.cylinder, ["radius", "top", "height", "segments", "sides"]);
+  assert.strictEqual(F.SHAPE_KEYS.indexOf("top"), F.SHAPE_KEYS.indexOf("inner") + 1);
+  // Its default the Radius: read in, never written; given, kept when it isn't the Radius - after the height, as SHAPE_KEYS.
+  assert.strictEqual(F.shapeDefaults("cylinder", 1.5).top, 1.5);
+  assert.strictEqual(F.readShape({ type: "cylinder", radius: 2 }, "s").top, 2);
+  assert.deepStrictEqual(F.cleanShape(F.readShape({ type: "cylinder", radius: 1, top: 1 }, "s")), { type: "cylinder", radius: 1 });
+  const flared = F.cleanShape(F.readShape({ type: "cylinder", radius: 1, top: 1.17, height: 0.6 }, "s"));
+  assert.deepStrictEqual(flared, { type: "cylinder", radius: 1, height: 0.6, top: 1.17 });
+  assert.deepStrictEqual(Object.keys(flared), ["type", "radius", "height", "top"]);
+  // A Top left at its default follows the Radius (it isn't written), as a Height does; one written stays.
+  const written = F.cleanShape(F.readShape({ type: "cylinder", radius: 1 }, "s"));
+  assert.deepStrictEqual([F.readShape(Object.assign({}, written, { radius: 3 }), "s").top, F.readShape(Object.assign({}, written, { radius: 3 }), "s").height], [3, 6]);
+  assert.strictEqual(F.readShape(Object.assign({}, flared, { radius: 3 }), "s").top, 1.17);
+  // In a part: its key and the composition's text carry it; its label is its radius.
+  const part = F.readPart({ shape: { type: "cylinder", radius: 1, top: 1.17 }, at: [0, 0, 0] }, "p", BASE);
+  assert.strictEqual(F.partKey(part), 'shape:{ "type": "cylinder", "radius": 1, "top": 1.17 }');
+  assert.strictEqual(F.partLabel(part), "cylinder 1 m");
+  // Its errors name it: below 0.01, past 100, not a number; its bounds read.
+  for (const top of [0.005, 0, -1, 101, "1", null]) {
+    assert.throws(() => F.readShape({ type: "cylinder", radius: 1, top }, "s"), (e) => e.message === "s.top: a number from 0.01 to 100 (metres)", `top ${top}`);
+  }
+  for (const top of [0.01, 100]) assert.strictEqual(F.readShape({ type: "cylinder", radius: 1, top }, "s").top, top);
+  // A cylinder's own keys, as an error lists them; no other type takes a top.
+  assert.throws(() => F.readShape({ type: "cylinder", radius: 1, inner: 0.5 }, "s"),
+    (e) => e.message === "s.inner: not a cylinder's - type, radius, height, top, segments, sides, mapping, repeat_around, repeat_up, colour, alpha, glow, texture or blend");
+  for (const type of ["dome", "sphere", "cone", "disc", "ring"]) {
+    assert.throws(() => F.readShape({ type, radius: 1, top: 1 }, "s"), new RegExp(`^Error: s\\.top: not a ${type}'s - `), type);
+    assert.ok(!("top" in F.shapeDefaults(type, 1)), type);
+  }
+});
+// Pinned: these cylinders' models (shapeModel's JSON) as anim c7c650b gave them, before the Top radius.
+const BEFORE_TOP = [
+  [{ type: "cylinder", radius: 1 }, "53f31cea2527d1f4b846838a12fa34e77ff9b436cd7125792d11c57f62403277", "n5s_8c757fb28f99"],
+  [{ type: "cylinder", radius: 4.57 }, "904c6940a58746dce29d1f2aafa6a0563367aa29eb89d38ee1cda56e9d41c84d", "n5s_8c757fb28f99"],
+  [{ type: "cylinder", radius: 1, blend: "additive" }, "767e0df8c57cb7543ce714fd004c8a424a6b5c0bb3bfa032867c35cb97e68193", "n5s_617b220c1144"],
+  [{ type: "cylinder", radius: 2, height: 0.6, segments: 36, sides: "outside", mapping: "above" }, "4af580ac589fa5dce9c819715e28baf9e2fbd70d1d790146c4b670d2c09ff7b4",
+    "n5s_8c757fb28f99"],
+  [{ type: "cylinder", radius: 1, repeat_around: 3, repeat_up: 2, texture: "fxpa_flame02", alpha: 1 }, "1c1dae79d176d0d736acd9d549bba62546c352647308f137c25a0d6ea7716bf5",
+    "n5s_8c757fb28f99"],
+];
+check("TR: a cylinder at Top = Radius is the cylinder before it, byte for byte - its model (pinned: anim c7c650b's), its written shape and its soft texture name, Top given or not", () => {
+  for (const [s, model, soft] of BEFORE_TOP) {
+    for (const given of [s, Object.assign({}, s, { top: s.radius })]) {
+      const shape = F.readShape(given, "s");
+      assert.strictEqual(sha256(JSON.stringify(F.shapeModel(shape))), model, JSON.stringify(given));
+      assert.deepStrictEqual(F.cleanShape(shape), F.cleanShape(F.readShape(s, "s")), JSON.stringify(given));
+      assert.ok(!("top" in F.cleanShape(shape)), JSON.stringify(given));
+      assert.strictEqual(F.shapeTextureName(shape), soft, JSON.stringify(given));
+    }
+  }
+});
+check("TR: a flared cylinder (radius 1, Top 1.17, height 0.6, 36 segments): two rings of 37, at 1 on the ground and 1.17 at 0.6; both sides, the inside first, facing in, the outside out (per face and by signed volume)", () => {
+  const model = shapeOf("cylinder", FLARE), m = model.meshes[0];
+  assert.strictEqual(m.name, "cylinder");
+  assert.deepStrictEqual([m.verts.length / 3, m.tverts.length / 2, m.faces.length / 3], [148, 148, 144]);
+  assert.deepStrictEqual(ringsOf(m), [[0, 37, 1, 1], [0.6, 37, 1.17, 1.17]]);
+  assert.deepStrictEqual([model.lo, model.hi], [[-1.17, -1.17, 0], [1.17, 1.17, 0.6]]);  // its box the wider ring's
+  // Each side its own vertices (the inside's the outside's, UVs too), the inside in group 2.
+  assert.deepStrictEqual(m.verts.slice(0, 222), m.verts.slice(222));
+  assert.deepStrictEqual(m.tverts.slice(0, 148), m.tverts.slice(148));
+  assert.deepStrictEqual(m.groups, new Array(72).fill(2).concat(new Array(72).fill(1)));
+  m.faces.forEach((v, k) => assert.ok(k < 3 * 72 ? v >= 0 && v < 74 : v >= 74 && v < 148, `triangle ${Math.floor(k / 3)} uses vertex ${v}`));
+  radial(m).forEach((d, t) => assert.ok(t < 72 ? d < 0 : d > 0, `triangle ${t} faces ${d < 0 ? "in" : "out"}`));
+  const wall = wallVolume(36, 1, 1.17, 0.6);
+  near(signedVolume(m, 72, 144), wall, 1e-4);
+  near(signedVolume(m, 0, 72), -wall, 1e-4);
+  // Wrapped at one repeat: u round it from +x, v 0 on the ground ring and 1 on the top one.
+  assert.deepStrictEqual(uvsAt(m, [1, 0, 0]), [[0, 0], [1, 0]]);
+  assert.deepStrictEqual(uvsAt(m, [1.17, 0, 0.6]), [[0, 1], [1, 1]]);
+  for (let i = 74; i < 148; i++) assert.strictEqual(uvOf(m, i)[1], vertOf(m, i)[2] === 0 ? 0 : 1);
+  rounded(m);
+  noNegativeZero(model);
+  // Outside only: one side, every triangle out.
+  const out = shapeOf("cylinder", Object.assign({ sides: "outside" }, FLARE)).meshes[0];
+  assert.deepStrictEqual([out.verts.length / 3, out.faces.length / 3], [74, 72]);
+  radial(out).forEach((d, t) => assert.ok(d > 0, `outside only: triangle ${t} faces in`));
+  near(signedVolume(out, 0, 72), wall, 1e-4);
+  // Leaning in (Top 0.5): its rings at 1 and 0.5, still out outside and in inside; its box the ground ring's.
+  const lean = shapeOf("cylinder", { top: 0.5, height: 0.6, segments: 36 }), l = lean.meshes[0];
+  assert.deepStrictEqual(ringsOf(l), [[0, 37, 1, 1], [0.6, 37, 0.5, 0.5]]);
+  assert.deepStrictEqual([lean.lo, lean.hi], [[-1, -1, 0], [1, 1, 0.6]]);
+  radial(l).forEach((d, t) => assert.ok(t < 72 ? d < 0 : d > 0, `leaning in: triangle ${t} faces ${d < 0 ? "in" : "out"}`));
+  near(signedVolume(l, 72, 144), wallVolume(36, 1, 0.5, 0.6), 1e-4);
+  // The cylinder itself by the same rule: the wall of a cylinder (2 r^2 h k / 3).
+  near(signedVolume(shapeOf("cylinder").meshes[0], 64, 128), wallVolume(32, 1, 1, 2), 1e-4);
+});
+check("TR: a flared or leaning cylinder From above - its UVs from the larger of its two radii, every one within [0, 1]: the wider ring at the picture's edge", () => {
+  for (const [top, wide] of [[1.17, 1.17], [0.5, 1]]) {
+    const model = shapeOf("cylinder", { top, height: 0.6, segments: 36, mapping: "above" }), m = model.meshes[0];
+    rounded(m);
+    noNegativeZero(model);
+    for (let i = 0; i < m.verts.length / 3; i++) {
+      const [x, y] = vertOf(m, i), [u, v] = uvOf(m, i);
+      near(u, 0.5 + x / (2 * wide));
+      near(v, 0.5 + y / (2 * wide));
+    }
+    assert.ok(m.tverts.every((t) => t >= 0 && t <= 1), `top ${top}: a UV past [0, 1]`);
+    assert.deepStrictEqual(uvsAt(m, top > 1 ? [1.17, 0, 0.6] : [1, 0, 0]), [[1, 0.5], [1, 0.5]]);  // the wider ring at its edge
+    const narrow = top > 1 ? [1, 0, 0] : [0.5, 0, 0.6];
+    assert.ok(uvsAt(m, narrow).every(([u, v]) => Math.abs(u - (0.5 + narrow[0] / (2 * wide))) <= 1e-5 && v === 0.5), `top ${top}: the narrower ring`);
+    assert.deepStrictEqual(shapeOf("cylinder", { top, height: 0.6, segments: 36, mapping: "above", repeat_around: 3, repeat_up: 2 }), model);  // the repeats don't apply
+  }
+});
+check("TR: a flared cylinder Wrapped, Repeat around 3 and up 2: u round it to 3, v up it to 2 - the same vertices and faces as at one repeat", () => {
+  const model = shapeOf("cylinder", Object.assign({ repeat_around: 3, repeat_up: 2 }, FLARE)), m = model.meshes[0];
+  rounded(m);
+  noNegativeZero(model);
+  assert.deepStrictEqual(uvsAt(m, [1, 0, 0]), [[0, 0], [3, 0]]);
+  assert.deepStrictEqual(uvsAt(m, [1.17, 0, 0.6]), [[0, 2], [3, 2]]);
+  for (let i = 0; i < m.tverts.length; i += 2) assert.ok(m.tverts[i] >= 0 && m.tverts[i] <= 3 && m.tverts[i + 1] >= 0 && m.tverts[i + 1] <= 2, `UV ${i / 2}`);
+  const one = shapeOf("cylinder", FLARE).meshes[0];
+  assert.deepStrictEqual([m.verts, m.faces, m.groups], [one.verts, one.faces, one.groups]);
+});
+check("TR in a page: the same Top radius, flared and leaning meshes", () => {
+  const P = pageFloatDisk();
+  assert.deepStrictEqual(P.SHAPE_INFO.top, F.SHAPE_INFO.top);
+  assert.deepStrictEqual(P.SHAPE_FIELDS.cylinder, F.SHAPE_FIELDS.cylinder);
+  for (const o of [FLARE, { top: 0.5 }, Object.assign({ mapping: "above", sides: "outside" }, FLARE), Object.assign({ repeat_around: 3 }, FLARE)]) {
+    const s = Object.assign({ type: "cylinder", radius: 1 }, o);
+    assert.deepStrictEqual(P.shapeModel(P.readShape(s, "s")), F.shapeModel(F.readShape(s, "s")), JSON.stringify(o));
+    assert.deepStrictEqual(P.cleanShape(P.readShape(s, "s")), F.cleanShape(F.readShape(s, "s")), JSON.stringify(o));
+  }
+});
 
 // --- a mesh's transparencyhint (T1b; the owner, 2026-11-18: n5_zot's see-through meshes cut away in game - "go") -------
 // Every mesh the generator gives carries transparencyhint, the game's (0 to 5 - vfx_model.cpp's rule): a shape's 1 when
