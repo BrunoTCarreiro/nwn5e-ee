@@ -1852,6 +1852,46 @@ monster AC by CR.
     *Decided (owner, 2026-11-11: "go with A for magic missile").* *0.99.17:* Darts flies the look's darts
     when SpellLookFlies(row), each dart's damage (its own 1d4 + 1) landing as that dart does - held by the target,
     as Chromatic Orb's - with the look's hit effect, not VFX_IMP_MAGBLUE; otherwise NWN's MIRV bolts as before.
+  - *Level 2's brief (2026-11-18; SRD 5.2.1; the owner: "go for 39"):* 57 spells - 26 with an NWN version (17 the
+    same, 2 renamed: Melf's Acid Arrow, Ultravision; 7 close: Sound Burst, the six ability buffs into Enhance Ability,
+    Displacement, Mestil's Acid Breath, Neutralize Poison, Camouflage, Shelgarn's Persistent Blade), 31 new. Level 1's
+    decisions stand (2024's lists, NWN-only spells off in faithful, every spell at least a visual and a line, smites
+    armed by the cast). The builds, by kind as level 1's:
+    - 1, damage and healing (10): Acid Arrow, Scorching Ray, Shatter, Mind Spike, Dragon's Breath, Flame Blade, Heat
+      Metal, Spiritual Weapon, Prayer of Healing, Shining Smite.
+    - 2a, buffs (15): Aid, Barkskin, Enhance Ability, Magic Weapon, Blur, Darkvision, See Invisibility, Protection from
+      Poison, Lesser Restoration, Warding Bond, Mirror Image, Pass without Trace, Invisibility, Enlarge/Reduce, Alter
+      Self.
+    - 2b, conditions (7): Hold Person, Blindness/Deafness, Ray of Enfeeblement, Calm Emotions, Enthrall, Suggestion,
+      Phantasmal Force.
+    - 2c, areas (7): Darkness, Silence, Web, Spike Growth, Moonbeam, Flaming Sphere, Gust of Wind.
+    - 3, movement and summons (5): Misty Step, Levitate, Spider Climb, Rope Trick, Find Steed.
+    - 4, out of combat (13): Knock, Arcane Lock, Find Traps, Continual Flame, Locate Object, Locate Animals or Plants,
+      Detect Thoughts, Magic Mouth, Animal Messenger, Arcanist's Magic Aura, Augury, Gentle Repose, Zone of Truth.
+
+    The list switch at the pass's end, as level 1's 0.99.53: NWN's level 2 spells with no 2024 version off in faithful,
+    Cure / Inflict Moderate Wounds into upcasting, Remove Paralysis into Lesser Restoration, the six ability buffs into
+    Enhance Ability, and the spells 2024 moves to level 2 (Aid for the Ranger, Hold Person and Gust of Wind for the
+    Wizard, ...). Asked:
+    - Q1 Spiritual Weapon - A your Bonus Action strike, chosen (quickbar and radial; the weapon a look that flies there
+      and strikes), B a summon attacking each round by itself.
+    - Q2 Find Steed - A a companion (summoned, follows and fights; riding a later issue), B rideable with EE's horses,
+      C a visual and a line.
+    - Q3 Levitate - A real (lifted and held in place; melee from the ground can't reach it, ground effects don't touch
+      it; an unwilling target's Constitution save), B a visual and a line.
+    - Q4 Rope Trick - A a hiding place for up to eight, unseen and unreached, where the party can rest; B a visual and
+      a line.
+    - Q5 The out-of-combat spells - A real where NWN can do it (Knock and Arcane Lock on NWN's locks, Find Traps how
+      many and what kind, Continual Flame, the Locates' direction, Detect Thoughts' glow, Magic Mouth's message), the
+      rest castable with a line and a flag (#73); B all of them that way.
+    - Q6 Invisibility - A unseen but heard: enemies know where you are unless you're in stealth mode too (then the
+      stealth rules), the AI attacking where it hears you at Disadvantage; B NWN's (the AI loses you).
+    - Q7 Suggestion - A a menu as Command's words (Leave; Stand down, Indifferent to you), B Leave only, C a visual and
+      a line.
+    Recommended A on all; the smaller choices (Calm Emotions, Phantasmal Force, moving Moonbeam and Flaming Sphere,
+    Heat Metal's drop, Dragon's Breath, Scorching Ray's split, Enlarge/Reduce's scale, Lesser Restoration, Mirror
+    Image's look) in each build's brief.
+  - *Decided (owner, 2026-11-18: "A to all and we'll see the details of each as we build"):* Q1-Q7 A.
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
   New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion
