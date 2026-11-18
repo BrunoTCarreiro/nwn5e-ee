@@ -842,16 +842,60 @@ function motionNumbers(motion, pivot) {
   return [to3(m.scroll[0]), to3(m.scroll[1]), to3(m.turn), breathe, breathe ? to3(m.rate) : MOTION_RATE, to3(pivot[0]), to3(pivot[1])];
 }
 // A moving texture's material name - the mesh's bitmap: n5u_ and 12 hex digits of its texture (lower-case), its motion
-// and its pivot (motionNumbers), as shapeTextureName makes an n5s_ name. One per texture, motion and pivot.
-function motionName(texture, motion, pivot) {
-  return "n5u_" + cyrb53(`uv:${String(texture).toLowerCase()}:${motionNumbers(motion, pivot).join(",")}`).toString(16).padStart(14, "0").slice(-12);
+// and its pivot (motionNumbers), as shapeTextureName makes an n5s_ name. One per texture, motion and pivot - and clamp
+// (W1: motionClamps'): a clamped one hashes ":clamp" after them, so a clamped and an unclamped motion never share a name
+// (the copy and its TXI go with the clamped one only); an unclamped one is named as before W1.
+function motionName(texture, motion, pivot, clamp = false) {
+  return "n5u_" + cyrb53(`uv:${String(texture).toLowerCase()}:${motionNumbers(motion, pivot).join(",")}${clamp ? ":clamp" : ""}`).toString(16).padStart(14, "0").slice(-12);
 }
-// Its material, n5u_<...>.mtr ({ texture, motion, pivot }: moveTextures' material): our vertex shader with the game's lit
-// fragment shader (the pair the game's vslit / fslit are), the real texture as texture0 - left out with `copy`, the
-// route where the texture is copied under the material's own name (TMO-1 passed 2026-11-18: route A, texture0; the
-// texture's TXI still applies, so the copy route isn't needed) - and a "parameter float" line a
-// MOTION_PARAMS name. LF line ends.
-function motionMaterialText({ texture, motion, pivot }, { copy = false } = {}) {
+// --- W1: a breathing texture's edges clamped (the design's addendum (c); TMO-2, the owner, 2026-11-18: "when it shrank
+// the texture being tiled and wrapping would show a bit at the bottom edge of the dome" - "go with 1 for the wrap") ----
+// The game repeats a texture past UV 1 (which a scroll needs); a breath below 1 scales the UVs past the picture's edge, so
+// the next repeat shows at the mesh's edge. So a moving texture that breathes and doesn't scroll, on a mesh whose UVs stay
+// within one repeat (a shape From above or at Repeat 1 / 1, a game part whose UVs don't tile), is clamped: its picture
+// copied under its n5u_ name with a TXI of the source's own lines and the game's clamp line (clampedTxi), the material
+// naming the copy - no texture0 (motionMaterialText) - the copy route TMO-1 proved in game (2026-11-18: the copy domes
+// moved and stayed see-through). Its edge pixels stretch instead. Unproven until TMO-5: that the game honours a TXI's
+// clamp on a mesh (14 of its 15 clamp TXIs are the GUI's); if not, the fallback is a breath that only grows.
+// How far a UV may be past 0..1 and still be within one repeat (a mesh's UVs as the generators round them, to 0.00001).
+const UV_REPEAT_EPSILON = 0.001;
+// The game's clamp line: "clamp" and a number - 1, 2 or 3 in its 15 TXIs that clamp (gui_chrsht_* and gui_slider 1,
+// tdt01_testc 2, the GUI's tabs, icons and loadscreens 3: 10 of them). Read as two bits (1 u, 2 v: inferred from the
+// values, not seen), 3 clamps both ways - and it's the game's own commonest line either way.
+const CLAMP_TXI = "clamp 3";
+// The rule: whether a motion (read or as given; readMotion's errors) on a mesh with these UVs (`tverts`: u v u v ...) is
+// clamped - it breathes and doesn't scroll (each as the material takes it: motionNumbers, to 0.001), and every UV is
+// within 0..1 (UV_REPEAT_EPSILON either side). No UVs: it repeats (nothing known within one repeat).
+function motionClamps(motion, tverts) {
+  const [su, sv, , breathe] = motionNumbers(motion, [0, 0]);
+  if (!breathe || su || sv) return false;
+  const t = tverts || [];
+  if (!t.length) return false;
+  return Array.from(t).every((v) => isNum(v) && v >= -UV_REPEAT_EPSILON && v <= 1 + UV_REPEAT_EPSILON);
+}
+// A TXI's text (a string or bytes; none: "") as written under a clamped material's name: the source texture's own lines
+// as they are - its blending, its procedure (proceduretype, numx, numy, fps), decal ... - in its own line ends (CRLF the
+// game's, LF ours), any clamp line of its own left out and its blank lines at the end dropped, then CLAMP_TXI and a line end.
+const latin1 = (text) => (text === undefined || text === null ? "" : typeof text === "string" ? text
+  : Array.from(text instanceof Uint8Array ? text : new Uint8Array(text), (c) => String.fromCharCode(c)).join(""));
+const CLAMP_LINE = /^[ \t]*clamp[ \t]+(\S+)/i;
+function clampedTxi(source) {
+  const s = latin1(source), eol = /\r\n/.test(s) ? "\r\n" : "\n";
+  const lines = s ? s.split(/\r?\n/).filter((l) => !CLAMP_LINE.test(l)) : [];
+  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+  return [...lines, CLAMP_TXI, ""].join(eol);
+}
+// Whether a TXI (a string or bytes) clamps: a "clamp" line whose value isn't 0 (any case, spaces or tabs, either line
+// end). The bench's texture route says so of a clamped material's copy (its stage draws it clamped).
+function txiClamps(text) {
+  return latin1(text).split(/\r?\n/).some((l) => { const m = CLAMP_LINE.exec(l); return !!m && Number(m[1]) !== 0; });
+}
+// Its material, n5u_<...>.mtr ({ texture, motion, pivot, clamp? }: moveTextures' material): our vertex shader with the
+// game's lit fragment shader (the pair the game's vslit / fslit are), the real texture as texture0 - left out with
+// `copy`, the route where the texture is copied under the material's own name (TMO-1 passed 2026-11-18: route A,
+// texture0, and the copy route too); a clamped material (W1) is on the copy route, so `copy` is its clamp unless given -
+// and a "parameter float" line a MOTION_PARAMS name. LF line ends.
+function motionMaterialText({ texture, motion, pivot, clamp = false }, { copy = !!clamp } = {}) {
   const n = motionNumbers(motion, pivot);
   return ["customshadervs " + MOTION_SHADER, "customshaderfs fslit", ...(copy ? [] : ["texture0 " + String(texture).toLowerCase()]),
     ...MOTION_PARAMS.map((p, i) => `parameter float ${p} ${n[i]}`), ""].join("\n");
@@ -906,19 +950,21 @@ function isMotionShader(text) {
   return head.split("\n", 1)[0].replace(/\r$/, "") === MOTION_SHADER_MARK;
 }
 // Meshes with each textured one's bitmap renamed for the motion (motionName: its texture, the motion, its pivot - uvPivot
-// of its UVs) -> { meshes (copies), materials: [{ name, texture, motion (readMotion's), pivot }] }, each name once in the
-// meshes' order. An untextured mesh, and one naming a moving texture's material already, as it is. No motion: the same
-// meshes, no materials. Called after a part's bakes and soft textures are named (files.js motionMaterials), so its texture
-// - texture0 - is the real one.
-function moveTextures(meshes, motion) {
+// of its UVs - and whether it's clamped, W1's motionClamps of its UVs) -> { meshes (copies), materials: [{ name, texture,
+// motion (readMotion's), pivot, clamp: true (a clamped one's only) }] }, each name once in the meshes' order. An
+// untextured mesh, and one naming a moving texture's material already, as it is. No motion: the same meshes, no
+// materials. `clamp` false: the rule off, every one repeats (uvprobe: TMO-1's domes as they were written). Called after a
+// part's bakes and soft textures are named (files.js motionMaterials), so its texture - texture0, or the copy's picture -
+// is the real one.
+function moveTextures(meshes, motion, { clamp = true } = {}) {
   const m = readMotion(motion, "moveTextures");
   if (!hasMotion(m)) return { meshes, materials: [] };
   const materials = [], seen = new Set();
   const out = meshes.map((mesh) => {
     const texture = String(mesh.bitmap || "").toLowerCase();
     if (!texture || texture === "null" || MOTION_TEXTURE.test(texture)) return Object.assign({}, mesh);
-    const pivot = uvPivot(mesh.tverts), name = motionName(texture, m, pivot);
-    if (!seen.has(name)) { seen.add(name); materials.push({ name, texture, motion: m, pivot }); }
+    const pivot = uvPivot(mesh.tverts), clamped = clamp && motionClamps(m, mesh.tverts), name = motionName(texture, m, pivot, clamped);
+    if (!seen.has(name)) { seen.add(name); materials.push(Object.assign({ name, texture, motion: m, pivot }, clamped ? { clamp: true } : {})); }
     return Object.assign({}, mesh, { bitmap: name });
   });
   return { meshes: out, materials };
@@ -1197,6 +1243,7 @@ const api = {
   shapeDefaults, readShape, cleanShape, shapeModel, shapeTexture, shapeTextureName, SOFT_TXI, txiAdditive,
   MOTION_KEYS, MOTION_RATE, MOTION_INFO, MOTION_TEXTURE, MOTION_SHADER, MOTION_PARAMS, MOTION_SHADER_MARK, readMotion, hasMotion, cleanMotion,
   uvPivot, uvMotion, motionName, motionMaterialText, motionShaderText, isMotionShader, moveTextures,
+  UV_REPEAT_EPSILON, CLAMP_TXI, motionClamps, clampedTxi, txiClamps,
 };
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.FloatDisk = api;

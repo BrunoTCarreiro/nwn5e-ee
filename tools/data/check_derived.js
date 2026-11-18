@@ -238,7 +238,7 @@ try {
     // What's built but not committed: git-ignored, and a generator's - a model carrying its mark, or a dyed part's baked
     // texture, a shape's soft texture or a moving texture's material (n5p_ / n5s_ / n5u_ and 12 hex digits: only the
     // generators make such names) that a built model names. The shader (M2) is committed whole: the generators' own.
-    const stem = (name) => name.replace(/\.(tga|mtr)$/, "");
+    const stem = (name) => name.replace(/\.(tga|dds|txi|mtr)$/, "");  // (W1: a clamped material's copy and TXI too)
     const named = (name) => F.BAKED.test(stem(name)) || F.SHAPE_TEXTURE.test(stem(name)) || F.MOTION_TEXTURE.test(stem(name));
     for (const name of NAMES.filter((n) => !EXPECTED.has(n))) {
       if (name === SHADER) {
@@ -643,6 +643,44 @@ try {
     } finally {
       fs.rmSync(file, { force: true });
       fs.rmSync(path.join(ROWS, "placeables.chkuv.txt"), { force: true });
+      for (const f of own) for (const dir of [FILES, OUT]) fs.rmSync(path.join(dir, f), { force: true });
+    }
+  });
+
+  check("W1: a placeable project's breathing From-above dome (a library texture) is clamped - its material, the game texture's copy and its TXI (+ clamp 3) come out into --out beside its model, owned by the n5u_ name; a second build the same", () => {
+    // fxpa_symbl_003 From above, Turn 30, Breathe 0.2 (TMO-2's dome): the model names the clamped material (its own name),
+    // which names its copy - the game's picture copied under the material's name, with its TXI's lines and the game's clamp
+    // line - all git-ignored build output (art made from the game's files: never committed), written beside the model.
+    const SYM = "fxpa_symbl_003", motion = { turn: 30, breathe: 0.2 }, pivot = [0.5, 0.5], MAT = F.motionName(SYM, motion, pivot, true);
+    const file = project("chkclmp", { kind: "placeable", guide: CIRCLE, placeable: THROUGH, variants: [{ name: "1", row: 14162, parts: [
+      { shape: { type: "dome", radius: 1, mapping: "above", texture: SYM, colour: [1, 0.502, 0] }, at: [0, 0, 0], motion }] }] });
+    const own = ["plc_n5chkclmp.mdl", "plc_n5chkclmp.pwk", MAT + ".mtr", MAT + ".tga", MAT + ".txi", SHADER];
+    try {
+      const g = spawnSync(process.execPath, [path.join(COMPOSER, "build.js"), file, "--json", "--game", GAME, "--tools", TOOLS, "--reader", READER],
+        { encoding: "utf8", maxBuffer: 64 << 20, windowsHide: true });
+      assert.strictEqual(g.status, 0, "composer build.js: " + (g.stdout + g.stderr).trim());
+      for (const f of own) assert.ok(fs.existsSync(path.join(FILES, f)), f + " isn't in the copy's data\\files");
+      for (const f of [MAT + ".mtr", MAT + ".tga", MAT + ".txi"]) assert.ok(ignored(f), f + " isn't git-ignored");
+      const r = derive(["--out", OUT]);
+      done(r);
+      assert.deepStrictEqual(Object.entries(states(r)).filter(([, s]) => s !== "unchanged").sort(), own.map((f) => [f, "written"]).sort());
+      assert.match(r.out, /the Composer's project chkclmp \(tools\/data\/composer\/chkclmp\.json\): 6 files; its rows agree/);
+      assert.ok(fs.readFileSync(path.join(OUT, "plc_n5chkclmp.mdl"), "latin1").includes(`\r\n  bitmap ${MAT}\r\n`), "plc_n5chkclmp.mdl doesn't name " + MAT);
+      assert.strictEqual(fs.readFileSync(path.join(OUT, MAT + ".mtr"), "latin1"), F.motionMaterialText({ texture: SYM, motion, pivot, clamp: true }));
+      const sym = RD.image(SYM, []);
+      assert.ok(fs.readFileSync(path.join(OUT, MAT + ".tga")).equals(sym.tga), MAT + ".tga isn't the game's " + SYM);
+      assert.strictEqual(fs.readFileSync(path.join(OUT, MAT + ".txi"), "latin1"), F.clampedTxi(sym.txi));
+      const s = derive(["--out", OUT]);
+      done(s);
+      assert.ok(Object.values(states(s)).every((x) => x === "unchanged"), JSON.stringify(states(s)));
+      // In --out, a copy or TXI of the material's name is the generator's (the name fixes its bytes): rewritten.
+      fs.writeFileSync(path.join(OUT, MAT + ".txi"), "clamp 0\r\n");
+      const w = derive(["--out", OUT]);
+      done(w);
+      assert.deepStrictEqual(Object.entries(states(w)).filter(([, x]) => x !== "unchanged"), [[MAT + ".txi", "written"]]);
+    } finally {
+      fs.rmSync(file, { force: true });
+      fs.rmSync(path.join(ROWS, "placeables.chkclmp.txt"), { force: true });
       for (const f of own) for (const dir of [FILES, OUT]) fs.rmSync(path.join(dir, f), { force: true });
     }
   });

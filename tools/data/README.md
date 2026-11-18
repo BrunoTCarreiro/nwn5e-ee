@@ -31,7 +31,8 @@ remove the six files from main"**:
   bake: its bytes follow from the recipe's colour alone, so only the recipe is committed, and no stale ones pile up
   while colours are tried;
 - any moving texture's material: `n5u_*` (the Floating Disk's README, "Moving textures"), build output as a soft
-  texture is.
+  texture is - and a clamped one's copy (W1: `n5u_*.tga` / `.dds` and its `.txi`, the texture's picture under the
+  material's name - the game's own art for a library texture, so never committed).
 
 The generators' own runs (the VFX Bench's Save and build) still write them into `data\files`, where they stay,
 ignored. What's made from scratch stays committed: the `.pwk` files, `n5t_forcedisk.tga`, the rows, and the moving
@@ -64,7 +65,10 @@ node tools\data\build_derived.js --out <folder> [--game <folder>] [--tools <nwn5
   same name, the same bytes, written once, git-ignored and rebuilt for every build. A library texture is only named:
   the game has it.
 - **A moving texture's material** (`n5u_*.mtr`) comes out with the model that names it, and the shader it names
-  (`vsn5uvmove.shd`) with it - the committed one, byte for byte (build.bat's copy of `data\` has it already).
+  (`vsn5uvmove.shd`) with it - the committed one, byte for byte (build.bat's copy of `data\` has it already). A
+  clamped one (W1: it breathes, doesn't scroll, its mesh within one repeat) brings its copy too - the texture's picture
+  under the material's name (`n5u_*.tga` or `.dds`) and its TXI (`n5u_*.txi`: the texture's own lines and the game's
+  `clamp 3`) - owned by the `n5u_` name as the material is.
 - **Spell meshes are skipped**, and it says so. Their drafts live in the VFX Bench's saved folder, and the dev layer
   writes their models when the game runs.
 - **A project never built is skipped**, and it says so. That's one with no `data\rows\placeables.<name>.txt` and no

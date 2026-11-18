@@ -1617,4 +1617,177 @@ check("motion in a page: the same maths, names, material and shader", () => {
   assert.deepStrictEqual(P.moveTextures(model.meshes, m), F.moveTextures(model.meshes, m));
 });
 
+// --- W1: a breathing texture's edges clamped (the design's addendum (c); TMO-2, the owner: "when it shrank the texture
+// being tiled and wrapping would show a bit at the bottom edge of the dome" - "go with 1 for the wrap") ----------------
+// A moving texture that breathes and doesn't scroll, on a mesh whose UVs stay within one repeat, is clamped: its picture
+// copied under its n5u_ name with a TXI of the source's lines and the game's clamp line, the material naming the copy
+// (TMO-1's copy route) - its edge pixels stretch instead of the next repeat showing when the picture shrinks.
+const ABOVE = () => domeModel({ mapping: "above" }).meshes[0].tverts;
+check("W1 the rule: clamped when it breathes, doesn't scroll and its UVs stay within one repeat; else it repeats", () => {
+  const above = ABOVE(), wrapped = domeModel().meshes[0].tverts;
+  assert.ok(above.every((t) => t >= 0 && t <= 1) && wrapped.every((t) => t >= 0 && t <= 1), "the domes' UVs within 0..1");
+  // Breathing, no scroll, UVs within one repeat (From above; Wrapped at Repeat 1 / 1): clamped - a turn as well, any rate.
+  for (const m of [{ breathe: 0.2 }, { turn: 30, breathe: 0.2 }, { breathe: 0.9, rate: 3 }, F.readMotion({ breathe: 0.1, turn: -5 }, "m")]) {
+    assert.strictEqual(F.motionClamps(m, above), true, JSON.stringify(m));
+    assert.strictEqual(F.motionClamps(m, wrapped), true, "Wrapped " + JSON.stringify(m));
+  }
+  // A scroll (either way), no breath, or no motion: it repeats (a scroll needs the next repeat).
+  for (const m of [{ scroll: [0, 0.25], breathe: 0.2 }, { scroll: [-0.1, 0], breathe: 0.2 }, { turn: 30 }, { scroll: [0, 0.25] }, {}, undefined, STILL]) {
+    assert.strictEqual(F.motionClamps(m, above), false, JSON.stringify(m));
+  }
+  // The numbers as the material takes them (motionNumbers, to 0.001): a breath that rounds to 0 doesn't breathe, a
+  // scroll that rounds to 0 doesn't scroll.
+  assert.strictEqual(F.motionClamps({ breathe: 0.0004 }, above), false);
+  assert.strictEqual(F.motionClamps({ breathe: 0.2, scroll: [0.0004, -0.0004] }, above), true);
+  // UVs past one repeat: Repeat around / up above 1, a tiled game part, UVs below 0 - it repeats; within a small
+  // epsilon (0.001) of 0..1 still one repeat.
+  for (const o of [{ repeat_around: 2 }, { repeat_up: 2 }]) assert.strictEqual(F.motionClamps({ breathe: 0.2 }, domeModel(o).meshes[0].tverts), false, JSON.stringify(o));
+  for (const t of [[0, 0, 3, 0, 0, 1], [-0.5, 0, 1, 1], [0, 0, 1, 1.002], [-0.002, 0.5, 1, 1]]) assert.strictEqual(F.motionClamps({ breathe: 0.2 }, t), false, JSON.stringify(t));
+  for (const t of [[0, 0, 1, 1], [-0.0009, 0.5, 1.0009, 1], [0.25, 0.25, 0.75, 0.75]]) assert.strictEqual(F.motionClamps({ breathe: 0.2 }, t), true, JSON.stringify(t));
+  // No UVs: nothing known within a repeat - it repeats.
+  for (const t of [[], undefined, null]) assert.strictEqual(F.motionClamps({ breathe: 0.2 }, t), false, JSON.stringify(t));
+  assert.throws(() => F.motionClamps({ breathe: 2 }, above), /motion\.breathe: a number from 0 to 0\.9/);
+});
+check("W1 the name: the clamp is hashed in - a clamped and an unclamped motion never share a name; unclamped names as before", () => {
+  const m = { breathe: 0.2, turn: 30 }, p = [0.5, 0.5];
+  const open = F.motionName("fxpa_symbl_003", m, p), shut = F.motionName("fxpa_symbl_003", m, p, true);
+  assert.ok(F.MOTION_TEXTURE.test(shut), shut);
+  assert.notStrictEqual(shut, open);
+  assert.strictEqual(F.motionName("fxpa_symbl_003", m, p, false), open);
+  assert.strictEqual(F.motionName("fxpa_globe", { scroll: [0, 0.25] }, p), "n5u_31e9f07948e1", "an unclamped name changed (M2's pin)");
+  // The same clamped name for the same numbers (as the material takes them), another for each change.
+  assert.strictEqual(F.motionName("FXPA_Symbl_003", { breathe: 0.20004, turn: 30, rate: 0.5 }, [0.5001, 0.4999], true), shut);
+  const others = [["fxpa_symbl_002", m, p], ["fxpa_symbl_003", { breathe: 0.3, turn: 30 }, p], ["fxpa_symbl_003", m, [0.5, 0.6]]].map((a) => F.motionName(...a, true));
+  assert.strictEqual(new Set([open, shut, ...others]).size, 5);
+  assert.strictEqual(shut, "n5u_bfb2c9b5a9bf", "the clamped recipe pinned: cyrb53 of \"uv:fxpa_symbl_003:0,0,30,0.2,0.5,0.5,0.5:clamp\"");
+});
+check("W1 the TXI: the source's lines and the game's clamp line (clamp 3: 10 of the game's 15 clamp TXIs); txiClamps reads it", () => {
+  assert.strictEqual(F.CLAMP_TXI, "clamp 3");
+  // fxpa_symbl_003's own TXI (decal, additive; CRLF, no last line end): its lines, then the clamp line, in its line ends.
+  const sym = "decal 1\r\nblending additive\r\ndownsamplemax 0\r\ndownsamplemin 0";
+  assert.strictEqual(F.clampedTxi(sym), sym + "\r\nclamp 3\r\n");
+  assert.strictEqual(F.clampedTxi(Buffer.from(sym, "latin1")), sym + "\r\nclamp 3\r\n");
+  // A soft additive texture's (SOFT_TXI, LF); none at all.
+  assert.strictEqual(F.clampedTxi(F.SOFT_TXI), "blending additive\nclamp 3\n");
+  for (const none of ["", null, undefined, Buffer.alloc(0)]) assert.strictEqual(F.clampedTxi(none), "clamp 3\n", JSON.stringify(none));
+  // A flipbook's lines kept in order (its procedure); a clamp line of its own replaced by ours; blank lines at its end
+  // dropped, those within kept (fxpa_globe's channelscale numbers run over lines).
+  const cycle = "proceduretype cycle\r\nnumx 4\r\nnumy 4\r\nfps 32\r\nblending additive\r\ndecal 1\r\n\r\ndownsamplemax 0\r\ndownsamplemin 0";
+  assert.strictEqual(F.clampedTxi(cycle), cycle + "\r\nclamp 3\r\n");
+  assert.strictEqual(F.clampedTxi("mipmap 0\r\nclamp 1\r\nfilter 0\r\n\r\n\r\n"), "mipmap 0\r\nfilter 0\r\nclamp 3\r\n");
+  assert.strictEqual(F.clampedTxi("channelscale 4\n1\n\t\n1\n\ndownsamplemax 0\n\n"), "channelscale 4\n1\n\t\n1\n\ndownsamplemax 0\nclamp 3\n");
+  // Whether a TXI clamps: a "clamp" line with a value other than 0, any case, either line end.
+  for (const t of ["clamp 3", "Clamp 1\r\n", "mipmap 0\r\n\tclamp 2", F.clampedTxi(sym), Buffer.from("clamp 3\n")]) assert.strictEqual(F.txiClamps(t), true, JSON.stringify(String(t)));
+  for (const t of ["clamp 0", "", null, undefined, "noclamp 3", "# clamp 3", sym, "clampx 3"]) assert.strictEqual(F.txiClamps(t), false, JSON.stringify(t));
+});
+check("W1 the material: a clamped one names the copy (no texture0) - the copy route TMO-1 proved; an unclamped one texture0 as before", () => {
+  const m = { texture: "fxpa_symbl_003", motion: { breathe: 0.2, turn: 30 }, pivot: [0.5, 0.5] };
+  const open = F.motionMaterialText(m), shut = F.motionMaterialText(Object.assign({ clamp: true }, m));
+  assert.ok(open.split("\n").includes("texture0 fxpa_symbl_003"), open);
+  assert.strictEqual(shut, F.motionMaterialText(m, { copy: true }));
+  assert.ok(!/texture0/.test(shut), shut);
+  assert.strictEqual(F.motionMaterialText(Object.assign({ clamp: false }, m)), open);
+});
+check("W1 moveTextures: a breathing From-above dome's material is clamped (its own name); a scrolling one, a tiled mesh, or { clamp: false } repeat", () => {
+  const mesh = (name, tverts) => ({ name, bitmap: "fxpa_symbl_003", verts: [0, 0, 0, 1, 0, 0, 0, 1, 0], tverts, faces: [0, 1, 2], diffuse: [1, 1, 1],
+    ambient: [1, 1, 1], selfillum: [0, 0, 0], alpha: 0.5, transparencyhint: 1 });
+  const one = mesh("a", [0, 0, 1, 0, 0, 1]), tiled = mesh("b", [0, 0, 3, 0, 0, 1]), half = mesh("c", [0, 0, 1, 0, 0, 1]);
+  const breathe = F.readMotion({ breathe: 0.2, turn: 30 }, "p");
+  const out = F.moveTextures([one, tiled, half], breathe);
+  const shut = F.motionName("fxpa_symbl_003", breathe, [0.5, 0.5], true), open = F.motionName("fxpa_symbl_003", breathe, [1.5, 0.5]);
+  assert.deepStrictEqual(out.meshes.map((m) => m.bitmap), [shut, open, shut]);
+  // The clamped material says so (clamp: true); an unclamped one as before - no clamp key.
+  assert.deepStrictEqual(out.materials, [{ name: shut, texture: "fxpa_symbl_003", motion: breathe, pivot: [0.5, 0.5], clamp: true },
+    { name: open, texture: "fxpa_symbl_003", motion: breathe, pivot: [1.5, 0.5] }]);
+  // Scrolling: every material repeats, named as before.
+  const scroll = F.readMotion({ scroll: [0, 0.25], breathe: 0.2 }, "p"), s = F.moveTextures([one], scroll);
+  assert.deepStrictEqual(s.materials, [{ name: F.motionName("fxpa_symbl_003", scroll, [0.5, 0.5]), texture: "fxpa_symbl_003", motion: scroll, pivot: [0.5, 0.5] }]);
+  // { clamp: false }: the rule off - every moving texture repeats (uvprobe: TMO-1's domes as they were written).
+  const off = F.moveTextures([one, tiled], breathe, { clamp: false });
+  assert.deepStrictEqual(off.materials.map((x) => [x.name, "clamp" in x]), [[F.motionName("fxpa_symbl_003", breathe, [0.5, 0.5]), false], [open, false]]);
+  // A placed From-above shape part (TMO-2's dome: fxpa_symbl_003, Turn 30, Breathe 0.2): clamped.
+  const dome = F.readPart({ shape: { type: "dome", radius: 1, mapping: "above", texture: "fxpa_symbl_003", colour: [1, 0.502, 0] }, at: [0, 0, 0],
+    motion: { turn: 30, breathe: 0.2 } }, "p", BASE);
+  const placed = F.placePart(dome, F.shapeModel(dome.source.shape), 0, 0, "j", true), moved = F.moveTextures(placed.meshes, dome.motion);
+  assert.deepStrictEqual(moved.materials.map((x) => [x.texture, x.pivot, x.clamp]), [["fxpa_symbl_003", [0.5, 0.5], true]]);
+});
+check("W1 files.js: a clamped material's copy - its picture under its name and a TXI of the source's lines + clamp 3 - written beside its .mtr; an unclamped one none", () => {
+  const fs = require("fs");
+  const os = require("os");
+  const W = require("./files.js");
+  const part = (shape, motion) => F.readPart({ shape: Object.assign({ type: "dome", radius: 1, mapping: "above" }, shape), at: [0, 0, 0], motion }, "p", BASE);
+  const placed = [{ part: part({ texture: "fxpa_symbl_003" }, { breathe: 0.2, turn: 30 }) }, { part: part({ texture: "fxpa_symbl_003" }, { scroll: [0, 0.25] }) },
+    { part: part({ blend: "additive" }, { breathe: 0.3 }) }, { part: part({ texture: "only_dds" }, { breathe: 0.3 }) }, { part: part({ texture: "n5p_0123456789ab" }, { breathe: 0.3 }) }];
+  for (const x of placed) x.meshes = F.placePart(x.part, F.shapeModel(x.part.source.shape), 0, 0, "j", true).meshes;
+  const shaped = W.shapeTextures(placed);
+  const materials = W.motionMaterials(placed);
+  const names = placed.map((x) => x.meshes[0].bitmap), soft = [...shaped.keys()][0];
+  // Each clamped one marked (clamp: true), its .mtr with no texture0; the scrolling one as before.
+  assert.deepStrictEqual(names.map((n) => materials.get(n).clamp === true), [true, false, true, true, true]);
+  assert.ok(!/texture0/.test(materials.get(names[0]).text) && /^texture0 fxpa_symbl_003$/m.test(materials.get(names[1]).text));
+  // The pictures: the game's (reader.js image: ovr\, then the archives - a DDS when it has one, as the game draws it), a
+  // soft one's as made (its TXI too), a bake's; asked for no other.
+  const SYM = { tga: Buffer.from("sym-tga"), dds: null, txi: "decal 1\r\nblending additive\r\ndownsamplemax 0\r\ndownsamplemin 0" };
+  const asked = [], rd = { image: (name, dirs) => { asked.push([name, dirs]); return name === "fxpa_symbl_003" ? Object.assign({ where: "game", plt: null }, SYM)
+    : name === "only_dds" ? { where: "game", tga: Buffer.from("odd-tga"), dds: Buffer.from("odd-dds"), plt: null, txi: "" } : null; } };
+  const baked = new Map([["n5p_0123456789ab", { bytes: Buffer.from("baked-tga") }]]);
+  W.motionCopies(materials, { rd, shaped, baked });
+  assert.deepStrictEqual(asked.map((a) => a[0]), ["fxpa_symbl_003", "only_dds"]);
+  const copy = (k) => materials.get(names[k]).copy;
+  assert.strictEqual(copy(1), undefined, "a copy for the scrolling one");
+  assert.deepStrictEqual([copy(0).ext, copy(0).bytes.toString(), copy(0).txi.toString("latin1")], [".tga", "sym-tga", SYM.txi + "\r\nclamp 3\r\n"]);
+  assert.deepStrictEqual([copy(2).ext, copy(2).txi.toString("latin1")], [".tga", "blending additive\nclamp 3\n"]);
+  assert.ok(copy(2).bytes.equals(shaped.get(soft).bytes), "the soft one's copy isn't its TGA");
+  assert.deepStrictEqual([copy(3).ext, copy(3).bytes.toString(), copy(3).txi.toString("latin1")], [".dds", "odd-dds", "clamp 3\n"]);
+  assert.deepStrictEqual([copy(4).ext, copy(4).bytes.toString(), copy(4).txi.toString("latin1")], [".tga", "baked-tga", "clamp 3\n"]);
+  // Writes: each material's .mtr, then (clamped) its picture and TXI under its name, all "material" (owned by the n5u_
+  // name); then the shader.
+  const dir = path.join(os.tmpdir(), "n5_fdclamp-x");
+  const writes = W.motionWrites(materials, dir);
+  assert.deepStrictEqual(writes.map((w) => [path.basename(w.file), w.kind]), [
+    [names[0] + ".mtr", "material"], [names[0] + ".tga", "material"], [names[0] + ".txi", "material"], [names[1] + ".mtr", "material"],
+    [names[2] + ".mtr", "material"], [names[2] + ".tga", "material"], [names[2] + ".txi", "material"],
+    [names[3] + ".mtr", "material"], [names[3] + ".dds", "material"], [names[3] + ".txi", "material"],
+    [names[4] + ".mtr", "material"], [names[4] + ".tga", "material"], [names[4] + ".txi", "material"], ["vsn5uvmove.shd", "shader"]]);
+  assert.strictEqual(writes[2].bytes.toString("latin1"), SYM.txi + "\r\nclamp 3\r\n");
+  // --json's and the summary's: clamp said.
+  assert.deepStrictEqual(W.motionJson(materials).map((j) => j.clamp === true), [true, false, true, true, true]);
+  assert.ok(!("clamp" in W.motionJson(materials)[1]));
+  const lines = W.motionLines(materials, "data/files");
+  assert.match(lines[0], new RegExp(`^  material ${names[0]}: fxpa_symbl_003 turns 30 degrees a second, breathes 0\\.2 at 0\\.5 a second, round 0\\.5 0\\.5, clamped: ` +
+    `fxpa_symbl_003 copied as ${names[0]}\\.tga with ${names[0]}\\.txi \\(its TXI and clamp 3\\) - written into data/files, with vsn5uvmove\\.shd$`));
+  assert.ok(!/clamped/.test(lines[1]), lines[1]);
+  // A clamped texture with no picture anywhere: refused, naming the part and the texture.
+  const lost = [{ part: part({ texture: "nowhere" }, { breathe: 0.2 }) }];
+  lost[0].meshes = F.placePart(lost[0].part, F.shapeModel(lost[0].part.source.shape), 0, 0, "j", true).meshes;
+  assert.throws(() => W.motionCopies(W.motionMaterials(lost), { rd }), /^Error: dome 1 m: texture nowhere - its clamped material needs its picture copied, and it's neither in the game nor beside the part/);
+  // A texture beside a part's own file (shipTextures' copies): its picture and TXI from there.
+  const beside = fs.mkdtempSync(path.join(os.tmpdir(), "n5_fdclamp-"));
+  try {
+    fs.writeFileSync(path.join(beside, "my_glyph.tga"), "mine");
+    fs.writeFileSync(path.join(beside, "my_glyph.txi"), "blending additive\r\n");
+    const own = [{ part: part({ texture: "my_glyph" }, { breathe: 0.2 }) }];
+    own[0].meshes = F.placePart(own[0].part, F.shapeModel(own[0].part.source.shape), 0, 0, "j", true).meshes;
+    const R = require("./reader.js");
+    const realRd = R.create({ game: beside, core: null, gameData: { resources: () => () => null }, reader: null });
+    const m = W.motionMaterials(own);
+    W.motionCopies(m, { rd: realRd, ship: new Map([["my_glyph", [path.join(beside, "my_glyph.tga"), path.join(beside, "my_glyph.txi")]]]) });
+    const c = [...m.values()][0].copy;
+    assert.deepStrictEqual([c.ext, c.bytes.toString(), c.txi.toString("latin1")], [".tga", "mine", "blending additive\r\nclamp 3\r\n"]);
+  } finally {
+    fs.rmSync(beside, { recursive: true, force: true });
+  }
+});
+check("W1 in a page: the same rule, name, TXI and moveTextures", () => {
+  const P = pageFloatDisk();
+  assert.strictEqual(P.CLAMP_TXI, F.CLAMP_TXI);
+  const above = ABOVE(), m = { breathe: 0.2, turn: 30 };
+  assert.strictEqual(P.motionClamps(m, above), F.motionClamps(m, above));
+  assert.strictEqual(P.motionName("fxpa_symbl_003", m, [0.5, 0.5], true), F.motionName("fxpa_symbl_003", m, [0.5, 0.5], true));
+  assert.strictEqual(P.clampedTxi("decal 1\r\nblending additive"), F.clampedTxi("decal 1\r\nblending additive"));
+  assert.strictEqual(P.txiClamps("clamp 3"), true);
+  const model = domeModel({ mapping: "above" });
+  assert.deepStrictEqual(P.moveTextures(model.meshes, m), F.moveTextures(model.meshes, m));
+});
+
 console.log(process.exitCode ? `floatdisk check: FAILED (${count} passed)` : `floatdisk check: ${count} checks pass`);

@@ -134,6 +134,15 @@ A part's `motion` (M2) scrolls, turns and breathes the pictures on its textured 
   names the material, the material the texture).
 - The VFX Bench's Composer (M3, nwn5e-tools 91b56b7 + 22a3d62) sets, shows and plays a moving texture (its part card's
   Texture motion). TMO-1 passed 2026-11-18: route A (texture0), the texture's TXI still applies.
+- **Clamped** (W1; TMO-2: a shrinking breath showed the next repeat at the dome's bottom edge - the owner: "go with 1 for
+  the wrap"): a texture that breathes and doesn't scroll, on a mesh whose UVs stay within one repeat (a shape From above
+  or at Repeat 1 / 1, a game part whose UVs don't tile), has its own material (the clamp in its name) naming its copy,
+  not `texture0`: the texture's picture copied under the material's name (a soft one as made, a bake, the game's, or
+  beside your own file) with a TXI of its own lines and the game's clamp line, `clamp 3` - beside the material wherever
+  it goes (`data\files`, git-ignored; `--saved`), owned by its `n5u_` name. Its edge pixels stretch instead of the next
+  repeat showing. A scroll, a turn alone and a tiled mesh repeat as before. A texture of your own file's part copied
+  beside the draft stays ours there through the material's name (no `texture0` to read). TMO-5 asks whether the game
+  honours the clamp on a mesh.
 - The maths, the bounds and the files: the Floating Disk's README, "Moving textures".
 
 ## The probe (TMO-1)
@@ -161,6 +170,9 @@ node tools\data\composer\uvprobe.js --saved <nwn5e-ee>\build\vfxedit\saved [--ga
   once the bench is restarted.
 - It overwrites only its own: the draft by its mark, the shader by its first line, the rest by their `n5s_` / `n5u_`
   names. It prints which dome is which.
+- Since W1 the generators clamp a breathing texture that doesn't scroll on a mesh within one repeat; the probe writes
+  TMO-1's domes as they were (that rule off: domes 3 and 6 by their routes, unclamped), through the same copy path
+  (`files.js`'s `motionPicture` and `motionWrites`).
 - TMO-1 (the board's row): as a mesh beat in a new effect, Play in game; which domes move, and which let the sparks
   through, says the route - and the game's logs say whether the shader failed.
 

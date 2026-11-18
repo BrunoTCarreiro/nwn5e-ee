@@ -7,7 +7,8 @@
 //   W.option(argv, "game", "")   W.loadTools({ tools, game, build })   W.bakeParts(placed, rd, baked)   W.shipTextures(placed, rd, baked)
 //   W.bakedWrites(baked, dir)   W.bakedLines(baked, where)   W.bakedJson(baked)
 //   W.shapeTextures(placed, made)   W.shapeWrites(made, dir)   W.shapeLines(made, where)   W.shapeJson(made)
-//   W.motionMaterials(placed, materials)   W.motionWrites(materials, dir)   W.motionLines(materials, where)   W.motionJson(materials)
+//   W.motionMaterials(placed, materials, options)   W.motionCopies(materials, { rd, shaped, baked, ship })   W.motionPicture(texture, sources)
+//   W.motionWrites(materials, dir)   W.motionLines(materials, where)   W.motionJson(materials)
 //   W.writeAll(writes, W.ownership({ repo, manifest, mark, kinds }), { repo, manifest })   W.writeManifest(file, manifest, header)
 "use strict";
 const fs = require("fs");
@@ -101,36 +102,80 @@ const shapeJson = (made) => [...made].map(([texture, s]) => (s.txi ? { texture, 
 // moveTextures: the bitmap becomes the material's name, n5u_ and 12 hex digits) - each placed part's meshes replaced by
 // their renamed copies (x.meshes) - and each material `materials` lacks added. Called after bakeParts and shipTextures,
 // so a material's texture (texture0) is the real one and a shipped texture is found by its own name. `placed`: [{ part,
-// meshes }] (placePart's, with its part). -> `materials`: Map(name -> { texture, motion (readMotion's), pivot, text (its
-// .mtr: motionMaterialText, LF), label (the part's) }), in the parts' order.
-function motionMaterials(placed, materials = new Map()) {
+// meshes }] (placePart's, with its part); `options`: moveTextures' ({ clamp: false }: W1's rule off - uvprobe's).
+// -> `materials`: Map(name -> { texture, motion (readMotion's), pivot, clamp: true (W1: a clamped one's only - its copy
+// comes from motionCopies), text (its .mtr: motionMaterialText, LF - a clamped one's naming its copy, no texture0),
+// label (the part's) }), in the parts' order.
+function motionMaterials(placed, materials = new Map(), options = {}) {
   for (const x of placed) {
-    const moved = F.moveTextures(x.meshes, x.part.motion);
+    const moved = F.moveTextures(x.meshes, x.part.motion, options);
     x.meshes = moved.meshes;
     for (const m of moved.materials) {
-      if (!materials.has(m.name)) materials.set(m.name, { texture: m.texture, motion: m.motion, pivot: m.pivot, text: F.motionMaterialText(m), label: F.partLabel(x.part) });
+      if (!materials.has(m.name)) {
+        materials.set(m.name, Object.assign({ texture: m.texture, motion: m.motion, pivot: m.pivot }, m.clamp ? { clamp: true } : {},
+          { text: F.motionMaterialText(m), label: F.partLabel(x.part) }));
+      }
     }
   }
   return materials;
 }
+// A moving texture's picture, to copy under a material's name (TMO-1's copy route; W1's clamped materials, uvprobe's copy
+// domes): a shape's soft one as made (`shaped`, shapeTextures': its TGA and an Additive one's TXI), a bake (`baked`,
+// bakeParts': its TGA, no TXI), else reader.js's image (`rd`: the game's - ovr\ first, then its archives - else beside a
+// part's own file, `ship`'s folder for a texture shipped from there, or `dirs`): its DDS when it has one (what the game
+// draws), else its TGA, with its TXI. -> { ext: ".tga" | ".dds", bytes, txi (its text, "" for none) } | null.
+const txiText = (txi) => (!txi ? "" : typeof txi === "string" ? txi : Buffer.from(txi).toString("latin1"));
+function motionPicture(texture, { rd, shaped = new Map(), baked = new Map(), ship = new Map(), dirs = [] }) {
+  const soft = shaped.get(texture);
+  if (soft) return { ext: ".tga", bytes: soft.bytes, txi: txiText(soft.txi) };
+  const bake = baked.get(texture);
+  if (bake) return { ext: ".tga", bytes: bake.bytes, txi: "" };
+  const beside = ship.has(texture) ? [path.dirname(ship.get(texture)[0])] : [];
+  const img = rd ? rd.image(texture, [...new Set([...beside, ...dirs])]) : null;
+  if (!img || !(img.dds || img.tga)) return null;
+  return { ext: img.dds ? ".dds" : ".tga", bytes: img.dds || img.tga, txi: txiText(img.txi) };
+}
+// W1: each clamped material's copy (`materials`, motionMaterials'), its `copy` set: { ext, bytes (its picture,
+// motionPicture's from `sources`), txi (bytes: floatdisk.js's clampedTxi - the source's TXI lines and the game's clamp
+// line) } - motionWrites writes it under the material's name. A clamped texture with no picture anywhere stops the build.
+// -> `materials`.
+function motionCopies(materials, sources) {
+  for (const m of materials.values()) {
+    if (!m.clamp || m.copy) continue;
+    const pic = motionPicture(m.texture, sources);
+    if (!pic) throw new Error(`${m.label}: texture ${m.texture} - its clamped material needs its picture copied, and it's neither in the game nor beside the part`);
+    m.copy = { ext: pic.ext, bytes: pic.bytes, txi: Buffer.from(F.clampedTxi(pic.txi), "latin1") };
+  }
+  return materials;
+}
 // The materials as writes into `dir` (beside what names them: the models' folder, or a spell mesh's drafts'):
-// <dir>\<name>.mtr, kind "material" (ours by its name: only the generator makes n5u_ names, and the name fixes the
-// bytes), and - when there's any - the shader they name, <dir>\vsn5uvmove.shd, kind "shader" (ours when made.txt lists
-// it, as data\files' committed one, or when it's the generators' shader: floatdisk.js's isMotionShader), CRLF as the
-// generators write text. Neither noted in made.txt.
+// <dir>\<name>.mtr - and a material with a `copy` (W1's clamped one, motionCopies'; uvprobe's copy domes) its picture
+// <dir>\<name>.tga or .dds and its TXI <dir>\<name>.txi when it has them - each kind "material" (ours by its name: only
+// the generator makes n5u_ names, and the name fixes the bytes), and - when there's any - the shader they name,
+// <dir>\vsn5uvmove.shd, kind "shader" (ours when made.txt lists it, as data\files' committed one, or when it's the
+// generators' shader: floatdisk.js's isMotionShader), CRLF as the generators write text. None noted in made.txt.
 function motionWrites(materials, dir) {
   if (!materials.size) return [];
-  return [...[...materials].map(([name, m]) => ({ file: path.join(dir, name + ".mtr"), bytes: Buffer.from(m.text, "latin1"), kind: "material" })),
-    { file: path.join(dir, F.MOTION_SHADER + ".shd"), bytes: Buffer.from(F.crlf(F.motionShaderText()), "latin1"), kind: "shader" }];
+  const writes = [];
+  for (const [name, m] of materials) {
+    writes.push({ file: path.join(dir, name + ".mtr"), bytes: Buffer.from(m.text, "latin1"), kind: "material" });
+    if (m.copy && m.copy.bytes) writes.push({ file: path.join(dir, name + m.copy.ext), bytes: m.copy.bytes, kind: "material" });
+    if (m.copy && m.copy.txi) writes.push({ file: path.join(dir, name + ".txi"), bytes: m.copy.txi, kind: "material" });
+  }
+  writes.push({ file: path.join(dir, F.MOTION_SHADER + ".shd"), bytes: Buffer.from(F.crlf(F.motionShaderText()), "latin1"), kind: "shader" });
+  return writes;
 }
 // A motion in words: "scrolls 0 0.25 a second, turns 30 degrees a second, breathes 0.3 at 0.5 a second" (what it does).
 const motionWords = (m) => [m.scroll.some((v) => v !== 0) ? `scrolls ${m.scroll.join(" ")} a second` : null, m.turn ? `turns ${m.turn} degrees a second` : null,
   m.breathe ? `breathes ${m.breathe} at ${m.rate} a second` : null].filter(Boolean).join(", ");
-// The summary's line a material: its texture, its motion and pivot, where it goes (and the shader beside it).
+// The summary's line a material: its texture, its motion and pivot, a clamped one's copy (W1), where it goes (and the
+// shader beside it).
 const motionLines = (materials, where) => [...materials].map(([name, m]) => `  material ${name}: ${m.texture} ${motionWords(m.motion)}, round ` +
-  `${m.pivot.join(" ")} - written into ${where}, with ${F.MOTION_SHADER}.shd`);
-// --json's: [{ material, texture, motion (its non-zero keys: cleanMotion's), pivot }].
-const motionJson = (materials) => [...materials].map(([material, m]) => ({ material, texture: m.texture, motion: F.cleanMotion(m.motion), pivot: m.pivot }));
+  `${m.pivot.join(" ")}${m.clamp ? `, clamped: ${m.texture} copied as ${name}${m.copy ? m.copy.ext : ".tga"} with ${name}.txi (its TXI and ${F.CLAMP_TXI})` : ""}` +
+  ` - written into ${where}, with ${F.MOTION_SHADER}.shd`);
+// --json's: [{ material, texture, motion (its non-zero keys: cleanMotion's), pivot, clamp: true (W1: a clamped one's only) }].
+const motionJson = (materials) => [...materials].map(([material, m]) => Object.assign({ material, texture: m.texture, motion: F.cleanMotion(m.motion), pivot: m.pivot },
+  m.clamp ? { clamp: true } : {}));
 
 // --- textures ---------------------------------------------------------------------------------------------------------
 // The textures that the placed parts' own files bring and the game doesn't have: each mesh's, looked up in the game,
@@ -215,4 +260,4 @@ function writeAll(writes, owned, { repo, manifest, dry = false }) {
 }
 
 module.exports = { option, loadTools, repoPath, shown, bakeParts, bakedWrites, bakedLines, bakedJson, shapeTextures, shapeWrites, shapeLines,
-  shapeJson, motionMaterials, motionWrites, motionLines, motionJson, shipTextures, readManifest, writeManifest, ownership, writeAll };
+  shapeJson, motionMaterials, motionPicture, motionCopies, motionWrites, motionLines, motionJson, shipTextures, readManifest, writeManifest, ownership, writeAll };

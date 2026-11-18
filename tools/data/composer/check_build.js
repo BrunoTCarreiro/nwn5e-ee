@@ -727,13 +727,14 @@ try {
   });
 
   check("a spell mesh's moving own file: its texture copied beside the draft stays its own (the draft's material names it)", () => {
-    // The own-file check's crate (parts\n5_chkcrate.mdl, its texture a TGA beside it), breathing.
+    // The own-file check's crate (parts\n5_chkcrate.mdl, its texture a TGA beside it), turning (W1: a breathing one is
+    // clamped - the next check).
     const parts = path.join(folder, "parts");
     const tga = (shade) => Buffer.concat([Buffer.from([0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 32, 8]), Buffer.alloc(16, shade)]);
     fs.writeFileSync(path.join(parts, "n5_chkcrate.tga"), tga(0x11));
     fs.rmSync(path.join(SAVED, "n5_chkcrate.tga"), { force: true });
     const file = project("chkuvo", { kind: "spellmesh", guide: CIRCLE, variants: [{ name: "1", parts: [
-      { file: "parts/n5_chkcrate.mdl", at: [0, 0, 0], motion: { breathe: 0.2, rate: 1 } }] }] });
+      { file: "parts/n5_chkcrate.mdl", at: [0, 0, 0], motion: { turn: 30 } }] }] });
     const j = ok(build(file, ["--json", "--saved", SAVED]));
     assert.deepStrictEqual([j.materials.map((m) => m.texture), j.shipped.map((s) => s.texture)], [["n5_chkcrate"], ["n5_chkcrate"]]);
     const MAT = j.materials[0].material;
@@ -744,6 +745,101 @@ try {
     fs.writeFileSync(path.join(parts, "n5_chkcrate.tga"), tga(0x22));
     assert.strictEqual(byName(ok(build(file, ["--json", "--saved", SAVED])))["n5_chkcrate.tga"], "rebuilt");
     assert.ok(fs.readFileSync(path.join(SAVED, "n5_chkcrate.tga")).equals(tga(0x22)));
+  });
+
+  // W1 (#39, the design's addendum (c); TMO-2, the owner, 2026-11-18: "when it shrank the texture being tiled and wrapping
+  // would show a bit at the bottom edge of the dome" - "go with 1 for the wrap"): a moving texture that breathes and doesn't
+  // scroll, on a mesh whose UVs stay within one repeat, is clamped - its material names its copy (no texture0), the
+  // picture copied under the material's name with a TXI of the source's lines and the game's clamp line (clamp 3),
+  // beside the material wherever it goes: a spell mesh's draft in --saved, a placeable's model in data\files.
+  const SYM = "fxpa_symbl_003";
+  const clampedFiles = (dir, mat) => fs.readdirSync(dir).filter((f) => f.toLowerCase().startsWith(mat + ".")).sort();
+  check("W1: a spell mesh's breathing From-above dome (TMO-2's: fxpa_symbl_003, Turn 30, Breathe 0.2) is clamped - its .mtr names the copy, fxpa_symbl_003's TGA copied under its name with its TXI + clamp 3, beside the draft in --saved; again unchanged", () => {
+    clearMoving();
+    const files = snapshot(), kept = madeTxt();
+    const motion = { turn: 30, breathe: 0.2 }, pivot = [0.5, 0.5], MAT = F.motionName(SYM, motion, pivot, true);
+    assert.notStrictEqual(MAT, F.motionName(SYM, motion, pivot));
+    const file = project("chkclamp", { kind: "spellmesh", guide: { shape: "circle", diameter: 2, height: 0 }, variants: [{ name: "1", parts: [
+      { shape: { type: "dome", radius: 1, mapping: "above", colour: [1, 0.502, 0], texture: SYM, blend: "additive" }, at: [0, 0, 0], motion }] }] });
+    const said = build(file, ["--check", "--saved", SAVED]).out.split(/\r?\n/);
+    assert.ok(said.includes(`  material ${MAT}: ${SYM} turns 30 degrees a second, breathes 0.2 at 0.5 a second, round 0.5 0.5, clamped: ${SYM} copied as ${MAT}.tga ` +
+      `with ${MAT}.txi (its TXI and clamp 3) - written into ${SAVED}, with ${SHADER}`), said.filter((l) => /material/.test(l)).join("\n"));
+    const j = ok(build(file, ["--json", "--saved", SAVED]));
+    assert.deepStrictEqual(j.materials, [{ material: MAT, texture: SYM, motion, pivot, clamp: true }]);
+    assert.deepStrictEqual(draftPlanes(path.join(SAVED, "n5m_chkclamp.vfx")).map((x) => x.bitmap), [MAT]);
+    // Beside the draft: the material (no texture0: the copy route), the copy and its TXI, the shader - all new.
+    const states = byName(j);
+    assert.deepStrictEqual(states, { "n5m_chkclamp.vfx": "new", [MAT + ".mtr"]: "new", [MAT + ".tga"]: "new", [MAT + ".txi"]: "new", [SHADER]: "new" });
+    const mtr = fs.readFileSync(path.join(SAVED, MAT + ".mtr"), "latin1");
+    assert.strictEqual(mtr, F.motionMaterialText({ texture: SYM, motion, pivot, clamp: true }));
+    assert.ok(!/texture0/i.test(mtr), mtr);
+    const sym = rd.image(SYM, []);
+    assert.ok(fs.readFileSync(path.join(SAVED, MAT + ".tga")).equals(sym.tga), "the copy isn't the game's " + SYM + ".tga");
+    const txi = fs.readFileSync(path.join(SAVED, MAT + ".txi"), "latin1");
+    assert.strictEqual(txi, F.clampedTxi(sym.txi));
+    assert.ok(txi.startsWith(sym.txi) && /\r\nclamp 3\r\n$/.test(txi) && F.txiAdditive(txi), JSON.stringify(txi));
+    // Nothing in data\, nothing in made.txt; built again: every file unchanged.
+    const after = snapshot();
+    for (const f of Object.keys(after)) if (!f.startsWith(SAVED)) assert.strictEqual(after[f], files[f], f);
+    assert.strictEqual(madeTxt(), kept, "made.txt changed");
+    const again = ok(build(file, ["--json", "--saved", SAVED]));
+    assert.ok(again.files.every((x) => x.state === "unchanged"), JSON.stringify(again.files));
+    // A copy or TXI of the material's name in the way is the generator's (the name fixes its bytes): rewritten.
+    fs.writeFileSync(path.join(SAVED, MAT + ".txi"), "clamp 0\r\n");
+    assert.strictEqual(byName(ok(build(file, ["--json", "--saved", SAVED])))[MAT + ".txi"], "rebuilt");
+  });
+
+  check("W1: a placeable's breathing Soft dome (Additive, From above) is clamped - the soft texture's copy and its TXI (blending additive + clamp 3) in data\\files beside the model, git-ignored", () => {
+    clearMoving();
+    const kept = madeTxt(), motion = { breathe: 0.3 }, pivot = [0.5, 0.5], MAT = F.motionName(ADD, motion, pivot, true);
+    const file = project("chkclp", { kind: "placeable", guide: { shape: "circle", diameter: 1, height: 0 }, placeable: THROUGH, variants: [{ name: "1", row: 14161, parts: [
+      { shape: { type: "dome", radius: 0.4, alpha: 0.3, blend: "additive", mapping: "above" }, at: [0, 0, 0], motion }] }] });
+    const j = ok(build(file, ["--json"]));
+    assert.deepStrictEqual(j.materials, [{ material: MAT, texture: ADD, motion, pivot, clamp: true }]);
+    assert.ok(fs.readFileSync(path.join(FILES, "plc_n5chkclp.mdl"), "latin1").includes(`\r\n  bitmap ${MAT}\r\n`), "the model doesn't name " + MAT);
+    assert.deepStrictEqual(clampedFiles(FILES, MAT), [MAT + ".mtr", MAT + ".tga", MAT + ".txi"]);
+    assert.ok(fs.readFileSync(path.join(FILES, MAT + ".tga")).equals(softBytes([0.6, 0.8, 1])), "the copy isn't the soft texture");
+    assert.strictEqual(fs.readFileSync(path.join(FILES, MAT + ".txi"), "latin1"), "blending additive\nclamp 3\n");
+    assert.ok(j.files.some((x) => x.file === `data/files/${MAT}.tga`) && j.files.some((x) => x.file === `data/files/${MAT}.txi`), JSON.stringify(j.files));
+    assert.strictEqual(madeTxt(), kept, "made.txt changed");
+    const ignored = (f) => spawnSync("git", ["check-ignore", "-q", "--no-index", "data/files/" + f], { cwd: REPO, windowsHide: true }).status === 0;
+    for (const f of [MAT + ".tga", MAT + ".txi", MAT + ".dds"]) assert.ok(ignored(f), f + " isn't git-ignored");
+  });
+
+  check("W1: nothing copied for a motion that repeats - a scrolling breath, a dome tiled (Repeat around 2), a turn alone: their .mtr names texture0", () => {
+    clearMoving();
+    const dome = (mapping, extra) => Object.assign({ type: "dome", radius: 1, texture: SYM, mapping }, extra);
+    const file = project("chkrep", { kind: "spellmesh", guide: { shape: "circle", diameter: 2, height: 0 }, variants: [{ name: "1", parts: [
+      { shape: dome("above"), at: [0, 0, 0], motion: { scroll: [0, 0.25], breathe: 0.2 } },
+      { shape: dome("wrap", { repeat_around: 2 }), at: [3, 0, 0], motion: { breathe: 0.2 } },
+      { shape: dome("above"), at: [-3, 0, 0], motion: { turn: 30 } }] }] });
+    const j = ok(build(file, ["--json", "--saved", SAVED]));
+    assert.strictEqual(j.materials.length, 3);
+    assert.ok(j.materials.every((m) => !("clamp" in m)), JSON.stringify(j.materials));
+    for (const m of j.materials) {
+      assert.deepStrictEqual(clampedFiles(SAVED, m.material), [m.material + ".mtr"], m.material);
+      assert.ok(fs.readFileSync(path.join(SAVED, m.material + ".mtr"), "latin1").split("\n").includes("texture0 " + SYM), m.material);
+    }
+  });
+
+  check("W1: a spell mesh's breathing own file is clamped - its picture copied from beside the part; the texture shipped beside the draft stays its own (the material's name gives it)", () => {
+    const parts = path.join(folder, "parts");
+    const tga = (shade) => Buffer.concat([Buffer.from([0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 32, 8]), Buffer.alloc(16, shade)]);
+    fs.writeFileSync(path.join(parts, "n5_chkcrate.tga"), tga(0x33));
+    fs.rmSync(path.join(SAVED, "n5_chkcrate.tga"), { force: true });
+    const file = project("chkclo", { kind: "spellmesh", guide: CIRCLE, variants: [{ name: "1", parts: [
+      { file: "parts/n5_chkcrate.mdl", at: [0, 0, 0], motion: { breathe: 0.2, rate: 1 } }] }] });
+    const j = ok(build(file, ["--json", "--saved", SAVED]));
+    assert.deepStrictEqual(j.materials.map((m) => [m.texture, m.clamp]), [["n5_chkcrate", true]]);
+    const MAT = j.materials[0].material;
+    assert.ok(fs.readFileSync(path.join(SAVED, MAT + ".tga")).equals(tga(0x33)), "the copy isn't the TGA beside the part");
+    assert.strictEqual(fs.readFileSync(path.join(SAVED, MAT + ".txi"), "latin1"), "clamp 3\n");
+    // Changed beside the part: the shipped copy and the clamped copy both rewritten - the marked draft names the material,
+    // the material's name its texture (no texture0 to read).
+    fs.writeFileSync(path.join(parts, "n5_chkcrate.tga"), tga(0x44));
+    const again = byName(ok(build(file, ["--json", "--saved", SAVED])));
+    assert.deepStrictEqual([again["n5_chkcrate.tga"], again[MAT + ".tga"], again[MAT + ".txi"]], ["rebuilt", "rebuilt", "unchanged"]);
+    assert.ok(fs.readFileSync(path.join(SAVED, MAT + ".tga")).equals(tga(0x44)));
   });
 
   // The probe (TMO-1's): tools\data\composer\uvprobe.js writes n5m_uvprobe - seven domes in a row, three moving by the

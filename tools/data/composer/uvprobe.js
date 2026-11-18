@@ -27,7 +27,9 @@
 // bench's spell meshes): n5m_uvprobe.vfx (a spell mesh draft carrying project.js's MARK), the Additive soft texture
 // (n5s_617b220c1144.tga / .txi), the seven materials, the shader, the copy route's textures and TXIs and the seventh's TXI
 // under their materials' names; and n5m_uvprobe is added to <build>\vfxedit\meshes.txt, the bench's list of spell meshes,
-// so + mesh offers it.
+// so + mesh offers it. Since W1 the generators clamp a breathing texture that doesn't scroll on a mesh within one repeat
+// (its copy and TXI by the same copy path, files.js motionPicture / motionWrites); the probe writes TMO-1's domes as they
+// were, that rule off.
 //
 //   node tools\data\composer\uvprobe.js --saved <nwn5e-ee>\build\vfxedit\saved [--game <folder>] [--tools <nwn5e-tools>]
 //
@@ -81,25 +83,26 @@ function main() {
       const part = F.readPart({ shape: d.shape, at: [d.x, 0, 0], motion: d.motion }, `dome ${i + 1}`, __dirname);
       return Object.assign(F.placePart(part, rd.part(part), i, 0, "j", true), { part });
     });
+    // TMO-1's domes as they were written: W1's clamp rule off (its breathing From-above domes 3 and 6 would be clamped
+    // now - their own names, a clamp line in their TXIs).
     const shaped = W.shapeTextures(placed);
-    const moved = W.motionMaterials(placed);
+    const moved = W.motionMaterials(placed, new Map(), { clamp: false });
     const names = placed.map((x) => x.meshes[0].bitmap);
-    names.forEach((name, i) => { if (COPIES[DOMES[i].route].image) moved.get(name).text = F.motionMaterialText(moved.get(name), { copy: true }); });
+    // Under a material's name, as its route says (files.js motionWrites writes a material's `copy`): the copy route's
+    // texture and its TXI as they are, the seventh's TXI alone - the picture as the generators' copy path finds it
+    // (files.js motionPicture: a soft one made again; a library one the game's, ovr\ first, then the archives).
+    names.forEach((name, i) => {
+      const put = COPIES[DOMES[i].route], m = moved.get(name);
+      if (!put.image && !put.txi) return;
+      const pic = W.motionPicture(m.texture, { rd, shaped });
+      if (!pic) throw new Error(`${m.texture}: not in the game (${game})`);
+      if (put.image) m.text = F.motionMaterialText(m, { copy: true });
+      m.copy = { ext: pic.ext, bytes: put.image ? pic.bytes : null, txi: put.txi && pic.txi ? Buffer.from(pic.txi, "latin1") : null };
+    });
     const meshes = F.uniqueNames([].concat(...placed.map((x) => x.meshes)), []);
 
     const writes = [{ file: path.join(saved, MODEL + ".vfx"), bytes: Buffer.from(F.crlf(P.draftText(core, MODEL, meshes)), "latin1"), kind: "text" }];
     writes.push(...W.shapeWrites(shaped, saved), ...W.motionWrites(moved, saved));
-    // Under a material's name, as its route says: the copy route's texture and its TXI (a soft one made again, a library
-    // one copied from the game - reader.js's image: ovr\ first, then the archives), the seventh's TXI alone.
-    names.forEach((name, i) => {
-      const put = COPIES[DOMES[i].route];
-      if (!put.image && !put.txi) return;
-      const m = moved.get(name), soft = shaped.get(m.texture);
-      const img = soft ? { tga: soft.bytes, dds: null, txi: soft.txi ? soft.txi.toString("latin1") : "" } : rd.image(m.texture, []);
-      if (!img || !(img.tga || img.dds)) throw new Error(`${m.texture}: not in the game (${game})`);
-      if (put.image) writes.push({ file: path.join(saved, name + (img.tga ? ".tga" : ".dds")), bytes: img.tga || img.dds, kind: "material" });
-      if (put.txi && img.txi) writes.push({ file: path.join(saved, name + ".txi"), bytes: Buffer.from(img.txi, "latin1"), kind: "material" });
-    });
 
     const shown = (file) => path.relative(vfxedit, file).split(path.sep).join("/");
     console.log(`uvprobe: ${MODEL}, ${DOMES.length} domes 0.8 m wide, 1 m apart along x - TMO-1 (#39):`);
