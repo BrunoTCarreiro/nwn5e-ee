@@ -2962,3 +2962,279 @@ TEST(VfxGameEffectsScaleKeys) {
                     "\n  scalekey 2\n" + row(shrink[0], shrink[1]) + row(shrink[2], shrink[3])),
            true);
 }
+
+// --- TT (#39; the owner, 2026-11-18, MBK-1 on 0.99.79, after Drop in's first key moved to 0: "the disk in-game still
+// starts at ground level, rises to 3m and then drops down again"): the game blends an animation in over its transtime
+// from the pose before it - an effect's impact from the rest pose, its geometry's. The impact is written with transtime 0
+// when an item's first key there is off its rest, so it starts on its keys (the game's own fx_meteor and fx_rainice:
+// transtime 0); else 0.25, as always. The duration and the cessation keep 0.25. ---
+
+namespace {
+
+// An animation's transtime, as written, in a model named n5t ("" when it has none).
+std::string Transtime(const std::string& model, const char* anim) {
+  const std::string text = Anim(model, anim);
+  const size_t at = text.find("\n  transtime ");
+  if (at == std::string::npos) return "";
+  const size_t from = at + 13;
+  return text.substr(from, text.find('\n', from) - from);
+}
+
+// A lasting effect's disc: a plane under the root with its rest at height `rest`, dropping in its impact from `from` m to
+// the ground over 0.5 s.
+VfxEffect DiscEffect(float rest, float from) {
+  VfxEffect effect;
+  effect.name = "n5_disc";
+  VfxPlane disc;
+  disc.name = "disc";
+  disc.position[2] = rest;
+  disc.bitmap = "fxpa_fern";
+  disc.verts = {-1, -1, 0, 1, -1, 0, -1, 1, 0, 1, 1, 0};
+  disc.tverts = {0, 0, 1, 0, 0, 1, 1, 1};
+  disc.faces = {0, 1, 2, 2, 1, 3};
+  VfxKeys drop;
+  drop.anim = "impact";
+  drop.position = {0, 0, 0, from, 0.5f, 0, 0, 0};
+  disc.keys.push_back(drop);
+  effect.planes.push_back(disc);
+  return effect;
+}
+
+// The disc at rest on the ground with one list of keys in an animation instead of its drop.
+VfxEffect DiscKeyed(const char* anim, const VfxKeys& keys) {
+  VfxEffect effect = DiscEffect(0.0f, 0.0f);
+  effect.planes[0].keys = {keys};
+  effect.planes[0].keys[0].anim = anim;
+  return effect;
+}
+
+}  // namespace
+
+// The owner's Drop in: the disc at rest on the ground, its impact's first key 3 m up - the impact is transtime 0, so the
+// disc starts at 3 m and falls; the duration and the cessation 0.25. Only that line is new: one transtime 0, two 0.25.
+TEST(VfxImpactStartsOnAnOffRestFirstKey) {
+  const std::string model = WriteVfxModel(DiscEffect(0.0f, 3.0f), "n5t");
+  CHECK_EQ(Transtime(model, "impact") == "0", true);
+  CHECK_EQ(Transtime(model, "duration") == "0.25" && Transtime(model, "cessation") == "0.25", true);
+  size_t snaps = 0, blends = 0;
+  for (size_t at = model.find("\n  transtime "); at != std::string::npos; at = model.find("\n  transtime ", at + 1)) {
+    snaps += model.compare(at, 15, "\n  transtime 0\n") == 0;
+    blends += model.compare(at, 18, "\n  transtime 0.25\n") == 0;
+  }
+  CHECK_EQ(snaps, 1u);
+  CHECK_EQ(blends, 2u);
+  // Its keys and its geometry as before.
+  CHECK_EQ(Contains(Anim(model, "impact"), "node trimesh n5t_p0_disc\n  parent n5t\n  positionkey 2\n    0 0 0 3\n    0.5 0 0 0\nendnode"),
+           true);
+  CHECK_EQ(Contains(model, "node trimesh n5t_p0_disc\n  parent n5t\n  position 0 0 0\n"), true);
+  // A one-shot effect (no duration, no cessation) the same.
+  VfxEffect once = DiscEffect(0.0f, 3.0f);
+  once.duration = false;
+  const std::string one = WriteVfxModel(once, "n5t");
+  CHECK_EQ(Transtime(one, "impact") == "0" && Transtime(one, "duration").empty() && Transtime(one, "cessation").empty(), true);
+}
+
+// The same drop with its rest at its first key (3 m) blends as before (0.25); within 1e-4 m of it too, past that not. A
+// list too short for a row is no key (none is written). Without keys, 0.25.
+TEST(VfxImpactBlendsFromAFirstKeyAtRest) {
+  CHECK_EQ(Transtime(WriteVfxModel(DiscEffect(3.0f, 3.0f), "n5t"), "impact") == "0.25", true);
+  CHECK_EQ(Transtime(WriteVfxModel(DiscEffect(3.00005f, 3.0f), "n5t"), "impact") == "0.25", true);
+  CHECK_EQ(Transtime(WriteVfxModel(DiscEffect(3.0003f, 3.0f), "n5t"), "impact") == "0", true);
+  CHECK_EQ(Transtime(WriteVfxModel(DiscEffect(0.0f, 3.0f), "n5t"), "impact") == "0", true);
+  CHECK_EQ(Transtime(WriteVfxModel(DiscKeyed("impact", VfxKeys()), "n5t"), "impact") == "0.25", true);
+  // Off in x or y as well as z.
+  VfxEffect aside = DiscEffect(3.0f, 3.0f);
+  aside.planes[0].keys[0].position[1] = 0.5f;
+  CHECK_EQ(Transtime(WriteVfxModel(aside, "n5t"), "impact") == "0", true);
+  VfxKeys partial;
+  partial.position = {0, 0, 0};
+  CHECK_EQ(Transtime(WriteVfxModel(DiscKeyed("impact", partial), "n5t"), "impact") == "0.25", true);
+}
+
+// A fade from nothing (alpha keyed from 0, its material's alpha 1) and a growth from 0.2 start on their keys (0); a fade
+// out from its own alpha, or a scale from 1 (the mesh as placed), blend (0.25). plane_beat.vfx's beat fades in from 0.
+TEST(VfxImpactStartsOnAFadeFromNothing) {
+  VfxKeys in;
+  in.alpha = {0, 0, 0.5f, 1};
+  CHECK_EQ(Transtime(WriteVfxModel(DiscKeyed("impact", in), "n5t"), "impact") == "0", true);
+  VfxKeys out;
+  out.alpha = {0, 1, 0.5f, 0};
+  CHECK_EQ(Transtime(WriteVfxModel(DiscKeyed("impact", out), "n5t"), "impact") == "0.25", true);
+  // Against its own alpha: 0.5 from 0.5 blends, from 1 doesn't.
+  VfxEffect half = DiscKeyed("impact", out);
+  half.planes[0].alpha = 0.5f;
+  CHECK_EQ(Transtime(WriteVfxModel(half, "n5t"), "impact") == "0", true);
+  half.planes[0].keys[0].alpha = {0, 0.5f, 0.5f, 0};
+  CHECK_EQ(Transtime(WriteVfxModel(half, "n5t"), "impact") == "0.25", true);
+  VfxKeys grow;
+  grow.scale = {0, 0.2f, 0.5f, 1};
+  CHECK_EQ(Transtime(WriteVfxModel(DiscKeyed("impact", grow), "n5t"), "impact") == "0", true);
+  grow.scale = {0, 1, 0.5f, 2};
+  CHECK_EQ(Transtime(WriteVfxModel(DiscKeyed("impact", grow), "n5t"), "impact") == "0.25", true);
+  VfxEffect beat;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(FixtureText("tests/data/fixtures/plane_beat.vfx"), &beat, &error), true);
+  CHECK_EQ(Transtime(WriteVfxModel(beat, "n5t"), "impact") == "0", true);
+}
+
+// A turn keyed from its rest orientation blends (0.25) - compared as turns, not as the four numbers: the axis and the
+// angle both negated, an axis not of length 1, a whole turn more, or no turn about another axis (or about no axis) are
+// the same turn. Off its rest (plane_moves.vfx's beat: rest a quarter turn about z, first key none) it starts on its keys
+// (0); past 1e-4 radians.
+TEST(VfxImpactTurnComparedAsATurn) {
+  const auto turned = [](float rest_angle, std::vector<float> first) {
+    VfxKeys spin;
+    spin.orientation = first;
+    spin.orientation.insert(spin.orientation.begin(), 0.0f);
+    spin.orientation.insert(spin.orientation.end(), {1, 0, 0, 1, 3.14159f});
+    VfxEffect effect = DiscKeyed("impact", spin);
+    effect.planes[0].orientation[2] = 1.0f;
+    effect.planes[0].orientation[3] = rest_angle;
+    return Transtime(WriteVfxModel(effect, "n5t"), "impact");
+  };
+  CHECK_EQ(turned(1.5708f, {0, 0, 1, 1.5708f}) == "0.25", true);
+  CHECK_EQ(turned(1.5708f, {0, 0, -1, -1.5708f}) == "0.25", true);
+  CHECK_EQ(turned(1.5708f, {0, 0, 2, 1.5708f}) == "0.25", true);
+  CHECK_EQ(turned(1.5708f, {0, 0, 1, 1.5708f + 6.2831853f}) == "0.25", true);
+  CHECK_EQ(turned(1.5708f, {0, 0, 1, 1.57085f}) == "0.25", true);
+  CHECK_EQ(turned(1.5708f, {0, 0, 1, 1.5711f}) == "0", true);
+  CHECK_EQ(turned(1.5708f, {0, 0, 1, 0}) == "0", true);
+  CHECK_EQ(turned(1.5708f, {1, 0, 0, 1.5708f}) == "0", true);
+  CHECK_EQ(turned(0.0f, {1, 0, 0, 0}) == "0.25", true);
+  CHECK_EQ(turned(0.0f, {0, 0, 0, 0}) == "0.25", true);
+  CHECK_EQ(turned(0.0f, {0, 0, 0, 1.5f}) == "0.25", true);  // no axis: no turn, whatever its angle
+  CHECK_EQ(turned(0.0f, {0, 1, 0, 0.5f}) == "0", true);
+  VfxEffect moves;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(FixtureText("tests/data/fixtures/plane_moves.vfx"), &moves, &error) && moves.planes.size() == 1, true);
+  VfxKeys* impact = moves.planes.size() == 1 ? FindKeys(&moves.planes[0].keys, "impact", false) : nullptr;
+  CHECK_EQ(impact != nullptr && impact->orientation.size() == 10, true);
+  if (!impact) return;
+  impact->position.clear();  // only its turn (its fade and growth, off their rest too, gone)
+  impact->alpha.clear();
+  impact->scale.clear();
+  CHECK_EQ(Transtime(WriteVfxModel(moves, "n5t"), "impact") == "0", true);
+}
+
+// Every kind of item: a node's, an emitter's or a light's move or turn, a light's colour or radius - each off its rest
+// starts the impact on its keys (0), each at its rest blends (0.25). A light without keys of its own (a one-shot's goes
+// out from its radius) blends.
+TEST(VfxImpactStartsOnAnyItemsFirstKey) {
+  const auto impact = [](const VfxEffect& effect) { return Transtime(WriteVfxModel(effect, "n5t"), "impact"); };
+  VfxEffect base;
+  base.name = "n5_items";
+  VfxNode node;
+  node.name = "hub";
+  node.position[2] = 1.0f;
+  node.orientation[2] = 1.0f;
+  node.orientation[3] = 0.5f;
+  base.nodes.push_back(node);
+  VfxEmitter emitter;
+  emitter.name = "spark";
+  emitter.parent = "hub";
+  emitter.position[0] = 0.25f;
+  emitter.orientation[0] = 1.0f;
+  emitter.orientation[3] = 1.0f;
+  base.emitters.push_back(emitter);
+  VfxLight light;
+  light.parent = "hub";
+  light.position[1] = 0.5f;
+  light.color[1] = 0.5f;
+  light.radius = 4.0f;
+  base.lights.push_back(light);
+  CHECK_EQ(impact(base) == "0.25", true);
+  VfxEffect once = base;
+  once.duration = false;
+  CHECK_EQ(Contains(Anim(WriteVfxModel(once, "n5t"), "impact"), "  radiuskey 2\n"), true);
+  CHECK_EQ(impact(once) == "0.25", true);
+  // Each kind at its rest, then off it.
+  const auto keyed = [&](int item, const char* what, std::vector<float> at_rest, std::vector<float> off_rest) {
+    for (int off = 0; off < 2; ++off) {
+      VfxEffect e = base;
+      std::vector<VfxKeys>* list[] = {&e.nodes[0].keys, &e.emitters[0].keys, &e.lights[0].keys};
+      VfxKeys k;
+      k.anim = "impact";
+      const std::string kind(what);
+      std::vector<float>& into = kind == "position" ? k.position : kind == "orientation" ? k.orientation : kind == "color" ? k.color : k.radius;
+      into = off ? off_rest : at_rest;
+      list[item]->push_back(k);
+      const std::string got = impact(e);
+      if (got != (off ? "0" : "0.25")) printf("    item %d %s %s: transtime %s\n", item, what, off ? "off rest" : "at rest", got.c_str());
+      CHECK_EQ(got == (off ? "0" : "0.25"), true);
+    }
+  };
+  keyed(0, "position", {0, 0, 0, 1, 1, 0, 0, 2}, {0, 0, 0, 2, 1, 0, 0, 1});
+  keyed(0, "orientation", {0, 0, 0, 1, 0.5f, 1, 0, 0, 1, 1}, {0, 0, 0, 1, 0, 1, 0, 0, 1, 0.5f});
+  keyed(1, "position", {0, 0.25f, 0, 0, 1, 0, 0, 0}, {0, 0, 0, 0, 1, 0.25f, 0, 0});
+  keyed(1, "orientation", {0, 1, 0, 0, 1, 1, 0, 0, 1, 0}, {0, 0, 0, 1, 0, 1, 1, 0, 0, 1});
+  keyed(2, "position", {0, 0, 0.5f, 0, 1, 0, 0, 0}, {0, 0, 0, 0, 1, 0, 0.5f, 0});
+  keyed(2, "orientation", {0, 0, 0, 1, 0, 1, 0, 0, 1, 1}, {0, 0, 0, 1, 1, 1, 0, 0, 1, 0});
+  keyed(2, "color", {0, 1, 0.5f, 1, 1, 0, 0, 0}, {0, 0, 0, 0, 1, 1, 0.5f, 1});
+  keyed(2, "radius", {0, 4, 1, 0}, {0, 0, 1, 4});
+}
+
+// The duration and the cessation keep 0.25 whatever their first keys - each blends from the animation before it, not the
+// rest - and their keys off rest don't change the impact's: a disc dropping in all three, its impact alone 0; a node, an
+// emitter and a light keyed off rest only there, the impact 0.25.
+TEST(VfxDurationAndCessationAlwaysBlend) {
+  VfxEffect effect = DiscEffect(0.0f, 3.0f);
+  for (const char* anim : {"duration", "cessation"}) {
+    VfxKeys drop;
+    drop.anim = anim;
+    drop.position = {0, 0, 0, 3, 0.5f, 0, 0, 0};
+    drop.alpha = {0, 0, 0.5f, 1};
+    effect.planes[0].keys.push_back(drop);
+  }
+  const std::string model = WriteVfxModel(effect, "n5t");
+  CHECK_EQ(Transtime(model, "impact") == "0", true);
+  CHECK_EQ(Transtime(model, "duration") == "0.25" && Transtime(model, "cessation") == "0.25", true);
+  effect.planes[0].keys.erase(effect.planes[0].keys.begin());  // the impact's drop gone: all three 0.25
+  const std::string later = WriteVfxModel(effect, "n5t");
+  CHECK_EQ(Transtime(later, "impact") == "0.25" && Transtime(later, "duration") == "0.25" && Transtime(later, "cessation") == "0.25",
+           true);
+  // A node's, an emitter's and a light's keys off their rest in the duration and the cessation alone: all three 0.25.
+  VfxEffect items;
+  VfxNode hub;
+  hub.name = "hub";
+  items.nodes.push_back(hub);
+  VfxEmitter spark;
+  spark.name = "spark";
+  items.emitters.push_back(spark);
+  items.lights.emplace_back();
+  for (const char* anim : {"duration", "cessation"}) {
+    VfxKeys k;
+    k.anim = anim;
+    k.position = {0, 0, 0, 2, 1, 0, 0, 0};
+    k.orientation = {0, 1, 0, 0, 1, 1, 0, 0, 1, 0};
+    items.nodes[0].keys.push_back(k);
+    items.emitters[0].keys.push_back(k);
+    k.color = {0, 0, 0, 0, 1, 1, 1, 1};
+    k.radius = {0, 0, 1, 5};
+    items.lights[0].keys.push_back(k);
+  }
+  const std::string keyed = WriteVfxModel(items, "n5t");
+  CHECK_EQ(Transtime(keyed, "impact") == "0.25" && Transtime(keyed, "duration") == "0.25" && Transtime(keyed, "cessation") == "0.25",
+           true);
+}
+
+// The kept drafts (the fixtures and Detect Magic's four): the impact is 0 only for the two whose plane starts off its rest
+// - plane_beat's fade from 0 and plane_moves' (that fade, its drop from 3 m, its turn from none and its growth from 0.2) -
+// the rest 0.25 as before; every duration and cessation 0.25.
+TEST(VfxKeptDraftsBlendUnlessOffRest) {
+  std::vector<std::string> paths;
+  for (const auto& entry : std::filesystem::directory_iterator("tests/data/fixtures")) {
+    if (entry.path().extension() == ".vfx") paths.push_back(entry.path().generic_string());
+  }
+  for (const char* size : {"h", "l", "m", "s"}) paths.push_back(std::string("tools/data/vfx/n5_detmag_") + size + ".vfx");
+  CHECK_EQ(paths.size() >= 8, true);
+  for (const std::string& path : paths) {
+    VfxEffect effect;
+    std::string error;
+    CHECK_EQ(ReadVfxDraft(FixtureText(path.c_str()), &effect, &error), true);
+    const std::string model = WriteVfxModel(effect, "n5t");
+    const bool off = Contains(path, "/plane_beat.vfx") || Contains(path, "/plane_moves.vfx");
+    if (Transtime(model, "impact") != (off ? "0" : "0.25")) printf("    %s: impact transtime %s\n", path.c_str(), Transtime(model, "impact").c_str());
+    CHECK_EQ(Transtime(model, "impact") == (off ? "0" : "0.25"), true);
+    if (effect.duration) CHECK_EQ(Transtime(model, "duration") == "0.25" && Transtime(model, "cessation") == "0.25", true);
+  }
+}

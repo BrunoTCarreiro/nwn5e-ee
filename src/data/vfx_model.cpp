@@ -244,6 +244,124 @@ float LastKeyTime(const VfxEffect& effect, const std::string& anim) {
   return last;
 }
 
+// #39 (M4): a plane's key lists in one animation as the model writes them - of each kind the first list there with a
+// whole row (a draft has one list an animation); nullptr: none of that kind. A plane with none is in no animation.
+struct PlaneKeys {
+  const VfxKeys* move = nullptr;
+  const VfxKeys* turn = nullptr;
+  const VfxKeys* grow = nullptr;
+  const VfxKeys* fade = nullptr;
+  bool Any() const { return move || turn || grow || fade; }
+};
+
+PlaneKeys PlaneKeysIn(const VfxPlane& p, const std::string& anim) {
+  PlaneKeys out;
+  for (const VfxKeys& k : p.keys) {
+    if (k.anim != anim) continue;
+    if (!out.move && k.position.size() >= 4) out.move = &k;
+    if (!out.turn && k.orientation.size() >= 5) out.turn = &k;
+    if (!out.grow && k.scale.size() >= 2) out.grow = &k;
+    if (!out.fade && k.alpha.size() >= 2) out.fade = &k;
+  }
+  return out;
+}
+
+// TT (#39; the owner, 2026-11-18, MBK-1: "the disk in-game still starts at ground level, rises to 3m and then drops
+// down again"). How far an item's first key may be from its rest and still be at rest: 1e-4 - metres of a move or of a
+// light's radius, radians of a turn, or of an alpha, a scale or a colour channel. Far below anything a 0.25 s blend
+// could show (0.1 mm, 0.006 degrees, a ten-thousandth of the alpha); far above the noise a value picks up on its way
+// from the bench to the model (a float's ~1e-7; the draft's %g keeps 6 digits, 1e-5 at most below 10), so a key the
+// bench built at the rest counts as at rest. The binary reader's own tolerance for a key at the geometry's value (a
+// single one within it is no motion, ReadVfxBinaryModel).
+constexpr float kVfxRestTolerance = 1e-4f;
+
+// A turn (axis x y z, angle in radians, as a model writes it) as a unit quaternion (x y z w), in doubles; no axis is
+// no turn.
+void TurnQuaternion(const float* turn, double q[4]) {
+  const double n = std::sqrt(static_cast<double>(turn[0]) * turn[0] + static_cast<double>(turn[1]) * turn[1] +
+                             static_cast<double>(turn[2]) * turn[2]);
+  const double half = 0.5 * turn[3];
+  const double s = n > 1e-12 ? std::sin(half) / n : 0.0;
+  for (int k = 0; k < 3; ++k) q[k] = turn[k] * s;
+  q[3] = n > 1e-12 ? std::cos(half) : 1.0;
+}
+
+// The angle between two turns (radians, 0 to pi), compared as turns, not as their numbers: the same turn written
+// another way - the axis and the angle both negated, an axis not of length 1, a whole turn more, no angle about any
+// axis - is 0. The turn from a to b (a's conjugate times b): its vector part sin(angle / 2) long, its w cos(angle / 2),
+// either sign.
+double TurnBetween(const float* a, const float* b) {
+  double p[4], q[4];
+  TurnQuaternion(a, p);
+  TurnQuaternion(b, q);
+  const double x = p[3] * q[0] - p[0] * q[3] - p[1] * q[2] + p[2] * q[1];
+  const double y = p[3] * q[1] + p[0] * q[2] - p[1] * q[3] - p[2] * q[0];
+  const double z = p[3] * q[2] - p[0] * q[1] + p[1] * q[0] - p[2] * q[3];
+  const double w = p[3] * q[3] + p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
+  return 2.0 * std::atan2(std::sqrt(x * x + y * y + z * z), std::fabs(w));
+}
+
+// A key list's first row (the values after its time, `width` numbers a row) off its rest by more than
+// kVfxRestTolerance in any value; a list without a whole row is written as no keys - not off.
+bool FirstRowOffRest(const std::vector<float>& list, size_t width, const float* rest) {
+  if (list.size() < width) return false;
+  for (size_t c = 1; c < width; ++c) {
+    if (std::fabs(list[c] - rest[c - 1]) > kVfxRestTolerance) return true;
+  }
+  return false;
+}
+
+// The same for a turn (t ax ay az angle a row), compared as a turn.
+bool FirstTurnOffRest(const std::vector<float>& list, const float rest[4]) {
+  return list.size() >= 5 && TurnBetween(&list[1], rest) > kVfxRestTolerance;
+}
+
+// TT: whether an animation starts an item off its rest - the first key of what the model keys there against the item's
+// own value in the geometry: a node's, an emitter's, a light's or a plane's position and orientation (a light's
+// orientation is none: its node's is written 0 0 0 0), a plane's scale (1: as placed) and alpha (its material's), a
+// light's colour and radius. Every key list the model writes of them (a plane's: of each kind the first,
+// PlaneKeysIn); an emitter's birthrate keys are no pose. The game blends an animation in from the pose before it over
+// its transtime (the compiled animation header's f32 at +0x74, after its length at +0x70) - an effect's impact from
+// the rest pose, its geometry's - so a disc keyed from 3 m with its rest on the ground rose from the ground for 0.25 s
+// before it fell (MBK-1). The game's own keyed effect nodes keep their rest at their first key (vim_protevil's
+// OmenEmitter01: rest 0 0 11.11, its first key; vdr_bigby_int's hand meshes; fx_meteor's and fx_rainice's, impacts
+// with transtime 0); of its effects' impacts 282 blend 0.25, 81 start at once (0) and 2 blend 0.15.
+bool StartsOffRest(const VfxEffect& effect, const std::string& anim) {
+  const float none[4] = {0.0f, 0.0f, 0.0f, 0.0f}, as_placed = 1.0f;
+  const auto moves = [&](const std::vector<VfxKeys>& keys, const float position[3], const float orientation[4]) {
+    for (const VfxKeys& k : keys) {
+      if (k.anim == anim && (FirstRowOffRest(k.position, 4, position) || FirstTurnOffRest(k.orientation, orientation))) {
+        return true;
+      }
+    }
+    return false;
+  };
+  for (const VfxNode& n : effect.nodes) {
+    if (moves(n.keys, n.position, n.orientation)) return true;
+  }
+  for (const VfxEmitter& e : effect.emitters) {
+    if (moves(e.keys, e.position, e.orientation)) return true;
+  }
+  for (const VfxLight& l : effect.lights) {
+    if (moves(l.keys, l.position, none)) return true;
+    for (const VfxKeys& k : l.keys) {
+      if (k.anim == anim && (FirstRowOffRest(k.color, 4, l.color) || FirstRowOffRest(k.radius, 2, &l.radius))) {
+        return true;
+      }
+    }
+  }
+  for (const VfxPlane& p : effect.planes) {
+    const PlaneKeys k = PlaneKeysIn(p, anim);
+    if ((k.move && FirstRowOffRest(k.move->position, 4, p.position)) ||
+        (k.turn && FirstTurnOffRest(k.turn->orientation, p.orientation)) ||
+        (k.grow && FirstRowOffRest(k.grow->scale, 2, &as_placed)) ||
+        (k.fade && FirstRowOffRest(k.fade->alpha, 2, &p.alpha))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 }  // namespace
 
 VfxKeys* FindKeys(std::vector<VfxKeys>* list, const std::string& anim, bool create) {
@@ -485,11 +603,15 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
       list_lines("radiuskey", k.radius, 2);
     }
   };
+  // TT: the impact starts on its keys (transtime 0) when an item's first key there is off its rest - else the game blends
+  // 0.25 s from the rest pose into it (a dropped disc rose from the ground first). Every other impact, and every duration
+  // and cessation (each blends from the animation before it), 0.25 as always.
+  const bool impact_off_rest = StartsOffRest(effect, "impact");
   const auto anim = [&](const char* name, float length, bool keys_on, bool keys_off) {
     lines.push_back("");
     lines.push_back(std::string("newanim ") + name + " " + model);
     lines.push_back("  length " + Num(length));
-    lines.push_back("  transtime 0.25");
+    lines.push_back(impact_off_rest && std::string(name) == "impact" ? "  transtime 0" : "  transtime 0.25");
     lines.push_back("  animroot " + model);
     // Explosion emitters burst on the impact's detonate event (the game's own models have it); late bursts on their own.
     if (std::string(name) == "impact") {
@@ -589,26 +711,18 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
     // parent: a mesh beat's move and turn (positionkey, orientationkey, as a node's - M4), its scale (scalekey, controller
     // 36, one value a row, as the game's own vdr_bigby_int keys its hand's - M4) and its fade (alphakey, controller 128, as
     // the game's own effect models key a mesh's). A plane without any is in no animation, as before - every model written
-    // before keeps its bytes. Of each kind the first list in this animation with a whole row (a draft has one list an
-    // animation). Its mesh, scale, timing and tint are the bench's, never written; unlike a light it gets no fade of its
-    // own at the effect's end (its keys say it all).
+    // before keeps its bytes. Of each kind the first list in this animation with a whole row (PlaneKeysIn; a draft has one
+    // list an animation). Its mesh, scale, timing and tint are the bench's, never written; unlike a light it gets no fade
+    // of its own at the effect's end (its keys say it all).
     for (size_t i = 0; i < effect.planes.size(); ++i) {
-      const VfxPlane& p = effect.planes[i];
-      const VfxKeys *move = nullptr, *turn_keys = nullptr, *grow = nullptr, *fade = nullptr;
-      for (const VfxKeys& k : p.keys) {
-        if (k.anim != name) continue;
-        if (!move && k.position.size() >= 4) move = &k;
-        if (!turn_keys && k.orientation.size() >= 5) turn_keys = &k;
-        if (!grow && k.scale.size() >= 2) grow = &k;
-        if (!fade && k.alpha.size() >= 2) fade = &k;
-      }
-      if (!move && !turn_keys && !grow && !fade) continue;
+      const PlaneKeys k = PlaneKeysIn(effect.planes[i], name);
+      if (!k.Any()) continue;
       lines.push_back("node trimesh " + plane_names[i]);
-      lines.push_back("  parent " + plane_parent(p));
-      if (move) list_lines("positionkey", move->position, 4);
-      if (turn_keys) list_lines("orientationkey", turn_keys->orientation, 5);
-      if (grow) list_lines("scalekey", grow->scale, 2);
-      if (fade) list_lines("alphakey", fade->alpha, 2);
+      lines.push_back("  parent " + plane_parent(effect.planes[i]));
+      if (k.move) list_lines("positionkey", k.move->position, 4);
+      if (k.turn) list_lines("orientationkey", k.turn->orientation, 5);
+      if (k.grow) list_lines("scalekey", k.grow->scale, 2);
+      if (k.fade) list_lines("alphakey", k.fade->alpha, 2);
       lines.push_back("endnode");
     }
     lines.push_back(std::string("doneanim ") + name + " " + model);

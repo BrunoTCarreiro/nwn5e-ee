@@ -1899,6 +1899,30 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     for existing effects. Until the install, the game's DLL writes only a beat's alpha keys, so the beat shows unmoved
     in game; an older draft reader skips `_scale` and `tint` without an error. MBK-1 to MBK-3 (the design's rows) wait
     for M5 and the install.
+  - *The impact's blend (TT, 2026-11-18):* the owner, MBK-1 on 0.99.79, after Drop in's first key moved to 0: "the disk
+    in-game still starts at ground level, rises to 3m and then drops down again".
+    - *The blend:* the game blends an animation in from the pose before it over its `transtime` (the compiled
+      animation header's f32 at +0x74, after its length at +0x70) - an effect's impact from the rest pose, its
+      geometry's. WriteVfxModel wrote `transtime 0.25` for every animation, so a disc at rest on the ground, keyed from
+      3 m, rose for 0.25 s before it fell.
+    - *The rule* (vfx_model.cpp's StartsOffRest, one helper): the impact is written `transtime 0` when an item's first
+      impact key is off its rest by more than 1e-4 - a node's, emitter's, light's or plane's position (against its
+      position) or orientation (against its orientation, compared as turns: the angle between them), a plane's scale
+      (against 1) or alpha (against its material's), a light's colour or radius (against its own). Otherwise 0.25, as
+      before. 1e-4 is far below what a blend could show (0.1 mm, 0.006 degrees) and far above a value's noise on its way
+      from the bench; it is the binary reader's own tolerance for a key at the geometry's value. The duration and the
+      cessation keep 0.25: each blends from the animation before it.
+    - *The game's own practice:* its effects' impacts blend 0.25 (282), start at once with 0 (81) or blend 0.15 (2).
+      Its keyed effect nodes keep their rest at their first key: vim_protevil's OmenEmitter01, vdr_bigby_int's hands,
+      and fx_meteor and fx_rainice (both at transtime 0).
+    - *What changes:* only the impact's transtime line, and only for an effect with an off-rest first key. Of the 564
+      drafts kept (the fixtures, Detect Magic's four, the main build's vfxedit and the anim helper's cache), every draft
+      writes the same bytes and 534 write the same model. The other 30 differ by that line alone: plane_beat and
+      plane_moves, the bench's request (Drop in), and 27 library drafts of 25 effects as the bench reads them (24 of
+      the game's and nwn5e's n5_srest). Of the 24, the game already has 0 on 3, 0.15 on 1 and 0.25 on 20: a re-save
+      of one of those 20 now starts on its keys instead of blending.
+    - *For the game:* the next install carries it, because the game's DLL writes the model (the bench writes none).
+      Until then the installed DLL writes 0.25, and MBK-1's disc still rises first.
 
 ## The Mesh card's keys, Breathe and Tint; the sim (2026-11-18, #39; M5)
 
