@@ -436,7 +436,9 @@ TEST(IllusionReactions) {
   // The humanoid: sentient - a hostile one studies it, others ignore it; not sentient - a hostile one attacks it,
   // others flee.
   const ImageKind man = ImageKind::kHumanoid;
-  CHECK_EQ(ReactionToImage(man, true, true, 2, 3) == ImageReaction::kStudy, true);
+  // 0.99.75 (owner, 2026-11-18: "C"): a sentient hostile one sizes it up on sight instead of walking up to study it.
+  CHECK_EQ(ReactionToImage(man, true, true, 2, 3) == ImageReaction::kSizeUp, true);
+  CHECK_EQ(ReactionToImage(man, true, true, 4, 3) == ImageReaction::kSizeUp, true);  // whatever its size
   CHECK_EQ(ReactionToImage(man, true, false, 3, 3) == ImageReaction::kIgnore, true);
   CHECK_EQ(ReactionToImage(man, false, true, 1, 3) == ImageReaction::kAttack, true);  // whatever its size
   CHECK_EQ(ReactionToImage(man, false, false, 4, 3) == ImageReaction::kFlee, true);
@@ -464,11 +466,12 @@ TEST(IllusionReactions) {
   CHECK_EQ(ReactionToImage(corpse, false, false, 3, 0) == ImageReaction::kIgnore, true);
   CHECK_EQ(ReactionToImage(ImageKind::kNone, true, true, 3, 3) == ImageReaction::kIgnore, true);
   // After a study (Q4 A): seen through, it vanishes - a hostile one searches, others go back; fooled, one flees the
-  // leopard again, else goes back.
+  // leopard again, a hostile one charges the humanoid (0.99.75, C), else goes back.
   CHECK_EQ(AfterStudyOf(man, true, true) == AfterStudy::kVanishThenSearch, true);
   CHECK_EQ(AfterStudyOf(cat, true, false) == AfterStudy::kVanishThenGoBack, true);
   CHECK_EQ(AfterStudyOf(cat, false, true) == AfterStudy::kFleeAgain, true);
-  CHECK_EQ(AfterStudyOf(man, false, true) == AfterStudy::kGoBack, true);
+  CHECK_EQ(AfterStudyOf(man, false, true) == AfterStudy::kCharge, true);
+  CHECK_EQ(AfterStudyOf(man, false, false) == AfterStudy::kGoBack, true);  // not hostile: no charge
   CHECK_EQ(AfterStudyOf(corpse, false, true) == AfterStudy::kGoBack, true);  // fooled: a wary look round, back
   // The image gone (seen through or hit): a sentient hostile one searches for the caster.
   CHECK_EQ(SearchesAfterVanish(true, true), true);
@@ -717,4 +720,25 @@ TEST(MagicMarkModels) {
   const std::vector<bool> all(12, true);
   CHECK_EQ(FreeMarkSymbols(all), 12);
   CHECK_EQ(FreeMarkSymbol(5, all), 5);
+}
+
+// Breaks caught (#152, the owner's ordering): a creature hunting a hider it can't see counted as fighting (the image
+// ignored, as the owner's orc did); an investigation not taken over; a reaction under way replaced by a new illusion;
+// a fight with a foe it sees distracted; a reaction ending while its creature only hunts an unseen hider.
+TEST(IllusionAlertnessOrder) {
+  CHECK_EQ(AlertnessOf(false, false, false, false) == Alertness::kCalm, true);
+  CHECK_EQ(AlertnessOf(false, false, true, false) == Alertness::kInvestigating, true);   // a heard noise's look
+  CHECK_EQ(AlertnessOf(true, true, false, false) == Alertness::kInvestigating, true);    // #133: in combat, hunting
+  CHECK_EQ(AlertnessOf(false, true, false, false) == Alertness::kInvestigating, true);   // its hunt just cleared
+  CHECK_EQ(AlertnessOf(false, false, true, true) == Alertness::kReacting, true);         // reacting outranks a look
+  CHECK_EQ(AlertnessOf(true, true, false, true) == Alertness::kReacting, true);          // reacting, the AI hunting
+  CHECK_EQ(AlertnessOf(true, false, false, true) == Alertness::kFighting, true);         // a foe it sees
+  CHECK_EQ(AlertnessOf(true, false, true, false) == Alertness::kFighting, true);
+  CHECK_EQ(IllusionTakesOver(Alertness::kCalm), true);
+  CHECK_EQ(IllusionTakesOver(Alertness::kInvestigating), true);
+  CHECK_EQ(IllusionTakesOver(Alertness::kReacting), false);
+  CHECK_EQ(IllusionTakesOver(Alertness::kFighting), false);
+  CHECK_EQ(ReactionStops(Alertness::kFighting), true);
+  CHECK_EQ(ReactionStops(Alertness::kReacting), false);
+  CHECK_EQ(ReactionStops(Alertness::kInvestigating), false);
 }

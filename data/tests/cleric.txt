@@ -13,5 +13,7 @@ class = cleric
 level = 3
 abilities = 14 10 14 10 16 8
 items = nw_wdbqs001 equip
+spells = Sacred Flame, Guidance, Light
+spells = Bless, Bane, Cure Wounds, Guiding Bolt, Healing Word, Shield of Faith
 note = prepare Divine Favor in the spellbook, rest, cast it on yourself, then hit something
 note = needs every_hit_crits=1 in nwn5e.ini; judge by the totals - the breakdown still prints (Critical x2)

@@ -106,6 +106,7 @@
 #include "rules/skills.h"
 #include "saves.h"
 #include "script_hooks.h"
+#include "player_text.h"
 #include "rules/weapons.h"
 #include "data/anim_recipe.h"
 
@@ -235,7 +236,7 @@ bool IsPlayerCreature(void* creature) {
 }
 
 void Tell(void* creature, const std::string& line) {
-  if (IsPlayerCreature(creature)) TellPlayer(IdOf(creature), "nwn5e: " + line);
+  if (IsPlayerCreature(creature)) TellPlayer(IdOf(creature), PlayerText("chat.line", {{"line", std::string(line)}}));
 }
 
 // The level a Rage runs at: any raging creature's Barbarian level (spell 307 is everyone's).
@@ -351,7 +352,7 @@ void EndRage(void* creature, const char* why) {
             rules::kSpellRage, kRageTag);
   RunScriptChunk(script, id);
   Log("barbarian: 0x%08X Rage ends after %llu s - %s", id, seconds, why);
-  Tell(creature, std::string("your Rage ends - ") + why + ".");
+  Tell(creature, PlayerText("barbarian.your_rage_ends", {{"why", std::string(why)}}));
 }
 
 // What ends a Rage now, or nullptr.
@@ -553,7 +554,7 @@ bool RageGuard(void* creature, int feat) {
   if (!rules::IsRageFeat(feat)) return true;
   if (RageOf(creature)) {
     if (HasRageIcon(creature)) {
-      Tell(creature, "you are already raging.");
+      Tell(creature, PlayerText("barbarian.you_are_already_raging"));
       static int logged = 0;  // a henchman's refusal is told to no one (0.50.2)
       if (!IsPlayerCreature(creature) && logged < 40 && ++logged) {
         Log("barbarian: 0x%08X Rage refused - already raging (nothing spent)", IdOf(creature));
@@ -563,7 +564,7 @@ bool RageGuard(void* creature, int feat) {
     g_raging.erase(IdOf(creature));  // its effects are gone (dispelled): a new Rage may start
   }
   if (InHeavyArmour(creature) && IsPlayerCreature(creature)) {
-    Tell(creature, "you can't rage in Heavy armour.");
+    Tell(creature, PlayerText("barbarian.you_can_t_rage_in"));
     return false;
   }
   return true;
@@ -593,7 +594,7 @@ int SpellUserType(uint32_t spell) {
 bool RageRefusesSpell(void* creature, uint32_t spell, uint32_t) {
   if (!creature || !RageOf(creature) || SpellUserType(spell) != kUserTypeSpell) return false;
   Log("barbarian: 0x%08X raging - spell %u refused", IdOf(creature), spell);
-  Tell(creature, "you can't cast spells while raging.");
+  Tell(creature, PlayerText("barbarian.you_can_t_cast_spells"));
   return true;
 }
 
@@ -613,7 +614,7 @@ int AddItemCastSpellActions(void* creature, uint32_t item, int property, int sub
                             uint32_t target, int area_target, int flag) {
   if (creature && RageOf(creature) && CastsSpells(item)) {
     Log("barbarian: 0x%08X raging - item 0x%08X (casts a spell) refused", IdOf(creature), item);
-    Tell(creature, "you can't cast spells while raging - scrolls, wands, rods and staffs included.");
+    Tell(creature, PlayerText("barbarian.you_can_t_cast_spells_2"));
     return 0;
   }
   return g_add_item_cast_spell_actions(creature, item, property, sub_property, location, target, area_target, flag);
@@ -656,19 +657,20 @@ void RageLongRest(void* stats) {
 std::vector<std::string> RageCommand(void* creature, const std::string& args) {
   void* stats = StatsOf(creature);
   const int level = BarbarianLevelOf(stats);
-  if (level < 1) return {"nwn5e: Rage - you have no Barbarian levels (or class_features isn't faithful)."};
+  if (level < 1) return {PlayerText("barbarian.rage_you_have_no_barbarian")};
   EnsureRecords(creature);
   if (args == "reset") {
     SetSpentFeatUses(creature, kVarRageSpent, 0);
     ClearRecord(creature, kVarRelentless);
     ClearRecord(creature, kVarPersistentUsed);
-    return {"nwn5e: Rage - every use back, Relentless Rage's DC 10, Persistent Rage ready (a test command)."};
+    return {PlayerText("barbarian.rage_every_use_back_relentless")};
   }
   const int total = rules::RageUses2024(level);
   const int left = std::max(0, total - SpentFeatUses(creature, kVarRageSpent));
-  std::string line = "nwn5e: Rage - " + std::to_string(left) + " of " + std::to_string(total) +
-                     " uses left (Barbarian " + std::to_string(level) + "), Rage Damage +" +
-                     std::to_string(rules::RageDamage2024(level));
+  std::string line = PlayerText("barbarian.rage_of_uses_left_barbarian",
+                                {{"left", std::to_string(left)}, {"total", std::to_string(total)},
+                                 {"level", std::to_string(level)},
+                                 {"rage_damage2024", std::to_string(rules::RageDamage2024(level))}});
   if (const Rage* rage = RageOf(creature)) {
     const uint64_t now = GameMs();
     line += "; raging for " + std::to_string((now - rage->started) / 1000) + " s";
@@ -813,10 +815,12 @@ int RelentlessRage(void* creature) {
   const int hit_points = rules::RelentlessRageHitPoints(rage->level);
   Log("barbarian: 0x%08X Relentless Rage - Constitution save %d %+d = %d vs DC %d: %s", IdOf(creature), d20, bonus,
       d20 + bonus, dc, saved ? "back up" : "down");
-  Tell(creature, "Relentless Rage - Constitution save " + std::to_string(d20) + (bonus < 0 ? " - " : " + ") +
-                     std::to_string(bonus < 0 ? -bonus : bonus) + " = " + std::to_string(d20 + bonus) + " vs DC " +
-                     std::to_string(dc) +
-                     (saved ? ": you stay up with " + std::to_string(hit_points) + " HP." : ": a failure, you drop."));
+  const char* sign = bonus < 0 ? "-" : "+";
+  Tell(creature, PlayerText(saved ? "barbarian.relentless_saved" : "barbarian.relentless_failed",
+                            {{"d20", std::to_string(d20)}, {"sign", sign},
+                             {"bonus", std::to_string(bonus < 0 ? -bonus : bonus)},
+                             {"total", std::to_string(d20 + bonus)}, {"dc", std::to_string(dc)},
+                             {"hp", std::to_string(hit_points)}}));
   return saved ? hit_points : 0;
 }
 
@@ -830,7 +834,7 @@ void PersistentRageOnInitiative(void* creature) {
   SetSpentFeatUses(creature, kVarRageSpent, 0);
   SetRecord(creature, kVarPersistentUsed, 1);
   Log("barbarian: 0x%08X Persistent Rage - every Rage use back", IdOf(creature));
-  Tell(creature, "Persistent Rage - every Rage use comes back (once per Long Rest).");
+  Tell(creature, PlayerText("barbarian.persistent_rage_every_rage_use"));
 }
 
 // --- BZ4 Intimidating Presence (Berserker 14; owner's decision A) ------------------------
@@ -882,7 +886,7 @@ void UseIntimidatingPresence(uint32_t self) {
   if (!stats) return;
   const int level = BarbarianLevelOf(stats);
   if (!Faithful() || !rules::HasIntimidatingPresence(level)) {
-    Tell(creature, "Intimidating Presence comes at Barbarian 14 (Path of the Berserker).");
+    Tell(creature, PlayerText("barbarian.intimidating_presence_comes_at_barbarian"));
     return;
   }
   EnsureRecords(creature);
@@ -890,7 +894,7 @@ void UseIntimidatingPresence(uint32_t self) {
   if (engine::GetLocalInt(creature, kVarPresenceUsed) != 0) {
     const int spent = SpentFeatUses(creature, kVarRageSpent);
     if (spent >= rules::RageUses2024(level)) {
-      Tell(creature, "Intimidating Presence - used since your last Long Rest: it takes a Rage use, and none is left.");
+      Tell(creature, PlayerText("barbarian.intimidating_presence_used_since_your"));
       return;
     }
     SetSpentFeatUses(creature, kVarRageSpent, spent + 1);
@@ -923,9 +927,7 @@ void UseIntimidatingPresence(uint32_t self) {
   Log("barbarian: 0x%08X Intimidating Presence (%s): DC %d Wisdom save - %zu enemies within 30 ft, %d frightened%s",
       self, cost.c_str(), dc, search.targets.size(), frightened,
       immune ? (", " + std::to_string(immune) + " immune").c_str() : "");
-  Tell(creature, "Intimidating Presence (" + cost + "): DC " + std::to_string(dc) + " Wisdom save - " +
-                     std::to_string(frightened) + " of " + std::to_string(search.targets.size()) +
-                     " enemies within 30 ft frightened for a minute (each saves again every round).");
+  Tell(creature, PlayerText("barbarian.intimidating_presence_dc_wisdom_save", {{"cost", std::string(cost)}, {"dc", std::string(std::to_string(dc))}, {"frightened", std::string(std::to_string(frightened))}, {"size", std::string(std::to_string(search.targets.size()))}}));
 }
 
 void IntimidatingPresenceScript(uint32_t self) { UseIntimidatingPresence(self); }
@@ -1049,7 +1051,7 @@ void RetaliationOnDamage(uint32_t creator, void* target, int damage) {
   SetField<int32_t>(target, kCreatureOpportunityMade, 1);
   Log("barbarian: 0x%08X Retaliation - hurt by 0x%08X (%d), strikes back (its reaction)%s", id, creator, damage,
       idle ? " - it wasn't attacking: it turns on it" : "");
-  Tell(target, "Retaliation - you strike back (your reaction this round).");
+  Tell(target, PlayerText("barbarian.retaliation_you_strike_back_your"));
 }
 
 // A henchman with Rage rages as a fight starts (0.46.1; owner's BS13 test - the OC's Daelan

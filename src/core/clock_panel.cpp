@@ -60,6 +60,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "records.h"
+#include "player_text.h"
 #include "rules/hud_clock.h"
 
 namespace {
@@ -323,13 +324,9 @@ void ClockTick() {
 
 // "!clock right <n>" / "!clock bottom <n>" (GUI units, 0..2000) / "!clock where": the spot, while it's fitted.
 std::string Where() {
-  char text[200];
-  char edge[32] = "off";
-  if (g_edge_on) sprintf_s(edge, "%d", g_edge_margin);
-  sprintf_s(text, "nwn5e: the clock - right %d, bottom %d GUI units, edge %s (!clock right <n> / !clock bottom <n> "
-            "moves it, !clock edge <n> / off; tell the game session what fits).", g_offsets.from_right,
-            g_offsets.from_bottom, edge);
-  return text;
+  const std::string edge = g_edge_on ? std::to_string(g_edge_margin) : PlayerText("chat.off");
+  return PlayerText("clock_panel.where", {{"right", std::to_string(g_offsets.from_right)},
+                                         {"bottom", std::to_string(g_offsets.from_bottom)}, {"edge", edge}});
 }
 
 std::vector<std::string> ClockCommand(void* creature, const std::string& args) {
@@ -345,7 +342,7 @@ std::vector<std::string> ClockCommand(void* creature, const std::string& args) {
       g_edge_on = false;
     } else {
       const int value = atoi(rest.c_str());
-      if (rest.empty() || value < -100 || value > 100) return {"nwn5e: !clock edge <-100..100> or !clock edge off"};
+      if (rest.empty() || value < -100 || value > 100) return {PlayerText("clock_panel.clock_edge_100_100_or")};
       g_edge_on = true;
       g_edge_margin = value;
     }
@@ -355,7 +352,7 @@ std::vector<std::string> ClockCommand(void* creature, const std::string& args) {
   }
   if (what == "right" || what == "bottom") {
     const int value = space == std::string::npos ? -1 : atoi(word.substr(space + 1).c_str());
-    if (value < 0 || value > 2000) return {"nwn5e: !clock right <0..2000> or !clock bottom <0..2000> (GUI units)"};
+    if (value < 0 || value > 2000) return {PlayerText("clock_panel.clock_right_0_2000_or")};
     (what == "right" ? g_offsets.from_right : g_offsets.from_bottom) = value;
     Log("hud: 0x%08X the clock moved: right %d, bottom %d", id, g_offsets.from_right, g_offsets.from_bottom);
     return {Where()};
@@ -365,8 +362,8 @@ std::vector<std::string> ClockCommand(void* creature, const std::string& args) {
   SetRecord(creature, kVarOff, off ? 1 : 0);
   g_players[id].next = 0;
   Log("hud: 0x%08X the clock turned %s", id, off ? "off" : "on");
-  return {off ? "nwn5e: the clock is off (!clock turns it back on)."
-              : "nwn5e: the clock is on - the game time over the compass (!clock turns it off)."};
+  return {off ? PlayerText("clock_panel.the_clock_is_off_clock")
+              : PlayerText("clock_panel.the_clock_is_on_the")};
 }
 
 }  // namespace

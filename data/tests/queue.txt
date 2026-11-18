@@ -15,4 +15,6 @@ level = 5
 abilities = 14 10 14 10 16 8
 items = nw_wdbqs001 equip, nw_it_mpotion001 x5
 switches = attack_trace=1, attacks_per_round=3
-note = prepare Bane, Bless and Cure Wounds in the spellbook and rest; !spawn nw_orcb (twice for AQ-6)
+spells = Sacred Flame, Guidance, Light, Thaumaturgy
+spells = Bane, Bless, Cure Wounds, Guiding Bolt, Healing Word, Inflict Wounds, Shield of Faith, Sanctuary, Command
+note = Bane, Bless and Cure Wounds are prepared; !spawn nw_orcb (twice for AQ-6)

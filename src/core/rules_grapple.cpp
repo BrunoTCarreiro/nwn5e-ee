@@ -72,6 +72,7 @@
 #include "rules/grapple.h"
 #include "rules/skills.h"
 #include "unarmed.h"
+#include "player_text.h"
 
 namespace {
 
@@ -306,12 +307,11 @@ int GrappleStart(void* creature, uint32_t target) {
       EndGrapple(id, "Grapple: you let go of ", "Grapple: you are free of ", "let go");
       return 1;
     }
-    TellUnarmed(creature, "nwn5e: Grapple - you are already grappling a creature (one at a time). Use Grapple on it "
-                          "again to let go first.");
+    TellUnarmed(creature, PlayerText("grapple.grapple_you_are_already_grappling"));
     return 0;
   }
   if (!HandFree(creature)) {
-    TellUnarmed(creature, "nwn5e: Grapple - you need a free hand: nothing in your off hand and no two-handed weapon.");
+    TellUnarmed(creature, PlayerText("grapple.grapple_you_need_a_free"));
     return 0;
   }
   return -1;
@@ -320,27 +320,27 @@ int GrappleStart(void* creature, uint32_t target) {
 void ResolveGrapple(void* attacker, void* target) {
   void* creature = CreatureById(IdOf(target));
   if (!creature) {
-    TellUnarmed(attacker, "nwn5e: Grapple - only a creature can be grappled.");
+    TellUnarmed(attacker, PlayerText("grapple.grapple_only_a_creature_can"));
     return;
   }
   const uint32_t attacker_id = IdOf(attacker);
   const uint32_t target_id = IdOf(creature);
   if (ByGrappler(attacker_id)) {
-    TellUnarmed(attacker, "nwn5e: Grapple - you are already grappling a creature.");
+    TellUnarmed(attacker, PlayerText("grapple.grapple_you_are_already_grappling_2"));
     return;
   }
   if (ByTarget(target_id) || ByGrappler(target_id)) {
-    TellUnarmed(attacker, "nwn5e: Grapple - it is already in a grapple.");
+    TellUnarmed(attacker, PlayerText("grapple.grapple_it_is_already_in"));
     return;
   }
   if (!HandFree(attacker)) {
-    TellUnarmed(attacker, "nwn5e: Grapple - you need a free hand: nothing in your off hand and no two-handed weapon.");
+    TellUnarmed(attacker, PlayerText("grapple.grapple_you_need_a_free"));
     return;
   }
   const int grappler_size = Field<int32_t>(attacker, ee::kCreatureSize);
   const int target_size = Field<int32_t>(creature, ee::kCreatureSize);
   if (!rules::GrappleSizeAllowed(grappler_size, target_size)) {
-    TellUnarmed(attacker, "nwn5e: Grapple - too big to grapple (at most one size larger than you).");
+    TellUnarmed(attacker, PlayerText("grapple.grapple_too_big_to_grapple"));
     if (LogSlot()) Log("grapple: 0x%08X on 0x%08X: too big (%d vs %d)", attacker_id, target_id, target_size,
                        grappler_size);
     return;
@@ -371,7 +371,7 @@ void ResolveGrapple(void* attacker, void* target) {
 std::vector<std::string> GrappleCommand(void* creature, const std::string& args) {
   const uint32_t id = IdOf(creature);
   if (args.find("release") != std::string::npos || args.find("let go") != std::string::npos) {
-    if (!ByGrappler(id)) return {"nwn5e: !grapple release - you aren't grappling anything."};
+    if (!ByGrappler(id)) return {PlayerText("grapple.grapple_release_you_aren_t")};
     EndGrapple(id, "Grapple: you let go of ", "Grapple: you are free of ", "let go (!grapple release)");
     return {};
   }
@@ -381,9 +381,9 @@ std::vector<std::string> GrappleCommand(void* creature, const std::string& args)
     return {};
   }
   const uint32_t target = Field<uint32_t>(creature, ee::kCreatureAttackTarget);
-  if (!CreatureById(target)) return {"nwn5e: !grapple: attack a creature first - or use Grapple on the radial."};
+  if (!CreatureById(target)) return {PlayerText("grapple.grapple_attack_a_creature_first")};
   static const auto use_feat = reinterpret_cast<UseFeatFn>(EngineExport(ee::kUseFeat));  // through the hook
-  if (!use_feat) return {"nwn5e: !grapple: no UseFeat in this game build."};
+  if (!use_feat) return {PlayerText("grapple.grapple_no_usefeat_in_this")};
   Vector3 nowhere{0.0f, 0.0f, 0.0f};
   use_feat(creature, static_cast<uint16_t>(rules::kFeatGrapple), 0, target, ee::kObjectInvalid, &nowhere);
   return {};

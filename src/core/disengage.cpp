@@ -26,6 +26,7 @@
 #include "reactions.h"
 #include "script_hooks.h"
 #include "staple_actions.h"
+#include "player_text.h"
 
 namespace {
 
@@ -48,7 +49,7 @@ void StartDisengage(uint32_t self) {
   StopDefaultAttack(creature, "it Disengaged");
   Log("actions: 0x%08X Disengage - moving provokes no opportunity attacks until its next round", self);
   if (IsPlayer(creature)) {
-    TellPlayer(self, "nwn5e: Disengage - until your next round, moving away provokes no opportunity attacks.");
+    TellPlayer(self, PlayerText("disengage.disengage_until_your_next_round"));
   }
 }
 
@@ -61,7 +62,7 @@ void StartFreeMove(uint32_t self, const char* why) {
   g_until[self] = GameMs() + kDisengageMs;
   Log("actions: 0x%08X %s - moving provokes no opportunity attacks this round", self, why);
   if (IsPlayer(creature)) {
-    TellPlayer(self, std::string("nwn5e: ") + why + " - this round, moving provokes no opportunity attacks.");
+    TellPlayer(self, PlayerText("disengage.this_round_moving_provokes_no", {{"why", std::string(why)}}));
   }
 }
 

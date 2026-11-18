@@ -43,6 +43,11 @@ TEST(FindFamiliarForms) {
   CHECK_EQ(FamiliarStatsOf(FamiliarForm::kCat).hit_points, 2);
   CHECK_EQ(FamiliarStatsOf(FamiliarForm::kCat).appearance, 203);  // the cougar, shrunk
   CHECK_EQ(FamiliarStatsOf(FamiliarForm::kCat).scale < 1.0f, true);
+  // 0.99.65 (owner, 2026-11-17: "cat should be smaller", "lizard should be smaller"; on 0.99.48: "very small"):
+  // between 0.99.48's and 0.99.49's
+  CHECK_EQ(FamiliarStatsOf(FamiliarForm::kCat).scale > 0.35f && FamiliarStatsOf(FamiliarForm::kCat).scale < 0.5f, true);
+  CHECK_EQ(FamiliarStatsOf(FamiliarForm::kLizard).scale > 0.15f && FamiliarStatsOf(FamiliarForm::kLizard).scale < 0.35f,
+           true);
   CHECK_EQ(FamiliarStatsOf(FamiliarForm::kRat).scale < 1.0f, true);  // 0.99.49: "Rat is too big"
   CHECK_EQ(FamiliarStatsOf(FamiliarForm::kSpider).scale > FamiliarStatsOf(FamiliarForm::kLizard).scale - 0.1f, true);
   CHECK_EQ(FamiliarStatsOf(FamiliarForm::kLizard).armor_class, 10);
@@ -102,4 +107,21 @@ TEST(FindFamiliarTouchAndRows) {
   CHECK_EQ(ChoiceOptionFeat(kFamiliarRecall), kFeatFamiliarRecall);
   CHECK_EQ(IsNoSlotOption(kFamiliarDismiss) && IsNoSlotOption(kFamiliarRecall), true);
   CHECK_EQ(Spell2024Of(kFindFamiliar) != nullptr && Spell2024Of(kFindFamiliar)->ritual, true);
+}
+
+TEST(FindFamiliarOrders) {  // 0.99.62, L4-39: only its dialog, Stand your ground and Follow me
+  CHECK_EQ(FamiliarOrderOf(-1) == FamiliarOrder::kTalk, true);
+  CHECK_EQ(FamiliarOrderOf(-2) == FamiliarOrder::kStay, true);
+  CHECK_EQ(FamiliarOrderOf(-5) == FamiliarOrder::kFollow, true);
+  CHECK_EQ(FamiliarOrderOf(-3) == FamiliarOrder::kNone, true);   // attack the nearest
+  CHECK_EQ(FamiliarOrderOf(-6) == FamiliarOrder::kNone, true);   // guard me
+  CHECK_EQ(FamiliarOrderOf(-19) == FamiliarOrder::kNone, true);  // inventory
+  CHECK_EQ(FamiliarOrderOf(0) == FamiliarOrder::kNone, true);
+  CHECK_EQ(FamiliarOrderOf(1) == FamiliarOrder::kNone, true);    // a shout
+}
+
+TEST(FindFamiliarRecast) {  // 0.99.65, L4-42 (owner: "go with A")
+  CHECK_EQ(FamiliarCastOutcome(false, false) == FamiliarCast::kSummon, true);
+  CHECK_EQ(FamiliarCastOutcome(true, false) == FamiliarCast::kNewForm, true);
+  CHECK_EQ(FamiliarCastOutcome(false, true) == FamiliarCast::kNewFormBack, true);  // away: it comes back
 }

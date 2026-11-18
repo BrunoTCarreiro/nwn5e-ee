@@ -36,6 +36,7 @@
 #include "item_use.h"
 #include "log.h"
 #include "skill_rank.h"
+#include "player_text.h"
 #include "rules/class_features.h"
 
 int ReliableTalentRoll(void* creature, int nwn_skill, int d20);  // rules_skills.cpp
@@ -63,7 +64,7 @@ int RogueLevelOf(void* creature) {
 
 void Tell(void* creature, const std::string& line) {
   void* stats = creature ? StatsOf(creature) : nullptr;
-  if (stats && ReadCreatureFacts(stats).is_player) TellPlayer(IdOf(creature), "nwn5e: " + line);
+  if (stats && ReadCreatureFacts(stats).is_player) TellPlayer(IdOf(creature), PlayerText("chat.line", {{"line", std::string(line)}}));
 }
 
 // --- T4 Use Magic Device -------------------------------------------------------------
@@ -126,8 +127,7 @@ bool ScrollGuard(void* creature, uint32_t item_id, void* item) {
   if (!rules::ScrollNeedsArcanaCheck(level)) {
     if (LogSlot()) Log("thief: 0x%08X Use Magic Device - reads scroll 0x%08X (spell level %d: no check)", id, item_id,
                        level);
-    Tell(creature, "Use Magic Device: you read the scroll (a spell of level " + std::to_string(level < 0 ? 0 : level) +
-                       ": no check).");
+    Tell(creature, PlayerText("thief.use_magic_device_you_read", {{"level", std::string(std::to_string(level < 0 ? 0 : level))}}));
     return true;
   }
   void* stats = StatsOf(creature);
@@ -142,8 +142,7 @@ bool ScrollGuard(void* creature, uint32_t item_id, void* item) {
             dc);
   if (LogSlot()) Log("thief: 0x%08X Use Magic Device - scroll 0x%08X, spell level %d: %s - %s", id, item_id, level,
                      roll, success ? "read" : "it crumbles");
-  Tell(creature, std::string("Use Magic Device: ") + roll +
-                     (success ? " - you read the scroll." : " - the scroll crumbles to dust in your hands."));
+  Tell(creature, PlayerText(success ? "thief.umd_read" : "thief.umd_crumbles", {{"roll", roll}}));
   if (success) return true;
   Crumble(id, item_id);
   return false;

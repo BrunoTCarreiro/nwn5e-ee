@@ -174,6 +174,7 @@
 #include "saves.h"
 #include "script_hooks.h"
 #include "staple_actions.h"
+#include "player_text.h"
 #include "rules/class_features.h"
 #include "rules/nwn_conversion.h"
 #include "rules/weapons.h"
@@ -469,7 +470,7 @@ bool IsPlayer(void* creature) {
 }
 
 void Tell(void* creature, const std::string& line) {
-  if (IsPlayer(creature)) TellPlayer(IdOf(creature), "nwn5e: " + line);
+  if (IsPlayer(creature)) TellPlayer(IdOf(creature), PlayerText("chat.line", {{"line", std::string(line)}}));
 }
 
 bool Until(const std::unordered_map<uint32_t, uint64_t>& map, uint32_t id) {
@@ -503,7 +504,7 @@ bool FocusUsesSpend(void* stats, int feat, uintptr_t caller) {
   const uint32_t id = IdOf(creature);
   if (!data || !rules::MasteryAttackHit(data[ee::kAttackResult])) {
     Log("monk: 0x%08X Stunning Strike missed - no Focus point spent", id);
-    Tell(creature, "Stunning Strike missed - no Focus point spent.");
+    Tell(creature, PlayerText("monk.stunning_strike_missed_no_focus"));
     return false;
   }
   g_pending_stun = PendingStun{id, Field<uint32_t>(creature, ee::kCreatureAttackTarget), FocusDcOf(creature),
@@ -576,13 +577,13 @@ bool StunningStrikeGuard(void* creature, int feat) {
   const int level = MonkLevelOf(StatsOf(creature));
   if (level <= 0) return true;
   if (MartialArtsLevel(creature) <= 0) {
-    Tell(creature, "Stunning Strike needs an Unarmed Strike or a Monk weapon (no armour, no shield).");
+    Tell(creature, PlayerText("monk.stunning_strike_needs_an_unarmed"));
     return false;
   }
   const uint32_t id = IdOf(creature);
   const auto last = g_stun_round.find(id);
   if (g_rounds_counted && last != g_stun_round.end() && last->second == CombatRoundsEnded(id)) {
-    Tell(creature, "Stunning Strike - once a turn.");
+    Tell(creature, PlayerText("monk.stunning_strike_once_a_turn"));
     return false;
   }
   if (g_armed_check_return) g_armed_ok_inventory = Field<void*>(creature, ee::kCreatureInventory);  // a Monk weapon
@@ -630,7 +631,7 @@ void StepOfTheWindScript(uint32_t self) {
   g_disengaged[self] = GameMs() + kRoundMs;
   ApplyEffectAs(self, self, "DURATION_TYPE_TEMPORARY", "EffectMovementSpeedIncrease(100)", 6.0f, 0.0f);
   Log("monk: 0x%08X Step of the Wind", self);
-  Tell(creature, "Step of the Wind - you Disengage and Dash: twice as fast this round, no opportunity attacks.");
+  Tell(creature, PlayerText("monk.step_of_the_wind_you"));
 }
 
 // #55 (the owner's 5A): Patient Defense's and Step of the Wind's free uses - the Disengage / Dash action as a Bonus
@@ -644,7 +645,7 @@ void SuperiorDefenseScript(uint32_t self) {
   if (!creature || !rules::HasSuperiorDefense(MonkLevelOf(StatsOf(creature)))) return;
   g_superior[self] = GameMs() + 60000;
   Log("monk: 0x%08X Superior Defense for a minute", self);
-  Tell(creature, "Superior Defense - Resistance to every damage but Force for a minute (Incapacitated ends it).");
+  Tell(creature, PlayerText("monk.superior_defense_resistance_to_every"));
 }
 
 uint32_t SuperiorDefenseResistance(void* object) {
@@ -679,7 +680,7 @@ bool FocusHudPool(void* creature, rules::HudPool* pool) {
 // back with Uncanny Metabolism ready (and the next initiative a new fight).
 std::vector<std::string> FocusCommand(void* creature, const std::string& args) {
   const int level = MonkLevelOf(StatsOf(creature));
-  if (rules::FocusPoints(level) <= 0) return {"nwn5e: !focus - a Monk's Focus points (Monk 2+, class_features faithful)."};
+  if (rules::FocusPoints(level) <= 0) return {PlayerText("monk.focus_a_monk_s_focus")};
   EnsureRecords(creature);
   if (g_config.debug_test_commands && !args.empty()) {
     char word[16] = {};
@@ -693,12 +694,13 @@ std::vector<std::string> FocusCommand(void* creature, const std::string& args) {
       SetRecord(creature, kVarMetabolismUsed, 0);
       g_initiative.erase(IdOf(creature));
     } else {
-      return {"nwn5e: !focus [left <n> | reset]"};
+      return {PlayerText("monk.focus_left_n_reset")};
     }
   }
-  std::string line = "nwn5e: Focus " + std::to_string(FocusLeft(creature)) + " of " +
-                     std::to_string(rules::FocusPoints(level)) + " points, DC " + std::to_string(FocusDcOf(creature)) +
-                     ". Flurry of Blows 1 a round in its mode; Patient Defense, Step of the Wind 1";
+  std::string line = PlayerText("monk.focus_of_points_dc_flurry",
+                                {{"focus_left", std::to_string(FocusLeft(creature))},
+                                 {"focus_points", std::to_string(rules::FocusPoints(level))},
+                                 {"focus_dc", std::to_string(FocusDcOf(creature))}});
   if (rules::HasStunningStrike(level)) line += "; Stunning Strike 1 (none on a miss)";
   if (rules::HasDisciplinedSurvivor(level)) line += "; a failed save rolled again 1";
   if (rules::HasSuperiorDefense(level)) line += "; Superior Defense 3";
@@ -737,21 +739,21 @@ void StunningStrikeSaveResult(void* target, uint32_t versus, int result) {
   }
   if (result == 0) {
     Log("monk: 0x%08X fails the Stunning Strike save - Stunned until 0x%08X's next round", id, versus);
-    Tell(monk, "Stunning Strike - it fails its save: Stunned until your next round.");
+    Tell(monk, PlayerText("monk.stunning_strike_it_fails_its"));
     return;
   }
   // A success: speed halved and the next attack roll against it has Advantage, until the Monk's next round.
   ApplyEffectAs(versus, id, "DURATION_TYPE_TEMPORARY", "EffectMovementSpeedDecrease(50)", 6.0f, 0.0f);
   g_stun_marks[id] = GameMs() + kRoundMs;
   Log("monk: 0x%08X saves against the Stunning Strike - half speed, the next attack on it has Advantage", id);
-  Tell(monk, "Stunning Strike - it saves: half speed, and the next attack on it has Advantage.");
+  Tell(monk, PlayerText("monk.stunning_strike_it_saves_half"));
 }
 
 // M13 Disciplined Survivor (rules_save_roll.cpp, after Indomitable): a failed save rolled again for a point.
 bool DisciplinedSurvivorReroll(void* creature) {
   if (!creature || !rules::HasDisciplinedSurvivor(MonkLevelOf(StatsOf(creature)))) return false;
   if (!SpendFocus(creature, 1, "Disciplined Survivor: a failed save rolled again")) return false;
-  Tell(creature, "Disciplined Survivor - the failed save is rolled again (1 Focus point).");
+  Tell(creature, PlayerText("monk.disciplined_survivor_the_failed_save"));
   return true;
 }
 
@@ -808,8 +810,7 @@ void MonkOnInitiative(void* creature) {
     SetRecord(creature, kVarMetabolismUsed, 1);
     Log("monk: 0x%08X Uncanny Metabolism: %d Focus points back, %d healed (%s)", id, spent, healed,
         bloodied ? "Bloodied" : "half the points spent");
-    Tell(creature, "Uncanny Metabolism - every Focus point back and " + std::to_string(healed) +
-                       " hit points (once per Long Rest).");
+    Tell(creature, PlayerText("monk.uncanny_metabolism_every_focus_point", {{"healed", std::string(std::to_string(healed))}}));
     return;
   }
   if (rules::HasPerfectFocus(level)) {
@@ -817,7 +818,7 @@ void MonkOnInitiative(void* creature) {
     if (after != spent) {
       SetSpentFeatUses(creature, kVarFocusSpent, after);
       Log("monk: 0x%08X Perfect Focus: %d -> 4 Focus points", id, points - spent);
-      Tell(creature, "Perfect Focus - your Focus rises to 4 points.");
+      Tell(creature, PlayerText("monk.perfect_focus_your_focus_rises"));
     }
   }
 }
@@ -841,7 +842,9 @@ std::unordered_map<uint32_t, uint64_t> g_restoration_due;  // M12: the end of th
 
 int WisdomOf(void* stats) { return stats ? engine::AbilityModifier(stats, 4) : 0; }
 
-const char* SaveOutcome(uint8_t save) { return save == 2 ? "immune" : save == 0 ? "failed" : "made"; }
+std::string SaveOutcome(uint8_t save) {
+  return PlayerText(save == 2 ? "monk.save_immune" : save == 0 ? "monk.save_failed" : "monk.save_made");
+}
 
 // A save against the Monk's Focus DC (already 2024: not converted) - Dexterity as NWN's Reflex, Strength
 // riding on it (rules_shove's way), Constitution as Fortitude.
@@ -880,9 +883,10 @@ void WholenessScript(uint32_t self) {
   const int left = std::max(0, rules::WholenessOfBodyUses(wisdom) - SpentFeatUses(creature, kVarWholenessSpent));
   Log("monk: 0x%08X Wholeness of Body - d%d %d + Wis %d: %d healed (%d use%s left)", self, die, roll, wisdom, healed,
       left, left == 1 ? "" : "s");
-  Tell(creature, "Wholeness of Body - d" + std::to_string(die) + " (" + std::to_string(roll) + ") + Wisdom " +
-                     std::to_string(wisdom) + ": " + std::to_string(healed) + " hit points. " + std::to_string(left) +
-                     (left == 1 ? " use" : " uses") + " left until a Long Rest.");
+  Tell(creature, PlayerText(left == 1 ? "monk.wholeness_one_left" : "monk.wholeness_left",
+                            {{"die", std::to_string(die)}, {"roll", std::to_string(roll)},
+                             {"wisdom", std::to_string(wisdom)}, {"healed", std::to_string(healed)},
+                             {"left", std::to_string(left)}}));
 }
 
 // OH4 Quivering Palm (Open Hand 17), the owner's (a): the engine spends the feat's use in
@@ -893,7 +897,7 @@ bool QuiveringPalmSpend(void* creature, uint8_t* data) {
   const uint32_t id = IdOf(creature);
   if (!creature || !data || !rules::MasteryAttackHit(data[ee::kAttackResult])) {
     Log("monk: 0x%08X Quivering Palm missed - no Focus points spent", id);
-    Tell(creature, "Quivering Palm missed - no Focus points spent.");
+    Tell(creature, PlayerText("monk.quivering_palm_missed_no_focus"));
     return false;
   }
   const uint32_t target_id = Field<uint32_t>(creature, ee::kCreatureAttackTarget);
@@ -907,10 +911,10 @@ bool QuiveringPalmSpend(void* creature, uint8_t* data) {
                 ("EffectDamage(" + std::to_string(damage) + ", DAMAGE_TYPE_MAGICAL)").c_str(), 0.0f, kSwingDelay);
   ApplyEffectAs(id, target_id, "DURATION_TYPE_INSTANT", "EffectVisualEffect(VFX_IMP_MAGBLUE)", 0.0f, kSwingDelay);
   Log("monk: 0x%08X Quivering Palm on 0x%08X - 4 Focus points; Constitution save DC %d %s: 10d12 %d -> %d force", id,
-      target_id, dc, SaveOutcome(save), rolled, damage);
-  Tell(creature, std::string("Quivering Palm (4 Focus points) - its Constitution save (DC ") + std::to_string(dc) +
-                     ") " + SaveOutcome(save) + ": " + std::to_string(damage) + " force damage (10d12: " +
-                     std::to_string(rolled) + (save != 0 ? ", halved" : "") + ").");
+      target_id, dc, SaveOutcome(save).c_str(), rolled, damage);
+  Tell(creature, PlayerText(save != 0 ? "monk.quivering_palm_halved" : "monk.quivering_palm",
+                            {{"dc", std::to_string(dc)}, {"outcome", SaveOutcome(save)},
+                             {"damage", std::to_string(damage)}, {"rolled", std::to_string(rolled)}}));
   return true;
 }
 
@@ -932,7 +936,7 @@ const char* TechniqueText(rules::OpenHandTechnique technique) {
 void PickTechnique(void* creature, rules::OpenHandTechnique technique) {
   if (!creature) return;
   if (!rules::HasOpenHandTechnique(MonkLevelOf(StatsOf(creature)))) {
-    Tell(creature, "Open Hand Technique comes at Monk 3 (Warrior of the Open Hand).");
+    Tell(creature, PlayerText("monk.open_hand_technique_comes_at"));
     return;
   }
   EnsureRecords(creature);
@@ -940,11 +944,9 @@ void PickTechnique(void* creature, rules::OpenHandTechnique technique) {
   const uint32_t id = IdOf(creature);
   Log("monk: 0x%08X Open Hand Technique: %s", id, rules::OpenHandTechniqueName(technique));
   if (technique == rules::OpenHandTechnique::kOff) {
-    Tell(creature, "Open Hand Technique: off - your Flurry of Blows hits impose nothing.");
+    Tell(creature, PlayerText("monk.open_hand_technique_off_your"));
   } else {
-    Tell(creature, std::string("Open Hand Technique: ") + rules::OpenHandTechniqueName(technique) +
-                       " on each Flurry of Blows hit (" + TechniqueText(technique) + "; DC " +
-                       std::to_string(FocusDcOf(creature)) + ").");
+    Tell(creature, PlayerText("monk.open_hand_technique_on_each", {{"open_hand_technique_name", std::string(rules::OpenHandTechniqueName(technique))}, {"technique_text", std::string(TechniqueText(technique))}, {"focus_dc", std::string(std::to_string(FocusDcOf(creature)))}}));
   }
   RefreshCombatOptions(id);
 }
@@ -956,7 +958,7 @@ void PickTechniqueScript(uint32_t self) {
 
 std::vector<std::string> TechniqueCommand(void* creature, const std::string& args) {
   if (!rules::HasOpenHandTechnique(MonkLevelOf(StatsOf(creature)))) {
-    return {"nwn5e: Open Hand Technique comes at Monk 3 (Warrior of the Open Hand; class_features faithful)."};
+    return {PlayerText("monk.open_hand_technique_comes_at_2")};
   }
   static const struct {
     const char* word;
@@ -972,16 +974,16 @@ std::vector<std::string> TechniqueCommand(void* creature, const std::string& arg
   }
   EnsureRecords(creature);
   const rules::OpenHandTechnique now = TechniqueOf(creature);
-  return {std::string("nwn5e: Open Hand Technique: ") + rules::OpenHandTechniqueName(now) +
-          (now == rules::OpenHandTechnique::kOff ? "" : std::string(" - ") + TechniqueText(now)) +
-          ", on each Flurry of Blows hit (DC " + std::to_string(FocusDcOf(creature)) +
-          "). !technique topple | push | addle | off (or its radial menu, or !options)."};
+  const bool off = now == rules::OpenHandTechnique::kOff;
+  return {PlayerText(off ? "monk.technique_status_off" : "monk.technique_status",
+                     {{"technique", rules::OpenHandTechniqueName(now)},
+                      {"text", off ? std::string() : TechniqueText(now)},
+                      {"dc", std::to_string(FocusDcOf(creature))}})};
 }
 
 void ApplyTechnique(void* monk, void* target, rules::OpenHandTechnique technique) {
   const uint32_t monk_id = IdOf(monk), target_id = IdOf(target);
   const int dc = FocusDcOf(monk);
-  const std::string dcs = " DC " + std::to_string(dc) + " ";
   std::string what;
   switch (technique) {
     case rules::OpenHandTechnique::kTopple: {
@@ -989,27 +991,29 @@ void ApplyTechnique(void* monk, void* target, rules::OpenHandTechnique technique
       if (save == 0) {
         ApplyEffectAs(monk_id, target_id, "DURATION_TYPE_TEMPORARY", "EffectKnockdown()", 6.0f, kSwingDelay);
       }
-      what = "Topple - Dexterity save" + dcs + SaveOutcome(save) + (save == 0 ? ": knocked prone for a round" : "");
+      what = PlayerText(save == 0 ? "monk.topple_prone" : "monk.topple",
+                        {{"dc", std::to_string(dc)}, {"outcome", SaveOutcome(save)}});
       break;
     }
     case rules::OpenHandTechnique::kPush: {
       const uint8_t save = FocusSave(target, monk_id, dc, rules::Ability::kStrength);
-      what = "Push - Strength save" + dcs + SaveOutcome(save);
+      what = PlayerText("monk.push", {{"dc", std::to_string(dc)}, {"outcome", SaveOutcome(save)}});
       if (save == 0) {
         const std::string push = PushOnHit(monk, target, rules::kOpenHandPushMetres);
-        what += push.empty() ? " (no push: rules_push is off in this game build)" : ": pushed 15 ft (" + push + ")";
+        what = PlayerText(push.empty() ? "monk.push_off" : "monk.pushed",
+                          {{"dc", std::to_string(dc)}, {"outcome", SaveOutcome(save)}, {"push", push}});
       }
       break;
     }
     case rules::OpenHandTechnique::kAddle:
       g_addled[target_id] = GameMs() + kRoundMs;
-      what = "Addle - no opportunity attacks until its next turn";
+      what = PlayerText("monk.addle");
       break;
     case rules::OpenHandTechnique::kOff:
       return;
   }
   Log("monk: 0x%08X Open Hand Technique on 0x%08X: %s", monk_id, target_id, what.c_str());
-  Tell(monk, "Open Hand Technique: " + what + ".");
+  Tell(monk, PlayerText("monk.open_hand_technique", {{"what", std::string(what)}}));
 }
 
 // Push's 15 ft goes when the hit's damage lands (rules_push.cpp) - here too, for weapon mastery off (its own
@@ -1088,10 +1092,11 @@ void DeflectRedirect(void* monk, void* attacker, const uint8_t* data, const int1
                   kSwingDelay);
   }
   Log("monk: 0x%08X Deflect Attacks' redirect at 0x%08X (1 Focus point) - Dexterity save DC %d %s: 2d%d %d + Dex %d "
-      "= %d damage (type bit %d)", monk_id, attacker_id, dc, SaveOutcome(save), die, rolled, dexterity, damage, index);
-  Tell(monk, std::string("Deflect Attacks' redirect (1 Focus point) - its Dexterity save (DC ") + std::to_string(dc) +
-                 ") " + SaveOutcome(save) + (save == 0 ? ": " + std::to_string(damage) + " damage back at it."
-                                                       : ": no damage."));
+      "= %d damage (type bit %d)", monk_id, attacker_id, dc, SaveOutcome(save).c_str(), die, rolled, dexterity, damage,
+      index);
+  Tell(monk, PlayerText(save == 0 ? "monk.redirect_damage" : "monk.redirect_none",
+                        {{"dc", std::to_string(dc)}, {"outcome", SaveOutcome(save)},
+                         {"damage", std::to_string(damage)}}));
 }
 
 // M8 (resolve_damage.h: after ResolveDamage put a hit's damage in the attacker's attack data): the first hit
@@ -1129,8 +1134,7 @@ void DeflectAttacks(void* attacker, void* target) {
       monk_id, attacker_id, total, reduction, d10, dexterity, level, after);
   // 0.60.8 (owner, 2026-11-02: "go with A for the deflection"): NWN's parry sparks on the Monk, with the swing.
   ApplyEffectAs(monk_id, monk_id, "DURATION_TYPE_INSTANT", "EffectVisualEffect(VFX_COM_SPARKS_PARRY)", 0.0f, kSwingDelay);
-  Tell(monk, "Deflect Attacks - the hit's " + std::to_string(total) + " damage less " + std::to_string(reduction) +
-                 " (1d10 + Dex + Monk level): " + std::to_string(after) + "; your reaction this round.");
+  Tell(monk, PlayerText("monk.deflect_attacks_the_hit_s", {{"total", std::string(std::to_string(total))}, {"reduction", std::string(std::to_string(reduction))}, {"after", std::string(std::to_string(after))}}));
   if (rules::DeflectRedirects(after, ReactionAllowed(monk, rules::Reaction::kDeflectRedirect), FocusLeft(monk))) {
     DeflectRedirect(monk, attacker, data, before, level, stats);
   }

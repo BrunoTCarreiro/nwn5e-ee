@@ -52,6 +52,7 @@
 #include "log.h"
 #include "mastery.h"
 #include "script_hooks.h"
+#include "player_text.h"
 #include "rules/class_features.h"
 #include "rules/d20.h"
 #include "rules/weapons.h"
@@ -91,7 +92,7 @@ bool IsPlayer(void* creature) {
 }
 
 void Tell(void* creature, const std::string& line) {
-  if (IsPlayer(creature)) TellPlayer(IdOf(creature), "nwn5e: " + line);
+  if (IsPlayer(creature)) TellPlayer(IdOf(creature), PlayerText("chat.line", {{"line", std::string(line)}}));
 }
 
 // Reckless: a player character's toggle; any other creature while it rages.
@@ -156,7 +157,7 @@ std::unordered_map<uint32_t, Mark> g_sundered;             // by target
 std::string EffectNames(const std::vector<rules::BrutalEffect>& effects) {
   std::string names;
   for (rules::BrutalEffect e : effects) names += (names.empty() ? "" : " + ") + std::string(rules::BrutalEffectName(e));
-  return names.empty() ? "off" : names;
+  return names.empty() ? PlayerText("chat.off") : names;
 }
 
 // The icon on the character (its tag), on or off.
@@ -178,9 +179,7 @@ void SetReckless(void* creature, bool on) {
   engine::SetLocalInt(creature, kVarReckless, on ? 1 : 0);
   ShowIcon(id, kRecklessTag, kRecklessIconRow, on);
   Log("barbarian: 0x%08X Reckless Attack %s", id, on ? "on" : "off");
-  Tell(creature, on ? "Reckless Attack on - Advantage on your Strength attacks; attack rolls against you have "
-                      "Advantage until a round after your last attack."
-                    : "Reckless Attack off.");
+  Tell(creature, PlayerText(on ? "barbarian_strikes.reckless_on" : "barbarian_strikes.reckless_off"));
   RefreshCombatOptions(id);
 }
 
@@ -188,7 +187,7 @@ void ToggleReckless(uint32_t self) {
   void* creature = CreatureById(self);
   if (!creature) return;
   if (!Faithful() || !rules::HasRecklessAttack(BarbarianLevel(creature))) {
-    Tell(creature, "Reckless Attack comes at Barbarian 2.");
+    Tell(creature, PlayerText("barbarian_strikes.reckless_attack_comes_at_barbarian"));
     return;
   }
   SetReckless(creature, engine::GetLocalInt(creature, kVarReckless) == 0);
@@ -197,23 +196,25 @@ void ToggleReckless(uint32_t self) {
 void PickBrutal(void* creature, rules::BrutalEffect effect) {
   const int level = BarbarianLevel(creature);
   if (!Faithful() || !rules::HasBrutalStrike(level)) {
-    Tell(creature, "Brutal Strike comes at Barbarian 9.");
+    Tell(creature, PlayerText("barbarian_strikes.brutal_strike_comes_at_barbarian"));
     return;
   }
   rules::BrutalChoice choice = rules::DecodeBrutalChoice(engine::GetLocalInt(creature, kVarBrutal));
   const rules::BrutalPick pick = rules::PickBrutalEffect(&choice, effect, level);
   if (pick == rules::BrutalPick::kLocked) {
-    Tell(creature, std::string(rules::BrutalEffectName(effect)) + " comes at Barbarian 13.");
+    Tell(creature, PlayerText("barbarian_strikes.comes_at_barbarian_13", {{"effect", std::string(std::string(rules::BrutalEffectName(effect)))}}));
     return;
   }
   engine::SetLocalInt(creature, kVarBrutal, rules::EncodeBrutalChoice(choice));
   const std::vector<rules::BrutalEffect> active = rules::ActiveBrutalEffects(choice, level);
   ShowIcon(IdOf(creature), kBrutalTag, kBrutalIconRow, !active.empty());
   Log("barbarian: 0x%08X Brutal Strike: %s", IdOf(creature), EffectNames(active).c_str());
-  std::string line = "Brutal Strike: " + EffectNames(active);
-  if (!active.empty() && rules::BrutalStrikeEffectCount(level) > 1 && active.size() < 2) line += " (pick another for two)";
-  if (!active.empty() && engine::GetLocalInt(creature, kVarReckless) == 0) line += " - it needs Reckless Attack on";
-  Tell(creature, line + ".");
+  const bool another = !active.empty() && rules::BrutalStrikeEffectCount(level) > 1 && active.size() < 2;
+  const bool reckless = !active.empty() && engine::GetLocalInt(creature, kVarReckless) == 0;
+  const char* key = another ? (reckless ? "barbarian_strikes.brutal_another_reckless"
+                                        : "barbarian_strikes.brutal_another")
+                            : (reckless ? "barbarian_strikes.brutal_reckless" : "barbarian_strikes.brutal");
+  Tell(creature, PlayerText(key, {{"effects", EffectNames(active)}}));
   RefreshCombatOptions(IdOf(creature));
 }
 
@@ -224,7 +225,7 @@ void PickBrutalScript(uint32_t self) {
 
 std::vector<std::string> RecklessCommand(void* creature, const std::string& args) {
   if (!Faithful() || !rules::HasRecklessAttack(BarbarianLevel(creature))) {
-    return {"nwn5e: Reckless Attack comes at Barbarian 2."};
+    return {PlayerText("barbarian_strikes.reckless_attack_comes_at_barbarian_2")};
   }
   const bool on = args.find("on") != std::string::npos   ? true
                   : args.find("off") != std::string::npos ? false
@@ -235,7 +236,9 @@ std::vector<std::string> RecklessCommand(void* creature, const std::string& args
 
 std::vector<std::string> BrutalCommand(void* creature, const std::string& args) {
   const int level = BarbarianLevel(creature);
-  if (!Faithful() || !rules::HasBrutalStrike(level)) return {"nwn5e: Brutal Strike comes at Barbarian 9."};
+  if (!Faithful() || !rules::HasBrutalStrike(level)) {
+    return {PlayerText("barbarian_strikes.brutal_strike_comes_at_barbarian_2")};
+  }
   struct Word {
     const char* word;
     rules::BrutalEffect effect;
@@ -252,13 +255,14 @@ std::vector<std::string> BrutalCommand(void* creature, const std::string& args) 
     }
   }
   const rules::BrutalChoice choice = rules::DecodeBrutalChoice(engine::GetLocalInt(creature, kVarBrutal));
-  return {"nwn5e: Brutal Strike (Barbarian " + std::to_string(level) + ", " +
-          std::to_string(rules::BrutalStrikeDice(level)) + "d10, " +
-          std::to_string(rules::BrutalStrikeEffectCount(level)) + " effect" +
-          (rules::BrutalStrikeEffectCount(level) > 1 ? "s" : "") +
-          "): " + EffectNames(rules::ActiveBrutalEffects(choice, level)) +
-          (engine::GetLocalInt(creature, kVarReckless) ? "; Reckless Attack on" : "; Reckless Attack off") +
-          ". !brutal forceful | hamstring | staggering | sundering | off (or its radial menu)."};
+  const bool several = rules::BrutalStrikeEffectCount(level) > 1;
+  const bool reckless_on = engine::GetLocalInt(creature, kVarReckless) != 0;
+  const char* key = several ? (reckless_on ? "barbarian_strikes.status_several_reckless"
+                                           : "barbarian_strikes.status_several")
+                            : (reckless_on ? "barbarian_strikes.status_one_reckless" : "barbarian_strikes.status_one");
+  return {PlayerText(key, {{"level", std::to_string(level)}, {"dice", std::to_string(rules::BrutalStrikeDice(level))},
+                           {"count", std::to_string(rules::BrutalStrikeEffectCount(level))},
+                           {"effects", EffectNames(rules::ActiveBrutalEffects(choice, level))}})};
 }
 
 // --- Brutal Strike's effects on a hit ------------------------------------------------
@@ -301,7 +305,7 @@ void ApplyBrutalEffects(void* attacker, void* target, const BrutalPending& pendi
     what += (what.empty() ? "" : "; ") + part;
   }
   if (LogSlot()) Log("barbarian: 0x%08X Brutal Strike hits 0x%08X: %s", attacker_id, target_id, what.c_str());
-  Tell(attacker, "Brutal Strike: " + EffectNames(pending.effects) + ".");
+  Tell(attacker, PlayerText("barbarian_strikes.brutal_strike", {{"effect_names", std::string(EffectNames(pending.effects))}}));
 }
 
 void AfterAttackRoll(AttackRoll& roll) {

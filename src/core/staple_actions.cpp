@@ -37,6 +37,7 @@
 #include "log.h"
 #include "movement_rate.h"
 #include "script_hooks.h"
+#include "player_text.h"
 #include "rules/action_economy.h"
 #include "rules/skills.h"
 
@@ -66,7 +67,7 @@ bool IsPlayer(void* creature) {
 }
 
 void Tell(void* creature, uint32_t id, const std::string& line) {
-  if (IsPlayer(creature)) TellPlayer(id, "nwn5e: " + line);
+  if (IsPlayer(creature)) TellPlayer(id, PlayerText("chat.line", {{"line", std::string(line)}}));
 }
 
 void DodgeScript(uint32_t self) {
@@ -75,8 +76,7 @@ void DodgeScript(uint32_t self) {
   g_dodging[self] = GameMs() + kRoundMs;
   Log("actions: 0x%08X Dodge - attacks against it with Disadvantage, Dexterity saves with Advantage, until its next "
       "round", self);
-  Tell(creature, self, "Dodge - until your next round, attacks against you have Disadvantage and your Dexterity "
-                       "saves Advantage.");
+  Tell(creature, self, PlayerText("staple_actions.dodge_until_your_next_round"));
 }
 
 void DashScript(uint32_t self) { StartDash(self); }
@@ -101,21 +101,18 @@ void HelpScript(uint32_t self) {  // Rouse
   const uint32_t target = SpellTarget(self);
   const int woken = target == ee::kObjectInvalid ? 0 : WakeFromSleepSpell(self, target);
   if (woken > 0) {
-    Tell(creature, self, "Rouse - you shake it awake (Sleep ends).");
+    Tell(creature, self, PlayerText("staple_actions.rouse_you_shake_it_awake"));
     return;
   }
   if (woken < 0) {
-    Tell(creature, self, "Rouse - get within 5 feet of the sleeper.");
+    Tell(creature, self, PlayerText("staple_actions.rouse_get_within_5_feet"));
     return;
   }
   if (!g_config.help_house_rule || target == ee::kObjectInvalid || !IsDownHenchmanUnderRules(target)) {
     Log("actions: 0x%08X Rouse on 0x%08X - not under the Sleep spell%s: nothing", self, target,
         g_config.help_house_rule ? ", not a downed henchman" : "");
     Tell(creature, self,
-         g_config.help_house_rule
-             ? "Rouse - a creature asleep from the Sleep spell within 5 feet, or a downed henchman (the Help house "
-               "rule)."
-             : "Rouse - a creature asleep from the Sleep spell within 5 feet.");
+         PlayerText(g_config.help_house_rule ? "staple_actions.rouse_who_help" : "staple_actions.rouse_who"));
     return;
   }
   static const auto skill_rank = reinterpret_cast<SkillRankFn>(EngineExport(ee::kGetSkillRank));
@@ -127,8 +124,7 @@ void HelpScript(uint32_t self) {  // Rouse
   if (up) HelpDownHenchmanUp(target);
   Log("actions: 0x%08X Rouse (the Help house rule) on the downed henchman 0x%08X (%s) - %s", self, target, check,
       up ? "it gets up at 1 HP" : "not this time");
-  Tell(creature, self, std::string("Rouse (the Help house rule; ") + check + ") - " +
-                           (up ? "your henchman gets up at 1 HP." : "not this time; try again next round."));
+  Tell(creature, self, PlayerText(up ? "staple_actions.rouse_up" : "staple_actions.rouse_not_yet", {{"check", check}}));
 }
 
 }  // namespace
@@ -140,7 +136,7 @@ void StartDash(uint32_t id) {
   if (!creature) return;
   g_dashing[id] = GameMs() + kRoundMs;
   Log("actions: 0x%08X Dash - twice as fast this round", id);
-  Tell(creature, id, "Dash - twice as fast this round.");
+  Tell(creature, id, PlayerText("staple_actions.dash_twice_as_fast_this"));
 }
 
 void InstallStapleActions() {

@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <cmath>
 #include <string>
+#include <set>
 #include <unordered_map>
 
 #include "action_guard.h"
@@ -45,6 +46,7 @@
 #include "hooks.h"
 #include "light_sources.h"
 #include "log.h"
+#include "player_text.h"
 #include "reactions.h"
 #include "records.h"
 #include "script_hooks.h"
@@ -93,6 +95,11 @@ std::unordered_map<uint32_t, Touch> g_touch;  // by master: the touch spell its 
 
 int g_logged = 0;
 bool LogSlot() { return g_logged < 400 && ++g_logged; }
+// 0.99.62: its look's lines (a few each), its first heartbeat, and others' shouts it ignores (a few)
+std::unordered_map<uint32_t, int> g_tend_logged;
+std::set<uint32_t> g_heartbeats;
+int g_others_heard = 0;
+void Tend(uint32_t familiar, void* creature, const char* by);  // its look (below)
 
 bool Faithful() { return g_config.spellcasting == rules::RuleVariant::kFaithful; }
 
@@ -140,7 +147,8 @@ const char* AlignmentConstant(rules::FamiliarKind kind) {
 }
 
 std::string FamiliarName(const Familiar& f) {
-  return std::string(rules::FamiliarStatsOf(f.form).name) + " (" + rules::FamiliarKindName(f.kind) + ")";
+  return PlayerText("familiar.name",
+                    {{"form", rules::FamiliarStatsOf(f.form).name}, {"kind", rules::FamiliarKindName(f.kind)}});
 }
 
 // The familiar remade to its form and kind; its hit points the kept ones (0: the form's).
@@ -150,7 +158,7 @@ void Remake(uint32_t familiar, const Familiar& f) {
   if (!stats) return;
   const rules::FamiliarStats& s = rules::FamiliarStatsOf(f.form);
   g_forms[familiar] = FormNumbers{s.hit_points, s.armor_class};
-  char code[1400];
+  char code[1800];
   sprintf_s(code,
             "object f = OBJECT_SELF; SetCreatureAppearanceType(f, %d);"
             " SetObjectVisualTransform(f, OBJECT_VISUAL_TRANSFORM_SCALE, %.2f); SetName(f, \"%s\");"
@@ -161,6 +169,10 @@ void Remake(uint32_t familiar, const Familiar& f) {
             " SetEventScript(f, EVENT_SCRIPT_CREATURE_ON_DAMAGED, \"\");"
             " SetEventScript(f, EVENT_SCRIPT_CREATURE_ON_SPELLCASTAT, \"\");"
             " SetEventScript(f, EVENT_SCRIPT_CREATURE_ON_HEARTBEAT, \"n5_f_hb\");"
+            " SetEventScript(f, EVENT_SCRIPT_CREATURE_ON_DIALOGUE, \"n5_f_talk\");"
+            " SetEventScript(f, EVENT_SCRIPT_CREATURE_ON_USER_DEFINED_EVENT, \"\");"
+            " SetEventScript(f, EVENT_SCRIPT_CREATURE_ON_BLOCKED_BY_DOOR, \"\");"
+            " SetEventScript(f, EVENT_SCRIPT_CREATURE_ON_RESTED, \"\");"
             " SetLocalInt(f, \"n5f_familiar\", 1); SetLocalInt(f, \"n5f_form\", %d); SetLocalInt(f, \"n5f_kind\", %d);"
             " ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_POLYMORPH), f);",
             s.appearance, s.scale, FamiliarName(f).c_str(), AlignmentConstant(f.kind), static_cast<int>(f.form),
@@ -199,7 +211,7 @@ int GoodEvilOf(uint32_t master, void* caster) {
 void Dismiss(uint32_t self, void* caster) {
   const auto it = g_familiars.find(self);
   if (it == g_familiars.end() || it->second.dismissed || !CreatureById(it->second.creature)) {
-    TellPlayer(self, "nwn5e: Find Familiar - no familiar of yours is here to dismiss.");
+    TellPlayer(self, PlayerText("familiar.none_here"));
     return;
   }
   Familiar& f = it->second;
@@ -216,15 +228,14 @@ void Dismiss(uint32_t self, void* caster) {
   engine::SetLocalInt(caster, "n5f_hp", f.hit_points);
   GrantFeat(caster, rules::kFeatFamiliarDismiss, false);
   GrantFeat(caster, rules::kFeatFamiliarRecall, true);
-  TellPlayer(self, "nwn5e: Find Familiar - your " + FamiliarName(f) + " goes to a pocket dimension (its Recall brings it "
-                   "back within 30 feet).");
+  TellPlayer(self, PlayerText("familiar.dismissed", {{"name", FamiliarName(f)}}));
   if (LogSlot()) Log("familiar: 0x%08X dismissed its familiar (%d hit points kept)", self, f.hit_points);
 }
 
 void Recall(uint32_t self, void* caster) {
   const auto it = g_familiars.find(self);
   if (it == g_familiars.end() || !it->second.dismissed) {
-    TellPlayer(self, "nwn5e: Find Familiar - no familiar of yours is away to recall.");
+    TellPlayer(self, PlayerText("familiar.none_away"));
     return;
   }
   Run("vector v = GetPositionFromLocation(GetSpellTargetLocation()); SetLocalString(OBJECT_SELF, \"n5f_at\", "
@@ -235,13 +246,13 @@ void Recall(uint32_t self, void* caster) {
   const float dx = x - Field<float>(caster, ee::kObjectPositionX);
   const float dy = y - Field<float>(caster, ee::kObjectPositionY);
   if (std::sqrt(dx * dx + dy * dy) / kMetresPerFoot > static_cast<float>(rules::kFamiliarRecallFeet)) {
-    TellPlayer(self, "nwn5e: Find Familiar - it comes back to a spot within 30 feet of you.");
+    TellPlayer(self, PlayerText("familiar.recall_far"));
     return;
   }
   Familiar& f = it->second;
   const uint32_t familiar = Summon(self, caster);
   if (!familiar) {
-    TellPlayer(self, "nwn5e: Find Familiar - your familiar didn't come back (see nwn5e.log).");
+    TellPlayer(self, PlayerText("familiar.recall_failed"));
     Log("familiar: 0x%08X Recall - SummonFamiliar gave no familiar", self);
     return;
   }
@@ -256,7 +267,7 @@ void Recall(uint32_t self, void* caster) {
   engine::SetLocalInt(caster, "n5f_away", 0);
   GrantFeat(caster, rules::kFeatFamiliarRecall, false);
   GrantFeat(caster, rules::kFeatFamiliarDismiss, true);
-  TellPlayer(self, "nwn5e: Find Familiar - your " + FamiliarName(f) + " is back.");
+  TellPlayer(self, PlayerText("familiar.back", {{"name", FamiliarName(f)}}));
   if (LogSlot()) Log("familiar: 0x%08X recalled its familiar 0x%08X", self, familiar);
 }
 
@@ -307,14 +318,17 @@ void FamiliarUpdate(void* creature) {
   f.next = now + 1000;
   if (f.dismissed || !f.creature) return;
   void* familiar = CreatureById(f.creature);
-  if (familiar && !engine::IsDeadOrDying(familiar)) return;
+  if (familiar && !engine::IsDeadOrDying(familiar)) {
+    Tend(f.creature, familiar, "its master");  // 0.99.62
+    return;
+  }
   if (familiar) Run("SetIsDestroyable(TRUE, FALSE, FALSE); DestroyObject(OBJECT_SELF);", f.creature, "the familiar's end");
   g_forms.erase(f.creature);
   const std::string name = FamiliarName(f);
   g_familiars.erase(it);
   GrantFeat(creature, rules::kFeatFamiliarDismiss, false);
   GrantFeat(creature, rules::kFeatFamiliarRecall, false);
-  TellPlayer(id, "nwn5e: Find Familiar - your " + name + " is gone; cast Find Familiar again for another.");
+  TellPlayer(id, PlayerText("familiar.gone", {{"name", name}}));
   if (LogSlot()) Log("familiar: 0x%08X its familiar is gone (%s)", id, familiar ? "0 hit points" : "unsummoned");
 }
 
@@ -336,7 +350,7 @@ using PossessFn = void (*)(void* creature);
 PossessFn g_possess = nullptr;
 void Possess(void* creature) {
   if (creature && Faithful() && ActionEconomyOn() && g_familiars.count(ObjId(creature)) &&
-      !SpendBonusAction(creature, "Find Familiar: through its eyes")) {
+      !SpendBonusAction(creature, PlayerText("familiar.eyes").c_str())) {
     return;  // told
   }
   g_possess(creature);
@@ -361,14 +375,15 @@ bool FamiliarTouchOrder(void* creature, const SpellOrder& order) {
   sprintf_s(code, "SetLocalString(OBJECT_SELF, \"n5f_rng\", Get2DAString(\"spells\", \"Range\", %u));", order.spell);
   Run(code, id, "the spell's range");
   if (engine::GetLocalString(creature, "n5f_rng") != "T") return false;
-  const float from_caster = FeetBetween(creature, target);
-  const float from_familiar = FeetBetween(familiar, target);
+  // 0.99.62 (L4-41): edge to edge, as reach is - a Tiny raven by a Medium orc 8 ft centre to centre is nearer
+  const float from_caster = engine::EdgeDistance(creature, target) / kMetresPerFoot;
+  const float from_familiar = engine::EdgeDistance(familiar, target) / kMetresPerFoot;
   const float familiar_off = FeetBetween(familiar, creature);
   const bool ready = ReactionReady(familiar);
   if (!rules::FamiliarDeliversTouch(from_caster, from_familiar, familiar_off, ready)) {
     if (LogSlot()) {
       Log("familiar: 0x%08X touch spell %u at 0x%08X not delivered - the target %.0f ft from you, %.0f ft from your "
-          "familiar (its reach 5 ft), the familiar %.0f ft from you (100 at most), its Reaction %s",
+          "familiar (edge to edge; its reach 5 ft), the familiar %.0f ft from you (100 at most), its Reaction %s",
           id, order.spell, order.target, from_caster, from_familiar, familiar_off, ready ? "ready" : "spent");
     }
     return false;
@@ -396,20 +411,85 @@ void FamiliarTouchCast(void* creature, uint32_t spell) {
   Run("ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_HEAD_ODD), OBJECT_SELF);", familiar,
       "the familiar's touch");
   const auto f = g_familiars.find(id);
-  TellPlayer(id, "nwn5e: Find Familiar - your " + (f != g_familiars.end() ? FamiliarName(f->second) : std::string("familiar")) +
-                     " delivers the touch (its Reaction).");
+  TellPlayer(id, PlayerText("familiar.touch", {{"name", f != g_familiars.end() ? FamiliarName(f->second)
+                                                                         : PlayerText("familiar.your_familiar")}}));
 }
 
-// 0.99.49: its heartbeat - it follows its master (closer than 3 m it waits), unless told to stand its ground
-// (x0_i0_assoc's NW_ASC_MODE_STAND_GROUND in NW_ASSOCIATE_MASTER) or possessed; no fight, no ability.
-const char* const kFollowOnly = R"nss(
+// 0.99.49: its heartbeat follows its master. 0.99.62 (L4-39, owner 2026-11-17: "did not follow unless instructed to
+// and then it did fight without being asked to"): its master looks after it every second too (FamiliarUpdate), the
+// same look - an attack or a cast of its own cleared (a familiar can't attack), and it follows (closer than 3 m it
+// waits) unless told to stand its ground (x0_i0_assoc's NW_ASC_MODE_STAND_GROUND in NW_ASSOCIATE_MASTER: the radial's
+// word, n5_f_talk, and NWN's familiar dialog set it alike) or possessed.
+const char* const kTend = R"nss(
 object m = GetMaster(OBJECT_SELF);
-if (GetIsObjectValid(m) && !GetIsPossessedFamiliar(OBJECT_SELF) && !(GetLocalInt(OBJECT_SELF, "NW_ASSOCIATE_MASTER") & 0x08000000)) {
-  if (GetCurrentAction() == ACTION_INVALID && GetDistanceToObject(m) > 3.0) ActionForceFollowObject(m, 2.0);
+int a = GetCurrentAction();
+int cleared = 0; int followed = 0;
+if (!GetIsPossessedFamiliar(OBJECT_SELF)) {
+  if (a == ACTION_ATTACKOBJECT || a == ACTION_CASTSPELL || a == ACTION_ITEMCASTSPELL || a == ACTION_COUNTERSPELL) {
+    ClearAllActions(TRUE); cleared = a; a = ACTION_INVALID;
+  }
+  if (GetIsObjectValid(m) && !(GetLocalInt(OBJECT_SELF, "NW_ASSOCIATE_MASTER") & 0x08000000) &&
+      GetArea(m) == GetArea(OBJECT_SELF) && GetDistanceToObject(m) > 3.0 && a != ACTION_FOLLOW) {
+    ActionForceFollowObject(m, 2.0); followed = 1;
+  }
 }
+SetLocalInt(OBJECT_SELF, "n5f_cleared", cleared);
+SetLocalInt(OBJECT_SELF, "n5f_followed", followed);
 )nss";
 
-void FamiliarHeartbeat(uint32_t self) { Run(kFollowOnly, self, "the familiar's heartbeat"); }
+void Tend(uint32_t familiar, void* creature, const char* by) {
+  if (!creature) return;
+  Run(kTend, familiar, "the familiar's look");
+  const int cleared = engine::GetLocalInt(creature, "n5f_cleared");
+  const bool followed = engine::GetLocalInt(creature, "n5f_followed") != 0;
+  int& logged = g_tend_logged[familiar];
+  if (cleared && logged < 12 && ++logged) {
+    Log("familiar: 0x%08X (%s) its own action %d cleared - a familiar can't attack", familiar, by, cleared);
+  }
+  if (followed && logged < 12 && ++logged) Log("familiar: 0x%08X (%s) follows its master", familiar, by);
+}
+
+void FamiliarHeartbeat(uint32_t self) {
+  if (g_heartbeats.insert(self).second) Log("familiar: 0x%08X its heartbeat runs (its first this game)", self);
+  Tend(self, CreatureById(self), "its heartbeat");
+}
+
+// 0.99.62: its listening is nwn5e's (n5_f_talk) - NWN's associate script fought for its master (L4-39). Its
+// master's word only (rules::FamiliarOrderOf): a click its dialog, Stand your ground, Follow me; no one else's shout.
+void FamiliarTalk(uint32_t self) {
+  void* creature = CreatureById(self);
+  if (!creature) return;
+  Run("SetLocalInt(OBJECT_SELF, \"n5f_pat\", GetListenPatternNumber()); SetLocalInt(OBJECT_SELF, \"n5f_bymaster\", "
+      "GetLastSpeaker() == GetMaster(OBJECT_SELF));",
+      self, "the familiar's listening");
+  const int pattern = engine::GetLocalInt(creature, "n5f_pat");
+  const bool by_master = engine::GetLocalInt(creature, "n5f_bymaster") != 0;
+  const rules::FamiliarOrder order = by_master ? rules::FamiliarOrderOf(pattern) : rules::FamiliarOrder::kNone;
+  if (by_master ? LogSlot() : (g_others_heard < 5 && ++g_others_heard)) {
+    Log("familiar: 0x%08X hears %d (%s)%s", self, pattern,
+        order == rules::FamiliarOrder::kTalk     ? "its dialog"
+        : order == rules::FamiliarOrder::kStay   ? "stay"
+        : order == rules::FamiliarOrder::kFollow ? "follow"
+                                                 : "nothing it does",
+        by_master ? "" : " - not its master's");
+  }
+  switch (order) {
+    case rules::FamiliarOrder::kTalk:
+      Run("if (!BeginConversation()) ActionStartConversation(GetLastSpeaker());", self, "the familiar's dialog");
+      break;
+    case rules::FamiliarOrder::kStay:
+      Run("SetLocalInt(OBJECT_SELF, \"NW_ASSOCIATE_MASTER\", GetLocalInt(OBJECT_SELF, \"NW_ASSOCIATE_MASTER\") | "
+          "0x08000000); ClearAllActions();",
+          self, "the familiar's stay");
+      break;
+    case rules::FamiliarOrder::kFollow:
+      Run("SetLocalInt(OBJECT_SELF, \"NW_ASSOCIATE_MASTER\", GetLocalInt(OBJECT_SELF, \"NW_ASSOCIATE_MASTER\") & "
+          "~0x08000000); ClearAllActions(); ActionForceFollowObject(GetMaster(OBJECT_SELF), 2.0);",
+          self, "the familiar's follow");
+      break;
+    default: break;
+  }
+}
 
 // Its own casts (the blueprint's gaze): refused - it can't attack.
 bool FamiliarCastGuard(void* creature, const SpellOrder& order) {
@@ -435,12 +515,12 @@ bool FamiliarFeatGuard(void* creature, int feat) {
   const bool away = it != g_familiars.end() && it->second.dismissed;
   const bool here = it != g_familiars.end() && !it->second.dismissed && CreatureById(it->second.creature);
   if (feat == rules::kFeatFamiliarDismiss && !here) {
-    TellPlayer(id, "nwn5e: Find Familiar - no familiar of yours is here to dismiss.");
+    TellPlayer(id, PlayerText("familiar.none_here"));
     GrantFeat(creature, rules::kFeatFamiliarDismiss, false);
     return false;
   }
   if (feat == rules::kFeatFamiliarRecall && !away) {
-    TellPlayer(id, "nwn5e: Find Familiar - no familiar of yours is away to recall.");
+    TellPlayer(id, PlayerText("familiar.none_away"));
     GrantFeat(creature, rules::kFeatFamiliarRecall, false);
     return false;
   }
@@ -452,6 +532,9 @@ void FamiliarsGameStarted() {
   g_reload_look.clear();
   g_forms.clear();
   g_touch.clear();
+  g_tend_logged.clear();
+  g_heartbeats.clear();
+  g_others_heard = 0;
 }
 
 }  // namespace
@@ -484,22 +567,32 @@ void FindFamiliarSpell(uint32_t self, void* caster, int row) {
   if (row == rules::kFamiliarRecall) return Recall(self, caster);
   const rules::FamiliarForm form = rules::FamiliarFormOf(row);
   if (form == rules::FamiliarForm::kNone) {
-    TellPlayer(self, "nwn5e: Find Familiar - pick a form from its menu.");
+    TellPlayer(self, PlayerText("familiar.pick_form"));
     return;
   }
   Familiar& f = g_familiars[self];
   f.form = form;
   f.kind = rules::FamiliarKindFor(rules::FamiliarKindOfRow(row), GoodEvilOf(self, caster));  // 0.99.49: the menu's
-  // One familiar: one of this spell's out takes the new form (away, it changes there).
-  if (f.dismissed) {
-    TellPlayer(self, "nwn5e: Find Familiar - your familiar, away in its pocket dimension, becomes a " + FamiliarName(f) + ".");
-    return;
-  }
-  if (f.creature && CreatureById(f.creature) && !engine::IsDeadOrDying(CreatureById(f.creature))) {
-    Remake(f.creature, f);
-    TellPlayer(self, "nwn5e: Find Familiar - your familiar becomes a " + FamiliarName(f) + ".");
-    if (LogSlot()) Log("familiar: 0x%08X its familiar 0x%08X becomes a %s", self, f.creature, FamiliarName(f).c_str());
-    return;
+  // One familiar (rules::FamiliarCastOutcome): one here takes the new form; one away (0.99.65, owner 2026-11-17: "go
+  // with A") takes it and comes back beside you - summoned below, as a new one is.
+  const bool here = f.creature && CreatureById(f.creature) && !engine::IsDeadOrDying(CreatureById(f.creature));
+  switch (rules::FamiliarCastOutcome(here, f.dismissed)) {
+    case rules::FamiliarCast::kNewForm:
+      Remake(f.creature, f);
+      TellPlayer(self, PlayerText("familiar.becomes", {{"name", FamiliarName(f)}}));
+      if (LogSlot()) {
+        Log("familiar: 0x%08X its familiar 0x%08X becomes a %s", self, f.creature, FamiliarName(f).c_str());
+      }
+      return;
+    case rules::FamiliarCast::kNewFormBack:
+      f.dismissed = false;
+      f.creature = 0;
+      engine::SetLocalInt(caster, "n5f_away", 0);
+      if (LogSlot()) {
+        Log("familiar: 0x%08X its familiar, away, comes back as a %s (a cast)", self, FamiliarName(f).c_str());
+      }
+      break;
+    case rules::FamiliarCast::kSummon: break;
   }
   // NWN's own familiar (the Summon Familiar feat) goes - one familiar at a time; it's gone at the frame's end, so
   // the summoning waits a moment (n5_f_summon).
@@ -513,6 +606,25 @@ void FindFamiliarSpell(uint32_t self, void* caster, int row) {
   FinishSummon(self);
 }
 
+// 0.99.65 (L4-42, owner 2026-11-17: "even after running the test command again ... can't bring out the familiar
+// again"): !test's rebuild (test_commands.cpp) starts with no familiar - one here goes, one away is forgotten.
+void EndFamiliarOnRebuild(void* creature) {
+  if (!creature) return;
+  const uint32_t id = ObjId(creature);
+  const auto it = g_familiars.find(id);
+  const bool away = engine::GetLocalInt(creature, "n5f_away") == 1;
+  if (it == g_familiars.end() && !away) return;
+  if (it != g_familiars.end() && it->second.creature && CreatureById(it->second.creature)) {
+    Run("SetIsDestroyable(TRUE, FALSE, FALSE); DestroyObject(OBJECT_SELF);", it->second.creature, "the familiar's end");
+    g_forms.erase(it->second.creature);
+  }
+  if (it != g_familiars.end()) g_familiars.erase(it);
+  engine::SetLocalInt(creature, "n5f_away", 0);
+  GrantFeat(creature, rules::kFeatFamiliarDismiss, false);
+  GrantFeat(creature, rules::kFeatFamiliarRecall, false);
+  Log("familiar: 0x%08X !test's rebuild - its familiar ends (a fresh start)", id);
+}
+
 // The summoning (its form and kind picked by the cast).
 void FinishSummon(uint32_t self) {
   void* caster = CreatureById(self);
@@ -523,7 +635,7 @@ void FinishSummon(uint32_t self) {
   const uint32_t familiar = Summon(self, caster);
   if (!familiar) {
     g_familiars.erase(self);
-    TellPlayer(self, "nwn5e: Find Familiar - no familiar came (see nwn5e.log).");
+    TellPlayer(self, PlayerText("familiar.failed"));
     Log("familiar: 0x%08X SummonFamiliar gave no familiar", self);
     return;
   }
@@ -532,9 +644,7 @@ void FinishSummon(uint32_t self) {
   Remake(familiar, f);
   GrantFeat(caster, rules::kFeatFamiliarDismiss, true);
   GrantFeat(caster, rules::kFeatFamiliarRecall, false);
-  TellPlayer(self, "nwn5e: Find Familiar - a " + FamiliarName(f) + " serves you. It can't attack; Possess Familiar (your "
-                   "radial) looks through its eyes - a Bonus Action; it delivers your touch spells within 100 feet (its "
-                   "Reaction); Dismiss and Recall are in Find Familiar's menu (its second page).");
+  TellPlayer(self, PlayerText("familiar.serves", {{"name", FamiliarName(f)}}));
   if (LogSlot()) {
     const rules::FamiliarStats& s = rules::FamiliarStatsOf(form);
     Log("familiar: 0x%08X Find Familiar - 0x%08X a %s: AC %d, %d HP, appearance %d at %.2f", self, familiar,
@@ -544,6 +654,7 @@ void FinishSummon(uint32_t self) {
 
 bool InstallFindFamiliar() {
   const bool waits = AddScriptHandler("n5_f_summon", &FinishSummon) && AddScriptHandler("n5_f_hb", &FamiliarHeartbeat) &&
+                     AddScriptHandler("n5_f_talk", &FamiliarTalk) &&
                      AddSpellOrderGuard(&FamiliarCastGuard) && AddDamageListener(&FamiliarDamaged);
   const bool max_hp = g_config.hit_points == rules::RuleVariant::kFaithful ||  // rules_hit_points.cpp's hook asks
                       HookExport("CNWSCreature::GetMaxHitPoints (Find Familiar's forms, #39 4c)", ee::kGetMaxHitPoints,

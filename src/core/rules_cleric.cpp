@@ -63,6 +63,7 @@
 #include "rest.h"
 #include "saves.h"
 #include "script_hooks.h"
+#include "player_text.h"
 #include "rules/cantrips.h"
 #include "rules/class_features.h"
 #include "rules/cleric.h"
@@ -131,7 +132,7 @@ bool IsCharacter(void* stats) {
 
 void Tell(void* creature, const std::string& line) {
   void* stats = creature ? StatsOf(creature) : nullptr;
-  if (stats && ReadCreatureFacts(stats).is_player) TellPlayer(IdOf(creature), "nwn5e: " + line);
+  if (stats && ReadCreatureFacts(stats).is_player) TellPlayer(IdOf(creature), PlayerText("chat.line", {{"line", std::string(line)}}));
 }
 
 // A creature's Cleric levels in faithful (characters and NPCs alike); 0 otherwise.
@@ -235,7 +236,7 @@ void DivineSpark(uint32_t self, Spark spark) {
   const uint32_t target_id = ParseId(engine::GetLocalString(caster, "nwn5e_cd_target"));
   void* target = CreatureById(target_id);
   if (!target || target_id == self) {
-    Tell(caster, "Divine Spark - at another creature within 30 feet (the use is given back).");
+    Tell(caster, PlayerText("cleric.divine_spark_at_another_creature"));
     GiveBack(caster);
     return;
   }
@@ -253,8 +254,8 @@ void DivineSpark(uint32_t self, Spark spark) {
     Run(t + "ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectHeal(" + std::to_string(total) + "), t); "
             "ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_HEALING_M), t);",
         self, "Divine Spark's healing");
-    Tell(caster, "Divine Spark: " + name + " regains " + std::to_string(total) + " Hit Points (" + rolled +
-                     (supreme ? ", Supreme Healing" : "") + ").");
+    Tell(caster, PlayerText(supreme ? "cleric.spark_heal_supreme" : "cleric.spark_heal",
+                            {{"name", name}, {"total", std::to_string(total)}, {"rolled", rolled}}));
     if (LogSlot()) Log("cleric: 0x%08X Divine Spark heals 0x%08X %d (%s)", self, target_id, total, rolled);
     return;
   }
@@ -267,10 +268,9 @@ void DivineSpark(uint32_t self, Spark spark) {
           "ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(" +
           (radiant ? "VFX_IMP_SUNSTRIKE" : "VFX_IMP_NEGATIVE_ENERGY") + "), t);",
       self, "Divine Spark's damage");
-  Tell(caster, std::string("Divine Spark (") + (radiant ? "Radiant" : "Necrotic") + "): " + name +
-                   " - Constitution save DC " + std::to_string(dc) + (saved != 0 ? ", saved" : ", failed") + ": " +
-                   std::to_string(damage) + (radiant ? " Radiant" : " Necrotic") + " damage (" + rolled +
-                   (saved != 0 ? ", halved" : "") + ").");
+  Tell(caster, PlayerText(saved != 0 ? "cleric.spark_damage_saved" : "cleric.spark_damage_failed",
+                          {{"type", PlayerText(radiant ? "damage.radiant" : "damage.necrotic")}, {"name", name},
+                           {"dc", std::to_string(dc)}, {"damage", std::to_string(damage)}, {"rolled", rolled}}));
   if (LogSlot()) Log("cleric: 0x%08X Divine Spark %s at 0x%08X: DC %d, %s, %d damage (%s)", self,
                      radiant ? "Radiant" : "Necrotic", target_id, dc, saved != 0 ? "saved" : "failed", damage, rolled);
 }
@@ -329,7 +329,7 @@ void TurnUndead(uint32_t self) {
   if (LogSlot()) Log("cleric: 0x%08X Turn Undead - Cleric %d, %zu hostile Undead within 30 feet, pool spent %d", self,
                      level, undead.size(), SpentFeatUses(caster, kVarChannelSpent));
   if (undead.empty()) {
-    Tell(caster, "Turn Undead - no hostile Undead within 30 feet (the use is given back).");
+    Tell(caster, PlayerText("cleric.turn_undead_no_hostile_undead"));
     GiveBack(caster);
     return;
   }
@@ -349,7 +349,7 @@ void TurnUndead(uint32_t self) {
     const std::string name = NameOf(id);
     if (!line.empty()) line += "; ";
     if (saved != 0) {
-      line += name + " saves";
+      line += PlayerText("cleric.turn_saves", {{"name", name}});
       continue;
     }
     std::string effects = "object t = StringToObject(\"" + Hex(id) + "\"); ";
@@ -363,10 +363,12 @@ void TurnUndead(uint32_t self) {
                "ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_HEAD_HOLY), t);";
     Run(effects, self, "Turn Undead's turn");
     g_turned[id] = Turned{self, until, false};
-    line += name + " fails - turned for a minute" + (sear > 0 ? ", " + std::to_string(sear) + " Radiant" : "");
+    line += PlayerText(sear > 0 ? "cleric.turn_fails_sear" : "cleric.turn_fails",
+                       {{"name", name}, {"sear", std::to_string(sear)}});
   }
-  Tell(caster, "Turn Undead (Wisdom save DC " + std::to_string(dc) + (sear > 0 ? ", Sear Undead " +
-               std::to_string(sear_dice) + "d8 = " + std::to_string(sear) : std::string()) + "): " + line + ".");
+  Tell(caster, PlayerText(sear > 0 ? "cleric.turn_undead_sear" : "cleric.turn_undead",
+                          {{"dc", std::to_string(dc)}, {"dice", std::to_string(sear_dice)},
+                           {"sear", std::to_string(sear)}, {"line", line}}));
   if (LogSlot()) Log("cleric: 0x%08X Turn Undead: DC %d, Sear %d - %s", self, dc, sear, line.c_str());
 }
 
@@ -382,7 +384,7 @@ void EndTurn(uint32_t id, const Turned& turned, const char* why) {
   Run("effect e = GetFirstEffect(OBJECT_SELF); while (GetIsEffectValid(e)) { if (GetEffectTag(e) == \"" +
           std::string(kTurnedTag) + "\") RemoveEffect(OBJECT_SELF, e); e = GetNextEffect(OBJECT_SELF); }",
       id, "a turn's end");
-  if (void* cleric = CreatureById(turned.by)) Tell(cleric, NameOf(id) + " is no longer turned (" + why + ").");
+  if (void* cleric = CreatureById(turned.by)) Tell(cleric, PlayerText("cleric.is_no_longer_turned", {{"name", std::string(NameOf(id))}, {"why", std::string(why)}}));
   if (LogSlot()) Log("cleric: 0x%08X no longer turned by 0x%08X - %s", id, turned.by, why);
 }
 
@@ -423,7 +425,7 @@ void PreserveLife(uint32_t self) {
   if (!stats) return;
   const int level = ClericLevelOf(stats);
   if (level < 3) {
-    Tell(caster, "Preserve Life comes with the Life Domain, at Cleric 3 (the use is given back).");
+    Tell(caster, PlayerText("cleric.preserve_life_comes_with_the"));
     GiveBack(caster);
     return;
   }
@@ -465,13 +467,11 @@ void PreserveLife(uint32_t self) {
   if (LogSlot()) Log("cleric: 0x%08X Preserve Life: %d of %d to %zu Bloodied - %s", self, given, pool, ids.size(),
                      line.c_str());
   if (given == 0) {
-    Tell(caster, "Preserve Life - no Bloodied creature friendly to you within 30 feet, none below half its Hit "
-                 "Points (the use is given back).");
+    Tell(caster, PlayerText("cleric.preserve_life_no_bloodied_creature"));
     GiveBack(caster);
     return;
   }
-  Tell(caster, "Preserve Life (" + std::to_string(pool) + " Hit Points to share, up to half each one's maximum): " +
-                   line + ".");
+  Tell(caster, PlayerText("cleric.preserve_life_hit_points_to", {{"pool", std::string(std::to_string(pool))}, {"line", std::string(line)}}));
 }
 
 // --- Divine Order (build 1b) ----------------------------------------------------------------------------------
@@ -509,8 +509,7 @@ void OrderUpdate(void* creature) {
   if (ClassLevel2024(stats, rules::CharacterClass::kCleric) >= 7 && !HasOrder(stats, rules::kFeatDivineStrike) &&
       !HasOrder(stats, rules::kFeatPotentSpellcasting)) {
     if (engine::AddFeat(stats, rules::kFeatDivineStrike)) {
-      Tell(creature, "Blessed Strikes: Divine Strike - a weapon hit's 1d8 Radiant once a turn (a Cleric from before "
-                     "the 2024 Blessed Strikes; !strike necrotic for Necrotic).");
+      Tell(creature, PlayerText("cleric.blessed_strikes_divine_strike_a"));
       Log("cleric: 0x%08X given Blessed Strikes: Divine Strike (it had none)", id);
     }
   }
@@ -519,9 +518,7 @@ void OrderUpdate(void* creature) {
     Log("cleric: 0x%08X has no Divine Order - Protector didn't take", id);
     return;
   }
-  Tell(creature, "Divine Order: Protector - Martial weapons and Heavy armour (a Cleric from before the 2024 "
-                 "Divine Order). !order thaumaturge switches it once: a cantrip more and Wisdom on Arcana and "
-                 "Religion checks.");
+  Tell(creature, PlayerText("cleric.divine_order_protector_martial_weapons"));
   Log("cleric: 0x%08X given Divine Order: Protector (it had none)", id);
 }
 
@@ -530,7 +527,7 @@ void OrderUpdate(void* creature) {
 std::vector<std::string> OrderCommand(void* creature, const std::string& args) {
   void* stats = creature ? StatsOf(creature) : nullptr;
   if (!stats || !Faithful() || ClassLevel2024(stats, rules::CharacterClass::kCleric) <= 0) {
-    return {"nwn5e: !order - a Cleric's Divine Order (class_features faithful)."};
+    return {PlayerText("cleric.order_a_cleric_s_divine")};
   }
   EnsureRecords(creature);
   const bool protector = HasOrder(stats, rules::kFeatDivineOrderProtector);
@@ -541,32 +538,25 @@ std::vector<std::string> OrderCommand(void* creature, const std::string& args) {
   for (char& c : lower) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
   if (lower.find("reset") != std::string::npos && g_config.debug_test_commands) {  // the tests' (0.98.4)
     SetRecord(creature, kVarOrderSwitched, 0);
-    return {"nwn5e: !order reset - Divine Order (" + now + ") may switch once again ([debug] test_commands)."};
+    return {PlayerText("cleric.order_reset_divine_order_may", {{"now", now}})};
   }
   const bool want_protector = lower.find("prot") != std::string::npos;
   const bool want_thaumaturge = lower.find("thaum") != std::string::npos;
   if (!want_protector && !want_thaumaturge) {
-    return {"nwn5e: Divine Order: " + now + ". Protector: Martial weapons and Heavy armour; Thaumaturge: a cantrip "
-            "more and Wisdom (at least +1) on Arcana and Religion checks. " +
-            (switched ? std::string("Switched once already.") : std::string("!order protector or !order thaumaturge "
-                                                                            "switches it, once."))};
+    return {PlayerText(switched ? "cleric.order_status_switched" : "cleric.order_status", {{"now", now}})};
   }
   if ((want_protector && protector) || (want_thaumaturge && thaumaturge)) {
-    return {"nwn5e: Divine Order is " + now + " already."};
+    return {PlayerText("cleric.divine_order_is_already", {{"now", now}})};
   }
-  if (switched) return {"nwn5e: Divine Order switches once - it stays " + now + "."};
+  if (switched) return {PlayerText("cleric.divine_order_switches_once_it", {{"now", now}})};
   const int from = protector ? rules::kFeatDivineOrderProtector : rules::kFeatDivineOrderThaumaturge;
   const int to = want_protector ? rules::kFeatDivineOrderProtector : rules::kFeatDivineOrderThaumaturge;
   if (protector || thaumaturge) engine::RemoveFeat(stats, from);
-  if (!engine::AddFeat(stats, to)) return {"nwn5e: !order - the feat didn't take; nothing changed."};
+  if (!engine::AddFeat(stats, to)) return {PlayerText("cleric.order_the_feat_didn_t")};
   SetRecord(creature, kVarOrderSwitched, 1);
   Log("cleric: 0x%08X Divine Order %s -> %s (!order)", IdOf(creature), now.c_str(),
       want_protector ? "Protector" : "Thaumaturge");
-  return {std::string("nwn5e: Divine Order: ") +
-          (want_protector ? "Protector - Martial weapons and Heavy armour. A cantrip past your count goes in the "
-                            "Prepare spells window."
-                          : "Thaumaturge - Wisdom on Arcana and Religion checks; pick your extra cantrip in the "
-                            "Prepare spells window (the class abilities radial). Heavy armour goes.")};
+  return {PlayerText(want_protector ? "cleric.order_now_protector" : "cleric.order_now_thaumaturge")};
 }
 
 // --- The Life Domain's healing, Blessed Strikes, spontaneous casts (build 1c) -------------------------------------
@@ -622,7 +612,7 @@ void DivineStrikeHit(void* attacker, void* target) {
 std::vector<std::string> StrikeCommand(void* creature, const std::string& args) {
   void* stats = creature ? StatsOf(creature) : nullptr;
   if (!stats || !Faithful() || !HasOrder(stats, rules::kFeatDivineStrike)) {
-    return {"nwn5e: !strike - Divine Strike's damage type (a Cleric 7+ with Blessed Strikes: Divine Strike)."};
+    return {PlayerText("cleric.strike_divine_strike_s_damage")};
   }
   EnsureRecords(creature);
   std::string lower = args;
@@ -630,9 +620,9 @@ std::vector<std::string> StrikeCommand(void* creature, const std::string& args) 
   if (lower.find("necro") != std::string::npos) SetRecord(creature, kVarStrikeNecrotic, 1);
   if (lower.find("radiant") != std::string::npos) SetRecord(creature, kVarStrikeNecrotic, 0);
   const bool necrotic = engine::GetLocalInt(creature, kVarStrikeNecrotic) != 0;
-  return {std::string("nwn5e: Divine Strike deals ") + (necrotic ? "Necrotic" : "Radiant") + " damage (" +
-          std::to_string(rules::DivineStrikeDice(ClericLevelOf(stats))) +
-          "d8 once a turn). !strike radiant or !strike necrotic changes it."};
+  const std::string dice = std::to_string(rules::DivineStrikeDice(ClericLevelOf(stats)));
+  return {PlayerText("cleric.divine_strike_deals",
+                     {{"type", PlayerText(necrotic ? "damage.necrotic" : "damage.radiant")}, {"dice", dice}})};
 }
 
 // CM9: NWN's spontaneous Cure / Inflict - the 2024 Cleric casts its prepared spells, with any slot of their level or
@@ -641,8 +631,7 @@ bool SpontaneousGuard(void* creature, const SpellOrder& order) {
   if (!order.spontaneous || !Faithful() || !creature) return false;
   void* stats = StatsOf(creature);
   if (!stats || ClericLevelOf(stats) <= 0 || !IsCharacter(stats)) return false;  // characters: an NPC's AI keeps it
-  Tell(creature, "a 2024 Cleric casts its prepared spells, with any slot of their level or higher - no spontaneous "
-                 "Cure or Inflict (NWN's).");
+  Tell(creature, PlayerText("cleric.a_2024_cleric_casts_its"));
   if (LogSlot()) Log("cleric: 0x%08X spontaneous cast of spell %u refused (2024)", IdOf(creature), order.spell);
   return true;
 }
@@ -680,7 +669,7 @@ void ClericOnHeal(void* object, void* effect) {
   char heal[48];
   sprintf_s(heal, "EffectHeal(%d)", bonus);
   ApplyEffectAs(creator, creator, "DURATION_TYPE_INSTANT", heal, 0.0f, 0.0f);
-  Tell(caster, "Blessed Healer: you regain " + std::to_string(bonus) + " Hit Points.");
+  Tell(caster, PlayerText("cleric.blessed_healer_you_regain_hit", {{"bonus", std::string(std::to_string(bonus))}}));
   if (LogSlot()) Log("cleric: 0x%08X Blessed Healer: regains %d (spell %d)", creator, bonus, spell);
 }
 
@@ -702,7 +691,7 @@ void PotentSpellcastingVitality(void* caster, int spell) {
   char effect[64];
   sprintf_s(effect, "EffectTemporaryHitpoints(%d)", temporary);
   ApplyEffectAs(IdOf(caster), IdOf(caster), "DURATION_TYPE_TEMPORARY", effect, 3600.0f, 0.0f);
-  Tell(caster, "Potent Spellcasting: " + std::to_string(temporary) + " Temporary Hit Points.");
+  Tell(caster, PlayerText("cleric.potent_spellcasting_temporary_hit_points", {{"temporary", std::string(std::to_string(temporary))}}));
 }
 
 // rules_skills.cpp: Thaumaturge's Wisdom modifier (at least +1) on Arcana and Religion checks.

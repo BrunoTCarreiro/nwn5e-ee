@@ -28,9 +28,9 @@ const FamiliarStats& FamiliarStatsOf(FamiliarForm form) {
   // SRD 5.2.1: AC, HP, Str Dex Con Int Wis Cha; appearance.2da: 10 Bat, 203 Cat_Cougar, 144 Falcon, 369 Basilisk,
   // 386 Rat, 145 Raven, 159 Spider_Giant, 8 Badger.
   static const FamiliarStats kBat{"Bat", 12, 1, {2, 15, 8, 2, 12, 4}, 10, 1.0f};
-  static const FamiliarStats kCat{"Cat", 12, 2, {3, 15, 10, 3, 12, 7}, 203, 0.5f};
+  static const FamiliarStats kCat{"Cat", 12, 2, {3, 15, 10, 3, 12, 7}, 203, 0.42f};
   static const FamiliarStats kHawk{"Hawk", 13, 1, {5, 16, 8, 2, 14, 6}, 144, 1.0f};
-  static const FamiliarStats kLizard{"Lizard", 10, 2, {2, 11, 10, 1, 8, 3}, 369, 0.35f};
+  static const FamiliarStats kLizard{"Lizard", 10, 2, {2, 11, 10, 1, 8, 3}, 369, 0.25f};
   static const FamiliarStats kRat{"Rat", 10, 1, {2, 11, 9, 2, 10, 4}, 386, 0.6f};
   static const FamiliarStats kRaven{"Raven", 12, 2, {2, 14, 10, 5, 13, 6}, 145, 1.0f};
   static const FamiliarStats kSpider{"Spider", 12, 1, {2, 14, 8, 1, 10, 2}, 159, 0.3f};
@@ -81,6 +81,20 @@ bool FamiliarDeliversTouch(float target_from_caster_feet, float target_from_fami
   return reaction_ready && target_from_caster_feet > static_cast<float>(kFamiliarReachFeet) &&
          target_from_familiar_feet <= static_cast<float>(kFamiliarReachFeet) &&
          familiar_from_caster_feet <= static_cast<float>(kFamiliarTelepathyFeet);
+}
+
+FamiliarOrder FamiliarOrderOf(int listen_pattern) {
+  switch (listen_pattern) {
+    case -1: return FamiliarOrder::kTalk;
+    case -2: return FamiliarOrder::kStay;
+    case -5: return FamiliarOrder::kFollow;
+    default: return FamiliarOrder::kNone;
+  }
+}
+
+FamiliarCast FamiliarCastOutcome(bool familiar_here, bool familiar_away) {
+  if (familiar_away) return FamiliarCast::kNewFormBack;
+  return familiar_here ? FamiliarCast::kNewForm : FamiliarCast::kSummon;
 }
 
 }  // namespace rules

@@ -408,6 +408,8 @@ void Pass(uint32_t pc, int carried) {
         "  } else if (want == 1 && !GetIsInCombat(o) && GetCommandable(o) && !IsInConversation(o) && !GetPlotFlag(o)"
         "             && !GetIsObjectValid(GetMaster(o))) {"
         "   SetLocalInt(o, \"nwn5e_seek\", 25);"
+        // #152's ordering (0.99.74): marked as an investigation - an illusion it sees or hears takes it over.
+        "   SetLocalInt(o, \"nwn5e_seek_why\", 1);"
         "   location home = GetLocation(o);"
         "   AssignCommand(o, ClearAllActions());"
         "   SetActionMode(o, ACTION_MODE_DETECT, TRUE);"
@@ -418,6 +420,7 @@ void Pass(uint32_t pc, int carried) {
         "   AssignCommand(o, ActionMoveToLocation(home));"
         "   AssignCommand(o, ActionDoCommand(SetActionMode(OBJECT_SELF, ACTION_MODE_DETECT, FALSE)));"
         "   AssignCommand(o, ActionDoCommand(DeleteLocalInt(OBJECT_SELF, \"nwn5e_seek\")));"
+        "   AssignCommand(o, ActionDoCommand(DeleteLocalInt(OBJECT_SELF, \"nwn5e_seek_why\")));"
         "   SetLocalInt(pc, \"nwn5e_seek_started\", GetLocalInt(pc, \"nwn5e_seek_started\") + 1);"
         "  }";
   }

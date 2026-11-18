@@ -63,6 +63,7 @@
 #include "rules_loaded.h"
 #include "weapon_cantrips.h"
 #include "weapon_size.h"
+#include "player_text.h"
 
 // Savage Attacker (rules_origin_feats.cpp): true once per turn for a
 // character who has it and hits with a weapon now.
@@ -426,7 +427,7 @@ void HeroicRally(void* creature) {
   ApplyEffectAs(id, id, "DURATION_TYPE_INSTANT", ("EffectHeal(" + std::to_string(healed) + ")").c_str(), 0.0f, 0.0f);
   Log("fighter: 0x%08X Heroic Rally: %d -> %d HP (max %d)", id, hit_points, hit_points + healed, max_hit_points);
   if (ReadCreatureFacts(stats).is_player) {
-    TellPlayer(id, "nwn5e: Heroic Rally - you regain " + std::to_string(healed) + " hit points.");
+    TellPlayer(id, PlayerText("fighter.heroic_rally_you_regain_hit", {{"healed", std::string(std::to_string(healed))}}));
   }
 }
 
@@ -566,7 +567,7 @@ const char* StyleCommandName(int feat) {
 std::vector<std::string> StyleCommand(void* creature, const std::string& args) {
   void* stats = StatsOf(creature);
   const int level = FighterLevelOf(stats);
-  if (level < 1) return {"nwn5e: !style swaps a Fighter's Fighting Style (class_features faithful)."};
+  if (level < 1) return {PlayerText("fighter.style_swaps_a_fighter_s")};
   EnsureRecords(creature);
   const int last = engine::GetLocalInt(creature, kVarStyleSwap);
   const bool ready = level > last;
@@ -585,38 +586,42 @@ std::vector<std::string> StyleCommand(void* creature, const std::string& args) {
   }
   std::string swap;
   if (!ready) {
-    swap = "Swapped at this Fighter level already - the next swap comes with your next Fighter level.";
+    swap = PlayerText("fighter.swap_done");
   } else if (first_held < 0) {
-    swap = "No Fighting Style to swap.";
+    swap = PlayerText("fighter.swap_none");
   } else if (first_free < 0) {
-    swap = "Every style is yours already - nothing to swap to.";
+    swap = PlayerText("fighter.swap_all_yours");
   } else {
-    swap = std::string("You can swap one for a style you don't have (") + free + "), once per Fighter level: !style " +
-           StyleCommandName(first_held) + " for " + StyleCommandName(first_free) + ".";
+    swap = PlayerText("fighter.swap_how", {{"free", free}, {"from", StyleCommandName(first_held)},
+                                           {"to", StyleCommandName(first_free)}});
   }
-  const std::string status = "nwn5e: Fighting Style: " + (held.empty() ? std::string("none") : held) + ". " + swap;
+  const std::string status =
+      PlayerText("fighter.style_status",
+                 {{"held", held.empty() ? PlayerText("fighter.style_none") : held}, {"swap", swap}});
   const size_t at = args.find(" for ");
   if (args.empty() || at == std::string::npos) return {status};
   const int old_style = StyleFeatByName(args.substr(0, at));
   const int new_style = StyleFeatByName(args.substr(at + 5));
   if (old_style < 0 || new_style < 0) {
-    return {"nwn5e: styles are archery, defense, great weapon, two-weapon.", status};
+    return {PlayerText("fighter.styles_are_archery_defense_great"), status};
   }
   if (!ready) return {status};
-  if (!engine::HasFeat(stats, old_style)) return {std::string("nwn5e: you don't have ") + StyleName(old_style) + ".", status};
+  if (!engine::HasFeat(stats, old_style)) return {PlayerText("fighter.you_don_t_have",
+                                                             {{"style_name", StyleName(old_style)}}), status};
   if (engine::HasFeat(stats, new_style)) {
-    return {std::string("nwn5e: you have ") + StyleName(new_style) + " already - a swap goes to a style you don't have.",
+    return {PlayerText("fighter.you_have_already_a_swap", {{"style_name", StyleName(new_style)}}),
             status};
   }
   engine::RemoveFeat(stats, old_style);
   if (!engine::AddFeat(stats, new_style)) {
     engine::AddFeat(stats, old_style);
-    return {"nwn5e: the swap didn't take.", status};
+    return {PlayerText("fighter.the_swap_didn_t_take"), status};
   }
   SetRecord(creature, kVarStyleSwap, level);
   Log("fighter: 0x%08X Fighting Style %s swapped for %s at Fighter %d", IdOf(creature), StyleName(old_style),
       StyleName(new_style), level);
-  return {std::string("nwn5e: ") + StyleName(old_style) + " swapped for " + StyleName(new_style) + "."};
+  return {PlayerText("fighter.swapped_for",
+                     {{"style_name", StyleName(old_style)}, {"style_name2", StyleName(new_style)}})};
 }
 
 // rules_rogue.cpp (R1): whose damage roll is in progress and whether it is a

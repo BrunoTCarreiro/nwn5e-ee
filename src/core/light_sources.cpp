@@ -203,6 +203,7 @@
 #include "light_sources.h"
 #include "log.h"
 #include "script_hooks.h"
+#include "player_text.h"
 
 namespace {
 
@@ -339,6 +340,8 @@ std::string NoticeCode(float radius = 20.0f, bool sight = true, const char* why 
          "     && !IsInConversation(o) && !GetPlotFlag(o) && !GetIsObjectValid(GetMaster(o))"
          "     && !GetLocalInt(o, \"nwn5e_seek\")) {"
          "  SetLocalInt(o, \"nwn5e_seek\", 25); came++;"
+         // #152's ordering (0.99.74): marked as an investigation - an illusion it sees or hears takes it over.
+         "  SetLocalInt(o, \"nwn5e_seek_why\", 2);"
          "  location home = GetLocation(o);"
          "  AssignCommand(o, ClearAllActions());"
          "  SetActionMode(o, ACTION_MODE_DETECT, TRUE);"
@@ -349,6 +352,7 @@ std::string NoticeCode(float radius = 20.0f, bool sight = true, const char* why 
          "  AssignCommand(o, ActionMoveToLocation(home));"
          "  AssignCommand(o, ActionDoCommand(SetActionMode(OBJECT_SELF, ACTION_MODE_DETECT, FALSE)));"
          "  AssignCommand(o, ActionDoCommand(DeleteLocalInt(OBJECT_SELF, \"nwn5e_seek\")));"
+         "  AssignCommand(o, ActionDoCommand(DeleteLocalInt(OBJECT_SELF, \"nwn5e_seek_why\")));"
          "  if (GetIsPC(u)) SendMessageToPC(u, \"nwn5e: \" + GetName(o) + \" " + std::string(why) + " and comes to look\");"
          " }"
          " o = GetNextObjectInShape(SHAPE_SPHERE, " + r + ", at, " + los + ", OBJECT_TYPE_CREATURE);"
@@ -913,16 +917,14 @@ void Update(void* creature) {
 std::vector<std::string> MapLightCommand(void* creature, const std::string& args) {
   const int percent = atoi(args.c_str());
   if (percent < 10 || percent > 100) {
-    return {"nwn5e: !maplight <10-100> - the areas' light as a % of the module's (now " + std::to_string(g_map_light) +
-            "%)"};
+    return {PlayerText("light_sources.maplight_10_100_the_areas", {{"light", std::to_string(g_map_light)}})};
   }
   g_map_light = percent;
   WritePrivateProfileStringW(L"rules", L"map_light", std::to_wstring(percent).c_str(), ConfigPath());
   g_lit_areas.clear();  // other areas take it when entered
   void* area = engine::AreaOf(creature);
   if (area) SetUpArea(creature, Field<uint32_t>(creature, ee::kObjectId), area, true);
-  return {"nwn5e: the light here is now " + std::to_string(percent) +
-          "% of the module's (saved to nwn5e.ini; other areas take it when you enter them)"};
+  return {PlayerText("light_sources.the_light_here_is_now", {{"percent", std::to_string(percent)}})};
 }
 
 }  // namespace

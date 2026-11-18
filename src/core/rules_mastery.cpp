@@ -60,6 +60,7 @@
 #include "rules/nwn_conversion.h"
 #include "rules/weapons.h"
 #include "saves.h"
+#include "player_text.h"
 
 // rules_barbarian_strikes.cpp (B10 Staggering Blow, 0.45.4): this hit's Staggering
 // Blow set before Topple's save.
@@ -225,7 +226,7 @@ void OnRest(void* stats) {
   SetRecord(creature, kSwapVar, 1);
   if (g_config.log_attacks) Log("mastery: object 0x%08X rested: one swap available", IdOf(creature));
   if (facts.is_player && rules::FreeMasterySlot(slots.chosen, slots.count) < 0) {
-    TellPlayer(IdOf(creature), "nwn5e: rested - you can swap one weapon mastery: !mastery <old weapon> for <new weapon>");
+    TellPlayer(IdOf(creature), PlayerText("mastery.rested_you_can_swap_one"));
   }
 }
 
@@ -234,32 +235,29 @@ std::vector<std::string> Status(void* creature, void* stats) {
   const std::string focus = FocusList(stats);
   std::vector<std::string> lines;
   if (slots.count == 0) {
-    lines.push_back("nwn5e: your classes have no Weapon Mastery (Barbarian, Fighter, Paladin, Ranger and Rogue do)." +
-                    (focus.empty() ? std::string() : " Weapon Focus gives you: " + focus + "."));
+    lines.push_back(PlayerText(focus.empty() ? "mastery.no_mastery" : "mastery.no_mastery_focus", {{"focus", focus}}));
     return lines;
   }
-  lines.push_back("nwn5e: weapon mastery, " + std::to_string(UsedSlots(slots)) + " of " + std::to_string(slots.count) +
-                  " slots: " + SlotList(slots) + "." + (focus.empty() ? "" : " Weapon Focus: " + focus + "."));
-  lines.push_back(std::string("nwn5e: masteries are picked on the Feats page (creation, level-ups); !mastery "
-                              "<weapon> fills an empty slot (empty slots also fill with the weapons you fight "
-                              "with); !mastery <old> for <new> swaps one after each long rest (") +
-                  (slots.swap_ready ? "swap ready)." : "no swap until you rest)."));
+  lines.push_back(PlayerText(focus.empty() ? "mastery.slots" : "mastery.slots_focus",
+                             {{"used", std::to_string(UsedSlots(slots))}, {"count", std::to_string(slots.count)},
+                              {"slots", SlotList(slots)}, {"focus", focus}}));
+  lines.push_back(PlayerText(slots.swap_ready ? "mastery.picked_swap_ready" : "mastery.picked_no_swap"));
   return lines;
 }
 
 std::string UnknownWeapon(const std::string& text) {
-  return "nwn5e: unknown weapon \"" + text + "\" (e.g. longsword, short sword, dagger, shortbow, greataxe).";
+  return PlayerText("mastery.unknown_weapon_e_g_longsword", {{"text", text}});
 }
 
 std::string AlreadyMastered(void* stats, const Slots& slots, int base_item) {
   if (rules::MasterySlotOf(slots.chosen, slots.count, base_item) >= 0 || HasFocus(stats, base_item)) {
-    return "nwn5e: you already have mastery with " + Label(base_item) + ".";
+    return PlayerText("mastery.you_already_have_mastery_with", {{"label", Label(base_item)}});
   }
   return std::string();
 }
 
 std::string NotAllowed(int base_item) {
-  return "nwn5e: a Barbarian's Weapon Mastery takes melee weapons only - not " + Label(base_item) + ".";
+  return PlayerText("mastery.a_barbarian_s_weapon_mastery", {{"label", Label(base_item)}});
 }
 
 // B14: masteries the character's classes no longer allow (a Barbarian's
@@ -273,9 +271,8 @@ void DropDisallowed(void* creature, void* stats, const CreatureFacts& facts) {
     GiveUpMastery(creature, stats, slots, i);
     Log("mastery: 0x%08X %s given up (a Barbarian's mastery is melee only)", IdOf(creature), Label(kind).c_str());
     Announce(creature, facts,
-             "nwn5e: a Barbarian's Weapon Mastery takes melee weapons only - " + Label(kind) +
-                 " given up; choose another with !mastery <weapon>.",
-             "nwn5e: your henchman's Weapon Mastery with " + Label(kind) + " was given up (melee only).");
+             PlayerText("mastery.a_barbarian_s_weapon_mastery_2", {{"label", Label(kind)}}),
+             PlayerText("mastery.your_henchman_s_weapon_mastery", {{"label", Label(kind)}}));
   }
 }
 
@@ -293,19 +290,23 @@ std::string Choose(void* creature, void* stats, const std::string& args) {
   if (slots.count == 0) return Status(creature, stats)[0];
   const uint32_t id = IdOf(creature);
   if (split == std::string::npos) {
-    if (!Proficient(stats, first_item)) return "nwn5e: you are not proficient with " + Label(first_item) + ".";
+    if (!Proficient(stats, first_item)) return PlayerText("mastery.you_are_not_proficient_with",
+                                                          {{"label", Label(first_item)}});
     if (!rules::MasteryAllowed(Classes(stats), first_item)) return NotAllowed(first_item);
     const std::string already = AlreadyMastered(stats, slots, first_item);
     if (!already.empty()) return already;
     const int free_slot = rules::FreeMasterySlot(slots.chosen, slots.count);
     if (free_slot < 0) {
-      return "nwn5e: all " + std::to_string(slots.count) + " slots are used (" + SlotList(slots) +
-             "). After a long rest you can swap one: !mastery <weapon> for " + rules::NwnWeaponName(first_item) + ".";
+      return PlayerText("mastery.all_slots_are_used_after",
+                        {{"count", std::to_string(slots.count)}, {"slot_list", SlotList(slots)},
+                         {"nwn_weapon_name", rules::NwnWeaponName(first_item)}});
     }
-    if (!TakeMastery(stats, first_item)) return "nwn5e: weapon mastery with " + Label(first_item) + " didn't take.";
+    if (!TakeMastery(stats, first_item)) return PlayerText("mastery.weapon_mastery_with_didn_t",
+                                                           {{"label", Label(first_item)}});
     if (g_config.log_attacks) Log("mastery: object 0x%08X slot %d = %s (chosen)", id, free_slot + 1, Label(first_item).c_str());
-    return "nwn5e: weapon mastery with " + Label(first_item) + " - slot " + std::to_string(free_slot + 1) + " of " +
-           std::to_string(slots.count) + ".";
+    return PlayerText("mastery.weapon_mastery_with_slot_of",
+                      {{"label", Label(first_item)}, {"free_slot", std::to_string(free_slot + 1)},
+                       {"count", std::to_string(slots.count)}});
   }
   const std::string second = args.substr(split + 5);
   const int second_item = rules::NwnWeaponFromName(second);
@@ -314,35 +315,38 @@ std::string Choose(void* creature, void* stats, const std::string& args) {
   if (!rules::ResolveMasterySwap(slots.chosen, slots.count, first_item, second_item, &swap)) {
     if (rules::MasterySlotOf(slots.chosen, slots.count, first_item) >= 0 &&
         rules::MasterySlotOf(slots.chosen, slots.count, second_item) >= 0) {
-      return "nwn5e: you already have mastery with both " + Label(first_item) + " and " + Label(second_item) +
-             " - a swap gives up one you have for one you don't (your slots: " + SlotList(slots) + ").";
+      return PlayerText("mastery.you_already_have_mastery_with_2",
+                        {{"label", Label(first_item)}, {"label2", Label(second_item)}, {"slot_list", SlotList(slots)}});
     }
-    return "nwn5e: to swap, name one weapon in your slots and one that is not (your slots: " + SlotList(slots) + ").";
+    return PlayerText("mastery.to_swap_name_one_weapon", {{"slot_list", SlotList(slots)}});
   }
-  if (!Proficient(stats, swap.take)) return "nwn5e: you are not proficient with " + Label(swap.take) + ".";
+  if (!Proficient(stats, swap.take)) return PlayerText("mastery.you_are_not_proficient_with",
+                                                       {{"label", Label(swap.take)}});
   if (!rules::MasteryAllowed(Classes(stats), swap.take)) return NotAllowed(swap.take);
   if (HasFocus(stats, swap.take)) return AlreadyMastered(stats, slots, swap.take);
-  if (!slots.swap_ready) return "nwn5e: you can swap one weapon mastery after each long rest - rest first.";
+  if (!slots.swap_ready) return PlayerText("mastery.you_can_swap_one_weapon");
   const int slot = rules::MasterySlotOf(slots.chosen, slots.count, swap.give_up);
   GiveUpMastery(creature, stats, slots, slot);
-  if (!TakeMastery(stats, swap.take)) return "nwn5e: weapon mastery with " + Label(swap.take) + " didn't take.";
+  if (!TakeMastery(stats, swap.take)) return PlayerText("mastery.weapon_mastery_with_didn_t",
+                                                        {{"label", Label(swap.take)}});
   SetRecord(creature, kSwapVar, 0);
   if (g_config.log_attacks) {
     Log("mastery: object 0x%08X slot %d = %s instead of %s (swap)", id, slot + 1, Label(swap.take).c_str(),
         Label(swap.give_up).c_str());
   }
-  return "nwn5e: weapon mastery with " + Label(swap.take) + " instead of " + Label(swap.give_up) + ".";
+  return PlayerText("mastery.weapon_mastery_with_instead_of",
+                    {{"label", Label(swap.take)}, {"label2", Label(swap.give_up)}});
 }
 
 std::vector<std::string> MasteryCommand(void* creature, const std::string& args) {
-  if (!MasteryOn()) return {"nwn5e: weapon mastery is off (weapon_mastery=off in nwn5e.ini)."};
+  if (!MasteryOn()) return {PlayerText("mastery.weapon_mastery_is_off_weapon")};
   void* stats = StatsOf(creature);
   if (!stats) return {};
   if (!Faithful()) {
     const std::string focus = FocusList(stats);
-    return {std::string("nwn5e: weapon mastery (NWN mode): ") +
-            (MasteryClass(stats) ? "every weapon you are proficient with." : "your classes have none.") +
-            (focus.empty() ? "" : " Weapon Focus: " + focus + ".")};
+    const char* key = MasteryClass(stats) ? (focus.empty() ? "mastery.nwn_every" : "mastery.nwn_every_focus")
+                                          : (focus.empty() ? "mastery.nwn_none" : "mastery.nwn_none_focus");
+    return {PlayerText(key, {{"focus", focus}})};
   }
   DropDisallowed(creature, stats, ReadCreatureFacts(stats));
   if (args.empty()) return Status(creature, stats);
@@ -372,8 +376,9 @@ void NoteWeaponUsed(void* creature, int base_item) {
     Log("mastery: object 0x%08X slot %d = %s (used in a fight)", IdOf(creature), free_slot + 1, Label(kind).c_str());
   }
   const std::string where = " - slot " + std::to_string(free_slot + 1) + " of " + std::to_string(slots.count) + ".";
-  Announce(creature, facts, "nwn5e: you now have weapon mastery with " + Label(kind) + where + " Change it with !mastery.",
-           "nwn5e: your henchman now has weapon mastery with " + Label(kind) + where);
+  Announce(creature, facts, PlayerText("mastery.you_now_have_weapon_mastery",
+                                       {{"label", Label(kind)}, {"where", where}}),
+           PlayerText("mastery.your_henchman_now_has_weapon", {{"label", Label(kind)}, {"where", where}}));
 }
 
 // --- D4 ---------------------------------------------------------------------

@@ -71,6 +71,7 @@
 #include "script_hooks.h"
 #include "spell_impact.h"
 #include "weapon_cantrips.h"
+#include "player_text.h"
 #include "rules/cantrips.h"
 #include "rules/skills.h"
 
@@ -350,10 +351,10 @@ object t = GetSpellTargetObject();
 if (!GetIsObjectValid(t)) return;
 if (GetObjectType(t) == OBJECT_TYPE_ITEM) {
   AddItemProperty(DURATION_TYPE_TEMPORARY, TagItemProperty(ItemPropertyLight(IP_CONST_LIGHTBRIGHTNESS_NORMAL,
-                  IP_CONST_LIGHTCOLOR_WHITE), "n5c_light"), t, HoursToSeconds(1));
+                  IP_CONST_LIGHTCOLOR_WHITE), "n5c_light"), t, 3600.0);  // an hour, real time (#39)
 } else {
   effect l = EffectLinkEffects(EffectVisualEffect(VFX_DUR_LIGHT_WHITE_15), EffectVisualEffect(VFX_DUR_CESSATE_POSITIVE));
-  ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(l, 100), "n5c_light"), t, HoursToSeconds(1));
+  ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId(l, 100), "n5c_light"), t, 3600.0);
 }
 SetLocalString(OBJECT_SELF, "n5c_light", ObjectToString(t));
 )nss";
@@ -649,7 +650,7 @@ SendMessageToPC(OBJECT_SELF, "nwn5e: Produce Flame - a flame in your hand for 10
 // Hurl: a ranged spell attack at the target, d8 Fire (Cantrip Upgrade; doubled on a Critical Hit); the flame stays.
 void HurlFlame(uint32_t self, void* caster) {
   if (!HasEffectOfSpell(caster, rules::kProduceFlameFlame)) {
-    TellPlayer(self, "nwn5e: Produce Flame - no flame in your hand to hurl.");
+    TellPlayer(self, PlayerText("cantrips.produce_flame_no_flame_in"));
     return;
   }
   std::string roll = kAttack;
@@ -706,12 +707,12 @@ bool BonusActionCastGuard(void* creature, uint32_t spell, uint32_t target) {
   const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
   if (spell == static_cast<uint32_t>(rules::kProduceFlameHurl) &&
       !HasEffectOfSpell(creature, rules::kProduceFlameFlame)) {
-    TellPlayer(id, "nwn5e: Produce Flame - no flame in your hand to hurl: cast its Flame first (a Bonus Action).");
+    TellPlayer(id, PlayerText("cantrips.produce_flame_no_flame_in_2"));
     return true;
   }
   if (rules::IsShillelagh(static_cast<int>(spell)) &&
       !rules::IsShillelaghWeapon(engine::BaseItemRowInSlot(creature, ee::kSlotRightHand))) {
-    TellPlayer(id, "nwn5e: Shillelagh - no Club or Quarterstaff in your hand.");  // #39 3b: before the Bonus Action
+    TellPlayer(id, PlayerText("cantrips.shillelagh_no_club_or_quarterstaff"));  // #39 3b: before the Bonus Action
     return true;
   }
   const int feat = rules::BonusActionFeatOfSpell(static_cast<int>(spell));

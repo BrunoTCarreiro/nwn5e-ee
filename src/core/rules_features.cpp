@@ -40,6 +40,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "records.h"
+#include "player_text.h"
 #include "rules/class_features.h"
 #include "rules/nwn_conversion.h"
 
@@ -63,17 +64,16 @@ const char* ClassName(rules::CharacterClass c) {
 // !features
 std::vector<std::string> FeaturesCommand(void* creature, const std::string& /*args*/) {
   if (g_config.class_features != rules::RuleVariant::kFaithful) {
-    return {"nwn5e: !features shows the 2024 class features (class_features=faithful)."};
+    return {PlayerText("features.features_shows_the_2024_class")};
   }
   void* stats = StatsOf(creature);
-  if (!stats) return {"nwn5e: no character."};
+  if (!stats) return {PlayerText("features.no_character")};
   std::vector<std::string> lines;
   for (const rules::ClassLevels& c : rules::GroupClassLevels(ReadClassSlots(stats))) {
     const int level = c.levels < 20 ? c.levels : 20;
-    std::string head = "nwn5e: " + std::string(ClassName(c.character_class)) + " " + std::to_string(level) + " - " +
-                       rules::Subclass2024(c.character_class);
-    if (level < rules::kSubclassLevel) head += " at 3";
-    lines.push_back(head);
+    lines.push_back(PlayerText(level < rules::kSubclassLevel ? "features.class_head_at_3" : "features.class_head",
+                               {{"class", ClassName(c.character_class)}, {"level", std::to_string(level)},
+                                {"subclass", rules::Subclass2024(c.character_class)}}));
     if (!rules::HasFeatureList(c.character_class)) {
       lines.push_back("  its 2024 features come with its own brief (Phase 3, one class at a time).");
       continue;
@@ -83,7 +83,7 @@ std::vector<std::string> FeaturesCommand(void* creature, const std::string& /*ar
                       f.status);
     }
   }
-  if (lines.empty()) lines.push_back("nwn5e: no 2024 class.");
+  if (lines.empty()) lines.push_back(PlayerText("features.no_2024_class"));
   return lines;
 }
 
@@ -106,8 +106,8 @@ void RemoveNwnOnlyFeats(void* stats, const CreatureFacts& facts, uint32_t id) {
     for (size_t i = 0; i < names.size(); ++i) {
       what += (i == 0 ? "" : i + 1 == names.size() ? " and " : ", ") + names[i];
     }
-    TellPlayer(id, "nwn5e: NWN's " + what + (names.size() == 1 ? " isn't a" : " aren't") + " 2024 class feature" +
-                   (names.size() == 1 ? "" : "s") + " - removed (2024 rules). !features lists yours.");
+    TellPlayer(id, PlayerText(names.size() == 1 ? "features.not_2024_one" : "features.not_2024_many",
+                              {{"what", what}}));
   }
 }
 

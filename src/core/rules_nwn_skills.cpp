@@ -29,6 +29,7 @@
 #include "hooks.h"
 #include "log.h"
 #include "skill_rank.h"
+#include "player_text.h"
 
 namespace {
 
@@ -59,9 +60,7 @@ void SetCombatMode(void* creature, uint8_t mode, int force) {
   if (g_told.insert((static_cast<uint64_t>(id) << 8) | mode).second) {
     void* stats = StatsOf(creature);
     if (stats && ReadCreatureFacts(stats).is_player) {
-      TellPlayer(id, parry ? "nwn5e: there is no parry mode in the 2024 rules; you keep fighting normally."
-                           : "nwn5e: there is no defensive casting in the 2024 rules - casting draws no "
-                             "opportunity attacks, so you need none.");
+      TellPlayer(id, PlayerText(parry ? "nwn_skills.no_parry" : "nwn_skills.no_defensive_casting"));
     }
     if (LogSlot()) Log("3e-only skills: 0x%08X %s mode refused (faithful)", id, parry ? "parry" : "defensive casting");
   }

@@ -33,6 +33,7 @@
 #include "engine.h"
 #include "log.h"
 #include "spell_impact.h"
+#include "player_text.h"
 #include "rules/material_components.h"
 
 namespace {
@@ -97,7 +98,7 @@ bool OrderGuard(void* creature, const SpellOrder& order) {
     ULONGLONG& told = g_told[(static_cast<uint64_t>(id) << 32) | static_cast<uint32_t>(spell)];
     if (now >= told + kToldEveryMs) {
       told = now;
-      TellPlayer(payer, "nwn5e: " + SpellNameOf(spell) + " needs " + CostWords(cost) + " - you have " + Gp(gold) + ".");
+      TellPlayer(payer, PlayerText("components.needs_you_have", {{"spell_name", std::string(SpellNameOf(spell))}, {"cost_words", std::string(CostWords(cost))}, {"gp", std::string(Gp(gold))}}));
     }
     Log("components: 0x%08X %s refused - %d GP needed, the payer 0x%08X has %d", id, SpellNameOf(spell).c_str(),
         cost.needed, payer, gold);
@@ -129,7 +130,7 @@ void Impact(void* creature, int spell) {
   char code[96];
   sprintf_s(code, "TakeGoldFromCreature(%d, OBJECT_SELF, TRUE);", cost.consumed);
   RunScriptChunk(code, paid.payer);
-  TellPlayer(paid.payer, "nwn5e: " + SpellNameOf(spell) + " used up its material component - " + Gp(cost.consumed) + ".");
+  TellPlayer(paid.payer, PlayerText("components.used_up_its_material_component", {{"spell_name", std::string(SpellNameOf(spell))}, {"gp", std::string(Gp(cost.consumed))}}));
   if (g_logged < 40) {
     ++g_logged;
     Log("components: 0x%08X %s - %d GP used up (the payer 0x%08X)", id, SpellNameOf(spell).c_str(), cost.consumed,

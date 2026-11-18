@@ -58,3 +58,26 @@ cell (FEAT, DESCRIPTION, Name, ...) at the id.
 
     16000100 Ability Score Improvement
     16000101 Increase one ability score by 2, or two by 1 (at most 20). Choose with !asi.
+
+Every entry also has its source in `text/strings_sources.txt` (below); a new
+string needs one there too (the tests check).
+
+## text/ - player text and its sources (#168)
+
+The owner's rule (2026-11-16): player-facing text is the owner's own words or
+SRD 5.2.1 word for word; anything nwn5e words itself is tracked and listed for
+the owner's review (`docs/TEXT-REVIEW.md`, from `scripts/text_review.py`).
+
+- `text/en.txt` - the catalogue the code asks by key (`PlayerText`,
+  src/core/player_text.h): `<key> | <source> | <text>`, `
+` a line break,
+  `{name}` a value the code fills in. Sources: `owner`, `srd:<SRD entry>`,
+  `generated`. New messages go here, never as literals in the code
+  (tests/data/text_literals_test.cpp holds the ones still in the code to
+  fewer each time - `scripts/text_literals.py` recounts them).
+- `text/strings_sources.txt` - `<id> <source>` for each `strings.txt` entry:
+  `srd:<entry>` (word for word), `srd:<entry>+note` (SRD text, then a
+  generated "nwn5e:" note), `generated`, `owner`, `symbol` (no words).
+
+    disk.stay | generated | nwn5e: Floating Disk - it stays where it is.
+    16000840 srd:Find Familiar

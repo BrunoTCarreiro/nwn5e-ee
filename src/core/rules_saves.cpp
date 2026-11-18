@@ -30,6 +30,7 @@
 #include "rules/nwn_conversion.h"
 #include "rules/saves.h"
 #include "saves.h"
+#include "player_text.h"
 
 namespace {
 
@@ -230,7 +231,7 @@ int EngineSave(SaveFn getter, void* stats) { return getter ? static_cast<int8_t>
 // modifier + proficiency bonus when proficient (+ Aura of Protection in
 // faithful mode).
 std::string DescribeSaves(void* stats) {
-  if (g_config.saves == rules::RuleVariant::kOff) return "nwn5e: 2024 saves are off (saves=off in nwn5e.ini).";
+  if (g_config.saves == rules::RuleVariant::kOff) return PlayerText("saves.2024_saves_are_off_saves");
   const CreatureFacts facts = ReadCreatureFacts(stats);
   const std::vector<rules::NwnClassSlot> slots = ReadClassSlots(stats);
   const std::optional<rules::CharacterClass> first =
@@ -262,14 +263,13 @@ std::string DescribeSaves(void* stats) {
                        engine_save(E().will, rules::NwnSave::kWill, rules::Ability::kWisdom),
                        plain_save(rules::Ability::kCharisma)};
   static const char* const kNames[6] = {"Str", "Dex", "Con", "Int", "Wis", "Cha"};
-  std::string text = faithful ? "nwn5e: saves (2024): " : "nwn5e: saves (2024, NWN mode): ";
+  std::string list;
   char part[32];
   for (int i = 0; i < 6; ++i) {
     snprintf(part, sizeof(part), "%s%s %+d%s", i ? ", " : "", kNames[i], rows[i].value, rows[i].proficient ? "*" : "");
-    text += part;
+    list += part;
   }
-  text += "   (* proficient)";
-  return text;
+  return PlayerText(faithful ? "saves.saves_2024" : "saves.saves_2024_nwn_mode", {{"saves", list}});
 }
 
 std::vector<std::string> SavesCommand(void* creature, const std::string&) {

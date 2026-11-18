@@ -11,5 +11,8 @@ swap_class = fighter
 levels = rogue 1, wizard 1
 xp = 2700
 abilities = 14 14 14 14 14 14
+spells = Fire Bolt, Ray of Frost, Light
+spells = Magic Missile, Shield, Mage Armor, Burning Hands
+spellbook = Sleep, Thunderwave
 note = level up on the level-up screen and pick a 4th class
 note = EP16c (the 3-class limit holds) needs mode=nwn in nwn5e.ini

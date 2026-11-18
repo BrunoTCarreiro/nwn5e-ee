@@ -1,0 +1,23 @@
+# #168: each src/core file's chat messages still written in the code - <file> <TellPlayer literals>
+# <Tell helper literals> <SendMessageToPC calls> <literals starting "nwn5e: ">.
+# tests/data/text_literals_test.cpp holds each at most this: lower a file's numbers when its
+# messages move to data/text/en.txt (scripts/text_literals.py).
+chat.cpp 0 0 1 0
+light_sources.cpp 0 0 14 0
+nui.cpp 0 0 1 0
+nui_test.cpp 1 0 0 2
+rules_barbarian.cpp 0 0 1 0
+rules_cantrips.cpp 0 0 4 0
+rules_conditions.cpp 0 0 2 0
+rules_cunning_strike.cpp 0 0 2 0
+rules_dying.cpp 0 0 6 0
+rules_grapple.cpp 0 0 1 0
+rules_monk.cpp 0 0 1 0
+rules_perception.cpp 0 0 2 0
+rules_rest.cpp 0 0 1 0
+rules_spells2024.cpp 0 0 20 0
+rules_utility_cantrips.cpp 0 0 6 0
+rules_weapon_cantrips.cpp 0 0 1 0
+stealth_watch.cpp 0 0 2 0
+test_commands.cpp 0 0 19 32
+vfx_nodes.cpp 0 0 0 3

@@ -1105,6 +1105,40 @@ monster AC by CR.
     sound's size comes to look); the test didn't: !spawn makes every creature hostile, so no test could have a deer
     that isn't. 0.97.4: "!spawn <blueprint> neutral" puts it in the commoners' faction; DR-1, MI-10, MI-11, MI-15,
     MI-23 and MI-28 set up with it (and away from hostile creatures, which would attack a commoner).
+  - *Alertness (owner, 2026-11-18, on the 0.99.72-0.99.73 runs):* "there should be a priority for alertness. I spawn an
+    orc facing away, while hidden. then I walk slowly forward in stealth to cast the minor illusion humanoid. the orc
+    hears something but fails the perception so I stay hidden, once I cast the humanoid illusion in front of the orc
+    that should supercede the listening mode and prompt the orc to immediately investigate the man that just popped in
+    front of him that he can see". The log: the orc heard the hider, #133 turned the AI's attack into a search (the
+    creature in combat), and the image passed it by - the illusions skipped anything in combat or with nwn5e_seek set
+    (any investigation), a reaction stopped at combat, and each AI round's attack became the search again. Offered the
+    ordering, least alert first - calm; investigating (a noise heard - stealth watch's look -, a light put out, #133's
+    hunt for a hider it can't see): an illusion takes over; reacting to an illusion: carries on (a recast ends the old
+    image, as before); fighting a foe it sees: nothing distracts it - and A images only / B images and illusory
+    sounds. *Decided (owner, 2026-11-18): "The ordering is good and B".*
+    *Built 0.99.74:* rules::Alertness / AlertnessOf / IllusionTakesOver / ReactionStops (test IllusionAlertnessOrder;
+    8 of 8 mutations caught). The creatures near an image or a sound (kNear) are no longer skipped for combat or
+    nwn5e_seek; NearOf weighs each - an investigation is nwn5e_seek with nwn5e_seek_why (set by stealth_watch.cpp's
+    look 1 and light_sources.cpp's 2), nwn5e_seek alone is an illusion's reaction, and #133's hunt
+    (HuntingUnseenHider: a search within 8 s) makes a creature in combat an investigator, not a fighter. The
+    reactions' first orders clear the combat state (ClearAllActions(TRUE)) and the mark. A reaction under way stops
+    only for a fight with a foe it sees (CheckOf). While it reacts, #133 drops the AI's attack without a search and
+    gives the reaction's step again (IllusionReactionResume, every 2 s at most). Its hunt resumes when the reaction
+    ends, if it still hears the hider. The log: "investigating (...) - the illusion takes over", "goes on with it -
+    the AI's hunt for a hider it can't see waits".
+  - *A hostile creature and a humanoid image (owner, 2026-11-18, on 0.99.74):* "should an orc (who is normally
+    automnatically aggressive towards an adventurer) calmly investigate a humanoid illusion?" As built (the owner's
+    2026-11-09 brief, "a humanoid illusion should be investigated by sentient creatures", and Q2 A over B, "evil
+    sentient creatures attack a humanoid image instead of studying it"), a sentient hostile creature walked up in
+    search mode and studied it. Offered: A as built; B it charges and attacks it, no check; C it sizes it up on sight -
+    the Investigation check at once, where it stands - then, seen through, searches for you, or fooled, charges and
+    attacks it (the blow reveals it), then searches. Recommended C. *Decided (owner, 2026-11-18): "C".*
+    *Built 0.99.75:* rules::ImageReaction kSizeUp (ReactionToImage: a sentient hostile creature and a humanoid) and
+    AfterStudy kCharge (AfterStudyOf: fooled by a humanoid it is hostile to); test IllusionReactions, 4 of 4
+    mutations caught. In game the creature stops, turns to the image and studies it half a second later (the cast's
+    line first: "...; Orc sizes it up" - new text, generated); fooled, it charges and strikes (Charge, then the
+    attack's search). A non-hostile sentient creature still ignores a humanoid, a hostile animal still attacks it; the
+    corpse, the treasure and the leopard are unchanged. MI-8, MI-17 and MI-33 superseded by MI-36 to MI-38.
 - **#39 Part 2, the levelled spells (owner, 2026-11-09: "go for 39 part 2").** SRD 5.2.1 has 312 levelled spells, NWN
   274 class spells; 129 of the SRD's have an NWN version (98 the same, 16 renamed - Cure Light Wounds is Cure Wounds -
   15 close), 183 are new; 137 of NWN's have no 2024 version (30 fold into one: Cure Moderate Wounds is Cure Wounds at
@@ -1619,6 +1653,24 @@ monster AC by CR.
     heartbeat (n5_f_hb) follows its master unless told to stand its ground or possessed, its casts refused; the
     touch spells it doesn't deliver logged with why; the damage it takes logged; sizes - the cat 0.5, the lizard
     0.35, the spider 0.3, the rat 0.6. 6 mutations caught. Retests L4-39 to L4-44.
+    *L4-39 / L4-41 failed (owner, 2026-11-17, on 0.99.61: "did not follow unless instructed to and then it did fight
+    without being asked to."; "still did not cast shocking grasp, my PC went over and cast it themselves"):* the
+    familiar kept NWN's associate conversation script (it answers the radial and starts combat rounds - its gaze tried
+    six times, refused); Shocking Grasp's target an archer 8 ft from the raven centre to centre, Mage Armor cast at
+    the enemy (refused: not willing). *Fixed 0.99.62:* its listening nwn5e's (n5_f_talk, rules::FamiliarOrderOf - a
+    click its dialog, Stand your ground, Follow me; nothing else, no one else's shout); its master looks after it every
+    second as its heartbeat does (an attack or a cast of its own cleared; it follows past 3 m unless told to stand its
+    ground or possessed); the touch's distances edge to edge. 4 mutations caught. Retests L4-49, L4-50 (a neutral orc
+    that stands still). LS-8 dropped (owner: "Will not test LS-8 as that's a regression").
+    *L4-40 / L4-42 failed (owner, 2026-11-17, on 0.99.64: "cat should be smaller"; "lizard should be smaller, also
+    can't bring it back out after dismissing" ... "even after running the test command again and making 2 hours pass
+    can't bring out the familiar again"):* the log - dismissed, no Recall used (F4 or its menu's More -> Recall, then a
+    spot within 30 feet), four casts changing its form in the pocket dimension (SRD 5.2.1: a cast with a familiar
+    "instead cause[s] it to adopt a new eligible form"), !test keeping it away. Asked: A - a cast while it's away also
+    brings it back; B - as is, with a clearer message. *Decided (owner, 2026-11-17: "go with A, I didn't try F4").*
+    *Fixed 0.99.65:* a cast while it's away gives it its new form and brings it back beside you
+    (rules::FamiliarCastOutcome); !test's rebuild ends the familiar (EndFamiliarOnRebuild); the cat 0.42 and the
+    lizard 0.25 (between 0.99.48's and 0.99.49's). 4 mutations caught. Retests L4-51, L4-52.
   - *Built 0.99.50 / 0.99.51 (Q5 A, Disguise Self's random look):* a random head of the species and gender - one of its
     head models the game has (character creation's: rules::PlayerModelPrefix + headNNN, ResManGetAliasFor); skin and
     hair among its people's (rules::DisguiseSkinColours / HairColours - the game's blueprints' colours with the common
@@ -1657,6 +1709,108 @@ monster AC by CR.
     A a disk that carries - for the hour up to 500 pounds of what you carry don't count toward your load, the disk
     following you; B a container - a disk you open and fill, following you, its contents dropped when it ends; C a
     visual and a line (Q2's way, a module-readable effect); D off the lists as Jump. Recommended A.
+    The owner asked (2026-11-16: "for the floating disk, can it work like a henchman? They have their own inventory,
+    right?"): yes - and only a henchman: the engine's OpenInventory opens a player's own, a DM's any, or the player's
+    henchman's (ExecuteCommandOpenInventory: the master and associate type 1; not a familiar's or a summon's, whatever
+    nwscript.nss says). *Decided (owner, 2026-11-16: "go with the henchman disk"):* the disk a henchman of yours (a
+    henchman's place not taken) that follows within 20 feet, can't fight and isn't attacked; clicked, its inventory
+    opens - up to 500 pounds, more handed back; it ends after the hour or past 100 feet from you, its load dropped
+    where it floats. Its look the animation session's (a placeholder body until then).
+  - *Built 0.99.54 (build 4d, Floating Disk - the last level 1 spell):* row 1251, the Wizard's, a Ritual. The disk a
+    henchman made from nw_s_clantern (a placeholder body: the Lantern Archon at 0.5; the animation session's plan,
+    2026-11-16: an invisible body - appearance 298 - with visualeffects row 2095 on it once the owner's happy with its
+    look), plot, Ethereal (enemies don't see it), Strength 30 (its load never slows it), its own event scripts. It
+    takes no henchman's place: CNWSCreature::AddAssociate refuses a henchman past the module's limit (feedback 0x31),
+    so the limit is the module's own plus one per disk out (module locals, put back by its heartbeat after a load).
+    A click or the associate radial's Inventory opens it; Stand your ground keeps it, Follow me brings it along,
+    Leave the party ends the spell. As SRD 5.2.1 (not the "handed back" of the question's answer - mine): more than
+    500 pounds on it ends the spell and everything falls; it waits within 20 feet and follows farther; past 100 feet
+    (or another area), its hour, or its caster gone - the spell ends, its load falling where it floats. A new casting
+    renews its hour. Kill XP goes to a party's player characters alone (ApplyDeathExperience): none to it.
+    rules/floating_disk.h, core/rules_floating_disk.cpp; !test diskwizard (12 tower shields). 5 mutations caught;
+    568 tests pass. Tests FD-1 to FD-5; LS-6 and LS-7 count it (the Wizard's 29).
+  - *Asked (owner, 2026-11-16):* "ok, I think we'll need special 3d objects for this. I'm imagining an actual disk and
+    there would be 4 stages to it: empty - just the disk; 0-33%, 33%-66%, 66%-99% of the weight they would have 3
+    different meshes of increasing size of random junk on top. once the disk either is unsummoned or breaks the mesh
+    that was on top is placed where the disk was and works as a container so the player can access all the contents.
+    what do you think?" The animation session's take: four creature appearances (the disk and its junk as the
+    creature's own meshes, supermodel c_invsguy - clickable, a stage one SetCreatureAppearanceType), the junk built
+    from the game's own meshes, three placeables.2da rows for the piles; mine: the stage by its load, the pile a
+    container where it floated, gone once emptied; the mechanics now with placeholders. *Decided (owner, 2026-11-16:
+    "go with all your recommendations, let them compose it"):* all of it - the animation session composes the
+    stages (screenshots first). Asked on: "If I don't like the compositions, is there a way to compose them
+    myself?" (the animation session's to answer).
+    The animation session's answer: yes - each stage's composition is a small editable list in the repo (the game
+    models, where on the disk, turned, scaled; the generator rebuilds the models and screenshots); later, if wanted,
+    a Composer in the VFX Bench (about 1-2 sessions).
+  - *Built 0.99.55 (the disk's stages):* rules::DiskStageOf - nothing on it empty, up to a third of 500 pounds small,
+    up to two thirds medium, more large - checked every second and on its inventory's disturbance, a change swapping
+    its look (rules::DiskStageLook); at the end its load falls into its stage's pile where it floated
+    (rules::DiskPileBlueprint), a container named "Floating Disk's load", gone once closed empty (n5_d_pile); an empty
+    disk leaves nothing. Placeholders until the animation session's four appearance rows and three placeables rows:
+    the Lantern Archon at 0.5 / 0.6 / 0.7 / 0.8, the game's small, medium and large treasure piles. 4 mutations
+    caught; 569 tests pass. Tests FD-6 to FD-10 (FD-2 to FD-5, untested, superseded: their load fell loose).
+  - *0.99.55 tried (owner, 2026-11-16: "I don't see any changes, the \"disk\" is still just a floating light"):* the
+    stages worked (the log: 45 pounds stage 1, 180 stage 2); the scaled Lantern Archon placeholder didn't show them.
+    *Built 0.99.56:* the animation session's art merged (anim 3d49e05: appearance 14000-14003 - the disk and its junk
+    on c_invsguy -, placeables 14001-14003, the generator tools/data/floatdisk); its look SetCreatureAppearanceType
+    (14000 + its stage) at scale 1; its piles nwn5e's blueprints n5_fd_pile1-3 (data/files: the game's small treasure
+    pile's, on the new rows, not static, plot, no treasure scripts - 0.99.55's plc_treasure* placeholders ran NWN's
+    random-treasure script on opening). 2 mutations caught (the incremental runner: ~10 s a break); 569 tests pass.
+    FD-6 to FD-10 name 0.99.56.
+  - *FD-9 failed (owner, 2026-11-16: "FD-9 loading a save makes the floating shield uninteractible and stuck in
+    place"):* the save (made in FD-8, the disk told to stand its ground - so it stayed) held the disk intact in the
+    player's AssociateList: its scripts n5_d_hb / n5_d_talk / n5_d_dist, its locals, 10 items, faction 5 as the
+    player's, its hour's effect. After the load no handler of it logged anything: clicks unanswered, two !time 2 not
+    ending its hour. Cause not yet known. *0.99.57:* its caster looks after it every second (its local n5d_disk; the
+    first update after a game starts too) - its end, stage and following whatever its own scripts do; its handlers
+    log their first calls after a game starts and why one stops. Retest FD-11.
+  - *Decided (owner, 2026-11-17, on "anything that needs a decision?" - "2 & 3. Keep it"):* Floating Disk keeps SRD
+    5.2.1's overload (more than 500 pounds ends the spell, everything falling - no house rule handing it back); the
+    familiar keeps NWN's own dialog (nw_g_fam: not new text). "4. Once the animation session is done with the
+    placement bench I'll make some changes but for now their composition had been accepted" - the disk's four
+    stages and three piles (anim 3d49e05) accepted for now.
+  - *FD-9's cause (2026-11-17, the owner's logs):* a disk a loaded game brings back runs none of its own scripts.
+    On 0.99.56 the loaded disk heard no click and two !time 2 didn't end it; on 0.99.57 (the owner loading the FD-9
+    save, 2026-11-16 23:30) its heartbeat never ran in the 38 s logged, while its caster's look found it, ended its
+    hour and made its pile. The save keeps it whole (module.ifo's AssociateList: its scripts, its locals - n5d_stay
+    1, the save made after "stand your ground", which is why it stayed put). Why the engine leaves it idle isn't
+    known. *Fixed 0.99.60:* the caster's look makes a disk it finds that this game didn't make again
+    (rules::DiskFoundAction) - a fresh disk where it floats, as the cast makes one, with its look, order, load, gold
+    and the rest of its hour; the old one leaves the party and goes; one with no time left ends. Logged: the old
+    disk's AI level and whether it takes orders (for the cause), each disk's first heartbeat. Test
+    FloatingDiskFoundAfterLoad, 3 mutations caught; 580 tests pass. FD-11 superseded by FD-12 (FD-11's steps) and
+    FD-13 (FD-9's: stand your ground, save, load).
+    *0.99.61:* in the owner's 0.99.60 sessions (2026-11-17 09:27, 09:41) the disk from the save had AI level 0 (very
+    low) and commandable 0 - no heartbeat, no order taken - and its remake came at the first update, a second before
+    the player joined: CreateObject gave nothing. It now waits 3 s and for the disk to be in its caster's area (else
+    the caster's spot), up to 5 tries; a fresh disk's AI level and commandable are logged against it. Also in 0.99.61:
+    the dev layer at nwn5e-tools 45b898d (the Composer's Play in game plays a variant of meshes only).
+  - *Decided (owner, 2026-11-17: "go with 1, remove the six files from main"):* the six game-derived disk models
+    (c_n5fd_small/med/large, plc_n5fd_small/med/large) leave the repo, built on the owner's machine by build.bat from
+    the generators (the animation session's step; the build fails without them unless NWN5E_DERIVED=skip). The piles'
+    blueprints n5_fd_pile1-3.utp (settings only: no text, no art, a game portrait's name) - *decided (owner,
+    2026-11-17: "keep the UTPs")*: they stay.
+  - *A recast despawned the disk (owner, 2026-11-17: "when I recast to extend the life of a disk the current disk
+    just despawns apparently"):* the log - "renews its disk", then 0.4 s later "its hour is up": the renewal removed
+    the hour's mark and applied a new one in the same script, the Ritual's clock jump right after; the new mark went
+    too. *Fixed (d2e74ad, 0.99.67):* a renewal only adds its new mark (any mark keeps it); the log lists the marks.
+  - *Spell durations (owner, 2026-11-17: "every minute in-game is 2 seconds, so that means that the disk lasts 2
+    minutes as it has a 1 hour duration. this seems way too short to even be worth the bother of having to recast, and
+    manage the inventory between the PC and the disk"):* hours were the module's clock (HoursToSeconds: 2 real minutes
+    an hour), minutes real time (rounds), so a 10-minute spell outlasted a 1-hour one. Asked: A - durations in real
+    time, rests ending what they outlast; B - without the rests; C - Floating Disk alone (until dismissed or a Long
+    Rest); then, on "what would be the implications of changing the clock to a real-time clock?", the clock at 60
+    minutes an hour (day and night 24 real hours, the Long Rest's 16-hour wait 16 real hours, NWN mode needing the old
+    clock, engine work). *Decided (owner, 2026-11-17: "go with A. no real-time clock").* *Built 0.99.67:* with
+    spellcasting faithful a duration is real time on the round's scale (rules::SpellSeconds) - Light, Floating Disk,
+    False Life, Hunter's Mark, Mage Armor, Longstrider, the charms, Fog Cloud, Alarm, Disguise Self, Goodberry and
+    every DurationScript; a rest is the time it says (rules::kShortRestSeconds / kLongRestSeconds): every spell's
+    effect in the area with that long or less left ends, nwn5e's spell areas it outlasts go (rules::RestEndsSpellArea:
+    Entangle, Grease, Fog Cloud at any rest, Alarm at a Long Rest), Concentration ends ("the rest outlasts it" - new
+    text, generated); a Long Rest counts only when a rest began within 5 minutes; Goodberry on a spell clock of its own
+    (n5_spell_clock: real time played, the rests' hours). The clock's pace is untouched. 7 mutations caught; 585 tests
+    pass. Tests FD-14 (FD-10's retest), FD-15, DU-1 to DU-4.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
@@ -6487,6 +6641,68 @@ tied to a level and may stay.
 *Accepted (owner, 2026-10-30: "2 and 82 accepted").* The test profiles (#82), 0.57.5-0.58.2, with the `cleric` profile
 for combat C2: TP1-TP18 seen in the owner's runs.
 
+### A built caster's spells set by its profile (#169)
+
+*Asked (owner, 2026-11-17, after #152's run order):* "is it possible for the !commands to give em a character that
+already has spellbok/cantrip/prepared spells ready?" Before, a profile that builds a character emptied a 2024
+caster's lists and the Prepare spells window opened (#36, 0.75.1); its Accept needs every list full, so each `!test`
+meant picking 3-14 spells by hand - 30 profiles build a caster, and 44 open rows started with a pick. Proposed: two
+profile keys, the lists set as the window's Accept sets them, the window shut, every caster profile given full lists.
+*Decided (owner, 2026-11-17): "make the changes, it'll make testing so MUCH easier".*
+
+*Built 0.99.70:*
+- **The keys** (rules/test_profile.h): `spells = <names>` - cantrips and prepared spells, a Wizard's in its Spellbook
+  too; `spellbook = <names>` - a Wizard's Spellbook only. Comma lists, as many lines as needed; a profile that doesn't
+  build a character can't have them (test.bat's profile test fails it).
+- **Picking** (rules::PickProfileSpells): a name matches the class's list as the window shows it (rules::SpellNameKey:
+  letters and digits, any case). Each `spells` name goes to the first class whose list has it and has room - a
+  multiclass character's too; then each `spellbook` name to a class with a Spellbook. A name off the lists, of a
+  level with no slots yet, or past a list's count is skipped, with the first class's reason.
+- **In game** (core/prepare_spells.cpp, PrepareSpellsReset): with names, `!test` empties the lists as before, then puts
+  the picks in with the engine's own calls (the window's Commit) and writes the Wizard's Spellbook item. The window
+  stays shut: no open pending, the caster levels marked seen (the level-up check), the lists marked looked at (the
+  first sight). The chat lists each class's picks and any skip (new text, generated: `prepare_spells.preset_*`, 12
+  entries). The radial's Prepare Spells, `!prepare` and a Long Rest open the window as before; a profile with no
+  names behaves as before.
+- **The profiles:** all 30 that build a caster name full lists - the spells their notes and open rows use first,
+  then level 1 spells to the counts, so a Long Rest's window can Accept as it is. Checked against the served class
+  lists before the build (every name found, every list full). The notes that said to pick are gone.
+- **The rows:** 40 open game rows lose their "pick ... in the Prepare spells window" step (their setups now say
+  what the profile has prepared, "The install 0.99.70 or later"); LD-1 to LD-3 cast Cure Wounds (Cure Light Wounds'
+  2024 name since the level 1 switch). The animation session's SB-17, SB-24, AS-13 and AS-18 are its own to change.
+- Tests TestProfileSpellsParse, ProfileSpellsPicked, ProfileSpellsMulticlass; 19 of 19 mutations caught.
+
+*0.99.71 (the owner's 0.99.70 session log, read at the next install: each `!test cantripwizard` - "set by the profile:
+cantrips 4 of 4, prepared 9 of 9, spellbook 14 of 14", then 0.1 s later "window opened ... a Long Rest's change
+open"):* the lists were set and the window still opened. `!test`'s rest after the rebuild (ForceRest) ends in
+RestDone, which opens the window for a rest that had none at its start - after the preset had cleared its open. Now
+`!test` drops that window after a profile that set the spells (PrepareSpellsKeepShut); the Long Rest's change stays
+open, the rebuild's rest being one.
+
+### `!spawn <blueprint> away` (#170)
+
+*Asked (owner, 2026-11-17, #152's blocks A-C passed):* "I need to find a better map to test with aggressive creatures
+without them seeing me". `!spawn` puts the creature 5 m ahead facing you, and a calm creature sees a hider inside its
+120-degree vision cone (rules_perception.cpp E) - so a hostile one starts with you in sight. Offered: A `!spawn ...
+away`; B a stealth corner in the Test Grounds (the animation session's module) and `!spawn ... at <mark>`; C another
+map. *Decided (owner, 2026-11-17): "A is good".*
+
+*Built 0.99.71:*
+- `away`: the same spot 5 m ahead, the creature facing your way - its back to you (rules::SpawnTurnDegrees). In
+  stealth mode first, then the spawn: you start outside its cone; a spot 3-4 m in front of it is in its sight and
+  within Minor Illusion's 30 feet of you. It can still hear you (hiders_need_search: it comes to look, searching).
+- `!spawn`'s words are read whole (rules::ParseSpawnOptions: ally, neutral, dr, away; ally wins over neutral); an
+  unknown word shows the usage line instead of being ignored.
+- The usage line moved to the catalogue (test_commands.spawn_usage; "[away]" and its note new) and the spawned
+  line's note for away (test_commands.spawn_away, ", its back to you") - generated, for review.
+- #152's open rows D-G and #151's SH-1 / SH-2 are set up with `away`. Test SpawnOptionsParse.
+
+*0.99.73 (#152; the owner's 0.99.72 run of the orc block, read 2026-11-18: "!reset: 2 creature(s) removed", then
+0.4 s later "(Orc) studies it - d20 4 -1 vs DC 14: fooled"):* `!reset` destroys after 0.2 s, and a Minor Illusion
+reaction the creature had queued (its study) ran in between, on a creature being removed. `!reset` now marks what
+it removes (nwn5e_test_removed) at once, and the illusion's handlers drop a marked creature's reaction
+(ReactorCalled).
+
 ### The Test Grounds' commands (#156)
 
 *Decided (owner, 2026-11-10): "Look online to see if there are any testing maps available", then "a simple map
@@ -6564,6 +6780,51 @@ a GitHub Project, Google Sheets, a claude.ai page with a database, or keeping Ex
   archive, and `export` writes the board back into it.
 - scripts/tests_board.py (list, add, set, export, move) replaces tests_sheet.py, and TESTS.xlsx is retired. The
   owner's last Excel results were carried over.
+
+## Player text — the owner's rule (2026-11-16, #168)
+
+- *Asked (owner, 2026-11-16, after "did you write the familiar dialog text?" - no: NWN's nw_g_fam):* "I just want to
+  make sure that any new text is either written by me, or copied verbatim from the SRD. If you have to generate new
+  text we'll need a document to keep track of it, maybe in an i18n style". The text then: ~240 chat messages (158
+  TellPlayer, ~80 SendMessageToPC in scripts), 629 strings (names and descriptions; most spell descriptions SRD
+  5.2.1's, some reworded, 89 with an "nwn5e:" note), the interface's labels - all but the SRD's generated.
+  Proposed: one catalogue (a key, its source - owner, srd:<entry> verbatim, generated - and the text; the code by
+  key); new text only through it; the existing text migrated as generated for review. Asked: the scope
+  (player-facing only), the existing text (migrate it, or only new), new text meanwhile (generated and marked, or a
+  placeholder until the owner writes it). Recommended: player-facing; migrate; generated and marked.
+- *Decided (owner, 2026-11-16: "go with your recommendations"):* all three. The form (mine, data/strings.txt kept
+  as served - tools/data's asi_feats.py and mastery_feats.py write their sections into it): data/text/en.txt the
+  catalogue (`<key> <source> <text>`, `{name}` placeholders), data/text/strings_sources.txt each strings.txt
+  entry's source (an SRD part checked word for word against SRD 5.2.1; a description's "nwn5e:" note generated),
+  docs/TEXT-REVIEW.md every generated piece for the owner (scripts/text_review.py), a test holding the chat
+  messages written outside the catalogue to fewer each time. Order: the strings' sources and the newest messages
+  (Floating Disk, Find Familiar) first; the rest file by file.
+- *Built 0.99.58:* data/text/en.txt (`<key> | <source> | <text>`; PlayerText, src/core/player_text.h; parsed by
+  data/text_catalog.h) - Floating Disk's and Find Familiar's messages moved word for word (34 generated, the disk's
+  name srd:Floating Disk), rules::DiskEndText now DiskEndKey, the piles' name and description from it (their
+  blueprints' cleared). data/text/strings_sources.txt: data/strings.txt's 629 checked against SRD 5.2.1 word for
+  word (letters and digits in order - its PDF's line breaks, page footers and hyphenation aside) - 106 srd, 59 srd
+  with a generated "nwn5e:" note, 456 generated, 8 symbols ("+2"). docs/TEXT-REVIEW.md (scripts/text_review.py) lists
+  every generated piece and how to make one the owner's. Tests TextCatalogParses, TextCatalogFile,
+  TextKeysInCodeExist, StringsHaveSources, NoNewLiteralPlayerText (121 TellPlayer literals and 84 SendMessageToPC
+  in 40 files still in the code - only fewer: tests/data/fixtures/text_literals.txt, scripts/text_literals.py). 5
+  mutations caught; 574 tests pass. The launch: "text: 35 player texts from data\text\en.txt". Tests TX-1, TX-2.
+- *Next (owner, 2026-11-17: "1.(A)"):* the remaining messages (121 TellPlayer literals, 84 SendMessageToPC in
+  scripts) moved into the catalogue word for word, file by file, while the owner is away from the game.
+- *Built 0.99.59 (batches 1-3):* the chat messages the code wrote moved into data/text/en.txt word for word, file
+  by file - every TellPlayer and Tell-helper message (batch 1 by script, 183 calls; batch 2 by hand, the ones
+  assembled from pieces, 121 entries) and the text the code returns or collects for chat: the chat commands'
+  lines, the rest gate's reasons and the Short Rest lines, the conditions' end lines, the Stealth rolls, the
+  sprintf_s lines (batch 3, 206 entries: 129 sites by script, 33 by hand). A message with variants is an entry per
+  variant, its full text (one use / several, saved / failed); a list of optional pieces an entry per piece (the
+  !skills choices, the Short Rest's features). All generated but Radiant and Necrotic (srd:Damage Types); no new
+  wording. Checked: each entry's words against the code it came from; every PlayerText call supplies its entry's
+  placeholders (481 calls). The guard (NoNewLiteralPlayerText) also counts the literals starting "nwn5e: "
+  (ChatLineLiterals) - none left but the debug commands' (!test, !vfxnode, the NUI probe: not player-facing). 575
+  tests pass, 7 mutations caught; the launch: "text: 528 player texts". Tests TX-3 to TX-11.
+- *Left:* the 84 SendMessageToPC calls in script code (next: one expansion for scripts, so a script names a key);
+  the words the rules layer gives the messages (ability, effect, style and technique names, the exhaustion and
+  save texts - src/rules); the NUI windows' and radial menus' labels.
 
 ## Phase 1c/1d and racial bonuses — decided by the owner, 2026-10-18
 

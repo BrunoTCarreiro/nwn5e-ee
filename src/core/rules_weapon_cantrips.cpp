@@ -45,6 +45,7 @@
 #include "resolve_damage.h"
 #include "script_hooks.h"
 #include "spell_impact.h"
+#include "player_text.h"
 #include "rules/cantrips.h"
 #include "rules/weapons.h"
 
@@ -217,7 +218,7 @@ void ShillelaghScript(uint32_t self) {
   if (!rules::IsShillelagh(row)) row = rules::kShillelagh;
   const int base_item = engine::BaseItemRowInSlot(caster, ee::kSlotRightHand);
   if (!rules::IsShillelaghWeapon(base_item)) {
-    TellPlayer(self, "nwn5e: Shillelagh - no Club or Quarterstaff in your hand.");
+    TellPlayer(self, PlayerText("cantrips.shillelagh_no_club_or_quarterstaff"));
     if (LogSlot()) Log("cantrips: 0x%08X Shillelagh - no club or quarterstaff in the hand (base item %d)", self, base_item);
     return;
   }
@@ -254,14 +255,14 @@ void ShillelaghUpdate(void* creature) {
   if (now >= imbued.ends) {
     g_imbued.erase(found);
     Run(kShillelaghEnd, id, "n5_c_shillelagh");
-    TellPlayer(id, "nwn5e: Shillelagh ends - its minute is over.");
+    TellPlayer(id, PlayerText("weapon_cantrips.shillelagh_ends_its_minute_is"));
     if (LogSlot()) Log("cantrips: 0x%08X Shillelagh ended (its minute)", id);
     return;
   }
   if (engine::ItemInSlot(creature, ee::kSlotRightHand) != imbued.weapon) {
     g_imbued.erase(found);
     Run(kShillelaghEnd, id, "n5_c_shillelagh");
-    TellPlayer(id, "nwn5e: Shillelagh ends - you let go of the weapon.");
+    TellPlayer(id, PlayerText("weapon_cantrips.shillelagh_ends_you_let_go"));
     if (LogSlot()) Log("cantrips: 0x%08X Shillelagh ends - the weapon left the hand", id);
     return;
   }
@@ -320,12 +321,12 @@ bool OrderTrueStrike(void* creature, int row, uint32_t target, int class_slot) {
   void* stats = StatsOf(creature);
   if (!stats || !g_add_attack_actions) return false;
   if (target == ee::kObjectInvalid || target == id || !CreatureById(target)) {
-    TellPlayer(id, "nwn5e: True Strike - cast it at a creature: it becomes your attack at it.");
+    TellPlayer(id, PlayerText("weapon_cantrips.true_strike_cast_it_at"));
     return true;
   }
   const int base_item = engine::BaseItemRowInSlot(creature, ee::kSlotRightHand);
   if (base_item < 0 || !rules::NwnWeaponName(rules::MasteryKindOfNwnBaseItem(base_item))) {
-    TellPlayer(id, "nwn5e: True Strike - no weapon in your hand: it is an attack with one.");
+    TellPlayer(id, PlayerText("weapon_cantrips.true_strike_no_weapon_in"));
     if (LogSlot()) Log("cantrips: 0x%08X True Strike refused - no weapon in the hand (base item %d)", id, base_item);
     return true;
   }
@@ -339,10 +340,12 @@ bool OrderTrueStrike(void* creature, int row, uint32_t target, int class_slot) {
   const int ordered = g_add_attack_actions(creature, target, 0, 1, 0);  // as a click on it
   const bool radiant = rules::WeaponCantripDamageType(s.row) == rules::kDamageTypeRadiant;
   const int dice = rules::TrueStrikeExtraDice(s.level, false);
-  TellPlayer(id, std::string("nwn5e: True Strike - your next round is one attack at it: ") + AbilityName(s.ability) +
-                     " " + Signed(s.casting) + " for its attack and damage, " +
-                     (radiant ? "Radiant damage" : "the weapon's damage") +
-                     (dice > 0 ? " and " + std::to_string(dice) + "d6 Radiant more." : "."));
+  const char* key = radiant ? (dice > 0 ? "weapon_cantrips.true_strike_radiant_dice"
+                                        : "weapon_cantrips.true_strike_radiant")
+                            : (dice > 0 ? "weapon_cantrips.true_strike_weapon_dice"
+                                        : "weapon_cantrips.true_strike_weapon");
+  TellPlayer(id, PlayerText(key, {{"ability", AbilityName(s.ability)}, {"mod", Signed(s.casting)},
+                                  {"dice", std::to_string(dice)}}));
   Log("cantrips: 0x%08X True Strike (row %d, class slot %d) at 0x%08X - %s %+d, level %d (%d d6 Radiant): attack "
       "ordered %d", id, s.row, class_slot, target, AbilityName(s.ability), s.casting, s.level, dice, ordered);
   return true;

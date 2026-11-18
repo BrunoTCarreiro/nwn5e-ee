@@ -10,5 +10,5 @@ class = ranger
 level = 5
 abilities = 12 16 14 10 16 8
 items = nw_wbwln001 equip, nw_wamar001 x40
-note = the Prepare spells window opens: pick Hunter's Mark and Longstrider; Accept
+spells = Hunter's Mark, Longstrider, Ensnaring Strike, Cure Wounds, Entangle, Fog Cloud
 note = !spawn nw_orcb gives you an enemy (spawn two to move the mark)

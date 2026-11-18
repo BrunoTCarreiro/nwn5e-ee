@@ -477,6 +477,9 @@ bool IsFamiliarFormRow(int row);
 // its menu under the form, each opening its slot levels.
 constexpr int kFamiliarVariantFirst = 1227;
 constexpr int kFamiliarVariantLast = 1250;
+// Build 4d (owner, 2026-11-16: "go with the henchman disk"): Floating Disk - the Wizard's, a Ritual; its disk a
+// henchman (rules/floating_disk.h, core/rules_floating_disk.cpp).
+constexpr int kFloatingDisk = 1251;
 int FamiliarVariantRow(int form_row, int kind);  // kind 1 Celestial, 2 Fey, 3 Fiend; 0 for none
 bool IsFamiliarCastRow(int row);                 // a form's or a form-and-kind's row: Find Familiar cast
 constexpr int kRouseFeet = 5;

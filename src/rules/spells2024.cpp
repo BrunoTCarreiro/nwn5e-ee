@@ -166,6 +166,7 @@ std::vector<Spell2024> Build() {
   spells.push_back(utility(kDisguiseSelf, "Disguise Self", "n5_s_disguise", false));
   spells.push_back(utility(kSilentImage, "Silent Image", "n5_s_silentimg", false));
   spells.push_back(utility(kFindFamiliar, "Find Familiar", "n5_s_findfam", true));  // build 4c
+  spells.push_back(utility(kFloatingDisk, "Floating Disk", "n5_s_floatdisk", true));  // build 4d
   std::sort(spells.begin(), spells.end(), [](const Spell2024& a, const Spell2024& b) { return a.row < b.row; });
   return spells;
 }
@@ -459,7 +460,8 @@ int ChoiceOptionFeat(int row) {
 const std::vector<int>& WizardOnlyRows() {
   static const std::vector<int> kRows{kIdentify,        kRayOfEnfeeblement, kProtectionFromEvilAndGood,
                                       kHideousLaughter, kLongstrider,       kAlarm,
-                                      kIllusoryScript,  kUnseenServant,     kFindFamiliar};
+                                      kIllusoryScript,  kUnseenServant,     kFindFamiliar,
+                                      kFloatingDisk};
   return kRows;
 }
 

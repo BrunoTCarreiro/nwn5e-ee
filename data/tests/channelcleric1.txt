@@ -10,4 +10,6 @@ class = cleric
 level = 1
 abilities = 10 10 14 10 16 12
 items = nw_wdbqs001 equip
+spells = Sacred Flame, Guidance, Light
+spells = Bless, Cure Wounds, Guiding Bolt, Healing Word
 note = the class abilities radial has no Turn Undead or Channel Divinity button; !features lists level 1's

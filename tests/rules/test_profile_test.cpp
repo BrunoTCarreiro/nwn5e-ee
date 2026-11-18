@@ -243,3 +243,142 @@ TEST(CastMarks) {
   CHECK_EQ(CastMarkTag("dark\");").empty(), true);
   CHECK_EQ(CastMarkTag("ha-ll").empty(), true);
 }
+
+// Breaks caught (#169): a second spells line replacing the first, spells and spellbook mixed up, a name with no
+// letters taken, spells taken on a profile that doesn't build a character (its lists aren't emptied or set), a name
+// matched with its case, spaces or apostrophe.
+TEST(TestProfileSpellsParse) {
+  const TestProfile profile = ParseTestProfile(
+      "swap_class = wizard\n"
+      "spells = Minor Illusion, Hunter's Mark\n"
+      "spells = Light\n"
+      "spellbook = Alarm\n");
+  CHECK_EQ(profile.errors.empty(), true);
+  CHECK_EQ(profile.spells.size(), 3u);
+  CHECK_EQ(profile.spellbook.size(), 1u);
+  if (profile.spells.size() == 3u) {
+    CHECK_EQ(profile.spells[1] == "Hunter's Mark", true);
+    CHECK_EQ(profile.spells[2] == "Light", true);
+  }
+  CHECK_EQ(ParseTestProfile("swap_class = wizard\nspells = Light, !!!\n").errors.size(), 1u);
+  CHECK_EQ(ParseTestProfile("spells = Light\n").errors.size(), 1u);  // no character built
+  CHECK_EQ(ParseTestProfile("spellbook = Alarm\n").errors.size(), 1u);
+  CHECK_EQ(ParseTestProfile("levels = cleric 2\nspells = Bless\n").errors.empty(), true);
+  CHECK_EQ(SpellNameKey("Hunter's Mark") == "huntersmark", true);
+  CHECK_EQ(SpellNameKey(" MINOR illusion ") == "minorillusion", true);
+  CHECK_EQ(SpellNameKey("Blindness/Deafness") == SpellNameKey("blindness deafness"), true);
+  CHECK_EQ(SpellNameKey("!!!").empty(), true);
+}
+
+namespace {
+
+ProfileCaster TestWizard() {  // Wizard-like: 2 cantrips, 2 prepared, a Spellbook of 3, slots to level 1
+  ProfileCaster c;
+  c.top_level = 1;
+  c.cantrips = 2;
+  c.prepared = 2;
+  c.book = 3;
+  c.list = {{10, 0, "Light"},         {11, 0, "Minor Illusion"}, {12, 0, "Fire Bolt"}, {20, 1, "Magic Missile"},
+            {21, 1, "Shield"},        {22, 1, "Alarm"},          {23, 1, "Sleep"},     {30, 3, "Fireball"}};
+  return c;
+}
+
+}  // namespace
+
+// Breaks caught (#169): a list filled past its count (cantrips, prepared, Spellbook), a spell of a level with no
+// slots prepared, a Wizard's prepared spell left out of its Spellbook, a repeated name taking two places, a skip
+// without its reason or the level, the spellbook names placed before the spells.
+TEST(ProfileSpellsPicked) {
+  std::vector<ProfileSpellSkipped> skipped;
+  const std::vector<ProfileCasterLists> lists = PickProfileSpells(
+      {TestWizard()},
+      {"light", "Minor Illusion", "Fire Bolt", "Magic Missile", "magic missile", "Fireball", "Shield", "Sleep", "Wish"},
+      {"Alarm", "Sleep", "Light"}, &skipped);
+  CHECK_EQ(lists.size(), 1u);
+  if (lists.size() != 1u) return;
+  CHECK_EQ(lists[0].cantrips == std::vector<int>({10, 11}), true);
+  CHECK_EQ(lists[0].prepared == std::vector<int>({20, 21}), true);
+  CHECK_EQ(lists[0].book == std::vector<int>({20, 21, 22}), true);
+  CHECK_EQ(skipped.size(), 6u);
+  if (skipped.size() != 6u) return;
+  CHECK_EQ(skipped[0].name == "Fire Bolt" && skipped[0].why == ProfileSpellSkip::kCantripsFull, true);
+  CHECK_EQ(skipped[1].name == "Fireball" && skipped[1].why == ProfileSpellSkip::kTooHigh, true);
+  CHECK_EQ(skipped[1].level, 3);
+  CHECK_EQ(skipped[2].name == "Sleep" && skipped[2].why == ProfileSpellSkip::kPreparedFull, true);
+  CHECK_EQ(skipped[3].name == "Wish" && skipped[3].why == ProfileSpellSkip::kNotOnList, true);
+  CHECK_EQ(skipped[4].name == "Sleep" && skipped[4].why == ProfileSpellSkip::kBookFull, true);
+  CHECK_EQ(skipped[5].name == "Light" && skipped[5].why == ProfileSpellSkip::kCantripInBook, true);
+  // No skipped list: the same lists.
+  CHECK_EQ(PickProfileSpells({TestWizard()}, {"Light"}, {}, nullptr)[0].cantrips == std::vector<int>({10}), true);
+  // A Spellbook full before the prepared spells are: the spell isn't prepared either.
+  ProfileCaster small_book = TestWizard();
+  small_book.book = 1;
+  std::vector<ProfileSpellSkipped> book_full;
+  const std::vector<ProfileCasterLists> small =
+      PickProfileSpells({small_book}, {"Magic Missile", "Shield"}, {}, &book_full);
+  CHECK_EQ(small[0].prepared == std::vector<int>({20}), true);
+  CHECK_EQ(book_full.size(), 1u);
+  if (book_full.size() == 1u) CHECK_EQ(book_full[0].why == ProfileSpellSkip::kBookFull, true);
+}
+
+// Breaks caught (#169): a multiclass name not moving on to the next class with room, a name both lists have going to
+// both, a skip given the last class's reason instead of the first's, a spellbook name given to a class with no
+// Spellbook, the reasons for a book name (no Spellbook at all, not on the Wizard's list) mixed up.
+TEST(ProfileSpellsMulticlass) {
+  ProfileCaster wizard;
+  wizard.top_level = 1;
+  wizard.cantrips = 1;
+  wizard.prepared = 1;
+  wizard.book = 2;
+  wizard.list = {{10, 0, "Light"}, {20, 1, "Magic Missile"}, {40, 1, "Detect Magic"}, {80, 1, "Silence"}};
+  ProfileCaster cleric;
+  cleric.top_level = 1;
+  cleric.cantrips = 2;
+  cleric.prepared = 2;
+  cleric.list = {{10, 0, "Light"}, {50, 0, "Guidance"}, {60, 1, "Bless"}, {40, 1, "Detect Magic"}, {80, 2, "Silence"}};
+  std::vector<ProfileSpellSkipped> skipped;
+  const std::vector<ProfileCasterLists> lists = PickProfileSpells(
+      {wizard, cleric}, {"Light", "Guidance", "Light", "Magic Missile", "Detect Magic", "Bless", "Silence"}, {"Bless"},
+      &skipped);
+  CHECK_EQ(lists.size(), 2u);
+  if (lists.size() != 2u) return;
+  CHECK_EQ(lists[0].cantrips == std::vector<int>({10}), true);
+  CHECK_EQ(lists[0].prepared == std::vector<int>({20}), true);
+  CHECK_EQ(lists[0].book == std::vector<int>({20}), true);
+  CHECK_EQ(lists[1].cantrips == std::vector<int>({50}), true);
+  CHECK_EQ(lists[1].prepared == std::vector<int>({40, 60}), true);  // Detect Magic: the Wizard's list was full
+  CHECK_EQ(lists[1].book.empty(), true);
+  CHECK_EQ(skipped.size(), 2u);
+  if (skipped.size() == 2u) {
+    // Silence: the first class's reason (the Wizard's list full), not the Cleric's (level 2).
+    CHECK_EQ(skipped[0].name == "Silence" && skipped[0].why == ProfileSpellSkip::kPreparedFull, true);
+    CHECK_EQ(skipped[1].why == ProfileSpellSkip::kNotOnList, true);  // the book's Bless: not a Wizard's
+  }
+  std::vector<ProfileSpellSkipped> no_book;
+  PickProfileSpells({cleric}, {}, {"Bless"}, &no_book);
+  CHECK_EQ(no_book.size(), 1u);
+  if (no_book.size() == 1u) CHECK_EQ(no_book[0].why == ProfileSpellSkip::kNoSpellbook, true);
+}
+
+// Breaks caught (#170): away not read, or read inside another word; a word's case kept; ally not winning over
+// neutral; an unknown word ignored instead of refused; a refused line setting anything; the creature turned the
+// wrong way (facing you while away, or its back to you without it).
+TEST(SpawnOptionsParse) {
+  SpawnOptions o;
+  CHECK_EQ(ParseSpawnOptions("", &o), true);
+  CHECK_EQ(o.ally || o.neutral || o.reduction || o.away, false);
+  CHECK_EQ(SpawnTurnDegrees(o), 180);  // facing you, as before
+  CHECK_EQ(ParseSpawnOptions("AWAY", &o), true);
+  CHECK_EQ(o.away, true);
+  CHECK_EQ(SpawnTurnDegrees(o), 0);  // its back to you
+  CHECK_EQ(ParseSpawnOptions("neutral away", &o), true);
+  CHECK_EQ(o.neutral && o.away && !o.ally, true);
+  CHECK_EQ(ParseSpawnOptions("ally neutral dr", &o), true);
+  CHECK_EQ(o.ally && !o.neutral && o.reduction && !o.away, true);
+  SpawnOptions kept;
+  kept.away = true;
+  CHECK_EQ(ParseSpawnOptions("away behind", &kept), false);  // an unknown word: refused
+  CHECK_EQ(kept.away && !kept.ally, true);                     // nothing changed
+  CHECK_EQ(ParseSpawnOptions("faraway", &o), false);           // a whole word only
+  CHECK_EQ(ParseSpawnOptions("drake", &o), false);
+}

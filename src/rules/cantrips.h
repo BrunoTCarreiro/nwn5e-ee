@@ -416,17 +416,41 @@ enum class ImageReaction {
   kAttackThenSearch,  // attacks it, then searches round it for the caster
   kTouch,             // comes to it and touches it - which reveals it (SRD 5.2.1: "Physical interaction with
                       // the image reveals it to be an illusion"): reaching for the treasure, feeding on the corpse
+  kSizeUp,            // studies it on sight, where it stands (0.99.75, C below): seen through, it searches for the
+                      // caster; fooled, it charges and attacks it - the blow reveals it - then searches
 };
 // `size` and `image_size`: NWN's creature sizes (1 tiny .. 5 huge).
+// 0.99.75 (owner, 2026-11-18: "should an orc (who is normally automnatically aggressive towards an adventurer) calmly
+// investigate a humanoid illusion?", then of A as built / B charge on sight / C a check on sight, then search or
+// charge: "C"): a sentient hostile creature no longer walks up to study a humanoid - it sizes it up (kSizeUp).
 ImageReaction ReactionToImage(ImageKind kind, bool sentient, bool hostile, int size, int image_size);
 // After a study - Q4 A: an image seen through vanishes for everyone; a hostile creature then searches for the
-// caster, any other goes back. A fooled one flees a creature image again (and stays away), else goes back.
-enum class AfterStudy { kVanishThenSearch, kVanishThenGoBack, kFleeAgain, kGoBack };
+// caster, any other goes back. A fooled one flees a creature image again (and stays away), charges a humanoid it is
+// hostile to (C: kCharge - it attacks it, then searches), else goes back.
+enum class AfterStudy { kVanishThenSearch, kVanishThenGoBack, kFleeAgain, kGoBack, kCharge };
 AfterStudy AfterStudyOf(ImageKind kind, bool sees_through, bool hostile);
 // Once the image is gone (seen through or hit), a sentient hostile creature searches for the caster.
 bool SearchesAfterVanish(bool sentient, bool hostile);
 constexpr int kIllusionSearchSeconds = 60;  // a minute
 constexpr int kIllusionSearchFeet = 30;     // round the image: the spell's range, where the caster stood
+// #152 (owner, 2026-11-18: "there should be a priority for alertness ... once I cast the humanoid illusion in front of
+// the orc that should supercede the listening mode and prompt the orc to immediately investigate the man that just
+// popped in front of him that he can see", then on the ordering offered and B - sounds too: "The ordering is good and
+// B"): what a creature near an image or a sound is busy with, least alert first. An image or a sound (Minor Illusion,
+// Thaumaturgy's Phantom Sound, Druidcraft's Animal Sound) moves a calm or investigating creature; one reacting to an
+// illusion carries on (a recast ends the old image, as before); one fighting a foe it sees pays it no mind.
+enum class Alertness {
+  kCalm,
+  kInvestigating,  // a noise it heard (stealth watch), a light put out, a hider it searches for and can't see (#133)
+  kReacting,       // an illusion's reaction under way
+  kFighting,       // in combat with a foe it sees
+};
+// `in_combat`: the engine's; `hunting_unseen`: its combat is only #133's search for a hider it can't see (an
+// investigation, not a fight); `investigating`: a heard noise's or a light's look under way; `reacting`: an illusion's
+// reaction under way.
+Alertness AlertnessOf(bool in_combat, bool hunting_unseen, bool investigating, bool reacting);
+bool IllusionTakesOver(Alertness alertness);  // a new image or sound moves it
+bool ReactionStops(Alertness alertness);      // a reaction under way ends: it fights
 // Dancing Lights: four lights at the point, Dim Light 10 ft each (NWN's 5 m light, the stealth rules' light), for
 // 1 minute on Concentration; a Bonus Action moves them up to 60 ft, and they go out more than 120 ft from the caster.
 constexpr int kDancingLightsCount = 4;

@@ -82,6 +82,7 @@
 #include "data_serving.h"
 #include "records.h"
 #include "rest.h"
+#include "player_text.h"
 #include "rules/death_saves.h"
 
 int RelentlessRage(void* creature);  // rules_barbarian.cpp (Barbarian B11)
@@ -203,8 +204,9 @@ void SetHitPoints(void* creature, int value) { SetField<int32_t>(creature, ee::k
 int MaxHitPoints(void* creature) { return g_max_hit_points ? g_max_hit_points(creature, 1) : HitPoints(creature); }
 bool IsPlayer(const void* creature) { return Field<int32_t>(creature, ee::kCreatureIsPlayerCharacter) != 0; }
 
-void Tell(uint32_t player, const std::string& line) { TellPlayer(player, "nwn5e: " + line); }
-void Later(uint32_t player, const std::string& line) { g_lines.emplace_back(player, "nwn5e: " + line); }
+void Tell(uint32_t player, const std::string& line) { TellPlayer(player, PlayerText("chat.line", {{"line", std::string(line)}})); }
+void Later(uint32_t player, const std::string& line) { g_lines.emplace_back(player, PlayerText("chat.line",
+                                                                                               {{"line", line}})); }
 
 // The player character a henchman serves (0 if it is no player's henchman).
 uint32_t PlayerMasterOf(void* creature) {
@@ -405,7 +407,7 @@ void ClearExhaustion(void* player, const char* why) {
   if (level == 0) return;
   SetExhaustion(player, 0);
   Log("dying: 0x%08X %s - Exhaustion %d removed", IdOf(player), why, level);
-  Tell(IdOf(player), std::string(why) + ": your Exhaustion is gone.");
+  Tell(IdOf(player), PlayerText("dying.your_exhaustion_is_gone", {{"why", std::string(std::string(why))}}));
 }
 
 void GainExhaustion(void* player) {
@@ -414,12 +416,11 @@ void GainExhaustion(void* player) {
   SetExhaustion(player, level);
   Log("dying: 0x%08X back from 0 HP - Exhaustion %d", id, level);
   if (rules::IsDeadFromExhaustion(level)) {
-    Tell(id, "Coming back from 0 HP once more: Exhaustion 6 - you die.");
+    Tell(id, PlayerText("dying.coming_back_from_0_hp"));
     Kill(id);
     return;
   }
-  Tell(id, "Coming back from 0 HP leaves you exhausted: Exhaustion " + std::to_string(level) + " (" +
-               ExhaustionText(level) + "; 6 is death). A Long Rest removes it.");
+  Tell(id, PlayerText("dying.coming_back_from_0_hp_2", {{"level", std::string(std::to_string(level))}, {"exhaustion_text", std::string(ExhaustionText(level))}}));
 }
 
 // --- A player at 0 HP --------------------------------------------------------------
@@ -580,7 +581,7 @@ bool UpdateDownPlayer(uint32_t id, DownPlayer& state, uint64_t now) {
     engine::SetLocalInt(player, kVarDown, 0);
     ClearDownVisuals(id);
     Log("dying: 0x%08X back up at %d HP", id, hit_points);
-    Tell(id, "You're back up at " + std::to_string(hit_points) + " HP.");
+    Tell(id, PlayerText("dying.you_re_back_up_at", {{"hit_points", std::string(std::to_string(hit_points))}}));
     GainExhaustion(player);
     return false;
   }
@@ -598,7 +599,7 @@ bool UpdateDownPlayer(uint32_t id, DownPlayer& state, uint64_t now) {
     }
   }
   if (StandingHenchmen(player) == 0) {
-    Tell(id, "No henchman is left standing - you die.");
+    Tell(id, PlayerText("dying.no_henchman_is_left_standing"));
     Log("dying: 0x%08X no henchman standing - dies", id);
     Kill(id);
     state.pending_at = now;
@@ -607,7 +608,7 @@ bool UpdateDownPlayer(uint32_t id, DownPlayer& state, uint64_t now) {
   }
   FightScan scan;
   if (const char* over = FightOver(player, player, state.fight, now, &scan)) {
-    Tell(id, "The fight is over - you come to at 1 HP.");
+    Tell(id, PlayerText("dying.the_fight_is_over_you"));
     Log("dying: 0x%08X the fight is over (%s; now %s) - wakes", id, over, ScanText(scan).c_str());
     Heal(id, 1);
     state.pending_at = now;
@@ -1050,7 +1051,7 @@ std::string Lower(std::string text) {
 }
 
 std::vector<std::string> DyingCommand(void* creature, const std::string& args) {
-  if (!Faithful()) return {"nwn5e: death saves and Exhaustion come with dying faithful."};
+  if (!Faithful()) return {PlayerText("dying.death_saves_and_exhaustion_come")};
   const uint32_t id = IdOf(creature);
   char word[32] = {};
   int number = 0;
@@ -1060,18 +1061,18 @@ std::vector<std::string> DyingCommand(void* creature, const std::string& args) {
   const bool tests = g_config.debug_test_commands;
   if (tests && verb == "roll" && fields >= 2) {
     g_forced_roll = std::clamp(number, 1, 20);
-    return {"nwn5e: the next death saving throw's d20 is " + std::to_string(g_forced_roll) + "."};
+    return {PlayerText("dying.the_next_death_saving_throw", {{"roll", std::to_string(g_forced_roll)}})};
   }
   if (tests && verb == "hurt" && fields >= 2 && number > 0) {
     uint32_t target = id;
     if (fields >= 3 && std::string(extra) == "henchman") {
       const std::vector<uint32_t> henchmen = HenchmenOf(creature);
-      if (henchmen.empty()) return {"nwn5e: you have no henchman."};
+      if (henchmen.empty()) return {PlayerText("dying.you_have_no_henchman")};
       target = henchmen.front();
     }
     ApplyEffectAs(target, target, "DURATION_TYPE_INSTANT",
                   ("EffectDamage(" + std::to_string(number) + ", DAMAGE_TYPE_MAGICAL)").c_str(), 0.0f, 0.0f);
-    return {"nwn5e: " + std::to_string(number) + " damage to " + (target == id ? "you." : "your first henchman.")};
+    return {PlayerText(target == id ? "dying.hurt_you" : "dying.hurt_henchman", {{"damage", std::to_string(number)}})};
   }
   if (tests && verb == "henchman") {  // a henchman where the campaign has none yet (the Prelude)
     std::string resref = Lower(args);
@@ -1082,7 +1083,7 @@ std::vector<std::string> DyingCommand(void* creature, const std::string& args) {
     const bool valid = resref.size() <= 16 && std::all_of(resref.begin(), resref.end(), [](char c) {
                          return isalnum(static_cast<unsigned char>(c)) || c == '_';
                        });
-    if (!valid) return {"nwn5e: \"" + resref + "\" is not a blueprint name (letters, digits, _; at most 16)."};
+    if (!valid) return {PlayerText("dying.is_not_a_blueprint_name", {{"resref", resref}})};
     char code[900];
     sprintf_s(code,
               "object h = CreateObject(OBJECT_TYPE_CREATURE, \"%s\", GetLocation(OBJECT_SELF));"
@@ -1102,14 +1103,17 @@ std::vector<std::string> DyingCommand(void* creature, const std::string& args) {
     const int level = std::clamp(number, 0, 6);
     SetExhaustion(creature, level);
     if (rules::IsDeadFromExhaustion(level)) Kill(id);
-    return {"nwn5e: Exhaustion set to " + std::to_string(level) + (level == 6 ? " - you die." : ".")};
+    return {PlayerText(level == 6 ? "dying.exhaustion_set_die" : "dying.exhaustion_set",
+                       {{"level", std::to_string(level)}})};
   }
   std::vector<std::string> lines;
   const int exhaustion = ExhaustionOf(creature);
-  lines.push_back("nwn5e: Exhaustion " + std::to_string(exhaustion) +
-                  (exhaustion ? " (" + ExhaustionText(exhaustion) + "; a Long Rest removes it)." : "."));
+  lines.push_back(exhaustion ? PlayerText("dying.exhaustion_level", {{"level", std::to_string(exhaustion)},
+                                                                    {"text", ExhaustionText(exhaustion)}})
+                             : PlayerText("dying.exhaustion_none", {{"level", std::to_string(exhaustion)}}));
   const auto down = g_down_players.find(id);
-  if (down != g_down_players.end()) lines.push_back("nwn5e: at 0 HP - " + Counts(down->second.saves) + ".");
+  if (down != g_down_players.end()) lines.push_back(PlayerText("dying.at_0_hp",
+                                                               {{"counts", Counts(down->second.saves)}}));
   int standing = 0, down_count = 0, elsewhere = 0;
   void* area = engine::AreaOf(creature);
   for (uint32_t henchman_id : HenchmenOf(creature)) {
@@ -1123,13 +1127,11 @@ std::vector<std::string> DyingCommand(void* creature, const std::string& args) {
       ++standing;
     }
   }
-  lines.push_back("nwn5e: henchmen standing " + std::to_string(standing) + ", down " + std::to_string(down_count) +
-                  ", elsewhere " + std::to_string(elsewhere) + ". At 0 HP with one standing you make death saves; " +
-                  (HasDefyDeath(creature) ? "Defy Death: advantage, 18-20 counts as 20." : "without one, NWN's death."));
+  lines.push_back(PlayerText(HasDefyDeath(creature) ? "dying.henchmen_defy_death" : "dying.henchmen",
+                             {{"standing", std::to_string(standing)}, {"down", std::to_string(down_count)},
+                              {"elsewhere", std::to_string(elsewhere)}}));
   if (tests) {
-    lines.push_back("nwn5e: tests - !dying roll <1-20> (the next death save's d20), !dying hurt <HP> [henchman], "
-                    "!dying exhaustion <0-6>, !dying henchman [blueprint] (default nw_hen_dae_01 Daelan; "
-                    "nw_hen_lin_01 Linu, a healer).");
+    lines.push_back(PlayerText("dying.tests_dying_roll_1_20"));
   }
   return lines;
 }

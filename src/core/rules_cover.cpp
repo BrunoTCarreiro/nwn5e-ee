@@ -1,3 +1,4 @@
+#include "player_text.h"
 // #166 part 1 (docs/PLAN.md "Cover"; owner, 2026-11-15: "what about half-cover?" - "go with your
 // recommendations"): 2024 Half Cover from a creature in the way. GetArmorClassVersus (rules_attack.cpp) adds
 // CoverArmorClassBonus to each attack's AC: another living creature, not Tiny, whose body reaches the line between
@@ -80,8 +81,8 @@ int CoverArmorClassBonus(void* target_stats, void* attacker) {
       Log("cover: 0x%08X has Half Cover (+%d AC) against 0x%08X - 0x%08X is in the way", seek.target, bonus,
           seek.attacker, seek.blocker);
     }
-    TellPlayer(seek.attacker, "nwn5e: your target has Half Cover (+2 AC) - a creature stands in the way.");
-    TellPlayer(seek.target, "nwn5e: Half Cover (+2 AC) - a creature stands between you and the attack.");
+    TellPlayer(seek.attacker, PlayerText("cover.your_target_has_half_cover"));
+    TellPlayer(seek.target, PlayerText("cover.half_cover_2_ac_a"));
   }
   return bonus;
 }

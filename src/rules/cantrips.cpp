@@ -662,7 +662,7 @@ ImageReaction ReactionToImage(ImageKind kind, bool sentient, bool hostile, int s
       if (!hostile) return ImageReaction::kIgnore;
       return sentient ? ImageReaction::kStudy : ImageReaction::kTouch;
     case ImageKind::kHumanoid:
-      if (sentient) return hostile ? ImageReaction::kStudy : ImageReaction::kIgnore;
+      if (sentient) return hostile ? ImageReaction::kSizeUp : ImageReaction::kIgnore;
       return hostile ? ImageReaction::kAttack : ImageReaction::kFlee;
     case ImageKind::kCreature:
     case ImageKind::kLargeCreature:
@@ -674,10 +674,24 @@ ImageReaction ReactionToImage(ImageKind kind, bool sentient, bool hostile, int s
 
 AfterStudy AfterStudyOf(ImageKind kind, bool sees_through, bool hostile) {
   if (sees_through) return hostile ? AfterStudy::kVanishThenSearch : AfterStudy::kVanishThenGoBack;
+  if (kind == ImageKind::kHumanoid && hostile) return AfterStudy::kCharge;
   return kind == ImageKind::kCreature || kind == ImageKind::kLargeCreature ? AfterStudy::kFleeAgain : AfterStudy::kGoBack;
 }
 
 bool SearchesAfterVanish(bool sentient, bool hostile) { return sentient && hostile; }
+
+Alertness AlertnessOf(bool in_combat, bool hunting_unseen, bool investigating, bool reacting) {
+  if (in_combat && !hunting_unseen) return Alertness::kFighting;
+  if (reacting) return Alertness::kReacting;
+  if (hunting_unseen || investigating) return Alertness::kInvestigating;
+  return Alertness::kCalm;
+}
+
+bool IllusionTakesOver(Alertness alertness) {
+  return alertness == Alertness::kCalm || alertness == Alertness::kInvestigating;
+}
+
+bool ReactionStops(Alertness alertness) { return alertness == Alertness::kFighting; }
 
 bool DancingLightsMoveAllowed(float feet_from_lights, float feet_from_caster) {
   return feet_from_lights <= static_cast<float>(kDancingLightsMoveFeet) &&

@@ -12,5 +12,6 @@ class = cleric
 level = 5
 abilities = 14 10 14 10 16 12
 items = nw_wblml001 equip
-note = prepare Guiding Bolt, Inflict Wounds, Cure Wounds and Healing Word in the Prepare spells window and rest
+spells = Sacred Flame, Guidance, Light, Thaumaturgy
+spells = Guiding Bolt, Inflict Wounds, Cure Wounds, Healing Word, Bless, Bane, Command, Shield of Faith, Sanctuary
 note = !spawn nw_orcb gives you an enemy; !reflex 30 30 to lose Hit Points; the radial's Level 2 and Level 3 upcast a spell

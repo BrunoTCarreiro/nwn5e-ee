@@ -3,7 +3,7 @@
 # is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
 #
 # Spell slots and preparing (issue 36, parts 1 and 3a): your first class becomes Cleric 5, Wisdom 16. With
-# spellcasting faithful the Cleric prepares spells (the Prepare spells window opens): four cantrips and nine
+# spellcasting faithful the Cleric prepares spells (set by the profile, #169): four cantrips and nine
 # spells of levels it has slots for (four 1st, three 2nd, two 3rd); any prepared spell casts from any slot of
 # its level; cantrips at will; after a Long Rest any prepared spell can change.
 name = Spell slots (issue 36): human Cleric 5, Wisdom 16 - any Cleric spell from its level's slots
@@ -13,7 +13,9 @@ class = cleric
 level = 5
 abilities = 10 10 14 10 16 12
 items = nw_wdbqs001 equip
-note = the Prepare spells window opens: pick 4 cantrips and 9 spells, Accept - the radial lists only those
+spells = Sacred Flame, Guidance, Light, Thaumaturgy
+spells = Bless, Bane, Command, Cure Wounds, Guiding Bolt, Healing Word, Inflict Wounds, Shield of Faith, Sanctuary
+note = the radial lists only the profile's 4 cantrips and 9 spells
 note = slots 4 / 3 / 2 (no Wisdom bonus); a cantrip never runs out and its button shows no number
 note = a 1st-level spell's quickbar slot clicked five times queues four casts - the fifth is refused (no 1st-level
 note = slot left; its radial entry's Level 2 and Level 3 cast it with a higher one)
