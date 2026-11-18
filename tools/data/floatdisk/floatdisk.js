@@ -379,12 +379,30 @@ function tintMeshes(meshes, tint) {
   });
 }
 
+// A draft plane's material as the game draws it (M1's review): the game's model writer (nwn5e-ee's WriteVfxModel,
+// src/data/vfx_model.cpp; tests/data/vfx_model_test.cpp pins it) writes a plane whose ambient and diffuse are both the
+// draft's defaults (VfxPlane's 0.2 and 0.8 - a mesh without them has them - each compared as C's %g of a float writes
+// it) as "ambient 1 1 1" / "diffuse 1 1 1", as nwn5e always wrote planes: the game draws such a plane at full, never at
+// 0.8. -> a copy at full ambient and diffuse, else the mesh as it is. The bench's core.js drawnMaterial keeps the same rule
+// (the Composer's check.js compares them).
+const PLANE_AMBIENT = [0.2, 0.2, 0.2], PLANE_DIFFUSE = [0.8, 0.8, 0.8];
+const asWritten = (v) => Number(Math.fround(v).toPrecision(6));  // %g: a float's six significant digits
+const atDefault = (c, d) => !Array.isArray(c) || (c.length >= 3 && [0, 1, 2].every((k) => isNum(c[k]) && asWritten(c[k]) === d[k]));
+function drawnMaterial(m) {
+  if (!atDefault(m.ambient, PLANE_AMBIENT) || !atDefault(m.diffuse, PLANE_DIFFUSE)) return m;
+  return Object.assign({}, m, { ambient: [1, 1, 1], diffuse: [1, 1, 1] });
+}
+
 // A part's meshes where the composition puts it: scaled, tilted (about x, then y), turned (about z), then moved so the
 // middle of its footprint (its box from above) is at at.x, at.y and its lowest point at.z above `floor` (the disk's
 // top), and tinted by its tint (tintMeshes; a part without one: white) - one place, so both generators and the
-// Composer's stage get it. { meshes (named prefix + its number + "_" + the mesh's name), lo, hi, reach (how far from the
-// centre it reaches in x y) }
-function placePart(part, model, index, floor, prefix) {
+// Composer's stage get it. `planes`: its meshes become a draft's planes (a spell mesh's), which the game draws by
+// drawnMaterial - a tinted part's meshes at the draft's defaults are lifted to full first, so the tint multiplies what the
+// game draws (not 0.2 0.2 0.1998 for a tint of 1 1 0.999, which the game would draw as it is, darker than untinted);
+// untinted they're left as they are (the game lifts them; every draft keeps its bytes). A placeable's meshes never: its
+// model is written as it is (meshLines). { meshes (named prefix + its number + "_" + the mesh's name), lo, hi, reach (how
+// far from the centre it reaches in x y) }
+function placePart(part, model, index, floor, prefix, planes) {
   const s = part.scale, rad = Math.PI / 180;
   const qx = [Math.sin(part.tilt[0] * rad / 2), 0, 0, Math.cos(part.tilt[0] * rad / 2)];
   const qy = [0, Math.sin(part.tilt[1] * rad / 2), 0, Math.cos(part.tilt[1] * rad / 2)];
@@ -409,7 +427,8 @@ function placePart(part, model, index, floor, prefix) {
     }
     return Object.assign({}, m, { name: prefix + String(index + 1).padStart(2, "0") + "_" + m.name, verts, tverts: m.tverts.map(round) });
   });
-  return { meshes: tintMeshes(meshes, part.tint), lo, hi, reach };
+  const lifted = planes && Array.isArray(part.tint) && !isWhite(part.tint) ? meshes.map(drawnMaterial) : meshes;
+  return { meshes: tintMeshes(lifted, part.tint), lo, hi, reach };
 }
 
 // The same meshes moved by dz (the piles: the disk's height down, their base on the ground).
@@ -961,7 +980,7 @@ const api = {
   MARK, TEXTURE_MARK, STAGES, PILES, SUFFIX, RESREF, SUPERMODEL, SOURCE_ROWS, APPEARANCE_OVERRIDES, ROWS, LABELS,
   creatureModel, pileModel,
   PLT_LAYERS, PLT_PALETTES, PLT_FIELDS, PLT_LABELS, PLT_DEFAULTS, PLT_MAX, BAKED,
-  readColours, fullColours, cleanColours, readPlt, bakePlt, bakedName, tgaBytes, bakeBitmaps, isWhite, readTint, tintMeshes,
+  readColours, fullColours, cleanColours, readPlt, bakePlt, bakedName, tgaBytes, bakeBitmaps, isWhite, readTint, tintMeshes, drawnMaterial,
   resolvePartFile, readPart, readComposition, partKey, partLabel, quat, axisAngle, qrot, round, num, HINT_MAX, hintValue, meshHint, modelSpaceMeshes, placePart,
   lowered, uniqueNames, diskMesh, diskTexture, modelNodes, creatureModelText, pileNodes, pileModelText,
   pileWalkmeshText, rowsText, readableAscii, texturesBeside, carriesMark, sameText, crlf, mergeModels, inline, compositionText,

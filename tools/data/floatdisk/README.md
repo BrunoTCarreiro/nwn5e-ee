@@ -177,6 +177,10 @@ A part's `tint` is a colour `[r, g, b]` (each 0-1) its textures take:
 - **White is none:** `[1, 1, 1]`, the default, isn't written, and leaves the material as the model has it.
 - **Where:** any game model, weapon or file of yours, both generators alike (`floatdisk.js`'s `placePart` applies it). A
   dyed part is tinted over its dyes. A shape takes none (it's refused): its `colour` is its colour.
+- **A spell mesh's meshes** (the Composer's) become a draft's planes, and the game's model writer draws a plane at the
+  draft's default material (ambient 0.2, diffuse 0.8: a mesh with no material of its own) at full, 1 1 1
+  (`drawnMaterial`). So there a tinted mesh at that default is lifted to full before its tint (`placePart`'s `planes`);
+  untinted it's left as it is. The Floating Disk's models, like a placeable's, are written as they are.
 - In the VFX Bench's Composer it's the part card's **Tint** (None takes it off).
 
 ## Shapes

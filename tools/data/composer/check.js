@@ -374,6 +374,38 @@ check("floatdisk.js's hintValue and core.js's read every hint text alike", () =>
   assert.deepStrictEqual(texts.map(F.hintValue), [0, 1, 2, 5, 5, 5, 0, 0, 3, 4, 1, 2, 1, 2, 1, 0, 0, 0, 0, 0]);
 });
 
+// M1's review: the game's model writer (WriteVfxModel) writes a draft plane whose ambient and diffuse are both the draft's
+// defaults (0.2, 0.8 as %g writes them) at full, 1 1 1 - floatdisk.js's drawnMaterial and the bench's core.js drawnMaterial
+// (the stage's, for a draft's planes) are that rule, alike for every material.
+check("floatdisk.js's drawnMaterial and core.js's lift the same materials to full", () => {
+  global.window = global.window || {};  // core.js runs in the page and under node
+  const core = require(path.join(TOOLS, "vfx_bench", "public", "core.js"));
+  const materials = [{}, { ambient: [0.2, 0.2, 0.2], diffuse: [0.8, 0.8, 0.8] }, { ambient: [0.2000001, 0.2, 0.2], diffuse: [0.8, 0.79999995, 0.8] },
+    { ambient: [0.2001, 0.2, 0.2], diffuse: [0.8, 0.8, 0.8] }, { ambient: [0.2, 0.2, 0.2], diffuse: [0.8, 0.8, 0.7] }, { ambient: [1, 1, 1], diffuse: [1, 1, 1] },
+    { ambient: [0.1, 0.2, 0.3], diffuse: [0.5, 0.25, 1], selfillum: [0, 1, 0.5] }, { ambient: [0.2, 0.2, 0.2], diffuse: [0.8, 0.8, 0.8], selfillum: [0, 1, 0] }];
+  const of = (fn) => materials.map((m) => { const p = fn(Object.assign({ name: "p", bitmap: "fxpa_fern" }, m)); return [p.ambient, p.diffuse, p.selfillum]; });
+  assert.deepStrictEqual(of(F.drawnMaterial), of(core.drawnMaterial));
+  assert.deepStrictEqual(of(F.drawnMaterial).map((x) => JSON.stringify(x[1])), ["[1,1,1]", "[1,1,1]", "[1,1,1]", "[0.8,0.8,0.8]", "[0.8,0.8,0.7]", "[1,1,1]",
+    "[0.5,0.25,1]", "[1,1,1]"]);
+});
+
+// M1's review: a spell mesh's mesh at the draft's defaults, tinted, is lifted to full before its tint (placePart's
+// `planes`), so its draft carries the game's 1 1 1 times the tint; untinted, its draft has no material line - the game
+// lifts it, and every draft keeps its bytes.
+check("a spell mesh's tinted default-material mesh: its draft carries the game's full material times the tint; untinted, none", () => {
+  global.window = global.window || {};
+  const core = require(path.join(TOOLS, "vfx_bench", "public", "core.js"));
+  const model = { meshes: [Object.assign({}, MESH, { name: "plain", diffuse: [0.8, 0.8, 0.8], ambient: [0.2, 0.2, 0.2] })], lo: [-0.2, -0.3, 0], hi: [0.2, 0.3, 0.5] };
+  const draft = (tint, planes) => P.draftText(core, "n5m_plain", F.placePart(Object.assign({ at: [0, 0, 0], turn: 0, scale: 1, tilt: [0, 0] }, tint ? { tint } : {}),
+    model, 0, 0, "j", planes).meshes);
+  const section = (text) => text.slice(text.indexOf("[plane ")).split("\nverts =")[0];
+  assert.ok(section(draft([1, 1, 0.999], true)).includes("\ndiffuse = 1 1 0.999\nambient = 1 1 0.999"), section(draft([1, 1, 0.999], true)));
+  assert.ok(!/diffuse|ambient/.test(section(draft(null, true))), section(draft(null, true)));
+  assert.strictEqual(draft(null, true), draft(null, false));
+  // Not a spell mesh's (no `planes`): times the tint as it is - darker in game than untinted, as a placeable's model is.
+  assert.ok(section(draft([1, 1, 0.999], false)).includes("\ndiffuse = 0.8 0.8 0.7992\nambient = 0.2 0.2 0.1998"), section(draft([1, 1, 0.999], false)));
+});
+
 // --- the project file -----------------------------------------------------------------------------------------------
 check("projectText writes its values with floatdisk.js's inline - one JSON writer with compositionText", () => {
   const json = { name: "helms", variants: [{ name: "1", parts: [{ model: "helm_001", at: [0, 0, 0], colours: { metal1: 5, cloth1: undefined } },

@@ -522,6 +522,36 @@ try {
     const saved = JSON.parse(fs.readFileSync(path.join(folder, "chktint.json"), "utf8"));
     assert.deepStrictEqual(saved.variants.map((v) => v.parts[0].tint), [undefined, TINT]);
   });
+
+  // M1's review: a mesh at the draft's defaults (ambient 0.2, diffuse 0.8: a model with no material lines - a file of the
+  // check's own, its texture the game's fxpa_symbl_001) is drawn at full in game as a spell mesh's plane (WriteVfxModel
+  // writes "ambient 1 1 1" / "diffuse 1 1 1" for one), so tinted it's lifted to full before its tint: its draft carries
+  // 1 1 0.999 for a tint of 1 1 0.999 (not 0.2 0.2 0.1998, which the game would draw as it is, darker than untinted).
+  // Untinted, the draft has no material line (as before: the game lifts it). A placeable's model is written as it is
+  // (meshLines: the game draws its 0.8), so tinted it's 0.2 / 0.8 times the tint.
+  check("a tinted default-material part: a spell mesh's draft carries the game's full material times the tint; a placeable's model its own times it", () => {
+    const parts = path.join(folder, "parts");
+    fs.mkdirSync(parts, { recursive: true });
+    const v = [[-0.2, -0.2, 0], [0.2, -0.2, 0], [0.2, 0.2, 0], [-0.2, 0.2, 0], [-0.2, -0.2, 0.4], [0.2, -0.2, 0.4], [0.2, 0.2, 0.4], [-0.2, 0.2, 0.4]];
+    const f = [[0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7], [0, 1, 5], [0, 5, 4], [1, 2, 6], [1, 6, 5], [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7]];
+    fs.writeFileSync(path.join(parts, "n5_chkplain.mdl"), ["newmodel n5_chkplain", "setsupermodel n5_chkplain null", "classification placeable",
+      "beginmodelgeom n5_chkplain", "node dummy n5_chkplain", "  parent NULL", "endnode", "node trimesh box", "  parent n5_chkplain",
+      "  position 0 0 0", "  orientation 0 0 0 0", "  bitmap fxpa_symbl_001", "  verts 8", ...v.map((p) => "    " + p.join(" ")),
+      "  tverts 8", ...v.map((p) => `    ${p[0] + 0.5} ${p[1] + 0.5} 0`), "  faces 12", ...f.map((t) => `    ${t.join(" ")} 1 ${t.join(" ")} 1`),
+      "endnode", "endmodelgeom n5_chkplain", "donemodel n5_chkplain", ""].join("\r\n"));
+    const TINT = [1, 1, 0.999];
+    const plain = (tint) => [Object.assign({ file: "parts/n5_chkplain.mdl", at: [0, 0, 0] }, tint ? { tint } : {})];
+    const guide = { shape: "circle", diameter: 1, height: 0 };
+    ok(build(project("chkpln", { kind: "spellmesh", guide, variants: [{ name: "1", parts: plain() }, { name: "2", parts: plain(TINT) }] }),
+      ["--json", "--saved", SAVED]));
+    const section = (k) => fs.readFileSync(path.join(SAVED, `n5m_chkpln_${k}.vfx`), "latin1").split("\r\n[plane ")[1].split("\r\nverts =")[0];
+    assert.ok(!/\r\n(diffuse|ambient) = /.test(section(1)), "untinted: " + section(1));
+    assert.ok(section(2).includes("\r\ndiffuse = 1 1 0.999\r\nambient = 1 1 0.999"), "tinted: " + section(2));
+    const read = draftPlanes(path.join(SAVED, "n5m_chkpln_2.vfx"))[0];
+    assert.deepStrictEqual([read.ambient, read.diffuse], [[1, 1, Math.fround(0.999)], [1, 1, Math.fround(0.999)]]);
+    ok(build(project("chkplp", { kind: "placeable", guide, placeable: THROUGH, variants: [{ name: "1", row: 14157, parts: plain(TINT) }] }), ["--json"]));
+    lines(path.join(FILES, "plc_n5chkplp.mdl"), ["  ambient 0.2 0.2 0.1998", "  diffuse 0.8 0.8 0.7992"]);
+  });
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }

@@ -53,6 +53,10 @@ made of the game's parts) and the textures it generates (`n5p_*`, `n5s_*`), whic
     (`ambient`, `diffuse`, `selfillumcolor`), so its textures take the colour in game: `"tint": [0.502, 1, 0.502]` is a
     pale green crate. A placeable's model and a spell mesh's draft alike, a dyed part over its dyes; a shape takes none
     (its `colour` is its colour). The Floating Disk's README, "Tint".
+  - On a spell mesh, a mesh with no material of its own (the draft's defaults, ambient 0.2 and diffuse 0.8) is drawn at
+    full in game - the game's model writer, `WriteVfxModel`, writes such a plane `ambient 1 1 1` / `diffuse 1 1 1` - so a
+    tint multiplies that: its draft carries the tint itself (`"tint": [1, 1, 0.999]` gives `1 1 0.999`, not `0.2 0.2
+    0.1998`). Untinted it's written as before. A placeable's model is written as it is: its 0.2 / 0.8 times the tint.
 
 ## Shapes
 

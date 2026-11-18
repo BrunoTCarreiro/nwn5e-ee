@@ -1152,5 +1152,45 @@ check("Soft and None keep their material", () => {
   assert.deepStrictEqual(of({ glow: 1 }), [[1, 1, 1], [1, 1, 1], [1, 1, 1]]);
   assert.deepStrictEqual(of({ texture: "none", glow: 1 }), [[1, 0.5, 0], [1, 0.5, 0], [1, 0.5, 0]]);
 });
+// M1's review: a spell mesh's meshes become a draft's planes, and the game's model writer (nwn5e-ee's WriteVfxModel,
+// src/data/vfx_model.cpp; tests/data/vfx_model_test.cpp pins it) writes a plane whose ambient and diffuse are both the
+// draft's defaults - 0.2 and 0.8, each as C's %g of a float writes it - as "ambient 1 1 1" / "diffuse 1 1 1": the game
+// draws such a plane at full, never at 0.8. drawnMaterial is that rule; on a spell mesh a tint multiplies what the game
+// draws, so such a mesh is lifted to full before its tint (placePart's `planes`). Untinted it's left as it is (its draft's
+// bytes as before: the game lifts it). A placeable's model is written as it is (meshLines): never lifted.
+const PLAIN = { name: "plain", bitmap: "fxpa_fern", verts: [-0.1, 0, 0, 0.1, 0, 0, -0.1, 0, 0.2, 0.1, 0, 0.2], tverts: [0, 0, 1, 0, 0, 1, 1, 1], faces: [0, 1, 2, 2, 1, 3],
+  diffuse: [0.8, 0.8, 0.8], ambient: [0.2, 0.2, 0.2], selfillum: [0, 0, 0], alpha: 1, transparencyhint: 1 };
+check("drawnMaterial: a plane at the draft's defaults (ambient 0.2, diffuse 0.8, as %g writes them) is drawn full, as WriteVfxModel writes it; any other as it is", () => {
+  const full = F.drawnMaterial(PLAIN);
+  assert.deepStrictEqual(material(full), [[1, 1, 1], [1, 1, 1], [0, 0, 0]]);
+  assert.deepStrictEqual(Object.assign({}, full, { ambient: PLAIN.ambient, diffuse: PLAIN.diffuse }), PLAIN);  // the rest kept, its glow too
+  assert.ok(full !== PLAIN && PLAIN.diffuse[0] === 0.8, "a copy; the plane given untouched");
+  // As %g of a float: 0.2000001 and 0.79999995 are written 0.2 and 0.8 - the defaults; 0.2001 isn't.
+  assert.deepStrictEqual(material(F.drawnMaterial(Object.assign({}, PLAIN, { ambient: [0.2000001, 0.2, 0.2], diffuse: [0.8, 0.79999995, 0.8] }))).slice(0, 2), [[1, 1, 1], [1, 1, 1]]);
+  // Either of its own: as it is (the C++'s `own`), a glow of its own changes nothing.
+  for (const own of [{ ambient: [0.2001, 0.2, 0.2] }, { diffuse: [0.8, 0.8, 0.7] }, { ambient: [1, 1, 1], diffuse: [1, 1, 1] }, { ambient: [0.1, 0.2, 0.3], diffuse: [0.5, 0.25, 1] }]) {
+    const p = Object.assign({}, PLAIN, own);
+    assert.deepStrictEqual(F.drawnMaterial(p), p, JSON.stringify(own));
+  }
+  assert.deepStrictEqual(material(F.drawnMaterial(Object.assign({}, PLAIN, { selfillum: [0, 1, 0.5] }))), [[1, 1, 1], [1, 1, 1], [0, 1, 0.5]]);
+  // A mesh without them has the defaults (VfxPlane's): drawn full.
+  assert.deepStrictEqual(material(F.drawnMaterial({ name: "bare" })).slice(0, 2), [[1, 1, 1], [1, 1, 1]]);
+});
+check("placePart for a spell mesh's planes: a default-material mesh lifted to full before its tint; untinted as it is; a placeable's never", () => {
+  const model = { meshes: [PLAIN, Object.assign({}, PLAIN, { name: "own", ambient: [0.1, 0.2, 0.3], diffuse: [0.5, 0.25, 1] })], lo: [-0.1, 0, 0], hi: [0.1, 0, 0.2] };
+  const place = (tint, planes) => F.placePart(Object.assign({ at: [0, 0, 0], turn: 0, scale: 1, tilt: [0, 0] }, tint ? { tint } : {}), model, 0, 0, "j", planes);
+  const TINT = [1, 1, 0.999];
+  // A spell mesh tinted: the plain mesh the game's 1 1 1 times the tint (not 0.2 0.2 0.1998, which the game would draw
+  // as it is - darker than untinted); one of its own material times the tint, as before.
+  assert.deepStrictEqual(place(TINT, true).meshes.map(material), [[[1, 1, 0.999], [1, 1, 0.999], [0, 0, 0]], [[0.1, 0.2, 0.2997], [0.5, 0.25, 0.999], [0, 0, 0]]]);
+  // Untinted: as it is, a spell mesh's or a placeable's - the drafts and models written today keep their bytes.
+  assert.deepStrictEqual(place(null, true), place(null, false));
+  assert.deepStrictEqual(place(null, true).meshes[0].ambient, [0.2, 0.2, 0.2]);
+  assert.deepStrictEqual(place([1, 1, 1], true), place(null, false));
+  // A placeable's (or no `planes`): its material times the tint, as meshLines writes it and the game draws it.
+  assert.deepStrictEqual(place(TINT, false).meshes[0].ambient, [0.2, 0.2, 0.1998]);
+  assert.deepStrictEqual(place(TINT).meshes, place(TINT, false).meshes);
+  assert.deepStrictEqual(place(TINT, true).meshes.map((m) => m.transparencyhint), [1, 1]);
+});
 
 console.log(process.exitCode ? `floatdisk check: FAILED (${count} passed)` : `floatdisk check: ${count} checks pass`);

@@ -159,12 +159,13 @@ function main() {
 
   // Each variant: its parts placed on the guide's height, as the stage shows them, a dyed part's textures renamed and
   // baked (`baked`); then lowered by it, so the model's origin is the guide's centre at its height (a placeable's base on
-  // the ground).
+  // the ground). A spell mesh's meshes become a draft's planes (placePart's `planes`: a tinted one at the draft's default
+  // material is lifted to the game's full material before its tint - M1's review).
   const h = guide.height;
   const baked = new Map();  // a baked texture's name -> { plt, colours, bytes, label } (files.js's bakeParts)
   const shaped = new Map();  // a shape's soft texture's name -> { colour, bytes, label } (files.js's shapeTextures)
   const built = project.variants.map((v) => {
-    const parts = v.parts.map((p, i) => Object.assign(F.placePart(p, models.get(F.partKey(p)), i, h, "j"), { part: p }));
+    const parts = v.parts.map((p, i) => Object.assign(F.placePart(p, models.get(F.partKey(p)), i, h, "j", !placeable), { part: p }));
     W.shapeTextures(parts, shaped);
     W.bakeParts(parts, rd, baked);
     const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];

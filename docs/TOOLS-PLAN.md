@@ -1680,15 +1680,43 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
       and parts' tint. check_composer +2 (41), check_chunks +1 (31: the textured formula, and a game mesh as before - the
       shades worked out from the faces), composer_check.mjs +2 (93 steps: partTint, libraryTintShows), browser_check.mjs
       unchanged (97 steps, all passed: no step relied on a textured mesh's colour being its shade alone).
-  - *What changes on the bench:* a game mesh whose diffuse is under 1 (the game's default 0.8) draws a little darker
-    than before, as its material lights it - the Composer's parts, the thumbnails drawn from now on, and the effect mode's
-    chunks and mesh beats alike (one mesh path); a library texture's dome shows its Colour (S4's limit "the bench shades a
-    textured shape by its faces' turn" is now the game's formula under the stage's light).
+  - *What changes on the bench:* a game mesh whose diffuse is under 1 draws a little darker than before, as its material
+    lights it (each game mesh carries its own: the rock chunks 0.698, the tiles 0.776, the bones 0.66; 0.8 is the draft's
+    default, not the game's) - the Composer's parts, the thumbnails (drawn again: `thumbs\v3\`), and the effect mode's
+    chunks alike (one mesh path); a draft's plane at that default is drawn at full, as the game draws it (the review,
+    below); a Soft shape at Glow from about 0.45 up draws flat - unshaded, glow plus light at full every way it faces - on
+    the stage and in new thumbnails, as the game's clamp at 1 draws it; a library texture's dome shows its Colour (S4's
+    limit "the bench shades a textured shape by its faces' turn" is now the game's formula under the stage's light).
   - *What changes in game:* a shape's library texture saved earlier at Glow 1 looks a little darker and more coloured
-    (Q3 says so); a part with no tint builds byte for byte as before.
+    (Q3 says so) once its spell mesh is saved again - an effect's mesh beat keeps the old material until then and until
+    the beat is refreshed from its mesh (n5_zot's n5m_test2, fxpa_web, still has ambient and diffuse 0.6 0.8 1 everywhere:
+    Save and build n5m_test2 in the Composer, then Refresh from the mesh on the beat); a part with no tint builds byte for
+    byte as before.
   - *Limits:* the stage's one light stands for the scene's - exact at Glow 1 (selfillum alone), close below it (the
-    game's lights, its night and its gamma aren't the stage's); thumbnails kept in `thumbs\v2\` before this stay as they
-    were drawn (a part's thumbnail is its model's, untinted).
+    game's lights, its night and its gamma aren't the stage's); a part's thumbnail is its model's, untinted. The stage
+    takes an area's ambient as 1 for an untextured mesh and 0 for a textured one (a follow-up from the review, not
+    changed here).
+  - *M1's review (anim, the commit carrying this line; nwn5e-tools 7db86e0):*
+    - a draft's plane at the draft's default material (ambient 0.2, diffuse 0.8, compared as %g writes them) is written
+      by the game's model writer at full, 1 1 1 (WriteVfxModel, src/data/vfx_model.cpp; pinned by
+      tests/data/vfx_model_test.cpp) - the game never draws such a plane at 0.8, but M1's formula did on the stage
+      (the owner's Entangle Plane01: 0.681-0.970 before M1, 0.545-0.776 after; browser_check's Plane01, one flat plane,
+      0.566 under M1 and its shade, 0.708, now). One rule, twice:
+      floatdisk.js drawnMaterial (the generators) and core.js drawnMaterial (the bench; composer check compares them);
+    - the stage draws a draft's planes by it: the effect mode's and the areas' (sim.js planesAt's, app.js showPlanes)
+      and a spell mesh's in the Composer (view.js worldMeshes' `plane`); a placeable's and the Floating Disk's meshes as
+      their models are written;
+    - on a spell mesh, a tinted mesh at that default is lifted to full before its tint (placePart's `planes`: composer
+      build.js, the page's placeOne, so Play in game's draft too) - a tint of 1 1 0.999 gave 0.2 0.2 0.1998, which the
+      game draws as it is; now 1 1 0.999. Untinted it's left as it is: every draft keeps its bytes (the game lifts it);
+    - the thumbnails' cache moves to `thumbs\v3\` (every entry drawn again once, lit by its material);
+    - floatdisk check +2 (80), composer check +2 (21), composer check_build +1 (a tinted default-material file part: the
+      spell mesh's draft 1 1 0.999, the placeable's model 0.2 0.2 0.1998 / 0.8 0.8 0.7992); check_composer +1 (42),
+      check_chunks +2 (33: the C++ test's plain plane), check_composer_server's thumbCache at v3 (47), composer_check.mjs
+      +1 (94 steps: spellMeshPlanesFull - n5_testcrate, no material lines, in a spell mesh at the placeable's colours over
+      0.8, tinted the stage's g kept and Play's plane 0.502 1 0.502) and partTint's Play draft carrying the tint,
+      browser_check.mjs +1 (98 steps: entangleVinesFullMaterial - each vertex's colour its triangle's shade, worked out
+      from its corners through vfxBench.planeMeshes()). The new steps were seen failing on 3bb1831's page first.
   - *For the bench:* restart vfx_bench.bat. *For the game:* nothing for the DLL.
   - Test rows (for the board: #39, stream animation):
 
