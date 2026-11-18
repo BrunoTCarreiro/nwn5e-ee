@@ -3,9 +3,10 @@
 // texture's material, n5u_<12 hex digits>.mtr, pairs this vertex shader with the game's lit fragment shader (fslit) and
 // gives the motion below as its parameters. The game's standard vertex setup first (its own include, by name); then the
 // texture's coordinates moved round the pivot p: uv' = R(-turn t) (uv - p) / s + p - scroll t, s = 1 + breathe
-// sin(2 pi rate t), t the game's world clock in seconds (floatdisk.js uvMotion: the same maths). The scroll, the turn
-// and the breath are each taken within one repeat, one turn and one breath, so a float keeps its precision late in a
-// game day: the same picture, as the texture repeats.
+// sin(2 pi rate t), t the game's world clock in seconds (floatdisk.js uvMotion: the same maths). t itself is a float:
+// late in a game day (near 2880 s) it holds to about a quarter of a millisecond, the motion's own limit. The scroll,
+// the turn and the breath are each taken within one repeat, one turn and one breath, so the coordinates stay small and
+// lose nothing more on top of that: the same picture, as the texture repeats.
 
 #define SHADER_TYPE 1
 #define FOG 1

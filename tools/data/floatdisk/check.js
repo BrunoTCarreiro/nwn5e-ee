@@ -1345,13 +1345,15 @@ check("motion: read, defaulted, cleaned to its non-zero keys, each error", () =>
   // It moves when it scrolls, turns or breathes; a rate alone moves nothing.
   for (const m of [undefined, null, {}, STILL, { rate: 2 }, { scroll: [0, 0] }, "fast", 3]) assert.strictEqual(F.hasMotion(m), false, JSON.stringify(m));
   for (const m of [{ turn: 1 }, { scroll: [0.01, 0] }, { scroll: [0, -1] }, { breathe: 0.1 }]) assert.strictEqual(F.hasMotion(m), true, JSON.stringify(m));
-  // Cleaned: its non-zero keys in MOTION_KEYS' order - the rate only while it breathes (needed then; nothing without) -
-  // or undefined when it doesn't move.
+  // Cleaned: its non-zero keys in MOTION_KEYS' order - the rate only while it breathes (nothing without) and not at its
+  // default, 0.5 (a default is never written) - or undefined when it doesn't move.
   for (const m of [undefined, null, {}, STILL, { rate: 2 }]) assert.strictEqual(F.cleanMotion(m), undefined, JSON.stringify(m));
   assert.deepStrictEqual(F.cleanMotion({ scroll: [0, 0.25], turn: 0, breathe: 0, rate: 0.5 }), { scroll: [0, 0.25] });
   assert.deepStrictEqual(F.cleanMotion({ rate: 2, turn: 30, scroll: [0, 0] }), { turn: 30 });
   assert.deepStrictEqual(Object.keys(F.cleanMotion({ rate: 1, breathe: 0.3, turn: -5, scroll: [1, 0] })), ["scroll", "turn", "breathe", "rate"]);
-  assert.deepStrictEqual(F.cleanMotion(F.readMotion({ breathe: 0.3 }, "p")), { breathe: 0.3, rate: 0.5 });
+  assert.deepStrictEqual(F.cleanMotion(F.readMotion({ breathe: 0.3 }, "p")), { breathe: 0.3 });
+  assert.deepStrictEqual(F.cleanMotion({ breathe: 0.3, rate: 0.5 }), { breathe: 0.3 });
+  assert.deepStrictEqual(F.cleanMotion({ breathe: 0.3, rate: 1 }), { breathe: 0.3, rate: 1 });
   // Each error names its field.
   const says = (m, message) => assert.throws(() => F.readMotion(m, "stages.small[0]"), (e) => e.message === message, JSON.stringify(m));
   for (const m of ["fast", 3, [0, 0.25], true]) says(m, 'stages.small[0].motion: { "scroll": [u, v], "turn": <degrees a second>, "breathe": 0-0.9, "rate": <breaths a second> }');
@@ -1389,6 +1391,20 @@ check("uvMotion: none is identity; scroll [0, 0.25] at t 2 moves v by -0.5; turn
   nearAll(applyUv(F.uvMotion(all, p, t), uv), [(Math.cos(th) * d[0] - Math.sin(th) * d[1]) / sc + 0.5 - 0.1 * t, (Math.sin(th) * d[0] + Math.cos(th) * d[1]) / sc + 0.5 + 0.2 * t], 1e-12);
   // Never -0 (a matrix through JSON is the same matrix).
   for (const m of [{ turn: 30 }, { scroll: [0, 0.25] }, all]) assert.ok(!F.uvMotion(m, p, 0).some((x) => Object.is(x, -0)), JSON.stringify(m));
+});
+check("uvMotion moves by its material's numbers - each to 0.001, the pivot too - so the stage and the game can't drift", () => {
+  // The material carries the motion and the pivot to 0.001 (motionNumbers); the stage's maths takes the same numbers.
+  nearAll(F.uvMotion({ scroll: [0, 0.12345] }, [0.5, 0.5], 1), [1, 0, 0, 0, 1, -0.123], 1e-12);
+  for (const t of [0.7, 13, 2879.5]) {
+    assert.deepStrictEqual(F.uvMotion({ turn: 30.0004, breathe: 0.30049, rate: 0.50001 }, [0.33333, 1.00049], t), F.uvMotion({ turn: 30, breathe: 0.3, rate: 0.5 }, [0.333, 1], t));
+    assert.deepStrictEqual(F.uvMotion({ scroll: [0.1234, -2.0004] }, [0.5, 0.5], t), F.uvMotion({ scroll: [0.123, -2] }, [0.5, 0.5], t));
+  }
+  // What the material says is what the stage moves by.
+  const m = { scroll: [0.0123456, 0], turn: -17.77777, breathe: 0.123456, rate: 1.23456 }, pivot = [0.123456, 0.654321];
+  const params = Object.fromEntries(F.motionMaterialText({ texture: "x", motion: m, pivot }).split("\n").filter((l) => l.startsWith("parameter float "))
+    .map((l) => l.split(" ").slice(2)));
+  const said = { scroll: [Number(params.n5ScrollU), Number(params.n5ScrollV)], turn: Number(params.n5Turn), breathe: Number(params.n5Breathe), rate: Number(params.n5Rate) };
+  assert.deepStrictEqual(F.uvMotion(m, pivot, 3.3), F.uvMotion(said, [Number(params.n5PivotU), Number(params.n5PivotV)], 3.3));
 });
 check("uvPivot: a Wrapped dome with repeats 3 / 2 gives [1.5, 1]; From above gives [0.5, 0.5]", () => {
   assert.deepStrictEqual(F.uvPivot(domeModel({ repeat_around: 3, repeat_up: 2 }).meshes[0].tverts), [1.5, 1]);
@@ -1526,7 +1542,7 @@ check("compositionText and readPart carry motion", () => {
   const l = text.split("\n");
   assert.ok(l.includes('      { "model": "plc_a03", "at": [0, 0, 0], "tint": [0.5, 1, 0.25], "motion": { "scroll": [0, 0.25] }, "extra": 1 },'), text);
   assert.ok(l.includes('      { "model": "plc_a03", "at": [0, 0, 0] },'), text);
-  assert.ok(l.includes('      { "shape": { "type": "dome", "radius": 1 }, "at": [0, 0, 0], "motion": { "turn": 10, "breathe": 0.3, "rate": 0.5 } }'), text);
+  assert.ok(l.includes('      { "shape": { "type": "dome", "radius": 1 }, "at": [0, 0, 0], "motion": { "turn": 10, "breathe": 0.3 } }'), text);
   // Read back: the same motions.
   assert.deepStrictEqual(F.readComposition(comp(JSON.parse(text).stages.small), BASE).stages.small.map((p) => p.motion),
     [{ scroll: [0, 0.25], turn: 0, breathe: 0, rate: 0.5 }, STILL, { scroll: [0, 0], turn: 10, breathe: 0.3, rate: 0.5 }]);
@@ -1571,6 +1587,12 @@ check("files.js: a moving part's materials and the shader as writes beside what 
     fs.writeFileSync(path.join(dir, "vsn5uvmove.shd"), F.MOTION_SHADER_MARK + "\r\n// an earlier one\r\n");
     assert.deepStrictEqual(W.writeAll(writes, owned, { repo: dir, manifest: new Set() }).map(([s, f]) => [s, path.basename(f)]),
       [["rebuilt", turn + ".mtr"], ["new", scroll + ".mtr"], ["rebuilt", "vsn5uvmove.shd"]]);
+    // The shader as text, as "text" is: the same but for its line ends (an LF checkout's) is unchanged, not rewritten.
+    fs.writeFileSync(path.join(dir, "vsn5uvmove.shd"), F.motionShaderText());
+    const lf = fs.statSync(path.join(dir, "vsn5uvmove.shd")).mtimeMs;
+    assert.deepStrictEqual(W.writeAll(writes, owned, { repo: dir, manifest: new Set() }).map(([s, f]) => [s, path.basename(f)]),
+      [["unchanged", turn + ".mtr"], ["unchanged", scroll + ".mtr"], ["unchanged", "vsn5uvmove.shd"]]);
+    assert.strictEqual(fs.statSync(path.join(dir, "vsn5uvmove.shd")).mtimeMs, lf, "the LF shader was rewritten");
     fs.writeFileSync(path.join(dir, "vsn5uvmove.shd"), "// someone's shader\r\n");
     assert.throws(() => W.writeAll(writes, owned, { repo: dir, manifest: new Set() }), /^Error: vsn5uvmove\.shd is there and wasn't made by this generator/);
   } finally {

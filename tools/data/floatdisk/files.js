@@ -184,14 +184,16 @@ function ownership({ repo, manifest, mark, kinds = {} }) {
   };
 }
 // Every write checked before any is written: a file there that isn't ours (`owned`, as ownership gives it) and isn't
-// what would be written stops it all; then each written unless unchanged (a text the same but for its line ends is).
+// what would be written stops it all; then each written unless unchanged (a text - or the shader, M2: text too - the same
+// but for its line ends is).
 // -> [[ "new" | "rebuilt" | "unchanged", file ]], `manifest` gaining the binary files written in the repo. `dry`: the
 // same checks and states, nothing written and the manifest left as it is (tools\data\build_derived.js --check).
+const sameAs = (w, old) => old.equals(w.bytes) || ((w.kind === "text" || w.kind === "shader") && F.sameText(old, w.bytes));
 function writeAll(writes, owned, { repo, manifest, dry = false }) {
   for (const w of writes) {
     if (!fs.existsSync(w.file)) continue;
     const old = fs.readFileSync(w.file);
-    if (!owned(w, old) && !old.equals(w.bytes)) {
+    if (!owned(w, old) && !sameAs(w, old)) {
       throw new Error(`${shown(repo, w.file)} is there and wasn't made by this generator: nothing written - move it away or rename it`);
     }
   }
@@ -200,7 +202,7 @@ function writeAll(writes, owned, { repo, manifest, dry = false }) {
     let state = "new";
     if (fs.existsSync(w.file)) {
       const old = fs.readFileSync(w.file);
-      state = old.equals(w.bytes) || (w.kind === "text" && F.sameText(old, w.bytes)) ? "unchanged" : "rebuilt";
+      state = sameAs(w, old) ? "unchanged" : "rebuilt";
     }
     if (state !== "unchanged" && !dry) {
       fs.mkdirSync(path.dirname(w.file), { recursive: true });

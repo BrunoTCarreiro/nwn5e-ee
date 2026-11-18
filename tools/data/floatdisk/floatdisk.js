@@ -797,14 +797,18 @@ function hasMotion(m) {
   if (!m || typeof m !== "object" || Array.isArray(m)) return false;
   return (Array.isArray(m.scroll) && m.scroll.some(moves)) || moves(m.turn) || moves(m.breathe);
 }
-// A motion as it's written: its non-zero keys in MOTION_KEYS' order - the rate only while it breathes (needed then,
-// meaningless without) - or undefined when it doesn't move (nothing is written).
+// A motion as it's written: its non-zero keys in MOTION_KEYS' order - the rate only while it breathes (meaningless
+// without) and not at its default, MOTION_RATE (a default is never written) - or undefined when it doesn't move (nothing
+// is written).
 function cleanMotion(m) {
   if (!hasMotion(m)) return undefined;
   const out = {};
   if (Array.isArray(m.scroll) && m.scroll.some(moves)) out.scroll = m.scroll.slice();
   if (moves(m.turn)) out.turn = m.turn;
-  if (moves(m.breathe)) Object.assign(out, { breathe: m.breathe, rate: m.rate === undefined || m.rate === null ? MOTION_RATE : m.rate });
+  if (moves(m.breathe)) {
+    out.breathe = m.breathe;
+    if (m.rate !== undefined && m.rate !== null && m.rate !== MOTION_RATE) out.rate = m.rate;
+  }
   return out;
 }
 // A mesh's pivot (the design's call 5): the middle of its UV box, [(umin + umax) / 2, (vmin + vmax) / 2], through round -
@@ -821,13 +825,14 @@ function uvPivot(tverts) {
 // The UVs at time t (seconds) as a matrix [a, b, c, d, e, f] - u' = a u + b v + c, v' = d u + e v + f - round the pivot p:
 // s = 1 + breathe x sin(2 pi rate t), th = -turn x t x pi / 180, uv' = R(th) (uv - p) / s + p - scroll x t. So + scroll
 // moves the picture along +u / +v, + turn turns it counter-clockwise (From above, seen from above), and breathing grows
-// and shrinks the picture, not the mesh. No motion: [1, 0, 0, 0, 1, 0] exactly. Never -0.
+// and shrinks the picture, not the mesh. The numbers are the material's (motionNumbers: the motion and the pivot each to
+// 0.001), so the stage moves exactly as the game's shader is told to. No motion: [1, 0, 0, 0, 1, 0] exactly. Never -0.
 function uvMotion(motion, pivot, t) {
-  const m = readMotion(motion, "uvMotion");
-  if (!hasMotion(m)) return [1, 0, 0, 0, 1, 0];
-  const s = 1 + m.breathe * Math.sin(2 * Math.PI * m.rate * t), th = (-m.turn * t * Math.PI) / 180;
-  const a = Math.cos(th) / s, b = -Math.sin(th) / s, d = Math.sin(th) / s, e = Math.cos(th) / s, [pu, pv] = pivot;
-  return [a, b, pu - a * pu - b * pv - m.scroll[0] * t, d, e, pv - d * pu - e * pv - m.scroll[1] * t].map((v) => v + 0);
+  const [su, sv, turn, breathe, rate, pu, pv] = motionNumbers(motion, pivot);
+  if (!su && !sv && !turn && !breathe) return [1, 0, 0, 0, 1, 0];
+  const s = 1 + breathe * Math.sin(2 * Math.PI * rate * t), th = (-turn * t * Math.PI) / 180;
+  const a = Math.cos(th) / s, b = -Math.sin(th) / s, d = Math.sin(th) / s, e = Math.cos(th) / s;
+  return [a, b, pu - a * pu - b * pv - su * t, d, e, pv - d * pu - e * pv - sv * t].map((v) => v + 0);
 }
 // A moving texture's seven numbers, as its name and its material both take them (one rule, so a name fixes its bytes):
 // MOTION_PARAMS' order, each to 0.001, the rate MOTION_RATE while it doesn't breathe (it means nothing then).
@@ -861,9 +866,10 @@ function motionShaderText() {
     "// texture's material, n5u_<12 hex digits>.mtr, pairs this vertex shader with the game's lit fragment shader (fslit) and",
     "// gives the motion below as its parameters. The game's standard vertex setup first (its own include, by name); then the",
     "// texture's coordinates moved round the pivot p: uv' = R(-turn t) (uv - p) / s + p - scroll t, s = 1 + breathe",
-    "// sin(2 pi rate t), t the game's world clock in seconds (floatdisk.js uvMotion: the same maths). The scroll, the turn",
-    "// and the breath are each taken within one repeat, one turn and one breath, so a float keeps its precision late in a",
-    "// game day: the same picture, as the texture repeats.",
+    "// sin(2 pi rate t), t the game's world clock in seconds (floatdisk.js uvMotion: the same maths). t itself is a float:",
+    "// late in a game day (near 2880 s) it holds to about a quarter of a millisecond, the motion's own limit. The scroll,",
+    "// the turn and the breath are each taken within one repeat, one turn and one breath, so the coordinates stay small and",
+    "// lose nothing more on top of that: the same picture, as the texture repeats.",
     "",
     "#define SHADER_TYPE 1",
     "#define FOG 1",

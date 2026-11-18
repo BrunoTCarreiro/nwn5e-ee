@@ -138,22 +138,30 @@ A part's `motion` (M2) scrolls, turns and breathes the pictures on its textured 
 ## The probe (TMO-1)
 
 `uvprobe.js` writes the in-game test that decides how a moving texture reaches the game, before the bench's side is
-built: `n5m_uvprobe`, a spell mesh of six faint domes 1 m apart along x, three by the `texture0` route (0.4 m high) and
-three by the copy route (0.7 m high: no `texture0`, the texture copied under the material's name with its TXI). Each
-side, from its end in: a Soft Additive dome scrolling (up / down), `fxpa_globe` From above turning (counter-clockwise /
-clockwise), a Soft Additive dome From above breathing (a breath every 2 s / every second).
+built: `n5m_uvprobe`, a spell mesh of seven faint domes (0.8 m wide, alpha 0.3), 1 m apart along x and clear of the
+character:
+
+- the `texture0` route, 0.4 m high, at x -3, -2, -1: the material names the texture;
+- the copy route, 0.7 m high, at x 3, 2, 1: no `texture0`, the texture copied under the material's name with its TXI;
+- on each side, from its outer end in: a Soft Additive dome scrolling (up / down), `fxpa_symbl_003` (a glyph, additive by
+  its TXI) From above turning (counter-clockwise / clockwise, a turn in 12 s), a Soft Additive dome From above breathing
+  (a breath every 2 s / every second);
+- a seventh at x -4, 0.4 m high: the `texture0` route with the texture's TXI beside the material under its `n5u_` name
+  (no texture there) - `fxpa_symbl_003` turning counter-clockwise, a turn in 4 s.
 
 ```
 node tools\data\composer\uvprobe.js --saved <nwn5e-ee>\build\vfxedit\saved [--game <folder>] [--tools <nwn5e-tools>]
 ```
 
 - It refuses a folder that isn't a bench build's `vfxedit\saved`, and writes only there: the draft (the Composer's
-  mark), the Additive soft texture and its TXI, the six materials, the shader and the copy route's textures (the soft
-  one made again; `fxpa_globe` from the game, its TXI with it - never into the repo). It adds `n5m_uvprobe` to the
-  bench's `vfxedit\meshes.txt`, so **+ mesh** offers it once the bench is restarted.
+  mark), the Additive soft texture and its TXI, the seven materials, the shader, the copy route's textures (the soft
+  one made again; `fxpa_symbl_003` from the game, its TXI with it - never into the repo) and the seventh's TXI. It adds
+  `n5m_uvprobe` to the bench's `vfxedit\meshes.txt` (rewritten when it lists others: "rebuilt"), so **+ mesh** offers it
+  once the bench is restarted.
 - It overwrites only its own: the draft by its mark, the shader by its first line, the rest by their `n5s_` / `n5u_`
   names. It prints which dome is which.
-- TMO-1 (TOOLS-PLAN): as a mesh beat in a new effect, Play in game; which domes move says the route.
+- TMO-1 (the board's row): as a mesh beat in a new effect, Play in game; which domes move, and which let the sparks
+  through, says the route - and the game's logs say whether the shader failed.
 
 ## What each kind builds
 

@@ -288,10 +288,12 @@ A part's `motion` moves the pictures on its textured meshes (M2; the owner, 2026
   counter-clockwise seen from above, and up it), `turn` (degrees a second, -720 to 720: + counter-clockwise, seen from
   above for From above), `breathe` (0 to 0.9: how much bigger and smaller the picture gets - the mesh stays as it is) and
   `rate` (breaths a second, 0.05 to 5; 0.5 when left out). Any part, a shape too; every textured mesh of the part.
-  Absent or still, nothing written changes. Only the keys that move are written (the rate while it breathes).
+  Absent or still, nothing written changes. Only the keys that move are written (the rate while it breathes, and not
+  at its default, 0.5).
 - **The maths** (`floatdisk.js`'s `uvMotion`, one for the game's shader and the bench's stage), at t seconds, round the
   pivot p - the middle of the mesh's UV box (`uvPivot`: a From above shape's centre, a Wrapped one's middle of its
-  repeats): s = 1 + breathe x sin(2 pi rate t), uv' = R(-turn t) (uv - p) / s + p - scroll t.
+  repeats): s = 1 + breathe x sin(2 pi rate t), uv' = R(-turn t) (uv - p) / s + p - scroll t. Each number is taken to
+  0.001, the pivot too, as the material carries it, so the stage moves exactly as the game is told to.
 - **In game:** NWN:EE has no setting for it, so each textured mesh names an EE material instead of its texture:
   `n5u_` and 12 hex digits of its texture, the motion and its pivot (each to 0.001). `n5u_<...>.mtr` pairs our vertex
   shader with the game's lit fragment shader and names the real texture:
@@ -321,7 +323,10 @@ A part's `motion` moves the pictures on its textured meshes (M2; the owner, 2026
 
 - **Untested in game** until TMO-1 (the Composer's probe, `tools\data\composer\uvprobe.js`): whether `texture0` binds the
   texture, or it has to be copied under the material's name (`motionMaterialText`'s `copy`), and whether the texture's
-  TXI (additive) still applies. The motion runs on the game's clock, not the effect's.
+  TXI (additive) still applies, and where a TXI does. The motion runs on the game's clock, not the effect's.
+- **What a material gives up:** it names our vertex shader and the game's plain lit fragment shader (the vslit / fslit
+  pair), so a moving texture drops the game texture's own `.mtr` (a specular or normal-mapped one's) and any
+  `envmaptexture` its TXI asks for.
 
 ## The files here
 

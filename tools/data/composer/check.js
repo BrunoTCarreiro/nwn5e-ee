@@ -481,7 +481,8 @@ check("projectText writes motion after tint, its non-zero keys, never a still on
   const text = P.projectText(json), l = lines(text);
   assert.ok(l.includes('      { "model": "plc_a03", "at": [0, 0, 0], "tint": [0.5, 1, 0.25], "motion": { "scroll": [0, 0.25] }, "extra": 1 },'), text);
   assert.ok(l.includes('      { "model": "plc_a03", "at": [0, 0, 0], "turn": 15 },'), text);
-  assert.ok(l.includes('      { "shape": { "type": "dome", "radius": 1, "mapping": "above" }, "at": [0, 0, 0], "motion": { "turn": 30, "breathe": 0.3, "rate": 0.5 } }'), text);
+  // (its rate at the default, 0.5, isn't written: a default never is)
+  assert.ok(l.includes('      { "shape": { "type": "dome", "radius": 1, "mapping": "above" }, "at": [0, 0, 0], "motion": { "turn": 30, "breathe": 0.3 } }'), text);
   const read = P.readProject(JSON.parse(text), BASE, F).variants[0].parts;
   assert.deepStrictEqual(read.map((p) => p.motion), [{ scroll: [0, 0.25], turn: 0, breathe: 0, rate: 0.5 }, { scroll: [0, 0], turn: 0, breathe: 0, rate: 0.5 },
     { scroll: [0, 0], turn: 30, breathe: 0.3, rate: 0.5 }]);

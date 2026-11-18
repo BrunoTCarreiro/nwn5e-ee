@@ -746,11 +746,12 @@ try {
     assert.ok(fs.readFileSync(path.join(SAVED, "n5_chkcrate.tga")).equals(tga(0x22)));
   });
 
-  // The probe (TMO-1's): tools\data\composer\uvprobe.js writes n5m_uvprobe - six domes in a row, three moving by the
-  // texture0 route (the material names the texture) and three by the copy route (the texture copied under the material's
-  // name, its TXI with it) - with their materials, the shader, the soft texture and the copies, into a bench build's
+  // The probe (TMO-1's): tools\data\composer\uvprobe.js writes n5m_uvprobe - seven domes in a row, three moving by the
+  // texture0 route (the material names the texture), three by the copy route (the texture copied under the material's
+  // name, its TXI with it) and a seventh by the texture0 route with the texture's TXI beside the material under its n5u_
+  // name (no TGA) - with their materials, the shader, the soft texture, the copies and that TXI, into a bench build's
   // vfxedit\saved only, and adds it to the bench's list of spell meshes (vfxedit\meshes.txt) for + mesh.
-  check("the probe writes six domes, six materials - three with texture0 - the shader and three copies, into a temporary saved\\ only", () => {
+  check("the probe writes seven domes, seven materials - four with texture0 - the shader, three copies and an n5u_ TXI without its TGA, into a temporary saved\\ only", () => {
     const vfxedit = path.join(root, "build", "vfxedit"), saved = path.join(vfxedit, "saved");
     fs.mkdirSync(saved, { recursive: true });
     fs.writeFileSync(path.join(vfxedit, "meshes.txt"), "n5m_other\n");
@@ -782,50 +783,58 @@ try {
     assert.strictEqual(r.code, 0, "uvprobe.js exited " + r.code + ": " + r.err.trim());
     const after = tree();
     const changed = Object.keys(after).filter((f) => after[f] !== before[f]).map((f) => path.relative(vfxedit, f).split(path.sep).join("/")).sort();
-    // The draft: the Composer's mark, six domes, each naming its own material.
+    // The draft: the Composer's mark, seven domes, each naming its own material.
     const planes = draftPlanes(path.join(saved, "n5m_uvprobe.vfx"));
     const mats = planes.map((p) => p.bitmap);
-    assert.ok(mats.length === 6 && mats.every((m) => F.MOTION_TEXTURE.test(m)) && new Set(mats).size === 6, mats.join(" "));
-    const copies = mats.slice(3);
-    // Written: these, into that saved\ (and the bench's list beside it) - nothing else anywhere.
+    assert.ok(mats.length === 7 && mats.every((m) => F.MOTION_TEXTURE.test(m)) && new Set(mats).size === 7, mats.join(" "));
+    const copies = mats.slice(3, 6), seventh = mats[6];
+    // Written: these, into that saved\ (and the bench's list beside it) - nothing else anywhere; the seventh's TXI and no TGA.
     assert.deepStrictEqual(changed, ["meshes.txt", "saved/n5m_uvprobe.vfx", `saved/${ADD}.tga`, `saved/${ADD}.txi`, `saved/${SHADER}`,
-      ...mats.map((m) => `saved/${m}.mtr`), ...copies.flatMap((m) => [`saved/${m}.tga`, `saved/${m}.txi`])].sort());
-    // Domes 1-3 the texture0 route (the material names the texture), 4-6 the copy route (none). The motions: 1 / 4 scroll
-    // up / down, 2 / 5 turn 30 / -30 (fxpa_globe), 3 / 6 breathe 0.3 at 0.5 / 1 a second. Each floatdisk.js's material,
-    // named for its texture, motion and pivot (the middle of the picture: Wrapped 0..1, From above 0..1).
-    const motions = [{ scroll: [0, 0.25] }, { turn: 30 }, { breathe: 0.3, rate: 0.5 }, { scroll: [0, -0.25] }, { turn: -30 }, { breathe: 0.3, rate: 1 }];
-    const textures = [ADD, "fxpa_globe", ADD, ADD, "fxpa_globe", ADD];
+      ...mats.map((m) => `saved/${m}.mtr`), ...copies.flatMap((m) => [`saved/${m}.tga`, `saved/${m}.txi`]), `saved/${seventh}.txi`].sort());
+    assert.ok(!fs.readdirSync(saved).some((f) => f.toLowerCase().startsWith(seventh + ".") && !/\.(mtr|txi)$/i.test(f)), "the seventh has a texture under its name");
+    // meshes.txt was there (listing another spell mesh): rewritten with n5m_uvprobe added, the others kept.
+    assert.ok(r.out.split(/\r?\n/).includes("rebuilt   meshes.txt"), r.out);
+    assert.strictEqual(fs.readFileSync(path.join(vfxedit, "meshes.txt"), "utf8"), "n5m_other\nn5m_uvprobe\n");
+    // Domes 1-3 and 7 the texture0 route (the material names the texture), 4-6 the copy route (none). The motions: 1 / 4
+    // scroll up / down, 2 / 5 turn 30 / -30 (fxpa_symbl_003, a glyph, additive by its TXI), 3 / 6 breathe 0.3 at 0.5 / 1 a
+    // second, 7 turns 90 (fxpa_symbl_003). Each floatdisk.js's material, named for its texture, motion and pivot (the
+    // middle of the picture: Wrapped 0..1, From above 0..1).
+    const SYM = "fxpa_symbl_003";
+    const motions = [{ scroll: [0, 0.25] }, { turn: 30 }, { breathe: 0.3, rate: 0.5 }, { scroll: [0, -0.25] }, { turn: -30 }, { breathe: 0.3, rate: 1 }, { turn: 90 }];
+    const textures = [ADD, SYM, ADD, ADD, SYM, ADD, SYM];
     mats.forEach((m, k) => {
       const mat = { texture: textures[k], motion: motions[k], pivot: [0.5, 0.5] };
       assert.strictEqual(m, F.motionName(mat.texture, mat.motion, mat.pivot), "dome " + (k + 1));
-      assert.strictEqual(fs.readFileSync(path.join(saved, m + ".mtr"), "latin1"), F.motionMaterialText(mat, { copy: k >= 3 }), "dome " + (k + 1));
+      assert.strictEqual(fs.readFileSync(path.join(saved, m + ".mtr"), "latin1"), F.motionMaterialText(mat, { copy: k >= 3 && k <= 5 }), "dome " + (k + 1));
     });
-    // The copies: the soft texture made again with its TXI (Additive); fxpa_globe's from the game with its own TXI (additive,
-    // its ripple too) - the texture0 route's soft texture beside them; the shader.
-    const globe = rd.image("fxpa_globe", []);
-    assert.ok(globe && globe.tga && F.txiAdditive(globe.txi), "the game's fxpa_globe: a TGA and an additive TXI");
+    // The copies: the soft texture made again with its TXI (Additive); fxpa_symbl_003's from the game with its own TXI
+    // (decal, additive). The seventh: fxpa_symbl_003's TXI alone under its material's name. The texture0 route's soft
+    // texture beside them; the shader.
+    const sym = rd.image(SYM, []);
+    assert.ok(sym && sym.tga && F.txiAdditive(sym.txi), "the game's fxpa_symbl_003: a TGA and an additive TXI");
     for (const k of [0, 2]) {
       assert.ok(fs.readFileSync(path.join(saved, copies[k] + ".tga")).equals(softBytes([0.6, 0.8, 1])), "dome " + (k + 4));
       assert.strictEqual(fs.readFileSync(path.join(saved, copies[k] + ".txi"), "latin1"), "blending additive\n", "dome " + (k + 4));
     }
-    assert.ok(fs.readFileSync(path.join(saved, copies[1] + ".tga")).equals(globe.tga));
-    assert.strictEqual(fs.readFileSync(path.join(saved, copies[1] + ".txi"), "latin1"), globe.txi);
+    assert.ok(fs.readFileSync(path.join(saved, copies[1] + ".tga")).equals(sym.tga));
+    assert.strictEqual(fs.readFileSync(path.join(saved, copies[1] + ".txi"), "latin1"), sym.txi);
+    assert.strictEqual(fs.readFileSync(path.join(saved, seventh + ".txi"), "latin1"), sym.txi);
     assert.ok(fs.readFileSync(path.join(saved, ADD + ".tga")).equals(softBytes([0.6, 0.8, 1])));
     assert.strictEqual(fs.readFileSync(path.join(saved, ADD + ".txi"), "latin1"), "blending additive\n");
     assert.ok(fs.readFileSync(path.join(saved, SHADER)).equals(shaderBytes));
-    // The domes: radius 0.4, faint (alpha 0.3), see-through, 1 m apart along x - the texture0 route's from -2.5 (1, 2, 3),
-    // the copy route's from 2.5 (4, 5, 6), so each side reads scroll, turn, breathe from its end in - 0.4 high and 0.7.
+    // The domes: radius 0.4 (0.8 m wide), faint (alpha 0.3), see-through, 1 m apart along x and clear of the character -
+    // the texture0 route's at -3, -2, -1 (1, 2, 3) and its seventh at -4, the copy route's at 3, 2, 1 (4, 5, 6), so each
+    // side reads scroll, turn, breathe from its end in - the texture0 route's 0.4 m high, the copy route's 0.7.
     const box = (p) => { const xs = [], zs = []; for (let i = 0; i < p.verts.length; i += 3) { xs.push(p.verts[i]); zs.push(p.verts[i + 2]); } return [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)]; };
     planes.forEach((p, k) => {
-      const [x0, x1, z0, z1] = box(p), centre = [-2.5, -1.5, -0.5, 2.5, 1.5, 0.5][k];
+      const [x0, x1, z0, z1] = box(p), centre = [-3, -2, -1, 3, 2, 1, -4][k];
       near((x0 + x1) / 2, centre, 1e-4);
       near(x1 - x0, 0.8, 1e-4);
       near(z0, 0, 1e-4);
-      near(z1, k < 3 ? 0.4 : 0.7, 1e-4);
+      near(z1, k >= 3 && k <= 5 ? 0.7 : 0.4, 1e-4);
+      assert.ok(Math.min(Math.abs(x0), Math.abs(x1)) >= 0.6 - 1e-4, `dome ${k + 1} reaches within ${Math.min(Math.abs(x0), Math.abs(x1))} m of the character`);
       assert.deepStrictEqual([p.alpha, p.transparencyhint], [Math.fround(0.3), 1], "dome " + (k + 1));
     });
-    // The bench's list: n5m_uvprobe added, the others kept.
-    assert.strictEqual(fs.readFileSync(path.join(vfxedit, "meshes.txt"), "utf8"), "n5m_other\nn5m_uvprobe\n");
     // Again: every file unchanged, none touched.
     const again = probe(["--saved", saved]);
     assert.strictEqual(again.code, 0, again.err);
