@@ -1844,8 +1844,8 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     | ID | Setup | Do | Expect |
     |---|---|---|---|
     | TMO-1 | The probe written (above); VFX Bench restarted: New, Type Stays (D), + mesh `n5m_uvprobe`, Permanent (until Stop), Name `n5_uvprobe`, Save; the game started, `!test level1ranger` | Play in game; watch each dome; look along the row from each end (the new effect's sparks behind the domes); Stop in game, quit; before the next start, search `Documents\Neverwinter Nights\logs\nwclientLog1.txt` and `nwengineLog.txt` for `Failed to`, `shader`, `vsn5uvmove`, `n5u_` | Per dome: textured, moving as named, faint with the sparks seen through it; no "Failed to compile shader:", "Failed to link shader program", "Failed to load the shader:" or "Failed to link material custom parameter" line. Then: a log error, or solid magenta domes (the engine's fs_invalid) - the shader failed: fix vsn5uvmove and probe again. No error and nothing moving - route B (a flipbook). Domes 1-3 moving, see-through - route A as built (texture0). 1-3 hiding the sparks, 7 see-through - texture0 plus the TXI beside the n5u_ material (dome 7's). 1-3 and 7 hiding the sparks, 4-6 see-through - the copy route (the texture and its TXI copied under the n5u_ name). All moving, every dome hiding the sparks - no TXI placement survives a material: route B, a flipbook TXI (`proceduretype cycle`, `blending additive`, as fxpa_flame02's). Low domes flat white (no texture), tall ones textured and see-through - texture0 doesn't bind: the copy route |
-    | TMO-2 | (after M3) the Composer: a dome, Texture `fxpa_symbl_003`, From above; Texture motion: Turn 30, Breathe 0.2 | Play in game | the glyph turns and pulses, additive as the game's own globe |
-    | TMO-3 | (after M3) a placeable with a moving texture | Save and build; after the next install, place it | it moves (the data\files route) |
+    | TMO-2 | (M3, nwn5e-tools 91b56b7) the Composer: New project `tmoglyph`, Spell mesh; the guide's Diameter (m) 2; Shapes, Dome (half sphere); its card Mapping From above, Texture From the library... `fxpa_symbl_003`, Use; Colour orange (#ff8000), Glow 1; Texture motion: Turn (°/s) 30, Breathe 0.2 (Breaths (/s) 0.5) | Play in game; then Save and build, Back to effects, New, Type Stays (D), + mesh `n5m_tmoglyph`, Permanent ticked, Play in game | an orange glyph turning counter-clockwise seen from above (a turn in 12 s) and pulsing (a breath in 2 s) on the stage and in game, additive as the game's own globe; the status names its `n5u_` material; the mesh beat's card: "Its texture turns 30° a second and breathes 0.2 at 0.5 a second - from the spell mesh n5m_tmoglyph; change it there." A white glyph in game, or none, means our material drops the mesh's colour (never seen through an n5u_ material: TMO-1's glyphs were white) - say which |
+    | TMO-3 | (M3, nwn5e-tools 91b56b7; its review 22a3d62) the Composer: New project `tmocrate`, Placeable; Placeables, `plc_a03`; its card's Tint pale green (#80ff80), then its Texture motion: Scroll round 0.5, Tab | the Undo button at the top (or click outside the boxes, then Ctrl+Z), then Redo (Ctrl+Y); Play in game; Save and build; after the next install (the animation session commits the project, its .pwk and data\rows\placeables.tmocrate.txt; build.bat makes its .mdl and the n5u_ materials), the toolset: a placeable of appearance N5_Tmocrate in an area, the module played | the pale green crate's textures slide (a repeat every 2 s) on the stage, in Play in game and installed (the data\files route) - green there too (the tint through the placeable's material); Undo stops it, Redo starts it. plc_creats is a sheet of several pictures, so other pictures slide across the crate's faces - expected |
 
 ## A mesh beat's keys in the effect model (2026-11-18, #39; M4 - game-side)
 
@@ -1899,3 +1899,171 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     for existing effects. Until the install, the game's DLL writes only a beat's alpha keys, so the beat shows unmoved
     in game; an older draft reader skips `_scale` and `tint` without an error. MBK-1 to MBK-3 (the design's rows) wait
     for M5 and the install.
+
+## The Mesh card's keys, Breathe and Tint; the sim (2026-11-18, #39; M5)
+
+  Spec: the design's "Keys on a mesh beat" and "Tint" (docs/superpowers/specs/2026-11-18-mesh-texture-animation-and-tint-design.md),
+  addenda (a) and (b); plan Task M5. The owner, 2026-11-18: "is it possible to add keyframes to animate the shapes? Or make
+  them follow emitters, just like other elements", and "tinting options" for the textures; Q2 (no): a beat doesn't
+  override its texture's motion - nothing of that here. Bench only (nwn5e-tools); the game side is M4 (anim 7dd4657,
+  installed by 0.99.76). `git diff --stat -- src` on anim: empty before and after.
+  - *Calls:*
+    - core.js matches M4's draft byte for byte: `<anim>_scale` right after `<anim>_alpha` (any section, as every key
+      list), a plane's `tint = r g b` after its emit_seconds, before its keys, only off 1 1 1 (core.plane()'s tint
+      1 1 1), read as its material's colours are;
+    - the sim (sim.js planesAt) plays a plane's own keys as the game's model writer keys them (this section's M4
+      paragraph, "What a plane's keys mean"): its position and turn keys absolute under its parent, in place of its own
+      pose; its scale keys times the mesh as placed - scaled, then turned, then placed under its parent's place.
+      `lastKey` counts its move, turn and scale keys beside its alpha (the C++'s LastKeyTime);
+    - the Mesh card's **Moves** reuse K1's key table (app.js keyTable gains `onChange`; the Motion card's own by
+      default, unchanged): the first plane's keys shown and edited, then copied onto every plane of the group
+      (beats.js shareKeys - each plane keeps its own alpha keys); **Drop in** (parts.dropIn, round its place),
+      **Make it spin** (parts.spinKeys: a node's turn keys - quarter turns, whole turns in the loop - built round its own
+      turn, so it doesn't snap), **Breathe** (parts.breatheKeys: 1 + how much x sin, 12 rows a breath, whole breaths in the
+      loop, 1 at both ends; how much 0.01-0.9 and 0.05-5 breaths a second, refused past them - never 0 or below),
+      **Clear its keys** (move, turn and scale; its fades kept). Each one undo step. Its Position moved takes its move
+      keys with it (core.movePosition, as a node's); its Turn changed leaves its turn keys (as a node's): Make it spin
+      again;
+    - **Tint** (#mesh-tint, None): every plane's material the spell mesh's (readMesh) times the tint, lifted from the
+      draft's defaults first as the game draws such a plane, through core.num's rounding (beats.js tintPlanes; white gives
+      the mesh's own back), `tint` kept on each; a mesh changed since it was copied (as Scale tells it): the copy's own
+      material over its old tint, times the new (retintPlanes). One undo step. The game sees only the material: a tinted
+      beat shows with any install;
+    - Refresh from the mesh keeps the keys (the first plane's move, turn and scale keys on every new plane) and the tint
+      (applied to the mesh's material as it is now); rekeyMesh rebuilds only alpha; + mesh gives tint 1;
+    - M5's follow-up found on the way: parts.applyLoop (a motion's pace setting the loop) retimes a beat's moves in the
+      loop with it, as a node's - else a spin or a breath would stop short of the new loop and jump; its alpha keys (its
+      timing, seconds) stay.
+  - *Built (nwn5e-tools 7b3d104):* core.js, sim.js, parts.js, beats.js, app.js, index.html, README. check.js +8 (the
+    anim worktree's fixture plane_moves.vfx - NWN5E_EE, else ..\nwn5e-ee-anim, skipped with a note when it isn't there -
+    and the rule's lines; one a guard), check_beats.js +5, check_parts.js +3, browser_check.mjs +5 (meshKeys, meshDropIn,
+    meshSpinBreathe, meshFollows, meshTint: 105 steps, all passed; the five seen failing on 14c02ab's page). check.js:
+    "523 drafts (1885 emitters) read and written back, 233 textures decoded, 0 failed" (before: 522 / 1884, 1 failed - the
+    main checkout's plane_moves.vfx, 0.99.76 carrying M4) and "the C++ fixture plane_moves.vfx ... read and written back
+    byte for byte by core.js"; `--helper` with a helper built from anim add2cca into a temporary folder: 416 of the game's
+    effects, 0 failed. Beats, parts, effect, chunk, composer and area checks pass; composer_check.mjs all passed.
+  - *Limits:* the model readers keep no plane keys: a game effect's keyed mesh (vdr_bigby_int's growing hand) opens
+    static on the bench, and a re-save writes none (out of scope). A mesh under an emitter is untested in game until
+    MBK-3. Only the first plane's keys are edited; a draft whose beat planes carry different keys is shown by its first.
+  - *For the bench:* restart vfx_bench.bat. *For the game:* the install carrying anim 7dd4657 (0.99.76 or later) plays a
+    beat's moves; before it the beat shows unmoved in game. Nothing for the DLL here.
+  - *M5's review (nwn5e-tools 7a6f653):*
+    - the tint of a beat whose spell mesh changed since it was copied: retintPlanes lifts an untinted copy at the draft's
+      defaults first, as tintPlanes lifts the mesh's (a first red was 0.8 0 0 / 0.2 0 0, now 1 0 0 / 1 0 0); a tint
+      needing back a colour the old tint took to 0 (red to green, red to none) is refused - "Refresh from the mesh
+      first...", nothing changed, no undo step (it gave a black material, or red under a card showing none). The limit:
+      on a changed mesh, Refresh from the mesh before such a tint;
+    - Make it spin / Breathe on a timed beat in a lasting effect (hidden in the loop): the keys are made and the status
+      says they aren't seen (On for 0 shows them) - said, not keyed into the span it shows;
+    - one Drop in row (app.js dropInRow) for the Motion card and the Mesh card; the loop note counts the beats a motion's
+      pace retimed;
+    - another limit, named: turn keys' angles are kept as worked out, an undo gives them as the draft writes them (6
+      digits) - as a node's;
+    - check_beats.js +2, browser_check.mjs +3 (meshTintChangedMesh, meshTimedSpinSaysItsHidden, meshLoopRetimed: 108
+      steps, all passed), each seen failing on 7b3d104.
+  - Test rows (for the board: #39, stream animation; each needs the game from the install carrying anim 7dd4657 -
+    0.99.76 or later - and the VFX Bench restarted; the spell mesh: Composer, New project `mbkglyph`, Spell mesh; Parts,
+    Shapes, Disc (flat, on the ground); Radius (m) 1, Mapping From above, Texture From the library... `fxpa_symbl_003`,
+    Use, Colour white (#ffffff); Save and build - `n5m_mbkglyph`; Back to effects, New, Type Stays (D), Permanent (until
+    Stop) ticked, + mesh `n5m_mbkglyph`):
+
+    | ID | Setup | Do | Expect |
+    |---|---|---|---|
+    | MBK-1 | The spell mesh and the effect above (after the install carrying anim 7dd4657) | On the mesh's card, Moves: Drop in: start this high (m) 3, Land after (s) 0.5, In Start (impact), Drop in; Play in game | the glyph falls from 3 m to the ground in half a second at the start, on the stage and in game, and lies there - no snap at the landing |
+    | MBK-2 | As MBK-1 | Moves: Turns a second (round its z) 0.5, Make it spin; Breathe: how much 0.1, Breaths a second 0.5, Breathe; Play in game, at least 10 s | one turn (counter-clockwise from above) and one breath (1.1 to 0.9 of its size) every 2 s, the same in game as on the stage; no jump at the loop |
+    | MBK-3 | As MBK-1 | the sparks beat's Its own motion: Orbit radius (m) 2, Turns a second 0.5, Height (m) 0, Make it orbit; the mesh's card Hangs under sparks; Play in game | the glyph circles the character 2 m out with the sparks, once every 2 s, on the stage and in game |
+    | TIN-3 | As MBK-1 | the mesh's card Tint red (#ff0000); Play in game; then the Composer, mbkglyph's disc Radius (m) 1.5, Save and build, Back to effects, the mesh's card None (before Refresh), then Refresh from the mesh; Play in game | the glyph red on the stage and in game; None on the changed mesh refused ("Refresh from the mesh first", still red); after Refresh the larger glyph, still red (the status: its tint kept) |
+
+## Moving textures on the bench (2026-11-18, #39; M3)
+
+  Spec: the design's "Texture motion" and addenda (a) and (b)
+  (docs/superpowers/specs/2026-11-18-mesh-texture-animation-and-tint-design.md); plan Task M3. The owner's TMO-1,
+  2026-11-18: "it does show through and all the domes animate" - route A as built: the material names its texture
+  (texture0), our vsn5uvmove moves it, and the texture's additive TXI still applies under the material (faint,
+  see-through, no 0.2 cut); the copy route and the TXI beside the material aren't needed. Q2 (no): a mesh beat shows its
+  texture's motion and never changes it - the spell mesh's. Bench only (nwn5e-tools); `git diff --stat -- src` on anim
+  empty before and after, and nothing on anim but this section and M2's two rows.
+  - *Calls:*
+    - the part card's **Texture motion**, after the part's own fields (a shape's after its Texture): Scroll round, Scroll
+      up, Turn (°/s), Breathe and Breaths (/s) - floatdisk.js MOTION_INFO's labels, bounds and titles; Breaths greyed
+      while Breathe is 0; each change one undo step; a value past its bounds as typed refused, the field put back ("Breathe:
+      0 to 0.9.": the shapes' rule); shown while the part has a textured mesh (a shape's Soft or library texture, a
+      model's). A file keeps `motion` as cleanMotion writes it, each number to 0.001 first (composer.js clean); a save's
+      status names the materials ("Moving textures: n5u_... (its texture), with vsn5uvmove.shd (in vfxedit\saved).");
+    - what you see is what's built: composer.js placeOne marks a moving part's meshes by floatdisk.js's own moveTextures
+      (each keeps its texture on the stage and carries uvMotion { motion, pivot, name }); view.js's mesh program gains
+      `u_uv` (a mat3: v_uv = (u_uv * vec3(a_uv, 1.0)).xy), set per mesh by uvMatrix - floatdisk.js uvMotion with v
+      flipped as the stage holds its UVs (u, 1 - v): [a, -b, b + c, -d, e, 1 - e - f] - else a flipbook's frame, else
+      identity (the particles' always);
+    - the stage's clock: the Composer's runs while a shown mesh moves and the page is visible (app.js draws a frame each
+      animation frame; otherwise the clock stands); the effect mode's is the preview's time, an area's its own. The game
+      moves a texture by its world clock (worldtimerTimeOfDay) from wherever that is: the stage shows its speed and
+      direction, not its moment;
+    - the server: a texture's info gains `cycle` ({ numx, numy, fps } from its TXI's `proceduretype cycle`, else null) and
+      `additive` (its TXI's `blending additive`); an `n5u_` name resolves through its .mtr (the checkout's data\files, the
+      bench build's saved\ and vfxedit\) to its texture0's picture, the texture route saying `X-Motion` { motion, pivot,
+      of }; a flipbook `X-Cycle: numx numy fps`;
+    - Play in game: the planes name the materials; `POST /api/composer/bake` takes `materials: [{ texture, motion, pivot
+      }]` beside its textures and shapes and writes each `n5u_<...>.mtr` (motionMaterialText) and `vsn5uvmove.shd`
+      (motionShaderText, CRLF) into vfxedit\ - every entry checked first, one refused writes nothing;
+    - the effect mode: a plane or a chunk's mesh naming an `n5u_` material moves by the material's numbers (the loader
+      loads the checkout's floatdisk.js first); a library flipbook (Elemental Shield's fxpa_flame02, 4 x 4 at 32) draws
+      one frame at the preview's time - floor(t x fps) mod 16, row by row from the top - not the whole sheet: since M3's
+      review (below) each frame is its own texture, bound, the UVs as they are; additive TXIs as M1b drew them; the Mesh
+      card says its planes' motion: "Its texture scrolls up 0.25 a second - from the spell mesh n5m_x; change it there."
+  - *Built (nwn5e-tools 91b56b7):* view.js, composer.js, composer_page.js, composer_server.js, app.js, index.html, README.
+    check_chunks +4 (40), check_composer +2 (46), check_composer_server +4 (53; bakeShapesForPlay's expected error text
+    names the materials now, realWorktreeUntouched counts `n5u_` files and the shader too), composer_check.mjs +3
+    (textureMotionCard, motionPlays, motionBounds; 99 ok lines, all passed), browser_check.mjs +2 (beatTextureMoves,
+    cycleRing; 110, all passed); each new check seen failing first. Beats, effect, parts and area checks pass; check.js:
+    523 drafts (1885 emitters), 233 textures, 0 failed.
+  - *What changes:* nothing for a part without a motion - its file, its stage meshes, Play's draft and its bake request
+    as before.
+  - *Limits:* the stage's moment isn't the game's (above). An `arturo` ripple stays still on the stage. A flipbook's
+    frames bound one at a time (M3's review: repeating past UV 1, a moving flipbook moving within its frame) and counted
+    from the top left, across then down, are inferred from the game's shaders, not yet seen in game (TMO-4). A material
+    is read as every Composer texture is - the route needs the game: without it the effect mode draws an `n5u_` plane
+    untextured and still, and its Mesh card says nothing of the motion.
+  - *For the bench:* restart vfx_bench.bat. *For the game:* nothing for Play in game (it writes the material and the
+    shader itself; 0.99.76 carries vsn5uvmove.shd in data\files since M2). A placeable's moving texture (TMO-3) reaches
+    the game with the install carrying its project (build_derived makes its materials).
+  - Test rows: TMO-2 and TMO-3 (M2's table, above, now with the card's steps), and TMO-4 (M3's review, below).
+  - *M3's review (nwn5e-tools 22a3d62):*
+    - a flipbook binds a frame, never slides its UVs: the game's stock shaders can't translate UVs (`vVertexTexCoords =
+      mat2(m_texture) * vTcIn.xy`, fslit samples them as they are), so the engine must bind each frame as its own texture.
+      view.js cuts a cycle picture into its numx x numy frames at upload (cycleFrames, row-major from the top), and
+      drawMeshes binds `frames[floor(t x fps) mod n]` (frameAt), the UVs as they are: Elemental Shield's ring (u -0.083 to
+      2.917) shows the same flame three times round, where M3 showed three different ones; a moving flipbook moves within
+      its frame. uvMatrix is motion or identity;
+    - uvMatrix takes the slide (c, f) within one repeat, 0 to below 1, as the shader's `fract` does;
+    - Texture None takes a part's motion with it in the same undo step - nothing left to move, no motion kept that moves
+      nothing - the status saying so, Undo bringing both back (the coordinator left the call to me; greying the group would
+      keep a motion in the file that does nothing);
+    - TMO-2 searches both logs; TMO-3's step undoes with the Undo button (Ctrl+Z in a number box is the browser's own text
+      undo), and says what scrolling a sheet (plc_creats) shows and what the commit and the install each bring; README and
+      these limits name the frame order and the repeat past 1 as unseen in game; TMO-4 (below) looks at both;
+    - checks: check_chunks 41 (the frame check re-aimed at frameAt and the bound frame, the motion check's slide within a
+      repeat, the additive check's frame, and a new one: a flipbook's sheet sliced into its frames, row-major from the top,
+      each its own texture); browser_check.mjs cycleRing on a ring spanning u 0 to 3 (one frame texture of 16, 32 x 32,
+      identity u_uv); composer_check.mjs motionBounds (None takes the motion with it); each changed check seen failing
+      first (the two browser checks on 91b56b7's page, from a temporary copy).
+
+    | ID | Setup | Do | Expect |
+    |---|---|---|---|
+    | TMO-4 | VFX Bench restarted; the game started (`!test level1ranger`); the Effects drawer's Game tab, row 147 `VFX_DUR_ELEMENTAL_SHIELD` (vdr_eleshield) opened | look at the stage's ring for 30 s; in game chat `!vfx`, search `elemental` (or 147), click `VFX_DUR_ELEMENTAL_SHIELD` (8 s a time; again as it ends, for a minute), close up; Clear effects. Then the Composer: New project `tmofall`, Spell mesh; Shapes, Cylinder (open); its card's Opacity 1, Texture From the library... `tcm02_wtfall01` (a waterfall, 1 x 8 frames at 12 a second), Use; watch the stage; Play in game | the ring's three flames the same at every moment, on the stage and in game; any difference in how they move between the two (backwards, or a jump every eighth of a second): say so. The cylinder's water runs the same way on the stage and in game (the frames counted from the top left) |
+
+  - *M3's whole-plan review (nwn5e-tools 78f977d; anim, the commit carrying this line):*
+    - TMO-2 sets the glyph orange (Colour #ff8000, Glow 1): a coloured texture through an n5u_ material has never been
+      seen in game (TMO-1's glyphs were white) - a white glyph or none says the material drops the mesh's colour. TMO-3
+      tints its crate pale green, for the placeable route. TMO-4 compares a waterfall cylinder (tcm02_wtfall01) on the
+      stage and in game, and uses the dev layer's `!vfx` window for Elemental Shield (as the csv);
+    - Drop in on a mesh beat with a Starts after (M5's) landed before the beat appeared: it now starts the fall at the
+      beat's start in the impact - held high from the first key to its start, landing its Land after from then (three
+      keys; parts.dropKeys' `from`), the status saying "from its start"; check_parts and browser_check.mjs
+      meshDropInAfterItsStart;
+    - the Mesh card's note said "Cut at alpha 0.2" of a plane whose texture is additive (M1b's): it now says "Drawn adding
+      its light in game (its texture's TXI says blending additive)"; browser_check.mjs meshHintSaysAdditive;
+    - stale lines after TMO-1 and M3 (floatdisk\README.md, composer\README.md, uvprobe.js, floatdisk.js): "TMO-1 passed
+      2026-11-18: route A (texture0), the texture's TXI still applies"; an envmap under our material is unknown, not
+      dropped. The VFX Bench README's limits gain a moving texture's envmap, an `n5u_` material outside the bench build (the
+      design's addendum (c), the shipping route still open) and the stage's area ambient (1 untextured, 0 textured).

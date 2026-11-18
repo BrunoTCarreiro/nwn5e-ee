@@ -132,7 +132,8 @@ A part's `motion` (M2) scrolls, turns and breathes the pictures on its textured 
   in `tools\data\floatdisk\made.txt`), a spell mesh's draft in `--saved`. A material is ours by its name, the shader by
   its first line. A texture of your own file's part is still copied beside the draft, and stays ours there (its draft
   names the material, the material the texture).
-- The VFX Bench's Composer shows and plays a moving texture from M3 on; until then only `build.js` makes the material.
+- The VFX Bench's Composer (M3, nwn5e-tools 91b56b7 + 22a3d62) sets, shows and plays a moving texture (its part card's
+  Texture motion). TMO-1 passed 2026-11-18: route A (texture0), the texture's TXI still applies.
 - The maths, the bounds and the files: the Floating Disk's README, "Moving textures".
 
 ## The probe (TMO-1)

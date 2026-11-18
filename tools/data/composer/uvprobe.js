@@ -2,10 +2,11 @@
 // TMO-1's probe (nwn5e-ee #39, M2; the design's "Texture motion", docs/superpowers/specs/2026-11-18-mesh-texture-
 // animation-and-tint-design.md): one spell mesh, n5m_uvprobe, that shows in game whether a moving texture works - and by
 // which route - before the VFX Bench's side (M3) is built. NWN:EE has no UV-motion setting, so a moving texture is an EE
-// material (n5u_<12 hex digits>.mtr, the mesh's bitmap) naming our vertex shader, vsn5uvmove.shd. Untested in game:
-// whether our shader compiles and runs on an effect's mesh, whether the material's `texture0` binds the real texture,
-// and whether that texture's TXI (additive: faint, see-through, no 0.2 alpha cut) still applies - and if not, where a TXI
-// does. So seven faint domes (radius 0.4: 0.8 m wide; alpha 0.3), 1 m apart along x and clear of the character:
+// material (n5u_<12 hex digits>.mtr, the mesh's bitmap) naming our vertex shader, vsn5uvmove.shd. (TMO-1 passed
+// 2026-11-18: route A (texture0), the texture's TXI still applies.) Untested in game when it was written: whether our
+// shader compiles and runs on an effect's mesh, whether the material's `texture0` binds the real texture, and whether that
+// texture's TXI (additive: faint, see-through, no 0.2 alpha cut) still applies - and if not, where a TXI does. So seven
+// faint domes (radius 0.4: 0.8 m wide; alpha 0.3), 1 m apart along x and clear of the character:
 //
 //   texture0 route (0.4 m high, x -3, -2, -1): the material names the texture (motionMaterialText)
 //     1  Soft, Additive, Wrapped            scrolls up            scroll [0, 0.25]

@@ -321,12 +321,12 @@ A part's `motion` moves the pictures on its textured meshes (M2; the owner, 2026
     material n5u_0ddd963264b2: n5s_617b220c1144 scrolls 0 0.25 a second, round 0.5 0.5 - written into data/files, with vsn5uvmove.shd
   ```
 
-- **Untested in game** until TMO-1 (the Composer's probe, `tools\data\composer\uvprobe.js`): whether `texture0` binds the
-  texture, or it has to be copied under the material's name (`motionMaterialText`'s `copy`), and whether the texture's
-  TXI (additive) still applies, and where a TXI does. The motion runs on the game's clock, not the effect's.
+- **TMO-1 passed 2026-11-18** (the Composer's probe, `tools\data\composer\uvprobe.js`): route A (texture0) - the
+  material names its texture and our shader moves it; the texture's TXI (additive) still applies. The motion runs on the
+  game's clock, not the effect's.
 - **What a material gives up:** it names our vertex shader and the game's plain lit fragment shader (the vslit / fslit
-  pair), so a moving texture drops the game texture's own `.mtr` (a specular or normal-mapped one's) and any
-  `envmaptexture` its TXI asks for.
+  pair), so a moving texture drops the game texture's own `.mtr` (a specular or normal-mapped one's). Whether an
+  `envmaptexture` its TXI asks for still applies under our material is unknown (not dropped by us; untested).
 
 ## The files here
 

@@ -848,7 +848,8 @@ function motionName(texture, motion, pivot) {
 }
 // Its material, n5u_<...>.mtr ({ texture, motion, pivot }: moveTextures' material): our vertex shader with the game's lit
 // fragment shader (the pair the game's vslit / fslit are), the real texture as texture0 - left out with `copy`, the
-// route where the texture is copied under the material's own name (TMO-1 decides) - and a "parameter float" line a
+// route where the texture is copied under the material's own name (TMO-1 passed 2026-11-18: route A, texture0; the
+// texture's TXI still applies, so the copy route isn't needed) - and a "parameter float" line a
 // MOTION_PARAMS name. LF line ends.
 function motionMaterialText({ texture, motion, pivot }, { copy = false } = {}) {
   const n = motionNumbers(motion, pivot);
