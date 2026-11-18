@@ -70,24 +70,30 @@ const bakedJson = (baked) => [...baked].map(([texture, b]) => ({ texture, plt: b
 // --- a shape's soft texture -------------------------------------------------------------------------------------------
 // The soft textures the placed shape parts name (floatdisk.js's shapeModel: `textures`, none for `none` or a library
 // texture), each generated from its colour: original, nothing of the game's. Each `made` lacks is added. `placed`:
-// [{ part, meshes }] (placePart's, with its part). -> `made`: Map(name -> { colour, bytes (its 32-bit TGA), label (the
-// part's) }), in the parts' order.
+// [{ part, meshes }] (placePart's, with its part). -> `made`: Map(name -> { colour, blend (M1b: additive | normal), bytes
+// (its 32-bit TGA), txi (an additive one's TXI, floatdisk.js's SOFT_TXI; null for normal), label (the part's) }), in the
+// parts' order.
 function shapeTextures(placed, made = new Map()) {
   for (const x of placed) {
     if (x.part.source.kind !== "shape") continue;
-    for (const { name, colour } of F.shapeModel(x.part.source.shape).textures) {
-      if (!made.has(name)) made.set(name, { colour, bytes: F.tgaBytes(F.shapeTexture({ colour }), { alpha: true }), label: F.partLabel(x.part) });
+    for (const { name, colour, blend } of F.shapeModel(x.part.source.shape).textures) {
+      if (made.has(name)) continue;
+      made.set(name, { colour, blend, bytes: F.tgaBytes(F.shapeTexture({ colour }), { alpha: true }),
+        txi: blend === "additive" ? Buffer.from(F.SOFT_TXI, "latin1") : null, label: F.partLabel(x.part) });
     }
   }
   return made;
 }
 // The soft textures as writes into `dir` (beside what names them: the models' folder, or a spell mesh's drafts'):
-// <dir>\<name>.tga, kind "shape" - not noted in made.txt: whose it is, its name says (ownership).
-const shapeWrites = (made, dir) => [...made].map(([name, s]) => ({ file: path.join(dir, name + ".tga"), bytes: s.bytes, kind: "shape" }));
-// The summary's line a soft texture: its colour, and where it goes.
-const shapeLines = (made, where) => [...made].map(([name, s]) => `  texture ${name}: a shape's soft texture, colour ${s.colour.join(" ")} - written into ${where}`);
-// --json's: [{ texture, colour }].
-const shapeJson = (made) => [...made].map(([texture, s]) => ({ texture, colour: s.colour }));
+// <dir>\<name>.tga and, an additive one (M1b), <dir>\<name>.txi beside it - "blending additive", so the game draws it on
+// its additive path - each kind "shape", not noted in made.txt: whose it is, its name says (ownership).
+const shapeWrites = (made, dir) => [].concat(...[...made].map(([name, s]) => [{ file: path.join(dir, name + ".tga"), bytes: s.bytes, kind: "shape" },
+  ...(s.txi ? [{ file: path.join(dir, name + ".txi"), bytes: s.txi, kind: "shape" }] : [])]));
+// The summary's line a soft texture: its colour (an additive one's blend and its TXI), and where it goes.
+const shapeLines = (made, where) => [...made].map(([name, s]) => `  texture ${name}: a shape's soft texture, colour ${s.colour.join(" ")}` +
+  (s.txi ? `, additive (${name}.txi beside it: blending additive)` : "") + ` - written into ${where}`);
+// --json's: [{ texture, colour, blend (only "additive": a Normal one's as before M1b) }].
+const shapeJson = (made) => [...made].map(([texture, s]) => (s.txi ? { texture, colour: s.colour, blend: "additive" } : { texture, colour: s.colour }));
 
 // --- textures ---------------------------------------------------------------------------------------------------------
 // The textures that the placed parts' own files bring and the game doesn't have: each mesh's, looked up in the game,
@@ -122,14 +128,14 @@ function writeManifest(file, manifest, header) {
 }
 // The rule for a file already where a write { file, bytes, kind } goes: "text" (a model, .pwk, rows file or draft) is
 // ours when it carries `mark`; "baked" (a dyed part's texture) when its name without .tga is a bake's (F.BAKED: only the
-// bake makes such names, and the name fixes the bytes); "shape" (a shape's soft texture) likewise when it's a soft
-// texture's (F.SHAPE_TEXTURE: only the generator makes them); a kind in `kinds` by its own test (w, old); any other (a
-// texture in the repo) when made.txt (`manifest`) lists it. -> (w, old) => true when it's ours.
+// bake makes such names, and the name fixes the bytes); "shape" (a shape's soft texture, or an additive one's TXI: M1b)
+// likewise when it's a soft texture's (F.SHAPE_TEXTURE: only the generator makes them); a kind in `kinds` by its own test
+// (w, old); any other (a texture in the repo) when made.txt (`manifest`) lists it. -> (w, old) => true when it's ours.
 function ownership({ repo, manifest, mark, kinds = {} }) {
   return (w, old) => {
     if (w.kind === "text") return F.carriesMark(old, mark);
     if (w.kind === "baked") return F.BAKED.test(path.basename(w.file).replace(/\.tga$/i, ""));
-    if (w.kind === "shape") return F.SHAPE_TEXTURE.test(path.basename(w.file).replace(/\.tga$/i, ""));
+    if (w.kind === "shape") return F.SHAPE_TEXTURE.test(path.basename(w.file).replace(/\.(tga|txi)$/i, ""));
     if (kinds[w.kind]) return kinds[w.kind](w, old);
     return repoPath(repo, w.file) !== null && manifest.has(repoPath(repo, w.file));
   };

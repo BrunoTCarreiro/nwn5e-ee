@@ -47,7 +47,7 @@ fs.mkdirSync(ROWS, { recursive: true });
 // The disk's files, and the generated textures beside them (a dyed part's bake, n5p_, and a shape's soft texture, n5s_,
 // each with 12 hex digits: build output, git-ignored as the models).
 for (const f of fs.readdirSync(REAL_FILES)) {
-  if (/^(c_n5fd_|plc_n5fd_)/.test(f) || f === "n5t_forcedisk.tga" || /^n5[ps]_[0-9a-f]{12}\.tga$/.test(f)) fs.copyFileSync(path.join(REAL_FILES, f), path.join(FILES, f));
+  if (/^(c_n5fd_|plc_n5fd_)/.test(f) || f === "n5t_forcedisk.tga" || /^n5[ps]_[0-9a-f]{12}\.(tga|txi)$/.test(f)) fs.copyFileSync(path.join(REAL_FILES, f), path.join(FILES, f));
 }
 for (const f of fs.readdirSync(path.join(REPO, "data", "rows"))) {
   if (/\.floatdisk\.txt$/.test(f)) fs.copyFileSync(path.join(REPO, "data", "rows", f), path.join(ROWS, f));
@@ -101,7 +101,7 @@ if (absent.length) {
 }
 // A file's state lines (new / rebuilt / unchanged, then its path from the copy's root).
 const stateLines = (r) => r.out.split(/\r?\n/).map((l) => l.match(/^(new|rebuilt|unchanged)\s+(\S+)$/)).filter(Boolean).map((m) => [m[1], m[2]]);
-const GENERATED_FILE = /^data\/files\/n5[ps]_[0-9a-f]{12}\.tga$/;  // a bake or a shape's soft texture
+const GENERATED_FILE = /^data\/files\/n5[ps]_[0-9a-f]{12}\.(tga|txi)$/;  // a bake or a shape's soft texture (an additive one's TXI too: M1b)
 
 // --- the checks ---------------------------------------------------------------------------------------------------
 let failed = 0;
@@ -127,7 +127,7 @@ try {
     assert.ok(states.every(([s]) => s === "unchanged"), "not unchanged: " + states.filter(([s]) => s !== "unchanged").map(([s, f]) => s + " " + f).join(", "));
     // The generated textures are the composition's: its bakes, one a texture (the owner's Large dyes its helm_001: its
     // colours name it), and its shapes' soft textures.
-    assert.deepStrictEqual(made.map(([, f]) => path.posix.basename(f, ".tga")).sort(), generated(build(["--check", "--json"])).sort());
+    assert.deepStrictEqual(made.filter(([, f]) => f.endsWith(".tga")).map(([, f]) => path.posix.basename(f, ".tga")).sort(), generated(build(["--check", "--json"])).sort());
     assert.deepStrictEqual(snapshot(), before);
   });
 
@@ -362,6 +362,50 @@ try {
     const fixed = json(build([...args, "--json"])).files.filter((f) => f.state !== "unchanged");
     assert.deepStrictEqual(fixed, [{ state: "rebuilt", file: `data/files/${GOLD}.tga` }, { state: "rebuilt", file: `build/saved/${GOLD}.tga` }]);
     for (const dir of [FILES, drafts]) assert.ok(fs.readFileSync(path.join(dir, GOLD + ".tga")).equals(bytes));
+  });
+
+  check("a soft-additive dome (M1b): its TXI beside its TGA in data\\files and beside the drafts, owned by its name; a Normal one's none; the names differ", () => {
+    // The check's own medium: a 0.3 m gold dome, Additive, and a 0.2 m one in the same gold, Normal - two textures, one
+    // TXI ("blending additive", floatdisk.js's SOFT_TXI: the game's additive path), each beside what names it.
+    const GOLD = "n5s_a3caa0709dda", ADD = "n5s_438a32a94ebf", colour = [1, 0.85, 0.4];
+    assert.strictEqual(F.shapeTextureName({ colour, blend: "additive" }), ADD);
+    const file = withComposition("blend.json", (c) => {
+      c.stages.medium = [{ shape: { type: "dome", radius: 0.3, colour, blend: "additive" }, at: [0, 0, 0] }, { shape: { type: "dome", radius: 0.2, colour }, at: [0.4, 0, 0] }];
+    });
+    const drafts = path.join(root, "build", "saved"), library = path.join(root, "build", "textures");
+    const args = ["--composition", file, "--drafts", "--out", drafts, "--textures", library];
+    for (const dir of [FILES, drafts]) for (const f of [GOLD, ADD].flatMap((n) => [n + ".tga", n + ".txi"])) fs.rmSync(path.join(dir, f), { force: true });
+    const made = fs.readFileSync(path.join(folder, "made.txt"));
+    const c = build(["--composition", file, "--check"]);
+    assert.strictEqual(c.code, 0, "build.js --check exited " + c.code + ": " + c.err.trim());
+    assert.ok(c.out.split(/\r?\n/).includes(`  texture ${ADD}: a shape's soft texture, colour 1 0.85 0.4, additive (${ADD}.txi beside it: blending additive) - written into data/files`),
+      "no summary line:\n" + c.out);
+    const r = build([...args, "--json"]);
+    assert.strictEqual(r.code, 0, "build.js exited " + r.code + ": " + r.err.trim());
+    const j = json(r);
+    assert.deepStrictEqual(j.shapes, [{ texture: ADD, colour, blend: "additive" }, { texture: GOLD, colour }]);
+    const states = Object.fromEntries(j.files.filter((f) => /n5s_/.test(f.file)).map((f) => [f.file, f.state]));
+    assert.deepStrictEqual(states, { [`data/files/${ADD}.tga`]: "new", [`data/files/${ADD}.txi`]: "new", [`data/files/${GOLD}.tga`]: "new",
+      [`build/saved/${ADD}.tga`]: "new", [`build/saved/${ADD}.txi`]: "new", [`build/saved/${GOLD}.tga`]: "new" });
+    const bytes = F.tgaBytes(F.shapeTexture({ colour }), { alpha: true });
+    for (const dir of [FILES, drafts]) {
+      assert.strictEqual(fs.readFileSync(path.join(dir, ADD + ".txi"), "latin1"), "blending additive\n", dir);
+      for (const n of [ADD, GOLD]) assert.ok(fs.readFileSync(path.join(dir, n + ".tga")).equals(bytes), `${dir}\\${n}.tga isn't floatdisk.js's soft texture`);
+      assert.ok(!fs.existsSync(path.join(dir, GOLD + ".txi")), `${dir}: a Normal soft texture got a TXI`);
+    }
+    // The medium's creature model and draft name each dome's own.
+    const mdl = fs.readFileSync(path.join(FILES, F.creatureModel("medium") + ".mdl"), "latin1");
+    for (const n of [ADD, GOLD]) assert.ok(mdl.includes(`\r\n  bitmap ${n}\r\n`), "the medium's model doesn't name " + n);
+    const core = (global.window = global.window || {}, require(path.join(TOOLS, "vfx_bench", "public", "core.js")));
+    const planes = core.readDraft(fs.readFileSync(path.join(drafts, "n5_floatdisk_medium.vfx"), "latin1").replace(/\r/g, "")).planes;
+    assert.deepStrictEqual(planes.filter((p) => /^n5s_/.test(p.bitmap)).map((p) => p.bitmap), [ADD, GOLD]);
+    assert.ok(fs.readFileSync(path.join(folder, "made.txt")).equals(made), "made.txt changed");
+    // Built again: unchanged; a TXI of its name is the generator's - rewritten.
+    const again = json(build([...args, "--json"]));
+    assert.ok(again.files.every((f) => f.state === "unchanged"), JSON.stringify(again.files.filter((f) => f.state !== "unchanged")));
+    for (const dir of [FILES, drafts]) fs.writeFileSync(path.join(dir, ADD + ".txi"), "blending punchthrough\r\n");
+    const fixed = json(build([...args, "--json"])).files.filter((f) => f.state !== "unchanged");
+    assert.deepStrictEqual(fixed, [{ state: "rebuilt", file: `data/files/${ADD}.txi` }, { state: "rebuilt", file: `build/saved/${ADD}.txi` }]);
   });
 
   check("the real worktree's data\\files and the real build's vfxedit\\saved\\ are as they were", () => {

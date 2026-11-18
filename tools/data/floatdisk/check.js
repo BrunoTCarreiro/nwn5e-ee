@@ -537,7 +537,7 @@ const pageFloatDisk = () => {
 check("a shape: read with its defaults, written without them", () => {
   const s = F.readShape({ type: "dome", radius: 4.57 }, "s");
   assert.deepStrictEqual(s, { type: "dome", radius: 4.57, height: 4.57, segments: 32, sides: "both", mapping: "wrap", repeat_around: 1, repeat_up: 1,
-    colour: [0.6, 0.8, 1], alpha: 0.35, glow: 1, texture: "soft" });
+    colour: [0.6, 0.8, 1], alpha: 0.35, glow: 1, texture: "soft", blend: "normal" });
   assert.deepStrictEqual(F.shapeDefaults("dome", 4.57), s);
   assert.deepStrictEqual(F.cleanShape(s), { type: "dome", radius: 4.57 });
   const c = F.cleanShape(Object.assign({}, s, { colour: [1, 0.85, 0.4], height: 3 }));
@@ -694,7 +694,7 @@ check("the dome's material: its texture's colour lit by its glow (soft), its own
     "transparencyhint"]);
   assert.deepStrictEqual([m.bitmap, m.diffuse, m.ambient, m.selfillum, m.alpha, m.transparent],
     ["n5s_8c757fb28f99", [1, 1, 1], [1, 1, 1], [1, 1, 1], 0.35, true]);
-  assert.deepStrictEqual(soft.textures, [{ name: "n5s_8c757fb28f99", colour: [0.6, 0.8, 1] }]);
+  assert.deepStrictEqual(soft.textures, [{ name: "n5s_8c757fb28f99", colour: [0.6, 0.8, 1], blend: "normal" }]);
   const none = F.shapeModel(F.readShape({ type: "dome", radius: 1, texture: "none", colour: [1, 0.85, 0.4], glow: 0.5, alpha: 1 }, "s")), n = none.meshes[0];
   assert.deepStrictEqual([n.bitmap, n.diffuse, n.ambient, n.selfillum, n.alpha, n.transparent],
     ["", [1, 0.85, 0.4], [1, 0.85, 0.4], [0.5, 0.425, 0.2], 1, false]);
@@ -710,7 +710,7 @@ check("the dome's material: its texture's colour lit by its glow (soft), its own
   assert.deepStrictEqual(lib.textures, []);
   // Soft in another colour: its own texture.
   assert.deepStrictEqual(F.shapeModel(F.readShape({ type: "dome", radius: 1, colour: [1, 0.85, 0.4] }, "s")).textures,
-    [{ name: "n5s_a3caa0709dda", colour: [1, 0.85, 0.4] }]);
+    [{ name: "n5s_a3caa0709dda", colour: [1, 0.85, 0.4], blend: "normal" }]);
 });
 check("a dome's two sides in their own smoothing groups (the inside 2, the outside 1); a mesh without groups is written 1, as before", () => {
   // The sides share their positions: in one group, a loader that merges normals by position would cancel them.
@@ -798,7 +798,8 @@ check("a soft texture's name fixes its bytes: the colour is painted as it's name
 // column twice. Wrapped: u round it from +x, v from its base up - a disc's and a ring's from the rim in, so the soft
 // texture glows at the rim as a dome's at its ground ring (the coordinator's ruling on S5); From above as the dome's.
 const shapeOf = (type, o) => F.shapeModel(F.readShape(Object.assign({ type, radius: 1 }, o), "s"));
-const LOOK = { segments: 32, sides: "both", mapping: "wrap", repeat_around: 1, repeat_up: 1, colour: [0.6, 0.8, 1], alpha: 0.35, glow: 1, texture: "soft" };
+const LOOK = { segments: 32, sides: "both", mapping: "wrap", repeat_around: 1, repeat_up: 1, colour: [0.6, 0.8, 1], alpha: 0.35, glow: 1, texture: "soft",
+  blend: "normal" };
 // Both sides of `type`'s mesh, the inside first: `count` vertices and `tris` triangles a side, the inside's facing in (each
 // triangle's sign by `face`), each side its own vertices (the inside's the outside's, in the same order, UVs too), the
 // inside in smoothing group 2; rounded, no -0. Outside only: one side, every triangle facing out. -> the mesh.
@@ -839,7 +840,8 @@ check("the other shapes: six types, their labels and fields; a sphere's, a cylin
   assert.deepStrictEqual(F.SHAPE_TYPES, ["dome", "sphere", "cylinder", "cone", "disc", "ring"]);
   assert.deepStrictEqual(F.SHAPE_LABELS, { dome: "Dome (half sphere)", sphere: "Sphere", cylinder: "Cylinder (open)", cone: "Cone (point up)",
     disc: "Disc (flat, on the ground)", ring: "Ring (flat band)" });
-  assert.deepStrictEqual(F.SHAPE_KEYS, ["type", "radius", "height", "inner", "segments", "sides", "mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture"]);
+  assert.deepStrictEqual(F.SHAPE_KEYS, ["type", "radius", "height", "inner", "segments", "sides", "mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture",
+    "blend"]);
   const solid = ["radius", "height", "segments", "sides"];
   assert.deepStrictEqual(F.SHAPE_FIELDS, { dome: solid, sphere: solid, cylinder: solid, cone: solid, disc: ["radius", "segments", "sides"],
     ring: ["radius", "inner", "segments", "sides"] });
@@ -866,7 +868,7 @@ check("the other shapes: six types, their labels and fields; a sphere's, a cylin
   // A height given is kept when it isn't the default; a flat shape has none, and only a ring has an inner.
   assert.deepStrictEqual(F.cleanShape(F.readShape({ type: "cylinder", radius: 1, height: 3 }, "s")), { type: "cylinder", radius: 1, height: 3 });
   assert.deepStrictEqual(F.cleanShape(F.readShape({ type: "cone", radius: 1, height: 2 }, "s")), { type: "cone", radius: 1 });
-  const keys = "type, radius, segments, sides, mapping, repeat_around, repeat_up, colour, alpha, glow or texture";
+  const keys = "type, radius, segments, sides, mapping, repeat_around, repeat_up, colour, alpha, glow, texture or blend";
   assert.throws(() => F.readShape({ type: "disc", radius: 1, height: 1 }, "s"), (e) => e.message === `s.height: not a disc's - ${keys}`);
   assert.throws(() => F.readShape({ type: "ring", radius: 1, height: 1 }, "s"), /^Error: s\.height: not a ring's - type, radius, inner, segments, /);
   for (const type of ["dome", "sphere", "cylinder", "cone", "disc"]) assert.throws(() => F.readShape({ type, radius: 1, inner: 0.5 }, "s"), new RegExp(`^Error: s\\.inner: not a ${type}'s - `));
@@ -1191,6 +1193,131 @@ check("placePart for a spell mesh's planes: a default-material mesh lifted to fu
   assert.deepStrictEqual(place(TINT, false).meshes[0].ambient, [0.2, 0.2, 0.1998]);
   assert.deepStrictEqual(place(TINT).meshes, place(TINT, false).meshes);
   assert.deepStrictEqual(place(TINT, true).meshes.map((m) => m.transparencyhint), [1, 1]);
+});
+
+// --- M1b: a shape's Blend (the design's addendum (b); the owner, 2026-11-18: "fxpa_globe works. it's faint, you can see
+// the sparkles" - "go with your rec on the blend") ---------------------------------------------------------------------
+// Additive: its soft texture gets a TXI saying "blending additive" beside it, so the game draws it on its additive path
+// (no 0.2 alpha cut, nothing behind hidden); Normal is today's. A shape saved without it keeps Normal.
+check("blend: additive or normal, normal by default, written only when additive; anything else refused, naming the field", () => {
+  const { label, choices, title } = F.SHAPE_INFO.blend;
+  assert.deepStrictEqual({ label, choices }, { label: "Blend", choices: [["additive", "Additive: glows, adds light, faint and see-through as the game's globes"],
+    ["normal", "Normal: blended over what's behind"]] });
+  assert.ok(/Soft only: a library texture follows its own TXI/.test(title), title);
+  assert.ok(F.LOOK_FIELDS.includes("blend") && F.SHAPE_KEYS[F.SHAPE_KEYS.length - 1] === "blend" && F.SHAPE_KEYS.indexOf("blend") === F.SHAPE_KEYS.indexOf("texture") + 1,
+    JSON.stringify(F.SHAPE_KEYS));
+  for (const type of F.SHAPE_TYPES) {
+    assert.strictEqual(F.shapeDefaults(type, 1).blend, "normal", type);
+    assert.strictEqual(F.readShape({ type, radius: 1 }, "s").blend, "normal", type);
+    assert.strictEqual(F.readShape({ type, radius: 1, blend: "additive" }, "s").blend, "additive", type);
+  }
+  // Written only when additive, after its texture (SHAPE_KEYS' order); normal - the default - never.
+  const add = F.cleanShape(F.readShape({ type: "dome", radius: 1, blend: "additive", colour: [1, 0.85, 0.4] }, "s"));
+  assert.deepStrictEqual(add, { type: "dome", radius: 1, colour: [1, 0.85, 0.4], blend: "additive" });
+  assert.deepStrictEqual(Object.keys(F.cleanShape({ type: "dome", radius: 1, texture: "none", blend: "additive" })), ["type", "radius", "texture", "blend"]);
+  assert.deepStrictEqual(F.cleanShape(F.readShape({ type: "dome", radius: 1, blend: "normal" }, "s")), { type: "dome", radius: 1 });
+  // A library texture or none keeps it (it means nothing there - the texture's own TXI, or no texture - but Soft again
+  // brings it back).
+  assert.deepStrictEqual(F.cleanShape(F.readShape({ type: "dome", radius: 1, texture: "fxpa_globe", blend: "additive" }, "s")),
+    { type: "dome", radius: 1, texture: "fxpa_globe", blend: "additive" });
+  for (const blend of ["Additive", "add", "", "lighten", 1, null, true]) {
+    assert.throws(() => F.readShape({ type: "dome", radius: 1, blend }, "s"), (e) => e.message === "s.blend: additive or normal", JSON.stringify(blend));
+  }
+  // In a part's key (the shape as written) and a composition's line.
+  const key = (shape) => F.partKey(F.readPart({ shape, at: [0, 0, 0] }, "p", BASE));
+  assert.strictEqual(key({ type: "dome", radius: 1, blend: "additive" }), 'shape:{ "type": "dome", "radius": 1, "blend": "additive" }');
+  assert.strictEqual(key({ type: "dome", radius: 1, blend: "normal" }), key({ type: "dome", radius: 1 }));
+  const text = F.compositionText({ stages: { small: [{ shape: { type: "dome", radius: 1, blend: "additive" }, at: [0, 0, 0] }] } });
+  assert.ok(text.split("\n").includes('      { "shape": { "type": "dome", "radius": 1, "blend": "additive" }, "at": [0, 0, 0] }'), text);
+});
+const ADDITIVE = (colour) => F.shapeTextureName({ colour, blend: "additive" });
+check("a soft texture's name hashes its blend: Additive's differs from Normal's, Normal's (and none given) as before", () => {
+  for (const colour of [[0.6, 0.8, 1], [1, 0.85, 0.4]]) {
+    const normal = F.shapeTextureName({ colour }), additive = ADDITIVE(colour);
+    assert.strictEqual(F.shapeTextureName({ colour, blend: "normal" }), normal);
+    assert.ok(F.SHAPE_TEXTURE.test(additive), additive);
+    assert.notStrictEqual(additive, normal);
+    assert.strictEqual(ADDITIVE(colour.map((c) => c - 0.0001)), additive, "to 0.001, as the colour");
+  }
+  assert.strictEqual(F.shapeTextureName({ colour: [0.6, 0.8, 1] }), "n5s_8c757fb28f99");
+  assert.strictEqual(F.shapeTextureName({ colour: [1, 0.85, 0.4], blend: "normal" }), "n5s_a3caa0709dda");
+  // Additive's names, the default colour's and gold's (the build checks and the bench's use them).
+  assert.deepStrictEqual([ADDITIVE([0.6, 0.8, 1]), ADDITIVE([1, 0.85, 0.4])], ["n5s_617b220c1144", "n5s_438a32a94ebf"]);
+  // Its pixels are its colour's: the same picture whichever its blend (the TXI says how the game draws it).
+  assert.ok(F.tgaBytes(F.shapeTexture({ colour: [1, 0.85, 0.4], blend: "additive" }), { alpha: true }).equals(F.tgaBytes(F.shapeTexture({ colour: [1, 0.85, 0.4] }), { alpha: true })));
+});
+check("shapeModel: a soft-additive shape's mesh carries additive and its texture its blend; Normal, None and a library texture never additive", () => {
+  const model = (o) => F.shapeModel(F.readShape(Object.assign({ type: "dome", radius: 1, colour: [1, 0.85, 0.4] }, o), "s"));
+  const add = model({ blend: "additive" }), m = add.meshes[0];
+  assert.strictEqual(m.bitmap, ADDITIVE([1, 0.85, 0.4]));
+  assert.strictEqual(m.additive, true);
+  assert.deepStrictEqual(add.textures, [{ name: ADDITIVE([1, 0.85, 0.4]), colour: [1, 0.85, 0.4], blend: "additive" }]);
+  // Its material, alpha and hint as a normal soft shape's: only its texture's name and the flag differ.
+  const plain = model({});
+  assert.deepStrictEqual(Object.assign({}, m, { bitmap: plain.meshes[0].bitmap, additive: undefined }), Object.assign({}, plain.meshes[0], { additive: undefined }));
+  assert.ok(!("additive" in plain.meshes[0]), "a normal mesh carries no additive");
+  assert.deepStrictEqual(plain.textures, [{ name: "n5s_a3caa0709dda", colour: [1, 0.85, 0.4], blend: "normal" }]);
+  for (const texture of ["none", "fxpa_globe"]) {
+    const x = model({ blend: "additive", texture });
+    assert.ok(!("additive" in x.meshes[0]), texture + "'s mesh carries additive");
+    assert.deepStrictEqual(x.textures, [], texture);
+  }
+  // Placed (placePart: a part's meshes, its tint over them), lowered: it stays additive.
+  const placed = F.placePart({ at: [0, 0, 0], turn: 30, scale: 1, tilt: [0, 0], tint: [1, 1, 1] }, add, 0, 0.9, "j", true);
+  assert.strictEqual(placed.meshes[0].additive, true);
+  assert.strictEqual(F.lowered(placed.meshes, 0.9)[0].additive, true);
+  noNegativeZero(add);
+});
+check("the TXI: SOFT_TXI says blending additive; txiAdditive reads a TXI's blending line as the game's keywords (any case, either line end)", () => {
+  assert.strictEqual(F.SOFT_TXI, "blending additive\n");
+  for (const t of ["blending additive\n", "blending additive\r\n", "Blending Additive", "  blending\tadditive  \r\n", "mipmap 0\r\nblending additive\r\ndecal 1\r\n",
+    "proceduretype arturo\nblending additive\n"]) assert.strictEqual(F.txiAdditive(t), true, JSON.stringify(t));
+  for (const t of ["", null, undefined, "blending punchthrough\n", "blending additivex", "# blending additive", "decal 1", "blendingadditive", "envmaptexture x\n"]) {
+    assert.strictEqual(F.txiAdditive(t), false, JSON.stringify(t));
+  }
+  assert.strictEqual(F.txiAdditive(Buffer.from("blending additive\r\n", "latin1")), true);
+});
+check("files.js: an additive soft texture is written with its TXI beside it (both owned by name); a normal one alone", () => {
+  const fs = require("fs");
+  const os = require("os");
+  const W = require("./files.js");
+  const part = (shape) => F.readPart({ shape, at: [0, 0, 0] }, "p", BASE);
+  const colour = [1, 0.85, 0.4], add = ADDITIVE(colour);
+  const placed = [{ part: part({ type: "dome", radius: 1, colour }) }, { part: part({ type: "dome", radius: 2, colour, blend: "additive" }) },
+    { part: part({ type: "sphere", radius: 1, colour, blend: "additive" }) }];
+  const made = W.shapeTextures(placed);
+  assert.deepStrictEqual([...made.keys()], ["n5s_a3caa0709dda", add]);
+  assert.deepStrictEqual([made.get("n5s_a3caa0709dda").blend, made.get(add).blend], ["normal", "additive"]);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "n5_fdtxi-"));
+  try {
+    const writes = W.shapeWrites(made, dir);
+    assert.deepStrictEqual(writes.map((w) => [path.basename(w.file), w.kind]), [["n5s_a3caa0709dda.tga", "shape"], [add + ".tga", "shape"], [add + ".txi", "shape"]]);
+    const tga = F.tgaBytes(F.shapeTexture({ colour }), { alpha: true });
+    assert.ok(writes[0].bytes.equals(tga) && writes[1].bytes.equals(tga), "its TGA: the colour's soft texture");
+    assert.ok(Buffer.isBuffer(writes[2].bytes) && writes[2].bytes.toString("latin1") === "blending additive\n", JSON.stringify(String(writes[2].bytes)));
+    // Ours by name, the TXI as its TGA: rewritten when it differs; a TXI not of a soft texture's name isn't.
+    const owned = W.ownership({ repo: dir, manifest: new Set(), mark: F.MARK });
+    fs.writeFileSync(path.join(dir, add + ".txi"), "blending punchthrough\n");
+    for (const name of ["n5s_mine.txi", "n5t_mark01.txi"]) assert.strictEqual(owned({ file: path.join(dir, name), kind: "shape" }, Buffer.from("x")), false, name);
+    assert.strictEqual(owned({ file: path.join(dir, add + ".txi"), kind: "shape" }, Buffer.from("x")), true);
+    assert.deepStrictEqual(W.writeAll(writes, owned, { repo: dir, manifest: new Set() }).map(([s, f]) => [s, path.basename(f)]),
+      [["new", "n5s_a3caa0709dda.tga"], ["new", add + ".tga"], ["rebuilt", add + ".txi"]]);
+    assert.strictEqual(fs.readFileSync(path.join(dir, add + ".txi"), "latin1"), "blending additive\n");
+    // What the summary and --json say: Normal as before; Additive its blend and its TXI.
+    assert.deepStrictEqual(W.shapeJson(made), [{ texture: "n5s_a3caa0709dda", colour }, { texture: add, colour, blend: "additive" }]);
+    assert.deepStrictEqual(W.shapeLines(made, "data/files"), [`  texture n5s_a3caa0709dda: a shape's soft texture, colour 1 0.85 0.4 - written into data/files`,
+      `  texture ${add}: a shape's soft texture, colour 1 0.85 0.4, additive (${add}.txi beside it: blending additive) - written into data/files`]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+check("Blend in a page: the same name, model and TXI", () => {
+  const P = pageFloatDisk();
+  const s = { type: "dome", radius: 2, colour: [1, 0.85, 0.4], blend: "additive" };
+  assert.deepStrictEqual(P.shapeModel(P.readShape(s, "s")), F.shapeModel(F.readShape(s, "s")));
+  assert.strictEqual(P.shapeTextureName(s), ADDITIVE([1, 0.85, 0.4]));
+  assert.strictEqual(P.SOFT_TXI, F.SOFT_TXI);
+  assert.strictEqual(P.txiAdditive("blending additive"), true);
 });
 
 console.log(process.exitCode ? `floatdisk check: FAILED (${count} passed)` : `floatdisk check: ${count} checks pass`);

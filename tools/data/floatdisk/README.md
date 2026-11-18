@@ -241,22 +241,34 @@ from the defaults is written; a key not its type's (a disc's `height`, a dome's 
   much it lights itself, at 1 the same by day and night). Soft and `none` keep `ambient` and `diffuse` at white (Soft)
   or the colour (`none`), `selfillumcolor` lit by `glow`. A soft or library texture, or an alpha below 1, is drawn
   see-through.
+- **Its blend** (`blend`, M1b; the owner's test, 2026-11-18: the game's `fxpa_globe` is faint with the sparkles seen
+  through it, where a soft texture with `transparencyhint 1` was still cut at alpha 0.2 and hid them): `additive` or
+  `normal` (the default, so a shape written without it keeps its look; the VFX Bench's Composer writes `additive` on
+  every shape it adds). Additive is the game's own way for a faint effect mesh (Minor Globe's `fxpa_Globe`, Mage
+  Armor's `fxpa_shield`...): its soft texture gets a TXI beside it saying `blending additive`, and the game adds its light
+  - it glows, never darkens, nothing behind is hidden, no 0.2 cut; a faint one is a low `alpha` or a darker `colour`. It
+  applies to `soft`: a library texture follows its own TXI, and `none` has no texture to carry one (the key is kept
+  there, so Soft again keeps it). It's in the soft texture's name, so changing it never leaves a stale TXI beside a
+  texture.
 
 **A shape's texture**
 
 - **Where it goes:** `build.js` makes the mesh from the shape's numbers (no game model, no mesh reader). It writes a
   soft texture beside what names it: into `data\files` with the models (or `--files`), and with `--drafts` beside the
-  stages' drafts too. Shapes of one colour share one file.
+  stages' drafts too. Shapes of one colour and blend share one file. An Additive one's `n5s_<...>.txi` (`blending
+  additive`) goes beside it, everywhere it goes - git-ignored, rebuilt and owned by its name as the texture is.
 - **It's build output,** like a bake: original (generated from numbers), but its bytes follow from the recipe's
   colour alone, so `.gitignore` keeps it out (`/data/files/n5s_*`) and only the recipe is committed - no stale
   textures pile up while colours are tried. `made.txt` doesn't list it, and `build.bat` makes it with the models for
   every build (`tools\data\build_derived.js`).
 - **Whose it is:** its name says. Only the generator makes `n5s_` names, and the name fixes the picture, so a file of
   that name in the way is rewritten.
-- **The summary** names it, and `--json` lists it under `shapes` (`texture`, `colour`):
+- **The summary** names it, and `--json` lists it under `shapes` (`texture`, `colour`, and `blend: "additive"` for an
+  Additive one):
 
   ```
     texture n5s_a3caa0709dda: a shape's soft texture, colour 1 0.85 0.4 - written into data/files
+    texture n5s_438a32a94ebf: a shape's soft texture, colour 1 0.85 0.4, additive (n5s_438a32a94ebf.txi beside it: blending additive) - written into data/files
   ```
 
 - `none` and a library texture write nothing: the model names the library's texture, and the game has it.

@@ -19,8 +19,10 @@
 // A shape part (a dome, sphere, cylinder, cone, disc or ring: floatdisk.js makes its mesh from its numbers) with a soft
 // texture names n5s_<12 hex digits of its colour>.tga, generated here from its colour - original, but build output like
 // a bake - and written beside what names it: a placeable's models in data\files (git-ignored: build.bat makes it for
-// every build), a spell mesh's drafts in <saved>. A library texture is named only; none is written for it (one the game
-// has only as a PLT is refused).
+// every build), a spell mesh's drafts in <saved>. An Additive shape's (M1b: its blend hashed into the name too) has its
+// TXI beside it, n5s_<...>.txi saying "blending additive" - the game's additive path: faint, see-through, no 0.2 alpha
+// cut - written wherever its texture is (files.js shapeWrites). A library texture is named only; none is written for it
+// (one the game has only as a PLT is refused).
 //
 // The parts are read and placed as the Floating Disk's (..\floatdisk\reader.js and floatdisk.js), through the player's
 // own game and nwn5e-ee's mesh reader; nothing of the game's is kept in the repo. The files are written by its files.js,

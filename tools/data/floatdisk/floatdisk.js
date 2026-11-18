@@ -509,12 +509,13 @@ function diskTexture(disk, id = "") {
 const SHAPE_TYPES = ["dome", "sphere", "cylinder", "cone", "disc", "ring"];
 const SHAPE_LABELS = { dome: "Dome (half sphere)", sphere: "Sphere", cylinder: "Cylinder (open)", cone: "Cone (point up)", disc: "Disc (flat, on the ground)",
   ring: "Ring (flat band)" };
-const SHAPE_KEYS = ["type", "radius", "height", "inner", "segments", "sides", "mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture"];  // the order they're written in
+const SHAPE_KEYS = ["type", "radius", "height", "inner", "segments", "sides", "mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture",
+  "blend"];  // the order they're written in
 const SOLID = () => ["radius", "height", "segments", "sides"];
 const SHAPE_FIELDS = { dome: SOLID(), sphere: SOLID(), cylinder: SOLID(), cone: SOLID(),  // a type's own fields, the card's order
   disc: ["radius", "segments", "sides"], ring: ["radius", "inner", "segments", "sides"] };
 const SHAPE_FLAT = ["disc", "ring"];
-const LOOK_FIELDS = ["mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture"];  // every type's
+const LOOK_FIELDS = ["mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture", "blend"];  // every type's
 // A field's card label and bounds: what readShape enforces, and what the page shows.
 const SHAPE_INFO = {
   radius: { label: "Radius (m)", min: 0.05, max: 100, step: 0.05 },
@@ -533,18 +534,36 @@ const SHAPE_INFO = {
   // Soft or none, or a library texture's name (the game's own, named: nothing generated or copied).
   texture: { label: "Texture", choices: [["soft", "Soft: brighter at its base (a flat one's rim)"], ["none", "None: its colour only"]],
     title: "Soft is made for Wrapped; a texture from the library is tinted by its Colour - at Glow 1 lit by itself, the same by day and night; lower, the scene's light comes in" },
+  // M1b (the design's addendum (b); the owner, 2026-11-18: "fxpa_globe works. it's faint, you can see the sparkles" - "go
+  // with your rec on the blend"): how the game draws its Soft texture - Additive by a TXI beside it (SOFT_TXI), as the
+  // game's own faint effect meshes (fxpa_Globe, fxpa_shield ...): no 0.2 alpha cut, nothing behind hidden; Normal as
+  // before (a shape saved without it). A library texture follows its own TXI; None has no texture to carry one.
+  blend: { label: "Blend", choices: [["additive", "Additive: glows, adds light, faint and see-through as the game's globes"], ["normal", "Normal: blended over what's behind"]],
+    title: "Additive adds its light: it glows, never darkens, black is nothing, overlaps brighten - a faint one is a low Opacity or a darker Colour. Soft only: a library texture follows its own TXI" },
 };
 const SHAPE_TEXTURE = /^n5s_[0-9a-f]{12}$/;  // a soft texture's name: made, never picked
+// An additive soft texture's TXI, written beside its TGA wherever the texture is written (files.js shapeWrites, the
+// bench's bake for Play): the game's keyword and value, as nwn5e's n5t_mark*.txi and the game's fxpa_Globe.txi say it.
+const SOFT_TXI = "blending additive\n";
+// Whether a TXI's text (a string or bytes) says "blending additive" - a line of it, the keyword and its value in any case,
+// spaces or tabs round them, either line end: the game's additive textures (13 of its 734 TXIs). The bench's texture
+// route says so for a texture it serves (its stage draws such a mesh additively).
+function txiAdditive(text) {
+  if (text === undefined || text === null) return false;
+  const s = typeof text === "string" ? text : Array.from(text instanceof Uint8Array ? text : new Uint8Array(text), (c) => String.fromCharCode(c)).join("");
+  return /^[ \t]*blending[ \t]+additive[ \t]*\r?$/im.test(s);
+}
 const orList = (list) => (list.length > 1 ? list.slice(0, -1).join(", ") + " or " + list[list.length - 1] : list.join(""));
 
 // A type's defaults, in SHAPE_KEYS' order: a dome as tall as its radius; a sphere, a cylinder and a cone twice that (a
-// sphere's a ball); a disc and a ring no height; a ring's inner edge 0.85 of its radius, to the millimetre.
+// sphere's a ball); a disc and a ring no height; a ring's inner edge 0.85 of its radius, to the millimetre. Blend Normal
+// (M1b): a shape saved before it keeps its look - the page writes Additive on the shapes it adds (composer.js partFrom).
 function shapeDefaults(type, radius) {
   const out = { type, radius };
   if (!SHAPE_FLAT.includes(type)) out.height = type === "dome" ? radius : 2 * radius;
   if (type === "ring") out.inner = Math.round(0.85 * radius * 1000) / 1000;
   return Object.assign(out, { segments: 32, sides: "both", mapping: "wrap", repeat_around: 1, repeat_up: 1,
-    colour: [0.6, 0.8, 1], alpha: 0.35, glow: 1, texture: "soft" });
+    colour: [0.6, 0.8, 1], alpha: 0.35, glow: 1, texture: "soft", blend: "normal" });
 }
 // Whether `v` is a right value for field `k` (by SHAPE_INFO's bounds), and the error naming the field when it isn't.
 function shapeFieldOk(k, v) {
@@ -583,7 +602,8 @@ function readShape(s, where) {
 }
 // A shape as it's written (`s` a right shape, whole or not): type and radius, then each other key whose value differs
 // from shapeDefaults' (a colour by its three numbers), in SHAPE_KEYS' order. Under From above the repeats are left out:
-// they mean nothing there.
+// they mean nothing there. Its blend is written only when Additive (Normal is the default), whatever its texture: under a
+// library texture or None it means nothing, but Soft again keeps it.
 function cleanShape(s) {
   const d = shapeDefaults(s.type, s.radius), out = { type: s.type, radius: s.radius };
   for (const k of SHAPE_KEYS) {
@@ -599,9 +619,12 @@ function cleanShape(s) {
 // A soft texture's colour as its name and its picture both take it: each channel to 0.001. One rule, so a name fixes
 // its bytes (a file of that name is rewritten as the generator's).
 const softColour = (colour) => colour.map((c) => Math.round(c * 1000) / 1000);
-// A soft texture's name: n5s_ and 12 hex digits of its colour (softColour's) - one per colour, the same in a page.
-function shapeTextureName({ colour }) {
-  return "n5s_" + cyrb53("soft:" + softColour(colour).map(String).join(",")).toString(16).padStart(14, "0").slice(-12);
+// A soft texture's name: n5s_ and 12 hex digits of its colour (softColour's) and its blend (M1b) - one per colour and
+// blend, the same in a page. Normal's (or no blend given) hashes its colour alone, as before M1b, so every name made
+// then stays; Additive's hashes ":additive" after it - its own name, so a blend changed never leaves the game a TXI
+// beside a texture that no longer wants one (or none beside one that does).
+function shapeTextureName({ colour, blend }) {
+  return "n5s_" + cyrb53("soft:" + softColour(colour).map(String).join(",") + (blend === "additive" ? ":additive" : "")).toString(16).padStart(14, "0").slice(-12);
 }
 // The soft texture, made for Wrapped: its colour (softColour's, as its name has it), brighter and more opaque at the
 // ground ring (v 0) and fading towards the top (v 1), with a faint shimmer of whole turns in u, so it wraps round
@@ -686,8 +709,10 @@ function bothSides(side) {
 }
 // A shape (readShape's) as a model, in the model's space as modelSpaceMeshes gives one (its base at z 0, centred on x 0
 // y 0) -> { meshes: [{ name (its type), bitmap, verts, tverts, faces, groups (each face's smoothing group: meshLines),
-// diffuse, ambient, selfillum, alpha, transparent, transparencyhint (1 when transparent, else 0) }], lo, hi, textures:
-// [{ name, colour }] (the soft texture to make, or none) }.
+// diffuse, ambient, selfillum, alpha, transparent, transparencyhint (1 when transparent, else 0), additive (M1b: true
+// for a Soft Additive shape - its texture's TXI makes the game add its light; the bench's stage draws it so - else not
+// there) }], lo, hi, textures: [{ name, colour, blend }] (the soft texture to make - with SOFT_TXI beside it when its blend
+// is additive - or none) }.
 // - Its UVs: Wrapped, u round it from +x and v from its base up (a disc's and a ring's from the rim in), times its
 //   repeats; From above, laid on from overhead, its width the picture's square ((0.5 + x / 2r, 0.5 + y / 2r): r its
 //   radius, a ring's outer).
@@ -708,11 +733,14 @@ function shapeModel(shape) {
   const transparent = !none || shape.alpha < 1;
   const times = (k) => colour.map((c) => round(c * k) + 0);  // + 0: never -0
   const lit = soft ? [1, 1, 1] : none ? colour.slice() : times(1 - glow);  // its ambient and diffuse
+  const blend = shape.blend === "additive" ? "additive" : "normal";
   const mesh = { name: shape.type, bitmap, verts, tverts, faces, groups,
     diffuse: lit, ambient: lit.slice(),
     selfillum: soft ? [glow, glow, glow] : times(glow),
     alpha: shape.alpha, transparent, transparencyhint: transparent ? 1 : 0 };  // T1b: see-through in game when it is
-  return { meshes: [mesh], lo: [-r, -r, 0], hi: [r, r, SHAPE_FLAT.includes(shape.type) ? 0 : shape.height], textures: soft ? [{ name: bitmap, colour: colour.slice() }] : [] };
+  if (soft && blend === "additive") mesh.additive = true;
+  return { meshes: [mesh], lo: [-r, -r, 0], hi: [r, r, SHAPE_FLAT.includes(shape.type) ? 0 : shape.height],
+    textures: soft ? [{ name: bitmap, colour: colour.slice(), blend }] : [] };
 }
 
 // --- a compiled model's node tree ---------------------------------------------------------------------------------
@@ -985,7 +1013,7 @@ const api = {
   lowered, uniqueNames, diskMesh, diskTexture, modelNodes, creatureModelText, pileNodes, pileModelText,
   pileWalkmeshText, rowsText, readableAscii, texturesBeside, carriesMark, sameText, crlf, mergeModels, inline, compositionText,
   SHAPE_TYPES, SHAPE_LABELS, SHAPE_KEYS, SHAPE_FIELDS, SHAPE_FLAT, LOOK_FIELDS, SHAPE_INFO, SHAPE_TEXTURE,
-  shapeDefaults, readShape, cleanShape, shapeModel, shapeTexture, shapeTextureName,
+  shapeDefaults, readShape, cleanShape, shapeModel, shapeTexture, shapeTextureName, SOFT_TXI, txiAdditive,
 };
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.FloatDisk = api;

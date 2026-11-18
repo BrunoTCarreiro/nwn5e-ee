@@ -12,7 +12,8 @@
 //   n5t_forcedisk.tga; with your own files' textures the game doesn't have, copied from beside them; and a dyed part's
 //   textures (a helmet's: the game has them only as a PLT), baked from the game's palettes in the part's colours into
 //   n5p_<12 hex digits>.tga, which the models name instead (files.js's bakeParts); and a shape part's soft texture,
-//   generated from its colour into n5s_<12 hex digits>.tga (original: files.js's shapeTextures).
+//   generated from its colour into n5s_<12 hex digits>.tga (original: files.js's shapeTextures) - an Additive shape's
+//   (M1b) with n5s_<...>.txi beside it, "blending additive", in data\files and beside the drafts alike (shapeWrites).
 // - data\rows: appearance.floatdisk.txt (rows 14000-14003, each appearance 298's) and placeables.floatdisk.txt (14001-
 //   14003, each 189 TreasureSml's), floatdisk.js's ROWS.
 //

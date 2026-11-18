@@ -433,6 +433,47 @@ try {
     assert.ok(again.files.length && again.files.every((x) => x.state === "unchanged"), JSON.stringify(again.files));
   });
 
+  // M1b (the design's addendum (b)): an Additive shape's soft texture has its own name (its blend hashed in) and a TXI
+  // beside it - "blending additive", so the game draws it on its additive path - written wherever the texture is: beside
+  // a spell mesh's drafts in --saved, beside a placeable's models in data\files. A Normal one has none.
+  check("an Additive dome: its soft texture and its TXI beside a spell mesh's draft and a placeable's model; Normal writes none; the names differ", () => {
+    const ADD = "n5s_617b220c1144", GOLD_ADD = "n5s_438a32a94ebf";  // the default colour's and gold's, Additive
+    assert.deepStrictEqual([F.shapeTextureName({ colour: [0.6, 0.8, 1], blend: "additive" }), F.shapeTextureName({ colour: [1, 0.85, 0.4], blend: "additive" })], [ADD, GOLD_ADD]);
+    for (const f of shapeFiles()) fs.rmSync(f);
+    const kept = madeTxt();
+    // A spell mesh: Zone of Truth's dome at Opacity 0.1, Additive.
+    const file = zone({ alpha: 0.1, blend: "additive" });
+    assert.ok(build(file, ["--check", "--saved", SAVED]).out.split(/\r?\n/).includes(
+      `  texture ${ADD}: a shape's soft texture, colour 0.6 0.8 1, additive (${ADD}.txi beside it: blending additive) - written into ${SAVED}`), "no summary line for " + ADD);
+    const j = ok(build(file, ["--json", "--saved", SAVED]));
+    assert.deepStrictEqual(j.shapes, [{ texture: ADD, colour: [0.6, 0.8, 1], blend: "additive" }]);
+    assert.deepStrictEqual(byName(j), { "n5m_chkdome.vfx": "rebuilt", [ADD + ".tga"]: "new", [ADD + ".txi"]: "new" });  // (its draft: the check's above)
+    assert.strictEqual(fs.readFileSync(path.join(SAVED, ADD + ".txi"), "latin1"), "blending additive\n");
+    assert.ok(fs.readFileSync(path.join(SAVED, ADD + ".tga")).equals(softBytes([0.6, 0.8, 1])), ADD + ".tga isn't floatdisk.js's soft texture");
+    const p = draftPlanes(path.join(SAVED, "n5m_chkdome.vfx"))[0];
+    assert.deepStrictEqual([p.bitmap, p.alpha, p.transparencyhint], [ADD, Math.fround(0.1), 1]);
+    // Built again: unchanged; a TXI of its name there is the generator's - rewritten.
+    assert.ok(ok(build(file, ["--json", "--saved", SAVED])).files.every((x) => x.state === "unchanged"));
+    fs.writeFileSync(path.join(SAVED, ADD + ".txi"), "blending punchthrough\r\n");
+    assert.deepStrictEqual(byName(ok(build(file, ["--json", "--saved", SAVED]))), { "n5m_chkdome.vfx": "unchanged", [ADD + ".tga"]: "unchanged", [ADD + ".txi"]: "rebuilt" });
+    // Back to Normal: the default colour's own texture, no TXI written (the Additive one's files are left as they are -
+    // they're named apart, so the game never reads its TXI for the Normal texture).
+    const n = ok(build(zone({ alpha: 0.1 }), ["--json", "--saved", SAVED]));
+    assert.deepStrictEqual(n.shapes, [{ texture: SOFT, colour: [0.6, 0.8, 1] }]);
+    assert.ok(!n.files.some((x) => /\.txi$/i.test(x.file)), JSON.stringify(n.files));
+    assert.ok(!fs.existsSync(path.join(SAVED, SOFT + ".txi")), "a Normal soft texture got a TXI");
+    // A placeable's: beside its model in data\files, git-ignored there as its TGA (/data/files/n5s_*); not in made.txt.
+    const g = ok(build(gold({ blend: "additive" }), ["--json"]));
+    assert.deepStrictEqual(g.shapes, [{ texture: GOLD_ADD, colour: [1, 0.85, 0.4], blend: "additive" }]);
+    assert.ok(g.files.some((x) => x.file === `data/files/${GOLD_ADD}.txi`) && g.files.some((x) => x.file === `data/files/${GOLD_ADD}.tga`), JSON.stringify(g.files));
+    assert.strictEqual(fs.readFileSync(path.join(FILES, GOLD_ADD + ".txi"), "latin1"), "blending additive\n");
+    lines(path.join(FILES, "plc_n5chkdomep.mdl"), ["  bitmap " + GOLD_ADD, "  transparencyhint 1"]);
+    assert.ok(!fs.existsSync(path.join(SAVED, GOLD_ADD + ".txi")), GOLD_ADD + ".txi is in saved\\");
+    assert.strictEqual(madeTxt(), kept, "made.txt changed");
+    const ignored = spawnSync("git", ["check-ignore", "-q", "--no-index", `data/files/${GOLD_ADD}.txi`], { cwd: REPO, windowsHide: true }).status;
+    assert.strictEqual(ignored, 0, `data/files/${GOLD_ADD}.txi isn't git-ignored`);
+  });
+
   check("a dome without a texture: bitmap NULL, its colour as its material, no texture written", () => {
     for (const f of shapeFiles()) fs.rmSync(f);  // the checks' above (this copy's): none may come back
     const j = ok(build(gold({ texture: "none" }), ["--json"]));

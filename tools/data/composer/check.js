@@ -159,6 +159,35 @@ check("readProject: a spell mesh's dome; projectText writes its shape after note
   assert.throws(() => P.readProject(j, BASE, F), /^Error: variants\[0\]\.parts\[0\]\.shape\.radius: a number from 0\.05 to 100/);
 });
 
+// M1b (the design's addendum (b)): a shape's Blend in a project - "additive" written in its shape after its texture (the
+// Shapes tab's new shapes carry it), read back; a shape without it Normal, as before; anything else refused naming it. A
+// spell mesh's draft names the additive soft texture; the draft has no blend of its own (the TXI beside the texture says
+// it to the game), its plane otherwise a Normal dome's.
+check("readProject and projectText: a shape's blend written when additive, read back; a spell mesh's draft names its additive texture", () => {
+  const json = { kind: "spellmesh", name: "zotest", guide: { shape: "circle", diameter: 9.14, height: 0 }, variants: [{ name: "1",
+    parts: [{ note: "zone", shape: { type: "dome", radius: 4.57, alpha: 0.1, blend: "additive" }, at: [0, 0, 0] }] }] };
+  const p = P.readProject(json, BASE, F);
+  assert.strictEqual(p.variants[0].parts[0].source.shape.blend, "additive");
+  assert.ok(lines(P.projectText(json)).includes('      { "note": "zone", "shape": { "type": "dome", "radius": 4.57, "alpha": 0.1, "blend": "additive" }, "at": [0, 0, 0] }'),
+    P.projectText(json));
+  assert.deepStrictEqual(JSON.parse(P.projectText(json)), json);
+  const plain = copy(json);
+  delete plain.variants[0].parts[0].shape.blend;
+  assert.strictEqual(P.readProject(plain, BASE, F).variants[0].parts[0].source.shape.blend, "normal");
+  const bad = copy(json);
+  bad.variants[0].parts[0].shape.blend = "lighten";
+  assert.throws(() => P.readProject(bad, BASE, F), (e) => e.message === "variants[0].parts[0].shape.blend: additive or normal");
+  // The draft: its dome's plane names the additive soft texture; the rest as a Normal dome's plane (no blend line).
+  global.window = global.window || {};  // core.js runs in the page and under node
+  const core = require(path.join(TOOLS, "vfx_bench", "public", "core.js"));
+  const mesh = (shape) => F.shapeModel(F.readShape(shape, "s")).meshes[0];
+  const add = mesh({ type: "dome", radius: 1, blend: "additive" }), normal = mesh({ type: "dome", radius: 1 });
+  const name = F.shapeTextureName({ colour: [0.6, 0.8, 1], blend: "additive" });
+  const text = P.draftText(core, "n5m_blend", [add]), other = P.draftText(core, "n5m_blend", [normal]);
+  assert.ok(text.includes(`\nbitmap = ${name}\n`), text.slice(0, 400));
+  assert.strictEqual(text.split(name).join("n5s_8c757fb28f99"), other);
+});
+
 check("readProject: a part's colours, read as the disk's", () => {
   const j = copy(CRATES);
   j.variants[0].parts[0].colours = { leather1: 7 };

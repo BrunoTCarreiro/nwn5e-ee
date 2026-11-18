@@ -1724,3 +1724,45 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     |---|---|---|---|
     | TIN-1 | VFX Bench (restarted), the Composer: New project `tintdome`, a spell mesh; Parts, Shapes, Dome; on its card Texture From the library..., type `fxpa_symbl_003`, Use; Colour orange (#ff8000); Glow 1 (its default) | Play in game by day, then at night (or in a dark area); then Glow 0.3 and Play in game again, day and night | Glow 1: the glyph orange - the texture times the Colour - the same by day and night, never washed to white by day; the stage's dome orange too. Glow 0.3: orange, darker at night |
     | TIN-2 | VFX Bench (restarted), the Composer: New project `tintbox`, a placeable; Parts, Placeables, `plc_a03` (a crate) added | its card's Tint pale green (#80ff80): the stage's crate turns green; Play in game; Save and build; after the next install (build.bat), in the toolset a placeable of its appearance (N5_Tintbox, its row 14100-14199) put in an area, and the module played | a pale green crate beside the character (Play) and in the area (installed), its wood's grain kept; Ctrl+Z on the bench takes the tint off |
+
+## A shape's Blend: additive soft textures (2026-11-18, #39; M1b)
+
+  Spec: the design's "Addendum 2026-11-18 (b)" (docs/superpowers/specs/2026-11-18-mesh-texture-animation-and-tint-design.md);
+  plan Task M1b. The owner's test on 0.99.72: a soft texture with `transparencyhint 1` was still cut at alpha 0.2 and hid
+  the sparkles; "fxpa_globe works. it's faint, you can see the sparkles AND the texture is animated?"; "go with your rec on
+  the blend". Every faint game effect mesh is additive (fxpa_Globe, fxpa_Globe2, fxpa_spots, fxpa_shield ...).
+  - *Calls:*
+    - a shape's `"blend"`: `"additive"` or `"normal"`; `shapeDefaults` keeps Normal, so a shape saved without it keeps its
+      look; the Composer writes Additive on every shape it adds (the coordinator's ruling). Written only when Additive
+      (whatever its texture: under a library texture or None it means nothing, but Soft again keeps it);
+    - Additive writes `n5s_<hash>.txi` - `blending additive` (floatdisk.js SOFT_TXI) - beside the soft texture wherever
+      it's written: files.js shapeWrites (both generators: data\files, --drafts, a spell mesh's --saved), build_derived
+      (owned by its name, as the TGA), the bench's bake for Play (vfxedit\). Git-ignored by `/data/files/n5s_*`;
+    - the blend is in the soft texture's name (Additive hashes ":additive" after its colour; Normal's names unchanged, so
+      every name made before stays) - changing it never leaves a stale TXI beside a texture;
+    - the stage draws an additive mesh adding its light (SRC_ALPHA, ONE), no depth written: an Additive shape's, and any
+      mesh whose texture's TXI says `blending additive` - the texture route says so (`X-Blending: additive`), so the game's
+      fxpa_globe and a saved Additive soft texture draw so in the Composer and the effect mode alike;
+    - M1's follow-up: a spell mesh as an emitter's chunk model is drawn by drawnMaterial's lift, as the game's model
+      writer writes it (app.js marks its draft, view.js chunkModel lifts it);
+    - no game-side change: `git diff --stat -- src` on anim empty before and after.
+  - *Built:*
+    - anim (the commit carrying this section): floatdisk.js SHAPE_KEYS / LOOK_FIELDS / SHAPE_INFO.blend, shapeDefaults'
+      Normal, readShape's error (`<where>.blend: additive or normal`), shapeTextureName by blend, shapeModel's `additive`
+      and textures' `blend`, SOFT_TXI, txiAdditive; files.js shapeTextures / shapeWrites / shapeLines / shapeJson and the
+      ownership of a `.txi`; build_derived's shape kind for a `.txi`. floatdisk check +6 (86; three of its earlier
+      expectations moved: the defaults, SHAPE_KEYS and a soft texture's entry now carry the blend), composer check +1 (22),
+      build check +1 (11), composer build check +1 (20), derived check +1 (16);
+    - nwn5e-tools (d72b739): composer.js partFrom Additive; the shape card's Blend (Soft only) and notes; the bake route's
+      TXI; the texture route's X-Blending; view.js meshPass and the additive pass; the chunk lift. check_composer +2 (44),
+      check_chunks +3 (36), check_composer_server +2 (49), composer_check.mjs +1 (95 steps), browser_check.mjs +2 (100
+      steps). Each new check seen failing first.
+  - *Limits:* the stage's additive is the bench's guess at the game's (SRC_ALPHA, ONE: its alpha scales the light it
+    adds); the draw order in game against other see-through things, and whether the game's additive path also ignores
+    the mesh's own alpha, wait for BL-1. A library texture's TXI is read through the game's own files (the texture
+    route): one the route can't reach (no game) draws as before.
+  - *For the bench:* restart vfx_bench.bat. *For the game:* nothing for the DLL; a spell mesh saved before keeps Normal
+    until its shapes are set to Additive and it's saved again (then Refresh from the mesh on an effect's mesh beat).
+  - Test row (for the board: #39, stream animation): BL-1 - a dome at Opacity 0.1, Soft, Additive, with the new effect's
+    sparks inside, Play in game: faint and glowing, the sparks seen through it; then Normal: cut at alpha 0.2 as before
+    (at Opacity 0.1 all or nearly all of it), whatever's drawn hiding the sparks.

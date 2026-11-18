@@ -66,16 +66,22 @@ A part's `shape` is a shape the generator makes instead of a model - a dome (a h
 - `height` (the radius: a half sphere), `segments` (32), `sides` (`both`: seen from inside too; or `outside`);
 - `mapping` (`wrap`: round it and up it; or `above`: laid on from overhead), `repeat_around` (1, up to 32) and
   `repeat_up` (1, up to 16), which tile a wrapped texture;
-- `colour` (`[0.6, 0.8, 1]`), `alpha` (0.35), `glow` (1), `texture` (`soft`, `none`, or a library texture's name).
+- `colour` (`[0.6, 0.8, 1]`), `alpha` (0.35), `glow` (1), `texture` (`soft`, `none`, or a library texture's name);
+- `blend` (`normal`; or `additive`, M1b): how the game draws a Soft texture. Additive writes a TXI beside it
+  (`blending additive`, as the game's own faint globes and shields have): it adds light - faint, glowing, see-through,
+  never cut at alpha 0.2, nothing behind hidden. The VFX Bench writes `additive` on every shape it adds; one written
+  without it is Normal, as before. A library texture follows its own TXI; `none` has no texture to carry one.
 
 ```json
-{ "note": "zone", "shape": { "type": "dome", "radius": 4.57 }, "at": [0, 0, 0] }
+{ "note": "zone", "shape": { "type": "dome", "radius": 4.57, "alpha": 0.1, "blend": "additive" }, "at": [0, 0, 0] }
 ```
 
 - It has no `scale` (its radius and height size it), no `colours` and no `tint` (its colour is on the shape).
 - Only what differs from the defaults is written; under `above` the repeats aren't written either.
 - A shape's soft texture is generated from numbers (original, nothing of the game's): it's named `n5s_` and 12 hex
-  digits of its colour (`n5s_8c757fb28f99` for the default colour), so shapes of one colour share it.
+  digits of its colour and blend (`n5s_8c757fb28f99` for the default colour, `n5s_617b220c1144` for it Additive), so
+  shapes of one colour and blend share it; an Additive one has its `n5s_<...>.txi` beside it wherever it's written
+  (`data\files`, `--saved`, the bench's Play), git-ignored and owned by its name as the texture is.
 - `none` is its colour only. A library texture (the game's own, by name; never `null` or an `n5s_` name) is tinted by
   `colour`, lit by itself as far as `glow` goes: `selfillumcolor` `colour` x `glow`, `ambient` and `diffuse` `colour` x
   (1 - `glow`). At Glow 1 (the default) it's the texture times the colour by day and night; lower, the scene's light
