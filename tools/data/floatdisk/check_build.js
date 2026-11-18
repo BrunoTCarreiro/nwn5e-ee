@@ -304,10 +304,13 @@ try {
   });
 
   check("a dome part: its mesh from its numbers, its soft texture beside the models and the drafts, owned by its name", () => {
-    // The check's own medium: a 0.3 m dome in gold (floatdisk.js's shapeModel: no game model, no mesh reader). --drafts
-    // into the copy's own folders, never the real build's.
+    // The check's own medium: a 0.3 m dome in gold (floatdisk.js's shapeModel: no game model, no mesh reader), and the
+    // game's lantern ptm_lantern03 (T1b: its meshes' own transparencyhint - inner panes 2, outer 1, the rest 0 - through
+    // the mesh reader). --drafts into the copy's own folders, never the real build's.
     const GOLD = "n5s_a3caa0709dda", colour = [1, 0.85, 0.4];
-    const file = withComposition("dome.json", (c) => { c.stages.medium = [{ shape: { type: "dome", radius: 0.3, colour }, at: [0, 0, 0] }]; });
+    const file = withComposition("dome.json", (c) => {
+      c.stages.medium = [{ shape: { type: "dome", radius: 0.3, colour }, at: [0, 0, 0] }, { model: "ptm_lantern03", at: [0.2, 0, 0], scale: 0.2 }];
+    });
     const drafts = path.join(root, "build", "saved"), library = path.join(root, "build", "textures");
     const args = ["--composition", file, "--drafts", "--out", drafts, "--textures", library];
     const made = fs.readFileSync(path.join(folder, "made.txt"));
@@ -321,7 +324,7 @@ try {
     assert.strictEqual(r.code, 0, "build.js exited " + r.code + ": " + r.err.trim());
     const j = json(r);
     assert.deepStrictEqual(j.shapes, [{ texture: GOLD, colour }]);
-    assert.deepStrictEqual(j.stages.medium.list.map((x) => x.label), ["dome 0.3 m"]);
+    assert.deepStrictEqual(j.stages.medium.list.map((x) => x.label), ["dome 0.3 m", "ptm_lantern03"]);
     const states = Object.fromEntries(j.files.map((f) => [f.file, f.state]));
     assert.deepStrictEqual([states[`data/files/${GOLD}.tga`], states[`build/saved/${GOLD}.tga`]], [had ? "unchanged" : "new", "new"]);
     const bytes = F.tgaBytes(F.shapeTexture({ colour }), { alpha: true });
@@ -335,6 +338,20 @@ try {
     const core = (global.window = global.window || {}, require(path.join(TOOLS, "vfx_bench", "public", "core.js")));
     const planes = core.readDraft(fs.readFileSync(path.join(drafts, "n5_floatdisk_medium.vfx"), "latin1").replace(/\r/g, "")).planes;
     assert.ok(planes.some((p) => p.bitmap === GOLD), "the medium's draft doesn't name " + GOLD);
+    // T1b: the draft's planes see-through as the models' meshes are (meshHint): the dome's and the disk's 1.
+    assert.deepStrictEqual(planes.filter((p) => p.bitmap === GOLD || p.name === "forcedisk").map((p) => [p.name, p.transparencyhint]),
+      [["j01_dome", 1], ["forcedisk", 1]]);
+    // Each draft plane's hint is its mesh's "transparencyhint" line in the medium's creature model, name by name - the
+    // lantern's own 2 and 1 too, where a draft falling back to see-through-ness would write 0 or 1.
+    const lines = Object.fromEntries(fs.readFileSync(path.join(FILES, F.creatureModel("medium") + ".mdl"), "latin1").split("\r\nnode trimesh ").slice(1)
+      .map((n) => {
+        const l = n.split("\r\n"), hint = l.filter((x) => x.startsWith("  transparencyhint "));
+        assert.strictEqual(hint.length, 1, l[0] + ": " + hint.length + " transparencyhint lines");
+        return [l[0], Number(hint[0].slice(19))];
+      }));
+    assert.deepStrictEqual(Object.fromEntries(planes.map((p) => [p.name, p.transparencyhint])), lines);
+    const lantern = Object.entries(lines).filter(([name]) => /_lntrn3$/.test(name)).map(([, hint]) => hint);
+    assert.deepStrictEqual([lantern.length, lantern.filter((x) => x === 2).length, lantern.filter((x) => x === 1).length], [34, 6, 6]);
     // Nothing noted in made.txt.
     assert.ok(fs.readFileSync(path.join(folder, "made.txt")).equals(made), "made.txt changed");
     // Built again: every file unchanged. A file of its name, either place, is the generator's (the name fixes its

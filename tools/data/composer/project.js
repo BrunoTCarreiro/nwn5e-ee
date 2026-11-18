@@ -5,7 +5,8 @@
 // project; the VFX Bench's Composer edits one, with these same parts. Nothing here touches the disk or the game.
 // Plain UMD: Node's require, or a page's self.ComposerProject. Nothing is required when it loads: floatdisk.js (F) and the
 // bench's core.js are passed in where they're needed - but for projectText, which writes with floatdisk.js's inline (the
-// one JSON writer, composition.json's too), found when it runs: the page's self.FloatDisk, else Node's require.
+// one JSON writer, composition.json's too), and draftText, which gives each plane floatdisk.js's meshHint (the one
+// transparencyhint rule, meshLines' too), found when they run: the page's self.FloatDisk, else Node's require.
 (function (root) {
 "use strict";
 
@@ -173,10 +174,13 @@ function past(guide, placed) {
 
 // --- a spell mesh's draft ---------------------------------------------------------------------------------------------
 // A variant's meshes (placed and lowered, their names unique) as the VFX Bench's draft of a mesh: MARK, then one plane a
-// mesh, written by the bench's own core.js (`core`). LF; build.js writes it CRLF, as the bench writes drafts.
+// mesh, written by the bench's own core.js (`core`). LF; build.js writes it CRLF, as the bench writes drafts. Each plane's
+// transparencyhint (T1b; the owner, 2026-11-18: see-through meshes cut away in game - "go") is floatdisk.js's meshHint,
+// the rule its meshLines writes a placeable's by: a model's mesh keeps its own, a see-through shape 1.
 function draftText(core, model, meshes) {
+  const F = floatDisk();
   const planes = meshes.map((m) => core.plane({ name: m.name, bitmap: m.bitmap || "null", verts: m.verts, tverts: m.tverts, faces: m.faces,
-    diffuse: m.diffuse, ambient: m.ambient, selfillum: m.selfillum, alpha: m.alpha }));
+    diffuse: m.diffuse, ambient: m.ambient, selfillum: m.selfillum, alpha: m.alpha, transparencyhint: F.meshHint(m) }));
   return MARK + "\n" + core.writeDraft(core.effect({ name: model, duration: true, seconds: 2, attach: "root", planes }));
 }
 
@@ -210,7 +214,7 @@ const ordered = (o, first) => first.filter((k) => o[k] !== undefined).concat(Obj
 function floatDisk() {
   if (root.FloatDisk) return root.FloatDisk;
   if (typeof require === "function") return require("../floatdisk/floatdisk.js");
-  throw new Error("project.js's projectText needs floatdisk.js (self.FloatDisk): load it first");
+  throw new Error("project.js's projectText and draftText need floatdisk.js (self.FloatDisk): load it first");
 }
 const inline = (v) => floatDisk().inline(v);
 function projectText(json) {

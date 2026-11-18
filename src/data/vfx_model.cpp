@@ -47,6 +47,15 @@ float ToFloat(const std::string& text) { return static_cast<float>(atof(text.c_s
 // own reach 20 m and 4 s; an animation's copy of a compiled node can hold other bytes there.
 float BlastValue(float v) { return std::isfinite(v) && v > 0.0f && v <= 1000.0f ? v : 0.0f; }
 
+// A plane's transparencyhint as every reader and both writers keep it (the bench's core.js hintValue and
+// tools/data/floatdisk/floatdisk.js's hintValue keep the same rule - the Composer's check.js compares the two): 0 to
+// kVfxTransparencyHintMax, the game's own models' range - below 0 is 0, above it the most.
+int HintValue(long v) { return static_cast<int>(std::min<long>(std::max<long>(v, 0), kVfxTransparencyHintMax)); }
+
+// From a draft's or an ASCII model's text, as the game's parser reads an integer: its leading digits, base 10 ("1.7" is
+// 1, "+2" 2), after only what isspace skips (a no-break space stops it); not a number 0.
+int ReadHint(const std::string& text) { return HintValue(strtol(text.c_str(), nullptr, 10)); }
+
 void ReadFloats(const std::vector<std::string>& words, size_t from, float* out, int count) {
   for (int i = 0; i < count && from + i < words.size(); ++i) out[i] = ToFloat(words[from + i]);
 }
@@ -414,6 +423,9 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
     lines.push_back("  shadow 0");
     if (Num3(p.selfillum) != Num3(plane_defaults.selfillum)) lines.push_back("  selfillumcolor " + Num3(p.selfillum));
     if (Num(p.alpha) != Num(plane_defaults.alpha)) lines.push_back("  alpha " + Num(p.alpha));
+    // Its transparencyhint (the owner, 2026-11-18: without one the game cuts a see-through mesh at alpha 0.2 and writes
+    // its depth) only when it isn't 0, so every model before it keeps its bytes.
+    if (HintValue(p.transparency_hint)) lines.push_back("  transparencyhint " + std::to_string(HintValue(p.transparency_hint)));
     const size_t verts = p.verts.size() / 3;
     lines.push_back("  verts " + std::to_string(verts));
     for (size_t v = 0; v < verts; ++v) lines.push_back("    " + Num(p.verts[3 * v]) + " " + Num(p.verts[3 * v + 1]) + " " + Num(p.verts[3 * v + 2]));
@@ -699,6 +711,8 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
     if (Num3(p.selfillum) != Num3(plane_defaults.selfillum)) out += "selfillum = " + Num3(p.selfillum) + "\n";
     if (Num(p.alpha) != Num(plane_defaults.alpha)) out += "alpha = " + Num(p.alpha) + "\n";
     if (!p.render) out += "render = 0\n";
+    // Its transparencyhint (the owner, 2026-11-18) the same way: only when it isn't 0.
+    if (HintValue(p.transparency_hint)) out += "transparencyhint = " + std::to_string(HintValue(p.transparency_hint)) + "\n";
     // #39, a mesh beat's (the bench's): the same rule - only what isn't the default, so every draft before it keeps its
     // bytes - then its alpha keys.
     if (!p.mesh.empty()) out += "mesh = " + p.mesh + "\n";
@@ -782,6 +796,7 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
       else if (key == "selfillum") ReadFloats(words, 0, p.selfillum, 3);
       else if (key == "alpha") p.alpha = ToFloat(value);
       else if (key == "render") p.render = Trim(value) != "0";
+      else if (key == "transparencyhint") p.transparency_hint = ReadHint(value);  // every reader's rule
       else if (key == "mesh") p.mesh = VfxResRef(value, 16);  // #39, a mesh beat's (the bench's)
       else if (key == "scale") p.scale = ToFloat(value);
       else if (key == "start_seconds") p.start_seconds = std::min(10.0f, std::max(0.0f, ToFloat(value)));  // as core.js reads a light's
@@ -945,7 +960,7 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
     std::string bitmap;
     std::vector<float> verts, tverts;
     std::vector<int> faces;
-    VfxPlane material;  // its diffuse, ambient, selfillumcolor, alpha and render (the owner, 2026-11-16)
+    VfxPlane material;  // its diffuse, ambient, selfillumcolor, alpha and render (the owner, 2026-11-16), transparencyhint
   };
   std::string list_kind;  // a trimesh's verts / tverts / faces rows being read
   int list_rows = 0;
@@ -1099,6 +1114,7 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
         else if (first == "selfillumcolor") ReadFloats(w, 1, g.material.selfillum, 3);
         else if (first == "alpha") g.material.alpha = ToFloat(w[1]);
         else if (first == "render") g.material.render = w[1] != "0";
+        else if (first == "transparencyhint") g.material.transparency_hint = ReadHint(w[1]);  // every reader's rule
         else if (first == "verts" || first == "tverts" || first == "faces") {
           list_kind = first;
           list_rows = std::max(0, std::min(65536, atoi(w[1].c_str())));
@@ -1256,6 +1272,7 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       memcpy(p.selfillum, g.material.selfillum, sizeof(p.selfillum));
       p.alpha = g.material.alpha;
       p.render = g.material.render;
+      p.transparency_hint = g.material.transparency_hint;
       result.planes.push_back(p);
     }
     const bool target = targets.count(Lower(g.name)) > 0;
@@ -1622,7 +1639,10 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
   // +0x1BC (count, 16 bits, +0x1C0), the first UVs at +0x1C4 (0xFFFFFFFF: none). A mesh that runs past the file is skipped.
   // Its material (the owner, 2026-11-16; Torlack's binary MDL notes, the mesh header): diffuse at +0x3C, ambient at
   // +0x48 (3 floats each), render at +0x6C (0: not drawn); and the node's selfillumcolor (controller 100, 3 values) and
-  // alpha (128) - a mesh's: on an emitter 128 is its fps, on a light 100 its vertical displacement.
+  // alpha (128) - a mesh's: on an emitter 128 is its fps, on a light 100 its vertical displacement. Its transparencyhint
+  // (the owner, 2026-11-18) at +0x70, an integer (Torlack's TransparencyHint; the game's parser keeps it beside shadow,
+  // beaming and render, in the compiled header's order - over 581 textures used by both the game's ASCII and compiled
+  // meshes, a non-zero hint at +0x70 goes with the ASCII ones' in 560).
   const size_t raw = kModelBase + m.U32(4);
   for (size_t node : plane_nodes) {
     const GeoNode& g = geometry[geo_at[node]];
@@ -1641,6 +1661,7 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
       p.ambient[k] = m.F32(mh + 0x48 + 4 * k);
     }
     p.render = m.U32(mh + 0x6C) != 0;
+    p.transparency_hint = HintValue(static_cast<int32_t>(m.U32(mh + 0x70)));  // every reader's rule (signed: -1 is 0)
     std::vector<Controller> controllers;
     if (ReadControllers(m, node, &controllers)) {
       for (const Controller& c : controllers) {

@@ -690,7 +690,8 @@ check("a lower dome, outside only, 8 segments: 26 vertices, 24 triangles, all fa
 });
 check("the dome's material: its texture's colour lit by its glow (soft), its own colour (none), or a library texture tinted by it", () => {
   const soft = F.shapeModel(F.readShape({ type: "dome", radius: 1 }, "s")), m = soft.meshes[0];
-  assert.deepStrictEqual(Object.keys(m), ["name", "bitmap", "verts", "tverts", "faces", "groups", "diffuse", "ambient", "selfillum", "alpha", "transparent"]);
+  assert.deepStrictEqual(Object.keys(m), ["name", "bitmap", "verts", "tverts", "faces", "groups", "diffuse", "ambient", "selfillum", "alpha", "transparent",
+    "transparencyhint"]);
   assert.deepStrictEqual([m.bitmap, m.diffuse, m.ambient, m.selfillum, m.alpha, m.transparent],
     ["n5s_8c757fb28f99", [1, 1, 1], [1, 1, 1], [1, 1, 1], 0.35, true]);
   assert.deepStrictEqual(soft.textures, [{ name: "n5s_8c757fb28f99", colour: [0.6, 0.8, 1] }]);
@@ -991,5 +992,66 @@ for (const [type, t] of Object.entries(MAPPED)) {
     if (type === "ring") assert.deepStrictEqual(uvsAt(m, [0.85, 0, 0]), [[0.925, 0.5], [0.925, 0.5]]);  // its r the outer radius
   });
 }
+
+// --- a mesh's transparencyhint (T1b; the owner, 2026-11-18: n5_zot's see-through meshes cut away in game - "go") -------
+// Every mesh the generator gives carries transparencyhint, the game's (0 to 5 - vfx_model.cpp's rule): a shape's 1 when
+// it's see-through (a texture, or Opacity under 1), else 0; the disk's 1; a model's mesh its model's own, kept through
+// modelSpaceMeshes, placePart, lowered, uniqueNames and mergeModels. Both writers - meshLines and a draft's plane (the
+// Composer's project.js draftText, build.js's drafts) - write meshHint's.
+check("a mesh's transparencyhint: a shape's 1 when see-through, the disk's 1, a model's own kept to the end", () => {
+  for (const type of F.SHAPE_TYPES) {
+    assert.strictEqual(shapeOf(type).meshes[0].transparencyhint, 1, type + ", soft");
+    assert.strictEqual(shapeOf(type, { texture: "none", alpha: 1 }).meshes[0].transparencyhint, 0, type + ", solid");
+    assert.strictEqual(shapeOf(type, { texture: "none", alpha: 0.5 }).meshes[0].transparencyhint, 1, type + ", Opacity 0.5");
+    assert.strictEqual(shapeOf(type, { texture: "fxpa_symbl_001", alpha: 1 }).meshes[0].transparencyhint, 1, type + ", a library texture");
+  }
+  assert.strictEqual(F.diskMesh(DISK).transparencyhint, 1);
+  // A model's (core.readDraft's planes, from the mesh reader's draft): its own, as vfx_model.cpp keeps it; none, 0.
+  const plane = (name, extra) => Object.assign({ name, parent: "", position: [0, 0, 0], verts: [0, 0, 0, 1, 0, 0, 0, 1, 0], tverts: [0, 0, 1, 0, 0, 1],
+    faces: [0, 1, 2], bitmap: "x" }, extra);
+  const read = F.modelSpaceMeshes({ planes: [plane("glass", { transparencyhint: 2 }), plane("pane", { transparencyhint: 1 }),
+    plane("wood", { transparencyhint: 0 }), plane("older"), plane("wide", { transparencyhint: 9 }), plane("below", { transparencyhint: -1 })] }, "t");
+  const want = [2, 1, 0, 0, 5, 0], h = (m) => m.transparencyhint;
+  assert.deepStrictEqual(read.meshes.map(h), want);
+  const placed = F.placePart({ at: [0, 0, 0], turn: 30, scale: 0.5, tilt: [0, 0] }, read, 0, 0.9, "j");
+  assert.deepStrictEqual(placed.meshes.map(h), want);
+  assert.deepStrictEqual(F.lowered(placed.meshes, 0.9).map(h), want);
+  assert.deepStrictEqual(F.uniqueNames(placed.meshes, ["j01_glass"]).map(h), want);
+  assert.deepStrictEqual(F.bakeBitmaps(placed.meshes, {}, () => true).meshes.map(h), want);  // a dyed part's baked copies too
+  assert.deepStrictEqual(F.mergeModels([read, { meshes: [F.diskMesh(DISK)], lo: [0, 0, 0], hi: [0, 0, 0] }]).meshes.map(h), [...want, 1]);
+});
+check("meshHint: a mesh's own transparencyhint (a whole number, 0 to 5), else 1 when it's see-through, else 0", () => {
+  assert.deepStrictEqual([{ transparencyhint: 2 }, { transparencyhint: 0, transparent: true }, { transparent: true }, { transparent: false }, {},
+    { transparencyhint: 7 }, { transparencyhint: -1 }, { transparencyhint: 1.7 }, { transparencyhint: NaN, transparent: true }].map(F.meshHint),
+  [2, 0, 1, 0, 0, 5, 0, 1, 1]);
+  assert.strictEqual(F.HINT_MAX, 5);
+  // hintValue: text as the game's parser (and vfx_model.cpp's strtol) reads an integer - its leading digits, base 10.
+  assert.deepStrictEqual(["2", " 3 ", "+2", "1.7", "2abc", "1e3", "-1", "9", "x", "", "0x5"].map(F.hintValue), [2, 3, 2, 1, 2, 1, 0, 5, 0, 0, 0]);
+  // Before the digits only what C's isspace skips (space, \t, \n, \v, \f, \r): a no-break space (latin1 0xA0) stops it,
+  // as it stops vfx_model.cpp's strtol - 0.
+  assert.deepStrictEqual(["\t4", "\n\v\f\r 1", " 2", "  2", " 2", "﻿2"].map(F.hintValue), [4, 1, 0, 0, 0, 0]);
+  assert.deepStrictEqual([2, 1.7, -3, 99, NaN, Infinity, undefined, null].map(F.hintValue), [2, 1, 0, 5, 0, 0, 0, 0]);
+});
+check("meshLines writes meshHint's: a model's own 2, a shape's 1 or 0, a mesh without one by its transparent (as before)", () => {
+  const mesh = { name: "j01_glass", bitmap: "tm_glass04", verts: [0, 0, 0, 1, 0, 0, 0, 1, 0], tverts: [0, 0, 1, 0, 0, 1], faces: [0, 1, 2],
+    diffuse: [1, 1, 1], ambient: [1, 1, 1], selfillum: [0, 0, 0], alpha: 1 };
+  const hint = (m) => block(F.pileModelText("plc_t", [m], [0, 0, 0], [1, 1, 1], []), "node trimesh " + m.name).filter((l) => l.startsWith("  transparencyhint"));
+  assert.deepStrictEqual(hint(Object.assign({}, mesh, { transparencyhint: 2 })), ["  transparencyhint 2"]);
+  assert.deepStrictEqual(hint(Object.assign({}, mesh, { transparencyhint: 0 })), ["  transparencyhint 0"]);
+  assert.deepStrictEqual(hint(mesh), ["  transparencyhint 0"]);
+  assert.deepStrictEqual(hint(Object.assign({}, mesh, { transparent: true })), ["  transparencyhint 1"]);
+  assert.deepStrictEqual(hint(shapeOf("dome").meshes[0]), ["  transparencyhint 1"]);
+  assert.deepStrictEqual(hint(shapeOf("dome", { texture: "none", alpha: 1 }).meshes[0]), ["  transparencyhint 0"]);
+  assert.deepStrictEqual(hint(F.diskMesh(DISK)), ["  transparencyhint 1"]);
+});
+check("an ASCII model's mesh keeps its transparencyhint for the mesh reader (a whole number, as the game reads one); none, no line", () => {
+  const glass = NEVERBLENDER.replace("  diffuse 0.8 0.8 0.8", "  diffuse 0.8 0.8 0.8\r\n  transparencyhint 2");
+  assert.ok(block(F.readableAscii(glass, "x"), "node trimesh Sack").includes("  transparencyhint 2"));
+  assert.ok(!F.readableAscii(NEVERBLENDER, "x").includes("transparencyhint"));
+  const strap = NEVERBLENDER.replace("node danglymesh Strap\r\n  parent Sack", "node danglymesh Strap\r\n  parent Sack\r\n  transparencyhint 1.7");
+  assert.ok(block(F.readableAscii(strap, "x"), "node trimesh Strap").includes("  transparencyhint 1"));
+  const junk = NEVERBLENDER.replace("  diffuse 0.8 0.8 0.8", "  diffuse 0.8 0.8 0.8\r\n  transparencyhint x");
+  assert.ok(!F.readableAscii(junk, "x").includes("transparencyhint"));
+});
 
 console.log(process.exitCode ? `floatdisk check: FAILED (${count} passed)` : `floatdisk check: ${count} checks pass`);

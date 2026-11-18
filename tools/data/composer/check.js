@@ -339,6 +339,39 @@ check("a spell mesh's draft reads back with its meshes as planes", () => {
     pl.tverts.forEach((v, k) => near(v, m.tverts[k], 1e-5));
     [...pl.diffuse, ...pl.selfillum, pl.alpha].forEach((v, k) => near(v, [...m.diffuse, ...m.selfillum, m.alpha][k], 1e-6));  // read as float32, as the game does
   });
+  assert.ok(!text.includes("transparencyhint"), "a mesh without a hint (nor see-through) has no transparencyhint line");
+});
+
+// T1b (the owner, 2026-11-18: n5_zot's see-through meshes cut away in game - "go"): each plane's "transparencyhint = N"
+// (T1's draft line, right after where "render = 0" goes) from the mesh's transparencyhint by floatdisk.js's meshHint - the
+// rule meshLines writes a placeable's by: a soft dome's 1, a model's own (2 here), a solid shape's none.
+check("a spell mesh's draft carries each mesh's transparencyhint: a soft dome's 1, a model's own 2, a solid shape's none", () => {
+  global.window = global.window || {};  // core.js runs in the page and under node
+  const core = require(path.join(TOOLS, "vfx_bench", "public", "core.js"));
+  const dome = F.shapeModel(F.readShape({ type: "dome", radius: 1 }, "s")).meshes[0];
+  const solid = Object.assign({}, F.shapeModel(F.readShape({ type: "dome", radius: 1, texture: "none", alpha: 1 }, "s")).meshes[0], { name: "solid" });
+  const glass = Object.assign({}, MESH, { name: "j02_glass", transparencyhint: 2 });
+  const older = Object.assign({}, MESH, { name: "j04_older", transparent: true });  // none of its own: by its transparent, as meshLines
+  const text = P.draftText(core, "n5m_hint", [dome, glass, solid, older]);
+  const section = (name) => text.slice(text.indexOf(`[plane ${name}]`)).split("\n[")[0];
+  assert.ok(section("dome").includes("\nalpha = 0.35\ntransparencyhint = 1\nverts ="), section("dome").slice(0, 300));
+  assert.ok(section("j02_glass").includes("\nbitmap = plc_x\ndiffuse = 1 1 1\nambient = 1 1 1\ntransparencyhint = 2\nverts ="), section("j02_glass").slice(0, 300));
+  assert.ok(!section("solid").includes("transparencyhint"));
+  assert.ok(section("j04_older").includes("\ntransparencyhint = 1\nverts ="));
+  const fx = core.readDraft(F.crlf(text).replace(/\r/g, ""));
+  assert.deepStrictEqual(fx.planes.map((p) => [p.name, p.transparencyhint]), [["dome", 1], ["j02_glass", 2], ["solid", 0], ["j04_older", 1]]);
+});
+
+// The three read rules in step - vfx_model.cpp's (ReadHint: strtol, base 10), floatdisk.js's hintValue and the bench's
+// core.js hintValue: the same text, the same hint - a no-break space before the digits (latin1 0xA0, which C's isspace
+// doesn't skip) included: 0.
+check("floatdisk.js's hintValue and core.js's read every hint text alike", () => {
+  global.window = global.window || {};  // core.js runs in the page and under node
+  const core = require(path.join(TOOLS, "vfx_bench", "public", "core.js"));
+  const texts = ["0", "1", "2", "5", "6", "99999999999", "-1", "-99999999999", " 3 ", "\t4", "\n\v\f\r 1", "+2", "1.7", "2abc", "1e3", "0x5",
+    "x", "", " 2", "  2"];
+  assert.deepStrictEqual(texts.map(F.hintValue), texts.map(core.hintValue));
+  assert.deepStrictEqual(texts.map(F.hintValue), [0, 1, 2, 5, 5, 5, 0, 0, 3, 4, 1, 2, 1, 2, 1, 0, 0, 0, 0, 0]);
 });
 
 // --- the project file -----------------------------------------------------------------------------------------------
