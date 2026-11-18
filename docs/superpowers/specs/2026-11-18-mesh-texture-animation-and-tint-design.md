@@ -316,3 +316,19 @@ Five tasks, **about 3½ sessions**:
 | M3 | moving textures on the bench: the cards, the stage, Play in game; cycle and additive TXIs | nwn5e-tools | 1 session |
 | M4 | keys on a plane in the model and the draft (announced) | anim src/data, tests | ⅓ session |
 | M5 | the Mesh card's keys, Breathe and Tint; the sim | nwn5e-tools | ⅔ session |
+
+## Addendum 2026-11-18 (a): the owner's answers
+
+The owner, 2026-11-18, on Q1-Q4 as put to them with recommendations: **"accept your recommendations"**.
+
+- **Q1: route A** - an EE material and our own vertex shader (`n5u_<hash>.mtr`, `vsn5uvmove.shd`), proven first by the
+  in-game probe TMO-1 at the end of M2. **If the probe fails, the fallback is B, a flipbook** (the motion baked into a
+  sheet the game cycles); C (moving the mesh) is not the fallback.
+- **Q2: no** - a texture's motion stays the spell mesh's (set in the Composer); a mesh beat doesn't override it. An
+  override can come later.
+- **Q3: yes** - the Glow remap for a library texture (call 2): Glow 1 shows texture x Colour in any light; a library
+  texture saved earlier at Glow 1 will look a little darker and more coloured.
+- **Q4: M1 (tint) first, then the moving textures (M2, the TMO-1 gate, M3), then the beat's keys (M4, M5).** The
+  coordinator may run M4 while TMO-1 waits on the owner (it shares no files with M2-M3), as long as the order of what the
+  owner gets to test stays tint, moving textures, keys.
+- **The issue:** #39 (the Composer's), named by every commit.

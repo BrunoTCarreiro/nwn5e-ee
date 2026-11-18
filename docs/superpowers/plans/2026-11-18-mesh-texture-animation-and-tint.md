@@ -29,6 +29,11 @@ also installed).
 
 ## Before starting
 
+**Answered 2026-11-18** (the design's "Addendum 2026-11-18 (a)"; the owner: "accept your recommendations"): **Q1 route
+A**, with a **flipbook (B) the fallback** if TMO-1 fails; **Q2 no** (the motion stays the spell mesh's); **Q3 yes** (the
+Glow remap); **Q4 M1, then M2 - TMO-1 - M3, then M4 - M5** (M4 may run while TMO-1 waits). **The issue is #39.** The
+bullets below are kept as written.
+
 - **An issue.** The coordinator opens one (or names #39) before M1; every commit names it - written `(#<n>)` below.
 - **The owner's answers:** Q3 (Glow on a library texture) before M1; Q1 (the route) before M2 - this plan is written for
   route A; Q2 (a motion per beat) before M3 - written for "no"; Q4 the order.
