@@ -26,6 +26,10 @@ struct VfxKeys {
   // #39, a plane's (a mesh beat's fade): its alpha (t a), as 22 of the game's own effect models key a mesh's (controller
   // 128, alphakey).
   std::vector<float> alpha;
+  // #39, a plane's (a mesh beat's breath, M4): its scale (t s), one value - the same in x, y and z - as the game's own
+  // vdr_bigby_int keys its hand's (a plain mesh: controller 36, one column; the model's scalekey). Only a plane's is written
+  // into the model.
+  std::vector<float> scale;
 };
 
 // #145: a light of the effect (a light node of its model): where it hangs, its colour, radius (metres) and
@@ -180,13 +184,16 @@ struct VfxPlane {
   // with any_mesh); 0 from a draft or an ASCII model. Never written: the dev layer logs it.
   uint32_t flags = 0;
   // #39, a mesh beat (the VFX Bench's Composer: a spell mesh placed in an effect), the bench's own: the spell mesh it came
-  // from ("" = none: the effect's own plane), the scale it was placed at (its verts are already scaled), and its Starts
-  // after and On for (seconds, as the bench's lights keep them) - in the draft only, never in the model.
+  // from ("" = none: the effect's own plane), the scale it was placed at (its verts are already scaled), its Starts
+  // after and On for (seconds, as the bench's lights keep them), and its tint (M4: r g b - its material is already
+  // multiplied by it; 1 1 1 none) - in the draft only, never in the model.
   std::string mesh;
   float scale = 1.0f;
   float start_seconds = 0.0f;
   float emit_seconds = 0.0f;
-  // Its keys in the animations: its alpha (a fade), written into the model as alphakey on its node there.
+  float tint[3] = {1.0f, 1.0f, 1.0f};
+  // Its keys in the animations: its alpha (a fade) and (M4) its move, turn and scale, written into the model on its node
+  // there (alphakey, positionkey, orientationkey, scalekey).
   std::vector<VfxKeys> keys;
 };
 

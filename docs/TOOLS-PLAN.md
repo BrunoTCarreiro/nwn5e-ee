@@ -1840,3 +1840,47 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     | TMO-1 | The probe written (above); VFX Bench restarted: New, Type Stays (D), + mesh `n5m_uvprobe`, Permanent (until Stop), Name `n5_uvprobe`, Save; the game started, `!test level1ranger` | Play in game; watch each dome; look along the row from each end (the new effect's sparks behind the domes); Stop in game, quit, read the game's log for `vsn5uvmove`, `n5u_`, `shader` | Per dome: textured, moving as named, faint with the sparks seen through it; no shader error in the log. The low domes moving: route A as built (texture0); only the tall: the copy route (M3 copies the texture); none: the flipbook fallback (B); textured and moving but hiding the sparks: its TXI didn't follow (M3 writes it beside the n5u_ name) |
     | TMO-2 | (after M3) the Composer: a dome, Texture `fxpa_symbl_003`, From above; Texture motion: Turn 30, Breathe 0.2 | Play in game | the glyph turns and pulses, additive as the game's own globe |
     | TMO-3 | (after M3) a placeable with a moving texture | Save and build; after the next install, place it | it moves (the data\files route) |
+
+## A mesh beat's keys in the effect model (2026-11-18, #39; M4 - game-side)
+
+  Spec: the design's "Keys on a mesh beat" (docs/superpowers/specs/2026-11-18-mesh-texture-animation-and-tint-design.md);
+  plan Task M4. The owner, 2026-11-18: "is it possible to add keyframes to animate the shapes? Or make them follow
+  emitters, just like other elements". The one game-side change of the plan, announced to the game session before its
+  first edit: src/data/vfx_model.h, src/data/vfx_model.cpp, tests/data/vfx_model_test.cpp and a new fixture,
+  tests/data/fixtures/plane_moves.vfx; no model written today changes.
+  - *Calls:*
+    - `VfxKeys.scale`: rows t s, one value (the same in x, y and z) - the model's `scalekey`, controller 36 with one
+      column, as the game's own vdr_bigby_int keys its hand (a plain mesh: 1 to 10 over its 0.333 s impact, held at 10,
+      10 to 1 over its 0.3 s cessation). Of the game's 25,305 compiled models two key a scale, both on a mesh, both one
+      column (vdr_bigby_int and the door tn_sdoor_24); its ASCII models key none, but the exe knows `scalekey` beside
+      `alphakey`, `positionkey` and `orientationkey`. Only a plane's reaches the model: a node's scale keys are kept in
+      the draft and not written;
+    - `VfxPlane.tint`: r g b, 1 1 1 none - the bench's (a mesh beat's material is already multiplied by it), in the
+      draft only, never in the model;
+    - the draft: `<anim>_scale = t s ...` after `<anim>_alpha` (in any section, as every key list); a plane's
+      `tint = r g b` after its `emit_seconds`, before its keys, only when it isn't 1 1 1 (read as its material's colours
+      are). A draft without them is written back byte for byte;
+    - WriteVfxModel's animations: a plane with any keys there - position (a whole row: 4 numbers), orientation (5),
+      scale (2) or alpha (2) - gets `node trimesh <its name>`, `parent <its parent>`, then `positionkey`,
+      `orientationkey`, `scalekey` and `alphakey`, each only when it has a row, and `endnode` (of each kind the first list
+      in that animation: a draft has one an animation). A plane with only move keys gets its node too. A plane without
+      keys there is in no animation, as before; its geometry unchanged. Every key list of the model - a node's, an
+      emitter's, a light's, a plane's - is written by one helper, the bytes as before;
+    - `LastKeyTime` counts a plane's position, orientation and scale keys beside its alpha: an animation lasts as long as
+      its planes' keys.
+  - *Built (anim, the commit carrying this section):* the two fields, the draft's lines, LastKeyTime, the plane's
+    animation node; plane_moves.vfx (plane_beat's beat, tinted 1 0.5 0.5, dropping in from 3 m while it turns half round
+    and grows from 0.2 to 1 in the impact, with plane_beat's fade; a whole turn in thirds over 3 s in the duration).
+    test.bat 583 -> 588: VfxModelPlaneMoveKeys, VfxModelPlaneMoveKeysLength, VfxDraftScaleAndTint,
+    VfxModelUnchangedWithoutPlaneKeys and the game anchor VfxGameEffectsScaleKeys (vdr_bigby_int's hand read from the
+    game: controller 36, one column; its rows as a plane's keys written as `scalekey 2` with `t s` rows; it skips
+    cleanly without the game). The model readers are unchanged.
+  - *What changes:* nothing for an effect without a plane's move, turn or scale keys or a tint. HEAD's code and this
+    write the same drafts and models (hashes) for every draft kept and every game model the bench reads.
+  - *Not read back (as before):* neither model reader keeps a plane's keys - its alpha, move, turn or scale. A game
+    effect re-read in the bench (vdr_bigby_int's growing hand) shows the plane unmoved, and a re-save writes none.
+  - *For the bench:* nothing until M5 (core.js reads and writes the same bytes; plane_moves.vfx is its round trip).
+  - *For the game:* the next install carries it: a mesh beat's move, turn and scale keys play in game. Nothing changes
+    for existing effects. Until the install, the game's DLL writes only a beat's alpha keys, so the beat shows unmoved
+    in game; an older draft reader skips `_scale` and `tint` without an error. MBK-1 to MBK-3 (the design's rows) wait
+    for M5 and the install.
