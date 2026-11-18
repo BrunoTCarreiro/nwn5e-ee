@@ -47,12 +47,13 @@ float ToFloat(const std::string& text) { return static_cast<float>(atof(text.c_s
 // own reach 20 m and 4 s; an animation's copy of a compiled node can hold other bytes there.
 float BlastValue(float v) { return std::isfinite(v) && v > 0.0f && v <= 1000.0f ? v : 0.0f; }
 
-// A plane's transparencyhint as every reader and both writers keep it (the bench's core.js keeps the same rule): 0 to
+// A plane's transparencyhint as every reader and both writers keep it (the bench's core.js hintValue and
+// tools/data/floatdisk/floatdisk.js's hintValue keep the same rule - the Composer's check.js compares the two): 0 to
 // kVfxTransparencyHintMax, the game's own models' range - below 0 is 0, above it the most.
 int HintValue(long v) { return static_cast<int>(std::min<long>(std::max<long>(v, 0), kVfxTransparencyHintMax)); }
 
 // From a draft's or an ASCII model's text, as the game's parser reads an integer: its leading digits, base 10 ("1.7" is
-// 1, "+2" 2); not a number 0.
+// 1, "+2" 2), after only what isspace skips (a no-break space stops it); not a number 0.
 int ReadHint(const std::string& text) { return HintValue(strtol(text.c_str(), nullptr, 10)); }
 
 void ReadFloats(const std::vector<std::string>& words, size_t from, float* out, int count) {

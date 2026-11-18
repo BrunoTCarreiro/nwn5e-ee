@@ -2450,6 +2450,8 @@ TEST(VfxPlaneTransparencyHintThroughTheDraft) {
   CHECK_EQ(read(""), 0);
   CHECK_EQ(read("1.7"), 1);
   CHECK_EQ(read("+2"), 2);
+  CHECK_EQ(read("\v3"), 3);       // before the digits only what isspace skips (floatdisk.js and core.js read alike) ...
+  CHECK_EQ(read("\xA0" "2"), 0);  // ... a no-break space (latin1 0xA0) stops it
   // In memory past the range (never from a reader): written as a reader would keep it; below 0, no line.
   VfxEffect wide = BeatEffect();
   wide.planes[0].transparency_hint = 9;

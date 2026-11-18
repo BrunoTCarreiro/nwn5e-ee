@@ -297,12 +297,15 @@ function num(v) {  // a model's number: up to 5 decimals, no exponent, no -0
 
 // A mesh's transparencyhint (T1b; the owner, 2026-11-18: n5_zot's see-through meshes cut away in game - "go"): the game's
 // word for a see-through mesh, kept as nwn5e-ee's vfx_model.cpp keeps one - a whole number, 0 to HINT_MAX (the game's own
-// models' range): text by its leading digits, base 10, as the game's parser reads an integer ("1.7" is 1, "+2" 2; not a
-// number 0), a number by its whole part (not finite 0); below 0 is 0, above HINT_MAX the most.
+// models' range): text by its leading digits, base 10, as the game's parser and vfx_model.cpp's strtol read an integer
+// ("1.7" is 1, "+2" 2; not a number 0) - before them only what C's isspace skips (space, \t, \n, \v, \f, \r: a no-break
+// space stops it, 0); a number by its whole part (not finite 0); below 0 is 0, above HINT_MAX the most. The bench's
+// core.js hintValue keeps the same rule (the Composer's check.js compares them).
 const HINT_MAX = 5;
 function hintValue(v) {
-  const n = typeof v === "number" ? (Number.isFinite(v) ? Math.trunc(v) : 0) : parseInt(String(v).trim(), 10);
-  return Number.isNaN(n) ? 0 : Math.min(HINT_MAX, Math.max(0, n));
+  const digits = typeof v === "number" ? null : /^[ \t\n\v\f\r]*([+-]?\d+)/.exec(String(v));
+  const n = typeof v === "number" ? (Number.isFinite(v) ? Math.trunc(v) : 0) : digits ? parseInt(digits[1], 10) : 0;
+  return Math.min(HINT_MAX, Math.max(0, n));
 }
 // What both writers write for a mesh - meshLines (a placeable's model, the Floating Disk's) and a draft's plane (the
 // Composer's project.js draftText, build.js's drafts): its own transparencyhint (every mesh the generator gives carries

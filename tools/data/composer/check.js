@@ -362,6 +362,18 @@ check("a spell mesh's draft carries each mesh's transparencyhint: a soft dome's 
   assert.deepStrictEqual(fx.planes.map((p) => [p.name, p.transparencyhint]), [["dome", 1], ["j02_glass", 2], ["solid", 0], ["j04_older", 1]]);
 });
 
+// The three read rules in step - vfx_model.cpp's (ReadHint: strtol, base 10), floatdisk.js's hintValue and the bench's
+// core.js hintValue: the same text, the same hint - a no-break space before the digits (latin1 0xA0, which C's isspace
+// doesn't skip) included: 0.
+check("floatdisk.js's hintValue and core.js's read every hint text alike", () => {
+  global.window = global.window || {};  // core.js runs in the page and under node
+  const core = require(path.join(TOOLS, "vfx_bench", "public", "core.js"));
+  const texts = ["0", "1", "2", "5", "6", "99999999999", "-1", "-99999999999", " 3 ", "\t4", "\n\v\f\r 1", "+2", "1.7", "2abc", "1e3", "0x5",
+    "x", "", " 2", "  2"];
+  assert.deepStrictEqual(texts.map(F.hintValue), texts.map(core.hintValue));
+  assert.deepStrictEqual(texts.map(F.hintValue), [0, 1, 2, 5, 5, 5, 0, 0, 3, 4, 1, 2, 1, 2, 1, 0, 0, 0, 0, 0]);
+});
+
 // --- the project file -----------------------------------------------------------------------------------------------
 check("projectText writes its values with floatdisk.js's inline - one JSON writer with compositionText", () => {
   const json = { name: "helms", variants: [{ name: "1", parts: [{ model: "helm_001", at: [0, 0, 0], colours: { metal1: 5, cloth1: undefined } },

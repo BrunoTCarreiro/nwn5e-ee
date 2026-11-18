@@ -1011,13 +1011,14 @@ check("a mesh's transparencyhint: a shape's 1 when see-through, the disk's 1, a 
     faces: [0, 1, 2], bitmap: "x" }, extra);
   const read = F.modelSpaceMeshes({ planes: [plane("glass", { transparencyhint: 2 }), plane("pane", { transparencyhint: 1 }),
     plane("wood", { transparencyhint: 0 }), plane("older"), plane("wide", { transparencyhint: 9 }), plane("below", { transparencyhint: -1 })] }, "t");
-  const want = [2, 1, 0, 0, 5, 0];
-  assert.deepStrictEqual(read.meshes.map((m) => m.transparencyhint), want);
+  const want = [2, 1, 0, 0, 5, 0], h = (m) => m.transparencyhint;
+  assert.deepStrictEqual(read.meshes.map(h), want);
   const placed = F.placePart({ at: [0, 0, 0], turn: 30, scale: 0.5, tilt: [0, 0] }, read, 0, 0.9, "j");
-  assert.deepStrictEqual(placed.meshes.map((m) => m.transparencyhint), want);
-  assert.deepStrictEqual(F.lowered(placed.meshes, 0.9).map((m) => m.transparencyhint), want);
-  assert.deepStrictEqual(F.uniqueNames(placed.meshes, ["j01_glass"]).map((m) => m.transparencyhint), want);
-  assert.deepStrictEqual(F.mergeModels([read, { meshes: [F.diskMesh(DISK)], lo: [0, 0, 0], hi: [0, 0, 0] }]).meshes.map((m) => m.transparencyhint), [...want, 1]);
+  assert.deepStrictEqual(placed.meshes.map(h), want);
+  assert.deepStrictEqual(F.lowered(placed.meshes, 0.9).map(h), want);
+  assert.deepStrictEqual(F.uniqueNames(placed.meshes, ["j01_glass"]).map(h), want);
+  assert.deepStrictEqual(F.bakeBitmaps(placed.meshes, {}, () => true).meshes.map(h), want);  // a dyed part's baked copies too
+  assert.deepStrictEqual(F.mergeModels([read, { meshes: [F.diskMesh(DISK)], lo: [0, 0, 0], hi: [0, 0, 0] }]).meshes.map(h), [...want, 1]);
 });
 check("meshHint: a mesh's own transparencyhint (a whole number, 0 to 5), else 1 when it's see-through, else 0", () => {
   assert.deepStrictEqual([{ transparencyhint: 2 }, { transparencyhint: 0, transparent: true }, { transparent: true }, { transparent: false }, {},
@@ -1026,6 +1027,9 @@ check("meshHint: a mesh's own transparencyhint (a whole number, 0 to 5), else 1 
   assert.strictEqual(F.HINT_MAX, 5);
   // hintValue: text as the game's parser (and vfx_model.cpp's strtol) reads an integer - its leading digits, base 10.
   assert.deepStrictEqual(["2", " 3 ", "+2", "1.7", "2abc", "1e3", "-1", "9", "x", "", "0x5"].map(F.hintValue), [2, 3, 2, 1, 2, 1, 0, 5, 0, 0, 0]);
+  // Before the digits only what C's isspace skips (space, \t, \n, \v, \f, \r): a no-break space (latin1 0xA0) stops it,
+  // as it stops vfx_model.cpp's strtol - 0.
+  assert.deepStrictEqual(["\t4", "\n\v\f\r 1", " 2", "  2", " 2", "﻿2"].map(F.hintValue), [4, 1, 0, 0, 0, 0]);
   assert.deepStrictEqual([2, 1.7, -3, 99, NaN, Infinity, undefined, null].map(F.hintValue), [2, 1, 0, 5, 0, 0, 0, 0]);
 });
 check("meshLines writes meshHint's: a model's own 2, a shape's 1 or 0, a mesh without one by its transparent (as before)", () => {
