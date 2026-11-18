@@ -13,7 +13,10 @@
 //   textures (a helmet's: the game has them only as a PLT), baked from the game's palettes in the part's colours into
 //   n5p_<12 hex digits>.tga, which the models name instead (files.js's bakeParts); and a shape part's soft texture,
 //   generated from its colour into n5s_<12 hex digits>.tga (original: files.js's shapeTextures) - an Additive shape's
-//   (M1b) with n5s_<...>.txi beside it, "blending additive", in data\files and beside the drafts alike (shapeWrites).
+//   (M1b) with n5s_<...>.txi beside it, "blending additive", in data\files and beside the drafts alike (shapeWrites);
+//   and a moving part's (M2: a `motion`) materials, n5u_<12 hex digits>.mtr, which its textured meshes name instead - each
+//   our vertex shader (vsn5uvmove.shd, committed in data\files and listed in made.txt) with the real texture as texture0
+//   (files.js's motionWrites), beside the models and the drafts alike.
 // - data\rows: appearance.floatdisk.txt (rows 14000-14003, each appearance 298's) and placeables.floatdisk.txt (14001-
 //   14003, each 189 TreasureSml's), floatdisk.js's ROWS.
 //
@@ -119,10 +122,24 @@ function main() {
   const stages = {};
   const baked = new Map();  // a baked texture's name -> { plt, colours, bytes, label } (files.js's bakeParts)
   const shaped = new Map();  // a shape's soft texture's name -> { colour, bytes, label } (files.js's shapeTextures)
+  const placed = {};
   for (const stage of F.STAGES) {
     const parts = comp.stages[stage].map((p, i) => Object.assign(F.placePart(p, models.get(F.partKey(p)), i, disk.height, "j"), { part: p }));
     W.shapeTextures(parts, shaped);
     W.bakeParts(parts, rd, baked);
+    placed[stage] = parts;
+  }
+
+  // Textures: a part from the game has the game's (a dyed one's baked, above); one of your own files' is looked up (the
+  // game, then beside the file).
+  const ship = W.shipTextures([].concat(...F.PILES.map((stage) => placed[stage])), rd, baked);  // texture name -> its copies beside a file
+
+  // A moving part's textured meshes (M2) renamed for their materials (files.js's motionMaterials: after the bakes and the
+  // textures shipped, so texture0 is the real texture); then the creature's meshes and the pile's.
+  const moved = new Map();  // a material's name -> { texture, motion, pivot, text, label }
+  for (const stage of F.STAGES) {
+    const parts = placed[stage];
+    W.motionMaterials(parts, moved);
     const junk = [].concat(...parts.map((x) => x.meshes));
     const creature = F.uniqueNames([...junk, diskMesh], taken);
     const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
@@ -130,10 +147,6 @@ function main() {
     const pile = parts.length ? F.uniqueNames(F.lowered(junk, disk.height), []) : [];
     stages[stage] = { parts, creature, pile, lo, hi };
   }
-
-  // Textures: a part from the game has the game's (a dyed one's baked, above); one of your own files' is looked up (the
-  // game, then beside the file).
-  const ship = W.shipTextures([].concat(...F.PILES.map((stage) => stages[stage].parts)), rd, baked);  // texture name -> its copies beside a file
 
   // The summary: per stage its parts, triangles, how high the pile goes and how far it reaches.
   const r = disk.diameter / 2;
@@ -161,6 +174,7 @@ function main() {
   for (const [name, copies] of ship) say(`  texture ${name}: not in the game - shipped from ${copies.join(", ")}`);
   W.bakedLines(baked, W.shown(REPO, FILES)).forEach((l) => say(l));
   W.shapeLines(shaped, W.shown(REPO, FILES)).forEach((l) => say(l));
+  W.motionLines(moved, W.shown(REPO, FILES)).forEach((l) => say(l));
 
   // The files.
   const writes = [];
@@ -185,6 +199,7 @@ function main() {
   }
   writes.push(...W.bakedWrites(baked, FILES));  // beside the models that name them, git-ignored; never in made.txt
   writes.push(...W.shapeWrites(shaped, FILES));  // likewise: build output, git-ignored; never in made.txt
+  writes.push(...W.motionWrites(moved, FILES));  // a moving texture's materials (git-ignored) and the shader (committed, in made.txt)
   const appearance = gameData.gameTable(GAME, "appearance"), placeables = gameData.gameTable(GAME, "placeables");
   text(path.join(ROWS_DIR, "appearance.floatdisk.txt"), F.rowsText(appearance, F.SOURCE_ROWS.appearance,
     F.STAGES.map((st) => ({ row: F.ROWS.appearance[st], label: F.LABELS.appearance[st], model: F.creatureModel(st) })),
@@ -210,9 +225,10 @@ function main() {
     writes.push({ file: path.join(DRAFT_TEXTURES, disk.texture + ".tga"), bytes: F.diskTexture(disk, F.TEXTURE_MARK), kind: "library" });
     writes.push(...W.bakedWrites(baked, DRAFT_OUT));  // the drafts name them: beside them, where the game reads the bench's
     writes.push(...W.shapeWrites(shaped, DRAFT_OUT));
+    writes.push(...W.motionWrites(moved, DRAFT_OUT));
   }
   const result = { check: CHECK, stages: summary, shipped: [...ship].map(([texture, from]) => ({ texture, from })), baked: W.bakedJson(baked),
-    shapes: W.shapeJson(shaped), files: [], wouldWrite: writes.length, unused: [] };
+    shapes: W.shapeJson(shaped), materials: W.motionJson(moved), files: [], wouldWrite: writes.length, unused: [] };
   const finish = () => { if (JSON_OUT) console.log(JSON.stringify(result)); };
   if (CHECK) {
     say(`--check: nothing written (${writes.length} files would be)`);
@@ -228,6 +244,8 @@ function main() {
   W.writeManifest(MANIFEST, manifest, ["# made by nwn5e-ee tools/data/floatdisk/build.js: the files it wrote in this repo that can't carry its mark (textures) -",
     "# it may rewrite these; it refuses any other file in its way"]);
   for (const f of manifest) {
+    // The moving textures' shader (M2) is committed whole and listed here, but written only beside a material: never unused.
+    if (path.posix.basename(f).toLowerCase() === F.MOTION_SHADER + ".shd") continue;
     if (!writes.some((w) => repoPath(w.file) === f)) {
       say(`no longer used: ${f} (made by this generator) - delete it and its made.txt line if nothing needs it`);
       result.unused.push(f);

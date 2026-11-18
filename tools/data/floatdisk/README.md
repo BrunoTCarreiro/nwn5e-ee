@@ -75,8 +75,9 @@ node tools\data\floatdisk\build.js
 `node tools\data\floatdisk\check_build.js` rebuilds on a temporary copy and checks the whole generator: a rebuild
 changes nothing, `--json` agrees with the text, a weapon's pieces read as one, a refused build writes nothing, a file in
 the way it didn't make is refused (named from the repo's root), a file it made that changed is rebuilt, a setup
-failure is still one JSON error line, a dyed part is baked beside the models, which name it, and a dome's soft
-texture is written beside the models and (with `--drafts`) the drafts, owned by its name. It never writes the real
+failure is still one JSON error line, a dyed part is baked beside the models, which name it, a dome's soft
+texture is written beside the models and (with `--drafts`) the drafts, owned by its name, and a moving dome's material
+and the shader go beside them too, the models and the draft naming the material. It never writes the real
 `data\files` or the bench build's `vfxedit\saved\`. It needs the game (it prints `skip` without it).
 
 ## Swap in your own pile
@@ -273,16 +274,65 @@ from the defaults is written; a key not its type's (a disc's `height`, a dome's 
 
 - `none` and a library texture write nothing: the model names the library's texture, and the game has it.
 
+## Moving textures
+
+A part's `motion` moves the pictures on its textured meshes (M2; the owner, 2026-11-18: "scrolling, scaling
+(breathing), rotating" - the textures on the meshes):
+
+```json
+{ "model": "plc_a03", "at": [0, 0, 0], "motion": { "turn": 30 } }
+{ "shape": { "type": "dome", "radius": 1, "mapping": "above", "texture": "fxpa_symbl_003" }, "at": [0, 0, 0], "motion": { "turn": 30, "breathe": 0.2, "rate": 0.5 } }
+```
+
+- **What moves:** `scroll` `[u, v]` (repeats a second, -10 to 10: + moves the picture round a Wrapped shape
+  counter-clockwise seen from above, and up it), `turn` (degrees a second, -720 to 720: + counter-clockwise, seen from
+  above for From above), `breathe` (0 to 0.9: how much bigger and smaller the picture gets - the mesh stays as it is) and
+  `rate` (breaths a second, 0.05 to 5; 0.5 when left out). Any part, a shape too; every textured mesh of the part.
+  Absent or still, nothing written changes. Only the keys that move are written (the rate while it breathes).
+- **The maths** (`floatdisk.js`'s `uvMotion`, one for the game's shader and the bench's stage), at t seconds, round the
+  pivot p - the middle of the mesh's UV box (`uvPivot`: a From above shape's centre, a Wrapped one's middle of its
+  repeats): s = 1 + breathe x sin(2 pi rate t), uv' = R(-turn t) (uv - p) / s + p - scroll t.
+- **In game:** NWN:EE has no setting for it, so each textured mesh names an EE material instead of its texture:
+  `n5u_` and 12 hex digits of its texture, the motion and its pivot (each to 0.001). `n5u_<...>.mtr` pairs our vertex
+  shader with the game's lit fragment shader and names the real texture:
+
+  ```
+  customshadervs vsn5uvmove
+  customshaderfs fslit
+  texture0 fxpa_symbl_003
+  parameter float n5ScrollU 0
+  ...
+  parameter float n5PivotV 0.5
+  ```
+
+  The game attaches a material by the mesh's texture name. `vsn5uvmove.shd` (data\files, committed, `made.txt` lists it)
+  is ours: the game's standard vertex setup by its include's name, then the texture's coordinates moved by the maths
+  above, with the game's world clock as t (`floatdisk.js`'s `motionShaderText`).
+- **Where they go:** beside what names them - into `data\files` with the models (the materials git-ignored,
+  `/data/files/n5u_*`, build output as a soft texture is), beside the drafts with `--drafts`. A material is ours by its
+  name (only the generator makes `n5u_` names, and the name fixes the bytes); the shader by its first line, or
+  `made.txt`. `build.bat` makes the materials with the models for every build (`tools\data\build_derived.js`).
+- **The summary** names each material, `--json` lists them under `materials` (`material`, `texture`, `motion`,
+  `pivot`):
+
+  ```
+    material n5u_0ddd963264b2: n5s_617b220c1144 scrolls 0 0.25 a second, round 0.5 0.5 - written into data/files, with vsn5uvmove.shd
+  ```
+
+- **Untested in game** until TMO-1 (the Composer's probe, `tools\data\composer\uvprobe.js`): whether `texture0` binds the
+  texture, or it has to be copied under the material's name (`motionMaterialText`'s `copy`), and whether the texture's
+  TXI (additive) still applies. The motion runs on the game's clock, not the effect's.
+
 ## The files here
 
 | file | what it is |
 |---|---|
 | `composition.json` | the stages (yours to edit) |
 | `build.js` | the generator |
-| `floatdisk.js` | its pure parts: placing, the disk, the shapes (their meshes and soft textures), the models' and rows' text (it loads in a page too: the VFX Bench's Composer places with it) |
+| `floatdisk.js` | its pure parts: placing, the disk, the shapes (their meshes and soft textures), a moving texture's maths, material and shader, the models' and rows' text (it loads in a page too: the VFX Bench's Composer places with it) |
 | `check.js` | checks `floatdisk.js` |
 | `reader.js` | reads the parts' meshes (a shape's from `floatdisk.js`) and the textures from the game or beside a file, and bakes a dyed part's PLT (what `build.js` and the VFX Bench share) |
-| `files.js` | the file plumbing this `build.js` and the Composer's share: the options, loading nwn5e-tools, a dyed part's bakes, a shape's soft texture, shipping your own textures, the one ownership rule they write by |
+| `files.js` | the file plumbing this `build.js` and the Composer's share: the options, loading nwn5e-tools, a dyed part's bakes, a shape's soft texture, a moving texture's materials and shader, shipping your own textures, the one ownership rule they write by |
 | `check_build.js` | checks `build.js` end to end on a temporary copy (needs the game) |
 | `mdlmesh.cpp`, `build_mdlmesh.bat` | the mesh reader, built from the repo's `src\data\vfx_model.cpp` into `build\floatdisk\` |
-| `made.txt` | the textures the generator wrote (they can't carry its mark) |
+| `made.txt` | the textures the generator wrote (they can't carry its mark), and the moving textures' shader, `data/files/vsn5uvmove.shd` (committed whole; never called unused) |

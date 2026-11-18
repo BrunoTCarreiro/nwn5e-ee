@@ -1,12 +1,13 @@
 // The generators' file plumbing (#39), shared by the Floating Disk's build.js and the Composer's
 // (tools\data\composer\build.js): their options, loading nwn5e-tools, a repo file's path, a dyed part's baked textures,
-// a shape's soft texture, the textures a part's own file brings, and writing only files that are the generator's own -
-// one ownership rule for both. Node only.
+// a shape's soft texture, a moving texture's material and shader (M2), the textures a part's own file brings, and
+// writing only files that are the generator's own - one ownership rule for both. Node only.
 //
 //   const W = require("./files.js");
 //   W.option(argv, "game", "")   W.loadTools({ tools, game, build })   W.bakeParts(placed, rd, baked)   W.shipTextures(placed, rd, baked)
 //   W.bakedWrites(baked, dir)   W.bakedLines(baked, where)   W.bakedJson(baked)
 //   W.shapeTextures(placed, made)   W.shapeWrites(made, dir)   W.shapeLines(made, where)   W.shapeJson(made)
+//   W.motionMaterials(placed, materials)   W.motionWrites(materials, dir)   W.motionLines(materials, where)   W.motionJson(materials)
 //   W.writeAll(writes, W.ownership({ repo, manifest, mark, kinds }), { repo, manifest })   W.writeManifest(file, manifest, header)
 "use strict";
 const fs = require("fs");
@@ -95,6 +96,42 @@ const shapeLines = (made, where) => [...made].map(([name, s]) => `  texture ${na
 // --json's: [{ texture, colour, blend (only "additive": a Normal one's as before M1b) }].
 const shapeJson = (made) => [...made].map(([texture, s]) => (s.txi ? { texture, colour: s.colour, blend: "additive" } : { texture, colour: s.colour }));
 
+// --- a moving texture's material (M2) ---------------------------------------------------------------------------------
+// The placed parts' moving textures: each part with a motion has its textured meshes renamed for it (floatdisk.js's
+// moveTextures: the bitmap becomes the material's name, n5u_ and 12 hex digits) - each placed part's meshes replaced by
+// their renamed copies (x.meshes) - and each material `materials` lacks added. Called after bakeParts and shipTextures,
+// so a material's texture (texture0) is the real one and a shipped texture is found by its own name. `placed`: [{ part,
+// meshes }] (placePart's, with its part). -> `materials`: Map(name -> { texture, motion (readMotion's), pivot, text (its
+// .mtr: motionMaterialText, LF), label (the part's) }), in the parts' order.
+function motionMaterials(placed, materials = new Map()) {
+  for (const x of placed) {
+    const moved = F.moveTextures(x.meshes, x.part.motion);
+    x.meshes = moved.meshes;
+    for (const m of moved.materials) {
+      if (!materials.has(m.name)) materials.set(m.name, { texture: m.texture, motion: m.motion, pivot: m.pivot, text: F.motionMaterialText(m), label: F.partLabel(x.part) });
+    }
+  }
+  return materials;
+}
+// The materials as writes into `dir` (beside what names them: the models' folder, or a spell mesh's drafts'):
+// <dir>\<name>.mtr, kind "material" (ours by its name: only the generator makes n5u_ names, and the name fixes the
+// bytes), and - when there's any - the shader they name, <dir>\vsn5uvmove.shd, kind "shader" (ours when made.txt lists
+// it, as data\files' committed one, or when it's the generators' shader: floatdisk.js's isMotionShader), CRLF as the
+// generators write text. Neither noted in made.txt.
+function motionWrites(materials, dir) {
+  if (!materials.size) return [];
+  return [...[...materials].map(([name, m]) => ({ file: path.join(dir, name + ".mtr"), bytes: Buffer.from(m.text, "latin1"), kind: "material" })),
+    { file: path.join(dir, F.MOTION_SHADER + ".shd"), bytes: Buffer.from(F.crlf(F.motionShaderText()), "latin1"), kind: "shader" }];
+}
+// A motion in words: "scrolls 0 0.25 a second, turns 30 degrees a second, breathes 0.3 at 0.5 a second" (what it does).
+const motionWords = (m) => [m.scroll.some((v) => v !== 0) ? `scrolls ${m.scroll.join(" ")} a second` : null, m.turn ? `turns ${m.turn} degrees a second` : null,
+  m.breathe ? `breathes ${m.breathe} at ${m.rate} a second` : null].filter(Boolean).join(", ");
+// The summary's line a material: its texture, its motion and pivot, where it goes (and the shader beside it).
+const motionLines = (materials, where) => [...materials].map(([name, m]) => `  material ${name}: ${m.texture} ${motionWords(m.motion)}, round ` +
+  `${m.pivot.join(" ")} - written into ${where}, with ${F.MOTION_SHADER}.shd`);
+// --json's: [{ material, texture, motion (its non-zero keys: cleanMotion's), pivot }].
+const motionJson = (materials) => [...materials].map(([material, m]) => ({ material, texture: m.texture, motion: F.cleanMotion(m.motion), pivot: m.pivot }));
+
 // --- textures ---------------------------------------------------------------------------------------------------------
 // The textures that the placed parts' own files bring and the game doesn't have: each mesh's, looked up in the game,
 // then beside its file (reader.js's findTexture); a baked one (`baked`, bakeParts' - renamed, so the game hasn't it) is
@@ -129,15 +166,21 @@ function writeManifest(file, manifest, header) {
 // The rule for a file already where a write { file, bytes, kind } goes: "text" (a model, .pwk, rows file or draft) is
 // ours when it carries `mark`; "baked" (a dyed part's texture) when its name without .tga is a bake's (F.BAKED: only the
 // bake makes such names, and the name fixes the bytes); "shape" (a shape's soft texture, or an additive one's TXI: M1b)
-// likewise when it's a soft texture's (F.SHAPE_TEXTURE: only the generator makes them); a kind in `kinds` by its own test
-// (w, old); any other (a texture in the repo) when made.txt (`manifest`) lists it. -> (w, old) => true when it's ours.
+// likewise when it's a soft texture's (F.SHAPE_TEXTURE: only the generator makes them); "material" (M2: a moving
+// texture's material - or, on the copy route, its texture and TXI under the material's name) likewise by its n5u_ name
+// (F.MOTION_TEXTURE); "shader" (vsn5uvmove.shd) when made.txt lists it (data\files' committed one) or it's the
+// generators' shader, this version's or an earlier one's (F.isMotionShader: its first line); a kind in `kinds` by its own
+// test (w, old); any other (a texture in the repo) when made.txt (`manifest`) lists it. -> (w, old) => true when it's ours.
 function ownership({ repo, manifest, mark, kinds = {} }) {
+  const listed = (file) => repoPath(repo, file) !== null && manifest.has(repoPath(repo, file));
   return (w, old) => {
     if (w.kind === "text") return F.carriesMark(old, mark);
     if (w.kind === "baked") return F.BAKED.test(path.basename(w.file).replace(/\.tga$/i, ""));
     if (w.kind === "shape") return F.SHAPE_TEXTURE.test(path.basename(w.file).replace(/\.(tga|txi)$/i, ""));
+    if (w.kind === "material") return /\.(mtr|tga|dds|txi)$/i.test(w.file) && F.MOTION_TEXTURE.test(path.basename(w.file).replace(/\.(mtr|tga|dds|txi)$/i, ""));
+    if (w.kind === "shader") return listed(w.file) || F.isMotionShader(old);
     if (kinds[w.kind]) return kinds[w.kind](w, old);
-    return repoPath(repo, w.file) !== null && manifest.has(repoPath(repo, w.file));
+    return listed(w.file);
   };
 }
 // Every write checked before any is written: a file there that isn't ours (`owned`, as ownership gives it) and isn't
@@ -170,4 +213,4 @@ function writeAll(writes, owned, { repo, manifest, dry = false }) {
 }
 
 module.exports = { option, loadTools, repoPath, shown, bakeParts, bakedWrites, bakedLines, bakedJson, shapeTextures, shapeWrites, shapeLines,
-  shapeJson, shipTextures, readManifest, writeManifest, ownership, writeAll };
+  shapeJson, motionMaterials, motionWrites, motionLines, motionJson, shipTextures, readManifest, writeManifest, ownership, writeAll };

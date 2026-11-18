@@ -408,6 +408,52 @@ try {
     assert.deepStrictEqual(fixed, [{ state: "rebuilt", file: `data/files/${ADD}.txi` }, { state: "rebuilt", file: `build/saved/${ADD}.txi` }]);
   });
 
+  // M2 (#39): a moving part's textured meshes name a material, n5u_<12 hex digits> (floatdisk.js motionName), written
+  // beside what names them with the shader it names - vsn5uvmove.shd, committed in data\files and listed in made.txt (the
+  // disk's own build, with no motion, never calls it unused).
+  check("a moving dome part (M2): its material and the shader beside the models and the drafts, which name the material; the shader never unused", () => {
+    const GOLD = "n5s_a3caa0709dda", colour = [1, 0.85, 0.4], motion = { turn: 30 }, pivot = [0.5, 0.5], MAT = F.motionName(GOLD, motion, pivot);
+    const SHADER = "vsn5uvmove.shd", shaderBytes = Buffer.from(F.crlf(F.motionShaderText()), "latin1");
+    const file = withComposition("uv.json", (c) => {
+      c.stages.medium = [{ shape: { type: "dome", radius: 0.3, colour, mapping: "above" }, at: [0, 0, 0], motion }];
+    });
+    const drafts = path.join(root, "build", "saved"), library = path.join(root, "build", "textures");
+    const args = ["--composition", file, "--drafts", "--out", drafts, "--textures", library];
+    // The shader as the checkout commits it (made.txt lists it); the copy's data\files gets it as the real one has it.
+    assert.ok(fs.readFileSync(path.join(folder, "made.txt"), "utf8").split(/\r?\n/).includes("data/files/" + SHADER), "made.txt doesn't list the shader");
+    fs.copyFileSync(path.join(REAL_FILES, SHADER), path.join(FILES, SHADER));
+    const made = fs.readFileSync(path.join(folder, "made.txt"));
+    const plain = build([]);
+    assert.strictEqual(plain.code, 0, plain.err);
+    assert.ok(!/no longer used/.test(plain.out), "the disk's own build calls something unused:\n" + plain.out);
+    const c = build(["--composition", file, "--check"]);
+    assert.ok(c.out.split(/\r?\n/).includes(`  material ${MAT}: ${GOLD} turns 30 degrees a second, round 0.5 0.5 - written into data/files, with ${SHADER}`), "no summary line:\n" + c.out);
+    const r = build([...args, "--json"]);
+    assert.strictEqual(r.code, 0, "build.js exited " + r.code + ": " + r.err.trim());
+    const j = json(r);
+    assert.deepStrictEqual(j.materials, [{ material: MAT, texture: GOLD, motion, pivot }]);
+    const states = Object.fromEntries(j.files.filter((f) => /n5u_|\.shd$/.test(f.file)).map((f) => [f.file, f.state]));
+    assert.deepStrictEqual(states, { [`data/files/${MAT}.mtr`]: "new", [`data/files/${SHADER}`]: "unchanged", [`build/saved/${MAT}.mtr`]: "new", [`build/saved/${SHADER}`]: "new" });
+    for (const dir of [FILES, drafts]) {
+      assert.strictEqual(fs.readFileSync(path.join(dir, MAT + ".mtr"), "latin1"), F.motionMaterialText({ texture: GOLD, motion, pivot }), dir);
+      assert.ok(fs.readFileSync(path.join(dir, SHADER)).equals(shaderBytes), dir);
+      assert.ok(fs.existsSync(path.join(dir, GOLD + ".tga")), `${dir}: no ${GOLD}.tga (the material's texture0)`);
+    }
+    // The medium's creature and pile name the material, not the texture; so does its draft.
+    for (const m of [F.creatureModel("medium"), F.pileModel("medium")].map((s) => s + ".mdl")) {
+      const t = fs.readFileSync(path.join(FILES, m), "latin1");
+      assert.ok(t.includes(`\r\n  bitmap ${MAT}\r\n`) && !t.includes(`\r\n  bitmap ${GOLD}\r\n`), m + " doesn't name " + MAT);
+    }
+    const core = (global.window = global.window || {}, require(path.join(TOOLS, "vfx_bench", "public", "core.js")));
+    const planes = core.readDraft(fs.readFileSync(path.join(drafts, "n5_floatdisk_medium.vfx"), "latin1").replace(/\r/g, "")).planes;
+    assert.ok(planes.some((p) => p.bitmap === MAT) && !planes.some((p) => p.bitmap === GOLD), planes.map((p) => p.bitmap).join(" "));
+    assert.ok(fs.readFileSync(path.join(folder, "made.txt")).equals(made), "made.txt changed");
+    assert.ok(!/no longer used/.test(build(["--composition", file]).out), "a moving build calls something unused");
+    // Built again: unchanged.
+    const again = json(build([...args, "--json"]));
+    assert.ok(again.files.every((f) => f.state === "unchanged"), JSON.stringify(again.files.filter((f) => f.state !== "unchanged")));
+  });
+
   check("the real worktree's data\\files and the real build's vfxedit\\saved\\ are as they were", () => {
     assert.deepStrictEqual(realState(), REAL);
   });

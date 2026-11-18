@@ -470,6 +470,43 @@ check("projectText writes tint after tilt, never white", () => {
   bad.variants[0].parts[1] = { shape: { type: "dome", radius: 1 }, at: [0, 0, 0], tint: [0.5, 0.5, 0.5] };
   assert.throws(() => P.readProject(bad, BASE, F), says("variants[0].parts[1].tint: a shape has no tint - its Colour is its colour"));
 });
+// M2 (#39; the owner, 2026-11-18: "scrolling, scaling (breathing), rotating" - the textures on the meshes): a part's motion
+// (floatdisk.js readMotion) is written after its tint, inline, its non-zero keys (cleanMotion's) - never a still one; a
+// project reads it back as the part's, a shape's too.
+check("projectText writes motion after tint, its non-zero keys, never a still one; readProject reads it back, each error naming its part", () => {
+  const json = { kind: "spellmesh", name: "moves", guide: CIRCLE, variants: [{ name: "1", parts: [
+    { motion: { scroll: [0, 0.25], turn: 0, breathe: 0, rate: 0.5 }, extra: 1, tint: [0.5, 1, 0.25], model: "plc_a03", at: [0, 0, 0] },
+    { motion: { scroll: [0, 0], turn: 0, breathe: 0, rate: 2 }, model: "plc_a03", at: [0, 0, 0], turn: 15 },
+    { shape: { type: "dome", radius: 1, mapping: "above" }, at: [0, 0, 0], motion: { rate: 0.5, breathe: 0.3, turn: 30 } }] }] };
+  const text = P.projectText(json), l = lines(text);
+  assert.ok(l.includes('      { "model": "plc_a03", "at": [0, 0, 0], "tint": [0.5, 1, 0.25], "motion": { "scroll": [0, 0.25] }, "extra": 1 },'), text);
+  assert.ok(l.includes('      { "model": "plc_a03", "at": [0, 0, 0], "turn": 15 },'), text);
+  assert.ok(l.includes('      { "shape": { "type": "dome", "radius": 1, "mapping": "above" }, "at": [0, 0, 0], "motion": { "turn": 30, "breathe": 0.3, "rate": 0.5 } }'), text);
+  const read = P.readProject(JSON.parse(text), BASE, F).variants[0].parts;
+  assert.deepStrictEqual(read.map((p) => p.motion), [{ scroll: [0, 0.25], turn: 0, breathe: 0, rate: 0.5 }, { scroll: [0, 0], turn: 0, breathe: 0, rate: 0.5 },
+    { scroll: [0, 0], turn: 30, breathe: 0.3, rate: 0.5 }]);
+  assert.strictEqual(P.projectText(JSON.parse(text)), text);
+  const bad = copy(json);
+  bad.variants[0].parts[2].motion = { breathe: 1.2 };
+  assert.throws(() => P.readProject(bad, BASE, F), says("variants[0].parts[2].motion.breathe: a number from 0 to 0.9 (how much bigger and smaller it gets)"));
+  bad.variants[0].parts[0].motion = { spin: 3 };
+  assert.throws(() => P.readProject(bad, BASE, F), says("variants[0].parts[0].motion.spin: not a motion's - scroll, turn, breathe or rate"));
+});
+// A moving part's meshes through floatdisk.js's moveTextures, then draftText: each textured plane names its material (an
+// n5u_ name, motionName's), an untextured one none - the draft the game reads names the material, which names the texture.
+check("a spell mesh's draft names a moving part's materials: its textured planes' bitmaps, an untextured one none", () => {
+  global.window = global.window || {};
+  const core = require(path.join(TOOLS, "vfx_bench", "public", "core.js"));
+  const bare = Object.assign({}, MESH, { name: "j01_Bare", bitmap: "" });
+  const motion = F.readMotion({ turn: 30 }, "p");
+  const moved = F.moveTextures([MESH, bare], motion);
+  const name = F.motionName("plc_x", motion, F.uvPivot(MESH.tverts));
+  assert.deepStrictEqual(moved.materials.map((m) => [m.name, m.texture]), [[name, "plc_x"]]);
+  const fx = core.readDraft(F.crlf(P.draftText(core, "n5m_moves", F.uniqueNames(moved.meshes, []))).replace(/\r/g, ""));
+  assert.deepStrictEqual(fx.planes.map((p) => p.bitmap), [name, "null"]);
+  // Still: the draft as before, byte for byte.
+  assert.strictEqual(P.draftText(core, "n5m_still", F.moveTextures([MESH, bare], undefined).meshes), P.draftText(core, "n5m_still", [MESH, bare]));
+});
 check("projectText: a part a line, and a round trip", () => {
   const json = copy(CRATES);
   json.variants[1] = { parts: [], name: "2" };

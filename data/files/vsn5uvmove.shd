@@ -1,0 +1,38 @@
+// vsn5uvmove.shd - nwn5e's moving mesh textures (nwn5e-ee #39): a texture scrolled, turned and breathing with the game's clock
+// Made by nwn5e-ee tools/data/floatdisk/floatdisk.js (motionShaderText): change it there and rebuild, not here. A moving
+// texture's material, n5u_<12 hex digits>.mtr, pairs this vertex shader with the game's lit fragment shader (fslit) and
+// gives the motion below as its parameters. The game's standard vertex setup first (its own include, by name); then the
+// texture's coordinates moved round the pivot p: uv' = R(-turn t) (uv - p) / s + p - scroll t, s = 1 + breathe
+// sin(2 pi rate t), t the game's world clock in seconds (floatdisk.js uvMotion: the same maths). The scroll, the turn
+// and the breath are each taken within one repeat, one turn and one breath, so a float keeps its precision late in a
+// game day: the same picture, as the texture repeats.
+
+#define SHADER_TYPE 1
+#define FOG 1
+#define KEYHOLING 1
+#define NORMAL_MAP 0
+#define ENVIRONMENT_MAP 0
+#define LIGHTING 1
+
+#include "inc_standard"
+#include "inc_uniforms"
+
+uniform float n5ScrollU;
+uniform float n5ScrollV;
+uniform float n5Turn;
+uniform float n5Breathe;
+uniform float n5Rate;
+uniform float n5PivotU;
+uniform float n5PivotV;
+
+void main ()
+{
+    ApplyStandardShader();
+    float t = float(worldtimerTimeOfDay) * 0.001;
+    float s = 1.0 + n5Breathe * sin(6.28318531 * fract(n5Rate * t));
+    float a = radians(-mod(n5Turn * t, 360.0));
+    float du = (vVertexTexCoords.x - n5PivotU) / s;
+    float dv = (vVertexTexCoords.y - n5PivotV) / s;
+    vVertexTexCoords = vec2(cos(a) * du - sin(a) * dv + n5PivotU - fract(n5ScrollU * t),
+        sin(a) * du + cos(a) * dv + n5PivotV - fract(n5ScrollV * t));
+}

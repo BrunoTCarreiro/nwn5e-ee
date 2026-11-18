@@ -67,10 +67,14 @@ function markedAtHead(mark) {
   if (r.status !== 0) throw new Error("git grep: " + r.stderr.trim());
   return r.stdout.split(/\r?\n/).filter(Boolean).map((l) => l.replace(/^HEAD:/, "")).filter((rel) => F.carriesMark(stored(rel), mark));
 }
+// The moving textures' shader (M2), data/files/vsn5uvmove.shd, is in the Floating Disk's made.txt but committed whole -
+// original text, which build.bat's copy of data\ takes into the build; build_derived writes it only beside a moving
+// texture's material - so it's neither one of the disk's files nor one a build of the committed recipes must make.
+const SHADER = F.MOTION_SHADER + ".shd";
 function madeAtHead(generator) {
   const rel = `tools/data/${generator}/made.txt`;
   if (!headFiles(`tools/data/${generator}`).includes(rel)) return [];
-  return checkedOut(rel).toString("utf8").split(/\r?\n/).map((l) => l.trim()).filter((l) => l.startsWith("data/files/"));
+  return checkedOut(rel).toString("utf8").split(/\r?\n/).map((l) => l.trim()).filter((l) => l.startsWith("data/files/") && path.posix.basename(l) !== SHADER);
 }
 const FLOATDISK_AT_HEAD = [...markedAtHead(F.MARK), ...madeAtHead("floatdisk")].map((rel) => path.posix.basename(rel));
 const EXPECTED = new Map();  // name -> HEAD's data\files copy, as checked out
@@ -232,14 +236,19 @@ try {
       assert.ok((text ? lf(got) : got).equals(stored("data/files/" + name)), `${name} isn't git show HEAD:data/files/${name}${text ? " (CRLF as LF)" : ""}`);
     }
     // What's built but not committed: git-ignored, and a generator's - a model carrying its mark, or a dyed part's baked
-    // texture or a shape's soft texture (n5p_ / n5s_ and 12 hex digits: only the generators make such names) that a
-    // built model names.
-    const named = (name) => F.BAKED.test(name.replace(/\.tga$/, "")) || F.SHAPE_TEXTURE.test(name.replace(/\.tga$/, ""));
+    // texture, a shape's soft texture or a moving texture's material (n5p_ / n5s_ / n5u_ and 12 hex digits: only the
+    // generators make such names) that a built model names. The shader (M2) is committed whole: the generators' own.
+    const stem = (name) => name.replace(/\.(tga|mtr)$/, "");
+    const named = (name) => F.BAKED.test(stem(name)) || F.SHAPE_TEXTURE.test(stem(name)) || F.MOTION_TEXTURE.test(stem(name));
     for (const name of NAMES.filter((n) => !EXPECTED.has(n))) {
+      if (name === SHADER) {
+        assert.ok(F.isMotionShader(fs.readFileSync(path.join(OUT, name))), name + " isn't the generators' shader");
+        continue;
+      }
       assert.ok(ignored(name), `${name}: built, not committed at HEAD, and not git-ignored`);
       const got = fs.readFileSync(path.join(OUT, name));
       if (named(name)) {
-        const by = NAMES.filter((m) => m.endsWith(".mdl") && fs.readFileSync(path.join(OUT, m), "latin1").includes(`\r\n  bitmap ${name.replace(/\.tga$/, "")}\r\n`));
+        const by = NAMES.filter((m) => m.endsWith(".mdl") && fs.readFileSync(path.join(OUT, m), "latin1").includes(`\r\n  bitmap ${stem(name)}\r\n`));
         assert.ok(by.length, name + ": no built model names it");
       } else {
         assert.ok(F.carriesMark(got, F.MARK) || F.carriesMark(got, P.MARK), name + " carries no generator's mark");
@@ -590,6 +599,50 @@ try {
     } finally {
       fs.rmSync(file, { force: true });
       fs.rmSync(path.join(ROWS, "placeables.chkdomea.txt"), { force: true });
+      for (const f of own) for (const dir of [FILES, OUT]) fs.rmSync(path.join(dir, f), { force: true });
+    }
+  });
+
+  check("a placeable project's moving dome (M2): its material and the shader come out into --out beside its model, owned by name and mark; a second build the same", () => {
+    // The 1 m gold dome scrolling up: its model names n5u_<...> (its soft texture's, the motion's, its pivot's material);
+    // the material (git-ignored build output, as its texture) and the shader it names (committed whole in data\files)
+    // come out beside it.
+    const GOLD = "n5s_a3caa0709dda", colour = [1, 0.85, 0.4], motion = { scroll: [0, 0.25] }, pivot = [0.5, 0.5], MAT = F.motionName(GOLD, motion, pivot);
+    const file = project("chkuv", { kind: "placeable", guide: CIRCLE, placeable: THROUGH, variants: [{ name: "1", row: 14155, parts: [
+      { shape: { type: "dome", radius: 1, colour }, at: [0, 0, 0], motion }] }] });
+    const own = ["plc_n5chkuv.mdl", "plc_n5chkuv.pwk", GOLD + ".tga", MAT + ".mtr", SHADER];
+    try {
+      const g = spawnSync(process.execPath, [path.join(COMPOSER, "build.js"), file, "--json", "--game", GAME, "--tools", TOOLS, "--reader", READER],
+        { encoding: "utf8", maxBuffer: 64 << 20, windowsHide: true });
+      assert.strictEqual(g.status, 0, "composer build.js: " + (g.stdout + g.stderr).trim());
+      for (const f of own) assert.ok(fs.existsSync(path.join(FILES, f)), f + " isn't in the copy's data\\files");
+      assert.ok(ignored(MAT + ".mtr") && !ignored(SHADER), "the material git-ignored, the shader not");
+      const r = derive(["--out", OUT]);
+      done(r);
+      assert.deepStrictEqual(Object.entries(states(r)).filter(([, s]) => s !== "unchanged").sort(), own.map((f) => [f, "written"]).sort());
+      assert.match(r.out, /the Composer's project chkuv \(tools\/data\/composer\/chkuv\.json\): 5 files; its rows agree/);
+      assert.ok(fs.readFileSync(path.join(OUT, "plc_n5chkuv.mdl"), "latin1").includes(`\r\n  bitmap ${MAT}\r\n`), "plc_n5chkuv.mdl doesn't name " + MAT);
+      assert.strictEqual(fs.readFileSync(path.join(OUT, MAT + ".mtr"), "latin1"), F.motionMaterialText({ texture: GOLD, motion, pivot }));
+      assert.ok(fs.readFileSync(path.join(OUT, SHADER)).equals(fs.readFileSync(path.join(REPO, "data", "files", SHADER))), SHADER + " isn't the checkout's, byte for byte");
+      const s = derive(["--out", OUT]);
+      done(s);
+      assert.ok(Object.values(states(s)).every((x) => x === "unchanged"), JSON.stringify(states(s)));
+      // In --out, a file of the material's name is the generator's, and so is a shader carrying the shader's first line (an
+      // earlier version): both rewritten. Someone's vsn5uvmove.shd stops it all, nothing written.
+      fs.writeFileSync(path.join(OUT, MAT + ".mtr"), "customshadervs vslit\r\n");
+      fs.writeFileSync(path.join(OUT, SHADER), F.MOTION_SHADER_MARK + "\r\n// an earlier version\r\n");
+      const w = derive(["--out", OUT]);
+      done(w);
+      assert.deepStrictEqual(Object.entries(states(w)).filter(([, x]) => x !== "unchanged").sort(), [[MAT + ".mtr", "written"], [SHADER, "written"]].sort());
+      fs.writeFileSync(path.join(OUT, SHADER), "// someone's own shader\r\n");
+      const before = snapshot(OUT);
+      const x = derive(["--out", OUT]);
+      assert.strictEqual(x.code, 1, "build_derived.js exited " + x.code);
+      assert.match(x.err, /vsn5uvmove\.shd is there and wasn't made by this generator: nothing written/);
+      assert.deepStrictEqual(snapshot(OUT), before);
+    } finally {
+      fs.rmSync(file, { force: true });
+      fs.rmSync(path.join(ROWS, "placeables.chkuv.txt"), { force: true });
       for (const f of own) for (const dir of [FILES, OUT]) fs.rmSync(path.join(dir, f), { force: true });
     }
   });

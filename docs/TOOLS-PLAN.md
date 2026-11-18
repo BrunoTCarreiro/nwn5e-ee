@@ -1766,3 +1766,77 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
   - Test row (for the board: #39, stream animation): BL-1 - a dome at Opacity 0.1, Soft, Additive, with the new effect's
     sparks inside, Play in game: faint and glowing, the sparks seen through it; then Normal: cut at alpha 0.2 as before
     (at Opacity 0.1 all or nearly all of it), whatever's drawn hiding the sparks.
+
+## Moving textures in the generators (2026-11-18, #39; M2)
+
+  Spec: the design's "Texture motion", "Calls I made" and addenda (a) and (b)
+  (docs/superpowers/specs/2026-11-18-mesh-texture-animation-and-tint-design.md); plan Task M2. The owner, 2026-11-18:
+  "for the animated textures: 1. scrolling, scaling (breathing), rotating", "for the breathing and rotating I was
+  thinking about the textures on the meshes though"; Q1 route A (an EE material and a shader of ours; a flipbook, B, the
+  fallback if TMO-1 fails). NWN:EE has no UV-motion setting (`animateuv` & co. are KotOR's).
+  - *Calls:*
+    - a part's `"motion"`: `{ "scroll": [u, v] (repeats a second, -10..10), "turn": <degrees a second, -720..720>,
+      "breathe": 0..0.9, "rate": <breaths a second, 0.05..5> }`, any part, a shape too: it moves every textured mesh of the
+      part. Absent or still: nothing written changes. Written after `tint`, its non-zero keys only (the rate while it
+      breathes);
+    - one maths, floatdisk.js `uvMotion`, round the pivot p - the middle of the mesh's UV box (`uvPivot`): s = 1 + breathe
+      sin(2 pi rate t), uv' = R(-turn t) (uv - p) / s + p - scroll t. + scroll moves the picture along +u / +v, + turn
+      turns it counter-clockwise (seen from above, From above), breathing grows and shrinks the picture, not the mesh;
+    - in game: each textured mesh's bitmap becomes `n5u_` + 12 hex digits of its texture, the motion and its pivot (each
+      number to 0.001: one rule with the material's text, so the name fixes the bytes); `n5u_<...>.mtr` says
+      `customshadervs vsn5uvmove`, `customshaderfs fslit` (the game's lit fragment shader), `texture0 <the real
+      texture>`, and `parameter float` n5ScrollU, n5ScrollV, n5Turn, n5Breathe, n5Rate, n5PivotU, n5PivotV. The game
+      attaches a material by its mesh's texture name (its ice tiles, oldf_head, gui_cg_color);
+    - `data\files\vsn5uvmove.shd`, ours, committed and listed in floatdisk\made.txt: original text (`motionShaderText`)
+      - its first line its mark - with the defines the game's lit vertex shader takes, `#include "inc_standard"` (and
+      `inc_uniforms`, guarded), the seven uniforms, `ApplyStandardShader()`, then `vVertexTexCoords` moved by the maths
+      with t = `float(worldtimerTimeOfDay) * 0.001` - the game's world clock, as its water's shader takes it. The scroll,
+      the turn and the breath are taken within one repeat, one turn and one breath (`fract`, `mod`), so a float keeps
+      its precision late in a game day: the same picture, as the texture repeats (floatdisk check runs its main as JS
+      against uvMotion);
+    - the materials and the shader go beside what names them: a placeable's or the disk's models in data\files (the
+      materials git-ignored, `/data/files/n5u_*`), `--drafts`, a spell mesh's `--saved`. A material is ours by its name,
+      the shader by its first line or made.txt (files.js); build_derived carries both. The Floating Disk's own build
+      never calls the listed shader unused;
+    - the probe (TMO-1) decides the route before the bench's side (M3): `n5m_uvprobe`, six faint domes (radius 0.4,
+      alpha 0.3, 1 m apart along x). The texture0 route, 0.4 m high: 1 Soft Additive Wrapped scrolling up (0, 0.25),
+      2 fxpa_globe From above turning 30 a second, 3 Soft Additive From above breathing 0.3 at 0.5 a second; the copy
+      route, 0.7 m high (no texture0: the texture copied under the material's name with its TXI - the soft one made
+      again, fxpa_globe's from the game), the same the other way: 4 scrolling down, 5 turning -30, 6 breathing at 1 a
+      second. Each side reads scroll, turn, breathe from its end in, so a side that moves says which it is, and the
+      heights tell the routes apart when nothing does. Both textures are additive (the Soft one's n5s_ TXI, fxpa_globe's
+      own), so it also shows whether a texture's blending survives the material (the owner's 0.99.72 finding: only an
+      additive TXI escapes the 0.2 cut and the depth writing);
+    - no game-side change: `git diff --stat -- src` on anim empty before and after.
+  - *Built (anim, the commit carrying this section):* floatdisk.js MOTION_KEYS / MOTION_INFO / MOTION_PARAMS /
+    MOTION_TEXTURE / MOTION_SHADER, readMotion, hasMotion, cleanMotion, uvPivot, uvMotion, motionName,
+    motionMaterialText, motionShaderText, isMotionShader, moveTextures; readPart's and compositionText's `motion`.
+    files.js motionMaterials, motionWrites, motionLines, motionJson and the "material" / "shader" ownership; both
+    build.js (after the bakes and the shipped textures, so texture0 is the real one; `--json`'s `materials`; the
+    Composer's spell mesh counts a material's texture0 as named by its draft); project.js projectText; build_derived's
+    kinds; `data/files/vsn5uvmove.shd`; `.gitignore`; `tools/data/composer/uvprobe.js`. floatdisk check +10 (96), composer
+    check +2 (24), build check +1 (12), composer build check +6 (26), derived check +1 (17); each new check seen failing
+    first. The Floating Disk's 13 files unchanged.
+  - *What changes:* nothing for a part without a motion (every model, draft and project byte for byte). The bench's
+    Composer doesn't know `motion` yet (M3: the card, the stage, Play in game): a part with one shows and plays unmoved
+    there, and only build.js writes its material.
+  - *Limits:* untested in game until TMO-1 - our shader compiling and running on an effect's mesh and a placeable's,
+    `texture0` binding, the texture's TXI (additive, a library texture's own procedure) applying under the material. The
+    motion runs on the world clock: it doesn't start with the effect, and may jump once a game day when the clock wraps
+    (inferred). Each mesh turns and breathes round its own UV box's middle: a game model's meshes that share a texture get
+    a material each (plc_a03's three meshes, two textures: three materials). A clamped texture (the GUI's) would wrap
+    where the stage's maths slides it off. A changed shader may need the game restarted.
+  - *Native option, not built:* fxpa_globe already animates in game by its TXI's `proceduretype arturo` (the game's own
+    ripple; `cycle` is its flipbook) - a texture with such a TXI moves with no material at all, and keeps doing so under
+    our motion when its TXI applies.
+  - *For the bench:* nothing until M3. *For the game:* nothing for the DLL; the probe's files go into the bench build only.
+  - *TMO-1's setup:* from the anim worktree, `node tools\data\composer\uvprobe.js --saved ..\nwn5e-ee\build\vfxedit\saved`
+    (the bench build's; it refuses any other folder, writes only its own files there and adds `n5m_uvprobe` to
+    vfxedit\meshes.txt), then restart vfx_bench.bat.
+  - Test rows (for the board: #39, stream animation; TMO-2 and TMO-3 after M3):
+
+    | ID | Setup | Do | Expect |
+    |---|---|---|---|
+    | TMO-1 | The probe written (above); VFX Bench restarted: New, Type Stays (D), + mesh `n5m_uvprobe`, Permanent (until Stop), Name `n5_uvprobe`, Save; the game started, `!test level1ranger` | Play in game; watch each dome; look along the row from each end (the new effect's sparks behind the domes); Stop in game, quit, read the game's log for `vsn5uvmove`, `n5u_`, `shader` | Per dome: textured, moving as named, faint with the sparks seen through it; no shader error in the log. The low domes moving: route A as built (texture0); only the tall: the copy route (M3 copies the texture); none: the flipbook fallback (B); textured and moving but hiding the sparks: its TXI didn't follow (M3 writes it beside the n5u_ name) |
+    | TMO-2 | (after M3) the Composer: a dome, Texture `fxpa_symbl_003`, From above; Texture motion: Turn 30, Breathe 0.2 | Play in game | the glyph turns and pulses, additive as the game's own globe |
+    | TMO-3 | (after M3) a placeable with a moving texture | Save and build; after the next install, place it | it moves (the data\files route) |

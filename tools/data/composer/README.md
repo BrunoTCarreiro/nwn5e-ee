@@ -44,7 +44,8 @@ made of the game's parts) and the textures it generates (`n5p_*`, `n5s_*`), whic
   - A variant with no parts can be in the file (New project writes one), but `build.js` refuses the whole build
     while one has none (`variants[k].parts: at least one part`): add a part before the first Save and build.
 - **The parts** are composition.json's: `note`, `model` (a game model, or a list of them for a weapon's pieces),
-  `file` or `shape` (Shapes, below), `at`, `turn`, `scale`, `tilt`, a dyed part's `colours`, and a `tint`.
+  `file` or `shape` (Shapes, below), `at`, `turn`, `scale`, `tilt`, a dyed part's `colours`, a `tint`, and a `motion`
+  (Moving textures, below).
   - A `file` is your own `.mdl`, relative to this folder, so `parts/my_crate.mdl` is `tools\data\composer\parts\my_crate.mdl`.
   - The rules for your own files (units, axes, textures) are the Floating Disk's (`tools\data\floatdisk\README.md`).
   - A dyed part (a helmet: the game has its texture only as a PLT) is baked into a texture of its own, `n5p_` and 12
@@ -113,6 +114,47 @@ groups, since the game's model writer (`WriteVfxModel`) writes none for a plane.
 
 The Floating Disk's README ("Shapes") has every field and its bounds.
 
+## Moving textures
+
+A part's `motion` (M2) scrolls, turns and breathes the pictures on its textured meshes - a shape's too:
+
+```json
+{ "shape": { "type": "dome", "radius": 4.57, "alpha": 0.1, "blend": "additive" }, "at": [0, 0, 0], "motion": { "scroll": [0, 0.25] } }
+```
+
+- `scroll` `[u, v]` (repeats a second), `turn` (degrees a second), `breathe` (0-0.9) and `rate` (breaths a second). Only
+  what moves is written; a part without it builds as before, byte for byte.
+- NWN:EE has no setting for it, so each textured mesh names a material instead, `n5u_` and 12 hex digits (its texture,
+  the motion and its pivot): `n5u_<...>.mtr` pairs our vertex shader, `vsn5uvmove.shd`, with the game's lit fragment
+  shader and names the real texture (`texture0`).
+- **What it brings:** the materials and the shader, beside what names them - a placeable's models in `data\files` (the
+  materials git-ignored, `/data/files/n5u_*`, made for every build by `build.bat`; the shader committed there and listed
+  in `tools\data\floatdisk\made.txt`), a spell mesh's draft in `--saved`. A material is ours by its name, the shader by
+  its first line. A texture of your own file's part is still copied beside the draft, and stays ours there (its draft
+  names the material, the material the texture).
+- The VFX Bench's Composer shows and plays a moving texture from M3 on; until then only `build.js` makes the material.
+- The maths, the bounds and the files: the Floating Disk's README, "Moving textures".
+
+## The probe (TMO-1)
+
+`uvprobe.js` writes the in-game test that decides how a moving texture reaches the game, before the bench's side is
+built: `n5m_uvprobe`, a spell mesh of six faint domes 1 m apart along x, three by the `texture0` route (0.4 m high) and
+three by the copy route (0.7 m high: no `texture0`, the texture copied under the material's name with its TXI). Each
+side, from its end in: a Soft Additive dome scrolling (up / down), `fxpa_globe` From above turning (counter-clockwise /
+clockwise), a Soft Additive dome From above breathing (a breath every 2 s / every second).
+
+```
+node tools\data\composer\uvprobe.js --saved <nwn5e-ee>\build\vfxedit\saved [--game <folder>] [--tools <nwn5e-tools>]
+```
+
+- It refuses a folder that isn't a bench build's `vfxedit\saved`, and writes only there: the draft (the Composer's
+  mark), the Additive soft texture and its TXI, the six materials, the shader and the copy route's textures (the soft
+  one made again; `fxpa_globe` from the game, its TXI with it - never into the repo). It adds `n5m_uvprobe` to the
+  bench's `vfxedit\meshes.txt`, so **+ mesh** offers it once the bench is restarted.
+- It overwrites only its own: the draft by its mark, the shader by its first line, the rest by their `n5s_` / `n5u_`
+  names. It prints which dome is which.
+- TMO-1 (TOOLS-PLAN): as a mesh beat in a new effect, Play in game; which domes move says the route.
+
 ## What each kind builds
 
 **A placeable:** each variant becomes one of the game's placeables.
@@ -136,11 +178,13 @@ The Floating Disk's README ("Shapes") has every field and its bounds.
 - A shape's soft texture (`n5s_*.tga`) goes into `data\files` beside the model too. Like a bake it's build output:
   `.gitignore` keeps it out (`/data/files/n5s_*`), `made.txt` doesn't list it, and `build.bat` makes it with the
   models for every build.
+- A moving texture's material (`n5u_*.mtr`) goes there too, build output as well (`/data/files/n5u_*`); the shader it
+  names, `vsn5uvmove.shd`, is committed there already.
 
 **A spell mesh:** each variant becomes a draft of its meshes, `<saved>\<model>.vfx`, in the VFX Bench's
 `vfxedit\saved\`. The game writes its model there when it runs. An emitter's chunk can name it, and an effect can
 carry it as a mesh beat. Textures of your own files' parts are copied in beside the draft, and so are a dyed part's
-baked textures and a shape's soft texture: `--saved` takes them all.
+baked textures, a shape's soft texture and a moving texture's materials and shader: `--saved` takes them all.
 
 ## Rows: 14100-14199
 
@@ -210,11 +254,13 @@ node tools\data\composer\build.js tools\data\composer\web.json --saved <nwn5e bu
 - `--json` prints the summary as one line of JSON instead of text (an error as `{ "error": ... }`). Its variants carry
   what the bench's stage shows: parts, meshes, triangles, how tall, the top, and each part's size and reach past the
   guide. Its `baked` lists a dyed part's textures (`texture`, `plt`, `colours`), as the text's `texture n5p_...` lines,
-  and its `shapes` a shape's soft textures (`texture`, `colour`), as the text's `texture n5s_...` lines.
+  its `shapes` a shape's soft textures (`texture`, `colour`), as the text's `texture n5s_...` lines, and its
+  `materials` a moving texture's materials (`material`, `texture`, `motion`, `pivot`), as the text's `material n5u_...`
+  lines.
 - `--game`, `--tools`, `--reader`, `--files` and `--rows` work as the Floating Disk's `build.js` options.
 - It never overwrites a file it didn't make: a model, `.pwk`, rows file or draft must carry its mark line. A texture
-  must be listed in `made.txt` or, beside a draft, named by this project's draft; a baked one or a shape's soft texture
-  is ours by its name.
+  must be listed in `made.txt` or, beside a draft, named by this project's draft (or by a material the draft names); a
+  baked one, a shape's soft texture or a moving texture's material is ours by its name, the shader by its first line.
 - Every file is checked before any is written: a refused build writes nothing.
 - When a model's name changes (a second variant added: `plc_n5crates` becomes `plc_n5crates_1`), the old files are
   listed as no longer used. They aren't deleted.
@@ -224,4 +270,5 @@ node tools\data\composer\build.js tools\data\composer\web.json --saved <nwn5e bu
 
 `node tools\data\composer\check_build.js` builds on a temporary copy and checks the whole generator, a dyed part's
 bakes and a dome's mesh and texture too (a spell mesh's and a placeable's; soft, none, a library texture, and a
-PLT-only one refused). It needs the game, and prints `skip` without it.
+PLT-only one refused), a moving texture's materials and shader (a spell mesh's dome, a placeable's crate, none without
+a motion), and the probe (into a temporary `vfxedit\saved` only). It needs the game, and prints `skip` without it.
