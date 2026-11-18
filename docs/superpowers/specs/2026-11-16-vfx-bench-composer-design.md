@@ -1280,3 +1280,34 @@ The dome is usable in the bench after S4. S5 adds the rest, in that order:
   tilesets rely on it, so it is expected).
 - A library texture's own alpha isn't known to the generator: the shape is drawn as see-through whenever it has a
   texture or an Opacity below 1.
+
+## Addendum 2026-11-18 (c): the rulings made while S1-S5 were built
+
+Decisions the coordinator took during the build (each in the plan's ledger, with what it costs if wrong). Where an
+earlier section of this design says otherwise, this section wins.
+
+- **`n5s_` textures are git-ignored build output**, like the `n5p_` bakes: a pure function of the shape's colour,
+  rebuilt by build.bat (build_derived) for placeables and the Floating Disk, made beside a spell mesh's draft in
+  `vfxedit\saved`, and by Play into `vfxedit\`. This replaces "committable" in call 8 and the Zone of Truth recipe's
+  shipping line. **Shipping a spell mesh that names one** (none is shipped yet - Q5 is "no") will need its own route:
+  commit the texture under an `n5t_` name and point the bitmap at it, or a .gitignore exception for that file - decided
+  when a shape effect first ships.
+- **Spell-mesh planes carry neither smoothing groups nor `transparencyhint`.** The game's effect writer (WriteVfxModel)
+  writes group 1 on every plane face and no hint; a placeable's dome gets inside faces in group 2 and hint 1 from our
+  own writer. No game-side change now: the in-game test (SH-3) decides. If a spell-mesh dome darkens at low Glow, the
+  fallback is its inside as a mesh of its own (no game change); if it sorts wrongly against other see-through effects,
+  `transparencyhint` on planes is a small, announced vfx_model change.
+- **A disc's and a ring's Soft is brightest at the rim** (the ring's outer edge), fading in - S5's table. Addendum (b)'s
+  "from the middle out" was a wording slip. The bright edge marks the area's boundary, as the dome's ground ring does.
+- **A shape refuses** `scale` and `colours` (its radius / height size it, its colour is on it), a texture name that
+  starts `n5s_` or is `null`, and a library texture the game has only as a PLT (a shape takes no dyes).
+- **The card refuses a value past its field's bounds as typed** (before rounding), and a fraction in a whole-number
+  field; a Height left at its default follows the Radius.
+- **Nothing rests on a volume shape** (dome, sphere, cylinder, cone - see-through volumes): a ring or a disc added
+  inside a dome lies at the dome's foot, not on its shell. A flat shape (disc, ring) still carries what's put on it, so
+  a ring on a disc sits 2 cm above it rather than flickering in the same plane; other parts stack as before.
+- **A library texture's tint** (Colour, through the material and glow) is the game's; the bench's stage draws a texture
+  as it is. SH-3 checks the tint in game.
+- **A shape at Opacity 1 with a texture** is still drawn see-through on the stage, as the game blends it.
+- **Deferred:** the Part card shows two "Height (m)" fields for a dome (the place's and the shape's) - the owner's call
+  whether to rename one; thumbnails kept from before front faces / tiling aren't redrawn (harmless).

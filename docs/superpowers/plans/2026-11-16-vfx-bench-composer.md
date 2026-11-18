@@ -3255,3 +3255,21 @@ This section overrides the S-tasks' text where they differ; each task's brief ca
 ### Not in S1-S5
 - A scrolling texture: its own task after the dome's in-game test (our writers write no UV animation; a spell mesh would
   need an announced game-side change).
+
+## Addendum 2026-11-18 (c): rulings made during S1-S5 (overrides the S-tasks' text and addendum (b) where they differ)
+
+**Spec:** the design's "Addendum 2026-11-18 (c)". S1-S5 are built (anim 02882fe..8802e1f plus the final fix wave; tools
+a14463b..b1ccbfd plus the final fix wave).
+
+- **`n5s_` is git-ignored build output** (`/data/files/n5s_*` in .gitignore; check_derived and floatdisk check_build
+  treat it like `n5p_`). Replaces "Before starting"'s and the Global constraints' "committable" / "may be committed".
+  A shipped spell mesh naming one needs its own route (an `n5t_` copy, or a .gitignore exception) - not yet needed.
+- **Spell-mesh planes: no smoothing groups, no transparencyhint** (WriteVfxModel's) - the in-game test (SH-3) decides;
+  fallbacks in the design's addendum (c).
+- **Flats' Wrapped v: 0 at the rim** (S5's table) - addendum (b)'s S5 line "from the middle out" is withdrawn.
+- **A shape refuses** `scale`, `colours`, `n5s_` / `null` texture names and a PLT-only library texture; the card
+  refuses values past their bounds as typed; whole fields stay whole.
+- **The final review's fix wave:** nothing rests on a volume shape (a flat one still carries); the library-texture tint is the game's (the stage draws
+  the texture as it is); a textured shape at Opacity 1 is blended on the stage; the tooltips name every type; the
+  summary check covers a disc and a ring.
+- **Counts after S5:** floatdisk check 68; check_composer 38; composer_check 89 (before the fix wave).
