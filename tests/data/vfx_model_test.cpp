@@ -2390,3 +2390,194 @@ TEST(VfxGameEffectsBlast) {
   CHECK_EQ(Contains(WriteVfxDraft(protevil), "\ndeadspace = 0\nblast_radius = 8\nblast_length = 1.3\n"), true);
   CHECK_EQ(Contains(WriteVfxModel(protevil, "n5t"), "  blastRadius 8\n  blastLength 1.3\n"), true);
 }
+
+// --- A plane's transparencyhint (the owner, 2026-11-18: n5_zot's see-through meshes cut away with jagged edges, a rune
+// emitter hidden behind them - "go"): without one the game draws a mesh solid - its shader drops a pixel where texture x
+// material alpha <= 0.2 and writes depth; with one it is see-through (nwn5e's placeables with 1 blend in game). The game's
+// own: 0 to 5, an integer (vdr_globe01's globe 1, vdr_magearmor2's shields 2). Every reader and writer keeps 0 to 5:
+// below 0 (or not a number) 0, above 5 5. ---
+
+// The draft: "transparencyhint = N" with the plane's material lines - after "render = 0" (where it would be), before a
+// mesh beat's "mesh = " - only when it isn't 0, so every draft before it keeps its bytes; read back as written. Read as the
+// game reads it: an integer's leading digits ("1.7" is 1), not a number 0.
+TEST(VfxPlaneTransparencyHintThroughTheDraft) {
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxBinaryModel(PlaneModel(true), &effect, &error) && effect.planes.size() == 1, true);
+  if (effect.planes.size() != 1) return;
+  CHECK_EQ(effect.planes[0].transparency_hint, 0);
+  effect.planes[0].transparency_hint = 1;
+  const std::string draft = WriteVfxDraft(effect);
+  CHECK_EQ(Contains(draft, "bitmap = fxpa_fern\ntransparencyhint = 1\nverts ="), true);
+  VfxEffect back;
+  CHECK_EQ(ReadVfxDraft(draft, &back, &error) && back.planes.size() == 1 && back.planes[0].transparency_hint == 1, true);
+  CHECK_EQ(WriteVfxDraft(back) == draft, true);
+  // With the material and render 0: after them.
+  VfxEffect lit;
+  CHECK_EQ(ReadVfxBinaryModel(PlaneModel(true, 0x21, true), &lit, &error) && lit.planes.size() == 1, true);
+  if (lit.planes.size() != 1) return;
+  lit.planes[0].render = false;
+  lit.planes[0].transparency_hint = 2;
+  const std::string hidden = WriteVfxDraft(lit);
+  CHECK_EQ(Contains(hidden, "selfillum = 0 1 0.5\nalpha = 0.6\nrender = 0\ntransparencyhint = 2\nverts ="), true);
+  CHECK_EQ(ReadVfxDraft(hidden, &back, &error) && back.planes.size() == 1 && back.planes[0].transparency_hint == 2 &&
+               !back.planes[0].render && WriteVfxDraft(back) == hidden,
+           true);
+  // A mesh beat's: before its mesh line.
+  VfxEffect beat = BeatEffect();
+  beat.planes[0].transparency_hint = 1;
+  const std::string beat_draft = WriteVfxDraft(beat);
+  CHECK_EQ(Contains(beat_draft, "bitmap = fxpa_fern\ntransparencyhint = 1\nmesh = n5m_test\n"), true);
+  CHECK_EQ(ReadVfxDraft(beat_draft, &back, &error) && back.planes.size() == 1 && back.planes[0].transparency_hint == 1 &&
+               WriteVfxDraft(back) == beat_draft,
+           true);
+  // None: no line - the bytes before it (plane_beat.vfx is BeatEffect's draft).
+  CHECK_EQ(Contains(WriteVfxDraft(BeatEffect()), "transparencyhint"), false);
+  CHECK_EQ(WriteVfxDraft(BeatEffect()) == FixtureText("tests/data/fixtures/plane_beat.vfx"), true);
+  // Every value as read, 0 to 5; below 0 or not a number 0, above 5 5, a fraction its integer.
+  const auto read = [](const std::string& value) {
+    VfxEffect e;
+    std::string why;
+    const bool ok = ReadVfxDraft("name = x\n[plane p]\ntransparencyhint = " + value + "\n", &e, &why) && e.planes.size() == 1;
+    return ok ? e.planes[0].transparency_hint : -100;
+  };
+  for (int v = 0; v <= 5; ++v) CHECK_EQ(read(std::to_string(v)), v);
+  CHECK_EQ(read("6"), 5);
+  CHECK_EQ(read("99999999999"), 5);
+  CHECK_EQ(read("-1"), 0);
+  CHECK_EQ(read("-99999999999"), 0);
+  CHECK_EQ(read("x"), 0);
+  CHECK_EQ(read(""), 0);
+  CHECK_EQ(read("1.7"), 1);
+  CHECK_EQ(read("+2"), 2);
+  // In memory past the range (never from a reader): written as a reader would keep it; below 0, no line.
+  VfxEffect wide = BeatEffect();
+  wide.planes[0].transparency_hint = 9;
+  CHECK_EQ(Contains(WriteVfxDraft(wide), "\ntransparencyhint = 5\n"), true);
+  wide.planes[0].transparency_hint = -1;
+  CHECK_EQ(WriteVfxDraft(wide) == WriteVfxDraft(BeatEffect()), true);
+}
+
+// The model: "  transparencyhint N" on the plane's trimesh after its material lines (render, shadow, selfillumcolor,
+// alpha), only when it isn't 0 - every model before it keeps its bytes; the ASCII reader takes it back (any case, the
+// same rule), and so through the model to the draft.
+TEST(VfxModelWritesTransparencyHint) {
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxBinaryModel(PlaneModel(true, 0x21, true), &effect, &error) && effect.planes.size() == 1, true);
+  if (effect.planes.size() != 1) return;
+  const std::string before = WriteVfxModel(effect, "n5t");
+  effect.planes[0].transparency_hint = 1;
+  const std::string model = WriteVfxModel(effect, "n5t");
+  CHECK_EQ(Contains(model, "  render 1\n  shadow 0\n  selfillumcolor 0 1 0.5\n  alpha 0.6\n  transparencyhint 1\n  verts 4\n"), true);
+  // Only that line more.
+  const size_t at = model.find("  transparencyhint 1\n");
+  CHECK_EQ(at != std::string::npos && model.substr(0, at) + model.substr(at + 21) == before, true);
+  VfxEffect back;
+  CHECK_EQ(ReadVfxAsciiModel(model, &back, &error) && back.planes.size() == 1 && back.planes[0].transparency_hint == 1, true);
+  if (back.planes.size() == 1) CHECK_EQ(Contains(WriteVfxDraft(back), "alpha = 0.6\ntransparencyhint = 1\nverts ="), true);
+  // A plane with the defaults: after its shadow line.
+  VfxEffect plain;
+  CHECK_EQ(ReadVfxBinaryModel(PlaneModel(true), &plain, &error) && plain.planes.size() == 1, true);
+  if (plain.planes.size() != 1) return;
+  CHECK_EQ(Contains(WriteVfxModel(plain, "n5t"), "transparencyhint"), false);
+  plain.planes[0].transparency_hint = 2;
+  CHECK_EQ(Contains(WriteVfxModel(plain, "n5t"), "  bitmap fxpa_fern\n  render 1\n  shadow 0\n  transparencyhint 2\n  verts 4\n"), true);
+  plain.planes[0].transparency_hint = 9;  // in memory past the range: as a reader would keep it
+  CHECK_EQ(Contains(WriteVfxModel(plain, "n5t"), "  shadow 0\n  transparencyhint 5\n  verts 4\n"), true);
+  plain.planes[0].transparency_hint = -1;
+  CHECK_EQ(Contains(WriteVfxModel(plain, "n5t"), "transparencyhint"), false);
+  // The ASCII reader: a trimesh's, any case, the same rule; none is 0.
+  const auto one = [&](const std::string& lines) {
+    VfxEffect e;
+    std::string why;
+    const bool ok = ReadVfxAsciiModel("newmodel t\nbeginmodelgeom t\nnode dummy t\n  parent NULL\nendnode\nnode trimesh m\n"
+                                      "  parent t\n  bitmap fxpa_globe\n" + lines +
+                                      "  verts 3\n    0 0 0\n    1 0 0\n    0 1 0\n  faces 1\n    0 1 2 1 0 1 2 1\nendnode\n"
+                                      "endmodelgeom t\ndonemodel t\n",
+                                      &e, &why);
+    return ok && e.planes.size() == 1 ? e.planes[0].transparency_hint : -100;
+  };
+  CHECK_EQ(one(""), 0);
+  CHECK_EQ(one("  transparencyhint 1\n"), 1);
+  CHECK_EQ(one("  TransparencyHint 2\n"), 2);
+  CHECK_EQ(one("  transparencyhint 5\n"), 5);
+  CHECK_EQ(one("  transparencyhint 7\n"), 5);
+  CHECK_EQ(one("  transparencyhint -3\n"), 0);
+  CHECK_EQ(one("  transparencyhint x\n"), 0);
+}
+
+// A compiled model's: the mesh header's dword at +0x70 (Torlack's TransparencyHint, after render at +0x6C; the game's
+// parser keeps transparencyhint beside shadow, beaming and render in the same order) - a plain mesh's, and with any_mesh
+// an animated one's too. Not the render beside it, nor the dword after it. Below 0 (its bytes as a signed integer) 0;
+// above 5 5.
+TEST(VfxReadsTransparencyHintFromACompiledModel) {
+  const size_t mh = 0x200 + 0x60;
+  const auto read = [&](uint32_t hint, uint32_t flags = 0x21, uint32_t after = 0) {
+    std::string b = PlaneModel(true, flags);
+    memcpy(&b[mh + 0x70], &hint, 4);
+    memcpy(&b[mh + 0x74], &after, 4);
+    VfxEffect effect;
+    std::string error;
+    return ReadVfxBinaryModel(b, &effect, &error, flags != 0x21) && effect.planes.size() == 1 ? effect.planes[0].transparency_hint
+                                                                                              : -100;
+  };
+  CHECK_EQ(read(0), 0);  // render (+0x6C) is 1
+  CHECK_EQ(read(1), 1);
+  CHECK_EQ(read(2), 2);
+  CHECK_EQ(read(5), 5);
+  CHECK_EQ(read(6), 5);
+  CHECK_EQ(read(0xFFFFFFFFu), 0);  // -1
+  CHECK_EQ(read(0x80000000u), 0);
+  CHECK_EQ(read(0, 0x21, 3), 0);  // the dword after it isn't it
+  CHECK_EQ(read(1, 0xA1), 1);     // an animated mesh (vff_explword's Plane04 has 1)
+  // Through the draft and the model.
+  std::string b = PlaneModel(true);
+  const uint32_t one = 1;
+  memcpy(&b[mh + 0x70], &one, 4);
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxBinaryModel(b, &effect, &error), true);
+  CHECK_EQ(Contains(WriteVfxDraft(effect), "bitmap = fxpa_fern\ntransparencyhint = 1\nverts ="), true);
+  CHECK_EQ(Contains(WriteVfxModel(effect, "n5t"), "  shadow 0\n  transparencyhint 1\n  verts 4\n"), true);
+}
+
+// The anchor: the game's own see-through effect meshes - vdr_globe01's globe (Cylinder01, fxpa_Globe) has 1,
+// vdr_magearmor2's eight shields 2; vps_entangle's vines (#161's planes) none. Only where the game is (NWN_GAME_DIR, or
+// Steam's folder); nothing of it is kept.
+TEST(VfxGameEffectsTransparencyHint) {
+  const char* given = getenv("NWN_GAME_DIR");
+  const std::string game = given && *given ? given : "X:\\SteamLibrary\\steamapps\\common\\Neverwinter Nights";
+  if (!std::ifstream(game + "\\data\\nwn_base.key")) {
+    printf("    (no game at %s: skipped)\n", game.c_str());
+    return;
+  }
+  const std::wstring dir(game.begin(), game.end());
+  GameResources resources(dir, GameResources::EeKeyFiles(), {dir + L"\\ovr"});
+  const auto effect = [&](const char* model, VfxEffect* out) {
+    std::string bytes, source, error;
+    return resources.Read(model, kResourceTypeMdl, &bytes, &source) && ReadVfxBinaryModel(bytes, out, &error);
+  };
+  VfxEffect globe, armor, entangle;
+  CHECK_EQ(effect("vdr_globe01", &globe) && effect("vdr_magearmor2", &armor) && effect("vps_entangle", &entangle), true);
+  const VfxPlane* cylinder = nullptr;
+  for (const VfxPlane& p : globe.planes) {
+    if (p.name == "Cylinder01") cylinder = &p;
+  }
+  CHECK_EQ(cylinder != nullptr, true);
+  if (cylinder) {
+    printf("    vdr_globe01 Cylinder01: bitmap %s, transparencyhint %d\n", cylinder->bitmap.c_str(), cylinder->transparency_hint);
+    CHECK_EQ(cylinder->transparency_hint, 1);
+  }
+  int shields = 0;
+  for (const VfxPlane& p : armor.planes) {
+    if (p.name.rfind("shield", 0) == 0 && p.transparency_hint == 2) ++shields;
+  }
+  CHECK_EQ(shields, 8);
+  CHECK_EQ(entangle.planes.size(), 6u);
+  for (const VfxPlane& p : entangle.planes) CHECK_EQ(p.transparency_hint, 0);
+  CHECK_EQ(Contains(WriteVfxDraft(globe), "\ntransparencyhint = 1\n"), true);
+  CHECK_EQ(Contains(WriteVfxModel(globe, "n5t"), "\n  transparencyhint 1\n  verts "), true);
+  CHECK_EQ(Contains(WriteVfxDraft(entangle), "transparencyhint") || Contains(WriteVfxModel(entangle, "n5t"), "transparencyhint"),
+           false);
+}

@@ -167,6 +167,14 @@ struct VfxPlane {
   float selfillum[3] = {0.0f, 0.0f, 0.0f};
   float alpha = 1.0f;
   bool render = true;
+  // The owner, 2026-11-18 (n5_zot's see-through meshes cut away with jagged edges, a rune emitter hidden behind them -
+  // "go"): its transparencyhint, the game's word for a see-through mesh. 0 (the default): the game draws it solid - its
+  // mesh shader drops a pixel where texture x material alpha <= 0.2 and writes depth; above 0 it is see-through (nwn5e's
+  // placeables with 1 blend in game; vdr_globe01's globe has 1, vdr_magearmor2's shields 2), and a node's mesh children
+  // are drawn in its order (MdlNode::ReorderChildren: the higher later). The compiled mesh header's +0x70 (Torlack's
+  // TransparencyHint; the game's parser puts it beside shadow, beaming and render, as the compiled header has them). An
+  // integer kept as read, 0 to kVfxTransparencyHintMax (the game's own models' range), by every reader and writer.
+  int transparency_hint = 0;
   // Its node's flags as the compiled model has them (0x21 a plain mesh; 0x61 skin, 0xA1 animated, 0x121 dangly - read
   // with any_mesh); 0 from a draft or an ASCII model. Never written: the dev layer logs it.
   uint32_t flags = 0;
@@ -185,6 +193,10 @@ struct VfxPlane {
 // (randomDirection) never ends for some particles - the game would hang (simulated, 0.42.4; the
 // game's own effects use 0.0037, 0.1745 and 0.2094).
 constexpr float kVfxDeadspaceMax = 0.39f;
+
+// A plane's transparencyhint as every reader and writer keeps it: the game's own models use 0 to 5 (its 25,598 compiled
+// ones: 0 197,165 meshes, 1 18,996, 2 612, 3 5, 4 3, 5 7; its ASCII ones 0 to 2). Below 0: 0; above the most: the most.
+constexpr int kVfxTransparencyHintMax = 5;
 
 // A burst's (Explosion's) rate is on this long round its own detonate event when an effect has a burst that starts late
 // (the owner's phases, 2026-11-14): longer than a frame, so the event finds it on; short, so another burst's event
