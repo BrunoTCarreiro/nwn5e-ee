@@ -19,8 +19,10 @@
 // A shape part (a dome, sphere, cylinder, cone, disc or ring: floatdisk.js makes its mesh from its numbers) with a soft
 // texture names n5s_<12 hex digits of its colour>.tga, generated here from its colour - original, but build output like
 // a bake - and written beside what names it: a placeable's models in data\files (git-ignored: build.bat makes it for
-// every build), a spell mesh's drafts in <saved>. A library texture is named only; none is written for it (one the game
-// has only as a PLT is refused).
+// every build), a spell mesh's drafts in <saved>. An Additive shape's (M1b: its blend hashed into the name too) has its
+// TXI beside it, n5s_<...>.txi saying "blending additive" - the game's additive path: faint, see-through, no 0.2 alpha
+// cut - written wherever its texture is (files.js shapeWrites). A library texture is named only; none is written for it
+// (one the game has only as a PLT is refused).
 //
 // The parts are read and placed as the Floating Disk's (..\floatdisk\reader.js and floatdisk.js), through the player's
 // own game and nwn5e-ee's mesh reader; nothing of the game's is kept in the repo. The files are written by its files.js,
@@ -159,12 +161,13 @@ function main() {
 
   // Each variant: its parts placed on the guide's height, as the stage shows them, a dyed part's textures renamed and
   // baked (`baked`); then lowered by it, so the model's origin is the guide's centre at its height (a placeable's base on
-  // the ground).
+  // the ground). A spell mesh's meshes become a draft's planes (placePart's `planes`: a tinted one at the draft's default
+  // material is lifted to the game's full material before its tint - M1's review).
   const h = guide.height;
   const baked = new Map();  // a baked texture's name -> { plt, colours, bytes, label } (files.js's bakeParts)
   const shaped = new Map();  // a shape's soft texture's name -> { colour, bytes, label } (files.js's shapeTextures)
   const built = project.variants.map((v) => {
-    const parts = v.parts.map((p, i) => Object.assign(F.placePart(p, models.get(F.partKey(p)), i, h, "j"), { part: p }));
+    const parts = v.parts.map((p, i) => Object.assign(F.placePart(p, models.get(F.partKey(p)), i, h, "j", !placeable), { part: p }));
     W.shapeTextures(parts, shaped);
     W.bakeParts(parts, rd, baked);
     const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];

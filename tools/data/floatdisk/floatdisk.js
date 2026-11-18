@@ -69,6 +69,15 @@ function fullColours(c) {
   for (const l of PLT_LAYERS) out[l] = c && c[l] !== undefined && c[l] !== null ? c[l] : PLT_DEFAULTS[l];
   return out;
 }
+// A part's tint (M1, #39; the owner, 2026-11-18: "for the existing textures I'd like to add tinting options to them as
+// right now when using a texture there's no way to change the color"): [r, g, b], each 0 to 1 -> its own copy; white
+// ([1, 1, 1]) when it has none (undefined or null) - white is no tint, and no writer writes it (isWhite).
+const isWhite = (t) => Array.isArray(t) && t.length === 3 && t.every((c) => c === 1);
+function readTint(t, where) {
+  if (t === undefined || t === null) return [1, 1, 1];
+  if (!Array.isArray(t) || t.length !== 3 || !t.every((c) => isNum(c) && c >= 0 && c <= 1)) throw new Error(`${where}.tint: [r, g, b], each 0 to 1`);
+  return t.slice();
+}
 // The PLT_FIELDS whose colour differs from the defaults (the card's order), or undefined when none does.
 function cleanColours(c) {
   if (!c) return undefined;
@@ -155,9 +164,10 @@ function bakeBitmaps(meshes, colours, isPlt) {
 
 // One part of a composition (or of a Composer project: tools\data\composer\project.js) read and checked -> { source:
 // { kind: "model", model } | { kind: "models", models } (a weapon's pieces) | { kind: "file", file (absolute), given }
-// | { kind: "shape", shape (readShape's: every key) }, at, turn, scale, tilt, note, colours (the ten layers') }. `where`
-// names it in an error (stages.small[0]); `baseDir` resolves its file. A shape has no scale (its radius and height size
-// it) and no dyes (its colour is on the shape): its colours are the defaults.
+// | { kind: "shape", shape (readShape's: every key) }, at, turn, scale, tilt, note, colours (the ten layers'), tint
+// (readTint's: white without one) }. `where` names it in an error (stages.small[0]); `baseDir` resolves its file. A shape
+// has no scale (its radius and height size it), no dyes and no tint (its colour is on the shape): its colours are the
+// defaults, its tint white.
 function readPart(p, where, baseDir) {
   if (!p || typeof p !== "object" || Array.isArray(p)) throw new Error(`${where}: a part ({ "model": ..., "at": [x, y, z] })`);
   const hasModel = p.model !== undefined, hasFile = p.file !== undefined, hasShape = p.shape !== undefined;
@@ -178,6 +188,7 @@ function readPart(p, where, baseDir) {
     source = { kind: "shape", shape: readShape(p.shape, `${where}.shape`) };
     if (p.scale !== undefined) throw new Error(`${where}.scale: a shape has no scale - its radius and height size it`);
     if (p.colours !== undefined) throw new Error(`${where}.colours: a shape has no dyes - its colour is on the shape`);
+    if (p.tint !== undefined && p.tint !== null) throw new Error(`${where}.tint: a shape has no tint - its Colour is its colour`);
   }
   if (!Array.isArray(p.at) || p.at.length !== 3 || !p.at.every(isNum)) throw new Error(`${where}.at: [x, y, z] in metres`);
   const turn = p.turn === undefined ? 0 : p.turn, scale = p.scale === undefined ? 1 : p.scale;
@@ -185,7 +196,7 @@ function readPart(p, where, baseDir) {
   if (!isNum(turn)) throw new Error(`${where}.turn: degrees`);
   if (!isNum(scale) || scale <= 0) throw new Error(`${where}.scale: a number above 0`);
   if (!Array.isArray(tilt) || tilt.length !== 2 || !tilt.every(isNum)) throw new Error(`${where}.tilt: [degrees about x, degrees about y]`);
-  return { source, at: p.at, turn, scale, tilt, note: p.note || "", colours: readColours(p.colours, `${where}.colours`) };
+  return { source, at: p.at, turn, scale, tilt, note: p.note || "", colours: readColours(p.colours, `${where}.colours`), tint: readTint(p.tint, where) };
 }
 
 // composition.json's object -> { disk, stages: { empty: [], small: [part], ... } }, each part as readPart gives it.
@@ -238,12 +249,13 @@ function inline(v) {
   return JSON.stringify(v);
 }
 // composition.json's text in its own layout (the Composer saves it): two-space indents, _about a string a line, the disk
-// a key a line, each stage a part a line (note, model | file | shape, at, turn, scale, tilt, colours, then any other
-// key); arrays and a shape inline.
+// a key a line, each stage a part a line (note, model | file | shape, at, turn, scale, tilt, colours, tint - never white,
+// which is no tint - then any other key); arrays and a shape inline.
 function compositionText(c) {
-  const PART_KEYS = ["note", "model", "file", "shape", "at", "turn", "scale", "tilt", "colours"];
+  const PART_KEYS = ["note", "model", "file", "shape", "at", "turn", "scale", "tilt", "colours", "tint"];
   const part = (p) => {
-    const keys = PART_KEYS.filter((k) => p[k] !== undefined).concat(Object.keys(p).filter((k) => !PART_KEYS.includes(k) && p[k] !== undefined));
+    const written = (k) => p[k] !== undefined && !(k === "tint" && isWhite(p[k]));
+    const keys = PART_KEYS.filter(written).concat(Object.keys(p).filter((k) => !PART_KEYS.includes(k) && written(k)));
     return "{ " + keys.map((k) => JSON.stringify(k) + ": " + inline(p[k])).join(", ") + " }";
   };
   const block = (o, indent, line) => Object.keys(o).filter((k) => o[k] !== undefined).map((k, i, a) => indent + line(k, o[k]) + (i < a.length - 1 ? "," : ""));
@@ -352,11 +364,45 @@ function modelSpaceMeshes(fx, label) {
   return { meshes, lo, hi };
 }
 
+// Meshes tinted (M1): copies with their ambient, diffuse and selfillum each times `tint` ([r, g, b]) a channel, through
+// round - the game lights a textured mesh as texture x (selfillum + ambient x the area's + diffuse x the lights), so the
+// material tints the texture (a dyed part over its dyes). A channel at 1 keeps its numbers as they are, so white (or no
+// tint) gives the same numbers, unrounded: nothing written today changes. Everything else of a mesh is kept (its
+// transparencyhint too); a mesh without a material keeps none.
+function tintMeshes(meshes, tint) {
+  const t = Array.isArray(tint) && tint.length === 3 ? tint : [1, 1, 1];
+  const times = (c) => c.map((v, k) => (t[k] === 1 ? v : round(v * t[k]) + 0));  // + 0: never -0
+  return meshes.map((m) => {
+    const out = Object.assign({}, m);
+    for (const k of ["ambient", "diffuse", "selfillum"]) if (Array.isArray(m[k])) out[k] = times(m[k]);
+    return out;
+  });
+}
+
+// A draft plane's material as the game draws it (M1's review): the game's model writer (nwn5e-ee's WriteVfxModel,
+// src/data/vfx_model.cpp; tests/data/vfx_model_test.cpp pins it) writes a plane whose ambient and diffuse are both the
+// draft's defaults (VfxPlane's 0.2 and 0.8 - a mesh without them has them - each compared as C's %g of a float writes
+// it) as "ambient 1 1 1" / "diffuse 1 1 1", as nwn5e always wrote planes: the game draws such a plane at full, never at
+// 0.8. -> a copy at full ambient and diffuse, else the mesh as it is. The bench's core.js drawnMaterial keeps the same rule
+// (the Composer's check.js compares them).
+const PLANE_AMBIENT = [0.2, 0.2, 0.2], PLANE_DIFFUSE = [0.8, 0.8, 0.8];
+const asWritten = (v) => Number(Math.fround(v).toPrecision(6));  // %g: a float's six significant digits
+const atDefault = (c, d) => !Array.isArray(c) || (c.length >= 3 && [0, 1, 2].every((k) => isNum(c[k]) && asWritten(c[k]) === d[k]));
+function drawnMaterial(m) {
+  if (!atDefault(m.ambient, PLANE_AMBIENT) || !atDefault(m.diffuse, PLANE_DIFFUSE)) return m;
+  return Object.assign({}, m, { ambient: [1, 1, 1], diffuse: [1, 1, 1] });
+}
+
 // A part's meshes where the composition puts it: scaled, tilted (about x, then y), turned (about z), then moved so the
 // middle of its footprint (its box from above) is at at.x, at.y and its lowest point at.z above `floor` (the disk's
-// top). { meshes (named prefix + its number + "_" + the mesh's name), lo, hi, reach (how far from the centre it reaches
-// in x y) }
-function placePart(part, model, index, floor, prefix) {
+// top), and tinted by its tint (tintMeshes; a part without one: white) - one place, so both generators and the
+// Composer's stage get it. `planes`: its meshes become a draft's planes (a spell mesh's), which the game draws by
+// drawnMaterial - a tinted part's meshes at the draft's defaults are lifted to full first, so the tint multiplies what the
+// game draws (not 0.2 0.2 0.1998 for a tint of 1 1 0.999, which the game would draw as it is, darker than untinted);
+// untinted they're left as they are (the game lifts them; every draft keeps its bytes). A placeable's meshes never: its
+// model is written as it is (meshLines). { meshes (named prefix + its number + "_" + the mesh's name), lo, hi, reach (how
+// far from the centre it reaches in x y) }
+function placePart(part, model, index, floor, prefix, planes) {
   const s = part.scale, rad = Math.PI / 180;
   const qx = [Math.sin(part.tilt[0] * rad / 2), 0, 0, Math.cos(part.tilt[0] * rad / 2)];
   const qy = [0, Math.sin(part.tilt[1] * rad / 2), 0, Math.cos(part.tilt[1] * rad / 2)];
@@ -381,7 +427,8 @@ function placePart(part, model, index, floor, prefix) {
     }
     return Object.assign({}, m, { name: prefix + String(index + 1).padStart(2, "0") + "_" + m.name, verts, tverts: m.tverts.map(round) });
   });
-  return { meshes, lo, hi, reach };
+  const lifted = planes && Array.isArray(part.tint) && !isWhite(part.tint) ? meshes.map(drawnMaterial) : meshes;
+  return { meshes: tintMeshes(lifted, part.tint), lo, hi, reach };
 }
 
 // The same meshes moved by dz (the piles: the disk's height down, their base on the ground).
@@ -462,12 +509,13 @@ function diskTexture(disk, id = "") {
 const SHAPE_TYPES = ["dome", "sphere", "cylinder", "cone", "disc", "ring"];
 const SHAPE_LABELS = { dome: "Dome (half sphere)", sphere: "Sphere", cylinder: "Cylinder (open)", cone: "Cone (point up)", disc: "Disc (flat, on the ground)",
   ring: "Ring (flat band)" };
-const SHAPE_KEYS = ["type", "radius", "height", "inner", "segments", "sides", "mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture"];  // the order they're written in
+const SHAPE_KEYS = ["type", "radius", "height", "inner", "segments", "sides", "mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture",
+  "blend"];  // the order they're written in
 const SOLID = () => ["radius", "height", "segments", "sides"];
 const SHAPE_FIELDS = { dome: SOLID(), sphere: SOLID(), cylinder: SOLID(), cone: SOLID(),  // a type's own fields, the card's order
   disc: ["radius", "segments", "sides"], ring: ["radius", "inner", "segments", "sides"] };
 const SHAPE_FLAT = ["disc", "ring"];
-const LOOK_FIELDS = ["mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture"];  // every type's
+const LOOK_FIELDS = ["mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture", "blend"];  // every type's
 // A field's card label and bounds: what readShape enforces, and what the page shows.
 const SHAPE_INFO = {
   radius: { label: "Radius (m)", min: 0.05, max: 100, step: 0.05 },
@@ -485,19 +533,37 @@ const SHAPE_INFO = {
   glow: { label: "Glow", min: 0, max: 1, step: 0.05, title: "How much it lights itself (selfillum): at 1 it looks the same by day and night" },
   // Soft or none, or a library texture's name (the game's own, named: nothing generated or copied).
   texture: { label: "Texture", choices: [["soft", "Soft: brighter at its base (a flat one's rim)"], ["none", "None: its colour only"]],
-    title: "Soft is made for Wrapped; a texture from the library is tinted by its Colour in game (its material and glow); the stage draws a texture as it is" },
+    title: "Soft is made for Wrapped; a texture from the library is tinted by its Colour - at Glow 1 lit by itself, the same by day and night; lower, the scene's light comes in" },
+  // M1b (the design's addendum (b); the owner, 2026-11-18: "fxpa_globe works. it's faint, you can see the sparkles" - "go
+  // with your rec on the blend"): how the game draws its Soft texture - Additive by a TXI beside it (SOFT_TXI), as the
+  // game's own faint effect meshes (fxpa_Globe, fxpa_shield ...): no 0.2 alpha cut, nothing behind hidden; Normal as
+  // before (a shape saved without it). A library texture follows its own TXI; None has no texture to carry one.
+  blend: { label: "Blend", choices: [["additive", "Additive: glows, adds light, faint and see-through as the game's globes"], ["normal", "Normal: blended over what's behind"]],
+    title: "Additive adds its light: it glows, never darkens, black is nothing, overlaps brighten - a faint one is a low Opacity or a darker Colour. Soft only: a library texture follows its own TXI" },
 };
 const SHAPE_TEXTURE = /^n5s_[0-9a-f]{12}$/;  // a soft texture's name: made, never picked
+// An additive soft texture's TXI, written beside its TGA wherever the texture is written (files.js shapeWrites, the
+// bench's bake for Play): the game's keyword and value, as nwn5e's n5t_mark*.txi and the game's fxpa_Globe.txi say it.
+const SOFT_TXI = "blending additive\n";
+// Whether a TXI's text (a string or bytes) says "blending additive" - a line of it, the keyword and its value in any case,
+// spaces or tabs round them, either line end: the game's additive textures (13 of its 734 TXIs). The bench's texture
+// route says so for a texture it serves (its stage draws such a mesh additively).
+function txiAdditive(text) {
+  if (text === undefined || text === null) return false;
+  const s = typeof text === "string" ? text : Array.from(text instanceof Uint8Array ? text : new Uint8Array(text), (c) => String.fromCharCode(c)).join("");
+  return /^[ \t]*blending[ \t]+additive[ \t]*\r?$/im.test(s);
+}
 const orList = (list) => (list.length > 1 ? list.slice(0, -1).join(", ") + " or " + list[list.length - 1] : list.join(""));
 
 // A type's defaults, in SHAPE_KEYS' order: a dome as tall as its radius; a sphere, a cylinder and a cone twice that (a
-// sphere's a ball); a disc and a ring no height; a ring's inner edge 0.85 of its radius, to the millimetre.
+// sphere's a ball); a disc and a ring no height; a ring's inner edge 0.85 of its radius, to the millimetre. Blend Normal
+// (M1b): a shape saved before it keeps its look - the page writes Additive on the shapes it adds (composer.js partFrom).
 function shapeDefaults(type, radius) {
   const out = { type, radius };
   if (!SHAPE_FLAT.includes(type)) out.height = type === "dome" ? radius : 2 * radius;
   if (type === "ring") out.inner = Math.round(0.85 * radius * 1000) / 1000;
   return Object.assign(out, { segments: 32, sides: "both", mapping: "wrap", repeat_around: 1, repeat_up: 1,
-    colour: [0.6, 0.8, 1], alpha: 0.35, glow: 1, texture: "soft" });
+    colour: [0.6, 0.8, 1], alpha: 0.35, glow: 1, texture: "soft", blend: "normal" });
 }
 // Whether `v` is a right value for field `k` (by SHAPE_INFO's bounds), and the error naming the field when it isn't.
 function shapeFieldOk(k, v) {
@@ -536,7 +602,8 @@ function readShape(s, where) {
 }
 // A shape as it's written (`s` a right shape, whole or not): type and radius, then each other key whose value differs
 // from shapeDefaults' (a colour by its three numbers), in SHAPE_KEYS' order. Under From above the repeats are left out:
-// they mean nothing there.
+// they mean nothing there. Its blend is written only when Additive (Normal is the default), whatever its texture: under a
+// library texture or None it means nothing, but Soft again keeps it.
 function cleanShape(s) {
   const d = shapeDefaults(s.type, s.radius), out = { type: s.type, radius: s.radius };
   for (const k of SHAPE_KEYS) {
@@ -552,9 +619,12 @@ function cleanShape(s) {
 // A soft texture's colour as its name and its picture both take it: each channel to 0.001. One rule, so a name fixes
 // its bytes (a file of that name is rewritten as the generator's).
 const softColour = (colour) => colour.map((c) => Math.round(c * 1000) / 1000);
-// A soft texture's name: n5s_ and 12 hex digits of its colour (softColour's) - one per colour, the same in a page.
-function shapeTextureName({ colour }) {
-  return "n5s_" + cyrb53("soft:" + softColour(colour).map(String).join(",")).toString(16).padStart(14, "0").slice(-12);
+// A soft texture's name: n5s_ and 12 hex digits of its colour (softColour's) and its blend (M1b) - one per colour and
+// blend, the same in a page. Normal's (or no blend given) hashes its colour alone, as before M1b, so every name made
+// then stays; Additive's hashes ":additive" after it - its own name, so a blend changed never leaves the game a TXI
+// beside a texture that no longer wants one (or none beside one that does).
+function shapeTextureName({ colour, blend }) {
+  return "n5s_" + cyrb53("soft:" + softColour(colour).map(String).join(",") + (blend === "additive" ? ":additive" : "")).toString(16).padStart(14, "0").slice(-12);
 }
 // The soft texture, made for Wrapped: its colour (softColour's, as its name has it), brighter and more opaque at the
 // ground ring (v 0) and fading towards the top (v 1), with a faint shimmer of whole turns in u, so it wraps round
@@ -639,13 +709,18 @@ function bothSides(side) {
 }
 // A shape (readShape's) as a model, in the model's space as modelSpaceMeshes gives one (its base at z 0, centred on x 0
 // y 0) -> { meshes: [{ name (its type), bitmap, verts, tverts, faces, groups (each face's smoothing group: meshLines),
-// diffuse, ambient, selfillum, alpha, transparent, transparencyhint (1 when transparent, else 0) }], lo, hi, textures:
-// [{ name, colour }] (the soft texture to make, or none) }.
+// diffuse, ambient, selfillum, alpha, transparent, transparencyhint (1 when transparent, else 0), additive (M1b: true
+// for a Soft Additive shape - its texture's TXI makes the game add its light; the bench's stage draws it so - else not
+// there) }], lo, hi, textures: [{ name, colour, blend }] (the soft texture to make - with SOFT_TXI beside it when its blend
+// is additive - or none) }.
 // - Its UVs: Wrapped, u round it from +x and v from its base up (a disc's and a ring's from the rim in), times its
 //   repeats; From above, laid on from overhead, its width the picture's square ((0.5 + x / 2r, 0.5 + y / 2r): r its
 //   radius, a ring's outer).
-// - Its material: soft, the texture's colour lit by its glow; none, its own colour; a library texture, tinted by its
-//   colour and see-through (its own alpha isn't known here).
+// - Its material: soft, the texture's colour lit by its glow; none, its own colour lit by its glow; a library texture
+//   (M1, the owner's Q3), tinted by its colour and lit by itself as far as its glow goes - selfillum its colour x glow,
+//   ambient and diffuse its colour x (1 - glow), each through round: at Glow 1 the texture x its colour in any light (the
+//   game clamps a mesh's light at 1, so ambient and diffuse on top washed a pale colour out to white by day), at Glow 0
+//   lit by the scene as a placeable is. See-through (its own alpha isn't known here).
 // - Its box: a flat one's (a disc, a ring) is 0 high.
 function shapeModel(shape) {
   const r = shape.radius;
@@ -653,14 +728,19 @@ function shapeModel(shape) {
     : (x, y, u, v) => [u * shape.repeat_around, v * shape.repeat_up];
   const side = shapeSide(shape, uv);
   const { verts, tverts, faces, groups } = shape.sides === "both" ? bothSides(side) : Object.assign({ groups: new Array(side.faces.length / 3).fill(1) }, side);
-  const soft = shape.texture === "soft", colour = shape.colour, glow = shape.glow;
-  const bitmap = soft ? shapeTextureName(shape) : shape.texture === "none" ? "" : shape.texture;
-  const transparent = shape.texture !== "none" || shape.alpha < 1;
+  const soft = shape.texture === "soft", none = shape.texture === "none", colour = shape.colour, glow = shape.glow;
+  const bitmap = soft ? shapeTextureName(shape) : none ? "" : shape.texture;
+  const transparent = !none || shape.alpha < 1;
+  const times = (k) => colour.map((c) => round(c * k) + 0);  // + 0: never -0
+  const lit = soft ? [1, 1, 1] : none ? colour.slice() : times(1 - glow);  // its ambient and diffuse
+  const blend = shape.blend === "additive" ? "additive" : "normal";
   const mesh = { name: shape.type, bitmap, verts, tverts, faces, groups,
-    diffuse: soft ? [1, 1, 1] : colour.slice(), ambient: soft ? [1, 1, 1] : colour.slice(),
-    selfillum: soft ? [glow, glow, glow] : colour.map((c) => round(c * glow)),
+    diffuse: lit, ambient: lit.slice(),
+    selfillum: soft ? [glow, glow, glow] : times(glow),
     alpha: shape.alpha, transparent, transparencyhint: transparent ? 1 : 0 };  // T1b: see-through in game when it is
-  return { meshes: [mesh], lo: [-r, -r, 0], hi: [r, r, SHAPE_FLAT.includes(shape.type) ? 0 : shape.height], textures: soft ? [{ name: bitmap, colour: colour.slice() }] : [] };
+  if (soft && blend === "additive") mesh.additive = true;
+  return { meshes: [mesh], lo: [-r, -r, 0], hi: [r, r, SHAPE_FLAT.includes(shape.type) ? 0 : shape.height],
+    textures: soft ? [{ name: bitmap, colour: colour.slice(), blend }] : [] };
 }
 
 // --- a compiled model's node tree ---------------------------------------------------------------------------------
@@ -928,12 +1008,12 @@ const api = {
   MARK, TEXTURE_MARK, STAGES, PILES, SUFFIX, RESREF, SUPERMODEL, SOURCE_ROWS, APPEARANCE_OVERRIDES, ROWS, LABELS,
   creatureModel, pileModel,
   PLT_LAYERS, PLT_PALETTES, PLT_FIELDS, PLT_LABELS, PLT_DEFAULTS, PLT_MAX, BAKED,
-  readColours, fullColours, cleanColours, readPlt, bakePlt, bakedName, tgaBytes, bakeBitmaps,
+  readColours, fullColours, cleanColours, readPlt, bakePlt, bakedName, tgaBytes, bakeBitmaps, isWhite, readTint, tintMeshes, drawnMaterial,
   resolvePartFile, readPart, readComposition, partKey, partLabel, quat, axisAngle, qrot, round, num, HINT_MAX, hintValue, meshHint, modelSpaceMeshes, placePart,
   lowered, uniqueNames, diskMesh, diskTexture, modelNodes, creatureModelText, pileNodes, pileModelText,
   pileWalkmeshText, rowsText, readableAscii, texturesBeside, carriesMark, sameText, crlf, mergeModels, inline, compositionText,
   SHAPE_TYPES, SHAPE_LABELS, SHAPE_KEYS, SHAPE_FIELDS, SHAPE_FLAT, LOOK_FIELDS, SHAPE_INFO, SHAPE_TEXTURE,
-  shapeDefaults, readShape, cleanShape, shapeModel, shapeTexture, shapeTextureName,
+  shapeDefaults, readShape, cleanShape, shapeModel, shapeTexture, shapeTextureName, SOFT_TXI, txiAdditive,
 };
 if (typeof module === "object" && module.exports) module.exports = api;
 else root.FloatDisk = api;

@@ -433,6 +433,47 @@ try {
     assert.ok(again.files.length && again.files.every((x) => x.state === "unchanged"), JSON.stringify(again.files));
   });
 
+  // M1b (the design's addendum (b)): an Additive shape's soft texture has its own name (its blend hashed in) and a TXI
+  // beside it - "blending additive", so the game draws it on its additive path - written wherever the texture is: beside
+  // a spell mesh's drafts in --saved, beside a placeable's models in data\files. A Normal one has none.
+  check("an Additive dome: its soft texture and its TXI beside a spell mesh's draft and a placeable's model; Normal writes none; the names differ", () => {
+    const ADD = "n5s_617b220c1144", GOLD_ADD = "n5s_438a32a94ebf";  // the default colour's and gold's, Additive
+    assert.deepStrictEqual([F.shapeTextureName({ colour: [0.6, 0.8, 1], blend: "additive" }), F.shapeTextureName({ colour: [1, 0.85, 0.4], blend: "additive" })], [ADD, GOLD_ADD]);
+    for (const f of shapeFiles()) fs.rmSync(f);
+    const kept = madeTxt();
+    // A spell mesh: Zone of Truth's dome at Opacity 0.1, Additive.
+    const file = zone({ alpha: 0.1, blend: "additive" });
+    assert.ok(build(file, ["--check", "--saved", SAVED]).out.split(/\r?\n/).includes(
+      `  texture ${ADD}: a shape's soft texture, colour 0.6 0.8 1, additive (${ADD}.txi beside it: blending additive) - written into ${SAVED}`), "no summary line for " + ADD);
+    const j = ok(build(file, ["--json", "--saved", SAVED]));
+    assert.deepStrictEqual(j.shapes, [{ texture: ADD, colour: [0.6, 0.8, 1], blend: "additive" }]);
+    assert.deepStrictEqual(byName(j), { "n5m_chkdome.vfx": "rebuilt", [ADD + ".tga"]: "new", [ADD + ".txi"]: "new" });  // (its draft: the check's above)
+    assert.strictEqual(fs.readFileSync(path.join(SAVED, ADD + ".txi"), "latin1"), "blending additive\n");
+    assert.ok(fs.readFileSync(path.join(SAVED, ADD + ".tga")).equals(softBytes([0.6, 0.8, 1])), ADD + ".tga isn't floatdisk.js's soft texture");
+    const p = draftPlanes(path.join(SAVED, "n5m_chkdome.vfx"))[0];
+    assert.deepStrictEqual([p.bitmap, p.alpha, p.transparencyhint], [ADD, Math.fround(0.1), 1]);
+    // Built again: unchanged; a TXI of its name there is the generator's - rewritten.
+    assert.ok(ok(build(file, ["--json", "--saved", SAVED])).files.every((x) => x.state === "unchanged"));
+    fs.writeFileSync(path.join(SAVED, ADD + ".txi"), "blending punchthrough\r\n");
+    assert.deepStrictEqual(byName(ok(build(file, ["--json", "--saved", SAVED]))), { "n5m_chkdome.vfx": "unchanged", [ADD + ".tga"]: "unchanged", [ADD + ".txi"]: "rebuilt" });
+    // Back to Normal: the default colour's own texture, no TXI written (the Additive one's files are left as they are -
+    // they're named apart, so the game never reads its TXI for the Normal texture).
+    const n = ok(build(zone({ alpha: 0.1 }), ["--json", "--saved", SAVED]));
+    assert.deepStrictEqual(n.shapes, [{ texture: SOFT, colour: [0.6, 0.8, 1] }]);
+    assert.ok(!n.files.some((x) => /\.txi$/i.test(x.file)), JSON.stringify(n.files));
+    assert.ok(!fs.existsSync(path.join(SAVED, SOFT + ".txi")), "a Normal soft texture got a TXI");
+    // A placeable's: beside its model in data\files, git-ignored there as its TGA (/data/files/n5s_*); not in made.txt.
+    const g = ok(build(gold({ blend: "additive" }), ["--json"]));
+    assert.deepStrictEqual(g.shapes, [{ texture: GOLD_ADD, colour: [1, 0.85, 0.4], blend: "additive" }]);
+    assert.ok(g.files.some((x) => x.file === `data/files/${GOLD_ADD}.txi`) && g.files.some((x) => x.file === `data/files/${GOLD_ADD}.tga`), JSON.stringify(g.files));
+    assert.strictEqual(fs.readFileSync(path.join(FILES, GOLD_ADD + ".txi"), "latin1"), "blending additive\n");
+    lines(path.join(FILES, "plc_n5chkdomep.mdl"), ["  bitmap " + GOLD_ADD, "  transparencyhint 1"]);
+    assert.ok(!fs.existsSync(path.join(SAVED, GOLD_ADD + ".txi")), GOLD_ADD + ".txi is in saved\\");
+    assert.strictEqual(madeTxt(), kept, "made.txt changed");
+    const ignored = spawnSync("git", ["check-ignore", "-q", "--no-index", `data/files/${GOLD_ADD}.txi`], { cwd: REPO, windowsHide: true }).status;
+    assert.strictEqual(ignored, 0, `data/files/${GOLD_ADD}.txi isn't git-ignored`);
+  });
+
   check("a dome without a texture: bitmap NULL, its colour as its material, no texture written", () => {
     for (const f of shapeFiles()) fs.rmSync(f);  // the checks' above (this copy's): none may come back
     const j = ok(build(gold({ texture: "none" }), ["--json"]));
@@ -446,11 +487,13 @@ try {
     for (const f of shapeFiles()) fs.rmSync(f);
     const LIB = "fxpa_symbl_001";  // the game's own: named, nothing generated or copied
     const j = ok(build(gold({ texture: LIB }), ["--json"]));
-    lines(path.join(FILES, "plc_n5chkdomep.mdl"), ["  bitmap " + LIB, "  diffuse 1 0.85 0.4", "  transparencyhint 1"]);
+    // At Glow 1 (the default) lit by itself (M1, the owner's Q3): selfillum its colour, no ambient or diffuse.
+    lines(path.join(FILES, "plc_n5chkdomep.mdl"), ["  bitmap " + LIB, "  ambient 0 0 0", "  diffuse 0 0 0", "  transparencyhint 1", "  selfillumcolor 1 0.85 0.4"]);
     assert.deepStrictEqual(j.shapes, []);
     const m = ok(build(zone({ texture: LIB }), ["--json", "--saved", SAVED]));
     assert.deepStrictEqual(m.shapes, []);
-    assert.deepStrictEqual(draftPlanes(path.join(SAVED, "n5m_chkdome.vfx")).map((p) => p.bitmap), [LIB]);
+    assert.deepStrictEqual(draftPlanes(path.join(SAVED, "n5m_chkdome.vfx")).map((p) => [p.bitmap, p.diffuse, p.ambient, p.selfillum]),
+      [[LIB, [0, 0, 0], [0, 0, 0], [0.6, 0.8, 1].map(Math.fround)]]);
     assert.ok(![...j.files, ...m.files].some((x) => /n5s_/i.test(x.file)), JSON.stringify([...j.files, ...m.files]));
     assert.deepStrictEqual(shapeFiles(), []);
   });
@@ -486,6 +529,69 @@ try {
     const planes = draftPlanes(path.join(SAVED, "n5m_chklampm.vfx")).map((p) => [p.name, p.transparencyhint]);
     for (const [name, hint] of planes) assert.strictEqual(hint, want(name), name);
     assert.deepStrictEqual(counts(planes), [34, 6, 6]);
+  });
+
+  // M1 (#39; the owner, 2026-11-18: "tinting options" for the textures): a part's tint multiplies every one of its meshes'
+  // ambient, diffuse and selfillum (floatdisk.js placePart) - the game's crate, plc_a03, once as it is (variant 1) and once
+  // tinted [0.5, 1, 0.5] (variant 2): every mesh of the tinted one has its material halved in r and b, its g as it was
+  // (to the 0.00001 the writers keep), in a placeable's model and in a spell mesh's draft alike; its hints kept.
+  check("a tinted crate: every mesh of its model and its draft has its material times the tint (halved in r and b)", () => {
+    const TINT = [0.5, 1, 0.5];
+    const crate = (tint) => [Object.assign({ model: "plc_a03", at: [0, 0, 0] }, tint ? { tint } : {})];
+    const times = (got, plain) => got.length === 3 && got.every((v, k) => Math.abs(v - plain[k] * TINT[k]) <= 1e-5);
+    const materialsOf = (file) => fs.readFileSync(file, "latin1").split("\r\nnode trimesh ").slice(1).map((n) => {
+      const l = n.split("\r\n"), at = (k) => { const x = l.find((s) => s.startsWith(`  ${k} `)); return x ? x.trim().split(/\s+/).slice(1).map(Number) : null; };
+      return { name: l[0], ambient: at("ambient"), diffuse: at("diffuse"), selfillum: at("selfillumcolor"), hint: at("transparencyhint") };
+    });
+    const same = (plain, tinted, what) => {
+      assert.ok(plain.length > 0, what + ": no mesh");
+      assert.deepStrictEqual(tinted.map((m) => [m.name, m.hint]), plain.map((m) => [m.name, m.hint]), what + ": the meshes and their hints");
+      plain.forEach((m, i) => {
+        for (const k of ["ambient", "diffuse", "selfillum"]) assert.ok(times(tinted[i][k], m[k]), `${what}: ${m.name}'s ${k} ${tinted[i][k]} for ${m[k]}`);
+      });
+      assert.ok(plain.some((m, i) => m.diffuse[0] > 0 && tinted[i].diffuse[0] < m.diffuse[0] && tinted[i].diffuse[1] === m.diffuse[1]), what + ": no diffuse halved");
+    };
+    ok(build(project("chktint", { kind: "placeable", guide: { shape: "circle", diameter: 2, height: 0 }, placeable: THROUGH, variants: [
+      { name: "1", row: 14155, parts: crate() }, { name: "2", row: 14156, parts: crate(TINT) }] }), ["--json"]));
+    same(materialsOf(path.join(FILES, "plc_n5chktint_1.mdl")), materialsOf(path.join(FILES, "plc_n5chktint_2.mdl")), "the placeable's model");
+    ok(build(project("chktintm", { kind: "spellmesh", guide: { shape: "circle", diameter: 2, height: 0 }, variants: [
+      { name: "1", parts: crate() }, { name: "2", parts: crate(TINT) }] }), ["--json", "--saved", SAVED]));
+    const planes = (k) => draftPlanes(path.join(SAVED, `n5m_chktintm_${k}.vfx`)).map((p) => ({ name: p.name, ambient: p.ambient, diffuse: p.diffuse,
+      selfillum: p.selfillum, hint: p.transparencyhint }));
+    same(planes(1), planes(2), "the spell mesh's draft");
+    // The project file keeps the tint as written; its untinted part has none.
+    const saved = JSON.parse(fs.readFileSync(path.join(folder, "chktint.json"), "utf8"));
+    assert.deepStrictEqual(saved.variants.map((v) => v.parts[0].tint), [undefined, TINT]);
+  });
+
+  // M1's review: a mesh at the draft's defaults (ambient 0.2, diffuse 0.8: a model with no material lines - a file of the
+  // check's own, its texture the game's fxpa_symbl_001) is drawn at full in game as a spell mesh's plane (WriteVfxModel
+  // writes "ambient 1 1 1" / "diffuse 1 1 1" for one), so tinted it's lifted to full before its tint: its draft carries
+  // 1 1 0.999 for a tint of 1 1 0.999 (not 0.2 0.2 0.1998, which the game would draw as it is, darker than untinted).
+  // Untinted, the draft has no material line (as before: the game lifts it). A placeable's model is written as it is
+  // (meshLines: the game draws its 0.8), so tinted it's 0.2 / 0.8 times the tint.
+  check("a tinted default-material part: a spell mesh's draft carries the game's full material times the tint; a placeable's model its own times it", () => {
+    const parts = path.join(folder, "parts");
+    fs.mkdirSync(parts, { recursive: true });
+    const v = [[-0.2, -0.2, 0], [0.2, -0.2, 0], [0.2, 0.2, 0], [-0.2, 0.2, 0], [-0.2, -0.2, 0.4], [0.2, -0.2, 0.4], [0.2, 0.2, 0.4], [-0.2, 0.2, 0.4]];
+    const f = [[0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7], [0, 1, 5], [0, 5, 4], [1, 2, 6], [1, 6, 5], [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7]];
+    fs.writeFileSync(path.join(parts, "n5_chkplain.mdl"), ["newmodel n5_chkplain", "setsupermodel n5_chkplain null", "classification placeable",
+      "beginmodelgeom n5_chkplain", "node dummy n5_chkplain", "  parent NULL", "endnode", "node trimesh box", "  parent n5_chkplain",
+      "  position 0 0 0", "  orientation 0 0 0 0", "  bitmap fxpa_symbl_001", "  verts 8", ...v.map((p) => "    " + p.join(" ")),
+      "  tverts 8", ...v.map((p) => `    ${p[0] + 0.5} ${p[1] + 0.5} 0`), "  faces 12", ...f.map((t) => `    ${t.join(" ")} 1 ${t.join(" ")} 1`),
+      "endnode", "endmodelgeom n5_chkplain", "donemodel n5_chkplain", ""].join("\r\n"));
+    const TINT = [1, 1, 0.999];
+    const plain = (tint) => [Object.assign({ file: "parts/n5_chkplain.mdl", at: [0, 0, 0] }, tint ? { tint } : {})];
+    const guide = { shape: "circle", diameter: 1, height: 0 };
+    ok(build(project("chkpln", { kind: "spellmesh", guide, variants: [{ name: "1", parts: plain() }, { name: "2", parts: plain(TINT) }] }),
+      ["--json", "--saved", SAVED]));
+    const section = (k) => fs.readFileSync(path.join(SAVED, `n5m_chkpln_${k}.vfx`), "latin1").split("\r\n[plane ")[1].split("\r\nverts =")[0];
+    assert.ok(!/\r\n(diffuse|ambient) = /.test(section(1)), "untinted: " + section(1));
+    assert.ok(section(2).includes("\r\ndiffuse = 1 1 0.999\r\nambient = 1 1 0.999"), "tinted: " + section(2));
+    const read = draftPlanes(path.join(SAVED, "n5m_chkpln_2.vfx"))[0];
+    assert.deepStrictEqual([read.ambient, read.diffuse], [[1, 1, Math.fround(0.999)], [1, 1, Math.fround(0.999)]]);
+    ok(build(project("chkplp", { kind: "placeable", guide, placeable: THROUGH, variants: [{ name: "1", row: 14157, parts: plain(TINT) }] }), ["--json"]));
+    lines(path.join(FILES, "plc_n5chkplp.mdl"), ["  ambient 0.2 0.2 0.1998", "  diffuse 0.8 0.8 0.7992"]);
   });
 } finally {
   fs.rmSync(root, { recursive: true, force: true });

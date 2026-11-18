@@ -1644,3 +1644,125 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     note says "brighter towards its rim"; Smoothness's tooltip no longer speaks of a dome only.
   - *The review of S4 (nwn5e-tools 1ef7da0):* a shape field past its bounds is refused as typed, never rounded
     into them first (Opacity 0.015 was saved as 0.02); the rows made self-contained.
+
+## The Composer's textures tinted (2026-11-18, #39; M1)
+
+  Spec: docs/superpowers/specs/2026-11-18-mesh-texture-animation-and-tint-design.md ("Tint", and "Addendum 2026-11-18
+  (a)": the owner's answers); plan docs/superpowers/plans/2026-11-18-mesh-texture-animation-and-tint.md (M1 of five: then
+  the moving textures, M2 - TMO-1 - M3, then a mesh beat's keys, M4 - M5).
+  Owner, 2026-11-18: "for the existing textures I'd like to add tinting options to them as right now when using a texture
+  there's no way to change the color"; on Q1-Q4 as put with recommendations, Q3 (Glow on a library texture) among them:
+  "accept your recommendations".
+  - *Calls (short; the design has them):*
+    - a part's `"tint": [r, g, b]` (0 to 1) multiplies every one of its meshes' ambient, diffuse and selfillum. The game
+      lights a textured mesh as texture x (selfillum + ambient x the area's light + diffuse x the lights), clamped to 1,
+      so the material tints the texture - vim_cntglobe's blue glyph globe is a grey texture (fxpa_symbl_003) so tinted.
+      White is none and never written; a dyed part is tinted over its dyes; a shape takes none (its Colour is its
+      colour);
+    - one place: floatdisk.js's placePart tints (tintMeshes), so both generators, build_derived and the page get it;
+    - a shape's library texture (Q3): selfillum its Colour x Glow, ambient and diffuse its Colour x (1 - Glow) - Glow 1 is
+      the texture x the Colour in any light (ambient = diffuse = Colour on top of the glow washed a pale colour to white
+      by day). Soft and None as they were;
+    - the stage draws a textured mesh as texture x min(1, selfillum + diffuse x its shade): the game's formula, the
+      stage's one soft light standing for the scene's. An untextured mesh as before;
+    - no game-side change: the writers already write a mesh's material (meshLines, the draft's planes). `git diff --stat
+      -- src` on anim: empty before and after.
+  - *Built:*
+    - anim (the commit carrying this paragraph): floatdisk.js readTint, isWhite, tintMeshes; readPart's tint (a shape's
+      refused, each error naming the part); placePart tints; compositionText writes tint after colours, never white;
+      shapeModel's library texture lit by its Glow. project.js projectText likewise (colours and tint in its part keys).
+      floatdisk check +6 (78), composer check +1 (19), composer check_build +1 (a crate tinted [0.5, 1, 0.5], its model
+      and its draft: r and b halved, g kept; the library dome's material now its Glow's); the Floating Disk's 13 files
+      unchanged (no part has a tint), derived check unchanged;
+    - nwn5e-tools (3bb1831): composer.js clean (the tint to 0.001, white and a shape's dropped); view.js meshData's
+      textured formula (a ghost still its shade alone); the part card's Tint and None (any part but a shape, one undo
+      step); the shape card's note on a library texture; the hook's drawn.colours (each stage mesh's vertex colours)
+      and parts' tint. check_composer +2 (41), check_chunks +1 (31: the textured formula, and a game mesh as before - the
+      shades worked out from the faces), composer_check.mjs +2 (93 steps: partTint, libraryTintShows), browser_check.mjs
+      unchanged (97 steps, all passed: no step relied on a textured mesh's colour being its shade alone).
+  - *What changes on the bench:* a game mesh whose diffuse is under 1 draws a little darker than before, as its material
+    lights it (each game mesh carries its own: the rock chunks 0.698, the tiles 0.776, the bones 0.66; 0.8 is the draft's
+    default, not the game's) - the Composer's parts, the thumbnails (drawn again: `thumbs\v3\`), and the effect mode's
+    chunks alike (one mesh path); a draft's plane at that default is drawn at full, as the game draws it (the review,
+    below); a Soft shape at Glow from about 0.45 up draws flat - unshaded, glow plus light at full every way it faces - on
+    the stage and in new thumbnails, as the game's clamp at 1 draws it; a library texture's dome shows its Colour (S4's
+    limit "the bench shades a textured shape by its faces' turn" is now the game's formula under the stage's light).
+  - *What changes in game:* a shape's library texture saved earlier at Glow 1 looks a little darker and more coloured
+    (Q3 says so) once its spell mesh is saved again - an effect's mesh beat keeps the old material until then and until
+    the beat is refreshed from its mesh (n5_zot's n5m_test2, fxpa_web, still has ambient and diffuse 0.6 0.8 1 everywhere:
+    Save and build n5m_test2 in the Composer, then Refresh from the mesh on the beat); a part with no tint builds byte for
+    byte as before.
+  - *Limits:* the stage's one light stands for the scene's - exact at Glow 1 (selfillum alone), close below it (the
+    game's lights, its night and its gamma aren't the stage's); a part's thumbnail is its model's, untinted. The stage
+    takes an area's ambient as 1 for an untextured mesh and 0 for a textured one (a follow-up from the review, not
+    changed here).
+  - *M1's review (anim, the commit carrying this line; nwn5e-tools 7db86e0):*
+    - a draft's plane at the draft's default material (ambient 0.2, diffuse 0.8, compared as %g writes them) is written
+      by the game's model writer at full, 1 1 1 (WriteVfxModel, src/data/vfx_model.cpp; pinned by
+      tests/data/vfx_model_test.cpp) - the game never draws such a plane at 0.8, but M1's formula did on the stage
+      (the owner's Entangle Plane01: 0.681-0.970 before M1, 0.545-0.776 after; browser_check's Plane01, one flat plane,
+      0.566 under M1 and its shade, 0.708, now). One rule, twice:
+      floatdisk.js drawnMaterial (the generators) and core.js drawnMaterial (the bench; composer check compares them);
+    - the stage draws a draft's planes by it: the effect mode's and the areas' (sim.js planesAt's, app.js showPlanes)
+      and a spell mesh's in the Composer (view.js worldMeshes' `plane`); a placeable's and the Floating Disk's meshes as
+      their models are written;
+    - on a spell mesh, a tinted mesh at that default is lifted to full before its tint (placePart's `planes`: composer
+      build.js, the page's placeOne, so Play in game's draft too) - a tint of 1 1 0.999 gave 0.2 0.2 0.1998, which the
+      game draws as it is; now 1 1 0.999. Untinted it's left as it is: every draft keeps its bytes (the game lifts it);
+    - the thumbnails' cache moves to `thumbs\v3\` (every entry drawn again once, lit by its material);
+    - floatdisk check +2 (80), composer check +2 (21), composer check_build +1 (a tinted default-material file part: the
+      spell mesh's draft 1 1 0.999, the placeable's model 0.2 0.2 0.1998 / 0.8 0.8 0.7992); check_composer +1 (42),
+      check_chunks +2 (33: the C++ test's plain plane), check_composer_server's thumbCache at v3 (47), composer_check.mjs
+      +1 (94 steps: spellMeshPlanesFull - n5_testcrate, no material lines, in a spell mesh at the placeable's colours over
+      0.8, tinted the stage's g kept and Play's plane 0.502 1 0.502) and partTint's Play draft carrying the tint,
+      browser_check.mjs +1 (98 steps: entangleVinesFullMaterial - each vertex's colour its triangle's shade, worked out
+      from its corners through vfxBench.planeMeshes()). The new steps were seen failing on 3bb1831's page first.
+  - *For the bench:* restart vfx_bench.bat. *For the game:* nothing for the DLL.
+  - Test rows (for the board: #39, stream animation):
+
+    | ID | Setup | Do | Expect |
+    |---|---|---|---|
+    | TIN-1 | VFX Bench (restarted), the Composer: New project `tintdome`, a spell mesh; Parts, Shapes, Dome; on its card Texture From the library..., type `fxpa_symbl_003`, Use; Colour orange (#ff8000); Glow 1 (its default) | Play in game by day, then at night (or in a dark area); then Glow 0.3 and Play in game again, day and night | Glow 1: the glyph orange - the texture times the Colour - the same by day and night, never washed to white by day; the stage's dome orange too. Glow 0.3: orange, darker at night |
+    | TIN-2 | VFX Bench (restarted), the Composer: New project `tintbox`, a placeable; Parts, Placeables, `plc_a03` (a crate) added | its card's Tint pale green (#80ff80): the stage's crate turns green; Play in game; Save and build; after the next install (build.bat), in the toolset a placeable of its appearance (N5_Tintbox, its row 14100-14199) put in an area, and the module played | a pale green crate beside the character (Play) and in the area (installed), its wood's grain kept; Ctrl+Z on the bench takes the tint off |
+
+## A shape's Blend: additive soft textures (2026-11-18, #39; M1b)
+
+  Spec: the design's "Addendum 2026-11-18 (b)" (docs/superpowers/specs/2026-11-18-mesh-texture-animation-and-tint-design.md);
+  plan Task M1b. The owner's test on 0.99.72: a soft texture with `transparencyhint 1` was still cut at alpha 0.2 and hid
+  the sparkles; "fxpa_globe works. it's faint, you can see the sparkles AND the texture is animated?"; "go with your rec on
+  the blend". Every faint game effect mesh is additive (fxpa_Globe, fxpa_Globe2, fxpa_spots, fxpa_shield ...).
+  - *Calls:*
+    - a shape's `"blend"`: `"additive"` or `"normal"`; `shapeDefaults` keeps Normal, so a shape saved without it keeps its
+      look; the Composer writes Additive on every shape it adds (the coordinator's ruling). Written only when Additive
+      (whatever its texture: under a library texture or None it means nothing, but Soft again keeps it);
+    - Additive writes `n5s_<hash>.txi` - `blending additive` (floatdisk.js SOFT_TXI) - beside the soft texture wherever
+      it's written: files.js shapeWrites (both generators: data\files, --drafts, a spell mesh's --saved), build_derived
+      (owned by its name, as the TGA), the bench's bake for Play (vfxedit\). Git-ignored by `/data/files/n5s_*`;
+    - the blend is in the soft texture's name (Additive hashes ":additive" after its colour; Normal's names unchanged, so
+      every name made before stays) - changing it never leaves a stale TXI beside a texture;
+    - the stage draws an additive mesh adding its light (SRC_ALPHA, ONE), no depth written: an Additive shape's, and any
+      mesh whose texture's TXI says `blending additive` - the texture route says so (`X-Blending: additive`), so the game's
+      fxpa_globe and a saved Additive soft texture draw so in the Composer and the effect mode alike;
+    - M1's follow-up: a spell mesh as an emitter's chunk model is drawn by drawnMaterial's lift, as the game's model
+      writer writes it (app.js marks its draft, view.js chunkModel lifts it);
+    - no game-side change: `git diff --stat -- src` on anim empty before and after.
+  - *Built:*
+    - anim (the commit carrying this section): floatdisk.js SHAPE_KEYS / LOOK_FIELDS / SHAPE_INFO.blend, shapeDefaults'
+      Normal, readShape's error (`<where>.blend: additive or normal`), shapeTextureName by blend, shapeModel's `additive`
+      and textures' `blend`, SOFT_TXI, txiAdditive; files.js shapeTextures / shapeWrites / shapeLines / shapeJson and the
+      ownership of a `.txi`; build_derived's shape kind for a `.txi`. floatdisk check +6 (86; three of its earlier
+      expectations moved: the defaults, SHAPE_KEYS and a soft texture's entry now carry the blend), composer check +1 (22),
+      build check +1 (11), composer build check +1 (20), derived check +1 (16);
+    - nwn5e-tools (d72b739): composer.js partFrom Additive; the shape card's Blend (Soft only) and notes; the bake route's
+      TXI; the texture route's X-Blending; view.js meshPass and the additive pass; the chunk lift. check_composer +2 (44),
+      check_chunks +3 (36), check_composer_server +2 (49), composer_check.mjs +1 (95 steps), browser_check.mjs +2 (100
+      steps). Each new check seen failing first.
+  - *Limits:* the stage's additive is the bench's guess at the game's (SRC_ALPHA, ONE: its alpha scales the light it
+    adds); the draw order in game against other see-through things, and whether the game's additive path also ignores
+    the mesh's own alpha, wait for BL-1. A library texture's TXI is read through the game's own files (the texture
+    route): one the route can't reach (no game) draws as before.
+  - *For the bench:* restart vfx_bench.bat. *For the game:* nothing for the DLL; a spell mesh saved before keeps Normal
+    until its shapes are set to Additive and it's saved again (then Refresh from the mesh on an effect's mesh beat).
+  - Test row (for the board: #39, stream animation): BL-1 - a dome at Opacity 0.1, Soft, Additive, with the new effect's
+    sparks inside, Play in game: faint and glowing, the sparks seen through it; then Normal: cut at alpha 0.2 as before
+    (at Opacity 0.1 all or nearly all of it), whatever's drawn hiding the sparks.

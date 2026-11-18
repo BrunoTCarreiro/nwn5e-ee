@@ -316,3 +316,53 @@ Five tasks, **about 3½ sessions**:
 | M3 | moving textures on the bench: the cards, the stage, Play in game; cycle and additive TXIs | nwn5e-tools | 1 session |
 | M4 | keys on a plane in the model and the draft (announced) | anim src/data, tests | ⅓ session |
 | M5 | the Mesh card's keys, Breathe and Tint; the sim | nwn5e-tools | ⅔ session |
+
+## Addendum 2026-11-18 (a): the owner's answers
+
+The owner, 2026-11-18, on Q1-Q4 as put to them with recommendations: **"accept your recommendations"**.
+
+- **Q1: route A** - an EE material and our own vertex shader (`n5u_<hash>.mtr`, `vsn5uvmove.shd`), proven first by the
+  in-game probe TMO-1 at the end of M2. **If the probe fails, the fallback is B, a flipbook** (the motion baked into a
+  sheet the game cycles); C (moving the mesh) is not the fallback.
+- **Q2: no** - a texture's motion stays the spell mesh's (set in the Composer); a mesh beat doesn't override it. An
+  override can come later.
+- **Q3: yes** - the Glow remap for a library texture (call 2): Glow 1 shows texture x Colour in any light; a library
+  texture saved earlier at Glow 1 will look a little darker and more coloured.
+- **Q4: M1 (tint) first, then the moving textures (M2, the TMO-1 gate, M3), then the beat's keys (M4, M5).** The
+  coordinator may run M4 while TMO-1 waits on the owner (it shares no files with M2-M3), as long as the order of what the
+  owner gets to test stays tint, moving textures, keys.
+- **The issue:** #39 (the Composer's), named by every commit.
+
+## Addendum 2026-11-18 (b): additive blending - how the game draws a faint see-through mesh
+
+### What the owner saw
+- On 0.99.72 (spell-mesh planes with `transparencyhint 1`, the soft texture at alpha 0.47 / 0.72): "there is no way to
+  show a very faint dome? the sparkling effects are also not shown through the 3d meshes". The hint changed neither the
+  0.2 alpha cut nor the depth writing.
+- Then, a dome with the library texture **fxpa_globe** (Minor Globe's): **"fxpa_globe works. it's faint, you can see the
+  sparkles AND the texture is animated? At least it animates in-game."** And: **"go with your rec on the blend"** (a
+  Blend choice on a shape, Additive for new shapes).
+
+### What the game's files say (read-only research, 2026-11-18)
+- Every faint, glowing effect mesh in the game uses a texture whose TXI says **`blending additive`**: Minor Globe
+  (fxpa_Globe, alpha keyed to 0.3), Globe of Invulnerability (fxpa_Globe2), Freedom of Movement (fxpa_spots), Mage Armor's
+  shields (fxpa_shield), Meteor Swarm's columns (fxpa_flame02, mesh alpha 0.03-0.17), vim_cntmantle, vim_cntglobe. No game
+  effect mesh draws faint (texture alpha x mesh alpha <= 0.2) with a non-additive texture.
+- The game's 734 TXIs: 13 say `blending additive`; the exe's TXI keywords include `blending`, `decal`, `additive`,
+  `punchthrough`. Additive meshes evidently skip the 0.2 cut and don't hide what's behind (the owner's test).
+- nwn5e already ships loose TXIs beside loose TGAs (`data/files/n5t_mark01..12.txi`, `blending additive`), seen read in
+  game (PLAN 0.94.1 / 0.94.3).
+- fxpa_globe animates through its TXI's `proceduretype arturo` (a ripple) - one of the game's own texture procedures
+  (`arturo`, `cycle` = a flipbook); an option for M2-M3 beside our shader.
+
+### Decided
+- **A shape gets a Blend: Additive or Normal.** Additive writes `n5s_<hash>.txi` (`blending additive`) beside the soft
+  texture wherever the texture is written (data\files, a spell mesh's saved folder, Play's vfxedit); the blend is part of
+  the texture's name (hash), so changing it never leaves the game a stale file. Normal is today's.
+- **New shapes are Additive**; a shape saved without the field keeps Normal (its look doesn't change under the owner).
+- Blend applies to the **Soft** texture. A library texture follows its own TXI (fxpa_globe is additive already); None has
+  no texture to carry a TXI.
+- **The stage draws an additive mesh additively** (adds light, no depth write), for a Soft-Additive shape and, where the
+  bench can know it, a library texture whose TXI says additive.
+- How additive looks: it adds light - glows, never darkens, black is nothing, overlaps brighten; a very faint dome is a low
+  Opacity (it scales the light) or a darker Colour.

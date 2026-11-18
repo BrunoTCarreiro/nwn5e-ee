@@ -10,7 +10,8 @@
 // - The Floating Disk's generator (floatdisk\build.js) and the Composer's (composer\build.js) for every placeable project
 //   in composer\*.json, each run with --json into a scratch folder of its own; their models, walkmeshes and textures - a
 //   dyed part's baked texture (n5p_<12 hex digits>.tga, from the game's PLT and palettes) and a shape's soft texture
-//   (n5s_<12 hex digits>.tga, from its colour; both git-ignored) with the models that name them - are then written
+//   (n5s_<12 hex digits>.tga, from its colour and blend - an Additive one's n5s_<...>.txi beside it, M1b; all git-ignored)
+//   with the models that name them - are then written
 //   into --out (build.bat: the build's data\files) - never into this repo's data\ (refused). Skipped, and said so: a
 //   spell mesh's project (its drafts live in the VFX Bench's saved folder, and the dev layer writes its models when the
 //   game runs), and a project never built - no data\rows\placeables.<name>.txt and no variant with a row, as the
@@ -22,7 +23,7 @@
 //   update that changes the game's rows they copy.
 // - In --out, the generators' one ownership rule (floatdisk\files.js): a model or .pwk there is overwritten only when it
 //   carries its generator's mark, a texture only when that generator's made.txt lists it as data/files/<name>, a baked
-//   texture or a shape's soft texture by its name (only the generators make them, and the name fixes the bytes); any
+//   texture or a shape's soft texture (or its TXI) by its name (only the generators make them, and the name fixes the bytes); any
 //   other file in the way that differs stops it all. Every file is checked before any is written. Two generators may
 //   make the same bake (or soft texture): written once.
 // - One line a file (written / unchanged), then a total. --check: the same builds and checks, in the scratch folders
@@ -212,10 +213,11 @@ function main() {
   }
 
   // The files into --out, under the generators' ownership rule: a model or .pwk carrying its generator's mark, a texture
-  // its made.txt lists in data\files, a baked texture by its name (files.js's "baked"), a shape's soft texture by its
-  // name (files.js's "shape"). Kind "texture", not files.js's "binary": nothing is noted in any made.txt.
+  // its made.txt lists in data\files, a baked texture by its name (files.js's "baked"), a shape's soft texture - or an
+  // Additive one's TXI (M1b) - by its name (files.js's "shape"). Kind "texture", not files.js's "binary": nothing is
+  // noted in any made.txt.
   const isBake = (name) => /\.tga$/i.test(name) && F.BAKED.test(name.replace(/\.tga$/i, ""));
-  const isShape = (name) => /\.tga$/i.test(name) && F.SHAPE_TEXTURE.test(name.replace(/\.tga$/i, ""));
+  const isShape = (name) => /\.(tga|txi)$/i.test(name) && F.SHAPE_TEXTURE.test(name.replace(/\.(tga|txi)$/i, ""));
   const writes = [], byName = new Map();
   for (const { gen, files } of built) {
     const owned = W.ownership({ repo: REPO, manifest: gen.made, mark: gen.mark, kinds: { texture: (w) => gen.made.has("data/files/" + path.basename(w.file)) } });

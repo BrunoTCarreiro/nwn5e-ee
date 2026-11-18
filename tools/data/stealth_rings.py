@@ -229,6 +229,9 @@ def main():
     for c, (color, alpha) in enumerate(CONE_COLOURS):
         texture_name = "n5_cone_%d" % c
         write_tga(os.path.join(FILES, texture_name + ".tga"), TEX_U, TEX_U, cone_texture(color, alpha))
+        # additive: the game's alpha cut (0.2) would hide the faint colours and the cone's near end
+        with open(os.path.join(FILES, texture_name + ".txi"), "w", encoding="ascii", newline="\n") as f:
+            f.write("blending additive\n")
         for a, angle in enumerate(CONE_ANGLES):
             half = math.radians(angle) / 2
             centre = math.pi / 2  # +Y: where the creature faces

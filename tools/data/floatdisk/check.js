@@ -537,7 +537,7 @@ const pageFloatDisk = () => {
 check("a shape: read with its defaults, written without them", () => {
   const s = F.readShape({ type: "dome", radius: 4.57 }, "s");
   assert.deepStrictEqual(s, { type: "dome", radius: 4.57, height: 4.57, segments: 32, sides: "both", mapping: "wrap", repeat_around: 1, repeat_up: 1,
-    colour: [0.6, 0.8, 1], alpha: 0.35, glow: 1, texture: "soft" });
+    colour: [0.6, 0.8, 1], alpha: 0.35, glow: 1, texture: "soft", blend: "normal" });
   assert.deepStrictEqual(F.shapeDefaults("dome", 4.57), s);
   assert.deepStrictEqual(F.cleanShape(s), { type: "dome", radius: 4.57 });
   const c = F.cleanShape(Object.assign({}, s, { colour: [1, 0.85, 0.4], height: 3 }));
@@ -694,22 +694,23 @@ check("the dome's material: its texture's colour lit by its glow (soft), its own
     "transparencyhint"]);
   assert.deepStrictEqual([m.bitmap, m.diffuse, m.ambient, m.selfillum, m.alpha, m.transparent],
     ["n5s_8c757fb28f99", [1, 1, 1], [1, 1, 1], [1, 1, 1], 0.35, true]);
-  assert.deepStrictEqual(soft.textures, [{ name: "n5s_8c757fb28f99", colour: [0.6, 0.8, 1] }]);
+  assert.deepStrictEqual(soft.textures, [{ name: "n5s_8c757fb28f99", colour: [0.6, 0.8, 1], blend: "normal" }]);
   const none = F.shapeModel(F.readShape({ type: "dome", radius: 1, texture: "none", colour: [1, 0.85, 0.4], glow: 0.5, alpha: 1 }, "s")), n = none.meshes[0];
   assert.deepStrictEqual([n.bitmap, n.diffuse, n.ambient, n.selfillum, n.alpha, n.transparent],
     ["", [1, 0.85, 0.4], [1, 0.85, 0.4], [0.5, 0.425, 0.2], 1, false]);
   assert.deepStrictEqual(none.textures, []);
   assert.strictEqual(F.shapeModel(F.readShape({ type: "dome", radius: 1, texture: "none", alpha: 0.5 }, "s")).meshes[0].transparent, true);
-  // A library texture: named as it is, tinted by its colour, glowing by its glow, see-through (its own alpha isn't
-  // known); nothing generated.
+  // A library texture: named as it is, tinted by its colour - lit by itself as far as its glow goes, by the scene the rest
+  // (M1, the owner's Q3: diffuse and ambient its colour x (1 - glow), selfillum its colour x glow) - see-through (its own
+  // alpha isn't known); nothing generated.
   const lib = F.shapeModel(F.readShape({ type: "dome", radius: 1, texture: "fxpa_symbl_001", colour: [1, 0.85, 0.4], glow: 0.5, alpha: 1 }, "s"));
   const l = lib.meshes[0];
   assert.deepStrictEqual([l.bitmap, l.diffuse, l.ambient, l.selfillum, l.alpha, l.transparent],
-    ["fxpa_symbl_001", [1, 0.85, 0.4], [1, 0.85, 0.4], [0.5, 0.425, 0.2], 1, true]);
+    ["fxpa_symbl_001", [0.5, 0.425, 0.2], [0.5, 0.425, 0.2], [0.5, 0.425, 0.2], 1, true]);
   assert.deepStrictEqual(lib.textures, []);
   // Soft in another colour: its own texture.
   assert.deepStrictEqual(F.shapeModel(F.readShape({ type: "dome", radius: 1, colour: [1, 0.85, 0.4] }, "s")).textures,
-    [{ name: "n5s_a3caa0709dda", colour: [1, 0.85, 0.4] }]);
+    [{ name: "n5s_a3caa0709dda", colour: [1, 0.85, 0.4], blend: "normal" }]);
 });
 check("a dome's two sides in their own smoothing groups (the inside 2, the outside 1); a mesh without groups is written 1, as before", () => {
   // The sides share their positions: in one group, a loader that merges normals by position would cancel them.
@@ -797,7 +798,8 @@ check("a soft texture's name fixes its bytes: the colour is painted as it's name
 // column twice. Wrapped: u round it from +x, v from its base up - a disc's and a ring's from the rim in, so the soft
 // texture glows at the rim as a dome's at its ground ring (the coordinator's ruling on S5); From above as the dome's.
 const shapeOf = (type, o) => F.shapeModel(F.readShape(Object.assign({ type, radius: 1 }, o), "s"));
-const LOOK = { segments: 32, sides: "both", mapping: "wrap", repeat_around: 1, repeat_up: 1, colour: [0.6, 0.8, 1], alpha: 0.35, glow: 1, texture: "soft" };
+const LOOK = { segments: 32, sides: "both", mapping: "wrap", repeat_around: 1, repeat_up: 1, colour: [0.6, 0.8, 1], alpha: 0.35, glow: 1, texture: "soft",
+  blend: "normal" };
 // Both sides of `type`'s mesh, the inside first: `count` vertices and `tris` triangles a side, the inside's facing in (each
 // triangle's sign by `face`), each side its own vertices (the inside's the outside's, in the same order, UVs too), the
 // inside in smoothing group 2; rounded, no -0. Outside only: one side, every triangle facing out. -> the mesh.
@@ -838,7 +840,8 @@ check("the other shapes: six types, their labels and fields; a sphere's, a cylin
   assert.deepStrictEqual(F.SHAPE_TYPES, ["dome", "sphere", "cylinder", "cone", "disc", "ring"]);
   assert.deepStrictEqual(F.SHAPE_LABELS, { dome: "Dome (half sphere)", sphere: "Sphere", cylinder: "Cylinder (open)", cone: "Cone (point up)",
     disc: "Disc (flat, on the ground)", ring: "Ring (flat band)" });
-  assert.deepStrictEqual(F.SHAPE_KEYS, ["type", "radius", "height", "inner", "segments", "sides", "mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture"]);
+  assert.deepStrictEqual(F.SHAPE_KEYS, ["type", "radius", "height", "inner", "segments", "sides", "mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture",
+    "blend"]);
   const solid = ["radius", "height", "segments", "sides"];
   assert.deepStrictEqual(F.SHAPE_FIELDS, { dome: solid, sphere: solid, cylinder: solid, cone: solid, disc: ["radius", "segments", "sides"],
     ring: ["radius", "inner", "segments", "sides"] });
@@ -865,7 +868,7 @@ check("the other shapes: six types, their labels and fields; a sphere's, a cylin
   // A height given is kept when it isn't the default; a flat shape has none, and only a ring has an inner.
   assert.deepStrictEqual(F.cleanShape(F.readShape({ type: "cylinder", radius: 1, height: 3 }, "s")), { type: "cylinder", radius: 1, height: 3 });
   assert.deepStrictEqual(F.cleanShape(F.readShape({ type: "cone", radius: 1, height: 2 }, "s")), { type: "cone", radius: 1 });
-  const keys = "type, radius, segments, sides, mapping, repeat_around, repeat_up, colour, alpha, glow or texture";
+  const keys = "type, radius, segments, sides, mapping, repeat_around, repeat_up, colour, alpha, glow, texture or blend";
   assert.throws(() => F.readShape({ type: "disc", radius: 1, height: 1 }, "s"), (e) => e.message === `s.height: not a disc's - ${keys}`);
   assert.throws(() => F.readShape({ type: "ring", radius: 1, height: 1 }, "s"), /^Error: s\.height: not a ring's - type, radius, inner, segments, /);
   for (const type of ["dome", "sphere", "cylinder", "cone", "disc"]) assert.throws(() => F.readShape({ type, radius: 1, inner: 0.5 }, "s"), new RegExp(`^Error: s\\.inner: not a ${type}'s - `));
@@ -1052,6 +1055,269 @@ check("an ASCII model's mesh keeps its transparencyhint for the mesh reader (a w
   assert.ok(block(F.readableAscii(strap, "x"), "node trimesh Strap").includes("  transparencyhint 1"));
   const junk = NEVERBLENDER.replace("  diffuse 0.8 0.8 0.8", "  diffuse 0.8 0.8 0.8\r\n  transparencyhint x");
   assert.ok(!F.readableAscii(junk, "x").includes("transparencyhint"));
+});
+
+// --- tint (M1, #39; the owner, 2026-11-18: "for the existing textures I'd like to add tinting options to them") --------
+// A part's "tint": [r, g, b] (0 to 1; white, the default, is none and never written) multiplies every one of its meshes'
+// ambient, diffuse and selfillum - the game lights a textured mesh as texture x (selfillum + ambient x the area's +
+// diffuse x the lights), so the material tints the texture. placePart applies it: both generators and the page. A shape
+// takes none (its Colour is its colour); a shape's library texture is lit by itself as far as its Glow goes (Q3).
+const tinted = () => ({ meshes: [
+  { name: "box", bitmap: "plc_x", verts: [0, 0, 0, 1, 0, 0, 0, 1, 0.5], tverts: [0, 0, 1, 0, 0, 1], faces: [0, 1, 2], diffuse: [0.8, 0.6, 0.4],
+    ambient: [0.2, 0.4, 1], selfillum: [0, 0.5, 1], alpha: 1, transparencyhint: 2 },
+  { name: "lid", bitmap: "", verts: [0, 0, 0.5, 1, 0, 0.5, 0, 1, 1], tverts: [0, 0, 1, 0, 0, 1], faces: [0, 1, 2], diffuse: [1, 1, 1],
+    ambient: [1, 1, 1], selfillum: [0.123456, 0, 0], alpha: 0.5 }], lo: [0, 0, 0], hi: [1, 1, 1] });
+const material = (m) => [m.ambient, m.diffuse, m.selfillum];
+const withoutMaterial = (m) => Object.assign({}, m, { ambient: null, diffuse: null, selfillum: null });
+check("tint: read, defaulted, refused on a shape and out of range", () => {
+  assert.deepStrictEqual(F.readTint(undefined, "p"), [1, 1, 1]);
+  const given = [0.5, 1, 0.25], read = F.readTint(given, "p");
+  assert.deepStrictEqual(read, [0.5, 1, 0.25]);
+  assert.ok(read !== given, "readTint's own copy");
+  for (const bad of [[1, 1], [1.2, 0, 0], [-0.1, 0, 0], ["1", 0, 0], [NaN, 0, 0], [0, 0, 0, 1], "red", {}, 0.5]) {
+    assert.throws(() => F.readTint(bad, "p"), (e) => e.message === "p.tint: [r, g, b], each 0 to 1", JSON.stringify(bad));
+  }
+  // A part's: readPart gives it (white without one), each error naming the part.
+  const part = (extra) => F.readPart(Object.assign({ model: "plc_a03", at: [0, 0, 0] }, extra), "stages.small[0]", BASE);
+  assert.deepStrictEqual(part().tint, [1, 1, 1]);
+  assert.deepStrictEqual(part({ tint: [0.5, 1, 0.25] }).tint, [0.5, 1, 0.25]);
+  assert.deepStrictEqual(F.readPart({ file: "parts/x.mdl", at: [0, 0, 0], tint: [0, 0.5, 1] }, "p", BASE).tint, [0, 0.5, 1]);
+  assert.throws(() => part({ tint: [2, 0, 0] }), (e) => e.message === "stages.small[0].tint: [r, g, b], each 0 to 1");
+  assert.deepStrictEqual(F.readComposition(comp([{ model: "plc_a03", at: [0, 0, 0], tint: [0.5, 1, 0.5] }]), BASE).stages.small[0].tint, [0.5, 1, 0.5]);
+  // A shape takes none, white or not: its Colour is its colour.
+  for (const tint of [[0.5, 1, 0.25], [1, 1, 1], [3, 0, 0]]) {
+    assert.throws(() => F.readPart({ shape: { type: "dome", radius: 1 }, at: [0, 0, 0], tint }, "stages.small[0]", BASE),
+      (e) => e.message === "stages.small[0].tint: a shape has no tint - its Colour is its colour");
+  }
+  assert.deepStrictEqual(F.readPart({ shape: { type: "dome", radius: 1 }, at: [0, 0, 0] }, "p", BASE).tint, [1, 1, 1]);
+});
+check("tintMeshes multiplies ambient, diffuse and selfillum; white changes nothing", () => {
+  const meshes = tinted().meshes, out = F.tintMeshes(meshes, [0.5, 1, 0.25]);
+  assert.deepStrictEqual(out.map(material), [[[0.1, 0.4, 0.25], [0.4, 0.6, 0.1], [0, 0.5, 0.25]], [[0.5, 1, 0.25], [0.5, 1, 0.25], [0.06173, 0, 0]]]);
+  // Through round (0.123456 x 0.5 is 0.061728: 0.06173); the rest of each mesh as it was - its alpha and its hint too;
+  // copies, the meshes given untouched.
+  assert.deepStrictEqual(out.map(withoutMaterial), meshes.map(withoutMaterial));
+  assert.ok(out.every((m, i) => m !== meshes[i]));
+  assert.deepStrictEqual(meshes.map(material), tinted().meshes.map(material));
+  // White (or none): the same numbers, unrounded - a model's own 0.5882352941 kept as the writers have it today.
+  const own = [Object.assign(tinted().meshes[0], { diffuse: [0.5882352941, 0.1, 1] })];
+  for (const white of [[1, 1, 1], undefined]) assert.deepStrictEqual(F.tintMeshes(own, white), own);
+  // A channel at 1 keeps its numbers; a mesh without a material keeps none.
+  assert.deepStrictEqual(F.tintMeshes(own, [1, 0.5, 1])[0].diffuse, [0.5882352941, 0.05, 1]);
+  assert.deepStrictEqual(F.tintMeshes([{ name: "bare" }], [0.5, 0.5, 0.5]), [{ name: "bare" }]);
+});
+check("placePart tints every mesh of a tinted part", () => {
+  const place = { at: [0.1, 0, 0], turn: 30, scale: 0.5, tilt: [0, 0] };
+  const plain = F.placePart(place, tinted(), 0, 0.9, "j"), tint = F.placePart(Object.assign({ tint: [0.5, 1, 0.25] }, place), tinted(), 0, 0.9, "j");
+  assert.strictEqual(tint.meshes.length, 2);
+  assert.deepStrictEqual(tint.meshes, F.tintMeshes(plain.meshes, [0.5, 1, 0.25]));
+  assert.deepStrictEqual([tint.lo, tint.hi, tint.reach], [plain.lo, plain.hi, plain.reach]);
+  assert.deepStrictEqual(tint.meshes.map((m) => m.transparencyhint), [2, undefined]);  // T1b's hint kept
+  // readPart's part: white without a tint, its own with one - the part as both generators place it.
+  const read = (extra) => F.readPart(Object.assign({ model: "plc_a03", at: [0.1, 0, 0], turn: 30, scale: 0.5 }, extra), "p", BASE);
+  assert.deepStrictEqual(F.placePart(read(), tinted(), 0, 0.9, "j"), plain);
+  assert.deepStrictEqual(F.placePart(read({ tint: [0.5, 1, 0.25] }), tinted(), 0, 0.9, "j"), tint);
+  // Lowered and named unique (the generators' next steps): still tinted.
+  assert.deepStrictEqual(F.uniqueNames(F.lowered(tint.meshes, 0.9), []).map(material), tint.meshes.map(material));
+});
+check("compositionText writes tint after colours, never white", () => {
+  const text = F.compositionText({ stages: { small: [
+    { tint: [0.5, 1, 0.25], extra: 1, colours: { metal1: 5 }, model: "helm_001", at: [0, 0, 0], tilt: [0, 90] },
+    { tint: [1, 1, 1], model: "plc_a03", at: [0, 0, 0] }] } });
+  const l = text.split("\n");
+  assert.ok(l.includes('      { "model": "helm_001", "at": [0, 0, 0], "tilt": [0, 90], "colours": { "metal1": 5 }, "tint": [0.5, 1, 0.25], "extra": 1 },'), text);
+  assert.ok(l.includes('      { "model": "plc_a03", "at": [0, 0, 0] }'), text);
+  assert.deepStrictEqual(JSON.parse(text).stages.small.map((p) => p.tint), [[0.5, 1, 0.25], undefined]);
+});
+check("a library texture: Glow 1 gives selfillum = Colour and no diffuse or ambient; Glow 0.4 splits 0.4 / 0.6", () => {
+  const lib = (o, type = "dome") => F.shapeModel(F.readShape(Object.assign({ type, radius: 1, texture: "fxpa_symbl_003", colour: [1, 0.5, 0] }, o), "s"));
+  for (const type of F.SHAPE_TYPES) {
+    assert.deepStrictEqual(material(lib({}, type).meshes[0]), [[0, 0, 0], [0, 0, 0], [1, 0.5, 0]], type + ", Glow 1");
+    assert.deepStrictEqual(material(lib({ glow: 0.4 }, type).meshes[0]), [[0.6, 0.3, 0], [0.6, 0.3, 0], [0.4, 0.2, 0]], type + ", Glow 0.4");
+    assert.deepStrictEqual(material(lib({ glow: 0 }, type).meshes[0]), [[1, 0.5, 0], [1, 0.5, 0], [0, 0, 0]], type + ", Glow 0");
+  }
+  // Each through round, no -0; the rest as before: its name, see-through, its alpha, nothing generated.
+  const m = lib({ glow: 0.35, colour: [0.123, 0.5, 1] }).meshes[0];
+  assert.deepStrictEqual(material(m), [[0.07995, 0.325, 0.65], [0.07995, 0.325, 0.65], [0.04305, 0.175, 0.35]]);
+  noNegativeZero(lib({}));
+  const g = lib({ glow: 0.4, alpha: 0.5 });
+  assert.deepStrictEqual([g.meshes[0].bitmap, g.meshes[0].alpha, g.meshes[0].transparent, g.meshes[0].transparencyhint, g.textures], ["fxpa_symbl_003", 0.5, true, 1, []]);
+  // What the model writer writes: Glow 1's diffuse 0 0 0 and selfillumcolor its Colour.
+  const node = block(F.pileModelText("plc_t", lib({}).meshes, [0, 0, 0], [1, 1, 1], []), "node trimesh dome");
+  assert.ok(node.includes("  ambient 0 0 0") && node.includes("  diffuse 0 0 0") && node.includes("  selfillumcolor 1 0.5 0"), node.slice(0, 20).join("\n"));
+});
+check("Soft and None keep their material", () => {
+  // Today's numbers: Soft's white lit by its glow (its colour is in its texture); None's its colour, lit by its glow.
+  const of = (o) => material(F.shapeModel(F.readShape(Object.assign({ type: "dome", radius: 1, colour: [1, 0.5, 0], glow: 0.4 }, o), "s")).meshes[0]);
+  assert.deepStrictEqual(of({}), [[1, 1, 1], [1, 1, 1], [0.4, 0.4, 0.4]]);
+  assert.deepStrictEqual(of({ texture: "none" }), [[1, 0.5, 0], [1, 0.5, 0], [0.4, 0.2, 0]]);
+  assert.deepStrictEqual(of({ glow: 1 }), [[1, 1, 1], [1, 1, 1], [1, 1, 1]]);
+  assert.deepStrictEqual(of({ texture: "none", glow: 1 }), [[1, 0.5, 0], [1, 0.5, 0], [1, 0.5, 0]]);
+});
+// M1's review: a spell mesh's meshes become a draft's planes, and the game's model writer (nwn5e-ee's WriteVfxModel,
+// src/data/vfx_model.cpp; tests/data/vfx_model_test.cpp pins it) writes a plane whose ambient and diffuse are both the
+// draft's defaults - 0.2 and 0.8, each as C's %g of a float writes it - as "ambient 1 1 1" / "diffuse 1 1 1": the game
+// draws such a plane at full, never at 0.8. drawnMaterial is that rule; on a spell mesh a tint multiplies what the game
+// draws, so such a mesh is lifted to full before its tint (placePart's `planes`). Untinted it's left as it is (its draft's
+// bytes as before: the game lifts it). A placeable's model is written as it is (meshLines): never lifted.
+const PLAIN = { name: "plain", bitmap: "fxpa_fern", verts: [-0.1, 0, 0, 0.1, 0, 0, -0.1, 0, 0.2, 0.1, 0, 0.2], tverts: [0, 0, 1, 0, 0, 1, 1, 1], faces: [0, 1, 2, 2, 1, 3],
+  diffuse: [0.8, 0.8, 0.8], ambient: [0.2, 0.2, 0.2], selfillum: [0, 0, 0], alpha: 1, transparencyhint: 1 };
+check("drawnMaterial: a plane at the draft's defaults (ambient 0.2, diffuse 0.8, as %g writes them) is drawn full, as WriteVfxModel writes it; any other as it is", () => {
+  const full = F.drawnMaterial(PLAIN);
+  assert.deepStrictEqual(material(full), [[1, 1, 1], [1, 1, 1], [0, 0, 0]]);
+  assert.deepStrictEqual(Object.assign({}, full, { ambient: PLAIN.ambient, diffuse: PLAIN.diffuse }), PLAIN);  // the rest kept, its glow too
+  assert.ok(full !== PLAIN && PLAIN.diffuse[0] === 0.8, "a copy; the plane given untouched");
+  // As %g of a float: 0.2000001 and 0.79999995 are written 0.2 and 0.8 - the defaults; 0.2001 isn't.
+  assert.deepStrictEqual(material(F.drawnMaterial(Object.assign({}, PLAIN, { ambient: [0.2000001, 0.2, 0.2], diffuse: [0.8, 0.79999995, 0.8] }))).slice(0, 2), [[1, 1, 1], [1, 1, 1]]);
+  // Either of its own: as it is (the C++'s `own`), a glow of its own changes nothing.
+  for (const own of [{ ambient: [0.2001, 0.2, 0.2] }, { diffuse: [0.8, 0.8, 0.7] }, { ambient: [1, 1, 1], diffuse: [1, 1, 1] }, { ambient: [0.1, 0.2, 0.3], diffuse: [0.5, 0.25, 1] }]) {
+    const p = Object.assign({}, PLAIN, own);
+    assert.deepStrictEqual(F.drawnMaterial(p), p, JSON.stringify(own));
+  }
+  assert.deepStrictEqual(material(F.drawnMaterial(Object.assign({}, PLAIN, { selfillum: [0, 1, 0.5] }))), [[1, 1, 1], [1, 1, 1], [0, 1, 0.5]]);
+  // A mesh without them has the defaults (VfxPlane's): drawn full.
+  assert.deepStrictEqual(material(F.drawnMaterial({ name: "bare" })).slice(0, 2), [[1, 1, 1], [1, 1, 1]]);
+});
+check("placePart for a spell mesh's planes: a default-material mesh lifted to full before its tint; untinted as it is; a placeable's never", () => {
+  const model = { meshes: [PLAIN, Object.assign({}, PLAIN, { name: "own", ambient: [0.1, 0.2, 0.3], diffuse: [0.5, 0.25, 1] })], lo: [-0.1, 0, 0], hi: [0.1, 0, 0.2] };
+  const place = (tint, planes) => F.placePart(Object.assign({ at: [0, 0, 0], turn: 0, scale: 1, tilt: [0, 0] }, tint ? { tint } : {}), model, 0, 0, "j", planes);
+  const TINT = [1, 1, 0.999];
+  // A spell mesh tinted: the plain mesh the game's 1 1 1 times the tint (not 0.2 0.2 0.1998, which the game would draw
+  // as it is - darker than untinted); one of its own material times the tint, as before.
+  assert.deepStrictEqual(place(TINT, true).meshes.map(material), [[[1, 1, 0.999], [1, 1, 0.999], [0, 0, 0]], [[0.1, 0.2, 0.2997], [0.5, 0.25, 0.999], [0, 0, 0]]]);
+  // Untinted: as it is, a spell mesh's or a placeable's - the drafts and models written today keep their bytes.
+  assert.deepStrictEqual(place(null, true), place(null, false));
+  assert.deepStrictEqual(place(null, true).meshes[0].ambient, [0.2, 0.2, 0.2]);
+  assert.deepStrictEqual(place([1, 1, 1], true), place(null, false));
+  // A placeable's (or no `planes`): its material times the tint, as meshLines writes it and the game draws it.
+  assert.deepStrictEqual(place(TINT, false).meshes[0].ambient, [0.2, 0.2, 0.1998]);
+  assert.deepStrictEqual(place(TINT).meshes, place(TINT, false).meshes);
+  assert.deepStrictEqual(place(TINT, true).meshes.map((m) => m.transparencyhint), [1, 1]);
+});
+
+// --- M1b: a shape's Blend (the design's addendum (b); the owner, 2026-11-18: "fxpa_globe works. it's faint, you can see
+// the sparkles" - "go with your rec on the blend") ---------------------------------------------------------------------
+// Additive: its soft texture gets a TXI saying "blending additive" beside it, so the game draws it on its additive path
+// (no 0.2 alpha cut, nothing behind hidden); Normal is today's. A shape saved without it keeps Normal.
+check("blend: additive or normal, normal by default, written only when additive; anything else refused, naming the field", () => {
+  const { label, choices, title } = F.SHAPE_INFO.blend;
+  assert.deepStrictEqual({ label, choices }, { label: "Blend", choices: [["additive", "Additive: glows, adds light, faint and see-through as the game's globes"],
+    ["normal", "Normal: blended over what's behind"]] });
+  assert.ok(/Soft only: a library texture follows its own TXI/.test(title), title);
+  assert.ok(F.LOOK_FIELDS.includes("blend") && F.SHAPE_KEYS[F.SHAPE_KEYS.length - 1] === "blend" && F.SHAPE_KEYS.indexOf("blend") === F.SHAPE_KEYS.indexOf("texture") + 1,
+    JSON.stringify(F.SHAPE_KEYS));
+  for (const type of F.SHAPE_TYPES) {
+    assert.strictEqual(F.shapeDefaults(type, 1).blend, "normal", type);
+    assert.strictEqual(F.readShape({ type, radius: 1 }, "s").blend, "normal", type);
+    assert.strictEqual(F.readShape({ type, radius: 1, blend: "additive" }, "s").blend, "additive", type);
+  }
+  // Written only when additive, after its texture (SHAPE_KEYS' order); normal - the default - never.
+  const add = F.cleanShape(F.readShape({ type: "dome", radius: 1, blend: "additive", colour: [1, 0.85, 0.4] }, "s"));
+  assert.deepStrictEqual(add, { type: "dome", radius: 1, colour: [1, 0.85, 0.4], blend: "additive" });
+  assert.deepStrictEqual(Object.keys(F.cleanShape({ type: "dome", radius: 1, texture: "none", blend: "additive" })), ["type", "radius", "texture", "blend"]);
+  assert.deepStrictEqual(F.cleanShape(F.readShape({ type: "dome", radius: 1, blend: "normal" }, "s")), { type: "dome", radius: 1 });
+  // A library texture or none keeps it (it means nothing there - the texture's own TXI, or no texture - but Soft again
+  // brings it back).
+  assert.deepStrictEqual(F.cleanShape(F.readShape({ type: "dome", radius: 1, texture: "fxpa_globe", blend: "additive" }, "s")),
+    { type: "dome", radius: 1, texture: "fxpa_globe", blend: "additive" });
+  for (const blend of ["Additive", "add", "", "lighten", 1, null, true]) {
+    assert.throws(() => F.readShape({ type: "dome", radius: 1, blend }, "s"), (e) => e.message === "s.blend: additive or normal", JSON.stringify(blend));
+  }
+  // In a part's key (the shape as written) and a composition's line.
+  const key = (shape) => F.partKey(F.readPart({ shape, at: [0, 0, 0] }, "p", BASE));
+  assert.strictEqual(key({ type: "dome", radius: 1, blend: "additive" }), 'shape:{ "type": "dome", "radius": 1, "blend": "additive" }');
+  assert.strictEqual(key({ type: "dome", radius: 1, blend: "normal" }), key({ type: "dome", radius: 1 }));
+  const text = F.compositionText({ stages: { small: [{ shape: { type: "dome", radius: 1, blend: "additive" }, at: [0, 0, 0] }] } });
+  assert.ok(text.split("\n").includes('      { "shape": { "type": "dome", "radius": 1, "blend": "additive" }, "at": [0, 0, 0] }'), text);
+});
+const ADDITIVE = (colour) => F.shapeTextureName({ colour, blend: "additive" });
+check("a soft texture's name hashes its blend: Additive's differs from Normal's, Normal's (and none given) as before", () => {
+  for (const colour of [[0.6, 0.8, 1], [1, 0.85, 0.4]]) {
+    const normal = F.shapeTextureName({ colour }), additive = ADDITIVE(colour);
+    assert.strictEqual(F.shapeTextureName({ colour, blend: "normal" }), normal);
+    assert.ok(F.SHAPE_TEXTURE.test(additive), additive);
+    assert.notStrictEqual(additive, normal);
+    assert.strictEqual(ADDITIVE(colour.map((c) => c - 0.0001)), additive, "to 0.001, as the colour");
+  }
+  assert.strictEqual(F.shapeTextureName({ colour: [0.6, 0.8, 1] }), "n5s_8c757fb28f99");
+  assert.strictEqual(F.shapeTextureName({ colour: [1, 0.85, 0.4], blend: "normal" }), "n5s_a3caa0709dda");
+  // Additive's names, the default colour's and gold's (the build checks and the bench's use them).
+  assert.deepStrictEqual([ADDITIVE([0.6, 0.8, 1]), ADDITIVE([1, 0.85, 0.4])], ["n5s_617b220c1144", "n5s_438a32a94ebf"]);
+  // Its pixels are its colour's: the same picture whichever its blend (the TXI says how the game draws it).
+  assert.ok(F.tgaBytes(F.shapeTexture({ colour: [1, 0.85, 0.4], blend: "additive" }), { alpha: true }).equals(F.tgaBytes(F.shapeTexture({ colour: [1, 0.85, 0.4] }), { alpha: true })));
+});
+check("shapeModel: a soft-additive shape's mesh carries additive and its texture its blend; Normal, None and a library texture never additive", () => {
+  const model = (o) => F.shapeModel(F.readShape(Object.assign({ type: "dome", radius: 1, colour: [1, 0.85, 0.4] }, o), "s"));
+  const add = model({ blend: "additive" }), m = add.meshes[0];
+  assert.strictEqual(m.bitmap, ADDITIVE([1, 0.85, 0.4]));
+  assert.strictEqual(m.additive, true);
+  assert.deepStrictEqual(add.textures, [{ name: ADDITIVE([1, 0.85, 0.4]), colour: [1, 0.85, 0.4], blend: "additive" }]);
+  // Its material, alpha and hint as a normal soft shape's: only its texture's name and the flag differ.
+  const plain = model({});
+  assert.deepStrictEqual(Object.assign({}, m, { bitmap: plain.meshes[0].bitmap, additive: undefined }), Object.assign({}, plain.meshes[0], { additive: undefined }));
+  assert.ok(!("additive" in plain.meshes[0]), "a normal mesh carries no additive");
+  assert.deepStrictEqual(plain.textures, [{ name: "n5s_a3caa0709dda", colour: [1, 0.85, 0.4], blend: "normal" }]);
+  for (const texture of ["none", "fxpa_globe"]) {
+    const x = model({ blend: "additive", texture });
+    assert.ok(!("additive" in x.meshes[0]), texture + "'s mesh carries additive");
+    assert.deepStrictEqual(x.textures, [], texture);
+  }
+  // Placed (placePart: a part's meshes, its tint over them), lowered: it stays additive.
+  const placed = F.placePart({ at: [0, 0, 0], turn: 30, scale: 1, tilt: [0, 0], tint: [1, 1, 1] }, add, 0, 0.9, "j", true);
+  assert.strictEqual(placed.meshes[0].additive, true);
+  assert.strictEqual(F.lowered(placed.meshes, 0.9)[0].additive, true);
+  noNegativeZero(add);
+});
+check("the TXI: SOFT_TXI says blending additive; txiAdditive reads a TXI's blending line as the game's keywords (any case, either line end)", () => {
+  assert.strictEqual(F.SOFT_TXI, "blending additive\n");
+  for (const t of ["blending additive\n", "blending additive\r\n", "Blending Additive", "  blending\tadditive  \r\n", "mipmap 0\r\nblending additive\r\ndecal 1\r\n",
+    "proceduretype arturo\nblending additive\n"]) assert.strictEqual(F.txiAdditive(t), true, JSON.stringify(t));
+  for (const t of ["", null, undefined, "blending punchthrough\n", "blending additivex", "# blending additive", "decal 1", "blendingadditive", "envmaptexture x\n"]) {
+    assert.strictEqual(F.txiAdditive(t), false, JSON.stringify(t));
+  }
+  assert.strictEqual(F.txiAdditive(Buffer.from("blending additive\r\n", "latin1")), true);
+});
+check("files.js: an additive soft texture is written with its TXI beside it (both owned by name); a normal one alone", () => {
+  const fs = require("fs");
+  const os = require("os");
+  const W = require("./files.js");
+  const part = (shape) => F.readPart({ shape, at: [0, 0, 0] }, "p", BASE);
+  const colour = [1, 0.85, 0.4], add = ADDITIVE(colour);
+  const placed = [{ part: part({ type: "dome", radius: 1, colour }) }, { part: part({ type: "dome", radius: 2, colour, blend: "additive" }) },
+    { part: part({ type: "sphere", radius: 1, colour, blend: "additive" }) }];
+  const made = W.shapeTextures(placed);
+  assert.deepStrictEqual([...made.keys()], ["n5s_a3caa0709dda", add]);
+  assert.deepStrictEqual([made.get("n5s_a3caa0709dda").blend, made.get(add).blend], ["normal", "additive"]);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "n5_fdtxi-"));
+  try {
+    const writes = W.shapeWrites(made, dir);
+    assert.deepStrictEqual(writes.map((w) => [path.basename(w.file), w.kind]), [["n5s_a3caa0709dda.tga", "shape"], [add + ".tga", "shape"], [add + ".txi", "shape"]]);
+    const tga = F.tgaBytes(F.shapeTexture({ colour }), { alpha: true });
+    assert.ok(writes[0].bytes.equals(tga) && writes[1].bytes.equals(tga), "its TGA: the colour's soft texture");
+    assert.ok(Buffer.isBuffer(writes[2].bytes) && writes[2].bytes.toString("latin1") === "blending additive\n", JSON.stringify(String(writes[2].bytes)));
+    // Ours by name, the TXI as its TGA: rewritten when it differs; a TXI not of a soft texture's name isn't.
+    const owned = W.ownership({ repo: dir, manifest: new Set(), mark: F.MARK });
+    fs.writeFileSync(path.join(dir, add + ".txi"), "blending punchthrough\n");
+    for (const name of ["n5s_mine.txi", "n5t_mark01.txi"]) assert.strictEqual(owned({ file: path.join(dir, name), kind: "shape" }, Buffer.from("x")), false, name);
+    assert.strictEqual(owned({ file: path.join(dir, add + ".txi"), kind: "shape" }, Buffer.from("x")), true);
+    assert.deepStrictEqual(W.writeAll(writes, owned, { repo: dir, manifest: new Set() }).map(([s, f]) => [s, path.basename(f)]),
+      [["new", "n5s_a3caa0709dda.tga"], ["new", add + ".tga"], ["rebuilt", add + ".txi"]]);
+    assert.strictEqual(fs.readFileSync(path.join(dir, add + ".txi"), "latin1"), "blending additive\n");
+    // What the summary and --json say: Normal as before; Additive its blend and its TXI.
+    assert.deepStrictEqual(W.shapeJson(made), [{ texture: "n5s_a3caa0709dda", colour }, { texture: add, colour, blend: "additive" }]);
+    assert.deepStrictEqual(W.shapeLines(made, "data/files"), [`  texture n5s_a3caa0709dda: a shape's soft texture, colour 1 0.85 0.4 - written into data/files`,
+      `  texture ${add}: a shape's soft texture, colour 1 0.85 0.4, additive (${add}.txi beside it: blending additive) - written into data/files`]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+check("Blend in a page: the same name, model and TXI", () => {
+  const P = pageFloatDisk();
+  const s = { type: "dome", radius: 2, colour: [1, 0.85, 0.4], blend: "additive" };
+  assert.deepStrictEqual(P.shapeModel(P.readShape(s, "s")), F.shapeModel(F.readShape(s, "s")));
+  assert.strictEqual(P.shapeTextureName(s), ADDITIVE([1, 0.85, 0.4]));
+  assert.strictEqual(P.SOFT_TXI, F.SOFT_TXI);
+  assert.strictEqual(P.txiAdditive("blending additive"), true);
 });
 
 console.log(process.exitCode ? `floatdisk check: FAILED (${count} passed)` : `floatdisk check: ${count} checks pass`);

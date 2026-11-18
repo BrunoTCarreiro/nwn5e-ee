@@ -159,6 +159,35 @@ check("readProject: a spell mesh's dome; projectText writes its shape after note
   assert.throws(() => P.readProject(j, BASE, F), /^Error: variants\[0\]\.parts\[0\]\.shape\.radius: a number from 0\.05 to 100/);
 });
 
+// M1b (the design's addendum (b)): a shape's Blend in a project - "additive" written in its shape after its texture (the
+// Shapes tab's new shapes carry it), read back; a shape without it Normal, as before; anything else refused naming it. A
+// spell mesh's draft names the additive soft texture; the draft has no blend of its own (the TXI beside the texture says
+// it to the game), its plane otherwise a Normal dome's.
+check("readProject and projectText: a shape's blend written when additive, read back; a spell mesh's draft names its additive texture", () => {
+  const json = { kind: "spellmesh", name: "zotest", guide: { shape: "circle", diameter: 9.14, height: 0 }, variants: [{ name: "1",
+    parts: [{ note: "zone", shape: { type: "dome", radius: 4.57, alpha: 0.1, blend: "additive" }, at: [0, 0, 0] }] }] };
+  const p = P.readProject(json, BASE, F);
+  assert.strictEqual(p.variants[0].parts[0].source.shape.blend, "additive");
+  assert.ok(lines(P.projectText(json)).includes('      { "note": "zone", "shape": { "type": "dome", "radius": 4.57, "alpha": 0.1, "blend": "additive" }, "at": [0, 0, 0] }'),
+    P.projectText(json));
+  assert.deepStrictEqual(JSON.parse(P.projectText(json)), json);
+  const plain = copy(json);
+  delete plain.variants[0].parts[0].shape.blend;
+  assert.strictEqual(P.readProject(plain, BASE, F).variants[0].parts[0].source.shape.blend, "normal");
+  const bad = copy(json);
+  bad.variants[0].parts[0].shape.blend = "lighten";
+  assert.throws(() => P.readProject(bad, BASE, F), (e) => e.message === "variants[0].parts[0].shape.blend: additive or normal");
+  // The draft: its dome's plane names the additive soft texture; the rest as a Normal dome's plane (no blend line).
+  global.window = global.window || {};  // core.js runs in the page and under node
+  const core = require(path.join(TOOLS, "vfx_bench", "public", "core.js"));
+  const mesh = (shape) => F.shapeModel(F.readShape(shape, "s")).meshes[0];
+  const add = mesh({ type: "dome", radius: 1, blend: "additive" }), normal = mesh({ type: "dome", radius: 1 });
+  const name = F.shapeTextureName({ colour: [0.6, 0.8, 1], blend: "additive" });
+  const text = P.draftText(core, "n5m_blend", [add]), other = P.draftText(core, "n5m_blend", [normal]);
+  assert.ok(text.includes(`\nbitmap = ${name}\n`), text.slice(0, 400));
+  assert.strictEqual(text.split(name).join("n5s_8c757fb28f99"), other);
+});
+
 check("readProject: a part's colours, read as the disk's", () => {
   const j = copy(CRATES);
   j.variants[0].parts[0].colours = { leather1: 7 };
@@ -374,6 +403,38 @@ check("floatdisk.js's hintValue and core.js's read every hint text alike", () =>
   assert.deepStrictEqual(texts.map(F.hintValue), [0, 1, 2, 5, 5, 5, 0, 0, 3, 4, 1, 2, 1, 2, 1, 0, 0, 0, 0, 0]);
 });
 
+// M1's review: the game's model writer (WriteVfxModel) writes a draft plane whose ambient and diffuse are both the draft's
+// defaults (0.2, 0.8 as %g writes them) at full, 1 1 1 - floatdisk.js's drawnMaterial and the bench's core.js drawnMaterial
+// (the stage's, for a draft's planes) are that rule, alike for every material.
+check("floatdisk.js's drawnMaterial and core.js's lift the same materials to full", () => {
+  global.window = global.window || {};  // core.js runs in the page and under node
+  const core = require(path.join(TOOLS, "vfx_bench", "public", "core.js"));
+  const materials = [{}, { ambient: [0.2, 0.2, 0.2], diffuse: [0.8, 0.8, 0.8] }, { ambient: [0.2000001, 0.2, 0.2], diffuse: [0.8, 0.79999995, 0.8] },
+    { ambient: [0.2001, 0.2, 0.2], diffuse: [0.8, 0.8, 0.8] }, { ambient: [0.2, 0.2, 0.2], diffuse: [0.8, 0.8, 0.7] }, { ambient: [1, 1, 1], diffuse: [1, 1, 1] },
+    { ambient: [0.1, 0.2, 0.3], diffuse: [0.5, 0.25, 1], selfillum: [0, 1, 0.5] }, { ambient: [0.2, 0.2, 0.2], diffuse: [0.8, 0.8, 0.8], selfillum: [0, 1, 0] }];
+  const of = (fn) => materials.map((m) => { const p = fn(Object.assign({ name: "p", bitmap: "fxpa_fern" }, m)); return [p.ambient, p.diffuse, p.selfillum]; });
+  assert.deepStrictEqual(of(F.drawnMaterial), of(core.drawnMaterial));
+  assert.deepStrictEqual(of(F.drawnMaterial).map((x) => JSON.stringify(x[1])), ["[1,1,1]", "[1,1,1]", "[1,1,1]", "[0.8,0.8,0.8]", "[0.8,0.8,0.7]", "[1,1,1]",
+    "[0.5,0.25,1]", "[1,1,1]"]);
+});
+
+// M1's review: a spell mesh's mesh at the draft's defaults, tinted, is lifted to full before its tint (placePart's
+// `planes`), so its draft carries the game's 1 1 1 times the tint; untinted, its draft has no material line - the game
+// lifts it, and every draft keeps its bytes.
+check("a spell mesh's tinted default-material mesh: its draft carries the game's full material times the tint; untinted, none", () => {
+  global.window = global.window || {};
+  const core = require(path.join(TOOLS, "vfx_bench", "public", "core.js"));
+  const model = { meshes: [Object.assign({}, MESH, { name: "plain", diffuse: [0.8, 0.8, 0.8], ambient: [0.2, 0.2, 0.2] })], lo: [-0.2, -0.3, 0], hi: [0.2, 0.3, 0.5] };
+  const draft = (tint, planes) => P.draftText(core, "n5m_plain", F.placePart(Object.assign({ at: [0, 0, 0], turn: 0, scale: 1, tilt: [0, 0] }, tint ? { tint } : {}),
+    model, 0, 0, "j", planes).meshes);
+  const section = (text) => text.slice(text.indexOf("[plane ")).split("\nverts =")[0];
+  assert.ok(section(draft([1, 1, 0.999], true)).includes("\ndiffuse = 1 1 0.999\nambient = 1 1 0.999"), section(draft([1, 1, 0.999], true)));
+  assert.ok(!/diffuse|ambient/.test(section(draft(null, true))), section(draft(null, true)));
+  assert.strictEqual(draft(null, true), draft(null, false));
+  // Not a spell mesh's (no `planes`): times the tint as it is - darker in game than untinted, as a placeable's model is.
+  assert.ok(section(draft([1, 1, 0.999], false)).includes("\ndiffuse = 0.8 0.8 0.7992\nambient = 0.2 0.2 0.1998"), section(draft([1, 1, 0.999], false)));
+});
+
 // --- the project file -----------------------------------------------------------------------------------------------
 check("projectText writes its values with floatdisk.js's inline - one JSON writer with compositionText", () => {
   const json = { name: "helms", variants: [{ name: "1", parts: [{ model: "helm_001", at: [0, 0, 0], colours: { metal1: 5, cloth1: undefined } },
@@ -390,6 +451,24 @@ check("projectText writes its values with floatdisk.js's inline - one JSON write
   assert.ok(calls > 0, "projectText didn't call F.inline");
   assert.ok(text.split("\n").includes('      { "model": "helm_001", "at": [0, 0, 0], "colours": { "metal1": 5 } },'), text);
   assert.ok(text.split("\n").includes('      { "model": "helm_002", "at": [0, 0, 0], "colours": {} }'), text);
+});
+// M1 (#39): a part's tint [r, g, b] (floatdisk.js readTint) is written after its tilt and colours, and never white - white
+// is no tint; a project reads it back as the part's.
+check("projectText writes tint after tilt, never white", () => {
+  const json = { kind: "placeable", name: "tints", guide: CIRCLE, variants: [{ name: "1", parts: [
+    { tint: [0.5, 1, 0.25], extra: 1, colours: { metal1: 5 }, model: "helm_001", at: [0, 0, 0], tilt: [0, 90] },
+    { tint: [1, 1, 1], model: "plc_a03", at: [0, 0, 0], turn: 15 }] }] };
+  const text = P.projectText(json), l = lines(text);
+  assert.ok(l.includes('      { "model": "helm_001", "at": [0, 0, 0], "tilt": [0, 90], "colours": { "metal1": 5 }, "tint": [0.5, 1, 0.25], "extra": 1 },'), text);
+  assert.ok(l.includes('      { "model": "plc_a03", "at": [0, 0, 0], "turn": 15 }'), text);
+  const read = P.readProject(JSON.parse(text), BASE, F).variants[0].parts;
+  assert.deepStrictEqual(read.map((p) => p.tint), [[0.5, 1, 0.25], [1, 1, 1]]);
+  // Each error names its part; a shape takes none.
+  const bad = copy(json);
+  bad.variants[0].parts[1].tint = [0, 0, 1.5];
+  assert.throws(() => P.readProject(bad, BASE, F), says("variants[0].parts[1].tint: [r, g, b], each 0 to 1"));
+  bad.variants[0].parts[1] = { shape: { type: "dome", radius: 1 }, at: [0, 0, 0], tint: [0.5, 0.5, 0.5] };
+  assert.throws(() => P.readProject(bad, BASE, F), says("variants[0].parts[1].tint: a shape has no tint - its Colour is its colour"));
 });
 check("projectText: a part a line, and a round trip", () => {
   const json = copy(CRATES);

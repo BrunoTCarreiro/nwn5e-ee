@@ -559,6 +559,41 @@ try {
     }
   });
 
+  check("a placeable project's Additive dome (M1b): its soft texture's TXI comes out into --out beside it, owned by its name; a second build the same", () => {
+    // The 1 m gold dome, Additive: its own soft texture (n5s_438a32a94ebf - the blend hashed in) and its TXI ("blending
+    // additive": the game's additive path), both git-ignored build output beside the model.
+    const ADD = "n5s_438a32a94ebf", colour = [1, 0.85, 0.4];
+    assert.strictEqual(F.shapeTextureName({ colour, blend: "additive" }), ADD);
+    const file = project("chkdomea", { kind: "placeable", guide: CIRCLE, placeable: THROUGH, variants: [{ name: "1", row: 14154, parts: [
+      { shape: { type: "dome", radius: 1, colour, alpha: 0.1, blend: "additive" }, at: [0, 0, 0] }] }] });
+    const own = ["plc_n5chkdomea.mdl", "plc_n5chkdomea.pwk", ADD + ".tga", ADD + ".txi"];
+    try {
+      const g = spawnSync(process.execPath, [path.join(COMPOSER, "build.js"), file, "--json", "--game", GAME, "--tools", TOOLS, "--reader", READER],
+        { encoding: "utf8", maxBuffer: 64 << 20, windowsHide: true });
+      assert.strictEqual(g.status, 0, "composer build.js: " + (g.stdout + g.stderr).trim());
+      for (const f of own) assert.ok(fs.existsSync(path.join(FILES, f)), f + " isn't in the copy's data\\files");
+      assert.ok(ignored(ADD + ".txi"), ADD + ".txi isn't git-ignored");
+      const r = derive(["--out", OUT]);
+      done(r);
+      assert.deepStrictEqual(Object.entries(states(r)).filter(([, s]) => s !== "unchanged").sort(), own.map((f) => [f, "written"]).sort());
+      assert.match(r.out, /the Composer's project chkdomea \(tools\/data\/composer\/chkdomea\.json\): 4 files; its rows agree/);
+      assert.strictEqual(fs.readFileSync(path.join(OUT, ADD + ".txi"), "latin1"), "blending additive\n");
+      assert.ok(fs.readFileSync(path.join(OUT, ADD + ".tga")).equals(F.tgaBytes(F.shapeTexture({ colour }), { alpha: true })), ADD + ".tga isn't the generator's");
+      const s = derive(["--out", OUT]);
+      done(s);
+      assert.ok(Object.values(states(s)).every((x) => x === "unchanged"), JSON.stringify(states(s)));
+      // A TXI of a soft texture's name in --out is the generator's: rewritten, never refused as someone else's.
+      fs.writeFileSync(path.join(OUT, ADD + ".txi"), "blending punchthrough\r\n");
+      const w = derive(["--out", OUT]);
+      done(w);
+      assert.deepStrictEqual(Object.entries(states(w)).filter(([, x]) => x !== "unchanged"), [[ADD + ".txi", "written"]]);
+    } finally {
+      fs.rmSync(file, { force: true });
+      fs.rmSync(path.join(ROWS, "placeables.chkdomea.txt"), { force: true });
+      for (const f of own) for (const dir of [FILES, OUT]) fs.rmSync(path.join(dir, f), { force: true });
+    }
+  });
+
   check("the real worktree is untouched (composition.json's hash, data\\files' and data\\rows' mtimes)", () => {
     assert.deepStrictEqual(worktreeState(), WORKTREE);
   });

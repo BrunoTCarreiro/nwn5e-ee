@@ -44,11 +44,19 @@ made of the game's parts) and the textures it generates (`n5p_*`, `n5s_*`), whic
   - A variant with no parts can be in the file (New project writes one), but `build.js` refuses the whole build
     while one has none (`variants[k].parts: at least one part`): add a part before the first Save and build.
 - **The parts** are composition.json's: `note`, `model` (a game model, or a list of them for a weapon's pieces),
-  `file` or `shape` (Shapes, below), `at`, `turn`, `scale`, `tilt`, and a dyed part's `colours`.
+  `file` or `shape` (Shapes, below), `at`, `turn`, `scale`, `tilt`, a dyed part's `colours`, and a `tint`.
   - A `file` is your own `.mdl`, relative to this folder, so `parts/my_crate.mdl` is `tools\data\composer\parts\my_crate.mdl`.
   - The rules for your own files (units, axes, textures) are the Floating Disk's (`tools\data\floatdisk\README.md`).
   - A dyed part (a helmet: the game has its texture only as a PLT) is baked into a texture of its own, `n5p_` and 12
     hex digits, in its `colours` (the Floating Disk's README, "Dyed parts"). The model or draft names the bake.
+  - A `tint` `[r, g, b]` (each 0-1; white, none, isn't written) multiplies every one of the part's meshes' material
+    (`ambient`, `diffuse`, `selfillumcolor`), so its textures take the colour in game: `"tint": [0.502, 1, 0.502]` is a
+    pale green crate. A placeable's model and a spell mesh's draft alike, a dyed part over its dyes; a shape takes none
+    (its `colour` is its colour). The Floating Disk's README, "Tint".
+  - On a spell mesh, a mesh with no material of its own (the draft's defaults, ambient 0.2 and diffuse 0.8) is drawn at
+    full in game - the game's model writer, `WriteVfxModel`, writes such a plane `ambient 1 1 1` / `diffuse 1 1 1` - so a
+    tint multiplies that: its draft carries the tint itself (`"tint": [1, 1, 0.999]` gives `1 1 0.999`, not `0.2 0.2
+    0.1998`). Untinted it's written as before. A placeable's model is written as it is: its 0.2 / 0.8 times the tint.
 
 ## Shapes
 
@@ -58,18 +66,26 @@ A part's `shape` is a shape the generator makes instead of a model - a dome (a h
 - `height` (the radius: a half sphere), `segments` (32), `sides` (`both`: seen from inside too; or `outside`);
 - `mapping` (`wrap`: round it and up it; or `above`: laid on from overhead), `repeat_around` (1, up to 32) and
   `repeat_up` (1, up to 16), which tile a wrapped texture;
-- `colour` (`[0.6, 0.8, 1]`), `alpha` (0.35), `glow` (1), `texture` (`soft`, `none`, or a library texture's name).
+- `colour` (`[0.6, 0.8, 1]`), `alpha` (0.35), `glow` (1), `texture` (`soft`, `none`, or a library texture's name);
+- `blend` (`normal`; or `additive`, M1b): how the game draws a Soft texture. Additive writes a TXI beside it
+  (`blending additive`, as the game's own faint globes and shields have): it adds light - faint, glowing, see-through,
+  never cut at alpha 0.2, nothing behind hidden. The VFX Bench writes `additive` on every shape it adds; one written
+  without it is Normal, as before. A library texture follows its own TXI; `none` has no texture to carry one.
 
 ```json
-{ "note": "zone", "shape": { "type": "dome", "radius": 4.57 }, "at": [0, 0, 0] }
+{ "note": "zone", "shape": { "type": "dome", "radius": 4.57, "alpha": 0.1, "blend": "additive" }, "at": [0, 0, 0] }
 ```
 
-- It has no `scale` (its radius and height size it) and no `colours` (its colour is on the shape).
+- It has no `scale` (its radius and height size it), no `colours` and no `tint` (its colour is on the shape).
 - Only what differs from the defaults is written; under `above` the repeats aren't written either.
 - A shape's soft texture is generated from numbers (original, nothing of the game's): it's named `n5s_` and 12 hex
-  digits of its colour (`n5s_8c757fb28f99` for the default colour), so shapes of one colour share it.
+  digits of its colour and blend (`n5s_8c757fb28f99` for the default colour, `n5s_617b220c1144` for it Additive), so
+  shapes of one colour and blend share it; an Additive one has its `n5s_<...>.txi` beside it wherever it's written
+  (`data\files`, `--saved`, the bench's Play), git-ignored and owned by its name as the texture is.
 - `none` is its colour only. A library texture (the game's own, by name; never `null` or an `n5s_` name) is tinted by
-  `colour`; nothing is generated or copied for it.
+  `colour`, lit by itself as far as `glow` goes: `selfillumcolor` `colour` x `glow`, `ambient` and `diffuse` `colour` x
+  (1 - `glow`). At Glow 1 (the default) it's the texture times the colour by day and night; lower, the scene's light
+  comes in. Nothing is generated or copied for it.
 
 **A shape's texture.** `build.js` makes the shape's mesh from its numbers (no game model, no mesh reader), and writes
 its soft texture beside what names it:

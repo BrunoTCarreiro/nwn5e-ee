@@ -162,6 +162,27 @@ dyeable texture, painted from an item's colours, and placeables have none - so t
   name in the way is rewritten. Bakes of colours no longer used stay in `data\files` (ignored, never installed: the
   build makes its own).
 
+## Tint
+
+A part's `tint` is a colour `[r, g, b]` (each 0-1) its textures take:
+
+```json
+{ "model": "plc_a03", "at": [0, 0, 0], "tint": [0.502, 1, 0.502] }
+```
+
+- **What it does:** every one of the part's meshes has its material - `ambient`, `diffuse` and `selfillumcolor` -
+  multiplied by it (to 0.00001). The game lights a textured mesh as texture x (selfillum + ambient x the area's light +
+  diffuse x the lights), so the material tints the texture. The game's own blue glyph globe (`vim_cntglobe`) is a grey
+  texture tinted that way.
+- **White is none:** `[1, 1, 1]`, the default, isn't written, and leaves the material as the model has it.
+- **Where:** any game model, weapon or file of yours, both generators alike (`floatdisk.js`'s `placePart` applies it). A
+  dyed part is tinted over its dyes. A shape takes none (it's refused): its `colour` is its colour.
+- **A spell mesh's meshes** (the Composer's) become a draft's planes, and the game's model writer draws a plane at the
+  draft's default material (ambient 0.2, diffuse 0.8: a mesh with no material of its own) at full, 1 1 1
+  (`drawnMaterial`). So there a tinted mesh at that default is lifted to full before its tint (`placePart`'s `planes`);
+  untinted it's left as it is. The Floating Disk's models, like a placeable's, are written as they are.
+- In the VFX Bench's Composer it's the part card's **Tint** (None takes it off).
+
 ## Shapes
 
 A part's `shape` is a shape the generator makes instead of a model: `{ "type": <dome, sphere, cylinder, cone, disc or
@@ -210,28 +231,44 @@ from the defaults is written; a key not its type's (a disc's `height`, a dome's 
     and it's original, made from numbers. It's painted from the colour as it's named, so a name fixes the picture.
   - `none` is its colour only.
   - A texture's name (lower-case letters, digits and `_`, at most 16: the game's own, from the bench's library) is
-    tinted by `colour` and glows by `glow`. Nothing is generated or copied for it. It can't be `null` (the game reads
-    that as no texture: use `none`) or start `n5s_` (those names are made, not picked). One the game has only as a
-    PLT (a dyed texture: a helmet's) is refused at build time: a shape takes no dyes, so pick a TGA or DDS.
+    tinted by `colour`, lit by itself as far as `glow` goes: its `selfillumcolor` is `colour` x `glow`, its `ambient`
+    and `diffuse` `colour` x (1 - `glow`). At Glow 1 it's the texture times the colour in any light (the game clamps a
+    mesh's light at 1, so a colour on top of its glow washed a pale one out to white by day); at 0 it's lit by the
+    scene, as a placeable is. Nothing is generated or copied for it. It can't be `null` (the game reads that as no
+    texture: use `none`) or start `n5s_` (those names are made, not picked). One the game has only as a PLT (a dyed
+    texture: a helmet's) is refused at build time: a shape takes no dyes, so pick a TGA or DDS.
 - **Its look:** `colour` `[r, g, b]` (each 0-1), `alpha` (0.02-1: the game's globes go to about 0.3), `glow` (0-1: how
-  much it lights itself, at 1 the same by day and night). A soft or library texture, or an alpha below 1, is drawn
+  much it lights itself, at 1 the same by day and night). Soft and `none` keep `ambient` and `diffuse` at white (Soft)
+  or the colour (`none`), `selfillumcolor` lit by `glow`. A soft or library texture, or an alpha below 1, is drawn
   see-through.
+- **Its blend** (`blend`, M1b; the owner's test, 2026-11-18: the game's `fxpa_globe` is faint with the sparkles seen
+  through it, where a soft texture with `transparencyhint 1` was still cut at alpha 0.2 and hid them): `additive` or
+  `normal` (the default, so a shape written without it keeps its look; the VFX Bench's Composer writes `additive` on
+  every shape it adds). Additive is the game's own way for a faint effect mesh (Minor Globe's `fxpa_Globe`, Mage
+  Armor's `fxpa_shield`...): its soft texture gets a TXI beside it saying `blending additive`, and the game adds its light
+  - it glows, never darkens, nothing behind is hidden, no 0.2 cut; a faint one is a low `alpha` or a darker `colour`. It
+  applies to `soft`: a library texture follows its own TXI, and `none` has no texture to carry one (the key is kept
+  there, so Soft again keeps it). It's in the soft texture's name, so changing it never leaves a stale TXI beside a
+  texture.
 
 **A shape's texture**
 
 - **Where it goes:** `build.js` makes the mesh from the shape's numbers (no game model, no mesh reader). It writes a
   soft texture beside what names it: into `data\files` with the models (or `--files`), and with `--drafts` beside the
-  stages' drafts too. Shapes of one colour share one file.
+  stages' drafts too. Shapes of one colour and blend share one file. An Additive one's `n5s_<...>.txi` (`blending
+  additive`) goes beside it, everywhere it goes - git-ignored, rebuilt and owned by its name as the texture is.
 - **It's build output,** like a bake: original (generated from numbers), but its bytes follow from the recipe's
   colour alone, so `.gitignore` keeps it out (`/data/files/n5s_*`) and only the recipe is committed - no stale
   textures pile up while colours are tried. `made.txt` doesn't list it, and `build.bat` makes it with the models for
   every build (`tools\data\build_derived.js`).
 - **Whose it is:** its name says. Only the generator makes `n5s_` names, and the name fixes the picture, so a file of
   that name in the way is rewritten.
-- **The summary** names it, and `--json` lists it under `shapes` (`texture`, `colour`):
+- **The summary** names it, and `--json` lists it under `shapes` (`texture`, `colour`, and `blend: "additive"` for an
+  Additive one):
 
   ```
     texture n5s_a3caa0709dda: a shape's soft texture, colour 1 0.85 0.4 - written into data/files
+    texture n5s_438a32a94ebf: a shape's soft texture, colour 1 0.85 0.4, additive (n5s_438a32a94ebf.txi beside it: blending additive) - written into data/files
   ```
 
 - `none` and a library texture write nothing: the model names the library's texture, and the game has it.
