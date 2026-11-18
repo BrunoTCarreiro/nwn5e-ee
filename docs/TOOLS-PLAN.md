@@ -1858,9 +1858,12 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     - `VfxKeys.scale`: rows t s, one value (the same in x, y and z) - the model's `scalekey`, controller 36 with one
       column, as the game's own vdr_bigby_int keys its hand (a plain mesh: 1 to 10 over its 0.333 s impact, held at 10,
       10 to 1 over its 0.3 s cessation). Of the game's 25,305 compiled models two key a scale, both on a mesh, both one
-      column (vdr_bigby_int and the door tn_sdoor_24); its ASCII models key none, but the exe knows `scalekey` beside
-      `alphakey`, `positionkey` and `orientationkey`. Only a plane's reaches the model: a node's scale keys are kept in
-      the draft and not written;
+      column (vdr_bigby_int and the door tn_sdoor_24); its ASCII models key none, but the exe's base-node keyword table
+      reads `scale` / `scalekey` / `scalebezierkey` beside `position` / `positionkey` and `orientation` /
+      `orientationkey`, and nwn5e's own shipped ASCII models already key a trimesh with exactly `scalekey N` and N rows
+      of `t s` in an animation (n5_lb* / n5_ld* / n5_rs* / n5_rh* / n5_rc*, stealth_rings.py, since 0.40.4, tested in
+      game; n5v_mark* since 0.96.9). Only a plane's reaches the model: a node's scale keys are kept in the draft and
+      not written (controller 36 appears only on meshes in the game's models);
     - `VfxPlane.tint`: r g b, 1 1 1 none - the bench's (a mesh beat's material is already multiplied by it), in the
       draft only, never in the model;
     - the draft: `<anim>_scale = t s ...` after `<anim>_alpha` (in any section, as every key list); a plane's
@@ -1886,6 +1889,12 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
   - *Not read back (as before):* neither model reader keeps a plane's keys - its alpha, move, turn or scale. A game
     effect re-read in the bench (vdr_bigby_int's growing hand) shows the plane unmoved, and a re-save writes none.
   - *For the bench:* nothing until M5 (core.js reads and writes the same bytes; plane_moves.vfx is its round trip).
+  - *What a plane's keys mean (for M5):* its position and orientation keys are a node's - absolute in its parent's
+    frame, replacing the plane's own `position` and `orientation` while the animation plays (so M5's sim, Drop in and
+    Make it spin build them around the plane's own pose, or it snaps to them); its scale keys multiply the mesh as
+    placed (its verts are already scaled), 1 = as placed - M5 bounds scale above 0 (nwn5e's own models shrink to 0.05
+    or 0.001, never 0). A turn of 180 degrees or more is split into steps of 120 or less, as the game's quaternions
+    take the short way.
   - *For the game:* the next install carries it: a mesh beat's move, turn and scale keys play in game. Nothing changes
     for existing effects. Until the install, the game's DLL writes only a beat's alpha keys, so the beat shows unmoved
     in game; an older draft reader skips `_scale` and `tint` without an error. MBK-1 to MBK-3 (the design's rows) wait
