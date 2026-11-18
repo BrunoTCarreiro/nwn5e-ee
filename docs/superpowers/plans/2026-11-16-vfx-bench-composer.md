@@ -3273,3 +3273,12 @@ a14463b..b1ccbfd plus the final fix wave).
   the texture as it is); a textured shape at Opacity 1 is blended on the stage; the tooltips name every type; the
   summary check covers a disc and a ring.
 - **Counts after S5:** floatdisk check 68; check_composer 38; composer_check 89 (before the fix wave).
+
+## Addendum 2026-11-18 (d): the transparency hint (overrides addendum (c)'s "no transparencyhint" for planes)
+
+**Spec:** the design's "Addendum 2026-11-18 (d)". Built outside the S-tasks as a bug fix (the owner: "go"): T1 anim
+27a089d + 087f92d (vfx_model: a plane's transparencyhint), T2 nwn5e-tools 495bff3 + c6300e6 (core.js parity, the
+library format 19) and its Play-in-game follow-up 0cfca66 + 872a83c (the blend claim hedged until seen in game; the
+read rule's whitespace as C's isspace), T1b anim 2a43cd7 + cf6f7d1 (every generator mesh carries `transparencyhint`; one
+`hintValue` read rule, one `meshHint` write rule; the three read rules - C++, core.js, floatdisk.js - checked equal). After the install: the owner's spell mesh Save and build, then the
+effect's Refresh from the mesh, carries the hint into an effect.

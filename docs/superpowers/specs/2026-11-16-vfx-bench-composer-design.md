@@ -1311,3 +1311,22 @@ earlier section of this design says otherwise, this section wins.
 - **A shape at Opacity 1 with a texture** is still drawn see-through on the stage, as the game blends it.
 - **Deferred:** the Part card shows two "Height (m)" fields for a dome (the place's and the shape's) - the owner's call
   whether to rename one; thumbnails kept from before front faces / tiling aren't redrawn (harmless).
+
+## Addendum 2026-11-18 (d): spell meshes carry a transparency hint (the in-game test decided)
+
+Supersedes addendum (c)'s "spell-mesh planes carry neither smoothing groups nor transparencyhint" for the hint.
+
+- **What the owner saw** (their n5_zot effect, 2026-11-18, screenshot): a flat ring cut away inside its rim along a
+  ragged line, and a rune emitter hidden behind the see-through meshes; no z-fighting, smooth ground, fixed to the PC.
+- **The cause, from the game's shaders:** a mesh pixel whose texture alpha x material alpha is at or below
+  `fAlphaDiscardValue` is discarded (nwmain's `alphatest` global, 0.2), on a path that writes depth. The ring (Opacity
+  0.35, the soft texture fading from 1.0 at its rim to about 0.3 in its middle) is cut between 1.92 m and 1.77 m from its
+  centre - the screenshot's ragged edge; the cylinder (0.97) never is. Our see-through placeables carry
+  `transparencyhint 1` and blend in game; the game's own globes carry 1 (Mage Armor's shields 2).
+- **The fix (owner: "go"):** an effect plane carries the game's `transparencyhint` (vfx_model: anim 27a089d, 087f92d -
+  read from compiled header +0x70 and ASCII models, written only when not 0, on the geometry node only, as the game's
+  models do); the bench mirrors it (nwn5e-tools 495bff3; library format 19, c6300e6); the generator gives every mesh
+  one (anim 2a43cd7): a see-through shape 1, a game part its model's own, the Floating Disk 1 - for placeables and spell
+  meshes alike.
+- **Still to see in game:** that a hinted spell mesh blends rather than cuts (inferred from the placeables; the engine's
+  blend path isn't traced). The smoothing-group part of addendum (c) stands (no darkening reported).
