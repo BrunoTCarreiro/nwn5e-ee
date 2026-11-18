@@ -2505,6 +2505,15 @@ TEST(VfxModelWritesTransparencyHint) {
   CHECK_EQ(one("  transparencyhint 7\n"), 5);
   CHECK_EQ(one("  transparencyhint -3\n"), 0);
   CHECK_EQ(one("  transparencyhint x\n"), 0);
+  // A keyed plane (a mesh beat's fade: its node in the impact animation too): the hint on its geometry only, as the game's
+  // own have it - none of its 55,223 animation mesh nodes carries one.
+  VfxEffect beat = BeatEffect();
+  beat.planes[0].transparency_hint = 1;
+  const std::string keyed = WriteVfxModel(beat, "n5t");
+  const size_t first = keyed.find("transparencyhint"), anim = keyed.find("\nnewanim ");
+  CHECK_EQ(first != std::string::npos && anim != std::string::npos && first < anim, true);
+  CHECK_EQ(keyed.find("transparencyhint", first + 1) == std::string::npos, true);
+  CHECK_EQ(Contains(Section(keyed, "newanim impact n5t", "doneanim impact n5t"), "node trimesh n5t_p0_beat\n  parent n5t_n0_ring\n  alphakey"), true);
 }
 
 // A compiled model's: the mesh header's dword at +0x70 (Torlack's TransparencyHint, after render at +0x6C; the game's

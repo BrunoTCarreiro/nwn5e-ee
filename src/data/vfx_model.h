@@ -169,8 +169,9 @@ struct VfxPlane {
   bool render = true;
   // The owner, 2026-11-18 (n5_zot's see-through meshes cut away with jagged edges, a rune emitter hidden behind them -
   // "go"): its transparencyhint, the game's word for a see-through mesh. 0 (the default): the game draws it solid - its
-  // mesh shader drops a pixel where texture x material alpha <= 0.2 and writes depth; above 0 it is see-through (nwn5e's
-  // placeables with 1 blend in game; vdr_globe01's globe has 1, vdr_magearmor2's shields 2), and a node's mesh children
+  // mesh shader drops a pixel where texture x material alpha <= 0.2 and writes depth; above 0 it is see-through (inferred
+  // from our placeables: with 1 they blend in game - the engine's blend path isn't traced; vdr_globe01's globe has 1,
+  // vdr_magearmor2's shields 2), and a node's mesh children
   // are drawn in its order (MdlNode::ReorderChildren: the higher later). The compiled mesh header's +0x70 (Torlack's
   // TransparencyHint; the game's parser puts it beside shadow, beaming and render, as the compiled header has them). An
   // integer kept as read, 0 to kVfxTransparencyHintMax (the game's own models' range), by every reader and writer.
