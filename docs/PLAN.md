@@ -1164,6 +1164,8 @@ monster AC by CR.
     creatures only, and Minor Illusion's corpse and treasure are placeables. An illusion's image (tagged n5c_image:
     Minor Illusion's or Silent Image's, placeable or creature) now goes too, in any area - a cast's leftover. Images
     aren't counted with the removed creatures in the chat line; the log has their number.
+  - *Accepted (owner, 2026-11-18: "ok, reset removes the corpse too, passed. accept 152").* MI-43 passed on 0.99.78;
+    MI-40, MI-42, MI-21 and MI-30 on 0.99.77 (the owner: "I did play them in another session, they're good").
 - **#39 Part 2, the levelled spells (owner, 2026-11-09: "go for 39 part 2").** SRD 5.2.1 has 312 levelled spells, NWN
   274 class spells; 129 of the SRD's have an NWN version (98 the same, 16 renamed - Cure Light Wounds is Cure Wounds -
   15 close), 183 are new; 137 of NWN's have no 2024 version (30 fold into one: Cure Moderate Wounds is Cure Wounds at
