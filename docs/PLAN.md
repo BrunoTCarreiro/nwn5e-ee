@@ -1925,6 +1925,28 @@ monster AC by CR.
     - The window is #171, with Magic Missile's darts.
     - Build 1a goes first without Scorching Ray: Acid Arrow, Shatter, Mind Spike, Shining Smite, Prayer of Healing.
     - Then #171 with Scorching Ray and Magic Missile, then build 1b.
+  - *Built 0.99.80 (level 2's build 1a):*
+    - **Acid Arrow** (row 115, Melf's renamed; Wizard): a spell attack. A hit deals 4d4 Acid and queues 2d4 more a round
+      later; a miss splashes for half of 4d4. +1d4 each a slot level. NWN's rounds of acid go.
+    - **Shatter** (row 167, Sound Burst's; Bard, Sorcerer, Wizard): a 10-foot sphere, a Constitution save for half of
+      3d8 Thunder (one roll). Constructs save at Disadvantage (SetForcedSaveDisadvantage). Non-plot doors and
+      placeables in it take the damage. No stun.
+    - **Mind Spike** (row 1252; Sorcerer, Warlock, Wizard; S only, so it keeps a hide): a Wisdom save for half of 3d8
+      Psychic. On a failure, while the caster concentrates (up to an hour), the target can't hide from it
+      (rules_perception.cpp's Detection) and its invisibility gives no Advantage or Disadvantage between the two
+      (rules_advantage.cpp's MindSpikeTerms).
+    - **Shining Smite** (row 1253; Paladin): build 3's smite - armed by the cast, its icon row 236; the next melee or
+      unarmed hit adds 2d6 Radiant (+1d6 a slot level). Then, on Concentration (a minute), the target glows with 5
+      feet of light, attacks against it have Advantage, and its invisibility is suppressed (Faerie Fire's machinery).
+    - **Prayer of Healing** (row 1254; Cleric, Paladin): 10 minutes to cast, out of a fight only (LongCastOrder; the
+      clock 10 minutes on). Up to five of you and your party within 30 feet, nearest first, get nwn5e's Short Rest
+      (PrayerShortRest) and 2d8 HP (+1d8 a slot level), once per Long Rest each.
+    - rules: AcidArrowMissDamage, AcidArrowLaterDice, ShiningSmiteDice, ShatterSaveDisadvantage, IsSmiteArmedIcon,
+      PrayerOfHealingTargetsOf. Tests Level2Build1aTable, Level2Build1aRules, Level2PrayerOfHealingTargets; 17 of 17
+      mutations caught; test.bat 615 ok.
+    - Text: the names and descriptions SRD 5.2.1 verbatim (Prayer of Healing's with a generated note); seven new
+      catalogue lines, generated, for review (docs/TEXT-REVIEW.md).
+    - Profiles: level2wizard, level2sorcerer, level2paladin, level2cleric. Tests L2-1 to L2-15.
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
   New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion

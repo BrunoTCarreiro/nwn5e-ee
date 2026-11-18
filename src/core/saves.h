@@ -24,6 +24,9 @@ void SetForcedSaveAbility(std::optional<rules::Ability> ability);
 // #39 2a build 2b: the next save rolls with Advantage (a spell's own: Charm Person against a creature you're
 // fighting, Hideous Laughter's save on damage); false: back to the save's own.
 void SetForcedSaveAdvantage(bool on);
+// #39 Part 2, level 2, build 1a: the next save rolls with Disadvantage (a spell's own: Shatter on a Construct); false:
+// back to the save's own.
+void SetForcedSaveDisadvantage(bool on);
 
 // R8 (Rogue Evasion): the ability of the save `creature` rolled in the last
 // 200 ms (after C1's spell substitution and any forced ability), or none - the

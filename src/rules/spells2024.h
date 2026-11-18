@@ -504,4 +504,50 @@ constexpr int kDissonantWhispersFleeFeet = 30;
 bool InCone(float along, float side, float length, float slack);
 bool InCubeFromCaster(float along, float side, float edge, float slack);
 
+// ===== #39 Part 2, level 2 (owner, 2026-11-18: "A to all and we'll see the details of each as we build"; build 1:
+// "A for all, except Q3", Scorching Ray's target window #171 apart). Build 1a, damage and healing (SRD 5.2.1):
+// - Acid Arrow (NWN's Melf's Acid Arrow, rewritten; the Wizard's alone): a ranged spell attack, 4d4 Acid on a hit and
+//   2d4 Acid at the end of the target's next turn; a miss, half the first roll only; both 1d4 more a slot level.
+// - Shatter (NWN's Sound Burst, rewritten; Bard, Sorcerer, Wizard): every creature in a 10-foot-radius Sphere, a
+//   Constitution save for half of 3d8 Thunder (a Construct with Disadvantage); objects in it not worn or carried
+//   take the damage too; 1d8 more a slot level.
+// - Mind Spike (Sorcerer, Warlock, Wizard; S only): a Wisdom save for half of 3d8 Psychic; a failure, Concentration
+//   up to an hour: it can't hide from you, and Invisible gives it nothing against you; 1d8 more a slot level.
+// - Shining Smite (Paladin): build 3's smite - armed by the cast, the next melee weapon or Unarmed Strike hit pays
+//   (2d6 Radiant, 1d6 more a slot level); Concentration up to a minute: the target sheds light, attack rolls against
+//   it have Advantage, and it can't benefit from Invisible.
+// - Prayer of Healing (Cleric, Paladin): 10 minutes to cast; up to five creatures of your choice within 30 feet get
+//   a Short Rest's benefits and regain 2d8 Hit Points (1d8 more a slot level), once each between Long Rests.
+constexpr int kAcidArrow = 115;        // NWN's Melf's Acid Arrow
+constexpr int kShatter = 167;          // NWN's Sound Burst
+constexpr int kMindSpike = 1252;
+constexpr int kShiningSmite = 1253;
+constexpr int kPrayerOfHealing = 1254;
+constexpr int kShiningSmiteArmedIcon = 236;  // effecticons.if_spells2024.txt: its armed icon (#162 G)
+constexpr int kShatterFeet = 10;
+constexpr int kMindSpikeMinutes = 60;
+constexpr int kShiningSmiteMinutes = 1;
+constexpr int kPrayerOfHealingFeet = 30;
+constexpr int kPrayerOfHealingTargets = 5;
+constexpr int kPrayerOfHealingMinutes = 10;
+// Acid Arrow: a miss splashes for half the initial damage (rounded down); the acid at the end of the target's next
+// turn, 2d4 and 1d4 more a slot level above 2.
+int AcidArrowMissDamage(int initial_roll);
+int AcidArrowLaterDice(int slot_level);
+// Shining Smite's dice on the hit: 2d6, 1d6 more a slot level above 2.
+int ShiningSmiteDice(int slot_level);
+// Shatter: a Construct (racialtypes.2da 10) makes its save with Disadvantage.
+bool ShatterSaveDisadvantage(int nwn_racial_type);
+// An armed smite's icon on the effect bar: Divine, Searing, Ensnaring (225-227), Shining (236).
+bool IsSmiteArmedIcon(int icon_row);
+// Prayer of Healing's creatures: of those within its 30 feet, the ones not prayed for since their last Long Rest,
+// the caster first, then the nearest - five at most. `metres` and `prayed` side by side with `ids`; `caster` one of
+// them (or not).
+struct PrayerCandidate {
+  uint32_t id = 0;
+  float metres = 0.0f;
+  bool prayed = false;  // already had it since its last Long Rest
+};
+std::vector<uint32_t> PrayerOfHealingTargetsOf(uint32_t caster, std::vector<PrayerCandidate> candidates);
+
 }  // namespace rules

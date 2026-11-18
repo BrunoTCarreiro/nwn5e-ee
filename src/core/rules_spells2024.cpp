@@ -188,6 +188,8 @@ void FindFamiliarSpell(uint32_t self, void* caster, int row);
 bool InstallFindFamiliar();
 void FloatingDiskSpell(uint32_t self, void* caster, int row);  // rules_floating_disk.cpp (build 4d)
 bool InstallFloatingDisk();
+// rules_rest.cpp (#39 level 2 build 1a): Prayer of Healing - one creature's Short Rest benefits, the line for it.
+std::string PrayerShortRest(void* creature, const std::string& who);
 
 namespace {
 
@@ -198,6 +200,9 @@ std::string SecondsScript(int minutes) { return std::to_string(rules::SpellSecon
 constexpr size_t kCreatureLastSpellLevel = 0x21C;  // GetLastSpellLevel(): the cast's slot level (0: its own)
 constexpr uint64_t kRoundMs = 6000;
 constexpr uint64_t kUntilEndOfNextTurnMs = 2 * kRoundMs;  // "until the end of your next turn" (cantrips' reading)
+// #39 level 2 build 1a (below): Acid Arrow's acid at the end of the target's next turn; Mind Spike's knowledge.
+void AcidLater(uint32_t caster, uint32_t target, int dice);
+void MindSpikeKnow(uint32_t self, const rules::Spell2024& spell, const std::string& target);
 constexpr float kSlack = 0.5f;      // half a Medium creature's width: in an area when part of it is
 constexpr float kPushMetres = 3.048f;  // 10 feet
 constexpr const char* kVarHits = "n5s_hits";
@@ -516,6 +521,15 @@ Look LookOf(int row) {
     case rules::kDissonantWhispers:
       look.vis = "VFX_IMP_HEAD_SONIC";
       break;
+    case rules::kAcidArrow:  // #39 level 2 build 1a (NWN's projectile flies first: the row's)
+      look.vis = "VFX_IMP_ACID_S";
+      break;
+    case rules::kShatter:
+      look.vis = "VFX_IMP_SONIC";
+      break;
+    case rules::kMindSpike:
+      look.vis = "VFX_IMP_HEAD_MIND";
+      break;
   }
   return look;
 }
@@ -553,6 +567,7 @@ struct SaveOptions {
   bool harmful = true;
   bool advantage = false;
   const char* immune = "FALSE";
+  bool disadvantage = false;  // #39 level 2 build 1a: Shatter on a Construct
 };
 
 int SaveOf(uint32_t self, const rules::Spell2024& spell, rules::Ability ability, const std::string& target,
@@ -566,10 +581,12 @@ int SaveOf(uint32_t self, const rules::Spell2024& spell, rules::Ability ability,
   Replace(&code, "$HARMFUL", options.harmful ? "TRUE" : "FALSE");
   Replace(&code, "$IMMUNE", options.immune);
   SetForcedSaveAdvantage(options.advantage);
+  SetForcedSaveDisadvantage(options.disadvantage);
   if (ability == rules::Ability::kStrength) SetForcedSaveAbility(rules::Ability::kStrength);  // build 2c: Entangle's
   Run(code, self, spell.script);
   SetForcedSaveAbility(std::nullopt);
   SetForcedSaveAdvantage(false);
+  SetForcedSaveDisadvantage(false);
   return engine::GetLocalInt(caster, kVarSave);
 }
 
@@ -669,6 +686,11 @@ void Attack(uint32_t self, void* caster, const rules::Spell2024& spell, int slot
       if (landed) HuntersMarkSpellHit(self, ParseId(hit.target), critical);  // build 2a
       log += ": " + Dice(dice, spell.die) + " = " + std::to_string(amount) + " " + TypeName(spell.damage_type);
       if (!landed) log += " - immune";
+      if (spell.row == rules::kAcidArrow && landed) {  // #39 level 2 build 1a: the acid at the end of its next turn
+        const int later = rules::AcidArrowLaterDice(slot);
+        AcidLater(self, ParseId(hit.target), later);
+        log += "; " + Dice(later, 4) + " Acid more at the end of its next turn";
+      }
       const uint32_t id = ParseId(hit.target);
       if (spell.row == rules::kGuidingBolt) {
         const uint64_t now = GameMs();
@@ -683,6 +705,14 @@ void Attack(uint32_t self, void* caster, const rules::Spell2024& spell, int slot
         log += "; the next attack roll against it has Advantage";
       }
       if (spell.row == rules::kRayOfSickness && landed) log += "; Poisoned until the end of your next turn";
+    }
+    if (hit.value == 0 && spell.row == rules::kAcidArrow) {  // #39 level 2 build 1a: a miss splashes for half
+      const int dice = rules::SpellDiceAt(spell, slot);
+      const int roll = RollEngineDice(dice, spell.die);
+      const int dealt = rules::AcidArrowMissDamage(roll);
+      Damage(self, spell, hit.target, dealt, spell.damage_type, look.vis, look);
+      log += ": the splash, half of " + Dice(dice, spell.die) + " = " + std::to_string(roll) + ": " +
+             std::to_string(dealt) + " Acid";
     }
     if (spell.row == rules::kIceKnife) {
       std::string code = kExplosion;
@@ -719,6 +749,10 @@ void SaveOne(uint32_t self, void* caster, const rules::Spell2024& spell, int slo
     Damage(self, spell, one.target, dealt, spell.damage_type, look.vis, look);
     std::string log = std::string(AbilityName(spell.save)) + " save " + SaveWord(save) + ": " + Dice(dice, spell.die) +
                       " = " + std::to_string(full) + ", " + std::to_string(dealt) + " " + TypeName(spell.damage_type);
+    if (spell.row == rules::kMindSpike && save == 0) {  // #39 level 2 build 1a
+      MindSpikeKnow(self, spell, one.target);
+      log += "; it can't hide from you (Concentration, up to an hour)";
+    }
     if (spell.row == rules::kDissonantWhispers && save == 0) {
       void* target = CreatureById(ParseId(one.target));
       if (target && !engine::IsDeadOrDying(target) && TakeReaction(target)) {
@@ -887,7 +921,7 @@ bool OrderGuard(void* creature, const SpellOrder& order) {
   const int spell = static_cast<int>(order.spell);
   void* target = CreatureById(order.target);
   // Build 3 (Q1 A): a smite's cast arms it, nothing spent - the next qualifying hit pays.
-  if (spell == rules::kDivineSmite || spell == rules::kSearingSmite || spell == rules::kEnsnaringStrike) {
+  if (rules::IsSmiteSpell(spell)) {  // #39 level 2 build 1a: Shining Smite too
     return ArmSmite(creature, id, order);
   }
   // Build 4a (Q1 A): a Ritual spell from a class out of a fight, the switch on - a Ritual: no slot, 10 minutes.
@@ -2308,6 +2342,7 @@ struct Outline {
   std::vector<Hidden> hidden;
 };
 std::unordered_map<uint32_t, Outline> g_outlined;  // Faerie Fire's outlined creatures
+std::unordered_map<uint32_t, Outline> g_shining;   // #39 level 2 build 1a: Shining Smite's lit creatures (row its own)
 
 uint64_t CastKey(uint32_t caster, int row) {
   return (static_cast<uint64_t>(caster) << 32) | static_cast<uint32_t>(row);
@@ -2640,10 +2675,11 @@ void SuppressInvisibility(uint32_t id, Outline& outline, uint64_t now) {
                                    : "DURATION_TYPE_TEMPORARY, v, t, " + std::to_string(left) + ".0);");
       RunScriptChunk(code.c_str(), MakerOf(hidden.creator, id));
       outline.hidden.push_back(hidden);
-      TellPlayer(id, PlayerText("spells2024.faerie_fire_outlines_you_your"));
+      const bool shining = outline.row == rules::kShiningSmite;  // #39 level 2 build 1a
+      TellPlayer(id, PlayerText(shining ? "spells2024.shining_smite_lights_you" : "spells2024.faerie_fire_outlines_you_your"));
       if (LogSlot()) {
-        Log("spells2024: 0x%08X Faerie Fire suppresses its invisibility (spell %d by 0x%08X, %d s left)", id, spell,
-            hidden.creator, left);
+        Log("spells2024: 0x%08X %s suppresses its invisibility (spell %d by 0x%08X, %d s left)", id,
+            shining ? "Shining Smite" : "Faerie Fire", spell, hidden.creator, left);
       }
     }
     at = end + 1;
@@ -2667,7 +2703,8 @@ void RestoreInvisibility(uint32_t id, void* creature, const Outline& outline, ui
                        (left < 0 ? std::string("DURATION_TYPE_PERMANENT, v, t);")
                                  : "DURATION_TYPE_TEMPORARY, v, t, " + std::to_string(left) + ".0);");
     RunScriptChunk(code.c_str(), MakerOf(hidden.creator, id));
-    TellPlayer(id, PlayerText("spells2024.faerie_fire_ends_your_invisibility"));
+    TellPlayer(id, PlayerText(outline.row == rules::kShiningSmite ? "spells2024.shining_smite_ends_your_invisibility"
+                                                                 : "spells2024.faerie_fire_ends_your_invisibility"));
     if (LogSlot()) Log("spells2024: 0x%08X its invisibility back (spell %d, %d s left)", id, hidden.spell, left);
   }
   std::string code = kUnmark;
@@ -2804,7 +2841,7 @@ void AreaUpdate(void* creature) {
   const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
   const uint64_t now = GameMs();
   FogSearchUpdate(creature, id, now);  // #160
-  if (g_terrain.empty() && g_fogged.empty() && g_entangled.empty() && g_outlined.empty()) return;
+  if (g_terrain.empty() && g_fogged.empty() && g_entangled.empty() && g_outlined.empty() && g_shining.empty()) return;
   if (!g_terrain.empty()) {
     const auto it = g_terrain.find(id);
     if (it != g_terrain.end()) {
@@ -2852,6 +2889,21 @@ void AreaUpdate(void* creature) {
       } else if (now >= outline.next_look) {
         outline.next_look = now + 1000;
         SuppressInvisibility(id, outline, now);
+      }
+    }
+  }
+  if (!g_shining.empty()) {  // #39 level 2 build 1a: Shining Smite's light, kept as Faerie Fire's outline
+    const auto it = g_shining.find(id);
+    if (it != g_shining.end()) {
+      Outline& lit = it->second;
+      if (engine::IsDeadOrDying(creature) || !HasSpellEffect(creature, rules::kShiningSmite, -1, lit.caster)) {
+        const Outline done = lit;
+        g_shining.erase(it);
+        RestoreInvisibility(id, creature, done, now);
+        if (LogSlot()) Log("spells2024: 0x%08X Shining Smite's light ends", id);
+      } else if (now >= lit.next_look) {
+        lit.next_look = now + 1000;
+        SuppressInvisibility(id, lit, now);
       }
     }
   }
@@ -3168,6 +3220,17 @@ void SmiteHit(void* attacker, void* target) {
       g_smite_pending[victim_id] = SmitePending{id, paid.row, paid.slot, dc};
       log = "its vines (Strength save, DC " + std::to_string(dc) + ")";
       break;
+    case rules::kShiningSmite: {  // #39 level 2 build 1a
+      const int dice = rules::CriticalDice(rules::ShiningSmiteDice(paid.slot), critical);
+      const int amount = RollEngineDice(dice, 6);
+      rules::AddDamage(entries, ee::kAttackDamageEntryCount, rules::kDamageTypeRadiant, amount);
+      SmiteVisual(id, victim_id, "VFX_IMP_SUNSTRIKE");
+      g_smite_pending[victim_id] = SmitePending{id, paid.row, paid.slot, dc};
+      char text[120];
+      sprintf_s(text, "%dd6 Radiant = %d, and it shines (Concentration)", dice, amount);
+      log = text;
+      break;
+    }
   }
   TellPlayer(id, PlayerText("spells2024.a_level_slot_your_bonus", {{"name", std::string(spell->name)}, {"slot", std::string(std::to_string(paid.slot))}, {"log", std::string(log)}}));
   if (LogSlot()) {
@@ -3207,7 +3270,7 @@ int ArmedIconShown(const void* creature) {
   int shown = 0;
   effects::ForEachOfType(creature, ee::kEffectTypeIcon, [&](const void* effect) {
     const int icon = effects::Integer(effect, 0);
-    if (icon >= rules::kSmiteArmedIconFirst && icon <= rules::kSmiteArmedIconLast) shown = icon;
+    if (rules::IsSmiteArmedIcon(icon)) shown = icon;  // Shining Smite's 236 too
   });
   return shown;
 }
@@ -3303,6 +3366,35 @@ void SmitesGameStarted() {
   g_icon_tried.clear();
 }
 
+// #39 level 2 build 1a: Shining Smite's rider at the target's update - the caster's Concentration, the light on it
+// (made by the caster: Concentration finds it), its invisibility suppressed as Faerie Fire's outline does; attack
+// rolls against it with Advantage (FaerieFireRollSources).
+constexpr const char* kTagShining = "n5s_shining";
+
+void ShiningSmiteLights(uint32_t id, uint32_t caster_id, uint64_t now) {
+  void* caster = CreatureById(caster_id);
+  if (!caster) return;
+  BeginConcentration(caster, rules::kShiningSmite);
+  const std::string code = "object t = StringToObject(\"" + Hex(id) +
+                           "\"); ApplyEffectToObject(DURATION_TYPE_TEMPORARY, TagEffect(SetEffectSpellId("
+                           "EffectLinkEffects(EffectVisualEffect(VFX_DUR_GLOW_WHITE), EffectVisualEffect("
+                           "VFX_DUR_LIGHT_WHITE_5)), " +
+                           std::to_string(rules::kShiningSmite) + "), \"" + kTagShining + "\"), t, " +
+                           SecondsScript(rules::kShiningSmiteMinutes) + ");";
+  RunScriptChunk(code.c_str(), caster_id);
+  if (g_shining.size() > 256) g_shining.clear();
+  Outline& lit = g_shining[id];
+  lit = Outline();
+  lit.caster = caster_id;
+  lit.row = rules::kShiningSmite;
+  lit.next_look = now + 1000;
+  SuppressInvisibility(id, lit, now);
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Shining Smite's light from 0x%08X - attack rolls against it with Advantage, no benefit "
+        "from Invisible (Concentration, a minute)", id, caster_id);
+  }
+}
+
 void SmiteUpdate(void* creature) {
   if (!creature) return;
   const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
@@ -3337,6 +3429,8 @@ void SmiteUpdate(void* creature) {
                 id, pending.caster, ran, rules::kSearingSmite, SpellEffectCreator(creature, rules::kSearingSmite),
                 static_cast<double>(now + kRoundMs) / 1000.0);
           }
+        } else if (pending.row == rules::kShiningSmite) {  // #39 level 2 build 1a
+          ShiningSmiteLights(id, pending.caster, now);
         } else if (pending.row == rules::kEnsnaringStrike) {
           const bool advantage = rules::EnsnaringSaveAdvantage(Field<int32_t>(creature, ee::kCreatureSize));
           const uint8_t save = StrengthSave(creature, pending.caster, pending.dc, advantage);
@@ -4463,14 +4557,19 @@ bool RitualOrder(void* creature, uint32_t id, const SpellOrder& order) {
 }
 
 // Build 4c: a spell an hour or more to cast (Find Familiar) from a class, not as a Ritual: not in a fight (refused,
-// nothing spent); out of one, the clock moves its hour as it's cast.
+// nothing spent); out of one, the clock moves its hour as it's cast. #39 level 2 build 1a: 10 minutes the same way
+// (Prayer of Healing).
 bool LongCastOrder(void* creature, uint32_t id, const SpellOrder& order) {
   const int row = static_cast<int>(order.spell);
   const int minutes = rules::CastingMinutes(row);
   const bool class_cast = order.class_slot >= 0 && order.class_slot <= 7;
-  if (minutes < 60 || !class_cast || !IsPlayerCreature(creature)) return false;
+  if (minutes < rules::kPrayerOfHealingMinutes || !class_cast || !IsPlayerCreature(creature)) return false;
   if (InFightNow(id, creature)) {
-    TellPlayer(id, PlayerText("spells2024.takes_an_hour_to_cast", {{"spell_name", std::string(SpellNameOf(row))}}));
+    TellPlayer(id, minutes >= 60 ? PlayerText("spells2024.takes_an_hour_to_cast",
+                                              {{"spell_name", std::string(SpellNameOf(row))}})
+                                 : PlayerText("spells2024.takes_minutes_to_cast",
+                                              {{"spell_name", std::string(SpellNameOf(row))},
+                                               {"minutes", std::to_string(minutes)}}));
     return true;
   }
   char code[600];
@@ -4484,6 +4583,238 @@ bool LongCastOrder(void* creature, uint32_t id, const SpellOrder& order) {
   TellPlayer(id, PlayerText("spells2024.minutes_pass_as_you_cast", {{"spell_name", std::string(SpellNameOf(row))}, {"minutes", std::string(std::to_string(minutes))}}));
   if (LogSlot()) Log("spells2024: 0x%08X %s cast with a slot - %d minutes", id, SpellNameOf(row).c_str(), minutes);
   return false;
+}
+
+// ===== #39 Part 2, level 2, build 1a (owner, 2026-11-18: "A for all, except Q3"): Acid Arrow's acid later, Shatter,
+// Mind Spike's knowledge, Prayer of Healing (Shining Smite: the smites above).
+constexpr const char* kTagMindSpike = "n5s_mindspike";
+constexpr const char* kVarPrayed = "n5s_prayed";  // Prayer of Healing had since the creature's last Long Rest
+struct Acid {
+  uint32_t caster = 0;
+  int dice = 2;
+  uint64_t due = 0;
+};
+std::unordered_map<uint32_t, std::vector<Acid>> g_acid;  // Acid Arrow: its target -> the acid still to come
+std::unordered_map<uint32_t, uint32_t> g_spiked;          // Mind Spike: its target -> its caster
+
+void AcidLater(uint32_t caster, uint32_t target, int dice) {
+  if (g_acid.size() > 256) g_acid.clear();
+  g_acid[target].push_back(Acid{caster, dice, GameMs() + kRoundMs});  // the end of its next turn: a round on
+}
+
+std::string NameOfId(uint32_t self, uint32_t id) {
+  char code[200];
+  sprintf_s(code, "SetLocalString(OBJECT_SELF, \"n5s_name\", GetName(StringToObject(\"%x\")));", id);
+  RunScriptChunk(code, self);
+  void* caster = CreatureById(self);
+  return caster ? engine::GetLocalString(caster, "n5s_name") : std::string();
+}
+
+// Mind Spike's failed save: a mark the caster made (its spell's row: Concentration finds it and ends it), the caster
+// kept as the one who knows where it is (MindSpikeKnows, below the namespace).
+void MindSpikeKnow(uint32_t self, const rules::Spell2024& spell, const std::string& target) {
+  MarkLook look{kTagMindSpike, "EffectVisualEffect(VFX_DUR_CESSATE_NEGATIVE)", SecondsScript(rules::kMindSpikeMinutes),
+                "VFX_IMP_HEAD_MIND"};
+  look.hostile = true;
+  Mark(self, spell, target, spell.row, look);
+  const uint32_t id = ParseId(target);
+  if (g_spiked.size() > 256) g_spiked.clear();
+  g_spiked[id] = self;
+  TellPlayer(self, PlayerText("spells2024.mind_spike_you_know", {{"name", NameOfId(self, id)}}));
+}
+
+// Shatter: every creature in the 10-foot-radius Sphere at the point (the caster too), a Constitution save for half of
+// one damage roll (a Construct with Disadvantage); the doors and placeables in it that aren't plot take the damage.
+const char* const kShatterGather = R"nss(
+object c = GetSpellTargetObject();
+location l = GetSpellTargetLocation();
+if (GetIsObjectValid(c)) l = GetLocation(c);
+ApplyEffectAtLocation(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_FNF_SOUND_BURST), l);
+string r = "";
+int types = OBJECT_TYPE_CREATURE | OBJECT_TYPE_DOOR | OBJECT_TYPE_PLACEABLE;
+object t = GetFirstObjectInShape(SHAPE_SPHERE, $RADIUS, l, TRUE, types);
+while (GetIsObjectValid(t)) {
+  if (GetObjectType(t) == OBJECT_TYPE_CREATURE) {
+    if (!GetIsDead(t)) r += ObjectToString(t) + ":" + IntToString(GetRacialType(t)) + ";";
+  } else if (!GetPlotFlag(t)) {
+    r += ObjectToString(t) + ":-1;";
+  }
+  t = GetNextObjectInShape(SHAPE_SPHERE, $RADIUS, l, TRUE, types);
+}
+SetLocalString(OBJECT_SELF, "n5s_hits", r);
+)nss";
+
+void Shatter(uint32_t self, void* caster, const rules::Spell2024& spell, int slot) {
+  std::string code = kShatterGather;
+  Replace(&code, "$RADIUS", Float(rules::FeetToMetres(spell.feet) + kSlack));
+  Run(code, self, spell.script);
+  const Look look = LookOf(spell.row);
+  const int dice = rules::SpellDiceAt(spell, slot);
+  const int full = RollEngineDice(dice, spell.die);
+  std::string log;
+  int creatures = 0;
+  int objects = 0;
+  for (const Entry& one : Entries(caster)) {
+    if (one.value < 0) {  // a door or a placeable: the damage, no save
+      Damage(self, spell, one.target, full, spell.damage_type, look.vis, Look());
+      ++objects;
+      log += "; object 0x" + one.target + " " + std::to_string(full);
+      continue;
+    }
+    SaveOptions options;
+    options.disadvantage = rules::ShatterSaveDisadvantage(one.value);
+    const int save = SaveOf(self, spell, rules::Ability::kConstitution, one.target, options);
+    if (save < 0) continue;
+    ++creatures;
+    const int dealt = rules::DamageAfterSave(full, save != 0, save == 1);
+    Damage(self, spell, one.target, dealt, spell.damage_type, look.vis, look);
+    log += "; 0x" + one.target + " " + std::to_string(dealt) + (save == 0 ? "" : save == 1 ? " (saved)" : " (immune)") +
+           (options.disadvantage ? " - a Construct, its save with Disadvantage" : "");
+  }
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Shatter (a level %d slot): %s = %d Thunder, a Constitution save for half - %d creature(s) "
+        "and %d object(s) in the 10-foot Sphere%s",
+        self, slot, Dice(dice, spell.die).c_str(), full, creatures, objects, log.c_str());
+  }
+}
+
+// Prayer of Healing: the caster and its party within 30 feet ("id:prayed:metres;"), the caster first.
+const char* const kPrayerGather = R"nss(
+location here = GetLocation(OBJECT_SELF);
+string r = "";
+object t = GetFirstObjectInShape(SHAPE_SPHERE, $REACH, here, FALSE, OBJECT_TYPE_CREATURE);
+while (GetIsObjectValid(t)) {
+  if (!GetIsDead(t) && (t == OBJECT_SELF || GetFactionEqual(t, OBJECT_SELF) || GetMaster(t) == OBJECT_SELF)) {
+    r += ObjectToString(t) + ":" + IntToString(GetLocalInt(t, "$PRAYED")) + ":" +
+         FloatToString(GetDistanceBetween(OBJECT_SELF, t), 0, 2) + ";";
+  }
+  t = GetNextObjectInShape(SHAPE_SPHERE, $REACH, here, FALSE, OBJECT_TYPE_CREATURE);
+}
+if (FindSubString(";" + r, ";" + ObjectToString(OBJECT_SELF) + ":") < 0) {
+  r = ObjectToString(OBJECT_SELF) + ":" + IntToString(GetLocalInt(OBJECT_SELF, "$PRAYED")) + ":0.0;" + r;
+}
+SetLocalString(OBJECT_SELF, "n5s_hits", r);
+)nss";
+
+const char* const kPrayerHeal = R"nss(
+object t = StringToObject("$TARGET");
+if (!GetIsObjectValid(t)) return;
+ApplyEffectToObject(DURATION_TYPE_INSTANT, SetEffectSpellId(EffectHeal($AMOUNT), $ROW), t);
+ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_HEALING_M), t);
+SetLocalInt(t, "$PRAYED", 1);
+)nss";
+
+// Up to five of them, not prayed for since their last Long Rest (rules::PrayerOfHealingTargetsOf): each a Short Rest's
+// benefits (rules_rest.cpp's, the Hit Dice and the short-rest features) and 2d8 Hit Points. The player's cast was
+// refused in a fight and moved the clock 10 minutes (LongCastOrder); a creature's AI cast in a fight does nothing.
+void PrayerOfHealing(uint32_t self, void* caster, const rules::Spell2024& spell, int slot) {
+  if (!IsPlayerCreature(caster) && InFightNow(self, caster)) {
+    if (LogSlot()) Log("spells2024: 0x%08X Prayer of Healing in a fight - 10 minutes it hasn't (no effect)", self);
+    return;
+  }
+  std::string code = kPrayerGather;
+  Replace(&code, "$REACH", Float(rules::FeetToMetres(rules::kPrayerOfHealingFeet) + kSlack));
+  Replace(&code, "$PRAYED", kVarPrayed);
+  Run(code, self, spell.script);
+  std::vector<rules::PrayerCandidate> candidates;
+  std::vector<uint32_t> had_it;
+  for (const Entry& one : Entries(caster)) {
+    rules::PrayerCandidate candidate;
+    candidate.id = ParseId(one.target);
+    candidate.metres = one.side;
+    candidate.prayed = one.value != 0;
+    candidates.push_back(candidate);
+    if (candidate.prayed) had_it.push_back(candidate.id);
+  }
+  const std::vector<uint32_t> picked = rules::PrayerOfHealingTargetsOf(self, candidates);
+  for (uint32_t id : had_it) {
+    TellPlayer(self, PlayerText("spells2024.prayer_of_healing_had_it", {{"name", NameOfId(self, id)}}));
+  }
+  if (picked.empty()) {
+    TellPlayer(self, PlayerText("spells2024.prayer_of_healing_none"));
+    if (LogSlot()) Log("spells2024: 0x%08X Prayer of Healing - no one within 30 feet it can help", self);
+    return;
+  }
+  const int dice = rules::SpellDiceAt(spell, slot);
+  std::string log;
+  for (uint32_t id : picked) {
+    void* creature = CreatureById(id);
+    if (!creature) continue;
+    const std::string name = NameOfId(self, id);
+    const std::string rest = PrayerShortRest(creature, name);
+    if (!rest.empty()) TellPlayer(self, rest);
+    const int healed = RollEngineDice(dice, spell.die);
+    std::string heal = kPrayerHeal;
+    Replace(&heal, "$TARGET", Hex(id));
+    Replace(&heal, "$AMOUNT", std::to_string(healed));
+    Replace(&heal, "$ROW", std::to_string(spell.row));
+    Replace(&heal, "$PRAYED", kVarPrayed);
+    Run(heal, self, spell.script);
+    TellPlayer(self, PlayerText("spells2024.prayer_of_healing_heals",
+                                {{"name", name}, {"healed", std::to_string(healed)}}));
+    log += "; 0x" + Hex(id) + " a Short Rest's benefits" + (rest.empty() ? " (rests in NWN mode: none)" : "") +
+           " and " + Dice(dice, spell.die) + " = " + std::to_string(healed) + " HP";
+  }
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Prayer of Healing (a level %d slot) - %zu creature(s)%s", self, slot, picked.size(),
+        log.c_str());
+  }
+}
+
+// Each creature update: Acid Arrow's acid when its round is up; a Mind Spike whose mark is gone forgotten.
+void Level2Update(void* creature) {
+  if (!creature || (g_acid.empty() && g_spiked.empty())) return;
+  const uint32_t id = Field<uint32_t>(creature, ee::kObjectId);
+  if (!g_acid.empty()) {
+    const auto it = g_acid.find(id);
+    if (it != g_acid.end()) {
+      if (engine::IsDeadOrDying(creature)) {
+        g_acid.erase(it);
+      } else {
+        const uint64_t now = GameMs();
+        std::vector<Acid>& list = it->second;
+        for (auto later = list.begin(); later != list.end();) {
+          if (now < later->due) {
+            ++later;
+            continue;
+          }
+          const int amount = RollEngineDice(later->dice, 4);
+          char code[360];
+          sprintf_s(code,
+                    "object t = StringToObject(\"%x\"); ApplyEffectToObject(DURATION_TYPE_INSTANT, SetEffectSpellId("
+                    "EffectLinkEffects(EffectDamage(%d, DAMAGE_TYPE_ACID), EffectVisualEffect(VFX_IMP_ACID_S)), %d), t);",
+                    id, amount, rules::kAcidArrow);
+          RunScriptChunk(code, CreatureById(later->caster) ? later->caster : id);
+          if (LogSlot()) {
+            Log("spells2024: 0x%08X Acid Arrow's acid at the end of its turn: %dd4 Acid = %d (0x%08X's)", id,
+                later->dice, amount, later->caster);
+          }
+          later = list.erase(later);
+        }
+        if (list.empty()) g_acid.erase(it);
+      }
+    }
+  }
+  if (!g_spiked.empty()) {
+    const auto it = g_spiked.find(id);
+    if (it != g_spiked.end() &&
+        (engine::IsDeadOrDying(creature) || !HasSpellEffect(creature, rules::kMindSpike, -1, it->second))) {
+      if (LogSlot()) Log("spells2024: 0x%08X Mind Spike ends - 0x%08X no longer knows where it is", id, it->second);
+      g_spiked.erase(it);
+    }
+  }
+}
+
+// A Long Rest ends "until that creature finishes a Long Rest".
+void PrayerRest(void* stats) {
+  void* creature = stats ? CreatureOf(stats) : nullptr;
+  if (creature && engine::GetLocalInt(creature, kVarPrayed) != 0) engine::SetLocalInt(creature, kVarPrayed, 0);
+}
+
+void Level2GameStarted() {
+  g_acid.clear();
+  g_spiked.clear();
+  g_shining.clear();
 }
 
 void Cast(uint32_t self, int row) {
@@ -4525,6 +4856,14 @@ void Cast(uint32_t self, int row) {
   }
   if (row == rules::kHeroism) {
     Heroism(self, caster, *spell, slot);
+    return;
+  }
+  if (row == rules::kShatter) {  // #39 level 2 build 1a: a Sphere at the point
+    Shatter(self, caster, *spell, slot);
+    return;
+  }
+  if (row == rules::kPrayerOfHealing) {
+    PrayerOfHealing(self, caster, *spell, slot);
     return;
   }
   switch (spell->effect) {
@@ -4610,6 +4949,11 @@ ScriptHandler HandlerOf(int row) {
     case rules::kSilentImage: return &SpellScript<rules::kSilentImage>;
     case rules::kFindFamiliar: return &SpellScript<rules::kFindFamiliar>;  // build 4c
     case rules::kFloatingDisk: return &SpellScript<rules::kFloatingDisk>;  // build 4d
+    case rules::kAcidArrow: return &SpellScript<rules::kAcidArrow>;  // level 2 build 1a
+    case rules::kShatter: return &SpellScript<rules::kShatter>;
+    case rules::kMindSpike: return &SpellScript<rules::kMindSpike>;
+    case rules::kShiningSmite: return &SpellScript<rules::kShiningSmite>;
+    case rules::kPrayerOfHealing: return &SpellScript<rules::kPrayerOfHealing>;
   }
   return nullptr;
 }
@@ -4685,12 +5029,31 @@ int WakeFromSleepSpell(uint32_t rouser, uint32_t target) {
 // attacker can see it.
 MasteryRollSources FaerieFireRollSources(void* target, bool cant_see) {
   MasteryRollSources sources;
+  // #39 level 2 build 1a: Shining Smite - attack rolls against it have Advantage (it sheds light: no sight asked).
+  if (!g_shining.empty() && target && Faithful()) {
+    const auto lit = g_shining.find(Field<uint32_t>(target, ee::kObjectId));
+    if (lit != g_shining.end() && HasSpellEffect(target, rules::kShiningSmite, -1, lit->second.caster)) {
+      sources.advantage = 1;
+      sources.note = "Shining Smite";
+      return sources;
+    }
+  }
   if (g_outlined.empty() || !target || cant_see || !Faithful()) return sources;
   const auto at = g_outlined.find(Field<uint32_t>(target, ee::kObjectId));
   if (at == g_outlined.end() || !HasSpellEffect(target, at->second.row, -1, at->second.caster)) return sources;
   sources.advantage = 1;
   sources.note = "Faerie Fire";
   return sources;
+}
+
+// rules_perception.cpp, rules_advantage.cpp (#39 level 2 build 1a): Mind Spike - `observer` cast it on `target`, the
+// target failed its save and the spell holds: it can't hide from the observer, and Invisible gives it nothing against
+// the observer.
+bool MindSpikeKnows(void* observer, void* target) {
+  if (g_spiked.empty() || !observer || !target || !Faithful()) return false;
+  const auto it = g_spiked.find(Field<uint32_t>(target, ee::kObjectId));
+  if (it == g_spiked.end() || it->second != Field<uint32_t>(observer, ee::kObjectId)) return false;
+  return HasSpellEffect(target, rules::kMindSpike, -1, it->second);
 }
 
 // rules_spell_attack.cpp (#39 build 3): a spell attack's hit that Shield would turn - its Reaction taken (true).
@@ -4876,13 +5239,19 @@ void InstallSpells2024() {
                        AddCreatureUpdateListener(&DisguiseUpdate) && AddCreatureUpdateListener(&SilentImageUpdate) &&
                        AddGameStartListener(&IllusionsGameStarted) &&  // build 4b
                        InstallFindFamiliar() && InstallFloatingDisk();  // builds 4c, 4d
+  const bool level2 = AddCreatureUpdateListener(&Level2Update) && AddRestListener(&PrayerRest) &&  // level 2 1a
+                      AddGameStartListener(&Level2GameStarted);
   if (reactions) {  // #162 G
     AddHudPool(&SmiteHudPool);
     AddHudClick("smite", &SmitePanelClicked);
   }
-  Log("spells2024: SRD 5.2's level 1 spells, builds 1a-4d - %zu spells: damage and healing, Chromatic Orb, Heroism, "
-      "the buffs, the conditions on creatures, the areas, Shield and the smites, detection and utility, Disguise "
-      "Self and Silent Image, Find Familiar, Floating Disk; Rituals out of combat; %zu Bonus Action spells; one spell with a slot a turn (#39 Part 2a)%s",
+  Log("spells2024: SRD 5.2's levelled spells - level 1's builds 1a-4d and level 2's build 1a, %zu spells: damage and "
+      "healing, Chromatic Orb, Heroism, the buffs, the conditions on creatures, the areas, Shield and the smites, "
+      "detection and utility, Disguise Self and Silent Image, Find Familiar, Floating Disk; Acid Arrow, Shatter, Mind "
+      "Spike, Shining Smite, Prayer of Healing; Rituals out of combat; %zu Bonus Action spells; one spell with a slot a "
+      "turn (#39 Part 2)%s",
       rules::Spells2024().size(), rules::BonusActionSpells().size(),
-      scripts && update && guard && buffs && conditions && areas && reactions && utility ? "" : " - SOME hooks missing");
+      scripts && update && guard && buffs && conditions && areas && reactions && utility && level2
+          ? ""
+          : " - SOME hooks missing");
 }

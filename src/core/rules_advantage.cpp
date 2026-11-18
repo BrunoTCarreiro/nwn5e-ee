@@ -54,6 +54,8 @@ MasteryRollSources GuidingBoltRollSources(void* target);
 MasteryRollSources ProtectionRollSources(void* attacker, void* target);
 // rules_spells2024.cpp (#39 2a build 2c): Faerie Fire - Advantage against an outlined creature the attacker sees.
 MasteryRollSources FaerieFireRollSources(void* target, bool cant_see);
+// rules_spells2024.cpp (#39 level 2 build 1a): Mind Spike - the observer cast it on the target, and it holds.
+bool MindSpikeKnows(void* observer, void* target);
 // rules_rogue.cpp (R11): a Rogue 18+ not Incapacitated - no attack roll against it has Advantage.
 bool ElusiveTarget(void* creature);
 
@@ -110,6 +112,13 @@ std::string TermNames(const rules::NwnSituationalTerms& t) {
   return names.empty() ? "none" : names;
 }
 
+// #39 level 2 build 1a: Mind Spike - Invisible gives the creature it struck nothing against its caster: the caster's
+// attack on it isn't on an unseen target, and its attack on the caster isn't an invisible attacker's.
+void MindSpikeTerms(void* attacker, void* target, rules::NwnSituationalTerms* terms) {
+  if (MindSpikeKnows(attacker, target)) terms->cant_see_target = false;
+  if (MindSpikeKnows(target, attacker)) terms->attacker_invisible = false;
+}
+
 // B5: hostile creatures within 5 ft of the attacker that see it and can act.
 struct ThreatCount {
   void* attacker;
@@ -160,6 +169,7 @@ void BeforeAttackRoll(AttackRoll& roll) {
   t_probe = &terms;
   EngineAttackModifier(stats, target);
   t_probe = nullptr;
+  MindSpikeTerms(roll.attacker, target, &terms);  // #39 level 2 build 1a
   t_pending.terms = terms;
   t_pending.point_blank_shot = terms.ranged && engine::HasFeat(stats, ee::kFeatPointBlankShot);
   t_pending.threats = terms.ranged ? CountCloseCombatThreats(roll.attacker) : 0;
@@ -289,6 +299,7 @@ int RollSpellAttackD20(void* caster, void* target, bool ranged, std::string* not
     t_probe = &terms;
     EngineAttackModifier(stats, target);
     t_probe = nullptr;
+    MindSpikeTerms(caster, target, &terms);  // #39 level 2 build 1a
     terms.ranged = ranged;
     if (ranged) {
       terms.target_flanked = false;

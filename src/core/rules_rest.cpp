@@ -407,6 +407,14 @@ std::vector<std::string> TakeShortRest(void* player) {
   return lines;
 }
 
+// #39 Part 2, level 2, build 1a: Prayer of Healing - "the benefits of a Short Rest" for one creature (its Hit Dice,
+// the short-rest features), no hour passing and no rest's checks (the spell's own 10 minutes: rules_spells2024.cpp).
+// `who` names it in the line; "" with rests in NWN mode (no Hit Dice).
+std::string PrayerShortRest(void* creature, const std::string& who) {
+  if (!Faithful() || !creature) return "";
+  return ShortRestOf(creature, who);
+}
+
 namespace {
 
 std::vector<std::string> ShortRestCommand(void* creature, const std::string&) { return TakeShortRest(creature); }

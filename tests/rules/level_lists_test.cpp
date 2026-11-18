@@ -62,9 +62,9 @@ TEST(LevelOneListSwitch) {
 
 // NWN's one Wiz_Sorc column: the Wizard's alone of its spells (SRD 5.2.1) - the Sorcerer is answered no level for them.
 TEST(WizardOnlyRowsSplit) {
-  CHECK_EQ(WizardOnlyRows().size(), 10u);
+  CHECK_EQ(WizardOnlyRows().size(), 11u);  // level 2 build 1a: Acid Arrow
   for (int row : {kIdentify, kRayOfEnfeeblement, kProtectionFromEvilAndGood, kHideousLaughter, kLongstrider, kAlarm,
-                  kIllusoryScript, kUnseenServant, kFindFamiliar, kFloatingDisk}) {
+                  kIllusoryScript, kUnseenServant, kFindFamiliar, kFloatingDisk, kAcidArrow}) {
     CHECK_EQ(WizardOnlySpell(row), true);
   }
   CHECK_EQ(WizardOnlySpell(544), false);  // Magic Weapon: the Sorcerer's too

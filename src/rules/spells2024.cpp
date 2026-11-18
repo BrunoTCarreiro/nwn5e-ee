@@ -167,6 +167,26 @@ std::vector<Spell2024> Build() {
   spells.push_back(utility(kSilentImage, "Silent Image", "n5_s_silentimg", false));
   spells.push_back(utility(kFindFamiliar, "Find Familiar", "n5_s_findfam", true));  // build 4c
   spells.push_back(utility(kFloatingDisk, "Floating Disk", "n5_s_floatdisk", true));  // build 4d
+  // #39 Part 2, level 2, build 1a: damage and healing.
+  {
+    const auto level2 = [](Spell2024 spell) {
+      spell.level = 2;
+      return spell;
+    };
+    spells.push_back(level2(Damage(kAcidArrow, "Acid Arrow", "n5_s_acidarrow", E::kSpellAttack, 4, 4, 1,
+                                   kDamageTypeAcid)));
+    spells.push_back(level2(Area(Saved(Damage(kShatter, "Shatter", "n5_s_shatter", E::kSave, 3, 8, 1, kDamageTypeThunder),
+                                       Ability::kConstitution, true),
+                                 SpellShape2024::kSphere, kShatterFeet)));
+    spells.push_back(level2(Saved(Damage(kMindSpike, "Mind Spike", "n5_s_mindspike", E::kSave, 3, 8, 1,
+                                         kDamageTypePsychic),
+                                  Ability::kWisdom, true)));
+    Spell2024 shining = level2(Damage(kShiningSmite, "Shining Smite", "n5_s_shinesmite", E::kSmite, 2, 6, 1,
+                                      kDamageTypeRadiant));
+    shining.bonus_action = true;  // paid by the hit (build 3's Q1 A)
+    spells.push_back(shining);
+    spells.push_back(level2(Damage(kPrayerOfHealing, "Prayer of Healing", "n5_s_prayheal", E::kHealing, 2, 8, 1, 0)));
+  }
   std::sort(spells.begin(), spells.end(), [](const Spell2024& a, const Spell2024& b) { return a.row < b.row; });
   return spells;
 }
@@ -287,6 +307,7 @@ bool IsFamiliarCastRow(int row) {
 
 int CastingMinutes(int row) {
   if (row == kFindFamiliar || IsFamiliarCastRow(row)) return 60;  // build 4c: an hour
+  if (row == kPrayerOfHealing) return kPrayerOfHealingMinutes;      // level 2 build 1a
   return AlarmModeOf(row) != AlarmMode::kNone || row == kAlarm || row == kIdentify || row == kIllusoryScript ? 1 : 0;
 }
 
@@ -461,7 +482,7 @@ const std::vector<int>& WizardOnlyRows() {
   static const std::vector<int> kRows{kIdentify,        kRayOfEnfeeblement, kProtectionFromEvilAndGood,
                                       kHideousLaughter, kLongstrider,       kAlarm,
                                       kIllusoryScript,  kUnseenServant,     kFindFamiliar,
-                                      kFloatingDisk};
+                                      kFloatingDisk,    kAcidArrow};
   return kRows;
 }
 
@@ -587,20 +608,23 @@ bool ShieldTurnsHit(int total, int armor_class, bool natural_twenty) {
   return !natural_twenty && total < armor_class + kShieldAc;
 }
 
-bool IsSmiteSpell(int row) { return row == kDivineSmite || row == kSearingSmite || row == kEnsnaringStrike; }
+bool IsSmiteSpell(int row) {
+  return row == kDivineSmite || row == kSearingSmite || row == kEnsnaringStrike || row == kShiningSmite;
+}
 
 int SmiteArmedIconRow(int row) {
   switch (row) {
     case kDivineSmite: return kSmiteArmedIconFirst;
     case kSearingSmite: return kSmiteArmedIconFirst + 1;
     case kEnsnaringStrike: return kSmiteArmedIconLast;
+    case kShiningSmite: return kShiningSmiteArmedIcon;
     default: return 0;
   }
 }
 
 bool SmiteRidesOn(int row, bool ranged, bool unarmed) {
   if (row == kEnsnaringStrike) return !unarmed;
-  if (row == kDivineSmite || row == kSearingSmite) return !ranged;
+  if (row == kDivineSmite || row == kSearingSmite || row == kShiningSmite) return !ranged;
   return false;
 }
 
@@ -645,6 +669,35 @@ bool InCone(float along, float side, float length, float slack) {
 bool InCubeFromCaster(float along, float side, float edge, float slack) {
   if (along < -slack || along > edge + slack) return false;
   return std::fabs(side) <= edge / 2.0f + slack;
+}
+
+// #39 Part 2, level 2, build 1a.
+int AcidArrowMissDamage(int initial_roll) { return initial_roll > 0 ? initial_roll / 2 : 0; }
+
+int AcidArrowLaterDice(int slot_level) { return DiceAtSlot(2, 1, 2, slot_level); }
+
+int ShiningSmiteDice(int slot_level) { return DiceAtSlot(2, 1, 2, slot_level); }
+
+bool ShatterSaveDisadvantage(int nwn_racial_type) { return nwn_racial_type == 10; }  // racialtypes.2da: Construct
+
+bool IsSmiteArmedIcon(int icon_row) {
+  return (icon_row >= kSmiteArmedIconFirst && icon_row <= kSmiteArmedIconLast) || icon_row == kShiningSmiteArmedIcon;
+}
+
+std::vector<uint32_t> PrayerOfHealingTargetsOf(uint32_t caster, std::vector<PrayerCandidate> candidates) {
+  const float reach = FeetToMetres(kPrayerOfHealingFeet);
+  std::stable_sort(candidates.begin(), candidates.end(), [caster](const PrayerCandidate& a, const PrayerCandidate& b) {
+    if ((a.id == caster) != (b.id == caster)) return a.id == caster;
+    return a.metres < b.metres;
+  });
+  std::vector<uint32_t> picked;
+  for (const PrayerCandidate& one : candidates) {
+    if (static_cast<int>(picked.size()) >= kPrayerOfHealingTargets) break;
+    if (one.prayed || (one.id != caster && one.metres > reach)) continue;
+    if (std::find(picked.begin(), picked.end(), one.id) != picked.end()) continue;
+    picked.push_back(one.id);
+  }
+  return picked;
 }
 
 }  // namespace rules
