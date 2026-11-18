@@ -1947,6 +1947,20 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     MBK-3. Only the first plane's keys are edited; a draft whose beat planes carry different keys is shown by its first.
   - *For the bench:* restart vfx_bench.bat. *For the game:* the install carrying anim 7dd4657 (0.99.76 or later) plays a
     beat's moves; before it the beat shows unmoved in game. Nothing for the DLL here.
+  - *M5's review (nwn5e-tools 7a6f653):*
+    - the tint of a beat whose spell mesh changed since it was copied: retintPlanes lifts an untinted copy at the draft's
+      defaults first, as tintPlanes lifts the mesh's (a first red was 0.8 0 0 / 0.2 0 0, now 1 0 0 / 1 0 0); a tint
+      needing back a colour the old tint took to 0 (red to green, red to none) is refused - "Refresh from the mesh
+      first...", nothing changed, no undo step (it gave a black material, or red under a card showing none). The limit:
+      on a changed mesh, Refresh from the mesh before such a tint;
+    - Make it spin / Breathe on a timed beat in a lasting effect (hidden in the loop): the keys are made and the status
+      says they aren't seen (On for 0 shows them) - said, not keyed into the span it shows;
+    - one Drop in row (app.js dropInRow) for the Motion card and the Mesh card; the loop note counts the beats a motion's
+      pace retimed;
+    - another limit, named: turn keys' angles are kept as worked out, an undo gives them as the draft writes them (6
+      digits) - as a node's;
+    - check_beats.js +2, browser_check.mjs +3 (meshTintChangedMesh, meshTimedSpinSaysItsHidden, meshLoopRetimed: 108
+      steps, all passed), each seen failing on 7b3d104.
   - Test rows (for the board: #39, stream animation; each needs the game from the install carrying anim 7dd4657 -
     0.99.76 or later - and the VFX Bench restarted; the spell mesh: Composer, New project `mbkglyph`, Spell mesh; Parts,
     Shapes, Disc (flat, on the ground); Radius (m) 1, Mapping From above, Texture From the library... `fxpa_symbl_003`,
@@ -1958,4 +1972,4 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     | MBK-1 | The spell mesh and the effect above (after the install carrying anim 7dd4657) | On the mesh's card, Moves: Drop in: start this high (m) 3, Land after (s) 0.5, In Start (impact), Drop in; Play in game | the glyph falls from 3 m to the ground in half a second at the start, on the stage and in game, and lies there - no snap at the landing |
     | MBK-2 | As MBK-1 | Moves: Turns a second (round its z) 0.5, Make it spin; Breathe: how much 0.1, Breaths a second 0.5, Breathe; Play in game, at least 10 s | one turn (counter-clockwise from above) and one breath (1.1 to 0.9 of its size) every 2 s, the same in game as on the stage; no jump at the loop |
     | MBK-3 | As MBK-1 | the sparks beat's Its own motion: Orbit radius (m) 2, Turns a second 0.5, Height (m) 0, Make it orbit; the mesh's card Hangs under sparks; Play in game | the glyph circles the character 2 m out with the sparks, once every 2 s, on the stage and in game |
-    | TIN-3 | As MBK-1 | the mesh's card Tint red (#ff0000); Play in game; then the Composer, mbkglyph's disc Radius (m) 1.5, Save and build, Back to effects, the mesh's card Refresh from the mesh; Play in game | the glyph red on the stage and in game; after Refresh the larger glyph, still red (the status: its tint kept) |
+    | TIN-3 | As MBK-1 | the mesh's card Tint red (#ff0000); Play in game; then the Composer, mbkglyph's disc Radius (m) 1.5, Save and build, Back to effects, the mesh's card None (before Refresh), then Refresh from the mesh; Play in game | the glyph red on the stage and in game; None on the changed mesh refused ("Refresh from the mesh first", still red); after Refresh the larger glyph, still red (the status: its tint kept) |
