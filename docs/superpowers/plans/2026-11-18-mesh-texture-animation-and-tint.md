@@ -139,6 +139,35 @@ Working folders: anim, then nwn5e-tools. Needs Q3's answer.
 
 ---
 
+### Task M1b: A shape's Blend - additive soft textures (added 2026-11-18, the design's addendum (b))
+
+**Why:** the owner's in-game tests on 0.99.72 - the hint doesn't stop the 0.2 cut or the depth writing; fxpa_globe
+(additive TXI) is faint with the sparkles seen through it - and "go with your rec on the blend".
+
+**Do (test-first; anim tools/data and nwn5e-tools vfx_bench):**
+- **floatdisk.js:** a shape's `blend`: `"additive"` or `"normal"`; `shapeDefaults` keeps `"normal"` (a shape saved
+  without it keeps its look); `readShape` refuses anything else (`` `${where}.blend: additive or normal` ``); `cleanShape`
+  writes it only when additive; SHAPE_INFO gains `blend: { label: "Blend", choices: [["additive", "Additive: glows, adds
+  light, faint and see-through as the game's globes"], ["normal", "Normal: blended over what's behind"]] }`. The soft
+  texture's name hashes the blend too (soft-additive and soft-normal differ; the default normal name unchanged so known
+  answers stay); `shapeModel`'s `textures` entries carry `blend`; the mesh carries `additive: true` for a soft-additive
+  shape.
+- **The TXI:** wherever a soft texture is written (files.js shapeTextures / shapeWrites, both build.js, build_derived,
+  the bench server's bake route for Play), an additive one also writes `n5s_<hash>.txi` = `blending additive\n` beside it,
+  owned by name like its TGA (git-ignored by `/data/files/n5s_*`).
+- **The page:** a new shape (the Shapes tab's add, partFrom) gets `blend: "additive"` (written, since normal is the
+  default); the shape card shows Blend (a select) when its texture is Soft; a library texture's card says it follows its
+  own TXI.
+- **The stage:** a mesh with `additive` draws with additive blending and no depth write (view.js), in the Composer and
+  in the effect mode (a mesh beat's plane whose texture has an additive TXI beside it: the server's texture route reports
+  it - e.g. a header or a JSON flag - for n5s_ files and, if the bench can read them, library textures' TXIs).
+- **Checks:** the floatdisk / composer / build / derived checks (a soft-additive dome writes its TXI beside the TGA in
+  each place; normal writes none; the names differ); check_composer / check_composer_server (the bake route writes the
+  TXI); composer_check (a new dome is additive, its card's Blend, the stage draws it additively; switching to Normal is
+  one undo step); browser_check stays green.
+- **Test row (BL-1):** a dome at Opacity 0.1, Soft, Additive, with sparkles inside, Play in game - faint and glowing, the
+  sparkles seen through it; then Normal - cut and hiding them, as before.
+
 ### Task M2: Moving textures in the generators - the maths, the material, the shader, the probe
 
 Working folder: anim. Needs Q1 = A (else stop: B and C are other plans).
