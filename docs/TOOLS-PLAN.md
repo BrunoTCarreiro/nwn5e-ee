@@ -1899,3 +1899,63 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     for existing effects. Until the install, the game's DLL writes only a beat's alpha keys, so the beat shows unmoved
     in game; an older draft reader skips `_scale` and `tint` without an error. MBK-1 to MBK-3 (the design's rows) wait
     for M5 and the install.
+
+## The Mesh card's keys, Breathe and Tint; the sim (2026-11-18, #39; M5)
+
+  Spec: the design's "Keys on a mesh beat" and "Tint" (docs/superpowers/specs/2026-11-18-mesh-texture-animation-and-tint-design.md),
+  addenda (a) and (b); plan Task M5. The owner, 2026-11-18: "is it possible to add keyframes to animate the shapes? Or make
+  them follow emitters, just like other elements", and "tinting options" for the textures; Q2 (no): a beat doesn't
+  override its texture's motion - nothing of that here. Bench only (nwn5e-tools); the game side is M4 (anim 7dd4657,
+  installed by 0.99.76). `git diff --stat -- src` on anim: empty before and after.
+  - *Calls:*
+    - core.js matches M4's draft byte for byte: `<anim>_scale` right after `<anim>_alpha` (any section, as every key
+      list), a plane's `tint = r g b` after its emit_seconds, before its keys, only off 1 1 1 (core.plane()'s tint
+      1 1 1), read as its material's colours are;
+    - the sim (sim.js planesAt) plays a plane's own keys as the game's model writer keys them (this section's M4
+      paragraph, "What a plane's keys mean"): its position and turn keys absolute under its parent, in place of its own
+      pose; its scale keys times the mesh as placed - scaled, then turned, then placed under its parent's place.
+      `lastKey` counts its move, turn and scale keys beside its alpha (the C++'s LastKeyTime);
+    - the Mesh card's **Moves** reuse K1's key table (app.js keyTable gains `onChange`; the Motion card's own by
+      default, unchanged): the first plane's keys shown and edited, then copied onto every plane of the group
+      (beats.js shareKeys - each plane keeps its own alpha keys); **Drop in** (parts.dropIn, round its place),
+      **Make it spin** (parts.spinKeys: a node's turn keys - quarter turns, whole turns in the loop - built round its own
+      turn, so it doesn't snap), **Breathe** (parts.breatheKeys: 1 + how much x sin, 12 rows a breath, whole breaths in the
+      loop, 1 at both ends; how much 0.01-0.9 and 0.05-5 breaths a second, refused past them - never 0 or below),
+      **Clear its keys** (move, turn and scale; its fades kept). Each one undo step. Its Position moved takes its move
+      keys with it (core.movePosition, as a node's); its Turn changed leaves its turn keys (as a node's): Make it spin
+      again;
+    - **Tint** (#mesh-tint, None): every plane's material the spell mesh's (readMesh) times the tint, lifted from the
+      draft's defaults first as the game draws such a plane, through core.num's rounding (beats.js tintPlanes; white gives
+      the mesh's own back), `tint` kept on each; a mesh changed since it was copied (as Scale tells it): the copy's own
+      material over its old tint, times the new (retintPlanes). One undo step. The game sees only the material: a tinted
+      beat shows with any install;
+    - Refresh from the mesh keeps the keys (the first plane's move, turn and scale keys on every new plane) and the tint
+      (applied to the mesh's material as it is now); rekeyMesh rebuilds only alpha; + mesh gives tint 1;
+    - M5's follow-up found on the way: parts.applyLoop (a motion's pace setting the loop) retimes a beat's moves in the
+      loop with it, as a node's - else a spin or a breath would stop short of the new loop and jump; its alpha keys (its
+      timing, seconds) stay.
+  - *Built (nwn5e-tools 7b3d104):* core.js, sim.js, parts.js, beats.js, app.js, index.html, README. check.js +8 (the
+    anim worktree's fixture plane_moves.vfx - NWN5E_EE, else ..\nwn5e-ee-anim, skipped with a note when it isn't there -
+    and the rule's lines; one a guard), check_beats.js +5, check_parts.js +3, browser_check.mjs +5 (meshKeys, meshDropIn,
+    meshSpinBreathe, meshFollows, meshTint: 105 steps, all passed; the five seen failing on 14c02ab's page). check.js:
+    "523 drafts (1885 emitters) read and written back, 233 textures decoded, 0 failed" (before: 522 / 1884, 1 failed - the
+    main checkout's plane_moves.vfx, 0.99.76 carrying M4) and "the C++ fixture plane_moves.vfx ... read and written back
+    byte for byte by core.js"; `--helper` with a helper built from anim add2cca into a temporary folder: 416 of the game's
+    effects, 0 failed. Beats, parts, effect, chunk, composer and area checks pass; composer_check.mjs all passed.
+  - *Limits:* the model readers keep no plane keys: a game effect's keyed mesh (vdr_bigby_int's growing hand) opens
+    static on the bench, and a re-save writes none (out of scope). A mesh under an emitter is untested in game until
+    MBK-3. Only the first plane's keys are edited; a draft whose beat planes carry different keys is shown by its first.
+  - *For the bench:* restart vfx_bench.bat. *For the game:* the install carrying anim 7dd4657 (0.99.76 or later) plays a
+    beat's moves; before it the beat shows unmoved in game. Nothing for the DLL here.
+  - Test rows (for the board: #39, stream animation; each needs the game from the install carrying anim 7dd4657 -
+    0.99.76 or later - and the VFX Bench restarted; the spell mesh: Composer, New project `mbkglyph`, Spell mesh; Parts,
+    Shapes, Disc (flat, on the ground); Radius (m) 1, Mapping From above, Texture From the library... `fxpa_symbl_003`,
+    Use, Colour white (#ffffff); Save and build - `n5m_mbkglyph`; Back to effects, New, Type Stays (D), Permanent (until
+    Stop) ticked, + mesh `n5m_mbkglyph`):
+
+    | ID | Setup | Do | Expect |
+    |---|---|---|---|
+    | MBK-1 | The spell mesh and the effect above (after the install carrying anim 7dd4657) | On the mesh's card, Moves: Drop in: start this high (m) 3, Land after (s) 0.5, In Start (impact), Drop in; Play in game | the glyph falls from 3 m to the ground in half a second at the start, on the stage and in game, and lies there - no snap at the landing |
+    | MBK-2 | As MBK-1 | Moves: Turns a second (round its z) 0.5, Make it spin; Breathe: how much 0.1, Breaths a second 0.5, Breathe; Play in game, at least 10 s | one turn (counter-clockwise from above) and one breath (1.1 to 0.9 of its size) every 2 s, the same in game as on the stage; no jump at the loop |
+    | MBK-3 | As MBK-1 | the sparks beat's Its own motion: Orbit radius (m) 2, Turns a second 0.5, Height (m) 0, Make it orbit; the mesh's card Hangs under sparks; Play in game | the glyph circles the character 2 m out with the sparks, once every 2 s, on the stage and in game |
+    | TIN-3 | As MBK-1 | the mesh's card Tint red (#ff0000); Play in game; then the Composer, mbkglyph's disc Radius (m) 1.5, Save and build, Back to effects, the mesh's card Refresh from the mesh; Play in game | the glyph red on the stage and in game; after Refresh the larger glyph, still red (the status: its tint kept) |
