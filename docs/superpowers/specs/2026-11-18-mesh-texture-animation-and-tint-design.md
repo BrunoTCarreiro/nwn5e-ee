@@ -366,3 +366,17 @@ The owner, 2026-11-18, on Q1-Q4 as put to them with recommendations: **"accept y
   bench can know it, a library texture whose TXI says additive.
 - How additive looks: it adds light - glows, never darkens, black is nothing, overlaps brighten; a very faint dome is a low
   Opacity (it scales the light) or a darker Colour.
+
+## Addendum 2026-11-18 (c): a breathing texture's edges (TMO-2)
+
+- **What the owner saw** (TMO-2, passed otherwise): "when breathing the texture wrapped around the mesh, so instead of the
+  glyph circle only growing and shrinking on the top, when it shrank the texture being tiled and wrapping would show a bit
+  at the bottom edge of the dome". The game repeats a texture past UV 1 (which scrolling needs); a breath below 1 scales
+  the UVs past the picture's edge, so the next repeat shows at the mesh's edge.
+- **Decided** (the owner: "go with 1 for the wrap"): a moving texture that breathes and doesn't scroll, on a mesh whose UVs
+  stay within one repeat (no Repeat around / up above 1, no tiled game part), is **clamped**: the generator gives it the
+  copy route TMO-1 proved (its picture copied under the n5u_ name, git-ignored build output) with a TXI that carries the
+  texture's own lines (its blending, its procedure) plus the game's clamp line, so its edge pixels stretch instead of the
+  next repeat showing. The stage draws it clamped too. Scrolling textures, and meshes meant to tile, keep repeating.
+- **Unproven until a row:** that the game honours the TXI's clamp on a mesh (14 of its 15 clamp TXIs are GUI). If it
+  doesn't, the fallback is option 2: a breath that only grows (1 to 1 + 2 x Breathe and back), never below its size.

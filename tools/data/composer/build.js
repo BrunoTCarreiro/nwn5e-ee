@@ -29,7 +29,12 @@
 // shader, the real texture its texture0 - NWN:EE has no UV-motion setting. Both are written beside what names them (a
 // placeable's models in data\files - the materials git-ignored, the shader committed there and listed in
 // ..\floatdisk\made.txt - a spell mesh's drafts in <saved>); each material is ours by its name, the shader by its first
-// line (files.js motionWrites). No motion: neither is written, and every file is as before.
+// line (files.js motionWrites). No motion: neither is written, and every file is as before. W1 (the design's addendum
+// (c); TMO-2): a motion that breathes and doesn't scroll, on a mesh whose UVs stay within one repeat, is clamped - its
+// material (its own name: the clamp is hashed in) names its copy instead of texture0, the texture's picture copied under
+// the material's name (a soft one as made, a bake, the game's, or one beside your own file) with a TXI of its lines and
+// the game's clamp line (clamp 3), all beside the material, owned by the n5u_ name and git-ignored in data\files
+// (files.js motionCopies): its edge pixels stretch where a shrinking breath would show the next repeat.
 //
 // The parts are read and placed as the Floating Disk's (..\floatdisk\reader.js and floatdisk.js), through the player's
 // own game and nwn5e-ee's mesh reader; nothing of the game's is kept in the repo. The files are written by its files.js,
@@ -187,7 +192,7 @@ function main() {
   // A moving part's textured meshes (M2): each bitmap renamed for its material, n5u_ and 12 hex digits (files.js's
   // motionMaterials, after the bakes and the textures shipped: its texture0 is the real texture). Then each variant's
   // meshes lowered by the guide's height, named unique.
-  const moved = new Map();  // a material's name -> { texture, motion, pivot, text, label } (files.js's motionMaterials)
+  const moved = new Map();  // a material's name -> { texture, motion, pivot, clamp?, text, label, copy? } (files.js's motionMaterials)
   const built = placed.map(({ v, parts }) => {
     W.motionMaterials(parts, moved);
     const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
@@ -195,6 +200,9 @@ function main() {
     const meshes = F.uniqueNames(F.lowered([].concat(...parts.map((x) => x.meshes)), h), []);
     return { v, parts, meshes, lo, hi, low: [lo[0], lo[1], lo[2] - h], high: [hi[0], hi[1], hi[2] - h] };
   });
+  // W1: a clamped material's copy - its texture's picture (a soft one as made, a bake, the game's, or beside an own file)
+  // and a TXI of its lines and the game's clamp line - written under the material's name beside it (files.js motionCopies).
+  W.motionCopies(moved, { rd, shaped, baked, ship });
   // Where the bakes and the shapes' soft textures go: beside a placeable's models, or a spell mesh's drafts (--check
   // without --saved: nothing is written).
   const bakeDir = placeable ? FILES : SAVED || path.resolve("saved");
@@ -275,6 +283,9 @@ function main() {
         named.add(bitmap);
         const texture0 = F.MOTION_TEXTURE.test(bitmap) && fs.existsSync(mtr) ? /^texture0[ \t]+(\S+)/im.exec(fs.readFileSync(mtr, "latin1")) : null;
         if (texture0) named.add(texture0[1].toLowerCase());
+        // W1: a clamped material names its copy, not texture0 - its texture by its name, as this build makes it (the
+        // name fixes the texture).
+        else if (moved.has(bitmap)) named.add(moved.get(bitmap).texture);
       }
     }
     if (!writing.has(path.resolve(at).toLowerCase())) unused.push(shown(at));

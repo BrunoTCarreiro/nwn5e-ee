@@ -2067,3 +2067,87 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
       2026-11-18: route A (texture0), the texture's TXI still applies"; an envmap under our material is unknown, not
       dropped. The VFX Bench README's limits gain a moving texture's envmap, an `n5u_` material outside the bench build (the
       design's addendum (c), the shipping route still open) and the stage's area ambient (1 untextured, 0 textured).
+
+## A breathing texture's edges clamped (2026-11-18, #39; W1)
+
+  Spec: the design's addendum (c) (docs/superpowers/specs/2026-11-18-mesh-texture-animation-and-tint-design.md). TMO-2
+  (passed otherwise), the owner: "when breathing the texture wrapped around the mesh, so instead of the glyph circle only
+  growing and shrinking on the top, when it shrank the texture being tiled and wrapping would show a bit at the bottom
+  edge of the dome" - then "go with 1 for the wrap". The game repeats a texture past UV 1 (a scroll needs it); a breath
+  below 1 scales the UVs past the picture's edge, so the next repeat shows at the mesh's edge. No src or tests change
+  (`git diff --stat -- src tests` empty); no DLL change, no install.
+  - *Calls:*
+    - **the rule** (floatdisk.js `motionClamps`, one place; `moveTextures` marks the material `clamp: true`): clamped when
+      the motion breathes and doesn't scroll - each as the material takes it, to 0.001 - and every UV of the mesh is
+      within 0..1, 0.001 either side (a shape From above, or Wrapped at Repeat around / up 1; a game part whose UVs don't
+      tile). A turn alone isn't clamped (no breath, nothing shrinks); a scroll with a breath repeats (the scroll needs the
+      next repeat); no UVs, it repeats. The Composer's page runs the same rule (its own copy of the checkout's
+      floatdisk.js), so the stage, Save and Play agree;
+    - **the name** hashes `:clamp` after the texture, motion and pivot: a clamped and an unclamped motion never share a
+      name (the copy and its TXI go with the clamped one only), and every unclamped name is as before (M2's pin
+      `n5u_31e9f07948e1` holds). TMO-2's dome is `n5u_bfb2c9b5a9bf` now;
+    - **the game's clamp line, `clamp 3`.** The game's 15 clamp TXIs (read 2026-11-18, values only): `clamp 1` in 4
+      (gui_chrsht_2122, gui_chrsht_b16, gui_chrsht_b16lt, gui_slider), `clamp 2` in 1 (tdt01_testc, a test tile), `clamp 3`
+      in 10 (the GUI's tabs, icons and loadscreens). Read as two bits - 1 u, 2 v (inferred from the values, not seen) - 3
+      clamps both ways; it's also the game's commonest;
+    - **the TXI** (`clampedTxi`): the source texture's own lines as they are, in its own line ends (the game's CRLF, our
+      LF) - its blending, its procedure (`proceduretype`, `numx`, `numy`, `fps`), `decal` ... - any clamp line of its own
+      dropped, its blank lines at the end dropped, then `clamp 3`. fxpa_symbl_003's: `decal 1`, `blending additive`,
+      `downsamplemax 0`, `downsamplemin 0`, `clamp 3`;
+    - **the copy route TMO-1 proved** (its copy domes 4-6): the material has no `texture0`; the texture's picture is
+      copied under the material's name, `n5u_<...>.tga` or `.dds` as the source is (a soft one as made, a dyed part's
+      bake, the game's - its DDS when it has one, what the game draws - or the one beside your own file), with the TXI
+      beside it. **One copy path** (files.js `motionPicture`, uvprobe's code moved there): the generators
+      (`motionCopies`), the probe and the bench's bake route all use it; `motionWrites` writes a material's copy and TXI
+      beside its `.mtr` (kind "material": owned by the `n5u_` name, as the material);
+    - **where:** wherever materials go - data\files for a placeable (git-ignored by `/data/files/n5u_*`; build_derived
+      already carries `n5u_*.tga / .dds / .txi` as materials: only its comment changed), a spell mesh's saved\ (Save),
+      Play's vfxedit\ (the bench's bake route), the Floating Disk's data\files and drafts. Never committed: a library
+      texture's copy is the game's art;
+    - **the probe** writes TMO-1's domes as they were: `moveTextures`' `{ clamp: false }` (the rule off) - its breathing
+      From-above domes 3 and 6 would be clamped now; through the shared copy path, its output byte for byte as before
+      (composer check_build's probe check unchanged);
+    - **a spell mesh's own-file texture** shipped beside its draft stays its own when its material is clamped: a draft's
+      `n5u_` material with no `texture0` gives its texture by its name, as this build makes it (composer build.js);
+    - **the stage:** view.js `uvMatrix` takes a clamped motion's slide as it is (no `fract`: a clamped picture doesn't
+      repeat, and the game's shader has no scroll to wrap); a clamped material's picture (the route's X-Motion `clamp`)
+      uploads CLAMP_TO_EDGE (a flipbook's frames too); a Composer part's clamped mesh (its uvMotion's `clamp`) on a
+      picture uploaded repeating - another mesh may repeat it - is drawn CLAMP_TO_EDGE and its texture put back after.
+      composer.js placeOne carries the clamp from the material; Play's bake request carries `clamp: true`;
+    - **the server:** the bake route takes a material's `clamp` (true or false; anything else refused, nothing written):
+      a clamped one named with its clamp, its `.mtr` naming the copy, the copy and TXI written into vfxedit\ (the
+      checkout's files.js loaded for `motionPicture`: a soft texture or bake made in the same request, else the game's,
+      else beside the parts or where they're built), listed `{ material, name, texture, state, copy, txi }`; the texture
+      route's `X-Motion` (and a part's texture info) say `"clamp": true` when the material's picture's TXI clamps
+      (`txiClamps`); files.js joins the checkout code server.js watches (the restart message names it).
+  - *Built:* nwn5e-tools 0eb8d7b on branch `w1-clamp` (view.js, composer.js, composer_page.js - a `setClock` hook for
+    the checks -, app.js, composer_server.js, server.js, README; check_chunks, check_composer, check_composer_server,
+    composer_check.mjs); anim: the commit carrying this section, on branch `w1-clamp-anim` (floatdisk.js, files.js,
+    floatdisk\build.js, composer\build.js, uvprobe.js, build_derived.js's comment, the READMEs; floatdisk check, floatdisk
+    and composer check_build, check_derived). Both built in git worktrees of their own, not the live checkouts the
+    owner's bench runs from (the coordinator, 2026-11-18: each change there tripped the bench's stale-server guard); the
+    coordinator fast-forwards main / anim after review, so the bench restarts once.
+  - *Checks* (step 1 -> now; each new check seen failing first - a generator's by its `motionCopies` call taken out, the
+    page's on HEAD's view.js and composer.js):
+    - anim: floatdisk check 97 -> 104 (+7: the rule, the name, the TXI, the material, moveTextures, files.js's copy and
+      writes, the page's floatdisk.js); composer check 24 (unchanged); floatdisk check_build 12 -> 13; composer check_build
+      26 -> 30 (+4: a spell mesh's TMO-2 dome, a placeable's Soft dome, nothing copied for a scroll / a tiled dome / a
+      turn, an own file's breath; the own-file M2 check re-aimed at a turn, as a breath is clamped now); check_derived 17
+      -> 18 (a placeable's clamped library dome into --out). A mutation check of the rule's code (19 breaks, in a
+      temporary copy): every one fails a W1 check;
+    - nwn5e-tools: check_chunks 41 -> 44 (a clamped slide as it is; drawMeshes' wrap per mesh; a clamped picture's
+      upload), check_composer 46 -> 47 (placeOne's clamp), check_composer_server 53 -> 55 (Play's clamped materials and
+      their copies, served clamped; a saved spell mesh's clamped dome served as its copy), composer_check.mjs 99 -> 100
+      (clampedRimClear: TMO-2's dome from above at the breath's smallest - the rim exactly as with the dome deleted; on
+      HEAD's view.js up to 243 brighter, the next glyph), browser_check.mjs 112, all passed; beats, effect, parts and
+      area as before; check.js 0 failed.
+  - *Limits:* **unproven until TMO-5** that the game honours a TXI's clamp on a mesh (14 of its 15 clamp TXIs are the
+    GUI's); if it doesn't, the fallback is option 2, a breath that only grows (1 to 1 + 2 x Breathe and back). Clamped,
+    a picture whose edges aren't plain (a Soft texture's rim glow) shows its edge pixels stretched where it shrinks -
+    expected, the owner's option 1. `clamp 3`'s meaning (both ways) is inferred from the game's values.
+  - *For the bench:* restart vfx_bench.bat. *For the game:* nothing installed - Play in game writes the copy and its TXI
+    into vfxedit\ itself; a placeable's clamped texture reaches the game with the install carrying its project.
+
+    | ID | Setup | Do | Expect |
+    |---|---|---|---|
+    | TMO-5 | VFX Bench restarted; the game started (`!test level1ranger`); the Composer: `tmoglyph` (or New project `tmoglyph`, Spell mesh, Diameter (m) 2, Shapes, Dome (half sphere), Mapping From above, Texture From the library... `fxpa_symbl_003`, Colour orange, Turn (°/s) 30, Breathe 0.2); a second dome 2.5 m along x, Mapping From above, `fxpa_symbl_003`, Scroll up 0.25 | View: Top; watch both domes while the glyph shrinks; Play in game, watch from above and the side, at the first dome's bottom edge; Save and build; read the status; quit, search the logs | the turning glyph's dome edge stays clear while it shrinks (no part of the next glyph at the bottom edge), on the stage and in game; still orange, turning, faint, see-through; the scrolling dome still repeats (the next glyph slides in). The edge showing the next glyph in game only: the game ignores the TXI's clamp on a mesh - say so (the fallback: a breath that only grows) |

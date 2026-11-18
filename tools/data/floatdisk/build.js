@@ -16,7 +16,9 @@
 //   (M1b) with n5s_<...>.txi beside it, "blending additive", in data\files and beside the drafts alike (shapeWrites);
 //   and a moving part's (M2: a `motion`) materials, n5u_<12 hex digits>.mtr, which its textured meshes name instead - each
 //   our vertex shader (vsn5uvmove.shd, committed in data\files and listed in made.txt) with the real texture as texture0
-//   (files.js's motionWrites), beside the models and the drafts alike.
+//   (files.js's motionWrites), beside the models and the drafts alike - a clamped one (W1: it breathes, doesn't scroll,
+//   its mesh's UVs within one repeat) naming its copy instead, the texture's picture copied under the material's name with
+//   a TXI of its lines and the game's clamp line (files.js's motionCopies), git-ignored as the material.
 // - data\rows: appearance.floatdisk.txt (rows 14000-14003, each appearance 298's) and placeables.floatdisk.txt (14001-
 //   14003, each 189 TreasureSml's), floatdisk.js's ROWS.
 //
@@ -136,7 +138,7 @@ function main() {
 
   // A moving part's textured meshes (M2) renamed for their materials (files.js's motionMaterials: after the bakes and the
   // textures shipped, so texture0 is the real texture); then the creature's meshes and the pile's.
-  const moved = new Map();  // a material's name -> { texture, motion, pivot, text, label }
+  const moved = new Map();  // a material's name -> { texture, motion, pivot, clamp?, text, label, copy? }
   for (const stage of F.STAGES) {
     const parts = placed[stage];
     W.motionMaterials(parts, moved);
@@ -147,6 +149,9 @@ function main() {
     const pile = parts.length ? F.uniqueNames(F.lowered(junk, disk.height), []) : [];
     stages[stage] = { parts, creature, pile, lo, hi };
   }
+  // W1: a clamped material's copy (a breathing texture that doesn't scroll, on a mesh within one repeat): its picture and a
+  // TXI of its lines and the game's clamp line, under the material's name beside it (files.js motionCopies).
+  W.motionCopies(moved, { rd, shaped, baked, ship });
 
   // The summary: per stage its parts, triangles, how high the pile goes and how far it reaches.
   const r = disk.diameter / 2;

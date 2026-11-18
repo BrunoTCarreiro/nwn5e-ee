@@ -327,6 +327,31 @@ A part's `motion` moves the pictures on its textured meshes (M2; the owner, 2026
 - **What a material gives up:** it names our vertex shader and the game's plain lit fragment shader (the vslit / fslit
   pair), so a moving texture drops the game texture's own `.mtr` (a specular or normal-mapped one's). Whether an
   `envmaptexture` its TXI asks for still applies under our material is unknown (not dropped by us; untested).
+- **Clamped textures** (W1; the design's addendum (c); TMO-2, the owner: "when it shrank the texture being tiled and
+  wrapping would show a bit at the bottom edge of the dome" - "go with 1 for the wrap"). The game repeats a texture past
+  UV 1, which a scroll needs; but a breath below 1 scales the UVs past the picture's edge, so the next repeat shows at
+  the mesh's edge. So a moving texture is **clamped** when its motion breathes and doesn't scroll (each as the material
+  takes it, to 0.001) and the mesh's UVs stay within one repeat - every UV within 0..1, 0.001 either side: a shape From
+  above or at Repeat around / up 1, a game part whose UVs don't tile (`floatdisk.js`'s `motionClamps`, the one rule;
+  `moveTextures` marks the material `clamp: true`). Its edge pixels stretch instead of the next repeat showing.
+  Everything else repeats as before: a scroll (with or without a breath), a turn alone, a mesh tiled past 1.
+  - Its name hashes `:clamp` after the rest, so a clamped and an unclamped motion never share a name (an unclamped
+    one's is as before). Its `.mtr` has no `texture0`: it names its copy - TMO-1's copy route, proved in game (the copy
+    domes moved and stayed see-through).
+  - **The copy:** the texture's picture under the material's name, `n5u_<...>.tga` (or `.dds`, as the source is: a
+    soft one as made, a dyed part's bake, the game's - its DDS when it has one - or the one beside your own file), and
+    `n5u_<...>.txi`: the source's own TXI lines as they are (blending, `proceduretype` / `numx` / `numy` / `fps`, `decal`
+    ...), then the game's clamp line, `clamp 3` (`clampedTxi`). The game's 15 clamp TXIs say `clamp 1` (4), `clamp 2`
+    (1) or `clamp 3` (10, the GUI's tabs, icons and loadscreens): read as two bits (1 u, 2 v - inferred, not seen),
+    3 clamps both ways, and it's the game's commonest. `files.js`'s `motionCopies` (its `motionPicture`: one copy path
+    for the generators, the probe and the VFX Bench's Play) makes it; `motionWrites` writes it beside the `.mtr`
+    wherever the material goes - `data\files` (git-ignored, `/data/files/n5u_*`: art made from the game's files is
+    never committed), beside the drafts. Owned by its `n5u_` name.
+  - The summary says so: `material n5u_...: fxpa_symbl_003 turns 30 degrees a second, breathes 0.2 at 0.5 a second,
+    round 0.5 0.5, clamped: fxpa_symbl_003 copied as n5u_....tga with n5u_....txi (its TXI and clamp 3) - ...`; `--json`'s
+    material gains `"clamp": true`.
+  - **Unproven until TMO-5:** that the game honours a TXI's clamp on a mesh (14 of its 15 clamp TXIs are the GUI's). If
+    it doesn't, the fallback is a breath that only grows (the design's option 2).
 
 ## The files here
 

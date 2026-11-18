@@ -11,7 +11,8 @@
 //   in composer\*.json, each run with --json into a scratch folder of its own; their models, walkmeshes and textures - a
 //   dyed part's baked texture (n5p_<12 hex digits>.tga, from the game's PLT and palettes) and a shape's soft texture
 //   (n5s_<12 hex digits>.tga, from its colour and blend - an Additive one's n5s_<...>.txi beside it, M1b; all git-ignored)
-//   and a moving texture's material (n5u_<12 hex digits>.mtr, M2, git-ignored) with the shader it names (vsn5uvmove.shd,
+//   and a moving texture's material (n5u_<12 hex digits>.mtr, M2, git-ignored; a clamped one's copy and TXI too, W1:
+//   n5u_<...>.tga / .dds / .txi, its texture's picture under its name) with the shader it names (vsn5uvmove.shd,
 //   committed whole in data\files, which build.bat copies anyway) - with the models that name them - are then written
 //   into --out (build.bat: the build's data\files) - never into this repo's data\ (refused). Skipped, and said so: a
 //   spell mesh's project (its drafts live in the VFX Bench's saved folder, and the dev layer writes its models when the

@@ -454,6 +454,38 @@ try {
     assert.ok(again.files.every((f) => f.state === "unchanged"), JSON.stringify(again.files.filter((f) => f.state !== "unchanged")));
   });
 
+  // W1 (#39, the design's addendum (c); TMO-2): a breathing texture that doesn't scroll, on a mesh within one repeat, is
+  // clamped - its material (its own name) names its copy, the picture copied under the material's name with a TXI of its
+  // lines and the game's clamp line, beside the models in data\files and beside the drafts alike; made.txt doesn't list them.
+  check("W1: a breathing From-above dome part is clamped - its copy and TXI (clamp 3) beside the models and the drafts, the material naming the copy; again unchanged", () => {
+    const GOLD = "n5s_a3caa0709dda", colour = [1, 0.85, 0.4], motion = { breathe: 0.2 }, pivot = [0.5, 0.5], MAT = F.motionName(GOLD, motion, pivot, true);
+    const file = withComposition("clamp.json", (c) => {
+      c.stages.medium = [{ shape: { type: "dome", radius: 0.3, colour, mapping: "above" }, at: [0, 0, 0], motion }];
+    });
+    const drafts = path.join(root, "build", "saved"), library = path.join(root, "build", "textures");
+    const args = ["--composition", file, "--drafts", "--out", drafts, "--textures", library];
+    const made = fs.readFileSync(path.join(folder, "made.txt"));
+    const r = build([...args, "--json"]);
+    assert.strictEqual(r.code, 0, "build.js exited " + r.code + ": " + r.err.trim());
+    const j = json(r);
+    assert.deepStrictEqual(j.materials, [{ material: MAT, texture: GOLD, motion, pivot, clamp: true }]);
+    const states = Object.fromEntries(j.files.filter((f) => f.file.includes(MAT)).map((f) => [f.file, f.state]));
+    assert.deepStrictEqual(Object.keys(states).sort(), ["build/saved/", "data/files/"].flatMap((d) => [".mtr", ".tga", ".txi"].map((e) => d + MAT + e)).sort());
+    const soft = F.tgaBytes(F.shapeTexture({ colour }), { alpha: true });
+    for (const dir of [FILES, drafts]) {
+      assert.strictEqual(fs.readFileSync(path.join(dir, MAT + ".mtr"), "latin1"), F.motionMaterialText({ texture: GOLD, motion, pivot, clamp: true }), dir);
+      assert.ok(fs.readFileSync(path.join(dir, MAT + ".tga")).equals(soft), dir + ": the copy isn't the soft texture");
+      assert.strictEqual(fs.readFileSync(path.join(dir, MAT + ".txi"), "latin1"), "clamp 3\n", dir);
+    }
+    for (const m of [F.creatureModel("medium"), F.pileModel("medium")].map((s) => s + ".mdl")) {
+      assert.ok(fs.readFileSync(path.join(FILES, m), "latin1").includes(`\r\n  bitmap ${MAT}\r\n`), m + " doesn't name " + MAT);
+    }
+    assert.ok(fs.readFileSync(path.join(folder, "made.txt")).equals(made), "made.txt changed");
+    assert.ok(!/no longer used/.test(build(["--composition", file]).out), "a clamped build calls something unused");
+    const again = json(build([...args, "--json"]));
+    assert.ok(again.files.every((f) => f.state === "unchanged"), JSON.stringify(again.files.filter((f) => f.state !== "unchanged")));
+  });
+
   check("the real worktree's data\\files and the real build's vfxedit\\saved\\ are as they were", () => {
     assert.deepStrictEqual(realState(), REAL);
   });
