@@ -454,15 +454,16 @@ const SHAPE_INFO = {
   inner: { label: "Inner radius (m)", min: 0.01, max: 100, step: 0.05 },  // a ring's, below its radius too (readShape)
   segments: { label: "Smoothness", min: 8, max: 96, step: 4, whole: true, title: "Segments round it; a dome's rings up it are a quarter of that, a sphere's half" },
   sides: { label: "Sides", choices: [["both", "Both: seen from inside too"], ["outside", "Outside only"]] },
-  mapping: { label: "Mapping", choices: [["wrap", "Wrapped: round it and up it"], ["above", "From above: laid on from overhead"]] },
+  mapping: { label: "Mapping", choices: [["wrap", "Wrapped: round it and along it"], ["above", "From above: laid on from overhead"]] },
   repeat_around: { label: "Repeat around", min: 1, max: 32, step: 1, whole: true, title: "How many times the texture goes round it" },
-  repeat_up: { label: "Repeat up", min: 1, max: 16, step: 1, whole: true, title: "How many times the texture repeats from the ground to the top" },
+  repeat_up: { label: "Repeat up", min: 1, max: 16, step: 1, whole: true,
+    title: "How many times the texture repeats from its base to its top (a flat one's: from its rim in)" },
   colour: { label: "Colour", colour: true },
   alpha: { label: "Opacity", min: 0.02, max: 1, step: 0.05, title: "Its alpha: 1 is solid; the game's globes go to about 0.3" },
   glow: { label: "Glow", min: 0, max: 1, step: 0.05, title: "How much it lights itself (selfillum): at 1 it looks the same by day and night" },
   // Soft or none, or a library texture's name (the game's own, named: nothing generated or copied).
-  texture: { label: "Texture", choices: [["soft", "Soft: brighter at the ground"], ["none", "None: its colour only"]],
-    title: "Soft is made for Wrapped; a texture from the library is tinted by Colour" },
+  texture: { label: "Texture", choices: [["soft", "Soft: brighter at its base (a flat one's rim)"], ["none", "None: its colour only"]],
+    title: "Soft is made for Wrapped; a texture from the library is tinted by its Colour in game (its material and glow); the stage draws a texture as it is" },
 };
 const SHAPE_TEXTURE = /^n5s_[0-9a-f]{12}$/;  // a soft texture's name: made, never picked
 const orList = (list) => (list.length > 1 ? list.slice(0, -1).join(", ") + " or " + list[list.length - 1] : list.join(""));
