@@ -1154,6 +1154,16 @@ monster AC by CR.
     A stall is logged with what the creature was doing instead (its action, combat, attack target, detect mode), to
     find the cause, and each "fighting" let-go now logs its facts. Log lines only, no new text. MI-36, MI-37, MI-38
     and MI-28 failed on 0.99.76 and are retested by MI-39 to MI-42.
+    *0.99.77's run (owner, 2026-11-18: "All the MI tests seem to pass except MI-32 the corpse isn't cleaned up"):*
+    MI-39 and MI-41 passed in the log. Its stall lines show two causes:
+    - An orc charging a commoner stopped 0.9 m from the point: the image's body keeps it from the exact point, so its
+      walk never ends. It now counts as there.
+    - An orc stood 1.8 m short with its queue emptied (action 65535, not in combat, no attack target). Given its step
+      again, it struck 1.8 s later.
+  - *!reset and the images (0.99.78; MI-32, the owner: "the corpse isn't cleaned up"):* !reset (#156) removed
+    creatures only, and Minor Illusion's corpse and treasure are placeables. An illusion's image (tagged n5c_image:
+    Minor Illusion's or Silent Image's, placeable or creature) now goes too, in any area - a cast's leftover. Images
+    aren't counted with the removed creatures in the chat line; the log has their number.
 - **#39 Part 2, the levelled spells (owner, 2026-11-09: "go for 39 part 2").** SRD 5.2.1 has 312 levelled spells, NWN
   274 class spells; 129 of the SRD's have an NWN version (98 the same, 16 renamed - Cure Light Wounds is Cure Wounds -
   15 close), 183 are new; 137 of NWN's have no 2024 version (30 fold into one: Cure Moderate Wounds is Cure Wounds at
