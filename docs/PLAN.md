@@ -1946,7 +1946,8 @@ monster AC by CR.
       mutations caught; test.bat 615 ok.
     - Text: the names and descriptions SRD 5.2.1 verbatim (Prayer of Healing's with a generated note); seven new
       catalogue lines, generated, for review (docs/TEXT-REVIEW.md).
-    - Profiles: level2wizard, level2sorcerer, level2paladin, level2cleric. Tests L2-1 to L2-15.
+    - Profiles: level2wizard, level2sorcerer, level2paladin, level2cleric. Tests S2-1 to S2-15 (L2- is level 1's
+      build 2a).
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
   New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion
