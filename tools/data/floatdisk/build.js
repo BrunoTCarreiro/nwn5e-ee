@@ -11,15 +11,17 @@
 //   disk plc_n5fd_small / _med / _large (their base on the ground) with their .pwk use points, and the disk's texture
 //   n5t_forcedisk.tga; with your own files' textures the game doesn't have, copied from beside them; and a dyed part's
 //   textures (a helmet's: the game has them only as a PLT), baked from the game's palettes in the part's colours into
-//   n5p_<12 hex digits>.tga, which the models name instead (files.js's bakeParts).
+//   n5p_<12 hex digits>.tga, which the models name instead (files.js's bakeParts); and a shape part's soft texture,
+//   generated from its colour into n5s_<12 hex digits>.tga (original: files.js's shapeTextures).
 // - data\rows: appearance.floatdisk.txt (rows 14000-14003, each appearance 298's) and placeables.floatdisk.txt (14001-
 //   14003, each 189 TreasureSml's), floatdisk.js's ROWS.
 //
 // Nothing of the game's is kept in the repo: the parts, c_invsguy and the rows copied are read from the player's own
 // game at build time (its KEY / BIF archives and ovr\, through nwn5e-tools' spell_bench\game_data.js) and the meshes
 // through nwn5e-ee's own model reader (src\data\vfx_model.cpp) compiled into mdlmesh (mdlmesh.cpp, build_mdlmesh.bat;
-// built into build\floatdisk\ when missing or older than its sources). The models and the baked textures it writes into
-// data\files are git-ignored: build.bat makes them for every build (tools\data\build_derived.js).
+// built into build\floatdisk\ when missing or older than its sources). The models, the baked textures and the shapes'
+// soft textures (original, but build output: a pure function of their colour) it writes into data\files are
+// git-ignored: build.bat makes them for every build (tools\data\build_derived.js).
 //
 //   node tools\data\floatdisk\build.js [options]
 //     --composition <file>  default: composition.json beside this file
@@ -37,7 +39,8 @@
 //
 // It never overwrites a file it didn't make: a model, .pwk or rows file must carry the MARK line; a texture must be in
 // made.txt (beside this file: the files it wrote that can't carry a mark), a baked one have a bake's name (n5p_ and 12
-// hex digits: only the bake makes them). Every file is checked before any is written.
+// hex digits: only the bake makes them), a shape's soft texture its name (n5s_ and 12 hex digits). Every file is
+// checked before any is written.
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -74,8 +77,9 @@ function setup() {
 const repoPath = (file) => W.repoPath(REPO, file);
 // Each write { file, bytes, kind }, through files.js's one ownership rule: "text" (a model, .pwk, rows or draft: ours
 // when it carries MARK), "binary" (a texture shipped in this repo: ours when made.txt lists it; outside the repo only
-// an identical one is), "baked" (a dyed part's texture: ours by its name, n5p_ and 12 hex digits), "library" (the bench
-// library's disk texture: ours when its TGA image ID is TEXTURE_MARK).
+// an identical one is), "baked" (a dyed part's texture: ours by its name, n5p_ and 12 hex digits), "shape" (a shape's
+// soft texture: ours by its name, n5s_ and 12 hex digits), "library" (the bench library's disk texture: ours when its
+// TGA image ID is TEXTURE_MARK).
 // -> [[ "new" | "rebuilt" | "unchanged", file ]], `manifest` gaining the binary files written in the repo.
 function writeAll(writes, manifest) {
   const owned = W.ownership({ repo: REPO, manifest, mark: F.MARK, kinds: {
@@ -113,8 +117,10 @@ function main() {
   const diskMesh = F.diskMesh(disk);
   const stages = {};
   const baked = new Map();  // a baked texture's name -> { plt, colours, bytes, label } (files.js's bakeParts)
+  const shaped = new Map();  // a shape's soft texture's name -> { colour, bytes, label } (files.js's shapeTextures)
   for (const stage of F.STAGES) {
     const parts = comp.stages[stage].map((p, i) => Object.assign(F.placePart(p, models.get(F.partKey(p)), i, disk.height, "j"), { part: p }));
+    W.shapeTextures(parts, shaped);
     W.bakeParts(parts, rd, baked);
     const junk = [].concat(...parts.map((x) => x.meshes));
     const creature = F.uniqueNames([...junk, diskMesh], taken);
@@ -153,6 +159,7 @@ function main() {
   }
   for (const [name, copies] of ship) say(`  texture ${name}: not in the game - shipped from ${copies.join(", ")}`);
   W.bakedLines(baked, W.shown(REPO, FILES)).forEach((l) => say(l));
+  W.shapeLines(shaped, W.shown(REPO, FILES)).forEach((l) => say(l));
 
   // The files.
   const writes = [];
@@ -176,6 +183,7 @@ function main() {
     for (const c of copies) writes.push({ file: path.join(FILES, name + path.extname(c).toLowerCase()), bytes: fs.readFileSync(c), kind: "binary" });
   }
   writes.push(...W.bakedWrites(baked, FILES));  // beside the models that name them, git-ignored; never in made.txt
+  writes.push(...W.shapeWrites(shaped, FILES));  // likewise: build output, git-ignored; never in made.txt
   const appearance = gameData.gameTable(GAME, "appearance"), placeables = gameData.gameTable(GAME, "placeables");
   text(path.join(ROWS_DIR, "appearance.floatdisk.txt"), F.rowsText(appearance, F.SOURCE_ROWS.appearance,
     F.STAGES.map((st) => ({ row: F.ROWS.appearance[st], label: F.LABELS.appearance[st], model: F.creatureModel(st) })),
@@ -199,9 +207,10 @@ function main() {
     }
     writes.push({ file: path.join(DRAFT_TEXTURES, disk.texture + ".tga"), bytes: F.diskTexture(disk, F.TEXTURE_MARK), kind: "library" });
     writes.push(...W.bakedWrites(baked, DRAFT_OUT));  // the drafts name them: beside them, where the game reads the bench's
+    writes.push(...W.shapeWrites(shaped, DRAFT_OUT));
   }
   const result = { check: CHECK, stages: summary, shipped: [...ship].map(([texture, from]) => ({ texture, from })), baked: W.bakedJson(baked),
-    files: [], wouldWrite: writes.length, unused: [] };
+    shapes: W.shapeJson(shaped), files: [], wouldWrite: writes.length, unused: [] };
   const finish = () => { if (JSON_OUT) console.log(JSON.stringify(result)); };
   if (CHECK) {
     say(`--check: nothing written (${writes.length} files would be)`);

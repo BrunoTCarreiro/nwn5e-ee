@@ -44,9 +44,10 @@ const FILES = path.join(root, "data", "files"), ROWS = path.join(root, "data", "
 fs.cpSync(__dirname, folder, { recursive: true });
 fs.mkdirSync(FILES, { recursive: true });
 fs.mkdirSync(ROWS, { recursive: true });
-// The disk's files, and the baked textures beside them (a dyed part's: n5p_ and 12 hex digits, git-ignored as the models).
+// The disk's files, and the generated textures beside them (a dyed part's bake, n5p_, and a shape's soft texture, n5s_,
+// each with 12 hex digits: build output, git-ignored as the models).
 for (const f of fs.readdirSync(REAL_FILES)) {
-  if (/^(c_n5fd_|plc_n5fd_)/.test(f) || f === "n5t_forcedisk.tga" || /^n5p_[0-9a-f]{12}\.tga$/.test(f)) fs.copyFileSync(path.join(REAL_FILES, f), path.join(FILES, f));
+  if (/^(c_n5fd_|plc_n5fd_)/.test(f) || f === "n5t_forcedisk.tga" || /^n5[ps]_[0-9a-f]{12}\.tga$/.test(f)) fs.copyFileSync(path.join(REAL_FILES, f), path.join(FILES, f));
 }
 for (const f of fs.readdirSync(path.join(REPO, "data", "rows"))) {
   if (/\.floatdisk\.txt$/.test(f)) fs.copyFileSync(path.join(REPO, "data", "rows", f), path.join(ROWS, f));
@@ -82,23 +83,25 @@ const withComposition = (name, edit) => {
   return file;
 };
 // The models made from the game's files - the six of its meshes and c_n5fd_empty - aren't committed (the owner,
-// 2026-11-17; tools\data\README.md), nor are a dyed part's baked textures: a checkout without them - main after the
-// merge, a fresh clone - gets them from one build first, so the full rebuild below still checks that every file comes
-// out the same.
+// 2026-11-17; tools\data\README.md), nor are the generated textures - a dyed part's bakes, a shape's soft textures: a
+// checkout without them - main after the merge, a fresh clone - gets them from one build first, so the full rebuild
+// below still checks that every file comes out the same.
 const F = require("./floatdisk.js");
 const R = require("./reader.js");
 const bakes = (r) => { try { return json(r).baked || []; } catch (e) { return []; } };
+const shapes = (r) => { try { return json(r).shapes || []; } catch (e) { return []; } };
+const generated = (r) => [...bakes(r), ...shapes(r)].map((b) => b.texture);  // the names of the textures it makes
 const absent = [...F.STAGES.map((s) => F.creatureModel(s)), ...F.PILES.map((s) => F.pileModel(s))].map((m) => m + ".mdl")
-  .concat(bakes(build(["--check", "--json"])).map((b) => b.texture + ".tga"))
+  .concat(generated(build(["--check", "--json"])).map((t) => t + ".tga"))
   .filter((f) => !fs.existsSync(path.join(FILES, f)));
 if (absent.length) {
   const r = build([]);
-  console.log(`     ${absent.length} of the disk's models and baked textures aren't in this checkout (git-ignored, built at build time): ` +
+  console.log(`     ${absent.length} of the disk's models and generated textures aren't in this checkout (git-ignored, built at build time): ` +
     (r.code === 0 ? "built once first" : "the first build failed - " + r.err.trim()));
 }
 // A file's state lines (new / rebuilt / unchanged, then its path from the copy's root).
 const stateLines = (r) => r.out.split(/\r?\n/).map((l) => l.match(/^(new|rebuilt|unchanged)\s+(\S+)$/)).filter(Boolean).map((m) => [m[1], m[2]]);
-const BAKED_FILE = /^data\/files\/n5p_[0-9a-f]{12}\.tga$/;
+const GENERATED_FILE = /^data\/files\/n5[ps]_[0-9a-f]{12}\.tga$/;  // a bake or a shape's soft texture
 
 // --- the checks ---------------------------------------------------------------------------------------------------
 let failed = 0;
@@ -113,17 +116,18 @@ function check(name, fn) {
 }
 
 try {
-  check("a full rebuild of the committed composition changes nothing (13 repo files unchanged, and its baked textures)", () => {
+  check("a full rebuild of the committed composition changes nothing (13 repo files unchanged, and its generated textures)", () => {
     const before = snapshot();
     const r = build([]);
     assert.strictEqual(r.code, 0, "build.js exited " + r.code + ": " + r.err.trim());
     const states = stateLines(r);
-    const repo = states.filter(([, f]) => !BAKED_FILE.test(f)), baked = states.filter(([, f]) => BAKED_FILE.test(f));
+    const repo = states.filter(([, f]) => !GENERATED_FILE.test(f)), made = states.filter(([, f]) => GENERATED_FILE.test(f));
     assert.strictEqual(repo.length, 13, repo.length + " repo files reported");
     assert.ok(repo.every(([, f]) => f.startsWith("data/")), "outside data/: " + repo.map(([, f]) => f).join(", "));
     assert.ok(states.every(([s]) => s === "unchanged"), "not unchanged: " + states.filter(([s]) => s !== "unchanged").map(([s, f]) => s + " " + f).join(", "));
-    // The bakes are the composition's, one a texture (the owner's Large dyes its helm_001: its colours name it).
-    assert.deepStrictEqual(baked.map(([, f]) => path.posix.basename(f, ".tga")).sort(), bakes(build(["--check", "--json"])).map((b) => b.texture).sort());
+    // The generated textures are the composition's: its bakes, one a texture (the owner's Large dyes its helm_001: its
+    // colours name it), and its shapes' soft textures.
+    assert.deepStrictEqual(made.map(([, f]) => path.posix.basename(f, ".tga")).sort(), generated(build(["--check", "--json"])).sort());
     assert.deepStrictEqual(snapshot(), before);
   });
 
@@ -297,6 +301,50 @@ try {
     } finally {
       rd.close();
     }
+  });
+
+  check("a dome part: its mesh from its numbers, its soft texture beside the models and the drafts, owned by its name", () => {
+    // The check's own medium: a 0.3 m dome in gold (floatdisk.js's shapeModel: no game model, no mesh reader). --drafts
+    // into the copy's own folders, never the real build's.
+    const GOLD = "n5s_a3caa0709dda", colour = [1, 0.85, 0.4];
+    const file = withComposition("dome.json", (c) => { c.stages.medium = [{ shape: { type: "dome", radius: 0.3, colour }, at: [0, 0, 0] }]; });
+    const drafts = path.join(root, "build", "saved"), library = path.join(root, "build", "textures");
+    const args = ["--composition", file, "--drafts", "--out", drafts, "--textures", library];
+    const made = fs.readFileSync(path.join(folder, "made.txt"));
+    // --check: a summary line for it, where it goes.
+    const c = build(["--composition", file, "--check"]);
+    assert.strictEqual(c.code, 0, "build.js --check exited " + c.code + ": " + c.err.trim());
+    assert.ok(c.out.split(/\r?\n/).includes(`  texture ${GOLD}: a shape's soft texture, colour 1 0.85 0.4 - written into data/files`), "no summary line:\n" + c.out);
+    // --json's shapes; written into data\files and beside the drafts, floatdisk.js's soft texture both.
+    const had = fs.existsSync(path.join(FILES, GOLD + ".tga"));  // a build's copy from the real data\files (copied above)
+    const r = build([...args, "--json"]);
+    assert.strictEqual(r.code, 0, "build.js exited " + r.code + ": " + r.err.trim());
+    const j = json(r);
+    assert.deepStrictEqual(j.shapes, [{ texture: GOLD, colour }]);
+    assert.deepStrictEqual(j.stages.medium.list.map((x) => x.label), ["dome 0.3 m"]);
+    const states = Object.fromEntries(j.files.map((f) => [f.file, f.state]));
+    assert.deepStrictEqual([states[`data/files/${GOLD}.tga`], states[`build/saved/${GOLD}.tga`]], [had ? "unchanged" : "new", "new"]);
+    const bytes = F.tgaBytes(F.shapeTexture({ colour }), { alpha: true });
+    for (const dir of [FILES, drafts]) assert.ok(fs.readFileSync(path.join(dir, GOLD + ".tga")).equals(bytes), `${dir}\\${GOLD}.tga isn't floatdisk.js's soft texture`);
+    // The medium's creature and pile name it, the dome's mesh see-through; the medium's draft names it.
+    for (const m of [F.creatureModel("medium"), F.pileModel("medium")].map((s) => s + ".mdl")) {
+      const node = fs.readFileSync(path.join(FILES, m), "latin1").split("\r\nnode ").find((n) => n.includes(`\r\n  bitmap ${GOLD}\r\n`));
+      assert.ok(node, m + " doesn't name " + GOLD);
+      assert.ok(node.includes("\r\n  transparencyhint 1\r\n"), m + ": the dome's mesh isn't see-through");
+    }
+    const core = (global.window = global.window || {}, require(path.join(TOOLS, "vfx_bench", "public", "core.js")));
+    const planes = core.readDraft(fs.readFileSync(path.join(drafts, "n5_floatdisk_medium.vfx"), "latin1").replace(/\r/g, "")).planes;
+    assert.ok(planes.some((p) => p.bitmap === GOLD), "the medium's draft doesn't name " + GOLD);
+    // Nothing noted in made.txt.
+    assert.ok(fs.readFileSync(path.join(folder, "made.txt")).equals(made), "made.txt changed");
+    // Built again: every file unchanged. A file of its name, either place, is the generator's (the name fixes its
+    // bytes): rewritten.
+    const again = json(build([...args, "--json"]));
+    assert.ok(again.files.every((f) => f.state === "unchanged"), JSON.stringify(again.files.filter((f) => f.state !== "unchanged")));
+    for (const dir of [FILES, drafts]) fs.writeFileSync(path.join(dir, GOLD + ".tga"), "not a texture");
+    const fixed = json(build([...args, "--json"])).files.filter((f) => f.state !== "unchanged");
+    assert.deepStrictEqual(fixed, [{ state: "rebuilt", file: `data/files/${GOLD}.tga` }, { state: "rebuilt", file: `build/saved/${GOLD}.tga` }]);
+    for (const dir of [FILES, drafts]) assert.ok(fs.readFileSync(path.join(dir, GOLD + ".tga")).equals(bytes));
   });
 
   check("the real worktree's data\\files and the real build's vfxedit\\saved\\ are as they were", () => {

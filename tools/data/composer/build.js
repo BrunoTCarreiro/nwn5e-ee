@@ -16,6 +16,12 @@
 // data\files (git-ignored: build.bat makes them for every build, tools\data\build_derived.js), beside a spell mesh's
 // drafts in <saved>.
 //
+// A shape part (a dome, sphere, cylinder, cone, disc or ring: floatdisk.js makes its mesh from its numbers) with a soft
+// texture names n5s_<12 hex digits of its colour>.tga, generated here from its colour - original, but build output like
+// a bake - and written beside what names it: a placeable's models in data\files (git-ignored: build.bat makes it for
+// every build), a spell mesh's drafts in <saved>. A library texture is named only; none is written for it (one the game
+// has only as a PLT is refused).
+//
 // The parts are read and placed as the Floating Disk's (..\floatdisk\reader.js and floatdisk.js), through the player's
 // own game and nwn5e-ee's mesh reader; nothing of the game's is kept in the repo. The files are written by its files.js,
 // under the same ownership rule.
@@ -34,7 +40,8 @@
 // An own file's path (a part's "file") is relative to this folder, whatever folder the project comes from. It never
 // overwrites a file it didn't make: a model, .pwk, rows file or draft must carry project.js's MARK line; a texture in
 // this repo must be in made.txt, one in <saved> named by this project's marked draft there, a baked one have a bake's
-// name (n5p_ and 12 hex digits: only the bake makes them). Every file is checked before any is written.
+// name (n5p_ and 12 hex digits: only the bake makes them), a shape's soft texture its name (n5s_ and 12 hex digits:
+// only the generator makes them). Every file is checked before any is written.
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -73,8 +80,8 @@ const listing = (dir) => (dir && fs.existsSync(dir) ? fs.readdirSync(dir).sort()
 // Each write { file, bytes, kind }, through floatdisk\files.js's one ownership rule: "text" (a model, .pwk, rows or
 // draft: ours when it carries P.MARK), "binary" (a texture in this repo: ours when made.txt lists it), "saved" (a texture
 // beside a spell mesh's draft: ours when one of this project's marked drafts there names it, `named`), "baked" (a dyed
-// part's texture: ours by its name); an identical one is anyone's. -> [[ "new" | "rebuilt" | "unchanged", file ]],
-// `manifest` gaining the binary files written.
+// part's texture: ours by its name), "shape" (a shape's soft texture: ours by its name); an identical one is anyone's.
+// -> [[ "new" | "rebuilt" | "unchanged", file ]], `manifest` gaining the binary files written.
 function writeAll(writes, manifest, named) {
   const owned = W.ownership({ repo: REPO, manifest, mark: P.MARK, kinds: {
     saved: (w) => named.has(path.parse(w.file).name.toLowerCase()) } });
@@ -155,8 +162,10 @@ function main() {
   // the ground).
   const h = guide.height;
   const baked = new Map();  // a baked texture's name -> { plt, colours, bytes, label } (files.js's bakeParts)
+  const shaped = new Map();  // a shape's soft texture's name -> { colour, bytes, label } (files.js's shapeTextures)
   const built = project.variants.map((v) => {
     const parts = v.parts.map((p, i) => Object.assign(F.placePart(p, models.get(F.partKey(p)), i, h, "j"), { part: p }));
+    W.shapeTextures(parts, shaped);
     W.bakeParts(parts, rd, baked);
     const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
     for (const x of parts) for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], x.lo[k]); hi[k] = Math.max(hi[k], x.hi[k]); }
@@ -167,7 +176,8 @@ function main() {
   // Textures: a game model's are the game's (a dyed one's baked, above); one of your own files' is looked up (the game,
   // then beside the file).
   const ship = W.shipTextures([].concat(...built.map((b) => b.parts)), rd, baked);  // texture name -> its copies beside a file
-  // Where the bakes go: beside a placeable's models, or a spell mesh's drafts (--check without --saved: nothing is written).
+  // Where the bakes and the shapes' soft textures go: beside a placeable's models, or a spell mesh's drafts (--check
+  // without --saved: nothing is written).
   const bakeDir = placeable ? FILES : SAVED || path.resolve("saved");
 
   // The summary: per variant what the VFX Bench's stage shows (A2's stage fields: the parts, meshes, triangles, how tall
@@ -188,6 +198,7 @@ function main() {
   });
   for (const [texture, copies] of ship) say(`  texture ${texture}: not in the game - shipped from ${copies.join(", ")}`);
   W.bakedLines(baked, placeable ? shown(FILES) : SAVED || "the --saved folder").forEach((l) => say(l));
+  W.shapeLines(shaped, placeable ? shown(FILES) : SAVED || "the --saved folder").forEach((l) => say(l));
 
   // The files.
   const writes = [];
@@ -223,6 +234,7 @@ function main() {
     }
   }
   writes.push(...W.bakedWrites(baked, bakeDir));  // never in made.txt: whose they are, their names say
+  writes.push(...W.shapeWrites(shaped, bakeDir));  // likewise: build output, git-ignored in data\files
 
   // The marked files this project made under another model name (its variants counted 1 and then 2, or back): listed,
   // never deleted (F15). And, beside a spell mesh's drafts, the textures its marked drafts name (ours to rewrite).
@@ -242,7 +254,7 @@ function main() {
   }
 
   const result = { kind, check: CHECK, variants, files: [], unused, shipped: [...ship].map(([texture, copies]) => ({ texture, from: copies })),
-    baked: W.bakedJson(baked), wouldWrite: writes.length };
+    baked: W.bakedJson(baked), shapes: W.shapeJson(shaped), wouldWrite: writes.length };
   const finish = () => {
     for (const f of unused) say(`no longer used: ${f} (made by this generator for ${name} under an earlier name) - delete it if nothing needs it`);
     if (JSON_OUT) console.log(JSON.stringify(result));

@@ -201,9 +201,9 @@ function newProject(name, kind) {
 }
 
 // A project's text in composition.json's layout: two-space indents, _about a string a line, each variant a line opening
-// its parts and each part a line (note, model | file, at, turn, scale, tilt, then any other key), the rest inline; LF, a
-// final newline.
-const PART_KEYS = ["note", "model", "file", "at", "turn", "scale", "tilt"];
+// its parts and each part a line (note, model | file | shape, at, turn, scale, tilt, then any other key), the rest inline;
+// LF, a final newline.
+const PART_KEYS = ["note", "model", "file", "shape", "at", "turn", "scale", "tilt"];
 const VARIANT_KEYS = ["name", "model", "row"];
 const ordered = (o, first) => first.filter((k) => o[k] !== undefined).concat(Object.keys(o).filter((k) => !first.includes(k) && o[k] !== undefined));
 // A value on one line: floatdisk.js's inline ({} when empty, an undefined key left out), the page's or Node's.

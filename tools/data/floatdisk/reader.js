@@ -1,7 +1,7 @@
 // The Floating Disk's part and texture reading (#39), moved out of build.js so the VFX Bench's Composer reads the same
-// way: a part's meshes in its model's space (a game model, a weapon's pieces, or a model file of yours), a texture found
-// in the game or beside a part's file, and a dyed texture (one the game has only as a PLT) baked from the game's palettes.
-// Node only: it runs the mesh reader (mdlmesh.exe, README.md).
+// way: a part's meshes in its model's space (a game model, a weapon's pieces, a model file of yours, or a shape), a
+// texture found in the game or beside a part's file, and a dyed texture (one the game has only as a PLT) baked from the
+// game's palettes. Node only: it runs the mesh reader (mdlmesh.exe, README.md).
 //
 //   const R = require("./reader.js");
 //   const exe = R.ensureReader({ repo, reader });
@@ -59,10 +59,19 @@ function create({ game, core, gameData, reader }) {
     return read(bytes, name === label ? label : `${label} (${name})`);
   };
 
-  // A part's meshes and box: a game model, a weapon's pieces read one by one and merged, or a model file of yours (ASCII -
-  // made readable for the reader first - or compiled). -> { meshes, lo, hi }
+  // A part's meshes and box: a game model, a weapon's pieces read one by one and merged, a model file of yours (ASCII -
+  // made readable for the reader first - or compiled), or a shape (floatdisk.js makes it from its numbers: no mesh
+  // reader; its `textures` too, the soft one files.js's shapeTextures writes). A shape's library texture the game has
+  // only as a PLT (a dyed texture) is refused - a shape takes no dyes, so nothing would bake it. -> { meshes, lo, hi }
   function part(p) {
     const label = F.partLabel(p);
+    if (p.source.kind === "shape") {
+      const t = p.source.shape.texture;
+      if (t !== "soft" && t !== "none" && pltOnly(t)) {
+        throw new Error(`${label}: texture ${t} is one the game has only as a PLT (a dyed texture); a shape takes no dyes - pick a TGA or DDS`);
+      }
+      return F.shapeModel(p.source.shape);
+    }
     if (p.source.kind === "model") return gameModel(p.source.model, label);
     if (p.source.kind === "models") return F.mergeModels(p.source.models.map((m) => gameModel(m, label)));
     if (!fs.existsSync(p.source.file)) throw new Error(`${label}: no such file (${p.source.file})`);

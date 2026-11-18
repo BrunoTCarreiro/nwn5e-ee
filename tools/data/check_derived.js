@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // build_derived.js end to end (D1), on temporary copies only - needs the game, prints "skip" without it:
 //   node tools\data\check_derived.js [--game <folder>] [--tools <nwn5e-tools>]
-// A dyed part's baked texture (n5p_*, git-ignored) comes out with its model, the same bytes build after build.
+// A dyed part's baked texture (n5p_*) and a shape's soft texture (n5s_*) - build output, both git-ignored - come out
+// with their models, the same bytes build after build.
 // The copy is <tmp>\n5_derived-*\: build_derived.js and the generators' code (*.js, *.bat, *.cpp) from this worktree;
 // everything else under tools\data\floatdisk and \composer - the recipes (composition.json, the projects), made.txt -
 // and data\rows, data\looks from HEAD as git checks them out (git cat-file --filters), never the worktree's: the owner's
@@ -110,11 +111,22 @@ const GAME_DATA = require(path.join(TOOLS, "spell_bench", "game_data.js"));
 const RD = R.create({ game: GAME, core: CORE, gameData: GAME_DATA, reader: READER });
 // The baked textures HEAD's composition gives: each part's meshes read through reader.js, its dyed ones named by
 // floatdisk.js's bakeBitmaps - the names, sorted.
+const headComposition = () => F.readComposition(JSON.parse(checkedOut("tools/data/floatdisk/composition.json").toString("utf8")),
+  path.join(REPO, "tools", "data", "floatdisk"));
 function diskBakes() {
-  const comp = F.readComposition(JSON.parse(checkedOut("tools/data/floatdisk/composition.json").toString("utf8")), path.join(REPO, "tools", "data", "floatdisk"));
+  const comp = headComposition();
   const names = new Set();
   for (const stage of F.PILES) {
     for (const p of comp.stages[stage]) for (const b of F.bakeBitmaps(RD.part(p).meshes, p.colours, RD.pltOnly).bakes) names.add(b.name);
+  }
+  return [...names].sort();
+}
+// The shapes' soft textures HEAD's composition gives (floatdisk.js's shapeModel: its `textures`) - the names, sorted.
+function diskShapes() {
+  const comp = headComposition();
+  const names = new Set();
+  for (const stage of F.PILES) {
+    for (const p of comp.stages[stage]) if (p.source.kind === "shape") for (const t of F.shapeModel(p.source.shape).textures) names.add(t.name);
   }
   return [...names].sort();
 }
@@ -189,9 +201,12 @@ try {
       assert.ok(!AT_HEAD.has(f), f + " is committed at HEAD");
       assert.ok(ignored(f), f + " isn't git-ignored");
     }
-    // A Composer placeable's model (built from the game's parts) and a baked PLT texture are ignored too; the original
-    // art - a walkmesh, the disk's texture, a project's own .pwk, nwn5e's other files - isn't.
-    for (const f of ["plc_n5crates.mdl", "plc_n5crates_1.mdl", "PLC_N5CRATES_2.MDL", "n5p_2cd3d725dedb.tga"]) assert.ok(ignored(f), f + " isn't git-ignored");
+    // A Composer placeable's model (built from the game's parts), a baked PLT texture and a shape's soft texture (build
+    // output: its colour's, rebuilt every build) are ignored too; the original art - a walkmesh, the disk's texture, a
+    // project's own .pwk, nwn5e's other files - isn't.
+    for (const f of ["plc_n5crates.mdl", "plc_n5crates_1.mdl", "PLC_N5CRATES_2.MDL", "n5p_2cd3d725dedb.tga", "n5s_8c757fb28f99.tga"]) {
+      assert.ok(ignored(f), f + " isn't git-ignored");
+    }
     for (const f of ["plc_n5fd_small.pwk", "n5t_forcedisk.tga", "plc_n5crates_1.pwk", "n5_bleed.mdl", "n5t_mark01.tga"]) {
       assert.ok(!ignored(f), f + " is git-ignored");
     }
@@ -217,12 +232,13 @@ try {
       assert.ok((text ? lf(got) : got).equals(stored("data/files/" + name)), `${name} isn't git show HEAD:data/files/${name}${text ? " (CRLF as LF)" : ""}`);
     }
     // What's built but not committed: git-ignored, and a generator's - a model carrying its mark, or a dyed part's baked
-    // texture (n5p_ and 12 hex digits: only the bake makes such a name) that a built model names.
-    const baked = (name) => F.BAKED.test(name.replace(/\.tga$/, ""));
+    // texture or a shape's soft texture (n5p_ / n5s_ and 12 hex digits: only the generators make such names) that a
+    // built model names.
+    const named = (name) => F.BAKED.test(name.replace(/\.tga$/, "")) || F.SHAPE_TEXTURE.test(name.replace(/\.tga$/, ""));
     for (const name of NAMES.filter((n) => !EXPECTED.has(n))) {
       assert.ok(ignored(name), `${name}: built, not committed at HEAD, and not git-ignored`);
       const got = fs.readFileSync(path.join(OUT, name));
-      if (baked(name)) {
+      if (named(name)) {
         const by = NAMES.filter((m) => m.endsWith(".mdl") && fs.readFileSync(path.join(OUT, m), "latin1").includes(`\r\n  bitmap ${name.replace(/\.tga$/, "")}\r\n`));
         assert.ok(by.length, name + ": no built model names it");
       } else {
@@ -232,10 +248,10 @@ try {
     for (const { name, rev, bytes } of LAST) {
       if (bytes) assert.ok(fs.readFileSync(path.join(OUT, name)).equals(bytes), `${name} isn't ${rev}^'s, as checked out`);
     }
-    // The Floating Disk's: its 4 committed files, its 7 models, and a texture a dyed part its recipe holds (the owner's
-    // Large: helm_001 at the defaults, n5p_2cd3d725dedb).
-    const bakes = diskBakes(), disk = [...FLOATDISK, ...bakes.map((b) => b + ".tga")];
-    console.log(`     the Floating Disk's dyed parts baked: ${bakes.join(", ") || "none"}`);
+    // The Floating Disk's: its 4 committed files, its 7 models, a texture a dyed part its recipe holds (the owner's
+    // Large: helm_001 at the defaults, n5p_2cd3d725dedb), and a soft texture a shape part its recipe holds.
+    const bakes = diskBakes(), shapes = diskShapes(), disk = [...FLOATDISK, ...bakes.map((b) => b + ".tga"), ...shapes.map((s) => s + ".tga")];
+    console.log(`     the Floating Disk's dyed parts baked: ${bakes.join(", ") || "none"}; its shapes' textures: ${shapes.join(", ") || "none"}`);
     for (const name of disk) assert.ok(NAMES.includes(name), name + " wasn't built");
     assert.match(r.out, new RegExp(`the Floating Disk \\(tools/data/floatdisk/composition\\.json\\): ${disk.length} files; its rows agree`));
     assert.match(total(r), new RegExp(`^build_derived: ${NAMES.length} files in build/data/files: ${NAMES.length} written, 0 unchanged$`));
@@ -498,6 +514,49 @@ try {
     }
     assert.deepStrictEqual(repoCopy(), copy);
     assert.ok(!fs.existsSync(path.join(DATA, "files", "sub")));
+  });
+
+  check("a placeable project's dome: its model and its shape texture come out into --out, the same on a second build", () => {
+    // A 1 m dome in gold: a shape part (no game model), its soft texture n5s_a3caa0709dda generated from its colour -
+    // beside the model in data\files, git-ignored and owned by its name as a bake is.
+    const GOLD = "n5s_a3caa0709dda", colour = [1, 0.85, 0.4];
+    const file = project("chkdome", { kind: "placeable", guide: CIRCLE, placeable: THROUGH, variants: [{ name: "1", row: 14153, parts: [
+      { shape: { type: "dome", radius: 1, colour }, at: [0, 0, 0] }] }] });
+    const own = ["plc_n5chkdome.mdl", "plc_n5chkdome.pwk", GOLD + ".tga"];
+    try {
+      // "Committed": the Composer's build.js into the copy's data\files and data\rows, as the VFX Bench's Save does - its
+      // shape texture beside the model, git-ignored (build output, as its model), not in made.txt.
+      const g = spawnSync(process.execPath, [path.join(COMPOSER, "build.js"), file, "--json", "--game", GAME, "--tools", TOOLS, "--reader", READER],
+        { encoding: "utf8", maxBuffer: 64 << 20, windowsHide: true });
+      assert.strictEqual(g.status, 0, "composer build.js: " + (g.stdout + g.stderr).trim());
+      for (const f of own) assert.ok(fs.existsSync(path.join(FILES, f)), f + " isn't in the copy's data\\files");
+      for (const f of ["plc_n5chkdome.mdl", GOLD + ".tga"]) assert.ok(ignored(f), f + " isn't git-ignored");
+      const made = path.join(COMPOSER, "made.txt");
+      assert.ok(!fs.existsSync(made) || !/n5s_/.test(fs.readFileSync(made, "utf8")), "made.txt lists a shape's texture");
+      const r = derive(["--out", OUT]);
+      done(r);
+      assert.deepStrictEqual(Object.entries(states(r)).filter(([, s]) => s !== "unchanged").sort(), own.map((f) => [f, "written"]).sort());
+      assert.match(r.out, /the Composer's project chkdome \(tools\/data\/composer\/chkdome\.json\): 3 files; its rows agree/);
+      assert.ok(fs.readFileSync(path.join(OUT, "plc_n5chkdome.mdl"), "latin1").includes(`\r\n  bitmap ${GOLD}\r\n`), "plc_n5chkdome.mdl doesn't name " + GOLD);
+      assert.ok(fs.readFileSync(path.join(OUT, GOLD + ".tga")).equals(F.tgaBytes(F.shapeTexture({ colour }), { alpha: true })), GOLD + " isn't the generator's");
+      // A second build: both unchanged, none touched.
+      const before = snapshot(OUT);
+      const s = derive(["--out", OUT]);
+      done(s);
+      assert.deepStrictEqual([states(s)["plc_n5chkdome.mdl"], states(s)[GOLD + ".tga"]], ["unchanged", "unchanged"]);
+      assert.ok(Object.values(states(s)).every((x) => x === "unchanged"), JSON.stringify(states(s)));
+      assert.deepStrictEqual(snapshot(OUT), before);
+      // A file of a shape texture's name in --out is the generator's (only it makes n5s_ names, and the name fixes the
+      // bytes): rewritten.
+      fs.writeFileSync(path.join(OUT, GOLD + ".tga"), "not a texture");
+      const w = derive(["--out", OUT]);
+      done(w);
+      assert.deepStrictEqual(Object.entries(states(w)).filter(([, x]) => x !== "unchanged"), [[GOLD + ".tga", "written"]]);
+    } finally {
+      fs.rmSync(file, { force: true });
+      fs.rmSync(path.join(ROWS, "placeables.chkdome.txt"), { force: true });
+      for (const f of own) for (const dir of [FILES, OUT]) fs.rmSync(path.join(dir, f), { force: true });
+    }
   });
 
   check("the real worktree is untouched (composition.json's hash, data\\files' and data\\rows' mtimes)", () => {

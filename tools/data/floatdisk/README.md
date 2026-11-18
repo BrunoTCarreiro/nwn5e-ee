@@ -4,7 +4,8 @@
 
 - `data\files`: the four creature models (`c_n5fd_empty`, `_small`, `_med`, `_large`), the three piles that fall
   when the disk ends (`plc_n5fd_small`, `_med`, `_large`, with their `.pwk`), the disk's texture
-  (`n5t_forcedisk.tga`), and a dyed part's baked texture (`n5p_*.tga`, Dyed parts below);
+  (`n5t_forcedisk.tga`), a dyed part's baked texture (`n5p_*.tga`, Dyed parts below), and a shape's soft texture
+  (`n5s_*.tga`, Shapes below);
 - `data\rows`: `appearance.floatdisk.txt` (rows 14000-14003) and `placeables.floatdisk.txt` (rows 14001-14003).
 
 The seven models are made from the game's files, and none is committed (the owner, 2026-11-17: "go with 1, remove the
@@ -15,9 +16,10 @@ six files from main", then "go with your recs for the three questions"; `.gitign
 - `c_n5fd_empty`'s disk mesh is original, but it carries `c_invsguy`'s node names and positions, which its
   supermodel needs.
 
-Nor is a baked texture: it's painted from the game's own PLT and palettes. `build.bat` makes all of them for every
-build from this file and your own game (`tools\data\build_derived.js`, `tools\data\README.md`). The `.pwk` files,
-the disk's texture and the rows are made from scratch and stay committed.
+Nor is a baked texture: it's painted from the game's own PLT and palettes. Nor is a shape's soft texture: it's
+original, but build output, its bytes a pure function of its colour (Shapes, below). `build.bat` makes all of them for
+every build from this file and your own game (`tools\data\build_derived.js`, `tools\data\README.md`). The `.pwk`
+files, the disk's texture and the rows are made from scratch and stay committed.
 
 ## Compose it in the VFX Bench
 
@@ -49,7 +51,7 @@ The VFX Bench's Composer edits `composition.json` on a stage and rebuilds from i
 that once. After it, a Save with nothing changed leaves the file as it is.
 
 The Composer's generator changes left the disk's files as they were: a full rebuild of the committed composition still
-reports all 13 files unchanged, and its baked textures (`check_build.js`).
+reports all 13 files unchanged, and its generated textures (`check_build.js`).
 
 ## Rebuild
 
@@ -73,20 +75,22 @@ node tools\data\floatdisk\build.js
 `node tools\data\floatdisk\check_build.js` rebuilds on a temporary copy and checks the whole generator: a rebuild
 changes nothing, `--json` agrees with the text, a weapon's pieces read as one, a refused build writes nothing, a file in
 the way it didn't make is refused (named from the repo's root), a file it made that changed is rebuilt, a setup
-failure is still one JSON error line, and a dyed part is baked beside the models, which name it. It never writes the
-real `data\files` or the bench build's `vfxedit\saved\`. It needs the game (it prints `skip` without it).
+failure is still one JSON error line, a dyed part is baked beside the models, which name it, and a dome's soft
+texture is written beside the models and (with `--drafts`) the drafts, owned by its name. It never writes the real
+`data\files` or the bench build's `vfxedit\saved\`. It needs the game (it prints `skip` without it).
 
 ## Swap in your own pile
 
-A part names either a game model or a model file of your own:
+A part names a game model, a model file of your own, or a shape - just one of them:
 
 ```json
 { "model": "plc_b04", "at": [-0.07, 0.03, 0], "turn": 20, "scale": 0.85 }
 { "file": "parts/my_pile.mdl", "at": [0, 0, 0] }
 { "model": ["wswls_b_011", "wswls_m_011", "wswls_t_011"], "at": [0, 0, 0], "tilt": [0, 90] }
+{ "shape": { "type": "dome", "radius": 0.3 }, "at": [0, 0, 0] }
 ```
 
-The last is a weapon: its three pieces, read as one model.
+The third is a weapon: its three pieces, read as one model. The last is a shape the generator makes (Shapes, below).
 
 To make a whole stage your own pile, give that stage a single part:
 
@@ -158,16 +162,90 @@ dyeable texture, painted from an item's colours, and placeables have none - so t
   name in the way is rewritten. Bakes of colours no longer used stay in `data\files` (ignored, never installed: the
   build makes its own).
 
+## Shapes
+
+A part's `shape` is a shape the generator makes instead of a model: `{ "type": <dome, sphere, cylinder, cone, disc or
+ring>, "radius": <m> }` and, where they differ from the defaults:
+
+- its own fields: `height` (a dome's the radius, a sphere's, a cylinder's and a cone's twice it; a disc and a ring have
+  none), a ring's `inner` (0.85 of the radius, to the millimetre), `segments` (32), `sides` (`both`);
+- every type's: `mapping` (`wrap`), `repeat_around` (1), `repeat_up` (1), `colour` (`[0.6, 0.8, 1]`), `alpha` (0.35),
+  `glow` (1), `texture` (`soft`).
+
+It has no `scale` (its radius and height size it) and no `colours` (its colour is on the shape). Only what differs
+from the defaults is written; a key not its type's (a disc's `height`, a dome's `inner`) is refused.
+
+```json
+{ "note": "zone", "shape": { "type": "dome", "radius": 4.57 }, "at": [0, 0, 0] }
+{ "shape": { "type": "dome", "radius": 1, "height": 0.4, "colour": [1, 0.85, 0.4] }, "at": [0, 0, 0] }
+{ "note": "edge", "shape": { "type": "ring", "radius": 4.57, "inner": 4.2 }, "at": [0, 0, 0.02] }
+```
+
+- **The types**, each with its base on the ground at z 0, centred on the origin:
+  - `dome`, a half sphere, `height` up;
+  - `sphere`, the dome's rings mirrored below it: `height` tall (twice the radius: a ball), its middle at half that;
+  - `cylinder`, an open tube `height` tall (Moonbeam's and Flame Strike's columns);
+  - `cone`, a ring on the ground to a point `height` up, its base open (a cone spell's, tilted onto its side);
+  - `disc`, flat on the ground (a glyph's place);
+  - `ring`, a flat band from its radius in to `inner` (0.01 to below the radius): a zone's edge on the ground.
+  - A disc and a ring are flat: their outside is their top. Their `at` is 2 cm up in the VFX Bench's Composer, so they
+    don't flicker with the ground at its own height.
+- **Its mesh:**
+  - `segments` (8-96) go round it, and a dome has a quarter of that many rings up it (a sphere twice that, less one, and
+    a point at each end); a cylinder, a cone, a disc and a ring have their two edges only.
+  - `sides: "both"` (the default) is seen from inside too (a flat one's from below): the inside's faces come first, each
+    side with its own vertices and its own smoothing group (the inside 2, the outside 1). `"outside"` is seen from
+    outside only.
+- **How its texture lies on it** (`mapping`):
+  - `wrap` (the default) goes round it from +x and up it from its base: a dome's and a cone's from the ground ring to
+    the top, a sphere's from its bottom to its top, a cylinder's from the ground to its top. A disc's and a ring's run
+    from the rim in: from the rim (a ring's outer edge) to a disc's centre, or a ring's inner edge. `repeat_around`
+    (1-32) and `repeat_up` (1-16) tile it, so a pattern keeps its size on a big shape.
+  - `above` lays it on from overhead, the picture's square across the shape's width (a ring's outer). The repeats don't
+    apply there, and aren't written. It suits a low dome, a disc or a ring: a glyph shows as a sigil seen from above.
+- **Its texture** (`texture`):
+  - `soft` is generated: its colour, brighter and more opaque where `wrap` starts (the ground ring; a sphere's bottom,
+    a disc's rim, a ring's outer edge: an area's edge), fading towards where it ends, made for `wrap`. It's named `n5s_`
+    and 12 hex digits of its colour (to 0.001: `n5s_8c757fb28f99` for the default colour),
+    and it's original, made from numbers. It's painted from the colour as it's named, so a name fixes the picture.
+  - `none` is its colour only.
+  - A texture's name (lower-case letters, digits and `_`, at most 16: the game's own, from the bench's library) is
+    tinted by `colour` and glows by `glow`. Nothing is generated or copied for it. It can't be `null` (the game reads
+    that as no texture: use `none`) or start `n5s_` (those names are made, not picked). One the game has only as a
+    PLT (a dyed texture: a helmet's) is refused at build time: a shape takes no dyes, so pick a TGA or DDS.
+- **Its look:** `colour` `[r, g, b]` (each 0-1), `alpha` (0.02-1: the game's globes go to about 0.3), `glow` (0-1: how
+  much it lights itself, at 1 the same by day and night). A soft or library texture, or an alpha below 1, is drawn
+  see-through.
+
+**A shape's texture**
+
+- **Where it goes:** `build.js` makes the mesh from the shape's numbers (no game model, no mesh reader). It writes a
+  soft texture beside what names it: into `data\files` with the models (or `--files`), and with `--drafts` beside the
+  stages' drafts too. Shapes of one colour share one file.
+- **It's build output,** like a bake: original (generated from numbers), but its bytes follow from the recipe's
+  colour alone, so `.gitignore` keeps it out (`/data/files/n5s_*`) and only the recipe is committed - no stale
+  textures pile up while colours are tried. `made.txt` doesn't list it, and `build.bat` makes it with the models for
+  every build (`tools\data\build_derived.js`).
+- **Whose it is:** its name says. Only the generator makes `n5s_` names, and the name fixes the picture, so a file of
+  that name in the way is rewritten.
+- **The summary** names it, and `--json` lists it under `shapes` (`texture`, `colour`):
+
+  ```
+    texture n5s_a3caa0709dda: a shape's soft texture, colour 1 0.85 0.4 - written into data/files
+  ```
+
+- `none` and a library texture write nothing: the model names the library's texture, and the game has it.
+
 ## The files here
 
 | file | what it is |
 |---|---|
 | `composition.json` | the stages (yours to edit) |
 | `build.js` | the generator |
-| `floatdisk.js` | its pure parts: placing, the disk, the models' and rows' text (it loads in a page too: the VFX Bench's Composer places with it) |
+| `floatdisk.js` | its pure parts: placing, the disk, the shapes (their meshes and soft textures), the models' and rows' text (it loads in a page too: the VFX Bench's Composer places with it) |
 | `check.js` | checks `floatdisk.js` |
-| `reader.js` | reads the parts' meshes and the textures from the game or beside a file, and bakes a dyed part's PLT (what `build.js` and the VFX Bench share) |
-| `files.js` | the file plumbing this `build.js` and the Composer's share: the options, loading nwn5e-tools, a dyed part's bakes, shipping your own textures, the one ownership rule they write by |
+| `reader.js` | reads the parts' meshes (a shape's from `floatdisk.js`) and the textures from the game or beside a file, and bakes a dyed part's PLT (what `build.js` and the VFX Bench share) |
+| `files.js` | the file plumbing this `build.js` and the Composer's share: the options, loading nwn5e-tools, a dyed part's bakes, a shape's soft texture, shipping your own textures, the one ownership rule they write by |
 | `check_build.js` | checks `build.js` end to end on a temporary copy (needs the game) |
 | `mdlmesh.cpp`, `build_mdlmesh.bat` | the mesh reader, built from the repo's `src\data\vfx_model.cpp` into `build\floatdisk\` |
 | `made.txt` | the textures the generator wrote (they can't carry its mark) |

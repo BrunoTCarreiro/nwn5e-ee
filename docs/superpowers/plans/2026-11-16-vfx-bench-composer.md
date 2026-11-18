@@ -3179,3 +3179,97 @@ lift.
     vfx_bench/check_composer.js vfx_bench/composer_check.mjs vfx_bench/README.md`, with "feat: the VFX Bench's Composer,
     the other shapes - a flat shape rests 2 cm up; the Shapes tab and the card follow floatdisk.js (nwn5e-ee #39)".
 - [ ] **Step 7: Report:** the commits and SH-5; the bench needs a restart of `vfx_bench.bat`.
+
+## Addendum 2026-11-17 (b): the owner's answers; Mapping, the repeats and a library texture (amends S1-S5)
+
+**Spec:** the design's "Addendum 2026-11-17 (b)". The owner: "1. hide them ... 2. no, only exploring visuals for now 3.
+wait", then on "is it possible to project texture on the surface of the 3d mesh?" - **"go with your recommendation"**.
+This section overrides the S-tasks' text where they differ; each task's brief carries it.
+
+### Answers
+- **Q4: everywhere.** S4 as written (front faces wherever view.js draws a mesh: stage, area mode, Composer, thumbnails).
+  "Before starting"'s Q4 bullet is settled.
+- **Q5: no.** Nothing here builds Zone of Truth's rules; the design's recipe is a recipe.
+- **Q6: wait.** No owner texture art in S1-S5.
+
+### S1 amendments (floatdisk.js)
+- `SHAPE_KEYS = ["type", "radius", "height", "segments", "sides", "mapping", "repeat_around", "repeat_up", "colour",
+  "alpha", "glow", "texture"]` (S5 still inserts `inner` after `height`).
+- `LOOK_FIELDS = ["mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture"]`.
+- `SHAPE_INFO` gains:
+  - `mapping: { label: "Mapping", choices: [["wrap", "Wrapped: round it and up it"], ["above", "From above: laid on from
+    overhead"]] }`;
+  - `repeat_around: { label: "Repeat around", min: 1, max: 32, step: 1, whole: true, title: "How many times the texture
+    goes round it" }`;
+  - `repeat_up: { label: "Repeat up", min: 1, max: 16, step: 1, whole: true, title: "How many times the texture repeats
+    from the ground to the top" }`;
+  - `texture`'s choices stay `soft` and `none`; it also takes a texture's name (below). Its title: "Soft is made for
+    Wrapped; a texture from the library is tinted by Colour".
+- `shapeDefaults` gains `mapping: "wrap", repeat_around: 1, repeat_up: 1`. The known answers ("Before starting") don't
+  change: the default UVs are the plan's.
+- `readShape` errors (each names its field):
+  - `` `${where}.mapping: wrap or above` ``;
+  - `` `${where}.repeat_around: a whole number from 1 to 32` ``, `` `${where}.repeat_up: a whole number from 1 to 16` ``;
+  - `texture`: `soft`, `none`, or a name matching `/^[a-z0-9_]{1,16}$/` that isn't `soft`, `none` or SHAPE_TEXTURE's
+    (`n5s_` names are made, not picked): `` `${where}.texture: soft, none or a texture's name (lower-case letters,
+    digits and _, at most 16)` ``.
+- `cleanShape`: as before; under `mapping: "above"` it leaves the repeats out (they mean nothing there).
+- **UVs** (the dome's; S5's types follow the same rule with their own `i`, `j`, `n`, `m`):
+  - `wrap`: ring vertex `(i / n * repeat_around, j / m * repeat_up)`; top `((i + 0.5) / n * repeat_around, repeat_up)`.
+  - `above`: every vertex `(0.5 + x / (2 r), 0.5 + y / (2 r))` from its own position (`r` the radius; S5's ring its outer
+    radius); the top `(0.5, 0.5)`.
+  - Rounded as before. The inside copy keeps its vertex's UV.
+- **A library texture** (`texture` a name): the mesh's `bitmap` is that name; diffuse and ambient the colour; selfillum
+  the colour times the glow; `transparent: true`; `textures: []` (nothing generated, nothing written).
+- **Checks** (floatdisk check): wrap with repeats 3 / 2 gives the first ring's last vertex u 3 and the top's v 2; above
+  gives the rim at angle 0 `(1, 0.5)` and the top `(0.5, 0.5)`; a library texture's mesh and its empty `textures`;
+  cleanShape drops the repeats under above and writes `mapping` only when not wrap; each new error.
+- `partKey` / `partLabel` unchanged (partKey is cleanShape's, so the new keys come with it).
+
+### S2 amendments (generators)
+- A library texture writes no file (the shape's `textures` is empty); the derived build and a spell mesh's `--saved` name
+  it only. One check_build case: a dome with `"texture": "fxpa_symbl_001"` builds a model naming it and writes no
+  `n5s_` file.
+
+### S3 amendments (server, page's pure parts)
+- composer.js's `clean` keeps the new keys (whole numbers for the repeats); `shapeSummaryMatchesGenerator` covers a wrap
+  3 / 2 dome and an above dome.
+- `/api/composer/bake`'s `shapes` sends only shapes whose texture is `soft`.
+
+### S4 amendments (the page)
+- **The card:** Mapping (a select) after Sides; Repeat around and Repeat up after it, hidden under From above; Texture:
+  Soft, None, then **"From the library..."** - the same picker the emitter's Texture field uses (the library's list,
+  its search), showing the picked name. Colour stays shown for every texture (it tints a library one).
+- **The stage:** a shape's texture repeats when its UVs pass 1 (the texture's wrap set to repeat on both axes) - for
+  every mesh view.js draws, as the game tiles.
+- **Browser steps (added):** `domeRepeats` (Repeat around 3 → the stage's mesh u reaches 3 and its texture repeats; one
+  Ctrl+Z → 1); `domeFromAbove` (Mapping From above → the repeats hide, the saved project has `"mapping": "above"` and
+  no repeats); `domeLibraryTexture` (pick a library texture → the stage's mesh draws it, the project saves its name,
+  Play in game bakes nothing for it).
+- **Test rows SH-1..SH-4:** one step each for Repeat around and From above, and one with a library texture.
+
+### S5 amendments
+- Every new type takes Mapping and the repeats (LOOK_FIELDS): wrap's `u` round it, `v` from its base up (a disc's and a
+  ring's from the middle out); above as S1's (a flat shape's natural mapping). One check per type for each mapping.
+
+### Not in S1-S5
+- A scrolling texture: its own task after the dome's in-game test (our writers write no UV animation; a spell mesh would
+  need an announced game-side change).
+
+## Addendum 2026-11-18 (c): rulings made during S1-S5 (overrides the S-tasks' text and addendum (b) where they differ)
+
+**Spec:** the design's "Addendum 2026-11-18 (c)". S1-S5 are built (anim 02882fe..8802e1f plus the final fix wave; tools
+a14463b..b1ccbfd plus the final fix wave).
+
+- **`n5s_` is git-ignored build output** (`/data/files/n5s_*` in .gitignore; check_derived and floatdisk check_build
+  treat it like `n5p_`). Replaces "Before starting"'s and the Global constraints' "committable" / "may be committed".
+  A shipped spell mesh naming one needs its own route (an `n5t_` copy, or a .gitignore exception) - not yet needed.
+- **Spell-mesh planes: no smoothing groups, no transparencyhint** (WriteVfxModel's) - the in-game test (SH-3) decides;
+  fallbacks in the design's addendum (c).
+- **Flats' Wrapped v: 0 at the rim** (S5's table) - addendum (b)'s S5 line "from the middle out" is withdrawn.
+- **A shape refuses** `scale`, `colours`, `n5s_` / `null` texture names and a PLT-only library texture; the card
+  refuses values past their bounds as typed; whole fields stay whole.
+- **The final review's fix wave:** nothing rests on a volume shape (a flat one still carries); the library-texture tint is the game's (the stage draws
+  the texture as it is); a textured shape at Opacity 1 is blended on the stage; the tooltips name every type; the
+  summary check covers a disc and a ring.
+- **Counts after S5:** floatdisk check 68; check_composer 38; composer_check 89 (before the fix wave).

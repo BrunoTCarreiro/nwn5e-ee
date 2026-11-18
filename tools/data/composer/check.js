@@ -141,6 +141,24 @@ check("readProject: each error names its field", () => {
   bad((j) => { j.variants[1].parts[0].file = "x.obj"; }, /^Error: variants\[1\]\.parts\[0\]\.file: /);
 });
 
+check("readProject: a spell mesh's dome; projectText writes its shape after note, without its defaults", () => {
+  const json = { kind: "spellmesh", name: "zotest", guide: { shape: "circle", diameter: 9.14, height: 0 }, variants: [{ name: "1",
+    parts: [{ note: "zone", shape: { type: "dome", radius: 4.57 }, at: [0, 0, 0] }] }] };
+  const p = P.readProject(json, BASE, F);
+  assert.deepStrictEqual(p.variants[0].parts[0].source, { kind: "shape", shape: F.shapeDefaults("dome", 4.57) });
+  assert.strictEqual(p.variants[0].parts[0].source.shape.height, 4.57);
+  const line = '      { "note": "zone", "shape": { "type": "dome", "radius": 4.57 }, "at": [0, 0, 0] }';
+  assert.ok(lines(P.projectText(json)).includes(line), P.projectText(json));
+  // Its keys in any order: the shape after note, before at.
+  const shuffled = copy(json);
+  shuffled.variants[0].parts[0] = { at: [0, 0, 0], shape: { type: "dome", radius: 4.57 }, note: "zone" };
+  assert.ok(lines(P.projectText(shuffled)).includes(line), P.projectText(shuffled));
+  assert.deepStrictEqual(JSON.parse(P.projectText(json)), json);
+  const j = copy(json);
+  j.variants[0].parts[0].shape.radius = 0;
+  assert.throws(() => P.readProject(j, BASE, F), /^Error: variants\[0\]\.parts\[0\]\.shape\.radius: a number from 0\.05 to 100/);
+});
+
 check("readProject: a part's colours, read as the disk's", () => {
   const j = copy(CRATES);
   j.variants[0].parts[0].colours = { leather1: 7 };

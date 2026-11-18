@@ -354,6 +354,111 @@ try {
     fs.writeFileSync(path.join(SAVED, DEF + ".tga"), "not a bake");
     assert.deepStrictEqual(byName(ok(build(mesh, ["--json", "--saved", SAVED]))), { "n5m_chkhelmm.vfx": "unchanged", [DEF + ".tga"]: "rebuilt" });
   });
+
+  // A shape part (floatdisk.js's shapeModel): its mesh made from numbers - no mesh reader, no game model - and its soft
+  // texture (n5s_ and 12 hex digits of its colour: original) generated and written beside what names it.
+  const SOFT = "n5s_8c757fb28f99", GOLD = "n5s_a3caa0709dda";  // the default colour's, and [1, 0.85, 0.4]'s
+  const softBytes = (colour) => F.tgaBytes(F.shapeTexture({ colour }), { alpha: true });
+  const madeTxt = () => (fs.existsSync(path.join(folder, "made.txt")) ? fs.readFileSync(path.join(folder, "made.txt"), "utf8") : "");
+  const shapeFiles = () => [FILES, SAVED].flatMap((dir) => fs.readdirSync(dir).filter((f) => /^n5s_/i.test(f)).map((f) => path.join(dir, f)));
+  const lines = (file, list) => {
+    const text = fs.readFileSync(file, "latin1");
+    for (const l of list) assert.ok(text.includes(`\r\n${l}\r\n`), `${path.basename(file)} has no line "${l}"`);
+  };
+  // chkdome: a spell mesh, Zone of Truth's 9.14 m circle and its dome. chkdomep: a placeable, a 1 m dome in gold.
+  const zone = (shape) => project("chkdome", { kind: "spellmesh", guide: { shape: "circle", diameter: 9.14, height: 0 }, variants: [{ name: "1", parts: [
+    { note: "zone", shape: Object.assign({ type: "dome", radius: 4.57 }, shape), at: [0, 0, 0] }] }] });
+  const gold = (shape) => project("chkdomep", { kind: "placeable", guide: { shape: "circle", diameter: 2, height: 0 }, placeable: THROUGH, variants: [
+    { name: "1", row: 14152, parts: [{ shape: Object.assign({ type: "dome", radius: 1, colour: [1, 0.85, 0.4] }, shape), at: [0, 0, 0] }] }] });
+  const draftPlanes = (file) => {
+    const text = fs.readFileSync(file, "latin1");
+    assert.ok(text.startsWith(P.MARK + "\r\n"), path.basename(file) + ": no mark line first");
+    return core.readDraft(text.slice(P.MARK.length + 2).replace(/\r/g, "")).planes;
+  };
+
+  check("a spell mesh's dome: its draft and its soft texture into --saved", () => {
+    const file = zone({});
+    const files = snapshot(), kept = madeTxt();
+    assert.ok(build(file, ["--check", "--saved", SAVED]).out.split(/\r?\n/).includes(
+      `  texture ${SOFT}: a shape's soft texture, colour 0.6 0.8 1 - written into ${SAVED}`), "no summary line for " + SOFT);
+    const j = ok(build(file, ["--json", "--saved", SAVED]));
+    assert.deepStrictEqual([j.variants[0].meshes, j.variants[0].triangles, j.variants[0].tall], [1, 960, 4.57]);
+    assert.deepStrictEqual(j.shapes, [{ texture: SOFT, colour: [0.6, 0.8, 1] }]);
+    assert.deepStrictEqual(byName(j), { "n5m_chkdome.vfx": "new", [SOFT + ".tga"]: "new" });
+    // The draft: one plane, both sides of the dome, naming its texture; its material what the model writer writes
+    // (alpha read back as the game's reader reads it, a float: 0.35's).
+    const planes = draftPlanes(path.join(SAVED, "n5m_chkdome.vfx"));
+    assert.strictEqual(planes.length, 1);
+    const p = planes[0];
+    assert.deepStrictEqual([p.bitmap, p.alpha, p.selfillum, p.verts.length / 3, p.faces.length / 3], [SOFT, Math.fround(0.35), [1, 1, 1], 592, 960]);
+    // Its texture beside it: 128 x 128 with 8 alpha bits (18 + 128 x 128 x 4 bytes), floatdisk.js's own.
+    const tga = fs.readFileSync(path.join(SAVED, SOFT + ".tga"));
+    assert.deepStrictEqual([tga.length, tga[16], tga[17]], [65554, 32, 8]);
+    assert.ok(tga.equals(softBytes([0.6, 0.8, 1])), SOFT + ".tga isn't floatdisk.js's soft texture");
+    // Built again: unchanged. A file of its name there is the generator's (the name fixes its bytes): rewritten.
+    const again = ok(build(file, ["--json", "--saved", SAVED]));
+    assert.ok(again.files.length && again.files.every((x) => x.state === "unchanged"), JSON.stringify(again.files));
+    fs.writeFileSync(path.join(SAVED, SOFT + ".tga"), "not a texture");
+    assert.deepStrictEqual(byName(ok(build(file, ["--json", "--saved", SAVED]))), { "n5m_chkdome.vfx": "unchanged", [SOFT + ".tga"]: "rebuilt" });
+    // Nothing in data\ for a spell mesh, nothing in made.txt.
+    const after = snapshot();
+    for (const f of Object.keys(after)) if (!f.startsWith(SAVED)) assert.strictEqual(after[f], files[f], f);
+    assert.strictEqual(madeTxt(), kept, "made.txt changed");
+  });
+
+  check("a placeable's dome: its model is see-through (transparencyhint 1) and names its texture, written beside it", () => {
+    const kept = madeTxt();
+    const file = gold({});
+    assert.ok(build(file, ["--check"]).out.split(/\r?\n/).includes(`  texture ${GOLD}: a shape's soft texture, colour 1 0.85 0.4 - written into data/files`),
+      "no summary line for " + GOLD);
+    const j = ok(build(file, ["--json"]));
+    assert.deepStrictEqual(j.shapes, [{ texture: GOLD, colour: [1, 0.85, 0.4] }]);
+    lines(path.join(FILES, "plc_n5chkdomep.mdl"), ["  bitmap " + GOLD, "  alpha 0.35", "  transparencyhint 1", "  selfillumcolor 1 1 1"]);
+    // Its two sides' smoothing groups reach the model: the inside's 480 faces in group 2, and first.
+    const mdl = fs.readFileSync(path.join(FILES, "plc_n5chkdomep.mdl"), "latin1").split("\r\n");
+    const at = mdl.indexOf("  faces 960");
+    assert.ok(at > 0, "plc_n5chkdomep.mdl has no \"faces 960\"");
+    const groups = mdl.slice(at + 1, at + 961).map((l) => l.trim().split(/\s+/)[3]);
+    assert.deepStrictEqual([groups.filter((g) => g === "2").length, groups.filter((g) => g === "1").length, groups[0]], [480, 480, "2"]);
+    // Its texture in data\files, new, named from the repo's root; not in saved\, not in made.txt.
+    assert.ok(j.files.some((x) => x.state === "new" && x.file === `data/files/${GOLD}.tga`), JSON.stringify(j.files));
+    assert.ok(fs.readFileSync(path.join(FILES, GOLD + ".tga")).equals(softBytes([1, 0.85, 0.4])), GOLD + ".tga isn't floatdisk.js's soft texture");
+    assert.ok(!fs.existsSync(path.join(SAVED, GOLD + ".tga")), GOLD + " is in saved\\");
+    assert.strictEqual(madeTxt(), kept, "made.txt changed");
+    const again = ok(build(file, ["--json"]));
+    assert.ok(again.files.length && again.files.every((x) => x.state === "unchanged"), JSON.stringify(again.files));
+  });
+
+  check("a dome without a texture: bitmap NULL, its colour as its material, no texture written", () => {
+    for (const f of shapeFiles()) fs.rmSync(f);  // the checks' above (this copy's): none may come back
+    const j = ok(build(gold({ texture: "none" }), ["--json"]));
+    lines(path.join(FILES, "plc_n5chkdomep.mdl"), ["  bitmap NULL", "  diffuse 1 0.85 0.4"]);
+    assert.deepStrictEqual(j.shapes, []);
+    assert.ok(!j.files.some((x) => /n5s_/i.test(x.file)), JSON.stringify(j.files));
+    assert.deepStrictEqual(shapeFiles(), []);
+  });
+
+  check("a dome with a library texture: its model and its draft name it, no texture written", () => {
+    for (const f of shapeFiles()) fs.rmSync(f);
+    const LIB = "fxpa_symbl_001";  // the game's own: named, nothing generated or copied
+    const j = ok(build(gold({ texture: LIB }), ["--json"]));
+    lines(path.join(FILES, "plc_n5chkdomep.mdl"), ["  bitmap " + LIB, "  diffuse 1 0.85 0.4", "  transparencyhint 1"]);
+    assert.deepStrictEqual(j.shapes, []);
+    const m = ok(build(zone({ texture: LIB }), ["--json", "--saved", SAVED]));
+    assert.deepStrictEqual(m.shapes, []);
+    assert.deepStrictEqual(draftPlanes(path.join(SAVED, "n5m_chkdome.vfx")).map((p) => p.bitmap), [LIB]);
+    assert.ok(![...j.files, ...m.files].some((x) => /n5s_/i.test(x.file)), JSON.stringify([...j.files, ...m.files]));
+    assert.deepStrictEqual(shapeFiles(), []);
+  });
+
+  check("a dome with a texture the game has only as a PLT is refused (a shape takes no dyes), nothing written", () => {
+    const before = snapshot(), kept = madeTxt();
+    for (const r of [build(gold({ texture: "helm_001" }), ["--json"]), build(zone({ texture: "helm_001" }), ["--json", "--saved", SAVED])]) {
+      refused(r, /^dome [\d.]+ m: texture helm_001 is one the game has only as a PLT \(a dyed texture\); a shape takes no dyes - pick a TGA or DDS$/);
+    }
+    assert.deepStrictEqual(snapshot(), before);
+    assert.strictEqual(madeTxt(), kept, "made.txt changed");
+  });
 } finally {
   fs.rmSync(root, { recursive: true, force: true });
 }
