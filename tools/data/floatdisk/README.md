@@ -190,23 +190,29 @@ A part's `shape` is a shape the generator makes instead of a model: `{ "type": <
 ring>, "radius": <m> }` and, where they differ from the defaults:
 
 - its own fields: `height` (a dome's the radius, a sphere's, a cylinder's and a cone's twice it; a disc and a ring have
-  none), a ring's `inner` (0.85 of the radius, to the millimetre), `segments` (32), `sides` (`both`);
+  none), a ring's `inner` (0.85 of the radius, to the millimetre), a cylinder's `top` (its radius), `segments` (32),
+  `sides` (`both`);
 - every type's: `mapping` (`wrap`), `repeat_around` (1), `repeat_up` (1), `colour` (`[0.6, 0.8, 1]`), `alpha` (0.35),
   `glow` (1), `texture` (`soft`).
 
 It has no `scale` (its radius and height size it) and no `colours` (its colour is on the shape). Only what differs
-from the defaults is written; a key not its type's (a disc's `height`, a dome's `inner`) is refused.
+from the defaults is written; a key not its type's (a disc's `height`, a dome's `inner`, a cone's `top`) is refused. A
+default that follows the radius (a `height`, a ring's `inner`, a cylinder's `top`) is never written, so it follows the
+radius when that changes.
 
 ```json
 { "note": "zone", "shape": { "type": "dome", "radius": 4.57 }, "at": [0, 0, 0] }
 { "shape": { "type": "dome", "radius": 1, "height": 0.4, "colour": [1, 0.85, 0.4] }, "at": [0, 0, 0] }
 { "note": "edge", "shape": { "type": "ring", "radius": 4.57, "inner": 4.2 }, "at": [0, 0, 0.02] }
+{ "note": "flames", "shape": { "type": "cylinder", "radius": 1, "height": 0.6, "top": 1.17, "repeat_around": 3, "alpha": 1, "texture": "fxpa_flame02" }, "at": [0, 0, 0] }
 ```
 
 - **The types**, each with its base on the ground at z 0, centred on the origin:
   - `dome`, a half sphere, `height` up;
   - `sphere`, the dome's rings mirrored below it: `height` tall (twice the radius: a ball), its middle at half that;
-  - `cylinder`, an open tube `height` tall (Moonbeam's and Flame Strike's columns);
+  - `cylinder`, an open tube `height` tall (Moonbeam's and Flame Strike's columns). Its `top` (0.01-100 m; its radius
+    by default) is the radius of its top ring: wider flares it out, a truncated cone upside down (Elemental Shield's
+    ring of flames: 1 m on the ground, 1.17 m at 0.6 m, `fxpa_flame02` three times round); narrower leans it in;
   - `cone`, a ring on the ground to a point `height` up, its base open (a cone spell's, tilted onto its side);
   - `disc`, flat on the ground (a glyph's place);
   - `ring`, a flat band from its radius in to `inner` (0.01 to below the radius): a zone's edge on the ground.
@@ -223,7 +229,8 @@ from the defaults is written; a key not its type's (a disc's `height`, a dome's 
     the top, a sphere's from its bottom to its top, a cylinder's from the ground to its top. A disc's and a ring's run
     from the rim in: from the rim (a ring's outer edge) to a disc's centre, or a ring's inner edge. `repeat_around`
     (1-32) and `repeat_up` (1-16) tile it, so a pattern keeps its size on a big shape.
-  - `above` lays it on from overhead, the picture's square across the shape's width (a ring's outer). The repeats don't
+  - `above` lays it on from overhead, the picture's square across the shape's width (a ring's outer, a cylinder's wider
+    ring). The repeats don't
     apply there, and aren't written. It suits a low dome, a disc or a ring: a glyph shows as a sigil seen from above.
 - **Its texture** (`texture`):
   - `soft` is generated: its colour, brighter and more opaque where `wrap` starts (the ground ring; a sphere's bottom,

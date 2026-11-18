@@ -509,13 +509,16 @@ function diskTexture(disk, id = "") {
 // S5 adds the rest (the design's list): a sphere (globes, Resilient Sphere), an open cylinder (Moonbeam's and Flame
 // Strike's columns), a cone (cone spells, tilted onto their side), a disc (a glyph's place) and a ring (a zone's edge on
 // the ground). A disc and a ring are flat (SHAPE_FLAT): no height, on the ground.
+// TR (the owner, 2026-11-18, on Elemental Shield's flame ring: "it looks like a flame texture on a truncated upside down
+// cone" - "yes" to a Top radius): a cylinder's Top radius makes it a truncated cone either way up - wider flares out,
+// narrower leans in; at its default, the Radius, the cylinder as before.
 const SHAPE_TYPES = ["dome", "sphere", "cylinder", "cone", "disc", "ring"];
 const SHAPE_LABELS = { dome: "Dome (half sphere)", sphere: "Sphere", cylinder: "Cylinder (open)", cone: "Cone (point up)", disc: "Disc (flat, on the ground)",
   ring: "Ring (flat band)" };
-const SHAPE_KEYS = ["type", "radius", "height", "inner", "segments", "sides", "mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture",
-  "blend"];  // the order they're written in
+const SHAPE_KEYS = ["type", "radius", "height", "inner", "top", "segments", "sides", "mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow",
+  "texture", "blend"];  // the order they're written in
 const SOLID = () => ["radius", "height", "segments", "sides"];
-const SHAPE_FIELDS = { dome: SOLID(), sphere: SOLID(), cylinder: SOLID(), cone: SOLID(),  // a type's own fields, the card's order
+const SHAPE_FIELDS = { dome: SOLID(), sphere: SOLID(), cylinder: ["radius", "top", "height", "segments", "sides"], cone: SOLID(),  // a type's own fields, the card's order
   disc: ["radius", "segments", "sides"], ring: ["radius", "inner", "segments", "sides"] };
 const SHAPE_FLAT = ["disc", "ring"];
 const LOOK_FIELDS = ["mapping", "repeat_around", "repeat_up", "colour", "alpha", "glow", "texture", "blend"];  // every type's
@@ -524,6 +527,8 @@ const SHAPE_INFO = {
   radius: { label: "Radius (m)", min: 0.05, max: 100, step: 0.05 },
   height: { label: "Height (m)", min: 0.05, max: 100, step: 0.05 },
   inner: { label: "Inner radius (m)", min: 0.01, max: 100, step: 0.05 },  // a ring's, below its radius too (readShape)
+  top: { label: "Top radius (m)", min: 0.01, max: 100, step: 0.05,  // a cylinder's (TR)
+    title: "The radius at its top: the same as Radius is a cylinder; wider flares out (a lampshade upside down), narrower leans in" },
   segments: { label: "Smoothness", min: 8, max: 96, step: 4, whole: true, title: "Segments round it; a dome's rings up it are a quarter of that, a sphere's half" },
   sides: { label: "Sides", choices: [["both", "Both: seen from inside too"], ["outside", "Outside only"]] },
   mapping: { label: "Mapping", choices: [["wrap", "Wrapped: round it and along it"], ["above", "From above: laid on from overhead"]] },
@@ -559,12 +564,15 @@ function txiAdditive(text) {
 const orList = (list) => (list.length > 1 ? list.slice(0, -1).join(", ") + " or " + list[list.length - 1] : list.join(""));
 
 // A type's defaults, in SHAPE_KEYS' order: a dome as tall as its radius; a sphere, a cylinder and a cone twice that (a
-// sphere's a ball); a disc and a ring no height; a ring's inner edge 0.85 of its radius, to the millimetre. Blend Normal
-// (M1b): a shape saved before it keeps its look - the page writes Additive on the shapes it adds (composer.js partFrom).
+// sphere's a ball); a disc and a ring no height; a ring's inner edge 0.85 of its radius, to the millimetre; a cylinder's
+// top its radius (TR: a cylinder - never written, so a Top left at its default follows the Radius as a Height does).
+// Blend Normal (M1b): a shape saved before it keeps its look - the page writes Additive on the shapes it adds
+// (composer.js partFrom).
 function shapeDefaults(type, radius) {
   const out = { type, radius };
   if (!SHAPE_FLAT.includes(type)) out.height = type === "dome" ? radius : 2 * radius;
   if (type === "ring") out.inner = Math.round(0.85 * radius * 1000) / 1000;
+  if (type === "cylinder") out.top = radius;
   return Object.assign(out, { segments: 32, sides: "both", mapping: "wrap", repeat_around: 1, repeat_up: 1,
     colour: [0.6, 0.8, 1], alpha: 0.35, glow: 1, texture: "soft", blend: "normal" });
 }
@@ -587,7 +595,7 @@ function shapeFieldError(where, k) {
 }
 // A shape as a part gives it -> the full shape: shapeDefaults(type, radius) with its keys over it (its colour copied).
 // `where` names it in an error (stages.small[0].shape); each error names its field. A key not its type's is refused (a
-// disc's height, a dome's inner); a ring's inner is below its radius.
+// disc's height, a dome's inner, a cone's top); a ring's inner is below its radius.
 function readShape(s, where) {
   if (!s || typeof s !== "object" || Array.isArray(s)) throw new Error(`${where}: a shape ({ "type": "dome", "radius": <metres> })`);
   if (!SHAPE_TYPES.includes(s.type)) throw new Error(`${where}.type: ${orList(SHAPE_TYPES)}`);
@@ -655,11 +663,15 @@ function shapeTexture({ colour: given }) {
 // - dome: m rings up from the ground ring (latitude (PI / 2) j / m), then its top; v j / m, then 1.
 // - sphere: the dome's rings mirrored below - its bottom point, 2m - 1 rings, its top point; its middle at h / 2, v
 //   from the bottom (0) to the top (1).
-// - cylinder: an open tube, a ring at 0 (v 0) and one at h (v 1). cone: a ring at 0 (v 0) to a point at h (v 1), its
-//   base open.
+// - cylinder: an open tube, a ring of its radius at 0 (v 0) and one of its top (TR: its radius by default) at h (v 1) -
+//   a wider top flares out, a narrower one leans in. cone: a ring at 0 (v 0) to a point at h (v 1), its base open.
 // - disc: its rim (v 0) to a point at its centre (v 1), flat at 0. ring: its rim (v 0) to its inner edge (v 1). A flat
 //   one's v runs from the rim in, so the soft texture glows at its rim - the area's edge - as a dome's at its ground ring
 //   (the coordinator's ruling on S5).
+// A cylinder's top (TR; its radius when not given, as readShape fills it) and a shape's widest radius - its radius, or a
+// cylinder's top when wider: what From above lays the picture across and its box spans.
+const topOf = (shape) => (isNum(shape.top) ? shape.top : shape.radius);
+const widestOf = (shape) => (shape.type === "cylinder" ? Math.max(shape.radius, topOf(shape)) : shape.radius);
 function profileOf(shape) {
   const r = shape.radius, h = shape.height, n = shape.segments, m = Math.max(2, Math.round(n / 4));
   const latitude = (phi, z0, up, v) => ({ r: r * Math.cos(phi), z: z0 + up * Math.sin(phi), v });
@@ -670,7 +682,7 @@ function profileOf(shape) {
     return [{ pole: true, z: 0, v: 0 }, ...Array.from({ length: 2 * m - 1 }, (_, k) => latitude(-Math.PI / 2 + (Math.PI / 2) * (k + 1) / m, h / 2, h / 2, (k + 1) / (2 * m))),
       { pole: true, z: h, v: 1 }];
   }
-  if (shape.type === "cylinder") return [{ r, z: 0, v: 0 }, { r, z: h, v: 1 }];
+  if (shape.type === "cylinder") return [{ r, z: 0, v: 0 }, { r: topOf(shape), z: h, v: 1 }];
   if (shape.type === "cone") return [{ r, z: 0, v: 0 }, { pole: true, z: h, v: 1 }];
   if (shape.type === "disc") return [{ r, z: 0, v: 0 }, { pole: true, z: 0, v: 1 }];
   if (shape.type === "ring") return [{ r, z: 0, v: 0 }, { r: shape.inner, z: 0, v: 1 }];
@@ -718,15 +730,15 @@ function bothSides(side) {
 // is additive - or none) }.
 // - Its UVs: Wrapped, u round it from +x and v from its base up (a disc's and a ring's from the rim in), times its
 //   repeats; From above, laid on from overhead, its width the picture's square ((0.5 + x / 2r, 0.5 + y / 2r): r its
-//   radius, a ring's outer).
+//   radius, a ring's outer, a cylinder's the larger of its radius and its top - TR: every UV within [0, 1]).
 // - Its material: soft, the texture's colour lit by its glow; none, its own colour lit by its glow; a library texture
 //   (M1, the owner's Q3), tinted by its colour and lit by itself as far as its glow goes - selfillum its colour x glow,
 //   ambient and diffuse its colour x (1 - glow), each through round: at Glow 1 the texture x its colour in any light (the
 //   game clamps a mesh's light at 1, so ambient and diffuse on top washed a pale colour out to white by day), at Glow 0
 //   lit by the scene as a placeable is. See-through (its own alpha isn't known here).
-// - Its box: a flat one's (a disc, a ring) is 0 high.
+// - Its box: a flat one's (a disc, a ring) is 0 high; a flared cylinder's as wide as its top (widestOf).
 function shapeModel(shape) {
-  const r = shape.radius;
+  const r = widestOf(shape);
   const uv = shape.mapping === "above" ? (x, y) => [0.5 + x / (2 * r), 0.5 + y / (2 * r)]
     : (x, y, u, v) => [u * shape.repeat_around, v * shape.repeat_up];
   const side = shapeSide(shape, uv);

@@ -2151,3 +2151,52 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     | ID | Setup | Do | Expect |
     |---|---|---|---|
     | TMO-5 | VFX Bench restarted; the game started (`!test level1ranger`); the Composer: `tmoglyph` (or New project `tmoglyph`, Spell mesh, Diameter (m) 2, Shapes, Dome (half sphere), Mapping From above, Texture From the library... `fxpa_symbl_003`, Colour orange, Turn (°/s) 30, Breathe 0.2); a second dome 2.5 m along x, Mapping From above, `fxpa_symbl_003`, Scroll up 0.25 | View: Top; watch both domes while the glyph shrinks; Play in game, watch from above and the side, at the first dome's bottom edge; Save and build; read the status; quit, search the logs | the turning glyph's dome edge stays clear while it shrinks (no part of the next glyph at the bottom edge), on the stage and in game; still orange, turning, faint, see-through; the scrolling dome still repeats (the next glyph slides in). The edge showing the next glyph in game only: the game ignores the TXI's clamp on a mesh - say so (the fallback: a breath that only grows) |
+
+## The Cylinder's Top radius: a truncated cone either way up (2026-11-18, #39; TR)
+
+  The owner, 2026-11-18, on Elemental Shield's ring of flames: "how is that angled ring of flames made? it looks like a
+  flame texture on a truncated upside down cone" - offered a Top radius on the Cylinder, which makes it a truncated cone
+  either way up: "yes". The game's `vdr_eleshield` Cylinder02: two rings of 40 points, 1.00 m at z 0.012 and 1.17 m at
+  z 0.605, open both ends, `fxpa_flame02` (additive, a 4 x 4 flipbook at 32 by its TXI) three times round. No src or tests
+  change; no DLL change, no install.
+  - *Calls:*
+    - floatdisk.js: `top` joins SHAPE_KEYS after `inner` (the order it's written in) and the Cylinder's card after Radius
+      (SHAPE_FIELDS.cylinder: radius, top, height, segments, sides); SHAPE_INFO.top "Top radius (m)", 0.01-100, step
+      0.05, titled "The radius at its top: the same as Radius is a cylinder; wider flares out (a lampshade upside down),
+      narrower leans in". No other type takes one (refused, naming its own keys);
+    - its default is the Radius (shapeDefaults), never written: **a Top left at its default follows the Radius**, as a
+      Height does (a Top typed equal to the Radius isn't kept, and follows it from then on);
+    - the mesh: the cylinder's profile runs from (radius, 0) to (top, height) - both sides, the inside first, the
+      groups, the seams, Wrapped round it and up it, the repeats, motion, tint and blend as before. From above spans
+      the wider of its two rings (every UV within 0..1), and so does its box (shapeModel's lo / hi);
+    - **at Top = Radius the cylinder before it, byte for byte**: its model, a placeable's .mdl text, a spell mesh's
+      draft, its placed meshes, its written shape and its soft texture name - seven cylinders compared with anim c7c650b's
+      (Top given or not; the probe in the coordinator's tmp), and five of their models pinned in the floatdisk check;
+    - the page needed no change for the card (S5's promise holds: the Cylinder's box shows Top radius from SHAPE_FIELDS
+      and SHAPE_INFO, refuses it out of bounds, one undo step). Two small page changes: composer.js keeps every metres
+      field to the millimetre - those SHAPE_INFO labels "(m)", where it had a list of three - and the Composer hook's
+      `drawn.rings` (each stage mesh's heights and its reach from its middle at each) for the checks.
+  - *Built:* nwn5e-tools d0d70ef on branch `tr-top-tools` (composer.js, composer_page.js's hook, README;
+    check_composer, composer_check.mjs); anim: the commit carrying this section, on branch `tr-top` (floatdisk.js, its
+    check, the floatdisk and composer READMEs). Both in worktrees of their own; the coordinator lands them.
+  - *Checks* (before -> after; each new check seen failing first):
+    - anim: floatdisk check 104 -> 110 (+6: the field and its default, byte for byte at Top = Radius, the flared mesh -
+      two rings of 37 at 1 and 1.17, faces out outside and in inside by face and by signed volume, its leaning-in twin -
+      From above from the wider ring, the repeats, the page's floatdisk.js; S5's "other shapes" check amended for the new
+      key, field and default); a mutation check (13 breaks of the code, in a temporary copy): every one fails a TR check. composer check
+      24, floatdisk check_build 13, composer check_build 30, check_derived 18 - unchanged, all pass;
+    - nwn5e-tools: check_composer 46 -> 47 (TR: clean keeps Top to the millimetre, a Top at the Radius not written, a
+      flared cylinder placed 2.34 m across; its round trip's one failure is the CRLF checkout's, before and after - 48,
+      all pass, with an LF composition.json), composer_check.mjs 100 -> 101, all passed (cylinderTopRadius: the
+      Cylinder's card shows Top radius after Radius at the Radius; Radius 1, Height 0.6, then Top 1.17 typed - the stage's
+      mesh two rings, 1 m on the ground and 1.17 m at 0.6 m; one undo step; 0.005 refused; otherShapes' Cylinder card
+      with its Top radius) - seen failing on the page without the hook, and on anim c7c650b's floatdisk.js;
+      browser_check.mjs 112, all passed; check_composer_server 54 (its checkoutDefault wants an nwn5e-ee-anim beside the
+      worktree: none there).
+  - *Limits:* the game's ring has 40 segments and starts its u at -0.083, so its flames sit at other angles than a
+    32-segment Cylinder's (Smoothness 40 matches the count). A library texture is tinted by the shape's Colour - white
+    shows `fxpa_flame02` as it is (the default `#99ccff` would make it pale blue).
+  - *For the bench:* restart vfx_bench.bat. *For the game:* nothing installed - Play in game writes the mesh into the
+    request's draft; `fxpa_flame02` is the game's.
+  - Test row SHP-8 (the coordinator's tmp `shp8_row.csv`, for docs/tests.csv): the flame ring in the Composer and in
+    game.
