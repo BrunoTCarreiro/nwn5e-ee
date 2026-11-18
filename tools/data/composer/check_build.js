@@ -446,11 +446,13 @@ try {
     for (const f of shapeFiles()) fs.rmSync(f);
     const LIB = "fxpa_symbl_001";  // the game's own: named, nothing generated or copied
     const j = ok(build(gold({ texture: LIB }), ["--json"]));
-    lines(path.join(FILES, "plc_n5chkdomep.mdl"), ["  bitmap " + LIB, "  diffuse 1 0.85 0.4", "  transparencyhint 1"]);
+    // At Glow 1 (the default) lit by itself (M1, the owner's Q3): selfillum its colour, no ambient or diffuse.
+    lines(path.join(FILES, "plc_n5chkdomep.mdl"), ["  bitmap " + LIB, "  ambient 0 0 0", "  diffuse 0 0 0", "  transparencyhint 1", "  selfillumcolor 1 0.85 0.4"]);
     assert.deepStrictEqual(j.shapes, []);
     const m = ok(build(zone({ texture: LIB }), ["--json", "--saved", SAVED]));
     assert.deepStrictEqual(m.shapes, []);
-    assert.deepStrictEqual(draftPlanes(path.join(SAVED, "n5m_chkdome.vfx")).map((p) => p.bitmap), [LIB]);
+    assert.deepStrictEqual(draftPlanes(path.join(SAVED, "n5m_chkdome.vfx")).map((p) => [p.bitmap, p.diffuse, p.ambient, p.selfillum]),
+      [[LIB, [0, 0, 0], [0, 0, 0], [0.6, 0.8, 1].map(Math.fround)]]);
     assert.ok(![...j.files, ...m.files].some((x) => /n5s_/i.test(x.file)), JSON.stringify([...j.files, ...m.files]));
     assert.deepStrictEqual(shapeFiles(), []);
   });
@@ -486,6 +488,39 @@ try {
     const planes = draftPlanes(path.join(SAVED, "n5m_chklampm.vfx")).map((p) => [p.name, p.transparencyhint]);
     for (const [name, hint] of planes) assert.strictEqual(hint, want(name), name);
     assert.deepStrictEqual(counts(planes), [34, 6, 6]);
+  });
+
+  // M1 (#39; the owner, 2026-11-18: "tinting options" for the textures): a part's tint multiplies every one of its meshes'
+  // ambient, diffuse and selfillum (floatdisk.js placePart) - the game's crate, plc_a03, once as it is (variant 1) and once
+  // tinted [0.5, 1, 0.5] (variant 2): every mesh of the tinted one has its material halved in r and b, its g as it was
+  // (to the 0.00001 the writers keep), in a placeable's model and in a spell mesh's draft alike; its hints kept.
+  check("a tinted crate: every mesh of its model and its draft has its material times the tint (halved in r and b)", () => {
+    const TINT = [0.5, 1, 0.5];
+    const crate = (tint) => [Object.assign({ model: "plc_a03", at: [0, 0, 0] }, tint ? { tint } : {})];
+    const times = (got, plain) => got.length === 3 && got.every((v, k) => Math.abs(v - plain[k] * TINT[k]) <= 1e-5);
+    const materialsOf = (file) => fs.readFileSync(file, "latin1").split("\r\nnode trimesh ").slice(1).map((n) => {
+      const l = n.split("\r\n"), at = (k) => { const x = l.find((s) => s.startsWith(`  ${k} `)); return x ? x.trim().split(/\s+/).slice(1).map(Number) : null; };
+      return { name: l[0], ambient: at("ambient"), diffuse: at("diffuse"), selfillum: at("selfillumcolor"), hint: at("transparencyhint") };
+    });
+    const same = (plain, tinted, what) => {
+      assert.ok(plain.length > 0, what + ": no mesh");
+      assert.deepStrictEqual(tinted.map((m) => [m.name, m.hint]), plain.map((m) => [m.name, m.hint]), what + ": the meshes and their hints");
+      plain.forEach((m, i) => {
+        for (const k of ["ambient", "diffuse", "selfillum"]) assert.ok(times(tinted[i][k], m[k]), `${what}: ${m.name}'s ${k} ${tinted[i][k]} for ${m[k]}`);
+      });
+      assert.ok(plain.some((m, i) => m.diffuse[0] > 0 && tinted[i].diffuse[0] < m.diffuse[0] && tinted[i].diffuse[1] === m.diffuse[1]), what + ": no diffuse halved");
+    };
+    ok(build(project("chktint", { kind: "placeable", guide: { shape: "circle", diameter: 2, height: 0 }, placeable: THROUGH, variants: [
+      { name: "1", row: 14155, parts: crate() }, { name: "2", row: 14156, parts: crate(TINT) }] }), ["--json"]));
+    same(materialsOf(path.join(FILES, "plc_n5chktint_1.mdl")), materialsOf(path.join(FILES, "plc_n5chktint_2.mdl")), "the placeable's model");
+    ok(build(project("chktintm", { kind: "spellmesh", guide: { shape: "circle", diameter: 2, height: 0 }, variants: [
+      { name: "1", parts: crate() }, { name: "2", parts: crate(TINT) }] }), ["--json", "--saved", SAVED]));
+    const planes = (k) => draftPlanes(path.join(SAVED, `n5m_chktintm_${k}.vfx`)).map((p) => ({ name: p.name, ambient: p.ambient, diffuse: p.diffuse,
+      selfillum: p.selfillum, hint: p.transparencyhint }));
+    same(planes(1), planes(2), "the spell mesh's draft");
+    // The project file keeps the tint as written; its untinted part has none.
+    const saved = JSON.parse(fs.readFileSync(path.join(folder, "chktint.json"), "utf8"));
+    assert.deepStrictEqual(saved.variants.map((v) => v.parts[0].tint), [undefined, TINT]);
   });
 } finally {
   fs.rmSync(root, { recursive: true, force: true });

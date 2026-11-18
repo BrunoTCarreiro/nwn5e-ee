@@ -391,6 +391,24 @@ check("projectText writes its values with floatdisk.js's inline - one JSON write
   assert.ok(text.split("\n").includes('      { "model": "helm_001", "at": [0, 0, 0], "colours": { "metal1": 5 } },'), text);
   assert.ok(text.split("\n").includes('      { "model": "helm_002", "at": [0, 0, 0], "colours": {} }'), text);
 });
+// M1 (#39): a part's tint [r, g, b] (floatdisk.js readTint) is written after its tilt and colours, and never white - white
+// is no tint; a project reads it back as the part's.
+check("projectText writes tint after tilt, never white", () => {
+  const json = { kind: "placeable", name: "tints", guide: CIRCLE, variants: [{ name: "1", parts: [
+    { tint: [0.5, 1, 0.25], extra: 1, colours: { metal1: 5 }, model: "helm_001", at: [0, 0, 0], tilt: [0, 90] },
+    { tint: [1, 1, 1], model: "plc_a03", at: [0, 0, 0], turn: 15 }] }] };
+  const text = P.projectText(json), l = lines(text);
+  assert.ok(l.includes('      { "model": "helm_001", "at": [0, 0, 0], "tilt": [0, 90], "colours": { "metal1": 5 }, "tint": [0.5, 1, 0.25], "extra": 1 },'), text);
+  assert.ok(l.includes('      { "model": "plc_a03", "at": [0, 0, 0], "turn": 15 }'), text);
+  const read = P.readProject(JSON.parse(text), BASE, F).variants[0].parts;
+  assert.deepStrictEqual(read.map((p) => p.tint), [[0.5, 1, 0.25], [1, 1, 1]]);
+  // Each error names its part; a shape takes none.
+  const bad = copy(json);
+  bad.variants[0].parts[1].tint = [0, 0, 1.5];
+  assert.throws(() => P.readProject(bad, BASE, F), says("variants[0].parts[1].tint: [r, g, b], each 0 to 1"));
+  bad.variants[0].parts[1] = { shape: { type: "dome", radius: 1 }, at: [0, 0, 0], tint: [0.5, 0.5, 0.5] };
+  assert.throws(() => P.readProject(bad, BASE, F), says("variants[0].parts[1].tint: a shape has no tint - its Colour is its colour"));
+});
 check("projectText: a part a line, and a round trip", () => {
   const json = copy(CRATES);
   json.variants[1] = { parts: [], name: "2" };

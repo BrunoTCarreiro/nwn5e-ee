@@ -700,12 +700,13 @@ check("the dome's material: its texture's colour lit by its glow (soft), its own
     ["", [1, 0.85, 0.4], [1, 0.85, 0.4], [0.5, 0.425, 0.2], 1, false]);
   assert.deepStrictEqual(none.textures, []);
   assert.strictEqual(F.shapeModel(F.readShape({ type: "dome", radius: 1, texture: "none", alpha: 0.5 }, "s")).meshes[0].transparent, true);
-  // A library texture: named as it is, tinted by its colour, glowing by its glow, see-through (its own alpha isn't
-  // known); nothing generated.
+  // A library texture: named as it is, tinted by its colour - lit by itself as far as its glow goes, by the scene the rest
+  // (M1, the owner's Q3: diffuse and ambient its colour x (1 - glow), selfillum its colour x glow) - see-through (its own
+  // alpha isn't known); nothing generated.
   const lib = F.shapeModel(F.readShape({ type: "dome", radius: 1, texture: "fxpa_symbl_001", colour: [1, 0.85, 0.4], glow: 0.5, alpha: 1 }, "s"));
   const l = lib.meshes[0];
   assert.deepStrictEqual([l.bitmap, l.diffuse, l.ambient, l.selfillum, l.alpha, l.transparent],
-    ["fxpa_symbl_001", [1, 0.85, 0.4], [1, 0.85, 0.4], [0.5, 0.425, 0.2], 1, true]);
+    ["fxpa_symbl_001", [0.5, 0.425, 0.2], [0.5, 0.425, 0.2], [0.5, 0.425, 0.2], 1, true]);
   assert.deepStrictEqual(lib.textures, []);
   // Soft in another colour: its own texture.
   assert.deepStrictEqual(F.shapeModel(F.readShape({ type: "dome", radius: 1, colour: [1, 0.85, 0.4] }, "s")).textures,
@@ -1052,6 +1053,104 @@ check("an ASCII model's mesh keeps its transparencyhint for the mesh reader (a w
   assert.ok(block(F.readableAscii(strap, "x"), "node trimesh Strap").includes("  transparencyhint 1"));
   const junk = NEVERBLENDER.replace("  diffuse 0.8 0.8 0.8", "  diffuse 0.8 0.8 0.8\r\n  transparencyhint x");
   assert.ok(!F.readableAscii(junk, "x").includes("transparencyhint"));
+});
+
+// --- tint (M1, #39; the owner, 2026-11-18: "for the existing textures I'd like to add tinting options to them") --------
+// A part's "tint": [r, g, b] (0 to 1; white, the default, is none and never written) multiplies every one of its meshes'
+// ambient, diffuse and selfillum - the game lights a textured mesh as texture x (selfillum + ambient x the area's +
+// diffuse x the lights), so the material tints the texture. placePart applies it: both generators and the page. A shape
+// takes none (its Colour is its colour); a shape's library texture is lit by itself as far as its Glow goes (Q3).
+const tinted = () => ({ meshes: [
+  { name: "box", bitmap: "plc_x", verts: [0, 0, 0, 1, 0, 0, 0, 1, 0.5], tverts: [0, 0, 1, 0, 0, 1], faces: [0, 1, 2], diffuse: [0.8, 0.6, 0.4],
+    ambient: [0.2, 0.4, 1], selfillum: [0, 0.5, 1], alpha: 1, transparencyhint: 2 },
+  { name: "lid", bitmap: "", verts: [0, 0, 0.5, 1, 0, 0.5, 0, 1, 1], tverts: [0, 0, 1, 0, 0, 1], faces: [0, 1, 2], diffuse: [1, 1, 1],
+    ambient: [1, 1, 1], selfillum: [0.123456, 0, 0], alpha: 0.5 }], lo: [0, 0, 0], hi: [1, 1, 1] });
+const material = (m) => [m.ambient, m.diffuse, m.selfillum];
+const withoutMaterial = (m) => Object.assign({}, m, { ambient: null, diffuse: null, selfillum: null });
+check("tint: read, defaulted, refused on a shape and out of range", () => {
+  assert.deepStrictEqual(F.readTint(undefined, "p"), [1, 1, 1]);
+  const given = [0.5, 1, 0.25], read = F.readTint(given, "p");
+  assert.deepStrictEqual(read, [0.5, 1, 0.25]);
+  assert.ok(read !== given, "readTint's own copy");
+  for (const bad of [[1, 1], [1.2, 0, 0], [-0.1, 0, 0], ["1", 0, 0], [NaN, 0, 0], [0, 0, 0, 1], "red", {}, 0.5]) {
+    assert.throws(() => F.readTint(bad, "p"), (e) => e.message === "p.tint: [r, g, b], each 0 to 1", JSON.stringify(bad));
+  }
+  // A part's: readPart gives it (white without one), each error naming the part.
+  const part = (extra) => F.readPart(Object.assign({ model: "plc_a03", at: [0, 0, 0] }, extra), "stages.small[0]", BASE);
+  assert.deepStrictEqual(part().tint, [1, 1, 1]);
+  assert.deepStrictEqual(part({ tint: [0.5, 1, 0.25] }).tint, [0.5, 1, 0.25]);
+  assert.deepStrictEqual(F.readPart({ file: "parts/x.mdl", at: [0, 0, 0], tint: [0, 0.5, 1] }, "p", BASE).tint, [0, 0.5, 1]);
+  assert.throws(() => part({ tint: [2, 0, 0] }), (e) => e.message === "stages.small[0].tint: [r, g, b], each 0 to 1");
+  assert.deepStrictEqual(F.readComposition(comp([{ model: "plc_a03", at: [0, 0, 0], tint: [0.5, 1, 0.5] }]), BASE).stages.small[0].tint, [0.5, 1, 0.5]);
+  // A shape takes none, white or not: its Colour is its colour.
+  for (const tint of [[0.5, 1, 0.25], [1, 1, 1], [3, 0, 0]]) {
+    assert.throws(() => F.readPart({ shape: { type: "dome", radius: 1 }, at: [0, 0, 0], tint }, "stages.small[0]", BASE),
+      (e) => e.message === "stages.small[0].tint: a shape has no tint - its Colour is its colour");
+  }
+  assert.deepStrictEqual(F.readPart({ shape: { type: "dome", radius: 1 }, at: [0, 0, 0] }, "p", BASE).tint, [1, 1, 1]);
+});
+check("tintMeshes multiplies ambient, diffuse and selfillum; white changes nothing", () => {
+  const meshes = tinted().meshes, out = F.tintMeshes(meshes, [0.5, 1, 0.25]);
+  assert.deepStrictEqual(out.map(material), [[[0.1, 0.4, 0.25], [0.4, 0.6, 0.1], [0, 0.5, 0.25]], [[0.5, 1, 0.25], [0.5, 1, 0.25], [0.06173, 0, 0]]]);
+  // Through round (0.123456 x 0.5 is 0.061728: 0.06173); the rest of each mesh as it was - its alpha and its hint too;
+  // copies, the meshes given untouched.
+  assert.deepStrictEqual(out.map(withoutMaterial), meshes.map(withoutMaterial));
+  assert.ok(out.every((m, i) => m !== meshes[i]));
+  assert.deepStrictEqual(meshes.map(material), tinted().meshes.map(material));
+  // White (or none): the same numbers, unrounded - a model's own 0.5882352941 kept as the writers have it today.
+  const own = [Object.assign(tinted().meshes[0], { diffuse: [0.5882352941, 0.1, 1] })];
+  for (const white of [[1, 1, 1], undefined]) assert.deepStrictEqual(F.tintMeshes(own, white), own);
+  // A channel at 1 keeps its numbers; a mesh without a material keeps none.
+  assert.deepStrictEqual(F.tintMeshes(own, [1, 0.5, 1])[0].diffuse, [0.5882352941, 0.05, 1]);
+  assert.deepStrictEqual(F.tintMeshes([{ name: "bare" }], [0.5, 0.5, 0.5]), [{ name: "bare" }]);
+});
+check("placePart tints every mesh of a tinted part", () => {
+  const place = { at: [0.1, 0, 0], turn: 30, scale: 0.5, tilt: [0, 0] };
+  const plain = F.placePart(place, tinted(), 0, 0.9, "j"), tint = F.placePart(Object.assign({ tint: [0.5, 1, 0.25] }, place), tinted(), 0, 0.9, "j");
+  assert.strictEqual(tint.meshes.length, 2);
+  assert.deepStrictEqual(tint.meshes, F.tintMeshes(plain.meshes, [0.5, 1, 0.25]));
+  assert.deepStrictEqual([tint.lo, tint.hi, tint.reach], [plain.lo, plain.hi, plain.reach]);
+  assert.deepStrictEqual(tint.meshes.map((m) => m.transparencyhint), [2, undefined]);  // T1b's hint kept
+  // readPart's part: white without a tint, its own with one - the part as both generators place it.
+  const read = (extra) => F.readPart(Object.assign({ model: "plc_a03", at: [0.1, 0, 0], turn: 30, scale: 0.5 }, extra), "p", BASE);
+  assert.deepStrictEqual(F.placePart(read(), tinted(), 0, 0.9, "j"), plain);
+  assert.deepStrictEqual(F.placePart(read({ tint: [0.5, 1, 0.25] }), tinted(), 0, 0.9, "j"), tint);
+  // Lowered and named unique (the generators' next steps): still tinted.
+  assert.deepStrictEqual(F.uniqueNames(F.lowered(tint.meshes, 0.9), []).map(material), tint.meshes.map(material));
+});
+check("compositionText writes tint after colours, never white", () => {
+  const text = F.compositionText({ stages: { small: [
+    { tint: [0.5, 1, 0.25], extra: 1, colours: { metal1: 5 }, model: "helm_001", at: [0, 0, 0], tilt: [0, 90] },
+    { tint: [1, 1, 1], model: "plc_a03", at: [0, 0, 0] }] } });
+  const l = text.split("\n");
+  assert.ok(l.includes('      { "model": "helm_001", "at": [0, 0, 0], "tilt": [0, 90], "colours": { "metal1": 5 }, "tint": [0.5, 1, 0.25], "extra": 1 },'), text);
+  assert.ok(l.includes('      { "model": "plc_a03", "at": [0, 0, 0] }'), text);
+  assert.deepStrictEqual(JSON.parse(text).stages.small.map((p) => p.tint), [[0.5, 1, 0.25], undefined]);
+});
+check("a library texture: Glow 1 gives selfillum = Colour and no diffuse or ambient; Glow 0.4 splits 0.4 / 0.6", () => {
+  const lib = (o, type = "dome") => F.shapeModel(F.readShape(Object.assign({ type, radius: 1, texture: "fxpa_symbl_003", colour: [1, 0.5, 0] }, o), "s"));
+  for (const type of F.SHAPE_TYPES) {
+    assert.deepStrictEqual(material(lib({}, type).meshes[0]), [[0, 0, 0], [0, 0, 0], [1, 0.5, 0]], type + ", Glow 1");
+    assert.deepStrictEqual(material(lib({ glow: 0.4 }, type).meshes[0]), [[0.6, 0.3, 0], [0.6, 0.3, 0], [0.4, 0.2, 0]], type + ", Glow 0.4");
+    assert.deepStrictEqual(material(lib({ glow: 0 }, type).meshes[0]), [[1, 0.5, 0], [1, 0.5, 0], [0, 0, 0]], type + ", Glow 0");
+  }
+  // Each through round, no -0; the rest as before: its name, see-through, its alpha, nothing generated.
+  const m = lib({ glow: 0.35, colour: [0.123, 0.5, 1] }).meshes[0];
+  assert.deepStrictEqual(material(m), [[0.07995, 0.325, 0.65], [0.07995, 0.325, 0.65], [0.04305, 0.175, 0.35]]);
+  noNegativeZero(lib({}));
+  const g = lib({ glow: 0.4, alpha: 0.5 });
+  assert.deepStrictEqual([g.meshes[0].bitmap, g.meshes[0].alpha, g.meshes[0].transparent, g.meshes[0].transparencyhint, g.textures], ["fxpa_symbl_003", 0.5, true, 1, []]);
+  // What the model writer writes: Glow 1's diffuse 0 0 0 and selfillumcolor its Colour.
+  const node = block(F.pileModelText("plc_t", lib({}).meshes, [0, 0, 0], [1, 1, 1], []), "node trimesh dome");
+  assert.ok(node.includes("  ambient 0 0 0") && node.includes("  diffuse 0 0 0") && node.includes("  selfillumcolor 1 0.5 0"), node.slice(0, 20).join("\n"));
+});
+check("Soft and None keep their material", () => {
+  // Today's numbers: Soft's white lit by its glow (its colour is in its texture); None's its colour, lit by its glow.
+  const of = (o) => material(F.shapeModel(F.readShape(Object.assign({ type: "dome", radius: 1, colour: [1, 0.5, 0], glow: 0.4 }, o), "s")).meshes[0]);
+  assert.deepStrictEqual(of({}), [[1, 1, 1], [1, 1, 1], [0.4, 0.4, 0.4]]);
+  assert.deepStrictEqual(of({ texture: "none" }), [[1, 0.5, 0], [1, 0.5, 0], [0.4, 0.2, 0]]);
+  assert.deepStrictEqual(of({ glow: 1 }), [[1, 1, 1], [1, 1, 1], [1, 1, 1]]);
+  assert.deepStrictEqual(of({ texture: "none", glow: 1 }), [[1, 0.5, 0], [1, 0.5, 0], [1, 0.5, 0]]);
 });
 
 console.log(process.exitCode ? `floatdisk check: FAILED (${count} passed)` : `floatdisk check: ${count} checks pass`);

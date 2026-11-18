@@ -5,7 +5,7 @@
 // project; the VFX Bench's Composer edits one, with these same parts. Nothing here touches the disk or the game.
 // Plain UMD: Node's require, or a page's self.ComposerProject. Nothing is required when it loads: floatdisk.js (F) and the
 // bench's core.js are passed in where they're needed - but for projectText, which writes with floatdisk.js's inline (the
-// one JSON writer, composition.json's too), and draftText, which gives each plane floatdisk.js's meshHint (the one
+// one JSON writer, composition.json's too) and leaves a white tint out by its isWhite, and draftText, which gives each plane floatdisk.js's meshHint (the one
 // transparencyhint rule, meshLines' too), found when they run: the page's self.FloatDisk, else Node's require.
 (function (root) {
 "use strict";
@@ -205,9 +205,9 @@ function newProject(name, kind) {
 }
 
 // A project's text in composition.json's layout: two-space indents, _about a string a line, each variant a line opening
-// its parts and each part a line (note, model | file | shape, at, turn, scale, tilt, then any other key), the rest inline;
-// LF, a final newline.
-const PART_KEYS = ["note", "model", "file", "shape", "at", "turn", "scale", "tilt"];
+// its parts and each part a line (note, model | file | shape, at, turn, scale, tilt, colours, tint - never white, which
+// is no tint: floatdisk.js's isWhite - then any other key), the rest inline; LF, a final newline.
+const PART_KEYS = ["note", "model", "file", "shape", "at", "turn", "scale", "tilt", "colours", "tint"];
 const VARIANT_KEYS = ["name", "model", "row"];
 const ordered = (o, first) => first.filter((k) => o[k] !== undefined).concat(Object.keys(o).filter((k) => !first.includes(k) && o[k] !== undefined));
 // A value on one line: floatdisk.js's inline ({} when empty, an undefined key left out), the page's or Node's.
@@ -219,7 +219,7 @@ function floatDisk() {
 const inline = (v) => floatDisk().inline(v);
 function projectText(json) {
   const pair = (k, v) => JSON.stringify(k) + ": " + v;
-  const part = (p) => "{ " + ordered(p, PART_KEYS).map((k) => pair(k, inline(p[k]))).join(", ") + " }";
+  const part = (p) => "{ " + ordered(p, PART_KEYS).filter((k) => !(k === "tint" && floatDisk().isWhite(p[k]))).map((k) => pair(k, inline(p[k]))).join(", ") + " }";
   const variant = (v, last) => {
     const head = ordered(v, VARIANT_KEYS).filter((k) => k !== "parts").map((k) => pair(k, inline(v[k])));
     const parts = Array.isArray(v.parts) ? v.parts : [];

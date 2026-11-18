@@ -1644,3 +1644,55 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     note says "brighter towards its rim"; Smoothness's tooltip no longer speaks of a dome only.
   - *The review of S4 (nwn5e-tools 1ef7da0):* a shape field past its bounds is refused as typed, never rounded
     into them first (Opacity 0.015 was saved as 0.02); the rows made self-contained.
+
+## The Composer's textures tinted (2026-11-18, #39; M1)
+
+  Spec: docs/superpowers/specs/2026-11-18-mesh-texture-animation-and-tint-design.md ("Tint", and "Addendum 2026-11-18
+  (a)": the owner's answers); plan docs/superpowers/plans/2026-11-18-mesh-texture-animation-and-tint.md (M1 of five: then
+  the moving textures, M2 - TMO-1 - M3, then a mesh beat's keys, M4 - M5).
+  Owner, 2026-11-18: "for the existing textures I'd like to add tinting options to them as right now when using a texture
+  there's no way to change the color"; on Q1-Q4 as put with recommendations, Q3 (Glow on a library texture) among them:
+  "accept your recommendations".
+  - *Calls (short; the design has them):*
+    - a part's `"tint": [r, g, b]` (0 to 1) multiplies every one of its meshes' ambient, diffuse and selfillum. The game
+      lights a textured mesh as texture x (selfillum + ambient x the area's light + diffuse x the lights), clamped to 1,
+      so the material tints the texture - vim_cntglobe's blue glyph globe is a grey texture (fxpa_symbl_003) so tinted.
+      White is none and never written; a dyed part is tinted over its dyes; a shape takes none (its Colour is its
+      colour);
+    - one place: floatdisk.js's placePart tints (tintMeshes), so both generators, build_derived and the page get it;
+    - a shape's library texture (Q3): selfillum its Colour x Glow, ambient and diffuse its Colour x (1 - Glow) - Glow 1 is
+      the texture x the Colour in any light (ambient = diffuse = Colour on top of the glow washed a pale colour to white
+      by day). Soft and None as they were;
+    - the stage draws a textured mesh as texture x min(1, selfillum + diffuse x its shade): the game's formula, the
+      stage's one soft light standing for the scene's. An untextured mesh as before;
+    - no game-side change: the writers already write a mesh's material (meshLines, the draft's planes). `git diff --stat
+      -- src` on anim: empty before and after.
+  - *Built:*
+    - anim (the commit carrying this paragraph): floatdisk.js readTint, isWhite, tintMeshes; readPart's tint (a shape's
+      refused, each error naming the part); placePart tints; compositionText writes tint after colours, never white;
+      shapeModel's library texture lit by its Glow. project.js projectText likewise (colours and tint in its part keys).
+      floatdisk check +6 (78), composer check +1 (19), composer check_build +1 (a crate tinted [0.5, 1, 0.5], its model
+      and its draft: r and b halved, g kept; the library dome's material now its Glow's); the Floating Disk's 13 files
+      unchanged (no part has a tint), derived check unchanged;
+    - nwn5e-tools (3bb1831): composer.js clean (the tint to 0.001, white and a shape's dropped); view.js meshData's
+      textured formula (a ghost still its shade alone); the part card's Tint and None (any part but a shape, one undo
+      step); the shape card's note on a library texture; the hook's drawn.colours (each stage mesh's vertex colours)
+      and parts' tint. check_composer +2 (41), check_chunks +1 (31: the textured formula, and a game mesh as before - the
+      shades worked out from the faces), composer_check.mjs +2 (93 steps: partTint, libraryTintShows), browser_check.mjs
+      unchanged (97 steps, all passed: no step relied on a textured mesh's colour being its shade alone).
+  - *What changes on the bench:* a game mesh whose diffuse is under 1 (the game's default 0.8) draws a little darker
+    than before, as its material lights it - the Composer's parts, the thumbnails drawn from now on, and the effect mode's
+    chunks and mesh beats alike (one mesh path); a library texture's dome shows its Colour (S4's limit "the bench shades a
+    textured shape by its faces' turn" is now the game's formula under the stage's light).
+  - *What changes in game:* a shape's library texture saved earlier at Glow 1 looks a little darker and more coloured
+    (Q3 says so); a part with no tint builds byte for byte as before.
+  - *Limits:* the stage's one light stands for the scene's - exact at Glow 1 (selfillum alone), close below it (the
+    game's lights, its night and its gamma aren't the stage's); thumbnails kept in `thumbs\v2\` before this stay as they
+    were drawn (a part's thumbnail is its model's, untinted).
+  - *For the bench:* restart vfx_bench.bat. *For the game:* nothing for the DLL.
+  - Test rows (for the board: #39, stream animation):
+
+    | ID | Setup | Do | Expect |
+    |---|---|---|---|
+    | TIN-1 | VFX Bench (restarted), the Composer: New project `tintdome`, a spell mesh; Parts, Shapes, Dome; on its card Texture From the library..., type `fxpa_symbl_003`, Use; Colour orange (#ff8000); Glow 1 (its default) | Play in game by day, then at night (or in a dark area); then Glow 0.3 and Play in game again, day and night | Glow 1: the glyph orange - the texture times the Colour - the same by day and night, never washed to white by day; the stage's dome orange too. Glow 0.3: orange, darker at night |
+    | TIN-2 | VFX Bench (restarted), the Composer: New project `tintbox`, a placeable; Parts, Placeables, `plc_a03` (a crate) added | its card's Tint pale green (#80ff80): the stage's crate turns green; Play in game; Save and build; after the next install (build.bat), in the toolset a placeable of its appearance (N5_Tintbox, its row 14100-14199) put in an area, and the module played | a pale green crate beside the character (Play) and in the area (installed), its wood's grain kept; Ctrl+Z on the bench takes the tint off |

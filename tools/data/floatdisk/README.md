@@ -162,6 +162,23 @@ dyeable texture, painted from an item's colours, and placeables have none - so t
   name in the way is rewritten. Bakes of colours no longer used stay in `data\files` (ignored, never installed: the
   build makes its own).
 
+## Tint
+
+A part's `tint` is a colour `[r, g, b]` (each 0-1) its textures take:
+
+```json
+{ "model": "plc_a03", "at": [0, 0, 0], "tint": [0.502, 1, 0.502] }
+```
+
+- **What it does:** every one of the part's meshes has its material - `ambient`, `diffuse` and `selfillumcolor` -
+  multiplied by it (to 0.00001). The game lights a textured mesh as texture x (selfillum + ambient x the area's light +
+  diffuse x the lights), so the material tints the texture. The game's own blue glyph globe (`vim_cntglobe`) is a grey
+  texture tinted that way.
+- **White is none:** `[1, 1, 1]`, the default, isn't written, and leaves the material as the model has it.
+- **Where:** any game model, weapon or file of yours, both generators alike (`floatdisk.js`'s `placePart` applies it). A
+  dyed part is tinted over its dyes. A shape takes none (it's refused): its `colour` is its colour.
+- In the VFX Bench's Composer it's the part card's **Tint** (None takes it off).
+
 ## Shapes
 
 A part's `shape` is a shape the generator makes instead of a model: `{ "type": <dome, sphere, cylinder, cone, disc or
@@ -210,11 +227,15 @@ from the defaults is written; a key not its type's (a disc's `height`, a dome's 
     and it's original, made from numbers. It's painted from the colour as it's named, so a name fixes the picture.
   - `none` is its colour only.
   - A texture's name (lower-case letters, digits and `_`, at most 16: the game's own, from the bench's library) is
-    tinted by `colour` and glows by `glow`. Nothing is generated or copied for it. It can't be `null` (the game reads
-    that as no texture: use `none`) or start `n5s_` (those names are made, not picked). One the game has only as a
-    PLT (a dyed texture: a helmet's) is refused at build time: a shape takes no dyes, so pick a TGA or DDS.
+    tinted by `colour`, lit by itself as far as `glow` goes: its `selfillumcolor` is `colour` x `glow`, its `ambient`
+    and `diffuse` `colour` x (1 - `glow`). At Glow 1 it's the texture times the colour in any light (the game clamps a
+    mesh's light at 1, so a colour on top of its glow washed a pale one out to white by day); at 0 it's lit by the
+    scene, as a placeable is. Nothing is generated or copied for it. It can't be `null` (the game reads that as no
+    texture: use `none`) or start `n5s_` (those names are made, not picked). One the game has only as a PLT (a dyed
+    texture: a helmet's) is refused at build time: a shape takes no dyes, so pick a TGA or DDS.
 - **Its look:** `colour` `[r, g, b]` (each 0-1), `alpha` (0.02-1: the game's globes go to about 0.3), `glow` (0-1: how
-  much it lights itself, at 1 the same by day and night). A soft or library texture, or an alpha below 1, is drawn
+  much it lights itself, at 1 the same by day and night). Soft and `none` keep `ambient` and `diffuse` at white (Soft)
+  or the colour (`none`), `selfillumcolor` lit by `glow`. A soft or library texture, or an alpha below 1, is drawn
   see-through.
 
 **A shape's texture**
