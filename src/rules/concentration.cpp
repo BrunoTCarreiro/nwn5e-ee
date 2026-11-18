@@ -148,6 +148,8 @@ const std::vector<int> kSpells = {
     1212,  // nwn5e_Silent_Image_Humanoid - Silent Image
     1213,  // nwn5e_Silent_Image_Creature - Silent Image
     1214,  // nwn5e_Silent_Image_Large - Silent Image
+    1252,  // nwn5e_Mind_Spike - Mind Spike (#39 level 2 build 1a)
+    1253,  // nwn5e_Shining_Smite - Shining Smite (its Concentration begins on the hit, as Ensnaring Strike's)
 };
 
 }  // namespace

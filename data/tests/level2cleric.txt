@@ -1,0 +1,15 @@
+# A !test profile ([debug] test_commands=1): type "!test level2cleric" in game and the character you are
+# playing gets what is below; "!test" alone lists the profiles. Read each time, so no rebuild or restart
+# is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
+#
+# #39 Part 2, level 2, build 1a: a Cleric 5, Wisdom 16 - Prayer of Healing prepared, with Cure Wounds and Healing Word.
+name = Level 2 build 1a (issue 39): human Cleric 5, Wisdom 16 - Prayer of Healing
+species = human
+swap_class = cleric
+class = cleric
+level = 5
+abilities = 14 10 14 10 16 12
+items = nw_wblml001 equip
+spells = Sacred Flame, Guidance, Light, Thaumaturgy
+spells = Prayer of Healing, Cure Wounds, Healing Word, Bless, Shield of Faith
+note = !spawn nw_orcb ally a friend; !reflex 30 30 to lose Hit Points

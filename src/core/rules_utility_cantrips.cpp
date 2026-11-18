@@ -766,6 +766,16 @@ struct Reactor {
   std::string image_name;
   const char* label = "Minor Illusion";  // its spell, for the log (#39 build 4b: Silent Image's too)
   bool sound = false;  // a sound's (#152 B): nothing there to study
+  // #152 (0.99.77): the point it goes to (the caster's n5c_at, as kWatcher kept it), and its way there, watched once
+  // a second (WatchWay): the step watched, when last looked at, where it stood 1 and 2 looks ago, its step given again.
+  bool has_point = false;
+  float x = 0.0f, y = 0.0f;
+  bool way_watched = false;
+  Stage way_stage = Stage::kComing;
+  uint64_t way_at = 0;
+  int way_looks = 0;
+  float way_x[2] = {0.0f, 0.0f}, way_y[2] = {0.0f, 0.0f};  // [0] a look ago, [1] two
+  int given_again = 0;
 };
 std::unordered_map<uint32_t, Reactor> g_reactors;  // by creature
 
@@ -822,6 +832,9 @@ Reactor* ReactorCalled(uint32_t self) {
 struct Check {
   bool fighting = true;
   bool image_there = false;
+  bool in_combat = false;  // 0.99.77: what `fighting` came from, for the log
+  bool hunting = false;
+  bool dead = false;
 };
 Check CheckOf(uint32_t self) {
   Run("SetLocalInt(OBJECT_SELF, \"n5c_mi_fight\", GetIsInCombat(OBJECT_SELF));"
@@ -831,9 +844,10 @@ Check CheckOf(uint32_t self) {
   Check check;
   void* creature = CreatureById(self);
   if (!creature) return check;
-  const bool in_combat = engine::GetLocalInt(creature, "n5c_mi_fight") != 0;
-  check.fighting = engine::GetLocalInt(creature, "n5c_mi_dead") != 0 ||
-                   rules::ReactionStops(rules::AlertnessOf(in_combat, HuntingUnseenHider(self), false, true));
+  check.in_combat = engine::GetLocalInt(creature, "n5c_mi_fight") != 0;
+  check.dead = engine::GetLocalInt(creature, "n5c_mi_dead") != 0;
+  check.hunting = HuntingUnseenHider(self);
+  check.fighting = check.dead || rules::ReactionStops(rules::AlertnessOf(check.in_combat, check.hunting, false, true));
   check.image_there = engine::GetLocalInt(creature, "n5c_mi_there") != 0;
   return check;
 }
@@ -858,6 +872,15 @@ void LetGo(uint32_t self, bool clear) {
   Run(std::string(clear ? "ClearAllActions();" : "") + "DeleteLocalInt(OBJECT_SELF, \"nwn5e_seek\");", self,
       "an illusion's watcher let go");
   g_reactors.erase(self);
+}
+
+// 0.99.77 (the owner's 0.99.76 log: a bear's 30 s timer said nothing): let go as fighting, with what the check saw.
+void LetGoFighting(uint32_t self, const Reactor& r, const Check& check, const std::string& what) {
+  char facts[96];
+  sprintf_s(facts, " (in combat %d, hunting a hider it can't see %d, dead %d)", check.in_combat ? 1 : 0,
+            check.hunting ? 1 : 0, check.dead ? 1 : 0);
+  Note(self, r, (what + facts).c_str());
+  LetGo(self, false);
 }
 
 // Back where it stood (a look round first, if `look`), out of search mode.
@@ -1108,39 +1131,62 @@ void StruckUpdate(void* /*creature*/) {
   for (const auto& blow : blows) Struck(blow.first, blow.second);
 }
 
+// At the point - its walk over (Next's handler), or found stopped near it (0.99.77, WatchWay): it studies the image,
+// or touches it. The step it was on moves on, so a walk's queued handler that comes after does nothing.
+void AtThePoint(uint32_t self, Reactor& r) {
+  const Check check = CheckOf(self);
+  if (check.fighting) return LetGoFighting(self, r, check, "is fighting - no study");
+  if (r.stage == Stage::kTouching) return Touch(self, r, check);
+  Study(self, r, check);
+}
+
+// At the image, charging: it strikes it - or, finding it gone, a sentient one searches and any other goes back.
+void AtTheImage(uint32_t self, Reactor& r) {
+  const Check check = CheckOf(self);
+  if (check.fighting) return LetGoFighting(self, r, check, "is fighting - no blow at the image");
+  if (check.image_there) return Strike(self, r);
+  Note(self, r, "finds the image gone");
+  if (!r.sentient) return GoBack(self, true);
+  Tell(r.caster, PlayerText("utility_cantrips.finds_the_gone_and_searches", {{"name", std::string(r.name)}, {"image_name", std::string(r.image_name)}}));
+  Search(self, r);
+}
+
+// It never got there - its 30 s over, or (0.99.77) its way stalled again after its step was given again: one coming
+// to touch it goes back, one coming to look studies it from where it stands, one charging attacks it from there.
+void FromWhereItStands(uint32_t self, Reactor& r, const char* why) {
+  const Check check = CheckOf(self);
+  if (check.fighting) return LetGoFighting(self, r, check, std::string(why) + " - is fighting, lets it go");
+  if (r.stage == Stage::kTouching) {
+    Note(self, r, (std::string(why) + " - goes back").c_str());
+    return GoBack(self, true);
+  }
+  if (r.stage == Stage::kComing) {
+    Note(self, r, (std::string(why) + " - studies it from where it stands").c_str());
+    return Study(self, r, check);
+  }
+  Note(self, r, (std::string(why) + " - attacks it from where it stands").c_str());
+  if (check.image_there) return Strike(self, r);
+  GoBack(self, true);
+}
+
 // The handlers: each runs as the reacting creature.
 void OnStudyScript(uint32_t self) {
   Reactor* r = ReactorCalled(self);
   if (!r || (r->stage != Stage::kComing && r->stage != Stage::kTouching)) return;
-  const Check check = CheckOf(self);
-  if (check.fighting) {
-    Note(self, *r, "is fighting - no study");
-    return LetGo(self, false);
-  }
-  if (r->stage == Stage::kTouching) return Touch(self, *r, check);
-  Study(self, *r, check);
+  AtThePoint(self, *r);
 }
 
 void OnStrikeScript(uint32_t self) {
   Reactor* r = ReactorCalled(self);
   if (!r || r->stage != Stage::kCharging) return;
-  const Check check = CheckOf(self);
-  if (check.fighting) {
-    Note(self, *r, "is fighting - no blow at the image");
-    return LetGo(self, false);
-  }
-  if (check.image_there) return Strike(self, *r);
-  Note(self, *r, "finds the image gone");
-  if (!r->sentient) return GoBack(self, true);
-  Tell(r->caster, PlayerText("utility_cantrips.finds_the_gone_and_searches", {{"name", std::string(r->name)}, {"image_name", std::string(r->image_name)}}));
-  Search(self, *r);
+  AtTheImage(self, *r);
 }
 
 void OnBackScript(uint32_t self) {
   Reactor* r = ReactorCalled(self);
   if (!r || (r->stage != Stage::kFleeing && r->stage != Stage::kFledAgain)) return;
   const Check check = CheckOf(self);
-  if (check.fighting) return LetGo(self, false);
+  if (check.fighting) return LetGoFighting(self, *r, check, "is fighting after its flight - lets it go");
   if (r->stage == Stage::kFleeing && r->reaction == ImageReaction::kFleeThenStudy) {
     Note(self, *r, "comes back to look");
     return ComeToLook(self, *r);
@@ -1159,28 +1205,147 @@ void OnLateScript(uint32_t self) {
     return;
   }
   if (r->stage != Stage::kComing && r->stage != Stage::kCharging && r->stage != Stage::kTouching) return;
-  const Check check = CheckOf(self);
-  if (check.fighting) return LetGo(self, false);
-  if (r->stage == Stage::kTouching) {
-    Note(self, *r, "never got there in 30 s - goes back");
-    return GoBack(self, true);
-  }
-  if (r->stage == Stage::kComing) {
-    Note(self, *r, "never got there in 30 s - studies it from where it stands");
-    return Study(self, *r, check);
-  }
-  Note(self, *r, "never got there in 30 s - attacks it from where it stands");
-  if (check.image_there) return Strike(self, *r);
-  GoBack(self, true);
+  FromWhereItStands(self, *r, "never got there in 30 s");
 }
 
 void OnDoneScript(uint32_t self) {
   Reactor* r = ReactorCalled(self);
   if (!r || r->stage != Stage::kSearching) return;
   const Check check = CheckOf(self);
-  if (check.fighting) return LetGo(self, false);
+  if (check.fighting) return LetGoFighting(self, *r, check, "is fighting - its search ends");
   Note(self, *r, "ends its search");
   GoBack(self, false);
+}
+
+// A reaction's step, given again: its orders, not its timers (those it set stand). #152's ordering (the AI's hunt for
+// a hider breaking in, IllusionReactionResume) and 0.99.77's way watch. None for a size-up: it doesn't walk, and its
+// study's timer stands.
+std::string StepCode(const Reactor& r) {
+  switch (r.stage) {
+    case Stage::kComing:
+      if (r.reaction == ImageReaction::kSizeUp) return "";
+      return std::string(kComeToLook) + Next(kStudyScript, r.serial);
+    case Stage::kTouching: return std::string(kApproach) + Next(kStudyScript, r.serial);
+    case Stage::kCharging: return std::string(kCharge) + Next(kStrikeScript, r.serial);
+    case Stage::kStriking: return kStrike;
+    case Stage::kFleeing:
+    case Stage::kFledAgain: return kFleeFrom;
+    case Stage::kSearching: {
+      std::string code = kSearch;
+      Replace(&code, "$LEGS", "6");
+      Replace(&code, "$SPREAD",
+              std::to_string(static_cast<int>((rules::kIllusionSearchFeet * kMetresPerFoot - 1.5f) * 10.0f)));
+      return code + Next(kDoneScript, r.serial);
+    }
+  }
+  return "";
+}
+
+// The point kWatcher kept on the caster (centimetres), for the way watch.
+void KeepPoint(Reactor& r, void* caster) {
+  r.has_point = engine::GetLocalInt(caster, "n5c_mi_pset") != 0;
+  r.x = static_cast<float>(engine::GetLocalInt(caster, "n5c_mi_px")) / 100.0f;
+  r.y = static_cast<float>(engine::GetLocalInt(caster, "n5c_mi_py")) / 100.0f;
+}
+
+// #152 (0.99.77; the owner's 0.99.76 log, 2026-11-18: two fooled orcs that never charged, a bear that never reached a
+// roar - each stood until its 30 s timer, the cause not in the log): a creature on its way to the point, looked at
+// once a second of game time (a paused game waits). Stopped near the point, it is there; stopped short of it, its step
+// is given again, once, then it acts from where it stands (rules::CheckWay). A stop is logged with what the creature
+// was doing instead - its action, combat, attack target - to find what takes its walk.
+bool Walking(const Reactor& r) {
+  switch (r.stage) {
+    case Stage::kComing: return r.reaction != ImageReaction::kSizeUp;  // a size-up studies where it stands
+    case Stage::kTouching:
+    case Stage::kCharging: return true;
+    default: return false;
+  }
+}
+
+const char* WayName(Stage stage) {
+  switch (stage) {
+    case Stage::kComing: return "coming to look";
+    case Stage::kTouching: return "coming to touch it";
+    case Stage::kCharging: return "charging";
+    default: return "on its way";
+  }
+}
+
+const char* const kWayFacts = R"nss(
+SetLocalInt(OBJECT_SELF, "n5c_mi_act", GetCurrentAction(OBJECT_SELF));
+SetLocalInt(OBJECT_SELF, "n5c_mi_fight", GetIsInCombat(OBJECT_SELF));
+SetLocalString(OBJECT_SELF, "n5c_mi_atk", ObjectToString(GetAttackTarget(OBJECT_SELF)));
+SetLocalString(OBJECT_SELF, "n5c_mi_tried", ObjectToString(GetAttemptedAttackTarget()));
+SetLocalInt(OBJECT_SELF, "n5c_mi_detect", GetActionMode(OBJECT_SELF, ACTION_MODE_DETECT));
+SetLocalInt(OBJECT_SELF, "n5c_mi_cmd", GetCommandable(OBJECT_SELF));
+)nss";
+
+static_assert(rules::kWayStalledSeconds == 2, "the way watch keeps where it stood 1 and 2 looks (seconds) ago");
+
+void WatchWay(void* creature) {
+  if (g_reactors.empty() || !creature) return;
+  const uint32_t self = Field<uint32_t>(creature, ee::kObjectId);
+  const auto found = g_reactors.find(self);
+  if (found == g_reactors.end()) return;
+  Reactor& r = found->second;
+  if (!r.has_point || !Walking(r)) {
+    r.way_watched = false;
+    return;
+  }
+  const uint64_t now = GameMs();
+  const float x = Field<float>(creature, ee::kObjectPositionX);
+  const float y = Field<float>(creature, ee::kObjectPositionY);
+  if (!r.way_watched || r.way_stage != r.stage) {  // a new step: its watch starts here
+    r.way_watched = true;
+    r.way_stage = r.stage;
+    r.given_again = 0;
+    r.way_at = now;
+    r.way_x[0] = x;
+    r.way_y[0] = y;
+    r.way_looks = 1;
+    return;
+  }
+  if (now - r.way_at < 1000) return;
+  r.way_at = now;
+  const float left = std::hypot(r.x - x, r.y - y);
+  // Where it stood two looks (2 s) ago; not looked at that long yet: on its way.
+  const float moved = r.way_looks >= rules::kWayStalledSeconds ? std::hypot(x - r.way_x[1], y - r.way_y[1]) : 1e9f;
+  r.way_x[1] = r.way_x[0];
+  r.way_y[1] = r.way_y[0];
+  r.way_x[0] = x;
+  r.way_y[0] = y;
+  if (r.way_looks < rules::kWayStalledSeconds) ++r.way_looks;
+  const rules::WayCheck way = rules::CheckWay(left, moved, r.given_again);
+  if (way == rules::WayCheck::kOnItsWay) return;
+  char text[320];
+  if (way == rules::WayCheck::kThere) {
+    sprintf_s(text, "stopped %.1f m from the point, %s - there", left, WayName(r.stage));
+    Note(self, r, text);
+    r.way_watched = false;
+    if (r.stage == Stage::kCharging) return AtTheImage(self, r);
+    return AtThePoint(self, r);
+  }
+  Run(kWayFacts, self, "an illusion's watcher looked at");
+  const bool again = way == rules::WayCheck::kGiveAgain;
+  const std::string target = engine::GetLocalString(creature, "n5c_mi_atk");
+  const std::string tried = engine::GetLocalString(creature, "n5c_mi_tried");
+  _snprintf_s(text, sizeof(text), _TRUNCATE,
+              "stalled %s - %.1f m from the point, moved %.2f m in 2 s; action %d, in combat %d, attack target %s, "
+              "attempted %s, detect mode %d, commandable %d - %s",
+              WayName(r.stage), left, moved, engine::GetLocalInt(creature, "n5c_mi_act"),
+              engine::GetLocalInt(creature, "n5c_mi_fight"), target.c_str(), tried.c_str(),
+              engine::GetLocalInt(creature, "n5c_mi_detect"), engine::GetLocalInt(creature, "n5c_mi_cmd"),
+              again ? "its step given again" : "it gives up the way");
+  Note(self, r, text);
+  if (!again) {
+    r.way_watched = false;
+    return FromWhereItStands(self, r, "can't get there");
+  }
+  const Check check = CheckOf(self);
+  if (check.fighting) return LetGoFighting(self, r, check, "stalled and fighting - lets it go");
+  ++r.given_again;
+  r.way_looks = 1;  // its 2 s from here
+  Run(StepCode(r), self, "an illusion's watcher given its step again");
 }
 
 // Each reacting creature's start: where it stood, the image and its point, kept on it. #152's ordering (0.99.74): an
@@ -1191,6 +1356,10 @@ SetLocalInt(OBJECT_SELF, "nwn5e_seek", 120);
 DeleteLocalInt(OBJECT_SELF, "nwn5e_seek_why");
 SetLocalLocation(OBJECT_SELF, "n5c_mi_home", GetLocation(OBJECT_SELF));
 SetLocalLocation(OBJECT_SELF, "n5c_mi_at", GetLocalLocation(u, "n5c_at"));
+vector p = GetPositionFromLocation(GetLocalLocation(u, "n5c_at"));
+SetLocalInt(u, "n5c_mi_pset", GetIsObjectValid(GetAreaFromLocation(GetLocalLocation(u, "n5c_at"))));
+SetLocalInt(u, "n5c_mi_px", FloatToInt(p.x * 100.0));
+SetLocalInt(u, "n5c_mi_py", FloatToInt(p.y * 100.0));
 SetLocalObject(OBJECT_SELF, "n5c_mi_image", $IMAGE);
 SetLocalString(u, "n5c_name", GetName(OBJECT_SELF));
 )nss";
@@ -1265,6 +1434,7 @@ void MakeImageOf(uint32_t self, void* caster, ImageKind kind, const std::string&
       r.name = engine::GetLocalString(caster, "n5c_name");
       r.image_name = image;
       r.label = spell.label;
+      KeepPoint(r, caster);
       Reactor& kept = (g_reactors[n.id] = r);
       if (LogSlot()) {
         Log("cantrips: 0x%08X %s's %s: 0x%08X (%s) %s - racial type %d, Intelligence %d (%s), %s, size %d "
@@ -1372,6 +1542,7 @@ Reactor& HeardBy(uint32_t self, void* caster, const Near& n, bool sentient, Imag
   r.name = engine::GetLocalString(caster, "n5c_name");
   r.image_name = "sound";
   r.sound = true;
+  KeepPoint(r, caster);
   return g_reactors[n.id] = r;
 }
 
@@ -1785,25 +1956,7 @@ void IllusionReactionResume(uint32_t creature) {
   if (last != 0 && now - last < 2000) return;
   last = now;
   const Reactor& r = found->second;
-  std::string code;
-  switch (r.stage) {
-    case Stage::kComing:  // a size-up (0.99.75) doesn't walk - its study's timer stands
-      if (r.reaction == ImageReaction::kSizeUp) return;
-      code = std::string(kComeToLook) + Next(kStudyScript, r.serial);
-      break;
-    case Stage::kTouching: code = std::string(kApproach) + Next(kStudyScript, r.serial); break;
-    case Stage::kCharging: code = std::string(kCharge) + Next(kStrikeScript, r.serial); break;
-    case Stage::kStriking: code = kStrike; break;
-    case Stage::kFleeing:
-    case Stage::kFledAgain: code = kFleeFrom; break;
-    case Stage::kSearching:
-      code = kSearch;
-      Replace(&code, "$LEGS", "6");
-      Replace(&code, "$SPREAD",
-              std::to_string(static_cast<int>((rules::kIllusionSearchFeet * kMetresPerFoot - 1.5f) * 10.0f)));
-      code += Next(kDoneScript, r.serial);
-      break;
-  }
+  const std::string code = StepCode(r);  // none for a size-up (0.99.75): it doesn't walk, its study's timer stands
   if (code.empty()) return;
   Run(code, creature, "an illusion's watcher going on");
   if (LogSlot()) {
@@ -1890,7 +2043,7 @@ void InstallUtilityCantrips() {
   const bool images = AddScriptHandler(kStudyScript, &OnStudyScript) && AddScriptHandler(kStrikeScript, &OnStrikeScript) &&
                       AddScriptHandler(kBackScript, &OnBackScript) && AddScriptHandler(kLateScript, &OnLateScript) &&
                       AddScriptHandler(kDoneScript, &OnDoneScript) && AddAttackRollSkipper(&BlowAtImage) &&
-                      AddCreatureUpdateListener(&StruckUpdate);
+                      AddCreatureUpdateListener(&StruckUpdate) && AddCreatureUpdateListener(&WatchWay);
   Log("cantrips: Minor Illusion's image - those that see it study it, flee it or attack it, by what they are; seen "
       "through or hit, it vanishes and they search for its caster (#152)%s",
       images ? "" : " - SOME hooks missing");

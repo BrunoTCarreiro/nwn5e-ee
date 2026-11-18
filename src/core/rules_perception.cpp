@@ -107,6 +107,7 @@ int ReliableTalentRoll(void* creature, int nwn_skill, int d20);    // rules_skil
 bool InFogCloud(void* creature);                                  // rules_spells2024.cpp (#39 build 2c)
 bool IllusionReactionUnderWay(uint32_t creature);                 // rules_utility_cantrips.cpp (#152's ordering)
 void IllusionReactionResume(uint32_t creature);                   // rules_utility_cantrips.cpp
+bool MindSpikeKnows(void* observer, void* target);                // rules_spells2024.cpp (#39 level 2 build 1a)
 extern "C" __declspec(dllimport) unsigned short __stdcall RtlCaptureStackBackTrace(unsigned long skip, unsigned long count,
                                                                                  void** frames, unsigned long* hash);
 extern "C" __declspec(dllimport) unsigned long long __stdcall GetTickCount64();
@@ -778,6 +779,15 @@ int Detection(DetectionFn original, bool spot, void* observer, void* target, int
   t_observer = outer_observer;
   t_target = outer_target;
   t_scored = outer_scored;
+  // #39 level 2 build 1a: Mind Spike - the creature it struck can't hide from its caster, and its invisibility gives
+  // it nothing against it: the caster's every look and listen finds it.
+  if (observer && target && MindSpikeKnows(observer, target)) {
+    if (!result && LogSlot()) {
+      Log("perception: 0x%08X %s 0x%08X - Mind Spike: it can't hide from its caster", IdOf(observer),
+          spot ? "sees" : "hears", IdOf(target));
+    }
+    return 1;
+  }
   if (!observer || !target || !Hiding(target)) return result;
   char up_close[64] = "";
   float metres = 0.0f;

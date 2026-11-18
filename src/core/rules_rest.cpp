@@ -31,6 +31,7 @@
 
 #include <windows.h>
 
+#include <intrin.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -115,6 +116,44 @@ void RestBegun(void* creature) {
   g_rest_begun[IdOf(creature)] = GetTickCount64();
   SetField<uint32_t>(creature, ee::kCreatureRestHpRate, kNoGradualRestore);
   SetField<uint32_t>(creature, ee::kCreatureRestSpellRate, kNoGradualRestore);
+}
+
+// #39 (0.99.79; owner, 2026-11-18, on DU-1 and L4-53: "the spell should only end after the full long rest is
+// completed. right now the spell ends a little after the long rest starts"): AIActionRest, as a rest begins, calls
+// CNWSObject::ClearSpellEffectsOnOthers - every spell effect the resting creature cast goes, on itself and on others -
+// so 0.99.67's "a rest ends what it outlasts" found nothing left at the rest's end ("outlasts 0 spell effect(s)").
+// Faithful (rules::RestClearsSpellsAtStart), that one call is skipped: the rest's end (AfterLongRest ->
+// RestOutlastsSpells) ends what the rest outlasts, and a rest cancelled ends nothing. Other callers are NWN's.
+using ClearSpellEffectsFn = void (*)(void* object);
+constexpr const char* kClearSpellEffectsOnOthers = "?ClearSpellEffectsOnOthers@CNWSObject@@QEAAXXZ";
+constexpr const char* kAIActionRest = "?AIActionRest@CNWSCreature@@QEAAIPEAVCNWSObjectActionNode@@@Z";
+ClearSpellEffectsFn g_clear_spell_effects = nullptr;
+uintptr_t g_rest_clear_site = 0;  // AIActionRest's call (its return address)
+
+void ClearSpellEffectsOnOthers(void* object) {
+  if (g_rest_clear_site && reinterpret_cast<uintptr_t>(_ReturnAddress()) == g_rest_clear_site) {
+    Log("rests: 0x%08X a rest begins - its spells kept (NWN's clearing skipped; the rest's end ends what it outlasts)",
+        IdOf(object));
+    return;
+  }
+  g_clear_spell_effects(object);
+}
+
+void KeepSpellsAtRestStart() {
+  if (rules::RestClearsSpellsAtStart(g_config.spellcasting == rules::RuleVariant::kFaithful)) return;
+  const uintptr_t rest_action = EngineExport(kAIActionRest);
+  const uintptr_t clear = EngineExport(kClearSpellEffectsOnOthers);
+  const std::vector<uintptr_t> calls =
+      rest_action && clear ? FindCallsTo(FunctionAt(rest_action), clear) : std::vector<uintptr_t>();
+  if (calls.size() != 1) {
+    Log("SKIP rests #39: AIActionRest's clearing of spells not found (%zu calls) - a rest clears them as it begins",
+        calls.size());
+    return;
+  }
+  g_rest_clear_site = calls[0] + 5;
+  HookExport("CNWSObject::ClearSpellEffectsOnOthers (a rest keeps its spells until its end, #39)",
+             kClearSpellEffectsOnOthers, reinterpret_cast<void*>(&ClearSpellEffectsOnOthers),
+             reinterpret_cast<void**>(&g_clear_spell_effects));
 }
 
 // #135: the game hour now (the calendar's, by the script bridge).
@@ -368,6 +407,14 @@ std::vector<std::string> TakeShortRest(void* player) {
   return lines;
 }
 
+// #39 Part 2, level 2, build 1a: Prayer of Healing - "the benefits of a Short Rest" for one creature (its Hit Dice,
+// the short-rest features), no hour passing and no rest's checks (the spell's own 10 minutes: rules_spells2024.cpp).
+// `who` names it in the line; "" with rests in NWN mode (no Hit Dice).
+std::string PrayerShortRest(void* creature, const std::string& who) {
+  if (!Faithful() || !creature) return "";
+  return ShortRestOf(creature, who);
+}
+
 namespace {
 
 std::vector<std::string> ShortRestCommand(void* creature, const std::string&) { return TakeShortRest(creature); }
@@ -419,6 +466,7 @@ void InstallRestRules() {
   if (!AddRestStartListener(&RestBegun)) Log("SKIP rests: CNWSCreature::Rest not hooked - NWN's rest stays as it is");
   if (!AddRestListener(&AfterLongRest)) Log("SKIP rests: the end of a rest is not hooked - no Hit Dice back");
   if (!AddRestGate(&LongRestGate)) Log("SKIP rests #135: a rest's start isn't gated - no 16-hour wait");
+  KeepSpellsAtRestStart();  // #39 (0.99.79)
   AddChatCommand("!shortrest", &ShortRestCommand);
   AddCreatureUpdateListener(&ShortRestRequested);
   if (g_config.spellcasting == rules::RuleVariant::kFaithful) AddCreatureUpdateListener(&SpellClockUpdate);

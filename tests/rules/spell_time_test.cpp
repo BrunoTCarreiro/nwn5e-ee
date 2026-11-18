@@ -33,3 +33,10 @@ TEST(SpellTimeRestsEndOurAreas) {
   CHECK_EQ(RestEndsSpellArea("NWN5E_PUDDLE", true), false);       // a flask's puddle
   CHECK_EQ(RestEndsSpellArea("", true), false);
 }
+
+// 0.99.79 (owner, 2026-11-18: "the spell should only end after the full long rest is completed"): a faithful rest
+// keeps the spells at its start - its end ends what it outlasts, a cancelled one nothing; NWN mode clears them.
+TEST(SpellTimeRestKeepsSpellsAtStart) {
+  CHECK_EQ(RestClearsSpellsAtStart(true), false);
+  CHECK_EQ(RestClearsSpellsAtStart(false), true);
+}

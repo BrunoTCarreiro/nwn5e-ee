@@ -1,0 +1,10 @@
+# spells.2da - #39 Part 2, level 2, build 1a (core/rules_spells2024.cpp; "spells2024" is served with spellcasting
+# faithful; owner, 2026-11-18: "A to all and we'll see the details of each as we build", then "A for all, except Q3"):
+# NWN's rows rewritten as SRD 5.2.1's - Acid Arrow 115 (NWN's Melf's Acid Arrow: a spell attack, 4d4 now and 2d4 at
+# the end of the target's next turn; the Wizard's alone - rules::WizardOnlySpell) and Shatter 167 (NWN's Sound Burst:
+# a 10-foot-radius Sphere, a Constitution save for half of 3d8 Thunder; Bard, Sorcerer, Wizard). Their scripts run in
+# C++; NWN's projectiles, animations, sounds and icons stay; ranges 90 feet (L) and 60 feet (M). The new rows:
+# spells.if_spells2024.l2b1anew.txt.
+Name School Range VS TargetType ImpactScript Bard Cleric Druid Paladin Ranger Wiz_Sorc Innate Category SpellDesc HostileSetting TargetShape TargetSizeX TargetSizeY TargetFlags
+115 16000880 V L vs 0x3A n5_s_acidarrow **** **** **** **** **** 2 2 2 16000881 1 **** **** **** ****
+167 16000882 V M vs 0x2E n5_s_shatter 2 **** **** **** **** 2 2 11 16000883 1 sphere 3.05 **** 3

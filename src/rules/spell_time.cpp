@@ -13,4 +13,6 @@ bool RestEndsSpellArea(const std::string& tag, bool long_rest) {
   return false;
 }
 
+bool RestClearsSpellsAtStart(bool faithful) { return !faithful; }
+
 }  // namespace rules

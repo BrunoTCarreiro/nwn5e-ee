@@ -12,7 +12,7 @@ using namespace rules;
 
 // #39 Part 2a build 1a: SRD 5.2.1's level 1 damage and healing spells (pp. 114-177).
 TEST(Spells2024Table) {
-  CHECK_EQ(static_cast<int>(Spells2024().size()), 55);  // build 4d: Floating Disk
+  CHECK_EQ(static_cast<int>(Spells2024().size()), 60);  // level 2 build 1a: five more
   for (size_t i = 1; i < Spells2024().size(); ++i) CHECK_EQ(Spells2024()[i - 1].row < Spells2024()[i].row, true);
   CHECK_EQ(Spell2024Of(1) == nullptr, true);
   const Spell2024* burning = Spell2024Of(kBurningHands);
@@ -68,7 +68,9 @@ TEST(Spells2024Table) {
   CHECK_EQ(knife->damage_type, 2u);
   CHECK_EQ(knife->upcast_dice, 0);
   for (const Spell2024& spell : Spells2024()) {
-    CHECK_EQ(spell.level, 1);
+    const bool level2 = spell.row == kAcidArrow || spell.row == kShatter || spell.row == kMindSpike ||
+                        spell.row == kShiningSmite || spell.row == kPrayerOfHealing;
+    CHECK_EQ(spell.level, level2 ? 2 : 1);
     CHECK_EQ(std::string(spell.script).rfind("n5_s_", 0) == 0, true);
   }
 }

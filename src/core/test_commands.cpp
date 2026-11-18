@@ -287,11 +287,14 @@ std::vector<std::string> GoCommand(void* creature, const std::string& args) {
 // player's associate - the bench's n5sb_target spawns, !spawn's, anything else. Elsewhere only a test's own go (a
 // !spawn creature - nwn5e_test_spawn on it, an ally too - or one tagged n5sb_target): a story module's people stay.
 // (My call: a stray !reset in a campaign mustn't empty a town.)
+// #152 (0.99.78; owner, 2026-11-18, on MI-32: "the corpse isn't cleaned up"): an illusion's image (Minor Illusion's or
+// Silent Image's, tagged n5c_image - a corpse or a treasure is a placeable) goes too, in any area: a cast's leftover,
+// not a module's. Not counted with the creatures; the log has how many.
 std::vector<std::string> ResetCommand(void* creature, const std::string& args) {
   if (!Trim(args).empty()) return {"nwn5e: !reset - no arguments: the area's test creatures removed, back to its cast mark."};
   const uint32_t id = ObjectIdOf(StatsOf(creature));
   const std::string code =
-      "object a = GetArea(OBJECT_SELF); object mark = OBJECT_INVALID; float best = 0.0; int n = 0; "
+      "object a = GetArea(OBJECT_SELF); object mark = OBJECT_INVALID; float best = 0.0; int n = 0; int images = 0; "
       "object o = GetFirstObjectInArea(a); "
       "while (GetIsObjectValid(o)) { "
       "if (GetObjectType(o) == OBJECT_TYPE_WAYPOINT && GetStringLeft(GetTag(o), 12) == \"n5test_cast_\") { "
@@ -300,7 +303,8 @@ std::vector<std::string> ResetCommand(void* creature, const std::string& args) {
       "int grounds = GetIsObjectValid(mark); "
       "o = GetFirstObjectInArea(a); "
       "while (GetIsObjectValid(o)) { "
-      "if (GetObjectType(o) == OBJECT_TYPE_CREATURE && !GetIsPC(o)) { "
+      "if (GetTag(o) == \"n5c_image\") { SetPlotFlag(o, FALSE); DestroyObject(o); images++; } "
+      "else if (GetObjectType(o) == OBJECT_TYPE_CREATURE && !GetIsPC(o)) { "
       "int test = GetLocalInt(o, \"nwn5e_test_spawn\") || GetTag(o) == \"n5sb_target\"; "
       "if (test || (grounds && !GetIsPC(GetMaster(o)))) { "
       "object m = GetMaster(o); if (GetIsObjectValid(m)) RemoveHenchman(m, o); "
@@ -311,6 +315,7 @@ std::vector<std::string> ResetCommand(void* creature, const std::string& args) {
       "DestroyObject(o, 0.2); n++; } } "
       "o = GetNextObjectInArea(a); } "
       "SetLocalInt(OBJECT_SELF, \"nwn5e_test_reset\", n); SetLocalInt(OBJECT_SELF, \"nwn5e_test_reset_mark\", grounds); "
+      "SetLocalInt(OBJECT_SELF, \"nwn5e_test_reset_images\", images); "
       "if (grounds) { ClearAllActions(TRUE); JumpToLocation(GetLocation(mark)); "
       "SendMessageToPC(OBJECT_SELF, \"nwn5e: reset - \" + IntToString(n) + \" creature(s) removed; back at \" + "
       "GetTag(mark) + \".\"); } "
@@ -319,7 +324,8 @@ std::vector<std::string> ResetCommand(void* creature, const std::string& args) {
   engine::SetLocalInt(creature, "nwn5e_test_reset", -1);
   RunScriptChunk(code.c_str(), id);
   const int mark = engine::GetLocalInt(creature, "nwn5e_test_reset_mark");
-  Log("test: 0x%08X !reset: %d creature(s) removed, %s", id, engine::GetLocalInt(creature, "nwn5e_test_reset"),
+  Log("test: 0x%08X !reset: %d creature(s) removed, %d illusion image(s), %s", id,
+      engine::GetLocalInt(creature, "nwn5e_test_reset"), engine::GetLocalInt(creature, "nwn5e_test_reset_images"),
       mark == 1 ? "back to the area's cast mark" : "no cast mark in the area (only test spawns removed)");
   return {};
 }

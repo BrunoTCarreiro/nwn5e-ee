@@ -632,3 +632,14 @@
 16000877 generated
 16000878 srd:Floating Disk
 16000879 srd:Floating Disk+note
+16000880 srd:Acid Arrow
+16000881 srd:Acid Arrow
+16000882 srd:Shatter
+16000883 srd:Shatter
+16000884 srd:Mind Spike
+16000885 srd:Mind Spike
+16000886 srd:Shining Smite
+16000887 srd:Shining Smite
+16000888 srd:Prayer of Healing
+16000889 srd:Prayer of Healing+note
+16000890 generated

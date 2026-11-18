@@ -164,6 +164,7 @@ std::optional<rules::Ability> g_forced_ability;
 // #39 2a build 2b: a spell's Advantage on the next save (Charm Person against a creature you're fighting, Hideous
 // Laughter's save on damage), set around that one roll.
 bool g_forced_advantage = false;
+bool g_forced_disadvantage = false;  // #39 level 2 build 1a: Shatter on a Construct
 struct LastSave {
   void* creature = nullptr;
   rules::Ability ability = rules::Ability::kDexterity;
@@ -432,9 +433,10 @@ bool SaveD20(uintptr_t caller, int count, int sides, int* result) {
                                               static_cast<rules::NwnSave>(g_save.save - 1)))) > 0;
   const int staggered = TakeStaggeredSave(g_save.creature);  // Brutal Strike's Staggering Blow
   const bool spell_advantage = g_forced_advantage;  // #39 build 2b
+  const bool spell_disadvantage = g_forced_disadvantage;  // #39 level 2 build 1a
   const rules::RollMode mode =
       rules::ResolveRollMode((species ? 1 : 0) + (class_feature ? 1 : 0) + (spell_advantage ? 1 : 0),
-                             g_save.condition.disadvantage + staggered);
+                             g_save.condition.disadvantage + staggered + (spell_disadvantage ? 1 : 0));
   const bool advantage = mode == rules::RollMode::kAdvantage;
   const bool disadvantage = mode == rules::RollMode::kDisadvantage;
   if (advantage || disadvantage) {
@@ -454,7 +456,8 @@ bool SaveD20(uintptr_t caller, int count, int sides, int* result) {
         spell_advantage ? " spell advantage" : "",
         g_save.condition.disadvantage > 0 ? " disadvantage (" : "",
         g_save.condition.disadvantage > 0 ? (g_save.condition.note + ")").c_str() : "",
-        staggered ? " disadvantage (Staggering Blow)" : "", lucky ? " Halfling Luck reroll" : "", kept);
+        staggered ? " disadvantage (Staggering Blow)" : spell_disadvantage ? " spell disadvantage" : "",
+        lucky ? " Halfling Luck reroll" : "", kept);
   }
   *result = kept;
   return true;
@@ -484,6 +487,8 @@ bool SaveRollInProgressFor(void* stats) { return g_save.active && g_save.creatur
 void SetForcedSaveAbility(std::optional<rules::Ability> ability) { g_forced_ability = ability; }
 
 void SetForcedSaveAdvantage(bool on) { g_forced_advantage = on; }
+
+void SetForcedSaveDisadvantage(bool on) { g_forced_disadvantage = on; }
 
 std::optional<rules::Ability> RecentSaveAbility(void* creature) {
   if (!creature || g_last_save.creature != creature || GetTickCount() - g_last_save.tick > 200) return std::nullopt;

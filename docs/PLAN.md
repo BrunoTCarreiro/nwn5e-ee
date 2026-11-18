@@ -1139,6 +1139,33 @@ monster AC by CR.
     line first: "...; Orc sizes it up" - new text, generated); fooled, it charges and strikes (Charge, then the
     attack's search). A non-hostile sentient creature still ignores a humanoid, a hostile animal still attacks it; the
     corpse, the treasure and the leopard are unchanged. MI-8, MI-17 and MI-33 superseded by MI-36 to MI-38.
+  - *A creature that never got there (the owner's 0.99.76 run, 2026-11-18, "check the logs for the MI tests"):* two
+    fooled orcs never charged (MI-36, MI-38), and a bear never reached a roar (MI-28). Each stood until its 30 s
+    timer, and the bear's timer ended in silence (the "fighting" let-go wasn't logged). The same stall shows in the
+    14:46 run of 0.99.73, an orc walking up to a commoner. The log doesn't say what took the walk (the creature's own
+    AI clearing it, or the move stuck), while the wolf's charges and the ogre's, orc's and goblins' walks arrived.
+    *Built 0.99.77:* rules::CheckWay / WayCheck (test IllusionWayWatched, 10 of 10 mutations caught). Once a second
+    of game time, a creature coming to look, coming to touch or charging is looked at (WatchWay; not a size-up, which
+    doesn't walk):
+    - Moved 0.25 m in 2 s: it is on its way, and its own walk ends it.
+    - Stopped within 1.5 m of the point: it is there (an image's body keeps it from the exact point).
+    - Stopped farther off: its step is given again, once; stalled again, it acts from where it stands, as the 30 s
+      timer does.
+    A stall is logged with what the creature was doing instead (its action, combat, attack target, detect mode), to
+    find the cause, and each "fighting" let-go now logs its facts. Log lines only, no new text. MI-36, MI-37, MI-38
+    and MI-28 failed on 0.99.76 and are retested by MI-39 to MI-42.
+    *0.99.77's run (owner, 2026-11-18: "All the MI tests seem to pass except MI-32 the corpse isn't cleaned up"):*
+    MI-39 and MI-41 passed in the log. Its stall lines show two causes:
+    - An orc charging a commoner stopped 0.9 m from the point: the image's body keeps it from the exact point, so its
+      walk never ends. It now counts as there.
+    - An orc stood 1.8 m short with its queue emptied (action 65535, not in combat, no attack target). Given its step
+      again, it struck 1.8 s later.
+  - *!reset and the images (0.99.78; MI-32, the owner: "the corpse isn't cleaned up"):* !reset (#156) removed
+    creatures only, and Minor Illusion's corpse and treasure are placeables. An illusion's image (tagged n5c_image:
+    Minor Illusion's or Silent Image's, placeable or creature) now goes too, in any area - a cast's leftover. Images
+    aren't counted with the removed creatures in the chat line; the log has their number.
+  - *Accepted (owner, 2026-11-18: "ok, reset removes the corpse too, passed. accept 152").* MI-43 passed on 0.99.78;
+    MI-40, MI-42, MI-21 and MI-30 on 0.99.77 (the owner: "I did play them in another session, they're good").
 - **#39 Part 2, the levelled spells (owner, 2026-11-09: "go for 39 part 2").** SRD 5.2.1 has 312 levelled spells, NWN
   274 class spells; 129 of the SRD's have an NWN version (98 the same, 16 renamed - Cure Light Wounds is Cure Wounds -
   15 close), 183 are new; 137 of NWN's have no 2024 version (30 fold into one: Cure Moderate Wounds is Cure Wounds at
@@ -1811,6 +1838,13 @@ monster AC by CR.
     text, generated); a Long Rest counts only when a rest began within 5 minutes; Goodberry on a spell clock of its own
     (n5_spell_clock: real time played, the rests' hours). The clock's pace is untouched. 7 mutations caught; 585 tests
     pass. Tests FD-14 (FD-10's retest), FD-15, DU-1 to DU-4.
+    *0.99.79 (owner, 2026-11-18, on DU-1 and L4-53: "the spell should only end after the full long rest is completed.
+    right now the spell ends a little after the long rest starts, there's still time to cancel the long rest after the
+    spell is done"):* NWN's rest, as it begins, clears every spell the resting creature cast, on itself and on others
+    (AIActionRest's call to CNWSObject::ClearSpellEffectsOnOthers). So the rest's end found nothing left to end
+    ("outlasts 0 spell effect(s)"), and a cancelled rest had already ended them. Faithful (rules::RestClearsSpellsAtStart),
+    that call is skipped: the rest's end ends what it outlasts, and a rest cancelled ends nothing. NWN mode keeps NWN's.
+    Test SpellTimeRestKeepsSpellsAtStart. DU-1 and L4-53 passed (the owner); retest DU-5.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
@@ -1818,6 +1852,102 @@ monster AC by CR.
     *Decided (owner, 2026-11-11: "go with A for magic missile").* *0.99.17:* Darts flies the look's darts
     when SpellLookFlies(row), each dart's damage (its own 1d4 + 1) landing as that dart does - held by the target,
     as Chromatic Orb's - with the look's hit effect, not VFX_IMP_MAGBLUE; otherwise NWN's MIRV bolts as before.
+  - *Level 1 accepted (owner, 2026-11-18: "A, and level 1 accepted").* Builds 1 to 4 and the list switch, 0.99.0 to
+    0.99.79. The last rows were DU-1, L4-53 and DU-5 (the rest keeping its spells). CB-5 is deferred (it needs an NPC
+    with a Persuade option), and L1-19b dropped.
+  - *Level 2's brief (2026-11-18; SRD 5.2.1; the owner: "go for 39"):* 57 spells - 26 with an NWN version (17 the
+    same, 2 renamed: Melf's Acid Arrow, Ultravision; 7 close: Sound Burst, the six ability buffs into Enhance Ability,
+    Displacement, Mestil's Acid Breath, Neutralize Poison, Camouflage, Shelgarn's Persistent Blade), 31 new. Level 1's
+    decisions stand (2024's lists, NWN-only spells off in faithful, every spell at least a visual and a line, smites
+    armed by the cast). The builds, by kind as level 1's:
+    - 1, damage and healing (10): Acid Arrow, Scorching Ray, Shatter, Mind Spike, Dragon's Breath, Flame Blade, Heat
+      Metal, Spiritual Weapon, Prayer of Healing, Shining Smite.
+    - 2a, buffs (15): Aid, Barkskin, Enhance Ability, Magic Weapon, Blur, Darkvision, See Invisibility, Protection from
+      Poison, Lesser Restoration, Warding Bond, Mirror Image, Pass without Trace, Invisibility, Enlarge/Reduce, Alter
+      Self.
+    - 2b, conditions (7): Hold Person, Blindness/Deafness, Ray of Enfeeblement, Calm Emotions, Enthrall, Suggestion,
+      Phantasmal Force.
+    - 2c, areas (7): Darkness, Silence, Web, Spike Growth, Moonbeam, Flaming Sphere, Gust of Wind.
+    - 3, movement and summons (5): Misty Step, Levitate, Spider Climb, Rope Trick, Find Steed.
+    - 4, out of combat (13): Knock, Arcane Lock, Find Traps, Continual Flame, Locate Object, Locate Animals or Plants,
+      Detect Thoughts, Magic Mouth, Animal Messenger, Arcanist's Magic Aura, Augury, Gentle Repose, Zone of Truth.
+
+    The list switch at the pass's end, as level 1's 0.99.53: NWN's level 2 spells with no 2024 version off in faithful,
+    Cure / Inflict Moderate Wounds into upcasting, Remove Paralysis into Lesser Restoration, the six ability buffs into
+    Enhance Ability, and the spells 2024 moves to level 2 (Aid for the Ranger, Hold Person and Gust of Wind for the
+    Wizard, ...). Asked:
+    - Q1 Spiritual Weapon - A your Bonus Action strike, chosen (quickbar and radial; the weapon a look that flies there
+      and strikes), B a summon attacking each round by itself.
+    - Q2 Find Steed - A a companion (summoned, follows and fights; riding a later issue), B rideable with EE's horses,
+      C a visual and a line.
+    - Q3 Levitate - A real (lifted and held in place; melee from the ground can't reach it, ground effects don't touch
+      it; an unwilling target's Constitution save), B a visual and a line.
+    - Q4 Rope Trick - A a hiding place for up to eight, unseen and unreached, where the party can rest; B a visual and
+      a line.
+    - Q5 The out-of-combat spells - A real where NWN can do it (Knock and Arcane Lock on NWN's locks, Find Traps how
+      many and what kind, Continual Flame, the Locates' direction, Detect Thoughts' glow, Magic Mouth's message), the
+      rest castable with a line and a flag (#73); B all of them that way.
+    - Q6 Invisibility - A unseen but heard: enemies know where you are unless you're in stealth mode too (then the
+      stealth rules), the AI attacking where it hears you at Disadvantage; B NWN's (the AI loses you).
+    - Q7 Suggestion - A a menu as Command's words (Leave; Stand down, Indifferent to you), B Leave only, C a visual and
+      a line.
+    Recommended A on all; the smaller choices (Calm Emotions, Phantasmal Force, moving Moonbeam and Flaming Sphere,
+    Heat Metal's drop, Dragon's Breath, Scorching Ray's split, Enlarge/Reduce's scale, Lesser Restoration, Mirror
+    Image's look) in each build's brief.
+  - *Decided (owner, 2026-11-18: "A to all and we'll see the details of each as we build"):* Q1-Q7 A.
+  - *Level 2's build 1 brief (2026-11-18; SRD 5.2.1), damage and healing.* Split in two: 1a Acid Arrow, Shatter,
+    Mind Spike, Shining Smite, Prayer of Healing, Scorching Ray; 1b Flame Blade, Dragon's Breath, Heat Metal, Spiritual
+    Weapon. Not asked (2024's rules, level 1's decisions):
+    - Acid Arrow: 4d4 Acid, then 2d4 at the end of the target's next turn; a miss half the first.
+    - Shatter: Constructs save at Disadvantage; doors and loose objects in it take the damage; NWN's stun goes.
+    - Mind Spike: on a failed save the target can't hide from you, and Invisible does it no good against you.
+    - Spiritual Weapon: Q1's Bonus Action strike.
+    - Shining Smite: armed by the cast, paid by the next melee hit (build 3); its glow as Faerie Fire's outline.
+
+    Asked:
+    - Q1 Flame Blade: A an equipped blade, your attacks with it the spell's (one a round, the Magic action); B a
+      quickbar strike.
+    - Q2 Dragon's Breath: A any willing creature (a player's breath a quickbar action, a henchman's by its AI); B only
+      yourself.
+    - Q3 Scorching Ray: A all at one target, the rest to the nearest; B targets picked first, the rays together; C a
+      menu.
+    - Q4 Heat Metal: A its weapon else its armour, a dropped weapon into the inventory, armour Disadvantage, the
+      repeat a quickbar action; B a menu.
+    - Q5 Prayer of Healing: A the party within 30 feet gets nwn5e's Short Rest and 2d8, out of combat, the clock 10
+      minutes on; B the 2d8 only.
+
+    Recommended A on all.
+  - *Decided (owner, 2026-11-18):* Q1, Q2, Q4, Q5 A ("A for all, except Q3"). Q3 B: "remember the order in which
+    enemies are selected", then "can we use right click to remove an assignment?", then "I'd rather have a small window
+    that shows the targets assigned to each ray and an ok and cancel button. This should also be the case for magic
+    missile ... faithfully they should be able to be directed". The window opens as you cast, before the spell goes off
+    ("A": Cancel spends nothing), and "one should also be able to use scorching ray to light fire light sources".
+    - The window is #171, with Magic Missile's darts.
+    - Build 1a goes first without Scorching Ray: Acid Arrow, Shatter, Mind Spike, Shining Smite, Prayer of Healing.
+    - Then #171 with Scorching Ray and Magic Missile, then build 1b.
+  - *Built 0.99.80 (level 2's build 1a):*
+    - **Acid Arrow** (row 115, Melf's renamed; Wizard): a spell attack. A hit deals 4d4 Acid and queues 2d4 more a round
+      later; a miss splashes for half of 4d4. +1d4 each a slot level. NWN's rounds of acid go.
+    - **Shatter** (row 167, Sound Burst's; Bard, Sorcerer, Wizard): a 10-foot sphere, a Constitution save for half of
+      3d8 Thunder (one roll). Constructs save at Disadvantage (SetForcedSaveDisadvantage). Non-plot doors and
+      placeables in it take the damage. No stun.
+    - **Mind Spike** (row 1252; Sorcerer, Warlock, Wizard; S only, so it keeps a hide): a Wisdom save for half of 3d8
+      Psychic. On a failure, while the caster concentrates (up to an hour), the target can't hide from it
+      (rules_perception.cpp's Detection) and its invisibility gives no Advantage or Disadvantage between the two
+      (rules_advantage.cpp's MindSpikeTerms).
+    - **Shining Smite** (row 1253; Paladin): build 3's smite - armed by the cast, its icon row 236; the next melee or
+      unarmed hit adds 2d6 Radiant (+1d6 a slot level). Then, on Concentration (a minute), the target glows with 5
+      feet of light, attacks against it have Advantage, and its invisibility is suppressed (Faerie Fire's machinery).
+    - **Prayer of Healing** (row 1254; Cleric, Paladin): 10 minutes to cast, out of a fight only (LongCastOrder; the
+      clock 10 minutes on). Up to five of you and your party within 30 feet, nearest first, get nwn5e's Short Rest
+      (PrayerShortRest) and 2d8 HP (+1d8 a slot level), once per Long Rest each.
+    - rules: AcidArrowMissDamage, AcidArrowLaterDice, ShiningSmiteDice, ShatterSaveDisadvantage, IsSmiteArmedIcon,
+      PrayerOfHealingTargetsOf. Tests Level2Build1aTable, Level2Build1aRules, Level2PrayerOfHealingTargets; 17 of 17
+      mutations caught; test.bat 615 ok.
+    - Text: the names and descriptions SRD 5.2.1 verbatim (Prayer of Healing's with a generated note); seven new
+      catalogue lines, generated, for review (docs/TEXT-REVIEW.md).
+    - Profiles: level2wizard, level2sorcerer, level2paladin, level2cleric. Tests S2-1 to S2-15 (L2- is level 1's
+      build 2a).
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
   New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion
@@ -2459,6 +2589,8 @@ Reflexes (#53), the movement extras (#55), grenades (#124), the later staple act
       first use). A spell attack's roll still ends it after the roll. The class spells without one: Minor Illusion,
       True Strike, Lesser Dispel, Clarity, Ethereal Visage; Ray of Enfeeblement is V, S as SRD 5.2 has it (NWN's row
       says S: spells.if_cantrips2024.components.txt).
+      *Accepted (owner, 2026-11-18: "I've seen the tests for 151 being passed as I did other tests so consider them
+      accepted").* SH-1 to SH-3 and VC-1 (the vision cones) passed.
     - The descriptions: Caltrops, Choking Powder, the bombs and the patches say "anyone in it, you too"; the fire ones'
       light.
     - Test ThrowFromHiding (3 of 3 mutations caught).
@@ -6679,6 +6811,9 @@ RestDone, which opens the window for a rest that had none at its start - after t
 `!test` drops that window after a profile that set the spells (PrepareSpellsKeepShut); the Long Rest's change stays
 open, the rebuild's rest being one.
 
+*Accepted (owner, 2026-11-18: "spells set by !test have been fine so 169 can also be accepted").* PL-1 to PL-6
+passed.
+
 ### `!spawn <blueprint> away` (#170)
 
 *Asked (owner, 2026-11-17, #152's blocks A-C passed):* "I need to find a better map to test with aggressive creatures
@@ -6702,6 +6837,8 @@ map. *Decided (owner, 2026-11-17): "A is good".*
 reaction the creature had queued (its study) ran in between, on a creature being removed. `!reset` now marks what
 it removes (nwn5e_test_removed) at once, and the illusion's handlers drop a marked creature's reaction
 (ReactorCalled).
+
+*Accepted (owner, 2026-11-18: "170 seems fine").* AW-1 to AW-3 passed; #152's runs used `away` throughout.
 
 ### The Test Grounds' commands (#156)
 
