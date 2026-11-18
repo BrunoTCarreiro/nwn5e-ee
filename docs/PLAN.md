@@ -6663,6 +6663,12 @@ map. *Decided (owner, 2026-11-17): "A is good".*
   line's note for away (test_commands.spawn_away, ", its back to you") - generated, for review.
 - #152's open rows D-G and #151's SH-1 / SH-2 are set up with `away`. Test SpawnOptionsParse.
 
+*0.99.73 (#152; the owner's 0.99.72 run of the orc block, read 2026-11-18: "!reset: 2 creature(s) removed", then
+0.4 s later "(Orc) studies it - d20 4 -1 vs DC 14: fooled"):* `!reset` destroys after 0.2 s, and a Minor Illusion
+reaction the creature had queued (its study) ran in between, on a creature being removed. `!reset` now marks what
+it removes (nwn5e_test_removed) at once, and the illusion's handlers drop a marked creature's reaction
+(ReactorCalled).
+
 ### The Test Grounds' commands (#156)
 
 *Decided (owner, 2026-11-10): "Look online to see if there are any testing maps available", then "a simple map

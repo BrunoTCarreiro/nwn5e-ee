@@ -775,11 +775,18 @@ std::string Next(const char* script, int serial) {
          "));\nActionDoCommand(ExecuteScript(\"" + script + "\", OBJECT_SELF));\n";
 }
 
-// The creature's reaction, when the call is its own (not an older reaction's timer).
+// The creature's reaction, when the call is its own (not an older reaction's timer). #152 (0.99.73; the owner's
+// 0.99.72 log: "!reset: 2 creature(s) removed", then 0.4 s later "(Orc) studies it ... fooled"): !reset destroys
+// after 0.2 s, and the orc's queued study ran in between - a creature !reset removes (nwn5e_test_removed,
+// test_commands.cpp) has its reaction dropped.
 Reactor* ReactorCalled(uint32_t self) {
   const auto found = g_reactors.find(self);
   if (found == g_reactors.end()) return nullptr;
   void* creature = CreatureById(self);
+  if (creature && engine::GetLocalInt(creature, "nwn5e_test_removed") != 0) {
+    g_reactors.erase(found);
+    return nullptr;
+  }
   if (!creature || engine::GetLocalInt(creature, "n5c_mi_ping") != found->second.serial) return nullptr;
   return &found->second;
 }

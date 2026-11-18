@@ -305,6 +305,9 @@ std::vector<std::string> ResetCommand(void* creature, const std::string& args) {
       "if (test || (grounds && !GetIsPC(GetMaster(o)))) { "
       "object m = GetMaster(o); if (GetIsObjectValid(m)) RemoveHenchman(m, o); "
       "SetPlotFlag(o, FALSE); SetImmortal(o, FALSE); AssignCommand(o, SetIsDestroyable(TRUE, FALSE, FALSE)); "
+      // #152 (0.99.73): marked at once - its destroy waits 0.2 s, and a Minor Illusion reaction queued on it is
+      // dropped (rules_utility_cantrips.cpp ReactorCalled) instead of running in between.
+      "SetLocalInt(o, \"nwn5e_test_removed\", 1); "
       "DestroyObject(o, 0.2); n++; } } "
       "o = GetNextObjectInArea(a); } "
       "SetLocalInt(OBJECT_SELF, \"nwn5e_test_reset\", n); SetLocalInt(OBJECT_SELF, \"nwn5e_test_reset_mark\", grounds); "
