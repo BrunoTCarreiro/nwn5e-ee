@@ -1845,7 +1845,7 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     |---|---|---|---|
     | TMO-1 | The probe written (above); VFX Bench restarted: New, Type Stays (D), + mesh `n5m_uvprobe`, Permanent (until Stop), Name `n5_uvprobe`, Save; the game started, `!test level1ranger` | Play in game; watch each dome; look along the row from each end (the new effect's sparks behind the domes); Stop in game, quit; before the next start, search `Documents\Neverwinter Nights\logs\nwclientLog1.txt` and `nwengineLog.txt` for `Failed to`, `shader`, `vsn5uvmove`, `n5u_` | Per dome: textured, moving as named, faint with the sparks seen through it; no "Failed to compile shader:", "Failed to link shader program", "Failed to load the shader:" or "Failed to link material custom parameter" line. Then: a log error, or solid magenta domes (the engine's fs_invalid) - the shader failed: fix vsn5uvmove and probe again. No error and nothing moving - route B (a flipbook). Domes 1-3 moving, see-through - route A as built (texture0). 1-3 hiding the sparks, 7 see-through - texture0 plus the TXI beside the n5u_ material (dome 7's). 1-3 and 7 hiding the sparks, 4-6 see-through - the copy route (the texture and its TXI copied under the n5u_ name). All moving, every dome hiding the sparks - no TXI placement survives a material: route B, a flipbook TXI (`proceduretype cycle`, `blending additive`, as fxpa_flame02's). Low domes flat white (no texture), tall ones textured and see-through - texture0 doesn't bind: the copy route |
     | TMO-2 | (M3, nwn5e-tools 91b56b7) the Composer: New project `tmoglyph`, Spell mesh; the guide's Diameter (m) 2; Shapes, Dome (half sphere); its card Mapping From above, Texture From the library... `fxpa_symbl_003`, Use; Texture motion: Turn (°/s) 30, Breathe 0.2 (Breaths (/s) 0.5) | Play in game; then Save and build, Back to effects, New, Type Stays (D), + mesh `n5m_tmoglyph`, Permanent ticked, Play in game | the glyph turns counter-clockwise seen from above (a turn in 12 s) and pulses (a breath in 2 s) on the stage and in game, additive as the game's own globe; the status names its `n5u_` material; the mesh beat's card: "Its texture turns 30° a second and breathes 0.2 at 0.5 a second - from the spell mesh n5m_tmoglyph; change it there." |
-    | TMO-3 | (M3, nwn5e-tools 91b56b7) the Composer: New project `tmocrate`, Placeable; Placeables, `plc_a03`; its card's Texture motion: Scroll round 0.5 | Play in game; Save and build; after the next install (the project committed on anim, merged and installed), the toolset: a placeable of appearance N5_Tmocrate in an area, the module played | the crate's grain slides (a repeat every 2 s) on the stage, in Play in game and installed (the data\files route) |
+    | TMO-3 | (M3, nwn5e-tools 91b56b7; its review 22a3d62) the Composer: New project `tmocrate`, Placeable; Placeables, `plc_a03`; its card's Texture motion: Scroll round 0.5, Tab | the Undo button at the top (or click outside the boxes, then Ctrl+Z), then Redo (Ctrl+Y); Play in game; Save and build; after the next install (the animation session commits the project, its .pwk and data\rows\placeables.tmocrate.txt; build.bat makes its .mdl and the n5u_ materials), the toolset: a placeable of appearance N5_Tmocrate in an area, the module played | the crate's textures slide (a repeat every 2 s) on the stage, in Play in game and installed (the data\files route); Undo stops it, Redo starts it. plc_creats is a sheet of several pictures, so other pictures slide across the crate's faces - expected |
 
 ## A mesh beat's keys in the effect model (2026-11-18, #39; M4 - game-side)
 
@@ -2008,9 +2008,9 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
       (motionShaderText, CRLF) into vfxedit\ - every entry checked first, one refused writes nothing;
     - the effect mode: a plane or a chunk's mesh naming an `n5u_` material moves by the material's numbers (the loader
       loads the checkout's floatdisk.js first); a library flipbook (Elemental Shield's fxpa_flame02, 4 x 4 at 32) draws
-      one frame at the preview's time - floor(t x fps) mod 16, row by row from the top - not the whole sheet; additive
-      TXIs as M1b drew them; the Mesh card says its planes' motion: "Its texture scrolls up 0.25 a second - from the
-      spell mesh n5m_x; change it there."
+      one frame at the preview's time - floor(t x fps) mod 16, row by row from the top - not the whole sheet: since M3's
+      review (below) each frame is its own texture, bound, the UVs as they are; additive TXIs as M1b drew them; the Mesh
+      card says its planes' motion: "Its texture scrolls up 0.25 a second - from the spell mesh n5m_x; change it there."
   - *Built (nwn5e-tools 91b56b7):* view.js, composer.js, composer_page.js, composer_server.js, app.js, index.html, README.
     check_chunks +4 (40), check_composer +2 (46), check_composer_server +4 (53; bakeShapesForPlay's expected error text
     names the materials now, realWorktreeUntouched counts `n5u_` files and the shader too), composer_check.mjs +3
@@ -2019,11 +2019,35 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     523 drafts (1885 emitters), 233 textures, 0 failed.
   - *What changes:* nothing for a part without a motion - its file, its stage meshes, Play's draft and its bake request
     as before.
-  - *Limits:* the stage's moment isn't the game's (above). An `arturo` ripple stays still on the stage. A flipbook drawn
-    from UVs past 1 shows the next frame there, and a moving texture whose texture is itself a flipbook shows its motion
-    over the whole sheet - the game's behaviour in both untested. Without the game the texture route can't read a
-    material: the effect mode draws an `n5u_` plane untextured and still, and its Mesh card says nothing of the motion.
+  - *Limits:* the stage's moment isn't the game's (above). An `arturo` ripple stays still on the stage. A flipbook's
+    frames bound one at a time (M3's review: repeating past UV 1, a moving flipbook moving within its frame) and counted
+    from the top left, across then down, are inferred from the game's shaders, not yet seen in game (TMO-4). A material
+    is read as every Composer texture is - the route needs the game: without it the effect mode draws an `n5u_` plane
+    untextured and still, and its Mesh card says nothing of the motion.
   - *For the bench:* restart vfx_bench.bat. *For the game:* nothing for Play in game (it writes the material and the
     shader itself; 0.99.76 carries vsn5uvmove.shd in data\files since M2). A placeable's moving texture (TMO-3) reaches
     the game with the install carrying its project (build_derived makes its materials).
-  - Test rows: TMO-2 and TMO-3 (M2's table, above, now with the card's steps).
+  - Test rows: TMO-2 and TMO-3 (M2's table, above, now with the card's steps), and TMO-4 (M3's review, below).
+  - *M3's review (nwn5e-tools 22a3d62):*
+    - a flipbook binds a frame, never slides its UVs: the game's stock shaders can't translate UVs (`vVertexTexCoords =
+      mat2(m_texture) * vTcIn.xy`, fslit samples them as they are), so the engine must bind each frame as its own texture.
+      view.js cuts a cycle picture into its numx x numy frames at upload (cycleFrames, row-major from the top), and
+      drawMeshes binds `frames[floor(t x fps) mod n]` (frameAt), the UVs as they are: Elemental Shield's ring (u -0.083 to
+      2.917) shows the same flame three times round, where M3 showed three different ones; a moving flipbook moves within
+      its frame. uvMatrix is motion or identity;
+    - uvMatrix takes the slide (c, f) within one repeat, 0 to below 1, as the shader's `fract` does;
+    - Texture None takes a part's motion with it in the same undo step - nothing left to move, no motion kept that moves
+      nothing - the status saying so, Undo bringing both back (the coordinator left the call to me; greying the group would
+      keep a motion in the file that does nothing);
+    - TMO-2 searches both logs; TMO-3's step undoes with the Undo button (Ctrl+Z in a number box is the browser's own text
+      undo), and says what scrolling a sheet (plc_creats) shows and what the commit and the install each bring; README and
+      these limits name the frame order and the repeat past 1 as unseen in game; TMO-4 (below) looks at both;
+    - checks: check_chunks 41 (the frame check re-aimed at frameAt and the bound frame, the motion check's slide within a
+      repeat, the additive check's frame, and a new one: a flipbook's sheet sliced into its frames, row-major from the top,
+      each its own texture); browser_check.mjs cycleRing on a ring spanning u 0 to 3 (one frame texture of 16, 32 x 32,
+      identity u_uv); composer_check.mjs motionBounds (None takes the motion with it); each changed check seen failing
+      first (the two browser checks on 91b56b7's page, from a temporary copy).
+
+    | ID | Setup | Do | Expect |
+    |---|---|---|---|
+    | TMO-4 | VFX Bench restarted; the game started (`!test level1ranger`); the Effects drawer's Game tab, `VFX_DUR_ELEMENTAL_SHIELD` (vdr_eleshield) opened | look at the stage's ring for a minute; Permanent ticked, Play in game; look at the ring round your character for a minute, close up; optionally a waterfall in any area | the ring's three flames the same at every moment, on the stage and in game; its flames rise the same way in both (the frames counted from the top left); a waterfall's water falls down, never up |
