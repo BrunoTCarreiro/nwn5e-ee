@@ -1105,6 +1105,27 @@ monster AC by CR.
     sound's size comes to look); the test didn't: !spawn makes every creature hostile, so no test could have a deer
     that isn't. 0.97.4: "!spawn <blueprint> neutral" puts it in the commoners' faction; DR-1, MI-10, MI-11, MI-15,
     MI-23 and MI-28 set up with it (and away from hostile creatures, which would attack a commoner).
+  - *Alertness (owner, 2026-11-18, on the 0.99.72-0.99.73 runs):* "there should be a priority for alertness. I spawn an
+    orc facing away, while hidden. then I walk slowly forward in stealth to cast the minor illusion humanoid. the orc
+    hears something but fails the perception so I stay hidden, once I cast the humanoid illusion in front of the orc
+    that should supercede the listening mode and prompt the orc to immediately investigate the man that just popped in
+    front of him that he can see". The log: the orc heard the hider, #133 turned the AI's attack into a search (the
+    creature in combat), and the image passed it by - the illusions skipped anything in combat or with nwn5e_seek set
+    (any investigation), a reaction stopped at combat, and each AI round's attack became the search again. Offered the
+    ordering, least alert first - calm; investigating (a noise heard - stealth watch's look -, a light put out, #133's
+    hunt for a hider it can't see): an illusion takes over; reacting to an illusion: carries on (a recast ends the old
+    image, as before); fighting a foe it sees: nothing distracts it - and A images only / B images and illusory
+    sounds. *Decided (owner, 2026-11-18): "The ordering is good and B".*
+    *Built 0.99.74:* rules::Alertness / AlertnessOf / IllusionTakesOver / ReactionStops (test IllusionAlertnessOrder;
+    8 of 8 mutations caught). The creatures near an image or a sound (kNear) are no longer skipped for combat or
+    nwn5e_seek; NearOf weighs each - an investigation is nwn5e_seek with nwn5e_seek_why (set by stealth_watch.cpp's
+    look 1 and light_sources.cpp's 2), nwn5e_seek alone is an illusion's reaction, and #133's hunt
+    (HuntingUnseenHider: a search within 8 s) makes a creature in combat an investigator, not a fighter. The
+    reactions' first orders clear the combat state (ClearAllActions(TRUE)) and the mark. A reaction under way stops
+    only for a fight with a foe it sees (CheckOf). While it reacts, #133 drops the AI's attack without a search and
+    gives the reaction's step again (IllusionReactionResume, every 2 s at most). Its hunt resumes when the reaction
+    ends, if it still hears the hider. The log: "investigating (...) - the illusion takes over", "goes on with it -
+    the AI's hunt for a hider it can't see waits".
 - **#39 Part 2, the levelled spells (owner, 2026-11-09: "go for 39 part 2").** SRD 5.2.1 has 312 levelled spells, NWN
   274 class spells; 129 of the SRD's have an NWN version (98 the same, 16 renamed - Cure Light Wounds is Cure Wounds -
   15 close), 183 are new; 137 of NWN's have no 2024 version (30 fold into one: Cure Moderate Wounds is Cure Wounds at

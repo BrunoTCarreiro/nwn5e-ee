@@ -340,6 +340,8 @@ std::string NoticeCode(float radius = 20.0f, bool sight = true, const char* why 
          "     && !IsInConversation(o) && !GetPlotFlag(o) && !GetIsObjectValid(GetMaster(o))"
          "     && !GetLocalInt(o, \"nwn5e_seek\")) {"
          "  SetLocalInt(o, \"nwn5e_seek\", 25); came++;"
+         // #152's ordering (0.99.74): marked as an investigation - an illusion it sees or hears takes it over.
+         "  SetLocalInt(o, \"nwn5e_seek_why\", 2);"
          "  location home = GetLocation(o);"
          "  AssignCommand(o, ClearAllActions());"
          "  SetActionMode(o, ACTION_MODE_DETECT, TRUE);"
@@ -350,6 +352,7 @@ std::string NoticeCode(float radius = 20.0f, bool sight = true, const char* why 
          "  AssignCommand(o, ActionMoveToLocation(home));"
          "  AssignCommand(o, ActionDoCommand(SetActionMode(OBJECT_SELF, ACTION_MODE_DETECT, FALSE)));"
          "  AssignCommand(o, ActionDoCommand(DeleteLocalInt(OBJECT_SELF, \"nwn5e_seek\")));"
+         "  AssignCommand(o, ActionDoCommand(DeleteLocalInt(OBJECT_SELF, \"nwn5e_seek_why\")));"
          "  if (GetIsPC(u)) SendMessageToPC(u, \"nwn5e: \" + GetName(o) + \" " + std::string(why) + " and comes to look\");"
          " }"
          " o = GetNextObjectInShape(SHAPE_SPHERE, " + r + ", at, " + los + ", OBJECT_TYPE_CREATURE);"

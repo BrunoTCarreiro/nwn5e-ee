@@ -105,6 +105,8 @@
 bool StealthParts(void* creature, int* extra, bool* proficient);  // rules_skills.cpp
 int ReliableTalentRoll(void* creature, int nwn_skill, int d20);    // rules_skills.cpp (Rogue R9)
 bool InFogCloud(void* creature);                                  // rules_spells2024.cpp (#39 build 2c)
+bool IllusionReactionUnderWay(uint32_t creature);                 // rules_utility_cantrips.cpp (#152's ordering)
+void IllusionReactionResume(uint32_t creature);                   // rules_utility_cantrips.cpp
 extern "C" __declspec(dllimport) unsigned short __stdcall RtlCaptureStackBackTrace(unsigned long skip, unsigned long count,
                                                                                  void** frames, unsigned long* hash);
 extern "C" __declspec(dllimport) unsigned long long __stdcall GetTickCount64();
@@ -938,6 +940,9 @@ void InstallPerceptionRules() {
 // attack is dropped (action_order.cpp's AIActionAttackObject hook). The search is queued by DelayCommand, outside the
 // engine's action processing; at most once a second per creature.
 // #133 / #136: the search itself - `instead` names what it replaces (the log's "attack", "run to").
+// #152's ordering (0.99.74; owner, 2026-11-18: "The ordering is good and B"): a creature reacting to an illusion
+// carries on - the attack is dropped with no search, and the reaction's step it was on is given again (the AI's round
+// may have cleared it). Its hunt is still noted (HuntingUnseenHider), so its combat isn't taken for a fight.
 bool SearchForUnseenHider(void* creature, void* hider, const char* instead) {
   const uint32_t target = IdOf(hider);
   const uint32_t id = IdOf(creature);
@@ -945,6 +950,16 @@ bool SearchForUnseenHider(void* creature, void* hider, const char* instead) {
   int64_t& last = g_hunt_at[id];
   if (now - last < 1000) return true;  // searching already: the attack dropped
   last = now;
+  if (IllusionReactionUnderWay(id)) {
+    IllusionReactionResume(id);
+    int64_t& told = g_hunt_logged[id];
+    if (now - told > 6000 && LogSlot()) {
+      told = now;
+      Log("stealth: 0x%08X would %s 0x%08X unseen - it reacts to an illusion instead (#152's ordering)", id, instead,
+          target);
+    }
+    return true;
+  }
   const auto heard = g_heard_at.find(static_cast<uint64_t>(id) << 32 | target);
   const HeardAt at = heard != g_heard_at.end()
                          ? heard->second
@@ -971,6 +986,13 @@ bool SearchForUnseenHider(void* creature, void* hider, const char* instead) {
         sqrtf(dx * dx + dy * dy));
   }
   return true;
+}
+
+// #152's ordering: a creature that searched for a hider it can't see within the last 8 s (the AI asks each 6 s
+// round) - its combat is that hunt, an investigation, not a fight with a foe it sees.
+bool HuntingUnseenHider(uint32_t creature) {
+  const auto found = g_hunt_at.find(creature);
+  return found != g_hunt_at.end() && NowMs() - found->second < 8000;
 }
 
 bool UnseenHiderSearch(void* creature, void* node) {

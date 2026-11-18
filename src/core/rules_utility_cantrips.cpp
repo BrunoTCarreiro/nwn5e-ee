@@ -76,6 +76,8 @@
 #include "rules/skills.h"
 #include "rules/spells2024.h"
 
+bool HuntingUnseenHider(uint32_t creature);  // rules_perception.cpp (#133's search; #152's ordering)
+
 namespace {
 
 using rules::DoorPlay;
@@ -555,21 +557,24 @@ std::string Num(float value) {
 }
 
 // The creatures near the cast's point (n5c_at) that a sound or an image may move: not the caster's own (its party,
-// its associates), none fighting, talking or plot - "id:race:enemy:int:score:size;" (race NWN's racial type, enemy 1
-// when hostile to the caster, int the Intelligence modifier, score its Intelligence, size NWN's creature size); $SIGHT
-// TRUE for those with a line to the point.
+// its associates), none talking or plot - "id:race:enemy:int:score:size:combat:seek:why;" (race NWN's racial type,
+// enemy 1 when hostile to the caster, int the Intelligence modifier, score its Intelligence, size NWN's creature size;
+// combat the engine's GetIsInCombat, seek nwn5e_seek - an investigation or an illusion's reaction under way - and
+// why nwn5e_seek_why, set by the investigations: a heard noise 1, a light put out 2); $SIGHT TRUE for those with a
+// line to the point. #152's ordering (0.99.74): whether each is moved is NearOf's (rules::IllusionTakesOver).
 const char* const kNear = R"nss(
 location l = GetLocalLocation(OBJECT_SELF, "n5c_at");
 object u = OBJECT_SELF;
 string r = "";
 object o = GetFirstObjectInShape(SHAPE_SPHERE, $METRES, l, $SIGHT, OBJECT_TYPE_CREATURE);
 while (GetIsObjectValid(o)) {
-  if (o != u && !GetIsPC(o) && !GetIsDead(o) && !GetIsInCombat(o) && GetCommandable(o) && !IsInConversation(o) &&
-      !GetPlotFlag(o) && !GetIsObjectValid(GetMaster(o)) && !GetFactionEqual(o, u) && !GetLocalInt(o, "nwn5e_seek") &&
-      GetTag(o) != "n5c_image") {
+  if (o != u && !GetIsPC(o) && !GetIsDead(o) && GetCommandable(o) && !IsInConversation(o) &&
+      !GetPlotFlag(o) && !GetIsObjectValid(GetMaster(o)) && !GetFactionEqual(o, u) && GetTag(o) != "n5c_image") {
     r += ObjectToString(o) + ":" + IntToString(GetRacialType(o)) + ":" + IntToString(GetIsEnemy(u, o)) + ":" +
          IntToString(GetAbilityModifier(ABILITY_INTELLIGENCE, o)) + ":" +
-         IntToString(GetAbilityScore(o, ABILITY_INTELLIGENCE)) + ":" + IntToString(GetCreatureSize(o)) + ";";
+         IntToString(GetAbilityScore(o, ABILITY_INTELLIGENCE)) + ":" + IntToString(GetCreatureSize(o)) + ":" +
+         IntToString(GetIsInCombat(o)) + ":" + IntToString(GetLocalInt(o, "nwn5e_seek") > 0) + ":" +
+         IntToString(GetLocalInt(o, "nwn5e_seek_why")) + ";";
   }
   o = GetNextObjectInShape(SHAPE_SPHERE, $METRES, l, $SIGHT, OBJECT_TYPE_CREATURE);
 }
@@ -585,6 +590,15 @@ struct Near {
   int size = 3;  // NWN's creature size (1 tiny .. 5 huge)
 };
 
+bool ReactorUnderWay(uint32_t id);  // below (g_reactors)
+
+// #152's ordering: how alert a creature near the point is - an illusion moves it when it is calm or investigating.
+rules::Alertness AlertnessNear(uint32_t id, bool in_combat, bool seeking, int why) {
+  const bool investigating = seeking && why != 0;
+  const bool reacting = (seeking && why == 0) || ReactorUnderWay(id);
+  return rules::AlertnessOf(in_combat, HuntingUnseenHider(id), investigating, reacting);
+}
+
 std::vector<Near> NearOf(void* caster, uint32_t self, float metres, bool sight) {
   std::string code = kNear;
   Replace(&code, "$METRES", Num(metres));
@@ -598,24 +612,33 @@ std::vector<Near> NearOf(void* caster, uint32_t self, float metres, bool sight) 
     if (end == std::string::npos) break;
     Near n;
     unsigned int id = 0;
-    int enemy = 0;
-    if (sscanf_s(list.substr(at, end - at).c_str(), "%x:%d:%d:%d:%d:%d", &id, &n.race, &enemy, &n.intelligence,
-                 &n.intelligence_score, &n.size) == 6) {
+    int enemy = 0, combat = 0, seek = 0, why = 0;
+    if (sscanf_s(list.substr(at, end - at).c_str(), "%x:%d:%d:%d:%d:%d:%d:%d:%d", &id, &n.race, &enemy,
+                 &n.intelligence, &n.intelligence_score, &n.size, &combat, &seek, &why) == 9) {
       n.id = id;
       n.enemy = enemy != 0;
-      nearby.push_back(n);
+      const rules::Alertness alertness = AlertnessNear(n.id, combat != 0, seek != 0, why);
+      if (rules::IllusionTakesOver(alertness)) {
+        nearby.push_back(n);
+        if (alertness == rules::Alertness::kInvestigating && LogSlot()) {
+          Log("cantrips: 0x%08X investigating (%s) - the illusion takes over (#152's ordering)", n.id,
+              why == 1 ? "a noise it heard" : why == 2 ? "a light put out" : "a hider it can't see");
+        }
+      }
     }
     at = end + 1;
   }
   return nearby;
 }
 
-// A creature fleeing the point for 2 rounds (Q7), as the caster's script.
+// A creature fleeing the point for 2 rounds (Q7), as the caster's script. #152's ordering (0.99.74): an investigation
+// it was on (a heard noise, a light, #133's hunt) ends - its mark (nwn5e_seek_why) and its combat state cleared.
 const char* const kFlee = R"nss(
 object o = StringToObject("$ID");
 location l = GetLocalLocation(OBJECT_SELF, "n5c_at");
 SetLocalInt(o, "nwn5e_seek", 1);
-AssignCommand(o, ClearAllActions());
+DeleteLocalInt(o, "nwn5e_seek_why");
+AssignCommand(o, ClearAllActions(TRUE));
 AssignCommand(o, ActionMoveAwayFromLocation(l, TRUE, 30.0));
 DelayCommand($SECONDS, AssignCommand(o, ClearAllActions()));
 DelayCommand($SECONDS, DeleteLocalInt(o, "nwn5e_seek"));
@@ -629,8 +652,9 @@ object o = StringToObject("$ID");
 object u = OBJECT_SELF;
 location l = GetLocalLocation(OBJECT_SELF, "n5c_at");
 SetLocalInt(o, "nwn5e_seek", 25);
+DeleteLocalInt(o, "nwn5e_seek_why");
 location home = GetLocation(o);
-AssignCommand(o, ClearAllActions());
+AssignCommand(o, ClearAllActions(TRUE));
 SetActionMode(o, ACTION_MODE_DETECT, TRUE);
 AssignCommand(o, ActionMoveToLocation(l));
 $ARRIVE
@@ -745,6 +769,8 @@ struct Reactor {
 };
 std::unordered_map<uint32_t, Reactor> g_reactors;  // by creature
 
+bool ReactorUnderWay(uint32_t id) { return g_reactors.count(id) != 0; }
+
 struct ImageMade {
   uint32_t caster = 0;
   std::string name;
@@ -791,19 +817,23 @@ Reactor* ReactorCalled(uint32_t self) {
   return &found->second;
 }
 
-// Whether it fights (or is dead or gone), and whether its image is still there.
+// Whether it fights (or is dead or gone), and whether its image is still there. #152's ordering (0.99.74): in combat
+// only to hunt a hider it can't see (#133) isn't a fight - the reaction goes on.
 struct Check {
   bool fighting = true;
   bool image_there = false;
 };
 Check CheckOf(uint32_t self) {
-  Run("SetLocalInt(OBJECT_SELF, \"n5c_mi_fight\", GetIsInCombat(OBJECT_SELF) || GetIsDead(OBJECT_SELF));"
+  Run("SetLocalInt(OBJECT_SELF, \"n5c_mi_fight\", GetIsInCombat(OBJECT_SELF));"
+      "SetLocalInt(OBJECT_SELF, \"n5c_mi_dead\", GetIsDead(OBJECT_SELF));"
       "SetLocalInt(OBJECT_SELF, \"n5c_mi_there\", GetIsObjectValid(GetLocalObject(OBJECT_SELF, \"n5c_mi_image\")));",
       self, "an illusion's watcher checked");
   Check check;
   void* creature = CreatureById(self);
   if (!creature) return check;
-  check.fighting = engine::GetLocalInt(creature, "n5c_mi_fight") != 0;
+  const bool in_combat = engine::GetLocalInt(creature, "n5c_mi_fight") != 0;
+  check.fighting = engine::GetLocalInt(creature, "n5c_mi_dead") != 0 ||
+                   rules::ReactionStops(rules::AlertnessOf(in_combat, HuntingUnseenHider(self), false, true));
   check.image_there = engine::GetLocalInt(creature, "n5c_mi_there") != 0;
   return check;
 }
@@ -854,8 +884,10 @@ void Vanish(uint32_t image, uint32_t runner) {
   g_images.erase(image);
 }
 
+// #152's ordering (0.99.74): each step clears the combat state too (ClearAllActions(TRUE)) - a creature taken off
+// #133's hunt for a hider it can't see leaves that combat for the illusion.
 const char* const kComeToLook = R"nss(
-ClearAllActions();
+ClearAllActions(TRUE);
 SetActionMode(OBJECT_SELF, ACTION_MODE_DETECT, TRUE);
 ActionMoveToLocation(GetLocalLocation(OBJECT_SELF, "n5c_mi_at"));
 )nss";
@@ -868,7 +900,7 @@ void ComeToLook(uint32_t self, Reactor& r) {
 
 // Away from the image for 2 rounds (Q7's flight, as a scaring sound's).
 const char* const kFleeFrom = R"nss(
-ClearAllActions();
+ClearAllActions(TRUE);
 SetActionMode(OBJECT_SELF, ACTION_MODE_DETECT, FALSE);
 ActionMoveAwayFromLocation(GetLocalLocation(OBJECT_SELF, "n5c_mi_at"), TRUE, 30.0);
 )nss";
@@ -881,7 +913,7 @@ void Flee(uint32_t self, Reactor& r, bool again) {
 
 // Coming to touch it - to take the treasure, to feed on the corpse - walking, not searching.
 const char* const kApproach = R"nss(
-ClearAllActions();
+ClearAllActions(TRUE);
 ActionMoveToLocation(GetLocalLocation(OBJECT_SELF, "n5c_mi_at"));
 )nss";
 
@@ -892,7 +924,7 @@ void Approach(uint32_t self, Reactor& r) {
 }
 
 const char* const kCharge = R"nss(
-ClearAllActions();
+ClearAllActions(TRUE);
 ActionMoveToLocation(GetLocalLocation(OBJECT_SELF, "n5c_mi_at"), TRUE);
 )nss";
 
@@ -1134,10 +1166,12 @@ void OnDoneScript(uint32_t self) {
   GoBack(self, false);
 }
 
-// Each reacting creature's start: where it stood, the image and its point, kept on it.
+// Each reacting creature's start: where it stood, the image and its point, kept on it. #152's ordering (0.99.74): an
+// investigation it was on gives way - its mark (nwn5e_seek_why) goes, so it counts as reacting.
 const char* const kWatcher = R"nss(
 object u = StringToObject("$CASTER");
 SetLocalInt(OBJECT_SELF, "nwn5e_seek", 120);
+DeleteLocalInt(OBJECT_SELF, "nwn5e_seek_why");
 SetLocalLocation(OBJECT_SELF, "n5c_mi_home", GetLocation(OBJECT_SELF));
 SetLocalLocation(OBJECT_SELF, "n5c_mi_at", GetLocalLocation(u, "n5c_at"));
 SetLocalObject(OBJECT_SELF, "n5c_mi_image", $IMAGE);
@@ -1714,6 +1748,44 @@ void UtilityScript(uint32_t self) {
 }
 
 }  // namespace
+
+// #152's ordering (0.99.74; owner, 2026-11-18: "The ordering is good and B"; rules_perception.cpp's #133 search): a
+// creature reacting to an illusion, the AI sending it after a hider it can't see - it carries on. Its step is given
+// again (the AI's round may have cleared its orders), at most every 2 s; the timers the step set stand.
+bool IllusionReactionUnderWay(uint32_t creature) { return ReactorUnderWay(creature); }
+
+void IllusionReactionResume(uint32_t creature) {
+  const auto found = g_reactors.find(creature);
+  if (found == g_reactors.end()) return;
+  static std::unordered_map<uint32_t, uint64_t> resumed;
+  const uint64_t now = GameMs();
+  uint64_t& last = resumed[creature];
+  if (last != 0 && now - last < 2000) return;
+  last = now;
+  const Reactor& r = found->second;
+  std::string code;
+  switch (r.stage) {
+    case Stage::kComing: code = std::string(kComeToLook) + Next(kStudyScript, r.serial); break;
+    case Stage::kTouching: code = std::string(kApproach) + Next(kStudyScript, r.serial); break;
+    case Stage::kCharging: code = std::string(kCharge) + Next(kStrikeScript, r.serial); break;
+    case Stage::kStriking: code = kStrike; break;
+    case Stage::kFleeing:
+    case Stage::kFledAgain: code = kFleeFrom; break;
+    case Stage::kSearching:
+      code = kSearch;
+      Replace(&code, "$LEGS", "6");
+      Replace(&code, "$SPREAD",
+              std::to_string(static_cast<int>((rules::kIllusionSearchFeet * kMetresPerFoot - 1.5f) * 10.0f)));
+      code += Next(kDoneScript, r.serial);
+      break;
+  }
+  if (code.empty()) return;
+  Run(code, creature, "an illusion's watcher going on");
+  if (LogSlot()) {
+    Log("cantrips: 0x%08X %s's %s: 0x%08X (%s) goes on with it - the AI's hunt for a hider it can't see waits "
+        "(#152's ordering)", r.caster, r.label, r.image_name.c_str(), creature, r.name.c_str());
+  }
+}
 
 // #39 build 4b (rules_spells2024.cpp): Silent Image's image - Minor Illusion's, for 10 minutes' Concentration, at
 // the point in n5c_at (its Investigation DC in n5c_dc), in its own slot: a new one ends the earlier. Its object, 0

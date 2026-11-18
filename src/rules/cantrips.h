@@ -427,6 +427,24 @@ AfterStudy AfterStudyOf(ImageKind kind, bool sees_through, bool hostile);
 bool SearchesAfterVanish(bool sentient, bool hostile);
 constexpr int kIllusionSearchSeconds = 60;  // a minute
 constexpr int kIllusionSearchFeet = 30;     // round the image: the spell's range, where the caster stood
+// #152 (owner, 2026-11-18: "there should be a priority for alertness ... once I cast the humanoid illusion in front of
+// the orc that should supercede the listening mode and prompt the orc to immediately investigate the man that just
+// popped in front of him that he can see", then on the ordering offered and B - sounds too: "The ordering is good and
+// B"): what a creature near an image or a sound is busy with, least alert first. An image or a sound (Minor Illusion,
+// Thaumaturgy's Phantom Sound, Druidcraft's Animal Sound) moves a calm or investigating creature; one reacting to an
+// illusion carries on (a recast ends the old image, as before); one fighting a foe it sees pays it no mind.
+enum class Alertness {
+  kCalm,
+  kInvestigating,  // a noise it heard (stealth watch), a light put out, a hider it searches for and can't see (#133)
+  kReacting,       // an illusion's reaction under way
+  kFighting,       // in combat with a foe it sees
+};
+// `in_combat`: the engine's; `hunting_unseen`: its combat is only #133's search for a hider it can't see (an
+// investigation, not a fight); `investigating`: a heard noise's or a light's look under way; `reacting`: an illusion's
+// reaction under way.
+Alertness AlertnessOf(bool in_combat, bool hunting_unseen, bool investigating, bool reacting);
+bool IllusionTakesOver(Alertness alertness);  // a new image or sound moves it
+bool ReactionStops(Alertness alertness);      // a reaction under way ends: it fights
 // Dancing Lights: four lights at the point, Dim Light 10 ft each (NWN's 5 m light, the stealth rules' light), for
 // 1 minute on Concentration; a Bonus Action moves them up to 60 ft, and they go out more than 120 ft from the caster.
 constexpr int kDancingLightsCount = 4;

@@ -718,3 +718,24 @@ TEST(MagicMarkModels) {
   CHECK_EQ(FreeMarkSymbols(all), 12);
   CHECK_EQ(FreeMarkSymbol(5, all), 5);
 }
+
+// Breaks caught (#152, the owner's ordering): a creature hunting a hider it can't see counted as fighting (the image
+// ignored, as the owner's orc did); an investigation not taken over; a reaction under way replaced by a new illusion;
+// a fight with a foe it sees distracted; a reaction ending while its creature only hunts an unseen hider.
+TEST(IllusionAlertnessOrder) {
+  CHECK_EQ(AlertnessOf(false, false, false, false) == Alertness::kCalm, true);
+  CHECK_EQ(AlertnessOf(false, false, true, false) == Alertness::kInvestigating, true);   // a heard noise's look
+  CHECK_EQ(AlertnessOf(true, true, false, false) == Alertness::kInvestigating, true);    // #133: in combat, hunting
+  CHECK_EQ(AlertnessOf(false, true, false, false) == Alertness::kInvestigating, true);   // its hunt just cleared
+  CHECK_EQ(AlertnessOf(false, false, true, true) == Alertness::kReacting, true);         // reacting outranks a look
+  CHECK_EQ(AlertnessOf(true, true, false, true) == Alertness::kReacting, true);          // reacting, the AI hunting
+  CHECK_EQ(AlertnessOf(true, false, false, true) == Alertness::kFighting, true);         // a foe it sees
+  CHECK_EQ(AlertnessOf(true, false, true, false) == Alertness::kFighting, true);
+  CHECK_EQ(IllusionTakesOver(Alertness::kCalm), true);
+  CHECK_EQ(IllusionTakesOver(Alertness::kInvestigating), true);
+  CHECK_EQ(IllusionTakesOver(Alertness::kReacting), false);
+  CHECK_EQ(IllusionTakesOver(Alertness::kFighting), false);
+  CHECK_EQ(ReactionStops(Alertness::kFighting), true);
+  CHECK_EQ(ReactionStops(Alertness::kReacting), false);
+  CHECK_EQ(ReactionStops(Alertness::kInvestigating), false);
+}

@@ -679,6 +679,19 @@ AfterStudy AfterStudyOf(ImageKind kind, bool sees_through, bool hostile) {
 
 bool SearchesAfterVanish(bool sentient, bool hostile) { return sentient && hostile; }
 
+Alertness AlertnessOf(bool in_combat, bool hunting_unseen, bool investigating, bool reacting) {
+  if (in_combat && !hunting_unseen) return Alertness::kFighting;
+  if (reacting) return Alertness::kReacting;
+  if (hunting_unseen || investigating) return Alertness::kInvestigating;
+  return Alertness::kCalm;
+}
+
+bool IllusionTakesOver(Alertness alertness) {
+  return alertness == Alertness::kCalm || alertness == Alertness::kInvestigating;
+}
+
+bool ReactionStops(Alertness alertness) { return alertness == Alertness::kFighting; }
+
 bool DancingLightsMoveAllowed(float feet_from_lights, float feet_from_caster) {
   return feet_from_lights <= static_cast<float>(kDancingLightsMoveFeet) &&
          feet_from_caster <= static_cast<float>(kDancingLightsRangeFeet);
