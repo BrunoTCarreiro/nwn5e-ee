@@ -436,7 +436,9 @@ TEST(IllusionReactions) {
   // The humanoid: sentient - a hostile one studies it, others ignore it; not sentient - a hostile one attacks it,
   // others flee.
   const ImageKind man = ImageKind::kHumanoid;
-  CHECK_EQ(ReactionToImage(man, true, true, 2, 3) == ImageReaction::kStudy, true);
+  // 0.99.75 (owner, 2026-11-18: "C"): a sentient hostile one sizes it up on sight instead of walking up to study it.
+  CHECK_EQ(ReactionToImage(man, true, true, 2, 3) == ImageReaction::kSizeUp, true);
+  CHECK_EQ(ReactionToImage(man, true, true, 4, 3) == ImageReaction::kSizeUp, true);  // whatever its size
   CHECK_EQ(ReactionToImage(man, true, false, 3, 3) == ImageReaction::kIgnore, true);
   CHECK_EQ(ReactionToImage(man, false, true, 1, 3) == ImageReaction::kAttack, true);  // whatever its size
   CHECK_EQ(ReactionToImage(man, false, false, 4, 3) == ImageReaction::kFlee, true);
@@ -464,11 +466,12 @@ TEST(IllusionReactions) {
   CHECK_EQ(ReactionToImage(corpse, false, false, 3, 0) == ImageReaction::kIgnore, true);
   CHECK_EQ(ReactionToImage(ImageKind::kNone, true, true, 3, 3) == ImageReaction::kIgnore, true);
   // After a study (Q4 A): seen through, it vanishes - a hostile one searches, others go back; fooled, one flees the
-  // leopard again, else goes back.
+  // leopard again, a hostile one charges the humanoid (0.99.75, C), else goes back.
   CHECK_EQ(AfterStudyOf(man, true, true) == AfterStudy::kVanishThenSearch, true);
   CHECK_EQ(AfterStudyOf(cat, true, false) == AfterStudy::kVanishThenGoBack, true);
   CHECK_EQ(AfterStudyOf(cat, false, true) == AfterStudy::kFleeAgain, true);
-  CHECK_EQ(AfterStudyOf(man, false, true) == AfterStudy::kGoBack, true);
+  CHECK_EQ(AfterStudyOf(man, false, true) == AfterStudy::kCharge, true);
+  CHECK_EQ(AfterStudyOf(man, false, false) == AfterStudy::kGoBack, true);  // not hostile: no charge
   CHECK_EQ(AfterStudyOf(corpse, false, true) == AfterStudy::kGoBack, true);  // fooled: a wary look round, back
   // The image gone (seen through or hit): a sentient hostile one searches for the caster.
   CHECK_EQ(SearchesAfterVanish(true, true), true);

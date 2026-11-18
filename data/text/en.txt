@@ -314,6 +314,7 @@ utility_cantrips.reacts_flee | generated | {name} flees
 utility_cantrips.reacts_attack | generated | {name} attacks it
 utility_cantrips.reacts_treasure | generated | {name} comes for it
 utility_cantrips.reacts_feed | generated | {name} comes to feed
+utility_cantrips.reacts_size_up | generated | {name} sizes it up
 utility_cantrips.image_made | generated | nwn5e: {name} - a {image} there {lasts}.
 utility_cantrips.image_made_reacts | generated | nwn5e: {name} - a {image} there {lasts}; {reacts}.
 utility_cantrips.sound_no_one | generated | nwn5e: {name} - no one near reacts.

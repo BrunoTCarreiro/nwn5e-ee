@@ -898,6 +898,19 @@ void ComeToLook(uint32_t self, Reactor& r) {
       "an illusion's watcher coming to look");
 }
 
+// 0.99.75 (owner, 2026-11-18: "C"): a sentient hostile creature sizes a humanoid up on sight - where it stands,
+// turned to it, its study half a second on (after the cast's line). Seen through, it searches; fooled, it charges
+// (Study's kCharge). Its stage is a study's, kComing, but it doesn't walk.
+const char* const kSizeUpScript = R"nss(
+ClearAllActions(TRUE);
+SetFacingPoint(GetPositionFromLocation(GetLocalLocation(OBJECT_SELF, "n5c_mi_at")));
+)nss";
+
+void SizeUp(uint32_t self, Reactor& r) {
+  r.stage = Stage::kComing;
+  Run(std::string(kSizeUpScript) + Later(0.5f, kStudyScript, r.serial), self, "an illusion's watcher sizing it up");
+}
+
 // Away from the image for 2 rounds (Q7's flight, as a scaring sound's).
 const char* const kFleeFrom = R"nss(
 ClearAllActions(TRUE);
@@ -1022,6 +1035,10 @@ void Study(uint32_t self, Reactor& r, const Check& check) {
     case AfterStudy::kGoBack:
       Tell(caster, line);
       return GoBack(self, true);
+    case AfterStudy::kCharge:  // 0.99.75 (C): fooled, it takes the figure for a foe - the blow will reveal it
+      Tell(caster, line);
+      r.reaction = ImageReaction::kAttackThenSearch;
+      return Charge(self, r);
   }
 }
 
@@ -1186,6 +1203,7 @@ const char* ReactionName(ImageReaction reaction) {
     case ImageReaction::kAttack: return "attacks it";
     case ImageReaction::kAttackThenSearch: return "attacks it, then searches";
     case ImageReaction::kTouch: return "comes to touch it";
+    case ImageReaction::kSizeUp: return "sizes it up where it stands";
     default: return "ignores it";
   }
 }
@@ -1258,6 +1276,10 @@ void MakeImageOf(uint32_t self, void* caster, ImageKind kind, const std::string&
         case ImageReaction::kStudy:
           ComeToLook(n.id, kept);
           done.push_back(PlayerText("utility_cantrips.reacts_look", {{"name", r.name}}));
+          break;
+        case ImageReaction::kSizeUp:
+          SizeUp(n.id, kept);
+          done.push_back(PlayerText("utility_cantrips.reacts_size_up", {{"name", r.name}}));
           break;
         case ImageReaction::kFlee:
         case ImageReaction::kFleeThenStudy:
@@ -1765,7 +1787,10 @@ void IllusionReactionResume(uint32_t creature) {
   const Reactor& r = found->second;
   std::string code;
   switch (r.stage) {
-    case Stage::kComing: code = std::string(kComeToLook) + Next(kStudyScript, r.serial); break;
+    case Stage::kComing:  // a size-up (0.99.75) doesn't walk - its study's timer stands
+      if (r.reaction == ImageReaction::kSizeUp) return;
+      code = std::string(kComeToLook) + Next(kStudyScript, r.serial);
+      break;
     case Stage::kTouching: code = std::string(kApproach) + Next(kStudyScript, r.serial); break;
     case Stage::kCharging: code = std::string(kCharge) + Next(kStrikeScript, r.serial); break;
     case Stage::kStriking: code = kStrike; break;

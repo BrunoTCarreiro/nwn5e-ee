@@ -416,12 +416,18 @@ enum class ImageReaction {
   kAttackThenSearch,  // attacks it, then searches round it for the caster
   kTouch,             // comes to it and touches it - which reveals it (SRD 5.2.1: "Physical interaction with
                       // the image reveals it to be an illusion"): reaching for the treasure, feeding on the corpse
+  kSizeUp,            // studies it on sight, where it stands (0.99.75, C below): seen through, it searches for the
+                      // caster; fooled, it charges and attacks it - the blow reveals it - then searches
 };
 // `size` and `image_size`: NWN's creature sizes (1 tiny .. 5 huge).
+// 0.99.75 (owner, 2026-11-18: "should an orc (who is normally automnatically aggressive towards an adventurer) calmly
+// investigate a humanoid illusion?", then of A as built / B charge on sight / C a check on sight, then search or
+// charge: "C"): a sentient hostile creature no longer walks up to study a humanoid - it sizes it up (kSizeUp).
 ImageReaction ReactionToImage(ImageKind kind, bool sentient, bool hostile, int size, int image_size);
 // After a study - Q4 A: an image seen through vanishes for everyone; a hostile creature then searches for the
-// caster, any other goes back. A fooled one flees a creature image again (and stays away), else goes back.
-enum class AfterStudy { kVanishThenSearch, kVanishThenGoBack, kFleeAgain, kGoBack };
+// caster, any other goes back. A fooled one flees a creature image again (and stays away), charges a humanoid it is
+// hostile to (C: kCharge - it attacks it, then searches), else goes back.
+enum class AfterStudy { kVanishThenSearch, kVanishThenGoBack, kFleeAgain, kGoBack, kCharge };
 AfterStudy AfterStudyOf(ImageKind kind, bool sees_through, bool hostile);
 // Once the image is gone (seen through or hit), a sentient hostile creature searches for the caster.
 bool SearchesAfterVanish(bool sentient, bool hostile);

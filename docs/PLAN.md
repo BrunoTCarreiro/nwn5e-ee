@@ -1126,6 +1126,19 @@ monster AC by CR.
     gives the reaction's step again (IllusionReactionResume, every 2 s at most). Its hunt resumes when the reaction
     ends, if it still hears the hider. The log: "investigating (...) - the illusion takes over", "goes on with it -
     the AI's hunt for a hider it can't see waits".
+  - *A hostile creature and a humanoid image (owner, 2026-11-18, on 0.99.74):* "should an orc (who is normally
+    automnatically aggressive towards an adventurer) calmly investigate a humanoid illusion?" As built (the owner's
+    2026-11-09 brief, "a humanoid illusion should be investigated by sentient creatures", and Q2 A over B, "evil
+    sentient creatures attack a humanoid image instead of studying it"), a sentient hostile creature walked up in
+    search mode and studied it. Offered: A as built; B it charges and attacks it, no check; C it sizes it up on sight -
+    the Investigation check at once, where it stands - then, seen through, searches for you, or fooled, charges and
+    attacks it (the blow reveals it), then searches. Recommended C. *Decided (owner, 2026-11-18): "C".*
+    *Built 0.99.75:* rules::ImageReaction kSizeUp (ReactionToImage: a sentient hostile creature and a humanoid) and
+    AfterStudy kCharge (AfterStudyOf: fooled by a humanoid it is hostile to); test IllusionReactions, 4 of 4
+    mutations caught. In game the creature stops, turns to the image and studies it half a second later (the cast's
+    line first: "...; Orc sizes it up" - new text, generated); fooled, it charges and strikes (Charge, then the
+    attack's search). A non-hostile sentient creature still ignores a humanoid, a hostile animal still attacks it; the
+    corpse, the treasure and the leopard are unchanged. MI-8, MI-17 and MI-33 superseded by MI-36 to MI-38.
 - **#39 Part 2, the levelled spells (owner, 2026-11-09: "go for 39 part 2").** SRD 5.2.1 has 312 levelled spells, NWN
   274 class spells; 129 of the SRD's have an NWN version (98 the same, 16 renamed - Cure Light Wounds is Cure Wounds -
   15 close), 183 are new; 137 of NWN's have no 2024 version (30 fold into one: Cure Moderate Wounds is Cure Wounds at

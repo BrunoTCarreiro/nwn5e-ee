@@ -662,7 +662,7 @@ ImageReaction ReactionToImage(ImageKind kind, bool sentient, bool hostile, int s
       if (!hostile) return ImageReaction::kIgnore;
       return sentient ? ImageReaction::kStudy : ImageReaction::kTouch;
     case ImageKind::kHumanoid:
-      if (sentient) return hostile ? ImageReaction::kStudy : ImageReaction::kIgnore;
+      if (sentient) return hostile ? ImageReaction::kSizeUp : ImageReaction::kIgnore;
       return hostile ? ImageReaction::kAttack : ImageReaction::kFlee;
     case ImageKind::kCreature:
     case ImageKind::kLargeCreature:
@@ -674,6 +674,7 @@ ImageReaction ReactionToImage(ImageKind kind, bool sentient, bool hostile, int s
 
 AfterStudy AfterStudyOf(ImageKind kind, bool sees_through, bool hostile) {
   if (sees_through) return hostile ? AfterStudy::kVanishThenSearch : AfterStudy::kVanishThenGoBack;
+  if (kind == ImageKind::kHumanoid && hostile) return AfterStudy::kCharge;
   return kind == ImageKind::kCreature || kind == ImageKind::kLargeCreature ? AfterStudy::kFleeAgain : AfterStudy::kGoBack;
 }
 
