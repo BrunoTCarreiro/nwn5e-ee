@@ -23,4 +23,11 @@ bool RestEnds(int rest_seconds, int remaining_seconds);
 // flask's puddle - isn't a spell of ours, left alone.
 bool RestEndsSpellArea(const std::string& tag, bool long_rest);
 
+// 0.99.79 (owner, 2026-11-18, on DU-1 and L4-53: "the spell should only end after the full long rest is completed.
+// right now the spell ends a little after the long rest starts, there's still time to cancel the long rest after the
+// spell is done"): NWN's rest clears the spells the resting creature cast - on itself and on others - as it begins.
+// Faithful, it doesn't: the rest's end ends what the rest outlasts, and a rest cancelled ends nothing. NWN mode keeps
+// NWN's.
+bool RestClearsSpellsAtStart(bool faithful);
+
 }  // namespace rules

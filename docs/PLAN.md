@@ -1838,6 +1838,13 @@ monster AC by CR.
     text, generated); a Long Rest counts only when a rest began within 5 minutes; Goodberry on a spell clock of its own
     (n5_spell_clock: real time played, the rests' hours). The clock's pace is untouched. 7 mutations caught; 585 tests
     pass. Tests FD-14 (FD-10's retest), FD-15, DU-1 to DU-4.
+    *0.99.79 (owner, 2026-11-18, on DU-1 and L4-53: "the spell should only end after the full long rest is completed.
+    right now the spell ends a little after the long rest starts, there's still time to cancel the long rest after the
+    spell is done"):* NWN's rest, as it begins, clears every spell the resting creature cast, on itself and on others
+    (AIActionRest's call to CNWSObject::ClearSpellEffectsOnOthers). So the rest's end found nothing left to end
+    ("outlasts 0 spell effect(s)"), and a cancelled rest had already ended them. Faithful (rules::RestClearsSpellsAtStart),
+    that call is skipped: the rest's end ends what it outlasts, and a rest cancelled ends nothing. NWN mode keeps NWN's.
+    Test SpellTimeRestKeepsSpellsAtStart. DU-1 and L4-53 passed (the owner); retest DU-5.
   - *Magic Missile's darts (#155, the Spell & Attack Bench's flight paths, 0.99.16).* The look player can fly a
     spell's darts (PlaySpellLookDarts: each dart's arrival); the saved magic_missile look had no missile, so routing
     the darts through it would have hidden NWN's bolts. Asked: A - the look's darts when the look flies something
