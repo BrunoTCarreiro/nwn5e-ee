@@ -1852,6 +1852,9 @@ monster AC by CR.
     *Decided (owner, 2026-11-11: "go with A for magic missile").* *0.99.17:* Darts flies the look's darts
     when SpellLookFlies(row), each dart's damage (its own 1d4 + 1) landing as that dart does - held by the target,
     as Chromatic Orb's - with the look's hit effect, not VFX_IMP_MAGBLUE; otherwise NWN's MIRV bolts as before.
+  - *Level 1 accepted (owner, 2026-11-18: "A, and level 1 accepted").* Builds 1 to 4 and the list switch, 0.99.0 to
+    0.99.79. The last rows were DU-1, L4-53 and DU-5 (the rest keeping its spells). CB-5 is deferred (it needs an NPC
+    with a Persuade option), and L1-19b dropped.
   - *Level 2's brief (2026-11-18; SRD 5.2.1; the owner: "go for 39"):* 57 spells - 26 with an NWN version (17 the
     same, 2 renamed: Melf's Acid Arrow, Ultravision; 7 close: Sound Burst, the six ability buffs into Enhance Ability,
     Displacement, Mestil's Acid Breath, Neutralize Poison, Camouflage, Shelgarn's Persistent Blade), 31 new. Level 1's
@@ -1892,6 +1895,36 @@ monster AC by CR.
     Heat Metal's drop, Dragon's Breath, Scorching Ray's split, Enlarge/Reduce's scale, Lesser Restoration, Mirror
     Image's look) in each build's brief.
   - *Decided (owner, 2026-11-18: "A to all and we'll see the details of each as we build"):* Q1-Q7 A.
+  - *Level 2's build 1 brief (2026-11-18; SRD 5.2.1), damage and healing.* Split in two: 1a Acid Arrow, Shatter,
+    Mind Spike, Shining Smite, Prayer of Healing, Scorching Ray; 1b Flame Blade, Dragon's Breath, Heat Metal, Spiritual
+    Weapon. Not asked (2024's rules, level 1's decisions):
+    - Acid Arrow: 4d4 Acid, then 2d4 at the end of the target's next turn; a miss half the first.
+    - Shatter: Constructs save at Disadvantage; doors and loose objects in it take the damage; NWN's stun goes.
+    - Mind Spike: on a failed save the target can't hide from you, and Invisible does it no good against you.
+    - Spiritual Weapon: Q1's Bonus Action strike.
+    - Shining Smite: armed by the cast, paid by the next melee hit (build 3); its glow as Faerie Fire's outline.
+
+    Asked:
+    - Q1 Flame Blade: A an equipped blade, your attacks with it the spell's (one a round, the Magic action); B a
+      quickbar strike.
+    - Q2 Dragon's Breath: A any willing creature (a player's breath a quickbar action, a henchman's by its AI); B only
+      yourself.
+    - Q3 Scorching Ray: A all at one target, the rest to the nearest; B targets picked first, the rays together; C a
+      menu.
+    - Q4 Heat Metal: A its weapon else its armour, a dropped weapon into the inventory, armour Disadvantage, the
+      repeat a quickbar action; B a menu.
+    - Q5 Prayer of Healing: A the party within 30 feet gets nwn5e's Short Rest and 2d8, out of combat, the clock 10
+      minutes on; B the 2d8 only.
+
+    Recommended A on all.
+  - *Decided (owner, 2026-11-18):* Q1, Q2, Q4, Q5 A ("A for all, except Q3"). Q3 B: "remember the order in which
+    enemies are selected", then "can we use right click to remove an assignment?", then "I'd rather have a small window
+    that shows the targets assigned to each ray and an ok and cancel button. This should also be the case for magic
+    missile ... faithfully they should be able to be directed". The window opens as you cast, before the spell goes off
+    ("A": Cancel spends nothing), and "one should also be able to use scorching ray to light fire light sources".
+    - The window is #171, with Magic Missile's darts.
+    - Build 1a goes first without Scorching Ray: Acid Arrow, Shatter, Mind Spike, Shining Smite, Prayer of Healing.
+    - Then #171 with Scorching Ray and Magic Missile, then build 1b.
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
   New: Divine Order (1: Protector - Martial weapons, Heavy armour; Thaumaturge - a cantrip, Wis to Arcana and Religion
