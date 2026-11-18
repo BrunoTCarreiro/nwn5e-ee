@@ -1139,6 +1139,21 @@ monster AC by CR.
     line first: "...; Orc sizes it up" - new text, generated); fooled, it charges and strikes (Charge, then the
     attack's search). A non-hostile sentient creature still ignores a humanoid, a hostile animal still attacks it; the
     corpse, the treasure and the leopard are unchanged. MI-8, MI-17 and MI-33 superseded by MI-36 to MI-38.
+  - *A creature that never got there (the owner's 0.99.76 run, 2026-11-18, "check the logs for the MI tests"):* two
+    fooled orcs never charged (MI-36, MI-38), and a bear never reached a roar (MI-28). Each stood until its 30 s
+    timer, and the bear's timer ended in silence (the "fighting" let-go wasn't logged). The same stall shows in the
+    14:46 run of 0.99.73, an orc walking up to a commoner. The log doesn't say what took the walk (the creature's own
+    AI clearing it, or the move stuck), while the wolf's charges and the ogre's, orc's and goblins' walks arrived.
+    *Built 0.99.77:* rules::CheckWay / WayCheck (test IllusionWayWatched, 10 of 10 mutations caught). Once a second
+    of game time, a creature coming to look, coming to touch or charging is looked at (WatchWay; not a size-up, which
+    doesn't walk):
+    - Moved 0.25 m in 2 s: it is on its way, and its own walk ends it.
+    - Stopped within 1.5 m of the point: it is there (an image's body keeps it from the exact point).
+    - Stopped farther off: its step is given again, once; stalled again, it acts from where it stands, as the 30 s
+      timer does.
+    A stall is logged with what the creature was doing instead (its action, combat, attack target, detect mode), to
+    find the cause, and each "fighting" let-go now logs its facts. Log lines only, no new text. MI-36, MI-37, MI-38
+    and MI-28 failed on 0.99.76 and are retested by MI-39 to MI-42.
 - **#39 Part 2, the levelled spells (owner, 2026-11-09: "go for 39 part 2").** SRD 5.2.1 has 312 levelled spells, NWN
   274 class spells; 129 of the SRD's have an NWN version (98 the same, 16 renamed - Cure Light Wounds is Cure Wounds -
   15 close), 183 are new; 137 of NWN's have no 2024 version (30 fold into one: Cure Moderate Wounds is Cure Wounds at

@@ -693,6 +693,12 @@ bool IllusionTakesOver(Alertness alertness) {
 
 bool ReactionStops(Alertness alertness) { return alertness == Alertness::kFighting; }
 
+WayCheck CheckWay(float metres_left, float metres_moved, int times_given_again) {
+  if (metres_moved >= kWayStalledMetres) return WayCheck::kOnItsWay;
+  if (metres_left <= kWayThereMetres) return WayCheck::kThere;
+  return times_given_again < kWayGivenAgainMax ? WayCheck::kGiveAgain : WayCheck::kFromWhereItStands;
+}
+
 bool DancingLightsMoveAllowed(float feet_from_lights, float feet_from_caster) {
   return feet_from_lights <= static_cast<float>(kDancingLightsMoveFeet) &&
          feet_from_caster <= static_cast<float>(kDancingLightsRangeFeet);

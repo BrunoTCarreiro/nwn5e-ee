@@ -742,3 +742,22 @@ TEST(IllusionAlertnessOrder) {
   CHECK_EQ(ReactionStops(Alertness::kReacting), false);
   CHECK_EQ(ReactionStops(Alertness::kInvestigating), false);
 }
+
+// #152 (0.99.77): a creature on its way to the illusion's point - moving 0.25 m or more over 2 s, on its way; not
+// moving, there within 1.5 m, else its step given again once, then it acts from where it stands.
+TEST(IllusionWayWatched) {
+  CHECK_EQ(kWayThereMetres, 1.5f);
+  CHECK_EQ(kWayStalledMetres, 0.25f);
+  CHECK_EQ(kWayStalledSeconds, 2);
+  CHECK_EQ(kWayGivenAgainMax, 1);
+  CHECK_EQ(CheckWay(4.0f, 1.0f, 0) == WayCheck::kOnItsWay, true);
+  CHECK_EQ(CheckWay(4.0f, 0.25f, 0) == WayCheck::kOnItsWay, true);          // 0.25 m in 2 s: still moving
+  CHECK_EQ(CheckWay(1.0f, 2.0f, 0) == WayCheck::kOnItsWay, true);           // near and moving: its walk ends it
+  CHECK_EQ(CheckWay(1.5f, 0.0f, 0) == WayCheck::kThere, true);              // stopped at 1.5 m: there
+  CHECK_EQ(CheckWay(0.4f, 0.24f, 5) == WayCheck::kThere, true);             // there, however often given again
+  CHECK_EQ(CheckWay(1.51f, 0.0f, 0) == WayCheck::kGiveAgain, true);         // stopped just short of it
+  CHECK_EQ(CheckWay(4.0f, 0.24f, 0) == WayCheck::kGiveAgain, true);         // stalled: its step again
+  CHECK_EQ(CheckWay(4.0f, 0.0f, 1) == WayCheck::kFromWhereItStands, true);  // stalled again
+  CHECK_EQ(CheckWay(4.0f, 0.0f, 2) == WayCheck::kFromWhereItStands, true);
+  CHECK_EQ(CheckWay(4.0f, 1.0f, 1) == WayCheck::kOnItsWay, true);           // given again and moving
+}

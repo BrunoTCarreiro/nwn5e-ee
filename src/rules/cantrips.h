@@ -451,6 +451,18 @@ enum class Alertness {
 Alertness AlertnessOf(bool in_combat, bool hunting_unseen, bool investigating, bool reacting);
 bool IllusionTakesOver(Alertness alertness);  // a new image or sound moves it
 bool ReactionStops(Alertness alertness);      // a reaction under way ends: it fights
+// #152 (0.99.77; the owner's 0.99.76 log: a fooled orc that never charged, a bear that never reached a roar - their
+// walk to the point gone or stuck, the 30 s timer the only way out): a creature on its way to the illusion's point,
+// watched once a second. One that moved kWayStalledMetres or more over the last kWayStalledSeconds is on its way (its
+// own walk ends it, as before). One that didn't is there within kWayThereMetres (an image's own body keeps it from the
+// exact point); farther off, it is given its step again (kWayGivenAgainMax times), then acts from where it stands, as
+// the 30 s timer would. `metres_moved`: over the last kWayStalledSeconds (not watched that long yet: on its way).
+enum class WayCheck { kOnItsWay, kThere, kGiveAgain, kFromWhereItStands };
+constexpr float kWayThereMetres = 1.5f;
+constexpr float kWayStalledMetres = 0.25f;
+constexpr int kWayStalledSeconds = 2;
+constexpr int kWayGivenAgainMax = 1;
+WayCheck CheckWay(float metres_left, float metres_moved, int times_given_again);
 // Dancing Lights: four lights at the point, Dim Light 10 ft each (NWN's 5 m light, the stealth rules' light), for
 // 1 minute on Concentration; a Bonus Action moves them up to 60 ft, and they go out more than 120 ft from the caster.
 constexpr int kDancingLightsCount = 4;
