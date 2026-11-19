@@ -2075,6 +2075,17 @@ monster AC by CR.
       - The first 3 Plot placeables kept are logged, with the reason.
       - Test PlaceableLitOnlyWithALightColour; 3 of 3 mutations caught; test.bat 641 ok. Retests PD-1b, PD-2b,
         PD-3b and PD-4 (the pews).
+      *PD-1b passed (owner, 2026-11-19: "PD-1b passes.").* *PD-4 failed (owner, 2026-11-19: "benches don't take
+      damage, same for the candelabra or the big vase").* The log: Shatter at the pews found "0 object(s)", though
+      they (and the Academy's urn, the save's only vase) loaded breakable; flags and banners were hit. Shatter's
+      sight-checked GetFirstObjectInShape leaves out things that block walking: their footprint is in the area's
+      walk mesh, so a sight line to their centre crosses it.
+      - *0.99.92:* a door or placeable that search left out is looked at again: Plot, skipped; its sight line from
+        the point to its near side (1.2 m from it toward the point) clear, hit; else behind something. Each is
+        logged ("Shatter's Sphere, looked at again: ..."). Retest PD-4b.
+      - *Asked:* the candelabra is a Plot lamp with the stock on/off script (nw_02_onoff), kept Plot by D′ (Shatter
+        puts it out). And NWN selects only clickable placeables, so a weapon can't reach freed dressing (PD-4's
+        weapon step couldn't be done).
 
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
