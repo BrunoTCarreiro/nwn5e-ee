@@ -1941,6 +1941,13 @@ monster AC by CR.
         test.bat 639 ok.
       - **Text:** 14 new catalogue lines, generated, for review; Scorching Ray's name and description SRD 5.2.1
         verbatim. Tests TW-1 to TW-8.
+      - *0.99.86 (owner, 2026-11-19, on TW-1: "this only works if the game is not paused"):* the window opened at the
+        character's next creature update, and the cursor came back through DelayCommand. A paused game runs neither.
+        - **The window** now opens at once, as the held order comes in with the player's input, which a paused game
+          still handles.
+        - **The cursor** is asked for at once after each pick. The delayed ask stays as a second try, only while the
+          window is open (the n5tw_open local), so a late one after OK does nothing.
+        - TW-1's retest is TW-1b, paused.
     - Build 1a goes first without Scorching Ray: Acid Arrow, Shatter, Mind Spike, Shining Smite, Prayer of Healing.
     - Then #171 with Scorching Ray and Magic Missile, then build 1b.
   - *Built 0.99.80 (level 2's build 1a):*

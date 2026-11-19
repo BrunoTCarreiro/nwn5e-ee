@@ -107,13 +107,18 @@ void SetModuleEvent(uint32_t player) {
   g_module_event = true;
 }
 
+// 0.99.86 (owner, 2026-11-19, on TW-1: "this only works if the game is not paused"): a paused game runs no
+// DelayCommand, so the cursor is asked for at once; the delayed ask stays as a second try for a client whose own
+// targeting was still ending - only while the window is open (n5tw_open), so a late one after OK does nothing.
 void EnterTargeting(uint32_t player, int spell) {
   const std::string types =
       spell == rules::kScorchingRay ? "OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE" : "OBJECT_TYPE_CREATURE";
-  RunScriptChunk(("DelayCommand(0.05, SetEnterTargetingModeData(OBJECT_SELF, SPELL_TARGETING_SHAPE_NONE, 0.0, 0.0, "
-                  "SPELL_TARGETING_FLAGS_NONE, 36.6));"
-                  "DelayCommand(0.06, EnterTargetingMode(OBJECT_SELF, " + types +
-                  ", MOUSECURSOR_MAGIC, MOUSECURSOR_NOMAGIC));")
+  const std::string enter = "SetEnterTargetingModeData(OBJECT_SELF, SPELL_TARGETING_SHAPE_NONE, 0.0, 0.0, "
+                            "SPELL_TARGETING_FLAGS_NONE, 36.6); EnterTargetingMode(OBJECT_SELF, " +
+                            types + ", MOUSECURSOR_MAGIC, MOUSECURSOR_NOMAGIC);";
+  // `enter` has no quotes, so it goes into the delayed chunk's string as it is.
+  RunScriptChunk((enter + "DelayCommand(0.06, ExecuteScriptChunk(\"if (GetLocalInt(OBJECT_SELF, \\\"n5tw_open\\\")) {" +
+                  enter + "}\", OBJECT_SELF, TRUE));")
                      .c_str(),
                  player);
 }
@@ -204,6 +209,7 @@ void Reissue(uint32_t player, const SpellOrder& order, uint32_t target) {
 void Close(uint32_t player, Held* held) {
   for (uint32_t id : held->marked) Unmark(player, id);
   held->marked.clear();
+  if (void* pc = CreatureById(player)) engine::SetLocalInt(pc, "n5tw_open", 0);
   NuiClose(player, kWindow);
   StopTargeting(player);
 }
@@ -357,6 +363,7 @@ void Open(uint32_t player, Held* held) {
     Log("target window: 0x%08X %s - the window didn't open, cast at its target", player, SpellName(kept.order.spell));
     return;
   }
+  if (pc) engine::SetLocalInt(pc, "n5tw_open", 1);
   Refresh(player, held);
   EnterTargeting(player, static_cast<int>(held->order.spell));
   Log("target window: 0x%08X %s held - %zu rows, row 1 0x%s", player, SpellName(held->order.spell),
@@ -392,8 +399,13 @@ bool Guard(void* creature, const SpellOrder& order) {
   held.order = order;
   held.rows = rules::MakeTargetRows(rules::TargetRowsFor(static_cast<int>(order.spell), slot),
                                     order.target != ee::kObjectInvalid ? order.target : 0u);
-  g_held[id] = held;  // the window opens at the character's next update
+  g_held[id] = held;
   g_sent.erase(id);
+  // 0.99.86 (owner, 2026-11-19, on TW-1: "this only works if the game is not paused"): the window opens at once - the
+  // order comes with the player's input, which a paused game still handles; a creature update (the old way) waits
+  // for the pause to end. Update stays as a fallback.
+  g_held[id].open = true;
+  Open(id, &g_held[id]);
   return true;
 }
 
