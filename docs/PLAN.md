@@ -1982,6 +1982,15 @@ monster AC by CR.
           now. Its proposal: 11 effects (counts 1-11), a camera-facing digit at the head, and
           `TargetCountMarkerVfx(count)` for the window to apply, swap and remove. It waits on the owner's picks (the
           look, whether the number replaces the red glow, the size). The floating text stands in until then.
+          *Picked (owner, 2026-11-19, in the animation session):* the red glow kept; a white number with a dark
+          outline on a small dark-red disc, about 0.4 m, about 0.35 m above the head. Being built (TC).
+        - *0.99.91 (owner, 2026-11-19, on 0.99.90: "that's not a permanent marker, that's still the floating text
+          and after a while it stops showing up until the spell is cast and then it just streams in all the buffered
+          values"):* the game was paused through the whole pick (the log: paused 17:19:23-17:19:54, the window
+          17:19:33-17:19:53). The client holds floating text while paused, and the counts re-sent every 2.5 s queued
+          and played once it ran. Picking paused is the usual way, so the floating counts are out (ShowCounts,
+          floaty_text.*, four en.txt lines). rules::CountsByTarget stays for the marker; an effect shows paused, as
+          the red glow does. TW-9c Failed; the marker's row replaces it.
     - Build 1a goes first without Scorching Ray: Acid Arrow, Shatter, Mind Spike, Shining Smite, Prayer of Healing.
     - Then #171 with Scorching Ray and Magic Missile, then build 1b.
   - *Built 0.99.80 (level 2's build 1a):*
