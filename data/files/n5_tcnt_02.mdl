@@ -217,13 +217,4 @@ node dummy n5_tcnt_02
 endnode
 doneanim duration n5_tcnt_02
 
-newanim cessation n5_tcnt_02
-  length 0.2
-  transtime 0.25
-  animroot n5_tcnt_02
-node dummy n5_tcnt_02
-  parent NULL
-endnode
-doneanim cessation n5_tcnt_02
-
 donemodel n5_tcnt_02
