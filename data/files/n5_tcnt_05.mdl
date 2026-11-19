@@ -1,0 +1,229 @@
+#MAXMODEL ASCII
+# nwn5e (tools/data/tcount/build.js): the target-count marker (#171) - 5 on four discs facing out round the
+# head, upright, drawn at once (paused too); nwn5e's own art n5_tcnt_05.tga, unlit (its TXI's decal). No keys.
+newmodel n5_tcnt_05
+setsupermodel n5_tcnt_05 NULL
+classification effect
+setanimationscale 1
+beginmodelgeom n5_tcnt_05
+node dummy n5_tcnt_05
+  parent NULL
+endnode
+node trimesh n5_tcnt_05_n
+  parent n5_tcnt_05
+  ambient 0 0 0
+  diffuse 0 0 0
+  specular 0 0 0
+  shininess 1
+  bitmap n5_tcnt_05
+  render 1
+  shadow 0
+  beaming 0
+  inheritcolor 0
+  alpha 1
+  transparencyhint 0
+  selfillumcolor 1 1 1
+  tilefade 0
+  rotatetexture 0
+  position 0 0 0.55
+  orientation 0 0 0 0
+  verts 4
+    0.2 0.2 -0.2
+    -0.2 0.2 -0.2
+    -0.2 0.2 0.2
+    0.2 0.2 0.2
+  tverts 4
+    0 0 0
+    1 0 0
+    1 1 0
+    0 1 0
+  faces 2
+    0 1 2 1 0 1 2 0
+    0 2 3 1 0 2 3 0
+endnode
+node trimesh n5_tcnt_05_e
+  parent n5_tcnt_05
+  ambient 0 0 0
+  diffuse 0 0 0
+  specular 0 0 0
+  shininess 1
+  bitmap n5_tcnt_05
+  render 1
+  shadow 0
+  beaming 0
+  inheritcolor 0
+  alpha 1
+  transparencyhint 0
+  selfillumcolor 1 1 1
+  tilefade 0
+  rotatetexture 0
+  position 0 0 0.55
+  orientation 0 0 0 0
+  verts 4
+    0.2 -0.2 -0.2
+    0.2 0.2 -0.2
+    0.2 0.2 0.2
+    0.2 -0.2 0.2
+  tverts 4
+    0 0 0
+    1 0 0
+    1 1 0
+    0 1 0
+  faces 2
+    0 1 2 1 0 1 2 0
+    0 2 3 1 0 2 3 0
+endnode
+node trimesh n5_tcnt_05_s
+  parent n5_tcnt_05
+  ambient 0 0 0
+  diffuse 0 0 0
+  specular 0 0 0
+  shininess 1
+  bitmap n5_tcnt_05
+  render 1
+  shadow 0
+  beaming 0
+  inheritcolor 0
+  alpha 1
+  transparencyhint 0
+  selfillumcolor 1 1 1
+  tilefade 0
+  rotatetexture 0
+  position 0 0 0.55
+  orientation 0 0 0 0
+  verts 4
+    -0.2 -0.2 -0.2
+    0.2 -0.2 -0.2
+    0.2 -0.2 0.2
+    -0.2 -0.2 0.2
+  tverts 4
+    0 0 0
+    1 0 0
+    1 1 0
+    0 1 0
+  faces 2
+    0 1 2 1 0 1 2 0
+    0 2 3 1 0 2 3 0
+endnode
+node trimesh n5_tcnt_05_w
+  parent n5_tcnt_05
+  ambient 0 0 0
+  diffuse 0 0 0
+  specular 0 0 0
+  shininess 1
+  bitmap n5_tcnt_05
+  render 1
+  shadow 0
+  beaming 0
+  inheritcolor 0
+  alpha 1
+  transparencyhint 0
+  selfillumcolor 1 1 1
+  tilefade 0
+  rotatetexture 0
+  position 0 0 0.55
+  orientation 0 0 0 0
+  verts 4
+    -0.2 0.2 -0.2
+    -0.2 -0.2 -0.2
+    -0.2 -0.2 0.2
+    -0.2 0.2 0.2
+  tverts 4
+    0 0 0
+    1 0 0
+    1 1 0
+    0 1 0
+  faces 2
+    0 1 2 1 0 1 2 0
+    0 2 3 1 0 2 3 0
+endnode
+node emitter n5_tcnt_05_anchor
+  parent n5_tcnt_05
+  p2p 0
+  p2p_sel 1
+  affectedByWind 0
+  m_isTinted 0
+  bounce 0
+  random 0
+  inherit 1
+  inheritvel 0
+  inherit_local 0
+  splat 0
+  inherit_part 0
+  renderorder 0
+  spawntype 0
+  update Single
+  render Normal
+  blend Normal
+  texture n5_tcnt_05
+  xgrid 1
+  ygrid 1
+  loop 0
+  deadspace 0
+  twosidedtex 0
+  blastRadius 0
+  blastLength 0
+  position 0 0 0.55
+  orientation 0 0 0 0
+  colorStart 1 1 1
+  colorEnd 1 1 1
+  alphaStart 1
+  alphaEnd 1
+  sizeStart 0
+  sizeEnd 0
+  sizeStart_y 0
+  sizeEnd_y 0
+  frameStart 0
+  frameEnd 0
+  birthrate 0
+  lifeExp 0
+  mass 0
+  spread 0
+  particleRot 0
+  velocity 0
+  randvel 0
+  fps 0
+  xsize 0
+  ysize 0
+  bounce_co 0
+  blurlength 10
+  lightningDelay 0
+  lightningRadius 0
+  lightningScale 0
+  p2p_bezier2 0
+  p2p_bezier3 0
+  combinetime 0
+  drag 0
+  grav 0
+  threshold 0
+endnode
+endmodelgeom n5_tcnt_05
+
+newanim impact n5_tcnt_05
+  length 0.25
+  transtime 0.25
+  animroot n5_tcnt_05
+node dummy n5_tcnt_05
+  parent NULL
+endnode
+doneanim impact n5_tcnt_05
+
+newanim duration n5_tcnt_05
+  length 1
+  transtime 0.25
+  animroot n5_tcnt_05
+node dummy n5_tcnt_05
+  parent NULL
+endnode
+doneanim duration n5_tcnt_05
+
+newanim cessation n5_tcnt_05
+  length 0.2
+  transtime 0.25
+  animroot n5_tcnt_05
+node dummy n5_tcnt_05
+  parent NULL
+endnode
+doneanim cessation n5_tcnt_05
+
+donemodel n5_tcnt_05

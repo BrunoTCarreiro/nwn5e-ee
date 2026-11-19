@@ -1,0 +1,19 @@
+# visualeffects.2da - #171's target window: the target-count marker (the owner, 2026-11-19: "a permanently visible
+# indicator on top of each enemy saying how many darts/bolts are assigned to them"; "A, A, as you said"). Count n is
+# row 2199 + n (data/anim_target_count.h kTargetCountFirstRow; the game's call, core/anim_target_counts.h
+# TargetCountMarkerVfx): a lasting effect on the head node, a bold white number with a dark outline on a 0.4 m
+# dark-red disc 0.55 m over the head - four discs facing out, upright (OrientWithObject 0: the client turns a head
+# effect to the world's axes), drawn at once, paused or not. nwn5e's own models and art (data\files\n5_tcnt_01..11,
+# made by tools/data/tcount/build.js). Rows 2200-2210: past the looks' 2100-2199 (tests/data/anim_vfx_rows_test.cpp).
+Label Type_FD OrientWithGround Imp_HeadCon_Node OrientWithObject
+2200 NWN5E_TARGET_COUNT_1 D 0 n5_tcnt_01 0
+2201 NWN5E_TARGET_COUNT_2 D 0 n5_tcnt_02 0
+2202 NWN5E_TARGET_COUNT_3 D 0 n5_tcnt_03 0
+2203 NWN5E_TARGET_COUNT_4 D 0 n5_tcnt_04 0
+2204 NWN5E_TARGET_COUNT_5 D 0 n5_tcnt_05 0
+2205 NWN5E_TARGET_COUNT_6 D 0 n5_tcnt_06 0
+2206 NWN5E_TARGET_COUNT_7 D 0 n5_tcnt_07 0
+2207 NWN5E_TARGET_COUNT_8 D 0 n5_tcnt_08 0
+2208 NWN5E_TARGET_COUNT_9 D 0 n5_tcnt_09 0
+2209 NWN5E_TARGET_COUNT_10 D 0 n5_tcnt_10 0
+2210 NWN5E_TARGET_COUNT_11 D 0 n5_tcnt_11 0

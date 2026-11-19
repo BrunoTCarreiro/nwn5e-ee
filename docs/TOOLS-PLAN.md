@@ -2579,3 +2579,127 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     - **the map lines** (above) carried in the material's TXI;
     - **the byte lists completed** (above), the MV-3 row's arithmetic (Repeat around 3: one repeat - a third of the ring -
       in 100 s at 0.01, a full turn in 300 s) and the TMO-2 note (its Opacity 0.35 the diagnosis's inference).
+
+## nwn5e's area copies drawn as on a creature; a lone copy fades in once (2026-11-19, #39; AH - game-side)
+
+  SHP-4: `!vfxarea n5_zotruth 0.6 1 0` showed the red-tinted dome **untinted** and **blinking** (fading in over and over),
+  where the bench's Play in game of the byte-identical model was right. The AR diagnosis (the coordinator's tmp
+  `AR-diag-report.md`) found both in the client's area code; the owner's checks confirmed them (`graphics.hilite.enabled
+  = false`: the dome red; two copies: no blink). The owner, 2026-11-19: "go on the area fix", to the recommendation "one
+  change in nwn5e's own area hook, for our models only (the game's own areas untouched): switch the white highlight off
+  on each area copy, so tints and Glow draw as on a creature, in both lighting modes; give a lone copy its own
+  start-and-loop sequence in place, so it fades in once and stays". In core/anim_area_scatter (VA-5's LoadEffect hook);
+  game-side, so it needs an install.
+  - *The engine evidence* (win64 nwmain.exe read at the hook's anchors, named from the Linux build's symbols):
+    - **the highlight.** `CNWCAreaOfEffectObject::LoadEffect` (rva 0x97f770) calls `CNWCAnimBase::Hilite(Vector(1, 1,
+      1), slot 3, glow 0)` (rva 0x965cf0) on every copy it loads - three call sites, one per group, and the area code's
+      only Hilite calls. Hilite sets the slot's on flag (+0x9c + 4 x slot) to the global bound to
+      `graphics.hilite.enabled`; `RefreshHilite` then sets the model's illumination to the lowest slot on: emission =
+      selfillum + (1, 1, 1) - clamped to white without enhanced lighting (the tint lost), x (2, 1.067, 1.067) with it (the
+      BR "brighter"). Creature plays are never hilited. `CNWCAnimBase::UnHilite(slot)` (rva 0x968590 - the Linux
+      0x9cb550's bytes: a model, slot < 5, the flag cleared, the same RefreshHilite) leaves no slot on: illumination (0,
+      0, 0), colour shifting (1, 1, 1) - the creature play's state;
+    - **the lone copy.** The loader gives group 1's copy k a start of k x 300 ms, so copy 0's is 0, which the update
+      (`UpdateInstancePosition`) skips as nothing pending: with group 1 of one, that copy is never placed and never gets
+      `SetAnimation` (VA-5 places it when group 1 has several). A placed copy gets: `SetInstanceRandomPosition`,
+      `AttachToScene` the first time, `SetAnimation(1, i)` (rva 0x981420: state 1, its timer the impact's length - at
+      least 1 ms - and the impact played once, flags 1), `ResetTimer` (alive = the row's lifetime), start 0, and the
+      row's one-shot sound at its spot by chance (SoundOneShot, SoundOneShotPercentage); `AttachToScene` also sets the
+      copy's attached flag (+0x1c0), which `SetScene` uses to attach it again. `AIUpdate` starts the duration, looped,
+      when the timer runs out (inlined on win64: state 2, the copy's own SetAnimation(2), flags 0); a lifetime above 0
+      ends in the cessation and `SetMoveTimer`'s start of 1 - re-placed at random in the radius.
+  - *Calls:*
+    - **ours: a copy whose model's name starts "n5"** (any case; the copy's own CResRef at +0x30, read whatever the row):
+      nwn5e names every model it ships or plays so (n5_, n5v_, n5t_, the bench's n5vx / n5va plays), and none of the
+      game's 113,538 resources (both keys and ovr\) starts so. Not "our rows": rows 100-116 show the game's Entangle,
+      fogs and flask models, made for the highlight (Blade Barrier's swords are full-bright only through it), and the
+      bench's rows may name the game's models too;
+    - **the highlight off**: after the original LoadEffect (it returned 1), for each loaded copy of ours whose slot 3 is
+      on, `UnHilite(3)`. With `graphics.hilite.enabled` off the loader set nothing and the hook calls nothing;
+    - **a lone copy started in place**: group 1 of one, copy 0 at start 0, not alive, state 0, its model ours -
+      `SetAnimation(1, 0)`, the call the update makes for a placed copy; its lifetime left 0 (what `ResetTimer` gives a
+      lifetime-0 row, and the only one that stays where it stands), so it fades in once and holds its duration until
+      the area ends (its cessation then, from `StopEffect`, as before). It gets neither the one-shot sound nor the
+      attached flag, as before: it is the object's own animation base, attached by the object's `AttachToScene`, and
+      never was placed. Done before the client's `SetScene` attaches the
+      copy: `Gob::PlayAnimation` only adds a run to the model's list, which attaching (`Gob::SetScene`: the scene's lists,
+      an "UpdateScenes" event) leaves alone, and the first frame both animates it and counts the area's timer down;
+    - **nothing re-highlights them**: the hover's highlight (`UpdateMouseCursorAppearance`) is slot 1 on copy 0, drawn
+      over it while the pointer is there and cleared alone; `RefreshHilite`'s other callers only read the slots; the
+      `graphics.hilite.*` callbacks only set globals; a re-placed copy gets no Hilite. Only a self-illumination or alpha
+      visual effect put on the area object itself would set copy 0's slot 3 again - nwn5e's areas never get one;
+    - **guards**: every function is found by its bytes before the hook installs - Hilite and UnHilite (entries, the same
+      RefreshHilite), LoadEffect's direct calls to Hilite (exactly three, each slot 3 and glow 0), the copies' array
+      (0x118 each, at +0x78) and total (+0x1a0) in LoadEffect, a copy's model (+0xc8) and name (+0x30) in its LoadModel
+      (`CNWCAnimBaseVisualEffect`'s vtable by RTTI, slot 3), SetAnimation (state +0x1d0, timer +0x180) and the update's
+      impact call landing on it; any missing: "SKIP area copies", VA-5 alone. Every offset and value the hook reads
+      memory or calls with (13, VA-5's three included) is one of those patterns' bytes at a fixed place
+      (`kOffsetAnchors`, fix round 1): the tests check each, the hook again at install (else nothing hooked), so a
+      pattern found in the game proves its offset. At each load: counts as the loader lays them out (1-255 in all, group
+      1's 0..all), every copy of that class - else logged once and the area left alone. The offsets and patterns live in
+      `data/anim_area_engine.h` (VA-5's moved there too, unchanged).
+  - *Tests* (test.bat 630 -> 636; fix round 1 -> 640): `AreaOwnModels`, `AreaGameModelsNotOurs`, `AreaLoneCopyStarted`,
+    `AreaLoneCopyOtherwiseLeft`, `AreaCopiesLayoutGuard`, and `AreaEnginePatternsInTheGame`: every pattern the hook
+    checks, in the game's own nwmain.exe, as the hook checks it (unique, in the right function, the call targets lining
+    up; skipped without the game - NWN_GAME_DIR or Steam's folder). Mutation check: 27 deliberate breaks - 13 of the
+    rules, 14 of the anchors (an offset, a slot, a call position, the class, VA-5's step) - each failed a test.
+  - *Built:* anim branch `ah-area` (src/core/anim_area_scatter.{h,cpp}, src/data/anim_area_copies.{h,cpp},
+    src/data/anim_area_engine.h, tests/data/anim_area_copies_test.cpp); the DLL builds. Rows AH-1 (the dome red, fading in
+    once, steady - one and two copies, day and night, enhanced lighting on and off) and AH-2 (the game's own areas as
+    before).
+  - *Limits:* unseen in game until AH-1. A lone copy of ours with a lifetime keeps its duration for good (never
+    re-placed or replayed), as the game keeps a lone copy at the centre. At Glow below 1 our area copies are now lit by
+    the area, as on a creature, not full-bright. Emitters weren't checked (the AR diagnosis: not drawn by
+    `PartTriMesh::Mat`). The lone copy's impact timer counts down from the first AIUpdate after LoadEffect, so its
+    first countdown includes the area's load time (the review's M3; a placed copy's starts at its placement) - on a slow
+    load the duration may start before the impact has played out, the fade-in then ending in a step to its end value.
+  - *Fix round 1* (the review, 2026-11-19: Needs fixes):
+    - **the offsets tied to their patterns** (Important): the named constants were kept equal to the patterns' bytes
+      only by hand - the reviewer changed each of 9 and the suite stayed green, so after a game patch a pattern updated
+      without its constant would have the hook read a wrong pointer and crash the client. Now `kOffsetAnchors` names, for
+      each of the 13 constants the hook reads memory or calls with (`kCopies`, `kCopyStride`, `kGroup1Count`,
+      `kTotalCount`, `kCopyAlive`, `kCopyStart`, `kCopyState`, `kCopyTimer`, `kCopyModelName`, `kCopyModel`,
+      `kCopyHiliteOn`, `kAreaHiliteSlot`, `kAreaImpact`), the pattern carrying it and the byte where its displacement
+      or immediate starts; `data::OffsetAnchored` checks the little-endian bytes there (`AreaOffsetsTiedToTheirPatterns`,
+      `AreaOffsetAnchoredRule`), and `InstallAreaScatter` checks them all again before anything else. Each of the 13
+      constant mutants now fails;
+    - **the Hilite calls checked as the hook checks them** (M1): one shared function, `data::AreaHiliteCallsAsLoaded`
+      (every direct call to Hilite in LoadEffect: exactly three, each ending kHiliteSlot3CallPattern - glow 0, slot 3),
+      used by the hook (FindCallsTo's sites) and by the game test (its own E8 scan of LoadEffect); the pattern parser the
+      tests used is `data::BytePattern` / `BytesMatch` now (`AreaBytePatterns`, `AreaHiliteCallsChecked`);
+    - **the placed copy's sound and flag** (M6): above. test.bat 636 -> 640; 49 mutants (19 of the rules, 30 of the
+      anchors and constants), all caught.
+
+## The target-count marker (2026-11-19, #171; TC)
+
+  #171's target window, the game session's (B): the owner, 2026-11-19: "it should be a permanently visible indicator on
+  top of each enemy saying how many darts/bolts are assigned to them, not how many are left"; look, glow and size "A, A,
+  as you said" - a bold white number with a dark outline on a small dark-red disc, about 0.4 m, 0.35 m clear above the
+  head; the red glow (VFX_DUR_GLOW_LIGHT_RED, n5tw_mark) stays the "picked" mark. Then (the coordinator, same day) a hard
+  requirement: it must show **while paused** - the owner picks targets paused and the whole window runs paused.
+  - **The contract:** `int TargetCountMarkerVfx(int count)` (src/core/anim_target_counts.h, one inline line over
+    data::TargetCountRow): the visualeffects row for 1..11, -1 otherwise. The game session applies it as a temporary
+    duration effect tagged n5tw_count, swaps it as the count changes and removes it on OK / Cancel.
+  - **Rows** 2200-2210 (data/rows/visualeffects.tcount.txt; data::kTargetCountFirstRow, one source of truth - a test
+    reads the file): type D, the model on the head (Imp_HeadCon_Node), OrientWithObject 0. Past the looks' 2100-2199 and
+    the Detects' 2092-2099. New clash check, tests/data/anim_vfx_rows_test.cpp: no visualeffects row in two files (rows
+    and shipped looks), no rows file in the looks' range.
+  - **Paused (the TC diagnosis, the engine read):** pausing disables the scene's animation, and an emitter is ticked -
+    so its particles born - only while the scene animates (or its Gob is force-animated: the walk-to ring alone); an
+    emitter with no particle isn't drawn. A camera-facing sprite applied while paused would appear only on unpause. A
+    mesh is drawn as soon as the client attaches the effect, which happens the moment the message arrives, paused or
+    not; removing the effect detaches it at once. (The stealth and death-save markers, Single sprites, have the same
+    paused gap - not changed here.)
+  - **So the marker is geometry:** four one-sided discs facing out round the head (0.4 m, 0.2 m from its axis, centre
+    0.55 m over the head node). The game culls a back face, so a disc is only seen from the side it faces - never
+    mirrored; the head attach is position only, turned to the world's axes - upright, never upside down; one disc faces
+    the camera within 45 degrees, two at 45 degrees show the number twice at 71% width. Drawn unlit (`decal 1`). No keys
+    (a key waits for the clock). One inert emitter lists each model in the VFX Bench (its library takes models with an
+    emitter); it never makes a particle.
+  - **Art:** tools/data/tcount/build.js draws the 11 textures from its own digit shapes (lines and arcs, stroked; no font)
+    and writes the models; outputs committed in data/files (own, deterministic art, as the death-save marker's;
+    build_derived.js is for art made from the game's files). check.js: 11 distinct textures, clear outside the disc, an
+    outline round every white pixel, a white shape per digit, the same bytes twice, data/files in step (README there).
+  - Tests: 6 in test.bat (the mapping and bounds, the names, the rows file, the four discs as the bench reads them and
+    their draft round trip, the clash check), 6 mutations caught; check.js's 8 mutations caught. Rows TC-1 (in game,
+    paused) and TC-2 (the VFX Bench) with the game session's wiring.
