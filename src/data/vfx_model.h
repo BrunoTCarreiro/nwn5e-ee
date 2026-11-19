@@ -30,6 +30,15 @@ struct VfxKeys {
   // vdr_bigby_int keys its hand's (a plain mesh: controller 36, one column; the model's scalekey). Only a plane's is written
   // into the model.
   std::vector<float> scale;
+  // KF (#39; the owner, 2026-11-18, TMO-4: "in the bench the blue flame in the middle doesn't stop" - "keep a game
+  // effect's own keys" - "yeah"), an emitter's: its birthrate (t r), alphaStart (t a) and alphaEnd (t a) as the game's own
+  // effect models key them (controllers 88, 84 and 80; the ASCII model's birthratekey, alphaStartkey, alphaEndkey) - of
+  // the game's 1,090 keyed effect emitters 878 key nothing else but a move or a turn. Each list as read: a value the
+  // animation sets (a single row at the geometry's value too - the game's controllers hold their value into the next
+  // animation). Only an emitter's are written into the model.
+  std::vector<float> birthrate;
+  std::vector<float> alpha_start;
+  std::vector<float> alpha_end;
 };
 
 // #145: a light of the effect (a light node of its model): where it hangs, its colour, radius (metres) and
@@ -211,6 +220,15 @@ constexpr int kVfxTransparencyHintMax = 5;
 // doesn't set it off again.
 constexpr float kVfxBurstWindow = 0.05f;
 
+// nwn5e's mark on a model it wrote itself (KF fix round 1): the start of a comment line before its newmodel - the model
+// writer's "# nwn5e VFX editor (!vfxedit): <name>" (WriteVfxModel), the generators' "# nwn5e (tools/data/<script>.py):
+// ...", the Short Rest's "# nwn5e: ...". The ASCII reader reads such a model with none of a game effect's own keys (KF).
+constexpr char kVfxModelMark[] = "# nwn5e";
+
+// The longest transtime a reader keeps (KF): the game's own effects use 0, 0.15 and 0.25; one not a number, below 0 or
+// past this is not known (-1), as an animation's length past 60 s isn't read.
+constexpr float kVfxTranstimeMax = 60.0f;
+
 struct VfxEffect {
   std::string name = "n5_new";
   bool duration = true;         // D: stays while applied; F: plays once
@@ -219,6 +237,11 @@ struct VfxEffect {
   // The animations' lengths: impact (0: as long as its emitters need), duration (loops while
   // applied), cessation (as it's removed). 0.42.3.
   float lengths[3] = {0.0f, 2.0f, 1.0f};
+  // KF (#39, TT's review: a re-saved game effect wrote transtime 0 where the game's own is 0.25): each animation's
+  // transtime (impact, duration, cessation) as the model read has it - how long the game blends into it from the pose
+  // before (the compiled animation header's f32 at +0x74, an ASCII model's "transtime" line); -1: not known (a draft of
+  // nwn5e's, written by the model writer's own rule). kVfxTranstimeMax at most, as every reader keeps it.
+  float transtime[3] = {-1.0f, -1.0f, -1.0f};
   // 0.44.0: the camera shake (visualeffects.2da ShakeType / ShakeDelay / ShakeDuration - the
   // effect's row, not its model): 0 none; 1 a bump (up 25 cm and back in 0.1 s, after the
   // delay); 2 a shake (bobbing 10 cm, 7 times a second, after the delay for the duration).
@@ -243,7 +266,11 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
 
 // An ASCII effect model's emitters: its geometry's emitter nodes, plus what
 // its animations key (an impact birthrate that switches off gives
-// emit_seconds; a size keyed from 0 gives the size it reaches).
+// emit_seconds; a size keyed from 0 gives the size it reaches). KF: and the
+// game effect's own keys - its emitters' birthrate / alphaStart / alphaEnd
+// lists, its planes' move, turn, alpha and scale - and its animations'
+// transtimes, as the compiled reader keeps them; none of them from a model
+// nwn5e wrote itself (kVfxModelMark: read as before KF - fix round 1).
 bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* error);
 
 // A compiled (binary) model's emitters - the game's own effects, read where
@@ -257,7 +284,10 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
 // animated, skin or dangly mesh into a static one - or, `any_mesh` (a chunk model,
 // only drawn by the VFX Bench; the owner, 2026-11-16: "in VFX_DUR_PDK_FEAR don't even
 // show the mesh"), those too, as their own vertices (the rest / bind pose); never a
-// walkmesh (0x200).
+// walkmesh (0x200). KF: each animation's transtime (its header's +0x74), an
+// emitter's own birthrate / alphaStart / alphaEnd keys (88 / 84 / 80) and a
+// plane's move, turn, alpha and scale keys (8 / 20 / 128 / 36); the animations
+// the model header's own list of them (+0x78, count +0x7C - fix round 1).
 bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string* error, bool any_mesh = false);
 
 // A name usable as a resref and file name: letters, digits, '_', lower case,

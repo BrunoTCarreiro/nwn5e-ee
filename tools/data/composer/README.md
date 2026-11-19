@@ -77,8 +77,17 @@ A part's `shape` is a shape the generator makes instead of a model - a dome (a h
 { "note": "zone", "shape": { "type": "dome", "radius": 4.57, "alpha": 0.1, "blend": "additive" }, "at": [0, 0, 0] }
 ```
 
+A cylinder's `top` (TR; the owner, 2026-11-18) is the radius of its top ring - its radius by default, a cylinder as
+before, byte for byte. Wider flares it out, a truncated cone upside down; narrower leans it in. Elemental Shield's ring
+of flames (the game's `vdr_eleshield`: 1 m on the ground, 1.17 m at 0.6 m, `fxpa_flame02` three times round, additive):
+
+```json
+{ "note": "flames", "shape": { "type": "cylinder", "radius": 1, "height": 0.6, "top": 1.17, "repeat_around": 3, "alpha": 1, "texture": "fxpa_flame02" }, "at": [0, 0, 0] }
+```
+
 - It has no `scale` (its radius and height size it), no `colours` and no `tint` (its colour is on the shape).
-- Only what differs from the defaults is written; under `above` the repeats aren't written either.
+- Only what differs from the defaults is written; under `above` the repeats aren't written either. A default that
+  follows the radius (a `height`, a ring's `inner`, a cylinder's `top`) isn't written, so it follows the radius.
 - A shape's soft texture is generated from numbers (original, nothing of the game's): it's named `n5s_` and 12 hex
   digits of its colour and blend (`n5s_8c757fb28f99` for the default colour, `n5s_617b220c1144` for it Additive), so
   shapes of one colour and blend share it; an Additive one has its `n5s_<...>.txi` beside it wherever it's written

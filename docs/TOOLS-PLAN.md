@@ -2175,3 +2175,163 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     | ID | Setup | Do | Expect |
     |---|---|---|---|
     | TMO-5 | VFX Bench restarted; the game started (`!test level1ranger`); the Composer: `tmoglyph` (or New project `tmoglyph`, Spell mesh, Diameter (m) 2, Shapes, Dome (half sphere), Mapping From above, Texture From the library... `fxpa_symbl_003`, Colour orange, Turn (°/s) 30, Breathe 0.2); a second dome 2.5 m along x, Mapping From above, `fxpa_symbl_003`, Scroll up 0.25 | View: Top; watch both domes while the glyph shrinks; Play in game, watch from above and the side, at the first dome's bottom edge; Save and build; read the status; quit, search the logs | the turning glyph's dome edge stays clear while it shrinks (no part of the next glyph at the bottom edge), on the stage and in game; still orange, turning, faint, see-through; the scrolling dome still repeats (the next glyph slides in). The edge showing the next glyph in game only: the game ignores the TXI's clamp on a mesh - say so (the fallback: a breath that only grows) |
+
+## The Cylinder's Top radius: a truncated cone either way up (2026-11-18, #39; TR)
+
+  The owner, 2026-11-18, on Elemental Shield's ring of flames: "how is that angled ring of flames made? it looks like a
+  flame texture on a truncated upside down cone" - offered a Top radius on the Cylinder, which makes it a truncated cone
+  either way up: "yes". The game's `vdr_eleshield` Cylinder02: two rings of 40 points, 1.00 m at z 0.012 and 1.17 m at
+  z 0.605, open both ends, `fxpa_flame02` (additive, a 4 x 4 flipbook at 32 by its TXI) three times round. No src or tests
+  change; no DLL change, no install.
+  - *Calls:*
+    - floatdisk.js: `top` joins SHAPE_KEYS after `inner` (the order it's written in) and the Cylinder's card after Radius
+      (SHAPE_FIELDS.cylinder: radius, top, height, segments, sides); SHAPE_INFO.top "Top radius (m)", 0.01-100, step
+      0.05, titled "The radius at its top: the same as Radius is a cylinder; wider flares out (a lampshade upside down),
+      narrower leans in". No other type takes one (refused, naming its own keys);
+    - its default is the Radius (shapeDefaults), never written: **a Top left at its default follows the Radius**, as a
+      Height does (a Top typed equal to the Radius isn't kept, and follows it from then on);
+    - the mesh: the cylinder's profile runs from (radius, 0) to (top, height) - both sides, the inside first, the
+      groups, the seams, Wrapped round it and up it, the repeats, motion, tint and blend as before. From above spans
+      the wider of its two rings (every UV within 0..1), and so does its box (shapeModel's lo / hi);
+    - **at Top = Radius the cylinder before it, byte for byte**: its model, a placeable's .mdl text, a spell mesh's
+      draft, its placed meshes, its written shape and its soft texture name - seven cylinders compared with anim c7c650b's
+      (Top given or not; the probe in the coordinator's tmp), and five of their models pinned in the floatdisk check;
+    - the page needed no change for the card (S5's promise holds: the Cylinder's box shows Top radius from SHAPE_FIELDS
+      and SHAPE_INFO, refuses it out of bounds, one undo step). Two small page changes: composer.js keeps every metres
+      field to the millimetre - those SHAPE_INFO labels "(m)", where it had a list of three - and the Composer hook's
+      `drawn.rings` (each stage mesh's heights and its reach from its middle at each) for the checks.
+  - *Built:* nwn5e-tools d0d70ef on branch `tr-top-tools` (composer.js, composer_page.js's hook, README;
+    check_composer, composer_check.mjs); anim: the commit carrying this section, on branch `tr-top` (floatdisk.js, its
+    check, the floatdisk and composer READMEs). Both in worktrees of their own; the coordinator lands them.
+  - *Checks* (before -> after; each new check seen failing first):
+    - anim: floatdisk check 104 -> 110 (+6: the field and its default, byte for byte at Top = Radius, the flared mesh -
+      two rings of 37 at 1 and 1.17, faces out outside and in inside by face and by signed volume, its leaning-in twin -
+      From above from the wider ring, the repeats, the page's floatdisk.js; S5's "other shapes" check amended for the new
+      key, field and default); a mutation check (13 breaks of the code, in a temporary copy): every one fails a TR check. composer check
+      24, floatdisk check_build 13, composer check_build 30, check_derived 18 - unchanged, all pass;
+    - nwn5e-tools: check_composer 46 -> 47 (TR: clean keeps Top to the millimetre, a Top at the Radius not written, a
+      flared cylinder placed 2.34 m across; its round trip's one failure is the CRLF checkout's, before and after - 48,
+      all pass, with an LF composition.json), composer_check.mjs 100 -> 101, all passed (cylinderTopRadius: the
+      Cylinder's card shows Top radius after Radius at the Radius; Radius 1, Height 0.6, then Top 1.17 typed - the stage's
+      mesh two rings, 1 m on the ground and 1.17 m at 0.6 m; one undo step; 0.005 refused; otherShapes' Cylinder card
+      with its Top radius) - seen failing on the page without the hook, and on anim c7c650b's floatdisk.js;
+      browser_check.mjs 112, all passed; check_composer_server 54 (its checkoutDefault wants an nwn5e-ee-anim beside the
+      worktree: none there).
+  - *Limits:* the game's ring has 40 segments and starts its u at -0.083, so its flames sit at other angles than a
+    32-segment Cylinder's (Smoothness 40 matches the count). A library texture is tinted by the shape's Colour - white
+    shows `fxpa_flame02` as it is (the default `#99ccff` would make it pale blue).
+  - *For the bench:* restart vfx_bench.bat. *For the game:* nothing installed - Play in game writes the mesh into the
+    request's draft; `fxpa_flame02` is the game's.
+  - Test row SHP-8 (the coordinator's tmp `shp8_row.csv`, for docs/tests.csv): the flame ring in the Composer and in
+    game.
+
+## A game effect's own keys and transtimes (2026-11-18, #39; KF - game-side)
+
+  The owner, 2026-11-18, TMO-4: "in the bench the blue flame in the middle doesn't stop and pressing Play in game doesn't
+  show the angled flame ring at the bottom in-game. it shows via !vfx" - the bench's copy of `vdr_eleshield` had its ring
+  Cylinder02 at alpha 0 (its fade-in keys dropped) and Flame01 emitting for ever (its birthrate keys unread) - offered
+  "keep a game effect's own keys": **"yeah"**. And TT's review: a re-saved game effect wrote transtime 0 where the game's
+  own is 0.25 (vff_piranha, vff_revivedrag...). Shared files, announced: src/data/vfx_model.h, src/data/vfx_model.cpp,
+  tests/data/vfx_model_test.cpp; no draft or model of nwn5e's changes.
+  - *Measured* (values only, over the game's 3,714 effect models - 2,887 compiled, 827 ASCII - their impact, duration and
+    cessation; a list counts when it has 2+ rows or a row off the geometry's value):
+    - meshes: 660 keyed - alpha 543, turn 302, move 203, scale 1: all four what M4's writer writes;
+    - emitters: 1,090 keyed - birthrate 861, move 239, alphaStart 239, alphaEnd 227, sizeEnd 83, sizeStart 75, velocity
+      48, turn 33, xsize / ysize / randvel 32, lifeExp 31, mass 29, particleRot 19, colorStart / grav 12, colorEnd /
+      spread 11, drag 9, fps 8, frameStart / frameEnd / bounce_co 7, the lightning, point-to-point and combinetime ones
+      5-7. **Kept: birthrate, alphaStart, alphaEnd** - with the move and turn kept since 0.42.3 they cover 878 of the
+      1,090 wholly (80.6%; the library's 390: 690 of 852, 81.0%) and touch 1,040; birthrate alone 60.5%; sizeStart /
+      sizeEnd would add 5.3%. The rest stay dropped;
+    - transtimes: impacts 0.25 (296), 0 (85), 0.15 (2); durations 0.25 (96), 0 (20); cessations 0.25 (93), 0 (24);
+    - `vdr_eleshield`: Flame01 keys its birthrate 100 -> 0 in the impact (100 to 0.567 s, 0 at 0.6 s, none after) and its
+      alphaStart (0.6 -> 0 by 0.967 s; 0 in the duration), and its velocity and randvel (2 -> -0.2, 0.4 -> 0 at 0.533 s:
+      dropped); Ring01 / Ring02 their birthrate (50; 50 -> 0 in the cessation); Cylinder02 (alpha 0) its alpha (0 -> 1
+      by 0.3 s, 1, 1 -> 0 by 0.333 s); every transtime 0.25.
+  - *Calls:*
+    - `VfxKeys.birthrate`, `alpha_start`, `alpha_end`: rows t v, an emitter's (controllers 88, 84, 80; the ASCII model's
+      `birthratekey`, `alphaStartkey`, `alphaEndkey`) - each list as read, a single row at the geometry's value too (a
+      value the animation sets: the game's controller holds it into the next animation);
+    - `VfxEffect.transtime[3]`: impact, duration, cessation, -1 not known; every reader's rule (TranstimeValue): 0 to
+      `kVfxTranstimeMax` (60), else -1; -0 is 0;
+    - the compiled reader: an animation's transtime at its header's +0x74; each animation's copy of an emitter keeps its
+      88 / 84 / 80 lists, of a plain mesh (a plane) its 128 (alpha) and 36 (scale) lists and its move and turn as a node's
+      (a single row at its geometry's place is no motion); a mesh that is a node too keeps its move and turn for both;
+    - the ASCII reader: `transtime` in an animation; a trimesh's `alphakey` / `scalekey`, an emitter's three lists (a
+      count or an endlist, any case) into the same keys; a plane takes its node's keys (a mesh that's also a node keeps
+      its fade and scale on the plane alone);
+    - the draft: `<anim>_transtime = T` right after `lengths = ` and `<anim>_birthrate` / `_alpha_start` / `_alpha_end`
+      after the other key lines (any section), each only when there - nwn5e's own drafts keep their bytes;
+    - WriteVfxModel: an emitter with its own birthrate list in the impact, the duration or the cessation (OwnEmission)
+      gets, in each animation, its own list there and only it - none where it has none (the game holds the value:
+      Flame01 stays off) - in place of nwn5e's emission keys (VA-2's restore, an emit time's, a start's, a one-shot's, the
+      cessation's off), and its geometry keeps its rate; its `alphaStartkey` / `alphaEndkey` after its move and turn keys.
+      LastKeyTime counts the three. **The transtime rule: a kept transtime is written as it is; none kept, TT's rule** -
+      with one exception: an impact with a **mesh beat** (a plane the bench placed: its `mesh` named) whose first key there
+      is off its rest is written 0, so a Drop in on a game effect's mesh beat falls from its height instead of rising from
+      its rest for 0.25 s (MBK-1 again). Argued: the game's own planes never have a mesh, so no game effect as read
+      changes (an override for any plane would have changed 7 of the library's effects - a plane of theirs off its rest
+      at the impact's first key, the game blending it 0.25 s); limit: a Drop in on a game effect's node or emitter keeps
+      the game's transtime (0.25: it rises from its rest first).
+  - *What changes* (hashes only, HEAD 5109810's vfx_model.* against KF's):
+    - every draft nwn5e keeps writes the same draft and model - 564: the 4 fixtures, Detect Magic's 4, the main
+      checkout's build\vfxedit (library game 437, nwn5e 18, chunks 40, saved 30, the bench's request) and the anim
+      helper's cache (30); Detect Magic's committed models (data/files) are the same bytes (VfxKeptDraftsUnchanged);
+    - every game model the bench reads, with KF's keys and transtimes taken out, writes what HEAD wrote (23,766 compiled,
+      25,108 with any_mesh, 6,576 ASCII; the same ones fail to read on both sides). With them, 459 compiled and 51 ASCII
+      models write another draft (412 and 48 another model). Of the library's 390 effects 255 drafts and 225 models
+      change: 215 gain emitter keys (205 their own emission), 22 plane keys, 255 transtimes; 66 write another transtime
+      line than TT's rule did (83 lines);
+    - 2 of the library's effects have an emitter with its own emission and no cessation keys still on at the cessation:
+      it emits there, as in the game.
+  - *Checks:* test.bat 621 -> 628 (7 new, 6 failing first with the fields alone; the guard passing); 48 deliberate breaks
+    on scratch copies against the VFX tests alone - 47 fail a test, the 48th (TranstimeValue without its isfinite) is
+    equivalent (the range test refuses nan and inf already). nwn5e-tools: check.js --helper with a helper built from
+    this worktree, 416 effects byte for byte (290 failures with the old core.js); check_effect.js's 12 KF checks and
+    browser_check.mjs's eleshieldPlaysItsOwnKeys, both failing on the old sim / page; the trait's stand-ins.
+  - *Library format 20* (nwn5e-tools dev/vfx_library_format.h): 20 when the core's `data::VfxEffect` has `transtime`
+    and its `data::VfxKeys` (an emitter's keys) `birthrate` and the 19 rule holds; else the 19 / 18 / 17 / 16 rule. The
+    install with KF exports the library once more at the game's next start.
+  - *Limits:* a game effect's velocity, randvel, size, colour, life, mass and the other emitter keys are still dropped
+    (Flame01's pull back after 0.53 s isn't kept); Rate / Opacity typed scale an emitter's own keys, but Starts after and
+    On for don't change an emitter that has them (the bench's note says so); a transtime only from a model read - a
+    draft of nwn5e's has none.
+  - Test row KF-1 (the coordinator's tmp `kf_row.csv`, for docs/tests.csv): VFX_DUR_ELEMENTAL_SHIELD from the library,
+    on the stage and in game.
+  - *Fix round 1* (the review, 2026-11-19: "Needs fixes"):
+    - **nwn5e's own models read as before KF.** At format 20 the library's nwn5e drafts (ExportNwn5eModels, and the
+      in-game editor's LoadEntry, read served `n5_*.mdl` with ReadVfxAsciiModel) would have kept their own generated
+      emission keys (VA-2's restore, an emit time's, the cessation's off) and transtimes as "the game's": an On for on
+      Detect Magic dropped, a Drop in on n5_ds_00's emitter blending 0.25 s from its rest. The rule: a model with
+      nwn5e's mark - `kVfxModelMark`, "# nwn5e", at the start of a comment line before its newmodel; the writer's line is
+      built from it ("# nwn5e VFX editor (!vfxedit): <name>") - keeps no transtime, no emitter's own list and no plane
+      key. The mark and not the writer's line alone: 14 of the 18 library nwn5e drafts are the generators' (death-save
+      and stealth markers, bleed: "# nwn5e (tools/data/<script>.py)"; the Short Rest's copy "# nwn5e: ..."), n5_ds_00
+      among them. Proved on the real served models: all 18 write HEAD's drafts and models again.
+    - **The animations are the model header's list** (+0x78, count +0x7C; anim_recipe.cpp's ReadAnimClip's), not the
+      first "\0impact\0" with a length in (0, 60): 81 compiled models (creatures and placeables - c_air, a_gnome, the
+      golems...; none in the library) had a node named impact taken for one, with a garbage transtime; vim_ballfire's and
+      vps_bugs' 0 s animations were missed - now read (their transtimes, their keys; a 0 s length isn't taken as one). The
+      one-shot's seconds the listed impact's. Stripped of KF's keys, every game model writes HEAD's bytes but those 81
+      (their lengths no longer garbage); 479 compiled models now write another draft (420 another model), 398 carry a
+      transtime (no garbage ones).
+    - The library's numbers again: 255 drafts and 225 models of its 390 effects change; **204** gain their own emission
+      (205 counted an ASCII emitter keyed outside the three animations); 84 transtime lines differ from TT's rule, in 66.
+      **31 of its 40 chunk drafts change** at format 20 (their transtimes; 27 their planes' keys) - nothing visible: the
+      stage draws chunks at rest.
+    - The bench (nwn5e-tools): Rate / Opacity typed 0 take an emitter's own keys to 0 (silent, in game too); the keys
+      follow from what they were when the edit began (a value typed through 0 comes back); from keys all at 0 a value
+      above 0 is refused, the status saying how to get them back (Ctrl+Z, or the drop below) - M5's pattern for a tint
+      back from 0. A keyed emitter's timeline bar is its keys' span (sim.js emissionSpans), locked, titled;
+      **Use this card's timing** on its card drops its own keys (Starts after / On for taking their first span) so the card
+      times it - one undo step.
+    - Checks: test.bat 628 -> 630 (2 new, both failing first; the three older synthetic compiled models given the
+      model header's list, as the game lays it out); 11 deliberate breaks of the fix - 10 fail a test, the 11th (the mesh
+      fade gate) is equivalent (a plane takes no keys from such a model, a node's fade is cleared).
+  - *Fix round 2* (the scoped re-review, 2026-11-19; nwn5e-tools only, no src change): the timeline's rows had become
+    seconds a redraw on big game effects (vff_hellball 4.4 s) - the spans sampled every 120th of a second, each sample
+    scanning every item's keys. sim.js emissionSpans now works them out from the key rows as the stage plays them (rows
+    out of time order too: vdr_irongreen's OmenEmitter05 has two of its model's lists under one name, read as one - what the
+    game does with two isn't traced), each emitter once a redraw: vff_hellball 10 ms (2 ms as the page asks), none of the
+    library's 437 over 16 ms (88 before); the spans of the helper's 732 own-emission emitters match the stage frame by
+    frame. Use this card's timing keeps first start to last end and serves opacity-only keyed emitters too (140 in 38
+    library effects); after Rate 0 the refusal names only Ctrl+Z and the Game tab, and the drop is off on keys all at 0.
