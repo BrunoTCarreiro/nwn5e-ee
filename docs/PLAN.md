@@ -1991,6 +1991,11 @@ monster AC by CR.
           and played once it ran. Picking paused is the usual way, so the floating counts are out (ShowCounts,
           floaty_text.*, four en.txt lines). rules::CountsByTarget stays for the marker; an effect shows paused, as
           the red glow does. TW-9c Failed; the marker's row replaces it.
+        - *Built 0.99.94 (the marker):* the animation session's TC (anim 21fd98b: rows 2200-2210,
+          TargetCountMarkerVfx) merged and wired. rules::CountMarkerChangesFor takes off the markers of targets gone
+          or changed and puts on new or changed ones (7 of 7 mutations caught); Refresh syncs them (a temporary
+          effect tagged n5tw_count; past 11 the glow alone), Close takes them all off. A model without a head node
+          shows the glow only. test.bat 660 ok. Test TC-1 (the animation session's row).
     - Build 1a goes first without Scorching Ray: Acid Arrow, Shatter, Mind Spike, Shining Smite, Prayer of Healing.
     - Then #171 with Scorching Ray and Magic Missile, then build 1b.
   - *Built 0.99.80 (level 2's build 1a):*
@@ -2093,6 +2098,12 @@ monster AC by CR.
         takes over) out of the scripts counted, so a lamp with a module's own script stays Plot. Freed lamps are
         logged. nwn5e's light rules make lamps clickable, so a freed lamp can be hit with a weapon too. Test
         PlotDressingLampsBreakWithOnlyTheStockSwitch; 9 of 9 mutations caught; test.bat 642 ok. Test PD-5.
+      - *0.99.94 (owner, 2026-11-19, on 0.99.93: "can't break candelholders, benches or vases in this tiny room I'm
+        in"):* the room is m0q1c. Its candelabras were saved (2026-11-17) with nwn5e running: clickable, with
+        nwn5e's lamp scripts, so they were kept as "clickable, 4 scripts". On a light, nwn5e's own lamp scripts in
+        their slots no longer count (rules::DressingScriptCounts), nor the clickability n5_lamp_use brings
+        (rules::ClickableByNwn5e); the tile flames' stand-ins stay Plot. The room's benches and vases are part of
+        its tile models (tic01), not placeables: nothing to break. 9 of 9 mutations caught. Test PD-6.
 
 - **The 2024 Cleric (#42), with its spells (owner, 2026-11-09: "go with cleric").** SRD 5.2.1 pp. 36-40, the Life
   Domain its one subclass; CM9 in faithful (NWN's domains, spontaneous Cure / Inflict and 3e Turn Undead absent).
