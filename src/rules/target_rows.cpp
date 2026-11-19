@@ -88,4 +88,28 @@ std::vector<TargetCount> CountsByTarget(const TargetRows& rows) {
   return counts;
 }
 
+namespace {
+
+const TargetCount* FindCount(const std::vector<TargetCount>& counts, uint32_t id) {
+  for (const TargetCount& one : counts) {
+    if (one.id == id) return &one;
+  }
+  return nullptr;
+}
+
+}  // namespace
+
+CountMarkerChanges CountMarkerChangesFor(const std::vector<TargetCount>& shown, const std::vector<TargetCount>& now) {
+  CountMarkerChanges changes;
+  for (const TargetCount& old : shown) {
+    const TargetCount* still = FindCount(now, old.id);
+    if (!still || still->count != old.count) changes.remove.push_back(old.id);
+  }
+  for (const TargetCount& one : now) {
+    const TargetCount* was = FindCount(shown, one.id);
+    if (!was || was->count != one.count) changes.apply.push_back(one);
+  }
+  return changes;
+}
+
 }  // namespace rules

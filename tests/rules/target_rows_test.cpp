@@ -148,3 +148,28 @@ TEST(TargetRowsCountsByTarget) {
   TargetRows empty = MakeTargetRows(3, 0);
   CHECK_EQ(static_cast<int>(CountsByTarget(empty).size()), 0);
 }
+
+// 0.99.94 (#171's marker, the animation session's TargetCountMarkerVfx): the markers shown move to the counts now -
+// a target whose count changed or that left the rows loses its marker; a new or changed one gets its own.
+TEST(TargetRowsCountMarkerChanges) {
+  std::vector<TargetCount> shown = {{5, 2}, {6, 1}, {7, 1}};
+  std::vector<TargetCount> now = {{5, 2}, {6, 2}, {8, 1}};  // 5 the same, 6 changed, 7 gone, 8 new
+  CountMarkerChanges c = CountMarkerChangesFor(shown, now);
+  CHECK_EQ(static_cast<int>(c.remove.size()), 2);
+  CHECK_EQ(c.remove[0], 6u);
+  CHECK_EQ(c.remove[1], 7u);
+  CHECK_EQ(static_cast<int>(c.apply.size()), 2);
+  CHECK_EQ(c.apply[0].id, 6u);
+  CHECK_EQ(c.apply[0].count, 2);
+  CHECK_EQ(c.apply[1].id, 8u);
+  CHECK_EQ(c.apply[1].count, 1);
+
+  c = CountMarkerChangesFor(now, now);  // nothing changed: nothing to do
+  CHECK_EQ(static_cast<int>(c.remove.size() + c.apply.size()), 0);
+  c = CountMarkerChangesFor(now, {});  // the window closed: every marker goes
+  CHECK_EQ(static_cast<int>(c.remove.size()), 3);
+  CHECK_EQ(static_cast<int>(c.apply.size()), 0);
+  c = CountMarkerChangesFor({}, now);  // the first picks
+  CHECK_EQ(static_cast<int>(c.remove.size()), 0);
+  CHECK_EQ(static_cast<int>(c.apply.size()), 3);
+}

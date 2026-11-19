@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "action_guard.h"
+#include "anim_target_counts.h"
 #include "chat.h"
 #include "config.h"
 #include "creature.h"
@@ -61,6 +62,7 @@ struct Held {
   SpellOrder order;
   rules::TargetRows rows;
   std::vector<uint32_t> marked;  // the targets glowing
+  std::vector<rules::TargetCount> counted;  // the count markers on (anim_target_counts.h)
   int undo_row = -1;             // the last take-back by a cancel event, for a window click right after it
   uint32_t undo_id = 0;
   ULONGLONG undo_at = 0;
@@ -144,13 +146,16 @@ void Mark(uint32_t player, uint32_t id) {
                  player);
 }
 
-void Unmark(uint32_t player, uint32_t id) {
+// Removes the effects tagged `tag` (the glow's n5tw_mark, the count marker's n5tw_count) from the target.
+void RemoveTagged(uint32_t player, uint32_t id, const char* tag) {
   RunScriptChunk(("object t = StringToObject(\"" + Hex(id) + "\"); effect e = GetFirstEffect(t);"
-                  "while (GetIsEffectValid(e)) { if (GetEffectTag(e) == \"n5tw_mark\") RemoveEffect(t, e);"
-                  " e = GetNextEffect(t); }")
+                  "while (GetIsEffectValid(e)) { if (GetEffectTag(e) == \"" + std::string(tag) +
+                  "\") RemoveEffect(t, e); e = GetNextEffect(t); }")
                      .c_str(),
                  player);
 }
+
+void Unmark(uint32_t player, uint32_t id) { RemoveTagged(player, id, "n5tw_mark"); }
 
 // The glow on exactly the targets in the rows.
 void SyncMarks(uint32_t player, Held* held) {
@@ -179,15 +184,40 @@ void SetRowTexts(uint32_t player, const Held& held) {
 }
 
 // Each target's count (owner, 2026-11-19: "it should be a permanently visible indicator on top of each enemy saying how
-// many darts/bolts are assigned to them, not how many are left"; rules::CountsByTarget) is to show as the animation
-// session's numbered marker (B). 0.99.88-0.99.90 floated it as text instead; 0.99.91 took that out (owner: "after a
-// while it stops showing up until the spell is cast and then it just streams in all the buffered values"): the client
-// holds floating text while the game is paused - the usual way to pick - and plays the queue once it runs. An
-// effect, as the red glow, shows paused.
+// many darts/bolts are assigned to them, not how many are left"; rules::CountsByTarget) shows as the animation
+// session's numbered marker (anim_target_counts.h, the owner's picks: the red glow kept, a white number on a small
+// dark-red disc over the head) - an effect, so it shows paused. 0.99.88-0.99.90 floated it as text instead; 0.99.91
+// took that out (owner: "after a while it stops showing up until the spell is cast and then it just streams in all the
+// buffered values"): the client holds floating text while the game is paused - the usual way to pick.
+void SyncCounts(uint32_t player, Held* held, const std::vector<rules::TargetCount>& now) {
+  const rules::CountMarkerChanges changes = rules::CountMarkerChangesFor(held->counted, now);
+  for (uint32_t id : changes.remove) RemoveTagged(player, id, "n5tw_count");
+  for (const rules::TargetCount& one : changes.apply) {
+    const int row = TargetCountMarkerVfx(one.count);  // -1 past 11: the glow alone
+    if (row < 0) continue;
+    RunScriptChunk(("object t = StringToObject(\"" + Hex(one.id) + "\"); if (GetIsObjectValid(t)) ApplyEffectToObject("
+                    "DURATION_TYPE_TEMPORARY, TagEffect(SupernaturalEffect(EffectVisualEffect(" +
+                    std::to_string(row) + ")), \"n5tw_count\"), t, 300.0);")
+                       .c_str(),
+                   player);
+  }
+  held->counted = now;
+  static int logged = 0;
+  if (logged < 5 && (!changes.remove.empty() || !changes.apply.empty())) {
+    ++logged;
+    std::string said;
+    for (const rules::TargetCount& one : now) {
+      said += (said.empty() ? "" : ", ") + Hex(one.id) + " " + std::to_string(one.count);
+    }
+    Log("target window: count markers for 0x%08X - %s (%zu put on, %zu taken off)", player,
+        said.empty() ? "none" : said.c_str(), changes.apply.size(), changes.remove.size());
+  }
+}
 
 void Refresh(uint32_t player, Held* held) {
   SetRowTexts(player, *held);
   SyncMarks(player, held);
+  SyncCounts(player, held, rules::CountsByTarget(held->rows));
 }
 
 std::string Layout(const Held& held) {
@@ -224,6 +254,7 @@ void Reissue(uint32_t player, const SpellOrder& order, uint32_t target) {
 void Close(uint32_t player, Held* held) {
   for (uint32_t id : held->marked) Unmark(player, id);
   held->marked.clear();
+  SyncCounts(player, held, {});  // every count marker off
   g_enter.erase(player);
   NuiClose(player, kWindow);
   StopTargeting(player);

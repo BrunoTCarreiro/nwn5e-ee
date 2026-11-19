@@ -58,4 +58,13 @@ struct TargetCount {
 };
 std::vector<TargetCount> CountsByTarget(const TargetRows& rows);
 
+// The count markers over the targets (the animation session's TargetCountMarkerVfx), from the counts shown to the
+// counts now: `remove` the targets whose marker goes (gone from the rows, or their count changed), `apply` the markers
+// to put on (new targets, changed counts), each in the order it's listed.
+struct CountMarkerChanges {
+  std::vector<uint32_t> remove;
+  std::vector<TargetCount> apply;
+};
+CountMarkerChanges CountMarkerChangesFor(const std::vector<TargetCount>& shown, const std::vector<TargetCount>& now);
+
 }  // namespace rules
