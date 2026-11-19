@@ -146,13 +146,17 @@ void Mark(uint32_t player, uint32_t id) {
                  player);
 }
 
-// Removes the effects tagged `tag` (the glow's n5tw_mark, the count marker's n5tw_count) from the target.
-void RemoveTagged(uint32_t player, uint32_t id, const char* tag) {
-  RunScriptChunk(("object t = StringToObject(\"" + Hex(id) + "\"); effect e = GetFirstEffect(t);"
+// Removes the effects tagged `tag` (the glow's n5tw_mark, the count marker's n5tw_count) from the target; how many it
+// found and removed (0.99.95: TC-1's evidence - the numbers stayed on screen after their take-off).
+int RemoveTagged(uint32_t player, uint32_t id, const char* tag) {
+  RunScriptChunk(("object t = StringToObject(\"" + Hex(id) + "\"); int n = 0; effect e = GetFirstEffect(t);"
                   "while (GetIsEffectValid(e)) { if (GetEffectTag(e) == \"" + std::string(tag) +
-                  "\") RemoveEffect(t, e); e = GetNextEffect(t); }")
+                  "\") { RemoveEffect(t, e); n++; } e = GetNextEffect(t); }"
+                  "SetLocalInt(OBJECT_SELF, \"n5tw_removed\", n);")
                      .c_str(),
                  player);
+  void* pc = CreatureById(player);
+  return pc ? engine::GetLocalInt(pc, "n5tw_removed") : -1;
 }
 
 void Unmark(uint32_t player, uint32_t id) { RemoveTagged(player, id, "n5tw_mark"); }
@@ -191,7 +195,12 @@ void SetRowTexts(uint32_t player, const Held& held) {
 // buffered values"): the client holds floating text while the game is paused - the usual way to pick.
 void SyncCounts(uint32_t player, Held* held, const std::vector<rules::TargetCount>& now) {
   const rules::CountMarkerChanges changes = rules::CountMarkerChangesFor(held->counted, now);
-  for (uint32_t id : changes.remove) RemoveTagged(player, id, "n5tw_count");
+  std::string off;
+  for (uint32_t id : changes.remove) {
+    const int removed = RemoveTagged(player, id, "n5tw_count");
+    off += (off.empty() ? "" : ", ") + Hex(id) + " (" + std::to_string(removed) + " effect" +
+           (removed == 1 ? "" : "s") + " removed)";
+  }
   for (const rules::TargetCount& one : changes.apply) {
     const int row = TargetCountMarkerVfx(one.count);  // -1 past 11: the glow alone
     if (row < 0) continue;
@@ -202,15 +211,16 @@ void SyncCounts(uint32_t player, Held* held, const std::vector<rules::TargetCoun
                    player);
   }
   held->counted = now;
-  static int logged = 0;
-  if (logged < 5 && (!changes.remove.empty() || !changes.apply.empty())) {
+  static int logged = 0;  // 0.99.95: every sync, up to 200 a session (TC-1's evidence; 5 hid the later ones)
+  if (logged < 200 && (!changes.remove.empty() || !changes.apply.empty())) {
     ++logged;
     std::string said;
     for (const rules::TargetCount& one : now) {
       said += (said.empty() ? "" : ", ") + Hex(one.id) + " " + std::to_string(one.count);
     }
-    Log("target window: count markers for 0x%08X - %s (%zu put on, %zu taken off)", player,
-        said.empty() ? "none" : said.c_str(), changes.apply.size(), changes.remove.size());
+    Log("target window: count markers for 0x%08X - %s (%zu put on, %zu taken off%s%s)", player,
+        said.empty() ? "none" : said.c_str(), changes.apply.size(), changes.remove.size(), off.empty() ? "" : ": ",
+        off.c_str());
   }
 }
 
