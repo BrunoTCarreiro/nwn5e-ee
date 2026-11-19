@@ -202,6 +202,7 @@
 #include "grenades.h"
 #include "light_sources.h"
 #include "log.h"
+#include "plot_dressing_load.h"
 #include "script_hooks.h"
 #include "player_text.h"
 
@@ -298,6 +299,19 @@ int LoadPlaceable(void* placeable, void* gff, void* gff_struct, int flag, void* 
       Log("lights: a static light (placeables.2da row %d) loaded as a normal placeable, so it can be put out (%d so far)",
           Field<uint16_t>(placeable, kPlaceableAppearance), g_unstatic);
     }
+  }
+  // #172 (owner, 2026-11-19: "D′, with the switch on by default"): a module's Plot dressing with nothing attached
+  // loads breakable (plot_dressing_load.cpp decides). Lights stay as the light rules handle them.
+  if (result && placeable && Field<int32_t>(placeable, kObjectPlot) != 0) {
+    const std::vector<Reach>& reach = ReachByRow();
+    const size_t row = Field<uint16_t>(placeable, kPlaceableAppearance);
+    rules::PlaceableFacts facts;
+    facts.plot = true;
+    facts.is_static = Field<int32_t>(placeable, kPlaceableStatic) != 0;
+    facts.useable = Field<int32_t>(placeable, kPlaceableUseable) != 0;
+    facts.has_inventory = Field<int32_t>(placeable, kPlaceableHasInventory) != 0;
+    facts.is_light = Field<int32_t>(placeable, kPlaceableLightState) != 0 || (row < reach.size() && reach[row].bright > 0);
+    if (PlotDressingFreed(gff, gff_struct, facts)) SetField<int32_t>(placeable, kObjectPlot, 0);
   }
   return result;
 }
@@ -1093,7 +1107,9 @@ void InstallLightSources() {
     AddScriptHandler(kFlameSpellScript, [](uint32_t self) { FlameSpell(self); });
     AddCreatureUpdateListener(&DimmedUpdate);  // #39 build 4a: Thaumaturgy's Fire Play, its minute over
   }
-  if (FlamesWanted() || GrenadesFaithful()) {  // 0.70.0: a grenade's fire light too
+  // 0.70.0: a grenade's fire light too; #172: Plot dressing loading breakable.
+  if (FlamesWanted() || GrenadesFaithful() ||
+      (g_config.plot_dressing_breakable && g_config.spellcasting == rules::RuleVariant::kFaithful)) {
     HookExport("CNWSPlaceable::LoadPlaceable (static lights, tile flames' stand-ins: normal placeables)", kLoadPlaceable,
                reinterpret_cast<void*>(&LoadPlaceable), reinterpret_cast<void**>(&g_load_placeable));
   }

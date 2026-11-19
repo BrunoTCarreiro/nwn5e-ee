@@ -238,6 +238,11 @@ struct Config {
   // house rule, not SRD 5.2 - with spellcasting faithful, spells' costly material components cost no gold.
   // [house_rules] free_material_components; 1 (the default for now, at the owner's word): free; 0: SRD 5.2's costs.
   bool free_material_components = true;
+  // #172 (owner, 2026-11-19: "D′, with the switch on by default"): a house rule, not SRD 5.2 - with spellcasting
+  // faithful, a module's Plot set dressing with nothing attached (not static, not clickable, no inventory, no
+  // conversation, not a light, no script but the trap-triggered one) loads breakable. [house_rules]
+  // plot_dressing_breakable; 1 (the default): breakable; 0: the module's Plot as it is.
+  bool plot_dressing_breakable = true;
   // #39 Part 2a's level 1 list switch (owner, 2026-11-09, Part 2's brief: "5.A" - Summon Creature I-IX off in
   // faithful, a house rule (off by default) keeping them): a house rule, not SRD 5.2 - with spellcasting faithful,
   // NWN's Summon Creature spells stay on the class lists. [house_rules] summon_creature; 0 (the default): off them
