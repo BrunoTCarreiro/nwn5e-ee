@@ -178,9 +178,37 @@ void SetRowTexts(uint32_t player, const Held& held) {
   NuiSetTexts(player, kWindow, binds);
 }
 
+// 0.99.88 (owner, 2026-11-19: "There isn't a way to see how many darts each of the targets will be getting as they
+// get a uniform red glow. is it possible to add some sort of floating texture on top?" - "A now, B later"): each
+// target's count floats over it ("2 darts", "1 ray"), as the rows resolve (an empty row the last pick's) - at each
+// change and every kCountsEveryMs while the window is open (NWN's floating text fades). Only the caster sees it.
+constexpr ULONGLONG kCountsEveryMs = 2500;
+std::unordered_map<uint32_t, ULONGLONG> g_counts_at;  // by player character: the counts last floated
+
+void ShowCounts(uint32_t player, const Held& held) {
+  g_counts_at[player] = GetTickCount64();
+  const bool rays = held.order.spell == rules::kScorchingRay;
+  std::string code;
+  for (const rules::TargetCount& one : rules::CountsByTarget(held.rows)) {
+    const std::string text =
+        one.count == 1 ? PlayerText(rays ? "target_window.count_ray" : "target_window.count_dart")
+                       : PlayerText(rays ? "target_window.count_rays" : "target_window.count_darts",
+                                    {{"count", std::to_string(one.count)}});
+    std::string quoted;
+    for (char c : text) {
+      if (c == '"' || c == '\\') quoted += '\\';
+      quoted += c;
+    }
+    code += "{ object t = StringToObject(\"" + Hex(one.id) + "\"); if (GetIsObjectValid(t)) "
+            "FloatingTextStringOnCreature(\"" + quoted + "\", t, FALSE, FALSE); }";
+  }
+  if (!code.empty()) RunScriptChunk(code.c_str(), player);
+}
+
 void Refresh(uint32_t player, Held* held) {
   SetRowTexts(player, *held);
   SyncMarks(player, held);
+  ShowCounts(player, *held);
 }
 
 std::string Layout(const Held& held) {
@@ -218,6 +246,7 @@ void Close(uint32_t player, Held* held) {
   for (uint32_t id : held->marked) Unmark(player, id);
   held->marked.clear();
   g_enter.erase(player);
+  g_counts_at.erase(player);
   NuiClose(player, kWindow);
   StopTargeting(player);
 }
@@ -427,8 +456,14 @@ void ServerTick() {
     Open(id, &one.second);
     break;  // Open may erase from g_held: one a frame
   }
-  if (g_enter.empty()) return;
   const ULONGLONG now = GetTickCount64();
+  for (auto& one : g_held) {  // 0.99.88: the counts floated again before they fade
+    if (!one.second.open) continue;
+    const auto at = g_counts_at.find(one.first);
+    if (at != g_counts_at.end() && now - at->second < kCountsEveryMs) continue;
+    ShowCounts(one.first, one.second);
+  }
+  if (g_enter.empty()) return;
   for (auto it = g_enter.begin(); it != g_enter.end();) {
     if (now < it->second.due) {
       ++it;

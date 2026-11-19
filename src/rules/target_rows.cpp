@@ -71,4 +71,20 @@ std::vector<uint32_t> ResolveTargets(const TargetRows& rows) {
 
 int FilledRows(const TargetRows& rows) { return static_cast<int>(rows.picked.size()); }
 
+std::vector<TargetCount> CountsByTarget(const TargetRows& rows) {
+  std::vector<TargetCount> counts;
+  for (uint32_t id : ResolveTargets(rows)) {
+    bool found = false;
+    for (TargetCount& one : counts) {
+      if (one.id == id) {
+        ++one.count;
+        found = true;
+        break;
+      }
+    }
+    if (!found) counts.push_back(TargetCount{id, 1});
+  }
+  return counts;
+}
+
 }  // namespace rules

@@ -120,3 +120,25 @@ TEST(ScorchingRayTable) {
   CHECK_EQ(SpellDiceAt(*ray, 2), 2);
   CHECK_EQ(SpellDiceAt(*ray, 5), 2);  // each ray's dice never grow: the slot adds rays
 }
+
+// 0.99.88 (owner, 2026-11-19: "There isn't a way to see how many darts each of the targets will be getting" - "A now,
+// B later"): each target's count as the rows resolve, first appearance first.
+TEST(TargetRowsCountsByTarget) {
+  TargetRows t = MakeTargetRows(5, 5);  // 5 darts: rows a, b, a, then two empty
+  CHECK_EQ(AddTarget(&t, 6), true);
+  CHECK_EQ(AddTarget(&t, 5), true);
+  std::vector<TargetCount> counts = CountsByTarget(t);
+  CHECK_EQ(static_cast<int>(counts.size()), 2);
+  CHECK_EQ(counts[0].id, 5u);
+  CHECK_EQ(counts[0].count, 4);  // rows 1 and 3, and the two empty rows follow the latest pick (5)
+  CHECK_EQ(counts[1].id, 6u);
+  CHECK_EQ(counts[1].count, 1);
+  CHECK_EQ(TakeBackLatest(&t), 2);  // row 3 taken back: the latest pick is 6 now
+  counts = CountsByTarget(t);
+  CHECK_EQ(counts[0].id, 5u);
+  CHECK_EQ(counts[0].count, 1);
+  CHECK_EQ(counts[1].id, 6u);
+  CHECK_EQ(counts[1].count, 4);
+  TargetRows empty = MakeTargetRows(3, 0);
+  CHECK_EQ(static_cast<int>(CountsByTarget(empty).size()), 0);
+}

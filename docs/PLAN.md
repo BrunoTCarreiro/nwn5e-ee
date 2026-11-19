@@ -1956,7 +1956,16 @@ monster AC by CR.
           paused or not) does both jobs. It opens a held order's window on the next frame, outside the order's
           handling, and asks for the cursor 60 ms (wall-clock) after each request, while the window is open. No
           DelayCommand and no creature update is involved.
-        - TW-1b stands.
+        - TW-1b stands. *Passed (owner, 2026-11-19: "it works, not the bext UX but for now it serves the purpose").*
+      - *Asked (owner, 2026-11-19):* "There isn't a way to see how many darts each of the targets will be getting as
+        they get a uniform fred glow. is it possible to add some sort of floating texture on top?". Offered: A floating
+        text over each target ("2 darts"); B a numbered marker (a VFX, the animation session's to design). *Decided
+        (owner, 2026-11-19): "A now, B later".*
+        - *Built 0.99.88 (A):* each picked target's count floats over it ("2 darts", "1 ray" - new text, generated),
+          as the rows resolve (rules::CountsByTarget: an empty row the last pick's). It shows at every change and again
+          every 2.5 s while the window is open, because NWN's floating text fades. Only the caster sees it.
+        - Test TargetRowsCountsByTarget; 4 of 4 mutations caught; test.bat 640 ok.
+        - B goes to the animation session for later: a numbered marker over each target.
     - Build 1a goes first without Scorching Ray: Acid Arrow, Shatter, Mind Spike, Shining Smite, Prayer of Healing.
     - Then #171 with Scorching Ray and Magic Missile, then build 1b.
   - *Built 0.99.80 (level 2's build 1a):*

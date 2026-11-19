@@ -47,4 +47,13 @@ std::vector<uint32_t> ResolveTargets(const TargetRows& rows);
 // How many rows have a target.
 int FilledRows(const TargetRows& rows);
 
+// 0.99.88 (owner, 2026-11-19: "There isn't a way to see how many darts each of the targets will be getting as they
+// get a uniform red glow" - "A now, B later"): each target and how many rays or darts it gets as the rows resolve (an
+// empty row the last pick's), in the order each first appears. Empty when no row has a target.
+struct TargetCount {
+  uint32_t id = 0;
+  int count = 0;
+};
+std::vector<TargetCount> CountsByTarget(const TargetRows& rows);
+
 }  // namespace rules
