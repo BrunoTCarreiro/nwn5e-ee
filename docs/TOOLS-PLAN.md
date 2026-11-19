@@ -2297,3 +2297,33 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     draft of nwn5e's has none.
   - Test row KF-1 (the coordinator's tmp `kf_row.csv`, for docs/tests.csv): VFX_DUR_ELEMENTAL_SHIELD from the library,
     on the stage and in game.
+  - *Fix round 1* (the review, 2026-11-19: "Needs fixes"):
+    - **nwn5e's own models read as before KF.** At format 20 the library's nwn5e drafts (ExportNwn5eModels, and the
+      in-game editor's LoadEntry, read served `n5_*.mdl` with ReadVfxAsciiModel) would have kept their own generated
+      emission keys (VA-2's restore, an emit time's, the cessation's off) and transtimes as "the game's": an On for on
+      Detect Magic dropped, a Drop in on n5_ds_00's emitter blending 0.25 s from its rest. The rule: a model with
+      nwn5e's mark - `kVfxModelMark`, "# nwn5e", at the start of a comment line before its newmodel; the writer's line is
+      built from it ("# nwn5e VFX editor (!vfxedit): <name>") - keeps no transtime, no emitter's own list and no plane
+      key. The mark and not the writer's line alone: 14 of the 18 library nwn5e drafts are the generators' (death-save
+      and stealth markers, bleed: "# nwn5e (tools/data/<script>.py)"; the Short Rest's copy "# nwn5e: ..."), n5_ds_00
+      among them. Proved on the real served models: all 18 write HEAD's drafts and models again.
+    - **The animations are the model header's list** (+0x78, count +0x7C; anim_recipe.cpp's ReadAnimClip's), not the
+      first "\0impact\0" with a length in (0, 60): 81 compiled models (creatures and placeables - c_air, a_gnome, the
+      golems...; none in the library) had a node named impact taken for one, with a garbage transtime; vim_ballfire's and
+      vps_bugs' 0 s animations were missed - now read (their transtimes, their keys; a 0 s length isn't taken as one). The
+      one-shot's seconds the listed impact's. Stripped of KF's keys, every game model writes HEAD's bytes but those 81
+      (their lengths no longer garbage); 479 compiled models now write another draft (420 another model), 398 carry a
+      transtime (no garbage ones).
+    - The library's numbers again: 255 drafts and 225 models of its 390 effects change; **204** gain their own emission
+      (205 counted an ASCII emitter keyed outside the three animations); 84 transtime lines differ from TT's rule, in 66.
+      **31 of its 40 chunk drafts change** at format 20 (their transtimes; 27 their planes' keys) - nothing visible: the
+      stage draws chunks at rest.
+    - The bench (nwn5e-tools): Rate / Opacity typed 0 take an emitter's own keys to 0 (silent, in game too); the keys
+      follow from what they were when the edit began (a value typed through 0 comes back); from keys all at 0 a value
+      above 0 is refused, the status saying how to get them back (Ctrl+Z, or the drop below) - M5's pattern for a tint
+      back from 0. A keyed emitter's timeline bar is its keys' span (sim.js emissionSpans), locked, titled;
+      **Use this card's timing** on its card drops its own keys (Starts after / On for taking their first span) so the card
+      times it - one undo step.
+    - Checks: test.bat 628 -> 630 (2 new, both failing first; the three older synthetic compiled models given the
+      model header's list, as the game lays it out); 11 deliberate breaks of the fix - 10 fail a test, the 11th (the mesh
+      fade gate) is equivalent (a plane takes no keys from such a model, a node's fade is cleared).

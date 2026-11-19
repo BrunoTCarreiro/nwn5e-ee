@@ -456,6 +456,10 @@ TEST(VfxReadsALightFromACompiledModel) {
   node(0x1200, "Group01", 0xB80, {});
   children(0x1200, 0x1630, {0x1300});
   node(0x1300, "glow", 0xC00, {{76, 3, {0, 1, 2}, {1, 0.75f, 0, 1, 1, 1, 1, 0.75f, 0}}, {88, 1, {0, 2}, {10, 8}}});
+  // The model header's list of its animations (+0x78 its headers' offsets, +0x7C their count), as the game's models have it.
+  put32(base + 0x78, static_cast<uint32_t>(0x1700 - base));
+  put32(base + 0x7C, 1);
+  put32(0x1700, static_cast<uint32_t>(0x1000 - base));
   VfxEffect effect;
   std::string error;
   CHECK_EQ(ReadVfxBinaryModel(b, &effect, &error), true);
@@ -688,6 +692,10 @@ TEST(VfxLastingEffectKeepsEmitting) {
   emitter(0x1100);
   node(0x1300, "flash", 0x1980, {0.0f}, {0.0f}, 0.0f);
   emitter(0x1300);
+  // The model header's list of its animations (+0x78 their headers' offsets, +0x7C their count), as the game's models have it.
+  put32(base + 0x78, static_cast<uint32_t>(0x1F40 - base));
+  put32(base + 0x7C, 3);
+  for (int i = 0; i < 3; ++i) put32(0x1F40 + 4 * i, static_cast<uint32_t>(std::vector<size_t>{0x100, 0x400, 0x600}[i] - base));
   VfxEffect effect;
   std::string error;
   CHECK_EQ(ReadVfxBinaryModel(b, &effect, &error), true);
@@ -772,6 +780,10 @@ TEST(VfxEmitterUnderAMovedDummy) {
   node(0x700, "Group01", 0xB00, {{20, 4, {0, 1.5f}, {0, 0, 0, 1, 0, 0, 1, 0}}});
   children(0x700, 0x1330, 0x800);
   node(0x800, "eyes", 0xB80, {{8, 3, {0, 0.75f}, {1, 0, 0, 2, 0, 0}}});
+  // The model header's list of its animations (+0x78 its headers' offsets, +0x7C their count), as the game's models have it.
+  put32(base + 0x78, static_cast<uint32_t>(0x1380 - base));
+  put32(base + 0x7C, 1);
+  put32(0x1380, static_cast<uint32_t>(0x500 - base));
   VfxEffect effect;
   std::string error;
   CHECK_EQ(ReadVfxBinaryModel(b, &effect, &error), true);
@@ -3341,12 +3353,25 @@ struct KfModel {
     }
   }
   // An animation: its name, length and transtime (the header's +0x70 and +0x74), its node tree from `root`.
-  void Anim(const char* name, float length, float transtime, size_t root) {
+  // An animation: its name, length and transtime (the header's +0x70 and +0x74), its node tree from `root`, its type (5:
+  // an animation, at +0x6C, as every one of the game's) - listed in the model header's animations (List) unless `listed` is
+  // false.
+  std::vector<size_t> anims;
+  void Anim(const char* name, float length, float transtime, size_t root, bool listed = true) {
     const size_t header = Alloc(0x100);
     Puts(header + 8, name);
     Put32(header + 0x48, static_cast<uint32_t>(root - 0x10 - kBase));
+    b[header + 0x6C] = 5;
     PutF(header + 0x70, length);
     PutF(header + 0x74, transtime);
+    if (listed) anims.push_back(header);
+  }
+  // The model header's animations (+0x78: an array of header offsets, +0x7C its count), as the game's models have them.
+  void List() {
+    const size_t array = Alloc(4 * anims.size() + 4);
+    Put32(kBase + 0x78, static_cast<uint32_t>(array - kBase));
+    Put32(kBase + 0x7C, static_cast<uint32_t>(anims.size()));
+    for (size_t i = 0; i < anims.size(); ++i) Put32(array + 4 * i, static_cast<uint32_t>(anims[i] - kBase));
   }
 };
 
@@ -3389,6 +3414,7 @@ std::string KeyedModel(bool transtimes = true) {
     m.Children(r, {f, g});
     m.Anim("cessation", 1.0f, t_cessation, r);
   }
+  m.List();
   return m.b;
 }
 
@@ -3649,14 +3675,18 @@ TEST(VfxModelWritesTheKeptTranstime) {
 
 // The ASCII reader: each animation's "transtime" line, an emitter's birthratekey, alphaStartkey and alphaEndkey (a count
 // or an endlist, any case) and a trimesh's alphakey, scalekey and move and turn keys - into the same keys. The model the
-// writer makes of the compiled one reads back with them, and writes the same model again.
+// writer makes of the compiled one - its nwn5e line taken out, as a game's ASCII model (fix round 1: one with it is nwn5e's
+// own, VfxNwn5esOwnModelsKeepNoneOfTheGamesKeys) - reads back with them, and writes the same model again.
 TEST(VfxReadsTheGamesOwnKeysFromAnAsciiModel) {
   VfxEffect effect;
   std::string error;
   CHECK_EQ(ReadVfxBinaryModel(KeyedModel(), &effect, &error), true);
   const std::string model = WriteVfxModel(effect, "n5t");
+  const size_t mark = model.find(std::string("\n") + kVfxModelMark);
+  CHECK_EQ(mark != std::string::npos, true);
+  const std::string as_game = mark == std::string::npos ? model : model.substr(0, mark) + model.substr(model.find('\n', mark + 1));
   VfxEffect back;
-  CHECK_EQ(ReadVfxAsciiModel(model, &back, &error) && back.emitters.size() == 1 && back.planes.size() == 1, true);
+  CHECK_EQ(ReadVfxAsciiModel(as_game, &back, &error) && back.emitters.size() == 1 && back.planes.size() == 1, true);
   if (back.emitters.size() != 1 || back.planes.size() != 1) return;
   CHECK_EQ(Milli(back.transtime[0]) == 250 && Milli(back.transtime[1]) == 0 && Milli(back.transtime[2]) == 150, true);
   const VfxKeys* impact = KeysOf(back.emitters[0].keys, "impact");
@@ -3799,4 +3829,156 @@ TEST(VfxGameEffectsElementalShieldKeys) {
   const std::string ring_node = "node trimesh n5t_p" + std::to_string(ring) + "_cylinder02\n";
   CHECK_EQ(Contains(Section(Anim(model, "impact"), ring_node, "endnode"), "\n  alphakey "), true);
   CHECK_EQ(Transtime(model, "impact") == "0.25" && Transtime(model, "duration") == "0.25" && Transtime(model, "cessation") == "0.25", true);
+}
+
+// --- KF fix round 1 (the review, 2026-11-19) ---
+
+namespace {
+
+// Whether an effect carries none of KF's additions: no transtime known, no emitter's own birthrate / alphaStart /
+// alphaEnd list, no plane key at all - what the readers kept before KF.
+bool NoneOfTheGamesKeys(const VfxEffect& effect) {
+  bool none = effect.transtime[0] == -1.0f && effect.transtime[1] == -1.0f && effect.transtime[2] == -1.0f;
+  for (const VfxEmitter& e : effect.emitters) {
+    for (const VfxKeys& k : e.keys) none = none && k.birthrate.empty() && k.alpha_start.empty() && k.alpha_end.empty();
+  }
+  for (const VfxPlane& p : effect.planes) none = none && p.keys.empty();
+  return none;
+}
+
+}  // namespace
+
+// A model nwn5e wrote itself is read as before KF (the review: at format 20 the library's nwn5e drafts would have gained
+// their own generated emission keys and transtimes as "the game's" - an On for on Detect Magic dropped, a Drop in on
+// n5_ds_00's emitter blending 0.25 s from its rest). nwn5e's mark: its first comment lines (before newmodel) carry one
+// starting kVfxModelMark - the writer's "# nwn5e VFX editor (!vfxedit): <name>", the generators' "# nwn5e
+// (tools/data/<script>.py): ...", the Short Rest's "# nwn5e: ...". Such a model keeps no transtime, no emitter's own
+// list (its emission keys are read into its fields, as before) and no plane key. Every kept draft's model, and every one
+// of nwn5e's committed models (data/files), reads so - its draft has none of their lines. The same text without the mark
+// (as a game's model) keeps them.
+TEST(VfxNwn5esOwnModelsKeepNoneOfTheGamesKeys) {
+  std::vector<std::string> paths;
+  for (const auto& entry : std::filesystem::directory_iterator("tests/data/fixtures")) {
+    if (entry.path().extension() == ".vfx") paths.push_back(entry.path().generic_string());
+  }
+  for (const char* size : {"h", "l", "m", "s"}) paths.push_back(std::string("tools/data/vfx/n5_detmag_") + size + ".vfx");
+  const auto lines = [](const std::string& draft) {
+    for (const char* kind : {"_transtime = ", "_birthrate = ", "_alpha_start = ", "_alpha_end = "}) {
+      if (Contains(draft, kind)) return true;
+    }
+    for (size_t at = draft.find("\n[plane "); at != std::string::npos; at = draft.find("\n[plane ", at + 1)) {
+      const std::string section = draft.substr(at, draft.find("\n[", at + 1) - at);
+      for (const char* kind : {"_position = ", "_orientation = ", "_alpha = ", "_scale = "}) {
+        if (Contains(section, kind)) return true;
+      }
+    }
+    return false;
+  };
+  int models = 0;
+  for (const std::string& path : paths) {
+    VfxEffect effect;
+    std::string error;
+    CHECK_EQ(ReadVfxDraft(FixtureText(path.c_str()), &effect, &error), true);
+    const std::string model = WriteVfxModel(effect, "n5t");
+    CHECK_EQ(model.rfind(std::string("#MAXMODEL ASCII\n") + kVfxModelMark + " VFX editor (!vfxedit): ", 0) == 0, true);
+    VfxEffect read;
+    if (!ReadVfxAsciiModel(model, &read, &error)) continue;  // (a draft of planes alone with no faces)
+    ++models;
+    if (!NoneOfTheGamesKeys(read) || lines(WriteVfxDraft(read))) printf("    %s: its model read back keeps KF's keys\n", path.c_str());
+    CHECK_EQ(NoneOfTheGamesKeys(read) && !lines(WriteVfxDraft(read)), true);
+  }
+  CHECK_EQ(models >= 8, true);
+  int committed = 0;
+  for (const auto& entry : std::filesystem::directory_iterator("data/files")) {
+    const std::string name = entry.path().filename().string();
+    if (entry.path().extension() != ".mdl" || name.rfind("n5", 0) != 0) continue;
+    const std::string text = FixtureText(entry.path().generic_string().c_str());
+    VfxEffect read;
+    std::string error;
+    if (text.rfind("#", 0) != 0 || !ReadVfxAsciiModel(text, &read, &error)) continue;
+    ++committed;
+    if (!NoneOfTheGamesKeys(read)) printf("    data/files/%s keeps KF's keys\n", name.c_str());
+    CHECK_EQ(NoneOfTheGamesKeys(read) && !lines(WriteVfxDraft(read)), true);
+  }
+  printf("    %d kept drafts' models and %d of nwn5e's committed models read with none of KF's keys\n", models, committed);
+  CHECK_EQ(committed >= 18, true);
+  // The control: plane_beat's model (its plane faded in by keys, its impact transtime 0) without nwn5e's line - as a game's
+  // model - keeps its plane's keys and its transtimes; with it, none.
+  VfxEffect beat;
+  std::string error;
+  CHECK_EQ(ReadVfxDraft(FixtureText("tests/data/fixtures/plane_beat.vfx"), &beat, &error), true);
+  const std::string own = WriteVfxModel(beat, "n5t");
+  const size_t mark = own.find(std::string("\n") + kVfxModelMark);
+  CHECK_EQ(mark != std::string::npos, true);
+  if (mark == std::string::npos) return;
+  const std::string game = own.substr(0, mark) + own.substr(own.find('\n', mark + 1));
+  VfxEffect as_own, as_game;
+  CHECK_EQ(ReadVfxAsciiModel(own, &as_own, &error) && ReadVfxAsciiModel(game, &as_game, &error), true);
+  CHECK_EQ(NoneOfTheGamesKeys(as_own), true);
+  CHECK_EQ(as_game.planes.size() == 1 && KeysOf(as_game.planes[0].keys, "impact") &&
+               Numbers(KeysOf(as_game.planes[0].keys, "impact")->alpha) == "0 0 0.3 0 0.5 0.8 1.3 0.8 1.5 0" &&
+               Milli(as_game.transtime[0]) == 0 && Milli(as_game.transtime[1]) == 250,
+           true);
+  // A mark further down (not in its first comment lines) is no mark.
+  const size_t after_newmodel = game.find('\n', game.find("newmodel")) + 1;
+  const std::string later = game.substr(0, after_newmodel) + kVfxModelMark + " VFX editor (!vfxedit): n5t\n" + game.substr(after_newmodel);
+  VfxEffect late;
+  CHECK_EQ(ReadVfxAsciiModel(later, &late, &error) && !NoneOfTheGamesKeys(late), true);
+}
+
+// The animations are the model header's own (the review: the first "\0impact\0" in the file with a length in (0, 60) took a
+// node named impact for one - c_air's, a_gnome's garbage transtimes - and missed a real one 0 s long - vps_bugs' impact,
+// the game's transtime 0): its list at +0x78 (the headers' offsets, as the game keeps them; their count at +0x7C), each
+// header's name at +8. A real animation 0 s long counts - its transtime and its keys read, its length not (0: the writer's
+// own, as before); a node named impact before it is no animation; a model with no list has none. A one-shot's seconds are
+// its listed impact's length.
+TEST(VfxReadsTheModelsOwnAnimations) {
+  const auto build = [](bool lasting, bool listed) {
+    KfModel m("test_anims");
+    const size_t root = m.Node("test_anims", 0x1, {{8, 3, {0}, {0, 0, 0}}});
+    const size_t spark = m.Node("spark", 0x5, {{8, 3, {0}, {0, 0, 0}}, {88, 1, {0}, {20}}});
+    m.Emitter(spark);
+    const size_t decoy = m.Node("impact", 0x1, {});  // a dummy named impact, before the animations in the file
+    m.PutF(decoy + 0x10 - 8 + 0x70, 0.5f);         // what a search for the name would take for a length ...
+    m.PutF(decoy + 0x10 - 8 + 0x74, 0.633f);       // ... and a transtime
+    m.Children(root, {spark, decoy});
+    m.Put32(KfModel::kBase + 0x48, static_cast<uint32_t>(root - 0x10 - KfModel::kBase));
+    {
+      const size_t r = m.Node("test_anims", 0x1, {});
+      const size_t f = m.Node("spark", 0x5, {{88, 1, {0, 0.4f}, {20, 0}}});
+      m.Children(r, {f});
+      m.Anim("impact", 1.5f, 0.25f, r, listed);
+    }
+    if (lasting) {
+      const size_t r = m.Node("test_anims", 0x1, {});
+      const size_t f = m.Node("spark", 0x5, {{88, 1, {0}, {5}}});
+      m.Children(r, {f});
+      m.Anim("duration", 0.0f, 0.0f, r, listed);
+      // A second impact listed after the first: the first of a name is the one (as the game's ReadAnimClip takes it).
+      const size_t r2 = m.Node("test_anims", 0x1, {});
+      const size_t f2 = m.Node("spark", 0x5, {{88, 1, {0}, {7}}});
+      m.Children(r2, {f2});
+      m.Anim("impact", 2.0f, 0.6f, r2, listed);
+    }
+    m.List();
+    return m.b;
+  };
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxBinaryModel(build(true, true), &effect, &error) && effect.duration && effect.emitters.size() == 1, true);
+  if (effect.emitters.size() != 1) return;
+  printf("    transtimes %g %g %g, lengths %g %g %g\n", effect.transtime[0], effect.transtime[1], effect.transtime[2], effect.lengths[0],
+         effect.lengths[1], effect.lengths[2]);
+  CHECK_EQ(Milli(effect.transtime[0]) == 250 && Milli(effect.transtime[1]) == 0 && effect.transtime[2] == -1.0f, true);
+  CHECK_EQ(Milli(effect.lengths[0]) == 1500 && Milli(effect.lengths[1]) == 2000 && Milli(effect.lengths[2]) == 1000, true);
+  const VfxKeys* impact = KeysOf(effect.emitters[0].keys, "impact");
+  const VfxKeys* duration = KeysOf(effect.emitters[0].keys, "duration");
+  CHECK_EQ(impact && Numbers(impact->birthrate) == "0 20 0.4 0" && duration && Numbers(duration->birthrate) == "0 5", true);
+  // A one-shot: its seconds the listed impact's length.
+  VfxEffect once;
+  CHECK_EQ(ReadVfxBinaryModel(build(false, true), &once, &error) && !once.duration && Milli(once.seconds) == 1500 && Milli(once.transtime[0]) == 250, true);
+  // No list: no animations - nothing keyed, nothing known, the lengths and seconds as a draft's.
+  VfxEffect unlisted;
+  CHECK_EQ(ReadVfxBinaryModel(build(false, false), &unlisted, &error) && unlisted.emitters.size() == 1, true);
+  CHECK_EQ(NoneOfTheGamesKeys(unlisted) && unlisted.emitters[0].keys.empty() && Milli(unlisted.seconds) == 8000 && Milli(unlisted.lengths[0]) == 0, true);
 }

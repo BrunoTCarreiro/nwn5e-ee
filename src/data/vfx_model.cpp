@@ -511,7 +511,7 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
 
   std::vector<std::string> lines = {
       "#MAXMODEL ASCII",
-      "# nwn5e VFX editor (!vfxedit): " + effect.name,
+      std::string(kVfxModelMark) + " VFX editor (!vfxedit): " + effect.name,  // nwn5e's mark (KF fix round 1)
       "newmodel " + model,
       "setsupermodel " + model + " NULL",
       "classification effect",
@@ -1180,6 +1180,12 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
   int key_rows = 0;                      // rows still to come; -1: until "endlist"
   std::vector<std::vector<float>> rows;
   bool has_duration = false;
+  // KF fix round 1: a model nwn5e wrote itself (kVfxModelMark at the start of a comment line before its newmodel: the
+  // writer's, the generators', the Short Rest's) is read as before KF - its emitters' birthrate keys are nwn5e's own
+  // emission (VA-2's restore, an emit time's, a start's, the cessation's off: read into its fields, below), its transtimes
+  // the writer's rule's, its planes' keys none (the draft it came from is nwn5e's) - so its library\nwn5e draft keeps its
+  // bytes and a later edit (an On for, a Drop in) is written by nwn5e's own rules again.
+  bool own_model = false, before_model = true;
   const auto finish_keys = [&]() {
     if (current >= 0 && !rows.empty()) {
       VfxEmitter* keyed = emitter >= 0 ? &result.emitters[emitter] : nullptr;
@@ -1199,7 +1205,7 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
           if (row.size() < width) continue;
           out.insert(out.end(), row.begin(), row.begin() + width);
         }
-      } else if (geo[current].mesh && (key_name == "alphakey" || key_name == "scalekey")) {
+      } else if (!own_model && geo[current].mesh && (key_name == "alphakey" || key_name == "scalekey")) {
         // KF: a mesh's own fade and scale (a plane's keys), each list as read.
         VfxKeys* k = FindKeys(&geo[current].keys, anim, true);
         std::vector<float>& out = key_name == "alphakey" ? k->alpha : k->scale;
@@ -1209,7 +1215,7 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       } else if (keyed) {
         // KF: an emitter's own birthrate, alphaStart and alphaEnd keys, each list as read (beside what is read from them
         // below, as before).
-        if (key_name == "birthratekey" || key_name == "alphastartkey" || key_name == "alphaendkey") {
+        if (!own_model && (key_name == "birthratekey" || key_name == "alphastartkey" || key_name == "alphaendkey")) {
           VfxKeys* k = FindKeys(&geo[current].keys, anim, true);
           std::vector<float>& out = key_name == "birthratekey" ? k->birthrate : key_name == "alphastartkey" ? k->alpha_start : k->alpha_end;
           for (const auto& row : rows) {
@@ -1243,6 +1249,11 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
     return !word.empty() && (isdigit(static_cast<unsigned char>(word[0])) || word[0] == '-' || word[0] == '.');
   };
   while (std::getline(in, raw)) {
+    if (before_model) {  // its first comment lines: nwn5e's mark (KF fix round 1)
+      const std::string line = Trim(raw);
+      if (!line.empty() && line[0] == '#') own_model = own_model || line.rfind(kVfxModelMark, 0) == 0;
+      else if (!line.empty()) before_model = false;
+    }
     const std::vector<std::string> w = Words(raw.substr(0, raw.find('#')));
     if (w.empty()) continue;
     const std::string first = Lower(w[0]);
@@ -1291,7 +1302,7 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       if (slot >= 0) result.lengths[slot] = ToFloat(w[1]);
     } else if (where == Where::kAnim && first == "transtime" && w.size() >= 2) {  // KF: every reader's rule
       const int slot = AnimSlot(anim);
-      if (slot >= 0) result.transtime[slot] = TranstimeValue(ToFloat(w[1]));
+      if (slot >= 0 && !own_model) result.transtime[slot] = TranstimeValue(ToFloat(w[1]));
     } else if (first == "node" && w.size() >= 3) {
       current = emitter = -1;
       const auto found = geo_at.find(Lower(w[2]));
@@ -1500,7 +1511,7 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       p.alpha = g.material.alpha;
       p.render = g.material.render;
       p.transparency_hint = g.material.transparency_hint;
-      p.keys = g.keys;  // KF: its own move, turn, fade and scale in the animations
+      if (!own_model) p.keys = g.keys;  // KF: its own move, turn, fade and scale in the animations (nwn5e's own: none, as before)
       result.planes.push_back(p);
     }
     const bool target = targets.count(Lower(g.name)) > 0;
@@ -1937,19 +1948,26 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
       break;
     }
   }
-  // The animations (their 64-byte name at the header's +8, the root node at
-  // +0x48 as the geometry's, the length at +0x70) and the nodes of each.
+  // The animations (their 64-byte name at the header's +8, the root node at +0x48 as the geometry's, the length at +0x70)
+  // and the nodes of each. KF fix round 1: the model header's own list of them (+0x78: their headers' offsets, +0x7C their
+  // count - as the game keeps them; anim_recipe.cpp's ReadAnimClip reads the same), the first of each name - no longer the
+  // first "\0impact\0" in the file with a length in (0, 60), which took a node named impact for one (c_air's, a_gnome's:
+  // garbage transtimes) and missed a real one 0 s long (vps_bugs' impact, the game's transtime 0). Such a one is read - its
+  // transtime and its keys - its length not (0: the writer's own, as before). A model with no list has none.
   std::vector<std::pair<std::string, std::vector<size_t>>> anims;
-  for (const char* name : {"impact", "duration", "cessation"}) {
-    const std::string needle = std::string(1, '\0') + name + std::string(1, '\0');
-    for (size_t at = bytes.find(needle); at != std::string::npos; at = bytes.find(needle, at + 1)) {
-      if (at + 1 < 8 + kModelBase) continue;
-      const size_t header = at + 1 - 8;
-      const float length = m.F32(header + 0x70);
-      if (length > 0.0f && length < 60.0f) {
+  size_t impact_header = 0;  // the listed impact's, for a one-shot's seconds (below)
+  const uint32_t anim_list = m.U32(kModelBase + 0x78), anim_count = m.U32(kModelBase + 0x7C);
+  if (anim_count <= 4096 && kModelBase + anim_list + 4ull * anim_count <= bytes.size()) {
+    for (const char* name : {"impact", "duration", "cessation"}) {
+      for (uint32_t i = 0; i < anim_count; ++i) {
+        const size_t header = kModelBase + m.U32(kModelBase + anim_list + 4ull * i);
+        if (header + 0x80 > bytes.size() || Lower(m.Str(header + 8, 64)) != name) continue;
+        const float length = m.F32(header + 0x70);
+        if (!(length >= 0.0f && length < 60.0f)) continue;
         anims.emplace_back(name, TreeNodes(m, m.U32(header + 0x48)));
-        result.lengths[AnimSlot(name)] = length;
+        if (length > 0.0f) result.lengths[AnimSlot(name)] = length;
         result.transtime[AnimSlot(name)] = TranstimeValue(m.F32(header + 0x74));  // KF: after its length, every reader's rule
+        if (AnimSlot(name) == 0) impact_header = header;
         break;
       }
     }
@@ -2097,16 +2115,11 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
     }
     }
   }
-  // The impact animation's length (its header: the 64-byte name at +8, the
-  // length at +0x70): how long an always-on emitter of a one-shot effect runs.
-  const std::string impact("impact", 7);
-  for (size_t at = bytes.find(impact); at != std::string::npos; at = bytes.find(impact, at + 1)) {
-    if (at < 8 + kModelBase || bytes[at - 1] != 0) continue;
-    const float length = m.F32(at - 8 + 0x70);
-    if (length > 0.0f && length < 60.0f) {
-      if (!result.duration) result.seconds = length;
-      break;
-    }
+  // The impact animation's length (its header: the 64-byte name at +8, the length at +0x70): how long an always-on
+  // emitter of a one-shot effect runs - the listed impact's (KF fix round 1), when it has one.
+  if (impact_header) {
+    const float length = m.F32(impact_header + 0x70);
+    if (length > 0.0f && length < 60.0f && !result.duration) result.seconds = length;
   }
   *effect = result;
   return true;

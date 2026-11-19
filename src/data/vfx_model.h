@@ -220,6 +220,11 @@ constexpr int kVfxTransparencyHintMax = 5;
 // doesn't set it off again.
 constexpr float kVfxBurstWindow = 0.05f;
 
+// nwn5e's mark on a model it wrote itself (KF fix round 1): the start of a comment line before its newmodel - the model
+// writer's "# nwn5e VFX editor (!vfxedit): <name>" (WriteVfxModel), the generators' "# nwn5e (tools/data/<script>.py):
+// ...", the Short Rest's "# nwn5e: ...". The ASCII reader reads such a model with none of a game effect's own keys (KF).
+constexpr char kVfxModelMark[] = "# nwn5e";
+
 // The longest transtime a reader keeps (KF): the game's own effects use 0, 0.15 and 0.25; one not a number, below 0 or
 // past this is not known (-1), as an animation's length past 60 s isn't read.
 constexpr float kVfxTranstimeMax = 60.0f;
@@ -264,7 +269,8 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
 // emit_seconds; a size keyed from 0 gives the size it reaches). KF: and the
 // game effect's own keys - its emitters' birthrate / alphaStart / alphaEnd
 // lists, its planes' move, turn, alpha and scale - and its animations'
-// transtimes, as the compiled reader keeps them.
+// transtimes, as the compiled reader keeps them; none of them from a model
+// nwn5e wrote itself (kVfxModelMark: read as before KF - fix round 1).
 bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* error);
 
 // A compiled (binary) model's emitters - the game's own effects, read where
@@ -280,7 +286,8 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
 // show the mesh"), those too, as their own vertices (the rest / bind pose); never a
 // walkmesh (0x200). KF: each animation's transtime (its header's +0x74), an
 // emitter's own birthrate / alphaStart / alphaEnd keys (88 / 84 / 80) and a
-// plane's move, turn, alpha and scale keys (8 / 20 / 128 / 36).
+// plane's move, turn, alpha and scale keys (8 / 20 / 128 / 36); the animations
+// the model header's own list of them (+0x78, count +0x7C - fix round 1).
 bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string* error, bool any_mesh = false);
 
 // A name usable as a resref and file name: letters, digits, '_', lower case,
