@@ -318,7 +318,8 @@ int LoadPlaceable(void* placeable, void* gff, void* gff_struct, int flag, void* 
     }
   }
   // #172 (owner, 2026-11-19: "D′, with the switch on by default"): a module's Plot dressing with nothing attached
-  // loads breakable (plot_dressing_load.cpp decides). Lights stay as the light rules handle them.
+  // loads breakable (plot_dressing_load.cpp decides) - a lamp too since 0.99.93 (owner: "1B"), when its only script
+  // is the stock on/off switch.
   if (result && placeable && Field<int32_t>(placeable, kObjectPlot) != 0) {
     rules::PlaceableFacts facts;
     facts.plot = true;

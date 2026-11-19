@@ -8,19 +8,26 @@ namespace rules {
 // often marks its set dressing Plot - in the Prelude every non-clickable piece is, with no script but the toolset's
 // default trap one. With the house rule (plot_dressing_breakable, on by default) and spellcasting faithful, such a
 // piece loads breakable: a Plot placeable that isn't static scenery, isn't clickable, has no inventory, no
-// conversation, isn't a light (the light rules have their own), and has no event script besides the trap-triggered
-// one (trapped or not doesn't matter). What has a purpose stays as the module made it.
+// conversation, and has no event script besides the trap-triggered one (trapped or not doesn't matter). What has a
+// purpose stays as the module made it.
+// 0.99.93 (owner, 2026-11-19, on the candelabra: "1B"): a lamp too - its stock on/off switch (DressingScriptCounts)
+// isn't a purpose; a lamp running a module's own script stays Plot. (And "2A": weapons don't reach dressing - NWN
+// selects only clickable placeables; nwn5e's light rules make lamps clickable, so a freed lamp can be hit.)
 struct PlaceableFacts {
   bool plot = false;
   bool is_static = false;      // scenery: not an object the client updates
   bool useable = false;        // clickable
   bool has_inventory = false;  // a container: never Plot dressing (non-Plot chests break as they are)
   bool has_conversation = false;
-  bool is_light = false;
-  int scripts_besides_trap = 0;  // event scripts set, OnTrapTriggered not counted
+  bool is_light = false;         // a LightColor (logged; a lamp breaks as the rest since 0.99.93)
+  int scripts_besides_trap = 0;  // event scripts that count (DressingScriptCounts); OnTrapTriggered never read
 };
 
 bool PlotDressingBreaks(bool house_rule, bool spellcasting_faithful, const PlaceableFacts& placeable);
+
+// Does an event script count against a piece being dressing: any set script does, but a light's stock on/off switch
+// in OnUsed (nw_02_onoff, or the expansion's x2_am_lampuse - the ones light_sources.cpp takes over) doesn't.
+bool DressingScriptCounts(const char* field, const char* script, bool is_light);
 
 // Is a placeable lit, as the engine's CNWSPlaceable::GetLightIsOn answers it: only an appearance with a LightColor
 // (placeables.2da) can be, and then its light flag says. The flag starts at 1 when a placeable is made and a load

@@ -7,6 +7,9 @@
 #include <windows.h>
 
 #include <stdint.h>
+#include <string.h>
+
+#include <string>
 
 #include "config.h"
 #include "hooks.h"
@@ -31,12 +34,13 @@ const char* const kEventFields[] = {"OnClosed",        "OnDamaged",     "OnDeath
                                     "OnInvDisturbed",  "OnLock",        "OnMeleeAttacked", "OnOpen", "OnSpellCastAt",
                                     "OnUnlock",        "OnUsed",        "OnUserDefined",   "OnClick"};
 
-bool HasResRef(void* gff, void* gff_struct, const char* field) {
+// The field's resref ("" when it's missing or empty): a CResRef holds up to 16 characters, not always ended.
+std::string ResRefOf(void* gff, void* gff_struct, const char* field) {
   char result[32] = {};
   char fallback[32] = {};
   int success = 0;
   g_read_resref(gff, result, gff_struct, field, &success, fallback);
-  return success != 0 && result[0] != '\0';
+  return success != 0 ? std::string(result, strnlen(result, 16)) : std::string();
 }
 
 int g_freed = 0;
@@ -52,10 +56,13 @@ bool PlotDressingFreed(void* gff, void* gff_struct, rules::PlaceableFacts facts)
     if (!g_read_resref) Log("SKIP plot dressing #172: CResGFF::ReadFieldCResRef not found - Plot dressing stays Plot");
   }
   if (!g_read_resref) return false;
-  facts.has_conversation = HasResRef(gff, gff_struct, "Conversation");
+  facts.has_conversation = !ResRefOf(gff, gff_struct, "Conversation").empty();
   facts.scripts_besides_trap = 0;
   for (const char* field : kEventFields) {
-    if (HasResRef(gff, gff_struct, field)) ++facts.scripts_besides_trap;
+    // 0.99.93 (owner: "1B"): a lamp's stock on/off switch doesn't count (rules::DressingScriptCounts).
+    if (rules::DressingScriptCounts(field, ResRefOf(gff, gff_struct, field).c_str(), facts.is_light)) {
+      ++facts.scripts_besides_trap;
+    }
   }
   if (!rules::PlotDressingBreaks(g_config.plot_dressing_breakable,
                                  g_config.spellcasting == rules::RuleVariant::kFaithful, facts)) {
@@ -72,6 +79,10 @@ bool PlotDressingFreed(void* gff, void* gff_struct, rules::PlaceableFacts facts)
     Log("plot dressing: a Plot placeable with nothing attached loaded breakable (%d so far; house rule "
         "plot_dressing_breakable, #172)",
         g_freed);
+  }
+  static int lamps = 0;
+  if (facts.is_light && ++lamps <= 5) {
+    Log("plot dressing: a Plot lamp (no script but the stock on/off switch) loaded breakable (%d so far)", lamps);
   }
   return true;
 }

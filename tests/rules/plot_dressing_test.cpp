@@ -32,11 +32,31 @@ TEST(PlotDressingKeepsWhatHasAPurpose) {
   p.has_conversation = true;
   CHECK_EQ(PlotDressingBreaks(true, true, p), false);
   p = base;
-  p.is_light = true;  // the light rules put it out instead
-  CHECK_EQ(PlotDressingBreaks(true, true, p), false);
-  p = base;
   p.scripts_besides_trap = 1;  // a lamp's nw_02_onoff, a quest object's OnDeath
   CHECK_EQ(PlotDressingBreaks(true, true, p), false);
+}
+
+// 0.99.93 (owner, 2026-11-19: "1B"): a Plot lamp breaks like other dressing when its only script is the stock on/off
+// switch; one running a module's own script stays Plot.
+TEST(PlotDressingLampsBreakWithOnlyTheStockSwitch) {
+  PlaceableFacts lamp;  // m0q1d's candelabra: Plot, not clickable in the module, a LightColor, OnUsed nw_02_onoff
+  lamp.plot = true;
+  lamp.is_light = true;
+  lamp.scripts_besides_trap = 0;  // the stock switch isn't counted on a light (DressingScriptCounts)
+  CHECK_EQ(PlotDressingBreaks(true, true, lamp), true);
+  lamp.scripts_besides_trap = 1;  // a module's own lamp script
+  CHECK_EQ(PlotDressingBreaks(true, true, lamp), false);
+
+  CHECK_EQ(DressingScriptCounts("OnUsed", "nw_02_onoff", true), false);
+  CHECK_EQ(DressingScriptCounts("OnUsed", "NW_02_ONOFF", true), false);
+  CHECK_EQ(DressingScriptCounts("OnUsed", "x2_am_lampuse", true), false);
+  CHECK_EQ(DressingScriptCounts("OnUsed", "nw_02_onoff", false), true);    // not a light: a script like any other
+  CHECK_EQ(DressingScriptCounts("OnDeath", "nw_02_onoff", true), true);    // the switch belongs in OnUsed only
+  CHECK_EQ(DressingScriptCounts("OnUsed", "q_lamp_quest", true), true);    // a module's own
+  CHECK_EQ(DressingScriptCounts("OnUsed", "nw_02_onoff2", true), true);    // a module's, named after the stock one
+  CHECK_EQ(DressingScriptCounts("OnUsed", "", true), false);               // none set
+  CHECK_EQ(DressingScriptCounts("OnDeath", "", false), false);
+  CHECK_EQ(DressingScriptCounts("OnDeath", "nw_o2_generalhig", false), true);
 }
 
 // 0.99.89: the engine's light flag starts at 1 on every placeable; only an appearance with a LightColor is lit by it.
