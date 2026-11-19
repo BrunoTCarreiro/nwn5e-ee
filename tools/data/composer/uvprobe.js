@@ -3,7 +3,9 @@
 // animation-and-tint-design.md): one spell mesh, n5m_uvprobe, that shows in game whether a moving texture works - and by
 // which route - before the VFX Bench's side (M3) is built. NWN:EE has no UV-motion setting, so a moving texture is an EE
 // material (n5u_<12 hex digits>.mtr, the mesh's bitmap) naming our vertex shader, vsn5uvmove.shd. (TMO-1 passed
-// 2026-11-18: route A (texture0), the texture's TXI still applies.) Untested in game when it was written: whether our
+// 2026-11-18: route A (texture0), the texture's TXI still applies - to the texture, its flipbook and clamp; not to the
+// blend, MV found: the engine takes a mesh's blend only from its bitmap's TXI, and at alpha 0.3 an additive dome and an
+// alpha-blended one look alike. The generators now give each material a TXI of its own.) Untested in game when it was written: whether our
 // shader compiles and runs on an effect's mesh, whether the material's `texture0` binds the real texture, and whether that
 // texture's TXI (additive: faint, see-through, no 0.2 alpha cut) still applies - and if not, where a TXI does. So seven
 // faint domes (radius 0.4: 0.8 m wide; alpha 0.3), 1 m apart along x and clear of the character:
@@ -84,7 +86,8 @@ function main() {
       return Object.assign(F.placePart(part, rd.part(part), i, 0, "j", true), { part });
     });
     // TMO-1's domes as they were written: W1's clamp rule off (its breathing From-above domes 3 and 6 would be clamped
-    // now - their own names, a clamp line in their TXIs).
+    // now - their own names, a clamp line in their TXIs); and MV's off - motionMaterials given no pictures reads no TXI, so
+    // no material has one of its own (none of these domes scrolls sideways only, so none is clamped in v either).
     const shaped = W.shapeTextures(placed);
     const moved = W.motionMaterials(placed, new Map(), { clamp: false });
     const names = placed.map((x) => x.meshes[0].bitmap);

@@ -2454,3 +2454,97 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
   - *For the bench:* restart vfx_bench.bat. *For the game:* nothing installed - Play in game writes the copies into
     vfxedit\; a saved spell mesh's into saved\.
   - Test rows DC-1 to DC-4 (the coordinator's tmp `dc_rows.csv`, for docs/tests.csv).
+
+## Moving textures keep their blend, a flipbook moves from DC's copy, Scroll round clamped in v, and the play folder read again (2026-11-19, #39; MV)
+
+  DC-1 on 0.99.82 with Texture motion **Scroll round** (the owner): the rim line came back on the stage; in game some
+  plays were an opaque block of the tint, others the flames tinted but on black. The MV diagnosis (the coordinator's tmp
+  `MV-diag-report.md`) read the engine (nwmain, the same build as the win32 exe), the played files and the logs, numbers
+  only; the owner, 2026-11-19: "go" to its recommendation - "Fix the race in the game's dev layer: re-read the folder
+  before each Play. Moving textures keep their blend: each material gets a tiny TXI carrying the source's `blending
+  additive`. A flipbook plays from the copy the still ring already uses, which keeps its frames. Scroll round keeps the
+  vertical clamp on the stage and in game, so the rim line stays gone. Clamping only applies when the motion is purely
+  sideways. TMO-1 and TMO-2 get retest notes on the board." No src or tests change here; the dev layer (nwn5e-tools)
+  changes, so it needs an install.
+  - *The engine evidence:*
+    - **the race.** `CExoResMan::GetKeyEntry` finds a file only in a key table's in-memory index; a directory added with
+      detect_changes is listed again only by `CExoResMan::Update` - at most once a second (0xF4240 us), and only when the
+      directory's mtime, in whole seconds, changed (`CheckForModificationsInStorage`, then `RebuildTable`). The bench writes
+      a play's `n5u_` MTR (and any new `n5l_` / `n5s_` picture or TXI) 0.4-0.6 s before the model loads; the dev layer read
+      the folder again only when the **model** wasn't seen, and the models' names (n5vx0001...) are always listed from the
+      last session. So a new material was found only when the poll fell between its write and the load - about half of
+      all first plays. A missed MTR: no SharedMaterial, the Material's own slot 0 the missing `n5u_` picture (white), the
+      engine's lit program, ambient = diffuse = 0: selfillum x white, alpha 1 - **the tint, flat and opaque**;
+    - **the blend.** A mesh's blend comes only from `<mesh bitmap>.txi` (`Material::Init` -> `ParseField`: `blending`,
+      `decal`); texture0's TXI isn't read for it and an MTR has no such field (`SharedMaterial::ParseField`: texture0-10,
+      the shaders, parameter, transparency, twosided, renderhint ...). An `n5u_` bitmap with no TXI keeps the constructor's
+      (0, 1): SRC_ALPHA / ONE_MINUS_SRC_ALPHA, depth written. So every moving texture lost `blending additive`: a 24-bit
+      one (fxpa_flame02, fxpa_symbl_003, fxpa_globe ...) at alpha 1 drew **on black**. TMO-1's domes (alpha 0.3) and
+      TMO-2's (Opacity 0.35) couldn't tell alpha-blending from additive: their additive verdicts are void;
+    - **texture0's own TXI is its texture's** (`CAurTextureBasic::Init`): its flipbook (`proceduretype cycle` makes a
+      `CycleTIDTextureController`, stepped by every `BindInUnit`: a flipbook under texture0 **cycles**) and its clamp
+      apply; its `decal` and `blending` don't;
+    - **sideways only leaves v as it is.** vsn5uvmove: v' = (v - pV) / s + pV - fract(n5ScrollV t), s = 1 + breathe
+      sin(...): with scroll v, turn and breath 0 (as the material carries them), s = 1 exactly and v' = v (1 ulp at most,
+      harmless with CLAMP_TO_EDGE); the Rate enters only s.
+  - *Calls:*
+    - **the play folder read again before every play** (nwn5e-tools dev `vfx_play_folder.h`, `vfx_editor.cpp`
+      PlayEffect - the bench's Play in game and Preview on me - and WriteAreaModel): the model written, then
+      `RefreshFolder` (vfxedit\ and its saved\, each removed and added back), then the model looked for. Rather than
+      "whenever a file the request names isn't listed": the model's name can't tell (listed from the last session, its
+      file rewritten), and the files a play names - the model's planes' `n5u_` materials, each MTR's texture0 (a copy, a
+      soft texture), optional TXIs - would be a second copy of the generators' naming rules in C++, for no gain: the read
+      is one listing of a few hundred files, at a click, never a frame (the engine lists the folder after every write
+      there anyway). And no clock: two writes in the same mtime second are listed too, which a wait can't promise. A
+      model still not listed after the read fails the play as before. Checked with stand-ins (a standalone translation
+      unit over the header, as `vfx_library_format.h`'s); the DLL builds with it;
+    - **a moving texture's material gets a TXI of its own** (floatdisk.js `motionTxi`, `moveTextures`' `txiOf`):
+      `n5u_<...>.txi` - its texture's `blending` lines as they are, LF; only those (with `decal`, the only lines the
+      engine reads for a mesh from its bitmap's TXI; `decal` never carried - it would drop the material). The game's 734
+      TXIs: 13 additive, 23 default, 4 normal, 2 punchthrough. None without a `blending` line (no TXI, the name as
+      before). Hashed into the name (`:txi:` and its text: M1b's rule). W1's clamped material as it was (its copy's TXI
+      has the lines already);
+    - **a moving shape's texture0 is a still one's** (floatdisk.js `gameTextures`, DC's rule with "v within one repeat"
+      read as `sidewaysClamps`: scroll up, turn and breath 0, v within [0, 1]): its copy (`n5l_`) for a decal texture or
+      a flipbook moving sideways - the still ring's own copy (one per texture, never per speed: a 49 KB picture once, ~18
+      B of TXI per motion), its frames kept, `clamp 2`; a decal texture scrolling up or turning gets its copy unclamped; its
+      clamped soft texture sideways only. Option (d) of the diagnosis, not (a2) - W1's per-motion copy route with clamp 2,
+      exact too but a picture per speed tried. A mesh W1 clamps (it breathes) is W1's; a game part's and your own file's
+      textures as before (DC's scope) - their material still gets its TXI. Never `clamp 3` (u runs round the ring and must
+      repeat), never a clamp with a scroll up, a turn or a breath. The sideways clamp's own mark in the name, `:clampv`
+      (never W1's `:clamp`), only where the rule clamped it (texture0 a copy or the clamped soft texture);
+    - **files:** files.js `shapeTextures` / `copyTextures` call `gameTextures` (a moving shape's clamped soft texture and
+      copy made, written and owned as DC's); `motionMaterials` reads each texture's TXI (given `sources` and `copies`:
+      both build.js; uvprobe gives none - TMO-1's domes as they were); `motionWrites` writes `<name>.txi` (kind
+      "material", owned by the `n5u_` name; git-ignored with the material); the summary's line and --json's `side`,
+      `txi`. `stillTextures` keeps DC's answer for a moving part (a bench from before MV);
+    - **the bench** (nwn5e-tools, branch `mv-move-tools`): the stage marks a moving shape's meshes as a still one's
+      (composer.js `stillMarks` by `sidewaysClamps`: clampV, copies; W1's breathing ones as they are), so view.js's
+      `wrapBits` draws the ring scrolling round clamped in v, u repeating - no rim line - and scrolling up repeating;
+      Play names each material as the generators do (composer.js `played`: `gameTextures` then `moveTextures`, the TXI from
+      the texture route's new `X-Motion-Txi`, a copy's from its source, a soft texture's from its shape's blend) and sends
+      `side` and `name`; the bake route reads the TXI itself (this request's soft texture or copy, else the copy path,
+      vfxedit\ included), writes `<name>.txi`, refuses a name it wouldn't make (409) and a `side` with a scroll up, turn
+      or breath (400). `X-Motion`'s clamp only on W1's copy route (a route-A material's texture0 says its own clamp in
+      `X-Clamp`). The stage's blend for a moving texture was already the game's (its texture's additive), so only the game
+      changed there. app.js (KF's file): gameImage keeps `X-Motion-Txi` as the picture's `motionTxi` (DC's edit site).
+  - *What changes byte-wise* (the probe `tmp\animtex\mvprobe\bytes.js`: HEAD f97f398's generators against these, on the
+    Floating Disk, the owner's three projects and eleven moving test meshes): the Floating Disk's files, the owner's
+    `mbkglyph`, `test` and `tmoglyph` (none moves) and every still part byte for byte; of the moving ones, unchanged: a
+    Normal soft dome, W1's breathing glyph, a plain texture with no TXI (`tcn01_rock01`) scrolling round, a turning game
+    crate (plc_a03: no blending lines); changed: the flame ring scrolling round (0.5 or 0.01) - its draft names a new
+    material whose MTR names the still ring's copy `n5l_bf0dee9aee86` (already written for the still ring) + its TXI;
+    scrolling up and the glyph turning - new unclamped copies (`n5l_5cba05886e23`, `n5l_805918c2c51b`) + TXIs; an
+    Additive soft dome scrolling up - the same MTR bytes under a new name + its TXI; one scrolling round - the clamped
+    soft texture `n5s_bfc2ebac4509` + TXI. Every new `n5u_` TXI is `blending additive\n` (5a1681fba2f3). No committed file.
+  - *Built:* anim branch `mv-move` (floatdisk.js, files.js, both build.js, uvprobe.js's comments, build_derived.js's
+    comment, the READMEs; floatdisk check, floatdisk and composer check_build, check_derived) and nwn5e-tools branch
+    `mv-move-tools` (dev/vfx_play_folder.h, dev/vfx_editor.cpp, dev/README.md; composer_server.js, composer.js,
+    composer_page.js, view.js, app.js, README; check_chunks, check_composer, check_composer_server, composer_check.mjs) -
+    in worktrees of their own; the coordinator lands them, and the dev layer needs an install.
+  - *Limits:* unseen in game until MV-1..3: that the n5u_ TXI makes route A additive (from the code: `Material::Init`
+    runs before the SharedMaterial and nothing else sets the blend), that the copy's flipbook cycles under texture0 (from
+    the code: `BindInUnit` steps it), and that the refresh holds on Windows (the 1-second poll and whole-second mtime were
+    read in the Linux build). A missed picture before this install may stay white for the session (unchecked whether the
+    engine keeps an invalid texture by name): restart the game after installing. A moving texture's `envmaptexture` (a
+    Material line too, maybe) isn't carried - unknown, as before.

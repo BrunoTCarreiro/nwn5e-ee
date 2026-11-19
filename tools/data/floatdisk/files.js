@@ -82,7 +82,9 @@ function shapeTextures(placed, made = new Map()) {
   for (const x of placed) {
     if (x.part.source.kind !== "shape") continue;
     const shape = x.part.source.shape;
-    const still = x.meshes ? F.stillTextures(shape, x.part.motion, x.meshes, () => null) : null;
+    // (MV: the shape rule for a moving part too - floatdisk.js gameTextures: its soft texture clamped while it moves
+    // sideways only, within one repeat.)
+    const still = x.meshes ? F.gameTextures(shape, x.part.motion, x.meshes, () => null) : null;
     if (still) x.meshes = still.meshes;
     const named = still ? new Set(x.meshes.map((m) => String(m.bitmap || "").toLowerCase())) : null;
     const textures = [...F.shapeModel(shape).textures.filter((t) => !named || named.has(t.name)), ...(still ? still.softs : [])];
@@ -115,18 +117,33 @@ const shapeJson = (made) => [...made].map(([texture, s]) => Object.assign({ text
 // moveTextures: the bitmap becomes the material's name, n5u_ and 12 hex digits) - each placed part's meshes replaced by
 // their renamed copies (x.meshes) - and each material `materials` lacks added. Called after bakeParts and shipTextures,
 // so a material's texture (texture0) is the real one and a shipped texture is found by its own name. `placed`: [{ part,
-// meshes }] (placePart's, with its part); `options`: moveTextures' ({ clamp: false }: W1's rule off - uvprobe's).
+// meshes }] (placePart's, with its part); `options`: { clamp } (moveTextures': { clamp: false } is W1's rule off -
+// uvprobe's) and (MV) `sources` (motionPicture's: { rd, shaped, baked, ship } - where each texture's TXI is read) and
+// `copies` (copyTextures' map: a copy's TXI, n5l_...). Called after shapeTextures and copyTextures, so a moving shape's
+// texture is the one the shape rule gave it (floatdisk.js gameTextures: its copy, its clamped soft texture).
 // -> `materials`: Map(name -> { texture, motion (readMotion's), pivot, clamp: true (W1: a clamped one's only - its copy
-// comes from motionCopies), text (its .mtr: motionMaterialText, LF - a clamped one's naming its copy, no texture0),
-// label (the part's) }), in the parts' order.
+// comes from motionCopies), side: true (MV: its texture0 clamped in v, sideways only), txi (MV: its own TXI's text -
+// floatdisk.js motionTxi, its texture's blending lines - when it has one), text (its .mtr: motionMaterialText, LF - a
+// clamped one's naming its copy, no texture0), label (the part's) }), in the parts' order. Without `sources` no TXI is
+// read: every material as before MV (uvprobe: TMO-1's domes as they were).
 function motionMaterials(placed, materials = new Map(), options = {}) {
+  const { sources = null, copies = new Map() } = options;
+  const txis = new Map();
+  const txiOf = (t) => {
+    if (!txis.has(t)) {
+      const pic = copies.has(t) ? { txi: copies.get(t).txi } : motionPicture(t, sources);
+      txis.set(t, pic ? txiText(pic.txi) : null);
+    }
+    return txis.get(t);
+  };
   for (const x of placed) {
-    const moved = F.moveTextures(x.meshes, x.part.motion, options);
+    const shape = x.part.source.kind === "shape" ? x.part.source.shape : null;
+    const moved = F.moveTextures(x.meshes, x.part.motion, Object.assign({ shape }, "clamp" in options ? { clamp: options.clamp } : {}, sources ? { txiOf } : {}));
     x.meshes = moved.meshes;
     for (const m of moved.materials) {
       if (!materials.has(m.name)) {
-        materials.set(m.name, Object.assign({ texture: m.texture, motion: m.motion, pivot: m.pivot }, m.clamp ? { clamp: true } : {},
-          { text: F.motionMaterialText(m), label: F.partLabel(x.part) }));
+        materials.set(m.name, Object.assign({ texture: m.texture, motion: m.motion, pivot: m.pivot }, m.clamp ? { clamp: true } : {}, m.side ? { side: true } : {},
+          m.txi ? { txi: m.txi } : {}, { text: F.motionMaterialText(m), label: F.partLabel(x.part) }));
       }
     }
   }
@@ -163,8 +180,9 @@ function motionCopies(materials, sources) {
 }
 // The materials as writes into `dir` (beside what names them: the models' folder, or a spell mesh's drafts'):
 // <dir>\<name>.mtr - and a material with a `copy` (W1's clamped one, motionCopies'; uvprobe's copy domes) its picture
-// <dir>\<name>.tga or .dds and its TXI <dir>\<name>.txi when it has them - each kind "material" (ours by its name: only
-// the generator makes n5u_ names, and the name fixes the bytes), and - when there's any - the shader they name,
+// <dir>\<name>.tga or .dds and its TXI <dir>\<name>.txi when it has them - MV: a material with a TXI of its own (`txi`,
+// its texture's blending lines) its <dir>\<name>.txi, LF - each kind "material" (ours by its name: only the generator
+// makes n5u_ names, and the name fixes the bytes), and - when there's any - the shader they name,
 // <dir>\vsn5uvmove.shd, kind "shader" (ours when made.txt lists it, as data\files' committed one, or when it's the
 // generators' shader: floatdisk.js's isMotionShader), CRLF as the generators write text. None noted in made.txt.
 function motionWrites(materials, dir) {
@@ -174,6 +192,7 @@ function motionWrites(materials, dir) {
     writes.push({ file: path.join(dir, name + ".mtr"), bytes: Buffer.from(m.text, "latin1"), kind: "material" });
     if (m.copy && m.copy.bytes) writes.push({ file: path.join(dir, name + m.copy.ext), bytes: m.copy.bytes, kind: "material" });
     if (m.copy && m.copy.txi) writes.push({ file: path.join(dir, name + ".txi"), bytes: m.copy.txi, kind: "material" });
+    else if (m.txi) writes.push({ file: path.join(dir, name + ".txi"), bytes: Buffer.from(m.txi, "latin1"), kind: "material" });
   }
   writes.push({ file: path.join(dir, F.MOTION_SHADER + ".shd"), bytes: Buffer.from(F.crlf(F.motionShaderText()), "latin1"), kind: "shader" });
   return writes;
@@ -181,14 +200,16 @@ function motionWrites(materials, dir) {
 // A motion in words: "scrolls 0 0.25 a second, turns 30 degrees a second, breathes 0.3 at 0.5 a second" (what it does).
 const motionWords = (m) => [m.scroll.some((v) => v !== 0) ? `scrolls ${m.scroll.join(" ")} a second` : null, m.turn ? `turns ${m.turn} degrees a second` : null,
   m.breathe ? `breathes ${m.breathe} at ${m.rate} a second` : null].filter(Boolean).join(", ");
-// The summary's line a material: its texture, its motion and pivot, a clamped one's copy (W1), where it goes (and the
-// shader beside it).
+// The summary's line a material: its texture, its motion and pivot, a clamped one's copy (W1), MV's clamp in v and its
+// TXI's lines, where it goes (and the shader beside it).
 const motionLines = (materials, where) => [...materials].map(([name, m]) => `  material ${name}: ${m.texture} ${motionWords(m.motion)}, round ` +
   `${m.pivot.join(" ")}${m.clamp ? `, clamped: ${m.texture} copied as ${name}${m.copy ? m.copy.ext : ".tga"} with ${name}.txi (its TXI and ${F.CLAMP_TXI})` : ""}` +
+  `${m.side ? ", clamped in v (scrolling sideways only)" : ""}${m.txi ? `, ${name}.txi beside it: ${m.txi.trim().split(/\r?\n/).join(", ")}` : ""}` +
   ` - written into ${where}, with ${F.MOTION_SHADER}.shd`);
-// --json's: [{ material, texture, motion (its non-zero keys: cleanMotion's), pivot, clamp: true (W1: a clamped one's only) }].
+// --json's: [{ material, texture, motion (its non-zero keys: cleanMotion's), pivot, clamp: true (W1: a clamped one's only),
+// side: true (MV: clamped in v, sideways only), txi (MV: its own TXI's text, when it has one) }].
 const motionJson = (materials) => [...materials].map(([material, m]) => Object.assign({ material, texture: m.texture, motion: F.cleanMotion(m.motion), pivot: m.pivot },
-  m.clamp ? { clamp: true } : {}));
+  m.clamp ? { clamp: true } : {}, m.side ? { side: true } : {}, m.txi ? { txi: m.txi } : {}));
 
 // --- DC: a library texture copied without its decal mark, a flipbook clamped in v ---------------------------------------
 // The placed still shape parts' library textures the game must have copied (floatdisk.js stillTextures: a TXI that says
@@ -208,7 +229,9 @@ function copyTextures(placed, copies = new Map(), sources = {}) {
   };
   for (const x of placed) {
     if (x.part.source.kind !== "shape" || !x.meshes) continue;
-    const still = F.stillTextures(x.part.source.shape, x.part.motion, x.meshes, (t) => {
+    // (MV: a moving part's too - floatdisk.js gameTextures: its decal texture copied, a flipbook moving sideways only too,
+    // clamped in v while it does; its material names the copy as texture0.)
+    const still = F.gameTextures(x.part.source.shape, x.part.motion, x.meshes, (t) => {
       const pic = picture(t);  // (its key - its TXI's text and its picture's bytes - names the copy: floatdisk.js copyKey)
       return pic ? { decal: F.txiDecal(pic.txi), cycle: F.txiCycle(pic.txi), key: F.copyKey(pic.txi, pic.bytes) } : null;
     });

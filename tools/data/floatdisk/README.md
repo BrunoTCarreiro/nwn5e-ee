@@ -329,8 +329,11 @@ A part's `motion` moves the pictures on its textured meshes (M2; the owner, 2026
   ```
 
 - **TMO-1 passed 2026-11-18** (the Composer's probe, `tools\data\composer\uvprobe.js`): route A (texture0) - the
-  material names its texture and our shader moves it; the texture's TXI (additive) still applies. The motion runs on the
-  game's clock, not the effect's.
+  material names its texture and our shader moves it. The motion runs on the game's clock, not the effect's. Its
+  texture's TXI applies to the **texture** (its flipbook, its clamp) but **not to the blend** - wrong as first written
+  here ("the texture's TXI (additive) still applies"): the engine takes a mesh's blend only from its bitmap's TXI, which
+  an `n5u_` name didn't have, so a moving additive texture drew alpha-blended (TMO-1's probe domes were at alpha 0.3,
+  where the two look alike). MV, below, gives each material a TXI of its own.
 - **What a material gives up:** it names our vertex shader and the game's plain lit fragment shader (the vslit / fslit
   pair), so a moving texture drops the game texture's own `.mtr` (a specular or normal-mapped one's). Whether an
   `envmaptexture` its TXI asks for still applies under our material is unknown (not dropped by us; untested).
@@ -403,6 +406,42 @@ its TXI beside what names them - `data\files` (git-ignored, `/data/files/n5l_*`:
 drafts - kind "copy", owned by the `n5l_` name. The summary says `texture n5l_...: fxpa_flame02 copied without its
 decal mark, clamped in v (n5l_....tga, n5l_....txi: its TXI without decal, and clamp 2) - ...`; `--json`'s `copies`:
 `[{ copy, texture, clamp }]`, a clamped soft texture's `shapes` entry `"clamp": true`.
+
+## Moving textures keep their blend; a moving shape's texture as a still one's (MV)
+
+DC-1's flame ring with Scroll round (the owner, 2026-11-19, on 0.99.82): the rim line was back on the stage; in game some
+plays were an opaque block of the tint, others the flames tinted but on black. "go" to the fix. The engine (read in the MV
+diagnosis):
+
+- **a mesh's blend comes only from its bitmap's TXI** - `Material::Init` reads `<bitmap>.txi` (`blending`, `decal`);
+  texture0's TXI isn't read for it and an MTR can't set it. An `n5u_` name had no TXI, so every moving texture drew with
+  the default blend (alpha, depth written): an additive one on black;
+- **texture0's own TXI is its texture's**: its flipbook (`proceduretype cycle`: it cycles under texture0, each bind
+  stepping it) and its clamp apply; its `decal` and `blending` don't.
+
+So (`floatdisk.js`; the generators, and the VFX Bench's Play in game by the same functions):
+
+- **a moving texture's material gets a TXI of its own**, `n5u_<...>.txi`: its texture's `blending` lines as they are
+  (`motionTxi`) - with `decal`, all the engine reads for a mesh from its bitmap's TXI, and `decal` is never carried (it
+  would drop the material). None for a texture with no `blending` line (no TXI, as before). The TXI is hashed into the
+  material's name (`:txi:` and its text: a changed TXI never shares a name). W1's clamped material is as it was: its
+  copy's TXI already carries the source's lines.
+- **a moving shape's texture is what a still one's is** (`gameTextures`: DC's rule with "v within one repeat" read as
+  "**sideways only**, v within one repeat" - `sidewaysClamps`): its material's texture0 is DC's copy (`n5l_`) for a
+  decal texture or a flipbook moving sideways - the still ring's own copy, one a texture, never a speed - or its clamped
+  soft texture; anything else as before. A mesh W1 clamps (it breathes) is W1's.
+- **sideways only** = scroll up 0, turn 0 and breath 0 as the material takes them (to 0.001) on a mesh whose v stays
+  within [0, 1]: the shader then leaves v as it is, so the copy's (or soft texture's) `clamp 2` keeps the line at the rim
+  gone while u scrolls round and repeats. Never W1's `clamp 3` there; never clamped with a scroll up, a turn or a
+  breath (each takes v out of [0, 1]): a decal texture's copy is then unclamped, a plain flipbook as it is. Its name
+  hashes `:clampv` (its own mark, never W1's `:clamp`).
+- **Byte-wise:** a still part, a game part's or your own file's texture without a `blending` line, the Floating Disk:
+  as before. A moving texture whose TXI has a `blending` line gets its TXI and a new name; a moving shape's decal texture
+  or flipbook names its copy (and the copy is written); a moving soft shape scrolling sideways names its clamped soft
+  texture.
+
+The summary says it: `material n5u_...: n5l_... scrolls 0.5 0 a second, round 0.5 0.5, clamped in v (scrolling sideways
+only), n5u_....txi beside it: blending additive - ...`; `--json`'s material gains `"side": true` and `"txi"`.
 
 ## The files here
 

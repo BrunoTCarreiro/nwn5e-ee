@@ -32,8 +32,10 @@ remove the six files from main"**:
   while colours are tried;
 - any moving texture's material: `n5u_*` (the Floating Disk's README, "Moving textures"), build output as a soft
   texture is - and a clamped one's copy (W1: `n5u_*.tga` / `.dds` and its `.txi`, the texture's picture under the
-  material's name - the game's own art for a library texture, so never committed);
-- any library texture's copy: `n5l_*` (DC: a still shape's decal or flipbook texture, `.tga` / `.dds` and its `.txi` -
+  material's name - the game's own art for a library texture, so never committed), or an unclamped one's own TXI (MV:
+  `n5u_*.txi`, its texture's blending lines);
+- any library texture's copy: `n5l_*` (DC: a still shape's decal or flipbook texture - MV: a moving one's too -
+  `.tga` / `.dds` and its `.txi` -
   the game's picture under our own name with its TXI minus `decal`, + `clamp 2`: the Floating Disk's README, "A library
   texture's copy"), the game's own art, so never committed.
 
@@ -71,8 +73,10 @@ node tools\data\build_derived.js --out <folder> [--game <folder>] [--tools <nwn5
   (`vsn5uvmove.shd`) with it - the committed one, byte for byte (build.bat's copy of `data\` has it already). A
   clamped one (W1: it breathes, doesn't scroll, its mesh within one repeat) brings its copy too - the texture's picture
   under the material's name (`n5u_*.tga` or `.dds`) and its TXI (`n5u_*.txi`: the texture's own lines and the game's
-  `clamp 3`) - owned by the `n5u_` name as the material is.
-- **A library texture's copy** (DC: `n5l_*.tga` or `.dds` and `n5l_*.txi` - a still shape's decal or flipbook texture,
+  `clamp 3`) - owned by the `n5u_` name as the material is. An unclamped one with a TXI of its own (MV: `n5u_*.txi`,
+  its texture's blending lines - the engine takes a mesh's blend only from its bitmap's TXI) brings it likewise.
+- **A library texture's copy** (DC: `n5l_*.tga` or `.dds` and `n5l_*.txi` - a still shape's decal or flipbook texture
+  - MV: a moving shape's too, its material's texture0 -
   the game's picture with its TXI minus `decal`, + `clamp 2` within one repeat) comes out with the model that names it,
   owned by its `n5l_` name; a still Soft shape's clamped soft texture (its own `n5s_` name) with its TXI (`clamp 2`).
 - **Spell meshes are skipped**, and it says so. Their drafts live in the VFX Bench's saved folder, and the dev layer
