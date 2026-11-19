@@ -1923,6 +1923,24 @@ monster AC by CR.
     missile ... faithfully they should be able to be directed". The window opens as you cast, before the spell goes off
     ("A": Cancel spends nothing), and "one should also be able to use scorching ray to light fire light sources".
     - The window is #171, with Magic Missile's darts.
+    - *Built 0.99.85 (#171; the owner: "Go 1 and 2"):*
+      - **The window:** a player character's own Magic Missile or Scorching Ray order is held, so nothing is spent
+        (target_window.cpp). At its next update an NUI window opens ("Magic Missile: 3 darts", one more per slot
+        level; Scorching Ray 3 rays, one more per slot above 2), row 1 the creature cast at.
+      - **Picking:** EE's targeting mode, through the module's OnPlayerTarget event (`n5_target`, the module's own
+        script kept and chained). A left-click fills the next row; the same creature can take several. [x] clears a
+        row; a right-click or Esc takes back the latest. Red glow markers on the picks.
+      - **OK and Cancel:** OK casts the spell at row 1 with its class, slot and metamagic, the rows going to the
+        script. Each dart or ray flies to its row's target in order; an empty row follows the last pick. Cancel or
+        closing it spends nothing. NPCs and scripts get no window: everything at their target.
+      - **Scorching Ray** (new row 1255; Sorcerer, Wizard): each ray its own ranged spell attack, 2d6 Fire (doubled
+        on a critical), 0.25 s apart. A ray at an unlit fire light lights it (FirePlayAt, the Light spell's way).
+      - **Magic Missile's** darts: 1d4 + 1 Force each to their row's creature; Shield asked once per creature.
+      - **rules/target_rows:** TargetRowsFor, AddTarget, ClearRow, TakeBackLatest, RestoreRow, ResolveTargets.
+        6 tests (TargetRowsOwnersExample: a, b, c, a right-click, a gives a, b, a); 13 of 13 mutations caught;
+        test.bat 639 ok.
+      - **Text:** 14 new catalogue lines, generated, for review; Scorching Ray's name and description SRD 5.2.1
+        verbatim. Tests TW-1 to TW-8.
     - Build 1a goes first without Scorching Ray: Acid Arrow, Shatter, Mind Spike, Shining Smite, Prayer of Healing.
     - Then #171 with Scorching Ray and Magic Missile, then build 1b.
   - *Built 0.99.80 (level 2's build 1a):*
