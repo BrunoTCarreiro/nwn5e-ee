@@ -2335,3 +2335,122 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     library's 437 over 16 ms (88 before); the spans of the helper's 732 own-emission emitters match the stage frame by
     frame. Use this card's timing keeps first start to last end and serves opacity-only keyed emitters too (140 in 38
     library effects); after Rate 0 the refusal names only Ctrl+Z and the Game tab, and the drop is off on keys all at 0.
+
+## Decal textures copied, flipbooks and soft textures clamped in v (2026-11-19, #39; DC)
+
+  SHP-8 on 0.99.81 (the owner): SHP-8's flame ring - a Cylinder (open) with a Top radius, `fxpa_flame02`, a green Colour -
+  showed "a top very thin color at the edge on the rim of the cylinder" on the stage and in game, and "when played in
+  game the tinting doesn't show". The SHP-8 diagnosis (the coordinator's tmp `SHP8-diag-report.md`) read the engine
+  (nwmain, the same build as the win32 exe) and the game's files, numbers only; the owner: "Go" to its recommendation.
+  No src or tests change; no DLL change, no install.
+  - *The engine evidence:*
+    - **decal -> unlit.** `Material::ParseField` keeps a TXI's `decal`; for a decal mesh `PartTriMesh::Mat()` sets the
+      colour to (1, 1, 1, alpha) and returns without its `SetMaterialv` calls (ambient, diffuse, emission), and
+      `RenderFlat` turns lighting off for the draw, so the shader is vsvt / fst: `globalColor x texture`. A shape's Colour
+      (selfillum, ambient, diffuse) never shows. 21 of the game's 734 TXIs say `decal 1` (read 2026-11-19, values only):
+      `fxpa_flame02`, `fxpa_symbl_003`, `fxpa_web`, `fxpa_fern`, all 7 of its flipbooks (`fxpa_flame02`, the 5
+      waterfalls, `tnp_bird02`, `tsw01_panel01`), `c_air_skin`, `c_water_skin`, `vdu_tex_shade`, glass and GUI ones;
+    - **frames as their own textures.** `GLRender::CreateTexture` cuts a flipbook's frame out (`ImageGetSubImage`) as a
+      texture of its own; each gets `SetTextureParameters(.., GetClamp)` - repeating both ways unless the TXI clamps,
+      mipmapped, linear. So a mesh whose v runs to 1 samples the frame's own wrapped bottom row at its top rim: the line
+      (the frame's top row is black, its bottom row bright). Our soft textures (alpha 77 at the top row, 253 at the
+      bottom) show it fainter;
+    - **clamp bits 1 / 2 / 4.** `SetTextureParameters`: bit 1 sets WRAP_S, bit 2 WRAP_T, bit 4 WRAP_R to CLAMP_TO_EDGE,
+      else REPEAT - W1's `clamp 3` is both ways (seen, no longer inferred); `clamp 2` is v alone.
+  - *Calls:*
+    - **one rule** (floatdisk.js `stillTextures`; the generators through files.js, the VFX Bench's Play in game through
+      composer.js `played`): only a **still** shape (its part has no motion - a moving one's texture goes through its
+      material, M2 / W1) and only its own texture - a game part's and your own file's are drawn as their models have them,
+      and the game's own effects (opened from the library) are never copied;
+    - **a library texture whose TXI says decal** (any value but 0, as atoi reads it) - or **a flipbook on a mesh whose v
+      stays within one repeat**, decal or not (the call the brief left open: the line shows on any flipbook and the owner
+      wants none; the game's 7 are all decal anyway, so only a flipbook beside your own parts or in ovr\ is concerned) -
+      names a **copy**, `n5l_<12 hex digits>` (`copyName`: cyrb53 of "copy:<texture>:<clamp>:<key>" - one copy per
+      distinct result, never per colour; fix round 1: the key, `copyKey`, is 14 hex digits of the source TXI's text as
+      read and 14 of its picture's bytes - the content that decides the copy, so a game update to either names a new copy,
+      and the name fixes its bytes. Both are at hand where a copy is made - the generators' copy path and the bench's
+      server - and cheap: one cyrb53 pass over a TXI and a 49 KB picture; the page is told the key by the texture route,
+      `X-Copy-Key`, and the bake route refuses a key that isn't the picture's now, 409). Its picture is the game's (its DDS when it has one: the one copy path, `motionPicture`); its TXI (`copiedTxi`)
+      the source's lines as they are but every `decal` line - `proceduretype cycle`, `numx`, `numy`, `fps`, `blending
+      additive` kept - in its own line ends, then one clamp line, the union of its own and `clamp 2` when every v of the
+      mesh is within [0, 1] (0.001 either side: `vClamps`; u may tile - Repeat around, Elemental Shield's 3). Repeat up
+      above 1: a decal texture's copy without the clamp, a plain flipbook as it is (it repeats, line included, as the
+      game's does);
+    - **the soft texture** of a still shape within one repeat: its own name (`shapeTextureName` hashes `:clamp2` after
+      the colour and blend - M1b's rule: a TXI change never shares a name) and a TXI saying `clamp 2` (`softTxi`; an
+      Additive one's `blending additive` first). The brief's alternative - `clamp 2` when every mesh using the soft
+      texture is within one repeat - would make one name's TXI depend on the other meshes of a build (and of a Play: one
+      vfxedit\ for all), so the clamp went into the name instead; Repeat up above 1 (the only mapping that tiles v) and a
+      moving shape keep the unclamped name (a scroll needs its texture0 to repeat);
+    - **W1's `clampedTxi` drops `decal` too** (`copiedTxi` with clamp 3; the union with the game's own clamp lines, 1-3,
+      is always 3): the diagnosis's risk - a clamped breathing glyph on a decal picture skipping our material, reading
+      whatever colour and alpha the mesh before it left. Every W1 copy of a non-decal texture is byte for byte as before;
+    - **files and ownership:** files.js `shapeTextures` (the clamped soft texture and its TXI, kind "shape"),
+      `copyTextures` / `copyWrites` (kind "copy", owned by the `n5l_` name; `/data/files/n5l_*` git-ignored - the game's
+      art); both build.js write them beside what names them, build_derived carries them into --out; the summary's line
+      and --json's `copies: [{ copy, texture, clamp }]` (a clamped soft texture's `shapes` entry `"clamp": true`);
+    - **the bench** (nwn5e-tools, branch `dc-decal-tools`): the texture route says `X-Decal: 1` (its TXI says decal, never
+      a material's) and `X-Clamp: <bits>`; it finds an `n5l_` copy where it's built (data\files, saved\); the bake route
+      takes `copies: [{ texture, clamp }]` - checked again against the rule on the texture's own TXI, else refused - and
+      a shape's `clamp`, writing the copy, its TXI and the clamped soft texture into vfxedit\ (all checked before any is
+      written). Play in game names them (composer.js `played`, the stage's mesh loader's TXI: one not read yet waits -
+      "still loading - try again in a moment"). app.js - KF's file, kept small - three edits: gameImage keeps the route's
+      `X-Decal`, `X-Clamp` and (fix round 1) `X-Copy-Key` as the picture's marks; request()'s bake body carries `copies`;
+      the `meshTexture` check hook says `decal`;
+    - **the stage** (view.js): `upload` clamps each way by the bits; a picture's `clampBits` (X-Clamp: a saved spell
+      mesh's copy, a clamped soft texture) uploads it so, a flipbook's frames too; a Composer still shape's mesh carries
+      composer.js placeOne's marks - `clampV` (its v within one repeat) and `copies` (a library texture) - and is drawn
+      with t CLAMP_TO_EDGE (u repeating) when its soft texture, or a library texture the game copies (`copied` on the
+      loader's X-Decal / X-Cycle), wants it; **decal drawn unlit**: a mesh whose texture says decal (X-Decal) and that the
+      game is given as it is - a game effect's own plane (Elemental Shield's ring), a chunk, a Composer game part - is drawn
+      texture x alpha (the particle program's `u_unlit`), as fst draws it; a Composer still shape's copy and any moving
+      mesh drawn lit. The stage knows decal from the texture route (the game's TXI), not the effect library - no library
+      format change (KF's 19 -> 20 untouched); a texture the route can't give (no checkout: the library's copy) draws lit,
+      as before.
+  - *What changes byte-wise* (the probe `tmp\animtex\dcprobe\bytes.js`, each project built --check before and after):
+    - **models / drafts:** only those with a still shape that names a decal or flipbook library texture (its bitmap now
+      `n5l_...`) or a still Soft shape within one repeat (its bitmap the clamped `n5s_...`). The Floating Disk's committed
+      composition (no shapes): its 7 models byte for byte; no committed Composer project in the repo. Every other model,
+      draft and TXI byte for byte (a game part, your own file, a moving shape, a Repeat-up-2 shape, a plain library
+      texture);
+    - **TXIs:** new `n5l_<...>.txi` (the copies) and the clamped soft textures' `n5s_<...>.txi` (`clamp 2`, or
+      `blending additive` + `clamp 2`); W1's `n5u_<...>.txi` of a decal texture (fxpa_symbl_003's: its `decal 1` line
+      gone); none other.
+  - *Built:* anim branch `dc-decal` (this section's commit: floatdisk.js, files.js, both build.js, build_derived.js,
+    .gitignore, the READMEs; floatdisk check, floatdisk and composer check_build, check_derived) and nwn5e-tools 819c998
+    on branch `dc-decal-tools` (composer_server.js, view.js, composer.js, composer_page.js - Save's status names the
+    copies -, app.js, README; check_chunks, check_composer, check_composer_server, composer_check.mjs) - in worktrees of
+    their own; the coordinator lands them.
+  - *Checks* (before -> after; each new check seen failing first - the anim ones on the code before the change, the
+    bench's on HEAD's view.js, composer.js, composer_page.js, app.js and composer_server.js):
+    - anim: floatdisk check 110 -> 117 (+7: the TXI's words, copiedTxi, vClamps, the names, the rule, the page, files.js;
+      W1's TXI and files.js checks amended: decal dropped), floatdisk check_build 13 -> 14, composer check_build 30 ->
+      33 (SHP-8's ring in --saved, TIN-1's glyph and a tiled ring in data\files, the clamped soft textures), check_derived
+      18 -> 19, composer check 24 - all pass. The soft-texture checks of before (M1b, S3) give their domes Repeat up 2
+      (as before DC); the still clamped ones are DC's. A mutation check (19 breaks of the DC code, in a temporary copy):
+      every one fails a DC or W1 check;
+    - nwn5e-tools: check_chunks 44 -> 48, check_composer 48 -> 49 (with an LF composition.json; the CRLF checkout's round
+      trip fails before and after), check_composer_server 55 -> 58, composer_check.mjs 101 -> 104 (dcFlameRingNoLine: 4
+      mm under SHP-8's rim at most 1 brighter than with the ring deleted - 26 on HEAD's code: the line; dcFlameRingPlays;
+      dcMeshBeatCopyClamped), browser_check.mjs 112, check_effect 157, check_area 21, beats and parts - all pass. Old
+      Composer steps amended where a still Soft dome within one repeat now names its clamped soft texture.
+  - *Fix round 1* (the review, 2026-11-19: Needs fixes): at nwn5e-tools 819c998 check_composer_server was **57 of 58** -
+    its `shapeSummaryMatchesGenerator` compared the page's still shape meshes, now carrying composer.js placeOne's
+    `clampV` / `copies` marks, with the generator's whole (its last run had come before that composer.js edit, so the 58
+    above was wrong). The step now compares the meshes without the marks and asserts each mark is what the generator's
+    own rule gives (`copyKind`, `vClamps`): zotest's still Soft domes and flat shapes `clampV`, the wrapped one none. The
+    copy's name now hashes its content (`copyKey`, above) - the texture route's `X-Copy-Key`, the bake route's key check
+    (409). check_composer_server takes `--port` (run on 18793, beside another run on 18776). After the last edit, every
+    check again: anim floatdisk check 117, floatdisk check_build 14, composer check_build 33, check_derived 19, composer
+    check 24; nwn5e-tools check_chunks 48, check_composer 49 (LF), check_composer_server 58 (port 18793; on 819c998's
+    composer_server.js the two key steps fail), composer_check.mjs 104, browser_check.mjs 112, check_effect, check_area,
+    beats and parts - all pass. The mutation check: 24 breaks (5 of the key), every one caught. Byte-wise as above but for
+    the copy's name: the owner's mbkglyph disc names `n5l_1cef2bd88098` (its picture and TXI the same bytes).
+  - *Limits:* unseen in game until DC-1 / DC-3: that the copy keeps cycling under its own name (very likely: the cycle
+    hangs on the texture's own TXI) and that the game honours `clamp 2` on a mesh (TMO-5 passed for `clamp 3`). A
+    tinted **game part** on a decal texture still shows no tint in game (its model's meshes are given as they are) - a
+    follow-up if wanted. On the stage, game planes on decal textures are now drawn unlit - brighter than before where
+    their material was dark (Meteor Swarm's red flames now orange, as in game).
+  - *For the bench:* restart vfx_bench.bat. *For the game:* nothing installed - Play in game writes the copies into
+    vfxedit\; a saved spell mesh's into saved\.
+  - Test rows DC-1 to DC-4 (the coordinator's tmp `dc_rows.csv`, for docs/tests.csv).

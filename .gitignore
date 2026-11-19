@@ -42,3 +42,6 @@ __pycache__/
 # and, on the copy route, the texture copied under its name (from the game's, for a library texture). The shader they
 # name, vsn5uvmove.shd, is ours and committed (tools/data/floatdisk/made.txt lists it):
 /data/files/n5u_*
+# A library texture's copy without its decal mark (DC: a still shape's, n5l_<hash>.tga / .dds / .txi) - the game's art,
+# copied from the player's own game at build time, so never committed:
+/data/files/n5l_*
