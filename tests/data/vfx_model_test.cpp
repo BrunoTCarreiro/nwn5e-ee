@@ -2902,8 +2902,9 @@ std::map<std::string, std::vector<float>> CompiledKeys(const std::string& b, con
 // The anchor (the design's "Keys on a mesh beat": a scale as the game's own effects key it): vdr_bigby_int's hand - a plain
 // mesh, read as a plane - grows in its impact and shrinks back in its cessation by its scale, controller 36, one value a
 // row (1 to 10 over 0.333 s; 10 to 1 over 0.3 s). Those rows as the plane's scale keys are the model's scalekey on its
-// node in each animation, t s a row; the plane as read (no keys: the model readers keep none of a plane's) writes no node
-// there, as before. Only where the game is (NWN_GAME_DIR, or Steam's folder); nothing of it is kept.
+// node in each animation, t s a row. KF: the plane as read keeps them itself (its own keys - before KF the readers kept
+// none of a plane's and it wrote no node there), so the model as read writes the same scalekey lines. Only where the game
+// is (NWN_GAME_DIR, or Steam's folder); nothing of it is kept.
 TEST(VfxGameEffectsScaleKeys) {
   const char* given = getenv("NWN_GAME_DIR");
   const std::string game = given && *given ? given : "X:\\SteamLibrary\\steamapps\\common\\Neverwinter Nights";
@@ -2942,8 +2943,11 @@ TEST(VfxGameEffectsScaleKeys) {
   CHECK_EQ(hand >= 0, true);
   if (hand < 0 || grow.size() != 4 || shrink.size() != 4) return;
   const std::string node = "node trimesh n5t_p" + std::to_string(hand) + "_hand\n";
+  // KF: as read, its own scale keys are the compiled rows.
+  const VfxKeys* grown = FindKeys(&bigby.planes[hand].keys, "impact", false);
+  const VfxKeys* shrunk = FindKeys(&bigby.planes[hand].keys, "cessation", false);
+  CHECK_EQ(grown && grown->scale == grow && shrunk && shrunk->scale == shrink, true);
   const std::string as_read = WriteVfxModel(bigby, "n5t");
-  CHECK_EQ(as_read.find(node, as_read.find("\nnewanim ")) == std::string::npos, true);
   VfxKeys in, out;
   in.anim = "impact";
   in.scale = grow;
@@ -2956,11 +2960,13 @@ TEST(VfxGameEffectsScaleKeys) {
     snprintf(text, sizeof(text), "    %g %g\n", t, s);
     return std::string(text);
   };
-  CHECK_EQ(Contains(Section(Anim(model, "impact"), node, "endnode"), "\n  scalekey 2\n" + row(grow[0], grow[1]) + row(grow[2], grow[3])),
-           true);
-  CHECK_EQ(Contains(Section(Anim(model, "cessation"), node, "endnode"),
-                    "\n  scalekey 2\n" + row(shrink[0], shrink[1]) + row(shrink[2], shrink[3])),
-           true);
+  for (const std::string* m : {&model, &as_read}) {
+    CHECK_EQ(Contains(Section(Anim(*m, "impact"), node, "endnode"), "\n  scalekey 2\n" + row(grow[0], grow[1]) + row(grow[2], grow[3])),
+             true);
+    CHECK_EQ(Contains(Section(Anim(*m, "cessation"), node, "endnode"),
+                      "\n  scalekey 2\n" + row(shrink[0], shrink[1]) + row(shrink[2], shrink[3])),
+             true);
+  }
 }
 
 // --- TT (#39; the owner, 2026-11-18, MBK-1 on 0.99.79, after Drop in's first key moved to 0: "the disk in-game still
@@ -3237,4 +3243,560 @@ TEST(VfxKeptDraftsBlendUnlessOffRest) {
     CHECK_EQ(Transtime(model, "impact") == (off ? "0" : "0.25"), true);
     if (effect.duration) CHECK_EQ(Transtime(model, "duration") == "0.25" && Transtime(model, "cessation") == "0.25", true);
   }
+}
+
+// --- KF (#39; the owner, 2026-11-18, TMO-4: "in the bench the blue flame in the middle doesn't stop and pressing Play in
+// game doesn't show the angled flame ring at the bottom in-game" - offered "keep a game effect's own keys" - "yeah"; TT's
+// review: a re-saved game effect wrote transtime 0 where the game's own is 0.25): the model readers keep a game effect's
+// own keys - a mesh's move, turn, scale and alpha, and an emitter's birthrate, alphaStart and alphaEnd - and each
+// animation's transtime; the draft and the writer carry them. ---
+
+namespace {
+
+// A controller of a compiled model built here: its type, columns, rows' times and values.
+struct KfCtrl {
+  uint32_t type;
+  int columns;
+  std::vector<float> times, values;
+};
+
+// A compiled model laid out as the game's (built here, nothing of the game's): nodes with controllers, children, an
+// emitter's header, a plain mesh (a quad), animations with their length and transtime. Offsets from byte 12, as
+// ReadVfxBinaryModel reads them; the space handed out as it's asked for.
+struct KfModel {
+  static constexpr size_t kBase = 12, kRaw = 0x7000;
+  std::string b = std::string(0x8000, '\0');
+  size_t free_at = 0x100;
+  KfModel(const char* name) {
+    Puts(kBase + 8, name);
+    Put32(4, static_cast<uint32_t>(kRaw - kBase));
+  }
+  size_t Alloc(size_t n) {
+    const size_t at = free_at;
+    free_at += (n + 15) & ~static_cast<size_t>(15);
+    return at;
+  }
+  void Put32(size_t at, uint32_t v) { memcpy(&b[at], &v, 4); }
+  void Put16(size_t at, uint16_t v) { memcpy(&b[at], &v, 2); }
+  void PutF(size_t at, float v) { memcpy(&b[at], &v, 4); }
+  void Puts(size_t at, const char* text) { memcpy(&b[at], text, strlen(text)); }
+  // A node (the reader's terms: its header + 0x10): its name, flags and controllers.
+  size_t Node(const char* name, uint32_t flags, const std::vector<KfCtrl>& ctrls) {
+    const size_t at = Alloc(0x300);
+    Puts(at + 0x10, name);
+    Put32(at + 0x5C, flags);
+    size_t numbers = 0;
+    for (const KfCtrl& c : ctrls) numbers += c.times.size() + c.values.size();
+    const size_t keys = Alloc(12 * ctrls.size() + 4), data = Alloc(4 * numbers + 4);
+    Put32(at + 0x44, static_cast<uint32_t>(keys - kBase));
+    Put32(at + 0x48, static_cast<uint32_t>(ctrls.size()));
+    Put32(at + 0x50, static_cast<uint32_t>(data - kBase));
+    uint16_t used = 0;
+    for (size_t i = 0; i < ctrls.size(); ++i) {
+      const size_t k = keys + 12 * i;
+      Put32(k, ctrls[i].type);
+      Put16(k + 4, static_cast<uint16_t>(ctrls[i].times.size()));
+      Put16(k + 6, used);
+      for (float t : ctrls[i].times) PutF(data + 4 * used++, t);
+      Put16(k + 8, used);
+      for (float v : ctrls[i].values) PutF(data + 4 * used++, v);
+      b[k + 10] = static_cast<char>(ctrls[i].columns);
+    }
+    Put32(at + 0x54, used);
+    return at;
+  }
+  void Children(size_t at, const std::vector<size_t>& kids) {
+    const size_t array = Alloc(4 * kids.size() + 4);
+    Put32(at + 0x38, static_cast<uint32_t>(array - kBase));
+    Put32(at + 0x3C, static_cast<uint32_t>(kids.size()));
+    for (size_t i = 0; i < kids.size(); ++i) Put32(array + 4 * i, static_cast<uint32_t>(kids[i] - 0x10 - kBase));
+  }
+  void Emitter(size_t at) {
+    Puts(at + 0x60 + 0x18, "Fountain");
+    Puts(at + 0x60 + 0x38, "Normal");
+    Puts(at + 0x60 + 0x78, "fxpa_fireb");
+  }
+  // A quad of 4 vertices (2 faces) with its UVs, textured fxpa_flame02 (the mesh header at the node + 0x60).
+  void Mesh(size_t at) {
+    const size_t mh = at + 0x60, faces = Alloc(64);
+    for (int k = 0; k < 3; ++k) {
+      PutF(mh + 0x3C + 4 * k, 1.0f);
+      PutF(mh + 0x48 + 4 * k, 1.0f);
+    }
+    Put32(mh + 0x6C, 1);
+    Puts(mh + 0x78, "fxpa_flame02");
+    Put32(mh + 0x08, static_cast<uint32_t>(faces - kBase));
+    Put32(mh + 0x0C, 2);
+    const uint16_t corners[2][3] = {{0, 1, 2}, {2, 1, 3}};
+    for (int f = 0; f < 2; ++f)
+      for (int k = 0; k < 3; ++k) Put16(faces + 32 * f + 26 + 2 * k, corners[f][k]);
+    Put32(mh + 0x1BC, 0);
+    Put16(mh + 0x1C0, 4);
+    Put32(mh + 0x1C4, 48);
+    const float verts[4][3] = {{-1, 0, 0}, {1, 0, 0}, {-1, 0, 0.5f}, {1, 0, 0.5f}};
+    const float uvs[4][2] = {{0, 0}, {1, 0}, {0, 1}, {1, 1}};
+    for (int v = 0; v < 4; ++v) {
+      for (int c = 0; c < 3; ++c) PutF(kRaw + 12 * v + 4 * c, verts[v][c]);
+      for (int c = 0; c < 2; ++c) PutF(kRaw + 48 + 8 * v + 4 * c, uvs[v][c]);
+    }
+  }
+  // An animation: its name, length and transtime (the header's +0x70 and +0x74), its node tree from `root`.
+  void Anim(const char* name, float length, float transtime, size_t root) {
+    const size_t header = Alloc(0x100);
+    Puts(header + 8, name);
+    Put32(header + 0x48, static_cast<uint32_t>(root - 0x10 - kBase));
+    PutF(header + 0x70, length);
+    PutF(header + 0x74, transtime);
+  }
+};
+
+// vdr_eleshield's shape (the owner's TMO-4), built here: a lasting effect whose emitter "flame" (birthrate 100,
+// alphaStart 0.6, alphaEnd 0 in the geometry) is on in the impact only until 0.6 s (birthrate keys 100, 100, 0) and fades
+// (alphaStart 0.6 to 0), its alphaStart held at 0 in the duration and its alphaEnd keyed in the cessation; and a plain
+// mesh "ring" (alpha 0 in the geometry, 1 cm along x) fading in over the impact's first 0.3 s, held in the duration (where
+// it also breathes: scale 1, 1.5, 1) and fading out in the cessation as it rises a metre and turns. The animations'
+// transtimes 0.25 (impact), 0 (duration) and 0.15 (cessation). `transtimes`: false - none of them past the game's
+// (-1, and 99 for the cessation: not read).
+std::string KeyedModel(bool transtimes = true) {
+  KfModel m("test_kf");
+  const size_t root = m.Node("test_kf", 0x1, {{8, 3, {0}, {0, 0, 0}}});
+  const size_t flame = m.Node("flame", 0x5, {{8, 3, {0}, {0, 0, 0.43f}}, {88, 1, {0}, {100}}, {84, 1, {0}, {0.6f}}, {80, 1, {0}, {0}}});
+  m.Emitter(flame);
+  const size_t ring = m.Node("ring", 0x21, {{8, 3, {0}, {0.01f, 0, 0}}, {128, 1, {0}, {0}}});
+  m.Mesh(ring);
+  m.Children(root, {flame, ring});
+  m.Put32(KfModel::kBase + 0x48, static_cast<uint32_t>(root - 0x10 - KfModel::kBase));
+  const float t_impact = transtimes ? 0.25f : -1.0f, t_duration = transtimes ? 0.0f : -1.0f, t_cessation = transtimes ? 0.15f : 99.0f;
+  {
+    const size_t r = m.Node("test_kf", 0x1, {});
+    const size_t f = m.Node("flame", 0x5, {{88, 1, {0, 0.5f, 0.6f}, {100, 100, 0}}, {84, 1, {0.5f, 0.95f}, {0.6f, 0}}});
+    const size_t g = m.Node("ring", 0x21, {{128, 1, {0, 0.3f, 0.95f}, {0, 1, 1}}, {8, 3, {0}, {0.01f, 0, 0}}});
+    m.Children(r, {f, g});
+    m.Anim("impact", 0.95f, t_impact, r);
+  }
+  {
+    const size_t r = m.Node("test_kf", 0x1, {});
+    const size_t f = m.Node("flame", 0x5, {{84, 1, {0}, {0}}});
+    const size_t g = m.Node("ring", 0x21, {{128, 1, {0, 1}, {1, 1}}, {36, 1, {0, 0.5f, 1}, {1, 1.5f, 1}}});
+    m.Children(r, {f, g});
+    m.Anim("duration", 1.0f, t_duration, r);
+  }
+  {
+    const size_t r = m.Node("test_kf", 0x1, {});
+    const size_t f = m.Node("flame", 0x5, {{80, 1, {0, 0.5f}, {0, 0.3f}}});
+    const size_t g = m.Node("ring", 0x21, {{128, 1, {0, 0.25f}, {1, 0}}, {8, 3, {0, 1}, {0.01f, 0, 0, 0.01f, 0, 1}},
+                                           {20, 4, {0, 1}, {0, 0, 0, 1, 0, 0, 0.70710678f, 0.70710678f}}});
+    m.Children(r, {f, g});
+    m.Anim("cessation", 1.0f, t_cessation, r);
+  }
+  return m.b;
+}
+
+// A list's numbers as text ("%g" each, space-separated): what the draft writes.
+std::string Numbers(const std::vector<float>& v) {
+  std::string out;
+  for (size_t i = 0; i < v.size(); ++i) {
+    char text[32];
+    snprintf(text, sizeof(text), "%g", v[i]);
+    out += (i ? " " : "") + std::string(text);
+  }
+  return out;
+}
+
+const VfxKeys* KeysOf(const std::vector<VfxKeys>& list, const char* anim) {
+  for (const VfxKeys& k : list) {
+    if (k.anim == anim) return &k;
+  }
+  return nullptr;
+}
+
+// A lasting effect's emitter "flame" with birthrate 100 and no keys of its own, as nwn5e writes one.
+VfxEffect FlameEffect() {
+  VfxEffect effect;
+  effect.name = "n5_flame";
+  VfxEmitter flame;
+  flame.name = "flame";
+  flame.birthrate = 100.0f;
+  effect.emitters.push_back(flame);
+  return effect;
+}
+
+// The emitter node of `emitter` (the model's name for it) in one animation of a model named n5t ("" when none).
+std::string EmitterIn(const std::string& model, const char* anim, const std::string& emitter) {
+  return Section(Anim(model, anim), "node emitter " + emitter + "\n", "endnode");
+}
+
+}  // namespace
+
+// The compiled reader keeps the emitter's own birthrate, alphaStart and alphaEnd keys in each animation that has them -
+// every list as read (the duration's single alphaStart row too: a value set), none where it has none - and the mesh's
+// alpha in each, its scale in the duration and its move and turn in the cessation (its impact's single position row at
+// its geometry's place is no motion, as a node's), and each animation's transtime. What the emitter was read as before
+// stays: birthrate 100 always on (a lasting effect's geometry rate), alpha 0.6 to 0.
+TEST(VfxReadsTheGamesOwnKeysFromACompiledModel) {
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxBinaryModel(KeyedModel(), &effect, &error) && effect.duration, true);
+  CHECK_EQ(effect.emitters.size() == 1 && effect.planes.size() == 1, true);
+  if (effect.emitters.size() != 1 || effect.planes.size() != 1) return;
+  CHECK_EQ(Milli(effect.transtime[0]) == 250 && Milli(effect.transtime[1]) == 0 && Milli(effect.transtime[2]) == 150, true);
+  const VfxEmitter& flame = effect.emitters[0];
+  CHECK_EQ(Milli(flame.birthrate) == 100000 && Milli(flame.emit_seconds) == 0 && Milli(flame.alpha_start) == 600 &&
+               Milli(flame.alpha_end) == 0,
+           true);
+  const VfxKeys* impact = KeysOf(flame.keys, "impact");
+  const VfxKeys* duration = KeysOf(flame.keys, "duration");
+  const VfxKeys* cessation = KeysOf(flame.keys, "cessation");
+  CHECK_EQ(impact && Numbers(impact->birthrate) == "0 100 0.5 100 0.6 0" && Numbers(impact->alpha_start) == "0.5 0.6 0.95 0" &&
+               impact->alpha_end.empty(),
+           true);
+  CHECK_EQ(duration && duration->birthrate.empty() && Numbers(duration->alpha_start) == "0 0" && duration->alpha_end.empty(), true);
+  CHECK_EQ(cessation && cessation->birthrate.empty() && cessation->alpha_start.empty() && Numbers(cessation->alpha_end) == "0 0 0.5 0.3",
+           true);
+  const VfxPlane& ring = effect.planes[0];
+  CHECK_EQ(Milli(ring.alpha), 0);
+  const VfxKeys* fade_in = KeysOf(ring.keys, "impact");
+  const VfxKeys* held = KeysOf(ring.keys, "duration");
+  const VfxKeys* fade_out = KeysOf(ring.keys, "cessation");
+  CHECK_EQ(fade_in && Numbers(fade_in->alpha) == "0 0 0.3 1 0.95 1" && fade_in->position.empty() && fade_in->scale.empty(), true);
+  CHECK_EQ(held && Numbers(held->alpha) == "0 1 1 1" && Numbers(held->scale) == "0 1 0.5 1.5 1 1", true);
+  CHECK_EQ(fade_out && Numbers(fade_out->alpha) == "0 1 0.25 0" && Numbers(fade_out->position) == "0 0.01 0 0 1 0.01 0 1", true);
+  CHECK_EQ(fade_out && fade_out->orientation.size() == 10 && Milli(fade_out->orientation[5]) == 1000 &&
+               Milli(fade_out->orientation[8]) == 1000 && Milli(fade_out->orientation[9]) == 1571,
+           true);
+  // A transtime past the game's (99) or below 0 isn't known.
+  VfxEffect unknown;
+  CHECK_EQ(ReadVfxBinaryModel(KeyedModel(false), &unknown, &error), true);
+  CHECK_EQ(unknown.transtime[0] == -1.0f && unknown.transtime[1] == -1.0f && unknown.transtime[2] == -1.0f, true);
+}
+
+// The draft: an emitter's "<anim>_birthrate", "<anim>_alpha_start" and "<anim>_alpha_end" after its other key lines (any
+// section, as every key list), and the effect's "<anim>_transtime = T" after its lengths, each only when there - and back
+// as written; the model read writes the same draft again. A draft without them keeps its bytes.
+TEST(VfxDraftKeepsTheGamesOwnKeys) {
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxBinaryModel(KeyedModel(), &effect, &error), true);
+  const std::string draft = WriteVfxDraft(effect);
+  CHECK_EQ(Contains(draft, "\nlengths = 0.95 1 1\nimpact_transtime = 0.25\nduration_transtime = 0\ncessation_transtime = 0.15\n\n"), true);
+  CHECK_EQ(Contains(draft, "\nflags =\nimpact_birthrate = 0 100 0.5 100 0.6 0\nimpact_alpha_start = 0.5 0.6 0.95 0\n"
+                           "duration_alpha_start = 0 0\ncessation_alpha_end = 0 0 0.5 0.3\n"),
+           true);
+  CHECK_EQ(Contains(draft, "\nimpact_alpha = 0 0 0.3 1 0.95 1\nduration_alpha = 0 1 1 1\nduration_scale = 0 1 0.5 1.5 1 1\n"
+                           "cessation_position = 0 0.01 0 0 1 0.01 0 1\n"),
+           true);
+  VfxEffect back;
+  CHECK_EQ(ReadVfxDraft(draft, &back, &error), true);
+  CHECK_EQ(WriteVfxDraft(back) == draft, true);
+  CHECK_EQ(Milli(back.transtime[0]) == 250 && Milli(back.transtime[1]) == 0 && Milli(back.transtime[2]) == 150, true);
+  CHECK_EQ(back.emitters.size() == 1 && KeysOf(back.emitters[0].keys, "impact") &&
+               Numbers(KeysOf(back.emitters[0].keys, "impact")->birthrate) == "0 100 0.5 100 0.6 0",
+           true);
+  // Each transtime on its own, only where known; one not known writes no line.
+  VfxEffect one = Sample();
+  CHECK_EQ(Contains(WriteVfxDraft(one), "transtime"), false);
+  one.transtime[1] = 0.15f;
+  CHECK_EQ(Contains(WriteVfxDraft(one), "\nlengths = 0 2 1\nduration_transtime = 0.15\nshake = 2 0.5 1.25\n"), true);
+  CHECK_EQ(Contains(WriteVfxDraft(one), "impact_transtime") || Contains(WriteVfxDraft(one), "cessation_transtime"), false);
+  // Read by the rule every reader keeps: not a number, below 0 or past kVfxTranstimeMax - not known; -0 is 0.
+  const auto read = [](const std::string& value) {
+    VfxEffect e;
+    std::string why;
+    return ReadVfxDraft("name = x\nimpact_transtime = " + value + "\n", &e, &why) ? e.transtime[0] : -2.0f;
+  };
+  CHECK_EQ(read("0.25") == 0.25f && read("0") == 0.0f && read("60") == 60.0f, true);
+  CHECK_EQ(read("-1") == -1.0f && read("-0.5") == -1.0f && read("nan") == -1.0f && read("inf") == -1.0f && read("60.5") == -1.0f &&
+               read("x") == 0.0f,
+           true);
+  VfxEffect zero;
+  CHECK_EQ(ReadVfxDraft("name = x\nimpact_transtime = -0\n", &zero, &error) && !std::signbit(zero.transtime[0]) &&
+               Contains(WriteVfxDraft(zero), "\nimpact_transtime = 0\n"),
+           true);
+  // An emitter's key lines in any section: a node's read and written back (only an emitter's reach the model).
+  VfxEffect spun;
+  CHECK_EQ(ReadVfxDraft("name = x\n[node hub]\nimpact_birthrate = 0 5\nimpact_alpha_start = 0 1\nimpact_alpha_end = 0 0\n", &spun, &error) &&
+               spun.nodes.size() == 1,
+           true);
+  CHECK_EQ(Contains(WriteVfxDraft(spun), "\norientation = 0 0 0 0\nimpact_birthrate = 0 5\nimpact_alpha_start = 0 1\nimpact_alpha_end = 0 0\n"),
+           true);
+  const std::string spun_model = WriteVfxModel(spun, "n5t");
+  CHECK_EQ(Contains(spun_model, "birthratekey") || Contains(spun_model, "alphaStartkey") || Contains(spun_model, "alphaEndkey"), false);
+}
+
+// The model: an emitter with its own birthrate keys has them, and only them, in each animation - the impact's three rows,
+// no birthratekey in the duration and the cessation (the game's controller holds the impact's 0: the flame stays out) -
+// where an emitter without them has nwn5e's own (on again in the impact and the duration, off in the cessation). Its
+// alphaStartkey and alphaEndkey after its move and turn keys, in each animation that has them. The animations last its
+// keys.
+TEST(VfxModelWritesTheEmittersOwnKeys) {
+  const VfxEffect plain = FlameEffect();
+  const std::string before = WriteVfxModel(plain, "n5t");
+  CHECK_EQ(EmitterIn(before, "impact", "n5t_0_flame") == "node emitter n5t_0_flame\n  parent n5t\n  birthratekey 1\n    0 100\n", true);
+  CHECK_EQ(EmitterIn(before, "cessation", "n5t_0_flame") == "node emitter n5t_0_flame\n  parent n5t\n  birthratekey 1\n    0 0\n", true);
+  VfxEffect keyed = plain;
+  VfxKeys impact;
+  impact.anim = "impact";
+  impact.birthrate = {0, 100, 0.5f, 100, 0.6f, 0};
+  impact.position = {0, 0, 0, 1, 0.5f, 0, 0, 0};
+  impact.alpha_start = {0.5f, 0.6f, 0.95f, 0};
+  VfxKeys cessation;
+  cessation.anim = "cessation";
+  cessation.alpha_end = {0, 0, 0.5f, 0.3f};
+  keyed.emitters[0].keys = {impact, cessation};
+  const std::string model = WriteVfxModel(keyed, "n5t");
+  CHECK_EQ(EmitterIn(model, "impact", "n5t_0_flame") ==
+               "node emitter n5t_0_flame\n  parent n5t\n  birthratekey 3\n    0 100\n    0.5 100\n    0.6 0\n"
+               "  positionkey 2\n    0 0 0 1\n    0.5 0 0 0\n  alphaStartkey 2\n    0.5 0.6\n    0.95 0\n",
+           true);
+  CHECK_EQ(EmitterIn(model, "duration", "n5t_0_flame") == "node emitter n5t_0_flame\n  parent n5t\n", true);
+  CHECK_EQ(EmitterIn(model, "cessation", "n5t_0_flame") == "node emitter n5t_0_flame\n  parent n5t\n  alphaEndkey 2\n    0 0\n    0.5 0.3\n",
+           true);
+  // The geometry as before: its birthrate line, the rest.
+  const auto geometry = [](const std::string& m) { return Section(m, "beginmodelgeom n5t", "endmodelgeom n5t"); };
+  CHECK_EQ(!geometry(model).empty() && geometry(model) == geometry(before), true);
+  // Its own keys win over nwn5e's emission keys: a one-shot's on-time, a start, an emit time - none of theirs written.
+  for (int kind = 0; kind < 3; ++kind) {
+    VfxEffect e = keyed;
+    if (kind == 0) e.duration = false;
+    if (kind == 1) e.emitters[0].start_seconds = 0.3f;
+    if (kind == 2) e.emitters[0].emit_seconds = 0.2f;
+    const std::string m = WriteVfxModel(e, "n5t");
+    CHECK_EQ(Contains(EmitterIn(m, "impact", "n5t_0_flame"), "  birthratekey 3\n    0 100\n    0.5 100\n    0.6 0\n  positionkey"), true);
+    size_t lists = 0;
+    for (size_t at = m.find("birthratekey"); at != std::string::npos; at = m.find("birthratekey", at + 1)) ++lists;
+    CHECK_EQ(lists, 1u);
+  }
+  // Alpha keys alone keep nwn5e's emission keys: only the birthrate's own replace them.
+  VfxEffect faded = plain;
+  faded.emitters[0].keys = {cessation};
+  const std::string faded_model = WriteVfxModel(faded, "n5t");
+  CHECK_EQ(Contains(EmitterIn(faded_model, "impact", "n5t_0_flame"), "  birthratekey 1\n    0 100\n"), true);
+  CHECK_EQ(EmitterIn(faded_model, "cessation", "n5t_0_flame") ==
+               "node emitter n5t_0_flame\n  parent n5t\n  birthratekey 1\n    0 0\n  alphaEndkey 2\n    0 0\n    0.5 0.3\n",
+           true);
+  // A list without a whole row is no keys: nwn5e's own then.
+  VfxEffect few = plain;
+  VfxKeys short_list;
+  short_list.anim = "impact";
+  short_list.birthrate = {0.5f};
+  short_list.alpha_start = {0.5f};
+  few.emitters[0].keys = {short_list};
+  CHECK_EQ(WriteVfxModel(few, "n5t") == before, true);
+  // The animations last its keys: a birthrate key at 4 s in the impact, an alphaStart key at 3 s in the duration, an
+  // alphaEnd key at 5 s in the cessation.
+  VfxEffect late = plain;
+  VfxKeys a, b, c;
+  a.anim = "impact";
+  a.birthrate = {0, 100, 4, 0};
+  b.anim = "duration";
+  b.alpha_start = {0, 1, 3, 0};
+  c.anim = "cessation";
+  c.alpha_end = {0, 1, 5, 0};
+  late.emitters[0].keys = {a, b, c};
+  const std::string long_model = WriteVfxModel(late, "n5t");
+  CHECK_EQ(Milli(AnimLength(long_model, "impact")) == 4000 && Milli(AnimLength(long_model, "duration")) == 3000 &&
+               Milli(AnimLength(long_model, "cessation")) == 5000,
+           true);
+}
+
+// The transtime: one kept (read from a model) is written as it is, in each animation - whatever TT's rule would say -
+// unless the impact has a mesh beat (a plane the bench placed, its mesh named) whose first key there is off its rest: then
+// the impact starts on its keys (0), as TT's rule has it - a Drop in on a game effect falls from its height. A plane of
+// the effect's own (no mesh) never overrides a kept one. Without a kept one, TT's rule (0 when an item starts off its
+// rest, else 0.25; the duration and the cessation 0.25), as before.
+TEST(VfxModelWritesTheKeptTranstime) {
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxBinaryModel(KeyedModel(), &effect, &error), true);
+  const std::string model = WriteVfxModel(effect, "n5t");
+  CHECK_EQ(Transtime(model, "impact") == "0.25" && Transtime(model, "duration") == "0" && Transtime(model, "cessation") == "0.15", true);
+  // Kept against TT's rule: an emitter dropping in from off its rest keeps a kept 0.25; a kept 0 stays 0 at rest.
+  VfxEffect off = FlameEffect();
+  VfxKeys drop;
+  drop.anim = "impact";
+  drop.position = {0, 0, 0, 3, 0.5f, 0, 0, 0};
+  off.emitters[0].keys = {drop};
+  CHECK_EQ(Transtime(WriteVfxModel(off, "n5t"), "impact") == "0", true);  // TT's rule, none kept
+  off.transtime[0] = 0.25f;
+  CHECK_EQ(Transtime(WriteVfxModel(off, "n5t"), "impact") == "0.25", true);
+  VfxEffect rest = FlameEffect();
+  rest.transtime[0] = 0.0f;
+  rest.transtime[2] = 0.5f;
+  const std::string rest_model = WriteVfxModel(rest, "n5t");
+  CHECK_EQ(Transtime(rest_model, "impact") == "0" && Transtime(rest_model, "duration") == "0.25" && Transtime(rest_model, "cessation") == "0.5",
+           true);
+  // A mesh beat dropping in from 3 m on a game effect (its impact kept at 0.25): 0. The same plane as the effect's own (no
+  // mesh): 0.25, as kept. A mesh beat at its rest: 0.25. The duration's and the cessation's kept ones stay.
+  VfxEffect beat = DiscEffect(0.0f, 3.0f);
+  beat.transtime[0] = 0.25f;
+  beat.transtime[1] = 0.15f;
+  beat.transtime[2] = 0.0f;
+  CHECK_EQ(Transtime(WriteVfxModel(beat, "n5t"), "impact") == "0.25", true);
+  beat.planes[0].mesh = "n5m_test";
+  const std::string beat_model = WriteVfxModel(beat, "n5t");
+  CHECK_EQ(Transtime(beat_model, "impact") == "0" && Transtime(beat_model, "duration") == "0.15" && Transtime(beat_model, "cessation") == "0",
+           true);
+  VfxEffect landed = DiscEffect(3.0f, 3.0f);
+  landed.planes[0].mesh = "n5m_test";
+  landed.transtime[0] = 0.25f;
+  CHECK_EQ(Transtime(WriteVfxModel(landed, "n5t"), "impact") == "0.25", true);
+  // A mesh beat off its rest only in the duration leaves the kept impact.
+  VfxEffect later = DiscKeyed("duration", drop);
+  later.planes[0].mesh = "n5m_test";
+  later.transtime[0] = 0.25f;
+  CHECK_EQ(Transtime(WriteVfxModel(later, "n5t"), "impact") == "0.25", true);
+}
+
+// The ASCII reader: each animation's "transtime" line, an emitter's birthratekey, alphaStartkey and alphaEndkey (a count
+// or an endlist, any case) and a trimesh's alphakey, scalekey and move and turn keys - into the same keys. The model the
+// writer makes of the compiled one reads back with them, and writes the same model again.
+TEST(VfxReadsTheGamesOwnKeysFromAnAsciiModel) {
+  VfxEffect effect;
+  std::string error;
+  CHECK_EQ(ReadVfxBinaryModel(KeyedModel(), &effect, &error), true);
+  const std::string model = WriteVfxModel(effect, "n5t");
+  VfxEffect back;
+  CHECK_EQ(ReadVfxAsciiModel(model, &back, &error) && back.emitters.size() == 1 && back.planes.size() == 1, true);
+  if (back.emitters.size() != 1 || back.planes.size() != 1) return;
+  CHECK_EQ(Milli(back.transtime[0]) == 250 && Milli(back.transtime[1]) == 0 && Milli(back.transtime[2]) == 150, true);
+  const VfxKeys* impact = KeysOf(back.emitters[0].keys, "impact");
+  CHECK_EQ(impact && Numbers(impact->birthrate) == "0 100 0.5 100 0.6 0" && Numbers(impact->alpha_start) == "0.5 0.6 0.95 0", true);
+  CHECK_EQ(KeysOf(back.emitters[0].keys, "duration") && Numbers(KeysOf(back.emitters[0].keys, "duration")->alpha_start) == "0 0", true);
+  const VfxKeys* held = KeysOf(back.planes[0].keys, "duration");
+  CHECK_EQ(held && Numbers(held->alpha) == "0 1 1 1" && Numbers(held->scale) == "0 1 0.5 1.5 1 1", true);
+  const VfxKeys* fade_out = KeysOf(back.planes[0].keys, "cessation");
+  CHECK_EQ(fade_out && Numbers(fade_out->alpha) == "0 1 0.25 0" && fade_out->position.size() == 8 && fade_out->orientation.size() == 10, true);
+  // Its names are the model's own; with the effect's names back it writes the same model again.
+  back.name = effect.name;
+  back.emitters[0].name = effect.emitters[0].name;
+  back.planes[0].name = effect.planes[0].name;
+  CHECK_EQ(WriteVfxModel(back, "n5t") == model, true);
+  // Written by hand: an endlist list, the game's spelling and another case.
+  const std::string text =
+      "newmodel hand\nbeginmodelgeom hand\nnode dummy hand\n  parent NULL\nendnode\nnode emitter spark\n  parent hand\n"
+      "  update Fountain\n  birthrate 10\nendnode\nnode trimesh disc\n  parent hand\n  verts 3\n    0 0 0\n    1 0 0\n    0 1 0\n"
+      "  faces 1\n    0 1 2 1 0 1 2 1\nendnode\nendmodelgeom hand\n"
+      "newanim impact hand\n  length 1\n  transtime 0.15\n  animroot hand\nnode emitter spark\n  parent hand\n"
+      "  birthratekey\n    0 10\n    0.5 0\n  endlist\n  ALPHASTARTKEY 1\n    0 0.5\n  alphaEndkey 2\n    0 0\n    1 1\nendnode\n"
+      "node trimesh disc\n  parent hand\n  alphakey 2\n    0 0\n    1 1\n  scalekey 1\n    0 2\nendnode\ndoneanim impact hand\n"
+      "newanim duration hand\n  length 1\n  animroot hand\ndoneanim duration hand\ndonemodel hand\n";
+  VfxEffect hand;
+  CHECK_EQ(ReadVfxAsciiModel(text, &hand, &error) && hand.emitters.size() == 1 && hand.planes.size() == 1, true);
+  if (hand.emitters.size() != 1 || hand.planes.size() != 1) return;
+  CHECK_EQ(Milli(hand.transtime[0]) == 150 && hand.transtime[1] == -1.0f && hand.transtime[2] == -1.0f, true);
+  const VfxKeys* spark = KeysOf(hand.emitters[0].keys, "impact");
+  CHECK_EQ(spark && Numbers(spark->birthrate) == "0 10 0.5 0" && Numbers(spark->alpha_start) == "0 0.5" && Numbers(spark->alpha_end) == "0 0 1 1",
+           true);
+  CHECK_EQ(Milli(hand.emitters[0].emit_seconds), 500);  // read as before too
+  const VfxKeys* disc = KeysOf(hand.planes[0].keys, "impact");
+  CHECK_EQ(disc && Numbers(disc->alpha) == "0 0 1 1" && Numbers(disc->scale) == "0 2", true);
+  // A mesh something hangs under is a node too: its fade and scale are its plane's alone (the node's keys move it).
+  std::string under = text;
+  const std::string hand_parent = "node emitter spark\n  parent hand\n";
+  under.replace(under.find(hand_parent), hand_parent.size(), "node emitter spark\n  parent disc\n");
+  VfxEffect hung;
+  CHECK_EQ(ReadVfxAsciiModel(under, &hung, &error) && hung.planes.size() == 1 && hung.nodes.size() == 1 && hung.nodes[0].name == "disc", true);
+  if (hung.planes.size() == 1 && hung.nodes.size() == 1) {
+    const VfxKeys* node_keys = KeysOf(hung.nodes[0].keys, "impact");
+    CHECK_EQ(!node_keys || (node_keys->alpha.empty() && node_keys->scale.empty()), true);
+    CHECK_EQ(KeysOf(hung.planes[0].keys, "impact") && Numbers(KeysOf(hung.planes[0].keys, "impact")->alpha) == "0 0 1 1", true);
+  }
+  // An emitter keyed only in another animation (a placeable's animloop01: no effect's): none of its own in the draft, so
+  // its model is nwn5e's emission keys as before - the model read and the model of its draft the same.
+  std::string loop = text;
+  loop.replace(loop.find("newanim impact hand"), 19, "newanim animloop01 hand");
+  loop.replace(loop.find("doneanim impact hand"), 20, "doneanim animloop01 hand");
+  VfxEffect looped;
+  CHECK_EQ(ReadVfxAsciiModel(loop, &looped, &error) && looped.emitters.size() == 1, true);
+  VfxEffect drafted;
+  CHECK_EQ(ReadVfxDraft(WriteVfxDraft(looped), &drafted, &error), true);
+  CHECK_EQ(Contains(WriteVfxDraft(looped), "_birthrate"), false);
+  CHECK_EQ(WriteVfxModel(looped, "n5t") == WriteVfxModel(drafted, "n5t"), true);
+  CHECK_EQ(Contains(EmitterIn(WriteVfxModel(looped, "n5t"), "impact", "n5t_0_spark"), "  birthratekey 1\n    0 10\n"), true);
+}
+
+// Byte for byte (the brief's guarantee): every draft nwn5e keeps - the fixtures and Detect Magic's four - has no transtime
+// and no emitter keys of the new kinds, and writes the draft and the model it did (VfxKeptDraftsUnchanged holds Detect
+// Magic's committed models; TT's tests their transtimes).
+TEST(VfxKeptDraftsHaveNoneOfTheGamesOwnKeys) {
+  std::vector<std::string> paths;
+  for (const auto& entry : std::filesystem::directory_iterator("tests/data/fixtures")) {
+    if (entry.path().extension() == ".vfx") paths.push_back(entry.path().generic_string());
+  }
+  for (const char* size : {"h", "l", "m", "s"}) paths.push_back(std::string("tools/data/vfx/n5_detmag_") + size + ".vfx");
+  CHECK_EQ(paths.size() >= 8, true);
+  for (const std::string& path : paths) {
+    const std::string text = FixtureText(path.c_str());
+    VfxEffect effect;
+    std::string error;
+    CHECK_EQ(ReadVfxDraft(text, &effect, &error) && WriteVfxDraft(effect) == text, true);
+    bool kept = effect.transtime[0] != -1.0f || effect.transtime[1] != -1.0f || effect.transtime[2] != -1.0f;
+    for (const VfxEmitter& e : effect.emitters) {
+      for (const VfxKeys& k : e.keys) kept = kept || !k.birthrate.empty() || !k.alpha_start.empty() || !k.alpha_end.empty();
+    }
+    CHECK_EQ(kept, false);
+    const std::string model = WriteVfxModel(effect, "n5t");
+    CHECK_EQ(Contains(model, "alphaStartkey") || Contains(model, "alphaEndkey"), false);
+  }
+}
+
+// The anchor (the owner's TMO-4): the game's own vdr_eleshield (VFX_DUR_ELEMENTAL_SHIELD) as the VFX Bench reads it. Its
+// Flame01 keys its birthrate 100 -> 0 in the impact (off by 0.6 s, none after: the flame stops) and its alphaStart; its
+// ring Cylinder02 (alpha 0 at rest) fades in over the impact's first 0.3 s and out in the cessation; every transtime
+// 0.25. The draft and the model carry them: the impact's birthratekey 3 for Flame01, no birthratekey of its in the
+// duration, Cylinder02's alphakey in the impact. Only where the game is (NWN_GAME_DIR, or Steam's folder); nothing of it
+// is kept.
+TEST(VfxGameEffectsElementalShieldKeys) {
+  const char* given = getenv("NWN_GAME_DIR");
+  const std::string game = given && *given ? given : "X:\\SteamLibrary\\steamapps\\common\\Neverwinter Nights";
+  if (!std::ifstream(game + "\\data\\nwn_base.key")) {
+    printf("    (no game at %s: skipped)\n", game.c_str());
+    return;
+  }
+  const std::wstring dir(game.begin(), game.end());
+  GameResources resources(dir, GameResources::EeKeyFiles(), {dir + L"\\ovr"});
+  std::string bytes, source, error;
+  CHECK_EQ(resources.Read("vdr_eleshield", kResourceTypeMdl, &bytes, &source), true);
+  VfxEffect shield;
+  CHECK_EQ(ReadVfxBinaryModel(bytes, &shield, &error) && shield.duration, true);
+  int flame = -1, ring = -1;
+  for (size_t i = 0; i < shield.emitters.size(); ++i) {
+    if (shield.emitters[i].name == "Flame01") flame = static_cast<int>(i);
+  }
+  for (size_t i = 0; i < shield.planes.size(); ++i) {
+    if (shield.planes[i].name == "Cylinder02") ring = static_cast<int>(i);
+  }
+  CHECK_EQ(flame >= 0 && ring >= 0, true);
+  if (flame < 0 || ring < 0) return;
+  const VfxKeys* on = KeysOf(shield.emitters[flame].keys, "impact");
+  printf("    vdr_eleshield Flame01 impact birthrate %s, alphaStart %s; Cylinder02 impact alpha %s; transtimes %g %g %g\n",
+         on ? Numbers(on->birthrate).c_str() : "-", on ? Numbers(on->alpha_start).c_str() : "-",
+         KeysOf(shield.planes[ring].keys, "impact") ? Numbers(KeysOf(shield.planes[ring].keys, "impact")->alpha).c_str() : "-",
+         shield.transtime[0], shield.transtime[1], shield.transtime[2]);
+  CHECK_EQ(on && on->birthrate.size() == 6 && Milli(on->birthrate[0]) == 0 && Milli(on->birthrate[1]) == 100000 &&
+               Milli(on->birthrate[3]) == 100000 && Milli(on->birthrate[4]) == 600 && Milli(on->birthrate[5]) == 0,
+           true);
+  CHECK_EQ(on && on->alpha_start.size() >= 4 && Milli(on->alpha_start[1]) == 600 && Milli(on->alpha_start.back()) == 0, true);
+  const VfxKeys* later = KeysOf(shield.emitters[flame].keys, "duration");
+  CHECK_EQ(!later || later->birthrate.empty(), true);
+  CHECK_EQ(Milli(shield.planes[ring].alpha), 0);
+  const VfxKeys* fade_in = KeysOf(shield.planes[ring].keys, "impact");
+  CHECK_EQ(fade_in && fade_in->alpha.size() >= 4 && Milli(fade_in->alpha[0]) == 0 && Milli(fade_in->alpha[1]) == 0 &&
+               Milli(fade_in->alpha[2]) == 300 && Milli(fade_in->alpha[3]) == 1000,
+           true);
+  const VfxKeys* fade_out = KeysOf(shield.planes[ring].keys, "cessation");
+  CHECK_EQ(fade_out && fade_out->alpha.size() >= 4 && Milli(fade_out->alpha[1]) == 1000 && Milli(fade_out->alpha.back()) == 0, true);
+  CHECK_EQ(Milli(shield.transtime[0]) == 250 && Milli(shield.transtime[1]) == 250 && Milli(shield.transtime[2]) == 250, true);
+  const std::string draft = WriteVfxDraft(shield);
+  CHECK_EQ(Contains(draft, "\nimpact_transtime = 0.25\nduration_transtime = 0.25\ncessation_transtime = 0.25\n"), true);
+  CHECK_EQ(Contains(draft, "\nimpact_birthrate = 0 100 "), true);
+  VfxEffect back;
+  CHECK_EQ(ReadVfxDraft(draft, &back, &error) && WriteVfxDraft(back) == draft, true);
+  const std::string model = WriteVfxModel(back, "n5t");
+  const std::string flame_node = "n5t_" + std::to_string(flame) + "_flame01";
+  CHECK_EQ(Contains(EmitterIn(model, "impact", flame_node), "\n  birthratekey 3\n"), true);
+  CHECK_EQ(Contains(EmitterIn(model, "duration", flame_node), "birthratekey"), false);
+  const std::string ring_node = "node trimesh n5t_p" + std::to_string(ring) + "_cylinder02\n";
+  CHECK_EQ(Contains(Section(Anim(model, "impact"), ring_node, "endnode"), "\n  alphakey "), true);
+  CHECK_EQ(Transtime(model, "impact") == "0.25" && Transtime(model, "duration") == "0.25" && Transtime(model, "cessation") == "0.25", true);
 }

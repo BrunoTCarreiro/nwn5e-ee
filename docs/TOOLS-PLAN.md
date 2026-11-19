@@ -2224,3 +2224,76 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     request's draft; `fxpa_flame02` is the game's.
   - Test row SHP-8 (the coordinator's tmp `shp8_row.csv`, for docs/tests.csv): the flame ring in the Composer and in
     game.
+
+## A game effect's own keys and transtimes (2026-11-18, #39; KF - game-side)
+
+  The owner, 2026-11-18, TMO-4: "in the bench the blue flame in the middle doesn't stop and pressing Play in game doesn't
+  show the angled flame ring at the bottom in-game. it shows via !vfx" - the bench's copy of `vdr_eleshield` had its ring
+  Cylinder02 at alpha 0 (its fade-in keys dropped) and Flame01 emitting for ever (its birthrate keys unread) - offered
+  "keep a game effect's own keys": **"yeah"**. And TT's review: a re-saved game effect wrote transtime 0 where the game's
+  own is 0.25 (vff_piranha, vff_revivedrag...). Shared files, announced: src/data/vfx_model.h, src/data/vfx_model.cpp,
+  tests/data/vfx_model_test.cpp; no draft or model of nwn5e's changes.
+  - *Measured* (values only, over the game's 3,714 effect models - 2,887 compiled, 827 ASCII - their impact, duration and
+    cessation; a list counts when it has 2+ rows or a row off the geometry's value):
+    - meshes: 660 keyed - alpha 543, turn 302, move 203, scale 1: all four what M4's writer writes;
+    - emitters: 1,090 keyed - birthrate 861, move 239, alphaStart 239, alphaEnd 227, sizeEnd 83, sizeStart 75, velocity
+      48, turn 33, xsize / ysize / randvel 32, lifeExp 31, mass 29, particleRot 19, colorStart / grav 12, colorEnd /
+      spread 11, drag 9, fps 8, frameStart / frameEnd / bounce_co 7, the lightning, point-to-point and combinetime ones
+      5-7. **Kept: birthrate, alphaStart, alphaEnd** - with the move and turn kept since 0.42.3 they cover 878 of the
+      1,090 wholly (80.6%; the library's 390: 690 of 852, 81.0%) and touch 1,040; birthrate alone 60.5%; sizeStart /
+      sizeEnd would add 5.3%. The rest stay dropped;
+    - transtimes: impacts 0.25 (296), 0 (85), 0.15 (2); durations 0.25 (96), 0 (20); cessations 0.25 (93), 0 (24);
+    - `vdr_eleshield`: Flame01 keys its birthrate 100 -> 0 in the impact (100 to 0.567 s, 0 at 0.6 s, none after) and its
+      alphaStart (0.6 -> 0 by 0.967 s; 0 in the duration), and its velocity and randvel (2 -> -0.2, 0.4 -> 0 at 0.533 s:
+      dropped); Ring01 / Ring02 their birthrate (50; 50 -> 0 in the cessation); Cylinder02 (alpha 0) its alpha (0 -> 1
+      by 0.3 s, 1, 1 -> 0 by 0.333 s); every transtime 0.25.
+  - *Calls:*
+    - `VfxKeys.birthrate`, `alpha_start`, `alpha_end`: rows t v, an emitter's (controllers 88, 84, 80; the ASCII model's
+      `birthratekey`, `alphaStartkey`, `alphaEndkey`) - each list as read, a single row at the geometry's value too (a
+      value the animation sets: the game's controller holds it into the next animation);
+    - `VfxEffect.transtime[3]`: impact, duration, cessation, -1 not known; every reader's rule (TranstimeValue): 0 to
+      `kVfxTranstimeMax` (60), else -1; -0 is 0;
+    - the compiled reader: an animation's transtime at its header's +0x74; each animation's copy of an emitter keeps its
+      88 / 84 / 80 lists, of a plain mesh (a plane) its 128 (alpha) and 36 (scale) lists and its move and turn as a node's
+      (a single row at its geometry's place is no motion); a mesh that is a node too keeps its move and turn for both;
+    - the ASCII reader: `transtime` in an animation; a trimesh's `alphakey` / `scalekey`, an emitter's three lists (a
+      count or an endlist, any case) into the same keys; a plane takes its node's keys (a mesh that's also a node keeps
+      its fade and scale on the plane alone);
+    - the draft: `<anim>_transtime = T` right after `lengths = ` and `<anim>_birthrate` / `_alpha_start` / `_alpha_end`
+      after the other key lines (any section), each only when there - nwn5e's own drafts keep their bytes;
+    - WriteVfxModel: an emitter with its own birthrate list in the impact, the duration or the cessation (OwnEmission)
+      gets, in each animation, its own list there and only it - none where it has none (the game holds the value:
+      Flame01 stays off) - in place of nwn5e's emission keys (VA-2's restore, an emit time's, a start's, a one-shot's, the
+      cessation's off), and its geometry keeps its rate; its `alphaStartkey` / `alphaEndkey` after its move and turn keys.
+      LastKeyTime counts the three. **The transtime rule: a kept transtime is written as it is; none kept, TT's rule** -
+      with one exception: an impact with a **mesh beat** (a plane the bench placed: its `mesh` named) whose first key there
+      is off its rest is written 0, so a Drop in on a game effect's mesh beat falls from its height instead of rising from
+      its rest for 0.25 s (MBK-1 again). Argued: the game's own planes never have a mesh, so no game effect as read
+      changes (an override for any plane would have changed 7 of the library's effects - a plane of theirs off its rest
+      at the impact's first key, the game blending it 0.25 s); limit: a Drop in on a game effect's node or emitter keeps
+      the game's transtime (0.25: it rises from its rest first).
+  - *What changes* (hashes only, HEAD 5109810's vfx_model.* against KF's):
+    - every draft nwn5e keeps writes the same draft and model - 564: the 4 fixtures, Detect Magic's 4, the main
+      checkout's build\vfxedit (library game 437, nwn5e 18, chunks 40, saved 30, the bench's request) and the anim
+      helper's cache (30); Detect Magic's committed models (data/files) are the same bytes (VfxKeptDraftsUnchanged);
+    - every game model the bench reads, with KF's keys and transtimes taken out, writes what HEAD wrote (23,766 compiled,
+      25,108 with any_mesh, 6,576 ASCII; the same ones fail to read on both sides). With them, 459 compiled and 51 ASCII
+      models write another draft (412 and 48 another model). Of the library's 390 effects 255 drafts and 225 models
+      change: 215 gain emitter keys (205 their own emission), 22 plane keys, 255 transtimes; 66 write another transtime
+      line than TT's rule did (83 lines);
+    - 2 of the library's effects have an emitter with its own emission and no cessation keys still on at the cessation:
+      it emits there, as in the game.
+  - *Checks:* test.bat 621 -> 628 (7 new, 6 failing first with the fields alone; the guard passing); 48 deliberate breaks
+    on scratch copies against the VFX tests alone - 47 fail a test, the 48th (TranstimeValue without its isfinite) is
+    equivalent (the range test refuses nan and inf already). nwn5e-tools: check.js --helper with a helper built from
+    this worktree, 416 effects byte for byte (290 failures with the old core.js); check_effect.js's 12 KF checks and
+    browser_check.mjs's eleshieldPlaysItsOwnKeys, both failing on the old sim / page; the trait's stand-ins.
+  - *Library format 20* (nwn5e-tools dev/vfx_library_format.h): 20 when the core's `data::VfxEffect` has `transtime`
+    and its `data::VfxKeys` (an emitter's keys) `birthrate` and the 19 rule holds; else the 19 / 18 / 17 / 16 rule. The
+    install with KF exports the library once more at the game's next start.
+  - *Limits:* a game effect's velocity, randvel, size, colour, life, mass and the other emitter keys are still dropped
+    (Flame01's pull back after 0.53 s isn't kept); Rate / Opacity typed scale an emitter's own keys, but Starts after and
+    On for don't change an emitter that has them (the bench's note says so); a transtime only from a model read - a
+    draft of nwn5e's has none.
+  - Test row KF-1 (the coordinator's tmp `kf_row.csv`, for docs/tests.csv): VFX_DUR_ELEMENTAL_SHIELD from the library,
+    on the stage and in game.

@@ -47,6 +47,14 @@ float ToFloat(const std::string& text) { return static_cast<float>(atof(text.c_s
 // own reach 20 m and 4 s; an animation's copy of a compiled node can hold other bytes there.
 float BlastValue(float v) { return std::isfinite(v) && v > 0.0f && v <= 1000.0f ? v : 0.0f; }
 
+// KF: an animation's transtime as every reader keeps it - the draft, the ASCII model and the compiled one (the bench's
+// core.js keeps the same rule): 0 to kVfxTranstimeMax (seconds), else not known (-1) - not a number, not finite, below 0
+// or past it; -0 is 0.
+float TranstimeValue(float v) { return std::isfinite(v) && v >= 0.0f && v <= kVfxTranstimeMax ? v + 0.0f : -1.0f; }
+
+// An animation's slot in VfxEffect's lengths and transtimes (-1: not one of the three).
+int AnimSlot(const std::string& anim) { return anim == "impact" ? 0 : anim == "duration" ? 1 : anim == "cessation" ? 2 : -1; }
+
 // A plane's transparencyhint as every reader and both writers keep it (the bench's core.js hintValue and
 // tools/data/floatdisk/floatdisk.js's hintValue keep the same rule - the Composer's check.js compares the two): 0 to
 // kVfxTransparencyHintMax, the game's own models' range - below 0 is 0, above it the most.
@@ -179,12 +187,17 @@ std::string DraftKeys(const std::vector<VfxKeys>& keys) {
       if (!k.alpha.empty()) out += std::string(anim) + "_alpha = " + Row(k.alpha) + "\n";  // #39, a plane's
       // #39 (M4), a plane's scale: after its alpha, so every draft before it keeps its bytes.
       if (!k.scale.empty()) out += std::string(anim) + "_scale = " + Row(k.scale) + "\n";
+      // KF, an emitter's own birthrate, alphaStart and alphaEnd: after the rest, the same way.
+      if (!k.birthrate.empty()) out += std::string(anim) + "_birthrate = " + Row(k.birthrate) + "\n";
+      if (!k.alpha_start.empty()) out += std::string(anim) + "_alpha_start = " + Row(k.alpha_start) + "\n";
+      if (!k.alpha_end.empty()) out += std::string(anim) + "_alpha_end = " + Row(k.alpha_end) + "\n";
     }
   }
   return out;
 }
 
-// A draft line that is a key list ("<anim>_position" / "_orientation" / "_color" / "_radius" / "_alpha" / "_scale").
+// A draft line that is a key list ("<anim>_position" / "_orientation" / "_color" / "_radius" / "_alpha" / "_scale" /
+// KF's "_birthrate" / "_alpha_start" / "_alpha_end").
 bool DraftKeyLine(const std::string& key, const std::vector<std::string>& words, std::vector<VfxKeys>* keys) {
   for (const char* anim : kAnims) {
     const std::string a(anim);
@@ -212,6 +225,18 @@ bool DraftKeyLine(const std::string& key, const std::vector<std::string>& words,
       ReadAll(words, &FindKeys(keys, a, true)->scale);
       return true;
     }
+    if (key == a + "_birthrate") {  // KF, an emitter's
+      ReadAll(words, &FindKeys(keys, a, true)->birthrate);
+      return true;
+    }
+    if (key == a + "_alpha_start") {
+      ReadAll(words, &FindKeys(keys, a, true)->alpha_start);
+      return true;
+    }
+    if (key == a + "_alpha_end") {
+      ReadAll(words, &FindKeys(keys, a, true)->alpha_end);
+      return true;
+    }
   }
   return false;
 }
@@ -230,7 +255,15 @@ float LastKeyTime(const VfxEffect& effect, const std::string& anim) {
     }
   };
   for (const VfxNode& n : effect.nodes) scan(n.keys);
-  for (const VfxEmitter& e : effect.emitters) scan(e.keys);
+  for (const VfxEmitter& e : effect.emitters) {
+    scan(e.keys);
+    for (const VfxKeys& k : e.keys) {  // KF: its own birthrate, alphaStart and alphaEnd (what the model keys of them)
+      if (k.anim != anim) continue;
+      for (const std::vector<float>* list : {&k.birthrate, &k.alpha_start, &k.alpha_end}) {
+        for (size_t i = 0; i + 1 < list->size(); i += 2) last = std::max(last, (*list)[i]);
+      }
+    }
+  }
   for (const VfxLight& l : effect.lights) scan(l.keys);
   for (const VfxPlane& p : effect.planes) {
     for (const VfxKeys& k : p.keys) {
@@ -316,6 +349,16 @@ bool FirstTurnOffRest(const std::vector<float>& list, const float rest[4]) {
   return list.size() >= 5 && TurnBetween(&list[1], rest) > kVfxRestTolerance;
 }
 
+// A plane's first move, turn, scale or alpha key in an animation off its rest (PlaneKeysIn's lists): StartsOffRest's
+// part for a plane, and KF's mesh beat (WriteVfxModel).
+bool PlaneStartsOffRest(const VfxPlane& p, const std::string& anim) {
+  const float as_placed = 1.0f;
+  const PlaneKeys k = PlaneKeysIn(p, anim);
+  return (k.move && FirstRowOffRest(k.move->position, 4, p.position)) ||
+         (k.turn && FirstTurnOffRest(k.turn->orientation, p.orientation)) ||
+         (k.grow && FirstRowOffRest(k.grow->scale, 2, &as_placed)) || (k.fade && FirstRowOffRest(k.fade->alpha, 2, &p.alpha));
+}
+
 // TT: whether an animation starts an item off its rest - the first key of what the model keys there against the item's
 // own value in the geometry: a node's, an emitter's, a light's or a plane's position and orientation (a light's
 // orientation is none: its node's is written 0 0 0 0), a plane's scale (1: as placed) and alpha (its material's), a
@@ -327,7 +370,7 @@ bool FirstTurnOffRest(const std::vector<float>& list, const float rest[4]) {
 // OmenEmitter01: rest 0 0 11.11, its first key; vdr_bigby_int's hand meshes; fx_meteor's and fx_rainice's, impacts
 // with transtime 0); of its effects' impacts 282 blend 0.25, 81 start at once (0) and 2 blend 0.15.
 bool StartsOffRest(const VfxEffect& effect, const std::string& anim) {
-  const float none[4] = {0.0f, 0.0f, 0.0f, 0.0f}, as_placed = 1.0f;
+  const float none[4] = {0.0f, 0.0f, 0.0f, 0.0f};
   const auto moves = [&](const std::vector<VfxKeys>& keys, const float position[3], const float orientation[4]) {
     for (const VfxKeys& k : keys) {
       if (k.anim == anim && (FirstRowOffRest(k.position, 4, position) || FirstTurnOffRest(k.orientation, orientation))) {
@@ -351,13 +394,19 @@ bool StartsOffRest(const VfxEffect& effect, const std::string& anim) {
     }
   }
   for (const VfxPlane& p : effect.planes) {
-    const PlaneKeys k = PlaneKeysIn(p, anim);
-    if ((k.move && FirstRowOffRest(k.move->position, 4, p.position)) ||
-        (k.turn && FirstTurnOffRest(k.turn->orientation, p.orientation)) ||
-        (k.grow && FirstRowOffRest(k.grow->scale, 2, &as_placed)) ||
-        (k.fade && FirstRowOffRest(k.fade->alpha, 2, &p.alpha))) {
-      return true;
-    }
+    if (PlaneStartsOffRest(p, anim)) return true;
+  }
+  return false;
+}
+
+// KF: an emitter keeps its own emission - its birthrate keys as read from a model (a list with a whole row in one of the
+// effect's animations: what a draft carries - a placeable's animloop01 keys none of an effect's) are written in place of
+// nwn5e's (VA-2's restore, an emit time's, a start's, a one-shot's, the cessation's off): in each animation its own list
+// there, none where it has none - the game's controller holds the value it had (vdr_eleshield's Flame01: 100 -> 0 in the
+// impact, none after: its flame stays out).
+bool OwnEmission(const VfxEmitter& e) {
+  for (const VfxKeys& k : e.keys) {
+    if (k.birthrate.size() >= 2 && AnimSlot(k.anim) >= 0) return true;
   }
   return false;
 }
@@ -500,8 +549,10 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
       continue;
     }
     const VfxEmitter& e = effect.emitters[k - node_count];
-    // An emitter that switches off is keyed in the impact; F's always-on ones are too, and one that starts late.
-    const bool keyed = e.emit_seconds > 0.0f || !effect.duration || e.start_seconds > 0.0f || (late_burst && is_burst(e));
+    // An emitter that switches off is keyed in the impact; F's always-on ones are too, and one that starts late. KF: one
+    // with its own emission (OwnEmission) keeps its rate here - its own keys say when it's on.
+    const bool keyed = !OwnEmission(e) &&
+                       (e.emit_seconds > 0.0f || !effect.duration || e.start_seconds > 0.0f || (late_burst && is_burst(e)));
     for (const std::string& line : EmitterLines(e, names[k], parent_line(k), keyed, has_target(e))) {
       if (!line.empty()) lines.push_back(line);
     }
@@ -606,12 +657,25 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
   // TT: the impact starts on its keys (transtime 0) when an item's first key there is off its rest - else the game blends
   // 0.25 s from the rest pose into it (a dropped disc rose from the ground first). Every other impact, and every duration
   // and cessation (each blends from the animation before it), 0.25 as always.
+  // KF: a transtime kept from the model read (a game effect's own: TT's review - a re-saved one wrote 0 where the game's
+  // is 0.25) is written as it is, unless the impact has a mesh beat (a plane the bench placed: its mesh named) whose first
+  // key there is off its rest - then 0, so a Drop in on a game effect's mesh beat starts on its keys (MBK-1) while every
+  // game effect as read keeps its own (its planes never have a mesh). A transtime not known (-1, every draft of nwn5e's):
+  // TT's rule.
   const bool impact_off_rest = StartsOffRest(effect, "impact");
+  bool beat_off_rest = false;
+  for (const VfxPlane& p : effect.planes) beat_off_rest = beat_off_rest || (!p.mesh.empty() && PlaneStartsOffRest(p, "impact"));
+  const auto transtime = [&](const std::string& name) {
+    const int slot = AnimSlot(name);
+    const float kept = slot >= 0 ? effect.transtime[slot] : -1.0f;
+    if (kept >= 0.0f && !(slot == 0 && beat_off_rest)) return Num(kept);
+    return std::string(slot == 0 && impact_off_rest ? "0" : "0.25");
+  };
   const auto anim = [&](const char* name, float length, bool keys_on, bool keys_off) {
     lines.push_back("");
     lines.push_back(std::string("newanim ") + name + " " + model);
     lines.push_back("  length " + Num(length));
-    lines.push_back(impact_off_rest && std::string(name) == "impact" ? "  transtime 0" : "  transtime 0.25");
+    lines.push_back("  transtime " + transtime(name));
     lines.push_back("  animroot " + model);
     // Explosion emitters burst on the impact's detonate event (the game's own models have it); late bursts on their own.
     if (std::string(name) == "impact") {
@@ -632,7 +696,17 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
       const VfxEmitter& e = effect.emitters[k - node_count];
       lines.push_back("node emitter " + names[k]);
       lines.push_back("  parent " + parent_line(k));
-      if (keys_off) {
+      // KF: of each of its own kinds the first list in this animation with a whole row (a draft has one an animation).
+      const auto own = [&](std::vector<float> VfxKeys::*list) -> const std::vector<float>* {
+        for (const VfxKeys& keys : e.keys) {
+          if (keys.anim == name && (keys.*list).size() >= 2) return &(keys.*list);
+        }
+        return nullptr;
+      };
+      if (OwnEmission(e)) {
+        // KF: its own birthrate keys here, and only them (none where it has none: the game's controller holds it).
+        if (const std::vector<float>* rate = own(&VfxKeys::birthrate)) list_lines("birthratekey", *rate, 2);
+      } else if (keys_off) {
         lines.push_back("  birthratekey 1");
         lines.push_back("    0 0");
       } else if (keys_on && late_burst && is_burst(e)) {
@@ -683,6 +757,9 @@ std::string WriteVfxModel(const VfxEffect& effect, const std::string& model) {
         lines.push_back("    0 " + Num(e.birthrate));
       }
       key_lines(e.keys, name);
+      // KF: its own alphaStart and alphaEnd keys (controllers 84 and 80, the game's spelling) after its move and turn.
+      if (const std::vector<float>* fade = own(&VfxKeys::alpha_start)) list_lines("alphaStartkey", *fade, 2);
+      if (const std::vector<float>* fade = own(&VfxKeys::alpha_end)) list_lines("alphaEndkey", *fade, 2);
       lines.push_back("endnode");
     }
     // #145: in the effect's last animation (a lasting one's cessation, a one-shot's impact) a light without radius keys
@@ -746,6 +823,10 @@ std::string WriteVfxDraft(const VfxEffect& effect) {
   out += "seconds = " + Num(effect.seconds) + "\n";
   out += "attach = " + effect.attach + "\n";
   out += "lengths = " + Num(effect.lengths[0]) + " " + Num(effect.lengths[1]) + " " + Num(effect.lengths[2]) + "\n";
+  // KF: each animation's transtime, only when known (read from a model) - every draft before them keeps its bytes.
+  for (int slot = 0; slot < 3; ++slot) {
+    if (effect.transtime[slot] >= 0.0f) out += std::string(kAnims[slot]) + "_transtime = " + Num(effect.transtime[slot]) + "\n";
+  }
   if (effect.shake_type) {
     out += "shake = " + std::to_string(effect.shake_type) + " " + Num(effect.shake_delay) + " " + Num(effect.shake_duration) + "\n";
   }
@@ -966,7 +1047,9 @@ bool ReadVfxDraft(const std::string& text, VfxEffect* effect, std::string* error
       else if (key == "seconds") result.seconds = ToFloat(value);
       else if (key == "attach") result.attach = Lower(value);
       else if (key == "lengths") ReadFloats(words, 0, result.lengths, 3);
-      else if (key == "shake") {
+      else if (key.size() > 10 && key.compare(key.size() - 10, 10, "_transtime") == 0 && AnimSlot(key.substr(0, key.size() - 10)) >= 0) {
+        result.transtime[AnimSlot(key.substr(0, key.size() - 10))] = TranstimeValue(ToFloat(value));  // KF: every reader's rule
+      } else if (key == "shake") {
         float shake[3] = {0.0f, 0.0f, 0.0f};
         ReadFloats(words, 0, shake, 3);
         result.shake_type = shake[0] == 1.0f || shake[0] == 2.0f ? static_cast<int>(shake[0]) : 0;
@@ -1116,7 +1199,23 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
           if (row.size() < width) continue;
           out.insert(out.end(), row.begin(), row.begin() + width);
         }
+      } else if (geo[current].mesh && (key_name == "alphakey" || key_name == "scalekey")) {
+        // KF: a mesh's own fade and scale (a plane's keys), each list as read.
+        VfxKeys* k = FindKeys(&geo[current].keys, anim, true);
+        std::vector<float>& out = key_name == "alphakey" ? k->alpha : k->scale;
+        for (const auto& row : rows) {
+          if (row.size() >= 2) out.insert(out.end(), row.begin(), row.begin() + 2);
+        }
       } else if (keyed) {
+        // KF: an emitter's own birthrate, alphaStart and alphaEnd keys, each list as read (beside what is read from them
+        // below, as before).
+        if (key_name == "birthratekey" || key_name == "alphastartkey" || key_name == "alphaendkey") {
+          VfxKeys* k = FindKeys(&geo[current].keys, anim, true);
+          std::vector<float>& out = key_name == "birthratekey" ? k->birthrate : key_name == "alphastartkey" ? k->alpha_start : k->alpha_end;
+          for (const auto& row : rows) {
+            if (row.size() >= 2) out.insert(out.end(), row.begin(), row.begin() + 2);
+          }
+        }
         std::vector<std::pair<float, float>> keys;
         for (const auto& row : rows) {
           if (row.size() >= 2) keys.emplace_back(row[0], row[1]);
@@ -1188,8 +1287,11 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       where = Where::kOutside;
       current = emitter = -1;
     } else if (where == Where::kAnim && first == "length" && w.size() >= 2) {
-      const int slot = anim == "impact" ? 0 : anim == "duration" ? 1 : anim == "cessation" ? 2 : -1;
+      const int slot = AnimSlot(anim);
       if (slot >= 0) result.lengths[slot] = ToFloat(w[1]);
+    } else if (where == Where::kAnim && first == "transtime" && w.size() >= 2) {  // KF: every reader's rule
+      const int slot = AnimSlot(anim);
+      if (slot >= 0) result.transtime[slot] = TranstimeValue(ToFloat(w[1]));
     } else if (first == "node" && w.size() >= 3) {
       current = emitter = -1;
       const auto found = geo_at.find(Lower(w[2]));
@@ -1398,6 +1500,7 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
       p.alpha = g.material.alpha;
       p.render = g.material.render;
       p.transparency_hint = g.material.transparency_hint;
+      p.keys = g.keys;  // KF: its own move, turn, fade and scale in the animations
       result.planes.push_back(p);
     }
     const bool target = targets.count(Lower(g.name)) > 0;
@@ -1409,6 +1512,10 @@ bool ReadVfxAsciiModel(const std::string& text, VfxEffect* effect, std::string* 
     memcpy(n.position, g.position, sizeof(n.position));
     memcpy(n.orientation, g.orientation, sizeof(n.orientation));
     n.keys = g.keys;
+    for (VfxKeys& k : n.keys) {  // KF: a mesh's fade and scale are its plane's, not its node's
+      k.alpha.clear();
+      k.scale.clear();
+    }
     result.nodes.push_back(n);
   }
   result.duration = has_duration;
@@ -1841,14 +1948,17 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
       const float length = m.F32(header + 0x70);
       if (length > 0.0f && length < 60.0f) {
         anims.emplace_back(name, TreeNodes(m, m.U32(header + 0x48)));
-        result.lengths[std::string(name) == "impact" ? 0 : std::string(name) == "duration" ? 1 : 2] = length;
+        result.lengths[AnimSlot(name)] = length;
+        result.transtime[AnimSlot(name)] = TranstimeValue(m.F32(header + 0x74));  // KF: after its length, every reader's rule
         break;
       }
     }
   }
   // Each animation's keys of those nodes and of the emitters: where they move (8: t x y z)
   // and how they turn (20: t + x y z w, kept as axis-angle). A single key equal to the
-  // geometry's is no motion and isn't kept.
+  // geometry's is no motion and isn't kept. KF: an emitter's own birthrate (88), alphaStart (84) and alphaEnd (80), and a
+  // plane's move and turn (as a node's), alpha (128) and scale (36) - each of those scalar lists as read, a single row
+  // too (a value the animation sets).
   for (const auto& a : anims) {
     for (const size_t copy : a.second) {
       const std::string name = Lower(m.Str(copy + 0x10, 32));
@@ -1858,21 +1968,68 @@ bool ReadVfxBinaryModel(const std::string& bytes, VfxEffect* effect, std::string
       for (VfxNode& n : result.nodes) {
         if (Lower(n.name) == name) keys = &n.keys;
       }
+      VfxEmitter* emitting = nullptr;  // KF
       for (VfxEmitter& e : result.emitters) {
-        if (Lower(e.name) == name) keys = &e.keys;
+        if (Lower(e.name) == name) {
+          keys = &e.keys;
+          emitting = &e;
+        }
       }
       const VfxLight* lit = nullptr;  // #145
       for (VfxLight& l : result.lights) {
         if (Lower(l.name) == name) {
           keys = &l.keys;
           lit = &l;
+          emitting = nullptr;
         }
       }
+      VfxPlane* plane = nullptr;  // KF: a mesh's own keys (it may be a node too: its move and turn are kept for both)
+      for (VfxPlane& p : result.planes) {
+        if (Lower(p.name) == name) plane = &p;
+      }
       std::vector<Controller> controllers;
-      if (!keys || !ReadControllers(m, copy, &controllers)) continue;
+      if ((!keys && !plane) || !ReadControllers(m, copy, &controllers)) continue;
       const GeoNode& base = geometry[g->second];
+      // A scalar list (t v rows) into `out` of this animation's keys of `list`.
+      const auto scalar = [&](std::vector<VfxKeys>* list, std::vector<float> VfxKeys::*field, const Controller& c) {
+        std::vector<float>& out = FindKeys(list, a.first, true)->*field;
+        for (size_t r = 0; r < c.times.size(); ++r) {
+          out.push_back(c.times[r]);
+          out.push_back(c.values[r]);
+        }
+      };
       for (const Controller& c : controllers) {
         const size_t rows = c.times.size();
+        if (plane && c.columns == 1 && c.values.size() >= rows && (c.type == 128 || c.type == 36)) {
+          scalar(&plane->keys, c.type == 128 ? &VfxKeys::alpha : &VfxKeys::scale, c);
+          continue;
+        }
+        if (emitting && c.columns == 1 && c.values.size() >= rows && (c.type == 88 || c.type == 84 || c.type == 80)) {
+          scalar(&emitting->keys, c.type == 88 ? &VfxKeys::birthrate : c.type == 84 ? &VfxKeys::alpha_start : &VfxKeys::alpha_end, c);
+          continue;
+        }
+        if (plane && (c.type == 8 || c.type == 20)) {  // its move and turn, as a node's below (a single row at rest: none)
+          const bool turn = c.type == 20;
+          const size_t width = turn ? 4 : 3;
+          if (c.columns == static_cast<int>(width) && c.values.size() >= rows * width) {
+            bool moves = rows >= 2;
+            for (size_t k = 0; k < width && !moves; ++k) moves = std::fabs(c.values[k] - (turn ? base.rot[k] : base.pos[k])) > 1e-4f;
+            if (moves) {
+              std::vector<float>& out = turn ? FindKeys(&plane->keys, a.first, true)->orientation : FindKeys(&plane->keys, a.first, true)->position;
+              for (size_t r = 0; r < rows; ++r) {
+                out.push_back(c.times[r]);
+                if (turn) {
+                  float axis_angle[4];
+                  AxisAngle(&c.values[r * 4], axis_angle);
+                  out.insert(out.end(), axis_angle, axis_angle + 4);
+                } else {
+                  out.insert(out.end(), c.values.begin() + r * 3, c.values.begin() + r * 3 + 3);
+                }
+              }
+            }
+          }
+        }
+        if (!keys) continue;
         if (c.type == 8 && c.columns == 3 && c.values.size() >= rows * 3) {
           bool moves = rows >= 2;
           for (int k = 0; k < 3 && !moves; ++k) moves = std::fabs(c.values[k] - base.pos[k]) > 1e-4f;
