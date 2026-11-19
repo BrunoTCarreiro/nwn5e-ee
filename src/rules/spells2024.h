@@ -530,6 +530,10 @@ constexpr int kShiningSmiteMinutes = 1;
 constexpr int kPrayerOfHealingFeet = 30;
 constexpr int kPrayerOfHealingTargets = 5;
 constexpr int kPrayerOfHealingMinutes = 10;
+// #171 (owner, 2026-11-18: Q3 B, the target window): Scorching Ray (Sorcerer, Wizard) - three rays at one target or
+// several, each its own ranged spell attack, 2d6 Fire; one ray more a slot level above 2 (rules::TargetRowsFor), not
+// more dice. A ray can light an unlit fire light instead (owner: "for style points").
+constexpr int kScorchingRay = 1255;
 // Acid Arrow: a miss splashes for half the initial damage (rounded down); the acid at the end of the target's next
 // turn, 2d4 and 1d4 more a slot level above 2.
 int AcidArrowMissDamage(int initial_roll);

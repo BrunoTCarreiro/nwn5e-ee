@@ -154,6 +154,7 @@
 #include "spell_cast_listeners.h"
 #include "spell_impact.h"
 #include "staple_actions.h"
+#include "target_window.h"
 #include "rules/cantrips.h"
 #include "condition_effects.h"
 #include "rest.h"
@@ -164,6 +165,7 @@
 #include "rules/spell_slots.h"
 #include "rules/spell_time.h"
 #include "rules/spells2024.h"
+#include "rules/target_rows.h"
 #include "rules/weapons.h"
 
 // rules_spell_slots.cpp (#39 2a build 1b): the slot a Bonus Action spell's order names - left, spent.
@@ -776,65 +778,183 @@ void SaveOne(uint32_t self, void* caster, const rules::Spell2024& spell, int slo
 
 bool TakeShield(void* defender, const char* what);  // build 3, below
 
+// #171: a dart's or ray's creature - the spell's event (a hostile one) and whether NWN's Shield is on it.
+const char* const kDartTarget = R"nss(
+object t = StringToObject("$TARGET");
+int s = 0;
+if (GetIsObjectValid(t)) {
+  if (t != OBJECT_SELF) SignalEvent(t, EventSpellCastAt(OBJECT_SELF, $ROW, TRUE));
+  s = GetHasSpellEffect($SHIELD, t);
+}
+SetLocalInt(OBJECT_SELF, "n5s_shielded", s);
+)nss";
+
+std::string IdHex(uint32_t id) {
+  char text[16];
+  snprintf(text, sizeof text, "%x", id);
+  return text;
+}
+
+// Magic Missile. #171 (owner, 2026-11-18: "This should also be the case for magic missile ... faithfully they should
+// be able to be directed"): a player character's window picked each dart's creature (TakeWindowTargets); otherwise -
+// an NPC's or a script's cast - every dart at the cast's target, as before. Shield (build 3: "targeted by the Magic
+// Missile spell") is asked once a creature: NWN's Shield already on it, or its Reaction now; its darts stop.
 void Darts(uint32_t self, const rules::Spell2024& spell, int slot) {
-  const std::vector<Entry> targets = OneTarget(self, spell, "GetHasSpellEffect(" + std::to_string(rules::kNwnShield) +
-                                                              ", t)", 1, Look());
-  for (const Entry& one : targets) {
-    // Build 3: Shield's Reaction - "targeted by the Magic Missile spell".
-    void* aimed = one.value == 0 ? CreatureById(ParseId(one.target)) : nullptr;
-    if (one.value != 0 || (aimed && TakeShield(aimed, "Magic Missile"))) {
-      std::string code = kShielded;
-      Replace(&code, "$TARGET", one.target);
-      Run(code, self, spell.script);
-      if (LogSlot()) Log("spells2024: 0x%08X Magic Missile at 0x%s: its Shield stops the darts", self, one.target.c_str());
-      continue;
+  void* caster = CreatureById(self);
+  if (!caster) return;
+  const int darts = rules::MagicMissileDarts(slot);
+  std::vector<uint32_t> each = TakeWindowTargets(self, spell.row);
+  const bool picked = !each.empty();
+  if (!picked) {
+    const std::vector<Entry> one = OneTarget(self, spell, "0", -1, Look());
+    if (one.empty()) return;
+    each.assign(static_cast<size_t>(darts), ParseId(one[0].target));
+  }
+  std::vector<uint32_t> aimed;  // the creatures, in the order first aimed at
+  for (uint32_t id : each) {
+    if (std::find(aimed.begin(), aimed.end(), id) == aimed.end()) aimed.push_back(id);
+  }
+  for (uint32_t id : aimed) {
+    std::string code = kDartTarget;
+    Replace(&code, "$TARGET", IdHex(id));
+    Replace(&code, "$ROW", std::to_string(spell.row));
+    Replace(&code, "$SHIELD", std::to_string(rules::kNwnShield));
+    Run(code, self, spell.script);
+    void* target = CreatureById(id);
+    if (engine::GetLocalInt(caster, "n5s_shielded") == 0 && !(target && TakeShield(target, "Magic Missile"))) continue;
+    std::string stopped = kShielded;
+    Replace(&stopped, "$TARGET", IdHex(id));
+    Run(stopped, self, spell.script);
+    for (uint32_t& dart : each) {
+      if (dart == id) dart = 0;
     }
-    const int darts = rules::MagicMissileDarts(slot);
-    // 0.99.17 (#155; owner, 2026-11-11: "go with A for magic missile"): a look for the row that flies something
-    // (SpellLookFlies - its missile set) flies each dart, and each dart's damage lands as that dart does (held by
-    // the target, as Chromatic Orb's); its own hit effect plays there, so no VFX_IMP_MAGBLUE. No look, or one with
-    // no missile: NWN's own bolts below, as before.
-    if (SpellLookFlies(spell.row)) {
-      const std::vector<float> lands =
-          PlaySpellLookDarts(self, std::vector<uint32_t>(static_cast<size_t>(darts), ParseId(one.target)), spell.row);
-      if (lands.size() == static_cast<size_t>(darts)) {
-        std::string landed;
-        for (int i = 0; i < darts; ++i) {
-          const int amount = RollEngineDice(spell.dice, spell.die) + spell.flat;
-          Damage(self, spell, one.target, amount, spell.damage_type, "", Look(), lands[static_cast<size_t>(i)]);
-          char text[48];
-          snprintf(text, sizeof text, "%s%d in %.2f s", i ? ", " : "", amount, lands[static_cast<size_t>(i)]);
-          landed += text;
-        }
-        if (LogSlot()) {
-          Log("spells2024: 0x%08X Magic Missile (a level %d slot) at 0x%s: %d darts of its look, 1d4 + 1 Force each - "
-              "%s", self, slot, one.target.c_str(), darts, landed.c_str());
-        }
-        continue;
+    if (LogSlot()) Log("spells2024: 0x%08X Magic Missile at 0x%x: its Shield stops its darts", self, id);
+  }
+  std::vector<uint32_t> flying;
+  for (uint32_t id : each) {
+    if (id != 0) flying.push_back(id);
+  }
+  if (flying.empty()) return;
+  std::string landed_log;
+  // 0.99.17 (#155; owner, 2026-11-11: "go with A for magic missile"): a look for the row that flies something
+  // (SpellLookFlies - its missile set) flies each dart, and each dart's damage lands as that dart does (held by the
+  // target, as Chromatic Orb's); its own hit effect plays there, so no VFX_IMP_MAGBLUE. No look, or one with no
+  // missile: NWN's own bolts below, as before.
+  if (SpellLookFlies(spell.row)) {
+    const std::vector<float> lands = PlaySpellLookDarts(self, flying, spell.row);
+    if (lands.size() == flying.size()) {
+      for (size_t i = 0; i < flying.size(); ++i) {
+        const int amount = RollEngineDice(spell.dice, spell.die) + spell.flat;
+        Damage(self, spell, IdHex(flying[i]), amount, spell.damage_type, "", Look(), lands[i]);
+        char text[64];
+        snprintf(text, sizeof text, "%s0x%x %d in %.2f s", i ? ", " : "", flying[i], amount, lands[i]);
+        landed_log += text;
       }
       if (LogSlot()) {
-        Log("spells2024: 0x%08X Magic Missile: its look played %zu of %d darts - NWN's bolts instead", self,
-            lands.size(), darts);
+        Log("spells2024: 0x%08X Magic Missile (a level %d slot): %zu darts of its look%s, 1d4 + 1 Force each - %s",
+            self, slot, flying.size(), picked ? " (the window's targets)" : "", landed_log.c_str());
       }
+      return;
     }
-    std::string lines, log;
-    for (int i = 0; i < darts; ++i) {
+    if (LogSlot()) {
+      Log("spells2024: 0x%08X Magic Missile: its look played %zu of %zu darts - NWN's bolts instead", self,
+          lands.size(), flying.size());
+    }
+  }
+  // NWN's bolts: each target's darts in one script, a dart every 0.1 s across them all.
+  for (uint32_t id : aimed) {
+    std::string lines;
+    for (size_t i = 0; i < flying.size(); ++i) {
+      if (flying[i] != id) continue;
       const int amount = RollEngineDice(spell.dice, spell.die) + spell.flat;
       const std::string after = Float(0.1f * static_cast<float>(i));
       lines += "DelayCommand(" + after + ", ApplyEffectToObject(DURATION_TYPE_INSTANT, EffectVisualEffect(VFX_IMP_MIRV), "
                "t));\nDelayCommand(travel + " + after + ", ApplyEffectToObject(DURATION_TYPE_INSTANT, SetEffectSpellId("
                "EffectLinkEffects(EffectDamage(" + std::to_string(amount) + ", " + std::to_string(spell.damage_type) +
                "), EffectVisualEffect(VFX_IMP_MAGBLUE)), " + std::to_string(spell.row) + "), t));\n";
-      log += (i ? ", " : "") + std::to_string(amount);
+      char text[48];
+      snprintf(text, sizeof text, "%s0x%x %d", landed_log.empty() ? "" : ", ", id, amount);
+      landed_log += text;
     }
+    if (lines.empty()) continue;
     std::string code = kDarts;
-    Replace(&code, "$TARGET", one.target);
+    Replace(&code, "$TARGET", IdHex(id));
     Replace(&code, "$DARTS", lines);
     Run(code, self, spell.script);
-    if (LogSlot()) {
-      Log("spells2024: 0x%08X Magic Missile (a level %d slot) at 0x%s: %d darts, 1d4 + 1 Force each - %s", self, slot,
-          one.target.c_str(), darts, log.c_str());
+  }
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Magic Missile (a level %d slot): %zu darts%s, 1d4 + 1 Force each - %s", self, slot,
+        flying.size(), picked ? " (the window's targets)" : "", landed_log.c_str());
+  }
+}
+
+// #171: Scorching Ray - a ray's beam and its ranged spell attack on one creature ("id:result;": 0 a miss, 1 a hit, 2
+// a Critical Hit).
+const char* const kRay = R"nss(
+object t = StringToObject("$TARGET");
+string r = "";
+if (GetIsObjectValid(t)) {
+  SignalEvent(t, EventSpellCastAt(OBJECT_SELF, $ROW, TRUE));
+  DelayCommand($DELAY, ApplyEffectToObject(DURATION_TYPE_TEMPORARY, EffectBeam(VFX_BEAM_FIRE, OBJECT_SELF,
+               BODY_NODE_HAND), t, 0.6));
+  r = ObjectToString(t) + ":" + IntToString(TouchAttackRanged(t)) + ";";
+}
+SetLocalString(OBJECT_SELF, "n5s_hits", r);
+)nss";
+
+// #171 (owner, 2026-11-18: Q3 B): Scorching Ray - three rays and one more a slot level above 2 (rules::TargetRowsFor),
+// each its own ranged spell attack, 2d6 Fire (doubled dice on a Critical Hit), a ray every quarter second. A player
+// character's window picked each ray's target; otherwise every ray at the cast's target. A ray at an unlit fire light
+// lights it (owner: "for style points, one should also be able to use scorching ray to light fire light sources";
+// light_sources.cpp's FirePlayAt), with no attack roll.
+void ScorchingRay(uint32_t self, void* caster, const rules::Spell2024& spell, int slot) {
+  std::vector<uint32_t> rays = TakeWindowTargets(self, spell.row);
+  const bool picked = !rays.empty();
+  if (!picked) {
+    const std::vector<Entry> one = OneTarget(self, spell, "0", -1, Look());
+    if (one.empty()) return;
+    rays.assign(static_cast<size_t>(rules::TargetRowsFor(spell.row, slot)), ParseId(one[0].target));
+  }
+  const Look look = LookOf(spell.row);
+  std::string log;
+  for (size_t i = 0; i < rays.size(); ++i) {
+    const uint32_t id = rays[i];
+    const float delay = 0.25f * static_cast<float>(i);
+    char head[48];
+    snprintf(head, sizeof head, "%sray %zu at 0x%x: ", i ? "; " : "", i + 1, id);
+    log += head;
+    if (!CreatureById(id)) {  // a light
+      const int lit = FirePlayAt(self, id, rules::FirePlay::kLight, 0);
+      if (lit == 1) {
+        void* light = GameObjectById(id);
+        TellPlayer(self, PlayerText("spells2024.scorching_ray_lights",
+                                    {{"name", light ? engine::GetLocalString(light, "n5c_name") : std::string()}}));
+      }
+      log += lit == 1 ? "lit" : lit == 0 ? "already lit" : "not a light";
+      continue;
     }
+    std::string code = kRay;
+    Replace(&code, "$TARGET", IdHex(id));
+    Replace(&code, "$ROW", std::to_string(spell.row));
+    Replace(&code, "$DELAY", Float(delay));
+    Run(code, self, spell.script);
+    const std::vector<Entry> hit = Entries(caster);
+    if (hit.empty() || hit[0].value <= 0) {
+      log += "a miss";
+      continue;
+    }
+    const bool critical = hit[0].value == 2;
+    const int dice = rules::CriticalDice(spell.dice, critical);
+    const int amount = RollEngineDice(dice, spell.die);
+    const bool landed =
+        Damage(self, spell, hit[0].target, amount, spell.damage_type, "VFX_IMP_FLAME_S", look, delay + 0.3f);
+    if (landed) HuntersMarkSpellHit(self, id, critical);  // build 2a
+    log += std::string(critical ? "a Critical Hit: " : "a hit: ") + Dice(dice, spell.die) + " = " +
+           std::to_string(amount) + " Fire" + (landed ? "" : " - immune");
+  }
+  if (LogSlot()) {
+    Log("spells2024: 0x%08X Scorching Ray (a level %d slot), %zu rays%s: %s", self, slot, rays.size(),
+        picked ? " (the window's targets)" : "", log.c_str());
   }
 }
 
@@ -4872,6 +4992,10 @@ void Cast(uint32_t self, int row) {
     PrayerOfHealing(self, caster, *spell, slot);
     return;
   }
+  if (row == rules::kScorchingRay) {  // #171
+    ScorchingRay(self, caster, *spell, slot);
+    return;
+  }
   switch (spell->effect) {
     case rules::SpellEffect2024::kSpellAttack: Attack(self, caster, *spell, slot); break;
     case rules::SpellEffect2024::kDarts: Darts(self, *spell, slot); break;
@@ -4960,6 +5084,7 @@ ScriptHandler HandlerOf(int row) {
     case rules::kMindSpike: return &SpellScript<rules::kMindSpike>;
     case rules::kShiningSmite: return &SpellScript<rules::kShiningSmite>;
     case rules::kPrayerOfHealing: return &SpellScript<rules::kPrayerOfHealing>;
+    case rules::kScorchingRay: return &SpellScript<rules::kScorchingRay>;  // #171
   }
   return nullptr;
 }
@@ -5202,6 +5327,7 @@ void InstallSpells2024() {
     return;
   }
   ServeConditionalRows("spells2024");  // spells.if_spells2024.level1.txt (rules_spell_slots.cpp asks too)
+  InstallTargetWindow();  // #171: Magic Missile's darts and Scorching Ray's rays picked one a row
   // Part 2a's end, the level 1 list switch (rules/level_lists.h): spells.if_spells2024.lists1.txt with the rows above;
   // Summon Creature I off too unless the house rule keeps it.
   if (!g_config.summon_creature) ServeConditionalRows("retiresummons");

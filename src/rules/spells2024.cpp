@@ -186,6 +186,9 @@ std::vector<Spell2024> Build() {
     shining.bonus_action = true;  // paid by the hit (build 3's Q1 A)
     spells.push_back(shining);
     spells.push_back(level2(Damage(kPrayerOfHealing, "Prayer of Healing", "n5_s_prayheal", E::kHealing, 2, 8, 1, 0)));
+    // #171: Scorching Ray - each ray 2d6 Fire; the slot adds rays, not dice (upcast_dice 0).
+    spells.push_back(level2(Damage(kScorchingRay, "Scorching Ray", "n5_s_scorchray", E::kSpellAttack, 2, 6, 0,
+                                   kDamageTypeFire)));
   }
   std::sort(spells.begin(), spells.end(), [](const Spell2024& a, const Spell2024& b) { return a.row < b.row; });
   return spells;

@@ -738,3 +738,19 @@ spells2024.prayer_of_healing_none | generated | nwn5e: Prayer of Healing - no on
 spells2024.mind_spike_you_know | generated | nwn5e: Mind Spike - you know where {name} is while you concentrate: it can't hide from you, and being invisible does it no good against you.
 spells2024.shining_smite_lights_you | generated | nwn5e: Shining Smite - you shed light, and your invisibility is suppressed while it lasts.
 spells2024.shining_smite_ends_your_invisibility | generated | nwn5e: Shining Smite ends - your invisibility is back.
+
+# --- The target window: Scorching Ray's rays, Magic Missile's darts (#171) ---------------------------------------------
+target_window.title_rays | generated | {spell}: {count} rays
+target_window.title_darts | generated | {spell}: {count} darts
+target_window.help_rays | generated | Left-click a creature, or an unlit fire light, for the next ray. [x] or a right-click takes one back. An empty row follows the last target picked.
+target_window.help_darts | generated | Left-click a creature for the next dart. [x] or a right-click takes one back. An empty row follows the last target picked.
+target_window.row | generated | {n}. {name}
+target_window.row_empty | generated | {n}. -
+target_window.clear | generated | x
+target_window.ok | generated | OK
+target_window.cancel | generated | Cancel
+target_window.full | generated | nwn5e: {spell} - every row has a target; take one back first.
+target_window.not_light | generated | nwn5e: {name} isn't an unlit fire light a ray can light.
+target_window.no_target | generated | nwn5e: {spell} - no target picked; nothing cast.
+target_window.cancelled | generated | nwn5e: {spell} cancelled - nothing spent.
+spells2024.scorching_ray_lights | generated | nwn5e: Scorching Ray lights the {name}.

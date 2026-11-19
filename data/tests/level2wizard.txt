@@ -3,6 +3,7 @@
 # is needed. The keys are in src/rules/test_profile.h; no # in a name or a note (it starts a comment).
 #
 # #39 Part 2, level 2, build 1a: a Wizard 5, Intelligence 16 - Acid Arrow, Shatter, Mind Spike prepared, level 3 slots to upcast.
+# #171: Scorching Ray and Magic Missile prepared for the target window.
 name = Level 2 build 1a (issue 39): human Wizard 5, Intelligence 16 - Acid Arrow, Shatter, Mind Spike
 species = human
 swap_class = wizard
@@ -11,5 +12,5 @@ level = 5
 abilities = 8 14 14 16 10 10
 items = nw_wdbqs001 equip
 spells = Fire Bolt, Light, Prestidigitation, Minor Illusion
-spells = Acid Arrow, Shatter, Mind Spike, Magic Missile, Shield, Mage Armor
-note = !spawn nw_orcb gives you an enemy (spawn three for Shatter); the radial's Level 3 upcasts a spell
+spells = Acid Arrow, Shatter, Mind Spike, Scorching Ray, Magic Missile, Shield, Mage Armor
+note = !spawn nw_orcb gives you an enemy (spawn three for Shatter, or for the target window of Scorching Ray and Magic Missile); the radial's Level 3 upcasts a spell

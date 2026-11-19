@@ -643,3 +643,5 @@
 16000888 srd:Prayer of Healing
 16000889 srd:Prayer of Healing+note
 16000890 generated
+16000891 srd:Scorching Ray
+16000892 srd:Scorching Ray

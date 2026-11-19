@@ -11,5 +11,5 @@ level = 5
 abilities = 8 14 14 10 10 16
 items = nw_wdbqs001 equip
 spells = Fire Bolt, Light, Prestidigitation, Minor Illusion, Shocking Grasp
-spells = Shatter, Mind Spike, Magic Missile, Shield, Mage Armor
+spells = Shatter, Mind Spike, Scorching Ray, Magic Missile, Shield, Mage Armor
 note = !spawn nw_orcb gives you an enemy (spawn three for Shatter); the radial's Level 3 upcasts a spell
