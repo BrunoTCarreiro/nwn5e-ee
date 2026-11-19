@@ -949,7 +949,7 @@ try {
     for (const n of [N, A, SOFT]) assert.ok(fs.readFileSync(path.join(SAVED, n + ".tga")).equals(softBytes(colour)), n + ".tga isn't the colour's soft texture");
   });
 
-  // MV (#39; the owner, 2026-11-19: "go"): a moving texture's material gets a TXI of its own - its texture's blending lines:
+  // MV (#39; the owner, 2026-11-19: "go"): a moving texture's material gets a TXI of its own - its texture's blending and map lines:
   // the engine takes a mesh's blend only from its bitmap's TXI - and a moving shape's texture0 is the still one's (its
   // copy for a decal texture or a flipbook, clamped in v only while it moves sideways only).
   check("MV: a spell mesh's flame ring scrolling round (DC-1's, Scroll round 0.5) names a material whose .mtr names the still ring's copy (clamp 2) as texture0, its own TXI (blending additive) beside it in --saved; scrolling up, its copy unclamped; an Additive soft dome scrolling up, its TXI; again unchanged", () => {

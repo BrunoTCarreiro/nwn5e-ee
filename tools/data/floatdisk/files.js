@@ -123,7 +123,7 @@ const shapeJson = (made) => [...made].map(([texture, s]) => Object.assign({ text
 // texture is the one the shape rule gave it (floatdisk.js gameTextures: its copy, its clamped soft texture).
 // -> `materials`: Map(name -> { texture, motion (readMotion's), pivot, clamp: true (W1: a clamped one's only - its copy
 // comes from motionCopies), side: true (MV: its texture0 clamped in v, sideways only), txi (MV: its own TXI's text -
-// floatdisk.js motionTxi, its texture's blending lines - when it has one), text (its .mtr: motionMaterialText, LF - a
+// floatdisk.js motionTxi, its texture's blending and map lines - when it has one), text (its .mtr: motionMaterialText, LF - a
 // clamped one's naming its copy, no texture0), label (the part's) }), in the parts' order. Without `sources` no TXI is
 // read: every material as before MV (uvprobe: TMO-1's domes as they were).
 function motionMaterials(placed, materials = new Map(), options = {}) {
@@ -181,7 +181,7 @@ function motionCopies(materials, sources) {
 // The materials as writes into `dir` (beside what names them: the models' folder, or a spell mesh's drafts'):
 // <dir>\<name>.mtr - and a material with a `copy` (W1's clamped one, motionCopies'; uvprobe's copy domes) its picture
 // <dir>\<name>.tga or .dds and its TXI <dir>\<name>.txi when it has them - MV: a material with a TXI of its own (`txi`,
-// its texture's blending lines) its <dir>\<name>.txi, LF - each kind "material" (ours by its name: only the generator
+// its texture's blending and map lines) its <dir>\<name>.txi, LF - each kind "material" (ours by its name: only the generator
 // makes n5u_ names, and the name fixes the bytes), and - when there's any - the shader they name,
 // <dir>\vsn5uvmove.shd, kind "shader" (ours when made.txt lists it, as data\files' committed one, or when it's the
 // generators' shader: floatdisk.js's isMotionShader), CRLF as the generators write text. None noted in made.txt.

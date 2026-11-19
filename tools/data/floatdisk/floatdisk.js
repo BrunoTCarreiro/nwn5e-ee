@@ -861,7 +861,7 @@ function motionNumbers(motion, pivot) {
 // (W1: motionClamps'): a clamped one hashes ":clamp" after them, so a clamped and an unclamped motion never share a name
 // (the copy and its TXI go with the clamped one only); an unclamped one is named as before W1.
 // MV (`more`): `side` - its texture0 clamped in v under a sideways-only motion (moveTextures) - hashes ":clampv" (its own
-// mark, never W1's ":clamp"), and `txi` - the material's own TXI (motionTxi: its texture's blending lines) - hashes ":txi:"
+// mark, never W1's ":clamp"), and `txi` - the material's own TXI (motionTxi: its texture's blending and map lines) - hashes ":txi:"
 // and its text after that (M1b's rule: a changed TXI never shares a name). With neither, every name is as before MV. Its
 // texture is texture0 as the material names it: a copy (n5l_) or a clamped soft texture where the shape rule gave one.
 function motionName(texture, motion, pivot, clamp = false, more = {}) {
@@ -976,9 +976,9 @@ function isMotionShader(text) {
 // is the real one.
 // MV (the MV diagnosis: the engine takes a mesh's blend only from <its bitmap>.txi - an n5u_ name had none, so every
 // moving additive texture drew alpha-blended, on black): an unclamped material (route A, texture0) also gets
-// - `txi`: its own TXI, n5u_<...>.txi - its texture's TXI's blending lines (motionTxi of `txiOf(texture)`: its TXI's text
+// - `txi`: its own TXI, n5u_<...>.txi - its texture's TXI's blending and map lines (motionTxi of `txiOf(texture)`: its TXI's text
 //   or bytes, none null; the texture as the mesh names it - after the shape rule, gameTextures, a copy's or a clamped soft
-//   texture's, whose TXI keeps the source's blending lines). No txiOf (uvprobe; a caller without the pictures): none;
+//   texture's, whose TXI keeps the source's blending and map lines). No txiOf (uvprobe; a caller without the pictures): none;
 // - `side: true`: a shape part's (`shape`, readShape's) mesh moving sideways only within one repeat (sidewaysClamps) whose
 //   texture the shape rule gave clamped in v - its copy (n5l_: clamp 2 there) or its clamped soft texture.
 // Both are hashed into its name (motionName's `more`); with neither the name is as before MV. W1's clamped one as before:
@@ -1141,7 +1141,7 @@ function stillTextures(shape, motion, meshes, info) {
 // n5u_ material with no TXI of its own drew every moving additive texture alpha-blended (GL_SRC_ALPHA,
 // ONE_MINUS_SRC_ALPHA, depth written): on black. texture0's own TXI is read by its texture (CAurTextureBasic::Init): its
 // flipbook (proceduretype cycle - each bind steps it) and its clamp. So a moving texture's material gets a TXI of its own
-// with its texture's blending lines (motionTxi), and a moving shape's texture0 is what DC gives a still one - its copy for
+// with its texture's blending and map lines (motionTxi), and a moving shape's texture0 is what DC gives a still one - its copy for
 // a decal texture or a flipbook (n5l_: decal dropped, its flipbook kept), its clamped soft texture - with the clamp in v
 // only while the motion is sideways only (sidewaysClamps): a scroll round leaves v as it is, so the still ring's clamp
 // keeps the line at the rim gone (the owner: "Scroll round keeps the vertical clamp on the stage and in game"). Never
@@ -1156,13 +1156,16 @@ function sidewaysClamps(motion, tverts) {
   return !sv && !turn && !breathe && vClamps(tverts);
 }
 // A moving texture's material's own TXI, n5u_<...>.txi (`source` its texture's TXI, a string or bytes; none: ""): each of
-// its "blending <value>" lines as it is (any case, spaces or tabs; its line end dropped), in its order, LF - the line the
-// engine reads for the mesh from its bitmap's TXI besides decal, which is never carried (it would drop the material: the
-// SHP-8 diagnosis). A flipbook's, a clamp's and every other line stay texture0's. None: null (no TXI, as before MV). The
-// game's 734 TXIs: 13 say additive, 23 default, 4 normal, 2 punchthrough.
-const BLENDING_LINE = /^[ \t]*blending[ \t]+\S/i;
+// its lines the engine reads for a mesh from its bitmap's TXI (Material::ParseField: `blending`, and - fix round 1, the MV
+// review - `envmaptexture`, `bumpmaptexture`, `bumpyshinytexture`, `bumpreplacementtexture`) but `decal`, which is never
+// carried (it would drop the material: the SHP-8 diagnosis) - each with a value, as it is (any case, spaces or tabs; its
+// line end dropped), in its order, LF. A flipbook's, a clamp's and every other line stay texture0's. None: null (no TXI,
+// as before MV). The game's 734 TXIs: `blending` 42 (13 additive, 23 default, 4 normal, 2 punchthrough), `envmaptexture`
+// 50, `bumpmaptexture` 22, `bumpyshinytexture` 33, `bumpreplacementtexture` none - and none of the maps on an fx*, n5* or
+// vfx* texture.
+const MESH_TXI_LINE = /^[ \t]*(?:blending|envmaptexture|bumpmaptexture|bumpyshinytexture|bumpreplacementtexture)[ \t]+\S/i;
 function motionTxi(source) {
-  const lines = latin1(source).split(/\r?\n/).filter((l) => BLENDING_LINE.test(l));
+  const lines = latin1(source).split(/\r?\n/).filter((l) => MESH_TXI_LINE.test(l));
   return lines.length ? lines.join("\n") + "\n" : null;
 }
 // The shape rule, still or moving (DC's stillTextures, MV): a shape part's meshes (`shape`, its part's `motion`, `meshes`

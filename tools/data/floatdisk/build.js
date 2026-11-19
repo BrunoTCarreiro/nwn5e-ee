@@ -25,7 +25,7 @@
 //   naming its clamped soft texture (its own n5s_ name, a TXI saying clamp 2). MV: a moving shape's texture as a still
 //   one's (floatdisk.js gameTextures) - its copy, its clamped soft texture, clamped in v only while it moves sideways only -
 //   its material naming that as texture0; and a moving texture's material with a TXI of its own, n5u_<...>.txi, its
-//   texture's blending lines - the engine takes a mesh's blend only from its bitmap's TXI (files.js motionMaterials).
+//   texture's blending and map lines - the engine takes a mesh's blend only from its bitmap's TXI (files.js motionMaterials).
 // - data\rows: appearance.floatdisk.txt (rows 14000-14003, each appearance 298's) and placeables.floatdisk.txt (14001-
 //   14003, each 189 TreasureSml's), floatdisk.js's ROWS.
 //
@@ -149,7 +149,7 @@ function main() {
   // DC (SHP-8): a still shape's library texture the game must have copied (its TXI says decal, or a flipbook within one
   // repeat) renamed for its copy, n5l_<12 hex digits>, its picture and TXI beside it (files.js copyTextures). MV: a moving
   // shape's too (floatdisk.js gameTextures) - its material names the copy as texture0 - and each moving texture's material
-  // a TXI of its own with its texture's blending lines (files.js motionMaterials, given where the TXIs are read).
+  // a TXI of its own with its texture's blending and map lines (files.js motionMaterials, given where the TXIs are read).
   const copied = new Map();  // a copy's name -> { texture, clamp, decal, ext, bytes, txi, label }
   for (const stage of F.STAGES) {
     const parts = placed[stage];

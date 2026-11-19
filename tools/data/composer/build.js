@@ -47,7 +47,7 @@
 // MV (the owner, 2026-11-19: "go"): a moving shape's texture is what a still one's is (floatdisk.js gameTextures) - its
 // copy for a decal texture or a flipbook, its clamped soft texture - clamped in v only while it moves sideways only (no
 // scroll up, turn or breath: the shader leaves v as it is), its material naming that as texture0; and a moving texture's
-// material, unclamped, has a TXI of its own beside it, n5u_<...>.txi, its texture's blending lines (floatdisk.js
+// material, unclamped, has a TXI of its own beside it, n5u_<...>.txi, its texture's blending and map lines (floatdisk.js
 // motionTxi) - the engine takes a mesh's blend only from its bitmap's TXI, so without it an additive texture drew on black.
 //
 // The parts are read and placed as the Floating Disk's (..\floatdisk\reader.js and floatdisk.js), through the player's
@@ -213,7 +213,7 @@ function main() {
   // meshes lowered by the guide's height, named unique.
   const moved = new Map();  // a material's name -> { texture, motion, pivot, clamp?, text, label, copy? } (files.js's motionMaterials)
   // MV: a moving shape's copy too (floatdisk.js gameTextures: its material names it as texture0), and each moving
-  // texture's material a TXI of its own with its texture's blending lines (motionMaterials, given where TXIs are read).
+  // texture's material a TXI of its own with its texture's blending and map lines (motionMaterials, given where TXIs are read).
   const built = placed.map(({ v, parts }) => {
     W.copyTextures(parts, copied, { rd, shaped, baked, ship });
     W.motionMaterials(parts, moved, { sources: { rd, shaped, baked, ship }, copies: copied });

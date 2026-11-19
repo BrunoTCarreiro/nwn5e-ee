@@ -2227,7 +2227,7 @@ check("MV the rule: sideways only - scroll up, turn and breath each 0 as the mat
   for (const m of [{ breathe: 0.2 }, { breathe: 0.2, turn: 30 }]) assert.deepStrictEqual([F.motionClamps(m, ring), F.sidewaysClamps(m, ring)], [true, false], JSON.stringify(m));
   assert.throws(() => F.sidewaysClamps({ scroll: [11, 0] }, ring), /motion\.scroll: /);
 });
-check("MV motionTxi: a moving texture's material's own TXI - its texture's TXI's blending lines as they are (with decal, all the engine reads for a mesh from its bitmap's TXI), LF; none: null", () => {
+check("MV motionTxi: a moving texture's material's own TXI - its texture's TXI's blending and map lines as they are (with decal, all the engine reads for a mesh from its bitmap's TXI), LF; none: null", () => {
   for (const t of [FLAME_TXI, SYM_TXI, Buffer.from(FLAME_TXI, "latin1"), F.SOFT_TXI, F.softTxi({ blend: "additive", clamp: true }), F.copiedTxi(FLAME_TXI, 2)]) {
     assert.strictEqual(F.motionTxi(t), "blending additive\n", JSON.stringify(String(t)));
   }
@@ -2241,6 +2241,15 @@ check("MV motionTxi: a moving texture's material's own TXI - its texture's TXI's
   assert.deepStrictEqual([F.txiDecal(t), F.txiClampBits(t), F.txiCycle(t), F.txiAdditive(t)], [false, 0, null, true]);
   // Its own TXI again: the same (the page is told it as the texture route reads it).
   assert.strictEqual(F.motionTxi(F.motionTxi("blending default\nblending additive\n")), "blending default\nblending additive\n");
+  // Fix round 1 (the MV review: Material::ParseField reads these from the bitmap's TXI too): the environment and bump map
+  // lines are carried as the source has them, in its order - everything the engine reads for the mesh but decal. The
+  // game's c_diamond: envmaptexture and bumpyshinytexture, no blending.
+  const DIAMOND = "envmaptexture evmap_irrid\r\nbumpyshinytexture evmap_irrid\r\n";
+  assert.strictEqual(F.motionTxi(DIAMOND), "envmaptexture evmap_irrid\nbumpyshinytexture evmap_irrid\n");
+  assert.strictEqual(F.motionTxi("decal 1\r\nBumpMapTexture tex_bump\r\nmipmap 0\r\nblending additive\r\nbumpreplacementtexture tex_r\r\nproceduretype cycle\r\n"),
+    "BumpMapTexture tex_bump\nblending additive\nbumpreplacementtexture tex_r\n");
+  for (const t of ["envmaptexture\n", "envmaptexturex foo\n", "# bumpmaptexture foo"]) assert.strictEqual(F.motionTxi(t), null, JSON.stringify(t));
+  assert.strictEqual(F.motionTxi(F.motionTxi(DIAMOND)), F.motionTxi(DIAMOND));
 });
 check("MV the name: the material's TXI hashed in (M1b's rule: a changed TXI never shares a name) and the sideways clamp its own mark, not W1's; with neither, every name as before", () => {
   const m = F.readMotion(RING, "m"), p = [0.5, 0.5], ADD = "blending additive\n";

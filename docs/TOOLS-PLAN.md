@@ -2489,8 +2489,9 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
       harmless with CLAMP_TO_EDGE); the Rate enters only s.
   - *Calls:*
     - **the play folder read again before every play** (nwn5e-tools dev `vfx_play_folder.h`, `vfx_editor.cpp`
-      PlayEffect - the bench's Play in game and Preview on me - and WriteAreaModel): the model written, then
-      `RefreshFolder` (vfxedit\ and its saved\, each removed and added back), then the model looked for. Rather than
+      PlayEffect - the bench's Play in game and Preview on me - and WriteAreaModels, once an area request): the models
+      written, then `RefreshFolder` (vfxedit\ and its saved\, each rebuilt by the engine's own UpdateResourceDirectory -
+      fix round 1; removed and added back only when it can't), then the models looked for. Rather than
       "whenever a file the request names isn't listed": the model's name can't tell (listed from the last session, its
       file rewritten), and the files a play names - the model's planes' `n5u_` materials, each MTR's texture0 (a copy, a
       soft texture), optional TXIs - would be a second copy of the generators' naming rules in C++, for no gain: the read
@@ -2499,10 +2500,13 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
       model still not listed after the read fails the play as before. Checked with stand-ins (a standalone translation
       unit over the header, as `vfx_library_format.h`'s); the DLL builds with it;
     - **a moving texture's material gets a TXI of its own** (floatdisk.js `motionTxi`, `moveTextures`' `txiOf`):
-      `n5u_<...>.txi` - its texture's `blending` lines as they are, LF; only those (with `decal`, the only lines the
-      engine reads for a mesh from its bitmap's TXI; `decal` never carried - it would drop the material). The game's 734
-      TXIs: 13 additive, 23 default, 4 normal, 2 punchthrough. None without a `blending` line (no TXI, the name as
-      before). Hashed into the name (`:txi:` and its text: M1b's rule). W1's clamped material as it was (its copy's TXI
+      `n5u_<...>.txi` - its texture's lines the engine reads for a mesh from its bitmap's TXI but `decal`, as they are,
+      in their order, LF: `blending`, and (fix round 1 - the review read `Material::ParseField`, 0x4c5850, which also
+      takes `envmaptexture`, `bumpmaptexture`, `bumpyshinytexture` and `bumpreplacementtexture` there; "only blending" was
+      wrong) the environment and bump map lines; `decal` never carried - it would drop the material. The game's 734 TXIs:
+      `blending` 42 (13 additive, 23 default, 4 normal, 2 punchthrough), `envmaptexture` 50, `bumpmaptexture` 22,
+      `bumpyshinytexture` 33 - no map line on an fx*, n5* or vfx* texture. None of these lines: no TXI, the name as
+      before. Hashed into the name (`:txi:` and its text: M1b's rule). W1's clamped material as it was (its copy's TXI
       has the lines already);
     - **a moving shape's texture0 is a still one's** (floatdisk.js `gameTextures`, DC's rule with "v within one repeat"
       read as `sidewaysClamps`: scroll up, turn and breath 0, v within [0, 1]): its copy (`n5l_`) for a decal texture or
@@ -2532,11 +2536,19 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     Floating Disk, the owner's three projects and eleven moving test meshes): the Floating Disk's files, the owner's
     `mbkglyph`, `test` and `tmoglyph` (none moves) and every still part byte for byte; of the moving ones, unchanged: a
     Normal soft dome, W1's breathing glyph, a plain texture with no TXI (`tcn01_rock01`) scrolling round, a turning game
-    crate (plc_a03: no blending lines); changed: the flame ring scrolling round (0.5 or 0.01) - its draft names a new
+    crate (plc_a03: no blending or map lines); changed: the flame ring scrolling round (0.5 or 0.01) - its draft names a new
     material whose MTR names the still ring's copy `n5l_bf0dee9aee86` (already written for the still ring) + its TXI;
     scrolling up and the glyph turning - new unclamped copies (`n5l_5cba05886e23`, `n5l_805918c2c51b`) + TXIs; an
     Additive soft dome scrolling up - the same MTR bytes under a new name + its TXI; one scrolling round - the clamped
-    soft texture `n5s_bfc2ebac4509` + TXI. Every new `n5u_` TXI is `blending additive\n` (5a1681fba2f3). No committed file.
+    soft texture `n5s_bfc2ebac4509` + TXI. (Fix round 1, the review's 25 shape cases and the gems', `mvprobe\bytes2.js`,
+    completing the list:) a **Normal** soft dome scrolling round - texture0 its clamped soft texture `n5s_a40318b044a1`
+    (TXI `clamp 2`), `:clampv` in the name, no `n5u_` TXI (a Normal soft texture has no blending line); the glyph
+    scrolling round - the still glyph's own copy `n5l_1cef2bd88098` (clamp 2); a game flipbook with `blending default`
+    (the waterfalls, tnp_bird02, tsw01_panel01) - its copy (`n5l_618bbb57d245` for tcm02_wtfall01, clamp 2 sideways) and
+    an `n5u_` TXI `blending default\n`; a texture with map lines (the gems' c_diamond, a chest's plc_gold - a moving game part on one too) - an `n5u_` TXI of them
+    (`envmaptexture evmap_irrid\nbumpyshinytexture evmap_irrid\n`): the only change fix round 1 makes. So each new `n5u_`
+    TXI is its texture's own lines: `blending additive\n` for every fx* texture here, `blending default\n` for the six
+    other flipbooks, the map lines for the gems, crystals and metals that have them. No committed file.
   - *Built:* anim branch `mv-move` (floatdisk.js, files.js, both build.js, uvprobe.js's comments, build_derived.js's
     comment, the READMEs; floatdisk check, floatdisk and composer check_build, check_derived) and nwn5e-tools branch
     `mv-move-tools` (dev/vfx_play_folder.h, dev/vfx_editor.cpp, dev/README.md; composer_server.js, composer.js,
@@ -2546,5 +2558,24 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     runs before the SharedMaterial and nothing else sets the blend), that the copy's flipbook cycles under texture0 (from
     the code: `BindInUnit` steps it), and that the refresh holds on Windows (the 1-second poll and whole-second mtime were
     read in the Linux build). A missed picture before this install may stay white for the session (unchecked whether the
-    engine keeps an invalid texture by name): restart the game after installing. A moving texture's `envmaptexture` (a
-    Material line too, maybe) isn't carried - unknown, as before.
+    engine keeps an invalid texture by name): restart the game after installing. A moving texture's `envmaptexture` and
+    bump map lines are carried (fix round 1); whether the plain lit fslit our material pairs with vsn5uvmove draws them
+    is unknown.
+  - *Fix round 1* (the review, 2026-11-19: Needs fixes):
+    - **the refresh, non-destructive** (Important): the remove-and-add was safe for effects on screen (the review traced
+      DestroyTable, CRes::Dump and the name-keyed renderer caches) but heavy - the idle cache dumped, "Resource %s still
+      in demand during table deletion" logged per resource in use, and the tables' priority climbing 2 a play
+      (`CExoResMan::AddKeyTable` lifts a new table above every table of its million whose priority is at or above its
+      own - read in nwmain: priority / 1,000,000 by multiply-shift, then +1 past each; the array kept highest first,
+      GetKeyEntry's search order). Now each folder is rebuilt by the engine's exported `UpdateResourceDirectory` ->
+      `UpdateKeyTable(name, 2)` -> `CExoKeyTable::RebuildTable()` (what the 1-second poll runs; 1, or 0 and an engine log
+      line when no such directory table - read in nwmain), the old remove-and-add only when the export is missing or
+      returns 0 (said once in nwn5e.log). An area request reads them once, after all its slot models are written
+      (`ReadFolderForPlayAll`), not once a model. The policy (`FolderReader`, `ReadFolderForPlayAll`) is in
+      `vfx_play_folder.h` and its stand-in check is committed now, `dev\checks\check_play_folder.cpp` (`.bat` to run it:
+      14 checks; 15 mutants of the header, the pre-MV policy among them, all caught). The same nwmain read shows saved\
+      (asked for at 15000009) coming in at 15000011, above vfxedit\'s 15000010: since #161 a name in both is saved\'s;
+      vfx_editor.cpp's comment said "under the editor's" and now says so;
+    - **the map lines** (above) carried in the material's TXI;
+    - **the byte lists completed** (above), the MV-3 row's arithmetic (Repeat around 3: one repeat - a third of the ring -
+      in 100 s at 0.01, a full turn in 300 s) and the TMO-2 note (its Opacity 0.35 the diagnosis's inference).

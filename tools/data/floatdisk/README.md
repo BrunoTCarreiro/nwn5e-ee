@@ -335,8 +335,9 @@ A part's `motion` moves the pictures on its textured meshes (M2; the owner, 2026
   an `n5u_` name didn't have, so a moving additive texture drew alpha-blended (TMO-1's probe domes were at alpha 0.3,
   where the two look alike). MV, below, gives each material a TXI of its own.
 - **What a material gives up:** it names our vertex shader and the game's plain lit fragment shader (the vslit / fslit
-  pair), so a moving texture drops the game texture's own `.mtr` (a specular or normal-mapped one's). Whether an
-  `envmaptexture` its TXI asks for still applies under our material is unknown (not dropped by us; untested).
+  pair), so a moving texture drops the game texture's own `.mtr` (a specular or normal-mapped one's). The
+  `envmaptexture` and bump map lines its TXI has are carried in the material's own TXI (MV's fix round: the engine reads
+  them from the mesh's bitmap's TXI); whether the plain lit fslit draws them is untested.
 - **Clamped textures** (W1; the design's addendum (c); TMO-2, the owner: "when it shrank the texture being tiled and
   wrapping would show a bit at the bottom edge of the dome" - "go with 1 for the wrap"). The game repeats a texture past
   UV 1, which a scroll needs; but a breath below 1 scales the UVs past the picture's edge, so the next repeat shows at
@@ -421,11 +422,12 @@ diagnosis):
 
 So (`floatdisk.js`; the generators, and the VFX Bench's Play in game by the same functions):
 
-- **a moving texture's material gets a TXI of its own**, `n5u_<...>.txi`: its texture's `blending` lines as they are
-  (`motionTxi`) - with `decal`, all the engine reads for a mesh from its bitmap's TXI, and `decal` is never carried (it
-  would drop the material). None for a texture with no `blending` line (no TXI, as before). The TXI is hashed into the
-  material's name (`:txi:` and its text: a changed TXI never shares a name). W1's clamped material is as it was: its
-  copy's TXI already carries the source's lines.
+- **a moving texture's material gets a TXI of its own**, `n5u_<...>.txi`: its texture's lines the engine reads for a
+  mesh from its bitmap's TXI (`Material::ParseField`) but `decal` - `blending`, and (fix round 1) `envmaptexture`,
+  `bumpmaptexture`, `bumpyshinytexture`, `bumpreplacementtexture` - as they are, in their order (`motionTxi`); `decal`
+  is never carried (it would drop the material). None for a texture with none of them (no TXI, as before). The TXI is
+  hashed into the material's name (`:txi:` and its text: a changed TXI never shares a name). W1's clamped material is as
+  it was: its copy's TXI already carries the source's lines.
 - **a moving shape's texture is what a still one's is** (`gameTextures`: DC's rule with "v within one repeat" read as
   "**sideways only**, v within one repeat" - `sidewaysClamps`): its material's texture0 is DC's copy (`n5l_`) for a
   decal texture or a flipbook moving sideways - the still ring's own copy, one a texture, never a speed - or its clamped
@@ -435,10 +437,11 @@ So (`floatdisk.js`; the generators, and the VFX Bench's Play in game by the same
   gone while u scrolls round and repeats. Never W1's `clamp 3` there; never clamped with a scroll up, a turn or a
   breath (each takes v out of [0, 1]): a decal texture's copy is then unclamped, a plain flipbook as it is. Its name
   hashes `:clampv` (its own mark, never W1's `:clamp`).
-- **Byte-wise:** a still part, a game part's or your own file's texture without a `blending` line, the Floating Disk:
-  as before. A moving texture whose TXI has a `blending` line gets its TXI and a new name; a moving shape's decal texture
-  or flipbook names its copy (and the copy is written); a moving soft shape scrolling sideways names its clamped soft
-  texture.
+- **Byte-wise:** a still part, a game part's or your own file's texture with none of those lines, the Floating Disk:
+  as before. A moving texture whose TXI has one gets its TXI (`blending additive` for the fx textures; `blending
+  default` for the game's six other flipbooks; the map lines for a texture with an environment or bump map - gems, a chest's plc_gold, a moving game part on one - none of the fx* ones)
+  and a new name; a moving shape's decal texture or flipbook names its copy (and the copy is written); a moving soft
+  shape scrolling sideways names its clamped soft texture (a Normal one too: its name changes, no TXI).
 
 The summary says it: `material n5u_...: n5l_... scrolls 0.5 0 a second, round 0.5 0.5, clamped in v (scrolling sideways
 only), n5u_....txi beside it: blending additive - ...`; `--json`'s material gains `"side": true` and `"txi"`.

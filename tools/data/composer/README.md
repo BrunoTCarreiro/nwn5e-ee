@@ -146,7 +146,7 @@ A part's `motion` (M2) scrolls, turns and breathes the pictures on its textured 
   its clamp), **not to the blend** (MV: the engine takes a mesh's blend only from its bitmap's TXI).
 - **Its own TXI, and a moving shape's texture as a still one's** (MV; DC-1 with Scroll round, the owner, 2026-11-19: the
   rim line back on the stage, in game an opaque tint or flames on black - "go"): each moving texture's material gets a
-  TXI of its own, `n5u_<...>.txi` - its texture's `blending` lines (so an additive texture adds its light in game, not
+  TXI of its own, `n5u_<...>.txi` - its texture's `blending` (and environment / bump map) lines (so an additive texture adds its light in game, not
   drawn on black) - hashed into its name; none for a texture without one (as before). A moving shape's texture0 is what
   a still one's is (DC, below): its copy for a decal texture or a flipbook, its clamped soft texture - clamped in v
   (`clamp 2`) only while it moves **sideways only** (no scroll up, turn or breath, its v within [0, 1]): the still
