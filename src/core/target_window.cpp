@@ -5,7 +5,7 @@
 // scorching ray to light fire light sources"). The rows' rules: rules/target_rows.h.
 //
 // A player character's own cast (its input message: action_guard's from_input) of Magic Missile or Scorching Ray is
-// held - the order guard refuses it, so nothing is spent - and, at the character's next update, a window opens: one
+// held - the order guard refuses it, so nothing is spent - and, on the server's next frame, a window opens: one
 // row a dart or ray (3, one more a slot level above the spell's), row 1 the creature it was cast at. EE's targeting
 // mode (EnterTargetingMode, the module's OnPlayerTarget event: nwn5e's n5_target, the module's own script chained) picks
 // the rest: a creature fills the next empty row (the same creature again is another dart or ray); for Scorching Ray an
@@ -41,6 +41,7 @@
 #include "nui.h"
 #include "player_text.h"
 #include "script_hooks.h"
+#include "server_tick.h"
 #include "target_window.h"
 #include "rules/spell_slots.h"
 #include "rules/spells2024.h"
@@ -107,18 +108,25 @@ void SetModuleEvent(uint32_t player) {
   g_module_event = true;
 }
 
-// 0.99.86 (owner, 2026-11-19, on TW-1: "this only works if the game is not paused"): a paused game runs no
-// DelayCommand, so the cursor is asked for at once; the delayed ask stays as a second try for a client whose own
-// targeting was still ending - only while the window is open (n5tw_open), so a late one after OK does nothing.
-void EnterTargeting(uint32_t player, int spell) {
+// The cursor asked for a moment after (kEnterAfterMs, wall-clock), from the server's frame (server_tick.h) - as
+// 0.99.85's DelayCommand(0.05) did, which worked unpaused, but a paused game runs no DelayCommand. 0.99.87 (owner,
+// 2026-11-19, on 0.99.86's ask at once, inside the order's own handling: "now unpaused also only allows to pick one
+// target"): never at once - the client was still ending its own targeting and dropped it.
+constexpr ULONGLONG kEnterAfterMs = 60;
+struct EnterAsk {
+  int spell = 0;
+  ULONGLONG due = 0;
+};
+std::unordered_map<uint32_t, EnterAsk> g_enter;  // by player character
+
+void EnterTargeting(uint32_t player, int spell) { g_enter[player] = EnterAsk{spell, GetTickCount64() + kEnterAfterMs}; }
+
+void EnterTargetingNow(uint32_t player, int spell) {
   const std::string types =
       spell == rules::kScorchingRay ? "OBJECT_TYPE_CREATURE | OBJECT_TYPE_PLACEABLE" : "OBJECT_TYPE_CREATURE";
-  const std::string enter = "SetEnterTargetingModeData(OBJECT_SELF, SPELL_TARGETING_SHAPE_NONE, 0.0, 0.0, "
-                            "SPELL_TARGETING_FLAGS_NONE, 36.6); EnterTargetingMode(OBJECT_SELF, " +
-                            types + ", MOUSECURSOR_MAGIC, MOUSECURSOR_NOMAGIC);";
-  // `enter` has no quotes, so it goes into the delayed chunk's string as it is.
-  RunScriptChunk((enter + "DelayCommand(0.06, ExecuteScriptChunk(\"if (GetLocalInt(OBJECT_SELF, \\\"n5tw_open\\\")) {" +
-                  enter + "}\", OBJECT_SELF, TRUE));")
+  RunScriptChunk(("SetEnterTargetingModeData(OBJECT_SELF, SPELL_TARGETING_SHAPE_NONE, 0.0, 0.0, "
+                  "SPELL_TARGETING_FLAGS_NONE, 36.6); EnterTargetingMode(OBJECT_SELF, " +
+                  types + ", MOUSECURSOR_MAGIC, MOUSECURSOR_NOMAGIC);")
                      .c_str(),
                  player);
 }
@@ -209,7 +217,7 @@ void Reissue(uint32_t player, const SpellOrder& order, uint32_t target) {
 void Close(uint32_t player, Held* held) {
   for (uint32_t id : held->marked) Unmark(player, id);
   held->marked.clear();
-  if (void* pc = CreatureById(player)) engine::SetLocalInt(pc, "n5tw_open", 0);
+  g_enter.erase(player);
   NuiClose(player, kWindow);
   StopTargeting(player);
 }
@@ -363,7 +371,6 @@ void Open(uint32_t player, Held* held) {
     Log("target window: 0x%08X %s - the window didn't open, cast at its target", player, SpellName(kept.order.spell));
     return;
   }
-  if (pc) engine::SetLocalInt(pc, "n5tw_open", 1);
   Refresh(player, held);
   EnterTargeting(player, static_cast<int>(held->order.spell));
   Log("target window: 0x%08X %s held - %zu rows, row 1 0x%s", player, SpellName(held->order.spell),
@@ -399,14 +406,40 @@ bool Guard(void* creature, const SpellOrder& order) {
   held.order = order;
   held.rows = rules::MakeTargetRows(rules::TargetRowsFor(static_cast<int>(order.spell), slot),
                                     order.target != ee::kObjectInvalid ? order.target : 0u);
-  g_held[id] = held;
+  g_held[id] = held;  // opened on the server's next frame (ServerTick), outside this order's own handling
   g_sent.erase(id);
-  // 0.99.86 (owner, 2026-11-19, on TW-1: "this only works if the game is not paused"): the window opens at once - the
-  // order comes with the player's input, which a paused game still handles; a creature update (the old way) waits
-  // for the pause to end. Update stays as a fallback.
-  g_held[id].open = true;
-  Open(id, &g_held[id]);
   return true;
+}
+
+// #171 (0.99.87; owner, 2026-11-19, on TW-1: "this only works if the game is not paused"): the server's frame, paused
+// or not - a held order's window opens (0.99.85 waited for the character's update, which a paused game doesn't run;
+// 0.99.86 opened it inside the order's handling and asked for the cursor at once, which the client dropped), and an
+// asked-for cursor comes kEnterAfterMs later while its window is open.
+void ServerTick() {
+  if (g_held.empty()) {
+    g_enter.clear();
+    return;
+  }
+  for (auto& one : g_held) {
+    if (one.second.open) continue;
+    one.second.open = true;
+    const uint32_t id = one.first;
+    Open(id, &one.second);
+    break;  // Open may erase from g_held: one a frame
+  }
+  if (g_enter.empty()) return;
+  const ULONGLONG now = GetTickCount64();
+  for (auto it = g_enter.begin(); it != g_enter.end();) {
+    if (now < it->second.due) {
+      ++it;
+      continue;
+    }
+    const uint32_t player = it->first;
+    const int spell = it->second.spell;
+    it = g_enter.erase(it);
+    const auto held = g_held.find(player);
+    if (held != g_held.end() && held->second.open) EnterTargetingNow(player, spell);
+  }
 }
 
 }  // namespace
@@ -427,7 +460,8 @@ std::vector<uint32_t> TakeWindowTargets(uint32_t caster, int spell) {
 bool InstallTargetWindow() {
   if (g_config.spellcasting != rules::RuleVariant::kFaithful) return false;
   const bool ok = AddSpellOrderAdjuster(&Adjust) && AddSpellOrderGuard(&Guard) && AddNuiWindow(kWindow, &OnWindowEvent) &&
-                  AddScriptHandler(kTargetScript, &OnTargetScript) && AddCreatureUpdateListener(&Update);
+                  AddScriptHandler(kTargetScript, &OnTargetScript) && AddCreatureUpdateListener(&Update) &&
+                  AddServerTickListener(&ServerTick);
   Log("target window: Magic Missile's darts and Scorching Ray's rays picked one a row before the cast (#171)%s",
       ok ? "" : " - SOME hooks missing");
   return ok;

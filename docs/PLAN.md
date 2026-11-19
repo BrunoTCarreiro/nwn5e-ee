@@ -1948,6 +1948,15 @@ monster AC by CR.
         - **The cursor** is asked for at once after each pick. The delayed ask stays as a second try, only while the
           window is open (the n5tw_open local), so a late one after OK does nothing.
         - TW-1's retest is TW-1b, paused.
+      - *0.99.87 (owner, 2026-11-19, on 0.99.86: "doesn't work. now unpaused also only allows to pick one target"):*
+        - **What went wrong:** the log showed the window opening at once, but no pick ever came back. Asked inside
+          the order's own handling, the client was still ending its own targeting and dropped the cursor (0.99.85's
+          DelayCommand(0.05) had asked a moment after, and worked unpaused).
+        - **Now:** a hook on the server's frame (server_tick.cpp: CServerExoApp::MainLoop, which runs every frame,
+          paused or not) does both jobs. It opens a held order's window on the next frame, outside the order's
+          handling, and asks for the cursor 60 ms (wall-clock) after each request, while the window is open. No
+          DelayCommand and no creature update is involved.
+        - TW-1b stands.
     - Build 1a goes first without Scorching Ray: Acid Arrow, Shatter, Mind Spike, Shining Smite, Prayer of Healing.
     - Then #171 with Scorching Ray and Magic Missile, then build 1b.
   - *Built 0.99.80 (level 2's build 1a):*
