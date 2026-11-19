@@ -130,15 +130,21 @@ TEST(TargetRowsCountsByTarget) {
   std::vector<TargetCount> counts = CountsByTarget(t);
   CHECK_EQ(static_cast<int>(counts.size()), 2);
   CHECK_EQ(counts[0].id, 5u);
-  CHECK_EQ(counts[0].count, 4);  // rows 1 and 3, and the two empty rows follow the latest pick (5)
+  CHECK_EQ(counts[0].count, 2);  // rows 1 and 3: what's assigned, not the empty rows the cast gives the latest pick
   CHECK_EQ(counts[1].id, 6u);
   CHECK_EQ(counts[1].count, 1);
-  CHECK_EQ(TakeBackLatest(&t), 2);  // row 3 taken back: the latest pick is 6 now
+  CHECK_EQ(TakeBackLatest(&t), 2);  // row 3 taken back
   counts = CountsByTarget(t);
+  CHECK_EQ(static_cast<int>(counts.size()), 2);
   CHECK_EQ(counts[0].id, 5u);
   CHECK_EQ(counts[0].count, 1);
   CHECK_EQ(counts[1].id, 6u);
-  CHECK_EQ(counts[1].count, 4);
+  CHECK_EQ(counts[1].count, 1);
+  ClearRow(&t, 0);  // row 1 emptied: 6 first now, 5 gone
+  counts = CountsByTarget(t);
+  CHECK_EQ(static_cast<int>(counts.size()), 1);
+  CHECK_EQ(counts[0].id, 6u);
+  CHECK_EQ(counts[0].count, 1);
   TargetRows empty = MakeTargetRows(3, 0);
   CHECK_EQ(static_cast<int>(CountsByTarget(empty).size()), 0);
 }

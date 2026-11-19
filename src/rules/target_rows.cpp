@@ -73,7 +73,8 @@ int FilledRows(const TargetRows& rows) { return static_cast<int>(rows.picked.siz
 
 std::vector<TargetCount> CountsByTarget(const TargetRows& rows) {
   std::vector<TargetCount> counts;
-  for (uint32_t id : ResolveTargets(rows)) {
+  for (uint32_t id : rows.rows) {
+    if (id == 0) continue;  // not assigned: the cast gives it the latest pick, the count doesn't
     bool found = false;
     for (TargetCount& one : counts) {
       if (one.id == id) {

@@ -181,10 +181,13 @@ void SetRowTexts(uint32_t player, const Held& held) {
 
 // 0.99.88 (owner, 2026-11-19: "There isn't a way to see how many darts each of the targets will be getting as they
 // get a uniform red glow. is it possible to add some sort of floating texture on top?" - "A now, B later"): each
-// target's count floats over it ("2 darts", "1 ray"), as the rows resolve (an empty row the last pick's) - at each
-// change and every kCountsEveryMs while the window is open (NWN's floating text fades). Only the caster sees it.
+// target's count floats over it ("2 darts", "1 ray") - at each change and every kCountsEveryMs while the window is
+// open (NWN's floating text fades). Only the caster sees it.
 // 0.99.89 (owner: "no text above the orcs"): FloatingTextStringOnCreature shows its text to the creature's own player
 // only, so over an NPC no one saw it; the engine's floaty message now goes to the caster's player (floaty_text.h).
+// 0.99.90 (owner: "it should be a permanently visible indicator on top of each enemy saying how many darts/bolts are
+// assigned to them, not how many are left"): the count is the rows assigned (rules::CountsByTarget). The permanent
+// marker is the animation session's numbered marker (B); until it lands, this floating text stands in.
 constexpr ULONGLONG kCountsEveryMs = 2500;
 std::unordered_map<uint32_t, ULONGLONG> g_counts_at;  // by player character: the counts last floated
 
