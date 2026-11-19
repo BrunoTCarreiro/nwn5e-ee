@@ -15,6 +15,11 @@
 // Pure: unit-tested.
 
 #include <stddef.h>
+#include <stdint.h>
+
+#include <vector>
+
+#include "data/anim_area_engine.h"
 
 namespace data {
 
@@ -39,5 +44,20 @@ bool StartsLoneCopy(int group1_count, int start0, int alive0, int state0, bool o
 // SetAnimation index a copy by a byte), group 1's 0..all of them. Anything else: the hook leaves the area alone.
 constexpr int kMaxAreaCopies = 255;
 bool AreaCopiesLaidOut(int total, int group1_count);
+
+// A byte pattern in core/hooks' syntax ("48 8B ?? 78": hex bytes, ?? any) as its bytes, -1 for any.
+std::vector<int> BytePattern(const char* text);
+// Whether `pattern` matches the bytes at `code` (as many as the pattern is long, all readable).
+bool BytesMatch(const uint8_t* code, const std::vector<int>& pattern);
+
+// AH fix round 1 (the review's I1): whether `anchor`'s value is its pattern's bytes at its place - `size` (1-4)
+// little-endian bytes from `at`, inside the pattern, none of them ??. Every one of area_engine::kOffsetAnchors must be:
+// a pattern found in the game then proves the offset the hook reads with.
+bool OffsetAnchored(const area_engine::OffsetAnchor& anchor);
+
+// AH fix round 1 (the review's M1): LoadEffect's direct calls to Hilite - each the address of its E8, as FindCallsTo gives
+// them - as the loader makes them: exactly area_engine::kHiliteSlot3Calls, each the end of kHiliteSlot3CallPattern
+// (glow 0, slot kAreaHiliteSlot); reads the kHiliteSlot3CallAt bytes before each. The hook and the game test share it.
+bool AreaHiliteCallsAsLoaded(const std::vector<const uint8_t*>& calls);
 
 }  // namespace data

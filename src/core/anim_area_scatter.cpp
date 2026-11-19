@@ -14,8 +14,10 @@
 
 namespace {
 
-// The client area object's copy state and its functions: data/anim_area_engine.h (each offset checked by a pattern
-// where the game uses it - VA-5's four below, AH's in FindAreaCopyCode).
+// The client area object's copy state and its functions: data/anim_area_engine.h. The hook finds the code by byte
+// patterns (VA-5's four in InstallAreaScatter, AH's in FindAreaCopyCode); every offset and value it reads memory or calls
+// with is one of those patterns' bytes (ae::kOffsetAnchors - AH fix round 1: before, the constants and the patterns were
+// only kept equal by hand), checked by the tests and again in InstallAreaScatter, so a pattern found proves its offset.
 namespace ae = data::area_engine;
 
 template <typename T>
@@ -136,11 +138,9 @@ bool FindAreaCopyCode(const CodeRange& load, uintptr_t update_skip) {
   const uintptr_t load_model = VtableSlot(vtable, ae::kCopyLoadModelSlot);
   if (!hilite || !unhilite || !set_animation || !impact || !load_model) return false;
   const std::vector<uintptr_t> calls = FindCallsTo(load, hilite);
-  bool slot3 = calls.size() == static_cast<size_t>(ae::kHiliteSlot3Calls);
-  for (uintptr_t call : calls) {
-    const auto* before = reinterpret_cast<const void*>(call - (sizeof(ae::kHiliteSlot3Call) - 1));
-    slot3 = slot3 && memcmp(before, ae::kHiliteSlot3Call, sizeof(ae::kHiliteSlot3Call)) == 0;
-  }
+  std::vector<const uint8_t*> call_sites;
+  for (uintptr_t call : calls) call_sites.push_back(reinterpret_cast<const uint8_t*>(call));
+  const bool slot3 = data::AreaHiliteCallsAsLoaded(call_sites);  // three, each slot 3 and glow 0 (the test's own check)
   const uintptr_t refresh = CallTarget(unhilite + ae::kUnHiliteRefreshCallAt);
   if (FunctionEntry(hilite) != hilite || FunctionEntry(unhilite) != unhilite ||
       FunctionEntry(set_animation) != set_animation || !refresh ||
@@ -164,6 +164,13 @@ bool FindAreaCopyCode(const CodeRange& load, uintptr_t update_skip) {
 }  // namespace
 
 void InstallAreaScatter() {
+  for (const ae::OffsetAnchor& anchor : ae::kOffsetAnchors) {
+    if (!data::OffsetAnchored(anchor)) {  // a constant edited without its pattern: nothing it reads can be trusted
+      Log("SKIP area scatter #161 and area copies #39: %s (0x%x) isn't the bytes its pattern checks - nothing hooked",
+          anchor.name, anchor.value);
+      return;
+    }
+  }
   const uintptr_t load = FunctionByString("area scatter: CNWCAreaOfEffectObject::LoadEffect", ae::kLoadEffectText);
   if (!load) {
     Log("SKIP area scatter #161: the client's area loader not found - an area's first copy stays at its centre");

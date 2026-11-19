@@ -2603,10 +2603,11 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
       (`UpdateInstancePosition`) skips as nothing pending: with group 1 of one, that copy is never placed and never gets
       `SetAnimation` (VA-5 places it when group 1 has several). A placed copy gets: `SetInstanceRandomPosition`,
       `AttachToScene` the first time, `SetAnimation(1, i)` (rva 0x981420: state 1, its timer the impact's length - at
-      least 1 ms - and the impact played once, flags 1), `ResetTimer` (alive = the row's lifetime), start 0; `AIUpdate`
-      starts the duration, looped, when the timer runs out (inlined on win64: state 2, the copy's own SetAnimation(2),
-      flags 0); a lifetime above 0 ends in the cessation and `SetMoveTimer`'s
-      start of 1 - re-placed at random in the radius.
+      least 1 ms - and the impact played once, flags 1), `ResetTimer` (alive = the row's lifetime), start 0, and the
+      row's one-shot sound at its spot by chance (SoundOneShot, SoundOneShotPercentage); `AttachToScene` also sets the
+      copy's attached flag (+0x1c0), which `SetScene` uses to attach it again. `AIUpdate` starts the duration, looped,
+      when the timer runs out (inlined on win64: state 2, the copy's own SetAnimation(2), flags 0); a lifetime above 0
+      ends in the cessation and `SetMoveTimer`'s start of 1 - re-placed at random in the radius.
   - *Calls:*
     - **ours: a copy whose model's name starts "n5"** (any case; the copy's own CResRef at +0x30, read whatever the row):
       nwn5e names every model it ships or plays so (n5_, n5v_, n5t_, the bench's n5vx / n5va plays), and none of the
@@ -2618,21 +2619,26 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
     - **a lone copy started in place**: group 1 of one, copy 0 at start 0, not alive, state 0, its model ours -
       `SetAnimation(1, 0)`, the call the update makes for a placed copy; its lifetime left 0 (what `ResetTimer` gives a
       lifetime-0 row, and the only one that stays where it stands), so it fades in once and holds its duration until
-      the area ends (its cessation then, from `StopEffect`, as before). Done before the client's `SetScene` attaches the
+      the area ends (its cessation then, from `StopEffect`, as before). It gets neither the one-shot sound nor the
+      attached flag, as before: it is the object's own animation base, attached by the object's `AttachToScene`, and
+      never was placed. Done before the client's `SetScene` attaches the
       copy: `Gob::PlayAnimation` only adds a run to the model's list, which attaching (`Gob::SetScene`: the scene's lists,
       an "UpdateScenes" event) leaves alone, and the first frame both animates it and counts the area's timer down;
     - **nothing re-highlights them**: the hover's highlight (`UpdateMouseCursorAppearance`) is slot 1 on copy 0, drawn
       over it while the pointer is there and cleared alone; `RefreshHilite`'s other callers only read the slots; the
       `graphics.hilite.*` callbacks only set globals; a re-placed copy gets no Hilite. Only a self-illumination or alpha
       visual effect put on the area object itself would set copy 0's slot 3 again - nwn5e's areas never get one;
-    - **guards**: every function and offset is checked where the game uses it before the hook installs - Hilite and
-      UnHilite by their bytes (entries, the same RefreshHilite), LoadEffect's three slot-3 calls landing on Hilite, the
-      copies' array (0x118 each, at +0x78) and total (+0x1a0) in LoadEffect, a copy's model (+0xc8) and name (+0x30) in
-      its LoadModel (`CNWCAnimBaseVisualEffect`'s vtable by RTTI, slot 3), SetAnimation by its bytes (state +0x1d0,
-      timer +0x180) and as the update's impact call; any missing: "SKIP area copies", VA-5 alone. At each load: counts
-      as the loader lays them out (1-255 in all, group 1's 0..all), every copy of that class - else logged once and the
-      area left alone. The offsets and patterns live in `data/anim_area_engine.h` (VA-5's moved there too, unchanged).
-  - *Tests* (test.bat 630 -> 636): `AreaOwnModels`, `AreaGameModelsNotOurs`, `AreaLoneCopyStarted`,
+    - **guards**: every function is found by its bytes before the hook installs - Hilite and UnHilite (entries, the same
+      RefreshHilite), LoadEffect's direct calls to Hilite (exactly three, each slot 3 and glow 0), the copies' array
+      (0x118 each, at +0x78) and total (+0x1a0) in LoadEffect, a copy's model (+0xc8) and name (+0x30) in its LoadModel
+      (`CNWCAnimBaseVisualEffect`'s vtable by RTTI, slot 3), SetAnimation (state +0x1d0, timer +0x180) and the update's
+      impact call landing on it; any missing: "SKIP area copies", VA-5 alone. Every offset and value the hook reads
+      memory or calls with (13, VA-5's three included) is one of those patterns' bytes at a fixed place
+      (`kOffsetAnchors`, fix round 1): the tests check each, the hook again at install (else nothing hooked), so a
+      pattern found in the game proves its offset. At each load: counts as the loader lays them out (1-255 in all, group
+      1's 0..all), every copy of that class - else logged once and the area left alone. The offsets and patterns live in
+      `data/anim_area_engine.h` (VA-5's moved there too, unchanged).
+  - *Tests* (test.bat 630 -> 636; fix round 1 -> 640): `AreaOwnModels`, `AreaGameModelsNotOurs`, `AreaLoneCopyStarted`,
     `AreaLoneCopyOtherwiseLeft`, `AreaCopiesLayoutGuard`, and `AreaEnginePatternsInTheGame`: every pattern the hook
     checks, in the game's own nwmain.exe, as the hook checks it (unique, in the right function, the call targets lining
     up; skipped without the game - NWN_GAME_DIR or Steam's folder). Mutation check: 27 deliberate breaks - 13 of the
@@ -2644,4 +2650,22 @@ real libraries castout + 1hreadyr: the thigh and shin are 1hreadyr's, the torso 
   - *Limits:* unseen in game until AH-1. A lone copy of ours with a lifetime keeps its duration for good (never
     re-placed or replayed), as the game keeps a lone copy at the centre. At Glow below 1 our area copies are now lit by
     the area, as on a creature, not full-bright. Emitters weren't checked (the AR diagnosis: not drawn by
-    `PartTriMesh::Mat`).
+    `PartTriMesh::Mat`). The lone copy's impact timer counts down from the first AIUpdate after LoadEffect, so its
+    first countdown includes the area's load time (the review's M3; a placed copy's starts at its placement) - on a slow
+    load the duration may start before the impact has played out, the fade-in then ending in a step to its end value.
+  - *Fix round 1* (the review, 2026-11-19: Needs fixes):
+    - **the offsets tied to their patterns** (Important): the named constants were kept equal to the patterns' bytes
+      only by hand - the reviewer changed each of 9 and the suite stayed green, so after a game patch a pattern updated
+      without its constant would have the hook read a wrong pointer and crash the client. Now `kOffsetAnchors` names, for
+      each of the 13 constants the hook reads memory or calls with (`kCopies`, `kCopyStride`, `kGroup1Count`,
+      `kTotalCount`, `kCopyAlive`, `kCopyStart`, `kCopyState`, `kCopyTimer`, `kCopyModelName`, `kCopyModel`,
+      `kCopyHiliteOn`, `kAreaHiliteSlot`, `kAreaImpact`), the pattern carrying it and the byte where its displacement
+      or immediate starts; `data::OffsetAnchored` checks the little-endian bytes there (`AreaOffsetsTiedToTheirPatterns`,
+      `AreaOffsetAnchoredRule`), and `InstallAreaScatter` checks them all again before anything else. Each of the 13
+      constant mutants now fails;
+    - **the Hilite calls checked as the hook checks them** (M1): one shared function, `data::AreaHiliteCallsAsLoaded`
+      (every direct call to Hilite in LoadEffect: exactly three, each ending kHiliteSlot3CallPattern - glow 0, slot 3),
+      used by the hook (FindCallsTo's sites) and by the game test (its own E8 scan of LoadEffect); the pattern parser the
+      tests used is `data::BytePattern` / `BytesMatch` now (`AreaBytePatterns`, `AreaHiliteCallsChecked`);
+    - **the placed copy's sound and flag** (M6): above. test.bat 636 -> 640; 49 mutants (19 of the rules, 30 of the
+      anchors and constants), all caught.

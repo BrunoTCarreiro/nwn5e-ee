@@ -2,10 +2,13 @@
 
 // The client's area-effect code as core/anim_area_scatter reads and calls it (EE 89.8193.37-17, the 64-bit nwmain.exe):
 // CNWCAreaOfEffectObject (an area on the client) and its copies, each a CNWCAnimBaseVisualEffect. Nothing here is
-// exported: the hook finds each function and checks each offset by these byte patterns where the game uses them, and
-// skips (logged) when any is missing. tests/data/anim_area_copies_test.cpp checks every one against the game's own
-// nwmain.exe (skipped without the game). Read from the win64 bytes; the Linux build with symbols (its offsets 0x20
-// higher from +0x170 on, its vtables one slot later) names them. Constants only.
+// exported: the hook finds each function by these byte patterns, and skips (logged) when any is missing. Every offset
+// and value the hook reads memory or calls with is also carried by one of the patterns, at a fixed byte
+// (kOffsetAnchors, at the end): found in the game, the pattern proves the constant; a constant edited without its
+// pattern (or the other way round) fails the tests and makes the hook skip at install (AH fix round 1: before, the
+// constants and the patterns' bytes were only kept equal by hand). tests/data/anim_area_copies_test.cpp checks every
+// pattern against the game's own nwmain.exe (skipped without the game). Read from the win64 bytes; the Linux build with
+// symbols (its offsets 0x20 higher from +0x170 on, its vtables one slot later) names them. Constants only.
 
 #include <stddef.h>
 #include <stdint.h>
@@ -52,8 +55,11 @@ constexpr const char* kCopiesPattern =
     "BA 18 01 00 00 48 8B CB E8 ?? ?? ?? ?? 45 33 F6 EB 06 45 33 F6 41 8B DE 48 89 5E 78";
 // ... and their total, the groups' counts summed (+0x19c + +0x198 + kGroup1Count) at kTotalCount, at least 1.
 constexpr const char* kTotalCountPattern = "03 86 94 01 00 00 89 86 A0 01 00 00 83 F8 01";
-// LoadEffect's Hilite call for each group: glow 0 (r9d), slot 3 (r8b), the colour (1, 1, 1) on the stack - three of them.
-constexpr uint8_t kHiliteSlot3Call[] = {0x45, 0x33, 0xC9, 0x41, 0xB0, 0x03, 0x48, 0x8D, 0x54, 0x24, 0x50, 0xE8};
+// LoadEffect's Hilite call for each group: glow 0 (r9d), slot 3 (r8b), the colour (1, 1, 1) on the stack, the call (the
+// E8, kHiliteSlot3CallAt) - every direct call to Hilite in LoadEffect ends this way, three of them
+// (data::AreaHiliteCallsAsLoaded).
+constexpr const char* kHiliteSlot3CallPattern = "45 33 C9 41 B0 03 48 8D 54 24 50 E8";
+constexpr size_t kHiliteSlot3CallAt = 11;
 constexpr int kHiliteSlot3Calls = 3;
 // CNWCAnimBase::Hilite(const Vector&, byte slot, int glow): a model (kCopyModel) and slot < 5, the colour stored, the
 // slot's on flag (kCopyHiliteOn) = the global graphics.hilite.enabled, its glow, then RefreshHilite (the E8).
@@ -83,6 +89,34 @@ constexpr const char* kSetAnimationPattern =
 // E8) - in the function with kStartSkippedPattern. What a placed copy gets, and what the hook gives a lone copy.
 constexpr const char* kImpactCallPattern = "BA 01 00 00 00 44 0F B6 C6 48 8B CB E8";
 constexpr size_t kImpactCallAt = 12;
+
+// --- Every constant the hook reads memory or calls with, tied to the pattern that carries it ---
+// `value`'s `size` little-endian bytes are the pattern's bytes from `at` (none of them ??): the instruction's
+// displacement or immediate there is that offset or value (data::OffsetAnchored; the test checks every entry, the hook
+// checks them again at install). Not here: kCopyModelNameSize (CResRef's 16 chars, read within the copy) and the int
+// stride of the hilite flags (Hilite's and UnHilite's index scale, x4).
+struct OffsetAnchor {
+  const char* name;
+  uint32_t value;
+  int size;  // bytes: 1 a disp8 / imm8, 4 a disp32 / imm32
+  const char* pattern;
+  int at;
+};
+constexpr OffsetAnchor kOffsetAnchors[] = {
+    {"kCopies", static_cast<uint32_t>(kCopies), 1, kCopiesPattern, 27},                // mov [rsi+0x78], rbx
+    {"kCopyStride", static_cast<uint32_t>(kCopyStride), 4, kCopiesPattern, 1},         // mov edx, 0x118 (element size)
+    {"kGroup1Count", static_cast<uint32_t>(kGroup1Count), 4, kGroup1CountPattern, 2},  // cmp [rsi+0x194], 0
+    {"kTotalCount", static_cast<uint32_t>(kTotalCount), 4, kTotalCountPattern, 8},     // mov [rsi+0x1a0], eax
+    {"kCopyAlive", static_cast<uint32_t>(kCopyAlive), 4, kAliveTestPattern, 3},        // mov rcx, [rbx+0x170]
+    {"kCopyStart", static_cast<uint32_t>(kCopyStart), 4, kStartSkippedPattern, 3},     // mov rdx, [rbx+0x178]
+    {"kCopyState", static_cast<uint32_t>(kCopyState), 4, kSetAnimationPattern, 27},    // mov rax, [rcx+0x1d0]
+    {"kCopyTimer", static_cast<uint32_t>(kCopyTimer), 4, kSetAnimationPattern, 83},    // mov rax, [rdi+0x180]
+    {"kCopyModelName", static_cast<uint32_t>(kCopyModelName), 1, kModelNamePattern, 15},  // lea rcx, [r15+0x30]
+    {"kCopyModel", static_cast<uint32_t>(kCopyModel), 4, kModelNamePattern, 3},        // mov [r15+0xc8], rax
+    {"kCopyHiliteOn", static_cast<uint32_t>(kCopyHiliteOn), 4, kUnHilitePattern, 25},  // mov [rcx+4*rax+0x9c], 0
+    {"kAreaHiliteSlot", kAreaHiliteSlot, 1, kHiliteSlot3CallPattern, 5},              // mov r8b, 3
+    {"kAreaImpact", kAreaImpact, 4, kImpactCallPattern, 1},                            // mov edx, 1
+};
 
 }  // namespace area_engine
 }  // namespace data

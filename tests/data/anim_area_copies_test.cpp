@@ -100,6 +100,98 @@ TEST(AreaCopiesLayoutGuard) {
   CHECK_EQ(AreaCopiesLaidOut(3, -1), false);
 }
 
+// AH fix round 1 (I1): every constant the hook reads memory or calls with is the bytes its pattern carries at its place -
+// so the pattern found in the game proves it, and a constant edited without its pattern fails here.
+TEST(AreaOffsetsTiedToTheirPatterns) {
+  namespace ae = data::area_engine;
+  for (const ae::OffsetAnchor& anchor : ae::kOffsetAnchors) {
+    const bool tied = OffsetAnchored(anchor);
+    if (!tied) printf("    %s (0x%x) isn't its pattern's bytes at %d\n", anchor.name, anchor.value, anchor.at);
+    CHECK_EQ(tied, true);
+  }
+  // Each of them listed, once: the 13 the hook reads with (VA-5's included).
+  const char* const expected[] = {"kCopies",    "kCopyStride", "kGroup1Count",   "kTotalCount", "kCopyAlive",
+                                  "kCopyStart", "kCopyState",  "kCopyTimer",     "kCopyModelName", "kCopyModel",
+                                  "kCopyHiliteOn", "kAreaHiliteSlot", "kAreaImpact"};
+  CHECK_EQ(sizeof(ae::kOffsetAnchors) / sizeof(ae::kOffsetAnchors[0]), sizeof(expected) / sizeof(expected[0]));
+  for (const char* name : expected) {
+    int listed = 0;
+    for (const ae::OffsetAnchor& anchor : ae::kOffsetAnchors) listed += strcmp(anchor.name, name) == 0;
+    if (listed != 1) printf("    %s listed %d times\n", name, listed);
+    CHECK_EQ(listed, 1);
+  }
+}
+
+// The rule itself: the value's little-endian bytes exactly at `at`, inside the pattern, no ?? among them.
+TEST(AreaOffsetAnchoredRule) {
+  using data::area_engine::OffsetAnchor;
+  CHECK_EQ(OffsetAnchored(OffsetAnchor{"a", 0x194, 4, "83 BE 94 01 00 00 00", 2}), true);
+  CHECK_EQ(OffsetAnchored(OffsetAnchor{"a", 0x78, 1, "48 89 5E 78", 3}), true);
+  CHECK_EQ(OffsetAnchored(OffsetAnchor{"a", 0x195, 4, "83 BE 94 01 00 00 00", 2}), false);  // another value
+  CHECK_EQ(OffsetAnchored(OffsetAnchor{"a", 0x194, 4, "83 BE 94 01 00 00 00", 1}), false);  // another place
+  CHECK_EQ(OffsetAnchored(OffsetAnchor{"a", 0x194, 1, "83 BE 94 01 00 00 00", 2}), false);  // doesn't fit a byte
+  CHECK_EQ(OffsetAnchored(OffsetAnchor{"a", 0x194, 4, "83 BE ?? 01 00 00 00", 2}), false);  // a wildcard proves nothing
+  CHECK_EQ(OffsetAnchored(OffsetAnchor{"a", 0x194, 4, "83 BE 94 01 00", 2}), false);        // past the pattern's end
+  CHECK_EQ(OffsetAnchored(OffsetAnchor{"a", 0x194, 4, "83 BE 94 01 00 00 00", -1}), false);
+  CHECK_EQ(OffsetAnchored(OffsetAnchor{"a", 0x194, 0, "83 BE 94 01 00 00 00", 2}), false);
+  CHECK_EQ(OffsetAnchored(OffsetAnchor{"a", 0x194, 4, nullptr, 2}), false);
+}
+
+// core/hooks' pattern syntax.
+TEST(AreaBytePatterns) {
+  const std::vector<int> pattern = BytePattern("48 8B ?? 78 ? 0f");
+  CHECK_EQ(pattern.size(), 6u);
+  if (pattern.size() == 6) {
+    CHECK_EQ(pattern[0], 0x48);
+    CHECK_EQ(pattern[1], 0x8b);
+    CHECK_EQ(pattern[2], -1);
+    CHECK_EQ(pattern[3], 0x78);
+    CHECK_EQ(pattern[4], -1);
+    CHECK_EQ(pattern[5], 0x0f);
+  }
+  const uint8_t code[] = {0x48, 0x8b, 0x13, 0x78, 0x00, 0x0f};
+  CHECK_EQ(BytesMatch(code, pattern), true);
+  const uint8_t other[] = {0x48, 0x8b, 0x13, 0x79, 0x00, 0x0f};
+  CHECK_EQ(BytesMatch(other, pattern), false);
+  CHECK_EQ(BytePattern("").empty(), true);
+}
+
+namespace {
+
+// A stand-in LoadEffect: `calls` Hilite calls, each with kHiliteSlot3CallPattern's prefix (or `bad` changed), and the
+// address of each call's E8.
+std::vector<const uint8_t*> HiliteCalls(std::vector<uint8_t>* code, int calls, int bad_call = -1, int bad_byte = -1) {
+  const std::vector<int> prefix = BytePattern(data::area_engine::kHiliteSlot3CallPattern);
+  code->assign(64 * (calls + 1), 0x90);
+  std::vector<size_t> at;
+  for (int k = 0; k < calls; ++k) {
+    const size_t start = 32 + 64 * k;
+    for (size_t i = 0; i < prefix.size(); ++i) (*code)[start + i] = static_cast<uint8_t>(prefix[i]);
+    if (k == bad_call) (*code)[start + bad_byte] ^= 0x01;
+    at.push_back(start + data::area_engine::kHiliteSlot3CallAt);
+  }
+  std::vector<const uint8_t*> sites;
+  for (size_t a : at) sites.push_back(code->data() + a);
+  return sites;
+}
+
+}  // namespace
+
+// AH fix round 1 (M1): LoadEffect's Hilite calls as the hook checks them - three, every one slot 3 and glow 0.
+TEST(AreaHiliteCallsChecked) {
+  std::vector<uint8_t> code;
+  CHECK_EQ(AreaHiliteCallsAsLoaded(HiliteCalls(&code, 3)), true);
+  CHECK_EQ(AreaHiliteCallsAsLoaded(HiliteCalls(&code, 2)), false);
+  CHECK_EQ(AreaHiliteCallsAsLoaded(HiliteCalls(&code, 4)), false);
+  CHECK_EQ(AreaHiliteCallsAsLoaded(HiliteCalls(&code, 0)), false);
+  CHECK_EQ(AreaHiliteCallsAsLoaded(HiliteCalls(&code, 3, 1, 5)), false);  // one call's slot 2 (mov r8b, 2)
+  CHECK_EQ(AreaHiliteCallsAsLoaded(HiliteCalls(&code, 3, 2, 2)), false);  // one call's glow not zeroed
+  CHECK_EQ(AreaHiliteCallsAsLoaded(HiliteCalls(&code, 3, 0, 11)), false); // not a call (no E8)
+  std::vector<const uint8_t*> with_null = HiliteCalls(&code, 3);
+  with_null[1] = nullptr;
+  CHECK_EQ(AreaHiliteCallsAsLoaded(with_null), false);
+}
+
 // --- The hook's anchors in the game's own nwmain.exe ---
 
 namespace {
@@ -211,21 +303,7 @@ struct GameExe {
   }
 };
 
-std::vector<int> PatternBytes(const char* text) {  // hooks.cpp's ParsePattern: "48 8B ?? 78", ?? any byte
-  std::vector<int> pattern;
-  for (const char* p = text; *p;) {
-    while (*p == ' ') ++p;
-    if (!*p) break;
-    if (*p == '?') {
-      pattern.push_back(-1);
-      p += p[1] == '?' ? 2 : 1;
-      continue;
-    }
-    pattern.push_back(static_cast<int>(strtoul(std::string(p, 2).c_str(), nullptr, 16)));
-    p += 2;
-  }
-  return pattern;
-}
+std::vector<int> PatternBytes(const char* text) { return BytePattern(text); }
 
 // Where `pattern` occurs within [begin, end) (rvas).
 std::vector<uint32_t> Matches(const GameExe& exe, uint32_t begin, uint32_t end, const std::vector<int>& pattern) {
@@ -233,11 +311,22 @@ std::vector<uint32_t> Matches(const GameExe& exe, uint32_t begin, uint32_t end, 
   const uint8_t* code = exe.At(begin, end - begin);
   if (!code || pattern.empty()) return found;
   for (uint32_t i = 0; i + pattern.size() <= end - begin; ++i) {
-    size_t k = 0;
-    while (k < pattern.size() && (pattern[k] < 0 || code[i + k] == pattern[k])) ++k;
-    if (k == pattern.size()) found.push_back(begin + i);
+    if (BytesMatch(code + i, pattern)) found.push_back(begin + i);
   }
   return found;
+}
+
+// Every direct call (E8 rel32) in the function's parts landing on `target` (hooks.cpp's FindCallsTo), as addresses in
+// the read file - what the hook hands data::AreaHiliteCallsAsLoaded.
+std::vector<const uint8_t*> CallsTo(const GameExe& exe, const std::vector<std::pair<uint32_t, uint32_t>>& parts,
+                                    uint32_t target) {
+  std::vector<const uint8_t*> sites;
+  for (const auto& part : parts) {
+    for (uint32_t at = part.first; at + 5 <= part.second; ++at) {
+      if (exe.CallTarget(at) == target) sites.push_back(exe.At(at, 5));
+    }
+  }
+  return sites;
 }
 
 std::vector<uint32_t> InText(const GameExe& exe, const std::vector<int>& pattern) {
@@ -344,10 +433,10 @@ TEST(AreaEnginePatternsInTheGame) {
     const uint32_t refresh = exe.CallTarget(unhilite[0] + static_cast<uint32_t>(ae::kUnHiliteRefreshCallAt));
     CHECK_EQ(refresh != 0, true);
     CHECK_EQ(exe.CallTarget(hilite[0] + static_cast<uint32_t>(ae::kHiliteRefreshCallAt)), refresh);
-    const std::vector<int> slot3(ae::kHiliteSlot3Call, ae::kHiliteSlot3Call + sizeof(ae::kHiliteSlot3Call));
-    const std::vector<uint32_t> calls = InFunction(exe, load_parts, slot3);
+    // Every direct call to Hilite in LoadEffect, checked as the hook checks them (one function, shared).
+    const std::vector<const uint8_t*> calls = CallsTo(exe, load_parts, hilite[0]);
     CHECK_EQ(calls.size(), static_cast<size_t>(ae::kHiliteSlot3Calls));
-    for (uint32_t call : calls) CHECK_EQ(exe.CallTarget(call + sizeof(ae::kHiliteSlot3Call) - 1), hilite[0]);
+    CHECK_EQ(AreaHiliteCallsAsLoaded(calls), true);
   }
   // The copy's class: its LoadModel keeps the model's Gob and name where the hook reads them.
   const uint32_t vtable = VtableOf(exe, ae::kCopyRtti);
